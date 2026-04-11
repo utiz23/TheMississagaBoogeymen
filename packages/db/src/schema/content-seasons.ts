@@ -29,9 +29,7 @@ export const contentSeasons = pgTable(
     endsAt: date('ends_at'),
     isCurrent: boolean('is_current').notNull().default(false),
   },
-  (table) => [
-    uniqueIndex('content_seasons_title_number_uniq').on(table.gameTitleId, table.number),
-  ],
+  (table) => [uniqueIndex('content_seasons_title_number_uniq').on(table.gameTitleId, table.number)],
 )
 
 export type ContentSeason = typeof contentSeasons.$inferSelect

@@ -27,10 +27,7 @@ export const ingestionLog = pgTable(
     errorMessage: text('error_message'),
   },
   (table) => [
-    check(
-      'ingestion_log_status_check',
-      sql`${table.status} IN ('success', 'partial', 'error')`,
-    ),
+    check('ingestion_log_status_check', sql`${table.status} IN ('success', 'partial', 'error')`),
   ],
 )
 

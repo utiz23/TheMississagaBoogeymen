@@ -47,9 +47,7 @@ export const playerGameTitleStats = pgTable(
     gaa: numeric('gaa', { precision: 4, scale: 2 }),
     shutouts: integer('shutouts'),
   },
-  (table) => [
-    uniqueIndex('player_game_title_stats_uniq').on(table.playerId, table.gameTitleId),
-  ],
+  (table) => [uniqueIndex('player_game_title_stats_uniq').on(table.playerId, table.gameTitleId)],
 )
 
 /**

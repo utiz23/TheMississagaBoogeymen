@@ -53,10 +53,7 @@ export const rawMatchPayloads = pgTable(
      * 'success'  — transformed and inserted into structured tables
      * 'error'    — transform failed; see transform_error for details
      */
-    transformStatus: text('transform_status')
-      .notNull()
-      .default('pending')
-      .$type<TransformStatus>(),
+    transformStatus: text('transform_status').notNull().default('pending').$type<TransformStatus>(),
     /** Populated when transform_status = 'error'. Cleared on successful retry. */
     transformError: text('transform_error'),
     /** Which ingestion run captured this payload. Nullable (may be inserted manually). */

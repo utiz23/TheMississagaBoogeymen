@@ -46,13 +46,13 @@ Save each response as `<endpoint>-<variant>.json` in this directory.
 
 ## Naming convention
 
-| File pattern | Endpoint |
-|---|---|
-| `matches-gameType5.json` | `/clubs/matches?matchType=gameType5` |
-| `matches-gameType10.json` | `/clubs/matches?matchType=gameType10` |
+| File pattern                | Endpoint                                |
+| --------------------------- | --------------------------------------- |
+| `matches-gameType5.json`    | `/clubs/matches?matchType=gameType5`    |
+| `matches-gameType10.json`   | `/clubs/matches?matchType=gameType10`   |
 | `matches-club_private.json` | `/clubs/matches?matchType=club_private` |
-| `members-stats.json` | `/members/stats` |
-| `club-search.json` | `/clubs/search` |
+| `members-stats.json`        | `/members/stats`                        |
+| `club-search.json`          | `/clubs/search`                         |
 
 ## What to check after capturing
 
@@ -63,6 +63,7 @@ pnpm --filter ea-client test
 ```
 
 The tests will validate:
+
 - [ ] Is `matchId` present in every match? (critical for dedup)
 - [ ] Is `blazeId` present for every player? (determines player identity strategy)
 - [ ] What timestamp field/format does the match contain?

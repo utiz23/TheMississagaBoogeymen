@@ -19,8 +19,12 @@
 
 // ─── Shared ───────────────────────────────────────────────────────────────────
 
-/** EA platform identifier. */
-export type EaPlatform = 'common-gen5' | 'common-gen4' | string
+/**
+ * EA platform identifier.
+ * Known values listed for autocomplete; (string & {}) accepts arbitrary platforms
+ * without widening the union to plain string (which would drop autocomplete).
+ */
+export type EaPlatform = 'common-gen5' | 'common-gen4' | (string & {})
 
 /** Known match types. The API may return others. */
 export type EaMatchType = 'gameType5' | 'gameType10' | 'club_private'

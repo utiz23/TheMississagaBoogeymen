@@ -14,7 +14,7 @@ const EA_API_BASE = 'https://proclubs.ea.com/api/nhl'
  * Headers required by the EA API.
  * Without these the API returns 403 or empty responses.
  */
-const EA_REQUIRED_HEADERS: HeadersInit = {
+const EA_REQUIRED_HEADERS: Record<string, string> = {
   'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
   Accept: 'application/json',
   Referer: 'https://www.ea.com/',
@@ -76,7 +76,8 @@ export async function eaFetch<T>(url: string, options?: EaFetchOptions): Promise
     try {
       response = await fetch(url, {
         headers: EA_REQUIRED_HEADERS,
-        signal: options?.signal,
+        // exactOptionalPropertyTypes: signal must be AbortSignal | null, not undefined
+        signal: options?.signal ?? null,
       })
     } catch (err) {
       // Network error or abort — don't retry aborts
@@ -89,12 +90,16 @@ export async function eaFetch<T>(url: string, options?: EaFetchOptions): Promise
     }
 
     if (RETRYABLE_STATUS.has(response.status)) {
-      lastError = new EaApiError(response.status, url, `EA API ${response.status} (attempt ${attempt + 1}/${MAX_RETRIES + 1})`)
+      lastError = new EaApiError(
+        response.status,
+        url,
+        `EA API ${String(response.status)} (attempt ${String(attempt + 1)}/${String(MAX_RETRIES + 1)})`,
+      )
       continue
     }
 
     // Non-retryable error
-    throw new EaApiError(response.status, url, `EA API ${response.status} for ${url}`)
+    throw new EaApiError(response.status, url, `EA API ${String(response.status)} for ${url}`)
   }
 
   throw lastError ?? new EaApiError(0, url, 'Max retries exceeded')
@@ -107,7 +112,7 @@ export async function eaFetch<T>(url: string, options?: EaFetchOptions): Promise
  * Applied between sequential EA API calls within a single ingestion cycle.
  */
 export function getRequestDelayMs(): number {
-  const raw = process.env['EA_REQUEST_DELAY_MS']
+  const raw = process.env.EA_REQUEST_DELAY_MS
   const parsed = raw !== undefined ? parseInt(raw, 10) : NaN
   return isNaN(parsed) ? 1000 : parsed
 }
