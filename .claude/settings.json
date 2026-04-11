@@ -7,7 +7,11 @@
       "Bash(pnpm format:check)",
       "Bash(pnpm lint:*)",
       "Bash(pnpm format:*)",
-      "Bash(docker compose:*)"
+      "Bash(docker compose:*)",
+      "Bash(pnpm --filter @eanhl/db add drizzle-orm postgres)",
+      "Bash(pnpm --filter @eanhl/db add -D drizzle-kit)",
+      "Bash(pnpm --filter @eanhl/db exec tsc --noEmit)",
+      "Bash(pnpm drizzle-kit:*)"
     ],
     "additionalDirectories": [
       "/home/michal/.claude/projects/-home-michal-projects-eanhl-team-website"
