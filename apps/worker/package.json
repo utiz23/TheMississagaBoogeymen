@@ -14,7 +14,8 @@
   },
   "dependencies": {
     "@eanhl/db": "workspace:*",
-    "@eanhl/ea-client": "workspace:*"
+    "@eanhl/ea-client": "workspace:*",
+    "drizzle-orm": "^0.45.2"
   },
   "devDependencies": {
     "typescript": "^5.8.3"

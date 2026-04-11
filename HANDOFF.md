@@ -2,7 +2,7 @@
 
 ## Current Status
 
-**Phase:** 1 complete — all verification checks pass.
+**Phase:** 2 complete — all verification checks pass.
 
 **Last updated:** 2026-04-11
 
@@ -21,6 +21,18 @@
 - `packages/db`: Drizzle schema, client, drizzle.config, migration, queries stub — all complete.
 - `packages/ea-client`: HTTP client (retry/throttle), endpoint wrappers, types, fixture README, contract-test scaffold — all complete.
 - `pnpm --filter @eanhl/ea-client test` runs cleanly (2 `todo` stubs waiting for real fixtures).
+
+### Phase 2
+
+- `apps/worker` ingestion worker complete.
+- `src/transform.ts`: pure transform function, conservative field access, all `TODO(fixture)` markers in place.
+- `src/aggregate.ts`: raw-SQL `INSERT … ON CONFLICT DO UPDATE` for `player_game_title_stats` and `club_game_title_stats`.
+- `src/ingest.ts`: raw-first ingestion cycle, idempotent upserts, gamertag history tracking, `persistTransform` + `upsertPlayer` exported for reuse.
+- `src/index.ts`: non-overlapping `for(;;)` polling loop, configurable via `POLL_INTERVAL_MS`.
+- `src/health.ts`: HTTP health endpoint on `HEALTH_PORT` (default 3001), stale detection via `HEALTH_STALE_MS`.
+- `src/ingest-now.ts`: one-shot CLI trigger (`pnpm --filter worker ingest-now`).
+- `src/reprocess.ts`: reprocess failed transforms CLI (`pnpm --filter worker reprocess [--dry-run]`).
+- All checks pass: `pnpm typecheck`, `pnpm lint`, `pnpm format:check`.
 
 ### Architecture
 
@@ -70,29 +82,26 @@
 
 ---
 
-## What's Next (Phase 2)
+## What's Next (Phase 3)
 
-Phase 2 is the ingestion worker. Do not start until real EA API fixtures are captured.
+Phase 3 is the Next.js frontend. Do not start until real EA API fixtures are captured and the worker has ingested real data.
 
-**Before Phase 2:**
+**Before Phase 3:**
 
 1. Run the curl commands in `packages/ea-client/__fixtures__/README.md` to capture real responses
 2. Run `pnpm --filter @eanhl/ea-client test` — the fixture tests will now execute instead of being `todo`
-3. Resolve the deferred questions listed above
+3. Resolve the fixture-gated deferred questions listed above
 4. Update `packages/ea-client/src/types.ts` to match the real response shapes
 5. Make `players.ea_id NOT NULL` if fixtures confirm blazeId is always present
+6. Start worker (`docker compose up`) and let it run through at least one real ingestion cycle
 
-**Phase 2 scope** (from `docs/ARCHITECTURE.md` §12):
+**Phase 3 scope** (from `docs/ARCHITECTURE.md`):
 
-- Non-overlapping polling loop
-- Raw payload storage (store-first, hash + source_endpoint)
-- Transform pipeline (string→number, opponent identification, result determination)
-- Player upsert (ea_id primary, gamertag update + history tracking)
-- `player_match_stats` insertion
-- Aggregate recomputation
-- `ingestion_log` writing
-- `reprocess` CLI command
-- Health HTTP endpoint
+- Game title switcher / nav
+- Club stats dashboard (wins/losses, shots, faceoffs)
+- Player leaderboards (goals, assists, +/-, etc.)
+- Player career page (cross-game stats aggregation)
+- Match history list and match detail view
 
 ---
 
@@ -110,5 +119,12 @@ Phase 2 is the ingestion worker. Do not start until real EA API fixtures are cap
 | `packages/ea-client/src/types.ts`                   | Provisional EA API response types (UNVERIFIED)       |
 | `packages/ea-client/__fixtures__/README.md`         | Fixture capture instructions                         |
 | `packages/ea-client/__tests__/contract.test.ts`     | Contract tests (run after fixtures are captured)     |
+| `apps/worker/src/transform.ts`                      | Pure transform: raw EA payload → structured DB types |
+| `apps/worker/src/aggregate.ts`                      | Precompute player/club aggregate stats               |
+| `apps/worker/src/ingest.ts`                         | Ingestion cycle + persistTransform + upsertPlayer    |
+| `apps/worker/src/index.ts`                          | Polling loop entry point                             |
+| `apps/worker/src/health.ts`                         | HTTP health endpoint                                 |
+| `apps/worker/src/ingest-now.ts`                     | One-shot ingestion CLI trigger                       |
+| `apps/worker/src/reprocess.ts`                      | Reprocess failed-transform payloads CLI              |
 | `.env.example`                                      | Environment variable reference                       |
 | `docker-compose.yml`                                | Service definitions                                  |
