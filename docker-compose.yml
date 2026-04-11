@@ -1,0 +1,49 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: eanhl
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: eanhl
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U eanhl"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  worker:
+    build:
+      context: .
+      dockerfile: apps/worker/Dockerfile
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://eanhl:${POSTGRES_PASSWORD}@db:5432/eanhl
+      EA_CLUB_ID: ${EA_CLUB_ID}
+      EA_PLATFORM: ${EA_PLATFORM}
+      POLL_INTERVAL_MS: ${POLL_INTERVAL_MS:-300000}
+      EA_REQUEST_DELAY_MS: ${EA_REQUEST_DELAY_MS:-1000}
+      INGEST_CYCLE_TIMEOUT_MS: ${INGEST_CYCLE_TIMEOUT_MS:-120000}
+    depends_on:
+      db:
+        condition: service_healthy
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://eanhl:${POSTGRES_PASSWORD}@db:5432/eanhl
+    ports:
+      - "3000:3000"
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  postgres_data:

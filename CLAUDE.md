@@ -1,0 +1,75 @@
+# CLAUDE.md
+
+## Project
+
+EASHL team stats website for club #19224 (platform: common-gen5). Monorepo that ingests data from EA's undocumented Pro Clubs API, archives it, and serves a stats/analytics frontend.
+
+Self-hosted on a home PC via Docker Compose. Audience is a handful of team members.
+
+## Architecture
+
+- `apps/web` — Next.js 15 (App Router) frontend + API routes. No separate API server.
+- `apps/worker` — Standalone Node.js ingestion worker (polling, transform, aggregation)
+- `packages/db` — Drizzle ORM schema, migrations, shared query functions
+- `packages/ea-client` — EA Pro Clubs API client with retry/backoff/throttle
+
+## Tech Stack
+
+- **Runtime:** Node.js, TypeScript (strict)
+- **Monorepo:** pnpm workspaces + Turborepo
+- **Database:** PostgreSQL 16 (local Docker container)
+- **ORM:** Drizzle ORM (drizzle-kit for migrations)
+- **Frontend:** Next.js 15 App Router, Tailwind CSS 4, shadcn/ui
+- **Deployment:** Docker Compose (web + worker + postgres)
+
+## Key Domain Concepts
+
+- **Game title** (NHL 25, NHL 26, NHL 27) is the primary data grouping. Cross-game career stats are the core feature.
+- **Content seasons** (in-game battlepass seasons, ~5/year) are secondary metadata. Managed manually.
+- **EA API** returns ~5 recent matches and all values as strings. Worker polls every 5 minutes. Missing the window means permanent data loss.
+- **Player identity** anchored on `ea_id` (blazeId). Gamertags may change — tracked via history table.
+- **Match uniqueness** is composite: `(game_title_id, match_id)`.
+
+## Conventions
+
+- Server Components by default. Client Components only for interactivity (sorting, tabs, nav toggle).
+- Queries go in `packages/db/src/queries/`. Frontend imports from `@eanhl/db/queries`.
+- Raw EA API payloads are stored verbatim before any transformation. Never discard raw data.
+- Aggregates are precomputed per game title (and optionally per content season). Never compute on read.
+- All percentage/rate DB fields use `numeric(5,2)`. GAA uses `numeric(4,2)`.
+- `transform_status` is a strict enum: `'pending' | 'success' | 'error'`.
+- Non-overlapping worker loop (async wait, not setInterval). Configurable via `POLL_INTERVAL_MS`.
+
+## Commands
+
+```bash
+pnpm install              # Install all workspace dependencies
+pnpm build                # Build all packages (turborepo)
+pnpm dev                  # Start dev servers
+pnpm --filter web dev     # Start only the Next.js dev server
+pnpm --filter worker dev  # Start only the ingestion worker
+pnpm --filter db generate # Generate Drizzle migrations
+pnpm --filter db migrate  # Run migrations
+pnpm --filter worker reprocess       # Reprocess failed transforms
+pnpm --filter worker reprocess --dry-run  # Preview reprocessing
+docker compose up         # Start all services (web + worker + postgres)
+docker compose up db      # Start only PostgreSQL
+```
+
+## Environment Variables
+
+See `.env.example`. Key vars:
+- `DATABASE_URL` — PostgreSQL connection string
+- `EA_CLUB_ID` — `19224`
+- `EA_PLATFORM` — `common-gen5`
+- `POLL_INTERVAL_MS` — Worker poll interval (default: 300000)
+- `EA_REQUEST_DELAY_MS` — Throttle between EA API calls (default: 1000)
+- `INGEST_CYCLE_TIMEOUT_MS` — Max time per ingestion cycle (default: 120000)
+
+## Design Direction
+
+Always-dark theme. Red accents, sharp/aggressive esports aesthetic. No light mode toggle. Scoreboard-style cards, high contrast, minimal decoration.
+
+## Plan Reference
+
+Full architecture plan: `.claude/plans/quiet-discovering-avalanche.md`

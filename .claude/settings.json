@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//home/michal/.claude/**)",
+      "Bash(pnpm --version)"
+    ],
+    "additionalDirectories": [
+      "/home/michal/.claude/projects/-home-michal-projects-eanhl-team-website"
+    ]
+  }
+}
