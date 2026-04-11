@@ -59,6 +59,7 @@ docker compose up db      # Start only PostgreSQL
 ## Environment Variables
 
 See `.env.example`. Key vars:
+
 - `DATABASE_URL` — PostgreSQL connection string
 - `EA_CLUB_ID` — `19224`
 - `EA_PLATFORM` — `common-gen5`
@@ -70,6 +71,23 @@ See `.env.example`. Key vars:
 
 Always-dark theme. Red accents, sharp/aggressive esports aesthetic. No light mode toggle. Scoreboard-style cards, high contrast, minimal decoration.
 
+## Handoff Protocol
+
+`HANDOFF.md` is the session continuity file. Update it:
+
+- After completing any plan phase
+- After any significant architectural decision or schema change
+- When a session ends with meaningful work done (user says goodbye, wraps up, or asks to commit)
+
+What to keep current in `HANDOFF.md`:
+
+- **Current Status** — which phase, what's ready to start
+- **What Was Done** — bullet summary of the session's work (add, don't replace previous entries unless they're superseded)
+- **What's Next** — the immediate next steps with enough detail to orient a cold start
+- **Open Decisions / Blockers** — anything unresolved that the next session needs to know
+
+Do not update `HANDOFF.md` mid-task. Update it at natural stopping points only.
+
 ## Plan Reference
 
-Full architecture plan: `.claude/plans/quiet-discovering-avalanche.md`
+Full architecture plan: `docs/ARCHITECTURE.md`
