@@ -1,4 +1,4 @@
-import { boolean, integer, pgTable, serial, text, uniqueIndex } from 'drizzle-orm/pg-core'
+import { bigint, boolean, integer, pgTable, serial, text, uniqueIndex } from 'drizzle-orm/pg-core'
 import { players } from './players.js'
 import { matches } from './matches.js'
 
@@ -19,7 +19,7 @@ export const playerMatchStats = pgTable(
     playerId: integer('player_id')
       .notNull()
       .references(() => players.id),
-    matchId: integer('match_id')
+    matchId: bigint('match_id', { mode: 'number' })
       .notNull()
       .references(() => matches.id),
     /** Position played in this specific game. May differ from players.position. */

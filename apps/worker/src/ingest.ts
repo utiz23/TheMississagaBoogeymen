@@ -31,6 +31,8 @@ import { fetchMatches, matchesUrl, throttle, EaApiError, type EaMatchType } from
 import { transformMatch, type TransformResult, type PlayerIdentity } from './transform.js'
 import { recomputeAggregates } from './aggregate.js'
 
+type DbConn = Pick<typeof db, 'select' | 'insert' | 'update'>
+
 // ─── Ingestion cycle ──────────────────────────────────────────────────────────
 
 export async function runIngestionCycle(): Promise<void> {
@@ -192,36 +194,39 @@ async function ingestMatchType(title: GameTitle, matchType: EaMatchType): Promis
  * Exported so reprocess.ts can reuse it.
  */
 export async function persistTransform(result: TransformResult): Promise<void> {
-  // Upsert match row. ON CONFLICT (game_title_id, ea_match_id) DO UPDATE.
-  const [matchRow] = await db
-    .insert(matches)
-    .values(result.match)
-    .onConflictDoUpdate({
-      target: [matches.gameTitleId, matches.eaMatchId],
-      set: {
-        result: result.match.result,
-        scoreFor: result.match.scoreFor,
-        scoreAgainst: result.match.scoreAgainst,
-        shotsFor: result.match.shotsFor,
-        shotsAgainst: result.match.shotsAgainst,
-        hitsFor: result.match.hitsFor,
-        hitsAgainst: result.match.hitsAgainst,
-        faceoffPct: result.match.faceoffPct ?? null,
-        timeOnAttack: result.match.timeOnAttack ?? null,
-        penaltyMinutes: result.match.penaltyMinutes ?? null,
-      },
-    })
-    .returning()
+  await db.transaction(async (tx) => {
+    const dbConn: DbConn = tx
+    // Upsert match row. ON CONFLICT (game_title_id, ea_match_id) DO UPDATE.
+    const [matchRow] = await dbConn
+      .insert(matches)
+      .values(result.match)
+      .onConflictDoUpdate({
+        target: [matches.gameTitleId, matches.eaMatchId],
+        set: {
+          result: result.match.result,
+          scoreFor: result.match.scoreFor,
+          scoreAgainst: result.match.scoreAgainst,
+          shotsFor: result.match.shotsFor,
+          shotsAgainst: result.match.shotsAgainst,
+          hitsFor: result.match.hitsFor,
+          hitsAgainst: result.match.hitsAgainst,
+          faceoffPct: result.match.faceoffPct ?? null,
+          timeOnAttack: result.match.timeOnAttack ?? null,
+          penaltyMinutes: result.match.penaltyMinutes ?? null,
+        },
+      })
+      .returning()
 
-  if (!matchRow) throw new Error(`Failed to upsert match ${result.eaMatchId}`)
+    if (!matchRow) throw new Error(`Failed to upsert match ${result.eaMatchId}`)
 
-  for (const { identity, stats } of result.players) {
-    const player = await upsertPlayer(identity)
-    await db
-      .insert(playerMatchStats)
-      .values({ ...stats, playerId: player.id, matchId: matchRow.id })
-      .onConflictDoNothing()
-  }
+    for (const { identity, stats } of result.players) {
+      const player = await upsertPlayer(identity, dbConn)
+      await dbConn
+        .insert(playerMatchStats)
+        .values({ ...stats, playerId: player.id, matchId: matchRow.id })
+        .onConflictDoNothing()
+    }
+  })
 }
 
 // ─── Player upsert ────────────────────────────────────────────────────────────
@@ -231,43 +236,51 @@ export async function persistTransform(result: TransformResult): Promise<void> {
  * Tracks gamertag changes via player_gamertag_history.
  * Exported so reprocess.ts can reuse it.
  */
-export async function upsertPlayer(identity: PlayerIdentity): Promise<Player> {
+export async function upsertPlayer(
+  identity: PlayerIdentity,
+  dbConn: DbConn = db,
+): Promise<Player> {
   const now = new Date()
 
   if (identity.eaId) {
-    return upsertPlayerByEaId(identity, identity.eaId, now)
+    return upsertPlayerByEaId(identity, identity.eaId, now, dbConn)
   }
 
   // ea_id absent — degraded path. Duplicates are possible if gamertag changes.
   console.warn(`[player] blazeId absent for "${identity.gamertag}" — using gamertag fallback`)
-  return upsertPlayerByGamertag(identity, now)
+  return upsertPlayerByGamertag(identity, now, dbConn)
 }
 
 async function upsertPlayerByEaId(
   identity: PlayerIdentity,
   eaId: string,
   now: Date,
+  dbConn: DbConn,
 ): Promise<Player> {
-  const existing = await db.select().from(players).where(eq(players.eaId, eaId)).limit(1)
+  const existing = await dbConn.select().from(players).where(eq(players.eaId, eaId)).limit(1)
 
   if (existing.length > 0) {
     const row = existing[0]
     if (!row) throw new Error(`Unexpected missing row for eaId ${eaId}`)
     if (row.gamertag !== identity.gamertag) {
-      await handleGamertagChange(row, identity.gamertag, now)
+      await handleGamertagChange(row, identity.gamertag, now, dbConn)
     }
-    await db
+    await dbConn
       .update(players)
       .set({ lastSeenAt: now, position: identity.position ?? row.position })
       .where(eq(players.id, row.id))
     return { ...row, lastSeenAt: now, position: identity.position ?? row.position }
   }
 
-  return insertNewPlayer(identity, now)
+  return insertNewPlayer(identity, now, dbConn)
 }
 
-async function upsertPlayerByGamertag(identity: PlayerIdentity, now: Date): Promise<Player> {
-  const existing = await db
+async function upsertPlayerByGamertag(
+  identity: PlayerIdentity,
+  now: Date,
+  dbConn: DbConn,
+): Promise<Player> {
+  const existing = await dbConn
     .select()
     .from(players)
     .where(eq(players.gamertag, identity.gamertag))
@@ -276,17 +289,21 @@ async function upsertPlayerByGamertag(identity: PlayerIdentity, now: Date): Prom
   if (existing.length > 0) {
     const row = existing[0]
     if (!row) throw new Error(`Unexpected missing row for gamertag ${identity.gamertag}`)
-    await db
+    await dbConn
       .update(players)
       .set({ lastSeenAt: now, position: identity.position ?? row.position })
       .where(eq(players.id, row.id))
     return { ...row, lastSeenAt: now }
   }
 
-  return insertNewPlayer(identity, now)
+  return insertNewPlayer(identity, now, dbConn)
 }
 
-async function insertNewPlayer(identity: PlayerIdentity, now: Date): Promise<Player> {
+async function insertNewPlayer(
+  identity: PlayerIdentity,
+  now: Date,
+  dbConn: DbConn,
+): Promise<Player> {
   const values: NewPlayer = {
     eaId: identity.eaId ?? null,
     gamertag: identity.gamertag,
@@ -295,11 +312,11 @@ async function insertNewPlayer(identity: PlayerIdentity, now: Date): Promise<Pla
     lastSeenAt: now,
   }
 
-  const [newPlayer] = await db.insert(players).values(values).returning()
+  const [newPlayer] = await dbConn.insert(players).values(values).returning()
   if (!newPlayer) throw new Error(`Failed to insert player "${identity.gamertag}"`)
 
   // Open initial gamertag history row.
-  await db.insert(playerGamertagHistory).values({
+  await dbConn.insert(playerGamertagHistory).values({
     playerId: newPlayer.id,
     gamertag: identity.gamertag,
     seenFrom: now,
@@ -317,13 +334,18 @@ async function insertNewPlayer(identity: PlayerIdentity, now: Date): Promise<Pla
  * worker process, the race window is acceptable. Wrap in db.transaction() if the
  * worker ever runs concurrently.
  */
-async function handleGamertagChange(player: Player, newGamertag: string, now: Date): Promise<void> {
+async function handleGamertagChange(
+  player: Player,
+  newGamertag: string,
+  now: Date,
+  dbConn: DbConn,
+): Promise<void> {
   console.log(
     `[player] Gamertag change: "${player.gamertag}" → "${newGamertag}" (id=${String(player.id)})`,
   )
 
   // Close current open-ended history row.
-  await db
+  await dbConn
     .update(playerGamertagHistory)
     .set({ seenUntil: now })
     .where(
@@ -331,10 +353,10 @@ async function handleGamertagChange(player: Player, newGamertag: string, now: Da
     )
 
   // Update current gamertag.
-  await db.update(players).set({ gamertag: newGamertag }).where(eq(players.id, player.id))
+  await dbConn.update(players).set({ gamertag: newGamertag }).where(eq(players.id, player.id))
 
   // Open new history row.
-  await db.insert(playerGamertagHistory).values({
+  await dbConn.insert(playerGamertagHistory).values({
     playerId: player.id,
     gamertag: newGamertag,
     seenFrom: now,

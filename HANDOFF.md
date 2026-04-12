@@ -160,6 +160,13 @@ Findings:
 
 Follow-up changes applied:
 - Worker transform now treats `timestamp` as epoch seconds (number) and avoids using `playerKey` as a surrogate ID when `blazeId` is missing.
+- Phase 2.1 cleanup applied:
+  - `persistTransform` now runs inside a DB transaction (match + player upserts + match stats).
+  - Result derivation uses club `result` codes when present and marks DNF when opponent `winnerByDnf` flags are set.
+  - `player_match_stats.match_id` now uses `bigint` with migration `0001_fix_player_match_stats_match_id.sql`.
+
+Notes:
+- OTL still cannot be distinguished from LOSS with current fixture fields; remains TODO until an OT indicator is identified.
 
 ---
 

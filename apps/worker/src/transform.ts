@@ -39,6 +39,15 @@ function parseIntStr(val: string | undefined, field: string): number {
   return n
 }
 
+function parseIntMaybe(val: unknown): number | null {
+  if (typeof val === 'number') return Number.isNaN(val) ? null : val
+  if (typeof val === 'string') {
+    const n = parseInt(val, 10)
+    return Number.isNaN(n) ? null : n
+  }
+  return null
+}
+
 /**
  * Extract the numeric score from club data.
  *
@@ -89,13 +98,30 @@ function parsePlayedAt(match: EaMatch): Date {
 }
 
 /**
- * Derive the match result from scores.
+ * Derive the match result from club data and scores.
  *
- * TODO(fixture): Check if EA provides an explicit result or OT indicator field.
- * Without one, OTL cannot be distinguished from a regulation loss.
+ * Fixtures show `clubs[clubId].result` values that appear to map to win/loss
+ * (1 = win, 2 = loss) with other codes present in some payloads.
+ * When the code is not recognised, we fall back to the score.
+ *
+ * TODO(fixture): Identify an OT indicator to distinguish OTL from LOSS.
  */
-function deriveResult(scoreFor: number, scoreAgainst: number): 'WIN' | 'LOSS' {
-  return scoreFor > scoreAgainst ? 'WIN' : 'LOSS'
+function deriveResult(
+  ourClub: Record<string, unknown>,
+  opponentClub: Record<string, unknown>,
+  scoreFor: number,
+  scoreAgainst: number,
+): 'WIN' | 'LOSS' | 'DNF' {
+  const resultCode = parseIntMaybe(ourClub['result'])
+  let base: 'WIN' | 'LOSS' = scoreFor > scoreAgainst ? 'WIN' : 'LOSS'
+  if (resultCode === 1) base = 'WIN'
+  if (resultCode === 2) base = 'LOSS'
+
+  const opponentDnf = parseIntMaybe(opponentClub['winnerByDnf']) === 1
+  const opponentGoalieDnf = parseIntMaybe(opponentClub['winnerByGoalieDnf']) === 1
+  if (base === 'LOSS' && (opponentDnf || opponentGoalieDnf)) return 'DNF'
+
+  return base
 }
 
 /**
@@ -228,7 +254,7 @@ export function transformMatch(
   // ── Scores and result ────────────────────────────────────────────────────────
   const scoreFor = extractScore(ourClub, ourClubId)
   const scoreAgainst = extractScore(opponentClub, opponentClubId)
-  const result = deriveResult(scoreFor, scoreAgainst)
+  const result = deriveResult(ourClub, opponentClub, scoreFor, scoreAgainst)
 
   // ── Opponent name ────────────────────────────────────────────────────────────
   // TODO(fixture): Verify field name for opponent club name.
