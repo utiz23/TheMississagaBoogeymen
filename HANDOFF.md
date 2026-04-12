@@ -2,7 +2,7 @@
 
 ## Current Status
 
-**Phase:** 3 in progress — Milestones 3.0–3.4 complete.
+**Phase:** 3 in progress — Milestones 3.0–3.4 complete; Milestone 3.5 started but not yet verified.
 
 **Last updated:** 2026-04-11
 
@@ -64,7 +64,7 @@
 
 ### Phase 3 (in progress)
 
-**Milestones 3.0–3.4 complete. `pnpm typecheck`, `pnpm lint`, `pnpm format:check` all pass.**
+**Milestones 3.0–3.4 complete and green. Milestone 3.5 (`/stats`) is partially implemented in the worktree, but the session was interrupted before verification could be rerun.**
 
 **Design direction:** Broadcast Strip (dark, red-accented, stats-first). "Arena Board" scoreboard boldness borrowed for result badges, score emphasis, top performer highlights.
 
@@ -94,16 +94,41 @@
 - `apps/web/src/app/roster/page.tsx` — Server Component; resolves game title by `?title=` param; `revalidate: 3600`; honest empty state
 - `apps/web/src/app/roster/loading.tsx` — Suspense fallback for roster
 
+**Milestone 3.5 currently in progress (unverified worktree changes):**
+
+- `packages/db/src/queries/club.ts` — `getClubStats(gameTitleId)` added
+- `packages/db/src/queries/index.ts` — updated to export `./club.js`
+- `apps/web/src/components/ui/stat-card.tsx` — reusable stat card component with optional featured accent state
+- `apps/web/src/app/stats/page.tsx` — `/stats` page started:
+  - resolves game title from `?title=`
+  - loads `getClubStats(gameTitleId)` and `getRecentMatches({ limit: 5 })`
+  - renders a record hero with derived win%
+  - renders aggregate stat cards for GF/GA, shots per game, hits per game, faceoff %, pass %
+  - renders a recent games strip using `MatchRow`
+  - uses honest empty states
+- `apps/web/src/app/stats/loading.tsx` — lightweight loading skeleton
+
+**Important interruption note:**
+
+- An initial `pnpm typecheck` run failed on nullability issues in `apps/web/src/app/stats/page.tsx`.
+- The page was then rewritten to fix the `clubStats | null` narrowing problem.
+- The session hit its limit before rerunning:
+  - `pnpm typecheck`
+  - `pnpm lint`
+  - `pnpm format:check`
+- Therefore, Milestone 3.5 must be treated as **in progress**, not complete.
+
 **What's next (Phase 3 remaining milestones):**
 
 | Milestone | Description                                                             |
 | --------- | ----------------------------------------------------------------------- |
-| 3.5       | `/stats` — Club aggregate stat cards + last 5 games strip               |
+| 3.5       | `/stats` — finish review + rerun verification on current partial implementation |
 | 3.6       | `/` — Home page (record hero, last game card, top performers)           |
 
 **Remaining DB queries to write** (do before milestones that need them):
 
-- `packages/db/src/queries/club.ts` — `getClubStats(gameTitleId)`, `getTopPerformers(gameTitleId)`, `getRecentResults(gameTitleId, limit)` (last 5 games strip)
+- `packages/db/src/queries/club.ts` — `getTopPerformers(gameTitleId)` still needed for Home
+- `getRecentResults(gameTitleId, limit)` is optional unless Home needs a dedicated slimmer query; `/stats` currently reuses `getRecentMatches({ limit: 5 })`
 
 **Data dependency note:** All pages render honest empty states. No DB seeding was needed or done. The first `/games` render with real data requires the worker to have run at least one successful ingestion cycle.
 
@@ -147,7 +172,26 @@
 
 ## What's Next (Phase 3 continuation)
 
-Milestones 3.0–3.4 are complete. The next session resumes at **Milestone 3.5**.
+Milestones 3.0–3.4 are complete. The next session resumes at **Milestone 3.5**, but should start by validating the current partial `/stats` implementation before adding more code.
+
+**Resume checklist for next session:**
+
+1. Run:
+   - `pnpm typecheck`
+   - `pnpm lint`
+   - `pnpm format:check`
+2. If any checks fail, fix `apps/web/src/app/stats/page.tsx` first.
+3. If all checks pass, review the `/stats` page in-browser and decide whether Milestone 3.5 is complete.
+4. Only then move on to Milestone 3.6 (`/`).
+
+**Current dirty files from the interrupted session:**
+
+- `.claude/settings.json`
+- `packages/db/src/queries/index.ts`
+- `packages/db/src/queries/club.ts`
+- `apps/web/src/components/ui/stat-card.tsx`
+- `apps/web/src/app/stats/page.tsx`
+- `apps/web/src/app/stats/loading.tsx`
 
 **Note on fixture gating:** Real data is not required to continue building. Pages render honest empty states. Fixture work (curl captures, contract tests, `players.ea_id NOT NULL`) remains deferred and can proceed in parallel or after Phase 3 frontend is complete.
 

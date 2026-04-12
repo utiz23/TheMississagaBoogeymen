@@ -24,7 +24,8 @@
       "Bash(grep -E \"\\\\.\\(tsbuildinfo|DS_Store\\)$\")",
       "Bash(echo \"exit: $?\")",
       "Bash(pnpm --filter @eanhl/db build)",
-      "Bash(npx prettier:*)"
+      "Bash(npx prettier:*)",
+      "Bash(git -C /home/michal/projects/eanhl-team-website status --short)"
     ],
     "additionalDirectories": [
       "/home/michal/.claude/projects/-home-michal-projects-eanhl-team-website"
