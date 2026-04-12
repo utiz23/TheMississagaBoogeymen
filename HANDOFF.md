@@ -144,6 +144,22 @@
 
 ---
 
+## Fixture Findings (2026-04-12)
+
+Captured fixtures for:
+- `matches-gameType5.json`
+- `matches-gameType10.json`
+- `members-stats.json`
+
+Findings:
+- `matchId` and `timestamp` fields are present in match payloads.
+- `timeAgo` object is present in match payloads.
+- `blazeId` is **not** present for all players in match payloads → `players.ea_id` must remain nullable; gamertag fallback logic is required.
+- Member stats payloads do **not** include `blazeId` or `memberId` in many rows; `name` is the only reliable identifier in that response.
+- No season-like field was found in match payloads → `content_season_id` must be assigned from date ranges for now.
+
+---
+
 ## What's Next (Phase 3 continuation)
 
 **Phase 3 is fully complete.** All milestones 3.0–3.6 are implemented and verified green.

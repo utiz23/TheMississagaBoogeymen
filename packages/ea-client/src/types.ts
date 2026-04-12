@@ -128,8 +128,10 @@ export interface EaMatchClubAggregates {
 export interface EaMatch {
   /** UNVERIFIED: Field name and type. May be 'matchId', 'id', etc. */
   matchId: string
-  /** UNVERIFIED: Match timestamp. Format unknown (unix epoch string? ISO string?) */
-  timestamp?: string
+  /** Match timestamp (epoch seconds in fixtures). */
+  timestamp?: number
+  /** Human-ish timestamp object present in fixtures. */
+  timeAgo?: Record<string, unknown>
   /** UNVERIFIED: Club data keyed by clubId. */
   clubs?: Record<string, EaMatchClubData>
   /** UNVERIFIED: Player stats keyed by clubId → blazeId. */
@@ -151,10 +153,14 @@ export type EaMatchesResponse = EaMatch[]
  * This endpoint returns season-aggregate stats, not per-match.
  */
 export interface EaMemberStats {
-  /** DEFERRED: blazeId may differ between this endpoint and match data. */
+  /** Name is present in fixtures and is the only reliable identifier. */
+  name: string
+  /** DEFERRED: blazeId not present in current fixtures. */
   blazeId?: string
+  /** DEFERRED: memberId not present in current fixtures. */
   memberId?: string
-  proName: string
+  /** UNVERIFIED: position fields may exist (favoritePosition, proPos). */
+  proName?: string
   proPos?: string
   [key: string]: unknown
 }
