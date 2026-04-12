@@ -44,6 +44,24 @@
   - raw-first ingestion
   - self-hosted Docker Compose deployment
 
+### Claude Project Setup
+
+- Project-level Claude optimizations are now present in `.claude/`.
+- Added project skills:
+  - `resume-phase`
+  - `phase-review`
+  - `verify-phase`
+  - `handoff-update`
+- Added project subagents:
+  - `repo-explorer`
+  - `db-reviewer`
+  - `worker-debugger`
+- Added project hooks in `.claude/settings.json`:
+  - `PreToolUse` for noisy Bash command prevention
+  - `PostToolUse` for targeted auto-formatting after edits
+- Added compact-summary guidance to `CLAUDE.md`.
+- User-level plugins in `~/.claude` were left unchanged; optimization work was kept project-scoped.
+
 ---
 
 ## Locked Schema Decisions

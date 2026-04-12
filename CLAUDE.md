@@ -88,6 +88,18 @@ What to keep current in `HANDOFF.md`:
 
 Do not update `HANDOFF.md` mid-task. Update it at natural stopping points only.
 
+## Summary Instructions
+
+When compacting or resuming, preserve only:
+
+- current phase and immediate objective
+- files changed in the current workstream
+- latest verification results
+- unresolved assumptions or blockers
+- the next 1-3 concrete actions
+
+Do not preserve long command output unless it contains an active error that still matters.
+
 ## Plan Reference
 
 Full architecture plan: `docs/ARCHITECTURE.md`
