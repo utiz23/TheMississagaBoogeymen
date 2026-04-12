@@ -62,25 +62,29 @@ function extractScore(clubData: Record<string, unknown>, clubId: string): number
 /**
  * Parse the match timestamp into a Date.
  *
- * TODO(fixture): Verify field name and format.
- * Candidates for field name: 'timestamp', 'matchDate', 'timeAgo'.
- * Candidates for format: Unix epoch seconds string (most likely), ms string, ISO 8601.
+ * Fixtures confirm `timestamp` is present as epoch seconds (number).
+ * Fallbacks remain for safety.
  */
 function parsePlayedAt(match: EaMatch): Date {
   const raw = match.timestamp ?? match.matchDate
-  if (typeof raw !== 'string' || raw === '') {
+  if (raw === undefined || raw === null || raw === '') {
     throw new Error(
       'No timestamp field found in match payload. ' +
         "Check 'timestamp' and 'matchDate'. Capture a fixture to confirm.",
     )
   }
-  const epoch = parseInt(raw, 10)
-  if (!isNaN(epoch)) {
+  if (typeof raw === 'number') {
     // Heuristic: values > 1e11 are already milliseconds; below that, seconds.
-    return new Date(epoch > 1e11 ? epoch : epoch * 1000)
+    return new Date(raw > 1e11 ? raw : raw * 1000)
   }
-  const iso = new Date(raw)
-  if (!isNaN(iso.getTime())) return iso
+  if (typeof raw === 'string') {
+    const epoch = parseInt(raw, 10)
+    if (!isNaN(epoch)) {
+      return new Date(epoch > 1e11 ? epoch : epoch * 1000)
+    }
+    const iso = new Date(raw)
+    if (!isNaN(iso.getTime())) return iso
+  }
   throw new Error(`Cannot parse timestamp value: ${JSON.stringify(raw)}`)
 }
 
@@ -115,15 +119,15 @@ function extractAggInt(data: Record<string, unknown>, ...keys: string[]): number
  * Transform a single player's EA stats into DB-ready form.
  *
  * TODO(fixture): Confirm:
- *   - blazeId field name and presence guarantee
+ *   - blazeId field name
  *   - position field values (e.g. 'center', 'C', 'goaliePosition', 'goalie')
  *   - goalie detection logic (position string, or presence of gl* fields)
  *   - goalie stat field names: glsaves, glga, glshots
  *   - skpasspct format: is it 0-100 or 0-1?
  */
 function transformPlayer(playerKey: string, raw: EaPlayerMatchStats): TransformPlayerResult {
-  // blazeId may be absent. If so, use the player key as fallback (may itself be a blazeId).
-  const eaId = raw.blazeId ?? playerKey
+  // Fixtures confirm blazeId is not guaranteed. Do not use playerKey as a surrogate ID.
+  const eaId = raw.blazeId ?? null
 
   // TODO(fixture): Confirm position field and goalie string values.
   const position = typeof raw.position === 'string' ? raw.position : null

@@ -158,6 +158,9 @@ Findings:
 - Member stats payloads do **not** include `blazeId` or `memberId` in many rows; `name` is the only reliable identifier in that response.
 - No season-like field was found in match payloads → `content_season_id` must be assigned from date ranges for now.
 
+Follow-up changes applied:
+- Worker transform now treats `timestamp` as epoch seconds (number) and avoids using `playerKey` as a surrogate ID when `blazeId` is missing.
+
 ---
 
 ## What's Next (Phase 3 continuation)
