@@ -1,0 +1,60 @@
+@import 'tailwindcss';
+
+@theme {
+  /* Fonts */
+  --font-sans: var(--font-barlow), sans-serif;
+  --font-condensed: var(--font-barlow-sc), sans-serif;
+
+  /* Brand colors — Broadcast Strip palette */
+  --color-background: #09090b;
+  --color-surface: #18181b;
+  --color-surface-raised: #1f1f22;
+  --color-border: #27272a;
+  --color-border-subtle: #1f1f22;
+  --color-accent: #e11d48;
+
+  /* Result badge fills */
+  --color-win: #e11d48;
+  --color-loss: #3f3f46;
+  --color-otl: #78350f;
+  --color-dnf: #27272a;
+}
+
+/* Base */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  background-color: var(--color-background);
+  color: #fafafa;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Scrollbar — thin and dark */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--color-background);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #52525b;
+}
+
+/* Tabular numbers for stats columns */
+.tabular {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum';
+}

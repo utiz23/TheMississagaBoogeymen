@@ -2,7 +2,7 @@
 
 ## Current Status
 
-**Phase:** 2 complete — all verification checks pass.
+**Phase:** 3 in progress — Milestones 3.0–3.4 complete.
 
 **Last updated:** 2026-04-11
 
@@ -62,6 +62,51 @@
 - Added compact-summary guidance to `CLAUDE.md`.
 - User-level plugins in `~/.claude` were left unchanged; optimization work was kept project-scoped.
 
+### Phase 3 (in progress)
+
+**Milestones 3.0–3.4 complete. `pnpm typecheck`, `pnpm lint`, `pnpm format:check` all pass.**
+
+**Design direction:** Broadcast Strip (dark, red-accented, stats-first). "Arena Board" scoreboard boldness borrowed for result badges, score emphasis, top performer highlights.
+
+**What's built:**
+
+- `tailwindcss` 4 + `@tailwindcss/postcss` installed in `apps/web`
+- `postcss.config.mjs` and `globals.css` with CSS theme vars (`--color-background`, `--color-surface`, `--color-surface-raised`, `--color-border`, `--color-accent`, result badge fills)
+- `next.config.ts` — `serverExternalPackages: ['@eanhl/db', 'postgres']` prevents bundling errors during `next build` without `DATABASE_URL`
+- `apps/web/src/app/layout.tsx` — Barlow + Barlow Semi Condensed fonts via `next/font/google`, dark base, `TopNav`
+- `apps/web/src/components/nav/top-nav.tsx` — Server Component; fetches game titles, gracefully degrades if DB unavailable
+- `apps/web/src/components/nav/game-title-switcher.tsx` — Client Component; `useSearchParams()` + `usePathname()`, wrapped in Suspense in `TopNav`
+- `apps/web/src/components/ui/result-badge.tsx` — WIN/LOSS/OTL/DNF with Arena Board bold treatment
+- `apps/web/src/lib/format.ts` — `formatMatchDate`, `formatScore`, `formatTOA`
+- `apps/web/src/components/matches/match-row.tsx` — flex-bar layout with accent left-bar for most-recent row; links to `/games/[id]`
+- `apps/web/src/app/games/page.tsx` — Server Component; resolves game title by `?title=` param or falls back to first title; shows match list with column header or honest empty state; `revalidate: 300`
+- `apps/web/src/app/games/loading.tsx` — Suspense fallback for `/games`
+- `packages/db/src/queries/game-titles.ts` — `listGameTitles`, `getGameTitleBySlug`
+- `packages/db/src/queries/matches.ts` — `getRecentMatches`, `getMatchById`
+- `packages/db/src/queries/players.ts` — `getPlayerMatchStats(matchId)` (join with `players` for gamertag)
+- `packages/db/src/queries/index.ts` — re-exports all query files
+- `apps/web/src/lib/format.ts` — `formatMatchDate`, `formatScore`, `formatTOA`, `formatPct`, `opponentFaceoffPct`
+- `apps/web/src/components/matches/player-stats-table.tsx` — unified skater+goalie table; goalie section divider; `—` for non-applicable cells; +/- colored green/red
+- `apps/web/src/app/games/[id]/page.tsx` — Game Detail; `revalidate = false` (immutable data); hero with Arena Board bold score (`text-6xl font-condensed`, accent on WIN scoreFor); Broadcast Strip card (`border-l-accent`); team comparison strip (SOG, Hits, FO% with derived opponent %, TOA, PIM); player stats table or empty state; `notFound()` on missing match
+- `apps/web/src/app/games/[id]/loading.tsx` — Suspense fallback for game detail
+- `packages/db/src/queries/players.ts` — `getRoster(gameTitleId)` added (joins `playerGameTitleStats` + `players`, all aggregate fields, default sort `points desc`)
+- `apps/web/src/components/roster/roster-table.tsx` — Client Component; four tabs (Scoring/Possession/Physical/Goalie); client-side column sort with directional indicator; top-ranked row gets `inset 2px 0 0 var(--color-accent)` box-shadow; Goalie tab filters `wins IS NOT NULL`; +/- colored green/red/grey
+- `apps/web/src/app/roster/page.tsx` — Server Component; resolves game title by `?title=` param; `revalidate: 3600`; honest empty state
+- `apps/web/src/app/roster/loading.tsx` — Suspense fallback for roster
+
+**What's next (Phase 3 remaining milestones):**
+
+| Milestone | Description                                                             |
+| --------- | ----------------------------------------------------------------------- |
+| 3.5       | `/stats` — Club aggregate stat cards + last 5 games strip               |
+| 3.6       | `/` — Home page (record hero, last game card, top performers)           |
+
+**Remaining DB queries to write** (do before milestones that need them):
+
+- `packages/db/src/queries/club.ts` — `getClubStats(gameTitleId)`, `getTopPerformers(gameTitleId)`, `getRecentResults(gameTitleId, limit)` (last 5 games strip)
+
+**Data dependency note:** All pages render honest empty states. No DB seeding was needed or done. The first `/games` render with real data requires the worker to have run at least one successful ingestion cycle.
+
 ---
 
 ## Locked Schema Decisions
@@ -100,18 +145,11 @@
 
 ---
 
-## What's Next (Phase 3)
+## What's Next (Phase 3 continuation)
 
-Phase 3 is the Next.js frontend. Do not start until real EA API fixtures are captured and the worker has ingested real data.
+Milestones 3.0–3.4 are complete. The next session resumes at **Milestone 3.5**.
 
-**Before Phase 3:**
-
-1. Run the curl commands in `packages/ea-client/__fixtures__/README.md` to capture real responses
-2. Run `pnpm --filter @eanhl/ea-client test` — the fixture tests will now execute instead of being `todo`
-3. Resolve the fixture-gated deferred questions listed above
-4. Update `packages/ea-client/src/types.ts` to match the real response shapes
-5. Make `players.ea_id NOT NULL` if fixtures confirm blazeId is always present
-6. Start worker (`docker compose up`) and let it run through at least one real ingestion cycle
+**Note on fixture gating:** Real data is not required to continue building. Pages render honest empty states. Fixture work (curl captures, contract tests, `players.ea_id NOT NULL`) remains deferred and can proceed in parallel or after Phase 3 frontend is complete.
 
 **Phase 3 scope** (from `docs/ARCHITECTURE.md`):
 

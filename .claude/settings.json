@@ -1,28 +1,4 @@
 {
-  "hooks": {
-    "PreToolUse": [
-      {
-        "matcher": "Bash",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/prevent-noisy-bash.sh\""
-          }
-        ]
-      }
-    ],
-    "PostToolUse": [
-      {
-        "matcher": "Write|Edit|MultiEdit",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/format-edited-file.sh\""
-          }
-        ]
-      }
-    ]
-  },
   "permissions": {
     "allow": [
       "Read(//home/michal/.claude/**)",
@@ -46,10 +22,36 @@
       "Bash(pnpm --filter worker lint)",
       "Bash(pnpm prettier:*)",
       "Bash(grep -E \"\\\\.\\(tsbuildinfo|DS_Store\\)$\")",
-      "Bash(echo \"exit: $?\")"
+      "Bash(echo \"exit: $?\")",
+      "Bash(pnpm --filter @eanhl/db build)",
+      "Bash(npx prettier:*)"
     ],
     "additionalDirectories": [
       "/home/michal/.claude/projects/-home-michal-projects-eanhl-team-website"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/prevent-noisy-bash.sh\""
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/format-edited-file.sh\""
+          }
+        ]
+      }
     ]
   }
 }
