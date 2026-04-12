@@ -76,3 +76,26 @@ export async function getRoster(gameTitleId: number) {
     .where(eq(playerGameTitleStats.gameTitleId, gameTitleId))
     .orderBy(desc(playerGameTitleStats.points))
 }
+
+/**
+ * Top N players by points for the home page performers strip.
+ *
+ * Returns a slim projection — only the fields needed for the compact display.
+ * Default limit of 5 keeps the home page tight; callers can override.
+ */
+export async function getTopPerformers(gameTitleId: number, limit = 5) {
+  return db
+    .select({
+      playerId: playerGameTitleStats.playerId,
+      gamertag: players.gamertag,
+      goals: playerGameTitleStats.goals,
+      assists: playerGameTitleStats.assists,
+      points: playerGameTitleStats.points,
+      hits: playerGameTitleStats.hits,
+    })
+    .from(playerGameTitleStats)
+    .innerJoin(players, eq(playerGameTitleStats.playerId, players.id))
+    .where(eq(playerGameTitleStats.gameTitleId, gameTitleId))
+    .orderBy(desc(playerGameTitleStats.points), desc(playerGameTitleStats.goals))
+    .limit(limit)
+}

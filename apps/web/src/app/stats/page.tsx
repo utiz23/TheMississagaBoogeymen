@@ -1,6 +1,11 @@
 import type { Metadata } from 'next'
 import type { ClubGameTitleStats } from '@eanhl/db'
-import { listGameTitles, getGameTitleBySlug, getClubStats, getRecentMatches } from '@eanhl/db/queries'
+import {
+  listGameTitles,
+  getGameTitleBySlug,
+  getClubStats,
+  getRecentMatches,
+} from '@eanhl/db/queries'
 import { StatCard } from '@/components/ui/stat-card'
 import { MatchRow } from '@/components/matches/match-row'
 import { formatPct } from '@/lib/format'
@@ -143,9 +148,7 @@ function RecordCard({ stats }: { stats: ClubGameTitleStats }) {
             <span className="font-condensed text-lg font-semibold tabular text-zinc-300">
               {pct}
             </span>
-            <span className="text-xs text-zinc-500">
-              Win% · {stats.gamesPlayed.toString()} GP
-            </span>
+            <span className="text-xs text-zinc-500">Win% · {stats.gamesPlayed.toString()} GP</span>
           </div>
         </div>
       </div>

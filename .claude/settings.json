@@ -25,7 +25,12 @@
       "Bash(echo \"exit: $?\")",
       "Bash(pnpm --filter @eanhl/db build)",
       "Bash(npx prettier:*)",
-      "Bash(git -C /home/michal/projects/eanhl-team-website status --short)"
+      "Bash(git -C /home/michal/projects/eanhl-team-website status --short)",
+      "Bash(git -C /home/michal/projects/eanhl-team-website log --oneline -5)",
+      "Bash(git -C /home/michal/projects/eanhl-team-website diff --stat HEAD)",
+      "Bash(git -C /home/michal/projects/eanhl-team-website log --oneline -3)",
+      "Bash(git -C /home/michal/projects/eanhl-team-website add HANDOFF.md apps/web/src/app/page.tsx apps/web/src/app/loading.tsx apps/web/src/app/stats/page.tsx packages/db/src/queries/players.ts .claude/settings.json)",
+      "Bash(git -C /home/michal/projects/eanhl-team-website commit -m ':*)"
     ],
     "additionalDirectories": [
       "/home/michal/.claude/projects/-home-michal-projects-eanhl-team-website"

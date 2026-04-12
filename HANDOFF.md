@@ -2,9 +2,9 @@
 
 ## Current Status
 
-**Phase:** 3 in progress — Milestones 3.0–3.4 complete; Milestone 3.5 started but not yet verified.
+**Phase:** 3 complete — All milestones 3.0–3.6 done and verified green.
 
-**Last updated:** 2026-04-11
+**Last updated:** 2026-04-12
 
 ---
 
@@ -64,7 +64,7 @@
 
 ### Phase 3 (in progress)
 
-**Milestones 3.0–3.4 complete and green. Milestone 3.5 (`/stats`) is partially implemented in the worktree, but the session was interrupted before verification could be rerun.**
+**Milestones 3.0–3.6 complete. `pnpm typecheck`, `pnpm lint`, `pnpm format:check` all pass.**
 
 **Design direction:** Broadcast Strip (dark, red-accented, stats-first). "Arena Board" scoreboard boldness borrowed for result badges, score emphasis, top performer highlights.
 
@@ -93,42 +93,16 @@
 - `apps/web/src/components/roster/roster-table.tsx` — Client Component; four tabs (Scoring/Possession/Physical/Goalie); client-side column sort with directional indicator; top-ranked row gets `inset 2px 0 0 var(--color-accent)` box-shadow; Goalie tab filters `wins IS NOT NULL`; +/- colored green/red/grey
 - `apps/web/src/app/roster/page.tsx` — Server Component; resolves game title by `?title=` param; `revalidate: 3600`; honest empty state
 - `apps/web/src/app/roster/loading.tsx` — Suspense fallback for roster
+- `packages/db/src/queries/club.ts` — `getClubStats(gameTitleId)`
+- `packages/db/src/queries/index.ts` — exports club, game-titles, matches, players
+- `apps/web/src/components/ui/stat-card.tsx` — reusable stat card (label, value, sublabel?, featured?); used by `/stats` and `/`
+- `apps/web/src/app/stats/page.tsx` — record hero (W/L/OTL + win%), 6-card stat grid (GF, GA, Shots/GP, Hits/GP, FO%, Pass%), last-5 recent games strip; `revalidate: 300`
+- `apps/web/src/app/stats/loading.tsx` — Suspense fallback for stats
+- `packages/db/src/queries/players.ts` — `getTopPerformers(gameTitleId, limit?)` slim query (playerId, gamertag, goals, assists, points, hits); ordered by points desc
+- `apps/web/src/app/page.tsx` — Home: record hero (W/L/OTL + win% + GF/GA inline), last game card (score hero + opponent + result badge + link), top performers table (compact 5-row, accent on rank-1), recent form strip (last 5 MatchRows); `revalidate: 300`
+- `apps/web/src/app/loading.tsx` — Suspense fallback for home
 
-**Milestone 3.5 currently in progress (unverified worktree changes):**
-
-- `packages/db/src/queries/club.ts` — `getClubStats(gameTitleId)` added
-- `packages/db/src/queries/index.ts` — updated to export `./club.js`
-- `apps/web/src/components/ui/stat-card.tsx` — reusable stat card component with optional featured accent state
-- `apps/web/src/app/stats/page.tsx` — `/stats` page started:
-  - resolves game title from `?title=`
-  - loads `getClubStats(gameTitleId)` and `getRecentMatches({ limit: 5 })`
-  - renders a record hero with derived win%
-  - renders aggregate stat cards for GF/GA, shots per game, hits per game, faceoff %, pass %
-  - renders a recent games strip using `MatchRow`
-  - uses honest empty states
-- `apps/web/src/app/stats/loading.tsx` — lightweight loading skeleton
-
-**Important interruption note:**
-
-- An initial `pnpm typecheck` run failed on nullability issues in `apps/web/src/app/stats/page.tsx`.
-- The page was then rewritten to fix the `clubStats | null` narrowing problem.
-- The session hit its limit before rerunning:
-  - `pnpm typecheck`
-  - `pnpm lint`
-  - `pnpm format:check`
-- Therefore, Milestone 3.5 must be treated as **in progress**, not complete.
-
-**What's next (Phase 3 remaining milestones):**
-
-| Milestone | Description                                                             |
-| --------- | ----------------------------------------------------------------------- |
-| 3.5       | `/stats` — finish review + rerun verification on current partial implementation |
-| 3.6       | `/` — Home page (record hero, last game card, top performers)           |
-
-**Remaining DB queries to write** (do before milestones that need them):
-
-- `packages/db/src/queries/club.ts` — `getTopPerformers(gameTitleId)` still needed for Home
-- `getRecentResults(gameTitleId, limit)` is optional unless Home needs a dedicated slimmer query; `/stats` currently reuses `getRecentMatches({ limit: 5 })`
+**Phase 3 is complete.** All pages are implemented and verified. The next work is fixture capture (real EA API responses) to unblock the deferred decisions, followed by any Phase 4 work (individual player pages, career stats).
 
 **Data dependency note:** All pages render honest empty states. No DB seeding was needed or done. The first `/games` render with real data requires the worker to have run at least one successful ingestion cycle.
 
@@ -172,36 +146,15 @@
 
 ## What's Next (Phase 3 continuation)
 
-Milestones 3.0–3.4 are complete. The next session resumes at **Milestone 3.5**, but should start by validating the current partial `/stats` implementation before adding more code.
+**Phase 3 is fully complete.** All milestones 3.0–3.6 are implemented and verified green.
 
-**Resume checklist for next session:**
+**What comes next (Phase 4):**
 
-1. Run:
-   - `pnpm typecheck`
-   - `pnpm lint`
-   - `pnpm format:check`
-2. If any checks fail, fix `apps/web/src/app/stats/page.tsx` first.
-3. If all checks pass, review the `/stats` page in-browser and decide whether Milestone 3.5 is complete.
-4. Only then move on to Milestone 3.6 (`/`).
-
-**Current dirty files from the interrupted session:**
-
-- `.claude/settings.json`
-- `packages/db/src/queries/index.ts`
-- `packages/db/src/queries/club.ts`
-- `apps/web/src/components/ui/stat-card.tsx`
-- `apps/web/src/app/stats/page.tsx`
-- `apps/web/src/app/stats/loading.tsx`
-
-**Note on fixture gating:** Real data is not required to continue building. Pages render honest empty states. Fixture work (curl captures, contract tests, `players.ea_id NOT NULL`) remains deferred and can proceed in parallel or after Phase 3 frontend is complete.
-
-**Phase 3 scope** (from `docs/ARCHITECTURE.md`):
-
-- Game title switcher / nav
-- Club stats dashboard (wins/losses, shots, faceoffs)
-- Player leaderboards (goals, assists, +/-, etc.)
-- Player career page (cross-game stats aggregation)
-- Match history list and match detail view
+- Fixture capture: curl real EA API endpoints, capture fixture JSON, run contract tests
+- `players.ea_id NOT NULL` migration (once blazeId presence confirmed via fixtures)
+- Individual player pages (`/roster/[id]`) — career stats across game titles
+- Content season management UI (optional)
+- Docker Compose production deployment verification
 
 ---
 
