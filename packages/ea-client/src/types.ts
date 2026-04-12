@@ -1,17 +1,11 @@
 /**
  * EA Pro Clubs API — TypeScript response types.
  *
- * ⚠ UNVERIFIED: These types are provisional, based on the field list in the
- * project blueprint. They have NOT been validated against real API responses.
+ * Fields marked CONFIRMED have been validated against real fixture captures.
+ * Fields marked UNVERIFIED are provisional and may need updating.
+ * Fields marked DEFERRED need real fixture data (e.g. OTL match) to confirm.
  *
- * Before Phase 2 transform implementation:
- *   1. Run `pnpm --filter ea-client capture` (or call endpoints manually)
- *   2. Save real responses to __fixtures__/
- *   3. Run contract tests: `pnpm --filter ea-client test`
- *   4. Update these types to match real shapes
- *   5. Remove or update the UNVERIFIED comments for confirmed fields
- *
- * Known EA API quirks (from blueprint):
+ * Known EA API quirks:
  *   - Almost all numeric values are returned as strings (e.g. goals: "3")
  *   - Some endpoints may return 400/500 without warning
  *   - The API is undocumented and changes between game releases
@@ -48,20 +42,21 @@ export type EaClubSearchResponse = EaClubSearchResult[]
 // GET /clubs/matches?clubIds=<id>&platform=<platform>&matchType=<matchType>
 
 /**
- * UNVERIFIED: Stats for a single player within a match.
+ * Stats for a single player within a match.
  * All numeric values are strings per EA API convention.
- *
- * Fields marked DEFERRED need fixture confirmation:
- *   - blazeId presence/stability
- *   - exactfield names for goalie-specific stats
  */
 export interface EaPlayerMatchStats {
-  /** DEFERRED: Present if blazeId is always included. Nullable until confirmed. */
+  /** DEFERRED: blazeId is absent in current production payloads. Not reliable. */
   blazeId?: string
-  /** Player's gamertag / display name. */
+  /** Player's gamertag / display name. CONFIRMED present. */
   playername: string
-  /** Position code. UNVERIFIED: exact values (e.g. 'center', 'C', 'goalie'?) */
+  /**
+   * CONFIRMED position values: 'goalie', 'center', 'defenseMen', 'leftWing', 'rightWing'.
+   * Use position === 'goalie' as the sole goalie indicator.
+   */
   position?: string
+  /** CONFIRMED: Time on ice in seconds as a string (e.g. "3600"). Present for all players. */
+  toiseconds?: string
   /** String-encoded numbers — must be parsed before storage. */
   skgoals: string
   skassists: string
@@ -75,7 +70,10 @@ export interface EaPlayerMatchStats {
   skfol: string
   skpassattempts: string
   skpasspct: string
-  /** Goalie fields — UNVERIFIED field names. Only present for goalies. */
+  /**
+   * CONFIRMED field names. Present for ALL players (not goalie-only).
+   * Non-goalies have these set to "0". Use position === 'goalie' to filter.
+   */
   glsaves?: string
   glga?: string
   glshots?: string
@@ -86,18 +84,30 @@ export interface EaPlayerMatchStats {
 }
 
 /**
- * UNVERIFIED: Club-level aggregate data within a match.
+ * Club-level data within a match.
  * One entry per club (our club + opponent).
+ *
+ * CONFIRMED fields: score (string), result ("1"=WIN, "2"=LOSS), winnerByDnf,
+ * winnerByGoalieDnf, toa, details.name (club display name).
+ *
+ * DEFERRED: OTL result code — no overtime matches in current fixtures.
  */
 export interface EaMatchClubData {
-  clubId: string
-  clubDivision?: string
-  /** Score as a string. UNVERIFIED field name. */
-  scoreString?: string
+  /** CONFIRMED: Score as a string (e.g. "5"). */
   score?: string
+  /** CONFIRMED: Also available alongside score. */
   goals?: string
-  /** UNVERIFIED: keyed by blazeId or some player identifier. */
-  players?: Record<string, EaPlayerMatchStats>
+  scoreString?: string
+  /** CONFIRMED: "1" = WIN, "2" = LOSS. DEFERRED: OTL code unknown. */
+  result?: string
+  /** CONFIRMED: "1" if opponent won by the other team disconnecting. */
+  winnerByDnf?: string
+  /** CONFIRMED: "1" if opponent won by their goalie disconnecting. */
+  winnerByGoalieDnf?: string
+  /** CONFIRMED: Time on attack in seconds. */
+  toa?: string
+  /** CONFIRMED: Nested object containing display name at details.name. */
+  details?: Record<string, unknown>
   /** Catch-all. */
   [key: string]: unknown
 }
@@ -117,18 +127,16 @@ export interface EaMatchClubAggregates {
 }
 
 /**
- * UNVERIFIED: Top-level shape of a single match in the matches response.
+ * Top-level shape of a single match in the matches response.
  *
- * CRITICAL UNKNOWNS (resolve in Phase 1 fixture capture):
- *   1. Is `matchId` the field name, or something else?
- *   2. How are our club and opponent distinguished? (by position in array, or by clubId comparison?)
- *   3. Is there a timestamp field? What format?
- *   4. Is there an in-game season field?
+ * CONFIRMED fields: matchId (string), timestamp (epoch seconds), clubs, players, aggregate.
+ * Club/opponent distinction: by comparing clubId key against our known eaClubId.
+ * No in-game season field found in fixtures.
  */
 export interface EaMatch {
-  /** UNVERIFIED: Field name and type. May be 'matchId', 'id', etc. */
+  /** CONFIRMED: Top-level string field (e.g. "16476207380260"). */
   matchId: string
-  /** Match timestamp (epoch seconds in fixtures). */
+  /** CONFIRMED: Epoch seconds as a number (e.g. 1775876848). */
   timestamp?: number
   /** Human-ish timestamp object present in fixtures. */
   timeAgo?: Record<string, unknown>

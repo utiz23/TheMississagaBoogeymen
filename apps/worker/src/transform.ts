@@ -1,10 +1,8 @@
 /**
  * Transform raw EA match payload into structured data ready for DB insertion.
  *
- * This module is intentionally conservative. Many EA API field names and formats
- * are UNVERIFIED pending real fixture captures. Every assumption is marked with
- * a TODO(fixture) comment. Once fixtures are captured and contract tests pass,
- * update the relevant section and remove the TODO.
+ * Field names and formats have been validated against real fixture captures.
+ * Remaining DEFERRED items are noted inline and require an OTL match fixture.
  *
  * This function must remain pure (no DB access). All DB writes happen in ingest.ts.
  */
@@ -51,8 +49,8 @@ function parseIntMaybe(val: unknown): number | null {
 /**
  * Extract the numeric score from club data.
  *
- * TODO(fixture): Verify the actual score field name.
- * Candidates: 'score', 'goals', 'scoreString'.
+ * CONFIRMED: 'score' is the primary field (string). 'goals' is also present
+ * and carries the same value.
  */
 function extractScore(clubData: Record<string, unknown>, clubId: string): number {
   for (const key of ['score', 'goals', 'scoreString']) {
@@ -71,8 +69,7 @@ function extractScore(clubData: Record<string, unknown>, clubId: string): number
 /**
  * Parse the match timestamp into a Date.
  *
- * Fixtures confirm `timestamp` is present as epoch seconds (number).
- * Fallbacks remain for safety.
+ * CONFIRMED: 'timestamp' is present as epoch seconds (number).
  */
 function parsePlayedAt(match: EaMatch): Date {
   const raw = match.timestamp ?? match.matchDate
@@ -100,11 +97,10 @@ function parsePlayedAt(match: EaMatch): Date {
 /**
  * Derive the match result from club data and scores.
  *
- * Fixtures show `clubs[clubId].result` values that appear to map to win/loss
- * (1 = win, 2 = loss) with other codes present in some payloads.
- * When the code is not recognised, we fall back to the score.
- *
- * TODO(fixture): Identify an OT indicator to distinguish OTL from LOSS.
+ * CONFIRMED: clubs[id].result codes: "1" = WIN, "2" = LOSS.
+ * DEFERRED: OTL result code — no overtime match in current fixtures.
+ *           When an OTL fixture is available, check clubs[id].result for a third
+ *           value and add it here. The DB enum and aggregate already support 'OTL'.
  */
 function deriveResult(
   ourClub: Record<string, unknown>,
@@ -127,7 +123,7 @@ function deriveResult(
 /**
  * Extract an integer from club aggregate data, trying multiple candidate field names.
  *
- * TODO(fixture): Verify exact field names in the aggregate object.
+ * CONFIRMED: shots → 'shots', hits → 'skhits', faceoffwins/faceofftotal present.
  */
 function extractAggInt(data: Record<string, unknown>, ...keys: string[]): number {
   for (const key of keys) {
@@ -144,27 +140,32 @@ function extractAggInt(data: Record<string, unknown>, ...keys: string[]): number
 /**
  * Transform a single player's EA stats into DB-ready form.
  *
- * TODO(fixture): Confirm:
- *   - blazeId field name
- *   - position field values (e.g. 'center', 'C', 'goaliePosition', 'goalie')
- *   - goalie detection logic (position string, or presence of gl* fields)
- *   - goalie stat field names: glsaves, glga, glshots
- *   - skpasspct format: is it 0-100 or 0-1?
+ * CONFIRMED:
+ *   - position values: 'goalie', 'center', 'defenseMen', 'leftWing', 'rightWing'
+ *   - goalie indicator: position === 'goalie' (not gl* field presence)
+ *   - gl* fields are present for ALL players; non-goalies have them as "0"
+ *   - toiseconds: player TOI in seconds as a string (e.g. "3600")
+ *   - skpasspct: 0–100 range
  */
 function transformPlayer(playerKey: string, raw: EaPlayerMatchStats): TransformPlayerResult {
-  // Fixtures confirm blazeId is not guaranteed. Do not use playerKey as a surrogate ID.
+  // blazeId is absent in production payloads. Do not use playerKey as a surrogate ID.
   const eaId = raw.blazeId ?? null
 
-  // TODO(fixture): Confirm position field and goalie string values.
+  // CONFIRMED: position === 'goalie' is the reliable goalie indicator.
+  // gl* fields (glsaves, glga, glshots) are present for ALL players — non-goalies
+  // have them as "0". Field presence cannot be used for detection.
   const position = typeof raw.position === 'string' ? raw.position : null
-  const hasGoalieFields = raw.glsaves !== undefined || raw.glga !== undefined
-  const isGoalie = hasGoalieFields || position?.toLowerCase().startsWith('goal') === true
+  const isGoalie = position === 'goalie'
 
   const passAttempts = parseIntStr(raw.skpassattempts, 'skpassattempts')
-  // TODO(fixture): Confirm skpasspct range (0-100 assumed here).
+  // CONFIRMED: skpasspct is 0–100 range (e.g. "100.00").
   const passPctStr = typeof raw.skpasspct === 'string' ? raw.skpasspct : '0'
   const passPct = parseFloat(passPctStr)
   const passCompletions = passAttempts > 0 ? Math.round(passAttempts * (passPct / 100)) : 0
+
+  // CONFIRMED: toiseconds is present for all players as a string (e.g. "3600").
+  // For goalies this is their actual time in net — used for GAA computation.
+  const toiSeconds = parseIntMaybe(raw.toiseconds)
 
   return {
     identity: {
@@ -187,6 +188,7 @@ function transformPlayer(playerKey: string, raw: EaPlayerMatchStats): TransformP
       faceoffLosses: parseIntStr(raw.skfol, 'skfol'),
       passAttempts,
       passCompletions,
+      toiSeconds,
       // Goalie fields — null for skaters.
       saves: isGoalie ? parseIntStr(raw.glsaves, 'glsaves') : null,
       goalsAgainst: isGoalie ? parseIntStr(raw.glga, 'glga') : null,
@@ -214,7 +216,7 @@ export function transformMatch(
   const match = rawPayload as EaMatch
 
   // ── Match ID ────────────────────────────────────────────────────────────────
-  // TODO(fixture): Verify field name. Types assume 'matchId' per architecture doc.
+  // CONFIRMED: 'matchId' is the field name (top-level string).
   const eaMatchId = match.matchId
   if (!eaMatchId) {
     throw new Error(
@@ -257,8 +259,15 @@ export function transformMatch(
   const result = deriveResult(ourClub, opponentClub, scoreFor, scoreAgainst)
 
   // ── Opponent name ────────────────────────────────────────────────────────────
-  // TODO(fixture): Verify field name for opponent club name.
-  const opponentName = typeof opponentClub.name === 'string' ? opponentClub.name : opponentClubId
+  // CONFIRMED: club display name is at clubs[id].details.name (not top-level).
+  const opponentDetails =
+    typeof opponentClub.details === 'object' && opponentClub.details !== null
+      ? (opponentClub.details as Record<string, unknown>)
+      : null
+  const opponentName =
+    (typeof opponentDetails?.name === 'string' ? opponentDetails.name : null) ??
+    (typeof opponentClub.name === 'string' ? opponentClub.name : null) ??
+    opponentClubId
 
   // ── Club-level aggregate stats ───────────────────────────────────────────────
   const aggregate = (match.aggregate ?? {}) as Record<string, Record<string, unknown>>

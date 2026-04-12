@@ -205,15 +205,66 @@ Notes:
 
 **The system is live.** Phase 4 is complete. Worker is polling, data is flowing, all pages are functional.
 
-**Post-launch Phase 4 loose ends (optional but recommended):**
+### Phase 5 status
+
+Phase 5.1 / 5.2 was started but interrupted mid-session.
+
+**What was audited from real payloads:**
+
+- `matchId` — confirmed top-level string
+- `timestamp` — confirmed epoch seconds number
+- `position` — confirmed values like `goalie`, `center`, `defenseMen`, `leftWing`, `rightWing`
+- `glsaves`, `glga`, `glshots` — confirmed present for **all** players, not goalie-only; skaters carry `"0"`
+- `toiseconds` — confirmed player-level time-on-ice in seconds as a string
+- `score` — confirmed in `clubs[id]`
+- `details.name` — confirmed as the real club display name location
+- `skpasspct` — confirmed in 0–100 range
+- **No OT/OTL indicator found** in current fixtures
+
+**Critical finding:**
+
+- Current goalie detection logic in the worker was relying on goalie field presence, but those `gl*` fields exist for all players.
+- Correct goalie detection should use `position === 'goalie'`.
+
+**Partial implementation already in the worktree / commit checkpoint:**
+
+- `packages/ea-client/src/types.ts`
+  - updated to mark confirmed fields from fixtures
+  - added `toiseconds`
+  - clarified confirmed match/player/member payload structure
+- `apps/worker/src/transform.ts`
+  - rewritten to reflect fixture-confirmed payload fields
+  - goalie detection switched to `position === 'goalie'`
+  - opponent name now resolves from `clubs[id].details.name`
+  - `toiseconds` is parsed into `stats.toiSeconds`
+  - OTL still deferred because no overtime fixture is available
+
+**What was planned but NOT completed before interruption:**
+
+- add `toi_seconds` column to `player_match_stats`
+- add a new DB migration for `toi_seconds`
+- update aggregate computation to calculate `gaa` from `goals_against / toi_seconds`
+- run `pnpm typecheck`, `pnpm lint`, `pnpm format:check` on the Phase 5.1/5.2 changes
+- reprocess existing live match rows after the goalie-detection fix
+
+**Recommended Phase 5 resume order:**
+
+1. Review the current edits in `packages/ea-client/src/types.ts` and `apps/worker/src/transform.ts`
+2. Add schema + migration for `toi_seconds`
+3. Compute `gaa` in `apps/worker/src/aggregate.ts`
+4. Run:
+   - `pnpm typecheck`
+   - `pnpm lint`
+   - `pnpm format:check`
+5. Reprocess existing live data so `is_goalie` and opponent names are corrected
+6. Only then move on to player pages (`/roster/[id]`)
+
+**Post-launch / later work still waiting:**
 
 - Alerting script — cron checks `localhost:3001/health`, notifies (email / Discord) when stale > 30 min
 - `pg_dump` backup cron — daily dump to external drive
 - Mobile responsive pass — pages untested on small screens
 - Pagination on `/games` — currently returns ~15 matches; will grow unbounded over time
-
-**Phase 5 (enhancements, when ready):**
-
 - Individual player pages (`/roster/[id]`) — career stats across game titles
 - Charts / trends (Recharts)
 - Streak tracking, head-to-head records
