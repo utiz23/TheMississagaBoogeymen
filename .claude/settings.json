@@ -30,7 +30,25 @@
       "Bash(git -C /home/michal/projects/eanhl-team-website diff --stat HEAD)",
       "Bash(git -C /home/michal/projects/eanhl-team-website log --oneline -3)",
       "Bash(git -C /home/michal/projects/eanhl-team-website add HANDOFF.md apps/web/src/app/page.tsx apps/web/src/app/loading.tsx apps/web/src/app/stats/page.tsx packages/db/src/queries/players.ts .claude/settings.json)",
-      "Bash(git -C /home/michal/projects/eanhl-team-website commit -m ':*)"
+      "Bash(git -C /home/michal/projects/eanhl-team-website commit -m ':*)",
+      "Bash(pnpm exec:*)",
+      "Bash(netstat -tlnp)",
+      "Bash(sudo ss:*)",
+      "Bash(pg_lsclusters)",
+      "Bash(systemctl status:*)",
+      "Bash(sudo lsof:*)",
+      "Bash(fuser 5432/tcp)",
+      "Bash(docker rm:*)",
+      "Bash(DATABASE_URL=postgresql://eanhl:eanhl_dev_2026@localhost:5433/eanhl pnpm --filter db migrate)",
+      "Bash(curl -s http://localhost:3001/health)",
+      "Bash(curl -s http://localhost:3000)",
+      "Bash(curl -s http://localhost:3000/games)",
+      "Bash(curl -s http://localhost:3000/roster)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:3000/stats)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:3000/)",
+      "Bash(curl -s http://localhost:3000/)",
+      "Bash(python3 -c \"import sys; content = sys.stdin.read\\(\\); print\\('HAS_DATA' if 'WIN' in content or 'LOSS' in content or 'OTL' in content or 'DNF' in content else 'EMPTY_STATE'\\); print\\('HAS_EMPTY' if 'No games' in content or 'No match' in content else 'NO_EMPTY_MSG'\\)\")",
+      "Bash(python3 -c \"import sys; content = sys.stdin.read\\(\\); checks = {'WIN/LOSS badges': any\\(x in content for x in ['WIN','LOSS','OTL']\\), 'record section': 'record' in content.lower\\(\\) or 'Record' in content, 'no_game_configured': 'No game titles' in content, 'unable_load': 'Unable to load' in content}; [print\\(f'{k}: {v}'\\) for k, v in checks.items\\(\\)]\")"
     ],
     "additionalDirectories": [
       "/home/michal/.claude/projects/-home-michal-projects-eanhl-team-website"

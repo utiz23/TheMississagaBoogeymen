@@ -9,7 +9,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
-      - "5432:5432"
+      - "5433:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U eanhl"]
       interval: 10s
@@ -28,6 +28,10 @@ services:
       POLL_INTERVAL_MS: ${POLL_INTERVAL_MS:-300000}
       EA_REQUEST_DELAY_MS: ${EA_REQUEST_DELAY_MS:-1000}
       INGEST_CYCLE_TIMEOUT_MS: ${INGEST_CYCLE_TIMEOUT_MS:-120000}
+      HEALTH_PORT: ${HEALTH_PORT:-3001}
+      HEALTH_STALE_MS: ${HEALTH_STALE_MS:-1800000}
+    ports:
+      - "${HEALTH_PORT:-3001}:${HEALTH_PORT:-3001}"
     depends_on:
       db:
         condition: service_healthy

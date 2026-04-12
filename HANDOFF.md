@@ -2,7 +2,7 @@
 
 ## Current Status
 
-**Phase:** 3 complete — All milestones 3.0–3.6 done and verified green.
+**Phase:** 4 complete — System is live. All three containers running, first ingest cycle completed, all pages serving real data.
 
 **Last updated:** 2026-04-12
 
@@ -106,6 +106,33 @@
 
 **Data dependency note:** All pages render honest empty states. No DB seeding was needed or done. The first `/games` render with real data requires the worker to have run at least one successful ingestion cycle.
 
+### Phase 4 ✓ complete
+
+**All checks pass. System live. First ingest completed. All pages serving real data.**
+
+**What was built:**
+
+- `.dockerignore` — excludes `.git`, `node_modules`, `.next`, `.env` from build context
+- `apps/worker/Dockerfile` — pnpm monorepo build; builds `@eanhl/db` → `@eanhl/ea-client` → `@eanhl/worker`; `CMD ["node", "dist/index.js"]`
+- `apps/web/Dockerfile` — same pattern; placeholder `DATABASE_URL` build ARG lets `next build` run without a live DB; `CMD ["node_modules/.bin/next", "start"]`
+- `docker-compose.yml` — worker exposes port 3001; `HEALTH_PORT` + `HEALTH_STALE_MS` wired; DB host port is `5433:5432` on this machine (see port note below)
+- `.env.example` — added `HEALTH_PORT`, `HEALTH_STALE_MS`
+- `packages/db/seed/game_titles.sql` — idempotent NHL 26 seed (`is_active=true`)
+- `DEPLOY.md` — cold-start checklist with port conflict note
+
+**Key design decision (web Dockerfile):** `next build` pre-renders pages that import `@eanhl/db`. The module-level `DATABASE_URL` guard in `client.ts` would throw without a real URL. A syntactically valid placeholder satisfies the guard; `postgres.js` connects lazily so no connection is attempted at init. Pages catch the runtime connection error and render empty states. Zero application code changes required.
+
+**Runtime verification (first launch):**
+
+- `docker compose build` — both images build clean; `next build` completes with 7 pages all `ƒ dynamic`
+- `docker compose up -d` — all 3 services started; `db` healthy, `worker` and `web` running
+- First ingest: `gameType5=5 new, gameType10=5 new, club_private=5 new` — 15 matches, 12 players, 63 player_match_stats, 0 transform errors, aggregates computed
+- Second ingest (idempotency check): all `new=0`, match count stays at 15 ✓
+- `curl localhost:3001/health` → `{"status":"ok","lastSuccessfulIngest":"...","secondsSinceLastIngest":12}` ✓
+- All four pages (`/`, `/games`, `/roster`, `/stats`) confirmed serving live data ✓
+
+**Port note (this machine):** Port 5432 is occupied by `situationroom-db` (another project). The DB host port is mapped to `5433:5432` in `docker-compose.yml` and `DATABASE_URL` in `.env` uses `localhost:5433`. The containers themselves use `db:5432` on the internal network — no change there. `DEPLOY.md` documents this as a known conflict pattern.
+
 ---
 
 ## Locked Schema Decisions
@@ -124,8 +151,8 @@
 
 ## Deferred Pending Real Fixtures
 
-- Whether `blazeId` is always present in match responses (determines nullable → not null migration)
-- Whether `blazeId` is consistent across match and member endpoints
+- **`blazeId` confirmed absent in production match payloads** — observed across all 15 matches in first live ingest (all players used gamertag fallback). `players.ea_id` must stay nullable. The `NOT NULL` migration is permanently deferred unless EA changes the API. The gamertag-fallback path is the real production path, not the exception.
+- Whether `blazeId` is consistent across match and member endpoints (moot for match ingestion; relevant only if member stats are ever used)
 - Whether match IDs are globally unique or only unique per game title (composite key is safe default)
 - Whether in-game season is explicitly present in match payloads or must be assigned from date ranges
 - Exact goalie stat field names in EA responses (`glsaves`, `glga`, `glshots` — unverified)
@@ -174,40 +201,51 @@ Notes:
 
 ---
 
-## What's Next (Phase 3 continuation)
+## What's Next (Phase 5 / post-launch)
 
-**Phase 3 is fully complete.** All milestones 3.0–3.6 are implemented and verified green.
+**The system is live.** Phase 4 is complete. Worker is polling, data is flowing, all pages are functional.
 
-**What comes next (Phase 4):**
+**Post-launch Phase 4 loose ends (optional but recommended):**
 
-- Fixture capture: curl real EA API endpoints, capture fixture JSON, run contract tests
-- `players.ea_id NOT NULL` migration (once blazeId presence confirmed via fixtures)
+- Alerting script — cron checks `localhost:3001/health`, notifies (email / Discord) when stale > 30 min
+- `pg_dump` backup cron — daily dump to external drive
+- Mobile responsive pass — pages untested on small screens
+- Pagination on `/games` — currently returns ~15 matches; will grow unbounded over time
+
+**Phase 5 (enhancements, when ready):**
+
 - Individual player pages (`/roster/[id]`) — career stats across game titles
-- Content season management UI (optional)
-- Docker Compose production deployment verification
+- Charts / trends (Recharts)
+- Streak tracking, head-to-head records
+- Historical NHL 25 data import (if API still serves it)
 
 ---
 
 ## Key Files
 
-| File                                                | Purpose                                              |
-| --------------------------------------------------- | ---------------------------------------------------- |
-| `docs/ARCHITECTURE.md`                              | Canonical architecture and implementation plan       |
-| `HANDOFF.md`                                        | Session continuity and current status                |
-| `packages/db/src/schema/`                           | Drizzle table definitions (one file per domain area) |
-| `packages/db/migrations/0000_big_forgotten_one.sql` | First migration — all tables                         |
-| `packages/db/src/client.ts`                         | Drizzle + postgres.js database client                |
-| `packages/ea-client/src/client.ts`                  | HTTP client with retry/backoff/throttle              |
-| `packages/ea-client/src/endpoints.ts`               | Typed endpoint wrappers                              |
-| `packages/ea-client/src/types.ts`                   | Provisional EA API response types (UNVERIFIED)       |
-| `packages/ea-client/__fixtures__/README.md`         | Fixture capture instructions                         |
-| `packages/ea-client/__tests__/contract.test.ts`     | Contract tests (run after fixtures are captured)     |
-| `apps/worker/src/transform.ts`                      | Pure transform: raw EA payload → structured DB types |
-| `apps/worker/src/aggregate.ts`                      | Precompute player/club aggregate stats               |
-| `apps/worker/src/ingest.ts`                         | Ingestion cycle + persistTransform + upsertPlayer    |
-| `apps/worker/src/index.ts`                          | Polling loop entry point                             |
-| `apps/worker/src/health.ts`                         | HTTP health endpoint                                 |
-| `apps/worker/src/ingest-now.ts`                     | One-shot ingestion CLI trigger                       |
-| `apps/worker/src/reprocess.ts`                      | Reprocess failed-transform payloads CLI              |
-| `.env.example`                                      | Environment variable reference                       |
-| `docker-compose.yml`                                | Service definitions                                  |
+| File                                                              | Purpose                                              |
+| ----------------------------------------------------------------- | ---------------------------------------------------- |
+| `docs/ARCHITECTURE.md`                                            | Canonical architecture and implementation plan       |
+| `HANDOFF.md`                                                      | Session continuity and current status                |
+| `packages/db/src/schema/`                                         | Drizzle table definitions (one file per domain area) |
+| `packages/db/migrations/0000_big_forgotten_one.sql`               | First migration — all tables                         |
+| `packages/db/src/client.ts`                                       | Drizzle + postgres.js database client                |
+| `packages/ea-client/src/client.ts`                                | HTTP client with retry/backoff/throttle              |
+| `packages/ea-client/src/endpoints.ts`                             | Typed endpoint wrappers                              |
+| `packages/ea-client/src/types.ts`                                 | Provisional EA API response types (UNVERIFIED)       |
+| `packages/ea-client/__fixtures__/README.md`                       | Fixture capture instructions                         |
+| `packages/ea-client/__tests__/contract.test.ts`                   | Contract tests (run after fixtures are captured)     |
+| `apps/worker/src/transform.ts`                                    | Pure transform: raw EA payload → structured DB types |
+| `apps/worker/src/aggregate.ts`                                    | Precompute player/club aggregate stats               |
+| `apps/worker/src/ingest.ts`                                       | Ingestion cycle + persistTransform + upsertPlayer    |
+| `apps/worker/src/index.ts`                                        | Polling loop entry point                             |
+| `apps/worker/src/health.ts`                                       | HTTP health endpoint                                 |
+| `apps/worker/src/ingest-now.ts`                                   | One-shot ingestion CLI trigger                       |
+| `apps/worker/src/reprocess.ts`                                    | Reprocess failed-transform payloads CLI              |
+| `.env.example`                                                    | Environment variable reference                       |
+| `docker-compose.yml`                                              | Service definitions                                  |
+| `apps/worker/Dockerfile`                                          | Worker production image (pnpm monorepo build)        |
+| `apps/web/Dockerfile`                                             | Web production image (next build + next start)       |
+| `packages/db/migrations/0001_fix_player_match_stats_match_id.sql` | Fixes match_id to bigint — must run after 0000       |
+| `packages/db/seed/game_titles.sql`                                | NHL 26 seed — must apply before first compose up     |
+| `DEPLOY.md`                                                       | Cold-start deployment checklist                      |
