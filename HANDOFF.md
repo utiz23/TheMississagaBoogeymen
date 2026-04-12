@@ -2,7 +2,7 @@
 
 ## Current Status
 
-**Phase:** 4 complete — System is live. All three containers running, first ingest cycle completed, all pages serving real data.
+**Phase:** 5.1 / 5.2 complete — payload audit done, GAA supported, goalie detection fixed, opponent names corrected, live data reprocessed.
 
 **Last updated:** 2026-04-12
 
@@ -25,7 +25,7 @@
 ### Phase 2
 
 - `apps/worker` ingestion worker complete.
-- `src/transform.ts`: pure transform function, conservative field access, all `TODO(fixture)` markers in place.
+- `src/transform.ts`: pure transform function. All `TODO(fixture)` markers resolved or explicitly deferred. See Phase 5.1 findings below.
 - `src/aggregate.ts`: raw-SQL `INSERT … ON CONFLICT DO UPDATE` for `player_game_title_stats` and `club_game_title_stats`.
 - `src/ingest.ts`: raw-first ingestion cycle, idempotent upserts, gamertag history tracking, `persistTransform` + `upsertPlayer` exported for reuse.
 - `src/index.ts`: non-overlapping `for(;;)` polling loop, configurable via `POLL_INTERVAL_MS`.
@@ -197,78 +197,79 @@ Follow-up changes applied:
 
 Notes:
 
-- OTL still cannot be distinguished from LOSS with current fixture fields; remains TODO until an OT indicator is identified.
+- OTL still cannot be distinguished from LOSS with current fixture fields. Deferred — requires a real OT match payload to confirm the result code.
 
 ---
 
-## What's Next (Phase 5 / post-launch)
+## Phase 5.1 / 5.2 — Payload Audit and Data Correctness ✓ complete
 
-**The system is live.** Phase 4 is complete. Worker is polling, data is flowing, all pages are functional.
+**What was audited and confirmed from real payloads:**
 
-### Phase 5 status
+| Field                        | Finding                                                                              |
+| ---------------------------- | ------------------------------------------------------------------------------------ |
+| `matchId`                    | Top-level string, confirmed                                                          |
+| `timestamp`                  | Epoch seconds (number), confirmed                                                    |
+| `position`                   | String values: `goalie`, `center`, `defenseMen`, `leftWing`, `rightWing` — confirmed |
+| `glsaves`, `glga`, `glshots` | Present for **all** players, not goalie-only. Non-goalies carry `"0"`.               |
+| `toiseconds`                 | Player-level TOI in seconds as string (e.g. `"3600"`). Present for all players.      |
+| `score`                      | String in `clubs[id]`, confirmed                                                     |
+| `clubs[id].details.name`     | Real club display name — NOT at top-level `clubs[id].name`                           |
+| `skpasspct`                  | 0–100 range, confirmed                                                               |
+| OTL indicator                | **Not found.** No overtime matches in current fixtures. Deferred.                    |
 
-Phase 5.1 / 5.2 was started but interrupted mid-session.
+**Critical bug fixed (goalie detection):**
 
-**What was audited from real payloads:**
+- Old logic: `hasGoalieFields = raw.glsaves !== undefined` — always `true` because every player row has `gl*` fields. All players were stored as `is_goalie = true`.
+- Fix: `isGoalie = position === 'goalie'` — the position string is the sole reliable indicator.
 
-- `matchId` — confirmed top-level string
-- `timestamp` — confirmed epoch seconds number
-- `position` — confirmed values like `goalie`, `center`, `defenseMen`, `leftWing`, `rightWing`
-- `glsaves`, `glga`, `glshots` — confirmed present for **all** players, not goalie-only; skaters carry `"0"`
-- `toiseconds` — confirmed player-level time-on-ice in seconds as a string
-- `score` — confirmed in `clubs[id]`
-- `details.name` — confirmed as the real club display name location
-- `skpasspct` — confirmed in 0–100 range
-- **No OT/OTL indicator found** in current fixtures
+**What was changed:**
 
-**Critical finding:**
+- `packages/ea-client/src/types.ts` — confirmed fields marked, `toiseconds` added, `EaMatchClubData.details` typed
+- `apps/worker/src/transform.ts` — goalie detection fixed, opponent name from `details.name`, `toiseconds` parsed into `stats.toiSeconds`, TODO markers resolved or deferred
+- `packages/db/src/schema/player-match-stats.ts` — added `toiSeconds: integer('toi_seconds')` (nullable)
+- `packages/db/migrations/0001_tiny_morph.sql` — migration adds `toi_seconds` column (also bumps `match_id` to bigint idempotently; that change was already applied manually)
+- `apps/worker/src/aggregate.ts` — GAA now computed as `(goals_against / toi_seconds) * 3600`; rows with `NULL toi_seconds` produce NULL GAA (safe default for pre-5.2 rows)
+- `apps/worker/src/ingest.ts` — `player_match_stats` insert changed from `onConflictDoNothing` to `onConflictDoUpdate` so reprocess correctly updates existing rows; `opponentName` added to match upsert set
 
-- Current goalie detection logic in the worker was relying on goalie field presence, but those `gl*` fields exist for all players.
-- Correct goalie detection should use `position === 'goalie'`.
+**Live data corrected (all 15 existing matches reprocessed):**
 
-**Partial implementation already in the worktree / commit checkpoint:**
+- `is_goalie` now correct for all 63 `player_match_stats` rows (1 goalie, 62 skaters)
+- `toi_seconds` populated for all 63 rows
+- Opponent names are real club names (e.g. "Le Duo Plus Mario") not numeric IDs
+- Aggregates recomputed — non-goalies show `wins/losses/save_pct/gaa = NULL/0` as expected
+- I-amCaKee (the one goalie): `save_pct = 50.00`, `gaa = 5.26`
 
-- `packages/ea-client/src/types.ts`
-  - updated to mark confirmed fields from fixtures
-  - added `toiseconds`
-  - clarified confirmed match/player/member payload structure
-- `apps/worker/src/transform.ts`
-  - rewritten to reflect fixture-confirmed payload fields
-  - goalie detection switched to `position === 'goalie'`
-  - opponent name now resolves from `clubs[id].details.name`
-  - `toiseconds` is parsed into `stats.toiSeconds`
-  - OTL still deferred because no overtime fixture is available
+**Verified:**
 
-**What was planned but NOT completed before interruption:**
+- `pnpm typecheck`, `pnpm lint`, `pnpm format:check` all pass
+- 15/15 reprocess succeeded, 0 failed
 
-- add `toi_seconds` column to `player_match_stats`
-- add a new DB migration for `toi_seconds`
-- update aggregate computation to calculate `gaa` from `goals_against / toi_seconds`
-- run `pnpm typecheck`, `pnpm lint`, `pnpm format:check` on the Phase 5.1/5.2 changes
-- reprocess existing live match rows after the goalie-detection fix
+**Still deferred:**
 
-**Recommended Phase 5 resume order:**
+- OTL result code — no OT match fixture available; the schema and aggregate already support `OTL`; just need the correct result code from EA
+- Goalie wins/losses for OTL (same dependency)
 
-1. Review the current edits in `packages/ea-client/src/types.ts` and `apps/worker/src/transform.ts`
-2. Add schema + migration for `toi_seconds`
-3. Compute `gaa` in `apps/worker/src/aggregate.ts`
-4. Run:
-   - `pnpm typecheck`
-   - `pnpm lint`
-   - `pnpm format:check`
-5. Reprocess existing live data so `is_goalie` and opponent names are corrected
-6. Only then move on to player pages (`/roster/[id]`)
+---
 
-**Post-launch / later work still waiting:**
+## What's Next
 
-- Alerting script — cron checks `localhost:3001/health`, notifies (email / Discord) when stale > 30 min
+### Phase 5.3 — Player pages (`/roster/[id]`)
+
+Ready to start. Data correctness is resolved. The immediate next slice:
+
+1. `packages/db/src/queries/players.ts` — add `getPlayerCareerStats(playerId)` query (per-game-title stat rows + gamertag history)
+2. `apps/web/src/app/roster/[id]/page.tsx` — basic profile: career stats table (one row per game title), gamertag history list
+3. Link player rows in the roster table to `/roster/[id]`
+
+### Post-launch / later work
+
+- Pagination on `/games` — currently returns all matches unbounded; add offset to `getRecentMatches` and prev/next UI
+- Alerting script — cron checks `localhost:3001/health`, notifies (Discord) when stale > 30 min
 - `pg_dump` backup cron — daily dump to external drive
 - Mobile responsive pass — pages untested on small screens
-- Pagination on `/games` — currently returns ~15 matches; will grow unbounded over time
-- Individual player pages (`/roster/[id]`) — career stats across game titles
+- Content season filtering — schema supports it, no UI yet
 - Charts / trends (Recharts)
 - Streak tracking, head-to-head records
-- Historical NHL 25 data import (if API still serves it)
 
 ---
 

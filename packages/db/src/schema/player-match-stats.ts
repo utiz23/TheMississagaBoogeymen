@@ -40,6 +40,13 @@ export const playerMatchStats = pgTable(
     passAttempts: integer('pass_attempts').notNull().default(0),
     passCompletions: integer('pass_completions').notNull().default(0),
 
+    /**
+     * Time on ice in seconds. Present for all players per EA API (e.g. 3600 for a
+     * full 60-minute skater appearance, 685 for a drop-in goalie). Used to compute
+     * GAA in the aggregate. Nullable to handle payloads where toiseconds is absent.
+     */
+    toiSeconds: integer('toi_seconds'),
+
     // ── Goalie fields (nullable — only populated when is_goalie = true) ────────
     saves: integer('saves'),
     goalsAgainst: integer('goals_against'),

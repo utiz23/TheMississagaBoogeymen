@@ -6,9 +6,11 @@
  *
  * Called after each ingestion cycle. Safe to call multiple times (idempotent).
  *
- * Note on GAA: Goals Against Average requires time-on-ice data, which is not
- * currently tracked in the schema. The gaa column is left NULL until that data
- * is confirmed available from the EA API.
+ * GAA (Goals Against Average): computed as (total_goals_against / total_toi_seconds) * 3600,
+ * giving goals per 60 minutes. Requires toi_seconds to be non-null for at least one
+ * goalie appearance; rows with NULL toi_seconds are excluded from both numerator and
+ * denominator. Rows ingested before Phase 5.2 will have toi_seconds = NULL and will
+ * produce NULL GAA until reprocessed.
  */
 
 import { db } from '@eanhl/db'
@@ -103,8 +105,23 @@ async function recomputePlayerStats(gameTitleId: number): Promise<void> {
         ELSE NULL
       END                                                          AS save_pct,
 
-      -- GAA requires time-on-ice, not yet in schema. Left NULL.
-      NULL::numeric                                                AS gaa,
+      -- GAA: goals against per 60 minutes = (goals_against / toi_seconds) * 3600.
+      -- Only computed when toi_seconds is available. Rows without toi_seconds
+      -- (ingested before Phase 5.2) contribute 0 to numerator/denominator and
+      -- will produce NULL until reprocessed.
+      CASE
+        WHEN SUM(CASE WHEN pms.is_goalie THEN COALESCE(pms.toi_seconds, 0) ELSE 0 END) > 0
+        THEN ROUND(
+          SUM(CASE WHEN pms.is_goalie THEN COALESCE(pms.goals_against, 0) ELSE 0 END)::numeric
+            / NULLIF(
+                SUM(CASE WHEN pms.is_goalie THEN COALESCE(pms.toi_seconds, 0) ELSE 0 END),
+                0
+              )
+            * 3600,
+          2
+        )
+        ELSE NULL
+      END                                                          AS gaa,
 
       -- Shutouts: goalie appearances with 0 goals against
       SUM(

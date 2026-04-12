@@ -203,6 +203,7 @@ export async function persistTransform(result: TransformResult): Promise<void> {
       .onConflictDoUpdate({
         target: [matches.gameTitleId, matches.eaMatchId],
         set: {
+          opponentName: result.match.opponentName,
           result: result.match.result,
           scoreFor: result.match.scoreFor,
           scoreAgainst: result.match.scoreAgainst,
@@ -221,10 +222,37 @@ export async function persistTransform(result: TransformResult): Promise<void> {
 
     for (const { identity, stats } of result.players) {
       const player = await upsertPlayer(identity, dbConn)
+      const statsRow = { ...stats, playerId: player.id, matchId: matchRow.id }
       await dbConn
         .insert(playerMatchStats)
-        .values({ ...stats, playerId: player.id, matchId: matchRow.id })
-        .onConflictDoNothing()
+        .values(statsRow)
+        .onConflictDoUpdate({
+          // Unique index: (player_id, match_id)
+          target: [playerMatchStats.playerId, playerMatchStats.matchId],
+          // Update all stats on conflict so that reprocess corrects previously
+          // ingested rows (e.g. after a schema change like adding toi_seconds or
+          // fixing the goalie detection bug).
+          set: {
+            position: statsRow.position,
+            isGoalie: statsRow.isGoalie,
+            goals: statsRow.goals,
+            assists: statsRow.assists,
+            plusMinus: statsRow.plusMinus,
+            shots: statsRow.shots,
+            hits: statsRow.hits,
+            pim: statsRow.pim,
+            takeaways: statsRow.takeaways,
+            giveaways: statsRow.giveaways,
+            faceoffWins: statsRow.faceoffWins,
+            faceoffLosses: statsRow.faceoffLosses,
+            passAttempts: statsRow.passAttempts,
+            passCompletions: statsRow.passCompletions,
+            toiSeconds: statsRow.toiSeconds,
+            saves: statsRow.saves,
+            goalsAgainst: statsRow.goalsAgainst,
+            shotsAgainst: statsRow.shotsAgainst,
+          },
+        })
     }
   })
 }
