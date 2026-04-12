@@ -147,11 +147,13 @@
 ## Fixture Findings (2026-04-12)
 
 Captured fixtures for:
+
 - `matches-gameType5.json`
 - `matches-gameType10.json`
 - `members-stats.json`
 
 Findings:
+
 - `matchId` and `timestamp` fields are present in match payloads.
 - `timeAgo` object is present in match payloads.
 - `blazeId` is **not** present for all players in match payloads → `players.ea_id` must remain nullable; gamertag fallback logic is required.
@@ -159,6 +161,7 @@ Findings:
 - No season-like field was found in match payloads → `content_season_id` must be assigned from date ranges for now.
 
 Follow-up changes applied:
+
 - Worker transform now treats `timestamp` as epoch seconds (number) and avoids using `playerKey` as a surrogate ID when `blazeId` is missing.
 - Phase 2.1 cleanup applied:
   - `persistTransform` now runs inside a DB transaction (match + player upserts + match stats).
@@ -166,6 +169,7 @@ Follow-up changes applied:
   - `player_match_stats.match_id` now uses `bigint` with migration `0001_fix_player_match_stats_match_id.sql`.
 
 Notes:
+
 - OTL still cannot be distinguished from LOSS with current fixture fields; remains TODO until an OT indicator is identified.
 
 ---

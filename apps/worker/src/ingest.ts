@@ -236,10 +236,7 @@ export async function persistTransform(result: TransformResult): Promise<void> {
  * Tracks gamertag changes via player_gamertag_history.
  * Exported so reprocess.ts can reuse it.
  */
-export async function upsertPlayer(
-  identity: PlayerIdentity,
-  dbConn: DbConn = db,
-): Promise<Player> {
+export async function upsertPlayer(identity: PlayerIdentity, dbConn: DbConn = db): Promise<Player> {
   const now = new Date()
 
   if (identity.eaId) {

@@ -112,13 +112,13 @@ function deriveResult(
   scoreFor: number,
   scoreAgainst: number,
 ): 'WIN' | 'LOSS' | 'DNF' {
-  const resultCode = parseIntMaybe(ourClub['result'])
+  const resultCode = parseIntMaybe(ourClub.result)
   let base: 'WIN' | 'LOSS' = scoreFor > scoreAgainst ? 'WIN' : 'LOSS'
   if (resultCode === 1) base = 'WIN'
   if (resultCode === 2) base = 'LOSS'
 
-  const opponentDnf = parseIntMaybe(opponentClub['winnerByDnf']) === 1
-  const opponentGoalieDnf = parseIntMaybe(opponentClub['winnerByGoalieDnf']) === 1
+  const opponentDnf = parseIntMaybe(opponentClub.winnerByDnf) === 1
+  const opponentGoalieDnf = parseIntMaybe(opponentClub.winnerByGoalieDnf) === 1
   if (base === 'LOSS' && (opponentDnf || opponentGoalieDnf)) return 'DNF'
 
   return base
