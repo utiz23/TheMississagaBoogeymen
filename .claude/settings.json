@@ -11,7 +11,18 @@
       "Bash(pnpm --filter @eanhl/db add drizzle-orm postgres)",
       "Bash(pnpm --filter @eanhl/db add -D drizzle-kit)",
       "Bash(pnpm --filter @eanhl/db exec tsc --noEmit)",
-      "Bash(pnpm drizzle-kit:*)"
+      "Bash(pnpm drizzle-kit:*)",
+      "Bash(pnpm --filter @eanhl/ea-client exec tsc --noEmit)",
+      "Bash(pnpm --filter @eanhl/ea-client test)",
+      "Bash(git add:*)",
+      "Bash(git commit -m ':*)",
+      "Bash(pnpm install:*)",
+      "Bash(pnpm --filter @eanhl/worker exec tsc --noEmit)",
+      "Bash(pnpm --filter worker typecheck)",
+      "Bash(pnpm --filter worker lint)",
+      "Bash(pnpm prettier:*)",
+      "Bash(grep -E \"\\\\.\\(tsbuildinfo|DS_Store\\)$\")",
+      "Bash(echo \"exit: $?\")"
     ],
     "additionalDirectories": [
       "/home/michal/.claude/projects/-home-michal-projects-eanhl-team-website"
