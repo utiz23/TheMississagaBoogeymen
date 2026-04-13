@@ -2,7 +2,7 @@
 
 ## Current Status
 
-**Phase:** Home page player card + carousel polish complete.
+**Phase:** Home page carousel V-formation + behavior pass complete.
 
 **Last updated:** 2026-04-13
 
@@ -471,6 +471,62 @@ The card IS using the correct data source — `getRoster` queries `playerGameTit
 - Full career stats: EA lifetime history not backfilled → stats reflect ingested matches only
 
 **Verified:** `pnpm typecheck`, `pnpm lint`, `pnpm prettier --check` (source TS/TSX) — all pass
+
+---
+
+## Player Card Panel Construction Pass ✓ complete
+
+**What was changed:**
+
+- **`apps/web/src/components/home/player-card.tsx`** — structural refactor of panel layout:
+  - **Zone A — no visible box:** `absolute left-0 top-0 z-20 bg-zinc-950 rounded-br-2xl`. `bg-zinc-950` matches the outer card shell exactly, making A invisible as a box — it reads as a cutout. `rounded-br-2xl` (16px) aligns with the top panel's `rounded-2xl` (16px), creating a clean concave joint.
+  - **Top panel — one unified grey container:** Portrait (B, `h-130px`) and identity row (C+D) are now enclosed in a single `mx-2 mt-2 overflow-hidden rounded-2xl bg-zinc-900` block. Previously, the identity row floated between panels as a separate element. The C+D identity row is separated from the portrait by `border-t border-zinc-800/60` inside the panel.
+  - **Z-layering:** Accent bar `z-30` → A `z-20` → panels in normal flow. This ensures A overlaps the panel correctly without obscuring the accent bar.
+  - Card size (`w-56`) and carousel stage height (`h-315px`) unchanged.
+
+**Verified:** `pnpm typecheck`, `pnpm lint`, `pnpm prettier --check` — all pass
+
+---
+
+## Player Card Finishing-Touches Pass ✓ complete
+
+**What was changed** (`apps/web/src/components/home/player-card.tsx` only):
+
+- **Zone A — W-L record restored:** Added `{wins}–{losses}` line for goalies (between the position pill and win%). Uses `player.wins` and `player.losses` from the aggregate; only renders when both are non-null (goalie path). Skaters have no individual record, so the line is omitted for them. Styled `text-zinc-500 text-[10px] font-semibold` — readable but secondary to the win% figure.
+- **Zone A — WIN% label removed:** The redundant `text-[7px] WIN%` label below the percentage value was removed. The percentage reads clearly without it.
+- **Position pill:** Converted from plain text to a proper badge — `inline-flex items-center rounded-sm bg-zinc-800 px-1.5 py-0.5 text-[9px] text-zinc-400`. Has background fill, padding, and rounded corners; reads as a real badge rather than plain label text.
+- **Corner geometry — concave filler:** Added `relative` to the top panel div. Added a `absolute left-16 top-0 h-4 w-4 rounded-bl-2xl bg-zinc-950` filler element as the first child of the panel. This element is 16×16 at x=64px inside the panel (= 72px from the card edge = exactly A's right edge). Its `rounded-bl-2xl` carves a concave quarter-circle at its bottom-left, creating a smooth joint at the TOP of A's right edge — matching the `rounded-br-2xl` on A that handles the bottom joint. Both notch corners are now consistently rounded.
+- **Hover effect:** Added `hover:-translate-y-0.5` (2px lift) and bumped hover shadow to `hover:shadow-[0_0_24px_rgba(225,29,72,0.15)]` (up from 0.10 opacity, 18px spread). Combined with the existing `hover:border-zinc-600`, the card lifts slightly and develops a subtle red glow on hover. `transition-all duration-200` animates the transform.
+
+**Verified:** `pnpm typecheck`, `pnpm lint`, `pnpm prettier --check` — all pass
+
+---
+
+## Latest Result Scoreboard Redesign ✓ complete
+
+**What was changed:**
+
+- **`apps/web/src/lib/format.ts`** — Added `formatRecord(wins, losses, otl): string` (formats as "8–3–1") and `abbreviateTeamName(name): string` (single-word: first 4 chars; multi-word: initials capped at 4). Fixed single-word branch to slice from `words[0]` not raw `name`.
+
+- **`apps/web/src/app/page.tsx`** — `<LatestResult>` now receives `clubRecord={{ wins, losses, otl }}` (or `null`) from the already-fetched `clubStats`. No new queries.
+
+- **`apps/web/src/components/home/latest-result.tsx`** — Full rewrite as a symmetric 3-column scoreboard:
+  - Three-column grid `grid-cols-[1fr_auto_1fr]`: our team | score + result pill | opponent
+  - Left: `/images/bgm-logo.png` (next/image), `BGM` hardcoded abbreviation, W-L-OTL record
+  - Center: `text-6xl sm:text-7xl` score, accent color on WIN, `ResultPill` (green=WIN / red=LOSS / orange=OT LOSS / gray=DNF)
+  - Right: opponent logo from EA CDN (`https://media.contentapi.ea.com/content/dam/eacom/nhl/pro-clubs/crests/t{clubId}.png`) via plain `<img>` with `ShieldPlaceholder` SVG fallback, derived abbreviation
+  - Header row: "LATEST RESULT" + date with `border-b`; stats strip footer (SOG/Hits/FO%/TOA) with `border-t`
+  - `border-t-2 border-t-accent` top bar (replaces old asymmetric `border-l-4`)
+
+- **`apps/web/src/app/layout.tsx`** — Added font weight `'900'` to `Barlow_Semi_Condensed` so `font-black` renders from the actual font file (was being synthesized from 700).
+
+- **`apps/web/src/app/loading.tsx`** — Updated home page skeleton for the last-game section from `h-24` to `h-56` to match new card height.
+
+**Intentionally omitted:** opponent record (not tracked), GWG (not derivable from per-game totals), OT vs SO distinction (both stored as `OTL`).
+
+**EA logo CDN confirmed:** `https://media.contentapi.ea.com/content/dam/eacom/nhl/pro-clubs/crests/t{clubId}.png` — clubs without custom crests serve the default NHL shield; never 404s. No `next.config.ts` change needed.
+
+**Verified:** `pnpm typecheck`, `pnpm lint`, `pnpm prettier --check "apps/web/src/**"` — all pass.
 
 ---
 
