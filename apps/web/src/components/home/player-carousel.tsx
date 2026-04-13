@@ -11,13 +11,14 @@ interface PlayerCarouselProps {
 }
 
 /**
- * Stacked 3D carousel for featured player cards.
+ * Stacked V-formation carousel for featured player cards.
  *
- * Desktop: 5-slot depth layout — center card at full scale, side cards
- * scaled down and faded, back cards smaller still. Side/back cards can be
- * clicked to bring them forward. Vignette masks on edges create depth.
+ * Desktop: 5-slot podium layout — center card at full scale, flanking cards
+ * recede via scale + Y-offset. All 5 staged cards are fully opaque; opacity
+ * animates only when a card enters or leaves the visible formation.
+ * Clicking any non-center staged card promotes it to the front.
  *
- * Mobile: single card with previous/next arrow navigation.
+ * Mobile: single card with arrow + swipe navigation.
  *
  * All player data is fetched server-side; this component is Client-only
  * for interactivity (activeIndex state + transitions).
@@ -82,13 +83,13 @@ export function PlayerCarousel({ players, winPct }: PlayerCarouselProps) {
             }}
           />
 
-          {/* Cards */}
+          {/* Cards — all rendered so CSS opacity transitions fire on enter/exit */}
           {players.map((player, index) => {
             const rel = getRelPos(index, activeIndex, total)
-            const cfg = SLOT_CONFIG[rel]
-            // Hide cards beyond ±2 positions
-            if (cfg === undefined) return null
-
+            // Visible slots use full opacity. Off-stage cards park at the nearest
+            // outer position with opacity 0 so entering/leaving fades animate there.
+            const cfg = SLOT_CONFIG[rel] ?? (rel < 0 ? HIDDEN_LEFT : HIDDEN_RIGHT)
+            const visible = Math.abs(rel) <= 2
             const isActive = rel === 0
 
             return (
@@ -102,22 +103,21 @@ export function PlayerCarousel({ players, winPct }: PlayerCarouselProps) {
                   opacity: cfg.opacity,
                   zIndex: cfg.zIndex,
                   transition: 'transform 350ms ease-in-out, opacity 350ms ease-in-out',
-                  cursor: isActive ? 'default' : 'pointer',
+                  cursor: !isActive && visible ? 'pointer' : 'default',
+                  // Off-stage cards must not intercept clicks on visible cards below
+                  pointerEvents: visible ? 'auto' : 'none',
                 }}
+                onClick={
+                  !isActive && visible
+                    ? () => {
+                        setActiveIndex(index)
+                      }
+                    : undefined
+                }
               >
-                {/* Pointer-events blocker for non-active cards — prevents
-                    the Link inside PlayerCard from navigating on click.
-                    The outer div catches the click to advance the carousel. */}
-                <div
-                  style={{ pointerEvents: isActive ? 'auto' : 'none' }}
-                  onClick={
-                    !isActive
-                      ? () => {
-                          setActiveIndex(index)
-                        }
-                      : undefined
-                  }
-                >
+                {/* Prevents the Link from navigating when the intent is to rotate.
+                    The outer div owns the click; this inner div only blocks card-link events. */}
+                <div style={{ pointerEvents: isActive ? 'auto' : 'none' }}>
                   <PlayerCard player={player} isActive={isActive} winPct={winPct} />
                 </div>
               </div>
@@ -248,18 +248,25 @@ interface SlotConfig {
 }
 
 /**
- * V-formation slot values.
+ * V-formation slot values. All 5 staged positions use full opacity —
+ * scale and Y-offset alone establish the depth hierarchy.
  * rel 0 = center hero; ±1 = inner flanks; ±2 = outer flanks.
- * Y offset shifts outer cards downward so card tops form a V — podium silhouette.
- * Cards at |rel| > 2 are hidden (cfg returns undefined).
  */
 const SLOT_CONFIG: Record<number, SlotConfig> = {
-  [-2]: { x: -280, y: 56, scale: 0.65, opacity: 0.28, zIndex: 2 },
-  [-1]: { x: -148, y: 26, scale: 0.82, opacity: 0.58, zIndex: 5 },
+  [-2]: { x: -280, y: 56, scale: 0.65, opacity: 1.0, zIndex: 2 },
+  [-1]: { x: -148, y: 26, scale: 0.82, opacity: 1.0, zIndex: 5 },
   [0]: { x: 0, y: 0, scale: 1.0, opacity: 1.0, zIndex: 10 },
-  [1]: { x: 148, y: 26, scale: 0.82, opacity: 0.58, zIndex: 5 },
-  [2]: { x: 280, y: 56, scale: 0.65, opacity: 0.28, zIndex: 2 },
+  [1]: { x: 148, y: 26, scale: 0.82, opacity: 1.0, zIndex: 5 },
+  [2]: { x: 280, y: 56, scale: 0.65, opacity: 1.0, zIndex: 2 },
 }
+
+/**
+ * Off-stage holding positions for cards outside the visible ±2 range.
+ * Parked at the nearest outer slot position with opacity 0 so that
+ * entering/leaving transitions fade in/out at the outer edge.
+ */
+const HIDDEN_LEFT: SlotConfig = { x: -280, y: 56, scale: 0.65, opacity: 0, zIndex: 0 }
+const HIDDEN_RIGHT: SlotConfig = { x: 280, y: 56, scale: 0.65, opacity: 0, zIndex: 0 }
 
 /**
  * Compute the relative position of a card from the active index.
