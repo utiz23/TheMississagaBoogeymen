@@ -72,3 +72,26 @@ export function formatPositionFull(pos: string): string {
   }
   return map[pos] ?? pos
 }
+
+/**
+ * Format a W-L-OTL record as "8–3–1".
+ */
+export function formatRecord(wins: number, losses: number, otl: number): string {
+  return `${wins.toString()}–${losses.toString()}–${otl.toString()}`
+}
+
+/**
+ * Derive a short team code from a full club name.
+ * Single word: first 4 chars uppercase.
+ * Multi-word: initials (first char of each word), capped at 4 chars.
+ * Examples: "Samurai" → "SAMU", "Le Duo Plus Mario" → "LDPM", "BGM" → "BGM"
+ */
+export function abbreviateTeamName(name: string): string {
+  const words = name.trim().split(/\s+/)
+  if (words.length === 1) return name.slice(0, 4).toUpperCase()
+  return words
+    .map((w) => w[0] ?? '')
+    .join('')
+    .slice(0, 4)
+    .toUpperCase()
+}
