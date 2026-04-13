@@ -88,7 +88,7 @@ export function formatRecord(wins: number, losses: number, otl: number): string 
  */
 export function abbreviateTeamName(name: string): string {
   const words = name.trim().split(/\s+/)
-  if (words.length === 1) return name.slice(0, 4).toUpperCase()
+  if (words.length === 1) return (words[0] ?? '').slice(0, 4).toUpperCase()
   return words
     .map((w) => w[0] ?? '')
     .join('')
