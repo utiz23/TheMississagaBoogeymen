@@ -80,7 +80,7 @@ export function PlayerCarousel({ players, winPct }: PlayerCarouselProps) {
                 style={{
                   top: '50%',
                   left: '50%',
-                  transform: `translateX(calc(-50% + ${cfg.x.toString()}px)) translateY(-50%) scale(${cfg.scale.toString()})`,
+                  transform: `translateX(calc(-50% + ${cfg.x.toString()}px)) translateY(calc(-50% + ${cfg.y.toString()}px)) scale(${cfg.scale.toString()})`,
                   opacity: cfg.opacity,
                   zIndex: cfg.zIndex,
                   transition: 'transform 350ms ease-in-out, opacity 350ms ease-in-out',
@@ -200,17 +200,26 @@ export function PlayerCarousel({ players, winPct }: PlayerCarouselProps) {
 
 // ─── Position config ──────────────────────────────────────────────────────────
 
+interface SlotConfig {
+  x: number
+  y: number
+  scale: number
+  opacity: number
+  zIndex: number
+}
+
 /**
- * How each relative position slot looks.
- * rel 0 = active center card; ±1 = side; ±2 = back.
+ * V-formation slot values.
+ * rel 0 = center hero; ±1 = inner flanks; ±2 = outer flanks.
+ * Y offset shifts outer cards downward so card tops form a V — podium silhouette.
  * Cards at |rel| > 2 are hidden (cfg returns undefined).
  */
-const SLOT_CONFIG: Record<number, { x: number; scale: number; opacity: number; zIndex: number }> = {
-  [-2]: { x: -205, scale: 0.72, opacity: 0.25, zIndex: 0 },
-  [-1]: { x: -120, scale: 0.87, opacity: 0.62, zIndex: 1 },
-  [0]: { x: 0, scale: 1.0, opacity: 1.0, zIndex: 3 },
-  [1]: { x: 120, scale: 0.87, opacity: 0.62, zIndex: 1 },
-  [2]: { x: 205, scale: 0.72, opacity: 0.25, zIndex: 0 },
+const SLOT_CONFIG: Record<number, SlotConfig> = {
+  [-2]: { x: -280, y: 56, scale: 0.65, opacity: 0.28, zIndex: 2 },
+  [-1]: { x: -148, y: 26, scale: 0.82, opacity: 0.58, zIndex: 5 },
+  [0]: { x: 0, y: 0, scale: 1.0, opacity: 1.0, zIndex: 10 },
+  [1]: { x: 148, y: 26, scale: 0.82, opacity: 0.58, zIndex: 5 },
+  [2]: { x: 280, y: 56, scale: 0.65, opacity: 0.28, zIndex: 2 },
 }
 
 /**
