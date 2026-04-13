@@ -1,6 +1,6 @@
 import Image from 'next/image'
 import Link from 'next/link'
-import type { Match } from '@eanhl/db'
+import type { Match, MatchResult } from '@eanhl/db'
 import {
   formatMatchDate,
   formatScore,
@@ -49,7 +49,7 @@ function OpponentLogo({ clubId, clubName }: { clubId: string; clubName: string }
   )
 }
 
-function ResultPill({ result }: { result: string }) {
+function ResultPill({ result }: { result: MatchResult }) {
   const styles: Record<string, string> = {
     WIN: 'border border-emerald-500/40 bg-emerald-500/10 text-emerald-400',
     LOSS: 'border border-red-500/40 bg-red-500/10 text-red-400',
@@ -67,7 +67,7 @@ function ResultPill({ result }: { result: string }) {
 
   return (
     <span
-      className={`inline-flex items-center border px-3 py-1 font-condensed text-sm font-bold uppercase tracking-wider ${cls}`}
+      className={`inline-flex items-center px-3 py-1 font-condensed text-sm font-bold uppercase tracking-wider ${cls}`}
     >
       {label}
     </span>

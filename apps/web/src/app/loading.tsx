@@ -16,7 +16,7 @@ export default function HomeLoading() {
       {/* Last game card skeleton */}
       <div>
         <div className="mb-3 h-4 w-20 animate-pulse bg-zinc-800" />
-        <div className="h-24 animate-pulse border border-zinc-800 bg-surface" />
+        <div className="h-56 animate-pulse border border-zinc-800 bg-surface" />
       </div>
 
       {/* Top performers skeleton */}

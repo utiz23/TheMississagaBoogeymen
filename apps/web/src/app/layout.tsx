@@ -13,7 +13,7 @@ const barlow = Barlow({
 const barlowSemiCondensed = Barlow_Semi_Condensed({
   subsets: ['latin'],
   variable: '--font-barlow-sc',
-  weight: ['400', '500', '600', '700'],
+  weight: ['400', '500', '600', '700', '900'],
   display: 'swap',
 })
 
