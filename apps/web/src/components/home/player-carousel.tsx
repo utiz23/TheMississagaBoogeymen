@@ -49,16 +49,16 @@ export function PlayerCarousel({ players, winPct }: PlayerCarouselProps) {
       {/* ── Desktop: stacked depth carousel ─────────────────────────────── */}
       <div className="hidden sm:block">
         {/* Stage — fixed height, overflow hidden to clip side cards */}
-        <div className="relative h-[342px] overflow-hidden">
+        <div className="relative h-[400px] overflow-hidden">
           {/* Side vignette masks — create the "cards fade into darkness" effect */}
           <div
-            className="pointer-events-none absolute inset-y-0 left-0 z-20 w-24"
+            className="pointer-events-none absolute inset-y-0 left-0 z-20 w-36"
             style={{
               background: 'linear-gradient(to right, var(--color-background) 0%, transparent 100%)',
             }}
           />
           <div
-            className="pointer-events-none absolute inset-y-0 right-0 z-20 w-24"
+            className="pointer-events-none absolute inset-y-0 right-0 z-20 w-36"
             style={{
               background: 'linear-gradient(to left, var(--color-background) 0%, transparent 100%)',
             }}
