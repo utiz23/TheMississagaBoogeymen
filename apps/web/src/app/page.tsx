@@ -115,7 +115,14 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
       {/* Latest result hero */}
       {lastMatch !== null && (
         <section>
-          <LatestResult match={lastMatch} />
+          <LatestResult
+            match={lastMatch}
+            clubRecord={
+              clubStats !== null
+                ? { wins: clubStats.wins, losses: clubStats.losses, otl: clubStats.otl }
+                : null
+            }
+          />
         </section>
       )}
 
