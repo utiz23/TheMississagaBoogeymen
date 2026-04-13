@@ -9,9 +9,16 @@ interface PlayerCardProps {
   player: RosterRow
   /**
    * True when this card is the active/center card in the carousel.
-   * Highlights the hero stat in accent red and adds a glow shadow.
+   * Adds a glow shadow and accent border treatment.
    */
   isActive?: boolean
+  /**
+   * Club win% string (e.g. "54.2%") sourced from club aggregate stats.
+   * Shown as the supporting line in zone A. Undefined renders "—".
+   * Jersey number is not yet available in the data source — zone A shows
+   * a "#" placeholder until that field is added.
+   */
+  winPct?: string | undefined
 }
 
 /**
@@ -23,22 +30,20 @@ interface PlayerCardProps {
  *   STATS PANEL  — E–H (stats row) + I–J (meta row, K reserved)
  *
  * Goalie detection uses position === 'goalie' (not wins !== null — wins can
- * be 0 for non-goalies, making the null check unreliable).
+ * be 0 for non-goalies after aggregation, making the null check unreliable).
+ *
+ * H (PTS / W) always renders as the featured stat tile regardless of isActive.
  */
-export function PlayerCard({ player, isActive = false }: PlayerCardProps) {
+export function PlayerCard({ player, isActive = false, winPct }: PlayerCardProps) {
   const isGoalie = player.position === 'goalie'
   const posLabel = player.position ? formatPosition(player.position) : null
 
-  // Zone A — hero stat (PTS for skaters, W for goalies)
-  const heroStat = isGoalie ? (player.wins?.toString() ?? '0') : player.points.toString()
-  const heroLabel = isGoalie ? 'W' : 'PTS'
-
-  // Zone A — compact record line (W–L for goalies, +/- for skaters)
-  const recordLine = isGoalie
-    ? `${(player.wins ?? 0).toString()}–${(player.losses ?? 0).toString()}–0`
-    : player.plusMinus > 0
-      ? `+${player.plusMinus.toString()}`
-      : player.plusMinus.toString()
+  // Zone A — win% display
+  // For goalies, prefer personal win% when data exists; otherwise use team win%.
+  const displayWinPct: string =
+    isGoalie && player.wins !== null && player.losses !== null && player.wins + player.losses > 0
+      ? `${((player.wins / (player.wins + player.losses)) * 100).toFixed(0)}%`
+      : (winPct ?? '—')
 
   return (
     <Link
@@ -51,7 +56,6 @@ export function PlayerCard({ player, isActive = false }: PlayerCardProps) {
       ].join(' ')}
     >
       {/* ── TOP SECTION: B (silhouette) with A (info) overlaid ──────────── */}
-      {/* h-[160px] gives B breathing room; A is absolute so it self-sizes  */}
       <div className="relative h-[160px]">
         {/* Accent top bar */}
         <div
@@ -66,21 +70,11 @@ export function PlayerCard({ player, isActive = false }: PlayerCardProps) {
           <PlayerSilhouette className="text-zinc-800" />
         </div>
 
-        {/* A — Info block anchored top-left; self-sized via absolute so it
-            does not stretch to fill B. Target: ~40–50 % of B height. */}
+        {/* A — Info block anchored top-left; self-sized via absolute.
+            Contents: # placeholder → position badge → win% */}
         <div className="absolute left-2 top-2 z-10 flex w-[62px] flex-col rounded-xl border border-zinc-700 bg-zinc-900/95 p-2">
-          {/* Hero stat */}
-          <div
-            className={[
-              'font-condensed text-[22px] font-black leading-none tabular',
-              isActive ? 'text-accent' : 'text-zinc-100',
-            ].join(' ')}
-          >
-            {heroStat}
-          </div>
-          <div className="mt-0.5 text-[7px] font-bold uppercase tracking-widest text-zinc-600">
-            {heroLabel}
-          </div>
+          {/* Jersey number placeholder — real value not yet in data */}
+          <div className="font-condensed text-[28px] font-black leading-none text-zinc-700">#</div>
 
           {/* Position badge */}
           {posLabel !== null ? (
@@ -91,10 +85,11 @@ export function PlayerCard({ player, isActive = false }: PlayerCardProps) {
             <span className="mt-1.5 inline-block h-3.5 w-8 rounded-full bg-zinc-800" />
           )}
 
-          {/* Record — value only, label omitted to keep A compact */}
-          <div className="mt-2 font-condensed text-[9px] font-bold leading-none text-zinc-400">
-            {recordLine}
+          {/* Win% — team win% for skaters, personal for goalies */}
+          <div className="mt-2 font-condensed text-[11px] font-bold leading-none text-zinc-300">
+            {displayWinPct}
           </div>
+          <div className="text-[7px] uppercase tracking-wider text-zinc-600">WIN%</div>
         </div>
       </div>
 
@@ -112,20 +107,21 @@ export function PlayerCard({ player, isActive = false }: PlayerCardProps) {
 
       {/* ── STATS + META PANEL ───────────────────────────────────────────── */}
       <div className="mx-2 mb-2 rounded-xl border border-zinc-800 bg-zinc-900 p-2">
-        {/* E–H: role-gated stats — skaters see G/A/PTS, goalies see W/SV%/GAA */}
+        {/* E–H: role-gated stats.
+            H (PTS for skaters / W for goalies) is always the featured tile. */}
         <div className="grid grid-cols-4 gap-1">
           <StatBox label="GP" value={player.gamesPlayed.toString()} />
           {isGoalie ? (
             <>
-              <StatBox label="W" value={player.wins?.toString() ?? '—'} isHighlight={isActive} />
               <StatBox label="SV%" value={player.savePct ?? '—'} />
               <StatBox label="GAA" value={player.gaa ?? '—'} />
+              <StatBoxFeatured label="W" value={player.wins?.toString() ?? '—'} />
             </>
           ) : (
             <>
               <StatBox label="G" value={player.goals.toString()} />
               <StatBox label="A" value={player.assists.toString()} />
-              <StatBox label="PTS" value={player.points.toString()} isHighlight={isActive} />
+              <StatBoxFeatured label="PTS" value={player.points.toString()} />
             </>
           )}
         </div>
@@ -159,19 +155,30 @@ export function PlayerCard({ player, isActive = false }: PlayerCardProps) {
 interface StatBoxProps {
   label: string
   value: string
-  isHighlight?: boolean
 }
 
-function StatBox({ label, value, isHighlight = false }: StatBoxProps) {
+/** Standard stat tile (E, F, G). */
+function StatBox({ label, value }: StatBoxProps) {
   return (
     <div className="flex flex-col items-center gap-0.5 rounded-lg border border-zinc-700/50 bg-zinc-800/50 py-1.5">
       <span className="text-[8px] font-bold uppercase tracking-widest text-zinc-500">{label}</span>
-      <span
-        className={[
-          'font-condensed text-[13px] font-black leading-none tabular',
-          isHighlight ? 'text-accent' : 'text-zinc-200',
-        ].join(' ')}
-      >
+      <span className="font-condensed text-[13px] font-black leading-none tabular text-zinc-200">
+        {value}
+      </span>
+    </div>
+  )
+}
+
+/**
+ * Featured stat tile (H — PTS / W).
+ * Always rendered with an accent tint background and larger value text
+ * to communicate it is the headline number on the card.
+ */
+function StatBoxFeatured({ label, value }: StatBoxProps) {
+  return (
+    <div className="flex flex-col items-center gap-0.5 rounded-lg border border-accent/30 bg-accent/10 py-1.5">
+      <span className="text-[8px] font-bold uppercase tracking-widest text-accent/60">{label}</span>
+      <span className="font-condensed text-[15px] font-black leading-none tabular text-accent">
         {value}
       </span>
     </div>

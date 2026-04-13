@@ -6,6 +6,8 @@ import type { RosterRow } from './player-card'
 
 interface PlayerCarouselProps {
   players: RosterRow[]
+  /** Club win% string forwarded to each PlayerCard's zone A. */
+  winPct?: string | undefined
 }
 
 /**
@@ -20,7 +22,7 @@ interface PlayerCarouselProps {
  * All player data is fetched server-side; this component is Client-only
  * for interactivity (activeIndex state + transitions).
  */
-export function PlayerCarousel({ players }: PlayerCarouselProps) {
+export function PlayerCarousel({ players, winPct }: PlayerCarouselProps) {
   const [activeIndex, setActiveIndex] = useState(0)
   const total = players.length
 
@@ -98,7 +100,7 @@ export function PlayerCarousel({ players }: PlayerCarouselProps) {
                       : undefined
                   }
                 >
-                  <PlayerCard player={player} isActive={isActive} />
+                  <PlayerCard player={player} isActive={isActive} winPct={winPct} />
                 </div>
               </div>
             )
@@ -159,7 +161,9 @@ export function PlayerCarousel({ players }: PlayerCarouselProps) {
           </button>
 
           <div className="flex flex-1 justify-center">
-            {players[activeIndex] && <PlayerCard player={players[activeIndex]} isActive />}
+            {players[activeIndex] && (
+              <PlayerCard player={players[activeIndex]} isActive winPct={winPct} />
+            )}
           </div>
 
           <button

@@ -445,6 +445,35 @@ Notes:
 
 ---
 
+## Player Card Content + H Emphasis Pass ✓ complete
+
+**What was changed:**
+
+- **`apps/web/src/components/home/player-card.tsx`**:
+  - **Zone A redesigned**: hero number zone now shows `#` (large, `text-zinc-700`) as a jersey-number placeholder; W-L-OTL and +/- removed; last line is now `win%` (goalies: personal `wins/(wins+losses)`, skaters: team club win% from new `winPct` prop, falls back to `'—'`)
+  - **Zone H always featured**: `StatBox` split into `StatBox` (E/F/G) and `StatBoxFeatured` (H). Featured tile has `bg-accent/10 border-accent/30`, accent-tinted label, and `text-[15px]` value (vs `text-[13px]` for standard cells) — permanently visually distinct, not just when `isActive`
+  - **Goalie H slot reordered**: GP | SV% | GAA | **W** (W moved to position H, the featured slot)
+  - `winPct?: string | undefined` prop added to `PlayerCardProps`
+
+- **`apps/web/src/components/home/player-carousel.tsx`**:
+  - `winPct?: string | undefined` added to `PlayerCarouselProps`; forwarded to each `PlayerCard` in both desktop and mobile renders
+
+- **`apps/web/src/app/page.tsx`**:
+  - `clubWinPct` computed from `clubStats` (using the existing `winPct()` helper); passed to `<PlayerCarousel winPct={clubWinPct} />`
+
+**Stats source investigation finding:**
+The card IS using the correct data source — `getRoster` queries `playerGameTitleStats`, which is the full cumulative aggregate (not a recent-games slice). The stats discrepancy (card shows GP:11/PTS:33 vs ChelHead's GP:436/PTS:989 for Stick Menace) is because our DB only contains the ~15 matches ingested since worker launch. Backfilling historical data requires either the EA members-stats API or waiting for more matches to be ingested. This is a data volume gap, not a bug.
+
+**Blocked by missing data:**
+- Jersey numbers: not in EA match payloads or DB → `#` placeholder in A
+- Nationality/flag: not in DB → flag outline placeholder in zone I
+- Platform: not in `getRoster` → controller icon placeholder in zone C
+- Full career stats: EA lifetime history not backfilled → stats reflect ingested matches only
+
+**Verified:** `pnpm typecheck`, `pnpm lint`, `pnpm prettier --check` (source TS/TSX) — all pass
+
+---
+
 ## What's Next
 
 ### What's next

@@ -123,6 +123,12 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
   const [clubStats, recentMatches, roster] = fetched
   const lastMatch = recentMatches[0] ?? null
 
+  // Club win% — passed into player cards as zone-A supporting line
+  const clubWinPct =
+    clubStats !== null && clubStats.gamesPlayed > 0
+      ? winPct(clubStats.wins, clubStats.losses, clubStats.otl)
+      : undefined
+
   // Derive featured players and leaders from roster
   const featuredPlayers = selectFeaturedPlayers(roster)
   const pointsLeaders = roster.filter((r) => r.wins === null).slice(0, 5)
@@ -156,7 +162,7 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
           <h2 className="mb-3 font-condensed text-sm font-semibold uppercase tracking-wider text-zinc-500">
             Featured Players
           </h2>
-          <PlayerCarousel players={featuredPlayers} />
+          <PlayerCarousel players={featuredPlayers} winPct={clubWinPct} />
         </section>
       )}
 
