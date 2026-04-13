@@ -42,11 +42,17 @@ async function recomputePlayerStats(gameTitleId: number): Promise<void> {
       giveaways,
       faceoff_pct,
       pass_pct,
+      shot_attempts,
+      toi_seconds,
       wins,
       losses,
+      otl,
       save_pct,
       gaa,
-      shutouts
+      shutouts,
+      total_saves,
+      total_shots_against,
+      total_goals_against
     )
     SELECT
       pms.player_id,
@@ -86,9 +92,18 @@ async function recomputePlayerStats(gameTitleId: number): Promise<void> {
         ELSE NULL
       END                                                          AS pass_pct,
 
-      -- Goalie: wins / losses from the match result, only for goalie appearances
+      -- Shot attempts: total across all appearances (skaters and goalies).
+      SUM(pms.shot_attempts)::int                                  AS shot_attempts,
+
+      -- TOI: total seconds across all appearances. NULL for pre-Phase-1 rows
+      -- where toi_seconds was not yet extracted. PostgreSQL SUM ignores NULLs,
+      -- returning NULL only if every value in the group is NULL.
+      SUM(pms.toi_seconds)::int                                    AS toi_seconds,
+
+      -- Goalie: wins / losses / OTL from the match result, only for goalie appearances
       SUM(CASE WHEN pms.is_goalie AND m.result = 'WIN'  THEN 1 ELSE 0 END)::int  AS wins,
       SUM(CASE WHEN pms.is_goalie AND m.result = 'LOSS' THEN 1 ELSE 0 END)::int  AS losses,
+      SUM(CASE WHEN pms.is_goalie AND m.result = 'OTL'  THEN 1 ELSE 0 END)::int  AS otl,
 
       -- Save pct: saves / shots_against * 100
       CASE
@@ -126,7 +141,19 @@ async function recomputePlayerStats(gameTitleId: number): Promise<void> {
       -- Shutouts: goalie appearances with 0 goals against
       SUM(
         CASE WHEN pms.is_goalie AND COALESCE(pms.goals_against, 0) = 0 THEN 1 ELSE 0 END
-      )::int                                                       AS shutouts
+      )::int                                                       AS shutouts,
+
+      -- Goalie totals: summed only for goalie appearances, 0 for non-goalies.
+      -- Consistent with wins/losses pattern.
+      SUM(
+        CASE WHEN pms.is_goalie THEN COALESCE(pms.saves, 0) ELSE 0 END
+      )::int                                                       AS total_saves,
+      SUM(
+        CASE WHEN pms.is_goalie THEN COALESCE(pms.shots_against, 0) ELSE 0 END
+      )::int                                                       AS total_shots_against,
+      SUM(
+        CASE WHEN pms.is_goalie THEN COALESCE(pms.goals_against, 0) ELSE 0 END
+      )::int                                                       AS total_goals_against
 
     FROM player_match_stats pms
     JOIN matches m ON pms.match_id = m.id
@@ -134,23 +161,29 @@ async function recomputePlayerStats(gameTitleId: number): Promise<void> {
     GROUP BY pms.player_id
 
     ON CONFLICT (player_id, game_title_id) DO UPDATE SET
-      games_played = EXCLUDED.games_played,
-      goals        = EXCLUDED.goals,
-      assists      = EXCLUDED.assists,
-      points       = EXCLUDED.points,
-      plus_minus   = EXCLUDED.plus_minus,
-      shots        = EXCLUDED.shots,
-      hits         = EXCLUDED.hits,
-      pim          = EXCLUDED.pim,
-      takeaways    = EXCLUDED.takeaways,
-      giveaways    = EXCLUDED.giveaways,
-      faceoff_pct  = EXCLUDED.faceoff_pct,
-      pass_pct     = EXCLUDED.pass_pct,
-      wins         = EXCLUDED.wins,
-      losses       = EXCLUDED.losses,
-      save_pct     = EXCLUDED.save_pct,
-      gaa          = EXCLUDED.gaa,
-      shutouts     = EXCLUDED.shutouts
+      games_played        = EXCLUDED.games_played,
+      goals               = EXCLUDED.goals,
+      assists             = EXCLUDED.assists,
+      points              = EXCLUDED.points,
+      plus_minus          = EXCLUDED.plus_minus,
+      shots               = EXCLUDED.shots,
+      hits                = EXCLUDED.hits,
+      pim                 = EXCLUDED.pim,
+      takeaways           = EXCLUDED.takeaways,
+      giveaways           = EXCLUDED.giveaways,
+      faceoff_pct         = EXCLUDED.faceoff_pct,
+      pass_pct            = EXCLUDED.pass_pct,
+      shot_attempts       = EXCLUDED.shot_attempts,
+      toi_seconds         = EXCLUDED.toi_seconds,
+      wins                = EXCLUDED.wins,
+      losses              = EXCLUDED.losses,
+      otl                 = EXCLUDED.otl,
+      save_pct            = EXCLUDED.save_pct,
+      gaa                 = EXCLUDED.gaa,
+      shutouts            = EXCLUDED.shutouts,
+      total_saves         = EXCLUDED.total_saves,
+      total_shots_against = EXCLUDED.total_shots_against,
+      total_goals_against = EXCLUDED.total_goals_against
   `)
 }
 

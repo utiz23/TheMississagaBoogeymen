@@ -38,14 +38,28 @@ export const playerGameTitleStats = pgTable(
     /** numeric(5,2). e.g. 78.30 */
     passPct: numeric('pass_pct', { precision: 5, scale: 2 }),
 
-    // ── Goalie aggregates (nullable) ──────────────────────────────���────────────
+    // ── Skater advanced aggregates ────────────────────────────────────────────
+    /** Total shot attempts (goals + missed + blocked). Summed from shot_attempts. */
+    shotAttempts: integer('shot_attempts').notNull().default(0),
+    /** Total TOI in seconds across all appearances. Nullable for pre-Phase-1 rows. */
+    toiSeconds: integer('toi_seconds'),
+
+    // ── Goalie aggregates (nullable) ──────────────────────────────────────────
     wins: integer('wins'),
     losses: integer('losses'),
+    /** Overtime losses. Counted only for goalie appearances where match result = 'OTL'. */
+    otl: integer('otl'),
     /** numeric(5,2). e.g. 92.75 */
     savePct: numeric('save_pct', { precision: 5, scale: 2 }),
     /** Goals Against Average. numeric(4,2). e.g. 2.35 */
     gaa: numeric('gaa', { precision: 4, scale: 2 }),
     shutouts: integer('shutouts'),
+    /** Total saves across all goalie appearances. */
+    totalSaves: integer('total_saves'),
+    /** Total shots against across all goalie appearances. */
+    totalShotsAgainst: integer('total_shots_against'),
+    /** Total goals against across all goalie appearances. */
+    totalGoalsAgainst: integer('total_goals_against'),
   },
   (table) => [uniqueIndex('player_game_title_stats_uniq').on(table.playerId, table.gameTitleId)],
 )
