@@ -125,18 +125,10 @@ export function PlayerCarousel({ players, winPct }: PlayerCarouselProps) {
           })}
         </div>
 
-        {/* Navigation: arrows + dot indicators */}
-        <div className="mt-5 flex items-center justify-center gap-5">
-          <button
-            type="button"
-            onClick={prev}
-            aria-label="Previous player"
-            className="flex h-7 w-7 items-center justify-center border border-zinc-700 text-zinc-500 transition-colors hover:border-zinc-500 hover:text-zinc-200"
-          >
-            <ChevronLeft />
-          </button>
-
-          <div className="flex items-center gap-2" role="tablist">
+        {/* Controls — thin-bar indicators + player label + arrows */}
+        <div className="mt-4 flex flex-col items-center gap-2">
+          {/* Thin-bar indicators */}
+          <div className="flex items-center gap-1.5" role="tablist">
             {players.map((p, i) => (
               <button
                 key={p.playerId}
@@ -148,21 +140,39 @@ export function PlayerCarousel({ players, winPct }: PlayerCarouselProps) {
                   setActiveIndex(i)
                 }}
                 className={[
-                  'h-1.5 rounded-full transition-all duration-300',
-                  i === activeIndex ? 'w-5 bg-accent' : 'w-1.5 bg-zinc-700 hover:bg-zinc-500',
+                  'rounded-full transition-all duration-300',
+                  i === activeIndex
+                    ? 'h-0.5 w-6 bg-accent'
+                    : 'h-0.5 w-3 bg-zinc-700 hover:bg-zinc-500',
                 ].join(' ')}
               />
             ))}
           </div>
 
-          <button
-            type="button"
-            onClick={next}
-            aria-label="Next player"
-            className="flex h-7 w-7 items-center justify-center border border-zinc-700 text-zinc-500 transition-colors hover:border-zinc-500 hover:text-zinc-200"
-          >
-            <ChevronRight />
-          </button>
+          {/* Player label + flanking arrows */}
+          <div className="flex items-center gap-4">
+            <button
+              type="button"
+              onClick={prev}
+              aria-label="Previous player"
+              className="flex h-8 w-8 items-center justify-center border border-zinc-800 text-zinc-600 transition-colors hover:border-zinc-500 hover:text-zinc-200"
+            >
+              <ChevronLeft />
+            </button>
+
+            <span className="min-w-[140px] text-center font-condensed text-sm font-black uppercase tracking-wider text-zinc-300">
+              {players[activeIndex]?.gamertag ?? ''}
+            </span>
+
+            <button
+              type="button"
+              onClick={next}
+              aria-label="Next player"
+              className="flex h-8 w-8 items-center justify-center border border-zinc-800 text-zinc-600 transition-colors hover:border-zinc-500 hover:text-zinc-200"
+            >
+              <ChevronRight />
+            </button>
+          </div>
         </div>
       </div>
 
@@ -198,22 +208,29 @@ export function PlayerCarousel({ players, winPct }: PlayerCarouselProps) {
           </button>
         </div>
 
-        {/* Dot indicators */}
-        <div className="mt-3 flex justify-center gap-2">
-          {players.map((p, i) => (
-            <button
-              key={p.playerId}
-              type="button"
-              aria-label={`Show ${p.gamertag}`}
-              onClick={() => {
-                setActiveIndex(i)
-              }}
-              className={[
-                'h-1.5 rounded-full transition-all duration-300',
-                i === activeIndex ? 'w-5 bg-accent' : 'w-1.5 bg-zinc-700',
-              ].join(' ')}
-            />
-          ))}
+        {/* Thin-bar indicators + player label */}
+        <div className="mt-3 flex flex-col items-center gap-2">
+          <div className="flex items-center gap-1.5">
+            {players.map((p, i) => (
+              <button
+                key={p.playerId}
+                type="button"
+                aria-label={`Show ${p.gamertag}`}
+                onClick={() => {
+                  setActiveIndex(i)
+                }}
+                className={[
+                  'rounded-full transition-all duration-300',
+                  i === activeIndex
+                    ? 'h-0.5 w-6 bg-accent'
+                    : 'h-0.5 w-3 bg-zinc-700 hover:bg-zinc-500',
+                ].join(' ')}
+              />
+            ))}
+          </div>
+          <span className="font-condensed text-sm font-black uppercase tracking-wider text-zinc-400">
+            {players[activeIndex]?.gamertag ?? ''}
+          </span>
         </div>
       </div>
     </div>
