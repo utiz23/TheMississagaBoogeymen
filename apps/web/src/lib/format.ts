@@ -60,3 +60,15 @@ export function formatPosition(pos: string): string {
   }
   return map[pos] ?? pos
 }
+
+/** Map EA position strings to full display labels for the player card pill. */
+export function formatPositionFull(pos: string): string {
+  const map: Record<string, string> = {
+    goalie: 'Goalie',
+    center: 'Center',
+    defenseMen: 'Defense',
+    leftWing: 'Left Wing',
+    rightWing: 'Right Wing',
+  }
+  return map[pos] ?? pos
+}

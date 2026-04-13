@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import Image from 'next/image'
 import type { getRoster } from '@eanhl/db/queries'
-import { formatPosition } from '@/lib/format'
+import { formatPositionFull } from '@/lib/format'
 
 export type RosterRow = Awaited<ReturnType<typeof getRoster>>[number]
 
@@ -15,31 +15,28 @@ interface PlayerCardProps {
   /**
    * Club win% string (e.g. "54.2%") sourced from club aggregate stats.
    * Shown as the supporting line in zone A. Undefined renders "—".
-   * Jersey number is not yet available in the data source — zone A shows
-   * a "#" placeholder until that field is added.
    */
   winPct?: string | undefined
 }
 
 /**
- * Blueprint-faithful player card.
+ * Player card.
  *
- * Zone layout (matches PlayerCardBluePrint_2.png):
- *   TOP SECTION — A (info block, top-left) overlaid on B (silhouette)
- *   IDENTITY ROW — C (platform placeholder) + D (gamertag), centred
- *   STATS PANEL  — E–H (stats row) + I–J (meta row, K reserved)
+ * Structure:
+ *   Outer shell  bg-zinc-950, rounded-2xl
+ *   ├─ Accent bar     absolute top-0 full-width z-30
+ *   ├─ A block        absolute top-left z-20, bg-zinc-950 (matches shell)
+ *   ├─ Top panel      mx-2 mt-2 rounded-2xl bg-zinc-900 — portrait + identity row
+ *   └─ Stats panel    mx-2 mb-2 mt-1.5 rounded-2xl bg-zinc-900 — E–H + I–J
  *
- * Goalie detection uses position === 'goalie' (not wins !== null — wins can
- * be 0 for non-goalies after aggregation, making the null check unreliable).
- *
- * H (PTS / W) always renders as the featured stat tile regardless of isActive.
+ * Goalie detection: position === 'goalie' (wins can be 0, not null, for non-goalies).
+ * H (PTS / W) is always the StatBoxFeatured tile — accent tint, larger value.
  */
 export function PlayerCard({ player, isActive = false, winPct }: PlayerCardProps) {
   const isGoalie = player.position === 'goalie'
-  const posLabel = player.position ? formatPosition(player.position) : null
+  const posLabel = player.position ? formatPositionFull(player.position) : null
 
-  // Zone A — win% display
-  // For goalies, prefer personal win% when data exists; otherwise use team win%.
+  // Zone A — win% line: personal for goalies when data exists, club win% otherwise
   const displayWinPct: string =
     isGoalie && player.wins !== null && player.losses !== null && player.wins + player.losses > 0
       ? `${((player.wins / (player.wins + player.losses)) * 100).toFixed(0)}%`
@@ -49,66 +46,76 @@ export function PlayerCard({ player, isActive = false, winPct }: PlayerCardProps
     <Link
       href={`/roster/${player.playerId.toString()}`}
       className={[
-        'group block w-56 overflow-hidden rounded-2xl border bg-zinc-950 transition-all duration-200',
+        'group relative block w-56 overflow-hidden rounded-2xl border bg-zinc-950 transition-all duration-300',
         isActive
           ? 'border-zinc-600 shadow-[0_0_28px_rgba(225,29,72,0.20)]'
-          : 'border-zinc-800 hover:border-zinc-600 hover:shadow-[0_0_18px_rgba(225,29,72,0.10)]',
+          : 'border-zinc-800 hover:-translate-y-1 hover:border-zinc-600 hover:shadow-[0_0_32px_rgba(225,29,72,0.22)]',
       ].join(' ')}
     >
-      {/* ── TOP SECTION: B (silhouette) with A (info) overlaid ──────────── */}
-      <div className="relative h-[160px]">
-        {/* Accent top bar */}
+      {/* ── Accent top bar — spans full card width, above everything ────── */}
+      <div
+        className={[
+          'absolute inset-x-0 top-0 z-30 h-1 transition-colors',
+          isActive ? 'bg-accent' : 'bg-zinc-800 group-hover:bg-accent',
+        ].join(' ')}
+      />
+
+      {/* ── A — flush top-left on card shell, no visible box ────────────── */}
+      <div className="absolute left-0 top-0 z-20 flex w-[72px] flex-col rounded-br-2xl bg-zinc-950 px-3 pb-3 pt-4">
+        {/* Jersey number placeholder — data not yet in source */}
         <div
           className={[
-            'absolute inset-x-0 top-0 h-1 transition-colors',
-            isActive ? 'bg-accent' : 'bg-zinc-800 group-hover:bg-accent/50',
+            'font-condensed text-[32px] font-black leading-none',
+            isActive ? 'text-zinc-400' : 'text-zinc-600',
           ].join(' ')}
-        />
+        >
+          ##
+        </div>
 
-        {/* B — Silhouette (fills the section, bottom-anchored) */}
-        <div className="absolute inset-0 flex items-end justify-center overflow-hidden">
+        {/* Position pill */}
+        {posLabel !== null ? (
+          <span className="mt-1 inline-flex items-center rounded-sm bg-zinc-800 px-1.5 py-0.5 font-condensed text-[9px] font-bold uppercase tracking-widest text-zinc-400">
+            {posLabel}
+          </span>
+        ) : (
+          <span className="mt-1 inline-block h-2.5 w-7 rounded bg-zinc-800" />
+        )}
+
+        {/* W–L–OTL record */}
+        <div className="mt-1.5 font-condensed text-[10px] font-semibold leading-none text-zinc-500">
+          {isGoalie && player.wins !== null && player.losses !== null
+            ? `${player.wins.toString()}–${player.losses.toString()}–—`
+            : '—–—–—'}
+        </div>
+
+        <div className="mt-1.5 font-condensed text-[11px] font-bold leading-none text-zinc-300">
+          {displayWinPct}
+        </div>
+      </div>
+
+      {/* ── TOP PANEL — one grey container: portrait (B) + identity row (C+D) */}
+      <div className="relative mx-2 mt-2 overflow-hidden rounded-2xl bg-zinc-900">
+        {/* B — Portrait / silhouette area */}
+        <div className="relative flex h-[162px] items-end justify-center">
           <PlayerSilhouette className="text-zinc-800" />
         </div>
 
-        {/* A — Info block anchored top-left; self-sized via absolute.
-            Contents: # placeholder → position badge → win% */}
-        <div className="absolute left-2 top-2 z-10 flex w-[62px] flex-col rounded-xl border border-zinc-700 bg-zinc-900/95 p-2">
-          {/* Jersey number placeholder — real value not yet in data */}
-          <div className="font-condensed text-[28px] font-black leading-none text-zinc-700">#</div>
-
-          {/* Position badge */}
-          {posLabel !== null ? (
-            <span className="mt-1.5 inline-flex w-fit items-center rounded-full border border-zinc-600 px-1.5 py-0.5 font-condensed text-[9px] font-bold uppercase tracking-wider text-zinc-400">
-              {posLabel}
-            </span>
-          ) : (
-            <span className="mt-1.5 inline-block h-3.5 w-8 rounded-full bg-zinc-800" />
-          )}
-
-          {/* Win% — team win% for skaters, personal for goalies */}
-          <div className="mt-2 font-condensed text-[11px] font-bold leading-none text-zinc-300">
-            {displayWinPct}
+        {/* C + D — Identity row inside the top panel */}
+        <div className="flex items-center justify-center gap-2 border-t border-zinc-800/60 px-3 py-2">
+          {/* C — Platform placeholder */}
+          <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-sm border border-zinc-700 bg-zinc-800/80 text-zinc-500">
+            <ControllerIcon />
           </div>
-          <div className="text-[7px] uppercase tracking-wider text-zinc-600">WIN%</div>
+          {/* D — Gamertag */}
+          <span className="truncate font-condensed text-base font-black uppercase tracking-wide text-zinc-100 group-hover:text-zinc-50">
+            {player.gamertag}
+          </span>
         </div>
       </div>
 
-      {/* ── C + D: Platform logo + Gamertag — centred across card ───────── */}
-      <div className="flex items-center justify-center gap-2 px-3 py-2">
-        {/* C — Platform placeholder (no platform field in DB yet) */}
-        <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-sm border border-zinc-700 bg-zinc-800 text-zinc-600">
-          <ControllerIcon />
-        </div>
-        {/* D — Gamertag */}
-        <span className="truncate font-condensed text-base font-black uppercase tracking-wide text-zinc-100 group-hover:text-zinc-50">
-          {player.gamertag}
-        </span>
-      </div>
-
-      {/* ── STATS + META PANEL ───────────────────────────────────────────── */}
-      <div className="mx-2 mb-2 rounded-xl border border-zinc-800 bg-zinc-900 p-2">
-        {/* E–H: role-gated stats.
-            H (PTS for skaters / W for goalies) is always the featured tile. */}
+      {/* ── STATS PANEL — E–H (stats) + I–J (meta) ───────────────────────── */}
+      <div className="mx-2 mb-2 mt-1.5 overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-900 p-2">
+        {/* E–H: role-gated stats. H (PTS / W) is always the featured tile. */}
         <div className="grid grid-cols-4 gap-1">
           <StatBox label="GP" value={player.gamesPlayed.toString()} />
           {isGoalie ? (
@@ -126,14 +133,14 @@ export function PlayerCard({ player, isActive = false, winPct }: PlayerCardProps
           )}
         </div>
 
-        {/* I–K: meta row — I (Flag placeholder), J (Team Logo), K (reserved) */}
+        {/* I–K: meta row — I (flag), J (team logo), K (reserved) */}
         <div className="mt-2 grid grid-cols-3 gap-2">
-          {/* I — Country flag placeholder (no nationality field in DB yet) */}
-          <div className="flex h-[40px] items-center justify-center rounded border border-zinc-700/60 bg-zinc-800/40">
+          {/* I — Country flag placeholder */}
+          <div className="flex h-[40px] items-center justify-center rounded-lg border border-zinc-700/60 bg-zinc-800/40">
             <FlagIcon className="text-zinc-600" />
           </div>
           {/* J — Team logo */}
-          <div className="flex h-[40px] items-center justify-center overflow-hidden rounded border border-zinc-700/60 bg-zinc-800/40">
+          <div className="flex h-[40px] items-center justify-center overflow-hidden rounded-lg border border-zinc-700/60 bg-zinc-800/40">
             <Image
               src="/images/bgm-logo.png"
               alt="BGM"
@@ -142,7 +149,7 @@ export function PlayerCard({ player, isActive = false, winPct }: PlayerCardProps
               className="object-contain opacity-60"
             />
           </div>
-          {/* K — reserved for future content; intentionally empty */}
+          {/* K — reserved for future content */}
           <div />
         </div>
       </div>
@@ -171,8 +178,7 @@ function StatBox({ label, value }: StatBoxProps) {
 
 /**
  * Featured stat tile (H — PTS / W).
- * Always rendered with an accent tint background and larger value text
- * to communicate it is the headline number on the card.
+ * Accent tint background + larger value text — permanently distinct.
  */
 function StatBoxFeatured({ label, value }: StatBoxProps) {
   return (
