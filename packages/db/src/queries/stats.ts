@@ -3,6 +3,50 @@ import { db } from '../client.js'
 import { eaMemberSeasonStats } from '../schema/index.js'
 
 /**
+ * All members for a game title from the EA baseline table, shaped to match
+ * the RosterRow contract used by the home-page carousel and scoring leaders panel.
+ *
+ * Source: ea_member_season_stats — authoritative season totals from EA /members/stats.
+ *
+ * Goalie nullable fields (wins, losses, savePct, gaa, shutouts) mirror the
+ * player_game_title_stats shape so existing components need no changes.
+ *
+ * Ordered by points desc → goals desc → gamertag asc.
+ */
+export async function getEAMemberRoster(gameTitleId: number) {
+  return db
+    .select({
+      playerId: eaMemberSeasonStats.playerId,
+      gamertag: eaMemberSeasonStats.gamertag,
+      position: eaMemberSeasonStats.favoritePosition,
+      gamesPlayed: eaMemberSeasonStats.gamesPlayed,
+      goals: eaMemberSeasonStats.goals,
+      assists: eaMemberSeasonStats.assists,
+      points: eaMemberSeasonStats.points,
+      plusMinus: eaMemberSeasonStats.plusMinus,
+      shots: eaMemberSeasonStats.shots,
+      hits: eaMemberSeasonStats.hits,
+      pim: eaMemberSeasonStats.pim,
+      takeaways: eaMemberSeasonStats.takeaways,
+      giveaways: eaMemberSeasonStats.giveaways,
+      faceoffPct: eaMemberSeasonStats.faceoffPct,
+      passPct: eaMemberSeasonStats.passPct,
+      wins: eaMemberSeasonStats.goalieWins,
+      losses: eaMemberSeasonStats.goalieLosses,
+      savePct: eaMemberSeasonStats.goalieSavePct,
+      gaa: eaMemberSeasonStats.goalieGaa,
+      shutouts: eaMemberSeasonStats.goalieShutouts,
+    })
+    .from(eaMemberSeasonStats)
+    .where(eq(eaMemberSeasonStats.gameTitleId, gameTitleId))
+    .orderBy(
+      desc(eaMemberSeasonStats.points),
+      desc(eaMemberSeasonStats.goals),
+      asc(eaMemberSeasonStats.gamertag),
+    )
+}
+
+/**
  * Skater season stats for the stats table.
  *
  * Source: ea_member_season_stats — EA /members/stats authoritative season totals.

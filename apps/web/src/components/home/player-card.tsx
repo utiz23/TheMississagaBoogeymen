@@ -1,9 +1,9 @@
 import Link from 'next/link'
 import Image from 'next/image'
-import type { getRoster } from '@eanhl/db/queries'
+import type { getEAMemberRoster } from '@eanhl/db/queries'
 import { formatPositionFull } from '@/lib/format'
 
-export type RosterRow = Awaited<ReturnType<typeof getRoster>>[number]
+export type RosterRow = Awaited<ReturnType<typeof getEAMemberRoster>>[number]
 
 interface PlayerCardProps {
   player: RosterRow

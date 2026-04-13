@@ -2,6 +2,16 @@
 
 Use this skill whenever a phase or significant work chunk needs validation.
 
+## Pre-Check — DB Package Rebuild
+
+**If any file in `packages/db/src/` was modified, rebuild first:**
+
+```bash
+pnpm --filter @eanhl/db build
+```
+
+Without this, `pnpm typecheck` on web or worker will report spurious "no exported member" errors for new query/schema exports — even though the code is correct.
+
 ## Default Commands
 
 Run, in this order:
@@ -11,6 +21,8 @@ pnpm typecheck
 pnpm lint
 pnpm format:check
 ```
+
+If format fails, fix with `pnpm format` then re-check.
 
 Add focused checks when relevant, for example:
 

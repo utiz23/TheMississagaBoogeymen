@@ -50,11 +50,57 @@ pnpm --filter web dev     # Start only the Next.js dev server
 pnpm --filter worker dev  # Start only the ingestion worker
 pnpm --filter db generate # Generate Drizzle migrations
 pnpm --filter db migrate  # Run migrations
-pnpm --filter worker reprocess       # Reprocess failed transforms
+pnpm --filter worker reprocess            # Reprocess failed transforms
 pnpm --filter worker reprocess --dry-run  # Preview reprocessing
+pnpm --filter worker reprocess --all      # Reprocess ALL raw payloads (backfill after schema/transform change)
 docker compose up         # Start all services (web + worker + postgres)
 docker compose up db      # Start only PostgreSQL
 ```
+
+### After modifying `packages/db/src/`
+
+Always rebuild the package before running typecheck on any consumer (web, worker):
+
+```bash
+pnpm --filter @eanhl/db build
+```
+
+New query exports are not visible to consumers until this runs. This is the most common cause of "no exported member" typecheck errors.
+
+### After modifying worker source for local CLI use
+
+```bash
+pnpm --filter @eanhl/worker build
+```
+
+Required before `reprocess --all` runs the updated transform locally.
+
+### Loading env for local worker commands
+
+Worker CLI commands (`reprocess`, `ingest-now`) need `DATABASE_URL` from `.env`:
+
+```bash
+set -a && source .env && set +a
+pnpm --filter worker reprocess --all
+```
+
+### Querying the live database
+
+```bash
+docker exec eanhl-team-website-db-1 psql -U eanhl -d eanhl -c "SELECT ..."
+```
+
+Container: `eanhl-team-website-db-1` · User: `eanhl` · DB: `eanhl` · Host port: `5433` (not 5432 — conflict with another project).
+
+### Format fix (write, not just check)
+
+```bash
+pnpm format
+```
+
+### After deploying new code to Docker
+
+See the `docker-redeploy` skill. Always rebuild the image — `docker compose up -d` alone reuses the old image.
 
 ## Environment Variables
 
