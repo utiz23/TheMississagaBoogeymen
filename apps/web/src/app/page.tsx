@@ -41,50 +41,13 @@ function winPct(wins: number, losses: number, otl: number): string {
 }
 
 /**
- * Build a curated featured-player set for the 5-slot stacked carousel.
- *
- * Targets 5–6 players for optimal carousel presentation. Strategy:
- *   1. Top 3 skaters by points
- *   2. Top goals scorer (if not already in set)
- *   3. Top hitter (if not already in set)
- *   4. Best goalie by wins (if any exists, not already in set)
- *   5. Fill to 5 skaters from remaining points-ranked players
- *
- * All steps are deduplicated. Result is 3–6 players.
+ * Top players by points descending for the featured carousel.
+ * Goalies sort naturally to the back (0 points). Returns up to 8.
  */
 function selectFeaturedPlayers(roster: RosterRow[]): RosterRow[] {
-  if (roster.length === 0) return []
-
-  const seen = new Set<number>()
-  const featured: RosterRow[] = []
-
-  const pick = (row: RosterRow | undefined) => {
-    if (!row || seen.has(row.playerId)) return
-    seen.add(row.playerId)
-    featured.push(row)
-  }
-
-  const skaters = roster.filter((r) => r.wins === null)
-
-  // 1. Top 3 skaters by points (roster already sorted by points desc)
-  skaters.slice(0, 3).forEach(pick)
-
-  // 2. Top goals scorer
-  pick([...skaters].sort((a, b) => b.goals - a.goals)[0])
-
-  // 3. Top hitter
-  pick([...skaters].sort((a, b) => b.hits - a.hits)[0])
-
-  // 4. Best goalie by wins
-  pick([...roster.filter((r) => r.wins !== null)].sort((a, b) => (b.wins ?? 0) - (a.wins ?? 0))[0])
-
-  // 5. Pad to 5 skaters from next points-ranked players (ensures ≥5 if team is large enough)
-  for (const row of skaters.slice(3)) {
-    if (featured.filter((r) => r.wins === null).length >= 5) break
-    pick(row)
-  }
-
-  return featured
+  return [...roster]
+    .sort((a, b) => b.points - a.points || b.gamesPlayed - a.gamesPlayed)
+    .slice(0, 8)
 }
 
 export default async function HomePage({ searchParams }: { searchParams: SearchParams }) {
