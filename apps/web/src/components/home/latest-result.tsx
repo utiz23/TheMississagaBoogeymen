@@ -17,6 +17,25 @@ interface LatestResultProps {
   clubRecord: { wins: number; losses: number; otl: number } | null
 }
 
+const RESULT_PILL_CONFIG: Record<MatchResult, { label: string; className: string }> = {
+  WIN: {
+    label: 'WIN',
+    className: 'border-emerald-500/40 bg-emerald-500/10 text-emerald-400',
+  },
+  LOSS: {
+    label: 'LOSS',
+    className: 'border-red-500/40 bg-red-500/10 text-red-400',
+  },
+  OTL: {
+    label: 'OT LOSS',
+    className: 'border-orange-500/40 bg-orange-500/10 text-orange-300',
+  },
+  DNF: {
+    label: 'DNF',
+    className: 'border-zinc-600/40 bg-zinc-800/40 text-zinc-500',
+  },
+}
+
 function ShieldPlaceholder() {
   return (
     <svg viewBox="0 0 48 56" fill="none" className="h-12 w-12 sm:h-14 sm:w-14" aria-hidden>
@@ -36,62 +55,52 @@ function OpponentLogo({ clubId, clubName }: { clubId: string; clubName: string }
   return (
     <div className="relative flex h-14 w-14 items-center justify-center sm:h-16 sm:w-16">
       <ShieldPlaceholder />
-      {/* plain img — EA CDN, not configurable in next/image remotePatterns */}
-      <img
-        src={logoUrl}
-        alt={clubName}
-        className="absolute inset-0 h-full w-full object-contain"
-        onError={(e) => {
-          e.currentTarget.style.display = 'none'
-        }}
-      />
+      {/* plain img — EA CDN, not configurable in next/image remotePatterns.
+          onError omitted: this is a Server Component; the EA CDN URL never 404s
+          (clubs without a custom crest receive the default NHL shield). */}
+      <img src={logoUrl} alt={clubName} className="absolute inset-0 h-full w-full object-contain" />
     </div>
   )
 }
 
 function ResultPill({ result }: { result: MatchResult }) {
-  const styles: Record<string, string> = {
-    WIN: 'border border-emerald-500/40 bg-emerald-500/10 text-emerald-400',
-    LOSS: 'border border-red-500/40 bg-red-500/10 text-red-400',
-    OTL: 'border border-orange-500/40 bg-orange-500/10 text-orange-400',
-    DNF: 'border border-zinc-600/40 bg-zinc-800/40 text-zinc-500',
-  }
-  const labels: Record<string, string> = {
-    WIN: 'WIN',
-    LOSS: 'LOSS',
-    OTL: 'OT LOSS',
-    DNF: 'DNF',
-  }
-  const cls = styles[result] ?? 'border border-zinc-600/40 bg-zinc-800/40 text-zinc-500'
-  const label = labels[result] ?? result
+  const config = RESULT_PILL_CONFIG[result]
 
   return (
     <span
-      className={`inline-flex items-center px-3 py-1 font-condensed text-sm font-bold uppercase tracking-wider ${cls}`}
+      className={`inline-flex items-center justify-center rounded-full border px-4 py-1.5 font-condensed text-sm font-bold uppercase tracking-[0.22em] ${config.className}`}
     >
-      {label}
+      {config.label}
     </span>
   )
 }
 
 function StripStat({ label, value }: { label: string; value: string }) {
   return (
-    <span>
-      <span className="font-semibold uppercase tracking-wider text-zinc-600">{label}</span>{' '}
-      <span className="tabular text-zinc-400">{value}</span>
-    </span>
+    <div className="flex items-center justify-between gap-3 rounded-md border border-zinc-800/70 bg-black/15 px-3 py-2">
+      <span className="font-condensed text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-600">
+        {label}
+      </span>
+      <span className="font-condensed text-sm font-semibold tabular-nums text-zinc-300">
+        {value}
+      </span>
+    </div>
   )
 }
 
 export function LatestResult({ match, clubRecord }: LatestResultProps) {
-  const scoreForColor = match.result === 'WIN' ? 'text-accent' : 'text-zinc-100'
+  const opponentAbbrev = abbreviateTeamName(match.opponentName)
+  const ourScoreColor = match.result === 'WIN' ? 'text-accent' : 'text-zinc-100'
+  const opponentScoreColor =
+    match.result === 'LOSS' || match.result === 'OTL' ? 'text-red-300' : 'text-zinc-500'
 
   return (
     <Link
       href={`/games/${match.id.toString()}`}
-      className="group block overflow-hidden border border-zinc-800 border-t-2 border-t-accent bg-surface transition-colors hover:bg-surface-raised"
+      className="group block overflow-hidden border border-zinc-800 bg-[radial-gradient(circle_at_top,rgba(190,24,24,0.16),transparent_42%),linear-gradient(180deg,rgba(24,24,27,0.98),rgba(10,10,10,0.98))] transition-[border-color,transform,background-color] hover:border-zinc-700 hover:bg-surface-raised"
     >
-      {/* Header row */}
+      <div className="h-1 w-full bg-gradient-to-r from-red-900 via-red-600 to-red-900" />
+
       <div className="flex items-center justify-between border-b border-zinc-800/60 px-5 py-3">
         <span className="font-condensed text-xs font-semibold uppercase tracking-widest text-zinc-500">
           Latest Result
@@ -99,58 +108,71 @@ export function LatestResult({ match, clubRecord }: LatestResultProps) {
         <span className="text-xs text-zinc-600">{formatMatchDate(match.playedAt)}</span>
       </div>
 
-      {/* Main scoreboard grid */}
-      <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-4 px-5 py-8 sm:gap-8 sm:px-8">
-        {/* Left — our team */}
-        <div className="flex flex-col items-center gap-2 text-center">
-          <Image
-            src="/images/bgm-logo.png"
-            alt="BGM"
-            width={64}
-            height={64}
-            className="h-14 w-14 object-contain sm:h-16 sm:w-16"
-          />
-          <span className="font-condensed text-2xl font-black uppercase text-zinc-100">
+      <div className="grid gap-5 px-5 py-6 sm:px-8 sm:py-8 lg:grid-cols-[1fr_auto_1fr] lg:items-center">
+        <div className="flex flex-col items-center justify-center gap-3 rounded-xl border border-zinc-800/70 bg-black/20 px-4 py-5 text-center lg:min-h-[16rem]">
+          <div className="flex h-20 w-20 items-center justify-center rounded-full border border-zinc-800 bg-black/20 sm:h-24 sm:w-24">
+            <Image
+              src="/images/bgm-logo.png"
+              alt="BGM"
+              width={88}
+              height={88}
+              className="h-16 w-16 object-contain sm:h-20 sm:w-20"
+            />
+          </div>
+          <span className="font-condensed text-3xl font-black uppercase tracking-[0.14em] text-zinc-100">
             {OUR_ABBREV}
           </span>
-          {clubRecord !== null && (
-            <span className="font-condensed text-sm font-semibold text-zinc-500">
+          {clubRecord !== null ? (
+            <span className="font-condensed text-base font-semibold tracking-[0.12em] text-zinc-400">
               {formatRecord(clubRecord.wins, clubRecord.losses, clubRecord.otl)}
             </span>
-          )}
+          ) : null}
         </div>
 
-        {/* Center — score + result pill */}
-        <div className="flex min-w-[160px] flex-col items-center gap-3 sm:min-w-[200px]">
-          <div className="flex items-baseline gap-1 font-condensed font-black tabular leading-none">
-            <span className={`text-6xl sm:text-7xl ${scoreForColor}`}>
+        <div className="flex min-w-0 flex-col items-center justify-center gap-4 px-2 py-2 text-center lg:min-w-[18rem]">
+          <div className="font-condensed text-[11px] font-semibold uppercase tracking-[0.28em] text-zinc-600">
+            Featured Scoreboard
+          </div>
+          <div className="flex items-baseline justify-center gap-2 font-condensed font-black tabular-nums leading-none sm:gap-3">
+            <span className={`text-[4.5rem] sm:text-[5.75rem] ${ourScoreColor}`}>
               {match.scoreFor.toString()}
             </span>
-            <span className="text-3xl text-zinc-700 sm:text-4xl">–</span>
-            <span className="text-6xl text-zinc-500 sm:text-7xl">
+            <span className="text-3xl text-zinc-700 sm:text-5xl">-</span>
+            <span className={`text-[4.5rem] sm:text-[5.75rem] ${opponentScoreColor}`}>
               {match.scoreAgainst.toString()}
             </span>
           </div>
           <ResultPill result={match.result} />
+          <div className="font-condensed text-xs font-medium uppercase tracking-[0.18em] text-zinc-600">
+            Final
+          </div>
         </div>
 
-        {/* Right — opponent */}
-        <div className="flex flex-col items-center gap-2 text-center">
-          <OpponentLogo clubId={match.opponentClubId} clubName={match.opponentName} />
-          <span className="font-condensed text-2xl font-black uppercase text-zinc-100">
-            {abbreviateTeamName(match.opponentName)}
+        <div className="flex flex-col items-center justify-center gap-3 rounded-xl border border-zinc-800/70 bg-black/20 px-4 py-5 text-center lg:min-h-[16rem]">
+          <div className="flex h-20 w-20 items-center justify-center rounded-full border border-zinc-800 bg-black/20 sm:h-24 sm:w-24">
+            <OpponentLogo clubId={match.opponentClubId} clubName={match.opponentName} />
+          </div>
+          <span className="font-condensed text-3xl font-black uppercase tracking-[0.14em] text-zinc-100">
+            {opponentAbbrev}
           </span>
+          <span className="max-w-[14rem] text-sm text-zinc-500">{match.opponentName}</span>
         </div>
       </div>
 
-      {/* Stats strip footer */}
-      <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5 border-t border-zinc-800/60 px-5 py-3 text-xs text-zinc-500">
-        <StripStat label="SOG" value={formatScore(match.shotsFor, match.shotsAgainst)} />
-        <StripStat label="Hits" value={formatScore(match.hitsFor, match.hitsAgainst)} />
-        {match.faceoffPct !== null && <StripStat label="FO%" value={formatPct(match.faceoffPct)} />}
-        {match.timeOnAttack !== null && (
-          <StripStat label="TOA" value={formatTOA(match.timeOnAttack)} />
-        )}
+      <div className="border-t border-zinc-800/60 bg-black/10 px-5 py-3 sm:px-8">
+        <div className="mb-2 font-condensed text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-600">
+          Match Snapshot
+        </div>
+        <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+          <StripStat label="SOG" value={formatScore(match.shotsFor, match.shotsAgainst)} />
+          <StripStat label="Hits" value={formatScore(match.hitsFor, match.hitsAgainst)} />
+          {match.faceoffPct !== null && (
+            <StripStat label="FO%" value={formatPct(match.faceoffPct)} />
+          )}
+          {match.timeOnAttack !== null && (
+            <StripStat label="TOA" value={formatTOA(match.timeOnAttack)} />
+          )}
+        </div>
       </div>
     </Link>
   )
