@@ -24,6 +24,7 @@ interface PlayerCarouselProps {
  */
 export function PlayerCarousel({ players, winPct }: PlayerCarouselProps) {
   const [activeIndex, setActiveIndex] = useState(0)
+  const [swipeStart, setSwipeStart] = useState<number | null>(null)
   const total = players.length
 
   if (total === 0) return null
@@ -33,6 +34,19 @@ export function PlayerCarousel({ players, winPct }: PlayerCarouselProps) {
   }
   const next = () => {
     setActiveIndex((i) => (i + 1) % total)
+  }
+
+  const onTouchStart = (e: React.TouchEvent) => {
+    setSwipeStart(e.touches[0]?.clientX ?? null)
+  }
+  const onTouchEnd = (e: React.TouchEvent) => {
+    if (swipeStart === null) return
+    const delta = (e.changedTouches[0]?.clientX ?? swipeStart) - swipeStart
+    if (Math.abs(delta) > 44) {
+      if (delta < 0) next()
+      else prev()
+    }
+    setSwipeStart(null)
   }
 
   return (
@@ -49,7 +63,11 @@ export function PlayerCarousel({ players, winPct }: PlayerCarouselProps) {
       {/* ── Desktop: stacked depth carousel ─────────────────────────────── */}
       <div className="hidden sm:block">
         {/* Stage — fixed height, overflow hidden to clip side cards */}
-        <div className="relative h-[400px] overflow-hidden">
+        <div
+          className="relative h-[400px] overflow-hidden"
+          onTouchStart={onTouchStart}
+          onTouchEnd={onTouchEnd}
+        >
           {/* Side vignette masks — create the "cards fade into darkness" effect */}
           <div
             className="pointer-events-none absolute inset-y-0 left-0 z-20 w-36"
@@ -160,7 +178,11 @@ export function PlayerCarousel({ players, winPct }: PlayerCarouselProps) {
             <ChevronLeft />
           </button>
 
-          <div className="flex flex-1 justify-center">
+          <div
+            className="flex flex-1 justify-center"
+            onTouchStart={onTouchStart}
+            onTouchEnd={onTouchEnd}
+          >
             {players[activeIndex] && (
               <PlayerCard player={players[activeIndex]} isActive winPct={winPct} />
             )}
