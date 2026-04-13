@@ -2,7 +2,7 @@
 
 ## Current Status
 
-**Phase:** Home page carousel V-formation + behavior pass complete.
+**Phase:** DB/Stats Rework — Query layer + Stats page integration complete. Migrations applied, backfill done. Ready to commit and proceed.
 
 **Last updated:** 2026-04-13
 
@@ -171,6 +171,98 @@
 
 ---
 
+## DB/Stats Rework — Phase 1 ✓ complete (2026-04-13)
+
+**Commit:** `1e7ce5f` — Phase 1: per-match field expansion + gameMode + reprocess --all
+
+**What was done:**
+
+**Schema changes (migration `0002_purple_rage.sql`):**
+
+- `matches`: added `ea_game_type_code` (raw `cNhlOnlineGameType` int), `game_mode` (derived '3s'/'6s'), `pass_attempts`, `pass_completions`, `pp_goals`, `pp_opportunities`
+- `player_match_stats`: added 16 new columns:
+  - Skater advanced (NOT NULL DEFAULT 0): `shot_attempts`, `blocked_shots`, `pp_goals`, `sh_goals`, `interceptions`, `penalties_drawn`, `possession`, `deflections`, `saucer_passes`
+  - Context: `client_platform` (text nullable), `player_dnf` (bool NOT NULL DEFAULT false)
+  - Goalie advanced (nullable): `breakaway_saves`, `breakaway_shots`, `desp_saves`, `pen_saves`, `pen_shots`, `pokechecks`
+- `packages/db/src/schema/matches.ts`: exported `GAME_MODE`, `GameMode`, and `deriveGameMode()` helper
+
+**Worker changes:**
+
+- `apps/worker/src/transform.ts`: extracts all new fields from fixtures; derives `gameMode` from `cNhlOnlineGameType` (5/10→'6s', 200→'3s'); extracts `passa`/`passc`/`ppg`/`ppo` from `clubs[id]` (not aggregate)
+- `apps/worker/src/ingest.ts`: `persistTransform` upsert `.set` extended for all new match and player_match_stats columns
+- `apps/worker/src/reprocess.ts`: added `--all` flag to reprocess every raw payload (not just errors); recomputes aggregates for affected game titles after a successful batch
+
+**EA client types (`packages/ea-client/src/types.ts`):**
+
+- `EaPlayerMatchStats`: added all new confirmed skater and goalie advanced fields
+- `EaMatchClubData`: added `cNhlOnlineGameType`, `passa`, `passc`, `ppg`, `ppo`
+
+**Verified:** `pnpm typecheck`, `pnpm lint` — all pass; format check clean on all changed source files
+
+**What's next:**
+
+Commit outstanding work (stats query functions + stats UI components + stats page polish), then proceed to:
+
+- **Phase 3 — game mode dimension**: add `gameMode` to aggregate unique keys; loop aggregate over [null, '3s', '6s']
+- Or continue Phase 5 UI work (home page, roster improvements, etc.)
+
+**Operational state (2026-04-13):** Migrations 0002 + 0003 applied to live DB. `reprocess --all` ran successfully (15/15 payloads, 0 errors). Aggregates recomputed. Local worker dist rebuilt (`pnpm --filter @eanhl/worker build`).
+
+---
+
+## DB/Stats Rework — Query Layer + Stats Page Integration ✓ complete (2026-04-13)
+
+**What was done:**
+
+New query functions in `packages/db/src/queries/stats.ts` (new file):
+
+- `getSkaterStats(gameTitleId)` — joins `playerGameTitleStats` + `players`, filters out goalies (`position != 'goalie' OR position IS NULL`), returns all skater aggregate columns + `shotAttempts` + `toiSeconds`
+- `getGoalieStats(gameTitleId)` — filters `position = 'goalie'`, returns all goalie aggregate columns including new `otl` / `totalSaves` / `totalShotsAgainst` / `totalGoalsAgainst`
+- Exported `SkaterStatsRow` and `GoalieStatsRow` type aliases
+
+New Client Components:
+
+- `apps/web/src/components/stats/skater-stats-table.tsx` — Basic (GP/G/A/PTS/+/-/PIM/SOG/P/GP) + Advanced (GP/SHT%/TOI/GP/Hits/TA/GV/FO%/Pass%) tabs; client sort with directional indicator; null-to-bottom sort; accent inset on rank-1 row
+- `apps/web/src/components/stats/goalie-stats-table.tsx` — Basic (GP/W/L/OTL/SV%/GAA/SO) + Advanced (GP/SV/SA/GA/SV/GP/SA/GP/TOI) tabs; same sort pattern
+
+Updated `apps/web/src/app/stats/page.tsx`:
+
+- Fetches `getSkaterStats` + `getGoalieStats` in the existing `Promise.all`
+- Renders "Skaters" section + "Goalies" section below Recent Games (shown when rows exist)
+
+**Verified:** `pnpm --filter @eanhl/web typecheck`, `pnpm --filter @eanhl/web lint`, `pnpm prettier --check` — all pass
+
+**Important:** `@eanhl/db` must be rebuilt (`pnpm --filter @eanhl/db build`) before the web typecheck can resolve `getSkaterStats`/`getGoalieStats` exports. Already done.
+
+**Live data status (2026-04-13):** Migrations 0002 + 0003 applied. `reprocess --all` completed (15/15 payloads). Aggregates recomputed with Phase 2 columns. Stats page fully operational with real data.
+
+---
+
+## DB/Stats Rework — Phase 2 ✓ complete (2026-04-13)
+
+**Commit:** `bb8cf38` — Phase 2: aggregate expansion
+
+**What was done:**
+
+Added 6 new columns to `player_game_title_stats` (migration `0003_naive_whistler.sql`):
+
+| Column                | Type                       | Formula                                                              |
+| --------------------- | -------------------------- | -------------------------------------------------------------------- |
+| `shot_attempts`       | integer NOT NULL DEFAULT 0 | `SUM(pms.shot_attempts)`                                             |
+| `toi_seconds`         | integer nullable           | `SUM(pms.toi_seconds)` (NULL if all source rows are NULL)            |
+| `otl`                 | integer nullable           | `SUM(CASE WHEN is_goalie AND result='OTL' THEN 1 ELSE 0 END)`        |
+| `total_saves`         | integer nullable           | `SUM(CASE WHEN is_goalie THEN COALESCE(saves,0) ELSE 0 END)`         |
+| `total_shots_against` | integer nullable           | `SUM(CASE WHEN is_goalie THEN COALESCE(shots_against,0) ELSE 0 END)` |
+| `total_goals_against` | integer nullable           | `SUM(CASE WHEN is_goalie THEN COALESCE(goals_against,0) ELSE 0 END)` |
+
+All 6 added to the INSERT column list, SELECT, and ON CONFLICT DO UPDATE SET in `aggregate.ts`. Existing column behavior unchanged.
+
+**Re-aggregation required after migration** — run `pnpm --filter worker reprocess --all` to populate new columns for existing data.
+
+**Verified:** `pnpm typecheck`, `pnpm lint` — all pass; format clean on all changed source files
+
+---
+
 ## Phase 5.3 — Player Pages ✓ complete
 
 **What was built:**
@@ -287,6 +379,7 @@ Notes:
 - `apps/web/src/app/roster/[id]/page.tsx` — `ml-auto` on "Last seen" changed to `sm:ml-auto` so it flows naturally on mobile instead of wrapping to the start of a new flex line.
 
 **What was not changed (intentionally):**
+
 - `/games` match list — `MatchRow` already hides SOG on mobile; no change needed
 - `ComparisonStrip` in game detail — `w-20` fixed columns work at all widths
 - Stat cards grid — already `grid-cols-2 sm:grid-cols-3 lg:grid-cols-6`
@@ -371,7 +464,7 @@ Notes:
   2. Top goals scorer (if not already selected)
   3. Top hitter (if not already selected)
   4. Best goalie by wins (if any, not already selected)
-  → Yields 3–6 cards depending on overlap
+     → Yields 3–6 cards depending on overlap
 
 - **Data flow change:** Home page now fetches `getRoster` instead of `getTopPerformers`. Leaders are derived server-side by sorting the roster by points/goals and slicing to top 5. `getClubStats` retained for the record strip.
 
@@ -413,12 +506,14 @@ Notes:
   - `pick` function now accepts `RosterRow | undefined` (clean safety without non-null assertions)
 
 **Stats fixes summary:**
+
 - PPG was missing (showing +/- instead) → now computed and shown correctly
 - SV% lacked `%` suffix → now formatted as `"92.75%"`
 - GAA was already a formatted string from DB, shown correctly
 - `isGoalie = wins !== null` detection was already correct — no change needed
 
 **Remaining for future passes:**
+
 - Latest result card: the `LatestResult` component is functional but could be enhanced with the three-panel "Team A | Score | Team B" layout from the Final Score Card spec (blocked by missing opponent logo/abbreviation/record data)
 - Leaders section: the `LeadersSection` component works but the spec calls for a "featured player spotlight" per category (highlighted leader + ranked list) with more visual weight — enhancement opportunity
 
@@ -465,6 +560,7 @@ Notes:
 The card IS using the correct data source — `getRoster` queries `playerGameTitleStats`, which is the full cumulative aggregate (not a recent-games slice). The stats discrepancy (card shows GP:11/PTS:33 vs ChelHead's GP:436/PTS:989 for Stick Menace) is because our DB only contains the ~15 matches ingested since worker launch. Backfilling historical data requires either the EA members-stats API or waiting for more matches to be ingested. This is a data volume gap, not a bug.
 
 **Blocked by missing data:**
+
 - Jersey numbers: not in EA match payloads or DB → `#` placeholder in A
 - Nationality/flag: not in DB → flag outline placeholder in zone I
 - Platform: not in `getRoster` → controller icon placeholder in zone C
@@ -527,6 +623,43 @@ The card IS using the correct data source — `getRoster` queries `playerGameTit
 **EA logo CDN confirmed:** `https://media.contentapi.ea.com/content/dam/eacom/nhl/pro-clubs/crests/t{clubId}.png` — clubs without custom crests serve the default NHL shield; never 404s. No `next.config.ts` change needed.
 
 **Verified:** `pnpm typecheck`, `pnpm lint`, `pnpm prettier --check "apps/web/src/**"` — all pass.
+
+### Latest Result Scoreboard Refinement Pass ✓ complete
+
+**What was changed:**
+
+- **`apps/web/src/components/home/latest-result.tsx`** — tightened the featured card into a cleaner scoreboard-style hero without widening scope beyond the latest-result section:
+  - kept the symmetric 3-column structure
+  - strengthened the top accent treatment with a full-width red gradient bar
+  - upgraded the side panels into mirrored logo + abbreviation blocks with more deliberate spacing and symmetry
+  - kept the centered score as the focal point, with the result pill directly below it
+  - kept the stats strip visually secondary as a demoted "Match Snapshot" grid
+  - continued to omit opponent record and GWG honestly because the data is not available
+  - shows opponent full name as secondary text while still using a derived abbreviation
+- **`apps/web/src/lib/format.ts`** — made `abbreviateTeamName()` more conservative by cleaning punctuation and ignoring filler words like `the`, `of`, `la`, and `de` when deriving initials.
+- **`apps/web/src/app/page.tsx`** — extracted `latestClubRecord` before rendering and passed it directly into `<LatestResult />`; no new DB queries or homepage redesign work.
+
+**Verified:**
+
+- `pnpm typecheck` — passes
+- `pnpm lint` — passes
+- `pnpm format:check` — still fails due pre-existing formatting drift in markdown docs and `HANDOFF.md`; the updated TS/TSX files for this pass were formatted successfully
+
+**Real data used:**
+
+- our logo: `/images/bgm-logo.png`
+- our abbreviation: hardcoded `BGM`
+- our record: `clubStats.wins`, `clubStats.losses`, `clubStats.otl`
+- score: `match.scoreFor`, `match.scoreAgainst`
+- result pill: `match.result`
+- opponent logo: EA crest CDN using `match.opponentClubId`
+- opponent abbreviation: conservative derivation from `match.opponentName`
+- demoted stats strip: `shotsFor/shotsAgainst`, `hitsFor/hitsAgainst`, `faceoffPct`, `timeOnAttack`
+
+**Intentionally omitted:**
+
+- opponent record — not available in current data model
+- GWG scorer — not derivable from current stored match data
 
 ---
 

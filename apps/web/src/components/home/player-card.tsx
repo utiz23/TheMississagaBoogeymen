@@ -191,12 +191,18 @@ function StatBoxFeatured({ label, value }: StatBoxProps) {
   )
 }
 
-function PlayerSilhouette({ className = '' }: { className?: string }) {
+export function PlayerSilhouette({
+  className = '',
+  sizeClass = 'h-[110px] w-[110px]',
+}: {
+  className?: string
+  sizeClass?: string
+}) {
   return (
     <svg
       viewBox="0 0 100 110"
       fill="currentColor"
-      className={`h-[110px] w-[110px] ${className}`}
+      className={`${sizeClass} ${className}`}
       aria-hidden
     >
       {/* Head */}

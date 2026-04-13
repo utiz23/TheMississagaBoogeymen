@@ -5,9 +5,13 @@ import {
   getGameTitleBySlug,
   getClubStats,
   getRecentMatches,
+  getSkaterStats,
+  getGoalieStats,
 } from '@eanhl/db/queries'
 import { StatCard } from '@/components/ui/stat-card'
 import { MatchRow } from '@/components/matches/match-row'
+import { SkaterStatsTable } from '@/components/stats/skater-stats-table'
+import { GoalieStatsTable } from '@/components/stats/goalie-stats-table'
 import { formatPct } from '@/lib/format'
 
 export const metadata: Metadata = { title: 'Stats — Club Stats' }
@@ -53,6 +57,8 @@ export default async function StatsPage({ searchParams }: { searchParams: Search
       return await Promise.all([
         getClubStats(gameTitle.id),
         getRecentMatches({ gameTitleId: gameTitle.id, limit: 5 }),
+        getSkaterStats(gameTitle.id),
+        getGoalieStats(gameTitle.id),
       ])
     } catch {
       return null
@@ -63,7 +69,7 @@ export default async function StatsPage({ searchParams }: { searchParams: Search
     return <EmptyState message="Unable to load stats right now." />
   }
 
-  const [clubStats, recentMatches] = fetched
+  const [clubStats, recentMatches, skaterRows, goalieRows] = fetched
 
   return (
     <div className="space-y-8">
@@ -107,13 +113,27 @@ export default async function StatsPage({ searchParams }: { searchParams: Search
         <EmptyState message={`No stats recorded for ${gameTitle.name} yet.`} />
       )}
 
-      {/* Recent games — rendered independently so it shows even before aggregates exist */}
+      {/* Skater stats — primary table content */}
+      {skaterRows.length > 0 && (
+        <section>
+          <SkaterStatsTable rows={skaterRows} title="Skaters" />
+        </section>
+      )}
+
+      {/* Goalie stats */}
+      {goalieRows.length > 0 && (
+        <section>
+          <GoalieStatsTable rows={goalieRows} title="Goalies" />
+        </section>
+      )}
+
+      {/* Recent games — context strip below the stats tables */}
       {recentMatches.length > 0 && (
         <section>
           <h2 className="mb-3 font-condensed text-sm font-semibold uppercase tracking-wider text-zinc-500">
             Recent Games
           </h2>
-          <div className="overflow-hidden border border-zinc-800 bg-surface divide-y divide-zinc-800/60">
+          <div className="divide-y divide-zinc-800/60 overflow-hidden border border-zinc-800 bg-surface">
             {recentMatches.map((match, i) => (
               <MatchRow key={match.id} match={match} isMostRecent={i === 0} />
             ))}

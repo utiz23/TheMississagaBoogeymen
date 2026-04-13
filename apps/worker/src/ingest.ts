@@ -30,6 +30,7 @@ import { eq, isNull, and } from 'drizzle-orm'
 import { fetchMatches, matchesUrl, throttle, EaApiError, type EaMatchType } from '@eanhl/ea-client'
 import { transformMatch, type TransformResult, type PlayerIdentity } from './transform.js'
 import { recomputeAggregates } from './aggregate.js'
+import { fetchAndStoreMemberStats } from './ingest-members.js'
 
 type DbConn = Pick<typeof db, 'select' | 'insert' | 'update'>
 
@@ -52,6 +53,14 @@ export async function runIngestionCycle(): Promise<void> {
       console.log(`[ingest] Aggregates recomputed for ${title.slug}`)
     } catch (err) {
       console.error(`[ingest] Aggregate recomputation failed for ${title.slug}:`, err)
+    }
+
+    // Fetch EA member stats (authoritative season totals for /stats table).
+    // Errors here are non-fatal — match ingestion already succeeded.
+    try {
+      await fetchAndStoreMemberStats(title)
+    } catch (err) {
+      console.error(`[ingest] Member stats fetch failed for ${title.slug}:`, err)
     }
   }
 }

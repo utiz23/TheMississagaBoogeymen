@@ -1,6 +1,5 @@
 import type { Metadata } from 'next'
 import type { ClubGameTitleStats } from '@eanhl/db'
-import Link from 'next/link'
 import {
   listGameTitles,
   getGameTitleBySlug,
@@ -8,10 +7,9 @@ import {
   getRecentMatches,
   getRoster,
 } from '@eanhl/db/queries'
-import { MatchRow } from '@/components/matches/match-row'
 import { LatestResult } from '@/components/home/latest-result'
 import { PlayerCarousel } from '@/components/home/player-carousel'
-import { LeadersSection } from '@/components/home/leaders-section'
+import { ScoringLeadersPanel } from '@/components/home/leaders-section'
 import type { RosterRow } from '@/components/home/player-card'
 
 export const metadata: Metadata = { title: 'Club Stats' }
@@ -67,7 +65,7 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
     try {
       return await Promise.all([
         getClubStats(gameTitle.id),
-        getRecentMatches({ gameTitleId: gameTitle.id, limit: 5 }),
+        getRecentMatches({ gameTitleId: gameTitle.id, limit: 1 }),
         getRoster(gameTitle.id),
       ])
     } catch {
@@ -85,6 +83,10 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
 
   const [clubStats, recentMatches, roster] = fetched
   const lastMatch = recentMatches[0] ?? null
+  const latestClubRecord =
+    clubStats !== null
+      ? { wins: clubStats.wins, losses: clubStats.losses, otl: clubStats.otl }
+      : null
 
   // Club win% — passed into player cards as zone-A supporting line
   const clubWinPct =
@@ -94,10 +96,17 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
 
   // Derive featured players and leaders from roster
   const featuredPlayers = selectFeaturedPlayers(roster)
-  const pointsLeaders = roster.filter((r) => r.wins === null).slice(0, 5)
-  const goalsLeaders = [...roster.filter((r) => r.wins === null)]
+  // Filter skaters by position, not by wins === null.
+  // The aggregate worker writes wins = 0 (not null) for all skaters, so wins === null
+  // is always false and would produce an empty array. Position-based detection matches
+  // how the rest of the codebase (player-card, roster-table) identifies goalies.
+  const skaters = roster.filter((r) => r.position !== 'goalie')
+  // Top 10 skaters by points (already points-desc from getRoster); tiebreak by goals.
+  // TODO (post-schema rework): enforce minimum GP, full tiebreak chain per spec §10.
+  const pointsLeaders = skaters.slice(0, 10)
+  const goalsLeaders = [...skaters]
     .sort((a, b) => b.goals - a.goals || b.points - a.points)
-    .slice(0, 5)
+    .slice(0, 10)
 
   return (
     <div className="space-y-8">
@@ -115,14 +124,7 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
       {/* Latest result hero */}
       {lastMatch !== null && (
         <section>
-          <LatestResult
-            match={lastMatch}
-            clubRecord={
-              clubStats !== null
-                ? { wins: clubStats.wins, losses: clubStats.losses, otl: clubStats.otl }
-                : null
-            }
-          />
+          <LatestResult match={lastMatch} clubRecord={latestClubRecord} />
         </section>
       )}
 
@@ -136,35 +138,10 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
         </section>
       )}
 
-      {/* Leaders */}
+      {/* Scoring leaders */}
       {pointsLeaders.length > 0 && (
         <section>
-          <h2 className="mb-3 font-condensed text-sm font-semibold uppercase tracking-wider text-zinc-500">
-            Leaders
-          </h2>
-          <LeadersSection pointsLeaders={pointsLeaders} goalsLeaders={goalsLeaders} />
-        </section>
-      )}
-
-      {/* Recent games */}
-      {recentMatches.length > 0 && (
-        <section>
-          <div className="mb-3 flex items-baseline justify-between">
-            <h2 className="font-condensed text-sm font-semibold uppercase tracking-wider text-zinc-500">
-              Recent Games
-            </h2>
-            <Link
-              href="/games"
-              className="text-xs text-zinc-600 transition-colors hover:text-zinc-400"
-            >
-              All games →
-            </Link>
-          </div>
-          <div className="overflow-hidden border border-zinc-800 bg-surface divide-y divide-zinc-800/60">
-            {recentMatches.map((match, i) => (
-              <MatchRow key={match.id} match={match} isMostRecent={i === 0} />
-            ))}
-          </div>
+          <ScoringLeadersPanel pointsLeaders={pointsLeaders} goalsLeaders={goalsLeaders} />
         </section>
       )}
 

@@ -83,13 +83,25 @@ export function formatRecord(wins: number, losses: number, otl: number): string 
 /**
  * Derive a short team code from a full club name.
  * Single word: first 4 chars uppercase.
- * Multi-word: initials (first char of each word), capped at 4 chars.
- * Examples: "Samurai" → "SAMU", "Le Duo Plus Mario" → "LDPM", "BGM" → "BGM"
+ * Multi-word: initials from significant words, capped at 4 chars.
+ * Common filler words are ignored when possible.
  */
 export function abbreviateTeamName(name: string): string {
-  const words = name.trim().split(/\s+/)
-  if (words.length === 1) return (words[0] ?? '').slice(0, 4).toUpperCase()
-  return words
+  const cleanedWords = name
+    .trim()
+    .split(/\s+/)
+    .map((word) => word.replace(/[^A-Za-z0-9]/g, ''))
+    .filter(Boolean)
+
+  if (cleanedWords.length === 0) return 'TEAM'
+
+  if (cleanedWords.length === 1) return (cleanedWords[0] ?? '').slice(0, 4).toUpperCase()
+
+  const fillerWords = new Set(['A', 'AN', 'AND', 'DE', 'LA', 'LE', 'OF', 'THE'])
+  const significantWords = cleanedWords.filter((word) => !fillerWords.has(word.toUpperCase()))
+  const sourceWords = significantWords.length > 0 ? significantWords : cleanedWords
+
+  return sourceWords
     .map((w) => w[0] ?? '')
     .join('')
     .slice(0, 4)
