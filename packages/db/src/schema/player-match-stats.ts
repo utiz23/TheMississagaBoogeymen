@@ -47,10 +47,50 @@ export const playerMatchStats = pgTable(
      */
     toiSeconds: integer('toi_seconds'),
 
+    // ── Skater advanced fields ─────────────────────────────────────────────────
+    /** Total shot attempts (including blocked + missed). EA field: skshotattempts. */
+    shotAttempts: integer('shot_attempts').notNull().default(0),
+    /** Shots blocked by the player defensively. EA field: skbs. */
+    blockedShots: integer('blocked_shots').notNull().default(0),
+    /** Powerplay goals. EA field: skppg. */
+    ppGoals: integer('pp_goals').notNull().default(0),
+    /** Short-handed goals. EA field: skshg. */
+    shGoals: integer('sh_goals').notNull().default(0),
+    /** Interceptions. EA field: skinterceptions. */
+    interceptions: integer('interceptions').notNull().default(0),
+    /** Penalties drawn. EA field: skpenaltiesdrawn. */
+    penaltiesDrawn: integer('penalties_drawn').notNull().default(0),
+    /** Possession time in seconds. EA field: skpossession. */
+    possession: integer('possession').notNull().default(0),
+    /** Deflections. EA field: skdeflections. */
+    deflections: integer('deflections').notNull().default(0),
+    /** Saucer passes. EA field: sksaucerpasses. */
+    saucerPasses: integer('saucer_passes').notNull().default(0),
+
+    // ── Per-match context ──────────────────────────────────────────────────────
+    /** Console platform this player used. EA field: clientPlatform. */
+    clientPlatform: text('client_platform'),
+    /** True if this player disconnected (did not finish). EA field: player_dnf. */
+    playerDnf: boolean('player_dnf').notNull().default(false),
+
     // ── Goalie fields (nullable — only populated when is_goalie = true) ────────
     saves: integer('saves'),
     goalsAgainst: integer('goals_against'),
     shotsAgainst: integer('shots_against'),
+
+    // ── Goalie advanced fields (nullable) ─────────────────────────────────────
+    /** Breakaway saves. EA field: glbrksaves. */
+    breakawaySaves: integer('breakaway_saves'),
+    /** Breakaway shots faced. EA field: glbrkshots. */
+    breakawayShots: integer('breakaway_shots'),
+    /** Desperation saves. EA field: gldsaves. */
+    despSaves: integer('desp_saves'),
+    /** Penalty shot saves. EA field: glpensaves. */
+    penSaves: integer('pen_saves'),
+    /** Penalty shots faced. EA field: glpenshots. */
+    penShots: integer('pen_shots'),
+    /** Poke checks. EA field: glpokechecks. */
+    pokechecks: integer('pokechecks'),
   },
   (table) => [
     uniqueIndex('player_match_stats_player_match_uniq').on(table.playerId, table.matchId),

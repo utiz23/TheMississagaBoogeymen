@@ -70,6 +70,33 @@ export interface EaPlayerMatchStats {
   skfol: string
   skpassattempts: string
   skpasspct: string
+
+  // ── Skater advanced — CONFIRMED present in fixtures ──────────────────────────
+  /** Total shot attempts including blocked + missed. */
+  skshotattempts?: string
+  /** Blocked shots (defensive). */
+  skbs?: string
+  /** Powerplay goals. */
+  skppg?: string
+  /** Short-handed goals. */
+  skshg?: string
+  /** Interceptions. */
+  skinterceptions?: string
+  /** Penalties drawn. */
+  skpenaltiesdrawn?: string
+  /** Possession time in seconds. */
+  skpossession?: string
+  /** Deflections. */
+  skdeflections?: string
+  /** Saucer passes. */
+  sksaucerpasses?: string
+
+  // ── Per-match context — CONFIRMED present in fixtures ────────────────────────
+  /** Console platform (e.g. 'xbsx', 'ps5'). */
+  clientPlatform?: string
+  /** "1" if player did not finish (disconnected). */
+  player_dnf?: string
+
   /**
    * CONFIRMED field names. Present for ALL players (not goalie-only).
    * Non-goalies have these set to "0". Use position === 'goalie' to filter.
@@ -79,6 +106,15 @@ export interface EaPlayerMatchStats {
   glshots?: string
   glsavepct?: string
   glgaa?: string
+
+  // ── Goalie advanced — CONFIRMED present in fixtures ──────────────────────────
+  glbrksaves?: string
+  glbrkshots?: string
+  gldsaves?: string
+  glpensaves?: string
+  glpenshots?: string
+  glpokechecks?: string
+
   /** Catch-all for fields not yet identified. */
   [key: string]: unknown
 }
@@ -108,6 +144,24 @@ export interface EaMatchClubData {
   toa?: string
   /** CONFIRMED: Nested object containing display name at details.name. */
   details?: Record<string, unknown>
+
+  // ── Game mode — CONFIRMED present in fixtures ─────────────────────────────────
+  /**
+   * CONFIRMED: Numeric game type. Known values: 5 = 6's, 10 = playoffs (6's),
+   * 200 = 3's. Stored raw alongside the derived gameMode field on matches.
+   */
+  cNhlOnlineGameType?: string | number
+
+  // ── Club pass and powerplay stats — CONFIRMED present in fixtures ─────────────
+  /** Total pass attempts. */
+  passa?: string | number
+  /** Total pass completions. */
+  passc?: string | number
+  /** Powerplay goals. */
+  ppg?: string | number
+  /** Powerplay opportunities. */
+  ppo?: string | number
+
   /** Catch-all. */
   [key: string]: unknown
 }

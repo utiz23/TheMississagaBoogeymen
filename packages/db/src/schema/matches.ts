@@ -8,6 +8,10 @@ import {
   timestamp,
   uniqueIndex,
 } from 'drizzle-orm/pg-core'
+
+/** Normalized game mode derived from cNhlOnlineGameType. */
+export const GAME_MODE = ['3s', '6s'] as const
+export type GameMode = (typeof GAME_MODE)[number]
 import { sql } from 'drizzle-orm'
 import { gameTitles } from './game-titles.js'
 import { contentSeasons } from './content-seasons.js'
@@ -60,6 +64,29 @@ export const matches = pgTable(
     /** Time on attack in seconds. */
     timeOnAttack: integer('time_on_attack'),
     penaltyMinutes: integer('penalty_minutes'),
+
+    // ── Game mode ───────────────────────────────────────────────────────────────
+    /**
+     * Raw cNhlOnlineGameType value from EA API.
+     * Known values: 5 = 6's, 10 = playoffs (6's format), 200 = 3's.
+     * Stored as-is so we can re-derive gameMode if the mapping changes.
+     */
+    eaGameTypeCode: integer('ea_game_type_code'),
+    /**
+     * Derived game mode for filtering. '3s' or '6s'.
+     * Null if the cNhlOnlineGameType value is unknown or absent.
+     */
+    gameMode: text('game_mode').$type<GameMode>(),
+
+    // ── Club pass and powerplay stats ────────────────────────────────────────────
+    /** Total pass attempts by our club in this match. */
+    passAttempts: integer('pass_attempts'),
+    /** Total pass completions by our club in this match. */
+    passCompletions: integer('pass_completions'),
+    /** Powerplay goals scored by our club. */
+    ppGoals: integer('pp_goals'),
+    /** Powerplay opportunities for our club. */
+    ppOpportunities: integer('pp_opportunities'),
   },
   (table) => [
     uniqueIndex('matches_title_match_uniq').on(table.gameTitleId, table.eaMatchId),
@@ -73,3 +100,10 @@ export const matches = pgTable(
 
 export type Match = typeof matches.$inferSelect
 export type NewMatch = typeof matches.$inferInsert
+
+/** Map a raw EA cNhlOnlineGameType integer to our normalized GameMode. */
+export function deriveGameMode(code: number | undefined | null): GameMode | null {
+  if (code === 5 || code === 10) return '6s'
+  if (code === 200) return '3s'
+  return null
+}

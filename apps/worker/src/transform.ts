@@ -9,6 +9,7 @@
 
 import type { EaMatch, EaPlayerMatchStats, EaMatchType } from '@eanhl/ea-client'
 import type { NewMatch, NewPlayer, NewPlayerMatchStats } from '@eanhl/db'
+import { deriveGameMode } from '@eanhl/db'
 
 // ─── Public types ─────────────────────────────────────────────────────────────
 
@@ -189,10 +190,34 @@ function transformPlayer(playerKey: string, raw: EaPlayerMatchStats): TransformP
       passAttempts,
       passCompletions,
       toiSeconds,
+
+      // Skater advanced fields — CONFIRMED in fixtures.
+      shotAttempts: parseIntStr(raw.skshotattempts, 'skshotattempts'),
+      blockedShots: parseIntStr(raw.skbs, 'skbs'),
+      ppGoals: parseIntStr(raw.skppg, 'skppg'),
+      shGoals: parseIntStr(raw.skshg, 'skshg'),
+      interceptions: parseIntStr(raw.skinterceptions, 'skinterceptions'),
+      penaltiesDrawn: parseIntStr(raw.skpenaltiesdrawn, 'skpenaltiesdrawn'),
+      possession: parseIntStr(raw.skpossession, 'skpossession'),
+      deflections: parseIntStr(raw.skdeflections, 'skdeflections'),
+      saucerPasses: parseIntStr(raw.sksaucerpasses, 'sksaucerpasses'),
+
+      // Per-match context.
+      clientPlatform: typeof raw.clientPlatform === 'string' ? raw.clientPlatform : null,
+      playerDnf: parseIntStr(raw.player_dnf, 'player_dnf') === 1,
+
       // Goalie fields — null for skaters.
       saves: isGoalie ? parseIntStr(raw.glsaves, 'glsaves') : null,
       goalsAgainst: isGoalie ? parseIntStr(raw.glga, 'glga') : null,
       shotsAgainst: isGoalie ? parseIntStr(raw.glshots, 'glshots') : null,
+
+      // Goalie advanced fields — null for skaters.
+      breakawaySaves: isGoalie ? parseIntStr(raw.glbrksaves, 'glbrksaves') : null,
+      breakawayShots: isGoalie ? parseIntStr(raw.glbrkshots, 'glbrkshots') : null,
+      despSaves: isGoalie ? parseIntStr(raw.gldsaves, 'gldsaves') : null,
+      penSaves: isGoalie ? parseIntStr(raw.glpensaves, 'glpensaves') : null,
+      penShots: isGoalie ? parseIntStr(raw.glpenshots, 'glpenshots') : null,
+      pokechecks: isGoalie ? parseIntStr(raw.glpokechecks, 'glpokechecks') : null,
     },
   }
 }
@@ -287,6 +312,20 @@ export function transformMatch(
   const timeOnAttackRaw = extractAggInt(ourAgg, 'toa', 'timeOnAttack')
   const penaltyMinutesRaw = extractAggInt(ourAgg, 'pim', 'skpim')
 
+  // ── Game mode ────────────────────────────────────────────────────────────────
+  // CONFIRMED: cNhlOnlineGameType is at clubs[id].cNhlOnlineGameType (not aggregate).
+  // Known values: 5 = 6's, 10 = playoffs (6's), 200 = 3's.
+  const eaGameTypeCodeRaw = parseIntMaybe(ourClub.cNhlOnlineGameType)
+  const eaGameTypeCode: number | null = eaGameTypeCodeRaw
+  const gameMode = deriveGameMode(eaGameTypeCodeRaw)
+
+  // ── Club pass and powerplay stats ────────────────────────────────────────────
+  // CONFIRMED: passa, passc, ppg, ppo are at clubs[id] level (not aggregate).
+  const passAttemptsRaw = parseIntMaybe(ourClub.passa)
+  const passCompletionsRaw = parseIntMaybe(ourClub.passc)
+  const ppGoalsRaw = parseIntMaybe(ourClub.ppg)
+  const ppOpportunitiesRaw = parseIntMaybe(ourClub.ppo)
+
   // ── Player stats ─────────────────────────────────────────────────────────────
   const allPlayers = match.players ?? {}
   const ourPlayers: Record<string, EaPlayerMatchStats> = allPlayers[ourClubId] ?? {}
@@ -314,6 +353,12 @@ export function transformMatch(
       faceoffPct,
       timeOnAttack: timeOnAttackRaw > 0 ? timeOnAttackRaw : null,
       penaltyMinutes: penaltyMinutesRaw > 0 ? penaltyMinutesRaw : null,
+      eaGameTypeCode,
+      gameMode,
+      passAttempts: passAttemptsRaw,
+      passCompletions: passCompletionsRaw,
+      ppGoals: ppGoalsRaw,
+      ppOpportunities: ppOpportunitiesRaw,
     },
     players,
   }
