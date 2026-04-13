@@ -2,9 +2,9 @@
 
 ## Current Status
 
-**Phase:** 5.1 / 5.2 complete — payload audit done, GAA supported, goalie detection fixed, opponent names corrected, live data reprocessed.
+**Phase:** Home page player card + carousel polish complete.
 
-**Last updated:** 2026-04-12
+**Last updated:** 2026-04-13
 
 ---
 
@@ -171,6 +171,29 @@
 
 ---
 
+## Phase 5.3 — Player Pages ✓ complete
+
+**What was built:**
+
+- `packages/db/src/queries/players.ts` — three new queries:
+  - `getPlayerById(playerId)` — single player row or null
+  - `getPlayerCareerStats(playerId)` — all `player_game_title_stats` rows joined with `game_titles` (name + slug), ordered newest first
+  - `getPlayerGamertagHistory(playerId)` — gamertag history rows ordered by `seenFrom desc`
+- `apps/web/src/app/roster/[id]/page.tsx` — Server Component:
+  - Accent-border header card with gamertag, position badge, last-seen date
+  - Career stats table: GP / G / A / PTS / +/- / SOG / Hits / PIM / TA / GV; goalie columns (W / L / SV% / GAA) appear when any row has `wins IS NOT NULL`
+  - Gamertag history section (shown only when there are closed past entries)
+  - `notFound()` for invalid or missing player IDs; honest error state if DB unavailable
+  - `revalidate = 3600`
+- `apps/web/src/app/roster/[id]/loading.tsx` — pulse skeleton for the header + stats card
+- `apps/web/src/components/roster/roster-table.tsx` — player names are now `<Link href="/roster/[id]">` with accent hover; previously plain text
+
+**Verified:**
+
+- `pnpm typecheck`, `pnpm lint`, `pnpm format:check` — all pass
+
+---
+
 ## Fixture Findings (2026-04-12)
 
 Captured fixtures for:
@@ -251,15 +274,185 @@ Notes:
 
 ---
 
+## Phase 5.6 — Mobile Responsive Pass ✓ complete
+
+**What was changed:**
+
+- `apps/web/src/components/nav/top-nav.tsx` — Added `sm:hidden` mobile nav row below the main header bar. Shows Home / Games / Roster / Stats as equal-width flex links with `divide-x` separators. Previously the nav was `hidden sm:flex` only — mobile users had no way to navigate between pages.
+- `apps/web/src/components/roster/roster-table.tsx` — Added `overflow-x-auto` to the tab bar div. 4 tabs at `px-4` could overflow on 360px phones.
+- `apps/web/src/components/matches/player-stats-table.tsx` — Reduced `min-w-[640px]` to `min-w-[520px]`. TA/GV are already `hidden sm:table-cell`; 520px is sufficient for the 11 remaining visible columns.
+- `apps/web/src/app/games/[id]/page.tsx` — Score in hero scaled to `text-5xl sm:text-6xl` (separator `text-2xl sm:text-3xl`). Reduces visual crowding on narrow screens without changing the desktop layout.
+- `apps/web/src/app/page.tsx` — `RecordStat` numbers scaled to `text-4xl sm:text-5xl`; `LastGameCard` scores to `text-4xl sm:text-5xl`.
+- `apps/web/src/app/stats/page.tsx` — Same `RecordStat` scaling as home page.
+- `apps/web/src/app/roster/[id]/page.tsx` — `ml-auto` on "Last seen" changed to `sm:ml-auto` so it flows naturally on mobile instead of wrapping to the start of a new flex line.
+
+**What was not changed (intentionally):**
+- `/games` match list — `MatchRow` already hides SOG on mobile; no change needed
+- `ComparisonStrip` in game detail — `w-20` fixed columns work at all widths
+- Stat cards grid — already `grid-cols-2 sm:grid-cols-3 lg:grid-cols-6`
+- No structural redesign — tables still scroll horizontally; no "stack into cards" rewrite
+
+**Verified:** `pnpm typecheck`, `pnpm lint`, `pnpm format:check` — all pass
+
+---
+
+## Phase 5.5 — Player Game Log ✓ complete
+
+**What was built:**
+
+- `packages/db/src/queries/players.ts` — `getPlayerGameLog(playerId, limit=15)`:
+  - Joins `player_match_stats` ↔ `matches` on `matchId`
+  - Filters by `playerId`; spans all game titles (no title filter — game log is cross-title)
+  - Orders by `desc(matches.playedAt)`; default limit 15
+  - Selects: `matchId`, `playedAt`, `opponentName`, `result`, `scoreFor`, `scoreAgainst`, `isGoalie`, `goals`, `assists`, `plusMinus`, `saves`, `goalsAgainst`
+- `apps/web/src/app/roster/[id]/page.tsx`:
+  - `getPlayerGameLog` added to the parallel `Promise.all` fetch
+  - New "Recent Games" section between career stats and gamertag history
+  - `GameLog` table: Date | Opponent (links to `/games/[id]`) | Result badge | Score | G | A | PTS | +/- | SV
+  - Skater rows: G/A/PTS/+/- shown; SV = `—`
+  - Goalie rows: G/A/PTS/+/- = `—`; SV shows save count
+  - +/- colored emerald/rose/zinc like elsewhere in the site
+  - Honest empty state when no games recorded
+
+**Verified:** `pnpm typecheck`, `pnpm lint`, `pnpm format:check` — all pass
+
+---
+
+## Phase 5.4 — `/games` Pagination ✓ complete
+
+**What was built:**
+
+- `packages/db/src/queries/matches.ts`:
+  - `getRecentMatches` now accepts optional `offset` param (default 0); `limit` default unchanged at 50 — callers that pass explicit limits are unaffected
+  - `countMatches({ gameTitleId })` added — uses Drizzle's `count()` aggregate, returns `number`
+- `apps/web/src/app/games/page.tsx`:
+  - `PAGE_SIZE = 20`
+  - Parses `?page=` from search params (`parsePage` helper — defaults to 1, rejects non-finite or < 1)
+  - `getRecentMatches` and `countMatches` run in parallel via `Promise.all`
+  - Header shows total match count (not current page slice)
+  - `isMostRecent` on `MatchRow` is now `clampedPage === 1 && i === 0` — accent bar only on the globally newest match
+  - `PaginationNav` component renders prev/next links with page indicator; shown only when `totalPages > 1`
+  - Stale page bookmarks are safe: `clampedPage = Math.min(page, totalPages)`
+  - URL scheme: `?title=nhl26&page=2` — game title param preserved across pages
+
+**Verified:** `pnpm typecheck`, `pnpm lint`, `pnpm format:check` — all pass
+
+**Behaviour note:** With the current 15-match dataset, `totalPages = 1` so the nav is hidden. It will appear automatically once > 20 matches are ingested.
+
+---
+
+## Home Page Redesign ✓ complete
+
+**What was built:**
+
+- **New home page layout** (`apps/web/src/app/page.tsx` — full rewrite) with stronger visual hierarchy:
+  1. Compact record strip (W/L/OTL + win% + GP + GF/GA) — team context preserved but compact
+  2. Latest Result hero — scoreboard-style panel with large score, opponent, result badge, stats strip (Shots/Hits/FO%/TOA), team logo watermark
+  3. Featured Players carousel — curated selection of 3–6 player cards
+  4. Leaders section — two-column grid (Points Leaders + Goals Leaders, top 5 each)
+  5. Recent Games — unchanged (last 5 MatchRow entries)
+
+- **New components** (all in `apps/web/src/components/home/`):
+  - `player-card.tsx` — vertical card with accent top bar, position badge, gamertag hero text, 4-stat primary row (skaters: G/A/PTS/+/-, goalies: W/L/SV%/GAA), secondary stats strip
+  - `player-carousel.tsx` — Client Component; CSS scroll-snap track with chevron scroll buttons (desktop only); data fetched server-side
+  - `latest-result.tsx` — Server Component; scoreboard hero with `next/image` team logo watermark at `opacity-[0.04]`; links to game detail
+  - `leaders-section.tsx` — Server Component; two-column `sm:grid-cols-2` layout; top-ranked row gets accent left border; player names link to `/roster/[id]`
+
+- **Query change:** `getRoster` now selects `position: players.position` (backward-compatible addition)
+
+- **Shared utility:** `formatPosition` extracted from `apps/web/src/app/roster/[id]/page.tsx` to `apps/web/src/lib/format.ts`; player page updated to import from shared location
+
+- **Asset:** Team logo copied to `apps/web/public/images/bgm-logo.png` (from `docs/Branding/spd_logo_final_3.png`, transparent bg)
+
+- **CSS:** Added `.scrollbar-hide` utility to `globals.css` for carousel track
+
+- **Featured player selection rule** (deterministic, curated — not "all active players"):
+  1. Top 3 by points
+  2. Top goals scorer (if not already selected)
+  3. Top hitter (if not already selected)
+  4. Best goalie by wins (if any, not already selected)
+  → Yields 3–6 cards depending on overlap
+
+- **Data flow change:** Home page now fetches `getRoster` instead of `getTopPerformers`. Leaders are derived server-side by sorting the roster by points/goals and slicing to top 5. `getClubStats` retained for the record strip.
+
+- **Removed components:** `RecordHero`, `RecordStat`, `LastGameCard`, `TopPerformersTable`, `TopPerformerRow` — all replaced by the new components
+
+**Verified:** `pnpm typecheck`, `pnpm lint`, `pnpm format:check` (source files) — all pass
+
+---
+
+## Player Card + Carousel Polish ✓ complete
+
+**What was changed:**
+
+- **`apps/web/src/components/home/player-card.tsx`** — full redesign:
+  - Visual hierarchy: position badge (top-left) + dominant hero stat number (top-right, `text-5xl font-black`) anchors the card instead of the gamertag
+  - Hero stat = PTS for skaters, W (wins) for goalies — acts as a jersey-number-style visual anchor
+  - Stats row now uses G / A / **PPG** / +/- (spec-compliant; previously showed +/- instead of PPG)
+  - PPG computed as `points / gamesPlayed` — shown as `"1.4"` for skaters, `"—"` when 0 GP
+  - SV% now displayed with `%` suffix (was showing raw DB string like `"92.75"` before)
+  - Added `isActive` prop: active card gets accent border, red shadow glow, and red hero stat text
+  - Goalies show L / SV% / GAA / GP in stats row; footer adjusted (no Hits for goalies)
+  - Card width fixed at `w-56` (224px) for carousel compatibility
+
+- **`apps/web/src/components/home/player-carousel.tsx`** — full rewrite (was plain horizontal scroll):
+  - Now implements **stacked 3D depth carousel** with index-based positioning
+  - 5 visible slots: back (±2), side (±1), center (0) — each has distinct scale, opacity, z-index
+  - Slot config: ±2 = scale 0.72 / opacity 0.25; ±1 = scale 0.87 / opacity 0.62; 0 = scale 1.0 / opacity 1.0
+  - 350ms ease-in-out CSS transitions on transform and opacity
+  - Clicking a non-active card advances the carousel to that card; clicking active card navigates to player page
+  - `pointer-events: none` on non-active card interiors (prevents Link navigation); outer div catches click
+  - Side vignette masks (background gradient from `--color-background`) create the depth fade effect
+  - Navigation: arrow buttons + pill dot indicators (active dot = red pill, inactive = small circle)
+  - Keyboard accessible: arrow keys on the container element
+  - Mobile: single card + arrows (below `sm:` breakpoint) — no stacked layout on small screens
+
+- **`apps/web/src/app/page.tsx`** — `selectFeaturedPlayers` updated:
+  - Now pads to 5 skaters (step 5 of selection) ensuring the 5-slot carousel fills symmetrically
+  - Selection order: top-3 by points → top goals → top hitter → best goalie → fill to 5 skaters
+  - `pick` function now accepts `RosterRow | undefined` (clean safety without non-null assertions)
+
+**Stats fixes summary:**
+- PPG was missing (showing +/- instead) → now computed and shown correctly
+- SV% lacked `%` suffix → now formatted as `"92.75%"`
+- GAA was already a formatted string from DB, shown correctly
+- `isGoalie = wins !== null` detection was already correct — no change needed
+
+**Remaining for future passes:**
+- Latest result card: the `LatestResult` component is functional but could be enhanced with the three-panel "Team A | Score | Team B" layout from the Final Score Card spec (blocked by missing opponent logo/abbreviation/record data)
+- Leaders section: the `LeadersSection` component works but the spec calls for a "featured player spotlight" per category (highlighted leader + ranked list) with more visual weight — enhancement opportunity
+
+**Verified:** `pnpm typecheck`, `pnpm lint`, `pnpm format:check` (source files) — all pass
+
+---
+
+## Player Card Micro-Pass ✓ complete
+
+**What was changed:**
+
+- **`apps/web/src/components/home/player-card.tsx`** — targeted refinement pass:
+  - **Critical bug fix:** `isGoalie` was `player.wins !== null` — incorrect because non-goalies have `wins = 0` (not NULL) after aggregation, causing every skater to render goalie stats (W / SV% / GAA). Fixed to `player.position === 'goalie'`, matching the authoritative position string established in Phase 5.2.
+  - **A block rebalanced:** Removed `secondaryLine`/`secondaryDesc` (SV%/PPG labels that were overflowing outside A's border — the "rogue SV%" visible in the screenshot). Removed `recordDesc` label. Reduced hero font to `text-[22px]`. A is now `absolute` at `left-2 top-2`, self-sized to content (~75px). A/card ratio ≈ 1/4; A/B height ratio ≈ 47%, within the 40–50% target.
+  - **Top section expanded:** `h-[130px]` → `h-[160px]` — gives the silhouette (zone B) more breathing room below A.
+  - **Identity row centred:** Added `justify-center` to C+D flex row — platform icon and gamertag are now centred across the card width.
+  - **Meta row taller:** I/J cells `h-[26px]` → `h-[40px]`; gap `gap-1` → `gap-2` — less cramped, more intentional.
+  - **K slot removed:** Was showing "SO" (shutouts) spare stat. Now an empty `<div />` that reserves the grid space without rendering anything — explicitly marked "reserved for future content".
+
+- **`apps/web/src/components/home/player-carousel.tsx`** — container height only:
+  - Stage height `h-[270px]` → `h-[315px]` — direct consequence of taller card (~300px). No behavior changes.
+
+**Verified:** `pnpm typecheck`, `pnpm lint`, `pnpm prettier --check` (source TS/TSX) — all pass
+
+---
+
 ## What's Next
 
-### Phase 5.3 — Player pages (`/roster/[id]`)
+### What's next
 
-Ready to start. Data correctness is resolved. The immediate next slice:
-
-1. `packages/db/src/queries/players.ts` — add `getPlayerCareerStats(playerId)` query (per-game-title stat rows + gamertag history)
-2. `apps/web/src/app/roster/[id]/page.tsx` — basic profile: career stats table (one row per game title), gamertag history list
-3. Link player rows in the roster table to `/roster/[id]`
+- **Pagination on the game log** — currently hardcapped at 15; fine for now but will need prev/next as match count grows
+- **Discord alerting** — cron checks `localhost:3001/health`, notifies when stale > 30 min
+- **`pg_dump` backup cron** — daily dump to external drive
+- **Content season filtering** — schema supports it, no UI yet
 
 ### Post-launch / later work
 

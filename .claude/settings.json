@@ -48,7 +48,27 @@
       "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:3000/)",
       "Bash(curl -s http://localhost:3000/)",
       "Bash(python3 -c \"import sys; content = sys.stdin.read\\(\\); print\\('HAS_DATA' if 'WIN' in content or 'LOSS' in content or 'OTL' in content or 'DNF' in content else 'EMPTY_STATE'\\); print\\('HAS_EMPTY' if 'No games' in content or 'No match' in content else 'NO_EMPTY_MSG'\\)\")",
-      "Bash(python3 -c \"import sys; content = sys.stdin.read\\(\\); checks = {'WIN/LOSS badges': any\\(x in content for x in ['WIN','LOSS','OTL']\\), 'record section': 'record' in content.lower\\(\\) or 'Record' in content, 'no_game_configured': 'No game titles' in content, 'unable_load': 'Unable to load' in content}; [print\\(f'{k}: {v}'\\) for k, v in checks.items\\(\\)]\")"
+      "Bash(python3 -c \"import sys; content = sys.stdin.read\\(\\); checks = {'WIN/LOSS badges': any\\(x in content for x in ['WIN','LOSS','OTL']\\), 'record section': 'record' in content.lower\\(\\) or 'Record' in content, 'no_game_configured': 'No game titles' in content, 'unable_load': 'Unable to load' in content}; [print\\(f'{k}: {v}'\\) for k, v in checks.items\\(\\)]\")",
+      "Bash(git -C /home/michal/projects/eanhl-team-website log --oneline -6)",
+      "Bash(DATABASE_URL=postgresql://eanhl:eanhl_dev_2026@localhost:5433/eanhl pnpm --filter db generate)",
+      "Bash(ls /home/michal/projects/eanhl-team-website/packages/db/migrations/*.sql)",
+      "Bash(PGPASSWORD=eanhl_dev_2026 psql -h localhost -p 5433 -U eanhl eanhl -c \"\\\\d player_match_stats\")",
+      "Bash(docker.exe compose:*)",
+      "Bash(\"/mnt/c/Program Files/Docker/Docker/resources/bin/docker\" compose -f /home/michal/projects/eanhl-team-website/docker-compose.yml exec -T db psql -U eanhl eanhl -c \"\\\\d player_match_stats\")",
+      "Bash(nc -zv localhost 5433)",
+      "Bash(DATABASE_URL=postgresql://eanhl:eanhl_dev_2026@localhost:5433/eanhl pnpm --filter @eanhl/db build)",
+      "Bash(pnpm --filter @eanhl/worker build)",
+      "Bash(DATABASE_URL=postgresql://eanhl:eanhl_dev_2026@localhost:5433/eanhl pnpm --filter @eanhl/worker reprocess)",
+      "Bash(DATABASE_URL=postgresql://eanhl:eanhl_dev_2026@localhost:5433/eanhl EA_CLUB_ID=19224 EA_PLATFORM=common-gen5 pnpm --filter @eanhl/worker ingest-now)",
+      "Bash(ls -1 /home/michal/projects/eanhl-team-website/packages/db/migrations/*.sql)",
+      "Bash(ls /home/michal/projects/eanhl-team-website/docs/Branding/Player*)",
+      "Bash(pnpm --filter web typecheck)",
+      "Bash(pnpm --filter web lint)",
+      "Bash(pnpm --filter web dev)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:3000)",
+      "mcp__plugin_playwright_playwright__browser_navigate",
+      "mcp__plugin_chrome-devtools-mcp_chrome-devtools__navigate_page",
+      "Bash(git -C /home/michal/projects/eanhl-team-website add HANDOFF.md .claude/settings.json apps/web/src/app/games/page.tsx 'apps/web/src/app/games/[id]/page.tsx' apps/web/src/app/globals.css apps/web/src/app/page.tsx apps/web/src/app/stats/page.tsx apps/web/src/components/matches/player-stats-table.tsx apps/web/src/components/nav/top-nav.tsx apps/web/src/components/roster/roster-table.tsx apps/web/src/lib/format.ts packages/db/src/queries/matches.ts packages/db/src/queries/players.ts apps/web/public/ 'apps/web/src/app/roster/[id]/' apps/web/src/components/home/ imgs/)"
     ],
     "additionalDirectories": [
       "/home/michal/.claude/projects/-home-michal-projects-eanhl-team-website"

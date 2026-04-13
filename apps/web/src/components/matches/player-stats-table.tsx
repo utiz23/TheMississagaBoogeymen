@@ -102,7 +102,7 @@ export function PlayerStatsTable({ playerStats }: PlayerStatsTableProps) {
 
   return (
     <div className="overflow-x-auto border border-zinc-800 bg-surface">
-      <table className="w-full min-w-[640px]">
+      <table className="w-full min-w-[520px]">
         <thead>
           <tr className="border-b border-zinc-800">
             <th className="py-2 pl-4 pr-2 text-left text-xs font-semibold uppercase tracking-wider text-zinc-600">

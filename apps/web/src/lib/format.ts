@@ -48,3 +48,15 @@ export function opponentFaceoffPct(ourPct: string | null): string | null {
   const theirs = (100 - parseFloat(ourPct)).toFixed(2)
   return theirs
 }
+
+/** Map EA position strings to short display labels. */
+export function formatPosition(pos: string): string {
+  const map: Record<string, string> = {
+    goalie: 'G',
+    center: 'C',
+    defenseMen: 'D',
+    leftWing: 'LW',
+    rightWing: 'RW',
+  }
+  return map[pos] ?? pos
+}

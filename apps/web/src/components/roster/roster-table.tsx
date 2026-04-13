@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import Link from 'next/link'
 import type { getRoster } from '@eanhl/db/queries'
 
 type RosterRow = Awaited<ReturnType<typeof getRoster>>[number]
@@ -223,8 +224,8 @@ export function RosterTable({ rows }: RosterTableProps) {
 
   return (
     <div>
-      {/* Tab bar */}
-      <div className="mb-px flex gap-0 border-b border-zinc-800">
+      {/* Tab bar — overflow-x-auto prevents clipping on small screens */}
+      <div className="mb-px flex gap-0 overflow-x-auto border-b border-zinc-800">
         {TABS.map((tab) => {
           const isActive = tab.id === activeTabId
           return (
@@ -316,8 +317,13 @@ function RosterRow({ row, cols, rank }: RosterRowProps) {
       className="border-b border-zinc-800/60 hover:bg-surface-raised transition-colors group"
       style={isTop ? { boxShadow: 'inset 2px 0 0 var(--color-accent)' } : undefined}
     >
-      <td className="py-2.5 pl-4 pr-2 text-sm font-medium text-zinc-200 group-hover:text-zinc-50 max-w-[10rem] truncate">
-        {row.gamertag}
+      <td className="py-2.5 pl-4 pr-2 max-w-[10rem] truncate">
+        <Link
+          href={`/roster/${row.playerId.toString()}`}
+          className="text-sm font-medium text-zinc-200 hover:text-accent transition-colors"
+        >
+          {row.gamertag}
+        </Link>
       </td>
       {cols.map((col) => {
         const value = col.renderCell(row)

@@ -12,11 +12,19 @@ async function fetchGameTitles() {
   }
 }
 
+const NAV_LINKS = [
+  { href: '/', label: 'Home' },
+  { href: '/games', label: 'Games' },
+  { href: '/roster', label: 'Roster' },
+  { href: '/stats', label: 'Stats' },
+]
+
 export async function TopNav() {
   const titles = await fetchGameTitles()
 
   return (
     <header className="sticky top-0 z-50 border-b border-zinc-800 bg-surface/95 backdrop-blur-sm">
+      {/* Main bar */}
       <div className="mx-auto flex h-14 max-w-screen-xl items-center gap-6 px-4">
         {/* Logo / club name */}
         <Link
@@ -34,7 +42,7 @@ export async function TopNav() {
           </Suspense>
         </div>
 
-        {/* Right slot — nav links */}
+        {/* Right slot — nav links (desktop only) */}
         <nav className="hidden sm:flex items-center gap-5 text-sm font-medium text-zinc-400">
           <Link href="/games" className="hover:text-zinc-200 transition-colors">
             Games
@@ -47,6 +55,21 @@ export async function TopNav() {
           </Link>
         </nav>
       </div>
+
+      {/* Mobile nav row — replaces hidden desktop links on small screens */}
+      <nav className="sm:hidden border-t border-zinc-800/60">
+        <div className="flex divide-x divide-zinc-800/60">
+          {NAV_LINKS.map(({ href, label }) => (
+            <Link
+              key={href}
+              href={href}
+              className="flex-1 py-2 text-center text-xs font-semibold uppercase tracking-wider text-zinc-400 hover:text-zinc-200 hover:bg-surface-raised transition-colors"
+            >
+              {label}
+            </Link>
+          ))}
+        </div>
+      </nav>
     </header>
   )
 }

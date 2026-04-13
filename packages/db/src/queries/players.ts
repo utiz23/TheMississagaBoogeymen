@@ -1,6 +1,13 @@
 import { eq, asc, desc } from 'drizzle-orm'
 import { db } from '../client.js'
-import { playerGameTitleStats, playerMatchStats, players } from '../schema/index.js'
+import {
+  gameTitles,
+  matches,
+  playerGameTitleStats,
+  playerGamertagHistory,
+  playerMatchStats,
+  players,
+} from '../schema/index.js'
 
 /**
  * All player stats for a single match, joined with the player's current gamertag.
@@ -53,6 +60,7 @@ export async function getRoster(gameTitleId: number) {
     .select({
       playerId: playerGameTitleStats.playerId,
       gamertag: players.gamertag,
+      position: players.position,
       gamesPlayed: playerGameTitleStats.gamesPlayed,
       goals: playerGameTitleStats.goals,
       assists: playerGameTitleStats.assists,
@@ -75,6 +83,94 @@ export async function getRoster(gameTitleId: number) {
     .innerJoin(players, eq(playerGameTitleStats.playerId, players.id))
     .where(eq(playerGameTitleStats.gameTitleId, gameTitleId))
     .orderBy(desc(playerGameTitleStats.points))
+}
+
+/**
+ * Single player by surrogate PK. Returns null when not found.
+ */
+export async function getPlayerById(playerId: number) {
+  const rows = await db.select().from(players).where(eq(players.id, playerId)).limit(1)
+  return rows[0] ?? null
+}
+
+/**
+ * All per-game-title aggregate rows for a player, joined with the game title
+ * name and slug. Ordered newest game title first (by id desc).
+ */
+export async function getPlayerCareerStats(playerId: number) {
+  return db
+    .select({
+      gameTitleId: playerGameTitleStats.gameTitleId,
+      gameTitleName: gameTitles.name,
+      gameTitleSlug: gameTitles.slug,
+      gamesPlayed: playerGameTitleStats.gamesPlayed,
+      goals: playerGameTitleStats.goals,
+      assists: playerGameTitleStats.assists,
+      points: playerGameTitleStats.points,
+      plusMinus: playerGameTitleStats.plusMinus,
+      shots: playerGameTitleStats.shots,
+      hits: playerGameTitleStats.hits,
+      pim: playerGameTitleStats.pim,
+      takeaways: playerGameTitleStats.takeaways,
+      giveaways: playerGameTitleStats.giveaways,
+      faceoffPct: playerGameTitleStats.faceoffPct,
+      passPct: playerGameTitleStats.passPct,
+      wins: playerGameTitleStats.wins,
+      losses: playerGameTitleStats.losses,
+      savePct: playerGameTitleStats.savePct,
+      gaa: playerGameTitleStats.gaa,
+      shutouts: playerGameTitleStats.shutouts,
+    })
+    .from(playerGameTitleStats)
+    .innerJoin(gameTitles, eq(playerGameTitleStats.gameTitleId, gameTitles.id))
+    .where(eq(playerGameTitleStats.playerId, playerId))
+    .orderBy(desc(playerGameTitleStats.gameTitleId))
+}
+
+/**
+ * Gamertag history for a player, newest entry first.
+ * seenUntil = null means the entry is still the current gamertag.
+ */
+export async function getPlayerGamertagHistory(playerId: number) {
+  return db
+    .select()
+    .from(playerGamertagHistory)
+    .where(eq(playerGamertagHistory.playerId, playerId))
+    .orderBy(desc(playerGamertagHistory.seenFrom))
+}
+
+/**
+ * Recent match log for a single player.
+ *
+ * Joins player_match_stats with matches to surface per-game context
+ * (date, opponent, result, score) alongside the player's individual line.
+ * Ordered newest first. Spans all game titles — filtered only by playerId.
+ *
+ * isGoalie drives which stat columns are meaningful in the UI:
+ *   - skaters: goals / assists / plusMinus (saves is null)
+ *   - goalies:  saves / goalsAgainst       (goals/assists/plusMinus are 0)
+ */
+export async function getPlayerGameLog(playerId: number, limit = 15) {
+  return db
+    .select({
+      matchId: matches.id,
+      playedAt: matches.playedAt,
+      opponentName: matches.opponentName,
+      result: matches.result,
+      scoreFor: matches.scoreFor,
+      scoreAgainst: matches.scoreAgainst,
+      isGoalie: playerMatchStats.isGoalie,
+      goals: playerMatchStats.goals,
+      assists: playerMatchStats.assists,
+      plusMinus: playerMatchStats.plusMinus,
+      saves: playerMatchStats.saves,
+      goalsAgainst: playerMatchStats.goalsAgainst,
+    })
+    .from(playerMatchStats)
+    .innerJoin(matches, eq(playerMatchStats.matchId, matches.id))
+    .where(eq(playerMatchStats.playerId, playerId))
+    .orderBy(desc(matches.playedAt))
+    .limit(limit)
 }
 
 /**

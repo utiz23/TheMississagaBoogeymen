@@ -1,4 +1,4 @@
-import { eq, desc } from 'drizzle-orm'
+import { eq, desc, count } from 'drizzle-orm'
 import { db } from '../client.js'
 import { matches } from '../schema/index.js'
 
@@ -6,13 +6,30 @@ import { matches } from '../schema/index.js'
  * Most recent matches for a given game title, newest first.
  * All matches are returned from our club's perspective (single-club system).
  */
-export async function getRecentMatches(params: { gameTitleId: number; limit?: number }) {
+export async function getRecentMatches(params: {
+  gameTitleId: number
+  limit?: number
+  offset?: number
+}) {
   return db
     .select()
     .from(matches)
     .where(eq(matches.gameTitleId, params.gameTitleId))
     .orderBy(desc(matches.playedAt))
     .limit(params.limit ?? 50)
+    .offset(params.offset ?? 0)
+}
+
+/**
+ * Total number of matches for a given game title.
+ * Used alongside getRecentMatches for pagination.
+ */
+export async function countMatches(params: { gameTitleId: number }) {
+  const rows = await db
+    .select({ total: count() })
+    .from(matches)
+    .where(eq(matches.gameTitleId, params.gameTitleId))
+  return rows[0]?.total ?? 0
 }
 
 /**

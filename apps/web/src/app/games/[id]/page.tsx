@@ -92,9 +92,9 @@ function HeroSection({ match }: { match: Match }) {
       <div className="flex flex-wrap items-center gap-x-8 gap-y-4">
         {/* Score — large, condensed, Arena Board bold */}
         <div className="flex items-baseline gap-2 font-condensed font-bold tabular leading-none">
-          <span className={`text-6xl ${scoreForColor}`}>{match.scoreFor}</span>
-          <span className="text-3xl text-zinc-600">–</span>
-          <span className="text-6xl text-zinc-400">{match.scoreAgainst}</span>
+          <span className={`text-5xl sm:text-6xl ${scoreForColor}`}>{match.scoreFor}</span>
+          <span className="text-2xl sm:text-3xl text-zinc-600">–</span>
+          <span className="text-5xl sm:text-6xl text-zinc-400">{match.scoreAgainst}</span>
         </div>
 
         {/* Match info */}

@@ -165,7 +165,9 @@ interface RecordStatProps {
 function RecordStat({ label, value, accent = false }: RecordStatProps) {
   return (
     <div className="flex flex-col items-center gap-1">
-      <span className={`text-5xl font-bold ${accent ? 'text-accent' : 'text-zinc-100'}`}>
+      <span
+        className={`text-4xl sm:text-5xl font-bold ${accent ? 'text-accent' : 'text-zinc-100'}`}
+      >
         {value.toString()}
       </span>
       <span className="text-xs font-semibold uppercase tracking-wider text-zinc-500">{label}</span>
