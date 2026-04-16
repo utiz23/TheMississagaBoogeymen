@@ -4,15 +4,15 @@ Use this skill when reviewing whether a UI component or query is using the corre
 
 ## The Authority Model
 
-| Data type | Authoritative source | Table |
-|-----------|---------------------|-------|
-| Player season-total stats (GP, G, A, PTS, +/-, SV%, GAA, etc.) | EA `/members/stats` | `ea_member_season_stats` |
-| Team season-total player stats for scoring leaders, carousel | EA `/members/stats` | `ea_member_season_stats` |
-| Recent match results (score, opponent, date) | Local match ingestion | `matches` |
-| Team W/L/OTL record | Local match aggregates (only source) | `club_game_title_stats` |
-| Per-game player lines | Local match ingestion | `player_match_stats` |
-| Player career/profile page stats | EA baseline via `ea_member_season_stats` | `ea_member_season_stats` |
-| Opponent records | **No source — never fabricate** | — |
+| Data type                                                      | Authoritative source                     | Table                    |
+| -------------------------------------------------------------- | ---------------------------------------- | ------------------------ |
+| Player season-total stats (GP, G, A, PTS, +/-, SV%, GAA, etc.) | EA `/members/stats`                      | `ea_member_season_stats` |
+| Team season-total player stats for scoring leaders, carousel   | EA `/members/stats`                      | `ea_member_season_stats` |
+| Recent match results (score, opponent, date)                   | Local match ingestion                    | `matches`                |
+| Team W/L/OTL record                                            | Local match aggregates (only source)     | `club_game_title_stats`  |
+| Per-game player lines                                          | Local match ingestion                    | `player_match_stats`     |
+| Player career/profile page stats                               | EA baseline via `ea_member_season_stats` | `ea_member_season_stats` |
+| Opponent records                                               | **No source — never fabricate**          | —                        |
 
 ## Diagnostic Workflow
 
@@ -30,16 +30,16 @@ Use this skill when reviewing whether a UI component or query is using the corre
 
 ## Query → Table Map (current)
 
-| Query | Table | Authority |
-|-------|-------|-----------|
-| `getSkaterStats(gameTitleId)` | `ea_member_season_stats` | ✅ EA baseline |
-| `getGoalieStats(gameTitleId)` | `ea_member_season_stats` | ✅ EA baseline |
-| `getEAMemberRoster(gameTitleId)` | `ea_member_season_stats` | ✅ EA baseline |
-| `getRoster(gameTitleId)` | `player_game_title_stats` | ⚠️ Local aggregates (~15 matches) — do not use for season totals |
-| `getClubStats(gameTitleId)` | `club_game_title_stats` | ✅ Correct for team W/L/OTL (no EA alternative) |
-| `getRecentMatches(...)` | `matches` | ✅ Correct for recent results |
-| `getPlayerMatchStats(matchId)` | `player_match_stats` | ✅ Correct for per-game lines |
-| `getPlayerCareerStats(playerId)` | `player_game_title_stats` | ⚠️ Local aggregates — consider switching to EA baseline |
+| Query                            | Table                     | Authority                                                        |
+| -------------------------------- | ------------------------- | ---------------------------------------------------------------- |
+| `getSkaterStats(gameTitleId)`    | `ea_member_season_stats`  | ✅ EA baseline                                                   |
+| `getGoalieStats(gameTitleId)`    | `ea_member_season_stats`  | ✅ EA baseline                                                   |
+| `getEAMemberRoster(gameTitleId)` | `ea_member_season_stats`  | ✅ EA baseline                                                   |
+| `getRoster(gameTitleId)`         | `player_game_title_stats` | ⚠️ Local aggregates (~15 matches) — do not use for season totals |
+| `getClubStats(gameTitleId)`      | `club_game_title_stats`   | ✅ Correct for team W/L/OTL (no EA alternative)                  |
+| `getRecentMatches(...)`          | `matches`                 | ✅ Correct for recent results                                    |
+| `getPlayerMatchStats(matchId)`   | `player_match_stats`      | ✅ Correct for per-game lines                                    |
+| `getPlayerCareerStats(playerId)` | `player_game_title_stats` | ⚠️ Local aggregates — consider switching to EA baseline          |
 
 ## Rules
 

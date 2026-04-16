@@ -60,11 +60,11 @@ docker compose up -d worker web
 
 ## Container Reference
 
-| Service | Container name | Internal port |
-|---------|---------------|---------------|
-| worker | `eanhl-team-website-worker-1` | — |
-| web | `eanhl-team-website-web-1` | 3000 |
-| db | `eanhl-team-website-db-1` | 5432 |
+| Service | Container name                | Internal port |
+| ------- | ----------------------------- | ------------- |
+| worker  | `eanhl-team-website-worker-1` | —             |
+| web     | `eanhl-team-website-web-1`    | 3000          |
+| db      | `eanhl-team-website-db-1`     | 5432          |
 
 DB connection from host: `postgresql://eanhl:eanhl_dev_2026@localhost:5433/eanhl`
 

@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import {
-  getPlayerById,
+  getPlayerWithProfile,
   getPlayerCareerStats,
   getPlayerGamertagHistory,
   getPlayerGameLog,
@@ -22,7 +22,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const id = parseInt(idStr, 10)
   if (isNaN(id)) return { title: 'Player Not Found — Club Stats' }
   try {
-    const player = await getPlayerById(id)
+    const player = await getPlayerWithProfile(id)
     if (!player) return { title: 'Player Not Found — Club Stats' }
     return { title: `${player.gamertag} — Club Stats` }
   } catch {
@@ -36,14 +36,14 @@ export default async function PlayerPage({ params }: Props) {
 
   if (isNaN(id)) notFound()
 
-  let player: Awaited<ReturnType<typeof getPlayerById>> = null
+  let player: Awaited<ReturnType<typeof getPlayerWithProfile>> = null
   let careerStats: Awaited<ReturnType<typeof getPlayerCareerStats>> = []
   let history: Awaited<ReturnType<typeof getPlayerGamertagHistory>> = []
   let gameLog: Awaited<ReturnType<typeof getPlayerGameLog>> = []
 
   try {
     ;[player, careerStats, history, gameLog] = await Promise.all([
-      getPlayerById(id),
+      getPlayerWithProfile(id),
       getPlayerCareerStats(id),
       getPlayerGamertagHistory(id),
       getPlayerGameLog(id),
@@ -70,13 +70,29 @@ export default async function PlayerPage({ params }: Props) {
       {/* Player header */}
       <div className="border border-zinc-800 border-l-4 border-l-accent bg-surface px-6 py-5">
         <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
-          <h1 className="font-condensed text-4xl font-bold uppercase tracking-wide text-zinc-50">
-            {player.gamertag}
-          </h1>
+          <div className="flex items-baseline gap-3">
+            {player.jerseyNumber != null && (
+              <span className="font-condensed text-2xl font-bold text-accent">
+                #{player.jerseyNumber}
+              </span>
+            )}
+            <h1 className="font-condensed text-4xl font-bold uppercase tracking-wide text-zinc-50">
+              {player.gamertag}
+            </h1>
+          </div>
           <div className="flex items-center gap-3">
-            {player.position && (
-              <span className="rounded border border-zinc-700 bg-zinc-800 px-2 py-0.5 text-xs font-semibold uppercase tracking-wider text-zinc-400">
-                {formatPosition(player.position)}
+            {/* preferredPosition overrides auto-detected position when set */}
+            {(() => {
+              const pos = player.preferredPosition ?? player.position
+              return pos ? (
+                <span className="rounded border border-zinc-700 bg-zinc-800 px-2 py-0.5 text-xs font-semibold uppercase tracking-wider text-zinc-400">
+                  {formatPosition(pos)}
+                </span>
+              ) : null
+            })()}
+            {player.nationality && (
+              <span className="rounded border border-zinc-700 bg-zinc-800 px-2 py-0.5 text-xs font-semibold uppercase tracking-wider text-zinc-500">
+                {player.nationality}
               </span>
             )}
             {!player.isActive && (
@@ -89,6 +105,9 @@ export default async function PlayerPage({ params }: Props) {
             Last seen {formatMatchDate(player.lastSeenAt)}
           </span>
         </div>
+        {player.bio && (
+          <p className="mt-3 text-sm text-zinc-400 leading-relaxed max-w-2xl">{player.bio}</p>
+        )}
       </div>
 
       {/* Career stats */}

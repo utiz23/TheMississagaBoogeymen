@@ -6,6 +6,7 @@ import {
   playerGameTitleStats,
   playerGamertagHistory,
   playerMatchStats,
+  playerProfiles,
   players,
 } from '../schema/index.js'
 
@@ -90,6 +91,37 @@ export async function getRoster(gameTitleId: number) {
  */
 export async function getPlayerById(playerId: number) {
   const rows = await db.select().from(players).where(eq(players.id, playerId)).limit(1)
+  return rows[0] ?? null
+}
+
+/**
+ * Single player with profile metadata. Returns null when not found.
+ *
+ * LEFT JOINs player_profiles — the profile object will have all-null fields
+ * when no profile row exists yet (before the first ingestion cycle runs after
+ * the migration). Components should treat each profile field as nullable.
+ */
+export async function getPlayerWithProfile(playerId: number) {
+  const rows = await db
+    .select({
+      // Player identity fields
+      id: players.id,
+      eaId: players.eaId,
+      gamertag: players.gamertag,
+      position: players.position,
+      isActive: players.isActive,
+      firstSeenAt: players.firstSeenAt,
+      lastSeenAt: players.lastSeenAt,
+      // Profile fields (nullable — null until manually populated)
+      jerseyNumber: playerProfiles.jerseyNumber,
+      nationality: playerProfiles.nationality,
+      preferredPosition: playerProfiles.preferredPosition,
+      bio: playerProfiles.bio,
+    })
+    .from(players)
+    .leftJoin(playerProfiles, eq(players.id, playerProfiles.playerId))
+    .where(eq(players.id, playerId))
+    .limit(1)
   return rows[0] ?? null
 }
 

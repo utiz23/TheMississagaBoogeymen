@@ -21,6 +21,7 @@ import {
   players,
   playerGamertagHistory,
   playerMatchStats,
+  playerProfiles,
   MATCH_TYPE,
   type GameTitle,
   type Player,
@@ -299,13 +300,21 @@ export async function persistTransform(result: TransformResult): Promise<void> {
 export async function upsertPlayer(identity: PlayerIdentity, dbConn: DbConn = db): Promise<Player> {
   const now = new Date()
 
+  let player: Player
   if (identity.eaId) {
-    return upsertPlayerByEaId(identity, identity.eaId, now, dbConn)
+    player = await upsertPlayerByEaId(identity, identity.eaId, now, dbConn)
+  } else {
+    // ea_id absent — degraded path. Duplicates are possible if gamertag changes.
+    console.warn(`[player] blazeId absent for "${identity.gamertag}" — using gamertag fallback`)
+    player = await upsertPlayerByGamertag(identity, now, dbConn)
   }
 
-  // ea_id absent — degraded path. Duplicates are possible if gamertag changes.
-  console.warn(`[player] blazeId absent for "${identity.gamertag}" — using gamertag fallback`)
-  return upsertPlayerByGamertag(identity, now, dbConn)
+  // Ensure a profile row exists. ON CONFLICT DO NOTHING means:
+  //   - new player: creates an empty row (all profile fields NULL)
+  //   - existing player: no-op, preserving any manually populated fields
+  await dbConn.insert(playerProfiles).values({ playerId: player.id }).onConflictDoNothing()
+
+  return player
 }
 
 async function upsertPlayerByEaId(

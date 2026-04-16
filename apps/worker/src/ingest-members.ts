@@ -20,6 +20,7 @@ import {
   eaMemberSeasonStats,
   players,
   playerGamertagHistory,
+  playerProfiles,
   type GameTitle,
   type Player,
   type NewPlayer,
@@ -144,30 +145,38 @@ export async function fetchAndStoreMemberStats(title: GameTitle): Promise<void> 
  */
 async function upsertMemberPlayer(gamertag: string, now: Date): Promise<Player> {
   const existing = await db.select().from(players).where(eq(players.gamertag, gamertag)).limit(1)
+
+  let player: Player
   if (existing.length > 0) {
     const row = existing[0]
     if (!row) throw new Error(`Unexpected missing row for gamertag ${gamertag}`)
-    return row
+    player = row
+  } else {
+    // New player — minimal insert. position is left null; match ingestion sets it later.
+    const values: NewPlayer = {
+      eaId: null,
+      gamertag,
+      position: null,
+      firstSeenAt: now,
+      lastSeenAt: now,
+    }
+    const [newPlayer] = await db.insert(players).values(values).returning()
+    if (!newPlayer) throw new Error(`Failed to insert player "${gamertag}"`)
+
+    // Open initial gamertag history row.
+    await db.insert(playerGamertagHistory).values({
+      playerId: newPlayer.id,
+      gamertag,
+      seenFrom: now,
+    })
+
+    console.log(`[members] New player created from members data: "${gamertag}"`)
+    player = newPlayer
   }
 
-  // New player — minimal insert. position is left null; match ingestion sets it later.
-  const values: NewPlayer = {
-    eaId: null,
-    gamertag,
-    position: null,
-    firstSeenAt: now,
-    lastSeenAt: now,
-  }
-  const [newPlayer] = await db.insert(players).values(values).returning()
-  if (!newPlayer) throw new Error(`Failed to insert player "${gamertag}"`)
+  // Ensure a profile row exists — mirrors the guarantee in upsertPlayer (ingest.ts).
+  // ON CONFLICT DO NOTHING: new player gets an empty row; existing player is untouched.
+  await db.insert(playerProfiles).values({ playerId: player.id }).onConflictDoNothing()
 
-  // Open initial gamertag history row.
-  await db.insert(playerGamertagHistory).values({
-    playerId: newPlayer.id,
-    gamertag,
-    seenFrom: now,
-  })
-
-  console.log(`[members] New player created from members data: "${gamertag}"`)
-  return newPlayer
+  return player
 }

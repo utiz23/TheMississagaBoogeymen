@@ -9,6 +9,7 @@ The `@eanhl/db` package must be compiled before any dependent package (`apps/web
 ## Trigger Conditions
 
 Invoke whenever you:
+
 - Add or modify a Drizzle schema file (`packages/db/src/schema/*.ts`)
 - Add or modify a query function (`packages/db/src/queries/*.ts`)
 - Run `pnpm --filter db generate` or `pnpm --filter db migrate`
@@ -65,9 +66,9 @@ Use the `docker-redeploy` skill.
 
 ## Common Failure Modes
 
-| Symptom | Cause | Fix |
-|---------|-------|-----|
-| `Module '...' has no exported member 'X'` | `@eanhl/db` not rebuilt | `pnpm --filter @eanhl/db build` |
-| `DATABASE_URL environment variable is required` | `.env` not loaded | `set -a && source .env && set +a` |
-| New columns all NULL in DB | Reprocess not run after transform update | `pnpm --filter @eanhl/worker build && reprocess --all` |
-| Worker cycle runs but new code has no effect | Docker image stale | Use `docker-redeploy` skill |
+| Symptom                                         | Cause                                    | Fix                                                    |
+| ----------------------------------------------- | ---------------------------------------- | ------------------------------------------------------ |
+| `Module '...' has no exported member 'X'`       | `@eanhl/db` not rebuilt                  | `pnpm --filter @eanhl/db build`                        |
+| `DATABASE_URL environment variable is required` | `.env` not loaded                        | `set -a && source .env && set +a`                      |
+| New columns all NULL in DB                      | Reprocess not run after transform update | `pnpm --filter @eanhl/worker build && reprocess --all` |
+| Worker cycle runs but new code has no effect    | Docker image stale                       | Use `docker-redeploy` skill                            |
