@@ -58,7 +58,7 @@ export default async function PlayerPage({ params, searchParams }: Props) {
       getPlayerWithProfile(id),
       getPlayerCareerStats(id, gameMode),
       getPlayerGamertagHistory(id),
-      getPlayerGameLog(id),
+      getPlayerGameLog(id, gameMode),
     ])
   } catch {
     return <ErrorState message="Unable to load player data right now." />
@@ -162,11 +162,13 @@ export default async function PlayerPage({ params, searchParams }: Props) {
       {/* Recent game log */}
       <section>
         <h2 className="mb-3 font-condensed text-sm font-semibold uppercase tracking-wider text-zinc-500">
-          Recent Games
+          {gameMode !== null ? `Recent ${gameMode} Games` : 'Recent Games'}
         </h2>
         {gameLog.length === 0 ? (
           <div className="flex min-h-[6rem] items-center justify-center border border-zinc-800 bg-surface">
-            <p className="text-sm text-zinc-500">No games recorded yet.</p>
+            <p className="text-sm text-zinc-500">
+              {gameMode !== null ? `No ${gameMode} games recorded yet.` : 'No games recorded yet.'}
+            </p>
           </div>
         ) : (
           <GameLog rows={gameLog} />

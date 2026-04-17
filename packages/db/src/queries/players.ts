@@ -202,7 +202,12 @@ export async function getPlayerGamertagHistory(playerId: number) {
  *   - skaters: goals / assists / plusMinus (saves is null)
  *   - goalies:  saves / goalsAgainst       (goals/assists/plusMinus are 0)
  */
-export async function getPlayerGameLog(playerId: number, limit = 15) {
+export async function getPlayerGameLog(
+  playerId: number,
+  gameMode: GameMode | null = null,
+  limit = 15,
+) {
+  const gameModeFilter = gameMode === null ? undefined : eq(matches.gameMode, gameMode)
   return db
     .select({
       matchId: matches.id,
@@ -211,6 +216,7 @@ export async function getPlayerGameLog(playerId: number, limit = 15) {
       result: matches.result,
       scoreFor: matches.scoreFor,
       scoreAgainst: matches.scoreAgainst,
+      gameMode: matches.gameMode,
       isGoalie: playerMatchStats.isGoalie,
       goals: playerMatchStats.goals,
       assists: playerMatchStats.assists,
@@ -220,7 +226,7 @@ export async function getPlayerGameLog(playerId: number, limit = 15) {
     })
     .from(playerMatchStats)
     .innerJoin(matches, eq(playerMatchStats.matchId, matches.id))
-    .where(eq(playerMatchStats.playerId, playerId))
+    .where(and(eq(playerMatchStats.playerId, playerId), gameModeFilter))
     .orderBy(desc(matches.playedAt))
     .limit(limit)
 }
