@@ -1,20 +1,27 @@
-import { eq, desc, count, sql } from 'drizzle-orm'
+import { and, eq, desc, count, sql } from 'drizzle-orm'
 import { db } from '../client.js'
 import { matches } from '../schema/index.js'
+import type { GameMode } from '../schema/index.js'
 
 /**
  * Most recent matches for a given game title, newest first.
- * All matches are returned from our club's perspective (single-club system).
+ * Optional gameMode filter ('6s' | '3s') narrows to that subset.
  */
 export async function getRecentMatches(params: {
   gameTitleId: number
   limit?: number
   offset?: number
+  gameMode?: GameMode | null
 }) {
+  const where =
+    params.gameMode != null
+      ? and(eq(matches.gameTitleId, params.gameTitleId), eq(matches.gameMode, params.gameMode))
+      : eq(matches.gameTitleId, params.gameTitleId)
+
   return db
     .select()
     .from(matches)
-    .where(eq(matches.gameTitleId, params.gameTitleId))
+    .where(where)
     .orderBy(desc(matches.playedAt))
     .limit(params.limit ?? 50)
     .offset(params.offset ?? 0)
@@ -22,13 +29,15 @@ export async function getRecentMatches(params: {
 
 /**
  * Total number of matches for a given game title.
- * Used alongside getRecentMatches for pagination.
+ * Optional gameMode filter narrows to that subset.
  */
-export async function countMatches(params: { gameTitleId: number }) {
-  const rows = await db
-    .select({ total: count() })
-    .from(matches)
-    .where(eq(matches.gameTitleId, params.gameTitleId))
+export async function countMatches(params: { gameTitleId: number; gameMode?: GameMode | null }) {
+  const where =
+    params.gameMode != null
+      ? and(eq(matches.gameTitleId, params.gameTitleId), eq(matches.gameMode, params.gameMode))
+      : eq(matches.gameTitleId, params.gameTitleId)
+
+  const rows = await db.select({ total: count() }).from(matches).where(where)
   return rows[0]?.total ?? 0
 }
 

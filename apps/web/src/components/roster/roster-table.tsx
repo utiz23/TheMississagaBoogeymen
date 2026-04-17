@@ -2,9 +2,9 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import type { getRoster } from '@eanhl/db/queries'
+import type { getEAMemberRoster } from '@eanhl/db/queries'
 
-type RosterRow = Awaited<ReturnType<typeof getRoster>>[number]
+type RosterRow = Awaited<ReturnType<typeof getEAMemberRoster>>[number]
 
 // ─── Column definitions ───────────────────────────────────────────────────────
 
@@ -208,7 +208,7 @@ export function RosterTable({ rows }: RosterTableProps) {
   const activeCol = activeTab.cols.find((c) => c.key === sortKey)
   const isAsc = sortAscOverride ?? activeCol?.sortAsc ?? false
 
-  const displayRows = (activeTab.filterGoalie ? rows.filter((r) => r.wins !== null) : rows).slice()
+  const displayRows = (activeTab.filterGoalie ? rows.filter((r) => r.goalieGp > 0) : rows).slice()
 
   displayRows.sort((a, b) => {
     if (!activeCol) return 0

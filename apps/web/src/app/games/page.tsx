@@ -6,6 +6,8 @@ import {
   getRecentMatches,
   countMatches,
 } from '@eanhl/db/queries'
+import type { GameMode } from '@eanhl/db'
+import { GAME_MODE } from '@eanhl/db'
 import { MatchRow } from '@/components/matches/match-row'
 
 export const metadata: Metadata = { title: 'Games — Club Stats' }
@@ -35,9 +37,15 @@ function parsePage(raw: string | string[] | undefined): number {
   return Number.isFinite(n) && n >= 1 ? n : 1
 }
 
+function parseGameMode(raw: string | string[] | undefined): GameMode | null {
+  if (typeof raw !== 'string') return null
+  return (GAME_MODE as readonly string[]).includes(raw) ? (raw as GameMode) : null
+}
+
 export default async function GamesPage({ searchParams }: { searchParams: SearchParams }) {
   const params = await searchParams
   const titleSlug = typeof params.title === 'string' ? params.title : undefined
+  const gameMode = parseGameMode(params.mode)
   const page = parsePage(params.page)
   const offset = (page - 1) * PAGE_SIZE
 
@@ -51,8 +59,8 @@ export default async function GamesPage({ searchParams }: { searchParams: Search
   let total = 0
   try {
     ;[pageMatches, total] = await Promise.all([
-      getRecentMatches({ gameTitleId: gameTitle.id, limit: PAGE_SIZE, offset }),
-      countMatches({ gameTitleId: gameTitle.id }),
+      getRecentMatches({ gameTitleId: gameTitle.id, limit: PAGE_SIZE, offset, gameMode }),
+      countMatches({ gameTitleId: gameTitle.id, gameMode }),
     ])
   } catch {
     return <EmptyState message="Unable to load match data right now." />
@@ -61,6 +69,11 @@ export default async function GamesPage({ searchParams }: { searchParams: Search
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
   // Clamp page to valid range — handles stale bookmarks
   const clampedPage = Math.min(page, totalPages)
+
+  const emptyMessage =
+    gameMode !== null
+      ? `No ${gameMode} games recorded for ${gameTitle.name} yet.`
+      : `No games recorded for ${gameTitle.name} yet.`
 
   return (
     <div className="space-y-6">
@@ -73,8 +86,11 @@ export default async function GamesPage({ searchParams }: { searchParams: Search
         {total > 0 && <span className="text-sm text-zinc-600">{total} matches</span>}
       </div>
 
+      {/* Game mode filter pills */}
+      <GameModeFilter titleSlug={titleSlug} activeMode={gameMode} />
+
       {total === 0 ? (
-        <EmptyState message={`No games recorded for ${gameTitle.name} yet.`} />
+        <EmptyState message={emptyMessage} />
       ) : (
         <>
           <div className="overflow-hidden border border-zinc-800 bg-surface">
@@ -111,7 +127,12 @@ export default async function GamesPage({ searchParams }: { searchParams: Search
           </div>
 
           {totalPages > 1 && (
-            <PaginationNav page={clampedPage} totalPages={totalPages} titleSlug={titleSlug} />
+            <PaginationNav
+              page={clampedPage}
+              totalPages={totalPages}
+              titleSlug={titleSlug}
+              gameMode={gameMode}
+            />
           )}
         </>
       )}
@@ -119,11 +140,61 @@ export default async function GamesPage({ searchParams }: { searchParams: Search
   )
 }
 
-// ─── Pagination ───────────────────────────────────────────────────────────────
+// ─── Game mode filter ─────────────────────────────────────────────────────────
 
-function paginationHref(page: number, titleSlug: string | undefined): string {
+function gameModeHref(mode: GameMode | null, titleSlug: string | undefined): string {
   const qs = new URLSearchParams()
   if (titleSlug) qs.set('title', titleSlug)
+  if (mode !== null) qs.set('mode', mode)
+  return `/games?${qs.toString()}`
+}
+
+const MODE_LABELS: { mode: GameMode | null; label: string }[] = [
+  { mode: null, label: 'All' },
+  { mode: '6s', label: '6s' },
+  { mode: '3s', label: '3s' },
+]
+
+function GameModeFilter({
+  titleSlug,
+  activeMode,
+}: {
+  titleSlug: string | undefined
+  activeMode: GameMode | null
+}) {
+  return (
+    <div className="flex gap-1">
+      {MODE_LABELS.map(({ mode, label }) => {
+        const isActive = mode === activeMode
+        return (
+          <Link
+            key={label}
+            href={gameModeHref(mode, titleSlug)}
+            className={[
+              'px-3 py-1 text-xs font-semibold uppercase tracking-wider rounded border transition-colors',
+              isActive
+                ? 'border-accent bg-accent/10 text-accent'
+                : 'border-zinc-700 bg-transparent text-zinc-500 hover:border-zinc-500 hover:text-zinc-300',
+            ].join(' ')}
+          >
+            {label}
+          </Link>
+        )
+      })}
+    </div>
+  )
+}
+
+// ─── Pagination ───────────────────────────────────────────────────────────────
+
+function paginationHref(
+  page: number,
+  titleSlug: string | undefined,
+  gameMode: GameMode | null,
+): string {
+  const qs = new URLSearchParams()
+  if (titleSlug) qs.set('title', titleSlug)
+  if (gameMode !== null) qs.set('mode', gameMode)
   qs.set('page', page.toString())
   return `/games?${qs.toString()}`
 }
@@ -132,10 +203,12 @@ function PaginationNav({
   page,
   totalPages,
   titleSlug,
+  gameMode,
 }: {
   page: number
   totalPages: number
   titleSlug: string | undefined
+  gameMode: GameMode | null
 }) {
   const hasPrev = page > 1
   const hasNext = page < totalPages
@@ -144,7 +217,7 @@ function PaginationNav({
     <div className="flex items-center justify-between py-1 text-sm">
       {hasPrev ? (
         <Link
-          href={paginationHref(page - 1, titleSlug)}
+          href={paginationHref(page - 1, titleSlug, gameMode)}
           className="text-zinc-400 hover:text-zinc-200 transition-colors"
         >
           ← Prev
@@ -159,7 +232,7 @@ function PaginationNav({
 
       {hasNext ? (
         <Link
-          href={paginationHref(page + 1, titleSlug)}
+          href={paginationHref(page + 1, titleSlug, gameMode)}
           className="text-zinc-400 hover:text-zinc-200 transition-colors"
         >
           Next →

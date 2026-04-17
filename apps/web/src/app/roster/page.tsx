@@ -1,5 +1,5 @@
 import type { Metadata } from 'next'
-import { listGameTitles, getGameTitleBySlug, getRoster } from '@eanhl/db/queries'
+import { listGameTitles, getGameTitleBySlug, getEAMemberRoster } from '@eanhl/db/queries'
 import { RosterTable } from '@/components/roster/roster-table'
 
 export const metadata: Metadata = { title: 'Roster — Club Stats' }
@@ -32,9 +32,9 @@ export default async function RosterPage({ searchParams }: { searchParams: Searc
     return <EmptyState message="No game titles are configured yet." />
   }
 
-  let rows: Awaited<ReturnType<typeof getRoster>> = []
+  let rows: Awaited<ReturnType<typeof getEAMemberRoster>> = []
   try {
-    rows = await getRoster(gameTitle.id)
+    rows = await getEAMemberRoster(gameTitle.id)
   } catch {
     return <EmptyState message="Unable to load roster data right now." />
   }
