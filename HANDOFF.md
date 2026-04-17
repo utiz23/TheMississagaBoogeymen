@@ -2,9 +2,9 @@
 
 ## Current Status
 
-**Phase:** DB/Stats Rework — Query layer + Stats page integration complete. Migrations applied, backfill done. Ready to commit and proceed.
+**Phase:** DB/Stats Rework — All web surfaces migrated to local aggregates. All major pages support `All / 6s / 3s` mode filtering. Player profile handles member-only (no local match data) players gracefully.
 
-**Last updated:** 2026-04-13
+**Last updated:** 2026-04-17
 
 ---
 
@@ -690,11 +690,18 @@ Both in migration `0007_flaky_ultimo.sql`.
 
 ---
 
-## Roster Page Data Source Switch ✓ complete (2026-04-17)
+## Local Aggregate Migration ✓ complete (2026-04-17)
 
-Switched `/roster` page from `getRoster` (`player_game_title_stats`, 15 matches) to `getEAMemberRoster` (`ea_member_season_stats`, full EA season totals). `getEAMemberRoster` was already designed to match the `RosterRow` contract. Goalie tab filter changed from `r.wins !== null` to `r.goalieGp > 0`.
+All web surfaces migrated from `ea_member_season_stats` (EA baseline) to `player_game_title_stats` (local aggregates). `ea_member_season_stats` is now worker-written only — retained for debug/baseline comparison and player resolution (creates player rows for members not yet in any ingested match).
 
-This makes the roster page consistent with the home page carousel (both now use EA season data).
+**Commits:** efb06eb (home + /roster), 0c85364 (/stats), d8b91da (dead-code cleanup), bca16d8 (docs/retention decision), a534280 (member-only profile fix)
+
+**What changed:**
+- Home page carousel and `/roster` use `getRoster` with `skaterGp`/`goalieGp` denominators
+- `/stats` uses `getSkaterStats`/`getGoalieStats` — filter `skaterGp > 0` / `goalieGp > 0` (replaces `favoritePosition` EA approach; correctly handles dual-role players)
+- All surfaces support `?mode=` URL param (`All / 6s / 3s`)
+- `getEAMemberRoster` removed (dead code)
+- `/roster/[id]` shows an informational notice when a player has no local match history yet (e.g. `joseph4577` who exists only from member ingest). `hasNoLocalData = careerStats.length === 0 && gameLog.length === 0` triggers the banner.
 
 ---
 
