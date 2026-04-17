@@ -2,7 +2,7 @@
 
 ## Current Status
 
-**Phase:** DB/Stats Rework — All web surfaces migrated to local aggregates. All major pages support `All / 6s / 3s` mode filtering. Player profile handles member-only (no local match data) players gracefully.
+**Phase:** DB/Stats Rework — web-facing source-of-truth migration complete. All major pages use local aggregates or match-level data where appropriate. Aggregate-backed surfaces support `All / 6s / 3s` mode filtering. Player profile handles member-only (no local match data) players gracefully.
 
 **Last updated:** 2026-04-17
 
@@ -235,6 +235,37 @@ Updated `apps/web/src/app/stats/page.tsx`:
 **Important:** `@eanhl/db` must be rebuilt (`pnpm --filter @eanhl/db build`) before the web typecheck can resolve `getSkaterStats`/`getGoalieStats` exports. Already done.
 
 **Live data status (2026-04-13):** Migrations 0002 + 0003 applied. `reprocess --all` completed (15/15 payloads). Aggregates recomputed with Phase 2 columns. Stats page fully operational with real data.
+
+---
+
+## DB/Stats Rework — Final State Checkpoint (2026-04-17)
+
+**What is done:**
+
+- All web-facing stats surfaces now use local aggregates or match-level data. Web no longer reads `ea_member_season_stats`.
+- `/games` supports match-level `All / 6s / 3s` filtering.
+- `/stats`, `/roster`, home, and player profile surfaces are now aligned to local source-of-truth semantics.
+- Aggregate tables include `game_mode`, and aggregate queries accept optional `gameMode`.
+- Player profile page handles member-only/no-local-data players with an explicit notice banner instead of silent empty sections.
+- Home page mode continuity is complete (`home -> /stats` preserves `?mode=`).
+
+**Intentional architecture boundary:**
+
+- `ea_member_season_stats` remains worker-owned baseline/debug data and player-discovery support.
+- Worker still writes it every cycle.
+- Web does not consume it.
+- This is intentional. Do not remove it casually unless the worker/player-resolution path is redesigned.
+
+**Blocked / deferred:**
+
+- Official club record remains blocked. EA member stats are per-member participation counts, not a confirmed club-level W-L-OTL source.
+- Historical/manual import model remains deferred.
+- Provenance/sourceType system remains deferred.
+
+**Immediate next step:**
+
+- Do not reopen source-of-truth migration or game-mode architecture work by default.
+- Start a new product-facing slice only when there is a clear user pain point.
 
 ---
 
@@ -697,6 +728,7 @@ All web surfaces migrated from `ea_member_season_stats` (EA baseline) to `player
 **Commits:** efb06eb (home + /roster), 0c85364 (/stats), d8b91da (dead-code cleanup), bca16d8 (docs/retention decision), a534280 (member-only profile fix)
 
 **What changed:**
+
 - Home page carousel and `/roster` use `getRoster` with `skaterGp`/`goalieGp` denominators
 - `/stats` uses `getSkaterStats`/`getGoalieStats` — filter `skaterGp > 0` / `goalieGp > 0` (replaces `favoritePosition` EA approach; correctly handles dual-role players)
 - All surfaces support `?mode=` URL param (`All / 6s / 3s`)
