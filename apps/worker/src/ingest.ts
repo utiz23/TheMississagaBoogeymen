@@ -32,6 +32,8 @@ import { fetchMatches, matchesUrl, throttle, EaApiError, type EaMatchType } from
 import { transformMatch, type TransformResult, type PlayerIdentity } from './transform.js'
 import { recomputeAggregates } from './aggregate.js'
 import { fetchAndStoreMemberStats, fetchAndStoreSeasonalStats } from './ingest-members.js'
+import { fetchAndStoreOpponentClubs } from './ingest-opponents.js'
+import { fetchAndStoreSeasonRank } from './ingest-season-rank.js'
 
 type DbConn = Pick<typeof db, 'select' | 'insert' | 'update'>
 
@@ -73,6 +75,24 @@ export async function runIngestionCycle(): Promise<void> {
       await fetchAndStoreSeasonalStats(title)
     } catch (err) {
       console.error(`[ingest] Seasonal stats fetch failed for ${title.slug}:`, err)
+    }
+
+    // Fetch opponent club metadata (clubs/info) for any new opponents.
+    // Populates opponent_clubs for crest display on match-facing surfaces.
+    // Non-fatal; only affects logo display, not match data.
+    try {
+      await fetchAndStoreOpponentClubs(title)
+    } catch (err) {
+      console.error(`[ingest] Opponent club info fetch failed for ${title.slug}:`, err)
+    }
+
+    // Fetch competitive season rank and division thresholds (clubs/seasonRank + settings).
+    // Populates club_season_rank for the home page division widget.
+    // Non-fatal; only affects widget display.
+    try {
+      await fetchAndStoreSeasonRank(title)
+    } catch (err) {
+      console.error(`[ingest] Season rank fetch failed for ${title.slug}:`, err)
     }
   }
 }

@@ -265,6 +265,96 @@ export interface EaClubSeasonalStats {
  */
 export type EaClubSeasonalStatsResponse = EaClubSeasonalStats[]
 
+// ─── Club Info ───────────────────────────────────────────────────────────────
+// GET /clubs/info?platform=<platform>&clubIds=<id1,id2,...>
+// Response is an object keyed by club ID string.
+
+/** CONFIRMED fields from clubs/info. Used to retrieve opponent crest data. */
+export interface EaClubInfoEntry {
+  /** Club EA ID as a number. */
+  clubId?: number | string
+  /** Club display name. */
+  name?: string
+  teamId?: number | string
+  regionId?: number | string
+  /**
+   * Custom kit data. Present when the club has a custom crest.
+   * crestAssetId maps to the EA CDN:
+   * https://media.contentapi.ea.com/content/dam/eacom/nhl/pro-clubs/custom-crests/{crestAssetId}.png
+   */
+  customKit?: {
+    isCustomTeam?: string
+    crestAssetId?: string
+    useBaseAsset?: string
+    [key: string]: unknown
+  }
+  [key: string]: unknown
+}
+
+/** Response from clubs/info — keyed by club ID string. */
+export type EaClubInfoResponse = Record<string, EaClubInfoEntry>
+
+// ─── Club Season Rank ─────────────────────────────────────────────────────────
+// GET /clubs/seasonRank?platform=<platform>&clubIds=<id>
+// UNVERIFIED: Top-level shape assumed to match clubs/info (Record keyed by club ID).
+// All field names below are UNVERIFIED — sourced from HAR analysis, not a spec.
+
+/** UNVERIFIED: Single club entry from clubs/seasonRank. All fields optional. */
+export interface EaClubSeasonRankEntry {
+  /** Season wins — NOT the all-time official record. */
+  wins?: string
+  /** Season losses. */
+  losses?: string
+  /** Season OTL. */
+  otl?: string
+  /** Total season games played. */
+  gamesPlayed?: string
+  /** Current division points. */
+  points?: string
+  /** Ranking/season points (may equal points). */
+  rankingPoints?: string
+  /** Projected end-of-season points. */
+  projectedPoints?: string
+  /** Current division number (1 = top, higher = lower). */
+  currentDivision?: string
+  /** Previous season wins. */
+  prevWins?: string
+  /** Previous season losses. */
+  prevLosses?: string
+  /** Previous season OTL. */
+  prevOtl?: string
+  /** Previous season points. */
+  prevPoints?: string
+  /** Previous season projected points. */
+  prevProjectedPoints?: string
+  [key: string]: unknown
+}
+
+/** UNVERIFIED: Response from clubs/seasonRank — keyed by club ID string. */
+export type EaClubSeasonRankResponse = Record<string, EaClubSeasonRankEntry>
+
+// ─── Settings ─────────────────────────────────────────────────────────────────
+// GET /settings?platform=<platform>
+// UNVERIFIED: Response shape and field names from HAR analysis.
+
+/** UNVERIFIED: Division threshold entry from the settings endpoint. */
+export interface EaSettingsDivisionEntry {
+  /** Points needed to be promoted to the next division. */
+  pointsForPromotion?: string
+  /** Minimum points required to hold current division (avoid relegation). */
+  pointsToHoldDivision?: string
+  /** Points required to win the division title. */
+  pointsToTitle?: string
+  /** Division name (e.g. "Division I"). */
+  divisionName?: string
+  /** Conference or league name. */
+  conferenceName?: string
+  [key: string]: unknown
+}
+
+/** UNVERIFIED: Response from settings — keyed by division number string. */
+export type EaSettingsResponse = Record<string, EaSettingsDivisionEntry>
+
 // ─── Member Search ────────────────────────────────────────────────────────────
 // GET /members/search?platform=<platform>&memberName=<name>
 

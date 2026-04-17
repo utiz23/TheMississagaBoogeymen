@@ -2,7 +2,7 @@
 
 ## Current Status
 
-**Phase:** Product polish — core data model complete. Official EA club record now captured and displayed. All major pages use local aggregates or match-level data. Aggregate-backed surfaces support `All / 6s / 3s` mode filtering. Player profile handles member-only players gracefully.
+**Phase:** Product polish — home page has full EA data integration. Opponent club logos, official club record, and competitive season rank / division standing all live. All surfaces use local aggregates or match-level data. Mode filtering (`All / 6s / 3s`) works everywhere.
 
 **Last updated:** 2026-04-17
 
@@ -791,6 +791,55 @@ Cross-check: 7W+1W=8W ✓, 5L+1L=6L ✓, 11+2=13(6s)+2(3s) GP but all-modes=15 b
 
 ---
 
+## Home Page Polish — 2026-04-17 ✓
+
+### Task 2: Club Record Honesty Fix ✓
+
+Removed the silent fallback in the Club Record strip that presented local W/L/OTL as if it were the official EA record.
+
+- `apps/web/src/app/page.tsx`: Three-branch rendering: `RecordStrip` (official EA, no fallback) / `OfficialRecordUnavailable` (honest unavailable state + local GF/GA) / `LocalModeRecordStrip` (mode-filtered local only, labeled "local · {mode} only").
+- Mode-filtered (`?mode=6s/3s`) views now show local aggregate clearly labeled and never substitute EA official data.
+
+### Task 3: Opponent Club Logo Pipeline ✓
+
+Full opponent crest pipeline from EA `clubs/info` endpoint.
+
+**What was built:**
+- `packages/ea-client/src/types.ts`: `EaClubInfoEntry`, `EaClubInfoResponse`
+- `packages/ea-client/src/endpoints.ts`: `fetchClubInfo({ platform, clubIds[] })`
+- `packages/db/src/schema/opponent-clubs.ts`: `opponent_clubs` table — one upsert row per unique opponent EA club ID; `crest_asset_id` nullable
+- Migration `0010_glamorous_harpoon.sql` applied
+- `packages/db/src/queries/club.ts`: `getOpponentClub(eaClubId)` — returns null when not yet fetched
+- `apps/worker/src/ingest-opponents.ts`: fetches only NEW opponents per cycle (compares against existing rows); skips our own club ID
+- `apps/worker/src/ingest.ts`: wired after seasonal stats, non-fatal
+- `apps/web/src/lib/format.ts`: `opponentCrestUrl(crestAssetId)` helper
+- `apps/web/next.config.ts`: remote image pattern for `media.contentapi.ea.com`
+- `apps/web/src/components/home/latest-result.tsx`: 96×96 opponent crest with initial-badge fallback; removed club record from opponent side (not available)
+- `apps/web/src/app/games/[id]/page.tsx`: 40×40 crest inline with opponent name in HeroSection
+
+**Design principle:** Boogeymen always use `/images/bgm-logo.png`. Opponent crests come from EA CDN only. The EA crest URL pattern is `https://media.contentapi.ea.com/content/dam/eacom/nhl/pro-clubs/custom-crests/{crestAssetId}.png`.
+
+### Task 4: Season Rank / Division Widget ✓
+
+Home page widget showing competitive division standing from EA `clubs/seasonRank` + `settings`.
+
+**What was built:**
+- `packages/ea-client/src/types.ts`: `EaClubSeasonRankEntry`, `EaClubSeasonRankResponse`, `EaSettingsDivisionEntry`, `EaSettingsResponse` (all UNVERIFIED — sourced from HAR analysis)
+- `packages/ea-client/src/endpoints.ts`: `fetchSeasonRank({ platform, clubId })`, `fetchSettings({ platform })`
+- `packages/db/src/schema/club-season-rank.ts`: `club_season_rank` — one upsert per game title. Stores season W/L/OTL (NOT all-time), points, projectedPoints, currentDivision, divisionName, pointsForPromotion, pointsToHoldDivision, pointsToTitle, fetchedAt.
+- Migration `0011_flashy_lyja.sql` applied.
+- `packages/db/src/queries/club.ts`: `getClubSeasonRank(gameTitleId)` — returns null when no row yet.
+- `apps/worker/src/ingest-season-rank.ts`: fetches `seasonRank`, joins `settings` by division number for thresholds, upserts combined row. Non-fatal.
+- `apps/worker/src/ingest.ts`: wired as last step in cycle.
+- `apps/web/src/components/home/season-rank-widget.tsx`: Server Component. Shows division name, current points + projected, season W/L/OTL row (labeled "Season" — not confused with all-time record), threshold rows (Title / Promotion / Hold division) with checkmarks when met and +delta when not.
+- `apps/web/src/app/page.tsx`: fetches `getClubSeasonRank`, renders `SeasonRankWidget` between Club Record and Latest Result. Widget hidden when no row exists (first ingest populates it).
+
+**Critical design note:** `club_season_rank.wins/losses/otl` are SEASON-SPECIFIC — the current ranking period only. The all-time official record lives in `club_seasonal_stats` (from `clubs/seasonalStats`). These must never be conflated.
+
+**UNVERIFIED:** All field names from `clubs/seasonRank` and `settings` responses. Defensive `parseIntOrNull` throughout; all EA fields treated as optional. The widget degrades gracefully to partial display when any field is absent.
+
+---
+
 ## What's Next
 
 - **Pagination on the game log** — currently hardcapped at 15; will need prev/next as match count grows
@@ -798,6 +847,7 @@ Cross-check: 7W+1W=8W ✓, 5L+1L=6L ✓, 11+2=13(6s)+2(3s) GP but all-modes=15 b
 - **`pg_dump` backup cron** — daily dump to external drive
 - **Content season filtering** — schema supports it, no UI yet
 - **Expose mode filter in UI** — `getClubStats('6s')` and `getRoster('6s')` are now available; a UI mode toggle on the stats/roster pages can now wire to these queries
+- **Verify `clubs/seasonRank` + `settings` response shapes** — once the worker runs with the new endpoints, inspect the DB row and worker logs to confirm field names and values match what the widget expects. UNVERIFIED fields in `EaClubSeasonRankEntry` and `EaSettingsDivisionEntry` need a fixture capture pass.
 
 ### Post-launch / later work
 

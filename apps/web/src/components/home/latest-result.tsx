@@ -1,13 +1,15 @@
 import Image from 'next/image'
 import Link from 'next/link'
 import type { Match, MatchResult } from '@eanhl/db'
-import { formatMatchDate, formatRecord, abbreviateTeamName } from '@/lib/format'
+import { formatMatchDate, formatRecord, abbreviateTeamName, opponentCrestUrl } from '@/lib/format'
 
 const OUR_ABBREV = 'BGM'
 
 interface LatestResultProps {
   match: Match
   clubRecord: { wins: number; losses: number; otl: number } | null
+  /** EA crest asset ID for the opponent club. Null falls back to initial badge. */
+  opponentCrestAssetId: string | null
 }
 
 const RESULT_PILL_CONFIG: Record<MatchResult, { label: string; className: string }> = {
@@ -41,8 +43,9 @@ function ResultPill({ result }: { result: MatchResult }) {
   )
 }
 
-export function LatestResult({ match, clubRecord }: LatestResultProps) {
+export function LatestResult({ match, clubRecord, opponentCrestAssetId }: LatestResultProps) {
   const opponentAbbrev = abbreviateTeamName(match.opponentName)
+  const crestUrl = opponentCrestUrl(opponentCrestAssetId)
   const ourScoreColor = match.result === 'WIN' ? 'text-accent' : 'text-zinc-100'
   const opponentScoreColor =
     match.result === 'LOSS' || match.result === 'OTL' ? 'text-red-300' : 'text-zinc-500'
@@ -105,26 +108,32 @@ export function LatestResult({ match, clubRecord }: LatestResultProps) {
 
         {/* Opponent side */}
         <div className="flex flex-col items-center justify-center gap-3 rounded-xl border border-zinc-800/70 bg-black/20 px-4 py-5 text-center lg:min-h-[18.5rem]">
-          {/* Initial-badge fallback — opponent-specific without an external image */}
-          <div
-            role="img"
-            aria-label={match.opponentName}
-            className="flex h-24 w-24 items-center justify-center rounded-full border border-zinc-800 bg-zinc-900/50 sm:h-28 sm:w-28"
-          >
-            <span
-              aria-hidden
-              className="font-condensed text-3xl font-black uppercase tracking-tight text-zinc-400 sm:text-4xl"
+          {crestUrl !== null ? (
+            <div className="flex h-24 w-24 items-center justify-center rounded-full border border-zinc-800 bg-zinc-900/50 sm:h-28 sm:w-28">
+              <Image
+                src={crestUrl}
+                alt={match.opponentName}
+                width={96}
+                height={96}
+                className="h-20 w-20 object-contain sm:h-24 sm:w-24"
+              />
+            </div>
+          ) : (
+            <div
+              role="img"
+              aria-label={match.opponentName}
+              className="flex h-24 w-24 items-center justify-center rounded-full border border-zinc-800 bg-zinc-900/50 sm:h-28 sm:w-28"
             >
-              {opponentAbbrev.slice(0, 2)}
-            </span>
-          </div>
+              <span
+                aria-hidden
+                className="font-condensed text-3xl font-black uppercase tracking-tight text-zinc-400 sm:text-4xl"
+              >
+                {opponentAbbrev.slice(0, 2)}
+              </span>
+            </div>
+          )}
           <span className="font-condensed text-3xl font-black uppercase tracking-[0.14em] text-zinc-100">
             {opponentAbbrev}
-          </span>
-          {/* TODO: replace W-L-OTL placeholder with real opponent record once
-              the data pipeline supports fetching opponent club stats. */}
-          <span className="font-condensed text-base font-semibold tracking-[0.12em] text-zinc-600">
-            W-L-OTL
           </span>
         </div>
       </div>

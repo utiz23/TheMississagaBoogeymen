@@ -7,13 +7,16 @@ import {
   listGameTitles,
   getGameTitleBySlug,
   getClubStats,
+  getClubSeasonRank,
   getOfficialClubRecord,
+  getOpponentClub,
   getRecentMatches,
   getRoster,
 } from '@eanhl/db/queries'
 import { LatestResult } from '@/components/home/latest-result'
 import { PlayerCarousel } from '@/components/home/player-carousel'
 import { ScoringLeadersPanel } from '@/components/home/leaders-section'
+import { SeasonRankWidget } from '@/components/home/season-rank-widget'
 import type { RosterRow } from '@/components/home/player-card'
 
 function parseGameMode(raw: string | string[] | undefined): GameMode | null {
@@ -78,6 +81,7 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
         getRecentMatches({ gameTitleId: gameTitle.id, limit: 1 }),
         getRoster(gameTitle.id, gameMode),
         getOfficialClubRecord(gameTitle.id),
+        getClubSeasonRank(gameTitle.id),
       ])
     } catch {
       return null
@@ -92,9 +96,19 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
     )
   }
 
-  const [clubStats, recentMatches, roster, officialRecord] = fetched
+  const [clubStats, recentMatches, roster, officialRecord, seasonRank] = fetched
   const lastMatch = recentMatches[0] ?? null
   const latestClubRecord = officialRecord ?? null
+
+  // Fetch opponent club metadata for crest display — non-fatal if unavailable
+  let lastMatchOpponent = null
+  if (lastMatch !== null) {
+    try {
+      lastMatchOpponent = await getOpponentClub(lastMatch.opponentClubId)
+    } catch {
+      // Logo display degrades gracefully to initial badge
+    }
+  }
 
   // Club win% — sourced from the mode-filtered club aggregate, consistent with the
   // mode-filtered player rows from getRoster. Passed to each player card as a supporting line.
@@ -135,25 +149,39 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
           </h2>
           <RecordGameModeFilter titleSlug={titleSlug} activeMode={gameMode} />
         </div>
-        {clubStats !== null &&
-        (clubStats.gamesPlayed > 0 || (gameMode === null && officialRecord !== null)) ? (
-          <RecordStrip
-            stats={clubStats}
-            officialRecord={gameMode === null ? officialRecord : null}
-          />
+        {gameMode === null ? (
+          officialRecord !== null ? (
+            <RecordStrip officialRecord={officialRecord} localStats={clubStats} />
+          ) : (
+            <OfficialRecordUnavailable localStats={clubStats} />
+          )
+        ) : clubStats !== null && clubStats.gamesPlayed > 0 ? (
+          <LocalModeRecordStrip stats={clubStats} gameMode={gameMode} />
         ) : (
           <div className="flex items-center justify-center border border-zinc-800 bg-surface py-5">
-            <p className="text-sm text-zinc-500">
-              {gameMode !== null ? `No ${gameMode} games recorded yet.` : 'No games recorded yet.'}
-            </p>
+            <p className="text-sm text-zinc-500">No {gameMode} games recorded yet.</p>
           </div>
         )}
       </section>
 
+      {/* Season rank / division widget */}
+      {seasonRank !== null && (
+        <section>
+          <h2 className="mb-3 font-condensed text-sm font-semibold uppercase tracking-wider text-zinc-500">
+            Division Standing
+          </h2>
+          <SeasonRankWidget rank={seasonRank} />
+        </section>
+      )}
+
       {/* Latest result hero */}
       {lastMatch !== null && (
         <section>
-          <LatestResult match={lastMatch} clubRecord={latestClubRecord} />
+          <LatestResult
+            match={lastMatch}
+            clubRecord={latestClubRecord}
+            opponentCrestAssetId={lastMatchOpponent?.crestAssetId ?? null}
+          />
         </section>
       )}
 
@@ -237,54 +265,104 @@ function RecordGameModeFilter({
   )
 }
 
-// ─── Record strip — compact team summary ─────────────────────────────────────
+// ─── Record strip variants ────────────────────────────────────────────────────
 
+/** All-modes: official EA record. Never falls back to local aggregate. */
 function RecordStrip({
-  stats,
   officialRecord,
+  localStats,
 }: {
-  stats: ClubGameTitleStats
-  officialRecord: ClubSeasonalStats | null
+  officialRecord: ClubSeasonalStats
+  localStats: ClubGameTitleStats | null
 }) {
-  // Use official EA record (W/L/OTL/GP) when available; fall back to local aggregate.
-  const record = officialRecord ?? stats
-  const pct = winPct(record.wins, record.losses, record.otl)
+  const pct = winPct(officialRecord.wins, officialRecord.losses, officialRecord.otl)
 
   return (
     <div className="flex flex-wrap items-center gap-x-6 gap-y-2 border border-zinc-800 bg-surface px-5 py-3">
-      {/* W / L / OTL */}
       <div className="flex items-center gap-4 font-condensed font-bold tabular leading-none">
         <span className="text-accent">
           <span className="text-xs font-semibold uppercase tracking-wider text-zinc-500">W </span>
-          <span className="text-xl">{record.wins.toString()}</span>
+          <span className="text-xl">{officialRecord.wins.toString()}</span>
         </span>
         <span>
           <span className="text-xs font-semibold uppercase tracking-wider text-zinc-500">L </span>
-          <span className="text-xl text-zinc-300">{record.losses.toString()}</span>
+          <span className="text-xl text-zinc-300">{officialRecord.losses.toString()}</span>
         </span>
         <span>
           <span className="text-xs font-semibold uppercase tracking-wider text-zinc-500">OTL </span>
-          <span className="text-xl text-zinc-300">{record.otl.toString()}</span>
+          <span className="text-xl text-zinc-300">{officialRecord.otl.toString()}</span>
         </span>
       </div>
 
-      {/* Win% */}
       <span className="font-condensed text-sm font-semibold tabular text-zinc-400">{pct} Win%</span>
+      <span className="text-xs text-zinc-500">{officialRecord.gamesPlayed.toString()} GP</span>
 
-      {/* GP from official record or local */}
-      <span className="text-xs text-zinc-500">{record.gamesPlayed.toString()} GP</span>
-
-      {/* Ranking points — only in official record */}
-      {officialRecord?.rankingPoints != null && (
+      {officialRecord.rankingPoints != null && (
         <span className="text-xs text-zinc-500">{officialRecord.rankingPoints.toString()} pts</span>
       )}
 
-      {/* GF/GA from local match data */}
-      {stats.gamesPlayed > 0 && (
+      {/* GF/GA sourced from local match data — explicitly labelled */}
+      {localStats !== null && localStats.gamesPlayed > 0 && (
         <span className="text-xs tabular text-zinc-500">
-          {stats.goalsFor.toString()} GF – {stats.goalsAgainst.toString()} GA
+          {localStats.goalsFor.toString()} GF – {localStats.goalsAgainst.toString()} GA
         </span>
       )}
+
+      <span className="text-xs text-zinc-600">EA official</span>
+    </div>
+  )
+}
+
+/** All-modes: official record not yet fetched. Shows local GF/GA if available. */
+function OfficialRecordUnavailable({ localStats }: { localStats: ClubGameTitleStats | null }) {
+  return (
+    <div className="flex flex-wrap items-center gap-x-6 gap-y-2 border border-zinc-800 bg-surface px-5 py-3">
+      <span className="text-sm text-zinc-500">Official record not yet available</span>
+      {localStats !== null && localStats.gamesPlayed > 0 && (
+        <span className="text-xs tabular text-zinc-500">
+          {localStats.goalsFor.toString()} GF – {localStats.goalsAgainst.toString()} GA ·{' '}
+          {localStats.gamesPlayed.toString()} ingested GP
+        </span>
+      )}
+    </div>
+  )
+}
+
+/** Mode-filtered: local aggregate only. Labelled so it's clear these are not EA-official. */
+function LocalModeRecordStrip({
+  stats,
+  gameMode,
+}: {
+  stats: ClubGameTitleStats
+  gameMode: GameMode
+}) {
+  const pct = winPct(stats.wins, stats.losses, stats.otl)
+
+  return (
+    <div className="flex flex-wrap items-center gap-x-6 gap-y-2 border border-zinc-800 bg-surface px-5 py-3">
+      <div className="flex items-center gap-4 font-condensed font-bold tabular leading-none">
+        <span className="text-accent">
+          <span className="text-xs font-semibold uppercase tracking-wider text-zinc-500">W </span>
+          <span className="text-xl">{stats.wins.toString()}</span>
+        </span>
+        <span>
+          <span className="text-xs font-semibold uppercase tracking-wider text-zinc-500">L </span>
+          <span className="text-xl text-zinc-300">{stats.losses.toString()}</span>
+        </span>
+        <span>
+          <span className="text-xs font-semibold uppercase tracking-wider text-zinc-500">OTL </span>
+          <span className="text-xl text-zinc-300">{stats.otl.toString()}</span>
+        </span>
+      </div>
+
+      <span className="font-condensed text-sm font-semibold tabular text-zinc-400">{pct} Win%</span>
+      <span className="text-xs text-zinc-500">{stats.gamesPlayed.toString()} GP</span>
+
+      <span className="text-xs tabular text-zinc-500">
+        {stats.goalsFor.toString()} GF – {stats.goalsAgainst.toString()} GA
+      </span>
+
+      <span className="text-xs text-zinc-600">local · {gameMode} only</span>
     </div>
   )
 }

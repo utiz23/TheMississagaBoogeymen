@@ -1,10 +1,17 @@
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
-import { getMatchById, getPlayerMatchStats } from '@eanhl/db/queries'
+import Image from 'next/image'
+import { getMatchById, getPlayerMatchStats, getOpponentClub } from '@eanhl/db/queries'
 import type { Match } from '@eanhl/db'
 import { ResultBadge } from '@/components/ui/result-badge'
 import { PlayerStatsTable } from '@/components/matches/player-stats-table'
-import { formatMatchDate, formatTOA, formatPct, opponentFaceoffPct } from '@/lib/format'
+import {
+  formatMatchDate,
+  formatTOA,
+  formatPct,
+  opponentFaceoffPct,
+  opponentCrestUrl,
+} from '@/lib/format'
 import Link from 'next/link'
 
 // Match data never changes once written — cache indefinitely
@@ -49,6 +56,14 @@ export default async function GameDetailPage({ params }: Props) {
     // Player stats unavailable — render the match summary without the player table
   }
 
+  let opponentCrestAssetId: string | null = null
+  try {
+    const opponentClub = await getOpponentClub(match.opponentClubId)
+    opponentCrestAssetId = opponentClub?.crestAssetId ?? null
+  } catch {
+    // Logo display degrades gracefully to initial badge
+  }
+
   return (
     <div className="space-y-8">
       {/* Back link */}
@@ -60,7 +75,7 @@ export default async function GameDetailPage({ params }: Props) {
       </Link>
 
       {/* Hero — Arena Board bold score with Broadcast Strip card treatment */}
-      <HeroSection match={match} />
+      <HeroSection match={match} opponentCrestAssetId={opponentCrestAssetId} />
 
       {/* Team comparison strip */}
       <ComparisonStrip match={match} />
@@ -84,8 +99,15 @@ export default async function GameDetailPage({ params }: Props) {
 
 // ─── Hero ────────────────────────────────────────────────────────────────────
 
-function HeroSection({ match }: { match: Match }) {
+function HeroSection({
+  match,
+  opponentCrestAssetId,
+}: {
+  match: Match
+  opponentCrestAssetId: string | null
+}) {
   const scoreForColor = match.result === 'WIN' ? 'text-accent' : 'text-zinc-100'
+  const crestUrl = opponentCrestUrl(opponentCrestAssetId)
 
   return (
     <div className="border border-zinc-800 border-l-4 border-l-accent bg-surface px-6 py-5">
@@ -98,13 +120,24 @@ function HeroSection({ match }: { match: Match }) {
         </div>
 
         {/* Match info */}
-        <div className="flex flex-col gap-1.5">
-          <span className="font-condensed text-xl font-semibold text-zinc-200">
-            vs {match.opponentName}
-          </span>
-          <div className="flex items-center gap-2.5">
-            <ResultBadge result={match.result} />
-            <span className="text-sm text-zinc-500">{formatMatchDate(match.playedAt)}</span>
+        <div className="flex items-center gap-3">
+          {crestUrl !== null && (
+            <Image
+              src={crestUrl}
+              alt={match.opponentName}
+              width={40}
+              height={40}
+              className="h-10 w-10 object-contain"
+            />
+          )}
+          <div className="flex flex-col gap-1.5">
+            <span className="font-condensed text-xl font-semibold text-zinc-200">
+              vs {match.opponentName}
+            </span>
+            <div className="flex items-center gap-2.5">
+              <ResultBadge result={match.result} />
+              <span className="text-sm text-zinc-500">{formatMatchDate(match.playedAt)}</span>
+            </div>
           </div>
         </div>
       </div>

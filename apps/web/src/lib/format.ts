@@ -107,3 +107,12 @@ export function abbreviateTeamName(name: string): string {
     .slice(0, 4)
     .toUpperCase()
 }
+
+/**
+ * Resolve an EA opponent crest asset ID to its CDN image URL.
+ * Returns null when no crest asset ID is available.
+ */
+export function opponentCrestUrl(crestAssetId: string | null | undefined): string | null {
+  if (!crestAssetId) return null
+  return `https://media.contentapi.ea.com/content/dam/eacom/nhl/pro-clubs/custom-crests/${crestAssetId}.png`
+}

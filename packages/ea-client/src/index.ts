@@ -7,14 +7,20 @@ export {
   fetchMemberStats,
   searchMember,
   matchesUrl,
+  fetchClubInfo,
   fetchSeasonalStats,
+  fetchSeasonRank,
+  fetchSettings,
 } from './endpoints.js'
 export type {
   ClubSearchParams,
   FetchMatchesParams,
   FetchMemberStatsParams,
   SearchMemberParams,
+  FetchClubInfoParams,
   FetchSeasonalStatsParams,
+  FetchSeasonRankParams,
+  FetchSettingsParams,
 } from './endpoints.js'
 
 export type {
@@ -31,6 +37,12 @@ export type {
   EaMemberStatsResponse,
   EaMemberSearchResult,
   EaMemberSearchResponse,
+  EaClubInfoEntry,
+  EaClubInfoResponse,
   EaClubSeasonalStats,
   EaClubSeasonalStatsResponse,
+  EaClubSeasonRankEntry,
+  EaClubSeasonRankResponse,
+  EaSettingsDivisionEntry,
+  EaSettingsResponse,
 } from './types.js'

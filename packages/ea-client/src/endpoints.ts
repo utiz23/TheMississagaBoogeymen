@@ -12,10 +12,13 @@
 import { eaFetch, getApiBaseUrl, type EaFetchOptions } from './client.js'
 import type {
   EaClubSearchResponse,
+  EaClubInfoResponse,
   EaMatchesResponse,
   EaMemberStatsResponse,
   EaMemberSearchResponse,
   EaClubSeasonalStatsResponse,
+  EaClubSeasonRankResponse,
+  EaSettingsResponse,
   EaMatchType,
   EaPlatform,
 } from './types.js'
@@ -121,6 +124,33 @@ export async function searchMember(
   return eaFetch<EaMemberSearchResponse>(url, options)
 }
 
+// ─── Club Info ────────────────────────────────────────────────────────────────
+
+export interface FetchClubInfoParams {
+  platform: EaPlatform
+  /** One or more club IDs. Batched into a single request. */
+  clubIds: string[]
+  baseUrl?: string
+}
+
+/**
+ * Fetch metadata for one or more clubs by ID.
+ * Used to retrieve opponent crest asset IDs for logo display.
+ *
+ * Response is keyed by club ID string. A club may be absent from the response
+ * if the EA API returns no data for it.
+ *
+ * CONFIRMED: customKit.crestAssetId is the key field for logo display.
+ */
+export async function fetchClubInfo(
+  params: FetchClubInfoParams,
+  options?: EaFetchOptions,
+): Promise<EaClubInfoResponse> {
+  const base = getApiBaseUrl(params.baseUrl)
+  const url = `${base}/clubs/info?platform=${encodeURIComponent(params.platform)}&clubIds=${encodeURIComponent(params.clubIds.join(','))}`
+  return eaFetch<EaClubInfoResponse>(url, options)
+}
+
 // ─── Club Seasonal Stats ──────────────────────────────────────────────────────
 
 export interface FetchSeasonalStatsParams {
@@ -145,4 +175,54 @@ export async function fetchSeasonalStats(
   const base = getApiBaseUrl(params.baseUrl)
   const url = `${base}/clubs/seasonalStats?platform=${encodeURIComponent(params.platform)}&clubIds=${encodeURIComponent(params.clubId)}`
   return eaFetch<EaClubSeasonalStatsResponse>(url, options)
+}
+
+// ─── Club Season Rank ─────────────────────────────────────────────────────────
+
+export interface FetchSeasonRankParams {
+  platform: EaPlatform
+  clubId: string
+  baseUrl?: string
+}
+
+/**
+ * Fetch the current competitive season rank for a club.
+ *
+ * Returns division placement, season W-L-OTL, points, and projected points.
+ * This is NOT the all-time official record — see fetchSeasonalStats for that.
+ *
+ * UNVERIFIED: Response shape assumed to match clubs/info (Record keyed by club ID).
+ * All returned field names are UNVERIFIED — treat all fields as optional.
+ */
+export async function fetchSeasonRank(
+  params: FetchSeasonRankParams,
+  options?: EaFetchOptions,
+): Promise<EaClubSeasonRankResponse> {
+  const base = getApiBaseUrl(params.baseUrl)
+  const url = `${base}/clubs/seasonRank?platform=${encodeURIComponent(params.platform)}&clubIds=${encodeURIComponent(params.clubId)}`
+  return eaFetch<EaClubSeasonRankResponse>(url, options)
+}
+
+// ─── Settings ─────────────────────────────────────────────────────────────────
+
+export interface FetchSettingsParams {
+  platform: EaPlatform
+  baseUrl?: string
+}
+
+/**
+ * Fetch platform-level settings including division thresholds.
+ *
+ * Returns promotion/relegation point thresholds keyed by division number.
+ * Used alongside clubs/seasonRank to display division context.
+ *
+ * UNVERIFIED: Response shape and all field names from HAR analysis only.
+ */
+export async function fetchSettings(
+  params: FetchSettingsParams,
+  options?: EaFetchOptions,
+): Promise<EaSettingsResponse> {
+  const base = getApiBaseUrl(params.baseUrl)
+  const url = `${base}/settings?platform=${encodeURIComponent(params.platform)}`
+  return eaFetch<EaSettingsResponse>(url, options)
 }
