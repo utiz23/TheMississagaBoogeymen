@@ -69,6 +69,11 @@ export default async function PlayerPage({ params, searchParams }: Props) {
   // Show history section only when there are closed (past) entries
   const hasHistory = history.some((h) => h.seenUntil !== null)
 
+  // True when the player exists (from member ingest) but has no locally captured match data.
+  // This is the expected state for players who joined the club but whose games have not
+  // yet been ingested — not an error, just an honest data-absence signal.
+  const hasNoLocalData = careerStats.length === 0 && gameLog.length === 0
+
   return (
     <div className="space-y-8">
       {/* Back link */}
@@ -121,6 +126,17 @@ export default async function PlayerPage({ params, searchParams }: Props) {
           <p className="mt-3 text-sm text-zinc-400 leading-relaxed max-w-2xl">{player.bio}</p>
         )}
       </div>
+
+      {/* Member-only notice — shown when player exists but has no local match data yet */}
+      {hasNoLocalData && (
+        <div className="rounded border border-zinc-700 bg-zinc-900 px-4 py-3">
+          <p className="text-sm text-zinc-400">
+            <span className="font-semibold text-zinc-300">No local match history yet.</span> This
+            player is registered as a team member but has not appeared in any locally recorded
+            match. Stats and game log will populate automatically as games are ingested.
+          </p>
+        </div>
+      )}
 
       {/* Career stats */}
       <section>
