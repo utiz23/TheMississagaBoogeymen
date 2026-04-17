@@ -1,4 +1,4 @@
-import { eq, asc, desc } from 'drizzle-orm'
+import { and, eq, asc, desc, isNull } from 'drizzle-orm'
 import { db } from '../client.js'
 import {
   gameTitles,
@@ -9,6 +9,7 @@ import {
   playerProfiles,
   players,
 } from '../schema/index.js'
+import type { GameMode } from '../schema/index.js'
 
 /**
  * All player stats for a single match, joined with the player's current gamertag.
@@ -52,11 +53,18 @@ export async function getPlayerMatchStats(matchId: number) {
 /**
  * Aggregated per-player stats for a game title, used by the Roster page.
  *
+ * gameMode defaults to null = all-modes combined row. Pass '6s' or '3s' for
+ * mode-specific rows. Multiple rows per player exist after the Phase 2 migration.
+ *
  * Default ordering: points desc (most scoring first).
  * Goalie columns (wins, losses, savePct, gaa, shutouts) are nullable —
  * null indicates the player has no goalie data for this game title.
  */
-export async function getRoster(gameTitleId: number) {
+export async function getRoster(gameTitleId: number, gameMode: GameMode | null = null) {
+  const gameModeFilter =
+    gameMode === null
+      ? isNull(playerGameTitleStats.gameMode)
+      : eq(playerGameTitleStats.gameMode, gameMode)
   return db
     .select({
       playerId: playerGameTitleStats.playerId,
@@ -84,7 +92,7 @@ export async function getRoster(gameTitleId: number) {
     })
     .from(playerGameTitleStats)
     .innerJoin(players, eq(playerGameTitleStats.playerId, players.id))
-    .where(eq(playerGameTitleStats.gameTitleId, gameTitleId))
+    .where(and(eq(playerGameTitleStats.gameTitleId, gameTitleId), gameModeFilter))
     .orderBy(desc(playerGameTitleStats.points))
 }
 
@@ -130,8 +138,16 @@ export async function getPlayerWithProfile(playerId: number) {
 /**
  * All per-game-title aggregate rows for a player, joined with the game title
  * name and slug. Ordered newest game title first (by id desc).
+ *
+ * gameMode defaults to null = all-modes combined row. Multiple rows per game
+ * title exist after the Phase 2 migration; the null default preserves the
+ * existing one-row-per-title behavior for the player profile page.
  */
-export async function getPlayerCareerStats(playerId: number) {
+export async function getPlayerCareerStats(playerId: number, gameMode: GameMode | null = null) {
+  const gameModeFilter =
+    gameMode === null
+      ? isNull(playerGameTitleStats.gameMode)
+      : eq(playerGameTitleStats.gameMode, gameMode)
   return db
     .select({
       gameTitleId: playerGameTitleStats.gameTitleId,
@@ -159,7 +175,7 @@ export async function getPlayerCareerStats(playerId: number) {
     })
     .from(playerGameTitleStats)
     .innerJoin(gameTitles, eq(playerGameTitleStats.gameTitleId, gameTitles.id))
-    .where(eq(playerGameTitleStats.playerId, playerId))
+    .where(and(eq(playerGameTitleStats.playerId, playerId), gameModeFilter))
     .orderBy(desc(playerGameTitleStats.gameTitleId))
 }
 
@@ -214,8 +230,17 @@ export async function getPlayerGameLog(playerId: number, limit = 15) {
  *
  * Returns a slim projection — only the fields needed for the compact display.
  * Default limit of 5 keeps the home page tight; callers can override.
+ * gameMode defaults to null = all-modes combined row.
  */
-export async function getTopPerformers(gameTitleId: number, limit = 5) {
+export async function getTopPerformers(
+  gameTitleId: number,
+  limit = 5,
+  gameMode: GameMode | null = null,
+) {
+  const gameModeFilter =
+    gameMode === null
+      ? isNull(playerGameTitleStats.gameMode)
+      : eq(playerGameTitleStats.gameMode, gameMode)
   return db
     .select({
       playerId: playerGameTitleStats.playerId,
@@ -227,7 +252,7 @@ export async function getTopPerformers(gameTitleId: number, limit = 5) {
     })
     .from(playerGameTitleStats)
     .innerJoin(players, eq(playerGameTitleStats.playerId, players.id))
-    .where(eq(playerGameTitleStats.gameTitleId, gameTitleId))
+    .where(and(eq(playerGameTitleStats.gameTitleId, gameTitleId), gameModeFilter))
     .orderBy(desc(playerGameTitleStats.points), desc(playerGameTitleStats.goals))
     .limit(limit)
 }

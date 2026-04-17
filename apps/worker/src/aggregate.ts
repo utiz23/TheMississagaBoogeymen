@@ -14,22 +14,39 @@
  */
 
 import { db } from '@eanhl/db'
+import type { GameMode } from '@eanhl/db'
 import { sql } from 'drizzle-orm'
 
 /**
  * Recompute player_game_title_stats and club_game_title_stats for one game title.
- * Uses raw SQL to express the GROUP BY aggregation compactly.
+ *
+ * Emits three row sets per player/club:
+ *   - NULL game_mode  = all-modes combined (always)
+ *   - '6s' game_mode  = 6v6 matches only (only if any exist)
+ *   - '3s' game_mode  = 3v3 matches only (only if any exist)
+ *
+ * Per-mode queries with no matching matches return 0 rows from the SELECT,
+ * so no fabricated empty rows are written.
  */
 export async function recomputeAggregates(gameTitleId: number): Promise<void> {
-  await recomputePlayerStats(gameTitleId)
-  await recomputeClubStats(gameTitleId)
+  // All-modes combined row
+  await recomputePlayerStats(gameTitleId, null)
+  await recomputeClubStats(gameTitleId, null)
+
+  // Per-mode rows — SQL returns nothing when no matches exist for that mode
+  for (const mode of ['6s', '3s'] as const) {
+    await recomputePlayerStats(gameTitleId, mode)
+    await recomputeClubStats(gameTitleId, mode)
+  }
 }
 
-async function recomputePlayerStats(gameTitleId: number): Promise<void> {
+async function recomputePlayerStats(gameTitleId: number, gameMode: GameMode | null): Promise<void> {
+  const modeFilter = gameMode !== null ? sql` AND m.game_mode = ${gameMode}` : sql``
   await db.execute(sql`
     INSERT INTO player_game_title_stats (
       player_id,
       game_title_id,
+      game_mode,
       games_played,
       goals,
       assists,
@@ -61,6 +78,7 @@ async function recomputePlayerStats(gameTitleId: number): Promise<void> {
     SELECT
       pms.player_id,
       ${gameTitleId}::int                                          AS game_title_id,
+      ${gameMode}::text                                            AS game_mode,
       COUNT(*)::int                                                AS games_played,
       SUM(pms.goals)::int                                          AS goals,
       SUM(pms.assists)::int                                        AS assists,
@@ -168,10 +186,11 @@ async function recomputePlayerStats(gameTitleId: number): Promise<void> {
 
     FROM player_match_stats pms
     JOIN matches m ON pms.match_id = m.id
-    WHERE m.game_title_id = ${gameTitleId}
+    WHERE m.game_title_id = ${gameTitleId}${modeFilter}
     GROUP BY pms.player_id
 
-    ON CONFLICT (player_id, game_title_id) DO UPDATE SET
+    ON CONFLICT (player_id, game_title_id, COALESCE(game_mode, '')) DO UPDATE SET
+      game_mode           = EXCLUDED.game_mode,
       games_played        = EXCLUDED.games_played,
       goals               = EXCLUDED.goals,
       assists             = EXCLUDED.assists,
@@ -202,7 +221,9 @@ async function recomputePlayerStats(gameTitleId: number): Promise<void> {
   `)
 }
 
-async function recomputeClubStats(gameTitleId: number): Promise<void> {
+async function recomputeClubStats(gameTitleId: number, gameMode: GameMode | null): Promise<void> {
+  const modeFilter = gameMode !== null ? sql` AND m.game_mode = ${gameMode}` : sql``
+  const modeFilterMatches = gameMode !== null ? sql` AND game_mode = ${gameMode}` : sql``
   await db.execute(sql`
     WITH pass_agg AS (
       SELECT
@@ -214,10 +235,11 @@ async function recomputeClubStats(gameTitleId: number): Promise<void> {
         ) AS pass_pct
       FROM player_match_stats pms
       JOIN matches m ON pms.match_id = m.id
-      WHERE m.game_title_id = ${gameTitleId}
+      WHERE m.game_title_id = ${gameTitleId}${modeFilter}
     )
     INSERT INTO club_game_title_stats (
       game_title_id,
+      game_mode,
       games_played,
       wins,
       losses,
@@ -231,6 +253,7 @@ async function recomputeClubStats(gameTitleId: number): Promise<void> {
     )
     SELECT
       ${gameTitleId}::int                                                         AS game_title_id,
+      ${gameMode}::text                                                           AS game_mode,
       COUNT(*)::int                                                               AS games_played,
       SUM(CASE WHEN result = 'WIN'  THEN 1 ELSE 0 END)::int                      AS wins,
       SUM(CASE WHEN result = 'LOSS' THEN 1 ELSE 0 END)::int                      AS losses,
@@ -242,9 +265,10 @@ async function recomputeClubStats(gameTitleId: number): Promise<void> {
       ROUND(AVG(faceoff_pct::numeric), 2)                                         AS faceoff_pct,
       (SELECT pass_pct FROM pass_agg)                                             AS pass_pct
     FROM matches
-    WHERE game_title_id = ${gameTitleId}
+    WHERE game_title_id = ${gameTitleId}${modeFilterMatches}
 
-    ON CONFLICT (game_title_id) DO UPDATE SET
+    ON CONFLICT (game_title_id, COALESCE(game_mode, '')) DO UPDATE SET
+      game_mode      = EXCLUDED.game_mode,
       games_played   = EXCLUDED.games_played,
       wins           = EXCLUDED.wins,
       losses         = EXCLUDED.losses,

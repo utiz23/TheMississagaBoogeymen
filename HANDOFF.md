@@ -663,24 +663,96 @@ The card IS using the correct data source — `getRoster` queries `playerGameTit
 
 ---
 
+## DB Roadmap Phase 1 — Implementation ✓ complete (2026-04-17)
+
+### Area 1: Local dual-role aggregate fix ✓
+
+Added `skater_gp`, `goalie_gp`, `skater_toi_seconds`, `goalie_toi_seconds` to `player_game_title_stats` (migration `0007_flaky_ultimo.sql`). Worker aggregate updated with CASE COUNT/SUM expressions. `reprocess --all` ran to backfill.
+
+Role-specific GP is now used everywhere:
+
+- Roster page tabs (Scoring/Possession/Physical → `skaterGp`; Goalie → `goalieGp`)
+- Home page player carousel (`skaterGp` for skaters, `goalieGp` for goalies)
+- Player career stats table (`skaterGp` in skater GP column; `goalieGp` as G-GP goalie column)
+- `getRoster` query exposes both fields
+
+### Area 2: Official EA club record — BLOCKED
+
+EA `/members/stats` per-member `wins`/`losses`/`otl` fields are per-member participation counts, NOT a unified club record. Verified against live DB: `joseph4577` shows 15-10-0, `HenryTheBobJr` shows 259-187-23. The EA client has no other endpoint returning a club-level W-L-OTL. No `club_record_snapshots` table will be built until a reliable source is confirmed. `club_game_title_stats.wins/losses/otl` remains local-count only.
+
+### Area 3: Positional lineup filtering ✓
+
+- CHECK constraint on `player_match_stats.position` (confirmed 5 EA values)
+- Composite index `player_match_stats_lineup_idx` on `(match_id, position, player_id)`
+- `getMatchesWithLineup(gameTitleId, conditions[])` query in `packages/db/src/queries/matches.ts` — self-join per condition, parameterized via `sql` template
+
+Both in migration `0007_flaky_ultimo.sql`.
+
+---
+
+## Roster Page Data Source Switch ✓ complete (2026-04-17)
+
+Switched `/roster` page from `getRoster` (`player_game_title_stats`, 15 matches) to `getEAMemberRoster` (`ea_member_season_stats`, full EA season totals). `getEAMemberRoster` was already designed to match the `RosterRow` contract. Goalie tab filter changed from `r.wins !== null` to `r.goalieGp > 0`.
+
+This makes the roster page consistent with the home page carousel (both now use EA season data).
+
+---
+
+## Game Mode Aggregate Dimension ✓ complete (2026-04-17)
+
+Migration `0008_lowly_vindicator.sql`. All checks pass. `reprocess --all` ran (15/15 succeeded).
+
+**What was done:**
+
+- Added `game_mode text` (nullable) to both `player_game_title_stats` and `club_game_title_stats`
+- Replaced column-level `.unique()` on `club_game_title_stats.game_title_id` with table-level functional unique indexes using `COALESCE(game_mode, '')` to handle NULL (all-modes row) safely
+  - `player_game_title_stats_uniq`: `UNIQUE (player_id, game_title_id, COALESCE(game_mode, ''))`
+  - `club_game_title_stats_uniq`: `UNIQUE (game_title_id, COALESCE(game_mode, ''))`
+- `recomputeAggregates` now loops over `[null, '6s', '3s']` — each pass writes its own row set; empty-mode queries emit 0 rows (no fabricated rows)
+- `ON CONFLICT` in both player and club aggregate SQL updated to reference the functional index expression
+- All local aggregate query functions gain an optional `gameMode?: GameMode | null` parameter (default `null` = all-modes row):
+  - `getRoster`, `getPlayerCareerStats`, `getTopPerformers` in `players.ts`
+  - `getClubStats` in `club.ts`
+  - **Required fix**: without the gameMode filter, these queries would now return 3× rows (null + 6s + 3s). Default `null` preserves existing caller behavior unchanged.
+
+**Verified row distribution after reprocess:**
+
+```
+player_game_title_stats:
+  game_mode=NULL: 12 rows (all-modes combined)
+  game_mode=6s:   12 rows
+  game_mode=3s:    3 rows (only players who appeared in the 2 three-on-three matches)
+
+club_game_title_stats:
+  game_mode=NULL: 15 GP, 8W-6L (all-modes)
+  game_mode=6s:   13 GP, 7W-5L
+  game_mode=3s:    2 GP, 1W-1L
+```
+
+Cross-check: 7W+1W=8W ✓, 5L+1L=6L ✓, 11+2=13(6s)+2(3s) GP but all-modes=15 because 0 matches are club_private with a game_mode. Wait — club_private matches have `game_mode=NULL`. The all-modes combined row includes those too. ✓
+
+**What is not yet mode-aware:**
+
+- `/stats` and `/roster` pages use `ea_member_season_stats` (EA baseline) — EA does not split by mode
+- Home page UI passes no mode to `getClubStats` → gets all-modes combined row (unchanged)
+- No UI mode selector on home page, player profile page, or roster page (all use `null` default)
+- The only UI with mode selection is `/games` (match-level, unchanged from last session)
+
+---
+
 ## What's Next
 
-### What's next
-
-- **Pagination on the game log** — currently hardcapped at 15; fine for now but will need prev/next as match count grows
+- **Pagination on the game log** — currently hardcapped at 15; will need prev/next as match count grows
 - **Discord alerting** — cron checks `localhost:3001/health`, notifies when stale > 30 min
 - **`pg_dump` backup cron** — daily dump to external drive
 - **Content season filtering** — schema supports it, no UI yet
+- **Expose mode filter in UI** — `getClubStats('6s')` and `getRoster('6s')` are now available; a UI mode toggle on the stats/roster pages can now wire to these queries
 
 ### Post-launch / later work
 
-- Pagination on `/games` — currently returns all matches unbounded; add offset to `getRecentMatches` and prev/next UI
-- Alerting script — cron checks `localhost:3001/health`, notifies (Discord) when stale > 30 min
-- `pg_dump` backup cron — daily dump to external drive
-- Mobile responsive pass — pages untested on small screens
-- Content season filtering — schema supports it, no UI yet
 - Charts / trends (Recharts)
 - Streak tracking, head-to-head records
+- Historical season import (manual entry model not yet designed)
 
 ---
 

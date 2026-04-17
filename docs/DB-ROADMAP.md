@@ -89,21 +89,24 @@ Implication:
 
 ## Phase Priorities
 
-### Phase 1
+### Phase 1 ✓ complete (2026-04-17)
 
-Design only:
+1. **Separate skater vs goalie reporting model — DONE.**
+   Added `skater_gp`, `goalie_gp`, `skater_toi_seconds`, `goalie_toi_seconds` to `player_game_title_stats`. Aggregate SQL updated. All roster/career/carousel surfaces now use role-specific GP. Migration `0007_flaky_ultimo.sql` applied.
 
-1. separate skater vs goalie reporting model
-2. positional lineup / role filtering model
-3. EA-official club record snapshot model
+2. **Positional lineup / role filtering model — DONE.**
+   CHECK constraint on `player_match_stats.position`. Composite index `(match_id, position, player_id)`. `getMatchesWithLineup()` query in `matches.ts`. Migration `0007_flaky_ultimo.sql` applied.
 
-### Phase 2
+3. **EA-official club record snapshot model — BLOCKED.**
+   EA `/members/stats` per-member `wins`/`losses`/`otl` are per-member participation counts, not a unified club W-L-OTL. Verified live: two members show different values. No other EA client endpoint returns a club-level record. Do not implement until a reliable source is confirmed. `club_game_title_stats.wins/losses/otl` is local-count only and must be displayed as such.
 
-After the first three are settled:
+### Phase 2 (partial ✓ 2026-04-17)
 
 1. current platform ownership and display model
 2. Boogeymen-only historical season summary model
-3. current player page data model for:
+3. **game mode dimension — DONE.**
+   `game_mode text` added to both aggregate tables. Functional unique index `COALESCE(game_mode, '')` handles NULL (all-modes) safely. Aggregate loop now writes null/6s/3s rows. All local aggregate query functions accept optional `gameMode` param (default null = all-modes). Migration `0008_lowly_vindicator.sql` applied. `reprocess --all` ran (15/15 succeeded).
+4. current player page data model for:
    - current game baseline totals
    - Boogeymen career totals
    - last 5 games
