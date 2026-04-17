@@ -1,5 +1,8 @@
 import type { Metadata } from 'next'
 import type { ClubGameTitleStats } from '@eanhl/db'
+import type { GameMode } from '@eanhl/db'
+import { GAME_MODE } from '@eanhl/db'
+import Link from 'next/link'
 import {
   listGameTitles,
   getGameTitleBySlug,
@@ -11,6 +14,11 @@ import { LatestResult } from '@/components/home/latest-result'
 import { PlayerCarousel } from '@/components/home/player-carousel'
 import { ScoringLeadersPanel } from '@/components/home/leaders-section'
 import type { RosterRow } from '@/components/home/player-card'
+
+function parseGameMode(raw: string | string[] | undefined): GameMode | null {
+  if (typeof raw !== 'string') return null
+  return (GAME_MODE as readonly string[]).includes(raw) ? (raw as GameMode) : null
+}
 
 export const metadata: Metadata = { title: 'Club Stats' }
 
@@ -51,6 +59,7 @@ function selectFeaturedPlayers(roster: RosterRow[]): RosterRow[] {
 export default async function HomePage({ searchParams }: { searchParams: SearchParams }) {
   const params = await searchParams
   const titleSlug = typeof params.title === 'string' ? params.title : undefined
+  const gameMode = parseGameMode(params.mode)
   const gameTitle = await resolveGameTitle(titleSlug)
 
   if (!gameTitle) {
@@ -64,7 +73,7 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
   const fetched = await (async () => {
     try {
       return await Promise.all([
-        getClubStats(gameTitle.id),
+        getClubStats(gameTitle.id, gameMode),
         getRecentMatches({ gameTitleId: gameTitle.id, limit: 1 }),
         getEAMemberRoster(gameTitle.id),
       ])
@@ -88,7 +97,8 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
       ? { wins: clubStats.wins, losses: clubStats.losses, otl: clubStats.otl }
       : null
 
-  // Club win% — passed into player cards as zone-A supporting line
+  // Club win% — passed into player cards as zone-A supporting line.
+  // Always uses the all-modes aggregate since the carousel is EA-backed (no mode split).
   const clubWinPct =
     clubStats !== null && clubStats.gamesPlayed > 0
       ? winPct(clubStats.wins, clubStats.losses, clubStats.otl)
@@ -118,8 +128,24 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
         <span className="text-sm text-zinc-500">{gameTitle.name}</span>
       </div>
 
-      {/* Team record strip — compact context */}
-      {clubStats !== null && clubStats.gamesPlayed > 0 && <RecordStrip stats={clubStats} />}
+      {/* Team record strip — compact context, mode-filterable */}
+      <section>
+        <div className="mb-2 flex items-center justify-between">
+          <h2 className="font-condensed text-sm font-semibold uppercase tracking-wider text-zinc-500">
+            Club Record
+          </h2>
+          <RecordGameModeFilter titleSlug={titleSlug} activeMode={gameMode} />
+        </div>
+        {clubStats !== null && clubStats.gamesPlayed > 0 ? (
+          <RecordStrip stats={clubStats} />
+        ) : (
+          <div className="flex items-center justify-center border border-zinc-800 bg-surface py-5">
+            <p className="text-sm text-zinc-500">
+              {gameMode !== null ? `No ${gameMode} games recorded yet.` : 'No games recorded yet.'}
+            </p>
+          </div>
+        )}
+      </section>
 
       {/* Latest result hero */}
       {lastMatch !== null && (
@@ -154,6 +180,52 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
             <p className="text-sm text-zinc-500">No games recorded for {gameTitle.name} yet.</p>
           </div>
         )}
+    </div>
+  )
+}
+
+// ─── Record game mode filter ──────────────────────────────────────────────────
+
+const RECORD_MODE_LABELS: { mode: GameMode | null; label: string }[] = [
+  { mode: null, label: 'All' },
+  { mode: '6s', label: '6s' },
+  { mode: '3s', label: '3s' },
+]
+
+function recordModeHref(mode: GameMode | null, titleSlug: string | undefined): string {
+  const qs = new URLSearchParams()
+  if (titleSlug) qs.set('title', titleSlug)
+  if (mode !== null) qs.set('mode', mode)
+  const s = qs.toString()
+  return `/${s ? `?${s}` : ''}`
+}
+
+function RecordGameModeFilter({
+  titleSlug,
+  activeMode,
+}: {
+  titleSlug: string | undefined
+  activeMode: GameMode | null
+}) {
+  return (
+    <div className="flex gap-1">
+      {RECORD_MODE_LABELS.map(({ mode, label }) => {
+        const isActive = mode === activeMode
+        return (
+          <Link
+            key={label}
+            href={recordModeHref(mode, titleSlug)}
+            className={[
+              'px-3 py-1 text-xs font-semibold uppercase tracking-wider rounded border transition-colors',
+              isActive
+                ? 'border-accent bg-accent/10 text-accent'
+                : 'border-zinc-700 bg-transparent text-zinc-500 hover:border-zinc-500 hover:text-zinc-300',
+            ].join(' ')}
+          >
+            {label}
+          </Link>
+        )
+      })}
     </div>
   )
 }
