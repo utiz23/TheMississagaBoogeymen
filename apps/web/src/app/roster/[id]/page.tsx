@@ -138,13 +138,17 @@ export default async function PlayerPage({ params, searchParams }: Props) {
         </div>
       )}
 
+      {/* Page-level mode filter — applies to both Career Stats and Recent Games */}
+      <div className="flex items-center justify-end">
+        <GameModeFilter playerId={id} activeMode={gameMode} />
+      </div>
+
       {/* Career stats */}
       <section>
-        <div className="mb-3 flex items-center justify-between">
+        <div className="mb-3">
           <h2 className="font-condensed text-sm font-semibold uppercase tracking-wider text-zinc-500">
             Career Stats
           </h2>
-          <GameModeFilter playerId={id} activeMode={gameMode} />
         </div>
         {careerStats.length === 0 ? (
           <div className="flex min-h-[6rem] items-center justify-center border border-zinc-800 bg-surface">
@@ -171,7 +175,7 @@ export default async function PlayerPage({ params, searchParams }: Props) {
             </p>
           </div>
         ) : (
-          <GameLog rows={gameLog} />
+          <GameLog rows={gameLog} showMode={gameMode === null} />
         )}
       </section>
 
@@ -358,7 +362,7 @@ function CareerRow({ row, hasGoalie }: { row: CareerRow; hasGoalie: boolean }) {
 
 type GameLogRow = Awaited<ReturnType<typeof getPlayerGameLog>>[number]
 
-function GameLog({ rows }: { rows: GameLogRow[] }) {
+function GameLog({ rows, showMode }: { rows: GameLogRow[]; showMode: boolean }) {
   return (
     <div className="overflow-x-auto border border-zinc-800 bg-surface">
       <table className="w-full min-w-[520px]">
@@ -370,6 +374,11 @@ function GameLog({ rows }: { rows: GameLogRow[] }) {
             <th className="px-2 py-2 text-left text-xs font-semibold uppercase tracking-wider text-zinc-600">
               Opponent
             </th>
+            {showMode && (
+              <th className="px-2 py-2 text-left text-xs font-semibold uppercase tracking-wider text-zinc-600">
+                Mode
+              </th>
+            )}
             <th className="px-2 py-2 text-left text-xs font-semibold uppercase tracking-wider text-zinc-600">
               Result
             </th>
@@ -395,7 +404,7 @@ function GameLog({ rows }: { rows: GameLogRow[] }) {
         </thead>
         <tbody>
           {rows.map((row) => (
-            <GameLogRow key={row.matchId} row={row} />
+            <GameLogRow key={row.matchId} row={row} showMode={showMode} />
           ))}
         </tbody>
       </table>
@@ -403,7 +412,7 @@ function GameLog({ rows }: { rows: GameLogRow[] }) {
   )
 }
 
-function GameLogRow({ row }: { row: GameLogRow }) {
+function GameLogRow({ row, showMode }: { row: GameLogRow; showMode: boolean }) {
   const pts = row.goals + row.assists
   const pm = row.plusMinus
 
@@ -420,6 +429,17 @@ function GameLogRow({ row }: { row: GameLogRow }) {
           {row.opponentName}
         </Link>
       </td>
+      {showMode && (
+        <td className="px-2 py-2.5">
+          {row.gameMode != null ? (
+            <span className="rounded border border-zinc-700 bg-zinc-900 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+              {row.gameMode}
+            </span>
+          ) : (
+            <span className="text-zinc-700">—</span>
+          )}
+        </td>
+      )}
       <td className="px-2 py-2.5">
         <ResultBadge result={row.result} />
       </td>
