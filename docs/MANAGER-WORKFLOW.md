@@ -151,6 +151,43 @@ Manager updates should be short and operational:
 
 Avoid filler, hype, and fake certainty.
 
+## Commit Discipline
+
+The manager should control commit behavior instead of treating git as an afterthought.
+
+### Rules
+
+- do not commit automatically unless the user asked for it or explicitly wants a checkpoint/backup
+- inspect `git status --short` before every commit decision
+- distinguish focused commits from full-repo snapshot commits
+- do not mix unrelated dirty files into a focused commit
+- if the user wants a recoverable backup, push after commit; local-only is not enough
+
+### Preferred commit types
+
+- focused feature/fix/schema commits
+- explicit full-repo checkpoint commits when the user asks for sync/backup
+
+### Branching guidance
+
+- `main` should remain the sync/baseline branch
+- risky or multi-step work should prefer short-lived branches:
+  - `feat/...`
+  - `fix/...`
+  - `spike/...`
+
+### Message standard
+
+Prefer explicit messages like:
+
+- `feat(db): ...`
+- `fix(worker): ...`
+- `docs(handoff): ...`
+- `chore: checkpoint full repo state for sync`
+
+Do not normalize lazy messages like `wip` or `checkpoint` unless the user
+explicitly wants a broad snapshot and the message makes that scope clear.
+
 ## Stop Conditions
 
 The manager should stop and ask before proceeding when:

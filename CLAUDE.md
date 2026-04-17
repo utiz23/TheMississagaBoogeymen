@@ -134,6 +134,79 @@ What to keep current in `HANDOFF.md`:
 
 Do not update `HANDOFF.md` mid-task. Update it at natural stopping points only.
 
+## Commit Protocol
+
+Commit behavior in this repo must be deliberate.
+
+### Default rules
+
+- Do not commit automatically just because files changed.
+- Commit when the user explicitly asks, asks for a backup/sync point, or wants a stable verified checkpoint preserved.
+- Do not include unrelated dirty files unless the user explicitly says to commit everything.
+
+### Before any commit
+
+Always:
+
+1. run `git status --short`
+2. confirm the intended commit scope
+3. verify the change with the smallest relevant checks
+4. inspect for unrelated dirty work that should stay out of the commit
+
+### Commit scope
+
+Prefer focused commits:
+
+- one feature
+- one fix
+- one schema/migration change
+- one docs/handoff update
+
+Use a full-repo checkpoint commit only when the user explicitly wants a backup/sync snapshot.
+
+### Commit messages
+
+Prefer clear messages like:
+
+- `feat(db): add skater/goalie GP split to local aggregates`
+- `fix(worker): backfill player_profiles for member-only players`
+- `docs(handoff): update roadmap after dual-role aggregate rollout`
+- `chore: checkpoint full repo state for macbook sync`
+
+Avoid useless messages like:
+
+- `checkpoint`
+- `wip`
+- `misc`
+
+### Push behavior
+
+- Do not push automatically unless the user explicitly asks for push/backup/sync.
+- If the user asks for a backup on GitHub or another machine, commit **and** push.
+- A local-only commit is not a real backup for that request.
+
+### Branching guidance
+
+`main` is the baseline/sync branch.
+
+Prefer short-lived feature branches for risky or multi-step work:
+
+- `feat/...`
+- `fix/...`
+- `spike/...`
+
+Direct commits to `main` are acceptable only when:
+
+- the user explicitly wants a checkpoint on `main`
+- the change is small and verified
+- or there is no parallel branch workflow in progress
+
+### History hygiene
+
+- do not amend or rewrite commits unless explicitly asked
+- do not hide unrelated staged changes inside a supposedly focused commit
+- if the commit intentionally includes everything in the repo, say so clearly
+
 ## Summary Instructions
 
 When compacting or resuming, preserve only:
