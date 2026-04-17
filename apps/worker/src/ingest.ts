@@ -56,7 +56,10 @@ export async function runIngestionCycle(): Promise<void> {
       console.error(`[ingest] Aggregate recomputation failed for ${title.slug}:`, err)
     }
 
-    // Fetch EA member stats (authoritative season totals for /stats table).
+    // Fetch EA member stats: archives raw payload, resolves player rows for
+    // members not yet seen in match data, and writes structured EA season totals
+    // to ea_member_season_stats for debug/baseline comparison.
+    // No web surface reads from ea_member_season_stats; all stats pages use local aggregates.
     // Errors here are non-fatal — match ingestion already succeeded.
     try {
       await fetchAndStoreMemberStats(title)

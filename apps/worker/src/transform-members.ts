@@ -1,8 +1,10 @@
 /**
  * Transform raw EA /members/stats response into structured DB rows.
  *
- * EA member stats represent full season totals (authoritative) — NOT derived from
- * locally ingested match data. Use these to drive the /stats table.
+ * EA member stats represent full EA season totals — NOT derived from locally ingested
+ * match data. Written to ea_member_season_stats for debug/baseline comparison against
+ * local aggregates. No web surface reads this table; /stats and all other pages use
+ * player_game_title_stats (local aggregate).
  *
  * Field notes:
  *   - sktoi / gltoi: total MINUTES. Stored as seconds (× 60) for codebase consistency.

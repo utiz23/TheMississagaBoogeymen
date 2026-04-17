@@ -14,10 +14,13 @@ import { players } from './players.js'
  * EA-authoritative season stats for all club members, one row per (game_title_id, gamertag).
  *
  * Sourced from the EA /members/stats endpoint — NOT derived from locally ingested matches.
- * This is the primary source for the /stats table, replacing locally computed aggregates
- * which only cover matches captured by the worker (at most the last ~5 per poll cycle).
+ * EA provides full season totals (e.g. 442 GP vs ~15 locally ingested). No web surface
+ * reads from this table; all stats/roster pages use player_game_title_stats (local aggregate).
  *
- * EA provides full season totals; this table mirrors them verbatim after minimal parsing.
+ * This table is maintained for two reasons:
+ *  1. Debug/baseline comparison — structured SQL access to full EA totals vs local counts.
+ *  2. Player resolution — the ingest-members write loop creates players+profiles for members
+ *     not yet seen in any locally ingested match, so /roster/[id] links work immediately.
  *
  * TOI notes:
  *   - EA returns sktoi/gltoi in total MINUTES. Stored here as seconds (× 60) to match

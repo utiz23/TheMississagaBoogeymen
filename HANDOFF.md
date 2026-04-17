@@ -733,10 +733,9 @@ Cross-check: 7W+1W=8W ✓, 5L+1L=6L ✓, 11+2=13(6s)+2(3s) GP but all-modes=15 b
 
 **What is not yet mode-aware:**
 
-- `/stats` and `/roster` pages use `ea_member_season_stats` (EA baseline) — EA does not split by mode
-- Home page UI passes no mode to `getClubStats` → gets all-modes combined row (unchanged)
-- No UI mode selector on home page, player profile page, or roster page (all use `null` default)
-- The only UI with mode selection is `/games` (match-level, unchanged from last session)
+- All web surfaces (`/stats`, `/roster`, home, player profile) now use local aggregates (`player_game_title_stats`) — `ea_member_season_stats` is worker-written only (debug/baseline + player resolution)
+- All major surfaces support `All / 6s / 3s` mode filtering via `?mode=` URL param
+- `ea_member_season_stats` write path is intentionally kept: provides structured EA season totals for baseline comparison and creates player rows for members not yet in any ingested match
 
 ---
 
