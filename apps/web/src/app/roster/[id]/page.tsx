@@ -7,14 +7,24 @@ import {
   getPlayerGamertagHistory,
   getPlayerGameLog,
 } from '@eanhl/db/queries'
+import type { GameMode } from '@eanhl/db'
+import { GAME_MODE } from '@eanhl/db'
 import { ResultBadge } from '@/components/ui/result-badge'
 import { formatMatchDate, formatScore, formatPosition } from '@/lib/format'
 
 // Roster aggregates update after each ingestion cycle (~5 min). Cache for 1 hour.
 export const revalidate = 3600
 
+type SearchParams = Promise<Record<string, string | string[] | undefined>>
+
 interface Props {
   params: Promise<{ id: string }>
+  searchParams: SearchParams
+}
+
+function parseGameMode(raw: string | string[] | undefined): GameMode | null {
+  if (typeof raw !== 'string') return null
+  return (GAME_MODE as readonly string[]).includes(raw) ? (raw as GameMode) : null
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
@@ -30,8 +40,10 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   }
 }
 
-export default async function PlayerPage({ params }: Props) {
+export default async function PlayerPage({ params, searchParams }: Props) {
   const { id: idStr } = await params
+  const sp = await searchParams
+  const gameMode = parseGameMode(sp.mode)
   const id = parseInt(idStr, 10)
 
   if (isNaN(id)) notFound()
@@ -44,7 +56,7 @@ export default async function PlayerPage({ params }: Props) {
   try {
     ;[player, careerStats, history, gameLog] = await Promise.all([
       getPlayerWithProfile(id),
-      getPlayerCareerStats(id),
+      getPlayerCareerStats(id, gameMode),
       getPlayerGamertagHistory(id),
       getPlayerGameLog(id),
     ])
@@ -112,12 +124,19 @@ export default async function PlayerPage({ params }: Props) {
 
       {/* Career stats */}
       <section>
-        <h2 className="mb-3 font-condensed text-sm font-semibold uppercase tracking-wider text-zinc-500">
-          Career Stats
-        </h2>
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="font-condensed text-sm font-semibold uppercase tracking-wider text-zinc-500">
+            Career Stats
+          </h2>
+          <GameModeFilter playerId={id} activeMode={gameMode} />
+        </div>
         {careerStats.length === 0 ? (
           <div className="flex min-h-[6rem] items-center justify-center border border-zinc-800 bg-surface">
-            <p className="text-sm text-zinc-500">No career stats recorded yet.</p>
+            <p className="text-sm text-zinc-500">
+              {gameMode !== null
+                ? `No ${gameMode} career stats recorded yet.`
+                : 'No career stats recorded yet.'}
+            </p>
           </div>
         ) : (
           <CareerStatsTable rows={careerStats} />
@@ -166,6 +185,51 @@ export default async function PlayerPage({ params }: Props) {
           </div>
         </section>
       )}
+    </div>
+  )
+}
+
+// ─── Game mode filter ─────────────────────────────────────────────────────────
+
+const MODE_LABELS: { mode: GameMode | null; label: string }[] = [
+  { mode: null, label: 'All' },
+  { mode: '6s', label: '6s' },
+  { mode: '3s', label: '3s' },
+]
+
+function gameModeHref(playerId: number, mode: GameMode | null): string {
+  const qs = new URLSearchParams()
+  if (mode !== null) qs.set('mode', mode)
+  const qs_str = qs.toString()
+  return `/roster/${playerId.toString()}${qs_str ? `?${qs_str}` : ''}`
+}
+
+function GameModeFilter({
+  playerId,
+  activeMode,
+}: {
+  playerId: number
+  activeMode: GameMode | null
+}) {
+  return (
+    <div className="flex gap-1">
+      {MODE_LABELS.map(({ mode, label }) => {
+        const isActive = mode === activeMode
+        return (
+          <Link
+            key={label}
+            href={gameModeHref(playerId, mode)}
+            className={[
+              'px-3 py-1 text-xs font-semibold uppercase tracking-wider rounded border transition-colors',
+              isActive
+                ? 'border-accent bg-accent/10 text-accent'
+                : 'border-zinc-700 bg-transparent text-zinc-500 hover:border-zinc-500 hover:text-zinc-300',
+            ].join(' ')}
+          >
+            {label}
+          </Link>
+        )
+      })}
     </div>
   )
 }
