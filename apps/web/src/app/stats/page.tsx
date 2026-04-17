@@ -1,5 +1,8 @@
 import type { Metadata } from 'next'
 import type { ClubGameTitleStats } from '@eanhl/db'
+import type { GameMode } from '@eanhl/db'
+import { GAME_MODE } from '@eanhl/db'
+import Link from 'next/link'
 import {
   listGameTitles,
   getGameTitleBySlug,
@@ -34,6 +37,11 @@ async function resolveGameTitle(titleSlug: string | undefined) {
   }
 }
 
+function parseGameMode(raw: string | string[] | undefined): GameMode | null {
+  if (typeof raw !== 'string') return null
+  return (GAME_MODE as readonly string[]).includes(raw) ? (raw as GameMode) : null
+}
+
 /** Win% as a display string, e.g. "78.3%". Returns "—" when no games played. */
 function winPct(wins: number, losses: number, otl: number): string {
   const total = wins + losses + otl
@@ -44,21 +52,20 @@ function winPct(wins: number, losses: number, otl: number): string {
 export default async function StatsPage({ searchParams }: { searchParams: SearchParams }) {
   const params = await searchParams
   const titleSlug = typeof params.title === 'string' ? params.title : undefined
+  const gameMode = parseGameMode(params.mode)
   const gameTitle = await resolveGameTitle(titleSlug)
 
   if (!gameTitle) {
     return <EmptyState message="No game titles are configured yet." />
   }
 
-  // Fetch club stats and last 5 matches in parallel via IIFE so we can use
-  // const destructuring (avoids pre-declared variable assignment quirks)
   const fetched = await (async () => {
     try {
       return await Promise.all([
-        getClubStats(gameTitle.id),
+        getClubStats(gameTitle.id, gameMode),
         getRecentMatches({ gameTitleId: gameTitle.id, limit: 5 }),
-        getSkaterStats(gameTitle.id),
-        getGoalieStats(gameTitle.id),
+        getSkaterStats(gameTitle.id, gameMode),
+        getGoalieStats(gameTitle.id, gameMode),
       ])
     } catch {
       return null
@@ -71,6 +78,8 @@ export default async function StatsPage({ searchParams }: { searchParams: Search
 
   const [clubStats, recentMatches, skaterRows, goalieRows] = fetched
 
+  const emptyModeLabel = gameMode !== null ? `${gameMode} ` : ''
+
   return (
     <div className="space-y-8">
       {/* Page header */}
@@ -80,6 +89,9 @@ export default async function StatsPage({ searchParams }: { searchParams: Search
         </h1>
         <span className="text-sm text-zinc-500">{gameTitle.name}</span>
       </div>
+
+      {/* Game mode filter */}
+      <GameModeFilter titleSlug={titleSlug} activeMode={gameMode} />
 
       {/* Record + stat cards — show when at least 1 game is recorded */}
       {clubStats !== null && clubStats.gamesPlayed > 0 ? (
@@ -110,14 +122,25 @@ export default async function StatsPage({ searchParams }: { searchParams: Search
           </section>
         </>
       ) : (
-        <EmptyState message={`No stats recorded for ${gameTitle.name} yet.`} />
+        <EmptyState
+          message={
+            gameMode !== null
+              ? `No ${emptyModeLabel}games recorded for ${gameTitle.name} yet.`
+              : `No stats recorded for ${gameTitle.name} yet.`
+          }
+        />
       )}
 
       {/* Skater stats — primary table content */}
-      {skaterRows.length > 0 && (
+      {skaterRows.length > 0 ? (
         <section>
           <SkaterStatsTable rows={skaterRows} title="Skaters" />
         </section>
+      ) : (
+        clubStats !== null &&
+        clubStats.gamesPlayed > 0 && (
+          <EmptyState message={`No ${emptyModeLabel}skater stats recorded yet.`} />
+        )
       )}
 
       {/* Goalie stats */}
@@ -140,6 +163,52 @@ export default async function StatsPage({ searchParams }: { searchParams: Search
           </div>
         </section>
       )}
+    </div>
+  )
+}
+
+// ─── Game mode filter ─────────────────────────────────────────────────────────
+
+const MODE_LABELS: { mode: GameMode | null; label: string }[] = [
+  { mode: null, label: 'All' },
+  { mode: '6s', label: '6s' },
+  { mode: '3s', label: '3s' },
+]
+
+function statsModeHref(mode: GameMode | null, titleSlug: string | undefined): string {
+  const qs = new URLSearchParams()
+  if (titleSlug) qs.set('title', titleSlug)
+  if (mode !== null) qs.set('mode', mode)
+  const s = qs.toString()
+  return `/stats${s ? `?${s}` : ''}`
+}
+
+function GameModeFilter({
+  titleSlug,
+  activeMode,
+}: {
+  titleSlug: string | undefined
+  activeMode: GameMode | null
+}) {
+  return (
+    <div className="flex gap-1">
+      {MODE_LABELS.map(({ mode, label }) => {
+        const isActive = mode === activeMode
+        return (
+          <Link
+            key={label}
+            href={statsModeHref(mode, titleSlug)}
+            className={[
+              'px-3 py-1 text-xs font-semibold uppercase tracking-wider rounded border transition-colors',
+              isActive
+                ? 'border-accent bg-accent/10 text-accent'
+                : 'border-zinc-700 bg-transparent text-zinc-500 hover:border-zinc-500 hover:text-zinc-300',
+            ].join(' ')}
+          >
+            {label}
+          </Link>
+        )
+      })}
     </div>
   )
 }

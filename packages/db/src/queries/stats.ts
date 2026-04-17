@@ -1,6 +1,7 @@
-import { and, asc, desc, eq, isNull, ne, or } from 'drizzle-orm'
+import { and, asc, desc, eq, gt, isNull } from 'drizzle-orm'
 import { db } from '../client.js'
-import { eaMemberSeasonStats } from '../schema/index.js'
+import { eaMemberSeasonStats, playerGameTitleStats, players } from '../schema/index.js'
+import type { GameMode } from '../schema/index.js'
 
 /**
  * All members for a game title from the EA baseline table, shaped to match
@@ -51,94 +52,102 @@ export async function getEAMemberRoster(gameTitleId: number) {
 /**
  * Skater season stats for the stats table.
  *
- * Source: ea_member_season_stats — EA /members/stats authoritative season totals.
+ * Source: player_game_title_stats — local aggregate, authoritative.
  *
- * Includes all players whose favoritePosition is not 'goalie' (or is null).
- * This mirrors the EA reference: primary skaters appear in the skater section
- * even when they have some goalie appearances (e.g. an LW with 14 goalie games).
+ * Includes all players with skaterGp > 0 for this game title and mode.
+ * Uses skaterGp as the GP denominator and skaterToiSeconds for TOI/GP.
  *
  * Ordered by points desc → goals desc → assists desc → gamertag asc.
  */
-export async function getSkaterStats(gameTitleId: number) {
+export async function getSkaterStats(gameTitleId: number, gameMode: GameMode | null = null) {
+  const gameModeFilter =
+    gameMode === null
+      ? isNull(playerGameTitleStats.gameMode)
+      : eq(playerGameTitleStats.gameMode, gameMode)
+
   return db
     .select({
-      playerId: eaMemberSeasonStats.playerId,
-      gamertag: eaMemberSeasonStats.gamertag,
-      // favoritePosition exposed as 'position' to match existing SkaterStatsRow shape
-      position: eaMemberSeasonStats.favoritePosition,
-      gamesPlayed: eaMemberSeasonStats.skaterGp,
-      goals: eaMemberSeasonStats.goals,
-      assists: eaMemberSeasonStats.assists,
-      points: eaMemberSeasonStats.points,
-      plusMinus: eaMemberSeasonStats.plusMinus,
-      pim: eaMemberSeasonStats.pim,
-      shots: eaMemberSeasonStats.shots,
-      hits: eaMemberSeasonStats.hits,
-      takeaways: eaMemberSeasonStats.takeaways,
-      giveaways: eaMemberSeasonStats.giveaways,
-      faceoffPct: eaMemberSeasonStats.faceoffPct,
-      passPct: eaMemberSeasonStats.passPct,
-      shotAttempts: eaMemberSeasonStats.shotAttempts,
-      toiSeconds: eaMemberSeasonStats.toiSeconds,
+      playerId: playerGameTitleStats.playerId,
+      gamertag: players.gamertag,
+      position: players.position,
+      gamesPlayed: playerGameTitleStats.skaterGp,
+      goals: playerGameTitleStats.goals,
+      assists: playerGameTitleStats.assists,
+      points: playerGameTitleStats.points,
+      plusMinus: playerGameTitleStats.plusMinus,
+      pim: playerGameTitleStats.pim,
+      shots: playerGameTitleStats.shots,
+      hits: playerGameTitleStats.hits,
+      takeaways: playerGameTitleStats.takeaways,
+      giveaways: playerGameTitleStats.giveaways,
+      faceoffPct: playerGameTitleStats.faceoffPct,
+      passPct: playerGameTitleStats.passPct,
+      shotAttempts: playerGameTitleStats.shotAttempts,
+      toiSeconds: playerGameTitleStats.skaterToiSeconds,
     })
-    .from(eaMemberSeasonStats)
+    .from(playerGameTitleStats)
+    .innerJoin(players, eq(playerGameTitleStats.playerId, players.id))
     .where(
       and(
-        eq(eaMemberSeasonStats.gameTitleId, gameTitleId),
-        or(
-          ne(eaMemberSeasonStats.favoritePosition, 'goalie'),
-          isNull(eaMemberSeasonStats.favoritePosition),
-        ),
+        eq(playerGameTitleStats.gameTitleId, gameTitleId),
+        gameModeFilter,
+        gt(playerGameTitleStats.skaterGp, 0),
       ),
     )
     .orderBy(
-      desc(eaMemberSeasonStats.points),
-      desc(eaMemberSeasonStats.goals),
-      desc(eaMemberSeasonStats.assists),
-      asc(eaMemberSeasonStats.gamertag),
+      desc(playerGameTitleStats.points),
+      desc(playerGameTitleStats.goals),
+      desc(playerGameTitleStats.assists),
+      asc(players.gamertag),
     )
 }
 
 /**
  * Goalie season stats for the stats table.
  *
- * Source: ea_member_season_stats — EA /members/stats authoritative season totals.
+ * Source: player_game_title_stats — local aggregate, authoritative.
  *
- * Includes only players whose favoritePosition = 'goalie'.
- * Returns goalie-specific stats (goalieGp, goalieSavePct, etc.) mapped to the
- * existing GoalieStatsRow shape for component compatibility.
+ * Includes only players with goalieGp > 0 for this game title and mode.
+ * Uses goalieGp as the GP denominator and goalieToiSeconds for total TOI.
  *
- * Ordered by save_pct desc (nulls last) → games_played desc → gaa asc → gamertag asc.
+ * Ordered by save_pct desc → goalieGp desc → gaa asc → gamertag asc.
  */
-export async function getGoalieStats(gameTitleId: number) {
+export async function getGoalieStats(gameTitleId: number, gameMode: GameMode | null = null) {
+  const gameModeFilter =
+    gameMode === null
+      ? isNull(playerGameTitleStats.gameMode)
+      : eq(playerGameTitleStats.gameMode, gameMode)
+
   return db
     .select({
-      playerId: eaMemberSeasonStats.playerId,
-      gamertag: eaMemberSeasonStats.gamertag,
-      gamesPlayed: eaMemberSeasonStats.goalieGp,
-      wins: eaMemberSeasonStats.goalieWins,
-      losses: eaMemberSeasonStats.goalieLosses,
-      otl: eaMemberSeasonStats.goalieOtl,
-      savePct: eaMemberSeasonStats.goalieSavePct,
-      gaa: eaMemberSeasonStats.goalieGaa,
-      shutouts: eaMemberSeasonStats.goalieShutouts,
-      totalSaves: eaMemberSeasonStats.goalieSaves,
-      totalShotsAgainst: eaMemberSeasonStats.goalieShots,
-      totalGoalsAgainst: eaMemberSeasonStats.goalieGoalsAgainst,
-      toiSeconds: eaMemberSeasonStats.goalieToiSeconds,
+      playerId: playerGameTitleStats.playerId,
+      gamertag: players.gamertag,
+      gamesPlayed: playerGameTitleStats.goalieGp,
+      wins: playerGameTitleStats.wins,
+      losses: playerGameTitleStats.losses,
+      otl: playerGameTitleStats.otl,
+      savePct: playerGameTitleStats.savePct,
+      gaa: playerGameTitleStats.gaa,
+      shutouts: playerGameTitleStats.shutouts,
+      totalSaves: playerGameTitleStats.totalSaves,
+      totalShotsAgainst: playerGameTitleStats.totalShotsAgainst,
+      totalGoalsAgainst: playerGameTitleStats.totalGoalsAgainst,
+      toiSeconds: playerGameTitleStats.goalieToiSeconds,
     })
-    .from(eaMemberSeasonStats)
+    .from(playerGameTitleStats)
+    .innerJoin(players, eq(playerGameTitleStats.playerId, players.id))
     .where(
       and(
-        eq(eaMemberSeasonStats.gameTitleId, gameTitleId),
-        eq(eaMemberSeasonStats.favoritePosition, 'goalie'),
+        eq(playerGameTitleStats.gameTitleId, gameTitleId),
+        gameModeFilter,
+        gt(playerGameTitleStats.goalieGp, 0),
       ),
     )
     .orderBy(
-      desc(eaMemberSeasonStats.goalieSavePct),
-      desc(eaMemberSeasonStats.goalieGp),
-      asc(eaMemberSeasonStats.goalieGaa),
-      asc(eaMemberSeasonStats.gamertag),
+      desc(playerGameTitleStats.savePct),
+      desc(playerGameTitleStats.goalieGp),
+      asc(playerGameTitleStats.gaa),
+      asc(players.gamertag),
     )
 }
 
