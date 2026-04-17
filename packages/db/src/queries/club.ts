@@ -1,6 +1,6 @@
 import { and, eq, isNull } from 'drizzle-orm'
 import { db } from '../client.js'
-import { clubGameTitleStats } from '../schema/index.js'
+import { clubGameTitleStats, clubSeasonalStats } from '../schema/index.js'
 import type { GameMode } from '../schema/index.js'
 
 /**
@@ -15,6 +15,22 @@ import type { GameMode } from '../schema/index.js'
  * Numeric rate fields (shotsPerGame, hitsPerGame, faceoffPct, passPct) are
  * nullable — null means the worker has not yet computed them.
  */
+/**
+ * Official EA club record from clubs/seasonalStats.
+ *
+ * Returns null when no snapshot has been captured yet (worker has not yet fetched
+ * from the EA endpoint). Never falls back to local aggregate counts.
+ * Display an honest unavailable state when this returns null.
+ */
+export async function getOfficialClubRecord(gameTitleId: number) {
+  const rows = await db
+    .select()
+    .from(clubSeasonalStats)
+    .where(eq(clubSeasonalStats.gameTitleId, gameTitleId))
+    .limit(1)
+  return rows[0] ?? null
+}
+
 export async function getClubStats(gameTitleId: number, gameMode: GameMode | null = null) {
   const gameModeFilter =
     gameMode === null

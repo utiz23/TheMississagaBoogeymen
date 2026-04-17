@@ -15,6 +15,7 @@ import type {
   EaMatchesResponse,
   EaMemberStatsResponse,
   EaMemberSearchResponse,
+  EaClubSeasonalStatsResponse,
   EaMatchType,
   EaPlatform,
 } from './types.js'
@@ -118,4 +119,30 @@ export async function searchMember(
   const base = getApiBaseUrl(params.baseUrl)
   const url = `${base}/members/search?platform=${encodeURIComponent(params.platform)}&memberName=${encodeURIComponent(params.memberName)}`
   return eaFetch<EaMemberSearchResponse>(url, options)
+}
+
+// ─── Club Seasonal Stats ──────────────────────────────────────────────────────
+
+export interface FetchSeasonalStatsParams {
+  platform: EaPlatform
+  clubId: string
+  baseUrl?: string
+}
+
+/**
+ * Fetch seasonal aggregate stats for a club (official EA record).
+ * Returns the EA-official W-L-OTL record and ranking points for the current game title.
+ *
+ * Response is keyed by club ID — use response[clubId] to access the club's data.
+ *
+ * CONFIRMED response fields: wins, losses, otl, record, rankingPoints, totalGames,
+ * goals, goalsAgainst. All values are strings.
+ */
+export async function fetchSeasonalStats(
+  params: FetchSeasonalStatsParams,
+  options?: EaFetchOptions,
+): Promise<EaClubSeasonalStatsResponse> {
+  const base = getApiBaseUrl(params.baseUrl)
+  const url = `${base}/clubs/seasonalStats?platform=${encodeURIComponent(params.platform)}&clubIds=${encodeURIComponent(params.clubId)}`
+  return eaFetch<EaClubSeasonalStatsResponse>(url, options)
 }

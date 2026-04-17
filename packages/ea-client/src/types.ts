@@ -233,6 +233,38 @@ export interface EaMemberStatsResponse {
   [key: string]: unknown
 }
 
+// ─── Club Seasonal Stats ─────────────────────────────────────────────────────
+// GET /clubs/seasonalStats?platform=<platform>&clubIds=<id>
+// Response is an object keyed by club ID string.
+
+/** CONFIRMED fields from clubs/seasonalStats. All values are strings. */
+export interface EaClubSeasonalStats {
+  /** The club's EA ID (e.g. "19224"). CONFIRMED: present as a field in the response object. */
+  clubId?: string
+  /** Season wins as a string integer (e.g. "283"). */
+  wins?: string
+  /** Season losses as a string integer. */
+  losses?: string
+  /** Season overtime losses as a string integer. */
+  otl?: string
+  /** Formatted record string (e.g. "283-188-20"). */
+  record?: string
+  /** Ranking points as a string integer. */
+  rankingPoints?: string
+  /** Goals scored as a string integer. */
+  goals?: string
+  /** Goals allowed as a string integer. */
+  goalsAgainst?: string
+  [key: string]: unknown
+}
+
+/**
+ * Top-level response from the clubs/seasonalStats endpoint.
+ * CONFIRMED: Returns an array. Each element contains the stats for one club
+ * (identified by the clubId field within the object).
+ */
+export type EaClubSeasonalStatsResponse = EaClubSeasonalStats[]
+
 // ─── Member Search ────────────────────────────────────────────────────────────
 // GET /members/search?platform=<platform>&memberName=<name>
 

@@ -2,7 +2,7 @@
 
 ## Current Status
 
-**Phase:** DB/Stats Rework — web-facing source-of-truth migration complete. All major pages use local aggregates or match-level data where appropriate. Aggregate-backed surfaces support `All / 6s / 3s` mode filtering. Player profile handles member-only (no local match data) players gracefully.
+**Phase:** Product polish — core data model complete. Official EA club record now captured and displayed. All major pages use local aggregates or match-level data. Aggregate-backed surfaces support `All / 6s / 3s` mode filtering. Player profile handles member-only players gracefully.
 
 **Last updated:** 2026-04-17
 
@@ -256,11 +256,10 @@ Updated `apps/web/src/app/stats/page.tsx`:
 - Web does not consume it.
 - This is intentional. Do not remove it casually unless the worker/player-resolution path is redesigned.
 
-**Blocked / deferred:**
+**Deferred:**
 
-- Official club record remains blocked. EA member stats are per-member participation counts, not a confirmed club-level W-L-OTL source.
-- Historical/manual import model remains deferred.
-- Provenance/sourceType system remains deferred.
+- Historical/manual import model — no UI designed yet.
+- Provenance/sourceType system — deferred until manual import is in scope.
 
 **Immediate next step:**
 
@@ -707,9 +706,23 @@ Role-specific GP is now used everywhere:
 - Player career stats table (`skaterGp` in skater GP column; `goalieGp` as G-GP goalie column)
 - `getRoster` query exposes both fields
 
-### Area 2: Official EA club record — BLOCKED
+### Area 2: Official EA club record ✓ complete (2026-04-17)
 
-EA `/members/stats` per-member `wins`/`losses`/`otl` fields are per-member participation counts, NOT a unified club record. Verified against live DB: `joseph4577` shows 15-10-0, `HenryTheBobJr` shows 259-187-23. The EA client has no other endpoint returning a club-level W-L-OTL. No `club_record_snapshots` table will be built until a reliable source is confirmed. `club_game_title_stats.wins/losses/otl` remains local-count only.
+**Source confirmed:** `clubs/seasonalStats?platform=common-gen5&clubIds=19224` — returns an array; club data is the array element with `clubId = "19224"`. Confirmed fields: `wins`, `losses`, `otl`, `record`, `rankingPoints`, `goals`, `goalsAgainst`.
+
+**What was built:**
+
+- `packages/ea-client/src/types.ts`: `EaClubSeasonalStats` (array element type), `EaClubSeasonalStatsResponse = EaClubSeasonalStats[]`
+- `packages/ea-client/src/endpoints.ts`: `fetchSeasonalStats({ platform, clubId, baseUrl? })` — GET `clubs/seasonalStats`; finds club by `clubId` field
+- `packages/db/src/schema/club-seasonal-stats.ts`: new table `club_seasonal_stats` — one upsert row per game title (`wins`, `losses`, `otl`, `gamesPlayed=wins+losses+otl`, `record`, `rankingPoints`, `goals`, `goalsAgainst`, `fetchedAt`). Unique on `game_title_id`.
+- Migration `0009_little_skullbuster.sql` applied.
+- `packages/db/src/queries/club.ts`: `getOfficialClubRecord(gameTitleId)` — returns the row or null (never falls back to local count).
+- `apps/worker/src/ingest-members.ts`: `fetchAndStoreSeasonalStats(title)` — called after member stats in each ingestion cycle; upserts into `club_seasonal_stats`; non-fatal on failure.
+- `apps/web/src/app/page.tsx`: `RecordStrip` uses official record for W/L/OTL/GP when available; falls back to local when null. Ranking points shown if present. GF/GA remain from local match data. Mode-filtered views (`?mode=6s/3s`) still use local mode-specific aggregate (EA endpoint is all-modes only).
+
+**First snapshot captured:** `283-188-20` (1658 pts). Ingestion log confirms `[seasonal] nhl26: 283-188-20 (1658 pts)`.
+
+**Home page effect:** Club Record strip now shows the real EA official record instead of the ingested-match-only count (was 8-6-0; now 283-188-20).
 
 ### Area 3: Positional lineup filtering ✓
 

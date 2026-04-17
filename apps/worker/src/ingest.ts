@@ -31,7 +31,7 @@ import { eq, isNull, and } from 'drizzle-orm'
 import { fetchMatches, matchesUrl, throttle, EaApiError, type EaMatchType } from '@eanhl/ea-client'
 import { transformMatch, type TransformResult, type PlayerIdentity } from './transform.js'
 import { recomputeAggregates } from './aggregate.js'
-import { fetchAndStoreMemberStats } from './ingest-members.js'
+import { fetchAndStoreMemberStats, fetchAndStoreSeasonalStats } from './ingest-members.js'
 
 type DbConn = Pick<typeof db, 'select' | 'insert' | 'update'>
 
@@ -65,6 +65,14 @@ export async function runIngestionCycle(): Promise<void> {
       await fetchAndStoreMemberStats(title)
     } catch (err) {
       console.error(`[ingest] Member stats fetch failed for ${title.slug}:`, err)
+    }
+
+    // Fetch official EA club record (clubs/seasonalStats) — stored in club_seasonal_stats.
+    // Non-fatal; a failure here does not affect match data or player aggregates.
+    try {
+      await fetchAndStoreSeasonalStats(title)
+    } catch (err) {
+      console.error(`[ingest] Seasonal stats fetch failed for ${title.slug}:`, err)
     }
   }
 }

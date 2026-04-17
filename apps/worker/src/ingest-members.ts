@@ -18,6 +18,7 @@ import {
   db,
   rawMemberStatsPayloads,
   eaMemberSeasonStats,
+  clubSeasonalStats,
   players,
   playerGamertagHistory,
   playerProfiles,
@@ -26,7 +27,7 @@ import {
   type NewPlayer,
 } from '@eanhl/db'
 import { eq } from 'drizzle-orm'
-import { fetchMemberStats, throttle } from '@eanhl/ea-client'
+import { fetchMemberStats, fetchSeasonalStats, throttle } from '@eanhl/ea-client'
 import { transformMemberStats } from './transform-members.js'
 
 // ─── Public entry point ───────────────────────────────────────────────────────
@@ -131,6 +132,77 @@ export async function fetchAndStoreMemberStats(title: GameTitle): Promise<void> 
 
   console.log(
     `[members] ${title.slug}: ${String(upserted)}/${String(members.length)} members upserted`,
+  )
+}
+
+// ─── Official club record ─────────────────────────────────────────────────────
+
+/**
+ * Fetch and store the official EA club record from clubs/seasonalStats.
+ * Upserts one row per game title. Non-fatal on failure.
+ */
+export async function fetchAndStoreSeasonalStats(title: GameTitle): Promise<void> {
+  await throttle()
+
+  const response = await fetchSeasonalStats({
+    platform: title.eaPlatform as Parameters<typeof fetchSeasonalStats>[0]['platform'],
+    clubId: title.eaClubId,
+    baseUrl: title.apiBaseUrl,
+  })
+
+  // Response is an array; find our club by clubId field.
+  const clubData = response.find((entry) => entry.clubId === title.eaClubId)
+  if (!clubData) {
+    console.warn(`[seasonal] No data for club ${title.eaClubId} in response (${title.slug})`)
+    return
+  }
+
+  const wins = parseInt(clubData.wins ?? '', 10)
+  const losses = parseInt(clubData.losses ?? '', 10)
+  const otl = parseInt(clubData.otl ?? '', 10)
+
+  if (isNaN(wins) || isNaN(losses) || isNaN(otl)) {
+    console.warn(`[seasonal] Could not parse W/L/OTL for ${title.slug}`)
+    return
+  }
+
+  const rankingPoints = parseInt(clubData.rankingPoints ?? '', 10)
+  const goals = parseInt(clubData.goals ?? '', 10)
+  const goalsAgainst = parseInt(clubData.goalsAgainst ?? '', 10)
+
+  const row = {
+    gameTitleId: title.id,
+    wins,
+    losses,
+    otl,
+    gamesPlayed: wins + losses + otl,
+    record: clubData.record ?? null,
+    rankingPoints: isNaN(rankingPoints) ? null : rankingPoints,
+    goals: isNaN(goals) ? null : goals,
+    goalsAgainst: isNaN(goalsAgainst) ? null : goalsAgainst,
+    fetchedAt: new Date(),
+  }
+
+  await db
+    .insert(clubSeasonalStats)
+    .values(row)
+    .onConflictDoUpdate({
+      target: clubSeasonalStats.gameTitleId,
+      set: {
+        wins: row.wins,
+        losses: row.losses,
+        otl: row.otl,
+        gamesPlayed: row.gamesPlayed,
+        record: row.record,
+        rankingPoints: row.rankingPoints,
+        goals: row.goals,
+        goalsAgainst: row.goalsAgainst,
+        fetchedAt: row.fetchedAt,
+      },
+    })
+
+  console.log(
+    `[seasonal] ${title.slug}: ${row.record ?? `${String(wins)}-${String(losses)}-${String(otl)}`} (${isNaN(rankingPoints) ? '?' : String(rankingPoints)} pts)`,
   )
 }
 
