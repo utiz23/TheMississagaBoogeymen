@@ -55,7 +55,7 @@ export function ScoringLeadersPanel({
         </span>
         {/* CTA lives in the header — whole panel cannot be a link due to nested player links */}
         <Link
-          href="/stats"
+          href={gameMode != null ? `/stats?mode=${gameMode}` : '/stats'}
           className="font-condensed text-xs text-zinc-600 transition-colors hover:text-zinc-400"
         >
           View all stats →
