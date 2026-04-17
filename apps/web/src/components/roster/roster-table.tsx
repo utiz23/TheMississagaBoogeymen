@@ -27,8 +27,8 @@ const SCORING: ColDef[] = [
   {
     key: 'gp',
     label: 'GP',
-    getSortValue: (r) => r.gamesPlayed,
-    renderCell: (r) => r.gamesPlayed.toString(),
+    getSortValue: (r) => r.skaterGp,
+    renderCell: (r) => r.skaterGp.toString(),
   },
   {
     key: 'g',
@@ -66,8 +66,8 @@ const POSSESSION: ColDef[] = [
   {
     key: 'gp',
     label: 'GP',
-    getSortValue: (r) => r.gamesPlayed,
-    renderCell: (r) => r.gamesPlayed.toString(),
+    getSortValue: (r) => r.skaterGp,
+    renderCell: (r) => r.skaterGp.toString(),
   },
   {
     key: 'ta',
@@ -99,8 +99,8 @@ const PHYSICAL: ColDef[] = [
   {
     key: 'gp',
     label: 'GP',
-    getSortValue: (r) => r.gamesPlayed,
-    renderCell: (r) => r.gamesPlayed.toString(),
+    getSortValue: (r) => r.skaterGp,
+    renderCell: (r) => r.skaterGp.toString(),
   },
   {
     key: 'hits',
@@ -120,8 +120,8 @@ const GOALIE: ColDef[] = [
   {
     key: 'gp',
     label: 'GP',
-    getSortValue: (r) => r.gamesPlayed,
-    renderCell: (r) => r.gamesPlayed.toString(),
+    getSortValue: (r) => r.goalieGp,
+    renderCell: (r) => r.goalieGp.toString(),
   },
   {
     key: 'w',

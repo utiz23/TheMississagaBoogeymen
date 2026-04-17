@@ -63,6 +63,8 @@ export async function getRoster(gameTitleId: number) {
       gamertag: players.gamertag,
       position: players.position,
       gamesPlayed: playerGameTitleStats.gamesPlayed,
+      skaterGp: playerGameTitleStats.skaterGp,
+      goalieGp: playerGameTitleStats.goalieGp,
       goals: playerGameTitleStats.goals,
       assists: playerGameTitleStats.assists,
       points: playerGameTitleStats.points,
