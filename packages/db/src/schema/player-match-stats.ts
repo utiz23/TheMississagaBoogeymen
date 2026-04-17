@@ -1,4 +1,15 @@
-import { bigint, boolean, integer, pgTable, serial, text, uniqueIndex } from 'drizzle-orm/pg-core'
+import {
+  bigint,
+  boolean,
+  check,
+  index,
+  integer,
+  pgTable,
+  serial,
+  text,
+  uniqueIndex,
+} from 'drizzle-orm/pg-core'
+import { sql } from 'drizzle-orm'
 import { players } from './players.js'
 import { matches } from './matches.js'
 
@@ -94,6 +105,11 @@ export const playerMatchStats = pgTable(
   },
   (table) => [
     uniqueIndex('player_match_stats_player_match_uniq').on(table.playerId, table.matchId),
+    index('player_match_stats_lineup_idx').on(table.matchId, table.position, table.playerId),
+    check(
+      'player_match_stats_position_check',
+      sql`${table.position} IN ('goalie', 'center', 'defenseMen', 'leftWing', 'rightWing')`,
+    ),
   ],
 )
 

@@ -136,6 +136,8 @@ export async function getPlayerCareerStats(playerId: number) {
       gameTitleName: gameTitles.name,
       gameTitleSlug: gameTitles.slug,
       gamesPlayed: playerGameTitleStats.gamesPlayed,
+      skaterGp: playerGameTitleStats.skaterGp,
+      goalieGp: playerGameTitleStats.goalieGp,
       goals: playerGameTitleStats.goals,
       assists: playerGameTitleStats.assists,
       points: playerGameTitleStats.points,

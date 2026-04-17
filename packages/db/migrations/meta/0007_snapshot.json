@@ -1,6 +1,6 @@
 {
-  "id": "51cb6278-a10c-47c9-ac69-1d45cb506310",
-  "prevId": "3632a9c1-5ffc-4fc2-b8d2-da9e64354ade",
+  "id": "4eb448b5-1c8d-40c5-b0f0-24922385340c",
+  "prevId": "51cb6278-a10c-47c9-ac69-1d45cb506310",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -1134,6 +1134,33 @@
           "concurrently": false,
           "method": "btree",
           "with": {}
+        },
+        "player_match_stats_lineup_idx": {
+          "name": "player_match_stats_lineup_idx",
+          "columns": [
+            {
+              "expression": "match_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "position",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "player_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
         }
       },
       "foreignKeys": {
@@ -1159,7 +1186,12 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
-      "checkConstraints": {},
+      "checkConstraints": {
+        "player_match_stats_position_check": {
+          "name": "player_match_stats_position_check",
+          "value": "\"player_match_stats\".\"position\" IN ('goalie', 'center', 'defenseMen', 'leftWing', 'rightWing')"
+        }
+      },
       "isRLSEnabled": false
     },
     "public.club_game_title_stats": {
@@ -1382,6 +1414,32 @@
         },
         "toi_seconds": {
           "name": "toi_seconds",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "skater_gp": {
+          "name": "skater_gp",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "goalie_gp": {
+          "name": "goalie_gp",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "skater_toi_seconds": {
+          "name": "skater_toi_seconds",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "goalie_toi_seconds": {
+          "name": "goalie_toi_seconds",
           "type": "integer",
           "primaryKey": false,
           "notNull": false

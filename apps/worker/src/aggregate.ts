@@ -44,6 +44,10 @@ async function recomputePlayerStats(gameTitleId: number): Promise<void> {
       pass_pct,
       shot_attempts,
       toi_seconds,
+      skater_gp,
+      goalie_gp,
+      skater_toi_seconds,
+      goalie_toi_seconds,
       wins,
       losses,
       otl,
@@ -99,6 +103,13 @@ async function recomputePlayerStats(gameTitleId: number): Promise<void> {
       -- where toi_seconds was not yet extracted. PostgreSQL SUM ignores NULLs,
       -- returning NULL only if every value in the group is NULL.
       SUM(pms.toi_seconds)::int                                    AS toi_seconds,
+
+      -- Role-specific GP and TOI: split by is_goalie flag.
+      -- Use skater_gp / goalie_gp as denominators for per-game rate stats.
+      COUNT(CASE WHEN NOT pms.is_goalie THEN 1 END)::int           AS skater_gp,
+      COUNT(CASE WHEN pms.is_goalie THEN 1 END)::int               AS goalie_gp,
+      SUM(CASE WHEN NOT pms.is_goalie THEN pms.toi_seconds END)::int AS skater_toi_seconds,
+      SUM(CASE WHEN pms.is_goalie THEN pms.toi_seconds END)::int   AS goalie_toi_seconds,
 
       -- Goalie: wins / losses / OTL from the match result, only for goalie appearances
       SUM(CASE WHEN pms.is_goalie AND m.result = 'WIN'  THEN 1 ELSE 0 END)::int  AS wins,
@@ -175,6 +186,10 @@ async function recomputePlayerStats(gameTitleId: number): Promise<void> {
       pass_pct            = EXCLUDED.pass_pct,
       shot_attempts       = EXCLUDED.shot_attempts,
       toi_seconds         = EXCLUDED.toi_seconds,
+      skater_gp           = EXCLUDED.skater_gp,
+      goalie_gp           = EXCLUDED.goalie_gp,
+      skater_toi_seconds  = EXCLUDED.skater_toi_seconds,
+      goalie_toi_seconds  = EXCLUDED.goalie_toi_seconds,
       wins                = EXCLUDED.wins,
       losses              = EXCLUDED.losses,
       otl                 = EXCLUDED.otl,

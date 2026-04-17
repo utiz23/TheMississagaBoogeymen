@@ -115,7 +115,9 @@
       "Bash(curl -s --max-time 20 -H 'User-Agent: Mozilla/5.0 \\(Windows NT 10.0; Win64; x64\\) AppleWebKit/537.36' -H 'Accept: application/json' -H 'Referer: https://www.ea.com/' -w '\\\\nHTTP_STATUS:%{http_code}' 'https://proclubs.ea.com/api/nhl/clubs/info?clubIds=19224&platform=common-gen5')",
       "Bash(curl -s --max-time 20 -H 'User-Agent: Mozilla/5.0 \\(Windows NT 10.0; Win64; x64\\) AppleWebKit/537.36' -H 'Accept: application/json' -H 'Referer: https://www.ea.com/' -w '\\\\nHTTP_STATUS:%{http_code}' 'https://proclubs.ea.com/api/nhl/clubs/seasonalStats?clubIds=19224&platform=common-gen5')",
       "Bash(curl -s --max-time 20 -H 'User-Agent: Mozilla/5.0 \\(Windows NT 10.0; Win64; x64\\) AppleWebKit/537.36' -H 'Accept: application/json' -H 'Referer: https://www.ea.com/' -w '\\\\nHTTP_STATUS:%{http_code}' 'https://proclubs.ea.com/api/nhl/clubs/matches?clubIds=19224&platform=common-gen5&matchType=gameType5')",
-      "Bash(pnpm --filter db migrate)"
+      "Bash(pnpm --filter db migrate)",
+      "Bash(python3 -c ' *)",
+      "Bash(python3 -c \"import uuid; print\\(uuid.uuid4\\(\\)\\)\")"
     ],
     "additionalDirectories": [
       "/home/michal/.claude/projects/-home-michal-projects-eanhl-team-website"

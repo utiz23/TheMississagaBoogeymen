@@ -117,7 +117,7 @@ export function PlayerCard({ player, isActive = false, winPct }: PlayerCardProps
       <div className="mx-2 mb-2 mt-1.5 overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-900 p-2">
         {/* E–H: role-gated stats. H (PTS / W) is always the featured tile. */}
         <div className="grid grid-cols-4 gap-1">
-          <StatBox label="GP" value={player.gamesPlayed.toString()} />
+          <StatBox label="GP" value={(isGoalie ? player.goalieGp : player.skaterGp).toString()} />
           {isGoalie ? (
             <>
               <StatBox label="SV%" value={player.savePct ?? '—'} />

@@ -20,6 +20,8 @@ export async function getEAMemberRoster(gameTitleId: number) {
       gamertag: eaMemberSeasonStats.gamertag,
       position: eaMemberSeasonStats.favoritePosition,
       gamesPlayed: eaMemberSeasonStats.gamesPlayed,
+      skaterGp: eaMemberSeasonStats.skaterGp,
+      goalieGp: eaMemberSeasonStats.goalieGp,
       goals: eaMemberSeasonStats.goals,
       assists: eaMemberSeasonStats.assists,
       points: eaMemberSeasonStats.points,

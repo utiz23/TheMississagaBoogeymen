@@ -222,7 +222,7 @@ interface StatCol {
 }
 
 const SKATER_COLS: StatCol[] = [
-  { key: 'gp', label: 'GP', render: (r) => r.gamesPlayed },
+  { key: 'gp', label: 'GP', render: (r) => r.skaterGp },
   { key: 'g', label: 'G', render: (r) => r.goals },
   { key: 'a', label: 'A', render: (r) => r.assists },
   { key: 'pts', label: 'PTS', render: (r) => r.points },
@@ -246,6 +246,7 @@ const SKATER_COLS: StatCol[] = [
 ]
 
 const GOALIE_COLS: StatCol[] = [
+  { key: 'ggp', label: 'G-GP', render: (r) => r.goalieGp },
   { key: 'w', label: 'W', render: (r) => r.wins ?? '—' },
   { key: 'l', label: 'L', render: (r) => r.losses ?? '—' },
   { key: 'svpct', label: 'SV%', render: (r) => (r.savePct !== null ? `${r.savePct}%` : '—') },

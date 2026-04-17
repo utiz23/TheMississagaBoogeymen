@@ -44,6 +44,16 @@ export const playerGameTitleStats = pgTable(
     /** Total TOI in seconds across all appearances. Nullable for pre-Phase-1 rows. */
     toiSeconds: integer('toi_seconds'),
 
+    // ── Role-specific GP and TOI ──────────────────────────────────────────────
+    /** Appearances where is_goalie = false. Use as denominator for skater rate stats. */
+    skaterGp: integer('skater_gp').notNull().default(0),
+    /** Appearances where is_goalie = true. Use as denominator for goalie rate stats. */
+    goalieGp: integer('goalie_gp').notNull().default(0),
+    /** TOI in seconds for skater appearances only. Nullable when no skater games exist. */
+    skaterToiSeconds: integer('skater_toi_seconds'),
+    /** TOI in seconds for goalie appearances only. Nullable when no goalie games exist. */
+    goalieToiSeconds: integer('goalie_toi_seconds'),
+
     // ── Goalie aggregates (nullable) ──────────────────────────────────────────
     wins: integer('wins'),
     losses: integer('losses'),
