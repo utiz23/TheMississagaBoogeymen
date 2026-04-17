@@ -75,7 +75,7 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
       return await Promise.all([
         getClubStats(gameTitle.id, gameMode),
         getRecentMatches({ gameTitleId: gameTitle.id, limit: 1 }),
-        getRoster(gameTitle.id),
+        getRoster(gameTitle.id, gameMode),
       ])
     } catch {
       return null
@@ -97,8 +97,8 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
       ? { wins: clubStats.wins, losses: clubStats.losses, otl: clubStats.otl }
       : null
 
-  // Club win% — passed into player cards as zone-A supporting line.
-  // Always uses the all-modes aggregate since the carousel is EA-backed (no mode split).
+  // Club win% — sourced from the mode-filtered club aggregate, consistent with the
+  // mode-filtered player rows from getRoster. Passed to each player card as a supporting line.
   const clubWinPct =
     clubStats !== null && clubStats.gamesPlayed > 0
       ? winPct(clubStats.wins, clubStats.losses, clubStats.otl)
@@ -167,7 +167,11 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
       {/* Scoring leaders */}
       {pointsLeaders.length > 0 && (
         <section>
-          <ScoringLeadersPanel pointsLeaders={pointsLeaders} goalsLeaders={goalsLeaders} />
+          <ScoringLeadersPanel
+            pointsLeaders={pointsLeaders}
+            goalsLeaders={goalsLeaders}
+            gameMode={gameMode}
+          />
         </section>
       )}
 

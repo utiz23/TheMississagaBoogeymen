@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import type { GameMode } from '@eanhl/db'
 import type { RosterRow } from './player-card'
 import { PlayerSilhouette } from './player-card'
 import { formatPositionFull } from '@/lib/format'
@@ -8,6 +9,7 @@ import { formatPositionFull } from '@/lib/format'
 interface ScoringLeadersPanelProps {
   pointsLeaders: RosterRow[]
   goalsLeaders: RosterRow[]
+  gameMode?: GameMode | null
 }
 
 // ─── Panel ────────────────────────────────────────────────────────────────────
@@ -34,7 +36,11 @@ interface ScoringLeadersPanelProps {
  * - Implement full tiebreaker chain: pts → goals → name (spec §10)
  * - Add jersey number display once field is added to player schema
  */
-export function ScoringLeadersPanel({ pointsLeaders, goalsLeaders }: ScoringLeadersPanelProps) {
+export function ScoringLeadersPanel({
+  pointsLeaders,
+  goalsLeaders,
+  gameMode,
+}: ScoringLeadersPanelProps) {
   if (pointsLeaders.length === 0 && goalsLeaders.length === 0) return null
 
   const pointsFeature = pointsLeaders[0] ?? null
@@ -45,7 +51,7 @@ export function ScoringLeadersPanel({ pointsLeaders, goalsLeaders }: ScoringLead
       <div className="h-1 w-full bg-gradient-to-r from-red-900 via-red-600 to-red-900" />
       <div className="flex items-center justify-between border-b border-zinc-800/60 px-5 py-3">
         <span className="font-condensed text-xs font-semibold uppercase tracking-widest text-zinc-500">
-          Scoring Leaders
+          {gameMode != null ? `${gameMode} ` : ''}Scoring Leaders
         </span>
         {/* CTA lives in the header — whole panel cannot be a link due to nested player links */}
         <Link
