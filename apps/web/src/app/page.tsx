@@ -8,7 +8,7 @@ import {
   getGameTitleBySlug,
   getClubStats,
   getRecentMatches,
-  getEAMemberRoster,
+  getRoster,
 } from '@eanhl/db/queries'
 import { LatestResult } from '@/components/home/latest-result'
 import { PlayerCarousel } from '@/components/home/player-carousel'
@@ -75,7 +75,7 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
       return await Promise.all([
         getClubStats(gameTitle.id, gameMode),
         getRecentMatches({ gameTitleId: gameTitle.id, limit: 1 }),
-        getEAMemberRoster(gameTitle.id),
+        getRoster(gameTitle.id),
       ])
     } catch {
       return null

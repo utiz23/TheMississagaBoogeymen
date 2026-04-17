@@ -2,9 +2,9 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import type { getEAMemberRoster } from '@eanhl/db/queries'
+import type { getRoster } from '@eanhl/db/queries'
 
-type RosterRow = Awaited<ReturnType<typeof getEAMemberRoster>>[number]
+type RosterRow = Awaited<ReturnType<typeof getRoster>>[number]
 
 // ─── Column definitions ───────────────────────────────────────────────────────
 
