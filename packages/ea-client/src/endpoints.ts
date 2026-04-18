@@ -57,9 +57,18 @@ export interface FetchMatchesParams {
 
 /**
  * Fetch recent matches for a club.
- * EA only returns the last ~5 matches — must be polled continuously.
  *
- * UNVERIFIED: Response shape needs fixture confirmation.
+ * CONFIRMED HARD LIMIT: EA returns at most 5 matches per matchType regardless
+ * of maxResultCount. All cursor/pagination/offset params are silently ignored.
+ * This endpoint is a recent-activity feed only — older match history cannot
+ * be recovered through it.
+ *
+ * CONFIRMED via HAR: EA's own match-history page (ea-proclub-match-history
+ * web component) uses this same endpoint as its "matchHistory" source. EA
+ * itself is subject to the same 5-match limit. There is no richer or hidden
+ * endpoint for historical match data. Automated full-season backfill from
+ * EA is not possible.
+ *
  * UNKNOWN: Is matchId unique across game titles? (Treat as non-unique until confirmed.)
  */
 export async function fetchMatches(
