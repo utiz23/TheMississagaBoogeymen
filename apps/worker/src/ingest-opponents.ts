@@ -39,18 +39,25 @@ export async function fetchAndStoreOpponentClubs(title: GameTitle): Promise<void
     return
   }
 
-  await throttle()
-
-  const response = await fetchClubInfo({
-    platform: title.eaPlatform as EaPlatform,
-    clubIds: unknownIds,
-    baseUrl: title.apiBaseUrl,
-  })
-
   const now = new Date()
   let upserted = 0
 
+  // EA clubs/info only accepts one club ID per request — fetch one at a time.
   for (const eaClubId of unknownIds) {
+    await throttle()
+
+    let response: Awaited<ReturnType<typeof fetchClubInfo>>
+    try {
+      response = await fetchClubInfo({
+        platform: title.eaPlatform as EaPlatform,
+        clubId: eaClubId,
+        baseUrl: title.apiBaseUrl,
+      })
+    } catch (err) {
+      console.warn(`[opponents] clubs/info fetch failed for ${eaClubId} (${title.slug}):`, err)
+      continue
+    }
+
     const clubData = response[eaClubId]
     if (!clubData) {
       console.warn(`[opponents] No club info returned for ${eaClubId} (${title.slug})`)

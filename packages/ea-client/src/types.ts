@@ -296,27 +296,37 @@ export type EaClubInfoResponse = Record<string, EaClubInfoEntry>
 
 // ─── Club Season Rank ─────────────────────────────────────────────────────────
 // GET /clubs/seasonRank?platform=<platform>&clubIds=<id>
-// UNVERIFIED: Top-level shape assumed to match clubs/info (Record keyed by club ID).
-// All field names below are UNVERIFIED — sourced from HAR analysis, not a spec.
+// CONFIRMED: Response is an array. Each element has a clubId field identifying the club.
+// Use .find(e => e.clubId === title.eaClubId) to locate the club's entry.
 
-/** UNVERIFIED: Single club entry from clubs/seasonRank. All fields optional. */
+/** CONFIRMED: Single club entry from clubs/seasonRank. All numeric values are strings except where noted. */
 export interface EaClubSeasonRankEntry {
+  /** The club's EA ID string. Use to identify the row for a specific club. */
+  clubId?: string
   /** Season wins — NOT the all-time official record. */
   wins?: string
   /** Season losses. */
   losses?: string
+  /** Season ties. */
+  ties?: string
   /** Season OTL. */
   otl?: string
   /** Total season games played. */
   gamesPlayed?: string
+  /** Goals scored this season. */
+  goals?: string
+  /** Goals against this season. */
+  goalsAgainst?: string
   /** Current division points. */
   points?: string
   /** Ranking/season points (may equal points). */
   rankingPoints?: string
   /** Projected end-of-season points. */
   projectedPoints?: string
-  /** Current division number (1 = top, higher = lower). */
-  currentDivision?: string
+  /** Current division number (1 = top, higher = lower). Confirmed as integer (not string). */
+  currentDivision?: number | string
+  /** Number of seasons played. */
+  seasons?: number | string
   /** Previous season wins. */
   prevWins?: string
   /** Previous season losses. */
@@ -330,25 +340,29 @@ export interface EaClubSeasonRankEntry {
   [key: string]: unknown
 }
 
-/** UNVERIFIED: Response from clubs/seasonRank — keyed by club ID string. */
-export type EaClubSeasonRankResponse = Record<string, EaClubSeasonRankEntry>
+/** CONFIRMED: Response from clubs/seasonRank — array of club entries, each with a clubId field. */
+export type EaClubSeasonRankResponse = EaClubSeasonRankEntry[]
 
 // ─── Settings ─────────────────────────────────────────────────────────────────
 // GET /settings?platform=<platform>
 // UNVERIFIED: Response shape and field names from HAR analysis.
 
-/** UNVERIFIED: Division threshold entry from the settings endpoint. */
+/** CONFIRMED: Division threshold entry from the settings endpoint. Numeric fields are integers (not strings). */
 export interface EaSettingsDivisionEntry {
-  /** Points needed to be promoted to the next division. */
-  pointsForPromotion?: string
-  /** Minimum points required to hold current division (avoid relegation). */
-  pointsToHoldDivision?: string
-  /** Points required to win the division title. */
-  pointsToTitle?: string
-  /** Division name (e.g. "Division I"). */
+  /** Division number. */
+  divisionId?: number
+  /** Division name (e.g. "Division 10"). */
   divisionName?: string
-  /** Conference or league name. */
-  conferenceName?: string
+  /** Division group ID. */
+  divisionGroupId?: number
+  /** Conference or league name (e.g. "Bronze Conference"). */
+  divisionGroupName?: string
+  /** Points needed to be promoted to the next division. Integer. */
+  pointsForPromotion?: number | string
+  /** Minimum points required to hold current division (avoid relegation). Integer. */
+  pointsToHoldDivision?: number | string
+  /** Points required to win the division title. Integer. */
+  pointsToTitle?: number | string
   [key: string]: unknown
 }
 

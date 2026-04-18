@@ -23,7 +23,8 @@ export async function fetchAndStoreSeasonRank(title: GameTitle): Promise<void> {
     baseUrl: title.apiBaseUrl,
   })
 
-  const entry = rankResponse[title.eaClubId]
+  // Response is an array — find our club by clubId field.
+  const entry = rankResponse.find((e) => e.clubId === title.eaClubId)
   if (!entry) {
     console.warn(`[season-rank] No entry for club ${title.eaClubId} in response (${title.slug})`)
     return
@@ -103,8 +104,9 @@ export async function fetchAndStoreSeasonRank(title: GameTitle): Promise<void> {
   console.log(`[season-rank] ${title.slug}: ${divLabel} · ${pts}${projected}`)
 }
 
-function parseIntOrNull(val: string | undefined | null): number | null {
+function parseIntOrNull(val: string | number | undefined | null): number | null {
   if (val == null) return null
+  if (typeof val === 'number') return isNaN(val) ? null : Math.trunc(val)
   const n = parseInt(val, 10)
   return isNaN(n) ? null : n
 }

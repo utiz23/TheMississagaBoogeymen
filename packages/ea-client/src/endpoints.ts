@@ -128,17 +128,17 @@ export async function searchMember(
 
 export interface FetchClubInfoParams {
   platform: EaPlatform
-  /** One or more club IDs. Batched into a single request. */
-  clubIds: string[]
+  /** A single club ID. EA does not reliably support batching multiple IDs. */
+  clubId: string
   baseUrl?: string
 }
 
 /**
- * Fetch metadata for one or more clubs by ID.
+ * Fetch metadata for a single club by ID.
  * Used to retrieve opponent crest asset IDs for logo display.
  *
- * Response is keyed by club ID string. A club may be absent from the response
- * if the EA API returns no data for it.
+ * Response is keyed by club ID string. The entry may be absent if EA returns
+ * no data for this club. Call once per club — batch fetching causes 400 errors.
  *
  * CONFIRMED: customKit.crestAssetId is the key field for logo display.
  */
@@ -147,7 +147,7 @@ export async function fetchClubInfo(
   options?: EaFetchOptions,
 ): Promise<EaClubInfoResponse> {
   const base = getApiBaseUrl(params.baseUrl)
-  const url = `${base}/clubs/info?platform=${encodeURIComponent(params.platform)}&clubIds=${encodeURIComponent(params.clubIds.join(','))}`
+  const url = `${base}/clubs/info?platform=${encodeURIComponent(params.platform)}&clubIds=${encodeURIComponent(params.clubId)}`
   return eaFetch<EaClubInfoResponse>(url, options)
 }
 
