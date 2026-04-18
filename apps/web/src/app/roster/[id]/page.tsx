@@ -7,6 +7,7 @@ import {
   getPlayerGamertagHistory,
   getPlayerGameLog,
   countPlayerGameLog,
+  getPlayerEASeasonStats,
 } from '@eanhl/db/queries'
 import type { GameMode } from '@eanhl/db'
 import { GAME_MODE } from '@eanhl/db'
@@ -61,14 +62,16 @@ export default async function PlayerPage({ params, searchParams }: Props) {
 
   let player: Awaited<ReturnType<typeof getPlayerWithProfile>> = null
   let careerStats: Awaited<ReturnType<typeof getPlayerCareerStats>> = []
+  let eaStats: Awaited<ReturnType<typeof getPlayerEASeasonStats>> = []
   let history: Awaited<ReturnType<typeof getPlayerGamertagHistory>> = []
   let gameLog: Awaited<ReturnType<typeof getPlayerGameLog>> = []
   let gameLogTotal = 0
 
   try {
-    ;[player, careerStats, history, gameLog, gameLogTotal] = await Promise.all([
+    ;[player, careerStats, eaStats, history, gameLog, gameLogTotal] = await Promise.all([
       getPlayerWithProfile(id),
       getPlayerCareerStats(id, gameMode),
+      getPlayerEASeasonStats(id),
       getPlayerGamertagHistory(id),
       getPlayerGameLog(id, gameMode, LOG_PAGE_SIZE, logOffset),
       countPlayerGameLog(id, gameMode),
@@ -175,6 +178,21 @@ export default async function PlayerPage({ params, searchParams }: Props) {
           <CareerStatsTable rows={careerStats} />
         )}
       </section>
+
+      {/* EA Season Totals — sourced from EA /members/stats, not mode-filtered */}
+      {eaStats.length > 0 && (
+        <section>
+          <div className="mb-3">
+            <h2 className="font-condensed text-sm font-semibold uppercase tracking-wider text-zinc-500">
+              EA Season Totals
+            </h2>
+            <p className="mt-0.5 text-xs text-zinc-600">
+              EA-reported full season aggregates · not filtered by mode · covers all games played
+            </p>
+          </div>
+          <EASeasonStatsTable rows={eaStats} />
+        </section>
+      )}
 
       {/* Recent game log */}
       <section>
@@ -565,6 +583,118 @@ function GameLogRow({ row, showMode }: { row: GameLogRow; showMode: boolean }) {
       <td className="px-2 py-2.5 text-right text-sm tabular text-zinc-300">
         {row.isGoalie ? (row.saves ?? '—') : '—'}
       </td>
+    </tr>
+  )
+}
+
+// ─── EA Season Totals table ───────────────────────────────────────────────────
+
+type EASeasonRow = Awaited<ReturnType<typeof getPlayerEASeasonStats>>[number]
+
+function EASeasonStatsTable({ rows }: { rows: EASeasonRow[] }) {
+  const hasGoalie = rows.some((r) => r.goalieGp > 0)
+
+  return (
+    <div className="overflow-x-auto border border-zinc-800 bg-surface">
+      <table className="w-full min-w-[560px]">
+        <thead>
+          <tr className="border-b border-zinc-800">
+            <th className="py-2 pl-4 pr-2 text-left text-xs font-semibold uppercase tracking-wider text-zinc-600">
+              Season
+            </th>
+            {EA_SKATER_COLS.map((col) => (
+              <th
+                key={col.key}
+                className="px-2 py-2 text-right text-xs font-semibold uppercase tracking-wider text-zinc-600"
+              >
+                {col.label}
+              </th>
+            ))}
+            {hasGoalie &&
+              EA_GOALIE_COLS.map((col) => (
+                <th
+                  key={col.key}
+                  className="px-2 py-2 text-right text-xs font-semibold uppercase tracking-wider text-zinc-600"
+                >
+                  {col.label}
+                </th>
+              ))}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row) => (
+            <EASeasonRow key={row.gameTitleId} row={row} hasGoalie={hasGoalie} />
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
+interface EAStatCol {
+  key: string
+  label: string
+  render: (row: EASeasonRow) => React.ReactNode
+}
+
+const EA_SKATER_COLS: EAStatCol[] = [
+  { key: 'gp', label: 'GP', render: (r) => r.skaterGp },
+  { key: 'g', label: 'G', render: (r) => r.goals },
+  { key: 'a', label: 'A', render: (r) => r.assists },
+  { key: 'pts', label: 'PTS', render: (r) => r.points },
+  {
+    key: 'pm',
+    label: '+/-',
+    render: (r) => {
+      const n = r.plusMinus
+      return (
+        <span className={n > 0 ? 'text-emerald-400' : n < 0 ? 'text-rose-400' : 'text-zinc-400'}>
+          {n > 0 ? `+${n.toString()}` : n}
+        </span>
+      )
+    },
+  },
+  { key: 'sog', label: 'SOG', render: (r) => r.shots },
+  { key: 'hits', label: 'Hits', render: (r) => r.hits },
+  { key: 'pim', label: 'PIM', render: (r) => r.pim },
+  {
+    key: 'shtpct',
+    label: 'SHT%',
+    render: (r) => (r.shotPct !== null ? `${r.shotPct}%` : '—'),
+  },
+  { key: 'ta', label: 'TA', render: (r) => r.takeaways },
+  { key: 'gv', label: 'GV', render: (r) => r.giveaways },
+]
+
+const EA_GOALIE_COLS: EAStatCol[] = [
+  { key: 'ggp', label: 'G-GP', render: (r) => r.goalieGp },
+  { key: 'w', label: 'W', render: (r) => r.goalieWins ?? '—' },
+  { key: 'l', label: 'L', render: (r) => r.goalieLosses ?? '—' },
+  { key: 'otl', label: 'OTL', render: (r) => r.goalieOtl ?? '—' },
+  {
+    key: 'svpct',
+    label: 'SV%',
+    render: (r) => (r.goalieSavePct !== null ? `${r.goalieSavePct}%` : '—'),
+  },
+  { key: 'gaa', label: 'GAA', render: (r) => r.goalieGaa ?? '—' },
+  { key: 'so', label: 'SO', render: (r) => r.goalieShutouts ?? '—' },
+]
+
+function EASeasonRow({ row, hasGoalie }: { row: EASeasonRow; hasGoalie: boolean }) {
+  return (
+    <tr className="border-b border-zinc-800/60 last:border-0 hover:bg-surface-raised transition-colors">
+      <td className="py-2.5 pl-4 pr-2 text-sm font-medium text-zinc-300">{row.gameTitleName}</td>
+      {EA_SKATER_COLS.map((col) => (
+        <td key={col.key} className="px-2 py-2.5 text-right text-sm tabular text-zinc-300">
+          {col.render(row)}
+        </td>
+      ))}
+      {hasGoalie &&
+        EA_GOALIE_COLS.map((col) => (
+          <td key={col.key} className="px-2 py-2.5 text-right text-sm tabular text-zinc-300">
+            {col.render(row)}
+          </td>
+        ))}
     </tr>
   )
 }

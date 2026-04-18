@@ -249,12 +249,13 @@ Updated `apps/web/src/app/stats/page.tsx`:
 - Player profile page handles member-only/no-local-data players with an explicit notice banner instead of silent empty sections.
 - Home page mode continuity is complete (`home -> /stats` preserves `?mode=`).
 
-**Intentional architecture boundary:**
+**Intentional architecture boundary (UPDATED 2026-04-17):**
 
-- `ea_member_season_stats` remains worker-owned baseline/debug data and player-discovery support.
-- Worker still writes it every cycle.
-- Web does not consume it.
-- This is intentional. Do not remove it casually unless the worker/player-resolution path is redesigned.
+- `ea_member_season_stats` is worker-written every cycle and serves two purposes:
+  1. **Player resolution** — creates `players` + `player_profiles` rows for members not yet seen in any locally ingested match, so `/roster/[id]` links work immediately.
+  2. **EA Season Totals surface** — the player profile page (`/roster/[id]`) shows a clearly labeled "EA Season Totals" supplementary section drawn from this table. It is rendered SEPARATELY from local Career Stats. Mode filter does NOT apply to it.
+- All other web surfaces (home, /roster table, /stats, career stats on profile) use `player_game_title_stats` (local aggregates). This split is intentional.
+- **Do not re-blend sources.** `ea_member_season_stats` should never be silently substituted for local aggregates, and local counts should never be labeled as EA totals. The profile page shows both labeled independently.
 
 **Deferred:**
 
@@ -805,6 +806,7 @@ Removed the silent fallback in the Club Record strip that presented local W/L/OT
 Full opponent crest pipeline from EA `clubs/info` endpoint.
 
 **What was built:**
+
 - `packages/ea-client/src/types.ts`: `EaClubInfoEntry`, `EaClubInfoResponse`
 - `packages/ea-client/src/endpoints.ts`: `fetchClubInfo({ platform, clubIds[] })`
 - `packages/db/src/schema/opponent-clubs.ts`: `opponent_clubs` table — one upsert row per unique opponent EA club ID; `crest_asset_id` nullable
@@ -824,6 +826,7 @@ Full opponent crest pipeline from EA `clubs/info` endpoint.
 Home page widget showing competitive division standing from EA `clubs/seasonRank` + `settings`.
 
 **What was built:**
+
 - `packages/ea-client/src/types.ts`: `EaClubSeasonRankEntry`, `EaClubSeasonRankResponse`, `EaSettingsDivisionEntry`, `EaSettingsResponse` (all UNVERIFIED — sourced from HAR analysis)
 - `packages/ea-client/src/endpoints.ts`: `fetchSeasonRank({ platform, clubId })`, `fetchSettings({ platform })`
 - `packages/db/src/schema/club-season-rank.ts`: `club_season_rank` — one upsert per game title. Stores season W/L/OTL (NOT all-time), points, projectedPoints, currentDivision, divisionName, pointsForPromotion, pointsToHoldDivision, pointsToTitle, fetchedAt.
@@ -842,6 +845,7 @@ Home page widget showing competitive division standing from EA `clubs/seasonRank
 
 ## What's Next
 
+- **EA Season Totals on profile** — done. `/roster/[id]` now has a clearly labeled "EA Season Totals" section sourced from `ea_member_season_stats`. Separate from local Career Stats. Not mode-filtered. `getPlayerEASeasonStats(playerId)` added to `packages/db/src/queries/players.ts`.
 - **Game log pagination** — done. `?logPage=` URL param, 20 per page, preserves `?mode=`, prev/next nav, "X–Y of Z" count, out-of-bounds page state. Will activate visually once any player exceeds 20 ingested games.
 - **Discord alerting** — cron checks `localhost:3001/health`, notifies when stale > 30 min
 - **`pg_dump` backup cron** — daily dump to external drive

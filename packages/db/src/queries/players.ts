@@ -1,6 +1,7 @@
 import { and, count, eq, asc, desc, isNull } from 'drizzle-orm'
 import { db } from '../client.js'
 import {
+  eaMemberSeasonStats,
   gameTitles,
   matches,
   playerGameTitleStats,
@@ -248,6 +249,49 @@ export async function countPlayerGameLog(
     .innerJoin(matches, eq(playerMatchStats.matchId, matches.id))
     .where(and(eq(playerMatchStats.playerId, playerId), gameModeFilter))
   return rows[0]?.n ?? 0
+}
+
+/**
+ * EA-authoritative season stats for a single player, one row per game title.
+ *
+ * Sourced from ea_member_season_stats — NOT local ingested matches. Returns
+ * full EA season totals (e.g. 400+ GP vs ~15 locally ingested). Ordered newest
+ * game title first. Returns [] when the player has no EA row yet (shouldn't
+ * happen after the first member-stats poll, but treated as safe empty state).
+ */
+export async function getPlayerEASeasonStats(playerId: number) {
+  return db
+    .select({
+      gameTitleId: eaMemberSeasonStats.gameTitleId,
+      gameTitleName: gameTitles.name,
+      gameTitleSlug: gameTitles.slug,
+      favoritePosition: eaMemberSeasonStats.favoritePosition,
+      gamesPlayed: eaMemberSeasonStats.gamesPlayed,
+      skaterGp: eaMemberSeasonStats.skaterGp,
+      goals: eaMemberSeasonStats.goals,
+      assists: eaMemberSeasonStats.assists,
+      points: eaMemberSeasonStats.points,
+      plusMinus: eaMemberSeasonStats.plusMinus,
+      shots: eaMemberSeasonStats.shots,
+      hits: eaMemberSeasonStats.hits,
+      pim: eaMemberSeasonStats.pim,
+      takeaways: eaMemberSeasonStats.takeaways,
+      giveaways: eaMemberSeasonStats.giveaways,
+      shotPct: eaMemberSeasonStats.shotPct,
+      faceoffPct: eaMemberSeasonStats.faceoffPct,
+      passPct: eaMemberSeasonStats.passPct,
+      goalieGp: eaMemberSeasonStats.goalieGp,
+      goalieWins: eaMemberSeasonStats.goalieWins,
+      goalieLosses: eaMemberSeasonStats.goalieLosses,
+      goalieOtl: eaMemberSeasonStats.goalieOtl,
+      goalieSavePct: eaMemberSeasonStats.goalieSavePct,
+      goalieGaa: eaMemberSeasonStats.goalieGaa,
+      goalieShutouts: eaMemberSeasonStats.goalieShutouts,
+    })
+    .from(eaMemberSeasonStats)
+    .innerJoin(gameTitles, eq(eaMemberSeasonStats.gameTitleId, gameTitles.id))
+    .where(eq(eaMemberSeasonStats.playerId, playerId))
+    .orderBy(desc(eaMemberSeasonStats.gameTitleId))
 }
 
 /**
