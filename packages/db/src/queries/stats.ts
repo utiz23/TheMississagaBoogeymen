@@ -1,6 +1,6 @@
 import { and, asc, desc, eq, gt, isNull } from 'drizzle-orm'
 import { db } from '../client.js'
-import { playerGameTitleStats, players } from '../schema/index.js'
+import { eaMemberSeasonStats, playerGameTitleStats, players } from '../schema/index.js'
 import type { GameMode } from '../schema/index.js'
 
 /**
@@ -101,6 +101,88 @@ export async function getGoalieStats(gameTitleId: number, gameMode: GameMode | n
       desc(playerGameTitleStats.savePct),
       desc(playerGameTitleStats.goalieGp),
       asc(playerGameTitleStats.gaa),
+      asc(players.gamertag),
+    )
+}
+
+/**
+ * EA-authoritative skater season stats for the stats table (All mode).
+ *
+ * Source: ea_member_season_stats — full EA season totals, not filtered by game mode.
+ * Includes all players with skaterGp > 0 for this game title.
+ * Shape matches getSkaterStats so consumers can use SkaterStatsRow for both.
+ *
+ * Ordered by points desc → goals desc → assists desc → gamertag asc.
+ */
+export async function getEASkaterStats(gameTitleId: number) {
+  return db
+    .select({
+      playerId: eaMemberSeasonStats.playerId,
+      gamertag: players.gamertag,
+      position: players.position,
+      gamesPlayed: eaMemberSeasonStats.skaterGp,
+      goals: eaMemberSeasonStats.goals,
+      assists: eaMemberSeasonStats.assists,
+      points: eaMemberSeasonStats.points,
+      plusMinus: eaMemberSeasonStats.plusMinus,
+      pim: eaMemberSeasonStats.pim,
+      shots: eaMemberSeasonStats.shots,
+      hits: eaMemberSeasonStats.hits,
+      takeaways: eaMemberSeasonStats.takeaways,
+      giveaways: eaMemberSeasonStats.giveaways,
+      faceoffPct: eaMemberSeasonStats.faceoffPct,
+      passPct: eaMemberSeasonStats.passPct,
+      shotAttempts: eaMemberSeasonStats.shotAttempts,
+      toiSeconds: eaMemberSeasonStats.toiSeconds,
+    })
+    .from(eaMemberSeasonStats)
+    .innerJoin(players, eq(eaMemberSeasonStats.playerId, players.id))
+    .where(
+      and(eq(eaMemberSeasonStats.gameTitleId, gameTitleId), gt(eaMemberSeasonStats.skaterGp, 0)),
+    )
+    .orderBy(
+      desc(eaMemberSeasonStats.points),
+      desc(eaMemberSeasonStats.goals),
+      desc(eaMemberSeasonStats.assists),
+      asc(players.gamertag),
+    )
+}
+
+/**
+ * EA-authoritative goalie season stats for the stats table (All mode).
+ *
+ * Source: ea_member_season_stats — full EA season totals, not filtered by game mode.
+ * Includes only players with goalieGp > 0 for this game title.
+ * Shape matches getGoalieStats so consumers can use GoalieStatsRow for both.
+ *
+ * Ordered by savePct desc → goalieGp desc → gaa asc → gamertag asc.
+ */
+export async function getEAGoalieStats(gameTitleId: number) {
+  return db
+    .select({
+      playerId: eaMemberSeasonStats.playerId,
+      gamertag: players.gamertag,
+      gamesPlayed: eaMemberSeasonStats.goalieGp,
+      wins: eaMemberSeasonStats.goalieWins,
+      losses: eaMemberSeasonStats.goalieLosses,
+      otl: eaMemberSeasonStats.goalieOtl,
+      savePct: eaMemberSeasonStats.goalieSavePct,
+      gaa: eaMemberSeasonStats.goalieGaa,
+      shutouts: eaMemberSeasonStats.goalieShutouts,
+      totalSaves: eaMemberSeasonStats.goalieSaves,
+      totalShotsAgainst: eaMemberSeasonStats.goalieShots,
+      totalGoalsAgainst: eaMemberSeasonStats.goalieGoalsAgainst,
+      toiSeconds: eaMemberSeasonStats.goalieToiSeconds,
+    })
+    .from(eaMemberSeasonStats)
+    .innerJoin(players, eq(eaMemberSeasonStats.playerId, players.id))
+    .where(
+      and(eq(eaMemberSeasonStats.gameTitleId, gameTitleId), gt(eaMemberSeasonStats.goalieGp, 0)),
+    )
+    .orderBy(
+      desc(eaMemberSeasonStats.goalieSavePct),
+      desc(eaMemberSeasonStats.goalieGp),
+      asc(eaMemberSeasonStats.goalieGaa),
       asc(players.gamertag),
     )
 }

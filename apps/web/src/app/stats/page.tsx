@@ -10,6 +10,8 @@ import {
   getRecentMatches,
   getSkaterStats,
   getGoalieStats,
+  getEASkaterStats,
+  getEAGoalieStats,
 } from '@eanhl/db/queries'
 import { StatCard } from '@/components/ui/stat-card'
 import { MatchRow } from '@/components/matches/match-row'
@@ -59,13 +61,16 @@ export default async function StatsPage({ searchParams }: { searchParams: Search
     return <EmptyState message="No game titles are configured yet." />
   }
 
+  // All mode sources from EA full-season totals; 6s/3s modes source from local tracked stats.
+  const statsSource = gameMode === null ? 'EA season totals' : `local tracked ${gameMode}`
+
   const fetched = await (async () => {
     try {
       return await Promise.all([
         getClubStats(gameTitle.id, gameMode),
         getRecentMatches({ gameTitleId: gameTitle.id, limit: 5 }),
-        getSkaterStats(gameTitle.id, gameMode),
-        getGoalieStats(gameTitle.id, gameMode),
+        gameMode === null ? getEASkaterStats(gameTitle.id) : getSkaterStats(gameTitle.id, gameMode),
+        gameMode === null ? getEAGoalieStats(gameTitle.id) : getGoalieStats(gameTitle.id, gameMode),
       ])
     } catch {
       return null
@@ -134,7 +139,7 @@ export default async function StatsPage({ searchParams }: { searchParams: Search
       {/* Skater stats — primary table content */}
       {skaterRows.length > 0 ? (
         <section>
-          <SkaterStatsTable rows={skaterRows} title="Skaters" />
+          <SkaterStatsTable rows={skaterRows} title="Skaters" subtitle={statsSource} />
         </section>
       ) : (
         clubStats !== null &&
@@ -146,7 +151,7 @@ export default async function StatsPage({ searchParams }: { searchParams: Search
       {/* Goalie stats */}
       {goalieRows.length > 0 && (
         <section>
-          <GoalieStatsTable rows={goalieRows} title="Goalies" />
+          <GoalieStatsTable rows={goalieRows} title="Goalies" subtitle={statsSource} />
         </section>
       )}
 

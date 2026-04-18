@@ -98,6 +98,46 @@ export async function getRoster(gameTitleId: number, gameMode: GameMode | null =
 }
 
 /**
+ * EA-authoritative roster for the home page (All mode).
+ *
+ * Source: ea_member_season_stats — full EA season totals, not filtered by game mode.
+ * Shape matches getRoster so consumers can use RosterRow for both.
+ *
+ * Ordered by points desc (most scoring first).
+ */
+export async function getEARoster(gameTitleId: number) {
+  return db
+    .select({
+      playerId: eaMemberSeasonStats.playerId,
+      gamertag: players.gamertag,
+      position: players.position,
+      gamesPlayed: eaMemberSeasonStats.gamesPlayed,
+      skaterGp: eaMemberSeasonStats.skaterGp,
+      goalieGp: eaMemberSeasonStats.goalieGp,
+      goals: eaMemberSeasonStats.goals,
+      assists: eaMemberSeasonStats.assists,
+      points: eaMemberSeasonStats.points,
+      plusMinus: eaMemberSeasonStats.plusMinus,
+      shots: eaMemberSeasonStats.shots,
+      hits: eaMemberSeasonStats.hits,
+      pim: eaMemberSeasonStats.pim,
+      takeaways: eaMemberSeasonStats.takeaways,
+      giveaways: eaMemberSeasonStats.giveaways,
+      faceoffPct: eaMemberSeasonStats.faceoffPct,
+      passPct: eaMemberSeasonStats.passPct,
+      wins: eaMemberSeasonStats.goalieWins,
+      losses: eaMemberSeasonStats.goalieLosses,
+      savePct: eaMemberSeasonStats.goalieSavePct,
+      gaa: eaMemberSeasonStats.goalieGaa,
+      shutouts: eaMemberSeasonStats.goalieShutouts,
+    })
+    .from(eaMemberSeasonStats)
+    .innerJoin(players, eq(eaMemberSeasonStats.playerId, players.id))
+    .where(eq(eaMemberSeasonStats.gameTitleId, gameTitleId))
+    .orderBy(desc(eaMemberSeasonStats.points))
+}
+
+/**
  * Single player by surrogate PK. Returns null when not found.
  */
 export async function getPlayerById(playerId: number) {

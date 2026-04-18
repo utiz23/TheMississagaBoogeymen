@@ -12,6 +12,7 @@ import {
   getOpponentClub,
   getRecentMatches,
   getRoster,
+  getEARoster,
 } from '@eanhl/db/queries'
 import { LatestResult } from '@/components/home/latest-result'
 import { PlayerCarousel } from '@/components/home/player-carousel'
@@ -74,12 +75,15 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
     )
   }
 
+  // All mode sources from EA full-season totals; 6s/3s modes source from local tracked stats.
+  const rosterSource = gameMode === null ? 'EA season totals' : `local tracked ${gameMode}`
+
   const fetched = await (async () => {
     try {
       return await Promise.all([
         getClubStats(gameTitle.id, gameMode),
         getRecentMatches({ gameTitleId: gameTitle.id, limit: 1 }),
-        getRoster(gameTitle.id, gameMode),
+        gameMode === null ? getEARoster(gameTitle.id) : getRoster(gameTitle.id, gameMode),
         getOfficialClubRecord(gameTitle.id),
         getClubSeasonRank(gameTitle.id),
       ])
@@ -181,6 +185,7 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
             match={lastMatch}
             clubRecord={latestClubRecord}
             opponentCrestAssetId={lastMatchOpponent?.crestAssetId ?? null}
+            opponentCrestUseBaseAsset={lastMatchOpponent?.useBaseAsset ?? null}
           />
         </section>
       )}
@@ -188,9 +193,12 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
       {/* Featured players carousel */}
       {featuredPlayers.length > 0 && (
         <section>
-          <h2 className="mb-3 font-condensed text-sm font-semibold uppercase tracking-wider text-zinc-500">
-            Featured Players
-          </h2>
+          <div className="mb-3 flex flex-col">
+            <h2 className="font-condensed text-sm font-semibold uppercase tracking-wider text-zinc-500">
+              Featured Players
+            </h2>
+            <p className="text-[11px] text-zinc-600">{rosterSource}</p>
+          </div>
           <PlayerCarousel players={featuredPlayers} winPct={clubWinPct} />
         </section>
       )}
@@ -202,6 +210,7 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
             pointsLeaders={pointsLeaders}
             goalsLeaders={goalsLeaders}
             gameMode={gameMode}
+            source={rosterSource}
           />
         </section>
       )}

@@ -10,6 +10,7 @@ interface ScoringLeadersPanelProps {
   pointsLeaders: RosterRow[]
   goalsLeaders: RosterRow[]
   gameMode?: GameMode | null
+  source?: string
 }
 
 // ─── Panel ────────────────────────────────────────────────────────────────────
@@ -40,6 +41,7 @@ export function ScoringLeadersPanel({
   pointsLeaders,
   goalsLeaders,
   gameMode,
+  source,
 }: ScoringLeadersPanelProps) {
   if (pointsLeaders.length === 0 && goalsLeaders.length === 0) return null
 
@@ -50,9 +52,12 @@ export function ScoringLeadersPanel({
     <div className="overflow-hidden border border-zinc-800 bg-surface">
       <div className="h-1 w-full bg-gradient-to-r from-red-900 via-red-600 to-red-900" />
       <div className="flex items-center justify-between border-b border-zinc-800/60 px-5 py-3">
-        <span className="font-condensed text-xs font-semibold uppercase tracking-widest text-zinc-500">
-          {gameMode != null ? `${gameMode} ` : ''}Scoring Leaders
-        </span>
+        <div className="flex flex-col">
+          <span className="font-condensed text-xs font-semibold uppercase tracking-widest text-zinc-500">
+            {gameMode != null ? `${gameMode} ` : ''}Scoring Leaders
+          </span>
+          {source && <span className="text-[11px] text-zinc-600">{source}</span>}
+        </div>
         {/* CTA lives in the header — whole panel cannot be a link due to nested player links */}
         <Link
           href={gameMode != null ? `/stats?mode=${gameMode}` : '/stats'}

@@ -147,9 +147,10 @@ const VIEWS: View[] = [
 interface GoalieStatsTableProps {
   rows: GoalieStatsRow[]
   title: string
+  subtitle?: string
 }
 
-export function GoalieStatsTable({ rows, title }: GoalieStatsTableProps) {
+export function GoalieStatsTable({ rows, title, subtitle }: GoalieStatsTableProps) {
   const [viewId, setViewId] = useState<ViewId>('basic')
   const [sortKey, setSortKey] = useState<string>('svpct')
   const [sortAscOverride, setSortAscOverride] = useState<boolean | null>(null)
@@ -189,9 +190,12 @@ export function GoalieStatsTable({ rows, title }: GoalieStatsTableProps) {
     <div>
       {/* Section title + Basic / Advanced toggle in one row */}
       <div className="mb-px flex items-center justify-between border-b border-zinc-800">
-        <h2 className="pl-4 font-condensed text-sm font-semibold uppercase tracking-wider text-zinc-500">
-          {title}
-        </h2>
+        <div className="flex flex-col pl-4">
+          <h2 className="font-condensed text-sm font-semibold uppercase tracking-wider text-zinc-500">
+            {title}
+          </h2>
+          {subtitle && <p className="text-[11px] text-zinc-600">{subtitle}</p>}
+        </div>
         <div className="flex">
           {VIEWS.map((v) => {
             const isActive = v.id === viewId

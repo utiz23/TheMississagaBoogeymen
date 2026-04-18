@@ -2,7 +2,7 @@
 
 ## Current Status
 
-**Phase:** Product polish — home page has full EA data integration. Opponent club logos, official club record, and competitive season rank / division standing all live. All surfaces use local aggregates or match-level data. Mode filtering (`All / 6s / 3s`) works everywhere.
+**Phase:** Product polish — source split complete. `All` mode now uses EA full-season totals on `/stats` and home player widgets; `6s`/`3s` modes use local tracked stats. All surfaces are clearly labeled with their data source. Mode filtering (`All / 6s / 3s`) works everywhere.
 
 **Last updated:** 2026-04-17
 
@@ -251,11 +251,14 @@ Updated `apps/web/src/app/stats/page.tsx`:
 
 **Intentional architecture boundary (UPDATED 2026-04-17):**
 
-- `ea_member_season_stats` is worker-written every cycle and serves two purposes:
+- `ea_member_season_stats` is worker-written every cycle and serves three purposes:
   1. **Player resolution** — creates `players` + `player_profiles` rows for members not yet seen in any locally ingested match, so `/roster/[id]` links work immediately.
-  2. **EA Season Totals surface** — the player profile page (`/roster/[id]`) shows a clearly labeled "EA Season Totals" supplementary section drawn from this table. It is rendered SEPARATELY from local Career Stats. Mode filter does NOT apply to it.
-- All other web surfaces (home, /roster table, /stats, career stats on profile) use `player_game_title_stats` (local aggregates). This split is intentional.
-- **Do not re-blend sources.** `ea_member_season_stats` should never be silently substituted for local aggregates, and local counts should never be labeled as EA totals. The profile page shows both labeled independently.
+  2. **EA Season Totals surface on profile** — `/roster/[id]` shows a clearly labeled "EA Season Totals" supplementary section. Rendered SEPARATELY from local Career Stats. Mode filter does NOT apply to it.
+  3. **`All` mode primary source on `/stats` and home player widgets** — `getEASkaterStats`, `getEAGoalieStats`, `getEARoster` source from this table when `gameMode === null`. Labeled "EA season totals" in the UI.
+- **Source split rule** (enforced in `apps/web/src/app/stats/page.tsx` and `apps/web/src/app/page.tsx`):
+  - `gameMode === null` → use EA queries (`getEASkaterStats`, `getEAGoalieStats`, `getEARoster`) → labeled "EA season totals"
+  - `gameMode !== null` → use local queries (`getSkaterStats`, `getGoalieStats`, `getRoster`) → labeled "local tracked 6s" or "local tracked 3s"
+- **Do not re-blend sources.** `ea_member_season_stats` should never be silently substituted for local aggregates, and local counts should never be labeled as EA totals.
 
 **Deferred:**
 
@@ -840,6 +843,31 @@ Home page widget showing competitive division standing from EA `clubs/seasonRank
 **Critical design note:** `club_season_rank.wins/losses/otl` are SEASON-SPECIFIC — the current ranking period only. The all-time official record lives in `club_seasonal_stats` (from `clubs/seasonalStats`). These must never be conflated.
 
 **UNVERIFIED:** All field names from `clubs/seasonRank` and `settings` responses. Defensive `parseIntOrNull` throughout; all EA fields treated as optional. The widget degrades gracefully to partial display when any field is absent.
+
+---
+
+## Source Split — All=EA / 6s+3s=Local ✓ complete (2026-04-17)
+
+**What was done:**
+
+New query functions (all in `packages/db/src/queries/`):
+
+- `getEASkaterStats(gameTitleId)` in `stats.ts` — sources from `ea_member_season_stats`; same shape as `getSkaterStats`; filters `skaterGp > 0`; no `gameMode` param (EA stats are all-modes combined)
+- `getEAGoalieStats(gameTitleId)` in `stats.ts` — same as above for goalies; filters `goalieGp > 0`; maps EA goalie fields (`goalieWins → wins`, `goalieSavePct → savePct`, etc.) to match `GoalieStatsRow` shape
+- `getEARoster(gameTitleId)` in `players.ts` — sources from `ea_member_season_stats`; same shape as `getRoster`; ordered by `points desc`
+
+UI branching (`apps/web/src/app/stats/page.tsx` and `apps/web/src/app/page.tsx`):
+
+- `gameMode === null` → EA queries → `statsSource` / `rosterSource` = `"EA season totals"`
+- `gameMode !== null` → local queries → source = `"local tracked 6s"` or `"local tracked 3s"`
+
+Source labels surfaced in UI:
+
+- `SkaterStatsTable` and `GoalieStatsTable` now accept `subtitle?: string` rendered below the section heading in muted text
+- `ScoringLeadersPanel` now accepts `source?: string` rendered below the panel title
+- Featured Players section header shows the source label as a small `<p>` below the `<h2>`
+
+**Verified:** `pnpm typecheck`, `pnpm lint`, `pnpm format:check` — all pass
 
 ---
 
