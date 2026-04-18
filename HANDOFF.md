@@ -842,7 +842,7 @@ Home page widget showing competitive division standing from EA `clubs/seasonRank
 
 ## What's Next
 
-- **Pagination on the game log** — currently hardcapped at 15; will need prev/next as match count grows
+- **Game log pagination** — done. `?logPage=` URL param, 20 per page, preserves `?mode=`, prev/next nav, "X–Y of Z" count, out-of-bounds page state. Will activate visually once any player exceeds 20 ingested games.
 - **Discord alerting** — cron checks `localhost:3001/health`, notifies when stale > 30 min
 - **`pg_dump` backup cron** — daily dump to external drive
 - **Content season filtering** — schema supports it, no UI yet

@@ -1,4 +1,4 @@
-import { and, eq, asc, desc, isNull } from 'drizzle-orm'
+import { and, count, eq, asc, desc, isNull } from 'drizzle-orm'
 import { db } from '../client.js'
 import {
   gameTitles,
@@ -205,7 +205,8 @@ export async function getPlayerGamertagHistory(playerId: number) {
 export async function getPlayerGameLog(
   playerId: number,
   gameMode: GameMode | null = null,
-  limit = 15,
+  limit = 20,
+  offset = 0,
 ) {
   const gameModeFilter = gameMode === null ? undefined : eq(matches.gameMode, gameMode)
   return db
@@ -229,6 +230,24 @@ export async function getPlayerGameLog(
     .where(and(eq(playerMatchStats.playerId, playerId), gameModeFilter))
     .orderBy(desc(matches.playedAt))
     .limit(limit)
+    .offset(offset)
+}
+
+/**
+ * Total count of game log entries for pagination.
+ * Uses the same WHERE predicate as getPlayerGameLog.
+ */
+export async function countPlayerGameLog(
+  playerId: number,
+  gameMode: GameMode | null = null,
+): Promise<number> {
+  const gameModeFilter = gameMode === null ? undefined : eq(matches.gameMode, gameMode)
+  const rows = await db
+    .select({ n: count() })
+    .from(playerMatchStats)
+    .innerJoin(matches, eq(playerMatchStats.matchId, matches.id))
+    .where(and(eq(playerMatchStats.playerId, playerId), gameModeFilter))
+  return rows[0]?.n ?? 0
 }
 
 /**

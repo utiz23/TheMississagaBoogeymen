@@ -6,6 +6,7 @@ import {
   getPlayerCareerStats,
   getPlayerGamertagHistory,
   getPlayerGameLog,
+  countPlayerGameLog,
 } from '@eanhl/db/queries'
 import type { GameMode } from '@eanhl/db'
 import { GAME_MODE } from '@eanhl/db'
@@ -22,9 +23,17 @@ interface Props {
   searchParams: SearchParams
 }
 
+const LOG_PAGE_SIZE = 20
+
 function parseGameMode(raw: string | string[] | undefined): GameMode | null {
   if (typeof raw !== 'string') return null
   return (GAME_MODE as readonly string[]).includes(raw) ? (raw as GameMode) : null
+}
+
+function parseLogPage(raw: string | string[] | undefined): number {
+  if (typeof raw !== 'string') return 1
+  const n = parseInt(raw, 10)
+  return Number.isFinite(n) && n >= 1 ? n : 1
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
@@ -44,6 +53,8 @@ export default async function PlayerPage({ params, searchParams }: Props) {
   const { id: idStr } = await params
   const sp = await searchParams
   const gameMode = parseGameMode(sp.mode)
+  const logPage = parseLogPage(sp.logPage)
+  const logOffset = (logPage - 1) * LOG_PAGE_SIZE
   const id = parseInt(idStr, 10)
 
   if (isNaN(id)) notFound()
@@ -52,13 +63,15 @@ export default async function PlayerPage({ params, searchParams }: Props) {
   let careerStats: Awaited<ReturnType<typeof getPlayerCareerStats>> = []
   let history: Awaited<ReturnType<typeof getPlayerGamertagHistory>> = []
   let gameLog: Awaited<ReturnType<typeof getPlayerGameLog>> = []
+  let gameLogTotal = 0
 
   try {
-    ;[player, careerStats, history, gameLog] = await Promise.all([
+    ;[player, careerStats, history, gameLog, gameLogTotal] = await Promise.all([
       getPlayerWithProfile(id),
       getPlayerCareerStats(id, gameMode),
       getPlayerGamertagHistory(id),
-      getPlayerGameLog(id, gameMode),
+      getPlayerGameLog(id, gameMode, LOG_PAGE_SIZE, logOffset),
+      countPlayerGameLog(id, gameMode),
     ])
   } catch {
     return <ErrorState message="Unable to load player data right now." />
@@ -72,7 +85,7 @@ export default async function PlayerPage({ params, searchParams }: Props) {
   // True when the player exists (from member ingest) but has no locally captured match data.
   // This is the expected state for players who joined the club but whose games have not
   // yet been ingested — not an error, just an honest data-absence signal.
-  const hasNoLocalData = careerStats.length === 0 && gameLog.length === 0
+  const hasNoLocalData = careerStats.length === 0 && gameLogTotal === 0
 
   return (
     <div className="space-y-8">
@@ -165,17 +178,43 @@ export default async function PlayerPage({ params, searchParams }: Props) {
 
       {/* Recent game log */}
       <section>
-        <h2 className="mb-3 font-condensed text-sm font-semibold uppercase tracking-wider text-zinc-500">
-          {gameMode !== null ? `Recent ${gameMode} Games` : 'Recent Games'}
-        </h2>
-        {gameLog.length === 0 ? (
+        <div className="mb-3 flex items-baseline justify-between gap-4">
+          <h2 className="font-condensed text-sm font-semibold uppercase tracking-wider text-zinc-500">
+            {gameMode !== null ? `${gameMode} Game Log` : 'Game Log'}
+          </h2>
+          {gameLogTotal > 0 && (
+            <span className="text-xs text-zinc-600 tabular">
+              {logOffset + 1}–{Math.min(logOffset + LOG_PAGE_SIZE, gameLogTotal)} of {gameLogTotal}
+            </span>
+          )}
+        </div>
+        {gameLog.length === 0 && gameLogTotal > 0 ? (
+          // User navigated past the last page (stale URL or manual edit)
+          <div className="flex min-h-[6rem] flex-col items-center justify-center gap-3 border border-zinc-800 bg-surface">
+            <p className="text-sm text-zinc-500">Page {logPage} is beyond the available games.</p>
+            <Link
+              href={gameLogPageHref(id, gameMode, 1)}
+              className="text-xs font-semibold text-accent hover:underline"
+            >
+              Back to first page
+            </Link>
+          </div>
+        ) : gameLog.length === 0 ? (
           <div className="flex min-h-[6rem] items-center justify-center border border-zinc-800 bg-surface">
             <p className="text-sm text-zinc-500">
               {gameMode !== null ? `No ${gameMode} games recorded yet.` : 'No games recorded yet.'}
             </p>
           </div>
         ) : (
-          <GameLog rows={gameLog} showMode={gameMode === null} />
+          <>
+            <GameLog rows={gameLog} showMode={gameMode === null} />
+            <GameLogPaginationNav
+              playerId={id}
+              gameMode={gameMode}
+              logPage={logPage}
+              totalPages={Math.ceil(gameLogTotal / LOG_PAGE_SIZE)}
+            />
+          </>
         )}
       </section>
 
@@ -226,6 +265,14 @@ function gameModeHref(playerId: number, mode: GameMode | null): string {
   return `/roster/${playerId.toString()}${qs_str ? `?${qs_str}` : ''}`
 }
 
+function gameLogPageHref(playerId: number, mode: GameMode | null, page: number): string {
+  const qs = new URLSearchParams()
+  if (mode !== null) qs.set('mode', mode)
+  if (page > 1) qs.set('logPage', page.toString())
+  const qs_str = qs.toString()
+  return `/roster/${playerId.toString()}${qs_str ? `?${qs_str}` : ''}`
+}
+
 function GameModeFilter({
   playerId,
   activeMode,
@@ -252,6 +299,53 @@ function GameModeFilter({
           </Link>
         )
       })}
+    </div>
+  )
+}
+
+// ─── Game log pagination ──────────────────────────────────────────────────────
+
+function GameLogPaginationNav({
+  playerId,
+  gameMode,
+  logPage,
+  totalPages,
+}: {
+  playerId: number
+  gameMode: GameMode | null
+  logPage: number
+  totalPages: number
+}) {
+  if (totalPages <= 1) return null
+
+  const hasPrev = logPage > 1
+  const hasNext = logPage < totalPages
+
+  return (
+    <div className="flex items-center justify-between border border-t-0 border-zinc-800 bg-surface px-4 py-3">
+      {hasPrev ? (
+        <Link
+          href={gameLogPageHref(playerId, gameMode, logPage - 1)}
+          className="text-xs font-semibold text-zinc-400 hover:text-zinc-200 transition-colors"
+        >
+          ← Newer
+        </Link>
+      ) : (
+        <span className="text-xs text-zinc-700">← Newer</span>
+      )}
+      <span className="text-xs text-zinc-600">
+        Page {logPage} of {totalPages}
+      </span>
+      {hasNext ? (
+        <Link
+          href={gameLogPageHref(playerId, gameMode, logPage + 1)}
+          className="text-xs font-semibold text-zinc-400 hover:text-zinc-200 transition-colors"
+        >
+          Older →
+        </Link>
+      ) : (
+        <span className="text-xs text-zinc-700">Older →</span>
+      )}
     </div>
   )
 }
