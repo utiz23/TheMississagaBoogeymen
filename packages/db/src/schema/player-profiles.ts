@@ -7,7 +7,7 @@ import { players } from './players.js'
  * Ownership boundary:
  *   - `players` is ingestion-owned: gamertag, position, activity timestamps.
  *   - `player_profiles` is manually-owned: jersey number, nationality, bio,
- *     preferred position.
+ *     preferred position, club-role label.
  *
  * Ingestion creates an empty row (all fields NULL) for every player via
  * ON CONFLICT DO NOTHING. Fields are written only by manual edits or a
@@ -38,6 +38,11 @@ export const playerProfiles = pgTable('player_profiles', {
    * Not available from the EA API — requires manual entry.
    */
   bio: text('bio'),
+  /**
+   * Optional manual club-role badge (e.g. Captain, Assistant, Leader).
+   * Editorial only — not provided by the EA API.
+   */
+  clubRoleLabel: text('club_role_label'),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 })
 

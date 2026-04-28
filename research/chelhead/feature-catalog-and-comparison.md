@@ -36,12 +36,28 @@ Those issues matter operationally, but they do not change the product-level comp
 
 ## Executive Read
 
+Product direction clarified after review:
+
+- this site is an internal team dashboard first
+- primary audience is team members, especially active roster members
+- the next milestone is a stable stats baseline, not breadth
+- data correctness outranks polish
+- the most important surfaces are home, player profile, and club stats
+- the desired feel is a mix of stats tool, team brand, and archive
+
+Competitive-analysis caveats:
+
+- the capture was done with premium access
+- premium-vs-free boundaries were not documented in the notes
+- some advanced Chelhead surfaces may be premium-only and should not be treated as default baseline features
+- any “steal” call for advanced analytics must also pass a local data-availability check
+
 Chelhead is stronger than the current app in four areas:
 
 - analytics density
 - charting and trend surfaces
-- heat-map / spatial data presentation
 - player-level advanced breakdowns
+- richer dashboard interpretation
 
 The current app is stronger than Chelhead in three areas:
 
@@ -55,6 +71,7 @@ Your product preference is not “copy Chelhead.” It is closer to:
 - keep your own visual language
 - separate skater and goalie identity more aggressively than Chelhead does
 - avoid junk surfaces like achievements/division clutter unless they add real value
+- build only what is supported by the current data model
 
 ## Page-By-Page Catalog
 
@@ -128,16 +145,15 @@ Chelhead players page currently includes:
 - basic/advanced table modes or dense stat groupings
 - club hot zones
 - stat leaders visualization
-- player comparison widget
+- possible player-comparison surface, but not strongly verified from capture
 - player cards for each member
 
 What Chelhead does well here:
 
 - the page has a clear “team personnel” identity
 - skater and goalie tables are both first-class
-- hot-zone content adds something tables cannot
 - stat leaders module helps scan standout contributors quickly
-- player comparison suggests an exploratory workflow beyond list browsing
+- it suggests a more exploratory roster workflow than the current app
 
 What Chelhead does poorly:
 
@@ -163,25 +179,23 @@ Current app already has:
 - separate skater and goalie stats tables on `/stats`
 - player profile links
 - depth chart concept
+- the product decision now exists to keep both depth chart and roster table on `/roster`
 
 Current app gaps versus Chelhead:
 
 - no team-overview role summary on roster
 - no roster page skater table
 - no roster page goalie table
-- no hot-zone module at team level
 - no stat leaders visualization inside roster context
-- no player comparison tool
 - no obvious “browse the roster analytically” surface; depth chart is more lineup-oriented than stats-oriented
 
 Recommendation:
 
-- `Steal`: page structure of team overview + skater table + goalie table + optional secondary modules
-- `Adapt`: club hot zones
+- `Steal`: page structure of team overview + depth chart + skater table + goalie table
 - `Adapt`: stat leaders module, but cleaner than Chelhead’s
-- `Defer`: player comparison until your player data model is more mature
+- `Research`: player comparison is not strongly verified in the capture and should not be scoped yet
 - `Keep`: your separate player-card design direction
-- `Change`: decide whether `/roster` is lineup-first, stats-first, or a hybrid; right now it is confused
+- `Resolved`: `/roster` should be a hybrid page with the roster table below the depth chart
 
 ## 3. Matches Surface
 
@@ -269,7 +283,7 @@ What Chelhead does well here:
 
 - this is the strongest page in the capture set
 - combines hero identity with advanced analysis well
-- hot zones and contribution wheel add real interpretive value
+- contribution-style interpretation adds real value when the data is strong enough
 - consistency dashboard is a strong differentiator
 - advanced trends make the player page feel alive and not just archival
 
@@ -286,13 +300,17 @@ Current app equivalent:
 Current app already has:
 
 - player hero
-- jersey / nationality / preferred position support
 - career stats table
 - EA season totals table
 - game log
 - gamertag history
 - mode filter
 - honest member-only notice
+
+Practical caveat:
+
+- `player_profiles` enrichment exists in schema, but those fields are currently unpopulated in practice
+- do not over-credit the current player hero for jersey/nationality/preferred-position richness until the data is actually entered
 
 Current app gaps versus Chelhead:
 
@@ -309,9 +327,9 @@ Recommendation:
 
 - `Steal`: hero bar concept
 - `Steal`: positional pie / usage visualization
-- `Steal`: contribution wheel
-- `Steal`: hot-zone maps
-- `Adapt`: consistency dashboard
+- `Adapt`: contribution wheel, but only if dimensions can be defined cleanly from existing aggregate stats
+- `Defer`: hot-zone maps (blocked: no spatial event data from EA source)
+- `Defer`: consistency dashboard until match volume is large enough to make it meaningful
 - `Defer`: full advanced pro analytics dashboard until tracked-match volume is large enough
 - `Replace`: the current “club stats” middle area with a better breakdown aligned to your existing profile-page specs
 
@@ -332,7 +350,6 @@ Recommendation:
 
 - club-level dashboarding
 - trend analytics
-- heat maps / spatial presentation
 - player-level advanced interpretation
 - analytics density on the matches page
 
@@ -362,7 +379,7 @@ Suggested order:
 - depth chart
 - skater stats table
 - goalie stats table
-- secondary modules like hot zones / stat leaders
+- secondary modules like stat leaders
 
 Reason:
 
@@ -378,20 +395,20 @@ Reason:
 - Chelhead’s combined cards prove the downside of not doing this cleanly
 - it also aligns with the bug fixes you already need in current branch logic
 
-3. Player profile should become a flagship surface.
+3. Player profile should become the flagship polish surface, but not the first analytics build.
 
 Priority additions:
 
 - hero snapshot stats
 - positional usage visualization
-- hot zones
-- contribution wheel
-- consistency block
+- contribution wheel if its dimensions can be defined from current stats
+- richer skater-vs-goalie synthesis
 
 Reason:
 
 - this is where Chelhead feels most differentiated
 - this is also where your app currently has the biggest upside gap
+- but advanced player analytics should not outrun data volume or data availability
 
 4. Matches should gain one analytics layer, not five.
 
@@ -426,8 +443,6 @@ Do not add yet:
 
 - skater and goalie tables as first-class roster surface elements
 - player-profile hero snapshot concept
-- contribution wheel
-- hot-zone modules
 - match-card metadata pills
 - match trends summary concept
 
@@ -435,8 +450,7 @@ Do not add yet:
 
 - club dashboard summary
 - stat leaders module
-- consistency dashboard
-- team hot zones
+- contribution wheel if well-defined from existing aggregate data
 - recent-form charts
 - player usage visualization
 
@@ -450,9 +464,50 @@ Do not add yet:
 ### Defer
 
 - full advanced analytics wall on matches
-- player comparison widget
+- player comparison widget until it is properly verified from capture and supported by local model
+- hot-zone maps (blocked: no spatial event data in current EA source)
+- consistency dashboard until data volume is larger than the current ingestion set
 - advanced search/discovery
 - advanced pro analytics parity
+
+## Data Prerequisites
+
+These are the real blockers before copying some Chelhead ideas.
+
+### Blocked by missing source data
+
+- hot-zone maps
+- any rink-spatial shot/goal visual
+
+Current reason:
+
+- the current EA source and local schema do not provide spatial event coordinates or zone identifiers
+
+### Blocked by weak or absent profile enrichment
+
+- richer hero identity treatment using jersey number, nationality, preferred position, and bio
+
+Current reason:
+
+- profile enrichment fields exist in schema but are not populated yet
+
+### Blocked by low historical volume
+
+- consistency dashboards
+- deep trend interpretation
+- advanced player analytics that need stable baselines
+
+Current reason:
+
+- current tracked match volume is still thin for serious longitudinal analytics
+
+### Feasible now if carefully defined
+
+- contribution wheel
+- match-card pills
+- recent-form summary bullets
+- goal differential and result trend charts
+- roster team-overview counts
 
 ## Concrete Next-Build Roadmap
 
@@ -463,31 +518,30 @@ Do not add yet:
 - repair migration metadata
 - migrate and reprocess
 
-2. Redefine `/roster`.
+2. Upgrade home and matches with low-risk, high-value improvements.
+
+- move latest-result and player surfaces ahead of division standing in visual priority
+- add compact club snapshot / signal block
+- add match-card pills for result + mode + one derived quality stat
+- add one recent-form summary block and one or two simple trend charts
+
+3. Redefine `/roster`.
 
 - keep depth chart
 - add team overview
 - add skater table
 - add goalie table
+- mark manual/member-only additions as provisional
 
-3. Upgrade player profile.
+4. Improve player profile structural UX.
 
-- add role-specific snapshot hero stats
-- add positional usage chart
-- add hot zones
-- add contribution wheel
+- strengthen hero snapshot
+- add positional usage visualization
+- improve skater-vs-goalie synthesis
+- do not build hot zones yet
+- do not build consistency analytics yet
 
-4. Upgrade matches.
-
-- add result/mode/quality pills
-- add recent-form summary
-- add one or two trend charts
-
-5. Upgrade home/club dashboard.
-
-- add club snapshot signal list
-- add compact record visual
-- add one analytics preview section
+5. Revisit advanced player analytics only after the baseline is stable and the dataset is larger.
 
 ## Bottom Line
 

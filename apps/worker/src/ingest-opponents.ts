@@ -25,14 +25,16 @@ export async function fetchAndStoreOpponentClubs(title: GameTitle): Promise<void
 
   const seenIds = seenRows.map((r) => r.eaClubId)
 
-  // Find which ones we already have metadata for
+  // Find which ones we already have metadata for.
+  // Any row in opponent_clubs was fetched — null useBaseAsset means EA returned
+  // no customKit, which is a valid terminal state (not a reason to re-fetch).
   const knownRows = await db
     .select({ eaClubId: opponentClubs.eaClubId })
     .from(opponentClubs)
     .where(inArray(opponentClubs.eaClubId, seenIds))
 
-  const knownIds = new Set(knownRows.map((r) => r.eaClubId))
-  const unknownIds = seenIds.filter((id) => !knownIds.has(id))
+  const completeIds = new Set(knownRows.map((r) => r.eaClubId))
+  const unknownIds = seenIds.filter((id) => !completeIds.has(id))
 
   if (unknownIds.length === 0) {
     console.log(`[opponents] All opponent clubs already known for ${title.slug}`)
@@ -65,13 +67,14 @@ export async function fetchAndStoreOpponentClubs(title: GameTitle): Promise<void
     }
     const name = typeof clubData.name === 'string' ? clubData.name : eaClubId
     const crestAssetId = clubData.customKit?.crestAssetId ?? null
+    const useBaseAsset = clubData.customKit?.useBaseAsset ?? null
 
     await db
       .insert(opponentClubs)
-      .values({ eaClubId, name, crestAssetId, fetchedAt: now })
+      .values({ eaClubId, name, crestAssetId, useBaseAsset, fetchedAt: now })
       .onConflictDoUpdate({
         target: opponentClubs.eaClubId,
-        set: { name, crestAssetId, fetchedAt: now },
+        set: { name, crestAssetId, useBaseAsset, fetchedAt: now },
       })
     upserted++
   }

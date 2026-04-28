@@ -1,0 +1,1 @@
+ALTER TABLE "player_profiles" ADD COLUMN "club_role_label" text;

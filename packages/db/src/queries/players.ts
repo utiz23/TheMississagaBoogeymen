@@ -1,4 +1,4 @@
-import { and, count, eq, asc, desc, isNull } from 'drizzle-orm'
+import { and, count, eq, asc, desc, isNull, isNotNull } from 'drizzle-orm'
 import { db } from '../client.js'
 import {
   eaMemberSeasonStats,
@@ -87,6 +87,7 @@ export async function getRoster(gameTitleId: number, gameMode: GameMode | null =
       passPct: playerGameTitleStats.passPct,
       wins: playerGameTitleStats.wins,
       losses: playerGameTitleStats.losses,
+      otl: playerGameTitleStats.otl,
       savePct: playerGameTitleStats.savePct,
       gaa: playerGameTitleStats.gaa,
       shutouts: playerGameTitleStats.shutouts,
@@ -101,7 +102,9 @@ export async function getRoster(gameTitleId: number, gameMode: GameMode | null =
  * EA-authoritative roster for the home page (All mode).
  *
  * Source: ea_member_season_stats — full EA season totals, not filtered by game mode.
- * Shape matches getRoster so consumers can use RosterRow for both.
+ * wins/losses/otl come from player_game_title_stats (locally tracked team record across
+ * all appearances, skater or goalie). Shape matches getRoster so consumers can use
+ * RosterRow for both.
  *
  * Ordered by points desc (most scoring first).
  */
@@ -125,14 +128,29 @@ export async function getEARoster(gameTitleId: number) {
       giveaways: eaMemberSeasonStats.giveaways,
       faceoffPct: eaMemberSeasonStats.faceoffPct,
       passPct: eaMemberSeasonStats.passPct,
-      wins: eaMemberSeasonStats.goalieWins,
-      losses: eaMemberSeasonStats.goalieLosses,
+      wins: playerGameTitleStats.wins,
+      losses: playerGameTitleStats.losses,
+      otl: playerGameTitleStats.otl,
+      goalieWins: eaMemberSeasonStats.goalieWins,
+      goalieLosses: eaMemberSeasonStats.goalieLosses,
+      goalieOtl: eaMemberSeasonStats.goalieOtl,
       savePct: eaMemberSeasonStats.goalieSavePct,
       gaa: eaMemberSeasonStats.goalieGaa,
       shutouts: eaMemberSeasonStats.goalieShutouts,
+      goalieSaves: eaMemberSeasonStats.goalieSaves,
+      goalieShots: eaMemberSeasonStats.goalieShots,
+      goalieGoalsAgainst: eaMemberSeasonStats.goalieGoalsAgainst,
     })
     .from(eaMemberSeasonStats)
     .innerJoin(players, eq(eaMemberSeasonStats.playerId, players.id))
+    .leftJoin(
+      playerGameTitleStats,
+      and(
+        eq(playerGameTitleStats.playerId, eaMemberSeasonStats.playerId),
+        eq(playerGameTitleStats.gameTitleId, eaMemberSeasonStats.gameTitleId),
+        isNull(playerGameTitleStats.gameMode),
+      ),
+    )
     .where(eq(eaMemberSeasonStats.gameTitleId, gameTitleId))
     .orderBy(desc(eaMemberSeasonStats.points))
 }
@@ -168,6 +186,7 @@ export async function getPlayerWithProfile(playerId: number) {
       nationality: playerProfiles.nationality,
       preferredPosition: playerProfiles.preferredPosition,
       bio: playerProfiles.bio,
+      clubRoleLabel: playerProfiles.clubRoleLabel,
     })
     .from(players)
     .leftJoin(playerProfiles, eq(players.id, playerProfiles.playerId))
@@ -210,6 +229,7 @@ export async function getPlayerCareerStats(playerId: number, gameMode: GameMode 
       passPct: playerGameTitleStats.passPct,
       wins: playerGameTitleStats.wins,
       losses: playerGameTitleStats.losses,
+      otl: playerGameTitleStats.otl,
       savePct: playerGameTitleStats.savePct,
       gaa: playerGameTitleStats.gaa,
       shutouts: playerGameTitleStats.shutouts,
@@ -327,11 +347,362 @@ export async function getPlayerEASeasonStats(playerId: number) {
       goalieSavePct: eaMemberSeasonStats.goalieSavePct,
       goalieGaa: eaMemberSeasonStats.goalieGaa,
       goalieShutouts: eaMemberSeasonStats.goalieShutouts,
+      goalieSaves: eaMemberSeasonStats.goalieSaves,
+      goalieShots: eaMemberSeasonStats.goalieShots,
+      goalieGoalsAgainst: eaMemberSeasonStats.goalieGoalsAgainst,
     })
     .from(eaMemberSeasonStats)
     .innerJoin(gameTitles, eq(eaMemberSeasonStats.gameTitleId, gameTitles.id))
     .where(eq(eaMemberSeasonStats.playerId, playerId))
     .orderBy(desc(eaMemberSeasonStats.gameTitleId))
+}
+
+type PlayerProfileRow = Awaited<ReturnType<typeof getPlayerWithProfile>>
+type PlayerCareerRow = Awaited<ReturnType<typeof getPlayerCareerStats>>[number]
+type PlayerEASeasonRow = Awaited<ReturnType<typeof getPlayerEASeasonStats>>[number]
+type PlayerGameLogRow = Awaited<ReturnType<typeof getPlayerGameLog>>[number]
+type EARosterRow = Awaited<ReturnType<typeof getEARoster>>[number]
+
+export interface ProfileContributionMetric {
+  label: string
+  value: number
+}
+
+export interface ProfileContributionSummary {
+  role: 'skater' | 'goalie'
+  metrics: ProfileContributionMetric[]
+  sampleSize: number
+}
+
+export interface ProfileRecentFormSkater {
+  role: 'skater'
+  gamesAnalyzed: number
+  record: { wins: number; losses: number; otl: number }
+  recentResults: Array<'WIN' | 'LOSS' | 'OTL' | 'DNF'>
+  goals: number
+  assists: number
+  points: number
+  plusMinus: number
+  bestGame: PlayerGameLogRow | null
+}
+
+export interface ProfileRecentFormGoalie {
+  role: 'goalie'
+  gamesAnalyzed: number
+  record: { wins: number; losses: number; otl: number }
+  recentResults: Array<'WIN' | 'LOSS' | 'OTL' | 'DNF'>
+  saves: number
+  goalsAgainst: number
+  savePct: number | null
+  bestGame: PlayerGameLogRow | null
+}
+
+export interface PlayerProfileOverview {
+  player: NonNullable<PlayerProfileRow>
+  currentEaSeason: PlayerEASeasonRow | null
+  currentLocalSeason: PlayerCareerRow | null
+  primaryRole: 'skater' | 'goalie'
+  secondaryRole: 'skater' | 'goalie' | null
+  contributionSummary: ProfileContributionSummary | null
+  recentForm: ProfileRecentFormSkater | ProfileRecentFormGoalie | null
+}
+
+function normalizedMetric(
+  values: number[],
+  current: number | null,
+  lowerIsBetter = false,
+): number | null {
+  if (current === null || values.length < 2) return null
+
+  const min = Math.min(...values)
+  const max = Math.max(...values)
+  if (!Number.isFinite(min) || !Number.isFinite(max)) return null
+  if (max === min) return 100
+
+  const raw = lowerIsBetter
+    ? ((max - current) / (max - min)) * 100
+    : ((current - min) / (max - min)) * 100
+
+  return Math.max(0, Math.min(100, Math.round(raw)))
+}
+
+function currentRoleFromSeasonRow(
+  player: NonNullable<PlayerProfileRow>,
+  season: PlayerEASeasonRow | null,
+): 'skater' | 'goalie' {
+  const preferredPosition = player.preferredPosition ?? player.position
+  const preferredRole = preferredPosition === 'goalie' ? 'goalie' : 'skater'
+
+  if (!season) return preferredRole
+  if (season.goalieGp > season.skaterGp) return 'goalie'
+  if (season.skaterGp > season.goalieGp) return 'skater'
+  return preferredRole
+}
+
+function roleGames(
+  rows: PlayerGameLogRow[],
+  role: 'skater' | 'goalie',
+  limit = 5,
+): PlayerGameLogRow[] {
+  const filtered = rows.filter((row) => row.isGoalie === (role === 'goalie'))
+  return filtered.slice(0, limit)
+}
+
+function buildRecentForm(
+  rows: PlayerGameLogRow[],
+  role: 'skater' | 'goalie',
+): ProfileRecentFormSkater | ProfileRecentFormGoalie | null {
+  if (rows.length === 0) return null
+
+  const recentResults = rows.map((row) => row.result) as Array<'WIN' | 'LOSS' | 'OTL' | 'DNF'>
+
+  const record = rows.reduce(
+    (acc, row) => {
+      if (row.result === 'WIN') acc.wins += 1
+      else if (row.result === 'LOSS') acc.losses += 1
+      else if (row.result === 'OTL') acc.otl += 1
+      return acc
+    },
+    { wins: 0, losses: 0, otl: 0 },
+  )
+
+  if (role === 'goalie') {
+    const saves = rows.reduce((sum, row) => sum + (row.saves ?? 0), 0)
+    const goalsAgainst = rows.reduce((sum, row) => sum + (row.goalsAgainst ?? 0), 0)
+    const shotsAgainst = saves + goalsAgainst
+    const bestGame =
+      rows.reduce<PlayerGameLogRow | null>((best, row) => {
+        if (!best) return row
+        const bestPct =
+          best.saves !== null && best.goalsAgainst !== null && best.saves + best.goalsAgainst > 0
+            ? best.saves / (best.saves + best.goalsAgainst)
+            : -1
+        const rowPct =
+          row.saves !== null && row.goalsAgainst !== null && row.saves + row.goalsAgainst > 0
+            ? row.saves / (row.saves + row.goalsAgainst)
+            : -1
+        if (rowPct !== bestPct) return rowPct > bestPct ? row : best
+        return (row.saves ?? 0) > (best.saves ?? 0) ? row : best
+      }, null) ?? null
+
+    return {
+      role: 'goalie',
+      gamesAnalyzed: rows.length,
+      record,
+      recentResults,
+      saves,
+      goalsAgainst,
+      savePct: shotsAgainst > 0 ? Number(((saves / shotsAgainst) * 100).toFixed(1)) : null,
+      bestGame,
+    }
+  }
+
+  const goals = rows.reduce((sum, row) => sum + row.goals, 0)
+  const assists = rows.reduce((sum, row) => sum + row.assists, 0)
+  const points = goals + assists
+  const plusMinus = rows.reduce((sum, row) => sum + row.plusMinus, 0)
+  const bestGame =
+    rows.reduce<PlayerGameLogRow | null>((best, row) => {
+      if (!best) return row
+      const bestPts = best.goals + best.assists
+      const rowPts = row.goals + row.assists
+      if (rowPts !== bestPts) return rowPts > bestPts ? row : best
+      if (row.goals !== best.goals) return row.goals > best.goals ? row : best
+      return row.plusMinus > best.plusMinus ? row : best
+    }, null) ?? null
+
+  return {
+    role: 'skater',
+    gamesAnalyzed: rows.length,
+    record,
+    recentResults,
+    goals,
+    assists,
+    points,
+    plusMinus,
+    bestGame,
+  }
+}
+
+function buildSkaterContribution(
+  current: EARosterRow,
+  group: EARosterRow[],
+): ProfileContributionSummary | null {
+  if (current.skaterGp <= 0 || group.length < 5) return null
+
+  const perGp = (value: number, gp: number) => (gp > 0 ? value / gp : 0)
+  const scoring = group.map((row) => perGp(row.goals, row.skaterGp))
+  const playmaking = group.map((row) => perGp(row.assists, row.skaterGp))
+  const shooting = group.map((row) => perGp(row.shots, row.skaterGp))
+  const physicality = group.map((row) => perGp(row.hits, row.skaterGp))
+  const possession = group.map(
+    (row) => perGp(row.takeaways, row.skaterGp) - perGp(row.giveaways, row.skaterGp),
+  )
+  const discipline = group.map((row) => perGp(row.pim, row.skaterGp))
+
+  return {
+    role: 'skater',
+    sampleSize: current.skaterGp,
+    metrics: [
+      {
+        label: 'Scoring',
+        value: normalizedMetric(scoring, perGp(current.goals, current.skaterGp)) ?? 0,
+      },
+      {
+        label: 'Playmaking',
+        value: normalizedMetric(playmaking, perGp(current.assists, current.skaterGp)) ?? 0,
+      },
+      {
+        label: 'Shooting',
+        value: normalizedMetric(shooting, perGp(current.shots, current.skaterGp)) ?? 0,
+      },
+      {
+        label: 'Physicality',
+        value: normalizedMetric(physicality, perGp(current.hits, current.skaterGp)) ?? 0,
+      },
+      {
+        label: 'Possession',
+        value:
+          normalizedMetric(
+            possession,
+            perGp(current.takeaways, current.skaterGp) - perGp(current.giveaways, current.skaterGp),
+          ) ?? 0,
+      },
+      {
+        label: 'Discipline',
+        value: normalizedMetric(discipline, perGp(current.pim, current.skaterGp), true) ?? 0,
+      },
+    ],
+  }
+}
+
+function buildGoalieContribution(
+  current: EARosterRow,
+  group: EARosterRow[],
+): ProfileContributionSummary | null {
+  if (current.goalieGp <= 0 || group.length < 5) return null
+
+  const decisions = (row: EARosterRow) =>
+    (row.goalieWins ?? 0) + (row.goalieLosses ?? 0) + (row.goalieOtl ?? 0)
+  const perGp = (value: number | null, gp: number) => (value !== null && gp > 0 ? value / gp : null)
+  const winRate = (row: EARosterRow) => {
+    const total = decisions(row)
+    return total > 0 ? (row.goalieWins ?? 0) / total : null
+  }
+
+  const savePct = group
+    .map((row) => (row.savePct !== null ? parseFloat(row.savePct) : null))
+    .filter((value): value is number => value !== null)
+  const gaa = group
+    .map((row) => (row.gaa !== null ? parseFloat(row.gaa) : null))
+    .filter((value): value is number => value !== null)
+  const winRates = group
+    .map((row) => winRate(row))
+    .filter((value): value is number => value !== null)
+  const savesPerGp = group
+    .map((row) => perGp(row.goalieSaves ?? null, row.goalieGp))
+    .filter((value): value is number => value !== null)
+  const shutoutsPerGp = group
+    .map((row) => perGp(row.shutouts ?? null, row.goalieGp))
+    .filter((value): value is number => value !== null)
+  const workloadPerGp = group
+    .map((row) => perGp(row.goalieShots ?? null, row.goalieGp))
+    .filter((value): value is number => value !== null)
+
+  return {
+    role: 'goalie',
+    sampleSize: current.goalieGp,
+    metrics: [
+      {
+        label: 'Win Rate',
+        value: normalizedMetric(winRates, winRate(current)) ?? 0,
+      },
+      {
+        label: 'Save %',
+        value: normalizedMetric(savePct, current.savePct !== null ? parseFloat(current.savePct) : null) ?? 0,
+      },
+      {
+        label: 'GAA',
+        value: normalizedMetric(gaa, current.gaa !== null ? parseFloat(current.gaa) : null, true) ?? 0,
+      },
+      {
+        label: 'Saves / GP',
+        value: normalizedMetric(savesPerGp, perGp(current.goalieSaves ?? null, current.goalieGp)) ?? 0,
+      },
+      {
+        label: 'SO / GP',
+        value: normalizedMetric(shutoutsPerGp, perGp(current.shutouts ?? null, current.goalieGp)) ?? 0,
+      },
+      {
+        label: 'Workload',
+        value: normalizedMetric(workloadPerGp, perGp(current.goalieShots ?? null, current.goalieGp)) ?? 0,
+      },
+    ],
+  }
+}
+
+/**
+ * Profile-focused loader shape for the player page hero, current-season snapshot,
+ * contribution wheel, and recent-form block.
+ */
+export async function getPlayerProfileOverview(playerId: number): Promise<PlayerProfileOverview | null> {
+  const [player, eaSeasonRows, allModeCareerRows, recentRows] = await Promise.all([
+    getPlayerWithProfile(playerId),
+    getPlayerEASeasonStats(playerId),
+    getPlayerCareerStats(playerId, null),
+    getPlayerGameLog(playerId, null, 25, 0),
+  ])
+
+  if (!player) return null
+
+  const currentEaSeason = eaSeasonRows[0] ?? null
+  const currentSeasonId = currentEaSeason?.gameTitleId ?? allModeCareerRows[0]?.gameTitleId ?? null
+  const currentLocalSeason =
+    (currentSeasonId !== null
+      ? allModeCareerRows.find((row) => row.gameTitleId === currentSeasonId)
+      : null) ?? allModeCareerRows[0] ?? null
+
+  const primaryRole = currentRoleFromSeasonRow(player, currentEaSeason)
+  // Secondary role requires meaningful participation: ≥3 GP in current EA season OR ≥10 GP in
+  // tracked local history for the current title. A single appearance is not enough to show a strip.
+  const secondaryRole =
+    currentEaSeason !== null
+      ? primaryRole === 'skater'
+        ? currentEaSeason.goalieGp >= 3 || (currentLocalSeason?.goalieGp ?? 0) >= 10
+          ? 'goalie'
+          : null
+        : currentEaSeason.skaterGp >= 3 || (currentLocalSeason?.skaterGp ?? 0) >= 10
+          ? 'skater'
+          : null
+      : null
+
+  let contributionSummary: ProfileContributionSummary | null = null
+  if (currentSeasonId !== null) {
+    const roster = await getEARoster(currentSeasonId)
+    const current = roster.find((row) => row.playerId === playerId) ?? null
+    if (current) {
+      if (primaryRole === 'goalie') {
+        const group = roster.filter((row) => row.goalieGp > 0)
+        contributionSummary = buildGoalieContribution(current, group)
+      } else {
+        const group = roster.filter((row) => row.skaterGp > 0)
+        contributionSummary = buildSkaterContribution(current, group)
+      }
+    }
+  }
+
+  const primaryRoleGames = roleGames(recentRows, primaryRole, 5)
+  const recentForm = buildRecentForm(primaryRoleGames, primaryRole)
+
+  return {
+    player,
+    currentEaSeason,
+    currentLocalSeason,
+    primaryRole,
+    secondaryRole,
+    contributionSummary,
+    recentForm,
+  }
 }
 
 /**
@@ -364,4 +735,24 @@ export async function getTopPerformers(
     .where(and(eq(playerGameTitleStats.gameTitleId, gameTitleId), gameModeFilter))
     .orderBy(desc(playerGameTitleStats.points), desc(playerGameTitleStats.goals))
     .limit(limit)
+}
+
+/**
+ * Per-player, per-position game counts for a game title — used to determine
+ * depth-chart eligibility. Only rows with a non-null position are returned.
+ *
+ * Consumers should apply their own threshold (e.g. gameCount >= 2) before
+ * treating a position as eligible. This query returns raw counts without filtering.
+ */
+export async function getPlayerPositionEligibility(gameTitleId: number) {
+  return db
+    .select({
+      playerId: playerMatchStats.playerId,
+      position: playerMatchStats.position,
+      gameCount: count(),
+    })
+    .from(playerMatchStats)
+    .innerJoin(matches, eq(playerMatchStats.matchId, matches.id))
+    .where(and(eq(matches.gameTitleId, gameTitleId), isNotNull(playerMatchStats.position)))
+    .groupBy(playerMatchStats.playerId, playerMatchStats.position)
 }

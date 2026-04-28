@@ -56,10 +56,10 @@ export const playerGameTitleStats = pgTable(
     /** TOI in seconds for goalie appearances only. Nullable when no goalie games exist. */
     goalieToiSeconds: integer('goalie_toi_seconds'),
 
-    // ── Goalie aggregates (nullable) ──────────────────────────────────────────
+    // ── Team record across all appearances (nullable — null until first reprocess) ──
     wins: integer('wins'),
     losses: integer('losses'),
-    /** Overtime losses. Counted only for goalie appearances where match result = 'OTL'. */
+    /** Overtime losses (match result = 'OTL'). Zero when source data has no OTL results. */
     otl: integer('otl'),
     /** numeric(5,2). e.g. 92.75 */
     savePct: numeric('save_pct', { precision: 5, scale: 2 }),

@@ -109,10 +109,22 @@ export function abbreviateTeamName(name: string): string {
 }
 
 /**
- * Resolve an EA opponent crest asset ID to its CDN image URL.
- * Returns null when no crest asset ID is available.
+ * Resolve an EA opponent crest asset ID to ordered CDN image URLs.
+ * EA metadata is dirty, so callers should try the preferred path first
+ * and fall back to the alternate path if the image 404s.
  */
-export function opponentCrestUrl(crestAssetId: string | null | undefined): string | null {
-  if (!crestAssetId) return null
-  return `https://media.contentapi.ea.com/content/dam/eacom/nhl/pro-clubs/custom-crests/${crestAssetId}.png`
+export function opponentCrestUrls(
+  crestAssetId: string | null | undefined,
+  useBaseAsset: string | null | undefined,
+): string[] {
+  if (!crestAssetId) return []
+
+  const baseUrl = `https://media.contentapi.ea.com/content/dam/eacom/nhl/pro-clubs/crests/t${crestAssetId}.png`
+  const customUrl = `https://media.contentapi.ea.com/content/dam/eacom/nhl/pro-clubs/custom-crests/${crestAssetId}.png`
+
+  if (useBaseAsset === '1') {
+    return [baseUrl, customUrl]
+  }
+
+  return [customUrl, baseUrl]
 }

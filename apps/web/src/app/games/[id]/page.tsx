@@ -1,16 +1,16 @@
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
-import Image from 'next/image'
 import { getMatchById, getPlayerMatchStats, getOpponentClub } from '@eanhl/db/queries'
 import type { Match } from '@eanhl/db'
 import { ResultBadge } from '@/components/ui/result-badge'
 import { PlayerStatsTable } from '@/components/matches/player-stats-table'
+import { OpponentCrest } from '@/components/ui/opponent-crest'
 import {
   formatMatchDate,
   formatTOA,
   formatPct,
   opponentFaceoffPct,
-  opponentCrestUrl,
+  abbreviateTeamName,
 } from '@/lib/format'
 import Link from 'next/link'
 
@@ -57,9 +57,11 @@ export default async function GameDetailPage({ params }: Props) {
   }
 
   let opponentCrestAssetId: string | null = null
+  let opponentCrestUseBaseAsset: string | null = null
   try {
     const opponentClub = await getOpponentClub(match.opponentClubId)
     opponentCrestAssetId = opponentClub?.crestAssetId ?? null
+    opponentCrestUseBaseAsset = opponentClub?.useBaseAsset ?? null
   } catch {
     // Logo display degrades gracefully to initial badge
   }
@@ -75,7 +77,11 @@ export default async function GameDetailPage({ params }: Props) {
       </Link>
 
       {/* Hero — Arena Board bold score with Broadcast Strip card treatment */}
-      <HeroSection match={match} opponentCrestAssetId={opponentCrestAssetId} />
+      <HeroSection
+        match={match}
+        opponentCrestAssetId={opponentCrestAssetId}
+        opponentCrestUseBaseAsset={opponentCrestUseBaseAsset}
+      />
 
       {/* Team comparison strip */}
       <ComparisonStrip match={match} />
@@ -102,12 +108,14 @@ export default async function GameDetailPage({ params }: Props) {
 function HeroSection({
   match,
   opponentCrestAssetId,
+  opponentCrestUseBaseAsset,
 }: {
   match: Match
   opponentCrestAssetId: string | null
+  opponentCrestUseBaseAsset: string | null
 }) {
   const scoreForColor = match.result === 'WIN' ? 'text-accent' : 'text-zinc-100'
-  const crestUrl = opponentCrestUrl(opponentCrestAssetId)
+  const opponentAbbrev = abbreviateTeamName(match.opponentName)
 
   return (
     <div className="border border-zinc-800 border-l-4 border-l-accent bg-surface px-6 py-5">
@@ -121,15 +129,24 @@ function HeroSection({
 
         {/* Match info */}
         <div className="flex items-center gap-3">
-          {crestUrl !== null && (
-            <Image
-              src={crestUrl}
+          <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full border border-zinc-800 bg-zinc-900/50">
+            <OpponentCrest
+              crestAssetId={opponentCrestAssetId}
+              useBaseAsset={opponentCrestUseBaseAsset}
               alt={match.opponentName}
               width={40}
               height={40}
               className="h-10 w-10 object-contain"
+              fallback={
+                <span
+                  aria-hidden
+                  className="font-condensed text-sm font-black uppercase tracking-tight text-zinc-400"
+                >
+                  {opponentAbbrev.slice(0, 2)}
+                </span>
+              }
             />
-          )}
+          </div>
           <div className="flex flex-col gap-1.5">
             <span className="font-condensed text-xl font-semibold text-zinc-200">
               vs {match.opponentName}

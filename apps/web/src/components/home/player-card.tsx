@@ -165,7 +165,7 @@ interface StatBoxProps {
 }
 
 /** Standard stat tile (E, F, G). */
-function StatBox({ label, value }: StatBoxProps) {
+export function StatBox({ label, value }: StatBoxProps) {
   return (
     <div className="flex flex-col items-center gap-0.5 rounded-lg border border-zinc-700/50 bg-zinc-800/50 py-1.5">
       <span className="text-[8px] font-bold uppercase tracking-widest text-zinc-500">{label}</span>
@@ -180,7 +180,7 @@ function StatBox({ label, value }: StatBoxProps) {
  * Featured stat tile (H — PTS / W).
  * Accent tint background + larger value text — permanently distinct.
  */
-function StatBoxFeatured({ label, value }: StatBoxProps) {
+export function StatBoxFeatured({ label, value }: StatBoxProps) {
   return (
     <div className="flex flex-col items-center gap-0.5 rounded-lg border border-accent/30 bg-accent/10 py-1.5">
       <span className="text-[8px] font-bold uppercase tracking-widest text-accent/60">{label}</span>

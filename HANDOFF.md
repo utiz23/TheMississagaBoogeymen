@@ -2,11 +2,136 @@
 
 ## Current Status
 
-**Phase:** Product polish — source split complete. `All` mode now uses EA full-season totals on `/stats` and home player widgets; `6s`/`3s` modes use local tracked stats. All surfaces are clearly labeled with their data source. Mode filtering (`All / 6s / 3s`) works everywhere.
+**Phase:** Player profile V1 built and refined. Confirmed bugs from prior review are all resolved. Migrations are in a clean, journal-consistent state. Ready to deploy after applying the two pending migrations and running `reprocess --all`.
 
-**Last updated:** 2026-04-17
+**Last updated:** 2026-04-27
 
 ---
+
+**Roadmap file:** `docs/ROADMAP.md` now reflects the current product direction and near-term execution order.
+
+## Immediate Branch State (2026-04-27)
+
+This section reflects the current uncommitted worktree.
+
+### What changed in this workstream
+
+**Bug fixes (all resolved):**
+
+- `apps/web/src/app/roster/[id]/page.tsx` — `hasGoalie` gate changed from `wins !== null` to `(goalieGp ?? 0) > 0`. After aggregate reprocess, `wins` is never null; old gate would have shown goalie columns for every skater.
+- `apps/web/src/components/roster/depth-chart.tsx` — comment updated: skater cards now correctly show team W-L-OTL (it is a team record during appearances, not goalie-only). The behavior was always correct after the aggregate semantic change; only the comment was wrong.
+- `apps/worker/src/ingest-opponents.ts` — completeness check changed: any existing row in `opponent_clubs` is now treated as fetched. `null useBaseAsset` means EA returned no `customKit` — a valid terminal state, not a reason to re-fetch every cycle.
+- `packages/db/migrations/` — orphaned `0012_cloudy_hulk.sql` (no journal or snapshot) was deleted and regenerated cleanly as `0012_damp_mephistopheles.sql` with full Drizzle metadata. `0013_workable_thunderbolt.sql` adds `club_role_label` to `player_profiles`.
+
+**Player profile V1 (`apps/web/src/app/roster/[id]/page.tsx`):**
+
+Full rebuild of the player profile page as a single long-form page:
+- Identity-forward hero with red-to-black gradient cover, jersey number watermark, silhouette floating on gradient (no wrapper card), red top accent bar. Jersey number shown as oversized faded watermark + inline badge when populated.
+- Integrated stat strip at the bottom of the hero (GP / G / A / PTS / P-GP / App. Record for skaters; GP / SV% / GAA / SO / App. Record for goalies) — key season numbers are above the fold.
+- Anchor pill navigation: Overview / Career / EA Totals / Game Log / History.
+- Current Season Snapshot section: EA season totals for primary role, local appearance record clearly labeled as "App. Record". Secondary role strip appears when secondary-role GP ≥ 3 (EA) or ≥ 10 (local history).
+- Contribution Summary: six-dimension radar chart normalized against same-role teammates. Requires N ≥ 5 peers to render; shows honest empty state otherwise (will often trigger for goalies with small pools).
+- Recent Form section: last-5 appearances aggregated by primary role. Result pips (green=W, red=L, amber=OTL, gray=DNF) shown inline with the record card.
+- Preserved: career stats table (goalie columns gated by `goalieGp > 0`), EA season totals table, paginated game log with mode filter, gamertag history.
+
+**New query additions (`packages/db/src/queries/players.ts`):**
+
+- `getPlayerProfileOverview` — aggregates hero identity, primary/secondary role, current-season snapshot, contribution summary inputs, recent form.
+- `recentResults: Array<'WIN' | 'LOSS' | 'OTL' | 'DNF'>` added to both `ProfileRecentFormSkater` and `ProfileRecentFormGoalie`.
+- Secondary role threshold: requires EA season GP ≥ 3 or local tracked GP ≥ 10 in the secondary role before showing strip.
+- Contribution wheel peer minimum: N ≥ 5 in the role group (up from 2).
+
+**New schema field (`packages/db/src/schema/player-profiles.ts`):**
+
+- `clubRoleLabel: text('club_role_label')` — optional manual badge shown in hero (e.g. "Captain").
+
+### Required operator actions before shipping this branch
+
+1. Apply pending migrations:
+   ```bash
+   pnpm --filter db migrate
+   ```
+   Applies `0012_damp_mephistopheles.sql` (opponent_clubs.use_base_asset) and `0013_workable_thunderbolt.sql` (player_profiles.club_role_label).
+2. Run full aggregate reprocess so `wins/losses/otl` pick up new semantics (team record across all appearances, not goalie-only):
+   ```bash
+   set -a && source .env && set +a
+   pnpm --filter @eanhl/worker build
+   pnpm --filter worker reprocess --all
+   ```
+3. Verify after reprocess:
+   - Skater profile pages do not render goalie columns (`/roster/[id]`).
+   - Depth-chart skater cards show team W-L-OTL.
+   - Opponent crests render correctly for both base-asset and custom-asset clubs.
+   - Hero stat strip shows correct season numbers.
+   - Result pips appear in Recent Form section for players with ≥ 1 tracked game.
+
+### Roster eligibility threshold — resolved
+
+Per product decisions recorded below, 1-game appearances at a position ARE eligible for the depth chart. The `>= 2` threshold has been intentionally removed. Member-only players appear with a "provisional" marker. This is correct for sparse data and aligns with the product intent.
+
+## Product Decisions (2026-04-27)
+
+These decisions are now explicit and should be treated as the current product default unless replaced deliberately.
+
+### Product direction
+
+- The site is an **internal team dashboard** first.
+- Primary audience is **team members**, with the captain / active roster users as the main optimization target.
+- Most important surfaces: **home**, **player profile**, **club stats**.
+- Desired feel: **stats tool + team brand + archive**.
+- Next milestone: **stable stats baseline**.
+- Current strategic priority: **harden the foundation**, not breadth.
+
+### Data / source-of-truth
+
+- EA is the canonical source for season totals and broad club/player totals.
+- Local tracked data is still necessary for acute, per-match, and preserved historical detail that EA later drops.
+- Mixed-source UI is acceptable for now **if clearly labeled**.
+- The stats that must be most trustworthy are **season totals**.
+- If a stat is not trustworthy enough, it is acceptable to **hide it** rather than fake confidence.
+
+### Player / roster semantics
+
+- `wins/losses/otl` should mean **team record during player appearances** by default, regardless of position.
+- Goalie-only sections should be driven by **actual goalie game count**, not declared primary position.
+- Generic player cards can show total team record during appearances.
+- Where a card is explicitly position-specific, showing a position-relevant record is preferred **if feasible**, but total appearance record is still acceptable as the fallback.
+- A player with **1 game** at a position is still eligible for the depth chart.
+- The `>= 2 games` threshold should **not** return.
+- Manual / member-only players may appear on the depth chart and should be marked **provisional**.
+
+### Depth chart intent
+
+- The depth chart is a **creative roster display**, not a strict coach-grade lineup simulator.
+- It should prefer a **fuller, inferred board** over empty slots.
+- Reuse is allowed where necessary.
+- For the current roster size, reusing players to fill the last forward slots is acceptable.
+- Lineup order should be **stats/usage driven now**, with manual overrides later.
+- Long-term, coach/admin placement overrides are desired.
+
+### Opponent crest handling
+
+- Opponent crest handling should prefer **efficiency and simple persistence** over elaborate freshness logic.
+- “Fetched but no `customKit` exists” is an acceptable **terminal state**.
+- Permanent fallback to initials is acceptable.
+
+### Quality / operations
+
+- Intolerable issues: **wrong stats**, **stale stats**, **broken navigation**.
+- Data correctness outranks visual polish.
+- Known stat inaccuracies and failing tests should block shipping.
+- Regression testing priority should be **data semantics first**, then UI rendering rules.
+- Light manual checklist work after deploy is acceptable; heavy manual operations are not the goal.
+- Temporary post-deploy weirdness tolerance is roughly **30 minutes**.
+
+### Current IA decisions
+
+- `/roster` should contain **both**:
+  - depth chart
+  - roster stats table below it
+- `/home` should deprioritize division standing relative to higher-value widgets like latest result and player-focused modules.
+- Player profile is the long-term flagship polish surface, but advanced analytics there should not outrun data quality or data volume.
+
 
 ## Stable Baseline
 
@@ -871,6 +996,37 @@ Source labels surfaced in UI:
 
 ---
 
+## Roster Depth Chart — Phase 1 ✓ complete (2026-04-17)
+
+**What was built:**
+
+- `packages/db/src/queries/players.ts` — `getPlayerPositionEligibility(gameTitleId)`: groups `player_match_stats` by `(player_id, position)` per game title, returns raw game counts for eligibility logic. `isNotNull` added to drizzle-orm import. Auto-exported via existing `export *` — no `index.ts` change needed.
+
+- `apps/web/src/components/roster/depth-chart.tsx` — new file, all server components:
+  - `DepthChart` — assembles `ForwardsBlock` / `DefenseBlock` / `GoalieBlock`
+  - `ForwardsBlock` — 4-line grid, column headers LW/C/RW, row labels Line 1–4
+  - `DefenseBlock` — 3-pair grid, column headers LD/RD, row labels Pair 1–3
+  - `GoalieBlock` — 5-slot row, labels Starter/Backup/3rd String/4th String/5th String
+  - `DepthChartCard` — `<Link href="/roster/[id]">` card; stat display driven by `slotType: 'skater' | 'goalie'` (not `player.position`); skater shows `skaterGp/G/A/PTS`; goalie shows `goalieGp/W/SV%/GAA`
+  - `OpenSlot` — dashed placeholder matching card dimensions, labelled "Open Slot"
+
+- `apps/web/src/app/roster/page.tsx` — full rewrite:
+  - `ELIGIBILITY_THRESHOLD = 2` — ≥ 2 games at a position required; 1-game samples excluded
+  - `buildEligibilityMap`: fallback assigns `players.position` when no tracked positions qualify
+  - `skaterCompare`: points → skaterGp → goals → assists → gamertag
+  - `goalieCompare`: goalieGp → wins → savePct → gaa
+  - `buildChart`: defense is one pooled group, top 6, alternating LD/RD (visual placement only)
+  - Mode filter removed — phase 1 always uses EA season totals (`getEARoster`)
+  - `roster-table.tsx` left in place (unused; cleanup deferred until chart is verified in prod)
+
+**Key rule enforced:** raw position keys (`leftWing`, `center`, `rightWing`, `defenseMen`, `goalie`) never appear as display text; `slotType` drives stat column choice, not `player.position`.
+
+**Verified:** `pnpm --filter @eanhl/db build`, typecheck, lint, format:check — all pass. Dev server: Forwards/Defense/Goalies render; multi-position players (silkyjoker85) appear in C and LD; all cards link to `/roster/[id]`; empty slots show "Open Slot". All goalie slots empty — expected (only goalie has 1 game, below threshold, and no EA season stats).
+
+**Deferred:** mode filter on `/roster`, position-specific card stats, LD/RD side intelligence, `roster-table.tsx` cleanup.
+
+---
+
 ## What's Next
 
 - **EA Season Totals on profile** — done. `/roster/[id]` now has a clearly labeled "EA Season Totals" section sourced from `ea_member_season_stats`. Separate from local Career Stats. Not mode-filtered. `getPlayerEASeasonStats(playerId)` added to `packages/db/src/queries/players.ts`.
@@ -878,7 +1034,7 @@ Source labels surfaced in UI:
 - **Discord alerting** — cron checks `localhost:3001/health`, notifies when stale > 30 min
 - **`pg_dump` backup cron** — daily dump to external drive
 - **Content season filtering** — schema supports it, no UI yet
-- **Expose mode filter in UI** — `getClubStats('6s')` and `getRoster('6s')` are now available; a UI mode toggle on the stats/roster pages can now wire to these queries
+- **Mode filter on `/roster`** — deferred from depth chart phase 1. `getRoster('6s')` works at the query layer; needs UI toggle + `gameMode` threading through the page.
 - **Verify `clubs/seasonRank` + `settings` response shapes** — once the worker runs with the new endpoints, inspect the DB row and worker logs to confirm field names and values match what the widget expects. UNVERIFIED fields in `EaClubSeasonRankEntry` and `EaSettingsDivisionEntry` need a fixture capture pass.
 
 ### Post-launch / later work

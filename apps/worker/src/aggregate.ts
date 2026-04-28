@@ -129,10 +129,10 @@ async function recomputePlayerStats(gameTitleId: number, gameMode: GameMode | nu
       SUM(CASE WHEN NOT pms.is_goalie THEN pms.toi_seconds END)::int AS skater_toi_seconds,
       SUM(CASE WHEN pms.is_goalie THEN pms.toi_seconds END)::int   AS goalie_toi_seconds,
 
-      -- Goalie: wins / losses / OTL from the match result, only for goalie appearances
-      SUM(CASE WHEN pms.is_goalie AND m.result = 'WIN'  THEN 1 ELSE 0 END)::int  AS wins,
-      SUM(CASE WHEN pms.is_goalie AND m.result = 'LOSS' THEN 1 ELSE 0 END)::int  AS losses,
-      SUM(CASE WHEN pms.is_goalie AND m.result = 'OTL'  THEN 1 ELSE 0 END)::int  AS otl,
+      -- Team result across all appearances (skater or goalie)
+      SUM(CASE WHEN m.result = 'WIN'  THEN 1 ELSE 0 END)::int  AS wins,
+      SUM(CASE WHEN m.result = 'LOSS' THEN 1 ELSE 0 END)::int  AS losses,
+      SUM(CASE WHEN m.result = 'OTL'  THEN 1 ELSE 0 END)::int  AS otl,
 
       -- Save pct: saves / shots_against * 100
       CASE

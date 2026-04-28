@@ -1,0 +1,1 @@
+ALTER TABLE "opponent_clubs" ADD COLUMN "use_base_asset" text;

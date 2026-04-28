@@ -15,6 +15,12 @@ const nextConfig: NextConfig = {
         hostname: 'media.contentapi.ea.com',
         pathname: '/content/dam/eacom/nhl/pro-clubs/custom-crests/**',
       },
+      {
+        // EA Pro Clubs base crest CDN — used when customKit.useBaseAsset = "1".
+        protocol: 'https',
+        hostname: 'media.contentapi.ea.com',
+        pathname: '/content/dam/eacom/nhl/pro-clubs/crests/**',
+      },
     ],
   },
 }
