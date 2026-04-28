@@ -17,3 +17,7 @@ build
 # Misc
 *.tsbuildinfo
 .DS_Store
+
+# Research artifacts — large captures not suited for git
+research/**/*.har
+research/**/*_files/

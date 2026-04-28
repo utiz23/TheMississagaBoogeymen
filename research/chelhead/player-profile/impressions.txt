@@ -1,0 +1,6 @@
+- Good foundation for hero bar at the top
+- like positional pie chart
+- not too high on the club stats section, feel like there could be improvement there, see players profile page specs and referecnce for details
+- Hot zone map is very nice
+- I really like the Contribution wheel
+- advanced stats are alright
