@@ -1,18 +1,29 @@
 import type { Metadata } from 'next'
-import { notFound } from 'next/navigation'
-import { getMatchById, getPlayerMatchStats, getOpponentClub } from '@eanhl/db/queries'
-import type { Match } from '@eanhl/db'
-import { ResultBadge } from '@/components/ui/result-badge'
-import { PlayerStatsTable } from '@/components/matches/player-stats-table'
-import { OpponentCrest } from '@/components/ui/opponent-crest'
-import {
-  formatMatchDate,
-  formatTOA,
-  formatPct,
-  opponentFaceoffPct,
-  abbreviateTeamName,
-} from '@/lib/format'
 import Link from 'next/link'
+import { notFound } from 'next/navigation'
+import {
+  getMatchById,
+  getPlayerMatchStats,
+  getOpponentClub,
+  getMatchSeasonNumber,
+  getMatchSeriesContext,
+  getAdjacentMatches,
+} from '@eanhl/db/queries'
+import type { Match } from '@eanhl/db'
+import { HeroCard } from '@/components/matches/hero-card'
+import { TopPerformers } from '@/components/matches/top-performers'
+import { PossessionEdgeBar } from '@/components/matches/possession-edge'
+import { TeamStats } from '@/components/matches/team-stats'
+import { GoalieSpotlightSection } from '@/components/matches/goalie-spotlight'
+import { ScoresheetSection } from '@/components/matches/scoresheet'
+import { ContextFooter } from '@/components/matches/context-footer'
+import {
+  buildBoxScore,
+  buildGoalieSpotlight,
+  buildPossessionEdge,
+  buildScoresheet,
+  buildTopPerformers,
+} from '@/lib/match-recap'
 
 // Match data never changes once written — cache indefinitely
 export const revalidate = false
@@ -37,7 +48,6 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 export default async function GameDetailPage({ params }: Props) {
   const { id: idStr } = await params
   const id = parseInt(idStr, 10)
-
   if (isNaN(id)) notFound()
 
   let match: Match | null = null
@@ -46,24 +56,41 @@ export default async function GameDetailPage({ params }: Props) {
   } catch {
     return <ErrorState message="Unable to load match data right now." />
   }
-
   if (!match) notFound()
 
-  let playerStats: Awaited<ReturnType<typeof getPlayerMatchStats>> = []
-  try {
-    playerStats = await getPlayerMatchStats(match.id)
-  } catch {
-    // Player stats unavailable — render the match summary without the player table
-  }
+  // Capture into a const so TS narrowing carries through the closures below.
+  const m = match
+  // Fetch all secondary data in parallel; each can fail independently and the
+  // section that needs it will simply hide. The hero + main page still render.
+  const [playerStats, opponentClub, seasonNumber, seriesContext, adjacent] =
+    await Promise.all([
+      safe(() => getPlayerMatchStats(m.id), []),
+      safe(() => getOpponentClub(m.opponentClubId), null),
+      safe(() => getMatchSeasonNumber(m.gameTitleId, m.playedAt), null),
+      safe(
+        () => getMatchSeriesContext(m.gameTitleId, m.opponentClubId, m.playedAt),
+        null,
+      ),
+      safe(() => getAdjacentMatches(m.gameTitleId, m.playedAt), {
+        previous: null,
+        next: null,
+      }),
+    ])
 
-  let opponentCrestAssetId: string | null = null
-  let opponentCrestUseBaseAsset: string | null = null
-  try {
-    const opponentClub = await getOpponentClub(match.opponentClubId)
-    opponentCrestAssetId = opponentClub?.crestAssetId ?? null
-    opponentCrestUseBaseAsset = opponentClub?.useBaseAsset ?? null
-  } catch {
-    // Logo display degrades gracefully to initial badge
+  const opponentCrestAssetId = opponentClub?.crestAssetId ?? null
+  const opponentCrestUseBaseAsset = opponentClub?.useBaseAsset ?? null
+
+  // ── View-model derivations ──────────────────────────────────────────────────
+  const topPerformers = buildTopPerformers(playerStats)
+  const possessionEdge = buildPossessionEdge(match)
+  const boxScore = buildBoxScore(match)
+  const goalieSpotlight = buildGoalieSpotlight(playerStats)
+  const scoresheet = buildScoresheet(playerStats)
+
+  const heroMeta = {
+    seasonNumber,
+    meetingNumber: seriesContext?.meetingNumber ?? null,
+    seriesSummary: seriesContext ? formatSeriesSummary(seriesContext, match.opponentName) : null,
   }
 
   return (
@@ -71,175 +98,97 @@ export default async function GameDetailPage({ params }: Props) {
       {/* Back link */}
       <Link
         href="/games"
-        className="inline-flex items-center gap-1.5 text-sm text-zinc-500 hover:text-zinc-300 transition-colors"
+        className="inline-flex items-center gap-1.5 text-sm text-zinc-500 transition-colors hover:text-zinc-300"
       >
         <span aria-hidden>←</span> Games
       </Link>
 
-      {/* Hero — Arena Board bold score with Broadcast Strip card treatment */}
-      <HeroSection
+      {/* 1. Hero */}
+      <HeroCard
         match={match}
         opponentCrestAssetId={opponentCrestAssetId}
         opponentCrestUseBaseAsset={opponentCrestUseBaseAsset}
+        meta={heroMeta}
       />
 
-      {/* Team comparison strip */}
-      <ComparisonStrip match={match} />
+      {/* 2. Story strip — Top Performers + Possession Edge */}
+      {(topPerformers.length > 0 || possessionEdge !== null) && (
+        <div className="space-y-6">
+          {topPerformers.length > 0 ? <TopPerformers performers={topPerformers} /> : null}
+          {possessionEdge !== null ? <PossessionEdgeBar edge={possessionEdge} /> : null}
+        </div>
+      )}
 
-      {/* Player stats */}
-      <section>
-        <h2 className="mb-3 font-condensed text-sm font-semibold uppercase tracking-wider text-zinc-500">
-          Players
-        </h2>
-        {playerStats.length > 0 ? (
-          <PlayerStatsTable playerStats={playerStats} />
-        ) : (
-          <div className="flex min-h-[6rem] items-center justify-center border border-zinc-800 bg-surface">
-            <p className="text-sm text-zinc-500">No player stats recorded for this game.</p>
-          </div>
-        )}
-      </section>
+      {/* 3. Team stats */}
+      <TeamStats rows={boxScore} />
+
+      {/* 4. Goalie spotlight (omitted entirely if no goalie data) */}
+      <GoalieSpotlightSection goalies={goalieSpotlight} />
+
+      {/* 5. BGM scoresheet */}
+      {scoresheet.skaters.length === 0 && scoresheet.goalies.length === 0 ? (
+        <EmptyScoresheet />
+      ) : (
+        <ScoresheetSection scoresheet={scoresheet} />
+      )}
+
+      {/* 6. Context footer (lowest priority — first to cut if scope shrinks) */}
+      <ContextFooter previous={adjacent.previous} next={adjacent.next} />
     </div>
   )
 }
 
-// ─── Hero ────────────────────────────────────────────────────────────────────
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function HeroSection({
-  match,
-  opponentCrestAssetId,
-  opponentCrestUseBaseAsset,
-}: {
-  match: Match
-  opponentCrestAssetId: string | null
-  opponentCrestUseBaseAsset: string | null
-}) {
-  const scoreForColor = match.result === 'WIN' ? 'text-accent' : 'text-zinc-100'
-  const opponentAbbrev = abbreviateTeamName(match.opponentName)
-
-  return (
-    <div className="border border-zinc-800 border-l-4 border-l-accent bg-surface px-6 py-5">
-      <div className="flex flex-wrap items-center gap-x-8 gap-y-4">
-        {/* Score — large, condensed, Arena Board bold */}
-        <div className="flex items-baseline gap-2 font-condensed font-bold tabular leading-none">
-          <span className={`text-5xl sm:text-6xl ${scoreForColor}`}>{match.scoreFor}</span>
-          <span className="text-2xl sm:text-3xl text-zinc-600">–</span>
-          <span className="text-5xl sm:text-6xl text-zinc-400">{match.scoreAgainst}</span>
-        </div>
-
-        {/* Match info */}
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full border border-zinc-800 bg-zinc-900/50">
-            <OpponentCrest
-              crestAssetId={opponentCrestAssetId}
-              useBaseAsset={opponentCrestUseBaseAsset}
-              alt={match.opponentName}
-              width={40}
-              height={40}
-              className="h-10 w-10 object-contain"
-              fallback={
-                <span
-                  aria-hidden
-                  className="font-condensed text-sm font-black uppercase tracking-tight text-zinc-400"
-                >
-                  {opponentAbbrev.slice(0, 2)}
-                </span>
-              }
-            />
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <span className="font-condensed text-xl font-semibold text-zinc-200">
-              vs {match.opponentName}
-            </span>
-            <div className="flex items-center gap-2.5">
-              <ResultBadge result={match.result} />
-              <span className="text-sm text-zinc-500">{formatMatchDate(match.playedAt)}</span>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  )
+async function safe<T>(fn: () => Promise<T>, fallback: T): Promise<T> {
+  try {
+    return await fn()
+  } catch {
+    return fallback
+  }
 }
 
-// ─── Team comparison strip ───────────────────────────────────────────────────
-
-interface ComparisonRowProps {
-  label: string
-  us: string
-  them: string | null
+function formatSeriesSummary(
+  ctx: { meetingNumber: number; series: { wins: number; losses: number; otl: number; total: number } },
+  opponentName: string,
+): string | null {
+  const { meetingNumber, series } = ctx
+  if (series.total <= 1) return null // first meeting — nothing prior to summarize
+  const ord = ordinal(meetingNumber)
+  const record = `${series.wins.toString()}-${series.losses.toString()}-${series.otl.toString()}`
+  return `${ord} meeting vs ${opponentName} · series ${record}`
 }
 
-function ComparisonRow({ label, us, them }: ComparisonRowProps) {
-  return (
-    <div className="flex items-center gap-3 py-3 border-b border-zinc-800/60 last:border-0">
-      <span className="w-20 shrink-0 text-right font-condensed text-base font-semibold text-zinc-100 tabular">
-        {us}
-      </span>
-      <span className="flex-1 text-center text-xs font-semibold uppercase tracking-wider text-zinc-500">
-        {label}
-      </span>
-      <span className="w-20 shrink-0 text-left font-condensed text-base font-semibold text-zinc-400 tabular">
-        {them ?? '—'}
-      </span>
-    </div>
-  )
+function ordinal(n: number): string {
+  const s = n.toString()
+  const lastTwo = n % 100
+  if (lastTwo >= 11 && lastTwo <= 13) return `${s}th`
+  switch (n % 10) {
+    case 1:
+      return `${s}st`
+    case 2:
+      return `${s}nd`
+    case 3:
+      return `${s}rd`
+    default:
+      return `${s}th`
+  }
 }
-
-function ComparisonStrip({ match }: { match: Match }) {
-  const opponentFO = opponentFaceoffPct(match.faceoffPct)
-
-  return (
-    <section>
-      <h2 className="mb-3 font-condensed text-sm font-semibold uppercase tracking-wider text-zinc-500">
-        Team Stats
-      </h2>
-      <div className="border border-zinc-800 bg-surface px-4">
-        {/* Column labels */}
-        <div className="flex items-center gap-3 border-b border-zinc-800 py-2">
-          <span className="w-20 shrink-0 text-right text-xs font-semibold uppercase tracking-wider text-zinc-600">
-            Us
-          </span>
-          <span className="flex-1" />
-          <span className="w-20 shrink-0 text-left text-xs font-semibold uppercase tracking-wider text-zinc-600">
-            Them
-          </span>
-        </div>
-
-        <ComparisonRow
-          label="Shots"
-          us={match.shotsFor.toString()}
-          them={match.shotsAgainst.toString()}
-        />
-        <ComparisonRow
-          label="Hits"
-          us={match.hitsFor.toString()}
-          them={match.hitsAgainst.toString()}
-        />
-        {match.faceoffPct !== null && (
-          <ComparisonRow
-            label="Faceoffs"
-            us={formatPct(match.faceoffPct)}
-            them={formatPct(opponentFO)}
-          />
-        )}
-        {match.timeOnAttack !== null && (
-          <ComparisonRow label="TOA" us={formatTOA(match.timeOnAttack)} them={null} />
-        )}
-        {match.penaltyMinutes !== null && match.penaltyMinutes > 0 && (
-          <ComparisonRow label="PIM" us={match.penaltyMinutes.toString()} them={null} />
-        )}
-      </div>
-    </section>
-  )
-}
-
-// ─── Error state ─────────────────────────────────────────────────────────────
 
 function ErrorState({ message }: { message: string }) {
   return (
     <div className="flex min-h-[12rem] items-center justify-center border border-zinc-800 bg-surface">
       <p className="text-sm text-zinc-500">{message}</p>
     </div>
+  )
+}
+
+function EmptyScoresheet() {
+  return (
+    <section>
+      <div className="flex min-h-[6rem] items-center justify-center border border-zinc-800 bg-surface">
+        <p className="text-sm text-zinc-500">No player stats recorded for this game.</p>
+      </div>
+    </section>
   )
 }

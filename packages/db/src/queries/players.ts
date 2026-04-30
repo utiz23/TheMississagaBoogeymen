@@ -29,6 +29,7 @@ export async function getPlayerMatchStats(matchId: number) {
       gamertag: players.gamertag,
       position: playerMatchStats.position,
       isGoalie: playerMatchStats.isGoalie,
+      // Skater core
       goals: playerMatchStats.goals,
       assists: playerMatchStats.assists,
       plusMinus: playerMatchStats.plusMinus,
@@ -37,9 +38,26 @@ export async function getPlayerMatchStats(matchId: number) {
       pim: playerMatchStats.pim,
       takeaways: playerMatchStats.takeaways,
       giveaways: playerMatchStats.giveaways,
+      faceoffWins: playerMatchStats.faceoffWins,
+      faceoffLosses: playerMatchStats.faceoffLosses,
+      passAttempts: playerMatchStats.passAttempts,
+      passCompletions: playerMatchStats.passCompletions,
+      toiSeconds: playerMatchStats.toiSeconds,
+      shotAttempts: playerMatchStats.shotAttempts,
+      blockedShots: playerMatchStats.blockedShots,
+      ppGoals: playerMatchStats.ppGoals,
+      shGoals: playerMatchStats.shGoals,
+      playerDnf: playerMatchStats.playerDnf,
+      // Goalie
       saves: playerMatchStats.saves,
       goalsAgainst: playerMatchStats.goalsAgainst,
       shotsAgainst: playerMatchStats.shotsAgainst,
+      breakawaySaves: playerMatchStats.breakawaySaves,
+      breakawayShots: playerMatchStats.breakawayShots,
+      despSaves: playerMatchStats.despSaves,
+      penSaves: playerMatchStats.penSaves,
+      penShots: playerMatchStats.penShots,
+      pokechecks: playerMatchStats.pokechecks,
     })
     .from(playerMatchStats)
     .innerJoin(players, eq(playerMatchStats.playerId, players.id))
@@ -114,6 +132,7 @@ export async function getEARoster(gameTitleId: number) {
       playerId: eaMemberSeasonStats.playerId,
       gamertag: players.gamertag,
       position: players.position,
+      favoritePosition: eaMemberSeasonStats.favoritePosition,
       gamesPlayed: eaMemberSeasonStats.gamesPlayed,
       skaterGp: eaMemberSeasonStats.skaterGp,
       goalieGp: eaMemberSeasonStats.goalieGp,
@@ -378,7 +397,7 @@ export interface ProfileRecentFormSkater {
   role: 'skater'
   gamesAnalyzed: number
   record: { wins: number; losses: number; otl: number }
-  recentResults: Array<'WIN' | 'LOSS' | 'OTL' | 'DNF'>
+  recentResults: ('WIN' | 'LOSS' | 'OTL' | 'DNF')[]
   goals: number
   assists: number
   points: number
@@ -390,7 +409,7 @@ export interface ProfileRecentFormGoalie {
   role: 'goalie'
   gamesAnalyzed: number
   record: { wins: number; losses: number; otl: number }
-  recentResults: Array<'WIN' | 'LOSS' | 'OTL' | 'DNF'>
+  recentResults: ('WIN' | 'LOSS' | 'OTL' | 'DNF')[]
   saves: number
   goalsAgainst: number
   savePct: number | null
@@ -417,7 +436,7 @@ function normalizedMetric(
   const min = Math.min(...values)
   const max = Math.max(...values)
   if (!Number.isFinite(min) || !Number.isFinite(max)) return null
-  if (max === min) return 100
+  if (max === min) return 50
 
   const raw = lowerIsBetter
     ? ((max - current) / (max - min)) * 100
@@ -454,7 +473,7 @@ function buildRecentForm(
 ): ProfileRecentFormSkater | ProfileRecentFormGoalie | null {
   if (rows.length === 0) return null
 
-  const recentResults = rows.map((row) => row.result) as Array<'WIN' | 'LOSS' | 'OTL' | 'DNF'>
+  const recentResults = rows.map((row) => row.result)
 
   const record = rows.reduce(
     (acc, row) => {

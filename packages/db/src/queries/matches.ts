@@ -1,7 +1,7 @@
-import { and, eq, desc, count, sql } from 'drizzle-orm'
+import { and, asc, eq, desc, count, sql, lte, lt, gt } from 'drizzle-orm'
 import { db } from '../client.js'
 import { matches } from '../schema/index.js'
-import type { GameMode } from '../schema/index.js'
+import type { GameMode, MatchResult } from '../schema/index.js'
 
 /**
  * Most recent matches for a given game title, newest first.
@@ -47,6 +47,116 @@ export async function countMatches(params: { gameTitleId: number; gameMode?: Gam
 export async function getMatchById(id: number) {
   const rows = await db.select().from(matches).where(eq(matches.id, id)).limit(1)
   return rows[0] ?? null
+}
+
+/**
+ * Chronological position of this match in its game title (1-indexed).
+ * "Game N of season" — counts matches with played_at <= this match's played_at.
+ */
+export async function getMatchSeasonNumber(
+  gameTitleId: number,
+  playedAt: Date,
+): Promise<number> {
+  const rows = await db
+    .select({ n: count() })
+    .from(matches)
+    .where(and(eq(matches.gameTitleId, gameTitleId), lte(matches.playedAt, playedAt)))
+  return rows[0]?.n ?? 0
+}
+
+export interface SeriesContext {
+  /** Chronological meeting number for THIS match (1-indexed). */
+  meetingNumber: number
+  /** All-time series record vs this opponent within the game title (incl. this match). */
+  series: { wins: number; losses: number; otl: number; total: number }
+}
+
+/**
+ * Same-opponent series context: meeting number for this match plus all-time
+ * W/L/OTL record vs this opponent within the game title.
+ */
+export async function getMatchSeriesContext(
+  gameTitleId: number,
+  opponentClubId: string,
+  playedAt: Date,
+): Promise<SeriesContext> {
+  const [meetingRows, recordRows] = await Promise.all([
+    db
+      .select({ n: count() })
+      .from(matches)
+      .where(
+        and(
+          eq(matches.gameTitleId, gameTitleId),
+          eq(matches.opponentClubId, opponentClubId),
+          lte(matches.playedAt, playedAt),
+        ),
+      ),
+    db
+      .select({ result: matches.result, n: count() })
+      .from(matches)
+      .where(
+        and(
+          eq(matches.gameTitleId, gameTitleId),
+          eq(matches.opponentClubId, opponentClubId),
+        ),
+      )
+      .groupBy(matches.result),
+  ])
+
+  const series = { wins: 0, losses: 0, otl: 0, total: 0 }
+  for (const row of recordRows) {
+    series.total += row.n
+    if (row.result === 'WIN') series.wins += row.n
+    else if (row.result === 'LOSS') series.losses += row.n
+    else if (row.result === 'OTL') series.otl += row.n
+  }
+
+  return {
+    meetingNumber: meetingRows[0]?.n ?? 0,
+    series,
+  }
+}
+
+export interface AdjacentMatch {
+  id: number
+  opponentName: string
+  result: MatchResult
+  scoreFor: number
+  scoreAgainst: number
+  playedAt: Date
+}
+
+/**
+ * Previous and next match (chronologically) within the same game title.
+ * Either side may be null at season boundaries.
+ */
+export async function getAdjacentMatches(
+  gameTitleId: number,
+  playedAt: Date,
+): Promise<{ previous: AdjacentMatch | null; next: AdjacentMatch | null }> {
+  const select = {
+    id: matches.id,
+    opponentName: matches.opponentName,
+    result: matches.result,
+    scoreFor: matches.scoreFor,
+    scoreAgainst: matches.scoreAgainst,
+    playedAt: matches.playedAt,
+  }
+  const [prevRows, nextRows] = await Promise.all([
+    db
+      .select(select)
+      .from(matches)
+      .where(and(eq(matches.gameTitleId, gameTitleId), lt(matches.playedAt, playedAt)))
+      .orderBy(desc(matches.playedAt))
+      .limit(1),
+    db
+      .select(select)
+      .from(matches)
+      .where(and(eq(matches.gameTitleId, gameTitleId), gt(matches.playedAt, playedAt)))
+      .orderBy(asc(matches.playedAt))
+      .limit(1),
+  ])
+  return { previous: prevRows[0] ?? null, next: nextRows[0] ?? null }
 }
 
 export interface LineupCondition {
