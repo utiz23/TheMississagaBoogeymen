@@ -12,11 +12,14 @@ import {
   getGoalieStats,
   getEASkaterStats,
   getEAGoalieStats,
+  getPlayerWithWithoutSplits,
+  getPlayerPairs,
 } from '@eanhl/db/queries'
 import { StatCard } from '@/components/ui/stat-card'
 import { MatchRow } from '@/components/matches/match-row'
 import { SkaterStatsTable } from '@/components/stats/skater-stats-table'
 import { GoalieStatsTable } from '@/components/stats/goalie-stats-table'
+import { WithWithoutTable, BestPairsTable, ChemistrySection } from '@/components/stats/chemistry-tables'
 import { formatPct } from '@/lib/format'
 
 export const metadata: Metadata = { title: 'Stats — Club Stats' }
@@ -71,6 +74,8 @@ export default async function StatsPage({ searchParams }: { searchParams: Search
         getRecentMatches({ gameTitleId: gameTitle.id, limit: 5 }),
         gameMode === null ? getEASkaterStats(gameTitle.id) : getSkaterStats(gameTitle.id, gameMode),
         gameMode === null ? getEAGoalieStats(gameTitle.id) : getGoalieStats(gameTitle.id, gameMode),
+        getPlayerWithWithoutSplits(gameTitle.id, gameMode),
+        getPlayerPairs(gameTitle.id, gameMode),
       ])
     } catch {
       return null
@@ -81,7 +86,7 @@ export default async function StatsPage({ searchParams }: { searchParams: Search
     return <EmptyState message="Unable to load stats right now." />
   }
 
-  const [clubStats, recentMatches, skaterRows, goalieRows] = fetched
+  const [clubStats, recentMatches, skaterRows, goalieRows, withWithoutRows, pairRows] = fetched
 
   const emptyModeLabel = gameMode !== null ? `${gameMode} ` : ''
 
@@ -154,6 +159,19 @@ export default async function StatsPage({ searchParams }: { searchParams: Search
           <GoalieStatsTable rows={goalieRows} title="Goalies" subtitle={statsSource} />
         </section>
       )}
+
+      {/* Chemistry — with/without splits and best pairs */}
+      <section className="space-y-6">
+        <h2 className="font-condensed text-sm font-semibold uppercase tracking-wider text-zinc-500">
+          Chemistry
+        </h2>
+        <ChemistrySection title="Team Record With / Without">
+          <WithWithoutTable rows={withWithoutRows} />
+        </ChemistrySection>
+        <ChemistrySection title="Best Pairs">
+          <BestPairsTable rows={pairRows} />
+        </ChemistrySection>
+      </section>
 
       {/* Recent games — context strip below the stats tables */}
       {recentMatches.length > 0 && (
