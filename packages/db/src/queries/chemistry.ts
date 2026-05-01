@@ -2,7 +2,7 @@ import { sql } from 'drizzle-orm'
 import { db } from '../client.js'
 import type { GameMode } from '../schema/index.js'
 
-export const CHEMISTRY_MIN_GP_WITH = 5
+export const CHEMISTRY_MIN_GP_WITH = 3
 export const CHEMISTRY_MIN_GP_WITHOUT = 3
 export const CHEMISTRY_PAIR_MIN_GP = 5
 

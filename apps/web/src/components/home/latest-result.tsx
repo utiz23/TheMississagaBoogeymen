@@ -1,10 +1,10 @@
 import Link from 'next/link'
 import type { Match, MatchResult } from '@eanhl/db'
 import Image from 'next/image'
-import { formatMatchDate, formatRecord, abbreviateTeamName } from '@/lib/format'
+import { formatMatchDate, formatRecord, abbreviateTeamName, formatTOA, opponentFaceoffPct } from '@/lib/format'
 import { OpponentCrest } from '@/components/ui/opponent-crest'
 
-const OUR_ABBREV = 'BGM'
+const OUR_NAME = 'Boogeymen'
 
 interface LatestResultProps {
   match: Match
@@ -46,6 +46,47 @@ function ResultPill({ result }: { result: MatchResult }) {
   )
 }
 
+function SnapStat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex flex-col gap-0.5">
+      <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-600">
+        {label}
+      </span>
+      <span className="font-condensed text-sm font-bold tabular-nums text-zinc-300">{value}</span>
+    </div>
+  )
+}
+
+function MatchSnapshot({ match }: { match: Match }) {
+  const foOurs =
+    match.faceoffPct !== null ? Math.round(parseFloat(match.faceoffPct)).toString() : null
+  const foOpponent = opponentFaceoffPct(match.faceoffPct)
+  const foTheirs =
+    foOpponent !== null ? Math.round(parseFloat(foOpponent)).toString() : null
+  const toa = match.timeOnAttack !== null ? formatTOA(match.timeOnAttack) : null
+  const showFO = foOurs !== null && foTheirs !== null
+
+  return (
+    <div className="border-t border-zinc-800/60 px-5 py-3 sm:px-8">
+      <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
+        <SnapStat
+          label="Shots"
+          value={`${match.shotsFor.toString()} – ${match.shotsAgainst.toString()}`}
+        />
+        <SnapStat
+          label="Hits"
+          value={`${match.hitsFor.toString()} – ${match.hitsAgainst.toString()}`}
+        />
+        {showFO && <SnapStat label="FO%" value={`${foOurs} – ${foTheirs}`} />}
+        {toa !== null && <SnapStat label="TOA" value={toa} />}
+          <span className="ml-auto hidden font-condensed text-[10px] font-semibold uppercase tracking-[0.22em] text-zinc-700 sm:inline">
+          Boogeymen – Opp
+        </span>
+      </div>
+    </div>
+  )
+}
+
 export function LatestResult({
   match,
   clubRecord,
@@ -75,17 +116,17 @@ export function LatestResult({
         {/* Our side */}
         <div className="flex flex-col items-center justify-center gap-3 rounded-xl border border-zinc-800/70 bg-black/20 px-4 py-5 text-center lg:min-h-[18.5rem]">
           <div className="flex h-24 w-24 items-center justify-center rounded-full border border-zinc-800 bg-black/20 sm:h-28 sm:w-28">
-            <Image
-              src="/images/bgm-logo.png"
-              alt="BGM"
-              width={96}
-              height={96}
-              className="h-20 w-20 object-contain sm:h-24 sm:w-24"
-            />
-          </div>
-          <span className="font-condensed text-3xl font-black uppercase tracking-[0.14em] text-zinc-100">
-            {OUR_ABBREV}
-          </span>
+              <Image
+                src="/images/bgm-logo.png"
+                alt="Boogeymen"
+                width={96}
+                height={96}
+                className="h-20 w-20 object-contain sm:h-24 sm:w-24"
+              />
+            </div>
+            <span className="font-condensed text-3xl font-black uppercase tracking-[0.14em] text-zinc-100">
+            {OUR_NAME}
+            </span>
           {clubRecord !== null ? (
             <span className="font-condensed text-base font-semibold tracking-[0.12em] text-zinc-400">
               {formatRecord(clubRecord.wins, clubRecord.losses, clubRecord.otl)}
@@ -139,9 +180,7 @@ export function LatestResult({
         </div>
       </div>
 
-      {/* TODO: restore Match Snapshot once the final stat set and presentation
-          are decided. All candidate fields (SOG, Hits, FO%, TOA, PIM) are stored
-          in the match row; the section just needs to be re-enabled and styled. */}
+      <MatchSnapshot match={match} />
     </Link>
   )
 }

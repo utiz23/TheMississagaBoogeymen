@@ -27,8 +27,8 @@ Self-hosted on a home PC via Docker Compose. Audience is a handful of team membe
 - **Game title** (NHL 25, NHL 26, NHL 27) is the primary data grouping. Cross-game career stats are the core feature.
 - **Content seasons** (in-game battlepass seasons, ~5/year) are secondary metadata. Managed manually.
 - **EA API** returns ~5 recent matches and all values as strings. Worker polls every 5 minutes. Missing the window means permanent data loss.
-- **Player identity** anchored on `ea_id` (blazeId). Gamertags may change — tracked via history table.
-- **Match uniqueness** is composite: `(game_title_id, match_id)`.
+- **Player identity** anchored on `ea_id` (blazeId) in theory — but blazeId is absent from EA match payloads in production. Gamertag fallback is the real production path. `players.ea_id` is nullable permanently.
+- **Match uniqueness** is composite: `(game_title_id, match_id)`. Surrogate `bigserial` PK, not the EA match ID.
 
 ## Conventions
 

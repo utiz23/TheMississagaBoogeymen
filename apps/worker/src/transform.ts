@@ -8,7 +8,12 @@
  */
 
 import type { EaMatch, EaPlayerMatchStats, EaMatchType } from '@eanhl/ea-client'
-import type { NewMatch, NewPlayer, NewPlayerMatchStats } from '@eanhl/db'
+import type {
+  NewMatch,
+  NewOpponentPlayerMatchStats,
+  NewPlayer,
+  NewPlayerMatchStats,
+} from '@eanhl/db'
 import { deriveGameMode } from '@eanhl/db'
 
 // ─── Public types ─────────────────────────────────────────────────────────────
@@ -21,11 +26,16 @@ export interface TransformPlayerResult {
   stats: StatsPayload
 }
 
+/** Opponent player rows are stored without identity-table linkage. */
+export type OpponentPlayerStatsPayload = Omit<NewOpponentPlayerMatchStats, 'id' | 'matchId'>
+
 export interface TransformResult {
   eaMatchId: string
   /** All fields required to insert the match row, except id and contentSeasonId. */
   match: Omit<NewMatch, 'id' | 'contentSeasonId'>
   players: TransformPlayerResult[]
+  /** Opponent player rows extracted from payload.players[opponentClubId]. */
+  opponentPlayers: OpponentPlayerStatsPayload[]
 }
 
 // ─── Internal helpers ─────────────────────────────────────────────────────────
@@ -222,6 +232,76 @@ function transformPlayer(playerKey: string, raw: EaPlayerMatchStats): TransformP
   }
 }
 
+/**
+ * Transform a single opponent player record into an `opponent_player_match_stats`
+ * row payload. Opponent rows are NOT linked to the BGM `players` identity model;
+ * the EA persona ID and gamertag live on this row.
+ *
+ * `eaPlayerId` is the JSON object key in `payload.players[opponentClubId][?]`
+ * (e.g. "1003821403659"). Always present in real payloads.
+ *
+ * `opponentClubId` is the matches.opponent_club_id for this match.
+ */
+function transformOpponentPlayer(
+  eaPlayerId: string,
+  opponentClubId: string,
+  raw: EaPlayerMatchStats,
+): OpponentPlayerStatsPayload {
+  const position = typeof raw.position === 'string' ? raw.position : null
+  const isGoalie = position === 'goalie'
+
+  const passAttempts = parseIntStr(raw.skpassattempts, 'skpassattempts')
+  const passPctStr = typeof raw.skpasspct === 'string' ? raw.skpasspct : '0'
+  const passPct = parseFloat(passPctStr)
+  const passCompletions = passAttempts > 0 ? Math.round(passAttempts * (passPct / 100)) : 0
+  const toiSeconds = parseIntMaybe(raw.toiseconds)
+
+  return {
+    eaPlayerId,
+    opponentClubId,
+    gamertag: raw.playername,
+    position,
+    isGoalie,
+    isGuest: parseIntStr(typeof raw.isGuest === 'string' ? raw.isGuest : '0', 'isGuest') === 1,
+    playerDnf: parseIntStr(raw.player_dnf, 'player_dnf') === 1,
+    clientPlatform: typeof raw.clientPlatform === 'string' ? raw.clientPlatform : null,
+
+    goals: parseIntStr(raw.skgoals, 'skgoals'),
+    assists: parseIntStr(raw.skassists, 'skassists'),
+    plusMinus: parseIntStr(raw.skplusmin, 'skplusmin'),
+    shots: parseIntStr(raw.skshots, 'skshots'),
+    hits: parseIntStr(raw.skhits, 'skhits'),
+    pim: parseIntStr(raw.skpim, 'skpim'),
+    takeaways: parseIntStr(raw.sktakeaways, 'sktakeaways'),
+    giveaways: parseIntStr(raw.skgiveaways, 'skgiveaways'),
+    faceoffWins: parseIntStr(raw.skfow, 'skfow'),
+    faceoffLosses: parseIntStr(raw.skfol, 'skfol'),
+    passAttempts,
+    passCompletions,
+    toiSeconds,
+
+    shotAttempts: parseIntStr(raw.skshotattempts, 'skshotattempts'),
+    blockedShots: parseIntStr(raw.skbs, 'skbs'),
+    ppGoals: parseIntStr(raw.skppg, 'skppg'),
+    shGoals: parseIntStr(raw.skshg, 'skshg'),
+    interceptions: parseIntStr(raw.skinterceptions, 'skinterceptions'),
+    penaltiesDrawn: parseIntStr(raw.skpenaltiesdrawn, 'skpenaltiesdrawn'),
+    possession: parseIntStr(raw.skpossession, 'skpossession'),
+    deflections: parseIntStr(raw.skdeflections, 'skdeflections'),
+    saucerPasses: parseIntStr(raw.sksaucerpasses, 'sksaucerpasses'),
+
+    saves: isGoalie ? parseIntStr(raw.glsaves, 'glsaves') : null,
+    goalsAgainst: isGoalie ? parseIntStr(raw.glga, 'glga') : null,
+    shotsAgainst: isGoalie ? parseIntStr(raw.glshots, 'glshots') : null,
+    breakawaySaves: isGoalie ? parseIntStr(raw.glbrksaves, 'glbrksaves') : null,
+    breakawayShots: isGoalie ? parseIntStr(raw.glbrkshots, 'glbrkshots') : null,
+    despSaves: isGoalie ? parseIntStr(raw.gldsaves, 'gldsaves') : null,
+    penSaves: isGoalie ? parseIntStr(raw.glpensaves, 'glpensaves') : null,
+    penShots: isGoalie ? parseIntStr(raw.glpenshots, 'glpenshots') : null,
+    pokechecks: isGoalie ? parseIntStr(raw.glpokechecks, 'glpokechecks') : null,
+  }
+}
+
 // ─── Public API ───────────────────────────────────────────────────────────────
 
 /**
@@ -309,8 +389,16 @@ export function transformMatch(
   const faceoffPct: string | null =
     faceoffTotal > 0 ? ((faceoffWins / faceoffTotal) * 100).toFixed(2) : null
 
-  const timeOnAttackRaw = extractAggInt(ourAgg, 'toa', 'timeOnAttack')
+  // CONFIRMED: 'toa' lives on clubs[clubId], NOT in the aggregate block.
+  // (This was a latent bug in the original transform — both ours and opponent
+  // returned 0 because they were read from `aggregate[clubId]`.)
+  const timeOnAttackRaw = extractAggInt(ourClub, 'toa', 'timeOnAttack')
+  const timeOnAttackAgainstRaw = extractAggInt(opponentClub, 'toa', 'timeOnAttack')
+
+  // PIM: aggregate.skpim is the team-summed PIM. The clubs block does not have
+  // a reliable PIM key; aggregate is correct here.
   const penaltyMinutesRaw = extractAggInt(ourAgg, 'pim', 'skpim')
+  const penaltyMinutesAgainstRaw = extractAggInt(oppAgg, 'pim', 'skpim')
 
   // ── Game mode ────────────────────────────────────────────────────────────────
   // CONFIRMED: cNhlOnlineGameType is at clubs[id].cNhlOnlineGameType (not aggregate).
@@ -326,12 +414,23 @@ export function transformMatch(
   const ppGoalsRaw = parseIntMaybe(ourClub.ppg)
   const ppOpportunitiesRaw = parseIntMaybe(ourClub.ppo)
 
+  const passAttemptsAgainstRaw = parseIntMaybe(opponentClub.passa)
+  const passCompletionsAgainstRaw = parseIntMaybe(opponentClub.passc)
+  const ppGoalsAgainstRaw = parseIntMaybe(opponentClub.ppg)
+  const ppOpportunitiesAgainstRaw = parseIntMaybe(opponentClub.ppo)
+
   // ── Player stats ─────────────────────────────────────────────────────────────
   const allPlayers = match.players ?? {}
   const ourPlayers: Record<string, EaPlayerMatchStats> = allPlayers[ourClubId] ?? {}
+  const opponentPlayersRaw: Record<string, EaPlayerMatchStats> =
+    allPlayers[opponentClubId] ?? {}
 
   const players: TransformPlayerResult[] = Object.entries(ourPlayers).map(([key, raw]) =>
     transformPlayer(key, raw),
+  )
+
+  const opponentPlayers: OpponentPlayerStatsPayload[] = Object.entries(opponentPlayersRaw).map(
+    ([key, raw]) => transformOpponentPlayer(key, opponentClubId, raw),
   )
 
   return {
@@ -359,7 +458,17 @@ export function transformMatch(
       passCompletions: passCompletionsRaw,
       ppGoals: ppGoalsRaw,
       ppOpportunities: ppOpportunitiesRaw,
+      // Opponent-side aggregates
+      penaltyMinutesAgainst:
+        penaltyMinutesAgainstRaw > 0 ? penaltyMinutesAgainstRaw : null,
+      timeOnAttackAgainst:
+        timeOnAttackAgainstRaw > 0 ? timeOnAttackAgainstRaw : null,
+      passAttemptsAgainst: passAttemptsAgainstRaw,
+      passCompletionsAgainst: passCompletionsAgainstRaw,
+      ppGoalsAgainst: ppGoalsAgainstRaw,
+      ppOpportunitiesAgainst: ppOpportunitiesAgainstRaw,
     },
     players,
+    opponentPlayers,
   }
 }

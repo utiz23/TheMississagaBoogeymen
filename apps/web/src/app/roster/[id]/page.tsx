@@ -10,11 +10,14 @@ import {
   getPlayerGameLog,
   countPlayerGameLog,
   getPlayerEASeasonStats,
+  getPlayerPositionUsage,
 } from '@eanhl/db/queries'
 import type { GameMode } from '@eanhl/db'
 import { GAME_MODE } from '@eanhl/db'
+import { PositionPill } from '@/components/matches/position-pill'
 import { ResultBadge } from '@/components/ui/result-badge'
 import { PlayerSilhouette } from '@/components/home/player-card'
+import { PlayerGameLogSection } from '@/components/roster/player-game-log-section'
 import {
   formatMatchDate,
   formatPosition,
@@ -82,7 +85,7 @@ export default async function PlayerPage({ params, searchParams }: Props) {
   try {
     ;[overview, careerStats, eaStats, history, gameLog, gameLogTotal] = await Promise.all([
       getPlayerProfileOverview(id),
-      getPlayerCareerStats(id, gameMode),
+      getPlayerCareerStats(id, null),
       getPlayerEASeasonStats(id),
       getPlayerGamertagHistory(id),
       getPlayerGameLog(id, gameMode, LOG_PAGE_SIZE, logOffset),
@@ -94,9 +97,25 @@ export default async function PlayerPage({ params, searchParams }: Props) {
 
   if (!overview) notFound()
 
-  const { currentLocalSeason } = overview
+  const { currentLocalSeason, currentEaSeason, secondaryRole } = overview
   const hasHistory = history.some((entry) => entry.seenUntil !== null)
   const hasNoLocalData = currentLocalSeason === null && gameLogTotal === 0
+  const skaterGp = currentEaSeason?.skaterGp ?? currentLocalSeason?.skaterGp ?? 0
+  const goalieGp = currentEaSeason?.goalieGp ?? currentLocalSeason?.goalieGp ?? 0
+  const hasSecondaryRole =
+    secondaryRole !== null &&
+    (secondaryRole === 'goalie' ? goalieGp > 0 : skaterGp > 0)
+
+  // Position usage — depends on gameTitleId resolved from overview, runs after the main batch
+  const gameTitleId = currentEaSeason?.gameTitleId ?? currentLocalSeason?.gameTitleId ?? null
+  let positionUsage: Awaited<ReturnType<typeof getPlayerPositionUsage>> = []
+  if (gameTitleId !== null) {
+    try {
+      positionUsage = await getPlayerPositionUsage(id, gameTitleId)
+    } catch {
+      // non-critical, page renders without it
+    }
+  }
 
   return (
     <div className="space-y-8">
@@ -107,59 +126,47 @@ export default async function PlayerPage({ params, searchParams }: Props) {
         <span aria-hidden>←</span> Roster
       </Link>
 
-      <HeroSection overview={overview} />
+      <HeroSection overview={overview} positionUsage={positionUsage} />
 
       {hasNoLocalData && (
         <div className="rounded border border-zinc-700 bg-zinc-900 px-4 py-3">
           <p className="text-sm text-zinc-400">
             <span className="font-semibold text-zinc-300">No local match history yet.</span> This
-            player is registered as a club member but has not appeared in a tracked match. The EA
-            season snapshot may still show totals while local sections stay empty until new games
-            are ingested.
+            player is registered as a club member but has not appeared in a tracked match. EA season
+            totals may still show while local sections stay empty until new games are ingested.
           </p>
         </div>
       )}
 
       <section id="overview" className="space-y-8 scroll-mt-24">
-        <CurrentSeasonSnapshotSection overview={overview} />
         <ContributionWheelSection overview={overview} />
         <RecentFormSection overview={overview} />
+        {hasSecondaryRole && secondaryRole !== null && (
+          <SecondaryRoleStrip overview={overview} role={secondaryRole} />
+        )}
       </section>
 
       <section id="career" className="space-y-4 scroll-mt-24">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <h2 className="font-condensed text-sm font-semibold uppercase tracking-wider text-zinc-500">
-              Career Stats
-            </h2>
-            <p className="mt-0.5 text-xs text-zinc-600">
-              Locally recorded club history. Filter applies to this table and the game log below.
-            </p>
-          </div>
-          <GameModeFilter playerId={id} activeMode={gameMode} />
+        <div className="border-l-2 border-l-accent pl-3">
+          <h2 className="font-condensed text-sm font-semibold uppercase tracking-wider text-zinc-300">
+            Career Stats
+          </h2>
+          <p className="mt-0.5 text-xs text-zinc-500">Locally recorded club history, all modes.</p>
         </div>
-
         {careerStats.length === 0 ? (
-          <EmptyPanel
-            message={
-              gameMode !== null
-                ? `No ${gameMode} career stats recorded yet.`
-                : 'No career stats recorded yet.'
-            }
-          />
+          <EmptyPanel message="No career stats recorded yet." />
         ) : (
           <CareerStatsTable rows={careerStats} />
         )}
       </section>
 
       <section id="ea-totals" className="space-y-4 scroll-mt-24">
-        <div>
-          <h2 className="font-condensed text-sm font-semibold uppercase tracking-wider text-zinc-500">
+        <div className="border-l-2 border-l-accent pl-3">
+          <h2 className="font-condensed text-sm font-semibold uppercase tracking-wider text-zinc-300">
             EA Season Totals
           </h2>
-          <p className="mt-0.5 text-xs text-zinc-600">
-            EA-reported full season aggregates. Not mode-filtered. This is the canonical current
-            season source when EA provides the metric.
+          <p className="mt-0.5 text-xs text-zinc-500">
+            EA-reported full season aggregates. Not mode-filtered.
           </p>
         </div>
         {eaStats.length === 0 ? (
@@ -169,58 +176,13 @@ export default async function PlayerPage({ params, searchParams }: Props) {
         )}
       </section>
 
-      <section id="game-log" className="space-y-4 scroll-mt-24">
-        <div className="flex items-baseline justify-between gap-4">
-          <div>
-            <h2 className="font-condensed text-sm font-semibold uppercase tracking-wider text-zinc-500">
-              Full Game Log
-            </h2>
-            <p className="mt-0.5 text-xs text-zinc-600">
-              Local tracked appearances only.
-              {gameMode !== null ? ` Filtered to ${gameMode}.` : ''}
-            </p>
-          </div>
-          {gameLogTotal > 0 && (
-            <span className="text-xs tabular text-zinc-600">
-              {logOffset + 1}–{Math.min(logOffset + LOG_PAGE_SIZE, gameLogTotal)} of {gameLogTotal}
-            </span>
-          )}
-        </div>
-
-        {gameLog.length === 0 && gameLogTotal > 0 ? (
-          <div className="flex min-h-[6rem] flex-col items-center justify-center gap-3 border border-zinc-800 bg-surface">
-            <p className="text-sm text-zinc-500">Page {logPage} is beyond the available games.</p>
-            <Link
-              href={gameLogPageHref(id, gameMode, 1)}
-              className="text-xs font-semibold text-accent hover:underline"
-            >
-              Back to first page
-            </Link>
-          </div>
-        ) : gameLog.length === 0 ? (
-          <EmptyPanel
-            message={gameMode !== null ? `No ${gameMode} games recorded yet.` : 'No games recorded yet.'}
-          />
-        ) : (
-          <>
-            <GameLog rows={gameLog} showMode={gameMode === null} />
-            <GameLogPaginationNav
-              playerId={id}
-              gameMode={gameMode}
-              logPage={logPage}
-              totalPages={Math.ceil(gameLogTotal / LOG_PAGE_SIZE)}
-            />
-          </>
-        )}
-      </section>
-
       {hasHistory && (
         <section id="history" className="space-y-4 scroll-mt-24">
-          <div>
-            <h2 className="font-condensed text-sm font-semibold uppercase tracking-wider text-zinc-500">
+          <div className="border-l-2 border-l-accent pl-3">
+            <h2 className="font-condensed text-sm font-semibold uppercase tracking-wider text-zinc-300">
               Gamertag History
             </h2>
-            <p className="mt-0.5 text-xs text-zinc-600">
+            <p className="mt-0.5 text-xs text-zinc-500">
               Archival identity record from tracked membership changes.
             </p>
           </div>
@@ -246,6 +208,16 @@ export default async function PlayerPage({ params, searchParams }: Props) {
           </div>
         </section>
       )}
+
+      <PlayerGameLogSection
+        playerId={id}
+        gameMode={gameMode}
+        rows={gameLog}
+        total={gameLogTotal}
+        logPage={logPage}
+        totalPages={Math.ceil(gameLogTotal / LOG_PAGE_SIZE)}
+        showMode={gameMode === null}
+      />
     </div>
   )
 }
@@ -255,7 +227,34 @@ type CareerRow = Awaited<ReturnType<typeof getPlayerCareerStats>>[number]
 type GameLogRow = Awaited<ReturnType<typeof getPlayerGameLog>>[number]
 type EASeasonRow = Awaited<ReturnType<typeof getPlayerEASeasonStats>>[number]
 
-function HeroSection({ overview }: { overview: Overview }) {
+type PositionUsageRow = Awaited<ReturnType<typeof getPlayerPositionUsage>>[number]
+
+function computeSkaterArchetype(
+  goals: number,
+  assists: number,
+  hits: number,
+  skaterGp: number,
+  plusMinus: number,
+): string | null {
+  if (skaterGp < 5) return null
+  const gPerGp = goals / skaterGp
+  const aPerGp = assists / skaterGp
+  const hPerGp = hits / skaterGp
+  const ptsPerGp = gPerGp + aPerGp
+  if (hPerGp >= 3 && ptsPerGp < 0.7) return 'Enforcer'
+  if (goals > assists && gPerGp >= 0.35) return 'Sniper'
+  if (assists > goals * 1.3 && aPerGp >= 0.3) return 'Playmaker'
+  if (plusMinus > 0 && ptsPerGp >= 0.5) return 'Two-Way'
+  return 'Balanced'
+}
+
+function HeroSection({
+  overview,
+  positionUsage,
+}: {
+  overview: Overview
+  positionUsage: PositionUsageRow[]
+}) {
   const { player, primaryRole, secondaryRole, currentEaSeason, currentLocalSeason } = overview
   const displayPosition = player.preferredPosition ?? currentEaSeason?.favoritePosition ?? player.position
   const positionLabel = displayPosition ? formatPosition(displayPosition) : null
@@ -265,10 +264,25 @@ function HeroSection({ overview }: { overview: Overview }) {
       : (currentEaSeason?.skaterGp ?? currentLocalSeason?.skaterGp ?? 0)
   const hasSeasonData = currentEaSeason !== null || currentLocalSeason !== null
 
+  const archetypeLabel =
+    primaryRole === 'skater' && currentEaSeason !== null
+      ? (computeSkaterArchetype(
+          currentEaSeason.goals,
+          currentEaSeason.assists,
+          currentEaSeason.hits,
+          currentEaSeason.skaterGp,
+          currentEaSeason.plusMinus ?? 0,
+        ) ?? 'Skater')
+      : ROLE_CHIPS[primaryRole]
+
+  const skaterPositions = positionUsage.filter(
+    (p) => p.position !== null && p.position !== 'goalie',
+  )
+
   return (
     <section className="relative overflow-hidden border border-zinc-800 border-t-2 border-t-accent bg-surface">
       {/* Background: red bloom from top-left, dark field */}
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_80%_90%_at_0%_0%,rgba(225,29,72,0.11),transparent_55%),linear-gradient(165deg,rgba(24,24,27,0.55)_15%,rgba(9,9,11,1)_70%)]" />
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_80%_90%_at_0%_0%,rgba(225,29,72,0.16),transparent_55%),linear-gradient(165deg,rgba(24,24,27,0.55)_15%,rgba(9,9,11,1)_70%)]" />
 
       {/* Jersey number watermark — large faded accent in the background */}
       {player.jerseyNumber != null && (
@@ -305,8 +319,14 @@ function HeroSection({ overview }: { overview: Overview }) {
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            {positionLabel && <HeroChip accent>{positionLabel}</HeroChip>}
-            <HeroChip>{ROLE_CHIPS[primaryRole]}</HeroChip>
+            {displayPosition && positionLabel && (
+              <PositionPill
+                label={positionLabel}
+                position={displayPosition}
+                isGoalie={displayPosition === 'goalie'}
+              />
+            )}
+            <HeroChip accent>{archetypeLabel}</HeroChip>
             {player.clubRoleLabel && <HeroChip>{player.clubRoleLabel}</HeroChip>}
             {player.nationality && <HeroChip>{player.nationality}</HeroChip>}
             {!player.isActive && <HeroChip muted>Inactive</HeroChip>}
@@ -315,10 +335,24 @@ function HeroSection({ overview }: { overview: Overview }) {
           <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-zinc-500">
             {primaryGp > 0 && <span>{primaryGp} GP this season</span>}
             {secondaryRole !== null && <span>Also plays {ROLE_CHIPS[secondaryRole]}</span>}
+            {skaterPositions.length > 0 && (
+              <span className="inline-flex items-center gap-2">
+                {skaterPositions.map((p, i) => (
+                  <span key={p.position} className="inline-flex items-center gap-1">
+                    {i > 0 && <span className="text-zinc-700">·</span>}
+                    <PositionPill
+                      label={formatPosition(p.position!)}
+                      position={p.position!}
+                      isGoalie={false}
+                    />
+                    <span className="font-condensed text-[11px] font-semibold text-zinc-600">
+                      {p.gameCount}
+                    </span>
+                  </span>
+                ))}
+              </span>
+            )}
             <span>Last seen {formatMatchDate(player.lastSeenAt)}</span>
-            <span className="text-zinc-700">
-              {currentLocalSeason === null ? 'EA data only' : 'EA + local history'}
-            </span>
           </div>
 
           {player.bio && (
@@ -362,13 +396,22 @@ function HeroStatStrip({ overview }: { overview: Overview }) {
         )
       : '—'
 
-  const stats =
+  const stats: { label: string; value: string; featured?: boolean }[] =
     primaryRole === 'goalie'
       ? [
           { label: 'GP', value: goalieGp.toString() },
-          { label: 'SV%', value: formatDbPct(currentEaSeason?.goalieSavePct ?? null) },
+          {
+            label: 'W-L-OTL',
+            value: formatRecord(
+              currentEaSeason?.goalieWins ?? 0,
+              currentEaSeason?.goalieLosses ?? 0,
+              currentEaSeason?.goalieOtl ?? 0,
+            ),
+          },
+          { label: 'SV%', value: formatDbPct(currentEaSeason?.goalieSavePct ?? null), featured: true },
           { label: 'GAA', value: currentEaSeason?.goalieGaa ?? '—' },
           { label: 'SO', value: (currentEaSeason?.goalieShutouts ?? 0).toString() },
+          { label: 'Saves', value: (currentEaSeason?.goalieSaves ?? 0).toString() },
           { label: 'App. Record', value: appearanceRecord },
         ]
       : [
@@ -384,6 +427,15 @@ function HeroStatStrip({ overview }: { overview: Overview }) {
           {
             label: 'PTS',
             value: (currentEaSeason?.points ?? currentLocalSeason?.points ?? 0).toString(),
+            featured: true,
+          },
+          {
+            label: '+/-',
+            value: formatSigned(currentEaSeason?.plusMinus ?? currentLocalSeason?.plusMinus ?? 0),
+          },
+          {
+            label: 'Hits',
+            value: (currentEaSeason?.hits ?? currentLocalSeason?.hits ?? 0).toString(),
           },
           {
             label: 'P / GP',
@@ -396,15 +448,26 @@ function HeroStatStrip({ overview }: { overview: Overview }) {
         ]
 
   return (
-    <div className="relative z-10 flex divide-x divide-zinc-800 border-t border-zinc-800">
-      {stats.map((stat) => (
-        <div key={stat.label} className="flex-1 bg-zinc-950/30 px-4 py-3">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-zinc-600">
-            {stat.label}
-          </p>
-          <p className="mt-1 font-condensed text-xl font-black text-zinc-100">{stat.value}</p>
-        </div>
-      ))}
+    <div className="relative z-10 overflow-x-auto border-t border-zinc-800">
+      <div className="flex min-w-max divide-x divide-zinc-800">
+        {stats.map((stat) => (
+          <div
+            key={stat.label}
+            className={`min-w-[5rem] px-4 py-3 ${stat.featured ? 'bg-accent/10' : 'bg-zinc-950/30'}`}
+          >
+            <p
+              className={`text-[10px] font-semibold uppercase tracking-[0.16em] ${stat.featured ? 'text-accent/70' : 'text-zinc-600'}`}
+            >
+              {stat.label}
+            </p>
+            <p
+              className={`mt-1 font-condensed text-xl font-black ${stat.featured ? 'text-accent' : 'text-zinc-100'}`}
+            >
+              {stat.value}
+            </p>
+          </div>
+        ))}
+      </div>
     </div>
   )
 }
@@ -414,8 +477,8 @@ function AnchorPillNav() {
     { href: '#overview', label: 'Overview' },
     { href: '#career', label: 'Career' },
     { href: '#ea-totals', label: 'EA Totals' },
-    { href: '#game-log', label: 'Game Log' },
     { href: '#history', label: 'History' },
+    { href: '#game-log', label: 'Game Log' },
   ]
 
   return (
@@ -457,129 +520,13 @@ function HeroChip({
   )
 }
 
-function CurrentSeasonSnapshotSection({ overview }: { overview: Overview }) {
-  const { currentEaSeason, currentLocalSeason, primaryRole, secondaryRole } = overview
-
-  if (!currentEaSeason && !currentLocalSeason) {
-    return (
-      <section className="space-y-3">
-        <SectionHeading
-          title="Current Season Snapshot"
-          subtitle="No current-season profile data is available yet."
-        />
-        <EmptyPanel message="This player does not have current season totals yet." />
-      </section>
-    )
-  }
-
-  const appearanceRecord =
-    currentLocalSeason !== null
-      ? formatRecord(currentLocalSeason.wins ?? 0, currentLocalSeason.losses ?? 0, currentLocalSeason.otl ?? 0)
-      : '—'
-  const skaterGp = currentEaSeason?.skaterGp ?? currentLocalSeason?.skaterGp ?? 0
-  const goalieGp = currentEaSeason?.goalieGp ?? currentLocalSeason?.goalieGp ?? 0
-  const hasSecondaryRole = secondaryRole !== null && (secondaryRole === 'goalie' ? goalieGp > 0 : skaterGp > 0)
-
-  return (
-    <section className="space-y-4">
-      <SectionHeading
-        title="Current Season Snapshot"
-        subtitle="EA season totals power the main box. Appearance record comes from locally tracked matches."
-      />
-
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
-        <div className="border border-zinc-800 bg-surface">
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-zinc-800 px-4 py-3">
-            <div>
-              <p className="font-condensed text-lg font-bold uppercase tracking-wide text-zinc-100">
-                {primaryRole === 'goalie' ? 'Goalie Snapshot' : 'Skater Snapshot'}
-              </p>
-              <p className="text-xs text-zinc-600">
-                {currentEaSeason?.gameTitleName ?? currentLocalSeason?.gameTitleName ?? 'Current title'}
-              </p>
-            </div>
-            <HeroChip accent>{ROLE_CHIPS[primaryRole]}</HeroChip>
-          </div>
-
-          {primaryRole === 'goalie' ? (
-            <div className="grid gap-px bg-zinc-800 sm:grid-cols-4 xl:grid-cols-7">
-              <SnapshotStat label="GP" value={goalieGp.toString()} />
-              <SnapshotStat
-                label="W-L-OTL"
-                value={formatRecord(
-                  currentEaSeason?.goalieWins ?? 0,
-                  currentEaSeason?.goalieLosses ?? 0,
-                  currentEaSeason?.goalieOtl ?? 0,
-                )}
-              />
-              <SnapshotStat label="SV%" value={formatDbPct(currentEaSeason?.goalieSavePct ?? null)} />
-              <SnapshotStat label="GAA" value={currentEaSeason?.goalieGaa ?? '—'} />
-              <SnapshotStat label="SO" value={(currentEaSeason?.goalieShutouts ?? 0).toString()} />
-              <SnapshotStat label="Saves" value={(currentEaSeason?.goalieSaves ?? 0).toString()} />
-              <SnapshotStat
-                label="SV / GP"
-                value={formatDecimal(perGame(currentEaSeason?.goalieSaves ?? null, goalieGp), 1)}
-              />
-            </div>
-          ) : (
-            <div className="grid gap-px bg-zinc-800 sm:grid-cols-3 xl:grid-cols-9">
-              <SnapshotStat label="GP" value={skaterGp.toString()} />
-              <SnapshotStat label="G" value={(currentEaSeason?.goals ?? currentLocalSeason?.goals ?? 0).toString()} />
-              <SnapshotStat label="A" value={(currentEaSeason?.assists ?? currentLocalSeason?.assists ?? 0).toString()} />
-              <SnapshotStat label="PTS" value={(currentEaSeason?.points ?? currentLocalSeason?.points ?? 0).toString()} />
-              <SnapshotStat
-                label="+/-"
-                value={formatSigned(currentEaSeason?.plusMinus ?? currentLocalSeason?.plusMinus ?? 0)}
-              />
-              <SnapshotStat label="Hits" value={(currentEaSeason?.hits ?? currentLocalSeason?.hits ?? 0).toString()} />
-              <SnapshotStat label="PIM" value={(currentEaSeason?.pim ?? currentLocalSeason?.pim ?? 0).toString()} />
-              <SnapshotStat
-                label="P / GP"
-                value={formatDecimal(
-                  perGame(currentEaSeason?.points ?? currentLocalSeason?.points ?? 0, skaterGp),
-                  2,
-                )}
-              />
-              <SnapshotStat label="App. Record" value={appearanceRecord} />
-            </div>
-          )}
-        </div>
-
-        <div className="grid gap-4">
-          <SurfaceCard>
-            <div className="space-y-2">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-zinc-500">
-                Source Notes
-              </p>
-              <ul className="space-y-2 text-sm text-zinc-400">
-                <li>Season box uses EA totals where EA exposes the stat.</li>
-                <li>Appearance record uses locally tracked match outcomes.</li>
-                <li>Goalie-specific content only appears when goalie GP exists.</li>
-              </ul>
-            </div>
-          </SurfaceCard>
-
-          {hasSecondaryRole && (
-            <SecondaryRoleStrip
-              overview={overview}
-              role={secondaryRole}
-              appearanceRecord={appearanceRecord}
-            />
-          )}
-        </div>
-      </div>
-    </section>
-  )
-}
 
 function SecondaryRoleStrip({
   overview,
   role,
-  appearanceRecord,
 }: {
   overview: Overview
   role: 'skater' | 'goalie'
-  appearanceRecord: string
 }) {
   const { currentEaSeason, currentLocalSeason } = overview
   const gp = role === 'goalie' ? currentEaSeason?.goalieGp ?? 0 : currentEaSeason?.skaterGp ?? 0
@@ -621,7 +568,10 @@ function SecondaryRoleStrip({
                 2,
               )}
             />
-            <MiniStat label="Appearance Record" value={appearanceRecord} />
+            <MiniStat
+              label="G / A"
+              value={`${(currentEaSeason?.goals ?? currentLocalSeason?.goals ?? 0).toString()} / ${(currentEaSeason?.assists ?? currentLocalSeason?.assists ?? 0).toString()}`}
+            />
           </>
         )}
       </div>
@@ -742,7 +692,7 @@ function RecentFormSection({ overview }: { overview: Overview }) {
           </div>
 
           <SurfaceCard>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-zinc-500">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-accent/60">
               Best Recent Game
             </p>
             {recent.bestGame ? (
@@ -778,11 +728,11 @@ function RecentFormSection({ overview }: { overview: Overview }) {
 
 function SectionHeading({ title, subtitle }: { title: string; subtitle: string }) {
   return (
-    <div>
-      <h2 className="font-condensed text-sm font-semibold uppercase tracking-wider text-zinc-500">
+    <div className="border-l-2 border-l-accent pl-3">
+      <h2 className="font-condensed text-sm font-semibold uppercase tracking-wider text-zinc-300">
         {title}
       </h2>
-      <p className="mt-0.5 text-xs text-zinc-600">{subtitle}</p>
+      <p className="mt-0.5 text-xs text-zinc-500">{subtitle}</p>
     </div>
   )
 }
@@ -797,14 +747,6 @@ function SurfaceCard({
   return <div className={`border border-zinc-800 bg-surface p-4 ${className}`}>{children}</div>
 }
 
-function SnapshotStat({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="bg-surface px-4 py-4">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-500">{label}</p>
-      <p className="mt-2 font-condensed text-2xl font-black text-zinc-100">{value}</p>
-    </div>
-  )
-}
 
 function MiniStat({
   label,
@@ -894,7 +836,7 @@ function ContributionRadar({
           </g>
         )
       })}
-      <polygon points={polygon} fill="rgba(225,29,72,0.20)" stroke="rgb(225 29 72)" strokeWidth="2" />
+      <polygon points={polygon} fill="rgba(225,29,72,0.28)" stroke="rgb(225 29 72)" strokeWidth="2" />
       {metrics.map((metric, index) => {
         const [x, y] = point(index, metric.value)
         return <circle key={`${metric.label}-dot`} cx={x} cy={y} r="3" fill="rgb(225 29 72)" />

@@ -1,6 +1,9 @@
+'use client'
+
 import Link from 'next/link'
-import type { Scoresheet, SkaterRow, GoalieRow } from '@/lib/match-recap'
-import { formatPosition } from '@/lib/format'
+import { useState } from 'react'
+import type { Scoresheet, ScoresheetSide, SkaterRow, GoalieRow } from '@/lib/match-recap'
+import { formatPosition, formatPositionFull } from '@/lib/format'
 import { PositionPill } from './position-pill'
 
 interface ScoresheetProps {
@@ -8,56 +11,79 @@ interface ScoresheetProps {
 }
 
 export function ScoresheetSection({ scoresheet }: ScoresheetProps) {
-  const { skaters, goalies } = scoresheet
-  if (skaters.length === 0 && goalies.length === 0) return null
+  const { bgm, opponent } = scoresheet
+  const bgmEmpty = bgm.skaters.length === 0 && bgm.goalies.length === 0
+  const oppEmpty = opponent.skaters.length === 0 && opponent.goalies.length === 0
+  if (bgmEmpty && oppEmpty) return null
 
   return (
     <section>
       <div className="mb-3 flex items-baseline gap-2">
         <h2 className="font-condensed text-sm font-semibold uppercase tracking-wider text-zinc-400">
-          BGM Scoresheet
+          Scoresheet
         </h2>
         <span className="text-[10px] font-medium uppercase tracking-[0.15em] text-zinc-600">
-          (per-player stats tracked for BGM only)
+          (BGM player profiles linked; opponent rows are match-archive only)
         </span>
       </div>
 
-      <div className="space-y-4">
-        {skaters.length > 0 ? <SkaterTable rows={skaters} /> : null}
-        {goalies.length > 0 ? <GoalieTable rows={goalies} /> : null}
+      <div className="space-y-6">
+        {!bgmEmpty ? <TeamSide side={bgm} /> : null}
+        {!oppEmpty ? <TeamSide side={opponent} /> : null}
       </div>
     </section>
   )
 }
 
+function TeamSide({ side }: { side: ScoresheetSide }) {
+  return (
+    <div className="space-y-3">
+      <h3 className="flex items-baseline gap-2 font-condensed text-xs font-bold uppercase tracking-[0.18em] text-zinc-300">
+        <span>{side.teamLabel}</span>
+        {side.isBgm ? (
+          <span className="rounded-sm border border-accent/40 bg-accent/10 px-1.5 py-0.5 text-[9px] font-bold tracking-widest text-accent">
+            BGM
+          </span>
+        ) : null}
+      </h3>
+
+      <div className="space-y-3">
+        {side.skaters.length > 0 ? <SkaterTable rows={side.skaters} isBgm={side.isBgm} /> : null}
+        {side.goalies.length > 0 ? <GoalieTable rows={side.goalies} isBgm={side.isBgm} /> : null}
+      </div>
+    </div>
+  )
+}
+
 // ─── Skater table ─────────────────────────────────────────────────────────────
 
-function SkaterTable({ rows }: { rows: SkaterRow[] }) {
+// BGM accent: rgba(195,67,83,0.14) matches the center position color
+const BGM_HEADER_STYLE = { backgroundColor: 'rgba(195,67,83,0.14)' }
+
+function SkaterTable({ rows, isBgm = false }: { rows: SkaterRow[]; isBgm?: boolean }) {
   return (
     <div className="overflow-x-auto border border-zinc-800 bg-surface">
-      <table className="w-full min-w-[680px]">
+      <table className="w-full min-w-[640px]">
         <thead>
-          <tr className="border-b border-zinc-800">
+          <tr
+            className="border-b border-zinc-800"
+            style={isBgm ? BGM_HEADER_STYLE : undefined}
+          >
             <Th align="left" wide>
               Player
             </Th>
-            <Th align="left">Pos</Th>
             <Th>G</Th>
             <Th>A</Th>
             <Th>PTS</Th>
             <Th>+/-</Th>
             <Th>SOG</Th>
             <Th>Hits</Th>
-            <Th>PIM</Th>
-            <Th hideOnMobile>FO</Th>
-            <Th hideOnMobile>Pass%</Th>
-            <Th hideOnMobile>BLK</Th>
-            <Th>TOI</Th>
+            <Th>Blks</Th>
           </tr>
         </thead>
         <tbody>
           {rows.map((row) => (
-            <SkaterRowEl key={row.playerId} row={row} />
+            <SkaterRowEl key={row.rowKey} row={row} isBgm={isBgm} />
           ))}
         </tbody>
       </table>
@@ -65,55 +91,152 @@ function SkaterTable({ rows }: { rows: SkaterRow[] }) {
   )
 }
 
-function SkaterRowEl({ row }: { row: SkaterRow }) {
-  const positionLabel = row.position ? formatPosition(row.position) : '—'
+function SkaterRowEl({ row, isBgm }: { row: SkaterRow; isBgm: boolean }) {
+  const [expanded, setExpanded] = useState(false)
+  const positionLabel = row.position ? formatPosition(row.position) : null
+  const positionFull = row.position ? formatPositionFull(row.position) : null
   const pmColor =
     row.plusMinus > 0 ? 'text-emerald-400' : row.plusMinus < 0 ? 'text-rose-400' : 'text-zinc-400'
   const pmLabel = row.plusMinus > 0 ? `+${row.plusMinus.toString()}` : row.plusMinus.toString()
+  const defenseSide = row.position === 'defenseMen' ? (isBgm ? 'left' : 'right') : null
 
   return (
-    <tr className="group border-b border-zinc-800/60 transition-colors hover:bg-surface-raised">
-      <td className="py-2.5 pl-4 pr-2 text-sm">
-        <Link
-          href={`/roster/${row.playerId.toString()}`}
-          className="flex items-center gap-2 font-medium text-zinc-200 group-hover:text-zinc-50"
-        >
-          <span className="truncate max-w-[10rem]">{row.gamertag}</span>
-          {row.dnf ? <DnfBadge /> : null}
-        </Link>
-      </td>
-      <td className="px-2 py-2.5 text-left">
-        {row.position !== null ? (
-          <PositionPill label={positionLabel} position={row.position} isGoalie={false} />
-        ) : (
-          <span className="text-xs text-zinc-600">—</span>
-        )}
-      </td>
-      <Td>{row.goals.toString()}</Td>
-      <Td>{row.assists.toString()}</Td>
-      <Td featured>{row.points.toString()}</Td>
-      <Td>
-        <span className={pmColor}>{pmLabel}</span>
-      </Td>
-      <Td>{row.shots.toString()}</Td>
-      <Td>{row.hits.toString()}</Td>
-      <Td>{row.pim.toString()}</Td>
-      <Td hideOnMobile>{row.faceoffRecord ?? '—'}</Td>
-      <Td hideOnMobile>{row.passPct !== null ? `${row.passPct.toFixed(0)}%` : '—'}</Td>
-      <Td hideOnMobile>{row.blocks.toString()}</Td>
-      <Td>{row.toi ?? '—'}</Td>
-    </tr>
+    <>
+      <tr
+        className="group cursor-pointer border-b border-zinc-800/60 transition-colors hover:bg-surface-raised"
+        onClick={() => {
+          setExpanded((v) => !v)
+        }}
+      >
+        <td className="py-2 pl-4 pr-2 text-sm">
+          <div className="flex items-start gap-2">
+            <span className={`mt-1 shrink-0 text-zinc-500 transition-transform ${expanded ? 'rotate-90' : ''}`}>▸</span>
+            <div className="min-w-0">
+              <PlayerNameCell
+                playerId={row.playerId}
+                gamertag={row.gamertag}
+                dnf={row.dnf}
+                isGuest={row.isGuest}
+              />
+              {positionLabel !== null && positionFull !== null && row.position !== null ? (
+                <div className="mt-0.5 flex items-center gap-1.5">
+                  <PositionPill
+                    label={positionLabel}
+                    position={row.position}
+                    isGoalie={false}
+                    side={isBgm ? 'bgm' : 'opp'}
+                    defenseSide={defenseSide}
+                  />
+                  <span className="text-[10px] uppercase tracking-wide text-zinc-600">
+                    {positionFull}
+                  </span>
+                </div>
+              ) : null}
+            </div>
+          </div>
+        </td>
+        <Td>{row.goals.toString()}</Td>
+        <Td>{row.assists.toString()}</Td>
+        <Td featured>{row.points.toString()}</Td>
+        <Td>
+          <span className={pmColor}>{pmLabel}</span>
+        </Td>
+        <Td>{row.shots.toString()}</Td>
+        <Td>{row.hits.toString()}</Td>
+        <Td>{row.blocks.toString()}</Td>
+      </tr>
+      {expanded ? (
+        <tr className="border-b border-zinc-800/60 bg-zinc-950/30">
+          <td colSpan={8} className="px-4 py-4">
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h4 className="font-condensed text-lg font-semibold text-zinc-100">Advanced Statistics</h4>
+                  <p className="text-sm text-zinc-500">Per-match breakdown</p>
+                </div>
+                {row.playerId !== null ? (
+                  <Link
+                    href={`/roster/${row.playerId.toString()}`}
+                    className="font-condensed text-sm font-bold uppercase tracking-wide text-accent hover:text-accent/80"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                    }}
+                  >
+                    View player profile
+                  </Link>
+                ) : null}
+              </div>
+              <div className="grid gap-3 sm:grid-cols-3">
+                <DetailStat label="Score" value={row.score.toFixed(2)} />
+                <DetailStat label="Shooting %" value={row.shotAttempts > 0 ? `${((row.shots / row.shotAttempts) * 100).toFixed(0)}%` : '—'} />
+                <DetailStat label="Pass %" value={row.passPct !== null ? `${row.passPct.toFixed(0)}%` : '—'} />
+                <DetailStat label="FO %" value={row.faceoffWins + row.faceoffLosses > 0 ? `${((row.faceoffWins / (row.faceoffWins + row.faceoffLosses)) * 100).toFixed(0)}%` : '—'} />
+                <DetailStat label="PIM" value={row.pim.toString()} />
+                <DetailStat label="Possession" value={row.possessionSeconds > 0 ? `${row.possessionSeconds.toString()}s` : '—'} />
+              </div>
+              <DetailGroup
+                title="Shooting"
+                stats={[
+                  ['Shots / Attempts', `${row.shots.toString()}/${row.shotAttempts.toString()}`],
+                  ['Shot On Net %', row.shotAttempts > 0 ? `${((row.shots / row.shotAttempts) * 100).toFixed(1)}%` : '—'],
+                  ['Deflections', row.deflections.toString()],
+                ]}
+              />
+              <DetailGroup
+                title="Passing & Possession"
+                stats={[
+                  ['Passes / Attempts', `${row.passCompletions.toString()}/${row.passAttempts.toString()}`],
+                  ['Pass %', row.passPct !== null ? `${row.passPct.toFixed(1)}%` : '—'],
+                  ['Saucer Passes', row.saucerPasses.toString()],
+                  ['Possession', row.possessionSeconds.toString()],
+                ]}
+              />
+              <DetailGroup
+                title="Faceoffs & Pressure"
+                stats={[
+                  ['FO W/L', row.faceoffRecord ?? '—'],
+                  ['FO %', row.faceoffWins + row.faceoffLosses > 0 ? `${((row.faceoffWins / (row.faceoffWins + row.faceoffLosses)) * 100).toFixed(0)}%` : '—'],
+                  ['Takeaways', row.takeaways.toString()],
+                  ['Interceptions', row.interceptions.toString()],
+                ]}
+              />
+              <DetailGroup
+                title="Special Teams & Discipline"
+                stats={[
+                  ['PPG', row.ppGoals.toString()],
+                  ['SHG', row.shGoals.toString()],
+                  ['PIM', row.pim.toString()],
+                  ['Penalties Drawn', row.penaltiesDrawn.toString()],
+                ]}
+              />
+              <DetailGroup
+                title="Discipline & Turnovers"
+                stats={[
+                  ['Giveaways', row.giveaways.toString()],
+                  ['Hits', row.hits.toString()],
+                  ['Blocks', row.blocks.toString()],
+                  ['TOI', row.toi ?? '—'],
+                ]}
+              />
+            </div>
+          </td>
+        </tr>
+      ) : null}
+    </>
   )
 }
 
 // ─── Goalie table ─────────────────────────────────────────────────────────────
 
-function GoalieTable({ rows }: { rows: GoalieRow[] }) {
+function GoalieTable({ rows, isBgm = false }: { rows: GoalieRow[]; isBgm?: boolean }) {
   return (
     <div className="overflow-x-auto border border-zinc-800 bg-surface">
       <table className="w-full min-w-[480px]">
         <thead>
-          <tr className="border-b border-zinc-800">
+          <tr
+            className="border-b border-zinc-800"
+            style={isBgm ? BGM_HEADER_STYLE : undefined}
+          >
             <Th align="left" wide>
               Goalie
             </Th>
@@ -126,7 +249,7 @@ function GoalieTable({ rows }: { rows: GoalieRow[] }) {
         </thead>
         <tbody>
           {rows.map((row) => (
-            <GoalieRowEl key={row.playerId} row={row} />
+            <GoalieRowEl key={row.rowKey} row={row} />
           ))}
         </tbody>
       </table>
@@ -138,14 +261,20 @@ function GoalieRowEl({ row }: { row: GoalieRow }) {
   return (
     <tr className="group border-b border-zinc-800/60 transition-colors hover:bg-surface-raised last:border-b-0">
       <td className="py-2.5 pl-4 pr-2 text-sm">
-        <Link
-          href={`/roster/${row.playerId.toString()}`}
-          className="flex items-center gap-2 font-medium text-zinc-200 group-hover:text-zinc-50"
-        >
-          <PositionPill label="G" position="goalie" isGoalie={true} />
-          <span className="truncate max-w-[10rem]">{row.gamertag}</span>
-          {row.dnf ? <DnfBadge /> : null}
-        </Link>
+        <div className="flex items-center gap-2">
+          <PositionPill
+            label="G"
+            position="goalie"
+            isGoalie={true}
+            side={row.playerId !== null ? 'bgm' : 'opp'}
+          />
+          <PlayerNameCell
+            playerId={row.playerId}
+            gamertag={row.gamertag}
+            dnf={row.dnf}
+            isGuest={row.isGuest}
+          />
+        </div>
       </td>
       <Td>{row.saves.toString()}</Td>
       <Td>{row.goalsAgainst.toString()}</Td>
@@ -153,6 +282,68 @@ function GoalieRowEl({ row }: { row: GoalieRow }) {
       <Td>{row.shotsAgainst.toString()}</Td>
       <Td>{row.toi ?? '—'}</Td>
     </tr>
+  )
+}
+
+function DetailGroup({ title, stats }: { title: string; stats: [string, string][] }) {
+  return (
+    <div className="rounded-sm border border-zinc-800 bg-surface p-3">
+      <h5 className="mb-2 font-condensed text-xs font-bold uppercase tracking-[0.18em] text-zinc-400">{title}</h5>
+      <div className="grid gap-2 sm:grid-cols-2">
+        {stats.map(([label, value]) => (
+          <DetailStat key={label} label={label} value={value} />
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function DetailStat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-sm border border-zinc-800 bg-zinc-900/50 px-3 py-2">
+      <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-zinc-500">{label}</div>
+      <div className="mt-1 font-condensed text-lg font-bold tabular text-zinc-100">{value}</div>
+    </div>
+  )
+}
+
+// ─── Name cell ────────────────────────────────────────────────────────────────
+//
+// BGM rows render an internal Link to /roster/[id]; opponent rows render a
+// plain span (no profile surface exists for them). isGuest renders a small
+// "GUEST" pill alongside the gamertag for opponent drop-ins.
+
+function PlayerNameCell({
+  playerId,
+  gamertag,
+  dnf,
+  isGuest,
+}: {
+  playerId: number | null
+  gamertag: string
+  dnf: boolean
+  isGuest: boolean
+}) {
+  const inner = (
+    <>
+      <span className="truncate max-w-[10rem]">{gamertag}</span>
+      {isGuest ? <GuestBadge /> : null}
+      {dnf ? <DnfBadge /> : null}
+    </>
+  )
+
+  if (playerId !== null) {
+    return (
+      <Link
+        href={`/roster/${playerId.toString()}`}
+        className="flex items-center gap-2 font-medium text-zinc-200 group-hover:text-zinc-50"
+      >
+        {inner}
+      </Link>
+    )
+  }
+  return (
+    <span className="flex items-center gap-2 font-medium text-zinc-300">{inner}</span>
   )
 }
 
@@ -203,6 +394,17 @@ function DnfBadge() {
       className="rounded-sm border border-zinc-700/60 bg-zinc-900/60 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-widest text-zinc-500"
     >
       DNF
+    </span>
+  )
+}
+
+function GuestBadge() {
+  return (
+    <span
+      title="Drop-in player (guest)"
+      className="rounded-sm border border-amber-700/40 bg-amber-900/30 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-widest text-amber-400/80"
+    >
+      Guest
     </span>
   )
 }

@@ -230,7 +230,7 @@ export function SkaterStatsTable({ rows, title, subtitle }: SkaterStatsTableProp
         </div>
       </div>
 
-      <div className="overflow-x-auto border border-zinc-800 bg-surface">
+      <div className="broadcast-panel overflow-x-auto">
         <table className="w-full min-w-[520px]">
           <thead>
             <tr className="border-b border-zinc-800 bg-surface-raised">

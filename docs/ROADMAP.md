@@ -1,128 +1,121 @@
 # Roadmap
 
-## Current Priority
-
-The current priority is **stable stats baseline**.
-
-This means:
-
-- data correctness over feature breadth
-- hardening semantics before adding more analytics
-- fixing migration / reprocess / ingestion issues before building decorative surfaces
-
 ## Product Defaults
 
-- Site type: internal team dashboard
-- Primary audience: team members
-- Most important surfaces: home, player profile, club stats
-- Desired feel: stats tool + team brand + archive
-- Out of scope for now: news
+- **Site type:** Internal team dashboard for EASHL club #19224
+- **Primary audience:** Team members (captain + active roster)
+- **Core surfaces:** Home, player profile, club stats
+- **Desired feel:** Stats tool + team brand + archive
+- **Strategic priority:** Data correctness over feature breadth
 
-## Immediate To-Do
+---
 
-### 1. Fix current correctness and deploy blockers
+## Current Priority
 
-- Fix player-profile goalie column gating in `apps/web/src/app/roster/[id]/page.tsx`
-- Fix depth-chart record display logic in `apps/web/src/components/roster/depth-chart.tsx`
-- Fix opponent-club completeness logic in `apps/worker/src/ingest-opponents.ts`
-- Repair Drizzle migration metadata for `0012_cloudy_hulk`
-- Verify migrate + reprocess path before treating this branch as deployable
+Stable foundation. All major surfaces are live. Near-term work is quality-of-life improvements and analytics depth, not structural changes.
 
-Acceptance:
-
-- skaters do not render goalie-only sections incorrectly
-- depth-chart cards show the intended record semantics
-- opponent clubs without `customKit` are not re-fetched forever
-- migration state is internally consistent
-
-### 2. Harden the data model and semantics
-
-- Keep `wins/losses/otl` as team record during player appearances by default
-- Drive goalie-only views from actual goalie game count
-- Add regression coverage for data semantics before new product work
-- Verify season-rank correctness or demote the widget until verified
-- Keep mixed-source UI clearly labeled where EA and local tracked data differ
-
-Acceptance:
-
-- known stat inaccuracies are reduced before new surfaces are added
-- tests cover semantic expectations for player/goalie data
+---
 
 ## Near-Term Build Order
 
-### 3. Improve home and matches first
+### 1. Polish existing surfaces
 
-Home:
+**Matches:**
 
-- reduce visual priority of division standing
-- keep latest result and player-focused modules ahead of standings
-- add a compact club snapshot / signal block if it can be derived cleanly
+- Match-card pills for result + mode + one derived quality stat on `/games` list
+- Top Performers position-pill contrast — labels are hard to read against star-card gradient backgrounds
+- Verify "Show all player scores" breakdown shows all opponent players (not a partial subset)
 
-Matches:
+**Navigation:**
 
-- add match-card pills for result + mode + one derived quality stat
-- add recent-form summary bullets
-- add one or two simple trend charts using existing data only
+- Remove `EASHL · #19224` subtitle from the navbar — keep branding aligned with club identity
 
-Not for now:
+**Player profile:**
 
-- no huge analytics wall
-- no public/cup/private taxonomy emphasis
-- no derived metric that cannot be defined from current data
+- EA season time-on-ice totals (skater + goalie TOI separately when available)
+  - Format as long-duration: `17d 22h 47m`
+  - Reference ratio: EA hockey TOI ≈ 78% of platform total game time (silkyjoker85 NHL 26 reference point)
+  - Use ratio only as a rough backfill estimation aid, not a claimed stat
 
-### 4. Redefine `/roster` as the main team-members page
+### 2. Deepen analytics on existing data
 
-Target structure:
+**Chemistry (already live — W/W-out + Best Pairs):**
 
-- team overview
-- depth chart
-- roster stats table below the chart
-- skater and goalie views supported
+- Increase weight of `deflections` and `blocked shots` in the skater game-score model
+- Explore position-adjusted game score (actions valued differently by role)
+  - Blocked shots may deserve more credit for wingers (less role-expected)
+  - Plus/minus may carry heavier weight for defensemen
+  - Faceoff impact should matter mainly for centers
+- Deeper possession-quality metric:
+  - Base: possession time
+  - Adjust by giveaway/takeaway ratio
+  - Adjust by shots/shots-on-net conversion
+  - Adjust by pass completion quality
+  - Philosophy: productive possession rewarded; empty puck-hogging punished
+- Chemistry heatmap — deferred; revisit at ~80–100+ match depth
 
-Rules:
+**Roster:**
 
-- no minimum-position threshold
-- 1 game at a position is enough to count
-- manual/member-only additions are allowed but should be marked provisional
-- fuller inferred board is preferred over sparse honesty
+- Mode filter on `/roster` (query layer works; needs UI toggle + gameMode threading)
 
-### 5. Improve player profile structurally
+### 3. Operations
 
-Priority:
+- Discord alerting — cron checks `localhost:3001/health`, notifies when stale >30 min
+- `pg_dump` backup cron — daily dump to external drive
+- Verify `clubs/seasonRank` + `settings` field shapes — widget fields sourced from HAR analysis (UNVERIFIED); confirm after worker runs with new endpoints
 
-- stronger hero snapshot
-- better skater-vs-goalie synthesis
-- positional usage visualization if supported by current data
-- clearer explanation of data sources
-
-Do not build yet:
-
-- hot-zone maps (blocked by missing spatial data)
-- consistency dashboard if the match volume is still too thin
-- full advanced-pro-analytics parity
+---
 
 ## Deferred Until Preconditions Exist
 
 ### Blocked by missing data source
 
-- hot-zone maps
-- rink-spatial shot / goal visualizations
+- Hot-zone / rink-spatial shot visualizations
+- Match-specific event maps (current payloads don't contain shot coordinates)
+- Investigate whether EA exposes `ShotsLocationOnIce*` / `GoalsLocationOnIce*` in any endpoint
+  - Chelhead-captured payloads appear to include such fields
+  - Verify exact endpoint family before building
 
 ### Blocked by low data volume
 
-- deep consistency analytics
-- long-horizon trend interpretation
-- advanced player-profile analytics that need stable baselines
+- Deep consistency analytics
+- Long-horizon trend interpretation
+- Advanced player-profile analytics requiring stable baselines
+- Chemistry heatmap (target: ~80–100+ matches with meaningful pair density)
 
-### Blocked by weak feature evidence or weak local need
+### Blocked by weak feature evidence
 
-- player comparison tools
-- advanced search / discovery
-- Discord alerting as a priority feature
+- Player comparison tools
+- Advanced search / discovery
+
+---
 
 ## Longer-Term Direction
 
-- richer team identity site without sacrificing stat correctness
-- optional manual lineup/coach overrides
-- better archive value over time
-- possible future VOD/ML ingestion project, but not relevant to current build planning
+- Optional manual lineup/coach overrides on depth chart
+- Better archive value as data accumulates
+- Richer team identity without sacrificing data correctness
+- Possible VOD/ML ingestion project (not relevant to current planning)
+
+---
+
+## Completed
+
+| Item | Done |
+|---|---|
+| Phase 0–4: Foundation, worker, frontend, production | ✅ |
+| Depth chart on `/roster` | ✅ |
+| Player profile V1 (`/roster/[id]`) | ✅ |
+| Official EA club record on home page | ✅ |
+| Opponent crest pipeline | ✅ |
+| Season rank / division widget | ✅ |
+| Game-mode filter (All / 6s / 3s) across all surfaces | ✅ |
+| Source split: All=EA totals, 6s+3s=local tracked | ✅ |
+| Game log on player profile | ✅ |
+| EA season totals section on player profile | ✅ |
+| Contribution radar on player profile | ✅ |
+| Match detail page V1 (story strip, goalie spotlight, scoresheet) | ✅ |
+| Chemistry analytics: W/W-out + Best Pairs on `/stats` | ✅ |
+| DTW gauge color split fix | ✅ |
+| Form strip "Last N" label coherence fix | ✅ |
+| Event Map dead-weight placeholder removed | ✅ |

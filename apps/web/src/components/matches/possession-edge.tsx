@@ -10,7 +10,8 @@ const OUR_LABEL = 'BGM'
 const OPP_LABEL = 'OPP'
 
 export function PossessionEdgeBar({ edge }: PossessionEdgeProps) {
-  const { bgmShare, oppShare, inputs, weights } = edge
+  const { bgmShare, oppShare, bgmRaw, oppRaw, inputs, weights } = edge
+  const bgmWins = bgmShare >= oppShare
 
   const formula =
     weights.faceoff > 0
@@ -19,39 +20,18 @@ export function PossessionEdgeBar({ edge }: PossessionEdgeProps) {
 
   return (
     <section>
-      <SectionHeader
-        title="Possession & Pressure Edge"
-        subtitle="computed from team totals"
-      />
+      <SectionHeader title="Deserve To Win" subtitle="computed from team totals" />
 
-      <div className="border border-zinc-800 bg-surface px-4 py-4">
-        {/* Headline split */}
-        <div className="flex items-end justify-between gap-3">
-          <Side label={OUR_LABEL} share={bgmShare} highlighted={bgmShare >= oppShare} />
-          <Side
-            label={OPP_LABEL}
-            share={oppShare}
-            highlighted={oppShare > bgmShare}
-            alignRight
-          />
+      <div className="border border-zinc-800 bg-surface px-4 py-5">
+        {/* Gauge row */}
+        <div className="flex items-end justify-between gap-2">
+          <Side label={OUR_LABEL} value={bgmRaw} highlighted={bgmWins} />
+          <Gauge bgmShare={bgmShare} oppShare={oppShare} />
+          <Side label={OPP_LABEL} value={oppRaw} highlighted={!bgmWins} alignRight />
         </div>
 
-        {/* Bar */}
-        <div className="mt-3 flex h-2 w-full overflow-hidden rounded-sm bg-zinc-800/60">
-          <div
-            className="bg-accent/80 transition-all"
-            style={{ width: `${bgmShare.toString()}%` }}
-            aria-hidden
-          />
-          <div
-            className="bg-zinc-600/60 transition-all"
-            style={{ width: `${oppShare.toString()}%` }}
-            aria-hidden
-          />
-        </div>
-
-        {/* Inputs */}
-        <div className="mt-4 grid grid-cols-2 gap-x-6 gap-y-2 sm:grid-cols-4">
+        {/* Input grid */}
+        <div className="mt-5 grid grid-cols-2 gap-x-6 gap-y-2 sm:grid-cols-4">
           <Input label="Shots" us={inputs.shots.us} them={inputs.shots.them} />
           <Input label="Hits" us={inputs.hits.us} them={inputs.hits.them} />
           {inputs.faceoffPct !== null ? (
@@ -66,8 +46,7 @@ export function PossessionEdgeBar({ edge }: PossessionEdgeProps) {
           <Input
             label="TOA"
             us={inputs.timeOnAttackSeconds !== null ? formatSeconds(inputs.timeOnAttackSeconds) : '—'}
-            them={null}
-            note="info only"
+            them={inputs.timeOnAttackSecondsAgainst !== null ? formatSeconds(inputs.timeOnAttackSecondsAgainst) : null}
           />
         </div>
 
@@ -81,29 +60,112 @@ export function PossessionEdgeBar({ edge }: PossessionEdgeProps) {
 
 function Side({
   label,
-  share,
+  value,
   highlighted,
   alignRight = false,
 }: {
   label: string
-  share: number
+  value: number
   highlighted: boolean
   alignRight?: boolean
 }) {
   return (
-    <div className={`flex flex-col ${alignRight ? 'items-end' : 'items-start'}`}>
+    <div className={`flex flex-col pb-1 ${alignRight ? 'items-end' : 'items-start'}`}>
       <span className="font-condensed text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-500">
         {label}
       </span>
       <span
-        className={`font-condensed text-3xl font-black tabular leading-none ${
-          highlighted ? 'text-zinc-50' : 'text-zinc-500'
+        className={`font-condensed text-4xl font-black tabular leading-none ${
+          highlighted ? 'text-accent' : 'text-zinc-500'
         }`}
       >
-        {share.toString()}
+        {value.toFixed(1)}
       </span>
+      {highlighted ? (
+        <span className="mt-0.5 font-condensed text-[9px] font-bold uppercase tracking-[0.2em] text-accent/70">
+          edge
+        </span>
+      ) : null}
     </div>
   )
+}
+
+function Gauge({ bgmShare, oppShare: _oppShare }: { bgmShare: number; oppShare: number }) {
+  const cx = 120
+  const cy = 120
+  const r = 96
+  const strokeW = 22
+  const needle = shareToNeedle(bgmShare)
+  const needleX = cx + Math.cos(needle) * (r - 10)
+  const needleY = cy + Math.sin(needle) * (r - 10)
+
+  // Clamp 1–99 so degenerate zero-length SVG arcs are never generated
+  const clampedShare = Math.max(1, Math.min(99, bgmShare))
+  const splitDeg = -(clampedShare / 100) * 180
+
+  return (
+    <div className="flex h-[150px] flex-1 items-end justify-center">
+      <svg viewBox="0 0 240 128" className="h-full w-full max-w-[280px]" aria-hidden>
+        {/* Dark backing track */}
+        <path
+          d={arcPath(cx, cy, r, -180, 0)}
+          fill="none"
+          stroke="#0d1117"
+          strokeWidth={strokeW + 8}
+          strokeLinecap="butt"
+        />
+        {/* OPP arc — left side, shrinks as BGM share increases */}
+        <path
+          d={arcPath(cx, cy, r, -180, splitDeg)}
+          fill="none"
+          stroke="#374151"
+          strokeWidth={strokeW}
+          strokeLinecap="butt"
+        />
+        {/* BGM arc — right side, grows as BGM share increases */}
+        <path
+          d={arcPath(cx, cy, r, splitDeg, 0)}
+          fill="none"
+          stroke="#e11d48"
+          strokeWidth={strokeW}
+          strokeLinecap="butt"
+        />
+        {/* Needle */}
+        <line
+          x1={cx}
+          y1={cy}
+          x2={needleX}
+          y2={needleY}
+          stroke="white"
+          strokeWidth="3.5"
+          strokeLinecap="round"
+        />
+        {/* Pivot */}
+        <circle cx={cx} cy={cy} r="8" fill="white" />
+        <circle cx={cx} cy={cy} r="4" fill="#0d1117" />
+      </svg>
+    </div>
+  )
+}
+
+// BGM 100% → -180° (far left / BGM zone)
+// BGM  50% →  -90° (straight up / center)
+// BGM   0% →    0° (far right / OPP zone)
+function shareToNeedle(share: number): number {
+  const normalized = Math.max(0, Math.min(100, share)) / 100
+  const degrees = -(normalized * 180)
+  return (degrees * Math.PI) / 180
+}
+
+function arcPath(cx: number, cy: number, r: number, startDeg: number, endDeg: number): string {
+  const start = polar(cx, cy, r, startDeg)
+  const end = polar(cx, cy, r, endDeg)
+  return `M ${start.x.toString()} ${start.y.toString()} A ${r.toString()} ${r.toString()} 0 0 1 ${end.x.toString()} ${end.y.toString()}`
+}
+
+function polar(cx: number, cy: number, r: number, deg: number) {
+  const rad = (deg * Math.PI) / 180
+  return { x: cx + Math.cos(rad) * r, y: cy + Math.sin(rad) * r }
 }
 
 function Input({

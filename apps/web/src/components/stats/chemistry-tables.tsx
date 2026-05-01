@@ -42,6 +42,15 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
   )
 }
 
+function SortedHeader({ label }: { label: string }) {
+  return (
+    <span className="inline-flex items-center justify-end gap-1">
+      {label}
+      <span className="text-[10px] text-accent">↓</span>
+    </span>
+  )
+}
+
 // ─── Sample-size badge ─────────────────────────────────────────────────────
 
 function SampleBadge({ gp, threshold }: { gp: number; threshold: number }) {
@@ -65,7 +74,8 @@ function SampleBadge({ gp, threshold }: { gp: number; threshold: number }) {
 function DeltaCell({ delta }: { delta: number | null }) {
   if (delta === null) return <td className="px-3 py-2.5 text-right text-sm tabular text-zinc-600">—</td>
 
-  const formatted = `${delta >= 0 ? '+' : ''}${(delta * 100).toFixed(1)}%`
+  const deltaPoints = Math.round(delta * 100)
+  const formatted = `${deltaPoints >= 0 ? '+' : ''}${deltaPoints.toString()}`
   const colorClass =
     delta > 0.02
       ? 'text-emerald-400'
@@ -95,6 +105,13 @@ export function WithWithoutTable({ rows }: WithWithoutTableProps) {
     )
   }
 
+  const sortedRows = [...rows].sort((a, b) => {
+    const aDelta = (winPct(a.winsWith, a.gpWith) ?? -Infinity) - (winPct(a.winsWithout, a.gpWithout) ?? -Infinity)
+    const bDelta = (winPct(b.winsWith, b.gpWith) ?? -Infinity) - (winPct(b.winsWithout, b.gpWithout) ?? -Infinity)
+    if (bDelta !== aDelta) return bDelta - aDelta
+    return b.gpWith - a.gpWith
+  })
+
   return (
     <div className="broadcast-panel overflow-x-auto">
       <table className="w-full min-w-[640px]">
@@ -121,13 +138,13 @@ export function WithWithoutTable({ rows }: WithWithoutTableProps) {
             <th className="px-3 py-2 text-right text-xs font-semibold uppercase tracking-wider text-zinc-600">
               Win% W/O
             </th>
-            <th className="px-3 py-2 text-right text-xs font-semibold uppercase tracking-wider text-zinc-600">
-              Δ
+            <th className="px-3 py-2 text-right text-xs font-semibold uppercase tracking-wider text-zinc-300">
+              <SortedHeader label="Δ" />
             </th>
           </tr>
         </thead>
         <tbody>
-          {rows.map((row) => {
+          {sortedRows.map((row) => {
             const pctWith = winPct(row.winsWith, row.gpWith)
             const pctWithout = winPct(row.winsWithout, row.gpWithout)
             const delta = pctWith !== null && pctWithout !== null ? pctWith - pctWithout : null
@@ -188,6 +205,13 @@ export function BestPairsTable({ rows }: BestPairsTableProps) {
     )
   }
 
+  const sortedRows = [...rows].sort((a, b) => {
+    const aDiff = a.totalGf - a.totalGa
+    const bDiff = b.totalGf - b.totalGa
+    if (bDiff !== aDiff) return bDiff - aDiff
+    return b.gp - a.gp
+  })
+
   return (
     <div className="broadcast-panel overflow-x-auto">
       <table className="w-full min-w-[680px]">
@@ -211,8 +235,8 @@ export function BestPairsTable({ rows }: BestPairsTableProps) {
             <th className="px-3 py-2 text-right text-xs font-semibold uppercase tracking-wider text-zinc-600">
               GA/GP
             </th>
-            <th className="px-3 py-2 text-right text-xs font-semibold uppercase tracking-wider text-zinc-600">
-              Diff
+            <th className="px-3 py-2 text-right text-xs font-semibold uppercase tracking-wider text-zinc-300">
+              <SortedHeader label="Diff" />
             </th>
             <th className="px-3 py-2 text-right text-xs font-semibold uppercase tracking-wider text-zinc-600">
               Diff/GP
@@ -220,7 +244,7 @@ export function BestPairsTable({ rows }: BestPairsTableProps) {
           </tr>
         </thead>
         <tbody>
-          {rows.map((row) => {
+          {sortedRows.map((row) => {
             const diff = row.totalGf - row.totalGa
             const diffPerGame = row.gp > 0 ? diff / row.gp : 0
             const diffStr = `${diffPerGame >= 0 ? '+' : ''}${diffPerGame.toFixed(2)}`

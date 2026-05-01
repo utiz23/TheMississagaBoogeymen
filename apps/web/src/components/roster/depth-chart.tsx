@@ -3,8 +3,17 @@ import Image from 'next/image'
 import type { getEARoster } from '@eanhl/db/queries'
 import { StatBox, StatBoxFeatured, PlayerSilhouette } from '@/components/home/player-card'
 import { formatPosition } from '@/lib/format'
+import { PositionPill } from '@/components/matches/position-pill'
 
 type RosterRow = Awaited<ReturnType<typeof getEARoster>>[number]
+
+// savePct is stored as a percentage (e.g. "67.00"); hockey format is ".670"
+function formatSavePct(savePct: string | null): string {
+  if (savePct === null) return '—'
+  const n = parseFloat(savePct)
+  if (isNaN(n)) return '—'
+  return (n / 100).toFixed(3).slice(1)
+}
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -123,6 +132,11 @@ function DefenseBlock({ defense }: { defense: DepthChartProps['defense'] }) {
 const GOALIE_SLOT_LABELS = ['Starter', 'Backup', '3rd String', '4th String', '5th String']
 
 function GoalieBlock({ goalies }: { goalies: DepthChartProps['goalies'] }) {
+  // Only render actual goalies — no empty placeholders beyond the first slot.
+  const slots = goalies.length === 0 ? [null] : goalies
+  const count = slots.length
+  const gridTemplate = `repeat(${count.toString()}, 11rem)`
+
   return (
     <section>
       <h2 className="mb-3 font-condensed text-xs font-bold uppercase tracking-widest text-zinc-600">
@@ -130,9 +144,9 @@ function GoalieBlock({ goalies }: { goalies: DepthChartProps['goalies'] }) {
       </h2>
 
       <div className="overflow-x-auto">
-        {/* Slot labels */}
-        <div className="mb-2 grid grid-cols-[11rem_11rem_11rem_11rem_11rem] gap-2">
-          {GOALIE_SLOT_LABELS.map((label) => (
+        {/* Slot labels — only as many as there are real slots */}
+        <div className="mb-2 gap-2" style={{ display: 'grid', gridTemplateColumns: gridTemplate }}>
+          {GOALIE_SLOT_LABELS.slice(0, count).map((label) => (
             <div
               key={label}
               className="text-center font-condensed text-xs font-bold uppercase tracking-widest text-zinc-500"
@@ -143,8 +157,8 @@ function GoalieBlock({ goalies }: { goalies: DepthChartProps['goalies'] }) {
         </div>
 
         {/* Slots */}
-        <div className="grid grid-cols-[11rem_11rem_11rem_11rem_11rem] gap-2">
-          {goalies.map((player, i) => (
+        <div className="gap-2" style={{ display: 'grid', gridTemplateColumns: gridTemplate }}>
+          {slots.map((player, i) => (
             <SlotCell key={i} player={player} positionLabel="G" />
           ))}
         </div>
@@ -164,7 +178,8 @@ function SlotCell({ player, positionLabel }: { player: RosterRow | null; positio
 //
 // Mirrors the PlayerCard design language from the home carousel.
 // Scaled to w-44 (11rem grid columns). Zone A shows team W-L-OTL for all
-// players (it is a team record, not individual). Phase 1: GP/G/A/PTS for all cards.
+// players (team record when that player appeared). Stats panel is role-aware:
+// goalie slots show GP/W/SV%/GAA; skater slots show GP/G/A/PTS.
 
 function RosterPlayerCard({ player, positionLabel }: { player: RosterRow; positionLabel: string }) {
   const posLabel = player.position ? formatPosition(player.position) : null
@@ -182,7 +197,7 @@ function RosterPlayerCard({ player, positionLabel }: { player: RosterRow; positi
   return (
     <Link
       href={`/roster/${player.playerId.toString()}`}
-      className="group relative block w-44 overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-950 transition-all duration-300 hover:-translate-y-1 hover:border-zinc-600 hover:shadow-[0_0_32px_rgba(225,29,72,0.22)]"
+      className="broadcast-panel-soft group relative block w-44 overflow-hidden rounded-2xl transition-all duration-300 hover:-translate-y-1 hover:border-zinc-600 hover:shadow-[0_0_32px_rgba(225,29,72,0.22)]"
       aria-label={`${player.gamertag} — ${positionLabel}`}
     >
       {/* Accent top bar */}
@@ -192,9 +207,9 @@ function RosterPlayerCard({ player, positionLabel }: { player: RosterRow; positi
       <div className="absolute left-0 top-0 z-20 flex w-[60px] flex-col rounded-br-2xl bg-zinc-950 px-2 pb-3 pt-4">
         <div className="font-condensed text-[25px] font-black leading-none text-zinc-600">##</div>
         {posLabel !== null ? (
-          <span className="mt-1 inline-flex items-center rounded-sm bg-zinc-800 px-1.5 py-0.5 font-condensed text-[9px] font-bold uppercase tracking-widest text-zinc-400">
-            {posLabel}
-          </span>
+          <div className="mt-1">
+            <PositionPill label={posLabel} position={player.position} isGoalie={positionLabel === 'G'} />
+          </div>
         ) : (
           <span className="mt-1 inline-block h-2.5 w-7 rounded bg-zinc-800" />
         )}
@@ -221,13 +236,24 @@ function RosterPlayerCard({ player, positionLabel }: { player: RosterRow; positi
         </div>
       </div>
 
-      {/* Stats panel — season totals for all cards */}
+      {/* Stats panel */}
       <div className="mx-2 mb-2 mt-1.5 overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-900 p-2">
         <div className="grid grid-cols-4 gap-1">
-          <StatBox label="GP" value={player.gamesPlayed.toString()} />
-          <StatBox label="G" value={player.goals.toString()} />
-          <StatBox label="A" value={player.assists.toString()} />
-          <StatBoxFeatured label="PTS" value={player.points.toString()} />
+          {positionLabel === 'G' ? (
+            <>
+              <StatBox label="GP" value={player.goalieGp.toString()} />
+              <StatBox label="W" value={player.goalieWins?.toString() ?? '—'} />
+              <StatBox label="SV%" value={formatSavePct(player.savePct)} />
+              <StatBoxFeatured label="GAA" value={player.gaa ?? '—'} />
+            </>
+          ) : (
+            <>
+              <StatBox label="GP" value={player.skaterGp.toString()} />
+              <StatBox label="G" value={player.goals.toString()} />
+              <StatBox label="A" value={player.assists.toString()} />
+              <StatBoxFeatured label="PTS" value={player.points.toString()} />
+            </>
+          )}
         </div>
         <div className="mt-2 grid grid-cols-3 gap-2">
           <div className="flex h-[34px] items-center justify-center rounded-lg border border-zinc-700/60 bg-zinc-800/40">
@@ -239,7 +265,7 @@ function RosterPlayerCard({ player, positionLabel }: { player: RosterRow; positi
               alt="BGM"
               width={20}
               height={20}
-              className="object-contain opacity-60"
+              className="h-6 w-6 object-contain opacity-60"
             />
           </div>
           <div />
@@ -265,7 +291,7 @@ function OpenSlot({ positionLabel }: { positionLabel: string }) {
   )
 }
 
-// ─── Icons (mirrored from player-card.tsx) ────────────────────────────────────
+// ─── Icons ────────────────────────────────────────────────────────────────────
 
 function ControllerIcon() {
   return (

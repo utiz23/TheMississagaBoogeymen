@@ -68,7 +68,8 @@ export const matches = pgTable(
     // ── Game mode ───────────────────────────────────────────────────────────────
     /**
      * Raw cNhlOnlineGameType value from EA API.
-     * Known values: 5 = 6's, 10 = playoffs (6's format), 200 = 3's.
+     * Known values: 5 = 6's, 10 = playoffs (6's format), 200 = 3's,
+     * 206 = 3's variant seen in recent tracked matches.
      * Stored as-is so we can re-derive gameMode if the mapping changes.
      */
     eaGameTypeCode: integer('ea_game_type_code'),
@@ -87,6 +88,22 @@ export const matches = pgTable(
     ppGoals: integer('pp_goals'),
     /** Powerplay opportunities for our club. */
     ppOpportunities: integer('pp_opportunities'),
+
+    // ── Opponent-side aggregates ─────────────────────────────────────────────────
+    // Mirrors the *_against pattern already used for shots/hits. Sourced from
+    // payload.clubs[opponentClubId] and payload.aggregate[opponentClubId].
+    /** Penalty minutes by the opponent in this match. */
+    penaltyMinutesAgainst: integer('penalty_minutes_against'),
+    /** Opponent's time on attack in seconds. */
+    timeOnAttackAgainst: integer('time_on_attack_against'),
+    /** Opponent's pass attempts. */
+    passAttemptsAgainst: integer('pass_attempts_against'),
+    /** Opponent's pass completions. */
+    passCompletionsAgainst: integer('pass_completions_against'),
+    /** Opponent's powerplay goals (= our PK goals against). */
+    ppGoalsAgainst: integer('pp_goals_against'),
+    /** Opponent's powerplay opportunities (= our times shorthanded). */
+    ppOpportunitiesAgainst: integer('pp_opportunities_against'),
   },
   (table) => [
     uniqueIndex('matches_title_match_uniq').on(table.gameTitleId, table.eaMatchId),
@@ -104,6 +121,6 @@ export type NewMatch = typeof matches.$inferInsert
 /** Map a raw EA cNhlOnlineGameType integer to our normalized GameMode. */
 export function deriveGameMode(code: number | undefined | null): GameMode | null {
   if (code === 5 || code === 10) return '6s'
-  if (code === 200) return '3s'
+  if (code === 200 || code === 206) return '3s'
   return null
 }

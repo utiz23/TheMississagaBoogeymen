@@ -5,12 +5,14 @@ import {
   getGameTitleBySlug,
   getRecentMatches,
   countMatches,
+  getOpponentClubs,
 } from '@eanhl/db/queries'
-import type { GameMode } from '@eanhl/db'
+import type { GameMode, MatchResult } from '@eanhl/db'
 import { GAME_MODE } from '@eanhl/db'
-import { MatchRow } from '@/components/matches/match-row'
+import { ScoreCard } from '@/components/matches/score-card'
+import { formatMatchDate } from '@/lib/format'
 
-export const metadata: Metadata = { title: 'Games — Club Stats' }
+export const metadata: Metadata = { title: 'Scores — Club Stats' }
 
 // Matches are ingested every 5 minutes — revalidate on the same cadence
 export const revalidate = 300
@@ -56,12 +58,18 @@ export default async function GamesPage({ searchParams }: { searchParams: Search
   }
 
   let pageMatches: Awaited<ReturnType<typeof getRecentMatches>> = []
+  let formMatches: Awaited<ReturnType<typeof getRecentMatches>> = []
   let total = 0
+  let opponentClubs: Awaited<ReturnType<typeof getOpponentClubs>> = []
   try {
-    ;[pageMatches, total] = await Promise.all([
+    ;[pageMatches, total, formMatches] = await Promise.all([
       getRecentMatches({ gameTitleId: gameTitle.id, limit: PAGE_SIZE, offset, gameMode }),
       countMatches({ gameTitleId: gameTitle.id, gameMode }),
+      getRecentMatches({ gameTitleId: gameTitle.id, limit: 10, offset: 0, gameMode }),
     ])
+    opponentClubs = await getOpponentClubs(
+      Array.from(new Set(pageMatches.map((match) => match.opponentClubId))),
+    )
   } catch {
     return <EmptyState message="Unable to load match data right now." />
   }
@@ -75,55 +83,59 @@ export default async function GamesPage({ searchParams }: { searchParams: Search
       ? `No ${gameMode} games recorded for ${gameTitle.name} yet.`
       : `No games recorded for ${gameTitle.name} yet.`
 
+  const opponentClubMap = new Map(opponentClubs.map((club) => [club.eaClubId, club]))
+  const dateGroups = groupMatchesByDate(pageMatches)
+
   return (
     <div className="space-y-6">
-      {/* Page header */}
-      <div className="flex items-baseline gap-3">
-        <h1 className="font-condensed text-2xl font-semibold uppercase tracking-wide text-zinc-50">
-          Games
-        </h1>
-        <span className="text-sm text-zinc-500">{gameTitle.name}</span>
-        {total > 0 && <span className="text-sm text-zinc-600">{total} matches</span>}
+      <div className="space-y-2">
+        <div className="flex flex-wrap items-baseline gap-3">
+          <h1 className="font-condensed text-2xl font-semibold uppercase tracking-wide text-zinc-50">
+            Scores
+          </h1>
+          <span className="text-sm text-zinc-500">{gameTitle.name}</span>
+          {total > 0 && <span className="text-sm text-zinc-600">{total} matches</span>}
+        </div>
       </div>
 
-      {/* Game mode filter pills */}
       <GameModeFilter titleSlug={titleSlug} activeMode={gameMode} />
+
+      {formMatches.length > 0 && (
+        <div className="space-y-2">
+          <FormStrip matches={formMatches} />
+          <TrendBullets matches={formMatches} />
+        </div>
+      )}
 
       {total === 0 ? (
         <EmptyState message={emptyMessage} />
       ) : (
         <>
-          <div className="overflow-hidden border border-zinc-800 bg-surface">
-            {/* Column header — mirrors MatchRow's flex structure exactly */}
-            <div className="flex items-center border-b border-zinc-800">
-              <div className="w-1 shrink-0" /> {/* accent bar gutter */}
-              <div className="flex flex-1 items-center gap-4 px-4 py-2">
-                <span className="w-20 shrink-0 text-xs font-semibold uppercase tracking-wider text-zinc-600">
-                  Date
-                </span>
-                <span className="flex-1 min-w-0 text-xs font-semibold uppercase tracking-wider text-zinc-600">
-                  Opponent
-                </span>
-                <div className="w-10 shrink-0" /> {/* result badge — no header text */}
-                <span className="w-14 shrink-0 text-right text-xs font-semibold uppercase tracking-wider text-zinc-600">
-                  Score
-                </span>
-                <span className="hidden sm:block w-20 shrink-0 text-right text-xs font-semibold uppercase tracking-wider text-zinc-600">
-                  SOG
-                </span>
-              </div>
-            </div>
+          <div className="space-y-8">
+            {dateGroups.map((group) => (
+              <section key={group.key} className="space-y-4">
+                <div className="flex items-center gap-3">
+                  <h2 className="font-condensed text-xs font-bold uppercase tracking-[0.2em] text-zinc-500">
+                    {group.label}
+                  </h2>
+                  <div className="h-px flex-1 bg-zinc-800" />
+                </div>
 
-            {/* Match rows */}
-            <div className="divide-y divide-zinc-800/60">
-              {pageMatches.map((match, i) => (
-                <MatchRow
-                  key={match.id}
-                  match={match}
-                  isMostRecent={clampedPage === 1 && i === 0}
-                />
-              ))}
-            </div>
+                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                  {group.matches.map((match) => {
+                    const opponent = opponentClubMap.get(match.opponentClubId) ?? null
+                    return (
+                      <ScoreCard
+                        key={match.id}
+                        match={match}
+                        opponentCrestAssetId={opponent?.crestAssetId ?? null}
+                        opponentCrestUseBaseAsset={opponent?.useBaseAsset ?? null}
+                      />
+                    )
+                  })}
+                </div>
+              </section>
+            ))}
           </div>
 
           {totalPages > 1 && (
@@ -140,13 +152,32 @@ export default async function GamesPage({ searchParams }: { searchParams: Search
   )
 }
 
+function groupMatchesByDate(matches: Awaited<ReturnType<typeof getRecentMatches>>) {
+  const groups = new Map<string, { key: string; label: string; matches: typeof matches }>()
+
+  for (const match of matches) {
+    const d = new Date(match.playedAt)
+    const key = `${d.getFullYear().toString()}-${(d.getMonth() + 1).toString().padStart(2, '0')}-${d.getDate().toString().padStart(2, '0')}`
+    const label = formatMatchDate(match.playedAt)
+    const group = groups.get(key)
+    if (group) {
+      group.matches.push(match)
+    } else {
+      groups.set(key, { key, label, matches: [match] })
+    }
+  }
+
+  return Array.from(groups.values())
+}
+
 // ─── Game mode filter ─────────────────────────────────────────────────────────
 
 function gameModeHref(mode: GameMode | null, titleSlug: string | undefined): string {
   const qs = new URLSearchParams()
   if (titleSlug) qs.set('title', titleSlug)
   if (mode !== null) qs.set('mode', mode)
-  return `/games?${qs.toString()}`
+  const qsStr = qs.toString()
+  return `/games${qsStr ? `?${qsStr}` : ''}`
 }
 
 const MODE_LABELS: { mode: GameMode | null; label: string }[] = [
@@ -171,7 +202,7 @@ function GameModeFilter({
             key={label}
             href={gameModeHref(mode, titleSlug)}
             className={[
-              'px-3 py-1 text-xs font-semibold uppercase tracking-wider rounded border transition-colors',
+              'rounded border px-3 py-1 text-xs font-semibold uppercase tracking-wider transition-colors',
               isActive
                 ? 'border-accent bg-accent/10 text-accent'
                 : 'border-zinc-700 bg-transparent text-zinc-500 hover:border-zinc-500 hover:text-zinc-300',
@@ -218,12 +249,12 @@ function PaginationNav({
       {hasPrev ? (
         <Link
           href={paginationHref(page - 1, titleSlug, gameMode)}
-          className="text-zinc-400 hover:text-zinc-200 transition-colors"
+          className="text-zinc-400 transition-colors hover:text-zinc-200"
         >
-          ← Prev
+          ← Newer Results
         </Link>
       ) : (
-        <span className="text-zinc-700 select-none">← Prev</span>
+        <span className="select-none text-zinc-700">← Newer Results</span>
       )}
 
       <span className="text-zinc-600">
@@ -233,14 +264,104 @@ function PaginationNav({
       {hasNext ? (
         <Link
           href={paginationHref(page + 1, titleSlug, gameMode)}
-          className="text-zinc-400 hover:text-zinc-200 transition-colors"
+          className="text-zinc-400 transition-colors hover:text-zinc-200"
         >
-          Next →
+          Older Results →
         </Link>
       ) : (
-        <span className="text-zinc-700 select-none">Next →</span>
+        <span className="select-none text-zinc-700">Older Results →</span>
       )}
     </div>
+  )
+}
+
+// ─── Form strip ───────────────────────────────────────────────────────────────
+
+interface FormMatch { result: MatchResult; shotsFor: number; shotsAgainst: number; scoreAgainst: number }
+
+const FORM_PILL: Record<MatchResult, string> = {
+  WIN: 'border-emerald-500/50 bg-emerald-500/10 text-emerald-400',
+  LOSS: 'border-rose-500/50 bg-rose-500/10 text-rose-400',
+  OTL: 'border-amber-500/40 bg-amber-500/10 text-amber-400',
+  DNF: 'border-zinc-700/50 bg-zinc-900/70 text-zinc-600',
+}
+
+const FORM_PILL_LABEL: Record<MatchResult, string> = {
+  WIN: 'W',
+  LOSS: 'L',
+  OTL: 'OT',
+  DNF: '—',
+}
+
+function FormStrip({ matches }: { matches: FormMatch[] }) {
+  const wins = matches.filter((m) => m.result === 'WIN').length
+  const losses = matches.filter((m) => m.result === 'LOSS').length
+  const otl = matches.filter((m) => m.result === 'OTL').length
+  const n = wins + losses + otl
+
+  return (
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+      <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-600">
+        Last {n}
+      </span>
+      <div className="flex items-center gap-0.5">
+        {matches.map((m, i) => (
+          <span
+            key={i}
+            className={`inline-flex w-7 items-center justify-center rounded border py-0.5 font-condensed text-[10px] font-bold uppercase tracking-wider ${FORM_PILL[m.result]}`}
+          >
+            {FORM_PILL_LABEL[m.result]}
+          </span>
+        ))}
+      </div>
+      <span className="font-condensed text-sm font-bold tabular-nums text-zinc-400">
+        {wins}-{losses}-{otl}
+      </span>
+    </div>
+  )
+}
+
+function TrendBullets({ matches }: { matches: FormMatch[] }) {
+  const n = matches.length
+
+  // Win streak — consecutive from newest, DNF breaks streak
+  let streak = 0
+  for (const m of matches) {
+    if (m.result === 'WIN') streak++
+    else break
+  }
+
+  // Wins in the window (all decisive games)
+  const wins = matches.filter((m) => m.result === 'WIN').length
+
+  // Shot edge — BGM out-shot opponent (strict majority)
+  const shotsWon = matches.filter((m) => m.shotsFor > m.shotsAgainst).length
+
+  // Goals-against tightness — held opponent to 2 or fewer
+  const tightDefense = matches.filter((m) => m.result !== 'DNF' && m.scoreAgainst <= 2).length
+
+  const bullets: string[] = []
+
+  if (streak >= 3) bullets.push(`${streak.toString()}-game win streak`)
+  // "Won N of last 10" only if a genuinely strong or cold signal
+  if (streak < 3 && wins >= Math.ceil(n * 0.7)) bullets.push(`Won ${wins.toString()} of last ${n.toString()}`)
+  if (shotsWon >= Math.ceil(n * 0.7)) bullets.push(`Out-shot opponents in ${shotsWon.toString()} of last ${n.toString()}`)
+  if (tightDefense >= Math.ceil(n * 0.5) && tightDefense >= 4) bullets.push(`Held opponents to 2 or fewer in ${tightDefense.toString()} of last ${n.toString()}`)
+
+  if (bullets.length === 0) return null
+
+  // Cap at 2 — avoid wall of bullets
+  const shown = bullets.slice(0, 2)
+
+  return (
+    <ul className="flex flex-col gap-0.5">
+      {shown.map((b) => (
+        <li key={b} className="flex items-center gap-2 text-xs text-zinc-500">
+          <span className="text-accent" aria-hidden>▲</span>
+          {b}
+        </li>
+      ))}
+    </ul>
   )
 }
 

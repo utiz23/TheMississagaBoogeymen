@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation'
 import {
   getMatchById,
   getPlayerMatchStats,
+  getOpponentPlayerMatchStats,
   getOpponentClub,
   getMatchSeasonNumber,
   getMatchSeriesContext,
@@ -18,6 +19,7 @@ import { GoalieSpotlightSection } from '@/components/matches/goalie-spotlight'
 import { ScoresheetSection } from '@/components/matches/scoresheet'
 import { ContextFooter } from '@/components/matches/context-footer'
 import {
+  buildAllTeamScores,
   buildBoxScore,
   buildGoalieSpotlight,
   buildPossessionEdge,
@@ -62,30 +64,41 @@ export default async function GameDetailPage({ params }: Props) {
   const m = match
   // Fetch all secondary data in parallel; each can fail independently and the
   // section that needs it will simply hide. The hero + main page still render.
-  const [playerStats, opponentClub, seasonNumber, seriesContext, adjacent] =
-    await Promise.all([
-      safe(() => getPlayerMatchStats(m.id), []),
-      safe(() => getOpponentClub(m.opponentClubId), null),
-      safe(() => getMatchSeasonNumber(m.gameTitleId, m.playedAt), null),
-      safe(
-        () => getMatchSeriesContext(m.gameTitleId, m.opponentClubId, m.playedAt),
-        null,
-      ),
-      safe(() => getAdjacentMatches(m.gameTitleId, m.playedAt), {
-        previous: null,
-        next: null,
-      }),
-    ])
+  const [
+    playerStats,
+    opponentPlayerStats,
+    opponentClub,
+    seasonNumber,
+    seriesContext,
+    adjacent,
+  ] = await Promise.all([
+    safe(() => getPlayerMatchStats(m.id), []),
+    safe(() => getOpponentPlayerMatchStats(m.id), []),
+    safe(() => getOpponentClub(m.opponentClubId), null),
+    safe(() => getMatchSeasonNumber(m.gameTitleId, m.playedAt), null),
+    safe(() => getMatchSeriesContext(m.gameTitleId, m.opponentClubId, m.playedAt), null),
+    safe(() => getAdjacentMatches(m.gameTitleId, m.playedAt), {
+      previous: null,
+      next: null,
+    }),
+  ])
 
   const opponentCrestAssetId = opponentClub?.crestAssetId ?? null
   const opponentCrestUseBaseAsset = opponentClub?.useBaseAsset ?? null
 
   // ── View-model derivations ──────────────────────────────────────────────────
-  const topPerformers = buildTopPerformers(playerStats)
+  const topPerformers = buildTopPerformers(match, playerStats, opponentPlayerStats)
+  const allTeamScores = buildAllTeamScores(match, playerStats, opponentPlayerStats)
   const possessionEdge = buildPossessionEdge(match)
-  const boxScore = buildBoxScore(match)
+  const boxScore = buildBoxScore(match, playerStats, opponentPlayerStats)
+  // Goalie spotlight stays BGM-only by design — the data shows opponent
+  // goalies are nearly always AI (1 row across 31 matches in the spike).
   const goalieSpotlight = buildGoalieSpotlight(playerStats)
-  const scoresheet = buildScoresheet(playerStats)
+  const scoresheet = buildScoresheet({
+    bgm: playerStats,
+    opponent: opponentPlayerStats,
+    opponentLabel: match.opponentName,
+  })
 
   const heroMeta = {
     seasonNumber,
@@ -114,7 +127,9 @@ export default async function GameDetailPage({ params }: Props) {
       {/* 2. Story strip — Top Performers + Possession Edge */}
       {(topPerformers.length > 0 || possessionEdge !== null) && (
         <div className="space-y-6">
-          {topPerformers.length > 0 ? <TopPerformers performers={topPerformers} /> : null}
+          {topPerformers.length > 0 ? (
+            <TopPerformers performers={topPerformers} allTeamScores={allTeamScores} opponentLabel={match.opponentName} />
+          ) : null}
           {possessionEdge !== null ? <PossessionEdgeBar edge={possessionEdge} /> : null}
         </div>
       )}
@@ -125,8 +140,8 @@ export default async function GameDetailPage({ params }: Props) {
       {/* 4. Goalie spotlight (omitted entirely if no goalie data) */}
       <GoalieSpotlightSection goalies={goalieSpotlight} />
 
-      {/* 5. BGM scoresheet */}
-      {scoresheet.skaters.length === 0 && scoresheet.goalies.length === 0 ? (
+      {/* 5. Two-team scoresheet (BGM + opponent) */}
+      {scoresheetIsEmpty(scoresheet) ? (
         <EmptyScoresheet />
       ) : (
         <ScoresheetSection scoresheet={scoresheet} />
@@ -146,6 +161,12 @@ async function safe<T>(fn: () => Promise<T>, fallback: T): Promise<T> {
   } catch {
     return fallback
   }
+}
+
+function scoresheetIsEmpty(s: ReturnType<typeof buildScoresheet>): boolean {
+  const sideEmpty = (side: typeof s.bgm) =>
+    side.skaters.length === 0 && side.goalies.length === 0
+  return sideEmpty(s.bgm) && sideEmpty(s.opponent)
 }
 
 function formatSeriesSummary(

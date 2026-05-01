@@ -1,4 +1,4 @@
-import { and, eq, isNull } from 'drizzle-orm'
+import { and, eq, inArray, isNull } from 'drizzle-orm'
 import { db } from '../client.js'
 import {
   clubGameTitleStats,
@@ -50,6 +50,21 @@ export async function getOpponentClub(eaClubId: string) {
     .where(eq(opponentClubs.eaClubId, eaClubId))
     .limit(1)
   return rows[0] ?? null
+}
+
+/**
+ * Opponent club metadata for multiple EA club IDs.
+ *
+ * Used by the scores page to avoid one lookup per match card.
+ * Returns [] when the list is empty.
+ */
+export async function getOpponentClubs(eaClubIds: string[]) {
+  if (eaClubIds.length === 0) return []
+
+  return db
+    .select()
+    .from(opponentClubs)
+    .where(inArray(opponentClubs.eaClubId, eaClubIds))
 }
 
 /**

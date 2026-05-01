@@ -3,11 +3,16 @@ import {
   listGameTitles,
   getGameTitleBySlug,
   getEARoster,
-  getRoster,
+  getSkaterStats,
+  getGoalieStats,
   getPlayerPositionEligibility,
+  getOfficialClubRecord,
 } from '@eanhl/db/queries'
 import { DepthChart } from '@/components/roster/depth-chart'
 import type { DepthChartProps } from '@/components/roster/depth-chart'
+import { SkaterStatsTable } from '@/components/stats/skater-stats-table'
+import { GoalieStatsTable } from '@/components/stats/goalie-stats-table'
+import { formatRecord } from '@/lib/format'
 
 export const metadata: Metadata = { title: 'Roster — Club Stats' }
 
@@ -33,17 +38,42 @@ async function resolveGameTitle(titleSlug: string | undefined) {
   }
 }
 
-// ─── Position usage map ───────────────────────────────────────────────────────
+// ─── Constants ────────────────────────────────────────────────────────────────
 
-// playerId → (rawPositionKey → gameCount)
-function buildPositionUsage(
-  eligRows: EligRow[],
-  rosterRows: RosterRow[],
-): Map<number, Map<string, number>> {
+const FORWARD_POSITIONS = ['leftWing', 'center', 'rightWing'] as const
+type ForwardPos = (typeof FORWARD_POSITIONS)[number]
+
+// ─── Member stats ─────────────────────────────────────────────────────────────
+//
+// Primary forward/defense signal: local player_match_stats lane counts.
+// Primary goalie signal: EA goalieGp (team members rarely play goalie in tracked games).
+// Chart input: eaRows only (no guests — guests appear in eligRows but are filtered out).
+//
+// Role tiers drive allocation priority:
+//   isDefensePrimary — defGames > totalFwdGames: player skews toward blue line.
+//     Gets a -1000 penalty in forward scoring so they don't block early forward lines.
+//   isGoaliePrimary — EA favoritePosition='goalie' or goalieGp > skaterGp: player is
+//     primarily a goalie. Gets -2000 penalty in forward AND defense scoring.
+
+interface MemberData {
+  eaRow: RosterRow
+  lwGames: number
+  cGames: number
+  rwGames: number
+  defGames: number
+  totalFwdGames: number
+  isForwardCapable: boolean
+  isDefenseCapable: boolean
+  isGoalieCapable: boolean
+  isDefensePrimary: boolean
+  isGoaliePrimary: boolean
+}
+
+function buildMemberStats(eaRows: RosterRow[], eligRows: EligRow[]): MemberData[] {
+  const memberIds = new Set(eaRows.map((r) => r.playerId))
   const usage = new Map<number, Map<string, number>>()
-
   for (const row of eligRows) {
-    if (!row.position) continue
+    if (!row.position || !memberIds.has(row.playerId)) continue
     let m = usage.get(row.playerId)
     if (!m) {
       m = new Map()
@@ -52,137 +82,213 @@ function buildPositionUsage(
     m.set(row.position, row.gameCount)
   }
 
-  // Fallback: member-only players with no tracked match history
-  // Assign virtual gameCount=1 at their declared players.position so they appear on the board
-  for (const player of rosterRows) {
-    if (!usage.has(player.playerId) && player.position) {
-      usage.set(player.playerId, new Map([[player.position, 1]]))
+  return eaRows.map((ea) => {
+    const u = usage.get(ea.playerId)
+    const lwGames = u?.get('leftWing') ?? 0
+    const cGames = u?.get('center') ?? 0
+    const rwGames = u?.get('rightWing') ?? 0
+    const defGames = u?.get('defenseMen') ?? 0
+    const totalFwdGames = lwGames + cGames + rwGames
+    return {
+      eaRow: ea,
+      lwGames,
+      cGames,
+      rwGames,
+      defGames,
+      totalFwdGames,
+      isForwardCapable: totalFwdGames > 0,
+      isDefenseCapable: defGames > 0,
+      isGoalieCapable: ea.goalieGp > 0,
+      isDefensePrimary: defGames > totalFwdGames,
+      isGoaliePrimary:
+        ea.favoritePosition === 'goalie' || ea.goalieGp > ea.skaterGp,
     }
-  }
-
-  return usage
+  })
 }
 
-// ─── Sort comparators ─────────────────────────────────────────────────────────
+// ─── Role classification ──────────────────────────────────────────────────────
+//
+// Determines each member's line-order priority within the Phase 1 unique forward pass.
+// All 10 members still appear exactly once; role class shifts WHICH LINE they land in.
+//
+//   forward-first  — no D capability: fills lines 1–2
+//   hybrid-skater  — has real D usage alongside forward: lines 2–3
+//   defense-first  — defGames > totalFwdGames: lines 3–4
+//   goalie-primary — EA favoritePosition='goalie' or goalieGp>skaterGp: line 4
 
-const ALL_POSITIONS = ['leftWing', 'center', 'rightWing', 'defenseMen', 'goalie'] as const
-type AnyPos = (typeof ALL_POSITIONS)[number]
+type RoleClass = 'forward-first' | 'hybrid-skater' | 'defense-first' | 'goalie-primary'
 
-const FORWARD_POSITIONS = ['leftWing', 'center', 'rightWing'] as const
-type ForwardPos = (typeof FORWARD_POSITIONS)[number]
-
-function byPositionUsage(
-  pos: string,
-  usage: Map<number, Map<string, number>>,
-): (a: RosterRow, b: RosterRow) => number {
-  return (a, b) => {
-    const aC = usage.get(a.playerId)?.get(pos) ?? 0
-    const bC = usage.get(b.playerId)?.get(pos) ?? 0
-    if (bC !== aC) return bC - aC
-    if (b.points !== a.points) return b.points - a.points
-    if (b.gamesPlayed !== a.gamesPlayed) return b.gamesPlayed - a.gamesPlayed
-    return a.gamertag.localeCompare(b.gamertag)
-  }
+function classifyRole(m: MemberData): RoleClass {
+  if (m.isGoaliePrimary) return 'goalie-primary'
+  if (m.isDefensePrimary) return 'defense-first'
+  if (m.isDefenseCapable) return 'hybrid-skater'
+  return 'forward-first'
 }
 
-function byGoalieUsage(
-  usage: Map<number, Map<string, number>>,
-): (a: RosterRow, b: RosterRow) => number {
-  return (a, b) => {
-    const aC = usage.get(a.playerId)?.get('goalie') ?? 0
-    const bC = usage.get(b.playerId)?.get('goalie') ?? 0
-    if (bC !== aC) return bC - aC
-    if ((b.wins ?? 0) !== (a.wins ?? 0)) return (b.wins ?? 0) - (a.wins ?? 0)
-    const svA = a.savePct !== null ? parseFloat(a.savePct) : 0
-    const svB = b.savePct !== null ? parseFloat(b.savePct) : 0
-    if (svB !== svA) return svB - svA
-    const gaaA = a.gaa !== null ? parseFloat(a.gaa) : 999
-    const gaaB = b.gaa !== null ? parseFloat(b.gaa) : 999
-    return gaaA - gaaB
-  }
+const FWD_ROLE_PENALTY: Record<RoleClass, number> = {
+  'forward-first': 0,
+  'hybrid-skater': -200,
+  'defense-first': -500,
+  'goalie-primary': -1000,
 }
 
-// ─── Strongest position (all 5) ───────────────────────────────────────────────
+// ─── Score functions ──────────────────────────────────────────────────────────
+//
+// laneFitScore: local lane affinity + EA favoritePosition lane bonus.
+//   EA_FWD_LANE_BONUS (+600): authoritative override of sparse local sampling.
+//   Bonus applies only when EA favoritePosition matches a forward lane (LW/C/RW).
+//   Magnitude 600 corrects up to ~5 games of local bias; 7+ local games in the
+//   "wrong" lane still override the EA signal (local data is that strong).
+//
+// fwdPhase1Score: laneFitScore + FWD_ROLE_PENALTY — used in Phase 1 unique pass.
+//   Does NOT have a score threshold; all members get placed, just in order of class.
+//
+// fwdEffectiveScore: laneFitScore + defense-primary/goalie-primary penalty — used
+//   for Phase 2 reuse picks (prefers pure forwards for the 2 remaining slots).
+//
+// defEffectiveScore: D-games ordering with goalie-primary last.
 
-function strongestOverallPos(
-  playerId: number,
-  usage: Map<number, Map<string, number>>,
-): AnyPos | null {
-  const m = usage.get(playerId)
-  if (!m) return null
-  let best: AnyPos | null = null
-  let bestCount = 0
-  for (const pos of ALL_POSITIONS) {
-    const count = m.get(pos) ?? 0
-    if (count > bestCount) {
-      bestCount = count
-      best = pos
+const EA_FWD_LANE_BONUS = 600
+
+function laneFitScore(m: MemberData, lane: ForwardPos): number {
+  const gamesInLane =
+    lane === 'leftWing' ? m.lwGames : lane === 'center' ? m.cGames : m.rwGames
+
+  const sorted = (
+    [
+      ['leftWing', m.lwGames],
+      ['center', m.cGames],
+      ['rightWing', m.rwGames],
+    ] as [ForwardPos, number][]
+  ).sort((a, b) => b[1] - a[1])
+
+  const bestLane = sorted[0]?.[0] ?? 'center'
+  const secondLane = sorted[1]?.[0] ?? bestLane
+
+  let score = gamesInLane * 100
+  if (lane === bestLane) score += 30
+  else if (lane === secondLane) score += 10
+  if (lane === 'center') score += 5
+
+  // EA favoritePosition — authoritative forward lane identity.
+  // Overrides sampling artifacts in sparse local tracking data.
+  const fp = m.eaRow.favoritePosition
+  if (
+    (fp === 'leftWing' && lane === 'leftWing') ||
+    (fp === 'center' && lane === 'center') ||
+    (fp === 'rightWing' && lane === 'rightWing')
+  ) {
+    score += EA_FWD_LANE_BONUS
+  }
+
+  return score
+}
+
+function fwdPhase1Score(m: MemberData, lane: ForwardPos): number {
+  return laneFitScore(m, lane) + FWD_ROLE_PENALTY[classifyRole(m)]
+}
+
+function fwdEffectiveScore(m: MemberData, lane: ForwardPos): number {
+  let score = laneFitScore(m, lane)
+  if (m.isGoaliePrimary) score -= 2000
+  else if (m.isDefensePrimary) score -= 1000
+  return score
+}
+
+function defEffectiveScore(m: MemberData): number {
+  let score = m.defGames * 100 + 10
+  if (m.isGoaliePrimary) score -= 2000
+  return score
+}
+
+// ─── Slot picker ──────────────────────────────────────────────────────────────
+
+function pickBest(
+  pool: MemberData[],
+  excluded: Set<number>,
+  scoreFn: (m: MemberData) => number,
+  minScore = -Infinity,
+): MemberData | null {
+  let bestScore = minScore
+  let best: MemberData | null = null
+  for (const m of pool) {
+    if (excluded.has(m.eaRow.playerId)) continue
+    const s = scoreFn(m)
+    if (s > bestScore || (s === bestScore && best !== null && m.eaRow.skaterGp > best.eaRow.skaterGp)) {
+      bestScore = s
+      best = m
     }
   }
   return best
 }
 
 // ─── Chart builder ────────────────────────────────────────────────────────────
+//
+// Forward (12 slots = 4 lines × 3 lanes):
+//   Phase 1 — all-member unique pass: every member placed exactly once.
+//     Row-by-row, fwdPhase1Score = laneFitScore (EA favPos bonus included) + role penalty.
+//     EA favoritePosition (+600) corrects lane identity when sparse local data skews the
+//     distribution (e.g. Silky with more local LW than C games despite EA=center).
+//     Role penalty steers hybrids/D-first/goalie-primary to later lines without excluding
+//     them — all 10 members appear, just in priority order.
+//   Phase 2 — 2-slot controlled reuse: fills the 2 remaining empty slots.
+//     fwdEffectiveScore (defense-primary/goalie-primary penalties) keeps reuse picks
+//     preferring pure forwards. fwdReused prevents same member across multiple slots.
+//
+// Defense (6 slots = 3 pairs × LD/RD):
+//   Phase 1 — D-capable unique pass, ordered by defEffectiveScore (D games desc).
+//   Phase 2 — reuse/fallback, same ordering, goalie-primary land last.
+//
+// Goalies (5 slots): all members with EA goalieGp > 0, sorted by goalieGp desc.
 
-function buildChart(
-  rosterRows: RosterRow[],
-  usage: Map<number, Map<string, number>>,
-): DepthChartProps {
-  // ── Pass 1: global unique placement across all 5 positions ────────────────
+function buildChart(eaRows: RosterRow[], eligRows: EligRow[]): DepthChartProps {
+  const members = buildMemberStats(eaRows, eligRows)
 
-  const fwdPass1: Record<ForwardPos, RosterRow[]> = { leftWing: [], center: [], rightWing: [] }
-  const defPass1: RosterRow[] = []
-  const goaliePass1: RosterRow[] = []
-  const pass1Assigned = new Set<number>()
+  // Goalies — independent of skater chart. No empty padding — render only real goalies.
+  const goalieSlots: (RosterRow | null)[] = members
+    .filter((m) => m.isGoalieCapable)
+    .sort((a, b) => b.eaRow.goalieGp - a.eaRow.goalieGp)
+    .map((m) => m.eaRow)
+    .slice(0, 5)
 
-  for (const pos of ALL_POSITIONS) {
-    const comparator = pos === 'goalie' ? byGoalieUsage(usage) : byPositionUsage(pos, usage)
-    const candidates = rosterRows
-      .filter((p) => strongestOverallPos(p.playerId, usage) === pos)
-      .sort(comparator)
-
-    for (const player of candidates) {
-      if (pass1Assigned.has(player.playerId)) continue
-      if (pos === 'leftWing' || pos === 'center' || pos === 'rightWing') {
-        fwdPass1[pos].push(player)
-      } else if (pos === 'defenseMen') {
-        defPass1.push(player)
-      } else {
-        goaliePass1.push(player)
-      }
-      pass1Assigned.add(player.playerId)
-    }
-  }
-
-  // ── Pass 2: fill remaining forward slots with reused players ──────────────
-
+  // ── Forwards ──────────────────────────────────────────────────────────────
   const fwdSlots: Record<ForwardPos, (RosterRow | null)[]> = {
-    leftWing: [...fwdPass1.leftWing],
-    center: [...fwdPass1.center],
-    rightWing: [...fwdPass1.rightWing],
+    leftWing: [],
+    center: [],
+    rightWing: [],
   }
+  const fwdPlaced = new Set<number>()
 
-  for (const pos of FORWARD_POSITIONS) {
-    if (fwdSlots[pos].length > 4) fwdSlots[pos] = fwdSlots[pos].slice(0, 4)
-
-    const alreadyInColumn = new Set(
-      (fwdSlots[pos].filter(Boolean) as RosterRow[]).map((p) => p.playerId),
-    )
-
-    if (fwdSlots[pos].length < 4) {
-      const reusable = rosterRows
-        .filter((p) => (usage.get(p.playerId)?.get(pos) ?? 0) > 0)
-        .sort(byPositionUsage(pos, usage))
-
-      for (const player of reusable) {
-        if (fwdSlots[pos].length >= 4) break
-        if (alreadyInColumn.has(player.playerId)) continue
-        fwdSlots[pos].push(player)
-        alreadyInColumn.add(player.playerId)
+  // Phase 1: unique forward pass — every member placed exactly once.
+  // fwdPhase1Score = laneFitScore (with EA favPos bonus) + FWD_ROLE_PENALTY.
+  // forward-first members fill early lines; hybrids/D-first/goalie-primary fall
+  // to later lines. No score threshold — all members still get placed.
+  for (let line = 0; line < 4; line++) {
+    for (const lane of FORWARD_POSITIONS) {
+      if (fwdSlots[lane].length >= 4) continue
+      const best = pickBest(members, fwdPlaced, (m) => fwdPhase1Score(m, lane))
+      if (best !== null) {
+        fwdSlots[lane].push(best.eaRow)
+        fwdPlaced.add(best.eaRow.playerId)
       }
     }
+  }
 
-    while (fwdSlots[pos].length < 4) fwdSlots[pos].push(null)
+  // Phase 2: controlled reuse — fills remaining empty slots (≤2 for 10 members).
+  // Tier penalties in fwdEffectiveScore keep pure forwards preferred for reuse.
+  // fwdReused prevents the same member filling multiple reuse slots.
+  const fwdReused = new Set<number>()
+  for (const lane of FORWARD_POSITIONS) {
+    while (fwdSlots[lane].length < 4) {
+      const best = pickBest(members, fwdReused, (m) => fwdEffectiveScore(m, lane))
+      if (best === null) {
+        fwdSlots[lane].push(null)
+        break
+      }
+      fwdSlots[lane].push(best.eaRow)
+      fwdReused.add(best.eaRow.playerId)
+    }
+    while (fwdSlots[lane].length < 4) fwdSlots[lane].push(null)
   }
 
   const forwards = Array.from({ length: 4 }, (_, i) => ({
@@ -191,21 +297,29 @@ function buildChart(
     rw: fwdSlots.rightWing[i] ?? null,
   }))
 
-  // ── Pass 2: fill remaining defense slots with reused players ──────────────
+  // ── Defense ───────────────────────────────────────────────────────────────
+  // Ordered strictly by D games played (defEffectiveScore = defGames*100+10,
+  // goalie-primary penalized -2000 so they land last).
+  const defSlots: (RosterRow | null)[] = []
+  const defPlaced = new Set<number>()
 
-  const defSlots: (RosterRow | null)[] = defPass1.slice(0, 6)
-  const alreadyInDef = new Set((defSlots.filter(Boolean) as RosterRow[]).map((p) => p.playerId))
+  const defCapable = members
+    .filter((m) => m.isDefenseCapable)
+    .sort((a, b) => defEffectiveScore(b) - defEffectiveScore(a))
+
+  for (const m of defCapable) {
+    if (defSlots.length >= 6) break
+    defSlots.push(m.eaRow)
+    defPlaced.add(m.eaRow.playerId)
+  }
 
   if (defSlots.length < 6) {
-    const reusable = rosterRows
-      .filter((p) => (usage.get(p.playerId)?.get('defenseMen') ?? 0) > 0)
-      .sort(byPositionUsage('defenseMen', usage))
-
-    for (const player of reusable) {
+    const defReuse = members
+      .filter((m) => !defPlaced.has(m.eaRow.playerId))
+      .sort((a, b) => defEffectiveScore(b) - defEffectiveScore(a))
+    for (const m of defReuse) {
       if (defSlots.length >= 6) break
-      if (alreadyInDef.has(player.playerId)) continue
-      defSlots.push(player)
-      alreadyInDef.add(player.playerId)
+      defSlots.push(m.eaRow)
     }
   }
 
@@ -215,28 +329,6 @@ function buildChart(
     ld: defSlots[i * 2] ?? null,
     rd: defSlots[i * 2 + 1] ?? null,
   }))
-
-  // ── Pass 2: fill remaining goalie slots with reused players ───────────────
-
-  const goalieSlots: (RosterRow | null)[] = goaliePass1.slice(0, 5)
-  const alreadyInGoalie = new Set(
-    (goalieSlots.filter(Boolean) as RosterRow[]).map((p) => p.playerId),
-  )
-
-  if (goalieSlots.length < 5) {
-    const reusable = rosterRows
-      .filter((p) => (usage.get(p.playerId)?.get('goalie') ?? 0) > 0)
-      .sort(byGoalieUsage(usage))
-
-    for (const player of reusable) {
-      if (goalieSlots.length >= 5) break
-      if (alreadyInGoalie.has(player.playerId)) continue
-      goalieSlots.push(player)
-      alreadyInGoalie.add(player.playerId)
-    }
-  }
-
-  while (goalieSlots.length < 5) goalieSlots.push(null)
 
   return { forwards, defense, goalies: goalieSlots }
 }
@@ -252,24 +344,35 @@ export default async function RosterPage({ searchParams }: { searchParams: Searc
     return <EmptyState message="No game titles are configured yet." />
   }
 
-  let rosterRows: RosterRow[] = []
+  // Non-critical — page renders without it if the worker hasn't fetched it yet
+  let officialRecord: Awaited<ReturnType<typeof getOfficialClubRecord>> = null
+  try {
+    officialRecord = await getOfficialClubRecord(gameTitle.id)
+  } catch {
+    // intentionally swallowed
+  }
+
+  let eaRows: RosterRow[] = []
+  let skaterRows: Awaited<ReturnType<typeof getSkaterStats>> = []
+  let goalieRows: Awaited<ReturnType<typeof getGoalieStats>> = []
   let eligibilityRows: EligRow[] = []
 
   try {
-    const [eaRows, localRows, eligRows] = await Promise.all([
+    const [ea, skaters, goalies, elig] = await Promise.all([
       getEARoster(gameTitle.id),
-      getRoster(gameTitle.id),
+      getSkaterStats(gameTitle.id),
+      getGoalieStats(gameTitle.id),
       getPlayerPositionEligibility(gameTitle.id),
     ])
-    // Supplement EA rows with players who have local tracked data but no EA season stats
-    const eaIds = new Set(eaRows.map((r) => r.playerId))
-    rosterRows = [...eaRows, ...(localRows.filter((r) => !eaIds.has(r.playerId)) as RosterRow[])]
-    eligibilityRows = eligRows
+    eaRows = ea
+    skaterRows = skaters
+    goalieRows = goalies
+    eligibilityRows = elig
   } catch {
     return <EmptyState message="Unable to load roster data right now." />
   }
 
-  if (rosterRows.length === 0) {
+  if (eaRows.length === 0) {
     return (
       <div className="space-y-6">
         <PageHeader gameTitle={gameTitle} />
@@ -278,13 +381,114 @@ export default async function RosterPage({ searchParams }: { searchParams: Searc
     )
   }
 
-  const usage = buildPositionUsage(eligibilityRows, rosterRows)
-  const chart = buildChart(rosterRows, usage)
+  const chart = buildChart(eaRows, eligibilityRows)
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-10">
       <PageHeader gameTitle={gameTitle} />
+      <SeasonSummaryStrip eaRows={eaRows} officialRecord={officialRecord} />
       <DepthChart {...chart} />
+      {skaterRows.length > 0 && (
+        <section>
+          <SkaterStatsTable rows={skaterRows} title="Skaters" />
+        </section>
+      )}
+      {goalieRows.length > 0 && (
+        <section>
+          <GoalieStatsTable rows={goalieRows} title="Goalies" />
+        </section>
+      )}
+    </div>
+  )
+}
+
+// ─── Season summary strip ─────────────────────────────────────────────────────
+
+type OfficialRecord = Awaited<ReturnType<typeof getOfficialClubRecord>>
+
+function formatSavePctHockey(val: string | null): string {
+  if (val === null) return '—'
+  const n = parseFloat(val)
+  return isNaN(n) ? '—' : (n / 100).toFixed(3).slice(1)
+}
+
+function SeasonSummaryStrip({
+  eaRows,
+  officialRecord,
+}: {
+  eaRows: RosterRow[]
+  officialRecord: OfficialRecord
+}) {
+  // eaRows are already sorted by points desc from getEARoster
+  const topScorer = eaRows[0] ?? null
+  const topGoalScorer = [...eaRows].sort((a, b) => b.goals - a.goals)[0] ?? null
+  const topGoalie =
+    [...eaRows]
+      .filter((r) => r.goalieGp > 0 && r.savePct !== null)
+      .sort((a, b) => parseFloat(b.savePct!) - parseFloat(a.savePct!))[0] ?? null
+
+  const record = officialRecord
+    ? formatRecord(officialRecord.wins, officialRecord.losses, officialRecord.otl)
+    : null
+
+  return (
+    <div className="flex flex-wrap divide-y divide-zinc-800 border border-zinc-800 bg-surface sm:flex-nowrap sm:divide-x sm:divide-y-0">
+      <SummaryCell label="Record" primary={record ?? '—'} dim={record === null} />
+      {topScorer ? (
+        <SummaryCell
+          label="Scoring Leader"
+          primary={topScorer.gamertag}
+          secondary={`${topScorer.points.toString()} PTS`}
+        />
+      ) : (
+        <SummaryCell label="Scoring Leader" primary="—" dim />
+      )}
+      {topGoalScorer ? (
+        <SummaryCell
+          label="Goals Leader"
+          primary={topGoalScorer.gamertag}
+          secondary={`${topGoalScorer.goals.toString()} G`}
+        />
+      ) : (
+        <SummaryCell label="Goals Leader" primary="—" dim />
+      )}
+      {topGoalie ? (
+        <SummaryCell
+          label="Goalie"
+          primary={topGoalie.gamertag}
+          secondary={`${formatSavePctHockey(topGoalie.savePct)} SV%`}
+        />
+      ) : (
+        <SummaryCell label="Goalie" primary="—" dim />
+      )}
+    </div>
+  )
+}
+
+function SummaryCell({
+  label,
+  primary,
+  secondary,
+  dim = false,
+}: {
+  label: string
+  primary: string
+  secondary?: string
+  dim?: boolean
+}) {
+  return (
+    <div className="flex min-w-0 flex-1 flex-col gap-0.5 px-4 py-3">
+      <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-600">
+        {label}
+      </span>
+      <span
+        className={`truncate font-condensed text-sm font-bold ${dim ? 'text-zinc-600' : 'text-zinc-100'}`}
+      >
+        {primary}
+      </span>
+      {secondary !== undefined && (
+        <span className="font-condensed text-xs text-zinc-500">{secondary}</span>
+      )}
     </div>
   )
 }

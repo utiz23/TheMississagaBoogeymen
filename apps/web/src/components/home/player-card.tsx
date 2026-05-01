@@ -1,7 +1,8 @@
 import Link from 'next/link'
 import Image from 'next/image'
 import type { getRoster } from '@eanhl/db/queries'
-import { formatPositionFull } from '@/lib/format'
+import { formatPosition } from '@/lib/format'
+import { PositionPill } from '@/components/matches/position-pill'
 
 export type RosterRow = Awaited<ReturnType<typeof getRoster>>[number]
 
@@ -34,12 +35,20 @@ interface PlayerCardProps {
  */
 export function PlayerCard({ player, isActive = false, winPct }: PlayerCardProps) {
   const isGoalie = player.position === 'goalie'
-  const posLabel = player.position ? formatPositionFull(player.position) : null
+  const posLabel = player.position ? formatPosition(player.position) : null
+
+  const recordLine =
+    player.wins !== null && player.losses !== null
+      ? `${player.wins.toString()}–${player.losses.toString()}–${player.otl !== null ? player.otl.toString() : '—'}`
+      : '—–—–—'
 
   // Zone A — win% line: personal for goalies when data exists, club win% otherwise
   const displayWinPct: string =
-    isGoalie && player.wins !== null && player.losses !== null && player.wins + player.losses > 0
-      ? `${((player.wins / (player.wins + player.losses)) * 100).toFixed(0)}%`
+    isGoalie &&
+    player.wins !== null &&
+    player.losses !== null &&
+    player.wins + player.losses + (player.otl ?? 0) > 0
+      ? `${((player.wins / (player.wins + player.losses + (player.otl ?? 0))) * 100).toFixed(0)}%`
       : (winPct ?? '—')
 
   return (
@@ -60,32 +69,21 @@ export function PlayerCard({ player, isActive = false, winPct }: PlayerCardProps
         ].join(' ')}
       />
 
-      {/* ── A — flush top-left on card shell, no visible box ────────────── */}
+      {/* ── A — flush top-left on card shell, mirrors roster card ───────── */}
       <div className="absolute left-0 top-0 z-20 flex w-[72px] flex-col rounded-br-2xl bg-zinc-950 px-3 pb-3 pt-4">
-        {/* Jersey number placeholder — data not yet in source */}
-        <div
-          className={[
-            'font-condensed text-[32px] font-black leading-none',
-            isActive ? 'text-zinc-400' : 'text-zinc-600',
-          ].join(' ')}
-        >
-          ##
-        </div>
-
+        <div className="font-condensed text-[28px] font-black leading-none text-zinc-600">##</div>
         {/* Position pill */}
         {posLabel !== null ? (
-          <span className="mt-1 inline-flex items-center rounded-sm bg-zinc-800 px-1.5 py-0.5 font-condensed text-[9px] font-bold uppercase tracking-widest text-zinc-400">
-            {posLabel}
-          </span>
+          <div className="mt-1">
+            <PositionPill label={posLabel} position={player.position} isGoalie={isGoalie} />
+          </div>
         ) : (
           <span className="mt-1 inline-block h-2.5 w-7 rounded bg-zinc-800" />
         )}
 
         {/* W–L–OTL record */}
         <div className="mt-1.5 font-condensed text-[10px] font-semibold leading-none text-zinc-500">
-          {isGoalie && player.wins !== null && player.losses !== null
-            ? `${player.wins.toString()}–${player.losses.toString()}–—`
-            : '—–—–—'}
+          {recordLine}
         </div>
 
         <div className="mt-1.5 font-condensed text-[11px] font-bold leading-none text-zinc-300">
@@ -100,13 +98,11 @@ export function PlayerCard({ player, isActive = false, winPct }: PlayerCardProps
           <PlayerSilhouette className="text-zinc-800" />
         </div>
 
-        {/* C + D — Identity row inside the top panel */}
+        {/* Identity row */}
         <div className="flex items-center justify-center gap-2 border-t border-zinc-800/60 px-3 py-2">
-          {/* C — Platform placeholder */}
           <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-sm border border-zinc-700 bg-zinc-800/80 text-zinc-500">
             <ControllerIcon />
           </div>
-          {/* D — Gamertag */}
           <span className="truncate font-condensed text-base font-black uppercase tracking-wide text-zinc-100 group-hover:text-zinc-50">
             {player.gamertag}
           </span>
@@ -133,23 +129,20 @@ export function PlayerCard({ player, isActive = false, winPct }: PlayerCardProps
           )}
         </div>
 
-        {/* I–K: meta row — I (flag), J (team logo), K (reserved) */}
+        {/* Meta row */}
         <div className="mt-2 grid grid-cols-3 gap-2">
-          {/* I — Country flag placeholder */}
-          <div className="flex h-[40px] items-center justify-center rounded-lg border border-zinc-700/60 bg-zinc-800/40">
+          <div className="flex h-[34px] items-center justify-center rounded-lg border border-zinc-700/60 bg-zinc-800/40">
             <FlagIcon className="text-zinc-600" />
           </div>
-          {/* J — Team logo */}
-          <div className="flex h-[40px] items-center justify-center overflow-hidden rounded-lg border border-zinc-700/60 bg-zinc-800/40">
+          <div className="flex h-[34px] items-center justify-center overflow-hidden rounded-lg border border-zinc-700/60 bg-zinc-800/40">
             <Image
               src="/images/bgm-logo.png"
-              alt="BGM"
-              width={24}
-              height={24}
-              className="object-contain opacity-60"
+              alt="Boogeymen"
+              width={20}
+              height={20}
+              className="h-6 w-6 object-contain opacity-60"
             />
           </div>
-          {/* K — reserved for future content */}
           <div />
         </div>
       </div>

@@ -18,6 +18,7 @@ import {
   ingestionLog,
   rawMatchPayloads,
   matches,
+  opponentPlayerMatchStats,
   players,
   playerGamertagHistory,
   playerMatchStats,
@@ -261,6 +262,12 @@ export async function persistTransform(result: TransformResult): Promise<void> {
           passCompletions: result.match.passCompletions ?? null,
           ppGoals: result.match.ppGoals ?? null,
           ppOpportunities: result.match.ppOpportunities ?? null,
+          penaltyMinutesAgainst: result.match.penaltyMinutesAgainst ?? null,
+          timeOnAttackAgainst: result.match.timeOnAttackAgainst ?? null,
+          passAttemptsAgainst: result.match.passAttemptsAgainst ?? null,
+          passCompletionsAgainst: result.match.passCompletionsAgainst ?? null,
+          ppGoalsAgainst: result.match.ppGoalsAgainst ?? null,
+          ppOpportunitiesAgainst: result.match.ppOpportunitiesAgainst ?? null,
         },
       })
       .returning()
@@ -315,6 +322,58 @@ export async function persistTransform(result: TransformResult): Promise<void> {
             penSaves: statsRow.penSaves,
             penShots: statsRow.penShots,
             pokechecks: statsRow.pokechecks,
+          },
+        })
+    }
+
+    // Opponent player rows. No identity-table linkage — we just upsert by
+    // (match_id, ea_player_id). Reprocess re-runs overwrite all stats fields.
+    for (const opp of result.opponentPlayers) {
+      const oppRow = { ...opp, matchId: matchRow.id }
+      await dbConn
+        .insert(opponentPlayerMatchStats)
+        .values(oppRow)
+        .onConflictDoUpdate({
+          target: [opponentPlayerMatchStats.matchId, opponentPlayerMatchStats.eaPlayerId],
+          set: {
+            opponentClubId: oppRow.opponentClubId,
+            gamertag: oppRow.gamertag,
+            position: oppRow.position,
+            isGoalie: oppRow.isGoalie,
+            isGuest: oppRow.isGuest,
+            playerDnf: oppRow.playerDnf,
+            clientPlatform: oppRow.clientPlatform,
+            goals: oppRow.goals,
+            assists: oppRow.assists,
+            plusMinus: oppRow.plusMinus,
+            shots: oppRow.shots,
+            hits: oppRow.hits,
+            pim: oppRow.pim,
+            takeaways: oppRow.takeaways,
+            giveaways: oppRow.giveaways,
+            faceoffWins: oppRow.faceoffWins,
+            faceoffLosses: oppRow.faceoffLosses,
+            passAttempts: oppRow.passAttempts,
+            passCompletions: oppRow.passCompletions,
+            toiSeconds: oppRow.toiSeconds,
+            shotAttempts: oppRow.shotAttempts,
+            blockedShots: oppRow.blockedShots,
+            ppGoals: oppRow.ppGoals,
+            shGoals: oppRow.shGoals,
+            interceptions: oppRow.interceptions,
+            penaltiesDrawn: oppRow.penaltiesDrawn,
+            possession: oppRow.possession,
+            deflections: oppRow.deflections,
+            saucerPasses: oppRow.saucerPasses,
+            saves: oppRow.saves,
+            goalsAgainst: oppRow.goalsAgainst,
+            shotsAgainst: oppRow.shotsAgainst,
+            breakawaySaves: oppRow.breakawaySaves,
+            breakawayShots: oppRow.breakawayShots,
+            despSaves: oppRow.despSaves,
+            penSaves: oppRow.penSaves,
+            penShots: oppRow.penShots,
+            pokechecks: oppRow.pokechecks,
           },
         })
     }

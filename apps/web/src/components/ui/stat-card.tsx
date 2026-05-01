@@ -21,7 +21,7 @@ export function StatCard({ label, value, sublabel, featured = false }: StatCardP
   return (
     <div
       className={[
-        'border border-zinc-800 bg-surface px-4 py-4',
+        'broadcast-panel px-4 py-4',
         featured ? 'border-l-2 border-l-accent' : '',
       ]
         .filter(Boolean)

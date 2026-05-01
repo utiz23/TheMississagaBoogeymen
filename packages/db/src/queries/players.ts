@@ -45,6 +45,11 @@ export async function getPlayerMatchStats(matchId: number) {
       toiSeconds: playerMatchStats.toiSeconds,
       shotAttempts: playerMatchStats.shotAttempts,
       blockedShots: playerMatchStats.blockedShots,
+      interceptions: playerMatchStats.interceptions,
+      penaltiesDrawn: playerMatchStats.penaltiesDrawn,
+      possession: playerMatchStats.possession,
+      deflections: playerMatchStats.deflections,
+      saucerPasses: playerMatchStats.saucerPasses,
       ppGoals: playerMatchStats.ppGoals,
       shGoals: playerMatchStats.shGoals,
       playerDnf: playerMatchStats.playerDnf,
@@ -722,6 +727,30 @@ export async function getPlayerProfileOverview(playerId: number): Promise<Player
     contributionSummary,
     recentForm,
   }
+}
+
+/**
+ * Per-position game counts for a single player in a game title.
+ * Used by the player profile page to display positional usage.
+ * Ordered by game count descending so the primary position appears first.
+ */
+export async function getPlayerPositionUsage(playerId: number, gameTitleId: number) {
+  return db
+    .select({
+      position: playerMatchStats.position,
+      gameCount: count(),
+    })
+    .from(playerMatchStats)
+    .innerJoin(matches, eq(playerMatchStats.matchId, matches.id))
+    .where(
+      and(
+        eq(playerMatchStats.playerId, playerId),
+        eq(matches.gameTitleId, gameTitleId),
+        isNotNull(playerMatchStats.position),
+      ),
+    )
+    .groupBy(playerMatchStats.position)
+    .orderBy(desc(count()))
 }
 
 /**

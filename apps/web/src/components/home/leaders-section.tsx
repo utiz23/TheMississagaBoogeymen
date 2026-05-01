@@ -2,7 +2,8 @@ import Link from 'next/link'
 import type { GameMode } from '@eanhl/db'
 import type { RosterRow } from './player-card'
 import { PlayerSilhouette } from './player-card'
-import { formatPositionFull } from '@/lib/format'
+import { formatPosition } from '@/lib/format'
+import { PositionPill } from '@/components/matches/position-pill'
 
 // ─── Props ────────────────────────────────────────────────────────────────────
 
@@ -49,9 +50,9 @@ export function ScoringLeadersPanel({
   const goalsFeature = goalsLeaders[0] ?? null
 
   return (
-    <div className="overflow-hidden border border-zinc-800 bg-surface">
-      <div className="h-1 w-full bg-gradient-to-r from-red-900 via-red-600 to-red-900" />
-      <div className="flex items-center justify-between border-b border-zinc-800/60 px-5 py-3">
+    <div className="broadcast-panel overflow-hidden">
+      <div className="h-1.5 w-full bg-[linear-gradient(90deg,rgba(127,29,29,1)_0%,rgba(225,29,72,0.95)_50%,rgba(127,29,29,1)_100%)]" />
+      <div className="flex items-center justify-between border-b border-zinc-800/60 bg-[radial-gradient(circle_at_top_left,rgba(225,29,72,0.12),transparent_40%)] px-5 py-3">
         <div className="flex flex-col">
           <span className="font-condensed text-xs font-semibold uppercase tracking-widest text-zinc-500">
             {gameMode != null ? `${gameMode} ` : ''}Scoring Leaders
@@ -69,7 +70,7 @@ export function ScoringLeadersPanel({
 
       {/* 4-column grid: Points hero | Points list | Goals hero | Goals list */}
       {/* On small screens collapse to 2 cols (heroes on top row, lists on bottom) */}
-      <div className="grid grid-cols-2 divide-x divide-zinc-800/60 sm:grid-cols-4">
+      <div className="grid grid-cols-2 divide-x divide-zinc-800/60 bg-[linear-gradient(180deg,rgba(24,24,27,0.88),rgba(9,9,11,1))] sm:grid-cols-4">
         {/* Col 1 — Points hero */}
         <div className="p-4">
           <h3 className="mb-3 font-condensed text-xs font-semibold uppercase tracking-[0.22em] text-zinc-500">
@@ -145,7 +146,7 @@ function FeaturedPlayerBlock({
   statLabel: string
   statKey: 'points' | 'goals'
 }) {
-  const pos = player.position ? formatPositionFull(player.position) : null
+  const pos = player.position ? formatPosition(player.position) : null
 
   return (
     <Link
@@ -154,8 +155,9 @@ function FeaturedPlayerBlock({
       aria-label={`${statLabel} leader: ${player.gamertag}, ${player[statKey].toString()} ${statLabel.toLowerCase()}`}
     >
       {/* Profile placeholder — silhouette; container clips top overflow */}
-      <div className="flex h-16 w-full items-end justify-center overflow-hidden rounded-sm border border-zinc-800/70 bg-zinc-900/60">
-        <PlayerSilhouette className="text-zinc-800" sizeClass="h-[72px] w-[72px]" />
+      <div className="relative flex h-20 w-full items-end justify-center overflow-hidden rounded-sm border border-accent/20 bg-[radial-gradient(circle_at_top,rgba(225,29,72,0.16),transparent_55%),linear-gradient(180deg,rgba(24,24,27,0.9),rgba(9,9,11,1))] shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
+        <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-accent/40 to-transparent" />
+        <PlayerSilhouette className="text-zinc-700" sizeClass="h-[82px] w-[82px]" />
       </div>
 
       {/* Identity */}
@@ -163,25 +165,16 @@ function FeaturedPlayerBlock({
         <span className="line-clamp-2 max-w-full font-condensed text-xs font-black uppercase leading-tight tracking-wide text-zinc-100 transition-colors group-hover:text-accent">
           {player.gamertag}
         </span>
-        {/* Position (full label) + jersey number placeholder inline */}
-        <div className="flex flex-wrap items-center justify-center gap-1">
-          {pos !== null && (
-            <span className="rounded-sm bg-zinc-800 px-1.5 py-0.5 font-condensed text-[10px] font-semibold uppercase tracking-wide text-zinc-400">
-              {pos}
-            </span>
-          )}
-          <span className="font-condensed text-[11px] font-bold leading-none text-zinc-600">
-            ##
-          </span>
-        </div>
+        {/* Position label */}
+        {pos !== null && <PositionPill label={pos} position={player.position} isGoalie={player.position === 'goalie'} />}
       </div>
 
       {/* Featured stat */}
-      <div className="flex flex-col items-center gap-0.5">
-        <span className="font-condensed text-[11px] font-semibold uppercase tracking-widest text-zinc-500">
+      <div className="mt-1 flex flex-col items-center gap-0.5">
+        <span className="font-condensed text-[11px] font-semibold uppercase tracking-widest text-accent/60">
           {statLabel}
         </span>
-        <span className="font-condensed text-5xl font-black leading-none text-zinc-100">
+        <span className="font-condensed text-5xl font-black leading-none text-zinc-50 drop-shadow-[0_0_14px_rgba(225,29,72,0.18)]">
           {player[statKey].toString()}
         </span>
       </div>
@@ -206,16 +199,16 @@ function LeaderRow({
     <li>
       <Link
         href={`/roster/${player.playerId.toString()}`}
-        className="flex items-center gap-2 rounded-sm border border-zinc-800/70 bg-zinc-900/30 px-2 py-1.5 transition-colors hover:border-zinc-700 hover:bg-zinc-800/40"
-        style={isFirst ? { boxShadow: 'inset 2px 0 0 var(--color-accent)' } : undefined}
+        className="flex items-center gap-2 rounded-sm border border-zinc-800/70 bg-zinc-900/40 px-2 py-1.5 transition-colors hover:border-zinc-700 hover:bg-zinc-800/60"
+        style={isFirst ? { boxShadow: 'inset 2px 0 0 var(--color-accent), inset 0 1px 0 rgba(255,255,255,0.02)' } : undefined}
         aria-label={`Rank ${rank.toString()}, ${player.gamertag}, ${player[statKey].toString()} ${statKey}`}
       >
         <span
-          className={`w-5 shrink-0 font-condensed text-xs font-bold tabular-nums ${isFirst ? 'text-accent' : 'text-zinc-600'}`}
+          className={`w-5 shrink-0 font-condensed text-xs font-bold tabular-nums ${isFirst ? 'text-accent' : 'text-zinc-500'}`}
         >
           {rank.toString()}
         </span>
-        <span className="min-w-0 flex-1 truncate font-condensed text-xs font-semibold text-zinc-300">
+        <span className="min-w-0 flex-1 truncate font-condensed text-xs font-semibold text-zinc-200">
           {player.gamertag}
         </span>
         <span

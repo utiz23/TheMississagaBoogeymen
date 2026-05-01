@@ -67,3 +67,18 @@ html {
 .scrollbar-hide::-webkit-scrollbar {
   display: none;
 }
+
+/* Shared broadcast-strip surfaces */
+.broadcast-panel {
+  border: 1px solid rgba(63, 63, 70, 0.9);
+  background:
+    radial-gradient(circle at top, rgba(225, 29, 72, 0.12), transparent 42%),
+    linear-gradient(180deg, rgba(24, 24, 27, 0.98), rgba(10, 10, 10, 0.98));
+}
+
+.broadcast-panel-soft {
+  border: 1px solid rgba(63, 63, 70, 0.85);
+  background:
+    radial-gradient(circle at top, rgba(225, 29, 72, 0.08), transparent 42%),
+    linear-gradient(180deg, rgba(24, 24, 27, 0.94), rgba(10, 10, 10, 0.98));
+}

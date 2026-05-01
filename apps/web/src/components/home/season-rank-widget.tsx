@@ -60,7 +60,7 @@ export function SeasonRankWidget({ rank }: SeasonRankWidgetProps) {
     rank.pointsToTitle !== null
 
   return (
-    <div className="border border-zinc-800 bg-surface px-5 py-4 space-y-4">
+    <div className="broadcast-panel space-y-4 px-5 py-4">
       {/* Division header */}
       <div className="flex items-center justify-between">
         <div>

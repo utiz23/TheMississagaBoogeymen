@@ -1,5 +1,5 @@
 import type { Metadata } from 'next'
-import type { ClubGameTitleStats, ClubSeasonalStats } from '@eanhl/db'
+import type { ClubGameTitleStats, ClubSeasonalStats, Match, MatchResult } from '@eanhl/db'
 import type { GameMode } from '@eanhl/db'
 import { GAME_MODE } from '@eanhl/db'
 import Link from 'next/link'
@@ -19,6 +19,7 @@ import { PlayerCarousel } from '@/components/home/player-carousel'
 import { ScoringLeadersPanel } from '@/components/home/leaders-section'
 import { SeasonRankWidget } from '@/components/home/season-rank-widget'
 import type { RosterRow } from '@/components/home/player-card'
+import { formatMatchDate } from '@/lib/format'
 
 function parseGameMode(raw: string | string[] | undefined): GameMode | null {
   if (typeof raw !== 'string') return null
@@ -82,7 +83,7 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
     try {
       return await Promise.all([
         getClubStats(gameTitle.id, gameMode),
-        getRecentMatches({ gameTitleId: gameTitle.id, limit: 1 }),
+        getRecentMatches({ gameTitleId: gameTitle.id, limit: 6 }),
         gameMode === null ? getEARoster(gameTitle.id) : getRoster(gameTitle.id, gameMode),
         getOfficialClubRecord(gameTitle.id),
         getClubSeasonRank(gameTitle.id),
@@ -137,10 +138,10 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
 
   return (
     <div className="space-y-8">
-      {/* Page header */}
+      {/* Page header — team identity first */}
       <div className="flex items-baseline gap-3">
         <h1 className="font-condensed text-2xl font-semibold uppercase tracking-wide text-zinc-50">
-          Home
+          Boogeymen
         </h1>
         <span className="text-sm text-zinc-500">{gameTitle.name}</span>
       </div>
@@ -168,16 +169,6 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
         )}
       </section>
 
-      {/* Season rank / division widget */}
-      {seasonRank !== null && (
-        <section>
-          <h2 className="mb-3 font-condensed text-sm font-semibold uppercase tracking-wider text-zinc-500">
-            Division Standing
-          </h2>
-          <SeasonRankWidget rank={seasonRank} />
-        </section>
-      )}
-
       {/* Latest result hero */}
       {lastMatch !== null && (
         <section>
@@ -190,12 +181,12 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
         </section>
       )}
 
-      {/* Featured players carousel */}
+      {/* Roster spotlight carousel — visual identity, lower priority */}
       {featuredPlayers.length > 0 && (
         <section>
           <div className="mb-3 flex flex-col">
             <h2 className="font-condensed text-sm font-semibold uppercase tracking-wider text-zinc-500">
-              Featured Players
+              Roster Spotlight
             </h2>
             <p className="text-[11px] text-zinc-600">{rosterSource}</p>
           </div>
@@ -203,7 +194,27 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
         </section>
       )}
 
-      {/* Scoring leaders */}
+      {/* Recent results strip — the 5 games before the latest, quick-scan trend */}
+      {recentMatches.length > 1 && (
+        <section>
+          <h2 className="mb-2 font-condensed text-sm font-semibold uppercase tracking-wider text-zinc-500">
+            Recent Results
+          </h2>
+          <RecentGamesStrip matches={recentMatches.slice(1)} />
+        </section>
+      )}
+
+      {/* Season rank / division widget */}
+      {seasonRank !== null && (
+        <section>
+          <h2 className="mb-3 font-condensed text-sm font-semibold uppercase tracking-wider text-zinc-500">
+            Division Standing
+          </h2>
+          <SeasonRankWidget rank={seasonRank} />
+        </section>
+      )}
+
+      {/* Scoring leaders — high-value quick lookup */}
       {pointsLeaders.length > 0 && (
         <section>
           <ScoringLeadersPanel
@@ -224,6 +235,54 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
             <p className="text-sm text-zinc-500">No games recorded for {gameTitle.name} yet.</p>
           </div>
         )}
+    </div>
+  )
+}
+
+// ─── Recent games strip ───────────────────────────────────────────────────────
+
+const RECENT_RESULT_CONFIG: Record<MatchResult, { label: string; className: string }> = {
+  WIN: { label: 'W', className: 'border-emerald-500/40 bg-emerald-500/10 text-emerald-400' },
+  LOSS: { label: 'L', className: 'border-red-500/40 bg-red-500/10 text-red-400' },
+  OTL: { label: 'OT', className: 'border-orange-500/40 bg-orange-500/10 text-orange-300' },
+  DNF: { label: '—', className: 'border-zinc-600/40 bg-zinc-800/40 text-zinc-500' },
+}
+
+function RecentGamesStrip({ matches }: { matches: Match[] }) {
+  if (matches.length === 0) return null
+
+  return (
+    <div className="divide-y divide-zinc-800/60 border border-zinc-800 bg-surface">
+      {matches.map((match) => {
+        const cfg = RECENT_RESULT_CONFIG[match.result]
+        return (
+          <Link
+            key={match.id}
+            href={`/games/${match.id.toString()}`}
+            className="flex items-center gap-3 px-4 py-2.5 transition-colors hover:bg-zinc-800/30"
+          >
+            <span
+              className={`inline-flex h-6 w-8 shrink-0 items-center justify-center rounded border font-condensed text-[11px] font-bold ${cfg.className}`}
+            >
+              {cfg.label}
+            </span>
+            <span className="flex-1 truncate font-condensed text-sm font-semibold text-zinc-200">
+              vs {match.opponentName}
+            </span>
+            <span className="shrink-0 font-condensed text-sm font-bold tabular-nums text-zinc-400">
+              {match.scoreFor.toString()}–{match.scoreAgainst.toString()}
+            </span>
+            {match.gameMode !== null && (
+              <span className="hidden shrink-0 rounded bg-zinc-800 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-zinc-500 sm:inline">
+                {match.gameMode}
+              </span>
+            )}
+            <span className="hidden shrink-0 text-xs text-zinc-600 sm:inline">
+              {formatMatchDate(match.playedAt)}
+            </span>
+          </Link>
+        )
+      })}
     </div>
   )
 }
