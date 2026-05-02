@@ -3,9 +3,10 @@ import type { ClubGameTitleStats } from '@eanhl/db'
 import type { GameMode } from '@eanhl/db'
 import { GAME_MODE } from '@eanhl/db'
 import Link from 'next/link'
+import { redirect } from 'next/navigation'
 import {
   listGameTitles,
-  getGameTitleBySlug,
+  getActiveGameTitleBySlug,
   getClubStats,
   getRecentMatches,
   getSkaterStats,
@@ -32,13 +33,14 @@ type SearchParams = Promise<Record<string, string | string[] | undefined>>
 async function resolveGameTitle(titleSlug: string | undefined) {
   try {
     if (titleSlug) {
-      const found = await getGameTitleBySlug(titleSlug)
-      if (found) return found
+      const found = await getActiveGameTitleBySlug(titleSlug)
+      if (found) return { gameTitle: found, invalidRequested: false }
+      return { gameTitle: null, invalidRequested: true }
     }
     const all = await listGameTitles()
-    return all[0] ?? null
+    return { gameTitle: all[0] ?? null, invalidRequested: false }
   } catch {
-    return null
+    return { gameTitle: null, invalidRequested: false }
   }
 }
 
@@ -58,7 +60,13 @@ export default async function StatsPage({ searchParams }: { searchParams: Search
   const params = await searchParams
   const titleSlug = typeof params.title === 'string' ? params.title : undefined
   const gameMode = parseGameMode(params.mode)
-  const gameTitle = await resolveGameTitle(titleSlug)
+  const { gameTitle, invalidRequested } = await resolveGameTitle(titleSlug)
+
+  if (invalidRequested) {
+    const nextParams = new URLSearchParams()
+    if (typeof params.mode === 'string') nextParams.set('mode', params.mode)
+    redirect(nextParams.size > 0 ? `/stats?${nextParams.toString()}` : '/stats')
+  }
 
   if (!gameTitle) {
     return <EmptyState message="No game titles are configured yet." />

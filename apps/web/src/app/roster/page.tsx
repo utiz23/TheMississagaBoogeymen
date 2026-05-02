@@ -1,10 +1,16 @@
 import type { Metadata } from 'next'
+import type { GameMode } from '@eanhl/db'
+import { GAME_MODE } from '@eanhl/db'
+import Link from 'next/link'
+import { redirect } from 'next/navigation'
 import {
   listGameTitles,
-  getGameTitleBySlug,
+  getActiveGameTitleBySlug,
   getEARoster,
   getSkaterStats,
   getGoalieStats,
+  getEASkaterStats,
+  getEAGoalieStats,
   getPlayerPositionEligibility,
   getOfficialClubRecord,
 } from '@eanhl/db/queries'
@@ -16,7 +22,7 @@ import { formatRecord } from '@/lib/format'
 
 export const metadata: Metadata = { title: 'Roster — Club Stats' }
 
-export const revalidate = 3600
+export const revalidate = 300
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>
 
@@ -28,14 +34,20 @@ type EligRow = Awaited<ReturnType<typeof getPlayerPositionEligibility>>[number]
 async function resolveGameTitle(titleSlug: string | undefined) {
   try {
     if (titleSlug) {
-      const found = await getGameTitleBySlug(titleSlug)
-      if (found) return found
+      const found = await getActiveGameTitleBySlug(titleSlug)
+      if (found) return { gameTitle: found, invalidRequested: false }
+      return { gameTitle: null, invalidRequested: true }
     }
     const all = await listGameTitles()
-    return all[0] ?? null
+    return { gameTitle: all[0] ?? null, invalidRequested: false }
   } catch {
-    return null
+    return { gameTitle: null, invalidRequested: false }
   }
+}
+
+function parseGameMode(raw: string | string[] | undefined): GameMode | null {
+  if (typeof raw !== 'string') return null
+  return (GAME_MODE as readonly string[]).includes(raw) ? (raw as GameMode) : null
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -338,11 +350,20 @@ function buildChart(eaRows: RosterRow[], eligRows: EligRow[]): DepthChartProps {
 export default async function RosterPage({ searchParams }: { searchParams: SearchParams }) {
   const params = await searchParams
   const titleSlug = typeof params.title === 'string' ? params.title : undefined
-  const gameTitle = await resolveGameTitle(titleSlug)
+  const gameMode = parseGameMode(params.mode)
+  const { gameTitle, invalidRequested } = await resolveGameTitle(titleSlug)
+
+  if (invalidRequested) {
+    const nextParams = new URLSearchParams()
+    if (typeof params.mode === 'string') nextParams.set('mode', params.mode)
+    redirect(nextParams.size > 0 ? `/roster?${nextParams.toString()}` : '/roster')
+  }
 
   if (!gameTitle) {
     return <EmptyState message="No game titles are configured yet." />
   }
+
+  const statsSource = gameMode === null ? 'EA season totals' : `local tracked ${gameMode}`
 
   // Non-critical — page renders without it if the worker hasn't fetched it yet
   let officialRecord: Awaited<ReturnType<typeof getOfficialClubRecord>> = null
@@ -353,15 +374,15 @@ export default async function RosterPage({ searchParams }: { searchParams: Searc
   }
 
   let eaRows: RosterRow[] = []
-  let skaterRows: Awaited<ReturnType<typeof getSkaterStats>> = []
-  let goalieRows: Awaited<ReturnType<typeof getGoalieStats>> = []
+  let skaterRows: Awaited<ReturnType<typeof getEASkaterStats>> = []
+  let goalieRows: Awaited<ReturnType<typeof getEAGoalieStats>> = []
   let eligibilityRows: EligRow[] = []
 
   try {
     const [ea, skaters, goalies, elig] = await Promise.all([
       getEARoster(gameTitle.id),
-      getSkaterStats(gameTitle.id),
-      getGoalieStats(gameTitle.id),
+      gameMode === null ? getEASkaterStats(gameTitle.id) : getSkaterStats(gameTitle.id, gameMode),
+      gameMode === null ? getEAGoalieStats(gameTitle.id) : getGoalieStats(gameTitle.id, gameMode),
       getPlayerPositionEligibility(gameTitle.id),
     ])
     eaRows = ea
@@ -388,16 +409,25 @@ export default async function RosterPage({ searchParams }: { searchParams: Searc
       <PageHeader gameTitle={gameTitle} />
       <SeasonSummaryStrip eaRows={eaRows} officialRecord={officialRecord} />
       <DepthChart {...chart} />
-      {skaterRows.length > 0 && (
-        <section>
-          <SkaterStatsTable rows={skaterRows} title="Skaters" />
-        </section>
-      )}
-      {goalieRows.length > 0 && (
-        <section>
-          <GoalieStatsTable rows={goalieRows} title="Goalies" />
-        </section>
-      )}
+      <div className="space-y-6">
+        <GameModeFilter titleSlug={titleSlug} activeMode={gameMode} />
+        {skaterRows.length > 0 ? (
+          <section>
+            <SkaterStatsTable rows={skaterRows} title="Skaters" subtitle={statsSource} />
+          </section>
+        ) : (
+          gameMode !== null && (
+            <EmptyState
+              message={`No ${gameMode} skater stats recorded for ${gameTitle.name} yet.`}
+            />
+          )
+        )}
+        {goalieRows.length > 0 && (
+          <section>
+            <GoalieStatsTable rows={goalieRows} title="Goalies" subtitle={statsSource} />
+          </section>
+        )}
+      </div>
     </div>
   )
 }
@@ -502,7 +532,52 @@ function PageHeader({ gameTitle }: { gameTitle: { name: string } }) {
         Roster
       </h1>
       <span className="text-sm text-zinc-500">{gameTitle.name}</span>
-      <span className="text-xs text-zinc-600">EA season totals</span>
+    </div>
+  )
+}
+
+// ─── Game mode filter ─────────────────────────────────────────────────────────
+
+const MODE_LABELS: { mode: GameMode | null; label: string }[] = [
+  { mode: null, label: 'All' },
+  { mode: '6s', label: '6s' },
+  { mode: '3s', label: '3s' },
+]
+
+function rosterModeHref(mode: GameMode | null, titleSlug: string | undefined): string {
+  const qs = new URLSearchParams()
+  if (titleSlug) qs.set('title', titleSlug)
+  if (mode !== null) qs.set('mode', mode)
+  const s = qs.toString()
+  return `/roster${s ? `?${s}` : ''}`
+}
+
+function GameModeFilter({
+  titleSlug,
+  activeMode,
+}: {
+  titleSlug: string | undefined
+  activeMode: GameMode | null
+}) {
+  return (
+    <div className="flex gap-1">
+      {MODE_LABELS.map(({ mode, label }) => {
+        const isActive = mode === activeMode
+        return (
+          <Link
+            key={label}
+            href={rosterModeHref(mode, titleSlug)}
+            className={[
+              'px-3 py-1 text-xs font-semibold uppercase tracking-wider rounded border transition-colors',
+              isActive
+                ? 'border-accent bg-accent/10 text-accent'
+                : 'border-zinc-700 bg-transparent text-zinc-500 hover:border-zinc-500 hover:text-zinc-300',
+            ].join(' ')}
+          >
+            {label}
+          </Link>
+        )
+      })}
     </div>
   )
 }

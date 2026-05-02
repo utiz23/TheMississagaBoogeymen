@@ -5,7 +5,7 @@ import { GAME_MODE } from '@eanhl/db'
 import Link from 'next/link'
 import {
   listGameTitles,
-  getGameTitleBySlug,
+  getActiveGameTitleBySlug,
   getClubStats,
   getClubSeasonRank,
   getOfficialClubRecord,
@@ -14,6 +14,7 @@ import {
   getRoster,
   getEARoster,
 } from '@eanhl/db/queries'
+import { redirect } from 'next/navigation'
 import { LatestResult } from '@/components/home/latest-result'
 import { PlayerCarousel } from '@/components/home/player-carousel'
 import { ScoringLeadersPanel } from '@/components/home/leaders-section'
@@ -35,13 +36,13 @@ type SearchParams = Promise<Record<string, string | string[] | undefined>>
 async function resolveGameTitle(titleSlug: string | undefined) {
   try {
     if (titleSlug) {
-      const found = await getGameTitleBySlug(titleSlug)
-      if (found) return found
+      const found = await getActiveGameTitleBySlug(titleSlug)
+      if (found) return { gameTitle: found, invalidRequested: false }
     }
     const all = await listGameTitles()
-    return all[0] ?? null
+    return { gameTitle: all[0] ?? null, invalidRequested: Boolean(titleSlug) }
   } catch {
-    return null
+    return { gameTitle: null, invalidRequested: Boolean(titleSlug) }
   }
 }
 
@@ -66,7 +67,13 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
   const params = await searchParams
   const titleSlug = typeof params.title === 'string' ? params.title : undefined
   const gameMode = parseGameMode(params.mode)
-  const gameTitle = await resolveGameTitle(titleSlug)
+  const { gameTitle, invalidRequested } = await resolveGameTitle(titleSlug)
+
+  if (invalidRequested) {
+    const qs = new URLSearchParams()
+    if (gameMode !== null) qs.set('mode', gameMode)
+    redirect(qs.size > 0 ? `/?${qs.toString()}` : '/')
+  }
 
   if (!gameTitle) {
     return (

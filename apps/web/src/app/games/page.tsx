@@ -1,8 +1,9 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
+import { redirect } from 'next/navigation'
 import {
   listGameTitles,
-  getGameTitleBySlug,
+  getActiveGameTitleBySlug,
   getRecentMatches,
   countMatches,
   getOpponentClubs,
@@ -24,13 +25,13 @@ type SearchParams = Promise<Record<string, string | string[] | undefined>>
 async function resolveGameTitle(titleSlug: string | undefined) {
   try {
     if (titleSlug) {
-      const found = await getGameTitleBySlug(titleSlug)
-      if (found) return found
+      const found = await getActiveGameTitleBySlug(titleSlug)
+      if (found) return { gameTitle: found, invalidRequested: false }
     }
     const all = await listGameTitles()
-    return all[0] ?? null
+    return { gameTitle: all[0] ?? null, invalidRequested: Boolean(titleSlug) }
   } catch {
-    return null
+    return { gameTitle: null, invalidRequested: Boolean(titleSlug) }
   }
 }
 
@@ -51,7 +52,14 @@ export default async function GamesPage({ searchParams }: { searchParams: Search
   const page = parsePage(params.page)
   const offset = (page - 1) * PAGE_SIZE
 
-  const gameTitle = await resolveGameTitle(titleSlug)
+  const { gameTitle, invalidRequested } = await resolveGameTitle(titleSlug)
+
+  if (invalidRequested) {
+    const qs = new URLSearchParams()
+    if (gameMode !== null) qs.set('mode', gameMode)
+    if (page > 1) qs.set('page', String(page))
+    redirect(qs.size > 0 ? `/games?${qs.toString()}` : '/games')
+  }
 
   if (!gameTitle) {
     return <EmptyState message="No game titles are configured yet." />
