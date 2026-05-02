@@ -14,7 +14,8 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint src",
     "generate": "drizzle-kit generate",
-    "migrate": "drizzle-kit migrate"
+    "migrate": "drizzle-kit migrate",
+    "import:historical": "node dist/tools/import-historical-reviewed.js"
   },
   "devDependencies": {
     "drizzle-kit": "^0.31.10",

@@ -1,6 +1,7 @@
 export * from './chemistry.js'
 export * from './club.js'
 export * from './game-titles.js'
+export * from './historical.js'
 export * from './matches.js'
 export * from './opponent-match.js'
 export * from './players.js'
