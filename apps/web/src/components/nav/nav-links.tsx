@@ -8,13 +8,20 @@ const LINKS = [
   { href: '/games', label: 'Games' },
   { href: '/roster', label: 'Roster' },
   { href: '/stats', label: 'Stats' },
+  { href: '/archive/stats', label: 'Archive' },
 ] as const
 
 function isActive(pathname: string, href: string): boolean {
   return href === '/' ? pathname === '/' : pathname === href || pathname.startsWith(href + '/')
 }
 
-function buildHref(href: string, title: string | null): string {
+function buildHref(pathname: string, href: string, title: string | null): string {
+  if (href.startsWith('/archive')) {
+    return title ? `${href}?title=${encodeURIComponent(title)}` : href
+  }
+  if (pathname.startsWith('/archive')) {
+    return href
+  }
   return title ? `${href}?title=${encodeURIComponent(title)}` : href
 }
 
@@ -30,7 +37,7 @@ export function NavLinks({ variant }: { variant: 'desktop' | 'mobile' }) {
           return (
             <Link
               key={href}
-              href={buildHref(href, title)}
+              href={buildHref(pathname, href, title)}
               className={[
                 'relative flex self-stretch items-center px-1',
                 'font-condensed text-sm font-bold uppercase tracking-[0.15em] transition-colors',
@@ -58,7 +65,7 @@ export function NavLinks({ variant }: { variant: 'desktop' | 'mobile' }) {
         return (
           <Link
             key={href}
-            href={buildHref(href, title)}
+            href={buildHref(pathname, href, title)}
             className={[
               'relative flex-1 py-2 text-center transition-colors',
               'text-xs font-semibold uppercase tracking-wider',

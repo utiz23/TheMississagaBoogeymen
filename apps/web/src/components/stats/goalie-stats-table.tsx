@@ -2,17 +2,19 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import type { GoalieStatsRow } from '@eanhl/db/queries'
+import type { GoalieStatsRow, HistoricalGoalieStatsRow } from '@eanhl/db/queries'
 
 // ─── Column definitions ───────────────────────────────────────────────────────
 
 interface ColDef {
   key: string
   label: string
-  getSortValue: (row: GoalieStatsRow) => number | null
-  renderCell: (row: GoalieStatsRow) => string
+  getSortValue: (row: ArchiveCompatibleGoalieStatsRow) => number | null
+  renderCell: (row: ArchiveCompatibleGoalieStatsRow) => string
   sortAsc?: boolean
 }
+
+type ArchiveCompatibleGoalieStatsRow = GoalieStatsRow | HistoricalGoalieStatsRow
 
 function fmtInt(val: number | null): string {
   return val !== null ? val.toString() : '—'
@@ -145,7 +147,7 @@ const VIEWS: View[] = [
 // ─── Component ────────────────────────────────────────────────────────────────
 
 interface GoalieStatsTableProps {
-  rows: GoalieStatsRow[]
+  rows: ArchiveCompatibleGoalieStatsRow[]
   title: string
   subtitle?: string
 }

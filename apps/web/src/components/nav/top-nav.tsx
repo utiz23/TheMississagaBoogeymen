@@ -68,7 +68,7 @@ export async function TopNav() {
 function DesktopLinksFallback() {
   return (
     <div className="hidden sm:flex items-center gap-5">
-      {(['Home', 'Games', 'Roster', 'Stats'] as const).map((label) => (
+      {(['Home', 'Games', 'Roster', 'Stats', 'Archive'] as const).map((label) => (
         <span
           key={label}
           className="font-condensed text-sm font-bold uppercase tracking-[0.15em] text-zinc-400"
@@ -83,7 +83,7 @@ function DesktopLinksFallback() {
 function MobileTabsFallback() {
   return (
     <div className="flex divide-x divide-zinc-800/60">
-      {(['Home', 'Games', 'Roster', 'Stats'] as const).map((label) => (
+      {(['Home', 'Games', 'Roster', 'Stats', 'Archive'] as const).map((label) => (
         <span
           key={label}
           className="flex-1 py-2 text-center text-xs font-semibold uppercase tracking-wider text-zinc-400"

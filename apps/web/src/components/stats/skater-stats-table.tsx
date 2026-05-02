@@ -2,17 +2,19 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import type { SkaterStatsRow } from '@eanhl/db/queries'
+import type { HistoricalSkaterStatsRow, SkaterStatsRow } from '@eanhl/db/queries'
 
 // ─── Column definitions ───────────────────────────────────────────────────────
 
 interface ColDef {
   key: string
   label: string
-  getSortValue: (row: SkaterStatsRow) => number | null
-  renderCell: (row: SkaterStatsRow) => string
+  getSortValue: (row: ArchiveCompatibleSkaterStatsRow) => number | null
+  renderCell: (row: ArchiveCompatibleSkaterStatsRow) => string
   sortAsc?: boolean
 }
+
+type ArchiveCompatibleSkaterStatsRow = SkaterStatsRow | HistoricalSkaterStatsRow
 
 function fmtPct(val: string | null): string {
   return val !== null ? `${val}%` : '—'
@@ -155,7 +157,7 @@ const VIEWS: View[] = [
 // ─── Component ────────────────────────────────────────────────────────────────
 
 interface SkaterStatsTableProps {
-  rows: SkaterStatsRow[]
+  rows: ArchiveCompatibleSkaterStatsRow[]
   title: string
   subtitle?: string
 }
