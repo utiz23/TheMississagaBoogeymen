@@ -18,6 +18,26 @@ build
 *.tsbuildinfo
 .DS_Store
 
+# Python
+.venv/
+__pycache__/
+
+# Playwright MCP cache
+.playwright-mcp/
+
+# Claude session state (settings.json IS tracked; only the lock file is ephemeral)
+.claude/scheduled_tasks.lock
+
+# Historical extractor outputs — regenerable, multi-GB, never belong in git
+tools/historical_import/output_*/
+
+# Stray pip stdout files (e.g. accidental "pip install x>=1.3" → file named =1.3)
+/=*
+
+# Debug HTML scrapes from local development
+/roster-main-*.html
+
 # Research artifacts — large captures not suited for git
 research/**/*.har
 research/**/*_files/
+research/Previous_NHL_Stats/
