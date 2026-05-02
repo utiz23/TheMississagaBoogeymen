@@ -56,13 +56,13 @@ Stable foundation. All major surfaces are live. Near-term work is quality-of-lif
 
 **Roster:**
 
-- Mode filter on `/roster` (query layer works; needs UI toggle + gameMode threading)
+- ~~Mode filter on `/roster`~~ ✅ Done — All / 6s / 3s pills, EA totals for All, local tracked for 6s/3s
 
 ### 3. Operations
 
 - Discord alerting — cron checks `localhost:3001/health`, notifies when stale >30 min
 - `pg_dump` backup cron — daily dump to external drive
-- Verify `clubs/seasonRank` + `settings` field shapes — widget fields sourced from HAR analysis (UNVERIFIED); confirm after worker runs with new endpoints
+- ~~Verify `clubs/seasonRank` + `settings` field shapes~~ ✅ Done — live DB row confirmed, all widget fields correct
 
 ---
 
