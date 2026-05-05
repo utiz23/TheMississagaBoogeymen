@@ -2,9 +2,50 @@
 
 ## Current Status
 
-**Phase:** Player profile Phase 1 revamp complete and verified. No active workstream.
+**Phase:** Skater stats expansion complete and verified on `feat/skater-stats-expansion`. Branch ready for review/merge.
 
-**Last updated:** 2026-05-03
+**Last updated:** 2026-05-05
+
+---
+
+## Session Summary — 2026-05-05 (skater stats expansion)
+
+### Captured ~50 missing skater metrics from EA `/members/stats` and surfaced them as a 5-tab Club Stats UI on the player profile
+
+Plan: `docs/superpowers/plans/2026-05-05-skater-stats-expansion.md`. Branch: `feat/skater-stats-expansion`.
+
+**Discovery:** EA's `/members/stats` endpoint returns ~150 fields per player; our `transform-members.ts` was discarding ~125 of them. All 96 ChelHead Club Stats metrics (less the 5 EA-internal ones) are present in the API. Spatial/hot-zone data is also in the raw payload (deferred to a future plan).
+
+**Schema (commit 90bc49c):** Migration `0020_silly_crystal.sql` adds 49 new columns to `ea_member_season_stats` covering ChelHead Tabs 1-5: skater record split (skater_wins/losses/otl/winner_by_dnf/win_pct/dnf), aggregate (games_completed, games_completed_fc, player_quit_disc), position GP splits (lw/rw/c/d_gp), scoring (power_play_goals, short_handed_goals, game_winning_goals, hat_tricks, prev_goals/assists), shooting (shots_per_game, shot_on_net_pct, breakaways/_goals/_pct), playmaking (passes, pass_attempts, interceptions, dekes/_made, deflections, saucer_passes, screen_chances/_goals, possession_seconds, xfactor_zone_used), defense (hits_per_game, fights/_won, blocked_shots, pk_clear_zone, offsides/_per_game, penalties_drawn), faceoffs (faceoff_total/wins/losses, penalty_shot_attempts/goals/pct).
+
+**EA client typing (commit 6180fbc):** `EaMemberStats` interface in `packages/ea-client/src/types.ts` extended from 5 named fields to ~80, preserving EA's inconsistent naming (`skDNF`, `gamesCompletedFC`, `xfactor_zoneability_times_used`) verbatim. Catch-all index signature retained.
+
+**Transform (commit 0840b7c):** `transformMemberStats()` body in `apps/worker/src/transform-members.ts` rewritten to map all 49 new fields through existing parser helpers. Function signature, helpers, and goalie field mappings unchanged.
+
+**Worker upsert bug fix (commit 6b5d3ea):** Discovered during verification that `apps/worker/src/ingest-members.ts` had an explicit `onConflictDoUpdate({ set: { ... } })` clause hard-coded with the OLD column list. New columns were INSERTED on first row but never UPDATED on existing rows, leaving all 10 club members with zeros. Replaced explicit SET with `set: { ...statsRow, lastFetchedAt: now }`. Future schema additions automatically participate in upserts.
+
+**Query layer (commit efd8eef):** `getPlayerEASeasonStats` in `packages/db/src/queries/players.ts` widened from 27 to 80 selected fields. Drizzle's inferred return type ripples to `PlayerEASeasonRow` automatically.
+
+**UI component (commit dd6cb84):** New `apps/web/src/components/roster/club-stats-tabs.tsx` (257 lines, client component). 5 tabs (Overview, Scoring, Playmaking, Defense, Faceoffs) with 67 stat items, responsive 2/3/4-col grid, useState-backed tab switching, null-aware percentage rendering. `formatPossession(seconds)` helper converts to "Xh Ym" format.
+
+**Wired onto profile (commit a431b39):** 3-line addition to `apps/web/src/app/roster/[id]/page.tsx` — import + conditional render block between EA Season Totals and Previous NHL Season sections. Render gated on `selectedRole === 'skater' && eaStats[0]` — goalie role hides it.
+
+**End-to-end smoke check (silkyjoker85, /roster/2):** All values flow correctly from EA API → DB → query → component → browser. Spot-checked against HAR capture:
+- Overview: 545 GP, 466 completed, 67 forced, 275-222-23 record, 52% win, 101 wins by DNF, 79 quit disconnects, center fav position, position split 334/133/33/20 C/D/RW/LW
+- Scoring: GWG 22, Hat Tricks 45, Breakaways 71/28/39.40%, Shooting 23.10%, Shot on Net 81.90%
+- Playmaking: Passes 6725/8945/75.20%, Dekes 526/246, Deflections 137, Saucer 61, Screen 2167/0, Possession 32h 40m
+- Defense: Hits/GP 4.00, Fights 9/4, Blocked 310, GV 2543, TA 1358, PK Clear 54, Offsides 166/0.30, PIM 361, Penalties Drawn 135
+- Faceoffs: FO 6447 total / 3391/3056/52.60%, Pen Shot 26/15/57.70%, TOI 429h 37m, +/- +169, Prev G/A 18/31
+
+All numbers match HAR exactly (silky hadn't played new games since capture).
+
+**Out of scope (deferred to future plans):**
+- Goalie tabs 6-8 (Goalie Overview / Saves / Situations) — requires ~30 more goalie columns and a parallel `<GoalieClubStatsTabs>` component
+- Spatial hot-zone data (`skGoalsLocationOnIce1-16`, `skShotsLocationOnIce1-16`) — IS available in the API, requires `jsonb` column or dedicated table + rink-overlay heatmap UI
+- Per-game derived metrics (gamescore, percentile vs teammates) — derive at query time
+- Backfill of historical NHL titles (older `ea_member_season_stats` rows have 0/NULL for new columns)
+
+**Verification:** `pnpm --filter web lint` clean, `pnpm build` 4/4 tasks passed, runtime smoke at `/roster/2` (skater) shows all 5 tabs with HAR-matching data, `/roster/2?role=goalie` hides the section. Loose PNG screenshots in repo root not committed (debug artifacts).
 
 ---
 
