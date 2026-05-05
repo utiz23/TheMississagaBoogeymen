@@ -1,7 +1,9 @@
-import type { getPlayerPositionUsage } from '@eanhl/db/queries'
 import { formatPosition } from '@/lib/format'
 
-type PositionUsageRow = Awaited<ReturnType<typeof getPlayerPositionUsage>>[number]
+export interface PositionBreakdownEntry {
+  position: string
+  gameCount: number
+}
 
 export const POSITION_COLORS: Record<string, string> = {
   center: '#fbbf24',
@@ -12,7 +14,7 @@ export const POSITION_COLORS: Record<string, string> = {
 }
 const POSITION_FALLBACK = '#71717a'
 
-export function PositionDonut({ usage }: { usage: PositionUsageRow[] }) {
+export function PositionDonut({ usage }: { usage: PositionBreakdownEntry[] }) {
   const size = 160
   const strokeWidth = 18
   const cx = size / 2
@@ -21,9 +23,7 @@ export function PositionDonut({ usage }: { usage: PositionUsageRow[] }) {
   const circumference = 2 * Math.PI * r
   const GAP = 3
 
-  const validUsage = usage.filter(
-    (u): u is PositionUsageRow & { position: string } => u.position !== null,
-  )
+  const validUsage = usage.filter((u) => u.gameCount > 0)
   const total = validUsage.reduce((sum, u) => sum + u.gameCount, 0)
 
   const cumulativeLengths = validUsage.reduce<number[]>((acc, u) => {

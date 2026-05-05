@@ -8,7 +8,6 @@ import {
   getPlayerGameLog,
   countPlayerGameLog,
   getPlayerEASeasonStats,
-  getPlayerPositionUsage,
 } from '@eanhl/db/queries'
 import type { GameMode } from '@eanhl/db'
 import { GAME_MODE } from '@eanhl/db'
@@ -101,16 +100,6 @@ export default async function PlayerPage({ params, searchParams }: Props) {
   const { currentLocalSeason, currentEaSeason } = overview
   const hasNoLocalData = currentLocalSeason === null && gameLogTotal === 0
 
-  const gameTitleId = currentEaSeason?.gameTitleId ?? currentLocalSeason?.gameTitleId ?? null
-  let positionUsage: Awaited<ReturnType<typeof getPlayerPositionUsage>> = []
-  if (gameTitleId !== null) {
-    try {
-      positionUsage = await getPlayerPositionUsage(id, gameTitleId)
-    } catch {
-      // non-critical
-    }
-  }
-
   // Role selection
   const hasSkaterData =
     (currentEaSeason?.skaterGp ?? 0) > 0 || (currentLocalSeason?.skaterGp ?? 0) > 0
@@ -146,7 +135,6 @@ export default async function PlayerPage({ params, searchParams }: Props) {
 
       <ProfileHero
         overview={overview}
-        positionUsage={positionUsage}
         career={careerSeasons}
         history={history}
         selectedRole={selectedRole}

@@ -3,17 +3,36 @@ import type { ReactNode } from 'react'
 import type {
   PlayerProfileOverview,
   PlayerCareerSeasonRow,
-  getPlayerPositionUsage,
   getPlayerGamertagHistory,
 } from '@eanhl/db/queries'
 import type { GameMode } from '@eanhl/db'
-import { PositionDonut } from '@/components/roster/position-donut'
+import { PositionDonut, type PositionBreakdownEntry } from '@/components/roster/position-donut'
 import { formatPosition } from '@/lib/format'
 
-type PositionUsageRow = Awaited<ReturnType<typeof getPlayerPositionUsage>>[number]
 type PlayerGamertagHistoryRow = Awaited<
   ReturnType<typeof getPlayerGamertagHistory>
 >[number]
+
+/**
+ * Build the position breakdown from EA-reported per-position GP fields on the
+ * current season row. Sorted by GP descending so the donut renders with the
+ * dominant position first. Goalie GP is included so dual-role players show a
+ * goalie slice in the established accent color.
+ */
+function buildPositionBreakdown(
+  season: PlayerProfileOverview['currentEaSeason'],
+): PositionBreakdownEntry[] {
+  if (season === null) return []
+  const entries: PositionBreakdownEntry[] = [
+    { position: 'center', gameCount: season.cGp },
+    { position: 'leftWing', gameCount: season.lwGp },
+    { position: 'rightWing', gameCount: season.rwGp },
+    { position: 'defenseMen', gameCount: season.dGp },
+    { position: 'goalie', gameCount: season.goalieGp },
+  ].filter((entry) => entry.gameCount > 0)
+  entries.sort((a, b) => b.gameCount - a.gameCount)
+  return entries
+}
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -40,7 +59,6 @@ function computeSkaterArchetype(
 
 interface Props {
   overview: PlayerProfileOverview
-  positionUsage: PositionUsageRow[]
   career: PlayerCareerSeasonRow[]
   history: PlayerGamertagHistoryRow[]
   selectedRole: 'skater' | 'goalie'
@@ -51,7 +69,6 @@ interface Props {
 
 export function ProfileHero({
   overview,
-  positionUsage,
   career,
   history,
   selectedRole,
@@ -60,6 +77,7 @@ export function ProfileHero({
   gameMode,
 }: Props) {
   const { player, currentEaSeason } = overview
+  const positionUsage = buildPositionBreakdown(currentEaSeason)
   const displayPosition =
     player.preferredPosition ?? currentEaSeason?.favoritePosition ?? player.position
   const positionLabel = displayPosition ? formatPosition(displayPosition) : null
