@@ -517,6 +517,14 @@ export async function getPlayerCareerSeasons(
     })
     .from(gameTitles)
     .where(
+      // Title list must match what the historical helpers can actually return.
+      // getHistoricalSkaterStatsAllModes filters to position_scope='all_skaters';
+      // getHistoricalGoalieStatsAllModes filters to role_group='goalie' / position_scope='goalie'.
+      // If a player only has position-specific rows (e.g. wing-only) for a title, that
+      // title is excluded here — otherwise the title would appear in the title-list but
+      // produce no data, requiring a silent skip. This keeps the title-list and the
+      // emit-loop consistent. Documented data gap: such players' missing titles will
+      // need an importer-side fix to backfill the all_skaters aggregate row.
       sql`${gameTitles.id} IN (
         SELECT ${eaMemberSeasonStats.gameTitleId}
           FROM ${eaMemberSeasonStats}
@@ -526,6 +534,13 @@ export async function getPlayerCareerSeasons(
           FROM ${historicalPlayerSeasonStats}
           WHERE ${historicalPlayerSeasonStats.playerId} = ${playerId}
             AND ${historicalPlayerSeasonStats.reviewStatus} = 'reviewed'
+            AND (
+              (${historicalPlayerSeasonStats.roleGroup} = 'skater'
+                AND ${historicalPlayerSeasonStats.positionScope} = 'all_skaters')
+              OR
+              (${historicalPlayerSeasonStats.roleGroup} = 'goalie'
+                AND ${historicalPlayerSeasonStats.positionScope} = 'goalie')
+            )
       )`,
     )
 
