@@ -211,19 +211,120 @@ export type EaMatchesResponse = EaMatch[]
 // GET /members/stats?clubId=<id>&platform=<platform>
 
 /**
- * UNVERIFIED: Stats for a single member from the member stats endpoint.
- * This endpoint returns season-aggregate stats, not per-match.
+ * CONFIRMED via HAR capture (research/ea-api/www.ea.com.har): /members/stats
+ * returns ~150 fields per member as string-encoded values. Below lists the
+ * skater-side fields we capture. Goalie + spatial fields are deliberately
+ * left as catch-all (`[key: string]: unknown`) until their own implementation passes.
+ *
+ * All numeric values are strings per EA convention. Transform layer parses.
  */
 export interface EaMemberStats {
-  /** Name is present in fixtures and is the only reliable identifier. */
+  /** Gamertag — only reliable identifier. */
   name: string
   /** DEFERRED: blazeId not present in current fixtures. */
   blazeId?: string
-  /** DEFERRED: memberId not present in current fixtures. */
-  memberId?: string
-  /** UNVERIFIED: position fields may exist (favoritePosition, proPos). */
-  proName?: string
-  proPos?: string
+  /** Console platform identifier. */
+  clientPlatform?: string
+  /** Position label: 'goalie' | 'center' | 'defenseMen' | 'leftWing' | 'rightWing'. */
+  favoritePosition?: string
+
+  // ── Aggregate record (Tab 1: Club Overview) ────────────────────────────────
+  gamesplayed?: string
+  gamesCompleted?: string
+  gamesCompletedFC?: string
+  playerDNF?: string
+  playerQuitDisc?: string
+
+  // ── Position GP splits ─────────────────────────────────────────────────────
+  skgp?: string
+  glgp?: string
+  lwgp?: string
+  rwgp?: string
+  cgp?: string
+  dgp?: string
+
+  // ── Skater record + DNF (Tab 1) ────────────────────────────────────────────
+  skwins?: string
+  sklosses?: string
+  skotl?: string
+  skwinnerByDnf?: string
+  skwinpct?: string
+  skDNF?: string
+
+  // ── Skater scoring (Tab 2) ─────────────────────────────────────────────────
+  skgoals?: string
+  skassists?: string
+  skpoints?: string
+  skpointspg?: string
+  skppg?: string
+  skshg?: string
+  skgwg?: string
+  skhattricks?: string
+  skplusmin?: string
+  skpim?: string
+  skprevgoals?: string
+  skprevassists?: string
+
+  // ── Skater shooting (Tab 2) ────────────────────────────────────────────────
+  skshots?: string
+  skshotpct?: string
+  skshotspg?: string
+  skshotattempts?: string
+  skshotonnetpct?: string
+  skbreakaways?: string
+  skbrkgoals?: string
+  skbreakawaypct?: string
+
+  // ── Skater playmaking (Tab 3) ──────────────────────────────────────────────
+  skpasses?: string
+  skpassattempts?: string
+  skpasspct?: string
+  skinterceptions?: string
+  skdekes?: string
+  skdekesmade?: string
+  skdeflections?: string
+  sksaucerpasses?: string
+  skscrnchances?: string
+  skscrngoals?: string
+  skpossession?: string
+  xfactor_zoneability_times_used?: string
+
+  // ── Skater defense & discipline (Tab 4) ────────────────────────────────────
+  skhits?: string
+  skhitspg?: string
+  skfights?: string
+  skfightswon?: string
+  skbs?: string
+  skpkclearzone?: string
+  skoffsides?: string
+  skoffsidespg?: string
+  skpenaltiesdrawn?: string
+  sktakeaways?: string
+  skgiveaways?: string
+
+  // ── Skater faceoffs + utility (Tab 5) ──────────────────────────────────────
+  skfo?: string
+  skfow?: string
+  skfol?: string
+  skfop?: string
+  skpenaltyattempts?: string
+  skpenaltyshotgoals?: string
+  skpenaltyshotpct?: string
+  sktoi?: string
+
+  // ── Goalie fields (captured for completeness; expanded in goalie plan) ─────
+  glwins?: string
+  gllosses?: string
+  glotl?: string
+  glsavepct?: string
+  glgaa?: string
+  glso?: string
+  glsaves?: string
+  glshots?: string
+  glga?: string
+  gltoi?: string
+
+  /** Catch-all for spatial fields, X-Factor variants, and any field not yet typed. */
   [key: string]: unknown
 }
 
