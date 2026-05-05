@@ -300,21 +300,15 @@ function SkaterCurrentStrip({
 }: {
   season: NonNullable<PlayerProfileOverview['currentEaSeason']>
 }) {
-  const ptsPerGp = season.skaterGp > 0 ? (season.points / season.skaterGp).toFixed(2) : '—'
-  const sht = season.shots > 0 ? `${((season.goals / season.shots) * 100).toFixed(1)}%` : '—'
   const plusMinusStr =
     season.plusMinus >= 0 ? `+${season.plusMinus.toString()}` : season.plusMinus.toString()
   return (
-    <div className="grid grid-cols-3 gap-3 sm:grid-cols-5 lg:grid-cols-5">
+    <div className="grid grid-cols-5 gap-3">
       <StatCell label="GP" value={season.skaterGp} />
       <StatCell label="G" value={season.goals} />
       <StatCell label="A" value={season.assists} />
       <StatCell label="PTS" value={season.points} accent />
-      <StatCell label="P/GP" value={ptsPerGp} />
       <StatCell label="+/-" value={plusMinusStr} />
-      <StatCell label="SOG" value={season.shots} />
-      <StatCell label="SHT%" value={sht} />
-      <StatCell label="HITS" value={season.hits} />
     </div>
   )
 }
@@ -408,16 +402,12 @@ function SkaterCareerStrip({ aggregate }: { aggregate: SkaterAggregate }) {
       ? `+${aggregate.plusMinus.toString()}`
       : aggregate.plusMinus.toString()
   return (
-    <div className="grid grid-cols-3 gap-3 sm:grid-cols-5 lg:grid-cols-5">
+    <div className="grid grid-cols-5 gap-3">
       <StatCell label="GP" value={aggregate.gp} />
       <StatCell label="G" value={aggregate.g} />
       <StatCell label="A" value={aggregate.a} />
       <StatCell label="PTS" value={aggregate.pts} accent />
       <StatCell label="+/-" value={plusMinusStr} />
-      <StatCell label="SOG" value={aggregate.shots} />
-      <StatCell label="SHT%" value={aggregate.shtPct ?? '—'} />
-      <StatCell label="HITS" value={aggregate.hits} />
-      <StatCell label="PIM" value={aggregate.pim} />
     </div>
   )
 }
