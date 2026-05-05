@@ -1,35 +1,27 @@
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
-import Image from 'next/image'
-import type { ReactNode } from 'react'
 import {
   getPlayerProfileOverview,
-  getPlayerCareerStats,
+  getPlayerCareerSeasons,
   getPlayerGamertagHistory,
   getPlayerGameLog,
   countPlayerGameLog,
   getPlayerEASeasonStats,
   getPlayerPositionUsage,
-  getGameTitleBySlug,
-  getHistoricalGoalieStatsAllModes,
-  getHistoricalSkaterStatsAllModes,
 } from '@eanhl/db/queries'
 import type { GameMode } from '@eanhl/db'
 import { GAME_MODE } from '@eanhl/db'
-import { PositionPill } from '@/components/matches/position-pill'
 import { PlayerGameLogSection } from '@/components/roster/player-game-log-section'
 import { ClubStatsTabs } from '@/components/roster/club-stats-tabs'
 import { ContributionSection } from '@/components/roster/contribution-section'
-import { PositionDonut } from '@/components/roster/position-donut'
 import { RecentFormStrip } from '@/components/roster/recent-form-strip'
-import { SectionHeading } from '@/components/roster/section-heading'
 import { TrendChart } from '@/components/roster/trend-chart'
-import {
-  formatMatchDate,
-  formatPosition,
-  formatRecord,
-} from '@/lib/format'
+import { ProfileHero } from '@/components/roster/profile-hero'
+import { CareerSeasonsTable } from '@/components/roster/career-seasons-table'
+import { StatsRecordCard } from '@/components/roster/stats-record-card'
+import { ChartsVisualsSection } from '@/components/roster/charts-visuals-section'
+import { ComingSoonCard } from '@/components/roster/coming-soon-card'
 
 export const revalidate = 3600
 
@@ -41,10 +33,6 @@ interface Props {
 }
 
 const LOG_PAGE_SIZE = 20
-const ROLE_CHIPS = {
-  skater: 'Skater',
-  goalie: 'Goalie',
-} as const
 
 function parseGameMode(raw: string | string[] | undefined): GameMode | null {
   if (typeof raw !== 'string') return null
@@ -89,16 +77,16 @@ export default async function PlayerPage({ params, searchParams }: Props) {
   if (isNaN(id)) notFound()
 
   let overview: Awaited<ReturnType<typeof getPlayerProfileOverview>> = null
-  let careerStats: Awaited<ReturnType<typeof getPlayerCareerStats>> = []
+  let careerSeasons: Awaited<ReturnType<typeof getPlayerCareerSeasons>> = []
   let eaStats: Awaited<ReturnType<typeof getPlayerEASeasonStats>> = []
   let history: Awaited<ReturnType<typeof getPlayerGamertagHistory>> = []
   let gameLog: Awaited<ReturnType<typeof getPlayerGameLog>> = []
   let gameLogTotal = 0
 
   try {
-    ;[overview, careerStats, eaStats, history, gameLog, gameLogTotal] = await Promise.all([
+    ;[overview, careerSeasons, eaStats, history, gameLog, gameLogTotal] = await Promise.all([
       getPlayerProfileOverview(id),
-      getPlayerCareerStats(id, null),
+      getPlayerCareerSeasons(id),
       getPlayerEASeasonStats(id),
       getPlayerGamertagHistory(id),
       getPlayerGameLog(id, gameMode, LOG_PAGE_SIZE, logOffset),
@@ -118,32 +106,6 @@ export default async function PlayerPage({ params, searchParams }: Props) {
   if (gameTitleId !== null) {
     try {
       positionUsage = await getPlayerPositionUsage(id, gameTitleId)
-    } catch {
-      // non-critical
-    }
-  }
-
-  const previousSeasonSlug = previousTitleSlug(
-    currentEaSeason?.gameTitleSlug ?? currentLocalSeason?.gameTitleSlug ?? null,
-  )
-  let previousSeasonTotals: PreviousSeasonTotalsRow | null = null
-  if (previousSeasonSlug !== null) {
-    try {
-      const previousTitle = await getGameTitleBySlug(previousSeasonSlug)
-      if (previousTitle !== null) {
-        const [previousSkaters, previousGoalies] = await Promise.all([
-          getHistoricalSkaterStatsAllModes(previousTitle.id),
-          getHistoricalGoalieStatsAllModes(previousTitle.id),
-        ])
-        previousSeasonTotals = buildPreviousSeasonTotals(
-          previousTitle.id,
-          previousTitle.name,
-          previousTitle.slug,
-          id,
-          previousSkaters,
-          previousGoalies,
-        )
-      }
     } catch {
       // non-critical
     }
@@ -173,8 +135,6 @@ export default async function PlayerPage({ params, searchParams }: Props) {
     .slice(0, 15)
     .reverse()
 
-  const hasHistory = history.some((entry) => entry.seenUntil !== null)
-
   return (
     <div className="space-y-8">
       <Link
@@ -184,9 +144,11 @@ export default async function PlayerPage({ params, searchParams }: Props) {
         <span aria-hidden>←</span> Roster
       </Link>
 
-      <HeroSection
+      <ProfileHero
         overview={overview}
         positionUsage={positionUsage}
+        career={careerSeasons}
+        history={history}
         selectedRole={selectedRole}
         hasSkaterData={hasSkaterData}
         hasGoalieData={hasGoalieData}
@@ -203,882 +165,45 @@ export default async function PlayerPage({ params, searchParams }: Props) {
         </div>
       )}
 
-      <CurrentSeasonSection overview={overview} selectedRole={selectedRole} />
-
-      {trendGames.length > 0 && (
-        <TrendChart trendGames={trendGames} selectedRole={selectedRole} />
-      )}
       <RecentFormStrip recentForm={selectedRecentForm} selectedRole={selectedRole} />
+
+      <StatsRecordCard
+        seasonTable={<CareerSeasonsTable seasons={careerSeasons} selectedRole={selectedRole} />}
+        gameLog={
+          <PlayerGameLogSection
+            playerId={id}
+            gameMode={gameMode}
+            rows={gameLog}
+            total={gameLogTotal}
+            logPage={logPage}
+            totalPages={Math.ceil(gameLogTotal / LOG_PAGE_SIZE)}
+            showMode={gameMode === null}
+          />
+        }
+      />
+
+      {selectedRole === 'skater' && eaStats[0] !== undefined && <ClubStatsTabs season={eaStats[0]} />}
+      {selectedRole === 'goalie' && (
+        <ComingSoonCard
+          title="Goalie Club Stats"
+          description="Goalie Overview, Saves, and Situations tabs (matching ChelHead Tabs 6-8) coming in a future update."
+        />
+      )}
 
       <ContributionSection contribution={selectedContribution} selectedRole={selectedRole} />
 
-      <section id="career" className="space-y-4 scroll-mt-24">
-        <SectionHeading
-          title="Career Stats"
-          subtitle="Locally recorded club history, all modes."
-        />
-        {careerStats.length === 0 ? (
-          <EmptyPanel message="No career stats recorded yet." />
-        ) : (
-          <CareerStatsTable rows={careerStats} />
-        )}
-      </section>
-
-      <section id="ea-totals" className="space-y-4 scroll-mt-24">
-        <SectionHeading
-          title="EA Season Totals"
-          subtitle="EA-reported full season aggregates. Not mode-filtered."
-        />
-        {eaStats.length === 0 ? (
-          <EmptyPanel message="No EA season totals available yet." />
-        ) : (
-          <EASeasonStatsTable rows={eaStats} />
-        )}
-      </section>
-
-      {selectedRole === 'skater' && eaStats[0] && <ClubStatsTabs season={eaStats[0]} />}
-
-      {previousSeasonTotals !== null && (
-        <section id="prev-season" className="space-y-4 scroll-mt-24">
-          <SectionHeading
-            title="Previous NHL Season"
-            subtitle="Historical totals from the prior title, reviewed and archived."
-          />
-          <PreviousSeasonStatsTable row={previousSeasonTotals} />
-        </section>
-      )}
-
-      {hasHistory && (
-        <section id="history" className="space-y-3 scroll-mt-24">
-          <p className="pl-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-zinc-600">
-            Gamertag History
-          </p>
-          <div className="divide-y divide-zinc-800/60 border border-zinc-800 bg-surface">
-            {history.map((entry) => (
-              <div key={entry.id} className="flex items-center gap-4 px-4 py-2.5">
-                <span
-                  className={`text-sm font-medium ${entry.seenUntil === null ? 'text-zinc-300' : 'text-zinc-600'}`}
-                >
-                  {entry.gamertag}
-                </span>
-                <span className="ml-auto text-xs text-zinc-700">
-                  {formatMatchDate(entry.seenFrom)}
-                  {entry.seenUntil !== null && ` → ${formatMatchDate(entry.seenUntil)}`}
-                  {entry.seenUntil === null && (
-                    <span className="ml-1.5 rounded bg-zinc-800 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
-                      current
-                    </span>
-                  )}
-                </span>
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
-
-      <PlayerGameLogSection
-        playerId={id}
-        gameMode={gameMode}
-        rows={gameLog}
-        total={gameLogTotal}
-        logPage={logPage}
-        totalPages={Math.ceil(gameLogTotal / LOG_PAGE_SIZE)}
-        showMode={gameMode === null}
-      />
-    </div>
-  )
-}
-
-// ─── Types ───────────────────────────────────────────────────────────────────
-
-type Overview = NonNullable<Awaited<ReturnType<typeof getPlayerProfileOverview>>>
-type CareerRow = Awaited<ReturnType<typeof getPlayerCareerStats>>[number]
-type EASeasonRow = Awaited<ReturnType<typeof getPlayerEASeasonStats>>[number]
-type PositionUsageRow = Awaited<ReturnType<typeof getPlayerPositionUsage>>[number]
-type HistoricalSkaterSeasonRow = Awaited<
-  ReturnType<typeof getHistoricalSkaterStatsAllModes>
->[number]
-type HistoricalGoalieSeasonRow = Awaited<
-  ReturnType<typeof getHistoricalGoalieStatsAllModes>
->[number]
-
-interface PreviousSeasonTotalsRow {
-  gameTitleId: number
-  gameTitleName: string
-  gameTitleSlug: string
-  skaterGp: number
-  goals: number
-  assists: number
-  points: number
-  plusMinus: number
-  shots: number
-  hits: number
-  pim: number
-  takeaways: number
-  giveaways: number
-  shotPct: string | null
-  goalieGp: number
-  goalieWins: number | null
-  goalieLosses: number | null
-  goalieOtl: number | null
-  goalieSavePct: string | null
-  goalieGaa: string | null
-  goalieShutouts: number | null
-}
-
-// ─── Hero ─────────────────────────────────────────────────────────────────────
-
-function computeSkaterArchetype(
-  goals: number,
-  assists: number,
-  hits: number,
-  skaterGp: number,
-  plusMinus: number,
-): string | null {
-  if (skaterGp < 5) return null
-  const gPerGp = goals / skaterGp
-  const aPerGp = assists / skaterGp
-  const hPerGp = hits / skaterGp
-  const ptsPerGp = gPerGp + aPerGp
-  if (hPerGp >= 3 && ptsPerGp < 0.7) return 'Enforcer'
-  if (goals > assists && gPerGp >= 0.35) return 'Sniper'
-  if (assists > goals * 1.3 && aPerGp >= 0.3) return 'Playmaker'
-  if (plusMinus > 0 && ptsPerGp >= 0.5) return 'Two-Way'
-  return 'Balanced'
-}
-
-function roleHref(playerId: number, role: 'skater' | 'goalie', gameMode: GameMode | null): string {
-  const qs = new URLSearchParams()
-  qs.set('role', role)
-  if (gameMode !== null) qs.set('mode', gameMode)
-  return `/roster/${playerId.toString()}?${qs.toString()}`
-}
-
-function HeroSection({
-  overview,
-  positionUsage,
-  selectedRole,
-  hasSkaterData,
-  hasGoalieData,
-  gameMode,
-}: {
-  overview: Overview
-  positionUsage: PositionUsageRow[]
-  selectedRole: 'skater' | 'goalie'
-  hasSkaterData: boolean
-  hasGoalieData: boolean
-  gameMode: GameMode | null
-}) {
-  const { player, primaryRole, currentEaSeason } = overview
-  const displayPosition =
-    player.preferredPosition ?? currentEaSeason?.favoritePosition ?? player.position
-  const positionLabel = displayPosition ? formatPosition(displayPosition) : null
-  const showRoleSelector = hasSkaterData && hasGoalieData
-
-  const archetypeLabel =
-    primaryRole === 'skater' && currentEaSeason !== null
-      ? (computeSkaterArchetype(
-          currentEaSeason.goals,
-          currentEaSeason.assists,
-          currentEaSeason.hits,
-          currentEaSeason.skaterGp,
-          currentEaSeason.plusMinus,
-        ) ?? 'Skater')
-      : ROLE_CHIPS[primaryRole]
-
-  const anchorLinks = [
-    { href: '#season', label: 'Season' },
-    { href: '#form', label: 'Form' },
-    { href: '#profile', label: 'Profile' },
-    { href: '#career', label: 'Career' },
-    { href: '#ea-totals', label: 'EA Totals' },
-    { href: '#game-log', label: 'Game Log' },
-  ]
-
-  return (
-    <section className="relative overflow-hidden border border-zinc-800 border-t-2 border-t-accent bg-surface">
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_80%_90%_at_0%_0%,rgba(225,29,72,0.16),transparent_55%),linear-gradient(165deg,rgba(24,24,27,0.55)_15%,rgba(9,9,11,1)_70%)]" />
-
-      {player.jerseyNumber != null && (
-        <div
-          className="pointer-events-none absolute inset-y-0 right-0 flex select-none items-center pr-2"
-          aria-hidden
-        >
-          <span
-            className="font-condensed font-black leading-none text-zinc-50"
-            style={{ fontSize: '13rem', opacity: 0.04 }}
-          >
-            {player.jerseyNumber}
-          </span>
-        </div>
-      )}
-
-      <div className="relative z-10 grid lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
-        {/* Identity column */}
-        <div className="space-y-4 px-6 py-7 lg:py-8">
-          <div className="space-y-1">
-            <h1 className="font-condensed text-4xl font-black uppercase tracking-[0.04em] text-zinc-50 sm:text-5xl lg:text-6xl">
-              {player.gamertag}
-            </h1>
-            {player.jerseyNumber != null && (
-              <p className="font-condensed text-xl font-bold text-accent">#{player.jerseyNumber}</p>
-            )}
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2">
-            {displayPosition && positionLabel && (
-              <PositionPill
-                label={positionLabel}
-                position={displayPosition}
-                isGoalie={displayPosition === 'goalie'}
-              />
-            )}
-            <HeroChip accent>{archetypeLabel}</HeroChip>
-            {player.clubRoleLabel && <HeroChip>{player.clubRoleLabel}</HeroChip>}
-            {player.nationality && <HeroChip>{player.nationality}</HeroChip>}
-            {!player.isActive && <HeroChip muted>Inactive</HeroChip>}
-          </div>
-
-          {player.bio && (
-            <p className="max-w-2xl text-sm leading-relaxed text-zinc-400">{player.bio}</p>
-          )}
-
-          {showRoleSelector && (
-            <div className="flex items-center gap-1">
-              <Link
-                href={roleHref(player.id, 'skater', gameMode)}
-                className={[
-                  'rounded border px-3 py-1 text-xs font-semibold uppercase tracking-wider transition-colors',
-                  selectedRole === 'skater'
-                    ? 'border-accent bg-accent/10 text-accent'
-                    : 'border-zinc-700 text-zinc-500 hover:border-zinc-500 hover:text-zinc-300',
-                ].join(' ')}
-              >
-                Skater
-              </Link>
-              <Link
-                href={roleHref(player.id, 'goalie', gameMode)}
-                className={[
-                  'rounded border px-3 py-1 text-xs font-semibold uppercase tracking-wider transition-colors',
-                  selectedRole === 'goalie'
-                    ? 'border-accent bg-accent/10 text-accent'
-                    : 'border-zinc-700 text-zinc-500 hover:border-zinc-500 hover:text-zinc-300',
-                ].join(' ')}
-              >
-                Goalie
-              </Link>
-            </div>
-          )}
-
-          <div className="flex flex-wrap gap-2">
-            {anchorLinks.map((link) => (
-              <a
-                key={link.href}
-                href={link.href}
-                className="rounded-full border border-zinc-700 bg-zinc-900/70 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.14em] text-zinc-400 transition-colors hover:border-zinc-500 hover:text-zinc-200"
-              >
-                {link.label}
-              </a>
-            ))}
-          </div>
-        </div>
-
-        {/* Position usage donut — replaces generic silhouette */}
-        <div className="relative hidden lg:flex items-start justify-end pb-0 pl-4 pr-6 pt-7 min-w-[220px]">
-          <div className="absolute right-7 top-5 opacity-[0.15]">
-            <Image
-              src="/images/bgm-logo.png"
-              alt="Boogeymen"
-              width={44}
-              height={44}
-              className="h-10 w-10 object-contain"
+      <ChartsVisualsSection
+        trendChart={
+          trendGames.length > 0 ? (
+            <TrendChart trendGames={trendGames} selectedRole={selectedRole} />
+          ) : (
+            <ComingSoonCard
+              title="Recent Form Trend"
+              description="Per-game performance bars for the last 15 appearances. Will populate once enough game data is available."
             />
-          </div>
-          {positionUsage.length > 0 ? (
-            <PositionDonut usage={positionUsage} />
-          ) : null}
-        </div>
-      </div>
-
-      {/* Stat strip — role-aware */}
-      <HeroStatStrip overview={overview} selectedRole={selectedRole} />
-    </section>
-  )
-}
-
-function HeroStatStrip({
-  overview,
-  selectedRole,
-}: {
-  overview: Overview
-  selectedRole: 'skater' | 'goalie'
-}) {
-  const { currentEaSeason, currentLocalSeason } = overview
-  const skaterGp = currentEaSeason?.skaterGp ?? currentLocalSeason?.skaterGp ?? 0
-  const goalieGp = currentEaSeason?.goalieGp ?? 0
-  const appearanceRecord =
-    currentLocalSeason !== null
-      ? formatRecord(
-          currentLocalSeason.wins ?? 0,
-          currentLocalSeason.losses ?? 0,
-          currentLocalSeason.otl ?? 0,
-        )
-      : '—'
-
-  const stats: { label: string; value: string; featured?: boolean }[] =
-    selectedRole === 'goalie'
-      ? [
-          { label: 'GP', value: goalieGp.toString() },
-          {
-            label: 'W-L-OTL',
-            value: formatRecord(
-              currentEaSeason?.goalieWins ?? 0,
-              currentEaSeason?.goalieLosses ?? 0,
-              currentEaSeason?.goalieOtl ?? 0,
-            ),
-          },
-          {
-            label: 'SV%',
-            value: formatDbPct(currentEaSeason?.goalieSavePct ?? null),
-            featured: true,
-          },
-          { label: 'GAA', value: currentEaSeason?.goalieGaa ?? '—' },
-          { label: 'SO', value: (currentEaSeason?.goalieShutouts ?? 0).toString() },
-          { label: 'Saves', value: (currentEaSeason?.goalieSaves ?? 0).toString() },
-        ]
-      : [
-          { label: 'GP', value: skaterGp.toString() },
-          {
-            label: 'PTS',
-            value: (currentEaSeason?.points ?? currentLocalSeason?.points ?? 0).toString(),
-            featured: true,
-          },
-          {
-            label: 'PTS / GP',
-            value: formatDecimal(
-              perGame(currentEaSeason?.points ?? currentLocalSeason?.points ?? 0, skaterGp),
-              2,
-            ),
-          },
-          {
-            label: 'G',
-            value: (currentEaSeason?.goals ?? currentLocalSeason?.goals ?? 0).toString(),
-          },
-          {
-            label: 'A',
-            value: (currentEaSeason?.assists ?? currentLocalSeason?.assists ?? 0).toString(),
-          },
-          {
-            label: '+/-',
-            value: formatSigned(currentEaSeason?.plusMinus ?? currentLocalSeason?.plusMinus ?? 0),
-          },
-          {
-            label: 'Hits',
-            value: (currentEaSeason?.hits ?? currentLocalSeason?.hits ?? 0).toString(),
-          },
-          { label: 'App. Record', value: appearanceRecord },
-        ]
-
-  return (
-    <div className="relative z-10 overflow-x-auto border-t border-zinc-800">
-      <div className="flex min-w-max divide-x divide-zinc-800">
-        {stats.map((stat) => (
-          <div
-            key={stat.label}
-            className={`min-w-[5rem] px-4 py-3 ${stat.featured ? 'bg-accent/10' : 'bg-zinc-950/30'}`}
-          >
-            <p
-              className={`text-[10px] font-semibold uppercase tracking-[0.16em] ${stat.featured ? 'text-accent/70' : 'text-zinc-600'}`}
-            >
-              {stat.label}
-            </p>
-            <p
-              className={`mt-1 font-condensed text-xl font-black ${stat.featured ? 'text-accent' : 'text-zinc-100'}`}
-            >
-              {stat.value}
-            </p>
-          </div>
-        ))}
-      </div>
-    </div>
-  )
-}
-
-// ─── Current Season ───────────────────────────────────────────────────────────
-
-function CurrentSeasonSection({
-  overview,
-  selectedRole,
-}: {
-  overview: Overview
-  selectedRole: 'skater' | 'goalie'
-}) {
-  const { currentEaSeason, currentLocalSeason } = overview
-  if (currentEaSeason === null && currentLocalSeason === null) return null
-
-  const titleName = currentEaSeason?.gameTitleName ?? currentLocalSeason?.gameTitleName ?? 'Current Season'
-
-  if (selectedRole === 'goalie') {
-    const gp = currentEaSeason?.goalieGp ?? 0
-    if (gp === 0) return null
-
-    return (
-      <section id="season" className="space-y-4 scroll-mt-24">
-        <SectionHeading
-          title="Current Season — Goalie"
-          subtitle={`${titleName} · EA-reported full season totals`}
-        />
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
-          <SeasonStatCard label="GP" value={gp.toString()} />
-          <SeasonStatCard
-            label="W-L-OTL"
-            value={formatRecord(
-              currentEaSeason?.goalieWins ?? 0,
-              currentEaSeason?.goalieLosses ?? 0,
-              currentEaSeason?.goalieOtl ?? 0,
-            )}
-          />
-          <SeasonStatCard
-            label="SV%"
-            value={formatDbPct(currentEaSeason?.goalieSavePct ?? null)}
-            featured
-          />
-          <SeasonStatCard label="GAA" value={currentEaSeason?.goalieGaa ?? '—'} />
-          <SeasonStatCard label="SO" value={(currentEaSeason?.goalieShutouts ?? 0).toString()} />
-          <SeasonStatCard label="Saves" value={(currentEaSeason?.goalieSaves ?? 0).toString()} />
-          <SeasonStatCard
-            label="Saves / GP"
-            value={
-              gp > 0
-                ? formatDecimal(perGame(currentEaSeason?.goalieSaves ?? 0, gp), 1)
-                : '—'
-            }
-          />
-        </div>
-      </section>
-    )
-  }
-
-  // Skater
-  const gp = currentEaSeason?.skaterGp ?? currentLocalSeason?.skaterGp ?? 0
-  const goals = currentEaSeason?.goals ?? currentLocalSeason?.goals ?? 0
-  const assists = currentEaSeason?.assists ?? currentLocalSeason?.assists ?? 0
-  const points = currentEaSeason?.points ?? currentLocalSeason?.points ?? 0
-  const plusMinus = currentEaSeason?.plusMinus ?? currentLocalSeason?.plusMinus ?? 0
-  const hits = currentEaSeason?.hits ?? currentLocalSeason?.hits ?? 0
-  const shots = currentEaSeason?.shots ?? currentLocalSeason?.shots ?? 0
-
-  return (
-    <section id="season" className="space-y-4 scroll-mt-24">
-      <SectionHeading
-        title="Current Season — Skater"
-        subtitle={`${titleName} · EA-reported full season totals`}
+          )
+        }
       />
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-5">
-        <SeasonStatCard label="GP" value={gp.toString()} />
-        <SeasonStatCard label="PTS" value={points.toString()} featured />
-        <SeasonStatCard
-          label="PTS / GP"
-          value={gp > 0 ? formatDecimal(perGame(points, gp), 2) : '—'}
-        />
-        <SeasonStatCard label="G" value={goals.toString()} />
-        <SeasonStatCard
-          label="G / GP"
-          value={gp > 0 ? formatDecimal(perGame(goals, gp), 2) : '—'}
-        />
-        <SeasonStatCard label="A" value={assists.toString()} />
-        <SeasonStatCard
-          label="A / GP"
-          value={gp > 0 ? formatDecimal(perGame(assists, gp), 2) : '—'}
-        />
-        <SeasonStatCard label="+/-" value={formatSigned(plusMinus)} />
-        <SeasonStatCard label="Hits" value={hits.toString()} />
-        <SeasonStatCard
-          label="Hits / GP"
-          value={gp > 0 ? formatDecimal(perGame(hits, gp), 1) : '—'}
-        />
-        {currentEaSeason?.shotPct !== null && (
-          <SeasonStatCard label="SHT%" value={formatDbPct(currentEaSeason?.shotPct ?? null)} />
-        )}
-        {shots > 0 && gp > 0 && (
-          <SeasonStatCard
-            label="SOG / GP"
-            value={formatDecimal(perGame(shots, gp), 1)}
-          />
-        )}
-      </div>
-    </section>
-  )
-}
-
-function SeasonStatCard({
-  label,
-  value,
-  featured = false,
-}: {
-  label: string
-  value: string
-  featured?: boolean
-}) {
-  return (
-    <div
-      className={`border px-4 py-3 ${featured ? 'border-accent/30 bg-accent/5' : 'border-zinc-800 bg-surface'}`}
-    >
-      <p
-        className={`text-[10px] font-semibold uppercase tracking-[0.16em] ${featured ? 'text-accent/70' : 'text-zinc-600'}`}
-      >
-        {label}
-      </p>
-      <p
-        className={`mt-1.5 font-condensed text-2xl font-black ${featured ? 'text-accent' : 'text-zinc-100'}`}
-      >
-        {value}
-      </p>
-    </div>
-  )
-}
-
-// ─── Career Stats Table ───────────────────────────────────────────────────────
-
-interface StatCol {
-  key: string
-  label: string
-  render: (row: CareerRow) => ReactNode
-}
-
-const SKATER_COLS: StatCol[] = [
-  { key: 'gp', label: 'GP', render: (row) => row.skaterGp },
-  { key: 'g', label: 'G', render: (row) => row.goals },
-  { key: 'a', label: 'A', render: (row) => row.assists },
-  { key: 'pts', label: 'PTS', render: (row) => row.points },
-  {
-    key: 'ptspgp',
-    label: 'P/GP',
-    render: (row) => formatDecimal(perGame(row.points, row.skaterGp), 2),
-  },
-  {
-    key: 'pm',
-    label: '+/-',
-    render: (row) => (
-      <span className={signedClass(row.plusMinus)}>{formatSigned(row.plusMinus)}</span>
-    ),
-  },
-  { key: 'sog', label: 'SOG', render: (row) => row.shots },
-  { key: 'hits', label: 'Hits', render: (row) => row.hits },
-  { key: 'pim', label: 'PIM', render: (row) => row.pim },
-  { key: 'ta', label: 'TA', render: (row) => row.takeaways },
-  { key: 'gv', label: 'GV', render: (row) => row.giveaways },
-]
-
-const GOALIE_COLS: StatCol[] = [
-  { key: 'ggp', label: 'G-GP', render: (row) => row.goalieGp },
-  { key: 'w', label: 'W', render: (row) => row.wins ?? '—' },
-  { key: 'l', label: 'L', render: (row) => row.losses ?? '—' },
-  { key: 'otl', label: 'OTL', render: (row) => row.otl ?? '—' },
-  { key: 'svpct', label: 'SV%', render: (row) => formatDbPct(row.savePct) },
-  { key: 'gaa', label: 'GAA', render: (row) => row.gaa ?? '—' },
-]
-
-function CareerStatsTable({ rows }: { rows: CareerRow[] }) {
-  const hasGoalie = rows.some((row) => row.goalieGp > 0)
-
-  return (
-    <div className="overflow-x-auto border border-zinc-800 bg-surface">
-      <table className="w-full min-w-[640px]">
-        <thead>
-          <tr className="border-b border-zinc-800">
-            <th className="py-2 pl-4 pr-2 text-left text-xs font-semibold uppercase tracking-wider text-zinc-600">
-              Season
-            </th>
-            {SKATER_COLS.map((col) => (
-              <th
-                key={col.key}
-                className={`px-2 py-2 text-right text-xs font-semibold uppercase tracking-wider ${col.key === 'ptspgp' ? 'text-accent/60' : 'text-zinc-600'}`}
-              >
-                {col.label}
-              </th>
-            ))}
-            {hasGoalie &&
-              GOALIE_COLS.map((col) => (
-                <th
-                  key={col.key}
-                  className="px-2 py-2 text-right text-xs font-semibold uppercase tracking-wider text-zinc-600"
-                >
-                  {col.label}
-                </th>
-              ))}
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((row) => (
-            <CareerStatsDataRow key={row.gameTitleId} row={row} hasGoalie={hasGoalie} />
-          ))}
-        </tbody>
-      </table>
-    </div>
-  )
-}
-
-function CareerStatsDataRow({ row, hasGoalie }: { row: CareerRow; hasGoalie: boolean }) {
-  return (
-    <tr className="border-b border-zinc-800/60 transition-colors last:border-0 hover:bg-surface-raised">
-      <td className="py-2.5 pl-4 pr-2 text-sm font-medium text-zinc-300">
-        <Link
-          href={`/stats?title=${encodeURIComponent(row.gameTitleSlug)}`}
-          className="transition-colors hover:text-accent hover:underline"
-        >
-          {row.gameTitleName}
-        </Link>
-      </td>
-      {SKATER_COLS.map((col) => (
-        <td
-          key={col.key}
-          className={`px-2 py-2.5 text-right text-sm tabular ${col.key === 'ptspgp' ? 'font-semibold text-accent/80' : 'text-zinc-300'}`}
-        >
-          {col.render(row)}
-        </td>
-      ))}
-      {hasGoalie &&
-        GOALIE_COLS.map((col) => (
-          <td key={col.key} className="px-2 py-2.5 text-right text-sm tabular text-zinc-300">
-            {col.render(row)}
-          </td>
-        ))}
-    </tr>
-  )
-}
-
-// ─── EA Season Stats Table ────────────────────────────────────────────────────
-
-interface EAStatCol {
-  key: string
-  label: string
-  render: (row: EASeasonRow) => ReactNode
-}
-
-const EA_SKATER_COLS: EAStatCol[] = [
-  { key: 'gp', label: 'GP', render: (row) => row.skaterGp },
-  { key: 'g', label: 'G', render: (row) => row.goals },
-  { key: 'a', label: 'A', render: (row) => row.assists },
-  { key: 'pts', label: 'PTS', render: (row) => row.points },
-  {
-    key: 'ptspgp',
-    label: 'P/GP',
-    render: (row) => formatDecimal(perGame(row.points, row.skaterGp), 2),
-  },
-  {
-    key: 'pm',
-    label: '+/-',
-    render: (row) => (
-      <span className={signedClass(row.plusMinus)}>{formatSigned(row.plusMinus)}</span>
-    ),
-  },
-  { key: 'sog', label: 'SOG', render: (row) => row.shots },
-  { key: 'hits', label: 'Hits', render: (row) => row.hits },
-  { key: 'pim', label: 'PIM', render: (row) => row.pim },
-  { key: 'shtpct', label: 'SHT%', render: (row) => formatDbPct(row.shotPct) },
-  { key: 'ta', label: 'TA', render: (row) => row.takeaways },
-  { key: 'gv', label: 'GV', render: (row) => row.giveaways },
-]
-
-const EA_GOALIE_COLS: EAStatCol[] = [
-  { key: 'ggp', label: 'G-GP', render: (row) => row.goalieGp },
-  { key: 'w', label: 'W', render: (row) => row.goalieWins ?? '—' },
-  { key: 'l', label: 'L', render: (row) => row.goalieLosses ?? '—' },
-  { key: 'otl', label: 'OTL', render: (row) => row.goalieOtl ?? '—' },
-  { key: 'svpct', label: 'SV%', render: (row) => formatDbPct(row.goalieSavePct) },
-  { key: 'gaa', label: 'GAA', render: (row) => row.goalieGaa ?? '—' },
-  { key: 'so', label: 'SO', render: (row) => row.goalieShutouts ?? '—' },
-]
-
-function EASeasonStatsTable({ rows }: { rows: EASeasonRow[] }) {
-  const hasGoalie = rows.some((row) => row.goalieGp > 0)
-
-  return (
-    <div className="overflow-x-auto border border-zinc-800 bg-surface">
-      <table className="w-full min-w-[640px]">
-        <thead>
-          <tr className="border-b border-zinc-800">
-            <th className="py-2 pl-4 pr-2 text-left text-xs font-semibold uppercase tracking-wider text-zinc-600">
-              Season
-            </th>
-            {EA_SKATER_COLS.map((col) => (
-              <th
-                key={col.key}
-                className={`px-2 py-2 text-right text-xs font-semibold uppercase tracking-wider ${col.key === 'ptspgp' ? 'text-accent/60' : 'text-zinc-600'}`}
-              >
-                {col.label}
-              </th>
-            ))}
-            {hasGoalie &&
-              EA_GOALIE_COLS.map((col) => (
-                <th
-                  key={col.key}
-                  className="px-2 py-2 text-right text-xs font-semibold uppercase tracking-wider text-zinc-600"
-                >
-                  {col.label}
-                </th>
-              ))}
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((row) => (
-            <EASeasonStatsDataRow key={row.gameTitleId} row={row} hasGoalie={hasGoalie} />
-          ))}
-        </tbody>
-      </table>
-    </div>
-  )
-}
-
-function EASeasonStatsDataRow({ row, hasGoalie }: { row: EASeasonRow; hasGoalie: boolean }) {
-  return (
-    <tr className="border-b border-zinc-800/60 transition-colors last:border-0 hover:bg-surface-raised">
-      <td className="py-2.5 pl-4 pr-2 text-sm font-medium text-zinc-300">
-        <Link
-          href={`/stats?title=${encodeURIComponent(row.gameTitleSlug)}`}
-          className="transition-colors hover:text-accent hover:underline"
-        >
-          {row.gameTitleName}
-        </Link>
-      </td>
-      {EA_SKATER_COLS.map((col) => (
-        <td
-          key={col.key}
-          className={`px-2 py-2.5 text-right text-sm tabular ${col.key === 'ptspgp' ? 'font-semibold text-accent/80' : 'text-zinc-300'}`}
-        >
-          {col.render(row)}
-        </td>
-      ))}
-      {hasGoalie &&
-        EA_GOALIE_COLS.map((col) => (
-          <td key={col.key} className="px-2 py-2.5 text-right text-sm tabular text-zinc-300">
-            {col.render(row)}
-          </td>
-        ))}
-    </tr>
-  )
-}
-
-// ─── Previous Season Stats Table ──────────────────────────────────────────────
-
-function PreviousSeasonStatsTable({ row }: { row: PreviousSeasonTotalsRow }) {
-  return (
-    <div className="overflow-x-auto border border-zinc-800 bg-surface">
-      <table className="w-full min-w-[640px]">
-        <thead>
-          <tr className="border-b border-zinc-800">
-            <th className="py-2 pl-4 pr-2 text-left text-xs font-semibold uppercase tracking-wider text-zinc-600">
-              Season
-            </th>
-            {EA_SKATER_COLS.map((col) => (
-              <th
-                key={col.key}
-                className="px-2 py-2 text-right text-xs font-semibold uppercase tracking-wider text-zinc-600"
-              >
-                {col.label}
-              </th>
-            ))}
-            {['G-GP', 'W', 'L', 'OTL', 'SV%', 'GAA', 'SO'].map((h) => (
-              <th
-                key={h}
-                className="px-2 py-2 text-right text-xs font-semibold uppercase tracking-wider text-zinc-600"
-              >
-                {h}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          <PreviousSeasonStatsDataRow row={row} />
-        </tbody>
-      </table>
-    </div>
-  )
-}
-
-function PreviousSeasonStatsDataRow({ row }: { row: PreviousSeasonTotalsRow }) {
-  return (
-    <tr className="border-b border-zinc-800/60 transition-colors last:border-0 hover:bg-surface-raised">
-      <td className="py-2.5 pl-4 pr-2 text-sm font-medium text-zinc-300">
-        <Link
-          href={`/stats?title=${encodeURIComponent(row.gameTitleSlug)}`}
-          className="transition-colors hover:text-accent hover:underline"
-        >
-          {row.gameTitleName}
-        </Link>
-      </td>
-      <td className="px-2 py-2.5 text-right text-sm tabular text-zinc-300">{row.skaterGp}</td>
-      <td className="px-2 py-2.5 text-right text-sm tabular text-zinc-300">{row.goals}</td>
-      <td className="px-2 py-2.5 text-right text-sm tabular text-zinc-300">{row.assists}</td>
-      <td className="px-2 py-2.5 text-right text-sm tabular text-zinc-300">{row.points}</td>
-      <td className="px-2 py-2.5 text-right text-sm tabular text-zinc-300">
-        {formatDecimal(perGame(row.points, row.skaterGp), 2)}
-      </td>
-      <td className="px-2 py-2.5 text-right text-sm tabular text-zinc-300">
-        <span className={signedClass(row.plusMinus)}>{formatSigned(row.plusMinus)}</span>
-      </td>
-      <td className="px-2 py-2.5 text-right text-sm tabular text-zinc-300">{row.shots}</td>
-      <td className="px-2 py-2.5 text-right text-sm tabular text-zinc-300">{row.hits}</td>
-      <td className="px-2 py-2.5 text-right text-sm tabular text-zinc-300">{row.pim}</td>
-      <td className="px-2 py-2.5 text-right text-sm tabular text-zinc-300">
-        {formatDbPct(row.shotPct)}
-      </td>
-      <td className="px-2 py-2.5 text-right text-sm tabular text-zinc-300">{row.takeaways}</td>
-      <td className="px-2 py-2.5 text-right text-sm tabular text-zinc-300">{row.giveaways}</td>
-      <td className="px-2 py-2.5 text-right text-sm tabular text-zinc-300">{row.goalieGp}</td>
-      <td className="px-2 py-2.5 text-right text-sm tabular text-zinc-300">
-        {row.goalieWins ?? '—'}
-      </td>
-      <td className="px-2 py-2.5 text-right text-sm tabular text-zinc-300">
-        {row.goalieLosses ?? '—'}
-      </td>
-      <td className="px-2 py-2.5 text-right text-sm tabular text-zinc-300">
-        {row.goalieOtl ?? '—'}
-      </td>
-      <td className="px-2 py-2.5 text-right text-sm tabular text-zinc-300">
-        {formatDbPct(row.goalieSavePct)}
-      </td>
-      <td className="px-2 py-2.5 text-right text-sm tabular text-zinc-300">
-        {row.goalieGaa ?? '—'}
-      </td>
-      <td className="px-2 py-2.5 text-right text-sm tabular text-zinc-300">
-        {row.goalieShutouts ?? '—'}
-      </td>
-    </tr>
-  )
-}
-
-// ─── Shared primitives ────────────────────────────────────────────────────────
-
-function HeroChip({
-  children,
-  accent = false,
-  muted = false,
-}: {
-  children: ReactNode
-  accent?: boolean
-  muted?: boolean
-}) {
-  const classes = accent
-    ? 'border-accent/40 bg-accent/10 text-accent'
-    : muted
-      ? 'border-zinc-700 bg-zinc-900 text-zinc-500'
-      : 'border-zinc-700 bg-zinc-900 text-zinc-300'
-
-  return (
-    <span
-      className={`rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] ${classes}`}
-    >
-      {children}
-    </span>
-  )
-}
-
-function EmptyPanel({ message }: { message: string }) {
-  return (
-    <div className="flex min-h-[6rem] items-center justify-center border border-zinc-800 bg-surface">
-      <p className="px-4 text-center text-sm text-zinc-500">{message}</p>
     </div>
   )
 }
@@ -1089,80 +214,4 @@ function ErrorState({ message }: { message: string }) {
       <p className="text-sm text-zinc-500">{message}</p>
     </div>
   )
-}
-
-// ─── Utilities ────────────────────────────────────────────────────────────────
-
-function perGame(value: number | null, gp: number): number | null {
-  if (value === null || gp <= 0) return null
-  return value / gp
-}
-
-function formatDecimal(value: number | null, digits: number): string {
-  if (value === null || !Number.isFinite(value)) return '—'
-  return value.toFixed(digits)
-}
-
-function formatDbPct(value: string | null): string {
-  return value === null ? '—' : `${value}%`
-}
-
-function formatSigned(value: number): string {
-  return value > 0 ? `+${value.toString()}` : value.toString()
-}
-
-function signedClass(value: number): string {
-  if (value > 0) return 'text-emerald-400'
-  if (value < 0) return 'text-rose-400'
-  return 'text-zinc-400'
-}
-
-function previousTitleSlug(currentSlug: string | null): string | null {
-  if (currentSlug === null) return null
-  const year = Number.parseInt(currentSlug.replace(/^\D+/u, ''), 10)
-  if (!Number.isFinite(year) || year <= 0) return null
-  return `nhl${(year - 1).toString()}`
-}
-
-function buildPreviousSeasonTotals(
-  gameTitleId: number,
-  gameTitleName: string,
-  gameTitleSlug: string,
-  playerId: number,
-  skaters: HistoricalSkaterSeasonRow[],
-  goalies: HistoricalGoalieSeasonRow[],
-): PreviousSeasonTotalsRow | null {
-  const skater = skaters.find((row) => row.playerId === playerId) ?? null
-  const goalie = goalies.find((row) => row.playerId === playerId) ?? null
-
-  if (skater === null && goalie === null) return null
-
-  const shotPct =
-    skater !== null && skater.shots > 0
-      ? ((skater.goals / skater.shots) * 100).toFixed(2)
-      : null
-
-  return {
-    gameTitleId,
-    gameTitleName,
-    gameTitleSlug,
-    skaterGp: skater?.gamesPlayed ?? 0,
-    goals: skater?.goals ?? 0,
-    assists: skater?.assists ?? 0,
-    points: skater?.points ?? 0,
-    plusMinus: skater?.plusMinus ?? 0,
-    shots: skater?.shots ?? 0,
-    hits: skater?.hits ?? 0,
-    pim: skater?.pim ?? 0,
-    takeaways: skater?.takeaways ?? 0,
-    giveaways: skater?.giveaways ?? 0,
-    shotPct,
-    goalieGp: goalie?.gamesPlayed ?? 0,
-    goalieWins: goalie?.wins ?? null,
-    goalieLosses: goalie?.losses ?? null,
-    goalieOtl: goalie?.otl ?? null,
-    goalieSavePct: goalie?.savePct ?? null,
-    goalieGaa: goalie?.gaa ?? null,
-    goalieShutouts: goalie?.shutouts ?? null,
-  }
 }
