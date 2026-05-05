@@ -1,8 +1,9 @@
-import { and, count, eq, asc, desc, isNull, isNotNull } from 'drizzle-orm'
+import { and, count, eq, asc, desc, isNull, isNotNull, sql } from 'drizzle-orm'
 import { db } from '../client.js'
 import {
   eaMemberSeasonStats,
   gameTitles,
+  historicalPlayerSeasonStats,
   matches,
   playerGameTitleStats,
   playerGamertagHistory,
@@ -11,6 +12,10 @@ import {
   players,
 } from '../schema/index.js'
 import type { GameMode } from '../schema/index.js'
+import {
+  getHistoricalSkaterStatsAllModes,
+  getHistoricalGoalieStatsAllModes,
+} from './historical.js'
 
 /**
  * All player stats for a single match, joined with the player's current gamertag.
@@ -440,6 +445,214 @@ export async function getPlayerEASeasonStats(playerId: number) {
     .innerJoin(gameTitles, eq(eaMemberSeasonStats.gameTitleId, gameTitles.id))
     .where(eq(eaMemberSeasonStats.playerId, playerId))
     .orderBy(desc(eaMemberSeasonStats.gameTitleId))
+}
+
+/**
+ * Unified career-by-season view for the player profile page.
+ *
+ * Returns one row per game title (newest first) blending sources:
+ *   - For active titles (NHL 26), use EA member-season-stats (authoritative).
+ *   - For prior titles (NHL 22-25), use hand-reviewed historical_player_season_stats
+ *     aggregated across modes via existing all-modes helpers.
+ *
+ * Both skater and goalie columns are present on every row; rows where a role's
+ * GP is 0 should be filtered/displayed by the consumer based on selectedRole.
+ */
+export interface PlayerCareerSeasonRow {
+  gameTitleId: number
+  gameTitleName: string
+  gameTitleSlug: string
+  source: 'ea' | 'historical'
+  // Skater stats (skaterGp is 0 if player did not play skater that season)
+  skaterGp: number
+  goals: number
+  assists: number
+  points: number
+  plusMinus: number
+  shots: number
+  shotAttempts: number // for derived shot-on-net% in UI
+  hits: number
+  pim: number
+  takeaways: number
+  giveaways: number
+  faceoffPct: string | null
+  passPct: string | null
+  // Goalie stats (goalieGp is 0 if player did not play goalie that season)
+  goalieGp: number
+  wins: number | null
+  losses: number | null
+  otl: number | null
+  savePct: string | null
+  gaa: string | null
+  shutouts: number | null
+  saves: number | null
+  shotsAgainst: number | null
+  goalsAgainst: number | null
+}
+
+/**
+ * One row per game title for the player's career-by-season profile view.
+ *
+ * Source precedence per title:
+ *   - EA member-season row exists -> source='ea' (authoritative live data)
+ *   - Otherwise fall back to reviewed historical_player_season_stats rows,
+ *     aggregated across both 6s and 3s modes via the existing all-modes
+ *     helpers (which sum counts and recompute rate fields like FO%, save%,
+ *     and GAA from the summed underlying counters).
+ *
+ * The titles enumerated come from the union of EA + reviewed historical rows
+ * for this playerId, so titles with no data for the player are excluded
+ * automatically. Result is sorted newest title first.
+ */
+export async function getPlayerCareerSeasons(
+  playerId: number,
+): Promise<PlayerCareerSeasonRow[]> {
+  // 1. Find every distinct game_title_id where this player has data
+  //    (either EA stats or reviewed historical stats).
+  const titleIdRows = await db
+    .selectDistinct({
+      gameTitleId: gameTitles.id,
+      gameTitleName: gameTitles.name,
+      gameTitleSlug: gameTitles.slug,
+    })
+    .from(gameTitles)
+    .where(
+      sql`${gameTitles.id} IN (
+        SELECT ${eaMemberSeasonStats.gameTitleId}
+          FROM ${eaMemberSeasonStats}
+          WHERE ${eaMemberSeasonStats.playerId} = ${playerId}
+        UNION
+        SELECT ${historicalPlayerSeasonStats.gameTitleId}
+          FROM ${historicalPlayerSeasonStats}
+          WHERE ${historicalPlayerSeasonStats.playerId} = ${playerId}
+            AND ${historicalPlayerSeasonStats.reviewStatus} = 'reviewed'
+      )`,
+    )
+
+  // 2. Fetch EA rows keyed by gameTitleId.
+  const eaRows = await db
+    .select({
+      gameTitleId: eaMemberSeasonStats.gameTitleId,
+      skaterGp: eaMemberSeasonStats.skaterGp,
+      goals: eaMemberSeasonStats.goals,
+      assists: eaMemberSeasonStats.assists,
+      points: eaMemberSeasonStats.points,
+      plusMinus: eaMemberSeasonStats.plusMinus,
+      shots: eaMemberSeasonStats.shots,
+      shotAttempts: eaMemberSeasonStats.shotAttempts,
+      hits: eaMemberSeasonStats.hits,
+      pim: eaMemberSeasonStats.pim,
+      takeaways: eaMemberSeasonStats.takeaways,
+      giveaways: eaMemberSeasonStats.giveaways,
+      faceoffPct: eaMemberSeasonStats.faceoffPct,
+      passPct: eaMemberSeasonStats.passPct,
+      goalieGp: eaMemberSeasonStats.goalieGp,
+      wins: eaMemberSeasonStats.goalieWins,
+      losses: eaMemberSeasonStats.goalieLosses,
+      otl: eaMemberSeasonStats.goalieOtl,
+      savePct: eaMemberSeasonStats.goalieSavePct,
+      gaa: eaMemberSeasonStats.goalieGaa,
+      shutouts: eaMemberSeasonStats.goalieShutouts,
+      saves: eaMemberSeasonStats.goalieSaves,
+      shotsAgainst: eaMemberSeasonStats.goalieShots,
+      goalsAgainst: eaMemberSeasonStats.goalieGoalsAgainst,
+    })
+    .from(eaMemberSeasonStats)
+    .where(eq(eaMemberSeasonStats.playerId, playerId))
+
+  const eaByTitle = new Map(eaRows.map((r) => [r.gameTitleId, r]))
+
+  // 3. For each title not covered by EA, build a historical row using the
+  //    existing all-modes aggregation helpers. They sum counts across 6s+3s
+  //    rows for the player and recompute rate fields (FO%, pass%, save%, GAA)
+  //    from the summed underlying counters.
+  const result: PlayerCareerSeasonRow[] = []
+  for (const t of titleIdRows) {
+    const eaRow = eaByTitle.get(t.gameTitleId)
+    if (eaRow !== undefined) {
+      result.push({
+        gameTitleId: t.gameTitleId,
+        gameTitleName: t.gameTitleName,
+        gameTitleSlug: t.gameTitleSlug,
+        source: 'ea',
+        skaterGp: eaRow.skaterGp,
+        goals: eaRow.goals,
+        assists: eaRow.assists,
+        points: eaRow.points,
+        plusMinus: eaRow.plusMinus,
+        shots: eaRow.shots,
+        shotAttempts: eaRow.shotAttempts,
+        hits: eaRow.hits,
+        pim: eaRow.pim,
+        takeaways: eaRow.takeaways,
+        giveaways: eaRow.giveaways,
+        faceoffPct: eaRow.faceoffPct,
+        passPct: eaRow.passPct,
+        goalieGp: eaRow.goalieGp,
+        wins: eaRow.wins,
+        losses: eaRow.losses,
+        otl: eaRow.otl,
+        savePct: eaRow.savePct,
+        gaa: eaRow.gaa,
+        shutouts: eaRow.shutouts,
+        saves: eaRow.saves,
+        shotsAgainst: eaRow.shotsAgainst,
+        goalsAgainst: eaRow.goalsAgainst,
+      })
+      continue
+    }
+
+    // Historical path: call all-modes helpers, find the row for this player.
+    // Note: the goalie helper uses field names `totalSaves`, `totalShotsAgainst`,
+    // `totalGoalsAgainst` (mirroring the source schema columns); we map those
+    // onto the unified `saves` / `shotsAgainst` / `goalsAgainst` shape here.
+    const [skRows, glRows] = await Promise.all([
+      getHistoricalSkaterStatsAllModes(t.gameTitleId),
+      getHistoricalGoalieStatsAllModes(t.gameTitleId),
+    ])
+    const sk = skRows.find((r) => r.playerId === playerId)
+    const gl = glRows.find((r) => r.playerId === playerId)
+
+    // Defensive: title list is derived from this player's rows, so at least
+    // one of (sk, gl) should be defined. Skip the title if neither is, to
+    // avoid emitting an empty row.
+    if (sk === undefined && gl === undefined) continue
+
+    result.push({
+      gameTitleId: t.gameTitleId,
+      gameTitleName: t.gameTitleName,
+      gameTitleSlug: t.gameTitleSlug,
+      source: 'historical',
+      skaterGp: sk?.gamesPlayed ?? 0,
+      goals: sk?.goals ?? 0,
+      assists: sk?.assists ?? 0,
+      points: sk?.points ?? 0,
+      plusMinus: sk?.plusMinus ?? 0,
+      shots: sk?.shots ?? 0,
+      shotAttempts: sk?.shotAttempts ?? 0,
+      hits: sk?.hits ?? 0,
+      pim: sk?.pim ?? 0,
+      takeaways: sk?.takeaways ?? 0,
+      giveaways: sk?.giveaways ?? 0,
+      faceoffPct: sk?.faceoffPct ?? null,
+      passPct: sk?.passPct ?? null,
+      goalieGp: gl?.gamesPlayed ?? 0,
+      wins: gl?.wins ?? null,
+      losses: gl?.losses ?? null,
+      otl: gl?.otl ?? null,
+      savePct: gl?.savePct ?? null,
+      gaa: gl?.gaa ?? null,
+      shutouts: gl?.shutouts ?? null,
+      saves: gl?.totalSaves ?? null,
+      shotsAgainst: gl?.totalShotsAgainst ?? null,
+      goalsAgainst: gl?.totalGoalsAgainst ?? null,
+    })
+  }
+
+  // 4. Sort newest title first. In this schema, newer titles have LOWER ids
+  //    (NHL 26 = id 1, NHL 22 = id 6), so ascending id puts newest first.
+  result.sort((a, b) => a.gameTitleId - b.gameTitleId)
+  return result
 }
 
 type PlayerProfileRow = Awaited<ReturnType<typeof getPlayerWithProfile>>
