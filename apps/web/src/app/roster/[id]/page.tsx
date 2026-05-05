@@ -19,6 +19,7 @@ import type { GameMode } from '@eanhl/db'
 import { GAME_MODE } from '@eanhl/db'
 import { PositionPill } from '@/components/matches/position-pill'
 import { PlayerGameLogSection } from '@/components/roster/player-game-log-section'
+import { ClubStatsTabs } from '@/components/roster/club-stats-tabs'
 import {
   formatMatchDate,
   formatPosition,
@@ -233,6 +234,8 @@ export default async function PlayerPage({ params, searchParams }: Props) {
           <EASeasonStatsTable rows={eaStats} />
         )}
       </section>
+
+      {selectedRole === 'skater' && eaStats[0] && <ClubStatsTabs season={eaStats[0]} />}
 
       {previousSeasonTotals !== null && (
         <section id="prev-season" className="space-y-4 scroll-mt-24">
