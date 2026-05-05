@@ -86,25 +86,89 @@ export function transformMemberStats(
 
     favoritePosition: typeof raw.favoritePosition === 'string' ? raw.favoritePosition : null,
 
+    // ── Aggregate ───────────────────────────────────────────────────────────
     gamesPlayed: parseIntField(raw, 'gamesplayed'),
-    skaterGp: parseIntField(raw, 'skgp'),
+    gamesCompleted: parseIntField(raw, 'gamesCompleted'),
+    gamesCompletedFc: parseIntField(raw, 'gamesCompletedFC'),
+    playerQuitDisc: parseIntField(raw, 'playerQuitDisc'),
 
+    // ── Position GP splits ──────────────────────────────────────────────────
+    skaterGp: parseIntField(raw, 'skgp'),
+    lwGp: parseIntField(raw, 'lwgp'),
+    rwGp: parseIntField(raw, 'rwgp'),
+    cGp: parseIntField(raw, 'cgp'),
+    dGp: parseIntField(raw, 'dgp'),
+
+    // ── Skater record (Tab 1) ───────────────────────────────────────────────
+    skaterWins: parseIntField(raw, 'skwins'),
+    skaterLosses: parseIntField(raw, 'sklosses'),
+    skaterOtl: parseIntField(raw, 'skotl'),
+    skaterWinnerByDnf: parseIntField(raw, 'skwinnerByDnf'),
+    skaterWinPct: parseIntField(raw, 'skwinpct'),
+    skaterDnf: parseIntField(raw, 'skDNF'),
+
+    // ── Skater scoring (Tab 2) ──────────────────────────────────────────────
     goals: parseIntField(raw, 'skgoals'),
     assists: parseIntField(raw, 'skassists'),
     points: parseIntField(raw, 'skpoints'),
     pointsPerGame: parseNumeric2(raw, 'skpointspg'),
+    powerPlayGoals: parseIntField(raw, 'skppg'),
+    shortHandedGoals: parseIntField(raw, 'skshg'),
+    gameWinningGoals: parseIntField(raw, 'skgwg'),
+    hatTricks: parseIntField(raw, 'skhattricks'),
     plusMinus: parseIntField(raw, 'skplusmin'),
     pim: parseIntField(raw, 'skpim'),
+    prevGoals: parseIntField(raw, 'skprevgoals'),
+    prevAssists: parseIntField(raw, 'skprevassists'),
+
+    // ── Skater shooting (Tab 2) ─────────────────────────────────────────────
     shots: parseIntField(raw, 'skshots'),
     shotPct: parseNumeric2(raw, 'skshotpct'),
+    shotsPerGame: parseNumeric2(raw, 'skshotspg'),
     shotAttempts: parseIntField(raw, 'skshotattempts'),
-    hits: parseIntField(raw, 'skhits'),
-    toiSeconds: skToiMinutes > 0 ? skToiMinutes * 60 : null,
-    faceoffPct: parseNumeric2(raw, 'skfop'),
+    shotOnNetPct: parseNumeric2(raw, 'skshotonnetpct'),
+    breakaways: parseIntField(raw, 'skbreakaways'),
+    breakawayGoals: parseIntField(raw, 'skbrkgoals'),
+    breakawayPct: parseNumeric2(raw, 'skbreakawaypct'),
+
+    // ── Skater playmaking (Tab 3) ───────────────────────────────────────────
+    passes: parseIntField(raw, 'skpasses'),
+    passAttempts: parseIntField(raw, 'skpassattempts'),
     passPct: parseNumeric2(raw, 'skpasspct'),
+    interceptions: parseIntField(raw, 'skinterceptions'),
+    dekes: parseIntField(raw, 'skdekes'),
+    dekesMade: parseIntField(raw, 'skdekesmade'),
+    deflections: parseIntField(raw, 'skdeflections'),
+    saucerPasses: parseIntField(raw, 'sksaucerpasses'),
+    screenChances: parseIntField(raw, 'skscrnchances'),
+    screenGoals: parseIntField(raw, 'skscrngoals'),
+    possessionSeconds: parseIntField(raw, 'skpossession'),
+    xfactorZoneUsed: parseIntField(raw, 'xfactor_zoneability_times_used'),
+
+    // ── Skater defense & discipline (Tab 4) ─────────────────────────────────
+    hits: parseIntField(raw, 'skhits'),
+    hitsPerGame: parseNumeric2(raw, 'skhitspg'),
+    fights: parseIntField(raw, 'skfights'),
+    fightsWon: parseIntField(raw, 'skfightswon'),
+    blockedShots: parseIntField(raw, 'skbs'),
+    pkClearZone: parseIntField(raw, 'skpkclearzone'),
+    offsides: parseIntField(raw, 'skoffsides'),
+    offsidesPerGame: parseNumeric2(raw, 'skoffsidespg'),
+    penaltiesDrawn: parseIntField(raw, 'skpenaltiesdrawn'),
     takeaways: parseIntField(raw, 'sktakeaways'),
     giveaways: parseIntField(raw, 'skgiveaways'),
 
+    // ── Skater faceoffs + utility (Tab 5) ───────────────────────────────────
+    faceoffTotal: parseIntField(raw, 'skfo'),
+    faceoffWins: parseIntField(raw, 'skfow'),
+    faceoffLosses: parseIntField(raw, 'skfol'),
+    faceoffPct: parseNumeric2(raw, 'skfop'),
+    penaltyShotAttempts: parseIntField(raw, 'skpenaltyattempts'),
+    penaltyShotGoals: parseIntField(raw, 'skpenaltyshotgoals'),
+    penaltyShotPct: parseNumeric2(raw, 'skpenaltyshotpct'),
+    toiSeconds: skToiMinutes > 0 ? skToiMinutes * 60 : null,
+
+    // ── Goalie (unchanged from prior version) ───────────────────────────────
     goalieGp,
     goalieWins: parseNullableInt(raw, 'glwins', goalieGp),
     goalieLosses: parseNullableInt(raw, 'gllosses', goalieGp),
