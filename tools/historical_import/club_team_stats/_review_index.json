@@ -1,0 +1,378 @@
+{
+  "_comment": "Review queue index for the club_stats__* extractor. Each entry is a generated reviewable JSON; the user reviews and corrects before promoting to import. Hand-keyed pilots in this directory (*_pilot.json) are independent and untouched.",
+  "totalPlaylists": 17,
+  "extractorFailures": [],
+  "queue": [
+    {
+      "outputFile": "nhl22__clubs_3v3.extract.json",
+      "titleSlug": "nhl22",
+      "playlist": "clubs_3v3",
+      "confidenceScore": 0.99,
+      "metricsCount": 30,
+      "rawScreenshot01Count": 30,
+      "rawScreenshot02Count": 29,
+      "labelGlueNulls": {
+        "screenshot01": [],
+        "screenshot02": [
+          "Penalty Minutes"
+        ]
+      },
+      "arithmeticFlags": [],
+      "notes": "Extractor output (extract_club_team_stats.py). Pending review. No warnings emitted."
+    },
+    {
+      "outputFile": "nhl22__clubs_6_players.extract.json",
+      "titleSlug": "nhl22",
+      "playlist": "clubs_6_players",
+      "confidenceScore": 0.981,
+      "metricsCount": 30,
+      "rawScreenshot01Count": 25,
+      "rawScreenshot02Count": 27,
+      "labelGlueNulls": {
+        "screenshot01": [
+          "Win Differential",
+          "Power Plays",
+          "Power Play Goals"
+        ],
+        "screenshot02": [
+          "Shorthanded Goals Ag",
+          "Power Play Goals"
+        ]
+      },
+      "arithmeticFlags": [],
+      "notes": "Extractor output (extract_club_team_stats.py). Pending review. No warnings emitted."
+    },
+    {
+      "outputFile": "nhl22__clubs_6v6.extract.json",
+      "titleSlug": "nhl22",
+      "playlist": "clubs_6v6",
+      "confidenceScore": 0.991,
+      "metricsCount": 37,
+      "rawScreenshot01Count": 28,
+      "rawScreenshot02Count": 28,
+      "labelGlueNulls": {
+        "screenshot01": [],
+        "screenshot02": []
+      },
+      "arithmeticFlags": [],
+      "notes": "Extractor output (extract_club_team_stats.py). Pending review. No warnings emitted."
+    },
+    {
+      "outputFile": "nhl22__threes.extract.json",
+      "titleSlug": "nhl22",
+      "playlist": "threes",
+      "confidenceScore": 0.985,
+      "metricsCount": 28,
+      "rawScreenshot01Count": 29,
+      "rawScreenshot02Count": 26,
+      "labelGlueNulls": {
+        "screenshot01": [
+          "Losses"
+        ],
+        "screenshot02": []
+      },
+      "arithmeticFlags": [],
+      "notes": "Extractor output (extract_club_team_stats.py). Pending review. win_loss_streak: cross-screenshot disagreement (screenshot1=6, screenshot2=9); chose 6; faceoffs_won: cross-screenshot disagreement (screenshot1=6, screenshot2=9); chose 6"
+    },
+    {
+      "outputFile": "nhl23__clubs_3v3.extract.json",
+      "titleSlug": "nhl23",
+      "playlist": "clubs_3v3",
+      "confidenceScore": 0.989,
+      "metricsCount": 30,
+      "rawScreenshot01Count": 30,
+      "rawScreenshot02Count": 29,
+      "labelGlueNulls": {
+        "screenshot01": [],
+        "screenshot02": []
+      },
+      "arithmeticFlags": [],
+      "notes": "Extractor output (extract_club_team_stats.py). Pending review. No warnings emitted."
+    },
+    {
+      "outputFile": "nhl23__clubs_6_players.extract.json",
+      "titleSlug": "nhl23",
+      "playlist": "clubs_6_players",
+      "confidenceScore": 0.979,
+      "metricsCount": 31,
+      "rawScreenshot01Count": 28,
+      "rawScreenshot02Count": 27,
+      "labelGlueNulls": {
+        "screenshot01": [
+          "Overtime Losses",
+          "DNF Wins"
+        ],
+        "screenshot02": [
+          "Power Play Goals"
+        ]
+      },
+      "arithmeticFlags": [],
+      "notes": "Extractor output (extract_club_team_stats.py). Pending review. No warnings emitted."
+    },
+    {
+      "outputFile": "nhl23__clubs_6v6.extract.json",
+      "titleSlug": "nhl23",
+      "playlist": "clubs_6v6",
+      "confidenceScore": 0.986,
+      "metricsCount": 36,
+      "rawScreenshot01Count": 30,
+      "rawScreenshot02Count": 28,
+      "labelGlueNulls": {
+        "screenshot01": [],
+        "screenshot02": []
+      },
+      "arithmeticFlags": [],
+      "notes": "Extractor output (extract_club_team_stats.py). Pending review. No warnings emitted."
+    },
+    {
+      "outputFile": "nhl23__threes.extract.json",
+      "titleSlug": "nhl23",
+      "playlist": "threes",
+      "confidenceScore": 0.978,
+      "metricsCount": 25,
+      "rawScreenshot01Count": 26,
+      "rawScreenshot02Count": 28,
+      "labelGlueNulls": {
+        "screenshot01": [],
+        "screenshot02": []
+      },
+      "arithmeticFlags": [],
+      "notes": "Extractor output (extract_club_team_stats.py). Pending review. No warnings emitted."
+    },
+    {
+      "outputFile": "nhl24__6_player_full_team.extract.json",
+      "titleSlug": "nhl24",
+      "playlist": "6_player_full_team",
+      "confidenceScore": 0.98,
+      "metricsCount": 34,
+      "rawScreenshot01Count": 31,
+      "rawScreenshot02Count": 29,
+      "labelGlueNulls": {
+        "screenshot01": [],
+        "screenshot02": [
+          "Penalty Shot Goals"
+        ]
+      },
+      "arithmeticFlags": [],
+      "notes": "Extractor output (extract_club_team_stats.py). Pending review. No warnings emitted."
+    },
+    {
+      "outputFile": "nhl24__eashl_3v3.extract.json",
+      "titleSlug": "nhl24",
+      "playlist": "eashl_3v3",
+      "confidenceScore": 0.979,
+      "metricsCount": 28,
+      "rawScreenshot01Count": 31,
+      "rawScreenshot02Count": 30,
+      "labelGlueNulls": {
+        "screenshot01": [],
+        "screenshot02": []
+      },
+      "arithmeticFlags": [],
+      "notes": "Extractor output (extract_club_team_stats.py). Pending review. No warnings emitted."
+    },
+    {
+      "outputFile": "nhl24__eashl_6v6.extract.json",
+      "titleSlug": "nhl24",
+      "playlist": "eashl_6v6",
+      "confidenceScore": 0.982,
+      "metricsCount": 35,
+      "rawScreenshot01Count": 31,
+      "rawScreenshot02Count": 29,
+      "labelGlueNulls": {
+        "screenshot01": [],
+        "screenshot02": [
+          "Penalty Shot Goals"
+        ]
+      },
+      "arithmeticFlags": [
+        "pim 144420 looks suspiciously high"
+      ],
+      "notes": "Extractor output (extract_club_team_stats.py). Pending review. No warnings emitted."
+    },
+    {
+      "outputFile": "nhl24__quickplay_3v3.extract.json",
+      "titleSlug": "nhl24",
+      "playlist": "quickplay_3v3",
+      "confidenceScore": 0.972,
+      "metricsCount": 27,
+      "rawScreenshot01Count": 31,
+      "rawScreenshot02Count": 27,
+      "labelGlueNulls": {
+        "screenshot01": [
+          "Club Finals GP",
+          "Losses",
+          "Breakaway Goals"
+        ],
+        "screenshot02": [
+          "Goals For"
+        ]
+      },
+      "arithmeticFlags": [],
+      "notes": "Extractor output (extract_club_team_stats.py). Pending review. No warnings emitted."
+    },
+    {
+      "outputFile": "nhl24__threes.extract.json",
+      "titleSlug": "nhl24",
+      "playlist": "threes",
+      "confidenceScore": 0.982,
+      "metricsCount": 22,
+      "rawScreenshot01Count": 27,
+      "rawScreenshot02Count": 27,
+      "labelGlueNulls": {
+        "screenshot01": [
+          "Win/Loss Streak",
+          "Faceoffs Won"
+        ],
+        "screenshot02": [
+          "Win/Loss Streak",
+          "One-Timer Goals"
+        ]
+      },
+      "arithmeticFlags": [],
+      "notes": "Extractor output (extract_club_team_stats.py). Pending review. No warnings emitted."
+    },
+    {
+      "outputFile": "nhl25__6_player_full_team.extract.json",
+      "titleSlug": "nhl25",
+      "playlist": "6_player_full_team",
+      "confidenceScore": 0.979,
+      "metricsCount": 33,
+      "rawScreenshot01Count": 29,
+      "rawScreenshot02Count": 27,
+      "labelGlueNulls": {
+        "screenshot01": [],
+        "screenshot02": [
+          "Breakaway Goals",
+          "One-Timer Goals",
+          "Penalty Shot Goals"
+        ]
+      },
+      "arithmeticFlags": [],
+      "notes": "Extractor output (extract_club_team_stats.py). Pending review. No warnings emitted."
+    },
+    {
+      "outputFile": "nhl25__eashl_3v3.extract.json",
+      "titleSlug": "nhl25",
+      "playlist": "eashl_3v3",
+      "confidenceScore": 0.986,
+      "metricsCount": 28,
+      "rawScreenshot01Count": 31,
+      "rawScreenshot02Count": 30,
+      "labelGlueNulls": {
+        "screenshot01": [
+          "Division Titles",
+          "Club Finals GP",
+          "Win/Loss Streak"
+        ],
+        "screenshot02": [
+          "Win/Loss Streak"
+        ]
+      },
+      "arithmeticFlags": [],
+      "notes": "Extractor output (extract_club_team_stats.py). Pending review. No warnings emitted.",
+      "pilotComparison": {
+        "matches": 18,
+        "mismatches": 6,
+        "missed": 2,
+        "extractedOnly": 4,
+        "missedKeys": [
+          "division_titles",
+          "win_loss_streak"
+        ],
+        "extractedOnlyKeys": [
+          "did_not_finish_pct",
+          "one_timer_goals",
+          "one_timer_pct",
+          "otl"
+        ],
+        "mismatchDetails": [
+          {
+            "key": "blocked_shots",
+            "pilot": 212,
+            "extract": 213
+          },
+          {
+            "key": "avg_win_margin",
+            "pilot": 2.5,
+            "extract": 2.9
+          },
+          {
+            "key": "breakaway_pct",
+            "pilot": 22.3,
+            "extract": 22.2
+          },
+          {
+            "key": "hits_per_game",
+            "pilot": 1.5,
+            "extract": 7.5
+          },
+          {
+            "key": "wins",
+            "pilot": 82,
+            "extract": 62
+          },
+          {
+            "key": "passing_pct",
+            "pilot": 77.8,
+            "extract": 77.9
+          }
+        ],
+        "pilotFile": "nhl25_eashl_3v3_pilot.json"
+      }
+    },
+    {
+      "outputFile": "nhl25__eashl_6v6.extract.json",
+      "titleSlug": "nhl25",
+      "playlist": "eashl_6v6",
+      "confidenceScore": 0.986,
+      "metricsCount": 36,
+      "rawScreenshot01Count": 31,
+      "rawScreenshot02Count": 29,
+      "labelGlueNulls": {
+        "screenshot01": [
+          "Division Titles",
+          "Club Finals GP",
+          "Win/Loss Streak"
+        ],
+        "screenshot02": [
+          "Penalty Shot Goals"
+        ]
+      },
+      "arithmeticFlags": [],
+      "notes": "Extractor output (extract_club_team_stats.py). Pending review. No warnings emitted.",
+      "pilotComparison": {
+        "matches": 36,
+        "mismatches": 0,
+        "missed": 3,
+        "extractedOnly": 0,
+        "missedKeys": [
+          "breakaways",
+          "club_finals_gp",
+          "division_titles"
+        ],
+        "extractedOnlyKeys": [],
+        "mismatchDetails": [],
+        "pilotFile": "nhl25_eashl_6v6_pilot.json"
+      }
+    },
+    {
+      "outputFile": "nhl25__threes.extract.json",
+      "titleSlug": "nhl25",
+      "playlist": "threes",
+      "confidenceScore": 0.988,
+      "metricsCount": 27,
+      "rawScreenshot01Count": 28,
+      "rawScreenshot02Count": 29,
+      "labelGlueNulls": {
+        "screenshot01": [
+          "Losses",
+          "Win/Loss Streak"
+        ],
+        "screenshot02": []
+      },
+      "arithmeticFlags": [],
+      "notes": "Extractor output (extract_club_team_stats.py). Pending review. No warnings emitted."
+    }
+  ]
+}

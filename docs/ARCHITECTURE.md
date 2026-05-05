@@ -1,6 +1,6 @@
 # EASHL Team Stats Website — Architecture Reference (v3)
 
-> **Status:** Phases 0–5 complete. System live and ingesting.
+> **Status:** Core live system complete. Legacy historical ingest complete across NHL 22–25 for player-card totals and club-member totals. Club/team totals screenshot pipeline now has schema + importer + extractor + generated review queue; cross-title reviewed import is still pending.
 > Schema in this doc reflects actual implementation. For the definitive source, see `packages/db/src/schema/`.
 
 ---
@@ -94,10 +94,12 @@ eanhl-team-website/
 │   │   │   │   ├── matches/        # Score card, scoresheet, top performers, DTW gauge
 │   │   │   │   ├── nav/            # Top nav, game title switcher
 │   │   │   │   ├── roster/         # Depth chart, roster table
-│   │   │   │   └── stats/          # Skater/goalie tables, chemistry tables
+│   │   │   │   ├── stats/          # Skater/goalie tables, chemistry tables
+│   │   │   │   └── title-selector.tsx # TitleSelector + ModeFilter + statsSourceLabel (shared)
 │   │   │   └── lib/
-│   │   │       ├── format.ts       # Shared formatters
-│   │   │       └── match-recap.ts  # View-model builders for game detail
+│   │   │       ├── format.ts        # Shared formatters
+│   │   │       ├── match-recap.ts   # View-model builders for game detail
+│   │   │       └── title-resolver.ts # Unified active+archive game-title slug resolver
 │   │   ├── public/images/          # bgm-logo.png
 │   │   └── next.config.ts
 │   │
@@ -122,10 +124,15 @@ eanhl-team-website/
 │   │   │   ├── queries/            # Reusable query functions
 │   │   │   │   ├── chemistry.ts    # W/W-out splits + pair co-occurrence
 │   │   │   │   ├── club.ts         # Club stats, season rank, opponent crests
-│   │   │   │   ├── game-titles.ts  # Game title resolution
+│   │   │   │   ├── game-titles.ts  # Active vs legacy title resolution + slug lookup
+│   │   │   │   ├── historical.ts   # Reviewed player-card legacy season aggregates
+│   │   │   │   ├── historical-club-member.ts # Reviewed club-member legacy totals
 │   │   │   │   ├── matches.ts      # Match queries, series context, adjacent
 │   │   │   │   ├── players.ts      # Roster, career stats, game log, profile
 │   │   │   │   └── stats.ts        # Skater/goalie stat tables (local + EA)
+│   │   │   ├── tools/
+│   │   │   │   ├── import-historical-reviewed.ts # CLI: import reviewed player-card OCR rows
+│   │   │   │   └── import-club-member-reviewed.ts # CLI: import reviewed club-member screenshot rows
 │   │   │   └── client.ts           # Drizzle + postgres.js (globalThis singleton)
 │   │   └── drizzle.config.ts
 │   │
@@ -135,6 +142,15 @@ eanhl-team-website/
 │       │   ├── endpoints.ts        # Typed endpoint functions
 │       │   └── types.ts            # EA API response types
 │       └── __fixtures__/           # Real EA API response snapshots
+│
+├── tools/
+│   └── historical_import/          # Legacy import tools
+│       ├── extract_review_artifacts.py # Player-card video extractor; GPU via OCR_USE_CUDA=1
+│       ├── club_members/           # Static screenshot extractor + merger for CLUBS→MEMBERS tables
+│       ├── club_team_stats/        # CLUB STATS extractor, pilots, and review queue
+│       ├── build_manifest.py
+│       ├── rename_raw_videos.py
+│       └── manifest.*.csv
 │
 ├── docker-compose.yml
 ├── CLAUDE.md
@@ -196,6 +212,44 @@ eanhl-team-website/
 - `games_played`, `wins`, `losses`, `otl`, `goals_for`, `goals_against`, `shots_per_game`, `hits_per_game`, `faceoff_pct`, `pass_pct`
 - UNIQUE(`game_title_id`, COALESCE(`game_mode`, ''))
 
+**`historical_player_season_stats`** — Reviewed player-card legacy season aggregates (NHL 22–25)
+- One row per (game title × player × game mode × position scope × role group). Populated from OCR-driven extraction of legacy stat-table videos; no match-level data exists for these titles.
+- `id` (bigserial PK), `game_title_id` (FK to inactive `game_titles` row), `player_id` (FK), `game_mode` (`'6s'|'3s'`), `position_scope`, `role_group` (`'skater'|'goalie'`), `gamertag_snapshot`
+- Typed skater + goalie columns (mirroring `player_game_title_stats` shape) plus `stats_json` jsonb for the raw OCR record.
+- `review_status` (`'pending_review'|'reviewed'|'rejected'`), `confidence_score`, `import_batch`, source label fields.
+- UNIQUE(`game_title_id`, `player_id`, `game_mode`, `position_scope`, `role_group`).
+- Only `review_status='reviewed'` rows are surfaced by `getHistoricalSkaterStats` / `getHistoricalGoalieStats`.
+
+**`historical_club_member_season_stats`** — Reviewed club-member legacy totals (NHL 22–25)
+- One row per (game title × game mode × role group × player) from `CLUBS -> MEMBERS` screenshots.
+- Club-scoped truth: what this player did for BGM in that title/mode.
+- Includes club-member-only fields not present in the player-card source:
+  - `blocked_shots`, `giveaways`, `takeaways`, `interceptions`, `shots`, `shooting_pct`, `shutout_periods`
+- Matched unique index: `UNIQUE(game_title_id, game_mode, role_group, player_id)` where `player_id IS NOT NULL`
+- Unmatched unique index: `UNIQUE(game_title_id, game_mode, role_group, lower(gamertag_snapshot))` where `player_id IS NULL`
+
+**`historical_club_member_stat_sources`** — Append-only provenance log
+- One row per imported reviewed club-member record per import pass.
+- Source PNG lineage is preserved in the merged review artifacts on disk; DB source rows point at the reviewed merged artifact JSON.
+
+**`historical_club_team_stats`** — Club/team historical totals from `STATS -> CLUB STATS` screenshots
+- One row per `(game_title_id, playlist)` — e.g. `eashl_6v6`, `eashl_3v3`, `clubs_6v6`, `threes`, `6_player_full_team`
+- Wide nullable club-total schema covering:
+  - record / W-L (`games_played`, `wins`, `losses`, `otl`, `win_loss_streak`, `did_not_finish_pct`, `dnf_wins`, `division_titles`, `club_finals_gp`)
+  - goals (`goals_for`, `goals_against`, `goal_difference`, `avg_goals_for`, `avg_goals_against`, `avg_win_margin`, `avg_loss_margin`)
+  - shots / shooting / physical / penalties / PP / PK / faceoffs / passes / breakaways / one-timers / blocks
+  - `avg_time_on_attack` stored as text (`MM:SS`)
+- Provenance fields:
+  - `source_asset_paths text[]`
+  - `raw_extract_json jsonb`
+  - `import_batch`, `review_status`, `confidence_score`, `notes`
+- UNIQUE(`game_title_id`, `playlist`)
+- Current status:
+  - schema + importer applied
+  - two NHL 25 pilot rows proven by hand
+  - extractor-generated review queue exists for all titles/playlists
+  - full reviewed import across titles is still pending
+
 ### Supplementary Tables (EA-sourced, worker-written)
 
 **`ea_member_season_stats`** — EA's official season totals per player (all-modes combined)
@@ -227,14 +281,20 @@ eanhl-team-website/
 
 | Context | Source | Label |
 |---|---|---|
-| `gameMode === null` | `ea_member_season_stats` | "EA season totals" |
-| `gameMode === '6s'` or `'3s'` | `player_game_title_stats` | "local tracked 6s/3s" |
+| Active title, `gameMode === null` | `ea_member_season_stats` | "EA season totals" |
+| Active title, `gameMode === '6s'` or `'3s'` | `player_game_title_stats` | "local tracked 6s/3s" |
+| Legacy title, `/roster` | `historical_club_member_season_stats` | "Club-scoped totals" |
+| Legacy title, `/stats` club section | `historical_club_member_season_stats` | "Club-scoped totals" |
+| Legacy title, `/stats` player-card section | `historical_player_season_stats` (reviewed) | "Player-card season totals" |
+| Legacy title, `gameMode === null` on player-card section | `historical_player_season_stats` (reviewed, summed across 6s+3s; rate fields recomputed from underlying counts) | "Player-card season totals" |
 | Player profile — Career Stats | `player_game_title_stats` | (per game title) |
 | Player profile — EA Season Totals | `ea_member_season_stats` | "EA Season Totals" |
 | Club record (all modes) | `club_seasonal_stats` | "EA official" |
 | Club record (mode-filtered) | `club_game_title_stats` | "local · {mode} only" |
 
-**Rule:** Never blend sources silently. EA totals ≠ local aggregates.
+**Rule:** Never blend sources silently. EA totals ≠ local aggregates ≠ player-card legacy aggregates ≠ club-member legacy aggregates.
+
+Active vs archive titles are resolved together via `apps/web/src/lib/title-resolver.ts`. Both `/stats` and `/roster` accept `?title=<slug>` for any active or archive title; archive-title views hide match-derived sections (chemistry, recent matches, depth chart, team averages) because no match-level data is captured for legacy titles. `/`, `/games`, and `/games/[id]` are NHL-26-only by design.
 
 ---
 

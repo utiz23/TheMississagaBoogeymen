@@ -427,8 +427,11 @@ export interface PlayerProfileOverview {
   currentLocalSeason: PlayerCareerRow | null
   primaryRole: 'skater' | 'goalie'
   secondaryRole: 'skater' | 'goalie' | null
-  contributionSummary: ProfileContributionSummary | null
-  recentForm: ProfileRecentFormSkater | ProfileRecentFormGoalie | null
+  skaterContribution: ProfileContributionSummary | null
+  goalieContribution: ProfileContributionSummary | null
+  skaterRecentForm: ProfileRecentFormSkater | ProfileRecentFormGoalie | null
+  goalieRecentForm: ProfileRecentFormSkater | ProfileRecentFormGoalie | null
+  trendGames: PlayerGameLogRow[]
 }
 
 function normalizedMetric(
@@ -700,23 +703,21 @@ export async function getPlayerProfileOverview(playerId: number): Promise<Player
           : null
       : null
 
-  let contributionSummary: ProfileContributionSummary | null = null
+  let skaterContribution: ProfileContributionSummary | null = null
+  let goalieContribution: ProfileContributionSummary | null = null
   if (currentSeasonId !== null) {
     const roster = await getEARoster(currentSeasonId)
     const current = roster.find((row) => row.playerId === playerId) ?? null
     if (current) {
-      if (primaryRole === 'goalie') {
-        const group = roster.filter((row) => row.goalieGp > 0)
-        contributionSummary = buildGoalieContribution(current, group)
-      } else {
-        const group = roster.filter((row) => row.skaterGp > 0)
-        contributionSummary = buildSkaterContribution(current, group)
-      }
+      const skaterGroup = roster.filter((row) => row.skaterGp > 0)
+      const goalieGroup = roster.filter((row) => row.goalieGp > 0)
+      skaterContribution = buildSkaterContribution(current, skaterGroup)
+      goalieContribution = buildGoalieContribution(current, goalieGroup)
     }
   }
 
-  const primaryRoleGames = roleGames(recentRows, primaryRole, 5)
-  const recentForm = buildRecentForm(primaryRoleGames, primaryRole)
+  const skaterRecentForm = buildRecentForm(roleGames(recentRows, 'skater', 5), 'skater')
+  const goalieRecentForm = buildRecentForm(roleGames(recentRows, 'goalie', 5), 'goalie')
 
   return {
     player,
@@ -724,8 +725,11 @@ export async function getPlayerProfileOverview(playerId: number): Promise<Player
     currentLocalSeason,
     primaryRole,
     secondaryRole,
-    contributionSummary,
-    recentForm,
+    skaterContribution,
+    goalieContribution,
+    skaterRecentForm,
+    goalieRecentForm,
+    trendGames: recentRows,
   }
 }
 

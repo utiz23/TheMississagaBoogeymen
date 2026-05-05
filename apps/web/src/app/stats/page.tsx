@@ -1,12 +1,8 @@
 import type { Metadata } from 'next'
-import type { ClubGameTitleStats } from '@eanhl/db'
-import type { GameMode } from '@eanhl/db'
+import type { ClubGameTitleStats, GameMode, GameTitle } from '@eanhl/db'
 import { GAME_MODE } from '@eanhl/db'
-import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import {
-  listGameTitles,
-  getActiveGameTitleBySlug,
   getClubStats,
   getRecentMatches,
   getSkaterStats,
@@ -15,12 +11,29 @@ import {
   getEAGoalieStats,
   getPlayerWithWithoutSplits,
   getPlayerPairs,
+  getHistoricalSkaterStats,
+  getHistoricalGoalieStats,
+  getHistoricalSkaterStatsAllModes,
+  getHistoricalGoalieStatsAllModes,
+  getClubMemberSkaterStats,
+  getClubMemberGoalieStats,
+  getClubMemberSkaterStatsAllModes,
+  getClubMemberGoalieStatsAllModes,
+  getHistoricalClubTeamStats,
+  type HistoricalClubTeamStatsRow,
 } from '@eanhl/db/queries'
 import { StatCard } from '@/components/ui/stat-card'
 import { MatchRow } from '@/components/matches/match-row'
 import { SkaterStatsTable } from '@/components/stats/skater-stats-table'
 import { GoalieStatsTable } from '@/components/stats/goalie-stats-table'
 import { WithWithoutTable, BestPairsTable, ChemistrySection } from '@/components/stats/chemistry-tables'
+import {
+  TitleSelector,
+  ModeFilter,
+  EmptyState,
+  statsSourceLabel,
+} from '@/components/title-selector'
+import { resolveTitleFromSlug } from '@/lib/title-resolver'
 import { formatPct } from '@/lib/format'
 
 export const metadata: Metadata = { title: 'Stats — Club Stats' }
@@ -29,20 +42,6 @@ export const metadata: Metadata = { title: 'Stats — Club Stats' }
 export const revalidate = 300
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>
-
-async function resolveGameTitle(titleSlug: string | undefined) {
-  try {
-    if (titleSlug) {
-      const found = await getActiveGameTitleBySlug(titleSlug)
-      if (found) return { gameTitle: found, invalidRequested: false }
-      return { gameTitle: null, invalidRequested: true }
-    }
-    const all = await listGameTitles()
-    return { gameTitle: all[0] ?? null, invalidRequested: false }
-  } catch {
-    return { gameTitle: null, invalidRequested: false }
-  }
-}
 
 function parseGameMode(raw: string | string[] | undefined): GameMode | null {
   if (typeof raw !== 'string') return null
@@ -59,21 +58,51 @@ function winPct(wins: number, losses: number, otl: number): string {
 export default async function StatsPage({ searchParams }: { searchParams: SearchParams }) {
   const params = await searchParams
   const titleSlug = typeof params.title === 'string' ? params.title : undefined
-  const gameMode = parseGameMode(params.mode)
-  const { gameTitle, invalidRequested } = await resolveGameTitle(titleSlug)
+  const requestedMode = parseGameMode(params.mode)
 
-  if (invalidRequested) {
+  const result = await resolveTitleFromSlug(titleSlug)
+
+  if (result.kind === 'invalid') {
     const nextParams = new URLSearchParams()
     if (typeof params.mode === 'string') nextParams.set('mode', params.mode)
     redirect(nextParams.size > 0 ? `/stats?${nextParams.toString()}` : '/stats')
   }
-
-  if (!gameTitle) {
+  if (result.kind === 'empty') {
     return <EmptyState message="No game titles are configured yet." />
   }
 
-  // All mode sources from EA full-season totals; 6s/3s modes source from local tracked stats.
-  const statsSource = gameMode === null ? 'EA season totals' : `local tracked ${gameMode}`
+  const { gameTitle, isActive, allTitles } = result.resolved
+
+  if (isActive) {
+    return (
+      <ActiveStats
+        allTitles={allTitles}
+        gameTitle={gameTitle}
+        gameMode={requestedMode}
+      />
+    )
+  }
+  return (
+    <ArchiveStats
+      allTitles={allTitles}
+      gameTitle={gameTitle}
+      gameMode={requestedMode}
+    />
+  )
+}
+
+// ─── Active-title view (live NHL 26 data, all sections) ──────────────────────
+
+async function ActiveStats({
+  allTitles,
+  gameTitle,
+  gameMode,
+}: {
+  allTitles: GameTitle[]
+  gameTitle: GameTitle
+  gameMode: GameMode | null
+}) {
+  const subtitle = statsSourceLabel({ isActive: true, gameMode })
 
   const fetched = await (async () => {
     try {
@@ -91,26 +120,18 @@ export default async function StatsPage({ searchParams }: { searchParams: Search
   })()
 
   if (fetched === null) {
-    return <EmptyState message="Unable to load stats right now." />
+    return (
+      <PageShell gameTitle={gameTitle}>
+        <EmptyState message="Unable to load stats right now." />
+      </PageShell>
+    )
   }
 
   const [clubStats, recentMatches, skaterRows, goalieRows, withWithoutRows, pairRows] = fetched
-
   const emptyModeLabel = gameMode !== null ? `${gameMode} ` : ''
 
   return (
-    <div className="space-y-8">
-      {/* Page header */}
-      <div className="flex items-baseline gap-3">
-        <h1 className="font-condensed text-2xl font-semibold uppercase tracking-wide text-zinc-50">
-          Stats
-        </h1>
-        <span className="text-sm text-zinc-500">{gameTitle.name}</span>
-      </div>
-
-      {/* Game mode filter */}
-      <GameModeFilter titleSlug={titleSlug} activeMode={gameMode} />
-
+    <PageShell gameTitle={gameTitle}>
       {/* Record + stat cards — show when at least 1 game is recorded */}
       {clubStats !== null && clubStats.gamesPlayed > 0 ? (
         <>
@@ -149,10 +170,26 @@ export default async function StatsPage({ searchParams }: { searchParams: Search
         />
       )}
 
+      {/* Selectors — sit above the stats tables, the sections they most directly filter */}
+      <div className="flex flex-wrap items-center gap-3">
+        <TitleSelector
+          pathname="/stats"
+          titles={allTitles}
+          activeTitleSlug={gameTitle.slug}
+          activeMode={gameMode}
+        />
+        <ModeFilter
+          pathname="/stats"
+          titleSlug={gameTitle.slug}
+          activeMode={gameMode}
+          modes={['all', '6s', '3s']}
+        />
+      </div>
+
       {/* Skater stats — primary table content */}
       {skaterRows.length > 0 ? (
         <section>
-          <SkaterStatsTable rows={skaterRows} title="Skaters" subtitle={statsSource} />
+          <SkaterStatsTable rows={skaterRows} title="Skaters" subtitle={subtitle} />
         </section>
       ) : (
         clubStats !== null &&
@@ -161,14 +198,12 @@ export default async function StatsPage({ searchParams }: { searchParams: Search
         )
       )}
 
-      {/* Goalie stats */}
       {goalieRows.length > 0 && (
         <section>
-          <GoalieStatsTable rows={goalieRows} title="Goalies" subtitle={statsSource} />
+          <GoalieStatsTable rows={goalieRows} title="Goalies" subtitle={subtitle} />
         </section>
       )}
 
-      {/* Chemistry — with/without splits and best pairs */}
       <section className="space-y-6">
         <h2 className="font-condensed text-sm font-semibold uppercase tracking-wider text-zinc-500">
           Chemistry
@@ -181,7 +216,6 @@ export default async function StatsPage({ searchParams }: { searchParams: Search
         </ChemistrySection>
       </section>
 
-      {/* Recent games — context strip below the stats tables */}
       {recentMatches.length > 0 && (
         <section>
           <h2 className="mb-3 font-condensed text-sm font-semibold uppercase tracking-wider text-zinc-500">
@@ -194,52 +228,253 @@ export default async function StatsPage({ searchParams }: { searchParams: Search
           </div>
         </section>
       )}
-    </div>
+    </PageShell>
   )
 }
 
-// ─── Game mode filter ─────────────────────────────────────────────────────────
+// ─── Archive-title view (legacy season aggregates only) ──────────────────────
 
-const MODE_LABELS: { mode: GameMode | null; label: string }[] = [
-  { mode: null, label: 'All' },
-  { mode: '6s', label: '6s' },
-  { mode: '3s', label: '3s' },
-]
+async function ArchiveStats({
+  allTitles,
+  gameTitle,
+  gameMode,
+}: {
+  allTitles: GameTitle[]
+  gameTitle: GameTitle
+  gameMode: GameMode | null
+}) {
+  const fetched = await (async () => {
+    try {
+      if (gameMode === null) {
+        return await Promise.all([
+          // Primary: club-scoped member totals (CLUBS → MEMBERS captures).
+          getClubMemberSkaterStatsAllModes(gameTitle.id),
+          getClubMemberGoalieStatsAllModes(gameTitle.id),
+          // Secondary: player-card season totals (may include other clubs).
+          getHistoricalSkaterStatsAllModes(gameTitle.id),
+          getHistoricalGoalieStatsAllModes(gameTitle.id),
+          // Club/team totals (STATS → CLUB STATS captures).
+          getHistoricalClubTeamStats(gameTitle.id, null),
+        ])
+      }
+      return await Promise.all([
+        getClubMemberSkaterStats(gameTitle.id, gameMode),
+        getClubMemberGoalieStats(gameTitle.id, gameMode),
+        getHistoricalSkaterStats(gameTitle.id, gameMode),
+        getHistoricalGoalieStats(gameTitle.id, gameMode),
+        getHistoricalClubTeamStats(gameTitle.id, gameMode),
+      ])
+    } catch {
+      return null
+    }
+  })()
 
-function statsModeHref(mode: GameMode | null, titleSlug: string | undefined): string {
-  const qs = new URLSearchParams()
-  if (titleSlug) qs.set('title', titleSlug)
-  if (mode !== null) qs.set('mode', mode)
-  const s = qs.toString()
-  return `/stats${s ? `?${s}` : ''}`
+  if (fetched === null) {
+    return (
+      <PageShell gameTitle={gameTitle}>
+        <EmptyState message="Unable to load archived stats right now." />
+      </PageShell>
+    )
+  }
+
+  const [clubSkaterRows, clubGoalieRows, cardSkaterRows, cardGoalieRows, teamRows] = fetched
+
+  return (
+    <PageShell gameTitle={gameTitle}>
+      <p className="text-sm text-zinc-500">
+        Two reviewed historical sources are available for {gameTitle.name} — they are kept separate
+        because they describe different things. Match-level analytics (chemistry, recent results)
+        are not available for {gameTitle.name} — match data was not captured.
+      </p>
+
+      <div className="flex flex-wrap items-center gap-3">
+        <TitleSelector
+          pathname="/stats"
+          titles={allTitles}
+          activeTitleSlug={gameTitle.slug}
+          activeMode={gameMode}
+        />
+        <ModeFilter
+          pathname="/stats"
+          titleSlug={gameTitle.slug}
+          activeMode={gameMode}
+          modes={['all', '6s', '3s']}
+        />
+      </div>
+
+      {/* CLUB/TEAM totals — overview before per-player breakdowns. */}
+      {teamRows.length > 0 && <ArchiveClubTeamSection rows={teamRows} titleName={gameTitle.name} />}
+
+      {/* PRIMARY: club-scoped member totals. */}
+      <section className="space-y-4">
+        <div className="space-y-1">
+          <h2 className="font-condensed text-base font-semibold uppercase tracking-wider text-zinc-300">
+            Club-scoped totals
+          </h2>
+          <p className="text-xs text-zinc-500">
+            What each member produced while wearing the BGM crest in {gameTitle.name}. Sourced from
+            CLUBS → MEMBERS leaderboard captures.
+          </p>
+        </div>
+        {clubSkaterRows.length > 0 ? (
+          <SkaterStatsTable
+            rows={clubSkaterRows}
+            title="Skaters"
+            subtitle="Club-member totals (reviewed screenshot import)"
+          />
+        ) : (
+          <EmptyState
+            message={`No club-scoped ${gameMode ?? 'combined'} skater totals captured for ${gameTitle.name}.`}
+          />
+        )}
+        {clubGoalieRows.length > 0 && (
+          <GoalieStatsTable
+            rows={clubGoalieRows}
+            title="Goalies"
+            subtitle="Club-member totals (reviewed screenshot import)"
+          />
+        )}
+      </section>
+
+      {/* SECONDARY: player-card season totals. */}
+      <section className="space-y-4 border-t border-zinc-800 pt-6">
+        <div className="space-y-1">
+          <h2 className="font-condensed text-base font-semibold uppercase tracking-wider text-zinc-300">
+            Player-card season totals
+          </h2>
+          <p className="text-xs text-zinc-500">
+            Season totals from each player's individual stat-card screen.{' '}
+            <span className="text-amber-300/80">
+              These can include games the player played for other clubs in {gameTitle.name}
+            </span>{' '}
+            — they are not club-scoped. Use the section above for the BGM-only number.
+          </p>
+        </div>
+        {cardSkaterRows.length > 0 ? (
+          <SkaterStatsTable
+            rows={cardSkaterRows}
+            title="Skaters"
+            subtitle="Player-card season totals — may include games for other clubs"
+          />
+        ) : (
+          <EmptyState
+            message={`No player-card ${gameMode ?? 'combined'} skater totals for ${gameTitle.name}.`}
+          />
+        )}
+        {cardGoalieRows.length > 0 && (
+          <GoalieStatsTable
+            rows={cardGoalieRows}
+            title="Goalies"
+            subtitle="Player-card season totals — may include games for other clubs"
+          />
+        )}
+      </section>
+    </PageShell>
+  )
 }
 
-function GameModeFilter({
-  titleSlug,
-  activeMode,
+// ─── Archive club-team totals ─────────────────────────────────────────────────
+
+const PLAYLIST_LABEL: Record<string, string> = {
+  eashl_6v6: 'EASHL 6v6',
+  eashl_3v3: 'EASHL 3v3',
+  clubs_6v6: 'Clubs 6v6',
+  clubs_3v3: 'Clubs 3v3',
+  '6_player_full_team': '6P Full Team',
+  clubs_6_players: 'Clubs 6P',
+  threes: 'Threes',
+  quickplay_3v3: 'Quickplay 3v3',
+}
+
+function ArchiveClubTeamSection({
+  rows,
+  titleName,
 }: {
-  titleSlug: string | undefined
-  activeMode: GameMode | null
+  rows: HistoricalClubTeamStatsRow[]
+  titleName: string
 }) {
   return (
-    <div className="flex gap-1">
-      {MODE_LABELS.map(({ mode, label }) => {
-        const isActive = mode === activeMode
-        return (
-          <Link
-            key={label}
-            href={statsModeHref(mode, titleSlug)}
-            className={[
-              'px-3 py-1 text-xs font-semibold uppercase tracking-wider rounded border transition-colors',
-              isActive
-                ? 'border-accent bg-accent/10 text-accent'
-                : 'border-zinc-700 bg-transparent text-zinc-500 hover:border-zinc-500 hover:text-zinc-300',
-            ].join(' ')}
-          >
-            {label}
-          </Link>
-        )
-      })}
+    <section className="space-y-4 border-t border-zinc-800 pt-6">
+      <div className="space-y-1">
+        <h2 className="font-condensed text-base font-semibold uppercase tracking-wider text-zinc-300">
+          Club team records
+        </h2>
+        <p className="text-xs text-zinc-500">
+          Season totals from {titleName} STATS → CLUB STATS screen captures, per playlist.
+          PP% and PK% are not tracked in 3v3 and Threes modes.
+        </p>
+      </div>
+      <div className="overflow-x-auto border border-zinc-800">
+        <table className="w-full text-sm tabular-nums">
+          <thead>
+            <tr className="border-b border-zinc-800 text-right text-xs uppercase tracking-wider text-zinc-500">
+              <th className="px-4 py-2 text-left font-medium">Playlist</th>
+              <th className="px-3 py-2 font-medium">GP</th>
+              <th className="px-3 py-2 font-medium text-accent">W</th>
+              <th className="px-3 py-2 font-medium">L</th>
+              <th className="px-3 py-2 font-medium">OTL</th>
+              <th className="px-3 py-2 font-medium">W%</th>
+              <th className="px-3 py-2 font-medium">GF/G</th>
+              <th className="px-3 py-2 font-medium">GA/G</th>
+              <th className="px-3 py-2 font-medium">TOA</th>
+              <th className="px-3 py-2 font-medium">PP%</th>
+              <th className="px-3 py-2 font-medium">PK%</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-zinc-800/60">
+            {rows.map((row) => {
+              const gp = row.gamesPlayed ?? 0
+              const w = row.wins ?? 0
+              const l = row.losses ?? 0
+              const otl = row.otl ?? 0
+              return (
+                <tr key={row.playlist} className="bg-surface">
+                  <td className="px-4 py-3 font-medium text-zinc-300">
+                    {PLAYLIST_LABEL[row.playlist] ?? row.playlist}
+                  </td>
+                  <td className="px-3 py-3 text-right text-zinc-300">{gp}</td>
+                  <td className="px-3 py-3 text-right font-semibold text-accent">{w}</td>
+                  <td className="px-3 py-3 text-right text-zinc-400">{l}</td>
+                  <td className="px-3 py-3 text-right text-zinc-500">{otl}</td>
+                  <td className="px-3 py-3 text-right text-zinc-300">{winPct(w, l, otl)}</td>
+                  <td className="px-3 py-3 text-right text-zinc-300">{row.avgGoalsFor ?? '—'}</td>
+                  <td className="px-3 py-3 text-right text-zinc-400">{row.avgGoalsAgainst ?? '—'}</td>
+                  <td className="px-3 py-3 text-right text-zinc-400">{row.avgTimeOnAttack ?? '—'}</td>
+                  <td className="px-3 py-3 text-right text-zinc-400">
+                    {formatPct(row.powerPlayPct)}
+                  </td>
+                  <td className="px-3 py-3 text-right text-zinc-400">
+                    {formatPct(row.powerPlayKillPct)}
+                  </td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  )
+}
+
+// ─── Shared page shell (header) ──────────────────────────────────────────────
+
+function PageShell({
+  gameTitle,
+  children,
+}: {
+  gameTitle: GameTitle
+  children: React.ReactNode
+}) {
+  return (
+    <div className="space-y-8">
+      <div className="flex items-baseline gap-3">
+        <h1 className="font-condensed text-2xl font-semibold uppercase tracking-wide text-zinc-50">
+          Stats
+        </h1>
+        <span className="text-sm text-zinc-500">{gameTitle.name}</span>
+      </div>
+
+      {children}
     </div>
   )
 }
@@ -256,14 +491,12 @@ function RecordCard({ stats }: { stats: ClubGameTitleStats }) {
       </h2>
       <div className="border border-l-4 border-zinc-800 border-l-accent bg-surface px-6 py-5">
         <div className="flex flex-wrap items-end gap-x-10 gap-y-4">
-          {/* W / L / OTL — Arena Board bold numbers */}
           <div className="flex items-end gap-6 font-condensed font-bold leading-none tabular">
             <RecordStat label="W" value={stats.wins} accent />
             <RecordStat label="L" value={stats.losses} />
             <RecordStat label="OTL" value={stats.otl} />
           </div>
 
-          {/* Summary line */}
           <div className="flex flex-col gap-0.5">
             <span className="font-condensed text-lg font-semibold tabular text-zinc-300">
               {pct}
@@ -291,16 +524,6 @@ function RecordStat({ label, value, accent = false }: RecordStatProps) {
         {value.toString()}
       </span>
       <span className="text-xs font-semibold uppercase tracking-wider text-zinc-500">{label}</span>
-    </div>
-  )
-}
-
-// ─── Empty state ──────────────────────────────────────────────────────────────
-
-function EmptyState({ message }: { message: string }) {
-  return (
-    <div className="flex min-h-[12rem] items-center justify-center border border-zinc-800 bg-surface">
-      <p className="text-sm text-zinc-500">{message}</p>
     </div>
   )
 }

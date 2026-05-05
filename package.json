@@ -7,6 +7,8 @@
     "dev": "turbo dev",
     "lint": "turbo lint",
     "typecheck": "turbo typecheck",
+    "smoke:quick": "pnpm build && pnpm typecheck && pnpm --filter web lint",
+    "test:db-importers": "pnpm --filter @eanhl/db test",
     "format": "prettier --write \"**/*.{ts,tsx,json,md}\" --ignore-path .gitignore",
     "format:check": "prettier --check \"**/*.{ts,tsx,json,md}\" --ignore-path .gitignore"
   },

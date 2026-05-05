@@ -265,7 +265,12 @@ export function GoalieStatsTable({ rows, title, subtitle }: GoalieStatsTableProp
               </tr>
             ) : (
               sorted.map((row, idx) => (
-                <GoalieRow key={row.playerId} row={row} cols={view.cols} rank={idx} />
+                <GoalieRow
+                  key={row.playerId !== null ? `p${row.playerId.toString()}` : `g${row.gamertag}`}
+                  row={row}
+                  cols={view.cols}
+                  rank={idx}
+                />
               ))
             )}
           </tbody>
@@ -278,7 +283,7 @@ export function GoalieStatsTable({ rows, title, subtitle }: GoalieStatsTableProp
 // ─── Row ──────────────────────────────────────────────────────────────────────
 
 interface GoalieRowProps {
-  row: GoalieStatsRow
+  row: ArchiveCompatibleGoalieStatsRow
   cols: ColDef[]
   rank: number
 }
@@ -291,12 +296,21 @@ function GoalieRow({ row, cols, rank }: GoalieRowProps) {
       style={isTop ? { boxShadow: 'inset 2px 0 0 var(--color-accent)' } : undefined}
     >
       <td className="max-w-[10rem] truncate py-2.5 pl-4 pr-2">
-        <Link
-          href={`/roster/${row.playerId.toString()}`}
-          className="text-sm font-medium text-zinc-200 transition-colors hover:text-accent"
-        >
-          {row.gamertag}
-        </Link>
+        {row.playerId !== null ? (
+          <Link
+            href={`/roster/${row.playerId.toString()}`}
+            className="text-sm font-medium text-zinc-200 transition-colors hover:text-accent"
+          >
+            {row.gamertag}
+          </Link>
+        ) : (
+          <span
+            title="Unmatched gamertag — no current player profile"
+            className="text-sm font-medium text-zinc-400"
+          >
+            {row.gamertag}
+          </span>
+        )}
       </td>
       {cols.map((col) => (
         <td key={col.key} className="px-2 py-2.5 text-right text-sm tabular text-zinc-300">

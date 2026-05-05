@@ -1,0 +1,212 @@
+{
+  "_comment": "Second pilot input for the NHL 25 / 6s / skater club-member slice. Hand-keyed from research/Previous_NHL_Stats/NHL_25/team_leaderboard__02.png — CLUBS → members tab, sorted by PASS PERCENTAGE. Visible columns: A, PTS, +/-, DNF%, PIM, PPG, SHG, HITS, PASS%. The A column overlaps with team_leaderboard__01.png; values match across screenshots so no cross-source disagreement. SGP/GGP/G are NOT visible in this screenshot — those fields are intentionally absent from the metrics block so the importer's 'don't clobber non-null with null' rule keeps the values from the first screenshot intact.",
+  "records": [
+    {
+      "titleSlug": "nhl25",
+      "gameMode": "6s",
+      "roleGroup": "skater",
+      "gamertagSnapshot": "silkyjoker85",
+      "playerNameSnapshot": "- Silky",
+      "importBatch": "nhl25-club-members-pilot-v2",
+      "reviewStatus": "reviewed",
+      "metrics": {
+        "assists": 273, "points": 447, "plus_minus": 96, "dnf_pct": 11.0, "pim": 169,
+        "pp_goals": 6, "sh_goals": 3, "hits": 778, "pass_pct": 77.8
+      },
+      "sources": [
+        {
+          "sourceAssetPath": "research/Previous_NHL_Stats/NHL_25/team_leaderboard__02.png",
+          "sortedByMetricLabel": "Pass Percentage",
+          "contributedMetrics": ["assists", "points", "plus_minus", "dnf_pct", "pim", "pp_goals", "sh_goals", "hits", "pass_pct"],
+          "rawExtract": { "PLAYER NAME": "- Silky", "A": 273, "PTS": 447, "+/-": 96, "DNF%": 11, "PIM": 169, "PPG": 6, "SHG": 3, "HITS": 778, "PASS%": 77.8 },
+          "reviewStatus": "reviewed",
+          "confidenceScore": 0.95
+        }
+      ]
+    },
+    {
+      "titleSlug": "nhl25",
+      "gameMode": "6s",
+      "roleGroup": "skater",
+      "gamertagSnapshot": "JoeyFlopfish",
+      "playerNameSnapshot": "Lane Hutson",
+      "importBatch": "nhl25-club-members-pilot-v2",
+      "reviewStatus": "reviewed",
+      "metrics": {
+        "assists": 178, "points": 260, "plus_minus": 72, "dnf_pct": 20.0, "pim": 68,
+        "pp_goals": 2, "sh_goals": 3, "hits": 249, "pass_pct": 79.2
+      },
+      "sources": [
+        {
+          "sourceAssetPath": "research/Previous_NHL_Stats/NHL_25/team_leaderboard__02.png",
+          "sortedByMetricLabel": "Pass Percentage",
+          "contributedMetrics": ["assists", "points", "plus_minus", "dnf_pct", "pim", "pp_goals", "sh_goals", "hits", "pass_pct"],
+          "rawExtract": { "PLAYER NAME": "Lane Hutson", "A": 178, "PTS": 260, "+/-": 72, "DNF%": 20, "PIM": 68, "PPG": 2, "SHG": 3, "HITS": 249, "PASS%": 79.2 },
+          "reviewStatus": "reviewed",
+          "confidenceScore": 0.95
+        }
+      ]
+    },
+    {
+      "titleSlug": "nhl25",
+      "gameMode": "6s",
+      "roleGroup": "skater",
+      "gamertagSnapshot": "HenryTheBobJr",
+      "playerNameSnapshot": "Wayne Glensky",
+      "importBatch": "nhl25-club-members-pilot-v2",
+      "reviewStatus": "reviewed",
+      "metrics": {
+        "assists": 155, "points": 221, "plus_minus": 82, "dnf_pct": 11.0, "pim": 126,
+        "pp_goals": 2, "sh_goals": 3, "hits": 249, "pass_pct": 74.6
+      },
+      "sources": [
+        {
+          "sourceAssetPath": "research/Previous_NHL_Stats/NHL_25/team_leaderboard__02.png",
+          "sortedByMetricLabel": "Pass Percentage",
+          "contributedMetrics": ["assists", "points", "plus_minus", "dnf_pct", "pim", "pp_goals", "sh_goals", "hits", "pass_pct"],
+          "rawExtract": { "PLAYER NAME": "Wayne Glensky", "A": 155, "PTS": 221, "+/-": 82, "DNF%": 11, "PIM": 126, "PPG": 2, "SHG": 3, "HITS": 249, "PASS%": 74.6 },
+          "reviewStatus": "reviewed",
+          "confidenceScore": 0.95
+        }
+      ]
+    },
+    {
+      "titleSlug": "nhl25",
+      "gameMode": "6s",
+      "roleGroup": "skater",
+      "gamertagSnapshot": "camrazz",
+      "playerNameSnapshot": "Gauzy Nib",
+      "importBatch": "nhl25-club-members-pilot-v2",
+      "reviewStatus": "reviewed",
+      "metrics": {
+        "assists": 106, "points": 261, "plus_minus": 58, "dnf_pct": 4.0, "pim": 124,
+        "pp_goals": 7, "sh_goals": 2, "hits": 320, "pass_pct": 75.8
+      },
+      "sources": [
+        {
+          "sourceAssetPath": "research/Previous_NHL_Stats/NHL_25/team_leaderboard__02.png",
+          "sortedByMetricLabel": "Pass Percentage",
+          "contributedMetrics": ["assists", "points", "plus_minus", "dnf_pct", "pim", "pp_goals", "sh_goals", "hits", "pass_pct"],
+          "rawExtract": { "PLAYER NAME": "Gauzy Nib", "A": 106, "PTS": 261, "+/-": 58, "DNF%": 4, "PIM": 124, "PPG": 7, "SHG": 2, "HITS": 320, "PASS%": 75.8 },
+          "reviewStatus": "reviewed",
+          "confidenceScore": 0.85
+        }
+      ]
+    },
+    {
+      "titleSlug": "nhl25",
+      "gameMode": "6s",
+      "roleGroup": "skater",
+      "gamertagSnapshot": "Stick Menace",
+      "playerNameSnapshot": "Igor Orlov",
+      "importBatch": "nhl25-club-members-pilot-v2",
+      "reviewStatus": "reviewed",
+      "metrics": {
+        "assists": 47, "points": 102, "plus_minus": 39, "dnf_pct": 8.0, "pim": 26,
+        "pp_goals": 1, "sh_goals": 4, "hits": 144, "pass_pct": 69.6
+      },
+      "sources": [
+        {
+          "sourceAssetPath": "research/Previous_NHL_Stats/NHL_25/team_leaderboard__02.png",
+          "sortedByMetricLabel": "Pass Percentage",
+          "contributedMetrics": ["assists", "points", "plus_minus", "dnf_pct", "pim", "pp_goals", "sh_goals", "hits", "pass_pct"],
+          "rawExtract": { "PLAYER NAME": "Igor Orlov", "A": 47, "PTS": 102, "+/-": 39, "DNF%": 8, "PIM": 26, "PPG": 1, "SHG": 4, "HITS": 144, "PASS%": 69.6 },
+          "reviewStatus": "reviewed",
+          "confidenceScore": 0.9
+        }
+      ]
+    },
+    {
+      "titleSlug": "nhl25",
+      "gameMode": "6s",
+      "roleGroup": "skater",
+      "gamertagSnapshot": "Ordinary_Samich",
+      "playerNameSnapshot": "N ew Guy",
+      "importBatch": "nhl25-club-members-pilot-v2",
+      "reviewStatus": "reviewed",
+      "metrics": {
+        "assists": 21, "points": 54, "plus_minus": 26, "dnf_pct": 8.0, "pim": 32,
+        "pp_goals": 0, "sh_goals": 5, "hits": 92, "pass_pct": 75.0
+      },
+      "sources": [
+        {
+          "sourceAssetPath": "research/Previous_NHL_Stats/NHL_25/team_leaderboard__02.png",
+          "sortedByMetricLabel": "Pass Percentage",
+          "contributedMetrics": ["assists", "points", "plus_minus", "dnf_pct", "pim", "pp_goals", "sh_goals", "hits", "pass_pct"],
+          "rawExtract": { "PLAYER NAME": "N ew Guy", "A": 21, "PTS": 54, "+/-": 26, "DNF%": 8, "PIM": 32, "PPG": 0, "SHG": 5, "HITS": 92, "PASS%": 75.0 },
+          "reviewStatus": "reviewed",
+          "confidenceScore": 0.9
+        }
+      ]
+    },
+    {
+      "titleSlug": "nhl25",
+      "gameMode": "6s",
+      "roleGroup": "skater",
+      "gamertagSnapshot": "joseph4577",
+      "playerNameSnapshot": "Daquarius Mcburn",
+      "importBatch": "nhl25-club-members-pilot-v2",
+      "reviewStatus": "reviewed",
+      "metrics": {
+        "assists": 16, "points": 50, "plus_minus": 26, "dnf_pct": 26.0, "pim": 32,
+        "pp_goals": 2, "sh_goals": 0, "hits": 192, "pass_pct": 71.5
+      },
+      "sources": [
+        {
+          "sourceAssetPath": "research/Previous_NHL_Stats/NHL_25/team_leaderboard__02.png",
+          "sortedByMetricLabel": "Pass Percentage",
+          "contributedMetrics": ["assists", "points", "plus_minus", "dnf_pct", "pim", "pp_goals", "sh_goals", "hits", "pass_pct"],
+          "rawExtract": { "PLAYER NAME": "Daquarius Mcburn", "A": 16, "PTS": 50, "+/-": 26, "DNF%": 26, "PIM": 32, "PPG": 2, "SHG": 0, "HITS": 192, "PASS%": 71.5 },
+          "reviewStatus": "reviewed",
+          "confidenceScore": 0.9
+        }
+      ]
+    },
+    {
+      "titleSlug": "nhl25",
+      "gameMode": "6s",
+      "roleGroup": "skater",
+      "gamertagSnapshot": "MrHomiecide",
+      "playerNameSnapshot": "Zee Wanhg",
+      "importBatch": "nhl25-club-members-pilot-v2",
+      "reviewStatus": "reviewed",
+      "metrics": {
+        "assists": 21, "points": 27, "plus_minus": 6, "dnf_pct": 22.0, "pim": 6,
+        "pp_goals": 0, "sh_goals": 0, "hits": 61, "pass_pct": 73.4
+      },
+      "sources": [
+        {
+          "sourceAssetPath": "research/Previous_NHL_Stats/NHL_25/team_leaderboard__02.png",
+          "sortedByMetricLabel": "Pass Percentage",
+          "contributedMetrics": ["assists", "points", "plus_minus", "dnf_pct", "pim", "pp_goals", "sh_goals", "hits", "pass_pct"],
+          "rawExtract": { "PLAYER NAME": "Zee Wanhg", "A": 21, "PTS": 27, "+/-": 6, "DNF%": 22, "PIM": 6, "PPG": 0, "SHG": 0, "HITS": 61, "PASS%": 73.4 },
+          "reviewStatus": "reviewed",
+          "confidenceScore": 0.85
+        }
+      ]
+    },
+    {
+      "titleSlug": "nhl25",
+      "gameMode": "6s",
+      "roleGroup": "skater",
+      "gamertagSnapshot": "MJW501",
+      "playerNameSnapshot": "King LeMeat",
+      "importBatch": "nhl25-club-members-pilot-v2",
+      "reviewStatus": "reviewed",
+      "metrics": {
+        "assists": 5, "points": 10, "plus_minus": 2, "dnf_pct": 30.0, "pim": 72,
+        "pp_goals": 1, "sh_goals": 0, "hits": 21, "pass_pct": 56.8
+      },
+      "sources": [
+        {
+          "sourceAssetPath": "research/Previous_NHL_Stats/NHL_25/team_leaderboard__02.png",
+          "sortedByMetricLabel": "Pass Percentage",
+          "contributedMetrics": ["assists", "points", "plus_minus", "dnf_pct", "pim", "pp_goals", "sh_goals", "hits", "pass_pct"],
+          "rawExtract": { "PLAYER NAME": "King LeMeat", "A": 5, "PTS": 10, "+/-": 2, "DNF%": 30, "PIM": 72, "PPG": 1, "SHG": 0, "HITS": 21, "PASS%": 56.8 },
+          "reviewStatus": "reviewed",
+          "confidenceScore": 0.85
+        }
+      ]
+    }
+  ]
+}

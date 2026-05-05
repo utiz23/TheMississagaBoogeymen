@@ -1,0 +1,36 @@
+{
+  "_comment": "Goalie-tab proof input for the NHL 25 / 6s / goalie club-member slice. Hand-keyed from research/Previous_NHL_Stats/NHL_25/team_leaderboard__08.png — the unified CLUBS → members table sorted by SHUTOUT PERIODS, scrolled to expose the right-side goalie columns. Pratt2016 is the only goalie member visible (separated from the 9 skaters by a thin divider). Visible goalie columns used: GAA, GA (→ total_goals_against), SV (→ total_saves), SV% (→ save_pct), SO (→ shutouts). W/L/OTL are not visible in this screenshot and intentionally remain null in the canonical row — they can be filled by a later screenshot via the same merge mechanism. Skater-cameo stats Pratt has from his 6 skater appearances belong to a separate role_group='skater' row and are not imported here.",
+  "records": [
+    {
+      "titleSlug": "nhl25",
+      "gameMode": "6s",
+      "roleGroup": "goalie",
+      "gamertagSnapshot": "Pratt2016",
+      "playerNameSnapshot": "Chris Pratt",
+      "importBatch": "nhl25-club-members-goalie-pilot",
+      "reviewStatus": "reviewed",
+      "metrics": {
+        "gaa": 5.08,
+        "save_pct": 70.0,
+        "total_saves": 316,
+        "total_goals_against": 134,
+        "shutouts": 1
+      },
+      "sources": [
+        {
+          "sourceAssetPath": "research/Previous_NHL_Stats/NHL_25/team_leaderboard__08.png",
+          "sortedByMetricLabel": "Shutout Periods",
+          "contributedMetrics": ["gaa", "save_pct", "total_saves", "total_goals_against", "shutouts"],
+          "rawExtract": {
+            "PLAYER NAME": "Chris Pratt",
+            "INT": 20, "S": 8, "S%": 20.0,
+            "GAA": 5.08, "GA": 134, "SV": 316, "SV%": 70.0,
+            "SO": 1, "SOP": 1
+          },
+          "reviewStatus": "reviewed",
+          "confidenceScore": 0.9
+        }
+      ]
+    }
+  ]
+}

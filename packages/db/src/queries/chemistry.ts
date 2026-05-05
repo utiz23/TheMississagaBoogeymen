@@ -105,7 +105,7 @@ export async function getPlayerWithWithoutSplits(
     ORDER BY pw.gp_with DESC
   `)
 
-  return (result as unknown as Array<Record<string, unknown>>).map((r) => ({
+  return (result as unknown as Record<string, unknown>[]).map((r) => ({
     playerId: Number(r.playerId),
     gamertag: String(r.gamertag),
     gpWith: Number(r.gpWith),
@@ -176,7 +176,7 @@ export async function getPlayerPairs(
     ORDER BY ps.gp DESC, ps.wins DESC
   `)
 
-  return (result as unknown as Array<Record<string, unknown>>).map((r) => ({
+  return (result as unknown as Record<string, unknown>[]).map((r) => ({
     p1Id: Number(r.p1Id),
     p1Gamertag: String(r.p1Gamertag),
     p2Id: Number(r.p2Id),

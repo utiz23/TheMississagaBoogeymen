@@ -1,13 +1,16 @@
 import { readFile } from 'node:fs/promises'
+import { pathToFileURL } from 'node:url'
 import { and, eq, isNull } from 'drizzle-orm'
 import type {
   HistoricalGameMode,
   HistoricalPositionScope,
   HistoricalReviewStatus,
 } from '../schema/index.js'
+import type * as ClientNs from '../client.js'
+import type * as SchemaNs from '../schema/index.js'
 
-type DbModule = typeof import('../client.js')
-type SchemaModule = typeof import('../schema/index.js')
+type DbModule = typeof ClientNs
+type SchemaModule = typeof SchemaNs
 
 interface ReviewedRecord {
   titleSlug: string
@@ -127,7 +130,7 @@ function normalizeTimestamp(value: string | null | undefined): Date | null {
   return dt
 }
 
-function extractSkaterPromotedStats(stats: Record<string, unknown>) {
+export function extractSkaterPromotedStats(stats: Record<string, unknown>) {
   return {
     gamesPlayed: requiredInt(stats, 'games_played', 'games_played', 'gp'),
     goals: requiredInt(stats, 'goals', 'goals', 'g'),
@@ -154,7 +157,7 @@ function extractSkaterPromotedStats(stats: Record<string, unknown>) {
   }
 }
 
-function extractGoaliePromotedStats(stats: Record<string, unknown>) {
+export function extractGoaliePromotedStats(stats: Record<string, unknown>) {
   return {
     gamesPlayed: requiredInt(stats, 'games_played', 'games_played', 'gp'),
     goals: 0,
@@ -198,9 +201,14 @@ async function assertNoDuplicateOpenHistory(
   const open = await db
     .select()
     .from(playerGamertagHistory)
-    .where(and(eq(playerGamertagHistory.playerId, playerId), isNull(playerGamertagHistory.seenUntil)))
+    .where(
+      and(
+        eq(playerGamertagHistory.playerId, playerId),
+        isNull(playerGamertagHistory.seenUntil),
+      ),
+    )
   if (open.length > 1) {
-    throw new Error(`Player ${playerId} has multiple open gamertag history rows`)
+    throw new Error(`Player ${String(playerId)} has multiple open gamertag history rows`)
   }
 }
 
@@ -208,7 +216,10 @@ async function main() {
   const [, , inputPath, importBatchOverride] = process.argv
   if (!inputPath) usage()
 
-  const [{ db, sql }, schema] = await Promise.all([import('../client.js'), import('../schema/index.js')])
+  const [{ db, sql }, schema] = await Promise.all([
+    import('../client.js'),
+    import('../schema/index.js'),
+  ])
   const {
     gameTitles,
     historicalPlayerSeasonStats,
@@ -217,94 +228,72 @@ async function main() {
   } = schema
 
   try {
-  const raw = JSON.parse(await readFile(inputPath, 'utf8')) as unknown
-  const records = Array.isArray(raw)
-    ? raw
-    : raw && typeof raw === 'object' && Array.isArray((raw as { records?: unknown }).records)
-      ? ((raw as { records: unknown[] }).records as unknown[])
-      : null
+    const raw = JSON.parse(await readFile(inputPath, 'utf8')) as unknown
+    const records = Array.isArray(raw)
+      ? raw
+      : raw !== null &&
+          typeof raw === 'object' &&
+          Array.isArray((raw as { records?: unknown }).records)
+        ? (raw as { records: unknown[] }).records
+        : null
 
-  if (!records) {
-    throw new Error('Reviewed input must be a JSON array or an object with a records array')
-  }
-
-  let imported = 0
-  let skipped = 0
-
-  for (const item of records) {
-    const record = item as ReviewedRecord
-    const reviewStatus = record.reviewStatus
-    if (reviewStatus !== 'reviewed') {
-      skipped += 1
-      continue
+    if (records === null) {
+      throw new Error('Reviewed input must be a JSON array or an object with a records array')
     }
 
-    const titleSlug = requireString(record.titleSlug, 'titleSlug')
-    const gamertag = requireString(record.gamertag, 'gamertag')
-    const gameMode = record.gameMode
-    const positionScope = record.positionScope
-    const roleGroup = record.roleGroup
-    if (roleGroup !== 'skater' && roleGroup !== 'goalie') {
-      throw new Error(`Unsupported role_group for archive import: ${String(roleGroup)}`)
-    }
+    let imported = 0
+    let skipped = 0
 
-    const stats = record.stats
-    if (!stats || typeof stats !== 'object' || Array.isArray(stats)) {
-      throw new Error(`Invalid stats payload for ${gamertag} (${titleSlug})`)
-    }
+    for (const item of records) {
+      const record = item as ReviewedRecord
+      const reviewStatus = record.reviewStatus
+      if (reviewStatus !== 'reviewed') {
+        skipped += 1
+        continue
+      }
 
-    const gameTitleId = await getGameTitleId(db, gameTitles, titleSlug)
-    const playerId = await resolvePlayerId(db, players, playerGamertagHistory, gamertag)
-    await assertNoDuplicateOpenHistory(db, playerGamertagHistory, playerId)
+      const titleSlug = requireString(record.titleSlug, 'titleSlug')
+      const gamertag = requireString(record.gamertag, 'gamertag')
+      const gameMode = record.gameMode
+      const positionScope = record.positionScope
+      const roleGroup = record.roleGroup
 
-    const promoted =
-      roleGroup === 'goalie'
-        ? extractGoaliePromotedStats(stats)
-        : extractSkaterPromotedStats(stats)
-    const importedAt = normalizeImportedAt(record)
-    const extractedAt = normalizeTimestamp(record.extractedAt) ?? importedAt
-    const reviewedAt = normalizeTimestamp(record.reviewedAt)
-    const confidenceScore =
-      record.confidenceScore === null || record.confidenceScore === undefined
-        ? null
-        : Number(record.confidenceScore).toFixed(2)
+      const stats = record.stats
 
-    await db
-      .insert(historicalPlayerSeasonStats)
-      .values({
-        gameTitleId,
-        playerId,
-        gamertagSnapshot: gamertag,
-        roleGroup,
-        gameMode,
-        positionScope,
-        sourceGameModeLabel: requireString(record.sourceGameModeLabel, 'sourceGameModeLabel'),
-        sourcePositionLabel: requireString(record.sourcePositionLabel, 'sourcePositionLabel'),
-        sourceAssetPath: requireString(record.sourceAssetPath, 'sourceAssetPath'),
-        importBatch: importBatchOverride?.trim() || requireString(record.importBatch, 'importBatch'),
-        reviewStatus,
-        confidenceScore,
-        extractedAt,
-        reviewedAt,
-        importedAt,
-        updatedAt: importedAt,
-        statsJson: stats,
-        ...promoted,
-      })
-      .onConflictDoUpdate({
-        target: [
-          historicalPlayerSeasonStats.gameTitleId,
-          historicalPlayerSeasonStats.playerId,
-          historicalPlayerSeasonStats.gameMode,
-          historicalPlayerSeasonStats.positionScope,
-          historicalPlayerSeasonStats.roleGroup,
-        ],
-        set: {
+      const gameTitleId = await getGameTitleId(db, gameTitles, titleSlug)
+      const playerId = await resolvePlayerId(db, players, playerGamertagHistory, gamertag)
+      await assertNoDuplicateOpenHistory(db, playerGamertagHistory, playerId)
+
+      const promoted =
+        roleGroup === 'goalie'
+          ? extractGoaliePromotedStats(stats)
+          : extractSkaterPromotedStats(stats)
+      const importedAt = normalizeImportedAt(record)
+      const extractedAt = normalizeTimestamp(record.extractedAt) ?? importedAt
+      const reviewedAt = normalizeTimestamp(record.reviewedAt)
+      const confidenceScore =
+        record.confidenceScore === null || record.confidenceScore === undefined
+          ? null
+          : Number(record.confidenceScore).toFixed(2)
+      const importBatch =
+        importBatchOverride?.trim() ?? requireString(record.importBatch, 'importBatch')
+      const sourceGameModeLabel = requireString(record.sourceGameModeLabel, 'sourceGameModeLabel')
+      const sourcePositionLabel = requireString(record.sourcePositionLabel, 'sourcePositionLabel')
+      const sourceAssetPath = requireString(record.sourceAssetPath, 'sourceAssetPath')
+
+      await db
+        .insert(historicalPlayerSeasonStats)
+        .values({
+          gameTitleId,
+          playerId,
           gamertagSnapshot: gamertag,
-          sourceGameModeLabel: requireString(record.sourceGameModeLabel, 'sourceGameModeLabel'),
-          sourcePositionLabel: requireString(record.sourcePositionLabel, 'sourcePositionLabel'),
-          sourceAssetPath: requireString(record.sourceAssetPath, 'sourceAssetPath'),
-          importBatch: importBatchOverride?.trim() || requireString(record.importBatch, 'importBatch'),
+          roleGroup,
+          gameMode,
+          positionScope,
+          sourceGameModeLabel,
+          sourcePositionLabel,
+          sourceAssetPath,
+          importBatch,
           reviewStatus,
           confidenceScore,
           extractedAt,
@@ -313,29 +302,58 @@ async function main() {
           updatedAt: importedAt,
           statsJson: stats,
           ...promoted,
+        })
+        .onConflictDoUpdate({
+          target: [
+            historicalPlayerSeasonStats.gameTitleId,
+            historicalPlayerSeasonStats.playerId,
+            historicalPlayerSeasonStats.gameMode,
+            historicalPlayerSeasonStats.positionScope,
+            historicalPlayerSeasonStats.roleGroup,
+          ],
+          set: {
+            gamertagSnapshot: gamertag,
+            sourceGameModeLabel,
+            sourcePositionLabel,
+            sourceAssetPath,
+            importBatch,
+            reviewStatus,
+            confidenceScore,
+            extractedAt,
+            reviewedAt,
+            importedAt,
+            updatedAt: importedAt,
+            statsJson: stats,
+            ...promoted,
+          },
+        })
+
+      imported += 1
+    }
+
+    console.log(
+      JSON.stringify(
+        {
+          inputPath,
+          imported,
+          skipped,
         },
-      })
-
-    imported += 1
-  }
-
-  console.log(
-    JSON.stringify(
-      {
-        inputPath,
-        imported,
-        skipped,
-      },
-      null,
-      2,
-    ),
-  )
+        null,
+        2,
+      ),
+    )
   } finally {
     await sql.end({ timeout: 5 })
   }
 }
 
-main().catch((error) => {
+function isDirectRun(): boolean {
+  return process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href
+}
+
+const run = isDirectRun() ? main() : Promise.resolve()
+
+run.catch((error: unknown) => {
   console.error(error instanceof Error ? error.message : String(error))
   process.exitCode = 1
 })

@@ -82,15 +82,20 @@ def extract_gamertag_from_tokens(tokens: list[str]) -> str | None:
     for index, token in enumerate(tokens):
         marker = normalize_text(token).replace("0", "o")
         if "viewingstatsfor" in marker:
+            suffix = clean_token(re.sub(r"(?i)^.*viewing\s*stats\s*for[:\s]*", "", token))
+            if len(suffix) >= 3 and not re.fullmatch(r"(?:lvl|p)\d+", suffix, re.IGNORECASE):
+                return suffix
             for next_token in tokens[index + 1 :]:
                 cleaned = clean_token(next_token)
-                if len(cleaned) >= 3:
+                if len(cleaned) >= 3 and not re.fullmatch(r"(?:lvl|p)\d+", cleaned, re.IGNORECASE):
                     return cleaned
 
     candidates: list[str] = []
     for token in tokens:
         cleaned = clean_token(token)
         if len(cleaned) < 3:
+            continue
+        if re.fullmatch(r"(?:lvl|p)\d+", cleaned, re.IGNORECASE):
             continue
         marker = normalize_text(cleaned).replace("0", "o")
         if marker in STOP_TOKENS or "viewingstatsfor" in marker:
@@ -275,7 +280,7 @@ def main() -> None:
     if not title_slug:
         raise SystemExit("--title-slug is required for raw timestamped files")
 
-    cv2, _np, RapidOCR = load_runtime()
+    cv2, _np, RapidOCR, _ort = load_runtime()
     ocr = RapidOCR()
 
     paths = discover_paths(args.input_root)

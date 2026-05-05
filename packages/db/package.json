@@ -13,9 +13,12 @@
     "dev": "tsc --watch",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src",
+    "test": "pnpm run build && node --test dist/**/*.test.js",
     "generate": "drizzle-kit generate",
     "migrate": "drizzle-kit migrate",
-    "import:historical": "node dist/tools/import-historical-reviewed.js"
+    "import:historical": "node dist/tools/import-historical-reviewed.js",
+    "import:club-member": "node dist/tools/import-club-member-reviewed.js",
+    "import:club-team": "node dist/tools/import-club-team-reviewed.js"
   },
   "devDependencies": {
     "drizzle-kit": "^0.31.10",

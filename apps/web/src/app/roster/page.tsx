@@ -1,11 +1,9 @@
 import type { Metadata } from 'next'
-import type { GameMode } from '@eanhl/db'
+import type { GameMode, GameTitle } from '@eanhl/db'
 import { GAME_MODE } from '@eanhl/db'
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import {
-  listGameTitles,
-  getActiveGameTitleBySlug,
   getEARoster,
   getSkaterStats,
   getGoalieStats,
@@ -13,11 +11,22 @@ import {
   getEAGoalieStats,
   getPlayerPositionEligibility,
   getOfficialClubRecord,
+  getClubMemberSkaterStats,
+  getClubMemberGoalieStats,
+  getClubMemberSkaterStatsAllModes,
+  getClubMemberGoalieStatsAllModes,
 } from '@eanhl/db/queries'
 import { DepthChart } from '@/components/roster/depth-chart'
 import type { DepthChartProps } from '@/components/roster/depth-chart'
 import { SkaterStatsTable } from '@/components/stats/skater-stats-table'
 import { GoalieStatsTable } from '@/components/stats/goalie-stats-table'
+import {
+  TitleSelector,
+  ModeFilter,
+  EmptyState,
+  statsSourceLabel,
+} from '@/components/title-selector'
+import { resolveTitleFromSlug } from '@/lib/title-resolver'
 import { formatRecord } from '@/lib/format'
 
 export const metadata: Metadata = { title: 'Roster — Club Stats' }
@@ -28,22 +37,6 @@ type SearchParams = Promise<Record<string, string | string[] | undefined>>
 
 type RosterRow = Awaited<ReturnType<typeof getEARoster>>[number]
 type EligRow = Awaited<ReturnType<typeof getPlayerPositionEligibility>>[number]
-
-// ─── Game title resolution ────────────────────────────────────────────────────
-
-async function resolveGameTitle(titleSlug: string | undefined) {
-  try {
-    if (titleSlug) {
-      const found = await getActiveGameTitleBySlug(titleSlug)
-      if (found) return { gameTitle: found, invalidRequested: false }
-      return { gameTitle: null, invalidRequested: true }
-    }
-    const all = await listGameTitles()
-    return { gameTitle: all[0] ?? null, invalidRequested: false }
-  } catch {
-    return { gameTitle: null, invalidRequested: false }
-  }
-}
 
 function parseGameMode(raw: string | string[] | undefined): GameMode | null {
   if (typeof raw !== 'string') return null
@@ -350,20 +343,42 @@ function buildChart(eaRows: RosterRow[], eligRows: EligRow[]): DepthChartProps {
 export default async function RosterPage({ searchParams }: { searchParams: SearchParams }) {
   const params = await searchParams
   const titleSlug = typeof params.title === 'string' ? params.title : undefined
-  const gameMode = parseGameMode(params.mode)
-  const { gameTitle, invalidRequested } = await resolveGameTitle(titleSlug)
+  const requestedMode = parseGameMode(params.mode)
 
-  if (invalidRequested) {
+  const result = await resolveTitleFromSlug(titleSlug)
+  if (result.kind === 'invalid') {
     const nextParams = new URLSearchParams()
     if (typeof params.mode === 'string') nextParams.set('mode', params.mode)
     redirect(nextParams.size > 0 ? `/roster?${nextParams.toString()}` : '/roster')
   }
-
-  if (!gameTitle) {
+  if (result.kind === 'empty') {
     return <EmptyState message="No game titles are configured yet." />
   }
 
-  const statsSource = gameMode === null ? 'EA season totals' : `local tracked ${gameMode}`
+  const { gameTitle, isActive, allTitles } = result.resolved
+
+  if (isActive) {
+    return (
+      <ActiveRoster allTitles={allTitles} gameTitle={gameTitle} gameMode={requestedMode} />
+    )
+  }
+  return (
+    <ArchiveRoster allTitles={allTitles} gameTitle={gameTitle} gameMode={requestedMode} />
+  )
+}
+
+// ─── Active-title view (live data, depth chart + season summary) ─────────────
+
+async function ActiveRoster({
+  allTitles,
+  gameTitle,
+  gameMode,
+}: {
+  allTitles: GameTitle[]
+  gameTitle: GameTitle
+  gameMode: GameMode | null
+}) {
+  const subtitle = statsSourceLabel({ isActive: true, gameMode })
 
   // Non-critical — page renders without it if the worker hasn't fetched it yet
   let officialRecord: Awaited<ReturnType<typeof getOfficialClubRecord>> = null
@@ -390,44 +405,181 @@ export default async function RosterPage({ searchParams }: { searchParams: Searc
     goalieRows = goalies
     eligibilityRows = elig
   } catch {
-    return <EmptyState message="Unable to load roster data right now." />
+    return (
+      <PageShell gameTitle={gameTitle}>
+        <EmptyState message="Unable to load roster data right now." />
+      </PageShell>
+    )
   }
 
   if (eaRows.length === 0) {
     return (
-      <div className="space-y-6">
-        <PageHeader gameTitle={gameTitle} />
+      <PageShell gameTitle={gameTitle}>
         <EmptyState message={`No player stats recorded for ${gameTitle.name} yet.`} />
-      </div>
+      </PageShell>
     )
   }
 
   const chart = buildChart(eaRows, eligibilityRows)
 
   return (
-    <div className="space-y-10">
-      <PageHeader gameTitle={gameTitle} />
+    <PageShell gameTitle={gameTitle}>
       <SeasonSummaryStrip eaRows={eaRows} officialRecord={officialRecord} />
       <DepthChart {...chart} />
-      <div className="space-y-6">
-        <GameModeFilter titleSlug={titleSlug} activeMode={gameMode} />
-        {skaterRows.length > 0 ? (
-          <section>
-            <SkaterStatsTable rows={skaterRows} title="Skaters" subtitle={statsSource} />
-          </section>
-        ) : (
-          gameMode !== null && (
-            <EmptyState
-              message={`No ${gameMode} skater stats recorded for ${gameTitle.name} yet.`}
-            />
-          )
-        )}
-        {goalieRows.length > 0 && (
-          <section>
-            <GoalieStatsTable rows={goalieRows} title="Goalies" subtitle={statsSource} />
-          </section>
-        )}
+      <div className="flex flex-wrap items-center gap-3">
+        <TitleSelector
+          pathname="/roster"
+          titles={allTitles}
+          activeTitleSlug={gameTitle.slug}
+          activeMode={gameMode}
+        />
+        <ModeFilter
+          pathname="/roster"
+          titleSlug={gameTitle.slug}
+          activeMode={gameMode}
+          modes={['all', '6s', '3s']}
+        />
       </div>
+      {skaterRows.length > 0 ? (
+        <section>
+          <SkaterStatsTable rows={skaterRows} title="Skaters" subtitle={subtitle} />
+        </section>
+      ) : (
+        gameMode !== null && (
+          <EmptyState
+            message={`No ${gameMode} skater stats recorded for ${gameTitle.name} yet.`}
+          />
+        )
+      )}
+      {goalieRows.length > 0 && (
+        <section>
+          <GoalieStatsTable rows={goalieRows} title="Goalies" subtitle={subtitle} />
+        </section>
+      )}
+    </PageShell>
+  )
+}
+
+// ─── Archive-title view (legacy season aggregates only) ──────────────────────
+
+async function ArchiveRoster({
+  allTitles,
+  gameTitle,
+  gameMode,
+}: {
+  allTitles: GameTitle[]
+  gameTitle: GameTitle
+  gameMode: GameMode | null
+}) {
+  // Roster is club-scoped, so use club-member totals as the only source.
+  // Player-card season totals can include other-club games and would be
+  // misleading on a roster page; surface them on /stats only.
+  const fetched = await (async () => {
+    try {
+      if (gameMode === null) {
+        return await Promise.all([
+          getClubMemberSkaterStatsAllModes(gameTitle.id),
+          getClubMemberGoalieStatsAllModes(gameTitle.id),
+        ])
+      }
+      return await Promise.all([
+        getClubMemberSkaterStats(gameTitle.id, gameMode),
+        getClubMemberGoalieStats(gameTitle.id, gameMode),
+      ])
+    } catch {
+      return null
+    }
+  })()
+
+  if (fetched === null) {
+    return (
+      <PageShell gameTitle={gameTitle}>
+        <EmptyState message="Unable to load archived roster right now." />
+      </PageShell>
+    )
+  }
+
+  const [skaterRows, goalieRows] = fetched
+  const skaterCount = skaterRows.length
+  const goalieCount = goalieRows.length
+
+  return (
+    <PageShell gameTitle={gameTitle}>
+      <p className="text-sm text-zinc-500">
+        Club-scoped roster from reviewed CLUBS → MEMBERS captures — what each member produced for
+        the BGM in {gameTitle.name}. Depth chart unavailable — match-level data was not captured.
+        Broader player-card season totals (which can include other-club games) live on the{' '}
+        <Link href={`/stats?title=${gameTitle.slug}`} className="text-zinc-400 underline">
+          /stats
+        </Link>{' '}
+        page.
+      </p>
+
+      <div className="flex flex-wrap divide-y divide-zinc-800 border border-zinc-800 bg-surface sm:flex-nowrap sm:divide-x sm:divide-y-0">
+        <SummaryCell label="Title" primary={gameTitle.name} />
+        <SummaryCell label="Mode" primary={gameMode ?? 'All'} />
+        <SummaryCell label="Skaters" primary={skaterCount.toString()} />
+        <SummaryCell label="Goalies" primary={goalieCount.toString()} />
+      </div>
+
+      <div className="flex flex-wrap items-center gap-3">
+        <TitleSelector
+          pathname="/roster"
+          titles={allTitles}
+          activeTitleSlug={gameTitle.slug}
+          activeMode={gameMode}
+        />
+        <ModeFilter
+          pathname="/roster"
+          titleSlug={gameTitle.slug}
+          activeMode={gameMode}
+          modes={['all', '6s', '3s']}
+        />
+      </div>
+
+      {skaterRows.length > 0 ? (
+        <section>
+          <SkaterStatsTable
+            rows={skaterRows}
+            title="Skaters"
+            subtitle="Club-member totals (reviewed screenshot import)"
+          />
+        </section>
+      ) : (
+        <EmptyState
+          message={`No club-scoped ${gameMode ?? 'combined'} skater totals captured for ${gameTitle.name}.`}
+        />
+      )}
+      {goalieRows.length > 0 ? (
+        <section>
+          <GoalieStatsTable
+            rows={goalieRows}
+            title="Goalies"
+            subtitle="Club-member totals (reviewed screenshot import)"
+          />
+        </section>
+      ) : (
+        <EmptyState
+          message={`No club-scoped ${gameMode ?? 'combined'} goalie totals captured for ${gameTitle.name}.`}
+        />
+      )}
+    </PageShell>
+  )
+}
+
+// ─── Shared page shell (header) ──────────────────────────────────────────────
+
+function PageShell({
+  gameTitle,
+  children,
+}: {
+  gameTitle: GameTitle
+  children: React.ReactNode
+}) {
+  return (
+    <div className="space-y-10">
+      <PageHeader gameTitle={gameTitle} />
+      {children}
     </div>
   )
 }
@@ -454,8 +606,10 @@ function SeasonSummaryStrip({
   const topGoalScorer = [...eaRows].sort((a, b) => b.goals - a.goals)[0] ?? null
   const topGoalie =
     [...eaRows]
-      .filter((r) => r.goalieGp > 0 && r.savePct !== null)
-      .sort((a, b) => parseFloat(b.savePct!) - parseFloat(a.savePct!))[0] ?? null
+      .filter(
+        (r): r is RosterRow & { savePct: string } => r.goalieGp > 0 && r.savePct !== null,
+      )
+      .sort((a, b) => parseFloat(b.savePct) - parseFloat(a.savePct))[0] ?? null
 
   const record = officialRecord
     ? formatRecord(officialRecord.wins, officialRecord.losses, officialRecord.otl)
@@ -536,58 +690,3 @@ function PageHeader({ gameTitle }: { gameTitle: { name: string } }) {
   )
 }
 
-// ─── Game mode filter ─────────────────────────────────────────────────────────
-
-const MODE_LABELS: { mode: GameMode | null; label: string }[] = [
-  { mode: null, label: 'All' },
-  { mode: '6s', label: '6s' },
-  { mode: '3s', label: '3s' },
-]
-
-function rosterModeHref(mode: GameMode | null, titleSlug: string | undefined): string {
-  const qs = new URLSearchParams()
-  if (titleSlug) qs.set('title', titleSlug)
-  if (mode !== null) qs.set('mode', mode)
-  const s = qs.toString()
-  return `/roster${s ? `?${s}` : ''}`
-}
-
-function GameModeFilter({
-  titleSlug,
-  activeMode,
-}: {
-  titleSlug: string | undefined
-  activeMode: GameMode | null
-}) {
-  return (
-    <div className="flex gap-1">
-      {MODE_LABELS.map(({ mode, label }) => {
-        const isActive = mode === activeMode
-        return (
-          <Link
-            key={label}
-            href={rosterModeHref(mode, titleSlug)}
-            className={[
-              'px-3 py-1 text-xs font-semibold uppercase tracking-wider rounded border transition-colors',
-              isActive
-                ? 'border-accent bg-accent/10 text-accent'
-                : 'border-zinc-700 bg-transparent text-zinc-500 hover:border-zinc-500 hover:text-zinc-300',
-            ].join(' ')}
-          >
-            {label}
-          </Link>
-        )
-      })}
-    </div>
-  )
-}
-
-// ─── Empty state ──────────────────────────────────────────────────────────────
-
-function EmptyState({ message }: { message: string }) {
-  return (
-    <div className="flex min-h-[12rem] items-center justify-center border border-zinc-800 bg-surface">
-      <p className="text-sm text-zinc-500">{message}</p>
-    </div>
-  )
-}

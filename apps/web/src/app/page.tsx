@@ -1,10 +1,11 @@
 import type { Metadata } from 'next'
-import type { ClubGameTitleStats, ClubSeasonalStats, Match, MatchResult } from '@eanhl/db'
+import type { ClubGameTitleStats, Match, MatchResult } from '@eanhl/db'
 import type { GameMode } from '@eanhl/db'
 import { GAME_MODE } from '@eanhl/db'
 import Link from 'next/link'
 import {
   listGameTitles,
+  listArchiveGameTitles,
   getActiveGameTitleBySlug,
   getClubStats,
   getClubSeasonRank,
@@ -13,12 +14,19 @@ import {
   getRecentMatches,
   getRoster,
   getEARoster,
+  getHistoricalClubTeamStatsBatch,
+  type HistoricalClubTeamBatchRow,
 } from '@eanhl/db/queries'
 import { redirect } from 'next/navigation'
 import { LatestResult } from '@/components/home/latest-result'
 import { PlayerCarousel } from '@/components/home/player-carousel'
 import { ScoringLeadersPanel } from '@/components/home/leaders-section'
 import { SeasonRankWidget } from '@/components/home/season-rank-widget'
+import {
+  TitleRecordsTable,
+  type TitleRecordData,
+  type RecordModeStats,
+} from '@/components/home/title-records-table'
 import type { RosterRow } from '@/components/home/player-card'
 import { formatMatchDate } from '@/lib/format'
 
@@ -94,6 +102,11 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
         gameMode === null ? getEARoster(gameTitle.id) : getRoster(gameTitle.id, gameMode),
         getOfficialClubRecord(gameTitle.id),
         getClubSeasonRank(gameTitle.id),
+        // For the cross-title comparison table:
+        listArchiveGameTitles(),
+        getClubStats(gameTitle.id, null),
+        getClubStats(gameTitle.id, '6s'),
+        getClubStats(gameTitle.id, '3s'),
       ])
     } catch {
       return null
@@ -108,7 +121,33 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
     )
   }
 
-  const [clubStats, recentMatches, roster, officialRecord, seasonRank] = fetched
+  const [
+    clubStats,
+    recentMatches,
+    roster,
+    officialRecord,
+    seasonRank,
+    archiveTitles,
+    liveAll,
+    live6s,
+    live3s,
+  ] = fetched
+
+  // Sequential: archive title IDs only known after round 1
+  const archiveHistRows: HistoricalClubTeamBatchRow[] =
+    archiveTitles.length > 0
+      ? await getHistoricalClubTeamStatsBatch(archiveTitles.map((t) => t.id)).catch(() => [])
+      : []
+
+  // Build cross-title records data for the comparison table
+  const titleRecords = buildTitleRecords(
+    gameTitle,
+    liveAll,
+    live6s,
+    live3s,
+    archiveTitles,
+    archiveHistRows,
+  )
   const lastMatch = recentMatches[0] ?? null
   const latestClubRecord = officialRecord ?? null
 
@@ -153,29 +192,6 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
         <span className="text-sm text-zinc-500">{gameTitle.name}</span>
       </div>
 
-      {/* Team record strip — compact context, mode-filterable */}
-      <section>
-        <div className="mb-2 flex items-center justify-between">
-          <h2 className="font-condensed text-sm font-semibold uppercase tracking-wider text-zinc-500">
-            Club Record
-          </h2>
-          <RecordGameModeFilter titleSlug={titleSlug} activeMode={gameMode} />
-        </div>
-        {gameMode === null ? (
-          officialRecord !== null ? (
-            <RecordStrip officialRecord={officialRecord} localStats={clubStats} />
-          ) : (
-            <OfficialRecordUnavailable localStats={clubStats} />
-          )
-        ) : clubStats !== null && clubStats.gamesPlayed > 0 ? (
-          <LocalModeRecordStrip stats={clubStats} gameMode={gameMode} />
-        ) : (
-          <div className="flex items-center justify-center border border-zinc-800 bg-surface py-5">
-            <p className="text-sm text-zinc-500">No {gameMode} games recorded yet.</p>
-          </div>
-        )}
-      </section>
-
       {/* Latest result hero */}
       {lastMatch !== null && (
         <section>
@@ -188,18 +204,41 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
         </section>
       )}
 
-      {/* Roster spotlight carousel — visual identity, lower priority */}
+      {/* Roster spotlight carousel — visual identity */}
       {featuredPlayers.length > 0 && (
         <section>
-          <div className="mb-3 flex flex-col">
-            <h2 className="font-condensed text-sm font-semibold uppercase tracking-wider text-zinc-500">
-              Roster Spotlight
-            </h2>
-            <p className="text-[11px] text-zinc-600">{rosterSource}</p>
+          <div className="mb-3 flex items-start justify-between gap-3">
+            <div>
+              <h2 className="font-condensed text-sm font-semibold uppercase tracking-wider text-zinc-500">
+                Roster Spotlight
+              </h2>
+              <p className="text-[11px] text-zinc-600">{rosterSource}</p>
+            </div>
+            <RecordGameModeFilter titleSlug={titleSlug} activeMode={gameMode} />
           </div>
           <PlayerCarousel players={featuredPlayers} winPct={clubWinPct} />
         </section>
       )}
+
+      {/* Scoring leaders — high-value quick lookup */}
+      {pointsLeaders.length > 0 && (
+        <section>
+          <ScoringLeadersPanel
+            pointsLeaders={pointsLeaders}
+            goalsLeaders={goalsLeaders}
+            gameMode={gameMode}
+            source={rosterSource}
+          />
+        </section>
+      )}
+
+      {/* Cross-title club records comparison */}
+      <section>
+        <h2 className="mb-3 font-condensed text-sm font-semibold uppercase tracking-wider text-zinc-500">
+          Title Records
+        </h2>
+        <TitleRecordsTable titles={titleRecords} />
+      </section>
 
       {/* Recent results strip — the 5 games before the latest, quick-scan trend */}
       {recentMatches.length > 1 && (
@@ -218,18 +257,6 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
             Division Standing
           </h2>
           <SeasonRankWidget rank={seasonRank} />
-        </section>
-      )}
-
-      {/* Scoring leaders — high-value quick lookup */}
-      {pointsLeaders.length > 0 && (
-        <section>
-          <ScoringLeadersPanel
-            pointsLeaders={pointsLeaders}
-            goalsLeaders={goalsLeaders}
-            gameMode={gameMode}
-            source={rosterSource}
-          />
         </section>
       )}
 
@@ -340,104 +367,134 @@ function RecordGameModeFilter({
   )
 }
 
-// ─── Record strip variants ────────────────────────────────────────────────────
+// ─── Cross-title records data builder ────────────────────────────────────────
 
-/** All-modes: official EA record. Never falls back to local aggregate. */
-function RecordStrip({
-  officialRecord,
-  localStats,
-}: {
-  officialRecord: ClubSeasonalStats
-  localStats: ClubGameTitleStats | null
-}) {
-  const pct = winPct(officialRecord.wins, officialRecord.losses, officialRecord.otl)
+/**
+ * Playlist-to-mode mapping for the comparison table pill selector.
+ *
+ * Pill "6s"   → primary competitive EASHL/Clubs 6v6:   eashl_6v6 / clubs_6v6
+ * Pill "6s+G" → full-squad 6-player mode (all human):  6_player_full_team / clubs_6_players
+ * Pill "3s"   → primary competitive EASHL/Clubs 3v3:   eashl_3v3 / clubs_3v3
+ *               (Threes casual mode intentionally excluded)
+ *
+ * NHL 22/23 use "clubs_*" naming; NHL 24/25+ use "eashl_*".
+ * The mapping is explicit — no runtime inference.
+ *
+ * Live title (NHL 26): "All", "6s", and "3s" pills use local mode aggregates.
+ * "6s+G" shows "—" — the live pipeline aggregates all 6-player playlists into
+ * game_mode='6s' and does not distinguish full-team sub-mode.
+ */
+const HIST_PLAYLISTS_6S = new Set(['eashl_6v6', 'clubs_6v6'])
+const HIST_PLAYLISTS_6SG = new Set(['6_player_full_team', 'clubs_6_players'])
+const HIST_PLAYLISTS_3S = new Set(['eashl_3v3', 'clubs_3v3'])
 
-  return (
-    <div className="flex flex-wrap items-center gap-x-6 gap-y-2 border border-zinc-800 bg-surface px-5 py-3">
-      <div className="flex items-center gap-4 font-condensed font-bold tabular leading-none">
-        <span className="text-accent">
-          <span className="text-xs font-semibold uppercase tracking-wider text-zinc-500">W </span>
-          <span className="text-xl">{officialRecord.wins.toString()}</span>
-        </span>
-        <span>
-          <span className="text-xs font-semibold uppercase tracking-wider text-zinc-500">L </span>
-          <span className="text-xl text-zinc-300">{officialRecord.losses.toString()}</span>
-        </span>
-        <span>
-          <span className="text-xs font-semibold uppercase tracking-wider text-zinc-500">OTL </span>
-          <span className="text-xl text-zinc-300">{officialRecord.otl.toString()}</span>
-        </span>
-      </div>
-
-      <span className="font-condensed text-sm font-semibold tabular text-zinc-400">{pct} Win%</span>
-      <span className="text-xs text-zinc-500">{officialRecord.gamesPlayed.toString()} GP</span>
-
-      {officialRecord.rankingPoints != null && (
-        <span className="text-xs text-zinc-500">{officialRecord.rankingPoints.toString()} pts</span>
-      )}
-
-      {/* GF/GA sourced from local match data — explicitly labelled */}
-      {localStats !== null && localStats.gamesPlayed > 0 && (
-        <span className="text-xs tabular text-zinc-500">
-          {localStats.goalsFor.toString()} GF – {localStats.goalsAgainst.toString()} GA
-        </span>
-      )}
-
-      <span className="text-xs text-zinc-600">EA official</span>
-    </div>
-  )
+function liveToRecord(stats: ClubGameTitleStats | null): RecordModeStats | null {
+  if (!stats || stats.gamesPlayed === 0) return null
+  const gfg =
+    stats.gamesPlayed > 0 ? (stats.goalsFor / stats.gamesPlayed).toFixed(2) : null
+  const gag =
+    stats.gamesPlayed > 0 ? (stats.goalsAgainst / stats.gamesPlayed).toFixed(2) : null
+  return {
+    gamesPlayed: stats.gamesPlayed,
+    wins: stats.wins,
+    losses: stats.losses,
+    otl: stats.otl,
+    avgGoalsFor: gfg,
+    avgGoalsAgainst: gag,
+    avgTimeOnAttack: null,
+    powerPlayPct: null,
+    powerPlayKillPct: null,
+  }
 }
 
-/** All-modes: official record not yet fetched. Shows local GF/GA if available. */
-function OfficialRecordUnavailable({ localStats }: { localStats: ClubGameTitleStats | null }) {
-  return (
-    <div className="flex flex-wrap items-center gap-x-6 gap-y-2 border border-zinc-800 bg-surface px-5 py-3">
-      <span className="text-sm text-zinc-500">Official record not yet available</span>
-      {localStats !== null && localStats.gamesPlayed > 0 && (
-        <span className="text-xs tabular text-zinc-500">
-          {localStats.goalsFor.toString()} GF – {localStats.goalsAgainst.toString()} GA ·{' '}
-          {localStats.gamesPlayed.toString()} ingested GP
-        </span>
-      )}
-    </div>
-  )
+function histSingleRecord(
+  rows: HistoricalClubTeamBatchRow[],
+  titleId: number,
+  playlists: Set<string>,
+): RecordModeStats | null {
+  const row = rows.find((r) => r.gameTitleId === titleId && playlists.has(r.playlist))
+  if (!row?.gamesPlayed) return null
+  return {
+    gamesPlayed: row.gamesPlayed,
+    wins: row.wins ?? 0,
+    losses: row.losses ?? 0,
+    otl: row.otl ?? 0,
+    avgGoalsFor: row.avgGoalsFor ?? null,
+    avgGoalsAgainst: row.avgGoalsAgainst ?? null,
+    avgTimeOnAttack: row.avgTimeOnAttack ?? null,
+    powerPlayPct: row.powerPlayPct ?? null,
+    powerPlayKillPct: row.powerPlayKillPct ?? null,
+  }
 }
 
-/** Mode-filtered: local aggregate only. Labelled so it's clear these are not EA-official. */
-function LocalModeRecordStrip({
-  stats,
-  gameMode,
-}: {
-  stats: ClubGameTitleStats
-  gameMode: GameMode
-}) {
-  const pct = winPct(stats.wins, stats.losses, stats.otl)
+function histAllRecord(
+  rows: HistoricalClubTeamBatchRow[],
+  titleId: number,
+): RecordModeStats | null {
+  const titleRows = rows.filter((r) => r.gameTitleId === titleId && (r.gamesPlayed ?? 0) > 0)
+  if (titleRows.length === 0) return null
 
-  return (
-    <div className="flex flex-wrap items-center gap-x-6 gap-y-2 border border-zinc-800 bg-surface px-5 py-3">
-      <div className="flex items-center gap-4 font-condensed font-bold tabular leading-none">
-        <span className="text-accent">
-          <span className="text-xs font-semibold uppercase tracking-wider text-zinc-500">W </span>
-          <span className="text-xl">{stats.wins.toString()}</span>
-        </span>
-        <span>
-          <span className="text-xs font-semibold uppercase tracking-wider text-zinc-500">L </span>
-          <span className="text-xl text-zinc-300">{stats.losses.toString()}</span>
-        </span>
-        <span>
-          <span className="text-xs font-semibold uppercase tracking-wider text-zinc-500">OTL </span>
-          <span className="text-xl text-zinc-300">{stats.otl.toString()}</span>
-        </span>
-      </div>
+  let gp = 0
+  let w = 0
+  let l = 0
+  let otl = 0
+  let gfgWeighted = 0
+  let gagWeighted = 0
+  let gpForRates = 0
 
-      <span className="font-condensed text-sm font-semibold tabular text-zinc-400">{pct} Win%</span>
-      <span className="text-xs text-zinc-500">{stats.gamesPlayed.toString()} GP</span>
+  for (const r of titleRows) {
+    const rGp = r.gamesPlayed ?? 0
+    gp += rGp
+    w += r.wins ?? 0
+    l += r.losses ?? 0
+    otl += r.otl ?? 0
+    if (r.avgGoalsFor !== null && rGp > 0) {
+      gfgWeighted += parseFloat(r.avgGoalsFor) * rGp
+      gagWeighted += parseFloat(r.avgGoalsAgainst ?? '0') * rGp
+      gpForRates += rGp
+    }
+  }
 
-      <span className="text-xs tabular text-zinc-500">
-        {stats.goalsFor.toString()} GF – {stats.goalsAgainst.toString()} GA
-      </span>
+  return {
+    gamesPlayed: gp,
+    wins: w,
+    losses: l,
+    otl,
+    avgGoalsFor: gpForRates > 0 ? (gfgWeighted / gpForRates).toFixed(2) : null,
+    avgGoalsAgainst: gpForRates > 0 ? (gagWeighted / gpForRates).toFixed(2) : null,
+    avgTimeOnAttack: null,
+    powerPlayPct: null,
+    powerPlayKillPct: null,
+  }
+}
 
-      <span className="text-xs text-zinc-600">local · {gameMode} only</span>
-    </div>
-  )
+function buildTitleRecords(
+  liveTitle: { name: string; slug: string },
+  liveAll: ClubGameTitleStats | null,
+  live6s: ClubGameTitleStats | null,
+  live3s: ClubGameTitleStats | null,
+  archiveTitles: { id: number; name: string; slug: string }[],
+  archiveHistRows: HistoricalClubTeamBatchRow[],
+): TitleRecordData[] {
+  const liveRow: TitleRecordData = {
+    name: liveTitle.name,
+    slug: liveTitle.slug,
+    isLive: true,
+    all: liveToRecord(liveAll),
+    sixs: liveToRecord(live6s),
+    sixsg: null,
+    threes: liveToRecord(live3s),
+  }
+
+  const archiveRows: TitleRecordData[] = archiveTitles.map((t) => ({
+    name: t.name,
+    slug: t.slug,
+    isLive: false,
+    all: histAllRecord(archiveHistRows, t.id),
+    sixs: histSingleRecord(archiveHistRows, t.id, HIST_PLAYLISTS_6S),
+    sixsg: histSingleRecord(archiveHistRows, t.id, HIST_PLAYLISTS_6SG),
+    threes: histSingleRecord(archiveHistRows, t.id, HIST_PLAYLISTS_3S),
+  }))
+
+  return [liveRow, ...archiveRows]
 }

@@ -1,0 +1,82 @@
+{
+  "_comment": "Pilot expansion: NHL 25 / eashl_3v3. Hand-keyed best-effort read from research/Previous_NHL_Stats/NHL_25/club_stats__eashl_3v3__01.png and __02.png. games_played math-confirmed at 111 (goals_for/avg_goals_for = 380/3.42, goals_against/avg_goals_against = 331/2.98 — both yield 111). 3v3 mode shows penalty_minutes=0 across the board, so power-play / shorthanded fields are omitted (they don't apply to this playlist) rather than coerced to zero. Metrics visible on-screen but not yet typed in the schema (shutouts, penalty_shot_goals, faceoffs_lost, breakaway_goals, one_timer_goals) are preserved in rawExtract for traceability — schema expansion is intentionally out of scope for this pilot.",
+  "records": [
+    {
+      "titleSlug": "nhl25",
+      "playlist": "eashl_3v3",
+      "importBatch": "nhl25-club-team-stats-pilot",
+      "reviewStatus": "reviewed",
+      "confidenceScore": 0.85,
+      "metrics": {
+        "games_played": 111,
+        "wins": 82,
+        "losses": 43,
+        "win_loss_streak": 1,
+        "dnf_wins": 24,
+        "division_titles": 8,
+        "goals_for": 380,
+        "goals_against": 331,
+        "goal_difference": 49,
+        "avg_goals_for": 3.42,
+        "avg_goals_against": 2.98,
+        "avg_win_margin": 2.50,
+        "avg_loss_margin": 3.05,
+        "shots_per_game": 15.8,
+        "avg_shots_against": 14.0,
+        "shooting_pct": 21.7,
+        "hits": 836,
+        "hits_per_game": 1.5,
+        "pim": 0,
+        "avg_pim": 0.0,
+        "faceoffs_won": 942,
+        "faceoff_pct": 54.5,
+        "breakaway_pct": 22.3,
+        "passing_pct": 77.8,
+        "blocked_shots": 212,
+        "avg_time_on_attack": "08:42"
+      },
+      "sources": [
+        "research/Previous_NHL_Stats/NHL_25/club_stats__eashl_3v3__01.png",
+        "research/Previous_NHL_Stats/NHL_25/club_stats__eashl_3v3__02.png"
+      ],
+      "rawExtract": {
+        "screenshot01": {
+          "Division Titles": 8,
+          "Wins": 82,
+          "Win Differential": 13,
+          "Goals For": 380,
+          "Avg Goals For": 3.42,
+          "Avg Win Margin": 2.50,
+          "Hits Per Game": 1.5,
+          "Avg Shots Against": 14.0,
+          "Win/Loss Streak": 1,
+          "Faceoff %": 54.5,
+          "Losses": 43,
+          "Goals Against": 331,
+          "Avg Goals Against": 2.98,
+          "Avg Loss Margin": 3.05,
+          "Shots Per Game": 15.8,
+          "Penalty Minutes": 0,
+          "Faceoffs Won": 942,
+          "Breakaway Goals": 38,
+          "Games Played": 111,
+          "DNF Wins": 24,
+          "Goal Difference": 49,
+          "Avg Time on Attack": "08:42",
+          "Hits": 836,
+          "Shooting %": 21.7,
+          "Avg Penalty Minutes": 0.0,
+          "Faceoffs Lost": 787,
+          "Breakaway %": 22.3
+        },
+        "screenshot02": {
+          "Penalty Shot Goals": 31,
+          "Shutouts": 15,
+          "Passing %": 77.8,
+          "Blocked Shots": 212
+        }
+      },
+      "notes": "Pilot — hand-keyed best-effort. games_played derived from arithmetic (380/3.42 = 331/2.98 = 111). 3v3 mode has no power-play stats so power_*/times_shorthanded/short_handed_* are intentionally omitted (null) rather than zero. On-screen 'Win Differential = 13', 'Faceoffs Lost = 787', 'Breakaway Goals = 38', 'Penalty Shot Goals = 31', 'Shutouts = 15' captured in rawExtract; not yet promoted to typed columns."
+    }
+  ]
+}

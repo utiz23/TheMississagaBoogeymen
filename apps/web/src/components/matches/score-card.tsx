@@ -28,9 +28,9 @@ const CARD_STYLES: Record<MatchResult, { bg: string; border: string; hoverBorder
     hoverBorder: 'hover:border-amber-800/60',
   },
   DNF: {
-    bg: 'bg-[linear-gradient(180deg,rgba(12,12,14,0.99),rgba(8,8,10,1))]',
-    border: 'border-zinc-900',
-    hoverBorder: 'hover:border-zinc-800',
+    bg: 'bg-[radial-gradient(circle_at_top,rgba(239,68,68,0.07),transparent_50%),linear-gradient(180deg,rgba(18,13,13,0.99),rgba(10,10,10,1))]',
+    border: 'border-rose-900/40',
+    hoverBorder: 'hover:border-rose-800/50',
   },
 }
 
@@ -48,8 +48,8 @@ const RESULT_PILL_CONFIG: Record<MatchResult, { label: string; className: string
     className: 'border-amber-500/40 bg-amber-500/10 text-amber-300',
   },
   DNF: {
-    label: 'DNF',
-    className: 'border-zinc-700/50 bg-zinc-900/70 text-zinc-500',
+    label: 'DNF Loss',
+    className: 'border-rose-600/50 bg-rose-900/20 text-rose-400',
   },
 }
 
@@ -129,15 +129,15 @@ export function ScoreCard({
   const ourScoreColor =
     match.result === 'WIN' ? 'text-zinc-50' :
     match.result === 'OTL' ? 'text-zinc-400' :
-    match.result === 'DNF' ? 'text-zinc-700' : 'text-zinc-500'
+    'text-zinc-500'
   const opponentScoreColor =
     match.result === 'WIN' ? 'text-zinc-600' :
     match.result === 'OTL' ? 'text-zinc-200' :
-    match.result === 'DNF' ? 'text-zinc-700' : 'text-zinc-50'
+    'text-zinc-50'
 
   const toa = match.timeOnAttack !== null ? formatTOA(match.timeOnAttack) : null
 
-  const possEdge = match.result !== 'DNF' ? buildPossessionEdge(match) : null
+  const possEdge = buildPossessionEdge(match)
   const dtw = possEdge !== null ? possEdge.bgmRaw : null
 
   const isPrivate = match.matchType === 'club_private'
@@ -151,8 +151,8 @@ export function ScoreCard({
 
   const topBarColor =
     match.result === 'WIN' ? 'bg-emerald-500' :
-    match.result === 'LOSS' ? 'bg-rose-600' :
-    match.result === 'OTL' ? 'bg-amber-500/80' : 'bg-zinc-700'
+    match.result === 'OTL' ? 'bg-amber-500/80' :
+    'bg-rose-600'
 
   const gameModeClass = match.gameMode !== null
     ? (GAME_MODE_PILL[match.gameMode] ?? 'border-zinc-700 bg-zinc-900/70 text-zinc-400')

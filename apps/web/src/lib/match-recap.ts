@@ -190,10 +190,6 @@ function skaterScore(p: SkaterScoreInput): number {
   return skaterBreakdown(p).reduce((s, fac) => s + fac.contribution, 0)
 }
 
-function goalieScore(p: GoalieScoreInput): number {
-  return goalieBreakdown(p).reduce((s, fac) => s + fac.contribution, 0)
-}
-
 // ─── Stat lines ───────────────────────────────────────────────────────────────
 
 interface SkaterStatInput { goals: number; assists: number; plusMinus: number }
@@ -299,17 +295,24 @@ export function buildAllTeamScores(
 // ─── Possession & Pressure Edge (computed) ────────────────────────────────────
 //
 // One comparison bar between BGM and opponent computed from team totals.
-// Inputs (suggested by spec):
-//   - shot share  (45% weight)
-//   - faceoff share (30% weight)
-//   - hit share   (25% weight, lighter factor per spec)
 //
-// TOA is intentionally NOT in the share formula — we only have BGM TOA, no
-// opponent TOA. Showing it as an information line below the bar is honest.
+// Weight tiers — highest to lowest territorial signal:
+//   1. Shot share  — strong proxy for zone time and puck pressure
+//   2. TOA share   — direct territorial control; only used when both sides
+//                    are recorded (time_on_attack + time_on_attack_against).
+//                    The schema stores both; older matches may have only BGM.
+//   3. Faceoff share — meaningful but situational; suppressed when absent
+//   4. Hit share   — lowest weight; a pressed team absorbs more hits, so
+//                    hits skew toward the team getting dominated, not the
+//                    team doing the dominating.
 //
-// If faceoffPct is missing (older matches), weight is redistributed across
-// shots (0.65) + hits (0.35). If shots and hits are both zero, the section
-// is hidden entirely (returns null).
+// Active weight set depends on data availability:
+//   TOA bilateral + faceoff:  shots 0.40 · toa 0.30 · faceoffs 0.20 · hits 0.10
+//   TOA bilateral, no faceoff: shots 0.50 · toa 0.35 · hits 0.15
+//   No TOA, faceoff:          shots 0.55 · faceoffs 0.30 · hits 0.15
+//   Neither:                  shots 0.70 · hits 0.30
+//
+// If shots and hits are both zero, the section is hidden (returns null).
 
 export interface PossessionEdge {
   /** Composite share for BGM, 0-100 (rounded). */
@@ -330,7 +333,7 @@ export interface PossessionEdge {
     timeOnAttackSecondsAgainst: number | null
   }
   /** Active weights so the page can render a transparent footnote. */
-  weights: { shots: number; faceoff: number; hits: number }
+  weights: { shots: number; faceoff: number; hits: number; toa: number }
 }
 
 export function buildPossessionEdge(match: Match): PossessionEdge | null {
@@ -343,14 +346,37 @@ export function buildPossessionEdge(match: Match): PossessionEdge | null {
   const faceoffPctNum = match.faceoffPct !== null ? parseFloat(match.faceoffPct) : null
   const foShare = faceoffPctNum !== null ? faceoffPctNum / 100 : null
 
-  let weights: { shots: number; faceoff: number; hits: number }
+  const toaUs = match.timeOnAttack
+  const toaThem = match.timeOnAttackAgainst
+  const toaShare =
+    toaUs !== null && toaThem !== null && toaUs + toaThem > 0
+      ? toaUs / (toaUs + toaThem)
+      : null
+
+  let weights: { shots: number; faceoff: number; hits: number; toa: number }
   let composite: number
-  if (foShare !== null) {
-    weights = { shots: 0.45, faceoff: 0.3, hits: 0.25 }
+
+  if (toaShare !== null && foShare !== null) {
+    weights = { shots: 0.40, toa: 0.30, faceoff: 0.20, hits: 0.10 }
     composite =
-      shotShare * weights.shots + foShare * weights.faceoff + hitShare * weights.hits
+      shotShare * weights.shots +
+      toaShare * weights.toa +
+      foShare * weights.faceoff +
+      hitShare * weights.hits
+  } else if (toaShare !== null) {
+    weights = { shots: 0.50, toa: 0.35, faceoff: 0, hits: 0.15 }
+    composite =
+      shotShare * weights.shots +
+      toaShare * weights.toa +
+      hitShare * weights.hits
+  } else if (foShare !== null) {
+    weights = { shots: 0.55, toa: 0, faceoff: 0.30, hits: 0.15 }
+    composite =
+      shotShare * weights.shots +
+      foShare * weights.faceoff +
+      hitShare * weights.hits
   } else {
-    weights = { shots: 0.65, faceoff: 0, hits: 0.35 }
+    weights = { shots: 0.70, toa: 0, faceoff: 0, hits: 0.30 }
     composite = shotShare * weights.shots + hitShare * weights.hits
   }
 

@@ -14,9 +14,13 @@ export function PossessionEdgeBar({ edge }: PossessionEdgeProps) {
   const bgmWins = bgmShare >= oppShare
 
   const formula =
-    weights.faceoff > 0
-      ? 'Shots 45% · Faceoffs 30% · Hits 25%'
-      : 'Shots 65% · Hits 35% (faceoff data unavailable)'
+    weights.toa > 0 && weights.faceoff > 0
+      ? 'Shots 40% · TOA 30% · Faceoffs 20% · Hits 10%'
+      : weights.toa > 0
+        ? 'Shots 50% · TOA 35% · Hits 15%'
+        : weights.faceoff > 0
+          ? 'Shots 55% · Faceoffs 30% · Hits 15%'
+          : 'Shots 70% · Hits 30% (no TOA or faceoff data)'
 
   return (
     <section>
@@ -99,9 +103,12 @@ function Gauge({ bgmShare, oppShare: _oppShare }: { bgmShare: number; oppShare: 
   const needleX = cx + Math.cos(needle) * (r - 10)
   const needleY = cy + Math.sin(needle) * (r - 10)
 
-  // Clamp 1–99 so degenerate zero-length SVG arcs are never generated
+  // Clamp 1–99 so degenerate zero-length SVG arcs are never generated.
+  // splitDeg marks the boundary between the BGM arc (left, from -180°) and the
+  // OPP arc (right, to 0°). It must grow leftward as OPP share increases so the
+  // BGM arc is proportional to bgmShare, not (1-bgmShare).
   const clampedShare = Math.max(1, Math.min(99, bgmShare))
-  const splitDeg = -(clampedShare / 100) * 180
+  const splitDeg = -((1 - clampedShare / 100) * 180)
 
   return (
     <div className="flex h-[150px] flex-1 items-end justify-center">
@@ -114,19 +121,19 @@ function Gauge({ bgmShare, oppShare: _oppShare }: { bgmShare: number; oppShare: 
           strokeWidth={strokeW + 8}
           strokeLinecap="butt"
         />
-        {/* OPP arc — left side, shrinks as BGM share increases */}
+        {/* BGM arc — left side, shrinks as BGM share decreases */}
         <path
           d={arcPath(cx, cy, r, -180, splitDeg)}
           fill="none"
-          stroke="#374151"
+          stroke="#e11d48"
           strokeWidth={strokeW}
           strokeLinecap="butt"
         />
-        {/* BGM arc — right side, grows as BGM share increases */}
+        {/* OPP arc — right side, shrinks as BGM share increases */}
         <path
           d={arcPath(cx, cy, r, splitDeg, 0)}
           fill="none"
-          stroke="#e11d48"
+          stroke="#374151"
           strokeWidth={strokeW}
           strokeLinecap="butt"
         />
@@ -153,7 +160,7 @@ function Gauge({ bgmShare, oppShare: _oppShare }: { bgmShare: number; oppShare: 
 // BGM   0% →    0° (far right / OPP zone)
 function shareToNeedle(share: number): number {
   const normalized = Math.max(0, Math.min(100, share)) / 100
-  const degrees = -(normalized * 180)
+  const degrees = -((1 - normalized) * 180)
   return (degrees * Math.PI) / 180
 }
 

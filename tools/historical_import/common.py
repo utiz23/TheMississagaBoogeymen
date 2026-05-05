@@ -9,7 +9,7 @@ from typing import Iterable
 
 
 VIDEO_EXTENSIONS = {".mp4", ".mov", ".mkv", ".avi", ".webm"}
-TITLE_PATTERN = re.compile(r"nhl[_\-\s]?(2[3-5])", re.IGNORECASE)
+TITLE_PATTERN = re.compile(r"nhl[_\-\s]?(2[2-5])", re.IGNORECASE)
 
 
 @dataclass(slots=True)

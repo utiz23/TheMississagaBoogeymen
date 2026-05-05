@@ -1,0 +1,185 @@
+{
+  "_comment": "Pilot input for the club-member historical screenshot ingestion. Hand-keyed from research/Previous_NHL_Stats/NHL_25/Screenshot 2026-04-30 20-42-23.png — CLUBS → members tab, sorted by SKATER GAMES PLAYED. Visible columns: PLAYER NAME, PLAYER LEVEL, SGP, GGP, G, A. Goalie metrics not present in this view. Pilot scope only — values reflect a best-effort hand read; refine via OCR pass later.",
+  "records": [
+    {
+      "titleSlug": "nhl25",
+      "gameMode": "6s",
+      "roleGroup": "skater",
+      "gamertagSnapshot": "silkyjoker85",
+      "playerNameSnapshot": "- Silky",
+      "importBatch": "nhl25-club-members-pilot",
+      "reviewStatus": "reviewed",
+      "metrics": { "skater_gp": 194, "goalie_gp": 0, "goals": 174, "assists": 273 },
+      "sources": [
+        {
+          "sourceAssetPath": "research/Previous_NHL_Stats/NHL_25/Screenshot 2026-04-30 20-42-23.png",
+          "sortedByMetricLabel": "Skater Games Played",
+          "contributedMetrics": ["skater_gp", "goalie_gp", "goals", "assists"],
+          "rawExtract": { "PLAYER NAME": "- Silky", "PLAYER LEVEL": "P2 | LVL 21", "SGP": 194, "GGP": 0, "G": 174, "A": 273 },
+          "reviewStatus": "reviewed",
+          "confidenceScore": 0.95
+        }
+      ]
+    },
+    {
+      "titleSlug": "nhl25",
+      "gameMode": "6s",
+      "roleGroup": "skater",
+      "gamertagSnapshot": "JoeyFlopfish",
+      "playerNameSnapshot": "Lane Hutson",
+      "importBatch": "nhl25-club-members-pilot",
+      "reviewStatus": "reviewed",
+      "metrics": { "skater_gp": 135, "goalie_gp": 0, "goals": 82, "assists": 178 },
+      "sources": [
+        {
+          "sourceAssetPath": "research/Previous_NHL_Stats/NHL_25/Screenshot 2026-04-30 20-42-23.png",
+          "sortedByMetricLabel": "Skater Games Played",
+          "contributedMetrics": ["skater_gp", "goalie_gp", "goals", "assists"],
+          "rawExtract": { "PLAYER NAME": "Lane Hutson", "PLAYER LEVEL": "P1 | LVL 26", "SGP": 135, "GGP": 0, "G": 82, "A": 178 },
+          "reviewStatus": "reviewed",
+          "confidenceScore": 0.95
+        }
+      ]
+    },
+    {
+      "titleSlug": "nhl25",
+      "gameMode": "6s",
+      "roleGroup": "skater",
+      "gamertagSnapshot": "HenryTheBobJr",
+      "playerNameSnapshot": "Wayne Glensky",
+      "importBatch": "nhl25-club-members-pilot",
+      "reviewStatus": "reviewed",
+      "metrics": { "skater_gp": 116, "goalie_gp": 0, "goals": 66, "assists": 155 },
+      "sources": [
+        {
+          "sourceAssetPath": "research/Previous_NHL_Stats/NHL_25/Screenshot 2026-04-30 20-42-23.png",
+          "sortedByMetricLabel": "Skater Games Played",
+          "contributedMetrics": ["skater_gp", "goalie_gp", "goals", "assists"],
+          "rawExtract": { "PLAYER NAME": "Wayne Glensky", "PLAYER LEVEL": "P2 | LVL 24", "SGP": 116, "GGP": 0, "G": 66, "A": 155 },
+          "reviewStatus": "reviewed",
+          "confidenceScore": 0.95
+        }
+      ]
+    },
+    {
+      "titleSlug": "nhl25",
+      "gameMode": "6s",
+      "roleGroup": "skater",
+      "gamertagSnapshot": "camrazz",
+      "playerNameSnapshot": "Gauzy Nib",
+      "importBatch": "nhl25-club-members-pilot",
+      "reviewStatus": "reviewed",
+      "metrics": { "skater_gp": 58, "goalie_gp": 0, "goals": 105, "assists": 106 },
+      "sources": [
+        {
+          "sourceAssetPath": "research/Previous_NHL_Stats/NHL_25/Screenshot 2026-04-30 20-42-23.png",
+          "sortedByMetricLabel": "Skater Games Played",
+          "contributedMetrics": ["skater_gp", "goalie_gp", "goals", "assists"],
+          "rawExtract": { "PLAYER NAME": "Gauzy Nib", "PLAYER LEVEL": "P1 | LVL 18", "SGP": 58, "GGP": 0, "G": 105, "A": 106 },
+          "reviewStatus": "reviewed",
+          "confidenceScore": 0.85
+        }
+      ]
+    },
+    {
+      "titleSlug": "nhl25",
+      "gameMode": "6s",
+      "roleGroup": "skater",
+      "gamertagSnapshot": "Stick Menace",
+      "playerNameSnapshot": "Igor Orlov",
+      "importBatch": "nhl25-club-members-pilot",
+      "reviewStatus": "reviewed",
+      "metrics": { "skater_gp": 36, "goalie_gp": 0, "goals": 64, "assists": 47 },
+      "sources": [
+        {
+          "sourceAssetPath": "research/Previous_NHL_Stats/NHL_25/Screenshot 2026-04-30 20-42-23.png",
+          "sortedByMetricLabel": "Skater Games Played",
+          "contributedMetrics": ["skater_gp", "goalie_gp", "goals", "assists"],
+          "rawExtract": { "PLAYER NAME": "Igor Orlov", "PLAYER LEVEL": "P1 | LVL 43", "SGP": 36, "GGP": 0, "G": 64, "A": 47 },
+          "reviewStatus": "reviewed",
+          "confidenceScore": 0.9
+        }
+      ]
+    },
+    {
+      "titleSlug": "nhl25",
+      "gameMode": "6s",
+      "roleGroup": "skater",
+      "gamertagSnapshot": "Ordinary_Samich",
+      "playerNameSnapshot": "N ew Guy",
+      "importBatch": "nhl25-club-members-pilot",
+      "reviewStatus": "reviewed",
+      "metrics": { "skater_gp": 35, "goalie_gp": 0, "goals": 33, "assists": 21 },
+      "sources": [
+        {
+          "sourceAssetPath": "research/Previous_NHL_Stats/NHL_25/Screenshot 2026-04-30 20-42-23.png",
+          "sortedByMetricLabel": "Skater Games Played",
+          "contributedMetrics": ["skater_gp", "goalie_gp", "goals", "assists"],
+          "rawExtract": { "PLAYER NAME": "N ew Guy", "PLAYER LEVEL": "P1 | LVL 5", "SGP": 35, "GGP": 0, "G": 33, "A": 21 },
+          "reviewStatus": "reviewed",
+          "confidenceScore": 0.9
+        }
+      ]
+    },
+    {
+      "titleSlug": "nhl25",
+      "gameMode": "6s",
+      "roleGroup": "skater",
+      "gamertagSnapshot": "joseph4577",
+      "playerNameSnapshot": "Daquarius Mcburn",
+      "importBatch": "nhl25-club-members-pilot",
+      "reviewStatus": "reviewed",
+      "metrics": { "skater_gp": 30, "goalie_gp": 0, "goals": 34, "assists": 16 },
+      "sources": [
+        {
+          "sourceAssetPath": "research/Previous_NHL_Stats/NHL_25/Screenshot 2026-04-30 20-42-23.png",
+          "sortedByMetricLabel": "Skater Games Played",
+          "contributedMetrics": ["skater_gp", "goalie_gp", "goals", "assists"],
+          "rawExtract": { "PLAYER NAME": "Daquarius Mcburn", "PLAYER LEVEL": "P1 | LVL 8", "SGP": 30, "GGP": 0, "G": 34, "A": 16 },
+          "reviewStatus": "reviewed",
+          "confidenceScore": 0.9
+        }
+      ]
+    },
+    {
+      "titleSlug": "nhl25",
+      "gameMode": "6s",
+      "roleGroup": "skater",
+      "gamertagSnapshot": "MrHomiecide",
+      "playerNameSnapshot": "Zee Wanhg",
+      "importBatch": "nhl25-club-members-pilot",
+      "reviewStatus": "reviewed",
+      "metrics": { "skater_gp": 20, "goalie_gp": 0, "goals": 6, "assists": 21 },
+      "sources": [
+        {
+          "sourceAssetPath": "research/Previous_NHL_Stats/NHL_25/Screenshot 2026-04-30 20-42-23.png",
+          "sortedByMetricLabel": "Skater Games Played",
+          "contributedMetrics": ["skater_gp", "goalie_gp", "goals", "assists"],
+          "rawExtract": { "PLAYER NAME": "Zee Wanhg", "PLAYER LEVEL": "P1 | LVL 18", "SGP": 20, "GGP": 0, "G": 6, "A": 21 },
+          "reviewStatus": "reviewed",
+          "confidenceScore": 0.85
+        }
+      ]
+    },
+    {
+      "titleSlug": "nhl25",
+      "gameMode": "6s",
+      "roleGroup": "skater",
+      "gamertagSnapshot": "MJW501",
+      "playerNameSnapshot": "King LeMeat",
+      "importBatch": "nhl25-club-members-pilot",
+      "reviewStatus": "reviewed",
+      "metrics": { "skater_gp": 13, "goalie_gp": 0, "goals": 5, "assists": 5 },
+      "sources": [
+        {
+          "sourceAssetPath": "research/Previous_NHL_Stats/NHL_25/Screenshot 2026-04-30 20-42-23.png",
+          "sortedByMetricLabel": "Skater Games Played",
+          "contributedMetrics": ["skater_gp", "goalie_gp", "goals", "assists"],
+          "rawExtract": { "PLAYER NAME": "King LeMeat", "PLAYER LEVEL": "LVL 13", "SGP": 13, "GGP": 0, "G": 5, "A": 5 },
+          "reviewStatus": "reviewed",
+          "confidenceScore": 0.85
+        }
+      ]
+    }
+  ]
+}

@@ -291,21 +291,21 @@ const FORM_PILL: Record<MatchResult, string> = {
   WIN: 'border-emerald-500/50 bg-emerald-500/10 text-emerald-400',
   LOSS: 'border-rose-500/50 bg-rose-500/10 text-rose-400',
   OTL: 'border-amber-500/40 bg-amber-500/10 text-amber-400',
-  DNF: 'border-zinc-700/50 bg-zinc-900/70 text-zinc-600',
+  DNF: 'border-rose-500/50 bg-rose-500/10 text-rose-400',
 }
 
 const FORM_PILL_LABEL: Record<MatchResult, string> = {
   WIN: 'W',
   LOSS: 'L',
   OTL: 'OT',
-  DNF: '—',
+  DNF: 'L',
 }
 
 function FormStrip({ matches }: { matches: FormMatch[] }) {
   const wins = matches.filter((m) => m.result === 'WIN').length
-  const losses = matches.filter((m) => m.result === 'LOSS').length
+  const losses = matches.filter((m) => m.result === 'LOSS' || m.result === 'DNF').length
   const otl = matches.filter((m) => m.result === 'OTL').length
-  const n = wins + losses + otl
+  const n = matches.length
 
   return (
     <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">

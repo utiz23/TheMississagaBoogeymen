@@ -119,12 +119,20 @@ def extract_frames(cv2, asset_path: Path) -> list[Any]:
 
     frames: list[Any] = []
     frame_index = 0
+    # cv2.VideoCapture.grab() advances the demuxer without decoding the
+    # frame; retrieve() decodes the most recently grabbed frame. Decoding
+    # all 59/60 unwanted frames just to discard them is the largest
+    # avoidable cost in extract_frames, so we only retrieve the kept ones.
     while True:
-        ok, image = capture.read()
-        if not ok:
-            break
         if frame_index % step == 0:
+            ok, image = capture.read()
+            if not ok:
+                break
             frames.append(image)
+        else:
+            ok = capture.grab()
+            if not ok:
+                break
         frame_index += 1
 
     capture.release()
@@ -136,13 +144,16 @@ def crop(image, key: str, override: tuple[int, int, int, int] | None = None):
     return image[y1:y2, x1:x2]
 
 
-# HSV ranges for the saturated selected-row band across NHL versions.
-# NHL 24/25 use a lime/chartreuse highlight (H≈30-45). NHL 23 uses a
-# coral red highlight that wraps the H=0 boundary, so it needs two ranges.
+# HSV ranges for the selected-row band across NHL versions.
+# NHL 22/24 use a lime/chartreuse highlight (H≈30-45). NHL 23 uses a
+# coral red highlight that wraps the H=0 boundary so it needs two ranges.
+# NHL 25 uses a near-white highlight (low saturation, high value) which
+# the saturated-colour ranges miss entirely; it gets its own range.
 HIGHLIGHT_HSV_RANGES: list[tuple[tuple[int,int,int], tuple[int,int,int]]] = [
-    ((28, 100, 180), (45, 255, 255)),  # lime / chartreuse — NHL 24+
+    ((28, 100, 180), (45, 255, 255)),  # lime / chartreuse — NHL 22, NHL 24
     ((0, 80, 130),   (15, 255, 255)),  # red lower band   — NHL 23
     ((165, 80, 130), (180, 255, 255)), # red upper band   — NHL 23 (hue wrap)
+    ((0, 0, 200),    (180, 60, 255)),  # near-white       — NHL 25
 ]
 HIGHLIGHT_MIN_WIDTH_FRAC = 0.50
 HIGHLIGHT_MIN_HEIGHT_PX = 30
@@ -369,13 +380,15 @@ def parse_stat_columns(
     image,
     *,
     roi: dict[str, tuple[int, int, int, int]] | None = None,
+    row_tokens: list[OcrToken] | None = None,
 ) -> tuple[dict[str, str], list[str], float]:
     roi = roi or ROI
     header_roi = crop(image, "headers", roi["headers"])
     row_roi_box = roi["highlight_row"]
-    row_roi = crop(image, "highlight_row", row_roi_box)
     header_tokens = ocr_tokens(ocr, header_roi, x_offset=roi["headers"][0], y_offset=roi["headers"][1])
-    row_tokens = ocr_tokens(ocr, row_roi, x_offset=row_roi_box[0], y_offset=row_roi_box[1])
+    if row_tokens is None:
+        row_roi = crop(image, "highlight_row", row_roi_box)
+        row_tokens = ocr_tokens(ocr, row_roi, x_offset=row_roi_box[0], y_offset=row_roi_box[1])
     header_points = [(token.x, token.text, canonical_header(token.text)) for token in header_tokens]
     header_x_by_key = {key: x for x, _, key in header_points if key}
 
@@ -446,14 +459,14 @@ def parse_stat_columns(
     return values_by_header, warnings, confidence
 
 
-def parse_summary(ocr, image) -> dict[str, str]:
+def _parse_summary_from_tokens(tokens: list[OcrToken]) -> dict[str, str]:
+    """Group footer-summary tokens into label/value pairs and emit a stats dict.
+
+    Split out from `parse_summary` so the OCR step can be cached at the
+    per-video layer (footer summary is identical across all frames in a
+    single capture).
+    """
     summary: dict[str, str] = {}
-    tokens = ocr_tokens(
-        ocr,
-        crop(image, "footer_summary"),
-        x_offset=ROI["footer_summary"][0],
-        y_offset=ROI["footer_summary"][1],
-    )
     groups: list[list[OcrToken]] = []
     for token in sorted(tokens, key=lambda item: item.x):
         if not groups or abs(groups[-1][0].x - token.x) > 140:
@@ -485,35 +498,81 @@ def parse_summary(ocr, image) -> dict[str, str]:
     return summary
 
 
+def parse_summary(ocr, image) -> dict[str, str]:
+    tokens = ocr_tokens(
+        ocr,
+        crop(image, "footer_summary"),
+        x_offset=ROI["footer_summary"][0],
+        y_offset=ROI["footer_summary"][1],
+    )
+    return _parse_summary_from_tokens(tokens)
+
+
+# Frames to OCR for the footer_summary strip. The early frames of a capture
+# can contain transient bad totals (mid-animation / previous-screen state),
+# so we deliberately skip frame 0 and start at frame 3. Spacing the samples
+# evenly across the typical 20-24 frame capture preserves the modal-merge
+# recovery behaviour with far fewer OCR calls than per-frame.
+DEFAULT_SUMMARY_SAMPLE_INDICES: tuple[int, ...] = (3, 7, 11, 15, 19)
+
+
+def pick_summary_sample_indices(total_frames: int) -> list[int]:
+    """Return the frame indices that should be OCR'd for footer_summary.
+
+    For a typical ~20-frame video, returns the canonical fixed sample set
+    `(3, 7, 11, 15, 19)`. Degrades gracefully for shorter clips: skips
+    frame 0 when possible (it's the most likely to carry transient bad
+    totals), and falls back to sampling every frame for very short clips.
+    """
+    if total_frames <= 0:
+        return []
+    indices = [i for i in DEFAULT_SUMMARY_SAMPLE_INDICES if i < total_frames]
+    if indices:
+        return indices
+    # Clip too short for any canonical index. Skip frame 0 if we can.
+    if total_frames == 1:
+        return [0]
+    return list(range(1, total_frames))
+
+
+def _resolve_rank(rank_tokens: list[OcrToken]) -> str | None:
+    for token in rank_tokens:
+        value = normalize_stat_value(token.text)
+        if is_numeric_like(value):
+            return value
+    return None
+
+
 def parse_identity(
     ocr,
     image,
     *,
     roi: dict[str, tuple[int, int, int, int]] | None = None,
+    row_tokens: list[OcrToken] | None = None,
+    cached_rank: str | None = None,
 ) -> dict[str, str]:
     roi = roi or ROI
     rank_box = roi["highlight_rank"]
     row_box = roi["highlight_row"]
-    rank_tokens = ocr_tokens(
-        ocr,
-        crop(image, "highlight_rank", rank_box),
-        x_offset=rank_box[0],
-        y_offset=rank_box[1],
-    )
-    row_tokens = ocr_tokens(
-        ocr,
-        crop(image, "highlight_row", row_box),
-        x_offset=row_box[0],
-        y_offset=row_box[1],
-    )
+    if cached_rank is None:
+        rank_tokens = ocr_tokens(
+            ocr,
+            crop(image, "highlight_rank", rank_box),
+            x_offset=rank_box[0],
+            y_offset=rank_box[1],
+        )
+        cached_rank = _resolve_rank(rank_tokens)
+    if row_tokens is None:
+        row_tokens = ocr_tokens(
+            ocr,
+            crop(image, "highlight_row", row_box),
+            x_offset=row_box[0],
+            y_offset=row_box[1],
+        )
 
     identity: dict[str, str] = {}
-
-    for token in rank_tokens:
-        value = normalize_stat_value(token.text)
-        if is_numeric_like(value):
-            identity["rank"] = value
-            break
+    if cached_rank is not None:
+        identity["rank"] = cached_rank
 
     text_tokens = [token.text.strip() for token in row_tokens if token.text.strip()]
     non_numeric = [token for token in text_tokens if not is_numeric_like(token)]
@@ -532,9 +591,28 @@ def text_contains(tokens: list[OcrToken], target: str) -> bool:
     return any(normalized_target in normalize_text(token.text) for token in tokens)
 
 
-def analyze_frame(ocr, image, row: ManifestRow) -> dict[str, Any]:
-    filter_tokens = ocr_tokens(ocr, crop(image, "filters"))
-    footer_tokens = ocr_tokens(ocr, crop(image, "footer_gamertag"))
+def compute_video_static_context(
+    ocr,
+    sample_image,
+    row: ManifestRow,
+) -> dict[str, Any]:
+    """OCR the ROIs that don't change between frames in a single video, exactly once.
+
+    Cached:
+      - `filters` chip strip — chip selections are static for the duration
+        of a capture.
+      - `footer_gamertag` strip — same player viewing throughout.
+      - `highlight_rank` — the player's leaderboard rank doesn't shift while
+        the video plays.
+
+    Deliberately NOT cached: `footer_summary`. The first 1-2 frames of a
+    capture often show transient/bad totals (e.g. previous-screen value,
+    mid-animation state) that the per-frame OCR + modal merge recovers
+    from. Locking in a single-frame sample of the summary regresses data
+    correctness, so it stays per-frame in `analyze_frame`.
+    """
+    filter_tokens = ocr_tokens(ocr, crop(sample_image, "filters"))
+    footer_tokens = ocr_tokens(ocr, crop(sample_image, "footer_gamertag"))
 
     chip_results: dict[str, bool | None] = {
         "footer_gamertag": text_contains(footer_tokens, row.gamertag),
@@ -548,12 +626,72 @@ def analyze_frame(ocr, image, row: ManifestRow) -> dict[str, Any]:
         ),
     }
 
+    sample_dyn_roi = dynamic_highlight_roi(sample_image)
+    rank_box = sample_dyn_roi["highlight_rank"]
+    rank_tokens = ocr_tokens(
+        ocr,
+        crop(sample_image, "highlight_rank", rank_box),
+        x_offset=rank_box[0],
+        y_offset=rank_box[1],
+    )
+    rank = _resolve_rank(rank_tokens)
+
+    return {
+        "chip_results": chip_results,
+        "rank": rank,
+    }
+
+
+def analyze_frame(
+    ocr,
+    image,
+    row: ManifestRow,
+    *,
+    video_ctx: dict[str, Any] | None = None,
+    summary: dict[str, str] | None = None,
+) -> dict[str, Any]:
+    """Analyze one video frame.
+
+    When `video_ctx` is supplied (returned by `compute_video_static_context`),
+    the static-ROI OCR work (filters / footer_gamertag / highlight_rank) is
+    reused from the per-video cache and skipped here. The variable per-frame
+    OCR — `headers` and `highlight_row` — still runs. Within a single frame,
+    `highlight_row` is OCR'd once and the tokens are shared between
+    `parse_stat_columns` and `parse_identity`.
+
+    `footer_summary` is not OCR'd per-frame. The caller pre-samples a small
+    set of frames (see `pick_summary_sample_indices`) and passes the parsed
+    summary dict here. Non-sample frames pass `{}` so they contribute nothing
+    to the merged summary buckets — modal merge across the sampled frames
+    still recovers from a transient bad reading on any single sample. If
+    `summary` is `None`, the legacy per-frame behavior is used as a fallback
+    (mainly for unit tests / cold-path callers).
+    """
+    if video_ctx is None:
+        video_ctx = compute_video_static_context(ocr, image, row)
+
+    chip_results = video_ctx["chip_results"]
+    cached_rank = video_ctx.get("rank")
+
     dyn_roi = dynamic_highlight_roi(image)
     highlight_detected = dyn_roi["highlight_row"] != ROI["highlight_row"]
 
-    values, frame_warnings, confidence = parse_stat_columns(ocr, image, roi=dyn_roi)
-    summary = parse_summary(ocr, image)
-    identity = parse_identity(ocr, image, roi=dyn_roi)
+    row_box = dyn_roi["highlight_row"]
+    row_tokens = ocr_tokens(
+        ocr,
+        crop(image, "highlight_row", row_box),
+        x_offset=row_box[0],
+        y_offset=row_box[1],
+    )
+
+    values, frame_warnings, confidence = parse_stat_columns(
+        ocr, image, roi=dyn_roi, row_tokens=row_tokens
+    )
+    if summary is None:
+        summary = parse_summary(ocr, image)
+    identity = parse_identity(
+        ocr, image, roi=dyn_roi, row_tokens=row_tokens, cached_rank=cached_rank
+    )
 
     for key in ("goals", "assists", "points", "games_played", "plus_minus", "wins", "losses", "otl"):
         if key not in values and key in summary:
@@ -720,8 +858,33 @@ def main() -> None:
         if args.save_crops:
             debug_dir.mkdir(parents=True, exist_ok=True)
 
+        # Compute the per-video static-ROI cache from the first frame whose
+        # dynamic highlight band is detectable. Falls back to the first frame
+        # if none qualify, in which case the rank may use the static fallback.
+        video_ctx: dict[str, Any] | None = None
+        if selected_frames:
+            sample_image = selected_frames[0][1]
+            for _, candidate in selected_frames:
+                if detect_highlight_band(candidate) is not None:
+                    sample_image = candidate
+                    break
+            video_ctx = compute_video_static_context(ocr, sample_image, row)
+
+        # Pre-OCR footer_summary on a small sampled subset of frames. Modal
+        # merge across these samples still recovers the correct totals if
+        # any single sample reads badly, while skipping the early frames
+        # that are most likely to carry transient bad totals.
+        summary_sample_indices = pick_summary_sample_indices(len(selected_frames))
+        summary_by_index: dict[int, dict[str, str]] = {
+            idx: parse_summary(ocr, selected_frames[idx][1])
+            for idx in summary_sample_indices
+        }
+
         for frame_index, image in selected_frames:
-            result = analyze_frame(ocr, image, row)
+            frame_summary = summary_by_index.get(frame_index, {})
+            result = analyze_frame(
+                ocr, image, row, video_ctx=video_ctx, summary=frame_summary
+            )
             frame_results.append(result)
 
             if args.save_crops:

@@ -12,7 +12,12 @@
 
 ## Current Priority
 
-Stable foundation. All major surfaces are live. Near-term work is quality-of-life improvements and analytics depth, not structural changes.
+Stable foundation. All major surfaces are live. Historical ingest is complete for NHL 22–25 across two separate legacy player sources:
+
+- player-card season totals
+- club-member club-scoped totals
+
+Both are now presented honestly in the merged `/stats` and `/roster` routes. The third historical source (club/team stats screenshots) is no longer hypothetical: schema/importer/extractor exist and a full review queue has been generated. Near-term work is review/import of that queue, quality-of-life improvements, and analytics depth — not structural recovery work.
 
 ---
 
@@ -64,6 +69,13 @@ Stable foundation. All major surfaces are live. Near-term work is quality-of-lif
 - `pg_dump` backup cron — daily dump to external drive
 - ~~Verify `clubs/seasonRank` + `settings` field shapes~~ ✅ Done — live DB row confirmed, all widget fields correct
 
+### 4. Third historical source review/import
+
+- Review generated `club_team_stats/*.extract.json` files
+- Promote corrected review artifacts into import-ready JSON
+- Import `historical_club_team_stats` title-by-title
+- Only after enough rows exist, decide where club/team screenshot totals belong in legacy UI
+
 ---
 
 ## Deferred Until Preconditions Exist
@@ -111,6 +123,13 @@ Stable foundation. All major surfaces are live. Near-term work is quality-of-lif
 | Season rank / division widget | ✅ |
 | Game-mode filter (All / 6s / 3s) across all surfaces | ✅ |
 | Source split: All=EA totals, 6s+3s=local tracked | ✅ |
+| Historical season import — NHL 22, 23, 24, 25 (159 reviewed rows total) | ✅ |
+| Club-member screenshot historical import — NHL 22, 23, 24, 25 (42 canonical rows total) | ✅ |
+| Club/team stats screenshot schema + importer + extractor + review queue | ✅ |
+| Identity drift sweep — `StickMenace` collapsed into `Stick Menace` (id=3) | ✅ |
+| Legacy titles integrated into `/stats` and `/roster`; `/archive/*` retired | ✅ |
+| Legacy `/stats` split into club-scoped totals vs player-card season totals | ✅ |
+| Legacy `/roster` club-scoped only | ✅ |
 | Game log on player profile | ✅ |
 | EA season totals section on player profile | ✅ |
 | Contribution radar on player profile | ✅ |

@@ -100,11 +100,29 @@ Implication:
 3. **EA-official club record snapshot model — BLOCKED.**
    EA `/members/stats` per-member `wins`/`losses`/`otl` are per-member participation counts, not a unified club W-L-OTL. Verified live: two members show different values. No other EA client endpoint returns a club-level record. Do not implement until a reliable source is confirmed. `club_game_title_stats.wins/losses/otl` is local-count only and must be displayed as such.
 
-### Phase 2 (partial ✓ 2026-04-17)
+### Phase 2 (complete enough for current product)
 
 1. current platform ownership and display model
-2. Boogeymen-only historical season summary model
-3. **game mode dimension — DONE.**
+2. **Boogeymen-only historical season summary model — DONE (2026-05-02).**
+   `historical_player_season_stats` table populated with reviewed OCR-derived
+   season aggregates for NHL 22–25 (159 rows total). Surfaced in `/stats` and
+   `/roster` via the unified title resolver; no match-level data is
+   reconstructed.
+3. **Club-scoped historical member model — DONE (2026-05-02).**
+   `historical_club_member_season_stats` table populated from reviewed
+   `CLUBS -> MEMBERS` screenshot captures for NHL 22–25 (42 canonical rows:
+   31 skater, 11 goalie). This source is intentionally separate from
+   `historical_player_season_stats` and drives club-scoped legacy `/roster`
+   plus the primary section on legacy `/stats`.
+4. **Club/team historical totals model — IN PROGRESS (2026-05-03).**
+   `historical_club_team_stats` table now exists, with migration and importer
+   applied. Grain is one row per `(game_title_id, playlist)`. Hand-keyed NHL 25
+   pilot rows (`eashl_6v6`, `eashl_3v3`) proved the schema. A dedicated
+   `club_stats__*.png` extractor now emits reviewable JSON in the importer
+   shape, and a full cross-title review queue has been generated for 17 logical
+   playlists across NHL 22–25. Remaining work is manual review + staged import,
+   not schema design.
+5. **game mode dimension — DONE.**
    `game_mode text` added to both aggregate tables. Functional unique index `COALESCE(game_mode, '')` handles NULL (all-modes) safely. Aggregate loop now writes null/6s/3s rows. All local aggregate query functions accept optional `gameMode` param (default null = all-modes). Migration `0008_lowly_vindicator.sql` applied. `reprocess --all` ran (15/15 succeeded).
 4. current player page data model for:
    - current game baseline totals
@@ -125,6 +143,10 @@ Only later, if needed:
 
 - Do not collapse EA baseline totals and local advanced stats into one fake
   all-purpose stat source.
+- Do not collapse club-member historical totals and player-card historical
+  totals into one fake historical source.
+- Do not collapse club/team screenshot totals into either player historical
+  source. They are a third, club-level truth.
 - Do not put ingestion-owned current platform data into `player_profiles`.
 - Do not invent historical official club records if snapshots were not captured
   at the time.
