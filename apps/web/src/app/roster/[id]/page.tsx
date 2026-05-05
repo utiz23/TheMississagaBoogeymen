@@ -21,12 +21,13 @@ import { PositionPill } from '@/components/matches/position-pill'
 import { PlayerGameLogSection } from '@/components/roster/player-game-log-section'
 import { ClubStatsTabs } from '@/components/roster/club-stats-tabs'
 import { ContributionSection } from '@/components/roster/contribution-section'
+import { RecentFormStrip } from '@/components/roster/recent-form-strip'
 import { SectionHeading } from '@/components/roster/section-heading'
+import { TrendChart } from '@/components/roster/trend-chart'
 import {
   formatMatchDate,
   formatPosition,
   formatRecord,
-  formatScore,
 } from '@/lib/format'
 
 export const revalidate = 3600
@@ -204,12 +205,9 @@ export default async function PlayerPage({ params, searchParams }: Props) {
       <CurrentSeasonSection overview={overview} selectedRole={selectedRole} />
 
       {trendGames.length > 0 && (
-        <TrendSection
-          trendGames={trendGames}
-          selectedRole={selectedRole}
-          recentForm={selectedRecentForm}
-        />
+        <TrendChart trendGames={trendGames} selectedRole={selectedRole} />
       )}
+      <RecentFormStrip recentForm={selectedRecentForm} selectedRole={selectedRole} />
 
       <ContributionSection contribution={selectedContribution} selectedRole={selectedRole} />
 
@@ -295,7 +293,6 @@ export default async function PlayerPage({ params, searchParams }: Props) {
 type Overview = NonNullable<Awaited<ReturnType<typeof getPlayerProfileOverview>>>
 type CareerRow = Awaited<ReturnType<typeof getPlayerCareerStats>>[number]
 type EASeasonRow = Awaited<ReturnType<typeof getPlayerEASeasonStats>>[number]
-type GameLogRow = Awaited<ReturnType<typeof getPlayerGameLog>>[number]
 type PositionUsageRow = Awaited<ReturnType<typeof getPlayerPositionUsage>>[number]
 type HistoricalSkaterSeasonRow = Awaited<
   ReturnType<typeof getHistoricalSkaterStatsAllModes>
@@ -844,183 +841,6 @@ function SeasonStatCard({
   )
 }
 
-// ─── Trend ────────────────────────────────────────────────────────────────────
-
-type RecentForm = Overview['skaterRecentForm']
-
-function TrendSection({
-  trendGames,
-  selectedRole,
-  recentForm,
-}: {
-  trendGames: GameLogRow[]
-  selectedRole: 'skater' | 'goalie'
-  recentForm: RecentForm
-}) {
-  const stats = trendGames.map((g) =>
-    selectedRole === 'goalie' ? (g.saves ?? 0) : g.goals + g.assists,
-  )
-  const maxStat = Math.max(...stats, 1)
-  const total = stats.reduce((a, b) => a + b, 0)
-  const avg = stats.length > 0 ? total / stats.length : 0
-
-  const chartW = 280
-  const chartH = 64
-  const barW = Math.max(4, Math.floor((chartW - trendGames.length) / trendGames.length))
-
-  const avgY = chartH - Math.max(2, (avg / maxStat) * (chartH - 4))
-
-  return (
-    <section id="form" className="space-y-4 scroll-mt-24">
-      <SectionHeading
-        title="Recent Form"
-        subtitle={`Last ${trendGames.length.toString()} ${selectedRole} appearances · oldest to newest`}
-      />
-
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_280px]">
-        <SurfaceCard>
-          <p className="mb-3 text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-600">
-            {selectedRole === 'goalie' ? 'Saves per game' : 'Points per game'}
-          </p>
-          <svg
-            viewBox={`0 0 ${chartW.toString()} ${chartH.toString()}`}
-            className="w-full"
-            style={{ height: `${chartH.toString()}px` }}
-            aria-hidden
-          >
-            {/* Average reference line */}
-            <line
-              x1="0"
-              y1={avgY}
-              x2={chartW}
-              y2={avgY}
-              stroke="rgba(255,255,255,0.07)"
-              strokeWidth="1"
-              strokeDasharray="4 3"
-            />
-            {trendGames.map((g, i) => {
-              const stat = stats[i] ?? 0
-              const barH = Math.max(3, (stat / maxStat) * (chartH - 4))
-              const x = i * (barW + 1)
-              const color =
-                g.result === 'WIN'
-                  ? '#10b981'
-                  : g.result === 'OTL'
-                    ? '#f59e0b'
-                    : '#e11d48'
-              return (
-                <rect
-                  key={g.matchId}
-                  x={x}
-                  y={chartH - barH}
-                  width={barW}
-                  height={barH}
-                  fill={color}
-                  rx="1"
-                  opacity="0.85"
-                >
-                  <title>
-                    {`vs ${g.opponentName} (${g.result}): ${stat.toString()} ${selectedRole === 'goalie' ? 'saves' : 'pts'}`}
-                  </title>
-                </rect>
-              )
-            })}
-          </svg>
-          <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-zinc-600">
-            <span>avg {avg.toFixed(1)} / game</span>
-            {selectedRole === 'skater' && recentForm?.role === 'skater' && (
-              <>
-                <span>·</span>
-                <span>
-                  {recentForm.goals}G / {recentForm.assists}A in last {recentForm.gamesAnalyzed}
-                </span>
-              </>
-            )}
-            <div className="ml-auto flex items-center gap-2">
-              <span className="flex items-center gap-1">
-                <span className="inline-block h-2 w-2 rounded-sm bg-emerald-500 opacity-85" />
-                W
-              </span>
-              <span className="flex items-center gap-1">
-                <span className="inline-block h-2 w-2 rounded-sm bg-amber-500 opacity-85" />
-                OT
-              </span>
-              <span className="flex items-center gap-1">
-                <span className="inline-block h-2 w-2 rounded-sm bg-rose-500 opacity-85" />
-                L
-              </span>
-            </div>
-          </div>
-        </SurfaceCard>
-
-        <SurfaceCard>
-          {recentForm ? (
-            <div className="space-y-4">
-              <div className="flex items-center justify-between gap-2">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-zinc-500">
-                  Last {recentForm.gamesAnalyzed}
-                </p>
-                <ResultPips results={recentForm.recentResults as MatchResult[]} />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <MiniStat
-                  label="Record"
-                  value={formatRecord(
-                    recentForm.record.wins,
-                    recentForm.record.losses,
-                    recentForm.record.otl,
-                  )}
-                />
-                {recentForm.role === 'skater' ? (
-                  <>
-                    <MiniStat label="G / A" value={`${recentForm.goals.toString()} / ${recentForm.assists.toString()}`} />
-                    <MiniStat
-                      label="+/-"
-                      value={formatSigned(recentForm.plusMinus)}
-                    />
-                  </>
-                ) : (
-                  <>
-                    <MiniStat
-                      label="SV%"
-                      value={recentForm.savePct !== null ? `${recentForm.savePct.toFixed(1)}%` : '—'}
-                    />
-                    <MiniStat label="GA" value={recentForm.goalsAgainst.toString()} />
-                  </>
-                )}
-              </div>
-              {recentForm.bestGame && (
-                <div className="border-t border-zinc-800/60 pt-3">
-                  <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-accent/60">
-                    Best Recent
-                  </p>
-                  <Link
-                    href={`/games/${recentForm.bestGame.matchId.toString()}`}
-                    className="mt-1.5 block font-condensed text-sm font-bold uppercase tracking-wide text-zinc-200 transition-colors hover:text-accent"
-                  >
-                    vs {recentForm.bestGame.opponentName}
-                  </Link>
-                  <p className="mt-0.5 text-xs text-zinc-600">
-                    {formatMatchDate(recentForm.bestGame.playedAt)} ·{' '}
-                    {formatScore(recentForm.bestGame.scoreFor, recentForm.bestGame.scoreAgainst)}
-                  </p>
-                  <p className="mt-1 text-xs text-zinc-400">
-                    {recentForm.role === 'goalie'
-                      ? `${(recentForm.bestGame.saves ?? 0).toString()} saves, ${(recentForm.bestGame.goalsAgainst ?? 0).toString()} GA`
-                      : `${recentForm.bestGame.goals.toString()} G · ${recentForm.bestGame.assists.toString()} A · ${(recentForm.bestGame.goals + recentForm.bestGame.assists).toString()} PTS`}
-                  </p>
-                </div>
-              )}
-            </div>
-          ) : (
-            <p className="text-sm text-zinc-500">No recent appearances tracked yet.</p>
-          )}
-        </SurfaceCard>
-      </div>
-    </section>
-  )
-}
-
 // ─── Career Stats Table ───────────────────────────────────────────────────────
 
 interface StatCol {
@@ -1334,25 +1154,6 @@ function PreviousSeasonStatsDataRow({ row }: { row: PreviousSeasonTotalsRow }) {
 
 // ─── Shared primitives ────────────────────────────────────────────────────────
 
-function SurfaceCard({
-  children,
-  className = '',
-}: {
-  children: ReactNode
-  className?: string
-}) {
-  return <div className={`border border-zinc-800 bg-surface p-4 ${className}`}>{children}</div>
-}
-
-function MiniStat({ label, value }: { label: string; value: string }) {
-  return (
-    <div>
-      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-500">{label}</p>
-      <p className="mt-1.5 font-condensed text-xl font-black text-zinc-100">{value}</p>
-    </div>
-  )
-}
-
 function HeroChip({
   children,
   accent = false,
@@ -1389,34 +1190,6 @@ function ErrorState({ message }: { message: string }) {
   return (
     <div className="flex min-h-[12rem] items-center justify-center border border-zinc-800 bg-surface">
       <p className="text-sm text-zinc-500">{message}</p>
-    </div>
-  )
-}
-
-type MatchResult = 'WIN' | 'LOSS' | 'OTL' | 'DNF'
-
-function ResultPips({ results }: { results: MatchResult[] }) {
-  if (results.length === 0) return null
-  return (
-    <div className="flex items-center gap-1" aria-label="Recent results">
-      {results.map((r, i) => {
-        const color =
-          r === 'WIN'
-            ? 'bg-emerald-500'
-            : r === 'LOSS'
-              ? 'bg-rose-600'
-              : r === 'OTL'
-                ? 'bg-amber-500'
-                : 'bg-zinc-600'
-        return (
-          <span
-            key={i}
-            className={`block h-2.5 w-2.5 rounded-sm ${color}`}
-            aria-label={r}
-            title={r}
-          />
-        )
-      })}
     </div>
   )
 }
