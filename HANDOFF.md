@@ -2,9 +2,61 @@
 
 ## Current Status
 
-**Phase:** Skater stats expansion complete and verified on `feat/skater-stats-expansion`. Branch ready for review/merge.
+**Phase:** Player profile page restructured to v2 IA on `feat/skater-stats-expansion`. Skater stats expansion + profile restructure together; branch ready for review/merge.
 
 **Last updated:** 2026-05-05
+
+---
+
+## Session Summary — 2026-05-05 (profile page restructure)
+
+### Restructured `/roster/[id]` from 1700 → 217 lines with new IA
+
+Plan: `docs/superpowers/plans/2026-05-05-profile-page-restructure.md`. Branch: `feat/skater-stats-expansion` (continuing the same branch as the skater stats work).
+
+**New IA:**
+- ProfileHero (richer two-column layout) — left: gamertag, position/archetype/country pills, bio, **AKA strip** (folded gamertag history), SKATER/GOALIE role selector. Right: **THIS SEASON** stat strip (NHL 26 EA totals), **CAREER TOTALS** stat strip (sum across NHL 22-26), position usage donut, jersey number watermark.
+- RecentFormStrip (compact LAST 5 panel with form dots + record + G/A + +/- + best-recent callout)
+- StatsRecordCard (tabbed wrapper) — **Season-by-Season** tab shows unified per-title rows with EA/Archive source badges; **Game Log** tab shows existing PlayerGameLogSection
+- ClubStatsTabs (existing 5-tab thing, skater only) / ComingSoonCard placeholder for goalie
+- ContributionSection (existing donut + metric bars, role-aware)
+- ChartsVisualsSection — bottom zone with the real TrendChart (15-game bars) + 3 wireframe placeholders (Shot Map, Overall Archetype, Awards)
+
+**Data layer (commits 1ab8d9e, 93e9d87):** New `getPlayerCareerSeasons(playerId)` query in `packages/db/src/queries/players.ts` returns one row per game title blending sources — NHL 26 from `ea_member_season_stats` (EA-authoritative), NHL 22-25 from `historical_player_season_stats` aggregated across modes via existing `getHistoricalSkaterStatsAllModes` / `getHistoricalGoalieStatsAllModes` helpers. Title-list filter aligned to helper-filter to prevent silent skip of titles with only position-specific scope rows.
+
+**Component extractions** (no behavior change — refactor for maintainability):
+- `apps/web/src/components/roster/contribution-section.tsx` (commit 01658e9)
+- `apps/web/src/components/roster/section-heading.tsx` (commit 01658e9)
+- `apps/web/src/components/roster/trend-chart.tsx` + `recent-form-strip.tsx` (commit 0aab56c — split TrendSection)
+- `apps/web/src/components/roster/position-donut.tsx` (commit a60bc6d)
+
+**New components** (commits ee8bc1e, ffceaca, d04baf6, 2cfa40c, 8c2aece):
+- `career-seasons-table.tsx` — unified per-title table, filters by role, EA/Archive source badges, derives SHT% / P/GP from underlying counts, +/- color coding
+- `stats-record-card.tsx` — Client Component tabbed wrapper (Server Components passed as ReactNode slots)
+- `coming-soon-card.tsx` — placeholder primitive with dashed border + "Coming soon" pill
+- `profile-hero.tsx` — 435-line two-column hero with stat strips, AKA, role selector, position donut
+- `charts-visuals-section.tsx` — bottom zone wrapper combining real trend chart + 3 wireframes
+
+**Page restructure (commit 7635a43):** Page file shrank from 1168 → 217 lines (951 deletions, 41 insertions). Deleted inline functions: `HeroSection`, `HeroStatStrip`, `CurrentSeasonSection`, `SeasonStatCard`, `CareerStatsTable`, `EASeasonStatsTable`, `PreviousSeasonStatsTable`, `HeroChip`, `EmptyPanel`, `computeSkaterArchetype`, `roleHref`, `previousTitleSlug`, `buildPreviousSeasonTotals`, dead helpers (`perGame`, `formatDecimal`, `formatDbPct`, `formatSigned`, `signedClass`), Gamertag History `<section>` (folded into ProfileHero AKA). Removed `getPlayerCareerStats`, `getGameTitleBySlug`, `getHistoricalSkaterStatsAllModes`, `getHistoricalGoalieStatsAllModes` imports — they're called only via `getPlayerCareerSeasons` now.
+
+**Smoke check (silkyjoker85, /roster/2):**
+- Skater hero THIS SEASON: GP 520, G 426, A 691, PTS 1117, P/GP 2.15, +/- +169, SOG 1841, SHT% 23.1%, HITS 2067
+- Skater hero CAREER TOTALS: GP 1987, G 2047, A 2854, PTS 4901, +/- +854, SOG 8243, SHT% 24.8%, HITS 5630, PIM 1767
+- Goalie hero THIS SEASON: GP 25, W-L-OTL 6-19-0, SV% 74.00%, GAA 4.66, SO 1
+- Goalie hero CAREER TOTALS: GP 209, W 92, L 105, OTL 12, SO 12
+- Stats Record Season tab shows 5 rows (NHL 26 EA, NHL 22-25 Archive); Game Log tab shows existing per-game data
+- ContributionSection, Club Stats 5-tab, Charts & Visuals all rendering
+
+**Verification:** lint clean, typecheck clean, both `/roster/2` and `/roster/2?role=goalie` return 200, dev server stable on http://localhost:3002 throughout development.
+
+**Out of scope (future plans):**
+- Goalie Club Stats Tabs (Tabs 6-8) — currently a `<ComingSoonCard>` placeholder for goalie role
+- Real Shot Map (data captured in `skGoalsLocationOnIce*` / `skShotsLocationOnIce*`, never visualized)
+- Real Overall Archetype radar
+- Real Awards
+- Career SV%/GAA aggregation (currently shows `—` because helpers don't carry total saves/SA across rows)
+- Backfill historical importer to produce `all_skaters` aggregate rows for players with only position-specific data (e.g. player 11 NHL 23 wing-only — silently excluded)
+- Pre-existing `desc(gameTitleId)` sort bug in `getPlayerCareerStats` / `getPlayerEASeasonStats` / `getPlayerProfileOverview` — masked by current single-row data shape; will surface when NHL 27 launches
 
 ---
 
