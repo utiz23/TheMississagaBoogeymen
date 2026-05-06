@@ -1,6 +1,9 @@
 # Dependencies
 node_modules
 
+# Brainstorm session files
+.superpowers/
+
 # Build outputs
 dist
 build
