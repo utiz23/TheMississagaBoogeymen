@@ -324,6 +324,57 @@ export interface EaMemberStats {
   glga?: string
   gltoi?: string
 
+  // ── Shot location grids (NHL 26 only — null/missing for prior titles) ────
+  // 16 ice-surface zones (offensive zone half-rink). Indices 1–16.
+  // Physical zone-to-index mapping discovered empirically — see
+  // apps/web/src/components/roster/shot-map-zones.ts.
+  skShotsLocationOnIce1?: string
+  skShotsLocationOnIce2?: string
+  skShotsLocationOnIce3?: string
+  skShotsLocationOnIce4?: string
+  skShotsLocationOnIce5?: string
+  skShotsLocationOnIce6?: string
+  skShotsLocationOnIce7?: string
+  skShotsLocationOnIce8?: string
+  skShotsLocationOnIce9?: string
+  skShotsLocationOnIce10?: string
+  skShotsLocationOnIce11?: string
+  skShotsLocationOnIce12?: string
+  skShotsLocationOnIce13?: string
+  skShotsLocationOnIce14?: string
+  skShotsLocationOnIce15?: string
+  skShotsLocationOnIce16?: string
+
+  skGoalsLocationOnIce1?: string
+  skGoalsLocationOnIce2?: string
+  skGoalsLocationOnIce3?: string
+  skGoalsLocationOnIce4?: string
+  skGoalsLocationOnIce5?: string
+  skGoalsLocationOnIce6?: string
+  skGoalsLocationOnIce7?: string
+  skGoalsLocationOnIce8?: string
+  skGoalsLocationOnIce9?: string
+  skGoalsLocationOnIce10?: string
+  skGoalsLocationOnIce11?: string
+  skGoalsLocationOnIce12?: string
+  skGoalsLocationOnIce13?: string
+  skGoalsLocationOnIce14?: string
+  skGoalsLocationOnIce15?: string
+  skGoalsLocationOnIce16?: string
+
+  // 5 net-grid zones. Indices 1–5.
+  skShotsLocationOnNet1?: string
+  skShotsLocationOnNet2?: string
+  skShotsLocationOnNet3?: string
+  skShotsLocationOnNet4?: string
+  skShotsLocationOnNet5?: string
+
+  skGoalsLocationOnNet1?: string
+  skGoalsLocationOnNet2?: string
+  skGoalsLocationOnNet3?: string
+  skGoalsLocationOnNet4?: string
+  skGoalsLocationOnNet5?: string
+
   /** Catch-all for spatial fields, X-Factor variants, and any field not yet typed. */
   [key: string]: unknown
 }
