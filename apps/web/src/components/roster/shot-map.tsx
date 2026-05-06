@@ -12,6 +12,7 @@ import {
 import {
   deviationColor,
   shootingPctColor,
+  COLOR_PCT_INSUFFICIENT,
 } from '@/lib/shot-map-colors'
 
 type View = 'ice' | 'net'
@@ -140,6 +141,12 @@ function IceMap({
 
   return (
     <svg viewBox="0 0 200 180" className="w-full">
+      <defs>
+        <pattern id="hatch-insufficient" patternUnits="userSpaceOnUse" width="4" height="4" patternTransform="rotate(45)">
+          <rect width="4" height="4" fill={COLOR_PCT_INSUFFICIENT} />
+          <line x1="0" y1="0" x2="0" y2="4" stroke="#3f3f46" strokeWidth="1" />
+        </pattern>
+      </defs>
       {/* backdrop — goal line at top (y=0), blue line at bottom (y=180) */}
       <path d={HALF_RINK_OUTLINE} fill="#1f1f23" stroke="#3f3f46" strokeWidth="0.6" />
 
@@ -156,11 +163,12 @@ function IceMap({
         else if (mode === 'goals') fill = deviationColor(playerGoals, teamGoals)
         else fill = shootingPctColor(playerShots, playerGoals, range.min, range.max)
 
+        const fillForRender = fill === COLOR_PCT_INSUFFICIENT ? 'url(#hatch-insufficient)' : fill
         const tooltip = buildTooltip(mode, playerShots, playerGoals, teamShots, teamGoals)
 
         return (
           <g key={zoneId}>
-            <path d={shape.d} fill={fill} stroke="#3f3f46" strokeWidth="0.4" data-zone={zoneId}>
+            <path d={shape.d} fill={fillForRender} stroke="#3f3f46" strokeWidth="0.4" data-zone={zoneId}>
               <title>{tooltip}</title>
             </path>
           </g>
@@ -183,6 +191,12 @@ function NetMap({
 
   return (
     <svg viewBox="0 0 100 60" className="w-full">
+      <defs>
+        <pattern id="hatch-insufficient" patternUnits="userSpaceOnUse" width="4" height="4" patternTransform="rotate(45)">
+          <rect width="4" height="4" fill={COLOR_PCT_INSUFFICIENT} />
+          <line x1="0" y1="0" x2="0" y2="4" stroke="#3f3f46" strokeWidth="1" />
+        </pattern>
+      </defs>
       {Object.entries(EA_NET_INDEX_TO_ZONE).map(([idxStr, zoneId]) => {
         const i = Number(idxStr) - 1
         const shape = NET_ZONE_SHAPES[zoneId]
@@ -196,6 +210,7 @@ function NetMap({
         else if (mode === 'goals') fill = deviationColor(playerGoals, teamGoals)
         else fill = shootingPctColor(playerShots, playerGoals, range.min, range.max)
 
+        const fillForRender = fill === COLOR_PCT_INSUFFICIENT ? 'url(#hatch-insufficient)' : fill
         const tooltip = buildTooltip(mode, playerShots, playerGoals, teamShots, teamGoals)
 
         return (
@@ -205,7 +220,7 @@ function NetMap({
             y={shape.y}
             width={shape.w}
             height={shape.h}
-            fill={fill}
+            fill={fillForRender}
             stroke="#c34353"
             strokeWidth="0.5"
             data-zone={zoneId}
@@ -341,7 +356,15 @@ function buildTooltip(
     return `${String(pGoals)} G / ${String(pShots)} S = ${pct}%`
   }
   if (mode === 'goals') {
-    return `${String(pGoals)} goals · team avg ${tGoals.toFixed(1)}`
+    return `${String(pGoals)} goals · team avg ${tGoals.toFixed(1)} · ${formatDelta(pGoals, tGoals)}`
   }
-  return `${String(pShots)} shots · team avg ${tShots.toFixed(1)}`
+  return `${String(pShots)} shots · team avg ${tShots.toFixed(1)} · ${formatDelta(pShots, tShots)}`
+}
+
+function formatDelta(playerCount: number, teamAvg: number): string {
+  if (teamAvg === 0) return playerCount === 0 ? '0%' : '+∞%'
+  const pct = ((playerCount - teamAvg) / teamAvg) * 100
+  const rounded = Math.round(pct)
+  if (rounded > 0) return `+${String(rounded)}%`
+  return `${String(rounded)}%`
 }

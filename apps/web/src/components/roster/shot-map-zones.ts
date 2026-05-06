@@ -1,9 +1,12 @@
 /**
  * Frozen zone layout for the Shot Map component.
  *
- * Discovery method: matched per-zone counts on a known player's DB row
- * against ChelHead's rendering of the same player. Validated on a second
- * player. Update only with fresh evidence.
+ * Discovery method: pattern analysis on a high-volume player's DB row
+ * (index 7 dominates → slot; index 16 second-highest → long-range bar).
+ * Visual validation against ChelHead's rendered map is pending; the
+ * EA_ICE_INDEX_TO_ZONE block below is a working hypothesis, not yet
+ * empirically confirmed for indices other than 7 and 16. Update on
+ * evidence.
  *
  * Coordinates use a viewBox of 200 × 180. (0,0) is top-left.
  * The half-rink offensive zone is rendered with the goal line at the top.
