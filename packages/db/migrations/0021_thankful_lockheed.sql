@@ -1,0 +1,1 @@
+ALTER TABLE "ea_member_season_stats" ADD COLUMN "shot_locations" jsonb;

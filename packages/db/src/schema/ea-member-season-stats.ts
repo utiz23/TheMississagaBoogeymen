@@ -1,6 +1,7 @@
 import {
   bigserial,
   integer,
+  jsonb,
   numeric,
   pgTable,
   text,
@@ -233,6 +234,13 @@ export const eaMemberSeasonStats = pgTable(
      */
     goalieToiSeconds: integer('goalie_toi_seconds'),
 
+    /**
+     * Shot/goal location grids. JSON shape: { shotsIce: number[16],
+     * goalsIce: number[16], shotsNet: number[5], goalsNet: number[5] }.
+     * Null for goalie rows and pre-NHL-26 game titles.
+     */
+    shotLocations: jsonb('shot_locations').$type<ShotLocations | null>(),
+
     // ── Context ───────────────────────────────────────────────────────────────
     /** Console platform reported by EA. e.g. 'xbsx', 'ps5'. EA field: clientPlatform */
     clientPlatform: text('client_platform'),
@@ -241,6 +249,26 @@ export const eaMemberSeasonStats = pgTable(
   },
   (table) => [uniqueIndex('ea_member_season_stats_uniq').on(table.gameTitleId, table.gamertag)],
 )
+
+/**
+ * Per-player shot/goal location grids for NHL 26.
+ *
+ * Sourced from the EA `/members/stats` endpoint. EA returns 42 individual
+ * fields (`skShotsLocationOnIce1`–`16`, `skGoalsLocationOnIce1`–`16`,
+ * `skShotsLocationOnNet1`–`5`, `skGoalsLocationOnNet1`–`5`); we collapse
+ * them into four fixed-length integer arrays.
+ *
+ * `null` for goalie rows and any pre-NHL-26 ingestion (no source fields
+ * present on the raw payload). Sum invariant on writes:
+ *   sum(shotsIce) === sum(shotsNet)
+ *   sum(goalsIce) === sum(goalsNet)
+ */
+export type ShotLocations = {
+  shotsIce: number[]   // length 16
+  goalsIce: number[]   // length 16
+  shotsNet: number[]   // length 5
+  goalsNet: number[]   // length 5
+}
 
 export type EaMemberSeasonStats = typeof eaMemberSeasonStats.$inferSelect
 export type NewEaMemberSeasonStats = typeof eaMemberSeasonStats.$inferInsert
