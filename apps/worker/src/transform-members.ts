@@ -18,6 +18,7 @@
 
 import type { EaMemberStats } from '@eanhl/ea-client'
 import type { NewEaMemberSeasonStats } from '@eanhl/db'
+import { extractShotLocations } from './extract-shot-locations.js'
 
 // ─── Parsing helpers ──────────────────────────────────────────────────────────
 
@@ -78,6 +79,20 @@ export function transformMemberStats(
   const goalieGp = parseIntField(raw, 'glgp')
   const skToiMinutes = parseIntField(raw, 'sktoi')
   const glToiMinutes = parseIntField(raw, 'gltoi')
+
+  const shotLocations = extractShotLocations(raw)
+
+  // Diagnostic: warn when EA returned partial location data that fails the
+  // sum invariant. Don't drop the row — just skip the column for that member.
+  if (
+    shotLocations === null &&
+    raw.favoritePosition !== 'goalie' &&
+    typeof raw.skShotsLocationOnIce1 === 'string'
+  ) {
+    console.warn(
+      `[transform-members] shot location invariant failed for ${raw.name} (game title ${gameTitleId}); skipping shot_locations column`,
+    )
+  }
 
   return {
     gameTitleId,
@@ -180,6 +195,8 @@ export function transformMemberStats(
     goalieShots: parseNullableInt(raw, 'glshots', goalieGp),
     goalieGoalsAgainst: parseNullableInt(raw, 'glga', goalieGp),
     goalieToiSeconds: goalieGp > 0 ? glToiMinutes * 60 : null,
+
+    shotLocations,
 
     clientPlatform: typeof raw.clientPlatform === 'string' ? raw.clientPlatform : null,
   }
