@@ -9,6 +9,7 @@
     "start": "node dist/index.js",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src",
+    "test": "pnpm run build && node --test dist/**/*.test.js",
     "reprocess": "node dist/reprocess.js",
     "ingest-now": "node dist/ingest-now.js"
   },
