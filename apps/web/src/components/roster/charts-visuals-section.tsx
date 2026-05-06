@@ -3,9 +3,10 @@ import { ComingSoonCard } from '@/components/roster/coming-soon-card'
 
 interface Props {
   trendChart: ReactNode
+  shotMap?: ReactNode
 }
 
-export function ChartsVisualsSection({ trendChart }: Props) {
+export function ChartsVisualsSection({ trendChart, shotMap }: Props) {
   return (
     <section className="space-y-4">
       <div className="space-y-1">
@@ -18,10 +19,7 @@ export function ChartsVisualsSection({ trendChart }: Props) {
       </div>
       <div className="grid gap-4 lg:grid-cols-2">
         {trendChart}
-        <ComingSoonCard
-          title="Shot Map"
-          description="Goal and shot location heatmap by zone. Spatial data is captured in the EA payload but not yet visualized."
-        />
+        {shotMap ?? null}
         <ComingSoonCard
           title="Overall Archetype"
           description="Radar visualization of player score across all six contribution dimensions."

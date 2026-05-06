@@ -8,6 +8,7 @@ import {
   getPlayerGameLog,
   countPlayerGameLog,
   getPlayerEASeasonStats,
+  getTeamAverageShotLocations,
 } from '@eanhl/db/queries'
 import type { GameMode } from '@eanhl/db'
 import { GAME_MODE } from '@eanhl/db'
@@ -21,6 +22,7 @@ import { CareerSeasonsTable } from '@/components/roster/career-seasons-table'
 import { StatsRecordCard } from '@/components/roster/stats-record-card'
 import { ChartsVisualsSection } from '@/components/roster/charts-visuals-section'
 import { ComingSoonCard } from '@/components/roster/coming-soon-card'
+import { ShotMap } from '@/components/roster/shot-map'
 
 export const revalidate = 3600
 
@@ -93,6 +95,13 @@ export default async function PlayerPage({ params, searchParams }: Props) {
     ])
   } catch {
     return <ErrorState message="Unable to load player data right now." />
+  }
+
+  let teamAverage: Awaited<ReturnType<typeof getTeamAverageShotLocations>> | null = null
+  try {
+    teamAverage = await getTeamAverageShotLocations(1)
+  } catch {
+    teamAverage = null
   }
 
   if (!overview) notFound()
@@ -191,9 +200,34 @@ export default async function PlayerPage({ params, searchParams }: Props) {
             />
           )
         }
+        shotMap={
+          overview.primaryRole === 'goalie' ? undefined : (
+            <ShotMap
+              player={resolveNhl26ShotLocations(eaStats)}
+              teamAverage={teamAverage ?? emptyShotLocations()}
+              hasData={teamAverage !== null && resolveNhl26ShotLocations(eaStats) !== null}
+            />
+          )
+        }
       />
     </div>
   )
+}
+
+function resolveNhl26ShotLocations(
+  rows: Awaited<ReturnType<typeof getPlayerEASeasonStats>>,
+) {
+  const nhl26 = rows.find((r) => r.gameTitleSlug === 'nhl26')
+  return nhl26?.shotLocations ?? null
+}
+
+function emptyShotLocations() {
+  return {
+    shotsIce: new Array(16).fill(0),
+    goalsIce: new Array(16).fill(0),
+    shotsNet: new Array(5).fill(0),
+    goalsNet: new Array(5).fill(0),
+  }
 }
 
 function ErrorState({ message }: { message: string }) {
