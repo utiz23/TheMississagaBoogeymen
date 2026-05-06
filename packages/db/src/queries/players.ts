@@ -440,6 +440,8 @@ export async function getPlayerEASeasonStats(playerId: number) {
       goalieSaves: eaMemberSeasonStats.goalieSaves,
       goalieShots: eaMemberSeasonStats.goalieShots,
       goalieGoalsAgainst: eaMemberSeasonStats.goalieGoalsAgainst,
+
+      shotLocations: eaMemberSeasonStats.shotLocations,
     })
     .from(eaMemberSeasonStats)
     .innerJoin(gameTitles, eq(eaMemberSeasonStats.gameTitleId, gameTitles.id))
