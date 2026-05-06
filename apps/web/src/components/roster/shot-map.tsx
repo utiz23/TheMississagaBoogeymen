@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState } from 'react'
 import type { ShotLocations } from '@eanhl/db'
 import {
   EA_ICE_INDEX_TO_ZONE,
@@ -136,7 +136,7 @@ function IceMap({
   teamAvg: ShotLocations
   mode: Mode
 }) {
-  const range = useMemo(() => playerPctRange(player.shotsIce, player.goalsIce), [player])
+  const range = playerPctRange(player.shotsIce, player.goalsIce)
 
   return (
     <svg viewBox="0 0 200 180" className="w-full">
@@ -179,7 +179,7 @@ function NetMap({
   teamAvg: ShotLocations
   mode: Mode
 }) {
-  const range = useMemo(() => playerPctRange(player.shotsNet, player.goalsNet), [player])
+  const range = playerPctRange(player.shotsNet, player.goalsNet)
 
   return (
     <svg viewBox="0 0 100 60" className="w-full">
@@ -294,7 +294,7 @@ function Legend({ mode }: { mode: Mode }) {
   if (mode === 'shootingPct') {
     return (
       <p className="mt-3 text-[9px] uppercase tracking-widest text-zinc-500">
-        Cool · cold · hot. Zones with &lt;5 shots dimmed.
+        Cold · cool · hot. Zones with &lt;5 shots dimmed.
       </p>
     )
   }
