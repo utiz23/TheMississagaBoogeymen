@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import Image from 'next/image'
 import type { getRoster } from '@eanhl/db/queries'
-import { formatPosition } from '@/lib/format'
+import { formatPosition, formatSavePct } from '@/lib/format'
 import { PositionPill } from '@/components/matches/position-pill'
 
 export type RosterRow = Awaited<ReturnType<typeof getRoster>>[number]
@@ -116,7 +116,7 @@ export function PlayerCard({ player, isActive = false, winPct }: PlayerCardProps
           <StatBox label="GP" value={(isGoalie ? player.goalieGp : player.skaterGp).toString()} />
           {isGoalie ? (
             <>
-              <StatBox label="SV%" value={player.savePct ?? '—'} />
+              <StatBox label="SV%" value={formatSavePct(player.savePct)} />
               <StatBox label="GAA" value={player.gaa ?? '—'} />
               <StatBoxFeatured label="W" value={player.wins?.toString() ?? '—'} />
             </>

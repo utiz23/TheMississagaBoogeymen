@@ -42,6 +42,17 @@ export function formatTOA(seconds: number | null): string {
 }
 
 /**
+ * Format a save percentage string from the DB (e.g. "67.00") as hockey style ".670".
+ * Returns "—" when null or unparseable.
+ */
+export function formatSavePct(val: string | null): string {
+  if (val === null) return '—'
+  const n = parseFloat(val)
+  if (isNaN(n)) return '—'
+  return (n / 100).toFixed(3).slice(1)
+}
+
+/**
  * Format a numeric percentage string from the DB (e.g. "52.50") as "52.50%".
  * Returns "—" when null.
  */

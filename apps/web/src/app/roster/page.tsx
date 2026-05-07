@@ -425,7 +425,19 @@ async function ActiveRoster({
   return (
     <PageShell gameTitle={gameTitle}>
       <SeasonSummaryStrip eaRows={eaRows} officialRecord={officialRecord} />
-      <DepthChart {...chart} />
+      <section className="space-y-2">
+        <div className="flex items-baseline gap-2">
+          <h2 className="font-condensed text-sm font-semibold uppercase tracking-wider text-zinc-500">
+            Depth Chart
+          </h2>
+          {gameMode !== null && (
+            <span className="font-condensed text-[10px] uppercase tracking-widest text-zinc-600">
+              All Modes
+            </span>
+          )}
+        </div>
+        <DepthChart {...chart} />
+      </section>
       <div className="flex flex-wrap items-center gap-3">
         <TitleSelector
           pathname="/roster"

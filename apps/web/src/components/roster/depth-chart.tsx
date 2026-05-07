@@ -2,18 +2,10 @@ import Link from 'next/link'
 import Image from 'next/image'
 import type { getEARoster } from '@eanhl/db/queries'
 import { StatBox, StatBoxFeatured, PlayerSilhouette } from '@/components/home/player-card'
-import { formatPosition } from '@/lib/format'
+import { formatPosition, formatSavePct } from '@/lib/format'
 import { PositionPill } from '@/components/matches/position-pill'
 
 type RosterRow = Awaited<ReturnType<typeof getEARoster>>[number]
-
-// savePct is stored as a percentage (e.g. "67.00"); hockey format is ".670"
-function formatSavePct(savePct: string | null): string {
-  if (savePct === null) return '—'
-  const n = parseFloat(savePct)
-  if (isNaN(n)) return '—'
-  return (n / 100).toFixed(3).slice(1)
-}
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
