@@ -197,7 +197,9 @@ function RosterPlayerCard({ player, positionLabel }: { player: RosterRow; positi
 
       {/* Zone A — flush top-left */}
       <div className="absolute left-0 top-0 z-20 flex w-[60px] flex-col rounded-br-2xl bg-zinc-950 px-2 pb-3 pt-4">
-        <div className="font-condensed text-[25px] font-black leading-none text-zinc-600">##</div>
+        <div className="font-condensed text-[25px] font-black leading-none text-zinc-600">
+          {player.jerseyNumber !== null ? `#${player.jerseyNumber.toString()}` : '##'}
+        </div>
         {posLabel !== null ? (
           <div className="mt-1">
             <PositionPill label={posLabel} position={player.position} isGoalie={positionLabel === 'G'} />

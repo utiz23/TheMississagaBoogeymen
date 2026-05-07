@@ -119,9 +119,11 @@ export async function getRoster(gameTitleId: number, gameMode: GameMode | null =
       savePct: playerGameTitleStats.savePct,
       gaa: playerGameTitleStats.gaa,
       shutouts: playerGameTitleStats.shutouts,
+      jerseyNumber: playerProfiles.jerseyNumber,
     })
     .from(playerGameTitleStats)
     .innerJoin(players, eq(playerGameTitleStats.playerId, players.id))
+    .leftJoin(playerProfiles, eq(players.id, playerProfiles.playerId))
     .where(and(eq(playerGameTitleStats.gameTitleId, gameTitleId), gameModeFilter))
     .orderBy(desc(playerGameTitleStats.points))
 }
@@ -169,6 +171,7 @@ export async function getEARoster(gameTitleId: number) {
       goalieSaves: eaMemberSeasonStats.goalieSaves,
       goalieShots: eaMemberSeasonStats.goalieShots,
       goalieGoalsAgainst: eaMemberSeasonStats.goalieGoalsAgainst,
+      jerseyNumber: playerProfiles.jerseyNumber,
     })
     .from(eaMemberSeasonStats)
     .innerJoin(players, eq(eaMemberSeasonStats.playerId, players.id))
@@ -180,6 +183,7 @@ export async function getEARoster(gameTitleId: number) {
         isNull(playerGameTitleStats.gameMode),
       ),
     )
+    .leftJoin(playerProfiles, eq(players.id, playerProfiles.playerId))
     .where(eq(eaMemberSeasonStats.gameTitleId, gameTitleId))
     .orderBy(desc(eaMemberSeasonStats.points))
 }

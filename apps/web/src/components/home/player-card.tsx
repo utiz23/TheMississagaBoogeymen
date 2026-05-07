@@ -65,7 +65,9 @@ export function PlayerCard({ player, isActive = false }: PlayerCardProps) {
 
       {/* ── A — flush top-left on card shell, mirrors roster card ───────── */}
       <div className="absolute left-0 top-0 z-20 flex w-[72px] flex-col rounded-br-2xl bg-zinc-950 px-3 pb-3 pt-4">
-        <div className="font-condensed text-[28px] font-black leading-none text-zinc-600">##</div>
+        <div className="font-condensed text-[28px] font-black leading-none text-zinc-600">
+          {player.jerseyNumber !== null ? `#${player.jerseyNumber.toString()}` : '##'}
+        </div>
         {/* Position pill */}
         {posLabel !== null ? (
           <div className="mt-1">
