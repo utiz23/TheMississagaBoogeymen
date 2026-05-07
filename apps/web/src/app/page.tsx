@@ -54,12 +54,6 @@ async function resolveGameTitle(titleSlug: string | undefined) {
   }
 }
 
-/** Win% as "78.3%". Returns "—" when no games played. */
-function winPct(wins: number, losses: number, otl: number): string {
-  const total = wins + losses + otl
-  if (total === 0) return '—'
-  return ((wins / total) * 100).toFixed(1) + '%'
-}
 
 /**
  * Top players by points descending for the featured carousel.
@@ -161,13 +155,6 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
     }
   }
 
-  // Club win% — sourced from the mode-filtered club aggregate, consistent with the
-  // mode-filtered player rows from getRoster. Passed to each player card as a supporting line.
-  const clubWinPct =
-    clubStats !== null && clubStats.gamesPlayed > 0
-      ? winPct(clubStats.wins, clubStats.losses, clubStats.otl)
-      : undefined
-
   // Derive featured players and leaders from roster
   const featuredPlayers = selectFeaturedPlayers(roster)
   // Filter skaters by position, not by wins === null.
@@ -216,7 +203,7 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
             </div>
             <RecordGameModeFilter titleSlug={titleSlug} activeMode={gameMode} />
           </div>
-          <PlayerCarousel players={featuredPlayers} winPct={clubWinPct} />
+          <PlayerCarousel players={featuredPlayers} />
         </section>
       )}
 

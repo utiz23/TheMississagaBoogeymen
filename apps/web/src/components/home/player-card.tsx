@@ -13,11 +13,6 @@ interface PlayerCardProps {
    * Adds a glow shadow and accent border treatment.
    */
   isActive?: boolean
-  /**
-   * Club win% string (e.g. "54.2%") sourced from club aggregate stats.
-   * Shown as the supporting line in zone A. Undefined renders "—".
-   */
-  winPct?: string | undefined
 }
 
 /**
@@ -33,7 +28,7 @@ interface PlayerCardProps {
  * Goalie detection: position === 'goalie' (wins can be 0, not null, for non-goalies).
  * H (PTS / W) is always the StatBoxFeatured tile — accent tint, larger value.
  */
-export function PlayerCard({ player, isActive = false, winPct }: PlayerCardProps) {
+export function PlayerCard({ player, isActive = false }: PlayerCardProps) {
   const isGoalie = player.position === 'goalie'
   const posLabel = player.position ? formatPosition(player.position) : null
 
@@ -42,14 +37,13 @@ export function PlayerCard({ player, isActive = false, winPct }: PlayerCardProps
       ? `${player.wins.toString()}–${player.losses.toString()}–${player.otl !== null ? player.otl.toString() : '—'}`
       : '—–—–—'
 
-  // Zone A — win% line: personal for goalies when data exists, club win% otherwise
+  // Zone A — win% from team appearance record (wins/losses/otl); "—" when absent.
   const displayWinPct: string =
-    isGoalie &&
     player.wins !== null &&
     player.losses !== null &&
     player.wins + player.losses + (player.otl ?? 0) > 0
       ? `${((player.wins / (player.wins + player.losses + (player.otl ?? 0))) * 100).toFixed(0)}%`
-      : (winPct ?? '—')
+      : '—'
 
   return (
     <Link

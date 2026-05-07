@@ -6,8 +6,6 @@ import type { RosterRow } from './player-card'
 
 interface PlayerCarouselProps {
   players: RosterRow[]
-  /** Club win% string forwarded to each PlayerCard's zone A. */
-  winPct?: string | undefined
 }
 
 /**
@@ -23,7 +21,7 @@ interface PlayerCarouselProps {
  * All player data is fetched server-side; this component is Client-only
  * for interactivity (activeIndex state + transitions).
  */
-export function PlayerCarousel({ players, winPct }: PlayerCarouselProps) {
+export function PlayerCarousel({ players }: PlayerCarouselProps) {
   const [activeIndex, setActiveIndex] = useState(0)
   const [swipeStart, setSwipeStart] = useState<number | null>(null)
   const total = players.length
@@ -118,7 +116,7 @@ export function PlayerCarousel({ players, winPct }: PlayerCarouselProps) {
                 {/* Prevents the Link from navigating when the intent is to rotate.
                     The outer div owns the click; this inner div only blocks card-link events. */}
                 <div style={{ pointerEvents: isActive ? 'auto' : 'none' }}>
-                  <PlayerCard player={player} isActive={isActive} winPct={winPct} />
+                  <PlayerCard player={player} isActive={isActive} />
                 </div>
               </div>
             )
@@ -194,7 +192,7 @@ export function PlayerCarousel({ players, winPct }: PlayerCarouselProps) {
             onTouchEnd={onTouchEnd}
           >
             {players[activeIndex] && (
-              <PlayerCard player={players[activeIndex]} isActive winPct={winPct} />
+              <PlayerCard player={players[activeIndex]} isActive />
             )}
           </div>
 
