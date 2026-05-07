@@ -2,18 +2,9 @@
 
 import { useState } from 'react'
 import type { ShotLocations } from '@eanhl/db'
-import {
-  EA_ICE_INDEX_TO_ZONE,
-  EA_NET_INDEX_TO_ZONE,
-  ICE_ZONE_SHAPES,
-  NET_ZONE_SHAPES,
-  HALF_RINK_OUTLINE,
-} from './shot-map-zones'
-import {
-  deviationColor,
-  shootingPctColor,
-  COLOR_PCT_INSUFFICIENT,
-} from '@/lib/shot-map-colors'
+import { EA_ICE_INDEX_TO_ZONE, ICE_ZONE_SHAPES } from './shot-map-zones'
+import { IceMapSvg, NetMapSvg } from './shot-map-renderer'
+import { deviationColor, shootingPctColor } from '@/lib/shot-map-colors'
 
 type View = 'ice' | 'net'
 type Mode = 'shots' | 'goals' | 'shootingPct'
@@ -30,28 +21,32 @@ export function ShotMap({ player, teamAverage, hasData }: Props) {
 
   return (
     <section className="border border-zinc-800 bg-surface p-4">
-      <header className="mb-3 flex items-center justify-between">
+      {/* Header */}
+      <div className="mb-3 flex items-center justify-between">
         <h3 className="font-condensed text-xs font-bold uppercase tracking-[0.2em] text-zinc-100">
           Shot Map · NHL 26
         </h3>
         <ModeTabs mode={mode} onChange={setMode} disabled={!hasData} />
-      </header>
+      </div>
 
       {hasData && player ? (
         <>
-          <div className="mb-3 flex items-center gap-2">
+          <div className="mb-3">
             <ViewToggle view={view} onChange={setView} />
           </div>
 
-          <div className="grid grid-cols-[1.4fr_1fr] gap-4">
-            <div>
+          {/* Map (fixed 360px) + NHL-EDGE-style stat panel beside it */}
+          <div className="flex items-start gap-10">
+            <div className="w-[360px] flex-shrink-0">
               {view === 'ice' ? (
                 <IceMap player={player} teamAvg={teamAverage} mode={mode} />
               ) : (
                 <NetMap player={player} teamAvg={teamAverage} mode={mode} />
               )}
             </div>
-            <Breakdown player={player} view={view} mode={mode} />
+            <div className="flex-shrink-0 pt-2">
+              <Breakdown player={player} teamAverage={teamAverage} view={view} mode={mode} />
+            </div>
           </div>
 
           <Legend mode={mode} />
@@ -140,41 +135,25 @@ function IceMap({
   const range = playerPctRange(player.shotsIce, player.goalsIce)
 
   return (
-    <svg viewBox="0 0 200 180" className="w-full">
-      <defs>
-        <pattern id="hatch-insufficient" patternUnits="userSpaceOnUse" width="4" height="4" patternTransform="rotate(45)">
-          <rect width="4" height="4" fill={COLOR_PCT_INSUFFICIENT} />
-          <line x1="0" y1="0" x2="0" y2="4" stroke="#3f3f46" strokeWidth="1" />
-        </pattern>
-      </defs>
-      {/* backdrop — goal line at top (y=0), blue line at bottom (y=180) */}
-      <path d={HALF_RINK_OUTLINE} fill="#1f1f23" stroke="#3f3f46" strokeWidth="0.6" />
-
-      {Object.entries(EA_ICE_INDEX_TO_ZONE).map(([idxStr, zoneId]) => {
-        const i = Number(idxStr) - 1
-        const shape = ICE_ZONE_SHAPES[zoneId]
+    <IceMapSvg
+      idPrefix="player"
+      getZoneFill={(_, i) => {
         const playerShots = player.shotsIce[i] ?? 0
         const playerGoals = player.goalsIce[i] ?? 0
         const teamShots = teamAvg.shotsIce[i] ?? 0
         const teamGoals = teamAvg.goalsIce[i] ?? 0
-
-        let fill: string
-        if (mode === 'shots') fill = deviationColor(playerShots, teamShots)
-        else if (mode === 'goals') fill = deviationColor(playerGoals, teamGoals)
-        else fill = shootingPctColor(playerShots, playerGoals, range.min, range.max)
-
-        const fillForRender = fill === COLOR_PCT_INSUFFICIENT ? 'url(#hatch-insufficient)' : fill
-        const tooltip = buildTooltip(mode, playerShots, playerGoals, teamShots, teamGoals)
-
-        return (
-          <g key={zoneId}>
-            <path d={shape.d} fill={fillForRender} stroke="#3f3f46" strokeWidth="0.4" data-zone={zoneId}>
-              <title>{tooltip}</title>
-            </path>
-          </g>
-        )
-      })}
-    </svg>
+        if (mode === 'shots') return deviationColor(playerShots, teamShots)
+        if (mode === 'goals') return deviationColor(playerGoals, teamGoals)
+        return shootingPctColor(playerShots, playerGoals, range.min, range.max)
+      }}
+      getZoneTooltip={(_, i) => {
+        const playerShots = player.shotsIce[i] ?? 0
+        const playerGoals = player.goalsIce[i] ?? 0
+        const teamShots = teamAvg.shotsIce[i] ?? 0
+        const teamGoals = teamAvg.goalsIce[i] ?? 0
+        return buildTooltip(mode, playerShots, playerGoals, teamShots, teamGoals)
+      }}
+    />
   )
 }
 
@@ -190,117 +169,109 @@ function NetMap({
   const range = playerPctRange(player.shotsNet, player.goalsNet)
 
   return (
-    <svg viewBox="0 0 100 60" className="w-full">
-      <defs>
-        <pattern id="hatch-insufficient" patternUnits="userSpaceOnUse" width="4" height="4" patternTransform="rotate(45)">
-          <rect width="4" height="4" fill={COLOR_PCT_INSUFFICIENT} />
-          <line x1="0" y1="0" x2="0" y2="4" stroke="#3f3f46" strokeWidth="1" />
-        </pattern>
-      </defs>
-      {Object.entries(EA_NET_INDEX_TO_ZONE).map(([idxStr, zoneId]) => {
-        const i = Number(idxStr) - 1
-        const shape = NET_ZONE_SHAPES[zoneId]
+    <NetMapSvg
+      idPrefix="player"
+      getZoneFill={(_, i) => {
         const playerShots = player.shotsNet[i] ?? 0
         const playerGoals = player.goalsNet[i] ?? 0
         const teamShots = teamAvg.shotsNet[i] ?? 0
         const teamGoals = teamAvg.goalsNet[i] ?? 0
-
-        let fill: string
-        if (mode === 'shots') fill = deviationColor(playerShots, teamShots)
-        else if (mode === 'goals') fill = deviationColor(playerGoals, teamGoals)
-        else fill = shootingPctColor(playerShots, playerGoals, range.min, range.max)
-
-        const fillForRender = fill === COLOR_PCT_INSUFFICIENT ? 'url(#hatch-insufficient)' : fill
-        const tooltip = buildTooltip(mode, playerShots, playerGoals, teamShots, teamGoals)
-
-        return (
-          <rect
-            key={zoneId}
-            x={shape.x}
-            y={shape.y}
-            width={shape.w}
-            height={shape.h}
-            fill={fillForRender}
-            stroke="#c34353"
-            strokeWidth="0.5"
-            data-zone={zoneId}
-          >
-            <title>{tooltip}</title>
-          </rect>
-        )
-      })}
-    </svg>
+        if (mode === 'shots') return deviationColor(playerShots, teamShots)
+        if (mode === 'goals') return deviationColor(playerGoals, teamGoals)
+        return shootingPctColor(playerShots, playerGoals, range.min, range.max)
+      }}
+      getZoneTooltip={(_, i) => {
+        const playerShots = player.shotsNet[i] ?? 0
+        const playerGoals = player.goalsNet[i] ?? 0
+        const teamShots = teamAvg.shotsNet[i] ?? 0
+        const teamGoals = teamAvg.goalsNet[i] ?? 0
+        return buildTooltip(mode, playerShots, playerGoals, teamShots, teamGoals)
+      }}
+    />
   )
 }
 
+/**
+ * NHL-EDGE-style breakdown: player count (large) + team avg (small, grey) per band.
+ */
 function Breakdown({
   player,
+  teamAverage,
   view,
   mode,
 }: {
   player: ShotLocations
+  teamAverage: ShotLocations
   view: View
   mode: Mode
 }) {
   if (view === 'ice') {
-    const arr = mode === 'goals' ? player.goalsIce : player.shotsIce
-    const total = arr.reduce((a, b) => a + b, 0)
-    let high = 0
-    let mid = 0
-    let long = 0
+    const pArr = mode === 'goals' ? player.goalsIce : player.shotsIce
+    const tArr = mode === 'goals' ? teamAverage.goalsIce : teamAverage.shotsIce
+
+    const pTotal = pArr.reduce((a, b) => a + b, 0)
+    const tTotal = tArr.reduce((a, b) => a + b, 0)
+    let pH = 0, pM = 0, pL = 0
+    let tH = 0, tM = 0, tL = 0
+
     for (const [idxStr, zoneId] of Object.entries(EA_ICE_INDEX_TO_ZONE)) {
       const i = Number(idxStr) - 1
       const band = ICE_ZONE_SHAPES[zoneId].band
-      const v = arr[i] ?? 0
-      if (band === 'high_danger') high += v
-      else if (band === 'long_range') long += v
-      else mid += v
+      const pv = pArr[i] ?? 0
+      const tv = tArr[i] ?? 0
+      if (band === 'high_danger') { pH += pv; tH += tv }
+      else if (band === 'long_range') { pL += pv; tL += tv }
+      else { pM += pv; tM += tv }
     }
+
     return (
-      <ul className="space-y-3 font-condensed text-zinc-300">
-        <BreakdownRow label="All locations" value={total} emphasize />
-        <BreakdownRow label="High danger" value={high} />
-        <BreakdownRow label="Mid range" value={mid} />
-        <BreakdownRow label="Long range" value={long} />
+      <ul className="space-y-5 font-condensed">
+        <BreakdownRow label="All locations" player={pTotal} avg={tTotal} />
+        <BreakdownRow label="High danger"   player={pH}     avg={tH} />
+        <BreakdownRow label="Mid range"     player={pM}     avg={tM} />
+        <BreakdownRow label="Long range"    player={pL}     avg={tL} />
       </ul>
     )
   }
 
-  // Net view: upper / lower / 5-hole
-  const arr = mode === 'goals' ? player.goalsNet : player.shotsNet
-  const total = arr.reduce((a, b) => a + b, 0)
-  const upper = (arr[0] ?? 0) + (arr[1] ?? 0)
-  const lower = (arr[2] ?? 0) + (arr[3] ?? 0)
-  const fiveHole = arr[4] ?? 0
+  // Net view
+  const pArr = mode === 'goals' ? player.goalsNet : player.shotsNet
+  const tArr = mode === 'goals' ? teamAverage.goalsNet : teamAverage.shotsNet
+  const pTotal = pArr.reduce((a, b) => a + b, 0)
+  const tTotal = tArr.reduce((a, b) => a + b, 0)
+  const pUpper = (pArr[0] ?? 0) + (pArr[1] ?? 0)
+  const tUpper = (tArr[0] ?? 0) + (tArr[1] ?? 0)
+  const pLower = (pArr[2] ?? 0) + (pArr[3] ?? 0)
+  const tLower = (tArr[2] ?? 0) + (tArr[3] ?? 0)
+  const pFive = pArr[4] ?? 0
+  const tFive = tArr[4] ?? 0
+
   return (
-    <ul className="space-y-3 font-condensed text-zinc-300">
-      <BreakdownRow label="All on-net" value={total} emphasize />
-      <BreakdownRow label="Upper" value={upper} />
-      <BreakdownRow label="Lower" value={lower} />
-      <BreakdownRow label="Five hole" value={fiveHole} />
+    <ul className="space-y-5 font-condensed">
+      <BreakdownRow label="All on-net"  player={pTotal}  avg={tTotal} />
+      <BreakdownRow label="Upper"       player={pUpper}  avg={tUpper} />
+      <BreakdownRow label="Lower"       player={pLower}  avg={tLower} />
+      <BreakdownRow label="Five hole"   player={pFive}   avg={tFive} />
     </ul>
   )
 }
 
 function BreakdownRow({
   label,
-  value,
-  emphasize = false,
+  player,
+  avg,
 }: {
   label: string
-  value: number
-  emphasize?: boolean
+  player: number
+  avg: number
 }) {
   return (
     <li>
-      <div
-        className={
-          emphasize ? 'text-xl font-extrabold text-zinc-50' : 'text-base font-bold text-zinc-200'
-        }
-      >
-        {Math.round(value)}
+      <div className="flex items-baseline gap-3">
+        <span className="text-3xl font-black text-zinc-50">{Math.round(player)}</span>
+        <span className="text-xl font-bold text-zinc-500">{Math.round(avg)}</span>
       </div>
-      <div className="text-[9px] uppercase tracking-widest text-zinc-500">{label}</div>
+      <div className="mt-0.5 text-[9px] uppercase tracking-widest text-zinc-500">{label}</div>
     </li>
   )
 }
@@ -309,7 +280,7 @@ function Legend({ mode }: { mode: Mode }) {
   if (mode === 'shootingPct') {
     return (
       <p className="mt-3 text-[9px] uppercase tracking-widest text-zinc-500">
-        Cold · cool · hot. Zones with &lt;5 shots dimmed.
+        Cold · cool · hot &middot; Zones with &lt;5 shots dimmed.
       </p>
     )
   }
@@ -336,10 +307,7 @@ function playerPctRange(shots: number[], goals: number[]) {
     if (pct < min) min = pct
     if (pct > max) max = pct
   }
-  if (max === 0) {
-    min = 0
-    max = 1
-  }
+  if (max === 0) { min = 0; max = 1 }
   return { min, max }
 }
 

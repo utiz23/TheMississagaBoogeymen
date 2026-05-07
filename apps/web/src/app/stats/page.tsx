@@ -20,8 +20,10 @@ import {
   getClubMemberSkaterStatsAllModes,
   getClubMemberGoalieStatsAllModes,
   getHistoricalClubTeamStats,
+  getTeamShotLocationAggregates,
   type HistoricalClubTeamStatsRow,
 } from '@eanhl/db/queries'
+import { TeamShotMap } from '@/components/stats/team-shot-map'
 import { StatCard } from '@/components/ui/stat-card'
 import { MatchRow } from '@/components/matches/match-row'
 import { SkaterStatsTable } from '@/components/stats/skater-stats-table'
@@ -130,6 +132,17 @@ async function ActiveStats({
   const [clubStats, recentMatches, skaterRows, goalieRows, withWithoutRows, pairRows] = fetched
   const emptyModeLabel = gameMode !== null ? `${gameMode} ` : ''
 
+  let teamShotAggregates: Awaited<ReturnType<typeof getTeamShotLocationAggregates>> | null = null
+  try {
+    teamShotAggregates = await getTeamShotLocationAggregates(gameTitle.id)
+  } catch {
+    teamShotAggregates = null
+  }
+
+  const shotMapHasData =
+    gameTitle.slug === 'nhl26' &&
+    (teamShotAggregates?.shotsIce.some((v) => v > 0) ?? false)
+
   return (
     <PageShell gameTitle={gameTitle}>
       {/* Record + stat cards — show when at least 1 game is recorded */}
@@ -169,6 +182,11 @@ async function ActiveStats({
           }
         />
       )}
+
+      <TeamShotMap
+        aggregates={teamShotAggregates ?? emptyShotLocations()}
+        hasData={shotMapHasData}
+      />
 
       {/* Selectors — sit above the stats tables, the sections they most directly filter */}
       <div className="flex flex-wrap items-center gap-3">
@@ -526,4 +544,13 @@ function RecordStat({ label, value, accent = false }: RecordStatProps) {
       <span className="text-xs font-semibold uppercase tracking-wider text-zinc-500">{label}</span>
     </div>
   )
+}
+
+function emptyShotLocations() {
+  return {
+    shotsIce: new Array(16).fill(0) as number[],
+    goalsIce: new Array(16).fill(0) as number[],
+    shotsNet: new Array(5).fill(0) as number[],
+    goalsNet: new Array(5).fill(0) as number[],
+  }
 }

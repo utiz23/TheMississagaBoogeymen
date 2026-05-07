@@ -63,3 +63,46 @@ export async function getTeamAverageShotLocations(
     goalsNet: goalsNet.map((v) => v / count),
   }
 }
+
+/**
+ * Sum shot/goal zone arrays across qualifying non-goalie skaters for a game title.
+ *
+ * Same population as getTeamAverageShotLocations (gamesPlayed >= 5, non-goalie)
+ * but returns raw integer sums instead of per-player averages.
+ * Used for the team-level shot heatmap on the stats page.
+ */
+export async function getTeamShotLocationAggregates(
+  gameTitleId: number,
+): Promise<ShotLocations> {
+  const rows = await db
+    .select({ shotLocations: eaMemberSeasonStats.shotLocations })
+    .from(eaMemberSeasonStats)
+    .where(
+      and(
+        eq(eaMemberSeasonStats.gameTitleId, gameTitleId),
+        isNotNull(eaMemberSeasonStats.shotLocations),
+        gte(eaMemberSeasonStats.gamesPlayed, 5),
+        ne(eaMemberSeasonStats.favoritePosition, 'goalie'),
+      ),
+    )
+
+  const shotsIce = new Array(ICE_LEN).fill(0)
+  const goalsIce = new Array(ICE_LEN).fill(0)
+  const shotsNet = new Array(NET_LEN).fill(0)
+  const goalsNet = new Array(NET_LEN).fill(0)
+
+  for (const row of rows) {
+    const sl = row.shotLocations
+    if (!sl) continue
+    for (let i = 0; i < ICE_LEN; i++) {
+      shotsIce[i] += sl.shotsIce[i] ?? 0
+      goalsIce[i] += sl.goalsIce[i] ?? 0
+    }
+    for (let i = 0; i < NET_LEN; i++) {
+      shotsNet[i] += sl.shotsNet[i] ?? 0
+      goalsNet[i] += sl.goalsNet[i] ?? 0
+    }
+  }
+
+  return { shotsIce, goalsIce, shotsNet, goalsNet }
+}

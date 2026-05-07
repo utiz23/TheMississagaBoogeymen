@@ -106,3 +106,17 @@ export function shootingPctColor(
   const t = range > 0 ? (pct - playerMinPct) / range : 0.5
   return lerpHex(COLOR_PCT_COLD, COLOR_PCT_HOT, t)
 }
+
+/**
+ * Volume heatmap: map a count in [min, max] to dark-gray→red.
+ * Used for the team shot map where there is no comparison baseline.
+ *
+ * Edge cases:
+ *   max <= min  → no meaningful range; return full-red for any positive value,
+ *                 neutral gray for zero.
+ */
+export function volumeColor(value: number, min: number, max: number): string {
+  if (max <= min) return value > 0 ? '#c34353' : '#3f3f46'
+  const t = Math.max(0, Math.min(1, (value - min) / (max - min)))
+  return lerpHex('#27272a', '#c34353', t)
+}
