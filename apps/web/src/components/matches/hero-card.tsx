@@ -1,7 +1,8 @@
 import Image from 'next/image'
 import type { Match } from '@eanhl/db'
 import { OpponentCrest } from '@/components/ui/opponent-crest'
-import { ResultBadge } from '@/components/ui/result-badge'
+import { ResultPill } from '@/components/ui/result-pill'
+import { BroadcastPanel } from '@/components/ui/broadcast-panel'
 import { abbreviateTeamName, formatMatchDate, formatMatchTime } from '@/lib/format'
 
 const OUR_ABBREV = 'BGM'
@@ -16,20 +17,6 @@ interface HeroCardProps {
     meetingNumber: number | null
     seriesSummary: string | null
   }
-}
-
-const CARD_BG: Record<Match['result'], string> = {
-  WIN: 'bg-[radial-gradient(circle_at_top,rgba(225,29,72,0.22),transparent_55%),linear-gradient(180deg,rgba(26,20,20,0.99),rgba(10,10,10,1))]',
-  LOSS: 'bg-[linear-gradient(180deg,rgba(15,15,18,0.99),rgba(9,9,11,1))]',
-  OTL: 'bg-[radial-gradient(circle_at_top,rgba(245,158,11,0.10),transparent_50%),linear-gradient(180deg,rgba(20,18,14,0.99),rgba(10,10,10,1))]',
-  DNF: 'bg-[linear-gradient(180deg,rgba(13,13,15,0.99),rgba(9,9,11,1))]',
-}
-
-const TOP_BAR: Record<Match['result'], string> = {
-  WIN: 'bg-accent',
-  LOSS: 'bg-zinc-700',
-  OTL: 'bg-amber-500/80',
-  DNF: 'bg-zinc-800',
 }
 
 export function HeroCard({
@@ -67,9 +54,7 @@ export function HeroCard({
   const meetingLine = meta.seriesSummary
 
   return (
-    <div className={`overflow-hidden border border-zinc-800 ${CARD_BG[match.result]}`}>
-      <div className={`h-1 w-full ${TOP_BAR[match.result]}`} />
-
+    <BroadcastPanel className="overflow-hidden">
       <div className="px-4 py-6 sm:px-8 sm:py-8">
         {/* Top row — date / mode / game-number meta strip */}
         <div className="mb-6 flex flex-wrap items-center gap-x-3 gap-y-1 font-condensed text-[11px] font-bold uppercase tracking-[0.2em] text-zinc-500">
@@ -100,14 +85,14 @@ export function HeroCard({
 
           {/* Score */}
           <div className="flex flex-col items-center gap-3">
-            <div className="flex items-baseline gap-2 font-condensed font-black tabular leading-none">
+            <div className="flex items-baseline gap-2 font-condensed font-black tabular-nums leading-none">
               <span className={`text-5xl sm:text-7xl ${ourScoreColor}`}>{match.scoreFor.toString()}</span>
               <span className="pb-1 text-2xl text-zinc-700">–</span>
               <span className={`text-5xl sm:text-7xl ${opponentScoreColor}`}>
                 {match.scoreAgainst.toString()}
               </span>
             </div>
-            <ResultBadge result={match.result} />
+            <ResultPill result={match.result} size="md" />
           </div>
 
           {/* Opponent side */}
@@ -139,12 +124,12 @@ export function HeroCard({
 
         {/* Meeting / series context */}
         {meetingLine !== null && meta.meetingNumber !== null ? (
-          <div className="mt-6 flex items-center justify-center font-condensed text-xs font-semibold uppercase tracking-[0.15em] text-zinc-500">
+          <div className="mt-6 flex items-center justify-center font-condensed text-xs font-semibold uppercase tracking-[0.22em] text-zinc-500">
             <span>{meetingLine}</span>
           </div>
         ) : null}
       </div>
-    </div>
+    </BroadcastPanel>
   )
 }
 
