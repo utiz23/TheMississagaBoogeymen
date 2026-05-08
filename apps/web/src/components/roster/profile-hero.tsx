@@ -129,6 +129,13 @@ export function ProfileHero({
             {player.gamertag}
           </h1>
 
+          {/* Real name / alias */}
+          {player.playerName !== null && (
+            <p className="font-condensed text-sm font-semibold uppercase tracking-widest text-zinc-500">
+              {player.playerName}
+            </p>
+          )}
+
           {/* Jersey + pills row */}
           <div className="flex flex-wrap items-center gap-2">
             {player.jerseyNumber !== null && (
