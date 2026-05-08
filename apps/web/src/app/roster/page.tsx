@@ -17,6 +17,8 @@ import {
   getClubMemberGoalieStatsAllModes,
 } from '@eanhl/db/queries'
 import { DepthChart } from '@/components/roster/depth-chart'
+import { Panel } from '@/components/ui/panel'
+import { SectionHeader } from '@/components/ui/section-header'
 import type { DepthChartProps } from '@/components/roster/depth-chart'
 import { SkaterStatsTable } from '@/components/stats/skater-stats-table'
 import { GoalieStatsTable } from '@/components/stats/goalie-stats-table'
@@ -425,17 +427,11 @@ async function ActiveRoster({
   return (
     <PageShell gameTitle={gameTitle}>
       <SeasonSummaryStrip eaRows={eaRows} officialRecord={officialRecord} />
-      <section className="space-y-2">
-        <div className="flex items-baseline gap-2">
-          <h2 className="font-condensed text-sm font-semibold uppercase tracking-wider text-zinc-500">
-            Depth Chart
-          </h2>
-          {gameMode !== null && (
-            <span className="font-condensed text-[10px] uppercase tracking-widest text-zinc-600">
-              All Modes
-            </span>
-          )}
-        </div>
+      <section className="space-y-3">
+        <SectionHeader
+          label="Depth Chart"
+          {...(gameMode !== null ? { subtitle: 'All Modes' } : {})}
+        />
         <DepthChart {...chart} />
       </section>
       <div className="flex flex-wrap items-center gap-3">
@@ -527,12 +523,12 @@ async function ArchiveRoster({
         page.
       </p>
 
-      <div className="flex flex-wrap divide-y divide-zinc-800 border border-zinc-800 bg-surface sm:flex-nowrap sm:divide-x sm:divide-y-0">
+      <Panel className="flex flex-wrap divide-y divide-zinc-800 sm:flex-nowrap sm:divide-x sm:divide-y-0">
         <SummaryCell label="Title" primary={gameTitle.name} />
         <SummaryCell label="Mode" primary={gameMode ?? 'All'} />
         <SummaryCell label="Skaters" primary={skaterCount.toString()} />
         <SummaryCell label="Goalies" primary={goalieCount.toString()} />
-      </div>
+      </Panel>
 
       <div className="flex flex-wrap items-center gap-3">
         <TitleSelector
@@ -628,7 +624,7 @@ function SeasonSummaryStrip({
     : null
 
   return (
-    <div className="flex flex-wrap divide-y divide-zinc-800 border border-zinc-800 bg-surface sm:flex-nowrap sm:divide-x sm:divide-y-0">
+    <Panel className="flex flex-wrap divide-y divide-zinc-800 sm:flex-nowrap sm:divide-x sm:divide-y-0">
       <SummaryCell label="Record" primary={record ?? '—'} dim={record === null} />
       {topScorer ? (
         <SummaryCell
@@ -657,7 +653,7 @@ function SeasonSummaryStrip({
       ) : (
         <SummaryCell label="Goalie" primary="—" dim />
       )}
-    </div>
+    </Panel>
   )
 }
 
@@ -674,11 +670,11 @@ function SummaryCell({
 }) {
   return (
     <div className="flex min-w-0 flex-1 flex-col gap-0.5 px-4 py-3">
-      <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-600">
+      <span className="font-condensed text-[10px] font-semibold uppercase tracking-widest text-zinc-500">
         {label}
       </span>
       <span
-        className={`truncate font-condensed text-sm font-bold ${dim ? 'text-zinc-600' : 'text-zinc-100'}`}
+        className={`truncate font-condensed text-sm font-bold uppercase tracking-wide ${dim ? 'text-zinc-600' : 'text-zinc-100'}`}
       >
         {primary}
       </span>
@@ -694,10 +690,12 @@ function SummaryCell({
 function PageHeader({ gameTitle }: { gameTitle: { name: string } }) {
   return (
     <div className="flex items-baseline gap-3">
-      <h1 className="font-condensed text-2xl font-semibold uppercase tracking-wide text-zinc-50">
+      <h1 className="font-condensed text-2xl font-semibold uppercase tracking-widest text-zinc-50">
         Roster
       </h1>
-      <span className="text-sm text-zinc-500">{gameTitle.name}</span>
+      <span className="font-condensed text-sm uppercase tracking-wider text-zinc-500">
+        {gameTitle.name}
+      </span>
     </div>
   )
 }
