@@ -2,8 +2,6 @@ import Image from 'next/image'
 import type { Match } from '@eanhl/db'
 import { OpponentCrest } from '@/components/ui/opponent-crest'
 import { ResultPill } from '@/components/ui/result-pill'
-import { BroadcastPanel } from '@/components/ui/broadcast-panel'
-import { ResultGlow } from '@/components/ui/result-glow'
 import { abbreviateTeamName, formatMatchDate, formatMatchTime } from '@/lib/format'
 
 const OUR_ABBREV = 'BGM'
@@ -18,6 +16,24 @@ interface HeroCardProps {
     meetingNumber: number | null
     seriesSummary: string | null
   }
+}
+
+// Result-themed surfaces — restored from pre-renovation visual after user
+// feedback. Typography, sizing, and the design-system <ResultPill> primitive
+// stay from the renovation; the surface decoration goes back to per-result
+// gradient + solid-color top bar.
+const CARD_BG: Record<Match['result'], string> = {
+  WIN: 'bg-[radial-gradient(circle_at_top,rgba(225,29,72,0.22),transparent_55%),linear-gradient(180deg,rgba(26,20,20,0.99),rgba(10,10,10,1))]',
+  LOSS: 'bg-[linear-gradient(180deg,rgba(15,15,18,0.99),rgba(9,9,11,1))]',
+  OTL: 'bg-[radial-gradient(circle_at_top,rgba(245,158,11,0.10),transparent_50%),linear-gradient(180deg,rgba(20,18,14,0.99),rgba(10,10,10,1))]',
+  DNF: 'bg-[linear-gradient(180deg,rgba(13,13,15,0.99),rgba(9,9,11,1))]',
+}
+
+const TOP_BAR: Record<Match['result'], string> = {
+  WIN: 'bg-accent',
+  LOSS: 'bg-zinc-700',
+  OTL: 'bg-amber-500/80',
+  DNF: 'bg-zinc-800',
 }
 
 export function HeroCard({
@@ -52,9 +68,10 @@ export function HeroCard({
   const meetingLine = meta.seriesSummary
 
   return (
-    <BroadcastPanel className="relative overflow-hidden">
-      <ResultGlow result={match.result} intensity="soft" />
-      <div className="relative px-4 py-6 sm:px-8 sm:py-8">
+    <div className={`overflow-hidden border border-zinc-800 ${CARD_BG[match.result]}`}>
+      <div className={`h-1 w-full ${TOP_BAR[match.result]}`} />
+
+      <div className="px-4 py-6 sm:px-8 sm:py-8">
         {/* Top row — date / mode / game-number meta strip */}
         <div className="mb-6 flex flex-wrap items-center gap-x-3 gap-y-1 font-condensed text-[11px] font-bold uppercase tracking-[0.2em] text-zinc-500">
           {metaParts.map((part, i) => (
@@ -134,7 +151,7 @@ export function HeroCard({
           </div>
         ) : null}
       </div>
-    </BroadcastPanel>
+    </div>
   )
 }
 
