@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import type { GameTitle, GameMode } from '@eanhl/db'
+import { Panel } from '@/components/ui/panel'
 
 /** Mode value used by the unified mode filter. `null` means All. */
 export type ModeValue = GameMode | null
@@ -38,7 +39,7 @@ export function TitleSelector({
   if (titles.length === 0) return null
 
   return (
-    <div className="flex flex-wrap items-center divide-x divide-zinc-700 overflow-hidden rounded-sm border border-zinc-700">
+    <div className="flex flex-wrap items-center divide-x divide-zinc-700 overflow-hidden border border-zinc-700">
       {titles.map((title) => {
         const isSelected = title.slug === activeTitleSlug
         return (
@@ -46,7 +47,7 @@ export function TitleSelector({
             key={title.id}
             href={buildTitleHref(pathname, { title: title.slug, mode: activeMode })}
             className={[
-              'flex items-center gap-1.5 px-3 py-1.5 font-condensed text-xs font-bold uppercase tracking-wide transition-colors',
+              'flex items-center gap-1.5 px-3 py-1.5 font-condensed text-xs font-bold uppercase tracking-widest transition-colors',
               isSelected
                 ? 'bg-accent text-white'
                 : 'text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200',
@@ -89,7 +90,7 @@ export function ModeFilter({
   modes: ('all' | GameMode)[]
 }) {
   return (
-    <div className="inline-flex items-center divide-x divide-zinc-800 overflow-hidden rounded-sm border border-zinc-800">
+    <div className="inline-flex items-center divide-x divide-zinc-800 overflow-hidden border border-zinc-800">
       {modes.map((mode) => {
         const value: ModeValue = mode === 'all' ? null : mode
         const isSelected = value === activeMode
@@ -98,7 +99,7 @@ export function ModeFilter({
             key={mode}
             href={buildTitleHref(pathname, { title: titleSlug, mode: value })}
             className={[
-              'px-3 py-1.5 font-condensed text-xs font-bold uppercase tracking-wide transition-colors',
+              'px-3 py-1.5 font-condensed text-xs font-bold uppercase tracking-widest transition-colors',
               isSelected
                 ? 'bg-accent text-white'
                 : 'bg-surface text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200',
@@ -114,9 +115,11 @@ export function ModeFilter({
 
 export function EmptyState({ message }: { message: string }) {
   return (
-    <div className="flex min-h-[12rem] items-center justify-center border border-zinc-800 bg-surface">
-      <p className="max-w-xl px-6 text-center text-sm text-zinc-500">{message}</p>
-    </div>
+    <Panel className="flex min-h-[12rem] items-center justify-center">
+      <p className="max-w-xl px-6 text-center font-condensed text-sm uppercase tracking-wider text-zinc-500">
+        {message}
+      </p>
+    </Panel>
   )
 }
 
