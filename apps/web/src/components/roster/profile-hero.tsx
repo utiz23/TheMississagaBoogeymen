@@ -7,6 +7,7 @@ import type {
 } from '@eanhl/db/queries'
 import type { GameMode } from '@eanhl/db'
 import { PositionDonut, type PositionBreakdownEntry } from '@/components/roster/position-donut'
+import { BroadcastPanel } from '@/components/ui/broadcast-panel'
 import { formatPosition } from '@/lib/format'
 
 type PlayerGamertagHistoryRow = Awaited<
@@ -108,7 +109,7 @@ export function ProfileHero({
   const aggregate = aggregateCareer(career, selectedRole)
 
   return (
-    <section className="relative overflow-hidden border border-zinc-800 bg-surface">
+    <BroadcastPanel className="relative overflow-hidden">
       {/* Background jersey number watermark */}
       {player.jerseyNumber !== null && (
         <div className="pointer-events-none absolute -right-6 -top-2 select-none font-condensed text-[12rem] font-black leading-none text-zinc-100/[0.03]">
@@ -116,7 +117,7 @@ export function ProfileHero({
         </div>
       )}
 
-      <div className="grid gap-6 p-6 lg:grid-cols-[3fr_2fr]">
+      <div className="grid gap-6 p-6 sm:p-8 lg:grid-cols-[3fr_2fr]">
         {/* Left column: Identity */}
         <div className="space-y-4">
           {/* Club label */}
@@ -205,7 +206,8 @@ export function ProfileHero({
                 This Season
               </h3>
               {currentEaSeason !== null && (
-                <span className="text-[10px] uppercase tracking-[0.16em] text-zinc-600">
+                <span className="inline-flex items-center gap-1.5 font-condensed text-[10px] font-semibold uppercase tracking-[0.22em] text-zinc-600">
+                  <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-accent" />
                   NHL 26 · EA totals
                 </span>
               )}
@@ -227,7 +229,8 @@ export function ProfileHero({
               <h3 className="font-condensed text-[11px] font-bold uppercase tracking-[0.2em] text-zinc-100">
                 Career Totals
               </h3>
-              <span className="text-[10px] uppercase tracking-[0.16em] text-zinc-600">
+              <span className="inline-flex items-center gap-1.5 font-condensed text-[10px] font-semibold uppercase tracking-[0.22em] text-zinc-600">
+                <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-accent" />
                 NHL 22-26 · sum
               </span>
             </div>
@@ -250,7 +253,7 @@ export function ProfileHero({
           )}
         </div>
       </div>
-    </section>
+    </BroadcastPanel>
   )
 }
 
