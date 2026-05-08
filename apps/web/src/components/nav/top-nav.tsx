@@ -21,7 +21,6 @@ export async function TopNav() {
     <header className="sticky top-0 z-50 border-b border-accent/15 bg-surface/95 backdrop-blur-sm">
       {/* Main bar */}
       <div className="mx-auto flex h-16 max-w-screen-xl items-center gap-6 px-4">
-
         {/* Brand zone — crest + wordmark */}
         <Link
           href="/"
