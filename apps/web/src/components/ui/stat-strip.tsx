@@ -46,9 +46,7 @@ export function StatStrip({
               <dt className="font-condensed text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-500">
                 {item.label}
               </dt>
-              <dd
-                className={`font-condensed text-2xl font-bold leading-none ${valueColor}`}
-              >
+              <dd className={`font-condensed text-2xl font-bold leading-none ${valueColor}`}>
                 {item.value}
               </dd>
             </div>

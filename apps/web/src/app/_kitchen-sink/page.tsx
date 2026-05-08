@@ -19,8 +19,7 @@ export default function KitchenSinkPage() {
           Boogeymen UI Primitives
         </h1>
         <p className="mt-2 max-w-2xl text-sm text-zinc-400">
-          Visual verification harness for the design-system primitives. Compare each
-          variant against{' '}
+          Visual verification harness for the design-system primitives. Compare each variant against{' '}
           <code className="rounded bg-zinc-900 px-1 py-0.5 text-zinc-300">
             docs/design/boogeymen-system/preview/*.html
           </code>
@@ -89,10 +88,7 @@ export default function KitchenSinkPage() {
         <SectionHeader label="SectionHeader" />
         <Panel className="space-y-6 p-6">
           <SectionHeader label="Latest Result" />
-          <SectionHeader
-            label="Scoring Leaders"
-            cta={{ href: '/stats', label: 'All stats' }}
-          />
+          <SectionHeader label="Scoring Leaders" cta={{ href: '/stats', label: 'All stats' }} />
           <SectionHeader label="Page Title (h1)" as="h1" />
         </Panel>
       </section>
