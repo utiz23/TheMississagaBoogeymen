@@ -6,11 +6,11 @@ export interface PositionBreakdownEntry {
 }
 
 export const POSITION_COLORS: Record<string, string> = {
-  center: '#fbbf24',
-  leftWing: '#38bdf8',
-  rightWing: '#a78bfa',
-  defenseMen: '#34d399',
-  goalie: '#e11d48',
+  center: '#c34353',
+  leftWing: '#6ed565',
+  rightWing: '#656cbe',
+  defenseMen: '#74f2df',
+  goalie: '#a587cd',
 }
 const POSITION_FALLBACK = '#71717a'
 
