@@ -22,6 +22,7 @@ import { StatsRecordCard } from '@/components/roster/stats-record-card'
 import { ChartsVisualsSection } from '@/components/roster/charts-visuals-section'
 import { ComingSoonCard } from '@/components/roster/coming-soon-card'
 import { ShotMap } from '@/components/roster/shot-map'
+import { Panel } from '@/components/ui/panel'
 
 export const revalidate = 3600
 
@@ -134,7 +135,7 @@ export default async function PlayerPage({ params, searchParams }: Props) {
     <div className="space-y-8">
       <Link
         href="/roster"
-        className="inline-flex items-center gap-1.5 text-sm text-zinc-500 transition-colors hover:text-zinc-300"
+        className="inline-flex items-center gap-1.5 font-condensed text-xs font-semibold uppercase tracking-wider text-zinc-500 transition-colors hover:text-zinc-300"
       >
         <span aria-hidden>←</span> Roster
       </Link>
@@ -150,13 +151,15 @@ export default async function PlayerPage({ params, searchParams }: Props) {
       />
 
       {hasNoLocalData && (
-        <div className="rounded border border-zinc-700 bg-zinc-900 px-4 py-3">
-          <p className="text-sm text-zinc-400">
-            <span className="font-semibold text-zinc-300">No local match history yet.</span> This
-            player is registered but has not appeared in a tracked match. EA season totals may still
-            show while local sections stay empty.
+        <Panel className="px-4 py-3">
+          <p className="font-condensed text-sm text-zinc-400">
+            <span className="font-semibold uppercase tracking-wider text-zinc-300">
+              No local match history yet.
+            </span>{' '}
+            This player is registered but has not appeared in a tracked match. EA season totals
+            may still show while local sections stay empty.
           </p>
-        </div>
+        </Panel>
       )}
 
       <StatsRecordCard
@@ -226,8 +229,8 @@ function emptyShotLocations() {
 
 function ErrorState({ message }: { message: string }) {
   return (
-    <div className="flex min-h-[12rem] items-center justify-center border border-zinc-800 bg-surface">
-      <p className="text-sm text-zinc-500">{message}</p>
-    </div>
+    <Panel className="flex min-h-[12rem] items-center justify-center">
+      <p className="font-condensed text-sm uppercase tracking-wider text-zinc-500">{message}</p>
+    </Panel>
   )
 }

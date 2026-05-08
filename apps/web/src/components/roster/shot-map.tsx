@@ -5,6 +5,8 @@ import type { ShotLocations } from '@eanhl/db'
 import { EA_ICE_INDEX_TO_ZONE, ICE_ZONE_SHAPES } from './shot-map-zones'
 import { IceMapSvg, NetMapSvg } from './shot-map-renderer'
 import { deviationColor, shootingPctColor } from '@/lib/shot-map-colors'
+import { Panel } from '@/components/ui/panel'
+import { SectionHeader } from '@/components/ui/section-header'
 
 type View = 'ice' | 'net'
 type Mode = 'shots' | 'goals' | 'shootingPct'
@@ -20,15 +22,12 @@ export function ShotMap({ player, teamAverage, hasData }: Props) {
   const [mode, setMode] = useState<Mode>('shots')
 
   return (
-    <section className="border border-zinc-800 bg-surface p-4">
-      {/* Header */}
-      <div className="mb-3 flex items-center justify-between">
-        <h3 className="font-condensed text-xs font-bold uppercase tracking-[0.2em] text-zinc-100">
-          Shot Map · NHL 26
-        </h3>
+    <section className="space-y-3">
+      <div className="flex items-center justify-between gap-3">
+        <SectionHeader label="Shot Map" subtitle="NHL 26" />
         <ModeTabs mode={mode} onChange={setMode} disabled={!hasData} />
       </div>
-
+      <Panel className="p-4">
       {hasData && player ? (
         <>
           <div className="mb-3">
@@ -57,6 +56,7 @@ export function ShotMap({ player, teamAverage, hasData }: Props) {
           <span className="font-bold text-zinc-200">NHL 26</span>.
         </p>
       )}
+      </Panel>
     </section>
   )
 }
