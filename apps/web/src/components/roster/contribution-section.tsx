@@ -1,6 +1,6 @@
-import type { ReactNode } from 'react'
 import type { ProfileContributionSummary } from '@eanhl/db/queries'
-import { SectionHeading } from '@/components/roster/section-heading'
+import { SectionHeader } from '@/components/ui/section-header'
+import { Panel } from '@/components/ui/panel'
 
 const ROLE_CHIPS = {
   skater: 'Skater',
@@ -24,21 +24,26 @@ interface Props {
 export function ContributionSection({ contribution, selectedRole }: Props) {
   return (
     <section id="profile" className="space-y-4 scroll-mt-24">
-      <SectionHeading
-        title="Season Profile"
+      <SectionHeader
+        label="Season Profile"
         subtitle={`Normalized vs teammates in the same role · ${selectedRole === 'skater' ? 'skater' : 'goalie'} view`}
       />
       {!contribution || contribution.metrics.length === 0 ? (
-        <EmptyPanel message="Not enough data to compute a season profile yet." />
+        <Panel className="flex min-h-[6rem] items-center justify-center">
+          <p className="px-4 text-center font-condensed text-sm uppercase tracking-wider text-zinc-500">
+            Not enough data to compute a season profile yet.
+          </p>
+        </Panel>
       ) : (
         <div className="grid gap-4 lg:grid-cols-[280px_minmax(0,1fr)]">
-          <SurfaceCard className="flex flex-col items-center justify-center gap-4 py-6">
+          <Panel className="flex flex-col items-center justify-center gap-4 py-6">
             <ContributionDonut metrics={contribution.metrics} />
-            <p className="text-[11px] text-zinc-600">
-              Based on {contribution.sampleSize} {contribution.role} appearances
+            <p className="font-condensed text-[11px] uppercase tracking-wider text-zinc-600">
+              Based on <span className="tabular-nums">{contribution.sampleSize}</span>{' '}
+              {contribution.role} appearances
             </p>
-          </SurfaceCard>
-          <SurfaceCard>
+          </Panel>
+          <Panel className="p-4">
             <p className="font-condensed text-base font-bold uppercase tracking-wide text-zinc-100">
               {ROLE_CHIPS[contribution.role]} Profile
             </p>
@@ -52,7 +57,7 @@ export function ContributionSection({ contribution, selectedRole }: Props) {
                 />
               ))}
             </div>
-          </SurfaceCard>
+          </Panel>
         </div>
       )}
     </section>
@@ -121,8 +126,12 @@ function MetricBar({ label, value, color }: { label: string; value: number; colo
   return (
     <div className="space-y-1.5">
       <div className="flex items-center justify-between gap-3">
-        <span className="text-sm text-zinc-300">{label}</span>
-        <span className="text-xs tabular text-zinc-500">{Math.round(value).toString()}</span>
+        <span className="font-condensed text-xs font-semibold uppercase tracking-wider text-zinc-300">
+          {label}
+        </span>
+        <span className="font-condensed text-xs font-semibold tabular-nums text-zinc-500">
+          {Math.round(value).toString()}
+        </span>
       </div>
       <div className="h-1.5 overflow-hidden rounded-full bg-zinc-800">
         <div
@@ -130,24 +139,6 @@ function MetricBar({ label, value, color }: { label: string; value: number; colo
           style={{ width: `${Math.max(4, value).toString()}%`, backgroundColor: color }}
         />
       </div>
-    </div>
-  )
-}
-
-function SurfaceCard({
-  children,
-  className = '',
-}: {
-  children: ReactNode
-  className?: string
-}) {
-  return <div className={`border border-zinc-800 bg-surface p-4 ${className}`}>{children}</div>
-}
-
-function EmptyPanel({ message }: { message: string }) {
-  return (
-    <div className="flex min-h-[6rem] items-center justify-center border border-zinc-800 bg-surface">
-      <p className="px-4 text-center text-sm text-zinc-500">{message}</p>
     </div>
   )
 }
