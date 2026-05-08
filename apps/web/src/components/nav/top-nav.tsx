@@ -37,7 +37,7 @@ export async function TopNav() {
             priority
           />
           {/* sm+: wordmark alongside logo; xs: logo only */}
-          <span className="hidden font-condensed text-lg font-black uppercase leading-none tracking-[0.15em] text-zinc-50 sm:block">
+          <span className="hidden font-condensed text-lg font-black uppercase leading-none tracking-widest text-zinc-50 sm:block">
             Boogeymen
           </span>
         </Link>
@@ -71,7 +71,7 @@ function DesktopLinksFallback() {
       {(['Home', 'Games', 'Roster', 'Stats', 'Archive'] as const).map((label) => (
         <span
           key={label}
-          className="font-condensed text-sm font-bold uppercase tracking-[0.15em] text-zinc-400"
+          className="font-condensed text-sm font-bold uppercase tracking-widest text-zinc-400"
         >
           {label}
         </span>
@@ -86,7 +86,7 @@ function MobileTabsFallback() {
       {(['Home', 'Games', 'Roster', 'Stats', 'Archive'] as const).map((label) => (
         <span
           key={label}
-          className="flex-1 py-2 text-center text-xs font-semibold uppercase tracking-wider text-zinc-400"
+          className="flex-1 py-2 text-center font-condensed text-xs font-semibold uppercase tracking-widest text-zinc-400"
         >
           {label}
         </span>
