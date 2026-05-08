@@ -107,8 +107,7 @@ function buildMemberStats(eaRows: RosterRow[], eligRows: EligRow[]): MemberData[
       isDefenseCapable: defGames > 0,
       isGoalieCapable: ea.goalieGp > 0,
       isDefensePrimary: defGames > totalFwdGames,
-      isGoaliePrimary:
-        ea.favoritePosition === 'goalie' || ea.goalieGp > ea.skaterGp,
+      isGoaliePrimary: ea.favoritePosition === 'goalie' || ea.goalieGp > ea.skaterGp,
     }
   })
 }
@@ -158,8 +157,7 @@ const FWD_ROLE_PENALTY: Record<RoleClass, number> = {
 const EA_FWD_LANE_BONUS = 600
 
 function laneFitScore(m: MemberData, lane: ForwardPos): number {
-  const gamesInLane =
-    lane === 'leftWing' ? m.lwGames : lane === 'center' ? m.cGames : m.rwGames
+  const gamesInLane = lane === 'leftWing' ? m.lwGames : lane === 'center' ? m.cGames : m.rwGames
 
   const sorted = (
     [
@@ -221,7 +219,10 @@ function pickBest(
   for (const m of pool) {
     if (excluded.has(m.eaRow.playerId)) continue
     const s = scoreFn(m)
-    if (s > bestScore || (s === bestScore && best !== null && m.eaRow.skaterGp > best.eaRow.skaterGp)) {
+    if (
+      s > bestScore ||
+      (s === bestScore && best !== null && m.eaRow.skaterGp > best.eaRow.skaterGp)
+    ) {
       bestScore = s
       best = m
     }
@@ -360,13 +361,9 @@ export default async function RosterPage({ searchParams }: { searchParams: Searc
   const { gameTitle, isActive, allTitles } = result.resolved
 
   if (isActive) {
-    return (
-      <ActiveRoster allTitles={allTitles} gameTitle={gameTitle} gameMode={requestedMode} />
-    )
+    return <ActiveRoster allTitles={allTitles} gameTitle={gameTitle} gameMode={requestedMode} />
   }
-  return (
-    <ArchiveRoster allTitles={allTitles} gameTitle={gameTitle} gameMode={requestedMode} />
-  )
+  return <ArchiveRoster allTitles={allTitles} gameTitle={gameTitle} gameMode={requestedMode} />
 }
 
 // ─── Active-title view (live data, depth chart + season summary) ─────────────
@@ -454,9 +451,7 @@ async function ActiveRoster({
         </section>
       ) : (
         gameMode !== null && (
-          <EmptyState
-            message={`No ${gameMode} skater stats recorded for ${gameTitle.name} yet.`}
-          />
+          <EmptyState message={`No ${gameMode} skater stats recorded for ${gameTitle.name} yet.`} />
         )
       )}
       {goalieRows.length > 0 && (
@@ -577,13 +572,7 @@ async function ArchiveRoster({
 
 // ─── Shared page shell (header) ──────────────────────────────────────────────
 
-function PageShell({
-  gameTitle,
-  children,
-}: {
-  gameTitle: GameTitle
-  children: React.ReactNode
-}) {
+function PageShell({ gameTitle, children }: { gameTitle: GameTitle; children: React.ReactNode }) {
   return (
     <div className="space-y-10">
       <PageHeader gameTitle={gameTitle} />
@@ -614,9 +603,7 @@ function SeasonSummaryStrip({
   const topGoalScorer = [...eaRows].sort((a, b) => b.goals - a.goals)[0] ?? null
   const topGoalie =
     [...eaRows]
-      .filter(
-        (r): r is RosterRow & { savePct: string } => r.goalieGp > 0 && r.savePct !== null,
-      )
+      .filter((r): r is RosterRow & { savePct: string } => r.goalieGp > 0 && r.savePct !== null)
       .sort((a, b) => parseFloat(b.savePct) - parseFloat(a.savePct))[0] ?? null
 
   const record = officialRecord
@@ -699,4 +686,3 @@ function PageHeader({ gameTitle }: { gameTitle: { name: string } }) {
     </div>
   )
 }
-

@@ -1,6 +1,10 @@
 import Link from 'next/link'
 import type { WithWithoutRow, PairRow } from '@eanhl/db/queries'
-import { CHEMISTRY_MIN_GP_WITH, CHEMISTRY_MIN_GP_WITHOUT, CHEMISTRY_PAIR_MIN_GP } from '@eanhl/db/queries'
+import {
+  CHEMISTRY_MIN_GP_WITH,
+  CHEMISTRY_MIN_GP_WITHOUT,
+  CHEMISTRY_PAIR_MIN_GP,
+} from '@eanhl/db/queries'
 import { Panel } from '@/components/ui/panel'
 import { SectionHeader } from '@/components/ui/section-header'
 
@@ -66,7 +70,9 @@ function SampleBadge({ gp, threshold }: { gp: number; threshold: number }) {
 function DeltaCell({ delta }: { delta: number | null }) {
   if (delta === null)
     return (
-      <td className="px-3 py-2.5 text-right font-condensed text-sm tabular-nums text-zinc-600">—</td>
+      <td className="px-3 py-2.5 text-right font-condensed text-sm tabular-nums text-zinc-600">
+        —
+      </td>
     )
 
   const deltaPoints = Math.round(delta * 100)
@@ -75,7 +81,9 @@ function DeltaCell({ delta }: { delta: number | null }) {
     delta > 0.02 ? 'text-emerald-400' : delta < -0.02 ? 'text-rose-400' : 'text-zinc-400'
 
   return (
-    <td className={`px-3 py-2.5 text-right font-condensed text-sm font-semibold tabular-nums ${colorClass}`}>
+    <td
+      className={`px-3 py-2.5 text-right font-condensed text-sm font-semibold tabular-nums ${colorClass}`}
+    >
       {formatted}
     </td>
   )
@@ -97,8 +105,12 @@ export function WithWithoutTable({ rows }: WithWithoutTableProps) {
   }
 
   const sortedRows = [...rows].sort((a, b) => {
-    const aDelta = (winPct(a.winsWith, a.gpWith) ?? -Infinity) - (winPct(a.winsWithout, a.gpWithout) ?? -Infinity)
-    const bDelta = (winPct(b.winsWith, b.gpWith) ?? -Infinity) - (winPct(b.winsWithout, b.gpWithout) ?? -Infinity)
+    const aDelta =
+      (winPct(a.winsWith, a.gpWith) ?? -Infinity) -
+      (winPct(a.winsWithout, a.gpWithout) ?? -Infinity)
+    const bDelta =
+      (winPct(b.winsWith, b.gpWith) ?? -Infinity) -
+      (winPct(b.winsWithout, b.gpWithout) ?? -Infinity)
     if (bDelta !== aDelta) return bDelta - aDelta
     return b.gpWith - a.gpWith
   })
@@ -141,10 +153,7 @@ export function WithWithoutTable({ rows }: WithWithoutTableProps) {
             const delta = pctWith !== null && pctWithout !== null ? pctWith - pctWithout : null
 
             return (
-              <tr
-                key={row.playerId}
-                className="transition-colors hover:bg-surface-raised"
-              >
+              <tr key={row.playerId} className="transition-colors hover:bg-surface-raised">
                 <td className="py-2.5 pl-4 pr-3">
                   <Link
                     href={`/roster/${row.playerId.toString()}`}
@@ -283,10 +292,14 @@ export function BestPairsTable({ rows }: BestPairsTableProps) {
                 <td className="px-3 py-2.5 text-right font-condensed text-sm tabular-nums text-zinc-400">
                   {fmtPerGame(row.totalGa, row.gp)}
                 </td>
-                <td className={`px-3 py-2.5 text-right font-condensed text-sm font-semibold tabular-nums ${diffColor}`}>
+                <td
+                  className={`px-3 py-2.5 text-right font-condensed text-sm font-semibold tabular-nums ${diffColor}`}
+                >
                   {`${diff >= 0 ? '+' : ''}${diff.toString()}`}
                 </td>
-                <td className={`px-3 py-2.5 text-right font-condensed text-sm font-semibold tabular-nums ${diffColor}`}>
+                <td
+                  className={`px-3 py-2.5 text-right font-condensed text-sm font-semibold tabular-nums ${diffColor}`}
+                >
                   {diffStr}
                 </td>
               </tr>

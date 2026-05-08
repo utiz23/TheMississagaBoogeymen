@@ -30,7 +30,11 @@ import { SectionHeader } from '@/components/ui/section-header'
 import { MatchRow } from '@/components/matches/match-row'
 import { SkaterStatsTable } from '@/components/stats/skater-stats-table'
 import { GoalieStatsTable } from '@/components/stats/goalie-stats-table'
-import { WithWithoutTable, BestPairsTable, ChemistrySection } from '@/components/stats/chemistry-tables'
+import {
+  WithWithoutTable,
+  BestPairsTable,
+  ChemistrySection,
+} from '@/components/stats/chemistry-tables'
 import {
   TitleSelector,
   ModeFilter,
@@ -78,21 +82,9 @@ export default async function StatsPage({ searchParams }: { searchParams: Search
   const { gameTitle, isActive, allTitles } = result.resolved
 
   if (isActive) {
-    return (
-      <ActiveStats
-        allTitles={allTitles}
-        gameTitle={gameTitle}
-        gameMode={requestedMode}
-      />
-    )
+    return <ActiveStats allTitles={allTitles} gameTitle={gameTitle} gameMode={requestedMode} />
   }
-  return (
-    <ArchiveStats
-      allTitles={allTitles}
-      gameTitle={gameTitle}
-      gameMode={requestedMode}
-    />
-  )
+  return <ArchiveStats allTitles={allTitles} gameTitle={gameTitle} gameMode={requestedMode} />
 }
 
 // ─── Active-title view (live NHL 26 data, all sections) ──────────────────────
@@ -142,8 +134,7 @@ async function ActiveStats({
   }
 
   const shotMapHasData =
-    gameTitle.slug === 'nhl26' &&
-    (teamShotAggregates?.shotsIce.some((v) => v > 0) ?? false)
+    gameTitle.slug === 'nhl26' && (teamShotAggregates?.shotsIce.some((v) => v > 0) ?? false)
 
   return (
     <PageShell gameTitle={gameTitle}>
@@ -414,8 +405,8 @@ function ArchiveClubTeamSection({
           Club team records
         </h2>
         <p className="text-xs text-zinc-500">
-          Season totals from {titleName} STATS → CLUB STATS screen captures, per playlist.
-          PP% and PK% are not tracked in 3v3 and Threes modes.
+          Season totals from {titleName} STATS → CLUB STATS screen captures, per playlist. PP% and
+          PK% are not tracked in 3v3 and Threes modes.
         </p>
       </div>
       <div className="overflow-x-auto border border-zinc-800">
@@ -452,8 +443,12 @@ function ArchiveClubTeamSection({
                   <td className="px-3 py-3 text-right text-zinc-500">{otl}</td>
                   <td className="px-3 py-3 text-right text-zinc-300">{winPct(w, l, otl)}</td>
                   <td className="px-3 py-3 text-right text-zinc-300">{row.avgGoalsFor ?? '—'}</td>
-                  <td className="px-3 py-3 text-right text-zinc-400">{row.avgGoalsAgainst ?? '—'}</td>
-                  <td className="px-3 py-3 text-right text-zinc-400">{row.avgTimeOnAttack ?? '—'}</td>
+                  <td className="px-3 py-3 text-right text-zinc-400">
+                    {row.avgGoalsAgainst ?? '—'}
+                  </td>
+                  <td className="px-3 py-3 text-right text-zinc-400">
+                    {row.avgTimeOnAttack ?? '—'}
+                  </td>
                   <td className="px-3 py-3 text-right text-zinc-400">
                     {formatPct(row.powerPlayPct)}
                   </td>
@@ -472,13 +467,7 @@ function ArchiveClubTeamSection({
 
 // ─── Shared page shell (header) ──────────────────────────────────────────────
 
-function PageShell({
-  gameTitle,
-  children,
-}: {
-  gameTitle: GameTitle
-  children: React.ReactNode
-}) {
+function PageShell({ gameTitle, children }: { gameTitle: GameTitle; children: React.ReactNode }) {
   return (
     <div className="space-y-8">
       <div className="flex items-baseline gap-3">

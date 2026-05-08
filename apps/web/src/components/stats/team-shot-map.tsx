@@ -28,33 +28,33 @@ export function TeamShotMap({ aggregates, hasData }: Props) {
         <ModeTabs mode={mode} onChange={setMode} disabled={!hasData} />
       </div>
       <BroadcastPanel className="p-4">
-      {hasData ? (
-        <>
-          <div className="mb-3">
-            <ViewToggle view={view} onChange={setView} />
-          </div>
-
-          <div className="flex items-start gap-10">
-            <div className="w-[360px] flex-shrink-0">
-              {view === 'ice' ? (
-                <IceView aggregates={aggregates} mode={mode} />
-              ) : (
-                <NetView aggregates={aggregates} mode={mode} />
-              )}
+        {hasData ? (
+          <>
+            <div className="mb-3">
+              <ViewToggle view={view} onChange={setView} />
             </div>
-            <div className="flex-shrink-0 pt-2">
-              <Breakdown aggregates={aggregates} view={view} mode={mode} />
-            </div>
-          </div>
 
-          <Legend mode={mode} />
-        </>
-      ) : (
-        <p className="py-8 text-center font-condensed text-[12px] uppercase tracking-wider text-zinc-500">
-          Shot location data is only collected for{' '}
-          <span className="font-bold text-zinc-200">NHL 26</span>.
-        </p>
-      )}
+            <div className="flex items-start gap-10">
+              <div className="w-[360px] flex-shrink-0">
+                {view === 'ice' ? (
+                  <IceView aggregates={aggregates} mode={mode} />
+                ) : (
+                  <NetView aggregates={aggregates} mode={mode} />
+                )}
+              </div>
+              <div className="flex-shrink-0 pt-2">
+                <Breakdown aggregates={aggregates} view={view} mode={mode} />
+              </div>
+            </div>
+
+            <Legend mode={mode} />
+          </>
+        ) : (
+          <p className="py-8 text-center font-condensed text-[12px] uppercase tracking-wider text-zinc-500">
+            Shot location data is only collected for{' '}
+            <span className="font-bold text-zinc-200">NHL 26</span>.
+          </p>
+        )}
       </BroadcastPanel>
     </section>
   )
