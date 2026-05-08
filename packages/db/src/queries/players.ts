@@ -120,10 +120,28 @@ export async function getRoster(gameTitleId: number, gameMode: GameMode | null =
       gaa: playerGameTitleStats.gaa,
       shutouts: playerGameTitleStats.shutouts,
       jerseyNumber: playerProfiles.jerseyNumber,
+      favoritePosition: eaMemberSeasonStats.favoritePosition,
+      skaterWins: eaMemberSeasonStats.skaterWins,
+      skaterLosses: eaMemberSeasonStats.skaterLosses,
+      skaterOtl: eaMemberSeasonStats.skaterOtl,
+      goalieWins: eaMemberSeasonStats.goalieWins,
+      goalieLosses: eaMemberSeasonStats.goalieLosses,
+      goalieOtl: eaMemberSeasonStats.goalieOtl,
+      nationality: playerProfiles.nationality,
+      playerName: playerProfiles.playerName,
+      preferredPosition: playerProfiles.preferredPosition,
+      clientPlatform: eaMemberSeasonStats.clientPlatform,
     })
     .from(playerGameTitleStats)
     .innerJoin(players, eq(playerGameTitleStats.playerId, players.id))
     .leftJoin(playerProfiles, eq(players.id, playerProfiles.playerId))
+    .leftJoin(
+      eaMemberSeasonStats,
+      and(
+        eq(eaMemberSeasonStats.playerId, playerGameTitleStats.playerId),
+        eq(eaMemberSeasonStats.gameTitleId, playerGameTitleStats.gameTitleId),
+      ),
+    )
     .where(and(eq(playerGameTitleStats.gameTitleId, gameTitleId), gameModeFilter))
     .orderBy(desc(playerGameTitleStats.points))
 }
@@ -162,6 +180,9 @@ export async function getEARoster(gameTitleId: number) {
       wins: playerGameTitleStats.wins,
       losses: playerGameTitleStats.losses,
       otl: playerGameTitleStats.otl,
+      skaterWins: eaMemberSeasonStats.skaterWins,
+      skaterLosses: eaMemberSeasonStats.skaterLosses,
+      skaterOtl: eaMemberSeasonStats.skaterOtl,
       goalieWins: eaMemberSeasonStats.goalieWins,
       goalieLosses: eaMemberSeasonStats.goalieLosses,
       goalieOtl: eaMemberSeasonStats.goalieOtl,
@@ -172,6 +193,10 @@ export async function getEARoster(gameTitleId: number) {
       goalieShots: eaMemberSeasonStats.goalieShots,
       goalieGoalsAgainst: eaMemberSeasonStats.goalieGoalsAgainst,
       jerseyNumber: playerProfiles.jerseyNumber,
+      nationality: playerProfiles.nationality,
+      playerName: playerProfiles.playerName,
+      preferredPosition: playerProfiles.preferredPosition,
+      clientPlatform: eaMemberSeasonStats.clientPlatform,
     })
     .from(eaMemberSeasonStats)
     .innerJoin(players, eq(eaMemberSeasonStats.playerId, players.id))
@@ -216,6 +241,7 @@ export async function getPlayerWithProfile(playerId: number) {
       lastSeenAt: players.lastSeenAt,
       // Profile fields (nullable — null until manually populated)
       jerseyNumber: playerProfiles.jerseyNumber,
+      playerName: playerProfiles.playerName,
       nationality: playerProfiles.nationality,
       preferredPosition: playerProfiles.preferredPosition,
       bio: playerProfiles.bio,

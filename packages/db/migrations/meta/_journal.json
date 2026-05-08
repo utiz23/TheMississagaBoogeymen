@@ -155,6 +155,13 @@
       "when": 1778029500188,
       "tag": "0021_thankful_lockheed",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1778119799471,
+      "tag": "0022_mature_paladin",
+      "breakpoints": true
     }
   ]
 }

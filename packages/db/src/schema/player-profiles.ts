@@ -24,6 +24,12 @@ export const playerProfiles = pgTable('player_profiles', {
    */
   jerseyNumber: integer('jersey_number'),
   /**
+   * Display name / real name / alias. Shown as secondary text under gamertag
+   * on the player profile page. Not available from the EA API — manual only.
+   * Store as a single clean displayable string (e.g. "Erb", "Igor Orlov").
+   */
+  playerName: text('player_name'),
+  /**
    * ISO 3166-1 alpha-2 nationality code (e.g. 'CA', 'US', 'FI').
    * Not available from the EA API — requires manual entry.
    */
