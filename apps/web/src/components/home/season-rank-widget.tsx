@@ -1,4 +1,5 @@
 import type { ClubSeasonRank } from '@eanhl/db'
+import { Panel } from '@/components/ui/panel'
 
 interface SeasonRankWidgetProps {
   rank: ClubSeasonRank
@@ -7,8 +8,8 @@ interface SeasonRankWidgetProps {
 function StatPill({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex flex-col items-center gap-0.5">
-      <span className="font-condensed text-lg font-bold tabular text-zinc-100">{value}</span>
-      <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-600">
+      <span className="font-condensed text-lg font-bold tabular-nums text-zinc-100">{value}</span>
+      <span className="font-condensed text-[10px] font-semibold uppercase tracking-wider text-zinc-600">
         {label}
       </span>
     </div>
@@ -29,9 +30,11 @@ function ThresholdRow({
   const met = delta !== null && delta <= 0
   return (
     <div className="flex items-center justify-between gap-2">
-      <span className="text-xs text-zinc-500">{label}</span>
+      <span className="font-condensed text-[11px] font-semibold uppercase tracking-wider text-zinc-500">
+        {label}
+      </span>
       <span
-        className={`font-condensed text-sm font-semibold tabular ${met ? 'text-accent' : 'text-zinc-300'}`}
+        className={`font-condensed text-sm font-semibold tabular-nums ${met ? 'text-accent' : 'text-zinc-300'}`}
       >
         {threshold}
         {delta !== null && !met && (
@@ -60,7 +63,7 @@ export function SeasonRankWidget({ rank }: SeasonRankWidgetProps) {
     rank.pointsToTitle !== null
 
   return (
-    <div className="broadcast-panel space-y-4 px-5 py-4">
+    <Panel className="space-y-4 px-5 py-4">
       {/* Division header */}
       <div className="flex items-center justify-between">
         <div>
@@ -68,18 +71,20 @@ export function SeasonRankWidget({ rank }: SeasonRankWidgetProps) {
             {divLabel}
           </p>
           {currentPoints !== null && (
-            <p className="text-sm text-zinc-400">
-              <span className="font-condensed font-semibold tabular text-zinc-200">
-                {currentPoints}
-              </span>{' '}
-              pts
+            <p className="font-condensed text-sm text-zinc-400">
+              <span className="font-semibold tabular-nums text-zinc-200">{currentPoints}</span>{' '}
+              <span className="text-[11px] uppercase tracking-wider">pts</span>
               {rank.projectedPoints !== null && (
-                <span className="ml-2 text-zinc-600">/ {rank.projectedPoints} proj.</span>
+                <span className="ml-2 text-[11px] uppercase tracking-wider text-zinc-600">
+                  / <span className="tabular-nums">{rank.projectedPoints}</span> proj.
+                </span>
               )}
             </p>
           )}
         </div>
-        <span className="text-xs text-zinc-600">Season</span>
+        <span className="font-condensed text-[10px] font-semibold uppercase tracking-widest text-zinc-600">
+          Season
+        </span>
       </div>
 
       {/* Season W-L-OTL — clearly labelled as season, not all-time */}
@@ -89,14 +94,16 @@ export function SeasonRankWidget({ rank }: SeasonRankWidgetProps) {
           <StatPill label="L" value={String(rank.losses ?? '—')} />
           <StatPill label="OTL" value={String(rank.otl ?? '—')} />
           {rank.gamesPlayed !== null && (
-            <span className="ml-auto text-xs text-zinc-600">{rank.gamesPlayed} GP</span>
+            <span className="ml-auto font-condensed text-[10px] font-semibold uppercase tracking-widest text-zinc-600">
+              <span className="tabular-nums">{rank.gamesPlayed}</span> GP
+            </span>
           )}
         </div>
       )}
 
       {/* Division thresholds */}
       {hasThresholds && (
-        <div className="border-t border-zinc-800/60 pt-3 space-y-1.5">
+        <div className="space-y-1.5 border-t border-zinc-800/60 pt-3">
           <ThresholdRow label="Title" threshold={rank.pointsToTitle} current={currentPoints} />
           <ThresholdRow
             label="Promotion"
@@ -110,6 +117,6 @@ export function SeasonRankWidget({ rank }: SeasonRankWidgetProps) {
           />
         </div>
       )}
-    </div>
+    </Panel>
   )
 }
