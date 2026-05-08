@@ -1,41 +1,44 @@
 /**
- * Frozen zone layout for the Shot Map component.
+ * Shot Map zone geometry and EA field index mapping.
  *
- * Discovery method: pattern analysis on a high-volume player's DB row
- * (index 7 dominates → slot; index 16 second-highest → long-range bar).
- * Visual validation against ChelHead's rendered map is pending; the
- * EA_ICE_INDEX_TO_ZONE block below is a working hypothesis, not yet
- * empirically confirmed for indices other than 7 and 16. Update on
- * evidence.
+ * viewBox: 0 0 841.2 859.2
+ * Zone paths extracted from ChelHead's app-hockey-zone-heatmap SVG.
+ * Orientation: goal line at top (y≈111), neutral zone at bottom (y≈730).
  *
- * Coordinates use a viewBox of 200 × 180. (0,0) is top-left.
- * The half-rink offensive zone is rendered with the goal line at the top.
+ * EA_ICE_INDEX_TO_ZONE validated empirically: silkyjoker85's DB shotsIce
+ * array matched 1:1 against ChelHead's rendered zone counts (2026-05-05).
  */
 
 export type IceZoneId =
-  | 'point_l' | 'point_c' | 'point_r'
-  | 'high_l' | 'slot_high' | 'high_r'
-  | 'circle_l' | 'slot' | 'circle_r'
-  | 'low_l' | 'behind_net' | 'low_r'
-  | 'wing_l' | 'wing_r'
-  | 'long_l' | 'long_r'
+  | 'LowSlot'
+  | 'HighSlot'
+  | 'Crease'
+  | 'CenterPoint'
+  | 'LCircle'
+  | 'RCircle'
+  | 'LPoint'
+  | 'RPoint'
+  | 'LNetSide'
+  | 'RNetSide'
+  | 'LCorner'
+  | 'RCorner'
+  | 'OutsideL'
+  | 'OutsideR'
+  | 'BehindTheNet'
+  | 'NeutralZone'
 
 export type NetZoneId = 'top_l' | 'top_r' | 'bot_l' | 'bot_r' | 'five_hole'
 
 export interface IceZoneShape {
   id: IceZoneId
-  /** SVG path `d` attribute for the polygon. */
   d: string
-  /** Centroid for label/tooltip placement. */
   cx: number
   cy: number
-  /** Coarse danger band (drives the breakdown panel totals). */
   band: 'high_danger' | 'mid_range' | 'long_range'
 }
 
 export interface NetZoneShape {
   id: NetZoneId
-  /** SVG `<rect>` x/y/w/h. */
   x: number
   y: number
   w: number
@@ -45,30 +48,26 @@ export interface NetZoneShape {
 }
 
 /**
- * EA index (1-based) → physical zone id.
- *
- * Status: WORKING HYPOTHESIS pending visual validation against ChelHead's
- * rendering. Indices 7 (slot) and 16 (long_r) are strongly supported by
- * count-distribution analysis on three real players. Other mappings are
- * provisional; flag any that look wrong during the Task 12 smoke test.
+ * EA field index (1-based, matching skShotsLocationOnIce1..16) → zone id.
+ * Validated against silkyjoker85's DB row vs ChelHead's rendered counts.
  */
 export const EA_ICE_INDEX_TO_ZONE: Record<number, IceZoneId> = {
-  1: 'point_l',
-  2: 'point_c',
-  3: 'point_r',
-  4: 'high_l',
-  5: 'slot_high',
-  6: 'high_r',
-  7: 'slot',
-  8: 'circle_l',
-  9: 'circle_r',
-  10: 'low_l',
-  11: 'behind_net',
-  12: 'low_r',
-  13: 'wing_l',
-  14: 'wing_r',
-  15: 'long_l',
-  16: 'long_r',
+  1:  'RCorner',
+  2:  'BehindTheNet',
+  3:  'LCorner',
+  4:  'Crease',
+  5:  'RNetSide',
+  6:  'LNetSide',
+  7:  'LowSlot',
+  8:  'OutsideR',
+  9:  'RCircle',
+  10: 'HighSlot',
+  11: 'LCircle',
+  12: 'OutsideL',
+  13: 'RPoint',
+  14: 'CenterPoint',
+  15: 'LPoint',
+  16: 'NeutralZone',
 }
 
 export const EA_NET_INDEX_TO_ZONE: Record<number, NetZoneId> = {
@@ -80,35 +79,113 @@ export const EA_NET_INDEX_TO_ZONE: Record<number, NetZoneId> = {
 }
 
 /**
- * Half-rink SVG geometry (viewBox 200 × 180).
- * The goal line is at y = 0 (top of viewport); the blue line is at y = 180 (bottom).
+ * Zone paths in viewBox 841.2 × 859.2.
+ * Centroids derived from ChelHead's labels-layer transform offsets.
+ * Bands match NHL EDGE zone breakdown convention:
+ *   high_danger  = Crease + LowSlot
+ *   mid_range    = net sides, circles, slot, wings, corners, behind net
+ *   long_range   = point area + neutral zone
  */
 export const ICE_ZONE_SHAPES: Record<IceZoneId, IceZoneShape> = {
-  // Top band (point area) — three zones across the blue line
-  point_l:    { id: 'point_l',    d: 'M 5 130 L 5 175 L 70 175 L 70 130 Z',   cx: 35,  cy: 152, band: 'long_range' },
-  point_c:    { id: 'point_c',    d: 'M 70 130 L 70 175 L 130 175 L 130 130 Z', cx: 100, cy: 152, band: 'long_range' },
-  point_r:    { id: 'point_r',    d: 'M 130 130 L 130 175 L 195 175 L 195 130 Z', cx: 165, cy: 152, band: 'long_range' },
-  // Long range stripes flanking the point row
-  long_l:     { id: 'long_l',     d: 'M 5 100 L 5 130 L 70 130 L 70 100 Z',   cx: 35,  cy: 115, band: 'long_range' },
-  long_r:     { id: 'long_r',     d: 'M 130 100 L 130 130 L 195 130 L 195 100 Z', cx: 165, cy: 115, band: 'long_range' },
-  // High slot row
-  high_l:     { id: 'high_l',     d: 'M 5 70 L 5 100 L 70 100 L 70 70 Z',     cx: 35,  cy: 85,  band: 'mid_range' },
-  slot_high:  { id: 'slot_high',  d: 'M 70 70 L 70 130 L 130 130 L 130 70 Z', cx: 100, cy: 100, band: 'mid_range' },
-  high_r:     { id: 'high_r',     d: 'M 130 70 L 130 100 L 195 100 L 195 70 Z', cx: 165, cy: 85,  band: 'mid_range' },
-  // Slot / faceoff circle row
-  circle_l:   { id: 'circle_l',   d: 'M 5 40 L 5 70 L 70 70 L 70 40 Z',       cx: 35,  cy: 55,  band: 'mid_range' },
-  slot:       { id: 'slot',       d: 'M 70 30 L 70 70 L 130 70 L 130 30 Z',   cx: 100, cy: 50,  band: 'high_danger' },
-  circle_r:   { id: 'circle_r',   d: 'M 130 40 L 130 70 L 195 70 L 195 40 Z', cx: 165, cy: 55,  band: 'mid_range' },
-  // Low slot
-  low_l:      { id: 'low_l',      d: 'M 5 15 L 5 40 L 70 40 L 70 15 Z',       cx: 35,  cy: 27,  band: 'mid_range' },
-  behind_net: { id: 'behind_net', d: 'M 70 0 L 70 30 L 130 30 L 130 0 Z',     cx: 100, cy: 15,  band: 'high_danger' },
-  low_r:      { id: 'low_r',      d: 'M 130 15 L 130 40 L 195 40 L 195 15 Z', cx: 165, cy: 27,  band: 'mid_range' },
-  // Wings (bottom corners near goal line)
-  wing_l:     { id: 'wing_l',     d: 'M 5 0 L 5 15 L 70 15 L 70 0 Z',         cx: 35,  cy: 7,   band: 'high_danger' },
-  wing_r:     { id: 'wing_r',     d: 'M 130 0 L 130 15 L 195 15 L 195 0 Z',   cx: 165, cy: 7,   band: 'high_danger' },
+  LowSlot: {
+    id: 'LowSlot',
+    d: 'M421.1,304.3a303.33,303.33,0,0,1-79.94-10.76l-1.26-.35v.1a301.08,301.08,0,0,1-90.36-42.41L358.46,112.61a62.4,62.4,0,0,0,20.36,43.63l1.68,1.54v-.16a62.82,62.82,0,0,0,103.34-45L592.56,251a302.41,302.41,0,0,1-93.22,43A302,302,0,0,1,421.1,304.3Z',
+    cx: 420, cy: 226,
+    band: 'high_danger',
+  },
+  Crease: {
+    id: 'Crease',
+    d: 'M421.1,170.5a60.63,60.63,0,0,1-60.69-59.7H449.2l32.69-.1a60.8,60.8,0,0,1-60.79,59.8Z',
+    cx: 420, cy: 132,
+    band: 'high_danger',
+  },
+  HighSlot: {
+    id: 'HighSlot',
+    d: 'M421.7,538.1a553.57,553.57,0,0,1-142.27-18.4l62.17-224a300.23,300.23,0,0,0,79.5,10.57,304.32,304.32,0,0,0,77.8-10.08l61.17,224.37A546.07,546.07,0,0,1,421.7,538.1Z',
+    cx: 420, cy: 427,
+    band: 'mid_range',
+  },
+  LCircle: {
+    id: 'LCircle',
+    d: 'M277.5,519.18c-64.64-17.07-121.57-44.22-174-83L248.3,252.46c28.94,20,58.85,34,91.37,42.84Z',
+    cx: 223, cy: 414,
+    band: 'mid_range',
+  },
+  RCircle: {
+    id: 'RCircle',
+    d: 'M500.83,295.71a302,302,0,0,0,93-43.15L737.88,435.71A516.4,516.4,0,0,1,562,520.08Z',
+    cx: 617, cy: 413,
+    band: 'mid_range',
+  },
+  LNetSide: {
+    id: 'LNetSide',
+    d: 'M247.9,249.74A304.72,304.72,0,0,1,138.56,110.8H357.24Z',
+    cx: 241, cy: 168,
+    band: 'mid_range',
+  },
+  RNetSide: {
+    id: 'RNetSide',
+    d: 'M484.07,110.8H702.74c-22.23,56.79-59.72,104.83-108.54,139Z',
+    cx: 602, cy: 168,
+    band: 'mid_range',
+  },
+  LCorner: {
+    id: 'LCorner',
+    d: 'M59.73,108.8A278.5,278.5,0,0,1,279.8,1H282V108.8Z',
+    cx: 199, cy: 76,
+    band: 'mid_range',
+  },
+  RCorner: {
+    id: 'RCorner',
+    d: 'M559.8,108.8V1h1.6A278.95,278.95,0,0,1,758.59,82.71a268.38,268.38,0,0,1,23.08,26.09Z',
+    cx: 642, cy: 76,
+    band: 'mid_range',
+  },
+  BehindTheNet: {
+    id: 'BehindTheNet',
+    d: 'M284,1H557.8V108.8H284Z',
+    cx: 420, cy: 74,
+    band: 'mid_range',
+  },
+  OutsideL: {
+    id: 'OutsideL',
+    d: 'M1,279.9A280.51,280.51,0,0,1,58.09,110.8h78.32A306.52,306.52,0,0,0,246.56,251.21L1,563.11Z',
+    cx: 106, cy: 262,
+    band: 'mid_range',
+  },
+  OutsideR: {
+    id: 'OutsideR',
+    d: 'M595.44,251.41C644.5,217.07,682.36,168.47,705,110.8h78.13A278.61,278.61,0,0,1,840.2,279.5V562.71Z',
+    cx: 736, cy: 262,
+    band: 'mid_range',
+  },
+  CenterPoint: {
+    id: 'CenterPoint',
+    d: 'M221.52,728.4,278.9,521.62A555.44,555.44,0,0,0,421.7,540.1a552.71,552.71,0,0,0,138.89-17.58l56.1,205.88Z',
+    cx: 420, cy: 632,
+    band: 'long_range',
+  },
+  LPoint: {
+    id: 'LPoint',
+    d: 'M1,728.4v-162L102.28,437.78C154.9,476.7,212.06,504,277,521.11L219.44,728.4Z',
+    cx: 126, cy: 606,
+    band: 'long_range',
+  },
+  RPoint: {
+    id: 'RPoint',
+    d: 'M618.76,728.4,562.53,522a518.52,518.52,0,0,0,176.58-84.73L840.3,565.85V728.4Z',
+    cx: 713, cy: 605,
+    band: 'long_range',
+  },
+  NeutralZone: {
+    id: 'NeutralZone',
+    d: 'M1,730.4H840.2V858.2H1Z',
+    cx: 420, cy: 794,
+    band: 'long_range',
+  },
 }
 
-/** 5-zone net (viewBox 100 × 60). */
+/** 5-zone net grid (viewBox 100 × 60). */
 export const NET_ZONE_SHAPES: Record<NetZoneId, NetZoneShape> = {
   top_l:     { id: 'top_l',     x: 0,  y: 0,  w: 50, h: 25, cx: 25, cy: 12 },
   top_r:     { id: 'top_r',     x: 50, y: 0,  w: 50, h: 25, cx: 75, cy: 12 },
@@ -117,6 +194,35 @@ export const NET_ZONE_SHAPES: Record<NetZoneId, NetZoneShape> = {
   five_hole: { id: 'five_hole', x: 40, y: 25, w: 20, h: 35, cx: 50, cy: 42 },
 }
 
-/** Half-rink outline path (used as the SVG backdrop). */
-export const HALF_RINK_OUTLINE =
-  'M 5 0 L 5 175 Q 5 180 10 180 L 190 180 Q 195 180 195 175 L 195 0 Z'
+/**
+ * Rink fill path — the full half-rink interior shape.
+ * Stroke the outline over the top for clean borders.
+ */
+export const RINK_FILL =
+  'M5.81,854.08V279.82C5.74,128.18,128.61,5.19,280.25,5.12H560.69c151.7,0,274.69,123,274.7,274.66v574.3Z'
+
+export const RINK_OUTLINE =
+  'M280.32,9.12H560.69C710.19,9.12,831.38,130.3,831.38,279.8V850.08H9.81V279.82C9.74,130.38,130.83,9.19,280.27,9.12Z'
+
+/** Neutral-zone blue line (appears as a horizontal band near bottom of the zone). */
+export const NEUTRAL_ZONE_LINE = 'M1.81,724.5H839.39V732.5H1.81Z'
+
+/** Goal crease D-arc path. */
+export const GOAL_CREASE =
+  'M420.56,174a61.7,61.7,0,0,1-39.65-14.4l-.37-.3v-47h2v46.08a59.76,59.76,0,0,0,76,0V112.25h2v47l-.37.3A61.7,61.7,0,0,1,420.56,174Z'
+
+/** Goal crossbar / back bar. */
+export const GOAL_POSTS = 'M382.91,112.25H458.21V114.25H382.91Z'
+
+/** Goal line (the red line across the top of the crease area). */
+export const GOAL_LINE = 'M57.81,111.23H783.38V113.27H57.81Z'
+
+/** Left faceoff circle center and radius (for <circle> element). */
+export const FACEOFF_LEFT  = { cx: 206.47, cy: 307.51, r: 143.4 }
+export const FACEOFF_RIGHT = { cx: 633.77, cy: 307.47, r: 143.4 }
+
+/** Small faceoff dots. */
+export const FACEOFF_DOTS = [
+  { cx: 206.47, cy: 307.51 },
+  { cx: 633.77, cy: 307.47 },
+]
