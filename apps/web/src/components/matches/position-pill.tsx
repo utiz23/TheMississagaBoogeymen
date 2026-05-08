@@ -44,6 +44,8 @@ export function PositionPill({
   const palette = POSITION_STYLE[side]
   const style = (() => {
     if (isGoalie) return palette.goalie
+    if (position === 'leftDefenseMen') return palette.defenseLeft
+    if (position === 'rightDefenseMen') return palette.defenseRight
     if (position === 'defenseMen' && defenseSide === 'right') return palette.defenseRight
     if (position === 'defenseMen' && defenseSide === 'left') return palette.defenseLeft
     if (position !== null && position in palette) {

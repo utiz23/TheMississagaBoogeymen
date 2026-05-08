@@ -77,6 +77,8 @@ export function formatPosition(pos: string): string {
     goalie: 'G',
     center: 'C',
     defenseMen: 'D',
+    leftDefenseMen: 'LD',
+    rightDefenseMen: 'RD',
     leftWing: 'LW',
     rightWing: 'RW',
   }
