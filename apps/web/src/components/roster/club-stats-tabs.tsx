@@ -2,6 +2,8 @@
 
 import { useState } from 'react'
 import type { ReactNode } from 'react'
+import { Panel } from '@/components/ui/panel'
+import { SectionHeader } from '@/components/ui/section-header'
 
 interface SeasonRow {
   gameTitleId: number
@@ -109,14 +111,14 @@ function formatPossession(seconds: number) {
 
 function StatItem({ label, value }: { label: string; value: ReactNode }) {
   return (
-    <div className="border border-zinc-800 bg-surface px-3 py-2">
-      <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-zinc-600">
+    <Panel className="px-3 py-2">
+      <div className="font-condensed text-[10px] font-semibold uppercase tracking-[0.22em] text-zinc-500">
         {label}
       </div>
       <div className="mt-1 font-condensed text-lg font-bold tabular-nums text-zinc-100">
         {value}
       </div>
-    </div>
+    </Panel>
   )
 }
 
@@ -129,16 +131,10 @@ export function ClubStatsTabs({ season }: { season: SeasonRow }) {
 
   return (
     <section className="space-y-4">
-      <div className="flex items-baseline justify-between">
-        <div>
-          <h2 className="font-condensed text-sm font-bold uppercase tracking-[0.2em] text-zinc-100">
-            Club Stats
-          </h2>
-          <p className="mt-1 text-[11px] text-zinc-500">
-            EA-reported full season totals · {season.gameTitleName}
-          </p>
-        </div>
-      </div>
+      <SectionHeader
+        label="Club Stats"
+        subtitle={`EA-reported full season totals · ${season.gameTitleName}`}
+      />
 
       <div className="flex flex-wrap gap-1 border-b border-zinc-800">
         {TABS.map((t) => {
@@ -147,9 +143,11 @@ export function ClubStatsTabs({ season }: { season: SeasonRow }) {
             <button
               key={t.key}
               type="button"
-              onClick={() => { setActive(t.key) }}
+              onClick={() => {
+                setActive(t.key)
+              }}
               className={[
-                'border-b-2 px-3 py-2 font-condensed text-xs font-bold uppercase tracking-[0.16em] transition-colors',
+                'border-b-2 px-3 py-2 font-condensed text-xs font-bold uppercase tracking-[0.18em] transition-colors',
                 isActive
                   ? 'border-accent text-accent'
                   : 'border-transparent text-zinc-500 hover:text-zinc-300',
