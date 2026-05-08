@@ -1,6 +1,8 @@
 import Link from 'next/link'
 import type { WithWithoutRow, PairRow } from '@eanhl/db/queries'
 import { CHEMISTRY_MIN_GP_WITH, CHEMISTRY_MIN_GP_WITHOUT, CHEMISTRY_PAIR_MIN_GP } from '@eanhl/db/queries'
+import { Panel } from '@/components/ui/panel'
+import { SectionHeader } from '@/components/ui/section-header'
 
 type ChemistryWithWithoutRow = WithWithoutRow & {
   dnfWith: number
@@ -32,15 +34,7 @@ function fmtPerGame(total: number, gp: number): string {
   return (total / gp).toFixed(2)
 }
 
-// ─── Section header shared with stats page style ───────────────────────────
-
-function SectionTitle({ children }: { children: React.ReactNode }) {
-  return (
-    <h3 className="font-condensed text-sm font-semibold uppercase tracking-wider text-zinc-500">
-      {children}
-    </h3>
-  )
-}
+// ─── Sorted column header ──────────────────────────────────────────────────
 
 function SortedHeader({ label }: { label: string }) {
   return (
@@ -58,10 +52,8 @@ function SampleBadge({ gp, threshold }: { gp: number; threshold: number }) {
   return (
     <span
       className={[
-        'inline-block rounded px-1.5 py-0.5 text-[10px] font-bold tabular leading-none',
-        strong
-          ? 'bg-emerald-950 text-emerald-400'
-          : 'bg-amber-950 text-amber-400',
+        'inline-block px-1.5 py-0.5 font-condensed text-[10px] font-bold tabular-nums leading-none',
+        strong ? 'bg-emerald-950 text-emerald-400' : 'bg-amber-950 text-amber-400',
       ].join(' ')}
     >
       {gp.toString()}
@@ -72,19 +64,18 @@ function SampleBadge({ gp, threshold }: { gp: number; threshold: number }) {
 // ─── Delta cell ───────────────────────────────────────────────────────────
 
 function DeltaCell({ delta }: { delta: number | null }) {
-  if (delta === null) return <td className="px-3 py-2.5 text-right text-sm tabular text-zinc-600">—</td>
+  if (delta === null)
+    return (
+      <td className="px-3 py-2.5 text-right font-condensed text-sm tabular-nums text-zinc-600">—</td>
+    )
 
   const deltaPoints = Math.round(delta * 100)
   const formatted = `${deltaPoints >= 0 ? '+' : ''}${deltaPoints.toString()}`
   const colorClass =
-    delta > 0.02
-      ? 'text-emerald-400'
-      : delta < -0.02
-        ? 'text-rose-400'
-        : 'text-zinc-400'
+    delta > 0.02 ? 'text-emerald-400' : delta < -0.02 ? 'text-rose-400' : 'text-zinc-400'
 
   return (
-    <td className={`px-3 py-2.5 text-right text-sm font-semibold tabular ${colorClass}`}>
+    <td className={`px-3 py-2.5 text-right font-condensed text-sm font-semibold tabular-nums ${colorClass}`}>
       {formatted}
     </td>
   )
@@ -113,37 +104,37 @@ export function WithWithoutTable({ rows }: WithWithoutTableProps) {
   })
 
   return (
-    <div className="broadcast-panel overflow-x-auto">
+    <Panel className="overflow-x-auto">
       <table className="w-full min-w-[640px]">
         <thead>
           <tr className="border-b border-zinc-800 bg-surface-raised">
-            <th className="py-2 pl-4 pr-3 text-left text-xs font-semibold uppercase tracking-wider text-zinc-600">
+            <th className="py-2 pl-4 pr-3 text-left font-condensed text-[10px] font-semibold uppercase tracking-widest text-zinc-500">
               Player
             </th>
-            <th className="px-3 py-2 text-right text-xs font-semibold uppercase tracking-wider text-zinc-600">
+            <th className="px-3 py-2 text-right font-condensed text-[10px] font-semibold uppercase tracking-widest text-zinc-500">
               GP W/
             </th>
-            <th className="px-3 py-2 text-right text-xs font-semibold uppercase tracking-wider text-zinc-600">
+            <th className="px-3 py-2 text-right font-condensed text-[10px] font-semibold uppercase tracking-widest text-zinc-500">
               Rec W/
             </th>
-            <th className="px-3 py-2 text-right text-xs font-semibold uppercase tracking-wider text-zinc-600">
+            <th className="px-3 py-2 text-right font-condensed text-[10px] font-semibold uppercase tracking-widest text-zinc-500">
               Win% W/
             </th>
-            <th className="px-3 py-2 text-right text-xs font-semibold uppercase tracking-wider text-zinc-600">
+            <th className="px-3 py-2 text-right font-condensed text-[10px] font-semibold uppercase tracking-widest text-zinc-500">
               GP W/O
             </th>
-            <th className="px-3 py-2 text-right text-xs font-semibold uppercase tracking-wider text-zinc-600">
+            <th className="px-3 py-2 text-right font-condensed text-[10px] font-semibold uppercase tracking-widest text-zinc-500">
               Rec W/O
             </th>
-            <th className="px-3 py-2 text-right text-xs font-semibold uppercase tracking-wider text-zinc-600">
+            <th className="px-3 py-2 text-right font-condensed text-[10px] font-semibold uppercase tracking-widest text-zinc-500">
               Win% W/O
             </th>
-            <th className="px-3 py-2 text-right text-xs font-semibold uppercase tracking-wider text-zinc-300">
+            <th className="px-3 py-2 text-right font-condensed text-[10px] font-semibold uppercase tracking-widest text-zinc-300">
               <SortedHeader label="Δ" />
             </th>
           </tr>
         </thead>
-        <tbody>
+        <tbody className="divide-y divide-zinc-800/60">
           {sortedRows.map((row) => {
             const pctWith = winPct(row.winsWith, row.gpWith)
             const pctWithout = winPct(row.winsWithout, row.gpWithout)
@@ -152,32 +143,32 @@ export function WithWithoutTable({ rows }: WithWithoutTableProps) {
             return (
               <tr
                 key={row.playerId}
-                className="border-b border-zinc-800/60 transition-colors hover:bg-surface-raised"
+                className="transition-colors hover:bg-surface-raised"
               >
                 <td className="py-2.5 pl-4 pr-3">
                   <Link
                     href={`/roster/${row.playerId.toString()}`}
-                    className="text-sm font-medium text-zinc-200 transition-colors hover:text-accent"
+                    className="font-condensed text-sm font-semibold uppercase tracking-wide text-zinc-200 transition-colors hover:text-accent"
                   >
                     {row.gamertag}
                   </Link>
                 </td>
-                <td className="px-3 py-2.5 text-right text-sm tabular text-zinc-300">
+                <td className="px-3 py-2.5 text-right font-condensed text-sm tabular-nums text-zinc-300">
                   <SampleBadge gp={row.gpWith} threshold={CHEMISTRY_MIN_GP_WITH} />
                 </td>
-                <td className="px-3 py-2.5 text-right text-sm tabular text-zinc-400">
+                <td className="px-3 py-2.5 text-right font-condensed text-sm tabular-nums text-zinc-400">
                   {fmtRecord(row.winsWith, row.lossesWith, row.otlWith, row.dnfWith)}
                 </td>
-                <td className="px-3 py-2.5 text-right text-sm font-semibold tabular text-zinc-200">
+                <td className="px-3 py-2.5 text-right font-condensed text-sm font-semibold tabular-nums text-zinc-200">
                   {fmtWinPct(row.winsWith, row.gpWith)}
                 </td>
-                <td className="px-3 py-2.5 text-right text-sm tabular text-zinc-300">
+                <td className="px-3 py-2.5 text-right font-condensed text-sm tabular-nums text-zinc-300">
                   <SampleBadge gp={row.gpWithout} threshold={CHEMISTRY_MIN_GP_WITHOUT} />
                 </td>
-                <td className="px-3 py-2.5 text-right text-sm tabular text-zinc-400">
+                <td className="px-3 py-2.5 text-right font-condensed text-sm tabular-nums text-zinc-400">
                   {fmtRecord(row.winsWithout, row.lossesWithout, row.otlWithout, row.dnfWithout)}
                 </td>
-                <td className="px-3 py-2.5 text-right text-sm font-semibold tabular text-zinc-200">
+                <td className="px-3 py-2.5 text-right font-condensed text-sm font-semibold tabular-nums text-zinc-200">
                   {fmtWinPct(row.winsWithout, row.gpWithout)}
                 </td>
                 <DeltaCell delta={delta} />
@@ -186,7 +177,7 @@ export function WithWithoutTable({ rows }: WithWithoutTableProps) {
           })}
         </tbody>
       </table>
-    </div>
+    </Panel>
   )
 }
 
@@ -213,37 +204,37 @@ export function BestPairsTable({ rows }: BestPairsTableProps) {
   })
 
   return (
-    <div className="broadcast-panel overflow-x-auto">
+    <Panel className="overflow-x-auto">
       <table className="w-full min-w-[680px]">
         <thead>
           <tr className="border-b border-zinc-800 bg-surface-raised">
-            <th className="py-2 pl-4 pr-3 text-left text-xs font-semibold uppercase tracking-wider text-zinc-600">
+            <th className="py-2 pl-4 pr-3 text-left font-condensed text-[10px] font-semibold uppercase tracking-widest text-zinc-500">
               Pair
             </th>
-            <th className="px-3 py-2 text-right text-xs font-semibold uppercase tracking-wider text-zinc-600">
+            <th className="px-3 py-2 text-right font-condensed text-[10px] font-semibold uppercase tracking-widest text-zinc-500">
               GP
             </th>
-            <th className="px-3 py-2 text-right text-xs font-semibold uppercase tracking-wider text-zinc-600">
+            <th className="px-3 py-2 text-right font-condensed text-[10px] font-semibold uppercase tracking-widest text-zinc-500">
               Record
             </th>
-            <th className="px-3 py-2 text-right text-xs font-semibold uppercase tracking-wider text-zinc-600">
+            <th className="px-3 py-2 text-right font-condensed text-[10px] font-semibold uppercase tracking-widest text-zinc-500">
               Win%
             </th>
-            <th className="px-3 py-2 text-right text-xs font-semibold uppercase tracking-wider text-zinc-600">
+            <th className="px-3 py-2 text-right font-condensed text-[10px] font-semibold uppercase tracking-widest text-zinc-500">
               GF/GP
             </th>
-            <th className="px-3 py-2 text-right text-xs font-semibold uppercase tracking-wider text-zinc-600">
+            <th className="px-3 py-2 text-right font-condensed text-[10px] font-semibold uppercase tracking-widest text-zinc-500">
               GA/GP
             </th>
-            <th className="px-3 py-2 text-right text-xs font-semibold uppercase tracking-wider text-zinc-300">
+            <th className="px-3 py-2 text-right font-condensed text-[10px] font-semibold uppercase tracking-widest text-zinc-300">
               <SortedHeader label="Diff" />
             </th>
-            <th className="px-3 py-2 text-right text-xs font-semibold uppercase tracking-wider text-zinc-600">
+            <th className="px-3 py-2 text-right font-condensed text-[10px] font-semibold uppercase tracking-widest text-zinc-500">
               Diff/GP
             </th>
           </tr>
         </thead>
-        <tbody>
+        <tbody className="divide-y divide-zinc-800/60">
           {sortedRows.map((row) => {
             const diff = row.totalGf - row.totalGa
             const diffPerGame = row.gp > 0 ? diff / row.gp : 0
@@ -258,44 +249,44 @@ export function BestPairsTable({ rows }: BestPairsTableProps) {
             return (
               <tr
                 key={`${row.p1Id.toString()}-${row.p2Id.toString()}`}
-                className="border-b border-zinc-800/60 transition-colors hover:bg-surface-raised"
+                className="transition-colors hover:bg-surface-raised"
               >
                 <td className="py-2.5 pl-4 pr-3">
                   <span className="inline-flex items-center gap-1.5 text-sm">
                     <Link
                       href={`/roster/${row.p1Id.toString()}`}
-                      className="font-medium text-zinc-200 transition-colors hover:text-accent"
+                      className="font-condensed font-semibold uppercase tracking-wide text-zinc-200 transition-colors hover:text-accent"
                     >
                       {row.p1Gamertag}
                     </Link>
                     <span className="text-zinc-700">+</span>
                     <Link
                       href={`/roster/${row.p2Id.toString()}`}
-                      className="font-medium text-zinc-200 transition-colors hover:text-accent"
+                      className="font-condensed font-semibold uppercase tracking-wide text-zinc-200 transition-colors hover:text-accent"
                     >
                       {row.p2Gamertag}
                     </Link>
                   </span>
                 </td>
-                <td className="px-3 py-2.5 text-right text-sm tabular text-zinc-300">
+                <td className="px-3 py-2.5 text-right font-condensed text-sm tabular-nums text-zinc-300">
                   <SampleBadge gp={row.gp} threshold={CHEMISTRY_PAIR_MIN_GP} />
                 </td>
-                <td className="px-3 py-2.5 text-right text-sm tabular text-zinc-400">
+                <td className="px-3 py-2.5 text-right font-condensed text-sm tabular-nums text-zinc-400">
                   {fmtRecord(row.wins, row.losses, row.otl, row.dnf)}
                 </td>
-                <td className="px-3 py-2.5 text-right text-sm font-semibold tabular text-zinc-200">
+                <td className="px-3 py-2.5 text-right font-condensed text-sm font-semibold tabular-nums text-zinc-200">
                   {fmtWinPct(row.wins, row.gp)}
                 </td>
-                <td className="px-3 py-2.5 text-right text-sm tabular text-zinc-400">
+                <td className="px-3 py-2.5 text-right font-condensed text-sm tabular-nums text-zinc-400">
                   {fmtPerGame(row.totalGf, row.gp)}
                 </td>
-                <td className="px-3 py-2.5 text-right text-sm tabular text-zinc-400">
+                <td className="px-3 py-2.5 text-right font-condensed text-sm tabular-nums text-zinc-400">
                   {fmtPerGame(row.totalGa, row.gp)}
                 </td>
-                <td className={`px-3 py-2.5 text-right text-sm font-semibold tabular ${diffColor}`}>
+                <td className={`px-3 py-2.5 text-right font-condensed text-sm font-semibold tabular-nums ${diffColor}`}>
                   {`${diff >= 0 ? '+' : ''}${diff.toString()}`}
                 </td>
-                <td className={`px-3 py-2.5 text-right text-sm font-semibold tabular ${diffColor}`}>
+                <td className={`px-3 py-2.5 text-right font-condensed text-sm font-semibold tabular-nums ${diffColor}`}>
                   {diffStr}
                 </td>
               </tr>
@@ -303,7 +294,7 @@ export function BestPairsTable({ rows }: BestPairsTableProps) {
           })}
         </tbody>
       </table>
-    </div>
+    </Panel>
   )
 }
 
@@ -311,9 +302,11 @@ export function BestPairsTable({ rows }: BestPairsTableProps) {
 
 function ChemistryEmpty({ message }: { message: string }) {
   return (
-    <div className="flex min-h-[8rem] items-center justify-center border border-zinc-800 bg-surface">
-      <p className="text-sm text-zinc-500">{message}</p>
-    </div>
+    <Panel className="flex min-h-[8rem] items-center justify-center">
+      <p className="px-4 text-center font-condensed text-sm uppercase tracking-wider text-zinc-500">
+        {message}
+      </p>
+    </Panel>
   )
 }
 
@@ -326,8 +319,8 @@ interface ChemistrySectionProps {
 
 export function ChemistrySection({ title, children }: ChemistrySectionProps) {
   return (
-    <div className="space-y-2">
-      <SectionTitle>{title}</SectionTitle>
+    <div className="space-y-3">
+      <SectionHeader label={title} />
       {children}
     </div>
   )
