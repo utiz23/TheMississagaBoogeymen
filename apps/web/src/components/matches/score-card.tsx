@@ -4,6 +4,7 @@ import type { Match } from '@eanhl/db'
 import { OpponentCrest } from '@/components/ui/opponent-crest'
 import { Panel } from '@/components/ui/panel'
 import { ResultPill } from '@/components/ui/result-pill'
+import { ResultGlow } from '@/components/ui/result-glow'
 import { abbreviateTeamName, formatMatchTime, formatTOA } from '@/lib/format'
 import { buildPossessionEdge } from '@/lib/match-recap'
 
@@ -115,10 +116,12 @@ export function ScoreCard({
       href={`/games/${match.id.toString()}`}
       className="group block transition-transform hover:-translate-y-0.5"
     >
-      <Panel hoverable className="overflow-hidden">
-        <div className="h-[3px] w-full bg-gradient-to-r from-rose-900 via-accent to-rose-900" />
+      <Panel hoverable className="relative overflow-hidden">
+        <ResultGlow result={match.result} />
+        <div className="relative">
+          <div className="h-[3px] w-full bg-gradient-to-r from-rose-900 via-accent to-rose-900" />
 
-        <div className="flex items-center justify-between px-4 py-3">
+          <div className="flex items-center justify-between px-4 py-3">
           <div className="flex items-center gap-1.5">
             {gameModeClass !== null && (
               <span
@@ -219,6 +222,7 @@ export function ScoreCard({
             />
             <DtWStat bgmRaw={dtw} />
           </div>
+        </div>
         </div>
       </Panel>
     </Link>
