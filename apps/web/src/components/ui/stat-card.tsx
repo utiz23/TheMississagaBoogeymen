@@ -20,23 +20,26 @@ interface StatCardProps {
 export function StatCard({ label, value, sublabel, featured = false }: StatCardProps) {
   return (
     <div
-      className={[
-        'broadcast-panel px-4 py-4',
-        featured ? 'border-l-2 border-l-accent' : '',
-      ]
+      className={['broadcast-panel px-4 py-4', featured ? 'border-l-2 border-l-accent' : '']
         .filter(Boolean)
         .join(' ')}
     >
-      <div className="text-xs font-semibold uppercase tracking-wider text-zinc-500">{label}</div>
+      <div className="font-condensed text-[10px] font-semibold uppercase tracking-widest text-zinc-500">
+        {label}
+      </div>
       <div
         className={[
-          'mt-1 font-condensed text-2xl font-bold tabular leading-none',
+          'mt-1 font-condensed text-2xl font-bold tabular-nums leading-none',
           featured ? 'text-accent' : 'text-zinc-100',
         ].join(' ')}
       >
         {value}
       </div>
-      {sublabel !== undefined && <div className="mt-1 text-xs text-zinc-600">{sublabel}</div>}
+      {sublabel !== undefined && (
+        <div className="mt-1 font-condensed text-[11px] uppercase tracking-wider text-zinc-600">
+          {sublabel}
+        </div>
+      )}
     </div>
   )
 }
