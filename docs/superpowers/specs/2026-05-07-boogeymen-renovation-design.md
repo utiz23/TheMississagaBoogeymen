@@ -146,6 +146,23 @@ Fix any remaining sentence-case labels found.
 
 ---
 
+## Deferred Design Decisions (before final ship)
+
+Items the user wants reconsidered before the renovation is declared done. Address in Phase 6 (cross-cutting cleanup) or a Phase 7 polish pass.
+
+1. **Restore result-based card glows on ScoreCard + HeroCard.** Phase 4 dropped the result-based card-background tinting (emerald glow for WIN, rose for LOSS, amber for OTL, etc.) per the design-system literal "cards are flat panels with hairline borders, never softly rounded with drop shadows." The user prefers the glows visually and wants them back. Options to consider:
+   - Add a `tone="resultGlow"` variant to `<Panel>` that takes a `MatchResult` and applies the emerald/rose/amber gradient as a top-radial overlay (composes with sharp borders — keeps the design-system "no soft cards" rule for shape, restores the tinting only as a coloring layer).
+   - Or add a `<ResultGlow>` decorator component that wraps a `<Panel>` and applies the radial gradient via a positioned absolute child.
+   - Decide: glows on both ScoreCard (list cards) AND HeroCard (detail hero), or just one.
+2. **`<ResultPill>` final-version labels — full words instead of letter glyphs at sm.** Current Phase 1 implementation uses letter glyphs at `size="sm"` (W / L / OT / —) per the design-system spec ("at the scoreboard density the system runs at, letters scan faster than pictograms"). User wants full words ("WIN" / "LOSS" / "OT LOSS" / "DNF") on every ResultPill, not just `size="md"`. Options:
+   - Drop the `sm` variant entirely; standardize on full-word pills with size variants only changing height/padding.
+   - Add a `glyph={true}` opt-in for the rare scoreboard-density places that genuinely need single letters.
+   - Verify against spacing constraints (game log table, recent-form strip, footer) — full words may need wider columns.
+
+Both items are out of Phase 4 scope by user direction. Track here so they don't slip; surface during Phase 6 planning.
+
+---
+
 ## File Touch Map
 
 **New files (Phase 1):**
