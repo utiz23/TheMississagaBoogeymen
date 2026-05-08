@@ -3,6 +3,7 @@ import type { Match } from '@eanhl/db'
 import { OpponentCrest } from '@/components/ui/opponent-crest'
 import { ResultPill } from '@/components/ui/result-pill'
 import { BroadcastPanel } from '@/components/ui/broadcast-panel'
+import { ResultGlow } from '@/components/ui/result-glow'
 import { abbreviateTeamName, formatMatchDate, formatMatchTime } from '@/lib/format'
 
 const OUR_ABBREV = 'BGM'
@@ -51,8 +52,9 @@ export function HeroCard({
   const meetingLine = meta.seriesSummary
 
   return (
-    <BroadcastPanel className="overflow-hidden">
-      <div className="px-4 py-6 sm:px-8 sm:py-8">
+    <BroadcastPanel className="relative overflow-hidden">
+      <ResultGlow result={match.result} intensity="soft" />
+      <div className="relative px-4 py-6 sm:px-8 sm:py-8">
         {/* Top row — date / mode / game-number meta strip */}
         <div className="mb-6 flex flex-wrap items-center gap-x-3 gap-y-1 font-condensed text-[11px] font-bold uppercase tracking-[0.2em] text-zinc-500">
           {metaParts.map((part, i) => (
