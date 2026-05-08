@@ -3,6 +3,8 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import type { GoalieStatsRow, HistoricalGoalieStatsRow } from '@eanhl/db/queries'
+import { Panel } from '@/components/ui/panel'
+import { SectionHeader } from '@/components/ui/section-header'
 
 // ─── Column definitions ───────────────────────────────────────────────────────
 
@@ -192,11 +194,8 @@ export function GoalieStatsTable({ rows, title, subtitle }: GoalieStatsTableProp
     <div>
       {/* Section title + Basic / Advanced toggle in one row */}
       <div className="mb-px flex items-center justify-between border-b border-zinc-800">
-        <div className="flex flex-col pl-4">
-          <h2 className="font-condensed text-sm font-semibold uppercase tracking-wider text-zinc-500">
-            {title}
-          </h2>
-          {subtitle && <p className="text-[11px] text-zinc-600">{subtitle}</p>}
+        <div className="pl-4">
+          <SectionHeader label={title} {...(subtitle !== undefined ? { subtitle } : {})} />
         </div>
         <div className="flex">
           {VIEWS.map((v) => {
@@ -208,7 +207,7 @@ export function GoalieStatsTable({ rows, title, subtitle }: GoalieStatsTableProp
                   handleViewChange(v)
                 }}
                 className={[
-                  'px-4 py-2.5 text-xs font-semibold uppercase tracking-wider transition-colors',
+                  'px-4 py-2.5 font-condensed text-xs font-semibold uppercase tracking-widest transition-colors',
                   'border-b-2 -mb-px',
                   isActive
                     ? 'border-accent text-accent'
@@ -222,11 +221,11 @@ export function GoalieStatsTable({ rows, title, subtitle }: GoalieStatsTableProp
         </div>
       </div>
 
-      <div className="broadcast-panel overflow-x-auto">
+      <Panel className="overflow-x-auto">
         <table className="w-full min-w-[480px]">
           <thead>
             <tr className="border-b border-zinc-800 bg-surface-raised">
-              <th className="py-2 pl-4 pr-2 text-left text-xs font-semibold uppercase tracking-wider text-zinc-600">
+              <th className="py-2 pl-4 pr-2 text-left font-condensed text-[10px] font-semibold uppercase tracking-widest text-zinc-500">
                 Player
               </th>
               {view.cols.map((col) => {
@@ -235,8 +234,8 @@ export function GoalieStatsTable({ rows, title, subtitle }: GoalieStatsTableProp
                   <th
                     key={col.key}
                     className={[
-                      'cursor-pointer select-none px-2 py-2 text-right text-xs font-semibold uppercase tracking-wider transition-colors',
-                      isActive ? 'text-zinc-300' : 'text-zinc-600 hover:text-zinc-400',
+                      'cursor-pointer select-none px-2 py-2 text-right font-condensed text-[10px] font-semibold uppercase tracking-widest transition-colors',
+                      isActive ? 'text-zinc-300' : 'text-zinc-500 hover:text-zinc-400',
                     ].join(' ')}
                     onClick={() => {
                       handleSort(col)
@@ -253,12 +252,12 @@ export function GoalieStatsTable({ rows, title, subtitle }: GoalieStatsTableProp
               })}
             </tr>
           </thead>
-          <tbody>
+          <tbody className="divide-y divide-zinc-800/60">
             {sorted.length === 0 ? (
               <tr>
                 <td
                   colSpan={view.cols.length + 1}
-                  className="py-10 text-center text-sm text-zinc-500"
+                  className="py-10 text-center font-condensed text-sm uppercase tracking-wider text-zinc-500"
                 >
                   No goalie data yet.
                 </td>
@@ -275,7 +274,7 @@ export function GoalieStatsTable({ rows, title, subtitle }: GoalieStatsTableProp
             )}
           </tbody>
         </table>
-      </div>
+      </Panel>
     </div>
   )
 }
@@ -292,28 +291,31 @@ function GoalieRow({ row, cols, rank }: GoalieRowProps) {
   const isTop = rank === 0
   return (
     <tr
-      className="border-b border-zinc-800/60 transition-colors hover:bg-surface-raised"
+      className="transition-colors hover:bg-surface-raised"
       style={isTop ? { boxShadow: 'inset 2px 0 0 var(--color-accent)' } : undefined}
     >
       <td className="max-w-[10rem] truncate py-2.5 pl-4 pr-2">
         {row.playerId !== null ? (
           <Link
             href={`/roster/${row.playerId.toString()}`}
-            className="text-sm font-medium text-zinc-200 transition-colors hover:text-accent"
+            className="font-condensed text-sm font-semibold uppercase tracking-wide text-zinc-200 transition-colors hover:text-accent"
           >
             {row.gamertag}
           </Link>
         ) : (
           <span
             title="Unmatched gamertag — no current player profile"
-            className="text-sm font-medium text-zinc-400"
+            className="font-condensed text-sm font-semibold uppercase tracking-wide text-zinc-400"
           >
             {row.gamertag}
           </span>
         )}
       </td>
       {cols.map((col) => (
-        <td key={col.key} className="px-2 py-2.5 text-right text-sm tabular text-zinc-300">
+        <td
+          key={col.key}
+          className="px-2 py-2.5 text-right font-condensed text-sm tabular-nums text-zinc-300"
+        >
           {col.renderCell(row)}
         </td>
       ))}
