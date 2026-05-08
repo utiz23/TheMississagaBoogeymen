@@ -30,7 +30,11 @@ export function TopPerformers({ performers, allTeamScores, opponentLabel }: TopP
         <div className="grid gap-4 sm:grid-cols-3">
           {performers.map((p, i) => (
             <PerformerCard
-              key={p.side === 'bgm' ? `bgm:${p.playerId?.toString() ?? i.toString()}` : `opp:${p.eaPlayerId ?? p.gamertag}`}
+              key={
+                p.side === 'bgm'
+                  ? `bgm:${p.playerId?.toString() ?? i.toString()}`
+                  : `opp:${p.eaPlayerId ?? p.gamertag}`
+              }
               performer={p}
               rank={i + 1}
             />
@@ -41,13 +45,17 @@ export function TopPerformers({ performers, allTeamScores, opponentLabel }: TopP
       <Panel>
         <button
           type="button"
-          onClick={() => { setExpanded((v) => !v) }}
+          onClick={() => {
+            setExpanded((v) => !v)
+          }}
           className="flex w-full items-center justify-between px-4 py-3 text-left transition-colors hover:bg-surface-raised"
         >
           <span className="font-condensed text-base font-semibold uppercase tracking-wide text-zinc-200">
             Show all player scores
           </span>
-          <span className={`text-zinc-500 transition-transform ${expanded ? 'rotate-180' : ''}`}>⌄</span>
+          <span className={`text-zinc-500 transition-transform ${expanded ? 'rotate-180' : ''}`}>
+            ⌄
+          </span>
         </button>
 
         {expanded ? (
@@ -58,13 +66,9 @@ export function TopPerformers({ performers, allTeamScores, opponentLabel }: TopP
               </p>
             </div>
 
-            {bgmScores.length > 0 ? (
-              <ScoreGroup label="BGM" entries={bgmScores} />
-            ) : null}
+            {bgmScores.length > 0 ? <ScoreGroup label="BGM" entries={bgmScores} /> : null}
 
-            {oppScores.length > 0 ? (
-              <ScoreGroup label={opponentLabel} entries={oppScores} />
-            ) : null}
+            {oppScores.length > 0 ? <ScoreGroup label={opponentLabel} entries={oppScores} /> : null}
           </div>
         ) : null}
       </Panel>
@@ -84,7 +88,14 @@ function ScoreGroup({ label, entries }: { label: string; entries: PlayerScoreEnt
       </div>
       <div>
         {entries.map((entry) => (
-          <ScoreRow key={entry.side === 'bgm' ? `bgm:${entry.playerId?.toString() ?? ''}` : `opp:${entry.eaPlayerId ?? ''}`} entry={entry} />
+          <ScoreRow
+            key={
+              entry.side === 'bgm'
+                ? `bgm:${entry.playerId?.toString() ?? ''}`
+                : `opp:${entry.eaPlayerId ?? ''}`
+            }
+            entry={entry}
+          />
         ))}
       </div>
     </div>
@@ -101,11 +112,17 @@ function ScoreRow({ entry }: { entry: PlayerScoreEntry }) {
     <div className="border-b border-zinc-800/40 last:border-b-0">
       <button
         type="button"
-        onClick={() => { setOpen((v) => !v) }}
+        onClick={() => {
+          setOpen((v) => !v)
+        }}
         className="flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-surface-raised"
       >
         {/* Expand chevron */}
-        <span className={`shrink-0 text-[10px] text-zinc-600 transition-transform ${open ? 'rotate-90' : ''}`}>▶</span>
+        <span
+          className={`shrink-0 text-[10px] text-zinc-600 transition-transform ${open ? 'rotate-90' : ''}`}
+        >
+          ▶
+        </span>
 
         {/* Position pill */}
         {posLabel !== null ? (
@@ -123,7 +140,9 @@ function ScoreRow({ entry }: { entry: PlayerScoreEntry }) {
             <Link
               href={`/roster/${entry.playerId.toString()}`}
               className="hover:text-zinc-50"
-              onClick={(e) => { e.stopPropagation() }}
+              onClick={(e) => {
+                e.stopPropagation()
+              }}
             >
               {entry.gamertag}
             </Link>
@@ -165,10 +184,18 @@ function BreakdownTable({ breakdown }: { breakdown: ScoreFactor[] }) {
       <table className="w-full text-xs">
         <thead>
           <tr className="border-b border-zinc-800/60">
-            <th className="py-1.5 text-left font-semibold uppercase tracking-[0.14em] text-zinc-600">Factor</th>
-            <th className="py-1.5 text-right font-semibold uppercase tracking-[0.14em] text-zinc-600">Stat</th>
-            <th className="py-1.5 text-right font-semibold uppercase tracking-[0.14em] text-zinc-600">Weight</th>
-            <th className="py-1.5 text-right font-semibold uppercase tracking-[0.14em] text-zinc-600">Points</th>
+            <th className="py-1.5 text-left font-semibold uppercase tracking-[0.14em] text-zinc-600">
+              Factor
+            </th>
+            <th className="py-1.5 text-right font-semibold uppercase tracking-[0.14em] text-zinc-600">
+              Stat
+            </th>
+            <th className="py-1.5 text-right font-semibold uppercase tracking-[0.14em] text-zinc-600">
+              Weight
+            </th>
+            <th className="py-1.5 text-right font-semibold uppercase tracking-[0.14em] text-zinc-600">
+              Points
+            </th>
           </tr>
         </thead>
         <tbody>
@@ -178,10 +205,15 @@ function BreakdownTable({ breakdown }: { breakdown: ScoreFactor[] }) {
         </tbody>
         <tfoot>
           <tr className="border-t border-zinc-700/60">
-            <td colSpan={3} className="py-1.5 font-condensed font-bold uppercase tracking-[0.14em] text-zinc-400">
+            <td
+              colSpan={3}
+              className="py-1.5 font-condensed font-bold uppercase tracking-[0.14em] text-zinc-400"
+            >
               Total
             </td>
-            <td className={`py-1.5 text-right font-condensed font-black tabular-nums ${total >= 0 ? 'text-zinc-100' : 'text-rose-400'}`}>
+            <td
+              className={`py-1.5 text-right font-condensed font-black tabular-nums ${total >= 0 ? 'text-zinc-100' : 'text-rose-400'}`}
+            >
               {total.toFixed(2)}
             </td>
           </tr>
@@ -200,9 +232,14 @@ function FactorRow({ fac }: { fac: ScoreFactor }) {
     <tr className={`border-b border-zinc-800/30 ${isZero ? 'opacity-40' : ''}`}>
       <td className="py-1 text-zinc-400">{fac.label}</td>
       <td className="py-1 text-right tabular-nums text-zinc-300">{displayValue}</td>
-      <td className="py-1 text-right tabular-nums text-zinc-600">×{Math.abs(fac.weight).toFixed(2)}</td>
-      <td className={`py-1 text-right font-semibold tabular-nums ${isNeg ? 'text-rose-400' : isZero ? 'text-zinc-600' : 'text-emerald-400'}`}>
-        {fac.contribution >= 0 ? '+' : ''}{fac.contribution.toFixed(2)}
+      <td className="py-1 text-right tabular-nums text-zinc-600">
+        ×{Math.abs(fac.weight).toFixed(2)}
+      </td>
+      <td
+        className={`py-1 text-right font-semibold tabular-nums ${isNeg ? 'text-rose-400' : isZero ? 'text-zinc-600' : 'text-emerald-400'}`}
+      >
+        {fac.contribution >= 0 ? '+' : ''}
+        {fac.contribution.toFixed(2)}
       </td>
     </tr>
   )
@@ -219,30 +256,41 @@ function PerformerCard({ performer, rank }: { performer: TopPerformer; rank: num
 
   const className = `group relative border px-4 py-4 transition-colors hover:brightness-110 ${cardClass(rank)}`
   const content = (
-      <div className="space-y-2 text-center">
-        <div className="font-condensed text-xl text-yellow-300">{rank === 1 ? '★★★' : rank === 2 ? '★★' : '★'}</div>
-        <div>
-          <div className="flex items-center justify-center gap-2">
-            {positionLabel !== null ? (
-              <PositionPill label={positionLabel} position={performer.position} isGoalie={performer.isGoalie} onLight />
-            ) : null}
-            <span className="truncate font-condensed text-sm font-bold uppercase tracking-wide text-zinc-100 group-hover:text-zinc-50">
-              {performer.gamertag}
-            </span>
-          </div>
-          {performer.position !== null ? (
-            <span className="mt-0.5 block font-condensed text-[10px] uppercase tracking-[0.18em] text-zinc-700">
-              {formatPositionFull(performer.position)}
-            </span>
-          ) : performer.isGoalie ? (
-            <span className="mt-0.5 block font-condensed text-[10px] uppercase tracking-[0.18em] text-zinc-700">
-              Goalie
-            </span>
-          ) : null}
-        </div>
-        <div className="font-condensed text-4xl font-black tabular-nums text-zinc-100">{performer.score.toFixed(2)}</div>
-        <span className="block font-condensed text-sm font-semibold tabular-nums text-zinc-300">{performer.statLine}</span>
+    <div className="space-y-2 text-center">
+      <div className="font-condensed text-xl text-yellow-300">
+        {rank === 1 ? '★★★' : rank === 2 ? '★★' : '★'}
       </div>
+      <div>
+        <div className="flex items-center justify-center gap-2">
+          {positionLabel !== null ? (
+            <PositionPill
+              label={positionLabel}
+              position={performer.position}
+              isGoalie={performer.isGoalie}
+              onLight
+            />
+          ) : null}
+          <span className="truncate font-condensed text-sm font-bold uppercase tracking-wide text-zinc-100 group-hover:text-zinc-50">
+            {performer.gamertag}
+          </span>
+        </div>
+        {performer.position !== null ? (
+          <span className="mt-0.5 block font-condensed text-[10px] uppercase tracking-[0.18em] text-zinc-700">
+            {formatPositionFull(performer.position)}
+          </span>
+        ) : performer.isGoalie ? (
+          <span className="mt-0.5 block font-condensed text-[10px] uppercase tracking-[0.18em] text-zinc-700">
+            Goalie
+          </span>
+        ) : null}
+      </div>
+      <div className="font-condensed text-4xl font-black tabular-nums text-zinc-100">
+        {performer.score.toFixed(2)}
+      </div>
+      <span className="block font-condensed text-sm font-semibold tabular-nums text-zinc-300">
+        {performer.statLine}
+      </span>
+    </div>
   )
 
   if (performer.side === 'bgm' && performer.playerId !== null) {
@@ -266,4 +314,3 @@ function cardClass(rank: number): string {
       return 'border-orange-400/40 bg-[linear-gradient(135deg,rgba(244,196,159,0.98),rgba(97,56,22,0.95))]'
   }
 }
-

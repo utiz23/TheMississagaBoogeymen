@@ -50,8 +50,14 @@ export function PossessionEdgeBar({ edge }: PossessionEdgeProps) {
           )}
           <Input
             label="TOA"
-            us={inputs.timeOnAttackSeconds !== null ? formatSeconds(inputs.timeOnAttackSeconds) : '—'}
-            them={inputs.timeOnAttackSecondsAgainst !== null ? formatSeconds(inputs.timeOnAttackSecondsAgainst) : null}
+            us={
+              inputs.timeOnAttackSeconds !== null ? formatSeconds(inputs.timeOnAttackSeconds) : '—'
+            }
+            them={
+              inputs.timeOnAttackSecondsAgainst !== null
+                ? formatSeconds(inputs.timeOnAttackSecondsAgainst)
+                : null
+            }
           />
         </div>
 
@@ -191,7 +197,9 @@ function Input({
     <div className="flex flex-col gap-0.5">
       <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-zinc-600">
         {label}
-        {note ? <span className="ml-1 text-zinc-700 normal-case tracking-normal">({note})</span> : null}
+        {note ? (
+          <span className="ml-1 text-zinc-700 normal-case tracking-normal">({note})</span>
+        ) : null}
       </span>
       <span className="font-condensed text-sm font-bold tabular-nums text-zinc-300">
         {them !== null ? `${us.toString()}-${them.toString()}` : us.toString()}

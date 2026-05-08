@@ -47,35 +47,35 @@ function GoalieCard({ goalie }: { goalie: GoalieSpotlight }) {
   return (
     <Link href={`/roster/${goalie.playerId.toString()}`} className="group block">
       <Panel hoverable className="p-4">
-      <div className="flex items-center gap-2">
-        <PositionPill label="G" position="goalie" isGoalie={true} />
-        <span className="truncate font-condensed text-sm font-bold uppercase tracking-wide text-zinc-100 group-hover:text-zinc-50">
-          {goalie.gamertag}
-        </span>
-      </div>
-
-      {/* Headline stat row */}
-      <div className="mt-4 grid grid-cols-4 gap-2">
-        <Stat label="SV%" value={goalie.savePctFormatted} featured />
-        <Stat label="SV" value={goalie.saves.toString()} />
-        <Stat label="GA" value={goalie.goalsAgainst.toString()} />
-        <Stat label="SA" value={goalie.shotsAgainst.toString()} />
-      </div>
-
-      {advancedRows.length > 0 ? (
-        <div className="mt-3 grid grid-cols-2 gap-x-6 gap-y-1.5 border-t border-zinc-800/60 pt-3">
-          {advancedRows.map((r) => (
-            <div key={r.label} className="flex items-baseline justify-between gap-2">
-              <span className="font-condensed text-[10px] font-semibold uppercase tracking-[0.22em] text-zinc-500">
-                {r.label}
-              </span>
-              <span className="font-condensed text-sm font-semibold tabular-nums text-zinc-300">
-                {r.value}
-              </span>
-            </div>
-          ))}
+        <div className="flex items-center gap-2">
+          <PositionPill label="G" position="goalie" isGoalie={true} />
+          <span className="truncate font-condensed text-sm font-bold uppercase tracking-wide text-zinc-100 group-hover:text-zinc-50">
+            {goalie.gamertag}
+          </span>
         </div>
-      ) : null}
+
+        {/* Headline stat row */}
+        <div className="mt-4 grid grid-cols-4 gap-2">
+          <Stat label="SV%" value={goalie.savePctFormatted} featured />
+          <Stat label="SV" value={goalie.saves.toString()} />
+          <Stat label="GA" value={goalie.goalsAgainst.toString()} />
+          <Stat label="SA" value={goalie.shotsAgainst.toString()} />
+        </div>
+
+        {advancedRows.length > 0 ? (
+          <div className="mt-3 grid grid-cols-2 gap-x-6 gap-y-1.5 border-t border-zinc-800/60 pt-3">
+            {advancedRows.map((r) => (
+              <div key={r.label} className="flex items-baseline justify-between gap-2">
+                <span className="font-condensed text-[10px] font-semibold uppercase tracking-[0.22em] text-zinc-500">
+                  {r.label}
+                </span>
+                <span className="font-condensed text-sm font-semibold tabular-nums text-zinc-300">
+                  {r.value}
+                </span>
+              </div>
+            ))}
+          </div>
+        ) : null}
       </Panel>
     </Link>
   )

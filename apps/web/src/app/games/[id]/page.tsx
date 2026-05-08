@@ -65,24 +65,18 @@ export default async function GameDetailPage({ params }: Props) {
   const m = match
   // Fetch all secondary data in parallel; each can fail independently and the
   // section that needs it will simply hide. The hero + main page still render.
-  const [
-    playerStats,
-    opponentPlayerStats,
-    opponentClub,
-    seasonNumber,
-    seriesContext,
-    adjacent,
-  ] = await Promise.all([
-    safe(() => getPlayerMatchStats(m.id), []),
-    safe(() => getOpponentPlayerMatchStats(m.id), []),
-    safe(() => getOpponentClub(m.opponentClubId), null),
-    safe(() => getMatchSeasonNumber(m.gameTitleId, m.playedAt), null),
-    safe(() => getMatchSeriesContext(m.gameTitleId, m.opponentClubId, m.playedAt), null),
-    safe(() => getAdjacentMatches(m.gameTitleId, m.playedAt), {
-      previous: null,
-      next: null,
-    }),
-  ])
+  const [playerStats, opponentPlayerStats, opponentClub, seasonNumber, seriesContext, adjacent] =
+    await Promise.all([
+      safe(() => getPlayerMatchStats(m.id), []),
+      safe(() => getOpponentPlayerMatchStats(m.id), []),
+      safe(() => getOpponentClub(m.opponentClubId), null),
+      safe(() => getMatchSeasonNumber(m.gameTitleId, m.playedAt), null),
+      safe(() => getMatchSeriesContext(m.gameTitleId, m.opponentClubId, m.playedAt), null),
+      safe(() => getAdjacentMatches(m.gameTitleId, m.playedAt), {
+        previous: null,
+        next: null,
+      }),
+    ])
 
   const opponentCrestAssetId = opponentClub?.crestAssetId ?? null
   const opponentCrestUseBaseAsset = opponentClub?.useBaseAsset ?? null
@@ -129,7 +123,11 @@ export default async function GameDetailPage({ params }: Props) {
       {(topPerformers.length > 0 || possessionEdge !== null) && (
         <div className="space-y-6">
           {topPerformers.length > 0 ? (
-            <TopPerformers performers={topPerformers} allTeamScores={allTeamScores} opponentLabel={match.opponentName} />
+            <TopPerformers
+              performers={topPerformers}
+              allTeamScores={allTeamScores}
+              opponentLabel={match.opponentName}
+            />
           ) : null}
           {possessionEdge !== null ? <PossessionEdgeBar edge={possessionEdge} /> : null}
         </div>
@@ -165,13 +163,15 @@ async function safe<T>(fn: () => Promise<T>, fallback: T): Promise<T> {
 }
 
 function scoresheetIsEmpty(s: ReturnType<typeof buildScoresheet>): boolean {
-  const sideEmpty = (side: typeof s.bgm) =>
-    side.skaters.length === 0 && side.goalies.length === 0
+  const sideEmpty = (side: typeof s.bgm) => side.skaters.length === 0 && side.goalies.length === 0
   return sideEmpty(s.bgm) && sideEmpty(s.opponent)
 }
 
 function formatSeriesSummary(
-  ctx: { meetingNumber: number; series: { wins: number; losses: number; otl: number; total: number } },
+  ctx: {
+    meetingNumber: number
+    series: { wins: number; losses: number; otl: number; total: number }
+  },
   opponentName: string,
 ): string | null {
   const { meetingNumber, series } = ctx

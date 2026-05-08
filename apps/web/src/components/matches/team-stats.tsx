@@ -15,9 +15,13 @@ export function TeamStats({ rows }: TeamStatsProps) {
       <Panel className="px-4 py-4">
         {/* Side labels */}
         <div className="mb-3 grid grid-cols-[5rem_1fr_5rem] items-center gap-3">
-          <span className="text-right font-condensed text-xs font-bold uppercase tracking-widest text-accent">BGM</span>
+          <span className="text-right font-condensed text-xs font-bold uppercase tracking-widest text-accent">
+            BGM
+          </span>
           <span />
-          <span className="text-left font-condensed text-xs font-bold uppercase tracking-widest text-zinc-500">OPP</span>
+          <span className="text-left font-condensed text-xs font-bold uppercase tracking-widest text-zinc-500">
+            OPP
+          </span>
         </div>
         <div className="space-y-5">
           {rows.map((group) => (
@@ -71,10 +75,16 @@ function Row({ row, isLast }: { row: BoxScoreRow; isLast: boolean }) {
 
       <div className="grid grid-cols-2 gap-2">
         <div className="h-1.5 overflow-hidden rounded-full bg-zinc-800">
-          <div className="h-full rounded-full bg-accent" style={{ width: `${barWidth(row.us, row.them).toString()}%` }} />
+          <div
+            className="h-full rounded-full bg-accent"
+            style={{ width: `${barWidth(row.us, row.them).toString()}%` }}
+          />
         </div>
         <div className="h-1.5 overflow-hidden rounded-full bg-zinc-800">
-          <div className="h-full rounded-full bg-zinc-500" style={{ width: `${barWidth(row.them, row.us).toString()}%` }} />
+          <div
+            className="h-full rounded-full bg-zinc-500"
+            style={{ width: `${barWidth(row.them, row.us).toString()}%` }}
+          />
         </div>
       </div>
     </div>
@@ -93,7 +103,7 @@ function parseStat(value: string | null): number {
   if (value.includes('/')) return parseFloat(value.split('/')[0] ?? '0') || 0
   if (value.includes(':')) {
     const [m, s] = value.split(':')
-    return (parseInt(m ?? '0', 10) * 60) + (parseInt(s ?? '0', 10) || 0)
+    return parseInt(m ?? '0', 10) * 60 + (parseInt(s ?? '0', 10) || 0)
   }
   const cleaned = value.replace('%', '')
   const parsed = parseFloat(cleaned)

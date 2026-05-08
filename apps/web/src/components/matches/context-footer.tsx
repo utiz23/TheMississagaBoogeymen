@@ -14,23 +14,13 @@ export function ContextFooter({ previous, next }: ContextFooterProps) {
 
   return (
     <nav className="grid grid-cols-1 gap-3 border-t border-zinc-800 pt-6 sm:grid-cols-2">
-      {previous ? (
-        <AdjacentLink match={previous} direction="prev" />
-      ) : (
-        <Spacer direction="prev" />
-      )}
+      {previous ? <AdjacentLink match={previous} direction="prev" /> : <Spacer direction="prev" />}
       {next ? <AdjacentLink match={next} direction="next" /> : <Spacer direction="next" />}
     </nav>
   )
 }
 
-function AdjacentLink({
-  match,
-  direction,
-}: {
-  match: AdjacentMatch
-  direction: 'prev' | 'next'
-}) {
+function AdjacentLink({ match, direction }: { match: AdjacentMatch; direction: 'prev' | 'next' }) {
   const arrow = direction === 'prev' ? '←' : '→'
   const label = direction === 'prev' ? 'Previous game' : 'Next game'
 

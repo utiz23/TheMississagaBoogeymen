@@ -44,10 +44,7 @@ export function HeroCard({
           ? 'text-zinc-700'
           : 'text-zinc-50'
 
-  const metaParts: string[] = [
-    formatMatchDate(match.playedAt),
-    formatMatchTime(match.playedAt),
-  ]
+  const metaParts: string[] = [formatMatchDate(match.playedAt), formatMatchTime(match.playedAt)]
   if (match.gameMode) metaParts.push(match.gameMode)
   if (meta.seasonNumber !== null) metaParts.push(`Game ${meta.seasonNumber.toString()}`)
 
@@ -60,7 +57,11 @@ export function HeroCard({
         <div className="mb-6 flex flex-wrap items-center gap-x-3 gap-y-1 font-condensed text-[11px] font-bold uppercase tracking-[0.2em] text-zinc-500">
           {metaParts.map((part, i) => (
             <span key={part} className="flex items-center gap-3">
-              {i > 0 ? <span aria-hidden className="text-zinc-700">·</span> : null}
+              {i > 0 ? (
+                <span aria-hidden className="text-zinc-700">
+                  ·
+                </span>
+              ) : null}
               <span className={i === 2 ? 'text-zinc-300' : ''}>{part}</span>
             </span>
           ))}
@@ -86,7 +87,9 @@ export function HeroCard({
           {/* Score */}
           <div className="flex flex-col items-center gap-3">
             <div className="flex items-baseline gap-2 font-condensed font-black tabular-nums leading-none">
-              <span className={`text-5xl sm:text-7xl ${ourScoreColor}`}>{match.scoreFor.toString()}</span>
+              <span className={`text-5xl sm:text-7xl ${ourScoreColor}`}>
+                {match.scoreFor.toString()}
+              </span>
               <span className="pb-1 text-2xl text-zinc-700">–</span>
               <span className={`text-5xl sm:text-7xl ${opponentScoreColor}`}>
                 {match.scoreAgainst.toString()}

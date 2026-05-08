@@ -296,7 +296,12 @@ function PaginationNav({
 
 // ─── Form strip ───────────────────────────────────────────────────────────────
 
-interface FormMatch { result: MatchResult; shotsFor: number; shotsAgainst: number; scoreAgainst: number }
+interface FormMatch {
+  result: MatchResult
+  shotsFor: number
+  shotsAgainst: number
+  scoreAgainst: number
+}
 
 function FormStrip({ matches }: { matches: FormMatch[] }) {
   const wins = matches.filter((m) => m.result === 'WIN').length
@@ -344,9 +349,14 @@ function TrendBullets({ matches }: { matches: FormMatch[] }) {
 
   if (streak >= 3) bullets.push(`${streak.toString()}-game win streak`)
   // "Won N of last 10" only if a genuinely strong or cold signal
-  if (streak < 3 && wins >= Math.ceil(n * 0.7)) bullets.push(`Won ${wins.toString()} of last ${n.toString()}`)
-  if (shotsWon >= Math.ceil(n * 0.7)) bullets.push(`Out-shot opponents in ${shotsWon.toString()} of last ${n.toString()}`)
-  if (tightDefense >= Math.ceil(n * 0.5) && tightDefense >= 4) bullets.push(`Held opponents to 2 or fewer in ${tightDefense.toString()} of last ${n.toString()}`)
+  if (streak < 3 && wins >= Math.ceil(n * 0.7))
+    bullets.push(`Won ${wins.toString()} of last ${n.toString()}`)
+  if (shotsWon >= Math.ceil(n * 0.7))
+    bullets.push(`Out-shot opponents in ${shotsWon.toString()} of last ${n.toString()}`)
+  if (tightDefense >= Math.ceil(n * 0.5) && tightDefense >= 4)
+    bullets.push(
+      `Held opponents to 2 or fewer in ${tightDefense.toString()} of last ${n.toString()}`,
+    )
 
   if (bullets.length === 0) return null
 
@@ -357,7 +367,9 @@ function TrendBullets({ matches }: { matches: FormMatch[] }) {
     <ul className="flex flex-col gap-0.5">
       {shown.map((b) => (
         <li key={b} className="flex items-center gap-2 text-xs text-zinc-500">
-          <span className="text-accent" aria-hidden>▲</span>
+          <span className="text-accent" aria-hidden>
+            ▲
+          </span>
           {b}
         </li>
       ))}

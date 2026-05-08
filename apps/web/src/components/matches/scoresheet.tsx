@@ -63,10 +63,7 @@ function SkaterTable({ rows, isBgm = false }: { rows: SkaterRow[]; isBgm?: boole
     <Panel className="overflow-x-auto">
       <table className="w-full min-w-[640px]">
         <thead>
-          <tr
-            className="border-b border-zinc-800"
-            style={isBgm ? BGM_HEADER_STYLE : undefined}
-          >
+          <tr className="border-b border-zinc-800" style={isBgm ? BGM_HEADER_STYLE : undefined}>
             <Th align="left" wide>
               Player
             </Th>
@@ -108,7 +105,11 @@ function SkaterRowEl({ row, isBgm }: { row: SkaterRow; isBgm: boolean }) {
       >
         <td className="py-2 pl-4 pr-2 text-sm">
           <div className="flex items-start gap-2">
-            <span className={`mt-1 shrink-0 text-zinc-500 transition-transform ${expanded ? 'rotate-90' : ''}`}>▸</span>
+            <span
+              className={`mt-1 shrink-0 text-zinc-500 transition-transform ${expanded ? 'rotate-90' : ''}`}
+            >
+              ▸
+            </span>
             <div className="min-w-0">
               <PlayerNameCell
                 playerId={row.playerId}
@@ -149,7 +150,9 @@ function SkaterRowEl({ row, isBgm }: { row: SkaterRow; isBgm: boolean }) {
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <h4 className="font-condensed text-lg font-semibold text-zinc-100">Advanced Statistics</h4>
+                  <h4 className="font-condensed text-lg font-semibold text-zinc-100">
+                    Advanced Statistics
+                  </h4>
                   <p className="text-sm text-zinc-500">Per-match breakdown</p>
                 </div>
                 {row.playerId !== null ? (
@@ -166,24 +169,52 @@ function SkaterRowEl({ row, isBgm }: { row: SkaterRow; isBgm: boolean }) {
               </div>
               <div className="grid gap-3 sm:grid-cols-3">
                 <DetailStat label="Score" value={row.score.toFixed(2)} />
-                <DetailStat label="Shooting %" value={row.shotAttempts > 0 ? `${((row.shots / row.shotAttempts) * 100).toFixed(0)}%` : '—'} />
-                <DetailStat label="Pass %" value={row.passPct !== null ? `${row.passPct.toFixed(0)}%` : '—'} />
-                <DetailStat label="FO %" value={row.faceoffWins + row.faceoffLosses > 0 ? `${((row.faceoffWins / (row.faceoffWins + row.faceoffLosses)) * 100).toFixed(0)}%` : '—'} />
+                <DetailStat
+                  label="Shooting %"
+                  value={
+                    row.shotAttempts > 0
+                      ? `${((row.shots / row.shotAttempts) * 100).toFixed(0)}%`
+                      : '—'
+                  }
+                />
+                <DetailStat
+                  label="Pass %"
+                  value={row.passPct !== null ? `${row.passPct.toFixed(0)}%` : '—'}
+                />
+                <DetailStat
+                  label="FO %"
+                  value={
+                    row.faceoffWins + row.faceoffLosses > 0
+                      ? `${((row.faceoffWins / (row.faceoffWins + row.faceoffLosses)) * 100).toFixed(0)}%`
+                      : '—'
+                  }
+                />
                 <DetailStat label="PIM" value={row.pim.toString()} />
-                <DetailStat label="Possession" value={row.possessionSeconds > 0 ? `${row.possessionSeconds.toString()}s` : '—'} />
+                <DetailStat
+                  label="Possession"
+                  value={row.possessionSeconds > 0 ? `${row.possessionSeconds.toString()}s` : '—'}
+                />
               </div>
               <DetailGroup
                 title="Shooting"
                 stats={[
                   ['Shots / Attempts', `${row.shots.toString()}/${row.shotAttempts.toString()}`],
-                  ['Shot On Net %', row.shotAttempts > 0 ? `${((row.shots / row.shotAttempts) * 100).toFixed(1)}%` : '—'],
+                  [
+                    'Shot On Net %',
+                    row.shotAttempts > 0
+                      ? `${((row.shots / row.shotAttempts) * 100).toFixed(1)}%`
+                      : '—',
+                  ],
                   ['Deflections', row.deflections.toString()],
                 ]}
               />
               <DetailGroup
                 title="Passing & Possession"
                 stats={[
-                  ['Passes / Attempts', `${row.passCompletions.toString()}/${row.passAttempts.toString()}`],
+                  [
+                    'Passes / Attempts',
+                    `${row.passCompletions.toString()}/${row.passAttempts.toString()}`,
+                  ],
                   ['Pass %', row.passPct !== null ? `${row.passPct.toFixed(1)}%` : '—'],
                   ['Saucer Passes', row.saucerPasses.toString()],
                   ['Possession', row.possessionSeconds.toString()],
@@ -193,7 +224,12 @@ function SkaterRowEl({ row, isBgm }: { row: SkaterRow; isBgm: boolean }) {
                 title="Faceoffs & Pressure"
                 stats={[
                   ['FO W/L', row.faceoffRecord ?? '—'],
-                  ['FO %', row.faceoffWins + row.faceoffLosses > 0 ? `${((row.faceoffWins / (row.faceoffWins + row.faceoffLosses)) * 100).toFixed(0)}%` : '—'],
+                  [
+                    'FO %',
+                    row.faceoffWins + row.faceoffLosses > 0
+                      ? `${((row.faceoffWins / (row.faceoffWins + row.faceoffLosses)) * 100).toFixed(0)}%`
+                      : '—',
+                  ],
                   ['Takeaways', row.takeaways.toString()],
                   ['Interceptions', row.interceptions.toString()],
                 ]}
@@ -231,10 +267,7 @@ function GoalieTable({ rows, isBgm = false }: { rows: GoalieRow[]; isBgm?: boole
     <Panel className="overflow-x-auto">
       <table className="w-full min-w-[480px]">
         <thead>
-          <tr
-            className="border-b border-zinc-800"
-            style={isBgm ? BGM_HEADER_STYLE : undefined}
-          >
+          <tr className="border-b border-zinc-800" style={isBgm ? BGM_HEADER_STYLE : undefined}>
             <Th align="left" wide>
               Goalie
             </Th>
@@ -304,7 +337,9 @@ function DetailStat({ label, value }: { label: string; value: string }) {
       <div className="font-condensed text-[10px] font-semibold uppercase tracking-[0.22em] text-zinc-500">
         {label}
       </div>
-      <div className="mt-1 font-condensed text-lg font-bold tabular-nums text-zinc-100">{value}</div>
+      <div className="mt-1 font-condensed text-lg font-bold tabular-nums text-zinc-100">
+        {value}
+      </div>
     </div>
   )
 }
