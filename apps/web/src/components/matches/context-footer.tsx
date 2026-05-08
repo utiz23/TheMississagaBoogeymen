@@ -1,5 +1,7 @@
 import Link from 'next/link'
 import type { AdjacentMatch } from '@eanhl/db/queries'
+import { Panel } from '@/components/ui/panel'
+import { ResultPill } from '@/components/ui/result-pill'
 import { formatMatchDate } from '@/lib/format'
 
 interface ContextFooterProps {
@@ -32,39 +34,34 @@ function AdjacentLink({
   const arrow = direction === 'prev' ? '←' : '→'
   const label = direction === 'prev' ? 'Previous game' : 'Next game'
 
-  const resultColor =
-    match.result === 'WIN'
-      ? 'text-accent'
-      : match.result === 'OTL'
-        ? 'text-amber-300'
-        : 'text-zinc-400'
-
   return (
-    <Link
-      href={`/games/${match.id.toString()}`}
-      className={`group flex flex-col gap-1.5 border border-zinc-800 bg-surface p-4 transition-colors hover:border-zinc-700 hover:bg-surface-raised ${
-        direction === 'next' ? 'sm:text-right sm:items-end' : ''
-      }`}
-    >
-      <span className="font-condensed text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-600">
-        {direction === 'prev' ? `${arrow} ${label}` : `${label} ${arrow}`}
-      </span>
-      <span className="font-condensed text-sm font-bold uppercase tracking-wide text-zinc-200 group-hover:text-zinc-50">
-        vs {match.opponentName}
-      </span>
-      <div
-        className={`flex items-baseline gap-2 ${
-          direction === 'next' ? 'sm:flex-row-reverse' : ''
+    <Link href={`/games/${match.id.toString()}`} className="group block">
+      <Panel
+        hoverable
+        className={`flex flex-col gap-1.5 p-4 ${
+          direction === 'next' ? 'sm:text-right sm:items-end' : ''
         }`}
       >
-        <span className={`font-condensed text-base font-bold tabular ${resultColor}`}>
-          {match.result}
+        <span className="font-condensed text-[10px] font-bold uppercase tracking-[0.22em] text-zinc-500">
+          {direction === 'prev' ? `${arrow} ${label}` : `${label} ${arrow}`}
         </span>
-        <span className="font-condensed text-base font-semibold tabular text-zinc-400">
-          {match.scoreFor.toString()}–{match.scoreAgainst.toString()}
+        <span className="font-condensed text-sm font-bold uppercase tracking-wide text-zinc-200 group-hover:text-zinc-50">
+          vs {match.opponentName}
         </span>
-        <span className="text-xs text-zinc-600">{formatMatchDate(match.playedAt)}</span>
-      </div>
+        <div
+          className={`flex items-baseline gap-2 ${
+            direction === 'next' ? 'sm:flex-row-reverse' : ''
+          }`}
+        >
+          <ResultPill result={match.result} size="sm" />
+          <span className="font-condensed text-base font-semibold tabular-nums text-zinc-400">
+            {match.scoreFor.toString()}–{match.scoreAgainst.toString()}
+          </span>
+          <span className="font-condensed text-xs uppercase tracking-wider text-zinc-600">
+            {formatMatchDate(match.playedAt)}
+          </span>
+        </div>
+      </Panel>
     </Link>
   )
 }
@@ -76,7 +73,7 @@ function Spacer({ direction }: { direction: 'prev' | 'next' }) {
         direction === 'next' ? 'justify-end' : 'justify-start'
       }`}
     >
-      <span className="font-condensed text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-700">
+      <span className="font-condensed text-[10px] font-bold uppercase tracking-[0.22em] text-zinc-700">
         {direction === 'prev' ? 'No earlier game' : 'No later game'}
       </span>
     </div>
