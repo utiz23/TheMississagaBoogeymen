@@ -284,10 +284,8 @@ const HIST_PLAYLISTS_3S = new Set(['eashl_3v3', 'clubs_3v3'])
 
 function liveToRecord(stats: ClubGameTitleStats | null): RecordModeStats | null {
   if (!stats || stats.gamesPlayed === 0) return null
-  const gfg =
-    stats.gamesPlayed > 0 ? (stats.goalsFor / stats.gamesPlayed).toFixed(2) : null
-  const gag =
-    stats.gamesPlayed > 0 ? (stats.goalsAgainst / stats.gamesPlayed).toFixed(2) : null
+  const gfg = stats.gamesPlayed > 0 ? (stats.goalsFor / stats.gamesPlayed).toFixed(2) : null
+  const gag = stats.gamesPlayed > 0 ? (stats.goalsAgainst / stats.gamesPlayed).toFixed(2) : null
   return {
     gamesPlayed: stats.gamesPlayed,
     wins: stats.wins,

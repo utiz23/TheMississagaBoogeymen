@@ -146,7 +146,11 @@ function FeaturedPlayerBlock({
           {player.gamertag}
         </span>
         {pos !== null && (
-          <PositionPill label={pos} position={player.position} isGoalie={player.position === 'goalie'} />
+          <PositionPill
+            label={pos}
+            position={player.position}
+            isGoalie={player.position === 'goalie'}
+          />
         )}
       </div>
 

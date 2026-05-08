@@ -1,7 +1,13 @@
 import Link from 'next/link'
 import type { Match } from '@eanhl/db'
 import Image from 'next/image'
-import { formatMatchDate, formatRecord, abbreviateTeamName, formatTOA, opponentFaceoffPct } from '@/lib/format'
+import {
+  formatMatchDate,
+  formatRecord,
+  abbreviateTeamName,
+  formatTOA,
+  opponentFaceoffPct,
+} from '@/lib/format'
 import { OpponentCrest } from '@/components/ui/opponent-crest'
 import { BroadcastPanel } from '@/components/ui/broadcast-panel'
 import { ResultPill } from '@/components/ui/result-pill'
@@ -32,8 +38,7 @@ function MatchSnapshot({ match }: { match: Match }) {
   const foOurs =
     match.faceoffPct !== null ? Math.round(parseFloat(match.faceoffPct)).toString() : null
   const foOpponent = opponentFaceoffPct(match.faceoffPct)
-  const foTheirs =
-    foOpponent !== null ? Math.round(parseFloat(foOpponent)).toString() : null
+  const foTheirs = foOpponent !== null ? Math.round(parseFloat(foOpponent)).toString() : null
   const toa = match.timeOnAttack !== null ? formatTOA(match.timeOnAttack) : null
   const showFO = foOurs !== null && foTheirs !== null
 

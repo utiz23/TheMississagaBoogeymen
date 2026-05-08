@@ -71,7 +71,9 @@ export function TitleRecordsTable({ titles }: { titles: TitleRecordData[] }) {
         {MODE_LABELS.map(({ mode: m, label }) => (
           <button
             key={m}
-            onClick={() => { setMode(m) }}
+            onClick={() => {
+              setMode(m)
+            }}
             className={[
               'rounded border px-3 py-1 font-condensed text-xs font-semibold uppercase tracking-wider transition-colors',
               mode === m
@@ -106,10 +108,7 @@ export function TitleRecordsTable({ titles }: { titles: TitleRecordData[] }) {
             {titles.map((title) => {
               const s = getModeStats(title, mode)
               return (
-                <tr
-                  key={title.slug}
-                  className={title.isLive ? 'bg-accent/5' : 'bg-surface'}
-                >
+                <tr key={title.slug} className={title.isLive ? 'bg-accent/5' : 'bg-surface'}>
                   <td className="px-4 py-3">
                     <span
                       className={`font-condensed text-sm font-semibold ${title.isLive ? 'text-accent' : 'text-zinc-300'}`}
@@ -136,7 +135,9 @@ export function TitleRecordsTable({ titles }: { titles: TitleRecordData[] }) {
                       <td className="px-3 py-3 text-right tabular-nums font-semibold text-accent">
                         {s.wins}
                       </td>
-                      <td className="px-3 py-3 text-right tabular-nums text-zinc-400">{s.losses}</td>
+                      <td className="px-3 py-3 text-right tabular-nums text-zinc-400">
+                        {s.losses}
+                      </td>
                       <td className="px-3 py-3 text-right tabular-nums text-zinc-500">{s.otl}</td>
                       <td className="px-3 py-3 text-right tabular-nums text-zinc-300">
                         {winPct(s.wins, s.losses, s.otl)}
