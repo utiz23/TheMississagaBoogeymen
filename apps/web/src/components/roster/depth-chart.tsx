@@ -4,6 +4,7 @@ import type { getEARoster } from '@eanhl/db/queries'
 import { StatBox, StatBoxFeatured, PlayerSilhouette } from '@/components/home/player-card'
 import { formatPosition, formatSavePct } from '@/lib/format'
 import { PositionPill } from '@/components/matches/position-pill'
+import { NationalityFlag, PlatformIcon } from '@/components/player-meta-icons'
 
 type RosterRow = Awaited<ReturnType<typeof getEARoster>>[number]
 
@@ -174,16 +175,23 @@ function SlotCell({ player, positionLabel }: { player: RosterRow | null; positio
 // goalie slots show GP/W/SV%/GAA; skater slots show GP/G/A/PTS.
 
 function RosterPlayerCard({ player, positionLabel }: { player: RosterRow; positionLabel: string }) {
-  const posLabel = player.position ? formatPosition(player.position) : null
+  const effectivePosition = player.preferredPosition ?? player.favoritePosition ?? player.position
+  const posLabel = effectivePosition ? formatPosition(effectivePosition) : null
+  const isGoalie = positionLabel === 'G'
+
+  const eaW = isGoalie ? player.goalieWins : player.skaterWins
+  const eaL = isGoalie ? player.goalieLosses : player.skaterLosses
+  const eaOtl = isGoalie ? player.goalieOtl : player.skaterOtl
 
   const recordLine =
-    player.wins !== null && player.losses !== null
-      ? `${player.wins.toString()}–${player.losses.toString()}–${player.otl !== null ? player.otl.toString() : '—'}`
+    eaW !== null && eaL !== null
+      ? `${eaW.toString()}–${eaL.toString()}–${eaOtl !== null ? eaOtl.toString() : '—'}`
       : '—–—–—'
 
+  const eaGames = (eaW ?? 0) + (eaL ?? 0) + (eaOtl ?? 0)
   const winPct: string =
-    player.wins !== null && player.losses !== null && player.wins + player.losses > 0
-      ? `${((player.wins / (player.wins + player.losses + (player.otl ?? 0))) * 100).toFixed(0)}%`
+    eaW !== null && eaL !== null && eaGames > 0
+      ? `${((eaW / eaGames) * 100).toFixed(0)}%`
       : '—'
 
   return (
@@ -202,7 +210,7 @@ function RosterPlayerCard({ player, positionLabel }: { player: RosterRow; positi
         </div>
         {posLabel !== null ? (
           <div className="mt-1">
-            <PositionPill label={posLabel} position={player.position} isGoalie={positionLabel === 'G'} />
+            <PositionPill label={posLabel} position={effectivePosition} isGoalie={isGoalie} />
           </div>
         ) : (
           <span className="mt-1 inline-block h-2.5 w-7 rounded bg-zinc-800" />
@@ -221,11 +229,14 @@ function RosterPlayerCard({ player, positionLabel }: { player: RosterRow; positi
           <PlayerSilhouette className="text-zinc-800" sizeClass="h-[86px] w-[86px]" />
         </div>
         <div className="flex items-center justify-center gap-2 border-t border-zinc-800/60 px-3 py-2">
-          <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-sm border border-zinc-700 bg-zinc-800/80 text-zinc-500">
-            <ControllerIcon />
+          <div
+            title={player.gamertag}
+            className="flex h-5 w-5 shrink-0 items-center justify-center rounded-sm border border-zinc-700 bg-zinc-800/80 text-zinc-500"
+          >
+            <PlatformIcon platform={player.clientPlatform ?? null} />
           </div>
           <span className="truncate font-condensed text-sm font-black uppercase tracking-wide text-zinc-100 group-hover:text-zinc-50">
-            {player.gamertag}
+            {player.playerName?.split(' ').at(-1) ?? player.gamertag}
           </span>
         </div>
       </div>
@@ -250,8 +261,8 @@ function RosterPlayerCard({ player, positionLabel }: { player: RosterRow; positi
           )}
         </div>
         <div className="mt-2 grid grid-cols-3 gap-2">
-          <div className="flex h-[34px] items-center justify-center rounded-lg border border-zinc-700/60 bg-zinc-800/40">
-            <FlagIcon className="text-zinc-600" />
+          <div className="flex h-[34px] items-center justify-center">
+            <NationalityFlag code={player.nationality ?? null} />
           </div>
           <div className="flex h-[34px] items-center justify-center overflow-hidden rounded-lg border border-zinc-700/60 bg-zinc-800/40">
             <Image
@@ -287,33 +298,4 @@ function OpenSlot({ positionLabel }: { positionLabel: string }) {
 
 // ─── Icons ────────────────────────────────────────────────────────────────────
 
-function ControllerIcon() {
-  return (
-    <svg viewBox="0 0 14 10" fill="currentColor" className="h-2.5 w-2.5" aria-hidden>
-      <rect
-        x="1"
-        y="1"
-        width="12"
-        height="8"
-        rx="4"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.2"
-      />
-      <rect x="3.5" y="4" width="1.2" height="3" rx="0.5" />
-      <rect x="2.9" y="4.6" width="2.4" height="1.2" rx="0.5" />
-      <circle cx="9.5" cy="4.5" r="0.8" />
-      <circle cx="11" cy="5.8" r="0.8" />
-    </svg>
-  )
-}
 
-function FlagIcon({ className = '' }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 14 10" fill="none" className={`h-3 w-3.5 ${className}`} aria-hidden>
-      <rect x="0.5" y="0.5" width="13" height="9" rx="1" stroke="currentColor" strokeWidth="1" />
-      <line x1="0.5" y1="3.5" x2="13.5" y2="3.5" stroke="currentColor" strokeWidth="0.8" />
-      <line x1="0.5" y1="6.5" x2="13.5" y2="6.5" stroke="currentColor" strokeWidth="0.8" />
-    </svg>
-  )
-}
