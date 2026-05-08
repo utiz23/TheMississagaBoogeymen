@@ -11,6 +11,9 @@ import {
 import type { GameMode, MatchResult } from '@eanhl/db'
 import { GAME_MODE } from '@eanhl/db'
 import { ScoreCard } from '@/components/matches/score-card'
+import { Panel } from '@/components/ui/panel'
+import { SectionHeader } from '@/components/ui/section-header'
+import { ResultPill } from '@/components/ui/result-pill'
 import { formatMatchDate } from '@/lib/format'
 
 export const metadata: Metadata = { title: 'Scores — Club Stats' }
@@ -98,11 +101,17 @@ export default async function GamesPage({ searchParams }: { searchParams: Search
     <div className="space-y-6">
       <div className="space-y-2">
         <div className="flex flex-wrap items-baseline gap-3">
-          <h1 className="font-condensed text-2xl font-semibold uppercase tracking-wide text-zinc-50">
+          <h1 className="font-condensed text-2xl font-semibold uppercase tracking-widest text-zinc-50">
             Scores
           </h1>
-          <span className="text-sm text-zinc-500">{gameTitle.name}</span>
-          {total > 0 && <span className="text-sm text-zinc-600">{total} matches</span>}
+          <span className="font-condensed text-sm uppercase tracking-wider text-zinc-500">
+            {gameTitle.name}
+          </span>
+          {total > 0 && (
+            <span className="font-condensed text-sm uppercase tracking-wider text-zinc-600">
+              <span className="tabular-nums">{total}</span> matches
+            </span>
+          )}
         </div>
       </div>
 
@@ -123,9 +132,7 @@ export default async function GamesPage({ searchParams }: { searchParams: Search
             {dateGroups.map((group) => (
               <section key={group.key} className="space-y-4">
                 <div className="flex items-center gap-3">
-                  <h2 className="font-condensed text-xs font-bold uppercase tracking-[0.2em] text-zinc-500">
-                    {group.label}
-                  </h2>
+                  <SectionHeader label={group.label} as="h2" />
                   <div className="h-px flex-1 bg-zinc-800" />
                 </div>
 
@@ -253,31 +260,35 @@ function PaginationNav({
   const hasNext = page < totalPages
 
   return (
-    <div className="flex items-center justify-between py-1 text-sm">
+    <div className="flex items-center justify-between py-1">
       {hasPrev ? (
         <Link
           href={paginationHref(page - 1, titleSlug, gameMode)}
-          className="text-zinc-400 transition-colors hover:text-zinc-200"
+          className="font-condensed text-sm font-semibold uppercase tracking-wider text-zinc-400 transition-colors hover:text-zinc-200"
         >
           ← Newer Results
         </Link>
       ) : (
-        <span className="select-none text-zinc-700">← Newer Results</span>
+        <span className="select-none font-condensed text-sm font-semibold uppercase tracking-wider text-zinc-700">
+          ← Newer Results
+        </span>
       )}
 
-      <span className="text-zinc-600">
+      <span className="font-condensed text-xs font-semibold uppercase tracking-widest tabular-nums text-zinc-600">
         Page {page} of {totalPages}
       </span>
 
       {hasNext ? (
         <Link
           href={paginationHref(page + 1, titleSlug, gameMode)}
-          className="text-zinc-400 transition-colors hover:text-zinc-200"
+          className="font-condensed text-sm font-semibold uppercase tracking-wider text-zinc-400 transition-colors hover:text-zinc-200"
         >
           Older Results →
         </Link>
       ) : (
-        <span className="select-none text-zinc-700">Older Results →</span>
+        <span className="select-none font-condensed text-sm font-semibold uppercase tracking-wider text-zinc-700">
+          Older Results →
+        </span>
       )}
     </div>
   )
@@ -287,20 +298,6 @@ function PaginationNav({
 
 interface FormMatch { result: MatchResult; shotsFor: number; shotsAgainst: number; scoreAgainst: number }
 
-const FORM_PILL: Record<MatchResult, string> = {
-  WIN: 'border-emerald-500/50 bg-emerald-500/10 text-emerald-400',
-  LOSS: 'border-rose-500/50 bg-rose-500/10 text-rose-400',
-  OTL: 'border-amber-500/40 bg-amber-500/10 text-amber-400',
-  DNF: 'border-rose-500/50 bg-rose-500/10 text-rose-400',
-}
-
-const FORM_PILL_LABEL: Record<MatchResult, string> = {
-  WIN: 'W',
-  LOSS: 'L',
-  OTL: 'OT',
-  DNF: 'L',
-}
-
 function FormStrip({ matches }: { matches: FormMatch[] }) {
   const wins = matches.filter((m) => m.result === 'WIN').length
   const losses = matches.filter((m) => m.result === 'LOSS' || m.result === 'DNF').length
@@ -309,17 +306,12 @@ function FormStrip({ matches }: { matches: FormMatch[] }) {
 
   return (
     <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
-      <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-600">
-        Last {n}
+      <span className="font-condensed text-[10px] font-semibold uppercase tracking-[0.22em] text-zinc-500">
+        Last <span className="tabular-nums">{n}</span>
       </span>
-      <div className="flex items-center gap-0.5">
+      <div className="flex items-center gap-1">
         {matches.map((m, i) => (
-          <span
-            key={i}
-            className={`inline-flex w-7 items-center justify-center rounded border py-0.5 font-condensed text-[10px] font-bold uppercase tracking-wider ${FORM_PILL[m.result]}`}
-          >
-            {FORM_PILL_LABEL[m.result]}
-          </span>
+          <ResultPill key={i} result={m.result} size="sm" />
         ))}
       </div>
       <span className="font-condensed text-sm font-bold tabular-nums text-zinc-400">
@@ -377,8 +369,8 @@ function TrendBullets({ matches }: { matches: FormMatch[] }) {
 
 function EmptyState({ message }: { message: string }) {
   return (
-    <div className="flex min-h-[12rem] items-center justify-center border border-zinc-800 bg-surface">
-      <p className="text-sm text-zinc-500">{message}</p>
-    </div>
+    <Panel className="flex min-h-[12rem] items-center justify-center">
+      <p className="font-condensed text-sm uppercase tracking-wider text-zinc-500">{message}</p>
+    </Panel>
   )
 }
