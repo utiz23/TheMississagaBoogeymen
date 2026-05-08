@@ -1,14 +1,47 @@
 import Link from 'next/link'
 import Image from 'next/image'
-import type { Match } from '@eanhl/db'
+import type { Match, MatchResult } from '@eanhl/db'
 import { OpponentCrest } from '@/components/ui/opponent-crest'
-import { Panel } from '@/components/ui/panel'
 import { ResultPill } from '@/components/ui/result-pill'
-import { ResultGlow } from '@/components/ui/result-glow'
 import { abbreviateTeamName, formatMatchTime, formatTOA } from '@/lib/format'
 import { buildPossessionEdge } from '@/lib/match-recap'
 
 const OUR_ABBREV = 'BGM'
+
+// Result-themed card surfaces — restored from pre-renovation visual after
+// user feedback that the uniform Panel + soft glow lost too much character.
+// Typography, sizing, and the design-system <ResultPill> primitive stay
+// from the renovation; the surface decoration goes back to per-result
+// gradient + border + solid-color top bar.
+const CARD_STYLES: Record<MatchResult, { bg: string; border: string; hoverBorder: string }> = {
+  WIN: {
+    bg: 'bg-[radial-gradient(circle_at_top,rgba(34,197,94,0.10),transparent_50%),linear-gradient(180deg,rgba(13,20,15,0.99),rgba(10,10,10,1))]',
+    border: 'border-emerald-900/50',
+    hoverBorder: 'hover:border-emerald-700/50',
+  },
+  LOSS: {
+    bg: 'bg-[radial-gradient(circle_at_top,rgba(239,68,68,0.07),transparent_50%),linear-gradient(180deg,rgba(18,13,13,0.99),rgba(10,10,10,1))]',
+    border: 'border-rose-900/40',
+    hoverBorder: 'hover:border-rose-800/50',
+  },
+  OTL: {
+    bg: 'bg-[radial-gradient(circle_at_top,rgba(245,158,11,0.10),transparent_45%),linear-gradient(180deg,rgba(20,18,14,0.99),rgba(10,10,10,1))]',
+    border: 'border-amber-900/40',
+    hoverBorder: 'hover:border-amber-800/60',
+  },
+  DNF: {
+    bg: 'bg-[radial-gradient(circle_at_top,rgba(239,68,68,0.07),transparent_50%),linear-gradient(180deg,rgba(18,13,13,0.99),rgba(10,10,10,1))]',
+    border: 'border-rose-900/40',
+    hoverBorder: 'hover:border-rose-800/50',
+  },
+}
+
+const TOP_BAR: Record<MatchResult, string> = {
+  WIN: 'bg-emerald-500',
+  LOSS: 'bg-rose-600',
+  OTL: 'bg-amber-500/80',
+  DNF: 'bg-rose-600',
+}
 
 const GAME_MODE_PILL: Record<string, string> = {
   '6s': 'border-violet-500/80 bg-violet-950/50 text-violet-300',
@@ -111,120 +144,117 @@ export function ScoreCard({
       ? (GAME_MODE_PILL[match.gameMode] ?? 'border-zinc-700 bg-zinc-900/70 text-zinc-400')
       : null
 
+  const cardStyles = CARD_STYLES[match.result]
+
   return (
     <Link
       href={`/games/${match.id.toString()}`}
-      className="group block transition-transform hover:-translate-y-0.5"
+      className={`group block overflow-hidden border transition-[border-color,transform] hover:-translate-y-0.5 ${cardStyles.border} ${cardStyles.bg} ${cardStyles.hoverBorder}`}
     >
-      <Panel hoverable className="relative overflow-hidden">
-        <ResultGlow result={match.result} />
-        <div className="relative">
-          <div className="h-[3px] w-full bg-gradient-to-r from-rose-900 via-accent to-rose-900" />
+      <div className={`h-1 w-full ${TOP_BAR[match.result]}`} />
 
-          <div className="flex items-center justify-between px-4 py-3">
-            <div className="flex items-center gap-1.5">
-              {gameModeClass !== null && (
-                <span
-                  className={`rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] ${gameModeClass}`}
-                >
-                  {match.gameMode}
-                </span>
-              )}
-              {isPrivate && (
-                <span className="rounded-full border border-zinc-600/50 bg-zinc-800/60 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-zinc-400">
-                  Private
-                </span>
-              )}
-              {qualityLabel !== null && (
-                <span
-                  className={`rounded-full border px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] ${
-                    qualityLabel === 'Dominated'
-                      ? 'border-emerald-600/50 bg-emerald-900/30 text-emerald-400'
-                      : 'border-rose-700/50 bg-rose-900/20 text-rose-400'
-                  }`}
-                >
-                  {qualityLabel}
-                </span>
-              )}
+      <div className="flex items-center justify-between px-4 py-3">
+        <div className="flex items-center gap-1.5">
+          {gameModeClass !== null && (
+            <span
+              className={`rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] ${gameModeClass}`}
+            >
+              {match.gameMode}
+            </span>
+          )}
+          {isPrivate && (
+            <span className="rounded-full border border-zinc-600/50 bg-zinc-800/60 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-zinc-400">
+              Private
+            </span>
+          )}
+          {qualityLabel !== null && (
+            <span
+              className={`rounded-full border px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] ${
+                qualityLabel === 'Dominated'
+                  ? 'border-emerald-600/50 bg-emerald-900/30 text-emerald-400'
+                  : 'border-rose-700/50 bg-rose-900/20 text-rose-400'
+              }`}
+            >
+              {qualityLabel}
+            </span>
+          )}
+        </div>
+        <span className="text-xs text-zinc-600">{formatMatchTime(match.playedAt)}</span>
+      </div>
+
+      <div className="px-4 pb-5">
+        <p className="truncate font-condensed text-xl font-bold uppercase tracking-[0.08em] text-zinc-100">
+          vs {match.opponentName}
+        </p>
+
+        <div className="mt-5 grid grid-cols-[56px_minmax(0,1fr)_56px] items-center gap-4">
+          <div className="flex flex-col items-center gap-2 text-center">
+            <div className="flex h-14 w-14 items-center justify-center rounded-full border border-zinc-800 bg-zinc-950/50">
+              <Image
+                src="/images/bgm-logo.png"
+                alt="Boogeymen"
+                width={40}
+                height={40}
+                className="h-10 w-10 object-contain opacity-80"
+              />
             </div>
-            <span className="text-xs text-zinc-600">{formatMatchTime(match.playedAt)}</span>
+            <span className="font-condensed text-base font-black uppercase tracking-[0.1em] text-zinc-200">
+              {OUR_ABBREV}
+            </span>
           </div>
 
-          <div className="px-4 pb-5">
-            <p className="truncate font-condensed text-xl font-bold uppercase tracking-[0.08em] text-zinc-100">
-              vs {match.opponentName}
-            </p>
+          <div className="flex min-w-0 flex-col items-center gap-3 text-center">
+            <div className="flex items-end justify-center gap-2 font-condensed font-black tabular-nums leading-none">
+              <span className={`text-5xl ${ourScoreColor}`}>{match.scoreFor.toString()}</span>
+              <span className="pb-1 text-2xl text-zinc-700">-</span>
+              <span className={`text-5xl ${opponentScoreColor}`}>
+                {match.scoreAgainst.toString()}
+              </span>
+            </div>
+            <ResultPill result={match.result} size="sm" />
+          </div>
 
-            <div className="mt-5 grid grid-cols-[56px_minmax(0,1fr)_56px] items-center gap-4">
-              <div className="flex flex-col items-center gap-2 text-center">
-                <div className="flex h-14 w-14 items-center justify-center rounded-full border border-zinc-800 bg-zinc-950/50">
-                  <Image
-                    src="/images/bgm-logo.png"
-                    alt="Boogeymen"
-                    width={40}
-                    height={40}
-                    className="h-10 w-10 object-contain opacity-80"
-                  />
-                </div>
-                <span className="font-condensed text-base font-black uppercase tracking-[0.1em] text-zinc-200">
-                  {OUR_ABBREV}
-                </span>
-              </div>
-
-              <div className="flex min-w-0 flex-col items-center gap-3 text-center">
-                <div className="flex items-end justify-center gap-2 font-condensed font-black tabular-nums leading-none">
-                  <span className={`text-5xl ${ourScoreColor}`}>{match.scoreFor.toString()}</span>
-                  <span className="pb-1 text-2xl text-zinc-700">-</span>
-                  <span className={`text-5xl ${opponentScoreColor}`}>
-                    {match.scoreAgainst.toString()}
+          <div className="flex flex-col items-center gap-2 text-center">
+            <div className="flex h-14 w-14 items-center justify-center rounded-full border border-zinc-800 bg-zinc-950/50">
+              <OpponentCrest
+                crestAssetId={opponentCrestAssetId}
+                useBaseAsset={opponentCrestUseBaseAsset}
+                alt={match.opponentName}
+                width={40}
+                height={40}
+                className="h-10 w-10 object-contain"
+                fallback={
+                  <span
+                    aria-hidden
+                    className="font-condensed text-lg font-black uppercase tracking-tight text-zinc-400"
+                  >
+                    {opponentAbbrev.slice(0, 2)}
                   </span>
-                </div>
-                <ResultPill result={match.result} size="sm" />
-              </div>
-
-              <div className="flex flex-col items-center gap-2 text-center">
-                <div className="flex h-14 w-14 items-center justify-center rounded-full border border-zinc-800 bg-zinc-950/50">
-                  <OpponentCrest
-                    crestAssetId={opponentCrestAssetId}
-                    useBaseAsset={opponentCrestUseBaseAsset}
-                    alt={match.opponentName}
-                    width={40}
-                    height={40}
-                    className="h-10 w-10 object-contain"
-                    fallback={
-                      <span
-                        aria-hidden
-                        className="font-condensed text-lg font-black uppercase tracking-tight text-zinc-400"
-                      >
-                        {opponentAbbrev.slice(0, 2)}
-                      </span>
-                    }
-                  />
-                </div>
-                <span className="font-condensed text-base font-black uppercase tracking-[0.1em] text-zinc-200">
-                  {opponentAbbrev}
-                </span>
-              </div>
-            </div>
-
-            {/* Stat row: SOG · TOA · Hits · DtW */}
-            <div className="mt-4 flex items-start justify-between border-t border-zinc-800/70 pt-3">
-              <SplitStat
-                label="SOG"
-                us={match.shotsFor.toString()}
-                them={match.shotsAgainst.toString()}
+                }
               />
-              <SnapStat label="TOA" value={toa ?? '—'} />
-              <SplitStat
-                label="Hits"
-                us={match.hitsFor.toString()}
-                them={match.hitsAgainst.toString()}
-              />
-              <DtWStat bgmRaw={dtw} />
             </div>
+            <span className="font-condensed text-base font-black uppercase tracking-[0.1em] text-zinc-200">
+              {opponentAbbrev}
+            </span>
           </div>
         </div>
-      </Panel>
+
+        {/* Stat row: SOG · TOA · Hits · DtW */}
+        <div className="mt-4 flex items-start justify-between border-t border-zinc-800/70 pt-3">
+          <SplitStat
+            label="SOG"
+            us={match.shotsFor.toString()}
+            them={match.shotsAgainst.toString()}
+          />
+          <SnapStat label="TOA" value={toa ?? '—'} />
+          <SplitStat
+            label="Hits"
+            us={match.hitsFor.toString()}
+            them={match.hitsAgainst.toString()}
+          />
+          <DtWStat bgmRaw={dtw} />
+        </div>
+      </div>
     </Link>
   )
 }
