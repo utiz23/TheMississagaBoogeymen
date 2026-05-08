@@ -5,6 +5,8 @@ import { useState } from 'react'
 import type { Scoresheet, ScoresheetSide, SkaterRow, GoalieRow } from '@/lib/match-recap'
 import { formatPosition, formatPositionFull } from '@/lib/format'
 import { PositionPill } from './position-pill'
+import { Panel } from '@/components/ui/panel'
+import { SectionHeader } from '@/components/ui/section-header'
 
 interface ScoresheetProps {
   scoresheet: Scoresheet
@@ -17,15 +19,11 @@ export function ScoresheetSection({ scoresheet }: ScoresheetProps) {
   if (bgmEmpty && oppEmpty) return null
 
   return (
-    <section>
-      <div className="mb-3 flex items-baseline gap-2">
-        <h2 className="font-condensed text-sm font-semibold uppercase tracking-wider text-zinc-400">
-          Scoresheet
-        </h2>
-        <span className="text-[10px] font-medium uppercase tracking-[0.15em] text-zinc-600">
-          (BGM player profiles linked; opponent rows are match-archive only)
-        </span>
-      </div>
+    <section className="space-y-3">
+      <SectionHeader
+        label="Scoresheet"
+        subtitle="BGM player profiles linked · opponent rows are match-archive only"
+      />
 
       <div className="space-y-6">
         {!bgmEmpty ? <TeamSide side={bgm} /> : null}
@@ -38,10 +36,10 @@ export function ScoresheetSection({ scoresheet }: ScoresheetProps) {
 function TeamSide({ side }: { side: ScoresheetSide }) {
   return (
     <div className="space-y-3">
-      <h3 className="flex items-baseline gap-2 font-condensed text-xs font-bold uppercase tracking-[0.18em] text-zinc-300">
+      <h3 className="flex items-baseline gap-2 font-condensed text-xs font-bold uppercase tracking-widest text-zinc-300">
         <span>{side.teamLabel}</span>
         {side.isBgm ? (
-          <span className="rounded-sm border border-accent/40 bg-accent/10 px-1.5 py-0.5 text-[9px] font-bold tracking-widest text-accent">
+          <span className="border border-accent/40 bg-accent/10 px-1.5 py-0.5 font-condensed text-[9px] font-bold uppercase tracking-widest text-accent">
             BGM
           </span>
         ) : null}
@@ -62,7 +60,7 @@ const BGM_HEADER_STYLE = { backgroundColor: 'rgba(195,67,83,0.14)' }
 
 function SkaterTable({ rows, isBgm = false }: { rows: SkaterRow[]; isBgm?: boolean }) {
   return (
-    <div className="overflow-x-auto border border-zinc-800 bg-surface">
+    <Panel className="overflow-x-auto">
       <table className="w-full min-w-[640px]">
         <thead>
           <tr
@@ -81,13 +79,13 @@ function SkaterTable({ rows, isBgm = false }: { rows: SkaterRow[]; isBgm?: boole
             <Th>Blks</Th>
           </tr>
         </thead>
-        <tbody>
+        <tbody className="divide-y divide-zinc-800/60">
           {rows.map((row) => (
             <SkaterRowEl key={row.rowKey} row={row} isBgm={isBgm} />
           ))}
         </tbody>
       </table>
-    </div>
+    </Panel>
   )
 }
 
@@ -103,7 +101,7 @@ function SkaterRowEl({ row, isBgm }: { row: SkaterRow; isBgm: boolean }) {
   return (
     <>
       <tr
-        className="group cursor-pointer border-b border-zinc-800/60 transition-colors hover:bg-surface-raised"
+        className="group cursor-pointer transition-colors hover:bg-surface-raised"
         onClick={() => {
           setExpanded((v) => !v)
         }}
@@ -127,7 +125,7 @@ function SkaterRowEl({ row, isBgm }: { row: SkaterRow; isBgm: boolean }) {
                     side={isBgm ? 'bgm' : 'opp'}
                     defenseSide={defenseSide}
                   />
-                  <span className="text-[10px] uppercase tracking-wide text-zinc-600">
+                  <span className="font-condensed text-[10px] font-semibold uppercase tracking-[0.22em] text-zinc-600">
                     {positionFull}
                   </span>
                 </div>
@@ -146,7 +144,7 @@ function SkaterRowEl({ row, isBgm }: { row: SkaterRow; isBgm: boolean }) {
         <Td>{row.blocks.toString()}</Td>
       </tr>
       {expanded ? (
-        <tr className="border-b border-zinc-800/60 bg-zinc-950/30">
+        <tr className="bg-zinc-950/30">
           <td colSpan={8} className="px-4 py-4">
             <div className="space-y-4">
               <div className="flex items-center justify-between">
@@ -230,7 +228,7 @@ function SkaterRowEl({ row, isBgm }: { row: SkaterRow; isBgm: boolean }) {
 
 function GoalieTable({ rows, isBgm = false }: { rows: GoalieRow[]; isBgm?: boolean }) {
   return (
-    <div className="overflow-x-auto border border-zinc-800 bg-surface">
+    <Panel className="overflow-x-auto">
       <table className="w-full min-w-[480px]">
         <thead>
           <tr
@@ -247,19 +245,19 @@ function GoalieTable({ rows, isBgm = false }: { rows: GoalieRow[]; isBgm?: boole
             <Th>TOI</Th>
           </tr>
         </thead>
-        <tbody>
+        <tbody className="divide-y divide-zinc-800/60">
           {rows.map((row) => (
             <GoalieRowEl key={row.rowKey} row={row} />
           ))}
         </tbody>
       </table>
-    </div>
+    </Panel>
   )
 }
 
 function GoalieRowEl({ row }: { row: GoalieRow }) {
   return (
-    <tr className="group border-b border-zinc-800/60 transition-colors hover:bg-surface-raised last:border-b-0">
+    <tr className="group transition-colors hover:bg-surface-raised">
       <td className="py-2.5 pl-4 pr-2 text-sm">
         <div className="flex items-center gap-2">
           <PositionPill
@@ -287,22 +285,26 @@ function GoalieRowEl({ row }: { row: GoalieRow }) {
 
 function DetailGroup({ title, stats }: { title: string; stats: [string, string][] }) {
   return (
-    <div className="rounded-sm border border-zinc-800 bg-surface p-3">
-      <h5 className="mb-2 font-condensed text-xs font-bold uppercase tracking-[0.18em] text-zinc-400">{title}</h5>
+    <Panel className="p-3">
+      <h5 className="mb-2 font-condensed text-xs font-bold uppercase tracking-widest text-zinc-400">
+        {title}
+      </h5>
       <div className="grid gap-2 sm:grid-cols-2">
         {stats.map(([label, value]) => (
           <DetailStat key={label} label={label} value={value} />
         ))}
       </div>
-    </div>
+    </Panel>
   )
 }
 
 function DetailStat({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-sm border border-zinc-800 bg-zinc-900/50 px-3 py-2">
-      <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-zinc-500">{label}</div>
-      <div className="mt-1 font-condensed text-lg font-bold tabular text-zinc-100">{value}</div>
+    <div className="border border-zinc-800 bg-zinc-900/50 px-3 py-2">
+      <div className="font-condensed text-[10px] font-semibold uppercase tracking-[0.22em] text-zinc-500">
+        {label}
+      </div>
+      <div className="mt-1 font-condensed text-lg font-bold tabular-nums text-zinc-100">{value}</div>
     </div>
   )
 }
@@ -336,14 +338,16 @@ function PlayerNameCell({
     return (
       <Link
         href={`/roster/${playerId.toString()}`}
-        className="flex items-center gap-2 font-medium text-zinc-200 group-hover:text-zinc-50"
+        className="flex items-center gap-2 font-condensed font-semibold uppercase tracking-wide text-zinc-200 group-hover:text-accent"
       >
         {inner}
       </Link>
     )
   }
   return (
-    <span className="flex items-center gap-2 font-medium text-zinc-300">{inner}</span>
+    <span className="flex items-center gap-2 font-condensed font-semibold uppercase tracking-wide text-zinc-300">
+      {inner}
+    </span>
   )
 }
 
@@ -360,7 +364,8 @@ function Th({
   hideOnMobile?: boolean
   wide?: boolean
 }) {
-  const baseClasses = 'py-2 text-xs font-semibold uppercase tracking-wider text-zinc-600'
+  const baseClasses =
+    'py-2 font-condensed text-[10px] font-semibold uppercase tracking-widest text-zinc-500'
   const alignClass = align === 'left' ? 'text-left' : 'text-right'
   const widthClass = wide ? 'pl-4 pr-2' : 'px-2'
   const hideClass = hideOnMobile ? 'hidden sm:table-cell' : ''
@@ -380,7 +385,7 @@ function Td({
   const colorClass = featured ? 'text-zinc-50 font-bold' : 'text-zinc-300'
   return (
     <td
-      className={`px-2 py-2.5 text-right text-sm tabular ${colorClass} ${hideClass}`}
+      className={`px-2 py-2.5 text-right font-condensed text-sm tabular-nums ${colorClass} ${hideClass}`}
     >
       {children}
     </td>
@@ -391,7 +396,7 @@ function DnfBadge() {
   return (
     <span
       title="Did not finish"
-      className="rounded-sm border border-zinc-700/60 bg-zinc-900/60 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-widest text-zinc-500"
+      className="border border-zinc-700/60 bg-zinc-900/60 px-1.5 py-0.5 font-condensed text-[9px] font-bold uppercase tracking-widest text-zinc-500"
     >
       DNF
     </span>
@@ -402,7 +407,7 @@ function GuestBadge() {
   return (
     <span
       title="Drop-in player (guest)"
-      className="rounded-sm border border-amber-700/40 bg-amber-900/30 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-widest text-amber-400/80"
+      className="border border-amber-700/40 bg-amber-900/30 px-1.5 py-0.5 font-condensed text-[9px] font-bold uppercase tracking-widest text-amber-400/80"
     >
       Guest
     </span>
