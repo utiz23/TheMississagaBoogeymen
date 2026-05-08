@@ -90,8 +90,7 @@ function SkaterRow({ row }: { row: PlayerCareerSeasonRow }) {
   // Derive shot-on-net% inline. PlayerCareerSeasonRow does not include a
   // precomputed shotPct field — when shots=0 there can be no goals either,
   // so SHT% is meaningless and rendered as em dash.
-  const shtPct =
-    row.shots > 0 ? `${((row.goals / row.shots) * 100).toFixed(2)}%` : '—'
+  const shtPct = row.shots > 0 ? `${((row.goals / row.shots) * 100).toFixed(2)}%` : '—'
   // P/GP is also derived (no precomputed pointsPerGame on the row).
   const pPerGp = row.skaterGp > 0 ? (row.points / row.skaterGp).toFixed(2) : '—'
 
@@ -133,8 +132,7 @@ function SkaterCell({ children }: { children: React.ReactNode }) {
 }
 
 function PlusMinusCell({ value }: { value: number }) {
-  const colorClass =
-    value > 0 ? 'text-emerald-400' : value < 0 ? 'text-rose-400' : 'text-zinc-400'
+  const colorClass = value > 0 ? 'text-emerald-400' : value < 0 ? 'text-rose-400' : 'text-zinc-400'
   const display = value > 0 ? `+${value.toString()}` : value.toString()
   return (
     <td className={`px-2 py-2.5 text-right font-condensed text-sm tabular-nums ${colorClass}`}>

@@ -58,11 +58,7 @@ export function TrendChart({ trendGames, selectedRole }: Props) {
             const barH = Math.max(3, (stat / maxStat) * (chartH - 4))
             const x = i * (barW + 1)
             const color =
-              g.result === 'WIN'
-                ? '#10b981'
-                : g.result === 'OTL'
-                  ? '#f59e0b'
-                  : '#e11d48'
+              g.result === 'WIN' ? '#10b981' : g.result === 'OTL' ? '#f59e0b' : '#e11d48'
             return (
               <rect
                 key={g.matchId}
@@ -87,16 +83,14 @@ export function TrendChart({ trendGames, selectedRole }: Props) {
           </span>
           <div className="ml-auto flex items-center gap-2">
             <span className="flex items-center gap-1">
-              <span className="inline-block h-2 w-2 rounded-sm bg-emerald-500 opacity-85" />
-              W
+              <span className="inline-block h-2 w-2 rounded-sm bg-emerald-500 opacity-85" />W
             </span>
             <span className="flex items-center gap-1">
               <span className="inline-block h-2 w-2 rounded-sm bg-amber-500 opacity-85" />
               OT
             </span>
             <span className="flex items-center gap-1">
-              <span className="inline-block h-2 w-2 rounded-sm bg-rose-500 opacity-85" />
-              L
+              <span className="inline-block h-2 w-2 rounded-sm bg-rose-500 opacity-85" />L
             </span>
           </div>
         </div>

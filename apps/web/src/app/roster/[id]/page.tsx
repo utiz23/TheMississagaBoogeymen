@@ -156,8 +156,8 @@ export default async function PlayerPage({ params, searchParams }: Props) {
             <span className="font-semibold uppercase tracking-wider text-zinc-300">
               No local match history yet.
             </span>{' '}
-            This player is registered but has not appeared in a tracked match. EA season totals
-            may still show while local sections stay empty.
+            This player is registered but has not appeared in a tracked match. EA season totals may
+            still show while local sections stay empty.
           </p>
         </Panel>
       )}
@@ -177,7 +177,9 @@ export default async function PlayerPage({ params, searchParams }: Props) {
         }
       />
 
-      {selectedRole === 'skater' && eaStats[0] !== undefined && <ClubStatsTabs season={eaStats[0]} />}
+      {selectedRole === 'skater' && eaStats[0] !== undefined && (
+        <ClubStatsTabs season={eaStats[0]} />
+      )}
       {selectedRole === 'goalie' && (
         <ComingSoonCard
           title="Goalie Club Stats"
@@ -211,9 +213,7 @@ export default async function PlayerPage({ params, searchParams }: Props) {
   )
 }
 
-function resolveNhl26ShotLocations(
-  rows: Awaited<ReturnType<typeof getPlayerEASeasonStats>>,
-) {
+function resolveNhl26ShotLocations(rows: Awaited<ReturnType<typeof getPlayerEASeasonStats>>) {
   const nhl26 = rows.find((r) => r.gameTitleSlug === 'nhl26')
   return nhl26?.shotLocations ?? null
 }

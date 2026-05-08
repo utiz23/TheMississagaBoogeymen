@@ -164,7 +164,10 @@ export function ClubStatsTabs({ season }: { season: SeasonRow }) {
           <StatItem label="Games Played" value={season.gamesPlayed} />
           <StatItem label="Games Completed" value={season.gamesCompleted} />
           <StatItem label="Forced Completions" value={season.gamesCompletedFc} />
-          <StatItem label="Record" value={formatRecord(season.skaterWins, season.skaterLosses, season.skaterOtl)} />
+          <StatItem
+            label="Record"
+            value={formatRecord(season.skaterWins, season.skaterLosses, season.skaterOtl)}
+          />
           <StatItem label="Wins" value={season.skaterWins} />
           <StatItem label="Losses" value={season.skaterLosses} />
           <StatItem label="OTL" value={season.skaterOtl} />
@@ -193,11 +196,20 @@ export function ClubStatsTabs({ season }: { season: SeasonRow }) {
           <StatItem label="Shots" value={season.shots} />
           <StatItem label="Shots/GP" value={season.shotsPerGame ?? '—'} />
           <StatItem label="Shot Attempts" value={season.shotAttempts} />
-          <StatItem label="Shot on Net %" value={season.shotOnNetPct !== null ? `${season.shotOnNetPct}%` : '—'} />
-          <StatItem label="Shooting %" value={season.shotPct !== null ? `${season.shotPct}%` : '—'} />
+          <StatItem
+            label="Shot on Net %"
+            value={season.shotOnNetPct !== null ? `${season.shotOnNetPct}%` : '—'}
+          />
+          <StatItem
+            label="Shooting %"
+            value={season.shotPct !== null ? `${season.shotPct}%` : '—'}
+          />
           <StatItem label="Breakaways" value={season.breakaways} />
           <StatItem label="Breakaway Goals" value={season.breakawayGoals} />
-          <StatItem label="Breakaway %" value={season.breakawayPct !== null ? `${season.breakawayPct}%` : '—'} />
+          <StatItem
+            label="Breakaway %"
+            value={season.breakawayPct !== null ? `${season.breakawayPct}%` : '—'}
+          />
         </StatGrid>
       )}
 
@@ -205,7 +217,10 @@ export function ClubStatsTabs({ season }: { season: SeasonRow }) {
         <StatGrid>
           <StatItem label="Passes" value={season.passes} />
           <StatItem label="Pass Attempts" value={season.passAttempts} />
-          <StatItem label="Passing %" value={season.passPct !== null ? `${season.passPct}%` : '—'} />
+          <StatItem
+            label="Passing %"
+            value={season.passPct !== null ? `${season.passPct}%` : '—'}
+          />
           <StatItem label="Interceptions" value={season.interceptions} />
           <StatItem label="Dekes" value={season.dekes} />
           <StatItem label="Dekes Made" value={season.dekesMade} />
@@ -240,12 +255,28 @@ export function ClubStatsTabs({ season }: { season: SeasonRow }) {
           <StatItem label="FO Taken" value={season.faceoffTotal} />
           <StatItem label="FO Won" value={season.faceoffWins} />
           <StatItem label="FO Lost" value={season.faceoffLosses} />
-          <StatItem label="FO %" value={season.faceoffPct !== null ? `${season.faceoffPct}%` : '—'} />
+          <StatItem
+            label="FO %"
+            value={season.faceoffPct !== null ? `${season.faceoffPct}%` : '—'}
+          />
           <StatItem label="Pen Shot Attempts" value={season.penaltyShotAttempts} />
           <StatItem label="Pen Shot Goals" value={season.penaltyShotGoals} />
-          <StatItem label="Pen Shot %" value={season.penaltyShotPct !== null ? `${season.penaltyShotPct}%` : '—'} />
-          <StatItem label="Time on Ice" value={season.toiSeconds !== null ? formatPossession(season.toiSeconds) : '—'} />
-          <StatItem label="+/-" value={season.plusMinus >= 0 ? `+${season.plusMinus.toString()}` : season.plusMinus.toString()} />
+          <StatItem
+            label="Pen Shot %"
+            value={season.penaltyShotPct !== null ? `${season.penaltyShotPct}%` : '—'}
+          />
+          <StatItem
+            label="Time on Ice"
+            value={season.toiSeconds !== null ? formatPossession(season.toiSeconds) : '—'}
+          />
+          <StatItem
+            label="+/-"
+            value={
+              season.plusMinus >= 0
+                ? `+${season.plusMinus.toString()}`
+                : season.plusMinus.toString()
+            }
+          />
           <StatItem label="Prev Season G" value={season.prevGoals} />
           <StatItem label="Prev Season A" value={season.prevAssists} />
         </StatGrid>

@@ -21,10 +21,7 @@ export function StatsRecordCard({ seasonTable, gameLog }: Props) {
 
   return (
     <section className="space-y-4">
-      <SectionHeader
-        label="Stats Record"
-        subtitle="Career history and per-game appearances"
-      />
+      <SectionHeader label="Stats Record" subtitle="Career history and per-game appearances" />
 
       <div className="flex flex-wrap gap-1 border-b border-zinc-800">
         {TABS.map((t) => {

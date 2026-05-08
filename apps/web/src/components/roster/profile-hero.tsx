@@ -10,9 +10,7 @@ import { PositionDonut, type PositionBreakdownEntry } from '@/components/roster/
 import { BroadcastPanel } from '@/components/ui/broadcast-panel'
 import { formatPosition } from '@/lib/format'
 
-type PlayerGamertagHistoryRow = Awaited<
-  ReturnType<typeof getPlayerGamertagHistory>
->[number]
+type PlayerGamertagHistoryRow = Awaited<ReturnType<typeof getPlayerGamertagHistory>>[number]
 
 /**
  * Build the position breakdown from EA-reported per-position GP fields on the
@@ -145,9 +143,7 @@ export function ProfileHero({
               </span>
             )}
             {positionLabel !== null && (
-              <Pill className="border-zinc-600 bg-zinc-800/40 text-zinc-300">
-                {positionLabel}
-              </Pill>
+              <Pill className="border-zinc-600 bg-zinc-800/40 text-zinc-300">{positionLabel}</Pill>
             )}
             {archetypeLabel !== null && (
               <Pill className="border-rose-500/50 bg-rose-500/10 text-rose-300">
@@ -163,9 +159,7 @@ export function ProfileHero({
 
           {/* Bio */}
           {player.bio !== null && (
-            <p className="max-w-prose text-sm leading-relaxed text-zinc-400">
-              {player.bio}
-            </p>
+            <p className="max-w-prose text-sm leading-relaxed text-zinc-400">{player.bio}</p>
           )}
 
           {/* AKA strip */}
@@ -426,9 +420,7 @@ function aggregateCareer(
 
 function SkaterCareerStrip({ aggregate }: { aggregate: SkaterAggregate }) {
   const plusMinusStr =
-    aggregate.plusMinus >= 0
-      ? `+${aggregate.plusMinus.toString()}`
-      : aggregate.plusMinus.toString()
+    aggregate.plusMinus >= 0 ? `+${aggregate.plusMinus.toString()}` : aggregate.plusMinus.toString()
   return (
     <div className="grid grid-cols-5 gap-3">
       <StatCell label="GP" value={aggregate.gp} />

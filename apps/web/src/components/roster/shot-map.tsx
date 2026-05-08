@@ -28,34 +28,34 @@ export function ShotMap({ player, teamAverage, hasData }: Props) {
         <ModeTabs mode={mode} onChange={setMode} disabled={!hasData} />
       </div>
       <Panel className="p-4">
-      {hasData && player ? (
-        <>
-          <div className="mb-3">
-            <ViewToggle view={view} onChange={setView} />
-          </div>
-
-          {/* Map (fixed 360px) + NHL-EDGE-style stat panel beside it */}
-          <div className="flex items-start gap-10">
-            <div className="w-[360px] flex-shrink-0">
-              {view === 'ice' ? (
-                <IceMap player={player} teamAvg={teamAverage} mode={mode} />
-              ) : (
-                <NetMap player={player} teamAvg={teamAverage} mode={mode} />
-              )}
+        {hasData && player ? (
+          <>
+            <div className="mb-3">
+              <ViewToggle view={view} onChange={setView} />
             </div>
-            <div className="flex-shrink-0 pt-2">
-              <Breakdown player={player} teamAverage={teamAverage} view={view} mode={mode} />
-            </div>
-          </div>
 
-          <Legend mode={mode} />
-        </>
-      ) : (
-        <p className="py-8 text-center text-[12px] text-zinc-500">
-          Shot location data is only collected for{' '}
-          <span className="font-bold text-zinc-200">NHL 26</span>.
-        </p>
-      )}
+            {/* Map (fixed 360px) + NHL-EDGE-style stat panel beside it */}
+            <div className="flex items-start gap-10">
+              <div className="w-[360px] flex-shrink-0">
+                {view === 'ice' ? (
+                  <IceMap player={player} teamAvg={teamAverage} mode={mode} />
+                ) : (
+                  <NetMap player={player} teamAvg={teamAverage} mode={mode} />
+                )}
+              </div>
+              <div className="flex-shrink-0 pt-2">
+                <Breakdown player={player} teamAverage={teamAverage} view={view} mode={mode} />
+              </div>
+            </div>
+
+            <Legend mode={mode} />
+          </>
+        ) : (
+          <p className="py-8 text-center text-[12px] text-zinc-500">
+            Shot location data is only collected for{' '}
+            <span className="font-bold text-zinc-200">NHL 26</span>.
+          </p>
+        )}
       </Panel>
     </section>
   )
@@ -84,7 +84,9 @@ function ModeTabs({
           key={t.id}
           type="button"
           disabled={disabled}
-          onClick={() => { onChange(t.id) }}
+          onClick={() => {
+            onChange(t.id)
+          }}
           className={`font-condensed text-[10px] font-bold uppercase tracking-widest px-2 py-1 ${
             mode === t.id
               ? 'bg-[#c34353] text-white'
@@ -98,20 +100,16 @@ function ModeTabs({
   )
 }
 
-function ViewToggle({
-  view,
-  onChange,
-}: {
-  view: View
-  onChange: (v: View) => void
-}) {
+function ViewToggle({ view, onChange }: { view: View; onChange: (v: View) => void }) {
   return (
     <div className="inline-flex gap-1">
       {(['ice', 'net'] as View[]).map((v) => (
         <button
           key={v}
           type="button"
-          onClick={() => { onChange(v) }}
+          onClick={() => {
+            onChange(v)
+          }}
           className={`font-condensed text-[10px] font-bold uppercase tracking-widest px-2 py-1 ${
             view === v ? 'bg-zinc-200 text-zinc-900' : 'bg-zinc-800 text-zinc-400'
           }`}
@@ -211,25 +209,36 @@ function Breakdown({
 
     const pTotal = pArr.reduce((a, b) => a + b, 0)
     const tTotal = tArr.reduce((a, b) => a + b, 0)
-    let pH = 0, pM = 0, pL = 0
-    let tH = 0, tM = 0, tL = 0
+    let pH = 0,
+      pM = 0,
+      pL = 0
+    let tH = 0,
+      tM = 0,
+      tL = 0
 
     for (const [idxStr, zoneId] of Object.entries(EA_ICE_INDEX_TO_ZONE)) {
       const i = Number(idxStr) - 1
       const band = ICE_ZONE_SHAPES[zoneId].band
       const pv = pArr[i] ?? 0
       const tv = tArr[i] ?? 0
-      if (band === 'high_danger') { pH += pv; tH += tv }
-      else if (band === 'long_range') { pL += pv; tL += tv }
-      else { pM += pv; tM += tv }
+      if (band === 'high_danger') {
+        pH += pv
+        tH += tv
+      } else if (band === 'long_range') {
+        pL += pv
+        tL += tv
+      } else {
+        pM += pv
+        tM += tv
+      }
     }
 
     return (
       <ul className="space-y-5 font-condensed">
         <BreakdownRow label="All locations" player={pTotal} avg={tTotal} />
-        <BreakdownRow label="High danger"   player={pH}     avg={tH} />
-        <BreakdownRow label="Mid range"     player={pM}     avg={tM} />
-        <BreakdownRow label="Long range"    player={pL}     avg={tL} />
+        <BreakdownRow label="High danger" player={pH} avg={tH} />
+        <BreakdownRow label="Mid range" player={pM} avg={tM} />
+        <BreakdownRow label="Long range" player={pL} avg={tL} />
       </ul>
     )
   }
@@ -248,23 +257,15 @@ function Breakdown({
 
   return (
     <ul className="space-y-5 font-condensed">
-      <BreakdownRow label="All on-net"  player={pTotal}  avg={tTotal} />
-      <BreakdownRow label="Upper"       player={pUpper}  avg={tUpper} />
-      <BreakdownRow label="Lower"       player={pLower}  avg={tLower} />
-      <BreakdownRow label="Five hole"   player={pFive}   avg={tFive} />
+      <BreakdownRow label="All on-net" player={pTotal} avg={tTotal} />
+      <BreakdownRow label="Upper" player={pUpper} avg={tUpper} />
+      <BreakdownRow label="Lower" player={pLower} avg={tLower} />
+      <BreakdownRow label="Five hole" player={pFive} avg={tFive} />
     </ul>
   )
 }
 
-function BreakdownRow({
-  label,
-  player,
-  avg,
-}: {
-  label: string
-  player: number
-  avg: number
-}) {
+function BreakdownRow({ label, player, avg }: { label: string; player: number; avg: number }) {
   return (
     <li>
       <div className="flex items-baseline gap-3">
@@ -307,7 +308,10 @@ function playerPctRange(shots: number[], goals: number[]) {
     if (pct < min) min = pct
     if (pct > max) max = pct
   }
-  if (max === 0) { min = 0; max = 1 }
+  if (max === 0) {
+    min = 0
+    max = 1
+  }
   return { min, max }
 }
 

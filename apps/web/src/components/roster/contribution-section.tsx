@@ -7,14 +7,7 @@ const ROLE_CHIPS = {
   goalie: 'Goalie',
 } as const
 
-const CONTRIBUTION_COLORS = [
-  '#e11d48',
-  '#fbbf24',
-  '#38bdf8',
-  '#34d399',
-  '#a78bfa',
-  '#fb923c',
-]
+const CONTRIBUTION_COLORS = ['#e11d48', '#fbbf24', '#38bdf8', '#34d399', '#a78bfa', '#fb923c']
 
 interface Props {
   contribution: ProfileContributionSummary | null
@@ -64,11 +57,7 @@ export function ContributionSection({ contribution, selectedRole }: Props) {
   )
 }
 
-function ContributionDonut({
-  metrics,
-}: {
-  metrics: ProfileContributionSummary['metrics']
-}) {
+function ContributionDonut({ metrics }: { metrics: ProfileContributionSummary['metrics'] }) {
   const size = 180
   const strokeWidth = 20
   const cx = size / 2
@@ -86,15 +75,12 @@ function ContributionDonut({
   }, [])
 
   return (
-    <svg viewBox={`0 0 ${size.toString()} ${size.toString()}`} className="h-[160px] w-[160px]" aria-hidden>
-      <circle
-        cx={cx}
-        cy={cy}
-        r={r}
-        fill="none"
-        stroke="rgb(39 39 42)"
-        strokeWidth={strokeWidth}
-      />
+    <svg
+      viewBox={`0 0 ${size.toString()} ${size.toString()}`}
+      className="h-[160px] w-[160px]"
+      aria-hidden
+    >
+      <circle cx={cx} cy={cy} r={r} fill="none" stroke="rgb(39 39 42)" strokeWidth={strokeWidth} />
       {total > 0 &&
         metrics.map((metric, i) => {
           const segFull = (Math.max(metric.value, 0) / total) * circumference

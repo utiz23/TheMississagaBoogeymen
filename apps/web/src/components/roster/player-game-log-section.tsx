@@ -77,7 +77,9 @@ export function PlayerGameLogSection({
         </Panel>
       ) : rows.length === 0 ? (
         <EmptyPanel
-          message={gameMode !== null ? `No ${gameMode} games recorded yet.` : 'No games recorded yet.'}
+          message={
+            gameMode !== null ? `No ${gameMode} games recorded yet.` : 'No games recorded yet.'
+          }
         />
       ) : (
         <>
@@ -91,9 +93,7 @@ export function PlayerGameLogSection({
                 }}
                 className="rounded-full border border-zinc-700 bg-zinc-900/70 px-4 py-2 font-condensed text-xs font-semibold uppercase tracking-[0.18em] text-zinc-300 transition-colors hover:border-zinc-500 hover:text-zinc-100"
               >
-                {expanded
-                  ? 'Show less'
-                  : `Show ${hiddenCount.toString()} more`}
+                {expanded ? 'Show less' : `Show ${hiddenCount.toString()} more`}
               </button>
             </div>
           )}
@@ -190,8 +190,7 @@ function GameLogPaginationNav({
 }
 
 function GameLogTable({ rows, showMode }: { rows: PlayerGameLogRow[]; showMode: boolean }) {
-  const thBase =
-    'font-condensed text-[10px] font-semibold uppercase tracking-widest text-zinc-500'
+  const thBase = 'font-condensed text-[10px] font-semibold uppercase tracking-widest text-zinc-500'
   return (
     <Panel className="overflow-x-auto">
       <table className="w-full min-w-[520px]">
@@ -224,9 +223,14 @@ function GameLogDataRow({ row, showMode }: { row: PlayerGameLogRow; showMode: bo
 
   return (
     <tr className="border-b border-zinc-800/60 transition-colors last:border-0 hover:bg-surface-raised">
-      <td className="whitespace-nowrap py-2.5 pl-4 pr-2 font-condensed text-sm tabular-nums text-zinc-500">{formatMatchDate(row.playedAt)}</td>
+      <td className="whitespace-nowrap py-2.5 pl-4 pr-2 font-condensed text-sm tabular-nums text-zinc-500">
+        {formatMatchDate(row.playedAt)}
+      </td>
       <td className="max-w-[12rem] truncate px-2 py-2.5">
-        <Link href={`/games/${row.matchId.toString()}`} className="font-condensed text-sm font-semibold uppercase tracking-wide text-zinc-200 transition-colors hover:text-accent">
+        <Link
+          href={`/games/${row.matchId.toString()}`}
+          className="font-condensed text-sm font-semibold uppercase tracking-wide text-zinc-200 transition-colors hover:text-accent"
+        >
           {row.opponentName}
         </Link>
       </td>
@@ -241,15 +245,31 @@ function GameLogDataRow({ row, showMode }: { row: PlayerGameLogRow; showMode: bo
           )}
         </td>
       ) : null}
-      <td className="px-2 py-2.5"><ResultPill result={row.result} size="sm" /></td>
-      <td className="px-2 py-2.5 text-right font-condensed text-sm font-semibold tabular-nums text-zinc-100">{formatScore(row.scoreFor, row.scoreAgainst)}</td>
-      <td className="px-2 py-2.5 text-right font-condensed text-sm tabular-nums text-zinc-300">{row.isGoalie ? '—' : row.goals}</td>
-      <td className="px-2 py-2.5 text-right font-condensed text-sm tabular-nums text-zinc-300">{row.isGoalie ? '—' : row.assists}</td>
-      <td className="px-2 py-2.5 text-right font-condensed text-sm tabular-nums text-zinc-300">{row.isGoalie ? '—' : points}</td>
-      <td className="px-2 py-2.5 text-right font-condensed text-sm tabular-nums">
-        {row.isGoalie ? <span className="text-zinc-500">—</span> : <span className={signedClass(row.plusMinus)}>{formatSigned(row.plusMinus)}</span>}
+      <td className="px-2 py-2.5">
+        <ResultPill result={row.result} size="sm" />
       </td>
-      <td className="px-2 py-2.5 text-right font-condensed text-sm tabular-nums text-zinc-300">{row.isGoalie ? (row.saves ?? '—') : '—'}</td>
+      <td className="px-2 py-2.5 text-right font-condensed text-sm font-semibold tabular-nums text-zinc-100">
+        {formatScore(row.scoreFor, row.scoreAgainst)}
+      </td>
+      <td className="px-2 py-2.5 text-right font-condensed text-sm tabular-nums text-zinc-300">
+        {row.isGoalie ? '—' : row.goals}
+      </td>
+      <td className="px-2 py-2.5 text-right font-condensed text-sm tabular-nums text-zinc-300">
+        {row.isGoalie ? '—' : row.assists}
+      </td>
+      <td className="px-2 py-2.5 text-right font-condensed text-sm tabular-nums text-zinc-300">
+        {row.isGoalie ? '—' : points}
+      </td>
+      <td className="px-2 py-2.5 text-right font-condensed text-sm tabular-nums">
+        {row.isGoalie ? (
+          <span className="text-zinc-500">—</span>
+        ) : (
+          <span className={signedClass(row.plusMinus)}>{formatSigned(row.plusMinus)}</span>
+        )}
+      </td>
+      <td className="px-2 py-2.5 text-right font-condensed text-sm tabular-nums text-zinc-300">
+        {row.isGoalie ? (row.saves ?? '—') : '—'}
+      </td>
     </tr>
   )
 }
