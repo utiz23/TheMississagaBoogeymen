@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import type { ReactNode } from 'react'
+import { SectionHeader } from '@/components/ui/section-header'
 
 type Tab = 'season' | 'game-log'
 
@@ -20,14 +21,10 @@ export function StatsRecordCard({ seasonTable, gameLog }: Props) {
 
   return (
     <section className="space-y-4">
-      <div className="space-y-1">
-        <h2 className="font-condensed text-sm font-bold uppercase tracking-[0.2em] text-zinc-100">
-          Stats Record
-        </h2>
-        <p className="text-[11px] text-zinc-500">
-          Career history and per-game appearances.
-        </p>
-      </div>
+      <SectionHeader
+        label="Stats Record"
+        subtitle="Career history and per-game appearances"
+      />
 
       <div className="flex flex-wrap gap-1 border-b border-zinc-800">
         {TABS.map((t) => {
@@ -36,9 +33,11 @@ export function StatsRecordCard({ seasonTable, gameLog }: Props) {
             <button
               key={t.key}
               type="button"
-              onClick={() => { setActive(t.key) }}
+              onClick={() => {
+                setActive(t.key)
+              }}
               className={[
-                'border-b-2 px-3 py-2 font-condensed text-xs font-bold uppercase tracking-[0.16em] transition-colors',
+                'border-b-2 px-3 py-2 font-condensed text-xs font-bold uppercase tracking-[0.18em] transition-colors',
                 isActive
                   ? 'border-accent text-accent'
                   : 'border-transparent text-zinc-500 hover:text-zinc-300',

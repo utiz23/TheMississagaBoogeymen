@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import type { PlayerCareerSeasonRow } from '@eanhl/db/queries'
+import { Panel } from '@/components/ui/panel'
 
 // ─── Public component ─────────────────────────────────────────────────────────
 
@@ -24,11 +25,11 @@ export function CareerSeasonsTable({ seasons, selectedRole }: Props) {
 
   if (filtered.length === 0) {
     return (
-      <div className="flex min-h-[8rem] items-center justify-center border border-zinc-800 bg-surface">
-        <p className="text-sm text-zinc-500">
+      <Panel className="flex min-h-[8rem] items-center justify-center">
+        <p className="font-condensed text-sm uppercase tracking-wider text-zinc-500">
           No career data for {selectedRole} role yet.
         </p>
-      </div>
+      </Panel>
     )
   }
 
@@ -43,11 +44,11 @@ export function CareerSeasonsTable({ seasons, selectedRole }: Props) {
 
 function SkaterTable({ rows }: { rows: PlayerCareerSeasonRow[] }) {
   return (
-    <div className="overflow-x-auto">
+    <Panel className="overflow-x-auto">
       <table className="w-full min-w-[820px]">
         <thead>
           <tr className="border-b border-zinc-800 bg-surface-raised">
-            <th className="py-2 pl-4 pr-2 text-left text-xs font-semibold uppercase tracking-wider text-zinc-600">
+            <th className="py-2 pl-4 pr-2 text-left font-condensed text-[10px] font-semibold uppercase tracking-widest text-zinc-500">
               Season
             </th>
             <SkaterHeader label="GP" />
@@ -62,7 +63,7 @@ function SkaterTable({ rows }: { rows: PlayerCareerSeasonRow[] }) {
             <SkaterHeader label="PIM" />
             <SkaterHeader label="TA" />
             <SkaterHeader label="GV" />
-            <th className="py-2 pl-2 pr-4 text-right text-xs font-semibold uppercase tracking-wider text-zinc-600">
+            <th className="py-2 pl-2 pr-4 text-right font-condensed text-[10px] font-semibold uppercase tracking-widest text-zinc-500">
               Source
             </th>
           </tr>
@@ -73,13 +74,13 @@ function SkaterTable({ rows }: { rows: PlayerCareerSeasonRow[] }) {
           ))}
         </tbody>
       </table>
-    </div>
+    </Panel>
   )
 }
 
 function SkaterHeader({ label }: { label: string }) {
   return (
-    <th className="px-2 py-2 text-right text-xs font-semibold uppercase tracking-wider text-zinc-600">
+    <th className="px-2 py-2 text-right font-condensed text-[10px] font-semibold uppercase tracking-widest text-zinc-500">
       {label}
     </th>
   )
@@ -99,7 +100,7 @@ function SkaterRow({ row }: { row: PlayerCareerSeasonRow }) {
       <td className="py-2.5 pl-4 pr-2">
         <Link
           href={`/stats?title=${row.gameTitleSlug}`}
-          className="text-sm font-medium text-zinc-200 transition-colors hover:text-accent"
+          className="font-condensed text-sm font-semibold uppercase tracking-wide text-zinc-200 transition-colors hover:text-accent"
         >
           {row.gameTitleName}
         </Link>
@@ -146,11 +147,11 @@ function PlusMinusCell({ value }: { value: number }) {
 
 function GoalieTable({ rows }: { rows: PlayerCareerSeasonRow[] }) {
   return (
-    <div className="overflow-x-auto">
+    <Panel className="overflow-x-auto">
       <table className="w-full min-w-[560px]">
         <thead>
           <tr className="border-b border-zinc-800 bg-surface-raised">
-            <th className="py-2 pl-4 pr-2 text-left text-xs font-semibold uppercase tracking-wider text-zinc-600">
+            <th className="py-2 pl-4 pr-2 text-left font-condensed text-[10px] font-semibold uppercase tracking-widest text-zinc-500">
               Season
             </th>
             <SkaterHeader label="GP" />
@@ -160,7 +161,7 @@ function GoalieTable({ rows }: { rows: PlayerCareerSeasonRow[] }) {
             <SkaterHeader label="SV%" />
             <SkaterHeader label="GAA" />
             <SkaterHeader label="SO" />
-            <th className="py-2 pl-2 pr-4 text-right text-xs font-semibold uppercase tracking-wider text-zinc-600">
+            <th className="py-2 pl-2 pr-4 text-right font-condensed text-[10px] font-semibold uppercase tracking-widest text-zinc-500">
               Source
             </th>
           </tr>
@@ -171,7 +172,7 @@ function GoalieTable({ rows }: { rows: PlayerCareerSeasonRow[] }) {
           ))}
         </tbody>
       </table>
-    </div>
+    </Panel>
   )
 }
 
@@ -185,7 +186,7 @@ function GoalieRow({ row }: { row: PlayerCareerSeasonRow }) {
       <td className="py-2.5 pl-4 pr-2">
         <Link
           href={`/stats?title=${row.gameTitleSlug}`}
-          className="text-sm font-medium text-zinc-200 transition-colors hover:text-accent"
+          className="font-condensed text-sm font-semibold uppercase tracking-wide text-zinc-200 transition-colors hover:text-accent"
         >
           {row.gameTitleName}
         </Link>
@@ -209,13 +210,13 @@ function GoalieRow({ row }: { row: PlayerCareerSeasonRow }) {
 function SourceBadge({ source }: { source: 'ea' | 'historical' }) {
   if (source === 'ea') {
     return (
-      <span className="inline-flex items-center rounded border border-accent/40 bg-accent/10 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.16em] text-accent">
+      <span className="inline-flex items-center border border-accent/40 bg-accent/10 px-1.5 py-0.5 font-condensed text-[9px] font-bold uppercase tracking-[0.18em] text-accent">
         EA
       </span>
     )
   }
   return (
-    <span className="inline-flex items-center rounded border border-zinc-700 bg-zinc-800/50 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.16em] text-zinc-500">
+    <span className="inline-flex items-center border border-zinc-700 bg-zinc-800/50 px-1.5 py-0.5 font-condensed text-[9px] font-bold uppercase tracking-[0.18em] text-zinc-500">
       Archive
     </span>
   )
