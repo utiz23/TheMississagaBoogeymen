@@ -25,6 +25,8 @@ import {
 } from '@eanhl/db/queries'
 import { TeamShotMap } from '@/components/stats/team-shot-map'
 import { StatCard } from '@/components/ui/stat-card'
+import { Panel } from '@/components/ui/panel'
+import { SectionHeader } from '@/components/ui/section-header'
 import { MatchRow } from '@/components/matches/match-row'
 import { SkaterStatsTable } from '@/components/stats/skater-stats-table'
 import { GoalieStatsTable } from '@/components/stats/goalie-stats-table'
@@ -150,10 +152,8 @@ async function ActiveStats({
         <>
           <RecordCard stats={clubStats} />
 
-          <section>
-            <h2 className="mb-3 font-condensed text-sm font-semibold uppercase tracking-wider text-zinc-500">
-              Team Averages
-            </h2>
+          <section className="space-y-3">
+            <SectionHeader label="Team Averages" />
             <div className="grid grid-cols-2 gap-px sm:grid-cols-3 lg:grid-cols-6">
               <StatCard
                 label="Goals For"
@@ -223,9 +223,7 @@ async function ActiveStats({
       )}
 
       <section className="space-y-6">
-        <h2 className="font-condensed text-sm font-semibold uppercase tracking-wider text-zinc-500">
-          Chemistry
-        </h2>
+        <SectionHeader label="Chemistry" />
         <ChemistrySection title="Team Record With / Without">
           <WithWithoutTable rows={withWithoutRows} />
         </ChemistrySection>
@@ -235,11 +233,9 @@ async function ActiveStats({
       </section>
 
       {recentMatches.length > 0 && (
-        <section>
-          <h2 className="mb-3 font-condensed text-sm font-semibold uppercase tracking-wider text-zinc-500">
-            Recent Games
-          </h2>
-          <div className="divide-y divide-zinc-800/60 overflow-hidden border border-zinc-800 bg-surface">
+        <section className="space-y-3">
+          <SectionHeader label="Recent Games" />
+          <div className="space-y-2">
             {recentMatches.map((match, i) => (
               <MatchRow key={match.id} match={match} isMostRecent={i === 0} />
             ))}
@@ -326,7 +322,7 @@ async function ArchiveStats({
       {/* PRIMARY: club-scoped member totals. */}
       <section className="space-y-4">
         <div className="space-y-1">
-          <h2 className="font-condensed text-base font-semibold uppercase tracking-wider text-zinc-300">
+          <h2 className="font-condensed text-base font-semibold uppercase tracking-widest text-zinc-300">
             Club-scoped totals
           </h2>
           <p className="text-xs text-zinc-500">
@@ -357,7 +353,7 @@ async function ArchiveStats({
       {/* SECONDARY: player-card season totals. */}
       <section className="space-y-4 border-t border-zinc-800 pt-6">
         <div className="space-y-1">
-          <h2 className="font-condensed text-base font-semibold uppercase tracking-wider text-zinc-300">
+          <h2 className="font-condensed text-base font-semibold uppercase tracking-widest text-zinc-300">
             Player-card season totals
           </h2>
           <p className="text-xs text-zinc-500">
@@ -414,7 +410,7 @@ function ArchiveClubTeamSection({
   return (
     <section className="space-y-4 border-t border-zinc-800 pt-6">
       <div className="space-y-1">
-        <h2 className="font-condensed text-base font-semibold uppercase tracking-wider text-zinc-300">
+        <h2 className="font-condensed text-base font-semibold uppercase tracking-widest text-zinc-300">
           Club team records
         </h2>
         <p className="text-xs text-zinc-500">
@@ -486,10 +482,12 @@ function PageShell({
   return (
     <div className="space-y-8">
       <div className="flex items-baseline gap-3">
-        <h1 className="font-condensed text-2xl font-semibold uppercase tracking-wide text-zinc-50">
+        <h1 className="font-condensed text-2xl font-semibold uppercase tracking-widest text-zinc-50">
           Stats
         </h1>
-        <span className="text-sm text-zinc-500">{gameTitle.name}</span>
+        <span className="font-condensed text-sm uppercase tracking-wider text-zinc-500">
+          {gameTitle.name}
+        </span>
       </div>
 
       {children}
@@ -503,10 +501,8 @@ function RecordCard({ stats }: { stats: ClubGameTitleStats }) {
   const pct = winPct(stats.wins, stats.losses, stats.otl)
 
   return (
-    <section>
-      <h2 className="mb-3 font-condensed text-sm font-semibold uppercase tracking-wider text-zinc-500">
-        Record
-      </h2>
+    <section className="space-y-3">
+      <SectionHeader label="Record" />
       <div className="border border-l-4 border-zinc-800 border-l-accent bg-surface px-6 py-5">
         <div className="flex flex-wrap items-end gap-x-10 gap-y-4">
           <div className="flex items-end gap-6 font-condensed font-bold leading-none tabular">
