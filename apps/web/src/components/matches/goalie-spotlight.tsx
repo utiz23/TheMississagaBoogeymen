@@ -1,7 +1,8 @@
 import Link from 'next/link'
 import type { GoalieSpotlight } from '@/lib/match-recap'
 import { PositionPill } from './position-pill'
-import { SectionHeader } from './top-performers'
+import { SectionHeader } from '@/components/ui/section-header'
+import { Panel } from '@/components/ui/panel'
 
 interface GoalieSpotlightProps {
   goalies: GoalieSpotlight[]
@@ -11,8 +12,8 @@ export function GoalieSpotlightSection({ goalies }: GoalieSpotlightProps) {
   if (goalies.length === 0) return null
 
   return (
-    <section>
-      <SectionHeader title="Goalie" />
+    <section className="space-y-3">
+      <SectionHeader label="Goalie" />
       <div className="grid gap-3 sm:grid-cols-2">
         {goalies.map((g) => (
           <GoalieCard key={g.playerId} goalie={g} />
@@ -44,10 +45,8 @@ function GoalieCard({ goalie }: { goalie: GoalieSpotlight }) {
   }
 
   return (
-    <Link
-      href={`/roster/${goalie.playerId.toString()}`}
-      className="group block border border-zinc-800 bg-surface p-4 transition-colors hover:border-zinc-700 hover:bg-surface-raised"
-    >
+    <Link href={`/roster/${goalie.playerId.toString()}`} className="group block">
+      <Panel hoverable className="p-4">
       <div className="flex items-center gap-2">
         <PositionPill label="G" position="goalie" isGoalie={true} />
         <span className="truncate font-condensed text-sm font-bold uppercase tracking-wide text-zinc-100 group-hover:text-zinc-50">
@@ -67,16 +66,17 @@ function GoalieCard({ goalie }: { goalie: GoalieSpotlight }) {
         <div className="mt-3 grid grid-cols-2 gap-x-6 gap-y-1.5 border-t border-zinc-800/60 pt-3">
           {advancedRows.map((r) => (
             <div key={r.label} className="flex items-baseline justify-between gap-2">
-              <span className="text-[10px] font-semibold uppercase tracking-[0.15em] text-zinc-600">
+              <span className="font-condensed text-[10px] font-semibold uppercase tracking-[0.22em] text-zinc-500">
                 {r.label}
               </span>
-              <span className="font-condensed text-sm font-semibold tabular text-zinc-300">
+              <span className="font-condensed text-sm font-semibold tabular-nums text-zinc-300">
                 {r.value}
               </span>
             </div>
           ))}
         </div>
       ) : null}
+      </Panel>
     </Link>
   )
 }
@@ -91,12 +91,12 @@ function Stat({
   featured?: boolean
 }) {
   return (
-    <div className="flex flex-col items-center gap-0.5 rounded-sm border border-zinc-800/80 bg-zinc-950/30 py-2">
-      <span className="text-[10px] font-semibold uppercase tracking-[0.15em] text-zinc-600">
+    <div className="flex flex-col items-center gap-0.5 border border-zinc-800/80 bg-zinc-950/30 py-2">
+      <span className="font-condensed text-[10px] font-semibold uppercase tracking-[0.22em] text-zinc-500">
         {label}
       </span>
       <span
-        className={`font-condensed font-black tabular leading-none ${
+        className={`font-condensed font-black tabular-nums leading-none ${
           featured ? 'text-xl text-accent' : 'text-lg text-zinc-100'
         }`}
       >

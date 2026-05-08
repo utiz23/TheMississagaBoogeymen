@@ -1,5 +1,6 @@
 import type { BoxScoreGroup, BoxScoreRow } from '@/lib/match-recap'
-import { SectionHeader } from './top-performers'
+import { SectionHeader } from '@/components/ui/section-header'
+import { Panel } from '@/components/ui/panel'
 
 interface TeamStatsProps {
   rows: BoxScoreGroup[]
@@ -9,21 +10,21 @@ export function TeamStats({ rows }: TeamStatsProps) {
   if (rows.length === 0) return null
 
   return (
-    <section>
-      <SectionHeader title="Box Score" subtitle="team totals and aggregate stats" />
-      <div className="border border-zinc-800 bg-surface px-4 py-4">
+    <section className="space-y-3">
+      <SectionHeader label="Box Score" subtitle="Team totals and aggregate stats" />
+      <Panel className="px-4 py-4">
         {/* Side labels */}
         <div className="mb-3 grid grid-cols-[5rem_1fr_5rem] items-center gap-3">
-          <span className="text-right font-condensed text-xs font-bold uppercase tracking-[0.2em] text-accent">BGM</span>
+          <span className="text-right font-condensed text-xs font-bold uppercase tracking-widest text-accent">BGM</span>
           <span />
-          <span className="text-left font-condensed text-xs font-bold uppercase tracking-[0.2em] text-zinc-500">OPP</span>
+          <span className="text-left font-condensed text-xs font-bold uppercase tracking-widest text-zinc-500">OPP</span>
         </div>
         <div className="space-y-5">
           {rows.map((group) => (
             <Group key={group.title} group={group} />
           ))}
         </div>
-      </div>
+      </Panel>
     </section>
   )
 }
@@ -57,13 +58,13 @@ function Row({ row, isLast }: { row: BoxScoreRow; isLast: boolean }) {
   return (
     <div className={`space-y-2 py-2.5 ${isLast ? '' : 'border-b border-zinc-800/60'}`}>
       <div className="grid grid-cols-[5rem_1fr_5rem] items-center gap-3">
-        <span className="text-right font-condensed text-xl font-bold tabular text-accent">
+        <span className="text-right font-condensed text-xl font-bold tabular-nums text-accent">
           {row.us}
         </span>
         <span className="text-center text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">
           {row.label}
         </span>
-        <span className="text-left font-condensed text-xl font-bold tabular text-zinc-400">
+        <span className="text-left font-condensed text-xl font-bold tabular-nums text-zinc-400">
           {row.them ?? '—'}
         </span>
       </div>

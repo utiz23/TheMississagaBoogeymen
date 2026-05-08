@@ -1,6 +1,7 @@
 import type { PossessionEdge } from '@/lib/match-recap'
 import { formatSeconds } from '@/lib/match-recap'
-import { SectionHeader } from './top-performers'
+import { SectionHeader } from '@/components/ui/section-header'
+import { Panel } from '@/components/ui/panel'
 
 interface PossessionEdgeProps {
   edge: PossessionEdge
@@ -23,10 +24,10 @@ export function PossessionEdgeBar({ edge }: PossessionEdgeProps) {
           : 'Shots 70% · Hits 30% (no TOA or faceoff data)'
 
   return (
-    <section>
-      <SectionHeader title="Deserve To Win" subtitle="computed from team totals" />
+    <section className="space-y-3">
+      <SectionHeader label="Deserve To Win" subtitle="Computed from team totals" />
 
-      <div className="border border-zinc-800 bg-surface px-4 py-5">
+      <Panel className="px-4 py-5">
         {/* Gauge row */}
         <div className="flex items-end justify-between gap-2">
           <Side label={OUR_LABEL} value={bgmRaw} highlighted={bgmWins} />
@@ -54,10 +55,10 @@ export function PossessionEdgeBar({ edge }: PossessionEdgeProps) {
           />
         </div>
 
-        <p className="mt-3 text-[10px] font-medium uppercase tracking-[0.18em] text-zinc-600">
+        <p className="mt-3 font-condensed text-[10px] font-semibold uppercase tracking-[0.22em] text-zinc-600">
           Weights: {formula}
         </p>
-      </div>
+      </Panel>
     </section>
   )
 }
@@ -79,7 +80,7 @@ function Side({
         {label}
       </span>
       <span
-        className={`font-condensed text-4xl font-black tabular leading-none ${
+        className={`font-condensed text-4xl font-black tabular-nums leading-none ${
           highlighted ? 'text-accent' : 'text-zinc-500'
         }`}
       >
@@ -192,7 +193,7 @@ function Input({
         {label}
         {note ? <span className="ml-1 text-zinc-700 normal-case tracking-normal">({note})</span> : null}
       </span>
-      <span className="font-condensed text-sm font-bold tabular text-zinc-300">
+      <span className="font-condensed text-sm font-bold tabular-nums text-zinc-300">
         {them !== null ? `${us.toString()}-${them.toString()}` : us.toString()}
       </span>
     </div>
