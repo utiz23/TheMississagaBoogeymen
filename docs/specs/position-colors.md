@@ -6,22 +6,22 @@ This file defines the canonical position color palette for all position indicato
 
 | Position | Key | Hex |
 |---|---|---|
-| Center | `center` | `#c34353` |
-| Left Wing | `leftWing` | `#6ed565` |
-| Right Wing | `rightWing` | `#656cbe` |
-| Left Defense / D1 | `defenseLeft` | `#74f2df` |
-| Right Defense / D2 | `defenseRight` | `#ecef6d` |
-| Goaltender | `goalie` | `#a587cd` |
+| Center | `center` | `#c0061c` | #c0061c
+| Left Wing | `leftWing` | `#23cf1d` | #23cf1d
+| Right Wing | `rightWing` | `#2659cf` | #2659cf
+| Left Defense / D1 | `defenseLeft` | `#13dfc8` | #13dfc8
+| Right Defense / D2 | `defenseRight` | `#ece335` | #ece335
+| Goaltender | `goalie` | `#6f00a5` | #6f00a5
 
 ## Opponent / Away Side
 
 | Position | Key | Hex |
 |---|---|---|
-| Center | `center` | `#cdbf69` |
-| Left Wing | `leftWing` | `#a8508c` |
-| Right Wing | `rightWing` | `#5c6959` |
-| Left Defense / D1 | `defenseLeft` | `#db8b67` |
-| Right Defense / D2 | `defenseRight` | `#d0d963` |
+| Center | `center` | `#cdbf69` | #cdbf69
+| Left Wing | `leftWing` | `#a8508c` | #a8508c
+| Right Wing | `rightWing` | `#5c6959` | #5c6959
+| Left Defense / D1 | `defenseLeft` | `#db8b67` | #db8b67
+| Right Defense / D2 | `defenseRight` | `#d0d963` | #d0d963
 | Goaltender | `goalie` | `#e8aee9` |
 
 ## Pill Rendering
