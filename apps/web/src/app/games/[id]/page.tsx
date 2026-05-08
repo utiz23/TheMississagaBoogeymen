@@ -18,6 +18,7 @@ import { TeamStats } from '@/components/matches/team-stats'
 import { GoalieSpotlightSection } from '@/components/matches/goalie-spotlight'
 import { ScoresheetSection } from '@/components/matches/scoresheet'
 import { ContextFooter } from '@/components/matches/context-footer'
+import { Panel } from '@/components/ui/panel'
 import {
   buildAllTeamScores,
   buildBoxScore,
@@ -111,7 +112,7 @@ export default async function GameDetailPage({ params }: Props) {
       {/* Back link */}
       <Link
         href="/games"
-        className="inline-flex items-center gap-1.5 text-sm text-zinc-500 transition-colors hover:text-zinc-300"
+        className="inline-flex items-center gap-1.5 font-condensed text-xs font-semibold uppercase tracking-wider text-zinc-500 transition-colors hover:text-zinc-300"
       >
         <span aria-hidden>←</span> Games
       </Link>
@@ -198,18 +199,18 @@ function ordinal(n: number): string {
 
 function ErrorState({ message }: { message: string }) {
   return (
-    <div className="flex min-h-[12rem] items-center justify-center border border-zinc-800 bg-surface">
-      <p className="text-sm text-zinc-500">{message}</p>
-    </div>
+    <Panel className="flex min-h-[12rem] items-center justify-center">
+      <p className="font-condensed text-sm uppercase tracking-wider text-zinc-500">{message}</p>
+    </Panel>
   )
 }
 
 function EmptyScoresheet() {
   return (
-    <section>
-      <div className="flex min-h-[6rem] items-center justify-center border border-zinc-800 bg-surface">
-        <p className="text-sm text-zinc-500">No player stats recorded for this game.</p>
-      </div>
-    </section>
+    <Panel className="flex min-h-[6rem] items-center justify-center">
+      <p className="font-condensed text-sm uppercase tracking-wider text-zinc-500">
+        No player stats recorded for this game.
+      </p>
+    </Panel>
   )
 }
