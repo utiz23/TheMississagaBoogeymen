@@ -15,7 +15,6 @@ import { GAME_MODE } from '@eanhl/db'
 import { PlayerGameLogSection } from '@/components/roster/player-game-log-section'
 import { ClubStatsTabs } from '@/components/roster/club-stats-tabs'
 import { ContributionSection } from '@/components/roster/contribution-section'
-import { RecentFormStrip } from '@/components/roster/recent-form-strip'
 import { TrendChart } from '@/components/roster/trend-chart'
 import { ProfileHero } from '@/components/roster/profile-hero'
 import { CareerSeasonsTable } from '@/components/roster/career-seasons-table'
@@ -124,8 +123,6 @@ export default async function PlayerPage({ params, searchParams }: Props) {
 
   const selectedContribution =
     selectedRole === 'skater' ? overview.skaterContribution : overview.goalieContribution
-  const selectedRecentForm =
-    selectedRole === 'skater' ? overview.skaterRecentForm : overview.goalieRecentForm
 
   // Trend: role-filtered, oldest first, max 15
   const trendGames = [...overview.trendGames]
@@ -162,8 +159,6 @@ export default async function PlayerPage({ params, searchParams }: Props) {
         </div>
       )}
 
-      <RecentFormStrip recentForm={selectedRecentForm} selectedRole={selectedRole} />
-
       <StatsRecordCard
         seasonTable={<CareerSeasonsTable seasons={careerSeasons} selectedRole={selectedRole} />}
         gameLog={
@@ -189,6 +184,14 @@ export default async function PlayerPage({ params, searchParams }: Props) {
 
       <ContributionSection contribution={selectedContribution} selectedRole={selectedRole} />
 
+      {overview.primaryRole !== 'goalie' && (
+        <ShotMap
+          player={resolveNhl26ShotLocations(eaStats)}
+          teamAverage={teamAverage ?? emptyShotLocations()}
+          hasData={teamAverage !== null && resolveNhl26ShotLocations(eaStats) !== null}
+        />
+      )}
+
       <ChartsVisualsSection
         trendChart={
           trendGames.length > 0 ? (
@@ -197,15 +200,6 @@ export default async function PlayerPage({ params, searchParams }: Props) {
             <ComingSoonCard
               title="Recent Form Trend"
               description="Per-game performance bars for the last 15 appearances. Will populate once enough game data is available."
-            />
-          )
-        }
-        shotMap={
-          overview.primaryRole === 'goalie' ? undefined : (
-            <ShotMap
-              player={resolveNhl26ShotLocations(eaStats)}
-              teamAverage={teamAverage ?? emptyShotLocations()}
-              hasData={teamAverage !== null && resolveNhl26ShotLocations(eaStats) !== null}
             />
           )
         }

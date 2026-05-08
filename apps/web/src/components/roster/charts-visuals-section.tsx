@@ -3,10 +3,9 @@ import { ComingSoonCard } from '@/components/roster/coming-soon-card'
 
 interface Props {
   trendChart: ReactNode
-  shotMap?: ReactNode
 }
 
-export function ChartsVisualsSection({ trendChart, shotMap }: Props) {
+export function ChartsVisualsSection({ trendChart }: Props) {
   return (
     <section className="space-y-4">
       <div className="space-y-1">
@@ -14,12 +13,11 @@ export function ChartsVisualsSection({ trendChart, shotMap }: Props) {
           Charts & Visuals
         </h2>
         <p className="text-[11px] text-zinc-500">
-          Trend analysis, shot maps, archetype radar, and awards.
+          Trend analysis, archetype radar, and awards.
         </p>
       </div>
       <div className="grid gap-4 lg:grid-cols-2">
         {trendChart}
-        {shotMap ?? null}
         <ComingSoonCard
           title="Overall Archetype"
           description="Radar visualization of player score across all six contribution dimensions."
