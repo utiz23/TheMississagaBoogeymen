@@ -6,6 +6,8 @@ import { EA_ICE_INDEX_TO_ZONE, ICE_ZONE_SHAPES } from '@/components/roster/shot-
 import type { IceZoneId, NetZoneId } from '@/components/roster/shot-map-zones'
 import { IceMapSvg, NetMapSvg } from '@/components/roster/shot-map-renderer'
 import { volumeColor, shootingPctColor } from '@/lib/shot-map-colors'
+import { BroadcastPanel } from '@/components/ui/broadcast-panel'
+import { SectionHeader } from '@/components/ui/section-header'
 
 type View = 'ice' | 'net'
 type Mode = 'shots' | 'goals' | 'shootingPct'
@@ -20,17 +22,12 @@ export function TeamShotMap({ aggregates, hasData }: Props) {
   const [mode, setMode] = useState<Mode>('shots')
 
   return (
-    <section className="border border-zinc-800 bg-surface p-4">
-      <div className="mb-3 flex items-center justify-between">
-        <div>
-          <h3 className="font-condensed text-xs font-bold uppercase tracking-[0.2em] text-zinc-100">
-            Shot Map · Team
-          </h3>
-          <p className="text-[9px] uppercase tracking-widest text-zinc-500">All Modes</p>
-        </div>
+    <section className="space-y-3">
+      <div className="flex items-center justify-between gap-3">
+        <SectionHeader label="Team Shot Map" subtitle="All modes · NHL 26" />
         <ModeTabs mode={mode} onChange={setMode} disabled={!hasData} />
       </div>
-
+      <BroadcastPanel className="p-4">
       {hasData ? (
         <>
           <div className="mb-3">
@@ -53,11 +50,12 @@ export function TeamShotMap({ aggregates, hasData }: Props) {
           <Legend mode={mode} />
         </>
       ) : (
-        <p className="py-8 text-center text-[12px] text-zinc-500">
+        <p className="py-8 text-center font-condensed text-[12px] uppercase tracking-wider text-zinc-500">
           Shot location data is only collected for{' '}
           <span className="font-bold text-zinc-200">NHL 26</span>.
         </p>
       )}
+      </BroadcastPanel>
     </section>
   )
 }
