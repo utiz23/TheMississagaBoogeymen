@@ -1,6 +1,6 @@
-import type { ReactNode } from 'react'
 import type { getPlayerProfileOverview } from '@eanhl/db/queries'
-import { SectionHeading } from '@/components/roster/section-heading'
+import { SectionHeader } from '@/components/ui/section-header'
+import { Panel } from '@/components/ui/panel'
 
 type Overview = NonNullable<Awaited<ReturnType<typeof getPlayerProfileOverview>>>
 type TrendGame = Overview['trendGames'][number]
@@ -28,13 +28,13 @@ export function TrendChart({ trendGames, selectedRole }: Props) {
 
   return (
     <section id="form-chart" className="space-y-4 scroll-mt-24">
-      <SectionHeading
-        title="Recent Form"
+      <SectionHeader
+        label="Recent Form"
         subtitle={`Last ${trendGames.length.toString()} ${selectedRole} appearances · oldest to newest`}
       />
 
-      <SurfaceCard>
-        <p className="mb-3 text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-600">
+      <Panel className="p-4">
+        <p className="mb-3 font-condensed text-[10px] font-semibold uppercase tracking-[0.22em] text-zinc-500">
           {selectedRole === 'goalie' ? 'Saves per game' : 'Points per game'}
         </p>
         <svg
@@ -81,8 +81,10 @@ export function TrendChart({ trendGames, selectedRole }: Props) {
             )
           })}
         </svg>
-        <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-zinc-600">
-          <span>avg {avg.toFixed(1)} / game</span>
+        <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 font-condensed text-[11px] uppercase tracking-wider text-zinc-600">
+          <span>
+            avg <span className="tabular-nums text-zinc-400">{avg.toFixed(1)}</span> / game
+          </span>
           <div className="ml-auto flex items-center gap-2">
             <span className="flex items-center gap-1">
               <span className="inline-block h-2 w-2 rounded-sm bg-emerald-500 opacity-85" />
@@ -98,17 +100,7 @@ export function TrendChart({ trendGames, selectedRole }: Props) {
             </span>
           </div>
         </div>
-      </SurfaceCard>
+      </Panel>
     </section>
   )
-}
-
-function SurfaceCard({
-  children,
-  className = '',
-}: {
-  children: ReactNode
-  className?: string
-}) {
-  return <div className={`border border-zinc-800 bg-surface p-4 ${className}`}>{children}</div>
 }
