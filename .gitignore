@@ -40,6 +40,20 @@ tools/historical_import/output_*/
 # Debug HTML scrapes from local development
 /roster-main-*.html
 
+# Debug screenshots and snapshot dumps at repo root (Playwright/Chrome DevTools output)
+/*.png
+/*.txt
+
+# Accidental browser-download duplicates ("foo (1).ext", "foo (2).ext")
+* (1).*
+* (2).*
+
+# Design system hand-off zips (extracted to docs/design/boogeymen-system/ as needed)
+*.zip
+
+# Staged design system reference (source-of-truth lives in apps/web; this is local working copy)
+docs/design/boogeymen-system/
+
 # Research artifacts — large captures not suited for git
 research/**/*.har
 research/**/*_files/
