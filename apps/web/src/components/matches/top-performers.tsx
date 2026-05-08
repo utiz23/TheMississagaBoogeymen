@@ -6,6 +6,8 @@ import type { PlayerScoreEntry, ScoreFactor, TopPerformer } from '@/lib/match-re
 import { formatSavePct } from '@/lib/match-recap'
 import { formatPosition, formatPositionFull } from '@/lib/format'
 import { PositionPill } from './position-pill'
+import { Panel } from '@/components/ui/panel'
+import { SectionHeader } from '@/components/ui/section-header'
 
 interface TopPerformersProps {
   performers: TopPerformer[]
@@ -21,11 +23,8 @@ export function TopPerformers({ performers, allTeamScores, opponentLabel }: TopP
   const oppScores = allTeamScores.filter((e) => e.side === 'opp')
 
   return (
-    <section>
-      <SectionHeader
-        title="Top Performers"
-        subtitle="computed from player stats"
-      />
+    <section className="space-y-3">
+      <SectionHeader label="Top Performers" subtitle="Computed from player stats" />
 
       {performers.length > 0 ? (
         <div className="grid gap-4 sm:grid-cols-3">
@@ -39,13 +38,13 @@ export function TopPerformers({ performers, allTeamScores, opponentLabel }: TopP
         </div>
       ) : null}
 
-      <div className="mt-3 border border-zinc-800 bg-surface">
+      <Panel>
         <button
           type="button"
           onClick={() => { setExpanded((v) => !v) }}
           className="flex w-full items-center justify-between px-4 py-3 text-left transition-colors hover:bg-surface-raised"
         >
-          <span className="font-condensed text-base font-semibold text-zinc-200">
+          <span className="font-condensed text-base font-semibold uppercase tracking-wide text-zinc-200">
             Show all player scores
           </span>
           <span className={`text-zinc-500 transition-transform ${expanded ? 'rotate-180' : ''}`}>⌄</span>
@@ -54,7 +53,7 @@ export function TopPerformers({ performers, allTeamScores, opponentLabel }: TopP
         {expanded ? (
           <div className="border-t border-zinc-800">
             <div className="px-3 pb-1 pt-2">
-              <p className="text-[10px] font-medium uppercase tracking-[0.16em] text-zinc-600">
+              <p className="font-condensed text-[10px] font-semibold uppercase tracking-[0.22em] text-zinc-600">
                 Score = weighted composite · click a row to see breakdown
               </p>
             </div>
@@ -68,7 +67,7 @@ export function TopPerformers({ performers, allTeamScores, opponentLabel }: TopP
             ) : null}
           </div>
         ) : null}
-      </div>
+      </Panel>
     </section>
   )
 }
@@ -134,12 +133,12 @@ function ScoreRow({ entry }: { entry: PlayerScoreEntry }) {
         </span>
 
         {/* Stat line */}
-        <span className="shrink-0 font-condensed text-xs tabular text-zinc-500">
+        <span className="shrink-0 font-condensed text-xs tabular-nums text-zinc-500">
           {entry.statLine}
         </span>
 
         {/* Score */}
-        <span className="w-14 shrink-0 text-right font-condensed text-sm font-black tabular text-zinc-100">
+        <span className="w-14 shrink-0 text-right font-condensed text-sm font-black tabular-nums text-zinc-100">
           {entry.score.toFixed(2)}
         </span>
       </button>
@@ -182,7 +181,7 @@ function BreakdownTable({ breakdown }: { breakdown: ScoreFactor[] }) {
             <td colSpan={3} className="py-1.5 font-condensed font-bold uppercase tracking-[0.14em] text-zinc-400">
               Total
             </td>
-            <td className={`py-1.5 text-right font-condensed font-black tabular ${total >= 0 ? 'text-zinc-100' : 'text-rose-400'}`}>
+            <td className={`py-1.5 text-right font-condensed font-black tabular-nums ${total >= 0 ? 'text-zinc-100' : 'text-rose-400'}`}>
               {total.toFixed(2)}
             </td>
           </tr>
@@ -200,9 +199,9 @@ function FactorRow({ fac }: { fac: ScoreFactor }) {
   return (
     <tr className={`border-b border-zinc-800/30 ${isZero ? 'opacity-40' : ''}`}>
       <td className="py-1 text-zinc-400">{fac.label}</td>
-      <td className="py-1 text-right tabular text-zinc-300">{displayValue}</td>
-      <td className="py-1 text-right tabular text-zinc-600">×{Math.abs(fac.weight).toFixed(2)}</td>
-      <td className={`py-1 text-right font-semibold tabular ${isNeg ? 'text-rose-400' : isZero ? 'text-zinc-600' : 'text-emerald-400'}`}>
+      <td className="py-1 text-right tabular-nums text-zinc-300">{displayValue}</td>
+      <td className="py-1 text-right tabular-nums text-zinc-600">×{Math.abs(fac.weight).toFixed(2)}</td>
+      <td className={`py-1 text-right font-semibold tabular-nums ${isNeg ? 'text-rose-400' : isZero ? 'text-zinc-600' : 'text-emerald-400'}`}>
         {fac.contribution >= 0 ? '+' : ''}{fac.contribution.toFixed(2)}
       </td>
     </tr>
@@ -241,8 +240,8 @@ function PerformerCard({ performer, rank }: { performer: TopPerformer; rank: num
             </span>
           ) : null}
         </div>
-        <div className="font-condensed text-4xl font-black tabular text-zinc-100">{performer.score.toFixed(2)}</div>
-        <span className="block font-condensed text-sm font-semibold tabular text-zinc-300">{performer.statLine}</span>
+        <div className="font-condensed text-4xl font-black tabular-nums text-zinc-100">{performer.score.toFixed(2)}</div>
+        <span className="block font-condensed text-sm font-semibold tabular-nums text-zinc-300">{performer.statLine}</span>
       </div>
   )
 
@@ -268,17 +267,3 @@ function cardClass(rank: number): string {
   }
 }
 
-export function SectionHeader({ title, subtitle }: { title: string; subtitle?: string }) {
-  return (
-    <div className="mb-3 flex items-baseline gap-2">
-      <h2 className="font-condensed text-sm font-semibold uppercase tracking-wider text-zinc-400">
-        {title}
-      </h2>
-      {subtitle ? (
-        <span className="text-[10px] font-medium uppercase tracking-[0.15em] text-zinc-600">
-          ({subtitle})
-        </span>
-      ) : null}
-    </div>
-  )
-}
