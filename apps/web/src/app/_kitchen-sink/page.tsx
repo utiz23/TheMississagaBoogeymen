@@ -90,6 +90,10 @@ export default function KitchenSinkPage() {
           <SectionHeader label="Latest Result" />
           <SectionHeader label="Scoring Leaders" cta={{ href: '/stats', label: 'All stats' }} />
           <SectionHeader label="Page Title (h1)" as="h1" />
+          <SectionHeader
+            label="Recent Form"
+            subtitle="Last 15 skater appearances · most recent first"
+          />
         </Panel>
       </section>
 
