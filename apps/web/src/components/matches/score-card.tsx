@@ -1,7 +1,9 @@
 import Link from 'next/link'
 import Image from 'next/image'
-import type { Match, MatchResult } from '@eanhl/db'
+import type { Match } from '@eanhl/db'
 import { OpponentCrest } from '@/components/ui/opponent-crest'
+import { Panel } from '@/components/ui/panel'
+import { ResultPill } from '@/components/ui/result-pill'
 import {
   abbreviateTeamName,
   formatMatchTime,
@@ -10,48 +12,6 @@ import {
 import { buildPossessionEdge } from '@/lib/match-recap'
 
 const OUR_ABBREV = 'BGM'
-
-const CARD_STYLES: Record<MatchResult, { bg: string; border: string; hoverBorder: string }> = {
-  WIN: {
-    bg: 'bg-[radial-gradient(circle_at_top,rgba(34,197,94,0.10),transparent_50%),linear-gradient(180deg,rgba(13,20,15,0.99),rgba(10,10,10,1))]',
-    border: 'border-emerald-900/50',
-    hoverBorder: 'hover:border-emerald-700/50',
-  },
-  LOSS: {
-    bg: 'bg-[radial-gradient(circle_at_top,rgba(239,68,68,0.07),transparent_50%),linear-gradient(180deg,rgba(18,13,13,0.99),rgba(10,10,10,1))]',
-    border: 'border-rose-900/40',
-    hoverBorder: 'hover:border-rose-800/50',
-  },
-  OTL: {
-    bg: 'bg-[radial-gradient(circle_at_top,rgba(245,158,11,0.10),transparent_45%),linear-gradient(180deg,rgba(20,18,14,0.99),rgba(10,10,10,1))]',
-    border: 'border-amber-900/40',
-    hoverBorder: 'hover:border-amber-800/60',
-  },
-  DNF: {
-    bg: 'bg-[radial-gradient(circle_at_top,rgba(239,68,68,0.07),transparent_50%),linear-gradient(180deg,rgba(18,13,13,0.99),rgba(10,10,10,1))]',
-    border: 'border-rose-900/40',
-    hoverBorder: 'hover:border-rose-800/50',
-  },
-}
-
-const RESULT_PILL_CONFIG: Record<MatchResult, { label: string; className: string }> = {
-  WIN: {
-    label: 'WIN',
-    className: 'border-emerald-500/50 bg-emerald-900/30 text-emerald-400',
-  },
-  LOSS: {
-    label: 'LOSS',
-    className: 'border-rose-600/50 bg-rose-900/20 text-rose-400',
-  },
-  OTL: {
-    label: 'OTL',
-    className: 'border-amber-500/40 bg-amber-500/10 text-amber-300',
-  },
-  DNF: {
-    label: 'DNF Loss',
-    className: 'border-rose-600/50 bg-rose-900/20 text-rose-400',
-  },
-}
 
 const GAME_MODE_PILL: Record<string, string> = {
   '6s': 'border-violet-500/80 bg-violet-950/50 text-violet-300',
@@ -62,17 +22,6 @@ interface ScoreCardProps {
   match: Match
   opponentCrestAssetId: string | null
   opponentCrestUseBaseAsset: string | null
-}
-
-function ResultPill({ result }: { result: MatchResult }) {
-  const config = RESULT_PILL_CONFIG[result]
-  return (
-    <span
-      className={`inline-flex items-center rounded border px-3 py-1 font-condensed text-xs font-bold uppercase tracking-[0.2em] ${config.className}`}
-    >
-      {config.label}
-    </span>
-  )
 }
 
 function SnapStat({ label, value }: { label: string; value: string }) {
@@ -124,7 +73,6 @@ export function ScoreCard({
   opponentCrestUseBaseAsset,
 }: ScoreCardProps) {
   const opponentAbbrev = abbreviateTeamName(match.opponentName)
-  const cardStyles = CARD_STYLES[match.result]
 
   const ourScoreColor =
     match.result === 'WIN' ? 'text-zinc-50' :
@@ -149,11 +97,6 @@ export function ScoreCard({
     match.result !== 'DNF' && shotShare !== null && shotShare <= 0.35 ? 'Outshot' :
     null
 
-  const topBarColor =
-    match.result === 'WIN' ? 'bg-emerald-500' :
-    match.result === 'OTL' ? 'bg-amber-500/80' :
-    'bg-rose-600'
-
   const gameModeClass = match.gameMode !== null
     ? (GAME_MODE_PILL[match.gameMode] ?? 'border-zinc-700 bg-zinc-900/70 text-zinc-400')
     : null
@@ -161,9 +104,10 @@ export function ScoreCard({
   return (
     <Link
       href={`/games/${match.id.toString()}`}
-      className={`group block overflow-hidden border ${cardStyles.border} ${cardStyles.bg} transition-[border-color,transform] hover:-translate-y-0.5 ${cardStyles.hoverBorder}`}
+      className="group block transition-transform hover:-translate-y-0.5"
     >
-      <div className={`h-1 w-full ${topBarColor}`} />
+      <Panel hoverable className="overflow-hidden">
+      <div className="h-[3px] w-full bg-gradient-to-r from-rose-900 via-accent to-rose-900" />
 
       <div className="flex items-center justify-between px-4 py-3">
         <div className="flex items-center gap-1.5">
@@ -219,7 +163,7 @@ export function ScoreCard({
               <span className="pb-1 text-2xl text-zinc-700">-</span>
               <span className={`text-5xl ${opponentScoreColor}`}>{match.scoreAgainst.toString()}</span>
             </div>
-            <ResultPill result={match.result} />
+            <ResultPill result={match.result} size="sm" />
           </div>
 
           <div className="flex flex-col items-center gap-2 text-center">
@@ -263,6 +207,7 @@ export function ScoreCard({
           <DtWStat bgmRaw={dtw} />
         </div>
       </div>
+      </Panel>
     </Link>
   )
 }
