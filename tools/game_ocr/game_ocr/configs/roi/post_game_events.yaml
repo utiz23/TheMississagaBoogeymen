@@ -1,0 +1,16 @@
+screen_type: post_game_events
+expected_width: 1920
+expected_height: 1080
+regions:
+  filter_label:
+    x: 0.020
+    y: 0.140
+    width: 0.150
+    height: 0.060
+    preprocess: threshold
+  events_panel:
+    x: 0.060
+    y: 0.200
+    width: 0.700
+    height: 0.700
+    preprocess: invert-threshold

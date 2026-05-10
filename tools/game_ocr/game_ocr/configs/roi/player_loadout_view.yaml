@@ -1,0 +1,100 @@
+screen_type: player_loadout_view
+expected_width: 1920
+expected_height: 1080
+regions:
+  selected_player:
+    x: 0.11
+    y: 0.25
+    width: 0.10
+    height: 0.05
+    preprocess: threshold
+  player_position:
+    x: 0.05
+    y: 0.25
+    width: 0.04
+    height: 0.05
+    preprocess: threshold
+  player_name:
+    x: 0.11
+    y: 0.18
+    width: 0.08
+    height: 0.05
+    preprocess: threshold
+  player_level:
+    x: 0.07
+    y: 0.20
+    width: 0.05
+    height: 0.05
+    preprocess: threshold
+  player_platform:
+    x: 0.89
+    y: 0.11
+    width: 0.08
+    height: 0.05
+    preprocess: threshold
+  gamertag:
+    x: 0.11
+    y: 0.15
+    width: 0.08
+    height: 0.05
+    preprocess: threshold
+  home_team:
+    x: 0.05
+    y: 0.11
+    width: 0.08
+    height: 0.05
+    preprocess: threshold
+  build_class:
+    x: 0.21
+    y: 0.08
+    width: 0.14
+    height: 0.10
+    preprocess: threshold
+  measurements:
+    x: 0.77
+    y: 0.15
+    width: 0.18
+    height: 0.05
+    preprocess: threshold
+  handedness:
+    x: 0.87
+    y: 0.15
+    width: 0.10
+    height: 0.05
+    preprocess: threshold
+  x_factors:
+    x: 0.27
+    y: 0.28
+    width: 0.65
+    height: 0.08
+    preprocess: threshold
+  technique:
+    x: 0.27
+    y: 0.56
+    width: 0.15
+    height: 0.07
+    preprocess: threshold
+  power:
+    x: 0.43
+    y: 0.56
+    width: 0.15
+    height: 0.07
+    preprocess: threshold
+  playstyle:
+    x: 0.59
+    y: 0.56
+    width: 0.15
+    height: 0.07
+    preprocess: threshold
+  tenacity:
+    x: 0.75
+    y: 0.56
+    width: 0.15
+    height: 0.07
+    preprocess: threshold
+  tactics:
+    x: 0.91
+    y: 0.56
+    width: 0.08
+    height: 0.07
+    preprocess: threshold

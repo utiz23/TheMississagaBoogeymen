@@ -1,0 +1,52 @@
+screen_type: post_game_player_summary
+expected_width: 1920
+expected_height: 1080
+regions:
+  away_team:
+    x: 0.12
+    y: 0.20
+    width: 0.06
+    height: 0.10
+    preprocess: threshold
+  away_team_abbreviation:
+    x: 0.13
+    y: 0.21
+    width: 0.07
+    height: 0.14
+    preprocess: default
+  away_team_score:
+    x: 0.43
+    y: 0.21
+    width: 0.04
+    height: 0.08
+    preprocess: default
+  home_team:
+    x: 0.50
+    y: 0.20
+    width: 0.08
+    height: 0.15
+    preprocess: threshold
+  home_team_abbreviation:
+    x: 0.62
+    y: 0.21
+    width: 0.10
+    height: 0.14
+    preprocess: default
+  home_team_score:
+    x: 0.57
+    y: 0.21
+    width: 0.04
+    height: 0.08
+    preprocess: default
+  away_players:
+    x: 0.13
+    y: 0.38
+    width: 0.35
+    height: 0.45
+    preprocess: threshold
+  home_players:
+    x: 0.62
+    y: 0.38
+    width: 0.28
+    height: 0.45
+    preprocess: threshold

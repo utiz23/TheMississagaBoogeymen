@@ -1,0 +1,40 @@
+screen_type: post_game_box_score_goals
+expected_width: 1920
+expected_height: 1080
+regions:
+  tab_label:
+    x: 0.020
+    y: 0.140
+    width: 0.150
+    height: 0.060
+    preprocess: threshold
+  period_header_row:
+    x: 0.510
+    y: 0.190
+    width: 0.330
+    height: 0.040
+    preprocess: threshold
+  away_team_name:
+    x: 0.090
+    y: 0.230
+    width: 0.330
+    height: 0.060
+    preprocess: threshold
+  away_stats_row:
+    x: 0.510
+    y: 0.230
+    width: 0.330
+    height: 0.060
+    preprocess: invert-threshold
+  home_team_name:
+    x: 0.090
+    y: 0.320
+    width: 0.330
+    height: 0.060
+    preprocess: threshold
+  home_stats_row:
+    x: 0.510
+    y: 0.320
+    width: 0.330
+    height: 0.060
+    preprocess: invert-threshold

@@ -1,0 +1,34 @@
+screen_type: post_game_net_chart
+expected_width: 1920
+expected_height: 1080
+regions:
+  net_chart_label:
+    x: 0.020
+    y: 0.140
+    width: 0.130
+    height: 0.060
+    preprocess: threshold
+  period_label:
+    x: 0.150
+    y: 0.140
+    width: 0.180
+    height: 0.060
+    preprocess: threshold
+  away_label:
+    x: 0.040
+    y: 0.205
+    width: 0.100
+    height: 0.045
+    preprocess: invert-threshold
+  home_label:
+    x: 0.310
+    y: 0.205
+    width: 0.090
+    height: 0.045
+    preprocess: invert-threshold
+  stats_panel:
+    x: 0.020
+    y: 0.255
+    width: 0.400
+    height: 0.420
+    preprocess: invert-threshold

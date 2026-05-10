@@ -25,6 +25,9 @@ build
 .venv/
 __pycache__/
 
+# OCR tool — screenshots are large binary assets, not source code
+tools/game_ocr/ScreenShots/
+
 # Playwright MCP cache
 .playwright-mcp/
 
