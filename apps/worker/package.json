@@ -12,7 +12,8 @@
     "test": "pnpm run build && node --test dist/**/*.test.js",
     "reprocess": "node dist/reprocess.js",
     "ingest-now": "node dist/ingest-now.js",
-    "ingest-ocr": "node dist/ingest-ocr-cli.js"
+    "ingest-ocr": "node dist/ingest-ocr-cli.js",
+    "ingest-ocr-resolve": "node dist/ingest-ocr-resolve-cli.js"
   },
   "dependencies": {
     "@eanhl/db": "workspace:*",
