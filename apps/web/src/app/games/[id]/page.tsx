@@ -9,6 +9,9 @@ import {
   getMatchSeasonNumber,
   getMatchSeriesContext,
   getAdjacentMatches,
+  getMatchPeriodSummaries,
+  getMatchShotTypeSummaries,
+  getMatchEvents,
 } from '@eanhl/db/queries'
 import type { Match } from '@eanhl/db'
 import { HeroCard } from '@/components/matches/hero-card'
@@ -18,6 +21,9 @@ import { TeamStats } from '@/components/matches/team-stats'
 import { GoalieSpotlightSection } from '@/components/matches/goalie-spotlight'
 import { ScoresheetSection } from '@/components/matches/scoresheet'
 import { ContextFooter } from '@/components/matches/context-footer'
+import { PeriodSummary } from '@/components/matches/period-summary'
+import { ShotMix } from '@/components/matches/shot-mix'
+import { EventLog } from '@/components/matches/event-log'
 import { Panel } from '@/components/ui/panel'
 import {
   buildAllTeamScores,
@@ -65,18 +71,30 @@ export default async function GameDetailPage({ params }: Props) {
   const m = match
   // Fetch all secondary data in parallel; each can fail independently and the
   // section that needs it will simply hide. The hero + main page still render.
-  const [playerStats, opponentPlayerStats, opponentClub, seasonNumber, seriesContext, adjacent] =
-    await Promise.all([
-      safe(() => getPlayerMatchStats(m.id), []),
-      safe(() => getOpponentPlayerMatchStats(m.id), []),
-      safe(() => getOpponentClub(m.opponentClubId), null),
-      safe(() => getMatchSeasonNumber(m.gameTitleId, m.playedAt), null),
-      safe(() => getMatchSeriesContext(m.gameTitleId, m.opponentClubId, m.playedAt), null),
-      safe(() => getAdjacentMatches(m.gameTitleId, m.playedAt), {
-        previous: null,
-        next: null,
-      }),
-    ])
+  const [
+    playerStats,
+    opponentPlayerStats,
+    opponentClub,
+    seasonNumber,
+    seriesContext,
+    adjacent,
+    periodSummaries,
+    shotTypeSummaries,
+    matchEventRows,
+  ] = await Promise.all([
+    safe(() => getPlayerMatchStats(m.id), []),
+    safe(() => getOpponentPlayerMatchStats(m.id), []),
+    safe(() => getOpponentClub(m.opponentClubId), null),
+    safe(() => getMatchSeasonNumber(m.gameTitleId, m.playedAt), null),
+    safe(() => getMatchSeriesContext(m.gameTitleId, m.opponentClubId, m.playedAt), null),
+    safe(() => getAdjacentMatches(m.gameTitleId, m.playedAt), {
+      previous: null,
+      next: null,
+    }),
+    safe(() => getMatchPeriodSummaries(m.id), []),
+    safe(() => getMatchShotTypeSummaries(m.id), []),
+    safe(() => getMatchEvents(m.id), []),
+  ])
 
   const opponentCrestAssetId = opponentClub?.crestAssetId ?? null
   const opponentCrestUseBaseAsset = opponentClub?.useBaseAsset ?? null
@@ -136,6 +154,10 @@ export default async function GameDetailPage({ params }: Props) {
       {/* 3. Team stats */}
       <TeamStats rows={boxScore} />
 
+      {/* 3a-3b. OCR-derived period summary + shot mix (hidden until reviewed). */}
+      <PeriodSummary rows={periodSummaries} />
+      <ShotMix rows={shotTypeSummaries} />
+
       {/* 4. Goalie spotlight (omitted entirely if no goalie data) */}
       <GoalieSpotlightSection goalies={goalieSpotlight} />
 
@@ -145,6 +167,9 @@ export default async function GameDetailPage({ params }: Props) {
       ) : (
         <ScoresheetSection scoresheet={scoresheet} />
       )}
+
+      {/* 5a. OCR-derived event log (goals + penalties). */}
+      <EventLog events={matchEventRows} opponentLabel={match.opponentName} />
 
       {/* 6. Context footer (lowest priority — first to cut if scope shrinks) */}
       <ContextFooter previous={adjacent.previous} next={adjacent.next} />

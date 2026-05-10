@@ -9,6 +9,7 @@ import {
   countPlayerGameLog,
   getPlayerEASeasonStats,
   getTeamAverageShotLocations,
+  getPlayerLoadoutSnapshots,
 } from '@eanhl/db/queries'
 import type { GameMode } from '@eanhl/db'
 import { GAME_MODE } from '@eanhl/db'
@@ -22,6 +23,7 @@ import { StatsRecordCard } from '@/components/roster/stats-record-card'
 import { ChartsVisualsSection } from '@/components/roster/charts-visuals-section'
 import { ComingSoonCard } from '@/components/roster/coming-soon-card'
 import { ShotMap } from '@/components/roster/shot-map'
+import { LoadoutHistoryStrip } from '@/components/roster/loadout-history-strip'
 import { Panel } from '@/components/ui/panel'
 
 export const revalidate = 3600
@@ -102,6 +104,13 @@ export default async function PlayerPage({ params, searchParams }: Props) {
     teamAverage = await getTeamAverageShotLocations(1)
   } catch {
     teamAverage = null
+  }
+
+  let loadoutSnapshots: Awaited<ReturnType<typeof getPlayerLoadoutSnapshots>> = []
+  try {
+    loadoutSnapshots = await getPlayerLoadoutSnapshots(id, 4)
+  } catch {
+    loadoutSnapshots = []
   }
 
   if (!overview) notFound()
@@ -188,6 +197,8 @@ export default async function PlayerPage({ params, searchParams }: Props) {
       )}
 
       <ContributionSection contribution={selectedContribution} selectedRole={selectedRole} />
+
+      <LoadoutHistoryStrip snapshots={loadoutSnapshots} />
 
       {overview.primaryRole !== 'goalie' && (
         <ShotMap
