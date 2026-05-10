@@ -2,7 +2,7 @@
 
 ## Current Status
 
-**Phase:** OCR Phases 0-2 complete. Subprocess pipeline alive end-to-end; 9 screen types parse and promote into Postgres. Phase 3 (production identity reconciliation) and Phase 4 (review CLI + UI surfaces) are next.
+**Phase:** OCR Phases 0-4 complete. Full pipeline shipped: ingest → resolve → review → query → UI render. Phase 5 (rink-coordinate spatial extraction) deferred per plan.
 
 **Last updated:** 2026-05-10
 
@@ -115,6 +115,121 @@ match_penalty_events: 0 rows (no penalties in this match)
 - `Silky` / `SILKY` case mismatch: the Action Tracker captures uppercase gamertags, but the Phase 1 resolve-identity stub does case-insensitive *exact* match against `players.gamertag`. If the DB has `silkyjoker85` but OCR reads `Silky` (just the displayed first name), the resolver returns null. Phase 3 needs alias matching against `player_gamertag_history` and Levenshtein-1 fallback against current gamertags.
 - OCR misreads of digits (`2`→`7`, `9`→`6`) and chips (`SHOT`→`10HS`, `0:04`→`0:42`) flow through to the DB with confidence intact. Phase 4's review CLI is the canonical fix path.
 - Action Tracker `team_side` heuristic ("if actor resolved → for") is wrong for cases where BGM gamertags don't resolve due to case mismatch. Will improve naturally once Phase 3 lands.
+
+---
+
+## Session Summary — 2026-05-10 (OCR build, Phase 3 — identity reconciliation)
+
+### Schema: `player_display_aliases` (migration 0030)
+
+OCR captures **display names** (`Silky`, `M. Rantanen`, `E. Wanhg`) on Action Tracker / Events / Loadout screens, never the EA gamertag. Display names rarely substring-match the gamertag, so we added an explicit alias table that the resolver consults after gamertag and history lookups. Schema: `packages/db/src/schema/player-display-aliases.ts` — `(player_id, alias, normalized_alias, source: 'manual'|'auto', created_at)`. Unique on `(player_id, normalized_alias)` for upsert.
+
+Migration `0030_sleepy_gressill.sql` applied directly via `cat | docker exec psql` to dodge the Drizzle journal-drift quirks.
+
+### Production resolver (`apps/worker/src/ocr-promoters/resolve-identity.ts`)
+
+Replaces the Phase 1 stub. Resolution order:
+1. Normalize: trim + strip leading `-.`/`.` ornaments + strip trailing punctuation.
+2. Exact case-insensitive match against `players.gamertag`.
+3. Exact match against active `player_gamertag_history` aliases (`seen_until IS NULL`).
+4. Exact match against `player_display_aliases.normalized_alias`.
+5. Substring match — snapshot is contained in OR contains the gamertag — single-candidate only.
+6. Levenshtein ≤ 1 against active gamertags — single-candidate only.
+
+Never inserts new `players` rows. Returns `{ playerId, via }` so callers can debug which path resolved.
+
+### Resolve CLI (`apps/worker/src/ingest-ocr-resolve-cli.ts`)
+
+`pnpm --filter worker ingest-ocr-resolve <subcommand>`:
+
+- `list` — groups every unresolved `(actor|target|scorer|primary_assist|secondary_assist|culprit|player_loadout)` snapshot across all promoter tables. Output sorted by row count.
+- `--auto` — re-runs the resolver against every unresolved snapshot, reports per-`via` counts. Idempotent.
+- `--map "Silky=>2,M. Rantanen=>5,E. Wanhg=>11"` — bulk manual mapping. Each pair (a) inserts/updates a `player_display_aliases` row (so future ingests auto-resolve), (b) updates every existing unresolved row whose snapshot normalizes to the alias.
+
+### End-to-end results against existing data
+
+Starting state: 55 unresolved rows across 20 distinct snapshots after Phase 2 ingest.
+
+- `--auto` resolved **10 rows** via substring matching (e.g., `Silky`/`SILKY` → `silkyjoker85`, also `MrHomiecide - Evoeni Wan` → MrHomiecide via "MrHomiecide" substring).
+- `--map "E. Wanhg=>11,E. WANHG=>11"` resolved **7 more rows**. Both casings collapsed to one alias row via lowercase normalization; future ingests of either case will auto-resolve.
+- Remaining 38 rows are ~all opponent display names (`Toews`, `Wilde`, `Whoosah`, etc.) that legitimately don't map to BGM players — schema is BGM-perspective, opponent rows live with `actor_player_id IS NULL` and `actor_gamertag_snapshot` preserved verbatim, which is the correct steady state.
+
+### Files added
+
+- `packages/db/src/schema/player-display-aliases.ts`
+- `packages/db/migrations/0030_sleepy_gressill.sql` + `meta/0030_snapshot.json`
+- `apps/worker/src/ingest-ocr-resolve-cli.ts`
+- `apps/worker/package.json` — `ingest-ocr-resolve` script
+
+### Files modified
+
+- `apps/worker/src/ocr-promoters/resolve-identity.ts` — full rewrite: 5 resolution paths + Levenshtein helper.
+- `packages/db/src/schema/index.ts` — re-exports new alias schema.
+
+---
+
+## Session Summary — 2026-05-10 (OCR build, Phase 4 — review + queries + UI)
+
+### Review CLI (`apps/worker/src/ingest-ocr-review-cli.ts`)
+
+`pnpm --filter worker ingest-ocr-review <subcommand>`:
+
+- `status` — per-batch summary: `batch | match | capture_kind | total | pending | reviewed | rejected | avg_conf`.
+- `--extraction <id> [--status reviewed|rejected]` — flip a single extraction; cascades `review_status` to every `match_events` / `match_period_summaries` / `match_shot_type_summaries` / `player_loadout_snapshots` row referencing it via `ocr_extraction_id`. Sets `ocr_extractions.reviewed_at` when not pending.
+- `--batch <id> --auto-approve [--confidence-threshold 0.85]` — auto-flip every `pending_review` extraction in the batch with `overall_confidence >= threshold`, plus its cascade. Default threshold 0.85.
+- `--batch <id> --status reviewed|rejected` — bulk flip every extraction in a batch regardless of confidence.
+
+Cascade is scoped to rows owned by the flipped extraction id. Cross-screen dedup means a goal can be referenced by Events and Action Tracker — flipping just one of those extractions only moves the rows it currently points at.
+
+All flips are wrapped in a single transaction so partial cascade is impossible.
+
+### DB queries (`packages/db/src/queries/`)
+
+Three new query files exposed via the `@eanhl/db/queries` subpath:
+
+- **`match-enrichments.ts`** — `getMatchPeriodSummaries(matchId)` and `getMatchShotTypeSummaries(matchId)`. Both gate OCR rows on `review_status = 'reviewed'`; EA-source rows always pass.
+- **`match-events.ts`** — `getMatchEvents(matchId)` returns events joined with `match_goal_events` + `match_penalty_events` + 6 LEFT-JOINs on `players` (one per nullable identity FK: actor / target / scorer / primaryAssist / secondaryAssist / culprit). Resolved players surface as nested `{ id, gamertag }` objects via `jsonb_build_object`; unresolved rows fall through with snapshot strings only.
+- **`player-loadouts.ts`** — `getPlayerLoadoutSnapshots(playerId, limit=20)` returns reviewed snapshots newest-first, with x_factors and attributes attached.
+
+### UI surfaces (`apps/web/src/`)
+
+Match detail page (`/games/[id]`) gains three sections — each hides itself when the source query returns 0 rows:
+
+- **Period summary** (`components/matches/period-summary.tsx`) — period × {goals, shots, faceoffs} grid, BGM·OPP split per cell, "—" for null cells.
+- **Shot mix** (`components/matches/shot-mix.tsx`) — wrist / snap / backhand / slap / deflection / power-play breakdown per side. Uses the full-game (period_number = -1) row when present, otherwise sums per-period rows.
+- **Event log** (`components/matches/event-log.tsx`) — period-grouped goal + penalty list. Resolved players link to `/roster/[id]`; unresolved snapshots render as plain text. Goals show scorer + goal_number_in_game + up to 2 assists; penalties show culprit + infraction + minutes. Strips OCR ornaments (`RT`/`LT`) from period labels for display.
+
+Player profile page (`/roster/[id]`) gains:
+
+- **Loadout history strip** (`components/roster/loadout-history-strip.tsx`) — up to 4 most-recent reviewed loadout snapshots side-by-side. Each card shows position, build class, height/weight/handedness, level, X-factors, and per-group attribute averages (Technique/Power/Playstyle/Tenacity/Tactics).
+
+### End-to-end verification (match 250: BGM 4-3 4th Line)
+
+Approved batches 1, 2, 3, 4, 5, 7, 9, 10 via `--auto-approve --confidence-threshold 0.85`. Cascade tally: 14 extractions reviewed → 5 period_summaries + 8 shot_type_summaries + 20 events + 2 loadout_snapshots flipped to `reviewed`.
+
+Smoke check via `next dev`:
+
+- `/games/250` rendered all three OCR sections. Confirmed 7 BGM/OPP goals in event log with full assist chains; resolved silkyjoker85 + MrHomiecide link to roster pages, opponent display names (Toews, S. Zubov) render as plain text.
+- `/roster/11` (MrHomiecide) renders the loadout history strip with class + measurements + X-factors + group averages.
+- `/roster/2` (silkyjoker85) correctly hides the strip — no reviewed loadout snapshot for this player yet.
+
+### Files added
+
+- `apps/worker/src/ingest-ocr-review-cli.ts` + `package.json` script
+- `packages/db/src/queries/match-enrichments.ts`
+- `packages/db/src/queries/match-events.ts`
+- `packages/db/src/queries/player-loadouts.ts`
+- `apps/web/src/components/matches/period-summary.tsx`
+- `apps/web/src/components/matches/shot-mix.tsx`
+- `apps/web/src/components/matches/event-log.tsx`
+- `apps/web/src/components/roster/loadout-history-strip.tsx`
+- `docs/ocr-features-and-metrics.md` — features catalog reconstructed from the 2026-05-10 brainstorm
+
+### Files modified
+
+- `packages/db/src/queries/index.ts` — re-exports the 3 new query modules
+- `apps/web/src/app/games/[id]/page.tsx` — fetches OCR queries, renders 3 new sections (period summary + shot mix between TeamStats and Goalie spotlight; event log after Scoresheet)
+- `apps/web/src/app/roster/[id]/page.tsx` — fetches loadout snapshots, renders strip after ContributionSection
 
 ---
 
