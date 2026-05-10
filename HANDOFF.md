@@ -2,9 +2,210 @@
 
 ## Current Status
 
-**Phase:** Player profile page restructured to v2 IA on `feat/skater-stats-expansion`. Skater stats expansion + profile restructure together; branch ready for review/merge.
+**Phase:** OCR Phases 0-2 complete. Subprocess pipeline alive end-to-end; 9 screen types parse and promote into Postgres. Phase 3 (production identity reconciliation) and Phase 4 (review CLI + UI surfaces) are next.
 
-**Last updated:** 2026-05-05
+**Last updated:** 2026-05-10
+
+---
+
+## Session Summary — 2026-05-10 (OCR build, Phases 0-2)
+
+Plan: `/home/michal/.claude/plans/abstract-yawning-dream.md`
+
+### Phase 0 — Schema pre-flight (migration 0029)
+
+- Added `'post_game_faceoff_map'` to `OcrScreenType` (TS-only, `packages/db/src/schema/ocr-pipeline.ts`).
+- Added `review_status` column (default `'pending_review'`) to `match_period_summaries` and `match_shot_type_summaries` so all four OCR-fed promoter tables share the same review lifecycle. Migration `0029_red_xavin.sql` (idempotent `ADD COLUMN IF NOT EXISTS`).
+- Drizzle journal `when` bumped to be after the manually-backdated migration `0027_test_roster_utiz` so future `pnpm --filter db migrate` runs don't skip it.
+
+### Phase 1 — Worker subprocess + capture-batch skeleton
+
+End-to-end pipe alive against the 4 already-implemented Python parsers (lobby ×2, loadout, post-game player summary).
+
+New files in `apps/worker/src/`:
+- `ocr-cli-runner.ts` — `runOcrCli({screen, inputPath, pythonBin?})`. Spawns `python3 -m game_ocr.cli`, writes JSON to a tempfile, parses, deletes tempfile. Honors `OCR_PYTHON` env var; sets `PYTHONPATH` to `tools/game_ocr`. Tolerates exit code 1 (CLI emits 1 for warnings if JSON wrote anyway).
+- `ingest-ocr.ts` — `ingestOcrBatch(...)` orchestrates: insert one `ocr_capture_batches` row, run CLI, walk results. Per-result transaction: upsert `ocr_extractions` (idempotent on `(batch_id, source_path)`), clear+rewrite `ocr_extraction_fields`, dispatch to per-screen promoter, mark `transform_status` success/error. **One transaction per result, not per batch** — bad screenshots don't roll back the rest.
+- `walkExtractionFields()` — per-screen field walkers emit one `ocr_extraction_fields` row per `ExtractionField` in the parsed result tree, with `entity_type` / `entity_key` per the schema's documented conventions.
+- `ocr-promoters/index.ts` — promoter registry keyed on `OcrScreenType`.
+- `ocr-promoters/loadout.ts` — promotes `player_loadout_view` into `player_loadout_snapshots` + up to 3 `player_loadout_x_factors` + ~23 `player_loadout_attributes`. Idempotent: deletes prior snapshot rows for the same `source_extraction_id` before reinserting.
+- `ocr-promoters/pre-game-lobby.ts` — promotes lobby states into thin `player_loadout_snapshots` rows (no x_factors/attributes — lobby UI doesn't expose those).
+- `ocr-promoters/post-game-player-summary.ts` — no-op (data is redundant with EA API canon; we keep extraction record for audit).
+- `ocr-promoters/resolve-identity.ts` — Phase 1 stub: lowercase exact match against `players.gamertag`, returns `{playerId: null}` on miss. Never inserts new players from OCR.
+- `ingest-ocr-cli.ts` — CLI shim. `pnpm --filter worker ingest-ocr --batch-dir <dir> --screen <type> --game-title-id <id> [--match-id <id>] [--capture-kind manual_screenshots] [--notes "..."] [--dry-run]`. Mirrors `reprocess.ts` conventions (argv parsing, `[ingest-ocr]` log prefix, `sql.end()` in `finally`).
+
+`apps/worker/package.json` script: `"ingest-ocr": "node dist/ingest-ocr-cli.js"`. No new npm deps.
+
+Verified end-to-end: a loadout screenshot produces 1 `ocr_capture_batches` row, 1 `ocr_extractions` row (`transform_status='success'`, `overall_confidence=0.9504`), 19 `ocr_extraction_fields` rows, 1 `player_loadout_snapshots` row, 3 x-factors, 5 attributes (parser merges adjacent rows — see Phase 2 ROI tuning notes below). Re-running a batch is idempotent within an extraction.
+
+### Phase 2 — Five new Python parsers + their promoters
+
+All five parsers are wired into `tools/game_ocr/game_ocr/extractor.py` `ScreenRegistry`. ROI calibration done from real `research/OCR-SS/` screenshots; `invert-threshold` preprocess used universally for stat-row regions (Otsu binary + invert) — much more robust than the default `threshold` mode for grayed-out "loser-row" text.
+
+#### Box Score (3 sub-tabs)
+
+YAMLs: `post_game_box_score_{goals,shots,faceoffs}.yaml`. One shared parser `parse_post_game_box_score(meta, regions, *, stat_kind)`; the 3 screen types differ only by `stat_kind` discriminator.
+
+Layout: tab label top-left, period header row (`1ST 2ND 3RD OT SO TOT`) above two team rows. Parser strategy:
+- `_split_into_columns` clusters OCR by horizontal gap to find header columns.
+- `_align_row_to_headers` anchors each stats row's OCR detections to header column x-centers, exploding tightly-spaced glued digit tokens (e.g. `"2331"` → 4 separate digits) by per-character x-slicing.
+- `_BOX_SCORE_PERIOD_ALIASES` covers common OCR misreads (`"S0"` → `"SO"`, `"BRD"` → `"3RD"`, etc.).
+
+Promoter: `apps/worker/src/ocr-promoters/box-score.ts` — upserts `match_period_summaries` keyed on `(match_id, period_number, source='ocr')`. Each tab updates only the columns it owns (goals/shots/faceoffs); merging across the three tabs produces one row per period with all three stats populated.
+
+`apps/worker/src/ocr-promoters/resolve-bgm-side.ts` — soft-matches OCR'd team names against BGM aliases (`bgm`, `boogeymen`, `the boogeymen`, `bm`) with first-token fallback. Used by Box Score, Net Chart, Events promoters to determine `for/against` sidedness.
+
+End-to-end verified for match 250 (`BGM 4-3 4th Line`): all 3 tabs ingested → 5 period rows in `match_period_summaries`, ~31 of 36 cells correct. Wrong digits have intact confidence scores for Phase 4 review.
+
+#### Net Chart
+
+YAML: `post_game_net_chart.yaml`. Parser `parse_post_game_net_chart`. Layout: 7 stat rows × {away, home}.
+
+Promoter: `apps/worker/src/ocr-promoters/net-chart.ts` — upserts `match_shot_type_summaries` keyed on `(match_id, team_side, period_number, source)`. `period_number = -1` for ALL PERIODS aggregate; otherwise 1/2/3/4 from the period selector tab.
+
+Verified: 4 period screenshots → 8 rows in `match_shot_type_summaries` (4 periods × {for, against}). BGM correctly resolved as `for`. ~85% per-cell accuracy.
+
+`resolve-bgm-side.ts` was hardened during this phase to handle `BM(A)` / `4TH(H)` style labels (separate alphanumeric runs as words; first-token comparison; replace `"4TH(H)"` regex strip with proper word splitting).
+
+#### Faceoff Map (audit-only)
+
+YAML: `post_game_faceoff_map.yaml`. Parser `parse_post_game_faceoff_map` captures the text panel (overall win %, offensive/defensive zone splits per side). Promoter `apps/worker/src/ocr-promoters/faceoff-map.ts` is a no-op — Box Score's faceoffs tab already populates `faceoffs_for/_against`, and zone splits have no schema columns yet. Per-extraction field rows recorded in `ocr_extraction_fields` for review.
+
+#### Events (full-game scrollable list)
+
+YAML: `post_game_events.yaml`. Parser `parse_post_game_events` groups OCR lines by y, identifies period headers via fuzzy regex (handles OCR-corrupted `"STPERIOD"` and `"BRDPERIOD"` by inferring the period from ordinal-suffix tokens or any leading digit), and parses each event row through three regexes:
+- `_EVENT_GOAL_RE`: `<CLOCK> <SCORER>[N] [ASSIST1, ASSIST2]`
+- `_EVENT_GOAL_NO_NUM_RE`: same minus `[N]` (OT-winner edge case)
+- `_EVENT_PENALTY_RE`: `<CLOCK> <PLAYER> <INFRACTION> Minor|Major`
+
+Ornament filter rejects single-letter UI badges (`"L"`, `"TL"`, `"IL"`) that the loss-indicator chip renders to the left of the team logo.
+
+Promoter: `apps/worker/src/ocr-promoters/events.ts`. Cross-capture dedup key: `(matchId, periodNumber, clock, eventType, source='ocr', teamAbbreviation, actorGamertagSnapshot)`. When a row already exists, just refresh `ocr_extraction_id` to the new extraction. Inserts:
+- `match_events` row with `source='ocr'`, `reviewStatus='pending_review'`, `eventType='goal'|'penalty'`.
+- `match_goal_events` extension (scorer + goal_number_in_game + up to 2 assists, each gamertag resolved).
+- `match_penalty_events` extension (infraction + penalty_type + minutes derived).
+
+Verified end-to-end: 2 OCR captures (top-of-list + scrolled) of match 250 → 7 unique goals in `match_events` after dedup, fully matching the actual game (BGM goals: Silky×2, Rantanen, Wanhg-OT; 4TH goals: Toews×2, S.Zubov). All 7 goals have correct `match_goal_events` extension rows with assist details.
+
+#### Action Tracker (list panel only — rink coords deferred to Phase 5)
+
+YAML: `post_game_action_tracker.yaml`. Parser `parse_post_game_action_tracker` uses a wide y-grouping threshold (~85 px) to capture each event's 3 visual sub-rows (actor "ON|VS" target | event-type chip | event_type+clock+period text) as ONE OCR group. Each group produces one event row.
+
+Promoter: `apps/worker/src/ocr-promoters/action-tracker.ts`. Same dedup key as events but without `team_abbreviation` (Action Tracker UI doesn't expose it on the list panel — that's on the rink map). `team_side` heuristically derived from whether the actor gamertag resolves to a known player (BGM-resolved → `for`; unresolved → `against`). Phase 3 will replace this heuristic with proper resolution.
+
+Inserts shots, hits, faceoffs as plain `match_events` rows; goals add `match_goal_events`; penalties add `match_penalty_events`.
+
+Verified: 3 sample 2nd-period screenshots → 13 new events on top of the 7 already present from Events. ~6 of 7 visible events per screenshot fully parsed; 1-2 misses per screenshot due to OCR misreads on the small chip glyphs (`"SHOT"` rendered as `"10HS"`, `"0:42"` rendered as `"D:42"`, etc.). Cross-screen dedup correctly collapses Events-source goals with Action Tracker–source equivalents when actor gamertags align.
+
+### Cumulative state in DB (match 250 BGM 4-3 4th Line)
+
+```
+ocr_capture_batches:  10  rows
+ocr_extractions:      14  rows (transform_status='success', review_status='pending_review')
+ocr_extraction_fields: ~250 rows
+player_loadout_snapshots: 2 (early Phase 1 tests)
+match_period_summaries: 5 rows (per period; goals + shots + faceoffs merged)
+match_shot_type_summaries: 8 rows (4 periods × {for, against})
+match_events: 20 rows (7 goals + 13 shots/hits/faceoffs/goal-misclassifications)
+match_goal_events: 7 rows
+match_penalty_events: 0 rows (no penalties in this match)
+```
+
+### Open issues to address in Phase 3+
+
+- `Silky` / `SILKY` case mismatch: the Action Tracker captures uppercase gamertags, but the Phase 1 resolve-identity stub does case-insensitive *exact* match against `players.gamertag`. If the DB has `silkyjoker85` but OCR reads `Silky` (just the displayed first name), the resolver returns null. Phase 3 needs alias matching against `player_gamertag_history` and Levenshtein-1 fallback against current gamertags.
+- OCR misreads of digits (`2`→`7`, `9`→`6`) and chips (`SHOT`→`10HS`, `0:04`→`0:42`) flow through to the DB with confidence intact. Phase 4's review CLI is the canonical fix path.
+- Action Tracker `team_side` heuristic ("if actor resolved → for") is wrong for cases where BGM gamertags don't resolve due to case mismatch. Will improve naturally once Phase 3 lands.
+
+---
+
+---
+
+## Session Summary — 2026-05-10 (OCR schema integration)
+
+### 11-table OCR evidence layer added to the database
+
+Plan: `docs/superpowers/plans/2026-05-10-ocr-schema-integration.md`
+
+**New schema files (4 files, 11 tables):**
+
+- `packages/db/src/schema/ocr-pipeline.ts` — Foundation layer
+  - `ocr_capture_batches` — batch import sessions (per video/screenshot set)
+  - `ocr_extractions` — per-frame/per-file extractions with raw JSON, confidence, review status
+  - `ocr_extraction_fields` — per-field breakdown for promoted values
+
+- `packages/db/src/schema/match-enrichments.ts` — Period/shot-type aggregates
+  - `match_period_summaries` — goals/shots/faceoffs per period per source ('ea' | 'ocr' | 'manual')
+  - `match_shot_type_summaries` — wrist/slap/backhand/snap/deflections/PP shots; period_number=-1 sentinel for full-game aggregate
+
+- `packages/db/src/schema/match-events.ts` — Normalized event log
+  - `match_events` — event-level rows (goal/shot/hit/penalty/faceoff), check constraints on event_type + team_side, nullable actor/target identity until reviewed
+  - `match_goal_events` — 1:1 extension for goal detail (scorer, assists, goal_number_in_game)
+  - `match_penalty_events` — 1:1 extension for penalty detail (infraction, penalty_type, minutes)
+
+- `packages/db/src/schema/player-loadout.ts` — Build/loadout snapshots
+  - `player_loadout_snapshots` — per-player build captured from Pre-Game Lobby or Loadout View
+  - `player_loadout_x_factors` — up to 3 X-factors per snapshot (slot 0/1/2)
+  - `player_loadout_attributes` — 23 known attribute keys (Technique/Power/Playstyle/Tenacity/Tactics groups)
+
+**Migration:** `0028_omniscient_kid_colt.sql` — generated, edited to strip extraneous auth table DDL (Drizzle snapshot drift from migrations 0026/0027), and applied successfully.
+
+**DB after migration:** 11 new tables confirmed present. All FK chains, check constraints, and unique indexes applied. Identifier-truncation NOTICEs from PG for long FK names are harmless (auto-truncated to 63 chars).
+
+**Index updated:** `packages/db/src/schema/index.ts` exports all 4 new schema files.
+
+**Design decisions preserved:**
+- OCR is a 3rd evidence layer — never overwrites EA API canon (`ea_member_season_stats`, `player_match_stats`)
+- `review_status` pattern on all enrichment tables: `'pending_review' | 'reviewed' | 'rejected'`
+- `source` column on period summaries and events: `'ea' | 'ocr' | 'manual'`
+- Self-referential FK on `ocr_extractions.duplicate_of_extraction_id` uses Drizzle's `(): AnyPgColumn =>` lambda syntax
+
+**What's next:**
+1. Worker transform: parse OCR CLI output for supported screen types and insert into new tables
+2. Queries: write read-side query functions in `packages/db/src/queries/` for the new tables
+3. UI: surface per-period breakdowns, shot-type charts, event feeds, and loadout views once data flows in
+
+---
+
+---
+
+## Session Summary — 2026-05-09 (OTL classification + home record strip)
+
+### EA OT/OTL detection — landed end-to-end
+
+Until today the worker emitted only `WIN | LOSS | DNF` because no overtime
+fixture had been mined to confirm the OTL code. After cross-referencing 71 NHL
+26 BGM payloads, the full result-code set is:
+
+| Code | Meaning | Mapped to |
+|---:|---|---|
+| `1` | Regulation WIN | `WIN` |
+| `2` | Regulation LOSS | `LOSS` |
+| `5` | OT / SO WIN (still 2pts) | `WIN` |
+| `6` | OT / SO LOSS (1pt OTL credit) | **`OTL`** ✨ new |
+| `10` | DNF | `DNF` |
+| `16385` (`0x4001`) | WIN by opponent forfeit | `WIN` |
+
+Smoking gun: every code-5/code-6 match has a strict 1-goal margin and the
+codes always pair (`5 ↔ 6`). OT and shootout share the same code — EA does not
+distinguish them — so both fold into `OTL`.
+
+**Files touched:**
+- [`apps/worker/src/transform.ts`](apps/worker/src/transform.ts) — `deriveResult()` extended; code 6 → `OTL`, unknown codes still fall back to score-derived WIN/LOSS so future variants don't silently break.
+- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — Known Assumption #7 updated with the full code table; added assumption #8 about `clubs[id].result` codes.
+- [`research/investigations/ea-overtime-detection.md`](research/investigations/ea-overtime-detection.md) — full evidence + bitfield speculation (new file).
+- [`research/investigations/ea-api-data-gaps.md`](research/investigations/ea-api-data-gaps.md) — added "OT/SO Outcome Detection" entry under "Confirmed Available."
+- Worker rebuilt and `reprocess --all` run; aggregates auto-recomputed.
+
+**DB after reprocess:** 5 historical losses reclassified to `OTL`. Distribution went 40 W / 19 L / 0 OTL / 12 DNF → **40 W / 14 L / 5 OTL / 12 DNF**.
+
+### Home record strip — newest-left layout
+
+[`apps/web/src/components/home/record-strip.tsx`](apps/web/src/components/home/record-strip.tsx)
++ [`record-strip.css`](apps/web/src/components/home/record-strip.css):
+
+- Last-10 dot ribbon flipped: newest match on the **left**, 10-games-ago on the right. Drop the `.reverse()` and swap the meta labels (`← Most recent` / `10 games ago →`).
+- Accent rim outline moved from `:last-child` → `:first-child` so it highlights the most-recent dot.
+- DNFs now count as losses for both the W-L-OTL line in "last 10" and for streak detection (`streakKindFor(DNF) → 'L'`). DNF dots still render with the `·` glyph + loss-style red so disconnects remain visually distinct, but they no longer break a loss streak.
 
 ---
 
@@ -488,6 +689,7 @@ Current most likely follow-ups:
 - Chemistry heatmap — revisit at ~80–100+ match depth.
 - Hot-zone / rink shot maps — blocked by missing spatial data in EA payload.
 - Content season filtering — schema supports it; no UI.
+- **Reintroduce archetype pill on player carousel cards (home page)** — `ArchetypePillCompact` was wired in once and pulled back out 2026-05-09 because it crowded the card. Data path is intact (`player.archetype` is already on `PlayerCardData`); just re-add the `<div className="hpc-archetype">…</div>` block in `apps/web/src/components/home/player-card.tsx` and the matching `.hpc-archetype` margin rule in `player-card.css` once we decide on a less-crowded layout.
 
 ---
 
