@@ -12,7 +12,7 @@ import { PlayerCarousel } from '@/components/home/player-carousel'
 import type { RosterRow } from '@/components/home/player-card'
 
 export const metadata: Metadata = { title: 'Carousel preview' }
-export const revalidate = 300
+export const dynamic = 'force-dynamic'
 
 function selectFeaturedPlayers(roster: RosterRow[]): RosterRow[] {
   return [...roster].sort((a, b) => b.points - a.points || b.gamesPlayed - a.gamesPlayed)

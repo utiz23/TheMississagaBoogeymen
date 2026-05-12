@@ -247,7 +247,10 @@ function PeriodChips({
   if (available.length <= 1) return null // pointless filter for a single period
   const items: Array<{ key: PeriodFilter; label: string }> = [
     { key: 'all', label: 'All' },
-    ...available.map(([n, label]) => ({ key: n as PeriodFilter, label: label || `P${String(n)}` })),
+    ...available.map(([n, label]) => ({
+      key: n as PeriodFilter,
+      label: cleanPeriodLabel(label) || `P${String(n)}`,
+    })),
   ]
   return (
     <div className="flex flex-wrap gap-1">
@@ -271,6 +274,14 @@ function PeriodChips({
       })}
     </div>
   )
+}
+
+function cleanPeriodLabel(raw: string | null): string {
+  if (!raw) return ''
+  return raw
+    .replace(/^\s*(?:RT|LT|RB|LB)\s+/i, '')
+    .replace(/\s+(?:RT|LT|RB|LB)\s*$/i, '')
+    .trim()
 }
 
 function FilterChips({

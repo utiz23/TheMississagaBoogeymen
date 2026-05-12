@@ -2,29 +2,47 @@
 
 ## Current Status
 
-**Phase:** Working-tree cleanup complete + drizzle migration system fully reconciled. ~200 dirty paths landed across **18 focused commits** (e23bb22…29ac0c5) plus a follow-up reconciliation commit. The branch reflects: pre-game OCR shipped, OT/SO detection resolved, ratings/rank/goalie-shot-locations ingested, account/auth system stood up, renovation phase 0 landed across home / roster / stats / matches with shared design-system tokens, OCR research dossiers + spike scripts in git, docs reorganized into planning/operations/templates/branding/design subfolders, **`pnpm migrate` and `drizzle-kit generate` are both clean no-ops again.**
+**Phase:** Match 250 OCR extraction complete. All OCR pipeline sections live on `/games/250`. 95.8% spatial coverage. Docker web image rebuilt and deployed.
 
-Pre-game OCR pipeline still anchors the data side: loadout-view + lobby parsers run as anchor-based full-frame parsers, cross-frame consensus CLI collapses observations into canonical rows. End-to-end validated on match 250's 14 captures: 41 raw → 10 canonical skater rows with full attribute / X-Factor / persona coverage.
-
-Marker-extraction calibration **fully shipped and reprocessed 2026-05-13**. Current production state:
-- `spatial.py:pixel_to_hockey` uses **LSF linear + Delaunay hull gate** over **21 landmarks** (89.6% hull coverage). LOOCV-TRE: 7.50 px / 1.61 ft mean; boundary 4.26 px / 0.92 ft.
-- `RinkCoordinate.confidence` flag plumbed end-to-end: `match_events.position_confidence` text column ('interpolated' | 'extrapolated'), worker writes it, web shot map renders extrapolated markers at reduced opacity.
-- **Layer-2 marker inventory** (2026-05-13 afternoon, commits `05f1cd6` / `fa9fa8e` / `059af09`): every marker on every Action Tracker rink is now detected and classified by shape (hit/shot/goal/penalty) + fill (solid/outlined). The parser exports a `detected_markers` array per capture. A cross-frame consensus matcher (`tools/game_ocr/scripts/inventory_consensus_match.py`) clusters markers across captures by pixel proximity, votes shape + team-side, and assigns each cluster to an unpositioned `match_events` row.
-- Match 250 final coverage: **66/72 plottable events positioned (92%)** — goals 86% (6/7), hits 91% (30/33), shots 94% (30/32). Up from 71% (51/72) before Checkpoint 2.
-- Two pre-existing worker bugs caught & fixed during reprocess: action-tracker promoter was using `events[0]` instead of `events[selected_event_index]` (89% of match-250 markers were mis-attributed); CVAT importer was using pre-Round-3 single-anchor linear math (silently producing stale coords on every CVAT run).
+Current production state:
+- **Spatial coverage (match 250): 69/72 plottable events = 95.8%**. Period-from-source-path fix in `inventory_consensus_match.py` recovered 3 previously unpositioned events. Remaining 3 unmatched = single-observation clusters (noise filtered by ≥2 obs requirement).
+- **OCR errors: 0** (130 successes). Net chart 4 BGM-side extraction errors fixed via `repromote-ocr` CLI.
+- **Player lineups: 7 reviewed** (4 BGM + 3 opponent). Promoted via `repromote-ocr-cli.ts` + `consolidate-loadouts --match 250`.
+- **All OCR sections render on `/games/250`**: Lineups, Period Summary, Shot Mix, Event Log, Shot Map.
+- **`repromote-ocr` CLI** added to worker package — re-runs OCR promoters from stored `raw_result_json` for missing domain rows without re-OCR.
+- ShotMap period filter chips now clean OCR "RT/LT" prefixes from period labels (same `cleanPeriodLabel` logic as EventLog).
+- Docker web image rebuilt (5-day-old image was missing `match-lineups.js`, `match-events.js`, etc. from packages/db/dist). Fixed `/preview/carousel/page.tsx` to use `force-dynamic` so it no longer tries to pre-render against a placeholder DB URL.
 
 **Open items to close the event-map arc (ranked):**
-1. **Period-from-source-path fix** (~15 min). 6 events stuck in a bogus "period -1" bucket because `inventory_consensus_match.py:select_capture_period()` falls back to `events[0]` when `selected_event_index` is missing. Easy fix: derive period from path segments (`/2nd-Period-Events/`, `/3rd-Period-Events/`, `/OT-Events/`). Closes the 6-event gap → 100% coverage.
-2. **Cluster→event ordering** (~1-2 hr). Within a (period, type, side) bucket, cluster assignment is first-come-first-serve. Shot maps look right; per-player attribution may not. Adding cluster ordering via clock-from-events-list would fix.
-3. **Shape-classifier hits recall** (~30 min). Validator (`tools/game_ocr/scripts/validate_shape_classifier.py`) shows hit ratio 1.03 — should be ~2x. ~25-30% of hit markers fall into 'unknown'. Tightening the 4-vertex angle thresholds would recover some.
-4. **Auto opp-color detection** (~45 min). Match 250 happens to have BGM-away + opp-white; future matches will break. Sample the end-zone-bar pixel to learn opp team color per match.
-5. **Overlap watershed** (~2 hr). When 2+ markers stack at the same on-ice spot they merge. Match 250 has none; real games will.
+1. **Cluster→event ordering** (~1-2 hr). Within a (period, type, side) bucket, cluster assignment is first-come-first-serve. Shot maps look right; per-player attribution may not. Adding cluster ordering via clock-from-events-list would fix.
+2. **Shape-classifier hits recall** (~30 min). Validator (`tools/game_ocr/scripts/validate_shape_classifier.py`) shows hit ratio 1.03 — should be ~2x. ~25-30% of hit markers fall into 'unknown'. Tightening the 4-vertex angle thresholds would recover some.
+3. **Auto opp-color detection** (~45 min). Match 250 happens to have BGM-away + opp-white; future matches will break. Sample the end-zone-bar pixel to learn opp team color per match.
+4. **Overlap watershed** (~2 hr). When 2+ markers stack at the same on-ice spot they merge. Match 250 has none; real games will.
 
-Event-list extraction is paused with Round-2 findings ingested; 17 open empirical questions tagged for spikes.
+**Last updated:** 2026-05-12 (95.8% coverage, all OCR sections live, Docker redeployed)
 
-**Retrospective for the 2026-05-12 morning session:** [docs/retrospectives/2026-05-12-pre-game-ocr-and-research-rounds.md](docs/retrospectives/2026-05-12-pre-game-ocr-and-research-rounds.md) — process/methodology lessons.
+---
 
-**Last updated:** 2026-05-13 (afternoon — Layer-2 inventory shipped, 92% coverage on match 250)
+## Session Summary — 2026-05-12 (OCR refinement to 95.8% + all match-page sections live)
+
+### What was done
+
+- **`repromote-ocr-cli.ts`** — new worker CLI (`pnpm --filter worker repromote-ocr`) to re-run any OCR promoter from stored `raw_result_json` without re-OCR. Accepts `--match <id> --screen <type>`, `--batch <id>`, or `--extraction <id>`. Idempotent (delete-before-reinsert inside transaction).
+- **Loadout snapshots**: re-promoted 11 `player_loadout_view` + `pre_game_lobby_state_2` extractions → ran `consolidate-loadouts --match 250` → 7 reviewed snapshots (4 BGM, 3 opponent).
+- **Net chart errors fixed**: 4 extractions that failed due to "BM(A)" BGM-alias mismatch now succeed after re-promotion with current alias list. OCR error count: 4 → 0.
+- **Period-from-path fix** in `inventory_consensus_match.py`: added `period_from_path()` to derive period from parent folder name (`1st-Period-Events`, `2nd-Period-Events`, etc.). Used as secondary fallback in `select_capture_period()`. Re-ran consensus matcher: 66/72 → 69/72 (92% → 95.8%).
+- **Docker web rebuild**: 5-day-old image was missing `match-lineups.js`, `match-events.js`, `match-period-summaries.js` etc. from `packages/db/dist/queries/`. Safe() wrapper silently returned empty arrays. Fixed by rebuilding image. Also fixed `/preview/carousel/page.tsx` (`revalidate=300` → `force-dynamic`) to avoid build-time DB pre-render failure against placeholder URL.
+- **ShotMap period label cleaning**: period filter chips were showing raw OCR labels ("RT 2ND PERIOD"). Added `cleanPeriodLabel()` to `shot-map.tsx` to strip "RT/LT/RB/LB" prefixes.
+
+### Match 250 final state
+
+| metric | before | after |
+|---|---|---|
+| OCR errors | 4 | **0** |
+| OCR successes | 126 | **130** |
+| Reviewed lineups | 0 | **7** (4 BGM, 3 opp) |
+| Positioned events | 66/72 (92%) | **69/72 (95.8%)** |
+| Unmatched events | 6 | **3** (noise-filtered single-obs clusters) |
 
 ---
 

@@ -119,18 +119,57 @@ def cluster_markers(markers: list[MarkerObservation]) -> list[Cluster]:
     return clusters
 
 
-def select_capture_period(raw: dict) -> int | None:
-    """Extract the period number this capture is showing."""
+def period_from_path(source_path: str) -> int | None:
+    """Derive period number from the parent directory name in the capture path.
+
+    Handles: '1st-Period-Events' → 1, '2nd-Period-Events' → 2,
+             '3rd-Period-Events' → 3, 'OT-Events' / 'OT' → 4.
+    """
+    # Normalise separators, take the immediate parent directory name.
+    parts = source_path.replace("\\", "/").rstrip("/").rsplit("/", 2)
+    folder = parts[-2] if len(parts) >= 2 else ""
+    folder_lower = folder.lower()
+    if "1st" in folder_lower:
+        return 1
+    if "2nd" in folder_lower:
+        return 2
+    if "3rd" in folder_lower:
+        return 3
+    if "ot" in folder_lower:
+        return 4
+    return None
+
+
+def select_capture_period(raw: dict, source_path: str = "") -> int | None:
+    """Extract the period number this capture is showing.
+
+    Strategy (in order of reliability):
+    1. events[selected_event_index].period_number  — the highlighted event
+    2. Parent directory of source_path             — folder name is ground truth
+    3. events[0].period_number                     — last-resort fallback
+    """
     events = raw.get("events", []) or []
     idx = raw.get("selected_event_index")
+
+    # 1. Preferred: the explicitly highlighted event.
     if isinstance(idx, int) and 0 <= idx < len(events):
-        target = events[idx]
-    elif events:
-        target = events[0]
-    else:
-        return None
-    p = target.get("period_number")
-    return int(p) if isinstance(p, int) else None
+        p = events[idx].get("period_number")
+        if isinstance(p, int) and p >= 1:
+            return p
+
+    # 2. Path-based: folder name is reliable even when OCR misreads the period.
+    if source_path:
+        path_period = period_from_path(source_path)
+        if path_period is not None:
+            return path_period
+
+    # 3. Last resort: first event in the list.
+    if events:
+        p = events[0].get("period_number")
+        if isinstance(p, int) and p >= 1:
+            return p
+
+    return None
 
 
 def get_unpositioned_match_events(match_id: int) -> list[dict]:
@@ -172,7 +211,7 @@ def main() -> int:
     for row in rows:
         ext_id = row["id"]
         raw = row["raw_result_json"]
-        period = select_capture_period(raw)
+        period = select_capture_period(raw, row.get("source_path", ""))
         if period is None:
             continue
         for m in raw.get("detected_markers", []) or []:
