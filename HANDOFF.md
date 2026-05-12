@@ -2,17 +2,86 @@
 
 ## Current Status
 
-**Phase:** Pre-game OCR pipeline shipped end-to-end. Loadout-view + lobby parsers rewritten as anchor-based full-frame parsers (replacing the broken per-ROI approach that was producing garbage in the DB). Cross-frame consensus CLI collapses raw observations into one canonical row per (match, team_side, position). End-to-end validated on match 250's 14 pre-game captures: 41 raw observations → 10 canonical skater rows with full attribute / X-Factor / persona-name coverage.
+**Phase:** Working-tree cleanup complete. ~200 dirty paths landed across **18 focused commits** (e23bb22…29ac0c5). The branch reflects: pre-game OCR shipped, OT/SO detection resolved, ratings/rank/goalie-shot-locations ingested, account/auth system stood up, renovation phase 0 landed across home / roster / stats / matches with shared design-system tokens, OCR research dossiers + spike scripts in git, docs reorganized into planning/operations/templates/branding/design subfolders.
 
-Marker-extraction calibration research is mid-flight. Deep Research Round 2 returned a useful report; ingested into the dossier. The four recommended internal spikes (regularized TPS, `neighbors=k` localization, piecewise-affine comparison, convex-hull confidence gate) are queued. Event-list extraction research is also paused with Round-2 findings ingested; 17 open empirical questions are tagged for internal spikes when that track is picked back up.
+Pre-game OCR pipeline still anchors the data side: loadout-view + lobby parsers run as anchor-based full-frame parsers, cross-frame consensus CLI collapses observations into canonical rows. End-to-end validated on match 250's 14 captures: 41 raw → 10 canonical skater rows with full attribute / X-Factor / persona coverage.
 
-**Retrospective for this session:** [docs/retrospectives/2026-05-12-pre-game-ocr-and-research-rounds.md](docs/retrospectives/2026-05-12-pre-game-ocr-and-research-rounds.md) — process/methodology lessons that apply to future OCR or research-heavy tracks; read before the next session.
+Marker-extraction calibration research is mid-flight. Round-2 Deep Research ingested; four internal spikes (regularized TPS, `neighbors=k` localization, piecewise-affine comparison, convex-hull confidence gate) are queued. Event-list extraction is paused with Round-2 findings ingested; 17 open empirical questions tagged for spikes.
 
-**Last updated:** 2026-05-12
+**Retrospective for the 2026-05-12 morning session:** [docs/retrospectives/2026-05-12-pre-game-ocr-and-research-rounds.md](docs/retrospectives/2026-05-12-pre-game-ocr-and-research-rounds.md) — process/methodology lessons.
+
+**Last updated:** 2026-05-12 (evening — working-tree cleanup)
 
 ---
 
-## Session Summary — 2026-05-12 (Pre-game OCR end-to-end + Round-2 Deep Research review)
+## Session Summary — 2026-05-12 (evening — working-tree cleanup)
+
+### What shipped — 18 focused commits taking ~200 dirty paths to a clean tree
+
+| Hash | Title |
+|---|---|
+| `e23bb22` | chore: gitignore large local artifacts; drop stray probe script |
+| `c36c306` | docs(ocr): commit research dossiers for pre-game, marker, event-list extraction |
+| `a6f25c4` | feat(ocr): land spatial helpers + rink calibration + spike scripts |
+| `22faa4c` | docs(branding): reorganize assets into palettes/logos/icons/flags/rink-event-map |
+| `f2c32ee` | docs(design): organize design assets into Mockups/ and Card_Examples/ |
+| `24bb4d2` | docs: reorganize planning/operations/templates and add docs README |
+| `43d554d` | feat(db): land migrations 0023-0027 + register hand-written 0031-0033 in journal |
+| `4fb95bb` | feat(db): schema + queries layer for accounts, archetypes, ratings, OCR-derived columns |
+| `0ab3726` | feat(auth): account system — better-auth, login/account/admin/me pages |
+| `afe4e3d` | feat(worker): expand transform for ratings/rank/goalie-locations + OT/SO + OCR loadout plumbing |
+| `ad022ba` | feat(web): shared shell — design-system tokens, brand markers, archetype pills, nav polish |
+| `2461446` | feat(web): home page renovation |
+| `fb734fc` | feat(web): roster page renovation |
+| `73c39e4` | feat(web): stats page renovation |
+| `b5850a4` | feat(web): matches page renovation |
+| `5545fe7` | feat(web): /preview/carousel — bare-bones carousel preview page |
+| `29ac0c5` | docs: catch-up — path fixes, auth env doc, root-level design notes, PP/PK research |
+| (this) | docs(handoff): record working-tree cleanup session |
+
+Typecheck stayed green across every web/worker commit. Dev server served /games/250 at 200 throughout.
+
+### Important diagnostic discoveries (load-bearing for future work)
+
+**Past sessions' parsers.py had a broken-on-main import.** `tools/game_ocr/game_ocr/parsers.py` imported `from game_ocr.spatial` and loaded `configs/rink/post_game_action_tracker.json`, but neither file was in git. Anyone pulling main couldn't run the Action Tracker parser. Commit `a6f25c4` fixes this by landing spatial.py + the config.
+
+**Migration system is in a non-canonical state.** Inventory and fix details in commit `43d554d` message and the migration audit produced during cleanup:
+
+| Migration | SQL | Journal | Snapshot | DB applied | Notes |
+|---|---|---|---|---|---|
+| 0023-0025 | ✓ (this session) | ✓ (this session) | ✓ (this session) | ✓ via drizzle | clean |
+| 0026 account_system | ✓ (this session) | ✓ (this session) | **missing** | ✓ via drizzle | snapshot never generated |
+| 0027 test_roster_utiz | ✓ (this session) | ✓ (this session) | n/a (hand-written DO block) | ✓ via drizzle | seed migration, kept as a migration per user pref |
+| 0028-0030 | git | git | git | 0028/0029 via drizzle; **0030 via direct psql** | drift |
+| 0031 BGM attack direction | ✓ (this session) | ✓ (this session, new entry) | **missing** | ✗ **NOT APPLIED** | hand-written, never run |
+| 0032 pre-game loadout fields | git | ✓ (this session, new entry) | **missing** | ✓ **via direct psql** | drift |
+| 0033 loadout team_side | git | ✓ (this session, new entry) | **missing** | ✓ **via direct psql** | drift |
+
+Effect: `pnpm --filter db migrate` is currently broken — it would try to re-apply 0030 (already applied) and fail with duplicate-table. **The chosen repair path was surgical, not full** — journal is now contiguous, hand-written migrations are registered, but the live `drizzle.__drizzle_migrations` table is *not* reconciled. Next migration session needs to either insert hash rows for 0030/0032/0033, or accept the divergence and continue applying manually.
+
+**Drift root cause:** drizzle's migrate runner uses the journal's `when` field for ordering, and when `when` is non-monotonic (which happened because 0028-0030 were generated before 0023-0027), it can skip later migrations. The team's response has been to apply via psql directly, which works but leaves the tracking table out of date.
+
+**`pnpm --filter web typecheck` is the fastest sanity check** for staged changes. It catches missing schema/query exports and broken component imports in seconds. Use it between commits.
+
+### What's deferred / next session pickups
+
+Highest leverage:
+
+1. **Reconcile `drizzle.__drizzle_migrations`** with reality. Insert hashes for 0030, 0032, 0033 + apply 0031. Once done, `pnpm migrate` works again going forward.
+2. **Regenerate 0026 / 0031 / 0032 / 0033 snapshots** if `drizzle-kit generate` is ever needed again — otherwise future schema diffs will baseline against the stale 0025 snapshot.
+3. **Captain ★ detection** — small CV detector for the BGM ★ glyph RapidOCR misses. Carries over from the morning session.
+4. **Build-class normalization** — `TAGETHOMPSON-PWF` → `Tage Thompson - PowerForward` via fuzzy match against a known vocabulary.
+5. **M. RANTANEN alias fix** (memory-tracked) — `UPDATE player_display_aliases SET player_id=3 WHERE alias='M. RANTANEN'` plus audit of `match_events` rows where actor_player_id=11 with actor_gamertag_snapshot='M. RANTANEN'.
+6. **Marker-extraction internal spikes** — the 4 prioritized ones from the Round-2 review. ~3 hrs total.
+7. **Move the root-level design docs into `docs/`** — `Badges.md` and `card-design-and-progression-blueprint.md` shipped at root for now; they're working drafts and should be moved when the direction stabilises.
+
+Open decisions:
+
+- **Migration workflow going forward** — keep applying hand-written SQL via direct psql (and just stop running `pnpm migrate`), or do a proper reconciliation and resume the drizzle-kit-generate path? The current state nudges toward the former.
+
+---
+
+## Session Summary — 2026-05-12 morning (Pre-game OCR end-to-end + Round-2 Deep Research review)
 
 ### What shipped — 5 commits forming a complete pre-game ingestion track
 
