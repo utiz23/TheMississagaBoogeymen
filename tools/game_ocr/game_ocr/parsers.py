@@ -111,7 +111,7 @@ def parse_lobby_team(lines: list[OCRLine], include_player_name: bool) -> TeamSum
     return TeamSummary(roster=roster, raw_lines=[line.text for line in lines])
 
 
-def parse_pre_game_result(meta, regions: dict[str, list[OCRLine]], include_player_name: bool) -> PreGameLobbyResult:
+def parse_pre_game_result(meta, regions: dict[str, list[OCRLine]], include_player_name: bool, **_kwargs) -> PreGameLobbyResult:
     our_team = parse_lobby_team(regions["our_team_panel"], include_player_name=include_player_name)
     opponent_team = parse_lobby_team(regions["opponent_team_panel"], include_player_name=include_player_name)
     base_fields = [
@@ -129,65 +129,456 @@ def parse_pre_game_result(meta, regions: dict[str, list[OCRLine]], include_playe
     )
 
 
-def parse_loadout_result(meta, regions: dict[str, list[OCRLine]]) -> PlayerLoadoutResult:
-    height_weight_field = field_from_lines(regions["measurements"])
-    height_value, weight_value = split_height_weight(height_weight_field.raw_text)
+# ─── Loadout view: anchor-based full-frame parser ────────────────────────────
+#
+# Replaces the previous per-ROI approach that had ROIs misaligned (gamertag
+# pointed at the LEFT-STRIP avatar; build_class clipped half the title; each
+# attribute ROI captured 1 of 5 rows). See docs/ocr/pre-game-extraction-research.md
+# for the full diagnosis. New approach:
+#   1. RapidOCR runs once on the full 1920x1080 frame.
+#   2. Locate stable anchors (column headers, X-FACTORS header, etc.).
+#   3. Snap OCR lines into the implied 5-column × 4-or-5-row attribute grid.
+#   4. Sample HSV at fixed X-Factor icon centroids to classify tier.
 
-    x_factor_fields = [field_from_lines([line]) for line in regions["x_factors"][:3]]
-    attributes = {
-        "technique": AttributeGroup(
-            values={
-                "wrist_shot_accuracy": field_from_lines(regions["technique"]),
-            }
-        ),
-        "power": AttributeGroup(
-            values={
-                "wrist_shot_power": field_from_lines(regions["power"]),
-            }
-        ),
-        "playstyle": AttributeGroup(
-            values={
-                "passing": field_from_lines(regions["playstyle"]),
-            }
-        ),
-        "tenacity": AttributeGroup(
-            values={
-                "hand_eye": field_from_lines(regions["tenacity"]),
-            }
-        ),
-        "tactics": AttributeGroup(
-            values={
-                "deking": field_from_lines(regions["tactics"]),
-            }
-        ),
+_LOADOUT_ATTR_GROUPS = ["technique", "power", "playstyle", "tenacity", "tactics"]
+_LOADOUT_ATTRS_PER_GROUP = {
+    "technique": ["wrist_shot_accuracy", "slap_shot_accuracy", "speed", "balance", "agility"],
+    "power": ["wrist_shot_power", "slap_shot_power", "acceleration", "puck_control", "endurance"],
+    "playstyle": ["passing", "offensive_awareness", "body_checking", "stick_checking", "defensive_awareness"],
+    "tenacity": ["hand_eye", "strength", "durability", "shot_blocking"],
+    "tactics": ["deking", "faceoffs", "discipline", "fighting_skill"],
+}
+# Empirical row y-centres for the attribute grid, observed across all 11
+# match-250 loadout captures (vlcsnap-2026-05-10-01h48m53s424.png onward).
+_LOADOUT_ATTR_ROW_YS = [598, 656, 714, 771, 830]
+# Empirical X-Factor icon centroids (validated 18/18 in xfactor_tier_spike.py).
+_LOADOUT_XFACTOR_ICON_CENTROIDS = [(500, 340), (1000, 340), (1500, 340)]
+_LOADOUT_XFACTOR_ICON_RADIUS = 35
+
+
+def _classify_xfactor_tier(image, cx: int, cy: int, radius: int = _LOADOUT_XFACTOR_ICON_RADIUS) -> str | None:
+    """HSV-sample at fixed icon centroid; classify tier by hue cluster.
+
+    Returns 'Elite' (red), 'All Star' (blue), 'Specialist' (yellow), or None
+    when there's no saturated icon at that location (transitional capture).
+    Verified 100% accuracy on 18/18 non-transitional match-250 captures.
+    """
+    import cv2  # local import to avoid circular at module load
+    import numpy as np
+
+    if image is None:
+        return None
+    h, w = image.shape[:2]
+    x1, x2 = max(0, cx - radius), min(w, cx + radius)
+    y1, y2 = max(0, cy - radius), min(h, cy + radius)
+    patch = image[y1:y2, x1:x2]
+    hsv = cv2.cvtColor(patch, cv2.COLOR_BGR2HSV)
+    pixels = hsv.reshape(-1, 3)
+    mask = (pixels[:, 1] > 100) & (pixels[:, 2] > 60)
+    if int(mask.sum()) < 50:
+        return None  # transitional capture: icon not rendered yet
+    sat = pixels[mask]
+    hues = sat[:, 0].astype(np.float64) * (2 * np.pi / 180)
+    mean_h = (np.arctan2(np.mean(np.sin(hues)), np.mean(np.cos(hues))) * 180 / (2 * np.pi)) % 180
+    if mean_h <= 15 or mean_h >= 165:
+        return "Elite"
+    if 95 <= mean_h <= 135:
+        return "All Star"
+    if 15 < mean_h < 35:
+        return "Specialist"
+    return None
+
+
+def _lines_in_bbox(lines: list[OCRLine], y_range: tuple[float, float], x_range: tuple[float, float] | None = None) -> list[OCRLine]:
+    ymin, ymax = y_range
+    out = [l for l in lines if ymin <= l.y_center <= ymax]
+    if x_range is not None:
+        xmin, xmax = x_range
+        out = [l for l in out if xmin <= l.x_center <= xmax]
+    return out
+
+
+def _parse_loadout_left_strip_with_anchor_y(
+    lines: list[OCRLine], gamertag_text: str | None
+) -> tuple[dict[str, ExtractionField], float | None]:
+    """Wrapper around _parse_loadout_left_strip that also returns the subject's anchor y.
+
+    The y is the y_center of the position-label line; useful for downstream level / captain
+    detection that needs to scope to the subject's row, not other rows in the strip.
+    """
+    fields = _parse_loadout_left_strip(lines, gamertag_text)
+    pos = fields["player_position"]
+    if pos.status != FieldStatus.OK:
+        return fields, None
+    # Re-find the anchor line for its y.
+    pos_set = {"C", "LW", "RW", "LD", "RD", "G"}
+    target = pos.value
+    for line in lines:
+        if (
+            line.x_center < 130
+            and line.text.strip().upper().replace(" ", "") == target
+            and target in pos_set
+            and 180 < line.y_center < 980
+        ):
+            return fields, line.y_center
+    return fields, None
+
+
+def _parse_loadout_left_strip(lines: list[OCRLine], gamertag_text: str | None) -> dict[str, ExtractionField]:
+    """Find the subject's row in the HOME/AWAY left strip and pull full name + number + position.
+
+    The left strip uses position-label lines (C/LW/RW/LD/RD/G at x_center<130) as row
+    anchors — they appear exactly once per visible player. Each anchor's y_center IS the
+    row centre. The "subject" of the loadout view is identified by matching the top-right
+    gamertag against the gamertag line ~x[200..390] in each anchored row.
+
+    Returns full_name (e.g. "Evgeni Wanhg") under `player_name_full`. The short persona
+    "E. Wanhg" only appears on lobby state-2 captures.
+    """
+    fields: dict[str, ExtractionField] = {
+        "player_position": ExtractionField(status=FieldStatus.MISSING),
+        "player_name_full": ExtractionField(status=FieldStatus.MISSING),
+        "player_number": ExtractionField(status=FieldStatus.MISSING),
+        "is_captain": ExtractionField(status=FieldStatus.MISSING),
     }
-    result = PlayerLoadoutResult(
-        meta=meta,
-        selected_player=field_from_lines(regions["selected_player"]),
-        player_position=field_from_lines(regions["player_position"], parser=enum_parser({"LW", "RW", "C", "LD", "RD", "G"})),
-        player_name=field_from_lines(regions["player_name"]),
-        player_level=field_from_lines(regions["player_level"], parser=parse_int),
-        player_platform=field_from_lines(regions["player_platform"]),
-        gamertag=field_from_lines(regions["gamertag"]),
-        home_team=field_from_lines(regions["home_team"]),
-        build_class=field_from_lines(regions["build_class"]),
-        height=ExtractionField(
-            raw_text=height_weight_field.raw_text,
-            value=height_value,
-            confidence=height_weight_field.confidence,
-            status=height_weight_field.status if height_value else FieldStatus.UNCERTAIN,
-        ),
-        weight=ExtractionField(
-            raw_text=height_weight_field.raw_text,
-            value=weight_value,
-            confidence=height_weight_field.confidence,
-            status=height_weight_field.status if weight_value else FieldStatus.UNCERTAIN,
-        ),
-        handedness=field_from_lines(regions["handedness"]),
-        x_factors=x_factor_fields,
-        attributes=attributes,
+    if not gamertag_text:
+        return fields
+
+    pos_set = {"C", "LW", "RW", "LD", "RD", "G"}
+    # Position-label anchors: text in pos_set, at x_center < 130, anywhere in the strip y-range.
+    anchors: list[OCRLine] = [
+        l for l in lines
+        if l.y_center > 180
+        and l.y_center < 980
+        and l.x_center < 130
+        and l.text.strip().upper().replace(" ", "") in pos_set
+    ]
+    if not anchors:
+        return fields
+
+    # Identify the subject row by matching the gamertag text inside each anchored row.
+    gt_normalized = re.sub(r"[^a-z0-9]", "", gamertag_text.lower())
+    if not gt_normalized:
+        return fields
+    head = gt_normalized[: min(6, len(gt_normalized))]
+
+    subject_anchor: OCRLine | None = None
+    for anchor in anchors:
+        # Row content sits within ±45 px of anchor_y, at x_center in [180, 400].
+        row_lines = [
+            l for l in lines
+            if abs(l.y_center - anchor.y_center) < 45 and 180 < l.x_center < 400
+        ]
+        joined = re.sub(r"[^a-z0-9]", "", " ".join(l.text for l in row_lines).lower())
+        if head and head in joined:
+            subject_anchor = anchor
+            break
+    if subject_anchor is None:
+        return fields
+
+    pos_upper = subject_anchor.text.strip().upper().replace(" ", "")
+    fields["player_position"] = ExtractionField(
+        raw_text=subject_anchor.text, value=pos_upper, confidence=subject_anchor.confidence, status=FieldStatus.OK
     )
-    return result
+
+    # Now harvest the subject row's other content: gamertag, #N, full name, captain.
+    subject_row = [
+        l for l in lines
+        if abs(l.y_center - subject_anchor.y_center) < 45 and 180 < l.x_center < 400
+    ]
+    number_re = re.compile(r"#(\d{1,3})")
+    name_re = re.compile(r"#\d{1,3}\s*[-.]+\s*(.+)")
+    captain_glyphs = {"★", "✯", "✦", "✪", "✩"}
+
+    for line in subject_row:
+        text = line.text.strip()
+        if any(g in text for g in captain_glyphs):
+            fields["is_captain"] = ExtractionField(
+                raw_text=text, value=True, confidence=line.confidence, status=FieldStatus.OK
+            )
+        m = number_re.search(text)
+        if m and fields["player_number"].status == FieldStatus.MISSING:
+            fields["player_number"] = ExtractionField(
+                raw_text=text, value=int(m.group(1)), confidence=line.confidence, status=FieldStatus.OK
+            )
+        m2 = name_re.search(text)
+        if m2 and fields["player_name_full"].status == FieldStatus.MISSING:
+            full_name = m2.group(1).strip(". ")
+            fields["player_name_full"] = ExtractionField(
+                raw_text=text, value=full_name, confidence=line.confidence, status=FieldStatus.OK
+            )
+
+    return fields
+
+
+def _parse_loadout_measurements(measurement_lines: list[OCRLine]) -> tuple[ExtractionField, ExtractionField, ExtractionField]:
+    """Parse the top-right "<H> | <W> | SHOOTS <hand>" strip into (height, weight, handedness)."""
+    if not measurement_lines:
+        empty = ExtractionField(status=FieldStatus.MISSING)
+        return empty, empty, empty
+    sorted_lines = sorted(measurement_lines, key=lambda l: l.x1)
+    raw = " ".join(l.text for l in sorted_lines)
+    confidence = mean([l.confidence for l in sorted_lines]) if sorted_lines else None
+    raw_upper = raw.upper()
+    height_value, weight_value = split_height_weight(raw)
+    # OCR commonly mis-reads 6'0" as 0.9 etc.; if split_height_weight failed, try
+    # a more permissive fallback.
+    if not height_value:
+        m = re.search(r"(\d)'?\s*(\d{1,2})\"?", raw)
+        if m:
+            height_value = f"{m.group(1)}'{m.group(2)}\""
+    hand_value: str | None = None
+    if "RIGHT" in raw_upper:
+        hand_value = "Right"
+    elif "LEFT" in raw_upper:
+        hand_value = "Left"
+    h = ExtractionField(
+        raw_text=raw,
+        value=height_value,
+        confidence=confidence,
+        status=FieldStatus.OK if height_value else FieldStatus.UNCERTAIN,
+    )
+    w = ExtractionField(
+        raw_text=raw,
+        value=weight_value,
+        confidence=confidence,
+        status=FieldStatus.OK if weight_value else FieldStatus.UNCERTAIN,
+    )
+    hd = ExtractionField(
+        raw_text=raw,
+        value=hand_value,
+        confidence=confidence,
+        status=FieldStatus.OK if hand_value else FieldStatus.UNCERTAIN,
+    )
+    return h, w, hd
+
+
+def _parse_loadout_attributes(
+    lines: list[OCRLine], column_centers: dict[str, float]
+) -> tuple[dict[str, AttributeGroup], dict[str, ExtractionField]]:
+    """Snap OCR lines into the 5×5 (or 5×4) attribute grid and parse R + Δ per cell."""
+    attributes: dict[str, AttributeGroup] = {g: AttributeGroup() for g in _LOADOUT_ATTR_GROUPS}
+    deltas: dict[str, ExtractionField] = {}
+
+    for group in _LOADOUT_ATTR_GROUPS:
+        if group not in column_centers:
+            # Column header not found; fill the group with MISSING placeholders.
+            for key in _LOADOUT_ATTRS_PER_GROUP[group]:
+                attributes[group].values[key] = ExtractionField(status=FieldStatus.MISSING)
+            continue
+        cx = column_centers[group]
+        keys = _LOADOUT_ATTRS_PER_GROUP[group]
+        n_rows = len(keys)
+        for row_idx in range(n_rows):
+            row_y = _LOADOUT_ATTR_ROW_YS[row_idx]
+            # Cell x-band is asymmetric — label sits near cx, Δ + R extend far right.
+            cell_lines = _lines_in_bbox(lines, (row_y - 25, row_y + 25), (cx - 80, cx + 260))
+            value_field, delta_field = _extract_cell(cell_lines, cx)
+            key = keys[row_idx]
+            attributes[group].values[key] = value_field
+            if delta_field is not None:
+                deltas[key] = delta_field
+    return attributes, deltas
+
+
+def _extract_cell(cell_lines: list[OCRLine], cx: float) -> tuple[ExtractionField, ExtractionField | None]:
+    """Within a single attribute-grid cell, identify the Δ chip and the R rating.
+
+    Layout per column relative to header x-centre `cx`:
+      - label x_center : cx-30..cx+90   (text content, ignored for keying)
+      - Δ     x_center : cx+90..cx+170  (signed +N or -N, OCR may also read "+5" as "4")
+      - R     x_center : cx+170..cx+260 (1-2 digit integer 0-99)
+    """
+    value: int | None = None
+    value_conf: float | None = None
+    value_raw: str | None = None
+    delta: int | None = None
+    delta_conf: float | None = None
+    delta_raw: str | None = None
+
+    for line in cell_lines:
+        text = line.text.strip()
+        x_rel = line.x_center - cx
+        # R value: short int in the rightmost sub-band.
+        if 160 <= x_rel <= 270 and re.fullmatch(r"\d{1,2}", text):
+            value = int(text)
+            value_conf = line.confidence
+            value_raw = text
+            continue
+        # Δ chip: signed int in the middle sub-band.
+        if 80 <= x_rel <= 170:
+            m = re.fullmatch(r"([+\-]?)(\d{1,2})", text)
+            if m:
+                sign = -1 if m.group(1) == "-" else 1
+                delta = sign * int(m.group(2))
+                delta_conf = line.confidence
+                delta_raw = text
+
+    value_field = ExtractionField(
+        raw_text=value_raw,
+        value=value,
+        confidence=value_conf,
+        status=FieldStatus.OK if value is not None else FieldStatus.MISSING,
+    )
+    delta_field = (
+        ExtractionField(
+            raw_text=delta_raw,
+            value=delta,
+            confidence=delta_conf,
+            status=FieldStatus.OK,
+        )
+        if delta is not None
+        else None
+    )
+    return value_field, delta_field
+
+
+def parse_loadout_result(meta, regions: dict[str, list[OCRLine]], *, image=None, **_kwargs) -> PlayerLoadoutResult:
+    lines: list[OCRLine] = regions.get("full_frame", [])
+
+    # ── Anchor: page header & build class title ──
+    # Build class is the big centered text below the PLAYER LOADOUTS page header.
+    # Page header is at y≈72; build class at y≈137.
+    title_band = _lines_in_bbox(lines, (110, 175), (300, 1400))
+    build_class_line = max(title_band, key=lambda l: (l.y2 - l.y1) * (l.x2 - l.x1), default=None)
+    build_class_field = (
+        field_from_lines([build_class_line], raw_override=build_class_line.text)
+        if build_class_line
+        else ExtractionField(status=FieldStatus.MISSING)
+    )
+
+    # ── Anchor: top-right gamertag (y≈146, x>1500) ──
+    gt_band = _lines_in_bbox(lines, (130, 170), (1500, 1920))
+    gamertag_line = max(gt_band, key=lambda l: l.x2 - l.x1, default=None) if gt_band else None
+    gamertag_field = (
+        field_from_lines([gamertag_line])
+        if gamertag_line
+        else ExtractionField(status=FieldStatus.MISSING)
+    )
+    gamertag_text = gamertag_line.text if gamertag_line else None
+
+    # ── Anchor: measurements strip (y≈189, x>1400) ──
+    meas_lines = _lines_in_bbox(lines, (170, 215), (1400, 1920))
+    height_f, weight_f, hand_f = _parse_loadout_measurements(meas_lines)
+
+    # ── Anchor: X-FACTORS header at y≈254 ──
+    xf_header = next((l for l in lines if "X-FACTOR" in l.text.upper() and l.y_center < 320), None)
+    xf_header_y = xf_header.y_center if xf_header else 254.0
+    # X-Factor names live in a band ~60-90px below the header.
+    xf_name_band = _lines_in_bbox(lines, (xf_header_y + 55, xf_header_y + 90))
+    # Bucket by expected slot x-centre (500/1000/1500); pick the closest per slot.
+    slot_names: list[ExtractionField] = []
+    slot_tiers: list[ExtractionField] = []
+    for slot_idx, (cx, _) in enumerate(_LOADOUT_XFACTOR_ICON_CENTROIDS):
+        candidates = [l for l in xf_name_band if abs(l.x_center - cx) < 200]
+        # If multiple candidates fall in band, the X-Factor NAME is typically the
+        # longer / wider line; descriptions are at y_center > name_y.
+        if candidates:
+            top = sorted(candidates, key=lambda l: (l.y_center, -(l.x2 - l.x1)))[0]
+            slot_names.append(field_from_lines([top], raw_override=top.text))
+        else:
+            slot_names.append(ExtractionField(status=FieldStatus.MISSING))
+        tier_value = _classify_xfactor_tier(image, cx, _LOADOUT_XFACTOR_ICON_CENTROIDS[slot_idx][1])
+        slot_tiers.append(
+            ExtractionField(
+                value=tier_value,
+                status=FieldStatus.OK if tier_value else FieldStatus.MISSING,
+            )
+        )
+
+    # ── Anchor: ATTRIBUTES header at y≈529 ──
+    attr_header = next((l for l in lines if l.text.strip().upper() == "ATTRIBUTES" and 500 < l.y_center < 560), None)
+    attr_header_y = attr_header.y_center if attr_header else 529.0
+    # Column headers sit at y ≈ attr_header_y + 35.
+    column_header_band = _lines_in_bbox(lines, (attr_header_y + 15, attr_header_y + 55))
+    column_centers: dict[str, float] = {}
+    for line in column_header_band:
+        upper = line.text.upper().replace(" ", "")
+        if upper in {"TECHNIQUE", "POWER", "PLAYSTYLE", "TENACITY", "TACTICS"}:
+            column_centers[upper.lower()] = line.x_center
+    # Fallback hardcoded centres if OCR missed any header.
+    fallback_centres = {"technique": 491.0, "power": 769.0, "playstyle": 1076.0, "tenacity": 1363.0, "tactics": 1652.0}
+    for g, cx in fallback_centres.items():
+        column_centers.setdefault(g, cx)
+
+    attributes, attribute_deltas = _parse_loadout_attributes(lines, column_centers)
+
+    # ── Anchor: Active Ability Points (AP) ──
+    # OCR usually splits into "ACTIVEABILITYPOINTS(AP):" + "<N>/100". Locate the N/100.
+    ap_used_val: int | None = None
+    ap_total_val: int | None = None
+    ap_conf: float | None = None
+    for line in lines:
+        m = re.fullmatch(r"(\d{1,3})\s*/\s*(\d{1,3})", line.text.strip())
+        if m and 440 < line.y_center < 500:
+            ap_used_val = int(m.group(1))
+            ap_total_val = int(m.group(2))
+            ap_conf = line.confidence
+            break
+    ap_used_field = ExtractionField(
+        value=ap_used_val,
+        confidence=ap_conf,
+        status=FieldStatus.OK if ap_used_val is not None else FieldStatus.MISSING,
+    )
+    ap_total_field = ExtractionField(
+        value=ap_total_val,
+        confidence=ap_conf,
+        status=FieldStatus.OK if ap_total_val is not None else FieldStatus.MISSING,
+    )
+
+    # ── Anchor: left strip (HOME/AWAY rosters) — pull persona + number + position + captain ──
+    strip_fields, subject_row_y = _parse_loadout_left_strip_with_anchor_y(lines, gamertag_text)
+
+    # ── Player level — appears in the subject row in the strip (typically y_center + ~30) ──
+    # Format can be "P<n>LVL<n>" or just "LVL<n>" depending on platform/locale.
+    player_level_field = ExtractionField(status=FieldStatus.MISSING)
+    if subject_row_y is not None:
+        # Scan the strip-narrow x-band within ±50 px of the subject's anchor row.
+        for line in lines:
+            if not (subject_row_y - 10 < line.y_center < subject_row_y + 60):
+                continue
+            if not (60 < line.x_center < 220):
+                continue
+            stripped = line.text.replace(" ", "").upper()
+            if re.search(r"LVL\d{1,3}", stripped):
+                m = re.search(r"LVL(\d{1,3})", stripped)
+                player_level_field = ExtractionField(
+                    raw_text=line.text,
+                    value=int(m.group(1)) if m else None,
+                    confidence=line.confidence,
+                    status=FieldStatus.OK,
+                )
+                break
+
+    # ── Full real name resolution ──
+    # Always sourced from the left strip's "#N - <Full Name>" line. The title bar
+    # for themed builds ("COLE CAUFIELD - SNP") names the NHL player the BUILD mimics,
+    # not the loadout subject's real name — don't try to split it.
+    player_name_full_field = strip_fields["player_name_full"]
+
+    return PlayerLoadoutResult(
+        meta=meta,
+        player_position=strip_fields["player_position"],
+        # `player_name` (short persona "E. Wanhg") is only on lobby state-2; not derivable
+        # from the loadout view. Promoter / cross-frame consensus fills it in later.
+        player_name=ExtractionField(status=FieldStatus.MISSING),
+        player_name_full=player_name_full_field,
+        player_number=strip_fields["player_number"],
+        player_level=player_level_field,
+        player_platform=ExtractionField(status=FieldStatus.MISSING),
+        gamertag=gamertag_field,
+        is_captain=strip_fields["is_captain"],
+        build_class=build_class_field,
+        height=height_f,
+        weight=weight_f,
+        handedness=hand_f,
+        ap_used=ap_used_field,
+        ap_total=ap_total_field,
+        x_factors=slot_names,
+        x_factor_tiers=slot_tiers,
+        attributes=attributes,
+        attribute_deltas=attribute_deltas,
+    )
 
 
 def build_player_record(side: str, row: list[OCRLine]) -> PostGamePlayerRecord:
@@ -245,14 +636,14 @@ _BOX_SCORE_PERIOD_NUMBER = {
     "OT": 4,
     "OT2": 5,
     "OT3": 6,
-    "SO": 7,
     "TOT": -1,
     "FINAL": -1,
 }
 
 # Common OCR misreads of period header tokens, mapped to their canonical form.
+# EASHL has no shootout — any "SO"-shaped header is either OCR garbage or a
+# screen from a non-EASHL mode and is ignored downstream.
 _BOX_SCORE_PERIOD_ALIASES = {
-    "S0": "SO",
     "1S": "1ST",
     "1SI": "1ST",
     "2N": "2ND",
@@ -385,6 +776,7 @@ def parse_post_game_box_score(
     regions: dict[str, list[OCRLine]],
     *,
     stat_kind: str,
+    **_kwargs,
 ) -> PostGameBoxScoreResult:
     """Parse one of the three Box Score tabs (goals/shots/faceoffs).
 
@@ -440,6 +832,38 @@ def parse_post_game_box_score(
             )
         )
 
+    # TOT-sum sanity check: periods 1..6 (1ST/2ND/3RD/OT/OT2/OT3) should add
+    # up to the TOT column. EASHL has no shootout, so no SO bucket. RapidOCR misreads digits in this font (most often
+    # '9'→'6' or '9'→'g'), so when the column sum disagrees with TOT we surface
+    # a warning so the operator can pinpoint the bad cell during review.
+    warnings: list[str] = []
+    tot_cell = next((c for c in periods if c.period_number == -1), None)
+    if tot_cell is not None:
+        for side in ("away", "home"):
+            tot_field = tot_cell.away_value if side == "away" else tot_cell.home_value
+            tot_val = tot_field.value if isinstance(tot_field.value, int) else None
+            if tot_val is None:
+                continue
+            period_vals: list[int] = []
+            missing = False
+            for c in periods:
+                if c.period_number < 1 or c.period_number > 6:
+                    continue
+                cell = c.away_value if side == "away" else c.home_value
+                if isinstance(cell.value, int):
+                    period_vals.append(cell.value)
+                else:
+                    missing = True
+                    break
+            if missing or not period_vals:
+                continue
+            summed = sum(period_vals)
+            if summed != tot_val:
+                warnings.append(
+                    f"{stat_kind} {side} TOT mismatch: periods sum to {summed} "
+                    f"but TOT reads {tot_val} (delta {tot_val - summed})"
+                )
+
     return PostGameBoxScoreResult(
         meta=meta,
         stat_kind=stat_kind,  # type: ignore[arg-type]
@@ -448,6 +872,7 @@ def parse_post_game_box_score(
         home_team=home_team,
         period_headers=period_headers,
         periods=periods,
+        warnings=warnings,
     )
 
 
@@ -507,7 +932,7 @@ def _net_chart_period_number(label_text: str) -> int:
     return _NET_CHART_PERIOD_NUMBER.get(cleaned, -1)
 
 
-def parse_post_game_net_chart(meta, regions: dict[str, list[OCRLine]]) -> PostGameNetChartResult:
+def parse_post_game_net_chart(meta, regions: dict[str, list[OCRLine]], **_kwargs) -> PostGameNetChartResult:
     """Parse the Net Chart stats panel into per-side shot-type counts.
 
     Layout: 7 rows (TOTAL/WRIST/SLAP/BACKHAND/SNAP/DEFLECTIONS/SHOTS ON PP),
@@ -586,7 +1011,7 @@ def _faceoff_row_key(text: str) -> str | None:
     return None
 
 
-def parse_post_game_faceoff_map(meta, regions: dict[str, list[OCRLine]]) -> PostGameFaceoffMapResult:
+def parse_post_game_faceoff_map(meta, regions: dict[str, list[OCRLine]], **_kwargs) -> PostGameFaceoffMapResult:
     """Parse the Faceoff Map text panel. Audit-only — no domain rows.
 
     Three rows: OVERALL WIN % / OFFENSIVE ZONE / DEFENSIVE ZONE. Each has an
@@ -660,10 +1085,15 @@ _EVENT_PERIOD_NUMBER = {
 # Goal event:
 #   <CLOCK> <SCORER>[goal_number_brackets] [assist1, assist2]
 # Brackets vary in OCR: ( ) vs [ ] interchangeably. Trailing ) sometimes glued.
-_EVENT_CLOCK_RE = re.compile(r"(\d{1,2}:\d{2})")
+#
+# Clock format constrained to MM ∈ [0, 19], SS ∈ [00, 59] — periods are 20:00
+# long. The earlier `\d{1,2}:\d{2}` regex matched bogus OCR clocks like
+# "71:10", which then made it through to the DB.
+_CLOCK_PATTERN = r"[01]?\d:[0-5]\d"
+_EVENT_CLOCK_RE = re.compile(rf"({_CLOCK_PATTERN})")
 _EVENT_GOAL_RE = re.compile(
-    r"^\s*"
-    r"(?P<clock>\d{1,2}:\d{2})\s+"
+    rf"^\s*"
+    rf"(?P<clock>{_CLOCK_PATTERN})\s+"
     r"(?P<scorer>.+?)\s*"
     r"[\[\(](?P<goal_num>\d+)[\]\)]\s*"
     r"[\[\(](?P<assists>.+?)[\]\)]\s*$",
@@ -672,15 +1102,15 @@ _EVENT_GOAL_RE = re.compile(
 # Goal event without explicit goal number (sometimes OT entries):
 #   <CLOCK> <SCORER> [assist1, assist2]
 _EVENT_GOAL_NO_NUM_RE = re.compile(
-    r"^\s*"
-    r"(?P<clock>\d{1,2}:\d{2})\s+"
+    rf"^\s*"
+    rf"(?P<clock>{_CLOCK_PATTERN})\s+"
     r"(?P<scorer>.+?)\s*"
     r"[\[\(](?P<assists>[^\[\(\]\)]+)[\]\)]\s*$",
     re.IGNORECASE,
 )
 _EVENT_PENALTY_RE = re.compile(
-    r"^\s*"
-    r"(?P<clock>\d{1,2}:\d{2})\s+"
+    rf"^\s*"
+    rf"(?P<clock>{_CLOCK_PATTERN})\s+"
     r"(?P<player>.+?)\s+"
     r"(?P<infraction>[A-Za-z][A-Za-z\s\-]*?)\s+"
     r"(?P<ptype>Minor|Major)\s*$",
@@ -850,7 +1280,7 @@ def _parse_event_line(
     )
 
 
-def parse_post_game_events(meta, regions: dict[str, list[OCRLine]]) -> PostGameEventsResult:
+def parse_post_game_events(meta, regions: dict[str, list[OCRLine]], **_kwargs) -> PostGameEventsResult:
     """Parse the Events screen's scrollable list into event rows.
 
     Each event row is typically two OCR detections: a team-abbreviation chip
@@ -952,8 +1382,15 @@ def _action_tracker_event_type(text: str) -> str:
     return "unknown"
 
 
-def parse_post_game_action_tracker(meta, regions: dict[str, list[OCRLine]]) -> PostGameActionTrackerResult:
-    """Parse the Action Tracker left-panel event list.
+def parse_post_game_action_tracker(
+    meta,
+    regions: dict[str, list[OCRLine]],
+    *,
+    image=None,
+    **_kwargs,
+) -> PostGameActionTrackerResult:
+    """Parse the Action Tracker left-panel event list + (Phase 5) the rink-map
+    spatial position of the highlighted (selected) event.
 
     Each event renders as TWO OCR rows in vertical proximity:
       Row A:  "<ACTOR> ON|VS <TARGET>"   (and a chip 'S/H/P/G/F' to the right)
@@ -961,6 +1398,12 @@ def parse_post_game_action_tracker(meta, regions: dict[str, list[OCRLine]]) -> P
 
     Strategy: tightly group rows by y, then walk in pairs. The first row gives
     actor/target/relation; the second gives event_type and clock.
+
+    If `image` is provided (full-frame BGR np.ndarray), also runs the spatial
+    extractor on the rink panel to detect the yellow (selected) marker and
+    compute its hockey-standard (x, y). The result is attached as the
+    `selected_event_*` fields. The first event in the parsed list corresponds
+    to this position because the highlighted row is rendered topmost.
     """
     filter_label = field_from_lines(regions.get("filter_label", []))
     period_label_field = field_from_lines(regions.get("period_label", []))
@@ -973,6 +1416,9 @@ def parse_post_game_action_tracker(meta, regions: dict[str, list[OCRLine]]) -> P
     rows = _group_lines_by_y(panel_lines, threshold=85.0)
 
     events: list[ActionTrackerEvent] = []
+    # Parallel list of cropped-panel y-centers for each parsed event row. Used
+    # later to match the red selection bar to a specific event.
+    event_cropped_y_centers: list[float] = []
     for row in rows:
         joined = " ".join(line.text for line in sorted(row, key=lambda l: (l.y_center, l.x1)))
         rel_match = _ACTION_RELATION_RE.search(joined)
@@ -1006,7 +1452,10 @@ def parse_post_game_action_tracker(meta, regions: dict[str, list[OCRLine]]) -> P
         for line in row:
             if line is actor_line:
                 continue
-            m = re.search(r"(\d{1,2}:\d{2})", line.text)
+            # Clock format bounded to MM ∈ [0, 19], SS ∈ [00, 59] — periods are
+            # 20:00 long. Without bounds, OCR misreads like "71:10" leaked
+            # through and ended up in the DB as bogus clocks.
+            m = re.search(r"([01]?\d:[0-5]\d)", line.text)
             if m and clock is None:
                 clock = m.group(1)
                 clock_conf = line.confidence
@@ -1051,6 +1500,66 @@ def parse_post_game_action_tracker(meta, regions: dict[str, list[OCRLine]]) -> P
                 ),
             )
         )
+        # Record the actor sub-row's y-center for selection-bar matching.
+        # OCR runs on a 2x-upscaled crop (see image.preprocess_image), so
+        # divide by 2 to bring the value back to original panel pixel space.
+        event_cropped_y_centers.append(actor_line.y_center / 2.0)
+
+    # Phase 5: spatial extraction. Only runs if a full-frame image is supplied
+    # (the extractor passes one in production; unit tests may not).
+    selected_x: float | None = None
+    selected_y: float | None = None
+    selected_zone: str | None = None
+    spatial_marker_count = 0
+    spatial_yellow_count = 0
+    spatial_warnings: list[str] = []
+    # Detect which row in `events` is currently highlighted in the UI by
+    # finding the red selection bar on the left edge of the list panel and
+    # matching its y-centre against each event's actor-row y-centre.
+    selected_event_index: int | None = None
+    if image is not None:
+        try:
+            from game_ocr.spatial import (
+                detect_selected_row_index,
+                extract_selected_event_position,
+                load_rink_calibration,
+            )
+
+            cal = load_rink_calibration("post_game_action_tracker")
+            spatial = extract_selected_event_position(image, cal)
+            spatial_marker_count = spatial.detected_marker_count
+            spatial_yellow_count = spatial.yellow_marker_count
+            spatial_warnings = list(spatial.warnings)
+            if spatial.selected_coordinate is not None:
+                selected_x = spatial.selected_coordinate.x
+                selected_y = spatial.selected_coordinate.y
+                selected_zone = spatial.selected_coordinate.rink_zone
+
+            # Pick which event in `events` is the currently-highlighted one
+            # (red row tint in the list panel). list_panel ROI ratios from
+            # configs/roi/post_game_action_tracker.yaml.
+            if events and event_cropped_y_centers:
+                full_h, full_w = image.shape[:2]
+                panel_x1 = int(0.075 * full_w)
+                panel_y1 = int(0.190 * full_h)
+                panel_x2 = int((0.075 + 0.395) * full_w)
+                panel_y2 = int((0.190 + 0.700) * full_h)
+                selected_event_index = detect_selected_row_index(
+                    image,
+                    panel_x1,
+                    panel_y1,
+                    panel_x2,
+                    panel_y2,
+                    event_cropped_y_centers,
+                )
+                if selected_event_index is None:
+                    spatial_warnings.append(
+                        "No highlighted event row detected in list panel"
+                    )
+        except FileNotFoundError as exc:
+            spatial_warnings.append(f"Rink calibration missing: {exc}")
+        except Exception as exc:  # noqa: BLE001
+            spatial_warnings.append(f"Spatial extraction failed: {exc}")
 
     return PostGameActionTrackerResult(
         meta=meta,
@@ -1058,6 +1567,13 @@ def parse_post_game_action_tracker(meta, regions: dict[str, list[OCRLine]]) -> P
         period_label=period_label_field,
         period_number=period_number_top,
         events=events,
+        selected_event_index=selected_event_index,
+        selected_event_x=selected_x,
+        selected_event_y=selected_y,
+        selected_event_rink_zone=selected_zone,
+        spatial_marker_count=spatial_marker_count,
+        spatial_yellow_count=spatial_yellow_count,
+        spatial_warnings=spatial_warnings,
     )
 
 
@@ -1076,7 +1592,7 @@ def _group_lines_by_y(lines: list[OCRLine], threshold: float = 20.0) -> list[lis
     return rows
 
 
-def parse_post_game_player_summary(meta, regions: dict[str, list[OCRLine]]) -> PostGamePlayerSummaryResult:
+def parse_post_game_player_summary(meta, regions: dict[str, list[OCRLine]], **_kwargs) -> PostGamePlayerSummaryResult:
     away_split = group_lines_by_row(regions["away_players"])[:6]
     home_split = group_lines_by_row(regions["home_players"])[:6]
 

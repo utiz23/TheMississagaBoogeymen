@@ -32,6 +32,10 @@ def crop_region(image: np.ndarray, region: Region) -> np.ndarray:
 
 
 def preprocess_image(image: np.ndarray, mode: str) -> np.ndarray:
+    # Skip gray + 2x upscale when the parser needs OCR bboxes in native
+    # image coordinates (e.g. anchor-based full-frame parsing).
+    if mode == "raw" or mode == "none":
+        return image
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
     scaled = cv2.resize(gray, None, fx=2.0, fy=2.0, interpolation=cv2.INTER_CUBIC)
     if mode == "threshold":

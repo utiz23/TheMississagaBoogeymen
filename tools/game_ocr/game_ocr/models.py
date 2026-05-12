@@ -61,24 +61,43 @@ class PreGameLobbyResult(BaseExtractionResult):
 
 
 class AttributeGroup(BaseModel):
+    """Attribute group; values keyed by attribute_key holds the displayed (post-buff) R rating."""
+
     values: dict[str, ExtractionField] = Field(default_factory=dict)
 
 
 class PlayerLoadoutResult(BaseExtractionResult):
+    """Loadout view extraction result.
+
+    Field-list grew during the 2026-05 anchor-based parser rewrite:
+      - player_name        → short in-game persona name from the left strip ("E. Wanhg")
+      - player_name_full   → full title-bar name ("Evgeni Wanhg" / "Cole Caufield - SNP")
+      - player_number      → in-game jersey number (#11)
+      - is_captain         → yellow ★ near subject's row in the left strip
+      - ap_used / ap_total → "AP: 90/100" indicator (NULL for builds without AP)
+      - x_factor_tiers     → parallel list to x_factors; each slot's HSV-classified tier
+      - attribute_deltas   → per-attribute Δ chip; keyed by attribute_key
+    """
+
     success: Literal[True] = True
-    selected_player: ExtractionField
     player_position: ExtractionField
     player_name: ExtractionField
+    player_name_full: ExtractionField
+    player_number: ExtractionField
     player_level: ExtractionField
     player_platform: ExtractionField
     gamertag: ExtractionField
-    home_team: ExtractionField
+    is_captain: ExtractionField
     build_class: ExtractionField
     height: ExtractionField
     weight: ExtractionField
     handedness: ExtractionField
+    ap_used: ExtractionField
+    ap_total: ExtractionField
     x_factors: list[ExtractionField] = Field(default_factory=list)
+    x_factor_tiers: list[ExtractionField] = Field(default_factory=list)
     attributes: dict[str, AttributeGroup] = Field(default_factory=dict)
+    attribute_deltas: dict[str, ExtractionField] = Field(default_factory=dict)
 
 
 class PostGamePlayerRecord(BaseModel):
@@ -241,4 +260,16 @@ class PostGameActionTrackerResult(BaseExtractionResult):
     period_label: ExtractionField
     period_number: int
     events: list[ActionTrackerEvent] = Field(default_factory=list)
+    # Index into `events` for the row currently highlighted in the UI (the red
+    # selection bar on the list panel). None when the bar can't be detected.
+    # CVAT-label importers should use events[selected_event_index] to identify
+    # which match_events row a labelled yellow marker corresponds to.
+    selected_event_index: int | None = None
+    # Phase 5: spatial coordinates for the highlighted (yellow) marker on the rink.
+    selected_event_x: float | None = None  # hockey-standard, [-100, +100]
+    selected_event_y: float | None = None  # hockey-standard, [-42.5, +42.5]
+    selected_event_rink_zone: str | None = None  # 'offensive' | 'defensive' | 'neutral'
+    spatial_marker_count: int = 0
+    spatial_yellow_count: int = 0
+    spatial_warnings: list[str] = Field(default_factory=list)
 
