@@ -45,6 +45,8 @@ export const matchPeriodSummaries = pgTable(
       .notNull()
       .$type<OcrReviewStatus>()
       .default('pending_review'),
+    /** Direction BGM attacks in this period, as drawn in the in-game art. */
+    bgmAttackDirection: text('bgm_attack_direction').$type<'left' | 'right'>(),
   },
   (table) => [
     uniqueIndex('match_period_summaries_uniq').on(

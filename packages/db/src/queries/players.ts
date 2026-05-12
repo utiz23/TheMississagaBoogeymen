@@ -1,4 +1,4 @@
-import { and, count, eq, asc, desc, isNull, isNotNull, sql } from 'drizzle-orm'
+import { and, count, eq, asc, desc, inArray, isNull, isNotNull, sql } from 'drizzle-orm'
 import { db } from '../client.js'
 import {
   eaMemberSeasonStats,
@@ -130,6 +130,7 @@ export async function getRoster(gameTitleId: number, gameMode: GameMode | null =
       nationality: playerProfiles.nationality,
       playerName: playerProfiles.playerName,
       preferredPosition: playerProfiles.preferredPosition,
+      archetype: playerProfiles.archetype,
       clientPlatform: eaMemberSeasonStats.clientPlatform,
     })
     .from(playerGameTitleStats)
@@ -196,6 +197,7 @@ export async function getEARoster(gameTitleId: number) {
       nationality: playerProfiles.nationality,
       playerName: playerProfiles.playerName,
       preferredPosition: playerProfiles.preferredPosition,
+      archetype: playerProfiles.archetype,
       clientPlatform: eaMemberSeasonStats.clientPlatform,
     })
     .from(eaMemberSeasonStats)
@@ -244,6 +246,7 @@ export async function getPlayerWithProfile(playerId: number) {
       playerName: playerProfiles.playerName,
       nationality: playerProfiles.nationality,
       preferredPosition: playerProfiles.preferredPosition,
+      archetype: playerProfiles.archetype,
       bio: playerProfiles.bio,
       clubRoleLabel: playerProfiles.clubRoleLabel,
     })
@@ -385,6 +388,7 @@ export async function getPlayerEASeasonStats(playerId: number) {
       gameTitleName: gameTitles.name,
       gameTitleSlug: gameTitles.slug,
       favoritePosition: eaMemberSeasonStats.favoritePosition,
+      clientPlatform: eaMemberSeasonStats.clientPlatform,
 
       gamesPlayed: eaMemberSeasonStats.gamesPlayed,
       gamesCompleted: eaMemberSeasonStats.gamesCompleted,
@@ -470,13 +474,398 @@ export async function getPlayerEASeasonStats(playerId: number) {
       goalieSaves: eaMemberSeasonStats.goalieSaves,
       goalieShots: eaMemberSeasonStats.goalieShots,
       goalieGoalsAgainst: eaMemberSeasonStats.goalieGoalsAgainst,
+      goalieToiSeconds: eaMemberSeasonStats.goalieToiSeconds,
+
+      goalieGamesCompleted: eaMemberSeasonStats.goalieGamesCompleted,
+      goalieGamesCompletedFc: eaMemberSeasonStats.goalieGamesCompletedFc,
+      goalieDnf: eaMemberSeasonStats.goalieDnf,
+      goalieDnfMm: eaMemberSeasonStats.goalieDnfMm,
+      goalieWinnerByDnf: eaMemberSeasonStats.goalieWinnerByDnf,
+      goalieQuitDisc: eaMemberSeasonStats.goalieQuitDisc,
+      goalieWinPct: eaMemberSeasonStats.goalieWinPct,
+
+      goalieDesperationSaves: eaMemberSeasonStats.goalieDesperationSaves,
+      goaliePokeChecks: eaMemberSeasonStats.goaliePokeChecks,
+      goaliePkClearZone: eaMemberSeasonStats.goaliePkClearZone,
+      goalieShutoutPeriods: eaMemberSeasonStats.goalieShutoutPeriods,
+
+      goaliePenShots: eaMemberSeasonStats.goaliePenShots,
+      goaliePenSaves: eaMemberSeasonStats.goaliePenSaves,
+      goaliePenSavePct: eaMemberSeasonStats.goaliePenSavePct,
+
+      goalieBrkShots: eaMemberSeasonStats.goalieBrkShots,
+      goalieBrkSaves: eaMemberSeasonStats.goalieBrkSaves,
+      goalieBrkSavePct: eaMemberSeasonStats.goalieBrkSavePct,
+
+      goalieSoShots: eaMemberSeasonStats.goalieSoShots,
+      goalieSoSaves: eaMemberSeasonStats.goalieSoSaves,
+      goalieSoSavePct: eaMemberSeasonStats.goalieSoSavePct,
+
+      goaliePrevWins: eaMemberSeasonStats.goaliePrevWins,
+      goaliePrevShutouts: eaMemberSeasonStats.goaliePrevShutouts,
 
       shotLocations: eaMemberSeasonStats.shotLocations,
+      goalieShotLocations: eaMemberSeasonStats.goalieShotLocations,
+      lastFetchedAt: eaMemberSeasonStats.lastFetchedAt,
     })
     .from(eaMemberSeasonStats)
     .innerJoin(gameTitles, eq(eaMemberSeasonStats.gameTitleId, gameTitles.id))
     .where(eq(eaMemberSeasonStats.playerId, playerId))
     .orderBy(desc(eaMemberSeasonStats.gameTitleId))
+}
+
+/**
+ * All BGM members' EA season stats for a single game title.
+ * Same field shape as `getPlayerEASeasonStats[number]` minus shotLocations
+ * (omitted to keep the response light when used for cross-team rank lookups).
+ *
+ * Innjoins `players` so opponents and unaffiliated playerIds are excluded;
+ * downstream consumers can split by skaterGp / goalieGp as needed.
+ */
+export async function getAllEASeasonStatsForGameTitle(gameTitleId: number) {
+  return db
+    .select({
+      playerId: eaMemberSeasonStats.playerId,
+      gamertag: players.gamertag,
+
+      gameTitleId: eaMemberSeasonStats.gameTitleId,
+      gameTitleName: gameTitles.name,
+      gameTitleSlug: gameTitles.slug,
+      favoritePosition: eaMemberSeasonStats.favoritePosition,
+      clientPlatform: eaMemberSeasonStats.clientPlatform,
+
+      gamesPlayed: eaMemberSeasonStats.gamesPlayed,
+      gamesCompleted: eaMemberSeasonStats.gamesCompleted,
+      gamesCompletedFc: eaMemberSeasonStats.gamesCompletedFc,
+      playerQuitDisc: eaMemberSeasonStats.playerQuitDisc,
+
+      skaterGp: eaMemberSeasonStats.skaterGp,
+      lwGp: eaMemberSeasonStats.lwGp,
+      rwGp: eaMemberSeasonStats.rwGp,
+      cGp: eaMemberSeasonStats.cGp,
+      dGp: eaMemberSeasonStats.dGp,
+
+      skaterWins: eaMemberSeasonStats.skaterWins,
+      skaterLosses: eaMemberSeasonStats.skaterLosses,
+      skaterOtl: eaMemberSeasonStats.skaterOtl,
+      skaterWinnerByDnf: eaMemberSeasonStats.skaterWinnerByDnf,
+      skaterWinPct: eaMemberSeasonStats.skaterWinPct,
+      skaterDnf: eaMemberSeasonStats.skaterDnf,
+
+      goals: eaMemberSeasonStats.goals,
+      assists: eaMemberSeasonStats.assists,
+      points: eaMemberSeasonStats.points,
+      pointsPerGame: eaMemberSeasonStats.pointsPerGame,
+      powerPlayGoals: eaMemberSeasonStats.powerPlayGoals,
+      shortHandedGoals: eaMemberSeasonStats.shortHandedGoals,
+      gameWinningGoals: eaMemberSeasonStats.gameWinningGoals,
+      hatTricks: eaMemberSeasonStats.hatTricks,
+      plusMinus: eaMemberSeasonStats.plusMinus,
+      pim: eaMemberSeasonStats.pim,
+      prevGoals: eaMemberSeasonStats.prevGoals,
+      prevAssists: eaMemberSeasonStats.prevAssists,
+
+      shots: eaMemberSeasonStats.shots,
+      shotPct: eaMemberSeasonStats.shotPct,
+      shotsPerGame: eaMemberSeasonStats.shotsPerGame,
+      shotAttempts: eaMemberSeasonStats.shotAttempts,
+      shotOnNetPct: eaMemberSeasonStats.shotOnNetPct,
+      breakaways: eaMemberSeasonStats.breakaways,
+      breakawayGoals: eaMemberSeasonStats.breakawayGoals,
+      breakawayPct: eaMemberSeasonStats.breakawayPct,
+
+      passes: eaMemberSeasonStats.passes,
+      passAttempts: eaMemberSeasonStats.passAttempts,
+      passPct: eaMemberSeasonStats.passPct,
+      interceptions: eaMemberSeasonStats.interceptions,
+      dekes: eaMemberSeasonStats.dekes,
+      dekesMade: eaMemberSeasonStats.dekesMade,
+      deflections: eaMemberSeasonStats.deflections,
+      saucerPasses: eaMemberSeasonStats.saucerPasses,
+      screenChances: eaMemberSeasonStats.screenChances,
+      screenGoals: eaMemberSeasonStats.screenGoals,
+      possessionSeconds: eaMemberSeasonStats.possessionSeconds,
+      xfactorZoneUsed: eaMemberSeasonStats.xfactorZoneUsed,
+
+      hits: eaMemberSeasonStats.hits,
+      hitsPerGame: eaMemberSeasonStats.hitsPerGame,
+      fights: eaMemberSeasonStats.fights,
+      fightsWon: eaMemberSeasonStats.fightsWon,
+      blockedShots: eaMemberSeasonStats.blockedShots,
+      pkClearZone: eaMemberSeasonStats.pkClearZone,
+      offsides: eaMemberSeasonStats.offsides,
+      offsidesPerGame: eaMemberSeasonStats.offsidesPerGame,
+      penaltiesDrawn: eaMemberSeasonStats.penaltiesDrawn,
+      takeaways: eaMemberSeasonStats.takeaways,
+      giveaways: eaMemberSeasonStats.giveaways,
+
+      faceoffTotal: eaMemberSeasonStats.faceoffTotal,
+      faceoffWins: eaMemberSeasonStats.faceoffWins,
+      faceoffLosses: eaMemberSeasonStats.faceoffLosses,
+      faceoffPct: eaMemberSeasonStats.faceoffPct,
+      penaltyShotAttempts: eaMemberSeasonStats.penaltyShotAttempts,
+      penaltyShotGoals: eaMemberSeasonStats.penaltyShotGoals,
+      penaltyShotPct: eaMemberSeasonStats.penaltyShotPct,
+      toiSeconds: eaMemberSeasonStats.toiSeconds,
+
+      goalieGp: eaMemberSeasonStats.goalieGp,
+      goalieWins: eaMemberSeasonStats.goalieWins,
+      goalieLosses: eaMemberSeasonStats.goalieLosses,
+      goalieOtl: eaMemberSeasonStats.goalieOtl,
+      goalieSavePct: eaMemberSeasonStats.goalieSavePct,
+      goalieGaa: eaMemberSeasonStats.goalieGaa,
+      goalieShutouts: eaMemberSeasonStats.goalieShutouts,
+      goalieSaves: eaMemberSeasonStats.goalieSaves,
+      goalieShots: eaMemberSeasonStats.goalieShots,
+      goalieGoalsAgainst: eaMemberSeasonStats.goalieGoalsAgainst,
+      goalieToiSeconds: eaMemberSeasonStats.goalieToiSeconds,
+
+      goalieGamesCompleted: eaMemberSeasonStats.goalieGamesCompleted,
+      goalieGamesCompletedFc: eaMemberSeasonStats.goalieGamesCompletedFc,
+      goalieDnf: eaMemberSeasonStats.goalieDnf,
+      goalieDnfMm: eaMemberSeasonStats.goalieDnfMm,
+      goalieWinnerByDnf: eaMemberSeasonStats.goalieWinnerByDnf,
+      goalieQuitDisc: eaMemberSeasonStats.goalieQuitDisc,
+      goalieWinPct: eaMemberSeasonStats.goalieWinPct,
+
+      goalieDesperationSaves: eaMemberSeasonStats.goalieDesperationSaves,
+      goaliePokeChecks: eaMemberSeasonStats.goaliePokeChecks,
+      goaliePkClearZone: eaMemberSeasonStats.goaliePkClearZone,
+      goalieShutoutPeriods: eaMemberSeasonStats.goalieShutoutPeriods,
+
+      goaliePenShots: eaMemberSeasonStats.goaliePenShots,
+      goaliePenSaves: eaMemberSeasonStats.goaliePenSaves,
+      goaliePenSavePct: eaMemberSeasonStats.goaliePenSavePct,
+
+      goalieBrkShots: eaMemberSeasonStats.goalieBrkShots,
+      goalieBrkSaves: eaMemberSeasonStats.goalieBrkSaves,
+      goalieBrkSavePct: eaMemberSeasonStats.goalieBrkSavePct,
+
+      goalieSoShots: eaMemberSeasonStats.goalieSoShots,
+      goalieSoSaves: eaMemberSeasonStats.goalieSoSaves,
+      goalieSoSavePct: eaMemberSeasonStats.goalieSoSavePct,
+
+      goaliePrevWins: eaMemberSeasonStats.goaliePrevWins,
+      goaliePrevShutouts: eaMemberSeasonStats.goaliePrevShutouts,
+    })
+    .from(eaMemberSeasonStats)
+    .innerJoin(players, eq(eaMemberSeasonStats.playerId, players.id))
+    .innerJoin(gameTitles, eq(eaMemberSeasonStats.gameTitleId, gameTitles.id))
+    .where(eq(eaMemberSeasonStats.gameTitleId, gameTitleId))
+    .orderBy(desc(eaMemberSeasonStats.points))
+}
+
+/**
+ * All-time per-player roster-ledger row aggregated across every game title.
+ *
+ * Skater stats union: `player_game_title_stats` (live, NHL 26) +
+ * `historical_player_season_stats` (manually-reviewed older titles, filtered
+ * to skaters with position_scope='all_skaters', summed across game_mode).
+ *
+ * Goalie stats union: `ea_member_season_stats` (live save/shot totals) +
+ * `historical_player_season_stats` (goalie role, summed across modes).
+ *
+ * Save % is computed from career totals (saves / shots × 100). GAA is left
+ * null for the all-time view since older titles store percentages but not
+ * the underlying TOI required to recompute it.
+ */
+export interface AllTimeRosterLedgerRow {
+  playerId: number
+  gamertag: string
+  position: string | null
+  favoritePosition: string | null
+  jerseyNumber: number | null
+  archetype: string | null
+  goals: number
+  assists: number
+  points: number
+  skaterGp: number
+  goalieGp: number
+  goalieWins: number | null
+  goalieGoalsAgainst: number | null
+  savePct: string | null
+  gaa: string | null
+}
+
+export async function getAllTimeRosterLedger(): Promise<AllTimeRosterLedgerRow[]> {
+  // 1. Live skater totals (NHL 26+) from ea_member_season_stats — career-wide
+  //    EA-reported totals (includes games for clubs other than BGM). This matches
+  //    the scope of historical_player_season_stats below, which is also career-wide
+  //    (sourced from per-player career page screenshots).
+  const liveSkater = await db
+    .select({
+      playerId: eaMemberSeasonStats.playerId,
+      goals: sql<number>`COALESCE(SUM(${eaMemberSeasonStats.goals}), 0)::int`,
+      assists: sql<number>`COALESCE(SUM(${eaMemberSeasonStats.assists}), 0)::int`,
+      points: sql<number>`COALESCE(SUM(${eaMemberSeasonStats.points}), 0)::int`,
+      skaterGp: sql<number>`COALESCE(SUM(${eaMemberSeasonStats.skaterGp}), 0)::int`,
+    })
+    .from(eaMemberSeasonStats)
+    .groupBy(eaMemberSeasonStats.playerId)
+
+  // 2. Historical skater totals (per-mode rows summed per player).
+  const histSkater = await db
+    .select({
+      playerId: historicalPlayerSeasonStats.playerId,
+      goals: sql<number>`COALESCE(SUM(${historicalPlayerSeasonStats.goals}), 0)::int`,
+      assists: sql<number>`COALESCE(SUM(${historicalPlayerSeasonStats.assists}), 0)::int`,
+      points: sql<number>`COALESCE(SUM(${historicalPlayerSeasonStats.points}), 0)::int`,
+      skaterGp: sql<number>`COALESCE(SUM(${historicalPlayerSeasonStats.gamesPlayed}), 0)::int`,
+    })
+    .from(historicalPlayerSeasonStats)
+    .where(
+      and(
+        eq(historicalPlayerSeasonStats.roleGroup, 'skater'),
+        eq(historicalPlayerSeasonStats.positionScope, 'all_skaters'),
+        eq(historicalPlayerSeasonStats.reviewStatus, 'reviewed'),
+      ),
+    )
+    .groupBy(historicalPlayerSeasonStats.playerId)
+
+  // 3. Live goalie totals (sum across game titles in EA member season stats).
+  const liveGoalie = await db
+    .select({
+      playerId: eaMemberSeasonStats.playerId,
+      goalieGp: sql<number>`COALESCE(SUM(${eaMemberSeasonStats.goalieGp}), 0)::int`,
+      goalieWins: sql<number>`COALESCE(SUM(${eaMemberSeasonStats.goalieWins}), 0)::int`,
+      goalieSaves: sql<number>`COALESCE(SUM(${eaMemberSeasonStats.goalieSaves}), 0)::int`,
+      goalieShots: sql<number>`COALESCE(SUM(${eaMemberSeasonStats.goalieShots}), 0)::int`,
+      goalieGoalsAgainst: sql<number>`COALESCE(SUM(${eaMemberSeasonStats.goalieGoalsAgainst}), 0)::int`,
+    })
+    .from(eaMemberSeasonStats)
+    .groupBy(eaMemberSeasonStats.playerId)
+
+  // 4. Historical goalie totals.
+  const histGoalie = await db
+    .select({
+      playerId: historicalPlayerSeasonStats.playerId,
+      goalieGp: sql<number>`COALESCE(SUM(${historicalPlayerSeasonStats.gamesPlayed}), 0)::int`,
+      goalieWins: sql<number>`COALESCE(SUM(${historicalPlayerSeasonStats.wins}), 0)::int`,
+      goalieSaves: sql<number>`COALESCE(SUM(${historicalPlayerSeasonStats.totalSaves}), 0)::int`,
+      goalieShots: sql<number>`COALESCE(SUM(${historicalPlayerSeasonStats.totalShotsAgainst}), 0)::int`,
+      goalieGoalsAgainst: sql<number>`COALESCE(SUM(${historicalPlayerSeasonStats.totalGoalsAgainst}), 0)::int`,
+    })
+    .from(historicalPlayerSeasonStats)
+    .where(
+      and(
+        eq(historicalPlayerSeasonStats.roleGroup, 'goalie'),
+        eq(historicalPlayerSeasonStats.positionScope, 'goalie'),
+        eq(historicalPlayerSeasonStats.reviewStatus, 'reviewed'),
+      ),
+    )
+    .groupBy(historicalPlayerSeasonStats.playerId)
+
+  // 5. Player metadata.
+  const meta = await db
+    .select({
+      playerId: players.id,
+      gamertag: players.gamertag,
+      position: players.position,
+      jerseyNumber: playerProfiles.jerseyNumber,
+      preferredPosition: playerProfiles.preferredPosition,
+      archetype: playerProfiles.archetype,
+    })
+    .from(players)
+    .leftJoin(playerProfiles, eq(players.id, playerProfiles.playerId))
+
+  // ── Aggregate in JS ──────────────────────────────────────────────────────
+  type Skater = { goals: number; assists: number; points: number; skaterGp: number }
+  type Goalie = {
+    goalieGp: number
+    goalieWins: number
+    goalieSaves: number
+    goalieShots: number
+    goalieGoalsAgainst: number
+  }
+
+  const skaterByPlayer = new Map<number, Skater>()
+  const goalieByPlayer = new Map<number, Goalie>()
+
+  const addSkater = (id: number, src: Skater) => {
+    const cur = skaterByPlayer.get(id) ?? {
+      goals: 0,
+      assists: 0,
+      points: 0,
+      skaterGp: 0,
+    }
+    skaterByPlayer.set(id, {
+      goals: cur.goals + src.goals,
+      assists: cur.assists + src.assists,
+      points: cur.points + src.points,
+      skaterGp: cur.skaterGp + src.skaterGp,
+    })
+  }
+  const addGoalie = (id: number, src: Goalie) => {
+    const cur = goalieByPlayer.get(id) ?? {
+      goalieGp: 0,
+      goalieWins: 0,
+      goalieSaves: 0,
+      goalieShots: 0,
+      goalieGoalsAgainst: 0,
+    }
+    goalieByPlayer.set(id, {
+      goalieGp: cur.goalieGp + src.goalieGp,
+      goalieWins: cur.goalieWins + src.goalieWins,
+      goalieSaves: cur.goalieSaves + src.goalieSaves,
+      goalieShots: cur.goalieShots + src.goalieShots,
+      goalieGoalsAgainst: cur.goalieGoalsAgainst + src.goalieGoalsAgainst,
+    })
+  }
+
+  liveSkater.forEach((r) => {
+    addSkater(r.playerId, r)
+  })
+  histSkater.forEach((r) => {
+    addSkater(r.playerId, r)
+  })
+  liveGoalie.forEach((r) => {
+    addGoalie(r.playerId, r)
+  })
+  histGoalie.forEach((r) => {
+    addGoalie(r.playerId, r)
+  })
+
+  return meta
+    .map((m) => {
+      const sk = skaterByPlayer.get(m.playerId) ?? {
+        goals: 0,
+        assists: 0,
+        points: 0,
+        skaterGp: 0,
+      }
+      const gl = goalieByPlayer.get(m.playerId) ?? {
+        goalieGp: 0,
+        goalieWins: 0,
+        goalieSaves: 0,
+        goalieShots: 0,
+        goalieGoalsAgainst: 0,
+      }
+      // Compute SV% from saves / (saves + goals_against) rather than saves /
+      // shots_against. Mathematically equivalent (shots = saves + GA) but
+      // robust to historical rows that captured GA without shots-against.
+      const svDenom = gl.goalieSaves + gl.goalieGoalsAgainst
+      const savePct =
+        svDenom > 0 ? ((gl.goalieSaves / svDenom) * 100).toFixed(2) : null
+      return {
+        playerId: m.playerId,
+        gamertag: m.gamertag,
+        position: m.position,
+        favoritePosition: m.preferredPosition ?? m.position,
+        jerseyNumber: m.jerseyNumber,
+        archetype: m.archetype,
+        goals: sk.goals,
+        assists: sk.assists,
+        points: sk.points,
+        skaterGp: sk.skaterGp,
+        goalieGp: gl.goalieGp,
+        goalieWins: gl.goalieWins,
+        goalieGoalsAgainst: gl.goalieGoalsAgainst,
+        savePct,
+        gaa: null as string | null,
+      } satisfies AllTimeRosterLedgerRow
+    })
+    .filter((r) => r.points > 0 || r.goalieGp > 0)
+    .sort((a, b) => b.points - a.points)
 }
 
 /**
@@ -1128,4 +1517,66 @@ export async function getPlayerPositionEligibility(gameTitleId: number) {
     .innerJoin(matches, eq(playerMatchStats.matchId, matches.id))
     .where(and(eq(matches.gameTitleId, gameTitleId), isNotNull(playerMatchStats.position)))
     .groupBy(playerMatchStats.playerId, playerMatchStats.position)
+}
+
+export interface PlayerStatsMeta {
+  jerseyNumber: number | null
+  preferredPosition: string | null
+  position: string | null
+  /** Stylistic archetype tag, or null when not assigned. */
+  archetype: string | null
+  /** ISO date (YYYY-MM-DD) of the most recent match this player appeared in, or null. */
+  lastSeenIso: string | null
+}
+
+/**
+ * Per-player metadata for skater/goalie table row tooltips.
+ *
+ * Joins players + player_profiles for jersey/preferred position, and computes
+ * the last-seen date from MAX(matches.match_at) over player_match_stats.
+ * Returns a Map<playerId, meta> for O(1) lookup in the table component.
+ */
+export async function getPlayersStatsMeta(
+  playerIds: number[],
+): Promise<Record<number, PlayerStatsMeta>> {
+  if (playerIds.length === 0) return {}
+
+  const profileRows = await db
+    .select({
+      playerId: players.id,
+      position: players.position,
+      jerseyNumber: playerProfiles.jerseyNumber,
+      preferredPosition: playerProfiles.preferredPosition,
+      archetype: playerProfiles.archetype,
+    })
+    .from(players)
+    .leftJoin(playerProfiles, eq(playerProfiles.playerId, players.id))
+    .where(inArray(players.id, playerIds))
+
+  const lastSeenRows = await db
+    .select({
+      playerId: playerMatchStats.playerId,
+      // ::date pulls just the calendar date so we get a YYYY-MM-DD string
+      // instead of a full timestamp, which avoids parsing surprises.
+      lastSeen: sql<string | null>`MAX(${matches.playedAt})::date::text`,
+    })
+    .from(playerMatchStats)
+    .innerJoin(matches, eq(matches.id, playerMatchStats.matchId))
+    .where(inArray(playerMatchStats.playerId, playerIds))
+    .groupBy(playerMatchStats.playerId)
+
+  const lastSeenById = new Map<number, string | null>()
+  for (const r of lastSeenRows) lastSeenById.set(r.playerId, r.lastSeen)
+
+  const result: Record<number, PlayerStatsMeta> = {}
+  for (const r of profileRows) {
+    result[r.playerId] = {
+      jerseyNumber: r.jerseyNumber,
+      preferredPosition: r.preferredPosition,
+      position: r.position,
+      archetype: r.archetype,
+      lastSeenIso: lastSeenById.get(r.playerId) ?? null,
+    }
+  }
+  return result
 }

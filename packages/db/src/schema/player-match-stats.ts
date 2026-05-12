@@ -4,6 +4,7 @@ import {
   check,
   index,
   integer,
+  numeric,
   pgTable,
   serial,
   text,
@@ -102,6 +103,30 @@ export const playerMatchStats = pgTable(
     penShots: integer('pen_shots'),
     /** Poke checks. EA field: glpokechecks. */
     pokechecks: integer('pokechecks'),
+
+    // ── EA per-match ratings (numeric 0–100, two decimals) ────────────────────
+    /** Offensive performance rating. EA field: ratingOffense. numeric(5,2) */
+    ratingOffense: numeric('rating_offense', { precision: 5, scale: 2 }),
+    /** Defensive performance rating. EA field: ratingDefense. numeric(5,2) */
+    ratingDefense: numeric('rating_defense', { precision: 5, scale: 2 }),
+    /** Teamplay performance rating. EA field: ratingTeamplay. numeric(5,2) */
+    ratingTeamplay: numeric('rating_teamplay', { precision: 5, scale: 2 }),
+
+    // ── EA rank context ───────────────────────────────────────────────────────
+    /** Player rank points after this match. EA field: rankpoints (may be "--"). */
+    rankPoints: integer('rank_points'),
+    /** Rank tier asset id (used by EA UI to render tier badge). EA field: ranktierassetid. */
+    rankTierAssetId: text('rank_tier_asset_id'),
+    /** Player level (XP). EA field: playerLevel. */
+    playerLevel: integer('player_level'),
+    /** Player class / build id. EA field: class. */
+    playerClass: integer('player_class'),
+    /** EA-canonical lineup slot 1–5. EA field: posSorted. */
+    posSorted: integer('pos_sorted'),
+    /** Reason the player was removed mid-game (numeric code). EA field: removedReason. */
+    removedReason: integer('removed_reason'),
+    /** Home / away indicator (0 or 1). EA field: teamSide. */
+    teamSide: integer('team_side'),
   },
   (table) => [
     uniqueIndex('player_match_stats_player_match_uniq').on(table.playerId, table.matchId),

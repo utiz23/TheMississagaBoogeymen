@@ -1,9 +1,10 @@
-import { and, asc, eq, or, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, or, sql } from 'drizzle-orm'
 import { db } from '../client.js'
 import {
   matchEvents,
   matchGoalEvents,
   matchPenaltyEvents,
+  matches,
   players,
 } from '../schema/index.js'
 
@@ -113,3 +114,45 @@ export async function getMatchEvents(matchId: number) {
 }
 
 export type MatchEventRow = Awaited<ReturnType<typeof getMatchEvents>>[number]
+
+/**
+ * All positioned events (x/y populated) for a single player across all matches.
+ * Used by the career shot map on /roster/[id].
+ *
+ * Filters:
+ *   - actor_player_id = playerId (the player did the shot/hit/etc.)
+ *   - x and y are non-null (Phase 5 spatial extraction populated them)
+ *   - reviewed only (review_status='reviewed')
+ *
+ * Sorted by match_id descending (most recent matches first), capped at `limit`.
+ */
+export async function getPlayerCareerShots(playerId: number, limit = 500) {
+  return db
+    .select({
+      eventId: matchEvents.id,
+      matchId: matchEvents.matchId,
+      periodNumber: matchEvents.periodNumber,
+      periodLabel: matchEvents.periodLabel,
+      clock: matchEvents.clock,
+      eventType: matchEvents.eventType,
+      teamSide: matchEvents.teamSide,
+      x: matchEvents.x,
+      y: matchEvents.y,
+      rinkZone: matchEvents.rinkZone,
+      opponentName: matches.opponentName,
+      playedAt: matches.playedAt,
+    })
+    .from(matchEvents)
+    .innerJoin(matches, eq(matches.id, matchEvents.matchId))
+    .where(
+      and(
+        eq(matchEvents.actorPlayerId, playerId),
+        sql`${matchEvents.x} IS NOT NULL AND ${matchEvents.y} IS NOT NULL`,
+        eq(matchEvents.reviewStatus, 'reviewed'),
+      ),
+    )
+    .orderBy(desc(matchEvents.matchId))
+    .limit(limit)
+}
+
+export type PlayerCareerShotRow = Awaited<ReturnType<typeof getPlayerCareerShots>>[number]

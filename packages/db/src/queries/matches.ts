@@ -1,6 +1,7 @@
-import { and, asc, eq, desc, count, sql, lte, lt, gt } from 'drizzle-orm'
+import { and, asc, eq, desc, count, sql, lte, lt, gt, ilike, inArray } from 'drizzle-orm'
+import type { SQL } from 'drizzle-orm'
 import { db } from '../client.js'
-import { matches } from '../schema/index.js'
+import { matches, playerMatchStats, opponentPlayerMatchStats } from '../schema/index.js'
 import type { GameMode, MatchResult } from '../schema/index.js'
 
 /**
@@ -12,11 +13,10 @@ export async function getRecentMatches(params: {
   limit?: number
   offset?: number
   gameMode?: GameMode | null
+  result?: MatchResult | MatchResult[] | null
+  opponent?: string | null
 }) {
-  const where =
-    params.gameMode != null
-      ? and(eq(matches.gameTitleId, params.gameTitleId), eq(matches.gameMode, params.gameMode))
-      : eq(matches.gameTitleId, params.gameTitleId)
+  const where = buildMatchListWhere(params)
 
   return db
     .select()
@@ -31,14 +31,42 @@ export async function getRecentMatches(params: {
  * Total number of matches for a given game title.
  * Optional gameMode filter narrows to that subset.
  */
-export async function countMatches(params: { gameTitleId: number; gameMode?: GameMode | null }) {
-  const where =
-    params.gameMode != null
-      ? and(eq(matches.gameTitleId, params.gameTitleId), eq(matches.gameMode, params.gameMode))
-      : eq(matches.gameTitleId, params.gameTitleId)
+export async function countMatches(params: {
+  gameTitleId: number
+  gameMode?: GameMode | null
+  result?: MatchResult | MatchResult[] | null
+  opponent?: string | null
+}) {
+  const where = buildMatchListWhere(params)
 
   const rows = await db.select({ total: count() }).from(matches).where(where)
   return rows[0]?.total ?? 0
+}
+
+function buildMatchListWhere(params: {
+  gameTitleId: number
+  gameMode?: GameMode | null
+  result?: MatchResult | MatchResult[] | null
+  opponent?: string | null
+}) {
+  const conditions: SQL[] = [eq(matches.gameTitleId, params.gameTitleId)]
+
+  if (params.gameMode != null) {
+    conditions.push(eq(matches.gameMode, params.gameMode))
+  }
+
+  if (Array.isArray(params.result) && params.result.length > 0) {
+    conditions.push(inArray(matches.result, params.result))
+  } else if (typeof params.result === 'string') {
+    conditions.push(eq(matches.result, params.result))
+  }
+
+  const opponent = params.opponent?.trim()
+  if (opponent) {
+    conditions.push(ilike(matches.opponentName, `%${opponent}%`))
+  }
+
+  return and(...conditions)
 }
 
 /**
@@ -53,10 +81,7 @@ export async function getMatchById(id: number) {
  * Chronological position of this match in its game title (1-indexed).
  * "Game N of season" — counts matches with played_at <= this match's played_at.
  */
-export async function getMatchSeasonNumber(
-  gameTitleId: number,
-  playedAt: Date,
-): Promise<number> {
+export async function getMatchSeasonNumber(gameTitleId: number, playedAt: Date): Promise<number> {
   const rows = await db
     .select({ n: count() })
     .from(matches)
@@ -94,12 +119,7 @@ export async function getMatchSeriesContext(
     db
       .select({ result: matches.result, n: count() })
       .from(matches)
-      .where(
-        and(
-          eq(matches.gameTitleId, gameTitleId),
-          eq(matches.opponentClubId, opponentClubId),
-        ),
-      )
+      .where(and(eq(matches.gameTitleId, gameTitleId), eq(matches.opponentClubId, opponentClubId)))
       .groupBy(matches.result),
   ])
 
@@ -237,4 +257,43 @@ export async function getMatchesWithLineup(
 
   const result = await db.execute(query)
   return result as unknown as LineupMatchRow[]
+}
+
+/**
+ * Per-match faceoff totals for both sides. Sums faceoff_wins / faceoff_losses
+ * across all skater rows on each side. Used to compute team FO% on the
+ * latest-result scoreboard (match.faceoff_pct from EA payloads is null).
+ */
+export async function getMatchFaceoffTotals(matchId: number) {
+  const [oursRow] = await db
+    .select({
+      wins: sql<number>`COALESCE(SUM(${playerMatchStats.faceoffWins}), 0)`.mapWith(Number),
+      losses: sql<number>`COALESCE(SUM(${playerMatchStats.faceoffLosses}), 0)`.mapWith(Number),
+      maxToi: sql<number>`COALESCE(MAX(${playerMatchStats.toiSeconds}), 0)`.mapWith(Number),
+    })
+    .from(playerMatchStats)
+    .where(eq(playerMatchStats.matchId, matchId))
+
+  const [theirsRow] = await db
+    .select({
+      wins: sql<number>`COALESCE(SUM(${opponentPlayerMatchStats.faceoffWins}), 0)`.mapWith(Number),
+      losses: sql<number>`COALESCE(SUM(${opponentPlayerMatchStats.faceoffLosses}), 0)`.mapWith(
+        Number,
+      ),
+      maxToi: sql<number>`COALESCE(MAX(${opponentPlayerMatchStats.toiSeconds}), 0)`.mapWith(Number),
+    })
+    .from(opponentPlayerMatchStats)
+    .where(eq(opponentPlayerMatchStats.matchId, matchId))
+
+  // Max player TOI across both sides — if anyone played more than 60:00,
+  // the game went to overtime (regulation = 3 × 20:00 = 3600 s).
+  const maxToiSeconds = Math.max(oursRow?.maxToi ?? 0, theirsRow?.maxToi ?? 0)
+
+  return {
+    ourWins: oursRow?.wins ?? 0,
+    ourLosses: oursRow?.losses ?? 0,
+    oppWins: theirsRow?.wins ?? 0,
+    oppLosses: theirsRow?.losses ?? 0,
+    maxToiSeconds,
+  }
 }

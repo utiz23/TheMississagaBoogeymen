@@ -234,12 +234,78 @@ export const eaMemberSeasonStats = pgTable(
      */
     goalieToiSeconds: integer('goalie_toi_seconds'),
 
+    /* ── Goalie completion / disposition ────────────────────────────────── */
+    /**
+     * Goalie games completed (EA field: glgc). Subset of goalie_gp where the
+     * goalie didn't DNF / disconnect. For Silky's NHL 26 row glgc=16 of glgp=25.
+     */
+    goalieGamesCompleted: integer('goalie_games_completed'),
+    /** Goalie games completed via forced completion. EA field: glgcFC */
+    goalieGamesCompletedFc: integer('goalie_games_completed_fc'),
+    /** Goalie did-not-finish count. EA field: glDNF */
+    goalieDnf: integer('goalie_dnf'),
+    /** Goalie did-not-finish via matchmaking. EA field: glDNFmm */
+    goalieDnfMm: integer('goalie_dnf_mm'),
+    /** Goalie wins by DNF (opponent quit). EA field: glwinnerByDnf */
+    goalieWinnerByDnf: integer('goalie_winner_by_dnf'),
+    /** Goalie quit-disconnect count. EA field: glQuitDisc */
+    goalieQuitDisc: integer('goalie_quit_disc'),
+    /** Goalie pre-computed win percentage. EA field: glwinpct. numeric(5,2) */
+    goalieWinPct: numeric('goalie_win_pct', { precision: 5, scale: 2 }),
+
+    /* ── Goalie save splits ─────────────────────────────────────────────── */
+    /** Desperation saves (e.g. paddle/diving). EA field: gldsaves */
+    goalieDesperationSaves: integer('goalie_desperation_saves'),
+    /** Poke checks. EA field: glpokechecks */
+    goaliePokeChecks: integer('goalie_poke_checks'),
+    /** PK zone clears as goalie. EA field: glpkclearzone */
+    goaliePkClearZone: integer('goalie_pk_clear_zone'),
+    /** Shutout periods (full periods without conceding). EA field: glsoperiods */
+    goalieShutoutPeriods: integer('goalie_shutout_periods'),
+
+    /* ── Goalie penalty shots ───────────────────────────────────────────── */
+    /** Penalty shots faced. EA field: glpenshots */
+    goaliePenShots: integer('goalie_pen_shots'),
+    /** Penalty shot saves. EA field: glpensaves */
+    goaliePenSaves: integer('goalie_pen_saves'),
+    /** Penalty shot save %. EA field: glpensavepct. numeric(5,2) */
+    goaliePenSavePct: numeric('goalie_pen_save_pct', { precision: 5, scale: 2 }),
+
+    /* ── Goalie breakaway shots ─────────────────────────────────────────── */
+    /** Breakaway shots faced. EA field: glbrkshots */
+    goalieBrkShots: integer('goalie_brk_shots'),
+    /** Breakaway saves. EA field: glbrksaves */
+    goalieBrkSaves: integer('goalie_brk_saves'),
+    /** Breakaway save %. EA field: glbrksavepct. numeric(5,2) */
+    goalieBrkSavePct: numeric('goalie_brk_save_pct', { precision: 5, scale: 2 }),
+
+    /* ── Goalie shootouts ───────────────────────────────────────────────── */
+    /** Shootout shots faced. EA field: glsoshots */
+    goalieSoShots: integer('goalie_so_shots'),
+    /** Shootout saves. EA field: glsosaves */
+    goalieSoSaves: integer('goalie_so_saves'),
+    /** Shootout save %. EA field: glsosavepct. numeric(5,2) */
+    goalieSoSavePct: numeric('goalie_so_save_pct', { precision: 5, scale: 2 }),
+
+    /* ── Goalie previous season ─────────────────────────────────────────── */
+    /** Goalie wins last season. EA field: glprevwins */
+    goaliePrevWins: integer('goalie_prev_wins'),
+    /** Goalie shutouts last season. EA field: glprevso */
+    goaliePrevShutouts: integer('goalie_prev_shutouts'),
+
     /**
      * Shot/goal location grids. JSON shape: { shotsIce: number[16],
      * goalsIce: number[16], shotsNet: number[5], goalsNet: number[5] }.
      * Null for goalie rows and pre-NHL-26 game titles.
      */
     shotLocations: jsonb('shot_locations').$type<ShotLocations | null>(),
+    /**
+     * Goalie shot/goal location grids — same shape as shotLocations, but the
+     * arrays count shots FACED and goals ALLOWED at each ice / net zone (from
+     * EA's `glShotsLocationOnIce*` / `glGoalsLocationOnIce*` / Net counterparts).
+     * Null for skater rows and pre-NHL-26 game titles.
+     */
+    goalieShotLocations: jsonb('goalie_shot_locations').$type<ShotLocations | null>(),
 
     // ── Context ───────────────────────────────────────────────────────────────
     /** Console platform reported by EA. e.g. 'xbsx', 'ps5'. EA field: clientPlatform */

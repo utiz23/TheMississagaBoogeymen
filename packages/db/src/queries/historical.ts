@@ -77,7 +77,7 @@ export async function getHistoricalGoalieStats(
   gameMode: HistoricalGameMode,
   positionScope: HistoricalPositionScope = 'goalie',
 ) {
-  return db
+  const rows = await db
     .select({
       playerId: historicalPlayerSeasonStats.playerId,
       gamertag: players.gamertag,
@@ -85,7 +85,6 @@ export async function getHistoricalGoalieStats(
       wins: historicalPlayerSeasonStats.wins,
       losses: historicalPlayerSeasonStats.losses,
       otl: historicalPlayerSeasonStats.otl,
-      savePct: historicalPlayerSeasonStats.savePct,
       gaa: historicalPlayerSeasonStats.gaa,
       shutouts: historicalPlayerSeasonStats.shutouts,
       totalSaves: historicalPlayerSeasonStats.totalSaves,
@@ -105,11 +104,35 @@ export async function getHistoricalGoalieStats(
       ),
     )
     .orderBy(
-      desc(historicalPlayerSeasonStats.savePct),
       desc(historicalPlayerSeasonStats.gamesPlayed),
       asc(historicalPlayerSeasonStats.gaa),
       asc(players.gamertag),
     )
+
+  // Recompute SV% from raw saves / (saves + GA). The OCR-extracted save_pct
+  // column is unreliable: NHL 22-24 screenshots store it as a fraction (0.74),
+  // NHL 25 as a percentage (74.00). Always derive at read time.
+  // Also derive shots_against from saves+GA since historical rows captured
+  // saves and GA but not shots_against directly.
+  return rows
+    .map((r) => {
+      const sv = r.totalSaves
+      const ga = r.totalGoalsAgainst
+      const denom = (sv ?? 0) + (ga ?? 0)
+      const savePct =
+        sv !== null && ga !== null && denom > 0
+          ? ((sv / denom) * 100).toFixed(2)
+          : null
+      const totalShotsAgainst =
+        sv !== null && ga !== null ? sv + ga : r.totalShotsAgainst
+      return { ...r, savePct, totalShotsAgainst }
+    })
+    .sort((a, b) => {
+      const sa = a.savePct === null ? -1 : Number.parseFloat(a.savePct)
+      const sb = b.savePct === null ? -1 : Number.parseFloat(b.savePct)
+      if (sb !== sa) return sb - sa
+      return b.gamesPlayed - a.gamesPlayed
+    })
 }
 
 export type HistoricalGoalieStatsRow = Omit<

@@ -1,5 +1,6 @@
 import { integer, pgTable, text, timestamp } from 'drizzle-orm/pg-core'
 import { players } from './players.js'
+import type { PlayerArchetype } from './player-archetype.js'
 
 /**
  * Manual/enriched metadata for a player. 1:1 with `players`.
@@ -39,6 +40,17 @@ export const playerProfiles = pgTable('player_profiles', {
    * When set, takes precedence over players.position in display.
    */
   preferredPosition: text('preferred_position'),
+  /**
+   * Stylistic archetype tag (e.g. 'playmaker', 'sniper', 'enforcer-d').
+   *
+   * One of the 11 PLAYER_ARCHETYPES constants in
+   * `packages/db/src/schema/player-archetype.ts`. Drives the archetype pill
+   * shown on the profile hero, leader tiles, and player carousel cards.
+   * Goalies have no archetype — leave NULL.
+   *
+   * Manual entry only; ingestion never touches this column.
+   */
+  archetype: text('archetype').$type<PlayerArchetype>(),
   /**
    * Free-text player bio for the detail page.
    * Not available from the EA API — requires manual entry.

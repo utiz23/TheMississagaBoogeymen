@@ -1,9 +1,10 @@
-import { and, eq, inArray, isNull } from 'drizzle-orm'
+import { and, eq, inArray, isNull, sql } from 'drizzle-orm'
 import { db } from '../client.js'
 import {
   clubGameTitleStats,
   clubSeasonalStats,
   clubSeasonRank,
+  historicalClubTeamStats,
   opponentClubs,
 } from '../schema/index.js'
 import type { GameMode } from '../schema/index.js'
@@ -94,4 +95,80 @@ export async function getClubStats(gameTitleId: number, gameMode: GameMode | nul
     .where(and(eq(clubGameTitleStats.gameTitleId, gameTitleId), gameModeFilter))
     .limit(1)
   return rows[0] ?? null
+}
+
+export interface AllTimeTeamRecord {
+  wins: number
+  losses: number
+  otl: number
+  gamesPlayed: number
+  goals: number | null
+  goalsAgainst: number | null
+  /** Number of game titles contributing to the total. */
+  titlesCount: number
+}
+
+/**
+ * Career team record across every stored game title.
+ *
+ * Live titles (currently NHL 26) are read from `club_seasonal_stats`. Older
+ * titles come from `historical_club_team_stats` — every reviewed playlist row
+ * sums into the same totals. Goals-for / goals-against are pulled where they
+ * exist; older historical rows store only avg goals/game so we omit them and
+ * mark the totals nullable.
+ */
+export async function getAllTimeTeamRecord(): Promise<AllTimeTeamRecord> {
+  const liveAgg = await db
+    .select({
+      wins: sql<number>`COALESCE(SUM(${clubSeasonalStats.wins}), 0)::int`,
+      losses: sql<number>`COALESCE(SUM(${clubSeasonalStats.losses}), 0)::int`,
+      otl: sql<number>`COALESCE(SUM(${clubSeasonalStats.otl}), 0)::int`,
+      gamesPlayed: sql<number>`COALESCE(SUM(${clubSeasonalStats.gamesPlayed}), 0)::int`,
+      goals: sql<number>`COALESCE(SUM(${clubSeasonalStats.goals}), 0)::int`,
+      goalsAgainst: sql<number>`COALESCE(SUM(${clubSeasonalStats.goalsAgainst}), 0)::int`,
+      titles: sql<number>`COUNT(DISTINCT ${clubSeasonalStats.gameTitleId})::int`,
+    })
+    .from(clubSeasonalStats)
+
+  const histAgg = await db
+    .select({
+      wins: sql<number>`COALESCE(SUM(${historicalClubTeamStats.wins}), 0)::int`,
+      losses: sql<number>`COALESCE(SUM(${historicalClubTeamStats.losses}), 0)::int`,
+      otl: sql<number>`COALESCE(SUM(${historicalClubTeamStats.otl}), 0)::int`,
+      gamesPlayed: sql<number>`COALESCE(SUM(${historicalClubTeamStats.gamesPlayed}), 0)::int`,
+      goalsFor: sql<number>`COALESCE(SUM(${historicalClubTeamStats.goalsFor}), 0)::int`,
+      goalsAgainst: sql<number>`COALESCE(SUM(${historicalClubTeamStats.goalsAgainst}), 0)::int`,
+      titles: sql<number>`COUNT(DISTINCT ${historicalClubTeamStats.gameTitleId})::int`,
+    })
+    .from(historicalClubTeamStats)
+    .where(eq(historicalClubTeamStats.reviewStatus, 'reviewed'))
+
+  const live = liveAgg[0] ?? {
+    wins: 0,
+    losses: 0,
+    otl: 0,
+    gamesPlayed: 0,
+    goals: 0,
+    goalsAgainst: 0,
+    titles: 0,
+  }
+  const hist = histAgg[0] ?? {
+    wins: 0,
+    losses: 0,
+    otl: 0,
+    gamesPlayed: 0,
+    goalsFor: 0,
+    goalsAgainst: 0,
+    titles: 0,
+  }
+
+  return {
+    wins: live.wins + hist.wins,
+    losses: live.losses + hist.losses,
+    otl: live.otl + hist.otl,
+    gamesPlayed: live.gamesPlayed + hist.gamesPlayed,
+    goals: live.goals + hist.goalsFor || null,
+    goalsAgainst: live.goalsAgainst + hist.goalsAgainst || null,
+    titlesCount: live.titles + hist.titles,
+  }
 }

@@ -4,6 +4,7 @@ import {
   check,
   index,
   integer,
+  numeric,
   pgTable,
   serial,
   text,
@@ -91,6 +92,20 @@ export const opponentPlayerMatchStats = pgTable(
     penSaves: integer('pen_saves'),
     penShots: integer('pen_shots'),
     pokechecks: integer('pokechecks'),
+
+    // ── EA per-match ratings ──────────────────────────────────────────────────
+    ratingOffense: numeric('rating_offense', { precision: 5, scale: 2 }),
+    ratingDefense: numeric('rating_defense', { precision: 5, scale: 2 }),
+    ratingTeamplay: numeric('rating_teamplay', { precision: 5, scale: 2 }),
+
+    // ── EA rank context ───────────────────────────────────────────────────────
+    rankPoints: integer('rank_points'),
+    rankTierAssetId: text('rank_tier_asset_id'),
+    playerLevel: integer('player_level'),
+    playerClass: integer('player_class'),
+    posSorted: integer('pos_sorted'),
+    removedReason: integer('removed_reason'),
+    teamSide: integer('team_side'),
   },
   (table) => [
     // One row per (match, opponent player). EA player IDs are always present in
