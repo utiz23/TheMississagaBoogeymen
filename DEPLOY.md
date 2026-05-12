@@ -32,8 +32,14 @@ or both `web` and `worker` will crash-loop with "relation does not exist" errors
 cp .env.example .env
 ```
 
-Open `.env` and set `POSTGRES_PASSWORD` to a non-default value. Leave everything else at
-the defaults unless you have a specific reason to change it.
+Open `.env` and set:
+
+- `POSTGRES_PASSWORD` to a non-default value
+- `BETTER_AUTH_SECRET` to a long random value
+- `BETTER_AUTH_URL` to the public base URL of the web app
+- `APP_BASE_URL` to the same public base URL, used when admins copy invite links
+
+Leave everything else at the defaults unless you have a specific reason to change it.
 
 > The `DATABASE_URL` line in `.env` uses `localhost:5432` — this is for host-side tools
 > (migrations, psql). The `web` and `worker` containers connect to `db:5432` internally;

@@ -95,8 +95,8 @@ Docker Compose runs three services: `web` (Next.js), `worker` (ingestion), `db` 
 
 EA's API returns only the ~5 most recent matches. The worker polls every 5 minutes, stores raw JSON payloads immediately, then transforms and aggregates. Raw payloads are kept indefinitely — miss a match and you can't get it back, but transform bugs can always be fixed via `reprocess --all`.
 
-See `docs/ARCHITECTURE.md` for full design details and `docs/ROADMAP.md` for near-term plans.
-See `docs/SMOKE-CHECKS.md` for the default local verification loop and MCP-assisted smoke checks.
+See `docs/ARCHITECTURE.md` for full design details and `docs/planning/product-roadmap.md` for near-term plans.
+See `docs/operations/smoke-checks.md` for the default local verification loop and MCP-assisted smoke checks.
 
 ---
 
