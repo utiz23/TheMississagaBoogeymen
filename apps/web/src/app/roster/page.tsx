@@ -9,17 +9,24 @@ import {
   getGoalieStats,
   getEASkaterStats,
   getEAGoalieStats,
+  getAllTimeSkaterStats,
+  getAllTimeGoalieStats,
   getPlayerPositionEligibility,
   getOfficialClubRecord,
+  getAllTimeTeamRecord,
+  getAllTimeRosterLedger,
   getClubMemberSkaterStats,
   getClubMemberGoalieStats,
   getClubMemberSkaterStatsAllModes,
   getClubMemberGoalieStatsAllModes,
+  getRecentMatches,
+  getPlayerGameLog,
+  getPlayersStatsMeta,
 } from '@eanhl/db/queries'
 import { DepthChart } from '@/components/roster/depth-chart'
+import { RosterLedger } from '@/components/roster/roster-ledger'
 import { Panel } from '@/components/ui/panel'
-import { SectionHeader } from '@/components/ui/section-header'
-import type { DepthChartProps } from '@/components/roster/depth-chart'
+import type { DepthChartProps, DepthSlot } from '@/components/roster/depth-chart'
 import { SkaterStatsTable } from '@/components/stats/skater-stats-table'
 import { GoalieStatsTable } from '@/components/stats/goalie-stats-table'
 import {
@@ -29,7 +36,6 @@ import {
   statsSourceLabel,
 } from '@/components/title-selector'
 import { resolveTitleFromSlug } from '@/lib/title-resolver'
-import { formatRecord } from '@/lib/format'
 
 export const metadata: Metadata = { title: 'Roster — Club Stats' }
 
@@ -208,6 +214,17 @@ function defEffectiveScore(m: MemberData): number {
 
 // ─── Slot picker ──────────────────────────────────────────────────────────────
 
+/** Return the first element of `arr` after sorting by `cmp` (descending logic
+ *  is implied by passing `(a, b) => b.x - a.x`). Skips the actual sort by
+ *  scanning once. */
+function pickFirst<T>(arr: T[], cmp: (a: T, b: T) => number): T | null {
+  let best: T | null = null
+  for (const item of arr) {
+    if (best === null || cmp(item, best) < 0) best = item
+  }
+  return best
+}
+
 function pickBest(
   pool: MemberData[],
   excluded: Set<number>,
@@ -251,6 +268,7 @@ function pickBest(
 
 function buildChart(eaRows: RosterRow[], eligRows: EligRow[]): DepthChartProps {
   const members = buildMemberStats(eaRows, eligRows)
+  const memberById = new Map(members.map((m) => [m.eaRow.playerId, m]))
 
   // Goalies — independent of skater chart. No empty padding — render only real goalies.
   const goalieSlots: (RosterRow | null)[] = members
@@ -299,10 +317,23 @@ function buildChart(eaRows: RosterRow[], eligRows: EligRow[]): DepthChartProps {
     while (fwdSlots[lane].length < 4) fwdSlots[lane].push(null)
   }
 
+  // Forward-slot depth: role doesn't fit forward (defense-primary or goalie-
+  // primary) OR the player has already taken an earlier forward slot.
+  const seenInForwards = new Set<number>()
+  const fwdToSlot = (player: RosterRow | null): DepthSlot | null => {
+    if (player === null) return null
+    const m = memberById.get(player.playerId)
+    const reused = seenInForwards.has(player.playerId)
+    seenInForwards.add(player.playerId)
+    const roleMismatch = m ? m.isDefensePrimary || m.isGoaliePrimary : false
+    return { player, isDepth: reused || roleMismatch }
+  }
+
+  // Slot order in the rendered chart: line-by-line, LW→C→RW.
   const forwards = Array.from({ length: 4 }, (_, i) => ({
-    lw: fwdSlots.leftWing[i] ?? null,
-    c: fwdSlots.center[i] ?? null,
-    rw: fwdSlots.rightWing[i] ?? null,
+    lw: fwdToSlot(fwdSlots.leftWing[i] ?? null),
+    c: fwdToSlot(fwdSlots.center[i] ?? null),
+    rw: fwdToSlot(fwdSlots.rightWing[i] ?? null),
   }))
 
   // ── Defense ───────────────────────────────────────────────────────────────
@@ -333,12 +364,30 @@ function buildChart(eaRows: RosterRow[], eligRows: EligRow[]): DepthChartProps {
 
   while (defSlots.length < 6) defSlots.push(null)
 
+  // Defense-slot depth: role isn't defense-primary OR already placed in defense.
+  const seenInDefense = new Set<number>()
+  const defToSlot = (player: RosterRow | null): DepthSlot | null => {
+    if (player === null) return null
+    const m = memberById.get(player.playerId)
+    const reused = seenInDefense.has(player.playerId)
+    seenInDefense.add(player.playerId)
+    const roleMismatch = m ? !m.isDefensePrimary : true
+    return { player, isDepth: reused || roleMismatch }
+  }
+
   const defense = Array.from({ length: 3 }, (_, i) => ({
-    ld: defSlots[i * 2] ?? null,
-    rd: defSlots[i * 2 + 1] ?? null,
+    ld: defToSlot(defSlots[i * 2] ?? null),
+    rd: defToSlot(defSlots[i * 2 + 1] ?? null),
   }))
 
-  return { forwards, defense, goalies: goalieSlots }
+  // Goalie-slot depth: role isn't goalie-primary (skaters playing goalie).
+  const goalies = goalieSlots.map((player): DepthSlot | null => {
+    if (player === null) return null
+    const m = memberById.get(player.playerId)
+    return { player, isDepth: !(m?.isGoaliePrimary ?? false) }
+  })
+
+  return { forwards, defense, goalies }
 }
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
@@ -421,16 +470,140 @@ async function ActiveRoster({
 
   const chart = buildChart(eaRows, eligibilityRows)
 
+  const totalGp = eaRows.reduce(
+    (acc, r) => Math.max(acc, r.skaterGp + r.goalieGp),
+    0,
+  )
+  const scopeLabel =
+    `SEASON · ${gameTitle.name.toUpperCase()}` +
+    (totalGp > 0 ? ` · ${String(totalGp)} GP` : '')
+
+  // ─── All-Time data + sparklines ────────────────────────────────────────────
+
+  let allTimeRows: Awaited<ReturnType<typeof getAllTimeRosterLedger>> = []
+  let allTimeRecord: Awaited<ReturnType<typeof getAllTimeTeamRecord>> | null = null
+  let recentMatches: Awaited<ReturnType<typeof getRecentMatches>> = []
+  let allTimeSkaterRows: Awaited<ReturnType<typeof getAllTimeSkaterStats>> = []
+  let allTimeGoalieRows: Awaited<ReturnType<typeof getAllTimeGoalieStats>> = []
+  try {
+    ;[allTimeRows, allTimeRecord, recentMatches, allTimeSkaterRows, allTimeGoalieRows] =
+      await Promise.all([
+        getAllTimeRosterLedger(),
+        getAllTimeTeamRecord(),
+        getRecentMatches({ gameTitleId: gameTitle.id, limit: 14 }),
+        getAllTimeSkaterStats(),
+        getAllTimeGoalieStats(),
+      ])
+  } catch {
+    // soft-fail: All-Time tab will simply remain disabled.
+  }
+
+  const allTimeScopeLabel = allTimeRecord
+    ? `ALL TIME · ${String(allTimeRecord.gamesPlayed)} BGM GP`
+    : undefined
+
+  const allTimeStatsSubtitle =
+    allTimeRecord !== null && allTimeRecord.titlesCount > 0
+      ? `Career totals across ${String(allTimeRecord.titlesCount)} title${allTimeRecord.titlesCount === 1 ? '' : 's'} · all clubs`
+      : 'Career totals across all titles · all clubs'
+
+  // Build the sparkline payload for whichever player ends up as the leader of
+  // each tile in either scope. Up to 6 unique IDs (often fewer when leaders
+  // overlap across tiles).
+  const ptsLeaderId = pickFirst(eaRows, (a, b) => b.points - a.points)?.playerId ?? null
+  const goalsLeaderId =
+    pickFirst(eaRows, (a, b) => b.goals - a.goals)?.playerId ?? null
+  const goalieLeaderId =
+    pickFirst(
+      eaRows.filter((r) => r.goalieGp > 0 && r.savePct !== null),
+      (a, b) => parseFloat(b.savePct ?? '0') - parseFloat(a.savePct ?? '0'),
+    )?.playerId ?? null
+
+  const allPtsLeaderId =
+    pickFirst(allTimeRows, (a, b) => b.points - a.points)?.playerId ?? null
+  const allGoalsLeaderId =
+    pickFirst(allTimeRows, (a, b) => b.goals - a.goals)?.playerId ?? null
+  const allGoalieLeaderId =
+    pickFirst(
+      allTimeRows.filter((r) => r.goalieGp > 0 && r.savePct !== null),
+      (a, b) => parseFloat(b.savePct ?? '0') - parseFloat(a.savePct ?? '0'),
+    )?.playerId ?? null
+
+  const sparklineIds = Array.from(
+    new Set(
+      [
+        ptsLeaderId,
+        goalsLeaderId,
+        goalieLeaderId,
+        allPtsLeaderId,
+        allGoalsLeaderId,
+        allGoalieLeaderId,
+      ].filter((id): id is number => id !== null),
+    ),
+  )
+
+  const SPARK_LIMIT = 10
+  const sparklines: Record<number, { points: number[]; goals: number[]; savePct: number[] }> = {}
+  await Promise.all(
+    sparklineIds.map(async (id) => {
+      try {
+        const log = await getPlayerGameLog(id, null, SPARK_LIMIT, 0)
+        // Game log is newest-first; sparkline expects chronological (oldest → newest).
+        const ordered = [...log].reverse()
+        sparklines[id] = {
+          points: ordered.map((g) => g.goals + g.assists),
+          goals: ordered.map((g) => g.goals),
+          savePct: ordered
+            .filter((g) => g.isGoalie && g.saves !== null && g.goalsAgainst !== null)
+            .map((g) => {
+              const sa = (g.saves ?? 0) + (g.goalsAgainst ?? 0)
+              return sa > 0 ? ((g.saves ?? 0) / sa) * 100 : 0
+            }),
+        }
+      } catch {
+        sparklines[id] = { points: [], goals: [], savePct: [] }
+      }
+    }),
+  )
+
+  const recordSparkline = recentMatches
+    .slice(0, SPARK_LIMIT)
+    .reverse()
+    .map((m) => m.result)
+
+  // Per-player metadata for skater/goalie row tooltips. Collect every distinct
+  // playerId across all four datasets surfaced on the page.
+  const metaIds = Array.from(
+    new Set([
+      ...skaterRows.map((r) => r.playerId),
+      ...goalieRows.map((r) => r.playerId),
+      ...allTimeSkaterRows.map((r) => r.playerId),
+      ...allTimeGoalieRows.map((r) => r.playerId),
+    ]),
+  )
+  let playerMeta: Awaited<ReturnType<typeof getPlayersStatsMeta>> = {}
+  try {
+    playerMeta = await getPlayersStatsMeta(metaIds)
+  } catch {
+    // Soft-fail: tooltips just fall back to the gamertag.
+  }
+
   return (
     <PageShell gameTitle={gameTitle}>
-      <SeasonSummaryStrip eaRows={eaRows} officialRecord={officialRecord} />
-      <section className="space-y-3">
-        <SectionHeader
-          label="Depth Chart"
-          {...(gameMode !== null ? { subtitle: 'All Modes' } : {})}
-        />
-        <DepthChart {...chart} />
-      </section>
+      <RosterLedger
+        rows={eaRows}
+        record={officialRecord ?? null}
+        scopeLabel={scopeLabel}
+        allTimeRows={allTimeRows}
+        allTimeRecord={allTimeRecord}
+        allTimeScopeLabel={allTimeScopeLabel}
+        recordSparkline={recordSparkline}
+        sparklines={sparklines}
+      />
+      <DepthChart
+        {...chart}
+        scopeLabel={`Boogeymen · ${gameTitle.name} · ${gameMode === null ? 'Season Totals' : `${gameMode} mode`}`}
+      />
       <div className="flex flex-wrap items-center gap-3">
         <TitleSelector
           pathname="/roster"
@@ -447,7 +620,14 @@ async function ActiveRoster({
       </div>
       {skaterRows.length > 0 ? (
         <section>
-          <SkaterStatsTable rows={skaterRows} title="Skaters" subtitle={subtitle} />
+          <SkaterStatsTable
+            rows={skaterRows}
+            title="Skaters"
+            subtitle={subtitle}
+            allTimeRows={allTimeSkaterRows}
+            allTimeSubtitle={allTimeStatsSubtitle}
+            playerMeta={playerMeta}
+          />
         </section>
       ) : (
         gameMode !== null && (
@@ -456,7 +636,14 @@ async function ActiveRoster({
       )}
       {goalieRows.length > 0 && (
         <section>
-          <GoalieStatsTable rows={goalieRows} title="Goalies" subtitle={subtitle} />
+          <GoalieStatsTable
+            rows={goalieRows}
+            title="Goalies"
+            subtitle={subtitle}
+            allTimeRows={allTimeGoalieRows}
+            allTimeSubtitle={allTimeStatsSubtitle}
+            playerMeta={playerMeta}
+          />
         </section>
       )}
     </PageShell>
@@ -578,69 +765,6 @@ function PageShell({ gameTitle, children }: { gameTitle: GameTitle; children: Re
       <PageHeader gameTitle={gameTitle} />
       {children}
     </div>
-  )
-}
-
-// ─── Season summary strip ─────────────────────────────────────────────────────
-
-type OfficialRecord = Awaited<ReturnType<typeof getOfficialClubRecord>>
-
-function formatSavePctHockey(val: string | null): string {
-  if (val === null) return '—'
-  const n = parseFloat(val)
-  return isNaN(n) ? '—' : (n / 100).toFixed(3).slice(1)
-}
-
-function SeasonSummaryStrip({
-  eaRows,
-  officialRecord,
-}: {
-  eaRows: RosterRow[]
-  officialRecord: OfficialRecord
-}) {
-  // eaRows are already sorted by points desc from getEARoster
-  const topScorer = eaRows[0] ?? null
-  const topGoalScorer = [...eaRows].sort((a, b) => b.goals - a.goals)[0] ?? null
-  const topGoalie =
-    [...eaRows]
-      .filter((r): r is RosterRow & { savePct: string } => r.goalieGp > 0 && r.savePct !== null)
-      .sort((a, b) => parseFloat(b.savePct) - parseFloat(a.savePct))[0] ?? null
-
-  const record = officialRecord
-    ? formatRecord(officialRecord.wins, officialRecord.losses, officialRecord.otl)
-    : null
-
-  return (
-    <Panel className="flex flex-wrap divide-y divide-zinc-800 sm:flex-nowrap sm:divide-x sm:divide-y-0">
-      <SummaryCell label="Record" primary={record ?? '—'} dim={record === null} />
-      {topScorer ? (
-        <SummaryCell
-          label="Scoring Leader"
-          primary={topScorer.gamertag}
-          secondary={`${topScorer.points.toString()} PTS`}
-        />
-      ) : (
-        <SummaryCell label="Scoring Leader" primary="—" dim />
-      )}
-      {topGoalScorer ? (
-        <SummaryCell
-          label="Goals Leader"
-          primary={topGoalScorer.gamertag}
-          secondary={`${topGoalScorer.goals.toString()} G`}
-        />
-      ) : (
-        <SummaryCell label="Goals Leader" primary="—" dim />
-      )}
-      {topGoalie ? (
-        <SummaryCell
-          label="Goalie"
-          primary={topGoalie.gamertag}
-          secondary={`${formatSavePctHockey(topGoalie.savePct)} SV%`}
-        />
-      ) : (
-        <SummaryCell label="Goalie" primary="—" dim />
-      )}
-    </Panel>
   )
 }
 

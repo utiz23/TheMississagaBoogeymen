@@ -8,8 +8,11 @@ import {
   getPlayerGameLog,
   countPlayerGameLog,
   getPlayerEASeasonStats,
+  getAllEASeasonStatsForGameTitle,
   getTeamAverageShotLocations,
+  getTeamAverageGoalieShotLocations,
   getPlayerLoadoutSnapshots,
+  getPlayerCareerShots,
 } from '@eanhl/db/queries'
 import type { GameMode } from '@eanhl/db'
 import { GAME_MODE } from '@eanhl/db'
@@ -24,6 +27,7 @@ import { ChartsVisualsSection } from '@/components/roster/charts-visuals-section
 import { ComingSoonCard } from '@/components/roster/coming-soon-card'
 import { ShotMap } from '@/components/roster/shot-map'
 import { LoadoutHistoryStrip } from '@/components/roster/loadout-history-strip'
+import { CareerShotMap } from '@/components/roster/career-shot-map'
 import { Panel } from '@/components/ui/panel'
 
 export const revalidate = 3600
@@ -99,6 +103,20 @@ export default async function PlayerPage({ params, searchParams }: Props) {
     return <ErrorState message="Unable to load player data right now." />
   }
 
+  let loadoutSnapshots: Awaited<ReturnType<typeof getPlayerLoadoutSnapshots>> = []
+  try {
+    loadoutSnapshots = await getPlayerLoadoutSnapshots(id, 4)
+  } catch {
+    loadoutSnapshots = []
+  }
+
+  let careerShots: Awaited<ReturnType<typeof getPlayerCareerShots>> = []
+  try {
+    careerShots = await getPlayerCareerShots(id, 500)
+  } catch {
+    careerShots = []
+  }
+
   let teamAverage: Awaited<ReturnType<typeof getTeamAverageShotLocations>> | null = null
   try {
     teamAverage = await getTeamAverageShotLocations(1)
@@ -106,11 +124,23 @@ export default async function PlayerPage({ params, searchParams }: Props) {
     teamAverage = null
   }
 
-  let loadoutSnapshots: Awaited<ReturnType<typeof getPlayerLoadoutSnapshots>> = []
+  let teamGoalieAverage:
+    | Awaited<ReturnType<typeof getTeamAverageGoalieShotLocations>>
+    | null = null
   try {
-    loadoutSnapshots = await getPlayerLoadoutSnapshots(id, 4)
+    teamGoalieAverage = await getTeamAverageGoalieShotLocations(1)
   } catch {
-    loadoutSnapshots = []
+    teamGoalieAverage = null
+  }
+
+  let teammates: Awaited<ReturnType<typeof getAllEASeasonStatsForGameTitle>> = []
+  try {
+    const focalGameTitleId = eaStats[0]?.gameTitleId
+    if (focalGameTitleId !== undefined) {
+      teammates = await getAllEASeasonStatsForGameTitle(focalGameTitleId)
+    }
+  } catch {
+    teammates = []
   }
 
   if (!overview) notFound()
@@ -186,25 +216,53 @@ export default async function PlayerPage({ params, searchParams }: Props) {
         }
       />
 
-      {selectedRole === 'skater' && eaStats[0] !== undefined && (
-        <ClubStatsTabs season={eaStats[0]} />
-      )}
-      {selectedRole === 'goalie' && (
-        <ComingSoonCard
-          title="Goalie Club Stats"
-          description="Goalie Overview, Saves, and Situations tabs (matching ChelHead Tabs 6-8) coming in a future update."
+      {eaStats[0] !== undefined && (
+        <ClubStatsTabs
+          season={eaStats[0]}
+          gamertag={overview.player.gamertag}
+          teammates={teammates}
+          role={selectedRole}
         />
       )}
 
-      <ContributionSection contribution={selectedContribution} selectedRole={selectedRole} />
+      <ContributionSection
+        contribution={selectedContribution}
+        selectedRole={selectedRole}
+        skaterSeason={eaStats[0] ?? null}
+        teammates={teammates}
+        playerId={overview.player.id}
+        gamertag={overview.player.gamertag}
+        gameTitleName={eaStats[0]?.gameTitleName}
+        updatedAt={eaStats[0]?.lastFetchedAt}
+      />
 
       <LoadoutHistoryStrip snapshots={loadoutSnapshots} />
 
-      {overview.primaryRole !== 'goalie' && (
+      <CareerShotMap events={careerShots} />
+
+      {selectedRole === 'skater' && (
         <ShotMap
+          role="skater"
           player={resolveNhl26ShotLocations(eaStats)}
           teamAverage={teamAverage ?? emptyShotLocations()}
           hasData={teamAverage !== null && resolveNhl26ShotLocations(eaStats) !== null}
+          gamertag={overview.player.gamertag}
+          playerGp={resolveNhl26SkaterGp(eaStats)}
+          updatedDate={new Date().toISOString().slice(0, 10)}
+        />
+      )}
+      {selectedRole === 'goalie' && (
+        <ShotMap
+          role="goalie"
+          player={resolveNhl26GoalieShotLocations(eaStats)}
+          teamAverage={teamGoalieAverage ?? emptyShotLocations()}
+          hasData={
+            teamGoalieAverage !== null &&
+            resolveNhl26GoalieShotLocations(eaStats) !== null
+          }
+          gamertag={overview.player.gamertag}
+          playerGp={resolveNhl26GoalieGp(eaStats)}
+          updatedDate={new Date().toISOString().slice(0, 10)}
         />
       )}
 
@@ -227,6 +285,23 @@ export default async function PlayerPage({ params, searchParams }: Props) {
 function resolveNhl26ShotLocations(rows: Awaited<ReturnType<typeof getPlayerEASeasonStats>>) {
   const nhl26 = rows.find((r) => r.gameTitleSlug === 'nhl26')
   return nhl26?.shotLocations ?? null
+}
+
+function resolveNhl26SkaterGp(rows: Awaited<ReturnType<typeof getPlayerEASeasonStats>>) {
+  const nhl26 = rows.find((r) => r.gameTitleSlug === 'nhl26')
+  return nhl26?.skaterGp ?? undefined
+}
+
+function resolveNhl26GoalieShotLocations(
+  rows: Awaited<ReturnType<typeof getPlayerEASeasonStats>>,
+) {
+  const nhl26 = rows.find((r) => r.gameTitleSlug === 'nhl26')
+  return nhl26?.goalieShotLocations ?? null
+}
+
+function resolveNhl26GoalieGp(rows: Awaited<ReturnType<typeof getPlayerEASeasonStats>>) {
+  const nhl26 = rows.find((r) => r.gameTitleSlug === 'nhl26')
+  return nhl26?.goalieGp ?? undefined
 }
 
 function emptyShotLocations() {

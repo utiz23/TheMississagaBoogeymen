@@ -1,0 +1,282 @@
+/* ============================================================================
+   DEPTH CHART — ported from preview/components-depth-chart.html
+   Module-framed broadcast chart with row rails, primary/depth markers, and
+   a single grid spanning Forwards (3 cols) + Defense (2 cols) per line.
+   ============================================================================ */
+
+.dc-module {
+  --rail-w: 56px;
+  --col-gap: 16px;
+  --row-gap: 22px;
+  --block-gap: 40px;
+  /* Cards are the home-page PlayerCard zoomed to fit the chart row. Pre-zoom
+     264px × 0.66 ≈ 174px. Page max-w-screen-xl (1280) leaves room for 5
+     scaled cards + 2 rails + 1 block-gap + 4 col-gaps. */
+  --card-zoom: 0.66;
+  --card-w: 174px;
+  position: relative;
+  border: 1px solid rgba(63, 63, 70, 0.9);
+  border-radius: 8px;
+  background:
+    radial-gradient(circle at top, rgba(232, 65, 49, 0.12), transparent 42%),
+    linear-gradient(180deg, rgba(50, 48, 49, 0.96), rgba(26, 24, 25, 0.98));
+  overflow: hidden;
+  font-family: var(--font-condensed);
+  color: var(--color-fg-1);
+}
+
+/* ── Header ─────────────────────────────────────────────────────────────── */
+.dc-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  padding: 22px 28px 16px;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+.dc-head .title h2 {
+  margin: 0;
+  font-size: 19px;
+  font-weight: 900;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--color-fg-1);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.dc-head .title h2 .accent { color: var(--color-accent); }
+.dc-head .title .scope {
+  display: block;
+  margin-top: 4px;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--color-fg-5);
+}
+.dc-head .legend {
+  display: flex;
+  gap: 12px;
+  font-family: ui-monospace, 'JetBrains Mono', monospace;
+  font-size: 10px;
+  color: var(--color-fg-5);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.dc-head .legend .pip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.dc-head .legend .pip i {
+  width: 8px;
+  height: 8px;
+  background: var(--color-accent);
+  border-radius: 1px;
+}
+.dc-head .legend .pip.dup i { background: #f59e0b; }
+.dc-head .meta {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  font-family: ui-monospace, 'JetBrains Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  color: var(--color-fg-4);
+  text-transform: uppercase;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.dc-head .meta b { color: var(--color-fg-2); }
+.dc-head .meta .dot { color: var(--color-accent); }
+
+.dc-ticker {
+  height: 2px;
+  background: linear-gradient(
+    90deg,
+    rgba(120, 30, 22, 1) 0%,
+    rgba(232, 65, 49, 0.95) 50%,
+    rgba(120, 30, 22, 1) 100%
+  );
+}
+
+/* ── Section bars ───────────────────────────────────────────────────────── */
+.dc-section-bar {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 18px 28px 8px;
+  background: linear-gradient(90deg, rgba(232, 65, 49, 0.08), transparent 50%);
+  border-top: 1px solid rgba(63, 63, 70, 0.5);
+  border-bottom: 1px solid rgba(63, 63, 70, 0.4);
+  margin-top: 10px;
+  flex-wrap: wrap;
+}
+.dc-section-bar h3 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 900;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--color-fg-1);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.dc-section-bar h3 .accent { color: var(--color-accent); }
+.dc-section-bar .count {
+  font-family: ui-monospace, 'JetBrains Mono', monospace;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--color-fg-5);
+  letter-spacing: 0.1em;
+}
+.dc-section-bar .rule {
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(90deg, rgba(232, 65, 49, 0.45), rgba(63, 63, 70, 0.5) 35%, transparent);
+  min-width: 30px;
+}
+.dc-section-bar .units {
+  font-family: ui-monospace, 'JetBrains Mono', monospace;
+  font-size: 10px;
+  color: var(--color-fg-5);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+/* ── Skaters block: forwards + defense in a single grid ─────────────────── */
+.dc-skaters-scroll {
+  overflow-x: auto;
+}
+.dc-skaters {
+  display: grid;
+  grid-template-columns:
+    var(--rail-w)
+    repeat(3, var(--card-w))
+    var(--block-gap)
+    var(--rail-w)
+    repeat(2, var(--card-w));
+  column-gap: var(--col-gap);
+  row-gap: var(--row-gap);
+  padding: 18px 28px 26px;
+  align-items: stretch;
+  justify-content: center;
+  min-width: max-content;
+}
+.dc-skaters .col-head,
+.dc-goalies .col-head {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.26em;
+  text-transform: uppercase;
+  color: var(--color-fg-4);
+  padding-bottom: 8px;
+  border-bottom: 1px solid rgba(63, 63, 70, 0.5);
+  align-self: end;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+.dc-skaters .col-head::before,
+.dc-goalies .col-head::before {
+  content: '';
+  width: 4px;
+  height: 4px;
+  background: var(--color-accent);
+  border-radius: 50%;
+}
+
+.dc-row-rail {
+  align-self: center;
+  text-align: right;
+  padding-right: 10px;
+  position: relative;
+}
+.dc-row-rail::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  top: 24px;
+  bottom: 24px;
+  width: 2px;
+  background: linear-gradient(180deg, var(--color-accent), rgba(232, 65, 49, 0.15));
+}
+.dc-row-rail .lbl {
+  display: block;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  color: var(--color-fg-5);
+  text-transform: uppercase;
+}
+.dc-row-rail .num {
+  display: block;
+  font-size: 32px;
+  font-weight: 900;
+  color: var(--color-fg-1);
+  line-height: 1;
+  margin-top: 4px;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Goalies block ──────────────────────────────────────────────────────── */
+.dc-goalies-scroll { overflow-x: auto; }
+.dc-goalies {
+  display: grid;
+  column-gap: var(--col-gap);
+  padding: 18px 28px 28px;
+  justify-content: center;
+  min-width: max-content;
+}
+
+/* Cards are the home-page PlayerCard, zoomed to fit the chart layout. */
+.dc-skaters .hpc,
+.dc-goalies .hpc {
+  zoom: var(--card-zoom);
+}
+
+/* Open-slot fallback (matches scaled card height ≈ 540 × 0.66 ≈ 356px) */
+.dc-empty {
+  width: var(--card-w);
+  min-height: 356px;
+  border: 1px dashed rgba(63, 63, 70, 0.7);
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 10px;
+  color: var(--color-fg-5);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+}
+.dc-empty svg {
+  width: 60px;
+  height: 60px;
+  color: #27272a;
+}
+
+/* Footer */
+.dc-foot {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 28px;
+  border-top: 1px solid rgba(63, 63, 70, 0.6);
+  font-family: ui-monospace, 'JetBrains Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  color: var(--color-fg-5);
+  text-transform: uppercase;
+  background: rgba(0, 0, 0, 0.2);
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.dc-foot b { color: var(--color-fg-3); }
+.dc-foot .center { color: var(--color-fg-4); }

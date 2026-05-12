@@ -58,7 +58,7 @@ export function TrendChart({ trendGames, selectedRole }: Props) {
             const barH = Math.max(3, (stat / maxStat) * (chartH - 4))
             const x = i * (barW + 1)
             const color =
-              g.result === 'WIN' ? '#10b981' : g.result === 'OTL' ? '#f59e0b' : '#e11d48'
+              g.result === 'WIN' ? '#10b981' : g.result === 'OTL' ? '#f59e0b' : '#e84131'
             return (
               <rect
                 key={g.matchId}

@@ -1,25 +1,81 @@
 import type { ProfileContributionSummary } from '@eanhl/db/queries'
 import { SectionHeader } from '@/components/ui/section-header'
 import { Panel } from '@/components/ui/panel'
+import {
+  ContributionWheel,
+  type ContributionWheelSeason,
+  type ContributionWheelTeammate,
+} from './contribution-wheel'
 
 const ROLE_CHIPS = {
   skater: 'Skater',
   goalie: 'Goalie',
 } as const
 
-const CONTRIBUTION_COLORS = ['#e11d48', '#fbbf24', '#38bdf8', '#34d399', '#a78bfa', '#fb923c']
+const CONTRIBUTION_COLORS = ['#e84131', '#fbbf24', '#38bdf8', '#34d399', '#a78bfa', '#fb923c']
 
 interface Props {
   contribution: ProfileContributionSummary | null
   selectedRole: 'skater' | 'goalie'
+  /** Skater season row used to compute the new contribution wheel. */
+  skaterSeason?: ContributionWheelSeason | null
+  /** Other team members (used for per-stat ranking on the wheel). */
+  teammates?: ContributionWheelTeammate[] | undefined
+  /** Focal player's id so they're excluded from the rank pool. */
+  playerId?: number | undefined
+  gamertag?: string | undefined
+  gameTitleName?: string | undefined
+  /** Real freshness timestamp for the wheel header. */
+  updatedAt?: Date | string | undefined
 }
 
-export function ContributionSection({ contribution, selectedRole }: Props) {
+export function ContributionSection({
+  contribution,
+  selectedRole,
+  skaterSeason,
+  teammates,
+  playerId,
+  gamertag,
+  gameTitleName,
+  updatedAt,
+}: Props) {
+  // Skater profile renders the impact-weighted contribution wheel.
+  if (selectedRole === 'skater') {
+    if (!skaterSeason || skaterSeason.gamesPlayed === 0) {
+      return (
+        <section id="profile" className="space-y-4 scroll-mt-24">
+          <SectionHeader
+            label="Contribution Wheel"
+            subtitle="Impact share weighted by gamescore · skater view"
+          />
+          <Panel className="flex min-h-[6rem] items-center justify-center">
+            <p className="px-4 text-center font-condensed text-sm uppercase tracking-wider text-zinc-500">
+              Not enough season data to build the contribution wheel yet.
+            </p>
+          </Panel>
+        </section>
+      )
+    }
+    return (
+      <section id="profile" className="scroll-mt-24">
+        <ContributionWheel
+          season={skaterSeason}
+          teammates={teammates}
+          playerId={playerId}
+          gamertag={gamertag}
+          gameTitleName={gameTitleName}
+          updatedAt={updatedAt}
+        />
+      </section>
+    )
+  }
+
+  // Goalie still uses the normalized-vs-teammates donut/bars view.
   return (
     <section id="profile" className="space-y-4 scroll-mt-24">
       <SectionHeader
         label="Season Profile"
-        subtitle={`Normalized vs teammates in the same role · ${selectedRole === 'skater' ? 'skater' : 'goalie'} view`}
+        subtitle="Normalized vs teammates in the same role · goalie view"
       />
       {!contribution || contribution.metrics.length === 0 ? (
         <Panel className="flex min-h-[6rem] items-center justify-center">
@@ -46,7 +102,7 @@ export function ContributionSection({ contribution, selectedRole }: Props) {
                   key={metric.label}
                   label={metric.label}
                   value={metric.value}
-                  color={CONTRIBUTION_COLORS[i % CONTRIBUTION_COLORS.length] ?? '#e11d48'}
+                  color={CONTRIBUTION_COLORS[i % CONTRIBUTION_COLORS.length] ?? '#e84131'}
                 />
               ))}
             </div>
