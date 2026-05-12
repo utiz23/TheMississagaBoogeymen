@@ -61,3 +61,12 @@ docs/design/boogeymen-system/
 research/**/*.har
 research/**/*_files/
 research/Previous_NHL_Stats/
+
+# OCR source screenshots — large binary capture set, kept on disk only
+research/OCR-SS/
+
+# CVAT labeling workspace — multi-hundred-MB local annotation data
+cvat/
+
+# Stray one-off probe scripts that landed under src/ by mistake
+apps/web/src/probe-queries.mjs
