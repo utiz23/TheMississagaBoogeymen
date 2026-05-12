@@ -190,7 +190,7 @@ async function persistOneResult(
     }
 
     try {
-      await promoter({ result, extractionId: ext.id, matchId, db: tx as PromoterDb })
+      await promoter({ result, extractionId: ext.id, matchId, sourcePath, db: tx as PromoterDb })
       await tx
         .update(ocrExtractions)
         .set({ transformStatus: 'success', transformError: null })

@@ -36,8 +36,67 @@ interface ActionTrackerEventJson {
   clock: OcrExtractionField
 }
 
+/**
+ * Derive period number from the capture's parent folder name.
+ *
+ * The recordings are organised on disk as `…/1st-Period-Events/`,
+ * `…/2nd-Period-Events/`, `…/3rd-Period-Events/`, `…/OT-Events/`. When OCR
+ * mis-parses the period_label (e.g. picks up extra garbage like "11.1" at the
+ * end and the regex bails out, leaving period_number = -1), the folder name
+ * is the authoritative fallback. Mirrors the same fallback used in
+ * `tools/game_ocr/scripts/inventory_consensus_match.py:period_from_path`.
+ */
+function periodFromPath(sourcePath: string): number | null {
+  const parts = sourcePath.replace(/\\/g, '/').replace(/\/+$/, '').split('/')
+  const folder = (parts.length >= 2 ? parts[parts.length - 2] ?? '' : '').toLowerCase()
+  if (folder.includes('1st')) return 1
+  if (folder.includes('2nd')) return 2
+  if (folder.includes('3rd')) return 3
+  if (folder.includes('ot')) return 4
+  return null
+}
+
+function resolvePeriod(eventPeriod: number, sourcePath: string): number {
+  if (eventPeriod >= 1) return eventPeriod
+  return periodFromPath(sourcePath) ?? eventPeriod
+}
+
+/**
+ * Recover event_type from the raw OCR text when the parser failed to classify it.
+ *
+ * The Action Tracker's right-column event tag ("SHOT", "GOAL", "HIT", "PENALTY",
+ * "FACEOFF") regularly OCR-corrupts to forms like "SHDT", "GDAL", "10HS", or
+ * "LOHS" where digit-letter confusion ate the original glyphs. The Python
+ * parser leaves these as `event_type='unknown'`, which blocks both the
+ * cross-screen dedup and the spatial UPDATE. Pattern-match the corrupted forms
+ * here so the row can still be positioned and counted.
+ */
+function inferEventTypeFromRawText(
+  rawText: string,
+): 'shot' | 'hit' | 'goal' | 'penalty' | 'faceoff' | null {
+  const t = rawText.toUpperCase()
+  // GOAL — check before SHOT so "GOAL"/"GDAL" doesn't slip into shot-only patterns.
+  if (/\bG[\dDO0OQ]AL\b|\bGAOL\b|\bGAUL\b|\bGOA[1IL]\b/.test(t)) return 'goal'
+  // SHOT — direct & OCR variants (digit/letter swaps around S, H, O, T).
+  if (/\bSH[D0OQ]T\b|\bSH[O0]T\b/.test(t)) return 'shot'
+  // Also the plural form "SHOTS" that the parser sometimes mis-splits.
+  if (/\b[1IL][O0]HS\b|\bL[O0]HS\b|\b10HS\b/.test(t)) return 'shot'
+  if (/\bHIT\b|\bH[1I]T\b/.test(t)) return 'hit'
+  if (/\bPEN(ALTY)?\b/.test(t)) return 'penalty'
+  if (/\bFACE(O[FT]F)?\b|\bFO\b/.test(t)) return 'faceoff'
+  return null
+}
+
+function resolveEventType(
+  parsed: ActionTrackerEventJson['event_type'],
+  rawText: string,
+): ActionTrackerEventJson['event_type'] {
+  if (parsed !== 'unknown') return parsed
+  return inferEventTypeFromRawText(rawText) ?? 'unknown'
+}
+
 export async function promoteActionTracker(ctx: PromoterContext): Promise<void> {
-  const { result, extractionId, matchId, db } = ctx
+  const { result, extractionId, matchId, sourcePath, db } = ctx
   if (matchId === null) {
     throw new Error('Action Tracker promoter requires --match-id at batch ingest time')
   }
@@ -46,11 +105,13 @@ export async function promoteActionTracker(ctx: PromoterContext): Promise<void> 
   const events = Array.isArray(result.events) ? (result.events as ActionTrackerEventJson[]) : []
 
   for (const ev of events) {
-    if (ev.event_type === 'unknown') continue
+    const eventType = resolveEventType(ev.event_type, stringValue(ev.raw_text) ?? '')
+    if (eventType === 'unknown') continue
     const clock = stringValue(ev.clock)
     const actor = stringValue(ev.actor_snapshot)
     if (!clock || !actor) continue
-    if (ev.period_number < 1) continue
+    const periodNumber = resolvePeriod(ev.period_number, sourcePath)
+    if (periodNumber < 1) continue
 
     // Resolve actor → players.id; team_side derived from whether resolution found a BGM-rostered player.
     const { playerId: actorPlayerId } = await resolveGamertagToPlayer(actor, gameTitleId, db)
@@ -70,8 +131,8 @@ export async function promoteActionTracker(ctx: PromoterContext): Promise<void> 
       .where(
         and(
           eq(matchEvents.matchId, matchId),
-          eq(matchEvents.periodNumber, ev.period_number),
-          eq(matchEvents.eventType, ev.event_type),
+          eq(matchEvents.periodNumber, periodNumber),
+          eq(matchEvents.eventType, eventType),
           eq(matchEvents.source, 'ocr'),
           drizzleSql`coalesce(${matchEvents.clock}, '') = ${clock}`,
           drizzleSql`coalesce(${matchEvents.actorGamertagSnapshot}, '') = ${actor}`,
@@ -94,10 +155,10 @@ export async function promoteActionTracker(ctx: PromoterContext): Promise<void> 
 
     const newEvent: NewMatchEvent = {
       matchId,
-      periodNumber: ev.period_number,
-      periodLabel: ev.period_label || String(ev.period_number),
+      periodNumber,
+      periodLabel: ev.period_label || String(periodNumber),
       clock,
-      eventType: ev.event_type,
+      eventType,
       teamSide,
       teamAbbreviation: null,
       actorPlayerId,
@@ -118,7 +179,7 @@ export async function promoteActionTracker(ctx: PromoterContext): Promise<void> 
     })
     if (!inserted) throw new Error('Failed to insert match_events row')
 
-    if (ev.event_type === 'goal') {
+    if (eventType === 'goal') {
       await db.insert(matchGoalEvents).values({
         eventId: inserted.id,
         scorerPlayerId: actorPlayerId,
@@ -129,7 +190,7 @@ export async function promoteActionTracker(ctx: PromoterContext): Promise<void> 
         secondaryAssistPlayerId: null,
         secondaryAssistSnapshot: null,
       })
-    } else if (ev.event_type === 'penalty') {
+    } else if (eventType === 'penalty') {
       const penaltyRow: NewMatchPenaltyEvent = {
         eventId: inserted.id,
         culpritPlayerId: actorPlayerId,
@@ -173,15 +234,19 @@ export async function promoteActionTracker(ctx: PromoterContext): Promise<void> 
     selectedIdx != null && selectedIdx >= 0 && selectedIdx < events.length
       ? events[selectedIdx]
       : events[0]
+  const selectedEventType = selectedEvent
+    ? resolveEventType(selectedEvent.event_type, stringValue(selectedEvent.raw_text) ?? '')
+    : 'unknown'
   if (
     selectedX != null &&
     selectedY != null &&
     selectedEvent &&
-    selectedEvent.event_type !== 'unknown'
+    selectedEventType !== 'unknown'
   ) {
     const clock = stringValue(selectedEvent.clock)
     const actor = stringValue(selectedEvent.actor_snapshot)
-    if (clock && actor && selectedEvent.period_number >= 1) {
+    const selectedPeriod = resolvePeriod(selectedEvent.period_number, sourcePath)
+    if (clock && actor && selectedPeriod >= 1) {
       await db
         .update(matchEvents)
         .set({
@@ -193,8 +258,8 @@ export async function promoteActionTracker(ctx: PromoterContext): Promise<void> 
         .where(
           and(
             eq(matchEvents.matchId, matchId),
-            eq(matchEvents.periodNumber, selectedEvent.period_number),
-            eq(matchEvents.eventType, selectedEvent.event_type),
+            eq(matchEvents.periodNumber, selectedPeriod),
+            eq(matchEvents.eventType, selectedEventType),
             eq(matchEvents.source, 'ocr'),
             drizzleSql`coalesce(${matchEvents.clock}, '') = ${clock}`,
             drizzleSql`coalesce(${matchEvents.actorGamertagSnapshot}, '') = ${actor}`,

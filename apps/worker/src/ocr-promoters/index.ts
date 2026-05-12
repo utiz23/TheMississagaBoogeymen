@@ -27,6 +27,11 @@ export interface PromoterContext {
   result: OcrResult
   extractionId: number
   matchId: number | null
+  /** Absolute path of the capture file. Promoters use it as a fallback when
+   *  OCR-derived metadata is unreliable — e.g., the action-tracker promoter
+   *  reads the period from the parent folder name when the parser couldn't
+   *  parse it from the period_label text. */
+  sourcePath: string
   db: PromoterDb
 }
 

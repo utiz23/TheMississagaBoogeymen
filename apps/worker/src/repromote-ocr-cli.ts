@@ -41,6 +41,7 @@ async function main(): Promise<void> {
       id: ocrExtractions.id,
       matchId: ocrExtractions.matchId,
       screenType: ocrExtractions.screenType,
+      sourcePath: ocrExtractions.sourcePath,
       rawResultJson: ocrExtractions.rawResultJson,
     })
     .from(ocrExtractions)
@@ -96,6 +97,7 @@ async function main(): Promise<void> {
           result: ext.rawResultJson as unknown as OcrResult,
           extractionId: ext.id,
           matchId: ext.matchId,
+          sourcePath: ext.sourcePath,
           db: tx as PromoterDb,
         })
         await tx
