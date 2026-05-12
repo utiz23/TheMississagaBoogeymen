@@ -8,10 +8,12 @@ CVAT export shape:
 
 For each annotated image:
   1. Find the matching `ocr_extractions` row by source_path filename.
-  2. Pull `raw_result_json.events[0]` — the *selected* event (the highlighted
-     row in the Action Tracker list, which is what the yellow marker on the
-     rink represents).
-  3. Convert pixel (px, py) → hockey (x, y) using the rink calibration JSON.
+  2. Pull `raw_result_json.events[selected_event_index]` — the highlighted
+     event (the one with the red row tint in the Action Tracker list,
+     which is what the yellow marker on the rink represents).
+  3. Convert pixel (px, py) → hockey (x, y, confidence) via the
+     production `spatial.pixel_to_hockey` function (LSF linear + hull
+     gate as of 2026-05-13).
   4. UPDATE the matching `match_events` row via dedup key
      (match_id, period_number, event_type, clock, lower(actor)).
 
@@ -27,7 +29,6 @@ Exit codes:
 from __future__ import annotations
 
 import argparse
-import json
 import subprocess
 import sys
 import xml.etree.ElementTree as ET
@@ -35,7 +36,13 @@ from dataclasses import dataclass
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent.parent
-CALIB_PATH = REPO_ROOT / 'tools/game_ocr/game_ocr/configs/rink/post_game_action_tracker.json'
+sys.path.insert(0, str(REPO_ROOT / 'tools' / 'game_ocr'))
+
+from game_ocr.spatial import (  # noqa: E402
+    DetectedMarker,
+    load_rink_calibration,
+    pixel_to_hockey,
+)
 
 
 @dataclass
@@ -46,6 +53,7 @@ class Annotation:
     hockey_x: float
     hockey_y: float
     zone: str  # 'offensive' | 'defensive' | 'neutral'
+    confidence: str  # 'interpolated' | 'extrapolated'
 
 
 def main() -> int:
@@ -57,18 +65,11 @@ def main() -> int:
     parser.add_argument('--dry-run', action='store_true', help='Print what would be updated, write nothing')
     args = parser.parse_args()
 
-    calib = json.loads(CALIB_PATH.read_text())
-    box = calib['rink_pixel_box']
-    half_w_px = (box['x2'] - box['x1']) / 2
-    half_h_px = (box['y2'] - box['y1']) / 2
-    center_px_x = (box['x1'] + box['x2']) / 2
-    center_px_y = (box['y1'] + box['y2']) / 2
-    mirror = -1.0 if calib.get('bgm_attacks') == 'left' else 1.0
-
+    calibration = load_rink_calibration('post_game_action_tracker')
     print(
-        f'Calibration: half_w_px={half_w_px:.1f}, half_h_px={half_h_px:.1f}, '
-        f'centre_px=({center_px_x:.1f}, {center_px_y:.1f}), '
-        f'bgm_attacks={calib.get("bgm_attacks", "right")}',
+        f'Calibration: screen={calibration.screen_type}, '
+        f'landmarks={len(calibration.landmarks)}, '
+        f'bgm_attacks={calibration.bgm_attacks}',
         file=sys.stderr,
     )
 
@@ -86,25 +87,25 @@ def main() -> int:
         px = float(x_str)
         py = float(y_str)
 
-        x_norm = (px - center_px_x) / half_w_px  # [-1, +1]
-        y_norm = (py - center_px_y) / half_h_px  # [-1, +1]
-        x_hockey = round(mirror * x_norm * 100.0, 2)
-        y_hockey = round(-y_norm * 42.5, 2)  # SVG y grows down; flip for hockey-standard
-        if x_hockey > 25:
-            zone = 'offensive'
-        elif x_hockey < -25:
-            zone = 'defensive'
-        else:
-            zone = 'neutral'
+        # Use the production pipeline: pixel → hockey via LSF linear with
+        # Delaunay hull gate. Confidence is 1.0 in-hull, 0.3 out-of-hull;
+        # we translate to the text labels stored in match_events.
+        marker = DetectedMarker(
+            pixel_x=px, pixel_y=py, color='yellow', area_px=0.0,
+            bbox=(int(px), int(py), 1, 1),
+        )
+        coord = pixel_to_hockey(marker, calibration)
+        confidence_label = 'interpolated' if coord.confidence >= 0.5 else 'extrapolated'
 
         annotations.append(
             Annotation(
                 filename=name,
                 pixel_x=px,
                 pixel_y=py,
-                hockey_x=x_hockey,
-                hockey_y=y_hockey,
-                zone=zone,
+                hockey_x=coord.x,
+                hockey_y=coord.y,
+                zone=coord.rink_zone,
+                confidence=confidence_label,
             )
         )
 
@@ -115,11 +116,12 @@ def main() -> int:
 
     # Build a VALUES list and issue one query.
     values_sql = ',\n  '.join(
-        "('{name}', {x}::numeric, {y}::numeric, '{zone}')".format(
+        "('{name}', {x}::numeric, {y}::numeric, '{zone}', '{conf}')".format(
             name=a.filename.replace("'", "''"),
             x=a.hockey_x,
             y=a.hockey_y,
             zone=a.zone,
+            conf=a.confidence,
         )
         for a in annotations
     )
@@ -129,27 +131,27 @@ def main() -> int:
         for a in annotations[:5]:
             print(
                 f'  {a.filename} pixel=({a.pixel_x:.1f},{a.pixel_y:.1f}) '
-                f'→ hockey=({a.hockey_x:+.2f},{a.hockey_y:+.2f}) zone={a.zone}',
+                f'→ hockey=({a.hockey_x:+.2f},{a.hockey_y:+.2f}) zone={a.zone} {a.confidence}',
                 file=sys.stderr,
             )
         if len(annotations) > 5:
             print(f'  … and {len(annotations) - 5} more', file=sys.stderr)
         return 0
 
-    # `selected_event_index` is the row the new white-border detector identified
-    # as the highlighted card in the Action Tracker list. If it is NULL the
+    # `selected_event_index` is the row the white-border detector identified
+    # as the highlighted card in the Action Tracker list. When NULL the
     # detector did not find a selected row (typically the bottom of the list
     # was cut off in the screenshot) — we MUST NOT fall back to events[0]
-    # because that produced the wrong-row mismapping that this rewrite fixes.
+    # because that produced the wrong-row mismapping fixed in commit c6240a7.
     # Such captures need a manual override (handled outside this importer).
     update_sql = f"""
-WITH input(filename, x, y, zone) AS (
+WITH input(filename, x, y, zone, confidence) AS (
   VALUES
   {values_sql}
 ),
 ext AS (
   SELECT
-    input.x AS px, input.y AS py, input.zone,
+    input.x AS px, input.y AS py, input.zone, input.confidence,
     oe.match_id,
     oe.raw_result_json->'events'->
       ((oe.raw_result_json->>'selected_event_index')::int) AS sel_event
@@ -160,7 +162,8 @@ ext AS (
     AND oe.raw_result_json->>'selected_event_index' <> 'null'
 )
 UPDATE match_events me
-SET x = ext.px, y = ext.py, rink_zone = ext.zone
+SET x = ext.px, y = ext.py, rink_zone = ext.zone,
+    position_confidence = ext.confidence
 FROM ext
 WHERE ext.sel_event IS NOT NULL
   AND me.match_id = ext.match_id
