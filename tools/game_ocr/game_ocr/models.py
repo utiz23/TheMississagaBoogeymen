@@ -274,6 +274,11 @@ class PostGameActionTrackerResult(BaseExtractionResult):
     selected_event_x: float | None = None  # hockey-standard, [-100, +100]
     selected_event_y: float | None = None  # hockey-standard, [-42.5, +42.5]
     selected_event_rink_zone: str | None = None  # 'offensive' | 'defensive' | 'neutral'
+    # 1.0 when the pixel position fell inside the convex hull of the
+    # calibration landmarks (high-confidence RBF interpolation); 0.3 when
+    # the position was outside the hull (extrapolation, unbounded TRE).
+    # See docs/ocr/marker-extraction-research.md for the calibration method.
+    selected_event_confidence: float | None = None
     spatial_marker_count: int = 0
     spatial_yellow_count: int = 0
     spatial_warnings: list[str] = Field(default_factory=list)

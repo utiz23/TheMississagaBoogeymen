@@ -29,6 +29,8 @@ from typing import Literal
 
 import cv2
 import numpy as np
+from scipy.interpolate import RBFInterpolator
+from scipy.spatial import Delaunay
 
 
 @dataclass(frozen=True)
@@ -78,6 +80,29 @@ class MarkerFilter:
 
 
 @dataclass(frozen=True)
+class Landmark:
+    """A measured (pixel, hockey) correspondence on the rink art.
+
+    The rink illustration in the Action Tracker is a static UI background,
+    so pixel positions are constant across captures and matches. Hockey
+    coordinates are NHL-standard (x ∈ [-100, 100] = blue-line-to-board
+    length, y ∈ [-42.5, 42.5] = boards width), measured from centre ice.
+
+    These landmarks drive the non-linear pixel→hockey conversion via a
+    thin-plate-spline RBF interpolator with k=6 nearest-neighbor
+    localization (see `pixel_to_hockey`). See
+    `docs/ocr/marker-extraction-research.md` for the calibration spike
+    that established this method.
+    """
+
+    name: str
+    pixel_x: int
+    pixel_y: int
+    hockey_x: float
+    hockey_y: float
+
+
+@dataclass(frozen=True)
 class RinkCalibration:
     screen_type: str
     expected_width: int
@@ -87,6 +112,7 @@ class RinkCalibration:
     reference_points: dict[str, tuple[int, int]]
     color_thresholds: dict[str, ColorThreshold]
     marker_filter: MarkerFilter
+    landmarks: tuple[Landmark, ...] = ()
 
 
 @dataclass
@@ -159,6 +185,18 @@ def load_rink_calibration(screen_type: str) -> RinkCalibration:
     if bgm_attacks not in {"right", "left"}:
         raise ValueError(f"bgm_attacks must be 'right' or 'left', got {bgm_attacks!r}")
 
+    landmarks: list[Landmark] = []
+    for entry in raw.get("landmarks", []):
+        landmarks.append(
+            Landmark(
+                name=str(entry["name"]),
+                pixel_x=int(entry["pixel"][0]),
+                pixel_y=int(entry["pixel"][1]),
+                hockey_x=float(entry["hockey"][0]),
+                hockey_y=float(entry["hockey"][1]),
+            )
+        )
+
     return RinkCalibration(
         screen_type=raw["screen_type"],
         expected_width=int(raw["expected_width"]),
@@ -168,6 +206,7 @@ def load_rink_calibration(screen_type: str) -> RinkCalibration:
         reference_points=refs,
         color_thresholds=thresholds,
         marker_filter=marker_filter,
+        landmarks=tuple(landmarks),
     )
 
 
@@ -272,30 +311,77 @@ def find_selected_marker(markers: list[DetectedMarker]) -> DetectedMarker | None
     return max(yellow, key=lambda m: m.area_px)
 
 
+@dataclass
+class _Predictor:
+    """Fitted RBF + hull for a given calibration. Built once, cached."""
+
+    rbf_x: RBFInterpolator
+    rbf_y: RBFInterpolator
+    hull: Delaunay
+
+
+# Module-level cache keyed by id(calibration). Calibrations are immutable
+# (`frozen=True`); only a handful exist in memory at any time.
+_PREDICTOR_CACHE: dict[int, _Predictor] = {}
+
+
+def _get_predictor(calibration: RinkCalibration) -> _Predictor:
+    cached = _PREDICTOR_CACHE.get(id(calibration))
+    if cached is not None:
+        return cached
+    if not calibration.landmarks:
+        raise ValueError(
+            f"Calibration {calibration.screen_type!r} has no landmarks; "
+            "cannot build pixel→hockey predictor. Add a 'landmarks' array "
+            "to the calibration JSON."
+        )
+    pixels = np.array(
+        [(lm.pixel_x, lm.pixel_y) for lm in calibration.landmarks],
+        dtype=np.float64,
+    )
+    hockey = np.array(
+        [(lm.hockey_x, lm.hockey_y) for lm in calibration.landmarks],
+        dtype=np.float64,
+    )
+    # `neighbors=6` was selected by the Round-3 calibration spike. See
+    # docs/ocr/marker-extraction-research.md for the empirical analysis.
+    rbf_x = RBFInterpolator(pixels, hockey[:, 0],
+                            kernel="thin_plate_spline", neighbors=6)
+    rbf_y = RBFInterpolator(pixels, hockey[:, 1],
+                            kernel="thin_plate_spline", neighbors=6)
+    hull = Delaunay(pixels)
+    predictor = _Predictor(rbf_x=rbf_x, rbf_y=rbf_y, hull=hull)
+    _PREDICTOR_CACHE[id(calibration)] = predictor
+    return predictor
+
+
 def pixel_to_hockey(
     marker: DetectedMarker, calibration: RinkCalibration
 ) -> RinkCoordinate:
-    """Convert a marker's full-image pixel position to hockey-standard coords."""
-    box = calibration.rink_pixel_box
-    half_w = box.width / 2.0
-    half_h = box.height / 2.0
-    if half_w <= 0 or half_h <= 0:
-        raise ValueError("Rink calibration has zero/negative width or height")
+    """Convert a marker's full-image pixel position to hockey-standard coords.
 
-    cx = box.center_x
-    cy = box.center_y
+    Uses a thin-plate-spline RBF interpolator fitted on the calibration's
+    landmarks, restricted to the 6 nearest landmarks per prediction. A
+    Delaunay hull over the landmark pixels gates extrapolation: predictions
+    outside the hull are marked low-confidence (0.3) instead of the in-hull
+    1.0. See `docs/ocr/marker-extraction-research.md` (Round-3 spike) for
+    the method selection and accuracy figures.
+    """
+    predictor = _get_predictor(calibration)
+    query = np.array([[marker.pixel_x, marker.pixel_y]], dtype=np.float64)
+    x_hockey = float(predictor.rbf_x(query)[0])
+    y_hockey = float(predictor.rbf_y(query)[0])
 
-    # Normalized to [-1, +1] within rink box.
-    x_norm = (marker.pixel_x - cx) / half_w
-    y_norm = (marker.pixel_y - cy) / half_h
-    # Clamp to [-1.05, +1.05] — markers very close to the boards may go slightly
-    # outside the bbox due to anti-aliasing.
-    x_norm = max(-1.05, min(1.05, x_norm))
-    y_norm = max(-1.05, min(1.05, y_norm))
+    # Hull gate: predictions outside the landmark hull have unbounded TRE
+    # and are extrapolating from the nearest 6 landmarks. Flag as low-
+    # confidence so the renderer can treat these markers differently.
+    in_hull = bool(predictor.hull.find_simplex(query)[0] >= 0)
+    confidence = 1.0 if in_hull else 0.3
 
-    # Hockey-standard. y inverted because pixel y increases downward.
-    x_hockey = x_norm * 100.0
-    y_hockey = -y_norm * 42.5
+    # Clamp extrapolated outputs to a small buffer around the regulation
+    # rink, so anti-aliasing artifacts don't produce off-rink coordinates.
+    x_hockey = max(-105.0, min(105.0, x_hockey))
+    y_hockey = max(-45.0, min(45.0, y_hockey))
 
     if calibration.bgm_attacks == "left":
         x_hockey = -x_hockey
@@ -311,7 +397,7 @@ def pixel_to_hockey(
         x=round(x_hockey, 2),
         y=round(y_hockey, 2),
         rink_zone=zone,
-        confidence=1.0,
+        confidence=confidence,
     )
 
 

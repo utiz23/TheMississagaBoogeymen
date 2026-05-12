@@ -23,6 +23,21 @@
       "y": 607
     }
   },
+  "landmarks": [
+    { "name": "centre",           "pixel": [1310, 608], "hockey": [0.0, 0.0] },
+    { "name": "bl-left",          "pixel": [1180, 608], "hockey": [-25.0, 0.0] },
+    { "name": "bl-right",         "pixel": [1440, 608], "hockey": [25.0, 0.0] },
+    { "name": "goal-left",        "pixel": [895, 608],  "hockey": [-89.0, 0.0] },
+    { "name": "goal-right",       "pixel": [1722, 608], "hockey": [89.0, 0.0] },
+    { "name": "board-left",       "pixel": [835, 608],  "hockey": [-100.0, 0.0] },
+    { "name": "board-right",      "pixel": [1782, 608], "hockey": [100.0, 0.0] },
+    { "name": "board-top",        "pixel": [1310, 402], "hockey": [0.0, 42.5] },
+    { "name": "board-bottom",     "pixel": [1310, 811], "hockey": [0.0, -42.5] },
+    { "name": "ez-fo-top-left",   "pixel": [1004, 510], "hockey": [-69.0, 22.0] },
+    { "name": "ez-fo-bot-left",   "pixel": [1004, 703], "hockey": [-69.0, -22.0] },
+    { "name": "ez-fo-top-right",  "pixel": [1615, 510], "hockey": [69.0, 22.0] },
+    { "name": "ez-fo-bot-right",  "pixel": [1615, 703], "hockey": [69.0, -22.0] }
+  ],
   "color_thresholds": {
     "yellow": {
       "h_min": 15,

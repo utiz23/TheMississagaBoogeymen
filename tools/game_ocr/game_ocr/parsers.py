@@ -1818,6 +1818,7 @@ def parse_post_game_action_tracker(
     selected_x: float | None = None
     selected_y: float | None = None
     selected_zone: str | None = None
+    selected_confidence: float | None = None
     spatial_marker_count = 0
     spatial_yellow_count = 0
     spatial_warnings: list[str] = []
@@ -1842,6 +1843,7 @@ def parse_post_game_action_tracker(
                 selected_x = spatial.selected_coordinate.x
                 selected_y = spatial.selected_coordinate.y
                 selected_zone = spatial.selected_coordinate.rink_zone
+                selected_confidence = spatial.selected_coordinate.confidence
 
             # Pick which event in `events` is the currently-highlighted one
             # (red row tint in the list panel). list_panel ROI ratios from
@@ -1879,6 +1881,7 @@ def parse_post_game_action_tracker(
         selected_event_x=selected_x,
         selected_event_y=selected_y,
         selected_event_rink_zone=selected_zone,
+        selected_event_confidence=selected_confidence,
         spatial_marker_count=spatial_marker_count,
         spatial_yellow_count=spatial_yellow_count,
         spatial_warnings=spatial_warnings,
