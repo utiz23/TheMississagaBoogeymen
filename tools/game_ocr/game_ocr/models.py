@@ -282,4 +282,9 @@ class PostGameActionTrackerResult(BaseExtractionResult):
     spatial_marker_count: int = 0
     spatial_yellow_count: int = 0
     spatial_warnings: list[str] = Field(default_factory=list)
+    # Layer-2 (2026-05-13): every detected & classified marker on the rink,
+    # not just the highlighted one. Used by the cross-frame inventory
+    # consensus matcher to populate match_events for events that were never
+    # selected in any capture. See docs/ocr/marker-extraction-research.md.
+    detected_markers: list[dict] = Field(default_factory=list)
 

@@ -38,8 +38,10 @@ sys.path.insert(0, str(REPO_ROOT / "tools" / "game_ocr"))
 import cv2  # noqa: E402
 
 from game_ocr.spatial import (  # noqa: E402
+    detect_rink_markers,
     extract_selected_event_position,
     load_rink_calibration,
+    pixel_to_hockey,
 )
 
 
@@ -100,7 +102,34 @@ def main() -> int:
             continue
 
         spatial = extract_selected_event_position(img, cal)
+        # Always emit the Layer-2 detected-markers payload, even when there's
+        # no highlighted/selected marker.
+        all_markers = detect_rink_markers(img, cal)
+        detected_payload = []
+        for m in all_markers:
+            coord = pixel_to_hockey(m, cal)
+            detected_payload.append({
+                "pixel_x": round(m.pixel_x, 2),
+                "pixel_y": round(m.pixel_y, 2),
+                "hockey_x": coord.x,
+                "hockey_y": coord.y,
+                "rink_zone": coord.rink_zone,
+                "confidence": coord.confidence,
+                "color": m.color,
+                "shape_type": m.shape_type,
+                "fill_style": m.fill_style,
+                "area_px": round(m.area_px, 1),
+            })
+        detected_json = json.dumps(detected_payload).replace("'", "''")
+
         if spatial.selected_coordinate is None:
+            # Patch only detected_markers for captures with no highlighted marker.
+            print(
+                "UPDATE ocr_extractions SET raw_result_json = "
+                f"jsonb_set(raw_result_json, '{{detected_markers}}', "
+                f"'{detected_json}'::jsonb) "
+                f"WHERE id={ext_id};"
+            )
             stats["no_marker"] += 1
             continue
 
@@ -109,14 +138,15 @@ def main() -> int:
         new_zone = spatial.selected_coordinate.rink_zone
         new_conf = spatial.selected_coordinate.confidence
 
-        # Patch raw_result_json with new spatial fields.
+        # Patch raw_result_json with new spatial fields + detected_markers.
         print(
             "UPDATE ocr_extractions SET raw_result_json = "
-            f"  jsonb_set(jsonb_set(jsonb_set(jsonb_set(raw_result_json, "
+            f"  jsonb_set(jsonb_set(jsonb_set(jsonb_set(jsonb_set(raw_result_json, "
             f"  '{{selected_event_x}}', '{new_x}'::jsonb), "
             f"  '{{selected_event_y}}', '{new_y}'::jsonb), "
             f"  '{{selected_event_rink_zone}}', '\"{new_zone}\"'::jsonb), "
-            f"  '{{selected_event_confidence}}', '{new_conf}'::jsonb) "
+            f"  '{{selected_event_confidence}}', '{new_conf}'::jsonb), "
+            f"  '{{detected_markers}}', '{detected_json}'::jsonb) "
             f"WHERE id={ext_id};"
         )
 

@@ -1822,6 +1822,7 @@ def parse_post_game_action_tracker(
     spatial_marker_count = 0
     spatial_yellow_count = 0
     spatial_warnings: list[str] = []
+    detected_markers_payload: list[dict] = []
     # Detect which row in `events` is currently highlighted in the UI by
     # finding the red selection bar on the left edge of the list panel and
     # matching its y-centre against each event's actor-row y-centre.
@@ -1829,9 +1830,12 @@ def parse_post_game_action_tracker(
     if image is not None:
         try:
             from game_ocr.spatial import (
+                DetectedMarker,
+                detect_rink_markers,
                 detect_selected_row_index,
                 extract_selected_event_position,
                 load_rink_calibration,
+                pixel_to_hockey,
             )
 
             cal = load_rink_calibration("post_game_action_tracker")
@@ -1844,6 +1848,23 @@ def parse_post_game_action_tracker(
                 selected_y = spatial.selected_coordinate.y
                 selected_zone = spatial.selected_coordinate.rink_zone
                 selected_confidence = spatial.selected_coordinate.confidence
+
+            # Layer-2: emit every detected & classified marker on the rink
+            # so the inventory consensus matcher can use them across captures.
+            for m in detect_rink_markers(image, cal):
+                coord = pixel_to_hockey(m, cal)
+                detected_markers_payload.append({
+                    "pixel_x": round(m.pixel_x, 2),
+                    "pixel_y": round(m.pixel_y, 2),
+                    "hockey_x": coord.x,
+                    "hockey_y": coord.y,
+                    "rink_zone": coord.rink_zone,
+                    "confidence": coord.confidence,
+                    "color": m.color,
+                    "shape_type": m.shape_type,
+                    "fill_style": m.fill_style,
+                    "area_px": round(m.area_px, 1),
+                })
 
             # Pick which event in `events` is the currently-highlighted one
             # (red row tint in the list panel). list_panel ROI ratios from
@@ -1885,6 +1906,7 @@ def parse_post_game_action_tracker(
         spatial_marker_count=spatial_marker_count,
         spatial_yellow_count=spatial_yellow_count,
         spatial_warnings=spatial_warnings,
+        detected_markers=detected_markers_payload,
     )
 
 
