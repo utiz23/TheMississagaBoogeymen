@@ -142,6 +142,46 @@ export async function promoteActionTracker(ctx: PromoterContext): Promise<void> 
     }
     // shots / hits / faceoffs: no extension table, just match_events row.
   }
+
+  // Phase 5: spatial update. The first event in `events` is the highlighted
+  // (selected) one in the Action Tracker UI; the parser's spatial extractor
+  // reports the yellow marker's position as result.selected_event_*. Update
+  // the corresponding match_events row's x/y/rink_zone in place. Augment-only:
+  // doesn't create new rows, only fills the spatial columns on whichever row
+  // already represents that event (whether inserted just now or matched via
+  // cross-screen dedup).
+  const selectedX = result.selected_event_x as number | null | undefined
+  const selectedY = result.selected_event_y as number | null | undefined
+  const selectedZone = result.selected_event_rink_zone as string | null | undefined
+  const firstEvent = events[0]
+  if (
+    selectedX != null &&
+    selectedY != null &&
+    firstEvent &&
+    firstEvent.event_type !== 'unknown'
+  ) {
+    const clock = stringValue(firstEvent.clock)
+    const actor = stringValue(firstEvent.actor_snapshot)
+    if (clock && actor && firstEvent.period_number >= 1) {
+      await db
+        .update(matchEvents)
+        .set({
+          x: selectedX.toFixed(2),
+          y: selectedY.toFixed(2),
+          rinkZone: selectedZone ?? null,
+        })
+        .where(
+          and(
+            eq(matchEvents.matchId, matchId),
+            eq(matchEvents.periodNumber, firstEvent.period_number),
+            eq(matchEvents.eventType, firstEvent.event_type),
+            eq(matchEvents.source, 'ocr'),
+            drizzleSql`coalesce(${matchEvents.clock}, '') = ${clock}`,
+            drizzleSql`coalesce(${matchEvents.actorGamertagSnapshot}, '') = ${actor}`,
+          ),
+        )
+    }
+  }
 }
 
 async function resolveGameTitleIdFromExtraction(

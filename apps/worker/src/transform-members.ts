@@ -18,7 +18,7 @@
 
 import type { EaMemberStats } from '@eanhl/ea-client'
 import type { NewEaMemberSeasonStats } from '@eanhl/db'
-import { extractShotLocations } from './extract-shot-locations.js'
+import { extractShotLocations, extractGoalieShotLocations } from './extract-shot-locations.js'
 
 // ─── Parsing helpers ──────────────────────────────────────────────────────────
 
@@ -81,6 +81,7 @@ export function transformMemberStats(
   const glToiMinutes = parseIntField(raw, 'gltoi')
 
   const shotLocations = extractShotLocations(raw)
+  const goalieShotLocations = goalieGp > 0 ? extractGoalieShotLocations(raw) : null
 
   // Diagnostic: warn when EA returned partial location data that fails the
   // sum invariant. Don't drop the row — just skip the column for that member.
@@ -183,7 +184,7 @@ export function transformMemberStats(
     penaltyShotPct: parseNumeric2(raw, 'skpenaltyshotpct'),
     toiSeconds: skToiMinutes > 0 ? skToiMinutes * 60 : null,
 
-    // ── Goalie (unchanged from prior version) ───────────────────────────────
+    // ── Goalie ──────────────────────────────────────────────────────────────
     goalieGp,
     goalieWins: parseNullableInt(raw, 'glwins', goalieGp),
     goalieLosses: parseNullableInt(raw, 'gllosses', goalieGp),
@@ -196,7 +197,42 @@ export function transformMemberStats(
     goalieGoalsAgainst: parseNullableInt(raw, 'glga', goalieGp),
     goalieToiSeconds: goalieGp > 0 ? glToiMinutes * 60 : null,
 
+    // ── Goalie completion / disposition ────────────────────────────────────
+    goalieGamesCompleted: parseNullableInt(raw, 'glgc', goalieGp),
+    goalieGamesCompletedFc: parseNullableInt(raw, 'glgcFC', goalieGp),
+    goalieDnf: parseNullableInt(raw, 'glDNF', goalieGp),
+    goalieDnfMm: parseNullableInt(raw, 'glDNFmm', goalieGp),
+    goalieWinnerByDnf: parseNullableInt(raw, 'glwinnerByDnf', goalieGp),
+    goalieQuitDisc: parseNullableInt(raw, 'glQuitDisc', goalieGp),
+    goalieWinPct: parseNumeric2Goalie(raw, 'glwinpct', goalieGp),
+
+    // ── Goalie save splits ──────────────────────────────────────────────────
+    goalieDesperationSaves: parseNullableInt(raw, 'gldsaves', goalieGp),
+    goaliePokeChecks: parseNullableInt(raw, 'glpokechecks', goalieGp),
+    goaliePkClearZone: parseNullableInt(raw, 'glpkclearzone', goalieGp),
+    goalieShutoutPeriods: parseNullableInt(raw, 'glsoperiods', goalieGp),
+
+    // ── Goalie penalty shots ────────────────────────────────────────────────
+    goaliePenShots: parseNullableInt(raw, 'glpenshots', goalieGp),
+    goaliePenSaves: parseNullableInt(raw, 'glpensaves', goalieGp),
+    goaliePenSavePct: parseNumeric2Goalie(raw, 'glpensavepct', goalieGp),
+
+    // ── Goalie breakaways ───────────────────────────────────────────────────
+    goalieBrkShots: parseNullableInt(raw, 'glbrkshots', goalieGp),
+    goalieBrkSaves: parseNullableInt(raw, 'glbrksaves', goalieGp),
+    goalieBrkSavePct: parseNumeric2Goalie(raw, 'glbrksavepct', goalieGp),
+
+    // ── Goalie shootouts ────────────────────────────────────────────────────
+    goalieSoShots: parseNullableInt(raw, 'glsoshots', goalieGp),
+    goalieSoSaves: parseNullableInt(raw, 'glsosaves', goalieGp),
+    goalieSoSavePct: parseNumeric2Goalie(raw, 'glsosavepct', goalieGp),
+
+    // ── Goalie previous season ──────────────────────────────────────────────
+    goaliePrevWins: parseNullableInt(raw, 'glprevwins', goalieGp),
+    goaliePrevShutouts: parseNullableInt(raw, 'glprevso', goalieGp),
+
     shotLocations,
+    goalieShotLocations,
 
     clientPlatform: typeof raw.clientPlatform === 'string' ? raw.clientPlatform : null,
   }

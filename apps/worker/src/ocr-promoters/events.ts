@@ -5,10 +5,21 @@
  * (Action Tracker covers shots/hits/faceoffs separately and shares the same
  * dedup key, so cross-screen rows for the same goal collapse to one row.)
  *
- * Dedup key: (matchId, periodNumber, clock, eventType, teamAbbreviation,
- * actorGamertagSnapshot). When a row already exists with that key under
- * source='ocr', we update its ocr_extraction_id to point at the new extraction
- * but leave domain fields intact — the original capture wins on conflict.
+ * **Clock convention:** the Events screen renders time as REMAINING in the
+ * period (counts down from 20:00 → 0:00). The Action Tracker renders time as
+ * ELAPSED (counts up from 0:00 → 19:59). Both screens show the same goal but
+ * with different clock strings — e.g. Silky's 2nd-period goal appears as
+ * `06:19` on Events and `13:41` on Action Tracker (`20:00 − 06:19 = 13:41`).
+ *
+ * The DB stores ELAPSED time as canonical (matches Action Tracker, matches
+ * NHL stats-API convention, makes time progression intuitive). This promoter
+ * converts the Events-screen "remaining" clock to "elapsed" before dedup
+ * + insert, so rows from the two screens collapse correctly.
+ *
+ * Dedup key (after conversion): (matchId, periodNumber, clock_elapsed,
+ * eventType, teamAbbreviation, actorGamertagSnapshot). When a row already
+ * exists with that key under source='ocr', we update its ocr_extraction_id
+ * to point at the new extraction but leave domain fields intact.
  *
  * Skips event rows of event_type='unknown' (parse failures) and rows missing
  * a clock — they have nothing useful to persist as canonical data, but the
@@ -44,6 +55,31 @@ interface EventRowJson {
 
 const BGM_ABBR_ALIASES = new Set(['BM', 'BGM', 'BOOG'])
 
+/** Period length in seconds. Standard EASHL/NHL period = 20:00. */
+const PERIOD_LENGTH_SECONDS = 20 * 60
+
+/**
+ * Convert an Events-screen "time remaining" clock to the canonical "elapsed"
+ * representation used by everything downstream.
+ *
+ * Returns null on malformed input, drops out-of-range values (MM > 19, SS >= 60).
+ */
+function remainingToElapsed(clock: string): string | null {
+  const m = clock.trim().match(/^(\d{1,2}):(\d{2})$/)
+  if (!m) return null
+  const mm = Number.parseInt(m[1]!, 10)
+  const ss = Number.parseInt(m[2]!, 10)
+  if (mm > 19 || ss >= 60 || mm < 0 || ss < 0) return null
+  const remainingSec = mm * 60 + ss
+  const elapsedSec = PERIOD_LENGTH_SECONDS - remainingSec
+  const eMm = Math.floor(elapsedSec / 60)
+  const eSs = elapsedSec % 60
+  // Match the Action Tracker's "M:SS" / "MM:SS" rendering — single-digit minute
+  // for elapsed < 10 mins (Action Tracker leaves the leading zero off; matches
+  // existing dedup behavior on rows already in DB).
+  return `${String(eMm)}:${String(eSs).padStart(2, '0')}`
+}
+
 export async function promoteEvents(ctx: PromoterContext): Promise<void> {
   const { result, extractionId, matchId, db } = ctx
   if (matchId === null) {
@@ -55,16 +91,28 @@ export async function promoteEvents(ctx: PromoterContext): Promise<void> {
 
   for (const ev of events) {
     if (ev.event_type === 'unknown') continue
-    const clock = stringValue(ev.clock)
+    const rawClock = stringValue(ev.clock)
     const actor = stringValue(ev.actor_snapshot)
     const teamAbbr = stringValue(ev.team_abbreviation)
-    if (!clock || !actor) continue
+    if (!rawClock || !actor) continue
     if (ev.period_number < 1) continue
+
+    // Convert Events-screen "remaining" clock to canonical "elapsed" before
+    // dedup so rows from Events screen and Action Tracker for the same goal
+    // collapse correctly. Drop the row if conversion fails (malformed clock).
+    const clock = remainingToElapsed(rawClock)
+    if (!clock) continue
 
     const teamSide: 'for' | 'against' =
       teamAbbr && BGM_ABBR_ALIASES.has(teamAbbr.toUpperCase()) ? 'for' : 'against'
 
     // Cross-capture dedup: do we already have this event from a prior OCR run?
+    // - team_abbreviation is intentionally LEFT OUT of the dedup key — Action
+    //   Tracker writes null for it (the BM/4TH chip lives on the rink map,
+    //   not the list panel) while Events writes 'BM'/'4TH'.
+    // - actor name compared case-insensitively because Action Tracker
+    //   captures display names in ALL CAPS ("SILKY") while Events screen
+    //   uses Title Case ("Silky") — same player.
     const existing = await db
       .select({ id: matchEvents.id })
       .from(matchEvents)
@@ -75,49 +123,55 @@ export async function promoteEvents(ctx: PromoterContext): Promise<void> {
           eq(matchEvents.eventType, ev.event_type),
           eq(matchEvents.source, 'ocr'),
           drizzleSql`coalesce(${matchEvents.clock}, '') = ${clock}`,
-          drizzleSql`coalesce(${matchEvents.teamAbbreviation}, '') = ${teamAbbr ?? ''}`,
-          drizzleSql`coalesce(${matchEvents.actorGamertagSnapshot}, '') = ${actor}`,
+          drizzleSql`lower(coalesce(${matchEvents.actorGamertagSnapshot}, '')) = lower(${actor})`,
         ),
       )
       .limit(1)
 
+    const { playerId: actorPlayerId } = await resolveGamertagToPlayer(actor, gameTitleId, db)
+
+    let eventId: number
     if (existing.length > 0 && existing[0]) {
-      // Already have it — refresh the extraction pointer to the latest source.
+      // Cross-screen dedup hit. Refresh the extraction pointer; keep core
+      // fields (including spatial x/y from Phase 5) intact.
+      eventId = existing[0].id
       await db
         .update(matchEvents)
         .set({ ocrExtractionId: extractionId })
-        .where(eq(matchEvents.id, existing[0].id))
-      continue
+        .where(eq(matchEvents.id, eventId))
+    } else {
+      const newEvent: NewMatchEvent = {
+        matchId,
+        periodNumber: ev.period_number,
+        periodLabel: ev.period_label || String(ev.period_number),
+        clock,
+        eventType: ev.event_type,
+        teamSide,
+        teamAbbreviation: teamAbbr,
+        actorPlayerId,
+        actorGamertagSnapshot: actor,
+        targetPlayerId: null,
+        targetGamertagSnapshot: null,
+        eventDetail: stringValue(ev.raw_text) ?? null,
+        x: null,
+        y: null,
+        rinkZone: null,
+        source: 'ocr',
+        ocrExtractionId: extractionId,
+        reviewStatus: 'pending_review',
+      }
+
+      const [inserted] = await db.insert(matchEvents).values(newEvent).returning({
+        id: matchEvents.id,
+      })
+      if (!inserted) throw new Error('Failed to insert match_events row')
+      eventId = inserted.id
     }
 
-    const { playerId: actorPlayerId } = await resolveGamertagToPlayer(actor, gameTitleId, db)
-
-    const newEvent: NewMatchEvent = {
-      matchId,
-      periodNumber: ev.period_number,
-      periodLabel: ev.period_label || String(ev.period_number),
-      clock,
-      eventType: ev.event_type,
-      teamSide,
-      teamAbbreviation: teamAbbr,
-      actorPlayerId,
-      actorGamertagSnapshot: actor,
-      targetPlayerId: null,
-      targetGamertagSnapshot: null,
-      eventDetail: stringValue(ev.raw_text) ?? null,
-      x: null,
-      y: null,
-      rinkZone: null,
-      source: 'ocr',
-      ocrExtractionId: extractionId,
-      reviewStatus: 'pending_review',
-    }
-
-    const [inserted] = await db.insert(matchEvents).values(newEvent).returning({
-      id: matchEvents.id,
-    })
-    if (!inserted) throw new Error('Failed to insert match_events row')
-
+    // Always upsert the extension table — Events screen is the only source of
+    // assist + infraction detail, so even when match_events already exists
+    // from an Action-Tracker insert (which leaves these NULL), we still want
+    // to fill them in.
     if (ev.event_type === 'goal') {
       // Resolve assists. assists_snapshot is a list; we take up to 2.
       const assists = Array.isArray(ev.assists_snapshot) ? ev.assists_snapshot : []
@@ -131,7 +185,7 @@ export async function promoteEvents(ctx: PromoterContext): Promise<void> {
         : null
 
       const goalRow: NewMatchGoalEvent = {
-        eventId: inserted.id,
+        eventId,
         scorerPlayerId: actorPlayerId,
         scorerSnapshot: actor,
         goalNumberInGame: numericValue(ev.goal_number_in_game),
@@ -140,20 +194,46 @@ export async function promoteEvents(ctx: PromoterContext): Promise<void> {
         secondaryAssistPlayerId: secondaryPlayerId,
         secondaryAssistSnapshot: secondary,
       }
-      await db.insert(matchGoalEvents).values(goalRow)
+      await db
+        .insert(matchGoalEvents)
+        .values(goalRow)
+        .onConflictDoUpdate({
+          target: matchGoalEvents.eventId,
+          set: {
+            scorerPlayerId: actorPlayerId,
+            scorerSnapshot: actor,
+            goalNumberInGame: goalRow.goalNumberInGame,
+            primaryAssistPlayerId: primaryPlayerId,
+            primaryAssistSnapshot: primary,
+            secondaryAssistPlayerId: secondaryPlayerId,
+            secondaryAssistSnapshot: secondary,
+          },
+        })
     } else if (ev.event_type === 'penalty') {
       const infraction = stringValue(ev.infraction) ?? '(unknown)'
       const penaltyType = (stringValue(ev.penalty_type) ?? 'Minor') as 'Minor' | 'Major'
       const minutes = penaltyType === 'Major' ? 5 : 2
       const penaltyRow: NewMatchPenaltyEvent = {
-        eventId: inserted.id,
+        eventId,
         culpritPlayerId: actorPlayerId,
         culpritSnapshot: actor,
         infraction,
         penaltyType,
         minutes,
       }
-      await db.insert(matchPenaltyEvents).values(penaltyRow)
+      await db
+        .insert(matchPenaltyEvents)
+        .values(penaltyRow)
+        .onConflictDoUpdate({
+          target: matchPenaltyEvents.eventId,
+          set: {
+            culpritPlayerId: actorPlayerId,
+            culpritSnapshot: actor,
+            infraction,
+            penaltyType,
+            minutes,
+          },
+        })
     }
   }
 }

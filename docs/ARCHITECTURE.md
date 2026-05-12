@@ -375,7 +375,13 @@ Worker-side: 1s inter-request delay, exponential backoff on 429/5xx, no concurre
 4. **PostgreSQL runs locally.** No managed DB costs.
 5. **blazeId absent in match payloads.** Gamertag is the match-level identity anchor.
 6. **Match IDs not globally unique across game titles.** Composite key `(game_title_id, ea_match_id)` is safe default.
-7. **OT vs SO not distinguishable.** Both stored as `OTL`. No overtime indicator found in match payloads.
+7. **OT vs SO not distinguishable.** Both stored as `OTL`. EA emits the same code (`6` for OTL, `5` for OT/SO win) regardless of which extra-time format produced the result. The W-L-OTL split treats them identically so this isn't a blocker.
+8. **Match `result` derives from `clubs[id].result` codes**, not just score margin. Codes observed in NHL 26 BGM:
+   - `1` regulation WIN, `2` regulation LOSS
+   - `5` OT/SO WIN (still 2pts), `6` OT/SO LOSS → **`OTL`**
+   - `10` DNF, `16385` (`0x4001`) WIN by opponent forfeit
+   - Unknown codes fall back to score-derived WIN/LOSS so future variants don't break ingestion.
+   Full investigation: [`research/investigations/ea-overtime-detection.md`](../research/investigations/ea-overtime-detection.md).
 
 ---
 

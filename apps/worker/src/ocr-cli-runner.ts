@@ -1,7 +1,7 @@
 /**
  * Subprocess wrapper around the Python game_ocr CLI.
  *
- * The CLI lives at tools/game_ocr/ and is documented in docs/Game OCR Document.md.
+ * The CLI lives at tools/game_ocr/ and is documented in docs/ocr/source-screen-inventory.md.
  * Output: JSON array of BaseExtractionResult-derived objects, one per source image.
  *
  * Defaults to running `python3 -m game_ocr.cli` from the repo root, with `tools/game_ocr`

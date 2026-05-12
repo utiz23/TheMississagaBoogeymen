@@ -63,3 +63,40 @@ export function extractShotLocations(raw: EaMemberStats): ShotLocations | null {
 
   return { shotsIce, goalsIce, shotsNet, goalsNet }
 }
+
+function hasAnyGoalieLocationField(raw: EaMemberStats): boolean {
+  for (let i = 1; i <= ICE_LEN; i++) {
+    if (raw[`glShotsLocationOnIce${i}`] !== undefined) return true
+    if (raw[`glGoalsLocationOnIce${i}`] !== undefined) return true
+  }
+  for (let i = 1; i <= NET_LEN; i++) {
+    if (raw[`glShotsLocationOnNet${i}`] !== undefined) return true
+    if (raw[`glGoalsLocationOnNet${i}`] !== undefined) return true
+  }
+  return false
+}
+
+/**
+ * Extract goalie shot-location grids (shots FACED + goals ALLOWED) from
+ * `glShots*` / `glGoals*` fields. Same shape as `extractShotLocations`,
+ * but the arrays count opponents' shots from each ice/net zone instead
+ * of the player's own shots.
+ *
+ * Returns null when:
+ *   - the member has no goalie GP (caller should pass null in that case
+ *     anyway, but we double-check via hasAnyGoalieLocationField),
+ *   - sum invariants are violated.
+ */
+export function extractGoalieShotLocations(raw: EaMemberStats): ShotLocations | null {
+  if (!hasAnyGoalieLocationField(raw)) return null
+
+  const shotsIce = readArray(raw, 'glShotsLocationOnIce', ICE_LEN)
+  const goalsIce = readArray(raw, 'glGoalsLocationOnIce', ICE_LEN)
+  const shotsNet = readArray(raw, 'glShotsLocationOnNet', NET_LEN)
+  const goalsNet = readArray(raw, 'glGoalsLocationOnNet', NET_LEN)
+
+  if (sum(shotsIce) !== sum(shotsNet)) return null
+  if (sum(goalsIce) !== sum(goalsNet)) return null
+
+  return { shotsIce, goalsIce, shotsNet, goalsNet }
+}

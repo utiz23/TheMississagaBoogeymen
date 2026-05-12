@@ -322,6 +322,16 @@ export async function persistTransform(result: TransformResult): Promise<void> {
             penSaves: statsRow.penSaves,
             penShots: statsRow.penShots,
             pokechecks: statsRow.pokechecks,
+            ratingOffense: statsRow.ratingOffense,
+            ratingDefense: statsRow.ratingDefense,
+            ratingTeamplay: statsRow.ratingTeamplay,
+            rankPoints: statsRow.rankPoints,
+            rankTierAssetId: statsRow.rankTierAssetId,
+            playerLevel: statsRow.playerLevel,
+            playerClass: statsRow.playerClass,
+            posSorted: statsRow.posSorted,
+            removedReason: statsRow.removedReason,
+            teamSide: statsRow.teamSide,
           },
         })
     }
@@ -374,6 +384,16 @@ export async function persistTransform(result: TransformResult): Promise<void> {
             penSaves: oppRow.penSaves,
             penShots: oppRow.penShots,
             pokechecks: oppRow.pokechecks,
+            ratingOffense: oppRow.ratingOffense,
+            ratingDefense: oppRow.ratingDefense,
+            ratingTeamplay: oppRow.ratingTeamplay,
+            rankPoints: oppRow.rankPoints,
+            rankTierAssetId: oppRow.rankTierAssetId,
+            playerLevel: oppRow.playerLevel,
+            playerClass: oppRow.playerClass,
+            posSorted: oppRow.posSorted,
+            removedReason: oppRow.removedReason,
+            teamSide: oppRow.teamSide,
           },
         })
     }

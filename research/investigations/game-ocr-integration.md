@@ -13,7 +13,7 @@ The OCR project is a screenshot-first Python CLI using fixed ROI YAML files and 
 - `player_loadout_view`
 - `post_game_player_summary`
 
-The repo-level `docs/Game OCR Document.md` describes more target screens than the extractor currently implements, including in-game clock, goal overlays, post-game box score, events, action tracker, and event maps.
+The repo-level `docs/ocr/source-screen-inventory.md` describes more target screens than the extractor currently implements, including in-game clock, goal overlays, post-game box score, events, action tracker, and event maps.
 
 ## Current Extracted Metrics
 

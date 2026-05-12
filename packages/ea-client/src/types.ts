@@ -3,7 +3,6 @@
  *
  * Fields marked CONFIRMED have been validated against real fixture captures.
  * Fields marked UNVERIFIED are provisional and may need updating.
- * Fields marked DEFERRED need real fixture data (e.g. OTL match) to confirm.
  *
  * Known EA API quirks:
  *   - Almost all numeric values are returned as strings (e.g. goals: "3")
@@ -123,10 +122,8 @@ export interface EaPlayerMatchStats {
  * Club-level data within a match.
  * One entry per club (our club + opponent).
  *
- * CONFIRMED fields: score (string), result ("1"=WIN, "2"=LOSS), winnerByDnf,
- * winnerByGoalieDnf, toa, details.name (club display name).
- *
- * DEFERRED: OTL result code — no overtime matches in current fixtures.
+ * CONFIRMED fields: score (string), result (numeric code, see below),
+ * winnerByDnf, winnerByGoalieDnf, toa, details.name (club display name).
  */
 export interface EaMatchClubData {
   /** CONFIRMED: Score as a string (e.g. "5"). */
@@ -134,7 +131,18 @@ export interface EaMatchClubData {
   /** CONFIRMED: Also available alongside score. */
   goals?: string
   scoreString?: string
-  /** CONFIRMED: "1" = WIN, "2" = LOSS. DEFERRED: OTL code unknown. */
+  /**
+   * CONFIRMED: Numeric result code as a string. Decoded by
+   * `apps/worker/src/transform.ts → deriveResult()`:
+   *   "1"     regulation WIN
+   *   "2"     regulation LOSS
+   *   "5"     OT/SO WIN (still 2pts)
+   *   "6"     OT/SO LOSS → matches.result = 'OTL'
+   *   "10"    DNF
+   *   "16385" WIN by opponent forfeit
+   * Full investigation:
+   * `research/investigations/ea-overtime-detection.md`.
+   */
   result?: string
   /** CONFIRMED: "1" if opponent won by the other team disconnecting. */
   winnerByDnf?: string

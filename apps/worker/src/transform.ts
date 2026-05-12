@@ -2,7 +2,9 @@
  * Transform raw EA match payload into structured data ready for DB insertion.
  *
  * Field names and formats have been validated against real fixture captures.
- * Remaining DEFERRED items are noted inline and require an OTL match fixture.
+ * Result-code decoding (full investigation in
+ * `research/investigations/ea-overtime-detection.md`) is implemented in
+ * `deriveResult()` below.
  *
  * This function must remain pure (no DB access). All DB writes happen in ingest.ts.
  */
@@ -108,21 +110,34 @@ function parsePlayedAt(match: EaMatch): Date {
 /**
  * Derive the match result from club data and scores.
  *
- * CONFIRMED: clubs[id].result codes: "1" = WIN, "2" = LOSS.
- * DEFERRED: OTL result code — no overtime match in current fixtures.
- *           When an OTL fixture is available, check clubs[id].result for a third
- *           value and add it here. The DB enum and aggregate already support 'OTL'.
+ * `clubs[id].result` is a numeric code (sent as a string by the EA API).
+ * Observed in NHL 26 BGM history (see
+ * `research/investigations/ea-overtime-detection.md`):
+ *
+ *   1     — regulation WIN
+ *   2     — regulation LOSS
+ *   5     — OT / SO WIN  (still counts as a W; opponent gets the OTL credit)
+ *   6     — OT / SO LOSS → returned as 'OTL'
+ *   10    — DNF (also corroborated by `winnerByDnf` on the opponent)
+ *   16385 — WIN by opponent forfeit
+ *
+ * Unknown codes fall back to the score-derived WIN/LOSS so a new variant
+ * doesn't silently break ingestion.
  */
 function deriveResult(
   ourClub: Record<string, unknown>,
   opponentClub: Record<string, unknown>,
   scoreFor: number,
   scoreAgainst: number,
-): 'WIN' | 'LOSS' | 'DNF' {
+): 'WIN' | 'LOSS' | 'OTL' | 'DNF' {
   const resultCode = parseIntMaybe(ourClub.result)
+
+  // Explicit OTL — the only new code we materialize as a non-WIN/LOSS bucket.
+  if (resultCode === 6) return 'OTL'
+
   let base: 'WIN' | 'LOSS' = scoreFor > scoreAgainst ? 'WIN' : 'LOSS'
-  if (resultCode === 1) base = 'WIN'
-  if (resultCode === 2) base = 'LOSS'
+  if (resultCode === 1 || resultCode === 5 || resultCode === 16385) base = 'WIN'
+  else if (resultCode === 2) base = 'LOSS'
 
   const opponentDnf = parseIntMaybe(opponentClub.winnerByDnf) === 1
   const opponentGoalieDnf = parseIntMaybe(opponentClub.winnerByGoalieDnf) === 1
@@ -228,6 +243,21 @@ function transformPlayer(playerKey: string, raw: EaPlayerMatchStats): TransformP
       penSaves: isGoalie ? parseIntStr(raw.glpensaves, 'glpensaves') : null,
       penShots: isGoalie ? parseIntStr(raw.glpenshots, 'glpenshots') : null,
       pokechecks: isGoalie ? parseIntStr(raw.glpokechecks, 'glpokechecks') : null,
+
+      // EA per-match ratings (numeric "65.00") — pass through as decimal strings.
+      ratingOffense: parseRatingStr(raw.ratingOffense),
+      ratingDefense: parseRatingStr(raw.ratingDefense),
+      ratingTeamplay: parseRatingStr(raw.ratingTeamplay),
+
+      // Rank context — rankpoints can come as "--" when unranked.
+      rankPoints: parseRankPoints(raw.rankpoints),
+      rankTierAssetId:
+        typeof raw.ranktierassetid === 'string' ? raw.ranktierassetid : null,
+      playerLevel: parseIntMaybe(raw.playerLevel),
+      playerClass: parseIntMaybe(raw.class),
+      posSorted: parseIntMaybe(raw.posSorted),
+      removedReason: parseIntMaybe(raw.removedReason),
+      teamSide: parseIntMaybe(raw.teamSide),
     },
   }
 }
@@ -299,7 +329,43 @@ function transformOpponentPlayer(
     penSaves: isGoalie ? parseIntStr(raw.glpensaves, 'glpensaves') : null,
     penShots: isGoalie ? parseIntStr(raw.glpenshots, 'glpenshots') : null,
     pokechecks: isGoalie ? parseIntStr(raw.glpokechecks, 'glpokechecks') : null,
+
+    // EA per-match ratings + rank context.
+    ratingOffense: parseRatingStr(raw.ratingOffense),
+    ratingDefense: parseRatingStr(raw.ratingDefense),
+    ratingTeamplay: parseRatingStr(raw.ratingTeamplay),
+    rankPoints: parseRankPoints(raw.rankpoints),
+    rankTierAssetId:
+      typeof raw.ranktierassetid === 'string' ? raw.ranktierassetid : null,
+    playerLevel: parseIntMaybe(raw.playerLevel),
+    playerClass: parseIntMaybe(raw.class),
+    posSorted: parseIntMaybe(raw.posSorted),
+    removedReason: parseIntMaybe(raw.removedReason),
+    teamSide: parseIntMaybe(raw.teamSide),
   }
+}
+
+/** Parse a numeric(5,2) rating field (e.g. "65.00"). Returns "65.00"-style
+ *  string or null. */
+function parseRatingStr(val: unknown): string | null {
+  if (val === undefined || val === null) return null
+  const s = typeof val === 'string' ? val : typeof val === 'number' ? String(val) : null
+  if (s === null) return null
+  const n = parseFloat(s)
+  if (!Number.isFinite(n)) return null
+  return n.toFixed(2)
+}
+
+/** Parse rankpoints — EA returns "--" for unranked players. */
+function parseRankPoints(val: unknown): number | null {
+  if (val === undefined || val === null) return null
+  if (typeof val === 'number') return Number.isFinite(val) ? Math.round(val) : null
+  if (typeof val === 'string') {
+    if (val === '--' || val.trim() === '') return null
+    const n = parseInt(val, 10)
+    return Number.isFinite(n) ? n : null
+  }
+  return null
 }
 
 // ─── Public API ───────────────────────────────────────────────────────────────

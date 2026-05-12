@@ -44,6 +44,32 @@ Hot-zone / rink-spatial shot visualizations are blocked by missing spatial data.
 
 **Fix (`match-recap.ts`):** `PossessionEdge.inputs` now carries `timeOnAttackSecondsAgainst: number | null` from `match.timeOnAttackAgainst`. The TOA row in the gauge now shows `us–them` format. Field is `null` only if the raw EA value was 0 or missing.
 
+### OT/SO Outcome Detection (`clubs[id].result` codes)
+
+**Status: Resolved. `clubs[id].result` is a numeric code, not just W/L.**
+
+Until 2026-05-09 the worker emitted only `WIN | LOSS | DNF` because no overtime
+fixture had been mined to confirm the OTL code. Investigation across 71 NHL 26
+BGM matches uncovered the full code set:
+
+- `1` regulation WIN, `2` regulation LOSS
+- `5` OT/SO WIN (still 2pts), `6` OT/SO LOSS → **`OTL`**
+- `10` DNF (corroborated by `winnerByDnf` on the opponent)
+- `16385` (`0x4001`) WIN by opponent forfeit
+
+Smoking gun for the OTL classification: every code-5 / code-6 match has a
+strict 1-goal margin and the codes are always paired (`5 ↔ 6`). OT and shootout
+share the same code — EA does not distinguish them in this field, so we lump
+both into `OTL`.
+
+**Fix (`apps/worker/src/transform.ts → deriveResult`):** Code `6` now returns
+`OTL` directly. Codes `5` and `16385` join the regulation `WIN` bucket.
+Unknown codes fall back to score-derived WIN/LOSS so a future EA variant
+doesn't silently break ingestion.
+
+Full investigation with cross-tab evidence:
+[`research/investigations/ea-overtime-detection.md`](./ea-overtime-detection.md).
+
 ---
 
 ## Field Shape Investigations (UNVERIFIED)

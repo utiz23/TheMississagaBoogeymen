@@ -22,7 +22,7 @@ from game_ocr.parsers import (
 from game_ocr.utils import file_sha1
 
 
-Parser = Callable[[ExtractionMeta, dict[str, list[OCRLine]]], BaseExtractionResult]
+Parser = Callable[..., BaseExtractionResult]
 
 
 @dataclass(frozen=True)
@@ -38,12 +38,12 @@ class ScreenRegistry:
             "pre_game_lobby_state_1": ScreenDefinition(
                 screen_type="pre_game_lobby_state_1",
                 config=load_screen_config("pre_game_lobby_state_1"),
-                parser=lambda meta, regions: parse_pre_game_result(meta, regions, include_player_name=False),
+                parser=lambda meta, regions, **kw: parse_pre_game_result(meta, regions, include_player_name=False, **kw),
             ),
             "pre_game_lobby_state_2": ScreenDefinition(
                 screen_type="pre_game_lobby_state_2",
                 config=load_screen_config("pre_game_lobby_state_2"),
-                parser=lambda meta, regions: parse_pre_game_result(meta, regions, include_player_name=True),
+                parser=lambda meta, regions, **kw: parse_pre_game_result(meta, regions, include_player_name=True, **kw),
             ),
             "player_loadout_view": ScreenDefinition(
                 screen_type="player_loadout_view",
@@ -58,17 +58,17 @@ class ScreenRegistry:
             "post_game_box_score_goals": ScreenDefinition(
                 screen_type="post_game_box_score_goals",
                 config=load_screen_config("post_game_box_score_goals"),
-                parser=lambda meta, regions: parse_post_game_box_score(meta, regions, stat_kind="goals"),
+                parser=lambda meta, regions, **kw: parse_post_game_box_score(meta, regions, stat_kind="goals", **kw),
             ),
             "post_game_box_score_shots": ScreenDefinition(
                 screen_type="post_game_box_score_shots",
                 config=load_screen_config("post_game_box_score_shots"),
-                parser=lambda meta, regions: parse_post_game_box_score(meta, regions, stat_kind="shots"),
+                parser=lambda meta, regions, **kw: parse_post_game_box_score(meta, regions, stat_kind="shots", **kw),
             ),
             "post_game_box_score_faceoffs": ScreenDefinition(
                 screen_type="post_game_box_score_faceoffs",
                 config=load_screen_config("post_game_box_score_faceoffs"),
-                parser=lambda meta, regions: parse_post_game_box_score(meta, regions, stat_kind="faceoffs"),
+                parser=lambda meta, regions, **kw: parse_post_game_box_score(meta, regions, stat_kind="faceoffs", **kw),
             ),
             "post_game_net_chart": ScreenDefinition(
                 screen_type="post_game_net_chart",
@@ -119,7 +119,7 @@ class Extractor:
                 crop = crop_region(image, region)
                 processed = preprocess_image(crop, region.preprocess)
                 regions[region_name] = self.backend.read(processed)
-            result = definition.parser(meta, regions)
+            result = definition.parser(meta, regions, image=image)
             result.meta.overall_confidence = self._compute_overall_confidence(result)
             if not self._has_any_text(regions):
                 result.warnings.append("No OCR text found in configured regions.")
