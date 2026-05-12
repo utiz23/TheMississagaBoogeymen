@@ -452,30 +452,46 @@ function walkPlayerLoadout(
   extractionId: number,
   rows: NewOcrExtractionField[],
 ): void {
-  // Top-level loadout scalars.
+  // Top-level loadout scalars. The legacy keys (selected_player, home_team) are
+  // kept in the list so old extractions still flatten cleanly; new captures from
+  // the post-2026-05 parser emit MISSING for those and skip the row via
+  // isExtractionField().
   const scalarKeys = [
     'selected_player',
     'player_position',
     'player_name',
+    'player_name_full',
+    'player_number',
     'player_level',
     'player_platform',
     'gamertag',
     'home_team',
+    'is_captain',
     'build_class',
     'height',
     'weight',
     'handedness',
+    'ap_used',
+    'ap_total',
   ]
   for (const key of scalarKeys) {
     const v = result[key]
     if (isExtractionField(v)) rows.push(fieldRow(extractionId, 'loadout', null, key, v))
   }
-  // X-factors: positional list.
+  // X-factors: positional list. New parser also emits a parallel x_factor_tiers list.
   const xFactors = result.x_factors
   if (Array.isArray(xFactors)) {
     xFactors.forEach((xf, i) => {
       if (isExtractionField(xf)) {
         rows.push(fieldRow(extractionId, 'loadout', null, `x_factor.${String(i)}`, xf))
+      }
+    })
+  }
+  const xFactorTiers = result.x_factor_tiers
+  if (Array.isArray(xFactorTiers)) {
+    xFactorTiers.forEach((xt, i) => {
+      if (isExtractionField(xt)) {
+        rows.push(fieldRow(extractionId, 'loadout', null, `x_factor_tier.${String(i)}`, xt))
       }
     })
   }
@@ -490,6 +506,15 @@ function walkPlayerLoadout(
             fieldRow(extractionId, 'loadout', null, `attributes.${groupKey}.${attrKey}`, attrVal),
           )
         }
+      }
+    }
+  }
+  // Per-attribute Δ chips. Flat dict keyed by attribute_key (no group prefix).
+  const attrDeltas = result.attribute_deltas
+  if (attrDeltas && typeof attrDeltas === 'object') {
+    for (const [attrKey, deltaVal] of Object.entries(attrDeltas as Record<string, unknown>)) {
+      if (isExtractionField(deltaVal)) {
+        rows.push(fieldRow(extractionId, 'loadout', null, `attribute_delta.${attrKey}`, deltaVal))
       }
     }
   }

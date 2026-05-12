@@ -31,7 +31,15 @@ export async function promoteLoadout(ctx: PromoterContext): Promise<void> {
   const gamertagField = result.gamertag as OcrExtractionField | undefined
   const gamertagSnapshot = stringValue(gamertagField) ?? '(unknown)'
 
-  const playerNameField = result.player_name as OcrExtractionField | undefined
+  // Post-2026-05 parser shape:
+  //   player_name      → short in-game persona "E. Wanhg" (MISSING on loadout view)
+  //   player_name_full → full real name "Evgeni Wanhg" from the left strip
+  // Legacy captures only emit player_name; fall back to it when player_name_full is absent.
+  const playerNamePersonaField = result.player_name as OcrExtractionField | undefined
+  const playerNameFullField =
+    (result.player_name_full as OcrExtractionField | undefined) ?? playerNamePersonaField
+  const playerNumberField = result.player_number as OcrExtractionField | undefined
+  const isCaptainField = result.is_captain as OcrExtractionField | undefined
   const positionField = result.player_position as OcrExtractionField | undefined
   const buildClassField = result.build_class as OcrExtractionField | undefined
   const heightField = result.height as OcrExtractionField | undefined
@@ -61,7 +69,10 @@ export async function promoteLoadout(ctx: PromoterContext): Promise<void> {
     .values({
       playerId,
       gamertagSnapshot,
-      playerNameSnapshot: stringValue(playerNameField),
+      playerNameSnapshot: stringValue(playerNameFullField),
+      playerNamePersona: stringValue(playerNamePersonaField),
+      playerNumber: numericValue(playerNumberField),
+      isCaptain: booleanValue(isCaptainField),
       gameTitleId,
       matchId,
       sourceExtractionId: extractionId,
@@ -77,36 +88,47 @@ export async function promoteLoadout(ctx: PromoterContext): Promise<void> {
     .returning()
   if (!snap) throw new Error('failed to insert player_loadout_snapshots row')
 
-  // X-factors: positional list, slot_index 0/1/2.
+  // X-factors: positional list, slot_index 0/1/2. New parser also emits a
+  // parallel x_factor_tiers list — match by index.
   const xFactors = Array.isArray(result.x_factors) ? (result.x_factors as OcrExtractionField[]) : []
+  const xFactorTiers = Array.isArray(result.x_factor_tiers)
+    ? (result.x_factor_tiers as OcrExtractionField[])
+    : []
   const xFactorRows: NewPlayerLoadoutXFactor[] = []
   xFactors.forEach((xf, i) => {
     const name = stringValue(xf, { preferRaw: true })
     if (!name) return
+    const tierField = xFactorTiers[i]
+    const tier = stringValue(tierField) as 'Elite' | 'All Star' | 'Specialist' | null
     xFactorRows.push({
       loadoutSnapshotId: snap.id,
       slotIndex: i,
       xFactorName: name,
+      tier: tier ?? null,
     })
   })
   if (xFactorRows.length > 0) {
     await db.insert(playerLoadoutXFactors).values(xFactorRows)
   }
 
-  // Attributes: 5 groups × ~5 keys. Flatten to per-key rows.
+  // Attributes: 5 groups × 4-5 keys. Flatten to per-key rows. Parser emits a
+  // parallel `attribute_deltas` dict keyed by the same attribute_key.
   const attributeRows: NewPlayerLoadoutAttribute[] = []
   const attrs = result.attributes as
     | Record<string, { values?: Record<string, OcrExtractionField> }>
     | undefined
+  const attrDeltas = (result.attribute_deltas ?? {}) as Record<string, OcrExtractionField | undefined>
   if (attrs && typeof attrs === 'object') {
     for (const group of Object.values(attrs)) {
       const values = group.values ?? {}
       for (const [attrKey, attrField] of Object.entries(values)) {
+        const deltaField = attrDeltas[attrKey]
         attributeRows.push({
           loadoutSnapshotId: snap.id,
           attributeKey: attrKey,
           rawText: attrField.raw_text ?? null,
           value: numericValue(attrField),
+          deltaValue: numericValue(deltaField),
           confidence: attrField.confidence !== null ? attrField.confidence.toFixed(4) : null,
         })
       }
@@ -153,6 +175,12 @@ function numericValue(f: OcrExtractionField | undefined): number | null {
     const n = Number.parseInt(f.value, 10)
     if (Number.isFinite(n)) return n
   }
+  return null
+}
+
+function booleanValue(f: OcrExtractionField | undefined): boolean | null {
+  if (!f) return null
+  if (typeof f.value === 'boolean') return f.value
   return null
 }
 
