@@ -1,0 +1,214 @@
+/* ============================================================================
+   PLAYER CAROUSEL CHROME — ported from bundle's components-card-carousel-v3.html
+   Class prefix .hpcr- (home player carousel) to avoid collision.
+   ============================================================================ */
+
+.hpcr-stage {
+  position: relative;
+  height: 560px;
+  margin: 8px -32px 0;
+  padding: 32px;
+  background:
+    radial-gradient(ellipse at 50% 50%, rgba(232, 65, 49, 0.1), transparent 50%),
+    repeating-linear-gradient(
+      0deg,
+      rgba(255, 255, 255, 0.015) 0 1px,
+      transparent 1px 32px
+    ),
+    repeating-linear-gradient(
+      90deg,
+      rgba(255, 255, 255, 0.015) 0 1px,
+      transparent 1px 32px
+    );
+  border-top: 1px solid rgba(73, 71, 72, 0.45);
+  border-bottom: 1px solid rgba(73, 71, 72, 0.45);
+  overflow: hidden;
+  perspective: 1400px;
+  user-select: none;
+}
+
+/* Mid-line horizontal red rule */
+.hpcr-stage::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(232, 65, 49, 0.2),
+    rgba(232, 65, 49, 0.45),
+    rgba(232, 65, 49, 0.2),
+    transparent
+  );
+  pointer-events: none;
+}
+
+/* Corner registration marks — 8 small L-shaped tick lines.
+   8 backgrounds (top-left/top-right/bottom-left/bottom-right × 2 directions). */
+.hpcr-stage::after {
+  content: '';
+  position: absolute;
+  inset: 16px 24px;
+  background:
+    linear-gradient(to right, rgba(232, 65, 49, 0.55) 0 24px, transparent 24px) top left
+      no-repeat,
+    linear-gradient(to bottom, rgba(232, 65, 49, 0.55) 0 24px, transparent 24px) top left
+      no-repeat,
+    linear-gradient(to left, rgba(232, 65, 49, 0.55) 0 24px, transparent 24px) top right
+      no-repeat,
+    linear-gradient(to bottom, rgba(232, 65, 49, 0.55) 0 24px, transparent 24px) top right
+      no-repeat,
+    linear-gradient(to right, rgba(232, 65, 49, 0.55) 0 24px, transparent 24px) bottom left
+      no-repeat,
+    linear-gradient(to top, rgba(232, 65, 49, 0.55) 0 24px, transparent 24px) bottom left
+      no-repeat,
+    linear-gradient(to left, rgba(232, 65, 49, 0.55) 0 24px, transparent 24px) bottom right
+      no-repeat,
+    linear-gradient(to top, rgba(232, 65, 49, 0.55) 0 24px, transparent 24px) bottom right
+      no-repeat;
+  background-size:
+    24px 1px,
+    1px 24px,
+    24px 1px,
+    1px 24px,
+    24px 1px,
+    1px 24px,
+    24px 1px,
+    1px 24px;
+  pointer-events: none;
+}
+
+/* LIVE / Player Spotlight indicator (top-left corner of stage) */
+.hpcr-now-tag {
+  position: absolute;
+  top: 32px;
+  left: 48px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  z-index: 4;
+  pointer-events: none;
+}
+.hpcr-now-tag .live {
+  font-family: var(--font-condensed);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.3em;
+  padding: 3px 7px;
+  background: var(--color-accent);
+  color: white;
+  border-radius: 2px;
+}
+.hpcr-now-tag .type {
+  font-family: var(--font-condensed);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.3em;
+  color: var(--color-fg-3);
+  text-transform: uppercase;
+}
+
+/* Bottom controls — arrow + progress bars + arrow */
+.hpcr-controls {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 24px;
+  margin-top: 24px;
+  padding: 0 8px;
+}
+
+.hpcr-arrow {
+  width: 44px;
+  height: 44px;
+  background: rgba(50, 48, 49, 0.85);
+  border: 1px solid rgba(73, 71, 72, 0.85);
+  border-radius: 3px;
+  color: var(--color-fg-2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  position: relative;
+  transition: all 160ms ease;
+}
+/* Tiny red marks in two diagonal corners — broadcast-style affordance */
+.hpcr-arrow::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 8px;
+  height: 1px;
+  background: var(--color-accent);
+}
+.hpcr-arrow::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 8px;
+  height: 1px;
+  background: var(--color-accent);
+}
+.hpcr-arrow:hover {
+  border-color: rgba(232, 65, 49, 0.65);
+  background: rgba(232, 65, 49, 0.08);
+  color: var(--color-fg-1);
+}
+.hpcr-arrow svg {
+  width: 18px;
+  height: 18px;
+}
+
+.hpcr-progress {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  justify-content: center;
+}
+.hpcr-progress .seg {
+  height: 3px;
+  flex: 1;
+  background: rgba(73, 71, 72, 0.45);
+  border-radius: 1px;
+  cursor: pointer;
+  transition: background 200ms ease;
+  border: none;
+  padding: 0;
+}
+.hpcr-progress .seg.active {
+  background: var(--color-accent);
+  box-shadow: 0 0 8px rgba(232, 65, 49, 0.55);
+}
+.hpcr-progress .seg.passed {
+  background: rgba(232, 65, 49, 0.4);
+}
+
+.hpcr-meta {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 10px;
+  padding: 0 8px;
+}
+.hpcr-index {
+  font-family: ui-monospace, 'JetBrains Mono', monospace;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--color-fg-3);
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+}
+.hpcr-index .now {
+  color: var(--color-fg-1);
+}
+.hpcr-index .sep {
+  color: var(--color-fg-5);
+  margin: 0 4px;
+}
+.hpcr-index.dim {
+  color: var(--color-fg-5);
+}

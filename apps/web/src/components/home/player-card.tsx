@@ -1,166 +1,214 @@
 import Link from 'next/link'
 import Image from 'next/image'
 import type { getRoster } from '@eanhl/db/queries'
-import { formatPosition, formatSavePct } from '@/lib/format'
-import { PositionPill } from '@/components/matches/position-pill'
+import { formatPosition } from '@/lib/format'
 import { NationalityFlag, PlatformIcon } from '@/components/player-meta-icons'
+import './player-card.css'
 
 export type RosterRow = Awaited<ReturnType<typeof getRoster>>[number]
 
+/**
+ * Structural shape required by `PlayerCard`. Both `getRoster` (home) and
+ * `getEARoster` (depth chart) return rows that satisfy this — accepting it
+ * as a structural type lets the same card render in both contexts.
+ */
+export interface PlayerCardData {
+  playerId: number
+  gamertag: string
+  jerseyNumber: number | null
+  playerName: string | null
+  clientPlatform: string | null
+  nationality: string | null
+  position: string | null
+  favoritePosition: string | null
+  preferredPosition: string | null
+  skaterWins: number | null
+  skaterLosses: number | null
+  skaterOtl: number | null
+  goalieWins: number | null
+  goalieLosses: number | null
+  goalieOtl: number | null
+  skaterGp: number
+  goalieGp: number
+  goals: number
+  assists: number
+  points: number
+  savePct: string | null
+  gaa: string | null
+  archetype?: string | null
+}
+
 interface PlayerCardProps {
-  player: RosterRow
+  player: PlayerCardData
   /**
    * True when this card is the active/center card in the carousel.
-   * Adds a glow shadow and accent border treatment.
+   * Activates the red top rule (otherwise dim grey at rest).
    */
   isActive?: boolean
+  /**
+   * True when the card represents a depth/reused slot in a depth chart.
+   * Renders an amber outline + "DEPTH" pill in the top-right corner.
+   */
+  depth?: boolean
 }
 
 /**
- * Player card.
+ * Player card — refined-baseline port from the design bundle's
+ * `components-card-carousel-v3.html` / `components-player-card.html`.
  *
- * Structure:
- *   Outer shell  bg-zinc-950, rounded-2xl
- *   ├─ Accent bar     absolute top-0 full-width z-30
- *   ├─ A block        absolute top-left z-20, bg-zinc-950 (matches shell)
- *   ├─ Top panel      mx-2 mt-2 rounded-2xl bg-zinc-900 — portrait + identity row
- *   └─ Stats panel    mx-2 mb-2 mt-1.5 rounded-2xl bg-zinc-900 — E–H + I–J
- *
- * Goalie detection: position === 'goalie' (wins can be 0, not null, for non-goalies).
- * H (PTS / W) is always the StatBoxFeatured tile — accent tint, larger value.
+ * Layout (top to bottom):
+ *   ─ red top rule (3px) — grey at rest, accent on hover/active
+ *   ─ jersey block (top-left, 88px wide, on #0a0a0a):
+ *       number · position pill · record · win%
+ *   ─ portrait area (silhouette + scan-line overlay)
+ *   ─ name row (platform glyph + gamertag)
+ *   ─ stats grid (4 cells, last cell `lead` styled accent)
+ *   ─ identity row (flag · crest · spare)
  */
-export function PlayerCard({ player, isActive = false }: PlayerCardProps) {
+export function PlayerCard({ player, isActive = false, depth = false }: PlayerCardProps) {
   const effectivePosition = player.preferredPosition ?? player.favoritePosition ?? player.position
   const isGoalie = effectivePosition === 'goalie'
   const posLabel = effectivePosition ? formatPosition(effectivePosition) : null
+  const posClass = effectivePosition !== null ? positionClass(effectivePosition) : null
 
+  // Jersey area: record + win%. Use the role's W-L-OTL.
   const eaW = isGoalie ? player.goalieWins : player.skaterWins
   const eaL = isGoalie ? player.goalieLosses : player.skaterLosses
   const eaOtl = isGoalie ? player.goalieOtl : player.skaterOtl
-
   const recordLine =
     eaW !== null && eaL !== null
-      ? `${eaW.toString()}–${eaL.toString()}–${eaOtl !== null ? eaOtl.toString() : '—'}`
-      : '—–—–—'
-
-  const eaGames = (eaW ?? 0) + (eaL ?? 0) + (eaOtl ?? 0)
-  const displayWinPct: string =
-    eaW !== null && eaL !== null && eaGames > 0
-      ? `${((eaW / eaGames) * 100).toFixed(0)}%`
+      ? `${eaW.toString()}–${eaL.toString()}–${eaOtl !== null ? eaOtl.toString() : '0'}`
       : '—'
+  const eaGames = (eaW ?? 0) + (eaL ?? 0) + (eaOtl ?? 0)
+  const winPct =
+    eaW !== null && eaL !== null && eaGames > 0
+      ? `${((eaW / eaGames) * 100).toFixed(0)}% Win`
+      : '—'
+
+  // Stats row — role-gated. Last cell is the `lead` (accent-colored) stat.
+  const statCells: Array<{ label: string; value: string; lead?: boolean }> = isGoalie
+    ? [
+        { label: 'GP', value: player.goalieGp.toString() },
+        { label: 'SV%', value: player.savePct ?? '—' },
+        { label: 'GAA', value: player.gaa ?? '—' },
+        { label: 'W', value: player.goalieWins?.toString() ?? '—', lead: true },
+      ]
+    : [
+        { label: 'GP', value: player.skaterGp.toString() },
+        { label: 'G', value: player.goals.toString() },
+        { label: 'A', value: player.assists.toString() },
+        { label: 'PTS', value: player.points.toString(), lead: true },
+      ]
+
+  const classNames = ['hpc']
+  if (isActive) classNames.push('hpc-active')
+  if (depth) classNames.push('hpc-depth')
 
   return (
     <Link
       href={`/roster/${player.playerId.toString()}`}
-      className={[
-        'group relative block w-56 overflow-hidden rounded-2xl border bg-zinc-950 transition-all duration-300',
-        isActive
-          ? 'border-zinc-600 shadow-[0_0_28px_rgba(225,29,72,0.20)]'
-          : 'border-zinc-800 hover:-translate-y-1 hover:border-zinc-600 hover:shadow-[0_0_32px_rgba(225,29,72,0.22)]',
-      ].join(' ')}
+      className={classNames.join(' ')}
+      aria-label={`Show ${player.gamertag}`}
     >
-      {/* ── Accent top bar — spans full card width, above everything ────── */}
-      <div
-        className={[
-          'absolute inset-x-0 top-0 z-30 h-1 transition-colors',
-          isActive ? 'bg-accent' : 'bg-zinc-800 group-hover:bg-accent',
-        ].join(' ')}
-      />
-
-      {/* ── A — flush top-left on card shell, mirrors roster card ───────── */}
-      <div className="absolute left-0 top-0 z-20 flex w-[72px] flex-col rounded-br-2xl bg-zinc-950 px-3 pb-3 pt-4">
-        <div className="font-condensed text-[28px] font-black leading-none text-zinc-600">
-          {player.jerseyNumber !== null ? `#${player.jerseyNumber.toString()}` : '##'}
-        </div>
-        {/* Position pill */}
-        {posLabel !== null ? (
-          <div className="mt-1">
-            <PositionPill label={posLabel} position={effectivePosition} isGoalie={isGoalie} />
-          </div>
-        ) : (
-          <span className="mt-1 inline-block h-2.5 w-7 rounded bg-zinc-800" />
+      {depth ? <span className="hpc-depth-pill">DEPTH</span> : null}
+      <div className="hpc-jersey">
+        <span className="num">
+          {player.jerseyNumber !== null ? player.jerseyNumber.toString() : '##'}
+        </span>
+        {posLabel !== null && (
+          <span className={`pos${posClass !== null ? ` ${posClass}` : ''}`}>{posLabel}</span>
         )}
-
-        {/* W–L–OTL record */}
-        <div className="mt-1.5 font-condensed text-[10px] font-semibold leading-none text-zinc-500">
-          {recordLine}
-        </div>
-
-        <div className="mt-1.5 font-condensed text-[11px] font-bold leading-none text-zinc-300">
-          {displayWinPct}
-        </div>
+        <span className="rec">{recordLine}</span>
+        <span className="pct">{winPct}</span>
       </div>
 
-      {/* ── TOP PANEL — one grey container: portrait (B) + identity row (C+D) */}
-      <div className="relative mx-2 mt-2 overflow-hidden rounded-2xl bg-zinc-900">
-        {/* B — Portrait / silhouette area */}
-        <div className="relative flex h-[162px] items-end justify-center">
-          <PlayerSilhouette className="text-zinc-800" />
-        </div>
-
-        {/* Identity row */}
-        <div className="flex items-center justify-center gap-2 border-t border-zinc-800/60 px-3 py-2">
-          <div
-            title={player.gamertag}
-            className="flex h-5 w-5 shrink-0 items-center justify-center rounded-sm border border-zinc-700 bg-zinc-800/80 text-zinc-500"
-          >
-            <PlatformIcon platform={player.clientPlatform ?? null} />
-          </div>
-          <span className="truncate font-condensed text-base font-black uppercase tracking-wide text-zinc-100 group-hover:text-zinc-50">
-            {player.playerName?.split(' ').at(-1) ?? player.gamertag}
-          </span>
-        </div>
+      <div className="hpc-portrait">
+        <svg
+          className="silh"
+          viewBox="0 0 100 110"
+          fill="currentColor"
+          preserveAspectRatio="xMidYMax meet"
+          aria-hidden
+        >
+          <circle cx="50" cy="32" r="21" />
+          <path d="M 8 110 Q 8 66 50 66 Q 92 66 92 110 Z" />
+        </svg>
+        <div className="scan" aria-hidden />
       </div>
 
-      {/* ── STATS PANEL — E–H (stats) + I–J (meta) ───────────────────────── */}
-      <div className="mx-2 mb-2 mt-1.5 overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-900 p-2">
-        {/* E–H: role-gated stats. H (PTS / W) is always the featured tile. */}
-        <div className="grid grid-cols-4 gap-1">
-          <StatBox label="GP" value={(isGoalie ? player.goalieGp : player.skaterGp).toString()} />
-          {isGoalie ? (
-            <>
-              <StatBox label="SV%" value={formatSavePct(player.savePct)} />
-              <StatBox label="GAA" value={player.gaa ?? '—'} />
-              <StatBoxFeatured label="W" value={player.wins?.toString() ?? '—'} />
-            </>
-          ) : (
-            <>
-              <StatBox label="G" value={player.goals.toString()} />
-              <StatBox label="A" value={player.assists.toString()} />
-              <StatBoxFeatured label="PTS" value={player.points.toString()} />
-            </>
-          )}
-        </div>
+      <div className="hpc-name">
+        <span className="platform" aria-hidden>
+          <PlatformIcon platform={player.clientPlatform ?? null} />
+        </span>
+        <span
+          className="gamertag"
+          title={player.playerName ?? player.gamertag}
+        >
+          {player.playerName ?? player.gamertag}
+        </span>
+      </div>
 
-        {/* Meta row */}
-        <div className="mt-2 grid grid-cols-3 gap-2">
-          <div className="flex h-[34px] items-center justify-center">
-            <NationalityFlag code={player.nationality ?? null} />
+      <div className="hpc-stats">
+        {statCells.map((s) => (
+          <div key={s.label} className={`s${s.lead === true ? ' lead' : ''}`}>
+            <span className="l">{s.label}</span>
+            <span className="v">{s.value}</span>
           </div>
-          <div className="flex h-[34px] items-center justify-center overflow-hidden rounded-lg border border-zinc-700/60 bg-zinc-800/40">
-            <Image
-              src="/images/bgm-logo.png"
-              alt="Boogeymen"
-              width={20}
-              height={20}
-              className="h-6 w-6 object-contain opacity-60"
-            />
-          </div>
-          <div />
+        ))}
+      </div>
+
+      <div className="hpc-identity">
+        <div className="cell flag">
+          {player.nationality !== null ? <NationalityFlag code={player.nationality} /> : null}
         </div>
+        <div className="cell crest">
+          <Image
+            src="/images/bgm-logo.png"
+            alt="BGM"
+            width={52}
+            height={52}
+          />
+        </div>
+        <div className="cell" aria-hidden />
       </div>
     </Link>
   )
 }
 
-// ─── Sub-components ───────────────────────────────────────────────────────────
+/**
+ * Map a position string to its bundle position-class. Mirrors the
+ * docs/specs/position-colors.md palette — leftDefenseMen / rightDefenseMen
+ * get distinct colors; generic defenseMen falls back to LD per spec.
+ */
+function positionClass(pos: string): string | null {
+  switch (pos) {
+    case 'center':
+      return 'pos-c'
+    case 'leftWing':
+      return 'pos-lw'
+    case 'rightWing':
+      return 'pos-rw'
+    case 'leftDefenseMen':
+      return 'pos-ld'
+    case 'rightDefenseMen':
+      return 'pos-rd'
+    case 'defenseMen':
+      return 'pos-d'
+    case 'goalie':
+      return 'pos-g'
+    default:
+      return null
+  }
+}
+
+/* ─── Re-exports for backward compat with existing consumers ────────────── */
 
 interface StatBoxProps {
   label: string
   value: string
 }
 
-/** Standard stat tile (E, F, G). */
+/** Standard stat tile (used by depth-chart, NOT by the carousel card). */
 export function StatBox({ label, value }: StatBoxProps) {
   return (
     <div className="flex flex-col items-center gap-0.5 rounded-lg border border-zinc-700/50 bg-zinc-800/50 py-1.5">
@@ -172,10 +220,7 @@ export function StatBox({ label, value }: StatBoxProps) {
   )
 }
 
-/**
- * Featured stat tile (H — PTS / W).
- * Accent tint background + larger value text — permanently distinct.
- */
+/** Featured stat tile — accent variant of StatBox. Used by depth-chart. */
 export function StatBoxFeatured({ label, value }: StatBoxProps) {
   return (
     <div className="flex flex-col items-center gap-0.5 rounded-lg border border-accent/30 bg-accent/10 py-1.5">
@@ -201,12 +246,8 @@ export function PlayerSilhouette({
       className={`${sizeClass} ${className}`}
       aria-hidden
     >
-      {/* Head */}
       <circle cx="50" cy="32" r="21" />
-      {/* Body arc */}
       <path d="M 8 110 Q 8 66 50 66 Q 92 66 92 110 Z" />
     </svg>
   )
 }
-
-

@@ -32,7 +32,13 @@ export function RecentGamesStrip({ matches }: RecentGamesStripProps) {
             {match.scoreFor.toString()}–{match.scoreAgainst.toString()}
           </span>
           {match.gameMode !== null && (
-            <span className="hidden shrink-0 border border-zinc-700/60 bg-zinc-800 px-1.5 py-0.5 font-condensed text-[10px] font-semibold uppercase tracking-wider text-zinc-500 sm:inline">
+            <span
+              className={`hidden shrink-0 rounded-full border px-2 py-0.5 font-condensed text-[10px] font-semibold uppercase tracking-[0.16em] sm:inline ${
+                match.gameMode === '6s'
+                  ? 'border-[rgba(139,92,246,0.5)] bg-[rgba(124,58,237,0.18)] text-[#c4b5fd]'
+                  : 'border-[rgba(56,189,248,0.5)] bg-[rgba(2,132,199,0.18)] text-[#7dd3fc]'
+              }`}
+            >
               {match.gameMode}
             </span>
           )}

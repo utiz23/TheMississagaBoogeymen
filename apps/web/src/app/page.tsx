@@ -11,6 +11,7 @@ import {
   getOfficialClubRecord,
   getOpponentClub,
   getRecentMatches,
+  getMatchFaceoffTotals,
   getRoster,
   getEARoster,
   getHistoricalClubTeamStatsBatch,
@@ -20,8 +21,7 @@ import { redirect } from 'next/navigation'
 import { LatestResult } from '@/components/home/latest-result'
 import { PlayerCarousel } from '@/components/home/player-carousel'
 import { ScoringLeadersPanel } from '@/components/home/leaders-section'
-import { SeasonRankWidget } from '@/components/home/season-rank-widget'
-import { ClubRecordSection } from '@/components/home/club-record-section'
+import { RecordStrip } from '@/components/home/record-strip'
 import { RecentGamesStrip } from '@/components/home/recent-games-strip'
 import {
   TitleRecordsTable,
@@ -57,13 +57,11 @@ async function resolveGameTitle(titleSlug: string | undefined) {
 }
 
 /**
- * Top players by points descending for the featured carousel.
- * Goalies sort naturally to the back (0 points). Returns up to 8.
+ * Roster ordered by points descending for the featured carousel.
+ * Goalies sort naturally to the back (0 points).
  */
 function selectFeaturedPlayers(roster: RosterRow[]): RosterRow[] {
-  return [...roster]
-    .sort((a, b) => b.points - a.points || b.gamesPlayed - a.gamesPlayed)
-    .slice(0, 8)
+  return [...roster].sort((a, b) => b.points - a.points || b.gamesPlayed - a.gamesPlayed)
 }
 
 export default async function HomePage({ searchParams }: { searchParams: SearchParams }) {
@@ -95,7 +93,7 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
     try {
       return await Promise.all([
         getClubStats(gameTitle.id, gameMode),
-        getRecentMatches({ gameTitleId: gameTitle.id, limit: 6 }),
+        getRecentMatches({ gameTitleId: gameTitle.id, limit: 11 }),
         gameMode === null ? getEARoster(gameTitle.id) : getRoster(gameTitle.id, gameMode),
         getOfficialClubRecord(gameTitle.id),
         getClubSeasonRank(gameTitle.id),
@@ -148,12 +146,14 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
   const latestClubRecord = officialRecord ?? null
 
   let lastMatchOpponent = null
+  let lastMatchFaceoffs: Awaited<ReturnType<typeof getMatchFaceoffTotals>> | null = null
   if (lastMatch !== null) {
     try {
       lastMatchOpponent = await getOpponentClub(lastMatch.opponentClubId)
     } catch {
       // Logo display degrades gracefully to initial badge
     }
+    lastMatchFaceoffs = await getMatchFaceoffTotals(lastMatch.id)
   }
 
   const featuredPlayers = selectFeaturedPlayers(roster)
@@ -166,6 +166,12 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
   const goalsLeaders = [...skaters]
     .sort((a, b) => b.goals - a.goals || b.points - a.points)
     .slice(0, 10)
+  const goalieLeaders = roster.filter(
+    (r) => r.goalieGp > 0 && r.savePct !== null,
+  )
+  const teamGp = officialRecord
+    ? officialRecord.gamesPlayed
+    : (clubStats?.gamesPlayed ?? null)
 
   return (
     <div className="space-y-8">
@@ -187,6 +193,8 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
             clubRecord={latestClubRecord}
             opponentCrestAssetId={lastMatchOpponent?.crestAssetId ?? null}
             opponentCrestUseBaseAsset={lastMatchOpponent?.useBaseAsset ?? null}
+            faceoffs={lastMatchFaceoffs}
+            divisionName={seasonRank?.divisionName ?? null}
           />
         </section>
       )}
@@ -205,38 +213,33 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
       )}
 
       {/* 3. SCORING LEADERS */}
-      {pointsLeaders.length > 0 && (
+      {(pointsLeaders.length > 0 || goalieLeaders.length > 0) && (
         <section>
           <ScoringLeadersPanel
             pointsLeaders={pointsLeaders}
             goalsLeaders={goalsLeaders}
+            goalieLeaders={goalieLeaders}
             gameMode={gameMode}
             source={rosterSource}
+            teamGp={teamGp ?? undefined}
           />
         </section>
       )}
 
-      {/* 4. CLUB RECORD STRIP */}
-      <ClubRecordSection
-        gameMode={gameMode}
-        titleSlug={titleSlug}
+      {/* 4. RECORD STRIP — record / win% / goal diff / form */}
+      <RecordStrip
         officialRecord={officialRecord}
         localStats={clubStats}
+        seasonRank={seasonRank}
+        recentResults={recentMatches.map((m) => ({ result: m.result, playedAt: m.playedAt }))}
+        gameTitleName={gameTitle.name}
       />
 
-      {/* 5. SEASON RANK / DIVISION STANDING */}
-      {seasonRank !== null && (
-        <section className="space-y-3">
-          <SectionHeader label="Division Standing" />
-          <SeasonRankWidget rank={seasonRank} />
-        </section>
-      )}
-
-      {/* 6. RECENT RESULTS */}
+      {/* 5. RECENT RESULTS */}
       {recentMatches.length > 1 && (
         <section className="space-y-3">
           <SectionHeader label="Recent Results" />
-          <RecentGamesStrip matches={recentMatches.slice(1)} />
+          <RecentGamesStrip matches={recentMatches.slice(1, 6)} />
         </section>
       )}
 

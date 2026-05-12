@@ -1,210 +1,379 @@
+'use client'
+
+import { useState } from 'react'
 import Link from 'next/link'
 import type { GameMode } from '@eanhl/db'
-import type { RosterRow } from './player-card'
-import { PlayerSilhouette } from './player-card'
 import { formatPosition } from '@/lib/format'
-import { PositionPill } from '@/components/matches/position-pill'
-import { BroadcastPanel } from '@/components/ui/broadcast-panel'
-import { SectionHeader } from '@/components/ui/section-header'
+import './leaders-section.css'
 
-interface ScoringLeadersPanelProps {
-  pointsLeaders: RosterRow[]
-  goalsLeaders: RosterRow[]
-  gameMode?: GameMode | null
-  source?: string
+/** Structural row that satisfies both `getRoster` and `getEARoster` outputs. */
+export interface ScoringLeaderRow {
+  playerId: number
+  gamertag: string
+  position: string | null
+  favoritePosition: string | null
+  jerseyNumber: number | null
+  goals: number
+  assists: number
+  points: number
+  skaterGp: number
+  goalieGp: number
+  goalieWins: number | null
+  savePct: string | null
 }
 
+interface ScoringLeadersPanelProps {
+  /** Top scorers (skaters), pre-sorted by points desc. */
+  pointsLeaders: ScoringLeaderRow[]
+  /** Top goal-scorers (skaters), pre-sorted by goals desc. */
+  goalsLeaders: ScoringLeaderRow[]
+  /** Goalies (any with goalieGp > 0). The component splits W and SV%. */
+  goalieLeaders?: ScoringLeaderRow[] | undefined
+  gameMode?: GameMode | null
+  source?: string
+  /** Total team GP for the footer caption. */
+  teamGp?: number | undefined
+}
+
+type View = 'skaters' | 'goalies'
+const ROWS_VISIBLE = 6
+
 /**
- * Scoring Leaders panel — home page stats showcase.
+ * Scoring Leaders frame — broadcast-style "▌ Scoring · Points" module with
+ * Skaters/Goalies tab toggle, two side-by-side columns (each = 200px spotlight
+ * + ranked top-6 list), and a "View all →" footer.
  *
- * Layout: 4 equal columns — Points hero | Points list | Goals hero | Goals list.
- * On mobile (< sm) the two hero columns stack on top, lists below (grid-cols-2).
- *
- * Design decision: the #1 player appears in BOTH the hero block and as the
- * first row of the ranked list. The hero provides visual emphasis; the full
- * list (starting from #1) shows the gaps to #2, #3, etc. without ambiguity.
+ * In skaters mode: Points leader column + Goals leader column.
+ * In goalies mode: Wins leader column + Save % leader column.
  */
 export function ScoringLeadersPanel({
   pointsLeaders,
   goalsLeaders,
+  goalieLeaders = [],
   gameMode,
   source,
+  teamGp,
 }: ScoringLeadersPanelProps) {
-  if (pointsLeaders.length === 0 && goalsLeaders.length === 0) return null
+  const [view, setView] = useState<View>('skaters')
 
-  const pointsFeature = pointsLeaders[0] ?? null
-  const goalsFeature = goalsLeaders[0] ?? null
-  const sectionLabel = gameMode != null ? `${gameMode} Scoring Leaders` : 'Scoring Leaders'
+  const hasGoalies = goalieLeaders.length > 0
+  const hasSkaters = pointsLeaders.length > 0 || goalsLeaders.length > 0
+  if (!hasSkaters && !hasGoalies) return null
+
+  const winsBoard = [...goalieLeaders]
+    .sort((a, b) => (b.goalieWins ?? 0) - (a.goalieWins ?? 0))
+    .slice(0, ROWS_VISIBLE)
+  const savePctBoard = [...goalieLeaders]
+    .sort(
+      (a, b) => parseFloat(b.savePct ?? '0') - parseFloat(a.savePct ?? '0'),
+    )
+    .slice(0, ROWS_VISIBLE)
+
+  const titleWord = view === 'skaters' ? 'Scoring' : 'Goaltending'
+  const titleMetric = view === 'skaters' ? 'Points' : 'Wins'
+
   const ctaHref = gameMode != null ? `/stats?mode=${gameMode}` : '/stats'
+  const modeLabel = gameMode ?? 'All Modes'
 
   return (
-    <BroadcastPanel>
-      <div className="flex flex-col gap-1 border-b border-zinc-800/60 px-5 py-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex flex-col">
-          <SectionHeader label={sectionLabel} />
-          {source ? (
-            <span className="font-condensed text-[10px] font-semibold uppercase tracking-[0.22em] text-zinc-600">
-              {source}
-            </span>
-          ) : null}
-        </div>
-        {/* CTA renders manually here — SectionHeader's CTA can't co-exist with the source line. */}
-        <Link
-          href={ctaHref}
-          className="font-condensed text-xs font-semibold uppercase tracking-wider text-zinc-400 transition-colors hover:text-zinc-100"
-        >
-          View all stats <span aria-hidden>→</span>
-        </Link>
-      </div>
+    <section className="sl-frame">
+      <div className="sl-ticker" />
 
-      {/* 4-column grid: Points hero | Points list | Goals hero | Goals list */}
-      <div className="grid grid-cols-2 divide-x divide-zinc-800/60 bg-[linear-gradient(180deg,rgba(24,24,27,0.88),rgba(9,9,11,1))] sm:grid-cols-4">
-        <div className="p-4">
-          <h3 className="mb-3 font-condensed text-[10px] font-semibold uppercase tracking-[0.22em] text-zinc-500">
-            Points
-          </h3>
-          {pointsFeature === null ? (
-            <p className="text-sm text-zinc-600">—</p>
-          ) : (
-            <FeaturedPlayerBlock player={pointsFeature} statLabel="Points" statKey="points" />
-          )}
-        </div>
-
-        <div className="p-4">
-          <h3 className="mb-3 font-condensed text-[10px] font-semibold uppercase tracking-[0.22em] text-zinc-500">
-            &nbsp;
-          </h3>
-          <ol className="flex flex-col gap-1" aria-label="Points leaderboard">
-            {pointsLeaders.map((player, idx) => (
-              <LeaderRow
-                key={player.playerId}
-                rank={idx + 1}
-                player={player}
-                statKey="points"
-                isFirst={idx === 0}
-              />
-            ))}
-          </ol>
-        </div>
-
-        <div className="border-t border-zinc-800/60 p-4 sm:border-t-0">
-          <h3 className="mb-3 font-condensed text-[10px] font-semibold uppercase tracking-[0.22em] text-zinc-500">
-            Goals
-          </h3>
-          {goalsFeature === null ? (
-            <p className="text-sm text-zinc-600">—</p>
-          ) : (
-            <FeaturedPlayerBlock player={goalsFeature} statLabel="Goals" statKey="goals" />
-          )}
-        </div>
-
-        <div className="border-t border-zinc-800/60 p-4 sm:border-t-0">
-          <h3 className="mb-3 font-condensed text-[10px] font-semibold uppercase tracking-[0.22em] text-zinc-500">
-            &nbsp;
-          </h3>
-          <ol className="flex flex-col gap-1" aria-label="Goals leaderboard">
-            {goalsLeaders.map((player, idx) => (
-              <LeaderRow
-                key={player.playerId}
-                rank={idx + 1}
-                player={player}
-                statKey="goals"
-                isFirst={idx === 0}
-              />
-            ))}
-          </ol>
-        </div>
-      </div>
-    </BroadcastPanel>
-  )
-}
-
-function FeaturedPlayerBlock({
-  player,
-  statLabel,
-  statKey,
-}: {
-  player: RosterRow
-  statLabel: string
-  statKey: 'points' | 'goals'
-}) {
-  const pos = player.position ? formatPosition(player.position) : null
-
-  return (
-    <Link
-      href={`/roster/${player.playerId.toString()}`}
-      className="group flex w-full flex-col items-center gap-1.5"
-      aria-label={`${statLabel} leader: ${player.gamertag}, ${player[statKey].toString()} ${statLabel.toLowerCase()}`}
-    >
-      <div className="relative flex h-20 w-full items-end justify-center overflow-hidden border border-accent/30 bg-[radial-gradient(circle_at_top,rgba(225,29,72,0.20),transparent_55%),linear-gradient(180deg,rgba(24,24,27,0.9),rgba(9,9,11,1))]">
-        <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-accent/40 to-transparent" />
-        <PlayerSilhouette className="text-zinc-700" sizeClass="h-[82px] w-[82px]" />
-      </div>
-
-      <div className="flex flex-col items-center gap-1 text-center">
-        <span className="line-clamp-2 max-w-full font-condensed text-xs font-black uppercase leading-tight tracking-wide text-zinc-100 transition-colors group-hover:text-accent">
-          {player.gamertag}
+      <header className="sl-head">
+        <span className="sl-title">
+          <span className="accent">▌</span>
+          {titleWord}
+          <span className="sep">·</span>
+          <span className="metric">{titleMetric}</span>
         </span>
-        {pos !== null && (
-          <PositionPill
-            label={pos}
-            position={player.position}
-            isGoalie={player.position === 'goalie'}
-          />
+        <div className="sl-right">
+          <div className="sl-group" role="tablist" aria-label="Leaders view">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={view === 'skaters'}
+              onClick={() => {
+                setView('skaters')
+              }}
+            >
+              Skaters
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={view === 'goalies'}
+              disabled={!hasGoalies}
+              onClick={() => {
+                if (hasGoalies) setView('goalies')
+              }}
+            >
+              Goalies
+            </button>
+          </div>
+        </div>
+      </header>
+
+      <div className="sl-body">
+        {view === 'skaters' ? (
+          <>
+            <LeaderColumn
+              eyebrow="Points Leader"
+              listLabel="Points"
+              listPip="PTS"
+              spotlightStats={(r) => [
+                { label: 'PTS', value: r.points, lead: true },
+                { label: 'G', value: r.goals },
+                { label: 'A', value: r.assists },
+              ]}
+              rows={pointsLeaders.slice(0, ROWS_VISIBLE)}
+              valueOf={(r) => r.points}
+            />
+            <LeaderColumn
+              eyebrow="Goals Leader"
+              listLabel="Goals"
+              listPip="G"
+              spotlightStats={(r) => [
+                { label: 'G', value: r.goals, lead: true },
+                { label: 'A', value: r.assists },
+                { label: 'PTS', value: r.points },
+              ]}
+              rows={goalsLeaders.slice(0, ROWS_VISIBLE)}
+              valueOf={(r) => r.goals}
+            />
+          </>
+        ) : (
+          <>
+            <LeaderColumn
+              eyebrow="Wins Leader"
+              listLabel="Wins"
+              listPip="W"
+              spotlightStats={(r) => [
+                { label: 'W', value: r.goalieWins ?? 0, lead: true },
+                { label: 'GP', value: r.goalieGp },
+                { label: 'SV%', value: formatSavePct(r.savePct) },
+              ]}
+              rows={winsBoard}
+              valueOf={(r) => r.goalieWins ?? 0}
+            />
+            <LeaderColumn
+              eyebrow="Save % Leader"
+              listLabel="Save %"
+              listPip="SV%"
+              spotlightStats={(r) => [
+                { label: 'SV%', value: formatSavePct(r.savePct), lead: true },
+                { label: 'W', value: r.goalieWins ?? 0 },
+                { label: 'GP', value: r.goalieGp },
+              ]}
+              rows={savePctBoard}
+              valueOf={(r) => formatSavePct(r.savePct)}
+            />
+          </>
         )}
       </div>
 
-      <div className="mt-1 flex flex-col items-center gap-0.5">
-        <span className="font-condensed text-[10px] font-semibold uppercase tracking-[0.22em] text-accent/70">
-          {statLabel}
+      <footer className="sl-foot">
+        <span className="left">
+          <span className="dot-live" />
+          {teamGp != null ? (
+            <>
+              <b>{String(teamGp)}</b> GP ·{' '}
+            </>
+          ) : null}
+          {source ? <>{source} · </> : null}
+          <b>{modeLabel}</b>
         </span>
-        <span className="font-condensed text-5xl font-black leading-none tabular-nums text-zinc-50 drop-shadow-[0_0_14px_rgba(225,29,72,0.18)]">
-          {player[statKey].toString()}
-        </span>
-      </div>
-    </Link>
+        <Link href={ctaHref}>View all →</Link>
+      </footer>
+    </section>
   )
 }
 
-function LeaderRow({
-  rank,
-  player,
-  statKey,
-  isFirst,
+// ─── Column ─────────────────────────────────────────────────────────────────
+
+interface SpotlightStat {
+  label: string
+  value: number | string
+  lead?: boolean
+}
+
+function LeaderColumn({
+  eyebrow,
+  listLabel,
+  listPip,
+  spotlightStats,
+  rows,
+  valueOf,
 }: {
-  rank: number
-  player: RosterRow
-  statKey: 'points' | 'goals'
-  isFirst: boolean
+  eyebrow: string
+  listLabel: string
+  listPip: string
+  spotlightStats: (r: ScoringLeaderRow) => SpotlightStat[]
+  rows: ScoringLeaderRow[]
+  valueOf: (r: ScoringLeaderRow) => number | string
 }) {
+  // Local hover state — each column tracks its own focused row so hovering
+  // one column's list doesn't change the other column's spotlight.
+  const [hoveredIndex, setHoveredIndex] = useState<number | null>(null)
+
+  const leader = rows[0]
+  const focusedIndex = hoveredIndex ?? 0
+  const focused = rows[focusedIndex] ?? leader
+
+  // Eyebrow swaps to show rank when previewing a non-leader; default to the
+  // canonical "{category} Leader" copy when no row is hovered.
+  const focusedEyebrow =
+    hoveredIndex !== null && hoveredIndex > 0
+      ? `Rank #${String(hoveredIndex + 1)} · ${listLabel}`
+      : eyebrow
+
   return (
-    <li>
-      <Link
-        href={`/roster/${player.playerId.toString()}`}
-        className={[
-          'flex items-center gap-2 border px-2 py-1.5 transition-colors',
-          isFirst
-            ? 'border-accent/55 bg-accent/10 shadow-[inset_2px_0_0_var(--color-accent)] hover:border-accent/70'
-            : 'border-zinc-800/70 bg-zinc-900/40 hover:border-zinc-700 hover:bg-zinc-800/60',
-        ].join(' ')}
-        aria-label={`Rank ${rank.toString()}, ${player.gamertag}, ${player[statKey].toString()} ${statKey}`}
+    <div className="sl-col">
+      {focused ? (
+        <Link
+          href={`/roster/${String(focused.playerId)}`}
+          className="sl-spot"
+          aria-live="polite"
+        >
+          <span className="sl-spot-eyebrow">{focusedEyebrow}</span>
+          <div className="sl-spot-frame">
+            <SilhouetteIcon />
+          </div>
+          <div className="sl-spot-name">{focused.gamertag}</div>
+          <div className="sl-spot-meta">
+            <span
+              className="pos"
+              style={
+                positionVar(focused) !== undefined
+                  ? ({ ['--pos' as string]: positionVar(focused) } as React.CSSProperties)
+                  : undefined
+              }
+            >
+              {positionLabel(focused)}
+            </span>
+            {focused.jerseyNumber != null ? <span>#{String(focused.jerseyNumber)}</span> : null}
+          </div>
+          <div className="sl-spot-stats">
+            {spotlightStats(focused).map((s) => (
+              <div
+                key={s.label}
+                className={s.lead === true ? 'sl-spot-stat lead' : 'sl-spot-stat'}
+              >
+                <span className="l">{s.label}</span>
+                <span className="v">{String(s.value)}</span>
+              </div>
+            ))}
+          </div>
+        </Link>
+      ) : (
+        <div className="sl-spot">
+          <span className="sl-spot-eyebrow">{eyebrow}</span>
+          <div className="sl-spot-frame">
+            <SilhouetteIcon />
+          </div>
+          <div className="sl-spot-name">—</div>
+        </div>
+      )}
+
+      <div
+        className="sl-list"
+        onMouseLeave={() => {
+          setHoveredIndex(null)
+        }}
       >
-        <span
-          className={`w-5 shrink-0 font-condensed text-xs font-bold tabular-nums ${isFirst ? 'text-accent' : 'text-zinc-500'}`}
-        >
-          {rank.toString()}
+        <span className="sub">
+          {listLabel} <span className="pip">{listPip}</span>
         </span>
-        <span
-          className={`min-w-0 flex-1 truncate font-condensed text-xs font-semibold ${isFirst ? 'text-zinc-100' : 'text-zinc-200'}`}
-        >
-          {player.gamertag}
-        </span>
-        <span
-          className={`shrink-0 font-condensed text-xs font-bold tabular-nums ${isFirst ? 'text-zinc-100' : 'text-zinc-500'}`}
-        >
-          {player[statKey].toString()}
-        </span>
-      </Link>
-    </li>
+        {rows.length === 0 ? (
+          <p className="sl-list-empty">No qualifying players yet.</p>
+        ) : (
+          rows.map((r, i) => (
+            <Link
+              key={r.playerId}
+              href={`/roster/${String(r.playerId)}`}
+              className={i === focusedIndex ? 'sl-row selected' : 'sl-row'}
+              onMouseEnter={() => {
+                setHoveredIndex(i)
+              }}
+              onFocus={() => {
+                setHoveredIndex(i)
+              }}
+              onBlur={() => {
+                setHoveredIndex(null)
+              }}
+            >
+              <span className="sl-rank">{String(i + 1)}</span>
+              <span className="sl-name-row">
+                <span className="sl-dot">
+                  <SilhouetteIcon />
+                </span>
+                <span className="sl-name">{r.gamertag}</span>
+                <span
+                  className="sl-pos-tag"
+                  style={
+                    positionVar(r) !== undefined
+                      ? ({ ['--pos' as string]: positionVar(r) } as React.CSSProperties)
+                      : undefined
+                  }
+                >
+                  {positionLabel(r)}
+                </span>
+              </span>
+              <span className="sl-val">{String(valueOf(r))}</span>
+            </Link>
+          ))
+        )}
+      </div>
+    </div>
   )
+}
+
+// ─── Helpers ────────────────────────────────────────────────────────────────
+
+function SilhouetteIcon() {
+  return (
+    <svg viewBox="0 0 100 100" fill="currentColor" aria-hidden>
+      <circle cx="50" cy="32" r="14" />
+      <path d="M22 96 C22 72, 32 60, 50 60 C68 60, 78 72, 78 96 Z" />
+    </svg>
+  )
+}
+
+function positionLabel(r: ScoringLeaderRow): string {
+  const raw = r.favoritePosition ?? r.position
+  if (raw === null) return '—'
+  return formatPosition(raw)
+}
+
+/**
+ * Map a position string to its `--pos-*` token from `globals.css`. Returned as
+ * a CSS-variable reference so the position pill picks up its color via the
+ * shared `--pos` custom property pattern.
+ */
+function positionVar(r: ScoringLeaderRow): string | undefined {
+  const raw = r.favoritePosition ?? r.position
+  switch (raw) {
+    case 'center':
+      return 'var(--pos-c)'
+    case 'leftWing':
+      return 'var(--pos-lw)'
+    case 'rightWing':
+      return 'var(--pos-rw)'
+    case 'leftDefenseMen':
+      return 'var(--pos-ld)'
+    case 'rightDefenseMen':
+      return 'var(--pos-rd)'
+    case 'defenseMen':
+      return 'var(--pos-d)'
+    case 'goalie':
+      return 'var(--pos-g)'
+    default:
+      return undefined
+  }
+}
+
+function formatSavePct(raw: string | null): string {
+  if (raw === null) return '—'
+  const n = parseFloat(raw)
+  if (!Number.isFinite(n)) return '—'
+  return (n / 100).toFixed(3).slice(1) // ".762"
 }

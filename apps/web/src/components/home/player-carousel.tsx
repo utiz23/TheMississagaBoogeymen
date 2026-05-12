@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { PlayerCard } from './player-card'
 import type { RosterRow } from './player-card'
+import './player-carousel.css'
 
 interface PlayerCarouselProps {
   players: RosterRow[]
@@ -61,12 +62,19 @@ export function PlayerCarousel({ players }: PlayerCarouselProps) {
     >
       {/* ── Desktop: stacked depth carousel ─────────────────────────────── */}
       <div className="hidden sm:block">
-        {/* Stage — fixed height, overflow hidden to clip side cards */}
         <div
-          className="relative h-[400px] overflow-hidden"
+          className="hpcr-stage"
           onTouchStart={onTouchStart}
           onTouchEnd={onTouchEnd}
         >
+          {/* LIVE indicator — top-left of stage. The label updates with the
+              active player so the chrome reads as a broadcast lower-third. */}
+          <div className="hpcr-now-tag">
+            <span className="live">Live</span>
+            <span className="type">
+              {players[activeIndex]?.gamertag ?? 'Player Spotlight'}
+            </span>
+          </div>
           {/* Side vignette masks — create the "cards fade into darkness" effect */}
           <div
             className="pointer-events-none absolute inset-y-0 left-0 z-20 w-36"
@@ -97,10 +105,11 @@ export function PlayerCarousel({ players }: PlayerCarouselProps) {
                 style={{
                   top: '50%',
                   left: '50%',
-                  transform: `translateX(calc(-50% + ${cfg.x.toString()}px)) translateY(calc(-50% + ${cfg.y.toString()}px)) scale(${cfg.scale.toString()})`,
+                  transform: `translateX(calc(-50% + ${cfg.x.toString()}px)) translateY(-50%) rotate(${cfg.rotate.toString()}deg) scale(${cfg.scale.toString()})`,
                   opacity: cfg.opacity,
                   zIndex: cfg.zIndex,
-                  transition: 'transform 350ms ease-in-out, opacity 350ms ease-in-out',
+                  transition:
+                    'transform 600ms cubic-bezier(0.22, 0.8, 0.2, 1), opacity 400ms ease',
                   cursor: !isActive && visible ? 'pointer' : 'default',
                   // Off-stage cards must not intercept clicks on visible cards below
                   pointerEvents: visible ? 'auto' : 'none',
@@ -123,10 +132,18 @@ export function PlayerCarousel({ players }: PlayerCarouselProps) {
           })}
         </div>
 
-        {/* Controls — thin-bar indicators + player label + arrows */}
-        <div className="mt-4 flex flex-col items-center gap-2">
-          {/* Thin-bar indicators */}
-          <div className="flex items-center gap-1.5" role="tablist">
+        {/* Controls — arrow · progress bars · arrow (bundle pattern) */}
+        <div className="hpcr-controls">
+          <button
+            type="button"
+            onClick={prev}
+            aria-label="Previous player"
+            className="hpcr-arrow"
+          >
+            <ChevronLeft />
+          </button>
+
+          <div className="hpcr-progress" role="tablist">
             {players.map((p, i) => (
               <button
                 key={p.playerId}
@@ -137,40 +154,29 @@ export function PlayerCarousel({ players }: PlayerCarouselProps) {
                 onClick={() => {
                   setActiveIndex(i)
                 }}
-                className={[
-                  'rounded-full transition-all duration-300',
-                  i === activeIndex
-                    ? 'h-0.5 w-6 bg-accent'
-                    : 'h-0.5 w-3 bg-zinc-700 hover:bg-zinc-500',
-                ].join(' ')}
+                className={`seg${i === activeIndex ? ' active' : i < activeIndex ? ' passed' : ''}`}
               />
             ))}
           </div>
 
-          {/* Player label + flanking arrows */}
-          <div className="flex items-center gap-4">
-            <button
-              type="button"
-              onClick={prev}
-              aria-label="Previous player"
-              className="flex h-8 w-8 items-center justify-center border border-zinc-800 text-zinc-600 transition-colors hover:border-zinc-500 hover:text-zinc-200"
-            >
-              <ChevronLeft />
-            </button>
+          <button
+            type="button"
+            onClick={next}
+            aria-label="Next player"
+            className="hpcr-arrow"
+          >
+            <ChevronRight />
+          </button>
+        </div>
 
-            <span className="min-w-[140px] text-center font-condensed text-sm font-black uppercase tracking-wider text-zinc-300">
-              {players[activeIndex]?.gamertag ?? ''}
-            </span>
-
-            <button
-              type="button"
-              onClick={next}
-              aria-label="Next player"
-              className="flex h-8 w-8 items-center justify-center border border-zinc-800 text-zinc-600 transition-colors hover:border-zinc-500 hover:text-zinc-200"
-            >
-              <ChevronRight />
-            </button>
-          </div>
+        {/* Index counter + keybind hint */}
+        <div className="hpcr-meta">
+          <span className="hpcr-index">
+            <span className="now">{(activeIndex + 1).toString().padStart(2, '0')}</span>
+            <span className="sep">/</span>
+            <span>{total.toString().padStart(2, '0')}</span>
+          </span>
+          <span className="hpcr-index dim">⇠ ⇢ Arrow Keys · Click Peeks</span>
         </div>
       </div>
 
@@ -239,32 +245,35 @@ export function PlayerCarousel({ players }: PlayerCarouselProps) {
 
 interface SlotConfig {
   x: number
-  y: number
+  rotate: number
   scale: number
   opacity: number
   zIndex: number
 }
 
 /**
- * V-formation slot values. All 5 staged positions use full opacity —
- * scale and Y-offset alone establish the depth hierarchy.
- * rel 0 = center hero; ±1 = inner flanks; ±2 = outer flanks.
+ * Fan-layout slot values, ported from the bundle's
+ * `components-card-carousel-v3.html`. Rotation + horizontal offset
+ * + scale + opacity falloff create the deck-shuffle look. No vertical
+ * offset — all cards are vertically centered.
+ *   rel 0  → center hero (full scale, no rotate)
+ *   rel ±1 → inner peeks  (scale 0.86, ±8°,  ±250px, opacity 0.55)
+ *   rel ±2 → outer peeks  (scale 0.72, ±14°, ±440px, opacity 0.22)
  */
 const SLOT_CONFIG: Record<number, SlotConfig> = {
-  [-2]: { x: -280, y: 56, scale: 0.65, opacity: 1.0, zIndex: 2 },
-  [-1]: { x: -148, y: 26, scale: 0.82, opacity: 1.0, zIndex: 5 },
-  [0]: { x: 0, y: 0, scale: 1.0, opacity: 1.0, zIndex: 10 },
-  [1]: { x: 148, y: 26, scale: 0.82, opacity: 1.0, zIndex: 5 },
-  [2]: { x: 280, y: 56, scale: 0.65, opacity: 1.0, zIndex: 2 },
+  [-2]: { x: -440, rotate: -14, scale: 0.72, opacity: 0.22, zIndex: 10 },
+  [-1]: { x: -250, rotate: -8, scale: 0.86, opacity: 0.55, zIndex: 20 },
+  [0]: { x: 0, rotate: 0, scale: 1.0, opacity: 1.0, zIndex: 30 },
+  [1]: { x: 250, rotate: 8, scale: 0.86, opacity: 0.55, zIndex: 20 },
+  [2]: { x: 440, rotate: 14, scale: 0.72, opacity: 0.22, zIndex: 10 },
 }
 
 /**
- * Off-stage holding positions for cards outside the visible ±2 range.
- * Parked at the nearest outer slot position with opacity 0 so that
- * entering/leaving transitions fade in/out at the outer edge.
+ * Off-stage holding positions — parked further out at scale 0.6 with full
+ * tilt and opacity 0 so cards fade out at the outer edge as they exit.
  */
-const HIDDEN_LEFT: SlotConfig = { x: -280, y: 56, scale: 0.65, opacity: 0, zIndex: 0 }
-const HIDDEN_RIGHT: SlotConfig = { x: 280, y: 56, scale: 0.65, opacity: 0, zIndex: 0 }
+const HIDDEN_LEFT: SlotConfig = { x: -620, rotate: -18, scale: 0.6, opacity: 0, zIndex: 0 }
+const HIDDEN_RIGHT: SlotConfig = { x: 620, rotate: 18, scale: 0.6, opacity: 0, zIndex: 0 }
 
 /**
  * Compute the relative position of a card from the active index.
@@ -282,11 +291,11 @@ function getRelPos(index: number, activeIndex: number, total: number): number {
 
 function ChevronLeft() {
   return (
-    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden>
+    <svg viewBox="0 0 24 24" fill="none" aria-hidden>
       <path
-        d="M9 11L5 7l4-4"
+        d="M15 6l-6 6 6 6"
         stroke="currentColor"
-        strokeWidth="1.75"
+        strokeWidth="2.4"
         strokeLinecap="round"
         strokeLinejoin="round"
       />
@@ -296,11 +305,11 @@ function ChevronLeft() {
 
 function ChevronRight() {
   return (
-    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden>
+    <svg viewBox="0 0 24 24" fill="none" aria-hidden>
       <path
-        d="M5 11l4-4-4-4"
+        d="M9 6l6 6-6 6"
         stroke="currentColor"
-        strokeWidth="1.75"
+        strokeWidth="2.4"
         strokeLinecap="round"
         strokeLinejoin="round"
       />
