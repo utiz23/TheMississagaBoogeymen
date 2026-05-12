@@ -78,6 +78,21 @@ export function TitleSelector({
  * `'all'` corresponds to `mode=null` in the URL (the "no mode filter"
  * default). The other values map directly to the URL `mode` param.
  */
+/**
+ * Active-state styles per mode — colors mirror `preview/components-pills.html`
+ * in the design bundle. 6s = violet, 3s = sky, All = transparent body with
+ * BGM-accent border. Inactive buttons share a neutral zinc style so the active
+ * mode's color reads as the dominant signal.
+ */
+const MODE_ACTIVE_CLASS: Record<'all' | GameMode, string> = {
+  all: 'border-[rgba(232,65,49,0.85)] bg-transparent text-[#e84131]',
+  '6s': 'border-[rgba(139,92,246,0.7)] bg-[rgba(124,58,237,0.22)] text-[#c4b5fd]',
+  '3s': 'border-[rgba(56,189,248,0.7)] bg-[rgba(2,132,199,0.22)] text-[#7dd3fc]',
+}
+
+const MODE_INACTIVE_CLASS =
+  'border-zinc-800 bg-surface text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200'
+
 export function ModeFilter({
   pathname,
   titleSlug,
@@ -90,7 +105,7 @@ export function ModeFilter({
   modes: ('all' | GameMode)[]
 }) {
   return (
-    <div className="inline-flex items-center divide-x divide-zinc-800 overflow-hidden border border-zinc-800">
+    <div className="inline-flex items-center gap-1.5">
       {modes.map((mode) => {
         const value: ModeValue = mode === 'all' ? null : mode
         const isSelected = value === activeMode
@@ -99,10 +114,8 @@ export function ModeFilter({
             key={mode}
             href={buildTitleHref(pathname, { title: titleSlug, mode: value })}
             className={[
-              'px-3 py-1.5 font-condensed text-xs font-bold uppercase tracking-widest transition-colors',
-              isSelected
-                ? 'bg-accent text-white'
-                : 'bg-surface text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200',
+              'rounded-full border px-3 py-1 font-condensed text-[11px] font-bold uppercase tracking-[0.18em] transition-colors',
+              isSelected ? MODE_ACTIVE_CLASS[mode] : MODE_INACTIVE_CLASS,
             ].join(' ')}
           >
             {mode === 'all' ? 'All' : mode}

@@ -62,6 +62,19 @@ export function formatPct(val: string | null): string {
 }
 
 /**
+ * Win % as a display string (e.g. "78.3%") given a wins count and total games
+ * played. Used for record summaries on `/stats`, chemistry tables, and
+ * anywhere we want a one-decimal percentage of the team's overall record.
+ *
+ * Returns "—" when `gp <= 0` so the empty case matches the rest of the
+ * formatter family.
+ */
+export function formatWinPct(wins: number, gp: number): string {
+  if (gp <= 0) return '—'
+  return `${((wins / gp) * 100).toFixed(1)}%`
+}
+
+/**
  * Derive the opponent's faceoff percentage from ours (they sum to 100).
  * Returns null when input is null.
  */
@@ -91,6 +104,8 @@ export function formatPositionFull(pos: string): string {
     goalie: 'Goalie',
     center: 'Center',
     defenseMen: 'Defense',
+    leftDefenseMen: 'Left Defense',
+    rightDefenseMen: 'Right Defense',
     leftWing: 'Left Wing',
     rightWing: 'Right Wing',
   }

@@ -1,0 +1,281 @@
+/* ============================================================
+   Archetype pill — three sizes (feature, flagship, compact).
+   Mirrors design bundle preview/components-archetype-pills.html.
+   The --c / --c-rgb custom properties are set per archetype on
+   the outer element via the style attribute.
+   ============================================================ */
+
+.arc {
+  position: relative;
+  display: inline-flex;
+  align-items: stretch;
+  height: 38px;
+  font-family: var(--font-condensed, 'Barlow Condensed', system-ui, sans-serif);
+  letter-spacing: 0.20em;
+  text-transform: uppercase;
+  color: #ebebeb;
+  border: 1px solid rgba(var(--c-rgb), 0.55);
+  background:
+    linear-gradient(180deg, rgba(var(--c-rgb), 0.18), rgba(var(--c-rgb), 0.04) 60%, rgba(0, 0, 0, 0.6)),
+    rgba(0, 0, 0, 0.55);
+  box-shadow:
+    inset 0 0 0 1px rgba(0, 0, 0, 0.4),
+    0 0 0 0 rgba(var(--c-rgb), 0);
+  overflow: hidden;
+  transition: box-shadow 180ms, transform 180ms, border-color 180ms;
+  cursor: default;
+  /* angled left-cut */
+  clip-path: polygon(10px 0, 100% 0, 100% 100%, 0 100%, 0 10px);
+}
+.arc::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.04) 0 1px, transparent 1px 8px);
+  pointer-events: none;
+  opacity: 0.6;
+}
+.arc::after {
+  /* sweep highlight */
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -40%;
+  width: 50%;
+  height: 100%;
+  background:
+    linear-gradient(110deg, transparent 30%, rgba(255, 255, 255, 0.10) 50%, transparent 70%);
+  transform: skewX(-18deg);
+  pointer-events: none;
+  transition: left 600ms ease;
+}
+.arc:hover::after {
+  left: 120%;
+}
+.arc:hover {
+  border-color: rgba(var(--c-rgb), 0.85);
+  box-shadow:
+    inset 0 0 0 1px rgba(0, 0, 0, 0.4),
+    0 0 22px rgba(var(--c-rgb), 0.35);
+  transform: translateY(-1px);
+}
+
+.arc .ico {
+  width: 38px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(180deg, rgba(var(--c-rgb), 0.42), rgba(var(--c-rgb), 0.18));
+  border-right: 1px solid rgba(var(--c-rgb), 0.55);
+  position: relative;
+  flex-shrink: 0;
+}
+.arc .ico::after {
+  content: '';
+  position: absolute;
+  top: 6px;
+  bottom: 6px;
+  right: -1px;
+  width: 1px;
+  background: linear-gradient(180deg, transparent, rgba(255, 255, 255, 0.25), transparent);
+}
+.arc .ico svg {
+  width: 18px;
+  height: 18px;
+  color: var(--c);
+  filter: drop-shadow(0 0 6px rgba(var(--c-rgb), 0.6));
+}
+
+.arc .body {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 0 14px 0 12px;
+  gap: 1px;
+  min-width: 0;
+}
+.arc .name {
+  font-size: 11.5px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+.arc .name b {
+  color: var(--c);
+  font-weight: 900;
+}
+.arc .role {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 8.5px;
+  font-weight: 800;
+  color: rgba(var(--c-rgb), 0.85);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.arc .stamp {
+  align-self: stretch;
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 9px;
+  font-weight: 800;
+  color: rgba(var(--c-rgb), 0.9);
+  background: rgba(0, 0, 0, 0.45);
+  border-left: 1px solid rgba(var(--c-rgb), 0.55);
+  padding: 0 10px;
+  display: flex;
+  align-items: center;
+  letter-spacing: 0.10em;
+}
+
+/* ============================================================
+   COMPACT — 22px, drop-in for table rows + leader tiles
+   ============================================================ */
+.arc-mini {
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 9px 0 5px;
+  gap: 7px;
+  border: 1px solid rgba(var(--c-rgb), 0.45);
+  background: rgba(var(--c-rgb), 0.10);
+  color: #ebebeb;
+  font-family: var(--font-condensed, 'Barlow Condensed', system-ui, sans-serif);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.20em;
+  text-transform: uppercase;
+  border-radius: 2px;
+  position: relative;
+  white-space: nowrap;
+}
+.arc-mini .ico {
+  width: 18px;
+  height: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-right: 1px solid rgba(var(--c-rgb), 0.40);
+  margin-right: 1px;
+  padding-right: 5px;
+}
+.arc-mini .ico svg {
+  width: 11px;
+  height: 11px;
+  color: var(--c);
+}
+.arc-mini b {
+  color: rgb(var(--c-rgb));
+  font-weight: 800;
+}
+
+/* ============================================================
+   FEATURE — 84px showcase tile, profile hero accent
+   ============================================================ */
+.arc-feature {
+  position: relative;
+  display: grid;
+  grid-template-columns: 84px 1fr auto;
+  align-items: stretch;
+  border: 1px solid rgba(var(--c-rgb), 0.6);
+  background:
+    radial-gradient(circle at 0% 50%, rgba(var(--c-rgb), 0.30), transparent 55%),
+    linear-gradient(180deg, rgba(20, 18, 19, 0.95), rgba(10, 9, 9, 0.99));
+  height: 84px;
+  overflow: hidden;
+  clip-path: polygon(20px 0, 100% 0, 100% calc(100% - 20px), calc(100% - 20px) 100%, 0 100%, 0 20px);
+  font-family: var(--font-condensed, 'Barlow Condensed', system-ui, sans-serif);
+}
+.arc-feature::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    repeating-linear-gradient(135deg, rgba(var(--c-rgb), 0.05) 0 1px, transparent 1px 12px);
+  pointer-events: none;
+}
+.arc-feature .icoslot {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background:
+    radial-gradient(circle at 50% 50%, rgba(var(--c-rgb), 0.55), rgba(var(--c-rgb), 0) 70%),
+    linear-gradient(180deg, rgba(var(--c-rgb), 0.18), rgba(0, 0, 0, 0.6));
+  border-right: 1px solid rgba(var(--c-rgb), 0.55);
+}
+.arc-feature .icoslot svg {
+  width: 38px;
+  height: 38px;
+  color: var(--c);
+  filter: drop-shadow(0 0 12px rgba(var(--c-rgb), 0.85));
+}
+.arc-feature .icoslot::after {
+  content: '';
+  position: absolute;
+  left: 8px;
+  top: 8px;
+  right: 8px;
+  bottom: 8px;
+  border: 1px solid rgba(var(--c-rgb), 0.30);
+  pointer-events: none;
+}
+.arc-feature .copy {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 0 22px;
+  gap: 6px;
+  min-width: 0;
+}
+.arc-feature .copy .name {
+  font-size: 22px;
+  font-weight: 900;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: #ebebeb;
+  line-height: 1;
+}
+.arc-feature .copy .name b {
+  color: rgb(var(--c-rgb));
+}
+.arc-feature .copy .meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 10px;
+  font-weight: 800;
+  color: #9a9798;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+.arc-feature .copy .meta b {
+  color: rgba(var(--c-rgb), 0.95);
+}
+.arc-feature .copy .meta .div {
+  color: #514e4f;
+}
+.arc-feature .stamp {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 0 22px;
+  gap: 4px;
+  border-left: 1px solid rgba(var(--c-rgb), 0.4);
+  background: rgba(0, 0, 0, 0.4);
+}
+.arc-feature .stamp .id {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 10px;
+  font-weight: 800;
+  color: rgba(var(--c-rgb), 0.95);
+  letter-spacing: 0.10em;
+}
+.arc-feature .stamp .lab {
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: #514e4f;
+}

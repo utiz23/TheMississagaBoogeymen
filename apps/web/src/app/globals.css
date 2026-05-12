@@ -5,19 +5,42 @@
   --font-sans: var(--font-barlow), sans-serif;
   --font-condensed: var(--font-barlow-sc), sans-serif;
 
-  /* Brand colors — Broadcast Strip palette */
-  --color-background: #09090b;
-  --color-surface: #18181b;
-  --color-surface-raised: #1f1f22;
-  --color-border: #27272a;
-  --color-border-subtle: #1f1f22;
-  --color-accent: #e11d48;
+  /* Brand colors — Broadcast Strip palette (Boogeymen design system) */
+  --color-charcoal: #323031; /* OFFICIAL — Boogeymen charcoal */
+  --color-paper: #ebebeb; /* OFFICIAL — Boogeymen light */
+  --color-background: #1a1819; /* page bg, derived from charcoal */
+  --color-surface: #232122; /* default panel surface */
+  --color-surface-raised: #2a2829; /* hover/raised state */
+  --color-border: #3a3839; /* hairline border */
+  --color-border-subtle: #2a2829; /* inner dividers */
+  --color-accent: #e84131; /* OFFICIAL — Boogeymen red (warm) */
+  --color-accent-strong: #c2321f; /* pressed/dark */
 
-  /* Result badge fills */
-  --color-win: #e11d48;
-  --color-loss: #3f3f46;
-  --color-otl: #78350f;
-  --color-dnf: #27272a;
+  /* Result badge fills (aligned to design system) */
+  --color-win: #10b981; /* emerald */
+  --color-loss: #ef6a5e; /* lighter accent — readable on dark */
+  --color-otl: #f59e0b; /* amber */
+  --color-dnf: #9a9798; /* design-bundle DNF text — neutral grey paired with accent-red border */
+
+  /* BGM position palette — see docs/specs/position-colors.md and the
+     `preview/components-pills.html` design bundle. Hoisted to :root so any
+     component can apply per-position color (leaders, profile, depth chart,
+     pair matrix, etc.) without re-declaring the tokens locally. */
+  --pos-c: #c0061c;
+  --pos-lw: #23cf1d;
+  --pos-rw: #2659cf;
+  --pos-ld: #13dfc8;
+  --pos-rd: #ece335;
+  --pos-d: var(--pos-ld); /* Generic D fallback when L/R is unknown */
+  --pos-g: #6f00a5;
+
+  /* Foreground neutral scale (warm, anchored on paper #ebebeb) */
+  --color-fg-1: #ebebeb; /* headlines, scores */
+  --color-fg-2: #d4d2d3; /* secondary — identity */
+  --color-fg-3: #9a9798; /* supporting — win%, abbreviations */
+  --color-fg-4: #6e6b6c; /* labels — uppercase section headers */
+  --color-fg-5: #514e4f; /* metadata — provenance, timestamps */
+  --color-fg-6: #3a3839; /* faint — separator chars */
 }
 
 /* Base */
@@ -29,9 +52,14 @@
 
 html {
   background-color: var(--color-background);
-  color: #fafafa;
+  color: var(--color-fg-1);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  min-height: 100vh;
+  background-color: var(--color-background);
 }
 
 /* Scrollbar — thin and dark */
@@ -68,17 +96,54 @@ html {
   display: none;
 }
 
-/* Shared broadcast-strip surfaces */
+/* Shared broadcast-strip surfaces (warm-charcoal base, Boogeymen red accent) */
 .broadcast-panel {
   border: 1px solid rgba(63, 63, 70, 0.9);
   background:
-    radial-gradient(circle at top, rgba(225, 29, 72, 0.12), transparent 42%),
-    linear-gradient(180deg, rgba(24, 24, 27, 0.98), rgba(10, 10, 10, 0.98));
+    radial-gradient(circle at top, rgba(232, 65, 49, 0.12), transparent 42%),
+    linear-gradient(180deg, rgba(50, 48, 49, 0.96), rgba(26, 24, 25, 0.98));
 }
 
 .broadcast-panel-soft {
   border: 1px solid rgba(63, 63, 70, 0.85);
   background:
-    radial-gradient(circle at top, rgba(225, 29, 72, 0.08), transparent 42%),
-    linear-gradient(180deg, rgba(24, 24, 27, 0.94), rgba(10, 10, 10, 0.98));
+    radial-gradient(circle at top, rgba(232, 65, 49, 0.07), transparent 42%),
+    linear-gradient(180deg, rgba(50, 48, 49, 0.92), rgba(26, 24, 25, 0.98));
+}
+
+.broadcast-panel-strong {
+  border: 1px solid var(--color-border);
+  background:
+    radial-gradient(circle at top, rgba(232, 65, 49, 0.18), transparent 42%),
+    linear-gradient(180deg, rgba(50, 48, 49, 0.96), rgba(26, 24, 25, 0.98));
+}
+
+.ticker-strip {
+  height: 4px;
+  width: 100%;
+  background: linear-gradient(
+    90deg,
+    rgba(120, 30, 22, 1) 0%,
+    rgba(232, 65, 49, 0.95) 50%,
+    rgba(120, 30, 22, 1) 100%
+  );
+}
+
+/* Module frame — matches the visual treatment used by the depth chart's
+   .dc-module wrapper. Sections that should read as "modules" alongside the
+   depth chart on /stats and /roster (skater stats, chemistry tabs, etc.)
+   share this exact border + radial glow + linear gradient + 8px radius so
+   they look like sibling cards. */
+.module-frame {
+  position: relative;
+  border: 1px solid rgba(63, 63, 70, 0.9);
+  border-radius: 8px;
+  background:
+    radial-gradient(circle at top, rgba(232, 65, 49, 0.12), transparent 42%),
+    linear-gradient(180deg, rgba(50, 48, 49, 0.96), rgba(26, 24, 25, 0.98));
+  overflow: hidden;
+}
+
+.ticker-strip-thin {
+  height: 2px;
 }

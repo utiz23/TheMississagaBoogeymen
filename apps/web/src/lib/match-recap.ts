@@ -5,7 +5,11 @@
 // the UI can label and surface them honestly.
 
 import type { Match } from '@eanhl/db'
-import type { getOpponentPlayerMatchStats, getPlayerMatchStats } from '@eanhl/db/queries'
+import type {
+  MatchPeriodSummaryRow,
+  getOpponentPlayerMatchStats,
+  getPlayerMatchStats,
+} from '@eanhl/db/queries'
 
 type PlayerStatBase = Awaited<ReturnType<typeof getPlayerMatchStats>>[number]
 type OpponentPlayerStatBase = Awaited<
@@ -415,25 +419,37 @@ export interface BoxScoreGroup {
   title: string
   rows: BoxScoreRow[]
   placeholder?: boolean
+  /** Small caption under the group, used to disclose OCR overrides etc. */
+  footnote?: string
 }
 
 export function buildBoxScore(
   match: Match,
   bgm: PlayerStat[],
   opponent: OpponentPlayerStat[],
+  periodSummaries: MatchPeriodSummaryRow[] = [],
 ): BoxScoreGroup[] {
   const bgmAgg = aggregatePlayerSide(bgm)
   const oppAgg = aggregateOpponentSide(opponent)
 
+  // OCR-derived shot totals override EA's number when reviewed OCR exists for
+  // this match. EA's Pro Clubs API consistently under-counts shots vs the
+  // in-game Box Score; treating reviewed OCR as canonical fixes the cognitive
+  // dissonance between this widget and the per-period OCR summary below it.
+  const ocrShots = aggregateOcrShots(periodSummaries)
+  const shotsFor = ocrShots.for ?? match.shotsFor
+  const shotsAgainst = ocrShots.against ?? match.shotsAgainst
+  const shotsLabel = ocrShots.for !== null ? 'Shots *' : 'Shots'
+
   const offenseRows: BoxScoreRow[] = [
     row('Goals', match.scoreFor, match.scoreAgainst),
     row('Assists', bgmAgg.assists, oppAgg.assists),
-    row('Shots', match.shotsFor, match.shotsAgainst),
-    pctRow('Shooting %', pct(match.scoreFor, match.shotsFor), pct(match.scoreAgainst, match.shotsAgainst)),
+    row(shotsLabel, shotsFor, shotsAgainst),
+    pctRow('Shooting %', pct(match.scoreFor, shotsFor), pct(match.scoreAgainst, shotsAgainst)),
     pctRow(
       'Shot On Net %',
-      pct(match.shotsFor, bgmAgg.shotAttempts),
-      pct(match.shotsAgainst, oppAgg.shotAttempts),
+      pct(shotsFor, bgmAgg.shotAttempts),
+      pct(shotsAgainst, oppAgg.shotAttempts),
     ),
     row('Deflections', bgmAgg.deflections, oppAgg.deflections),
     powerPlayRow('Power Play', match.ppGoals, match.ppOpportunities, match.ppGoalsAgainst, match.ppOpportunitiesAgainst),
@@ -476,7 +492,15 @@ export function buildBoxScore(
   ].filter(nonEmptyRow)
 
   const groups: BoxScoreGroup[] = []
-  if (offenseRows.length > 0) groups.push({ title: 'Offense', rows: offenseRows })
+  if (offenseRows.length > 0) {
+    const offense: BoxScoreGroup = { title: 'Offense', rows: offenseRows }
+    if (ocrShots.for !== null) {
+      offense.footnote =
+        '* Shots and shooting % are taken from the in-game Box Score (OCR-reviewed). EA reported ' +
+        `${String(match.shotsFor)}–${String(match.shotsAgainst)}.`
+    }
+    groups.push(offense)
+  }
   if (possessionRows.length > 0) groups.push({ title: 'Possession', rows: possessionRows })
   if (defenseRows.length > 0) groups.push({ title: 'Defense', rows: defenseRows })
   if (goalieRows.length > 0) groups.push({ title: 'Goalie', rows: goalieRows })
@@ -486,6 +510,27 @@ export function buildBoxScore(
     placeholder: true,
   })
   return groups
+}
+
+/**
+ * Sum BGM and opponent shot totals across reviewed OCR period summaries.
+ * Returns null on either side when no usable data is found, so the caller
+ * can fall back to EA's headline value.
+ */
+function aggregateOcrShots(rows: MatchPeriodSummaryRow[]): {
+  for: number | null
+  against: number | null
+} {
+  let totalFor: number | null = null
+  let totalAgainst: number | null = null
+  for (const r of rows) {
+    if (r.source !== 'ocr') continue
+    if (r.reviewStatus !== 'reviewed') continue
+    if (r.periodNumber === -1) continue // ignore aggregate "TOT" sentinels if any
+    if (r.shotsFor !== null) totalFor = (totalFor ?? 0) + r.shotsFor
+    if (r.shotsAgainst !== null) totalAgainst = (totalAgainst ?? 0) + r.shotsAgainst
+  }
+  return { for: totalFor, against: totalAgainst }
 }
 
 // ─── Goalie Spotlight ─────────────────────────────────────────────────────────
