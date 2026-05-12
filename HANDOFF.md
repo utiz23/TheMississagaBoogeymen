@@ -2,9 +2,439 @@
 
 ## Current Status
 
-**Phase:** OCR Phases 0-4 complete. Full pipeline shipped: ingest → resolve → review → query → UI render. Phase 5 (rink-coordinate spatial extraction) deferred per plan.
+**Phase:** Pre-game OCR pipeline shipped end-to-end. Loadout-view + lobby parsers rewritten as anchor-based full-frame parsers (replacing the broken per-ROI approach that was producing garbage in the DB). Cross-frame consensus CLI collapses raw observations into one canonical row per (match, team_side, position). End-to-end validated on match 250's 14 pre-game captures: 41 raw observations → 10 canonical skater rows with full attribute / X-Factor / persona-name coverage.
 
-**Last updated:** 2026-05-10
+Marker-extraction calibration research is mid-flight. Deep Research Round 2 returned a useful report; ingested into the dossier. The four recommended internal spikes (regularized TPS, `neighbors=k` localization, piecewise-affine comparison, convex-hull confidence gate) are queued. Event-list extraction research is also paused with Round-2 findings ingested; 17 open empirical questions are tagged for internal spikes when that track is picked back up.
+
+**Last updated:** 2026-05-12
+
+---
+
+## Session Summary — 2026-05-12 (Pre-game OCR end-to-end + Round-2 Deep Research review)
+
+### What shipped — 5 commits forming a complete pre-game ingestion track
+
+| Hash | Title |
+|---|---|
+| `cc101de` | feat(db): add pre-game OCR fields (tier, captain, number, persona, delta) |
+| `f34b400` | feat(ocr): rewrite loadout parser as anchor-based full-frame parse |
+| `3e3f7c4` | feat(worker): wire new loadout parser fields through promoter |
+| `87a863e` | feat(ocr): rewrite lobby parser with per-team state auto-detection |
+| `12694e9` | feat(worker): cross-frame consensus CLI for loadout snapshots |
+
+### Pre-game OCR pipeline state
+
+**Before this session:** The loadout-view ROIs were catastrophically misaligned (gamertag ROI pointed at the LEFT-STRIP avatar instead of top-right; build_class clipped half the title text; each attribute group ROI captured 1 of 5 rows). Live DB had 28 reviewed-but-garbage snapshots like `"5'8\" 1 175Ibs HenryTheBobJr Iil. 6'0* | 160 bs P2lYL35 JoeyFlopfish CHEL"` as a gamertag value. Attribute coverage was 5/23 per snapshot. Build class truncated to `PUCK M` / `EFENSI DE` / `TAGE TH`. Lobby parser's sort-by-(y,x)-then-walk-position approach scrambled rows when adjacent player y-gaps were small.
+
+**After this session:**
+- DB wiped clean of the 28 garbage rows (kept as a reference point in [docs/ocr/pre-game-extraction-research.md](docs/ocr/pre-game-extraction-research.md) but no longer pollutes live data).
+- Both parsers rewritten using full-frame OCR + anchor-based field extraction. Loadout parser: 93.7% V2 match across 5 players × 38 fields. Lobby parser: 100% of expected 18 player slots detected across 3 captures × 2 teams × 6 positions, with per-team state-1/state-2 auto-detection.
+- Schema migration 0032 added `is_captain`, `player_number`, `player_name_persona` on snapshots, `tier` on X-factors, `delta_value` on attributes.
+- Schema migration 0033 added `team_side` ('for' | 'against') for consensus grouping.
+- New CLI: `pnpm --filter worker consolidate-loadouts --match <id>`. Idempotent. Groups by `(team_side, position)`, picks an anchor (loadout-view-sourced preferred), votes per field, marks anchor `reviewed` and leaves the rest at `pending_review` for audit. Validated on match 250: **41 raw → 10 canonical** in 1 run.
+
+### Validated end-to-end against V2 (match 250)
+
+After ingesting all 14 captures + running consensus, the 10 canonical rows cover gamertag, persona name, player_number, position, build_class, height/weight, handedness, level, team_side, X-Factor names + tiers, and 23 attributes with R + Δ for each of the 5 BGM skaters. The only field with <10/10 coverage is `is_captain`: only xZ4RKY (OPP C) detected; MrHomicide's ★ glyph is too small for RapidOCR to tokenize. Captain detection for BGM is the one remaining real gap — needs a small CV-based ★ detector in a follow-up.
+
+Consensus correctly fixed several real OCR errors during validation: build-class case normalization (`PUCKMOVINGDEFENSEMAN` → `Puck Moving Defenseman`), persona-name backfill from lobby state-2 captures (loadouts don't have personas), and 4 OPP players' wrong levels (the loadout's level-extractor picked up the wrong strip row when subject was in AWAY; 3 lobby observations outvoted the buggy loadout reads).
+
+Remaining noise is RapidOCR spacing variants (`TAGETHOMPSON-PWF` vs `Tage Thompson - PowerForward`, `StickMenace` vs `Stick Menace`) — fixable later by a fuzzy-match normalization pass against a known build-class / gamertag vocabulary.
+
+### Marker-extraction calibration: Deep Research Round 2 ingested
+
+Earlier in the session: the marker-extraction Round-2 Deep Research returned a useful report (after one false-start 7-min stub that we discarded). All 15 prompt questions got concrete engagement. Key actionable findings ingested into [docs/ocr/marker-extraction-research.md](docs/ocr/marker-extraction-research.md):
+
+1. **Weighted LOOCV-TRE for smoothing selection** — overweight blue-line/faceoff landmarks rather than plain GCV.
+2. **SciPy's `neighbors=k` is the easiest localization lever** — one-line change to test before niche compact-support kernels.
+3. **Tiered TRE budgets** (concrete targets): <1 ft inside dense hull, <2 ft for in-rink overall, low-confidence outside hull.
+4. **Stratified landmark-ablation curve** — literature is silent on landmark-count vs nonrigid TRE; run our own ablation at 13/17/21/25/29 landmarks.
+5. **Convex-hull confidence gate** — concrete code pattern; outside-hull points emit `extrapolated_fallback` flag instead of silently-extrapolated coordinates.
+6. **Hungarian-assignment cost-function design** — concrete recipe with distance + type-mismatch + side-mismatch + selected-marker bonus + dummy-unmatched penalty.
+
+The 4 prioritized internal spikes (regularized TPS, neighbors=k, PWA comparison, hull gate) remain QUEUED but not started. ~3 hrs of focused spike work would push the calibration story from "TPS 10% worse than linear" to a quantitative best-method conclusion.
+
+### Event-list extraction: Round 2 Deep Research ingested
+
+Also earlier in the session: event-list Round-2 Deep Research findings were reviewed and ingested into [docs/ocr/event-list-extraction-research.md](docs/ocr/event-list-extraction-research.md). Key takeaways:
+
+- **The end-state input is video frames, not screenshots.** Operator records the match playthrough including the scrolling Action Tracker. Tracking-by-detection over short row sequences becomes the right framing for the eventual video pipeline.
+- **CVTS-style character-level alignment + uncertainty fusion** is the right implementation detail of CWMV — not whole-string voting.
+- **PaddleOCR/RapidOCR's default decoders are argmax-only** — no top-K hypothesis lattice exposed. Per-character fusion would require forking the recognizer. For our scale, sequence-level CWMV is enough.
+- **Smart-sampling matters at video rates** — scroll-motion gate (only OCR when text is stable for ≥100 ms) or fixed 5-10 fps; naive 30 fps is 3600 frames per scroll-through.
+
+17 of 23 Round-2 prompt questions remain open as internal-spike candidates (logged in the dossier with concrete next steps).
+
+### Uncommitted research artifacts (next session: please commit these)
+
+A LOT of valuable research work is currently sitting in the working directory but not in git. If the working tree is wiped (worktree cleanup, fresh checkout, etc.) it'll be lost. Recommend a `docs(ocr): commit research dossiers + spike scripts` commit early in the next session covering:
+
+**Dossiers** (in `docs/ocr/`, untracked):
+- `pre-game-extraction-research.md` — full diagnosis of the pre-game OCR problem + internal research that drove this session's commits
+- `marker-extraction-research.md` — full marker calibration research incl. spike findings and Round-2 ingestion
+- `event-list-extraction-research.md` — event-list problem statement + Round-1/Round-2 findings
+- `event-map-extraction-deep-research-prompt.md` — Round-2 marker Deep Research prompt
+- `event-list-extraction-deep-research-prompt.md` — Round-2 event-list Deep Research prompt
+- `event-map-implementation-report.md` — comprehensive review of the shot-map implementation
+- `features-and-metrics.md`, `metrics-feature-brainstorm.md`, `source-screen-inventory.md` — earlier brainstorm/inventory artifacts
+- `deep-research-report_1.md`, `_2.md`, `_3.md` — raw Deep Research outputs (verbatim, citation tokens mangled but content readable)
+
+**Calibration data** (in `tools/game_ocr/game_ocr/configs/rink/`, untracked):
+- `match250_landmarks.json` — 13 user-measured landmarks + 12 axis-only observations for match 250 (the spike data that defeated plain TPS)
+
+**Spike / diagnostic scripts** (in `tools/game_ocr/scripts/`, untracked):
+- `calibration_spike.py` — TPS-vs-linear comparison with LOOCV-TRE
+- `xfactor_tier_spike.py` — HSV classifier (validated 18/18 in this session)
+- `dump_raw_ocr.py` — full-frame + per-ROI OCR dump tool
+- Plus `benchmark_side_by_side.py`, `benchmark_vs_truth.py`, `calibrate_rink.py`, `recalibrate_rink.py`, `verify_rink_calibration.py`, `import_cvat_labels.py`, `test_spatial.py` from prior sessions
+
+Also untracked: `tools/game_ocr/game_ocr/spatial.py` (marker / row-selection detection helpers built in earlier sessions).
+
+### What's deferred / next session pickups
+
+Closest-to-done items (each is a small focused commit):
+
+1. **Build-class normalization** — `TAGETHOMPSON-PWF` → `Tage Thompson - PowerForward` via fuzzy match against a known vocabulary. Cleanest spot is in the consensus engine after voting picks the most-common variant.
+2. **Captain ★ detection** — small CV-based detector for the BGM ★ glyph that RapidOCR misses. Sample a fixed pixel region in the strip avatar area; HSV-match against yellow.
+3. **Web rendering** of the now-canonical loadout data — surface position / build / X-Factors / attributes on the match page. The DB query `getMatchLineups` in `packages/db/src/queries/match-lineups.ts` already returns this shape (per earlier session's work); just plumb through to the UI.
+4. **M. RANTANEN alias fix** (memory-tracked) — `UPDATE player_display_aliases SET player_id=3 WHERE alias='M. RANTANEN'` plus audit of `match_events` rows where actor_player_id=11 with actor_gamertag_snapshot='M. RANTANEN'.
+
+Medium-scope items:
+
+5. **Marker-extraction internal spikes** — the 4 prioritized ones from the Round-2 review. ~3 hrs total. Quantifies the calibration improvement before any production rewrite.
+6. **Event-list internal spikes** — 17 small empirical questions (JW threshold sweep, DBSCAN eps tuning, frame-duplicate hashing, etc.). Pick whichever blocks the next event-list direction.
+
+Bigger items:
+
+7. **Goalie loadout support** — no goalie data in match 250 (CPU). When a match with human goalies is captured, the loadout view shape may differ from skaters (Glove / Blocker / Speed etc.). Schema additions may be needed.
+8. **Penalty-row handling verification** — match 250 has 0 penalties. The Action Tracker parser's penalty path (`<player> <INFRACTION> (SEVERITY)`) is unverified empirically. First penalty-containing match ingested will exercise this.
+
+### Open decisions / blockers
+
+- **Dossiers should be committed** before the next implementation pivot. Recommended commit at the start of the next session.
+- **Captain ★ detection approach** — CV-based or accept the limitation? My recommendation: small CV detector, but it can wait.
+- **Build-class catalogue** — should we maintain a hardcoded mapping (`SNP → Sniper`, `PWF → Power Forward`, etc.) or scrape from EA's data? Hardcoded is faster; scraping is more sustainable. No strong opinion yet.
+
+### Files added this session (committed)
+
+- `packages/db/migrations/0032_pregame_loadout_fields.sql` (cc101de)
+- `packages/db/migrations/0033_loadout_team_side.sql` (12694e9)
+- `tools/game_ocr/scripts/validate_loadout_v2.py` (f34b400) — V2-benchmark regression harness for the loadout parser
+- `apps/worker/src/consolidate-loadouts-cli.ts` (12694e9)
+
+### Files modified this session (committed)
+
+- `packages/db/src/schema/player-loadout.ts` — schema for new columns
+- `tools/game_ocr/game_ocr/configs/roi/player_loadout_view.yaml` — collapsed to single full_frame region
+- `tools/game_ocr/game_ocr/configs/roi/pre_game_lobby_state_1.yaml` — same
+- `tools/game_ocr/game_ocr/configs/roi/pre_game_lobby_state_2.yaml` — same
+- `tools/game_ocr/game_ocr/image.py` — added `raw`/`none` preprocess mode
+- `tools/game_ocr/game_ocr/models.py` — PlayerLoadoutResult shape change, TeamSummary.state
+- `tools/game_ocr/game_ocr/parsers.py` — both loadout + lobby parsers rewritten
+- `tools/game_ocr/tests/test_parsers.py` — updated CPU-detection fixture for new full-frame shape
+- `apps/worker/src/ingest-ocr.ts` — walker emits new loadout field keys
+- `apps/worker/src/ocr-promoters/loadout.ts` — writes new columns
+- `apps/worker/src/ocr-promoters/pre-game-lobby.ts` — writes new columns + parses measurements
+- `apps/worker/package.json` — added `consolidate-loadouts` script
+
+---
+
+## Session Summary — 2026-05-11 (Games-page revamp + shot-map data-correctness chase)
+
+### Match-page revamp shipped
+
+Per the brainstorm at `docs/ocr/metrics-feature-brainstorm.md` and the plan at `docs/superpowers/plans/2026-05-10-ocr-schema-integration.md`:
+
+- **Branding SVG port** — `Rink.svg` + 8 event marker badges (Goal/Shot/Hit/Penalty × Home/Away) ported from `docs/branding/rink-event-map/` into inline JSX in `apps/web/src/components/branding/{rink,event-markers}.tsx`. Source SVGs are now decoupled from the UI; the user can reorganise the branding folder freely.
+- **PeriodSummary** — horizontal cards (4 per period), per-period winner ribbon (BGM red / dim / tied), proportional bars for Goals/Shots/Faceoffs.
+- **EventLog** — vertical-timeline with goal-hex and penalty-diamond markers, BGM/4L sides of the rail, GWG tag on the game-winning goal.
+- **ShotMap** — uses new `RinkSvg`, marker SVG components for goals/shots/hits/penalties, filter chips (now without Faceoffs — they don't render on the map by design), period-filter chips, 2x marker sizes, coverage disclosure under the rink: *"N events positioned on the rink · K captured but not yet placed"*.
+- **ShotMix** — Total row promoted (big numbers, separator), subtitle "Most BGM shots: X · Most OPP shots: Y".
+- **LineupCard** (new) — added between TeamStats and PeriodSummary. Two-column BGM/opponent roster from `player_loadout_snapshots` joined via `getMatchLineups()` (new query in `packages/db/src/queries/match-lineups.ts`). Team side derived from raw_result_json (`our_team` vs `opponent_team`) with a player-resolution fallback. CPU/empty slots fill remaining seats as ghost chips.
+
+### Box-score "Shots" override (OCR wins when present)
+
+`buildBoxScore()` in `apps/web/src/lib/match-recap.ts` now takes `periodSummaries` and overrides EA's `match.shotsFor/_against` with the sum of reviewed OCR per-period shots. The Offense group gains a footnote: *"Shots and shooting % are taken from the in-game Box Score (OCR-reviewed). EA reported X–Y."*. Shooting % and Shot On Net % cascade off the OCR total.
+
+For match 250: EA reported 25–15; OCR Box Score reads 29–16 (after manual fix to 9→6 misreads). Page now shows 29–16 with the footnote.
+
+### Shootout (`SO`) removal
+
+User confirmed EASHL has no shootout. Removed:
+- `SO`/`S0` entries from `_BOX_SCORE_PERIOD_NUMBER` / aliases in `tools/game_ocr/game_ocr/parsers.py`.
+- TOT-sum sanity check narrowed from periods 1..7 → 1..6.
+- DB cleanup: 1 stray `match_period_summaries` row at `period_number=7 (SO)` deleted.
+- Confirmed no `match_events` or `match_shot_type_summaries` rows had period_number > 6.
+
+### Shot-map data correctness — the hard part
+
+**Issue 1:** rink_pixel_box was misaligned. Original (960, 382, 1793, 832) didn't hug the actual rink in the in-game image. Re-tuned to **(947, 342, 1797, 830)** — wider by 17 px, taller by 38 px, centre moved up 21 px. Verified via overlay script (`tools/game_ocr/scripts/verify_rink_calibration.py` — new).
+
+**Issue 2 (the real bug):** the CVAT importer was using `events[0]` to identify which match_events row a labelled yellow marker corresponded to. **`events[0]` is the FIRST event in the parsed list (chronological top of panel) — NOT the highlighted/selected event.** The OCR pipeline had no way to know which row was selected.
+
+**Fix:**
+- `tools/game_ocr/game_ocr/spatial.py` — new `detect_selected_row_index()`. Samples the red-tinted full-row background in the list panel (not just the left-edge team-indicator strip, which appears on every BGM-actor row). Scores each parsed event's y-band by red-pixel count; row with the most red = selected.
+- `tools/game_ocr/game_ocr/parsers.py` — captures each event's actor-row `y_center` (scaled /2 because OCR runs on a 2x upscale via `image.preprocess_image`), calls the detector, attaches `selected_event_index` to `PostGameActionTrackerResult`.
+- `tools/game_ocr/game_ocr/models.py` — adds the field.
+- `tools/game_ocr/scripts/import_cvat_labels.py` — reads `raw_result_json.selected_event_index` and writes the CVAT pixel coords to `events[selected_event_index]` (fallback to 0 for older rows, but those have all been re-OCR'd).
+
+### Re-OCR + clean re-import
+
+- Deleted stale Action Tracker batches 10/11/12/13 (3367 fields + 96 extractions + 4 batches).
+- Re-ingested via `pnpm --filter worker exec node dist/ingest-ocr-cli.js --batch-dir … --screen post_game_action_tracker --match-id 250 --game-title-id 1` — new batches 19/20/21 (32 + 37 + 24 = 93 captures), all with `selected_event_index` populated.
+- Cleared all OCR-derived `match_events.x/y/rink_zone` on match 250 (95 rows nulled).
+- Re-ran `import_cvat_labels.py` against the existing CVAT XML at `/tmp/cvat-export/annotations.xml`. Result: 20 unique `match_events` rows positioned (13 faceoffs + 2 goals + 3 shots + 2 hits). Faceoffs are hidden from the map by design, so **7 events render on the shot map**.
+
+The drop from the prior 38 "positioned" events down to 7 visible is because the prior coordinates were essentially random (events[0] mismapping). Now they're honest: only events that genuinely had their yellow marker labelled, and whose row was actually selected at label time, get coords.
+
+### CVAT pipeline reference
+
+- `tools/game_ocr/scripts/import_cvat_labels.py` — re-runnable importer.
+- `tools/game_ocr/scripts/verify_rink_calibration.py` — overlay debug visualisation (`--crop` flag for tight rink view; `--box "x1,y1,x2,y2"` to test alternate calibrations without writing).
+- CVAT export currently at `/tmp/cvat-export/` (extracted from the user's zip at `task_1_dataset_2026_05_11_02_57_07_cvat for images 1.1.zip`).
+
+### Team-side correctness fixes (one-off)
+
+- 3 BGM events were tagged `team_side='against'` because Action Tracker writes `team_abbreviation=NULL` and the events-screen promoter defaulted to 'against'. Flipped via SQL when actor resolves to a BGM `players.id`.
+- M. Rantanen's 5:07 P2 goal had `actor_player_id=NULL` because OCR captured the jersey name ("M. Rantanen") not the gamertag. Linked manually to `player_id=11` (MrHomiecide).
+
+### What's deferred / next session pickups
+
+- **Re-label CVAT focused on goal/shot/hit-highlighted frames** if denser map data is wanted for match 250.
+- **Sample home/away team colors** from Action Tracker screenshots and apply to event markers per match (instead of fixed red/blue).
+- **Audit Net Chart OCR** — its 23-7 disagrees with Box Score 29-16. One OPP `total_shots` came back NULL.
+- **v2 CVAT labelling** — annotate ALL visible markers per capture (~5x clicking, but positions the ~50 events that don't have any frame selecting them).
+- **Optional** — render the site rink with the in-game rink's aspect (1.74:1) so visual feature-relative positions match the in-game art. Trade-off: less authentic NHL look.
+
+### Files added this session
+
+- `apps/web/src/components/branding/rink.tsx`
+- `apps/web/src/components/branding/event-markers.tsx`
+- `apps/web/src/lib/event-markers.ts`
+- `apps/web/src/components/matches/lineup-card.tsx`
+- `packages/db/src/queries/match-lineups.ts`
+- `tools/game_ocr/scripts/import_cvat_labels.py`
+- `tools/game_ocr/scripts/verify_rink_calibration.py`
+
+### Files modified this session
+
+- `apps/web/src/app/games/[id]/page.tsx` — Lineup card wired in; `buildBoxScore` now receives `periodSummaries`.
+- `apps/web/src/lib/match-recap.ts` — OCR shot override + group footnote.
+- `apps/web/src/components/matches/{period-summary,event-log,shot-map,shot-mix,team-stats}.tsx` — full redesigns.
+- `tools/game_ocr/game_ocr/parsers.py` — Action Tracker parser tracks y_centres + calls selected-row detector + drops SO.
+- `tools/game_ocr/game_ocr/spatial.py` — `detect_selected_row_index()`.
+- `tools/game_ocr/game_ocr/models.py` — `PostGameActionTrackerResult.selected_event_index`.
+- `tools/game_ocr/game_ocr/configs/rink/post_game_action_tracker.json` — rink_pixel_box retune.
+
+---
+
+## Session Summary — 2026-05-10 (OCR benchmark + reconciliation)
+
+### Manual ground truth recorded
+
+`research/OCR-SS/Manual OCR benchmark for verification.md` — operator-recorded canonical reference for match 250 covering every screen (Pre-Game Lobby, Loadouts × 10 players, Box Score 3 tabs, Events, Action Tracker 2nd/3rd/OT, Faceoff Map per period, Net Chart per period, Post-Game Player Summary). 90 Action Tracker events, 7 goals, 24 box-score cells.
+
+### Backfilled 3rd-period + OT Action Tracker
+
+Phase 5 work had only ingested 2nd-period captures. Backfilled the rest:
+
+- Batch 12 (3rd period): 37 captures → 39 cascade events.
+- Batch 13 (OT): 24 captures → 25 cascade events.
+
+Both auto-approved at threshold 0.85. Match 250 now has 102 events total: 33 (2nd) + 43 (3rd) + 26 (OT). Spatial fill ~37% (38 of 102 events have x/y).
+
+### Benchmark tool — `tools/game_ocr/scripts/benchmark_vs_truth.py`
+
+Parses the markdown ground truth, queries the DB via `docker exec psql`, compares cell-by-cell, reports per-screen accuracy + discrepancies. No new Python deps (pure stdlib + subprocess).
+
+Headline accuracy on match 250:
+
+```
+Box Score:        18/24 cells match  (75.0%)
+Events (goals):    6/7  truths match (one missing — see clock-convention finding below)
+Action Tracker:   85/90 events match (94.4% recall)
+```
+
+Discrepancies surfaced (Action Tracker — 5 missing, 17 extra):
+
+- **Truly missing from DB**: 4 faceoffs (04:42 P2, 10:07 P2, 00:52 P3, 14:42 P2 hit) + 1 misclassified shot (13:41 P2 Silky — recorded as goal in DB).
+- **Extras in DB**: OCR digit/letter misreads (`WILOE` vs `WILDE`, `fOEWS` vs `TOEWS`, `SIlKY` vs `SILKY`); a clearly-bogus `71:10` clock; 7 Action Tracker rows that are actually Events-screen-clock duplicates of the same goal under a different clock convention (see below).
+
+### Critical finding: clock convention differs between Events and Action Tracker screens
+
+The Events screen shows **time remaining in the period**. The Action Tracker shows **time elapsed**.
+
+| Goal | Events screen | Action Tracker | Same event? |
+|---|---|---|---|
+| Silky's 1st | 06:19 (remaining) | 13:41 (elapsed) | yes — `20:00 − 06:19 = 13:41` |
+| Rantanen 2nd | 14:53 | 05:07 | yes — `20:00 − 14:53 = 05:07` |
+| Wanhg OT | 17:23 | 02:37 | yes — `20:00 − 17:23 = 02:37` |
+
+Phase 2's cross-capture dedup matches on identical clock strings, so it doesn't collapse Events- and Action-Tracker–sourced rows for the same goal. Result: every goal lives in the DB twice (once per screen). Match 250 has 14 goal rows when there were only 7 actual goals.
+
+**Fix path (open):** in the Events promoter, transform `clock` from "time remaining" to "elapsed" before insertion (`20:00 − clock`). All other promoters already use elapsed time. Single-line transform, but invalidates existing data — would require either a re-ingest of the Events batches OR a one-time SQL UPDATE to flip the existing rows.
+
+### Operational edge case: highlighted-event off-screen during scroll
+
+Ground-truth Action Tracker for 3rd period has a `Hit @ 19:13 -, Whoosah → H. Jenkins` event. While that event was selected in-game, its row had already scrolled off the visible 6-row list, so the captured frame doesn't show it. The next capture (Faceoff @ 19:59) does show the 19:13 row above the new selection.
+
+Implication for video ingestion: when capturing from a video stream rather than discrete screenshots, frames where the highlighted event is off-screen contribute a YELLOW marker to the rink without the parser knowing which event the marker belongs to. We can't naively associate "first event in list" with the yellow marker in those frames.
+
+Mitigations to consider when wiring video ingestion:
+- Detect the off-screen condition: if the visible event list shows N rows but no row appears highlighted, drop the spatial extraction for that frame.
+- Use the prior/next frame's list state to find the "missing" event: if frame K's selection is N+1 (visible) and frame K-1's was N (now off-screen), the K-1 yellow marker belongs to the event that's now at the top of the frame-K list.
+- Or simply: prefer captures where the selected event is clearly visible at the top.
+
+Not blocking for the current screenshot-based workflow but flag this loud when video ingestion is built.
+
+### OCR-quality issues the benchmark surfaced
+
+- **Digit confusion in Box Score** (especially the "9 vs 6" pair): 3rd-period BM shots truth=9 db=6, OT BM shots truth=9 db=6. The "9" glyph in this font reads as "6" intermittently.
+- **Letter confusion in names**: I/l in `SIlKY`, D/O in `WILOE`, T/f in `fOEWS`. Case-fixing in identity resolver helps but doesn't fully fix.
+- **Bogus clock**: `71:10` — period clock can't exceed `19:59`. Sanity-check `MM ≤ 19, SS < 60` post-OCR.
+- **Faceoff Map OT** truth has `None` for faceoffs but DB has values — likely an OCR misread of an empty cell as a number, or possibly the OT screen captures show the FULL-GAME aggregate rather than period-specific faceoffs.
+
+### Reconciliations agreed with operator
+
+Confirmed in this session that for the manual-vs-OCR mismatches I flagged earlier, the OCR was correct three times:
+
+- 10:52 P2 shot L. Hutson — OCR correct, manual missed.
+- 13:41 P2 Silky shot — OCR misclassified as goal; operator initially wrote "Shot" but reviewing again says shot was right (so OCR misclassification stands).
+- Zubov goal at 19:08 — OCR correct; manual transcribed 19:06.
+
+These three corrections were applied to the manual benchmark interpretation; the next regenerable run of the benchmark won't flag them.
+
+### Files added
+
+- `tools/game_ocr/scripts/benchmark_vs_truth.py` — markdown parser + DB diff + per-screen report.
+
+### What's next
+
+- Fix the Events-vs-Action-Tracker clock-convention dedup (the highest-impact OCR fix found this session).
+- Tune Box Score digit OCR for the 9-vs-6 confusion specifically.
+- Ground truth for at least one more match would let us tell signal-from-game from signal-from-OCR.
+
+---
+
+---
+
+## Session Summary — 2026-05-10 (OCR build, Phase 5 — rink coordinates)
+
+Plan: `/home/michal/.claude/plans/abstract-yawning-dream.md`
+
+### Goal
+
+Fill `match_events.x` / `.y` / `.rink_zone` (already in schema, all null after Phase 4) by detecting marker positions on the rink illustration in the right panel of each Action Tracker capture. Coordinate system: hockey-standard (`x ∈ [-100, +100]`, `y ∈ [-42.5, +42.5]`, center ice = (0, 0), BGM attacks +x). Net Chart and Faceoff Map spatial deferred per user decision.
+
+### CV pipeline (Python: `tools/game_ocr/game_ocr/spatial.py`)
+
+New module. Public API: `load_rink_calibration`, `detect_rink_markers`, `find_selected_marker`, `pixel_to_hockey`, `extract_selected_event_position`. Pipeline:
+
+1. Crop to `rink_pixel_box` from the calibration JSON.
+2. HSV color masks via `cv2.inRange`: yellow (selected highlight), red (event marker fill), white (event marker fill).
+3. Morphological cleanup: erode 3×3 → dilate 3×3 to remove noise.
+4. `cv2.findContours` per mask; filter by area `[100, 4500]` and circularity `≥ 0.35`.
+5. For surviving contours: centroid via `cv2.moments`.
+6. Among detected markers, the unique YELLOW marker = the selected event (Action Tracker highlights the selected list-row's corresponding rink marker in yellow).
+7. Convert pixel → hockey-standard via affine transform anchored on the rink bounding box.
+
+Calibration coords for Action Tracker were tuned empirically from the OCR-SS samples:
+`rink_pixel_box: { x1: 960, y1: 382, x2: 1793, y2: 832 }` at 1920×1080. Yellow HSV `H ∈ [15, 30]`, `S ≥ 120`, `V ≥ 150`. Yellow markers are larger than regular event markers (highlight glow), so `area_max=4500` and `circularity_min=0.35` accommodate both clean center-of-rink markers AND markers cut off by the rink boundary.
+
+### Calibration script (`tools/game_ocr/scripts/calibrate_rink.py`)
+
+One-off helper to overlay the calibration's `rink_pixel_box`, reference points, and detected markers on a sample image. Save the result as a PNG for visual inspection. Use when bootstrapping calibration values for a new screen type or when game UI shifts position between updates.
+
+### Smoke test (`tools/game_ocr/tests/test_spatial.py`)
+
+11 unit tests covering:
+- Calibration JSON load + parse.
+- Synthetic rink image with a yellow circle at known pixel positions → assert hockey coordinates round-trip within 0.5 units.
+- Box-corner round-trips (top-left → x=-100, y=+42.5; bottom-right → x=+100, y=-42.5).
+- Multiple-yellow disambiguation (picks the larger marker).
+- No-yellow returns None with a warning.
+- Y-axis inversion (pixel-y above center → positive hockey-y).
+
+All 11 pass plus the existing 7 parser tests = 18 total in 13 seconds.
+
+### Action Tracker parser integration (`tools/game_ocr/game_ocr/parsers.py`)
+
+`parse_post_game_action_tracker` now accepts an optional `image=None` kwarg. When set (production: extractor passes the loaded full-frame BGR np.ndarray), it runs `extract_selected_event_position` and attaches:
+- `selected_event_x: float | None` — hockey-standard
+- `selected_event_y: float | None`
+- `selected_event_rink_zone: 'offensive' | 'defensive' | 'neutral' | None`
+- `spatial_marker_count: int`
+- `spatial_yellow_count: int`
+- `spatial_warnings: list[str]`
+
+The first event in `events` corresponds to the highlighted (yellow) marker because the selected row is rendered topmost in the Action Tracker UI.
+
+`Extractor.extract_path` now passes the full image as a kwarg: `definition.parser(meta, regions, image=image)`. All other parsers gained an unused `**_kwargs` to accept-and-ignore. The Parser type is now `Callable[..., BaseExtractionResult]`.
+
+### Worker promoter update (`apps/worker/src/ocr-promoters/action-tracker.ts`)
+
+After the existing event-loop, when `result.selected_event_x/y` is non-null and the first event has a clock+actor, the promoter UPDATEs the matching `match_events` row's `x`, `y`, `rink_zone` columns in place. The dedup key is the same one the loop uses: `(matchId, periodNumber, eventType, source='ocr', clock, actorGamertagSnapshot)`.
+
+This is **augment-only** — never inserts new rows for spatial data. Cross-screen dedup means a goal seen by both Events screen and Action Tracker collapses to one row in Phase 2; Phase 5 fills its spatial columns. If the same event is captured multiple times from Action Tracker (operator scrolls and re-highlights), every UPDATE points at the same row with the latest coords.
+
+### DB query (`packages/db/src/queries/match-events.ts`)
+
+`getMatchEvents` already projected `x/y/rinkZone` in Phase 4 — no change needed there. New: `getPlayerCareerShots(playerId, limit=500)` returns reviewed positioned events for a player across all matches, joined with `matches` for opponent name + played date. Sorted by match_id descending.
+
+### UI surfaces (`apps/web/src/`)
+
+- **Single-match shot map** (`components/matches/shot-map.tsx`): SVG rink drawn directly in hockey-standard coordinate space (`viewBox="-110 -50 220 100"`), so each marker is plotted at its raw `(x, y)`. Markers color/shape-coded: red circle (goal), gray circle (shot), blue square (hit), yellow diamond (penalty), small white circle (faceoff). Hover tooltip shows actor + clock + period. Hides itself if no events have spatial data.
+- **Career shot map** (`components/roster/career-shot-map.tsx`): same SVG rink, plots all reviewed positioned events for the player. Client-side filter buttons (All / Shots / Goals / Hits / Penalties / Faceoffs) hide event types with zero count. Hides itself if fewer than 5 positioned events exist (sparse-dot rendering would be misleading).
+
+Both wired into their respective pages: ShotMap after EventLog on `/games/[id]`; CareerShotMap after LoadoutHistoryStrip on `/roster/[id]`.
+
+### End-to-end verification
+
+Re-ingested 32 Action Tracker captures from `research/OCR-SS/Action-Tracker/2nd-Period-Events/` against match 250:
+
+```
+Total match_events for match 250:    38 rows
+Rows with spatial data (x non-null): 16 (42% of total)
+  rink_zone='offensive':             10
+  rink_zone='defensive':              2
+  rink_zone='neutral':                4
+```
+
+Spot check: SILKY shot at clock 0:01 → `(24.32, 31.91)` neutral zone ≈ high slot, plausible. M. RANTANEN goal at 5:07 → `(64.28, -8.02)` offensive slot, classic goal-scoring position. E. WANHG faceoff at 2:13 → `(-26.43, -33.81)` defensive zone faceoff dot. All within ±5 ft of the visible on-rink position.
+
+UI smoke check (`pnpm --filter web dev`):
+- `/games/250` renders ShotMap with 12+ markers visible on the SVG rink.
+- `/roster/11` (MrHomiecide, 5 positioned events) renders CareerShotMap.
+- `/roster/2` (silkyjoker85, 1 positioned event) correctly hides CareerShotMap (below the ≥5 threshold).
+
+### Files added
+
+- `tools/game_ocr/game_ocr/spatial.py`
+- `tools/game_ocr/game_ocr/configs/rink/post_game_action_tracker.json`
+- `tools/game_ocr/scripts/calibrate_rink.py`
+- `tools/game_ocr/tests/test_spatial.py`
+- `apps/web/src/components/matches/shot-map.tsx`
+- `apps/web/src/components/roster/career-shot-map.tsx`
+
+### Files modified
+
+- `tools/game_ocr/game_ocr/extractor.py` — Parser type widened to `Callable[..., BaseExtractionResult]`; `extract_path` passes `image=image` kwarg to parsers.
+- `tools/game_ocr/game_ocr/parsers.py` — All 7 module-level parsers gained `**_kwargs` to ignore the new image arg; `parse_post_game_action_tracker` actually uses it for spatial extraction.
+- `tools/game_ocr/game_ocr/models.py` — `PostGameActionTrackerResult` extended with 6 spatial fields (x, y, rink_zone, marker counts, warnings).
+- `apps/worker/src/ocr-promoters/action-tracker.ts` — UPDATE matched event row with x/y/rink_zone after the existing event-loop.
+- `packages/db/src/queries/match-events.ts` — added `getPlayerCareerShots` + `PlayerCareerShotRow` type.
+- `apps/web/src/app/games/[id]/page.tsx` — fetches + renders ShotMap.
+- `apps/web/src/app/roster/[id]/page.tsx` — fetches + renders CareerShotMap.
+
+### What's deferred (Phase 5+ future)
+
+- **Net Chart spatial extraction** (per user decision). Action Tracker covers per-shot data; Net Chart's per-shot map would only validate, not add new info.
+- **Faceoff Map per-dot spatial insertion**. Aggregate counts already in `ocr_extraction_fields` for audit; per-dot rows wait until the UI demands it.
+- **Season-aggregate heatmaps** (team shot heatmap, period-filtered map, faceoff dominance map, hit map). Fall out naturally once enough matches have populated x/y. The per-match and per-player maps shipped in this phase already prove the underlying data is good.
+- **Cross-validation against EA's `skShotsLocationOnIce*` grid** (`apps/worker/src/extract-shot-locations.ts`). Quality-check phase for later.
+- **Other Action Tracker periods** beyond 2nd period (3rd, OT). The same calibration applies; just ingest the additional batches when ready.
+
+---
 
 ---
 
@@ -223,7 +653,7 @@ Smoke check via `next dev`:
 - `apps/web/src/components/matches/shot-mix.tsx`
 - `apps/web/src/components/matches/event-log.tsx`
 - `apps/web/src/components/roster/loadout-history-strip.tsx`
-- `docs/ocr-features-and-metrics.md` — features catalog reconstructed from the 2026-05-10 brainstorm
+- `docs/ocr/features-and-metrics.md` — features catalog reconstructed from the 2026-05-10 brainstorm
 
 ### Files modified
 
@@ -884,7 +1314,7 @@ Current most likely follow-ups:
 | File | Purpose |
 |---|---|
 | `docs/ARCHITECTURE.md` | System architecture + schema reference |
-| `docs/ROADMAP.md` | Product direction + near-term build order |
+| `docs/planning/product-roadmap.md` | Product direction + near-term build order |
 | `research/investigations/` | Bug logs, design decisions, API research |
 | `packages/db/src/schema/` | Drizzle table definitions (canonical) |
 | `packages/db/src/schema/historical-club-member-season-stats.ts` | Club-scoped historical member rows + provenance tables |
