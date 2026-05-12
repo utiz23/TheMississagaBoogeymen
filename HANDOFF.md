@@ -6,6 +6,8 @@
 
 Marker-extraction calibration research is mid-flight. Deep Research Round 2 returned a useful report; ingested into the dossier. The four recommended internal spikes (regularized TPS, `neighbors=k` localization, piecewise-affine comparison, convex-hull confidence gate) are queued. Event-list extraction research is also paused with Round-2 findings ingested; 17 open empirical questions are tagged for internal spikes when that track is picked back up.
 
+**Retrospective for this session:** [docs/retrospectives/2026-05-12-pre-game-ocr-and-research-rounds.md](docs/retrospectives/2026-05-12-pre-game-ocr-and-research-rounds.md) — process/methodology lessons that apply to future OCR or research-heavy tracks; read before the next session.
+
 **Last updated:** 2026-05-12
 
 ---
