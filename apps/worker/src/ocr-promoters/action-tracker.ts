@@ -161,16 +161,27 @@ export async function promoteActionTracker(ctx: PromoterContext): Promise<void> 
       : selectedConfidenceRaw >= 0.5
         ? 'interpolated'
         : 'extrapolated'
-  const firstEvent = events[0]
+  // The yellow-marker pixel position corresponds to the event at
+  // `selected_event_index` in the parsed events list — NOT events[0].
+  // Events are emitted in display order (top → bottom of the visible list
+  // in the UI); the highlighted event is the one with the red row tint,
+  // detected via detect_selected_row_index. When the index is missing we
+  // fall back to events[0] for safety, but this is rare (the detector is
+  // reliable on real captures).
+  const selectedIdx = result.selected_event_index as number | null | undefined
+  const selectedEvent =
+    selectedIdx != null && selectedIdx >= 0 && selectedIdx < events.length
+      ? events[selectedIdx]
+      : events[0]
   if (
     selectedX != null &&
     selectedY != null &&
-    firstEvent &&
-    firstEvent.event_type !== 'unknown'
+    selectedEvent &&
+    selectedEvent.event_type !== 'unknown'
   ) {
-    const clock = stringValue(firstEvent.clock)
-    const actor = stringValue(firstEvent.actor_snapshot)
-    if (clock && actor && firstEvent.period_number >= 1) {
+    const clock = stringValue(selectedEvent.clock)
+    const actor = stringValue(selectedEvent.actor_snapshot)
+    if (clock && actor && selectedEvent.period_number >= 1) {
       await db
         .update(matchEvents)
         .set({
@@ -182,8 +193,8 @@ export async function promoteActionTracker(ctx: PromoterContext): Promise<void> 
         .where(
           and(
             eq(matchEvents.matchId, matchId),
-            eq(matchEvents.periodNumber, firstEvent.period_number),
-            eq(matchEvents.eventType, firstEvent.event_type),
+            eq(matchEvents.periodNumber, selectedEvent.period_number),
+            eq(matchEvents.eventType, selectedEvent.event_type),
             eq(matchEvents.source, 'ocr'),
             drizzleSql`coalesce(${matchEvents.clock}, '') = ${clock}`,
             drizzleSql`coalesce(${matchEvents.actorGamertagSnapshot}, '') = ${actor}`,
