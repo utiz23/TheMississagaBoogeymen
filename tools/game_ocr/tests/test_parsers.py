@@ -29,25 +29,36 @@ class ParserTests(unittest.TestCase):
 
     def test_cpu_detection_in_lobby_parser(self) -> None:
         meta = ExtractionMeta(screen_type="pre_game_lobby_state_1", source_path="fake.png", ocr_backend="fake")
+        # The new parser uses full-frame OCR + position-label anchors at fixed
+        # x ranges (BGM: x_center < 130, Opp: x_center > 1820). Construct synthetic
+        # OCRLines with appropriate bbox coordinates.
+        def line(text: str, x_center: float, y_center: float, conf: float = 0.99) -> OCRLine:
+            return OCRLine(
+                text=text, confidence=conf,
+                x1=x_center - 30, x2=x_center + 30,
+                y1=y_center - 12, y2=y_center + 12,
+            )
         result = parse_pre_game_result(
             meta,
             {
-                "game_mode": [OCRLine(text="EASHL 6v6", confidence=0.98)],
-                "our_team_name": [OCRLine(text="THE BOOGEYMEN", confidence=0.98)],
-                "opponent_team_name": [OCRLine(text="TRIPORT CHUGS", confidence=0.98)],
-                "our_team_panel": [
-                    OCRLine(text="LW", confidence=0.99),
-                    OCRLine(text="silkyjoker851", confidence=0.95),
-                    OCRLine(text="CPU", confidence=0.97),
-                ],
-                "opponent_team_panel": [
-                    OCRLine(text="C", confidence=0.99),
-                    OCRLine(text="cbrslays", confidence=0.95),
+                "full_frame": [
+                    line("EASHL 6v6", 200, 130, 0.98),
+                    line("THE BOOGEYMEN", 200, 211, 0.98),
+                    line("TRIPORT CHUGS", 1600, 211, 0.98),
+                    # BGM panel: LW row with a CPU placeholder + a gamertag.
+                    line("LW", 77, 300),
+                    line("silkyjoker851", 250, 300, 0.95),
+                    line("CPU", 250, 305, 0.97),
+                    # Opp panel: C row with a gamertag.
+                    line("C", 1844, 300),
+                    line("cbrslays", 1700, 300, 0.95),
                 ],
             },
             include_player_name=False,
         )
+        # First BGM slot should be marked CPU; first Opp slot should not.
         self.assertEqual(result.our_team.roster[0].fields["empty_or_cpu"].value, "CPU")
+        self.assertEqual(result.opponent_team.roster[0].fields["empty_or_cpu"].status, FieldStatus.MISSING)
 
 
 class FakeExtractorTests(unittest.TestCase):

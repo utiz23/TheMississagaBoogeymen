@@ -75,21 +75,34 @@ export async function promotePreGameLobby(ctx: PromoterContext): Promise<void> {
       const positionField = fields.position
       const buildField = fields.build
       const levelField = fields.level
+      // State-2 captures expose player_number + persona name. State-1 captures
+      // expose build class. Promoter writes whichever this capture has; later
+      // cross-frame consensus merges per (match, position) across captures.
       const playerNameField = fields.player_name
+      const playerNumberField = fields.player_number
+      const isCaptainField = fields.is_captain
+      const measurementsField = fields.raw_measurements
+
+      const { height, weight } = parseMeasurements(measurementsField)
 
       const { playerId } = await resolveGamertagToPlayer(gamertagSnapshot, gameTitleId, db)
 
       await db.insert(playerLoadoutSnapshots).values({
         playerId,
         gamertagSnapshot,
-        playerNameSnapshot: stringValue(playerNameField),
+        // Lobby state-2 emits short personas ("E. Wanhg"); the full name
+        // ("Evgeni Wanhg") only appears in the loadout view's left strip.
+        playerNameSnapshot: null,
+        playerNamePersona: stringValue(playerNameField),
+        playerNumber: numericValue(playerNumberField),
+        isCaptain: booleanValue(isCaptainField),
         gameTitleId,
         matchId,
         sourceExtractionId: extractionId,
         position: stringValue(positionField),
         buildClass: stringValue(buildField, { preferRaw: true }),
-        heightText: null,
-        weightLbs: null,
+        heightText: height,
+        weightLbs: weight,
         handedness: null,
         playerLevelRaw: stringValue(levelField, { preferRaw: true }),
         playerLevelNumber: numericValue(levelField),
@@ -97,6 +110,27 @@ export async function promotePreGameLobby(ctx: PromoterContext): Promise<void> {
       })
     }
   }
+}
+
+interface OcrFieldShape {
+  raw_text?: string | null
+  value?: unknown
+  confidence?: number | null
+}
+
+function parseMeasurements(
+  f: OcrFieldShape | undefined,
+): { height: string | null; weight: number | null } {
+  if (!f) return { height: null, weight: null }
+  const raw = (f.value as string | undefined) ?? f.raw_text ?? ''
+  if (!raw) return { height: null, weight: null }
+  // Lobby measurement strings look like `6'0"|160lbs` or `5'10"|175lbs` with
+  // OCR noise (`lhs` instead of `lbs`, `°` instead of `'`, etc.).
+  const heightMatch = raw.match(/(\d)['°′]\s*(\d{1,2})["″]?/)
+  const height = heightMatch ? `${heightMatch[1]}'${heightMatch[2]}"` : null
+  const weightMatch = raw.match(/(\d{2,3})\s*(?:lbs|lhs|bs|Ibs)/i)
+  const weight = weightMatch ? Number.parseInt(weightMatch[1]!, 10) : null
+  return { height, weight }
 }
 
 async function resolveGameTitleIdForExtraction(
@@ -132,5 +166,11 @@ function numericValue(f: OcrExtractionField | undefined): number | null {
     const n = Number.parseInt(f.value, 10)
     if (Number.isFinite(n)) return n
   }
+  return null
+}
+
+function booleanValue(f: OcrExtractionField | undefined): boolean | null {
+  if (!f) return null
+  if (typeof f.value === 'boolean') return f.value
   return null
 }

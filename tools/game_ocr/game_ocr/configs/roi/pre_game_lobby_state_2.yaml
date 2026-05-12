@@ -1,34 +1,12 @@
 screen_type: pre_game_lobby_state_2
 expected_width: 1920
 expected_height: 1080
+# See pre_game_lobby_state_1.yaml — same anchor-based parse, same YAML
+# shape. Parser auto-detects per-team state.
 regions:
-  game_mode:
-    x: 0.04
-    y: 0.08
-    width: 0.14
-    height: 0.07
-    preprocess: threshold
-  our_team_name:
-    x: 0.05
-    y: 0.16
-    width: 0.20
-    height: 0.08
-    preprocess: threshold
-  opponent_team_name:
-    x: 0.78
-    y: 0.16
-    width: 0.18
-    height: 0.08
-    preprocess: threshold
-  our_team_panel:
-    x: 0.02
-    y: 0.24
-    width: 0.36
-    height: 0.63
-    preprocess: threshold
-  opponent_team_panel:
-    x: 0.79
-    y: 0.24
-    width: 0.19
-    height: 0.63
-    preprocess: threshold
+  full_frame:
+    x: 0.0
+    y: 0.0
+    width: 1.0
+    height: 1.0
+    preprocess: none

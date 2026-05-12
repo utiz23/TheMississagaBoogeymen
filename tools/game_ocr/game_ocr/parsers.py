@@ -62,70 +62,378 @@ def average_confidence(fields: list[ExtractionField]) -> float | None:
     return round(mean(values), 4) if values else None
 
 
-def parse_lobby_team(lines: list[OCRLine], include_player_name: bool) -> TeamSummary:
-    ordered = sorted(lines, key=lambda line: (line.y1, line.x1))
-    grouped: list[list[OCRLine]] = []
-    current: list[OCRLine] = []
-    position_tokens = {"LW", "RW", "C", "LD", "RD", "G"}
+# ─── Pre-game lobby: anchor-based full-frame parser ──────────────────────────
+#
+# The lobby shows both teams' 6-player rosters side-by-side. Each player card
+# alternates between two visual states (state_1 = build class visible;
+# state_2 = #N + persona name visible). The two teams alternate INDEPENDENTLY,
+# so a single capture can have one team in each state.
+#
+# Strategy mirrors the loadout parser:
+#   1. RapidOCR runs once on the full 1920x1080 frame.
+#   2. Position labels (C/LW/RW/LD/RD/G) at the panel edges anchor each row:
+#      - BGM (our team): position labels at x_center ~77
+#      - Opp:            position labels at x_center ~1844
+#   3. Within each row band (±45 px of anchor y), classify lines by text
+#      pattern + x-range relative to the anchor.
+#   4. Detect per-team state by counting `#NN` patterns in the panel.
 
-    for line in ordered:
-        upper = line.text.upper()
-        if upper in position_tokens:
-            if current:
-                grouped.append(current)
-            current = [line]
-        elif current:
-            current.append(line)
-    if current:
-        grouped.append(current)
+_LOBBY_POSITION_TOKENS = {"C", "LW", "RW", "LD", "RD", "G"}
+# Build vocabulary for state-1 detection / build-class extraction. Includes both
+# generic builds ("Playmaker", "Sniper", ...) and themed-build keywords seen in V2.
+_LOBBY_BUILD_KEYWORDS = re.compile(
+    r"\b(Playmaker|Sniper|Grinder|Hybrid|Forward|Defenseman|Bullseye|"
+    r"Caufield|Thompson|MacKinnon|Matthews|Hutson|Rantanen|Wanhg|"
+    r"PWF|SNP|PMD|TWF|DDD|HBF|HBD|TwoWay|Two-Way|PowerForward|Power)\b",
+    re.IGNORECASE,
+)
+_LOBBY_HASH_RE = re.compile(r"#\d{1,3}")
+
+
+_LOBBY_CANONICAL_ROW_ORDER = ["C", "LW", "RW", "LD", "RD", "G"]
+
+
+def _fill_missing_position_anchors(detected: list[OCRLine]) -> list[OCRLine]:
+    """Synthesize anchors for rows whose position label RapidOCR failed to read.
+
+    The lobby panel has 6 rows in canonical order C / LW / RW / LD / RD / G with
+    a stable ~88 px y-gap between rows. Single-character position labels (notably
+    'C') sometimes don't get tokenized by the OCR backend even when the row is
+    fully visible. When that happens, we infer the missing anchor's y by
+    extrapolating from the detected anchors' median gap, and synthesize an
+    OCRLine with the correct position text and the inferred y_center.
+
+    Returns the (possibly-augmented) anchor list, sorted by y_center, in canonical
+    row order.
+    """
+    if not detected:
+        return []
+    detected_set = {a.text.strip().upper().replace(" ", "") for a in detected}
+    # Median gap between adjacent detected anchors (fallback 88 px).
+    gaps = [
+        detected[i + 1].y_center - detected[i].y_center
+        for i in range(len(detected) - 1)
+    ]
+    median_gap = sorted(gaps)[len(gaps) // 2] if gaps else 88.0
+    # Detected position → canonical index lookup.
+    canonical_index = {pos: i for i, pos in enumerate(_LOBBY_CANONICAL_ROW_ORDER)}
+    # Anchor with the smallest canonical index that we DID detect → use it as the
+    # reference for back-fill / forward-fill.
+    anchored = sorted(detected, key=lambda l: canonical_index.get(l.text.strip().upper().replace(" ", ""), 999))
+    ref = anchored[0]
+    ref_idx = canonical_index.get(ref.text.strip().upper().replace(" ", ""), 0)
+
+    result: list[OCRLine] = []
+    for i, pos in enumerate(_LOBBY_CANONICAL_ROW_ORDER):
+        if pos in detected_set:
+            # Use the real detected line.
+            real = next(l for l in detected if l.text.strip().upper().replace(" ", "") == pos)
+            result.append(real)
+            continue
+        # Synthesize: y_center = ref.y_center + (i - ref_idx) * median_gap.
+        synth_y = ref.y_center + (i - ref_idx) * median_gap
+        result.append(
+            OCRLine(
+                text=pos,
+                confidence=0.0,  # synthetic — downstream can downweight if needed
+                x1=ref.x1, x2=ref.x2,
+                y1=synth_y - 12, y2=synth_y + 12,
+            )
+        )
+    result.sort(key=lambda l: l.y_center)
+    # Only keep anchors that fall within the panel's vertical range.
+    return [l for l in result if 250 < l.y_center < 980]
+
+
+def _detect_panel_state(panel_lines: list[OCRLine]) -> str:
+    """Per-team state detection by `#NN` pattern count.
+
+    State 2 ('identity state') shows `#11 - E. Wanhg` style rows for every player.
+    State 1 ('class state') shows build class names instead. >= 3 hash patterns →
+    state_2; otherwise state_1. With 5 skater rows on each team in a 6v6 lobby, a
+    fully-rendered state_2 panel emits 5 hash patterns; partial captures emit fewer.
+    """
+    joined = " ".join(l.text for l in panel_lines)
+    n_hash = len(_LOBBY_HASH_RE.findall(joined))
+    return "state_2" if n_hash >= 3 else "state_1"
+
+
+def parse_lobby_team(
+    all_lines: list[OCRLine],
+    *,
+    panel_x_range: tuple[float, float],
+    anchor_x_max: float | None = None,
+    anchor_x_min: float | None = None,
+) -> TeamSummary:
+    """Parse a single team panel from full-frame OCR lines.
+
+    panel_x_range: x-band of the panel's data lines (gamertag, build, level, etc.).
+    anchor_x_max: position labels are at x_center < this value (BGM panel: ~130).
+    anchor_x_min: position labels are at x_center > this value (Opp panel: ~1820).
+    Exactly one of anchor_x_min / anchor_x_max must be set.
+
+    Returns a TeamSummary with one PlayerSlot per detected position-label anchor,
+    plus the detected per-team state.
+    """
+    if (anchor_x_max is None) == (anchor_x_min is None):
+        raise ValueError("Provide exactly one of anchor_x_min or anchor_x_max")
+
+    # Find position-label anchors. Each anchor's y_center is the row centre.
+    detected_anchors: list[OCRLine] = []
+    for line in all_lines:
+        if line.text.strip().upper().replace(" ", "") not in _LOBBY_POSITION_TOKENS:
+            continue
+        if not (250 < line.y_center < 980):
+            continue
+        if anchor_x_max is not None and line.x_center > anchor_x_max:
+            continue
+        if anchor_x_min is not None and line.x_center < anchor_x_min:
+            continue
+        detected_anchors.append(line)
+    detected_anchors.sort(key=lambda l: l.y_center)
+    anchors = _fill_missing_position_anchors(detected_anchors)
+
+    # Panel content lines for state detection (everything in the data x-band).
+    panel_lines = [
+        l for l in all_lines
+        if panel_x_range[0] <= l.x_center <= panel_x_range[1] and 250 < l.y_center < 980
+    ]
+    state = _detect_panel_state(panel_lines)
 
     roster: list[PlayerSlot] = []
-    for index, group in enumerate(grouped, start=1):
-        raw_lines = [item.text for item in group]
-        joined = " ".join(raw_lines)
-        fields = {
-            "position": field_from_lines([group[0]]),
-            "empty_or_cpu": ExtractionField(
-                raw_text="CPU" if "CPU" in joined.upper() else None,
-                value="CPU" if "CPU" in joined.upper() else None,
-                confidence=max((line.confidence for line in group if "CPU" in line.text.upper()), default=None),
-                status=FieldStatus.OK if "CPU" in joined.upper() else FieldStatus.MISSING,
-            ),
-            "gamertag": field_from_lines(
-                [line for line in group[1:] if not any(token in line.text.upper() for token in ("READY", "LVL", "LBS", "CPU", "#"))]
-            ),
-            "level": field_from_lines([line for line in group if "LVL" in line.text.upper()], parser=parse_int),
-            "build": field_from_lines(
-                [line for line in group if any(word in line.text.upper() for word in ("SNIPER", "PLAYMAKER", "DEFENSEMAN", "BULLSEYE", "GRINDER", "HYBRID"))]
-            ),
-            "readiness": field_from_lines([line for line in group if "READY" in line.text.upper()]),
-            "raw_measurements": field_from_lines([line for line in group if "'" in line.text or "LBS" in line.text.upper() or "bs" in line.text]),
-        }
-        if include_player_name:
-            fields["player_number"] = field_from_lines([line for line in group if "#" in line.text], parser=parse_int)
-            fields["player_name"] = field_from_lines(
-                [line for line in group if "#" in line.text],
-                parser=lambda text: normalize_text(re.sub(r"^#\d+\s*[-.]*", "", text)),
+    for idx, anchor in enumerate(anchors, start=1):
+        # Row content sits within ±45 px of anchor.y_center, restricted to the
+        # data x-band so we don't accidentally pull text from the opposite team.
+        row_lines = [
+            l for l in all_lines
+            if abs(l.y_center - anchor.y_center) < 45
+            and panel_x_range[0] <= l.x_center <= panel_x_range[1]
+        ]
+        fields = _parse_lobby_row(anchor, row_lines, state)
+        roster.append(
+            PlayerSlot(
+                slot_index=idx,
+                raw_lines=[anchor.text] + [l.text for l in row_lines],
+                fields=fields,
             )
-        roster.append(PlayerSlot(slot_index=index, raw_lines=raw_lines, fields=fields))
-    return TeamSummary(roster=roster, raw_lines=[line.text for line in lines])
+        )
+    return TeamSummary(
+        roster=roster,
+        raw_lines=[l.text for l in panel_lines],
+        state=state,
+    )
+
+
+def _parse_lobby_row(anchor: OCRLine, row_lines: list[OCRLine], state: str) -> dict[str, ExtractionField]:
+    """Classify the OCR lines within one player row into structured fields."""
+    fields: dict[str, ExtractionField] = {
+        "position": ExtractionField(
+            raw_text=anchor.text,
+            value=anchor.text.strip().upper().replace(" ", ""),
+            confidence=anchor.confidence,
+            status=FieldStatus.OK,
+        ),
+        "empty_or_cpu": ExtractionField(status=FieldStatus.MISSING),
+        "gamertag": ExtractionField(status=FieldStatus.MISSING),
+        "level": ExtractionField(status=FieldStatus.MISSING),
+        "build": ExtractionField(status=FieldStatus.MISSING),
+        "raw_measurements": ExtractionField(status=FieldStatus.MISSING),
+        "is_captain": ExtractionField(status=FieldStatus.MISSING),
+        "is_ready": ExtractionField(status=FieldStatus.MISSING),
+        "player_number": ExtractionField(status=FieldStatus.MISSING),
+        "player_name": ExtractionField(status=FieldStatus.MISSING),
+    }
+    captain_glyphs = {"★", "✯", "✦", "✪", "✩"}
+
+    # CPU detection: any line in the row whose text contains 'CPU' → mark and bail.
+    for line in row_lines:
+        if line.text.strip().upper() == "CPU":
+            fields["empty_or_cpu"] = ExtractionField(
+                raw_text="CPU", value="CPU", confidence=line.confidence, status=FieldStatus.OK
+            )
+            return fields
+
+    # Measurements (height/weight): contains `'` or `"` or `lbs`/`lhs`/`bs`.
+    measurement_lines = [
+        l for l in row_lines
+        if "'" in l.text or '"' in l.text or any(unit in l.text.lower() for unit in ("lbs", "lhs", "bs"))
+    ]
+    if measurement_lines:
+        joined = " ".join(l.text for l in sorted(measurement_lines, key=lambda l: l.x1))
+        confidence = mean([l.confidence for l in measurement_lines])
+        fields["raw_measurements"] = ExtractionField(
+            raw_text=joined, value=joined, confidence=confidence, status=FieldStatus.OK
+        )
+
+    # Level: contains 'LVL' (e.g. P1LVL17, P2 LVL34, LVL34).
+    for line in row_lines:
+        stripped = line.text.replace(" ", "").upper()
+        if "LVL" in stripped:
+            m = re.search(r"LVL(\d{1,3})", stripped)
+            fields["level"] = ExtractionField(
+                raw_text=line.text,
+                value=int(m.group(1)) if m else None,
+                confidence=line.confidence,
+                status=FieldStatus.OK if m else FieldStatus.UNCERTAIN,
+            )
+            break
+
+    # READY indicator: text contains 'READY' (case-insensitive).
+    for line in row_lines:
+        if "READY" in line.text.upper():
+            fields["is_ready"] = ExtractionField(
+                raw_text=line.text, value=True, confidence=line.confidence, status=FieldStatus.OK
+            )
+            break
+
+    # Captain ★ glyph: appears either as its own OCR line or concatenated into
+    # the gamertag line (e.g. "XZ4RKY★READY").
+    for line in row_lines:
+        if any(g in line.text for g in captain_glyphs):
+            fields["is_captain"] = ExtractionField(
+                raw_text=line.text, value=True, confidence=line.confidence, status=FieldStatus.OK
+            )
+            break
+
+    # State 2: pull #N + persona name from the line that matches `#NN-Name`.
+    if state == "state_2":
+        for line in row_lines:
+            m = re.search(r"#(\d{1,3})\s*[-.]+\s*(.+)", line.text)
+            if not m:
+                continue
+            fields["player_number"] = ExtractionField(
+                raw_text=line.text, value=int(m.group(1)), confidence=line.confidence, status=FieldStatus.OK
+            )
+            persona = m.group(2).strip(" .")
+            # Strip trailing ★READY / READY noise if it concatenated into the line.
+            persona = re.sub(r"[★✯✦✪✩]?\s*READY\s*$", "", persona, flags=re.IGNORECASE).strip()
+            fields["player_name"] = ExtractionField(
+                raw_text=line.text, value=persona, confidence=line.confidence, status=FieldStatus.OK
+            )
+            break
+
+    # State 1: build class — any non-level / non-measurement / non-gamertag line
+    # whose content matches the build vocabulary OR contains a hyphen (themed
+    # builds like "Tage Thompson - PWF" / "Cole Caufield - SNP").
+    if state == "state_1":
+        for line in row_lines:
+            text = line.text
+            if "LVL" in text.upper() or "'" in text or '"' in text or "lbs" in text.lower():
+                continue
+            if any(g in text for g in captain_glyphs) or "READY" in text.upper():
+                continue
+            # Build keyword present OR contains " - " / "-" between words (themed build).
+            if _LOBBY_BUILD_KEYWORDS.search(text) or re.search(r"[A-Za-z]\s*-\s*[A-Za-z]", text):
+                fields["build"] = ExtractionField(
+                    raw_text=text, value=text, confidence=line.confidence, status=FieldStatus.OK
+                )
+                break
+
+    # Gamertag: typically the TOP-MOST text line in the row (smallest y_center).
+    # RapidOCR sometimes concatenates the captain ★ glyph and the READY indicator
+    # into the gamertag line (e.g. "XZ4RKY★READY"). Include those lines as
+    # candidates and strip the noise during normalisation.
+    gt_candidates = [
+        l for l in row_lines
+        if "#" not in l.text
+        and "LVL" not in l.text.upper()
+        and "'" not in l.text
+        and '"' not in l.text
+        and "lbs" not in l.text.lower()
+        and "lhs" not in l.text.lower()
+        and l.text.strip().upper().replace(" ", "") not in _LOBBY_POSITION_TOKENS
+        # Reject the build-class line if we already extracted it (avoid picking
+        # "Two-Way Forward" as a gamertag when the actual gamertag is "XZ4RKY★READY").
+        and (fields["build"].status == FieldStatus.MISSING or l.text != fields["build"].raw_text)
+    ]
+    def clean_gamertag(text: str) -> str:
+        cleaned = text
+        for g in captain_glyphs:
+            cleaned = cleaned.replace(g, "")
+        cleaned = re.sub(r"\s*READY\s*", "", cleaned, flags=re.IGNORECASE)
+        # RapidOCR sometimes emits a stray trailing 'x' for the READY chip remnant.
+        cleaned = re.sub(r"\s+x$", "", cleaned).strip()
+        return cleaned
+
+    # Rank candidates by (y_center ascending, cleaned-text length descending).
+    # When the row's top y has multiple OCR tokens (e.g. READY chip + gamertag
+    # both at the same y), the longer cleaned string wins.
+    scored = [(l.y_center, -len(clean_gamertag(l.text)), l) for l in gt_candidates if clean_gamertag(l.text)]
+    if scored:
+        scored.sort()
+        top = scored[0][2]
+        cleaned = clean_gamertag(top.text)
+        fields["gamertag"] = ExtractionField(
+            raw_text=top.text, value=cleaned, confidence=top.confidence, status=FieldStatus.OK
+        )
+        # If captain glyph or READY indicator was concatenated to the gamertag,
+        # also mark those signals from this line.
+        if fields["is_captain"].status == FieldStatus.MISSING and any(g in top.text for g in captain_glyphs):
+            fields["is_captain"] = ExtractionField(
+                raw_text=top.text, value=True, confidence=top.confidence, status=FieldStatus.OK
+            )
+        if fields["is_ready"].status == FieldStatus.MISSING and "READY" in top.text.upper():
+            fields["is_ready"] = ExtractionField(
+                raw_text=top.text, value=True, confidence=top.confidence, status=FieldStatus.OK
+            )
+
+    return fields
 
 
 def parse_pre_game_result(meta, regions: dict[str, list[OCRLine]], include_player_name: bool, **_kwargs) -> PreGameLobbyResult:
-    our_team = parse_lobby_team(regions["our_team_panel"], include_player_name=include_player_name)
-    opponent_team = parse_lobby_team(regions["opponent_team_panel"], include_player_name=include_player_name)
-    base_fields = [
-        field_from_lines(regions["game_mode"]),
-        field_from_lines(regions["our_team_name"]),
-        field_from_lines(regions["opponent_team_name"]),
-    ]
+    """Parse a single lobby capture. The `include_player_name` arg is now a no-op:
+    state detection is automatic per team via `#NN` regex count. Kept for backward
+    compatibility with the extractor registry."""
+    lines: list[OCRLine] = regions.get("full_frame", [])
+
+    # ── Anchor: game mode (top-left, e.g. "EASHL 6v6") ──
+    gm_band = [l for l in lines if 110 < l.y_center < 160 and l.x_center < 350]
+    # Game mode is typically a "<n>v<n>" pattern; capture the line with the digit.
+    game_mode_line = next(
+        (l for l in gm_band if re.search(r"\d+\s*[vV]\s*\d+", l.text)),
+        max(gm_band, key=lambda l: l.x2 - l.x1, default=None) if gm_band else None,
+    )
+    game_mode_field = (
+        field_from_lines([game_mode_line]) if game_mode_line else ExtractionField(status=FieldStatus.MISSING)
+    )
+
+    # ── Anchor: team name headers (y ~211; our left, opp right) ──
+    our_team_line = max(
+        (l for l in lines if 180 < l.y_center < 240 and l.x_center < 700),
+        key=lambda l: l.x2 - l.x1,
+        default=None,
+    )
+    opp_team_line = max(
+        (l for l in lines if 180 < l.y_center < 240 and l.x_center > 1400),
+        key=lambda l: l.x2 - l.x1,
+        default=None,
+    )
+    our_team_name_field = (
+        field_from_lines([our_team_line]) if our_team_line else ExtractionField(status=FieldStatus.MISSING)
+    )
+    opp_team_name_field = (
+        field_from_lines([opp_team_line]) if opp_team_line else ExtractionField(status=FieldStatus.MISSING)
+    )
+
+    # ── Per-team panel parse ──
+    our_team = parse_lobby_team(
+        lines,
+        panel_x_range=(85, 410),
+        anchor_x_max=130,  # BGM position labels at far left (x_center ~77)
+    )
+    opp_team = parse_lobby_team(
+        lines,
+        panel_x_range=(1500, 1825),
+        anchor_x_min=1820,  # Opp position labels at far right (x_center ~1844)
+    )
+
     return PreGameLobbyResult(
         meta=meta,
-        game_mode=base_fields[0],
-        our_team_name=base_fields[1],
-        opponent_team_name=base_fields[2],
+        game_mode=game_mode_field,
+        our_team_name=our_team_name_field,
+        opponent_team_name=opp_team_name_field,
         our_team=our_team,
-        opponent_team=opponent_team,
+        opponent_team=opp_team,
     )
 
 

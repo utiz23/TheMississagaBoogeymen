@@ -1,34 +1,19 @@
 screen_type: pre_game_lobby_state_1
 expected_width: 1920
 expected_height: 1080
+# Anchor-based parsing on full-frame OCR. The previous panel-sized ROIs
+# fragmented the row layout and the parser couldn't reliably split players.
+# Now the parser uses position-label lines (C/LW/RW/LD/RD/G at panel edges)
+# as row anchors. See docs/ocr/pre-game-extraction-research.md.
+#
+# Note: state_1 / state_2 share the same YAML — the parser auto-detects which
+# state each team is in via `#NN` regex count. Two YAML names are kept so the
+# extractor's screen registry stays explicit about which kind of capture the
+# operator labelled.
 regions:
-  game_mode:
-    x: 0.04
-    y: 0.08
-    width: 0.14
-    height: 0.07
-    preprocess: threshold
-  our_team_name:
-    x: 0.05
-    y: 0.16
-    width: 0.20
-    height: 0.08
-    preprocess: threshold
-  opponent_team_name:
-    x: 0.78
-    y: 0.16
-    width: 0.18
-    height: 0.08
-    preprocess: threshold
-  our_team_panel:
-    x: 0.02
-    y: 0.24
-    width: 0.36
-    height: 0.63
-    preprocess: threshold
-  opponent_team_panel:
-    x: 0.79
-    y: 0.24
-    width: 0.19
-    height: 0.63
-    preprocess: threshold
+  full_frame:
+    x: 0.0
+    y: 0.0
+    width: 1.0
+    height: 1.0
+    preprocess: none

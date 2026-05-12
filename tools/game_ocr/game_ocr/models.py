@@ -29,6 +29,11 @@ class PlayerSlot(BaseModel):
 class TeamSummary(BaseModel):
     roster: list[PlayerSlot] = Field(default_factory=list)
     raw_lines: list[str] = Field(default_factory=list)
+    # 'state_1' (build class visible) | 'state_2' (#N + persona name visible) | 'unknown'.
+    # The two lobby states alternate independently per team — a single capture can
+    # have one team in state_1 and the other in state_2. Detected by `#NN` regex
+    # count in the team's panel. See docs/ocr/pre-game-extraction-research.md.
+    state: str = "unknown"
 
 
 class ExtractionMeta(BaseModel):
