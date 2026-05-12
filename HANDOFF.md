@@ -14,6 +14,27 @@ Marker-extraction calibration research is mid-flight. Round-2 Deep Research inge
 
 ---
 
+## Session Summary — 2026-05-12 (late evening — M. Rantanen alias fix)
+
+One-shot data fix on the live DB. The memory-tracked alias bug
+`player_display_aliases.M. RANTANEN → player_id=11` was corrected to
+`player_id=3` (Stick Menace), verified against the V2 benchmark:
+Stick Menace plays Left Wing with the in-game persona Mikko Rantanen.
+
+```sql
+UPDATE player_display_aliases SET player_id=3 WHERE alias='M. RANTANEN' AND player_id=11;
+UPDATE match_events SET actor_player_id=3 WHERE actor_gamertag_snapshot='M. RANTANEN' AND (actor_player_id IS NULL OR actor_player_id=11);
+UPDATE match_events SET target_player_id=3 WHERE target_gamertag_snapshot='M. RANTANEN' AND target_player_id IS NULL;
+```
+
+15 rows updated total: 1 alias row, 8 match_events (actor), 6 match_events (target). All in match 250 — the only OCR-ingested match so far. team_side was already 'for' for all 8 actor events (correct, since the original alias pointed to BGM player 11 and the new one is BGM player 3 — both BGM, so the classification didn't flip).
+
+Resolved memory: `project_match250_alias_correction_needed.md` deleted from `~/.claude/projects/.../memory/` and removed from the MEMORY.md index. No git changes needed beyond this HANDOFF entry.
+
+**Side-note worth a future look:** `players.id=3` (Stick Menace) has `position='center'` in the DB but the V2 benchmark shows him playing Left Wing in match 250. The `players.position` column may be the player's *canonical/preferred* position, not necessarily the position played in a given match. If this matters for the new lineup queries, the canonical-position story needs nailing down — but it's distinct from the alias bug and not blocking anything observed.
+
+---
+
 ## Session Summary — 2026-05-12 (late evening — drizzle migration reconciliation)
 
 Three-step fix that takes the migration system from "non-canonical, `pnpm migrate` broken" to "fully reconciled, both `migrate` and `generate` clean no-ops."
