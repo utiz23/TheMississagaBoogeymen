@@ -20,7 +20,7 @@ Two categories, enforced by directory:
 
 | From | To |
 |---|---|
-| `EASHL Team Stats Website – Full Blueprint.md` | `docs/blueprint.md` |
+| `EASHL Team Stats Website – Full Blueprint.md` | `docs/planning/system-blueprint.md` |
 | `www.ea.com.har` | `research/ea-api/www.ea.com.har` |
 | `imgs/` | dissolved — contents distributed below |
 
@@ -58,6 +58,6 @@ Design mockups moved to `docs/design/`:
 ## Unchanged
 
 - All root config/protocol files: `CLAUDE.md`, `HANDOFF.md`, `DEPLOY.md`, `AGENTS.md`, `README.md`
-- `docs/ARCHITECTURE.md`, `docs/DB-ROADMAP.md`, `docs/MANAGER-WORKFLOW.md`
+- `docs/ARCHITECTURE.md`, `docs/planning/database-roadmap.md`, `docs/operations/agent-manager-workflow.md`
 - `docs/superpowers/`
 - All `apps/`, `packages/` source

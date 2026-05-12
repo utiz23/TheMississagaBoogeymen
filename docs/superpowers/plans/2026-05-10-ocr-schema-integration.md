@@ -825,7 +825,7 @@ git commit -m "feat(db): add OCR evidence + event + loadout schema (11 tables)"
 | Migration generation + application | Task 5 |
 | DB verification | Task 5 |
 
-**Screens from `docs/Game OCR Document.md` and where they land:**
+**Screens from `docs/ocr/source-screen-inventory.md` and where they land:**
 
 | Screen | Tables populated |
 |---|---|

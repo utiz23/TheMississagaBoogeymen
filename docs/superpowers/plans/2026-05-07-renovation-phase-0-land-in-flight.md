@@ -128,32 +128,30 @@ Expected: `feat(db): add player_name column ...` is HEAD.
 
 **Files:**
 - Create: `apps/web/src/components/player-meta-icons.tsx`
-- Create: `docs/branding/flag-for-flag-canada-svgrepo-com.svg`
-- Create: `docs/branding/flag-for-flag-united-states-svgrepo-com.svg`
-- Create: `docs/branding/hockey-box-svgrepo-com.svg`
-- Create: `docs/branding/hockey-puck-svgrepo-com.svg`
-- Create: `docs/branding/hockey-sticks-svgrepo-com.svg`
-- Create: `docs/branding/hockey-svgrepo-com.svg`
-- Create: `docs/branding/playstation-svgrepo-com.svg`
-- Create: `docs/branding/xbox-svgrepo-com.svg`
-- Delete: `docs/branding/Flag_of_the_United_States.svg`
+- Create: `docs/branding/flags/canada.svg`
+- Create: `docs/branding/flags/united-states.svg`
+- Create: `docs/branding/icons/hockey/hockey-box.svg`
+- Create: `docs/branding/icons/hockey/hockey-puck.svg`
+- Create: `docs/branding/icons/hockey/hockey-sticks.svg`
+- Create: `docs/branding/icons/hockey/hockey-player.svg`
+- Create: `docs/branding/logos/platforms/playstation-logo.svg`
+- Create: `docs/branding/logos/platforms/xbox-logo.svg`
 
 - [ ] **Step 1: Stage**
 
 ```bash
 git add apps/web/src/components/player-meta-icons.tsx \
-        docs/branding/flag-for-flag-canada-svgrepo-com.svg \
-        docs/branding/flag-for-flag-united-states-svgrepo-com.svg \
-        docs/branding/hockey-box-svgrepo-com.svg \
-        docs/branding/hockey-puck-svgrepo-com.svg \
-        docs/branding/hockey-sticks-svgrepo-com.svg \
-        docs/branding/hockey-svgrepo-com.svg \
-        docs/branding/playstation-svgrepo-com.svg \
-        docs/branding/xbox-svgrepo-com.svg
-git rm docs/branding/Flag_of_the_United_States.svg
+        docs/branding/flags/canada.svg \
+        docs/branding/flags/united-states.svg \
+        docs/branding/icons/hockey/hockey-box.svg \
+        docs/branding/icons/hockey/hockey-puck.svg \
+        docs/branding/icons/hockey/hockey-sticks.svg \
+        docs/branding/icons/hockey/hockey-player.svg \
+        docs/branding/logos/platforms/playstation-logo.svg \
+        docs/branding/logos/platforms/xbox-logo.svg
 git status --short | grep -E '^[ADM] '
 ```
-Expected: 9 added, 1 deleted; nothing else.
+Expected: added branding assets; nothing else.
 
 - [ ] **Step 2: Typecheck the web app** (the new component must compile in isolation — no consumer commits yet)
 
@@ -548,7 +546,7 @@ Expected: `docs(spec): update position-colors palette ...` is HEAD.
 ## Task 12: Add player profile template, dossier specs, and news-personalities spec
 
 **Files:**
-- Create: `docs/player-profile-template.md`
+- Create: `docs/templates/player-profile-fields.md`
 - Create: `docs/specs/news-personalities.md`
 - Create: `docs/specs/player-dossiers/README.md`
 - Create: `docs/specs/player-dossiers/camrazz.md`
@@ -565,7 +563,7 @@ Expected: `docs(spec): update position-colors palette ...` is HEAD.
 - [ ] **Step 1: Stage**
 
 ```bash
-git add docs/player-profile-template.md docs/specs/news-personalities.md docs/specs/player-dossiers/
+git add docs/templates/player-profile-fields.md docs/specs/news-personalities.md docs/specs/player-dossiers/
 git status --short | grep -E '^A '
 ```
 Expected: 12 lines (template + news-personalities + 10 dossier files).

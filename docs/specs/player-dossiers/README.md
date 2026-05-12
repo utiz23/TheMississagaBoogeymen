@@ -8,7 +8,7 @@ Purpose:
 - support future article generation, interview prompts, and recurring storylines
 
 Notes:
-- seeded fields come from `docs/player-profile-template.md`
+- seeded fields come from `docs/templates/player-profile-fields.md`
 - known roster/profile data is prefilled
 - dossiers now use a question-driven 9-part worksheet
 - career-history prompts are included so player timelines do not get lost
