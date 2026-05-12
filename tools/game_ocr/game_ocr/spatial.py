@@ -116,13 +116,30 @@ class RinkCalibration:
 
 @dataclass
 class DetectedMarker:
-    """A marker found on the rink. pixel_x/y are in FULL-IMAGE coordinates."""
+    """A marker found on the rink. pixel_x/y are in FULL-IMAGE coordinates.
+
+    The shape_type and fill_style fields are populated by the Layer-2
+    classifier (see `_classify_shape` and `_classify_fill`); legacy
+    callers that don't classify markers leave them as 'unknown'.
+    """
 
     pixel_x: float
     pixel_y: float
     color: Literal["yellow", "red", "white"]
     area_px: float
     bbox: tuple[int, int, int, int]  # x, y, w, h (full-image)
+    # Event-type classification from contour geometry:
+    #   hit     — 4 axis-aligned vertices (square/box)
+    #   penalty — 4 vertices rotated ~45° (diamond)
+    #   goal    — 6 vertices (hexagon)
+    #   shot    — high circularity, many vertices (circle)
+    #   unknown — none of the above
+    shape_type: Literal["hit", "penalty", "goal", "shot", "unknown"] = "unknown"
+    # Fill-style classification from interior pixel sampling:
+    #   solid    — home team marker (color body with white letter)
+    #   outlined — away team marker (white body with thin colored ring)
+    #   unknown  — could not classify (e.g., yellow-overlaid)
+    fill_style: Literal["solid", "outlined", "unknown"] = "unknown"
 
 
 @dataclass
@@ -243,13 +260,131 @@ def _circularity(area: float, perimeter: float) -> float:
     return 4.0 * np.pi * area / (perimeter * perimeter)
 
 
+def _classify_shape(
+    contour: np.ndarray, area: float, perimeter: float
+) -> Literal["hit", "penalty", "goal", "shot", "unknown"]:
+    """Identify event-type from contour geometry.
+
+    Action Tracker marker glyphs (per docs/ocr/marker-extraction-research.md):
+      hit     — square / box (4 vertices, axis-aligned)
+      penalty — diamond     (4 vertices, ~45° rotated)
+      goal    — hexagon     (6 vertices)
+      shot    — circle      (many vertices, high circularity)
+
+    Method (Round-1 + Round-2 deep research consensus):
+      1. approxPolyDP with epsilon ≈ 2.5% of perimeter
+      2. branch on vertex count
+      3. for 4-vertex: use minAreaRect rotation to discriminate box vs diamond
+
+    Returns 'unknown' when no rule fires (degenerate contour, partial occlusion).
+    """
+    if perimeter <= 0:
+        return "unknown"
+    epsilon = 0.025 * perimeter
+    approx = cv2.approxPolyDP(contour, epsilon, closed=True)
+    n_vertices = len(approx)
+    circ = _circularity(area, perimeter)
+
+    # Circle (shot) — high circularity + many vertices.
+    if circ >= 0.85 and n_vertices >= 8:
+        return "shot"
+
+    # Hexagon (goal) — 6 vertices, moderately high circularity (~0.83 for
+    # regular hexagons).
+    if n_vertices == 6 and circ >= 0.78:
+        return "goal"
+
+    # 4-vertex shapes: box (hit) vs diamond (penalty).
+    if n_vertices == 4:
+        # minAreaRect returns angle ∈ (-90, 0]; axis-aligned squares give
+        # an angle near 0 or -90, while diamonds give an angle near -45.
+        # Normalize to [0, 45] and treat <15 as axis-aligned, >=30 as diamond.
+        (_cx, _cy), (rw, rh), angle = cv2.minAreaRect(contour)
+        # Normalize: angle ∈ (-90, 0] → 0..90 → fold to [0, 45]
+        normalized = abs(angle)
+        if normalized > 45:
+            normalized = 90 - normalized
+        if normalized < 15:
+            return "hit"
+        if normalized > 30:
+            return "penalty"
+        # Ambiguous middle (15..30): fall through to unknown.
+        return "unknown"
+
+    # Round-but-not-circle (5 or 7 vertices with high circularity) might be
+    # a slightly-degraded hexagon or circle. Bias toward shot only at very
+    # high circularity to avoid mis-promoting goals.
+    if circ >= 0.90 and n_vertices >= 7:
+        return "shot"
+
+    return "unknown"
+
+
+def _classify_fill(
+    crop_image: np.ndarray,
+    contour: np.ndarray,
+    crop_offset: tuple[int, int],
+) -> Literal["solid", "outlined", "unknown"]:
+    """Identify home/away from deep-interior pixel sampling.
+
+    Home markers (solid): team-color body, small white letter in center.
+    Away markers (outlined): thin team-color outer ring, white body, dark letter.
+
+    Method (revised after empirical check on match-250 captures):
+      The contour is the OUTER boundary of the marker. For an outlined
+      marker, the band just-inside-the-edge is the colored ring itself —
+      sampling there reads as the team color for BOTH solid and outlined
+      markers, so it fails to discriminate.
+
+      Instead sample the DEEP INTERIOR (erode by ~4-5 px) where:
+        - Solid: still the colored body (high S)
+        - Outlined: white body (low S, high V)
+      The small central letter region is averaged in but doesn't dominate.
+
+    `crop_image` is the rink-area BGR crop. `contour` and `crop_offset`
+    are in crop coordinates (relative to the rink_pixel_box.x1/y1).
+    """
+    # Build a filled mask of the contour interior in crop coords.
+    h, w = crop_image.shape[:2]
+    full_mask = np.zeros((h, w), dtype=np.uint8)
+    cv2.drawContours(full_mask, [contour], -1, color=255, thickness=cv2.FILLED)
+    # Erode aggressively to sample the deep interior, skipping the ring
+    # zone (for outlined markers) and the edge artefacts.
+    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
+    deep_interior = cv2.erode(full_mask, kernel, iterations=4)
+    if int(deep_interior.sum() // 255) < 20:  # too few pixels to sample reliably
+        return "unknown"
+
+    hsv = cv2.cvtColor(crop_image, cv2.COLOR_BGR2HSV)
+    ys, xs = np.where(deep_interior > 0)
+    s_vals = hsv[ys, xs, 1]
+    v_vals = hsv[ys, xs, 2]
+    s_mean = float(s_vals.mean())
+    v_mean = float(v_vals.mean())
+
+    # Solid: team-color body dominates interior → high S
+    # Outlined: white body dominates interior → low S, high V
+    if s_mean >= 80:
+        return "solid"
+    if s_mean < 60 and v_mean >= 180:
+        return "outlined"
+    return "unknown"
+
+
 def detect_rink_markers(
     image: np.ndarray, calibration: RinkCalibration
 ) -> list[DetectedMarker]:
     """Find marker candidates on the rink illustration.
 
     image: full-frame BGR image (np.ndarray of shape (H, W, 3)).
-    Returns markers in FULL-IMAGE pixel coordinates.
+    Returns markers in FULL-IMAGE pixel coordinates, with Layer-2
+    shape + fill classification populated where possible.
+
+    De-duplication: outlined-away markers register on both the red mask
+    (the outer ring) and the white mask (the inner body). The red
+    detection is kept (canonical for the marker); a co-located white
+    contour is dropped to avoid double-counting. Standalone white
+    contours (no red within ~6 px) survive as solid-white opp markers.
     """
     box = calibration.rink_pixel_box
     # Clamp to image bounds defensively.
@@ -263,13 +398,14 @@ def detect_rink_markers(
     crop = image[y1:y2, x1:x2]
     hsv = cv2.cvtColor(crop, cv2.COLOR_BGR2HSV)
 
-    markers: list[DetectedMarker] = []
     mf = calibration.marker_filter
-
+    # First pass — collect per-color candidates with classification.
+    per_color: dict[str, list[DetectedMarker]] = {}
     for color_name, threshold in calibration.color_thresholds.items():
         mask = _color_mask(hsv, threshold)
         mask = _morphological_clean(mask)
         contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        candidates: list[DetectedMarker] = []
         for c in contours:
             area = float(cv2.contourArea(c))
             if area < mf.area_min or area > mf.area_max:
@@ -283,17 +419,48 @@ def detect_rink_markers(
             cx_crop = m["m10"] / m["m00"]
             cy_crop = m["m01"] / m["m00"]
             bx, by, bw, bh = cv2.boundingRect(c)
-            markers.append(
+
+            # Shape + fill classification. Yellow markers overlay another
+            # marker and obscure both shape and fill — leave them unknown.
+            if color_name == "yellow":
+                shape_type = "unknown"
+                fill_style = "unknown"
+            else:
+                shape_type = _classify_shape(c, area, perim)
+                fill_style = _classify_fill(crop, c, (x1, y1))
+
+            candidates.append(
                 DetectedMarker(
                     pixel_x=x1 + cx_crop,
                     pixel_y=y1 + cy_crop,
                     color=color_name,  # type: ignore[arg-type]
                     area_px=area,
                     bbox=(x1 + bx, y1 + by, bw, bh),
+                    shape_type=shape_type,
+                    fill_style=fill_style,
                 )
             )
+        per_color[color_name] = candidates
 
-    return markers
+    # Second pass — dedupe. Outlined markers register as both a red ring
+    # and a white inner body at near-identical centroids. Keep the red
+    # (it carries the canonical outline + shape signal) and drop any
+    # white that co-locates within DEDUPE_RADIUS pixels.
+    DEDUPE_RADIUS = 6.0
+    red_centroids = [(m.pixel_x, m.pixel_y) for m in per_color.get("red", [])]
+    surviving: list[DetectedMarker] = []
+    for color_name, candidates in per_color.items():
+        if color_name == "white" and red_centroids:
+            for m in candidates:
+                near_red = any(
+                    (m.pixel_x - rx) ** 2 + (m.pixel_y - ry) ** 2 < DEDUPE_RADIUS**2
+                    for rx, ry in red_centroids
+                )
+                if not near_red:
+                    surviving.append(m)
+        else:
+            surviving.extend(candidates)
+    return surviving
 
 
 def find_selected_marker(markers: list[DetectedMarker]) -> DetectedMarker | None:
