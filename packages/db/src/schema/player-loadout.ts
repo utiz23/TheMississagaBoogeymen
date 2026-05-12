@@ -1,11 +1,13 @@
 import {
   bigint,
   bigserial,
+  boolean,
   index,
   integer,
   numeric,
   pgTable,
   serial,
+  smallint,
   text,
   timestamp,
   uniqueIndex,
@@ -25,6 +27,11 @@ import { ocrExtractions, type OcrReviewStatus } from './ocr-pipeline.js'
  * player_level_raw: verbatim OCR string (e.g. 'P2LVL40').
  * player_level_number: cleaned integer (e.g. 40). NULL if parsing failed.
  * handedness: 'Left' or 'Right' as displayed in the loadout screen.
+ * player_name_snapshot: full real name from the loadout view title bar (e.g. "Evgeni Wanhg").
+ * player_name_persona: short in-game persona name from the lobby state-2 / loadout left strip
+ *   (e.g. "E. Wanhg"). Distinct from player_name_snapshot.
+ * player_number: in-game jersey number from lobby state-2 / loadout left strip (e.g. 11).
+ * is_captain: yellow ★ marker detected next to gamertag in lobby/loadout (V2 "Leader? Yes").
  */
 export const playerLoadoutSnapshots = pgTable(
   'player_loadout_snapshots',
@@ -33,6 +40,9 @@ export const playerLoadoutSnapshots = pgTable(
     playerId: integer('player_id').references(() => players.id),
     gamertagSnapshot: text('gamertag_snapshot').notNull(),
     playerNameSnapshot: text('player_name_snapshot'),
+    playerNamePersona: text('player_name_persona'),
+    playerNumber: integer('player_number'),
+    isCaptain: boolean('is_captain'),
     gameTitleId: integer('game_title_id')
       .notNull()
       .references(() => gameTitles.id),
@@ -63,6 +73,8 @@ export const playerLoadoutSnapshots = pgTable(
 /**
  * Up to 3 X-factors per loadout snapshot (slot_index 0, 1, 2).
  * x_factor_name is the verbatim OCR string (e.g. 'Tape-to-Tape', 'Puck on a String').
+ * tier: Elite | All Star | Specialist, classified from HSV color sample on the
+ *   icon (red / blue / yellow respectively). NULL when not yet classified.
  */
 export const playerLoadoutXFactors = pgTable(
   'player_loadout_x_factors',
@@ -73,6 +85,7 @@ export const playerLoadoutXFactors = pgTable(
       .references(() => playerLoadoutSnapshots.id),
     slotIndex: integer('slot_index').notNull(),
     xFactorName: text('x_factor_name').notNull(),
+    tier: text('tier').$type<'Elite' | 'All Star' | 'Specialist'>(),
   },
   (table) => [
     uniqueIndex('player_loadout_x_factors_snapshot_slot_uniq').on(
@@ -93,6 +106,9 @@ export const playerLoadoutXFactors = pgTable(
  *
  * raw_text: verbatim OCR string — useful for diagnosing collapsed attribute rows.
  * value: cleaned integer 0–99. NULL if OCR produced an unresolvable string.
+ *   This is the DISPLAYED (post-buff) rating shown on the screen.
+ * delta_value: signed buff/nerf chip (e.g. +5, -2). NULL when no Δ chip present.
+ *   base_rating = value - delta_value (Δ is the buff added to the base).
  * confidence: per-field OCR confidence (0.0000–1.0000) from the OCR backend.
  */
 export const playerLoadoutAttributes = pgTable(
@@ -105,6 +121,7 @@ export const playerLoadoutAttributes = pgTable(
     attributeKey: text('attribute_key').notNull(),
     rawText: text('raw_text'),
     value: integer('value'),
+    deltaValue: smallint('delta_value'),
     confidence: numeric('confidence', { precision: 5, scale: 4 }),
   },
   (table) => [
