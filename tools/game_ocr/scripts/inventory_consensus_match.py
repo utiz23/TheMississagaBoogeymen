@@ -53,6 +53,11 @@ class MarkerObservation:
     fill_style: str
     confidence: float
     period: int
+    # Panel events from the same capture, grouped by event_type:
+    # {event_type: [(actor_snapshot_value, clock_value), ...]}.
+    # Used by the consensus matcher to attribute the cluster to a specific
+    # match_events row by (actor, clock) frequency across captures.
+    panel_by_type: dict = None  # type: ignore[assignment]
 
 
 @dataclass
@@ -99,6 +104,18 @@ class Cluster:
     def confidence(self) -> float:
         # In-hull if any observation was in-hull; cluster confidence = max.
         return max(m.confidence for m in self.markers)
+
+    def candidate_pair_counts(self) -> Counter:
+        """Counter of (actor, clock) pairs from source captures' panels of
+        matching shape. The cluster's true event will appear in many panels;
+        unrelated events appear in fewer. Used as the attribution signal."""
+        shape = self.shape_vote()
+        c: Counter = Counter()
+        for m in self.markers:
+            panel = m.panel_by_type or {}
+            for actor, clock in panel.get(shape, []):
+                c[(actor, clock)] += 1
+        return c
 
 
 def cluster_markers(markers: list[MarkerObservation]) -> list[Cluster]:
@@ -172,15 +189,19 @@ def select_capture_period(raw: dict, source_path: str = "") -> int | None:
     return None
 
 
-def get_unpositioned_match_events(match_id: int) -> list[dict]:
-    """match_events for a match with NO x/y, grouped by period."""
+def get_match_events(match_id: int) -> list[dict]:
+    """All match_events for this match that are plottable, with current
+    position status. We need positioned rows too — clusters that already
+    correspond to a positioned event must be excluded from assignment
+    so they don't 'steal' an unpositioned event's position."""
     sql = (
         "SELECT json_agg(json_build_object("
         "'id', id, 'period_number', period_number, 'event_type', event_type, "
         "'team_side', team_side, 'clock', clock, "
-        "'actor', actor_gamertag_snapshot)) "
+        "'actor', actor_gamertag_snapshot, "
+        "'x', x, 'y', y)) "
         f"FROM match_events WHERE match_id={match_id} "
-        "AND source='ocr' AND x IS NULL "
+        "AND source='ocr' "
         "AND event_type IN ('shot', 'hit', 'goal', 'penalty')"
     )
     res = subprocess.run(
@@ -190,6 +211,19 @@ def get_unpositioned_match_events(match_id: int) -> list[dict]:
     )
     data = res.stdout.strip()
     return json.loads(data) if data and data != "null" else []
+
+
+def pair_weight(cands: Counter, actor: str | None, clock: str | None) -> float:
+    """Score how well a cluster's candidate (actor, clock) bag matches a
+    target match_events row's (actor, clock). Higher = better."""
+    if not cands:
+        return 0.0
+    exact = cands.get((actor, clock), 0)
+    clock_total = sum(v for (a, c), v in cands.items() if c == clock)
+    actor_total = sum(v for (a, c), v in cands.items() if a == actor)
+    # Exact pair is the strongest signal; clock-only is next (clock OCR is
+    # more reliable than actor names); actor-only is the weakest tie-breaker.
+    return 2.0 * exact + 1.0 * (clock_total - exact) + 0.5 * (actor_total - exact)
 
 
 def main() -> int:
@@ -206,7 +240,9 @@ def main() -> int:
     print(f"-- inventory_consensus: match_id={match_id}, captures={len(rows)}",
           file=sys.stderr)
 
-    # 1+2+3. Collect markers grouped by period.
+    # 1+2+3. Collect markers grouped by period, plus per-capture panel events
+    # keyed by event_type. The panel info travels with each observation so the
+    # matcher can later score (cluster, event) pairs by (actor, clock) frequency.
     by_period: dict[int, list[MarkerObservation]] = {}
     for row in rows:
         ext_id = row["id"]
@@ -214,6 +250,16 @@ def main() -> int:
         period = select_capture_period(raw, row.get("source_path", ""))
         if period is None:
             continue
+        panel_by_type: dict[str, list[tuple[str | None, str | None]]] = {}
+        for e in raw.get("events", []) or []:
+            et = e.get("event_type")
+            clk = e.get("clock")
+            cv = clk.get("value") if isinstance(clk, dict) else None
+            ac = e.get("actor_snapshot")
+            av = ac.get("value") if isinstance(ac, dict) else None
+            if not et or not cv:
+                continue
+            panel_by_type.setdefault(et, []).append((av, cv))
         for m in raw.get("detected_markers", []) or []:
             if m.get("color") == "yellow":
                 continue  # overlay obscures the underlying marker
@@ -228,61 +274,171 @@ def main() -> int:
                 fill_style=str(m.get("fill_style", "unknown")),
                 confidence=float(m.get("confidence", 1.0)),
                 period=period,
+                panel_by_type=panel_by_type,
             )
             by_period.setdefault(period, []).append(obs)
 
     # 4+5+6. Cluster per period, classify each cluster.
     clusters_by_period: dict[int, list[Cluster]] = {}
+    clusters_permissive_by_period: dict[int, list[Cluster]] = {}
     for period, observations in by_period.items():
         clusters = cluster_markers(observations)
-        # Keep only clusters with a non-unknown shape vote AND ≥ 2 observations
-        # (single-observation clusters are likely noise or one-off detections).
-        good = [c for c in clusters if c.shape_vote() != "unknown" and len(c.markers) >= 2]
-        clusters_by_period[period] = good
+        # Two pools per period:
+        #  - strict: ≥2 obs (high-confidence; primary matching pool)
+        #  - permissive: exactly 1 obs (single-observation rink markers; used as
+        #    a fallback for unpositioned events that have no strict cluster but
+        #    whose (actor, clock) appears in the single capture's panel)
+        strict = [c for c in clusters if c.shape_vote() != "unknown" and len(c.markers) >= 2]
+        permissive = [c for c in clusters if c.shape_vote() != "unknown" and len(c.markers) == 1]
+        clusters_by_period[period] = strict
+        clusters_permissive_by_period[period] = permissive
         print(
             f"-- period {period}: {len(observations)} obs → {len(clusters)} clusters → "
-            f"{len(good)} usable (shape + ≥2 obs)",
+            f"{len(strict)} strict (≥2 obs) + {len(permissive)} permissive (1 obs)",
             file=sys.stderr,
         )
 
     # 7. Match clusters to unpositioned match_events.
-    unpositioned = get_unpositioned_match_events(match_id)
-    print(f"-- {len(unpositioned)} unpositioned match_events to match",
+    #
+    # Two-stage process per (period, event_type, team_side) bucket:
+    #
+    # Stage A — dedup. Each cluster's (actor, clock) candidate bag is scored
+    # against ALL match_events in that bucket (positioned and unpositioned).
+    # If a cluster's best match is an already-positioned event, that cluster
+    # is set aside — it represents an event whose position is already in the
+    # table, and using it to position a different unpositioned event would
+    # spread the wrong location.
+    #
+    # Stage B — greedy max-weight assignment. Remaining clusters are matched
+    # to unpositioned events by descending pair-frequency weight. Ties are
+    # broken deterministically by cluster pixel centroid so a re-run is
+    # idempotent. Clusters/events with no signal fall through to FCFS so the
+    # script still positions at least the heatmap (matching today's behavior
+    # for buckets where actor/clock OCR failed).
+    all_events = get_match_events(match_id)
+    print(f"-- loaded {len(all_events)} total ocr match_events", file=sys.stderr)
+
+    unpositioned_count = sum(1 for e in all_events if e.get("x") is None)
+    print(f"-- {unpositioned_count} unpositioned match_events to match",
           file=sys.stderr)
+
+    # Bucket events by (period, event_type, team_side).
+    events_by_bucket: dict[tuple, list[dict]] = {}
+    for e in all_events:
+        key = (e["period_number"], e["event_type"], e["team_side"])
+        events_by_bucket.setdefault(key, []).append(e)
+
+    # Bucket clusters by (period, shape_vote, team_side).
+    clusters_by_bucket: dict[tuple, list[Cluster]] = {}
+    for period, cs in clusters_by_period.items():
+        for c in cs:
+            key = (period, c.shape_vote(), c.team_side())
+            clusters_by_bucket.setdefault(key, []).append(c)
 
     print("BEGIN;")
     matched = 0
-    by_period_unpos: dict[int, list[dict]] = {}
-    for e in unpositioned:
-        by_period_unpos.setdefault(e["period_number"], []).append(e)
+    fcfs_fallback = 0
+    cluster_to_positioned = 0
 
-    # Greedy match: for each period, iterate match_events; for each, find a
-    # free cluster of matching (shape, team_side); pop it; emit SQL.
-    for period, events in by_period_unpos.items():
-        avail = list(clusters_by_period.get(period, []))
-        # Bucket free clusters by (shape, team_side) for O(1) match.
-        buckets: dict[tuple[str, str], list[Cluster]] = {}
-        for c in avail:
-            buckets.setdefault((c.shape_vote(), c.team_side()), []).append(c)
-        for event in events:
-            key = (event["event_type"], event["team_side"])
-            pool = buckets.get(key, [])
-            if not pool:
+    for key, events in events_by_bucket.items():
+        clusters = list(clusters_by_bucket.get(key, []))
+        if not clusters:
+            continue
+
+        # Precompute candidate pair counts per cluster, once.
+        cands = [c.candidate_pair_counts() for c in clusters]
+        positioned = [e for e in events if e.get("x") is not None]
+        unpositioned = [e for e in events if e.get("x") is None]
+        all_bucket_events = positioned + unpositioned  # combined event list
+        is_positioned = [True] * len(positioned) + [False] * len(unpositioned)
+
+        # Global greedy max-weight matching across (clusters × all events).
+        # The cluster's best match wins — whether the matched event is already
+        # positioned (no-op) or unpositioned (emit UPDATE). A cluster matched
+        # to a positioned event is properly "consumed" and not reused.
+        triples = []  # (weight, cluster_idx, event_idx)
+        for i in range(len(clusters)):
+            for j, e in enumerate(all_bucket_events):
+                w = pair_weight(cands[i], e.get("actor"), e.get("clock"))
+                if w > 0:
+                    triples.append((w, i, j))
+        triples.sort(key=lambda t: (-t[0], clusters[t[1]].median_pixel()))
+
+        assigned_event: set[int] = set()
+        assigned_cluster: set[int] = set()
+        for w, i, j in triples:
+            if i in assigned_cluster or j in assigned_event:
                 continue
-            chosen = pool.pop(0)
+            assigned_cluster.add(i)
+            assigned_event.add(j)
+            if is_positioned[j]:
+                cluster_to_positioned += 1
+                continue
+            chosen = clusters[i]
             hx, hy, zone = chosen.median_hockey()
             conf = chosen.confidence()
             label = "interpolated" if conf >= 0.5 else "extrapolated"
             print(
                 f"UPDATE match_events SET x='{hx}', y='{hy}', "
                 f"rink_zone='{zone}', position_confidence='{label}' "
-                f"WHERE id={event['id']};"
+                f"WHERE id={all_bucket_events[j]['id']};"
             )
             matched += 1
 
+        if positioned or unpositioned:
+            print(
+                f"-- bucket {key}: clusters={len(clusters)}, "
+                f"positioned={len(positioned)}, unpositioned={len(unpositioned)}, "
+                f"to_positioned={sum(1 for j in assigned_event if is_positioned[j])}, "
+                f"to_unpositioned={sum(1 for j in assigned_event if not is_positioned[j])}",
+                file=sys.stderr,
+            )
+
+        # Permissive-tier fallback: try single-observation clusters for any
+        # event that didn't match a strict cluster. Require an EXACT (actor,
+        # clock) match (weight >= 2.0) so single-obs noise doesn't get used.
+        # A single-obs cluster's panel comes from one capture, so an exact
+        # pair match means that capture's panel showed the target event —
+        # very strong evidence that this marker really is for it.
+        perm_clusters = list(clusters_permissive_by_period.get(key[0], []))
+        perm_clusters = [c for c in perm_clusters
+                         if c.shape_vote() == key[1] and c.team_side() == key[2]]
+        leftover_events = [
+            j for j in range(len(positioned), len(all_bucket_events))
+            if j not in assigned_event
+        ]
+        if perm_clusters and leftover_events:
+            perm_cands = [c.candidate_pair_counts() for c in perm_clusters]
+            used_perm: set[int] = set()
+            for j in leftover_events:
+                e = all_bucket_events[j]
+                best_w, best_i = 0.0, -1
+                for i, c in enumerate(perm_clusters):
+                    if i in used_perm:
+                        continue
+                    w = pair_weight(perm_cands[i], e.get("actor"), e.get("clock"))
+                    if w > best_w:
+                        best_w, best_i = w, i
+                if best_i >= 0 and best_w >= 2.0:
+                    used_perm.add(best_i)
+                    chosen = perm_clusters[best_i]
+                    hx, hy, zone = chosen.median_hockey()
+                    # Single-obs clusters are inherently lower confidence.
+                    print(
+                        f"UPDATE match_events SET x='{hx}', y='{hy}', "
+                        f"rink_zone='{zone}', position_confidence='extrapolated' "
+                        f"WHERE id={e['id']};"
+                    )
+                    matched += 1
+                    fcfs_fallback += 1
+
     print("COMMIT;")
-    print(f"-- summary: matched {matched} of {len(unpositioned)} unpositioned events",
-          file=sys.stderr)
+    print(
+        f"-- summary: matched {matched} of {unpositioned_count} unpositioned events "
+        f"({fcfs_fallback} via FCFS fallback; "
+        f"{cluster_to_positioned} clusters absorbed by already-positioned events)",
+        file=sys.stderr,
+    )
     return 0
 
 
