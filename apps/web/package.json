@@ -10,8 +10,10 @@
     "lint": "eslint src"
   },
   "dependencies": {
+    "@better-auth/drizzle-adapter": "^1.6.10",
     "@eanhl/db": "workspace:*",
     "@tailwindcss/postcss": "^4.2.2",
+    "better-auth": "^1.6.10",
     "next": "^15.3.0",
     "postcss": "^8.5.9",
     "react": "^19.1.0",
