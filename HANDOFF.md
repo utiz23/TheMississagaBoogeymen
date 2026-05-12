@@ -2,24 +2,87 @@
 
 ## Current Status
 
-**Phase:** Match 250 OCR extraction complete. All OCR pipeline sections live on `/games/250`. 95.8% spatial coverage. Docker web image rebuilt and deployed.
+**Phase:** Match 250 OCR per-player attribution arc closed. Replaced FCFS cluster→event assignment with greedy (actor, clock) matching + two promoter robustness fixes. Coverage 67/72 plottable events = 93.1%, all positioned events have high-confidence per-player attribution.
 
 Current production state:
-- **Spatial coverage (match 250): 69/72 plottable events = 95.8%**. Period-from-source-path fix in `inventory_consensus_match.py` recovered 3 previously unpositioned events. Remaining 3 unmatched = single-observation clusters (noise filtered by ≥2 obs requirement).
-- **OCR errors: 0** (130 successes). Net chart 4 BGM-side extraction errors fixed via `repromote-ocr` CLI.
-- **Player lineups: 7 reviewed** (4 BGM + 3 opponent). Promoted via `repromote-ocr-cli.ts` + `consolidate-loadouts --match 250`.
-- **All OCR sections render on `/games/250`**: Lineups, Period Summary, Shot Mix, Event Log, Shot Map.
-- **`repromote-ocr` CLI** added to worker package — re-runs OCR promoters from stored `raw_result_json` for missing domain rows without re-OCR.
-- ShotMap period filter chips now clean OCR "RT/LT" prefixes from period labels (same `cleanPeriodLabel` logic as EventLog).
-- Docker web image rebuilt (5-day-old image was missing `match-lineups.js`, `match-events.js`, etc. from packages/db/dist). Fixed `/preview/carousel/page.tsx` to use `force-dynamic` so it no longer tries to pre-render against a placeholder DB URL.
+- **Spatial coverage (match 250): 67/72 plottable = 93.1%** — all positioned events have correctly-attributed (player, event) mapping. Prior 95.8% was inflated by ~12 events with FCFS-misattributed positions (cluster's true event was already positioned via single-capture yellow marker; FCFS reused the cluster on a different unpositioned event of same bucket → two markers at one rink location for two distinct events).
+- **Consensus matcher rewritten** (`tools/game_ocr/scripts/inventory_consensus_match.py`). Global greedy max-weight bipartite matching across (clusters × all bucket events) using (actor, clock) frequency. Cluster's best match → event; only emits UPDATE when the matched event is unpositioned. Permissive single-obs cluster fallback requires exact (actor, clock) match for confidence.
+- **Action-tracker promoter robustness** (`apps/worker/src/ocr-promoters/action-tracker.ts`):
+  - `periodFromPath()` fallback when OCR period parsing returns -1 (e.g. "RT 2ND PERIOD 11.1") — recovered 4 events.
+  - `inferEventTypeFromRawText()` recovers `shot`/`goal`/`hit` from corrupted "SHDT"/"GDAL"/"10HS" forms — recovered 6 events, including SILKY's 6:02 goal.
+  - `sourcePath` plumbed through `PromoterContext` (was a known input but never passed). Both `ingest-ocr.ts` and `repromote-ocr-cli.ts` now forward it.
+- **7 OCR-typo duplicate rows deleted manually** for match 250 (SIlKY/WILOE/fOEWS variants of SILKY/WILDE/TOEWS). These were created because the promoter dedup key uses exact actor string. Fuzzy actor dedup is a separate follow-up.
+- **5 events truly unpositioned** — all match the user's "row cutoff in capture" cases (TOEWS 18:27, WHOOSAH 19:13, P. MAGROYNE 19:42, E. WANHG 19:34, M. RANTANEN 7:39). The yellow-underline detector needs the full row in frame; partial-row captures inherently fail.
+- **OCR errors: 0** (130 successes). All match-page sections still live on `/games/250`.
 
-**Open items to close the event-map arc (ranked):**
-1. **Cluster→event ordering** (~1-2 hr). Within a (period, type, side) bucket, cluster assignment is first-come-first-serve. Shot maps look right; per-player attribution may not. Adding cluster ordering via clock-from-events-list would fix.
-2. **Shape-classifier hits recall** (~30 min). Validator (`tools/game_ocr/scripts/validate_shape_classifier.py`) shows hit ratio 1.03 — should be ~2x. ~25-30% of hit markers fall into 'unknown'. Tightening the 4-vertex angle thresholds would recover some.
-3. **Auto opp-color detection** (~45 min). Match 250 happens to have BGM-away + opp-white; future matches will break. Sample the end-zone-bar pixel to learn opp team color per match.
-4. **Overlap watershed** (~2 hr). When 2+ markers stack at the same on-ice spot they merge. Match 250 has none; real games will.
+**Open items, ranked:**
+1. **Fuzzy actor dedup in promoter** (~1 hr) — Levenshtein/normalized-uppercase match on actor_gamertag_snapshot at insert time so SIlKY ↔ SILKY auto-merge. Match 250 has 7 manual deletions baked into DB; future matches need automated dedup.
+2. **Shape-classifier hits recall** (~30 min). Validator shows hit ratio 1.03 — should be ~2x. ~25-30% of hit markers fall into 'unknown'.
+3. **Auto opp-color detection** (~45 min). Match 250 is BGM-away + opp-white; future matches will break.
+4. **Partial-row capture recovery** (~2 hr) — for captures where the highlighted event row is scrolled partially off-screen, the yellow underline detector fails. Recovers the remaining 5 unpositioned events on 250 if solvable.
+5. **Overlap watershed** (~2 hr). Stacked markers at one on-ice spot. Not present in 250 but real games will have it.
 
-**Last updated:** 2026-05-12 (95.8% coverage, all OCR sections live, Docker redeployed)
+**Last updated:** 2026-05-12 (93.1% correctly-attributed coverage; per-player attribution arc closed)
+
+---
+
+## Session Summary — 2026-05-12 (per-player attribution arc — greedy matching + promoter robustness)
+
+### What was done
+
+Started on the event-map arc's #1 open item: cluster→event ordering. Investigation revealed three overlapping bug classes; all three fixed.
+
+**1. Consensus matcher rewrite — `tools/game_ocr/scripts/inventory_consensus_match.py`**
+
+The prior FCFS cluster→event assignment was double-plotting. When a cluster represented an event already positioned via the single-capture yellow-marker path (which writes the highlighted event's position from `selected_event_x/y`), the FCFS loop would still take that cluster and assign it to a different unpositioned event in the same `(period, event_type, team_side)` bucket. Result: two `match_events` rows received the same `(x, y)` — one correctly (from yellow), one wrongly (the unpositioned event gets the wrong location). Rink heatmap looked fine; per-player views were silently wrong.
+
+Diagnostic confirmed the signal we needed was available: each panel event in `raw_result_json.events` carries `actor_snapshot.value` and `clock.value`. Those let us score `(cluster, event)` pairs by counting how often the event's `(actor, clock)` appears in the panels of the cluster's source captures. Strong for goals (rare); ambiguous for high-density buckets where multiple shots/hits co-appear in the same panels.
+
+New algorithm:
+- `MarkerObservation.panel_by_type` — per-capture panel events grouped by `event_type`, attached to every marker observation.
+- `Cluster.candidate_pair_counts()` — aggregates `(actor, clock)` pair counts across the cluster's source captures filtered to the cluster's shape vote.
+- `pair_weight(cands, actor, clock) = 2 × exact_pair + 1 × clock_only + 0.5 × actor_only`. Clock weighted higher than actor because clock OCR is more reliable than gamertag OCR.
+- **Global** greedy max-weight bipartite matching across `(clusters × all bucket events)` — positioned AND unpositioned. Clusters whose best match is a positioned event are properly absorbed; the matcher only emits `UPDATE` for cluster → unpositioned-event assignments.
+- Permissive single-obs cluster fallback. A 1-obs cluster's candidate bag comes from one capture's panel; require exact `(actor, clock)` (weight ≥ 2.0) so noise can't slip in. Single-obs matches land at `position_confidence='extrapolated'`.
+
+Ties broken by cluster pixel centroid for idempotency.
+
+**2. Action-tracker promoter — period-from-path fallback** (`apps/worker/src/ocr-promoters/action-tracker.ts`)
+
+OCR period parsing was returning `period_number=-1` on 9 captures where the `period_label` carried extra garbage (e.g. `"RT 2ND PERIOD 11.1"`). Both the dedup-existing check (line 99) and the spatial `UPDATE` (line 196 — gated on `period_number >= 1`) silently no-op'd, so the highlighted event's yellow position was never written to its row.
+
+Added `periodFromPath()` that derives the period from the parent folder name (`1st-Period-Events`, `2nd-Period-Events`, `3rd-Period-Events`, `OT-Events`) — same fallback already used in `inventory_consensus_match.py`. Wired through `sourcePath` on `PromoterContext` (was a known input that had never been forwarded — both `ingest-ocr.ts` and `repromote-ocr-cli.ts` now pass it). Recovered 4 events.
+
+**3. Action-tracker promoter — event_type recovery from raw_text**
+
+10 captures had selected events with valid `(clock, actor, selected_event_x)` but `event_type='unknown'` from the Python parser. The OCR raw text consistently corrupts the right-column event tag: "SHOT" → "SHDT", "SHOTS" → "10HS"/"LOHS"/"1OHS", "GOAL" → "GDAL"/"GAOL". The promoter's `if (ev.event_type === 'unknown') continue` short-circuit dropped these rows entirely.
+
+`inferEventTypeFromRawText()` pattern-matches the corrupted forms and recovers the type. Applied in both the insert loop (so the row gets inserted with the right type, no orphan dup) and the spatial `UPDATE` block. Recovered 6 events, including SILKY's 6:02 goal that had been showing as the "MOST WANTED" missing event for weeks.
+
+**4. Cleanup**
+
+7 OCR-typo duplicate rows deleted from `match_events` (with cascade through `match_goal_events`): SIlKY/SILKY, WILOE/WILDE, fOEWS/TOEWS variants. The dedup key in the promoter uses exact `actor_gamertag_snapshot`, so OCR variance in actor names creates parallel rows. Fuzzy actor dedup is the natural follow-up.
+
+### Match 250 final state
+
+| metric | before this session | after |
+|---|---|---|
+| Total real events | 72 | 72 (7 OCR-dup rows deleted) |
+| Positioned | 69 (with ~12 mis-attributed) | **67 (all correctly attributed)** |
+| Coverage | 95.8% (inflated) | **93.1% (true)** |
+| Per-player attribution | suspect | high-confidence |
+| Single-capture (yellow) path | 51 | 55 (+4 from period fix, +6 from event_type recovery; consolidated to 55 after dedup with cross-screen events) |
+| Inventory consensus path | 18 (FCFS-attributed, ~half wrong) | 3 (greedy actor+clock attributed) |
+| OCR errors | 0 | 0 |
+
+The 5 truly unpositioned events (`hit @ TOEWS 18:27`, `hit @ WHOOSAH 19:13`, `hit @ P. MAGROYNE 19:42`, `hit @ E. WANHG 19:34`, `shot @ M. RANTANEN 7:39`) all map to captures where the event row was partially scrolled off-screen — the yellow-underline detector needs the full row in frame.
+
+### Commits
+
+| hash | what |
+|---|---|
+| `edf5d2f` | `fix(ocr): action-tracker promoter robustness — period + event_type fallbacks` |
+| `6adc748` | `feat(ocr): consensus matcher uses greedy (actor, clock) attribution` |
 
 ---
 
