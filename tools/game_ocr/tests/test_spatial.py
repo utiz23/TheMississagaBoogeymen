@@ -187,7 +187,10 @@ class CalibrationLoadTests(unittest.TestCase):
         self.assertIn("yellow", cal.color_thresholds)
         self.assertIn("center_ice", cal.reference_points)
         # Landmarks must be present for the RBF predictor to build.
-        self.assertEqual(len(cal.landmarks), 13)
+        # Round-3 shipped with 13; Round-4 expanded to 21 by adding 8 corner
+        # landmarks. Test for at-least-13 rather than exact count so the test
+        # remains stable across further landmark additions.
+        self.assertGreaterEqual(len(cal.landmarks), 13)
         landmark_names = {lm.name for lm in cal.landmarks}
         self.assertIn("centre", landmark_names)
         self.assertIn("board-top", landmark_names)

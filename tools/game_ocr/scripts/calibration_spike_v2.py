@@ -40,19 +40,28 @@ LANDMARKS_JSON = REPO_ROOT / "tools/game_ocr/game_ocr/configs/rink/match250_land
 
 # Mirror recalibrate_rink.py's landmark name → hockey (x, y) table.
 LANDMARK_HOCKEY: dict[str, tuple[float, float]] = {
-    "centre":            (  0.0,   0.0),
-    "bl-left":           (-25.0,   0.0),
-    "bl-right":          ( 25.0,   0.0),
-    "goal-left":         (-89.0,   0.0),
-    "goal-right":        ( 89.0,   0.0),
-    "board-left":        (-100.0,  0.0),
-    "board-right":       ( 100.0,  0.0),
-    "board-top":         (  0.0,  42.5),
-    "board-bottom":      (  0.0, -42.5),
-    "ez-fo-top-left":    (-69.0,  22.0),
-    "ez-fo-bot-left":    (-69.0, -22.0),
-    "ez-fo-top-right":   ( 69.0,  22.0),
-    "ez-fo-bot-right":   ( 69.0, -22.0),
+    "centre":                (  0.0,   0.0),
+    "bl-left":               (-25.0,   0.0),
+    "bl-right":              ( 25.0,   0.0),
+    "goal-left":             (-89.0,   0.0),
+    "goal-right":            ( 89.0,   0.0),
+    "board-left":            (-100.0,  0.0),
+    "board-right":           ( 100.0,  0.0),
+    "board-top":             (  0.0,  42.5),
+    "board-bottom":          (  0.0, -42.5),
+    "ez-fo-top-left":        (-69.0,  22.0),
+    "ez-fo-bot-left":        (-69.0, -22.0),
+    "ez-fo-top-right":       ( 69.0,  22.0),
+    "ez-fo-bot-right":       ( 69.0, -22.0),
+    # Round-4 additions (2026-05-13): expand hull into the rink-art corners.
+    "rink-corner-top-left":  (-99.0,  35.5),
+    "rink-corner-bot-left":  (-99.0, -35.5),
+    "rink-corner-top-right": ( 99.0,  35.5),
+    "rink-corner-bot-right": ( 99.0, -35.5),
+    "goal-line-top-left":    (-89.0,  42.5),
+    "goal-line-bot-left":    (-89.0, -42.5),
+    "goal-line-top-right":   ( 89.0,  42.5),
+    "goal-line-bot-right":   ( 89.0, -42.5),
 }
 
 # Coarse grouping for the boundary-vs-inner LOOCV split (spike D quality split).
@@ -61,6 +70,12 @@ LANDMARK_HOCKEY: dict[str, tuple[float, float]] = {
 BOUNDARY_LANDMARKS = {
     "goal-left", "goal-right",
     "board-left", "board-right", "board-top", "board-bottom",
+    # Round-4 additions live in the rink-art corner regions — boundary by
+    # nature.
+    "rink-corner-top-left", "rink-corner-bot-left",
+    "rink-corner-top-right", "rink-corner-bot-right",
+    "goal-line-top-left", "goal-line-bot-left",
+    "goal-line-top-right", "goal-line-bot-right",
 }
 INNER_LANDMARKS = {
     "centre", "bl-left", "bl-right",

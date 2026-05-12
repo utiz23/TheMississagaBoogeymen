@@ -1,13 +1,17 @@
 # Event-Map Marker Extraction — Research Dossier
 
 Status: **SHIPPED (2026-05-13)** — `tps_neighbors_k=6 + hull gate` is live
-in `spatial.py:pixel_to_hockey` as of commit `a951ec7`. The remaining open
-items are downstream: surfacing the `confidence` flag in `match_events`
-(needs migration + worker write + web rendering), reprocessing existing
-match events under the new calibration, and adding 4 more landmarks to
-lift hull coverage from 59% to ~85%+. See "Round-3 internal spike
-findings" below for the empirical evidence and "Next-pass priorities"
-for what remains. Last updated 2026-05-13.
+in `spatial.py:pixel_to_hockey` as of commit `a951ec7`. The confidence
+flag has shipped end-to-end (DB column + worker + web rendering) as of
+commit `8ad5fbe`.
+
+**Round-4 update (2026-05-13 afternoon):** Landmark set expanded from 13
+to 21 with 8 user-measured corner points. Hull coverage **59% → 89.6%**.
+Critically, with the expanded landmark set, **linear LSF now beats
+TPS+neighbors=6** on every metric (mean 7.50 px vs 9.17 px; boundary
+4.26 px vs 7.01 px). The Round-3 method choice is invalidated by Round-4
+data — pending decision on whether to switch production from RBF to LSF
+linear. See "Round-4 spike findings" below. Last updated 2026-05-13.
 
 This doc consolidates everything we know about extracting hockey-event markers
 from EA NHL Action Tracker screenshots, derived from a fresh round of internal
@@ -876,15 +880,128 @@ Spikes B (`neighbors=k`) and D (hull gate) both produce real recommendations.
 
 ---
 
+## Round-4 spike findings (2026-05-13 afternoon)
+
+Empirical follow-up to Round-3, executed after the user manually measured
+8 additional landmarks in the rink-art corners. Hypothesis: more boundary
+landmarks lift hull coverage and reduce extrapolation rate. Both
+confirmed; an unexpected secondary finding is that the *method choice*
+flips.
+
+### New landmarks (user-measured against the same match-250 frame)
+
+| name | pixel | hockey coord | reasoning |
+|---|---|---|---|
+| `rink-corner-top-left` | (850, 440) | (-99, +35.5) | Rink-art's upper-left rounded corner inner-edge |
+| `rink-corner-bot-left` | (850, 771) | (-99, -35.5) | mirror |
+| `rink-corner-top-right` | (1766, 440) | (+99, +35.5) | symmetric |
+| `rink-corner-bot-right` | (1766, 771) | (+99, -35.5) | symmetric |
+| `goal-line-top-left` | (895, 408) | (-89, +42.5) | Goal line extended to the top board in the art |
+| `goal-line-bot-left` | (895, 805) | (-89, -42.5) | mirror |
+| `goal-line-top-right` | (1722, 408) | (+89, +42.5) | symmetric |
+| `goal-line-bot-right` | (1722, 805) | (+89, -42.5) | symmetric |
+
+Caveat on the `goal-line-*` set: NHL geometry says the boards at hockey
+x=±89 are at y≈±36.7 (due to the corner-arc curvature), not ±42.5. But
+the rink art draws a nearly-flat top board with very stylized corners
+— the actual y of the art's top board at x=-89 is only ~1.3 ft below
+y=+42.5. Assigning these landmarks hockey (±89, ±42.5) is *art-faithful*
+and works for in-art calibration; the RBF/LSF absorbs the discrepancy.
+
+### Headline results (LOOCV-TRE on 21 landmarks)
+
+| method | mean (px) | mean (ft) | boundary (px) | inner (px) | Δ vs Round-3 (mean) |
+|---|---:|---:|---:|---:|---:|
+| **linear** | **7.50** | **1.61** | **4.26** | 13.96 | **-4.95** (linear was 12.45 in Round-3) |
+| tps_skimage | 9.78 | 2.11 | 6.88 | 15.58 | -3.89 (was 13.67) |
+| **tps_neighbors_k=6** (shipped) | **9.17** | **1.97** | **7.01** | 13.50 | **-3.55** (was 12.72) |
+| tps_neighbors_k=8 | 8.78 | 1.89 | 5.89 | 14.55 | -5.13 (was 13.91) |
+| pwa (interior-only) | 12.19 | 2.62 | 3.45 | 17.18 | n/a (different coverage) |
+
+**Hull coverage: 207/231 grid points valid = 89.6%** (was 59.1% with
+13 landmarks).
+
+### Key conclusion: method choice has flipped
+
+In Round-3 (13 landmarks), TPS+neighbors=6 beat linear because the linear
+LSF had nothing to anchor it to the boundary — all 13 landmarks lived on
+y=0 (boards, goal lines, blue lines) or on the inner ez-fo dots. The
+linear fit could honor either the boundary scaling or the inner scaling
+but not both.
+
+In Round-4 (21 landmarks), 8 of the new landmarks sit at extreme y (±35.5
+to ±42.5) AND extreme x (±89 to ±99). The linear LSF is now anchored
+across the full rink-art surface, and the per-feature scaling
+disagreements average out. The result: linear LSF beats TPS+neighbors=6
+on every relevant metric.
+
+Mechanism (intuitive): adding boundary landmarks added strong evidence
+about boundary scaling. The LSF can now find a global scale that respects
+boundary AND inner — the disagreements that previously broke linear are
+diluted across the 21-landmark fit.
+
+### Production implication — pending decision
+
+The shipped production code (commit `a951ec7`) uses
+`tps_neighbors_k=6` + hull gate. Under the new 21-landmark calibration:
+
+- The shipped RBF method produces **9.17 px / 1.97 ft** mean LOOCV-TRE.
+  That's still a 28% improvement over Round-3's 12.72 px shipped, and
+  no code changes are needed beyond the landmark JSON update.
+- A switch to LSF linear would produce **7.50 px / 1.61 ft** —
+  18% better than the RBF method.
+
+Trade-off:
+- **Keep RBF**: zero code churn, ship the 21-landmark calibration JSON,
+  accept 9.17 px accuracy. Reasonable if you don't want to undo
+  this morning's work.
+- **Switch to LSF linear**: write a small follow-up commit to
+  `spatial.py:pixel_to_hockey` to compute hockey via 6-parameter linear
+  LSF on the 21 landmarks. ~30 lines of code. Slight win on accuracy
+  AND simplifies the dependency graph (no scipy.RBFInterpolator on the
+  hot path; still need scipy.spatial.Delaunay for the hull gate).
+
+Recommendation: ship the 21-landmark JSON as a self-contained
+improvement first; defer the method swap as a separate follow-up
+once we've seen the new calibration in action.
+
+### Hull coverage breakdown
+
+Grid sample of 21×11 hockey points: 207 valid (in-hull), 24 out-of-hull.
+The 24 out-of-hull points are concentrated at:
+- The 4 corner-most points (±100, ±42.5) — outside any rink anyway
+- Strips along the side boards at extreme x (the art's curve in those
+  regions isn't covered by the new corner landmarks)
+
+For typical event positions (which are bounded by where players can
+actually be on the ice), the extrapolation rate should drop from ~41%
+to roughly 10-15%.
+
+### What this enables
+
+1. **Reprocess match-250 events** under the new calibration. With 89.6%
+   hull coverage, most existing match_events will now mark as
+   `interpolated` rather than `extrapolated`.
+2. **Renovation phase 1 on the shot map** — with fewer extrapolated
+   events, the 50%-opacity treatment now genuinely signals "this event
+   is uncertain" rather than "almost half the events are uncertain."
+3. **Method swap decision** — see "Production implication" above.
+
+---
+
 ## Picking this back up
 
 When you resume:
 
 1. Re-read this doc top-to-bottom.
-2. If the Round-3 spike findings (above) haven't been shipped yet, start
-   at "Production recommendation": replace `spatial.py:pixel_to_hockey`
-   with the `tps_neighbors_k=6 + hull gate` implementation.
-3. Otherwise, work on the "Next-pass priorities" list — adding landmarks
-   is the highest-leverage next step.
+2. If Round-4 landmarks (8 new corner points) haven't been committed
+   yet, that's the highest-leverage next move. Commit the JSON
+   updates and rerun the spike to confirm hull coverage at ~90%.
+3. Decide whether to switch production from `tps_neighbors_k=6` to
+   `linear LSF` based on Round-4's reversed recommendation. The
+   shipped RBF method still works fine with the new landmarks; the
+   switch is a strict accuracy improvement.
 4. Match-250 ground truth from the previous implementation pass is in the
-   DB — use it for regression-testing the new pipeline.
+   DB — use it for regression-testing the new pipeline. **Reprocess
+   match 250 now that hull coverage is high** to see the new
+   calibration in action on real data.

@@ -36,7 +36,17 @@
     { "name": "ez-fo-top-left",   "pixel": [1004, 510], "hockey": [-69.0, 22.0] },
     { "name": "ez-fo-bot-left",   "pixel": [1004, 703], "hockey": [-69.0, -22.0] },
     { "name": "ez-fo-top-right",  "pixel": [1615, 510], "hockey": [69.0, 22.0] },
-    { "name": "ez-fo-bot-right",  "pixel": [1615, 703], "hockey": [69.0, -22.0] }
+    { "name": "ez-fo-bot-right",  "pixel": [1615, 703], "hockey": [69.0, -22.0] },
+
+    { "name": "rink-corner-top-left",  "pixel": [850, 440],  "hockey": [-99.0, 35.5] },
+    { "name": "rink-corner-bot-left",  "pixel": [850, 771],  "hockey": [-99.0, -35.5] },
+    { "name": "rink-corner-top-right", "pixel": [1766, 440], "hockey": [99.0, 35.5] },
+    { "name": "rink-corner-bot-right", "pixel": [1766, 771], "hockey": [99.0, -35.5] },
+
+    { "name": "goal-line-top-left",    "pixel": [895, 408],  "hockey": [-89.0, 42.5] },
+    { "name": "goal-line-bot-left",    "pixel": [895, 805],  "hockey": [-89.0, -42.5] },
+    { "name": "goal-line-top-right",   "pixel": [1722, 408], "hockey": [89.0, 42.5] },
+    { "name": "goal-line-bot-right",   "pixel": [1722, 805], "hockey": [89.0, -42.5] }
   ],
   "color_thresholds": {
     "yellow": {
