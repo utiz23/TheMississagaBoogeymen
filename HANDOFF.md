@@ -6,11 +6,74 @@
 
 Pre-game OCR pipeline still anchors the data side: loadout-view + lobby parsers run as anchor-based full-frame parsers, cross-frame consensus CLI collapses observations into canonical rows. End-to-end validated on match 250's 14 captures: 41 raw → 10 canonical skater rows with full attribute / X-Factor / persona coverage.
 
-Marker-extraction calibration **shipped 2026-05-13** as `tps_neighbors_k=6 + hull gate` in `spatial.py:pixel_to_hockey` (commit `a951ec7`). Round-3 spikes (regularized TPS, `neighbors=k`, PWA, hull gate) closed; production reads from a 13-landmark RBF predictor with sub-foot boundary fidelity (LOOCV-TRE 4.52 px / 0.97 ft, vs 10.03 px / 2.16 ft for the linear baseline). Event-list extraction is paused with Round-2 findings ingested; 17 open empirical questions tagged for spikes.
+Marker-extraction calibration **fully shipped and reprocessed 2026-05-13**. Current production state:
+- `spatial.py:pixel_to_hockey` uses **LSF linear + Delaunay hull gate** over **21 landmarks** (89.6% hull coverage). LOOCV-TRE: 7.50 px / 1.61 ft mean; boundary 4.26 px / 0.92 ft.
+- `RinkCoordinate.confidence` flag plumbed end-to-end: `match_events.position_confidence` text column ('interpolated' | 'extrapolated'), worker writes it, web shot map renders extrapolated markers at reduced opacity.
+- Match 250 reprocessed under the new calibration via `respatialize_match.py` + CVAT-import update. 51/72 plottable events correctly positioned (86% of goals, 79% of hits, 59% of shots). All 51 in-hull → `interpolated`.
+- Two pre-existing worker bugs caught & fixed in the process: action-tracker promoter was using `events[0]` instead of `events[selected_event_index]` (89% of match-250 markers were mis-attributed); CVAT importer was using pre-Round-3 single-anchor linear math (silently producing stale coords on every CVAT run).
+
+Event-list extraction is paused with Round-2 findings ingested; 17 open empirical questions tagged for spikes.
 
 **Retrospective for the 2026-05-12 morning session:** [docs/retrospectives/2026-05-12-pre-game-ocr-and-research-rounds.md](docs/retrospectives/2026-05-12-pre-game-ocr-and-research-rounds.md) — process/methodology lessons.
 
-**Last updated:** 2026-05-13 (noon — marker calibration shipped)
+**Last updated:** 2026-05-13 (afternoon — calibration arc closed + match 250 reprocessed)
+
+---
+
+## Session Summary — 2026-05-13 (afternoon — full calibration arc + bug fixes + match-250 reprocess)
+
+Continued from the morning session. Closed the marker-calibration arc
+end-to-end and uncovered two worker bugs in the process.
+
+### Commits (in order)
+
+| hash | what |
+|---|---|
+| `a2f6db7` | Round-3 internal spike (regularized TPS / neighbors=k / PWA / hull gate). Winner: `tps_neighbors_k=6` with 13 landmarks |
+| `26185a0` | Card-progression deep-research prompt + research queue |
+| `a951ec7` | Shipped Round-3 winner to `spatial.py:pixel_to_hockey` |
+| `0080737` | Dossier flipped to SHIPPED |
+| `8ad5fbe` | Confidence flag end-to-end: migration 0034 `match_events.position_confidence`, worker writes it, web shot map renders extrapolated markers at 50% opacity |
+| `9bb202e` | Round-4: user measured 8 additional corner landmarks → 21 landmarks total. Hull coverage 59% → 89.6%. Unexpected reversal: linear LSF now beats TPS+neighbors=6 on every metric |
+| `0b25439` | Method swap: replaced RBF+neighbors=6 with LSF linear in `spatial.py`. Removed `scipy.interpolate.RBFInterpolator` from hot path; kept `scipy.spatial.Delaunay` for hull gate |
+| `c6240a7` | Worker promoter bug fix: was using `events[0]` for spatial attribution instead of `events[selected_event_index]`. On match 250, only 3/93 captures had selected_event_index=0; the other 89% were mis-attributed. New `tools/game_ocr/scripts/respatialize_match.py` to reprocess existing matches under the current calibration |
+| `be4f206` | CVAT importer fix: was using its own pre-Round-3 single-anchor linear math; now calls production `spatial.pixel_to_hockey`. Also writes `position_confidence` |
+
+### Calibration trajectory across the day
+
+| stage | landmarks | method | mean LOOCV-TRE | boundary | hull cov |
+|---|---:|---|---:|---:|---:|
+| pre-shipping (single-anchor linear, rink_pixel_box only) | n/a | single linear | 12.45 px / 2.68 ft | 10.03 | n/a |
+| Round-3 shipped | 13 | TPS RBF neighbors=6 | 12.72 px / 2.74 ft | **4.52** | 59.1% |
+| Round-4 landmarks (RBF retained) | 21 | RBF neighbors=6 | 9.17 px / 1.97 ft | 7.01 | 89.6% |
+| **Round-4 final (current prod)** | 21 | **LSF linear** | **7.50 px / 1.61 ft** | **4.26** | 89.6% |
+
+### Bugs caught (both pre-dated today)
+
+1. **Worker promoter attribution.** Worker assumed `events[0]` was the highlighted event. Parser actually outputs `selected_event_index` — the highlighted event is at that index. On match 250's 93 Action Tracker captures, only 3 had `selected_event_index=0`. The other 89% had their yellow-marker hockey position written to the wrong `match_events` row. Existed since the spatial-update Phase 5 was added.
+
+2. **CVAT importer math.** `import_cvat_labels.py` was doing its own hand-rolled single-anchor linear pixel→hockey conversion (the same math `pixel_to_hockey` used pre-Round-3). After today's algorithm swaps, the CVAT pipeline silently produced stale coords. Now calls the production `pixel_to_hockey` directly.
+
+### Match 250 final state (after reprocess + CVAT import)
+
+| event_type | total OCR events | positioned | coverage |
+|---|---:|---:|---:|
+| goal | 7 | 6 | 86% |
+| hit | 33 | 26 | 79% |
+| shot | 32 | 19 | 59% |
+| faceoff | 19 | 1 | 5% (expected — not on Action Tracker rink) |
+| **plottable total** | **72** | **51** | **71%** |
+
+All 51 positioned events: `position_confidence = 'interpolated'`. Zero `extrapolated` because the 21-landmark hull encloses every actual on-rink event.
+
+### Known coverage gap
+
+21 plottable events without positions despite CVAT covering them. These are CVAT-annotated frames whose `(period_number, event_type, clock, actor_gamertag_snapshot)` didn't match any `match_events` row. Suspected cause: OCR variation on `clock` or `actor` strings (e.g., "5:07" vs "5:O7", spelling drift). Improvable with fuzzy matching in the CVAT-import dedup key. ~30-60 min spike to investigate.
+
+### Other state
+
+- `deep-research-report_4_Cards.md` at repo root — card-progression deep-research returned. Untracked, not yet reviewed. Belongs in `docs/cards/` next to the prompt.
+- HANDOFF.md (this file) updated.
 
 ---
 
