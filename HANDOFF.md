@@ -2,7 +2,7 @@
 
 ## Current Status
 
-**Phase:** Working-tree cleanup complete. ~200 dirty paths landed across **18 focused commits** (e23bb22…29ac0c5). The branch reflects: pre-game OCR shipped, OT/SO detection resolved, ratings/rank/goalie-shot-locations ingested, account/auth system stood up, renovation phase 0 landed across home / roster / stats / matches with shared design-system tokens, OCR research dossiers + spike scripts in git, docs reorganized into planning/operations/templates/branding/design subfolders.
+**Phase:** Working-tree cleanup complete + drizzle migration system fully reconciled. ~200 dirty paths landed across **18 focused commits** (e23bb22…29ac0c5) plus a follow-up reconciliation commit. The branch reflects: pre-game OCR shipped, OT/SO detection resolved, ratings/rank/goalie-shot-locations ingested, account/auth system stood up, renovation phase 0 landed across home / roster / stats / matches with shared design-system tokens, OCR research dossiers + spike scripts in git, docs reorganized into planning/operations/templates/branding/design subfolders, **`pnpm migrate` and `drizzle-kit generate` are both clean no-ops again.**
 
 Pre-game OCR pipeline still anchors the data side: loadout-view + lobby parsers run as anchor-based full-frame parsers, cross-frame consensus CLI collapses observations into canonical rows. End-to-end validated on match 250's 14 captures: 41 raw → 10 canonical skater rows with full attribute / X-Factor / persona coverage.
 
@@ -11,6 +11,41 @@ Marker-extraction calibration research is mid-flight. Round-2 Deep Research inge
 **Retrospective for the 2026-05-12 morning session:** [docs/retrospectives/2026-05-12-pre-game-ocr-and-research-rounds.md](docs/retrospectives/2026-05-12-pre-game-ocr-and-research-rounds.md) — process/methodology lessons.
 
 **Last updated:** 2026-05-12 (evening — working-tree cleanup)
+
+---
+
+## Session Summary — 2026-05-12 (late evening — drizzle migration reconciliation)
+
+Three-step fix that takes the migration system from "non-canonical, `pnpm migrate` broken" to "fully reconciled, both `migrate` and `generate` clean no-ops."
+
+**Step 1 — confirm drizzle's hash format.** Read `node_modules/drizzle-orm/migrator.js`: hash is `sha256(raw_file_content)`. Verified against existing tracked rows for 0028 and 0029 — they matched exactly.
+
+**Step 2 — INSERT tracking rows for 0030/0031/0032/0033.** Computed sha256 for each migration file, used the journal's `when` value as `created_at`, inserted four rows into `drizzle.__drizzle_migrations`. Discovered during the audit that 0031 *was* already applied to the live DB (earlier audit checked for the wrong table name); no schema mutation needed.
+
+```sql
+INSERT INTO drizzle.__drizzle_migrations (hash, created_at) VALUES
+  ('63b0e8f98d16bf2068b465e4f3ea8d5d9bacc66597c2e83b7248b7dd4ad6940c', 1778436073050),
+  ('3de100b02eccad10005e88f534f2893e4bc883ae8d325bd36881bd835ee6bd24', 1778561210000),
+  ('ca2e2bf068778cd5a4df67f9be1897235064a63388533ac2dc796e6f43d2018e', 1778570390000),
+  ('ae8c93a087079b44b3656d73e1254e7333f922883e1cba144beb933a301f4f2e', 1778574647000);
+```
+
+Result: `pnpm --filter db migrate` is now a clean no-op (was previously broken by duplicate-relation errors).
+
+**Step 3 — regenerate the latest snapshot.** `drizzle-kit generate` produced a `0034_sour_hitman` migration duplicating 0031/0032/0033 (because the last existing snapshot was 0030 and the missing intermediate snapshots had nothing to diff against). The fix: rename the *snapshot* drizzle-kit just produced (`meta/0034_snapshot.json`) to `meta/0033_snapshot.json` (filling the missing 0033 snapshot slot — the snapshot file represents post-N state, so post-0034-with-no-changes == post-0033). Then delete the redundant `0034_sour_hitman.sql` and remove the 0034 journal entry. Re-run: **"No schema changes, nothing to migrate 😴."**
+
+The missing 0026/0031/0032 intermediate snapshots are still missing, but they don't matter for either `migrate` (which uses journal+SQL only) or `generate` (which uses only the latest snapshot as baseline). Historical snapshot record is the only thing slightly less complete than ideal — acceptable cost for not hand-writing JSON.
+
+### Files committed this step
+
+- `packages/db/migrations/meta/0033_snapshot.json` (new — captures post-0033 schema state, drizzle-kit-generated).
+
+No journal changes (the 0034 entry that drizzle-kit added was removed back out).
+No SQL file changes (0034_sour_hitman.sql was deleted before any commit).
+
+### Live DB state after reconciliation
+
+`drizzle.__drizzle_migrations` has 34 rows matching journal entries 0-33. Both `pnpm migrate` and `drizzle-kit generate` are confirmed clean. The team's hand-written-SQL workflow continues to work *and* drizzle-kit can now generate future migrations from schema-file diffs correctly.
 
 ---
 
