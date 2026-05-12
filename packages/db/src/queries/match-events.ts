@@ -70,6 +70,7 @@ export async function getMatchEvents(matchId: number) {
       x: matchEvents.x,
       y: matchEvents.y,
       rinkZone: matchEvents.rinkZone,
+      positionConfidence: matchEvents.positionConfidence,
       source: matchEvents.source,
       reviewStatus: matchEvents.reviewStatus,
       actor,
@@ -139,6 +140,7 @@ export async function getPlayerCareerShots(playerId: number, limit = 500) {
       x: matchEvents.x,
       y: matchEvents.y,
       rinkZone: matchEvents.rinkZone,
+      positionConfidence: matchEvents.positionConfidence,
       opponentName: matches.opponentName,
       playedAt: matches.playedAt,
     })

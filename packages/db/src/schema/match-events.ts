@@ -53,6 +53,21 @@ export const matchEvents = pgTable(
     x: numeric('x', { precision: 6, scale: 2 }),
     y: numeric('y', { precision: 6, scale: 2 }),
     rinkZone: text('rink_zone'),
+    /**
+     * Confidence of the (x, y) derivation:
+     *   'interpolated' — pixel position was inside the convex hull of the
+     *      calibration landmarks; RBF prediction is bounded by the
+     *      enclosing landmarks and high-confidence.
+     *   'extrapolated' — pixel position was outside the landmark hull;
+     *      RBF extrapolated and TRE is unbounded. UI should treat these
+     *      markers as low-confidence (dotted outline / muted).
+     * Null when (x, y) is null OR derived via a non-OCR pipeline.
+     * See `docs/ocr/marker-extraction-research.md` for the calibration
+     * method and hull-coverage statistics.
+     */
+    positionConfidence: text('position_confidence').$type<
+      'interpolated' | 'extrapolated'
+    >(),
     source: text('source').notNull().$type<EnrichmentSource>(),
     ocrExtractionId: bigint('ocr_extraction_id', { mode: 'number' }).references(
       () => ocrExtractions.id,
@@ -72,6 +87,10 @@ export const matchEvents = pgTable(
     check(
       'match_events_team_side_check',
       sql`${table.teamSide} IN ('for', 'against')`,
+    ),
+    check(
+      'match_events_position_confidence_check',
+      sql`${table.positionConfidence} IS NULL OR ${table.positionConfidence} IN ('interpolated', 'extrapolated')`,
     ),
   ],
 )

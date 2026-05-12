@@ -324,30 +324,31 @@ function Marker({ event }: { event: MatchEventRow }) {
   const svgX = rinkX(hockeyX)
   const svgY = rinkY(hockeyY)
   const side: 'home' | 'away' = event.teamSide === 'for' ? 'home' : 'away'
-  const tooltip = buildTooltip(event)
+  const extrapolated = event.positionConfidence === 'extrapolated'
+  const tooltip = buildTooltip(event, extrapolated)
 
   switch (event.eventType) {
     case 'goal':
       return (
-        <PlacedMarker x={svgX} y={svgY} width={112} height={97} tooltip={tooltip}>
+        <PlacedMarker x={svgX} y={svgY} width={112} height={97} tooltip={tooltip} extrapolated={extrapolated}>
           <GoalMarker side={side} size={112} />
         </PlacedMarker>
       )
     case 'shot':
       return (
-        <PlacedMarker x={svgX} y={svgY} width={84} height={84} tooltip={tooltip}>
+        <PlacedMarker x={svgX} y={svgY} width={84} height={84} tooltip={tooltip} extrapolated={extrapolated}>
           <ShotMarker side={side} size={84} />
         </PlacedMarker>
       )
     case 'hit':
       return (
-        <PlacedMarker x={svgX} y={svgY} width={80} height={80} tooltip={tooltip}>
+        <PlacedMarker x={svgX} y={svgY} width={80} height={80} tooltip={tooltip} extrapolated={extrapolated}>
           <HitMarker side={side} size={80} />
         </PlacedMarker>
       )
     case 'penalty':
       return (
-        <PlacedMarker x={svgX} y={svgY} width={112} height={112} tooltip={tooltip}>
+        <PlacedMarker x={svgX} y={svgY} width={112} height={112} tooltip={tooltip} extrapolated={extrapolated}>
           <PenaltyMarker side={side} size={112} />
         </PlacedMarker>
       )
@@ -362,6 +363,7 @@ function PlacedMarker({
   width,
   height,
   tooltip,
+  extrapolated,
   children,
 }: {
   x: number
@@ -369,6 +371,7 @@ function PlacedMarker({
   width: number
   height: number
   tooltip: string
+  extrapolated?: boolean
   children: React.ReactNode
 }) {
   // Clamp so the entire marker fits inside the rink viewBox (0..2405 × 0..1025).
@@ -378,8 +381,15 @@ function PlacedMarker({
   const halfH = height / 2
   const cx = Math.max(halfW, Math.min(VIEW_W - halfW, x))
   const cy = Math.max(halfH, Math.min(VIEW_H - halfH, y))
+  // Extrapolated markers had their pixel position outside the calibration
+  // landmark hull — the RBF prediction is unbounded TRE there. Render at
+  // reduced opacity so the operator can tell at a glance which markers are
+  // best-guess. See docs/ocr/marker-extraction-research.md.
   return (
-    <g transform={`translate(${cx - halfW}, ${cy - halfH})`}>
+    <g
+      transform={`translate(${cx - halfW}, ${cy - halfH})`}
+      opacity={extrapolated === true ? 0.5 : 1}
+    >
       <title>{tooltip}</title>
       {children}
     </g>
@@ -409,12 +419,13 @@ function rinkY(hockeyY: number): number {
   return 512.5 - clamped * 12
 }
 
-function buildTooltip(event: MatchEventRow): string {
+function buildTooltip(event: MatchEventRow, extrapolated: boolean): string {
   const parts: string[] = []
   parts.push(event.eventType.toUpperCase())
   if (event.actor?.gamertag) parts.push(event.actor.gamertag)
   else if (event.actorGamertagSnapshot) parts.push(event.actorGamertagSnapshot)
   if (event.clock) parts.push(`@ ${event.clock}`)
   parts.push(event.periodLabel || `P${String(event.periodNumber)}`)
+  if (extrapolated) parts.push('(approx. position)')
   return parts.join(' · ')
 }

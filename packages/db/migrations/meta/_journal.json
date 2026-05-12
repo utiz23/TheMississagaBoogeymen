@@ -239,6 +239,13 @@
       "when": 1778574647000,
       "tag": "0033_loadout_team_side",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1778612588621,
+      "tag": "0034_match_events_position_confidence",
+      "breakpoints": true
     }
   ]
 }

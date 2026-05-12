@@ -153,6 +153,14 @@ export async function promoteActionTracker(ctx: PromoterContext): Promise<void> 
   const selectedX = result.selected_event_x as number | null | undefined
   const selectedY = result.selected_event_y as number | null | undefined
   const selectedZone = result.selected_event_rink_zone as string | null | undefined
+  // 1.0 in-hull, 0.3 out-of-hull. Convert to a 2-value label for the DB.
+  const selectedConfidenceRaw = result.selected_event_confidence as number | null | undefined
+  const positionConfidence: 'interpolated' | 'extrapolated' | null =
+    selectedConfidenceRaw == null
+      ? null
+      : selectedConfidenceRaw >= 0.5
+        ? 'interpolated'
+        : 'extrapolated'
   const firstEvent = events[0]
   if (
     selectedX != null &&
@@ -169,6 +177,7 @@ export async function promoteActionTracker(ctx: PromoterContext): Promise<void> 
           x: selectedX.toFixed(2),
           y: selectedY.toFixed(2),
           rinkZone: selectedZone ?? null,
+          positionConfidence,
         })
         .where(
           and(

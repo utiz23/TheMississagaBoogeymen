@@ -139,12 +139,18 @@ function CareerMarker({ event }: { event: PlayerCareerShotRow }) {
     size = 1.5
   }
 
-  const tooltip = `${event.eventType.toUpperCase()} · vs ${event.opponentName} · ${event.periodLabel ?? ''} ${event.clock ?? ''}`
+  // Extrapolated events were predicted outside the calibration landmark hull;
+  // render at reduced opacity so the operator can spot the approximate ones.
+  const extrapolated = event.positionConfidence === 'extrapolated'
+  const baseOpacity = 0.75
+  const fillOpacity = extrapolated ? baseOpacity * 0.4 : baseOpacity
+
+  const tooltip = `${event.eventType.toUpperCase()} · vs ${event.opponentName} · ${event.periodLabel ?? ''} ${event.clock ?? ''}${extrapolated ? ' · (approx. position)' : ''}`
 
   return (
     <g>
       <title>{tooltip}</title>
-      <circle cx={x} cy={y} r={size} fill={fill} fillOpacity="0.75" stroke="#111827" strokeWidth="0.2" />
+      <circle cx={x} cy={y} r={size} fill={fill} fillOpacity={fillOpacity} stroke="#111827" strokeWidth="0.2" />
     </g>
   )
 }

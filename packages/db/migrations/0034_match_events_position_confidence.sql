@@ -1,0 +1,2 @@
+ALTER TABLE "match_events" ADD COLUMN "position_confidence" text;--> statement-breakpoint
+ALTER TABLE "match_events" ADD CONSTRAINT "match_events_position_confidence_check" CHECK ("match_events"."position_confidence" IS NULL OR "match_events"."position_confidence" IN ('interpolated', 'extrapolated'));
