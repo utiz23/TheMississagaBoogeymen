@@ -23,6 +23,7 @@ build
 
 # Python
 .venv/
+.venv-*/
 __pycache__/
 
 # OCR tool — screenshots are large binary assets, not source code

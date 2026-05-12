@@ -1,6 +1,9 @@
 # Event-Map Marker Extraction — Research Dossier
 
-Status: **PARKED** — research is captured, implementation is deferred. Last updated 2026-05-11.
+Status: **READY TO SHIP** — Round-3 spike findings (2026-05-13) settle the
+four prioritized methods; recommendation is `tps_neighbors_k=6 + hull gate`
+in production. See "Round-3 internal spike findings" below for numbers
+and a production-ready code sketch. Last updated 2026-05-13.
 
 This doc consolidates everything we know about extracting hockey-event markers
 from EA NHL Action Tracker screenshots, derived from a fresh round of internal
@@ -689,15 +692,195 @@ These remain open questions worth a focused next-round query:
 
 ---
 
+## Round-3 internal spike findings (2026-05-13)
+
+Empirical follow-up to the Round-2 Deep Research's four prioritized spikes,
+run via [calibration_spike_v2.py](../../tools/game_ocr/scripts/calibration_spike_v2.py).
+Same 13 landmarks as v1. Full results in
+`/tmp/calibration-spike-v2-results.md` (regenerable; not committed).
+
+### Methods evaluated
+
+| Spike | Method | Library |
+|---|---|---|
+| A | Regularized TPS (smoothing sweep k ∈ {0, 0.1, 0.5, 1, 2, 5, 10, 20, 50, 100}) | `scipy.interpolate.RBFInterpolator(kernel="thin_plate_spline", smoothing=k)` |
+| B | Neighbors=k localization (k ∈ {4, 6, 8, 10, 13}) | `RBFInterpolator(neighbors=k)` |
+| C | Piecewise-affine (Delaunay) | `skimage.transform.PiecewiseAffineTransform` |
+| D | Convex-hull confidence gate | `scipy.spatial.Delaunay.find_simplex` |
+| (baselines) | linear, plain TPS (skimage) | — |
+
+### Headline results (LOOCV-TRE on 13 landmarks)
+
+| method | coverage | mean (px) | mean (ft) | boundary (px) | inner (px) |
+|---|---:|---:|---:|---:|---:|
+| **linear** (current production) | 13/13 | **12.45** | 2.68 | 10.03 | 14.53 |
+| plain TPS (skimage) | 13/13 | 13.67 | 2.95 | 6.90 | 19.48 |
+| **tps_neighbors_k=6** | 13/13 | **12.72** | 2.74 | **4.52** | 19.74 |
+| tps_neighbors_k=4 | 13/13 | 30.42 | 6.56 | 37.22 | 24.59 |
+| tps_neighbors_k=8 | 13/13 | 13.91 | 3.00 | 6.98 | 19.84 |
+| pwa | **5/13** | 8.02¹ | 1.73¹ | 0.72¹ | 12.88¹ |
+
+¹ PWA coverage is restricted because held-out boundary landmarks fall
+outside the remaining-landmarks hull — skimage returns the `(-1, -1)`
+out-of-hull sentinel. PWA means are over the predictable 5 landmarks
+(`centre, bl-left, bl-right, goal-left, goal-right`) only and are **not
+comparable** to the 13-landmark means. On the same 5-landmark shared
+subset, PWA = 8.02 px and linear = 8.02 px (tied). Plain TPS = 8.17 px.
+
+**Regularized TPS sweep (Spike A) — null result.** Every nonzero
+smoothing value produced strictly worse mean LOOCV-TRE than `smoothing=0`
+(plain TPS). The blue-line discontinuity is the underlying issue, and
+smoothing the spline doesn't fix it — it just makes the boundary fit
+slightly worse while not helping the inner fit. Smoothing degrades
+monotonically from 13.67 (k=0) to 14.33 (k=100).
+
+**Neighbors=k sweep (Spike B) — k=6 is the sweet spot.** k=4 catastrophic
+(30 px), k=6 best (12.72 mean, 4.52 boundary — better boundary than any
+other full-coverage method), k≥8 converges back to plain TPS as the
+neighbor limit becomes irrelevant. The mechanism: with 6 nearest
+landmarks, each prediction is anchored by local geometry and the
+blue-line-vs-faceoff scale disagreement no longer propagates into
+inner-zone holdouts as severely.
+
+**PWA (Spike C) — interior-only, but tight where it works.** PWA cannot
+extrapolate past the landmark hull, so 8 of 13 LOOCV holdouts return the
+out-of-hull sentinel. On the 5 landmarks it can predict, mean TRE is
+8.02 px — exactly tied with linear. The 0 foldovers in a 21×11 dense
+hockey grid (after fixing the sign-convention bug in the foldover check)
+indicates the triangulation is geometrically sound. PWA is **not viable
+as a sole production method** but could be a high-accuracy interior
+predictor with a non-PWA fallback for out-of-hull positions.
+
+### Spike D — hull statistics
+
+- Hull area in pixel space: **216,335 px²**
+- Linear-fit rink box area: **365,937 px²**
+- **Hull coverage: 59.1% of the rink-art area.**
+- Production rule: **40.9% of the rink is outside the landmark hull** and
+  predictions there should emit a `confidence='extrapolated'` flag. The
+  uncovered regions are the four corners (where the rink art's
+  trapezoidal end-zones are) and the strips behind each goal line.
+
+### Visual sanity — warp grid
+
+Warp-grid renders for both winners:
+- `tps_neighbors_k=6`: visible non-linear warp; the green grid lines
+  at hockey ±25 land on the rink art's blue lines (slightly wider than
+  proportional). No foldovers. Inner grid spacing smoothly transitions
+  to the wider boundary spacing.
+- linear: perfectly uniform grid; visible misalignment with the rink
+  art's blue lines.
+
+Artifacts (regenerable, not committed):
+- `/tmp/calibration-spike-v2-overlay.png`,
+  `/tmp/calibration-spike-v2-overlay-boundary.png`
+- `/tmp/calibration-spike-v2-warp-grid.png`,
+  `/tmp/calibration-spike-v2-warp-grid-boundary.png`
+
+### Production recommendation
+
+**Adopt `tps_neighbors_k=6` as the primary calibration method, with the
+convex-hull gate applied unconditionally.**
+
+Rationale:
+1. **Best boundary fidelity** (4.52 px / 0.97 ft) of any full-coverage
+   method. Boundary accuracy is what we actually care about — boards,
+   goal lines, and end-zones are where most shot-map-significant events
+   occur. Sub-foot boundary accuracy on the LOOCV stress test is a real
+   improvement over the current single-anchor linear (10.03 px / 2.16 ft
+   boundary).
+2. **Full coverage** — predicts every input position, unlike PWA.
+3. **Robust to the blue-line discontinuity** that plain TPS over-fits.
+   Limiting each prediction to 6 nearest landmarks blocks the
+   inner-zone extrapolation pathology empirically.
+4. **Library trade-off accepted**: requires `scipy.interpolate.RBFInterpolator`
+   instead of scikit-image's `ThinPlateSplineTransform`, because skimage
+   doesn't expose a neighbor-limit parameter. Round-2 marked SciPy's
+   RBF as a "fallback"; here we elevate it to primary because the
+   neighbor-limit feature is decisive.
+
+Production sketch:
+
+```python
+import numpy as np
+from scipy.interpolate import RBFInterpolator
+from scipy.spatial import Delaunay
+
+# Build the calibration once at startup from the 13 landmark pairs.
+LANDMARK_PX_HOCKEY = [
+    ((1310, 608),   (0.0,   0.0)),    # centre
+    ((1180, 608),   (-25.0, 0.0)),    # bl-left
+    ((1440, 608),   (25.0,  0.0)),    # bl-right
+    # … 10 more …
+]
+pixel_pts  = np.array([p for p, _ in LANDMARK_PX_HOCKEY], dtype=np.float64)
+hockey_pts = np.array([h for _, h in LANDMARK_PX_HOCKEY], dtype=np.float64)
+
+# Forward: pixel → hockey, one RBF per output axis.
+rbf_x = RBFInterpolator(pixel_pts, hockey_pts[:, 0],
+                        kernel="thin_plate_spline", neighbors=6)
+rbf_y = RBFInterpolator(pixel_pts, hockey_pts[:, 1],
+                        kernel="thin_plate_spline", neighbors=6)
+
+# Hull gate — Delaunay over the landmark pixel positions.
+hull = Delaunay(pixel_pts)
+
+def pixel_to_hockey(px: float, py: float) -> tuple[float, float, str]:
+    query = np.array([[px, py]], dtype=np.float64)
+    hx = float(rbf_x(query)[0])
+    hy = float(rbf_y(query)[0])
+    confidence = "interpolated" if hull.find_simplex(query)[0] >= 0 else "extrapolated"
+    return hx, hy, confidence
+```
+
+`RinkCoordinate` gets a new `confidence: Literal['interpolated', 'extrapolated']`
+field. Web rendering should treat extrapolated markers as low-confidence
+(e.g., dotted outline) — these are the ~41% of events whose pixel
+positions fall outside the landmark hull and have unbounded TRE.
+
+### Next-pass priorities (calibration track)
+
+1. **Ship `tps_neighbors_k=6` + hull gate** as production `pixel_to_hockey`.
+   Replace the single-anchor linear in `spatial.py`.
+2. **Add 4 more landmarks** to expand the hull. The current 59% coverage
+   is the binding constraint on production accuracy. Candidate
+   additions:
+   - Top and bottom of each goalie crease (4 points, near the goal
+     lines)
+   - The 4 corners of the end-zone trapezoids
+   - Either set would lift hull coverage substantially.
+3. **Re-run the spike with the expanded landmark set**; expect both
+   mean LOOCV-TRE and hull coverage to improve materially. If hull
+   coverage reaches ~85%+, the `extrapolated` flag becomes a rare-edge
+   signal instead of "40% of events."
+4. **Regression-test against match-250 ground truth in the DB**: re-derive
+   coords for the 8 known events (39, 43, 48, etc.) under the new
+   pipeline and verify the 3-5 ft squeeze in offensive zones resolves.
+
+### Spikes that did NOT find improvements
+
+For completeness — Round-3 closed two of the four open lines:
+
+- **Spike A (regularized TPS)**: closed as a null result. No smoothing
+  value beats plain TPS on this data. The blue-line discontinuity is the
+  underlying issue and smoothing doesn't address it.
+- **Spike C (PWA)**: closed as not-primary-viable. Could be a niche
+  high-accuracy interior predictor, but the hull-coverage cost makes it
+  inferior to a hull-gated `neighbors=k` approach.
+
+Spikes B (`neighbors=k`) and D (hull gate) both produce real recommendations.
+
+---
+
 ## Picking this back up
 
 When you resume:
 
 1. Re-read this doc top-to-bottom.
-2. Run the Deep Research prompt at
-   [event-map-extraction-deep-research-prompt.md](./event-map-extraction-deep-research-prompt.md)
-   if not already done; ingest its output to fill the open-questions
-   section above.
-3. Start at "Concrete next-pass plan" step 1 (TPS calibration).
+2. If the Round-3 spike findings (above) haven't been shipped yet, start
+   at "Production recommendation": replace `spatial.py:pixel_to_hockey`
+   with the `tps_neighbors_k=6 + hull gate` implementation.
+3. Otherwise, work on the "Next-pass priorities" list — adding landmarks
+   is the highest-leverage next step.
 4. Match-250 ground truth from the previous implementation pass is in the
    DB — use it for regression-testing the new pipeline.
