@@ -1,0 +1,34 @@
+{
+  "_doc": "Hand-measured (pixel_x, pixel_y) coordinates for known NHL features in the source frame below. Used by the TPS-vs-linear calibration spike. 'landmarks' are full 2D points (used for fit); 'axis_observations' are single-axis (used post-fit as residual checks). See tools/game_ocr/scripts/recalibrate_rink.py for the canonical (hockey_x, hockey_y) values per landmark name.",
+  "frame": "research/OCR-SS/Action-Tracker/3rd-Period-Events/vlcsnap-2026-05-10-02h01m59s349.png",
+  "frame_size": [1920, 1080],
+  "landmarks": {
+    "centre":           [1310, 608],
+    "bl-left":          [1180, 608],
+    "bl-right":         [1440, 608],
+    "goal-left":        [895,  608],
+    "goal-right":       [1722, 608],
+    "board-left":       [835,  608],
+    "board-right":      [1782, 608],
+    "board-top":        [1310, 402],
+    "board-bottom":     [1310, 811],
+    "ez-fo-top-left":   [1004, 510],
+    "ez-fo-bot-left":   [1004, 703],
+    "ez-fo-top-right":  [1615, 510],
+    "ez-fo-bot-right":  [1615, 703]
+  },
+  "axis_observations": [
+    {"name": "left-fo-circle-outer-edge",  "hockey_x": -84, "pixel_x": 935},
+    {"name": "left-fo-circle-inner-edge",  "hockey_x": -54, "pixel_x": 1074},
+    {"name": "left-fo-hashmark-outer",     "hockey_x": -71, "pixel_x": 994},
+    {"name": "left-fo-hashmark-inner",     "hockey_x": -67, "pixel_x": 1014},
+    {"name": "right-fo-hashmark-inner",    "hockey_x": 67,  "pixel_x": 1606},
+    {"name": "right-fo-hashmark-outer",    "hockey_x": 71,  "pixel_x": 1624},
+    {"name": "right-fo-circle-inner-edge", "hockey_x": 54,  "pixel_x": 1546},
+    {"name": "right-fo-circle-outer-edge", "hockey_x": 84,  "pixel_x": 1684},
+    {"name": "top-left-fo-Lmark-outer",    "hockey_y": 24,  "pixel_y": 507},
+    {"name": "top-left-fo-Lmark-inner",    "hockey_y": 20,  "pixel_y": 514},
+    {"name": "bot-left-fo-Lmark-inner",    "hockey_y": -20, "pixel_y": 700},
+    {"name": "bot-left-fo-Lmark-outer",    "hockey_y": -24, "pixel_y": 706}
+  ]
+}

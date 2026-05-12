@@ -1,0 +1,51 @@
+{
+  "screen_type": "post_game_action_tracker",
+  "expected_width": 1920,
+  "expected_height": 1080,
+  "rink_pixel_box": {
+    "x1": 836,
+    "y1": 403,
+    "x2": 1783,
+    "y2": 812
+  },
+  "bgm_attacks": "right",
+  "reference_points": {
+    "center_ice": {
+      "x": 1309,
+      "y": 607
+    },
+    "blue_line_left": {
+      "x": 1191,
+      "y": 607
+    },
+    "blue_line_right": {
+      "x": 1428,
+      "y": 607
+    }
+  },
+  "color_thresholds": {
+    "yellow": {
+      "h_min": 15,
+      "h_max": 30,
+      "s_min": 120,
+      "v_min": 150
+    },
+    "red": {
+      "h_min_a": 0,
+      "h_max_a": 10,
+      "h_min_b": 168,
+      "h_max_b": 180,
+      "s_min": 80,
+      "v_min": 100
+    },
+    "white": {
+      "s_max": 60,
+      "v_min": 200
+    }
+  },
+  "marker_filter": {
+    "area_min": 100,
+    "area_max": 4500,
+    "circularity_min": 0.35
+  }
+}
