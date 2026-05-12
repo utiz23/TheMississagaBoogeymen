@@ -29,7 +29,6 @@ from typing import Literal
 
 import cv2
 import numpy as np
-from scipy.interpolate import RBFInterpolator
 from scipy.spatial import Delaunay
 
 
@@ -313,16 +312,53 @@ def find_selected_marker(markers: list[DetectedMarker]) -> DetectedMarker | None
 
 @dataclass
 class _Predictor:
-    """Fitted RBF + hull for a given calibration. Built once, cached."""
+    """LSF linear fit + Delaunay hull for a given calibration. Built once, cached.
 
-    rbf_x: RBFInterpolator
-    rbf_y: RBFInterpolator
+    The pixel ↔ hockey mapping is modelled as two independent axis-aligned
+    linear scalings:
+
+        pixel_x = cx + (hockey_x / 100.0) * half_w
+        pixel_y = cy - (hockey_y / 42.5)  * half_h   (y flipped: pixel y down)
+
+    cx/cy/half_w/half_h are fit by ordinary least squares over the
+    calibration landmarks. Predictions invert the formula:
+
+        hockey_x = ((pixel_x - cx) / half_w) * 100.0
+        hockey_y = -((pixel_y - cy) / half_h) * 42.5
+    """
+
+    cx: float
+    cy: float
+    half_w: float
+    half_h: float
     hull: Delaunay
 
 
 # Module-level cache keyed by id(calibration). Calibrations are immutable
 # (`frozen=True`); only a handful exist in memory at any time.
 _PREDICTOR_CACHE: dict[int, _Predictor] = {}
+
+
+def _solve_axis_lsf(pairs: list[tuple[float, float]], scale: float) -> tuple[float, float]:
+    """Least-squares fit for `p = c + (h/scale) * half` over (h, p) pairs.
+
+    Returns (c, half). Raises ValueError if the axis is singular (e.g., all
+    landmarks have the same h).
+    """
+    n = len(pairs)
+    a11 = float(n)
+    a12 = sum(h / scale for (h, _) in pairs)
+    a22 = sum((h / scale) ** 2 for (h, _) in pairs)
+    b1 = sum(p for (_, p) in pairs)
+    b2 = sum((h / scale) * p for (h, p) in pairs)
+    det = a11 * a22 - a12 * a12
+    if abs(det) < 1e-9:
+        raise ValueError(
+            "Singular axis: landmarks don't span the axis; cannot fit"
+        )
+    c = (a22 * b1 - a12 * b2) / det
+    half = (a11 * b2 - a12 * b1) / det
+    return c, half
 
 
 def _get_predictor(calibration: RinkCalibration) -> _Predictor:
@@ -335,22 +371,29 @@ def _get_predictor(calibration: RinkCalibration) -> _Predictor:
             "cannot build pixel→hockey predictor. Add a 'landmarks' array "
             "to the calibration JSON."
         )
+
+    # LSF linear fit, one axis at a time. The Round-4 spike (see
+    # docs/ocr/marker-extraction-research.md) showed this method beats
+    # the previously-shipped RBF+neighbors=6 across every metric once
+    # the landmark set is well-distributed around the rink boundary
+    # (21 landmarks as of 2026-05-13).
+    x_pairs = [(lm.hockey_x, float(lm.pixel_x)) for lm in calibration.landmarks]
+    y_pairs = [(-lm.hockey_y, float(lm.pixel_y)) for lm in calibration.landmarks]
+    cx, half_w = _solve_axis_lsf(x_pairs, 100.0)
+    cy, half_h = _solve_axis_lsf(y_pairs, 42.5)
+
+    if half_w <= 0 or half_h <= 0:
+        raise ValueError(
+            f"Degenerate calibration: LSF produced non-positive half_w={half_w:.2f} "
+            f"or half_h={half_h:.2f}. Check landmark hockey coords for sign errors."
+        )
+
     pixels = np.array(
         [(lm.pixel_x, lm.pixel_y) for lm in calibration.landmarks],
         dtype=np.float64,
     )
-    hockey = np.array(
-        [(lm.hockey_x, lm.hockey_y) for lm in calibration.landmarks],
-        dtype=np.float64,
-    )
-    # `neighbors=6` was selected by the Round-3 calibration spike. See
-    # docs/ocr/marker-extraction-research.md for the empirical analysis.
-    rbf_x = RBFInterpolator(pixels, hockey[:, 0],
-                            kernel="thin_plate_spline", neighbors=6)
-    rbf_y = RBFInterpolator(pixels, hockey[:, 1],
-                            kernel="thin_plate_spline", neighbors=6)
     hull = Delaunay(pixels)
-    predictor = _Predictor(rbf_x=rbf_x, rbf_y=rbf_y, hull=hull)
+    predictor = _Predictor(cx=cx, cy=cy, half_w=half_w, half_h=half_h, hull=hull)
     _PREDICTOR_CACHE[id(calibration)] = predictor
     return predictor
 
@@ -360,21 +403,25 @@ def pixel_to_hockey(
 ) -> RinkCoordinate:
     """Convert a marker's full-image pixel position to hockey-standard coords.
 
-    Uses a thin-plate-spline RBF interpolator fitted on the calibration's
-    landmarks, restricted to the 6 nearest landmarks per prediction. A
-    Delaunay hull over the landmark pixels gates extrapolation: predictions
-    outside the hull are marked low-confidence (0.3) instead of the in-hull
-    1.0. See `docs/ocr/marker-extraction-research.md` (Round-3 spike) for
-    the method selection and accuracy figures.
+    Uses an ordinary-least-squares linear fit over the calibration's
+    landmarks (see `_get_predictor` for the math). A Delaunay hull over
+    the landmark pixels gates extrapolation: predictions outside the hull
+    are marked low-confidence (0.3) instead of the in-hull 1.0.
+
+    See `docs/ocr/marker-extraction-research.md` for the Round-4 spike
+    that established LSF linear as the production method (replacing
+    Round-3's TPS+neighbors=6 once the landmark set was expanded to 21).
     """
     predictor = _get_predictor(calibration)
-    query = np.array([[marker.pixel_x, marker.pixel_y]], dtype=np.float64)
-    x_hockey = float(predictor.rbf_x(query)[0])
-    y_hockey = float(predictor.rbf_y(query)[0])
 
-    # Hull gate: predictions outside the landmark hull have unbounded TRE
-    # and are extrapolating from the nearest 6 landmarks. Flag as low-
-    # confidence so the renderer can treat these markers differently.
+    # Linear inverse: pixel → hockey along each axis independently.
+    x_hockey = ((marker.pixel_x - predictor.cx) / predictor.half_w) * 100.0
+    y_hockey = -((marker.pixel_y - predictor.cy) / predictor.half_h) * 42.5
+
+    # Hull gate: predictions whose source pixel sits outside the landmark
+    # hull are extrapolating from the LSF fit and have unbounded TRE.
+    # Flag as low-confidence so the renderer can treat these differently.
+    query = np.array([[marker.pixel_x, marker.pixel_y]], dtype=np.float64)
     in_hull = bool(predictor.hull.find_simplex(query)[0] >= 0)
     confidence = 1.0 if in_hull else 0.3
 

@@ -1,17 +1,19 @@
 # Event-Map Marker Extraction — Research Dossier
 
-Status: **SHIPPED (2026-05-13)** — `tps_neighbors_k=6 + hull gate` is live
-in `spatial.py:pixel_to_hockey` as of commit `a951ec7`. The confidence
-flag has shipped end-to-end (DB column + worker + web rendering) as of
-commit `8ad5fbe`.
+Status: **SHIPPED (2026-05-13)** — Current production:
+`spatial.py:pixel_to_hockey` uses **LSF linear + Delaunay hull gate**
+over 21 landmarks. Confidence flag landed end-to-end (DB column + worker
++ web rendering) in commit `8ad5fbe`.
 
-**Round-4 update (2026-05-13 afternoon):** Landmark set expanded from 13
-to 21 with 8 user-measured corner points. Hull coverage **59% → 89.6%**.
-Critically, with the expanded landmark set, **linear LSF now beats
-TPS+neighbors=6** on every metric (mean 7.50 px vs 9.17 px; boundary
-4.26 px vs 7.01 px). The Round-3 method choice is invalidated by Round-4
-data — pending decision on whether to switch production from RBF to LSF
-linear. See "Round-4 spike findings" below. Last updated 2026-05-13.
+History:
+- Commit `a951ec7` shipped Round-3's `tps_neighbors_k=6` (13 landmarks)
+- Commit `9bb202e` expanded landmarks to 21; hull coverage 59% → 89.6%
+- Method switch to LSF linear (Round-4) shipped after the spike found
+  linear strictly beats RBF once the landmark set has good boundary
+  coverage. See "Round-4 spike findings" below for the empirical
+  evidence and the method-comparison table.
+
+Last updated 2026-05-13.
 
 This doc consolidates everything we know about extracting hockey-event markers
 from EA NHL Action Tracker screenshots, derived from a fresh round of internal
@@ -940,30 +942,27 @@ about boundary scaling. The LSF can now find a global scale that respects
 boundary AND inner — the disagreements that previously broke linear are
 diluted across the 21-landmark fit.
 
-### Production implication — pending decision
+### Production implication — SHIPPED
 
-The shipped production code (commit `a951ec7`) uses
-`tps_neighbors_k=6` + hull gate. Under the new 21-landmark calibration:
+The Round-4 method choice (LSF linear) was shipped immediately after the
+landmark expansion. `spatial.py:pixel_to_hockey` now uses ordinary-
+least-squares linear fit over the 21 landmarks, with the same Delaunay
+hull gate from Round-3 for the confidence flag. `scipy.interpolate.
+RBFInterpolator` was removed from the hot path; only
+`scipy.spatial.Delaunay` is retained.
 
-- The shipped RBF method produces **9.17 px / 1.97 ft** mean LOOCV-TRE.
-  That's still a 28% improvement over Round-3's 12.72 px shipped, and
-  no code changes are needed beyond the landmark JSON update.
-- A switch to LSF linear would produce **7.50 px / 1.61 ft** —
-  18% better than the RBF method.
+The new `_Predictor` caches `(cx, cy, half_w, half_h, hull)` per
+calibration. Predict is now a 2-line linear inverse:
 
-Trade-off:
-- **Keep RBF**: zero code churn, ship the 21-landmark calibration JSON,
-  accept 9.17 px accuracy. Reasonable if you don't want to undo
-  this morning's work.
-- **Switch to LSF linear**: write a small follow-up commit to
-  `spatial.py:pixel_to_hockey` to compute hockey via 6-parameter linear
-  LSF on the 21 landmarks. ~30 lines of code. Slight win on accuracy
-  AND simplifies the dependency graph (no scipy.RBFInterpolator on the
-  hot path; still need scipy.spatial.Delaunay for the hull gate).
+```python
+hockey_x = ((pixel_x - cx) / half_w) * 100.0
+hockey_y = -((pixel_y - cy) / half_h) * 42.5
+```
 
-Recommendation: ship the 21-landmark JSON as a self-contained
-improvement first; defer the method swap as a separate follow-up
-once we've seen the new calibration in action.
+Expected production behavior on match-250-era captures: ~7.50 px (1.61 ft)
+mean LOOCV-TRE, ~10-15% of events flagged extrapolated. Existing
+`match_events` rows under the old algorithm + 13-landmark RBF should be
+reprocessed to pick up the new accuracy.
 
 ### Hull coverage breakdown
 
