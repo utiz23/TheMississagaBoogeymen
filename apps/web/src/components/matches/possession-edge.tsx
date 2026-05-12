@@ -132,7 +132,7 @@ function Gauge({ bgmShare, oppShare: _oppShare }: { bgmShare: number; oppShare: 
         <path
           d={arcPath(cx, cy, r, -180, splitDeg)}
           fill="none"
-          stroke="#e11d48"
+          stroke="#e84131"
           strokeWidth={strokeW}
           strokeLinecap="butt"
         />

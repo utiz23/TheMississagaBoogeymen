@@ -54,6 +54,9 @@ function Group({ group }: { group: BoxScoreGroup }) {
           ))}
         </div>
       )}
+      {group.footnote ? (
+        <p className="pt-1 text-[10px] leading-snug text-zinc-500">{group.footnote}</p>
+      ) : null}
     </div>
   )
 }

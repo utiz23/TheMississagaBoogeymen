@@ -23,7 +23,7 @@ interface HeroCardProps {
 // stay from the renovation; the surface decoration goes back to per-result
 // gradient + solid-color top bar.
 const CARD_BG: Record<Match['result'], string> = {
-  WIN: 'bg-[radial-gradient(circle_at_top,rgba(225,29,72,0.22),transparent_55%),linear-gradient(180deg,rgba(26,20,20,0.99),rgba(10,10,10,1))]',
+  WIN: 'bg-[radial-gradient(circle_at_top,rgba(232,65,49,0.22),transparent_55%),linear-gradient(180deg,rgba(26,20,20,0.99),rgba(10,10,10,1))]',
   LOSS: 'bg-[linear-gradient(180deg,rgba(15,15,18,0.99),rgba(9,9,11,1))]',
   OTL: 'bg-[radial-gradient(circle_at_top,rgba(245,158,11,0.10),transparent_50%),linear-gradient(180deg,rgba(20,18,14,0.99),rgba(10,10,10,1))]',
   DNF: 'bg-[linear-gradient(180deg,rgba(13,13,15,0.99),rgba(9,9,11,1))]',

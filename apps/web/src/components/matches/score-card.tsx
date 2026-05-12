@@ -43,15 +43,19 @@ const TOP_BAR: Record<MatchResult, string> = {
   DNF: 'bg-rose-600',
 }
 
+// Mode + private chips — colors mirror preview/components-pills.html
+// (6s purple ramp, 3s sky ramp, private accent-bordered dark zinc).
 const GAME_MODE_PILL: Record<string, string> = {
-  '6s': 'border-violet-500/80 bg-violet-950/50 text-violet-300',
-  '3s': 'border-sky-600/50 bg-sky-900/30 text-sky-400',
+  '6s': 'border-[rgba(139,92,246,0.5)] bg-[rgba(124,58,237,0.18)] text-[#c4b5fd]',
+  '3s': 'border-[rgba(56,189,248,0.5)] bg-[rgba(2,132,199,0.18)] text-[#7dd3fc]',
 }
+const PRIVATE_PILL = 'border-[rgba(232,65,49,0.50)] bg-[rgba(58,56,57,0.60)] text-[#d4d2d3]'
 
 interface ScoreCardProps {
   match: Match
   opponentCrestAssetId: string | null
   opponentCrestUseBaseAsset: string | null
+  href?: string
 }
 
 function SnapStat({ label, value }: { label: string; value: string }) {
@@ -107,6 +111,7 @@ export function ScoreCard({
   match,
   opponentCrestAssetId,
   opponentCrestUseBaseAsset,
+  href,
 }: ScoreCardProps) {
   const opponentAbbrev = abbreviateTeamName(match.opponentName)
 
@@ -148,7 +153,7 @@ export function ScoreCard({
 
   return (
     <Link
-      href={`/games/${match.id.toString()}`}
+      href={href ?? `/games/${match.id.toString()}`}
       className={`group block overflow-hidden border transition-[border-color,transform] hover:-translate-y-0.5 ${cardStyles.border} ${cardStyles.bg} ${cardStyles.hoverBorder}`}
     >
       <div className={`h-1 w-full ${TOP_BAR[match.result]}`} />
@@ -163,7 +168,9 @@ export function ScoreCard({
             </span>
           )}
           {isPrivate && (
-            <span className="rounded-full border border-zinc-600/50 bg-zinc-800/60 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-zinc-400">
+            <span
+              className={`rounded-full border px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] ${PRIVATE_PILL}`}
+            >
               Private
             </span>
           )}
@@ -171,8 +178,8 @@ export function ScoreCard({
             <span
               className={`rounded-full border px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] ${
                 qualityLabel === 'Dominated'
-                  ? 'border-emerald-600/50 bg-emerald-900/30 text-emerald-400'
-                  : 'border-rose-700/50 bg-rose-900/20 text-rose-400'
+                  ? 'border-[rgba(16,185,129,0.40)] bg-[rgba(16,185,129,0.10)] text-[#10b981]'
+                  : 'border-[rgba(232,65,49,0.40)] bg-[rgba(232,65,49,0.10)] text-[#ef6a5e]'
               }`}
             >
               {qualityLabel}

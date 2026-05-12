@@ -431,7 +431,7 @@ function DnfBadge() {
   return (
     <span
       title="Did not finish"
-      className="border border-zinc-700/60 bg-zinc-900/60 px-1.5 py-0.5 font-condensed text-[9px] font-bold uppercase tracking-widest text-zinc-500"
+      className="border border-[rgba(232,65,49,0.50)] bg-[rgba(58,56,57,0.40)] px-1.5 py-0.5 font-condensed text-[9px] font-bold uppercase tracking-widest text-[#9a9798]"
     >
       DNF
     </span>

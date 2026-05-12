@@ -12,6 +12,7 @@ import {
   getMatchPeriodSummaries,
   getMatchShotTypeSummaries,
   getMatchEvents,
+  getMatchLineups,
 } from '@eanhl/db/queries'
 import type { Match } from '@eanhl/db'
 import { HeroCard } from '@/components/matches/hero-card'
@@ -24,6 +25,8 @@ import { ContextFooter } from '@/components/matches/context-footer'
 import { PeriodSummary } from '@/components/matches/period-summary'
 import { ShotMix } from '@/components/matches/shot-mix'
 import { EventLog } from '@/components/matches/event-log'
+import { ShotMap } from '@/components/matches/shot-map'
+import { LineupCard } from '@/components/matches/lineup-card'
 import { Panel } from '@/components/ui/panel'
 import {
   buildAllTeamScores,
@@ -39,6 +42,7 @@ export const revalidate = false
 
 interface Props {
   params: Promise<{ id: string }>
+  searchParams?: Promise<Record<string, string | string[] | undefined>>
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
@@ -54,8 +58,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   }
 }
 
-export default async function GameDetailPage({ params }: Props) {
+export default async function GameDetailPage({ params, searchParams }: Props) {
   const { id: idStr } = await params
+  const queryParams = searchParams ? await searchParams : {}
   const id = parseInt(idStr, 10)
   if (isNaN(id)) notFound()
 
@@ -81,6 +86,7 @@ export default async function GameDetailPage({ params }: Props) {
     periodSummaries,
     shotTypeSummaries,
     matchEventRows,
+    lineups,
   ] = await Promise.all([
     safe(() => getPlayerMatchStats(m.id), []),
     safe(() => getOpponentPlayerMatchStats(m.id), []),
@@ -94,6 +100,7 @@ export default async function GameDetailPage({ params }: Props) {
     safe(() => getMatchPeriodSummaries(m.id), []),
     safe(() => getMatchShotTypeSummaries(m.id), []),
     safe(() => getMatchEvents(m.id), []),
+    safe(() => getMatchLineups(m.id), { bgm: [], opponent: [] }),
   ])
 
   const opponentCrestAssetId = opponentClub?.crestAssetId ?? null
@@ -103,7 +110,7 @@ export default async function GameDetailPage({ params }: Props) {
   const topPerformers = buildTopPerformers(match, playerStats, opponentPlayerStats)
   const allTeamScores = buildAllTeamScores(match, playerStats, opponentPlayerStats)
   const possessionEdge = buildPossessionEdge(match)
-  const boxScore = buildBoxScore(match, playerStats, opponentPlayerStats)
+  const boxScore = buildBoxScore(match, playerStats, opponentPlayerStats, periodSummaries)
   // Goalie spotlight stays BGM-only by design — the data shows opponent
   // goalies are nearly always AI (1 row across 31 matches in the spike).
   const goalieSpotlight = buildGoalieSpotlight(playerStats)
@@ -118,16 +125,12 @@ export default async function GameDetailPage({ params }: Props) {
     meetingNumber: seriesContext?.meetingNumber ?? null,
     seriesSummary: seriesContext ? formatSeriesSummary(seriesContext, match.opponentName) : null,
   }
+  const listQuery = gamesListQuery(queryParams)
+  const gamesHref = `/games${listQuery ? `?${listQuery}` : ''}`
 
   return (
     <div className="space-y-8">
-      {/* Back link */}
-      <Link
-        href="/games"
-        className="inline-flex items-center gap-1.5 font-condensed text-xs font-semibold uppercase tracking-wider text-zinc-500 transition-colors hover:text-zinc-300"
-      >
-        <span aria-hidden>←</span> Games
-      </Link>
+      <GameDetailNav gamesHref={gamesHref} adjacent={adjacent} listQuery={listQuery} />
 
       {/* 1. Hero */}
       <HeroCard
@@ -154,7 +157,10 @@ export default async function GameDetailPage({ params }: Props) {
       {/* 3. Team stats */}
       <TeamStats rows={boxScore} />
 
-      {/* 3a-3b. OCR-derived period summary + shot mix (hidden until reviewed). */}
+      {/* 3a. OCR-derived pre-game lineup card (hidden until reviewed). */}
+      <LineupCard lineups={lineups} opponentLabel={match.opponentName} />
+
+      {/* 3b-3c. OCR-derived period summary + shot mix (hidden until reviewed). */}
       <PeriodSummary rows={periodSummaries} />
       <ShotMix rows={shotTypeSummaries} />
 
@@ -171,6 +177,9 @@ export default async function GameDetailPage({ params }: Props) {
       {/* 5a. OCR-derived event log (goals + penalties). */}
       <EventLog events={matchEventRows} opponentLabel={match.opponentName} />
 
+      {/* 5b. OCR-derived shot map (Phase 5 — rink-coordinate spatial extraction). */}
+      <ShotMap events={matchEventRows} />
+
       {/* 6. Context footer (lowest priority — first to cut if scope shrinks) */}
       <ContextFooter previous={adjacent.previous} next={adjacent.next} />
     </div>
@@ -178,6 +187,71 @@ export default async function GameDetailPage({ params }: Props) {
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function gamesListQuery(params: Record<string, string | string[] | undefined>): string {
+  const qs = new URLSearchParams()
+  for (const key of ['title', 'mode', 'result', 'opponent', 'page']) {
+    const value = params[key]
+    if (typeof value === 'string' && value.trim()) qs.set(key, value)
+  }
+  return qs.toString()
+}
+
+function gameHref(id: number, listQuery: string): string {
+  return `/games/${id.toString()}${listQuery ? `?${listQuery}` : ''}`
+}
+
+function GameDetailNav({
+  gamesHref,
+  adjacent,
+  listQuery,
+}: {
+  gamesHref: string
+  adjacent: {
+    previous: Awaited<ReturnType<typeof getAdjacentMatches>>['previous']
+    next: Awaited<ReturnType<typeof getAdjacentMatches>>['next']
+  }
+  listQuery: string
+}) {
+  return (
+    <nav className="flex flex-wrap items-center justify-between gap-3 border-b border-zinc-800 pb-4">
+      <Link
+        href={gamesHref}
+        className="inline-flex items-center gap-1.5 font-condensed text-xs font-semibold uppercase tracking-wider text-zinc-500 transition-colors hover:text-zinc-300"
+      >
+        <span aria-hidden>←</span> All Games
+      </Link>
+
+      <div className="flex items-center gap-2">
+        {adjacent.previous ? (
+          <Link
+            href={gameHref(adjacent.previous.id, listQuery)}
+            className="border border-zinc-800 bg-zinc-950 px-3 py-1.5 font-condensed text-xs font-semibold uppercase tracking-wider text-zinc-400 transition-colors hover:border-zinc-600 hover:text-zinc-100"
+          >
+            ← Previous
+          </Link>
+        ) : (
+          <span className="select-none border border-zinc-900 px-3 py-1.5 font-condensed text-xs font-semibold uppercase tracking-wider text-zinc-700">
+            ← Previous
+          </span>
+        )}
+
+        {adjacent.next ? (
+          <Link
+            href={gameHref(adjacent.next.id, listQuery)}
+            className="border border-zinc-800 bg-zinc-950 px-3 py-1.5 font-condensed text-xs font-semibold uppercase tracking-wider text-zinc-400 transition-colors hover:border-zinc-600 hover:text-zinc-100"
+          >
+            Next →
+          </Link>
+        ) : (
+          <span className="select-none border border-zinc-900 px-3 py-1.5 font-condensed text-xs font-semibold uppercase tracking-wider text-zinc-700">
+            Next →
+          </span>
+        )}
+      </div>
+    </nav>
+  )
+}
 
 async function safe<T>(fn: () => Promise<T>, fallback: T): Promise<T> {
   try {
