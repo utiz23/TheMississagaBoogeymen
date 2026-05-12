@@ -1,9 +1,13 @@
 # Event-Map Marker Extraction — Research Dossier
 
-Status: **READY TO SHIP** — Round-3 spike findings (2026-05-13) settle the
-four prioritized methods; recommendation is `tps_neighbors_k=6 + hull gate`
-in production. See "Round-3 internal spike findings" below for numbers
-and a production-ready code sketch. Last updated 2026-05-13.
+Status: **SHIPPED (2026-05-13)** — `tps_neighbors_k=6 + hull gate` is live
+in `spatial.py:pixel_to_hockey` as of commit `a951ec7`. The remaining open
+items are downstream: surfacing the `confidence` flag in `match_events`
+(needs migration + worker write + web rendering), reprocessing existing
+match events under the new calibration, and adding 4 more landmarks to
+lift hull coverage from 59% to ~85%+. See "Round-3 internal spike
+findings" below for the empirical evidence and "Next-pass priorities"
+for what remains. Last updated 2026-05-13.
 
 This doc consolidates everything we know about extracting hockey-event markers
 from EA NHL Action Tracker screenshots, derived from a fresh round of internal

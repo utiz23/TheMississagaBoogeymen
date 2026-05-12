@@ -6,11 +6,65 @@
 
 Pre-game OCR pipeline still anchors the data side: loadout-view + lobby parsers run as anchor-based full-frame parsers, cross-frame consensus CLI collapses observations into canonical rows. End-to-end validated on match 250's 14 captures: 41 raw → 10 canonical skater rows with full attribute / X-Factor / persona coverage.
 
-Marker-extraction calibration research is mid-flight. Round-2 Deep Research ingested; four internal spikes (regularized TPS, `neighbors=k` localization, piecewise-affine comparison, convex-hull confidence gate) are queued. Event-list extraction is paused with Round-2 findings ingested; 17 open empirical questions tagged for spikes.
+Marker-extraction calibration **shipped 2026-05-13** as `tps_neighbors_k=6 + hull gate` in `spatial.py:pixel_to_hockey` (commit `a951ec7`). Round-3 spikes (regularized TPS, `neighbors=k`, PWA, hull gate) closed; production reads from a 13-landmark RBF predictor with sub-foot boundary fidelity (LOOCV-TRE 4.52 px / 0.97 ft, vs 10.03 px / 2.16 ft for the linear baseline). Event-list extraction is paused with Round-2 findings ingested; 17 open empirical questions tagged for spikes.
 
 **Retrospective for the 2026-05-12 morning session:** [docs/retrospectives/2026-05-12-pre-game-ocr-and-research-rounds.md](docs/retrospectives/2026-05-12-pre-game-ocr-and-research-rounds.md) — process/methodology lessons.
 
-**Last updated:** 2026-05-12 (evening — working-tree cleanup)
+**Last updated:** 2026-05-13 (noon — marker calibration shipped)
+
+---
+
+## Session Summary — 2026-05-13 (morning/noon — marker calibration shipped)
+
+Closes the marker-extraction research arc that was opened by the
+Round-1 internal dossier and pushed forward by Round-2 Deep Research.
+
+**Round-3 internal spike** ([calibration_spike_v2.py](tools/game_ocr/scripts/calibration_spike_v2.py),
+commit `a2f6db7`): evaluated the four prioritized methods from Round-2.
+
+| Spike | Result |
+|---|---|
+| A — Regularized TPS smoothing sweep | Null result. Smoothing degrades monotonically. |
+| B — `neighbors=k` localization | **Winner: k=6.** Sub-foot boundary fidelity. |
+| C — Piecewise-affine (Delaunay) | Rejected as primary — interior-only (8/13 LOOCV holdouts out-of-hull). |
+| D — Convex-hull gate | 59.1% rink coverage with current 13 landmarks. ~41% needs `extrapolated` flag. |
+
+**Production change** (commit `a951ec7`): replaced
+`spatial.py:pixel_to_hockey` with the `tps_neighbors_k=6 + hull gate`
+method. Landmarks moved into the calibration JSON. RinkCoordinate's
+existing `confidence` field now writes 1.0 for in-hull, 0.3 for
+out-of-hull. Parser output (`PostGameActionTrackerResult`) gains a
+new `selected_event_confidence` field that flows through the JSON into
+`ocr_extractions.raw_result_json`. 19 Python tests pass.
+
+**Card progression deep research prompt** (commit `26185a0`): drafted
+a Round-1 prompt to survey collectible-card progression systems
+(FIFA UT / NHL HUT / Madden / TCG / etc.). Held back from submission
+pending a fresh-eyes re-read.
+
+**Research queue** (commit `26185a0`): created
+`docs/planning/research-queue.md` as the persistent home for future
+deep-research candidates. Currently lists hockey analytics for
+EASHL-scale data and broadcast-strip / sports overlay UI design as
+queued.
+
+### Open follow-ups (calibration track)
+
+1. **DB column for the confidence flag** — `match_events.x_confidence`
+   (or similar) + worker write + web rendering. Without this, the new
+   confidence value flows into `raw_result_json` but never lands on
+   `match_events`. ~30 minutes of work; deferred from the ship.
+2. **Reprocess existing `match_events.x/y` under the new calibration**
+   — currently a mix of linear-derived (pre-2026-05-13) and RBF-derived
+   (post). Reprocessing requires re-running OCR against the captures
+   in `research/OCR-SS/Action-Tracker/` because pixel positions aren't
+   stored on `match_events`. ~1-2 hours.
+3. **Add 4 more landmarks** — goal creases or end-zone corners. Would
+   lift hull coverage from 59% to ~85%+ and make the `extrapolated`
+   flag rare. Manual Photoshop measurement (~30 min).
+4. **Regression-test match-250 ground truth** — once landmarks are
+   expanded and re-OCR is run, diff the new coords against the curated
+   ground truth from the previous implementation pass.
 
 ---
 
