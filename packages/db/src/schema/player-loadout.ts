@@ -32,6 +32,8 @@ import { ocrExtractions, type OcrReviewStatus } from './ocr-pipeline.js'
  *   (e.g. "E. Wanhg"). Distinct from player_name_snapshot.
  * player_number: in-game jersey number from lobby state-2 / loadout left strip (e.g. 11).
  * is_captain: yellow ★ marker detected next to gamertag in lobby/loadout (V2 "Leader? Yes").
+ * team_side: 'for' (BGM) | 'against' (opponent); derived from gamertag resolution.
+ *   Used as grouping key for cross-frame consensus.
  */
 export const playerLoadoutSnapshots = pgTable(
   'player_loadout_snapshots',
@@ -43,6 +45,7 @@ export const playerLoadoutSnapshots = pgTable(
     playerNamePersona: text('player_name_persona'),
     playerNumber: integer('player_number'),
     isCaptain: boolean('is_captain'),
+    teamSide: text('team_side').$type<'for' | 'against'>(),
     gameTitleId: integer('game_title_id')
       .notNull()
       .references(() => gameTitles.id),
@@ -67,6 +70,11 @@ export const playerLoadoutSnapshots = pgTable(
   (table) => [
     index('player_loadout_snapshots_player_idx').on(table.playerId),
     index('player_loadout_snapshots_match_idx').on(table.matchId),
+    index('player_loadout_snapshots_match_side_position_idx').on(
+      table.matchId,
+      table.teamSide,
+      table.position,
+    ),
   ],
 )
 

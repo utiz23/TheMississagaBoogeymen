@@ -49,6 +49,10 @@ export async function promoteLoadout(ctx: PromoterContext): Promise<void> {
   const levelField = result.player_level as OcrExtractionField | undefined
 
   const { playerId } = await resolveGamertagToPlayer(gamertagSnapshot, gameTitleId, db)
+  // team_side heuristic: resolved → BGM ('for'), unresolved → opp ('against').
+  // Known gotcha: new BGM players who haven't been rostered yet will be misclassified
+  // as 'against' until their alias is added to player_display_aliases.
+  const teamSide: 'for' | 'against' = playerId !== null ? 'for' : 'against'
 
   // Idempotent re-runs: if a snapshot already exists for this extraction, drop
   // its children + the snapshot itself before reinserting.
@@ -73,6 +77,7 @@ export async function promoteLoadout(ctx: PromoterContext): Promise<void> {
       playerNamePersona: stringValue(playerNamePersonaField),
       playerNumber: numericValue(playerNumberField),
       isCaptain: booleanValue(isCaptainField),
+      teamSide,
       gameTitleId,
       matchId,
       sourceExtractionId: extractionId,

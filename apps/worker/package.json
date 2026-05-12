@@ -14,7 +14,8 @@
     "ingest-now": "node dist/ingest-now.js",
     "ingest-ocr": "node dist/ingest-ocr-cli.js",
     "ingest-ocr-resolve": "node dist/ingest-ocr-resolve-cli.js",
-    "ingest-ocr-review": "node dist/ingest-ocr-review-cli.js"
+    "ingest-ocr-review": "node dist/ingest-ocr-review-cli.js",
+    "consolidate-loadouts": "node dist/consolidate-loadouts-cli.js"
   },
   "dependencies": {
     "@eanhl/db": "workspace:*",

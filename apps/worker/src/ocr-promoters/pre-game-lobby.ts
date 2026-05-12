@@ -86,6 +86,8 @@ export async function promotePreGameLobby(ctx: PromoterContext): Promise<void> {
       const { height, weight } = parseMeasurements(measurementsField)
 
       const { playerId } = await resolveGamertagToPlayer(gamertagSnapshot, gameTitleId, db)
+      // team_side heuristic: see loadout.ts for the documented gotcha.
+      const teamSide: 'for' | 'against' = playerId !== null ? 'for' : 'against'
 
       await db.insert(playerLoadoutSnapshots).values({
         playerId,
@@ -96,6 +98,7 @@ export async function promotePreGameLobby(ctx: PromoterContext): Promise<void> {
         playerNamePersona: stringValue(playerNameField),
         playerNumber: numericValue(playerNumberField),
         isCaptain: booleanValue(isCaptainField),
+        teamSide,
         gameTitleId,
         matchId,
         sourceExtractionId: extractionId,
