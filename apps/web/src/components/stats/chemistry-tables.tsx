@@ -5,8 +5,8 @@ import {
   CHEMISTRY_MIN_GP_WITHOUT,
   CHEMISTRY_PAIR_MIN_GP,
 } from '@eanhl/db/queries'
-import { Panel } from '@/components/ui/panel'
-import { SectionHeader } from '@/components/ui/section-header'
+import { BroadcastPanel } from '@/components/ui/broadcast-panel'
+import { formatWinPct } from '@/lib/format'
 
 type ChemistryWithWithoutRow = WithWithoutRow & {
   dnfWith: number
@@ -19,18 +19,30 @@ type ChemistryPairRow = PairRow & {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function winPct(wins: number, gp: number): number | null {
+/** Local winPct fraction — only used inside this file for the With/Without
+ *  delta math (chemistry's `Δ = pctWith − pctWithout`). The display string
+ *  uses the canonical `formatWinPct` from `@/lib/format`. */
+function winPctFraction(wins: number, gp: number): number | null {
   if (gp === 0) return null
   return wins / gp
 }
 
-function fmtWinPct(wins: number, gp: number): string {
-  const pct = winPct(wins, gp)
-  return pct !== null ? `${(pct * 100).toFixed(1)}%` : '—'
+/**
+ * Display record string. OTL is collapsed into Losses per project convention,
+ * so the cell label is always W-L. DNF is excluded (kept on the row for the
+ * cell's `title=` tooltip via `recordBreakdown` below).
+ */
+function fmtRecord(wins: number, losses: number, otl: number): string {
+  return `${wins.toString()}-${(losses + otl).toString()}`
 }
 
-function fmtRecord(wins: number, losses: number, otl: number, dnf: number): string {
-  return `${wins.toString()}-${losses.toString()}-${otl.toString()}-${dnf.toString()}`
+/** Long-form record breakdown for the cell tooltip — shows the original
+ *  W/L/OTL/DNF split so the collapsed display doesn't lose information. */
+function recordBreakdown(wins: number, losses: number, otl: number, dnf: number): string {
+  const parts = [`${String(wins)} W`, `${String(losses)} L`]
+  if (otl > 0) parts.push(`${String(otl)} OTL (counted as L)`)
+  if (dnf > 0) parts.push(`${String(dnf)} DNF (excluded)`)
+  return parts.join(' · ')
 }
 
 function fmtPerGame(total: number, gp: number): string {
@@ -106,17 +118,17 @@ export function WithWithoutTable({ rows }: WithWithoutTableProps) {
 
   const sortedRows = [...rows].sort((a, b) => {
     const aDelta =
-      (winPct(a.winsWith, a.gpWith) ?? -Infinity) -
-      (winPct(a.winsWithout, a.gpWithout) ?? -Infinity)
+      (winPctFraction(a.winsWith, a.gpWith) ?? -Infinity) -
+      (winPctFraction(a.winsWithout, a.gpWithout) ?? -Infinity)
     const bDelta =
-      (winPct(b.winsWith, b.gpWith) ?? -Infinity) -
-      (winPct(b.winsWithout, b.gpWithout) ?? -Infinity)
+      (winPctFraction(b.winsWith, b.gpWith) ?? -Infinity) -
+      (winPctFraction(b.winsWithout, b.gpWithout) ?? -Infinity)
     if (bDelta !== aDelta) return bDelta - aDelta
     return b.gpWith - a.gpWith
   })
 
   return (
-    <Panel className="overflow-x-auto">
+    <BroadcastPanel intensity="soft" ticker={false} className="overflow-x-auto">
       <table className="w-full min-w-[640px]">
         <thead>
           <tr className="border-b border-zinc-800 bg-surface-raised">
@@ -148,8 +160,8 @@ export function WithWithoutTable({ rows }: WithWithoutTableProps) {
         </thead>
         <tbody className="divide-y divide-zinc-800/60">
           {sortedRows.map((row) => {
-            const pctWith = winPct(row.winsWith, row.gpWith)
-            const pctWithout = winPct(row.winsWithout, row.gpWithout)
+            const pctWith = winPctFraction(row.winsWith, row.gpWith)
+            const pctWithout = winPctFraction(row.winsWithout, row.gpWithout)
             const delta = pctWith !== null && pctWithout !== null ? pctWith - pctWithout : null
 
             return (
@@ -165,20 +177,36 @@ export function WithWithoutTable({ rows }: WithWithoutTableProps) {
                 <td className="px-3 py-2.5 text-right font-condensed text-sm tabular-nums text-zinc-300">
                   <SampleBadge gp={row.gpWith} threshold={CHEMISTRY_MIN_GP_WITH} />
                 </td>
-                <td className="px-3 py-2.5 text-right font-condensed text-sm tabular-nums text-zinc-400">
-                  {fmtRecord(row.winsWith, row.lossesWith, row.otlWith, row.dnfWith)}
+                <td
+                  className="px-3 py-2.5 text-right font-condensed text-sm tabular-nums text-zinc-400"
+                  title={recordBreakdown(
+                    row.winsWith,
+                    row.lossesWith,
+                    row.otlWith,
+                    row.dnfWith,
+                  )}
+                >
+                  {fmtRecord(row.winsWith, row.lossesWith, row.otlWith)}
                 </td>
                 <td className="px-3 py-2.5 text-right font-condensed text-sm font-semibold tabular-nums text-zinc-200">
-                  {fmtWinPct(row.winsWith, row.gpWith)}
+                  {formatWinPct(row.winsWith, row.gpWith)}
                 </td>
                 <td className="px-3 py-2.5 text-right font-condensed text-sm tabular-nums text-zinc-300">
                   <SampleBadge gp={row.gpWithout} threshold={CHEMISTRY_MIN_GP_WITHOUT} />
                 </td>
-                <td className="px-3 py-2.5 text-right font-condensed text-sm tabular-nums text-zinc-400">
-                  {fmtRecord(row.winsWithout, row.lossesWithout, row.otlWithout, row.dnfWithout)}
+                <td
+                  className="px-3 py-2.5 text-right font-condensed text-sm tabular-nums text-zinc-400"
+                  title={recordBreakdown(
+                    row.winsWithout,
+                    row.lossesWithout,
+                    row.otlWithout,
+                    row.dnfWithout,
+                  )}
+                >
+                  {fmtRecord(row.winsWithout, row.lossesWithout, row.otlWithout)}
                 </td>
                 <td className="px-3 py-2.5 text-right font-condensed text-sm font-semibold tabular-nums text-zinc-200">
-                  {fmtWinPct(row.winsWithout, row.gpWithout)}
+                  {formatWinPct(row.winsWithout, row.gpWithout)}
                 </td>
                 <DeltaCell delta={delta} />
               </tr>
@@ -186,7 +214,7 @@ export function WithWithoutTable({ rows }: WithWithoutTableProps) {
           })}
         </tbody>
       </table>
-    </Panel>
+    </BroadcastPanel>
   )
 }
 
@@ -213,7 +241,7 @@ export function BestPairsTable({ rows }: BestPairsTableProps) {
   })
 
   return (
-    <Panel className="overflow-x-auto">
+    <BroadcastPanel intensity="soft" ticker={false} className="overflow-x-auto">
       <table className="w-full min-w-[680px]">
         <thead>
           <tr className="border-b border-zinc-800 bg-surface-raised">
@@ -280,11 +308,14 @@ export function BestPairsTable({ rows }: BestPairsTableProps) {
                 <td className="px-3 py-2.5 text-right font-condensed text-sm tabular-nums text-zinc-300">
                   <SampleBadge gp={row.gp} threshold={CHEMISTRY_PAIR_MIN_GP} />
                 </td>
-                <td className="px-3 py-2.5 text-right font-condensed text-sm tabular-nums text-zinc-400">
-                  {fmtRecord(row.wins, row.losses, row.otl, row.dnf)}
+                <td
+                  className="px-3 py-2.5 text-right font-condensed text-sm tabular-nums text-zinc-400"
+                  title={recordBreakdown(row.wins, row.losses, row.otl, row.dnf)}
+                >
+                  {fmtRecord(row.wins, row.losses, row.otl)}
                 </td>
                 <td className="px-3 py-2.5 text-right font-condensed text-sm font-semibold tabular-nums text-zinc-200">
-                  {fmtWinPct(row.wins, row.gp)}
+                  {formatWinPct(row.wins, row.gp)}
                 </td>
                 <td className="px-3 py-2.5 text-right font-condensed text-sm tabular-nums text-zinc-400">
                   {fmtPerGame(row.totalGf, row.gp)}
@@ -307,7 +338,7 @@ export function BestPairsTable({ rows }: BestPairsTableProps) {
           })}
         </tbody>
       </table>
-    </Panel>
+    </BroadcastPanel>
   )
 }
 
@@ -315,26 +346,18 @@ export function BestPairsTable({ rows }: BestPairsTableProps) {
 
 function ChemistryEmpty({ message }: { message: string }) {
   return (
-    <Panel className="flex min-h-[8rem] items-center justify-center">
+    <BroadcastPanel
+      intensity="soft"
+      ticker={false}
+      className="flex min-h-[8rem] items-center justify-center"
+    >
       <p className="px-4 text-center font-condensed text-sm uppercase tracking-wider text-zinc-500">
         {message}
       </p>
-    </Panel>
+    </BroadcastPanel>
   )
 }
 
-// ─── Section wrapper with title ────────────────────────────────────────────
-
-interface ChemistrySectionProps {
-  title: string
-  children: React.ReactNode
-}
-
-export function ChemistrySection({ title, children }: ChemistrySectionProps) {
-  return (
-    <div className="space-y-3">
-      <SectionHeader label={title} />
-      {children}
-    </div>
-  )
-}
+// The previous `<ChemistrySection>` thin wrapper was replaced by the tabbed
+// container in `chemistry-section.tsx` — see that file for the current
+// section-level Chemistry frame.

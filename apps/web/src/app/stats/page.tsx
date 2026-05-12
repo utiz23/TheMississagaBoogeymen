@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
-import type { ClubGameTitleStats, GameMode, GameTitle } from '@eanhl/db'
+import type { GameMode, GameTitle } from '@eanhl/db'
 import { GAME_MODE } from '@eanhl/db'
+import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import {
   getClubStats,
@@ -9,8 +10,14 @@ import {
   getGoalieStats,
   getEASkaterStats,
   getEAGoalieStats,
+  getOfficialClubRecord,
+  getClubSeasonRank,
+  getAllTimeSkaterStats,
+  getAllTimeGoalieStats,
+  getPlayersStatsMeta,
   getPlayerWithWithoutSplits,
   getPlayerPairs,
+  getPairWinMatrix,
   getHistoricalSkaterStats,
   getHistoricalGoalieStats,
   getHistoricalSkaterStatsAllModes,
@@ -20,21 +27,24 @@ import {
   getClubMemberSkaterStatsAllModes,
   getClubMemberGoalieStatsAllModes,
   getHistoricalClubTeamStats,
+  getHistoricalClubTeamStatsBatch,
+  getLiveTeamStatsByMode,
+  listArchiveGameTitles,
   getTeamShotLocationAggregates,
+  getTeamGoalieShotLocationAggregates,
   type HistoricalClubTeamStatsRow,
 } from '@eanhl/db/queries'
 import { TeamShotMap } from '@/components/stats/team-shot-map'
-import { StatCard } from '@/components/ui/stat-card'
-import { Panel } from '@/components/ui/panel'
 import { SectionHeader } from '@/components/ui/section-header'
 import { MatchRow } from '@/components/matches/match-row'
+import { RecordStrip } from '@/components/home/record-strip'
 import { SkaterStatsTable } from '@/components/stats/skater-stats-table'
 import { GoalieStatsTable } from '@/components/stats/goalie-stats-table'
-import {
-  WithWithoutTable,
-  BestPairsTable,
-  ChemistrySection,
-} from '@/components/stats/chemistry-tables'
+import { WithWithoutTable, BestPairsTable } from '@/components/stats/chemistry-tables'
+import { ChemistrySection } from '@/components/stats/chemistry-section'
+import { PairWinMatrix } from '@/components/stats/pair-win-matrix'
+import { TeamHistoryTable } from '@/components/stats/team-history-table'
+import { CareerStatsSection } from '@/components/stats/career-stats-section'
 import {
   TitleSelector,
   ModeFilter,
@@ -42,7 +52,7 @@ import {
   statsSourceLabel,
 } from '@/components/title-selector'
 import { resolveTitleFromSlug } from '@/lib/title-resolver'
-import { formatPct } from '@/lib/format'
+import { formatPct, formatWinPct } from '@/lib/format'
 
 export const metadata: Metadata = { title: 'Stats — Club Stats' }
 
@@ -56,12 +66,7 @@ function parseGameMode(raw: string | string[] | undefined): GameMode | null {
   return (GAME_MODE as readonly string[]).includes(raw) ? (raw as GameMode) : null
 }
 
-/** Win% as a display string, e.g. "78.3%". Returns "—" when no games played. */
-function winPct(wins: number, losses: number, otl: number): string {
-  const total = wins + losses + otl
-  if (total === 0) return '—'
-  return ((wins / total) * 100).toFixed(1) + '%'
-}
+
 
 export default async function StatsPage({ searchParams }: { searchParams: SearchParams }) {
   const params = await searchParams
@@ -104,11 +109,20 @@ async function ActiveStats({
     try {
       return await Promise.all([
         getClubStats(gameTitle.id, gameMode),
-        getRecentMatches({ gameTitleId: gameTitle.id, limit: 5 }),
+        // 10 — RecordStrip looks at the first 10 for its form ribbon; the
+        // bottom Recent Games section slices to 3 below.
+        getRecentMatches({ gameTitleId: gameTitle.id, limit: 10 }),
         gameMode === null ? getEASkaterStats(gameTitle.id) : getSkaterStats(gameTitle.id, gameMode),
         gameMode === null ? getEAGoalieStats(gameTitle.id) : getGoalieStats(gameTitle.id, gameMode),
         getPlayerWithWithoutSplits(gameTitle.id, gameMode),
         getPlayerPairs(gameTitle.id, gameMode),
+        getPairWinMatrix(gameTitle.id, gameMode),
+        // RecordStrip — soft-fail to null if the EA endpoint hasn't run yet.
+        getOfficialClubRecord(gameTitle.id).catch(() => null),
+        getClubSeasonRank(gameTitle.id).catch(() => null),
+        // Stats tables: All-Time scope toggle + per-player metadata tooltips.
+        getAllTimeSkaterStats().catch(() => []),
+        getAllTimeGoalieStats().catch(() => []),
       ])
     } catch {
       return null
@@ -123,63 +137,110 @@ async function ActiveStats({
     )
   }
 
-  const [clubStats, recentMatches, skaterRows, goalieRows, withWithoutRows, pairRows] = fetched
+  const [
+    clubStats,
+    recentMatches,
+    skaterRows,
+    goalieRows,
+    withWithoutRows,
+    pairRows,
+    pairWinMatrix,
+    officialRecord,
+    seasonRank,
+    allTimeSkaterRows,
+    allTimeGoalieRows,
+  ] = fetched
   const emptyModeLabel = gameMode !== null ? `${gameMode} ` : ''
 
-  let teamShotAggregates: Awaited<ReturnType<typeof getTeamShotLocationAggregates>> | null = null
+  // Per-player metadata for the stats tables' gamertag tooltip (jersey #,
+  // preferred position, last-seen ISO date). Soft-fail to an empty map.
+  const metaIds = Array.from(
+    new Set([
+      ...skaterRows.map((r) => r.playerId),
+      ...goalieRows.map((r) => r.playerId),
+      ...allTimeSkaterRows.map((r) => r.playerId),
+      ...allTimeGoalieRows.map((r) => r.playerId),
+    ]),
+  )
+  let playerMeta: Awaited<ReturnType<typeof getPlayersStatsMeta>> = {}
   try {
-    teamShotAggregates = await getTeamShotLocationAggregates(gameTitle.id)
+    playerMeta = await getPlayersStatsMeta(metaIds)
   } catch {
-    teamShotAggregates = null
+    // Soft-fail — tooltips fall back to the bare gamertag.
   }
 
-  const shotMapHasData =
-    gameTitle.slug === 'nhl26' && (teamShotAggregates?.shotsIce.some((v) => v > 0) ?? false)
+  // Subtitle that shows on the All-Time scope tab. Pulls the title count from
+  // the same place the roster page uses.
+  const allTimeSubtitle =
+    allTimeSkaterRows.length > 0 || allTimeGoalieRows.length > 0
+      ? 'Career totals across all titles · all clubs'
+      : undefined
+
+  // Career Team Stats rows — live (NHL 26 derived from `matches`) + archive
+  // (reviewed historical_club_team_stats across every prior title). Both
+  // sources share the same row shape so the table renders them uniformly.
+  type TeamHistoryRow = Awaited<ReturnType<typeof getHistoricalClubTeamStatsBatch>>[number] & {
+    titleName: string
+  }
+  let teamHistoryRows: TeamHistoryRow[] = []
+  try {
+    const archiveTitles = await listArchiveGameTitles()
+    const archiveIds = archiveTitles.map((t) => t.id)
+    const titleNameById = new Map([
+      [gameTitle.id, gameTitle.name],
+      ...archiveTitles.map((t) => [t.id, t.name] as const),
+    ])
+    const [liveRows, archiveRows] = await Promise.all([
+      getLiveTeamStatsByMode(gameTitle.id).catch(() => []),
+      archiveIds.length > 0
+        ? getHistoricalClubTeamStatsBatch(archiveIds).catch(() => [])
+        : Promise.resolve([]),
+    ])
+    teamHistoryRows = [...liveRows, ...archiveRows].map((r) => ({
+      ...r,
+      titleName: titleNameById.get(r.gameTitleId) ?? '',
+    }))
+  } catch {
+    teamHistoryRows = []
+  }
+
+  // Offense (shots taken) + defense (shots faced) team aggregates feed the
+  // Offense/Defense toggle on the team shot map.
+  let teamShotAggregates: Awaited<ReturnType<typeof getTeamShotLocationAggregates>> | null = null
+  let teamGoalieAggregates:
+    | Awaited<ReturnType<typeof getTeamGoalieShotLocationAggregates>>
+    | null = null
+  try {
+    ;[teamShotAggregates, teamGoalieAggregates] = await Promise.all([
+      getTeamShotLocationAggregates(gameTitle.id),
+      getTeamGoalieShotLocationAggregates(gameTitle.id),
+    ])
+  } catch {
+    teamShotAggregates = null
+    teamGoalieAggregates = null
+  }
+
+  const isNhl26 = gameTitle.slug === 'nhl26'
+  const offenseHasData =
+    isNhl26 && (teamShotAggregates?.shotsIce.some((v) => v > 0) ?? false)
+  const defenseHasData =
+    isNhl26 && (teamGoalieAggregates?.shotsIce.some((v) => v > 0) ?? false)
 
   return (
     <PageShell gameTitle={gameTitle}>
-      {/* Record + stat cards — show when at least 1 game is recorded */}
-      {clubStats !== null && clubStats.gamesPlayed > 0 ? (
-        <>
-          <RecordCard stats={clubStats} />
-
-          <section className="space-y-3">
-            <SectionHeader label="Team Averages" />
-            <div className="grid grid-cols-2 gap-px sm:grid-cols-3 lg:grid-cols-6">
-              <StatCard
-                label="Goals For"
-                value={clubStats.goalsFor.toString()}
-                sublabel={`${clubStats.gamesPlayed.toString()} GP`}
-                featured
-              />
-              <StatCard
-                label="Goals Against"
-                value={clubStats.goalsAgainst.toString()}
-                sublabel={`${clubStats.gamesPlayed.toString()} GP`}
-              />
-              <StatCard label="Shots / GP" value={clubStats.shotsPerGame ?? '—'} />
-              <StatCard label="Hits / GP" value={clubStats.hitsPerGame ?? '—'} />
-              <StatCard label="Faceoff %" value={formatPct(clubStats.faceoffPct)} />
-              <StatCard label="Pass %" value={formatPct(clubStats.passPct)} />
-            </div>
-          </section>
-        </>
-      ) : (
-        <EmptyState
-          message={
-            gameMode !== null
-              ? `No ${emptyModeLabel}games recorded for ${gameTitle.name} yet.`
-              : `No stats recorded for ${gameTitle.name} yet.`
-          }
-        />
-      )}
-
-      <TeamShotMap
-        aggregates={teamShotAggregates ?? emptyShotLocations()}
-        hasData={shotMapHasData}
+      {/* Record strip — broadcast-style season ledger (W/L/OTL bar, win-pct
+          gauge, goal differential, last-10 form ribbon). Shared component with
+          the home page; renders cleanly even when officialRecord/seasonRank
+          haven't been fetched yet (the EA endpoints lag the local aggregate). */}
+      <RecordStrip
+        officialRecord={officialRecord}
+        localStats={clubStats}
+        seasonRank={seasonRank}
+        recentResults={recentMatches}
+        gameTitleName={gameTitle.name}
       />
 
-      {/* Selectors — sit above the stats tables, the sections they most directly filter */}
+      {/* Selectors — page-level context, sit just under the record strip. */}
       <div className="flex flex-wrap items-center gap-3">
         <TitleSelector
           pathname="/stats"
@@ -195,10 +256,59 @@ async function ActiveStats({
         />
       </div>
 
-      {/* Skater stats — primary table content */}
-      {skaterRows.length > 0 ? (
-        <section>
-          <SkaterStatsTable rows={skaterRows} title="Skaters" subtitle={subtitle} />
+      {clubStats === null || clubStats.gamesPlayed === 0 ? (
+        <EmptyState
+          message={
+            gameMode !== null
+              ? `No ${emptyModeLabel}games recorded for ${gameTitle.name} yet.`
+              : `No stats recorded for ${gameTitle.name} yet.`
+          }
+        />
+      ) : null}
+
+      <TeamShotMap
+        offense={teamShotAggregates ?? emptyShotLocations()}
+        offenseHasData={offenseHasData}
+        defense={teamGoalieAggregates ?? emptyShotLocations()}
+        defenseHasData={defenseHasData}
+        {...(clubStats !== null && clubStats.gamesPlayed > 0
+          ? { teamGp: clubStats.gamesPlayed }
+          : {})}
+        {...(recentMatches[0]
+          ? { updatedDate: recentMatches[0].playedAt.toISOString().slice(0, 10) }
+          : {})}
+      />
+
+      {/* Career team stats — per-title, per-playlist rows from reviewed
+          archive imports (NHL 22-25). Surfaces PP%/PK% and team-rate metrics
+          we don't compute live yet. */}
+      {teamHistoryRows.length > 0 && <TeamHistoryTable rows={teamHistoryRows} />}
+
+      {/* Skater + Goalie stats — wrapped together in a shared module-frame
+          container so they read as one "Player Stats" module, matching the
+          depth-chart card frame on /roster (visually-linked sibling). */}
+      {skaterRows.length > 0 || goalieRows.length > 0 ? (
+        <section className="module-frame divide-y divide-zinc-800/60">
+          {skaterRows.length > 0 ? (
+            <SkaterStatsTable
+              rows={skaterRows}
+              title="Skaters"
+              subtitle={subtitle}
+              allTimeRows={allTimeSkaterRows}
+              {...(allTimeSubtitle !== undefined ? { allTimeSubtitle } : {})}
+              playerMeta={playerMeta}
+            />
+          ) : null}
+          {goalieRows.length > 0 ? (
+            <GoalieStatsTable
+              rows={goalieRows}
+              title="Goalies"
+              subtitle={subtitle}
+              allTimeRows={allTimeGoalieRows}
+              {...(allTimeSubtitle !== undefined ? { allTimeSubtitle } : {})}
+              playerMeta={playerMeta}
+            />
+          ) : null}
         </section>
       ) : (
         clubStats !== null &&
@@ -207,27 +317,41 @@ async function ActiveStats({
         )
       )}
 
-      {goalieRows.length > 0 && (
-        <section>
-          <GoalieStatsTable rows={goalieRows} title="Goalies" subtitle={subtitle} />
-        </section>
-      )}
-
-      <section className="space-y-6">
-        <SectionHeader label="Chemistry" />
-        <ChemistrySection title="Team Record With / Without">
-          <WithWithoutTable rows={withWithoutRows} />
-        </ChemistrySection>
-        <ChemistrySection title="Best Pairs">
-          <BestPairsTable rows={pairRows} />
-        </ChemistrySection>
-      </section>
+      <ChemistrySection
+        withWithout={<WithWithoutTable rows={withWithoutRows} />}
+        bestPairs={<BestPairsTable rows={pairRows} />}
+        matrix={
+          <PairWinMatrix
+            data={pairWinMatrix}
+            titleName={gameTitle.name}
+            clubName="Boogeymen"
+            updatedLabel={
+              recentMatches[0]
+                ? recentMatches[0].playedAt.toISOString().slice(0, 10)
+                : undefined
+            }
+            scope={
+              gameMode !== null
+                ? `Pairwise win % when both players appeared · ${gameMode} mode · ${String(pairWinMatrix.players.length)} skaters`
+                : undefined
+            }
+          />
+        }
+      />
 
       {recentMatches.length > 0 && (
         <section className="space-y-3">
-          <SectionHeader label="Recent Games" />
+          <div className="flex items-baseline justify-between gap-3">
+            <SectionHeader label="Recent Games" />
+            <Link
+              href="/games"
+              className="font-condensed text-xs font-bold uppercase tracking-widest text-zinc-500 transition-colors hover:text-accent"
+            >
+              View all matches →
+            </Link>
+          </div>
           <div className="space-y-2">
-            {recentMatches.map((match, i) => (
+            {recentMatches.slice(0, 3).map((match, i) => (
               <MatchRow key={match.id} match={match} isMostRecent={i === 0} />
             ))}
           </div>
@@ -286,10 +410,8 @@ async function ArchiveStats({
 
   return (
     <PageShell gameTitle={gameTitle}>
-      <p className="text-sm text-zinc-500">
-        Two reviewed historical sources are available for {gameTitle.name} — they are kept separate
-        because they describe different things. Match-level analytics (chemistry, recent results)
-        are not available for {gameTitle.name} — match data was not captured.
+      <p className="font-condensed text-xs font-bold uppercase tracking-[0.18em] text-zinc-500">
+        Archive · no match data captured
       </p>
 
       <div className="flex flex-wrap items-center gap-3">
@@ -310,70 +432,53 @@ async function ArchiveStats({
       {/* CLUB/TEAM totals — overview before per-player breakdowns. */}
       {teamRows.length > 0 && <ArchiveClubTeamSection rows={teamRows} titleName={gameTitle.name} />}
 
-      {/* PRIMARY: club-scoped member totals. */}
-      <section className="space-y-4">
-        <div className="space-y-1">
-          <h2 className="font-condensed text-base font-semibold uppercase tracking-widest text-zinc-300">
-            Club-scoped totals
-          </h2>
-          <p className="text-xs text-zinc-500">
-            What each member produced while wearing the BGM crest in {gameTitle.name}. Sourced from
-            CLUBS → MEMBERS leaderboard captures.
-          </p>
-        </div>
-        {clubSkaterRows.length > 0 ? (
-          <SkaterStatsTable
-            rows={clubSkaterRows}
-            title="Skaters"
-            subtitle="Club-member totals (reviewed screenshot import)"
-          />
-        ) : (
-          <EmptyState
-            message={`No club-scoped ${gameMode ?? 'combined'} skater totals captured for ${gameTitle.name}.`}
-          />
-        )}
-        {clubGoalieRows.length > 0 && (
-          <GoalieStatsTable
-            rows={clubGoalieRows}
-            title="Goalies"
-            subtitle="Club-member totals (reviewed screenshot import)"
-          />
-        )}
-      </section>
-
-      {/* SECONDARY: player-card season totals. */}
-      <section className="space-y-4 border-t border-zinc-800 pt-6">
-        <div className="space-y-1">
-          <h2 className="font-condensed text-base font-semibold uppercase tracking-widest text-zinc-300">
-            Player-card season totals
-          </h2>
-          <p className="text-xs text-zinc-500">
-            Season totals from each player's individual stat-card screen.{' '}
-            <span className="text-amber-300/80">
-              These can include games the player played for other clubs in {gameTitle.name}
-            </span>{' '}
-            — they are not club-scoped. Use the section above for the BGM-only number.
-          </p>
-        </div>
-        {cardSkaterRows.length > 0 ? (
-          <SkaterStatsTable
-            rows={cardSkaterRows}
-            title="Skaters"
-            subtitle="Player-card season totals — may include games for other clubs"
-          />
-        ) : (
-          <EmptyState
-            message={`No player-card ${gameMode ?? 'combined'} skater totals for ${gameTitle.name}.`}
-          />
-        )}
-        {cardGoalieRows.length > 0 && (
-          <GoalieStatsTable
-            rows={cardGoalieRows}
-            title="Goalies"
-            subtitle="Player-card season totals — may include games for other clubs"
-          />
-        )}
-      </section>
+      <CareerStatsSection
+        titleName={gameTitle.name}
+        clubScoped={
+          <>
+            {clubSkaterRows.length > 0 ? (
+              <SkaterStatsTable
+                rows={clubSkaterRows}
+                title="Skaters"
+                subtitle="Club-member totals (reviewed screenshot import)"
+              />
+            ) : (
+              <EmptyState
+                message={`No club-scoped ${gameMode ?? 'combined'} skater totals captured for ${gameTitle.name}.`}
+              />
+            )}
+            {clubGoalieRows.length > 0 ? (
+              <GoalieStatsTable
+                rows={clubGoalieRows}
+                title="Goalies"
+                subtitle="Club-member totals (reviewed screenshot import)"
+              />
+            ) : null}
+          </>
+        }
+        playerCard={
+          <>
+            {cardSkaterRows.length > 0 ? (
+              <SkaterStatsTable
+                rows={cardSkaterRows}
+                title="Skaters"
+                subtitle="Player-card season totals — may include games for other clubs"
+              />
+            ) : (
+              <EmptyState
+                message={`No player-card ${gameMode ?? 'combined'} skater totals for ${gameTitle.name}.`}
+              />
+            )}
+            {cardGoalieRows.length > 0 ? (
+              <GoalieStatsTable
+                rows={cardGoalieRows}
+                title="Goalies"
+                subtitle="Player-card season totals — may include games for other clubs"
+              />
+            ) : null}
+          </>
+        }
+      />
     </PageShell>
   )
 }
@@ -441,7 +546,7 @@ function ArchiveClubTeamSection({
                   <td className="px-3 py-3 text-right font-semibold text-accent">{w}</td>
                   <td className="px-3 py-3 text-right text-zinc-400">{l}</td>
                   <td className="px-3 py-3 text-right text-zinc-500">{otl}</td>
-                  <td className="px-3 py-3 text-right text-zinc-300">{winPct(w, l, otl)}</td>
+                  <td className="px-3 py-3 text-right text-zinc-300">{formatWinPct(w, w + l + otl)}</td>
                   <td className="px-3 py-3 text-right text-zinc-300">{row.avgGoalsFor ?? '—'}</td>
                   <td className="px-3 py-3 text-right text-zinc-400">
                     {row.avgGoalsAgainst ?? '—'}
@@ -480,53 +585,6 @@ function PageShell({ gameTitle, children }: { gameTitle: GameTitle; children: Re
       </div>
 
       {children}
-    </div>
-  )
-}
-
-// ─── Record hero card ─────────────────────────────────────────────────────────
-
-function RecordCard({ stats }: { stats: ClubGameTitleStats }) {
-  const pct = winPct(stats.wins, stats.losses, stats.otl)
-
-  return (
-    <section className="space-y-3">
-      <SectionHeader label="Record" />
-      <div className="border border-l-4 border-zinc-800 border-l-accent bg-surface px-6 py-5">
-        <div className="flex flex-wrap items-end gap-x-10 gap-y-4">
-          <div className="flex items-end gap-6 font-condensed font-bold leading-none tabular">
-            <RecordStat label="W" value={stats.wins} accent />
-            <RecordStat label="L" value={stats.losses} />
-            <RecordStat label="OTL" value={stats.otl} />
-          </div>
-
-          <div className="flex flex-col gap-0.5">
-            <span className="font-condensed text-lg font-semibold tabular text-zinc-300">
-              {pct}
-            </span>
-            <span className="text-xs text-zinc-500">Win% · {stats.gamesPlayed.toString()} GP</span>
-          </div>
-        </div>
-      </div>
-    </section>
-  )
-}
-
-interface RecordStatProps {
-  label: string
-  value: number
-  accent?: boolean
-}
-
-function RecordStat({ label, value, accent = false }: RecordStatProps) {
-  return (
-    <div className="flex flex-col items-center gap-1">
-      <span
-        className={`text-4xl sm:text-5xl font-bold ${accent ? 'text-accent' : 'text-zinc-100'}`}
-      >
-        {value.toString()}
-      </span>
-      <span className="text-xs font-semibold uppercase tracking-wider text-zinc-500">{label}</span>
     </div>
   )
 }

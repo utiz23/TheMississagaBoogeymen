@@ -1,0 +1,659 @@
+/* ============================================================
+   Pair Win Matrix — port of design bundle preview/components-win-matrix.html
+   ============================================================ */
+
+.pwm-frame {
+  position: relative;
+  border: 1px solid rgba(73, 71, 72, 0.9);
+  background:
+    radial-gradient(circle at 50% 0%, rgba(232, 65, 49, 0.14), transparent 45%),
+    linear-gradient(180deg, rgba(50, 48, 49, 0.96), rgba(20, 18, 19, 0.99));
+  overflow: hidden;
+  font-family: var(--font-condensed, 'Barlow Condensed', system-ui, sans-serif);
+  --pwm-line: rgba(73, 71, 72, 0.55);
+  --pwm-acc: var(--color-accent, #e84131);
+}
+
+.pwm-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  padding: 18px 24px 12px;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.pwm-head .pwm-title h2 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 900;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: #ebebeb;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.pwm-head .pwm-title h2 .acc {
+  color: var(--pwm-acc);
+}
+.pwm-head .pwm-title .scope {
+  display: block;
+  margin-top: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: #9a9798;
+}
+.pwm-head .pwm-meta {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  color: #6e6b6c;
+  text-transform: uppercase;
+}
+.pwm-head .pwm-meta b {
+  color: #d4d2d3;
+}
+.pwm-head .pwm-meta .dot {
+  color: var(--pwm-acc);
+}
+
+.pwm-ticker {
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--pwm-acc) 14%, var(--pwm-acc) 86%, transparent);
+}
+
+.pwm-caption {
+  padding: 14px 24px;
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 10.5px;
+  color: #9a9798;
+  letter-spacing: 0.06em;
+  border-bottom: 1px solid var(--pwm-line);
+  background: linear-gradient(90deg, rgba(232, 65, 49, 0.05), transparent 60%);
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  flex-wrap: wrap;
+}
+.pwm-caption .key {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  font-weight: 800;
+  font-size: 9.5px;
+  color: #6e6b6c;
+}
+.pwm-caption .key b {
+  color: #ebebeb;
+  font-weight: 800;
+}
+.pwm-caption .pip {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 1px;
+  background: var(--pwm-acc);
+}
+
+/* ── Control bar (slider) ───────────────────────────────────────────── */
+.pwm-controls {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 24px;
+  border-bottom: 1px solid var(--pwm-line);
+  background: rgba(0, 0, 0, 0.20);
+  font-family: var(--font-condensed, 'Barlow Condensed', system-ui, sans-serif);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: #9a9798;
+  flex-wrap: wrap;
+}
+.pwm-controls .label {
+  color: #6e6b6c;
+}
+.pwm-controls .value {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.10em;
+  color: #ebebeb;
+  min-width: 36px;
+  text-align: center;
+  padding: 2px 6px;
+  border: 1px solid rgba(73, 71, 72, 0.6);
+  background: rgba(0, 0, 0, 0.45);
+  border-radius: 2px;
+}
+.pwm-controls .value.lead {
+  color: var(--pwm-acc);
+  border-color: rgba(232, 65, 49, 0.45);
+  background: rgba(232, 65, 49, 0.08);
+}
+.pwm-controls .hint {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 9.5px;
+  letter-spacing: 0.06em;
+  text-transform: none;
+  color: #6e6b6c;
+  margin-left: auto;
+}
+.pwm-controls .slider {
+  flex: 1 1 220px;
+  min-width: 160px;
+  max-width: 320px;
+  height: 18px;
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  cursor: pointer;
+}
+.pwm-controls .slider::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 2px;
+  background: linear-gradient(
+    90deg,
+    rgba(232, 65, 49, 0.55) 0%,
+    rgba(232, 65, 49, 0.25) 100%
+  );
+  border: 1px solid rgba(73, 71, 72, 0.6);
+}
+.pwm-controls .slider::-moz-range-track {
+  height: 4px;
+  border-radius: 2px;
+  background: linear-gradient(
+    90deg,
+    rgba(232, 65, 49, 0.55) 0%,
+    rgba(232, 65, 49, 0.25) 100%
+  );
+  border: 1px solid rgba(73, 71, 72, 0.6);
+}
+.pwm-controls .slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 12px;
+  height: 16px;
+  margin-top: -7px;
+  background: var(--pwm-acc);
+  border: 1px solid rgba(232, 65, 49, 0.85);
+  border-radius: 1px;
+  box-shadow: 0 0 6px rgba(232, 65, 49, 0.45);
+}
+.pwm-controls .slider::-moz-range-thumb {
+  width: 12px;
+  height: 16px;
+  background: var(--pwm-acc);
+  border: 1px solid rgba(232, 65, 49, 0.85);
+  border-radius: 1px;
+  box-shadow: 0 0 6px rgba(232, 65, 49, 0.45);
+}
+.pwm-controls .divider {
+  width: 1px;
+  height: 16px;
+  background: rgba(73, 71, 72, 0.6);
+  margin: 0 4px;
+}
+
+/* segmented Order-by toggle */
+.pwm-controls .seg {
+  display: inline-flex;
+  border: 1px solid rgba(73, 71, 72, 0.6);
+  border-radius: 2px;
+  overflow: hidden;
+  background: rgba(0, 0, 0, 0.35);
+}
+.pwm-controls .seg-btn {
+  padding: 4px 10px;
+  font-family: var(--font-condensed, 'Barlow Condensed', system-ui, sans-serif);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: #9a9798;
+  background: transparent;
+  border: none;
+  border-right: 1px solid rgba(73, 71, 72, 0.5);
+  cursor: pointer;
+  transition: color 100ms, background 100ms;
+}
+.pwm-controls .seg-btn:last-child {
+  border-right: none;
+}
+.pwm-controls .seg-btn:hover {
+  color: #d4d2d3;
+}
+.pwm-controls .seg-btn.active {
+  color: #ebebeb;
+  background: rgba(232, 65, 49, 0.18);
+  box-shadow: inset 0 -2px 0 var(--pwm-acc);
+}
+
+/* Triangle toggle button */
+.pwm-controls .tri-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  font-family: var(--font-condensed, 'Barlow Condensed', system-ui, sans-serif);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: #9a9798;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(73, 71, 72, 0.6);
+  border-radius: 2px;
+  cursor: pointer;
+  transition: color 100ms, border-color 100ms;
+}
+.pwm-controls .tri-btn:hover {
+  color: #d4d2d3;
+}
+.pwm-controls .tri-btn.active {
+  color: var(--pwm-acc);
+  border-color: rgba(232, 65, 49, 0.55);
+  background: rgba(232, 65, 49, 0.10);
+}
+
+.pwm-wrap {
+  padding: 18px 24px 8px;
+  overflow-x: auto;
+}
+
+.pwm-grid {
+  display: grid;
+  border: 1px solid var(--pwm-line);
+  background: rgba(0, 0, 0, 0.25);
+}
+.pwm-grid > * {
+  border-right: 1px solid rgba(73, 71, 72, 0.4);
+  border-bottom: 1px solid rgba(73, 71, 72, 0.4);
+  font-family: var(--font-condensed, 'Barlow Condensed', system-ui, sans-serif);
+}
+
+.pwm-corner {
+  background: transparent;
+}
+
+.pwm-col-label {
+  padding: 0 4px;
+  text-align: center;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #d4d2d3;
+  background: rgba(20, 18, 19, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* Aliases are short ("Silky", "Erb", "Orlov") so horizontal labels fit and
+     read faster than rotated text. */
+  height: 56px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  border-bottom: 1px solid var(--pwm-line);
+}
+
+.pwm-row-label {
+  padding: 0 10px 0 12px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #d4d2d3;
+  background: rgba(20, 18, 19, 0.6);
+  height: 56px;
+  position: relative;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pwm-row-label .seat {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 9.5px;
+  font-weight: 800;
+  color: #6e6b6c;
+  background: rgba(0, 0, 0, 0.4);
+  padding: 1px 5px;
+  border: 1px solid rgba(73, 71, 72, 0.6);
+  border-radius: 2px;
+}
+
+.pwm-cell {
+  position: relative;
+  height: 56px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  cursor: default;
+  transition: outline 100ms;
+}
+.pwm-cell:hover {
+  outline: 1px solid var(--pwm-acc);
+  outline-offset: -1px;
+  z-index: 2;
+}
+.pwm-cell .pct {
+  font-weight: 900;
+  font-size: 15px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+  line-height: 1;
+}
+.pwm-cell .rec {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 9px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: rgba(255, 255, 255, 0.78);
+  letter-spacing: 0.02em;
+  line-height: 1;
+}
+.pwm-cell.diag {
+  background:
+    repeating-linear-gradient(135deg, rgba(73, 71, 72, 0.25) 0 6px, transparent 6px 12px),
+    rgba(0, 0, 0, 0.4);
+}
+.pwm-cell.empty {
+  background: rgba(0, 0, 0, 0.4);
+  color: #514e4f;
+}
+.pwm-cell.empty .em {
+  font-size: 18px;
+  color: #514e4f;
+}
+
+/* heat tiers — bad → excellent, mirroring design */
+.pwm-cell.t0 {
+  background: linear-gradient(180deg, rgba(140, 28, 28, 0.92), rgba(110, 22, 22, 0.92));
+  color: #ffd6d2;
+  box-shadow: inset 0 0 0 1px rgba(220, 120, 110, 0.18);
+}
+.pwm-cell.t1 {
+  background: linear-gradient(180deg, rgba(204, 58, 42, 0.92), rgba(176, 46, 32, 0.92));
+  color: #fff;
+  box-shadow: inset 0 0 0 1px rgba(255, 170, 150, 0.18);
+}
+.pwm-cell.t2 {
+  background: linear-gradient(180deg, rgba(220, 118, 42, 0.92), rgba(195, 98, 30, 0.92));
+  color: #fff;
+  box-shadow: inset 0 0 0 1px rgba(255, 200, 140, 0.18);
+}
+.pwm-cell.t3 {
+  background: linear-gradient(180deg, rgba(200, 150, 30, 0.95), rgba(170, 120, 22, 0.95));
+  color: #fff;
+  box-shadow: inset 0 0 0 1px rgba(255, 220, 140, 0.22);
+}
+.pwm-cell.t4 {
+  background: linear-gradient(180deg, rgba(126, 180, 60, 0.92), rgba(96, 150, 46, 0.92));
+  color: #0f1a0c;
+  box-shadow: inset 0 0 0 1px rgba(190, 230, 140, 0.22);
+}
+.pwm-cell.t5 {
+  background: linear-gradient(180deg, rgba(60, 180, 90, 0.96), rgba(38, 150, 70, 0.96));
+  color: #fff;
+  box-shadow: inset 0 0 0 1px rgba(160, 235, 170, 0.30);
+}
+.pwm-cell.t0 .pct,
+.pwm-cell.t1 .pct,
+.pwm-cell.t2 .pct,
+.pwm-cell.t3 .pct,
+.pwm-cell.t5 .pct {
+  text-shadow: 0 0 10px rgba(0, 0, 0, 0.45);
+}
+
+/* Sub-threshold cells render dim — preserves spatial structure as the slider
+   moves so users can see what they're filtering out. */
+.pwm-cell.dim {
+  filter: grayscale(0.6);
+  opacity: 0.32;
+}
+.pwm-cell.dim:hover {
+  filter: none;
+  opacity: 0.85;
+}
+
+/* Triangular-only mode hides upper-triangle cells. visibility:hidden keeps
+   the grid slot so layout doesn't reflow. */
+.pwm-cell.tri-hide {
+  visibility: hidden;
+}
+
+/* TEAM aggregate column */
+.pwm-team-corner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 56px;
+  padding: 0 4px;
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: #d4d2d3;
+  background: rgba(20, 18, 19, 0.6);
+  border-bottom: 1px solid var(--pwm-line);
+  border-left: 2px solid rgba(73, 71, 72, 0.7);
+}
+.pwm-team-cell {
+  position: relative;
+  height: 56px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  cursor: default;
+  border-left: 2px solid rgba(73, 71, 72, 0.7);
+}
+.pwm-team-cell .pct {
+  font-weight: 900;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+  line-height: 1;
+}
+.pwm-team-cell .rec {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 9px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: rgba(255, 255, 255, 0.78);
+  letter-spacing: 0.02em;
+  line-height: 1;
+}
+/* Reuse heat tier backgrounds on the TEAM column (defined for .pwm-cell above
+   — we duplicate the backgrounds here without the hover outline). */
+.pwm-team-cell.t0 {
+  background: linear-gradient(180deg, rgba(140, 28, 28, 0.92), rgba(110, 22, 22, 0.92));
+  color: #ffd6d2;
+}
+.pwm-team-cell.t1 {
+  background: linear-gradient(180deg, rgba(204, 58, 42, 0.92), rgba(176, 46, 32, 0.92));
+  color: #fff;
+}
+.pwm-team-cell.t2 {
+  background: linear-gradient(180deg, rgba(220, 118, 42, 0.92), rgba(195, 98, 30, 0.92));
+  color: #fff;
+}
+.pwm-team-cell.t3 {
+  background: linear-gradient(180deg, rgba(200, 150, 30, 0.95), rgba(170, 120, 22, 0.95));
+  color: #fff;
+}
+.pwm-team-cell.t4 {
+  background: linear-gradient(180deg, rgba(126, 180, 60, 0.92), rgba(96, 150, 46, 0.92));
+  color: #0f1a0c;
+}
+.pwm-team-cell.t5 {
+  background: linear-gradient(180deg, rgba(60, 180, 90, 0.96), rgba(38, 150, 70, 0.96));
+  color: #fff;
+}
+.pwm-team-cell.t0 .pct,
+.pwm-team-cell.t1 .pct,
+.pwm-team-cell.t2 .pct,
+.pwm-team-cell.t3 .pct,
+.pwm-team-cell.t5 .pct {
+  text-shadow: 0 0 10px rgba(0, 0, 0, 0.45);
+}
+
+/* row/col highlight on hover */
+.pwm-grid.hl-row > .row-hi {
+  box-shadow: inset 3px 0 0 var(--pwm-acc);
+}
+.pwm-grid.hl-col > .col-hi {
+  box-shadow: inset 0 3px 0 var(--pwm-acc);
+}
+
+/* legend */
+.pwm-legend {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 24px;
+  border-top: 1px solid var(--pwm-line);
+  background: rgba(0, 0, 0, 0.22);
+  gap: 24px;
+  flex-wrap: wrap;
+}
+.pwm-scale-block {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.pwm-scale {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-family: var(--font-condensed, 'Barlow Condensed', system-ui, sans-serif);
+  font-size: 9.5px;
+  font-weight: 800;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: #6e6b6c;
+}
+.pwm-scale .gradient {
+  width: 280px;
+  height: 10px;
+  border-radius: 2px;
+  background: linear-gradient(
+    90deg,
+    rgba(140, 28, 28, 1) 0%,
+    rgba(204, 58, 42, 1) 18%,
+    rgba(220, 118, 42, 1) 36%,
+    rgba(220, 170, 42, 1) 52%,
+    rgba(126, 180, 60, 1) 72%,
+    rgba(38, 150, 70, 1) 100%
+  );
+  border: 1px solid rgba(73, 71, 72, 0.6);
+  position: relative;
+}
+.pwm-scale .gradient::before,
+.pwm-scale .gradient::after {
+  content: '';
+  position: absolute;
+  top: -3px;
+  bottom: -3px;
+  width: 1px;
+  background: rgba(255, 255, 255, 0.18);
+}
+.pwm-scale .gradient::before {
+  left: 50%;
+}
+.pwm-scale .gradient::after {
+  left: 70%;
+}
+.pwm-scale.ticks {
+  display: flex;
+  justify-content: space-between;
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 9px;
+  width: 280px;
+  color: #6e6b6c;
+}
+.pwm-keys {
+  display: flex;
+  gap: 16px;
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 9.5px;
+  letter-spacing: 0.10em;
+  color: #6e6b6c;
+  text-transform: uppercase;
+}
+.pwm-keys b {
+  color: #d4d2d3;
+  font-weight: 800;
+}
+.pwm-keys .pip-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.pwm-keys .pip-row i {
+  width: 10px;
+  height: 10px;
+  border-radius: 1px;
+  display: inline-block;
+}
+.pwm-keys .pip-diag i {
+  background:
+    repeating-linear-gradient(135deg, rgba(73, 71, 72, 0.45) 0 3px, transparent 3px 6px),
+    #1a1819;
+  border: 1px solid rgba(73, 71, 72, 0.6);
+}
+.pwm-keys .pip-empty i {
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(73, 71, 72, 0.6);
+}
+.pwm-keys .pip-dim i {
+  background: linear-gradient(135deg, rgba(220, 118, 42, 0.5), rgba(38, 150, 70, 0.5));
+  filter: grayscale(0.6);
+  opacity: 0.5;
+  border: 1px solid rgba(73, 71, 72, 0.6);
+}
+
+.pwm-foot {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 24px;
+  border-top: 1px solid var(--pwm-line);
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 9.5px;
+  letter-spacing: 0.16em;
+  color: #6e6b6c;
+  text-transform: uppercase;
+  background: rgba(0, 0, 0, 0.30);
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.pwm-foot b {
+  color: #d4d2d3;
+}
+
+.pwm-empty-state {
+  padding: 56px 24px;
+  text-align: center;
+  font-family: var(--font-condensed, 'Barlow Condensed', system-ui, sans-serif);
+  font-size: 12px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: #6e6b6c;
+}
