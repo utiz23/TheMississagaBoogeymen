@@ -77,12 +77,72 @@ End state: **71 canonical rows, all 71 positioned = 100% coverage**, no manual i
 
 **Open items, ranked:**
 1. **Partial-row underline detector improvement** (~1.5 hr, OPTIONAL) — expose `peak_y` and a `state ∈ {matched, peak_no_row_match, no_peak}` from `detect_selected_row_index` in `tools/game_ocr/game_ocr/spatial.py:679-777`. Lets `cutoff_event_recovery.py` distinguish sub-case A vs B without relying on the panel-anchor heuristic.
-2. **Shape-classifier hits recall** (~30 min). Validator shows hit ratio 1.03 — should be ~2x. ~25-30% of hit markers fall into 'unknown'.
+2. **Hit-vs-shot discrimination at 8 vertices** (deferred). After the noisy-square-fallback fix, hit ratio 1.31 (was 1.03) but ~90 markers currently classified as "shot" (8-vert circ≥0.85) are likely noisy hits with rounded corners. Distinguishing them without per-marker ground-truth labels is hard. Revisit if a future match shows obviously wrong per-player hit attribution.
 3. **Auto opp-color detection** (~45 min). Match 250 is BGM-away + opp-white; future matches will break.
 4. **Overlap watershed** (~2 hr). Stacked markers at one on-ice spot. Not present in 250 but real games will have it.
 5. **Clock-phantom generalisations** (deferred) — period-bounds check (clock > 20:00 in p1-3 = impossible), OT-lower-bound (clock < game-end-clock impossible), unresolved-actor phantom detection. None of these classes currently have known instances; ship if/when a future match surfaces one.
 
-**Last updated:** 2026-05-12 (clock-phantom check shipped; 4-tier pipeline produces 71/71 canonical rows with zero manual cleanups)
+**Last updated:** 2026-05-12 (shape-classifier hit recall shipped; hit ratio 1.03 → 1.31; pipeline still 71/71)
+
+---
+
+## Session Summary — 2026-05-12 (shape-classifier hit recall)
+
+### What was done
+
+HANDOFF flagged `validate_shape_classifier.py` reporting hit ratio 1.03 on match 250 (target ~2.0). User note: "~25-30% of hit markers fall into 'unknown'; tightening the 4-vertex angle thresholds would recover some."
+
+### Initial hypothesis (didn't pan out)
+
+The classifier's 4-vertex branch had a 15-30° "unknown" gap between hit (<15°) and penalty (≥30°). The plan was to narrow/remove that gap.
+
+Applied: replaced the gap with a single 22.5° split. Re-ran validator: **no change** (hit ratio still 1.03).
+
+### Diagnostic dump reveals the real issue
+
+Built `tools/game_ocr/scripts/dump_shape_geometry.py` — emits CSV of every non-yellow marker's `(n_vertices, angle, circularity, area, perimeter, classified_shape)`. Findings on match 250:
+
+- All 277 4-vertex markers cluster at angles 0-9° → all already classified as hits; the 15-30° gap was empty.
+- **The real recall gap was 102 markers classified as "unknown" with 5-10 vertices.** 54 of them sit in the geometric signature of a square: angle near 0° or 45°, circularity 0.7-0.9, area ≥1000.
+- Real squares often produce 5-10 vertex `approxPolyDP` polygons because of edge anti-aliasing and pixel noise on corners — `2.5% epsilon` doesn't smooth them down to 4.
+
+### Fix
+
+Added a noisy-square fallback to `_classify_shape` (after the circle, hexagon, and 4-vertex branches): 5-10 vertex contours with area ≥500 and circularity ≥0.6 use the same angle-based hit/penalty split as the 4-vertex branch.
+
+```python
+if 5 <= n_vertices <= 10 and area >= 500 and circ >= 0.6:
+    # ... same minAreaRect angle split as 4-vertex branch
+    if normalized < 22.5: return "hit"
+    return "penalty"
+```
+
+### Results
+
+| metric | before | after |
+|---|---|---|
+| Hit detection count | 199 | **255 (+28%)** |
+| Hit ratio (detected / events_list) | 1.03 | **1.31** |
+| Shot ratio | 2.30 | 2.30 (unchanged) |
+| Goal ratio | 1.66 | 1.66 (unchanged) |
+| Captures with recall deficit | 42/94 | 30/94 |
+| Remaining "unknown" markers | 102 | 44 (mostly low-circ noise, area<500) |
+
+The +28% hit recovery matches the user's "25-30% of hits in unknown" estimate exactly.
+
+### Residual gap (deferred)
+
+Hit ratio 1.31 vs target 1.8. Diagnostic showed shot ratio (2.30) is suspiciously high — ~90 of the 386 "shot" classifications are likely noisy hits with rounded corners (8-vert, circ≥0.85, angle near 0° or 45° → fires shot rule first). Distinguishing them without per-marker CVAT ground-truth labels is geometrically hard. Tracked as the new #2 open item.
+
+### Pipeline verification
+
+Full 4-tier pipeline run after re-respatialize: **71/71 positioned = 100% coverage**, no regression. Re-classification doesn't disturb tier 2/3/4 behaviour.
+
+### Commit
+
+| hash | what |
+|---|---|
+| `4aa280f` | `fix(ocr): shape classifier — recover hits from 5-10 vertex noisy-square contours` |
 
 ---
 
