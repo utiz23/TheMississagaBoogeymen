@@ -2,15 +2,16 @@
 
 ## Current Status
 
-**Phase:** OCR position pipeline is a fully-automated three-tier system with fuzzy actor dedup at promoter time. Match 250 produces **72 canonical rows** from a clean-slate DELETE + three-tier run with zero manual `DELETE`s or `UPDATE`s. 71 events are positioned (interpolated). The 1 remaining unpositioned row is the `1:10 SILKY` phantom from a clock-OCR misread (`11:10`→`1:10`), a separate class out of scope for the actor-dedup arc.
+**Phase:** OCR position pipeline is a fully-automated four-tier system with fuzzy actor dedup at promoter time and clock-phantom sanity sweep as the final pass. Match 250 produces **71 canonical rows, all positioned** from a clean-slate DELETE + 4-tier run with zero manual `DELETE`s or `UPDATE`s.
 
-### Three-tier OCR position pipeline
+### Four-tier OCR position pipeline
 
-| Tier | Tool | Signal | Coverage on match 250 |
+| Tier | Tool | Signal | Match 250 contribution |
 |---|---|---|---|
-| 1 | Action-tracker promoter spatial UPDATE block (`apps/worker/src/ocr-promoters/action-tracker.ts:225-265`) | Yellow rink marker + clean white-underline detection | 55 events directly positioned |
-| 2 | `tools/game_ocr/scripts/inventory_consensus_match.py` | Cross-frame consensus of non-yellow markers + greedy `(actor, clock)` matching with sub-case dedup against positioned events | +12 events |
-| 3 | `tools/game_ocr/scripts/cutoff_event_recovery.py` (NEW) | Orphan yellow markers (`selected_event_index = null`, marker still detected) reconciled against orphan events via panel-anchor + next-chronological lookup | +5 events |
+| 1 | Action-tracker promoter spatial UPDATE (`apps/worker/src/ocr-promoters/action-tracker.ts:225-265`) | Yellow rink marker + clean white-underline detection | 64 events positioned |
+| 2 | `tools/game_ocr/scripts/inventory_consensus_match.py` | Cross-frame consensus of non-yellow markers + greedy `(actor, clock)` matching | +2 events |
+| 3 | `tools/game_ocr/scripts/cutoff_event_recovery.py` | Orphan yellow markers reconciled against orphan events via panel-anchor + next-chronological lookup | +5 events |
+| 4 | `tools/game_ocr/scripts/clock_phantom_check.py` (NEW) | Clock-OCR phantom detection: same `(period, type, actor_player_id)` bucket + clock substring/Levenshtein-1 + position asymmetry → `DELETE` the unpositioned phantom | −1 phantom row |
 
 All tiers are idempotent. Tier 3 has three sub-cases:
 - **Sub-case B** — panel last plottable row is itself an orphan event → match it (underline rendered just below the OCR'd actor band).
@@ -62,18 +63,54 @@ docker exec eanhl-team-website-db-1 psql -U eanhl -d eanhl -tAc \
    FROM ocr_extractions WHERE match_id=250 AND screen_type='post_game_action_tracker'" \
   | python3 tools/game_ocr/scripts/cutoff_event_recovery.py 250 \
   | docker exec -i eanhl-team-website-db-1 psql -U eanhl -d eanhl
+
+# 5. Tier 4: clock-phantom sanity sweep:
+docker exec eanhl-team-website-db-1 psql -U eanhl -d eanhl -tAc \
+  "SELECT json_agg(json_build_object('id',id,'period_number',period_number,'event_type',event_type, \
+       'clock',clock,'actor_player_id',actor_player_id,'actor',actor_gamertag_snapshot,'x',x,'y',y)) \
+   FROM match_events WHERE match_id=250 AND source='ocr' AND event_type IN ('shot','hit','goal','penalty')" \
+  | python3 tools/game_ocr/scripts/clock_phantom_check.py 250 --apply \
+  | docker exec -i eanhl-team-website-db-1 psql -U eanhl -d eanhl
 ```
 
-End state: 72 total OCR rows, 71 positioned (interpolated), 1 unpositioned (`1:10 SILKY` phantom — clock-OCR class, not actor).
+End state: **71 canonical rows, all 71 positioned = 100% coverage**, no manual interventions.
 
 **Open items, ranked:**
-1. **Clock-OCR sanity check** (~45 min) — reject phantom `match_events` rows whose `clock` is impossible for the period (e.g. `1:10` when game ended with `2:37` remaining = max valid clock `2:37`) or whose `(actor_player_id, period, clock)` is a Levenshtein-1 of another row's clock (`11:10` → `1:10`). The match 250 phantom is the only known instance but the bug class generalises.
-2. **Partial-row underline detector improvement** (~1.5 hr, OPTIONAL) — expose `peak_y` and a `state ∈ {matched, peak_no_row_match, no_peak}` from `detect_selected_row_index` in `tools/game_ocr/game_ocr/spatial.py:679-777`. Lets `cutoff_event_recovery.py` distinguish sub-case A vs B without relying on the panel-anchor heuristic.
-3. **Shape-classifier hits recall** (~30 min). Validator shows hit ratio 1.03 — should be ~2x. ~25-30% of hit markers fall into 'unknown'.
-4. **Auto opp-color detection** (~45 min). Match 250 is BGM-away + opp-white; future matches will break.
-5. **Overlap watershed** (~2 hr). Stacked markers at one on-ice spot. Not present in 250 but real games will have it.
+1. **Partial-row underline detector improvement** (~1.5 hr, OPTIONAL) — expose `peak_y` and a `state ∈ {matched, peak_no_row_match, no_peak}` from `detect_selected_row_index` in `tools/game_ocr/game_ocr/spatial.py:679-777`. Lets `cutoff_event_recovery.py` distinguish sub-case A vs B without relying on the panel-anchor heuristic.
+2. **Shape-classifier hits recall** (~30 min). Validator shows hit ratio 1.03 — should be ~2x. ~25-30% of hit markers fall into 'unknown'.
+3. **Auto opp-color detection** (~45 min). Match 250 is BGM-away + opp-white; future matches will break.
+4. **Overlap watershed** (~2 hr). Stacked markers at one on-ice spot. Not present in 250 but real games will have it.
+5. **Clock-phantom generalisations** (deferred) — period-bounds check (clock > 20:00 in p1-3 = impossible), OT-lower-bound (clock < game-end-clock impossible), unresolved-actor phantom detection. None of these classes currently have known instances; ship if/when a future match surfaces one.
 
-**Last updated:** 2026-05-12 (fuzzy actor dedup shipped; three-tier pipeline + dedup-aware promoters produce 72 canonical rows with zero manual cleanups)
+**Last updated:** 2026-05-12 (clock-phantom check shipped; 4-tier pipeline produces 71/71 canonical rows with zero manual cleanups)
+
+---
+
+## Session Summary — 2026-05-12 (clock-phantom check — final tier shipped)
+
+### What was done
+
+After fuzzy actor dedup shipped, match 250 was at 71 positioned of 72 rows. The 1 unpositioned was `id=199` — period 4 SILKY shot, clock `1:10`, x NULL — a phantom from OCR misreading `11:10` as `1:10` in a single capture. Same actor / event type as the real `11:10` row (id 174, at `x=65.64, y=-34.57`), so fuzzy actor dedup couldn't catch it: the clock is part of the dedup key.
+
+Built `tools/game_ocr/scripts/clock_phantom_check.py` as the fourth tier of the pipeline. Heuristic per `(match, period, event_type, actor_player_id)` bucket (resolved actors only):
+
+1. **Clock similarity** — digit-string contiguous-substring with length-diff == 1 (catches `1:10` ⊂ `11:10`; rejects `1:10` vs `21:10`), OR `levenshtein(clockA, clockB) ≤ 1`.
+2. **Position asymmetry** — exactly one row has `x IS NULL`.
+3. **Verdict** — delete the unpositioned row as the phantom. Pairs with both positioned (legitimate close clocks) or both null are skipped.
+
+Read-only diagnostic across all matches surfaced exactly one candidate (the 1:10/11:10 SILKY pair on match 250). All other same-bucket pairs are non-similar (8:49 vs 11:10, 3:02 vs 3:17) — kept as-is.
+
+### Match 250 final state
+
+- Dry-run: 1 phantom predicted (id=199, clock `1:10`, paired with canonical id=174).
+- Apply: 1 row deleted. Re-running the tool finds 0 phantoms (idempotent).
+- Coverage: **71 canonical rows, 71 positioned (100%)**.
+
+### Commit
+
+| hash | what |
+|---|---|
+| `0a14532` | `feat(ocr): clock_phantom_check — substring/Levenshtein-1 phantom detection` |
 
 ---
 
