@@ -225,15 +225,19 @@ export async function promoteActionTracker(ctx: PromoterContext): Promise<void> 
   // The yellow-marker pixel position corresponds to the event at
   // `selected_event_index` in the parsed events list — NOT events[0].
   // Events are emitted in display order (top → bottom of the visible list
-  // in the UI); the highlighted event is the one with the red row tint,
-  // detected via detect_selected_row_index. When the index is missing we
-  // fall back to events[0] for safety, but this is rare (the detector is
-  // reliable on real captures).
+  // in the UI); the highlighted event is the one with the white panel
+  // underline, detected via detect_selected_row_index. When that detector
+  // fails (typically because the selected row is scrolled partially off
+  // the panel edge — the underline isn't fully visible), we must NOT
+  // fall back to events[0]: the yellow rink position belongs to whichever
+  // row is highlighted, and that's almost never events[0] when the
+  // detector failed. The prior fallback silently wrote yellow positions
+  // to wrong events, corrupting their attribution on /games/[id].
   const selectedIdx = result.selected_event_index as number | null | undefined
   const selectedEvent =
     selectedIdx != null && selectedIdx >= 0 && selectedIdx < events.length
       ? events[selectedIdx]
-      : events[0]
+      : null
   const selectedEventType = selectedEvent
     ? resolveEventType(selectedEvent.event_type, stringValue(selectedEvent.raw_text) ?? '')
     : 'unknown'
