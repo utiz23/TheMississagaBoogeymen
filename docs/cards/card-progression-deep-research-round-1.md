@@ -32,7 +32,7 @@ The 6-tier-by-5-level structure **does have prior art**, but only when most of t
 
 #### Open questions for future rounds
 
-The unresolved design question is not whether a 30-step ladder is possible. It is whether your existing badge thresholds in `Badges.md` are too dense for your actual stat distributions across NHL 26 and likely NHL 27. That needs a follow-up round using your real historical player data, with simulated tier distributions and “time to next visible change” outputs.
+The unresolved design question is not whether a 30-step ladder is possible. It is whether your existing badge thresholds in `badges.md` are too dense for your actual stat distributions across NHL 26 and likely NHL 27. That needs a follow-up round using your real historical player data, with simulated tier distributions and “time to next visible change” outputs.
 
 ### Position-adjusted and role-adjusted comparability
 

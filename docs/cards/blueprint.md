@@ -370,7 +370,7 @@ Build this in layers:
 
 1. Keep the existing baseline card shell stable.
 2. Add card data model: tier, level, featured badge, enhancement, augmentations.
-3. Seed reliable badge definitions from `Badges.md`.
+3. Seed reliable badge definitions from `badges.md`.
 4. Compute badge progress from stored aggregates.
 5. Derive Tier 1-3 card status and render subtle visual differences.
 6. Add one status slot to the card footer/meta row.
@@ -1429,7 +1429,7 @@ Possible card titles:
 
 The badge milestone system contains Player, Goalie, and Team milestones. Each milestone category has tier and level thresholds.
 
-The badge thresholds and source-status decisions live in `Badges.md`. This
+The badge thresholds and source-status decisions live in `badges.md`. This
 section describes how those badge definitions affect cards.
 
 Each badge should be structured as:
@@ -2381,7 +2381,7 @@ The website should not calculate cards directly from live EA API calls at reques
 
 Badge progress should be computed from player season/career stats and team stats stored in the database.
 
-Badge definitions should come from the refined threshold catalog in `Badges.md`.
+Badge definitions should come from the refined threshold catalog in `badges.md`.
 Only `available` badges should be automated immediately. `derived` badges need
 query validation. `manual` and `future` badges must not affect automatic card
 tier calculation.
@@ -2439,7 +2439,7 @@ Some milestones should be marked as future or manual until confirmed in the data
 
 ## 33. Cleanup Notes from the Milestone Tables
 
-These cleanup decisions have already been applied to `Badges.md`. Before turning
+These cleanup decisions have already been applied to `badges.md`. Before turning
 the badge catalog into a database seed file, verify them again:
 
 1. Rename `6' Games Completed` to `6v6 Games Completed`.
@@ -2566,7 +2566,7 @@ order is kept as a concept checklist, but the real sequence should be:
 
 1. Keep the current card shell stable.
 2. Add progression data fields.
-3. Seed reliable badges from `Badges.md`.
+3. Seed reliable badges from `badges.md`.
 4. Compute badge progress from stored aggregates.
 5. Render Tier 1-3 status changes first.
 6. Add the card back/detail progression panel.

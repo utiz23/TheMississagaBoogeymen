@@ -623,7 +623,7 @@ Highest leverage:
 4. **Build-class normalization** — `TAGETHOMPSON-PWF` → `Tage Thompson - PowerForward` via fuzzy match against a known vocabulary.
 5. **M. RANTANEN alias fix** (memory-tracked) — `UPDATE player_display_aliases SET player_id=3 WHERE alias='M. RANTANEN'` plus audit of `match_events` rows where actor_player_id=11 with actor_gamertag_snapshot='M. RANTANEN'.
 6. **Marker-extraction internal spikes** — the 4 prioritized ones from the Round-2 review. ~3 hrs total.
-7. **Move the root-level design docs into `docs/`** — `Badges.md` and `card-design-and-progression-blueprint.md` shipped at root for now; they're working drafts and should be moved when the direction stabilises.
+7. **Move the root-level design docs into `docs/`** — `docs/cards/badges.md` and `docs/cards/blueprint.md` shipped at root for now; they're working drafts and should be moved when the direction stabilises.
 
 Open decisions:
 

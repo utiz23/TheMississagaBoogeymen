@@ -5,8 +5,8 @@
 Survey prior art and commission a structured report covering how to design a
 collectible player-card progression system for a small private hockey team
 site. We have a working blueprint built from first principles
-([`card-design-and-progression-blueprint.md`](../../card-design-and-progression-blueprint.md))
-and a draft badge catalog ([`Badges.md`](../../Badges.md)), but no external
+([`blueprint.md`](./blueprint.md))
+and a draft badge catalog ([`badges.md`](./badges.md)), but no external
 survey yet. The report should pressure-test our blueprint against established
 patterns, surface anti-patterns, and give concrete recommendations we can apply.
 
@@ -53,7 +53,7 @@ spreadsheet.
   hockey-specific — not generic fantasy RPG"
 
 **Existing badge catalog:** 19 player + 14 team badge families drafted in
-`Badges.md`. Each family has 6 tiers × 5 levels (30 thresholds). Some are
+`badges.md`. Each family has 6 tiers × 5 levels (30 thresholds). Some are
 `available` (computable now), some `derived` (needs query work), some
 `manual` (admin-awarded), some `future` (need video tracking or data we
 don't have). Each has a `cardWeight` 0-4 saying how strongly it should
@@ -345,7 +345,7 @@ question (Q1-Q10). For each section:
 
 End the report with a **summary of recommended changes to our
 blueprint** — a numbered list of specific edits we should make to
-`card-design-and-progression-blueprint.md` based on the survey.
+`blueprint.md` based on the survey.
 
 Length budget: depth over brevity. ~30-50 page report is fine.
 Citations to specific games / sources expected throughout. If you
@@ -356,11 +356,11 @@ draw on academic work (game studies, behavioral economics), cite it.
 The following internal documents define the existing system. Treat them
 as the _current state_ the research should engage with, not as gospel.
 
-1. [`card-design-and-progression-blueprint.md`](../../card-design-and-progression-blueprint.md)
+1. [`blueprint.md`](./blueprint.md)
    — the full working blueprint (2500+ lines), including tier ladder,
    layer separation, badge-to-tier rules, augmentation budget,
    visual restraint rules, and stage-by-stage build order
-2. [`Badges.md`](../../Badges.md) — the draft badge catalog with
+2. [`badges.md`](./badges.md) — the draft badge catalog with
    thresholds (19 player + 14 team families, 6 tiers × 5 levels)
 3. [`docs/specs/player-card.md`](../specs/player-card.md) — the current
    player card UI spec (slot anatomy, data mapping, responsive rules)
