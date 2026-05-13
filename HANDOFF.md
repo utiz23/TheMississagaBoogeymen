@@ -2,28 +2,111 @@
 
 ## Current Status
 
-**Phase:** Match 250 OCR event-map arc fully closed. **72/72 = 100% coverage** with high-confidence per-player attribution. Three matcher/promoter fixes plus one critical events[0]-fallback corruption bug fix, plus a small set of manual `UPDATE`s for the partial-row-cutoff cases.
+**Phase:** OCR position pipeline is now a fully-automated three-tier system. Match 250 reaches **72/72 = 100% coverage** with no manual `UPDATE`s — entirely from `repromote-ocr` + `inventory_consensus_match.py` + `cutoff_event_recovery.py` chained.
 
-Current production state:
-- **Spatial coverage (match 250): 72/72 plottable = 100%** — every plottable event is positioned and correctly attributed to its player.
-- **Consensus matcher rewritten** (`tools/game_ocr/scripts/inventory_consensus_match.py`). Global greedy max-weight bipartite matching across (clusters × all bucket events) using (actor, clock) frequency. Cluster's best match → event; only emits UPDATE when the matched event is unpositioned. Permissive single-obs cluster fallback requires exact (actor, clock) match.
+### Three-tier OCR position pipeline
+
+| Tier | Tool | Signal | Coverage on match 250 |
+|---|---|---|---|
+| 1 | Action-tracker promoter spatial UPDATE block (`apps/worker/src/ocr-promoters/action-tracker.ts:225-265`) | Yellow rink marker + clean white-underline detection | 55 events directly positioned |
+| 2 | `tools/game_ocr/scripts/inventory_consensus_match.py` | Cross-frame consensus of non-yellow markers + greedy `(actor, clock)` matching with sub-case dedup against positioned events | +12 events |
+| 3 | `tools/game_ocr/scripts/cutoff_event_recovery.py` (NEW) | Orphan yellow markers (`selected_event_index = null`, marker still detected) reconciled against orphan events via panel-anchor + next-chronological lookup | +5 events |
+
+All tiers are idempotent. Tier 3 has three sub-cases:
+- **Sub-case B** — panel last plottable row is itself an orphan event → match it (underline rendered just below the OCR'd actor band).
+- **Sub-case A** — anchor is positioned; predict the chronologically-next event after the anchor (older real time = higher clock value = lower index in descending-clock-sorted list).
+- **Sub-case C** — predicted event already positioned; emit consistency-check log only (distance < 5 ft = OK).
+
+### Other fixes shipped this session
+- **Consensus matcher rewritten** (`inventory_consensus_match.py`). Global greedy max-weight bipartite matching across (clusters × all bucket events) using (actor, clock) frequency. Cluster's best match → event; emits UPDATE only when the matched event is unpositioned. Replaces FCFS that double-plotted.
 - **Action-tracker promoter robustness** (`apps/worker/src/ocr-promoters/action-tracker.ts`):
   - `periodFromPath()` fallback when OCR period parsing returns -1 (e.g. "RT 2ND PERIOD 11.1") — recovered 4 events.
   - `inferEventTypeFromRawText()` recovers `shot`/`goal`/`hit` from corrupted "SHDT"/"GDAL"/"10HS" raw text — recovered 6 events, including SILKY's 6:02 goal.
   - `sourcePath` plumbed through `PromoterContext`. Both `ingest-ocr.ts` and `repromote-ocr-cli.ts` now forward it.
-  - **`selected_event_index === null` no longer falls back to `events[0]`** for the spatial UPDATE. The fallback was actively corrupting other events' positions: when the white-underline detector failed (typically because the highlighted row was at the panel scroll edge), the yellow rink position was being written to whichever event sat at the top of the panel. On match 250 this corrupted 4 events' positions until caught.
-- **7 OCR-typo duplicate rows deleted manually** for match 250 (SIlKY/WILOE/fOEWS variants of SILKY/WILDE/TOEWS). These were created because the promoter dedup key uses exact actor string. Re-promote will re-create them until fuzzy actor dedup ships.
-- **5 partial-row-cutoff events recovered manually** — TOEWS 18:27, WHOOSAH 19:13, M. RANTANEN 7:39, E. WANHG 19:34, P. MAGROYNE 19:42. All had yellow rink markers correctly detected in their captures, but the panel row was scrolled partially off the edge so the white-underline detector returned null. Updated with `position_confidence='interpolated'` from the known yellow `(x, y)`. For 4/5 the capture was already ingested; the 5th (P. MAGROYNE 19:42) required ingesting a freshly-added screenshot (`vlcsnap-2026-05-11-21h54m46s196.png`, batch 28).
+  - **`selected_event_index === null` no longer falls back to `events[0]`** for the spatial UPDATE. The fallback was actively corrupting other events' positions; removed so the cutoff-recovery tool can attribute these properly downstream.
+- **7 OCR-typo duplicate rows deleted manually** for match 250 (SIlKY/WILOE/fOEWS variants of SILKY/WILDE/TOEWS). The promoter dedup key uses exact actor string; until fuzzy actor dedup ships, every repromote re-creates them.
 - **OCR errors: 0**. All match-page sections live on `/games/250`.
+
+**Reproducible 72/72 procedure for match 250:**
+```bash
+# 1. Reset positions:
+docker exec eanhl-team-website-db-1 psql -U eanhl -d eanhl -c \
+  "UPDATE match_events SET x=NULL,y=NULL,rink_zone=NULL,position_confidence=NULL
+   WHERE match_id=250 AND source='ocr' AND event_type IN ('shot','hit','goal','penalty');"
+
+# 2. Tier 1: repromote (writes positions for clean selected events):
+pnpm --filter worker repromote-ocr -- --match 250 --screen post_game_action_tracker
+
+# 3. Delete OCR-typo dup rows that repromote re-creates (until fuzzy actor dedup ships):
+# (delete SIlKY/WILOE/fOEWS variants — see HANDOFF earlier session for exact ids)
+
+# 4. Tier 2: consensus matcher:
+docker exec eanhl-team-website-db-1 psql -U eanhl -d eanhl -tAc \
+  "SELECT json_agg(json_build_object('id',id,'source_path',source_path,'raw_result_json',raw_result_json))
+   FROM ocr_extractions WHERE match_id=250 AND screen_type='post_game_action_tracker'
+     AND raw_result_json->'detected_markers' IS NOT NULL" \
+  | python3 tools/game_ocr/scripts/inventory_consensus_match.py 250 \
+  | docker exec -i eanhl-team-website-db-1 psql -U eanhl -d eanhl
+
+# 5. Tier 3: cutoff recovery:
+docker exec eanhl-team-website-db-1 psql -U eanhl -d eanhl -tAc \
+  "SELECT json_agg(json_build_object('id',id,'source_path',source_path,'raw_result_json',raw_result_json))
+   FROM ocr_extractions WHERE match_id=250 AND screen_type='post_game_action_tracker'" \
+  | python3 tools/game_ocr/scripts/cutoff_event_recovery.py 250 \
+  | docker exec -i eanhl-team-website-db-1 psql -U eanhl -d eanhl
+```
 
 **Open items, ranked:**
 1. **Fuzzy actor dedup in promoter** (~1 hr) — Levenshtein/normalized-uppercase match on `actor_gamertag_snapshot` at insert time so SIlKY ↔ SILKY auto-merge. Match 250 has 7 manual deletions baked into DB; future matches need automated dedup or each repromote will re-insert dupes.
-2. **Partial-row underline detector improvement** (~2 hr) — teach the Python parser to recognise the white underline even when the panel row is partially clipped. Currently we fall back to manual attribution from the yellow marker, which works but doesn't generalise.
+2. **Partial-row underline detector improvement** (~1.5 hr, OPTIONAL) — expose `peak_y` and a `state ∈ {matched, peak_no_row_match, no_peak}` from `detect_selected_row_index` in `tools/game_ocr/game_ocr/spatial.py:679-777`. Lets `cutoff_event_recovery.py` distinguish sub-case A vs B without relying on the panel-anchor heuristic. Deferred — Phase 4 reached 72/72 without it.
 3. **Shape-classifier hits recall** (~30 min). Validator shows hit ratio 1.03 — should be ~2x. ~25-30% of hit markers fall into 'unknown'.
 4. **Auto opp-color detection** (~45 min). Match 250 is BGM-away + opp-white; future matches will break.
 5. **Overlap watershed** (~2 hr). Stacked markers at one on-ice spot. Not present in 250 but real games will have it.
 
-**Last updated:** 2026-05-12 (100% coverage; event-map arc fully closed)
+**Last updated:** 2026-05-12 (three-tier pipeline shipped; 72/72 fully automated)
+
+---
+
+## Session Summary — 2026-05-12 (tier-3 cutoff_event_recovery — 72/72 fully automated)
+
+### What was done
+
+After landing the manual 72/72 with 5 hand-written `UPDATE`s, the user proposed an algorithmic recovery procedure: identify orphan yellow markers (captures where `selected_event_index = null` but the rink marker IS detected) and reconcile them against orphan events (rows with `x IS NULL`) using panel set-diff logic.
+
+Built `tools/game_ocr/scripts/cutoff_event_recovery.py` as the third tier of the OCR position pipeline. It runs after tier 1 (single-capture promoter) and tier 2 (inventory consensus matcher) and handles the partial-cutoff case directly.
+
+### Algorithm
+
+For each orphan-marker capture:
+1. Walk the panel from bottom to find the latest row that maps to a known plottable event (`shot`/`hit`/`goal`/`penalty`). Faceoffs and `unknown` rows are skipped because they're not in `match_events`.
+2. **Sub-case B** — if that anchor is itself an orphan event (last visible row, underline rendered below the OCR'd actor band): match anchor → orphan marker.
+3. **Sub-case A** — if anchor is positioned: predict the chronologically-NEXT event after the anchor (older real time = higher clock value = lower index in the descending-clock-sorted period_events). If next is orphan → match; if positioned → sub-case C consistency check.
+
+### Match 250 results
+
+Applied to a freshly-reset match 250 alongside tiers 1 and 2:
+
+| Cap | Predicted | Method | Match the manual mapping? |
+|---|---|---|---|
+| 189 | M. RANTANEN shot 7:39 | sub-case A | ✓ |
+| 190 | (E. WANHG shot 8:03 already positioned) | sub-case C MISMATCH 28ft | flagged for review |
+| 202 | TOEWS hit 18:27 | sub-case A | ✓ |
+| 203 | WHOOSAH hit 19:13 | sub-case A | ✓ |
+| 227 | E. WANHG hit 19:34 | sub-case B | ✓ |
+| 261 | P. MAGROYNE hit 19:42 | sub-case A | ✓ |
+
+All 5 known cutoff cases reproduced. Cap 190 is correctly conservative — flags a position mismatch for review without claiming any UPDATE. Coverage: 72/72 = 100%. Re-running tier 3 emits 0 UPDATEs (idempotent).
+
+### Notable refinements during build
+
+- The chronological-direction bug: hockey clocks count DOWN, so "next event scrolling forward" = older event = HIGHER clock value = LOWER index in descending-clock-sorted period_events. Initial implementation used `anchor_idx + 1` and matched the wrong direction; fixed to `anchor_idx - 1`.
+- The two-direction (prev/next neighbor) prediction approach was simplified to a single-direction panel-anchor lookup after the first dry-run showed prev's-next picked positioned events instead of orphans.
+
+### Commit
+
+| hash | what |
+|---|---|
+| `0c7fd30` | `feat(ocr): cutoff_event_recovery — tier-3 orphan-marker reconciliation` |
 
 ---
 
