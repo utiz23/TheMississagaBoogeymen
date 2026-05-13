@@ -2,27 +2,68 @@
 
 ## Current Status
 
-**Phase:** Match 250 OCR per-player attribution arc closed. Replaced FCFS cluster→event assignment with greedy (actor, clock) matching + two promoter robustness fixes. Coverage 67/72 plottable events = 93.1%, all positioned events have high-confidence per-player attribution.
+**Phase:** Match 250 OCR event-map arc fully closed. **72/72 = 100% coverage** with high-confidence per-player attribution. Three matcher/promoter fixes plus one critical events[0]-fallback corruption bug fix, plus a small set of manual `UPDATE`s for the partial-row-cutoff cases.
 
 Current production state:
-- **Spatial coverage (match 250): 67/72 plottable = 93.1%** — all positioned events have correctly-attributed (player, event) mapping. Prior 95.8% was inflated by ~12 events with FCFS-misattributed positions (cluster's true event was already positioned via single-capture yellow marker; FCFS reused the cluster on a different unpositioned event of same bucket → two markers at one rink location for two distinct events).
-- **Consensus matcher rewritten** (`tools/game_ocr/scripts/inventory_consensus_match.py`). Global greedy max-weight bipartite matching across (clusters × all bucket events) using (actor, clock) frequency. Cluster's best match → event; only emits UPDATE when the matched event is unpositioned. Permissive single-obs cluster fallback requires exact (actor, clock) match for confidence.
+- **Spatial coverage (match 250): 72/72 plottable = 100%** — every plottable event is positioned and correctly attributed to its player.
+- **Consensus matcher rewritten** (`tools/game_ocr/scripts/inventory_consensus_match.py`). Global greedy max-weight bipartite matching across (clusters × all bucket events) using (actor, clock) frequency. Cluster's best match → event; only emits UPDATE when the matched event is unpositioned. Permissive single-obs cluster fallback requires exact (actor, clock) match.
 - **Action-tracker promoter robustness** (`apps/worker/src/ocr-promoters/action-tracker.ts`):
   - `periodFromPath()` fallback when OCR period parsing returns -1 (e.g. "RT 2ND PERIOD 11.1") — recovered 4 events.
-  - `inferEventTypeFromRawText()` recovers `shot`/`goal`/`hit` from corrupted "SHDT"/"GDAL"/"10HS" forms — recovered 6 events, including SILKY's 6:02 goal.
-  - `sourcePath` plumbed through `PromoterContext` (was a known input but never passed). Both `ingest-ocr.ts` and `repromote-ocr-cli.ts` now forward it.
-- **7 OCR-typo duplicate rows deleted manually** for match 250 (SIlKY/WILOE/fOEWS variants of SILKY/WILDE/TOEWS). These were created because the promoter dedup key uses exact actor string. Fuzzy actor dedup is a separate follow-up.
-- **5 events truly unpositioned** — all match the user's "row cutoff in capture" cases (TOEWS 18:27, WHOOSAH 19:13, P. MAGROYNE 19:42, E. WANHG 19:34, M. RANTANEN 7:39). The yellow-underline detector needs the full row in frame; partial-row captures inherently fail.
-- **OCR errors: 0** (130 successes). All match-page sections still live on `/games/250`.
+  - `inferEventTypeFromRawText()` recovers `shot`/`goal`/`hit` from corrupted "SHDT"/"GDAL"/"10HS" raw text — recovered 6 events, including SILKY's 6:02 goal.
+  - `sourcePath` plumbed through `PromoterContext`. Both `ingest-ocr.ts` and `repromote-ocr-cli.ts` now forward it.
+  - **`selected_event_index === null` no longer falls back to `events[0]`** for the spatial UPDATE. The fallback was actively corrupting other events' positions: when the white-underline detector failed (typically because the highlighted row was at the panel scroll edge), the yellow rink position was being written to whichever event sat at the top of the panel. On match 250 this corrupted 4 events' positions until caught.
+- **7 OCR-typo duplicate rows deleted manually** for match 250 (SIlKY/WILOE/fOEWS variants of SILKY/WILDE/TOEWS). These were created because the promoter dedup key uses exact actor string. Re-promote will re-create them until fuzzy actor dedup ships.
+- **5 partial-row-cutoff events recovered manually** — TOEWS 18:27, WHOOSAH 19:13, M. RANTANEN 7:39, E. WANHG 19:34, P. MAGROYNE 19:42. All had yellow rink markers correctly detected in their captures, but the panel row was scrolled partially off the edge so the white-underline detector returned null. Updated with `position_confidence='interpolated'` from the known yellow `(x, y)`. For 4/5 the capture was already ingested; the 5th (P. MAGROYNE 19:42) required ingesting a freshly-added screenshot (`vlcsnap-2026-05-11-21h54m46s196.png`, batch 28).
+- **OCR errors: 0**. All match-page sections live on `/games/250`.
 
 **Open items, ranked:**
-1. **Fuzzy actor dedup in promoter** (~1 hr) — Levenshtein/normalized-uppercase match on actor_gamertag_snapshot at insert time so SIlKY ↔ SILKY auto-merge. Match 250 has 7 manual deletions baked into DB; future matches need automated dedup.
-2. **Shape-classifier hits recall** (~30 min). Validator shows hit ratio 1.03 — should be ~2x. ~25-30% of hit markers fall into 'unknown'.
-3. **Auto opp-color detection** (~45 min). Match 250 is BGM-away + opp-white; future matches will break.
-4. **Partial-row capture recovery** (~2 hr) — for captures where the highlighted event row is scrolled partially off-screen, the yellow underline detector fails. Recovers the remaining 5 unpositioned events on 250 if solvable.
+1. **Fuzzy actor dedup in promoter** (~1 hr) — Levenshtein/normalized-uppercase match on `actor_gamertag_snapshot` at insert time so SIlKY ↔ SILKY auto-merge. Match 250 has 7 manual deletions baked into DB; future matches need automated dedup or each repromote will re-insert dupes.
+2. **Partial-row underline detector improvement** (~2 hr) — teach the Python parser to recognise the white underline even when the panel row is partially clipped. Currently we fall back to manual attribution from the yellow marker, which works but doesn't generalise.
+3. **Shape-classifier hits recall** (~30 min). Validator shows hit ratio 1.03 — should be ~2x. ~25-30% of hit markers fall into 'unknown'.
+4. **Auto opp-color detection** (~45 min). Match 250 is BGM-away + opp-white; future matches will break.
 5. **Overlap watershed** (~2 hr). Stacked markers at one on-ice spot. Not present in 250 but real games will have it.
 
-**Last updated:** 2026-05-12 (93.1% correctly-attributed coverage; per-player attribution arc closed)
+**Last updated:** 2026-05-12 (100% coverage; event-map arc fully closed)
+
+---
+
+## Session Summary — 2026-05-12 (event-map arc closed at 100% — fallback corruption fix + 5 manual attributions)
+
+### What was done (continuation of earlier 2026-05-12 session)
+
+After landing the greedy matcher + period/event-type promoter fixes (see following session summary), the user asked why we were stuck at 67/72. Investigation surfaced a critical hidden bug and ran the remaining 5 events to ground.
+
+**The events[0]-fallback corruption bug.** The Action Tracker's white-underline detector failed (returned `selected_event_index = null`) on 5 captures in match 250 — typically because the highlighted row was scrolled to the very edge of the panel and the underline wasn't fully rendered. The yellow rink marker was still detected correctly. The TS promoter then fell back to `events[0]` and wrote the yellow position to whichever event happened to be at the top of the panel — almost always the wrong event.
+
+Currently in DB before the fix:
+- S. ZUBOV hit 11:58 had TOEWS hit 18:27's position
+- P. MAGROYNE hit 12:38 had WHOOSAH hit 19:13's position
+- TOEWS shot 3:35 had M. RANTANEN shot 7:39's position
+- E. WANHG faceoff 16:06 had E. WANHG hit 19:34's position
+
+Fix: when `selected_event_index === null`, skip the spatial UPDATE. Don't corrupt events[0]. Another capture (where the selected row IS detected) will supply the correct position. After reset + repromote, all 4 corrupted positions reverted to their correct values from other captures.
+
+**5 manual attributions for partial-row-cutoff cases.** The user confirmed the yellow-marker → event mapping for each of the 5 captures where detection failed. Wrote them as `position_confidence='interpolated'`:
+
+| event | from capture | yellow (x, y) |
+|---|---|---|
+| TOEWS hit 18:27 (p3, against) | cap 202 | (-76.16, 39.60) |
+| WHOOSAH hit 19:13 (p3, against) | cap 203 | (96.84, 7.82) |
+| M. RANTANEN shot 7:39 (p3, for) | cap 189 | (-66.46, -13.48) |
+| E. WANHG hit 19:34 (p4, for) | cap 227 | (19.34, -38.72) |
+| P. MAGROYNE hit 19:42 (p4, against) | cap 261 (new) | (18.93, -37.10) |
+
+The fifth event (P. MAGROYNE 19:42) needed an entirely new capture ingested — the user pointed to `vlcsnap-2026-05-11-21h54m46s196.png`, which had been added to disk after batch 21's original import. Ingested as batch 28 via `pnpm --filter worker ingest-ocr --batch-dir <tmp> --screen post_game_action_tracker --game-title-id 1 --match-id 250`.
+
+### Final state
+
+**72/72 plottable events positioned = 100% coverage**, all with `position_confidence='interpolated'`, all attributed to the correct player.
+
+### Commit
+
+| hash | what |
+|---|---|
+| `e6ebe22` | `fix(ocr): drop events[0] fallback in action-tracker spatial update` |
 
 ---
 
