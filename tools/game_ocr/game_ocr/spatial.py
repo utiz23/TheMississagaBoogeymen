@@ -298,24 +298,46 @@ def _classify_shape(
     if n_vertices == 4:
         # minAreaRect returns angle ∈ (-90, 0]; axis-aligned squares give
         # an angle near 0 or -90, while diamonds give an angle near -45.
-        # Normalize to [0, 45] and treat <15 as axis-aligned, >=30 as diamond.
+        # Normalize to [0, 45] and split at the midpoint (22.5°).
+        #
+        # The original Round-1 split kept a 15-30° "unknown" gap to be
+        # conservative, but the validator showed ~25-30% of hit markers in
+        # match 250 fell into that gap (hit ratio 1.03 vs expected ~2.0).
+        # Removing the gap and splitting at 22.5° recovers them; penalties
+        # remain detectable for any marker ≥22.5°, just with a slightly
+        # wider acceptance zone. Penalties are 5-10× rarer than hits in BGM
+        # games so the false-positive risk is low. See HANDOFF — "Shape-
+        # Classifier Hit Recall" session block for the validation numbers.
         (_cx, _cy), (rw, rh), angle = cv2.minAreaRect(contour)
         # Normalize: angle ∈ (-90, 0] → 0..90 → fold to [0, 45]
         normalized = abs(angle)
         if normalized > 45:
             normalized = 90 - normalized
-        if normalized < 15:
+        if normalized < 22.5:
             return "hit"
-        if normalized > 30:
-            return "penalty"
-        # Ambiguous middle (15..30): fall through to unknown.
-        return "unknown"
+        return "penalty"
 
     # Round-but-not-circle (5 or 7 vertices with high circularity) might be
     # a slightly-degraded hexagon or circle. Bias toward shot only at very
     # high circularity to avoid mis-promoting goals.
     if circ >= 0.90 and n_vertices >= 7:
         return "shot"
+
+    # Noisy-square fallback. Many 5-10 vertex blobs that fall through the
+    # circle / hexagon / 4-vertex branches are squares whose approxPolyDP
+    # didn't collapse to 4 vertices because of edge anti-aliasing or pixel
+    # noise. Classify them as hit/penalty using the same angle split as
+    # the 4-vertex branch. Validator gain on match 250: hit ratio 1.03 →
+    # 1.4+. Order matters: shot fires first at circ≥0.85, goal fires for
+    # n_vertices==6 with circ≥0.78, so this only catches the residue.
+    if 5 <= n_vertices <= 10 and area >= 500 and circ >= 0.6:
+        (_cx2, _cy2), (_rw2, _rh2), angle2 = cv2.minAreaRect(contour)
+        normalized2 = abs(angle2)
+        if normalized2 > 45:
+            normalized2 = 90 - normalized2
+        if normalized2 < 22.5:
+            return "hit"
+        return "penalty"
 
     return "unknown"
 
