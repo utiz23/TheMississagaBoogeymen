@@ -23,6 +23,7 @@ import {
 import { and, eq, sql as drizzleSql } from 'drizzle-orm'
 import type { PromoterContext } from './index.js'
 import { resolveGamertagToPlayer } from './resolve-identity.js'
+import { findExistingMatchEvent } from './match-events-dedup.js'
 import type { OcrExtractionField } from '../ocr-cli-runner.js'
 
 interface ActionTrackerEventJson {
@@ -121,30 +122,27 @@ export async function promoteActionTracker(ctx: PromoterContext): Promise<void> 
     // that the review pass will correct.
     const teamSide: 'for' | 'against' = actorPlayerId !== null ? 'for' : 'against'
 
-    // Cross-screen dedup. Note we use empty string for teamAbbreviation since
-    // Action Tracker doesn't expose it; events.ts uses the actual abbrev which
-    // means goals from both screens MAY land twice if the team_abbrev differs.
-    // Trade-off: deliberately permissive — review pass cleans up.
-    const existing = await db
-      .select({ id: matchEvents.id })
-      .from(matchEvents)
-      .where(
-        and(
-          eq(matchEvents.matchId, matchId),
-          eq(matchEvents.periodNumber, periodNumber),
-          eq(matchEvents.eventType, eventType),
-          eq(matchEvents.source, 'ocr'),
-          drizzleSql`coalesce(${matchEvents.clock}, '') = ${clock}`,
-          drizzleSql`coalesce(${matchEvents.actorGamertagSnapshot}, '') = ${actor}`,
-        ),
-      )
-      .limit(1)
+    // Cross-screen dedup via findExistingMatchEvent: prefers resolved
+    // player_id when available; falls back to Levenshtein-1 against
+    // same-bucket unresolved peers so OCR typos (SIlKY/SILKY, WILOE/WILDE,
+    // fOEWS/TOEWS) collapse instead of duplicating. Note we leave
+    // teamAbbreviation out of the key — Action Tracker doesn't expose it
+    // (BM/4TH chip is on the rink map, not the list panel) while events.ts
+    // writes the actual abbrev.
+    const existingId = await findExistingMatchEvent(db, {
+      matchId,
+      periodNumber,
+      eventType,
+      clock,
+      actorPlayerId,
+      actorSnapshot: actor,
+    })
 
-    if (existing.length > 0 && existing[0]) {
+    if (existingId !== null) {
       await db
         .update(matchEvents)
         .set({ ocrExtractionId: extractionId })
-        .where(eq(matchEvents.id, existing[0].id))
+        .where(eq(matchEvents.id, existingId))
       continue
     }
 
@@ -251,24 +249,33 @@ export async function promoteActionTracker(ctx: PromoterContext): Promise<void> 
     const actor = stringValue(selectedEvent.actor_snapshot)
     const selectedPeriod = resolvePeriod(selectedEvent.period_number, sourcePath)
     if (clock && actor && selectedPeriod >= 1) {
-      await db
-        .update(matchEvents)
-        .set({
-          x: selectedX.toFixed(2),
-          y: selectedY.toFixed(2),
-          rinkZone: selectedZone ?? null,
-          positionConfidence,
-        })
-        .where(
-          and(
-            eq(matchEvents.matchId, matchId),
-            eq(matchEvents.periodNumber, selectedPeriod),
-            eq(matchEvents.eventType, selectedEventType),
-            eq(matchEvents.source, 'ocr'),
-            drizzleSql`coalesce(${matchEvents.clock}, '') = ${clock}`,
-            drizzleSql`coalesce(${matchEvents.actorGamertagSnapshot}, '') = ${actor}`,
-          ),
-        )
+      // Use the same dedup-aware lookup as the insert loop so the spatial
+      // UPDATE lands on the canonical row even when this capture's actor
+      // string is a Levenshtein-1 typo of an existing row's actor.
+      const { playerId: selectedActorPlayerId } = await resolveGamertagToPlayer(
+        actor,
+        gameTitleId,
+        db,
+      )
+      const targetId = await findExistingMatchEvent(db, {
+        matchId,
+        periodNumber: selectedPeriod,
+        eventType: selectedEventType,
+        clock,
+        actorPlayerId: selectedActorPlayerId,
+        actorSnapshot: actor,
+      })
+      if (targetId !== null) {
+        await db
+          .update(matchEvents)
+          .set({
+            x: selectedX.toFixed(2),
+            y: selectedY.toFixed(2),
+            rinkZone: selectedZone ?? null,
+            positionConfidence,
+          })
+          .where(eq(matchEvents.id, targetId))
+      }
     }
   }
 }

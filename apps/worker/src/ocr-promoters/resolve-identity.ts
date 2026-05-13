@@ -51,7 +51,7 @@ function lowercaseNormalized(s: string): string {
 }
 
 /** Levenshtein distance, capped at maxDistance + 1 for early exit. */
-function levenshtein(a: string, b: string, maxDistance: number): number {
+export function levenshtein(a: string, b: string, maxDistance: number): number {
   if (Math.abs(a.length - b.length) > maxDistance) return maxDistance + 1
   const m = a.length
   const n = b.length

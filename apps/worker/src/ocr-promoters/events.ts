@@ -37,6 +37,7 @@ import {
 import { and, eq, sql as drizzleSql } from 'drizzle-orm'
 import type { PromoterContext } from './index.js'
 import { resolveGamertagToPlayer } from './resolve-identity.js'
+import { findExistingMatchEvent } from './match-events-dedup.js'
 import type { OcrExtractionField } from '../ocr-cli-runner.js'
 
 interface EventRowJson {
@@ -110,31 +111,25 @@ export async function promoteEvents(ctx: PromoterContext): Promise<void> {
     // - team_abbreviation is intentionally LEFT OUT of the dedup key — Action
     //   Tracker writes null for it (the BM/4TH chip lives on the rink map,
     //   not the list panel) while Events writes 'BM'/'4TH'.
-    // - actor name compared case-insensitively because Action Tracker
-    //   captures display names in ALL CAPS ("SILKY") while Events screen
-    //   uses Title Case ("Silky") — same player.
-    const existing = await db
-      .select({ id: matchEvents.id })
-      .from(matchEvents)
-      .where(
-        and(
-          eq(matchEvents.matchId, matchId),
-          eq(matchEvents.periodNumber, ev.period_number),
-          eq(matchEvents.eventType, ev.event_type),
-          eq(matchEvents.source, 'ocr'),
-          drizzleSql`coalesce(${matchEvents.clock}, '') = ${clock}`,
-          drizzleSql`lower(coalesce(${matchEvents.actorGamertagSnapshot}, '')) = lower(${actor})`,
-        ),
-      )
-      .limit(1)
-
+    // - actor matching uses findExistingMatchEvent: prefer resolved player_id
+    //   when available; fall back to Levenshtein-1 against same-bucket
+    //   unresolved peers (handles OCR typos like fOEWS→TOEWS).
     const { playerId: actorPlayerId } = await resolveGamertagToPlayer(actor, gameTitleId, db)
 
+    const existingId = await findExistingMatchEvent(db, {
+      matchId,
+      periodNumber: ev.period_number,
+      eventType: ev.event_type,
+      clock,
+      actorPlayerId,
+      actorSnapshot: actor,
+    })
+
     let eventId: number
-    if (existing.length > 0 && existing[0]) {
+    if (existingId !== null) {
       // Cross-screen dedup hit. Refresh the extraction pointer; keep core
       // fields (including spatial x/y from Phase 5) intact.
-      eventId = existing[0].id
+      eventId = existingId
       await db
         .update(matchEvents)
         .set({ ocrExtractionId: extractionId })
