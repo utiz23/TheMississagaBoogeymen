@@ -367,6 +367,6 @@ as the _current state_ the research should engage with, not as gospel.
 4. [`apps/web/src/components/home/player-card.tsx`](../../apps/web/src/components/home/player-card.tsx)
    - [`apps/web/src/components/home/player-card.css`](../../apps/web/src/components/home/player-card.css)
      — the actual baseline component that ships today
-5. [`docs/design/Mockups/PlayerCardBluePrint.png`](../design/Mockups/PlayerCardBluePrint.png)
-   and [`PlayerCardBluePrint_2.png`](../design/Mockups/PlayerCardBluePrint_2.png)
+5. [`docs/design/mockups/PlayerCardBluePrint.png`](../design/mockups/PlayerCardBluePrint.png)
+   and [`PlayerCardBluePrint_2.png`](../design/mockups/PlayerCardBluePrint_2.png)
    — original visual mockups
