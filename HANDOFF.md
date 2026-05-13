@@ -2,7 +2,7 @@
 
 ## Current Status
 
-**Phase:** OCR position pipeline is now a fully-automated three-tier system. Match 250 reaches **72/72 = 100% coverage** with no manual `UPDATE`s — entirely from `repromote-ocr` + `inventory_consensus_match.py` + `cutoff_event_recovery.py` chained.
+**Phase:** OCR position pipeline is a fully-automated three-tier system with fuzzy actor dedup at promoter time. Match 250 produces **72 canonical rows** from a clean-slate DELETE + three-tier run with zero manual `DELETE`s or `UPDATE`s. 71 events are positioned (interpolated). The 1 remaining unpositioned row is the `1:10 SILKY` phantom from a clock-OCR misread (`11:10`→`1:10`), a separate class out of scope for the actor-dedup arc.
 
 ### Three-tier OCR position pipeline
 
@@ -18,29 +18,37 @@ All tiers are idempotent. Tier 3 has three sub-cases:
 - **Sub-case C** — predicted event already positioned; emit consistency-check log only (distance < 5 ft = OK).
 
 ### Other fixes shipped this session
+- **Fuzzy actor dedup in promoter** (`apps/worker/src/ocr-promoters/match-events-dedup.ts`, NEW). Replaces the prior exact-string actor dedup in both `action-tracker.ts` and `events.ts`. Two strategies in sequence:
+  1. **Resolved-player path** — when `resolveGamertagToPlayer` succeeded (handles BGM-side typos via existing Levenshtein-1 cascade), dedup on `actor_player_id`. Catches SIlKY ↔ SILKY etc.
+  2. **Unresolved-actor fuzzy fallback** — for opps (not in `players` / `player_display_aliases`), load same-bucket rows with null `actor_player_id` and Levenshtein-1 compare actor snapshots in TS. Catches WILOE ↔ WILDE and fOEWS ↔ TOEWS.
+  - Action-tracker's spatial UPDATE also routes through the helper so it lands on the canonical row even when the capture's actor string is a typo.
+  - Diagnostic across all matches: 0 resolved-actor duplicates remain anywhere; 1 same-bucket pair in match 250 (WILDE hit + S. ZUBOV hit, both at clock 2:09) is legitimately distinct players, kept as-is.
 - **Consensus matcher rewritten** (`inventory_consensus_match.py`). Global greedy max-weight bipartite matching across (clusters × all bucket events) using (actor, clock) frequency. Cluster's best match → event; emits UPDATE only when the matched event is unpositioned. Replaces FCFS that double-plotted.
 - **Action-tracker promoter robustness** (`apps/worker/src/ocr-promoters/action-tracker.ts`):
   - `periodFromPath()` fallback when OCR period parsing returns -1 (e.g. "RT 2ND PERIOD 11.1") — recovered 4 events.
   - `inferEventTypeFromRawText()` recovers `shot`/`goal`/`hit` from corrupted "SHDT"/"GDAL"/"10HS" raw text — recovered 6 events, including SILKY's 6:02 goal.
   - `sourcePath` plumbed through `PromoterContext`. Both `ingest-ocr.ts` and `repromote-ocr-cli.ts` now forward it.
   - **`selected_event_index === null` no longer falls back to `events[0]`** for the spatial UPDATE. The fallback was actively corrupting other events' positions; removed so the cutoff-recovery tool can attribute these properly downstream.
-- **7 OCR-typo duplicate rows deleted manually** for match 250 (SIlKY/WILOE/fOEWS variants of SILKY/WILDE/TOEWS). The promoter dedup key uses exact actor string; until fuzzy actor dedup ships, every repromote re-creates them.
 - **OCR errors: 0**. All match-page sections live on `/games/250`.
 
-**Reproducible 72/72 procedure for match 250:**
+**Reproducible procedure for match 250 (clean-slate, no manual cleanups):**
 ```bash
-# 1. Reset positions:
-docker exec eanhl-team-website-db-1 psql -U eanhl -d eanhl -c \
-  "UPDATE match_events SET x=NULL,y=NULL,rink_zone=NULL,position_confidence=NULL
-   WHERE match_id=250 AND source='ocr' AND event_type IN ('shot','hit','goal','penalty');"
+# 1. Optional clean slate — DELETE all match 250 OCR plottable events:
+docker exec eanhl-team-website-db-1 psql -U eanhl -d eanhl -c "
+  DELETE FROM match_goal_events WHERE event_id IN (
+    SELECT id FROM match_events WHERE match_id=250 AND source='ocr' AND event_type IN ('shot','hit','goal','penalty'));
+  DELETE FROM match_penalty_events WHERE event_id IN (
+    SELECT id FROM match_events WHERE match_id=250 AND source='ocr' AND event_type IN ('shot','hit','goal','penalty'));
+  DELETE FROM match_events WHERE match_id=250 AND source='ocr' AND event_type IN ('shot','hit','goal','penalty');
+"
 
-# 2. Tier 1: repromote (writes positions for clean selected events):
+# (Or just NULL the positions if rows are otherwise correct:
+#  UPDATE match_events SET x=NULL,y=NULL,rink_zone=NULL,position_confidence=NULL ...)
+
+# 2. Tier 1: repromote (fuzzy actor dedup catches all typo cases at insert time):
 pnpm --filter worker repromote-ocr -- --match 250 --screen post_game_action_tracker
 
-# 3. Delete OCR-typo dup rows that repromote re-creates (until fuzzy actor dedup ships):
-# (delete SIlKY/WILOE/fOEWS variants — see HANDOFF earlier session for exact ids)
-
-# 4. Tier 2: consensus matcher:
+# 3. Tier 2: consensus matcher:
 docker exec eanhl-team-website-db-1 psql -U eanhl -d eanhl -tAc \
   "SELECT json_agg(json_build_object('id',id,'source_path',source_path,'raw_result_json',raw_result_json))
    FROM ocr_extractions WHERE match_id=250 AND screen_type='post_game_action_tracker'
@@ -48,7 +56,7 @@ docker exec eanhl-team-website-db-1 psql -U eanhl -d eanhl -tAc \
   | python3 tools/game_ocr/scripts/inventory_consensus_match.py 250 \
   | docker exec -i eanhl-team-website-db-1 psql -U eanhl -d eanhl
 
-# 5. Tier 3: cutoff recovery:
+# 4. Tier 3: cutoff recovery:
 docker exec eanhl-team-website-db-1 psql -U eanhl -d eanhl -tAc \
   "SELECT json_agg(json_build_object('id',id,'source_path',source_path,'raw_result_json',raw_result_json))
    FROM ocr_extractions WHERE match_id=250 AND screen_type='post_game_action_tracker'" \
@@ -56,14 +64,71 @@ docker exec eanhl-team-website-db-1 psql -U eanhl -d eanhl -tAc \
   | docker exec -i eanhl-team-website-db-1 psql -U eanhl -d eanhl
 ```
 
+End state: 72 total OCR rows, 71 positioned (interpolated), 1 unpositioned (`1:10 SILKY` phantom — clock-OCR class, not actor).
+
 **Open items, ranked:**
-1. **Fuzzy actor dedup in promoter** (~1 hr) — Levenshtein/normalized-uppercase match on `actor_gamertag_snapshot` at insert time so SIlKY ↔ SILKY auto-merge. Match 250 has 7 manual deletions baked into DB; future matches need automated dedup or each repromote will re-insert dupes.
-2. **Partial-row underline detector improvement** (~1.5 hr, OPTIONAL) — expose `peak_y` and a `state ∈ {matched, peak_no_row_match, no_peak}` from `detect_selected_row_index` in `tools/game_ocr/game_ocr/spatial.py:679-777`. Lets `cutoff_event_recovery.py` distinguish sub-case A vs B without relying on the panel-anchor heuristic. Deferred — Phase 4 reached 72/72 without it.
+1. **Clock-OCR sanity check** (~45 min) — reject phantom `match_events` rows whose `clock` is impossible for the period (e.g. `1:10` when game ended with `2:37` remaining = max valid clock `2:37`) or whose `(actor_player_id, period, clock)` is a Levenshtein-1 of another row's clock (`11:10` → `1:10`). The match 250 phantom is the only known instance but the bug class generalises.
+2. **Partial-row underline detector improvement** (~1.5 hr, OPTIONAL) — expose `peak_y` and a `state ∈ {matched, peak_no_row_match, no_peak}` from `detect_selected_row_index` in `tools/game_ocr/game_ocr/spatial.py:679-777`. Lets `cutoff_event_recovery.py` distinguish sub-case A vs B without relying on the panel-anchor heuristic.
 3. **Shape-classifier hits recall** (~30 min). Validator shows hit ratio 1.03 — should be ~2x. ~25-30% of hit markers fall into 'unknown'.
 4. **Auto opp-color detection** (~45 min). Match 250 is BGM-away + opp-white; future matches will break.
 5. **Overlap watershed** (~2 hr). Stacked markers at one on-ice spot. Not present in 250 but real games will have it.
 
-**Last updated:** 2026-05-12 (three-tier pipeline shipped; 72/72 fully automated)
+**Last updated:** 2026-05-12 (fuzzy actor dedup shipped; three-tier pipeline + dedup-aware promoters produce 72 canonical rows with zero manual cleanups)
+
+---
+
+## Session Summary — 2026-05-12 (fuzzy actor dedup at promoter time)
+
+### What was done
+
+Match 250's repromote was producing 7 OCR-typo duplicate rows that had to be deleted by hand on every re-run:
+
+| Typo actor | Canonical | Edit |
+|---|---|---|
+| `SIlKY` (×3) | `SILKY` | lowercase `l` for capital `I` |
+| `WILOE` (×2) | `WILDE` | `O` for `D` |
+| `fOEWS` (×1) | `TOEWS` | lowercase `f` for capital `T` |
+| `1:10 SILKY` (×1) | `11:10 SILKY` | clock OCR — separate class |
+
+Phase 0 surfaced an important nuance: **opps aren't in `players` or `player_display_aliases`** (only 3 BGM players are registered with display aliases). So `resolveGamertagToPlayer` returns null for TOEWS/WHOOSAH/S. ZUBOV/P. MAGROYNE/L. HUTSON/M. LEHMANN/J. WAGNER. Half of the typo cases couldn't be fixed by a "dedup on actor_player_id" alone.
+
+### Approach — `match-events-dedup.ts`
+
+New helper at `apps/worker/src/ocr-promoters/match-events-dedup.ts` with two strategies in sequence:
+
+1. **Resolved-player path** — when `actor_player_id` is non-null (BGM-side typos resolve via `resolveGamertagToPlayer`'s 6-step Levenshtein-1 cascade), dedup on the resolved id. Both `SIlKY` and `SILKY` resolve to player 2 → they collide on the helper's first query.
+2. **Unresolved-actor fuzzy fallback** — when `actor_player_id` is null, load all same-bucket rows (`match_id, period_number, event_type, clock`) with null `actor_player_id` and do an in-TypeScript Levenshtein-1 case-insensitive compare on their actor snapshots. `WILDE` and `WILOE` collide here (edit distance 1). `TOEWS` and `fOEWS` likewise.
+
+Helper is used by:
+- `events.ts` existing-check (replaces case-folded exact match).
+- `action-tracker.ts` existing-check (replaces exact-string).
+- `action-tracker.ts` spatial UPDATE WHERE → switched to `WHERE id = targetId` after lookup so the spatial UPDATE lands on the canonical row even when the capture's actor string is a typo.
+
+Also exports `levenshtein` from `resolve-identity.ts` for reuse.
+
+### Match 250 verification
+
+Clean-slate procedure (DELETE all OCR plottable events, then run the three tiers):
+- Tier 1 repromote: 72 rows created (was 79 with dupes). All 6 actor-typo pairs collapsed into single canonical rows (SILKY/WILDE/TOEWS). 64 positioned via clean white-underline.
+- Tier 2 consensus: +2 positioned.
+- Tier 3 cutoff recovery: +5 positioned.
+- Final: **71/72 positioned**, 1 unpositioned (the `1:10 SILKY` clock-OCR phantom).
+- Idempotent: re-running all tiers produces no new rows and no new positions.
+
+### Diagnostic across all matches
+
+```sql
+SELECT match_id, period, event_type, clock, actor_player_id, COUNT(*) FROM match_events
+WHERE source='ocr' AND actor_player_id IS NOT NULL
+GROUP BY ... HAVING COUNT(*) > 1;
+```
+Returns 0 rows. The new dedup catches every resolved-actor dup. The unresolved-actor scan surfaces 1 legitimate near-clock pair on match 250 (WILDE hit + S. ZUBOV hit, both at clock 2:09 in p3) — two distinct players, kept as-is.
+
+### Commit
+
+| hash | what |
+|---|---|
+| `333d3e3` | `feat(ocr): dedup match_events by actor_player_id (resolved) or Levenshtein-1 fallback` |
 
 ---
 
