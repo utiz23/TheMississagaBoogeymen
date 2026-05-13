@@ -2,7 +2,9 @@
 
 ## Current Status
 
-**Phase:** OCR position pipeline is a fully-automated four-tier system with fuzzy actor dedup at promoter time and clock-phantom sanity sweep as the final pass. Match 250 produces **71 canonical rows, all positioned** from a clean-slate DELETE + 4-tier run with zero manual `DELETE`s or `UPDATE`s.
+**Phase:** OCR position pipeline is a fully-automated four-tier system with fuzzy actor dedup at promoter time and clock-phantom sanity sweep as the final pass. Match 250 has **71 real plottable events**, all positioned, from a clean-slate DELETE + 4-tier run with zero manual interventions.
+
+> **Note on row counts.** Earlier session notes use "72" — that's the row count BEFORE tier 4 runs. Tiers 1-3 produce 72 rows in `match_events`, of which 71 are real events and 1 is the `1:10 SILKY` clock-OCR phantom (an OCR misread of `11:10`; the real `11:10 SILKY` shot is one of the 71 canonical rows). Tier 4 (`clock_phantom_check.py`) deletes the phantom on every run, yielding the 71-row final state. The pipeline has always handled 71 real events; the count "drop" from 72 to 71 reflects the addition of tier 4, not a lost event.
 
 ### Four-tier OCR position pipeline
 
