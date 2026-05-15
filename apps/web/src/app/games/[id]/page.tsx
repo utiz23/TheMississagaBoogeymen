@@ -25,7 +25,7 @@ import { ContextFooter } from '@/components/matches/context-footer'
 import { PeriodSummary } from '@/components/matches/period-summary'
 import { ShotMix } from '@/components/matches/shot-mix'
 import { EventLog } from '@/components/matches/event-log'
-import { ShotMap } from '@/components/matches/shot-map'
+import { ActionTrackerMap } from '@/components/matches/action-tracker-map'
 import { LineupSection } from '@/components/matches/lineup-section'
 import { Panel } from '@/components/ui/panel'
 import {
@@ -177,8 +177,9 @@ export default async function GameDetailPage({ params, searchParams }: Props) {
       {/* 5a. OCR-derived event log (goals + penalties). */}
       <EventLog events={matchEventRows} opponentLabel={match.opponentName} />
 
-      {/* 5b. OCR-derived shot map (Phase 5 — rink-coordinate spatial extraction). */}
-      <ShotMap events={matchEventRows} />
+      {/* 5b. OCR-derived Action Tracker (Phase 5 — rink-coordinate spatial extraction +
+            all-type event card list mirroring the in-game post-game Action Tracker). */}
+      <ActionTrackerMap events={matchEventRows} />
 
       {/* 6. Context footer (lowest priority — first to cut if scope shrinks) */}
       <ContextFooter previous={adjacent.previous} next={adjacent.next} />

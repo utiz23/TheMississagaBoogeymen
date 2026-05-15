@@ -11,40 +11,41 @@ import {
   PenaltyMarker,
   ShotMarker,
 } from '@/components/branding/event-markers'
+import { PlayerSilhouette } from '@/components/home/player-card'
 
-interface ShotMapProps {
+interface ActionTrackerMapProps {
   events: MatchEventRow[]
 }
 
-type FilterableType = 'goal' | 'shot' | 'hit' | 'penalty'
+type FilterableType = 'goal' | 'shot' | 'hit' | 'penalty' | 'faceoff'
 
-const ALL_TYPES: FilterableType[] = ['goal', 'shot', 'hit', 'penalty']
+const ALL_TYPES: FilterableType[] = ['goal', 'shot', 'hit', 'penalty', 'faceoff']
 const TRACKED_TYPES = new Set<string>(ALL_TYPES)
 
 /**
- * Single-match shot/event map. Plots each `match_events` row with non-null
- * (x, y) onto the proper rink illustration. Filter chips above the rink let
- * the viewer toggle event types.
+ * Single-match Action Tracker view — mirrors the in-game post-game
+ * "Action Tracker" tab. Two surfaces:
  *
- * Coordinates are stored exactly as they appear in the in-game art: zones
- * stay fixed per period (BGM attacks the same side in the art that it did
- * in the real game). Teams switch ends every period, so events naturally
- * appear on different sides in different periods.
+ *   Rink (left)  — markers for events with non-null (x, y). Faceoffs
+ *                  never plot because the canonical OCR pipeline
+ *                  doesn't capture the faceoff_map screen yet (the
+ *                  in-game Faceoff Map tab would supply positions);
+ *                  see the deferred-work note at the bottom of the
+ *                  Phase 5 HANDOFF section.
  *
- * Faceoffs are intentionally excluded — they aren't tracked on the map by
- * design (their per-period counts surface in the Period Summary instead).
+ *   Cards (right) — one row per event the type+period filter admits,
+ *                   INCLUDING unpositioned faceoffs/penalties. Card
+ *                   layout: silhouette portrait tinted by team side,
+ *                   event-type badge, actor → receiver, plus clock
+ *                   and period in a footer line.
  *
- * Hides itself if no positioned events exist.
+ * Hides itself entirely if no tracked events exist.
  */
 type PeriodFilter = 'all' | number
 
-export function ShotMap({ events }: ShotMapProps) {
-  // Only tracked event types (goals/shots/hits/penalties) participate.
+export function ActionTrackerMap({ events }: ActionTrackerMapProps) {
   const tracked = events.filter((e) => TRACKED_TYPES.has(e.eventType))
-  const positioned = tracked.filter((e) => e.x !== null && e.y !== null)
 
-  // `useState` must come before the early return so the hook order is stable
-  // across renders of the same client component (initial-data vs HMR).
   const [enabled, setEnabled] = useState<Set<FilterableType>>(new Set(ALL_TYPES))
   const [periodFilter, setPeriodFilter] = useState<PeriodFilter>('all')
 
@@ -59,40 +60,54 @@ export function ShotMap({ events }: ShotMapProps) {
     })
   }
 
-  // Discover which periods have positioned events.
+  // Period discovery uses tracked events (not just positioned ones) so
+  // periods with only faceoffs still surface in the chip set.
   const periodsAvailable = Array.from(
-    new Map(positioned.map((e) => [e.periodNumber, e.periodLabel])).entries(),
+    new Map(tracked.map((e) => [e.periodNumber, e.periodLabel])).entries(),
   ).sort(([a], [b]) => a - b)
 
-  // Period-scoped pool drives BOTH chip counts and visible markers — counts
-  // should reflect what the user can actually see under the current period
-  // filter, not the match-wide total.
   const periodScoped =
     periodFilter === 'all'
-      ? positioned
-      : positioned.filter((e) => e.periodNumber === periodFilter)
+      ? tracked
+      : tracked.filter((e) => e.periodNumber === periodFilter)
 
+  // Count per type across the period-scoped pool so chip badges reflect
+  // exactly what's reachable under the current period filter.
   const counts: Record<FilterableType, number> = {
     goal: 0,
     shot: 0,
     hit: 0,
     penalty: 0,
+    faceoff: 0,
   }
   for (const e of periodScoped) {
     if (e.eventType in counts) counts[e.eventType as FilterableType]++
   }
 
-  const visible = periodScoped.filter((e) => {
+  // Two derived pools driven by the same filter set:
+  //   visibleMarkers — only positioned non-faceoff events drawn on the rink
+  //   visibleCards   — full filter set, including positionless faceoffs
+  const visibleCards = periodScoped.filter((e) => {
     if (!(e.eventType in counts)) return false
-    if (!enabled.has(e.eventType as FilterableType)) return false
-    return true
+    return enabled.has(e.eventType as FilterableType)
   })
+  const visibleMarkers = visibleCards.filter(
+    (e) => e.eventType !== 'faceoff' && e.x !== null && e.y !== null,
+  )
 
-  const unpositionedCount = tracked.length - positioned.length
+  const positionedTotal = tracked.filter(
+    (e) => e.eventType !== 'faceoff' && e.x !== null && e.y !== null,
+  ).length
+  const unpositionedNonFaceoff = tracked.filter(
+    (e) => e.eventType !== 'faceoff' && (e.x === null || e.y === null),
+  ).length
 
   return (
     <section className="space-y-3">
-      <SectionHeader label="Shot Map" subtitle="Event positions on the rink — OCR-derived" />
+      <SectionHeader
+        label="Action Tracker"
+        subtitle="All event types from the in-game post-game Action Tracker — OCR-derived"
+      />
       <Panel className="overflow-hidden px-3 py-4">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <FilterChips counts={counts} enabled={enabled} onToggle={toggle} />
@@ -102,33 +117,33 @@ export function ShotMap({ events }: ShotMapProps) {
             onSelect={setPeriodFilter}
           />
         </div>
-        {positioned.length > 0 ? (
-          <div className="mt-3 grid grid-cols-1 gap-3 lg:grid-cols-[1fr_280px]">
-            <div className="relative w-full">
-              <RinkSvg className="block h-auto w-full" />
-              <svg
-                viewBox="0 0 2405 1025"
-                preserveAspectRatio="xMidYMid meet"
-                className="absolute inset-0 block h-auto w-full"
-                aria-hidden
-              >
-                {visible.map((e) => (
-                  <Marker key={e.id} event={e} />
-                ))}
-              </svg>
-            </div>
-            <EventList events={visible} />
+        <div className="mt-3 grid grid-cols-1 gap-3 lg:grid-cols-[1fr_320px]">
+          <div className="relative w-full">
+            <RinkSvg className="block h-auto w-full" />
+            <svg
+              viewBox="0 0 2405 1025"
+              preserveAspectRatio="xMidYMid meet"
+              className="absolute inset-0 block h-auto w-full"
+              aria-hidden
+            >
+              {visibleMarkers.map((e) => (
+                <Marker key={e.id} event={e} />
+              ))}
+            </svg>
           </div>
-        ) : null}
+          <EventList events={visibleCards} />
+        </div>
         <CoverageDisclosure
-          visibleOnMap={visible.length}
-          positionedTotal={positioned.length}
-          unpositionedTotal={unpositionedCount}
+          visibleOnMap={visibleMarkers.length}
+          positionedTotal={positionedTotal}
+          unpositionedTotal={unpositionedNonFaceoff}
         />
       </Panel>
     </section>
   )
 }
+
+// ─── Event list ─────────────────────────────────────────────────────────────
 
 function EventList({ events }: { events: MatchEventRow[] }) {
   if (events.length === 0) {
@@ -138,7 +153,8 @@ function EventList({ events }: { events: MatchEventRow[] }) {
       </div>
     )
   }
-  // Sort by period asc, then by clock descending in seconds (clock counts down).
+  // Period ASC, then clock DESC (game clock counts down, so 19:59 is earlier
+  // than 0:01 within the same period).
   const sorted = [...events].sort((a, b) => {
     if (a.periodNumber !== b.periodNumber) return a.periodNumber - b.periodNumber
     return clockToSeconds(b.clock) - clockToSeconds(a.clock)
@@ -146,49 +162,79 @@ function EventList({ events }: { events: MatchEventRow[] }) {
   return (
     <div className="flex max-h-[600px] flex-col overflow-y-auto border border-zinc-900 bg-zinc-950">
       <div className="sticky top-0 z-10 border-b border-zinc-900 bg-zinc-950 px-3 py-2 font-condensed text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
-        Events on map · {String(events.length)}
+        Events · {String(events.length)}
       </div>
       <ul className="divide-y divide-zinc-900">
         {sorted.map((e) => (
-          <EventRow key={e.id} event={e} />
+          <EventCard key={e.id} event={e} />
         ))}
       </ul>
     </div>
   )
 }
 
-function EventRow({ event }: { event: MatchEventRow }) {
+function EventCard({ event }: { event: MatchEventRow }) {
   const isBgm = event.teamSide === 'for'
   const accent = isBgm ? 'border-l-red-700' : 'border-l-zinc-700'
-  const actor =
-    event.actor?.gamertag || event.actorGamertagSnapshot || 'unknown'
+  const actor = event.actor?.gamertag || event.actorGamertagSnapshot || 'unknown'
   const target = event.target?.gamertag || event.targetGamertagSnapshot
-  const periodTag = event.periodLabel?.replace(/^RT\s+/i, '') || `P${String(event.periodNumber)}`
+  const periodTag = cleanPeriodLabel(event.periodLabel) || `P${String(event.periodNumber)}`
   return (
-    <li className={`border-l-2 ${accent} px-3 py-2 text-[11px] leading-tight`}>
-      <div className="flex items-baseline justify-between gap-2">
-        <span className="font-mono tabular-nums text-zinc-300">{event.clock || '—'}</span>
-        <span className="font-condensed text-[10px] uppercase tracking-wider text-zinc-500">
-          {periodTag}
-        </span>
-      </div>
-      <div className="mt-1 flex items-center gap-1.5">
-        <EventTypeBadge type={event.eventType} isBgm={isBgm} />
-        <span className="truncate text-zinc-200">{actor}</span>
-        {target ? (
-          <>
-            <span className="text-zinc-600">→</span>
-            <span className="truncate text-zinc-400">{target}</span>
-          </>
-        ) : null}
+    <li className={`border-l-2 ${accent} px-3 py-2.5 text-[11px] leading-tight`}>
+      <div className="flex items-start gap-2.5">
+        <Portrait isBgm={isBgm} />
+        <div className="min-w-0 flex-1 space-y-1">
+          <div className="flex items-center gap-1.5">
+            <EventTypeBadge type={event.eventType} isBgm={isBgm} />
+            <span className="truncate text-zinc-200">{actor}</span>
+            {target ? (
+              <>
+                <span className="text-zinc-600">→</span>
+                <span className="truncate text-zinc-400">{target}</span>
+              </>
+            ) : null}
+          </div>
+          <div className="flex items-center gap-2 font-condensed text-[10px] uppercase tracking-wider text-zinc-500">
+            <span className="font-mono tabular-nums text-zinc-400">
+              {event.clock || '—'}
+            </span>
+            <span className="text-zinc-700">·</span>
+            <span>{periodTag}</span>
+          </div>
+        </div>
       </div>
     </li>
   )
 }
 
+/**
+ * 32×32 silhouette portrait with team-side tint. Reuses the canonical
+ * `PlayerSilhouette` SVG so future per-player avatar swaps land in one
+ * place. The team-side tint is the cheapest visual distinguisher
+ * available until we have real headshots.
+ */
+function Portrait({ isBgm }: { isBgm: boolean }) {
+  const wrap = isBgm
+    ? 'border-red-900/50 bg-red-950/30 text-red-700'
+    : 'border-zinc-800 bg-zinc-900 text-zinc-700'
+  return (
+    <div
+      className={`flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full border ${wrap}`}
+      aria-hidden
+    >
+      <PlayerSilhouette sizeClass="h-7 w-7" />
+    </div>
+  )
+}
+
 function EventTypeBadge({ type, isBgm }: { type: string; isBgm: boolean }) {
   const label =
-    type === 'goal' ? 'G' : type === 'shot' ? 'S' : type === 'hit' ? 'H' : type === 'penalty' ? 'P' : '?'
+    type === 'goal' ? 'G' :
+    type === 'shot' ? 'S' :
+    type === 'hit' ? 'H' :
+    type === 'penalty' ? 'P' :
+    type === 'faceoff' ? 'F' :
+    '?'
   return (
     <span
       className={[
@@ -206,6 +252,8 @@ function clockToSeconds(clock: string | null): number {
   const [m, s] = clock.split(':')
   return Number(m) * 60 + Number(s)
 }
+
+// ─── Filter chips + coverage disclosure ─────────────────────────────────────
 
 function CoverageDisclosure({
   visibleOnMap,
@@ -244,7 +292,7 @@ function PeriodChips({
   selected: PeriodFilter
   onSelect: (p: PeriodFilter) => void
 }) {
-  if (available.length <= 1) return null // pointless filter for a single period
+  if (available.length <= 1) return null
   const items: Array<{ key: PeriodFilter; label: string }> = [
     { key: 'all', label: 'All' },
     ...available.map(([n, label]) => ({
@@ -293,11 +341,14 @@ function FilterChips({
   enabled: Set<FilterableType>
   onToggle: (t: FilterableType) => void
 }) {
-  const chips: { type: FilterableType; label: string; icon: React.ReactNode }[] = [
+  const chips: { type: FilterableType; label: string; icon: React.ReactNode | null }[] = [
     { type: 'goal', label: 'Goals', icon: <GoalMarker side="home" size={14} /> },
     { type: 'shot', label: 'Shots', icon: <ShotMarker side="home" size={14} /> },
     { type: 'hit', label: 'Hits', icon: <HitMarker side="home" size={14} /> },
     { type: 'penalty', label: 'Penalties', icon: <PenaltyMarker side="home" size={14} /> },
+    // Faceoff has no rink marker yet (no positions in our data); render the
+    // letter 'F' as a placeholder icon to keep the chip visually consistent.
+    { type: 'faceoff', label: 'Faceoffs', icon: <FaceoffChipIcon /> },
   ]
   return (
     <div className="flex flex-wrap gap-2">
@@ -328,6 +379,21 @@ function FilterChips({
     </div>
   )
 }
+
+/**
+ * Visual placeholder for the faceoff filter chip. Yellow circle with
+ * "F" matches the in-game faceoff visual (the FACEOFF column in the
+ * in-game Action Tracker uses a yellow F glyph).
+ */
+function FaceoffChipIcon() {
+  return (
+    <span className="inline-flex h-3.5 w-3.5 items-center justify-center rounded-full bg-yellow-500 font-condensed text-[8px] font-bold leading-none text-black">
+      F
+    </span>
+  )
+}
+
+// ─── Rink markers ───────────────────────────────────────────────────────────
 
 function Marker({ event }: { event: MatchEventRow }) {
   const hockeyX = Number(event.x)
@@ -385,17 +451,10 @@ function PlacedMarker({
   extrapolated?: boolean
   children: React.ReactNode
 }) {
-  // Clamp so the entire marker fits inside the rink viewBox (0..2405 × 0..1025).
-  // An event at hockey x=±100 or y=±42.5 sits right at the boards; without this
-  // clamp the marker's outer half would render off-canvas (cut off).
   const halfW = width / 2
   const halfH = height / 2
   const cx = Math.max(halfW, Math.min(VIEW_W - halfW, x))
   const cy = Math.max(halfH, Math.min(VIEW_H - halfH, y))
-  // Extrapolated markers had their pixel position outside the calibration
-  // landmark hull — the RBF prediction is unbounded TRE there. Render at
-  // reduced opacity so the operator can tell at a glance which markers are
-  // best-guess. See docs/ocr/marker-extraction-research.md.
   return (
     <g
       transform={`translate(${cx - halfW}, ${cy - halfH})`}
@@ -410,17 +469,8 @@ function PlacedMarker({
 const VIEW_W = 2405
 const VIEW_H = 1025
 
-// ─── Coordinate mapping ─────────────────────────────────────────────────────
-//
-// Rink viewBox is 0..2405 × 0..1025, centre at (1202.5, 512.5).
-// Blue lines sit at x = 902.5 (BGM def) and x = 1502.5 (BGM off), 600 SVG
-// units apart = 50 NHL feet, so 12 SVG units per foot.
-// Hockey-standard: x ∈ [-100, +100] ft (goal line to goal line), y ∈ [-42.5,
-// +42.5] ft. y inverts because SVG y grows downward.
-//
-// Clamp at the rink boundary: a few CVAT clicks land 5-6 ft past the boards
-// in the in-game art's calibration. Rendering them off-canvas would hide
-// real events; clamping pins them against the boards instead.
+// Hockey-standard coordinates → SVG. Matches ShotMap's old mapping;
+// keep here to keep the new component self-contained.
 function rinkX(hockeyX: number): number {
   const clamped = Math.max(-100, Math.min(100, hockeyX))
   return 1202.5 + clamped * 12
