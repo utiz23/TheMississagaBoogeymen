@@ -38,6 +38,17 @@ from dataclasses import dataclass
 
 
 CLUSTER_RADIUS_PX = 15.0  # markers within this distance considered same event
+# Density-aware default (overridden by --cluster-radius-px):
+#   - sparse capture sets (≤30 captures/period, 1-fps manual screenshots):
+#     keep 15px — the original calibration covers OCR jitter without
+#     over-merging neighboring events.
+#   - dense capture sets (video-pipeline output sampling at ≥5 fps × 75s
+#     per period, ~375 captures/period): tighten to ~8px so that two
+#     events whose true positions sit ~20px apart don't collapse into a
+#     single cluster. Higher capture density means more sub-pixel
+#     averaging is possible.
+# Default scaling formula picks a radius from the per-period capture
+# density when --cluster-radius-px is not given.
 
 
 @dataclass
@@ -118,15 +129,19 @@ class Cluster:
         return c
 
 
-def cluster_markers(markers: list[MarkerObservation]) -> list[Cluster]:
-    """Greedy spatial clustering — markers within CLUSTER_RADIUS_PX are merged."""
+def cluster_markers(
+    markers: list[MarkerObservation],
+    radius_px: float = CLUSTER_RADIUS_PX,
+) -> list[Cluster]:
+    """Greedy spatial clustering — markers within `radius_px` are merged."""
     clusters: list[Cluster] = []
+    r2 = radius_px * radius_px
     for m in markers:
         # Find an existing cluster whose centroid is within radius.
         best_cluster = None
         for c in clusters:
             mx, my = c.median_pixel()
-            if (m.pixel_x - mx) ** 2 + (m.pixel_y - my) ** 2 < CLUSTER_RADIUS_PX**2:
+            if (m.pixel_x - mx) ** 2 + (m.pixel_y - my) ** 2 < r2:
                 best_cluster = c
                 break
         if best_cluster is None:
@@ -134,6 +149,35 @@ def cluster_markers(markers: list[MarkerObservation]) -> list[Cluster]:
         else:
             best_cluster.markers.append(m)
     return clusters
+
+
+def density_aware_radius_px(markers_per_period: float) -> float:
+    """Pick a sensible cluster radius from per-period MARKER density.
+
+    Calibrated to existing match-250 manual-screenshot batches (~220
+    markers/period) and the projected dense-AT video-pipeline regime
+    (~5000+ markers/period at 5 fps × 75s × ~10 markers/frame).
+
+    Reference points:
+      - ≤300  markers/period → 15.0 px (sparse, current production)
+      - 1500  markers/period → 10.0 px
+      - ≥5000 markers/period →  8.0 px (with a 6 px floor)
+
+    Linear interpolation between anchors; clamp at the extremes. The
+    floor at 6 px is intentional: tighter risks splitting real
+    clusters across legitimate OCR jitter.
+    """
+    if markers_per_period <= 300:
+        return 15.0
+    if markers_per_period <= 1500:
+        # 300..1500 → 15.0..10.0
+        t = (markers_per_period - 300) / 1200.0
+        return 15.0 - 5.0 * t
+    if markers_per_period <= 5000:
+        # 1500..5000 → 10.0..8.0
+        t = (markers_per_period - 1500) / 3500.0
+        return 10.0 - 2.0 * t
+    return max(6.0, 8.0 - (markers_per_period - 5000) / 10000.0)
 
 
 def period_from_path(source_path: str) -> int | None:
@@ -227,10 +271,24 @@ def pair_weight(cands: Counter, actor: str | None, clock: str | None) -> float:
 
 
 def main() -> int:
-    if len(sys.argv) < 2:
-        print("usage: inventory_consensus_match.py <match_id>", file=sys.stderr)
-        return 2
-    match_id = int(sys.argv[1])
+    import argparse
+
+    parser = argparse.ArgumentParser(
+        description="Tier-2 inventory consensus matcher for OCR rink markers."
+    )
+    parser.add_argument("match_id", type=int, help="match_id to position")
+    parser.add_argument(
+        "--cluster-radius-px",
+        type=float,
+        default=None,
+        help=(
+            "Override greedy-cluster radius in pixels. When omitted, the "
+            "radius is picked from per-period capture density (15px for "
+            "≤20 cap/period, scaling down to 8px at ≥375 cap/period)."
+        ),
+    )
+    args = parser.parse_args()
+    match_id = args.match_id
 
     payload = sys.stdin.read().strip()
     if not payload or payload == "null":
@@ -279,10 +337,26 @@ def main() -> int:
             by_period.setdefault(period, []).append(obs)
 
     # 4+5+6. Cluster per period, classify each cluster.
+    # Density-aware radius: averaged over periods present in this batch.
+    if by_period:
+        avg_captures_per_period = sum(len(v) for v in by_period.values()) / len(by_period)
+    else:
+        avg_captures_per_period = 0.0
+    radius_px = (
+        float(args.cluster_radius_px)
+        if args.cluster_radius_px is not None
+        else density_aware_radius_px(avg_captures_per_period)
+    )
+    print(
+        f"-- cluster_radius_px={radius_px:.2f} "
+        f"(avg {avg_captures_per_period:.1f} markers/period, "
+        f"{'user-specified' if args.cluster_radius_px is not None else 'density-aware default'})",
+        file=sys.stderr,
+    )
     clusters_by_period: dict[int, list[Cluster]] = {}
     clusters_permissive_by_period: dict[int, list[Cluster]] = {}
     for period, observations in by_period.items():
-        clusters = cluster_markers(observations)
+        clusters = cluster_markers(observations, radius_px=radius_px)
         # Two pools per period:
         #  - strict: ≥2 obs (high-confidence; primary matching pool)
         #  - permissive: exactly 1 obs (single-observation rink markers; used as
