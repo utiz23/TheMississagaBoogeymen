@@ -79,6 +79,10 @@ def average_confidence(fields: list[ExtractionField]) -> float | None:
 #   4. Detect per-team state by counting `#NN` patterns in the panel.
 
 _LOBBY_POSITION_TOKENS = {"C", "LW", "RW", "LD", "RD", "G"}
+# UI labels at the top of the left/right roster panels — show up as the
+# topmost OCR'd text in border rows and were being picked as gamertag
+# candidates (e.g. the opp goalie slot rendered as a player named "Away").
+_LOBBY_TEAM_SIDE_LABELS = {"HOME", "AWAY"}
 # Build vocabulary for state-1 detection / build-class extraction. Includes both
 # generic builds ("Playmaker", "Sniper", ...) and themed-build keywords seen in V2.
 _LOBBY_BUILD_KEYWORDS = re.compile(
@@ -342,6 +346,7 @@ def _parse_lobby_row(anchor: OCRLine, row_lines: list[OCRLine], state: str) -> d
         and "lbs" not in l.text.lower()
         and "lhs" not in l.text.lower()
         and l.text.strip().upper().replace(" ", "") not in _LOBBY_POSITION_TOKENS
+        and l.text.strip().upper().replace(" ", "") not in _LOBBY_TEAM_SIDE_LABELS
         # Reject the build-class line if we already extracted it (avoid picking
         # "Two-Way Forward" as a gamertag when the actual gamertag is "XZ4RKY★READY").
         and (fields["build"].status == FieldStatus.MISSING or l.text != fields["build"].raw_text)
@@ -775,9 +780,16 @@ def parse_loadout_result(meta, regions: dict[str, list[OCRLine]], *, image=None,
     # X-Factor names live in a band ~60-90px below the header.
     xf_name_band = _lines_in_bbox(lines, (xf_header_y + 55, xf_header_y + 90))
     # Bucket by expected slot x-centre (500/1000/1500); pick the closest per slot.
+    # Three parallel lists are built per slot:
+    #   - slot_names: the OCR'd text label (noisy: "TAPETOTAPE", "ELITEEDGES")
+    #   - slot_tiers: the HSV-classified tier (verified 100% accurate)
+    #   - slot_icon_matches: the template-match canonical name (preferred
+    #     downstream over the OCR'd text)
+    from game_ocr.xfactor_icon_matcher import match_icon  # local import: cv2 startup cost
     slot_names: list[ExtractionField] = []
     slot_tiers: list[ExtractionField] = []
-    for slot_idx, (cx, _) in enumerate(_LOADOUT_XFACTOR_ICON_CENTROIDS):
+    slot_icon_matches: list[ExtractionField] = []
+    for slot_idx, (cx, cy) in enumerate(_LOADOUT_XFACTOR_ICON_CENTROIDS):
         candidates = [l for l in xf_name_band if abs(l.x_center - cx) < 200]
         # If multiple candidates fall in band, the X-Factor NAME is typically the
         # longer / wider line; descriptions are at y_center > name_y.
@@ -786,11 +798,24 @@ def parse_loadout_result(meta, regions: dict[str, list[OCRLine]], *, image=None,
             slot_names.append(field_from_lines([top], raw_override=top.text))
         else:
             slot_names.append(ExtractionField(status=FieldStatus.MISSING))
-        tier_value = _classify_xfactor_tier(image, cx, _LOADOUT_XFACTOR_ICON_CENTROIDS[slot_idx][1])
+        tier_value = _classify_xfactor_tier(image, cx, cy)
         slot_tiers.append(
             ExtractionField(
                 value=tier_value,
                 status=FieldStatus.OK if tier_value else FieldStatus.MISSING,
+            )
+        )
+        # Icon glyph template match — canonical name + match confidence.
+        icon_match = match_icon(image, cx, cy)
+        slot_icon_matches.append(
+            ExtractionField(
+                raw_text=None,
+                value=(
+                    {"name": icon_match.canonical_name, "confidence": round(icon_match.confidence, 4)}
+                    if icon_match is not None else None
+                ),
+                confidence=icon_match.confidence if icon_match is not None else None,
+                status=FieldStatus.OK if icon_match is not None else FieldStatus.MISSING,
             )
         )
 
@@ -884,6 +909,7 @@ def parse_loadout_result(meta, regions: dict[str, list[OCRLine]], *, image=None,
         ap_total=ap_total_field,
         x_factors=slot_names,
         x_factor_tiers=slot_tiers,
+        x_factor_icon_matches=slot_icon_matches,
         attributes=attributes,
         attribute_deltas=attribute_deltas,
     )

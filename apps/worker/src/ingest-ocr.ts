@@ -529,6 +529,18 @@ function walkPlayerLoadout(
       }
     })
   }
+  // Icon glyph template match — far more reliable for the X-Factor
+  // NAME than OCR'ing the stylized text label below the icon. Each
+  // slot's `value` is `{ name, confidence }` (or null when no
+  // template cleared the matcher's confidence threshold).
+  const xFactorIconMatches = result.x_factor_icon_matches
+  if (Array.isArray(xFactorIconMatches)) {
+    xFactorIconMatches.forEach((xm, i) => {
+      if (isExtractionField(xm)) {
+        rows.push(fieldRow(extractionId, 'loadout', null, `x_factor_icon_match.${String(i)}`, xm))
+      }
+    })
+  }
   // Attribute groups.
   const attrs = result.attributes
   if (attrs && typeof attrs === 'object') {

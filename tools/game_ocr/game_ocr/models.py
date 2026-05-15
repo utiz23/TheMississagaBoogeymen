@@ -81,6 +81,11 @@ class PlayerLoadoutResult(BaseExtractionResult):
       - is_captain         → yellow ★ near subject's row in the left strip
       - ap_used / ap_total → "AP: 90/100" indicator (NULL for builds without AP)
       - x_factor_tiers     → parallel list to x_factors; each slot's HSV-classified tier
+      - x_factor_icon_matches → parallel list; each slot's template-match
+        result against the 84 canonical glyph PNGs. Carries the
+        canonical name + match confidence. Far more reliable than the
+        OCR text in `x_factors` for the X-Factor name; downstream
+        worker prefers this when present.
       - attribute_deltas   → per-attribute Δ chip; keyed by attribute_key
     """
 
@@ -101,6 +106,7 @@ class PlayerLoadoutResult(BaseExtractionResult):
     ap_total: ExtractionField
     x_factors: list[ExtractionField] = Field(default_factory=list)
     x_factor_tiers: list[ExtractionField] = Field(default_factory=list)
+    x_factor_icon_matches: list[ExtractionField] = Field(default_factory=list)
     attributes: dict[str, AttributeGroup] = Field(default_factory=dict)
     attribute_deltas: dict[str, ExtractionField] = Field(default_factory=dict)
 

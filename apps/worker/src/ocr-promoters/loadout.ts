@@ -94,11 +94,18 @@ export async function promoteLoadout(ctx: PromoterContext): Promise<void> {
     .returning()
   if (!snap) throw new Error('failed to insert player_loadout_snapshots row')
 
-  // X-factors: positional list, slot_index 0/1/2. New parser also emits a
-  // parallel x_factor_tiers list — match by index.
+  // X-factors: positional list, slot_index 0/1/2. New parser emits THREE
+  // parallel lists per slot:
+  //   - x_factors                  → noisy OCR text label
+  //   - x_factor_tiers             → HSV-classified tier (100% accurate)
+  //   - x_factor_icon_matches      → template-match canonical name
+  //                                  (preferred over text-OCR + normalize)
   const xFactors = Array.isArray(result.x_factors) ? (result.x_factors as OcrExtractionField[]) : []
   const xFactorTiers = Array.isArray(result.x_factor_tiers)
     ? (result.x_factor_tiers as OcrExtractionField[])
+    : []
+  const xFactorIconMatches = Array.isArray(result.x_factor_icon_matches)
+    ? (result.x_factor_icon_matches as OcrExtractionField[])
     : []
   const xFactorRows: NewPlayerLoadoutXFactor[] = []
   xFactors.forEach((xf, i) => {
@@ -106,11 +113,25 @@ export async function promoteLoadout(ctx: PromoterContext): Promise<void> {
     if (!name) return
     const tierField = xFactorTiers[i]
     const tier = stringValue(tierField) as 'Elite' | 'All Star' | 'Specialist' | null
+    // Canonical-name precedence:
+    //   1. icon template match (sub-pixel reliable for the 28 NHL 26 X-Factors)
+    //   2. text-OCR + normalizeXFactor fallback (handles unmapped icon matches)
+    let canonical: string | null = null
+    const iconMatchField = xFactorIconMatches[i]
+    if (iconMatchField !== undefined && iconMatchField.status === 'ok') {
+      const v = iconMatchField.value as { name?: unknown } | null
+      if (v && typeof v === 'object' && typeof v.name === 'string') {
+        canonical = v.name
+      }
+    }
+    if (canonical === null) {
+      canonical = normalizeXFactor(name)
+    }
     xFactorRows.push({
       loadoutSnapshotId: snap.id,
       slotIndex: i,
       xFactorName: name,
-      xFactorNameCanonical: normalizeXFactor(name),
+      xFactorNameCanonical: canonical,
       tier: tier ?? null,
     })
   })

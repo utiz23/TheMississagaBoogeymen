@@ -60,6 +60,49 @@ class ParserTests(unittest.TestCase):
         self.assertEqual(result.our_team.roster[0].fields["empty_or_cpu"].value, "CPU")
         self.assertEqual(result.opponent_team.roster[0].fields["empty_or_cpu"].status, FieldStatus.MISSING)
 
+    def test_away_label_not_picked_as_gamertag(self) -> None:
+        """Regression: the right-panel "AWAY" label was being picked up as
+        the topmost text candidate for an opp roster row's gamertag when
+        the actual gamertag OCR landed lower in the row. The parser must
+        treat AWAY/HOME the same way it treats position tokens — skip
+        them when ranking gamertag candidates.
+        """
+        meta = ExtractionMeta(
+            screen_type="pre_game_lobby_state_2", source_path="fake.png", ocr_backend="fake",
+        )
+        def line(text: str, x_center: float, y_center: float, conf: float = 0.99) -> OCRLine:
+            return OCRLine(
+                text=text, confidence=conf,
+                x1=x_center - 30, x2=x_center + 30,
+                y1=y_center - 12, y2=y_center + 12,
+            )
+        result = parse_pre_game_result(
+            meta,
+            {
+                "full_frame": [
+                    line("EASHL 6v6", 200, 130, 0.98),
+                    line("THE BOOGEYMEN", 200, 211, 0.98),
+                    line("4TH LINE", 1600, 211, 0.98),
+                    # Opp panel: G row with the team-side label "AWAY" landing
+                    # above the actual gamertag — the failure mode the fix
+                    # addresses.
+                    line("G", 1844, 800),
+                    line("AWAY", 1700, 795, 0.98),  # topmost candidate, must be rejected
+                    line("xZ4RKY", 1700, 810, 0.95),
+                ],
+            },
+            include_player_name=False,
+        )
+        # Find the G slot (parser emits fixed C/LW/RW/LD/RD/G order).
+        opp_g = next(
+            (slot for slot in result.opponent_team.roster
+             if slot.fields["position"].value == "G"),
+            None,
+        )
+        self.assertIsNotNone(opp_g, "Expected an opp G slot in the roster")
+        self.assertEqual(opp_g.fields["gamertag"].value, "xZ4RKY")
+        self.assertNotIn("AWAY", opp_g.fields["gamertag"].value or "")
+
 
 class FakeExtractorTests(unittest.TestCase):
     def test_wrong_image_path_returns_failure(self) -> None:
