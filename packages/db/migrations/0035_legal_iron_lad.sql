@@ -1,0 +1,2 @@
+ALTER TABLE "ocr_capture_batches" ADD COLUMN "video_sha256" text;--> statement-breakpoint
+CREATE UNIQUE INDEX "ocr_capture_batches_video_sha_dir_uniq" ON "ocr_capture_batches" USING btree ("video_sha256","source_directory") WHERE "ocr_capture_batches"."video_sha256" IS NOT NULL;

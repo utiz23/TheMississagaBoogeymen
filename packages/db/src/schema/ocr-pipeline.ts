@@ -1,3 +1,4 @@
+import { sql } from 'drizzle-orm'
 import {
   bigint,
   bigserial,
@@ -40,19 +41,31 @@ export type OcrFieldStatus = 'ok' | 'uncertain' | 'missing'
 /**
  * Groups one game's worth of OCR captures into an import session.
  * match_id is nullable until reconciliation links the batch to a known match row.
+ * video_sha256 is set when frames came from a video; combined with
+ * source_directory it makes re-ingests of the same video idempotent.
  */
-export const ocrCaptureBatches = pgTable('ocr_capture_batches', {
-  id: bigserial('id', { mode: 'number' }).primaryKey(),
-  gameTitleId: integer('game_title_id')
-    .notNull()
-    .references(() => gameTitles.id),
-  matchId: bigint('match_id', { mode: 'number' }).references(() => matches.id),
-  /** Filesystem directory or archive path containing source screenshots/frames. */
-  sourceDirectory: text('source_directory'),
-  captureKind: text('capture_kind').notNull().$type<OcrCaptureKind>(),
-  importedAt: timestamp('imported_at', { withTimezone: true }).notNull().defaultNow(),
-  notes: text('notes'),
-})
+export const ocrCaptureBatches = pgTable(
+  'ocr_capture_batches',
+  {
+    id: bigserial('id', { mode: 'number' }).primaryKey(),
+    gameTitleId: integer('game_title_id')
+      .notNull()
+      .references(() => gameTitles.id),
+    matchId: bigint('match_id', { mode: 'number' }).references(() => matches.id),
+    /** Filesystem directory or archive path containing source screenshots/frames. */
+    sourceDirectory: text('source_directory'),
+    captureKind: text('capture_kind').notNull().$type<OcrCaptureKind>(),
+    /** SHA-256 hex of the source video file; NULL for manual screenshots. */
+    videoSha256: text('video_sha256'),
+    importedAt: timestamp('imported_at', { withTimezone: true }).notNull().defaultNow(),
+    notes: text('notes'),
+  },
+  (table) => [
+    uniqueIndex('ocr_capture_batches_video_sha_dir_uniq')
+      .on(table.videoSha256, table.sourceDirectory)
+      .where(sql`${table.videoSha256} IS NOT NULL`),
+  ],
+)
 
 /**
  * One row per screenshot or video frame processed by the OCR CLI.
