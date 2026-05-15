@@ -37,8 +37,15 @@ class OCRBackend(Protocol):
 class RapidOCRBackend:
     name = "rapidocr_onnxruntime"
 
-    def __init__(self) -> None:
-        self._engine = RapidOCR()
+    def __init__(self, *, use_gpu: bool = False) -> None:
+        if use_gpu:
+            self._engine = RapidOCR(
+                det_use_cuda=True,
+                cls_use_cuda=True,
+                rec_use_cuda=True,
+            )
+        else:
+            self._engine = RapidOCR()
 
     def read(self, image: np.ndarray) -> list[OCRLine]:
         result, _ = self._engine(image)
