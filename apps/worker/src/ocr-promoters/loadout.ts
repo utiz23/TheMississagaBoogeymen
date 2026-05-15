@@ -21,6 +21,7 @@ import {
 import { eq } from 'drizzle-orm'
 import type { PromoterContext } from './index.js'
 import { resolveGamertagToPlayer } from './resolve-identity.js'
+import { normalizeXFactor } from '../lib/normalize-xfactor.js'
 import type { OcrExtractionField } from '../ocr-cli-runner.js'
 
 export async function promoteLoadout(ctx: PromoterContext): Promise<void> {
@@ -109,6 +110,7 @@ export async function promoteLoadout(ctx: PromoterContext): Promise<void> {
       loadoutSnapshotId: snap.id,
       slotIndex: i,
       xFactorName: name,
+      xFactorNameCanonical: normalizeXFactor(name),
       tier: tier ?? null,
     })
   })
