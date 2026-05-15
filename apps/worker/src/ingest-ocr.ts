@@ -28,7 +28,7 @@ import {
   type OcrFieldStatus,
   type OcrScreenType,
 } from '@eanhl/db'
-import { eq } from 'drizzle-orm'
+import { eq, isNotNull } from 'drizzle-orm'
 import { runOcrCli, type OcrResult, type OcrExtractionField } from './ocr-cli-runner.js'
 import { getPromoter, type PromoterDb } from './ocr-promoters/index.js'
 
@@ -40,6 +40,13 @@ export interface IngestOcrBatchInput {
   captureKind?: OcrCaptureKind
   notes?: string | null
   dryRun?: boolean
+  /**
+   * Optional SHA-256 of the source video. When provided, the batch row
+   * is upserted on (video_sha256, source_directory) instead of always
+   * inserting a new row — makes re-ingesting from the video pipeline
+   * idempotent. NULL for manual screenshot batches.
+   */
+  videoSha256?: string | null
 }
 
 export interface IngestOcrBatchResult {
@@ -74,16 +81,43 @@ export async function ingestOcrBatch(input: IngestOcrBatchInput): Promise<Ingest
     return { batchId: null, processed: cli.results.length, succeeded: 0, failed: 0, skippedDryRun: true }
   }
 
-  // Insert capture batch up front so all extractions can reference it.
+  // Insert (or upsert, when keyed by video_sha256) the batch row up
+  // front so all extractions can reference it.
+  const videoSha256 = input.videoSha256 ?? null
   const batchValues: NewOcrCaptureBatch = {
     gameTitleId: input.gameTitleId,
     matchId,
     sourceDirectory: input.batchDir,
     captureKind,
+    videoSha256,
     notes: input.notes ?? null,
   }
-  const [batchRow] = await db.insert(ocrCaptureBatches).values(batchValues).returning()
-  if (!batchRow) throw new Error('Failed to insert ocr_capture_batches row')
+
+  let batchRow: typeof ocrCaptureBatches.$inferSelect | undefined
+  if (videoSha256) {
+    // Idempotent path for video-pipeline ingests: re-running on the
+    // same (sha, dir) returns the existing batch row instead of
+    // inserting a duplicate. The unique-when-not-null index makes the
+    // ON CONFLICT match cleanly.
+    const upserted = await db
+      .insert(ocrCaptureBatches)
+      .values(batchValues)
+      .onConflictDoUpdate({
+        target: [ocrCaptureBatches.videoSha256, ocrCaptureBatches.sourceDirectory],
+        targetWhere: isNotNull(ocrCaptureBatches.videoSha256),
+        set: {
+          matchId,
+          captureKind,
+          notes: input.notes ?? null,
+        },
+      })
+      .returning()
+    batchRow = upserted[0]
+  } else {
+    const inserted = await db.insert(ocrCaptureBatches).values(batchValues).returning()
+    batchRow = inserted[0]
+  }
+  if (!batchRow) throw new Error('Failed to insert/upsert ocr_capture_batches row')
   const batchId = batchRow.id
 
   let succeeded = 0

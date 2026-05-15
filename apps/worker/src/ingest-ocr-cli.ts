@@ -8,6 +8,7 @@
  *     --game-title-id <id> \
  *     [--match-id <id>] \
  *     [--capture-kind manual_screenshots|video_frames|post_game_bundle] \
+ *     [--video-sha256 <hex>] \
  *     [--notes "..."] \
  *     [--dry-run]
  *
@@ -29,6 +30,7 @@ interface CliArgs {
   captureKind: OcrCaptureKind
   notes: string | null
   dryRun: boolean
+  videoSha256: string | null
 }
 
 function getFlag(name: string): string | undefined {
@@ -65,6 +67,12 @@ function parseArgs(): CliArgs {
   const notes = getFlag('notes') ?? null
   const dryRun = process.argv.includes('--dry-run')
 
+  const videoSha256Raw = getFlag('video-sha256') ?? null
+  if (videoSha256Raw !== null && !/^[0-9a-fA-F]{64}$/.test(videoSha256Raw)) {
+    throw new Error(`Invalid --video-sha256 (must be 64 hex chars): ${videoSha256Raw}`)
+  }
+  const videoSha256 = videoSha256Raw ? videoSha256Raw.toLowerCase() : null
+
   return {
     batchDir: resolve(batchDir),
     screen,
@@ -73,6 +81,7 @@ function parseArgs(): CliArgs {
     captureKind,
     notes,
     dryRun,
+    videoSha256,
   }
 }
 
@@ -91,6 +100,7 @@ async function main(): Promise<void> {
     captureKind: args.captureKind,
     notes: args.notes,
     dryRun: args.dryRun,
+    videoSha256: args.videoSha256,
   })
 
   console.log(
