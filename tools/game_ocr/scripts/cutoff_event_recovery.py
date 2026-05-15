@@ -64,19 +64,38 @@ from dataclasses import dataclass, field
 VLCSNAP_TS_RE = re.compile(
     r"vlcsnap-(\d{4})-(\d{2})-(\d{2})-(\d{2})h(\d{2})m(\d{2})s(\d{3})\.png$"
 )
+# Video-pipeline (tools/video_ingest/pass2_extract.py) emits NNNNN.png
+# zero-padded sequence numbers per segment dir. The integer value IS the
+# chronological position within the segment.
+SEQ_TS_RE = re.compile(r"(\d+)\.png$")
 
 
 def parse_vlcsnap_timestamp(source_path: str) -> tuple[int, ...] | None:
-    """Parse the timestamp tuple embedded in vlcsnap-... filenames.
+    """Parse a sortable timestamp tuple from a capture filename.
 
-    Returns a tuple (Y, M, D, h, m, s, ms) that sorts correctly across
-    captures. Returns None if the filename doesn't match — captures that
-    don't follow the convention sort last (deterministic but unordered).
+    Accepts both:
+      - legacy vlcsnap-YYYY-MM-DD-HHhMMmSSsmmm.png (manual screenshots),
+        emits (Y, M, D, h, m, s, ms)
+      - video-pipeline NNNNN.png (sequence within segment), emits a
+        tuple prefixed with a sentinel year so it sorts deterministically
+        relative to other sequence files in the same directory. The
+        prefix doesn't collide with real vlcsnap years (we use 0).
+
+    Returns None if neither pattern matches — those captures sort last.
+    Within a single batch (one source_directory) only one format is
+    expected, so cross-format comparison ambiguity doesn't bite.
     """
-    m = VLCSNAP_TS_RE.search(source_path.replace("\\", "/"))
-    if not m:
-        return None
-    return tuple(int(g) for g in m.groups())
+    norm = source_path.replace("\\", "/")
+    m = VLCSNAP_TS_RE.search(norm)
+    if m:
+        return tuple(int(g) for g in m.groups())
+    base = norm.rsplit("/", 1)[-1]
+    seq = SEQ_TS_RE.fullmatch(base)
+    if seq:
+        # (0, 0, 0, 0, 0, 0, N) — zero-padded so it sorts purely on N
+        # within the same dir.
+        return (0, 0, 0, 0, 0, 0, int(seq.group(1)))
+    return None
 
 
 def period_from_path(source_path: str) -> int | None:
