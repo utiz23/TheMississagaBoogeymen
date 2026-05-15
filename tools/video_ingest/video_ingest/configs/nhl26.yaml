@@ -1,0 +1,52 @@
+# nhl26.yaml — per-version orchestrator config.
+#
+# pass1.sample_fps: rate at which the segmenter samples the video for
+# classification. 1 fps is enough — most screens are stable for at
+# least 3-5 seconds and the N-consecutive-frame window logic merges
+# short same-type runs into segments.
+#
+# pass2.sample_rates: dense extraction fps per screen type, picked so
+# OCR latency at panel-crop (≈336 ms p50 on RTX 3060) keeps Pass-2 in
+# proportion with Pass-1. Action-tracker is the heaviest segment;
+# everything else is static or near-static so 1 fps is plenty.
+#
+# pass2.window_padding_seconds: extra seconds either side of a Pass-1
+# segment to extract, to defend against off-by-one boundary errors in
+# the coarse 1-fps classification.
+
+version: "nhl26"
+
+pass1:
+  sample_fps: 1
+  # N consecutive same-type frames required to OPEN a segment.
+  min_run_to_open: 3
+  # Tolerate K frames inside a segment whose label disagrees; resets
+  # the run only after K+1 in a row.
+  max_outliers_within: 1
+  # Minimum segment duration (in source-video seconds) to emit. Drops
+  # micro-segments that are almost certainly classifier hiccups.
+  min_segment_seconds: 3
+
+pass2:
+  window_padding_seconds: 1.0
+  sample_rates:
+    post_game_action_tracker: 5
+    post_game_player_summary: 1
+    post_game_box_score_goals: 1
+    post_game_events: 1
+    post_game_faceoff_map: 1
+    post_game_net_chart: 1
+    pre_game_lobby_state_2: 1
+    player_loadout_view: 1
+
+# Screen types we DO extract in Pass-2. Anything else (unknown_screen,
+# pre_game_lobby_state_1, in_game_*, etc.) is logged + skipped.
+extract_screens:
+  - post_game_action_tracker
+  - post_game_player_summary
+  - post_game_box_score_goals
+  - post_game_events
+  - post_game_faceoff_map
+  - post_game_net_chart
+  - pre_game_lobby_state_2
+  - player_loadout_view
