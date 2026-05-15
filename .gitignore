@@ -71,3 +71,6 @@ cvat/
 
 # Stray one-off probe scripts that landed under src/ by mistake
 apps/web/src/probe-queries.mjs
+
+# Local OCR pipeline backup snapshots — do not commit.
+.tmp-backups/

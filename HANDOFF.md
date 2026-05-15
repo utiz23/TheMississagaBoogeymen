@@ -2,6 +2,89 @@
 
 ## Current Status
 
+**Phase:** **Video → match_events pipeline shipped end-to-end (Phases 0-5 of the video rewrite plan).** A single command turns a 32-min `.mkv` into DB rows: probe → 1-fps coarse classify into segments → per-segment dense ffmpeg extraction → fan-out to existing ingest-ocr-cli per segment dir → existing 4-tier downstream finishes the job.
+
+**Verified on the canonical match-250 video** (32 min, 60 fps, 815 MB → 10 segments → 212 frames → 209 successful extractions → 94 match_events). Per-type breakdown identical to the canonical 93 events (7 goals, 31 shots, 35 hits) plus +1 faceoff. Total wall-clock: ~30 min on RTX 3060. Idempotent re-runs via `ocr_capture_batches.video_sha256` unique-when-not-null index.
+
+### Video pipeline architecture
+
+```
+tools/video_ingest/                         apps/worker/                  packages/db/
+─────────────────────                       ─────────────                 ────────────
+video_ingest.cli ingest                     ingest-ocr.ts                 ocr_capture_batches
+  → pts.probe (sha256, DTS monotonicity)      ON CONFLICT                   + video_sha256 col
+  → version_detect (--version auto)           (video_sha256,                + partial unique idx
+  → Pass-1: ffmpeg 1fps raw-BGR pipe          source_directory)
+    → game_ocr.classifier (HSV cosine
+      + anchor OCR + OOD)
+    → N-window segmentation
+    → segments.json
+  → Pass-2: ffmpeg per-segment @ N fps
+    → seg-NNN-<screen_type>/00000.png ...
+  → dispatch.py: fan out to ingest-ocr-cli
+    once per segment dir
+```
+
+Per-screen Pass-2 sample rates (`tools/video_ingest/video_ingest/configs/nhl26.yaml`): action_tracker=5 fps, everything else=1 fps. RapidOCR-GPU benchmark on RTX 3060: full-frame 687 ms / panel-crop 336 ms / anchor-ROI 191 ms p50 — 3× CPU speedup.
+
+### Key files added / modified in this rewrite
+
+| New | What it does |
+|---|---|
+| `tools/video_ingest/` (entire package) | Two-pass orchestrator |
+| `tools/video_ingest/video_ingest/{pts, pass1_classify, pass2_extract, dispatch, orchestrator, cli, version_detect, gpu_libs}.py` | Core modules |
+| `tools/video_ingest/video_ingest/configs/nhl26.yaml` | Per-version sample rates + N-window knobs |
+| `tools/video_ingest/tests/fixtures/match-250-clip.{mkv,segments.json}` | 60s labeled fixture for unit + e2e |
+| `tools/game_ocr/game_ocr/classifier.py` | Hybrid HSV-cosine + anchor-OCR + OOD classifier |
+| `tools/game_ocr/game_ocr/configs/classifier/nhl26.yaml` | 8-class config calibrated from `ScreenShots/` + 3 multi-opponent extras |
+| `tools/game_ocr/scripts/calibrate_classifier.py` | Regenerates `nhl26.yaml` from labeled fixtures |
+| `tools/game_ocr/calibration/extras/` | Multi-opponent lobby samples (broadens centroid beyond canonical fixture's TRIPORT CHUGS palette) |
+| `packages/db/migrations/0035_legal_iron_lad.sql` | `video_sha256` col + partial unique index |
+
+| Modified | Why |
+|---|---|
+| `apps/worker/src/ingest-ocr.ts` | `videoSha256` field + idempotent upsert |
+| `apps/worker/src/ingest-ocr-cli.ts` | `--video-sha256` flag with hex validation |
+| `tools/game_ocr/game_ocr/cli.py` | New `classify` subcommand (NDJSON output) |
+| `tools/game_ocr/game_ocr/ocr.py` | `RapidOCRBackend(use_gpu=True)` kwarg |
+| `tools/game_ocr/scripts/inventory_consensus_match.py` | argparse + `--cluster-radius-px` + density-aware default |
+| `tools/game_ocr/scripts/cutoff_event_recovery.py` | Filename regex also matches `NNNNN.png` (video-pipeline output) |
+
+### Run the full pipeline
+
+```bash
+# One command, .mkv → match_events
+PYTHONPATH=tools/video_ingest:tools/game_ocr python3 -m video_ingest.cli ingest \
+  --video /mnt/k/NHL/NHL26/<file>.mkv \
+  --output-root /tmp/vi-canonical \
+  --version auto \
+  --dispatch --game-title-id 1 --match-id <id> \
+  [--force-pass1] [--force-pass2]
+```
+
+Then run tier-2/3/4 manually (orchestrator does not auto-trigger them) — see existing reproducible procedure below.
+
+### Phase 5 acceptance summary (canonical regression)
+
+- Pipeline reproduced **all 73 canonical shot/hit/goal events** ✓
+- **+1 faceoff** vs canonical (clock-OCR variation; tier-4 can't dedup unpositioned faceoffs)
+- **0 spurious** shot/hit/goal events
+- **0 phantoms** after tier-4
+- **0 canonical events lost** (fuzzy-actor dedup re-linked 71/73 to new extractions; 2 stayed canonical)
+- Pre-Phase-5 backup at `.tmp-backups/match250-pre-phase5-20260515-*.sql` (full table-level pg_dump, restorable)
+
+### Known limitations / future work
+
+1. **Classifier calibration is single-fixture-per-class for most screens** — works on canonical match-250 but expect issues on different game versions, different opponents (lobby is already multi-opponent-calibrated via the `calibration/extras/` set).
+2. **Faceoff-map segment** can be missed when the user only briefly views the screen — Pass-1 requires 3 consecutive same-type frames at 1 fps to open a segment. Mitigation: bump `min_run_to_open` knob in nhl26.yaml down to 2, or sample Pass-1 at 2 fps.
+3. **Tier-2 default `--cluster-radius-px` is density-aware** but tested only at current ~220 markers/period. Dense AT regimes (>1500 markers/period) will exercise the tighter end of the curve.
+4. **NHL 27 anchors** are stubbed in `version_detect.VERSION_ANCHORS` but empty. First NHL 27 capture → populate the tuple → version-detect picks it up.
+5. **`post_game_events` extractor doesn't run from this pipeline** for match 250 (user viewed the screen only during intermissions, which are correctly rejected). Penalty extraction relies on events tab — if a future video has the user viewing events post-game, those frames will be picked up and processed.
+
+---
+
+**Prior phase context** (still applicable to existing manual-screenshot workflow):
+
 **Phase:** OCR position pipeline is a fully-automated four-tier system with fuzzy actor dedup at promoter time and clock-phantom sanity sweep as the final pass. Match 250 has **71 real plottable events**, all positioned, from a clean-slate DELETE + 4-tier run with zero manual interventions.
 
 > **Note on row counts.** Earlier session notes use "72" — that's the row count BEFORE tier 4 runs. Tiers 1-3 produce 72 rows in `match_events`, of which 71 are real events and 1 is the `1:10 SILKY` clock-OCR phantom (an OCR misread of `11:10`; the real `11:10 SILKY` shot is one of the 71 canonical rows). Tier 4 (`clock_phantom_check.py`) deletes the phantom on every run, yielding the 71-row final state. The pipeline has always handled 71 real events; the count "drop" from 72 to 71 reflects the addition of tier 4, not a lost event.
