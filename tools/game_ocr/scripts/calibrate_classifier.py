@@ -146,13 +146,19 @@ def main() -> int:
         "anchor_roi": list(ANCHOR_ROI),
         "color_threshold": COLOR_THRESHOLD,
         "fuzzy_max_distance": FUZZY_MAX_DISTANCE,
-        # Main-menu tab labels that uniquely identify the
-        # matchmaking screen / non-game-content menus we don't process.
-        # Force UNKNOWN even when color happens to match a lobby centroid.
+        # Anchor substrings that force UNKNOWN when present in the top-bar
+        # OCR, overriding any color or anchor match. Used to reject UI
+        # states that visually resemble enumerated screen types but
+        # aren't worth processing:
+        #   - matchmaking screen tabs (visually similar to lobby)
+        #   - mid-game "WAITING FOR ALL USERS TO RESUME" intermission
+        #     screens (dark dual-roster palette, fuzzy-matches "all"
+        #     anchor for events tab)
         "reject_anchor_substrings": [
             "customize",
             "seasonpass",
             "rewards",
+            "waiting for",
         ],
         "classes": classes_out,
     }

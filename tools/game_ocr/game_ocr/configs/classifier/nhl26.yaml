@@ -3,7 +3,7 @@ hist_bins: [12, 4, 4]
 anchor_roi: [0, 0, 1920, 200]
 color_threshold: 0.55
 fuzzy_max_distance: 1
-reject_anchor_substrings: [customize, seasonpass, rewards]
+reject_anchor_substrings: [customize, seasonpass, rewards, waiting for]
 classes:
   pre_game_lobby_state_2:
     anchor_substrings: [eashl]
