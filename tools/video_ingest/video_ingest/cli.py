@@ -32,7 +32,7 @@ app = typer.Typer(add_completion=False, no_args_is_help=True)
 def ingest(
     video: Path = typer.Option(..., exists=True, readable=True, resolve_path=True),
     output_root: Path = typer.Option(..., resolve_path=True, help="Per-video sha root sits inside this dir."),
-    version: str = typer.Option("nhl26", help="UI-config version (nhl26, nhl27, ...)."),
+    version: str = typer.Option("nhl26", help="UI-config version (nhl26, nhl27, ...) or 'auto' to detect from sampled frames."),
     use_gpu: bool = typer.Option(True, help="Use CUDA EP for classifier OCR."),
     force_pass1: bool = typer.Option(False, help="Re-run Pass 1 even if segments.json cached."),
     force_pass2: bool = typer.Option(False, help="Re-extract Pass 2 frames even if dirs exist."),

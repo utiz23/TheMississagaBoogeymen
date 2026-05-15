@@ -37,6 +37,10 @@ from video_ingest.pass2_extract import (
     extract_segments,
 )
 from video_ingest.pts import VideoProbe, probe as pts_probe
+from video_ingest.version_detect import (
+    UNKNOWN_VERSION,
+    detect_version,
+)
 
 
 CONFIGS_DIR = Path(__file__).resolve().parent / "configs"
@@ -107,6 +111,29 @@ def ingest(
     sha_root = output_root / probe.sha256
     sha_root.mkdir(parents=True, exist_ok=True)
     segments_json = sha_root / "segments.json"
+
+    # 1b. version detection (when requested). Auto-detects which game-UI
+    # config to use; fails closed when no version matches so the user
+    # can't accidentally feed an NHL 27 video through the NHL 26 config.
+    if version == "auto":
+        print(f"[ingest] version=auto → detecting from sampled frames", file=sys.stderr)
+        guess = detect_version(
+            video_path,
+            duration_seconds=probe.duration_seconds,
+            sample_count=5,
+            use_gpu=use_gpu,
+        )
+        print(
+            f"[ingest] detected version={guess.version}  "
+            f"confidence={guess.confidence:.2f}  hits={guess.hit_counts}",
+            file=sys.stderr,
+        )
+        if guess.version == UNKNOWN_VERSION:
+            raise RuntimeError(
+                "version_detect could not identify the game UI version. "
+                "Re-run with an explicit --version (e.g. --version nhl26)."
+            )
+        version = guess.version
 
     # 2. load version config
     vcfg = _load_version_config(version)
