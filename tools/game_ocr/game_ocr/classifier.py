@@ -270,28 +270,65 @@ class Classifier:
                 confidence=0.0,
             )
 
-        # Walk candidates in descending color order. A class wins ONLY
-        # if color score clears the threshold AND anchor confirms.
-        # Empty `anchor_substrings` for a class means "trust color
-        # alone" (used for screens whose distinctive text sits outside
-        # the anchor ROI). Failing both gates → UNKNOWN_SCREEN. No
-        # below-threshold fallback: silent misclassification is the
+        # Two-tier matching:
+        #
+        # Tier 1 — anchor priority. Among classes that declare anchors,
+        # walk them in DESCENDING max-anchor-length order so the most
+        # specific text discriminator wins. Empirically the color
+        # signature is non-discriminative for dark post-game tabs (every
+        # tab scores 0.95-0.99 against every centroid), so color alone
+        # cannot pick the right class — but the screen-title text reliably
+        # can. We still gate on color ≥ threshold to defend against
+        # OCR hallucinations leaking through.
+        #
+        # Tier 2 — color-only fallback. Classes that declare NO anchors
+        # are pure-color (today: lobby, before we tightened that). They
+        # participate only if no anchored class matched.
+        #
+        # No below-threshold fallback: silent misclassification is the
         # failure mode we're guarding against.
+        anchored = [c for c in self.config.classes if c.anchor_substrings]
+        color_only = [c for c in self.config.classes if not c.anchor_substrings]
+        score_by_name = {n: s for n, s in color_scores}
+
+        # Anchor-tier color floor is intentionally MUCH looser than
+        # `color_threshold` (which gates color-only classes). When a
+        # specific screen-title anchor matches, the text is the
+        # discriminator — color is just a sanity check against truly
+        # garbage frames where the OCR hallucinated. Single-fixture
+        # centroid calibration produces high variance (a different
+        # player viewing a different sub-state of player_summary scores
+        # ~0.52 against the centroid), so a tight color floor blocks
+        # legitimate anchor matches.
+        anchor_color_floor = 0.30
+
+        anchored.sort(
+            key=lambda c: -max(len(s) for s in c.anchor_substrings),
+        )
         matched: str | None = None
         match_score = 0.0
-        for name, score in color_scores:
-            if score < self.config.color_threshold:
-                break  # color_scores is sorted; nothing further qualifies
-            cls = next(c for c in self.config.classes if c.name == name)
-            if cls.anchor_substrings:
-                anchor_ok = any(
-                    fuzzy_contains(anchor_text, sub, self.config.fuzzy_max_distance)
-                    for sub in cls.anchor_substrings
-                )
-            else:
-                anchor_ok = True
-            if anchor_ok:
-                matched = name
+        for cls in anchored:
+            score = score_by_name.get(cls.name, 0.0)
+            if score < anchor_color_floor:
+                continue
+            if any(
+                fuzzy_contains(anchor_text, sub, self.config.fuzzy_max_distance)
+                for sub in cls.anchor_substrings
+            ):
+                matched = cls.name
+                match_score = score
+                break
+
+        if matched is None:
+            color_only_ranked = sorted(
+                color_only,
+                key=lambda c: -score_by_name.get(c.name, 0.0),
+            )
+            for cls in color_only_ranked:
+                score = score_by_name.get(cls.name, 0.0)
+                if score < self.config.color_threshold:
+                    break
+                matched = cls.name
                 match_score = score
                 break
 

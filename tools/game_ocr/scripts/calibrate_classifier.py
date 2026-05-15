@@ -57,9 +57,10 @@ CLASSES: dict[str, dict] = {
             "pre_game_lobby_state_2__match250_t40_vs_4thline.png",
         ],
         # 'eashl' (from the EASHL 6V6 mode badge) is robustly present in
-        # every lobby frame OCR but absent on the WORLD CHEL splash,
-        # which has a near-identical color palette. Pure-color match
-        # without anchor would false-positive the splash transition.
+        # every lobby frame OCR but absent on splash transitions and
+        # post-game tabs. With the anchor-priority classifier, this
+        # gives lobby a deterministic claim on dark+red+EASHL frames
+        # without relying on (non-discriminative) color matching.
         "anchor_substrings": ["eashl"],
     },
     "player_loadout_view": {
@@ -76,10 +77,13 @@ CLASSES: dict[str, dict] = {
     },
     "post_game_events": {
         "fixtures": ["Post Game Events.png"],
-        # Period headers live below the y=200 ROI; only the "ALL" pill
-        # is in-bounds, too generic to anchor on. Rely on the very
-        # distinct dark-listview palette (color score = 1.0 in tests).
-        "anchor_substrings": [],
+        # The Events screen's color signature matches several other dark
+        # post-game tabs (player_summary, box_score) at 0.94-0.99 cosine,
+        # so a color-only match dominates spuriously. The "ALL" filter
+        # pill in the top-left is the one consistent in-ROI anchor.
+        # Other tabs' anchors (player summary, goal summary, all events,
+        # etc.) compete against this and win when their text is present.
+        "anchor_substrings": ["all"],
     },
     "post_game_action_tracker": {
         "fixtures": [
