@@ -253,6 +253,13 @@
       "when": 1778661724542,
       "tag": "0035_legal_iron_lad",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1778876047153,
+      "tag": "0036_tidy_the_watchers",
+      "breakpoints": true
     }
   ]
 }

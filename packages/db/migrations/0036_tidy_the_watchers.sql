@@ -1,0 +1,2 @@
+ALTER TABLE "player_loadout_x_factors" ADD COLUMN "x_factor_name_canonical" text;--> statement-breakpoint
+CREATE INDEX "player_loadout_x_factors_canonical_idx" ON "player_loadout_x_factors" USING btree ("x_factor_name_canonical") WHERE "player_loadout_x_factors"."x_factor_name_canonical" IS NOT NULL;

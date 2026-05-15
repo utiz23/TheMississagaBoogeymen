@@ -1,3 +1,4 @@
+import { sql } from 'drizzle-orm'
 import {
   bigint,
   bigserial,
@@ -81,6 +82,10 @@ export const playerLoadoutSnapshots = pgTable(
 /**
  * Up to 3 X-factors per loadout snapshot (slot_index 0, 1, 2).
  * x_factor_name is the verbatim OCR string (e.g. 'Tape-to-Tape', 'Puck on a String').
+ * x_factor_name_canonical is the normalized name matching the branding asset
+ *   folder convention (e.g. 'Tape_to_Tape', 'PressurePlus'), set at promoter
+ *   ingest time via `normalize-xfactor.ts`. NULL when the OCR string couldn't
+ *   be mapped to any of the 28 known X-Factors (surfaces unknown variants).
  * tier: Elite | All Star | Specialist, classified from HSV color sample on the
  *   icon (red / blue / yellow respectively). NULL when not yet classified.
  */
@@ -93,6 +98,7 @@ export const playerLoadoutXFactors = pgTable(
       .references(() => playerLoadoutSnapshots.id),
     slotIndex: integer('slot_index').notNull(),
     xFactorName: text('x_factor_name').notNull(),
+    xFactorNameCanonical: text('x_factor_name_canonical'),
     tier: text('tier').$type<'Elite' | 'All Star' | 'Specialist'>(),
   },
   (table) => [
@@ -100,6 +106,9 @@ export const playerLoadoutXFactors = pgTable(
       table.loadoutSnapshotId,
       table.slotIndex,
     ),
+    index('player_loadout_x_factors_canonical_idx')
+      .on(table.xFactorNameCanonical)
+      .where(sql`${table.xFactorNameCanonical} IS NOT NULL`),
   ],
 )
 
