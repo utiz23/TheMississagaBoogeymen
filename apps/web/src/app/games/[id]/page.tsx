@@ -27,6 +27,7 @@ import { ShotMix } from '@/components/matches/shot-mix'
 import { EventLog } from '@/components/matches/event-log'
 import { ShotMap } from '@/components/matches/shot-map'
 import { LineupCard } from '@/components/matches/lineup-card'
+import { LineupSection } from '@/components/matches/lineup-section'
 import { Panel } from '@/components/ui/panel'
 import {
   buildAllTeamScores,
@@ -159,6 +160,9 @@ export default async function GameDetailPage({ params, searchParams }: Props) {
 
       {/* 3a. OCR-derived pre-game lineup card (hidden until reviewed). */}
       <LineupCard lineups={lineups} opponentLabel={match.opponentName} />
+
+      {/* 3a.1 Rich lineup section — X-Factor PNG icons from branding assets. */}
+      <LineupSection lineups={lineups} opponentLabel={match.opponentName} />
 
       {/* 3b-3c. OCR-derived period summary + shot mix (hidden until reviewed). */}
       <PeriodSummary rows={periodSummaries} />

@@ -17,7 +17,10 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 UA='Mozilla/5.0 (X11; Linux x86_64; rv:131.0) Gecko/20100101 Firefox/131.0'
 HUB='https://www.ea.com/games/nhl/nhl-26/nhl26-x-factors-hub'
-OUT="$REPO_ROOT/docs/branding/x-factors"
+# Assets live under public/ so Next.js serves them at
+# /assets/x-factors/<Name>/<file>.png. Source-of-truth here, not in
+# docs/branding/.
+OUT="$REPO_ROOT/apps/web/public/assets/x-factors"
 URLS_TMP="$(mktemp)"
 trap 'rm -f "$URLS_TMP"' EXIT
 

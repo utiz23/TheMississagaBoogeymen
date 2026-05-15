@@ -66,7 +66,10 @@ export async function getMatchLineups(matchId: number) {
     .where(
       and(
         eq(playerLoadoutSnapshots.matchId, matchId),
-        eq(playerLoadoutSnapshots.reviewStatus, 'reviewed'),
+        // No reviewStatus filter: rejection comes from the most-recent-snapshot
+        // dedup below, which gives us one row per (player or gamertag) — the
+        // newest. Manual review isn't wired up for loadout snapshots yet, so
+        // filtering to 'reviewed' here would hide ~98% of captured rows.
       ),
     )
     .orderBy(desc(playerLoadoutSnapshots.capturedAt))
@@ -95,39 +98,68 @@ export async function getMatchLineups(matchId: number) {
     xBySnapshot.set(x.loadoutSnapshotId, list)
   }
 
-  // Bucket each snapshot into BGM vs opponent.
+  // Group snapshots by player key. rawSnapshots is already
+  // capturedAt-DESC sorted, so within each group the first element is
+  // the most recent snapshot.
+  const groupsByKey = new Map<string, typeof rawSnapshots>()
+  for (const s of rawSnapshots) {
+    const key =
+      s.playerId !== null
+        ? `p:${String(s.playerId)}`
+        : `g:${(s.gamertagSnapshot ?? '').toLowerCase()}`
+    const list = groupsByKey.get(key) ?? []
+    list.push(s)
+    groupsByKey.set(key, list)
+  }
+
+  // Bucket each player into BGM vs opponent. Survivor = most-recent
+  // snapshot (the LineupCard "compact" view uses these exact fields).
+  // X-Factors aggregated across ALL snapshots in the group, deduped by
+  // slot_index — typically the loadout-view capture (older) has the
+  // X-Factor rows, the lobby capture (most-recent) does not.
   const bgm: LineupRow[] = []
   const opponent: LineupRow[] = []
-  const seenKey = new Set<string>() // dedup most-recent-wins per (matchId, key)
 
-  for (const s of rawSnapshots) {
-    // Key dedup by playerId when resolved, else by gamertag-snapshot.
-    const key = s.playerId !== null ? `p:${String(s.playerId)}` : `g:${(s.gamertagSnapshot ?? '').toLowerCase()}`
-    if (seenKey.has(key)) continue
-    seenKey.add(key)
+  for (const group of groupsByKey.values()) {
+    const survivor = group[0]!
+    const side = decideTeamSide(survivor)
 
-    const side = decideTeamSide(s)
-    const row: LineupRow = {
-      snapshotId: s.snapshotId,
-      gamertagSnapshot: s.gamertagSnapshot,
-      playerNameSnapshot: s.playerNameSnapshot,
-      playerNamePersona: s.playerNamePersona,
-      playerNumber: s.playerNumber,
-      isCaptain: s.isCaptain,
-      position: s.position,
-      buildClass: s.buildClass,
-      heightText: s.heightText,
-      weightLbs: s.weightLbs,
-      handedness: s.handedness,
-      playerLevelNumber: s.playerLevelNumber,
-      playerLevelRaw: s.playerLevelRaw,
-      capturedAt: s.capturedAt,
-      player: s.resolvedPlayer,
-      xFactors: (xBySnapshot.get(s.snapshotId) ?? []).map((x) => ({
+    // Walk all snapshots in the group, populating xBySlot with the
+    // latest-snapshot-wins rule per slot_index.
+    const xBySlot = new Map<number, (typeof xFactorRows)[number]>()
+    for (const s of group) {
+      const rows = xBySnapshot.get(s.snapshotId)
+      if (!rows) continue
+      for (const x of rows) {
+        if (!xBySlot.has(x.slotIndex)) xBySlot.set(x.slotIndex, x)
+      }
+    }
+    const xFactors = [...xBySlot.values()]
+      .sort((a, b) => a.slotIndex - b.slotIndex)
+      .map((x) => ({
         slotIndex: x.slotIndex,
         name: x.xFactorName,
+        canonicalName: x.xFactorNameCanonical,
         tier: x.tier,
-      })),
+      }))
+
+    const row: LineupRow = {
+      snapshotId: survivor.snapshotId,
+      gamertagSnapshot: survivor.gamertagSnapshot,
+      playerNameSnapshot: survivor.playerNameSnapshot,
+      playerNamePersona: survivor.playerNamePersona,
+      playerNumber: survivor.playerNumber,
+      isCaptain: survivor.isCaptain,
+      position: survivor.position,
+      buildClass: survivor.buildClass,
+      heightText: survivor.heightText,
+      weightLbs: survivor.weightLbs,
+      handedness: survivor.handedness,
+      playerLevelNumber: survivor.playerLevelNumber,
+      playerLevelRaw: survivor.playerLevelRaw,
+      capturedAt: survivor.capturedAt,
+      player: survivor.resolvedPlayer,
+      xFactors,
     }
     if (side === 'bgm') bgm.push(row)
     else opponent.push(row)
@@ -214,7 +246,14 @@ export interface LineupRow {
   player: { id: number; gamertag: string } | null
   xFactors: Array<{
     slotIndex: number
+    /** Verbatim OCR string — kept for fallback rendering when canonical is null. */
     name: string
+    /**
+     * Normalized canonical name matching the branding asset folders
+     * (e.g. 'Tape_to_Tape', 'PressurePlus'). NULL when the OCR string
+     * couldn't be mapped — caller should fall back to text-rendering `name`.
+     */
+    canonicalName: string | null
     /** 'Elite' | 'All Star' | 'Specialist' — classified from HSV icon color. */
     tier: 'Elite' | 'All Star' | 'Specialist' | null
   }>
