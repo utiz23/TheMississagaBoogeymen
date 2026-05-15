@@ -165,14 +165,36 @@ export async function getMatchLineups(matchId: number) {
     else opponent.push(row)
   }
 
+  // Position-keyed dedup: one row per position per side. Without this,
+  // an opponent side with 27 captured gamertag-variants (OCR collisions
+  // for the same 6 real players) renders 27 rows. With it, we get at
+  // most 6 rows per side — one for each of {C, LW, RW, LD, RD, G}.
+  //
+  // Input order is captured_at DESC (most recent first per group, since
+  // groupsByKey iteration preserves rawSnapshots' order via the group's
+  // [0] survivor). So Map.set's first-wins semantics keep the freshest
+  // row per position. Rows with null position are dropped — they're
+  // typically OCR misses on the position glyph and don't represent a
+  // real roster slot.
+  const dedupByPosition = (rows: LineupRow[]): LineupRow[] => {
+    const byPosition = new Map<string, LineupRow>()
+    for (const r of rows) {
+      if (!r.position) continue
+      if (!byPosition.has(r.position)) byPosition.set(r.position, r)
+    }
+    return [...byPosition.values()]
+  }
+  const bgmDeduped = dedupByPosition(bgm)
+  const opponentDeduped = dedupByPosition(opponent)
+
   // Canonical hockey roster order: C → LW → RW → LD → RD → G. Apply to both sides.
   const positionOrder: Record<string, number> = { C: 0, LW: 1, RW: 2, LD: 3, RD: 4, G: 5 }
   const orderFn = (a: LineupRow, b: LineupRow) =>
     (positionOrder[a.position ?? ''] ?? 99) - (positionOrder[b.position ?? ''] ?? 99)
-  bgm.sort(orderFn)
-  opponent.sort(orderFn)
+  bgmDeduped.sort(orderFn)
+  opponentDeduped.sort(orderFn)
 
-  return { bgm, opponent }
+  return { bgm: bgmDeduped, opponent: opponentDeduped }
 }
 
 function decideTeamSide(snapshot: {
