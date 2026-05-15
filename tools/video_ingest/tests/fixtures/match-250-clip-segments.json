@@ -1,0 +1,46 @@
+{
+  "_doc": "Ground-truth segment labels for tools/video_ingest/tests/fixtures/match-250-clip.mkv. Hand-labeled 2026-05-13 from visual inspection of 1-fps frames extracted with `ffmpeg -vf fps=1`. Boundaries refined after first classifier run revealed an unexpected lobby→player_loadout→lobby navigation between t=15..28.",
+  "source_video": "K:/NHL/NHL26/2026-05-08_18-25-42.mkv",
+  "clip_duration_seconds": 60,
+  "clip_input_fps": 60,
+  "labeled_fps": 1,
+  "frame_count": 60,
+  "segments": [
+    {
+      "start_frame": 0,
+      "end_frame": 6,
+      "screen_type": "unknown_screen",
+      "notes": "FINDING OPPONENT matchmaking screen with CLUB RANK panel on right. Not enumerated in OcrScreenType — classifier should mark OOD."
+    },
+    {
+      "start_frame": 7,
+      "end_frame": 15,
+      "screen_type": "pre_game_lobby_state_2",
+      "notes": "LOBBY with central LOADOUT/READY menu overlay + both team rosters + opponent (4TH LINE) + GAME STARTS IN countdown."
+    },
+    {
+      "start_frame": 16,
+      "end_frame": 28,
+      "screen_type": "player_loadout_view",
+      "notes": "User navigated into PLAYER LOADOUTS detail view. X-FACTORS + ATTRIBUTES panels visible. Multiple players' loadouts toured (PUCK MOVING DEFENSEMAN, SNIPER, etc.)."
+    },
+    {
+      "start_frame": 29,
+      "end_frame": 50,
+      "screen_type": "pre_game_lobby_state_2",
+      "notes": "Back in the lobby after exiting loadout details. Same LOADOUT/READY overlay + both team rosters."
+    },
+    {
+      "start_frame": 51,
+      "end_frame": 52,
+      "screen_type": "unknown_screen",
+      "notes": "WORLD CHEL splash transition."
+    },
+    {
+      "start_frame": 53,
+      "end_frame": 59,
+      "screen_type": "unknown_screen",
+      "notes": "Season 4 Elite Cup Champions / Results leaderboard — not in OcrScreenType, OOD test case."
+    }
+  ]
+}
