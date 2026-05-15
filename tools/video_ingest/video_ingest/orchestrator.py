@@ -22,6 +22,7 @@ from pathlib import Path
 import yaml
 
 from video_ingest import gpu_libs
+from video_ingest.dispatch import DispatchResult, dispatch_segments
 from video_ingest.pass1_classify import (
     Pass1Config,
     Segment,
@@ -49,6 +50,8 @@ class IngestResult:
     pass2_results: list[Pass2Result]
     elapsed_pass1: float
     elapsed_pass2: float
+    dispatch_results: list[DispatchResult] | None = None
+    elapsed_dispatch: float = 0.0
 
 
 def _load_version_config(version: str) -> dict:
@@ -76,6 +79,10 @@ def ingest(
     use_gpu: bool = True,
     force_pass1: bool = False,
     force_pass2: bool = False,
+    dispatch: bool = False,
+    game_title_id: int | None = None,
+    match_id: int | None = None,
+    dispatch_dry_run: bool = False,
 ) -> IngestResult:
     """Run the full two-pass pipeline.
 
@@ -205,6 +212,28 @@ def ingest(
         for r in pass2_results
     ], indent=2))
 
+    # 6. Optional: fan out to ingest-ocr-cli per segment dir.
+    dispatch_results: list[DispatchResult] | None = None
+    elapsed_dispatch = 0.0
+    if dispatch:
+        if game_title_id is None:
+            raise ValueError("dispatch=True requires game_title_id")
+        t0 = time.perf_counter()
+        dispatch_results = dispatch_segments(
+            pass2_results,
+            game_title_id=game_title_id,
+            match_id=match_id,
+            video_sha256=probe.sha256,
+            dry_run=dispatch_dry_run,
+        )
+        elapsed_dispatch = time.perf_counter() - t0
+        ok = sum(1 for r in dispatch_results if r.returncode == 0)
+        failed = sum(1 for r in dispatch_results if r.returncode != 0)
+        print(
+            f"[dispatch] {ok} ok, {failed} failed in {elapsed_dispatch:.1f}s",
+            file=sys.stderr,
+        )
+
     return IngestResult(
         probe=probe,
         sha_root=sha_root,
@@ -212,4 +241,6 @@ def ingest(
         pass2_results=pass2_results,
         elapsed_pass1=elapsed_pass1,
         elapsed_pass2=elapsed_pass2,
+        dispatch_results=dispatch_results,
+        elapsed_dispatch=elapsed_dispatch,
     )

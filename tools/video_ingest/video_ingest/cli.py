@@ -36,8 +36,14 @@ def ingest(
     use_gpu: bool = typer.Option(True, help="Use CUDA EP for classifier OCR."),
     force_pass1: bool = typer.Option(False, help="Re-run Pass 1 even if segments.json cached."),
     force_pass2: bool = typer.Option(False, help="Re-extract Pass 2 frames even if dirs exist."),
+    dispatch: bool = typer.Option(False, help="Fan out to ingest-ocr-cli per segment dir."),
+    game_title_id: int = typer.Option(None, help="Required when --dispatch is set."),
+    match_id: int = typer.Option(None, help="Optional match_id to pass to ingest-ocr-cli."),
+    dispatch_dry_run: bool = typer.Option(False, help="Pass --dry-run to each ingest-ocr-cli subprocess."),
 ) -> None:
-    """Run the full pipeline against a single video file."""
+    """Run the full pipeline against a single video file. With
+    `--dispatch`, fans out to the worker's ingest-ocr-cli to write
+    extractions into the DB; otherwise stops at PNG extraction."""
     res = run_ingest(
         video_path=video,
         output_root=output_root,
@@ -45,6 +51,10 @@ def ingest(
         use_gpu=use_gpu,
         force_pass1=force_pass1,
         force_pass2=force_pass2,
+        dispatch=dispatch,
+        game_title_id=game_title_id,
+        match_id=match_id,
+        dispatch_dry_run=dispatch_dry_run,
     )
     typer.echo(f"\nsha:    {res.probe.sha256}")
     typer.echo(f"root:   {res.sha_root}")
@@ -54,6 +64,12 @@ def ingest(
         f"pass2:  {len(res.pass2_results)} segment dirs, "
         f"{total_frames} frames ({res.elapsed_pass2:.1f}s)"
     )
+    if res.dispatch_results is not None:
+        ok = sum(1 for r in res.dispatch_results if r.returncode == 0)
+        bad = sum(1 for r in res.dispatch_results if r.returncode != 0)
+        typer.echo(
+            f"dispatch: {ok}/{len(res.dispatch_results)} ok, {bad} failed ({res.elapsed_dispatch:.1f}s)"
+        )
 
 
 @app.command("classify-only")
