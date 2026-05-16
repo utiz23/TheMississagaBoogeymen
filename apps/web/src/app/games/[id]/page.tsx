@@ -179,7 +179,7 @@ export default async function GameDetailPage({ params, searchParams }: Props) {
 
       {/* 5b. OCR-derived Action Tracker (Phase 5 — rink-coordinate spatial extraction +
             all-type event card list mirroring the in-game post-game Action Tracker). */}
-      <ActionTrackerMap events={matchEventRows} />
+      <ActionTrackerMap events={matchEventRows} opponentLabel={match.opponentName} />
 
       {/* 6. Context footer (lowest priority — first to cut if scope shrinks) */}
       <ContextFooter previous={adjacent.previous} next={adjacent.next} />
