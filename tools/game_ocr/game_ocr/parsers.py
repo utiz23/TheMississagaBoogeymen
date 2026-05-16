@@ -1266,6 +1266,36 @@ def _net_chart_period_number(label_text: str) -> int:
     return _NET_CHART_PERIOD_NUMBER.get(cleaned, -1)
 
 
+# Strips the in-game home/away suffix from a label like "BM(A)" or "4TH(H) n n".
+# Returns (clean_abbr, side_marker) where side_marker is "H", "A", or None.
+_TEAM_LABEL_SIDE_RE = re.compile(r"\(([HA])\)", re.IGNORECASE)
+
+
+def _strip_label_side_marker(raw: str | None) -> tuple[str | None, str | None]:
+    if not raw:
+        return None, None
+    match = _TEAM_LABEL_SIDE_RE.search(raw)
+    side = match.group(1).upper() if match else None
+    cleaned = _TEAM_LABEL_SIDE_RE.sub("", raw)
+    # Collapse trailing OCR noise after the suffix ("4TH(H) n n" → "4TH").
+    cleaned = re.sub(r"[^A-Z0-9]", " ", cleaned.upper()).strip()
+    cleaned = cleaned.split()[0] if cleaned else None
+    return cleaned, side
+
+
+def _team_abbr_field(label_field: ExtractionField) -> ExtractionField:
+    """Promote (H)/(A)-stripped team abbreviation as its own field."""
+    abbr, _ = _strip_label_side_marker(label_field.raw_text)
+    if abbr is None:
+        return ExtractionField(status=FieldStatus.MISSING)
+    return ExtractionField(
+        raw_text=label_field.raw_text,
+        value=abbr,
+        confidence=label_field.confidence,
+        status=FieldStatus.OK,
+    )
+
+
 def parse_post_game_net_chart(meta, regions: dict[str, list[OCRLine]], **_kwargs) -> PostGameNetChartResult:
     """Parse the Net Chart stats panel into per-side shot-type counts.
 
@@ -1322,6 +1352,8 @@ def parse_post_game_net_chart(meta, regions: dict[str, list[OCRLine]], **_kwargs
         period_number=period_number,
         away_label=away_label_field,
         home_label=home_label_field,
+        away_team_abbr=_team_abbr_field(away_label_field),
+        home_team_abbr=_team_abbr_field(home_label_field),
         away=NetChartSideStats(**away_fields),
         home=NetChartSideStats(**home_fields),
     )
@@ -1395,6 +1427,8 @@ def parse_post_game_faceoff_map(meta, regions: dict[str, list[OCRLine]], **_kwar
         period_number=period_number,
         away_label=away_label_field,
         home_label=home_label_field,
+        away_team_abbr=_team_abbr_field(away_label_field),
+        home_team_abbr=_team_abbr_field(home_label_field),
         away=FaceoffSideStats(**away),
         home=FaceoffSideStats(**home),
     )
@@ -1918,6 +1952,32 @@ def parse_post_game_action_tracker(
         except Exception as exc:  # noqa: BLE001
             spatial_warnings.append(f"Spatial extraction failed: {exc}")
 
+    # Per-frame team colour sample from the trapezoids behind each goal.
+    # Returns MISSING for either side when the trapezoid is desaturated
+    # (typical for the away team in NHL where the kit is white).
+    home_color_field = ExtractionField(status=FieldStatus.MISSING)
+    away_color_field = ExtractionField(status=FieldStatus.MISSING)
+    if image is not None:
+        try:
+            from game_ocr.color_extractor import sample_team_colors
+            colors = sample_team_colors(image)
+            if colors.home.hex_color is not None:
+                home_color_field = ExtractionField(
+                    raw_text=colors.home.hex_color,
+                    value=colors.home.hex_color,
+                    confidence=float(colors.home.confidence),
+                    status=FieldStatus.OK,
+                )
+            if colors.away.hex_color is not None:
+                away_color_field = ExtractionField(
+                    raw_text=colors.away.hex_color,
+                    value=colors.away.hex_color,
+                    confidence=float(colors.away.confidence),
+                    status=FieldStatus.OK,
+                )
+        except Exception as exc:  # noqa: BLE001
+            spatial_warnings.append(f"Team-color sampling failed: {exc}")
+
     return PostGameActionTrackerResult(
         meta=meta,
         filter_label=filter_label,
@@ -1933,6 +1993,8 @@ def parse_post_game_action_tracker(
         spatial_yellow_count=spatial_yellow_count,
         spatial_warnings=spatial_warnings,
         detected_markers=detected_markers_payload,
+        home_color_hex=home_color_field,
+        away_color_hex=away_color_field,
     )
 
 

@@ -31,6 +31,7 @@ import {
 import { eq, isNotNull } from 'drizzle-orm'
 import { runOcrCli, type OcrResult, type OcrExtractionField } from './ocr-cli-runner.js'
 import { getPromoter, type PromoterDb } from './ocr-promoters/index.js'
+import { applyMatchColors } from './lib/match-color-aggregator.js'
 
 export interface IngestOcrBatchInput {
   batchDir: string
@@ -137,6 +138,23 @@ export async function ingestOcrBatch(input: IngestOcrBatchInput): Promise<Ingest
   console.log(
     `[ingest-ocr] batch ${String(batchId)} done. processed=${String(cli.results.length)} succeeded=${String(succeeded)} failed=${String(failed)}`,
   )
+
+  // Roll the per-frame team-colour + home/away signal up to matches.* for
+  // this match. Runs once per batch so all per-screen promoters have already
+  // written their ocr_extraction_fields rows.
+  if (matchId !== null) {
+    try {
+      const agg = await applyMatchColors(matchId)
+      console.log(
+        `[ingest-ocr] match ${String(matchId)} colours: home=${
+          agg.bgmWasHome === true ? 'BGM' : agg.bgmWasHome === false ? 'OPP' : '?'
+        } bgm=${agg.bgmColorHex ?? 'null'} opp=${agg.oppColorHex ?? 'null'} samples=${String(agg.sampleCount)}`,
+      )
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      console.warn(`[ingest-ocr] applyMatchColors(${String(matchId)}) skipped: ${msg}`)
+    }
+  }
 
   return { batchId, processed: cli.results.length, succeeded, failed, skippedDryRun: false }
 }
@@ -321,7 +339,15 @@ function walkPostGameActionTracker(
   extractionId: number,
   rows: NewOcrExtractionField[],
 ): void {
-  for (const key of ['filter_label', 'period_label']) {
+  // home_color_hex / away_color_hex are per-frame team-colour samples taken
+  // from the trapezoid ROIs behind each goal; the aggregator collapses them
+  // across all action_tracker captures for a match.
+  for (const key of [
+    'filter_label',
+    'period_label',
+    'home_color_hex',
+    'away_color_hex',
+  ]) {
     const v = result[key]
     if (isExtractionField(v)) rows.push(fieldRow(extractionId, 'match', null, key, v))
   }
@@ -382,7 +408,16 @@ function walkPostGameNetChart(
   extractionId: number,
   rows: NewOcrExtractionField[],
 ): void {
-  for (const key of ['period_label', 'away_label', 'home_label']) {
+  // home_team_abbr / away_team_abbr ride along as match-level fields so the
+  // match-color aggregator can read them by field_key without reparsing the
+  // raw home_label / away_label text.
+  for (const key of [
+    'period_label',
+    'away_label',
+    'home_label',
+    'away_team_abbr',
+    'home_team_abbr',
+  ]) {
     const v = result[key]
     if (isExtractionField(v)) rows.push(fieldRow(extractionId, 'match', null, key, v))
   }

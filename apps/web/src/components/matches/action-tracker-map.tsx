@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import type { MatchEventRow } from '@eanhl/db/queries'
 import { SectionHeader } from '@/components/ui/section-header'
 import { RinkSvg } from '@/components/branding/rink'
@@ -43,7 +43,8 @@ import { PlayerSilhouette } from '@/components/home/player-card'
 interface ActionTrackerMapProps {
   events: MatchEventRow[]
   opponentLabel: string
-  /** Hex (e.g. `#cc3333`) extracted from the opp crest. Null = neutral palette. */
+  /** Stale/legacy opp brand color — kept on the prop signature for back-compat
+   *  with other callers; not consulted by this component. */
   opponentColor?: string | null
   /**
    * Whether BGM had home ice. Drives the marker design treatment so the
@@ -52,15 +53,33 @@ interface ActionTrackerMapProps {
    * the visitor. Null = legacy fallback where BGM is always home.
    */
   bgmWasHome?: boolean | null
+  /** OCR-extracted hex for BGM's in-game tint this match (e.g. "#d80018"). */
+  bgmColor?: string | null
+  /** OCR-extracted hex for the opponent's in-game tint this match. */
+  oppColor?: string | null
 }
 
-// Marker palette follows the Concept B handoff: solid red for the home
-// team in this match, outlined navy for the visitor. The extracted opp
-// brand color (opponent_clubs.primary_color) is preserved in the DB for
-// other surfaces but intentionally not used here — the design's fixed
-// red/navy guarantees visual contrast no matter which two teams play.
-const HOME_COLOR = '#ce202f'
-const AWAY_COLOR = '#233f94'
+// Design-system fallbacks for when the OCR pipeline hasn't (or can't)
+// extract a hex for a side. The home-side fallback is BGM red; the away
+// fallback is the design-system navy.
+const HOME_FALLBACK = '#ce202f'
+const AWAY_FALLBACK = '#233f94'
+
+interface TeamPalette {
+  HOME_COLOR: string
+  AWAY_COLOR: string
+}
+
+// Single source of truth for the per-match palette so MarkerTooltip /
+// Marker / EventCard / period-tag spans don't each need to be prop-drilled.
+const TeamPaletteContext = createContext<TeamPalette>({
+  HOME_COLOR: HOME_FALLBACK,
+  AWAY_COLOR: AWAY_FALLBACK,
+})
+
+function useTeamPalette(): TeamPalette {
+  return useContext(TeamPaletteContext)
+}
 
 type FilterableType = 'goal' | 'shot' | 'hit' | 'penalty' | 'faceoff'
 type TeamFilter = 'all' | 'home' | 'away'
@@ -82,13 +101,20 @@ export function ActionTrackerMap({
   opponentLabel,
   opponentColor: _opponentColor,
   bgmWasHome,
+  bgmColor,
+  oppColor,
 }: ActionTrackerMapProps) {
-  void _opponentColor // see HOME_COLOR / AWAY_COLOR comment above
-  // The marker geometry has two design treatments — `home` (solid red) and
-  // `away` (outlined navy). We assign them based on which club actually
-  // had home ice in this match (matches.bgm_was_home). bgmIsHome defaults
-  // to true so legacy rows without the column keep the prior behavior.
+  void _opponentColor // superseded by bgmColor / oppColor
+  // The marker geometry has two design treatments — `home` (solid) and
+  // `away` (outlined w/ white interior). We assign them based on which
+  // club actually had home ice in this match. bgmIsHome defaults to true
+  // so legacy rows without the column keep the prior behaviour.
   const bgmIsHome = bgmWasHome !== false
+  // Each side's colour is the OCR-extracted hex for that team, falling
+  // back to the design-system red (home) / navy (away) when extraction
+  // hasn't run yet.
+  const HOME_COLOR = (bgmIsHome ? bgmColor : oppColor) ?? HOME_FALLBACK
+  const AWAY_COLOR = (bgmIsHome ? oppColor : bgmColor) ?? AWAY_FALLBACK
   const tracked = events.filter((e) => TRACKED_TYPES.has(e.eventType))
 
   const [enabledTypes, setEnabledTypes] = useState<Set<FilterableType>>(new Set(ALL_TYPES))
@@ -203,6 +229,7 @@ export function ActionTrackerMap({
   }
 
   return (
+    <TeamPaletteContext.Provider value={{ HOME_COLOR, AWAY_COLOR }}>
     <section className="space-y-3">
       <SectionHeader label="Action Tracker Map" subtitle="Post-game OCR · event positions on the rink" />
 
@@ -255,6 +282,7 @@ export function ActionTrackerMap({
         />
       </div>
     </section>
+    </TeamPaletteContext.Provider>
   )
 }
 
@@ -465,11 +493,13 @@ function TypeToggle({
 }
 
 function TypeSwatch({ type }: { type: FilterableType }) {
+  const { HOME_COLOR } = useTeamPalette()
   const size = 14
-  if (type === 'goal') return <GoalMarker side="home" size={size} />
-  if (type === 'shot') return <ShotMarker side="home" size={size} />
-  if (type === 'hit') return <HitMarker side="home" size={size} />
-  if (type === 'penalty') return <PenaltyMarker side="home" size={size} />
+  const colorProps = { homeColor: HOME_COLOR }
+  if (type === 'goal') return <GoalMarker side="home" size={size} {...colorProps} />
+  if (type === 'shot') return <ShotMarker side="home" size={size} {...colorProps} />
+  if (type === 'hit') return <HitMarker side="home" size={size} {...colorProps} />
+  if (type === 'penalty') return <PenaltyMarker side="home" size={size} {...colorProps} />
   // Faceoff has no marker; render a dashed circle.
   return (
     <span
@@ -661,6 +691,7 @@ function RinkPanel({
 }
 
 function MarkerTooltip({ event, bgmIsHome }: { event: MatchEventRow; bgmIsHome: boolean }) {
+  const { HOME_COLOR, AWAY_COLOR } = useTeamPalette()
   // Position the tooltip at the same clamped center as the rendered marker
   // — otherwise edge-of-rink events drift since the marker clamp moves the
   // glyph but the tooltip would stay at the raw coordinate.
@@ -675,7 +706,7 @@ function MarkerTooltip({ event, bgmIsHome }: { event: MatchEventRow; bgmIsHome: 
     ? (infraction ? infraction.toUpperCase() : null)
     : target
   const periodTag = cleanPeriodLabel(event.periodLabel) || `P${String(event.periodNumber)}`
-  const borderColor = isHomeSide ? 'rgba(232,65,49,0.45)' : 'rgba(35,63,148,0.55)'
+  const borderColor = hexWithAlpha(isHomeSide ? HOME_COLOR : AWAY_COLOR, 0.55)
   return (
     <div
       role="tooltip"
@@ -909,9 +940,10 @@ function EventCard({
   const noMarker = !isFaceoff && (event.x === null || event.y === null)
   const lowConf = event.positionConfidence === 'extrapolated'
 
+  const { HOME_COLOR, AWAY_COLOR } = useTeamPalette()
   // Card paint follows the rink-marker side, so a card always reads the
-  // same color as its glyph: home-side events are red, away-side events
-  // are navy, regardless of which team is BGM.
+  // same colour as its glyph. The palette comes from per-match OCR via the
+  // surrounding TeamPaletteContext.
   const side: 'home' | 'away' = resolveMarkerSide(event.teamSide, bgmIsHome)
   const isHomeSide = side === 'home'
   const teamColor = isHomeSide ? HOME_COLOR : AWAY_COLOR
@@ -1079,6 +1111,8 @@ function Marker({
   const svgY = rinkY(hockeyY)
   const side: 'home' | 'away' = resolveMarkerSide(event.teamSide, bgmIsHome)
   const extrapolated = event.positionConfidence === 'extrapolated'
+  const { HOME_COLOR, AWAY_COLOR } = useTeamPalette()
+  const markerColors = { homeColor: HOME_COLOR, awayColor: AWAY_COLOR }
 
   const common = {
     x: svgX,
@@ -1096,25 +1130,25 @@ function Marker({
     case 'goal':
       return (
         <PlacedMarker {...common} width={112} height={97}>
-          <GoalMarker side={side} size={112} />
+          <GoalMarker side={side} size={112} {...markerColors} />
         </PlacedMarker>
       )
     case 'shot':
       return (
         <PlacedMarker {...common} width={84} height={84}>
-          <ShotMarker side={side} size={84} />
+          <ShotMarker side={side} size={84} {...markerColors} />
         </PlacedMarker>
       )
     case 'hit':
       return (
         <PlacedMarker {...common} width={80} height={80}>
-          <HitMarker side={side} size={80} />
+          <HitMarker side={side} size={80} {...markerColors} />
         </PlacedMarker>
       )
     case 'penalty':
       return (
         <PlacedMarker {...common} width={112} height={112}>
-          <PenaltyMarker side={side} size={112} />
+          <PenaltyMarker side={side} size={112} {...markerColors} />
         </PlacedMarker>
       )
     default:

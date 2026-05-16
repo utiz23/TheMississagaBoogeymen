@@ -183,6 +183,12 @@ class PostGameNetChartResult(BaseExtractionResult):
     period_number: int
     away_label: ExtractionField
     home_label: ExtractionField
+    # Team abbreviations parsed out of away_label / home_label by stripping
+    # the "(A)" / "(H)" suffix. Promoted independently so the worker can
+    # cross-check that the label-position assignment agrees with the in-game
+    # H/A marker.
+    away_team_abbr: ExtractionField
+    home_team_abbr: ExtractionField
     away: NetChartSideStats
     home: NetChartSideStats
 
@@ -204,6 +210,11 @@ class PostGameFaceoffMapResult(BaseExtractionResult):
     period_number: int
     away_label: ExtractionField
     home_label: ExtractionField
+    # Team abbreviations parsed from the "(A)" / "(H)" suffix; mirrors
+    # PostGameNetChartResult so the worker has redundant signal from two
+    # different screens to settle home/away.
+    away_team_abbr: ExtractionField
+    home_team_abbr: ExtractionField
     away: FaceoffSideStats
     home: FaceoffSideStats
 
@@ -271,6 +282,16 @@ class PostGameActionTrackerResult(BaseExtractionResult):
     period_label: ExtractionField
     period_number: int
     events: list[ActionTrackerEvent] = Field(default_factory=list)
+    # Per-frame team colours sampled from the trapezoid ROIs behind the two
+    # goals. `home_color_hex` is the LEFT trapezoid (the home team's
+    # defending end); `away_color_hex` is the RIGHT trapezoid (away team).
+    # Either can be a MISSING field when the trapezoid samples as white
+    # (away teams in NHL wear light kits) or otherwise lacks saturation —
+    # the worker aggregator merges samples across the per-match capture
+    # batch and falls back to the design-system palette when both are
+    # null after aggregation.
+    home_color_hex: ExtractionField
+    away_color_hex: ExtractionField
     # Index into `events` for the row currently highlighted in the UI (the red
     # selection bar on the list panel). None when the bar can't be detected.
     # CVAT-label importers should use events[selected_event_index] to identify

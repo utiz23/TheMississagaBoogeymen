@@ -62,11 +62,33 @@ export const matches = pgTable(
     hitsAgainst: integer('hits_against').notNull(),
 
     /**
-     * Whether BGM had home ice in this match. Sourced from the EA
-     * payload's `clubs[clubId].teamSide` field (0 = home, 1 = away).
+     * Whether BGM had home ice in this match. Cold-start value comes from
+     * the EA payload's `clubs[clubId].teamSide` field (0 = home, 1 = away);
+     * the OCR pipeline overrides this with the authoritative `(H)`/`(A)`
+     * read from the faceoff_map / net_chart screens when available.
      * Nullable for historical rows ingested before this column existed.
      */
     bgmWasHome: boolean('bgm_was_home'),
+
+    /**
+     * Team abbreviation as the in-game scoreboard renders it. Sourced from
+     * the OCR faceoff_map / net_chart `home_label` / `away_label` fields,
+     * with the `(H)` / `(A)` suffix stripped. `bgmTeamAbbr` is BGM's text
+     * label this match (e.g. "BM" or "BGM" depending on broadcast), and
+     * `oppTeamAbbr` is the opponent's. Nullable until OCR runs.
+     */
+    bgmTeamAbbr: text('bgm_team_abbr'),
+    oppTeamAbbr: text('opp_team_abbr'),
+
+    /**
+     * Per-match team accent colours sampled from the in-game post-game
+     * Action Tracker screen (trapezoid behind each goal). Lowercase 7-char
+     * hex strings (e.g. `#cc3333`). Drives marker / pill / rail palette on
+     * the Action Tracker Map. Nullable until the OCR aggregator runs;
+     * frontend falls back to the design-system red/navy in that case.
+     */
+    bgmColorHex: text('bgm_color_hex'),
+    oppColorHex: text('opp_color_hex'),
     /** numeric(5,2) per architecture spec. e.g. 52.50 */
     faceoffPct: numeric('faceoff_pct', { precision: 5, scale: 2 }),
     /** Time on attack in seconds. */
