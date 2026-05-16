@@ -999,7 +999,7 @@ function EventCard({
         aria-hidden
       />
       <span aria-hidden />
-      <EventAvatar isHomeSide={isHomeSide} />
+      <EventAvatar teamColor={teamColor} />
       <div className="min-w-0">
         <div className="truncate font-condensed text-[15px] font-extrabold uppercase tracking-[0.04em] leading-snug text-[var(--color-fg-1)]">
           {actor}
@@ -1010,17 +1010,22 @@ function EventCard({
             </>
           ) : null}
         </div>
-        <div className="mt-2">
+        <div className="mt-2 flex flex-wrap items-center gap-x-2.5 gap-y-1">
           <EventTypePill label={pillLabel} color={teamColor} isHomeSide={isHomeSide} />
+          <span className="font-condensed text-[12.5px] font-extrabold tabular-nums tracking-[0.04em] leading-none text-[var(--color-fg-1)]">
+            {event.clock ?? '—'}
+          </span>
+          <span className="font-condensed text-[10.5px] font-extrabold uppercase tracking-[0.2em] leading-none text-[var(--color-fg-2)]">
+            {periodTag}
+          </span>
         </div>
       </div>
-      <div className="flex flex-col items-end gap-1">
-        <span className="font-condensed text-[14px] font-extrabold tabular-nums tracking-[0.04em] leading-none text-[var(--color-fg-1)]">
-          {event.clock ?? '—'}
-        </span>
-        <span className="font-condensed text-[10.5px] font-extrabold uppercase tracking-[0.18em] leading-none text-[var(--color-fg-1)]">
-          {periodTag}
-        </span>
+      <div className="flex flex-col items-end gap-1.5">
+        <CardEventMark
+          eventType={event.eventType}
+          side={isHomeSide ? 'home' : 'away'}
+          teamColor={teamColor}
+        />
         {noMarker ? (
           <span className="inline-flex items-center gap-1 border border-dashed border-[var(--color-border)] px-2 py-[2px] font-condensed text-[9.5px] font-bold uppercase tracking-[0.18em] text-[var(--color-fg-5)]">
             No marker
@@ -1033,6 +1038,44 @@ function EventCard({
         ) : null}
       </div>
     </button>
+  )
+}
+
+function CardEventMark({
+  eventType,
+  side,
+  teamColor,
+  size = 26,
+}: {
+  eventType: string
+  side: 'home' | 'away'
+  teamColor: string
+  size?: number
+}) {
+  // Inline marker glyph that matches the rink marker for the same event,
+  // tinted with this event's team colour. Same geometry on both sides
+  // (home gets the white-outer/coloured-inner treatment, away the
+  // coloured-outer/white-inner one) — keeps card and rink in sync.
+  const colorProps =
+    side === 'home' ? { homeColor: teamColor } : { awayColor: teamColor }
+  if (eventType === 'goal') return <GoalMarker side={side} size={size} {...colorProps} />
+  if (eventType === 'shot') return <ShotMarker side={side} size={size} {...colorProps} />
+  if (eventType === 'hit') return <HitMarker side={side} size={size} {...colorProps} />
+  if (eventType === 'penalty') return <PenaltyMarker side={side} size={size} {...colorProps} />
+  // Faceoff has no rink marker. Render a dim dashed circle tinted with the
+  // winner's team colour so the card still surfaces a visual cue.
+  return (
+    <svg viewBox="0 0 24 24" width={size} height={size} className="shrink-0" aria-hidden>
+      <circle
+        cx={12}
+        cy={12}
+        r={9}
+        fill="none"
+        stroke={teamColor}
+        strokeDasharray="2 2"
+        strokeWidth={1.75}
+      />
+    </svg>
   )
 }
 
@@ -1101,13 +1144,11 @@ function parseHex(hex: string): [number, number, number] | null {
   ]
 }
 
-function EventAvatar({ isHomeSide }: { isHomeSide: boolean }) {
+function EventAvatar({ teamColor }: { teamColor: string }) {
   return (
     <div
       className="flex h-8 w-8 items-end justify-center overflow-hidden rounded-full border bg-[linear-gradient(180deg,rgba(50,48,49,0.9),rgba(26,24,25,1))]"
-      style={{
-        borderColor: isHomeSide ? 'rgba(232,65,49,0.3)' : 'rgba(35,63,148,0.35)',
-      }}
+      style={{ borderColor: hexWithAlpha(teamColor, 0.65) }}
       aria-hidden
     >
       <PlayerSilhouette sizeClass="h-7 w-7" />
