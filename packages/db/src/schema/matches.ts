@@ -1,5 +1,6 @@
 import {
   bigserial,
+  boolean,
   check,
   integer,
   numeric,
@@ -59,6 +60,13 @@ export const matches = pgTable(
     shotsAgainst: integer('shots_against').notNull(),
     hitsFor: integer('hits_for').notNull(),
     hitsAgainst: integer('hits_against').notNull(),
+
+    /**
+     * Whether BGM had home ice in this match. Sourced from the EA
+     * payload's `clubs[clubId].teamSide` field (0 = home, 1 = away).
+     * Nullable for historical rows ingested before this column existed.
+     */
+    bgmWasHome: boolean('bgm_was_home'),
     /** numeric(5,2) per architecture spec. e.g. 52.50 */
     faceoffPct: numeric('faceoff_pct', { precision: 5, scale: 2 }),
     /** Time on attack in seconds. */
