@@ -1,17 +1,20 @@
 """Per-match team-color extraction from in-game post-game screens.
 
-The Action Tracker screen tints two regions with each club's brand colour:
+The Action Tracker rink panel tints the trapezoid behind each goal with
+the *defending* team's brand colour in that screen view. Per the rink
+calibration file `bgm_attacks: right`, BGM defends the LEFT goal in this
+match's screens, so the LEFT trapezoid carries BGM's colour and the
+RIGHT trapezoid carries the opponent's. The faceoff-map label "BM(A)" /
+"4TH(H)" tells us which of those clubs is actually the away team and
+which is home — the aggregator binds the left/right colour samples to
+home/away based on that signal.
 
-  - LEFT trapezoid (just inside the boards, behind the left goal). In every
-    match this is the HOME team's defending end, so the trapezoid carries
-    the HOME colour.
-  - RIGHT trapezoid (behind the right goal). The AWAY team's defending end.
-
-NHL broadcast convention: home teams wear their primary colour, away teams
-wear their light/white uniform. EA's UI follows the same convention, so the
-RIGHT trapezoid often samples as unsaturated white. That's expected — when
-both teams happen to share a similar brand colour the marker geometry on the
-client (solid vs. outlined) still separates them visually.
+A team's brand colour can be saturated (BGM red `#cc2030`) OR very dark
+(4th Line's near-black). The sampler returns whichever non-ice cluster
+dominates: it filters out the rink's mid-grey ice surface and picks the
+most common remaining bucket. Mid-grey ice is approximately
+`(60..90, 60..90, 60..90)`; anything notably darker or notably more
+saturated than that range is considered a team-colour candidate.
 
 ROI coordinates are derived from `configs/rink/post_game_action_tracker.json`:
 the rink box spans pixels (836, 403)–(1783, 812) at the 1920×1080 baseline,
@@ -21,7 +24,6 @@ boards at that height.
 """
 from __future__ import annotations
 
-import colorsys
 from collections import Counter
 from dataclasses import dataclass
 from typing import Iterable, Sequence
@@ -33,14 +35,32 @@ import numpy as np
 _BASELINE_W = 1920
 _BASELINE_H = 1080
 
-# Each ROI is (x1, y1, x2, y2) in the 1920×1080 baseline.
-TRAPEZOID_HOME_ROI: tuple[int, int, int, int] = (838, 580, 892, 638)
-TRAPEZOID_AWAY_ROI: tuple[int, int, int, int] = (1727, 580, 1781, 638)
+# Each ROI is (x1, y1, x2, y2) in the 1920×1080 baseline. "LEFT" / "RIGHT"
+# describes the screen-space position of the trapezoid; whether that maps
+# to BGM or OPP — and from there to home/away — is decided by the
+# aggregator from the faceoff-map (H)/(A) label and rink calibration.
+TRAPEZOID_LEFT_ROI: tuple[int, int, int, int] = (838, 580, 892, 638)
+TRAPEZOID_RIGHT_ROI: tuple[int, int, int, int] = (1727, 580, 1781, 638)
 
-# Saturation thresholds (HLS).
-_MIN_VALUE = 40 / 255.0
-_MAX_VALUE = 245 / 255.0
-_MIN_SATURATION = 0.25
+# Pixel-classification thresholds.
+# A pixel is "saturated" when (max − min) channel difference exceeds this.
+# Saturated pixels are always preferred (a coloured jersey beats a dark one
+# in the dominant-bucket vote, even if the dark cluster is bigger).
+_SATURATION_THRESHOLD = 45
+# A pixel is "very dark" when its max channel ≤ this. Used as the fallback
+# signal for teams wearing black/near-black kits (4th Line in match 250)
+# where the trapezoid samples to ~`#202020`–`#303030` with no saturated
+# content. Set just above the empirical 50-ish floor of pixels inside a
+# black trapezoid; ice grey starts ~70 and up.
+_DARK_THRESHOLD = 55
+# Minimum fraction of saturated pixels required to declare the ROI as
+# "team-coloured saturated". If saturated pixels are below this share but
+# dark pixels make up more than `_DARK_DOMINANT_SHARE` of the ROI we fall
+# back to the dark colour. Both thresholds are intentionally generous —
+# the trapezoid in EA's UI is partially occluded by markers and lines, so
+# the dominant non-ice cluster typically covers ~10–40% of the ROI.
+_SATURATED_MIN_SHARE = 0.05
+_DARK_DOMINANT_SHARE = 0.30
 
 # Hex output normalisation.
 _HEX_PREFIX = "#"
@@ -57,26 +77,41 @@ class TeamColorSample:
 
 @dataclass(frozen=True)
 class FrameTeamColors:
-    """Pair of per-team samples extracted from a single frame."""
+    """Pair of left/right-side samples extracted from a single frame.
 
-    home: TeamColorSample
-    away: TeamColorSample
+    The sampler stays neutral about home/away; the aggregator combines these
+    with the faceoff-map (H)/(A) labels to bind a side to a club.
+    """
+
+    left: TeamColorSample
+    right: TeamColorSample
+
+    # Back-compat aliases for older callers that referenced .home / .away.
+    # They mirror left/right directly; the aggregator does the correct bind.
+    @property
+    def home(self) -> "TeamColorSample":
+        return self.right
+
+    @property
+    def away(self) -> "TeamColorSample":
+        return self.left
 
 
 def sample_team_colors(image: np.ndarray) -> FrameTeamColors:
-    """Sample the home and away trapezoid ROIs in a single action_tracker frame.
+    """Sample the left and right trapezoid ROIs in a single action_tracker frame.
 
-    Accepts a BGR or RGB numpy array (height × width × 3). Returns per-team
-    samples; either can be `None` when the trapezoid is white / desaturated.
+    Accepts a BGR numpy array (height × width × 3) as returned by
+    `cv2.imread`. Returns per-side samples; either can be `None` when the
+    ROI is featureless (all ice / blur).
     """
     if image.ndim != 3 or image.shape[2] != 3:
         raise ValueError(f"image must be HxWx3, got {image.shape!r}")
     height, width = image.shape[:2]
-    home_roi = _scale_roi(TRAPEZOID_HOME_ROI, width, height)
-    away_roi = _scale_roi(TRAPEZOID_AWAY_ROI, width, height)
+    left = _scale_roi(TRAPEZOID_LEFT_ROI, width, height)
+    right = _scale_roi(TRAPEZOID_RIGHT_ROI, width, height)
     return FrameTeamColors(
-        home=_sample_roi(image, home_roi),
-        away=_sample_roi(image, away_roi),
+        left=_sample_roi(image, left),
+        right=_sample_roi(image, right),
     )
 
 
@@ -110,15 +145,15 @@ def aggregate_team_color(samples: Iterable[TeamColorSample]) -> TeamColorSample:
 
 def sample_team_colors_batch(images: Sequence[np.ndarray]) -> FrameTeamColors:
     """Run the per-frame sampler over a batch and aggregate per side."""
-    home_samples: list[TeamColorSample] = []
-    away_samples: list[TeamColorSample] = []
+    left_samples: list[TeamColorSample] = []
+    right_samples: list[TeamColorSample] = []
     for frame in images:
         result = sample_team_colors(frame)
-        home_samples.append(result.home)
-        away_samples.append(result.away)
+        left_samples.append(result.left)
+        right_samples.append(result.right)
     return FrameTeamColors(
-        home=aggregate_team_color(home_samples),
-        away=aggregate_team_color(away_samples),
+        left=aggregate_team_color(left_samples),
+        right=aggregate_team_color(right_samples),
     )
 
 
@@ -142,40 +177,53 @@ def _scale_roi(
 def _sample_roi(
     image: np.ndarray, roi: tuple[int, int, int, int]
 ) -> TeamColorSample:
+    """Find the dominant non-ice colour in the ROI.
+
+    Strategy: bucket pixels into "saturated" (the typical coloured-jersey
+    case) and "very dark" (the dark-jersey case, e.g. a black trapezoid).
+    Saturated wins when present even at a low share; dark only wins when
+    it dominates a large fraction of the ROI (otherwise it tends to
+    capture the rink shadow rather than the trapezoid).
+    """
     x1, y1, x2, y2 = roi
     crop = image[y1:y2, x1:x2]
     total_px = crop.shape[0] * crop.shape[1]
     if total_px == 0:
         return TeamColorSample(hex_color=None, confidence=0.0, pixel_count=0)
 
-    # cv2 hands us BGR by convention; detect by checking if it looks like
-    # BGR vs RGB doesn't matter for clustering, but we want canonical hex
-    # output, so normalise everything to RGB before hexing.
-    flat = crop.reshape(-1, 3)
-    # We don't know the input channel order; the caller passes whatever
-    # opencv handed them. The pipeline reads frames via cv2.imread which
-    # returns BGR. We assume BGR and swap on hex emit.
-    bgr = flat
-    buckets: Counter[tuple[int, int, int]] = Counter()
+    saturated: Counter[tuple[int, int, int]] = Counter()
+    dark: Counter[tuple[int, int, int]] = Counter()
+    # cv2.imread returns BGR; we swap to RGB on hex emit.
+    bgr = crop.reshape(-1, 3)
     for b, g, r in bgr:
-        h, l, s = colorsys.rgb_to_hls(r / 255.0, g / 255.0, b / 255.0)
-        if l < _MIN_VALUE / 1.0 or l > _MAX_VALUE / 1.0:
-            continue
-        if s < _MIN_SATURATION:
-            continue
-        buckets[_quantize_rgb((int(r), int(g), int(b)))] += 1
+        ir, ig, ib = int(r), int(g), int(b)
+        mx = max(ir, ig, ib)
+        mn = min(ir, ig, ib)
+        bucket = _quantize_rgb((ir, ig, ib))
+        if (mx - mn) >= _SATURATION_THRESHOLD:
+            saturated[bucket] += 1
+        elif mx <= _DARK_THRESHOLD:
+            dark[bucket] += 1
 
-    saturated_count = sum(buckets.values())
-    if saturated_count == 0:
-        return TeamColorSample(hex_color=None, confidence=0.0, pixel_count=0)
+    sat_count = sum(saturated.values())
+    if sat_count / total_px >= _SATURATED_MIN_SHARE:
+        winner, winner_count = saturated.most_common(1)[0]
+        return TeamColorSample(
+            hex_color=_rgb_to_hex(winner),
+            confidence=sat_count / total_px,
+            pixel_count=winner_count,
+        )
 
-    winner, winner_count = buckets.most_common(1)[0]
-    confidence = saturated_count / total_px
-    return TeamColorSample(
-        hex_color=_rgb_to_hex(winner),
-        confidence=confidence,
-        pixel_count=winner_count,
-    )
+    dark_count = sum(dark.values())
+    if dark_count / total_px >= _DARK_DOMINANT_SHARE:
+        winner, winner_count = dark.most_common(1)[0]
+        return TeamColorSample(
+            hex_color=_rgb_to_hex(winner),
+            confidence=dark_count / total_px,
+            pixel_count=winner_count,
+        )
+
+    return TeamColorSample(hex_color=None, confidence=0.0, pixel_count=0)
 
 
 def _quantize_rgb(rgb: tuple[int, int, int], step: int = 24) -> tuple[int, int, int]:
