@@ -143,6 +143,21 @@ export function ActionTrackerMap({ events, opponentLabel }: ActionTrackerMapProp
     return t
   }, [tracked])
 
+  // OCR confidence proxy: fraction of positioned events whose position is not
+  // extrapolated. We don't ship a per-event OCR score yet, but positionConfidence
+  // is the closest signal exposed today.
+  const ocrConfidence = useMemo(() => {
+    const positioned = tracked.filter((e) => e.x !== null && e.y !== null)
+    if (positioned.length === 0) return null
+    const confirmed = positioned.filter((e) => e.positionConfidence !== 'extrapolated').length
+    return confirmed / positioned.length
+  }, [tracked])
+
+  const goalsOnly = enabledTypes.size === 1 && enabledTypes.has('goal')
+  const toggleGoalsOnly = () => {
+    setEnabledTypes(goalsOnly ? new Set(ALL_TYPES) : new Set(['goal']))
+  }
+
   const toggleType = (t: FilterableType) => {
     setEnabledTypes((prev) => {
       const next = new Set(prev)
@@ -169,6 +184,8 @@ export function ActionTrackerMap({ events, opponentLabel }: ActionTrackerMapProp
         toggleType={toggleType}
         search={search}
         setSearch={setSearch}
+        goalsOnly={goalsOnly}
+        toggleGoalsOnly={toggleGoalsOnly}
       />
 
       <SummaryStrip
@@ -177,6 +194,7 @@ export function ActionTrackerMap({ events, opponentLabel }: ActionTrackerMapProp
         unplaced={unplaced}
         totals={matchTotals}
         oppAbbrev={oppAbbrev}
+        ocrConfidence={ocrConfidence}
       />
 
       <div className="grid grid-cols-1 gap-3.5 xl:grid-cols-[1fr_380px]">
@@ -202,6 +220,8 @@ function FilterBar({
   toggleType,
   search,
   setSearch,
+  goalsOnly,
+  toggleGoalsOnly,
 }: {
   periodsAvailable: Array<[number, string]>
   periodFilter: PeriodFilter
@@ -215,6 +235,8 @@ function FilterBar({
   toggleType: (t: FilterableType) => void
   search: string
   setSearch: (v: string) => void
+  goalsOnly: boolean
+  toggleGoalsOnly: () => void
 }) {
   return (
     <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border border-[var(--color-border)] bg-[var(--color-surface)] px-3.5 py-2.5">
@@ -271,6 +293,20 @@ function FilterBar({
       </div>
 
       <SearchInput value={search} onChange={setSearch} />
+
+      <button
+        type="button"
+        onClick={toggleGoalsOnly}
+        aria-pressed={goalsOnly}
+        className={`ml-auto inline-flex items-center gap-1.5 border px-2.5 py-[5px] font-condensed text-[10.5px] font-bold uppercase tracking-[0.16em] transition-colors ${
+          goalsOnly
+            ? 'border-[rgba(232,65,49,0.4)] bg-[rgba(232,65,49,0.10)] text-[var(--color-accent)]'
+            : 'border-[var(--color-border)] bg-[var(--color-background)] text-[var(--color-fg-3)] hover:text-[var(--color-fg-1)]'
+        }`}
+      >
+        <GoalMarker side="home" size={12} />
+        <span>Goals only</span>
+      </button>
     </div>
   )
 }
@@ -416,12 +452,14 @@ function SummaryStrip({
   unplaced,
   totals,
   oppAbbrev,
+  ocrConfidence,
 }: {
   visible: number
   onRink: number
   unplaced: number
   totals: { goalsBgm: number; goalsOpp: number; shots: number; hits: number; penalties: number }
   oppAbbrev: string
+  ocrConfidence: number | null
 }) {
   return (
     <div className="flex flex-wrap items-center gap-x-5 gap-y-2 border border-t-0 border-[var(--color-border)] bg-[var(--color-surface)] px-3.5 py-2">
@@ -438,6 +476,18 @@ function SummaryStrip({
         <SummaryKV k="Hits" v={String(totals.hits)} />
         <SummaryKV k="Penalties" v={String(totals.penalties)} />
       </SummaryGroup>
+      <div className="h-7 w-px bg-[var(--color-border)]" aria-hidden />
+      <SummaryGroup>
+        {ocrConfidence !== null && ocrConfidence >= 0.75 ? (
+          <SummaryKV k="OCR confidence" v={ocrConfidence.toFixed(2)} tone="win" />
+        ) : (
+          <SummaryKV
+            k="OCR confidence"
+            v={ocrConfidence === null ? '—' : ocrConfidence.toFixed(2)}
+          />
+        )}
+        <SummaryKV k="Source" v="Action Tracker OCR · v2" small />
+      </SummaryGroup>
     </div>
   )
 }
@@ -451,26 +501,32 @@ function SummaryKV({
   v,
   accent,
   dim,
+  tone,
+  small,
 }: {
   k: string
   v: string
   accent?: boolean
   dim?: boolean
+  tone?: 'win'
+  small?: boolean
 }) {
+  const colorClass = accent === true
+    ? 'text-[var(--color-accent)]'
+    : tone === 'win'
+      ? 'text-[var(--color-win,#3fb27f)]'
+      : dim === true
+        ? 'text-[var(--color-fg-4)]'
+        : small === true
+          ? 'text-[var(--color-fg-3)]'
+          : 'text-[var(--color-fg-1)]'
+  const sizeClass = small === true ? 'text-[11px] font-bold' : 'text-[18px] font-black tabular-nums'
   return (
     <div className="flex flex-col gap-[1px]">
       <span className="font-condensed text-[9px] font-semibold uppercase tracking-[0.22em] text-[var(--color-fg-5)]">
         {k}
       </span>
-      <span
-        className={`font-condensed text-[18px] font-black tabular-nums leading-none ${
-          accent === true
-            ? 'text-[var(--color-accent)]'
-            : dim === true
-              ? 'text-[var(--color-fg-4)]'
-              : 'text-[var(--color-fg-1)]'
-        }`}
-      >
+      <span className={`font-condensed leading-none ${sizeClass} ${colorClass}`}>
         {v}
       </span>
     </div>
@@ -603,7 +659,7 @@ function EventCard({ event, oppAbbrev }: { event: MatchEventRow; oppAbbrev: stri
     : target
 
   return (
-    <div className="relative grid grid-cols-[3px_38px_36px_1fr_auto] items-center gap-2.5 border-b border-[color:rgba(58,56,57,0.5)] py-2.5 pl-0 pr-3 transition-colors hover:bg-[rgba(232,65,49,0.04)]">
+    <div className="relative grid grid-cols-[3px_38px_32px_32px_1fr_auto] items-center gap-2 border-b border-[color:rgba(58,56,57,0.5)] py-2.5 pl-0 pr-3 transition-colors hover:bg-[rgba(232,65,49,0.04)]">
       <span className={`absolute left-0 top-0 bottom-0 w-[3px] ${rail}`} aria-hidden />
       <span aria-hidden />
       <span className="text-center font-condensed leading-tight">
@@ -615,6 +671,7 @@ function EventCard({ event, oppAbbrev }: { event: MatchEventRow; oppAbbrev: stri
         </span>
       </span>
       <EventIcon eventType={event.eventType} isBgm={isBgm} />
+      <EventAvatar isBgm={isBgm} />
       <div className="min-w-0">
         <div className="flex items-baseline gap-2">
           <span
@@ -673,12 +730,39 @@ function EventCard({ event, oppAbbrev }: { event: MatchEventRow; oppAbbrev: stri
 function EventIcon({ eventType, isBgm }: { eventType: string; isBgm: boolean }) {
   const side: 'home' | 'away' = isBgm ? 'home' : 'away'
   const size = 26
-  if (eventType === 'goal') return <Avatar><GoalMarker side={side} size={size} /></Avatar>
-  if (eventType === 'shot') return <Avatar><ShotMarker side={side} size={size} /></Avatar>
-  if (eventType === 'hit') return <Avatar><HitMarker side={side} size={size} /></Avatar>
-  if (eventType === 'penalty') return <Avatar><PenaltyMarker side={side} size={size} /></Avatar>
-  // Faceoff: silhouette with team-side ring tint, mirroring the design's
-  // "no marker — show participant" treatment for list-only events.
+  if (eventType === 'goal') return <IconSlot><GoalMarker side={side} size={size} /></IconSlot>
+  if (eventType === 'shot') return <IconSlot><ShotMarker side={side} size={size} /></IconSlot>
+  if (eventType === 'hit') return <IconSlot><HitMarker side={side} size={size} /></IconSlot>
+  if (eventType === 'penalty') return <IconSlot><PenaltyMarker side={side} size={size} /></IconSlot>
+  // Faceoff: dim dashed-circle glyph — the design's stand-in for an event
+  // type that doesn't get a rink marker.
+  return (
+    <IconSlot>
+      <svg viewBox="0 0 24 24" width={20} height={20} className="opacity-40" aria-hidden>
+        <circle
+          cx={12}
+          cy={12}
+          r={9}
+          fill="none"
+          stroke="currentColor"
+          strokeDasharray="2 2"
+          strokeWidth={1.5}
+          className="text-[var(--color-fg-3)]"
+        />
+      </svg>
+    </IconSlot>
+  )
+}
+
+function IconSlot({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="flex h-8 w-8 items-center justify-center" aria-hidden>
+      {children}
+    </div>
+  )
+}
+
+function EventAvatar({ isBgm }: { isBgm: boolean }) {
   return (
     <div
       className={`flex h-8 w-8 items-end justify-center overflow-hidden rounded-full border ${
@@ -689,14 +773,6 @@ function EventIcon({ eventType, isBgm }: { eventType: string; isBgm: boolean }) 
       aria-hidden
     >
       <PlayerSilhouette sizeClass="h-7 w-7" />
-    </div>
-  )
-}
-
-function Avatar({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="flex h-8 w-8 items-center justify-center" aria-hidden>
-      {children}
     </div>
   )
 }
