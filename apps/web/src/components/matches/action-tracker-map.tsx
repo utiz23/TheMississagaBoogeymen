@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { MatchEventRow } from '@eanhl/db/queries'
 import { SectionHeader } from '@/components/ui/section-header'
 import { RinkSvg } from '@/components/branding/rink'
@@ -162,6 +162,9 @@ export function ActionTrackerMap({ events, opponentLabel }: ActionTrackerMapProp
     setEnabledTypes(goalsOnly ? new Set(ALL_TYPES) : new Set(['goal']))
   }
 
+  const toggleSelected = (id: number) => setSelectedId((prev) => (prev === id ? null : id))
+  const clearSelected = () => setSelectedId(null)
+
   const toggleType = (t: FilterableType) => {
     setEnabledTypes((prev) => {
       const next = new Set(prev)
@@ -207,13 +210,18 @@ export function ActionTrackerMap({ events, opponentLabel }: ActionTrackerMapProp
           oppAbbrev={oppAbbrev}
           hoveredId={hoveredId}
           onHover={setHoveredId}
+          selectedId={selectedId}
+          onSelect={toggleSelected}
+          onClearSelected={clearSelected}
         />
         <EventList
           events={visibleCards}
           sortMode={sortMode}
           setSortMode={setSortMode}
           selectedId={selectedId}
-          onSelect={(id) => setSelectedId((prev) => (prev === id ? null : id))}
+          hoveredId={hoveredId}
+          onHover={setHoveredId}
+          onSelect={toggleSelected}
         />
       </div>
     </section>
@@ -555,13 +563,22 @@ function RinkPanel({
   oppAbbrev,
   hoveredId,
   onHover,
+  selectedId,
+  onSelect,
+  onClearSelected,
 }: {
   events: MatchEventRow[]
   oppAbbrev: string
   hoveredId: number | null
   onHover: (id: number | null) => void
+  selectedId: number | null
+  onSelect: (id: number) => void
+  onClearSelected: () => void
 }) {
-  const hovered = hoveredId === null ? null : events.find((e) => e.id === hoveredId) ?? null
+  // Tooltip prefers explicit hover; falls back to the selected marker so the
+  // pinned event keeps its detail panel visible.
+  const focusedId = hoveredId ?? selectedId
+  const focused = focusedId === null ? null : events.find((e) => e.id === focusedId) ?? null
   return (
     <div className="border border-[var(--color-border)] broadcast-panel-strong px-3.5 pb-2 pt-3.5">
       <div className="mb-2.5 flex items-center gap-3.5">
@@ -577,6 +594,7 @@ function RinkPanel({
       <div
         className="relative w-full"
         onMouseLeave={() => onHover(null)}
+        onClick={onClearSelected}
       >
         <RinkSvg className="block h-auto w-full" />
         <svg
@@ -585,17 +603,24 @@ function RinkPanel({
           className="absolute inset-0 block h-auto w-full"
           aria-hidden
         >
-          {events.map((e) => (
-            <Marker
-              key={e.id}
-              event={e}
-              hovered={hoveredId === e.id}
-              onEnter={() => onHover(e.id)}
-              onLeave={() => onHover(null)}
-            />
-          ))}
+          {events.map((e) => {
+            const isSelected = selectedId === e.id
+            const isFaded = selectedId !== null && !isSelected
+            return (
+              <Marker
+                key={e.id}
+                event={e}
+                hovered={hoveredId === e.id}
+                selected={isSelected}
+                faded={isFaded}
+                onEnter={() => onHover(e.id)}
+                onLeave={() => onHover(null)}
+                onClick={() => onSelect(e.id)}
+              />
+            )
+          })}
         </svg>
-        {hovered ? <MarkerTooltip event={hovered} /> : null}
+        {focused ? <MarkerTooltip event={focused} /> : null}
       </div>
     </div>
   )
@@ -683,14 +708,30 @@ function EventList({
   sortMode,
   setSortMode,
   selectedId,
+  hoveredId,
+  onHover,
   onSelect,
 }: {
   events: MatchEventRow[]
   sortMode: SortMode
   setSortMode: (m: SortMode) => void
   selectedId: number | null
+  hoveredId: number | null
+  onHover: (id: number | null) => void
   onSelect: (id: number) => void
 }) {
+  const scrollRef = useRef<HTMLDivElement | null>(null)
+  // When a card becomes selected (by either click or marker click), scroll it
+  // into view inside the list — block:'nearest' is a no-op if already visible.
+  useEffect(() => {
+    if (selectedId === null) return
+    const container = scrollRef.current
+    if (!container) return
+    const target = container.querySelector<HTMLElement>(
+      `[data-event-id="${String(selectedId)}"]`,
+    )
+    if (target) target.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+  }, [selectedId])
   if (events.length === 0) {
     return (
       <div className="flex h-[420px] flex-col items-center justify-center gap-2 border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-6 text-center xl:h-[612px]">
@@ -744,7 +785,7 @@ function EventList({
           <b className="font-black tabular-nums text-[var(--color-accent)]">{events.length}</b> shown
         </span>
       </div>
-      <div className="flex-1 overflow-y-auto">
+      <div ref={scrollRef} className="flex-1 overflow-y-auto">
         {showPeriodDividers
           ? byPeriod.map((g) => (
               <div key={g.period}>
@@ -754,7 +795,9 @@ function EventList({
                     key={e.id}
                     event={e}
                     selected={selectedId === e.id}
+                    hovered={hoveredId === e.id}
                     onSelect={() => onSelect(e.id)}
+                    onHover={onHover}
                   />
                 ))}
               </div>
@@ -764,7 +807,9 @@ function EventList({
                 key={e.id}
                 event={e}
                 selected={selectedId === e.id}
+                hovered={hoveredId === e.id}
                 onSelect={() => onSelect(e.id)}
+                onHover={onHover}
               />
             ))}
       </div>
@@ -808,11 +853,15 @@ function PeriodDivider({ label, count }: { label: string; count: number }) {
 function EventCard({
   event,
   selected,
+  hovered,
   onSelect,
+  onHover,
 }: {
   event: MatchEventRow
   selected: boolean
+  hovered: boolean
   onSelect: () => void
+  onHover: (id: number | null) => void
 }) {
   const isBgm = event.teamSide === 'for'
   const isFaceoff = event.eventType === 'faceoff'
@@ -835,24 +884,34 @@ function EventCard({
     ? (infraction ? infraction.toUpperCase() : null)
     : target
 
+  // Selected wins over hover. Hover (from marker or pointer) adds a soft
+  // accent ring so the user can see which card the rink interaction maps to.
   const bgClass = selected
     ? isBgm
       ? 'bg-[rgba(232,65,49,0.10)]'
       : 'bg-[rgba(235,235,235,0.04)]'
-    : 'hover:bg-[rgba(232,65,49,0.04)]'
+    : hovered
+      ? 'bg-[rgba(232,65,49,0.05)]'
+      : 'hover:bg-[rgba(232,65,49,0.04)]'
   const railWidth = selected ? 'w-[4px]' : 'w-[3px]'
   const railShadow = selected
     ? isBgm
       ? 'shadow-[0_0_10px_rgba(232,65,49,0.6)]'
       : 'shadow-[0_0_10px_rgba(235,235,235,0.4)]'
     : ''
+  const hoverRing = hovered && !selected
+    ? 'ring-1 ring-inset ring-[rgba(232,65,49,0.35)]'
+    : ''
 
   return (
     <button
       type="button"
       onClick={onSelect}
+      onMouseEnter={() => onHover(event.id)}
+      onMouseLeave={() => onHover(null)}
+      data-event-id={String(event.id)}
       aria-pressed={selected}
-      className={`relative grid w-full grid-cols-[3px_38px_32px_32px_1fr_auto] items-center gap-2 border-b border-[color:rgba(58,56,57,0.5)] py-2.5 pl-0 pr-3 text-left transition-colors ${bgClass}`}
+      className={`relative grid w-full grid-cols-[3px_38px_32px_32px_1fr_auto] items-center gap-2 border-b border-[color:rgba(58,56,57,0.5)] py-2.5 pl-0 pr-3 text-left transition-colors ${bgClass} ${hoverRing}`}
     >
       <span className={`absolute left-0 top-0 bottom-0 ${railWidth} ${rail} ${railShadow}`} aria-hidden />
       <span aria-hidden />
@@ -976,13 +1035,19 @@ function EventAvatar({ isBgm }: { isBgm: boolean }) {
 function Marker({
   event,
   hovered,
+  selected,
+  faded,
   onEnter,
   onLeave,
+  onClick,
 }: {
   event: MatchEventRow
   hovered: boolean
+  selected: boolean
+  faded: boolean
   onEnter: () => void
   onLeave: () => void
+  onClick: () => void
 }) {
   const hockeyX = Number(event.x)
   const hockeyY = Number(event.y)
@@ -991,64 +1056,40 @@ function Marker({
   const side: 'home' | 'away' = event.teamSide === 'for' ? 'home' : 'away'
   const extrapolated = event.positionConfidence === 'extrapolated'
 
+  const common = {
+    x: svgX,
+    y: svgY,
+    extrapolated,
+    hovered,
+    selected,
+    faded,
+    onEnter,
+    onLeave,
+    onClick,
+  }
+
   switch (event.eventType) {
     case 'goal':
       return (
-        <PlacedMarker
-          x={svgX}
-          y={svgY}
-          width={112}
-          height={97}
-          extrapolated={extrapolated}
-          hovered={hovered}
-          onEnter={onEnter}
-          onLeave={onLeave}
-        >
+        <PlacedMarker {...common} width={112} height={97}>
           <GoalMarker side={side} size={112} />
         </PlacedMarker>
       )
     case 'shot':
       return (
-        <PlacedMarker
-          x={svgX}
-          y={svgY}
-          width={84}
-          height={84}
-          extrapolated={extrapolated}
-          hovered={hovered}
-          onEnter={onEnter}
-          onLeave={onLeave}
-        >
+        <PlacedMarker {...common} width={84} height={84}>
           <ShotMarker side={side} size={84} />
         </PlacedMarker>
       )
     case 'hit':
       return (
-        <PlacedMarker
-          x={svgX}
-          y={svgY}
-          width={80}
-          height={80}
-          extrapolated={extrapolated}
-          hovered={hovered}
-          onEnter={onEnter}
-          onLeave={onLeave}
-        >
+        <PlacedMarker {...common} width={80} height={80}>
           <HitMarker side={side} size={80} />
         </PlacedMarker>
       )
     case 'penalty':
       return (
-        <PlacedMarker
-          x={svgX}
-          y={svgY}
-          width={112}
-          height={112}
-          extrapolated={extrapolated}
-          hovered={hovered}
-          onEnter={onEnter}
-          onLeave={onLeave}
-        >
+        <PlacedMarker {...common} width={112} height={112}>
           <PenaltyMarker side={side} size={112} />
         </PlacedMarker>
       )
@@ -1064,8 +1105,11 @@ function PlacedMarker({
   height,
   extrapolated,
   hovered,
+  selected,
+  faded,
   onEnter,
   onLeave,
+  onClick,
   children,
 }: {
   x: number
@@ -1074,26 +1118,47 @@ function PlacedMarker({
   height: number
   extrapolated?: boolean
   hovered: boolean
+  selected: boolean
+  faded: boolean
   onEnter: () => void
   onLeave: () => void
+  onClick: () => void
   children: React.ReactNode
 }) {
   const halfW = width / 2
   const halfH = height / 2
   const cx = Math.max(halfW, Math.min(VIEW_W - halfW, x))
   const cy = Math.max(halfH, Math.min(VIEW_H - halfH, y))
-  // Halo radius scales with the larger marker dimension; matches the
-  // design's "soft red halo" hover treatment from the states gallery.
   const haloR = Math.max(width, height) * 0.55
+  // Selection wins over fade for the chosen marker. Hover halo is drawn under
+  // the selected halo so the strong-accent state isn't washed out.
+  const baseOpacity = faded ? 0.18 : (extrapolated === true ? 0.5 : 1)
+  const groupStyle: React.CSSProperties = {
+    cursor: faded ? 'default' : 'pointer',
+    pointerEvents: faded ? 'none' : 'auto',
+    filter: selected ? 'drop-shadow(0 0 12px rgba(232,65,49,0.85))' : undefined,
+    transition: 'opacity 0.12s, filter 0.12s',
+  }
   return (
     <g
       transform={`translate(${cx}, ${cy})`}
-      opacity={extrapolated === true ? 0.5 : 1}
+      opacity={baseOpacity}
       onMouseEnter={onEnter}
       onMouseLeave={onLeave}
-      style={{ cursor: 'pointer' }}
+      onClick={(e) => {
+        e.stopPropagation()
+        onClick()
+      }}
+      style={groupStyle}
     >
-      {hovered ? (
+      {selected ? (
+        <circle
+          r={haloR}
+          fill="rgba(232,65,49,0.22)"
+          stroke="var(--color-accent)"
+          strokeWidth={6}
+        />
+      ) : hovered ? (
         <circle
           r={haloR}
           fill="rgba(232,65,49,0.06)"
