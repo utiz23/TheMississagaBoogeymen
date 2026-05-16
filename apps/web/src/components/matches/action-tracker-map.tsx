@@ -54,7 +54,13 @@ interface ActionTrackerMapProps {
   bgmWasHome?: boolean | null
 }
 
-const BGM_COLOR = '#ce202f'
+// Marker palette follows the Concept B handoff: solid red for the home
+// team in this match, outlined navy for the visitor. The extracted opp
+// brand color (opponent_clubs.primary_color) is preserved in the DB for
+// other surfaces but intentionally not used here — the design's fixed
+// red/navy guarantees visual contrast no matter which two teams play.
+const HOME_COLOR = '#ce202f'
+const AWAY_COLOR = '#233f94'
 
 type FilterableType = 'goal' | 'shot' | 'hit' | 'penalty' | 'faceoff'
 type TeamFilter = 'all' | 'home' | 'away'
@@ -74,16 +80,15 @@ const TYPE_META: { type: FilterableType; label: string }[] = [
 export function ActionTrackerMap({
   events,
   opponentLabel,
-  opponentColor,
+  opponentColor: _opponentColor,
   bgmWasHome,
 }: ActionTrackerMapProps) {
-  // The marker geometry has two design treatments — `home` (solid) and
-  // `away` (outline). We assign them based on actual match home/away. Each
-  // team also keeps its own color regardless of which treatment it ends up
-  // wearing, so both home- and away-style glyphs render in the right hex.
+  void _opponentColor // see HOME_COLOR / AWAY_COLOR comment above
+  // The marker geometry has two design treatments — `home` (solid red) and
+  // `away` (outlined navy). We assign them based on which club actually
+  // had home ice in this match (matches.bgm_was_home). bgmIsHome defaults
+  // to true so legacy rows without the column keep the prior behavior.
   const bgmIsHome = bgmWasHome !== false
-  const homeColor = bgmIsHome ? BGM_COLOR : opponentColor ?? null
-  const awayColor = bgmIsHome ? opponentColor ?? null : BGM_COLOR
   const tracked = events.filter((e) => TRACKED_TYPES.has(e.eventType))
 
   const [enabledTypes, setEnabledTypes] = useState<Set<FilterableType>>(new Set(ALL_TYPES))
@@ -236,7 +241,7 @@ export function ActionTrackerMap({
           hoveredId={hoveredId}
           onHover={setHoveredId}
           onSelect={toggleSelected}
-          opponentColor={opponentColor ?? null}
+          bgmIsHome={bgmIsHome}
         />
         <RinkPanel
           events={visibleMarkers}
@@ -247,8 +252,6 @@ export function ActionTrackerMap({
           onSelect={toggleSelected}
           onClearSelected={clearSelected}
           bgmIsHome={bgmIsHome}
-          homeColor={homeColor}
-          awayColor={awayColor}
         />
       </div>
     </section>
@@ -594,8 +597,6 @@ function RinkPanel({
   onSelect,
   onClearSelected,
   bgmIsHome,
-  homeColor,
-  awayColor,
 }: {
   events: MatchEventRow[]
   oppAbbrev: string
@@ -605,8 +606,6 @@ function RinkPanel({
   onSelect: (id: number) => void
   onClearSelected: () => void
   bgmIsHome: boolean
-  homeColor: string | null
-  awayColor: string | null
 }) {
   // Tooltip prefers explicit hover; falls back to the selected marker so the
   // pinned event keeps its detail panel visible.
@@ -651,26 +650,24 @@ function RinkPanel({
                 onLeave={() => onHover(null)}
                 onClick={() => onSelect(e.id)}
                 bgmIsHome={bgmIsHome}
-                homeColor={homeColor}
-                awayColor={awayColor}
               />
             )
           })}
         </svg>
-        {focused ? <MarkerTooltip event={focused} /> : null}
+        {focused ? <MarkerTooltip event={focused} bgmIsHome={bgmIsHome} /> : null}
       </div>
     </div>
   )
 }
 
-function MarkerTooltip({ event }: { event: MatchEventRow }) {
+function MarkerTooltip({ event, bgmIsHome }: { event: MatchEventRow; bgmIsHome: boolean }) {
   // Position the tooltip at the same clamped center as the rendered marker
   // — otherwise edge-of-rink events drift since the marker clamp moves the
   // glyph but the tooltip would stay at the raw coordinate.
   const center = markerCenter(event)
   const leftPct = (center.x / VIEW_W) * 100
   const topPct = (center.y / VIEW_H) * 100
-  const isBgm = event.teamSide === 'for'
+  const isHomeSide = resolveMarkerSide(event.teamSide, bgmIsHome) === 'home'
   const actor = event.actor?.gamertag ?? event.actorGamertagSnapshot ?? '—'
   const target = event.target?.gamertag ?? event.targetGamertagSnapshot ?? null
   const infraction = (event as { infraction?: string | null }).infraction ?? null
@@ -678,11 +675,11 @@ function MarkerTooltip({ event }: { event: MatchEventRow }) {
     ? (infraction ? infraction.toUpperCase() : null)
     : target
   const periodTag = cleanPeriodLabel(event.periodLabel) || `P${String(event.periodNumber)}`
-  const borderColor = isBgm ? 'rgba(232,65,49,0.45)' : 'var(--color-fg-3)'
+  const borderColor = isHomeSide ? 'rgba(232,65,49,0.45)' : 'rgba(35,63,148,0.55)'
   return (
     <div
       role="tooltip"
-      className="pointer-events-none absolute z-20 max-w-[280px] min-w-[220px] -translate-x-1/2 px-3 py-2.5 bg-[var(--color-charcoal,#1a1819)]"
+      className="pointer-events-none absolute z-20 max-w-[280px] min-w-[220px] px-3 py-2.5 bg-[var(--color-charcoal,#1a1819)]"
       style={{
         left: `${leftPct.toString()}%`,
         top: `${topPct.toString()}%`,
@@ -693,17 +690,17 @@ function MarkerTooltip({ event }: { event: MatchEventRow }) {
     >
       <span
         aria-hidden
-        className="absolute left-1/2 -bottom-[7px] block h-3 w-3 -translate-x-1/2 rotate-45 bg-[var(--color-charcoal,#1a1819)]"
+        className="absolute left-1/2 -bottom-[7px] block h-3 w-3 bg-[var(--color-charcoal,#1a1819)]"
         style={{
+          transform: 'translateX(-50%) rotate(45deg)',
           borderRight: `1px solid ${borderColor}`,
           borderBottom: `1px solid ${borderColor}`,
         }}
       />
       <div className="mb-1.5 flex items-center gap-2">
         <span
-          className={`font-condensed text-[11px] font-black uppercase tracking-[0.18em] ${
-            isBgm ? 'text-[var(--color-accent)]' : 'text-[var(--color-fg-1)]'
-          }`}
+          className="font-condensed text-[11px] font-black uppercase tracking-[0.18em]"
+          style={{ color: isHomeSide ? HOME_COLOR : AWAY_COLOR }}
         >
           {event.eventType}
         </span>
@@ -729,7 +726,7 @@ function MarkerTooltip({ event }: { event: MatchEventRow }) {
         </div>
       ) : null}
       <div className="mt-[7px] flex gap-3 border-t border-[var(--color-border)] pt-[7px] font-condensed text-[10px] font-bold uppercase tracking-[0.14em]">
-        <span className={isBgm ? 'text-[var(--color-accent)]' : 'text-[var(--color-fg-4)]'}>
+        <span style={{ color: isHomeSide ? HOME_COLOR : AWAY_COLOR }}>
           {periodTag}
         </span>
         {event.positionConfidence === 'extrapolated' ? (
@@ -750,7 +747,7 @@ function EventList({
   hoveredId,
   onHover,
   onSelect,
-  opponentColor,
+  bgmIsHome,
 }: {
   events: MatchEventRow[]
   sortMode: SortMode
@@ -759,7 +756,7 @@ function EventList({
   hoveredId: number | null
   onHover: (id: number | null) => void
   onSelect: (id: number) => void
-  opponentColor: string | null
+  bgmIsHome: boolean
 }) {
   const scrollRef = useRef<HTMLDivElement | null>(null)
   // When a card becomes selected (by either click or marker click), scroll it
@@ -839,7 +836,7 @@ function EventList({
                     hovered={hoveredId === e.id}
                     onSelect={() => onSelect(e.id)}
                     onHover={onHover}
-                    opponentColor={opponentColor}
+                    bgmIsHome={bgmIsHome}
                   />
                 ))}
               </div>
@@ -852,7 +849,7 @@ function EventList({
                 hovered={hoveredId === e.id}
                 onSelect={() => onSelect(e.id)}
                 onHover={onHover}
-                opponentColor={opponentColor}
+                bgmIsHome={bgmIsHome}
               />
             ))}
       </div>
@@ -899,24 +896,25 @@ function EventCard({
   hovered,
   onSelect,
   onHover,
-  opponentColor,
+  bgmIsHome,
 }: {
   event: MatchEventRow
   selected: boolean
   hovered: boolean
   onSelect: () => void
   onHover: (id: number | null) => void
-  opponentColor: string | null
+  bgmIsHome: boolean
 }) {
-  const isBgm = event.teamSide === 'for'
   const isFaceoff = event.eventType === 'faceoff'
   const noMarker = !isFaceoff && (event.x === null || event.y === null)
   const lowConf = event.positionConfidence === 'extrapolated'
 
-  // Cards paint in each event's team identity color, independent of the
-  // rink marker design (solid vs outline). A BGM card is always BGM red;
-  // an opp card uses the extracted opponent color, with a neutral fallback.
-  const teamColor = isBgm ? BGM_COLOR : (opponentColor ?? '#7c7c80')
+  // Card paint follows the rink-marker side, so a card always reads the
+  // same color as its glyph: home-side events are red, away-side events
+  // are navy, regardless of which team is BGM.
+  const side: 'home' | 'away' = resolveMarkerSide(event.teamSide, bgmIsHome)
+  const isHomeSide = side === 'home'
+  const teamColor = isHomeSide ? HOME_COLOR : AWAY_COLOR
 
   const rail = isFaceoff
     ? 'bg-[linear-gradient(180deg,var(--color-accent)_50%,var(--color-fg-3)_50%)]'
@@ -933,17 +931,17 @@ function EventCard({
   // Selected wins over hover. Hover (from marker or pointer) adds a soft
   // accent ring so the user can see which card the rink interaction maps to.
   const bgClass = selected
-    ? isBgm
+    ? isHomeSide
       ? 'bg-[rgba(232,65,49,0.10)]'
-      : 'bg-[rgba(235,235,235,0.04)]'
+      : 'bg-[rgba(35,63,148,0.12)]'
     : hovered
       ? 'bg-[rgba(232,65,49,0.05)]'
       : 'hover:bg-[rgba(232,65,49,0.04)]'
   const railWidth = selected ? 'w-[4px]' : 'w-[3px]'
   const railShadow = selected
-    ? isBgm
+    ? isHomeSide
       ? 'shadow-[0_0_10px_rgba(232,65,49,0.6)]'
-      : 'shadow-[0_0_10px_rgba(235,235,235,0.4)]'
+      : 'shadow-[0_0_10px_rgba(35,63,148,0.6)]'
     : ''
   const hoverRing = hovered && !selected
     ? 'ring-1 ring-inset ring-[rgba(232,65,49,0.35)]'
@@ -965,7 +963,7 @@ function EventCard({
         aria-hidden
       />
       <span aria-hidden />
-      <EventAvatar isBgm={isBgm} />
+      <EventAvatar isHomeSide={isHomeSide} />
       <div className="min-w-0">
         <div className="truncate font-condensed text-[13px] font-extrabold uppercase tracking-[0.04em] leading-tight text-[var(--color-fg-1)]">
           {actor}
@@ -985,9 +983,8 @@ function EventCard({
           {event.clock ?? '—'}
         </span>
         <span
-          className={`font-condensed text-[9px] font-extrabold uppercase tracking-[0.2em] leading-none ${
-            isBgm ? 'text-[var(--color-accent)]' : 'text-[var(--color-fg-5)]'
-          }`}
+          className="font-condensed text-[9px] font-extrabold uppercase tracking-[0.2em] leading-none"
+          style={{ color: teamColor }}
         >
           {periodTag}
         </span>
@@ -1041,14 +1038,13 @@ function hexWithAlpha(hex: string, alpha: number): string {
   return `rgba(${String(r)}, ${String(g)}, ${String(b)}, ${String(alpha)})`
 }
 
-function EventAvatar({ isBgm }: { isBgm: boolean }) {
+function EventAvatar({ isHomeSide }: { isHomeSide: boolean }) {
   return (
     <div
-      className={`flex h-8 w-8 items-end justify-center overflow-hidden rounded-full border ${
-        isBgm
-          ? 'border-[rgba(232,65,49,0.3)] bg-[linear-gradient(180deg,rgba(50,48,49,0.9),rgba(26,24,25,1))]'
-          : 'border-[var(--color-border)] bg-[linear-gradient(180deg,rgba(50,48,49,0.9),rgba(26,24,25,1))]'
-      }`}
+      className="flex h-8 w-8 items-end justify-center overflow-hidden rounded-full border bg-[linear-gradient(180deg,rgba(50,48,49,0.9),rgba(26,24,25,1))]"
+      style={{
+        borderColor: isHomeSide ? 'rgba(232,65,49,0.3)' : 'rgba(35,63,148,0.35)',
+      }}
       aria-hidden
     >
       <PlayerSilhouette sizeClass="h-7 w-7" />
@@ -1067,8 +1063,6 @@ function Marker({
   onLeave,
   onClick,
   bgmIsHome,
-  homeColor,
-  awayColor,
 }: {
   event: MatchEventRow
   hovered: boolean
@@ -1078,8 +1072,6 @@ function Marker({
   onLeave: () => void
   onClick: () => void
   bgmIsHome: boolean
-  homeColor: string | null
-  awayColor: string | null
 }) {
   const hockeyX = Number(event.x)
   const hockeyY = Number(event.y)
@@ -1104,25 +1096,25 @@ function Marker({
     case 'goal':
       return (
         <PlacedMarker {...common} width={112} height={97}>
-          <GoalMarker side={side} size={112} homeColor={homeColor} awayColor={awayColor} />
+          <GoalMarker side={side} size={112} />
         </PlacedMarker>
       )
     case 'shot':
       return (
         <PlacedMarker {...common} width={84} height={84}>
-          <ShotMarker side={side} size={84} homeColor={homeColor} awayColor={awayColor} />
+          <ShotMarker side={side} size={84} />
         </PlacedMarker>
       )
     case 'hit':
       return (
         <PlacedMarker {...common} width={80} height={80}>
-          <HitMarker side={side} size={80} homeColor={homeColor} awayColor={awayColor} />
+          <HitMarker side={side} size={80} />
         </PlacedMarker>
       )
     case 'penalty':
       return (
         <PlacedMarker {...common} width={112} height={112}>
-          <PenaltyMarker side={side} size={112} homeColor={homeColor} awayColor={awayColor} />
+          <PenaltyMarker side={side} size={112} />
         </PlacedMarker>
       )
     default:
