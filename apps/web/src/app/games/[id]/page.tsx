@@ -24,7 +24,7 @@ import { ScoresheetSection } from '@/components/matches/scoresheet'
 import { ContextFooter } from '@/components/matches/context-footer'
 import { PeriodSummary } from '@/components/matches/period-summary'
 import { ShotMix } from '@/components/matches/shot-mix'
-import { EventLog } from '@/components/matches/event-log'
+import { EventTimeline } from '@/components/matches/event-timeline'
 import { ActionTrackerMap } from '@/components/matches/action-tracker-map'
 import { LineupSection } from '@/components/matches/lineup-section'
 import { Panel } from '@/components/ui/panel'
@@ -174,8 +174,9 @@ export default async function GameDetailPage({ params, searchParams }: Props) {
         <ScoresheetSection scoresheet={scoresheet} />
       )}
 
-      {/* 5a. OCR-derived event log (goals + penalties). */}
-      <EventLog events={matchEventRows} opponentLabel={match.opponentName} />
+      {/* 5a. OCR-derived event timeline — story-mode scoresheet with running
+            score, lead-change banners, and GWG highlight. */}
+      <EventTimeline events={matchEventRows} opponentLabel={match.opponentName} />
 
       {/* 5b. OCR-derived Action Tracker (Phase 5 — rink-coordinate spatial extraction +
             all-type event card list mirroring the in-game post-game Action Tracker). */}
