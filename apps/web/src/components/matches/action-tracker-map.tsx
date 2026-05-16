@@ -45,7 +45,16 @@ interface ActionTrackerMapProps {
   opponentLabel: string
   /** Hex (e.g. `#cc3333`) extracted from the opp crest. Null = neutral palette. */
   opponentColor?: string | null
+  /**
+   * Whether BGM had home ice. Drives the marker design treatment so the
+   * home-side glyph (solid fill) is drawn for the team that was actually
+   * home and the away-side glyph (color ring around a white center) for
+   * the visitor. Null = legacy fallback where BGM is always home.
+   */
+  bgmWasHome?: boolean | null
 }
+
+const BGM_COLOR = '#ce202f'
 
 type FilterableType = 'goal' | 'shot' | 'hit' | 'penalty' | 'faceoff'
 type TeamFilter = 'all' | 'home' | 'away'
@@ -62,8 +71,19 @@ const TYPE_META: { type: FilterableType; label: string }[] = [
   { type: 'faceoff', label: 'Faceoffs' },
 ]
 
-export function ActionTrackerMap({ events, opponentLabel, opponentColor }: ActionTrackerMapProps) {
-  const awayColor = opponentColor ?? null
+export function ActionTrackerMap({
+  events,
+  opponentLabel,
+  opponentColor,
+  bgmWasHome,
+}: ActionTrackerMapProps) {
+  // The marker geometry has two design treatments — `home` (solid) and
+  // `away` (outline). We assign them based on actual match home/away. Each
+  // team also keeps its own color regardless of which treatment it ends up
+  // wearing, so both home- and away-style glyphs render in the right hex.
+  const bgmIsHome = bgmWasHome !== false
+  const homeColor = bgmIsHome ? BGM_COLOR : opponentColor ?? null
+  const awayColor = bgmIsHome ? opponentColor ?? null : BGM_COLOR
   const tracked = events.filter((e) => TRACKED_TYPES.has(e.eventType))
 
   const [enabledTypes, setEnabledTypes] = useState<Set<FilterableType>>(new Set(ALL_TYPES))
@@ -216,7 +236,7 @@ export function ActionTrackerMap({ events, opponentLabel, opponentColor }: Actio
           hoveredId={hoveredId}
           onHover={setHoveredId}
           onSelect={toggleSelected}
-          awayColor={awayColor}
+          opponentColor={opponentColor ?? null}
         />
         <RinkPanel
           events={visibleMarkers}
@@ -226,6 +246,8 @@ export function ActionTrackerMap({ events, opponentLabel, opponentColor }: Actio
           selectedId={selectedId}
           onSelect={toggleSelected}
           onClearSelected={clearSelected}
+          bgmIsHome={bgmIsHome}
+          homeColor={homeColor}
           awayColor={awayColor}
         />
       </div>
@@ -571,6 +593,8 @@ function RinkPanel({
   selectedId,
   onSelect,
   onClearSelected,
+  bgmIsHome,
+  homeColor,
   awayColor,
 }: {
   events: MatchEventRow[]
@@ -580,6 +604,8 @@ function RinkPanel({
   selectedId: number | null
   onSelect: (id: number) => void
   onClearSelected: () => void
+  bgmIsHome: boolean
+  homeColor: string | null
   awayColor: string | null
 }) {
   // Tooltip prefers explicit hover; falls back to the selected marker so the
@@ -600,10 +626,11 @@ function RinkPanel({
       </div>
       <div
         className="relative w-full"
+        style={{ aspectRatio: `${String(VIEW_W)} / ${String(VIEW_H)}` }}
         onMouseLeave={() => onHover(null)}
         onClick={onClearSelected}
       >
-        <RinkSvg className="block h-auto w-full" />
+        <RinkSvg className="block h-full w-full" />
         <svg
           viewBox="0 0 2405 1025"
           preserveAspectRatio="xMidYMid meet"
@@ -623,6 +650,8 @@ function RinkPanel({
                 onEnter={() => onHover(e.id)}
                 onLeave={() => onHover(null)}
                 onClick={() => onSelect(e.id)}
+                bgmIsHome={bgmIsHome}
+                homeColor={homeColor}
                 awayColor={awayColor}
               />
             )
@@ -721,7 +750,7 @@ function EventList({
   hoveredId,
   onHover,
   onSelect,
-  awayColor,
+  opponentColor,
 }: {
   events: MatchEventRow[]
   sortMode: SortMode
@@ -730,7 +759,7 @@ function EventList({
   hoveredId: number | null
   onHover: (id: number | null) => void
   onSelect: (id: number) => void
-  awayColor: string | null
+  opponentColor: string | null
 }) {
   const scrollRef = useRef<HTMLDivElement | null>(null)
   // When a card becomes selected (by either click or marker click), scroll it
@@ -810,7 +839,7 @@ function EventList({
                     hovered={hoveredId === e.id}
                     onSelect={() => onSelect(e.id)}
                     onHover={onHover}
-                    awayColor={awayColor}
+                    opponentColor={opponentColor}
                   />
                 ))}
               </div>
@@ -823,7 +852,7 @@ function EventList({
                 hovered={hoveredId === e.id}
                 onSelect={() => onSelect(e.id)}
                 onHover={onHover}
-                awayColor={awayColor}
+                opponentColor={opponentColor}
               />
             ))}
       </div>
@@ -870,35 +899,36 @@ function EventCard({
   hovered,
   onSelect,
   onHover,
-  awayColor,
+  opponentColor,
 }: {
   event: MatchEventRow
   selected: boolean
   hovered: boolean
   onSelect: () => void
   onHover: (id: number | null) => void
-  awayColor: string | null
+  opponentColor: string | null
 }) {
   const isBgm = event.teamSide === 'for'
   const isFaceoff = event.eventType === 'faceoff'
   const noMarker = !isFaceoff && (event.x === null || event.y === null)
   const lowConf = event.positionConfidence === 'extrapolated'
 
+  // Cards paint in each event's team identity color, independent of the
+  // rink marker design (solid vs outline). A BGM card is always BGM red;
+  // an opp card uses the extracted opponent color, with a neutral fallback.
+  const teamColor = isBgm ? BGM_COLOR : (opponentColor ?? '#7c7c80')
+
   const rail = isFaceoff
     ? 'bg-[linear-gradient(180deg,var(--color-accent)_50%,var(--color-fg-3)_50%)]'
-    : selected && !isBgm
-      ? 'bg-[var(--color-fg-1)]'
-      : isBgm
-        ? 'bg-[var(--color-accent)]'
-        : 'bg-[var(--color-fg-3)]'
+    : undefined
 
   const actor = event.actor?.gamertag ?? event.actorGamertagSnapshot ?? '—'
   const target = event.target?.gamertag ?? event.targetGamertagSnapshot ?? null
   const periodTag = cleanPeriodLabel(event.periodLabel) || `P${String(event.periodNumber)}`
   const infraction = (event as { infraction?: string | null }).infraction ?? null
-  const targetLine = event.eventType === 'penalty'
-    ? (infraction ? infraction.toUpperCase() : null)
-    : target
+  const pillLabel = event.eventType === 'penalty' && infraction
+    ? infraction.toUpperCase()
+    : event.eventType.toUpperCase()
 
   // Selected wins over hover. Hover (from marker or pointer) adds a soft
   // accent ring so the user can see which card the rink interaction maps to.
@@ -929,41 +959,26 @@ function EventCard({
       aria-pressed={selected}
       className={`relative grid w-full grid-cols-[3px_36px_1fr_auto] items-start gap-2.5 border-b border-[color:rgba(58,56,57,0.5)] py-2.5 pl-0 pr-3 text-left transition-colors ${bgClass} ${hoverRing}`}
     >
-      <span className={`absolute left-0 top-0 bottom-0 ${railWidth} ${rail} ${railShadow}`} aria-hidden />
+      <span
+        className={`absolute left-0 top-0 bottom-0 ${railWidth} ${rail ?? ''} ${railShadow}`}
+        style={rail ? undefined : { backgroundColor: teamColor }}
+        aria-hidden
+      />
       <span aria-hidden />
       <EventAvatar isBgm={isBgm} />
       <div className="min-w-0">
-        <div className="flex items-center gap-2 min-w-0">
-          <InlineTypeMark eventType={event.eventType} isBgm={isBgm} awayColor={awayColor} />
-          <span
-            className={`font-condensed text-[10.5px] font-extrabold uppercase tracking-[0.18em] shrink-0 ${
-              isFaceoff
-                ? 'text-[var(--color-fg-4)]'
-                : isBgm
-                  ? 'text-[var(--color-accent)]'
-                  : 'text-[var(--color-fg-2)]'
-            }`}
-          >
-            {event.eventType}
-          </span>
-          <span className="truncate font-condensed text-[12.5px] font-extrabold uppercase tracking-[0.04em] leading-tight text-[var(--color-fg-1)]">
-            {actor}
-          </span>
+        <div className="truncate font-condensed text-[13px] font-extrabold uppercase tracking-[0.04em] leading-tight text-[var(--color-fg-1)]">
+          {actor}
+          {target ? (
+            <>
+              <span className="mx-1.5 text-[var(--color-fg-5)]">›</span>
+              <span className="text-[var(--color-fg-2)]">{target}</span>
+            </>
+          ) : null}
         </div>
-        {targetLine ? (
-          <div className="mt-[2px] truncate font-condensed text-[10.5px] font-semibold tracking-[0.02em] leading-tight text-[var(--color-fg-3)]">
-            {event.eventType === 'penalty' ? (
-              <span className="font-extrabold uppercase tracking-[0.1em] text-[var(--color-otl)]">
-                {targetLine}
-              </span>
-            ) : (
-              <>
-                <span className="mr-1 text-[var(--color-fg-6)]">→</span>
-                {targetLine}
-              </>
-            )}
-          </div>
-        ) : null}
+        <div className="mt-1.5">
+          <EventTypePill label={pillLabel} color={teamColor} />
+        </div>
       </div>
       <div className="flex flex-col items-end gap-[3px]">
         <span className="font-condensed text-[11px] font-bold tabular-nums tracking-[0.04em] leading-none text-[var(--color-fg-2)]">
@@ -991,36 +1006,39 @@ function EventCard({
   )
 }
 
-function InlineTypeMark({
-  eventType,
-  isBgm,
-  awayColor,
-}: {
-  eventType: string
-  isBgm: boolean
-  awayColor: string | null
-}) {
-  const side: 'home' | 'away' = isBgm ? 'home' : 'away'
-  const size = 14
-  if (eventType === 'goal') return <GoalMarker side={side} size={size} awayColor={awayColor} />
-  if (eventType === 'shot') return <ShotMarker side={side} size={size} awayColor={awayColor} />
-  if (eventType === 'hit') return <HitMarker side={side} size={size} awayColor={awayColor} />
-  if (eventType === 'penalty') return <PenaltyMarker side={side} size={size} awayColor={awayColor} />
-  // Faceoff: the dotted-circle glyph at inline scale.
+function EventTypePill({ label, color }: { label: string; color: string }) {
+  // Team-tinted pill: 14%-alpha fill, color-tinted border, color-tinted
+  // text. Reads as a button without claiming click affordance.
   return (
-    <svg viewBox="0 0 24 24" width={size} height={size} className="shrink-0 opacity-50" aria-hidden>
-      <circle
-        cx={12}
-        cy={12}
-        r={9}
-        fill="none"
-        stroke="currentColor"
-        strokeDasharray="2 2"
-        strokeWidth={1.5}
-        className="text-[var(--color-fg-3)]"
-      />
-    </svg>
+    <span
+      className="inline-flex items-center px-1.5 py-[2px] font-condensed text-[9.5px] font-bold uppercase tracking-[0.18em]"
+      style={{
+        color,
+        borderColor: hexWithAlpha(color, 0.55),
+        backgroundColor: hexWithAlpha(color, 0.14),
+        border: `1px solid ${hexWithAlpha(color, 0.55)}`,
+      }}
+    >
+      {label}
+    </span>
   )
+}
+
+/**
+ * Append an opacity (0–1) to a hex color string, returning a CSS rgba()
+ * value. Handles both 3- and 6-char hex inputs. Falls through to the
+ * original string for unrecognised formats so callers don't break.
+ */
+function hexWithAlpha(hex: string, alpha: number): string {
+  const trimmed = hex.trim().replace('#', '')
+  const isShort = trimmed.length === 3
+  const isLong = trimmed.length === 6
+  if (!isShort && !isLong) return hex
+  const expand = (s: string): number => parseInt(s.length === 1 ? s + s : s, 16)
+  const r = expand(isShort ? trimmed[0]! : trimmed.slice(0, 2))
+  const g = expand(isShort ? trimmed[1]! : trimmed.slice(2, 4))
+  const b = expand(isShort ? trimmed[2]! : trimmed.slice(4, 6))
+  return `rgba(${String(r)}, ${String(g)}, ${String(b)}, ${String(alpha)})`
 }
 
 function EventAvatar({ isBgm }: { isBgm: boolean }) {
@@ -1048,6 +1066,8 @@ function Marker({
   onEnter,
   onLeave,
   onClick,
+  bgmIsHome,
+  homeColor,
   awayColor,
 }: {
   event: MatchEventRow
@@ -1057,13 +1077,15 @@ function Marker({
   onEnter: () => void
   onLeave: () => void
   onClick: () => void
+  bgmIsHome: boolean
+  homeColor: string | null
   awayColor: string | null
 }) {
   const hockeyX = Number(event.x)
   const hockeyY = Number(event.y)
   const svgX = rinkX(hockeyX)
   const svgY = rinkY(hockeyY)
-  const side: 'home' | 'away' = event.teamSide === 'for' ? 'home' : 'away'
+  const side: 'home' | 'away' = resolveMarkerSide(event.teamSide, bgmIsHome)
   const extrapolated = event.positionConfidence === 'extrapolated'
 
   const common = {
@@ -1082,30 +1104,43 @@ function Marker({
     case 'goal':
       return (
         <PlacedMarker {...common} width={112} height={97}>
-          <GoalMarker side={side} size={112} awayColor={awayColor} />
+          <GoalMarker side={side} size={112} homeColor={homeColor} awayColor={awayColor} />
         </PlacedMarker>
       )
     case 'shot':
       return (
         <PlacedMarker {...common} width={84} height={84}>
-          <ShotMarker side={side} size={84} awayColor={awayColor} />
+          <ShotMarker side={side} size={84} homeColor={homeColor} awayColor={awayColor} />
         </PlacedMarker>
       )
     case 'hit':
       return (
         <PlacedMarker {...common} width={80} height={80}>
-          <HitMarker side={side} size={80} awayColor={awayColor} />
+          <HitMarker side={side} size={80} homeColor={homeColor} awayColor={awayColor} />
         </PlacedMarker>
       )
     case 'penalty':
       return (
         <PlacedMarker {...common} width={112} height={112}>
-          <PenaltyMarker side={side} size={112} awayColor={awayColor} />
+          <PenaltyMarker side={side} size={112} homeColor={homeColor} awayColor={awayColor} />
         </PlacedMarker>
       )
     default:
       return null
   }
+}
+
+/**
+ * Resolve which marker design treatment ('home' = solid, 'away' = outline)
+ * an event should wear based on its team side and which team had home ice
+ * in the match. Defaults to BGM-as-home when bgmIsHome can't be determined.
+ */
+function resolveMarkerSide(
+  teamSide: MatchEventRow['teamSide'],
+  bgmIsHome: boolean,
+): 'home' | 'away' {
+  const eventIsBgm = teamSide === 'for'
+  return eventIsBgm === bgmIsHome ? 'home' : 'away'
 }
 
 function PlacedMarker({

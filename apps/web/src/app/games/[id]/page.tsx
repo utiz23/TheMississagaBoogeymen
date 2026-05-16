@@ -185,6 +185,7 @@ export default async function GameDetailPage({ params, searchParams }: Props) {
         events={matchEventRows}
         opponentLabel={match.opponentName}
         opponentColor={opponentPrimaryColor}
+        bgmWasHome={match.bgmWasHome}
       />
 
       {/* 6. Context footer (lowest priority — first to cut if scope shrinks) */}

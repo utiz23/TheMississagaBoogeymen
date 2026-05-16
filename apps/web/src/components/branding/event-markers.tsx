@@ -11,16 +11,27 @@ interface MarkerProps {
    * Ignored when `side === 'home'`.
    */
   awayColor?: string | null
+  /**
+   * Optional override for the home-team accent color. Falls back to the
+   * BGM brand red. Used when the *home* team in a given match is the opp
+   * (i.e. BGM was the away team) and we still want the home marker to
+   * carry that team's color.
+   */
+  homeColor?: string | null
 }
 
-const HOME = '#ce202f'
+const HOME_DEFAULT = '#ce202f'
 const AWAY_DEFAULT = '#233f94'
 function pickAway(awayColor?: string | null): string {
   return awayColor && awayColor.length > 0 ? awayColor : AWAY_DEFAULT
 }
+function pickHome(homeColor?: string | null): string {
+  return homeColor && homeColor.length > 0 ? homeColor : HOME_DEFAULT
+}
 
-export function GoalMarker({ side, size = 18, className, awayColor }: MarkerProps) {
+export function GoalMarker({ side, size = 18, className, awayColor, homeColor }: MarkerProps) {
   const AWAY = pickAway(awayColor)
+  const HOME = pickHome(homeColor)
   return (
     <svg
       viewBox="0 0 39.78 34.45"
@@ -64,8 +75,9 @@ export function GoalMarker({ side, size = 18, className, awayColor }: MarkerProp
   )
 }
 
-export function ShotMarker({ side, size = 18, className, awayColor }: MarkerProps) {
+export function ShotMarker({ side, size = 18, className, awayColor, homeColor }: MarkerProps) {
   const AWAY = pickAway(awayColor)
+  const HOME = pickHome(homeColor)
   return (
     <svg
       viewBox="0 0 36.56 36.56"
@@ -103,8 +115,9 @@ export function ShotMarker({ side, size = 18, className, awayColor }: MarkerProp
   )
 }
 
-export function HitMarker({ side, size = 18, className, awayColor }: MarkerProps) {
+export function HitMarker({ side, size = 18, className, awayColor, homeColor }: MarkerProps) {
   const AWAY = pickAway(awayColor)
+  const HOME = pickHome(homeColor)
   return (
     <svg
       viewBox="0 0 34.45 34.45"
@@ -136,8 +149,9 @@ export function HitMarker({ side, size = 18, className, awayColor }: MarkerProps
   )
 }
 
-export function PenaltyMarker({ side, size = 18, className, awayColor }: MarkerProps) {
+export function PenaltyMarker({ side, size = 18, className, awayColor, homeColor }: MarkerProps) {
   const AWAY = pickAway(awayColor)
+  const HOME = pickHome(homeColor)
   return (
     <svg
       viewBox="0 0 48.72 48.72"
