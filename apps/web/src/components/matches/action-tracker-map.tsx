@@ -204,16 +204,7 @@ export function ActionTrackerMap({ events, opponentLabel }: ActionTrackerMapProp
         ocrConfidence={ocrConfidence}
       />
 
-      <div className="grid grid-cols-1 gap-3.5 xl:grid-cols-[1fr_380px]">
-        <RinkPanel
-          events={visibleMarkers}
-          oppAbbrev={oppAbbrev}
-          hoveredId={hoveredId}
-          onHover={setHoveredId}
-          selectedId={selectedId}
-          onSelect={toggleSelected}
-          onClearSelected={clearSelected}
-        />
+      <div className="grid grid-cols-1 gap-3.5 xl:grid-cols-[380px_1fr]">
         <EventList
           events={visibleCards}
           sortMode={sortMode}
@@ -222,6 +213,15 @@ export function ActionTrackerMap({ events, opponentLabel }: ActionTrackerMapProp
           hoveredId={hoveredId}
           onHover={setHoveredId}
           onSelect={toggleSelected}
+        />
+        <RinkPanel
+          events={visibleMarkers}
+          oppAbbrev={oppAbbrev}
+          hoveredId={hoveredId}
+          onHover={setHoveredId}
+          selectedId={selectedId}
+          onSelect={toggleSelected}
+          onClearSelected={clearSelected}
         />
       </div>
     </section>
@@ -627,10 +627,12 @@ function RinkPanel({
 }
 
 function MarkerTooltip({ event }: { event: MatchEventRow }) {
-  const hockeyX = Number(event.x)
-  const hockeyY = Number(event.y)
-  const leftPct = (rinkX(hockeyX) / VIEW_W) * 100
-  const topPct = (rinkY(hockeyY) / VIEW_H) * 100
+  // Position the tooltip at the same clamped center as the rendered marker
+  // — otherwise edge-of-rink events drift since the marker clamp moves the
+  // glyph but the tooltip would stay at the raw coordinate.
+  const center = markerCenter(event)
+  const leftPct = (center.x / VIEW_W) * 100
+  const topPct = (center.y / VIEW_H) * 100
   const isBgm = event.teamSide === 'for'
   const actor = event.actor?.gamertag ?? event.actorGamertagSnapshot ?? '—'
   const target = event.target?.gamertag ?? event.targetGamertagSnapshot ?? null
@@ -911,24 +913,16 @@ function EventCard({
       onMouseLeave={() => onHover(null)}
       data-event-id={String(event.id)}
       aria-pressed={selected}
-      className={`relative grid w-full grid-cols-[3px_38px_32px_32px_1fr_auto] items-center gap-2 border-b border-[color:rgba(58,56,57,0.5)] py-2.5 pl-0 pr-3 text-left transition-colors ${bgClass} ${hoverRing}`}
+      className={`relative grid w-full grid-cols-[3px_36px_1fr_auto] items-start gap-2.5 border-b border-[color:rgba(58,56,57,0.5)] py-2.5 pl-0 pr-3 text-left transition-colors ${bgClass} ${hoverRing}`}
     >
       <span className={`absolute left-0 top-0 bottom-0 ${railWidth} ${rail} ${railShadow}`} aria-hidden />
       <span aria-hidden />
-      <span className="text-center font-condensed leading-tight">
-        <span className="block font-condensed text-[10px] font-bold tabular-nums tracking-[0.04em] text-[var(--color-fg-3)]">
-          {event.clock ?? '—'}
-        </span>
-        <span className="block font-condensed text-[8.5px] font-bold uppercase tracking-[0.16em] text-[var(--color-fg-6)]">
-          {periodTag}
-        </span>
-      </span>
-      <EventIcon eventType={event.eventType} isBgm={isBgm} />
       <EventAvatar isBgm={isBgm} />
       <div className="min-w-0">
-        <div className="flex items-baseline gap-2">
+        <div className="flex items-center gap-2 min-w-0">
+          <InlineTypeMark eventType={event.eventType} isBgm={isBgm} />
           <span
-            className={`font-condensed text-[11px] font-extrabold uppercase tracking-[0.18em] ${
+            className={`font-condensed text-[10.5px] font-extrabold uppercase tracking-[0.18em] shrink-0 ${
               isFaceoff
                 ? 'text-[var(--color-fg-4)]'
                 : isBgm
@@ -938,12 +932,12 @@ function EventCard({
           >
             {event.eventType}
           </span>
-        </div>
-        <div className="mt-[1px] truncate font-condensed text-[12.5px] font-extrabold uppercase tracking-[0.04em] leading-tight text-[var(--color-fg-1)]">
-          {actor}
+          <span className="truncate font-condensed text-[12.5px] font-extrabold uppercase tracking-[0.04em] leading-tight text-[var(--color-fg-1)]">
+            {actor}
+          </span>
         </div>
         {targetLine ? (
-          <div className="mt-[1px] truncate font-condensed text-[10.5px] font-semibold tracking-[0.02em] leading-tight text-[var(--color-fg-3)]">
+          <div className="mt-[2px] truncate font-condensed text-[10.5px] font-semibold tracking-[0.02em] leading-tight text-[var(--color-fg-3)]">
             {event.eventType === 'penalty' ? (
               <span className="font-extrabold uppercase tracking-[0.1em] text-[var(--color-otl)]">
                 {targetLine}
@@ -957,9 +951,12 @@ function EventCard({
           </div>
         ) : null}
       </div>
-      <div className="flex flex-col items-end gap-1">
+      <div className="flex flex-col items-end gap-[3px]">
+        <span className="font-condensed text-[11px] font-bold tabular-nums tracking-[0.04em] leading-none text-[var(--color-fg-2)]">
+          {event.clock ?? '—'}
+        </span>
         <span
-          className={`font-condensed text-[9px] font-extrabold uppercase tracking-[0.2em] ${
+          className={`font-condensed text-[9px] font-extrabold uppercase tracking-[0.2em] leading-none ${
             isBgm ? 'text-[var(--color-accent)]' : 'text-[var(--color-fg-5)]'
           }`}
         >
@@ -980,38 +977,27 @@ function EventCard({
   )
 }
 
-function EventIcon({ eventType, isBgm }: { eventType: string; isBgm: boolean }) {
+function InlineTypeMark({ eventType, isBgm }: { eventType: string; isBgm: boolean }) {
   const side: 'home' | 'away' = isBgm ? 'home' : 'away'
-  const size = 26
-  if (eventType === 'goal') return <IconSlot><GoalMarker side={side} size={size} /></IconSlot>
-  if (eventType === 'shot') return <IconSlot><ShotMarker side={side} size={size} /></IconSlot>
-  if (eventType === 'hit') return <IconSlot><HitMarker side={side} size={size} /></IconSlot>
-  if (eventType === 'penalty') return <IconSlot><PenaltyMarker side={side} size={size} /></IconSlot>
-  // Faceoff: dim dashed-circle glyph — the design's stand-in for an event
-  // type that doesn't get a rink marker.
+  const size = 14
+  if (eventType === 'goal') return <GoalMarker side={side} size={size} />
+  if (eventType === 'shot') return <ShotMarker side={side} size={size} />
+  if (eventType === 'hit') return <HitMarker side={side} size={size} />
+  if (eventType === 'penalty') return <PenaltyMarker side={side} size={size} />
+  // Faceoff: the dotted-circle glyph at inline scale.
   return (
-    <IconSlot>
-      <svg viewBox="0 0 24 24" width={20} height={20} className="opacity-40" aria-hidden>
-        <circle
-          cx={12}
-          cy={12}
-          r={9}
-          fill="none"
-          stroke="currentColor"
-          strokeDasharray="2 2"
-          strokeWidth={1.5}
-          className="text-[var(--color-fg-3)]"
-        />
-      </svg>
-    </IconSlot>
-  )
-}
-
-function IconSlot({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="flex h-8 w-8 items-center justify-center" aria-hidden>
-      {children}
-    </div>
+    <svg viewBox="0 0 24 24" width={size} height={size} className="shrink-0 opacity-50" aria-hidden>
+      <circle
+        cx={12}
+        cy={12}
+        r={9}
+        fill="none"
+        stroke="currentColor"
+        strokeDasharray="2 2"
+        strokeWidth={1.5}
+        className="text-[var(--color-fg-3)]"
+      />
+    </svg>
   )
 }
 
@@ -1181,6 +1167,28 @@ function rinkX(hockeyX: number): number {
 function rinkY(hockeyY: number): number {
   const clamped = Math.max(-42.5, Math.min(42.5, hockeyY))
   return 512.5 - clamped * 12
+}
+
+function markerSize(type: string): { width: number; height: number } {
+  switch (type) {
+    case 'goal': return { width: 112, height: 97 }
+    case 'shot': return { width: 84, height: 84 }
+    case 'hit': return { width: 80, height: 80 }
+    case 'penalty': return { width: 112, height: 112 }
+    default: return { width: 84, height: 84 }
+  }
+}
+
+function markerCenter(event: MatchEventRow): { x: number; y: number } {
+  const { width, height } = markerSize(event.eventType)
+  const halfW = width / 2
+  const halfH = height / 2
+  const rawX = rinkX(Number(event.x))
+  const rawY = rinkY(Number(event.y))
+  return {
+    x: Math.max(halfW, Math.min(VIEW_W - halfW, rawX)),
+    y: Math.max(halfH, Math.min(VIEW_H - halfH, rawY)),
+  }
 }
 
 // ─── Pure helpers ───────────────────────────────────────────────────────────
