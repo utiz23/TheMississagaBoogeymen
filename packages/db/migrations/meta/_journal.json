@@ -281,6 +281,13 @@
       "when": 1778899705296,
       "tag": "0039_dear_reptil",
       "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1778919778511,
+      "tag": "0040_breezy_sabretooth",
+      "breakpoints": true
     }
   ]
 }

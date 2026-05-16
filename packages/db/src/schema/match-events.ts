@@ -54,19 +54,24 @@ export const matchEvents = pgTable(
     y: numeric('y', { precision: 6, scale: 2 }),
     rinkZone: text('rink_zone'),
     /**
-     * Confidence of the (x, y) derivation:
+     * Provenance of the (x, y) derivation:
      *   'interpolated' — pixel position was inside the convex hull of the
      *      calibration landmarks; RBF prediction is bounded by the
      *      enclosing landmarks and high-confidence.
      *   'extrapolated' — pixel position was outside the landmark hull;
      *      RBF extrapolated and TRE is unbounded. UI should treat these
      *      markers as low-confidence (dotted outline / muted).
+     *   'manual' — operator-entered after review of an extractor edge
+     *      case (event never had a yellow-selected capture, or two
+     *      neighbouring events shared the same yellow marker frame).
+     *      Trusted at face value by the UI.
      * Null when (x, y) is null OR derived via a non-OCR pipeline.
      * See `docs/ocr/marker-extraction-research.md` for the calibration
-     * method and hull-coverage statistics.
+     * method and `docs/ocr/manual-event-corrections.md` for the manual
+     * override workflow.
      */
     positionConfidence: text('position_confidence').$type<
-      'interpolated' | 'extrapolated'
+      'interpolated' | 'extrapolated' | 'manual'
     >(),
     source: text('source').notNull().$type<EnrichmentSource>(),
     ocrExtractionId: bigint('ocr_extraction_id', { mode: 'number' }).references(
@@ -90,7 +95,7 @@ export const matchEvents = pgTable(
     ),
     check(
       'match_events_position_confidence_check',
-      sql`${table.positionConfidence} IS NULL OR ${table.positionConfidence} IN ('interpolated', 'extrapolated')`,
+      sql`${table.positionConfidence} IS NULL OR ${table.positionConfidence} IN ('interpolated', 'extrapolated', 'manual')`,
     ),
   ],
 )
