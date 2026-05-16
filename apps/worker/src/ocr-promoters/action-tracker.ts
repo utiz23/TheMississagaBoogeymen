@@ -114,13 +114,18 @@ export async function promoteActionTracker(ctx: PromoterContext): Promise<void> 
     const periodNumber = resolvePeriod(ev.period_number, sourcePath)
     if (periodNumber < 1) continue
 
-    // Resolve actor → players.id; team_side derived from whether resolution found a BGM-rostered player.
+    // Resolve actor + target → players.id. team_side prefers actor → BGM,
+    // and falls back to target → BGM (meaning opp did something to a BGM
+    // player, so the event is 'against'). The Action Tracker screen
+    // doesn't show team abbreviations, so we infer team identity through
+    // the rostered-player check on both ends of the event.
+    const target = stringValue(ev.target_snapshot)
     const { playerId: actorPlayerId } = await resolveGamertagToPlayer(actor, gameTitleId, db)
-    // For the for/against decision: in Action Tracker we don't have the team
-    // abbreviation directly. Default 'for' if the gamertag matched a known
-    // player (presumed BGM); otherwise 'against'. This is a coarse heuristic
-    // that the review pass will correct.
-    const teamSide: 'for' | 'against' = actorPlayerId !== null ? 'for' : 'against'
+    const { playerId: targetPlayerId } = target
+      ? await resolveGamertagToPlayer(target, gameTitleId, db)
+      : { playerId: null }
+    const teamSide: 'for' | 'against' =
+      actorPlayerId !== null ? 'for' : targetPlayerId !== null ? 'against' : 'against'
 
     // Cross-screen dedup via findExistingMatchEvent: prefers resolved
     // player_id when available; falls back to Levenshtein-1 against
@@ -145,11 +150,6 @@ export async function promoteActionTracker(ctx: PromoterContext): Promise<void> 
         .where(eq(matchEvents.id, existingId))
       continue
     }
-
-    const target = stringValue(ev.target_snapshot)
-    const { playerId: targetPlayerId } = target
-      ? await resolveGamertagToPlayer(target, gameTitleId, db)
-      : { playerId: null }
 
     const newEvent: NewMatchEvent = {
       matchId,
