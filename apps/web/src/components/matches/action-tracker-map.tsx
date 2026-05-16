@@ -118,7 +118,15 @@ export function ActionTrackerMap({
   const tracked = events.filter((e) => TRACKED_TYPES.has(e.eventType))
 
   const [enabledTypes, setEnabledTypes] = useState<Set<FilterableType>>(new Set(ALL_TYPES))
-  const [periodFilter, setPeriodFilter] = useState<PeriodFilter>('all')
+  // Default to the first chronological period in this match. Falls back to
+  // 'all' when no events have a period (e.g. legacy data) so the picker
+  // doesn't render in a non-selectable state.
+  const [periodFilter, setPeriodFilter] = useState<PeriodFilter>(() => {
+    const seen = new Set<number>()
+    for (const e of events) seen.add(e.periodNumber)
+    const sorted = [...seen].sort((a, b) => a - b)
+    return sorted[0] ?? 'all'
+  })
   const [teamFilter, setTeamFilter] = useState<TeamFilter>('all')
   const [search, setSearch] = useState('')
   const [sortMode, setSortMode] = useState<SortMode>('period')
@@ -960,24 +968,13 @@ function EventCard({
     ? infraction.toUpperCase()
     : event.eventType.toUpperCase()
 
-  // Selected wins over hover. Hover (from marker or pointer) adds a soft
-  // accent ring so the user can see which card the rink interaction maps to.
-  const bgClass = selected
-    ? isHomeSide
-      ? 'bg-[rgba(232,65,49,0.10)]'
-      : 'bg-[rgba(35,63,148,0.12)]'
-    : hovered
-      ? 'bg-[rgba(232,65,49,0.05)]'
-      : 'hover:bg-[rgba(232,65,49,0.04)]'
+  // Selected wins over hover. Both states are tinted with this event's
+  // own team colour so the card visually echoes its rink marker.
+  const selectedBg = hexWithAlpha(teamColor, 0.16)
+  const hoverBg = hexWithAlpha(teamColor, 0.06)
+  const selectedRailShadow = `0 0 12px ${hexWithAlpha(teamColor, 0.65)}`
   const railWidth = selected ? 'w-[4px]' : 'w-[3px]'
-  const railShadow = selected
-    ? isHomeSide
-      ? 'shadow-[0_0_10px_rgba(232,65,49,0.6)]'
-      : 'shadow-[0_0_10px_rgba(35,63,148,0.6)]'
-    : ''
-  const hoverRing = hovered && !selected
-    ? 'ring-1 ring-inset ring-[rgba(232,65,49,0.35)]'
-    : ''
+  const hoverRingColor = hexWithAlpha(teamColor, 0.45)
 
   return (
     <button
@@ -987,46 +984,53 @@ function EventCard({
       onMouseLeave={() => onHover(null)}
       data-event-id={String(event.id)}
       aria-pressed={selected}
-      className={`relative grid w-full grid-cols-[3px_36px_1fr_auto] items-start gap-2.5 border-b border-[color:rgba(58,56,57,0.5)] py-2.5 pl-0 pr-3 text-left transition-colors ${bgClass} ${hoverRing}`}
+      className={`relative grid w-full grid-cols-[3px_40px_1fr_auto] items-center gap-3 border-b border-[color:rgba(58,56,57,0.5)] py-3.5 pl-0 pr-3.5 text-left transition-colors`}
+      style={{
+        backgroundColor: selected ? selectedBg : hovered ? hoverBg : undefined,
+        boxShadow: hovered && !selected ? `inset 0 0 0 1px ${hoverRingColor}` : undefined,
+      }}
     >
       <span
-        className={`absolute left-0 top-0 bottom-0 ${railWidth} ${rail ?? ''} ${railShadow}`}
-        style={rail ? undefined : { backgroundColor: teamColor }}
+        className={`absolute left-0 top-0 bottom-0 ${railWidth} ${rail ?? ''}`}
+        style={{
+          backgroundColor: rail ? undefined : teamColor,
+          boxShadow: selected ? selectedRailShadow : undefined,
+        }}
         aria-hidden
       />
       <span aria-hidden />
       <EventAvatar isHomeSide={isHomeSide} />
       <div className="min-w-0">
-        <div className="truncate font-condensed text-[13px] font-extrabold uppercase tracking-[0.04em] leading-tight text-[var(--color-fg-1)]">
+        <div className="truncate font-condensed text-[15px] font-extrabold uppercase tracking-[0.04em] leading-snug text-[var(--color-fg-1)]">
           {actor}
           {target ? (
             <>
-              <span className="mx-1.5 text-[var(--color-fg-5)]">›</span>
+              <span className="mx-2 text-[var(--color-fg-5)]">›</span>
               <span className="text-[var(--color-fg-2)]">{target}</span>
             </>
           ) : null}
         </div>
-        <div className="mt-1.5">
+        <div className="mt-2">
           <EventTypePill label={pillLabel} color={teamColor} />
         </div>
       </div>
-      <div className="flex flex-col items-end gap-[3px]">
-        <span className="font-condensed text-[11px] font-bold tabular-nums tracking-[0.04em] leading-none text-[var(--color-fg-2)]">
+      <div className="flex flex-col items-end gap-1">
+        <span className="font-condensed text-[14px] font-extrabold tabular-nums tracking-[0.04em] leading-none text-[var(--color-fg-1)]">
           {event.clock ?? '—'}
         </span>
         <span
-          className="font-condensed text-[9px] font-extrabold uppercase tracking-[0.2em] leading-none"
+          className="font-condensed text-[10.5px] font-extrabold uppercase tracking-[0.18em] leading-none"
           style={{ color: teamColor }}
         >
           {periodTag}
         </span>
         {noMarker ? (
-          <span className="inline-flex items-center gap-1 border border-dashed border-[var(--color-border)] px-1.5 py-[1px] font-condensed text-[8.5px] font-bold uppercase tracking-[0.18em] text-[var(--color-fg-5)]">
+          <span className="inline-flex items-center gap-1 border border-dashed border-[var(--color-border)] px-2 py-[2px] font-condensed text-[9.5px] font-bold uppercase tracking-[0.18em] text-[var(--color-fg-5)]">
             No marker
           </span>
         ) : null}
         {lowConf ? (
-          <span className="inline-flex items-center gap-1 border border-[rgba(245,158,11,0.4)] bg-[rgba(245,158,11,0.10)] px-1.5 py-[1px] font-condensed text-[8.5px] font-bold uppercase tracking-[0.18em] text-[var(--color-otl)]">
+          <span className="inline-flex items-center gap-1 border border-[rgba(245,158,11,0.4)] bg-[rgba(245,158,11,0.10)] px-2 py-[2px] font-condensed text-[9.5px] font-bold uppercase tracking-[0.18em] text-[var(--color-otl)]">
             Approx
           </span>
         ) : null}
@@ -1036,16 +1040,17 @@ function EventCard({
 }
 
 function EventTypePill({ label, color }: { label: string; color: string }) {
-  // Team-tinted pill: 14%-alpha fill, color-tinted border, color-tinted
-  // text. Reads as a button without claiming click affordance.
+  // Team-tinted pill: 18%-alpha fill, color-tinted border, color-tinted
+  // text. Bumped to 11.5 px / extra-bold so the type stands out and the
+  // event tile reads at a glance.
   return (
     <span
-      className="inline-flex items-center px-1.5 py-[2px] font-condensed text-[9.5px] font-bold uppercase tracking-[0.18em]"
+      className="inline-flex items-center px-2.5 py-[3px] font-condensed text-[11.5px] font-extrabold uppercase tracking-[0.16em]"
       style={{
-        color,
-        borderColor: hexWithAlpha(color, 0.55),
-        backgroundColor: hexWithAlpha(color, 0.14),
-        border: `1px solid ${hexWithAlpha(color, 0.55)}`,
+        color: pillTextColor(color),
+        borderColor: hexWithAlpha(color, 0.65),
+        backgroundColor: hexWithAlpha(color, 0.20),
+        border: `1px solid ${hexWithAlpha(color, 0.65)}`,
       }}
     >
       {label}
@@ -1059,15 +1064,35 @@ function EventTypePill({ label, color }: { label: string; color: string }) {
  * original string for unrecognised formats so callers don't break.
  */
 function hexWithAlpha(hex: string, alpha: number): string {
+  const rgb = parseHex(hex)
+  if (rgb === null) return hex
+  const [r, g, b] = rgb
+  return `rgba(${String(r)}, ${String(g)}, ${String(b)}, ${String(alpha)})`
+}
+
+/**
+ * Pick a readable pill text colour given the team's tint. Very-dark team
+ * colours (like 4th Line's `#181818`) would render as black-on-dark and
+ * disappear, so we promote them to fg-1 white instead.
+ */
+function pillTextColor(hex: string): string {
+  const rgb = parseHex(hex)
+  if (rgb === null) return hex
+  const luma = 0.2126 * rgb[0] + 0.7152 * rgb[1] + 0.0722 * rgb[2]
+  return luma < 64 ? 'var(--color-fg-1)' : hex
+}
+
+function parseHex(hex: string): [number, number, number] | null {
   const trimmed = hex.trim().replace('#', '')
   const isShort = trimmed.length === 3
   const isLong = trimmed.length === 6
-  if (!isShort && !isLong) return hex
+  if (!isShort && !isLong) return null
   const expand = (s: string): number => parseInt(s.length === 1 ? s + s : s, 16)
-  const r = expand(isShort ? trimmed[0]! : trimmed.slice(0, 2))
-  const g = expand(isShort ? trimmed[1]! : trimmed.slice(2, 4))
-  const b = expand(isShort ? trimmed[2]! : trimmed.slice(4, 6))
-  return `rgba(${String(r)}, ${String(g)}, ${String(b)}, ${String(alpha)})`
+  return [
+    expand(isShort ? trimmed[0]! : trimmed.slice(0, 2)),
+    expand(isShort ? trimmed[1]! : trimmed.slice(2, 4)),
+    expand(isShort ? trimmed[2]! : trimmed.slice(4, 6)),
+  ]
 }
 
 function EventAvatar({ isHomeSide }: { isHomeSide: boolean }) {
@@ -1200,7 +1225,11 @@ function PlacedMarker({
   const halfH = height / 2
   const cx = Math.max(halfW, Math.min(VIEW_W - halfW, x))
   const cy = Math.max(halfH, Math.min(VIEW_H - halfH, y))
-  const haloR = Math.max(width, height) * 0.55
+  // Hover halo sits flush with the marker bounds (light contact ring).
+  // Selected halo extends well past the marker so the pinned event reads
+  // as a clear "you are here" beacon.
+  const hoverHaloR = Math.max(width, height) * 0.52
+  const selectedHaloR = Math.max(width, height) * 0.72
   // Selection wins over fade for the chosen marker. Hover halo is drawn under
   // the selected halo so the strong-accent state isn't washed out.
   const baseOpacity = faded ? 0.18 : (extrapolated === true ? 0.5 : 1)
@@ -1224,16 +1253,16 @@ function PlacedMarker({
     >
       {selected ? (
         <circle
-          r={haloR}
-          fill="rgba(232,65,49,0.22)"
+          r={selectedHaloR}
+          fill="rgba(232,65,49,0.16)"
           stroke="var(--color-accent)"
-          strokeWidth={6}
+          strokeWidth={3}
         />
       ) : hovered ? (
         <circle
-          r={haloR}
-          fill="rgba(232,65,49,0.06)"
-          stroke="rgba(232,65,49,0.42)"
+          r={hoverHaloR}
+          fill="rgba(232,65,49,0.05)"
+          stroke="rgba(232,65,49,0.50)"
           strokeWidth={2}
         />
       ) : null}

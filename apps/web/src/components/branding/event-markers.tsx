@@ -41,9 +41,11 @@ export function GoalMarker({ side, size = 18, className, awayColor, homeColor }:
       aria-hidden="true"
     >
       {side === 'home' ? (
-        <g>
+        <g style={{ paintOrder: 'stroke fill' }}>
           <polygon
             fill={HOME}
+            stroke="#fff"
+            strokeWidth={2}
             points="39.78 17.22 29.83 34.45 9.94 34.45 0 17.22 9.94 0 29.83 0 39.78 17.22"
           />
           <polygon
@@ -87,8 +89,8 @@ export function ShotMarker({ side, size = 18, className, awayColor, homeColor }:
       aria-hidden="true"
     >
       {side === 'home' ? (
-        <g>
-          <circle fill={HOME} cx="18.28" cy="18.28" r="16.87" />
+        <g style={{ paintOrder: 'stroke fill' }}>
+          <circle fill={HOME} stroke="#fff" strokeWidth={2} cx="18.28" cy="18.28" r="16.87" />
           <path
             fill={HOME}
             d="M18.28,36.56C8.2,36.56,0,28.36,0,18.28S8.2,0,18.28,0s18.28,8.2,18.28,18.28-8.2,18.28-18.28,18.28Zm0-33.75C9.75,2.81,2.81,9.75,2.81,18.28s6.94,15.47,15.47,15.47,15.47-6.94,15.47-15.47S26.81,2.81,18.28,2.81Z"
@@ -127,8 +129,8 @@ export function HitMarker({ side, size = 18, className, awayColor, homeColor }: 
       aria-hidden="true"
     >
       {side === 'home' ? (
-        <g>
-          <rect fill={HOME} width="34.45" height="34.45" />
+        <g style={{ paintOrder: 'stroke fill' }}>
+          <rect fill={HOME} stroke="#fff" strokeWidth={2} width="34.45" height="34.45" />
           <rect fill={HOME} x="3.1" y="3.11" width="28.23" height="28.23" />
           <path
             fill="#fff"
@@ -161,9 +163,11 @@ export function PenaltyMarker({ side, size = 18, className, awayColor, homeColor
       aria-hidden="true"
     >
       {side === 'home' ? (
-        <g>
+        <g style={{ paintOrder: 'stroke fill' }}>
           <rect
             fill={HOME}
+            stroke="#fff"
+            strokeWidth={2}
             x="7.13"
             y="7.13"
             width="34.45"

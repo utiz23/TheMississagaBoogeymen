@@ -18,11 +18,14 @@ interface RinkSvgProps {
  * rink reads correctly at a glance.
  */
 export function RinkSvg({ className }: RinkSvgProps) {
-  const ICE = '#1f1f22'
-  const LINE = '#e4e4e7'
-  const RED = '#ce202f'
-  const BLUE = '#233f94'
-  const DOT = '#ce202f'
+  // Palette matches the Concept B handoff (Action Tracker Map.html). The ice
+  // is a translucent off-white that lets the underlying panel show through;
+  // lines are muted so the event markers sit cleanly on top.
+  const ICE = 'rgba(235,235,235,0.04)'
+  const LINE = 'rgba(235,235,235,0.32)'
+  const RED = 'rgba(232,65,49,0.85)'
+  const BLUE = 'rgba(140,170,235,0.55)'
+  const DOT = 'rgba(232,65,49,0.90)'
 
   return (
     <svg
