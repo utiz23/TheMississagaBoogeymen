@@ -48,6 +48,7 @@ interface ActionTrackerMapProps {
 type FilterableType = 'goal' | 'shot' | 'hit' | 'penalty' | 'faceoff'
 type TeamFilter = 'all' | 'home' | 'away'
 type PeriodFilter = 'all' | number
+type SortMode = 'period' | 'chrono' | 'newest'
 
 const ALL_TYPES: FilterableType[] = ['goal', 'shot', 'hit', 'penalty', 'faceoff']
 const TRACKED_TYPES = new Set<string>(ALL_TYPES)
@@ -66,6 +67,9 @@ export function ActionTrackerMap({ events, opponentLabel }: ActionTrackerMapProp
   const [periodFilter, setPeriodFilter] = useState<PeriodFilter>('all')
   const [teamFilter, setTeamFilter] = useState<TeamFilter>('all')
   const [search, setSearch] = useState('')
+  const [sortMode, setSortMode] = useState<SortMode>('period')
+  const [selectedId, setSelectedId] = useState<number | null>(null)
+  const [hoveredId, setHoveredId] = useState<number | null>(null)
 
   if (tracked.length === 0) return null
 
@@ -198,8 +202,19 @@ export function ActionTrackerMap({ events, opponentLabel }: ActionTrackerMapProp
       />
 
       <div className="grid grid-cols-1 gap-3.5 xl:grid-cols-[1fr_380px]">
-        <RinkPanel events={visibleMarkers} oppAbbrev={oppAbbrev} />
-        <EventList events={visibleCards} oppAbbrev={oppAbbrev} />
+        <RinkPanel
+          events={visibleMarkers}
+          oppAbbrev={oppAbbrev}
+          hoveredId={hoveredId}
+          onHover={setHoveredId}
+        />
+        <EventList
+          events={visibleCards}
+          sortMode={sortMode}
+          setSortMode={setSortMode}
+          selectedId={selectedId}
+          onSelect={(id) => setSelectedId((prev) => (prev === id ? null : id))}
+        />
       </div>
     </section>
   )
@@ -535,7 +550,18 @@ function SummaryKV({
 
 // ─── Rink panel ─────────────────────────────────────────────────────────────
 
-function RinkPanel({ events, oppAbbrev }: { events: MatchEventRow[]; oppAbbrev: string }) {
+function RinkPanel({
+  events,
+  oppAbbrev,
+  hoveredId,
+  onHover,
+}: {
+  events: MatchEventRow[]
+  oppAbbrev: string
+  hoveredId: number | null
+  onHover: (id: number | null) => void
+}) {
+  const hovered = hoveredId === null ? null : events.find((e) => e.id === hoveredId) ?? null
   return (
     <div className="border border-[var(--color-border)] broadcast-panel-strong px-3.5 pb-2 pt-3.5">
       <div className="mb-2.5 flex items-center gap-3.5">
@@ -548,7 +574,10 @@ function RinkPanel({ events, oppAbbrev }: { events: MatchEventRow[]; oppAbbrev: 
           <span className="text-[var(--color-accent)]">→ BGM</span>
         </div>
       </div>
-      <div className="relative w-full">
+      <div
+        className="relative w-full"
+        onMouseLeave={() => onHover(null)}
+      >
         <RinkSvg className="block h-auto w-full" />
         <svg
           viewBox="0 0 2405 1025"
@@ -557,9 +586,91 @@ function RinkPanel({ events, oppAbbrev }: { events: MatchEventRow[]; oppAbbrev: 
           aria-hidden
         >
           {events.map((e) => (
-            <Marker key={e.id} event={e} />
+            <Marker
+              key={e.id}
+              event={e}
+              hovered={hoveredId === e.id}
+              onEnter={() => onHover(e.id)}
+              onLeave={() => onHover(null)}
+            />
           ))}
         </svg>
+        {hovered ? <MarkerTooltip event={hovered} /> : null}
+      </div>
+    </div>
+  )
+}
+
+function MarkerTooltip({ event }: { event: MatchEventRow }) {
+  const hockeyX = Number(event.x)
+  const hockeyY = Number(event.y)
+  const leftPct = (rinkX(hockeyX) / VIEW_W) * 100
+  const topPct = (rinkY(hockeyY) / VIEW_H) * 100
+  const isBgm = event.teamSide === 'for'
+  const actor = event.actor?.gamertag ?? event.actorGamertagSnapshot ?? '—'
+  const target = event.target?.gamertag ?? event.targetGamertagSnapshot ?? null
+  const infraction = (event as { infraction?: string | null }).infraction ?? null
+  const targetLine = event.eventType === 'penalty'
+    ? (infraction ? infraction.toUpperCase() : null)
+    : target
+  const periodTag = cleanPeriodLabel(event.periodLabel) || `P${String(event.periodNumber)}`
+  const borderColor = isBgm ? 'rgba(232,65,49,0.45)' : 'var(--color-fg-3)'
+  return (
+    <div
+      role="tooltip"
+      className="pointer-events-none absolute z-20 max-w-[280px] min-w-[220px] -translate-x-1/2 px-3 py-2.5 bg-[var(--color-charcoal,#1a1819)]"
+      style={{
+        left: `${leftPct.toString()}%`,
+        top: `${topPct.toString()}%`,
+        transform: `translate(-50%, calc(-100% - 14px))`,
+        border: `1px solid ${borderColor}`,
+        boxShadow: '0 6px 20px rgba(0,0,0,0.5)',
+      }}
+    >
+      <span
+        aria-hidden
+        className="absolute left-1/2 -bottom-[7px] block h-3 w-3 -translate-x-1/2 rotate-45 bg-[var(--color-charcoal,#1a1819)]"
+        style={{
+          borderRight: `1px solid ${borderColor}`,
+          borderBottom: `1px solid ${borderColor}`,
+        }}
+      />
+      <div className="mb-1.5 flex items-center gap-2">
+        <span
+          className={`font-condensed text-[11px] font-black uppercase tracking-[0.18em] ${
+            isBgm ? 'text-[var(--color-accent)]' : 'text-[var(--color-fg-1)]'
+          }`}
+        >
+          {event.eventType}
+        </span>
+        <span className="ml-auto font-condensed text-[10.5px] font-bold tabular-nums tracking-[0.06em] text-[var(--color-fg-3)]">
+          {event.clock ?? '—'}
+        </span>
+      </div>
+      <div className="font-condensed text-[14px] font-extrabold uppercase tracking-[0.04em] leading-tight text-[var(--color-fg-1)]">
+        {actor}
+      </div>
+      {targetLine ? (
+        <div className="mt-[3px] font-condensed text-[11px] font-semibold tracking-[0.04em] leading-tight text-[var(--color-fg-3)]">
+          {event.eventType === 'penalty' ? (
+            <span className="font-extrabold uppercase tracking-[0.1em] text-[var(--color-otl)]">
+              {targetLine}
+            </span>
+          ) : (
+            <>
+              <span className="mx-1.5 text-[var(--color-fg-5)]">→</span>
+              {targetLine}
+            </>
+          )}
+        </div>
+      ) : null}
+      <div className="mt-[7px] flex gap-3 border-t border-[var(--color-border)] pt-[7px] font-condensed text-[10px] font-bold uppercase tracking-[0.14em]">
+        <span className={isBgm ? 'text-[var(--color-accent)]' : 'text-[var(--color-fg-4)]'}>
+          {periodTag}
+        </span>
+        {event.positionConfidence === 'extrapolated' ? (
+          <span className="text-[var(--color-otl)]">Approx</span>
+        ) : null}
       </div>
     </div>
   )
@@ -567,7 +678,19 @@ function RinkPanel({ events, oppAbbrev }: { events: MatchEventRow[]; oppAbbrev: 
 
 // ─── Event list ─────────────────────────────────────────────────────────────
 
-function EventList({ events, oppAbbrev }: { events: MatchEventRow[]; oppAbbrev: string }) {
+function EventList({
+  events,
+  sortMode,
+  setSortMode,
+  selectedId,
+  onSelect,
+}: {
+  events: MatchEventRow[]
+  sortMode: SortMode
+  setSortMode: (m: SortMode) => void
+  selectedId: number | null
+  onSelect: (id: number) => void
+}) {
   if (events.length === 0) {
     return (
       <div className="flex h-[420px] flex-col items-center justify-center gap-2 border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-6 text-center xl:h-[612px]">
@@ -581,22 +704,32 @@ function EventList({ events, oppAbbrev }: { events: MatchEventRow[]; oppAbbrev: 
     )
   }
 
-  // Period asc, then clock desc (clock counts down inside a period).
+  // "period" → grouped (chronological inside each period).
+  // "chrono" / "newest" → flat list, no dividers.
   const sorted = [...events].sort((a, b) => {
-    if (a.periodNumber !== b.periodNumber) return a.periodNumber - b.periodNumber
-    return clockToSeconds(b.clock) - clockToSeconds(a.clock)
+    const periodDelta = a.periodNumber - b.periodNumber
+    if (periodDelta !== 0) {
+      return sortMode === 'newest' ? -periodDelta : periodDelta
+    }
+    // Inside a period, clock counts DOWN. Earliest-first = highest clock first.
+    const clockDelta = clockToSeconds(b.clock) - clockToSeconds(a.clock)
+    return sortMode === 'newest' ? -clockDelta : clockDelta
   })
+
+  const showPeriodDividers = sortMode === 'period'
   const byPeriod: Array<{ period: number; label: string; rows: MatchEventRow[] }> = []
-  for (const e of sorted) {
-    const last = byPeriod[byPeriod.length - 1]
-    if (last && last.period === e.periodNumber) {
-      last.rows.push(e)
-    } else {
-      byPeriod.push({
-        period: e.periodNumber,
-        label: cleanPeriodLabel(e.periodLabel) || `P${String(e.periodNumber)}`,
-        rows: [e],
-      })
+  if (showPeriodDividers) {
+    for (const e of sorted) {
+      const last = byPeriod[byPeriod.length - 1]
+      if (last && last.period === e.periodNumber) {
+        last.rows.push(e)
+      } else {
+        byPeriod.push({
+          period: e.periodNumber,
+          label: cleanPeriodLabel(e.periodLabel) || `P${String(e.periodNumber)}`,
+          rows: [e],
+        })
+      }
     }
   }
 
@@ -606,21 +739,55 @@ function EventList({ events, oppAbbrev }: { events: MatchEventRow[]; oppAbbrev: 
         <span className="font-condensed text-[11px] font-bold uppercase tracking-[0.22em] text-[var(--color-fg-3)]">
           Events
         </span>
+        <SortSelect value={sortMode} onChange={setSortMode} />
         <span className="ml-auto font-condensed text-[10px] font-bold tracking-[0.14em] text-[var(--color-fg-5)]">
           <b className="font-black tabular-nums text-[var(--color-accent)]">{events.length}</b> shown
         </span>
       </div>
       <div className="flex-1 overflow-y-auto">
-        {byPeriod.map((g) => (
-          <div key={g.period}>
-            <PeriodDivider label={g.label} count={g.rows.length} />
-            {g.rows.map((e) => (
-              <EventCard key={e.id} event={e} oppAbbrev={oppAbbrev} />
+        {showPeriodDividers
+          ? byPeriod.map((g) => (
+              <div key={g.period}>
+                <PeriodDivider label={g.label} count={g.rows.length} />
+                {g.rows.map((e) => (
+                  <EventCard
+                    key={e.id}
+                    event={e}
+                    selected={selectedId === e.id}
+                    onSelect={() => onSelect(e.id)}
+                  />
+                ))}
+              </div>
+            ))
+          : sorted.map((e) => (
+              <EventCard
+                key={e.id}
+                event={e}
+                selected={selectedId === e.id}
+                onSelect={() => onSelect(e.id)}
+              />
             ))}
-          </div>
-        ))}
       </div>
     </div>
+  )
+}
+
+function SortSelect({ value, onChange }: { value: SortMode; onChange: (m: SortMode) => void }) {
+  return (
+    <label className="inline-flex items-center gap-1.5">
+      <span className="font-condensed text-[9px] font-semibold uppercase tracking-[0.22em] text-[var(--color-fg-5)]">
+        Sort
+      </span>
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value as SortMode)}
+        className="border border-[var(--color-border)] bg-[var(--color-background)] px-1.5 py-[3px] font-condensed text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--color-fg-2)] focus:outline-none"
+      >
+        <option value="period">By period</option>
+        <option value="chrono">Chronological</option>
+        <option value="newest">Newest first</option>
+      </select>
+    </label>
   )
 }
 
@@ -638,7 +805,15 @@ function PeriodDivider({ label, count }: { label: string; count: number }) {
   )
 }
 
-function EventCard({ event, oppAbbrev }: { event: MatchEventRow; oppAbbrev: string }) {
+function EventCard({
+  event,
+  selected,
+  onSelect,
+}: {
+  event: MatchEventRow
+  selected: boolean
+  onSelect: () => void
+}) {
   const isBgm = event.teamSide === 'for'
   const isFaceoff = event.eventType === 'faceoff'
   const noMarker = !isFaceoff && (event.x === null || event.y === null)
@@ -646,9 +821,11 @@ function EventCard({ event, oppAbbrev }: { event: MatchEventRow; oppAbbrev: stri
 
   const rail = isFaceoff
     ? 'bg-[linear-gradient(180deg,var(--color-accent)_50%,var(--color-fg-3)_50%)]'
-    : isBgm
-      ? 'bg-[var(--color-accent)]'
-      : 'bg-[var(--color-fg-3)]'
+    : selected && !isBgm
+      ? 'bg-[var(--color-fg-1)]'
+      : isBgm
+        ? 'bg-[var(--color-accent)]'
+        : 'bg-[var(--color-fg-3)]'
 
   const actor = event.actor?.gamertag ?? event.actorGamertagSnapshot ?? '—'
   const target = event.target?.gamertag ?? event.targetGamertagSnapshot ?? null
@@ -658,9 +835,26 @@ function EventCard({ event, oppAbbrev }: { event: MatchEventRow; oppAbbrev: stri
     ? (infraction ? infraction.toUpperCase() : null)
     : target
 
+  const bgClass = selected
+    ? isBgm
+      ? 'bg-[rgba(232,65,49,0.10)]'
+      : 'bg-[rgba(235,235,235,0.04)]'
+    : 'hover:bg-[rgba(232,65,49,0.04)]'
+  const railWidth = selected ? 'w-[4px]' : 'w-[3px]'
+  const railShadow = selected
+    ? isBgm
+      ? 'shadow-[0_0_10px_rgba(232,65,49,0.6)]'
+      : 'shadow-[0_0_10px_rgba(235,235,235,0.4)]'
+    : ''
+
   return (
-    <div className="relative grid grid-cols-[3px_38px_32px_32px_1fr_auto] items-center gap-2 border-b border-[color:rgba(58,56,57,0.5)] py-2.5 pl-0 pr-3 transition-colors hover:bg-[rgba(232,65,49,0.04)]">
-      <span className={`absolute left-0 top-0 bottom-0 w-[3px] ${rail}`} aria-hidden />
+    <button
+      type="button"
+      onClick={onSelect}
+      aria-pressed={selected}
+      className={`relative grid w-full grid-cols-[3px_38px_32px_32px_1fr_auto] items-center gap-2 border-b border-[color:rgba(58,56,57,0.5)] py-2.5 pl-0 pr-3 text-left transition-colors ${bgClass}`}
+    >
+      <span className={`absolute left-0 top-0 bottom-0 ${railWidth} ${rail} ${railShadow}`} aria-hidden />
       <span aria-hidden />
       <span className="text-center font-condensed leading-tight">
         <span className="block font-condensed text-[10px] font-bold tabular-nums tracking-[0.04em] text-[var(--color-fg-3)]">
@@ -723,7 +917,7 @@ function EventCard({ event, oppAbbrev }: { event: MatchEventRow; oppAbbrev: stri
           </span>
         ) : null}
       </div>
-    </div>
+    </button>
   )
 }
 
@@ -779,37 +973,82 @@ function EventAvatar({ isBgm }: { isBgm: boolean }) {
 
 // ─── Rink markers (reused from prior implementation) ────────────────────────
 
-function Marker({ event }: { event: MatchEventRow }) {
+function Marker({
+  event,
+  hovered,
+  onEnter,
+  onLeave,
+}: {
+  event: MatchEventRow
+  hovered: boolean
+  onEnter: () => void
+  onLeave: () => void
+}) {
   const hockeyX = Number(event.x)
   const hockeyY = Number(event.y)
   const svgX = rinkX(hockeyX)
   const svgY = rinkY(hockeyY)
   const side: 'home' | 'away' = event.teamSide === 'for' ? 'home' : 'away'
   const extrapolated = event.positionConfidence === 'extrapolated'
-  const tooltip = buildTooltip(event, extrapolated)
 
   switch (event.eventType) {
     case 'goal':
       return (
-        <PlacedMarker x={svgX} y={svgY} width={112} height={97} tooltip={tooltip} extrapolated={extrapolated}>
+        <PlacedMarker
+          x={svgX}
+          y={svgY}
+          width={112}
+          height={97}
+          extrapolated={extrapolated}
+          hovered={hovered}
+          onEnter={onEnter}
+          onLeave={onLeave}
+        >
           <GoalMarker side={side} size={112} />
         </PlacedMarker>
       )
     case 'shot':
       return (
-        <PlacedMarker x={svgX} y={svgY} width={84} height={84} tooltip={tooltip} extrapolated={extrapolated}>
+        <PlacedMarker
+          x={svgX}
+          y={svgY}
+          width={84}
+          height={84}
+          extrapolated={extrapolated}
+          hovered={hovered}
+          onEnter={onEnter}
+          onLeave={onLeave}
+        >
           <ShotMarker side={side} size={84} />
         </PlacedMarker>
       )
     case 'hit':
       return (
-        <PlacedMarker x={svgX} y={svgY} width={80} height={80} tooltip={tooltip} extrapolated={extrapolated}>
+        <PlacedMarker
+          x={svgX}
+          y={svgY}
+          width={80}
+          height={80}
+          extrapolated={extrapolated}
+          hovered={hovered}
+          onEnter={onEnter}
+          onLeave={onLeave}
+        >
           <HitMarker side={side} size={80} />
         </PlacedMarker>
       )
     case 'penalty':
       return (
-        <PlacedMarker x={svgX} y={svgY} width={112} height={112} tooltip={tooltip} extrapolated={extrapolated}>
+        <PlacedMarker
+          x={svgX}
+          y={svgY}
+          width={112}
+          height={112}
+          extrapolated={extrapolated}
+          hovered={hovered}
+          onEnter={onEnter}
+          onLeave={onLeave}
+        >
           <PenaltyMarker side={side} size={112} />
         </PlacedMarker>
       )
@@ -823,29 +1062,46 @@ function PlacedMarker({
   y,
   width,
   height,
-  tooltip,
   extrapolated,
+  hovered,
+  onEnter,
+  onLeave,
   children,
 }: {
   x: number
   y: number
   width: number
   height: number
-  tooltip: string
   extrapolated?: boolean
+  hovered: boolean
+  onEnter: () => void
+  onLeave: () => void
   children: React.ReactNode
 }) {
   const halfW = width / 2
   const halfH = height / 2
   const cx = Math.max(halfW, Math.min(VIEW_W - halfW, x))
   const cy = Math.max(halfH, Math.min(VIEW_H - halfH, y))
+  // Halo radius scales with the larger marker dimension; matches the
+  // design's "soft red halo" hover treatment from the states gallery.
+  const haloR = Math.max(width, height) * 0.55
   return (
     <g
-      transform={`translate(${cx - halfW}, ${cy - halfH})`}
+      transform={`translate(${cx}, ${cy})`}
       opacity={extrapolated === true ? 0.5 : 1}
+      onMouseEnter={onEnter}
+      onMouseLeave={onLeave}
+      style={{ cursor: 'pointer' }}
     >
-      <title>{tooltip}</title>
-      {children}
+      {hovered ? (
+        <circle
+          r={haloR}
+          fill="rgba(232,65,49,0.06)"
+          stroke="rgba(232,65,49,0.42)"
+          strokeWidth={2}
+        />
+      ) : null}
+      <g transform={`translate(${-halfW}, ${-halfH})`}>{children}</g>
     </g>
   )
 }
@@ -860,17 +1116,6 @@ function rinkX(hockeyX: number): number {
 function rinkY(hockeyY: number): number {
   const clamped = Math.max(-42.5, Math.min(42.5, hockeyY))
   return 512.5 - clamped * 12
-}
-
-function buildTooltip(event: MatchEventRow, extrapolated: boolean): string {
-  const parts: string[] = []
-  parts.push(event.eventType.toUpperCase())
-  if (event.actor?.gamertag) parts.push(event.actor.gamertag)
-  else if (event.actorGamertagSnapshot) parts.push(event.actorGamertagSnapshot)
-  if (event.clock) parts.push(`@ ${event.clock}`)
-  parts.push(event.periodLabel || `P${String(event.periodNumber)}`)
-  if (extrapolated) parts.push('(approx. position)')
-  return parts.join(' · ')
 }
 
 // ─── Pure helpers ───────────────────────────────────────────────────────────
