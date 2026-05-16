@@ -956,9 +956,9 @@ function EventCard({
   const isHomeSide = side === 'home'
   const teamColor = isHomeSide ? HOME_COLOR : AWAY_COLOR
 
-  const rail = isFaceoff
-    ? 'bg-[linear-gradient(180deg,var(--color-accent)_50%,var(--color-fg-3)_50%)]'
-    : undefined
+  // Faceoffs use the winning team's colour just like every other event —
+  // `event.teamSide` already encodes 'for' (BGM won) vs 'against' (opp won),
+  // so the rail / pill / period tag all paint with the winner's identity.
 
   const actor = event.actor?.gamertag ?? event.actorGamertagSnapshot ?? '—'
   const target = event.target?.gamertag ?? event.targetGamertagSnapshot ?? null
@@ -991,9 +991,9 @@ function EventCard({
       }}
     >
       <span
-        className={`absolute left-0 top-0 bottom-0 ${railWidth} ${rail ?? ''}`}
+        className={`absolute left-0 top-0 bottom-0 ${railWidth}`}
         style={{
-          backgroundColor: rail ? undefined : teamColor,
+          backgroundColor: teamColor,
           boxShadow: selected ? selectedRailShadow : undefined,
         }}
         aria-hidden
@@ -1011,17 +1011,14 @@ function EventCard({
           ) : null}
         </div>
         <div className="mt-2">
-          <EventTypePill label={pillLabel} color={teamColor} />
+          <EventTypePill label={pillLabel} color={teamColor} isHomeSide={isHomeSide} />
         </div>
       </div>
       <div className="flex flex-col items-end gap-1">
         <span className="font-condensed text-[14px] font-extrabold tabular-nums tracking-[0.04em] leading-none text-[var(--color-fg-1)]">
           {event.clock ?? '—'}
         </span>
-        <span
-          className="font-condensed text-[10.5px] font-extrabold uppercase tracking-[0.18em] leading-none"
-          style={{ color: teamColor }}
-        >
+        <span className="font-condensed text-[10.5px] font-extrabold uppercase tracking-[0.18em] leading-none text-[var(--color-fg-1)]">
           {periodTag}
         </span>
         {noMarker ? (
@@ -1039,10 +1036,18 @@ function EventCard({
   )
 }
 
-function EventTypePill({ label, color }: { label: string; color: string }) {
-  // Team-tinted pill: 18%-alpha fill, color-tinted border, color-tinted
-  // text. Bumped to 11.5 px / extra-bold so the type stands out and the
-  // event tile reads at a glance.
+function EventTypePill({
+  label,
+  color,
+  isHomeSide,
+}: {
+  label: string
+  color: string
+  isHomeSide: boolean
+}) {
+  // Team-tinted pill: 20%-alpha fill, color-tinted border, color-tinted
+  // text. Home-side pills get an extra 1.5px white ring on the outside to
+  // echo the white outline on the home-side rink markers.
   return (
     <span
       className="inline-flex items-center px-2.5 py-[3px] font-condensed text-[11.5px] font-extrabold uppercase tracking-[0.16em]"
@@ -1051,6 +1056,7 @@ function EventTypePill({ label, color }: { label: string; color: string }) {
         borderColor: hexWithAlpha(color, 0.65),
         backgroundColor: hexWithAlpha(color, 0.20),
         border: `1px solid ${hexWithAlpha(color, 0.65)}`,
+        boxShadow: isHomeSide ? '0 0 0 1.5px #fff' : undefined,
       }}
     >
       {label}
@@ -1225,11 +1231,11 @@ function PlacedMarker({
   const halfH = height / 2
   const cx = Math.max(halfW, Math.min(VIEW_W - halfW, x))
   const cy = Math.max(halfH, Math.min(VIEW_H - halfH, y))
-  // Hover halo sits flush with the marker bounds (light contact ring).
-  // Selected halo extends well past the marker so the pinned event reads
-  // as a clear "you are here" beacon.
-  const hoverHaloR = Math.max(width, height) * 0.52
-  const selectedHaloR = Math.max(width, height) * 0.72
+  // Both halos sit clearly outside the marker bounds. Hover is a visible
+  // "soft target" ring; selected adds a stronger filled accent so the
+  // pinned event reads as a "you are here" beacon at a glance.
+  const hoverHaloR = Math.max(width, height) * 0.85
+  const selectedHaloR = Math.max(width, height) * 1.0
   // Selection wins over fade for the chosen marker. Hover halo is drawn under
   // the selected halo so the strong-accent state isn't washed out.
   const baseOpacity = faded ? 0.18 : (extrapolated === true ? 0.5 : 1)
