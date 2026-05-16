@@ -43,6 +43,8 @@ import { PlayerSilhouette } from '@/components/home/player-card'
 interface ActionTrackerMapProps {
   events: MatchEventRow[]
   opponentLabel: string
+  /** Hex (e.g. `#cc3333`) extracted from the opp crest. Null = neutral palette. */
+  opponentColor?: string | null
 }
 
 type FilterableType = 'goal' | 'shot' | 'hit' | 'penalty' | 'faceoff'
@@ -60,7 +62,8 @@ const TYPE_META: { type: FilterableType; label: string }[] = [
   { type: 'faceoff', label: 'Faceoffs' },
 ]
 
-export function ActionTrackerMap({ events, opponentLabel }: ActionTrackerMapProps) {
+export function ActionTrackerMap({ events, opponentLabel, opponentColor }: ActionTrackerMapProps) {
+  const awayColor = opponentColor ?? null
   const tracked = events.filter((e) => TRACKED_TYPES.has(e.eventType))
 
   const [enabledTypes, setEnabledTypes] = useState<Set<FilterableType>>(new Set(ALL_TYPES))
@@ -213,6 +216,7 @@ export function ActionTrackerMap({ events, opponentLabel }: ActionTrackerMapProp
           hoveredId={hoveredId}
           onHover={setHoveredId}
           onSelect={toggleSelected}
+          awayColor={awayColor}
         />
         <RinkPanel
           events={visibleMarkers}
@@ -222,6 +226,7 @@ export function ActionTrackerMap({ events, opponentLabel }: ActionTrackerMapProp
           selectedId={selectedId}
           onSelect={toggleSelected}
           onClearSelected={clearSelected}
+          awayColor={awayColor}
         />
       </div>
     </section>
@@ -566,6 +571,7 @@ function RinkPanel({
   selectedId,
   onSelect,
   onClearSelected,
+  awayColor,
 }: {
   events: MatchEventRow[]
   oppAbbrev: string
@@ -574,6 +580,7 @@ function RinkPanel({
   selectedId: number | null
   onSelect: (id: number) => void
   onClearSelected: () => void
+  awayColor: string | null
 }) {
   // Tooltip prefers explicit hover; falls back to the selected marker so the
   // pinned event keeps its detail panel visible.
@@ -616,6 +623,7 @@ function RinkPanel({
                 onEnter={() => onHover(e.id)}
                 onLeave={() => onHover(null)}
                 onClick={() => onSelect(e.id)}
+                awayColor={awayColor}
               />
             )
           })}
@@ -713,6 +721,7 @@ function EventList({
   hoveredId,
   onHover,
   onSelect,
+  awayColor,
 }: {
   events: MatchEventRow[]
   sortMode: SortMode
@@ -721,6 +730,7 @@ function EventList({
   hoveredId: number | null
   onHover: (id: number | null) => void
   onSelect: (id: number) => void
+  awayColor: string | null
 }) {
   const scrollRef = useRef<HTMLDivElement | null>(null)
   // When a card becomes selected (by either click or marker click), scroll it
@@ -800,6 +810,7 @@ function EventList({
                     hovered={hoveredId === e.id}
                     onSelect={() => onSelect(e.id)}
                     onHover={onHover}
+                    awayColor={awayColor}
                   />
                 ))}
               </div>
@@ -812,6 +823,7 @@ function EventList({
                 hovered={hoveredId === e.id}
                 onSelect={() => onSelect(e.id)}
                 onHover={onHover}
+                awayColor={awayColor}
               />
             ))}
       </div>
@@ -858,12 +870,14 @@ function EventCard({
   hovered,
   onSelect,
   onHover,
+  awayColor,
 }: {
   event: MatchEventRow
   selected: boolean
   hovered: boolean
   onSelect: () => void
   onHover: (id: number | null) => void
+  awayColor: string | null
 }) {
   const isBgm = event.teamSide === 'for'
   const isFaceoff = event.eventType === 'faceoff'
@@ -920,7 +934,7 @@ function EventCard({
       <EventAvatar isBgm={isBgm} />
       <div className="min-w-0">
         <div className="flex items-center gap-2 min-w-0">
-          <InlineTypeMark eventType={event.eventType} isBgm={isBgm} />
+          <InlineTypeMark eventType={event.eventType} isBgm={isBgm} awayColor={awayColor} />
           <span
             className={`font-condensed text-[10.5px] font-extrabold uppercase tracking-[0.18em] shrink-0 ${
               isFaceoff
@@ -977,13 +991,21 @@ function EventCard({
   )
 }
 
-function InlineTypeMark({ eventType, isBgm }: { eventType: string; isBgm: boolean }) {
+function InlineTypeMark({
+  eventType,
+  isBgm,
+  awayColor,
+}: {
+  eventType: string
+  isBgm: boolean
+  awayColor: string | null
+}) {
   const side: 'home' | 'away' = isBgm ? 'home' : 'away'
   const size = 14
-  if (eventType === 'goal') return <GoalMarker side={side} size={size} />
-  if (eventType === 'shot') return <ShotMarker side={side} size={size} />
-  if (eventType === 'hit') return <HitMarker side={side} size={size} />
-  if (eventType === 'penalty') return <PenaltyMarker side={side} size={size} />
+  if (eventType === 'goal') return <GoalMarker side={side} size={size} awayColor={awayColor} />
+  if (eventType === 'shot') return <ShotMarker side={side} size={size} awayColor={awayColor} />
+  if (eventType === 'hit') return <HitMarker side={side} size={size} awayColor={awayColor} />
+  if (eventType === 'penalty') return <PenaltyMarker side={side} size={size} awayColor={awayColor} />
   // Faceoff: the dotted-circle glyph at inline scale.
   return (
     <svg viewBox="0 0 24 24" width={size} height={size} className="shrink-0 opacity-50" aria-hidden>
@@ -1026,6 +1048,7 @@ function Marker({
   onEnter,
   onLeave,
   onClick,
+  awayColor,
 }: {
   event: MatchEventRow
   hovered: boolean
@@ -1034,6 +1057,7 @@ function Marker({
   onEnter: () => void
   onLeave: () => void
   onClick: () => void
+  awayColor: string | null
 }) {
   const hockeyX = Number(event.x)
   const hockeyY = Number(event.y)
@@ -1058,25 +1082,25 @@ function Marker({
     case 'goal':
       return (
         <PlacedMarker {...common} width={112} height={97}>
-          <GoalMarker side={side} size={112} />
+          <GoalMarker side={side} size={112} awayColor={awayColor} />
         </PlacedMarker>
       )
     case 'shot':
       return (
         <PlacedMarker {...common} width={84} height={84}>
-          <ShotMarker side={side} size={84} />
+          <ShotMarker side={side} size={84} awayColor={awayColor} />
         </PlacedMarker>
       )
     case 'hit':
       return (
         <PlacedMarker {...common} width={80} height={80}>
-          <HitMarker side={side} size={80} />
+          <HitMarker side={side} size={80} awayColor={awayColor} />
         </PlacedMarker>
       )
     case 'penalty':
       return (
         <PlacedMarker {...common} width={112} height={112}>
-          <PenaltyMarker side={side} size={112} />
+          <PenaltyMarker side={side} size={112} awayColor={awayColor} />
         </PlacedMarker>
       )
     default:

@@ -105,6 +105,7 @@ export default async function GameDetailPage({ params, searchParams }: Props) {
 
   const opponentCrestAssetId = opponentClub?.crestAssetId ?? null
   const opponentCrestUseBaseAsset = opponentClub?.useBaseAsset ?? null
+  const opponentPrimaryColor = opponentClub?.primaryColor ?? null
 
   // ── View-model derivations ──────────────────────────────────────────────────
   const topPerformers = buildTopPerformers(match, playerStats, opponentPlayerStats)
@@ -180,7 +181,11 @@ export default async function GameDetailPage({ params, searchParams }: Props) {
 
       {/* 5b. OCR-derived Action Tracker (Phase 5 — rink-coordinate spatial extraction +
             all-type event card list mirroring the in-game post-game Action Tracker). */}
-      <ActionTrackerMap events={matchEventRows} opponentLabel={match.opponentName} />
+      <ActionTrackerMap
+        events={matchEventRows}
+        opponentLabel={match.opponentName}
+        opponentColor={opponentPrimaryColor}
+      />
 
       {/* 6. Context footer (lowest priority — first to cut if scope shrinks) */}
       <ContextFooter previous={adjacent.previous} next={adjacent.next} />

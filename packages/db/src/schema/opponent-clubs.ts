@@ -28,6 +28,13 @@ export const opponentClubs = pgTable(
      *   https://media.contentapi.ea.com/content/dam/eacom/nhl/pro-clubs/custom-crests/{id}.png
      */
     useBaseAsset: text('use_base_asset'),
+    /**
+     * Optional accent color extracted (or manually set) from the club's
+     * crest, stored as a lowercase 7-char hex string (e.g. `#cc3333`).
+     * Drives the away-team marker palette on the Action Tracker Map and
+     * any other opp-side accent treatments.
+     */
+    primaryColor: text('primary_color'),
     fetchedAt: timestamp('fetched_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [uniqueIndex('opponent_clubs_ea_club_id_uniq').on(table.eaClubId)],

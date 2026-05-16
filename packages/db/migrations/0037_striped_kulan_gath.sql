@@ -1,0 +1,1 @@
+ALTER TABLE "opponent_clubs" ADD COLUMN "primary_color" text;

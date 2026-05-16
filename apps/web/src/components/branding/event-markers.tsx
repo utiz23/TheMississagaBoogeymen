@@ -5,12 +5,22 @@ interface MarkerProps {
   /** Pixel size; the SVG scales to fit. Default 18. */
   size?: number
   className?: string
+  /**
+   * Optional override for the away-team accent color (e.g. extracted from
+   * the opponent's crest). Falls back to the design-system AWAY navy.
+   * Ignored when `side === 'home'`.
+   */
+  awayColor?: string | null
 }
 
 const HOME = '#ce202f'
-const AWAY = '#233f94'
+const AWAY_DEFAULT = '#233f94'
+function pickAway(awayColor?: string | null): string {
+  return awayColor && awayColor.length > 0 ? awayColor : AWAY_DEFAULT
+}
 
-export function GoalMarker({ side, size = 18, className }: MarkerProps) {
+export function GoalMarker({ side, size = 18, className, awayColor }: MarkerProps) {
+  const AWAY = pickAway(awayColor)
   return (
     <svg
       viewBox="0 0 39.78 34.45"
@@ -54,7 +64,8 @@ export function GoalMarker({ side, size = 18, className }: MarkerProps) {
   )
 }
 
-export function ShotMarker({ side, size = 18, className }: MarkerProps) {
+export function ShotMarker({ side, size = 18, className, awayColor }: MarkerProps) {
+  const AWAY = pickAway(awayColor)
   return (
     <svg
       viewBox="0 0 36.56 36.56"
@@ -92,7 +103,8 @@ export function ShotMarker({ side, size = 18, className }: MarkerProps) {
   )
 }
 
-export function HitMarker({ side, size = 18, className }: MarkerProps) {
+export function HitMarker({ side, size = 18, className, awayColor }: MarkerProps) {
+  const AWAY = pickAway(awayColor)
   return (
     <svg
       viewBox="0 0 34.45 34.45"
@@ -124,7 +136,8 @@ export function HitMarker({ side, size = 18, className }: MarkerProps) {
   )
 }
 
-export function PenaltyMarker({ side, size = 18, className }: MarkerProps) {
+export function PenaltyMarker({ side, size = 18, className, awayColor }: MarkerProps) {
+  const AWAY = pickAway(awayColor)
   return (
     <svg
       viewBox="0 0 48.72 48.72"
