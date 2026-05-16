@@ -16,6 +16,27 @@ missed an event. There are TWO mechanisms, in order of preference:
    marker matched the event across ALL captures, typically because
    the event never appeared on the rink in any frame the OCR saw.
 
+## 0. Re-parse the action_tracker captures first
+
+When you change `parse_post_game_action_tracker` (row grouping, the
+`_ACTION_RELATION_RE` regex, the event-type Levenshtein fallback,
+etc.), the existing `raw_result_json` payloads are stale. Refresh them
+before running consensus:
+
+```bash
+python3 tools/game_ocr/scripts/reparse_action_tracker.py <MATCH_ID> \
+  | docker exec -i eanhl-team-website-db-1 psql -U eanhl -d eanhl
+
+# Push the new events into match_events
+pnpm --filter worker repromote-ocr --match <MATCH_ID> \
+     --screen post_game_action_tracker
+```
+
+The reparse script walks every action_tracker `ocr_extractions` row
+for the match, re-OCRs the list panel + rink, runs the current
+parser, and overwrites `raw_result_json`. Skips captures whose
+`source_path` is no longer readable on disk.
+
 ## 1. Inventory consensus matcher (the default path)
 
 Run the cross-frame consensus pass:
@@ -141,4 +162,4 @@ calibration work can reference real failure modes.
 | 2026-05-16 | 250 | 288 | P2 · 19:43 | Hit by TOEWS → E. WANHG, no yellow marker captured | `(x, y) = (15, 0)` — right side of center ice circle |
 | 2026-05-16 | 250 | 256 | P2 · 11:23 | SILKY shot positioned in neutral zone | `(x, y) = (30, -38)` |
 | 2026-05-16 | 250 | 268 | P2 · 0:01 | SILKY shot positioned in neutral zone | `(x, y) = (25, 40)` |
-| 2026-05-16 | 250 | 281 | P3 · 8:03 | E. WANHG shot shared marker with 7:39 | `(x, y) = (-81.45, -8.79)` via `inventory_consensus_match.py` (cluster matched, not manual) |
+| 2026-05-16 | 250 | 281 | P3 · 8:03 | E. WANHG shot shared marker with 7:39 (original parser dropped the 8:03 row from extraction 190 because OCR rendered "ON M." as "ONM." and "SHOT" as "SHDT") | Fixed at the parser level: relaxed `_ACTION_RELATION_RE` and added Levenshtein-1 fallback for event types. Reparse via `reparse_action_tracker.py` recovered the 8:03 row, the spatial extractor then attributed extraction 190's yellow marker to it: `(x, y) = (-74.29, 13.48)` `position_confidence='interpolated'`. |

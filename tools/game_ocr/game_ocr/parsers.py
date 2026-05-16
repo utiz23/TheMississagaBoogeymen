@@ -1739,15 +1739,68 @@ _ACTION_TRACKER_TYPES = {
     "FACE": "faceoff",
 }
 
-_ACTION_RELATION_RE = re.compile(r"\s+(ON|VS)\s+", re.IGNORECASE)
+# Match the "ON" / "VS" separator between actor and target. The trailing
+# space the OCR usually emits is OPTIONAL — when the rendering crushes the
+# separator into the next initial (e.g. "WANHG ONM. LEHMANN" → no space
+# between "ON" and "M."), we still want to find it. The lookahead anchors
+# to either whitespace, an initial-like capital letter, or end-of-string,
+# so we don't accidentally match the "ON" inside "ONORE" / "VONK".
+_ACTION_RELATION_RE = re.compile(
+    r"\s+(ON|VS)(?=\s|[A-Z]|$)",
+    re.IGNORECASE,
+)
 
 
 def _action_tracker_event_type(text: str) -> str:
     cleaned = re.sub(r"[^A-Z]", "", text.upper())
+    if not cleaned:
+        return "unknown"
+    # Exact match first.
     for key, mapped in _ACTION_TRACKER_TYPES.items():
         if key.replace(" ", "") == cleaned:
             return mapped
-    return "unknown"
+    # OCR substitutions are common in this panel — `O` reads as `D`
+    # ("SHOT" → "SHDT", "GOAL" → "GDAL"), `I` reads as `1`, etc.
+    # Accept a Levenshtein-1 match against any canonical type. The 1-edit
+    # gate is conservative enough that it won't collapse two real types
+    # into each other (no two canonical types differ by a single edit).
+    best: tuple[int, str] | None = None
+    for key, mapped in _ACTION_TRACKER_TYPES.items():
+        canon = key.replace(" ", "")
+        d = _levenshtein(cleaned, canon, max_distance=1)
+        if d <= 1 and (best is None or d < best[0]):
+            best = (d, mapped)
+    return best[1] if best is not None else "unknown"
+
+
+def _levenshtein(a: str, b: str, max_distance: int) -> int:
+    """Distance capped at max_distance + 1; returns early when exceeded.
+
+    Local copy of the helper in classifier.py — kept here so the parser
+    module doesn't depend on the classifier just for one tiny function.
+    """
+    if abs(len(a) - len(b)) > max_distance:
+        return max_distance + 1
+    m, n = len(a), len(b)
+    if m == 0:
+        return n
+    if n == 0:
+        return m
+    prev = list(range(n + 1))
+    curr = [0] * (n + 1)
+    for i in range(1, m + 1):
+        curr[0] = i
+        min_row = i
+        for j in range(1, n + 1):
+            cost = 0 if a[i - 1] == b[j - 1] else 1
+            v = min(curr[j - 1] + 1, prev[j] + 1, prev[j - 1] + cost)
+            curr[j] = v
+            if v < min_row:
+                min_row = v
+        if min_row > max_distance:
+            return max_distance + 1
+        prev, curr = curr, prev
+    return prev[n]
 
 
 def parse_post_game_action_tracker(
