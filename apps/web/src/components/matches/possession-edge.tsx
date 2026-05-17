@@ -360,17 +360,15 @@ function ContributorRow({ contributor }: { contributor: Contributor }) {
   const share = contributor.share ?? 0.5
   const bgmSharePct = (share * 100).toFixed(2)
   const oppSharePct = (100 - share * 100).toFixed(2)
-  const winner: 'bgm' | 'opp' | null =
-    contributor.share == null ? null : share > 0.5 ? 'bgm' : share < 0.5 ? 'opp' : null
   const delta = contributor.delta
   const sign = delta == null ? '' : delta >= 0 ? '+' : ''
   const deltaColor =
     delta == null
       ? 'text-fg-5'
-      : winner === 'bgm'
-        ? 'text-accent'
-        : winner === 'opp'
-          ? 'text-accent'
+      : delta > 0
+        ? 'text-emerald-400'
+        : delta < 0
+          ? 'text-rose-400'
           : 'text-fg-1'
 
   return (
@@ -383,28 +381,14 @@ function ContributorRow({ contributor }: { contributor: Contributor }) {
       </span>
 
       <div className="col-span-2 grid grid-cols-[60px_1fr_60px] items-center gap-2.5 sm:col-span-1">
-        <span
-          className={`text-right font-condensed text-[14px] font-extrabold leading-none tabular-nums ${
-            winner === 'bgm' ? 'text-accent' : 'text-fg-1'
-          }`}
-        >
+        <span className="text-right font-condensed text-[14px] font-extrabold leading-none tabular-nums text-accent">
           {contributor.bgmDisplay}
         </span>
         <div className="flex h-2.5 border border-zinc-800 bg-charcoal">
-          <span
-            className={`block h-full ${winner === 'bgm' ? 'bg-accent' : 'bg-fg-4'}`}
-            style={{ width: `${bgmSharePct}%` }}
-          />
-          <span
-            className={`block h-full ${winner === 'opp' ? 'bg-accent' : 'bg-fg-4'}`}
-            style={{ width: `${oppSharePct}%` }}
-          />
+          <span className="block h-full bg-accent" style={{ width: `${bgmSharePct}%` }} />
+          <span className="block h-full bg-fg-4" style={{ width: `${oppSharePct}%` }} />
         </div>
-        <span
-          className={`text-left font-condensed text-[14px] font-extrabold leading-none tabular-nums ${
-            winner === 'opp' ? 'text-accent' : 'text-fg-3'
-          }`}
-        >
+        <span className="text-left font-condensed text-[14px] font-extrabold leading-none tabular-nums text-fg-3">
           {contributor.oppDisplay}
         </span>
       </div>
