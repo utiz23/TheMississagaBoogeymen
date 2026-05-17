@@ -1,18 +1,28 @@
 'use client'
 
+import Image from 'next/image'
 import Link from 'next/link'
 import { useState } from 'react'
 import type { Scoresheet, ScoresheetSide, SkaterRow, GoalieRow } from '@/lib/match-recap'
 import { formatPosition, formatPositionFull } from '@/lib/format'
 import { PositionPill } from './position-pill'
+import { OpponentCrest } from '@/components/ui/opponent-crest'
 import { Panel } from '@/components/ui/panel'
 import { SectionHeader } from '@/components/ui/section-header'
 
 interface ScoresheetProps {
   scoresheet: Scoresheet
+  opponentCrestAssetId: string | null
+  opponentCrestUseBaseAsset: string | null
+  opponentName: string
 }
 
-export function ScoresheetSection({ scoresheet }: ScoresheetProps) {
+export function ScoresheetSection({
+  scoresheet,
+  opponentCrestAssetId,
+  opponentCrestUseBaseAsset,
+  opponentName,
+}: ScoresheetProps) {
   const { bgm, opponent } = scoresheet
   const bgmEmpty = bgm.skaters.length === 0 && bgm.goalies.length === 0
   const oppEmpty = opponent.skaters.length === 0 && opponent.goalies.length === 0
@@ -20,23 +30,35 @@ export function ScoresheetSection({ scoresheet }: ScoresheetProps) {
 
   return (
     <section className="space-y-3">
-      <SectionHeader
-        label="Scoresheet"
-        subtitle="BGM player profiles linked · opponent rows are match-archive only"
-      />
+      <SectionHeader label="Scoresheet" />
 
       <div className="space-y-6">
-        {!bgmEmpty ? <TeamSide side={bgm} /> : null}
-        {!oppEmpty ? <TeamSide side={opponent} /> : null}
+        {!bgmEmpty ? <TeamSide side={bgm} crest={<BgmCrest />} /> : null}
+        {!oppEmpty ? (
+          <TeamSide
+            side={opponent}
+            crest={
+              <OpponentCrest
+                crestAssetId={opponentCrestAssetId}
+                useBaseAsset={opponentCrestUseBaseAsset}
+                alt={opponentName}
+                width={24}
+                height={24}
+                className="h-6 w-6 object-contain"
+              />
+            }
+          />
+        ) : null}
       </div>
     </section>
   )
 }
 
-function TeamSide({ side }: { side: ScoresheetSide }) {
+function TeamSide({ side, crest }: { side: ScoresheetSide; crest: React.ReactNode }) {
   return (
     <div className="space-y-3">
-      <h3 className="flex items-baseline gap-2 font-condensed text-xs font-bold uppercase tracking-widest text-zinc-300">
+      <h3 className="flex items-center gap-2 font-condensed text-xs font-bold uppercase tracking-widest text-zinc-300">
+        {crest}
         <span>{side.teamLabel}</span>
         {side.isBgm ? (
           <span className="border border-accent/40 bg-accent/10 px-1.5 py-0.5 font-condensed text-[9px] font-bold uppercase tracking-widest text-accent">
@@ -50,6 +72,18 @@ function TeamSide({ side }: { side: ScoresheetSide }) {
         {side.goalies.length > 0 ? <GoalieTable rows={side.goalies} isBgm={side.isBgm} /> : null}
       </div>
     </div>
+  )
+}
+
+function BgmCrest() {
+  return (
+    <Image
+      src="/images/bgm-logo.png"
+      alt="BGM"
+      width={24}
+      height={24}
+      className="h-6 w-6 object-contain"
+    />
   )
 }
 
@@ -202,7 +236,7 @@ function SkaterRowEl({ row, isBgm }: { row: SkaterRow; isBgm: boolean }) {
                 />
                 <DetailStat
                   label="Possession"
-                  value={row.possessionSeconds > 0 ? `${row.possessionSeconds.toString()}s` : '—'}
+                  value={row.possessionSeconds > 0 ? row.possessionSeconds.toString() : '—'}
                 />
               </div>
               <DetailGroup
@@ -237,7 +271,11 @@ function SkaterRowEl({ row, isBgm }: { row: SkaterRow; isBgm: boolean }) {
               <DetailGroup
                 title="Faceoffs"
                 stats={[
-                  ['FO W/L', row.faceoffRecord ?? '—'],
+                  [
+                    'FO W/L',
+                    row.faceoffRecord ?? '—',
+                    'Centerman takes all team faceoffs in EASHL — this is the team total.',
+                  ],
                   [
                     'FO %',
                     row.faceoffWins + row.faceoffLosses > 0
@@ -340,15 +378,21 @@ function GoalieRowEl({ row }: { row: GoalieRow }) {
   )
 }
 
-function DetailGroup({ title, stats }: { title: string; stats: [string, string][] }) {
+function DetailGroup({
+  title,
+  stats,
+}: {
+  title: string
+  stats: ReadonlyArray<readonly [string, string] | readonly [string, string, string]>
+}) {
   return (
     <Panel className="p-3">
       <h5 className="mb-2 font-condensed text-xs font-bold uppercase tracking-widest text-zinc-400">
         {title}
       </h5>
       <div className="grid gap-2 sm:grid-cols-2">
-        {stats.map(([label, value]) => (
-          <DetailStat key={label} label={label} value={value} />
+        {stats.map(([label, value, tooltip]) => (
+          <DetailStat key={label} label={label} value={value} tooltip={tooltip} />
         ))}
       </div>
     </Panel>

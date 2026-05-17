@@ -220,7 +220,12 @@ export default async function GameDetailPage({ params, searchParams }: Props) {
       {scoresheetIsEmpty(scoresheet) ? (
         <EmptyScoresheet />
       ) : (
-        <ScoresheetSection scoresheet={scoresheet} />
+        <ScoresheetSection
+          scoresheet={scoresheet}
+          opponentCrestAssetId={opponentCrestAssetId}
+          opponentCrestUseBaseAsset={opponentCrestUseBaseAsset}
+          opponentName={match.opponentName}
+        />
       )}
 
       {/* 5a. OCR-derived event timeline — story-mode scoresheet with running
