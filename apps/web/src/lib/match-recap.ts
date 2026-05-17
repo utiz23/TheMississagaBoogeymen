@@ -637,7 +637,6 @@ export interface BoxScoreRow {
 export interface BoxScoreGroup {
   title: string
   rows: BoxScoreRow[]
-  placeholder?: boolean
   /** Small caption under the group, used to disclose OCR overrides etc. */
   footnote?: string
 }
@@ -739,11 +738,6 @@ export function buildBoxScore(
   if (possessionRows.length > 0) groups.push({ title: 'Possession', rows: possessionRows })
   if (defenseRows.length > 0) groups.push({ title: 'Defense', rows: defenseRows })
   if (goalieRows.length > 0) groups.push({ title: 'Goalie', rows: goalieRows })
-  groups.push({
-    title: 'Ratings',
-    rows: [],
-    placeholder: true,
-  })
   return groups
 }
 

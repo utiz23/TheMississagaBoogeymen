@@ -43,17 +43,11 @@ function Group({ group }: { group: BoxScoreGroup }) {
         </h3>
         <div className="h-px flex-1 bg-zinc-800" />
       </div>
-      {group.placeholder ? (
-        <div className="rounded-sm border border-dashed border-zinc-800/80 bg-zinc-950/30 px-3 py-3 text-center text-xs uppercase tracking-[0.16em] text-zinc-600">
-          Ratings are reserved for later extraction / derivation
-        </div>
-      ) : (
-        <div className="space-y-0">
-          {group.rows.map((row, i) => (
-            <Row key={row.label} row={row} isLast={i === group.rows.length - 1} />
-          ))}
-        </div>
-      )}
+      <div className="space-y-0">
+        {group.rows.map((row, i) => (
+          <Row key={row.label} row={row} isLast={i === group.rows.length - 1} />
+        ))}
+      </div>
       {group.footnote ? (
         <p className="pt-1 text-[10px] leading-snug text-zinc-500">{group.footnote}</p>
       ) : null}
