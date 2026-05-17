@@ -363,7 +363,7 @@ function BgmRow({
                 : isPeriodWinner
                   ? 'font-black text-accent'
                   : 'font-bold text-fg-2'
-            }`}
+            } ${isPeriodWinner ? 'bg-accent/[0.04]' : ''}`}
           >
             {forVal ?? '—'}
           </td>
@@ -418,7 +418,7 @@ function OppRow({
                 : isPeriodWinner
                   ? 'font-black text-fg-1'
                   : 'font-bold text-fg-3'
-            }`}
+            } ${isPeriodWinner ? 'bg-fg-4/[0.04]' : ''}`}
           >
             {againstVal ?? '—'}
           </td>
