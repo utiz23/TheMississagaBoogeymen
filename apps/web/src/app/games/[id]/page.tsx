@@ -16,6 +16,7 @@ import {
   getMatchLineupProvenance,
   getMatchFaceoffDots,
   getMatchFaceoffZoneSummaries,
+  getSeasonPlayerMatchStats,
 } from '@eanhl/db/queries'
 import type { Match } from '@eanhl/db'
 import { HeroCard } from '@/components/matches/hero-card'
@@ -25,7 +26,7 @@ import { TeamStats } from '@/components/matches/team-stats'
 import { GoalieSpotlightSection } from '@/components/matches/goalie-spotlight'
 import { ScoresheetSection } from '@/components/matches/scoresheet'
 import { ContextFooter } from '@/components/matches/context-footer'
-import { PeriodSummary } from '@/components/matches/period-summary'
+import { BoxScore } from '@/components/matches/box-score'
 import { ShotMix } from '@/components/matches/shot-mix'
 import { EventTimeline } from '@/components/matches/event-timeline'
 import { ActionTrackerMap } from '@/components/matches/action-tracker-map'
@@ -34,11 +35,14 @@ import { LineupSection } from '@/components/matches/lineup-section'
 import { Panel } from '@/components/ui/panel'
 import {
   buildAllTeamScores,
+  applyLoadoutOverrides,
   buildBoxScore,
   buildGoalieSpotlight,
   buildPossessionEdge,
   buildScoresheet,
   buildTopPerformers,
+  computeSeasonAvgs,
+  attachSeasonAvgs,
 } from '@/lib/match-recap'
 
 // Match data never changes once written — cache indefinitely
@@ -121,9 +125,26 @@ export default async function GameDetailPage({ params, searchParams }: Props) {
   const opponentCrestUseBaseAsset = opponentClub?.useBaseAsset ?? null
   const opponentPrimaryColor = opponentClub?.primaryColor ?? null
 
+  // Season-to-date player history for the "vs season avg" delta on the
+  // Three Stars cards. BGM-only — opponents have no profile / history.
+  const bgmPlayerIds = playerStats.map((p) => p.playerId)
+  const seasonRows = await safe(
+    () => getSeasonPlayerMatchStats(m.gameTitleId, m.playedAt, bgmPlayerIds),
+    [],
+  )
+  const seasonAvgs = computeSeasonAvgs(seasonRows)
+
   // ── View-model derivations ──────────────────────────────────────────────────
-  const topPerformers = buildTopPerformers(match, playerStats, opponentPlayerStats)
-  const allTeamScores = buildAllTeamScores(match, playerStats, opponentPlayerStats)
+  // Three Stars sources position / jersey # / archetype from the pre-game
+  // loadout OCR first, falling back to EA position + manual profile data.
+  const playerStatsForStars = applyLoadoutOverrides(playerStats, lineups.bgm)
+  const opponentStatsForStars = applyLoadoutOverrides(opponentPlayerStats, lineups.opponent)
+
+  const topPerformers = attachSeasonAvgs(
+    buildTopPerformers(match, playerStatsForStars, opponentStatsForStars),
+    seasonAvgs,
+  )
+  const allTeamScores = buildAllTeamScores(match, playerStatsForStars, opponentStatsForStars)
   const possessionEdge = buildPossessionEdge(match, periodSummaries)
   const boxScore = buildBoxScore(match, playerStats, opponentPlayerStats, periodSummaries)
   // Goalie spotlight stays BGM-only by design — the data shows opponent
@@ -165,7 +186,14 @@ export default async function GameDetailPage({ params, searchParams }: Props) {
               opponentLabel={match.opponentName}
             />
           ) : null}
-          {possessionEdge !== null ? <PossessionEdgeBar edge={possessionEdge} /> : null}
+          {possessionEdge !== null ? (
+            <PossessionEdgeBar
+              edge={possessionEdge}
+              opponentName={match.opponentName}
+              scoreFor={match.scoreFor}
+              scoreAgainst={match.scoreAgainst}
+            />
+          ) : null}
         </div>
       )}
 
@@ -181,8 +209,8 @@ export default async function GameDetailPage({ params, searchParams }: Props) {
         provenance={lineupProvenance}
       />
 
-      {/* 3b-3c. OCR-derived period summary + shot mix (hidden until reviewed). */}
-      <PeriodSummary rows={periodSummaries} />
+      {/* 3b-3c. OCR-derived per-period box score + shot mix (hidden until reviewed). */}
+      <BoxScore rows={periodSummaries} opponentLabel={match.opponentName} />
       <ShotMix rows={shotTypeSummaries} />
 
       {/* 4. Goalie spotlight (omitted entirely if no goalie data) */}

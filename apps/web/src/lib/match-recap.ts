@@ -4,8 +4,9 @@
 // components stay thin. Every "computed" output keeps its inputs visible so
 // the UI can label and surface them honestly.
 
-import type { Match } from '@eanhl/db'
+import type { Match, PlayerArchetype } from '@eanhl/db'
 import type {
+  LineupRow,
   MatchPeriodSummaryRow,
   getOpponentPlayerMatchStats,
   getPlayerMatchStats,
@@ -40,6 +41,18 @@ export interface ScoreFactor {
   contribution: number
 }
 
+export interface PlayerScoreInlineStats {
+  goals: number
+  assists: number
+  plusMinus: number
+  shots: number
+  hits: number
+  faceoffPct: number | null
+  toiSeconds: number | null
+  saves: number | null
+  shotsAgainst: number | null
+}
+
 export interface PlayerScoreEntry {
   /** 'bgm' = internal player, linkable to /roster/[id]. 'opp' = no profile. */
   side: 'bgm' | 'opp'
@@ -53,6 +66,11 @@ export interface PlayerScoreEntry {
   score: number
   statLine: string
   breakdown: ScoreFactor[]
+  /** Per-match raw stats — used by the flat ranked table's inline columns. */
+  stats: PlayerScoreInlineStats
+  /** Manual profile data — only populated for BGM players. */
+  jerseyNumber: number | null
+  archetype: PlayerArchetype | null
 }
 
 function winningSide(
@@ -219,6 +237,100 @@ function goalieStatLine(p: GoalieStatInput): string {
   return `${formatSavePct(saves / sa)} SV% · ${saves.toString()} SV`
 }
 
+// ─── Loadout-OCR overrides (position / jersey / archetype) ───────────────────
+//
+// Per-match position, jersey number, and player-archetype come from the
+// pre-game loadout OCR when available (`getMatchLineups`). The EA payload
+// only carries position; jersey and archetype are otherwise sourced from
+// the manual `player_profiles` table. We prefer OCR whenever it's present
+// because it reflects what the player actually used in THIS match, not a
+// stale profile entry.
+//
+// Precedence (per field):
+//   1. Loadout OCR (this match)
+//   2. EA `playerMatchStats.position` / `player_profiles.{jerseyNumber,archetype}`
+//   3. null
+
+/** Loadout OCR uses short position codes; the rest of the app uses EA's full keys. */
+const OCR_POSITION_TO_EA: Record<string, string> = {
+  C: 'center',
+  LW: 'leftWing',
+  RW: 'rightWing',
+  LD: 'leftDefenseMen',
+  RD: 'rightDefenseMen',
+  G: 'goalie',
+}
+
+/**
+ * Map EA's canonical 8-build-class names (with optional "[Reference Player - ]"
+ * prefix from the loadout view) to the project's 11-archetype taxonomy.
+ * Returns null when the OCR string isn't a known build.
+ */
+const BUILD_TO_ARCHETYPE: Record<string, PlayerArchetype> = {
+  Playmaker: 'playmaker',
+  Sniper: 'sniper',
+  Grinder: 'grinder',
+  'Two-Way Forward': 'two-way-fwd',
+  'Power Forward': 'power-forward',
+  'Puck Moving Defenseman': 'puckmover',
+  'Defensive Defenseman': 'defensive-d',
+  'Offensive Defenseman': 'offensive-d',
+}
+
+export function buildClassToArchetype(canonical: string | null): PlayerArchetype | null {
+  if (canonical === null) return null
+  // Strip optional "Reference Player - " prefix: "Cole Caufield - Sniper" → "Sniper".
+  const parts = canonical.split(/\s*-\s*/)
+  const build = (parts.length > 1 ? (parts[parts.length - 1] ?? canonical) : canonical).trim()
+  return BUILD_TO_ARCHETYPE[build] ?? null
+}
+
+/**
+ * Augment player-stat rows with per-match loadout OCR overrides. Returns
+ * new arrays — input arrays are not mutated. Each row's `position`,
+ * `jerseyNumber`, and `archetype` use the loadout value when available,
+ * otherwise the row's existing value (EA position / profile fields), else null.
+ *
+ * Matching key:
+ *   - BGM rows: `playerId` (resolved on the loadout snapshot's `player.id`)
+ *   - Opponent rows: case-insensitive gamertag
+ */
+export function applyLoadoutOverrides<
+  T extends {
+    playerId?: number | null
+    eaPlayerId?: string | null
+    gamertag: string
+    position: string | null
+    jerseyNumber?: number | null
+    archetype?: PlayerArchetype | null
+  },
+>(
+  rows: T[],
+  lineupRows: LineupRow[],
+): T[] {
+  if (lineupRows.length === 0) return rows
+  const byPlayerId = new Map<number, LineupRow>()
+  const byGamertag = new Map<string, LineupRow>()
+  for (const row of lineupRows) {
+    if (row.player?.id != null) byPlayerId.set(row.player.id, row)
+    if (row.gamertagSnapshot) byGamertag.set(row.gamertagSnapshot.toLowerCase(), row)
+  }
+  return rows.map((row) => {
+    const match =
+      (row.playerId != null ? byPlayerId.get(row.playerId) : undefined) ??
+      byGamertag.get(row.gamertag.toLowerCase())
+    if (!match) return row
+    const ocrPosition = match.position ? (OCR_POSITION_TO_EA[match.position] ?? null) : null
+    const archetype = buildClassToArchetype(match.buildClassCanonical)
+    return {
+      ...row,
+      position: ocrPosition ?? row.position,
+      jerseyNumber: match.playerNumber ?? row.jerseyNumber ?? null,
+      archetype: archetype ?? row.archetype ?? null,
+    }
+  })
+}
+
 // ─── Top Performers (BGM-only, for the three star cards) ─────────────────────
 
 export interface TopPerformer {
@@ -230,6 +342,12 @@ export interface TopPerformer {
   isGoalie: boolean
   statLine: string
   score: number
+  /** Per-factor breakdown — fed to the star card's segment bar. */
+  breakdown: ScoreFactor[]
+  /** Per-match raw stats — fed to the card's inline stat line. */
+  stats: PlayerScoreInlineStats
+  jerseyNumber: number | null
+  archetype: PlayerArchetype | null
 }
 
 export function buildTopPerformers(
@@ -248,7 +366,75 @@ export function buildTopPerformers(
       isGoalie: entry.isGoalie,
       statLine: entry.statLine,
       score: entry.score,
+      breakdown: entry.breakdown,
+      stats: entry.stats,
+      jerseyNumber: entry.jerseyNumber,
+      archetype: entry.archetype,
     }))
+}
+
+// ─── Season-to-date average composite score (for "vs season avg" delta) ──────
+//
+// The DB query returns raw player_match_stats rows for the BGM players plus
+// the host match's score/result. We re-use the same skaterBreakdown /
+// goalieBreakdown + Win Bonus rule the per-match score uses — single source
+// of truth, no formula drift between "current match score" and "season avg".
+
+/**
+ * Shape of one row returned by `getSeasonPlayerMatchStats`. Only the fields
+ * the score formula touches are required here; the query may return more.
+ */
+export interface SeasonPlayerMatchRow extends SkaterScoreInput, GoalieScoreInput {
+  playerId: number | null
+  isGoalie: boolean
+  scoreFor: number
+  scoreAgainst: number
+  result: Match['result']
+}
+
+export function computeSeasonAvgs(
+  rows: SeasonPlayerMatchRow[],
+): Map<number, { avgScore: number; gp: number }> {
+  const acc = new Map<number, { sum: number; gp: number }>()
+  for (const row of rows) {
+    if (row.playerId === null) continue
+    const breakdown = row.isGoalie ? goalieBreakdown(row) : skaterBreakdown(row)
+    // Win bonus mirrors `winningSide` + `toEntry`: DNF and ties get no bonus.
+    const bgmWon = row.result !== 'DNF' && row.scoreFor > row.scoreAgainst
+    const score = breakdown.reduce((s, fac) => s + fac.contribution, 0) + (bgmWon ? 1.0 : 0)
+    const prev = acc.get(row.playerId) ?? { sum: 0, gp: 0 }
+    acc.set(row.playerId, { sum: prev.sum + score, gp: prev.gp + 1 })
+  }
+  const result = new Map<number, { avgScore: number; gp: number }>()
+  for (const [playerId, { sum, gp }] of acc) {
+    result.set(playerId, { avgScore: gp > 0 ? sum / gp : 0, gp })
+  }
+  return result
+}
+
+export interface TopPerformerWithDelta extends TopPerformer {
+  /**
+   * Signed delta vs the player's season-to-date average score, before this
+   * match. null for opponent players (no profile / no history tracked) and
+   * for BGM players with zero prior games in the current game-title.
+   */
+  vsSeasonAvg: number | null
+}
+
+export function attachSeasonAvgs(
+  performers: TopPerformer[],
+  seasonAvgs: Map<number, { avgScore: number; gp: number }>,
+): TopPerformerWithDelta[] {
+  return performers.map((p) => {
+    if (p.side !== 'bgm' || p.playerId === null) {
+      return { ...p, vsSeasonAvg: null }
+    }
+    const avg = seasonAvgs.get(p.playerId)
+    if (!avg || avg.gp === 0) {
+      return { ...p, vsSeasonAvg: null }
+    }
+    return { ...p, vsSeasonAvg: p.score - avg.avgScore }
+  })
 }
 
 // ─── All-team ranked scores (BGM + opponent) ──────────────────────────────────
@@ -268,6 +454,9 @@ function toEntry(
     goals: number
     assists: number
     plusMinus: number
+    toiSeconds?: number | null
+    jerseyNumber?: number | null
+    archetype?: PlayerArchetype | null
   } & SkaterScoreInput &
     GoalieScoreInput,
 ): PlayerScoreEntry {
@@ -276,6 +465,8 @@ function toEntry(
     breakdown.push(f('Win Bonus', 1, 1.0))
   }
   const score = breakdown.reduce((s, fac) => s + fac.contribution, 0)
+  const foAttempts = p.faceoffWins + p.faceoffLosses
+  const faceoffPct = foAttempts > 0 ? (p.faceoffWins / foAttempts) * 100 : null
   return {
     side,
     playerId,
@@ -286,6 +477,19 @@ function toEntry(
     score,
     statLine: p.isGoalie ? goalieStatLine(p) : skaterStatLine(p),
     breakdown,
+    stats: {
+      goals: p.goals,
+      assists: p.assists,
+      plusMinus: p.plusMinus,
+      shots: p.shots,
+      hits: p.hits,
+      faceoffPct,
+      toiSeconds: p.toiSeconds ?? null,
+      saves: p.saves,
+      shotsAgainst: p.shotsAgainst,
+    },
+    jerseyNumber: p.jerseyNumber ?? null,
+    archetype: p.archetype ?? null,
   }
 }
 
