@@ -497,6 +497,10 @@ Or merge the two confusing groups into a single "Discipline & Special Teams" wit
 
 Same position rendering different colors across rows is jarring. The `PositionPill` component uses `defenseSide` (left/right) for defense, and the `side` (`bgm` vs `opp`) for the color treatment — but the result is that "D" doesn't have one canonical color. (Cross-references todo #17 from broader review.)
 
+**Status (2026-05-17):** Resolved — `PositionPill` was refactored to use `colorForPosition()` from `lib/position-colors.ts` as a single source of truth. All D pills now render cyan regardless of side / L-R.
+
+**3a. Position pill should reflect the specific position when OCR has it.** Current behavior: the Scoresheet's `SkaterRow.position` comes from EA's `player_match_stats`, which only records the generic position type (`defenseMen`) — so the pill always falls back to the cyan `D`. The Lineup section's OCR-derived loadout data DOES distinguish `leftDefenseMen` (cyan `LD`) vs `rightDefenseMen` (yellow `RD`) per slot. When that information is available for a given player on a given match, the Scoresheet should pass the specific position through to `PositionPill` so it renders `LD` (cyan) or `RD` (yellow). Cyan `D` stays as the fallback when only the generic position is known. Requires plumbing the OCR loadout-derived position from the lineup data layer into the Scoresheet `SkaterRow` builder (`buildScoresheet` in `match-recap.ts`).
+
 **4. Table layout collapses awkwardly on mobile.** At 390px, the table is `overflow-x-auto` with `min-w-[640px]`. Only PLAYER + G + A columns are visible; PTS / +/− / SOG / Hits / Blks are off-screen to the right. The user has to scroll the table horizontally — there's no visual hint that more columns exist. Two improvements:
 - Add a subtle right-edge fade gradient on the panel to signal "scroll right for more"
 - Or apply `hideOnMobile` to the lower-priority columns (Hits, Blks) and prioritize the high-value ones (PTS, +/-, SOG)
@@ -719,6 +723,8 @@ Worth a one-line tooltip on hover regardless of the label: "Events that occurred
 
 **3. Event-list rows have no hover-link to rink markers.** (Already captured as todo #23.) Click a row → you'd expect the corresponding rink marker to highlight or scroll into view. Currently the two panes are parallel views without integration. The data layer can connect them (event ID matches marker ID), so this is purely a UI wiring task. Highest-value polish on this section.
 
+**Status (2026-05-17): Resolved** — audit of `apps/web/src/components/matches/action-tracker-map.tsx` confirms the wiring is complete and bidirectional. List row click selects the marker (with halo + glow + fade-others); list row hover highlights the marker (with soft halo); marker click selects the row + scrolls it into view; marker hover tints the row + inset ring. Hover-wins-over-select tooltip on the focused marker, `aria-pressed` on the event button, click-outside-rink clears selection, mouse-leave-rink clears hover. Parent state: `selectedId` + `hoveredId` at action-tracker-map.tsx:137-138, shared by `EventList` and `RinkPanel` props.
+
 **4. `FACEOFFS 7 (LIST ONLY)` parenthetical is cryptic.** Assumes the reader knows what "LIST ONLY" means (= shown in event list, not plotted on rink). Better:
 - Icon-only treatment with a hover tooltip ("Not plotted on rink — see Faceoff Map below")
 - Or a small info icon (`ⓘ`) instead of the parenthetical
@@ -781,7 +787,7 @@ Ordered by impact:
 
 | # | Change | Effort |
 | --- | --- | --- |
-| 1 | Wire event-list row hover → corresponding rink marker highlight (todo #23) | 30–50 lines |
+| 1 | ~~Wire event-list row hover → corresponding rink marker highlight (todo #23)~~ — **Resolved 2026-05-17.** | — |
 | 2 | Hide OCR confidence when ≥ 0.99; show with amber/tooltip when sub-confident (todo #19) | 10 lines |
 | 3 | Rename `UNPLACED` → `OFF RINK` or hide when 0; add tooltip (todo #18) | 5 lines |
 | 4 | Promote `GOALS · BGM 4 / 4L 3` in the summary stats row (typography weight) | 5–10 lines |
@@ -797,11 +803,11 @@ Items 10–21 are polish.
 
 - **#18** (DISPLACED jargon) — Task 4 renamed to `UNPLACED`, partial fix; issue #1 above proposes further refinement
 - **#19** (Hide OCR confidence at 1.0) — directly addressed by issue #2
-- **#23** (Event hover → marker highlight) — directly addressed by issue #1
+- **#23** (Event hover → marker highlight) — directly addressed by issue #1. **Resolved 2026-05-17** — see Status note on issue #3 above.
 
 ### Closing note
 
-The Action Tracker is the page's most ambitious data-visualization component — and arguably the section that delivers the most analytical value once you understand the conventions. The biggest single improvement available is wiring the event-list-to-rink-marker hover linkage (todo #23): right now the two panes are parallel views of the same data without integration, and connecting them would transform the section from "two parallel reports" into "one interactive map." Everything else is polish.
+The Action Tracker is the page's most ambitious data-visualization component — and arguably the section that delivers the most analytical value once you understand the conventions. The event-list-to-rink-marker integration (todo #23) — once framed as the biggest single improvement available — turns out to have already landed: clicking, hovering, and scroll-into-view all work bidirectionally between the two panes, and the section reads as one interactive map rather than two parallel reports. Everything else listed above is polish.
 
 ---
 
