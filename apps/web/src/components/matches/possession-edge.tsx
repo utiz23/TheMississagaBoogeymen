@@ -156,13 +156,6 @@ export function PossessionEdgeBar({
             </span>
           ))}
         </div>
-        <span
-          className={`ml-auto font-condensed text-[10px] font-bold uppercase tracking-[0.18em] ${
-            resultMatches ? 'text-emerald-400' : 'text-amber-400'
-          }`}
-        >
-          {resultMatches ? '✓ result matches' : '⚠ result diverges'}
-        </span>
       </div>
     </section>
   )
@@ -212,9 +205,6 @@ function SidePct({
           %
         </span>
       </span>
-      <span className="font-condensed text-[11px] font-bold uppercase tracking-[0.18em] text-fg-5">
-        Deserve to win
-      </span>
     </div>
   )
 }
@@ -243,7 +233,7 @@ function Verdict({
         Edge{' '}
         <b className="font-black text-fg-1">
           {edge >= 0 ? '+' : ''}
-          {edge.toFixed(1)}
+          {edge.toFixed(1)} pts
         </b>
       </span>
     </div>
