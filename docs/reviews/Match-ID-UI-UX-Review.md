@@ -625,6 +625,8 @@ Spelled-out version `BGM LEADS BY 2` would be unambiguous but verbose. Compromis
 
 **8. The assists `△` triangle prefix** is compact but visually similar to a play-button (▶). Hockey-savvy users will read it as "assist." First-time readers might miss it. Consider `A:` text prefix (more explicit) or a small `↳` (assist of) glyph (more recognizable as a relational pointer).
 
+**Status (2026-05-17): Resolved** — audit of `apps/web/src/components/matches/event-timeline.tsx:657-668` confirms the assist prefix is already `A` (text), not `△`. Migration happened at some point before today's review pass and the review entry wasn't updated.
+
 **9. Lead-change banners are tiny text** (~9px). A reader scrolling fast misses the `BGM TAKES LEAD` cue. Could be slightly bolder/larger relative to the score chips (currently tracks at `tracking-[0.18em]`, weight `font-bold` ~600).
 
 **10. No "jump to event" navigation.** A game with 10+ events produces a ~2000px-tall timeline. A small floating "events" sidebar or anchor links from the period banners would help. Cross-reference: would also help on a tablet form factor.
@@ -672,7 +674,7 @@ Ordered by impact:
 | 5 | Port mobile left-accent stripe to desktop (cross-ref todo #29) | 10–20 lines |
 | 6 | `aria-label` on score chips with full narrative | 5 lines |
 | 7 | Stronger weight/size on lead-change banners | 1–2 lines |
-| 8 | Replace `△` assist prefix with `A:` text or `↳` glyph | 2 lines |
+| 8 | ~~Replace `△` assist prefix with `A:` text or `↳` glyph~~ — **Resolved 2026-05-17** (was already shipped). | — |
 | 9 | Tag voice style guide for cross-section harmony | docs |
 
 Items 10–20 are polish.
