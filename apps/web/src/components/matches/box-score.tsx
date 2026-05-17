@@ -223,13 +223,13 @@ function ModeTabSummary({
       >
         {totals.forVal} – {totals.againstVal}
       </span>
-      {mode === 'shots' && delta !== 0 ? (
+      {(mode === 'shots' && delta !== 0) || mode === 'goals' ? (
         <span
           className={`text-[11px] font-extrabold tracking-[0.06em] ${
-            delta > 0 ? 'text-emerald-400' : 'text-rose-400'
+            delta > 0 ? 'text-emerald-400' : delta < 0 ? 'text-rose-400' : 'text-fg-3'
           }`}
         >
-          {delta > 0 ? '+' : ''}
+          {delta > 0 ? '+' : delta === 0 ? '±' : ''}
           {delta}
         </span>
       ) : null}
