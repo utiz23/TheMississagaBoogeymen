@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import type { MatchEventRow } from '@eanhl/db/queries'
+import { formatPeriodLabel, periodsToShow } from '@/lib/period-label'
 import { SectionHeader } from '@/components/ui/section-header'
 import { RinkSvg } from '@/components/branding/rink'
 import {
@@ -59,11 +60,11 @@ interface ActionTrackerMapProps {
   oppColor?: string | null
 }
 
-// Design-system fallbacks for when the OCR pipeline hasn't (or can't)
-// extract a hex for a side. The home-side fallback is BGM red; the away
-// fallback is the design-system navy.
-const HOME_FALLBACK = '#ce202f'
-const AWAY_FALLBACK = '#233f94'
+// Per-TEAM defaults (not per-side) so BGM keeps its brand red regardless of
+// which side it played and whether the OCR colour-extractor has produced a
+// per-match hex. Match values from the DB override these.
+const BGM_FALLBACK = '#ce202f'
+const OPP_FALLBACK = '#233f94'
 
 interface TeamPalette {
   HOME_COLOR: string
@@ -73,8 +74,8 @@ interface TeamPalette {
 // Single source of truth for the per-match palette so MarkerTooltip /
 // Marker / EventCard / period-tag spans don't each need to be prop-drilled.
 const TeamPaletteContext = createContext<TeamPalette>({
-  HOME_COLOR: HOME_FALLBACK,
-  AWAY_COLOR: AWAY_FALLBACK,
+  HOME_COLOR: BGM_FALLBACK,
+  AWAY_COLOR: OPP_FALLBACK,
 })
 
 function useTeamPalette(): TeamPalette {
@@ -110,11 +111,13 @@ export function ActionTrackerMap({
   // club actually had home ice in this match. bgmIsHome defaults to true
   // so legacy rows without the column keep the prior behaviour.
   const bgmIsHome = bgmWasHome !== false
-  // Each side's colour is the OCR-extracted hex for that team, falling
-  // back to the design-system red (home) / navy (away) when extraction
-  // hasn't run yet.
-  const HOME_COLOR = (bgmIsHome ? bgmColor : oppColor) ?? HOME_FALLBACK
-  const AWAY_COLOR = (bgmIsHome ? oppColor : bgmColor) ?? AWAY_FALLBACK
+  // Resolve per-team colours first, then assign to home/away based on which
+  // side BGM played. This keeps BGM = brand red and opp = navy regardless
+  // of bgm_was_home, matching the "BGM is always red on our site" intuition.
+  const bgmResolved = bgmColor ?? BGM_FALLBACK
+  const oppResolved = oppColor ?? OPP_FALLBACK
+  const HOME_COLOR = bgmIsHome ? bgmResolved : oppResolved
+  const AWAY_COLOR = bgmIsHome ? oppResolved : bgmResolved
   const tracked = events.filter((e) => TRACKED_TYPES.has(e.eventType))
 
   const [enabledTypes, setEnabledTypes] = useState<Set<FilterableType>>(new Set(ALL_TYPES))
@@ -137,11 +140,19 @@ export function ActionTrackerMap({
 
   const oppAbbrev = abbreviateTeam(opponentLabel)
 
-  const periodsAvailable = useMemo(() => {
-    const set = new Map<number, string>()
-    for (const e of tracked) set.set(e.periodNumber, e.periodLabel ?? `P${String(e.periodNumber)}`)
-    return [...set.entries()].sort(([a], [b]) => a - b)
-  }, [tracked])
+  const maxPeriodSeen = useMemo(() => {
+    let m = 3
+    for (const e of events) if (e.periodNumber > m) m = e.periodNumber
+    return m
+  }, [events])
+
+  const periodList = useMemo(() => periodsToShow(maxPeriodSeen), [maxPeriodSeen])
+
+  const periodHasData = useMemo(() => {
+    const set = new Set<number>()
+    for (const e of events) set.add(e.periodNumber)
+    return set
+  }, [events])
 
   // Period + team pool drives chip counts so badges reflect what's reachable.
   const teamScoped = useMemo(() => {
@@ -157,13 +168,17 @@ export function ActionTrackerMap({
   }, [teamScoped, periodFilter])
 
   const periodCounts: Record<'all' | number, number> = { all: teamScoped.length }
-  for (const [n] of periodsAvailable) periodCounts[n] = 0
+  for (const n of periodList) periodCounts[n] = 0
   for (const e of teamScoped) {
     periodCounts[e.periodNumber] = (periodCounts[e.periodNumber] ?? 0) + 1
   }
 
   const typeCounts: Record<FilterableType, number> = {
-    goal: 0, shot: 0, hit: 0, penalty: 0, faceoff: 0,
+    goal: 0,
+    shot: 0,
+    hit: 0,
+    penalty: 0,
+    faceoff: 0,
   }
   for (const e of periodScoped) {
     if (e.eventType in typeCounts) typeCounts[e.eventType as FilterableType]++
@@ -201,9 +216,15 @@ export function ActionTrackerMap({
           if (e.teamSide === 'for') t.goalsBgm++
           else t.goalsOpp++
           break
-        case 'shot': t.shots++; break
-        case 'hit': t.hits++; break
-        case 'penalty': t.penalties++; break
+        case 'shot':
+          t.shots++
+          break
+        case 'hit':
+          t.hits++
+          break
+        case 'penalty':
+          t.penalties++
+          break
       }
     }
     return t
@@ -238,58 +259,62 @@ export function ActionTrackerMap({
 
   return (
     <TeamPaletteContext.Provider value={{ HOME_COLOR, AWAY_COLOR }}>
-    <section className="space-y-3">
-      <SectionHeader label="Action Tracker Map" subtitle="Post-game OCR · event positions on the rink" />
-
-      <FilterBar
-        periodsAvailable={periodsAvailable}
-        periodFilter={periodFilter}
-        setPeriodFilter={setPeriodFilter}
-        teamFilter={teamFilter}
-        setTeamFilter={setTeamFilter}
-        oppAbbrev={oppAbbrev}
-        periodCounts={periodCounts}
-        typeCounts={typeCounts}
-        enabledTypes={enabledTypes}
-        toggleType={toggleType}
-        search={search}
-        setSearch={setSearch}
-        goalsOnly={goalsOnly}
-        toggleGoalsOnly={toggleGoalsOnly}
-      />
-
-      <SummaryStrip
-        visible={visibleCards.length}
-        onRink={visibleMarkers.length}
-        unplaced={unplaced}
-        totals={matchTotals}
-        oppAbbrev={oppAbbrev}
-        ocrConfidence={ocrConfidence}
-      />
-
-      <div className="grid grid-cols-1 gap-3.5 xl:grid-cols-[380px_1fr]">
-        <EventList
-          events={visibleCards}
-          sortMode={sortMode}
-          setSortMode={setSortMode}
-          selectedId={selectedId}
-          hoveredId={hoveredId}
-          onHover={setHoveredId}
-          onSelect={toggleSelected}
-          bgmIsHome={bgmIsHome}
+      <section className="space-y-3">
+        <SectionHeader
+          label="Action Tracker Map"
+          subtitle="Post-game OCR · event positions on the rink"
         />
-        <RinkPanel
-          events={visibleMarkers}
+
+        <FilterBar
+          periodList={periodList}
+          periodHasData={periodHasData}
+          periodFilter={periodFilter}
+          setPeriodFilter={setPeriodFilter}
+          teamFilter={teamFilter}
+          setTeamFilter={setTeamFilter}
           oppAbbrev={oppAbbrev}
-          hoveredId={hoveredId}
-          onHover={setHoveredId}
-          selectedId={selectedId}
-          onSelect={toggleSelected}
-          onClearSelected={clearSelected}
-          bgmIsHome={bgmIsHome}
+          periodCounts={periodCounts}
+          typeCounts={typeCounts}
+          enabledTypes={enabledTypes}
+          toggleType={toggleType}
+          search={search}
+          setSearch={setSearch}
+          goalsOnly={goalsOnly}
+          toggleGoalsOnly={toggleGoalsOnly}
         />
-      </div>
-    </section>
+
+        <SummaryStrip
+          visible={visibleCards.length}
+          onRink={visibleMarkers.length}
+          unplaced={unplaced}
+          totals={matchTotals}
+          oppAbbrev={oppAbbrev}
+          ocrConfidence={ocrConfidence}
+        />
+
+        <div className="grid grid-cols-1 gap-3.5 xl:grid-cols-[380px_1fr]">
+          <EventList
+            events={visibleCards}
+            sortMode={sortMode}
+            setSortMode={setSortMode}
+            selectedId={selectedId}
+            hoveredId={hoveredId}
+            onHover={setHoveredId}
+            onSelect={toggleSelected}
+            bgmIsHome={bgmIsHome}
+          />
+          <RinkPanel
+            events={visibleMarkers}
+            oppAbbrev={oppAbbrev}
+            hoveredId={hoveredId}
+            onHover={setHoveredId}
+            selectedId={selectedId}
+            onSelect={toggleSelected}
+            onClearSelected={clearSelected}
+            bgmIsHome={bgmIsHome}
+          />
+        </div>
+      </section>
     </TeamPaletteContext.Provider>
   )
 }
@@ -297,7 +322,8 @@ export function ActionTrackerMap({
 // ─── Filter bar ─────────────────────────────────────────────────────────────
 
 function FilterBar({
-  periodsAvailable,
+  periodList,
+  periodHasData,
   periodFilter,
   setPeriodFilter,
   teamFilter,
@@ -312,7 +338,8 @@ function FilterBar({
   goalsOnly,
   toggleGoalsOnly,
 }: {
-  periodsAvailable: Array<[number, string]>
+  periodList: readonly number[]
+  periodHasData: Set<number>
   periodFilter: PeriodFilter
   setPeriodFilter: (p: PeriodFilter) => void
   teamFilter: TeamFilter
@@ -337,24 +364,24 @@ function FilterBar({
           label="All"
           count={periodCounts.all}
         />
-        {periodsAvailable.map(([n, label]) => (
-          <SegButton
-            key={n}
-            active={periodFilter === n}
-            onClick={() => setPeriodFilter(n)}
-            label={cleanPeriodLabel(label) || `P${String(n)}`}
-            count={periodCounts[n] ?? 0}
-          />
-        ))}
+        {periodList.map((n) => {
+          const enabled = periodHasData.has(n)
+          return (
+            <SegButton
+              key={n}
+              active={periodFilter === n}
+              onClick={() => { if (enabled) setPeriodFilter(n) }}
+              label={formatPeriodLabel(n)}
+              count={periodCounts[n] ?? 0}
+              disabled={!enabled}
+            />
+          )
+        })}
       </Segment>
 
       <FilterLabel>Team</FilterLabel>
       <Segment>
-        <SegButton
-          active={teamFilter === 'all'}
-          onClick={() => setTeamFilter('all')}
-          label="All"
-        />
+        <SegButton active={teamFilter === 'all'} onClick={() => setTeamFilter('all')} label="All" />
         <SegButton
           active={teamFilter === 'home'}
           onClick={() => setTeamFilter('home')}
@@ -422,22 +449,31 @@ function SegButton({
   label,
   count,
   tintAccent,
+  disabled = false,
 }: {
   active: boolean
   onClick: () => void
   label: string
   count?: number
   tintAccent?: boolean
+  disabled?: boolean
 }) {
   const base =
-    'inline-flex items-center gap-1.5 px-2.5 py-1.5 font-condensed text-[10.5px] font-bold uppercase tracking-[0.14em] transition-colors'
-  const tone = active
-    ? 'bg-[rgba(232,65,49,0.10)] text-[var(--color-accent)]'
-    : tintAccent === true
-      ? 'text-[var(--color-accent)] hover:text-[#ef6a5e]'
-      : 'text-[var(--color-fg-4)] hover:text-[var(--color-fg-2)]'
+    'inline-flex items-center gap-1.5 px-2.5 py-1.5 font-condensed text-[10.5px] font-bold uppercase tracking-[0.14em] transition-colors whitespace-nowrap'
+  const tone = disabled
+    ? 'cursor-not-allowed text-[var(--color-fg-6)] opacity-50'
+    : active
+      ? 'bg-[rgba(232,65,49,0.10)] text-[var(--color-accent)]'
+      : tintAccent === true
+        ? 'text-[var(--color-accent)] hover:text-[#ef6a5e]'
+        : 'text-[var(--color-fg-4)] hover:text-[var(--color-fg-2)]'
   return (
-    <button type="button" onClick={onClick} className={`${base} ${tone}`}>
+    <button
+      type="button"
+      onClick={onClick}
+      aria-disabled={disabled || undefined}
+      className={`${base} ${tone}`}
+    >
       <span>{label}</span>
       {count !== undefined ? (
         <span
@@ -475,11 +511,7 @@ function TypeToggle({
     : 'border-[var(--color-border)] bg-[var(--color-background)] text-[var(--color-fg-3)] opacity-60 hover:opacity-100'
   const dashed = isFaceoff ? 'border-dashed' : ''
   return (
-    <button
-      type="button"
-      onClick={onToggle}
-      className={`${base} ${tone} ${dashed}`}
-    >
+    <button type="button" onClick={onToggle} className={`${base} ${tone} ${dashed}`}>
       <TypeSwatch type={type} />
       <span>{label}</span>
       <span
@@ -520,7 +552,13 @@ function TypeSwatch({ type }: { type: FilterableType }) {
 function SearchInput({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   return (
     <label className="inline-flex items-center gap-1.5 border border-[var(--color-border)] bg-[var(--color-background)] px-2.5 py-1">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="h-3 w-3 text-[var(--color-fg-5)]">
+      <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth={2}
+        className="h-3 w-3 text-[var(--color-fg-5)]"
+      >
         <circle cx={11} cy={11} r={7} />
         <line x1={21} y1={21} x2={16.65} y2={16.65} />
       </svg>
@@ -602,24 +640,23 @@ function SummaryKV({
   tone?: 'win'
   small?: boolean
 }) {
-  const colorClass = accent === true
-    ? 'text-[var(--color-accent)]'
-    : tone === 'win'
-      ? 'text-[var(--color-win,#3fb27f)]'
-      : dim === true
-        ? 'text-[var(--color-fg-4)]'
-        : small === true
-          ? 'text-[var(--color-fg-3)]'
-          : 'text-[var(--color-fg-1)]'
+  const colorClass =
+    accent === true
+      ? 'text-[var(--color-accent)]'
+      : tone === 'win'
+        ? 'text-[var(--color-win,#3fb27f)]'
+        : dim === true
+          ? 'text-[var(--color-fg-4)]'
+          : small === true
+            ? 'text-[var(--color-fg-3)]'
+            : 'text-[var(--color-fg-1)]'
   const sizeClass = small === true ? 'text-[11px] font-bold' : 'text-[18px] font-black tabular-nums'
   return (
     <div className="flex flex-col gap-[1px]">
       <span className="font-condensed text-[9px] font-semibold uppercase tracking-[0.22em] text-[var(--color-fg-5)]">
         {k}
       </span>
-      <span className={`font-condensed leading-none ${sizeClass} ${colorClass}`}>
-        {v}
-      </span>
+      <span className={`font-condensed leading-none ${sizeClass} ${colorClass}`}>{v}</span>
     </div>
   )
 }
@@ -648,7 +685,7 @@ function RinkPanel({
   // Tooltip prefers explicit hover; falls back to the selected marker so the
   // pinned event keeps its detail panel visible.
   const focusedId = hoveredId ?? selectedId
-  const focused = focusedId === null ? null : events.find((e) => e.id === focusedId) ?? null
+  const focused = focusedId === null ? null : (events.find((e) => e.id === focusedId) ?? null)
   return (
     <div className="border border-[var(--color-border)] broadcast-panel-strong px-3.5 pb-2 pt-3.5">
       <div className="mb-2.5 flex items-center gap-3.5">
@@ -710,9 +747,8 @@ function MarkerTooltip({ event, bgmIsHome }: { event: MatchEventRow; bgmIsHome: 
   const actor = event.actor?.gamertag ?? event.actorGamertagSnapshot ?? '—'
   const target = event.target?.gamertag ?? event.targetGamertagSnapshot ?? null
   const infraction = (event as { infraction?: string | null }).infraction ?? null
-  const targetLine = event.eventType === 'penalty'
-    ? (infraction ? infraction.toUpperCase() : null)
-    : target
+  const targetLine =
+    event.eventType === 'penalty' ? (infraction ? infraction.toUpperCase() : null) : target
   const periodTag = cleanPeriodLabel(event.periodLabel) || `P${String(event.periodNumber)}`
   const borderColor = hexWithAlpha(isHomeSide ? HOME_COLOR : AWAY_COLOR, 0.55)
   return (
@@ -765,9 +801,7 @@ function MarkerTooltip({ event, bgmIsHome }: { event: MatchEventRow; bgmIsHome: 
         </div>
       ) : null}
       <div className="mt-[7px] flex gap-3 border-t border-[var(--color-border)] pt-[7px] font-condensed text-[10px] font-bold uppercase tracking-[0.14em]">
-        <span style={{ color: isHomeSide ? HOME_COLOR : AWAY_COLOR }}>
-          {periodTag}
-        </span>
+        <span style={{ color: isHomeSide ? HOME_COLOR : AWAY_COLOR }}>{periodTag}</span>
         {event.positionConfidence === 'extrapolated' ? (
           <span className="text-[var(--color-otl)]">Approx</span>
         ) : null}
@@ -804,9 +838,7 @@ function EventList({
     if (selectedId === null) return
     const container = scrollRef.current
     if (!container) return
-    const target = container.querySelector<HTMLElement>(
-      `[data-event-id="${String(selectedId)}"]`,
-    )
+    const target = container.querySelector<HTMLElement>(`[data-event-id="${String(selectedId)}"]`)
     if (target) target.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
   }, [selectedId])
   if (events.length === 0) {
@@ -859,7 +891,8 @@ function EventList({
         </span>
         <SortSelect value={sortMode} onChange={setSortMode} />
         <span className="ml-auto font-condensed text-[10px] font-bold tracking-[0.14em] text-[var(--color-fg-5)]">
-          <b className="font-black tabular-nums text-[var(--color-accent)]">{events.length}</b> shown
+          <b className="font-black tabular-nums text-[var(--color-accent)]">{events.length}</b>{' '}
+          shown
         </span>
       </div>
       <div ref={scrollRef} className="flex-1 overflow-y-auto">
@@ -964,9 +997,10 @@ function EventCard({
   const target = event.target?.gamertag ?? event.targetGamertagSnapshot ?? null
   const periodTag = cleanPeriodLabel(event.periodLabel) || `P${String(event.periodNumber)}`
   const infraction = (event as { infraction?: string | null }).infraction ?? null
-  const pillLabel = event.eventType === 'penalty' && infraction
-    ? infraction.toUpperCase()
-    : event.eventType.toUpperCase()
+  const pillLabel =
+    event.eventType === 'penalty' && infraction
+      ? infraction.toUpperCase()
+      : event.eventType.toUpperCase()
 
   // Selected wins over hover. Both states are tinted with this event's
   // own team colour so the card visually echoes its rink marker.
@@ -1056,8 +1090,7 @@ function CardEventMark({
   // tinted with this event's team colour. Same geometry on both sides
   // (home gets the white-outer/coloured-inner treatment, away the
   // coloured-outer/white-inner one) — keeps card and rink in sync.
-  const colorProps =
-    side === 'home' ? { homeColor: teamColor } : { awayColor: teamColor }
+  const colorProps = side === 'home' ? { homeColor: teamColor } : { awayColor: teamColor }
   if (eventType === 'goal') return <GoalMarker side={side} size={size} {...colorProps} />
   if (eventType === 'shot') return <ShotMarker side={side} size={size} {...colorProps} />
   if (eventType === 'hit') return <HitMarker side={side} size={size} {...colorProps} />
@@ -1097,7 +1130,7 @@ function EventTypePill({
       style={{
         color: pillTextColor(color),
         borderColor: hexWithAlpha(color, 0.65),
-        backgroundColor: hexWithAlpha(color, 0.20),
+        backgroundColor: hexWithAlpha(color, 0.2),
         border: `1px solid ${hexWithAlpha(color, 0.65)}`,
         boxShadow: isHomeSide ? '0 0 0 1.5px #fff' : undefined,
       }}
@@ -1279,7 +1312,7 @@ function PlacedMarker({
   const selectedHaloR = Math.max(width, height) * 1.0
   // Selection wins over fade for the chosen marker. Hover halo is drawn under
   // the selected halo so the strong-accent state isn't washed out.
-  const baseOpacity = faded ? 0.18 : (extrapolated === true ? 0.5 : 1)
+  const baseOpacity = faded ? 0.18 : extrapolated === true ? 0.5 : 1
   const groupStyle: React.CSSProperties = {
     cursor: faded ? 'default' : 'pointer',
     pointerEvents: faded ? 'none' : 'auto',
@@ -1332,11 +1365,16 @@ function rinkY(hockeyY: number): number {
 
 function markerSize(type: string): { width: number; height: number } {
   switch (type) {
-    case 'goal': return { width: 112, height: 97 }
-    case 'shot': return { width: 84, height: 84 }
-    case 'hit': return { width: 80, height: 80 }
-    case 'penalty': return { width: 112, height: 112 }
-    default: return { width: 84, height: 84 }
+    case 'goal':
+      return { width: 112, height: 97 }
+    case 'shot':
+      return { width: 84, height: 84 }
+    case 'hit':
+      return { width: 80, height: 80 }
+    case 'penalty':
+      return { width: 112, height: 112 }
+    default:
+      return { width: 84, height: 84 }
   }
 }
 
