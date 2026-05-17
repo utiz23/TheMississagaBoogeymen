@@ -719,6 +719,21 @@ function RinkPanel({
           <span className="text-[var(--color-accent)]">→ BGM</span>
         </div>
       </div>
+      <div className="mb-2 flex flex-wrap items-center gap-x-3 gap-y-1 font-condensed text-[9.5px] font-bold uppercase tracking-[0.18em] text-[var(--color-fg-5)]">
+        <span className="text-[var(--color-fg-4)]">Legend</span>
+        <span>
+          <b className="font-black text-[var(--color-fg-2)]">S</b> shot
+        </span>
+        <span>
+          <b className="font-black text-[var(--color-fg-2)]">H</b> hit
+        </span>
+        <span>
+          <b className="font-black text-[var(--color-fg-2)]">G</b> goal
+        </span>
+        <span>
+          <b className="font-black text-[var(--color-fg-2)]">P</b> penalty
+        </span>
+      </div>
       <div
         className="relative w-full"
         style={{ aspectRatio: `${String(VIEW_W)} / ${String(VIEW_H)}` }}
