@@ -527,8 +527,12 @@ function TypeToggle({
         {count}
       </span>
       {isFaceoff ? (
-        <span className="font-condensed text-[8.5px] font-semibold tracking-[0.18em] text-[var(--color-fg-5)]">
-          List only
+        <span
+          className="ml-1 text-[var(--color-fg-6)]"
+          aria-hidden
+          title="Faceoffs are tracked but not plotted on the rink — see the Faceoff Map section below for per-dot positions."
+        >
+          ⓘ
         </span>
       ) : null}
     </button>
