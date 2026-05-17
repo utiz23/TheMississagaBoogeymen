@@ -141,7 +141,7 @@ class BoxScorePeriodCell(BaseModel):
     """One cell from a Box Score grid row.
 
     period_label: 'Pre' (away/home team-name col), '1ST', '2ND', 'OT', 'TOT', etc.
-    period_number: 1=1st, 2=2nd, 3=3rd, 4=OT, 5=OT2, 6=SO, -1=TOT (not a real period).
+    period_number: 1=1st, 2=2nd, 3=3rd, 4=OT, 5=OT2, 6=OT3, -1=TOT (not a real period).
     """
 
     period_label: str
@@ -179,7 +179,10 @@ class NetChartSideStats(BaseModel):
 class PostGameNetChartResult(BaseExtractionResult):
     success: Literal[True] = True
     period_label: ExtractionField
-    """period_number derived from period_label: 1/2/3/4/5/6 for periods, -1 for ALL PERIODS aggregate."""
+    """period_number derived from period_label: 1/2/3/4/5/6 for periods,
+    -1 for the explicit ALL PERIODS aggregate, 0 when OCR couldn't recognize
+    the label (promoters must refuse to write 0 rows — they would collide
+    with the legitimate -1 ALL PERIODS slot in the unique index)."""
     period_number: int
     away_label: ExtractionField
     home_label: ExtractionField
@@ -189,6 +192,13 @@ class PostGameNetChartResult(BaseExtractionResult):
     # H/A marker.
     away_team_abbr: ExtractionField
     home_team_abbr: ExtractionField
+    # Game-total shots parsed from the centered score-strip header (always
+    # visible on per-period frames). The promoter uses these to populate the
+    # ALL PERIODS aggregate row's total_shots when no dedicated ALL PERIODS
+    # frame is available; the per-shot-type breakdown still has to come from
+    # summing per-period rows.
+    away_header_total_shots: ExtractionField
+    home_header_total_shots: ExtractionField
     away: NetChartSideStats
     home: NetChartSideStats
 
@@ -197,11 +207,33 @@ class PostGameNetChartResult(BaseExtractionResult):
 
 
 class FaceoffSideStats(BaseModel):
-    """Per-side faceoff zone breakdown. Audit-only in v1; no domain promoter."""
+    """Per-side faceoff text-panel breakdown."""
 
     overall_win_pct: ExtractionField
-    offensive_zone: ExtractionField  # verbatim "wins/total" string
-    defensive_zone: ExtractionField  # verbatim "wins/total" string
+    # Verbatim "wins/total" strings kept for audit alongside the parsed ints.
+    offensive_zone: ExtractionField
+    defensive_zone: ExtractionField
+    # Parsed numerator/denominator for the zone splits. MISSING when the
+    # verbatim string didn't match the W/T shape.
+    offensive_zone_wins: ExtractionField
+    offensive_zone_total: ExtractionField
+    defensive_zone_wins: ExtractionField
+    defensive_zone_total: ExtractionField
+
+
+class FaceoffDot(BaseModel):
+    """One face-off dot on the rink diagram.
+
+    dot_id is an absolute rink position ID, independent of attacking direction:
+    lz_top, lz_bot (left end-zone), lnz_top, lnz_bot (left neutral-zone),
+    center, rnz_top, rnz_bot (right neutral-zone), rz_top, rz_bot (right
+    end-zone). away_wins / home_wins follow the on-screen labels (red flag /
+    dark flag) — BGM-perspective resolution happens at promoter or read time.
+    """
+
+    dot_id: str
+    away_wins: ExtractionField
+    home_wins: ExtractionField
 
 
 class PostGameFaceoffMapResult(BaseExtractionResult):
@@ -217,6 +249,9 @@ class PostGameFaceoffMapResult(BaseExtractionResult):
     home_team_abbr: ExtractionField
     away: FaceoffSideStats
     home: FaceoffSideStats
+    # Per-dot win counts keyed by dot_id. All 9 keys are always present; the
+    # downstream promoter inserts a row per dot regardless of OCR confidence.
+    dots: dict[str, FaceoffDot]
 
 
 # ─── Events log (goals + penalties) ───────────────────────────────────────────

@@ -115,11 +115,22 @@ class Extractor:
         try:
             image = load_image(str(path))
             regions: dict[str, list[OCRLine]] = {}
+            # Per-ROI processed-image shape (height, width) in OCR-input pixel
+            # coordinates. Parsers that need ROI-relative geometry (e.g. the
+            # faceoff-map dot-side disambiguation) consume this via the
+            # `regions_meta` kwarg. preprocess_image upscales 2x for the
+            # threshold modes, so this is the coordinate system OCRLine bbox
+            # values live in.
+            regions_meta: dict[str, tuple[int, int]] = {}
             for region_name, region in definition.config.regions.items():
                 crop = crop_region(image, region)
                 processed = preprocess_image(crop, region.preprocess)
+                regions_meta[region_name] = (
+                    processed.shape[0],
+                    processed.shape[1],
+                )
                 regions[region_name] = self.backend.read(processed)
-            result = definition.parser(meta, regions, image=image)
+            result = definition.parser(meta, regions, image=image, regions_meta=regions_meta)
             result.meta.overall_confidence = self._compute_overall_confidence(result)
             if not self._has_any_text(regions):
                 result.warnings.append("No OCR text found in configured regions.")

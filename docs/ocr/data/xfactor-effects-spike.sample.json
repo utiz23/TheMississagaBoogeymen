@@ -1,0 +1,253 @@
+[
+  {
+    "screenshot": "Screenshot 2026-05-16 21-57-38.png",
+    "category": "Skating/Strength",
+    "rowBounds": {
+      "top": 265,
+      "bottom": 480
+    },
+    "rawName": "WHEELS",
+    "canonicalName": "Wheels",
+    "descriptionLines": [
+      "Turnonthejets and blowpastopponents afterhitting topspeedwith increasedSpeed and",
+      "Acceleration."
+    ],
+    "tiers": {
+      "Specialist": {
+        "labelsRaw": ["SPEED", "ACCELERATION"],
+        "valuesRaw": ["+3%(0.50sec)", "+3%\uff080.50sec)"],
+        "metrics": [
+          {
+            "metric": "SPEED",
+            "raw": "+3%(0.50sec)",
+            "numericValue": 3.0,
+            "unit": "percent",
+            "durationText": "0.50sec"
+          },
+          {
+            "metric": "ACCELERATION",
+            "raw": "+3%\uff080.50sec)",
+            "numericValue": 3.0,
+            "unit": "percent",
+            "durationText": "0.50sec"
+          }
+        ]
+      },
+      "All Star": {
+        "labelsRaw": ["SPEED", "ACCELERATION"],
+        "valuesRaw": ["+3%(1sec)", "+5%(1sec)"],
+        "metrics": [
+          {
+            "metric": "SPEED",
+            "raw": "+3%(1sec)",
+            "numericValue": 3.0,
+            "unit": "percent",
+            "durationText": "1sec"
+          },
+          {
+            "metric": "ACCELERATION",
+            "raw": "+5%(1sec)",
+            "numericValue": 5.0,
+            "unit": "percent",
+            "durationText": "1sec"
+          }
+        ]
+      },
+      "Elite": {
+        "labelsRaw": ["SPEED", "ACCELERATION"],
+        "valuesRaw": ["+3%(2sec)", "+8%(2sec)"],
+        "metrics": [
+          {
+            "metric": "SPEED",
+            "raw": "+3%(2sec)",
+            "numericValue": 3.0,
+            "unit": "percent",
+            "durationText": "2sec"
+          },
+          {
+            "metric": "ACCELERATION",
+            "raw": "+8%(2sec)",
+            "numericValue": 8.0,
+            "unit": "percent",
+            "durationText": "2sec"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "screenshot": "Screenshot 2026-05-16 21-57-51.png",
+    "category": "Shooting/Passing",
+    "rowBounds": {
+      "top": 300,
+      "bottom": 515
+    },
+    "rawName": "BACKHANDBEAUTY",
+    "canonicalName": "Backhand_Beauty",
+    "descriptionLines": [
+      "Catchopposingplayersandgoaliesoffguardwithincreased BackhandshotPower and",
+      "Accuracy.",
+      "Additionally,BackhandPassesare as accurateandpowerfulasforehandpasses."
+    ],
+    "tiers": {
+      "Specialist": {
+        "labelsRaw": ["BACKHANDPOWER", "BACKHANDACCURACY"],
+        "valuesRaw": ["+20%", "+20%"],
+        "metrics": [
+          {
+            "metric": "BACKHANDPOWER",
+            "raw": "+20%",
+            "numericValue": 20.0,
+            "unit": "percent",
+            "durationText": null
+          },
+          {
+            "metric": "BACKHANDACCURACY",
+            "raw": "+20%",
+            "numericValue": 20.0,
+            "unit": "percent",
+            "durationText": null
+          }
+        ]
+      },
+      "All Star": {
+        "labelsRaw": ["BACKHANDPOWER", "BACKHANDACCURACY"],
+        "valuesRaw": ["+60%", "+60%"],
+        "metrics": [
+          {
+            "metric": "BACKHANDPOWER",
+            "raw": "+60%",
+            "numericValue": 60.0,
+            "unit": "percent",
+            "durationText": null
+          },
+          {
+            "metric": "BACKHANDACCURACY",
+            "raw": "+60%",
+            "numericValue": 60.0,
+            "unit": "percent",
+            "durationText": null
+          }
+        ]
+      },
+      "Elite": {
+        "labelsRaw": ["BACKHANDPOWER", "BACKHANDACCURACY"],
+        "valuesRaw": ["+100%", "+100%"],
+        "metrics": [
+          {
+            "metric": "BACKHANDPOWER",
+            "raw": "+100%",
+            "numericValue": 100.0,
+            "unit": "percent",
+            "durationText": null
+          },
+          {
+            "metric": "BACKHANDACCURACY",
+            "raw": "+100%",
+            "numericValue": 100.0,
+            "unit": "percent",
+            "durationText": null
+          }
+        ]
+      }
+    }
+  },
+  {
+    "screenshot": "Screenshot 2026-05-16 21-58-26.png",
+    "category": "Goaltending",
+    "rowBounds": {
+      "top": 734,
+      "bottom": 949
+    },
+    "rawName": "RECHARGE",
+    "canonicalName": "Recharge",
+    "descriptionLines": [
+      "Fightthroughfatiguewithreduced energy drainwhenmaking saves and breathe lifeinto",
+      "yourteambyincreasing teamenergyafteranyBreakawaySave,DesperationSaveor",
+      "PerfectOneTimerSave."
+    ],
+    "tiers": {
+      "Specialist": {
+        "labelsRaw": ["ENERGYDRAIN(SHOTS)", "ENERGYDRAIN(PRESSUREMETEF", "ENERGYRECOVERY"],
+        "valuesRaw": ["-15%", "-5%", "+2%"],
+        "metrics": [
+          {
+            "metric": "ENERGYDRAIN(SHOTS)",
+            "raw": "-15%",
+            "numericValue": -15.0,
+            "unit": "percent",
+            "durationText": null
+          },
+          {
+            "metric": "ENERGYDRAIN(PRESSUREMETEF",
+            "raw": "-5%",
+            "numericValue": -5.0,
+            "unit": "percent",
+            "durationText": null
+          },
+          {
+            "metric": "ENERGYRECOVERY",
+            "raw": "+2%",
+            "numericValue": 2.0,
+            "unit": "percent",
+            "durationText": null
+          }
+        ]
+      },
+      "All Star": {
+        "labelsRaw": ["ENERGYDRAIN(SHOTS)", "ENERGYDRAINPRESSUREMETER", "ENERGYRECOVERY"],
+        "valuesRaw": ["-35%", "-15%", "+4%"],
+        "metrics": [
+          {
+            "metric": "ENERGYDRAIN(SHOTS)",
+            "raw": "-35%",
+            "numericValue": -35.0,
+            "unit": "percent",
+            "durationText": null
+          },
+          {
+            "metric": "ENERGYDRAINPRESSUREMETER",
+            "raw": "-15%",
+            "numericValue": -15.0,
+            "unit": "percent",
+            "durationText": null
+          },
+          {
+            "metric": "ENERGYRECOVERY",
+            "raw": "+4%",
+            "numericValue": 4.0,
+            "unit": "percent",
+            "durationText": null
+          }
+        ]
+      },
+      "Elite": {
+        "labelsRaw": ["ENERGYDRAIN(SHOTS)", "ENERGYDRAIN(PRESSUREMETER", "ENERGYRECOVERY"],
+        "valuesRaw": ["-75%", "-50%", "+6%"],
+        "metrics": [
+          {
+            "metric": "ENERGYDRAIN(SHOTS)",
+            "raw": "-75%",
+            "numericValue": -75.0,
+            "unit": "percent",
+            "durationText": null
+          },
+          {
+            "metric": "ENERGYDRAIN(PRESSUREMETER",
+            "raw": "-50%",
+            "numericValue": -50.0,
+            "unit": "percent",
+            "durationText": null
+          },
+          {
+            "metric": "ENERGYRECOVERY",
+            "raw": "+6%",
+            "numericValue": 6.0,
+            "unit": "percent",
+            "durationText": null
+          }
+        ]
+      }
+    }
+  }
+]

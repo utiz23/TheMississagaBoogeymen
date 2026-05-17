@@ -29,8 +29,16 @@ V2 = {
             "wrist_shot_accuracy": 80, "slap_shot_accuracy": 80, "speed": 95, "balance": 82, "agility": 95,
             "wrist_shot_power": 79, "slap_shot_power": 81, "acceleration": 96, "puck_control": 89, "endurance": 94,
             "passing": 90, "offensive_awareness": 90, "body_checking": 72, "stick_checking": 85, "defensive_awareness": 88,
-            "hand_eye": 94, "strength": 90, "durability": 80, "shot_blocking": 68,
+            "hand_eye": 92, "strength": 83, "durability": 76, "shot_blocking": 75,
             "deking": 94, "faceoffs": 90, "discipline": 80, "fighting_skill": 68,
+        },
+        # User-supplied 23-row delta baseline. `None` means "no delta visible in-game".
+        "deltas": {
+            "wrist_shot_accuracy": -4, "slap_shot_accuracy": -4, "speed": +8, "balance": -3, "agility": +8,
+            "wrist_shot_power": -3, "slap_shot_power": -1, "acceleration": +9, "puck_control": -3, "endurance": +6,
+            "passing": -2, "offensive_awareness": None, "body_checking": -9, "stick_checking": +5, "defensive_awareness": +8,
+            "hand_eye": +4, "strength": +2, "durability": -5, "shot_blocking": -3,
+            "deking": +9, "faceoffs": +5, "discipline": -5, "fighting_skill": -12,
         },
     },
     "vlcsnap-2026-05-10-01h48m58s965.png": {
@@ -116,10 +124,26 @@ def main() -> int:
         for group in d["attributes"].values():
             for k, v in group["values"].items():
                 attrs_captured[k] = v.get("value")
+        deltas_captured = {}
+        for k, dval in (d.get("attribute_deltas") or {}).items():
+            if isinstance(dval, dict):
+                deltas_captured[k] = dval.get("value")
+            else:
+                deltas_captured[k] = dval
         xf_names = [(x.get("value"), t.get("value")) for x, t in zip(d["x_factors"], d["x_factor_tiers"])]
 
         captured_attrs = attrs_captured
         attr_matches, attr_total, attr_misses = compare(captured_attrs, gt["attrs"])
+        # Delta diff (only when ground truth supplies one).
+        delta_matches = delta_total = 0
+        delta_misses: list[tuple[str, object, object]] = []
+        for k, exp in (gt.get("deltas") or {}).items():
+            delta_total += 1
+            got = deltas_captured.get(k)
+            if got == exp:
+                delta_matches += 1
+            else:
+                delta_misses.append((f"Δ {k}", exp, got))
 
         # Scalar comparisons
         scalar_expected = {
@@ -155,13 +179,13 @@ def main() -> int:
             else:
                 scalar_misses.append((f"xf_tier", exp_tier, got_tier))
 
-        total = scalar_total + xf_total + attr_total
-        matches = scalar_matches + xf_matches + attr_matches
+        total = scalar_total + xf_total + attr_total + delta_total
+        matches = scalar_matches + xf_matches + attr_matches + delta_matches
         overall_matches += matches
         overall_total += total
         print(f"  {cap_name:43s}  {gt['gamertag']:25s}  {matches}/{total:3d}  ({100*matches//total}%)")
-        if scalar_misses or attr_misses:
-            for k, e, g in (scalar_misses + attr_misses):
+        if scalar_misses or attr_misses or delta_misses:
+            for k, e, g in (scalar_misses + attr_misses + delta_misses):
                 print(f"      MISS {k:25s} expected={repr(e):20s} got={repr(g)}")
 
     print("-" * 100)

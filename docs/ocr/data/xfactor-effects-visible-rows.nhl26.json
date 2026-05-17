@@ -1,0 +1,2625 @@
+[
+  {
+    "screenshot": "Screenshot 2026-05-16 21-57-38.png",
+    "category": "Skating/Strength",
+    "highlightedRowBounds": {
+      "top": 265,
+      "bottom": 480
+    },
+    "rows": [
+      {
+        "screenshot": "Screenshot 2026-05-16 21-57-38.png",
+        "category": "Skating/Strength",
+        "rowBounds": {
+          "top": 263,
+          "bottom": 478
+        },
+        "rawName": "WHEELS",
+        "rawNameHint": "WHEELS",
+        "canonicalName": "Wheels",
+        "descriptionLines": [
+          "Turnonthejets and blowpastopponents after hitting topspeedwith increased Speed and",
+          "Acceleration."
+        ],
+        "highlighted": true,
+        "tiers": {
+          "Specialist": {
+            "labelsRaw": ["SPEED", "ACCELERATION"],
+            "valuesRaw": ["+3%(0.50 sec)", "+3%(0.50sec)"],
+            "metrics": [
+              {
+                "metric": "SPEED",
+                "raw": "+3%(0.50 sec)",
+                "numericValue": 3.0,
+                "unit": "percent",
+                "durationText": "0.50sec"
+              },
+              {
+                "metric": "ACCELERATION",
+                "raw": "+3%(0.50sec)",
+                "numericValue": 3.0,
+                "unit": "percent",
+                "durationText": "0.50sec"
+              }
+            ]
+          },
+          "All Star": {
+            "labelsRaw": ["SPEED", "ACCELERATION"],
+            "valuesRaw": ["+3%(1sec)", "+5%(1sec)"],
+            "metrics": [
+              {
+                "metric": "SPEED",
+                "raw": "+3%(1sec)",
+                "numericValue": 3.0,
+                "unit": "percent",
+                "durationText": "1sec"
+              },
+              {
+                "metric": "ACCELERATION",
+                "raw": "+5%(1sec)",
+                "numericValue": 5.0,
+                "unit": "percent",
+                "durationText": "1sec"
+              }
+            ]
+          },
+          "Elite": {
+            "labelsRaw": ["SPEED", "ACCELERATION"],
+            "valuesRaw": ["+3%(2sec)", "+8%(2sec)"],
+            "metrics": [
+              {
+                "metric": "SPEED",
+                "raw": "+3%(2sec)",
+                "numericValue": 3.0,
+                "unit": "percent",
+                "durationText": "2sec"
+              },
+              {
+                "metric": "ACCELERATION",
+                "raw": "+8%(2sec)",
+                "numericValue": 8.0,
+                "unit": "percent",
+                "durationText": "2sec"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "screenshot": "Screenshot 2026-05-16 21-57-38.png",
+        "category": "Skating/Strength",
+        "rowBounds": {
+          "top": 481,
+          "bottom": 696
+        },
+        "rawName": "ELITEEDGES",
+        "rawNameHint": "ELITEEDGES",
+        "canonicalName": "Elite_Edges",
+        "descriptionLines": [
+          "Shake off opponentswith explosive edge workwith increased Acceleration and Agility",
+          "whileperforming tight turns and sharp direction changes."
+        ],
+        "highlighted": false,
+        "tiers": {
+          "Specialist": {
+            "labelsRaw": ["SPEED", "ACCELERATION", "AGILITY"],
+            "valuesRaw": ["+3%", "+10%", "+15%"],
+            "metrics": [
+              {
+                "metric": "SPEED",
+                "raw": "+3%",
+                "numericValue": 3.0,
+                "unit": "percent",
+                "durationText": null
+              },
+              {
+                "metric": "ACCELERATION",
+                "raw": "+10%",
+                "numericValue": 10.0,
+                "unit": "percent",
+                "durationText": null
+              },
+              {
+                "metric": "AGILITY",
+                "raw": "+15%",
+                "numericValue": 15.0,
+                "unit": "percent",
+                "durationText": null
+              }
+            ]
+          },
+          "All Star": {
+            "labelsRaw": ["SPEED", "ACCELERATION", "AGILITY"],
+            "valuesRaw": ["+5%", "+15%", "+30%"],
+            "metrics": [
+              {
+                "metric": "SPEED",
+                "raw": "+5%",
+                "numericValue": 5.0,
+                "unit": "percent",
+                "durationText": null
+              },
+              {
+                "metric": "ACCELERATION",
+                "raw": "+15%",
+                "numericValue": 15.0,
+                "unit": "percent",
+                "durationText": null
+              },
+              {
+                "metric": "AGILITY",
+                "raw": "+30%",
+                "numericValue": 30.0,
+                "unit": "percent",
+                "durationText": null
+              }
+            ]
+          },
+          "Elite": {
+            "labelsRaw": ["SPEED", "ACCELERATION", "AGILITY"],
+            "valuesRaw": ["+10%", "+25%", "+50%"],
+            "metrics": [
+              {
+                "metric": "SPEED",
+                "raw": "+10%",
+                "numericValue": 10.0,
+                "unit": "percent",
+                "durationText": null
+              },
+              {
+                "metric": "ACCELERATION",
+                "raw": "+25%",
+                "numericValue": 25.0,
+                "unit": "percent",
+                "durationText": null
+              },
+              {
+                "metric": "AGILITY",
+                "raw": "+50%",
+                "numericValue": 50.0,
+                "unit": "percent",
+                "durationText": null
+              }
+            ]
+          }
+        }
+      },
+      {
+        "screenshot": "Screenshot 2026-05-16 21-57-38.png",
+        "category": "Skating/Strength",
+        "rowBounds": {
+          "top": 699,
+          "bottom": 914
+        },
+        "rawName": "SECONDWIND",
+        "rawNameHint": "SECOND WIND",
+        "canonicalName": "Second_Wind",
+        "descriptionLines": [
+          "Outlast the opposing team by instantlyrecovering energy whenyou become exhausted.",
+          "Must berecovered backtofullto trigger again."
+        ],
+        "highlighted": false,
+        "tiers": {
+          "Specialist": {
+            "labelsRaw": ["ENERGYRECOVERED"],
+            "valuesRaw": ["+35%"],
+            "metrics": [
+              {
+                "metric": "ENERGYRECOVERED",
+                "raw": "+35%",
+                "numericValue": 35.0,
+                "unit": "percent",
+                "durationText": null
+              }
+            ]
+          },
+          "All Star": {
+            "labelsRaw": ["ENERGYRECOVERED"],
+            "valuesRaw": ["+50%"],
+            "metrics": [
+              {
+                "metric": "ENERGYRECOVERED",
+                "raw": "+50%",
+                "numericValue": 50.0,
+                "unit": "percent",
+                "durationText": null
+              }
+            ]
+          },
+          "Elite": {
+            "labelsRaw": ["ENERGYRECOVERED"],
+            "valuesRaw": ["+80%"],
+            "metrics": [
+              {
+                "metric": "ENERGYRECOVERED",
+                "raw": "+80%",
+                "numericValue": 80.0,
+                "unit": "percent",
+                "durationText": null
+              }
+            ]
+          }
+        }
+      }
+    ]
+  },
+  {
+    "screenshot": "Screenshot 2026-05-16 21-57-46.png",
+    "category": "Skating/Strength",
+    "highlightedRowBounds": {
+      "top": 734,
+      "bottom": 949
+    },
+    "rows": [
+      {
+        "screenshot": "Screenshot 2026-05-16 21-57-46.png",
+        "category": "Skating/Strength",
+        "rowBounds": {
+          "top": 300,
+          "bottom": 515
+        },
+        "rawName": "SECONDWIND",
+        "rawNameHint": "SECONDWIND",
+        "canonicalName": "Second_Wind",
+        "descriptionLines": [
+          "Outlast the opposing team by instantlyrecovering energy whenyou become exhausted.",
+          "Mustberecovered backtofullto trigger again."
+        ],
+        "highlighted": false,
+        "tiers": {
+          "Specialist": {
+            "labelsRaw": ["ENERGYRECOVERED"],
+            "valuesRaw": ["+35%"],
+            "metrics": [
+              {
+                "metric": "ENERGYRECOVERED",
+                "raw": "+35%",
+                "numericValue": 35.0,
+                "unit": "percent",
+                "durationText": null
+              }
+            ]
+          },
+          "All Star": {
+            "labelsRaw": ["ENERGYRECOVERED"],
+            "valuesRaw": ["+50%"],
+            "metrics": [
+              {
+                "metric": "ENERGYRECOVERED",
+                "raw": "+50%",
+                "numericValue": 50.0,
+                "unit": "percent",
+                "durationText": null
+              }
+            ]
+          },
+          "Elite": {
+            "labelsRaw": ["ENERGYRECOVERED"],
+            "valuesRaw": ["+80%"],
+            "metrics": [
+              {
+                "metric": "ENERGYRECOVERED",
+                "raw": "+80%",
+                "numericValue": 80.0,
+                "unit": "percent",
+                "durationText": null
+              }
+            ]
+          }
+        }
+      },
+      {
+        "screenshot": "Screenshot 2026-05-16 21-57-46.png",
+        "category": "Skating/Strength",
+        "rowBounds": {
+          "top": 517,
+          "bottom": 732
+        },
+        "rawName": "NOCONTEST",
+        "rawNameHint": "NO CONTEST",
+        "canonicalName": "No_Contest",
+        "descriptionLines": [
+          "Overpower opposing playerswith additional stick and arm strength and come outwith the",
+          "puckwithincreased speed and acceleration."
+        ],
+        "highlighted": false,
+        "tiers": {
+          "Specialist": {
+            "labelsRaw": ["STRENGTH", "SPEED", "ACCELERATION"],
+            "valuesRaw": ["+20%", "+10%(0.27sec)", "+5%(0.27sec)"],
+            "metrics": [
+              {
+                "metric": "STRENGTH",
+                "raw": "+20%",
+                "numericValue": 20.0,
+                "unit": "percent",
+                "durationText": null
+              },
+              {
+                "metric": "SPEED",
+                "raw": "+10%(0.27sec)",
+                "numericValue": 10.0,
+                "unit": "percent",
+                "durationText": "0.27sec"
+              },
+              {
+                "metric": "ACCELERATION",
+                "raw": "+5%(0.27sec)",
+                "numericValue": 5.0,
+                "unit": "percent",
+                "durationText": "0.27sec"
+              }
+            ]
+          },
+          "All Star": {
+            "labelsRaw": ["STRENGTH", "SPEED", "ACCELERATION"],
+            "valuesRaw": ["+50%", "+20%(0.40sec)", "+10%(0.40sec)"],
+            "metrics": [
+              {
+                "metric": "STRENGTH",
+                "raw": "+50%",
+                "numericValue": 50.0,
+                "unit": "percent",
+                "durationText": null
+              },
+              {
+                "metric": "SPEED",
+                "raw": "+20%(0.40sec)",
+                "numericValue": 20.0,
+                "unit": "percent",
+                "durationText": "0.40sec"
+              },
+              {
+                "metric": "ACCELERATION",
+                "raw": "+10%(0.40sec)",
+                "numericValue": 10.0,
+                "unit": "percent",
+                "durationText": "0.40sec"
+              }
+            ]
+          },
+          "Elite": {
+            "labelsRaw": ["STRENGTH", "SPEED", "ACCELERATION"],
+            "valuesRaw": ["+90%", "30%(0.53sec)", "20%\uff080.53sec"],
+            "metrics": [
+              {
+                "metric": "STRENGTH",
+                "raw": "+90%",
+                "numericValue": 90.0,
+                "unit": "percent",
+                "durationText": null
+              },
+              {
+                "metric": "SPEED",
+                "raw": "30%(0.53sec)",
+                "numericValue": 30.0,
+                "unit": "percent",
+                "durationText": "0.53sec"
+              },
+              {
+                "metric": "ACCELERATION",
+                "raw": "20%\uff080.53sec",
+                "numericValue": null,
+                "unit": null,
+                "durationText": null
+              }
+            ]
+          }
+        }
+      },
+      {
+        "screenshot": "Screenshot 2026-05-16 21-57-46.png",
+        "category": "Skating/Strength",
+        "rowBounds": {
+          "top": 733,
+          "bottom": 948
+        },
+        "rawName": "WARRIOR",
+        "rawNameHint": "WARRIOR",
+        "canonicalName": "Warrior",
+        "descriptionLines": [
+          "Fightthroughthepainwithreducedstaminapenaltieswhenbodycheckedorwhile",
+          "blockingshotsandshrugoff lingeringsloweffectsfrombighitters.",
+          "Unlocksenhancedshotblocking animations,resistanttodroppingtheirstickandmakes",
+          "theplayerimmunetominorinjuries."
+        ],
+        "highlighted": true,
+        "tiers": {
+          "Specialist": {
+            "labelsRaw": ["STAMINADRAIN(HITS/BLOCKS)", "GET-UPSPEED", "HITRESISTANCE"],
+            "valuesRaw": ["+35%", "+20%", "+10%"],
+            "metrics": [
+              {
+                "metric": "STAMINADRAIN(HITS/BLOCKS)",
+                "raw": "+35%",
+                "numericValue": 35.0,
+                "unit": "percent",
+                "durationText": null
+              },
+              {
+                "metric": "GET-UPSPEED",
+                "raw": "+20%",
+                "numericValue": 20.0,
+                "unit": "percent",
+                "durationText": null
+              },
+              {
+                "metric": "HITRESISTANCE",
+                "raw": "+10%",
+                "numericValue": 10.0,
+                "unit": "percent",
+                "durationText": null
+              }
+            ]
+          },
+          "All Star": {
+            "labelsRaw": ["STAMINADRAIN(HITS/BLOCKS)", "GET-UPSPEED", "HITRESISTANCE"],
+            "valuesRaw": ["+75%", "+40%", "+30%"],
+            "metrics": [
+              {
+                "metric": "STAMINADRAIN(HITS/BLOCKS)",
+                "raw": "+75%",
+                "numericValue": 75.0,
+                "unit": "percent",
+                "durationText": null
+              },
+              {
+                "metric": "GET-UPSPEED",
+                "raw": "+40%",
+                "numericValue": 40.0,
+                "unit": "percent",
+                "durationText": null
+              },
+              {
+                "metric": "HITRESISTANCE",
+                "raw": "+30%",
+                "numericValue": 30.0,
+                "unit": "percent",
+                "durationText": null
+              }
+            ]
+          },
+          "Elite": {
+            "labelsRaw": ["STAMINADRAIN(HITS/BLOCKS)", "GET-UPSPEED", "HITRESISTANCE"],
+            "valuesRaw": ["+100%", "+60%", "+50%"],
+            "metrics": [
+              {
+                "metric": "STAMINADRAIN(HITS/BLOCKS)",
+                "raw": "+100%",
+                "numericValue": 100.0,
+                "unit": "percent",
+                "durationText": null
+              },
+              {
+                "metric": "GET-UPSPEED",
+                "raw": "+60%",
+                "numericValue": 60.0,
+                "unit": "percent",
+                "durationText": null
+              },
+              {
+                "metric": "HITRESISTANCE",
+                "raw": "+50%",
+                "numericValue": 50.0,
+                "unit": "percent",
+                "durationText": null
+              }
+            ]
+          }
+        }
+      }
+    ]
+  },
+  {
+    "screenshot": "Screenshot 2026-05-16 21-57-51.png",
+    "category": "Shooting/Passing",
+    "highlightedRowBounds": {
+      "top": 300,
+      "bottom": 515
+    },
+    "rows": [
+      {
+        "screenshot": "Screenshot 2026-05-16 21-57-51.png",
+        "category": "Shooting/Passing",
+        "rowBounds": {
+          "top": 300,
+          "bottom": 515
+        },
+        "rawName": "BACKHANDBEAUTY",
+        "rawNameHint": "BACKHANDBEAUTY",
+        "canonicalName": "Backhand_Beauty",
+        "descriptionLines": [
+          "Catchopposingplayersandgoaliesoffguardwithincreased BackhandshotPower and",
+          "Accuracy.",
+          "Additionally,BackhandPassesare as accurateandpowerfulasforehandpasses."
+        ],
+        "highlighted": true,
+        "tiers": {
+          "Specialist": {
+            "labelsRaw": ["BACKHANDPOWER", "BACKHANDACCURACY"],
+            "valuesRaw": ["+20%", "+20%"],
+            "metrics": [
+              {
+                "metric": "BACKHANDPOWER",
+                "raw": "+20%",
+                "numericValue": 20.0,
+                "unit": "percent",
+                "durationText": null
+              },
+              {
+                "metric": "BACKHANDACCURACY",
+                "raw": "+20%",
+                "numericValue": 20.0,
+                "unit": "percent",
+                "durationText": null
+              }
+            ]
+          },
+          "All Star": {
+            "labelsRaw": ["BACKHANDPOWER", "BACKHANDACCURACY"],
+            "valuesRaw": ["+60%", "+60%"],
+            "metrics": [
+              {
+                "metric": "BACKHANDPOWER",
+                "raw": "+60%",
+                "numericValue": 60.0,
+                "unit": "percent",
+                "durationText": null
+              },
+              {
+                "metric": "BACKHANDACCURACY",
+                "raw": "+60%",
+                "numericValue": 60.0,
+                "unit": "percent",
+                "durationText": null
+              }
+            ]
+          },
+          "Elite": {
+            "labelsRaw": ["BACKHANDPOWER", "BACKHANDACCURACY"],
+            "valuesRaw": ["+100%", "+100%"],
+            "metrics": [
+              {
+                "metric": "BACKHANDPOWER",
+                "raw": "+100%",
+                "numericValue": 100.0,
+                "unit": "percent",
+                "durationText": null
+              },
+              {
+                "metric": "BACKHANDACCURACY",
+                "raw": "+100%",
+                "numericValue": 100.0,
+                "unit": "percent",
+                "durationText": null
+              }
+            ]
+          }
+        }
+      },
+      {
+        "screenshot": "Screenshot 2026-05-16 21-57-51.png",
+        "category": "Shooting/Passing",
+        "rowBounds": {
+          "top": 516,
+          "bottom": 731
+        },
+        "rawName": "SENDIT",
+        "rawNameHint": "SENDIT",
+        "canonicalName": "Send_It",
+        "descriptionLines": [
+          "Spring your teammates by enhancing that pass receiver with a temporary boost of",
+          "acceleration.",
+          "Unlocksthe ability for these players toperform automatic saucerpasses."
+        ],
+        "highlighted": false,
+        "tiers": {
+          "Specialist": {
+            "labelsRaw": ["ACCELERATION"],
+            "valuesRaw": ["+10%(1sec)"],
+            "metrics": [
+              {
+                "metric": "ACCELERATION",
+                "raw": "+10%(1sec)",
+                "numericValue": 10.0,
+                "unit": "percent",
+                "durationText": "1sec"
+              }
+            ]
+          },
+          "All Star": {
+            "labelsRaw": ["ACCELERATION"],
+            "valuesRaw": ["+20%(2sec)"],
+            "metrics": [
+              {
+                "metric": "ACCELERATION",
+                "raw": "+20%(2sec)",
+                "numericValue": 20.0,
+                "unit": "percent",
+                "durationText": "2sec"
+              }
+            ]
+          },
+          "Elite": {
+            "labelsRaw": ["ACCELERATION"],
+            "valuesRaw": ["+30%(3sec)"],
+            "metrics": [
+              {
+                "metric": "ACCELERATION",
+                "raw": "+30%(3sec)",
+                "numericValue": 30.0,
+                "unit": "percent",
+                "durationText": "3sec"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "screenshot": "Screenshot 2026-05-16 21-57-51.png",
+        "category": "Shooting/Passing",
+        "rowBounds": {
+          "top": 732,
+          "bottom": 947
+        },
+        "rawName": "TAPETOTAPE",
+        "rawNameHint": "TAPE TO TAPE",
+        "canonicalName": "Tape_to_Tape",
+        "descriptionLines": [
+          "Feather saucer passes and make snappy passes in and out of vision with increased Pass",
+          "PowerandAccuracy.",
+          "Unlocksthe ability for theseplayerstoperform automatic saucer passes."
+        ],
+        "highlighted": false,
+        "tiers": {
+          "Specialist": {
+            "labelsRaw": ["PASSPOWER", "PASSACCURACY"],
+            "valuesRaw": ["+10%", "+10%"],
+            "metrics": [
+              {
+                "metric": "PASSPOWER",
+                "raw": "+10%",
+                "numericValue": 10.0,
+                "unit": "percent",
+                "durationText": null
+              },
+              {
+                "metric": "PASSACCURACY",
+                "raw": "+10%",
+                "numericValue": 10.0,
+                "unit": "percent",
+                "durationText": null
+              }
+            ]
+          },
+          "All Star": {
+            "labelsRaw": ["PASSPOWER", "PASSACCURACY"],
+            "valuesRaw": ["+30%", "+30%"],
+            "metrics": [
+              {
+                "metric": "PASSPOWER",
+                "raw": "+30%",
+                "numericValue": 30.0,
+                "unit": "percent",
+                "durationText": null
+              },
+              {
+                "metric": "PASSACCURACY",
+                "raw": "+30%",
+                "numericValue": 30.0,
+                "unit": "percent",
+                "durationText": null
+              }
+            ]
+          },
+          "Elite": {
+            "labelsRaw": ["PASSPOWER", "PASSACCURACY"],
+            "valuesRaw": ["+50%", "+50%"],
+            "metrics": [
+              {
+                "metric": "PASSPOWER",
+                "raw": "+50%",
+                "numericValue": 50.0,
+                "unit": "percent",
+                "durationText": null
+              },
+              {
+                "metric": "PASSACCURACY",
+                "raw": "+50%",
+                "numericValue": 50.0,
+                "unit": "percent",
+                "durationText": null
+              }
+            ]
+          }
+        }
+      }
+    ]
+  },
+  {
+    "screenshot": "Screenshot 2026-05-16 21-57-58.png",
+    "category": "Puck Skills",
+    "highlightedRowBounds": {
+      "top": 265,
+      "bottom": 480
+    },
+    "rows": [
+      {
+        "screenshot": "Screenshot 2026-05-16 21-57-58.png",
+        "category": "Puck Skills",
+        "rowBounds": {
+          "top": 265,
+          "bottom": 480
+        },
+        "rawName": "ANKLEBREAKER",
+        "rawNameHint": "ANKLEBREAKER",
+        "canonicalName": "Ankle_Breaker",
+        "descriptionLines": [
+          "Create separationusingdekeswithatemporaryboostofspeed whenusingaDeketo",
+          "successfullygetaroundaDefender.",
+          "Successful Dekescantriggerlargerpanicreactionsonopposingplayers."
+        ],
+        "highlighted": true,
+        "tiers": {
+          "Specialist": {
+            "labelsRaw": ["R", "SPEED", "ACCELERATION", "TOEDRAGSPEED"],
+            "valuesRaw": ["+10%(0.33sec)", "+10%\uff080.33sec)", "+10%"],
+            "metrics": [
+              {
+                "metric": "R",
+                "raw": "+10%(0.33sec)",
+                "numericValue": 10.0,
+                "unit": "percent",
+                "durationText": "0.33sec"
+              },
+              {
+                "metric": "SPEED",
+                "raw": "+10%\uff080.33sec)",
+                "numericValue": 10.0,
+                "unit": "percent",
+                "durationText": "0.33sec"
+              },
+              {
+                "metric": "ACCELERATION",
+                "raw": "+10%",
+                "numericValue": 10.0,
+                "unit": "percent",
+                "durationText": null
+              },
+              {
+                "metric": "TOEDRAGSPEED",
+                "raw": null,
+                "numericValue": null,
+                "unit": null,
+                "durationText": null
+              }
+            ]
+          },
+          "All Star": {
+            "labelsRaw": ["SPEED", "ACCELERATION", "TOEDRAGSPEED"],
+            "valuesRaw": ["+10%(1sec)", "+10%(1sec)", "+50%"],
+            "metrics": [
+              {
+                "metric": "SPEED",
+                "raw": "+10%(1sec)",
+                "numericValue": 10.0,
+                "unit": "percent",
+                "durationText": "1sec"
+              },
+              {
+                "metric": "ACCELERATION",
+                "raw": "+10%(1sec)",
+                "numericValue": 10.0,
+                "unit": "percent",
+                "durationText": "1sec"
+              },
+              {
+                "metric": "TOEDRAGSPEED",
+                "raw": "+50%",
+                "numericValue": 50.0,
+                "unit": "percent",
+                "durationText": null
+              }
+            ]
+          },
+          "Elite": {
+            "labelsRaw": ["SPEED", "ACCELERATION", "TOEDRAGSPEED"],
+            "valuesRaw": ["+10%(1.67sec)", "+10%(1.67sec)", "+90%"],
+            "metrics": [
+              {
+                "metric": "SPEED",
+                "raw": "+10%(1.67sec)",
+                "numericValue": 10.0,
+                "unit": "percent",
+                "durationText": "1.67sec"
+              },
+              {
+                "metric": "ACCELERATION",
+                "raw": "+10%(1.67sec)",
+                "numericValue": 10.0,
+                "unit": "percent",
+                "durationText": "1.67sec"
+              },
+              {
+                "metric": "TOEDRAGSPEED",
+                "raw": "+90%",
+                "numericValue": 90.0,
+                "unit": "percent",
+                "durationText": null
+              }
+            ]
+          }
+        }
+      },
+      {
+        "screenshot": "Screenshot 2026-05-16 21-57-58.png",
+        "category": "Puck Skills",
+        "rowBounds": {
+          "top": 478,
+          "bottom": 693
+        },
+        "rawName": "BIGRIG",
+        "rawNameHint": "BIG RIG",
+        "canonicalName": "Big_Rig",
+        "descriptionLines": [
+          "Protectthepuckand drive the netwithauthoritywithincreasedstrength,agility and",
+          "balance.Surprisegoalieswith enhanced accuracy and power with One Handed Shots.",
+          "Unlocksenhanced protectpuck animations with the ability to fight throughstickcontact",
+          "evenatextremeangles."
+        ],
+        "highlighted": false,
+        "tiers": {
+          "Specialist": {
+            "labelsRaw": ["STRENGTH", "BALANCE", "SHOTACCURACY", "SHOTPOWER"],
+            "valuesRaw": ["+15%", "+5%", "+5%", "+5%"],
+            "metrics": [
+              {
+                "metric": "STRENGTH",
+                "raw": "+15%",
+                "numericValue": 15.0,
+                "unit": "percent",
+                "durationText": null
+              },
+              {
+                "metric": "BALANCE",
+                "raw": "+5%",
+                "numericValue": 5.0,
+                "unit": "percent",
+                "durationText": null
+              },
+              {
+                "metric": "SHOTACCURACY",
+                "raw": "+5%",
+                "numericValue": 5.0,
+                "unit": "percent",
+                "durationText": null
+              },
+              {
+                "metric": "SHOTPOWER",
+                "raw": "+5%",
+                "numericValue": 5.0,
+                "unit": "percent",
+                "durationText": null
+              }
+            ]
+          },
+          "All Star": {
+            "labelsRaw": ["STRENGTH", "BALANCE", "SHOTACCURACY", "SHOTPOWER"],
+            "valuesRaw": ["+35%", "+15%", "+15%", "+15%"],
+            "metrics": [
+              {
+                "metric": "STRENGTH",
+                "raw": "+35%",
+                "numericValue": 35.0,
+                "unit": "percent",
+                "durationText": null
+              },
+              {
+                "metric": "BALANCE",
+                "raw": "+15%",
+                "numericValue": 15.0,
+                "unit": "percent",
+                "durationText": null
+              },
+              {
+                "metric": "SHOTACCURACY",
+                "raw": "+15%",
+                "numericValue": 15.0,
+                "unit": "percent",
+                "durationText": null
+              },
+              {
+                "metric": "SHOTPOWER",
+                "raw": "+15%",
+                "numericValue": 15.0,
+                "unit": "percent",
+                "durationText": null
+              }
+            ]
+          },
+          "Elite": {
+            "labelsRaw": ["STRENGTH", "BALANCE", "SHOTACCURACY", "SHOTPOWER"],
+            "valuesRaw": ["+55%", "+25%", "+25%", "+25%"],
+            "metrics": [
+              {
+                "metric": "STRENGTH",
+                "raw": "+55%",
+                "numericValue": 55.0,
+                "unit": "percent",
+                "durationText": null
+              },
+              {
+                "metric": "BALANCE",
+                "raw": "+25%",
+                "numericValue": 25.0,
+                "unit": "percent",
+                "durationText": null
+              },
+              {
+                "metric": "SHOTACCURACY",
+                "raw": "+25%",
+                "numericValue": 25.0,
+                "unit": "percent",
+                "durationText": null
+              },
+              {
+                "metric": "SHOTPOWER",
+                "raw": "+25%",
+                "numericValue": 25.0,
+                "unit": "percent",
+                "durationText": null
+              }
+            ]
+          }
+        }
+      },
+      {
+        "screenshot": "Screenshot 2026-05-16 21-57-58.png",
+        "category": "Puck Skills",
+        "rowBounds": {
+          "top": 699,
+          "bottom": 914
+        },
+        "rawName": "UNSTOPPABLE",
+        "rawNameHint": "UNSTOPPABLE",
+        "canonicalName": "Unstoppable",
+        "descriptionLines": [
+          "Reverse the fortune on opposing players with stronger reverse hits.Fight through push",
+          "checkswithincreasedstrength and balance."
+        ],
+        "highlighted": false,
+        "tiers": {
+          "Specialist": {
+            "labelsRaw": ["REVERSEHITPOWER", "STRENGTH", "PUSHCHECKRESISTANCE"],
+            "valuesRaw": ["+20%", "+10%", "+20%"],
+            "metrics": [
+              {
+                "metric": "REVERSEHITPOWER",
+                "raw": "+20%",
+                "numericValue": 20.0,
+                "unit": "percent",
+                "durationText": null
+              },
+              {
+                "metric": "STRENGTH",
+                "raw": "+10%",
+                "numericValue": 10.0,
+                "unit": "percent",
+                "durationText": null
+              },
+              {
+                "metric": "PUSHCHECKRESISTANCE",
+                "raw": "+20%",
+                "numericValue": 20.0,
+                "unit": "percent",
+                "durationText": null
+              }
+            ]
+          },
+          "All Star": {
+            "labelsRaw": ["REVERSEHITPOWER", "STRENGTH", "PUSHCHECKRESISTANCE"],
+            "valuesRaw": ["+60%", "+30%", "+60%"],
+            "metrics": [
+              {
+                "metric": "REVERSEHITPOWER",
+                "raw": "+60%",
+                "numericValue": 60.0,
+                "unit": "percent",
+                "durationText": null
+              },
+              {
+                "metric": "STRENGTH",
+                "raw": "+30%",
+                "numericValue": 30.0,
+                "unit": "percent",
+                "durationText": null
+              },
+              {
+                "metric": "PUSHCHECKRESISTANCE",
+                "raw": "+60%",
+                "numericValue": 60.0,
+                "unit": "percent",
+                "durationText": null
+              }
+            ]
+          },
+          "Elite": {
+            "labelsRaw": ["REVERSEHITPOWER", "STRENGTH", "PUSHCHECKRESISTANCE"],
+            "valuesRaw": ["+100%", "+55%", "+100%"],
+            "metrics": [
+              {
+                "metric": "REVERSEHITPOWER",
+                "raw": "+100%",
+                "numericValue": 100.0,
+                "unit": "percent",
+                "durationText": null
+              },
+              {
+                "metric": "STRENGTH",
+                "raw": "+55%",
+                "numericValue": 55.0,
+                "unit": "percent",
+                "durationText": null
+              },
+              {
+                "metric": "PUSHCHECKRESISTANCE",
+                "raw": "+100%",
+                "numericValue": 100.0,
+                "unit": "percent",
+                "durationText": null
+              }
+            ]
+          }
+        }
+      }
+    ]
+  },
+  {
+    "screenshot": "Screenshot 2026-05-16 21-58-06.png",
+    "category": "Puck Skills",
+    "highlightedRowBounds": {
+      "top": 734,
+      "bottom": 949
+    },
+    "rows": [
+      {
+        "screenshot": "Screenshot 2026-05-16 21-58-06.png",
+        "category": "Puck Skills",
+        "rowBounds": {
+          "top": 300,
+          "bottom": 515
+        },
+        "rawName": "UNSTOPPABLE",
+        "rawNameHint": "UNSTOPPABLE",
+        "canonicalName": "Unstoppable",
+        "descriptionLines": [
+          "Reverse the fortune on opposing players with stronger reverse hits.Fight through push",
+          "checkswithincreasedstrength and balance."
+        ],
+        "highlighted": false,
+        "tiers": {
+          "Specialist": {
+            "labelsRaw": ["REVERSEHITPOWER", "STRENGTH", "PUSHCHECKRESISTANCE"],
+            "valuesRaw": ["+20%", "+10%", "+20%"],
+            "metrics": [
+              {
+                "metric": "REVERSEHITPOWER",
+                "raw": "+20%",
+                "numericValue": 20.0,
+                "unit": "percent",
+                "durationText": null
+              },
+              {
+                "metric": "STRENGTH",
+                "raw": "+10%",
+                "numericValue": 10.0,
+                "unit": "percent",
+                "durationText": null
+              },
+              {
+                "metric": "PUSHCHECKRESISTANCE",
+                "raw": "+20%",
+                "numericValue": 20.0,
+                "unit": "percent",
+                "durationText": null
+              }
+            ]
+          },
+          "All Star": {
+            "labelsRaw": ["REVERSEHITPOWER", "STRENGTH", "PUSHCHECKRESISTANCE"],
+            "valuesRaw": ["+60%", "+30%", "+60%"],
+            "metrics": [
+              {
+                "metric": "REVERSEHITPOWER",
+                "raw": "+60%",
+                "numericValue": 60.0,
+                "unit": "percent",
+                "durationText": null
+              },
+              {
+                "metric": "STRENGTH",
+                "raw": "+30%",
+                "numericValue": 30.0,
+                "unit": "percent",
+                "durationText": null
+              },
+              {
+                "metric": "PUSHCHECKRESISTANCE",
+                "raw": "+60%",
+                "numericValue": 60.0,
+                "unit": "percent",
+                "durationText": null
+              }
+            ]
+          },
+          "Elite": {
+            "labelsRaw": ["REVERSEHITPOWER", "STRENGTH", "PUSHCHECKRESISTANCE"],
+            "valuesRaw": ["+100%", "+55%", "+100%"],
+            "metrics": [
+              {
+                "metric": "REVERSEHITPOWER",
+                "raw": "+100%",
+                "numericValue": 100.0,
+                "unit": "percent",
+                "durationText": null
+              },
+              {
+                "metric": "STRENGTH",
+                "raw": "+55%",
+                "numericValue": 55.0,
+                "unit": "percent",
+                "durationText": null
+              },
+              {
+                "metric": "PUSHCHECKRESISTANCE",
+                "raw": "+100%",
+                "numericValue": 100.0,
+                "unit": "percent",
+                "durationText": null
+              }
+            ]
+          }
+        }
+      },
+      {
+        "screenshot": "Screenshot 2026-05-16 21-58-06.png",
+        "category": "Puck Skills",
+        "rowBounds": {
+          "top": 517,
+          "bottom": 732
+        },
+        "rawName": "BIGTIPPER",
+        "rawNameHint": "BIG TIPPER",
+        "canonicalName": "Big_Tipper",
+        "descriptionLines": [
+          "Createchaosin frontof the net by taking away the goalie'seyes influencing their",
+          "readiness.Find and redirectthepuckeasierwith increased accuracy on deflections and",
+          "additionallongerranged animations.",
+          "Unlocksdeflectionswithincreasedrange"
+        ],
+        "highlighted": false,
+        "tiers": {
+          "Specialist": {
+            "labelsRaw": ["GOALIEREACTIONREDUCTION", "DEFLECTIONACCURACY"],
+            "valuesRaw": ["-15%", "+25%"],
+            "metrics": [
+              {
+                "metric": "GOALIEREACTIONREDUCTION",
+                "raw": "-15%",
+                "numericValue": -15.0,
+                "unit": "percent",
+                "durationText": null
+              },
+              {
+                "metric": "DEFLECTIONACCURACY",
+                "raw": "+25%",
+                "numericValue": 25.0,
+                "unit": "percent",
+                "durationText": null
+              }
+            ]
+          },
+          "All Star": {
+            "labelsRaw": ["GOALIEREACTIONREDUCTION", "DEFLECTIONACCURACY"],
+            "valuesRaw": ["-35%", "+65%"],
+            "metrics": [
+              {
+                "metric": "GOALIEREACTIONREDUCTION",
+                "raw": "-35%",
+                "numericValue": -35.0,
+                "unit": "percent",
+                "durationText": null
+              },
+              {
+                "metric": "DEFLECTIONACCURACY",
+                "raw": "+65%",
+                "numericValue": 65.0,
+                "unit": "percent",
+                "durationText": null
+              }
+            ]
+          },
+          "Elite": {
+            "labelsRaw": ["GOALIEREACTIONREDUCTION", "DEFLECTIONACCURACY"],
+            "valuesRaw": ["-75%", "+100%"],
+            "metrics": [
+              {
+                "metric": "GOALIEREACTIONREDUCTION",
+                "raw": "-75%",
+                "numericValue": -75.0,
+                "unit": "percent",
+                "durationText": null
+              },
+              {
+                "metric": "DEFLECTIONACCURACY",
+                "raw": "+100%",
+                "numericValue": 100.0,
+                "unit": "percent",
+                "durationText": null
+              }
+            ]
+          }
+        }
+      },
+      {
+        "screenshot": "Screenshot 2026-05-16 21-58-06.png",
+        "category": "Puck Skills",
+        "rowBounds": {
+          "top": 734,
+          "bottom": 949
+        },
+        "rawName": "BORNLEADER",
+        "rawNameHint": "BORN LEADER",
+        "canonicalName": "Born_Leader",
+        "descriptionLines": ["Check,orShotonNetandfullyrestoringteamstaminawhenacceptingafight"],
+        "highlighted": true,
+        "tiers": {
+          "Specialist": {
+            "labelsRaw": ["TEAMENERGY(SHOTBLOCK)", "TEAMENERGY(BODYCHECK)", "TEAMENERGY(SHOT)"],
+            "valuesRaw": ["+2%", "+2%", "+2%"],
+            "metrics": [
+              {
+                "metric": "TEAMENERGY(SHOTBLOCK)",
+                "raw": "+2%",
+                "numericValue": 2.0,
+                "unit": "percent",
+                "durationText": null
+              },
+              {
+                "metric": "TEAMENERGY(BODYCHECK)",
+                "raw": "+2%",
+                "numericValue": 2.0,
+                "unit": "percent",
+                "durationText": null
+              },
+              {
+                "metric": "TEAMENERGY(SHOT)",
+                "raw": "+2%",
+                "numericValue": 2.0,
+                "unit": "percent",
+                "durationText": null
+              }
+            ]
+          },
+          "All Star": {
+            "labelsRaw": ["TEAMENERGY(SHOTBLOCK)", "TEAMENERGY(BODYCHECK)", "TEAMENERGY(SHOT)"],
+            "valuesRaw": ["+6%", "+6%", "+6%"],
+            "metrics": [
+              {
+                "metric": "TEAMENERGY(SHOTBLOCK)",
+                "raw": "+6%",
+                "numericValue": 6.0,
+                "unit": "percent",
+                "durationText": null
+              },
+              {
+                "metric": "TEAMENERGY(BODYCHECK)",
+                "raw": "+6%",
+                "numericValue": 6.0,
+                "unit": "percent",
+                "durationText": null
+              },
+              {
+                "metric": "TEAMENERGY(SHOT)",
+                "raw": "+6%",
+                "numericValue": 6.0,
+                "unit": "percent",
+                "durationText": null
+              }
+            ]
+          },
+          "Elite": {
+            "labelsRaw": ["TEAMENERGY(SHOTBLOCK)", "TEAMENERGY(BODYCHECK)", "TEAMENERGY(SHOT)"],
+            "valuesRaw": ["+10%", "+10%", "+10%"],
+            "metrics": [
+              {
+                "metric": "TEAMENERGY(SHOTBLOCK)",
+                "raw": "+10%",
+                "numericValue": 10.0,
+                "unit": "percent",
+                "durationText": null
+              },
+              {
+                "metric": "TEAMENERGY(BODYCHECK)",
+                "raw": "+10%",
+                "numericValue": 10.0,
+                "unit": "percent",
+                "durationText": null
+              },
+              {
+                "metric": "TEAMENERGY(SHOT)",
+                "raw": "+10%",
+                "numericValue": 10.0,
+                "unit": "percent",
+                "durationText": null
+              }
+            ]
+          }
+        }
+      }
+    ]
+  },
+  {
+    "screenshot": "Screenshot 2026-05-16 21-58-15.png",
+    "category": "Body/Stick Checking",
+    "highlightedRowBounds": {
+      "top": 265,
+      "bottom": 480
+    },
+    "rows": [
+      {
+        "screenshot": "Screenshot 2026-05-16 21-58-15.png",
+        "category": "Body/Stick Checking",
+        "rowBounds": {
+          "top": 265,
+          "bottom": 480
+        },
+        "rawName": "TRUCULENCE",
+        "rawNameHint": "TRUCULENCE",
+        "canonicalName": "Truculence",
+        "descriptionLines": [
+          "Lay devastatingshoulderchecks onplayerswith improved hitpowerthatpunishopposing",
+          "playerswithincreasedstaminalossand aslowinglingeringeffectafterabig hit.",
+          "Perfectlylined upshouldercheckswill cause theopposingplayertolosetheirstick."
+        ],
+        "highlighted": true,
+        "tiers": {
+          "Specialist": {
+            "labelsRaw": [
+              "BODYCHECKPOWER",
+              "OPPONENTSTAMIINADRAIN",
+              "OPPONENTSPEED",
+              "OPPONENTACCELERATION"
+            ],
+            "valuesRaw": ["+20%", "-5%", "10%(1sec)", "-10%(1sec)"],
+            "metrics": [
+              {
+                "metric": "BODYCHECKPOWER",
+                "raw": "+20%",
+                "numericValue": 20.0,
+                "unit": "percent",
+                "durationText": null
+              },
+              {
+                "metric": "OPPONENTSTAMIINADRAIN",
+                "raw": "-5%",
+                "numericValue": -5.0,
+                "unit": "percent",
+                "durationText": null
+              },
+              {
+                "metric": "OPPONENTSPEED",
+                "raw": "10%(1sec)",
+                "numericValue": 10.0,
+                "unit": "percent",
+                "durationText": "1sec"
+              },
+              {
+                "metric": "OPPONENTACCELERATION",
+                "raw": "-10%(1sec)",
+                "numericValue": -10.0,
+                "unit": "percent",
+                "durationText": "1sec"
+              }
+            ]
+          },
+          "All Star": {
+            "labelsRaw": [
+              "BODYCHECKPOWER",
+              "OPPONENTSTAMINADRAIN",
+              "OPPONENTSPEED",
+              "OPPONENTACCELERATION"
+            ],
+            "valuesRaw": ["+60%", "-15%", "20%(3sec)", "20%(3sec)"],
+            "metrics": [
+              {
+                "metric": "BODYCHECKPOWER",
+                "raw": "+60%",
+                "numericValue": 60.0,
+                "unit": "percent",
+                "durationText": null
+              },
+              {
+                "metric": "OPPONENTSTAMINADRAIN",
+                "raw": "-15%",
+                "numericValue": -15.0,
+                "unit": "percent",
+                "durationText": null
+              },
+              {
+                "metric": "OPPONENTSPEED",
+                "raw": "20%(3sec)",
+                "numericValue": 20.0,
+                "unit": "percent",
+                "durationText": "3sec"
+              },
+              {
+                "metric": "OPPONENTACCELERATION",
+                "raw": "20%(3sec)",
+                "numericValue": 20.0,
+                "unit": "percent",
+                "durationText": "3sec"
+              }
+            ]
+          },
+          "Elite": {
+            "labelsRaw": [
+              "BODYCHECKPOWER",
+              "OPPONENTSTAMIINADRAIN",
+              "OPPONENTSPEED",
+              "OPPONENTACCELERATION"
+            ],
+            "valuesRaw": ["+100%", "-25%", "-30%(5sec)", "-30%(5sec)"],
+            "metrics": [
+              {
+                "metric": "BODYCHECKPOWER",
+                "raw": "+100%",
+                "numericValue": 100.0,
+                "unit": "percent",
+                "durationText": null
+              },
+              {
+                "metric": "OPPONENTSTAMIINADRAIN",
+                "raw": "-25%",
+                "numericValue": -25.0,
+                "unit": "percent",
+                "durationText": null
+              },
+              {
+                "metric": "OPPONENTSPEED",
+                "raw": "-30%(5sec)",
+                "numericValue": -30.0,
+                "unit": "percent",
+                "durationText": "5sec"
+              },
+              {
+                "metric": "OPPONENTACCELERATION",
+                "raw": "-30%(5sec)",
+                "numericValue": -30.0,
+                "unit": "percent",
+                "durationText": "5sec"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "screenshot": "Screenshot 2026-05-16 21-58-15.png",
+        "category": "Body/Stick Checking",
+        "rowBounds": {
+          "top": 481,
+          "bottom": 696
+        },
+        "rawName": "SPARKPLUG",
+        "rawNameHint": "SPARKPLUG",
+        "canonicalName": "Spark_Plug",
+        "descriptionLines": [
+          "Get your team going with body checks that generate additional pressurewhile also giving",
+          "a temporary speed and acceleration boostafter deliveringa hit."
+        ],
+        "highlighted": false,
+        "tiers": {
+          "Specialist": {
+            "labelsRaw": ["PRESSUREINCREASE", "SPEED", "ACCELERATION", "AGILITY"],
+            "valuesRaw": ["+5%", "+15%(3sec)", "+5%(3sec)", "+5%(3sec)"],
+            "metrics": [
+              {
+                "metric": "PRESSUREINCREASE",
+                "raw": "+5%",
+                "numericValue": 5.0,
+                "unit": "percent",
+                "durationText": null
+              },
+              {
+                "metric": "SPEED",
+                "raw": "+15%(3sec)",
+                "numericValue": 15.0,
+                "unit": "percent",
+                "durationText": "3sec"
+              },
+              {
+                "metric": "ACCELERATION",
+                "raw": "+5%(3sec)",
+                "numericValue": 5.0,
+                "unit": "percent",
+                "durationText": "3sec"
+              },
+              {
+                "metric": "AGILITY",
+                "raw": "+5%(3sec)",
+                "numericValue": 5.0,
+                "unit": "percent",
+                "durationText": "3sec"
+              }
+            ]
+          },
+          "All Star": {
+            "labelsRaw": ["PRESSUREINCREASE", "SPEED", "ACCELERATION", "AGILITY"],
+            "valuesRaw": ["+15%", "+15%(4sec)", "+5%(4sec)", "+5%(4sec)"],
+            "metrics": [
+              {
+                "metric": "PRESSUREINCREASE",
+                "raw": "+15%",
+                "numericValue": 15.0,
+                "unit": "percent",
+                "durationText": null
+              },
+              {
+                "metric": "SPEED",
+                "raw": "+15%(4sec)",
+                "numericValue": 15.0,
+                "unit": "percent",
+                "durationText": "4sec"
+              },
+              {
+                "metric": "ACCELERATION",
+                "raw": "+5%(4sec)",
+                "numericValue": 5.0,
+                "unit": "percent",
+                "durationText": "4sec"
+              },
+              {
+                "metric": "AGILITY",
+                "raw": "+5%(4sec)",
+                "numericValue": 5.0,
+                "unit": "percent",
+                "durationText": "4sec"
+              }
+            ]
+          },
+          "Elite": {
+            "labelsRaw": ["PRESSUREINCREASE", "SPEED", "ACCELERATION", "AGILITY"],
+            "valuesRaw": ["+25%", "+15%(5sec)", "+5%(5sec)", "+5%(5sec)"],
+            "metrics": [
+              {
+                "metric": "PRESSUREINCREASE",
+                "raw": "+25%",
+                "numericValue": 25.0,
+                "unit": "percent",
+                "durationText": null
+              },
+              {
+                "metric": "SPEED",
+                "raw": "+15%(5sec)",
+                "numericValue": 15.0,
+                "unit": "percent",
+                "durationText": "5sec"
+              },
+              {
+                "metric": "ACCELERATION",
+                "raw": "+5%(5sec)",
+                "numericValue": 5.0,
+                "unit": "percent",
+                "durationText": "5sec"
+              },
+              {
+                "metric": "AGILITY",
+                "raw": "+5%(5sec)",
+                "numericValue": 5.0,
+                "unit": "percent",
+                "durationText": "5sec"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "screenshot": "Screenshot 2026-05-16 21-58-15.png",
+        "category": "Body/Stick Checking",
+        "rowBounds": {
+          "top": 697,
+          "bottom": 912
+        },
+        "rawName": "HIPSTER",
+        "rawNameHint": "HIPSTER",
+        "canonicalName": "Hipster",
+        "descriptionLines": [
+          "Lay devastating hip checks on players with improved hit power that punish opposing",
+          "playerswithincreased stamina lossand a slowing lingeringeffect after abighit.",
+          "Perfectly lined up hip checkswill cause the opposing player to lose theirstick."
+        ],
+        "highlighted": false,
+        "tiers": {
+          "Specialist": {
+            "labelsRaw": [
+              "HIPCHECKPOWER",
+              "OPPONENTSTAMINADRAIN",
+              "OPPONENTSPEED",
+              "OPPONENTACCELERATION"
+            ],
+            "valuesRaw": ["+20%", "-5%", "-10%(1sec)", "-10%(1sec)"],
+            "metrics": [
+              {
+                "metric": "HIPCHECKPOWER",
+                "raw": "+20%",
+                "numericValue": 20.0,
+                "unit": "percent",
+                "durationText": null
+              },
+              {
+                "metric": "OPPONENTSTAMINADRAIN",
+                "raw": "-5%",
+                "numericValue": -5.0,
+                "unit": "percent",
+                "durationText": null
+              },
+              {
+                "metric": "OPPONENTSPEED",
+                "raw": "-10%(1sec)",
+                "numericValue": -10.0,
+                "unit": "percent",
+                "durationText": "1sec"
+              },
+              {
+                "metric": "OPPONENTACCELERATION",
+                "raw": "-10%(1sec)",
+                "numericValue": -10.0,
+                "unit": "percent",
+                "durationText": "1sec"
+              }
+            ]
+          },
+          "All Star": {
+            "labelsRaw": [
+              "HIPCHECKPOWER",
+              "OPPONENTSTAMINADRAIN",
+              "OPPONENTSPEED",
+              "OPPONENTACCELERATION"
+            ],
+            "valuesRaw": ["+60%", "-15%", "20%(3sec)", "20%(3sec)"],
+            "metrics": [
+              {
+                "metric": "HIPCHECKPOWER",
+                "raw": "+60%",
+                "numericValue": 60.0,
+                "unit": "percent",
+                "durationText": null
+              },
+              {
+                "metric": "OPPONENTSTAMINADRAIN",
+                "raw": "-15%",
+                "numericValue": -15.0,
+                "unit": "percent",
+                "durationText": null
+              },
+              {
+                "metric": "OPPONENTSPEED",
+                "raw": "20%(3sec)",
+                "numericValue": 20.0,
+                "unit": "percent",
+                "durationText": "3sec"
+              },
+              {
+                "metric": "OPPONENTACCELERATION",
+                "raw": "20%(3sec)",
+                "numericValue": 20.0,
+                "unit": "percent",
+                "durationText": "3sec"
+              }
+            ]
+          },
+          "Elite": {
+            "labelsRaw": [
+              "HIPCHECKPOWER",
+              "OPPONENTSTAMINADRAIN",
+              "OPPONENTSPEED",
+              "OPPONENTACCELERATION"
+            ],
+            "valuesRaw": ["+100%", "-25%", "-30%(5sec)", "-30%(5sec)"],
+            "metrics": [
+              {
+                "metric": "HIPCHECKPOWER",
+                "raw": "+100%",
+                "numericValue": 100.0,
+                "unit": "percent",
+                "durationText": null
+              },
+              {
+                "metric": "OPPONENTSTAMINADRAIN",
+                "raw": "-25%",
+                "numericValue": -25.0,
+                "unit": "percent",
+                "durationText": null
+              },
+              {
+                "metric": "OPPONENTSPEED",
+                "raw": "-30%(5sec)",
+                "numericValue": -30.0,
+                "unit": "percent",
+                "durationText": "5sec"
+              },
+              {
+                "metric": "OPPONENTACCELERATION",
+                "raw": "-30%(5sec)",
+                "numericValue": -30.0,
+                "unit": "percent",
+                "durationText": "5sec"
+              }
+            ]
+          }
+        }
+      }
+    ]
+  },
+  {
+    "screenshot": "Screenshot 2026-05-16 21-58-18.png",
+    "category": "Body/Stick Checking",
+    "highlightedRowBounds": {
+      "top": 734,
+      "bottom": 949
+    },
+    "rows": [
+      {
+        "screenshot": "Screenshot 2026-05-16 21-58-18.png",
+        "category": "Body/Stick Checking",
+        "rowBounds": {
+          "top": 298,
+          "bottom": 513
+        },
+        "rawName": "HIPSTER",
+        "rawNameHint": "HIPSTER",
+        "canonicalName": "Hipster",
+        "descriptionLines": [
+          "Lay devastating hip checks on players with improved hit power that punish opposing",
+          "playerswithincreased stamina lossand a slowing lingeringeffect after abighit.",
+          "Perfectly lined up hip checks will cause the opposing player to lose theirstick."
+        ],
+        "highlighted": false,
+        "tiers": {
+          "Specialist": {
+            "labelsRaw": [
+              "HIPCHECKPOWER",
+              "OPPONENTSTAMINADRAIN",
+              "OPPONENTSPEED",
+              "OPPONENTACCELERATION"
+            ],
+            "valuesRaw": ["+20%", "-5%", "-10%(1sec)", "-10%(1sec)"],
+            "metrics": [
+              {
+                "metric": "HIPCHECKPOWER",
+                "raw": "+20%",
+                "numericValue": 20.0,
+                "unit": "percent",
+                "durationText": null
+              },
+              {
+                "metric": "OPPONENTSTAMINADRAIN",
+                "raw": "-5%",
+                "numericValue": -5.0,
+                "unit": "percent",
+                "durationText": null
+              },
+              {
+                "metric": "OPPONENTSPEED",
+                "raw": "-10%(1sec)",
+                "numericValue": -10.0,
+                "unit": "percent",
+                "durationText": "1sec"
+              },
+              {
+                "metric": "OPPONENTACCELERATION",
+                "raw": "-10%(1sec)",
+                "numericValue": -10.0,
+                "unit": "percent",
+                "durationText": "1sec"
+              }
+            ]
+          },
+          "All Star": {
+            "labelsRaw": [
+              "HIPCHECKPOWER",
+              "OPPONENTSTAMINADRAIN",
+              "OPPONENTSPEED",
+              "OPPONENTACCELERATION"
+            ],
+            "valuesRaw": ["+60%", "-15%", "20%(3sec)", "20%(3sec)"],
+            "metrics": [
+              {
+                "metric": "HIPCHECKPOWER",
+                "raw": "+60%",
+                "numericValue": 60.0,
+                "unit": "percent",
+                "durationText": null
+              },
+              {
+                "metric": "OPPONENTSTAMINADRAIN",
+                "raw": "-15%",
+                "numericValue": -15.0,
+                "unit": "percent",
+                "durationText": null
+              },
+              {
+                "metric": "OPPONENTSPEED",
+                "raw": "20%(3sec)",
+                "numericValue": 20.0,
+                "unit": "percent",
+                "durationText": "3sec"
+              },
+              {
+                "metric": "OPPONENTACCELERATION",
+                "raw": "20%(3sec)",
+                "numericValue": 20.0,
+                "unit": "percent",
+                "durationText": "3sec"
+              }
+            ]
+          },
+          "Elite": {
+            "labelsRaw": [
+              "HIPCHECKPOWER",
+              "OPPONENTSTAMINADRAIN",
+              "OPPONENTSPEED",
+              "OPPONENTACCELERATION"
+            ],
+            "valuesRaw": ["+100%", "-25%", "-30%(5sec)", "-30%(5sec)"],
+            "metrics": [
+              {
+                "metric": "HIPCHECKPOWER",
+                "raw": "+100%",
+                "numericValue": 100.0,
+                "unit": "percent",
+                "durationText": null
+              },
+              {
+                "metric": "OPPONENTSTAMINADRAIN",
+                "raw": "-25%",
+                "numericValue": -25.0,
+                "unit": "percent",
+                "durationText": null
+              },
+              {
+                "metric": "OPPONENTSPEED",
+                "raw": "-30%(5sec)",
+                "numericValue": -30.0,
+                "unit": "percent",
+                "durationText": "5sec"
+              },
+              {
+                "metric": "OPPONENTACCELERATION",
+                "raw": "-30%(5sec)",
+                "numericValue": -30.0,
+                "unit": "percent",
+                "durationText": "5sec"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "screenshot": "Screenshot 2026-05-16 21-58-18.png",
+        "category": "Body/Stick Checking",
+        "rowBounds": {
+          "top": 516,
+          "bottom": 731
+        },
+        "rawName": "STICK'EMUP",
+        "rawNameHint": "STICK'EMUP",
+        "canonicalName": "Stick_Em_Up",
+        "descriptionLines": [
+          "Disrupt andseparateplayersfrom thepuckwith improved pokecheck accuracyand",
+          "defensiveskill stickspeed."
+        ],
+        "highlighted": false,
+        "tiers": {
+          "Specialist": {
+            "labelsRaw": ["POKEACCURACY", "POKECHECKRECOVERY", "STICKSPEED"],
+            "valuesRaw": ["+5%", "+5%", "+5%"],
+            "metrics": [
+              {
+                "metric": "POKEACCURACY",
+                "raw": "+5%",
+                "numericValue": 5.0,
+                "unit": "percent",
+                "durationText": null
+              },
+              {
+                "metric": "POKECHECKRECOVERY",
+                "raw": "+5%",
+                "numericValue": 5.0,
+                "unit": "percent",
+                "durationText": null
+              },
+              {
+                "metric": "STICKSPEED",
+                "raw": "+5%",
+                "numericValue": 5.0,
+                "unit": "percent",
+                "durationText": null
+              }
+            ]
+          },
+          "All Star": {
+            "labelsRaw": ["POKEACCURACY", "POKECHECKRECOVERY", "STICKSPEED"],
+            "valuesRaw": ["+15%", "+15%", "+15%"],
+            "metrics": [
+              {
+                "metric": "POKEACCURACY",
+                "raw": "+15%",
+                "numericValue": 15.0,
+                "unit": "percent",
+                "durationText": null
+              },
+              {
+                "metric": "POKECHECKRECOVERY",
+                "raw": "+15%",
+                "numericValue": 15.0,
+                "unit": "percent",
+                "durationText": null
+              },
+              {
+                "metric": "STICKSPEED",
+                "raw": "+15%",
+                "numericValue": 15.0,
+                "unit": "percent",
+                "durationText": null
+              }
+            ]
+          },
+          "Elite": {
+            "labelsRaw": ["POKEACCURACY", "POKECHECKRECOVERY", "STICKSPEED"],
+            "valuesRaw": ["+25%", "+25%", "+25%"],
+            "metrics": [
+              {
+                "metric": "POKEACCURACY",
+                "raw": "+25%",
+                "numericValue": 25.0,
+                "unit": "percent",
+                "durationText": null
+              },
+              {
+                "metric": "POKECHECKRECOVERY",
+                "raw": "+25%",
+                "numericValue": 25.0,
+                "unit": "percent",
+                "durationText": null
+              },
+              {
+                "metric": "STICKSPEED",
+                "raw": "+25%",
+                "numericValue": 25.0,
+                "unit": "percent",
+                "durationText": null
+              }
+            ]
+          }
+        }
+      },
+      {
+        "screenshot": "Screenshot 2026-05-16 21-58-18.png",
+        "category": "Body/Stick Checking",
+        "rowBounds": {
+          "top": 732,
+          "bottom": 947
+        },
+        "rawName": "QUICKPICK",
+        "rawNameHint": "QUICK PICK",
+        "canonicalName": "Quickpick",
+        "descriptionLines": [
+          "Effortlesslyblockpassinglanesusingstickorbodytogetapieceorinterceptthepuck",
+          "cleanwithadditionalrange and increasedpuckhandling.",
+          "Unlocks enhancedpickup andinterceptionrangewith additionalskateandstickdefensive",
+          "deflectionsandinterceptions"
+        ],
+        "highlighted": true,
+        "tiers": {
+          "Specialist": {
+            "labelsRaw": ["PICKUPABILITY", "REACTIONTIME"],
+            "valuesRaw": ["+60%", "+30%"],
+            "metrics": [
+              {
+                "metric": "PICKUPABILITY",
+                "raw": "+60%",
+                "numericValue": 60.0,
+                "unit": "percent",
+                "durationText": null
+              },
+              {
+                "metric": "REACTIONTIME",
+                "raw": "+30%",
+                "numericValue": 30.0,
+                "unit": "percent",
+                "durationText": null
+              }
+            ]
+          },
+          "All Star": {
+            "labelsRaw": ["PICKUPABILITY", "REACTIONTIME"],
+            "valuesRaw": ["+60%", "+50%"],
+            "metrics": [
+              {
+                "metric": "PICKUPABILITY",
+                "raw": "+60%",
+                "numericValue": 60.0,
+                "unit": "percent",
+                "durationText": null
+              },
+              {
+                "metric": "REACTIONTIME",
+                "raw": "+50%",
+                "numericValue": 50.0,
+                "unit": "percent",
+                "durationText": null
+              }
+            ]
+          },
+          "Elite": {
+            "labelsRaw": ["PICKUPABILITY", "REACTIONTIME"],
+            "valuesRaw": ["+60%", "+70%"],
+            "metrics": [
+              {
+                "metric": "PICKUPABILITY",
+                "raw": "+60%",
+                "numericValue": 60.0,
+                "unit": "percent",
+                "durationText": null
+              },
+              {
+                "metric": "REACTIONTIME",
+                "raw": "+70%",
+                "numericValue": 70.0,
+                "unit": "percent",
+                "durationText": null
+              }
+            ]
+          }
+        }
+      }
+    ]
+  },
+  {
+    "screenshot": "Screenshot 2026-05-16 21-58-22.png",
+    "category": "Goaltending",
+    "highlightedRowBounds": {
+      "top": 265,
+      "bottom": 480
+    },
+    "rows": [
+      {
+        "screenshot": "Screenshot 2026-05-16 21-58-22.png",
+        "category": "Goaltending",
+        "rowBounds": {
+          "top": 265,
+          "bottom": 480
+        },
+        "rawName": "POSTTOPOST",
+        "rawNameHint": "POSTTOPOST",
+        "canonicalName": "Post_to_Post",
+        "descriptionLines": [
+          "Stretchposttoposttomakemiraculouscrosscreasesaveswithincreasedspeed and",
+          "improvedsaveaccuracywhilesliding.",
+          "Unlocksadditionalwindmillreactionsonone-timersavesandeliminatesreaction",
+          "penaltiesonPerfectOneTimers."
+        ],
+        "highlighted": true,
+        "tiers": {
+          "Specialist": {
+            "labelsRaw": ["SPEED", "SAVEACCURACY", "REACTIONTIME"],
+            "valuesRaw": ["+10%", "+10%", "+10%"],
+            "metrics": [
+              {
+                "metric": "SPEED",
+                "raw": "+10%",
+                "numericValue": 10.0,
+                "unit": "percent",
+                "durationText": null
+              },
+              {
+                "metric": "SAVEACCURACY",
+                "raw": "+10%",
+                "numericValue": 10.0,
+                "unit": "percent",
+                "durationText": null
+              },
+              {
+                "metric": "REACTIONTIME",
+                "raw": "+10%",
+                "numericValue": 10.0,
+                "unit": "percent",
+                "durationText": null
+              }
+            ]
+          },
+          "All Star": {
+            "labelsRaw": ["SPEED", "SAVEACCURACY", "REACTIONTIME"],
+            "valuesRaw": ["+15%", "+25%", "+25%"],
+            "metrics": [
+              {
+                "metric": "SPEED",
+                "raw": "+15%",
+                "numericValue": 15.0,
+                "unit": "percent",
+                "durationText": null
+              },
+              {
+                "metric": "SAVEACCURACY",
+                "raw": "+25%",
+                "numericValue": 25.0,
+                "unit": "percent",
+                "durationText": null
+              },
+              {
+                "metric": "REACTIONTIME",
+                "raw": "+25%",
+                "numericValue": 25.0,
+                "unit": "percent",
+                "durationText": null
+              }
+            ]
+          },
+          "Elite": {
+            "labelsRaw": ["SPEED", "SAVEACCURACY", "REACTIONTIME"],
+            "valuesRaw": ["+20%", "+75%", "+75%"],
+            "metrics": [
+              {
+                "metric": "SPEED",
+                "raw": "+20%",
+                "numericValue": 20.0,
+                "unit": "percent",
+                "durationText": null
+              },
+              {
+                "metric": "SAVEACCURACY",
+                "raw": "+75%",
+                "numericValue": 75.0,
+                "unit": "percent",
+                "durationText": null
+              },
+              {
+                "metric": "REACTIONTIME",
+                "raw": "+75%",
+                "numericValue": 75.0,
+                "unit": "percent",
+                "durationText": null
+              }
+            ]
+          }
+        }
+      },
+      {
+        "screenshot": "Screenshot 2026-05-16 21-58-22.png",
+        "category": "Goaltending",
+        "rowBounds": {
+          "top": 480,
+          "bottom": 695
+        },
+        "rawName": "SPONGE",
+        "rawNameHint": "SPONGE",
+        "canonicalName": "Sponge",
+        "descriptionLines": [
+          "Absorbshots and limit rebound opportunitieswith an increased ability to acquire thepuck",
+          "onsaves and jump onpucksquickerwithfastercoverspeeds.",
+          "Unlocks additional windmill reactions and eliminatesgoaliereactionswhen hit from shots",
+          "uphigh"
+        ],
+        "highlighted": false,
+        "tiers": {
+          "Specialist": {
+            "labelsRaw": ["CONTROLLEDSAVEABILITY", "COVERSPEED"],
+            "valuesRaw": ["+15%", "+5%"],
+            "metrics": [
+              {
+                "metric": "CONTROLLEDSAVEABILITY",
+                "raw": "+15%",
+                "numericValue": 15.0,
+                "unit": "percent",
+                "durationText": null
+              },
+              {
+                "metric": "COVERSPEED",
+                "raw": "+5%",
+                "numericValue": 5.0,
+                "unit": "percent",
+                "durationText": null
+              }
+            ]
+          },
+          "All Star": {
+            "labelsRaw": ["CONTROLLEDSAVEABILITY", "COVERSPEED"],
+            "valuesRaw": ["+35%", "+15%"],
+            "metrics": [
+              {
+                "metric": "CONTROLLEDSAVEABILITY",
+                "raw": "+35%",
+                "numericValue": 35.0,
+                "unit": "percent",
+                "durationText": null
+              },
+              {
+                "metric": "COVERSPEED",
+                "raw": "+15%",
+                "numericValue": 15.0,
+                "unit": "percent",
+                "durationText": null
+              }
+            ]
+          },
+          "Elite": {
+            "labelsRaw": ["CONTROLLED SAVEABILITY", "COVERSPEED"],
+            "valuesRaw": ["+75%", "+30%"],
+            "metrics": [
+              {
+                "metric": "CONTROLLED SAVEABILITY",
+                "raw": "+75%",
+                "numericValue": 75.0,
+                "unit": "percent",
+                "durationText": null
+              },
+              {
+                "metric": "COVERSPEED",
+                "raw": "+30%",
+                "numericValue": 30.0,
+                "unit": "percent",
+                "durationText": null
+              }
+            ]
+          }
+        }
+      },
+      {
+        "screenshot": "Screenshot 2026-05-16 21-58-22.png",
+        "category": "Goaltending",
+        "rowBounds": {
+          "top": 698,
+          "bottom": 913
+        },
+        "rawName": "DIALEDIN",
+        "rawNameHint": "DIALED IN",
+        "canonicalName": "Dialed_In",
+        "descriptionLines": [
+          "Keep on a roll with increased save accuracy and reaction timefor each save made ina row.",
+          "Bonusresetsafterlettinginagoal."
+        ],
+        "highlighted": false,
+        "tiers": {
+          "Specialist": {
+            "labelsRaw": ["SAVEABILITY(EACHSAVE)", "REACTIONTIME(EACHSAVE)"],
+            "valuesRaw": ["+2%", "+2%"],
+            "metrics": [
+              {
+                "metric": "SAVEABILITY(EACHSAVE)",
+                "raw": "+2%",
+                "numericValue": 2.0,
+                "unit": "percent",
+                "durationText": null
+              },
+              {
+                "metric": "REACTIONTIME(EACHSAVE)",
+                "raw": "+2%",
+                "numericValue": 2.0,
+                "unit": "percent",
+                "durationText": null
+              }
+            ]
+          },
+          "All Star": {
+            "labelsRaw": ["SAVEABILITY(EACHSAVE)", "REACTIONTIME(EACHSAVE)"],
+            "valuesRaw": ["+4%", "+4%"],
+            "metrics": [
+              {
+                "metric": "SAVEABILITY(EACHSAVE)",
+                "raw": "+4%",
+                "numericValue": 4.0,
+                "unit": "percent",
+                "durationText": null
+              },
+              {
+                "metric": "REACTIONTIME(EACHSAVE)",
+                "raw": "+4%",
+                "numericValue": 4.0,
+                "unit": "percent",
+                "durationText": null
+              }
+            ]
+          },
+          "Elite": {
+            "labelsRaw": ["SAVEABILITY(EACHSAVE)", "REACTIONTIME(EACHSAVE)"],
+            "valuesRaw": ["+6%", "+6%"],
+            "metrics": [
+              {
+                "metric": "SAVEABILITY(EACHSAVE)",
+                "raw": "+6%",
+                "numericValue": 6.0,
+                "unit": "percent",
+                "durationText": null
+              },
+              {
+                "metric": "REACTIONTIME(EACHSAVE)",
+                "raw": "+6%",
+                "numericValue": 6.0,
+                "unit": "percent",
+                "durationText": null
+              }
+            ]
+          }
+        }
+      }
+    ]
+  },
+  {
+    "screenshot": "Screenshot 2026-05-16 21-58-26.png",
+    "category": "Goaltending",
+    "highlightedRowBounds": {
+      "top": 734,
+      "bottom": 949
+    },
+    "rows": [
+      {
+        "screenshot": "Screenshot 2026-05-16 21-58-26.png",
+        "category": "Goaltending",
+        "rowBounds": {
+          "top": 299,
+          "bottom": 514
+        },
+        "rawName": "DIALEDIN",
+        "rawNameHint": "DIALED IN",
+        "canonicalName": "Dialed_In",
+        "descriptionLines": [
+          "Keep on a roll with increased save accuracy and reaction timefor each save madeina row.",
+          "Bonusresetsafterlettinginagoal."
+        ],
+        "highlighted": false,
+        "tiers": {
+          "Specialist": {
+            "labelsRaw": ["SAVEABILITY(EACHSAVE)", "REACTIONTIME(EACHSAVE)"],
+            "valuesRaw": ["+2%", "+2%"],
+            "metrics": [
+              {
+                "metric": "SAVEABILITY(EACHSAVE)",
+                "raw": "+2%",
+                "numericValue": 2.0,
+                "unit": "percent",
+                "durationText": null
+              },
+              {
+                "metric": "REACTIONTIME(EACHSAVE)",
+                "raw": "+2%",
+                "numericValue": 2.0,
+                "unit": "percent",
+                "durationText": null
+              }
+            ]
+          },
+          "All Star": {
+            "labelsRaw": ["SAVEABILITY(EACHSAVE)", "REACTIONTIMEEACHSAVE)"],
+            "valuesRaw": ["+4%", "+4%"],
+            "metrics": [
+              {
+                "metric": "SAVEABILITY(EACHSAVE)",
+                "raw": "+4%",
+                "numericValue": 4.0,
+                "unit": "percent",
+                "durationText": null
+              },
+              {
+                "metric": "REACTIONTIMEEACHSAVE)",
+                "raw": "+4%",
+                "numericValue": 4.0,
+                "unit": "percent",
+                "durationText": null
+              }
+            ]
+          },
+          "Elite": {
+            "labelsRaw": ["SAVEABILITY(EACHSAVE", "REACTIONTIME(EACHSAVE)"],
+            "valuesRaw": ["+6%", "+6%"],
+            "metrics": [
+              {
+                "metric": "SAVEABILITY(EACHSAVE",
+                "raw": "+6%",
+                "numericValue": 6.0,
+                "unit": "percent",
+                "durationText": null
+              },
+              {
+                "metric": "REACTIONTIME(EACHSAVE)",
+                "raw": "+6%",
+                "numericValue": 6.0,
+                "unit": "percent",
+                "durationText": null
+              }
+            ]
+          }
+        }
+      },
+      {
+        "screenshot": "Screenshot 2026-05-16 21-58-26.png",
+        "category": "Goaltending",
+        "rowBounds": {
+          "top": 516,
+          "bottom": 731
+        },
+        "rawName": "SHOWSTOPPER",
+        "rawNameHint": "SHOW STOPPER",
+        "canonicalName": "Show_Stopper",
+        "descriptionLines": [
+          "Utilize catlikereflexes with increaseSave Accuracy and Readinesswhen performing",
+          "reflexsavesand consecutivesaves.",
+          "Increased abilitytosee throughscreens and reactto deflections."
+        ],
+        "highlighted": false,
+        "tiers": {
+          "Specialist": {
+            "labelsRaw": ["SAVEABILITY", "REACTIONTIME"],
+            "valuesRaw": ["+10%", "+10%"],
+            "metrics": [
+              {
+                "metric": "SAVEABILITY",
+                "raw": "+10%",
+                "numericValue": 10.0,
+                "unit": "percent",
+                "durationText": null
+              },
+              {
+                "metric": "REACTIONTIME",
+                "raw": "+10%",
+                "numericValue": 10.0,
+                "unit": "percent",
+                "durationText": null
+              }
+            ]
+          },
+          "All Star": {
+            "labelsRaw": ["SAVEABILITY", "REACTIONTIME"],
+            "valuesRaw": ["+25%", "+25%"],
+            "metrics": [
+              {
+                "metric": "SAVEABILITY",
+                "raw": "+25%",
+                "numericValue": 25.0,
+                "unit": "percent",
+                "durationText": null
+              },
+              {
+                "metric": "REACTIONTIME",
+                "raw": "+25%",
+                "numericValue": 25.0,
+                "unit": "percent",
+                "durationText": null
+              }
+            ]
+          },
+          "Elite": {
+            "labelsRaw": ["SAVEABILITY", "REACTIONTIME"],
+            "valuesRaw": ["+75%", "+75%"],
+            "metrics": [
+              {
+                "metric": "SAVEABILITY",
+                "raw": "+75%",
+                "numericValue": 75.0,
+                "unit": "percent",
+                "durationText": null
+              },
+              {
+                "metric": "REACTIONTIME",
+                "raw": "+75%",
+                "numericValue": 75.0,
+                "unit": "percent",
+                "durationText": null
+              }
+            ]
+          }
+        }
+      },
+      {
+        "screenshot": "Screenshot 2026-05-16 21-58-26.png",
+        "category": "Goaltending",
+        "rowBounds": {
+          "top": 733,
+          "bottom": 948
+        },
+        "rawName": "RECHARGE",
+        "rawNameHint": "RECHARGE",
+        "canonicalName": "Recharge",
+        "descriptionLines": [
+          "Fightthroughfatiguewithreducedenergy drainwhenmaking saves and breathelifeinto",
+          "yourteambyincreasing teamenergyafteranyBreakawaySave,DesperationSaveor",
+          "PerfectOneTimerSave."
+        ],
+        "highlighted": true,
+        "tiers": {
+          "Specialist": {
+            "labelsRaw": ["ENERGYDRAIN(SHOTS)", "ENERGYDRAIN(PRESSUREMETEF", "ENERGYRECOVERY"],
+            "valuesRaw": ["-15%", "-5%", "+2%"],
+            "metrics": [
+              {
+                "metric": "ENERGYDRAIN(SHOTS)",
+                "raw": "-15%",
+                "numericValue": -15.0,
+                "unit": "percent",
+                "durationText": null
+              },
+              {
+                "metric": "ENERGYDRAIN(PRESSUREMETEF",
+                "raw": "-5%",
+                "numericValue": -5.0,
+                "unit": "percent",
+                "durationText": null
+              },
+              {
+                "metric": "ENERGYRECOVERY",
+                "raw": "+2%",
+                "numericValue": 2.0,
+                "unit": "percent",
+                "durationText": null
+              }
+            ]
+          },
+          "All Star": {
+            "labelsRaw": ["ENERGYDRAIN(SHOTS)", "ENERGYDRAIN(PRESSUREMETER", "ENERGYRECOVERY"],
+            "valuesRaw": ["-35%", "-15%", "+4%"],
+            "metrics": [
+              {
+                "metric": "ENERGYDRAIN(SHOTS)",
+                "raw": "-35%",
+                "numericValue": -35.0,
+                "unit": "percent",
+                "durationText": null
+              },
+              {
+                "metric": "ENERGYDRAIN(PRESSUREMETER",
+                "raw": "-15%",
+                "numericValue": -15.0,
+                "unit": "percent",
+                "durationText": null
+              },
+              {
+                "metric": "ENERGYRECOVERY",
+                "raw": "+4%",
+                "numericValue": 4.0,
+                "unit": "percent",
+                "durationText": null
+              }
+            ]
+          },
+          "Elite": {
+            "labelsRaw": ["ENERGYDRAIN(SHOTS)", "ENERGYDRAIN(PRESSUREMETER", "ENERGYRECOVERY"],
+            "valuesRaw": ["-75%", "-50%", "+6%"],
+            "metrics": [
+              {
+                "metric": "ENERGYDRAIN(SHOTS)",
+                "raw": "-75%",
+                "numericValue": -75.0,
+                "unit": "percent",
+                "durationText": null
+              },
+              {
+                "metric": "ENERGYDRAIN(PRESSUREMETER",
+                "raw": "-50%",
+                "numericValue": -50.0,
+                "unit": "percent",
+                "durationText": null
+              },
+              {
+                "metric": "ENERGYRECOVERY",
+                "raw": "+6%",
+                "numericValue": 6.0,
+                "unit": "percent",
+                "durationText": null
+              }
+            ]
+          }
+        }
+      }
+    ]
+  }
+]

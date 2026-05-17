@@ -32,3 +32,118 @@ regions:
     width: 0.400
     height: 0.260
     preprocess: invert-threshold
+  # Nine face-off dot ROI PAIRS on the rink diagram (right half of the screen).
+  # Each dot generates two regions with identical x/y/width/height but different
+  # preprocessing: `flag-away` isolates the red flag chip (away wins) via HSV
+  # color masking; `flag-home` isolates the dark flag chip via the red anchor's
+  # right-mirror. dot_id positions are absolute (independent of attacking
+  # direction): lz_ / rz_ = left/right end-zone; lnz_ / rnz_ = left/right
+  # neutral-zone; center = center-ice; _top / _bot = top/bottom of the rink.
+  dot_lz_top_away:
+    x: 0.465
+    y: 0.360
+    width: 0.110
+    height: 0.090
+    preprocess: flag-away
+  dot_lz_top_home:
+    x: 0.465
+    y: 0.360
+    width: 0.110
+    height: 0.090
+    preprocess: flag-home
+  dot_lz_bot_away:
+    x: 0.465
+    y: 0.545
+    width: 0.110
+    height: 0.090
+    preprocess: flag-away
+  dot_lz_bot_home:
+    x: 0.465
+    y: 0.545
+    width: 0.110
+    height: 0.090
+    preprocess: flag-home
+  dot_lnz_top_away:
+    x: 0.585
+    y: 0.360
+    width: 0.110
+    height: 0.090
+    preprocess: flag-away
+  dot_lnz_top_home:
+    x: 0.585
+    y: 0.360
+    width: 0.110
+    height: 0.090
+    preprocess: flag-home
+  dot_lnz_bot_away:
+    x: 0.585
+    y: 0.545
+    width: 0.110
+    height: 0.090
+    preprocess: flag-away
+  dot_lnz_bot_home:
+    x: 0.585
+    y: 0.545
+    width: 0.110
+    height: 0.090
+    preprocess: flag-home
+  dot_center_away:
+    x: 0.665
+    y: 0.475
+    width: 0.110
+    height: 0.090
+    preprocess: flag-away
+  dot_center_home:
+    x: 0.665
+    y: 0.475
+    width: 0.110
+    height: 0.090
+    preprocess: flag-home
+  dot_rnz_top_away:
+    x: 0.775
+    y: 0.360
+    width: 0.110
+    height: 0.090
+    preprocess: flag-away
+  dot_rnz_top_home:
+    x: 0.775
+    y: 0.360
+    width: 0.110
+    height: 0.090
+    preprocess: flag-home
+  dot_rnz_bot_away:
+    x: 0.775
+    y: 0.545
+    width: 0.110
+    height: 0.090
+    preprocess: flag-away
+  dot_rnz_bot_home:
+    x: 0.775
+    y: 0.545
+    width: 0.110
+    height: 0.090
+    preprocess: flag-home
+  dot_rz_top_away:
+    x: 0.890
+    y: 0.360
+    width: 0.110
+    height: 0.090
+    preprocess: flag-away
+  dot_rz_top_home:
+    x: 0.890
+    y: 0.360
+    width: 0.110
+    height: 0.090
+    preprocess: flag-home
+  dot_rz_bot_away:
+    x: 0.890
+    y: 0.545
+    width: 0.110
+    height: 0.090
+    preprocess: flag-away
+  dot_rz_bot_home:
+    x: 0.890
+    y: 0.545
+    width: 0.110
+    height: 0.090
+    preprocess: flag-home

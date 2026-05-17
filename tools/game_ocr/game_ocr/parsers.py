@@ -9,6 +9,7 @@ from game_ocr.models import (
     BoxScorePeriodCell,
     EventRow,
     ExtractionField,
+    FaceoffDot,
     FaceoffSideStats,
     FieldStatus,
     NetChartSideStats,
@@ -667,9 +668,18 @@ def _parse_loadout_measurements(measurement_lines: list[OCRLine]) -> tuple[Extra
 
 
 def _parse_loadout_attributes(
-    lines: list[OCRLine], column_centers: dict[str, float]
+    lines: list[OCRLine], column_centers: dict[str, float], image=None
 ) -> tuple[dict[str, AttributeGroup], dict[str, ExtractionField]]:
-    """Snap OCR lines into the 5×5 (or 5×4) attribute grid and parse R + Δ per cell."""
+    """Snap OCR lines into the 5×5 (or 5×4) attribute grid and parse R + Δ per cell.
+
+    When `image` is passed, two fallback paths kick in:
+      - chip-color sign recovery (red chip → negative, green chip → positive)
+        on deltas that OCR captured without a leading sign glyph.
+      - tight-ROI re-OCR on cells where the full-frame scan missed the delta
+        entirely. The chip is ~12×16 px on the full frame and RapidOCR
+        sometimes ignores it as insufficiently salient; a cropped + 4×
+        upscaled second pass reliably finds the digit.
+    """
     attributes: dict[str, AttributeGroup] = {g: AttributeGroup() for g in _LOADOUT_ATTR_GROUPS}
     deltas: dict[str, ExtractionField] = {}
 
@@ -686,7 +696,11 @@ def _parse_loadout_attributes(
             row_y = _LOADOUT_ATTR_ROW_YS[row_idx]
             # Cell x-band is asymmetric — label sits near cx, Δ + R extend far right.
             cell_lines = _lines_in_bbox(lines, (row_y - 25, row_y + 25), (cx - 80, cx + 260))
-            value_field, delta_field = _extract_cell(cell_lines, cx)
+            value_field, delta_field = _extract_cell(cell_lines, cx, image)
+            # Fallback: when the full-frame scan dropped the delta chip, run a
+            # tight-ROI re-OCR on the expected chip pixel range.
+            if delta_field is None and image is not None:
+                delta_field = _rescan_delta_chip(image, cx, row_y)
             key = keys[row_idx]
             attributes[group].values[key] = value_field
             if delta_field is not None:
@@ -694,7 +708,126 @@ def _parse_loadout_attributes(
     return attributes, deltas
 
 
-def _extract_cell(cell_lines: list[OCRLine], cx: float) -> tuple[ExtractionField, ExtractionField | None]:
+def _rescan_delta_chip(image, cx: float, row_y: float) -> ExtractionField | None:
+    """Crop a tight ROI around the Δ chip and re-run RapidOCR with 4× upscale.
+
+    EA's loadout-view delta chip is ~12×16 px on the native 1920×1080 frame.
+    The full-frame OCR pass ignores boxes below a saliency threshold, so very
+    small chips (especially red/negative ones) are often dropped. A focused
+    re-OCR with bicubic 4× upscale recovers the digit; the sign comes from
+    the chip's background colour via `_infer_delta_sign_from_color()`.
+    """
+    import cv2
+    from .ocr import RapidOCRBackend, OCRLine
+
+    h, w = image.shape[:2]
+    # Chip-band geometry: cx + ~70..170 in x; row_y ± 22 in y.
+    x1 = max(0, int(cx) + 65)
+    x2 = min(w, int(cx) + 175)
+    y1 = max(0, int(row_y) - 22)
+    y2 = min(h, int(row_y) + 22)
+    if x2 - x1 < 10 or y2 - y1 < 10:
+        return None
+    crop = image[y1:y2, x1:x2]
+    crop_big = cv2.resize(crop, (crop.shape[1] * 4, crop.shape[0] * 4), interpolation=cv2.INTER_CUBIC)
+
+    backend = _shared_ocr_backend()
+    lines = backend.read(crop_big)
+    # Prefer the line with the highest confidence whose text matches a small int.
+    best: tuple[int, str, float, OCRLine] | None = None
+    for line in lines:
+        text = line.text.strip().replace("–", "-").replace("—", "-").replace("−", "-")
+        m = re.fullmatch(r"([+\-]?)(\d{1,2})", text)
+        if not m:
+            continue
+        sign = -1 if m.group(1) == "-" else 1
+        n = sign * int(m.group(2))
+        had_sign = m.group(1) in ("+", "-")
+        if best is None or line.confidence > best[2]:
+            # Translate the upscaled line back to original-image coordinates so
+            # downstream colour sampling samples the right pixels.
+            translated = OCRLine(
+                text=text,
+                confidence=line.confidence,
+                x1=x1 + line.x1 / 4,
+                y1=y1 + line.y1 / 4,
+                x2=x1 + line.x2 / 4,
+                y2=y1 + line.y2 / 4,
+            )
+            best = (n, text, line.confidence, translated)
+            best_had_sign = had_sign  # noqa: F841  (consumed below)
+    if best is None:
+        return None
+    delta_val, raw, conf, line = best
+    # If the re-OCR didn't capture a sign, use chip-colour to recover.
+    text_had_sign = raw.startswith("+") or raw.startswith("-")
+    if not text_had_sign:
+        inferred = _infer_delta_sign_from_color(image, line)
+        if inferred == -1 and delta_val > 0:
+            delta_val = -delta_val
+    return ExtractionField(
+        raw_text=raw,
+        value=delta_val,
+        confidence=conf,
+        status=FieldStatus.OK,
+    )
+
+
+_OCR_BACKEND_SINGLETON = None
+
+
+def _shared_ocr_backend():
+    """Lazy + cached singleton — RapidOCR init is ~1s; reuse across rescans."""
+    global _OCR_BACKEND_SINGLETON
+    if _OCR_BACKEND_SINGLETON is None:
+        from .ocr import RapidOCRBackend
+
+        _OCR_BACKEND_SINGLETON = RapidOCRBackend()
+    return _OCR_BACKEND_SINGLETON
+
+
+def _infer_delta_sign_from_color(image, line: OCRLine) -> int:
+    """Sample the chip background color at the line's bbox to recover the sign
+    when RapidOCR dropped the leading "-" glyph.
+
+    Returns -1 if the chip is dominantly red, +1 if dominantly green, 0 when
+    inconclusive (caller keeps the OCR-derived sign as-is).
+    """
+    import cv2
+    import numpy as np
+
+    if image is None:
+        return 0
+    h, w = image.shape[:2]
+    # Sample 8 px around the digit's bounding box — the EA delta chip extends
+    # slightly past the text in every direction with saturated colour.
+    pad = 8
+    x1 = max(0, int(line.x1) - pad)
+    x2 = min(w, int(line.x2) + pad)
+    y1 = max(0, int(line.y1) - pad)
+    y2 = min(h, int(line.y2) + pad)
+    sample = image[y1:y2, x1:x2]
+    if sample.size == 0:
+        return 0
+    hsv = cv2.cvtColor(sample, cv2.COLOR_BGR2HSV)
+    pixels = hsv.reshape(-1, 3)
+    sat = pixels[(pixels[:, 1] > 80) & (pixels[:, 2] > 60)]
+    if len(sat) < 20:
+        return 0
+    h_arr = sat[:, 0]
+    red = int(((h_arr <= 15) | (h_arr >= 165)).sum())
+    grn = int(((h_arr >= 35) & (h_arr <= 85)).sum())
+    # Require a clear 2:1 majority to avoid flipping signs on mixed pixels.
+    if red >= grn * 2 and red >= 20:
+        return -1
+    if grn >= red * 2 and grn >= 20:
+        return 1
+    return 0
+
+
+def _extract_cell(
+    cell_lines: list[OCRLine], cx: float, image=None
+) -> tuple[ExtractionField, ExtractionField | None]:
     """Within a single attribute-grid cell, identify the Δ chip and the R rating.
 
     Layout per column relative to header x-centre `cx`:
@@ -708,6 +841,8 @@ def _extract_cell(cell_lines: list[OCRLine], cx: float) -> tuple[ExtractionField
     delta: int | None = None
     delta_conf: float | None = None
     delta_raw: str | None = None
+    delta_line: OCRLine | None = None
+    delta_text_had_sign = False
 
     for line in cell_lines:
         text = line.text.strip()
@@ -720,12 +855,25 @@ def _extract_cell(cell_lines: list[OCRLine], cx: float) -> tuple[ExtractionField
             continue
         # Δ chip: signed int in the middle sub-band.
         if 80 <= x_rel <= 170:
-            m = re.fullmatch(r"([+\-]?)(\d{1,2})", text)
+            # Normalize unicode minus glyphs (en-dash, em-dash, U+2212) → ASCII '-'.
+            normalized = text.replace("–", "-").replace("—", "-").replace("−", "-")
+            m = re.fullmatch(r"([+\-]?)(\d{1,2})", normalized)
             if m:
                 sign = -1 if m.group(1) == "-" else 1
                 delta = sign * int(m.group(2))
                 delta_conf = line.confidence
                 delta_raw = text
+                delta_line = line
+                delta_text_had_sign = m.group(1) in ("+", "-")
+
+    # Color-based sign recovery: when OCR captured a delta digit without a
+    # leading sign (`+`/`-`), sample the chip's background hue to disambiguate.
+    # Red chip → negative; green chip → positive. The chip colour is a fixed
+    # EA UI signal and is more reliable than OCR text on a 12×16 px digit.
+    if delta is not None and not delta_text_had_sign and delta_line is not None:
+        inferred = _infer_delta_sign_from_color(image, delta_line)
+        if inferred == -1 and delta > 0:
+            delta = -delta
 
     value_field = ExtractionField(
         raw_text=value_raw,
@@ -834,7 +982,7 @@ def parse_loadout_result(meta, regions: dict[str, list[OCRLine]], *, image=None,
     for g, cx in fallback_centres.items():
         column_centers.setdefault(g, cx)
 
-    attributes, attribute_deltas = _parse_loadout_attributes(lines, column_centers)
+    attributes, attribute_deltas = _parse_loadout_attributes(lines, column_centers, image=image)
 
     # ── Anchor: Active Ability Points (AP) ──
     # OCR usually splits into "ACTIVEABILITYPOINTS(AP):" + "<N>/100". Locate the N/100.
@@ -975,8 +1123,6 @@ _BOX_SCORE_PERIOD_NUMBER = {
 }
 
 # Common OCR misreads of period header tokens, mapped to their canonical form.
-# EASHL has no shootout — any "SO"-shaped header is either OCR garbage or a
-# screen from a non-EASHL mode and is ignored downstream.
 _BOX_SCORE_PERIOD_ALIASES = {
     "1S": "1ST",
     "1SI": "1ST",
@@ -1114,7 +1260,7 @@ def parse_post_game_box_score(
 ) -> PostGameBoxScoreResult:
     """Parse one of the three Box Score tabs (goals/shots/faceoffs).
 
-    The grid is small and tabular: headers are short tokens (1ST 2ND 3RD OT SO TOT)
+    The grid is small and tabular: headers are short tokens (1ST 2ND 3RD OT OT2 OT3 TOT)
     and each team row is a sequence of integers in matching column positions.
     Strategy:
       1. Split each row into columns by horizontal gap.
@@ -1167,7 +1313,7 @@ def parse_post_game_box_score(
         )
 
     # TOT-sum sanity check: periods 1..6 (1ST/2ND/3RD/OT/OT2/OT3) should add
-    # up to the TOT column. EASHL has no shootout, so no SO bucket. RapidOCR misreads digits in this font (most often
+    # up to the TOT column. RapidOCR misreads digits in this font (most often
     # '9'→'6' or '9'→'g'), so when the column sum disagrees with TOT we surface
     # a warning so the operator can pinpoint the bad cell during review.
     warnings: list[str] = []
@@ -1224,14 +1370,17 @@ _NET_CHART_PERIOD_NUMBER = {
 }
 
 _NET_CHART_LABEL_KEYS = {
-    # canonical_key: list of substring matchers (uppercase, no spaces)
-    "total_shots": ["TOTALSHOTS"],
-    "wrist_shots": ["WRISTSHOTS"],
-    "slap_shots": ["SLAPSHOTS", "SLAPSHOT"],
-    "backhand_shots": ["BACKHANDSHOTS", "BACKHANDSHOT"],
-    "snap_shots": ["SNAPSHOTS", "SNAPSHOT"],
-    "deflections": ["DEFLECTIONS", "DEFLECTION"],
-    "power_play_shots": ["SHOTSONPP", "SHOTSPP", "PPSHOTS"],
+    # canonical_key: list of substring matchers (uppercase, no spaces).
+    # Full-word matchers first, then half-word fallbacks for cases where
+    # RapidOCR splits the label across multiple OCRLines (e.g. "WRIST" on
+    # one line, "SHOTS" on the next — neither would match "WRISTSHOTS").
+    "total_shots": ["TOTALSHOTS", "TOTAL"],
+    "wrist_shots": ["WRISTSHOTS", "WRIST"],
+    "slap_shots": ["SLAPSHOTS", "SLAPSHOT", "SLAP"],
+    "backhand_shots": ["BACKHANDSHOTS", "BACKHANDSHOT", "BACKHAND"],
+    "snap_shots": ["SNAPSHOTS", "SNAPSHOT", "SNAP"],
+    "deflections": ["DEFLECTIONS", "DEFLECTION", "DEFLECT"],
+    "power_play_shots": ["SHOTSONPP", "SHOTSPP", "PPSHOTS", "ONPP"],
 }
 
 
@@ -1245,10 +1394,32 @@ def _net_chart_row_key(text: str) -> str | None:
     return None
 
 
-def _net_chart_period_number(label_text: str) -> int:
-    """Parse a UI period label into a period number (-1 = ALL PERIODS aggregate).
+def _clean_period_label_text(raw: str) -> str:
+    """Strip RT/LT/RB/LB controller-prompt tokens and collapse whitespace.
 
-    The period selector tab also renders an "RT" / "LT" controller-prompt glyph
+    Produces a human-readable label like "2ND PERIOD" from raw OCR like
+    "RT 2ND PERIOD" or "1ST PERIOD  RT". Returns empty string for empty input.
+    """
+    text = re.sub(r"\s+", " ", raw).strip().upper()
+    if not text:
+        return ""
+    text = re.sub(r"^(RT|LT|RB|LB)\s+", "", text)
+    text = re.sub(r"\s+(RT|LT|RB|LB)$", "", text)
+    return text
+
+
+def _net_chart_period_number(label_text: str) -> int:
+    """Parse a UI period label into a period number.
+
+    Returns:
+      1..6 for explicit period tabs (1ST/2ND/3RD/OT/OT2/OT3),
+      -1 for the explicit ALL PERIODS aggregate,
+      0 when the label is unrecognized.
+
+    Promoters must treat 0 as "do not write" — promoting a 0 row would
+    collide with the legitimate -1 ALL PERIODS slot in the unique index.
+
+    The period selector tab also renders an "RT"/"LT" controller-prompt glyph
     that OCR pulls in alongside the actual label. We strip those prefixes
     before lookup.
     """
@@ -1263,7 +1434,7 @@ def _net_chart_period_number(label_text: str) -> int:
             break
     if cleaned.endswith("PERIOD"):
         cleaned = cleaned[: -len("PERIOD")]
-    return _NET_CHART_PERIOD_NUMBER.get(cleaned, -1)
+    return _NET_CHART_PERIOD_NUMBER.get(cleaned, 0)
 
 
 # Strips the in-game home/away suffix from a label like "BM(A)" or "4TH(H) n n".
@@ -1311,6 +1482,16 @@ def parse_post_game_net_chart(meta, regions: dict[str, list[OCRLine]], **_kwargs
 
     period_text = period_label_field.raw_text or ""
     period_number = _net_chart_period_number(period_text)
+    cleaned_period_text = _clean_period_label_text(period_text)
+    cleaned_period_label_field = ExtractionField(
+        raw_text=period_label_field.raw_text,
+        value=cleaned_period_text or None,
+        confidence=period_label_field.confidence,
+        status=(
+            FieldStatus.OK if cleaned_period_text and period_number > 0
+            else period_label_field.status
+        ),
+    )
 
     panel_lines = regions.get("stats_panel", [])
     rows = _group_lines_by_y(panel_lines, threshold=20.0)
@@ -1330,12 +1511,23 @@ def parse_post_game_net_chart(meta, regions: dict[str, list[OCRLine]], **_kwargs
                 label_token = key
                 label_x_center = line.x_center
                 break
+        # Multi-line label fallback: if no individual line in this row matched
+        # a row key, try the concatenation of all non-numeric tokens (handles
+        # RapidOCR splitting "WRIST SHOTS" into separate "WRIST" + "SHOTS"
+        # lines that, individually, still get caught by the half-word matchers
+        # but defensively also handles "DEFLEC" + "TIONS"-style splits).
+        if label_token is None:
+            non_numeric = [line for line in row if not re.search(r"[0-9]", line.text)]
+            if non_numeric:
+                joined = " ".join(line.text for line in non_numeric)
+                key = _net_chart_row_key(joined)
+                if key is not None:
+                    label_token = key
+                    label_x_center = sum(line.x_center for line in non_numeric) / len(non_numeric)
         if label_token is None or label_x_center is None:
             continue
         # Pick numeric tokens by side relative to the label.
-        numeric_lines = [
-            line for line in row if re.search(r"[0-9]", line.text) and line is not row[0] or re.search(r"[0-9]", line.text)
-        ]
+        numeric_lines = [line for line in row if re.search(r"[0-9]", line.text)]
         away_lines = [line for line in numeric_lines if line.x_center < label_x_center]
         home_lines = [line for line in numeric_lines if line.x_center > label_x_center]
         # Allow lone-letter "g" / "S" / "O" tokens to still surface as raw_text.
@@ -1346,26 +1538,60 @@ def parse_post_game_net_chart(meta, regions: dict[str, list[OCRLine]], **_kwargs
         away_fields[label_token] = field_from_lines(away_lines, parser=parse_int)
         home_fields[label_token] = field_from_lines(home_lines, parser=parse_int)
 
+    # Game-total shots from the score-strip header. These are identical across
+    # every per-period frame, so they double as the source of truth for the
+    # ALL PERIODS aggregate row's total_shots when no dedicated ALL PERIODS
+    # frame was captured. The OCR'd text is "N SHOTS" — strip the suffix
+    # before parse_int (which now strictly rejects mixed content).
+    def _parse_leading_int(text: str) -> int | None:
+        m = re.match(r"\s*(\d+)", text or "")
+        return int(m.group(1)) if m else None
+
+    away_header_total_shots = field_from_lines(
+        regions.get("header_total_shots_away", []), parser=_parse_leading_int,
+    )
+    home_header_total_shots = field_from_lines(
+        regions.get("header_total_shots_home", []), parser=_parse_leading_int,
+    )
+
     return PostGameNetChartResult(
         meta=meta,
-        period_label=period_label_field,
+        period_label=cleaned_period_label_field,
         period_number=period_number,
         away_label=away_label_field,
         home_label=home_label_field,
         away_team_abbr=_team_abbr_field(away_label_field),
         home_team_abbr=_team_abbr_field(home_label_field),
+        away_header_total_shots=away_header_total_shots,
+        home_header_total_shots=home_header_total_shots,
         away=NetChartSideStats(**away_fields),
         home=NetChartSideStats(**home_fields),
     )
 
 
-# ─── Faceoff Map parser (audit-only) ──────────────────────────────────────────
+# ─── Faceoff Map parser ───────────────────────────────────────────────────────
 
 _FACEOFF_LABEL_KEYS = {
     "overall_win_pct": ["OVERALLWIN", "OVERALL"],
     "offensive_zone": ["OFFENSIVEZONE", "OFFENSIVE"],
     "defensive_zone": ["DEFENSIVEZONE", "DEFENSIVE"],
 }
+
+# Nine face-off dot IDs in canonical order. lz / rz = left / right end-zone,
+# lnz / rnz = left / right neutral-zone, center = center-ice.
+_FACEOFF_DOT_IDS = (
+    "lz_top",
+    "lz_bot",
+    "lnz_top",
+    "lnz_bot",
+    "center",
+    "rnz_top",
+    "rnz_bot",
+    "rz_top",
+    "rz_bot",
+)
+
+_FACEOFF_WT_RE = re.compile(r"^\s*(\d+)\s*/\s*(\d+)\s*$")
 
 
 def _faceoff_row_key(text: str) -> str | None:
@@ -1377,13 +1603,173 @@ def _faceoff_row_key(text: str) -> str | None:
     return None
 
 
-def parse_post_game_faceoff_map(meta, regions: dict[str, list[OCRLine]], **_kwargs) -> PostGameFaceoffMapResult:
-    """Parse the Faceoff Map text panel. Audit-only — no domain rows.
+def _split_wins_total(field: ExtractionField) -> tuple[ExtractionField, ExtractionField]:
+    """Split a verbatim "W/T" ExtractionField into two parsed-int fields.
 
-    Three rows: OVERALL WIN % / OFFENSIVE ZONE / DEFENSIVE ZONE. Each has an
-    away value (left), label (middle), home value (right). Values are stored
-    verbatim; the offensive/defensive entries look like "2/3" (wins/total) and
-    are kept as strings rather than parsed into separate columns.
+    Returns (wins, total). Each is MISSING when the raw_text didn't match
+    the W/T regex.
+    """
+    raw = field.raw_text or ""
+    m = _FACEOFF_WT_RE.match(raw)
+    if not m:
+        return (
+            ExtractionField(status=FieldStatus.MISSING),
+            ExtractionField(status=FieldStatus.MISSING),
+        )
+    wins = int(m.group(1))
+    total = int(m.group(2))
+    return (
+        ExtractionField(
+            raw_text=str(wins),
+            value=wins,
+            confidence=field.confidence,
+            status=FieldStatus.OK,
+        ),
+        ExtractionField(
+            raw_text=str(total),
+            value=total,
+            confidence=field.confidence,
+            status=FieldStatus.OK,
+        ),
+    )
+
+
+def _parse_faceoff_dot(
+    lines: list[OCRLine],
+    *,
+    crop_width: int | None = None,
+) -> tuple[ExtractionField, ExtractionField]:
+    """Parse one dot ROI into (away_wins, home_wins).
+
+    Each ROI contains a small red flag (away wins) on the left and a small
+    dark flag (home wins) on the right, each with a single integer 0–9.
+    When `crop_width` is provided, the pivot is the ROI's horizontal
+    midpoint (in OCR-input pixel coords, i.e. after preprocess upscaling) —
+    the only reliable signal for single-glyph reads. Without `crop_width`,
+    falls back to a median-x split (legacy behaviour, kept for unit tests).
+
+    When multiple OCR lines fall on the same side (RapidOCR sometimes emits
+    duplicate or noise detections — e.g. "1.1" alongside two real "1"s on a
+    tightly-spaced flag pair), pick the single highest-confidence line on
+    each side rather than concatenating, and reject values > 9 as
+    implausible (real faceoff wins per dot per period max out in single
+    digits).
+    """
+    text_lines = [l for l in lines if l.text.strip()]
+    if not text_lines:
+        return (
+            ExtractionField(status=FieldStatus.MISSING),
+            ExtractionField(status=FieldStatus.MISSING),
+        )
+    if crop_width is not None:
+        pivot = crop_width / 2.0
+        away_lines = [l for l in text_lines if l.x_center < pivot]
+        home_lines = [l for l in text_lines if l.x_center >= pivot]
+    else:
+        xs = sorted(l.x_center for l in text_lines)
+        pivot = xs[len(xs) // 2]
+        away_lines = [l for l in text_lines if l.x_center < pivot]
+        home_lines = [l for l in text_lines if l.x_center >= pivot]
+        if not away_lines and len(text_lines) >= 2:
+            away_lines = [text_lines[0]]
+            home_lines = text_lines[1:]
+        if not home_lines and len(text_lines) >= 2:
+            away_lines = text_lines[:-1]
+            home_lines = [text_lines[-1]]
+    away = _best_single_digit_field(away_lines)
+    home = _best_single_digit_field(home_lines)
+    return away, home
+
+
+# Common OCR misreads of small digits on the face-off flag chips. RapidOCR
+# frequently confuses these characters for digits on red/dark backgrounds:
+#   "L" / "I" / "l" / "i" / "|"    → 1
+#   "O" / "o" / "口" / "Q"        → 0
+#   "己" / "Z" / "z"              → 2
+#   "S" / "s"                       → 5
+#   "B"                             → 8
+#   "G"                             → 6
+# (Empirically observed against the four reference frames in
+# research/OCR-SS/Action-Tracker/Faceoff-Map/. CJK characters appear because
+# RapidOCR's default model includes Chinese characters and falls back to a
+# look-alike Kanji/Hiragana when the digit shape doesn't match a clean
+# Western glyph.)
+_DOT_DIGIT_LOOKALIKES = str.maketrans({
+    "L": "1", "l": "1", "I": "1", "i": "1", "|": "1",
+    "O": "0", "o": "0", "口": "0", "Q": "0", "D": "0", "U": "0",
+    "己": "2", "Z": "2", "z": "2",
+    "S": "5", "s": "5",
+    "B": "8",
+    "G": "6",
+})
+
+
+def _parse_dot_digit(text: str) -> int | None:
+    """Parse a single-digit face-off win count, tolerating common OCR misreads.
+
+    Returns an int in [0, 9] or None. Strips noise characters (dashes,
+    periods, spaces) the OCR engine tends to add to flag glyphs (e.g. "1-"
+    or "1.").
+    """
+    if not text:
+        return None
+    cleaned = text.translate(_DOT_DIGIT_LOOKALIKES)
+    cleaned = re.sub(r"[^0-9]", "", cleaned)
+    if not cleaned:
+        return None
+    if len(cleaned) > 1:
+        # OCR sometimes detects a single glyph as multiple digit fragments
+        # (e.g. "11" for a single "1"). Single digit per flag is the only
+        # plausible reading.
+        return None
+    value = int(cleaned)
+    return value if 0 <= value <= 9 else None
+
+
+def _best_single_digit_field(side_lines: list[OCRLine]) -> ExtractionField:
+    """Pick the highest-confidence single-digit OCR line from one ROI side.
+
+    Uses `_parse_dot_digit` so common look-alike misreads (L/I/O) recover.
+    If no candidate yields a plausible single digit, returns the highest-
+    confidence line as UNCERTAIN so the audit trail keeps the raw text.
+    MISSING when no lines were given.
+    """
+    if not side_lines:
+        return ExtractionField(status=FieldStatus.MISSING)
+    ranked = sorted(side_lines, key=lambda l: l.confidence, reverse=True)
+    for line in ranked:
+        value = _parse_dot_digit(line.text)
+        if value is not None:
+            return ExtractionField(
+                raw_text=line.text,
+                value=value,
+                confidence=line.confidence,
+                status=FieldStatus.OK,
+            )
+    best = ranked[0]
+    return ExtractionField(
+        raw_text=best.text,
+        value=None,
+        confidence=best.confidence,
+        status=FieldStatus.UNCERTAIN,
+    )
+
+
+def parse_post_game_faceoff_map(
+    meta,
+    regions: dict[str, list[OCRLine]],
+    *,
+    regions_meta: dict[str, tuple[int, int]] | None = None,
+    **_kwargs,
+) -> PostGameFaceoffMapResult:
+    """Parse the Faceoff Map screen.
+
+    Two data regions:
+    1. Text panel — three rows (OVERALL WIN % / OFFENSIVE ZONE / DEFENSIVE
+       ZONE) split by an x-pivot on the label position. The zone rows are
+       "W/T" strings (kept verbatim) plus parsed int wins/total pairs.
+    2. Rink diagram — nine dot ROIs (dot_<id>). Each ROI has a red flag (away
+       wins) and a dark flag (home wins) split by x_center pivot.
     """
     period_label_field = field_from_lines(regions.get("period_label", []))
     away_label_field = field_from_lines(regions.get("away_label", []))
@@ -1421,6 +1807,60 @@ def parse_post_game_faceoff_map(meta, regions: dict[str, list[OCRLine]], **_kwar
             away[label_token] = field_from_lines(away_lines)
             home[label_token] = field_from_lines(home_lines)
 
+    # Parse verbatim "W/T" zone strings into separate int fields.
+    away_oz_wins, away_oz_total = _split_wins_total(away["offensive_zone"])
+    away_dz_wins, away_dz_total = _split_wins_total(away["defensive_zone"])
+    home_oz_wins, home_oz_total = _split_wins_total(home["offensive_zone"])
+    home_dz_wins, home_dz_total = _split_wins_total(home["defensive_zone"])
+
+    away_side = FaceoffSideStats(
+        overall_win_pct=away["overall_win_pct"],
+        offensive_zone=away["offensive_zone"],
+        defensive_zone=away["defensive_zone"],
+        offensive_zone_wins=away_oz_wins,
+        offensive_zone_total=away_oz_total,
+        defensive_zone_wins=away_dz_wins,
+        defensive_zone_total=away_dz_total,
+    )
+    home_side = FaceoffSideStats(
+        overall_win_pct=home["overall_win_pct"],
+        offensive_zone=home["offensive_zone"],
+        defensive_zone=home["defensive_zone"],
+        offensive_zone_wins=home_oz_wins,
+        offensive_zone_total=home_oz_total,
+        defensive_zone_wins=home_dz_wins,
+        defensive_zone_total=home_dz_total,
+    )
+
+    # Each dot has two pre-OCR'd sub-ROIs: `dot_<id>_away` (red-flag isolated
+    # via HSV mask) and `dot_<id>_home` (mirror-image dark-flag region). Each
+    # sub-ROI contains at most one digit; we just pick the best line per side.
+    # Legacy single-ROI `dot_<id>` entries (for back-compat with older YAMLs)
+    # fall through to `_parse_faceoff_dot` with the x-pivot logic.
+    dots: dict[str, FaceoffDot] = {}
+    for dot_id in _FACEOFF_DOT_IDS:
+        away_key = f"dot_{dot_id}_away"
+        home_key = f"dot_{dot_id}_home"
+        if away_key in regions or home_key in regions:
+            away_lines = regions.get(away_key, [])
+            home_lines = regions.get(home_key, [])
+            away_wins = _best_single_digit_field(away_lines)
+            home_wins = _best_single_digit_field(home_lines)
+        else:
+            roi_key = f"dot_{dot_id}"
+            dot_lines = regions.get(roi_key, [])
+            crop_width = None
+            if regions_meta is not None:
+                meta_entry = regions_meta.get(roi_key)
+                if meta_entry is not None:
+                    crop_width = meta_entry[1]
+            away_wins, home_wins = _parse_faceoff_dot(dot_lines, crop_width=crop_width)
+        dots[dot_id] = FaceoffDot(
+            dot_id=dot_id,
+            away_wins=away_wins,
+            home_wins=home_wins,
+        )
+
     return PostGameFaceoffMapResult(
         meta=meta,
         period_label=period_label_field,
@@ -1429,8 +1869,9 @@ def parse_post_game_faceoff_map(meta, regions: dict[str, list[OCRLine]], **_kwar
         home_label=home_label_field,
         away_team_abbr=_team_abbr_field(away_label_field),
         home_team_abbr=_team_abbr_field(home_label_field),
-        away=FaceoffSideStats(**away),
-        home=FaceoffSideStats(**home),
+        away=away_side,
+        home=home_side,
+        dots=dots,
     )
 
 

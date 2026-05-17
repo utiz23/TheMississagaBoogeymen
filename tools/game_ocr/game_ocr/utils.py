@@ -17,10 +17,9 @@ def normalize_text(text: str | None) -> str:
 def parse_int(value: str | None) -> int | None:
     if not value:
         return None
-    digits = re.findall(r"\d+", value.replace(",", ""))
-    if not digits:
-        return None
-    return int("".join(digits))
+    cleaned = value.replace(",", "")
+    m = re.fullmatch(r"\s*(-?\d+)\s*", cleaned)
+    return int(m.group(1)) if m else None
 
 
 def parse_percentage(value: str | None) -> float | None:

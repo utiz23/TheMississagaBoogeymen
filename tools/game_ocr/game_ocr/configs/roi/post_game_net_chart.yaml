@@ -32,3 +32,22 @@ regions:
     width: 0.400
     height: 0.420
     preprocess: invert-threshold
+  # Game-level shot totals from the centered score-strip header, immediately
+  # below the team names. These are identical across all per-period frames in
+  # a match (e.g. "29 SHOTS" / "16 SHOTS"), so the promoter uses them to
+  # populate the ALL PERIODS (period_number=-1) aggregate row even when no
+  # dedicated ALL PERIODS frame was captured. Calibrated against the four
+  # canonical match-250 captures in
+  # research/OCR-SS/Action-Tracker/Net-Chart/.
+  header_total_shots_away:
+    x: 0.520
+    y: 0.220
+    width: 0.070
+    height: 0.040
+    preprocess: invert-threshold
+  header_total_shots_home:
+    x: 0.775
+    y: 0.220
+    width: 0.070
+    height: 0.040
+    preprocess: invert-threshold

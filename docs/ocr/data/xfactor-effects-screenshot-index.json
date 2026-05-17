@@ -1,0 +1,65 @@
+[
+  {
+    "order": 1,
+    "screenshot": "Screenshot 2026-05-16 21-57-38.png",
+    "category": "Skating/Strength",
+    "xfactorNamesVisible": ["Wheels", "Elite Edges", "Second Wind"],
+    "highlightedRowName": "Wheels"
+  },
+  {
+    "order": 2,
+    "screenshot": "Screenshot 2026-05-16 21-57-46.png",
+    "category": "Skating/Strength",
+    "xfactorNamesVisible": ["Second Wind", "No Contest", "Warrior"],
+    "highlightedRowName": "No Contest"
+  },
+  {
+    "order": 3,
+    "screenshot": "Screenshot 2026-05-16 21-57-51.png",
+    "category": "Shooting/Passing",
+    "xfactorNamesVisible": ["Backhand Beauty", "Send It", "Tape to Tape"],
+    "highlightedRowName": "Backhand Beauty"
+  },
+  {
+    "order": 4,
+    "screenshot": "Screenshot 2026-05-16 21-57-58.png",
+    "category": "Puck Skills",
+    "xfactorNamesVisible": ["Ankle Breaker", "Big Rig", "Unstoppable"],
+    "highlightedRowName": "Ankle Breaker"
+  },
+  {
+    "order": 5,
+    "screenshot": "Screenshot 2026-05-16 21-58-06.png",
+    "category": "Puck Skills",
+    "xfactorNamesVisible": ["Unstoppable", "Big Tipper", "Born Leader"],
+    "highlightedRowName": "Born Leader"
+  },
+  {
+    "order": 6,
+    "screenshot": "Screenshot 2026-05-16 21-58-15.png",
+    "category": "Body/Stick Checking",
+    "xfactorNamesVisible": ["Truculence", "Spark Plug", "Hipster"],
+    "highlightedRowName": "Truculence"
+  },
+  {
+    "order": 7,
+    "screenshot": "Screenshot 2026-05-16 21-58-18.png",
+    "category": "Body/Stick Checking",
+    "xfactorNamesVisible": ["Hipster", "Stick Em Up", "Quick Pick"],
+    "highlightedRowName": "Quick Pick"
+  },
+  {
+    "order": 8,
+    "screenshot": "Screenshot 2026-05-16 21-58-22.png",
+    "category": "Goaltending",
+    "xfactorNamesVisible": ["Post to Post", "Sponge", "Dialed In"],
+    "highlightedRowName": "Post to Post"
+  },
+  {
+    "order": 9,
+    "screenshot": "Screenshot 2026-05-16 21-58-26.png",
+    "category": "Goaltending",
+    "xfactorNamesVisible": ["Dialed In", "Show Stopper", "Recharge"],
+    "highlightedRowName": "Recharge"
+  }
+]
