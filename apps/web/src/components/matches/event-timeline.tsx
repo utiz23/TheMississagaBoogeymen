@@ -966,7 +966,9 @@ function leadChangeLabel(ctx: GoalContext, oppAbbrev: string): string {
   // Lead extended or trail narrowed.
   const margin = Math.abs(ctx.bgmAfter - ctx.oppAfter)
   if (ctx.scoredBy === ctx.leader) {
-    return ctx.leader === 'bgm' ? `↑ BGM +${String(margin)}` : `↑ ${oppAbbrev} +${String(margin)}`
+    return ctx.leader === 'bgm'
+      ? `↑ BGM +${String(margin)} LEAD`
+      : `↑ ${oppAbbrev} +${String(margin)} LEAD`
   }
   return ctx.scoredBy === 'bgm' ? 'BGM closes' : `${oppAbbrev} closes`
 }
