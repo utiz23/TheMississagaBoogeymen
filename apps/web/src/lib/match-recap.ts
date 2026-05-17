@@ -625,6 +625,13 @@ export interface BoxScoreRow {
   us: string
   /** Opponent value (formatted). null = unknown / not comparable. */
   them: string | null
+  /**
+   * Indicates the stat's semantic direction.
+   * 'higher-better' (default) — more is good for BGM (goals, shots, hits).
+   * 'lower-better' — less is good for BGM (giveaways, penalties).
+   * Used by team-stats.tsx to show a "↓ better" indicator on inverted rows.
+   */
+  polarity?: 'higher-better' | 'lower-better'
 }
 
 export interface BoxScoreGroup {
@@ -700,9 +707,12 @@ export function buildBoxScore(
     row('Hits', match.hitsFor, match.hitsAgainst),
     row('Blocked Shots', bgmAgg.blockedShots, oppAgg.blockedShots),
     row('Takeaways', bgmAgg.takeaways, oppAgg.takeaways),
-    row('Giveaways', bgmAgg.giveaways, oppAgg.giveaways),
+    { ...row('Giveaways', bgmAgg.giveaways, oppAgg.giveaways), polarity: 'lower-better' as const },
     row('Interceptions', bgmAgg.interceptions, oppAgg.interceptions),
-    row('Penalties', match.penaltyMinutes ?? 0, match.penaltyMinutesAgainst ?? 0),
+    {
+      ...row('Penalties', match.penaltyMinutes ?? 0, match.penaltyMinutesAgainst ?? 0),
+      polarity: 'lower-better' as const,
+    },
     row('Short Handed Goals', bgmAgg.shGoals, oppAgg.shGoals),
   ].filter(nonEmptyRow)
 

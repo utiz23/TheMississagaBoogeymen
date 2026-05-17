@@ -70,6 +70,14 @@ function Row({ row, isLast }: { row: BoxScoreRow; isLast: boolean }) {
         </span>
         <span className="text-center text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">
           {row.label}
+          {row.polarity === 'lower-better' ? (
+            <span
+              className="ml-1.5 align-middle font-condensed text-[9px] font-bold tracking-[0.18em] text-zinc-600"
+              title="Lower is better"
+            >
+              ↓ BETTER
+            </span>
+          ) : null}
         </span>
         <span className="text-left font-condensed text-xl font-bold tabular-nums text-zinc-400">
           {row.them ?? '—'}
