@@ -170,11 +170,22 @@ function SkaterRowEl({ row, isBgm }: { row: SkaterRow; isBgm: boolean }) {
               <div className="grid gap-3 sm:grid-cols-3">
                 <DetailStat label="Score" value={row.score.toFixed(2)} />
                 <DetailStat
-                  label="Shooting %"
+                  label="Shot On Net %"
                   value={
                     row.shotAttempts > 0
                       ? `${((row.shots / row.shotAttempts) * 100).toFixed(0)}%`
                       : '—'
+                  }
+                  tooltip={
+                    row.shotAttempts > 0 && row.shots > row.shotAttempts
+                      ? 'Can exceed 100% — EA credits deflection goals as shots without recording a shot attempt.'
+                      : undefined
+                  }
+                />
+                <DetailStat
+                  label="Shooting %"
+                  value={
+                    row.shots > 0 ? `${((row.goals / row.shots) * 100).toFixed(0)}%` : '—'
                   }
                 />
                 <DetailStat
@@ -189,7 +200,6 @@ function SkaterRowEl({ row, isBgm }: { row: SkaterRow; isBgm: boolean }) {
                       : '—'
                   }
                 />
-                <DetailStat label="PIM" value={row.pim.toString()} />
                 <DetailStat
                   label="Possession"
                   value={row.possessionSeconds > 0 ? `${row.possessionSeconds.toString()}s` : '—'}
@@ -204,6 +214,10 @@ function SkaterRowEl({ row, isBgm }: { row: SkaterRow; isBgm: boolean }) {
                     row.shotAttempts > 0
                       ? `${((row.shots / row.shotAttempts) * 100).toFixed(1)}%`
                       : '—',
+                  ],
+                  [
+                    'Shooting %',
+                    row.shots > 0 ? `${((row.goals / row.shots) * 100).toFixed(1)}%` : '—',
                   ],
                   ['Deflections', row.deflections.toString()],
                 ]}
@@ -331,11 +345,24 @@ function DetailGroup({ title, stats }: { title: string; stats: [string, string][
   )
 }
 
-function DetailStat({ label, value }: { label: string; value: string }) {
+function DetailStat({
+  label,
+  value,
+  tooltip,
+}: {
+  label: string
+  value: string
+  tooltip?: string | undefined
+}) {
   return (
-    <div className="border border-zinc-800 bg-zinc-900/50 px-3 py-2">
+    <div className="border border-zinc-800 bg-zinc-900/50 px-3 py-2" title={tooltip}>
       <div className="font-condensed text-[10px] font-semibold uppercase tracking-[0.22em] text-zinc-500">
         {label}
+        {tooltip ? (
+          <span className="ml-1 text-zinc-600" aria-hidden>
+            ⓘ
+          </span>
+        ) : null}
       </div>
       <div className="mt-1 font-condensed text-lg font-bold tabular-nums text-zinc-100">
         {value}
