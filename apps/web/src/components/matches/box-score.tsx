@@ -206,7 +206,7 @@ function ModeTabSummary({
         </span>
         <span className="text-[11px] font-bold text-fg-5">
           {totalAttempts > 0
-            ? `${totals.forVal.toString()} of ${totalAttempts.toString()}`
+            ? `${totals.forVal.toString()}W · ${totalAttempts.toString()} total`
             : '—'}
         </span>
       </span>
