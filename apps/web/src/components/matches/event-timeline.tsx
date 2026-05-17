@@ -4,12 +4,8 @@ import { useMemo, useState } from 'react'
 import Link from 'next/link'
 import type { MatchEventRow } from '@eanhl/db/queries'
 import { SectionHeader } from '@/components/ui/section-header'
-import {
-  GoalMarker,
-  HitMarker,
-  PenaltyMarker,
-  ShotMarker,
-} from '@/components/branding/event-markers'
+import { GoalMarker, PenaltyMarker } from '@/components/branding/event-markers'
+import { formatPeriodLabel, periodsToShow } from '@/lib/period-label'
 
 /**
  * Event Timeline — Boogeymen Design System "Event Timeline.html" Concept
@@ -21,66 +17,91 @@ import {
  * and a lead-change banner. The game-winning goal gets a GWG ribbon +
  * accent glow.
  *
- * Filters above the timeline:
- *   - Scope: Story (goals + penalties only) | All events (adds compact
- *     cards for shots/hits/faceoffs).
+ * Story-only: shows goals + penalties. Filters above the timeline:
  *   - Period: All / P1 / P2 / P3 / OT… (auto-derived from data).
  *   - Team: All / BGM / opp.
- *
- * Deferred per the design's "v1 envelope":
- *   - Selected-event sync with the Action Tracker map (no shared state
- *     bus yet).
- *   - OCR confidence chip (need a match-level aggregate signal that
- *     the current query doesn't expose).
  */
 
 interface EventTimelineProps {
   events: MatchEventRow[]
   opponentLabel: string
+  oppTeamAbbr?: string | null
+  bgmWasHome?: boolean | null
+  bgmColor?: string | null
+  oppColor?: string | null
 }
 
-type ScopeFilter = 'story' | 'all'
 type PeriodFilter = 'all' | number
 type TeamFilter = 'all' | 'bgm' | 'opp'
 
 const STORY_TYPES = new Set(['goal', 'penalty'])
-const ALL_TIMELINE_TYPES = new Set(['goal', 'shot', 'hit', 'penalty', 'faceoff'])
+// Same per-team fallbacks the Action Tracker Map uses, so markers in both
+// sections look identical when the OCR colour extractor hasn't produced a
+// per-match hex yet.
+const BGM_FALLBACK = '#ce202f'
+const OPP_FALLBACK = '#233f94'
 
-export function EventTimeline({ events, opponentLabel }: EventTimelineProps) {
-  const tracked = events.filter((e) => ALL_TIMELINE_TYPES.has(e.eventType))
-  const [scope, setScope] = useState<ScopeFilter>('story')
+interface MarkerPalette {
+  homeColor: string
+  awayColor: string
+  bgmIsHome: boolean
+}
+
+function resolveMarkerSide(
+  teamSide: MatchEventRow['teamSide'],
+  bgmIsHome: boolean,
+): 'home' | 'away' {
+  const eventIsBgm = teamSide === 'for'
+  return eventIsBgm === bgmIsHome ? 'home' : 'away'
+}
+
+export function EventTimeline({
+  events,
+  opponentLabel,
+  oppTeamAbbr,
+  bgmWasHome,
+  bgmColor,
+  oppColor,
+}: EventTimelineProps) {
+  const storyEvents = events.filter((e) => STORY_TYPES.has(e.eventType))
   const [periodFilter, setPeriodFilter] = useState<PeriodFilter>('all')
   const [teamFilter, setTeamFilter] = useState<TeamFilter>('all')
 
-  if (tracked.length === 0) return null
+  // Prefer the DB-stored team abbreviation (set by the OCR colour extractor)
+  // over a name-derived fallback so the timeline matches the in-game crest.
+  const oppAbbrev =
+    oppTeamAbbr && oppTeamAbbr.length > 0 ? oppTeamAbbr : abbreviateTeam(opponentLabel)
 
-  const oppAbbrev = abbreviateTeam(opponentLabel)
-
-  // GWG is computed against the FULL goal list so filters can't change it.
-  const gwgId = useMemo(() => findGameWinningGoalId(tracked), [tracked])
-
-  // Running score per goal id — needed for the on-rail bubbles. Walks
-  // goals in chronological order (period asc, clock desc within a period).
-  const goalContext = useMemo(() => buildGoalContext(tracked), [tracked])
-
-  const periodsAvailable = useMemo(() => {
-    const map = new Map<number, string>()
-    for (const e of tracked) map.set(e.periodNumber, e.periodLabel ?? `P${String(e.periodNumber)}`)
-    return [...map.entries()].sort(([a], [b]) => a - b)
-  }, [tracked])
-
-  // Scope first: Story drops shots/hits/faceoffs.
-  const scoped = scope === 'story'
-    ? tracked.filter((e) => STORY_TYPES.has(e.eventType))
-    : tracked
-
-  // Counts feed chip badges.
-  const scopeCounts = {
-    story: tracked.filter((e) => STORY_TYPES.has(e.eventType)).length,
-    all: tracked.length,
+  const bgmIsHome = bgmWasHome !== false
+  const bgmResolved = bgmColor ?? BGM_FALLBACK
+  const oppResolved = oppColor ?? OPP_FALLBACK
+  const palette: MarkerPalette = {
+    homeColor: bgmIsHome ? bgmResolved : oppResolved,
+    awayColor: bgmIsHome ? oppResolved : bgmResolved,
+    bgmIsHome,
   }
 
-  const visible = scoped.filter((e) => {
+  // GWG is computed against the FULL goal list so filters can't change it.
+  const gwgId = useMemo(() => findGameWinningGoalId(storyEvents), [storyEvents])
+
+  // Running score per goal id — needed for the on-rail bubbles.
+  const goalContext = useMemo(() => buildGoalContext(storyEvents), [storyEvents])
+
+  const maxPeriodSeen = useMemo(() => {
+    let m = 3
+    for (const e of storyEvents) if (e.periodNumber > m) m = e.periodNumber
+    return m
+  }, [storyEvents])
+
+  const periodList = useMemo(() => periodsToShow(maxPeriodSeen), [maxPeriodSeen])
+
+  const periodHasData = useMemo(() => {
+    const set = new Set<number>()
+    for (const e of storyEvents) set.add(e.periodNumber)
+    return set
+  }, [storyEvents])
+
+  const visible = storyEvents.filter((e) => {
     if (periodFilter !== 'all' && e.periodNumber !== periodFilter) return false
     if (teamFilter === 'bgm' && e.teamSide !== 'for') return false
     if (teamFilter === 'opp' && e.teamSide !== 'against') return false
@@ -91,28 +112,28 @@ export function EventTimeline({ events, opponentLabel }: EventTimelineProps) {
   const final = useMemo(() => {
     let bgm = 0
     let opp = 0
-    for (const e of tracked) {
+    for (const e of storyEvents) {
       if (e.eventType !== 'goal') continue
       if (e.teamSide === 'for') bgm++
       else opp++
     }
     return { bgm, opp, bgmWon: bgm > opp, tied: bgm === opp }
-  }, [tracked])
+  }, [storyEvents])
 
   // Group by period for divider rendering.
   const groups = useMemo(() => buildGroups(visible), [visible])
 
+  if (storyEvents.length === 0) return null
+
   return (
     <section className="space-y-3">
-      <SectionHeader label="Event Timeline" subtitle="Game flow · goals + penalties by default" />
+      <SectionHeader label="Event Timeline" subtitle="Game flow · goals + penalties" />
 
       <FilterBar
-        scope={scope}
-        setScope={setScope}
-        scopeCounts={scopeCounts}
         periodFilter={periodFilter}
         setPeriodFilter={setPeriodFilter}
-        periodsAvailable={periodsAvailable}
+        periodList={periodList}
+        periodHasData={periodHasData}
         teamFilter={teamFilter}
         setTeamFilter={setTeamFilter}
         oppAbbrev={oppAbbrev}
@@ -121,7 +142,6 @@ export function EventTimeline({ events, opponentLabel }: EventTimelineProps) {
       {visible.length === 0 ? (
         <EmptyState
           onReset={() => {
-            setScope('all')
             setPeriodFilter('all')
             setTeamFilter('all')
           }}
@@ -142,13 +162,15 @@ export function EventTimeline({ events, opponentLabel }: EventTimelineProps) {
                 events={g.rows}
                 goalContext={goalContext}
                 gwgId={gwgId}
-                opponentLabel={opponentLabel}
                 oppAbbrev={oppAbbrev}
+                palette={palette}
               />
             ))}
 
             {/* Final anchor */}
-            <Anchor label={final.tied ? 'Final · tied' : `Final · ${final.bgmWon ? 'BGM' : oppAbbrev}`}>
+            <Anchor
+              label={final.tied ? 'Final · tied' : `Final · ${final.bgmWon ? 'BGM' : oppAbbrev}`}
+            >
               <FinalScore bgm={final.bgm} opp={final.opp} bgmWon={final.bgmWon} tied={final.tied} />
             </Anchor>
           </div>
@@ -162,7 +184,10 @@ export function EventTimeline({ events, opponentLabel }: EventTimelineProps) {
 
 function Rail() {
   return (
-    <div className="pointer-events-none absolute inset-y-0 left-1/2 hidden -translate-x-1/2 sm:block" aria-hidden>
+    <div
+      className="pointer-events-none absolute inset-y-0 left-1/2 hidden -translate-x-1/2 sm:block"
+      aria-hidden
+    >
       <div className="relative h-full w-[2px] bg-[var(--color-border)]">
         <span className="absolute -top-[3px] -left-[3px] block h-2 w-2 rounded-full bg-[var(--color-accent)] shadow-[0_0_12px_rgba(232,65,49,0.7)]" />
         <span className="absolute -bottom-[3px] -left-[3px] block h-2 w-2 rounded-full bg-[var(--color-accent)] shadow-[0_0_12px_rgba(232,65,49,0.7)]" />
@@ -214,15 +239,15 @@ function PeriodSection({
   events,
   goalContext,
   gwgId,
-  opponentLabel,
   oppAbbrev,
+  palette,
 }: {
   periodLabel: string
   events: MatchEventRow[]
   goalContext: Map<number, GoalContext>
   gwgId: number | null
-  opponentLabel: string
   oppAbbrev: string
+  palette: MarkerPalette
 }) {
   const goalsHere = events.filter((e) => e.eventType === 'goal').length
   const pensHere = events.filter((e) => e.eventType === 'penalty').length
@@ -237,28 +262,21 @@ function PeriodSection({
         isOt={isOt}
       />
       <ol className="space-y-0">
-        {events.map((e) => (
-          <li key={e.id}>
-            {e.eventType === 'goal' ? (
+        {events.map((e) => {
+          const ctx = e.eventType === 'goal' ? goalContext.get(e.id) : undefined
+          return (
+            <li key={e.id}>
               <EventRow
                 event={e}
                 gwgId={gwgId}
                 goalContext={goalContext}
-                opponentLabel={opponentLabel}
+                palette={palette}
+                oppAbbrev={oppAbbrev}
               />
-            ) : (
-              <EventRow
-                event={e}
-                gwgId={gwgId}
-                goalContext={goalContext}
-                opponentLabel={opponentLabel}
-              />
-            )}
-            {e.eventType === 'goal' && goalContext.get(e.id) ? (
-              <ScoreBubble ctx={goalContext.get(e.id)!} oppAbbrev={oppAbbrev} />
-            ) : null}
-          </li>
-        ))}
+              {ctx ? <ScoreBubble ctx={ctx} oppAbbrev={oppAbbrev} /> : null}
+            </li>
+          )
+        })}
       </ol>
     </div>
   )
@@ -279,12 +297,13 @@ function PeriodDivider({
 }) {
   return (
     <div className="relative flex items-center justify-center py-4">
-      <span className="absolute inset-y-1/2 left-0 right-0 h-px bg-[linear-gradient(to_right,transparent,var(--color-border)_30%,var(--color-border)_70%,transparent)]" aria-hidden />
+      <span
+        className="absolute inset-y-1/2 left-0 right-0 h-px bg-[linear-gradient(to_right,transparent,var(--color-border)_30%,var(--color-border)_70%,transparent)]"
+        aria-hidden
+      />
       <span
         className={`relative z-10 inline-flex items-center gap-3 border bg-[var(--color-charcoal)] px-4 py-1.5 ${
-          isOt
-            ? 'border-[rgba(245,158,11,0.4)]'
-            : 'border-[rgba(232,65,49,0.4)]'
+          isOt ? 'border-[rgba(245,158,11,0.4)]' : 'border-[rgba(232,65,49,0.4)]'
         }`}
       >
         <span
@@ -296,11 +315,16 @@ function PeriodDivider({
         </span>
         <span className="h-4 w-px bg-[var(--color-border)]" aria-hidden />
         <span className="font-condensed text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--color-fg-3)]">
-          <b className="font-black tabular-nums text-[var(--color-fg-1)]">{String(goals)}</b> Goals
+          <b className="font-black tabular-nums text-[var(--color-fg-1)]">{String(goals)}</b>{' '}
+          {goals === 1 ? 'Goal' : 'Goals'}
           {' · '}
-          <b className="font-black tabular-nums text-[var(--color-fg-1)]">{String(penalties)}</b> Pen
+          <b className="font-black tabular-nums text-[var(--color-fg-1)]">
+            {String(penalties)}
+          </b>{' '}
+          Pen
           {' · '}
-          <b className="font-black tabular-nums text-[var(--color-fg-1)]">{String(total)}</b> events
+          <b className="font-black tabular-nums text-[var(--color-fg-1)]">{String(total)}</b>{' '}
+          {total === 1 ? 'event' : 'events'}
         </span>
       </span>
     </div>
@@ -313,16 +337,23 @@ function EventRow({
   event,
   gwgId,
   goalContext,
-  opponentLabel,
+  palette,
+  oppAbbrev,
 }: {
   event: MatchEventRow
   gwgId: number | null
   goalContext: Map<number, GoalContext>
-  opponentLabel: string
+  palette: MarkerPalette
+  oppAbbrev: string
 }) {
   const isBgm = event.teamSide === 'for'
   const periodTag = cleanPeriodLabel(event.periodLabel) || `P${String(event.periodNumber)}`
   const isGwg = event.id === gwgId
+  const scoreCtx = event.eventType === 'goal' ? (goalContext.get(event.id) ?? null) : null
+  // DB clock is the in-game broadcast countdown (remaining). Cards display
+  // the "time of goal" elapsed mark so they match the post-game Events
+  // screen and the NHL record-book convention.
+  const displayClock = toElapsedClock(event.clock)
   return (
     <div className="grid grid-cols-1 items-center sm:grid-cols-[1fr_84px_1fr] sm:gap-0">
       <div className={isBgm ? 'flex justify-end pr-0' : 'hidden sm:block'}>
@@ -331,13 +362,14 @@ function EventRow({
             event={event}
             side="bgm"
             isGwg={isGwg}
-            scoreCtx={event.eventType === 'goal' ? goalContext.get(event.id) ?? null : null}
-            opponentLabel={opponentLabel}
+            scoreCtx={scoreCtx}
+            palette={palette}
+            oppAbbrev={oppAbbrev}
           />
         ) : null}
       </div>
       <div className="hidden items-center justify-center sm:flex">
-        <ClockPill clock={event.clock} period={periodTag} isBgm={isBgm} />
+        <ClockPill clock={displayClock} period={periodTag} isBgm={isBgm} />
       </div>
       <div className={!isBgm ? 'flex justify-start pl-0' : 'hidden sm:block'}>
         {!isBgm ? (
@@ -345,8 +377,9 @@ function EventRow({
             event={event}
             side="opp"
             isGwg={isGwg}
-            scoreCtx={event.eventType === 'goal' ? goalContext.get(event.id) ?? null : null}
-            opponentLabel={opponentLabel}
+            scoreCtx={scoreCtx}
+            palette={palette}
+            oppAbbrev={oppAbbrev}
           />
         ) : null}
       </div>
@@ -366,9 +399,7 @@ function ClockPill({
   return (
     <span
       className={`relative z-10 inline-flex flex-col items-center gap-[1px] border bg-[var(--color-background)] px-2.5 py-1 ${
-        isBgm
-          ? 'border-[rgba(232,65,49,0.4)]'
-          : 'border-[rgba(235,235,235,0.35)]'
+        isBgm ? 'border-[rgba(232,65,49,0.4)]' : 'border-[rgba(235,235,235,0.35)]'
       }`}
     >
       <span className="font-condensed text-[10.5px] font-extrabold tabular-nums leading-none tracking-[0.06em] text-[var(--color-fg-1)]">
@@ -386,27 +417,39 @@ function EventCard({
   side,
   isGwg,
   scoreCtx,
-  opponentLabel,
+  palette,
+  oppAbbrev,
 }: {
   event: MatchEventRow
   side: 'bgm' | 'opp'
   isGwg: boolean
   scoreCtx: GoalContext | null
-  opponentLabel: string
+  palette: MarkerPalette
+  oppAbbrev: string
 }) {
   const isLeft = side === 'bgm'
-  const type = event.eventType
-  if (type === 'shot' || type === 'hit' || type === 'faceoff') {
-    return <CompactCard event={event} side={side} />
+  if (event.eventType === 'penalty') {
+    return (
+      <PenaltyCard
+        event={event}
+        side={side}
+        isLeft={isLeft}
+        palette={palette}
+        oppAbbrev={oppAbbrev}
+      />
+    )
   }
-  if (type === 'penalty') {
-    return <PenaltyCard event={event} side={side} isLeft={isLeft} />
-  }
-  if (type === 'goal') {
-    return <GoalCard event={event} side={side} isLeft={isLeft} isGwg={isGwg} scoreCtx={scoreCtx} />
-  }
-  // Defensive default — render a generic card; should not hit in practice.
-  return <CompactCard event={event} side={side} />
+  return (
+    <GoalCard
+      event={event}
+      side={side}
+      isLeft={isLeft}
+      isGwg={isGwg}
+      scoreCtx={scoreCtx}
+      palette={palette}
+      oppAbbrev={oppAbbrev}
+    />
+  )
 }
 
 function GoalCard({
@@ -415,13 +458,19 @@ function GoalCard({
   isLeft,
   isGwg,
   scoreCtx,
+  palette,
+  oppAbbrev,
 }: {
   event: MatchEventRow
   side: 'bgm' | 'opp'
   isLeft: boolean
   isGwg: boolean
   scoreCtx: GoalContext | null
+  palette: MarkerPalette
+  oppAbbrev: string
 }) {
+  const markerSide = resolveMarkerSide(event.teamSide, palette.bgmIsHome)
+  const teamLabel = side === 'bgm' ? 'BGM' : oppAbbrev
   const baseBorder =
     side === 'bgm'
       ? 'border-l-[3px] border-l-[var(--color-accent)]'
@@ -434,9 +483,10 @@ function GoalCard({
     ? 'border-[var(--color-accent)] bg-[linear-gradient(180deg,rgba(232,65,49,0.06),var(--color-surface))] shadow-[0_0_20px_rgba(232,65,49,0.18),inset_0_0_0_1px_rgba(232,65,49,0.15)]'
     : 'border-[var(--color-border)]'
   const scorer = pickActor(event, 'goal')
-  const numberSuffix = event.goalNumberInGame !== null
-    ? `Goal · ${side === 'bgm' ? 'BGM' : 'OPP'} #${String(event.goalNumberInGame)}`
-    : `Goal · ${side === 'bgm' ? 'BGM' : 'OPP'}`
+  const numberSuffix =
+    event.goalNumberInGame !== null
+      ? `Goal · ${teamLabel} #${String(event.goalNumberInGame)}`
+      : `Goal · ${teamLabel}`
   return (
     <div
       className={`relative flex w-full max-w-[360px] min-w-[240px] flex-col gap-1.5 border bg-[var(--color-surface)] px-3.5 py-3 ${baseBorder} ${accentBg} ${align}`}
@@ -449,8 +499,13 @@ function GoalCard({
         </span>
       ) : null}
       <div className={`flex items-center gap-2.5 ${headOrder}`}>
-        <span className={`inline-flex h-7 w-7 items-center justify-center ${side === 'bgm' ? 'text-[var(--color-accent)]' : 'text-[var(--color-fg-1)]'}`}>
-          <GoalMarker side={side === 'bgm' ? 'home' : 'away'} size={26} />
+        <span className="inline-flex h-7 w-7 items-center justify-center">
+          <GoalMarker
+            side={markerSide}
+            size={26}
+            homeColor={palette.homeColor}
+            awayColor={palette.awayColor}
+          />
         </span>
         <span
           className={`font-condensed text-[11px] font-extrabold uppercase tracking-[0.22em] ${
@@ -468,14 +523,16 @@ function GoalCard({
         </span>
       ) : null}
       {scoreCtx ? (
-        <div className={`mt-1 flex items-center gap-2.5 border-t border-[var(--color-border-subtle)] pt-2 ${footOrder}`}>
+        <div
+          className={`mt-1 flex items-center gap-2.5 border-t border-[var(--color-border-subtle)] pt-2 ${footOrder}`}
+        >
           <span className="font-condensed text-[13px] font-black tabular-nums tracking-[0.02em] text-[var(--color-fg-3)]">
             <span className="text-[var(--color-accent)]">{scoreCtx.bgmAfter}</span>
             <span className="px-1 text-[var(--color-fg-6)]">–</span>
             <span className="text-[var(--color-fg-1)]">{scoreCtx.oppAfter}</span>
           </span>
           <span className="font-condensed text-[9.5px] font-bold uppercase tracking-[0.18em] text-[var(--color-fg-5)]">
-            {leadChangeLabel(scoreCtx)}
+            {leadChangeLabel(scoreCtx, oppAbbrev)}
           </span>
         </div>
       ) : null}
@@ -487,11 +544,17 @@ function PenaltyCard({
   event,
   side,
   isLeft,
+  palette,
+  oppAbbrev,
 }: {
   event: MatchEventRow
   side: 'bgm' | 'opp'
   isLeft: boolean
+  palette: MarkerPalette
+  oppAbbrev: string
 }) {
+  const markerSide = resolveMarkerSide(event.teamSide, palette.bgmIsHome)
+  const teamLabel = side === 'bgm' ? 'BGM' : oppAbbrev
   const align = isLeft ? 'sm:text-right sm:items-end' : 'sm:text-left sm:items-start'
   const headOrder = isLeft ? 'sm:flex-row-reverse' : 'sm:flex-row'
   const sideBorder =
@@ -499,19 +562,27 @@ function PenaltyCard({
       ? 'border-l-[3px] border-l-[var(--color-otl)]'
       : 'sm:border-r-[3px] sm:border-r-[var(--color-otl)] border-l-[3px] border-l-[var(--color-otl)] sm:border-l-0'
   const culprit = pickActor(event, 'penalty')
-  const minutes = event.penaltyMinutes !== null
-    ? `${String(event.penaltyMinutes)} PIM`
-    : event.penaltyType === 'Major' ? '5 PIM' : '2 PIM'
+  const minutes =
+    event.penaltyMinutes !== null
+      ? `${String(event.penaltyMinutes)} PIM`
+      : event.penaltyType === 'Major'
+        ? '5 PIM'
+        : '2 PIM'
   return (
     <div
       className={`flex w-full max-w-[360px] min-w-[240px] flex-col gap-1.5 border border-[rgba(245,158,11,0.4)] bg-[linear-gradient(180deg,rgba(245,158,11,0.04),var(--color-surface))] px-3.5 py-3 ${sideBorder} ${align}`}
     >
       <div className={`flex items-center gap-2.5 ${headOrder}`}>
         <span className="inline-flex h-7 w-7 items-center justify-center text-[var(--color-otl)]">
-          <PenaltyMarker side={side === 'bgm' ? 'home' : 'away'} size={26} />
+          <PenaltyMarker
+            side={markerSide}
+            size={26}
+            homeColor={palette.homeColor}
+            awayColor={palette.awayColor}
+          />
         </span>
         <span className="font-condensed text-[11px] font-extrabold uppercase tracking-[0.22em] text-[var(--color-otl)]">
-          Penalty · {side === 'bgm' ? 'BGM' : 'OPP'}
+          Penalty · {teamLabel}
         </span>
       </div>
       <ActorLine name={culprit.text} id={culprit.id} compact />
@@ -534,51 +605,6 @@ function PenaltyCard({
   )
 }
 
-function CompactCard({
-  event,
-  side,
-}: {
-  event: MatchEventRow
-  side: 'bgm' | 'opp'
-}) {
-  const sideBorder =
-    side === 'bgm'
-      ? 'border-l-[2px] border-l-[var(--color-accent)]'
-      : 'sm:border-r-[2px] sm:border-r-[var(--color-fg-3)] border-l-[2px] border-l-[var(--color-fg-3)] sm:border-l-0'
-  const actor = pickActor(event, 'compact')
-  return (
-    <div
-      className={`flex w-full max-w-[280px] items-center gap-2.5 border border-[var(--color-border-subtle)] bg-[rgba(35,33,34,0.40)] px-2.5 py-1.5 ${sideBorder}`}
-    >
-      <CompactIcon eventType={event.eventType} side={side} />
-      <span
-        className={`font-condensed text-[9.5px] font-extrabold uppercase tracking-[0.22em] ${
-          side === 'bgm' ? 'text-[var(--color-accent)]' : 'text-[var(--color-fg-4)]'
-        }`}
-      >
-        {event.eventType}
-      </span>
-      <span className="ml-1 truncate font-condensed text-[11px] font-bold uppercase tracking-[0.04em] text-[var(--color-fg-2)]">
-        {actor.text}
-      </span>
-    </div>
-  )
-}
-
-function CompactIcon({ eventType, side }: { eventType: string; side: 'bgm' | 'opp' }) {
-  const sideKey: 'home' | 'away' = side === 'bgm' ? 'home' : 'away'
-  if (eventType === 'shot') return <ShotMarker side={sideKey} size={18} />
-  if (eventType === 'hit') return <HitMarker side={sideKey} size={18} />
-  if (eventType === 'faceoff') return (
-    <span
-      aria-hidden
-      className="inline-block rounded-full border border-dashed border-[var(--color-fg-5)]"
-      style={{ width: 14, height: 14 }}
-    />
-  )
-  return null
-}
-
 // ─── Sub-pieces ─────────────────────────────────────────────────────────────
 
 function ActorLine({
@@ -592,12 +618,11 @@ function ActorLine({
   isGwg?: boolean
   compact?: boolean
 }) {
-  const sizeClass = compact === true
-    ? 'text-[16px] font-extrabold'
-    : 'text-[18px] font-black'
-  const colorClass = isGwg === true
-    ? 'text-[var(--color-accent)] [text-shadow:0_0_12px_rgba(232,65,49,0.30)]'
-    : 'text-[var(--color-fg-1)]'
+  const sizeClass = compact === true ? 'text-[16px] font-extrabold' : 'text-[18px] font-black'
+  const colorClass =
+    isGwg === true
+      ? 'text-[var(--color-accent)] [text-shadow:0_0_12px_rgba(232,65,49,0.30)]'
+      : 'text-[var(--color-fg-1)]'
   if (id !== null) {
     return (
       <Link
@@ -621,7 +646,16 @@ function ActorLine({
 function AssistsLine({ event }: { event: MatchEventRow }) {
   const primary = pickAssist(event, 'primary')
   const secondary = pickAssist(event, 'secondary')
-  if (!primary && !secondary) return null
+  if (!primary && !secondary) {
+    return (
+      <div className="font-condensed text-[11px] font-semibold tracking-[0.04em] text-[var(--color-fg-5)]">
+        <span className="mr-1 font-extrabold uppercase tracking-[0.18em] text-[var(--color-fg-6)] text-[10px]">
+          A
+        </span>
+        <span className="italic">Unassisted</span>
+      </div>
+    )
+  }
   return (
     <div className="font-condensed text-[11px] font-semibold tracking-[0.04em] text-[var(--color-fg-3)]">
       <span className="mr-1 font-extrabold uppercase tracking-[0.18em] text-[var(--color-fg-5)] text-[10px]">
@@ -661,7 +695,7 @@ function ScoreBubble({ ctx, oppAbbrev }: { ctx: GoalContext; oppAbbrev: string }
     : ctx.leader === 'bgm'
       ? 'border-[rgba(232,65,49,0.4)] shadow-[0_0_12px_rgba(232,65,49,0.18)]'
       : 'border-[rgba(235,235,235,0.4)]'
-  const swing = leadChangeLabel(ctx)
+  const swing = leadChangeLabel(ctx, oppAbbrev)
   const swingTone = ctx.tied
     ? 'text-[var(--color-otl)]'
     : ctx.leader === 'bgm'
@@ -669,13 +703,17 @@ function ScoreBubble({ ctx, oppAbbrev }: { ctx: GoalContext; oppAbbrev: string }
       : 'text-[var(--color-fg-1)]'
   return (
     <div className="relative z-10 hidden flex-col items-center py-1 sm:flex">
-      <span className={`inline-flex items-baseline gap-1 border bg-[var(--color-charcoal)] px-3 py-1 font-condensed font-black tabular-nums ${tone}`}>
+      <span
+        className={`inline-flex items-baseline gap-1 border bg-[var(--color-charcoal)] px-3 py-1 font-condensed font-black tabular-nums ${tone}`}
+      >
         <span className="text-[16px] text-[var(--color-accent)]">{ctx.bgmAfter}</span>
         <span className="text-[11px] text-[var(--color-fg-6)]">–</span>
         <span className="text-[16px] text-[var(--color-fg-1)]">{ctx.oppAfter}</span>
       </span>
-      <span className={`mt-1 font-condensed text-[9px] font-extrabold uppercase tracking-[0.22em] ${swingTone}`}>
-        {swing} {ctx.leader === 'opp' ? oppAbbrev : ''}
+      <span
+        className={`mt-1 font-condensed text-[9px] font-extrabold uppercase tracking-[0.22em] ${swingTone}`}
+      >
+        {swing}
       </span>
     </div>
   )
@@ -684,52 +722,73 @@ function ScoreBubble({ ctx, oppAbbrev }: { ctx: GoalContext; oppAbbrev: string }
 // ─── Filter bar + empty state ───────────────────────────────────────────────
 
 function FilterBar({
-  scope,
-  setScope,
-  scopeCounts,
   periodFilter,
   setPeriodFilter,
-  periodsAvailable,
+  periodList,
+  periodHasData,
   teamFilter,
   setTeamFilter,
   oppAbbrev,
 }: {
-  scope: ScopeFilter
-  setScope: (s: ScopeFilter) => void
-  scopeCounts: { story: number; all: number }
   periodFilter: PeriodFilter
   setPeriodFilter: (p: PeriodFilter) => void
-  periodsAvailable: Array<[number, string]>
+  periodList: readonly number[]
+  periodHasData: Set<number>
   teamFilter: TeamFilter
   setTeamFilter: (t: TeamFilter) => void
   oppAbbrev: string
 }) {
   return (
     <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border border-[var(--color-border)] bg-[var(--color-surface)] px-3.5 py-2.5">
-      <FilterGroup label="Scope">
-        <Segment>
-          <SegButton active={scope === 'story'} onClick={() => setScope('story')} label="Story" count={scopeCounts.story} />
-          <SegButton active={scope === 'all'} onClick={() => setScope('all')} label="All events" count={scopeCounts.all} />
-        </Segment>
-      </FilterGroup>
       <FilterGroup label="Period">
         <Segment>
-          <SegButton active={periodFilter === 'all'} onClick={() => setPeriodFilter('all')} label="All" />
-          {periodsAvailable.map(([n, label]) => (
-            <SegButton
-              key={n}
-              active={periodFilter === n}
-              onClick={() => setPeriodFilter(n)}
-              label={cleanPeriodLabel(label) || `P${String(n)}`}
-            />
-          ))}
+          <SegButton
+            active={periodFilter === 'all'}
+            onClick={() => {
+              setPeriodFilter('all')
+            }}
+            label="All"
+          />
+          {periodList.map((n) => {
+            const enabled = periodHasData.has(n)
+            return (
+              <SegButton
+                key={n}
+                active={periodFilter === n}
+                onClick={() => {
+                  if (enabled) setPeriodFilter(n)
+                }}
+                label={formatPeriodLabel(n)}
+                disabled={!enabled}
+              />
+            )
+          })}
         </Segment>
       </FilterGroup>
       <FilterGroup label="Team">
         <Segment>
-          <SegButton active={teamFilter === 'all'} onClick={() => setTeamFilter('all')} label="All" />
-          <SegButton active={teamFilter === 'bgm'} onClick={() => setTeamFilter('bgm')} label="BGM" tintAccent={teamFilter !== 'bgm'} />
-          <SegButton active={teamFilter === 'opp'} onClick={() => setTeamFilter('opp')} label={oppAbbrev} />
+          <SegButton
+            active={teamFilter === 'all'}
+            onClick={() => {
+              setTeamFilter('all')
+            }}
+            label="All"
+          />
+          <SegButton
+            active={teamFilter === 'bgm'}
+            onClick={() => {
+              setTeamFilter('bgm')
+            }}
+            label="BGM"
+            tintAccent={teamFilter !== 'bgm'}
+          />
+          <SegButton
+            active={teamFilter === 'opp'}
+            onClick={() => {
+              setTeamFilter('opp')
+            }}
+            label={oppAbbrev}
+          />
         </Segment>
       </FilterGroup>
     </div>
@@ -761,22 +820,32 @@ function SegButton({
   label,
   count,
   tintAccent,
+  disabled = false,
 }: {
   active: boolean
   onClick: () => void
   label: string
   count?: number
   tintAccent?: boolean
+  disabled?: boolean
 }) {
   const base =
     'inline-flex items-center gap-1.5 whitespace-nowrap px-2.5 py-1.5 font-condensed text-[10.5px] font-bold uppercase tracking-[0.14em] transition-colors'
-  const tone = active
-    ? 'bg-[rgba(232,65,49,0.10)] text-[var(--color-accent)]'
-    : tintAccent === true
-      ? 'text-[var(--color-accent)] hover:text-[#ef6a5e]'
-      : 'text-[var(--color-fg-4)] hover:text-[var(--color-fg-2)]'
+  const tone = disabled
+    ? 'cursor-not-allowed text-[var(--color-fg-6)] opacity-50'
+    : active
+      ? 'bg-[rgba(232,65,49,0.10)] text-[var(--color-accent)]'
+      : tintAccent === true
+        ? 'text-[var(--color-accent)] hover:text-[#ef6a5e]'
+        : 'text-[var(--color-fg-4)] hover:text-[var(--color-fg-2)]'
   return (
-    <button type="button" onClick={onClick} className={`${base} ${tone}`}>
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      aria-disabled={disabled || undefined}
+      className={`${base} ${tone}`}
+    >
       <span>{label}</span>
       {count !== undefined ? (
         <span
@@ -800,7 +869,7 @@ function EmptyState({ onReset }: { onReset: () => void }) {
         No events match
       </div>
       <div className="max-w-[280px] font-condensed text-[11px] font-semibold leading-relaxed text-[var(--color-fg-5)]">
-        Try expanding Scope to "All events" or clearing the period / team filter.
+        Try clearing the period or team filter.
       </div>
       <button
         type="button"
@@ -825,10 +894,16 @@ interface GoalContext {
   prevLeader: 'bgm' | 'opp' | 'tied'
   scoredBy: 'bgm' | 'opp'
   tied: boolean
+  // Periods 4+ are OT in EASHL (no shootout, OT3 = period 6). Any goal in OT
+  // is sudden death, so the bubble swing reads "{team} wins" instead of the
+  // normal "takes lead" / "+N" patterns.
+  isOt: boolean
 }
 
 function buildGoalContext(events: MatchEventRow[]): Map<number, GoalContext> {
-  // Sort chronologically — period ASC, then clock DESC within a period.
+  // Sort chronologically — period ASC, then by clock DESC within a period.
+  // DB stores `clock` as MM:SS remaining (the in-game broadcast clock counts
+  // down from 20:00), so larger remaining = earlier in the period.
   const goals = events
     .filter((e) => e.eventType === 'goal')
     .slice()
@@ -856,26 +931,41 @@ function buildGoalContext(events: MatchEventRow[]): Map<number, GoalContext> {
       prevLeader,
       scoredBy: g.teamSide === 'for' ? 'bgm' : 'opp',
       tied: bgm === opp,
+      isOt: g.periodNumber >= 4,
     })
     prevLeader = leader
   }
   return out
 }
 
-function leadChangeLabel(ctx: GoalContext): string {
+function leadChangeLabel(ctx: GoalContext, oppAbbrev: string): string {
+  // Sudden death: any OT goal ends the game with the scorer's team winning.
+  if (ctx.isOt) return `↑ ${ctx.scoredBy === 'bgm' ? 'BGM' : oppAbbrev} wins`
   if (ctx.tied) return '— Tied'
-  if (ctx.prevLeader === 'tied') return ctx.leader === 'bgm' ? '↑ BGM takes lead' : '↑ OPP takes lead'
-  if (ctx.prevLeader !== ctx.leader) return ctx.leader === 'bgm' ? '↑ BGM regains lead' : '↑ OPP regains lead'
+  if (ctx.prevLeader === 'tied')
+    return ctx.leader === 'bgm' ? '↑ BGM takes lead' : `↑ ${oppAbbrev} takes lead`
+  if (ctx.prevLeader !== ctx.leader)
+    return ctx.leader === 'bgm' ? '↑ BGM regains lead' : `↑ ${oppAbbrev} regains lead`
   // Lead extended or trail narrowed.
   const margin = Math.abs(ctx.bgmAfter - ctx.oppAfter)
   if (ctx.scoredBy === ctx.leader) {
-    return ctx.leader === 'bgm' ? `↑ BGM +${String(margin)}` : `↑ OPP +${String(margin)}`
+    return ctx.leader === 'bgm' ? `↑ BGM +${String(margin)}` : `↑ ${oppAbbrev} +${String(margin)}`
   }
-  return ctx.scoredBy === 'bgm' ? 'BGM closes' : 'OPP closes'
+  return ctx.scoredBy === 'bgm' ? 'BGM closes' : `${oppAbbrev} closes`
 }
 
 function findGameWinningGoalId(events: MatchEventRow[]): number | null {
-  const goals = events.filter((e) => e.eventType === 'goal')
+  // Walk goals in true chronological order — period ASC, then remaining-clock
+  // DESC (DB stores the countdown broadcast clock, so highest remaining =
+  // earliest in the period). Walking the prop order risked mis-attribution
+  // when a period had multiple BGM goals.
+  const goals = events
+    .filter((e) => e.eventType === 'goal')
+    .slice()
+    .sort((a, b) => {
+      if (a.periodNumber !== b.periodNumber) return a.periodNumber - b.periodNumber
+      return clockToSeconds(b.clock) - clockToSeconds(a.clock)
+    })
   if (goals.length === 0) return null
   let bgmTotal = 0
   let oppTotal = 0
@@ -895,15 +985,19 @@ function findGameWinningGoalId(events: MatchEventRow[]): number | null {
   return null
 }
 
-function buildGroups(events: MatchEventRow[]): Array<{ period: number; label: string; rows: MatchEventRow[] }> {
+function buildGroups(
+  events: MatchEventRow[],
+): { period: number; label: string; rows: MatchEventRow[] }[] {
+  // Period ASC, then remaining-clock DESC — chronological order. DB clock is
+  // the in-game countdown, so larger remaining = earlier in the period.
   const sorted = [...events].sort((a, b) => {
     if (a.periodNumber !== b.periodNumber) return a.periodNumber - b.periodNumber
     return clockToSeconds(b.clock) - clockToSeconds(a.clock)
   })
-  const out: Array<{ period: number; label: string; rows: MatchEventRow[] }> = []
+  const out: { period: number; label: string; rows: MatchEventRow[] }[] = []
   for (const e of sorted) {
     const last = out[out.length - 1]
-    if (last && last.period === e.periodNumber) {
+    if (last?.period === e.periodNumber) {
       last.rows.push(e)
     } else {
       out.push({
@@ -937,10 +1031,12 @@ function pickAssist(
   which: 'primary' | 'secondary',
 ): { text: string; id: number | null } | null {
   if (which === 'primary') {
-    if (event.primaryAssist) return { text: event.primaryAssist.gamertag, id: event.primaryAssist.id }
+    if (event.primaryAssist)
+      return { text: event.primaryAssist.gamertag, id: event.primaryAssist.id }
     if (event.primaryAssistSnapshot) return { text: event.primaryAssistSnapshot, id: null }
   } else {
-    if (event.secondaryAssist) return { text: event.secondaryAssist.gamertag, id: event.secondaryAssist.id }
+    if (event.secondaryAssist)
+      return { text: event.secondaryAssist.gamertag, id: event.secondaryAssist.id }
     if (event.secondaryAssistSnapshot) return { text: event.secondaryAssistSnapshot, id: null }
   }
   return null
@@ -950,6 +1046,23 @@ function clockToSeconds(clock: string | null): number {
   if (!clock) return 0
   const [m, s] = clock.split(':')
   return Number(m) * 60 + Number(s)
+}
+
+// Periods in EASHL are 20 minutes (regulation + OT). DB stores the in-game
+// broadcast clock (counts down from 20:00 = remaining), but the post-game
+// Events screen — and the NHL "time of goal" record-book convention —
+// reports the elapsed mark. Convert for display so the clock on each card
+// matches the Events screen the rest of the recap pulls from.
+const PERIOD_LENGTH_SEC = 20 * 60
+
+function toElapsedClock(clock: string | null): string | null {
+  if (!clock) return null
+  const remaining = clockToSeconds(clock)
+  const elapsed = PERIOD_LENGTH_SEC - remaining
+  if (elapsed < 0 || elapsed > PERIOD_LENGTH_SEC) return clock
+  const mm = Math.floor(elapsed / 60)
+  const ss = elapsed % 60
+  return `${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`
 }
 
 function cleanPeriodLabel(raw: string | null): string {
@@ -962,8 +1075,9 @@ function cleanPeriodLabel(raw: string | null): string {
 
 function abbreviateTeam(label: string): string {
   const words = label.trim().split(/\s+/).filter(Boolean)
-  if (words.length === 0) return 'OPP'
-  if (words.length === 1) return words[0]!.slice(0, 3).toUpperCase()
+  const first = words[0]
+  if (!first) return 'OPP'
+  if (words.length === 1) return first.slice(0, 3).toUpperCase()
   return words
     .slice(0, 3)
     .map((w) => w.charAt(0).toUpperCase())
