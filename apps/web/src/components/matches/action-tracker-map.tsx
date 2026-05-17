@@ -617,14 +617,14 @@ function SummaryStrip({
       </SummaryGroup>
       <div className="h-7 w-px bg-[var(--color-border)]" aria-hidden />
       <SummaryGroup>
-        {ocrConfidence !== null && ocrConfidence >= 0.75 ? (
-          <SummaryKV k="OCR confidence" v={ocrConfidence.toFixed(2)} tone="win" />
-        ) : (
+        {ocrConfidence !== null && ocrConfidence < 0.99 ? (
           <SummaryKV
             k="OCR confidence"
-            v={ocrConfidence === null ? '—' : ocrConfidence.toFixed(2)}
+            v={ocrConfidence.toFixed(2)}
+            tone={ocrConfidence >= 0.75 ? 'win' : undefined}
+            title="OCR confidence in this match's extracted events. ≥0.99 hidden as uninformative noise; 0.75-0.98 highlighted as 'good'; below 0.75 plain to draw attention."
           />
-        )}
+        ) : null}
         <SummaryKV k="Source" v="Action Tracker OCR · v2" small />
       </SummaryGroup>
     </div>
@@ -648,7 +648,7 @@ function SummaryKV({
   v: string
   accent?: boolean
   dim?: boolean
-  tone?: 'win'
+  tone?: 'win' | undefined
   small?: boolean
   title?: string | undefined
 }) {
