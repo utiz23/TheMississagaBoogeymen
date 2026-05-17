@@ -12,9 +12,7 @@ import type {
 } from '@eanhl/db/queries'
 
 type PlayerStatBase = Awaited<ReturnType<typeof getPlayerMatchStats>>[number]
-type OpponentPlayerStatBase = Awaited<
-  ReturnType<typeof getOpponentPlayerMatchStats>
->[number]
+type OpponentPlayerStatBase = Awaited<ReturnType<typeof getOpponentPlayerMatchStats>>[number]
 
 interface AdvancedSkaterFields {
   deflections: number
@@ -57,7 +55,9 @@ export interface PlayerScoreEntry {
   breakdown: ScoreFactor[]
 }
 
-function winningSide(match: Pick<Match, 'result' | 'scoreFor' | 'scoreAgainst'>): 'bgm' | 'opp' | null {
+function winningSide(
+  match: Pick<Match, 'result' | 'scoreFor' | 'scoreAgainst'>,
+): 'bgm' | 'opp' | null {
   if (match.result === 'DNF') return null
   if (match.scoreFor > match.scoreAgainst) return 'bgm'
   if (match.scoreAgainst > match.scoreFor) return 'opp'
@@ -65,12 +65,13 @@ function winningSide(match: Pick<Match, 'result' | 'scoreFor' | 'scoreAgainst'>)
 }
 
 function hasRecordedActivity(
-  p: ({
+  p: {
     isGoalie: boolean
     goals: number
     assists: number
     plusMinus: number
-  } & SkaterScoreInput & GoalieScoreInput),
+  } & SkaterScoreInput &
+    GoalieScoreInput,
 ): boolean {
   if (p.isGoalie) {
     return (
@@ -155,21 +156,21 @@ function skaterBreakdown(p: SkaterScoreInput): ScoreFactor[] {
   const foNet = p.faceoffWins - p.faceoffLosses
   return [
     // Tier 1 — core offense
-    f('Goals',           p.goals,           4.00),
-    f('Assists',         p.assists,         3.25),
+    f('Goals', p.goals, 4.0),
+    f('Assists', p.assists, 3.25),
     // Tier 2 — strong positive support (puck-winning / defensive impact)
-    f('Takeaways',       p.takeaways,       0.55),
-    f('Interceptions',   p.interceptions,   0.45),
-    f('Blocked Shots',   p.blockedShots,    0.45),
-    f('Penalties Drawn', p.penaltiesDrawn,  0.40),
+    f('Takeaways', p.takeaways, 0.55),
+    f('Interceptions', p.interceptions, 0.45),
+    f('Blocked Shots', p.blockedShots, 0.45),
+    f('Penalties Drawn', p.penaltiesDrawn, 0.4),
     // Tier 3 — strong negative drag (sloppy possession / undisciplined play)
-    f('Giveaways',       p.giveaways,      -0.45),
-    f('Penalty Min',     p.pim,            -0.30),
+    f('Giveaways', p.giveaways, -0.45),
+    f('Penalty Min', p.pim, -0.3),
     // Tier 4 — light context modifiers (present but not scoreboard drivers)
-    f('Shots',           p.shots,           0.12),
-    f('+/-',             p.plusMinus,       0.20),
-    f('Hits',            p.hits,            0.08),
-    f('FO Net',          foNet,             0.08),
+    f('Shots', p.shots, 0.12),
+    f('+/-', p.plusMinus, 0.2),
+    f('Hits', p.hits, 0.08),
+    f('FO Net', foNet, 0.08),
   ]
 }
 
@@ -196,8 +197,15 @@ function skaterScore(p: SkaterScoreInput): number {
 
 // ─── Stat lines ───────────────────────────────────────────────────────────────
 
-interface SkaterStatInput { goals: number; assists: number; plusMinus: number }
-interface GoalieStatInput { saves: number | null; shotsAgainst: number | null }
+interface SkaterStatInput {
+  goals: number
+  assists: number
+  plusMinus: number
+}
+interface GoalieStatInput {
+  saves: number | null
+  shotsAgainst: number | null
+}
 
 function skaterStatLine(p: SkaterStatInput): string {
   const pm = p.plusMinus >= 0 ? `+${p.plusMinus.toString()}` : p.plusMinus.toString()
@@ -327,7 +335,7 @@ export interface PossessionEdge {
   bgmRaw: number
   oppRaw: number
   inputs: {
-    shots: { us: number; them: number }
+    shots: { us: number; them: number; source: 'ea' | 'ocr' }
     /** BGM faceoff percentage (0-100), or null if unknown. */
     faceoffPct: number | null
     hits: { us: number; them: number }
@@ -340,12 +348,20 @@ export interface PossessionEdge {
   weights: { shots: number; faceoff: number; hits: number; toa: number }
 }
 
-export function buildPossessionEdge(match: Match): PossessionEdge | null {
-  const totalShots = match.shotsFor + match.shotsAgainst
+export function buildPossessionEdge(
+  match: Match,
+  periodSummaries: MatchPeriodSummaryRow[] = [],
+): PossessionEdge | null {
+  const ocrShots = aggregateOcrShots(periodSummaries)
+  const shotsFor = ocrShots.for ?? match.shotsFor
+  const shotsAgainst = ocrShots.against ?? match.shotsAgainst
+  const shotsSource: 'ea' | 'ocr' = ocrShots.for !== null ? 'ocr' : 'ea'
+
+  const totalShots = shotsFor + shotsAgainst
   const totalHits = match.hitsFor + match.hitsAgainst
   if (totalShots === 0 && totalHits === 0) return null
 
-  const shotShare = totalShots > 0 ? match.shotsFor / totalShots : 0.5
+  const shotShare = totalShots > 0 ? shotsFor / totalShots : 0.5
   const hitShare = totalHits > 0 ? match.hitsFor / totalHits : 0.5
   const faceoffPctNum = match.faceoffPct !== null ? parseFloat(match.faceoffPct) : null
   const foShare = faceoffPctNum !== null ? faceoffPctNum / 100 : null
@@ -353,34 +369,26 @@ export function buildPossessionEdge(match: Match): PossessionEdge | null {
   const toaUs = match.timeOnAttack
   const toaThem = match.timeOnAttackAgainst
   const toaShare =
-    toaUs !== null && toaThem !== null && toaUs + toaThem > 0
-      ? toaUs / (toaUs + toaThem)
-      : null
+    toaUs !== null && toaThem !== null && toaUs + toaThem > 0 ? toaUs / (toaUs + toaThem) : null
 
   let weights: { shots: number; faceoff: number; hits: number; toa: number }
   let composite: number
 
   if (toaShare !== null && foShare !== null) {
-    weights = { shots: 0.40, toa: 0.30, faceoff: 0.20, hits: 0.10 }
+    weights = { shots: 0.4, toa: 0.3, faceoff: 0.2, hits: 0.1 }
     composite =
       shotShare * weights.shots +
       toaShare * weights.toa +
       foShare * weights.faceoff +
       hitShare * weights.hits
   } else if (toaShare !== null) {
-    weights = { shots: 0.50, toa: 0.35, faceoff: 0, hits: 0.15 }
-    composite =
-      shotShare * weights.shots +
-      toaShare * weights.toa +
-      hitShare * weights.hits
+    weights = { shots: 0.5, toa: 0.35, faceoff: 0, hits: 0.15 }
+    composite = shotShare * weights.shots + toaShare * weights.toa + hitShare * weights.hits
   } else if (foShare !== null) {
-    weights = { shots: 0.55, toa: 0, faceoff: 0.30, hits: 0.15 }
-    composite =
-      shotShare * weights.shots +
-      foShare * weights.faceoff +
-      hitShare * weights.hits
+    weights = { shots: 0.55, toa: 0, faceoff: 0.3, hits: 0.15 }
+    composite = shotShare * weights.shots + foShare * weights.faceoff + hitShare * weights.hits
   } else {
-    weights = { shots: 0.70, toa: 0, faceoff: 0, hits: 0.30 }
+    weights = { shots: 0.7, toa: 0, faceoff: 0, hits: 0.3 }
     composite = shotShare * weights.shots + hitShare * weights.hits
   }
 
@@ -392,7 +400,7 @@ export function buildPossessionEdge(match: Match): PossessionEdge | null {
     bgmRaw: Math.round(bgmRaw * 10) / 10,
     oppRaw: Math.round((100 - bgmRaw) * 10) / 10,
     inputs: {
-      shots: { us: match.shotsFor, them: match.shotsAgainst },
+      shots: { us: shotsFor, them: shotsAgainst, source: shotsSource },
       faceoffPct: faceoffPctNum,
       hits: { us: match.hitsFor, them: match.hitsAgainst },
       timeOnAttackSeconds: match.timeOnAttack,
@@ -452,8 +460,16 @@ export function buildBoxScore(
       pct(shotsAgainst, oppAgg.shotAttempts),
     ),
     row('Deflections', bgmAgg.deflections, oppAgg.deflections),
-    powerPlayRow('Power Play', match.ppGoals, match.ppOpportunities, match.ppGoalsAgainst, match.ppOpportunitiesAgainst),
-  ].filter(nonNullable).filter(nonEmptyRow)
+    powerPlayRow(
+      'Power Play',
+      match.ppGoals,
+      match.ppOpportunities,
+      match.ppGoalsAgainst,
+      match.ppOpportunitiesAgainst,
+    ),
+  ]
+    .filter(nonNullable)
+    .filter(nonEmptyRow)
 
   const possessionRows: BoxScoreRow[] = [
     match.faceoffPct !== null
@@ -472,7 +488,9 @@ export function buildBoxScore(
     ),
     row('Possession', bgmAgg.possession, oppAgg.possession),
     timeRow('Time on Attack', match.timeOnAttack, match.timeOnAttackAgainst),
-  ].filter(nonNullable).filter(nonEmptyRow)
+  ]
+    .filter(nonNullable)
+    .filter(nonEmptyRow)
 
   const defenseRows: BoxScoreRow[] = [
     row('Hits', match.hitsFor, match.hitsAgainst),
@@ -488,16 +506,19 @@ export function buildBoxScore(
   const goalieRows: BoxScoreRow[] = [
     row('Saves', bgmAgg.saves, oppAgg.saves),
     row('Goals Against', bgmAgg.goalsAgainst, oppAgg.goalsAgainst),
-    pctRow('Save %', pct(bgmAgg.saves, bgmAgg.shotsAgainst), pct(oppAgg.saves, oppAgg.shotsAgainst), true),
+    pctRow(
+      'Save %',
+      pct(bgmAgg.saves, bgmAgg.shotsAgainst),
+      pct(oppAgg.saves, oppAgg.shotsAgainst),
+      true,
+    ),
   ].filter(nonEmptyRow)
 
   const groups: BoxScoreGroup[] = []
   if (offenseRows.length > 0) {
     const offense: BoxScoreGroup = { title: 'Offense', rows: offenseRows }
     if (ocrShots.for !== null) {
-      offense.footnote =
-        '* Shots and shooting % are taken from the in-game Box Score (OCR-reviewed). EA reported ' +
-        `${String(match.shotsFor)}–${String(match.shotsAgainst)}.`
+      offense.footnote = '* Shots and shooting % are from the in-game Box Score (OCR-reviewed).'
     }
     groups.push(offense)
   }
@@ -940,14 +961,25 @@ function row(label: string, us: number, them: number): BoxScoreRow {
   return { label, us: us.toString(), them: them.toString() }
 }
 
-function pctRow(label: string, us: number | null, them: number | null, hockeyPct = false): BoxScoreRow | null {
+function pctRow(
+  label: string,
+  us: number | null,
+  them: number | null,
+  hockeyPct = false,
+): BoxScoreRow | null {
   if (us === null && them === null) return null
   const fmt = (n: number | null) =>
     n === null ? null : hockeyPct ? formatSavePct(n) : `${n.toFixed(1)}%`
   return { label, us: fmt(us) ?? '—', them: fmt(them) }
 }
 
-function passPctRow(label: string, usC: number, usA: number, themC: number, themA: number): BoxScoreRow | null {
+function passPctRow(
+  label: string,
+  usC: number,
+  usA: number,
+  themC: number,
+  themA: number,
+): BoxScoreRow | null {
   if (usA <= 0 && themA <= 0) return null
   const us = usA > 0 ? `${((usC / usA) * 100).toFixed(1)}%` : '—'
   const them = themA > 0 ? `${((themC / themA) * 100).toFixed(1)}%` : null
@@ -956,7 +988,11 @@ function passPctRow(label: string, usC: number, usA: number, themC: number, them
 
 function timeRow(label: string, us: number | null, them: number | null): BoxScoreRow | null {
   if (us === null && them === null) return null
-  return { label, us: us !== null ? formatSeconds(us) : '—', them: them !== null ? formatSeconds(them) : null }
+  return {
+    label,
+    us: us !== null ? formatSeconds(us) : '—',
+    them: them !== null ? formatSeconds(them) : null,
+  }
 }
 
 function powerPlayRow(

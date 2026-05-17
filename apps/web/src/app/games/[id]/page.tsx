@@ -13,6 +13,9 @@ import {
   getMatchShotTypeSummaries,
   getMatchEvents,
   getMatchLineups,
+  getMatchLineupProvenance,
+  getMatchFaceoffDots,
+  getMatchFaceoffZoneSummaries,
 } from '@eanhl/db/queries'
 import type { Match } from '@eanhl/db'
 import { HeroCard } from '@/components/matches/hero-card'
@@ -26,6 +29,7 @@ import { PeriodSummary } from '@/components/matches/period-summary'
 import { ShotMix } from '@/components/matches/shot-mix'
 import { EventTimeline } from '@/components/matches/event-timeline'
 import { ActionTrackerMap } from '@/components/matches/action-tracker-map'
+import { FaceoffMap } from '@/components/matches/faceoff-map'
 import { LineupSection } from '@/components/matches/lineup-section'
 import { Panel } from '@/components/ui/panel'
 import {
@@ -87,6 +91,9 @@ export default async function GameDetailPage({ params, searchParams }: Props) {
     shotTypeSummaries,
     matchEventRows,
     lineups,
+    lineupProvenance,
+    faceoffDots,
+    faceoffZones,
   ] = await Promise.all([
     safe(() => getPlayerMatchStats(m.id), []),
     safe(() => getOpponentPlayerMatchStats(m.id), []),
@@ -101,6 +108,13 @@ export default async function GameDetailPage({ params, searchParams }: Props) {
     safe(() => getMatchShotTypeSummaries(m.id), []),
     safe(() => getMatchEvents(m.id), []),
     safe(() => getMatchLineups(m.id), { bgm: [], opponent: [] }),
+    safe(() => getMatchLineupProvenance(m.id), {
+      capturedAt: null,
+      sources: [],
+      confidence: { canonical: 0, tiered: 0, attribute: 0 },
+    }),
+    safe(() => getMatchFaceoffDots(m.id), []),
+    safe(() => getMatchFaceoffZoneSummaries(m.id), []),
   ])
 
   const opponentCrestAssetId = opponentClub?.crestAssetId ?? null
@@ -110,7 +124,7 @@ export default async function GameDetailPage({ params, searchParams }: Props) {
   // ── View-model derivations ──────────────────────────────────────────────────
   const topPerformers = buildTopPerformers(match, playerStats, opponentPlayerStats)
   const allTeamScores = buildAllTeamScores(match, playerStats, opponentPlayerStats)
-  const possessionEdge = buildPossessionEdge(match)
+  const possessionEdge = buildPossessionEdge(match, periodSummaries)
   const boxScore = buildBoxScore(match, playerStats, opponentPlayerStats, periodSummaries)
   // Goalie spotlight stays BGM-only by design — the data shows opponent
   // goalies are nearly always AI (1 row across 31 matches in the spike).
@@ -159,7 +173,13 @@ export default async function GameDetailPage({ params, searchParams }: Props) {
       <TeamStats rows={boxScore} />
 
       {/* 3a. OCR-derived pre-game lineup section with X-Factor PNG icons. */}
-      <LineupSection lineups={lineups} opponentLabel={match.opponentName} />
+      <LineupSection
+        lineups={lineups}
+        opponentLabel={match.opponentName}
+        matchId={match.id}
+        gameMode={match.gameMode}
+        provenance={lineupProvenance}
+      />
 
       {/* 3b-3c. OCR-derived period summary + shot mix (hidden until reviewed). */}
       <PeriodSummary rows={periodSummaries} />
@@ -177,7 +197,14 @@ export default async function GameDetailPage({ params, searchParams }: Props) {
 
       {/* 5a. OCR-derived event timeline — story-mode scoresheet with running
             score, lead-change banners, and GWG highlight. */}
-      <EventTimeline events={matchEventRows} opponentLabel={match.opponentName} />
+      <EventTimeline
+        events={matchEventRows}
+        opponentLabel={match.opponentName}
+        oppTeamAbbr={match.oppTeamAbbr}
+        bgmWasHome={match.bgmWasHome}
+        bgmColor={match.bgmColorHex}
+        oppColor={match.oppColorHex}
+      />
 
       {/* 5b. OCR-derived Action Tracker (Phase 5 — rink-coordinate spatial extraction +
             all-type event card list mirroring the in-game post-game Action Tracker). */}
@@ -188,6 +215,16 @@ export default async function GameDetailPage({ params, searchParams }: Props) {
         bgmWasHome={match.bgmWasHome}
         bgmColor={match.bgmColorHex}
         oppColor={match.oppColorHex}
+      />
+
+      {/* 5c. OCR-derived Faceoff Map — per-dot win counts on the rink. */}
+      <FaceoffMap
+        dots={faceoffDots}
+        zones={faceoffZones}
+        bgmWasHome={match.bgmWasHome}
+        bgmColor={match.bgmColorHex}
+        oppColor={match.oppColorHex}
+        opponentLabel={match.opponentName}
       />
 
       {/* 6. Context footer (lowest priority — first to cut if scope shrinks) */}
