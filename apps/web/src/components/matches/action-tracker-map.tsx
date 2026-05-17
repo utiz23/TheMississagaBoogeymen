@@ -27,7 +27,7 @@ import { PlayerSilhouette } from '@/components/home/player-card'
  * Implemented from the design:
  *   - Filter bar — period segment + team toggle + 5 type toggles with
  *     mini-marker swatches and count badges, plus a player-name search.
- *   - Summary strip — visible/on-rink/unplaced counts + per-type totals.
+ *   - Summary strip — visible/on-rink/off-rink counts + per-type totals.
  *   - Rink head — direction indicator ("opp ← defends · attacks → BGM").
  *   - Event cards — left rail accent (red for BGM, neutral for opp),
  *     when (clock + period), type icon (uses the same marker component
@@ -207,7 +207,7 @@ export function ActionTrackerMap({
   const visibleMarkers = visibleCards.filter(
     (e) => e.eventType !== 'faceoff' && e.x !== null && e.y !== null,
   )
-  const unplaced = visibleCards.length - visibleMarkers.length
+  const offRink = visibleCards.length - visibleMarkers.length
 
   const matchTotals = useMemo(() => {
     const t = { goalsBgm: 0, goalsOpp: 0, shots: 0, hits: 0, penalties: 0 }
@@ -287,7 +287,7 @@ export function ActionTrackerMap({
         <SummaryStrip
           visible={visibleCards.length}
           onRink={visibleMarkers.length}
-          unplaced={unplaced}
+          offRink={offRink}
           totals={matchTotals}
           oppAbbrev={oppAbbrev}
           ocrConfidence={ocrConfidence}
@@ -581,14 +581,14 @@ function SearchInput({ value, onChange }: { value: string; onChange: (v: string)
 function SummaryStrip({
   visible,
   onRink,
-  unplaced,
+  offRink,
   totals,
   oppAbbrev,
   ocrConfidence,
 }: {
   visible: number
   onRink: number
-  unplaced: number
+  offRink: number
   totals: { goalsBgm: number; goalsOpp: number; shots: number; hits: number; penalties: number }
   oppAbbrev: string
   ocrConfidence: number | null
@@ -598,7 +598,14 @@ function SummaryStrip({
       <SummaryGroup>
         <SummaryKV k="Visible" v={String(visible)} />
         <SummaryKV k="On rink" v={String(onRink)} dim />
-        <SummaryKV k="Unplaced" v={String(unplaced)} dim />
+        {offRink > 0 ? (
+          <SummaryKV
+            k="Off rink"
+            v={String(offRink)}
+            dim
+            title="Events that occurred but couldn't be plotted on the rink (typically faceoffs, which are shown in the Faceoff Map below)."
+          />
+        ) : null}
       </SummaryGroup>
       <div className="h-7 w-px bg-[var(--color-border)]" aria-hidden />
       <SummaryGroup>
@@ -635,6 +642,7 @@ function SummaryKV({
   dim,
   tone,
   small,
+  title,
 }: {
   k: string
   v: string
@@ -642,6 +650,7 @@ function SummaryKV({
   dim?: boolean
   tone?: 'win'
   small?: boolean
+  title?: string | undefined
 }) {
   const colorClass =
     accent === true
@@ -655,9 +664,14 @@ function SummaryKV({
             : 'text-[var(--color-fg-1)]'
   const sizeClass = small === true ? 'text-[11px] font-bold' : 'text-[18px] font-black tabular-nums'
   return (
-    <div className="flex flex-col gap-[1px]">
+    <div className="flex flex-col gap-[1px]" title={title}>
       <span className="font-condensed text-[9px] font-semibold uppercase tracking-[0.22em] text-[var(--color-fg-5)]">
         {k}
+        {title ? (
+          <span className="ml-1 text-[var(--color-fg-6)]" aria-hidden>
+            ⓘ
+          </span>
+        ) : null}
       </span>
       <span className={`font-condensed leading-none ${sizeClass} ${colorClass}`}>{v}</span>
     </div>
