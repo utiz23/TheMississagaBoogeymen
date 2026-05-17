@@ -9,6 +9,7 @@
 **Tech Stack:** Next.js 15 App Router, TypeScript strict, Tailwind 4, Drizzle ORM, pnpm workspaces. Server Components by default; only the tab containers (StatsRecord, existing ClubStatsTabs) are Client Components.
 
 **Out of Scope:**
+
 - Goalie-side parity (Goalie Career Seasons table, Goalie Club Stats Tabs 6-8, Goalie hero strip) — the role selector still works, but goalie role just shows a "goalie view coming soon" placeholder for the new sections that haven't been built. Existing Phase 1 goalie experience (current season grid, recent form, contribution) is preserved on the goalie side.
 - Real implementations of Shotmap, Overall Archetype radar, Awards — these are wireframes.
 - Backfilling missing historical reviewed data for any player whose history is incomplete in `historical_player_season_stats`.
@@ -70,6 +71,7 @@
 ## File Structure
 
 **Create (new components):**
+
 - `apps/web/src/components/roster/profile-hero.tsx` — new richer hero
 - `apps/web/src/components/roster/recent-form-strip.tsx` — extracted last-5 panel
 - `apps/web/src/components/roster/career-seasons-table.tsx` — unified career table (per-title rows, blended sources)
@@ -79,10 +81,12 @@
 - `apps/web/src/components/roster/trend-chart.tsx` — extracted from current `TrendSection` (the SVG bar chart only)
 
 **Modify:**
+
 - `packages/db/src/queries/players.ts` — add `getPlayerCareerSeasons(playerId, role)` query + types
 - `apps/web/src/app/roster/[id]/page.tsx` — significant restructure; deletes inline section components after extraction; wires up new orchestration order
 
 **Will be deleted from page.tsx (after extraction):**
+
 - `function HeroSection(...)` (now in profile-hero.tsx)
 - `function CurrentSeasonSection(...)` (folded into hero stat strip)
 - `function TrendSection(...)` (split: chart → trend-chart.tsx, last-5 → recent-form-strip.tsx)
@@ -99,26 +103,28 @@
 
 ## Data Source Decisions (for reference)
 
-| Section | Skater source | Goalie source |
-|---|---|---|
-| Hero "This Season" | `eaStats[0]` (NHL 26 EA totals) | `eaStats[0]` goalie fields |
-| Hero "Career Totals" (aggregate) | sum across `getPlayerCareerSeasons` skater rows | sum across goalie rows |
-| Career season-by-season — NHL 26 row | `eaStats[0]` skater fields | `eaStats[0]` goalie fields |
+| Section                                  | Skater source                                                   | Goalie source                                    |
+| ---------------------------------------- | --------------------------------------------------------------- | ------------------------------------------------ |
+| Hero "This Season"                       | `eaStats[0]` (NHL 26 EA totals)                                 | `eaStats[0]` goalie fields                       |
+| Hero "Career Totals" (aggregate)         | sum across `getPlayerCareerSeasons` skater rows                 | sum across goalie rows                           |
+| Career season-by-season — NHL 26 row     | `eaStats[0]` skater fields                                      | `eaStats[0]` goalie fields                       |
 | Career season-by-season — NHL 22-25 rows | `getHistoricalSkaterStats(gameTitleId)` filtered to this player | `getHistoricalGoalieStats(gameTitleId)` filtered |
-| Game Log | existing `PlayerGameLogSection` (local match data, role-aware) | existing |
-| Club Stats Tabs | existing `<ClubStatsTabs>` (skater only) | placeholder ("goalie tabs coming soon") |
-| Contribution | existing `<ContributionSection>` | existing |
-| Trend chart | existing `<TrendChart>` (role-filtered) | existing |
-| Position usage | existing `<PositionDonut>` | existing |
+| Game Log                                 | existing `PlayerGameLogSection` (local match data, role-aware)  | existing                                         |
+| Club Stats Tabs                          | existing `<ClubStatsTabs>` (skater only)                        | placeholder ("goalie tabs coming soon")          |
+| Contribution                             | existing `<ContributionSection>`                                | existing                                         |
+| Trend chart                              | existing `<TrendChart>` (role-filtered)                         | existing                                         |
+| Position usage                           | existing `<PositionDonut>`                                      | existing                                         |
 
 ---
 
 ## Task 1: Add `getPlayerCareerSeasons` unified query
 
 **Files:**
+
 - Modify: `packages/db/src/queries/players.ts`
 
 This query returns one row per game title for the requested role (skater or goalie), blending sources:
+
 - For each title where the player has an EA member-season-stats row → use that
 - For each title where the player has a historical reviewed row but no EA row → use historical
 - Output sorted descending by gameTitleId
@@ -171,9 +177,7 @@ export interface PlayerCareerSeasonRow {
   shutouts: number | null
 }
 
-export async function getPlayerCareerSeasons(
-  playerId: number,
-): Promise<PlayerCareerSeasonRow[]> {
+export async function getPlayerCareerSeasons(playerId: number): Promise<PlayerCareerSeasonRow[]> {
   // 1. Fetch EA member-season-stats rows (one per active game title).
   const eaRows = await db
     .select({
@@ -306,6 +310,7 @@ git commit -m "feat(db): add getPlayerCareerSeasons unified per-title query"
 This is mechanical extraction — copy the existing function from `apps/web/src/app/roster/[id]/page.tsx` into a dedicated file with no behavior change.
 
 **Files:**
+
 - Create: `apps/web/src/components/roster/contribution-section.tsx`
 - Modify: `apps/web/src/app/roster/[id]/page.tsx` (delete inline `function ContributionSection`, add import)
 
@@ -320,12 +325,14 @@ Capture the line range (start of `function ContributionSection` through the end 
 - [ ] **Step 2: Create the new component file**
 
 Move the captured block(s) into `apps/web/src/components/roster/contribution-section.tsx`. The file should:
+
 - Add `'use client'` only if the section uses any client-only APIs (it doesn't currently — Server Component is fine)
 - Import any types it needs from `@eanhl/db/queries` (probably `ProfileContributionSummary`)
 - Export `ContributionSection` as a named export
 - Include any helper types or constants that were inline in page.tsx and only used by ContributionSection
 
 Verify dependencies it pulls from page.tsx — likely `SectionHeading` and `SurfaceCard`. If those are page-internal helpers, either:
+
 - Move them to a shared util file too (`apps/web/src/components/roster/section-heading.tsx`)
 - Or duplicate them inline in this component (only acceptable if used in 1-2 places)
 
@@ -362,6 +369,7 @@ git commit -m "refactor(web): extract ContributionSection into roster/components
 The current `TrendSection` does two things: renders a 15-game SVG bar chart AND renders a "LAST 5" sidebar panel. These are conceptually different and live in different parts of the new IA — split them.
 
 **Files:**
+
 - Create: `apps/web/src/components/roster/trend-chart.tsx` (the SVG bar chart only)
 - Create: `apps/web/src/components/roster/recent-form-strip.tsx` (the LAST 5 panel, stand-alone, no chart)
 - Modify: `apps/web/src/app/roster/[id]/page.tsx` (delete inline TrendSection, add imports)
@@ -373,6 +381,7 @@ grep -n "function TrendSection" apps/web/src/app/roster/[id]/page.tsx
 ```
 
 Read the function body and identify two distinct render zones:
+
 1. The SVG bar chart with axis, bars colored by result, dashed average line — extracts to `<TrendChart>`
 2. The right-hand "LAST 5" panel showing form dots + record + G/A + +/- + best-recent callout — extracts to `<RecentFormStrip>`
 
@@ -385,6 +394,7 @@ The chart's section heading should be "RECENT FORM" with a subtitle like "Last N
 - [ ] **Step 3: Create `recent-form-strip.tsx`**
 
 Server Component. Props: `recentForm: ProfileRecentFormSkater | ProfileRecentFormGoalie | null`, `selectedRole: 'skater' | 'goalie'`. Renders ONLY the LAST 5 panel with:
+
 - Form dots (color-coded by result, 5 max)
 - Record W-L-OTL
 - G/A (skater) or GA (goalie)
@@ -420,6 +430,7 @@ git commit -m "refactor(web): split TrendSection into TrendChart and RecentFormS
 A new server component rendering the unified career-by-season table. Replaces both `CareerStatsTable` and `EASeasonStatsTable` (which become deletable after Task 9).
 
 **Files:**
+
 - Create: `apps/web/src/components/roster/career-seasons-table.tsx`
 
 - [ ] **Step 1: Build the component**
@@ -427,9 +438,10 @@ A new server component rendering the unified career-by-season table. Replaces bo
 Server Component (no `'use client'`). Single named export `CareerSeasonsTable`.
 
 Props:
+
 ```typescript
 interface Props {
-  seasons: PlayerCareerSeasonRow[]  // from getPlayerCareerSeasons
+  seasons: PlayerCareerSeasonRow[] // from getPlayerCareerSeasons
   selectedRole: 'skater' | 'goalie'
 }
 ```
@@ -444,6 +456,7 @@ Filter `seasons` to only rows where `selectedRole === 'skater' ? skaterGp > 0 : 
 Empty state: if filtered list is empty, show `<EmptyPanel message="No career data for {role} yet." />`.
 
 Cell rendering:
+
 - Each `gameTitleName` is a link to `/stats?title={gameTitleSlug}`
 - `+/-` colored: green positive, red negative, zinc zero
 - `SHT%` rendered as `{value}%` only when not null; otherwise `—`
@@ -467,6 +480,7 @@ git commit -m "feat(web): add CareerSeasonsTable component (unified career view)
 Client Component (uses `useState` for tab switching) that wraps `<CareerSeasonsTable>` and `<PlayerGameLogSection>` in a single tabbed card.
 
 **Files:**
+
 - Create: `apps/web/src/components/roster/stats-record-card.tsx`
 
 - [ ] **Step 1: Build the component**
@@ -546,6 +560,7 @@ git commit -m "feat(web): add StatsRecordCard tabbed wrapper"
 ## Task 6: Create `<ComingSoonCard>` placeholder primitive
 
 **Files:**
+
 - Create: `apps/web/src/components/roster/coming-soon-card.tsx`
 
 - [ ] **Step 1: Build the component**
@@ -603,6 +618,7 @@ git commit -m "feat(web): add ComingSoonCard placeholder primitive"
 The big design task. Replaces `HeroSection` with a richer two-column layout.
 
 **Files:**
+
 - Create: `apps/web/src/components/roster/profile-hero.tsx`
 
 - [ ] **Step 1: Define the contract**
@@ -625,7 +641,7 @@ interface Props {
   selectedRole: 'skater' | 'goalie'
   hasSkaterData: boolean
   hasGoalieData: boolean
-  gameMode: GameMode | null  // for role-toggle href construction
+  gameMode: GameMode | null // for role-toggle href construction
 }
 ```
 
@@ -634,6 +650,7 @@ interface Props {
 Two-column responsive layout. On mobile: stacked. On lg+: 60/40 left/right split.
 
 **Left column — Identity:**
+
 - Optional jersey number background (huge, faded, like the existing hero)
 - Player gamertag (5xl, font-condensed, uppercase)
 - Pills row: Position abbrev (C/D/LW/RW), Archetype (PLAYMAKER), Country flag/name
@@ -721,6 +738,7 @@ git commit -m "feat(web): add ProfileHero component (richer two-column hero)"
 ## Task 8: Build `<ChartsVisualsSection>` (real trend chart + 3 wireframes)
 
 **Files:**
+
 - Create: `apps/web/src/components/roster/charts-visuals-section.tsx`
 
 - [ ] **Step 1: Build the wrapper**
@@ -781,6 +799,7 @@ git commit -m "feat(web): add ChartsVisualsSection wrapper (trend + 3 wireframes
 This is the orchestration task. Pull together all the new components and remove the deleted/folded ones.
 
 **Files:**
+
 - Modify: `apps/web/src/app/roster/[id]/page.tsx`
 
 - [ ] **Step 1: Update data fetching**
@@ -790,7 +809,7 @@ Add `getPlayerCareerSeasons` to the imports and Promise.all block:
 ```typescript
 import {
   getPlayerProfileOverview,
-  getPlayerCareerSeasons,  // NEW
+  getPlayerCareerSeasons, // NEW
   // ... remove getPlayerCareerStats (no longer used by this page)
   getPlayerGamertagHistory,
   getPlayerGameLog,
@@ -801,10 +820,11 @@ import {
 ```
 
 In the `Promise.all`:
+
 ```typescript
 ;[overview, careerSeasons, eaStats, history, gameLog, gameLogTotal] = await Promise.all([
   getPlayerProfileOverview(id),
-  getPlayerCareerSeasons(id),  // replaces getPlayerCareerStats
+  getPlayerCareerSeasons(id), // replaces getPlayerCareerStats
   getPlayerEASeasonStats(id),
   getPlayerGamertagHistory(id),
   getPlayerGameLog(id, gameMode, LOG_PAGE_SIZE, logOffset),
@@ -819,6 +839,7 @@ Remove the `getGameTitleBySlug(previousSeasonSlug)` lookup and the `previousTitl
 - [ ] **Step 2: Update imports**
 
 Add:
+
 ```typescript
 import { ProfileHero } from '@/components/roster/profile-hero'
 import { RecentFormStrip } from '@/components/roster/recent-form-strip'
@@ -911,6 +932,7 @@ return (
 - [ ] **Step 4: Delete now-unused inline code**
 
 After the render block change, delete:
+
 - The whole `function HeroSection(...)` block
 - `function CurrentSeasonSection(...)`
 - `function TrendSection(...)`
@@ -934,6 +956,7 @@ pnpm build
 ```
 
 Both must be clean. Common breakage points:
+
 - Unused imports lint error → remove imports for deleted components
 - Type errors on `careerSeasons` → confirm `PlayerCareerSeasonRow` is exported from `@eanhl/db/queries` (Task 1)
 - `PositionDonut` import broken → file was inline in page.tsx; extract first then import
@@ -964,6 +987,7 @@ Note the port (likely 3000-3010 range).
 - [ ] **Step 2: Skater profile smoke check**
 
 In a Chrome DevTools MCP session:
+
 1. Navigate to `/roster/2` (silkyjoker85). Resize to 1440×900.
 2. Take a full-page screenshot.
 3. Verify visually:
@@ -1049,10 +1073,12 @@ After all tasks complete:
 **Mitigation:** ProfileHero handles goalie role internally — same component, different stat strip selection. Career table component handles `selectedRole==='goalie'` filter. The only goalie-specific placeholder is the Club Stats one (covered in Task 9 Step 3 with a `<ComingSoonCard>`).
 
 **Risk:** Refactor accidentally breaks an unrelated page that consumed `getPlayerCareerStats`  
-**Mitigation:** Before deleting `getPlayerCareerStats` from imports, grep for other consumers:  
+**Mitigation:** Before deleting `getPlayerCareerStats` from imports, grep for other consumers:
+
 ```bash
 grep -rn "getPlayerCareerStats\|PlayerCareerRow" apps/ packages/ | grep -v "queries/players.ts" | grep -v ".d.ts"
 ```
+
 If consumers exist, keep `getPlayerCareerStats` as-is (just stop importing it on this page).
 
 ---

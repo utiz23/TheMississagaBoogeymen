@@ -32,10 +32,10 @@ shotLocations: jsonb('shot_locations').$type<ShotLocations | null>()
 
 ```ts
 type ShotLocations = {
-  shotsIce: number[]    // length 16
-  goalsIce: number[]    // length 16
-  shotsNet: number[]    // length 5
-  goalsNet: number[]    // length 5
+  shotsIce: number[] // length 16
+  goalsIce: number[] // length 16
+  shotsNet: number[] // length 5
+  goalsNet: number[] // length 5
 }
 ```
 
@@ -78,11 +78,12 @@ New file: `apps/web/src/components/roster/shot-map.tsx`. Client component (toggl
 interface Props {
   player: { shotLocations: ShotLocations | null }
   teamAverage: ShotLocations
-  hasData: boolean   // false on non-NHL-26 active title
+  hasData: boolean // false on non-NHL-26 active title
 }
 ```
 
 Internal state:
+
 - `view: 'ice' | 'net'`
 - `mode: 'shots' | 'goals' | 'shootingPct'`
 
@@ -106,6 +107,7 @@ Layout (sized for the existing half-width slot in `lg:grid-cols-2`):
 When `view === 'net'`, the SVG swaps to a 5-zone net diagram and the breakdown panel summarizes upper / lower / 5-hole instead of high-danger / mid / long.
 
 Hover tooltip on every zone:
+
 - Shots / Goals modes: `count · team avg X · ±Y%`
 - Shooting % mode: `count goals / count shots = X%`
 
@@ -117,13 +119,13 @@ Hover tooltip on every zone:
 const delta = (playerCount - teamAvg) / Math.max(teamAvg, 1)
 ```
 
-| Delta range          | Bucket          | Color       |
-| -------------------- | --------------- | ----------- |
-| `delta ≥ +0.50`      | Well above avg  | `#c34353`   |
-| `+0.15 ≤ delta < +0.50` | Above        | `#c3435399` |
-| `-0.15 < delta < +0.15` | At average   | `#3f3f46`   |
-| `-0.50 < delta ≤ -0.15` | Below        | `#656cbe66` |
-| `delta ≤ -0.50`      | Well below      | `#656cbe`   |
+| Delta range             | Bucket         | Color       |
+| ----------------------- | -------------- | ----------- |
+| `delta ≥ +0.50`         | Well above avg | `#c34353`   |
+| `+0.15 ≤ delta < +0.50` | Above          | `#c3435399` |
+| `-0.15 < delta < +0.15` | At average     | `#3f3f46`   |
+| `-0.50 < delta ≤ -0.15` | Below          | `#656cbe66` |
+| `delta ≤ -0.50`         | Well below     | `#656cbe`   |
 
 Red is the BGM accent (canonical, see `docs/specs/position-colors.md`). Blue is the BGM right-wing color, repurposed here for "below" since it doesn't conflict with any position pill on the same surface.
 
@@ -141,6 +143,7 @@ async function getTeamAverageShotLocations(gameTitleId: number): Promise<ShotLoc
 ```
 
 Computes the per-zone mean across all rows in `ea_member_season_stats` where:
+
 - `gameTitleId` matches
 - `shotLocations IS NOT NULL`
 - `gamesPlayed >= 5` — keeps tryouts/one-game members from polluting the baseline
@@ -162,7 +165,7 @@ Result is cached per request via Next's RSC cache (no separate persistence layer
 
 ## Edge cases
 
-- **No `shotLocations` row** (player has no NHL-26 stats yet): render framing chrome, body shows *"Shot location data is only collected for NHL 26."* No mode tabs.
+- **No `shotLocations` row** (player has no NHL-26 stats yet): render framing chrome, body shows _"Shot location data is only collected for NHL 26."_ No mode tabs.
 - **Active title ≠ NHL 26**: same empty state, with the "NHL 26" tag visually emphasized so the constraint is obvious.
 - **Goalie player profile**: card hidden entirely; the `Charts & Visuals` grid still renders the other slots.
 - **`teamAverage[i] === 0`**: divide-by-zero floor (`max(teamAvg, 1)`) makes any non-zero player count read as "well above." Acceptable — these are vanishingly rare zones.
@@ -178,17 +181,17 @@ Result is cached per request via Next's RSC cache (no separate persistence layer
 
 ## Files touched
 
-| File                                                              | Change             |
-| ----------------------------------------------------------------- | ------------------ |
-| `packages/ea-client/src/types.ts`                                 | Add 42 typed fields |
-| `packages/db/src/schema/ea-member-season-stats.ts`                | Add `shotLocations` jsonb column + migration |
-| `packages/db/src/queries/shot-locations.ts`                       | New file — `getTeamAverageShotLocations` |
-| `packages/db/src/queries/players.ts`                              | Include `shotLocations` in player profile fetch |
-| `apps/worker/src/transform/...`                                   | Extract, validate, write the 4 arrays |
-| `apps/web/src/components/roster/shot-map.tsx`                     | New component |
-| `apps/web/src/components/roster/charts-visuals-section.tsx`       | Replace `ComingSoonCard` with `<ShotMap />` |
-| `apps/web/src/app/roster/[id]/page.tsx`                           | Wire props |
-| `docs/specs/position-colors.md`                                   | Add a note on blue (below-avg) usage |
+| File                                                        | Change                                          |
+| ----------------------------------------------------------- | ----------------------------------------------- |
+| `packages/ea-client/src/types.ts`                           | Add 42 typed fields                             |
+| `packages/db/src/schema/ea-member-season-stats.ts`          | Add `shotLocations` jsonb column + migration    |
+| `packages/db/src/queries/shot-locations.ts`                 | New file — `getTeamAverageShotLocations`        |
+| `packages/db/src/queries/players.ts`                        | Include `shotLocations` in player profile fetch |
+| `apps/worker/src/transform/...`                             | Extract, validate, write the 4 arrays           |
+| `apps/web/src/components/roster/shot-map.tsx`               | New component                                   |
+| `apps/web/src/components/roster/charts-visuals-section.tsx` | Replace `ComingSoonCard` with `<ShotMap />`     |
+| `apps/web/src/app/roster/[id]/page.tsx`                     | Wire props                                      |
+| `docs/specs/position-colors.md`                             | Add a note on blue (below-avg) usage            |
 
 ## Future work (out of v1)
 

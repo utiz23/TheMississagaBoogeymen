@@ -124,7 +124,7 @@ Implication:
    not schema design.
 5. **game mode dimension — DONE.**
    `game_mode text` added to both aggregate tables. Functional unique index `COALESCE(game_mode, '')` handles NULL (all-modes) safely. Aggregate loop now writes null/6s/3s rows. All local aggregate query functions accept optional `gameMode` param (default null = all-modes). Migration `0008_lowly_vindicator.sql` applied. `reprocess --all` ran (15/15 succeeded).
-4. current player page data model for:
+6. current player page data model for:
    - current game baseline totals
    - Boogeymen career totals
    - last 5 games

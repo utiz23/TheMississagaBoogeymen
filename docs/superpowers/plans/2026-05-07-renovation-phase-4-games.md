@@ -9,6 +9,7 @@
 **Tech Stack:** Next.js 15 App Router (server components for pages + most matches components; ScoresheetSection / TopPerformers may use Client Components if they have interactive state — verify in the read step). TypeScript strict, Tailwind CSS 4. Phase 1 primitives at `apps/web/src/components/ui/{panel,broadcast-panel,section-header,result-pill,stat-strip}.tsx`. No new dependencies.
 
 **Working assumptions:**
+
 - Current branch: `feat/design-system-renovation`. Phase 3 commits landed (HEAD ~ `95a0fe0`).
 - The renovation spec at `docs/superpowers/specs/2026-05-07-boogeymen-renovation-design.md` is authoritative for Phase 4 scope.
 - Run all commands from the repo root: `/home/michal/projects/eanhl-team-website`.
@@ -18,6 +19,7 @@
 - Legacy `<ResultBadge>` at `apps/web/src/components/ui/result-badge.tsx` has TWO matches consumers: `match-row.tsx` and `hero-card.tsx`. Both get swapped in this phase. After Phase 4, `<ResultBadge>` will be unused — delete in the cleanup task at the end.
 
 **Out of scope:**
+
 - Any IA changes (section reorder, composition rebuild).
 - Stats page (`/stats`) restyle — Phase 5.
 - Roster list (`/roster`) restyle — Phase 5.
@@ -30,27 +32,28 @@
 
 **Files modified:**
 
-| Path | Scope | Approx LOC |
-|---|---|---|
-| `apps/web/src/components/matches/match-row.tsx` | Wrap in `<Panel hoverable>`; swap `<ResultBadge>` → `<ResultPill size="sm">`; voice. | 58 |
-| `apps/web/src/components/matches/score-card.tsx` | Drop CARD_STYLES/TOP_BAR/RESULT_PILL_CONFIG inline configs. Use `<Panel hoverable>` + `<ResultPill size="sm">` from primitives. Keep accent top-bar (1px gradient) only when result is WIN. Voice on labels. | 268 → ~200 |
-| `apps/web/src/components/matches/hero-card.tsx` | Wrap in `<BroadcastPanel>`. Drop CARD_BG/TOP_BAR inline configs (BroadcastPanel provides ticker + glow). Swap `<ResultBadge>` → `<ResultPill size="md">`. Voice on labels. | 173 |
-| `apps/web/src/components/matches/top-performers.tsx` | Apply leaders-pattern voice; UPPERCASE labels; Panel for any inline `border bg-surface` wrappers. | 284 |
-| `apps/web/src/components/matches/possession-edge.tsx` | Wrap in `<Panel>`; voice on labels; tabular-nums. | 200 |
-| `apps/web/src/components/matches/team-stats.tsx` | Wrap in `<Panel>`; UPPERCASE column headers; tabular-nums on numeric cells; hairline dividers. | 101 |
-| `apps/web/src/components/matches/goalie-spotlight.tsx` | `<SectionHeader>` for the section heading; wrap each goalie card in `<Panel>`; voice. | 107 |
-| `apps/web/src/components/matches/scoresheet.tsx` | Two-team per-player tables: `<SectionHeader>` for the section heading; `<Panel>` wrapping each team's table; UPPERCASE column headers (font-condensed, text-[10px], tracking-widest); tabular-nums on every numeric cell; hairline dividers (`divide-zinc-800/60`); voice on team labels. | 410 |
-| `apps/web/src/components/matches/context-footer.tsx` | Wrap in `<Panel>`; voice on prev/next labels; UPPERCASE. | 84 |
-| `apps/web/src/app/games/page.tsx` | Page header voice; replace inline EmptyState with `<Panel>`; date-group section headers use `<SectionHeader>`; FormStrip uses `<ResultPill>` for the chips; PaginationNav voice. | 384 |
-| `apps/web/src/app/games/[id]/page.tsx` | Back link voice; replace inline ErrorState + EmptyScoresheet with `<Panel>`. | 215 |
+| Path                                                   | Scope                                                                                                                                                                                                                                                                                     | Approx LOC |
+| ------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
+| `apps/web/src/components/matches/match-row.tsx`        | Wrap in `<Panel hoverable>`; swap `<ResultBadge>` → `<ResultPill size="sm">`; voice.                                                                                                                                                                                                      | 58         |
+| `apps/web/src/components/matches/score-card.tsx`       | Drop CARD_STYLES/TOP_BAR/RESULT_PILL_CONFIG inline configs. Use `<Panel hoverable>` + `<ResultPill size="sm">` from primitives. Keep accent top-bar (1px gradient) only when result is WIN. Voice on labels.                                                                              | 268 → ~200 |
+| `apps/web/src/components/matches/hero-card.tsx`        | Wrap in `<BroadcastPanel>`. Drop CARD_BG/TOP_BAR inline configs (BroadcastPanel provides ticker + glow). Swap `<ResultBadge>` → `<ResultPill size="md">`. Voice on labels.                                                                                                                | 173        |
+| `apps/web/src/components/matches/top-performers.tsx`   | Apply leaders-pattern voice; UPPERCASE labels; Panel for any inline `border bg-surface` wrappers.                                                                                                                                                                                         | 284        |
+| `apps/web/src/components/matches/possession-edge.tsx`  | Wrap in `<Panel>`; voice on labels; tabular-nums.                                                                                                                                                                                                                                         | 200        |
+| `apps/web/src/components/matches/team-stats.tsx`       | Wrap in `<Panel>`; UPPERCASE column headers; tabular-nums on numeric cells; hairline dividers.                                                                                                                                                                                            | 101        |
+| `apps/web/src/components/matches/goalie-spotlight.tsx` | `<SectionHeader>` for the section heading; wrap each goalie card in `<Panel>`; voice.                                                                                                                                                                                                     | 107        |
+| `apps/web/src/components/matches/scoresheet.tsx`       | Two-team per-player tables: `<SectionHeader>` for the section heading; `<Panel>` wrapping each team's table; UPPERCASE column headers (font-condensed, text-[10px], tracking-widest); tabular-nums on every numeric cell; hairline dividers (`divide-zinc-800/60`); voice on team labels. | 410        |
+| `apps/web/src/components/matches/context-footer.tsx`   | Wrap in `<Panel>`; voice on prev/next labels; UPPERCASE.                                                                                                                                                                                                                                  | 84         |
+| `apps/web/src/app/games/page.tsx`                      | Page header voice; replace inline EmptyState with `<Panel>`; date-group section headers use `<SectionHeader>`; FormStrip uses `<ResultPill>` for the chips; PaginationNav voice.                                                                                                          | 384        |
+| `apps/web/src/app/games/[id]/page.tsx`                 | Back link voice; replace inline ErrorState + EmptyScoresheet with `<Panel>`.                                                                                                                                                                                                              | 215        |
 
 **Files deleted (after consumers migrated):**
 
-| Path | Reason |
-|---|---|
+| Path                                          | Reason                                                                                                                                                      |
+| --------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `apps/web/src/components/ui/result-badge.tsx` | Legacy solid-red WIN badge. Both consumers (match-row, hero-card) migrate to design-system `<ResultPill>` in Tasks 1 + 4. Delete in the cleanup at Task 11. |
 
 **Files unchanged:**
+
 - `apps/web/src/components/matches/position-pill.tsx` — Phase 0 work; voice already correct.
 - `apps/web/src/components/ui/{panel,broadcast-panel,section-header,result-pill,stat-strip}.tsx` — Phase 1 primitives.
 - `apps/web/src/components/ui/opponent-crest.tsx` — voice-neutral image component.
@@ -60,6 +63,7 @@
 ## Task 1: Restyle `<MatchRow>` — Panel hoverable + ResultPill primitive
 
 **Files:**
+
 - Modify: `apps/web/src/components/matches/match-row.tsx`
 
 - [ ] **Step 1: Replace the file**
@@ -131,6 +135,7 @@ export function MatchRow({ match, isMostRecent = false }: MatchRowProps) {
 ```
 
 Key changes from the previous version:
+
 - Wraps the row in `<Panel hoverable>` (sharp border, hover lift, no result-based tint).
 - Replaces `<ResultBadge>` import + usage with `<ResultPill size="sm">`.
 - Date / opponent / shots-strip get `font-condensed uppercase tracking-wider` voice.
@@ -142,6 +147,7 @@ Key changes from the previous version:
 ```bash
 pnpm --filter web typecheck
 ```
+
 Expected: passes.
 
 - [ ] **Step 3: Commit**
@@ -166,6 +172,7 @@ EOF
 ```bash
 git log --oneline -1
 ```
+
 Expected: `refactor(web): restyle MatchRow ...` is HEAD.
 
 ---
@@ -175,6 +182,7 @@ Expected: `refactor(web): restyle MatchRow ...` is HEAD.
 The games-list workhorse (rendered in a date-grouped grid). Currently encodes result via card background tinting (CARD_STYLES) — drop this per the design-system spec. Result encoding lives only in `<ResultPill>`.
 
 **Files:**
+
 - Modify: `apps/web/src/components/matches/score-card.tsx`
 
 - [ ] **Step 1: Read the current file**
@@ -190,6 +198,7 @@ sed -n '180,268p' apps/web/src/components/matches/score-card.tsx
 Make these edits to `score-card.tsx`:
 
 1. Add imports near the top:
+
    ```tsx
    import { Panel } from '@/components/ui/panel'
    import { ResultPill } from '@/components/ui/result-pill'
@@ -200,6 +209,7 @@ Make these edits to `score-card.tsx`:
 3. Delete the entire `RESULT_PILL_CONFIG` block (around lines 37-54) and the local `ResultPill` helper function (around lines 67-76). The design-system ResultPill replaces both.
 
 4. Replace the outer `<Link>` element. Change:
+
    ```tsx
    <Link
      href={`/games/${match.id.toString()}`}
@@ -209,7 +219,9 @@ Make these edits to `score-card.tsx`:
      {/* ... rest of card body ... */}
    </Link>
    ```
+
    to:
+
    ```tsx
    <Link
      href={`/games/${match.id.toString()}`}
@@ -221,6 +233,7 @@ Make these edits to `score-card.tsx`:
      </Panel>
    </Link>
    ```
+
    - The `topBarColor` derivation (around line 78) is no longer needed — replace with the design-system gradient strip (matching BroadcastPanel's ticker style).
    - The `cardStyles` reference (around line 49) is dead — delete that line.
 
@@ -235,6 +248,7 @@ Make these edits to `score-card.tsx`:
 ```bash
 pnpm --filter web typecheck
 ```
+
 Expected: passes.
 
 - [ ] **Step 4: Commit**
@@ -264,6 +278,7 @@ EOF
 ```bash
 git log --oneline -1
 ```
+
 Expected: `refactor(web): restyle ScoreCard ...` is HEAD.
 
 ---
@@ -271,6 +286,7 @@ Expected: `refactor(web): restyle ScoreCard ...` is HEAD.
 ## Task 3: Update games list page — voice, FormStrip, EmptyState, date headers
 
 **Files:**
+
 - Modify: `apps/web/src/app/games/page.tsx`
 
 - [ ] **Step 1: Apply transformations**
@@ -278,6 +294,7 @@ Expected: `refactor(web): restyle ScoreCard ...` is HEAD.
 Make these edits to `games/page.tsx`:
 
 1. Add imports near the top:
+
    ```tsx
    import { Panel } from '@/components/ui/panel'
    import { SectionHeader } from '@/components/ui/section-header'
@@ -285,6 +302,7 @@ Make these edits to `games/page.tsx`:
    ```
 
 2. **Page header voice (around lines 99-107):** Tighten to `tracking-widest`. Replace:
+
    ```tsx
    <h1 className="font-condensed text-2xl font-semibold uppercase tracking-wide text-zinc-50">
      Scores
@@ -292,7 +310,9 @@ Make these edits to `games/page.tsx`:
    <span className="text-sm text-zinc-500">{gameTitle.name}</span>
    {total > 0 && <span className="text-sm text-zinc-600">{total} matches</span>}
    ```
+
    with:
+
    ```tsx
    <h1 className="font-condensed text-2xl font-semibold uppercase tracking-widest text-zinc-50">
      Scores
@@ -308,6 +328,7 @@ Make these edits to `games/page.tsx`:
    ```
 
 3. **Date-group section headers (around lines 124-130):** Replace:
+
    ```tsx
    <div className="flex items-center gap-3">
      <h2 className="font-condensed text-xs font-bold uppercase tracking-[0.2em] text-zinc-500">
@@ -316,7 +337,9 @@ Make these edits to `games/page.tsx`:
      <div className="h-px flex-1 bg-zinc-800" />
    </div>
    ```
+
    with:
+
    ```tsx
    <div className="flex items-center gap-3">
      <SectionHeader label={group.label} as="h2" />
@@ -325,6 +348,7 @@ Make these edits to `games/page.tsx`:
    ```
 
 4. **EmptyState helper (around lines 378-384):** Replace:
+
    ```tsx
    function EmptyState({ message }: { message: string }) {
      return (
@@ -334,20 +358,21 @@ Make these edits to `games/page.tsx`:
      )
    }
    ```
+
    with:
+
    ```tsx
    function EmptyState({ message }: { message: string }) {
      return (
        <Panel className="flex min-h-[12rem] items-center justify-center">
-         <p className="font-condensed text-sm uppercase tracking-wider text-zinc-500">
-           {message}
-         </p>
+         <p className="font-condensed text-sm uppercase tracking-wider text-zinc-500">{message}</p>
        </Panel>
      )
    }
    ```
 
 5. **FormStrip (around lines 304-330):** Replace the inline letter-chip rendering with `<ResultPill size="sm">`. Replace:
+
    ```tsx
    <div className="flex items-center gap-0.5">
      {matches.map((m, i) => (
@@ -360,7 +385,9 @@ Make these edits to `games/page.tsx`:
      ))}
    </div>
    ```
+
    with:
+
    ```tsx
    <div className="flex items-center gap-1">
      {matches.map((m, i) => (
@@ -368,6 +395,7 @@ Make these edits to `games/page.tsx`:
      ))}
    </div>
    ```
+
    And delete the `FORM_PILL` and `FORM_PILL_LABEL` consts (around lines 290-302) — no longer needed.
 
 6. **FormStrip header voice:** the `text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-600` "Last N" label is acceptable; just verify it's there. The wins-losses-otl summary `text-sm font-bold tabular-nums text-zinc-400` already uses tabular — confirm.
@@ -382,6 +410,7 @@ Make these edits to `games/page.tsx`:
 ```bash
 pnpm --filter web typecheck
 ```
+
 Expected: passes.
 
 - [ ] **Step 3: Commit**
@@ -407,6 +436,7 @@ EOF
 ```bash
 git log --oneline -1
 ```
+
 Expected: `refactor(web): voice + primitives on games list page` is HEAD.
 
 ---
@@ -416,6 +446,7 @@ Expected: `refactor(web): voice + primitives on games list page` is HEAD.
 The games detail hero — wraps in BroadcastPanel (matches the home page's LATEST RESULT pattern). Drops result-based card-bg tinting.
 
 **Files:**
+
 - Modify: `apps/web/src/components/matches/hero-card.tsx`
 
 - [ ] **Step 1: Read the current file**
@@ -430,6 +461,7 @@ sed -n '90,173p' apps/web/src/components/matches/hero-card.tsx
 Make these edits to `hero-card.tsx`:
 
 1. Replace the import for legacy ResultBadge:
+
    ```tsx
    // Before
    import { ResultBadge } from '@/components/ui/result-badge'
@@ -442,13 +474,16 @@ Make these edits to `hero-card.tsx`:
 2. Delete the `CARD_BG` and `TOP_BAR` consts (around lines 21-34). BroadcastPanel provides the ticker + glow.
 
 3. Replace the outer wrapper div. Change:
+
    ```tsx
    <div className={`overflow-hidden border border-zinc-800 ${CARD_BG[match.result]}`}>
      <div className={`h-1 w-full ${TOP_BAR[match.result]}`} />
      {/* ... body ... */}
    </div>
    ```
+
    to:
+
    ```tsx
    <BroadcastPanel className="overflow-hidden">
      {/* ... body (ticker is built into BroadcastPanel; drop the explicit h-1 div) ... */}
@@ -464,6 +499,7 @@ Make these edits to `hero-card.tsx`:
 ```bash
 pnpm --filter web typecheck
 ```
+
 Expected: passes.
 
 - [ ] **Step 4: Commit**
@@ -488,6 +524,7 @@ EOF
 ```bash
 git log --oneline -1
 ```
+
 Expected: `refactor(web): restyle HeroCard ...` is HEAD.
 
 ---
@@ -495,6 +532,7 @@ Expected: `refactor(web): restyle HeroCard ...` is HEAD.
 ## Task 5: Restyle `<TopPerformers>` — leaders pattern voice
 
 **Files:**
+
 - Modify: `apps/web/src/components/matches/top-performers.tsx`
 
 - [ ] **Step 1: Read the current file**
@@ -509,6 +547,7 @@ sed -n '150,284p' apps/web/src/components/matches/top-performers.tsx
 Make these edits:
 
 1. Add imports:
+
    ```tsx
    import { Panel } from '@/components/ui/panel'
    import { SectionHeader } from '@/components/ui/section-header'
@@ -529,6 +568,7 @@ Make these edits:
 ```bash
 pnpm --filter web typecheck
 ```
+
 Expected: passes.
 
 - [ ] **Step 4: Commit**
@@ -552,6 +592,7 @@ EOF
 ```bash
 git log --oneline -1
 ```
+
 Expected: `refactor(web): voice + Panel reconcile on TopPerformers` is HEAD.
 
 ---
@@ -561,6 +602,7 @@ Expected: `refactor(web): voice + Panel reconcile on TopPerformers` is HEAD.
 Two compact stat surfaces. Combined task.
 
 **Files:**
+
 - Modify: `apps/web/src/components/matches/possession-edge.tsx`
 - Modify: `apps/web/src/components/matches/team-stats.tsx`
 
@@ -575,12 +617,14 @@ sed -n '1,101p' apps/web/src/components/matches/team-stats.tsx
 - [ ] **Step 2: Apply transformations**
 
 For `possession-edge.tsx`:
+
 1. Add `import { Panel } from '@/components/ui/panel'`.
 2. Wrap the outer `border border-zinc-800 bg-surface` div in `<Panel>`.
 3. UPPERCASE labels (verify; tighten tracking to widest if needed).
 4. Replace any `tabular` utility with `tabular-nums`.
 
 For `team-stats.tsx`:
+
 1. Add `import { Panel } from '@/components/ui/panel'`.
 2. If the team-stats component renders a table, wrap with `<Panel className="overflow-x-auto">`. If it renders inline label/value pairs, replace each row container with `<Panel className="...">`.
 3. UPPERCASE column headers / labels (font-condensed text-[10px] tracking-widest text-zinc-500).
@@ -592,6 +636,7 @@ For `team-stats.tsx`:
 ```bash
 pnpm --filter web typecheck
 ```
+
 Expected: passes.
 
 - [ ] **Step 4: Commit**
@@ -615,6 +660,7 @@ EOF
 ```bash
 git log --oneline -1
 ```
+
 Expected: `refactor(web): voice + Panel reconcile on PossessionEdge + TeamStats` is HEAD.
 
 ---
@@ -624,6 +670,7 @@ Expected: `refactor(web): voice + Panel reconcile on PossessionEdge + TeamStats`
 Two more small surfaces — combined task.
 
 **Files:**
+
 - Modify: `apps/web/src/components/matches/goalie-spotlight.tsx`
 - Modify: `apps/web/src/components/matches/context-footer.tsx`
 
@@ -637,6 +684,7 @@ sed -n '1,84p' apps/web/src/components/matches/context-footer.tsx
 - [ ] **Step 2: Apply transformations**
 
 For `goalie-spotlight.tsx`:
+
 1. Add imports: `Panel`, `SectionHeader`.
 2. Replace any inline `<h2>` / `<h3>` section heading with `<SectionHeader label="Goalie Spotlight" />` (preserve any subtitle as the `subtitle` prop).
 3. Wrap each goalie card or the outer surface in `<Panel>`.
@@ -644,6 +692,7 @@ For `goalie-spotlight.tsx`:
 5. If the component returns null when no goalies — preserve that behavior.
 
 For `context-footer.tsx`:
+
 1. Add `import { Panel } from '@/components/ui/panel'`.
 2. Wrap the outer surface in `<Panel className="...">`.
 3. UPPERCASE the prev/next labels: `font-condensed text-xs font-semibold uppercase tracking-wider`.
@@ -654,6 +703,7 @@ For `context-footer.tsx`:
 ```bash
 pnpm --filter web typecheck
 ```
+
 Expected: passes.
 
 - [ ] **Step 4: Commit**
@@ -678,6 +728,7 @@ EOF
 ```bash
 git log --oneline -1
 ```
+
 Expected: `refactor(web): voice + Panel reconcile on GoalieSpotlight + ContextFooter` is HEAD.
 
 ---
@@ -687,6 +738,7 @@ Expected: `refactor(web): voice + Panel reconcile on GoalieSpotlight + ContextFo
 The biggest matches component (410 lines). Two-team per-player tables. Per the design-system spec: UPPERCASE column headers (font-condensed, text-[10px], tracking-widest), tabular-nums on every numeric cell, hairline row dividers (`divide-zinc-800/60`).
 
 **Files:**
+
 - Modify: `apps/web/src/components/matches/scoresheet.tsx`
 
 - [ ] **Step 1: Read the file**
@@ -702,6 +754,7 @@ sed -n '280,410p' apps/web/src/components/matches/scoresheet.tsx
 Make these edits to `scoresheet.tsx`:
 
 1. Add imports:
+
    ```tsx
    import { Panel } from '@/components/ui/panel'
    import { SectionHeader } from '@/components/ui/section-header'
@@ -712,9 +765,12 @@ Make these edits to `scoresheet.tsx`:
 3. **Team-side wrappers:** the component renders two team tables (BGM + opponent). Each team's table or container should wrap in `<Panel className="overflow-x-auto">`. If there's a per-team header (e.g. "Boogeymen", opponent name), keep it but apply font-condensed UPPERCASE wide-tracked voice.
 
 4. **Column headers (skater + goalie tables):** every `<th>` cell needs:
+
    ```tsx
-   className="px-2 py-2 text-left font-condensed text-[10px] font-semibold uppercase tracking-widest text-zinc-500"
+   className =
+     'px-2 py-2 text-left font-condensed text-[10px] font-semibold uppercase tracking-widest text-zinc-500'
    ```
+
    (or text-right for numeric columns). Replace any existing `text-xs ... tracking-wider text-zinc-600` patterns with the design-system spec above.
 
 5. **Numeric body cells:** every `<td>` containing a number gets `tabular-nums` class. Search for any cell that renders `{row.points}`, `{row.goals}`, `{row.assists}`, `{row.shotsFor}`, etc., and ensure `tabular-nums` is in its className.
@@ -732,6 +788,7 @@ Make these edits to `scoresheet.tsx`:
 ```bash
 pnpm --filter web typecheck
 ```
+
 Expected: passes.
 
 - [ ] **Step 4: Commit**
@@ -758,6 +815,7 @@ EOF
 ```bash
 git log --oneline -1
 ```
+
 Expected: `refactor(web): scoresheet table voice + hairline dividers` is HEAD.
 
 ---
@@ -765,6 +823,7 @@ Expected: `refactor(web): scoresheet table voice + hairline dividers` is HEAD.
 ## Task 9: Polish games detail page — back link + ErrorState + EmptyScoresheet
 
 **Files:**
+
 - Modify: `apps/web/src/app/games/[id]/page.tsx`
 
 - [ ] **Step 1: Apply transformations**
@@ -774,6 +833,7 @@ Make these edits:
 1. Add `import { Panel } from '@/components/ui/panel'`.
 
 2. **Back link (around lines 112-117):** Replace:
+
    ```tsx
    <Link
      href="/games"
@@ -782,7 +842,9 @@ Make these edits:
      <span aria-hidden>←</span> Games
    </Link>
    ```
+
    with:
+
    ```tsx
    <Link
      href="/games"
@@ -793,6 +855,7 @@ Make these edits:
    ```
 
 3. **ErrorState helper (around lines 199-205):** Replace:
+
    ```tsx
    function ErrorState({ message }: { message: string }) {
      return (
@@ -802,7 +865,9 @@ Make these edits:
      )
    }
    ```
+
    with:
+
    ```tsx
    function ErrorState({ message }: { message: string }) {
      return (
@@ -843,6 +908,7 @@ Make these edits:
 ```bash
 pnpm --filter web typecheck
 ```
+
 Expected: passes.
 
 - [ ] **Step 3: Commit**
@@ -865,6 +931,7 @@ EOF
 ```bash
 git log --oneline -1
 ```
+
 Expected: `refactor(web): voice + Panel reconcile on games detail page` is HEAD.
 
 ---
@@ -874,6 +941,7 @@ Expected: `refactor(web): voice + Panel reconcile on games detail page` is HEAD.
 After Tasks 1 + 4 + Phase 3 Task 6, no remaining consumers reference `<ResultBadge>`. Verify and delete.
 
 **Files:**
+
 - Delete: `apps/web/src/components/ui/result-badge.tsx`
 
 - [ ] **Step 1: Confirm zero references**
@@ -881,6 +949,7 @@ After Tasks 1 + 4 + Phase 3 Task 6, no remaining consumers reference `<ResultBad
 ```bash
 grep -rln "ResultBadge\|result-badge" apps/web/src/ apps/web/src/app/ 2>&1
 ```
+
 Expected: only `apps/web/src/components/ui/result-badge.tsx` itself (self-reference). If any consumer remains, STOP — find the missed migration and address before deleting.
 
 - [ ] **Step 2: Delete + typecheck**
@@ -889,6 +958,7 @@ Expected: only `apps/web/src/components/ui/result-badge.tsx` itself (self-refere
 git rm apps/web/src/components/ui/result-badge.tsx
 pnpm --filter web typecheck
 ```
+
 Expected: typecheck passes (no consumers).
 
 - [ ] **Step 3: Commit**
@@ -912,6 +982,7 @@ EOF
 git log --oneline -1
 git status --short
 ```
+
 Expected: `chore(web): delete legacy ResultBadge component` is HEAD; working tree clean.
 
 ---
@@ -925,6 +996,7 @@ Phase 4 ends when both games pages render correctly with the new primitives + vo
 ```bash
 pnpm typecheck
 ```
+
 Expected: 6 successful tasks.
 
 - [ ] **Step 2: Start dev server**
@@ -932,11 +1004,13 @@ Expected: 6 successful tasks.
 ```bash
 pnpm --filter web dev
 ```
+
 Wait for "Ready in" line.
 
 - [ ] **Step 3: Walk the games pages**
 
 Open in a browser:
+
 - `http://localhost:<port>/_kitchen-sink` — verify Phase 1 primitives still render correctly (no regressions).
 - `http://localhost:<port>/games` — confirm:
   1. Page header "SCORES" UPPERCASE wide-tracked.
@@ -1005,6 +1079,7 @@ pgrep -af "next-server|next dev" || echo "(stopped)"
 ```bash
 git push origin feat/design-system-renovation
 ```
+
 Expected: branch pushes cleanly.
 
 - [ ] **Step 7: Final state check**
@@ -1013,6 +1088,7 @@ Expected: branch pushes cleanly.
 git status
 git log --oneline main..HEAD | head -25
 ```
+
 Expected: clean tree on `feat/design-system-renovation`; ~11-12 new commits ahead of `main` from Phase 4.
 
 ---

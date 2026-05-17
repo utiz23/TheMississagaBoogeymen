@@ -4,6 +4,7 @@ URL:https://chelhead.com/view-club/common-gen5/19224
 Page type: Team player stas
 
 Tabs/sections:
+
 - Team overview
 - Skater stats
 - Goalie stats
@@ -12,29 +13,34 @@ Tabs/sections:
 - player cards
 
 Filters/sorts:
-- 
+
+-
 
 Key stats shown:
-- 
+
+-
 
 Advanced/premium-only items:
-- 
+
+-
 
 Charts/widgets/badges:
-- 
+
+-
 
 Interactions:
-- 
+
+-
 
 Anything unclear:
-- 
-Notes:
+
+- Notes:
 
 - Really like this page, ours should be very similar to it
-- Tables are exactly what I want, skater and goalie tables with basic and advanced stats options 
+- Tables are exactly what I want, skater and goalie tables with basic and advanced stats options
 - The club hot zones are a nice touch
 - Team overview is nice but may be two up front and center
 - Stat leader is cool, could be better UI tho (low priority)
 - Cards are nice, but I like our layout and structure better. Dont like that this version crams both goalie and player stats onto one card
-IMPORTANT
-- I think that skater and goalie should be two different entities. While they are both the same player they are two different things and deserve two different cards. 
+  IMPORTANT
+- I think that skater and goalie should be two different entities. While they are both the same player they are two different things and deserve two different cards.

@@ -3,6 +3,7 @@
 Goal: catalog Chelhead features and compare them against our site.
 
 Capture rules:
+
 - logged in with premium access
 - preserve log enabled in browser network tab
 - save HAR with content
@@ -11,12 +12,14 @@ Capture rules:
 - note anything hidden behind hover, expanders, or sorting
 
 Pages to capture:
+
 - Club
 - Players
 - Matches
 - Individual player page
 
 Comparison targets:
+
 - feature inventory
 - data model / stats shown
 - premium-only surfaces

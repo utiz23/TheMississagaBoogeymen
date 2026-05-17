@@ -70,12 +70,12 @@ If `N < M`, the remaining events go to step 2.
 Each correction below is keyed to a specific known failure mode the
 consensus matcher CAN'T resolve:
 
-| Symptom on `/games/[id]` | Root cause | Override |
-|---|---|---|
-| Card shows on the rink in the wrong zone | Spatial extractor misread the yellow-selected marker for that event (typical near the boards / corners where the convex hull breaks). | Set `x`, `y`, `rink_zone` directly; mark `position_confidence='manual'`. |
-| Two adjacent cards share one marker | Spatial extractor reused the previous frame's yellow position (the scroll happened between captures). | Clear `(x, y)` on the duplicated event OR set a manual position. |
-| Card has no marker on the rink at all | Event was never the yellow-selected row in any captured frame. | Set a manual `(x, y)` from review of the in-game footage. |
-| Card paints in the wrong team's color | Actor and target both unaliased — `parse_post_game_action_tracker` defaulted to `team_side='against'`. Fix the alias rather than the row when possible. | Last resort: `UPDATE match_events SET team_side = …` after adding the proper `player_display_aliases` row. |
+| Symptom on `/games/[id]`                 | Root cause                                                                                                                                              | Override                                                                                                   |
+| ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| Card shows on the rink in the wrong zone | Spatial extractor misread the yellow-selected marker for that event (typical near the boards / corners where the convex hull breaks).                   | Set `x`, `y`, `rink_zone` directly; mark `position_confidence='manual'`.                                   |
+| Two adjacent cards share one marker      | Spatial extractor reused the previous frame's yellow position (the scroll happened between captures).                                                   | Clear `(x, y)` on the duplicated event OR set a manual position.                                           |
+| Card has no marker on the rink at all    | Event was never the yellow-selected row in any captured frame.                                                                                          | Set a manual `(x, y)` from review of the in-game footage.                                                  |
+| Card paints in the wrong team's color    | Actor and target both unaliased — `parse_post_game_action_tracker` defaulted to `team_side='against'`. Fix the alias rather than the row when possible. | Last resort: `UPDATE match_events SET team_side = …` after adding the proper `player_display_aliases` row. |
 
 ## Identifying the event card
 
@@ -110,16 +110,16 @@ is `x > 25` and the BGM defensive zone is `x < -25`.
 
 Common reference positions:
 
-| Description | `(x, y)` |
-|---|---|
-| Center ice | `0, 0` |
-| Right side of center ice circle | `15, 0` |
-| BGM blue line, top boards | `25, 40` |
-| BGM blue line, bottom boards | `25, -40` |
-| BGM offensive faceoff dot, top | `69, 22` |
+| Description                       | `(x, y)`  |
+| --------------------------------- | --------- |
+| Center ice                        | `0, 0`    |
+| Right side of center ice circle   | `15, 0`   |
+| BGM blue line, top boards         | `25, 40`  |
+| BGM blue line, bottom boards      | `25, -40` |
+| BGM offensive faceoff dot, top    | `69, 22`  |
 | BGM offensive faceoff dot, bottom | `69, -22` |
-| Opp goal crease (BGM attacking) | `89, 0` |
-| BGM goal crease | `-89, 0` |
+| Opp goal crease (BGM attacking)   | `89, 0`   |
+| BGM goal crease                   | `-89, 0`  |
 
 ## Applying the override
 
@@ -157,9 +157,9 @@ right column instead of plotting on the rink.
 Append a one-line entry here whenever you apply an override so future
 calibration work can reference real failure modes.
 
-| Date | Match | Event ID | Period · Clock | Symptom | Override |
-|---|---|---|---|---|---|
-| 2026-05-16 | 250 | 288 | P2 · 19:43 | Hit by TOEWS → E. WANHG, no yellow marker captured | `(x, y) = (15, 0)` — right side of center ice circle |
-| 2026-05-16 | 250 | 256 | P2 · 11:23 | SILKY shot positioned in neutral zone | `(x, y) = (30, -38)` |
-| 2026-05-16 | 250 | 268 | P2 · 0:01 | SILKY shot positioned in neutral zone | `(x, y) = (25, 40)` |
-| 2026-05-16 | 250 | 281 | P3 · 8:03 | E. WANHG shot shared marker with 7:39 (original parser dropped the 8:03 row from extraction 190 because OCR rendered "ON M." as "ONM." and "SHOT" as "SHDT") | Fixed at the parser level: relaxed `_ACTION_RELATION_RE` and added Levenshtein-1 fallback for event types. Reparse via `reparse_action_tracker.py` recovered the 8:03 row, the spatial extractor then attributed extraction 190's yellow marker to it: `(x, y) = (-74.29, 13.48)` `position_confidence='interpolated'`. |
+| Date       | Match | Event ID | Period · Clock | Symptom                                                                                                                                                      | Override                                                                                                                                                                                                                                                                                                                |
+| ---------- | ----- | -------- | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 2026-05-16 | 250   | 288      | P2 · 19:43     | Hit by TOEWS → E. WANHG, no yellow marker captured                                                                                                           | `(x, y) = (15, 0)` — right side of center ice circle                                                                                                                                                                                                                                                                    |
+| 2026-05-16 | 250   | 256      | P2 · 11:23     | SILKY shot positioned in neutral zone                                                                                                                        | `(x, y) = (30, -38)`                                                                                                                                                                                                                                                                                                    |
+| 2026-05-16 | 250   | 268      | P2 · 0:01      | SILKY shot positioned in neutral zone                                                                                                                        | `(x, y) = (25, 40)`                                                                                                                                                                                                                                                                                                     |
+| 2026-05-16 | 250   | 281      | P3 · 8:03      | E. WANHG shot shared marker with 7:39 (original parser dropped the 8:03 row from extraction 190 because OCR rendered "ON M." as "ONM." and "SHOT" as "SHDT") | Fixed at the parser level: relaxed `_ACTION_RELATION_RE` and added Levenshtein-1 fallback for event types. Reparse via `reparse_action_tracker.py` recovered the 8:03 row, the spatial extractor then attributed extraction 190's yellow marker to it: `(x, y) = (-74.29, 13.48)` `position_confidence='interpolated'`. |

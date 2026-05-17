@@ -16,7 +16,7 @@ The "Deserve to Win" gauge is a semicircular meter on the match detail page (`/g
 The `shareToNeedle` function mapped BGM's possession share to a rotation angle using:
 
 ```js
-degrees = -180 + (normalized * 180)
+degrees = -180 + normalized * 180
 ```
 
 At BGM share = 100%: `degrees = -180 + 180 = 0` → needle points **right** (OPP side).
@@ -58,10 +58,14 @@ The needle moved correctly (Bug 1 was already fixed), but the colored arcs alway
 const clampedShare = Math.max(1, Math.min(99, bgmShare))
 const splitDeg = -(clampedShare / 100) * 180
 
-{/* BGM arc: -180° → splitDeg (grows as BGM share increases) */}
-<path d={arcPath(cx, cy, r, -180, splitDeg)} stroke="#e11d48" />
-{/* OPP arc: splitDeg → 0° (the remainder) */}
-<path d={arcPath(cx, cy, r, splitDeg, 0)} stroke="#374151" />
+{
+  /* BGM arc: -180° → splitDeg (grows as BGM share increases) */
+}
+;<path d={arcPath(cx, cy, r, -180, splitDeg)} stroke="#e11d48" />
+{
+  /* OPP arc: splitDeg → 0° (the remainder) */
+}
+;<path d={arcPath(cx, cy, r, splitDeg, 0)} stroke="#374151" />
 ```
 
 **Clamp to [1, 99]** prevents zero-length SVG arcs at 0% or 100% (browser renders incorrectly).
@@ -69,10 +73,12 @@ const splitDeg = -(clampedShare / 100) * 180
 ### Geometric Proof
 
 For BGM=70%: `splitDeg = -(0.70 × 180) = -126°`
+
 - BGM arc: −180° → −126° = spans 54° = 30% of semicircle? No — arc from -180° to -126°: the arc distance is |−126 − (−180)| = 54°, which is 54/180 = **30%** of the semicircle. That's the OPP share.
 - Wait — arc from -180° to splitDeg is the **left** arc (OPP side). Arc from splitDeg to 0° is the **right** arc (BGM side).
 
 **Correct assignment:**
+
 - BGM red arc goes **-180° to splitDeg** — this covers the BGM portion on the **left side**
 - OPP grey arc goes **splitDeg to 0°** — this covers the OPP portion on the **right side**
 
@@ -105,7 +111,7 @@ const splitDeg = -(clampedShare / 100) * 180
 
 // BGM arc (left, red) — grows when BGM dominates
 <path d={arcPath(cx, cy, r, -180, splitDeg)} stroke="#e11d48" strokeLinecap="butt" />
-// OPP arc (right, grey) — the remainder  
+// OPP arc (right, grey) — the remainder
 <path d={arcPath(cx, cy, r, splitDeg, 0)} stroke="#374151" strokeLinecap="butt" />
 ```
 

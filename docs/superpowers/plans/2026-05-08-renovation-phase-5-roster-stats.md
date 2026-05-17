@@ -9,6 +9,7 @@
 **Tech Stack:** Next.js 15 App Router (server components for both pages; chemistry-tables and stats-table sub-components may use Client Components for interactive sort — verify in the read step). TypeScript strict, Tailwind CSS 4. Phase 1 primitives at `apps/web/src/components/ui/{panel,broadcast-panel,section-header,result-pill,stat-strip}.tsx`. No new dependencies.
 
 **Working assumptions:**
+
 - Current branch: `feat/design-system-renovation`. Phase 4 commits landed (HEAD ~ `4871484`).
 - The renovation spec at `docs/superpowers/specs/2026-05-07-boogeymen-renovation-design.md` is authoritative for Phase 5 scope.
 - Run all commands from the repo root: `/home/michal/projects/eanhl-team-website`.
@@ -16,6 +17,7 @@
 - Roster card surfaces (DepthChart cards) were already restyled in Phase 0 (jersey number, position pill, EA W/L splits). Phase 5 voice-only on those; no structural rework.
 
 **Out of scope:**
+
 - Restoring result-based card glows on ScoreCard + HeroCard (deferred per renovation spec § "Deferred Design Decisions" — Phase 6 / polish).
 - Switching `<ResultPill>` `size="sm"` from letter glyphs to full words (deferred to Phase 6 / polish).
 - Any new data queries / schema changes.
@@ -28,19 +30,20 @@
 
 **Files modified:**
 
-| Path | Scope | Approx LOC |
-|---|---|---|
-| `apps/web/src/components/title-selector.tsx` | Wrap `EmptyState` in `<Panel>`. Tighten TitleSelector + ModeFilter pill voice (font-condensed tracking-widest). Drop the rounded-sm corners on the segmented bars (per "no soft cards" rule). | 135 |
-| `apps/web/src/components/ui/stat-card.tsx` | Already uses `.broadcast-panel` CSS class. Tighten label voice (font-condensed tracking-widest); replace `tabular` with `tabular-nums`. | 43 |
-| `apps/web/src/components/stats/skater-stats-table.tsx` | Wrap in `<Panel>`; UPPERCASE column headers (font-condensed text-[10px] tracking-widest text-zinc-500); tabular-nums on numeric cells; hairline `divide-y divide-zinc-800/60` rows; hover surface-raised. | 345 |
-| `apps/web/src/components/stats/goalie-stats-table.tsx` | Same treatment as SkaterStatsTable. | 322 |
-| `apps/web/src/components/stats/chemistry-tables.tsx` | WithWithoutTable + BestPairsTable + ChemistrySection: each table wraps in `<Panel>`; UPPERCASE column headers; tabular-nums; hairline dividers; ChemistrySection's outer header uses `<SectionHeader>` with subtitle if present. | 334 |
-| `apps/web/src/components/stats/team-shot-map.tsx` | Wrap interior in `<BroadcastPanel>` per renovation spec. Section heading uses `<SectionHeader>`. Mode tabs + legend voice tightened. No layout change to the shot map renderer itself. | 265 |
-| `apps/web/src/components/roster/depth-chart.tsx` | Voice audit only — slot labels, line labels, "POSITION USAGE" labels. Cards already correct from Phase 0. | 301 |
-| `apps/web/src/app/roster/page.tsx` | Page header → `tracking-widest`. Inline `<h2>` (line 430) → `<SectionHeader>`. Inline strips with `border border-zinc-800 bg-surface` (lines 530 + 631) → `<Panel>`. Replace any inline `EmptyState` reference with the now-Panel-backed shared one. | 704 |
-| `apps/web/src/app/stats/page.tsx` | Page header → `tracking-widest`. All inline `<h2>`/`<h3>` section headings → `<SectionHeader>`. Wrap any inline `border border-zinc-800 bg-surface` with `<Panel>`. | 556 |
+| Path                                                   | Scope                                                                                                                                                                                                                                                | Approx LOC |
+| ------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
+| `apps/web/src/components/title-selector.tsx`           | Wrap `EmptyState` in `<Panel>`. Tighten TitleSelector + ModeFilter pill voice (font-condensed tracking-widest). Drop the rounded-sm corners on the segmented bars (per "no soft cards" rule).                                                        | 135        |
+| `apps/web/src/components/ui/stat-card.tsx`             | Already uses `.broadcast-panel` CSS class. Tighten label voice (font-condensed tracking-widest); replace `tabular` with `tabular-nums`.                                                                                                              | 43         |
+| `apps/web/src/components/stats/skater-stats-table.tsx` | Wrap in `<Panel>`; UPPERCASE column headers (font-condensed text-[10px] tracking-widest text-zinc-500); tabular-nums on numeric cells; hairline `divide-y divide-zinc-800/60` rows; hover surface-raised.                                            | 345        |
+| `apps/web/src/components/stats/goalie-stats-table.tsx` | Same treatment as SkaterStatsTable.                                                                                                                                                                                                                  | 322        |
+| `apps/web/src/components/stats/chemistry-tables.tsx`   | WithWithoutTable + BestPairsTable + ChemistrySection: each table wraps in `<Panel>`; UPPERCASE column headers; tabular-nums; hairline dividers; ChemistrySection's outer header uses `<SectionHeader>` with subtitle if present.                     | 334        |
+| `apps/web/src/components/stats/team-shot-map.tsx`      | Wrap interior in `<BroadcastPanel>` per renovation spec. Section heading uses `<SectionHeader>`. Mode tabs + legend voice tightened. No layout change to the shot map renderer itself.                                                               | 265        |
+| `apps/web/src/components/roster/depth-chart.tsx`       | Voice audit only — slot labels, line labels, "POSITION USAGE" labels. Cards already correct from Phase 0.                                                                                                                                            | 301        |
+| `apps/web/src/app/roster/page.tsx`                     | Page header → `tracking-widest`. Inline `<h2>` (line 430) → `<SectionHeader>`. Inline strips with `border border-zinc-800 bg-surface` (lines 530 + 631) → `<Panel>`. Replace any inline `EmptyState` reference with the now-Panel-backed shared one. | 704        |
+| `apps/web/src/app/stats/page.tsx`                      | Page header → `tracking-widest`. All inline `<h2>`/`<h3>` section headings → `<SectionHeader>`. Wrap any inline `border border-zinc-800 bg-surface` with `<Panel>`.                                                                                  | 556        |
 
 **Files unchanged:**
+
 - All Phase 1 primitives.
 - `apps/web/src/components/roster/profile-hero.tsx` and other roster profile components — Phase 3 work is final.
 - All match components — Phase 4 work is final.
@@ -53,6 +56,7 @@
 The shared title-mode selector lives in this file. Both `/roster` and `/stats` import from here.
 
 **Files:**
+
 - Modify: `apps/web/src/components/title-selector.tsx`
 
 - [ ] **Step 1: Apply transformations**
@@ -62,37 +66,49 @@ Make these edits to `title-selector.tsx`:
 1. Add `import { Panel } from '@/components/ui/panel'` at the top.
 
 2. **TitleSelector outer wrapper** (around line 41): drop `rounded-sm`. Replace:
+
    ```tsx
    <div className="flex flex-wrap items-center divide-x divide-zinc-700 overflow-hidden rounded-sm border border-zinc-700">
    ```
+
    with:
+
    ```tsx
    <div className="flex flex-wrap items-center divide-x divide-zinc-700 overflow-hidden border border-zinc-700">
    ```
 
 3. **TitleSelector pill voice** (around line 49): `tracking-wide` → `tracking-widest`. Replace:
+
    ```tsx
    'flex items-center gap-1.5 px-3 py-1.5 font-condensed text-xs font-bold uppercase tracking-wide transition-colors',
    ```
+
    with:
+
    ```tsx
    'flex items-center gap-1.5 px-3 py-1.5 font-condensed text-xs font-bold uppercase tracking-widest transition-colors',
    ```
 
 4. **ModeFilter outer wrapper** (around line 92): drop `rounded-sm`. Replace:
+
    ```tsx
    <div className="inline-flex items-center divide-x divide-zinc-800 overflow-hidden rounded-sm border border-zinc-800">
    ```
+
    with:
+
    ```tsx
    <div className="inline-flex items-center divide-x divide-zinc-800 overflow-hidden border border-zinc-800">
    ```
 
 5. **ModeFilter pill voice** (around line 101): `tracking-wide` → `tracking-widest`. Replace:
+
    ```tsx
    'px-3 py-1.5 font-condensed text-xs font-bold uppercase tracking-wide transition-colors',
    ```
+
    with:
+
    ```tsx
    'px-3 py-1.5 font-condensed text-xs font-bold uppercase tracking-widest transition-colors',
    ```
@@ -125,6 +141,7 @@ Make these edits to `title-selector.tsx`:
 ```bash
 pnpm --filter web typecheck
 ```
+
 Expected: passes.
 
 - [ ] **Step 3: Commit**
@@ -149,6 +166,7 @@ EOF
 ```bash
 git log --oneline -1
 ```
+
 Expected: `refactor(web): voice + Panel reconcile on title-selector` is HEAD.
 
 ---
@@ -156,6 +174,7 @@ Expected: `refactor(web): voice + Panel reconcile on title-selector` is HEAD.
 ## Task 2: Tighten `<StatCard>` voice
 
 **Files:**
+
 - Modify: `apps/web/src/components/ui/stat-card.tsx`
 
 - [ ] **Step 1: Replace the file**
@@ -185,10 +204,7 @@ interface StatCardProps {
 export function StatCard({ label, value, sublabel, featured = false }: StatCardProps) {
   return (
     <div
-      className={[
-        'broadcast-panel px-4 py-4',
-        featured ? 'border-l-2 border-l-accent' : '',
-      ]
+      className={['broadcast-panel px-4 py-4', featured ? 'border-l-2 border-l-accent' : '']
         .filter(Boolean)
         .join(' ')}
     >
@@ -214,6 +230,7 @@ export function StatCard({ label, value, sublabel, featured = false }: StatCardP
 ```
 
 Key changes:
+
 - Label: `text-xs tracking-wider` → `text-[10px] tracking-widest` (matches Phase 1 design-system spec).
 - Value: `tabular` → `tabular-nums` (Tailwind utility instead of local CSS class).
 - Sublabel: `text-xs text-zinc-600` → `font-condensed text-[11px] uppercase tracking-wider text-zinc-600`.
@@ -223,6 +240,7 @@ Key changes:
 ```bash
 pnpm --filter web typecheck
 ```
+
 Expected: passes.
 
 - [ ] **Step 3: Commit**
@@ -247,6 +265,7 @@ EOF
 ```bash
 git log --oneline -1
 ```
+
 Expected: `refactor(web): tighten StatCard voice ...` is HEAD.
 
 ---
@@ -254,6 +273,7 @@ Expected: `refactor(web): tighten StatCard voice ...` is HEAD.
 ## Task 3: Restyle `<SkaterStatsTable>`
 
 **Files:**
+
 - Modify: `apps/web/src/components/stats/skater-stats-table.tsx`
 
 - [ ] **Step 1: Read current file**
@@ -270,9 +290,11 @@ sed -n '150,345p' apps/web/src/components/stats/skater-stats-table.tsx
 2. Replace the outer table wrapper. Find any `<div className="overflow-x-auto border border-zinc-800 bg-surface">` and replace with `<Panel className="overflow-x-auto">`. The closing `</div>` becomes `</Panel>`.
 
 3. **Column headers (Th cells):** every `<th>` needs:
+
    ```
    font-condensed text-[10px] font-semibold uppercase tracking-widest text-zinc-500
    ```
+
    Replace any existing `text-xs ... tracking-wider text-zinc-600` patterns with the design-system spec above. Keep alignment classes (text-left / text-right / text-center) intact.
 
 4. **Row hover state:** every `<tr>` body element gets `transition-colors hover:bg-surface-raised` (replace `hover:bg-zinc-800/30` if present).
@@ -290,6 +312,7 @@ sed -n '150,345p' apps/web/src/components/stats/skater-stats-table.tsx
 ```bash
 pnpm --filter web typecheck
 ```
+
 Expected: passes.
 
 - [ ] **Step 4: Commit**
@@ -315,6 +338,7 @@ EOF
 ```bash
 git log --oneline -1
 ```
+
 Expected: `refactor(web): voice + Panel reconcile on SkaterStatsTable` is HEAD.
 
 ---
@@ -322,6 +346,7 @@ Expected: `refactor(web): voice + Panel reconcile on SkaterStatsTable` is HEAD.
 ## Task 4: Restyle `<GoalieStatsTable>` — same pattern as Task 3
 
 **Files:**
+
 - Modify: `apps/web/src/components/stats/goalie-stats-table.tsx`
 
 - [ ] **Step 1: Read current file**
@@ -347,6 +372,7 @@ sed -n '160,322p' apps/web/src/components/stats/goalie-stats-table.tsx
 ```bash
 pnpm --filter web typecheck
 ```
+
 Expected: passes.
 
 - [ ] **Step 4: Commit**
@@ -371,6 +397,7 @@ EOF
 ```bash
 git log --oneline -1
 ```
+
 Expected: `refactor(web): voice + Panel reconcile on GoalieStatsTable` is HEAD.
 
 ---
@@ -378,6 +405,7 @@ Expected: `refactor(web): voice + Panel reconcile on GoalieStatsTable` is HEAD.
 ## Task 5: Restyle `<ChemistryTables>` (WithWithout + BestPairs + ChemistrySection)
 
 **Files:**
+
 - Modify: `apps/web/src/components/stats/chemistry-tables.tsx`
 
 This file exports three components: `WithWithoutTable`, `BestPairsTable`, and the wrapping `ChemistrySection`. Same Panel/voice pattern as Tasks 3-4 applied to all three.
@@ -406,6 +434,7 @@ sed -n '170,334p' apps/web/src/components/stats/chemistry-tables.tsx
 ```bash
 pnpm --filter web typecheck
 ```
+
 Expected: passes.
 
 - [ ] **Step 4: Commit**
@@ -430,6 +459,7 @@ EOF
 ```bash
 git log --oneline -1
 ```
+
 Expected: `refactor(web): voice + Panel reconcile on ChemistryTables` is HEAD.
 
 ---
@@ -439,6 +469,7 @@ Expected: `refactor(web): voice + Panel reconcile on ChemistryTables` is HEAD.
 Per the renovation spec: "Team shot map kept structurally; reframed in BroadcastPanel with SectionHeader. No layout changes to the shot map itself."
 
 **Files:**
+
 - Modify: `apps/web/src/components/stats/team-shot-map.tsx`
 
 - [ ] **Step 1: Read current file**
@@ -451,6 +482,7 @@ sed -n '130,265p' apps/web/src/components/stats/team-shot-map.tsx
 - [ ] **Step 2: Apply transformations**
 
 1. Add imports:
+
    ```tsx
    import { BroadcastPanel } from '@/components/ui/broadcast-panel'
    import { SectionHeader } from '@/components/ui/section-header'
@@ -459,17 +491,17 @@ sed -n '130,265p' apps/web/src/components/stats/team-shot-map.tsx
 2. **Section heading:** find the inline `<h2>` / `<h3>` heading and replace with `<SectionHeader label="Team Shot Map" subtitle="..." />`. Keep the existing subtitle string if present, or use a sensible one like `"NHL 26 · all-modes"` based on the source label.
 
 3. **Outer wrapper:** find the existing `<section className="border border-zinc-800 bg-surface ...">` (or similar) and convert to:
+
    ```tsx
    <section className="space-y-3">
      <div className="flex items-center justify-between gap-3">
        <SectionHeader label="Team Shot Map" subtitle={sourceLabel} />
        {/* existing right-side mode tabs / controls if any */}
      </div>
-     <BroadcastPanel className="p-4">
-       {/* existing body */}
-     </BroadcastPanel>
+     <BroadcastPanel className="p-4">{/* existing body */}</BroadcastPanel>
    </section>
    ```
+
    Adapt the surrounding structure to fit the existing component shape.
 
 4. **Mode tabs / legend / labels** inside the body: tighten to font-condensed UPPERCASE wide-tracked.
@@ -483,6 +515,7 @@ sed -n '130,265p' apps/web/src/components/stats/team-shot-map.tsx
 ```bash
 pnpm --filter web typecheck
 ```
+
 Expected: passes.
 
 - [ ] **Step 4: Commit**
@@ -507,6 +540,7 @@ EOF
 ```bash
 git log --oneline -1
 ```
+
 Expected: `refactor(web): wrap TeamShotMap in BroadcastPanel + SectionHeader` is HEAD.
 
 ---
@@ -516,6 +550,7 @@ Expected: `refactor(web): wrap TeamShotMap in BroadcastPanel + SectionHeader` is
 The roster cards inside the depth chart were already restyled in Phase 0 (jersey number, position pill, EA W/L splits). Phase 5 is voice-only on the slot/line labels and the position-usage callout.
 
 **Files:**
+
 - Modify: `apps/web/src/components/roster/depth-chart.tsx`
 
 - [ ] **Step 1: Read current file**
@@ -540,6 +575,7 @@ sed -n '150,301p' apps/web/src/components/roster/depth-chart.tsx
 ```bash
 pnpm --filter web typecheck
 ```
+
 Expected: passes.
 
 - [ ] **Step 4: Commit**
@@ -563,6 +599,7 @@ EOF
 ```bash
 git log --oneline -1
 ```
+
 Expected: `refactor(web): voice audit on DepthChart ...` is HEAD.
 
 ---
@@ -572,6 +609,7 @@ Expected: `refactor(web): voice audit on DepthChart ...` is HEAD.
 The roster list page (704 lines). Page header voice; inline `<h2>` to `<SectionHeader>`; inline strip surfaces to `<Panel>`.
 
 **Files:**
+
 - Modify: `apps/web/src/app/roster/page.tsx`
 
 - [ ] **Step 1: Read the relevant sections**
@@ -586,36 +624,46 @@ sed -n '690,704p' apps/web/src/app/roster/page.tsx
 - [ ] **Step 2: Apply transformations**
 
 1. Add imports near the top:
+
    ```tsx
    import { Panel } from '@/components/ui/panel'
    import { SectionHeader } from '@/components/ui/section-header'
    ```
 
 2. **Page header (around line 697):** Replace the existing:
+
    ```tsx
    <h1 className="font-condensed text-2xl font-semibold uppercase tracking-wide text-zinc-50">
    ```
+
    with:
+
    ```tsx
    <h1 className="font-condensed text-2xl font-semibold uppercase tracking-widest text-zinc-50">
    ```
 
 3. **Inline `<h2>` section heading (around line 430):** Replace:
+
    ```tsx
    <h2 className="font-condensed text-sm font-semibold uppercase tracking-wider text-zinc-500">
      {/* existing title text */}
    </h2>
    ```
+
    with `<SectionHeader label="..." />`. Read the surrounding code to extract the exact label text and any subtitle.
 
 4. **Inline strips with `border border-zinc-800 bg-surface` (lines 530 + 631):** Replace:
+
    ```tsx
    <div className="flex flex-wrap divide-y divide-zinc-800 border border-zinc-800 bg-surface sm:flex-nowrap sm:divide-x sm:divide-y-0">
    ```
+
    with:
+
    ```tsx
    <Panel className="flex flex-wrap divide-y divide-zinc-800 sm:flex-nowrap sm:divide-x sm:divide-y-0">
    ```
+
    Closing `</div>` becomes `</Panel>`.
 
 5. Tighten any other inline label/heading voice to design-system spec where it's currently looser.
@@ -625,6 +673,7 @@ sed -n '690,704p' apps/web/src/app/roster/page.tsx
 ```bash
 pnpm --filter web typecheck
 ```
+
 Expected: passes.
 
 - [ ] **Step 4: Commit**
@@ -648,6 +697,7 @@ EOF
 ```bash
 git log --oneline -1
 ```
+
 Expected: `refactor(web): voice + primitives on roster list page` is HEAD.
 
 ---
@@ -657,6 +707,7 @@ Expected: `refactor(web): voice + primitives on roster list page` is HEAD.
 The stats page (556 lines). Same pattern as Task 8.
 
 **Files:**
+
 - Modify: `apps/web/src/app/stats/page.tsx`
 
 - [ ] **Step 1: Read the file**
@@ -670,6 +721,7 @@ sed -n '300,556p' apps/web/src/app/stats/page.tsx
 - [ ] **Step 2: Apply transformations**
 
 1. Add imports near the top:
+
    ```tsx
    import { Panel } from '@/components/ui/panel'
    import { SectionHeader } from '@/components/ui/section-header'
@@ -690,6 +742,7 @@ sed -n '300,556p' apps/web/src/app/stats/page.tsx
 ```bash
 pnpm --filter web typecheck
 ```
+
 Expected: passes.
 
 - [ ] **Step 4: Commit**
@@ -714,6 +767,7 @@ EOF
 ```bash
 git log --oneline -1
 ```
+
 Expected: `refactor(web): voice + primitives on stats page` is HEAD.
 
 ---
@@ -727,11 +781,13 @@ Phase 5 ends when both pages render correctly with the new primitives + voice, f
 ```bash
 pnpm typecheck
 ```
+
 Expected: 6 successful tasks across @eanhl/db, @eanhl/web, @eanhl/worker.
 
 - [ ] **Step 2: Visual review (dev server is already running)**
 
 Open in a browser:
+
 - `http://localhost:<port>/_kitchen-sink` — confirm Phase 1 primitives still render correctly.
 - `http://localhost:<port>/roster` — confirm:
   1. Page header "ROSTER" UPPERCASE wide-tracked.
@@ -801,6 +857,7 @@ pgrep -af "next-server|next dev" || echo "(stopped)"
 ```bash
 git push origin feat/design-system-renovation
 ```
+
 Expected: branch pushes cleanly.
 
 - [ ] **Step 6: Final state check**
@@ -809,6 +866,7 @@ Expected: branch pushes cleanly.
 git status
 git log --oneline main..HEAD | head -25
 ```
+
 Expected: clean tree on `feat/design-system-renovation`; ~10-11 new commits ahead of `main` from Phase 5.
 
 ---

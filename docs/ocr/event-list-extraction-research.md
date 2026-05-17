@@ -32,29 +32,29 @@ Reference image: [Single_Event.png](../../research/OCR-SS/Action-Tracker/3rd-Per
 showing `L. HUTSON ON M. LEHMANN — SHOT 10:52 2nd Period`.
 Reference panel: [Event_List.png](../../research/OCR-SS/Action-Tracker/3rd-Period-Events/vlcsnap-2026-05-10-02h00m33s853_Event_List.png).
 
-| element | position | encodes | reliability |
-|---|---|---|---|
-| Portrait box | left | actor's team primary color (red for BGM, dark for opp in this match) | **high** — clear gradient, only 2 distinct colors per match |
-| Actor line | top-centre | `X ON Y` (action) or `X VS Y` (faceoff), uppercase | high |
-| Event-type pill | mid-left of card | `HIT` / `SHOT` / `GOAL` / `FACEOFF` / `PENALTY` in colored badge | high if OCR reads cleanly; otherwise `'unknown'` |
-| Clock | right of pill | `MM:SS` in [0:00, 19:59] | high |
-| Period label | right of clock | `1st Period` / `2nd Period` / `3rd Period` / `OT` / `OT2`... | high |
-| Play-arrow icon (▶) | far right, before badge | presence = replayable highlight clip exists | not extracted today |
-| Event-type badge | far right | letter `S/H/G/P` inside circle. **Solid fill = home; white interior with team-color ring = away**. Per-match — for match 250 BGM is AWAY (scoreboard `BM` on left), so BGM rows are outlined. Faceoffs have no badge. | not extracted today |
-| White border around card | whole-card outline | this row is the currently-selected one | high — already detected by `detect_selected_row_index` |
-| Slight white tint on bg | row-wide fill | reinforces selection | high (secondary signal for the same state) |
+| element                  | position                | encodes                                                                                                                                                                                                               | reliability                                                 |
+| ------------------------ | ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
+| Portrait box             | left                    | actor's team primary color (red for BGM, dark for opp in this match)                                                                                                                                                  | **high** — clear gradient, only 2 distinct colors per match |
+| Actor line               | top-centre              | `X ON Y` (action) or `X VS Y` (faceoff), uppercase                                                                                                                                                                    | high                                                        |
+| Event-type pill          | mid-left of card        | `HIT` / `SHOT` / `GOAL` / `FACEOFF` / `PENALTY` in colored badge                                                                                                                                                      | high if OCR reads cleanly; otherwise `'unknown'`            |
+| Clock                    | right of pill           | `MM:SS` in [0:00, 19:59]                                                                                                                                                                                              | high                                                        |
+| Period label             | right of clock          | `1st Period` / `2nd Period` / `3rd Period` / `OT` / `OT2`...                                                                                                                                                          | high                                                        |
+| Play-arrow icon (▶)      | far right, before badge | presence = replayable highlight clip exists                                                                                                                                                                           | not extracted today                                         |
+| Event-type badge         | far right               | letter `S/H/G/P` inside circle. **Solid fill = home; white interior with team-color ring = away**. Per-match — for match 250 BGM is AWAY (scoreboard `BM` on left), so BGM rows are outlined. Faceoffs have no badge. | not extracted today                                         |
+| White border around card | whole-card outline      | this row is the currently-selected one                                                                                                                                                                                | high — already detected by `detect_selected_row_index`      |
+| Slight white tint on bg  | row-wide fill           | reinforces selection                                                                                                                                                                                                  | high (secondary signal for the same state)                  |
 
 ### Row formats by event type (confirmed conventions)
 
 Most events use one of two patterns (`X ON Y` for actions, `X VS Y` for
 faceoffs). Penalties use a **third pattern** with no relation token:
 
-| event_type | row format | fields |
-|---|---|---|
-| HIT | `X ON Y` | X = hitter, Y = victim |
-| SHOT | `X ON Y` | X = shooter, Y = goalie/defender |
-| GOAL | `X ON Y` | X = scorer, Y = goalie |
-| FACEOFF | `X VS Y` | X = **winner**, Y = loser. Faceoffs with no winner aren't recorded. |
+| event_type  | row format                    | fields                                                                                                                                                                                              |
+| ----------- | ----------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| HIT         | `X ON Y`                      | X = hitter, Y = victim                                                                                                                                                                              |
+| SHOT        | `X ON Y`                      | X = shooter, Y = goalie/defender                                                                                                                                                                    |
+| GOAL        | `X ON Y`                      | X = scorer, Y = goalie                                                                                                                                                                              |
+| FACEOFF     | `X VS Y`                      | X = **winner**, Y = loser. Faceoffs with no winner aren't recorded.                                                                                                                                 |
 | **PENALTY** | `X <INFRACTION> (<SEVERITY>)` | X = culprit, `INFRACTION` = one or more words (`INTERFERENCE`, `HIGH STICKING`, `CROSS CHECKING`, `TRIPPING`, `HOOKING`, `HOLDING`, `SLASHING`...), `SEVERITY` = `MINOR` / `MAJOR` / `DOUBLE MINOR` |
 
 **Penalties don't have a victim recorded** in this panel — only culprit +
@@ -79,28 +79,28 @@ because PHI is the away team there). The corresponding rink marker is a
 [`parse_post_game_action_tracker`](../../tools/game_ocr/game_ocr/parsers.py) →
 `ActionTrackerEvent`:
 
-| field | source | quality |
-|---|---|---|
-| `event_type` | pill text matched against `_ACTION_TRACKER_TYPES` | works when pill OCRs cleanly; falls back to `'unknown'` |
-| `actor_snapshot` | text before `ON`/`VS` | works |
-| `target_snapshot` | text after `ON`/`VS`, trailing chip letter stripped | works |
-| `relation` | `ON` or `VS` verbatim | works |
-| `clock` | regex `[01]?\d:[0-5]\d` against any line in the group | works, bounded to valid `MM:SS` |
-| `period_label` | from `period_label` ROI | works |
-| `period_number` | derived from `period_label` | works |
-| `selected_event_index` | white-border detector from spatial.py | works — validated 6/6 on ground-truth captures |
+| field                  | source                                                | quality                                                 |
+| ---------------------- | ----------------------------------------------------- | ------------------------------------------------------- |
+| `event_type`           | pill text matched against `_ACTION_TRACKER_TYPES`     | works when pill OCRs cleanly; falls back to `'unknown'` |
+| `actor_snapshot`       | text before `ON`/`VS`                                 | works                                                   |
+| `target_snapshot`      | text after `ON`/`VS`, trailing chip letter stripped   | works                                                   |
+| `relation`             | `ON` or `VS` verbatim                                 | works                                                   |
+| `clock`                | regex `[01]?\d:[0-5]\d` against any line in the group | works, bounded to valid `MM:SS`                         |
+| `period_label`         | from `period_label` ROI                               | works                                                   |
+| `period_number`        | derived from `period_label`                           | works                                                   |
+| `selected_event_index` | white-border detector from spatial.py                 | works — validated 6/6 on ground-truth captures          |
 
 ### Gaps (what's missing for the user's target output)
 
-| target | gap | available visual signal |
-|---|---|---|
-| **Penalties (UNVERIFIED)** | current parser regex requires `ON`/`VS`, which penalty rows don't have. May or may not be silently dropped — match 250 has no penalties and is the only ingested match. Test as soon as a penalty-containing match is OCR-ingested. | distinctive row text pattern `<player> <INFRACTION...> (<SEVERITY>)` with PENALTY pill |
-| **Team colour from visual signal** | currently inferred post-hoc via `player_display_aliases` lookup; silently misfires when alias is missing — caused the M. RANTANEN misclassification | portrait colour (HSV sample) — but **opp team color varies per match** (GREEN for PHI, dark for the match 250 opponent). Need per-match opp-color detection. |
-| **Per-row replay-clip flag** | not read | binary presence/absence of `▶` icon |
-| **Per-row y-centre as a field** | used internally, never exposed | already computed |
-| **Per-match BGM home/away identification** | not derived | scoreboard layout (`AWAY HOME` order); badge fill style (solid = home, outlined = away) |
-| **Cross-frame deduplication** | naive `(period, type, clock, actor)` exact match; misses OCR variants → phantom rows | sliding window of visible rows across frames; fuzzy matching + voting could canonicalise |
-| **Marker linkage for non-highlighted events** | only the yellow-highlighted row is linked to its rink marker | with the full-frame marker detector from the sister doc, every row could be paired |
+| target                                        | gap                                                                                                                                                                                                                                 | available visual signal                                                                                                                                      |
+| --------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Penalties (UNVERIFIED)**                    | current parser regex requires `ON`/`VS`, which penalty rows don't have. May or may not be silently dropped — match 250 has no penalties and is the only ingested match. Test as soon as a penalty-containing match is OCR-ingested. | distinctive row text pattern `<player> <INFRACTION...> (<SEVERITY>)` with PENALTY pill                                                                       |
+| **Team colour from visual signal**            | currently inferred post-hoc via `player_display_aliases` lookup; silently misfires when alias is missing — caused the M. RANTANEN misclassification                                                                                 | portrait colour (HSV sample) — but **opp team color varies per match** (GREEN for PHI, dark for the match 250 opponent). Need per-match opp-color detection. |
+| **Per-row replay-clip flag**                  | not read                                                                                                                                                                                                                            | binary presence/absence of `▶` icon                                                                                                                          |
+| **Per-row y-centre as a field**               | used internally, never exposed                                                                                                                                                                                                      | already computed                                                                                                                                             |
+| **Per-match BGM home/away identification**    | not derived                                                                                                                                                                                                                         | scoreboard layout (`AWAY HOME` order); badge fill style (solid = home, outlined = away)                                                                      |
+| **Cross-frame deduplication**                 | naive `(period, type, clock, actor)` exact match; misses OCR variants → phantom rows                                                                                                                                                | sliding window of visible rows across frames; fuzzy matching + voting could canonicalise                                                                     |
+| **Marker linkage for non-highlighted events** | only the yellow-highlighted row is linked to its rink marker                                                                                                                                                                        | with the full-frame marker detector from the sister doc, every row could be paired                                                                           |
 
 ### Specific failure modes observed in match 250
 
@@ -167,9 +167,9 @@ In addition to current fields, each row produces:
 2. **Badge fill-style sample** — sample centre vs annulus of the right-side `S`/`H`/`G`/`P`/diamond badge:
    - solid colored → actor's team is HOME in this match
    - white interior with team-color ring → actor's team is AWAY in this match
-   Captures the per-match home/away assignment. Scoreboard layout
-   (`AWAY HOME` order) is a parallel signal — if `BM` appears on the right
-   in the scoreboard, BGM is home; if on the left, BGM is away.
+     Captures the per-match home/away assignment. Scoreboard layout
+     (`AWAY HOME` order) is a parallel signal — if `BM` appears on the right
+     in the scoreboard, BGM is home; if on the left, BGM is away.
 3. **Replay-clip flag** — detect the `▶` icon by its known relative position within the card (or by a small template match). Boolean output.
 4. **Per-row y-centre** — already computed; surface as `row_y_center` field on `ActionTrackerEvent`.
 
@@ -324,6 +324,7 @@ Findings below — gathered 2026-05-11 via direct web research (not Deep Researc
 **Finding:** Three families are production-proven for OCR multi-observation. (1) **Consensus sequence voting** (Lopresti & Zhou 1996) — align multiple OCR outputs character-by-character via dynamic programming, vote per position; eliminates 20–50% of single-pass errors with no a-priori assumptions about error distribution. (2) **ROVER** (NIST) — alignment via word-transition network + voting; modes include frequency-only, average-confidence (`-m avgconf`), and max-confidence (`-m maxconf`); the `-a` flag tunes the confidence-vs-frequency tradeoff. (3) **Confidence-Weighted Majority Voting (CWMV)** — provably optimal aggregation when per-observation confidence is reliable; matches real group decisions, beats unweighted majority. **Recommended for us: CWMV at the field level, ROVER-style DP alignment at the row level.**
 
 **Evidence:**
+
 - [Lopresti & Zhou 1996 — Using Consensus Sequence Voting to Correct OCR Errors](https://www.sciencedirect.com/science/article/abs/pii/S1077314296905020) — 20–50% error reduction over single-pass; foundational.
 - [NIST SCTK / ROVER docs](https://github.com/usnistgov/SCTK/blob/master/doc/rover.htm) — three voting modes; DP-based WTN alignment.
 - [Group decisions based on confidence weighted majority voting (PMC)](https://pmc.ncbi.nlm.nih.gov/articles/PMC7960862/) — CWMV proven optimal; UCMV underperforms.
@@ -335,9 +336,10 @@ Findings below — gathered 2026-05-11 via direct web research (not Deep Researc
 
 ##### Question A2 — production examples in scrolling lists
 
-**Finding:** No published paper on *scrolling-list-specific* OCR consensus. Closest production analogues are **esports overlay extractors** (PandaScore for CS:GO/LoL/Dota, ScoreSight for live broadcast scoreboards, LeagueOCR for League of Legends) which all combine **fixed-position constraints + multi-frame smoothing**. PandaScore explicitly uses a "blueprint system" with per-overlay parametric constraints and conditional-IoU box-classification; ScoreSight calls its multi-frame aggregation "Semantic Smoothing — getting more consistent outputs with higher accuracy and confidence by averaging several text outputs."
+**Finding:** No published paper on _scrolling-list-specific_ OCR consensus. Closest production analogues are **esports overlay extractors** (PandaScore for CS:GO/LoL/Dota, ScoreSight for live broadcast scoreboards, LeagueOCR for League of Legends) which all combine **fixed-position constraints + multi-frame smoothing**. PandaScore explicitly uses a "blueprint system" with per-overlay parametric constraints and conditional-IoU box-classification; ScoreSight calls its multi-frame aggregation "Semantic Smoothing — getting more consistent outputs with higher accuracy and confidence by averaging several text outputs."
 
 **Evidence:**
+
 - [PandaScore: Automated Object Localisation in Esports Streams](https://www.pandascore.co/blog/automated-object-localisation-in-esports-video-streams) — blueprint + MCTS + OCR-classified detections; "close to 100% accuracy" on timer/score.
 - [ScoreSight (royshil/scoresight on GitHub)](https://github.com/royshil/scoresight) — "Semantic Smoothing" for temporal consistency.
 - [Modulai/Abios — Real-time esport tracking](https://modulai.io/blog/enabling-real-time-e-sport-tracking-with-streaming-video-object-detection/) — deep-learning object detection on CS:GO, LoL, Dota, Fortnite.
@@ -352,6 +354,7 @@ Findings below — gathered 2026-05-11 via direct web research (not Deep Researc
 **Finding:** Industry standard is **per-field confidence thresholds** routing low-confidence extractions to a manual-review queue. Specific recommendation: each field-type gets its own cutoff (clock might need 0.85, actor name 0.75, event type 0.7) because the cost of a misread differs. Microsoft Document Intelligence, AWS Textract, and most enterprise OCR all expose per-field confidence and recommend tuning thresholds per-field-type rather than globally.
 
 **Evidence:**
+
 - [llamaindex glossary — Confidence Threshold](https://www.llamaindex.ai/glossary/what-is-confidence-threshold) — per-field threshold rationale.
 - [Microsoft Document Intelligence — Accuracy & Confidence](https://learn.microsoft.com/en-us/azure/ai-services/document-intelligence/concept/accuracy-confidence?view=doc-intel-4.0.0) — recommends per-field tuning, 0.7–0.8 typical baseline.
 - [Extend.ai — Best Confidence Scoring Systems 2026](https://www.extend.ai/resources/best-confidence-scoring-systems-document-processing) — review-queue routing patterns.
@@ -366,9 +369,10 @@ Findings below — gathered 2026-05-11 via direct web research (not Deep Researc
 
 ##### Question B4 — library benchmark for Python 2026
 
-**Finding:** **RapidFuzz wins on both speed and API ergonomics.** Single-threaded ~2,500 string-pairs/sec vs. python-Levenshtein at 1,800, Jellyfish at 1,600, FuzzyWuzzy at 1,200. C++ core, NumPy-vectorised `process.cdist`. FuzzyWuzzy is effectively deprecated (its core maintainer moved to RapidFuzz). Jellyfish is still best-in-class for *phonetic* algorithms (Metaphone, Soundex) but slower at edit distance.
+**Finding:** **RapidFuzz wins on both speed and API ergonomics.** Single-threaded ~2,500 string-pairs/sec vs. python-Levenshtein at 1,800, Jellyfish at 1,600, FuzzyWuzzy at 1,200. C++ core, NumPy-vectorised `process.cdist`. FuzzyWuzzy is effectively deprecated (its core maintainer moved to RapidFuzz). Jellyfish is still best-in-class for _phonetic_ algorithms (Metaphone, Soundex) but slower at edit distance.
 
 **Evidence:**
+
 - [Similarity API 2026 Benchmarks](https://similarity-api.com/blog/speed-benchmarks) — head-to-head pairs/sec.
 - [RapidFuzz GitHub](https://github.com/rapidfuzz/RapidFuzz) — actively maintained 2026, C++ backend.
 - [Comparative Analysis of Python Text Matching Libraries (IJEEdu)](https://ijeedu.com/index.php/ijeedu/article/view/188) — 50,000-case multilingual study; Levenshtein wins non-Latin, FuzzyWuzzy good for varied lengths, Jellyfish best phonetic, RapidFuzz fastest overall.
@@ -382,6 +386,7 @@ Findings below — gathered 2026-05-11 via direct web research (not Deep Researc
 **Finding:** **Jaro-Winkler for short tokens (gamertags ≤ 15 chars)** — empirical studies (cited by Babel Street and Datablist) found "fewer errors typically occur at the beginning of names," which Jaro-Winkler exploits via prefix bonus (up to first 4 chars). Plain Levenshtein is the right fallback when prefix-OCR errors do happen (e.g. `fOEWS` for `TOEWS` is a leading-letter confusion that Jaro-Winkler penalises hardest — Levenshtein 1 is more forgiving). **Phonetic codes (Soundex/Metaphone) are wrong for OCR**: they target human typos/sound-alikes, not visual letter confusions. Q-gram (n-gram overlap) handles substitutions well but is slower than Levenshtein with no real accuracy advantage on short strings.
 
 **Evidence:**
+
 - [Datablist — What is Jaro-Winkler Distance](https://www.datablist.com/learn/data-cleaning/fuzzy-matching-jaro-winkler-distance) — prefix bonus rationale.
 - [Babel Street — Fuzzy Name Matching Techniques](https://www.babelstreet.com/blog/fuzzy-name-matching-techniques) — Jaro-Winkler best for people names.
 - [DataLadder — Fuzzy Matching 101](https://dataladder.com/fuzzy-matching-101/) — five-category taxonomy; phonetic explicitly designed for sound-alike (not visual) confusion.
@@ -395,12 +400,14 @@ Findings below — gathered 2026-05-11 via direct web research (not Deep Researc
 **Finding:** Standard pattern is **score_cutoff + cluster-then-canonicalise**: if `process.extractOne(query, known_vocab, score_cutoff=T)` returns `None`, the token is OOV. Group all OOV tokens across captures, cluster by mutual fuzzy distance (DBSCAN with `eps = 1 - JW_threshold`), and the cluster centroid becomes a new candidate identity. Surface to a human-review queue for confirmation; on confirmation, add to `player_display_aliases`. This is how fraud-detection systems handle "new entity" detection.
 
 **Evidence:**
+
 - [Tilores — Fuzzy Matching Algorithms for Data Deduplication](https://tilores.io/fuzzy-matching-algorithms) — cluster-then-canonicalise patterns.
 - [DBSCAN sklearn docs](https://scikit-learn.org/stable/modules/generated/sklearn.cluster.DBSCAN.html) — `metric="precomputed"` lets us feed a fuzzy-distance matrix directly from `rapidfuzz.process.cdist`.
 
 **Confidence:** medium — pattern is well-known; OCR-specific tuning of `eps` will need empirical calibration.
 **Applicability:** high — opp rosters change every match and we have no canonical list.
 **Code/library pointers:**
+
 ```python
 from rapidfuzz import process, distance
 sim_matrix = process.cdist(unknown_tokens, unknown_tokens,
@@ -419,6 +426,7 @@ labels = DBSCAN(eps=0.15, min_samples=2, metric="precomputed").fit_predict(dist_
 **Finding:** Two stacked techniques. (1) **2x–4x upsample first** (intelligent, not pixel-replication) — improves OCR on small text by recovering H.264 compression loss; PaddleOCR's own docs say text < 10 px tall is unreliable. (2) **Channel isolation, not greyscale** — for white-on-saturated-colour, take the **V channel of HSV** (since white = high V, dark backgrounds = low V) instead of converting to grey; binarise with Otsu. Skip adaptive binarisation here — the pill background is uniform, so global Otsu is fine.
 
 **Evidence:**
+
 - [Aspose Cloud OCR — Upsample Images for Small Text](https://tutorials.aspose.cloud/ocr/preprocess-image/upsample-image/) — 2x–4x upscale stabilises OCR under compression.
 - [Tesseract docs — Improving Quality](https://tesseract-ocr.github.io/tessdoc/ImproveQuality.html) — segmentation mode (`--psm`) for single-line text helps tiny labels; adding a white border helps tightly cropped text.
 - [arXiv 1509.03456 — OCR Accuracy via Preprocessing](https://arxiv.org/pdf/1509.03456) — channel isolation > greyscale for colored backgrounds.
@@ -427,6 +435,7 @@ labels = DBSCAN(eps=0.15, min_samples=2, metric="precomputed").fit_predict(dist_
 **Confidence:** high — these are textbook OCR preprocessing techniques.
 **Applicability:** high — our pill is the prototypical "white text on uniform saturated background" case.
 **Code/library pointers:**
+
 ```python
 import cv2
 def preprocess_pill(roi):
@@ -443,6 +452,7 @@ def preprocess_pill(roi):
 **Finding:** **Yes, a tiny CNN beats OCR here**, and not by a small margin. Existing reference: `semantic-icon-classifier` (CNN over 99 Android icon classes, 100×100 px input, `small_cnn_weights_100_512.h5`) demonstrates feasibility at our scale. Training data: ~200 labelled samples per class is enough for a 5-class problem with `mobilenet_v3_small` backbone or even a 3-layer custom CNN. Expected accuracy: ≥ 99% (the 5 classes are visually distinctive — `HIT`, `SHOT`, `GOAL`, `PENALTY`, `FACEOFF` differ in colour AND text length). Inference cost: ~1 ms/pill on CPU. Compared to OCR which fails ~10% of the time on these glyphs ("unknown" rows in match 250), the CNN wins on every axis.
 
 **Evidence:**
+
 - [semantic-icon-classifier (GitHub)](https://github.com/datadrivendesign/semantic-icon-classifier) — 99 classes, small CNN, working reference.
 - [TFLite Image Classification tutorial](https://www.tensorflow.org/tutorials/images/classification) — minimal 5-class image classifier template.
 - [Calamari OCR ensemble — 30–50% CER reduction notes](https://intuitionlabs.ai/articles/non-llm-ocr-technologies) — illustrates upper bound of OCR-only approaches; classifiers exceed this.
@@ -460,6 +470,7 @@ def preprocess_pill(roi):
 **Finding:** Sample the patch with `cv2.cvtColor(roi, cv2.COLOR_BGR2HSV)`, then take the **median H, S, V over a small central region** (avoid edges where compression artefacts cluster). For "red vs anything-else" use a wide-ish hue tolerance because BGM red varies under different rink-art shading: red satisfies `(H ∈ [0,10] ∪ [170,180]) AND S > 100 AND V > 80`. **Use median over mean** — median is the textbook robust statistic for image regions under H.264 compression (mean drags toward block-boundary smearing).
 
 **Evidence:**
+
 - [OpenCV color spaces docs](https://opencv.org/color-spaces-in-opencv/) — HSV separates colour from intensity, easier under varying lighting.
 - [LearnCodeByGaming — HSV Color Range Thresholding](https://learncodebygaming.com/blog/hsv-color-range-thresholding) — practical HSV ranges for game-UI work; median sampling for robustness.
 - [GeeksforGeeks — HSV boundaries for cv::inRange](https://www.geeksforgeeks.org/computer-vision/choosing-the-correct-upper-and-lower-hsv-boundaries-for-color-detection-with-cv-inrange-opencv/) — red hue wraps around 0/180, needs two ranges.
@@ -467,6 +478,7 @@ def preprocess_pill(roi):
 **Confidence:** high — well-established CV practice.
 **Applicability:** high — exactly our portrait-colour-classification problem.
 **Code/library pointers:**
+
 ```python
 def is_portrait_red(roi):
     h, w = roi.shape[:2]
@@ -475,6 +487,7 @@ def is_portrait_red(roi):
     H, S, V = np.median(hsv.reshape(-1, 3), axis=0)
     return ((H <= 10 or H >= 170) and S > 100 and V > 80)
 ```
+
 For per-match opp-colour detection: take the dominant non-red hue from a known-opp portrait, store as `opp_team_hue` per match.
 
 ##### Question D10 — play-arrow icon detection
@@ -482,6 +495,7 @@ For per-match opp-colour detection: take the dominant non-red hue from a known-o
 **Finding:** **Template matching at known scale** is sufficient — the icon's position is fixed within the card and the scale doesn't vary (single-source captures, 1920×1080). Use `cv2.matchTemplate(roi, template, cv2.TM_CCOEFF_NORMED)` with threshold 0.7+. Multi-scale is unnecessary here. Fallback if the template has noticeable per-frame variation: **edge-density signature** — count Canny edges in the expected ROI; presence of `▶` produces a characteristic triangular edge cluster distinct from absence (flat).
 
 **Evidence:**
+
 - [PyImageSearch — Multi-scale Template Matching](https://pyimagesearch.com/2015/01/26/multi-scale-template-matching-using-python-opencv/) — TM_CCOEFF_NORMED standard.
 - [Funvision OpenCV Tutorial — matchTemplate](https://www.funvisiontutorials.com/2023/07/cvmatchtemplate-function-in-opencv-to.html) — 0.7 threshold is "good match"; 0.99 is near-perfect.
 
@@ -492,11 +506,13 @@ For per-match opp-colour detection: take the dominant non-red hue from a known-o
 ##### Question D11 — solid-vs-outlined badge classification
 
 **Finding:** Sample **centre pixel** vs **annulus pixels** of the badge:
+
 - Solid (home): centre and annulus both saturated team-colour
 - Outlined (away): centre is near-white (S < 30), annulus is team-colour
-Robust statistic again: median over a 3×3 patch at each sample location. Threshold on the **S channel difference** between centre and annulus — large delta = outlined.
+  Robust statistic again: median over a 3×3 patch at each sample location. Threshold on the **S channel difference** between centre and annulus — large delta = outlined.
 
 **Evidence:**
+
 - Same HSV / median pattern as D9; no domain-specific paper but the technique is standard for "solid vs hollow shape" classification in CV.
 
 **Confidence:** medium — no direct paper, but the operation is mechanical given clean ROI sampling.
@@ -509,9 +525,10 @@ Robust statistic again: median over a 3×3 patch at each sample location. Thresh
 
 ##### Question E12 — reconstructing list ordering from N frames
 
-**Finding:** **Bioinformatics overlap-layout-consensus (OLC)** is the closest established technique. Each capture is a "read" with a stretch of overlapping events; align via local DP (Smith-Waterman style) on the `(clock, actor)` key; merge into an event genome. Free end-gaps (no penalty for content extending past the capture frame) handle top/bottom cutoffs. For *scroll offset estimation* per frame, anchor on a known event clock (e.g. the first row's clock) and integer-divide by row-height to derive a synthetic scroll position.
+**Finding:** **Bioinformatics overlap-layout-consensus (OLC)** is the closest established technique. Each capture is a "read" with a stretch of overlapping events; align via local DP (Smith-Waterman style) on the `(clock, actor)` key; merge into an event genome. Free end-gaps (no penalty for content extending past the capture frame) handle top/bottom cutoffs. For _scroll offset estimation_ per frame, anchor on a known event clock (e.g. the first row's clock) and integer-divide by row-height to derive a synthetic scroll position.
 
 **Evidence:**
+
 - [JHU Lecture — Overlap-Layout-Consensus Assembly](https://www.cs.jhu.edu/~langmea/resources/lecture_notes/assembly_olc.pdf) — fundamental algorithm.
 - [SeqAn Pairwise Sequence Alignment](https://seqan.readthedocs.io/en/seqan-v2.0.2/Tutorial/PairwiseSequenceAlignment.html) — free-end-gap variant ("overlap alignment").
 - [ResearchGate — Improved Version Using Noisy OCR from Multiple Editions](https://ciir-publications.cs.umass.edu/getpdf.php?id=1104) — DP alignment applied directly to OCR'd text from multiple sources.
@@ -525,6 +542,7 @@ Robust statistic again: median over a 3×3 patch at each sample location. Thresh
 **Finding:** **Donut and LayoutParser don't help us directly.** Both are designed for single-image document understanding, not multi-frame consolidation. The "frames" they care about are pages within a single PDF, and they assume each page is content-complete. Multi-frame video OCR libraries do exist (Microsoft Azure Video Indexer, Google Cloud Video Intelligence) but are closed-source SaaS. The 2002 CMU paper "Robust Video Text Segmentation and Recognition with Multiple Hypotheses" (Odobez & Chen) is the seminal reference for our specific pattern — keep top-K hypotheses per region, vote across frames.
 
 **Evidence:**
+
 - [Robust Video Text Segmentation (Odobez & Chen, CMU)](http://www.cs.cmu.edu/~datong/ICIP02.pdf) — top-K hypotheses + cross-frame voting; 93.1% → 97.9% with K=3.
 - [Multi-frame Combination for Robust Videotext Recognition (IEEE)](https://ieeexplore.ieee.org/document/4517870/) — direct multi-frame voting study.
 - [Scene Text Recognition in Multiple Frames Based on Text Tracking](https://xrong.org/publications/icme14.pdf) — tracking-based variant.
@@ -541,6 +559,7 @@ Robust statistic again: median over a 3×3 patch at each sample location. Thresh
 ##### Question F14 — multi-source event canonicalisation
 
 **Finding:** Event-sourcing canonical pattern: **separate raw observations from canonical facts**. Concretely:
+
 - Raw `ocr_observations` table (immutable, per-capture-per-row): keep everything OCR'd, including misreads.
 - Canonical `match_events` table: produced by the consensus engine; source-of-truth.
 - A `match_event_source_links` join table records which raw observations voted for each canonical event, with confidence scores.
@@ -548,6 +567,7 @@ Robust statistic again: median over a 3×3 patch at each sample location. Thresh
 This gives **source priority + weighted merge + audit trail** in one schema. The pattern is from CQRS/event-sourcing; deduplication at the projection layer (consensus engine) is established practice. Idempotency: canonical event ID = hash of `(match_id, period, canonical_clock, canonical_actor, canonical_type)` so reprocessing the same raw observations produces the same canonical row.
 
 **Evidence:**
+
 - [Microservices.io — Event Sourcing](https://microservices.io/patterns/data/event-sourcing.html) — canonical fact pattern.
 - [DomainCentric — Event Sourcing Projections Deduplication](https://domaincentric.net/blog/event-sourcing-projection-patterns-deduplication-strategies) — projection-layer dedup; at-least-once + idempotent keys.
 - [SoftwareMill — Event Sourcing with Relational DB](https://softwaremill.com/implementing-event-sourcing-using-a-relational-database/) — concrete schema patterns in Postgres.
@@ -555,6 +575,7 @@ This gives **source priority + weighted merge + audit trail** in one schema. The
 **Confidence:** high — well-established architecture.
 **Applicability:** high — our current schema already keeps raw OCR results separate; just needs the canonical/links layer.
 **Code/library pointers:** Drizzle schema:
+
 ```typescript
 match_event_source_links: pgTable({
   canonical_event_id: bigint().references(() => matchEvents.id),
@@ -569,6 +590,7 @@ match_event_source_links: pgTable({
 **Finding:** **JSONB column per-event** is the right Postgres pattern. Schema: `match_events.field_confidence jsonb` storing `{"clock": 0.97, "actor": 0.83, "event_type": 1.0, "team_side": 0.91}`. Index with `jsonb_path_ops` GIN if querying by confidence is common; usually it isn't (queries filter on the canonical fields, not confidence), so no index. **CHECK constraint** validates structure if schema-stability matters.
 
 **Evidence:**
+
 - [PostgreSQL JSONB docs (18)](https://www.postgresql.org/docs/current/datatype-json.html) — JSONB indexing and operators.
 - [AWS — PostgreSQL as a JSON database: patterns](https://aws.amazon.com/blogs/database/postgresql-as-a-json-database-advanced-patterns-and-best-practices/) — per-document-metadata in JSONB column.
 - [Heap — When to Avoid JSONB](https://www.heap.io/blog/when-to-avoid-jsonb-in-a-postgresql-schema) — relevant counterpoint: don't put queryable fields in JSONB.
@@ -586,6 +608,7 @@ match_event_source_links: pgTable({
 **Finding:** Standard three-stage pattern: **(1) per-frame extraction** (single-capture parsing) → **(2) cross-frame consensus** (the new layer we need) → **(3) downstream business-logic dedup** (matching events to rink markers, joining to players). Keep them as independent processes communicating via tables: extraction writes raw observations, consensus reads + writes canonical events, downstream reads canonical events. This matches CQRS projection-style architecture and lets each stage be reprocessed independently.
 
 **Evidence:**
+
 - [Dropbox — Modern OCR Pipeline](https://dropbox.tech/machine-learning/creating-a-modern-ocr-pipeline-using-computer-vision-and-deep-learning) — three-stage architecture (detection → recognition → understanding).
 - [Towards Data Science — Scalable OCR Pipelines on AWS](https://towardsdatascience.com/scalable-ocr-pipelines-using-aws-88b3c130a1ea/) — separation of concerns in production.
 - [HealthEdge — Scalable OCR Pipeline](https://healthedge.com/resources/blog/building-a-scalable-ocr-pipeline-technical-architecture-behind-healthedge-s-document-processing-platform) — three-stage + confidence routing + manual-review queue.
@@ -597,12 +620,14 @@ match_event_source_links: pgTable({
 ##### Question G17 — end-to-end testing with multi-frame inputs
 
 **Finding:** **Unit-test-driven evaluation against synthetic ground truth** is the 2026 state-of-the-art. Two concrete frameworks:
+
 - **OlmOCR-Bench** — auto-generates fine-grained unit tests from HTML-rendered ground truth; benchmarks output against per-test assertions, not free-text comparison.
 - **LiteParse** — "Gold Standard" baseline stored as HuggingFace dataset; current run diff'd against known-good per page.
 
 For our use case, the analogous setup: **match 250's 72 manually-curated non-faceoff events ARE the gold standard**; build a regression suite that asserts the new pipeline produces exactly those events (per-field exact match where possible, fuzzy ≥ 0.95 for OCR'd text).
 
 **Evidence:**
+
 - [OlmOCR-Bench (EmergentMind)](https://www.emergentmind.com/topics/olmocr-bench) — unit-test-driven OCR evaluation.
 - [LiteParse Testing & QA (DeepWiki)](https://deepwiki.com/run-llama/liteparse/8-testing-and-quality-assurance) — multi-layered E2E + regression dataset.
 - [Signzy — State-of-the-art OCR Pipeline](https://www.signzy.com/blogs/ocr-pipeline-built-using-deep-learning) — production regression-test architecture.
@@ -617,24 +642,24 @@ For our use case, the analogous setup: **match 250's 72 manually-curated non-fac
 
 #### Fuzzy-string libraries (Python 2026)
 
-| Approach | Strengths | Weaknesses | Best for | Library | Maturity |
-|---|---|---|---|---|---|
-| RapidFuzz (Levenshtein/Jaro-Winkler) | Fastest (~2,500 pairs/s); `process.cdist` batch API; C++ core | No phonetic algorithms | OCR canonicalisation; bulk vocabulary matching | `rapidfuzz` 3.14+ | Active (2026) |
-| Jellyfish | Best-in-class phonetic (Metaphone, Soundex); pure-Python fallback | Slower (~1,600 pairs/s); awkward API | Sound-alike matching (NOT our case) | `jellyfish` | Active |
-| python-Levenshtein | Simple C extension | No batch API; manual loops | Single-pair fast path | `python-Levenshtein` | Active |
-| FuzzyWuzzy | Familiar API (`fuzz.ratio`) | Deprecated; maintainer moved to RapidFuzz | Legacy code | `fuzzywuzzy` | Maintenance-only |
-| Difflib (stdlib) | No install | Slow (~1,000 pairs/s) | Quick scripts | stdlib | Stable |
+| Approach                             | Strengths                                                         | Weaknesses                                | Best for                                       | Library              | Maturity         |
+| ------------------------------------ | ----------------------------------------------------------------- | ----------------------------------------- | ---------------------------------------------- | -------------------- | ---------------- |
+| RapidFuzz (Levenshtein/Jaro-Winkler) | Fastest (~2,500 pairs/s); `process.cdist` batch API; C++ core     | No phonetic algorithms                    | OCR canonicalisation; bulk vocabulary matching | `rapidfuzz` 3.14+    | Active (2026)    |
+| Jellyfish                            | Best-in-class phonetic (Metaphone, Soundex); pure-Python fallback | Slower (~1,600 pairs/s); awkward API      | Sound-alike matching (NOT our case)            | `jellyfish`          | Active           |
+| python-Levenshtein                   | Simple C extension                                                | No batch API; manual loops                | Single-pair fast path                          | `python-Levenshtein` | Active           |
+| FuzzyWuzzy                           | Familiar API (`fuzz.ratio`)                                       | Deprecated; maintainer moved to RapidFuzz | Legacy code                                    | `fuzzywuzzy`         | Maintenance-only |
+| Difflib (stdlib)                     | No install                                                        | Slow (~1,000 pairs/s)                     | Quick scripts                                  | stdlib               | Stable           |
 
 #### Consensus voting schemes
 
-| Approach | Strengths | Weaknesses | Best for | Library |
-|---|---|---|---|---|
-| Simple majority (per field) | Trivial; no confidence needed | Loses to CWMV; ignores variance | First pass / debugging | None — DIY |
-| Confidence-Weighted Majority Voting (CWMV) | Provably optimal w/ reliable confidence | Requires per-field confidence scores | Production OCR consensus | DIY — straightforward |
-| ROVER (NIST) | Battle-tested ASR algorithm; three voting modes | Designed for word-sequence; adapt for OCR | When multiple OCR engines vote | `SCTK` (C, NIST) |
-| RANSAC | Robust to outliers | Needs continuous parameter space | Geometric fits, not text | scikit-image |
-| DBSCAN | Handles unknown cluster count | Tuning `eps` empirical | OOV gamertag discovery | `sklearn` |
-| Probabilistic graphical models (CRF/HMM) | Models sequential dependencies | Overkill for ~6 events × 4 fields | Complex sequential structure | `sklearn-crfsuite` |
+| Approach                                   | Strengths                                       | Weaknesses                                | Best for                       | Library               |
+| ------------------------------------------ | ----------------------------------------------- | ----------------------------------------- | ------------------------------ | --------------------- |
+| Simple majority (per field)                | Trivial; no confidence needed                   | Loses to CWMV; ignores variance           | First pass / debugging         | None — DIY            |
+| Confidence-Weighted Majority Voting (CWMV) | Provably optimal w/ reliable confidence         | Requires per-field confidence scores      | Production OCR consensus       | DIY — straightforward |
+| ROVER (NIST)                               | Battle-tested ASR algorithm; three voting modes | Designed for word-sequence; adapt for OCR | When multiple OCR engines vote | `SCTK` (C, NIST)      |
+| RANSAC                                     | Robust to outliers                              | Needs continuous parameter space          | Geometric fits, not text       | scikit-image          |
+| DBSCAN                                     | Handles unknown cluster count                   | Tuning `eps` empirical                    | OOV gamertag discovery         | `sklearn`             |
+| Probabilistic graphical models (CRF/HMM)   | Models sequential dependencies                  | Overkill for ~6 events × 4 fields         | Complex sequential structure   | `sklearn-crfsuite`    |
 
 ---
 
@@ -901,11 +926,11 @@ Concrete recipe for training the 5-class pill classifier:
 
 #### Three-tier temporal fusion progression
 
-| Tier | Method | Use when |
-|---|---|---|
-| Baseline | Confidence-weighted majority vote on whole strings | Smallest budget; sanity check |
-| **Default** | Character-level alignment + uncertainty fusion (CVTS-style) | Most cases — our recommended target |
-| Advanced | Tiny transformer over row-track embeddings | Only after labeled row tracks are abundant |
+| Tier        | Method                                                      | Use when                                   |
+| ----------- | ----------------------------------------------------------- | ------------------------------------------ |
+| Baseline    | Confidence-weighted majority vote on whole strings          | Smallest budget; sanity check              |
+| **Default** | Character-level alignment + uncertainty fusion (CVTS-style) | Most cases — our recommended target        |
+| Advanced    | Tiny transformer over row-track embeddings                  | Only after labeled row tracks are abundant |
 
 Target the middle tier. Skip the advanced tier — under our scale
 it's all downside.
@@ -932,16 +957,17 @@ for the regression suite.
 
 Field-separated, not collapsed:
 
-| Layer | Metric | Threshold |
-|---|---|---|
-| Tracking | Row-track IDF1 | ≥ 0.85 |
-| Per-field OCR | CER (clock) | ≤ 0.02 |
-| Per-field OCR | CER (actor) | ≤ 0.05 |
-| Per-field OCR | event_type accuracy | ≥ 0.98 |
-| Calibration | ECE (expected calibration error) | ≤ 0.05 |
-| End-to-end | Exact-match event accuracy vs match 250 V2 | 72/72 non-faceoff |
+| Layer         | Metric                                     | Threshold         |
+| ------------- | ------------------------------------------ | ----------------- |
+| Tracking      | Row-track IDF1                             | ≥ 0.85            |
+| Per-field OCR | CER (clock)                                | ≤ 0.02            |
+| Per-field OCR | CER (actor)                                | ≤ 0.05            |
+| Per-field OCR | event_type accuracy                        | ≥ 0.98            |
+| Calibration   | ECE (expected calibration error)           | ≤ 0.05            |
+| End-to-end    | Exact-match event accuracy vs match 250 V2 | 72/72 non-faceoff |
 
 Runtime budgets (for the eventual video pipeline):
+
 - ≤ 30 ms per OCR'd frame on CPU
 - Scroll-motion gate + ECC alignment ≤ 5 ms per frame
 
@@ -962,25 +988,25 @@ concrete engagement. The rest remain open — to be answered via
 internal spikes (the pre-game-extraction pattern) rather than another
 Deep Research round:
 
-| # | Question | Path forward |
-|---|---|---|
-| A1 | DP alignment kernel for row clustering with same-clock collisions | Internal spike: prototype Smith-Waterman on tuple-encoded rows |
-| A2 | RapidOCR confidence calibration (Platt / isotonic specifics) | Internal: temperature scaling on match 250 calibration set |
-| B5 | Empirical Jaro-Winkler threshold for our OCR-confusion table | Internal: parameter sweep on match 250 |
-| B6 | JW + Levenshtein fusion rules | Internal: A/B compare on match 250 |
-| B7 | DBSCAN eps tuning for OOV gamertag clustering | Internal: k-distance plot on observed unknowns |
-| B8 | Vocabulary-expansion patterns for new opp rosters | Internal: design pattern |
-| C11 | Few-shot training for pill CNN (50 vs 200 vs 1000 samples) | Internal: crop training data from match 250, ablation |
-| C12 | ONNX-Runtime-Node vs subprocess vs FastAPI sidecar | Internal: small benchmark on actual deployment box |
-| D13 | Per-match opp-team-colour auto-detection | Internal: portrait-color spike (technique already from marker dossier) |
-| D14 | Solid-vs-outlined badge edge cases | Internal: HSV sample from match 250 captures |
-| E16 | Frame-duplicate detection in video stream | Internal: perceptual hash on the panel ROI |
-| E17 | GOT-OCR2.0 / Nougat for scrolling-list ingestion in 2026 | Internal: 30-min spike; defer if not promising |
-| F18 | Concrete Postgres DDL with indexes | Internal: schema design pass when we start implementation |
-| F20 | Identity-resolution propagation to past events | Internal: schema pattern |
-| G21 | Bootstrapping regression coverage from one gold match | Internal: design test harness |
-| G22 | Drift detection for EA UI updates | Internal: monitoring pattern |
-| G23 | Lightweight labelling tools comparison | Internal: pick one and run with it |
+| #   | Question                                                          | Path forward                                                           |
+| --- | ----------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| A1  | DP alignment kernel for row clustering with same-clock collisions | Internal spike: prototype Smith-Waterman on tuple-encoded rows         |
+| A2  | RapidOCR confidence calibration (Platt / isotonic specifics)      | Internal: temperature scaling on match 250 calibration set             |
+| B5  | Empirical Jaro-Winkler threshold for our OCR-confusion table      | Internal: parameter sweep on match 250                                 |
+| B6  | JW + Levenshtein fusion rules                                     | Internal: A/B compare on match 250                                     |
+| B7  | DBSCAN eps tuning for OOV gamertag clustering                     | Internal: k-distance plot on observed unknowns                         |
+| B8  | Vocabulary-expansion patterns for new opp rosters                 | Internal: design pattern                                               |
+| C11 | Few-shot training for pill CNN (50 vs 200 vs 1000 samples)        | Internal: crop training data from match 250, ablation                  |
+| C12 | ONNX-Runtime-Node vs subprocess vs FastAPI sidecar                | Internal: small benchmark on actual deployment box                     |
+| D13 | Per-match opp-team-colour auto-detection                          | Internal: portrait-color spike (technique already from marker dossier) |
+| D14 | Solid-vs-outlined badge edge cases                                | Internal: HSV sample from match 250 captures                           |
+| E16 | Frame-duplicate detection in video stream                         | Internal: perceptual hash on the panel ROI                             |
+| E17 | GOT-OCR2.0 / Nougat for scrolling-list ingestion in 2026          | Internal: 30-min spike; defer if not promising                         |
+| F18 | Concrete Postgres DDL with indexes                                | Internal: schema design pass when we start implementation              |
+| F20 | Identity-resolution propagation to past events                    | Internal: schema pattern                                               |
+| G21 | Bootstrapping regression coverage from one gold match             | Internal: design test harness                                          |
+| G22 | Drift detection for EA UI updates                                 | Internal: monitoring pattern                                           |
+| G23 | Lightweight labelling tools comparison                            | Internal: pick one and run with it                                     |
 
 ### Round-2 caveats
 
@@ -1002,10 +1028,10 @@ The "Concrete next-pass plan" above (8 steps) remains correct but two
 new items rise in priority for the video pipeline:
 
 0a. **Add per-frame scroll-velocity estimation** (phase correlation /
-   ECC) as the first stage of the video pipeline. Cheap, deterministic,
-   converts row-association from fuzzy to mechanical.
+ECC) as the first stage of the video pipeline. Cheap, deterministic,
+converts row-association from fuzzy to mechanical.
 0b. **Add smart-sampling gate**: detect "scroll-velocity ≈ 0 for
-   ≥100 ms" and only OCR those frames. Fallback to fixed 5-10 fps if
-   the gate misses too much content.
+≥100 ms" and only OCR those frames. Fallback to fixed 5-10 fps if
+the gate misses too much content.
 
 Both belong upstream of the consensus engine in the new pipeline.

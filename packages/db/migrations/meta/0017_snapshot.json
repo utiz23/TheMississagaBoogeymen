@@ -65,9 +65,7 @@
         "game_titles_slug_unique": {
           "name": "game_titles_slug_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "slug"
-          ]
+          "columns": ["slug"]
         }
       },
       "policies": {},
@@ -150,12 +148,8 @@
           "name": "content_seasons_game_title_id_game_titles_id_fk",
           "tableFrom": "content_seasons",
           "tableTo": "game_titles",
-          "columnsFrom": [
-            "game_title_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["game_title_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -240,12 +234,8 @@
           "name": "ingestion_log_game_title_id_game_titles_id_fk",
           "tableFrom": "ingestion_log",
           "tableTo": "game_titles",
-          "columnsFrom": [
-            "game_title_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["game_title_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -369,12 +359,8 @@
           "name": "raw_match_payloads_game_title_id_game_titles_id_fk",
           "tableFrom": "raw_match_payloads",
           "tableTo": "game_titles",
-          "columnsFrom": [
-            "game_title_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["game_title_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -382,12 +368,8 @@
           "name": "raw_match_payloads_ingestion_log_id_ingestion_log_id_fk",
           "tableFrom": "raw_match_payloads",
           "tableTo": "ingestion_log",
-          "columnsFrom": [
-            "ingestion_log_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["ingestion_log_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -461,12 +443,8 @@
           "name": "raw_member_stats_payloads_game_title_id_game_titles_id_fk",
           "tableFrom": "raw_member_stats_payloads",
           "tableTo": "game_titles",
-          "columnsFrom": [
-            "game_title_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["game_title_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -690,12 +668,8 @@
           "name": "matches_game_title_id_game_titles_id_fk",
           "tableFrom": "matches",
           "tableTo": "game_titles",
-          "columnsFrom": [
-            "game_title_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["game_title_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -703,12 +677,8 @@
           "name": "matches_content_season_id_content_seasons_id_fk",
           "tableFrom": "matches",
           "tableTo": "content_seasons",
-          "columnsFrom": [
-            "content_season_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["content_season_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -787,12 +757,8 @@
           "name": "player_gamertag_history_player_id_players_id_fk",
           "tableFrom": "player_gamertag_history",
           "tableTo": "players",
-          "columnsFrom": [
-            "player_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["player_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -860,9 +826,7 @@
         "players_ea_id_unique": {
           "name": "players_ea_id_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "ea_id"
-          ]
+          "columns": ["ea_id"]
         }
       },
       "policies": {},
@@ -923,12 +887,8 @@
           "name": "player_profiles_player_id_players_id_fk",
           "tableFrom": "player_profiles",
           "tableTo": "players",
-          "columnsFrom": [
-            "player_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["player_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -1250,12 +1210,8 @@
           "name": "player_match_stats_player_id_players_id_fk",
           "tableFrom": "player_match_stats",
           "tableTo": "players",
-          "columnsFrom": [
-            "player_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["player_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -1263,12 +1219,8 @@
           "name": "player_match_stats_match_id_matches_id_fk",
           "tableFrom": "player_match_stats",
           "tableTo": "matches",
-          "columnsFrom": [
-            "match_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["match_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -1602,12 +1554,8 @@
           "name": "opponent_player_match_stats_match_id_matches_id_fk",
           "tableFrom": "opponent_player_match_stats",
           "tableTo": "matches",
-          "columnsFrom": [
-            "match_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["match_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -1740,12 +1688,8 @@
           "name": "club_game_title_stats_game_title_id_game_titles_id_fk",
           "tableFrom": "club_game_title_stats",
           "tableTo": "game_titles",
-          "columnsFrom": [
-            "game_title_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["game_title_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -1994,12 +1938,8 @@
           "name": "player_game_title_stats_player_id_players_id_fk",
           "tableFrom": "player_game_title_stats",
           "tableTo": "players",
-          "columnsFrom": [
-            "player_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["player_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -2007,12 +1947,8 @@
           "name": "player_game_title_stats_game_title_id_game_titles_id_fk",
           "tableFrom": "player_game_title_stats",
           "tableTo": "game_titles",
-          "columnsFrom": [
-            "game_title_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["game_title_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -2280,12 +2216,8 @@
           "name": "ea_member_season_stats_game_title_id_game_titles_id_fk",
           "tableFrom": "ea_member_season_stats",
           "tableTo": "game_titles",
-          "columnsFrom": [
-            "game_title_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["game_title_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -2293,12 +2225,8 @@
           "name": "ea_member_season_stats_player_id_players_id_fk",
           "tableFrom": "ea_member_season_stats",
           "tableTo": "players",
-          "columnsFrom": [
-            "player_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["player_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -2679,12 +2607,8 @@
           "name": "historical_player_season_stats_game_title_id_game_titles_id_fk",
           "tableFrom": "historical_player_season_stats",
           "tableTo": "game_titles",
-          "columnsFrom": [
-            "game_title_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["game_title_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -2692,12 +2616,8 @@
           "name": "historical_player_season_stats_player_id_players_id_fk",
           "tableFrom": "historical_player_season_stats",
           "tableTo": "players",
-          "columnsFrom": [
-            "player_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["player_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -2977,12 +2897,8 @@
           "name": "historical_club_member_season_stats_game_title_id_game_titles_id_fk",
           "tableFrom": "historical_club_member_season_stats",
           "tableTo": "game_titles",
-          "columnsFrom": [
-            "game_title_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["game_title_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -2990,12 +2906,8 @@
           "name": "historical_club_member_season_stats_player_id_players_id_fk",
           "tableFrom": "historical_club_member_season_stats",
           "tableTo": "players",
-          "columnsFrom": [
-            "player_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["player_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -3110,12 +3022,8 @@
           "name": "historical_club_member_stat_sources_stat_row_id_historical_club_member_season_stats_id_fk",
           "tableFrom": "historical_club_member_stat_sources",
           "tableTo": "historical_club_member_season_stats",
-          "columnsFrom": [
-            "stat_row_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["stat_row_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -3220,12 +3128,8 @@
           "name": "club_seasonal_stats_game_title_id_game_titles_id_fk",
           "tableFrom": "club_seasonal_stats",
           "tableTo": "game_titles",
-          "columnsFrom": [
-            "game_title_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["game_title_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -3420,12 +3324,8 @@
           "name": "club_season_rank_game_title_id_game_titles_id_fk",
           "tableFrom": "club_season_rank",
           "tableTo": "game_titles",
-          "columnsFrom": [
-            "game_title_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["game_title_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }

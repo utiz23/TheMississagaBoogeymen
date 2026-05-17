@@ -13,9 +13,7 @@
       "rawScreenshot02Count": 29,
       "labelGlueNulls": {
         "screenshot01": [],
-        "screenshot02": [
-          "Penalty Minutes"
-        ]
+        "screenshot02": ["Penalty Minutes"]
       },
       "arithmeticFlags": [],
       "notes": "Extractor output (extract_club_team_stats.py). Pending review. No warnings emitted."
@@ -29,15 +27,8 @@
       "rawScreenshot01Count": 25,
       "rawScreenshot02Count": 27,
       "labelGlueNulls": {
-        "screenshot01": [
-          "Win Differential",
-          "Power Plays",
-          "Power Play Goals"
-        ],
-        "screenshot02": [
-          "Shorthanded Goals Ag",
-          "Power Play Goals"
-        ]
+        "screenshot01": ["Win Differential", "Power Plays", "Power Play Goals"],
+        "screenshot02": ["Shorthanded Goals Ag", "Power Play Goals"]
       },
       "arithmeticFlags": [],
       "notes": "Extractor output (extract_club_team_stats.py). Pending review. No warnings emitted."
@@ -66,9 +57,7 @@
       "rawScreenshot01Count": 29,
       "rawScreenshot02Count": 26,
       "labelGlueNulls": {
-        "screenshot01": [
-          "Losses"
-        ],
+        "screenshot01": ["Losses"],
         "screenshot02": []
       },
       "arithmeticFlags": [],
@@ -98,13 +87,8 @@
       "rawScreenshot01Count": 28,
       "rawScreenshot02Count": 27,
       "labelGlueNulls": {
-        "screenshot01": [
-          "Overtime Losses",
-          "DNF Wins"
-        ],
-        "screenshot02": [
-          "Power Play Goals"
-        ]
+        "screenshot01": ["Overtime Losses", "DNF Wins"],
+        "screenshot02": ["Power Play Goals"]
       },
       "arithmeticFlags": [],
       "notes": "Extractor output (extract_club_team_stats.py). Pending review. No warnings emitted."
@@ -149,9 +133,7 @@
       "rawScreenshot02Count": 29,
       "labelGlueNulls": {
         "screenshot01": [],
-        "screenshot02": [
-          "Penalty Shot Goals"
-        ]
+        "screenshot02": ["Penalty Shot Goals"]
       },
       "arithmeticFlags": [],
       "notes": "Extractor output (extract_club_team_stats.py). Pending review. No warnings emitted."
@@ -181,13 +163,9 @@
       "rawScreenshot02Count": 29,
       "labelGlueNulls": {
         "screenshot01": [],
-        "screenshot02": [
-          "Penalty Shot Goals"
-        ]
+        "screenshot02": ["Penalty Shot Goals"]
       },
-      "arithmeticFlags": [
-        "pim 144420 looks suspiciously high"
-      ],
+      "arithmeticFlags": ["pim 144420 looks suspiciously high"],
       "notes": "Extractor output (extract_club_team_stats.py). Pending review. No warnings emitted."
     },
     {
@@ -199,14 +177,8 @@
       "rawScreenshot01Count": 31,
       "rawScreenshot02Count": 27,
       "labelGlueNulls": {
-        "screenshot01": [
-          "Club Finals GP",
-          "Losses",
-          "Breakaway Goals"
-        ],
-        "screenshot02": [
-          "Goals For"
-        ]
+        "screenshot01": ["Club Finals GP", "Losses", "Breakaway Goals"],
+        "screenshot02": ["Goals For"]
       },
       "arithmeticFlags": [],
       "notes": "Extractor output (extract_club_team_stats.py). Pending review. No warnings emitted."
@@ -220,14 +192,8 @@
       "rawScreenshot01Count": 27,
       "rawScreenshot02Count": 27,
       "labelGlueNulls": {
-        "screenshot01": [
-          "Win/Loss Streak",
-          "Faceoffs Won"
-        ],
-        "screenshot02": [
-          "Win/Loss Streak",
-          "One-Timer Goals"
-        ]
+        "screenshot01": ["Win/Loss Streak", "Faceoffs Won"],
+        "screenshot02": ["Win/Loss Streak", "One-Timer Goals"]
       },
       "arithmeticFlags": [],
       "notes": "Extractor output (extract_club_team_stats.py). Pending review. No warnings emitted."
@@ -242,11 +208,7 @@
       "rawScreenshot02Count": 27,
       "labelGlueNulls": {
         "screenshot01": [],
-        "screenshot02": [
-          "Breakaway Goals",
-          "One-Timer Goals",
-          "Penalty Shot Goals"
-        ]
+        "screenshot02": ["Breakaway Goals", "One-Timer Goals", "Penalty Shot Goals"]
       },
       "arithmeticFlags": [],
       "notes": "Extractor output (extract_club_team_stats.py). Pending review. No warnings emitted."
@@ -260,14 +222,8 @@
       "rawScreenshot01Count": 31,
       "rawScreenshot02Count": 30,
       "labelGlueNulls": {
-        "screenshot01": [
-          "Division Titles",
-          "Club Finals GP",
-          "Win/Loss Streak"
-        ],
-        "screenshot02": [
-          "Win/Loss Streak"
-        ]
+        "screenshot01": ["Division Titles", "Club Finals GP", "Win/Loss Streak"],
+        "screenshot02": ["Win/Loss Streak"]
       },
       "arithmeticFlags": [],
       "notes": "Extractor output (extract_club_team_stats.py). Pending review. No warnings emitted.",
@@ -276,16 +232,8 @@
         "mismatches": 6,
         "missed": 2,
         "extractedOnly": 4,
-        "missedKeys": [
-          "division_titles",
-          "win_loss_streak"
-        ],
-        "extractedOnlyKeys": [
-          "did_not_finish_pct",
-          "one_timer_goals",
-          "one_timer_pct",
-          "otl"
-        ],
+        "missedKeys": ["division_titles", "win_loss_streak"],
+        "extractedOnlyKeys": ["did_not_finish_pct", "one_timer_goals", "one_timer_pct", "otl"],
         "mismatchDetails": [
           {
             "key": "blocked_shots",
@@ -330,14 +278,8 @@
       "rawScreenshot01Count": 31,
       "rawScreenshot02Count": 29,
       "labelGlueNulls": {
-        "screenshot01": [
-          "Division Titles",
-          "Club Finals GP",
-          "Win/Loss Streak"
-        ],
-        "screenshot02": [
-          "Penalty Shot Goals"
-        ]
+        "screenshot01": ["Division Titles", "Club Finals GP", "Win/Loss Streak"],
+        "screenshot02": ["Penalty Shot Goals"]
       },
       "arithmeticFlags": [],
       "notes": "Extractor output (extract_club_team_stats.py). Pending review. No warnings emitted.",
@@ -346,11 +288,7 @@
         "mismatches": 0,
         "missed": 3,
         "extractedOnly": 0,
-        "missedKeys": [
-          "breakaways",
-          "club_finals_gp",
-          "division_titles"
-        ],
+        "missedKeys": ["breakaways", "club_finals_gp", "division_titles"],
         "extractedOnlyKeys": [],
         "mismatchDetails": [],
         "pilotFile": "nhl25_eashl_6v6_pilot.json"
@@ -365,10 +303,7 @@
       "rawScreenshot01Count": 28,
       "rawScreenshot02Count": 29,
       "labelGlueNulls": {
-        "screenshot01": [
-          "Losses",
-          "Win/Loss Streak"
-        ],
+        "screenshot01": ["Losses", "Win/Loss Streak"],
         "screenshot02": []
       },
       "arithmeticFlags": [],

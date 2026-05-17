@@ -21,12 +21,12 @@ tier, featured badge, title, and visual treatment.
 Each badge family should eventually become structured data with these fields:
 
 ```ts
-type BadgeSourceStatus = "available" | "derived" | "manual" | "future"
+type BadgeSourceStatus = 'available' | 'derived' | 'manual' | 'future'
 
 type BadgeDefinition = {
   id: string
-  scope: "player" | "team"
-  role: "skater" | "goalie" | "any"
+  scope: 'player' | 'team'
+  role: 'skater' | 'goalie' | 'any'
   statKey: string
   displayName: string
   sourceStatus: BadgeSourceStatus
@@ -36,22 +36,22 @@ type BadgeDefinition = {
 
 Source status meanings:
 
-| Status | Meaning |
-|---|---|
-| `available` | Can be computed from current stored data. |
-| `derived` | Can be computed, but needs careful query logic. |
-| `manual` | Should be awarded or confirmed by an admin/editor. |
-| `future` | Keep the idea, but do not automate it yet. |
+| Status      | Meaning                                            |
+| ----------- | -------------------------------------------------- |
+| `available` | Can be computed from current stored data.          |
+| `derived`   | Can be computed, but needs careful query logic.    |
+| `manual`    | Should be awarded or confirmed by an admin/editor. |
+| `future`    | Keep the idea, but do not automate it yet.         |
 
 Card weight meanings:
 
-| Weight | Meaning |
-|---:|---|
-| 0 | Cosmetic/showcase only; does not affect individual card tier. |
-| 1 | Light progression signal. |
-| 2 | Normal progression signal. |
-| 3 | Major identity signal. |
-| 4 | Elite/franchise identity signal. |
+| Weight | Meaning                                                       |
+| -----: | ------------------------------------------------------------- |
+|      0 | Cosmetic/showcase only; does not affect individual card tier. |
+|      1 | Light progression signal.                                     |
+|      2 | Normal progression signal.                                    |
+|      3 | Major identity signal.                                        |
+|      4 | Elite/franchise identity signal.                              |
 
 Team badges should usually have `cardWeight: 0` for individual player cards.
 They can still drive team showcases, carousel slots, and card augmentations.
@@ -59,11 +59,11 @@ They can still drive team showcases, carousel slots, and card augmentations.
 ---
 
 # Player
+
 ## 3v3 Games Completed
 
 Source status: `available`  
 Card weight: `1`
-
 
 | Tier | Level 1 | Level 2 | Level 3 | Level 4 | Level 5 |
 | ---- | ------- | ------- | ------- | ------- | ------- |
@@ -79,7 +79,6 @@ Card weight: `1`
 Source status: `available`  
 Card weight: `1`
 
-
 | Tier | Level 1 | Level 2 | Level 3 | Level 4 | Level 5 |
 | ---- | ------- | ------- | ------- | ------- | ------- |
 | 1    | 5       | 10      | 15      | 20      | 25      |
@@ -94,7 +93,6 @@ Card weight: `1`
 Source status: `derived`  
 Card weight: `1`
 
-
 | Tier | Level 1 | Level 2 | Level 3 | Level 4 | Level 5 |
 | ---- | ------- | ------- | ------- | ------- | ------- |
 | 1    | 1       | 5       | 10      | 15      | 20      |
@@ -104,12 +102,10 @@ Card weight: `1`
 | 5    | 110     | 120     | 130     | 140     | 150     |
 | 6    | 160     | 170     | 180     | 190     | 200     |
 
-
 ## Wins
 
 Source status: `available`  
 Card weight: `2`
-
 
 | Tier | Level 1 | Level 2 | Level 3 | Level 4 | Level 5 |
 | ---- | ------- | ------- | ------- | ------- | ------- |
@@ -133,6 +129,7 @@ Card weight: `4`
 | 4    | 600     | 700     | 800     | 900     | 1000    |
 | 5    | 1100    | 1200    | 1300    | 1400    | 1500    |
 | 6    | 1600    | 1700    | 1800    | 1900    | 2000    |
+
 ## Assists
 
 Source status: `available`  
@@ -146,6 +143,7 @@ Card weight: `4`
 | 4    | 600     | 700     | 800     | 900     | 1000    |
 | 5    | 1100    | 1200    | 1300    | 1400    | 1500    |
 | 6    | 1600    | 1700    | 1800    | 1900    | 2000    |
+
 ## Shots
 
 Source status: `available`  
@@ -159,6 +157,7 @@ Card weight: `2`
 | 4    | 600     | 700     | 800     | 900     | 1000    |
 | 5    | 1100    | 1200    | 1300    | 1400    | 1500    |
 | 6    | 1600    | 1700    | 1800    | 1900    | 2000    |
+
 ## Dekes
 
 Source status: `future`  
@@ -172,6 +171,7 @@ Card weight: `0`
 | 4    | 600     | 700     | 800     | 900     | 1000    |
 | 5    | 1100    | 1200    | 1300    | 1400    | 1500    |
 | 6    | 1600    | 1700    | 1800    | 1900    | 2000    |
+
 ## Hat Tricks
 
 Source status: `derived`  
@@ -185,6 +185,7 @@ Card weight: `3`
 | 4    | 20      | 25      | 30      | 35      | 40      |
 | 5    | 45      | 50      | 55      | 60      | 65      |
 | 6    | 70      | 75      | 80      | 90      | 100     |
+
 ## Breakaways
 
 Source status: `future`  
@@ -198,6 +199,7 @@ Card weight: `0`
 | 4    | 75      | 80      | 85      | 90      | 100     |
 | 5    | 110     | 120     | 130     | 140     | 150     |
 | 6    | 160     | 170     | 180     | 190     | 200     |
+
 ## Hits
 
 Source status: `available`  
@@ -239,6 +241,7 @@ Card weight: `3`
 | 4    | 600     | 700     | 800     | 900     | 1000    |
 | 5    | 1100    | 1200    | 1300    | 1400    | 1500    |
 | 6    | 1600    | 1700    | 1800    | 1900    | 2000    |
+
 ## Blocked Shots
 
 Source status: `available`  
@@ -253,6 +256,7 @@ Note: validate these thresholds against real totals before seeding.
 | 4    | 75      | 80      | 85      | 90      | 100     |
 | 5    | 105     | 110     | 115     | 120     | 125     |
 | 6    | 130     | 135     | 140     | 145     | 150     |
+
 ## Fights Won
 
 Source status: `future`  
@@ -280,6 +284,7 @@ Card weight: `2`
 | 4    | 70      | 75      | 80      | 85      | 100     |
 | 5    | 125     | 150     | 175     | 200     | 225     |
 | 6    | 250     | 275     | 300     | 400     | 500     |
+
 ## Goalie Wins
 
 Source status: `available`  
@@ -322,6 +327,7 @@ Card weight: `0`
 | 4    | 80      | 85      | 90      | 95      | 100     |
 | 5    | 110     | 120     | 130     | 140     | 150     |
 | 6    | 160     | 170     | 180     | 190     | 200     |
+
 ## Goalie Poke Checks
 
 Source status: `future`  
@@ -335,6 +341,7 @@ Card weight: `0`
 | 4    | 80      | 85      | 90      | 95      | 100     |
 | 5    | 110     | 120     | 130     | 140     | 150     |
 | 6    | 160     | 170     | 180     | 190     | 200     |
+
 ## Shutouts
 
 Source status: `available`  
@@ -348,6 +355,7 @@ Card weight: `4`
 | 4    | 20      | 25      | 30      | 40      | 50      |
 | 5    | 60      | 70      | 80      | 90      | 100     |
 | 6    | 110     | 120     | 130     | 140     | 150     |
+
 # Team
 
 Team badges are club achievements. They should drive team showcases, homepage
@@ -389,6 +397,7 @@ Card weight: `0`
 | 2    | 35      | 40      | 45      | 50      | 75      |
 | 3    | 100     | 125     | 150     | 175     | 200     |
 | 4    | 225     | 250     | 325     | 400     | 500     |
+
 ## 6-Player Games Completed
 
 Source status: `derived`  
@@ -412,6 +421,7 @@ Card weight: `0`
 | 2    | 30      | 35      | 40      | 45      | 50      |
 | 3    | 55      | 60      | 65      | 70      | 75      |
 | 4    | 80      | 90      | 100     | 150     | 200     |
+
 ## Wins
 
 Source status: `available`  
@@ -423,6 +433,7 @@ Card weight: `0`
 | 2    | 30      | 35      | 40      | 45      | 50      |
 | 3    | 75      | 100     | 125     | 150     | 175     |
 | 4    | 200     | 225     | 250     | 275     | 300     |
+
 ## Wins With Goalie
 
 Source status: `derived`  
@@ -434,6 +445,7 @@ Card weight: `0`
 | 2    | 30      | 35      | 40      | 45      | 50      |
 | 3    | 55      | 60      | 65      | 70      | 75      |
 | 4    | 80      | 90      | 100     | 150     | 200     |
+
 ## Wins With 6 Players
 
 Source status: `derived`  
@@ -445,6 +457,7 @@ Card weight: `0`
 | 2    | 30      | 35      | 40      | 45      | 50      |
 | 3    | 55      | 60      | 65      | 70      | 75      |
 | 4    | 80      | 90      | 100     | 150     | 200     |
+
 ## Blowout Wins
 
 Definition: win by 5 or more goals.
@@ -458,6 +471,7 @@ Card weight: `0`
 | 2    | 25      | 30      | 35      | 40      | 45      |
 | 3    | 50      | 55      | 60      | 65      | 70      |
 | 4    | 75      | 80      | 85      | 90      | 100     |
+
 ## Goals
 
 Source status: `available`  
@@ -469,6 +483,7 @@ Card weight: `0`
 | 2    | 100     | 125     | 150     | 200     | 250     |
 | 3    | 300     | 350     | 400     | 450     | 500     |
 | 4    | 600     | 700     | 800     | 900     | 1000    |
+
 ## Power-Play Goals
 
 Source status: `future`  
@@ -480,6 +495,7 @@ Card weight: `0`
 | 2    | 25      | 30      | 35      | 40      | 45      |
 | 3    | 50      | 60      | 70      | 80      | 90      |
 | 4    | 100     | 125     | 150     | 175     | 200     |
+
 ## Shutouts
 
 Source status: `available`  
@@ -491,6 +507,7 @@ Card weight: `0`
 | 2    | 25      | 30      | 35      | 40      | 45      |
 | 3    | 50      | 55      | 60      | 65      | 70      |
 | 4    | 75      | 80      | 85      | 90      | 100     |
+
 ## Games With 1 Goal Against Or Fewer
 
 Source status: `derived`  
@@ -502,6 +519,7 @@ Card weight: `0`
 | 2    | 25      | 30      | 35      | 40      | 45      |
 | 3    | 50      | 55      | 60      | 65      | 70      |
 | 4    | 75      | 80      | 85      | 90      | 100     |
+
 ## Games With 2 Goals Against Or Fewer
 
 Source status: `derived`  
@@ -513,6 +531,7 @@ Card weight: `0`
 | 2    | 30      | 35      | 40      | 45      | 50      |
 | 3    | 55      | 60      | 65      | 70      | 75      |
 | 4    | 80      | 90      | 100     | 150     | 200     |
+
 ## Perfect PK
 
 Source status: `future`  

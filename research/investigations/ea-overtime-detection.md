@@ -14,14 +14,14 @@ matters for the public record.
 The `clubs[clubId].result` field in the raw EA match payload is a numeric code,
 not just W/L. Across **71 NHL 26 BGM matches** there are six observed codes:
 
-| Code | Meaning | Our derivation |
-|---:|---|---|
-| `1` | Regulation WIN | `WIN` |
-| `2` | Regulation LOSS | `LOSS` |
-| `5` | **Overtime / Shootout WIN** (counts as 2 points) | `WIN` |
-| `6` | **Overtime / Shootout LOSS** (counts as 1 point) | **`OTL`** ← new |
-| `10` | DNF / disconnect | `DNF` |
-| `16385` (`0x4001`) | WIN by opponent forfeit | `WIN` |
+|               Code | Meaning                                          | Our derivation  |
+| -----------------: | ------------------------------------------------ | --------------- |
+|                `1` | Regulation WIN                                   | `WIN`           |
+|                `2` | Regulation LOSS                                  | `LOSS`          |
+|                `5` | **Overtime / Shootout WIN** (counts as 2 points) | `WIN`           |
+|                `6` | **Overtime / Shootout LOSS** (counts as 1 point) | **`OTL`** ← new |
+|               `10` | DNF / disconnect                                 | `DNF`           |
+| `16385` (`0x4001`) | WIN by opponent forfeit                          | `WIN`           |
 
 The OTL codes are the only new finding worth landing in the worker. Codes
 1/2/10/16385 the transform already handles correctly.
@@ -31,9 +31,9 @@ The OTL codes are the only new finding worth landing in the worker. Codes
 Every observed code-5 and code-6 match has a **1-goal margin**, never larger:
 
 | `our_code` | matches | min margin | max margin |
-|---:|---:|---:|---:|
-| 5 (WIN) | 6 | 1 | 1 |
-| 6 (LOSS) | 5 | 1 | 1 |
+| ---------: | ------: | ---------: | ---------: |
+|    5 (WIN) |       6 |          1 |          1 |
+|   6 (LOSS) |       5 |          1 |          1 |
 
 That is the defining signature of an OT/SO result in EA NHL:
 
@@ -47,13 +47,13 @@ That is the defining signature of an OT/SO result in EA NHL:
 
 Sample of the rule across the BGM history:
 
-| match_id | mode | score | margin | result | our_code | opp_code |
-|---|---|---|---:|---|---:|---:|
-| 18634798730296 | 6s | 2-3 | -1 | LOSS→**OTL** | 6 | 5 |
-| 18634455050491 | 6s | 4-3 | +1 | WIN | 5 | 6 |
-| 18056564180136 | 6s | 2-3 | -1 | LOSS→**OTL** | 6 | 5 |
-| 13780861560332 | 6s | 3-4 | -1 | LOSS→**OTL** | 6 | 5 |
-| 10706211690292 | 6s | 5-6 | -1 | LOSS→**OTL** | 6 | 5 |
+| match_id       | mode | score | margin | result       | our_code | opp_code |
+| -------------- | ---- | ----- | -----: | ------------ | -------: | -------: |
+| 18634798730296 | 6s   | 2-3   |     -1 | LOSS→**OTL** |        6 |        5 |
+| 18634455050491 | 6s   | 4-3   |     +1 | WIN          |        5 |        6 |
+| 18056564180136 | 6s   | 2-3   |     -1 | LOSS→**OTL** |        6 |        5 |
+| 13780861560332 | 6s   | 3-4   |     -1 | LOSS→**OTL** |        6 |        5 |
+| 10706211690292 | 6s   | 5-6   |     -1 | LOSS→**OTL** |        6 |        5 |
 
 That accounts for 5 historical losses that should have been OTL, plus 6 wins
 that came in OT (which still count as W in the W-L-OTL split).

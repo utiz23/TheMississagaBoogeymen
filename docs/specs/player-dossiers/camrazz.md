@@ -14,125 +14,124 @@ Use this file as a working dossier. Fill in what is known. Leave the rest blank 
 
 ### 1. Core Identity
 
-- What should reporters call him on first reference? 
->Razz
-- What should teammates call him in copy and quotes? 
->They Call him razz, 
+- What should reporters call him on first reference?
+  > Razz
+- What should teammates call him in copy and quotes?
+  > They Call him razz,
 - Is there a real-name / gamertag / nickname split that matters?
->
+  >
 - Is `Razz` the real room nickname, or just the obvious public shorthand?
->Nickname "RazzelDazzel," "Kermit" (the frog), Guazzy nib(less known and used, no one knows what this means)
+  > Nickname "RazzelDazzel," "Kermit" (the frog), Guazzy nib(less known and used, no one knows what this means)
 - Does `88` mean anything, or is it just the number he landed on?
-> Patrick Kane was his favorite player, grew up hawks fan
+  > Patrick Kane was his favorite player, grew up hawks fan
 - What one-sentence description best captures him as a player?
-> Great hands, elite finisher
+  > Great hands, elite finisher
 - What is the simplest fan-facing summary of his role on the team?
-> Sniper
+  > Sniper
 - What are the three words most teammates would use to describe him?
-> Skilled, Aware, Giveaway
+  > Skilled, Aware, Giveaway
 - What is the one wrong assumption outsiders would make about him?
-> That he is a quiet guy
+  > That he is a quiet guy
 
 ### 2. Hockey Identity
 
 - What kind of winger is he at his best?
 - Is he more of a shooter, finisher, transporter, forechecker, or chaos creator?
-> Puck mover, dangler
+  > Puck mover, dangler
 - Where does he naturally attack from on the ice?
-> Likes to wait for the one timer from Erb or Orlov. lieks to try and deke defenders on the rush, even when outnumbered. 
+  > Likes to wait for the one timer from Erb or Orlov. lieks to try and deke defenders on the rush, even when outnumbered.
 - What kind of center brings out the best in him?
-> Defensive center that can cover for him and find him in the slot. 
+  > Defensive center that can cover for him and find him in the slot.
 - What kind of linemate makes him worse?
-> Linemates who cannot get the puck back, who are not good defensivly. Razz has the awerness to notice defensive gaps and try and cover them at the expense of his offense when others are out of position. 
+  > Linemates who cannot get the puck back, who are not good defensivly. Razz has the awerness to notice defensive gaps and try and cover them at the expense of his offense when others are out of position.
 - Does he prefer rush offense or set-zone offense?
-> rush offense
+  > rush offense
 - Is he better off the cycle, off the rush, or arriving late into space?
-> Off the rush
+  > Off the rush
 - What is his best offensive habit?
-> Gets open on the one timer
+  > Gets open on the one timer
 - What is his most frustrating offensive habit?
-> Loses the puck while trying to go up the middle outnumbered, skates too far ahead and cherry picks
+  > Loses the puck while trying to go up the middle outnumbered, skates too far ahead and cherry picks
 - What is the biggest thing he does that does not show up in the box score?
-> Cover for the defense
+  > Cover for the defense
 - What is the biggest thing he fails to do when his game goes cold?
-> Move the puck
+  > Move the puck
 - How reliable is he away from the puck?
-> Reliable
+  > Reliable
 - How much defensive detail can you trust from him in a tight game?
-> adiquate
+  > adiquate
 - Is he a player coaches protect, unleash, or balance?
-> 
+  >
 - What special-teams role actually fits him?
-> Finisher
+  > Finisher
 - Is he a late-game player when protecting a lead, when chasing a goal, or only one of those?
-> While he is a smart player, sometimes he is a little too tunnel visioned on offense
+  > While he is a smart player, sometimes he is a little too tunnel visioned on offense
 - What does a classic good `camrazz` game look like shift to shift?
-> Breakaway goal(S), One timer goal, Impressive deke
+  > Breakaway goal(S), One timer goal, Impressive deke
 - What does a classic bad `camrazz` game look like shift to shift?
-> lots of giveaways, Defenseive negligence, cherry picking
+  > lots of giveaways, Defenseive negligence, cherry picking
 
 ### 3. Mentality And Personality
 
 - What is his default public personality?
-> Calm, Composed, Quiet
+  > Calm, Composed, Quiet
 - What is his actual locker-room personality?
-> One of the boys, More introverted but still engages. Can be quite talkqative though
+  > One of the boys, More introverted but still engages. Can be quite talkqative though
 - Is he naturally loud, quiet, chirpy, intense, loose, or moody?
-> loose
+  > loose
 - What kind of confidence does he play with when he feels good?
-> He doesnt brag much
+  > He doesnt brag much
 - What happens to his game when that confidence disappears?
-> Quiet
+  > Quiet
 - How does he handle mistakes?
 
 - Does he laugh off errors, brood on them, or try to erase them immediately?
-> Broods on them
+  > Broods on them
 - What does frustration look like on the bench?
-> Head down
+  > Head down
 - What does joy look like on the bench?
-> joking around and engaged
+  > joking around and engaged
 - Is he someone the room feeds off emotionally?
 
 - Does he stabilize the room, or spike the room's energy up and down?
-> Stabilize
+  > Stabilize
 - What is one personality trait teammates love about him?
-> Gets along with everybody, never had a conflict with anyone
+  > Gets along with everybody, never had a conflict with anyone
 - What is one personality trait that occasionally drives them nuts?
-
 
 ### 4. Room Presence And Team Dynamics
 
 - What role does he play in the room besides "top-six scorer"?
-> Good friends with everyone, particualry Silky and Erb, Joey
+  > Good friends with everyone, particualry Silky and Erb, Joey
 - Is he a momentum guy, mood guy, chirp guy, music guy, comic relief guy, or something else?
-> Mood guy
+  > Mood guy
 - Who does he naturally sit with, skate with, or talk with most?
-> Silky and Erb, Joey
+  > Silky and Erb, Joey
 - Is he a captain-adjacent voice or more of an energy piece?
-> Not a leadership guy
+  > Not a leadership guy
 - Does he respond better to hard coaching or casual coaching?
 
 - Who on the team calms him down best?
-> Silky
+  > Silky
 - Who on the team hypes him up best?
-> Erb
+  > Erb
 - Which teammate seems to understand his game immediately?
 - Which teammate style clashes with his instincts?
 - Is he more respected for skill, effort, competitiveness, personality, or unpredictability?
-> Skill
+  > Skill
 - When the team is flat, does he usually wake it up or disappear with it?
-> disappear with it 
+  > disappear with it
 
 ### 5. Media And Interview Profile
 
 - Is he a good interview?
-> Yes
+  > Yes
 - Is he naturally articulate, blunt, funny, guarded, or repetitive?
-> Funny but can be repetitive
+  > Funny but can be repetitive
 - Does he answer better after wins or after losses?
-> no
+  > no
 - What topics get his most honest answers?
-> 
+  >
 - What topics make him shut down?
 - What kind of question annoys him?
 - What kind of question gets him talking?
@@ -147,27 +146,27 @@ Use this file as a working dossier. Fill in what is known. Leave the rest blank 
 ### 6. Pressure, Adversity, And Game State
 
 - What happens to him in close games?
-> He preforms
+  > He preforms
 - Does he want the puck more when the team is down?
-> No
+  > No
 - What does he look like after a bad turnover?
-> Business as usual
+  > Business as usual
 - What does he look like after scoring?
-> Electric
+  > Electric
 - What does he look like after missing a huge chance?
-> Visibly disapointed
+  > Visibly disapointed
 - How does he react when opponents chirp him?
-> Doesn't react
+  > Doesn't react
 - How does he react when referees frustrate him?
-> Typically doesn't say much
+  > Typically doesn't say much
 - Does he get better in messy games or cleaner games?
-> Better in clean games
+  > Better in clean games
 - Does he rise in rivalry games?
-> Yes
+  > Yes
 - Does he get impatient when a game slows down?
-> no
+  > no
 - What is his ceiling in a big game?
-> 
+  >
 - What is his floor in a big game?
 - What is the most likely way his night unravels?
 - What is the most likely way he takes over a period?

@@ -135,12 +135,12 @@ Smaller fixes in [shot-map.tsx](../../apps/web/src/components/matches/shot-map.t
 
 ## Numbers
 
-| period | goal | shot | hit | total placed | % |
-|---|---|---|---|---|---|
-| P2 | 2/2 | 11/11 | 13/13 | 26/26 | **100 %** |
-| P3 | 4/4 | 11/11 | 13/13 | 28/28 | **100 %** |
-| OT | 1/1 | 10/10 | 7/7  | 18/18 | **100 %** |
-| **match** | **7/7** | **32/32** | **33/33** | **72/72** | **100 %** |
+| period    | goal    | shot      | hit       | total placed | %         |
+| --------- | ------- | --------- | --------- | ------------ | --------- |
+| P2        | 2/2     | 11/11     | 13/13     | 26/26        | **100 %** |
+| P3        | 4/4     | 11/11     | 13/13     | 28/28        | **100 %** |
+| OT        | 1/1     | 10/10     | 7/7       | 18/18        | **100 %** |
+| **match** | **7/7** | **32/32** | **33/33** | **72/72**    | **100 %** |
 
 Zero out-of-range coords. Zero phantom rows. Zero misclassified team-sides.
 

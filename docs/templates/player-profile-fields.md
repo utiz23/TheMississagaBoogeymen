@@ -3,6 +3,7 @@
 Use this sheet to collect the manual fields stored in `player_profiles`.
 
 Relevant DB fields:
+
 - `jersey_number`
 - `nationality`
 - `preferred_position`
@@ -10,6 +11,7 @@ Relevant DB fields:
 - `club_role_label`
 
 Notes:
+
 - `nationality` should be the display value you want shown on the site.
 - `preferred_position` should use the internal position values:
   - `goalie`
@@ -40,7 +42,7 @@ Short profile blurb:
 
 ### Notes
 
-- 
+-
 ```
 
 ---
@@ -79,7 +81,7 @@ Active title source: `NHL 26` EA roster (`getEARoster()`).
 - Player ID: 1
 - Gamertag: HenryTheBobJr
 - Player Name: -, Erb
-- Jersey Number: 7 
+- Jersey Number: 7
 - Nationality / Country: USA
 - Preferred Position: Left defenseMen
 - Club Role Label: Captain
@@ -142,7 +144,7 @@ Short profile blurb: Leading goal scorer
 - Player ID: 5
 - Gamertag: JoeyFlopfish
 - Player Name: Joey, Flopfish
-- Jersey Number: 92 
+- Jersey Number: 92
 - Nationality / Country: Canada
 - Preferred Position: Right defenseMen
 - Club Role Label: Vetren
@@ -162,8 +164,8 @@ Short profile blurb: Used to play center
 
 - Player ID: 6
 - Gamertag: camrazz
-- Player Name: -, Razz  
-- Jersey Number: 88 
+- Player Name: -, Razz
+- Jersey Number: 88
 - Nationality / Country: USA
 - Preferred Position: rightWing
 - Club Role Label:

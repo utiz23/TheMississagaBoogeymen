@@ -12,30 +12,30 @@
 
 ## Table Inventory
 
-| Table | File | Purpose |
-|---|---|---|
-| `ocr_capture_batches` | `ocr-pipeline.ts` | One row per import session (e.g. one game's screenshots) |
-| `ocr_extractions` | `ocr-pipeline.ts` | One row per screenshot/frame processed by the OCR CLI |
-| `ocr_extraction_fields` | `ocr-pipeline.ts` | One row per parsed field from an extraction |
-| `match_period_summaries` | `match-enrichments.ts` | Period-level goals/shots/faceoffs (Post-Game Box Score) |
-| `match_shot_type_summaries` | `match-enrichments.ts` | Shot-type breakdown by category (Post-Game Net-Chart) |
-| `match_events` | `match-events.ts` | Normalized event log (goals, shots, hits, penalties, faceoffs) |
-| `match_goal_events` | `match-events.ts` | Goal detail: scorer, assists, goal number in game |
-| `match_penalty_events` | `match-events.ts` | Penalty detail: infraction, type, culprit |
-| `player_loadout_snapshots` | `player-loadout.ts` | Build header: class, height, weight, handedness, level |
-| `player_loadout_x_factors` | `player-loadout.ts` | Up to 3 X-factors per loadout snapshot |
-| `player_loadout_attributes` | `player-loadout.ts` | 23 individual attribute values per loadout snapshot |
+| Table                       | File                   | Purpose                                                        |
+| --------------------------- | ---------------------- | -------------------------------------------------------------- |
+| `ocr_capture_batches`       | `ocr-pipeline.ts`      | One row per import session (e.g. one game's screenshots)       |
+| `ocr_extractions`           | `ocr-pipeline.ts`      | One row per screenshot/frame processed by the OCR CLI          |
+| `ocr_extraction_fields`     | `ocr-pipeline.ts`      | One row per parsed field from an extraction                    |
+| `match_period_summaries`    | `match-enrichments.ts` | Period-level goals/shots/faceoffs (Post-Game Box Score)        |
+| `match_shot_type_summaries` | `match-enrichments.ts` | Shot-type breakdown by category (Post-Game Net-Chart)          |
+| `match_events`              | `match-events.ts`      | Normalized event log (goals, shots, hits, penalties, faceoffs) |
+| `match_goal_events`         | `match-events.ts`      | Goal detail: scorer, assists, goal number in game              |
+| `match_penalty_events`      | `match-events.ts`      | Penalty detail: infraction, type, culprit                      |
+| `player_loadout_snapshots`  | `player-loadout.ts`    | Build header: class, height, weight, handedness, level         |
+| `player_loadout_x_factors`  | `player-loadout.ts`    | Up to 3 X-factors per loadout snapshot                         |
+| `player_loadout_attributes` | `player-loadout.ts`    | 23 individual attribute values per loadout snapshot            |
 
 ## File Map
 
-| Action | Path |
-|---|---|
-| Create | `packages/db/src/schema/ocr-pipeline.ts` |
-| Create | `packages/db/src/schema/match-enrichments.ts` |
-| Create | `packages/db/src/schema/match-events.ts` |
-| Create | `packages/db/src/schema/player-loadout.ts` |
-| Modify | `packages/db/src/schema/index.ts` |
-| Generate | `packages/db/migrations/<hash>.sql` |
+| Action   | Path                                          |
+| -------- | --------------------------------------------- |
+| Create   | `packages/db/src/schema/ocr-pipeline.ts`      |
+| Create   | `packages/db/src/schema/match-enrichments.ts` |
+| Create   | `packages/db/src/schema/match-events.ts`      |
+| Create   | `packages/db/src/schema/player-loadout.ts`    |
+| Modify   | `packages/db/src/schema/index.ts`             |
+| Generate | `packages/db/migrations/<hash>.sql`           |
 
 ---
 
@@ -43,32 +43,34 @@
 
 Screens currently implemented in the `Game_Data_OCR` CLI are marked ✅. Others are documented targets — the schema supports them all so the pipeline can grow without a schema change.
 
-| `screen_type` value | Source screen | Status |
-|---|---|---|
-| `pre_game_lobby_state_1` | Pre-Game Lobby state 1 | ✅ |
-| `pre_game_lobby_state_2` | Pre-Game Lobby state 2 (jersey + player name) | ✅ |
-| `player_loadout_view` | Player Loadout View | ✅ |
-| `post_game_player_summary` | Post-Game Player Summary | ✅ |
-| `in_game_clock` | In-Game HUD clock bar | future |
-| `in_game_goal_state_1` | In-Game Goal overlay (scorer + goal count) | future |
-| `in_game_goal_state_2` | In-Game Goal overlay (assists) | future |
-| `post_game_box_score_goals` | Post-Game Box Score — Goals tab | future |
-| `post_game_box_score_shots` | Post-Game Box Score — Shots tab | future |
-| `post_game_box_score_faceoffs` | Post-Game Box Score — Faceoffs tab | future |
-| `post_game_events` | Post-Game Events log (goals + penalties) | future |
-| `post_game_action_tracker` | Post-Game Action Tracker (all/goals/shots/hits/penalties/faceoffs) | future |
-| `post_game_net_chart` | Post-Game Net-Chart (shot types + shot map) | future |
+| `screen_type` value            | Source screen                                                      | Status |
+| ------------------------------ | ------------------------------------------------------------------ | ------ |
+| `pre_game_lobby_state_1`       | Pre-Game Lobby state 1                                             | ✅     |
+| `pre_game_lobby_state_2`       | Pre-Game Lobby state 2 (jersey + player name)                      | ✅     |
+| `player_loadout_view`          | Player Loadout View                                                | ✅     |
+| `post_game_player_summary`     | Post-Game Player Summary                                           | ✅     |
+| `in_game_clock`                | In-Game HUD clock bar                                              | future |
+| `in_game_goal_state_1`         | In-Game Goal overlay (scorer + goal count)                         | future |
+| `in_game_goal_state_2`         | In-Game Goal overlay (assists)                                     | future |
+| `post_game_box_score_goals`    | Post-Game Box Score — Goals tab                                    | future |
+| `post_game_box_score_shots`    | Post-Game Box Score — Shots tab                                    | future |
+| `post_game_box_score_faceoffs` | Post-Game Box Score — Faceoffs tab                                 | future |
+| `post_game_events`             | Post-Game Events log (goals + penalties)                           | future |
+| `post_game_action_tracker`     | Post-Game Action Tracker (all/goals/shots/hits/penalties/faceoffs) | future |
+| `post_game_net_chart`          | Post-Game Net-Chart (shot types + shot map)                        | future |
 
 ---
 
 ### Task 1: OCR Pipeline Evidence Tables
 
 **Files:**
+
 - Create: `packages/db/src/schema/ocr-pipeline.ts`
 
 These three tables are the prerequisite for everything else. `ocrExtractions.id` is the FK anchor for all enrichment tables.
 
 Key design notes:
+
 - `ocr_extractions.duplicate_of_extraction_id` is a self-referential FK. Drizzle requires `(): AnyPgColumn =>` lambda syntax to avoid circular-reference errors at module load time.
 - `source_hash` stores a SHA-256 hex string for cross-batch deduplication. Nullable because hashing is optional for manual imports.
 - `overall_confidence` is `numeric(5,4)` — stores 0.0000 to 1.0000 with four decimal places.
@@ -235,9 +237,11 @@ Expected: exits 0 with no errors. If you see `AnyPgColumn` import errors, confir
 ### Task 2: Match Enrichment Tables
 
 **Files:**
+
 - Create: `packages/db/src/schema/match-enrichments.ts`
 
 Key design notes:
+
 - `match_period_summaries`: `(match_id, period_number, source)` is the unique key. Multiple sources for the same period are intentional — EA might supply totals-only while OCR supplies per-period splits.
 - `match_shot_type_summaries`: `period_number` uses -1 as a sentinel for "full-game aggregate." This avoids a COALESCE expression index while still enabling a clean 4-column unique constraint. The Net-Chart screen in the OCR document provides full-game shot type data by default; per-period filtering is a future extension.
 
@@ -288,11 +292,7 @@ export const matchPeriodSummaries = pgTable(
     ),
   },
   (table) => [
-    uniqueIndex('match_period_summaries_uniq').on(
-      table.matchId,
-      table.periodNumber,
-      table.source,
-    ),
+    uniqueIndex('match_period_summaries_uniq').on(table.matchId, table.periodNumber, table.source),
     index('match_period_summaries_match_idx').on(table.matchId),
   ],
 )
@@ -361,9 +361,11 @@ Expected: exits 0.
 ### Task 3: Match Event Tables
 
 **Files:**
+
 - Create: `packages/db/src/schema/match-events.ts`
 
 Key design notes:
+
 - `match_goal_events` and `match_penalty_events` use `event_id` as their PK — a 1:1 extension of `match_events`. Same pattern as EA's per-match detail tables.
 - `x` / `y` are rink coordinates from the Action Tracker event map. `rink_zone` (`'offensive'`, `'defensive'`, `'neutral'`) is a derived label added during human review.
 - `goal_number_in_game` is the "player's Nth goal of this game" indicator shown on the In-Game Goal overlay (e.g., "2nd Goal").
@@ -444,10 +446,7 @@ export const matchEvents = pgTable(
       'match_events_event_type_check',
       sql`${table.eventType} IN ('goal', 'shot', 'hit', 'penalty', 'faceoff')`,
     ),
-    check(
-      'match_events_team_side_check',
-      sql`${table.teamSide} IN ('for', 'against')`,
-    ),
+    check('match_events_team_side_check', sql`${table.teamSide} IN ('for', 'against')`),
   ],
 )
 
@@ -513,9 +512,11 @@ Expected: exits 0.
 ### Task 4: Player Loadout Tables
 
 **Files:**
+
 - Create: `packages/db/src/schema/player-loadout.ts`
 
 Key design notes:
+
 - `player_loadout_snapshots` is build/profile data, not match performance data. Do NOT link into `player_match_stats` or `ea_member_season_stats`.
 - `player_id` is nullable until review resolves `gamertag_snapshot` to a known `players` row.
 - `player_level_raw` stores the verbatim OCR string (e.g. `'P2LVL40'`). `player_level_number` is the cleaned integer (e.g. `40`). NULL if parsing failed — do not guess.
@@ -524,6 +525,7 @@ Key design notes:
 - `player_loadout_attributes` has no unique constraint beyond `(loadout_snapshot_id, attribute_key)`. Re-running OCR on the same screenshot should update the existing row via the import script, not insert a duplicate.
 
 Known attribute keys:
+
 ```
 Technique:  wrist_shot_accuracy, slap_shot_accuracy, speed, balance, agility
 Power:      wrist_shot_power, slap_shot_power, acceleration, puck_control, endurance
@@ -667,6 +669,7 @@ Expected: exits 0.
 ### Task 5: Wire Schema Index + Generate and Apply Migration
 
 **Files:**
+
 - Modify: `packages/db/src/schema/index.ts`
 - Generate: `packages/db/migrations/<hash>.sql`
 
@@ -749,6 +752,7 @@ player_loadout_attributes
 ```
 
 Also confirm you see:
+
 - A self-referential FK on `ocr_extractions.duplicate_of_extraction_id → ocr_extractions.id`
 - Unique indexes: `ocr_extractions_batch_path_uniq`, `match_period_summaries_uniq`, `match_shot_type_summaries_uniq`, `player_loadout_x_factors_snapshot_slot_uniq`, `player_loadout_attributes_snapshot_key_uniq`
 - Check constraints on `match_events`: `event_type` and `team_side`
@@ -807,38 +811,38 @@ git commit -m "feat(db): add OCR evidence + event + loadout schema (11 tables)"
 
 ### Spec Coverage
 
-| Requirement from investigation doc | Task |
-|---|---|
-| `ocr_capture_batches` | Task 1 |
-| `ocr_extractions` with raw JSON, review status, transform status | Task 1 |
-| `ocr_extraction_fields` with per-field confidence + status | Task 1 |
-| Self-referential duplicate FK on `ocr_extractions` | Task 1 |
-| `match_period_summaries` (period goals/shots/faceoffs) | Task 2 |
-| `match_shot_type_summaries` (Net-Chart shot-type breakdown) | Task 2 |
-| `match_events` with spatial x/y/rink_zone coordinates | Task 3 |
-| `match_goal_events` (scorer, assists, goal-number-in-game) | Task 3 |
-| `match_penalty_events` (infraction, type, culprit) | Task 3 |
+| Requirement from investigation doc                                          | Task   |
+| --------------------------------------------------------------------------- | ------ |
+| `ocr_capture_batches`                                                       | Task 1 |
+| `ocr_extractions` with raw JSON, review status, transform status            | Task 1 |
+| `ocr_extraction_fields` with per-field confidence + status                  | Task 1 |
+| Self-referential duplicate FK on `ocr_extractions`                          | Task 1 |
+| `match_period_summaries` (period goals/shots/faceoffs)                      | Task 2 |
+| `match_shot_type_summaries` (Net-Chart shot-type breakdown)                 | Task 2 |
+| `match_events` with spatial x/y/rink_zone coordinates                       | Task 3 |
+| `match_goal_events` (scorer, assists, goal-number-in-game)                  | Task 3 |
+| `match_penalty_events` (infraction, type, culprit)                          | Task 3 |
 | `player_loadout_snapshots` (build class, height, weight, handedness, level) | Task 4 |
-| `player_loadout_x_factors` (up to 3 X-factors) | Task 4 |
-| `player_loadout_attributes` (23 named attribute keys) | Task 4 |
-| Schema index wiring | Task 5 |
-| Migration generation + application | Task 5 |
-| DB verification | Task 5 |
+| `player_loadout_x_factors` (up to 3 X-factors)                              | Task 4 |
+| `player_loadout_attributes` (23 named attribute keys)                       | Task 4 |
+| Schema index wiring                                                         | Task 5 |
+| Migration generation + application                                          | Task 5 |
+| DB verification                                                             | Task 5 |
 
 **Screens from `docs/ocr/source-screen-inventory.md` and where they land:**
 
-| Screen | Tables populated |
-|---|---|
-| Pre-Game Lobby (state 1 + 2) | `ocr_extractions`, `ocr_extraction_fields`, `player_loadout_snapshots` |
-| Player Loadout View | `ocr_extractions`, `player_loadout_snapshots`, `player_loadout_x_factors`, `player_loadout_attributes` |
-| Post-Game Player Summary | `ocr_extractions`, `ocr_extraction_fields` → promotes to `player_match_stats` via future review step |
-| In-Game Clock | `ocr_extractions`, `ocr_extraction_fields` |
-| In-Game Goal overlays (state 1 + 2) | `ocr_extractions`, `match_events`, `match_goal_events` |
-| Post-Game Box Score (Goals/Shots/Faceoffs tabs) | `ocr_extractions`, `match_period_summaries` |
-| Post-Game Events | `ocr_extractions`, `match_events`, `match_goal_events`, `match_penalty_events` |
-| Post-Game Action Tracker | `ocr_extractions`, `match_events` (with x/y coordinates) |
-| Post-Game Net-Chart | `ocr_extractions`, `match_shot_type_summaries` |
-| Post-Game Event Map — Faceoffs | `ocr_extractions`, `match_events` |
+| Screen                                          | Tables populated                                                                                       |
+| ----------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| Pre-Game Lobby (state 1 + 2)                    | `ocr_extractions`, `ocr_extraction_fields`, `player_loadout_snapshots`                                 |
+| Player Loadout View                             | `ocr_extractions`, `player_loadout_snapshots`, `player_loadout_x_factors`, `player_loadout_attributes` |
+| Post-Game Player Summary                        | `ocr_extractions`, `ocr_extraction_fields` → promotes to `player_match_stats` via future review step   |
+| In-Game Clock                                   | `ocr_extractions`, `ocr_extraction_fields`                                                             |
+| In-Game Goal overlays (state 1 + 2)             | `ocr_extractions`, `match_events`, `match_goal_events`                                                 |
+| Post-Game Box Score (Goals/Shots/Faceoffs tabs) | `ocr_extractions`, `match_period_summaries`                                                            |
+| Post-Game Events                                | `ocr_extractions`, `match_events`, `match_goal_events`, `match_penalty_events`                         |
+| Post-Game Action Tracker                        | `ocr_extractions`, `match_events` (with x/y coordinates)                                               |
+| Post-Game Net-Chart                             | `ocr_extractions`, `match_shot_type_summaries`                                                         |
+| Post-Game Event Map — Faceoffs                  | `ocr_extractions`, `match_events`                                                                      |
 
 ### Placeholder Scan
 

@@ -19,6 +19,7 @@ Depth Chart
 ## Season Summary Strip
 
 Compact team-context bar above the depth chart. Contains:
+
 - W-L-OTL record
 - Top scorer (gamertag + points)
 - Top goal scorer (gamertag + goals)
@@ -79,21 +80,25 @@ Skater table shows a compact position pill next to the gamertag. Players shouldn
 ## Outside References Reviewed
 
 **Hockey Reference:**
+
 - Two separate always-visible sections (skaters + goalies)
 - Rate columns (P/GP, G/GP) standard
 - Sortable everything
 
 **Elite Prospects:**
+
 - Position-count summary strip above roster (best element on the page)
 - Season selector prominent
 - Team aggregate stats appear before individual rows
 
 **NHL.com:**
+
 - Card layout with jersey # and position immediately visible
 - Position filter chips
 - Photo-first (we can't replicate)
 
 **Chelhead:**
+
 - Club page shows club record, season record, members list with season totals
 - Member list shows GP/G/A/PTS/+/-/SHT%/FO%/PIM (all-mode combined)
 
@@ -103,9 +108,9 @@ Skater table shows a compact position pill next to the gamertag. Players shouldn
 
 These two parts of the page use different data sources:
 
-| Section | Source |
-|---|---|
-| Depth chart cards | `ea_member_season_stats` |
+| Section                      | Source                                      |
+| ---------------------------- | ------------------------------------------- |
+| Depth chart cards            | `ea_member_season_stats`                    |
 | Stats tables (Skater/Goalie) | `player_game_title_stats` (locally tracked) |
 
 This is intentional. Depth chart needs all current active members (including those not in any ingested match), so it uses EA's member data. Stats tables show only players with locally tracked stats, which are more detailed.

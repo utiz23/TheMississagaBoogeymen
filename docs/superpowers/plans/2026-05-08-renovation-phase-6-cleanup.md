@@ -9,6 +9,7 @@
 **Tech Stack:** Next.js 15 App Router (server components), TypeScript strict, Tailwind CSS 4. Phase 1 primitives in `apps/web/src/components/ui/*`. No new dependencies.
 
 **Working assumptions:**
+
 - Current branch: `feat/design-system-renovation`. Phase 5 commits landed (HEAD ~ `33d34c9`).
 - The renovation spec at `docs/superpowers/specs/2026-05-07-boogeymen-renovation-design.md` is authoritative; the deferred-decisions section is what Tasks 1-4 implement.
 - Bundle preview rejections (memory): `components-card-carousel.html`, `components-card-carousel-v2.html`, `components-player-card-v1.html`, `components-nav.html` are NOT canonical references. Nav restyle is voice-only — keep current nav structure; do NOT follow `components-nav.html`.
@@ -16,6 +17,7 @@
 - **Git push environment quirk:** stale `GITHUB_TOKEN` env var blocks gh's stored credentials. Prefix push commands with `env -u GITHUB_TOKEN ...` until the env var is removed from the user's shell rc.
 
 **Out of scope:**
+
 - Goalie-side IA parity for any roster sections — separate plan.
 - Any new data queries / schema changes.
 - Any structural rebuild of nav, footer, or layout — voice-only on nav.
@@ -27,29 +29,30 @@
 
 **Files created:**
 
-| Path | Responsibility | Approx LOC |
-|---|---|---|
-| `apps/web/src/components/ui/result-glow.tsx` | `<ResultGlow result intensity?>` — positioned absolute overlay with result-themed radial gradient. Composes inside any sharp Panel/BroadcastPanel. | 35 |
+| Path                                         | Responsibility                                                                                                                                     | Approx LOC |
+| -------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
+| `apps/web/src/components/ui/result-glow.tsx` | `<ResultGlow result intensity?>` — positioned absolute overlay with result-themed radial gradient. Composes inside any sharp Panel/BroadcastPanel. | 35         |
 
 **Files modified:**
 
-| Path | Scope |
-|---|---|
-| `apps/web/src/components/ui/result-pill.tsx` | `size="sm"` switches from `style.glyph` to `style.label`; sm size variant widens to fit full words at slightly smaller text. |
-| `apps/web/src/lib/result-colors.ts` | The `glyph` field in `ResultStyle` becomes unused after the ResultPill update. Either drop the field or keep it for future use — drop, since YAGNI. |
-| `apps/web/src/components/matches/score-card.tsx` | Wrap card body in `<ResultGlow result={match.result}>` overlay; preserve Panel structure. |
-| `apps/web/src/components/matches/hero-card.tsx` | Wrap BroadcastPanel body in `<ResultGlow result={match.result}>` overlay; preserve BroadcastPanel structure. |
-| `apps/web/src/components/nav/nav-links.tsx` | Bump `tracking-[0.15em]` (desktop) and `tracking-wider` (mobile) → `tracking-widest`. |
-| `apps/web/src/components/nav/game-title-switcher.tsx` | Drop `rounded-sm` on outer wrapper + single-title chip; bump `tracking-wide` → `tracking-widest`. |
-| `apps/web/src/components/nav/top-nav.tsx` | Bump `tracking-[0.15em]` (brand wordmark + desktop fallback) + `tracking-wider` (mobile fallback) → `tracking-widest`. |
+| Path                                                  | Scope                                                                                                                                               |
+| ----------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `apps/web/src/components/ui/result-pill.tsx`          | `size="sm"` switches from `style.glyph` to `style.label`; sm size variant widens to fit full words at slightly smaller text.                        |
+| `apps/web/src/lib/result-colors.ts`                   | The `glyph` field in `ResultStyle` becomes unused after the ResultPill update. Either drop the field or keep it for future use — drop, since YAGNI. |
+| `apps/web/src/components/matches/score-card.tsx`      | Wrap card body in `<ResultGlow result={match.result}>` overlay; preserve Panel structure.                                                           |
+| `apps/web/src/components/matches/hero-card.tsx`       | Wrap BroadcastPanel body in `<ResultGlow result={match.result}>` overlay; preserve BroadcastPanel structure.                                        |
+| `apps/web/src/components/nav/nav-links.tsx`           | Bump `tracking-[0.15em]` (desktop) and `tracking-wider` (mobile) → `tracking-widest`.                                                               |
+| `apps/web/src/components/nav/game-title-switcher.tsx` | Drop `rounded-sm` on outer wrapper + single-title chip; bump `tracking-wide` → `tracking-widest`.                                                   |
+| `apps/web/src/components/nav/top-nav.tsx`             | Bump `tracking-[0.15em]` (brand wordmark + desktop fallback) + `tracking-wider` (mobile fallback) → `tracking-widest`.                              |
 
 **Files deleted:**
 
-| Path | Reason |
-|---|---|
+| Path                                                                           | Reason                                                                                                             |
+| ------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------ |
 | `apps/web/src/app/_kitchen-sink/page.tsx` (and the `_kitchen-sink/` directory) | Phase 1 visual-verification harness; not part of production. Removed at end of renovation per the renovation spec. |
 
 **Files unchanged:**
+
 - All Phase 1 primitives except `result-pill.tsx` and `result-colors.ts`.
 - All Phase 2-5 component restyles are final.
 - Renovation spec — its "Deferred Design Decisions" section was the input to this phase; once delivered, the items can stay in the doc as historical record.
@@ -61,6 +64,7 @@
 The decoration overlay that restores result-based color tinting on ScoreCard + HeroCard without compromising the design-system "sharp panels" rule.
 
 **Files:**
+
 - Create: `apps/web/src/components/ui/result-glow.tsx`
 
 - [ ] **Step 1: Create the component**
@@ -106,12 +110,7 @@ const GLOW_SOFT: Record<MatchResult, string> = {
  */
 export function ResultGlow({ result, intensity = 'default' }: ResultGlowProps) {
   const tint = intensity === 'soft' ? GLOW_SOFT[result] : GLOW_DEFAULT[result]
-  return (
-    <div
-      aria-hidden
-      className={`pointer-events-none absolute inset-0 ${tint}`}
-    />
-  )
+  return <div aria-hidden className={`pointer-events-none absolute inset-0 ${tint}`} />
 }
 ```
 
@@ -120,6 +119,7 @@ export function ResultGlow({ result, intensity = 'default' }: ResultGlowProps) {
 ```bash
 pnpm --filter web typecheck
 ```
+
 Expected: passes (no consumers yet).
 
 - [ ] **Step 3: Commit**
@@ -150,6 +150,7 @@ EOF
 ```bash
 git log --oneline -1
 ```
+
 Expected: `feat(web): add ResultGlow primitive ...` is HEAD.
 
 ---
@@ -159,16 +160,19 @@ Expected: `feat(web): add ResultGlow primitive ...` is HEAD.
 Wrap the card body in `<ResultGlow>` overlay so the games-list cards regain per-result tinting.
 
 **Files:**
+
 - Modify: `apps/web/src/components/matches/score-card.tsx`
 
 - [ ] **Step 1: Apply transformations**
 
 1. Add the import near the top:
+
    ```tsx
    import { ResultGlow } from '@/components/ui/result-glow'
    ```
 
 2. Find the existing `<Panel hoverable className="overflow-hidden">` block (around line 118). Inside the Panel, immediately before the existing top-bar gradient div, insert the ResultGlow + a relative wrapper for content. Replace:
+
    ```tsx
    <Panel hoverable className="overflow-hidden">
      <div className="h-[3px] w-full bg-gradient-to-r from-rose-900 via-accent to-rose-900" />
@@ -176,12 +180,12 @@ Wrap the card body in `<ResultGlow>` overlay so the games-list cards regain per-
      <div className="flex items-center justify-between px-4 py-3">
        {/* ... game-mode pill row ... */}
      </div>
-     <div className="px-4 pb-5">
-       {/* ... main card body ... */}
-     </div>
+     <div className="px-4 pb-5">{/* ... main card body ... */}</div>
    </Panel>
    ```
+
    with:
+
    ```tsx
    <Panel hoverable className="relative overflow-hidden">
      <ResultGlow result={match.result} />
@@ -191,12 +195,11 @@ Wrap the card body in `<ResultGlow>` overlay so the games-list cards regain per-
        <div className="flex items-center justify-between px-4 py-3">
          {/* ... game-mode pill row ... */}
        </div>
-       <div className="px-4 pb-5">
-         {/* ... main card body ... */}
-       </div>
+       <div className="px-4 pb-5">{/* ... main card body ... */}</div>
      </div>
    </Panel>
    ```
+
    The key changes: `relative` added to Panel className; `<ResultGlow>` is the first child; existing content moves inside a `<div className="relative">` wrapper so it sits above the glow.
 
 - [ ] **Step 2: Typecheck**
@@ -204,6 +207,7 @@ Wrap the card body in `<ResultGlow>` overlay so the games-list cards regain per-
 ```bash
 pnpm --filter web typecheck
 ```
+
 Expected: passes.
 
 - [ ] **Step 3: Commit**
@@ -228,6 +232,7 @@ EOF
 ```bash
 git log --oneline -1
 ```
+
 Expected: `feat(web): restore result-based glow on ScoreCard` is HEAD.
 
 ---
@@ -237,11 +242,13 @@ Expected: `feat(web): restore result-based glow on ScoreCard` is HEAD.
 Same pattern — ResultGlow inside the existing BroadcastPanel.
 
 **Files:**
+
 - Modify: `apps/web/src/components/matches/hero-card.tsx`
 
 - [ ] **Step 1: Apply transformations**
 
 1. Add the import near the top:
+
    ```tsx
    import { ResultGlow } from '@/components/ui/result-glow'
    ```
@@ -249,18 +256,14 @@ Same pattern — ResultGlow inside the existing BroadcastPanel.
 2. Find the `<BroadcastPanel className="overflow-hidden">` block. Replace:
    ```tsx
    <BroadcastPanel className="overflow-hidden">
-     <div className="px-4 py-6 sm:px-8 sm:py-8">
-       {/* ... hero body ... */}
-     </div>
+     <div className="px-4 py-6 sm:px-8 sm:py-8">{/* ... hero body ... */}</div>
    </BroadcastPanel>
    ```
    with:
    ```tsx
    <BroadcastPanel className="relative overflow-hidden">
      <ResultGlow result={match.result} intensity="soft" />
-     <div className="relative px-4 py-6 sm:px-8 sm:py-8">
-       {/* ... hero body ... */}
-     </div>
+     <div className="relative px-4 py-6 sm:px-8 sm:py-8">{/* ... hero body ... */}</div>
    </BroadcastPanel>
    ```
    `intensity="soft"` because BroadcastPanel already provides a base red radial — the result-themed glow layers on top at a dimmer intensity to avoid washing out.
@@ -270,6 +273,7 @@ Same pattern — ResultGlow inside the existing BroadcastPanel.
 ```bash
 pnpm --filter web typecheck
 ```
+
 Expected: passes.
 
 - [ ] **Step 3: Commit**
@@ -294,6 +298,7 @@ EOF
 ```bash
 git log --oneline -1
 ```
+
 Expected: `feat(web): restore result-based glow on HeroCard` is HEAD.
 
 ---
@@ -303,6 +308,7 @@ Expected: `feat(web): restore result-based glow on HeroCard` is HEAD.
 The renovation spec's deferred-decisions section calls for full words ("WIN" / "LOSS" / "OT LOSS" / "DNF") on every ResultPill, not just `size="md"`. Update the primitive; consumers stay unchanged.
 
 **Files:**
+
 - Modify: `apps/web/src/components/ui/result-pill.tsx`
 - Modify: `apps/web/src/lib/result-colors.ts`
 
@@ -348,6 +354,7 @@ export function ResultPill({ result, size = 'sm', className = '' }: ResultPillPr
 ```
 
 Key changes:
+
 - Both `sm` and `md` render `style.label` (the full word) — no more glyph branch.
 - `sm` drops `min-w-[32px]` and shrinks to `text-[10px] tracking-[0.18em]` so "OT LOSS" fits.
 - `whitespace-nowrap` added to prevent wrapping when the pill is squeezed in a flex container.
@@ -395,6 +402,7 @@ export function getResultStyle(result: MatchResult): ResultStyle {
 ```bash
 pnpm --filter web typecheck
 ```
+
 Expected: passes.
 
 - [ ] **Step 4: Commit**
@@ -422,6 +430,7 @@ EOF
 ```bash
 git log --oneline -1
 ```
+
 Expected: `feat(web): switch ResultPill to full-word labels ...` is HEAD.
 
 ---
@@ -431,6 +440,7 @@ Expected: `feat(web): switch ResultPill to full-word labels ...` is HEAD.
 Bring the nav into final voice consistency with Phases 2-5.
 
 **Files:**
+
 - Modify: `apps/web/src/components/nav/nav-links.tsx`
 - Modify: `apps/web/src/components/nav/game-title-switcher.tsx`
 - Modify: `apps/web/src/components/nav/top-nav.tsx`
@@ -438,10 +448,13 @@ Bring the nav into final voice consistency with Phases 2-5.
 - [ ] **Step 1: Apply transformations to nav-links.tsx**
 
 1. Desktop variant: change `tracking-[0.15em]` → `tracking-widest`. Replace:
+
    ```tsx
    'font-condensed text-sm font-bold uppercase tracking-[0.15em] transition-colors',
    ```
+
    with:
+
    ```tsx
    'font-condensed text-sm font-bold uppercase tracking-widest transition-colors',
    ```
@@ -458,19 +471,25 @@ Bring the nav into final voice consistency with Phases 2-5.
 - [ ] **Step 2: Apply transformations to game-title-switcher.tsx**
 
 1. Single-title chip: drop `rounded-sm` and bump `tracking-wide` → `tracking-widest`. Replace:
+
    ```tsx
    <span className="inline-flex items-center rounded-sm border border-zinc-700 bg-zinc-900/70 px-3 py-1.5 font-condensed text-xs font-bold uppercase tracking-wide text-zinc-50">
    ```
+
    with:
+
    ```tsx
    <span className="inline-flex items-center border border-zinc-700 bg-zinc-900/70 px-3 py-1.5 font-condensed text-xs font-bold uppercase tracking-widest text-zinc-50">
    ```
 
 2. Multi-title segmented bar wrapper: drop `rounded-sm`. Replace:
+
    ```tsx
    <div className="flex items-center divide-x divide-zinc-700 overflow-hidden rounded-sm border border-zinc-700">
    ```
+
    with:
+
    ```tsx
    <div className="flex items-center divide-x divide-zinc-700 overflow-hidden border border-zinc-700">
    ```
@@ -487,30 +506,38 @@ Bring the nav into final voice consistency with Phases 2-5.
 - [ ] **Step 3: Apply transformations to top-nav.tsx**
 
 1. Brand wordmark: bump `tracking-[0.15em]` → `tracking-widest`. Replace:
+
    ```tsx
    <span className="hidden font-condensed text-lg font-black uppercase leading-none tracking-[0.15em] text-zinc-50 sm:block">
    ```
+
    with:
+
    ```tsx
    <span className="hidden font-condensed text-lg font-black uppercase leading-none tracking-widest text-zinc-50 sm:block">
    ```
 
 2. Desktop fallback: bump `tracking-[0.15em]` → `tracking-widest`. Replace:
+
    ```tsx
-   className="font-condensed text-sm font-bold uppercase tracking-[0.15em] text-zinc-400"
+   className = 'font-condensed text-sm font-bold uppercase tracking-[0.15em] text-zinc-400'
    ```
+
    with:
+
    ```tsx
-   className="font-condensed text-sm font-bold uppercase tracking-widest text-zinc-400"
+   className = 'font-condensed text-sm font-bold uppercase tracking-widest text-zinc-400'
    ```
 
 3. Mobile fallback: bump `tracking-wider` → `tracking-widest` and add `font-condensed`. Replace:
    ```tsx
-   className="flex-1 py-2 text-center text-xs font-semibold uppercase tracking-wider text-zinc-400"
+   className =
+     'flex-1 py-2 text-center text-xs font-semibold uppercase tracking-wider text-zinc-400'
    ```
    with:
    ```tsx
-   className="flex-1 py-2 text-center font-condensed text-xs font-semibold uppercase tracking-widest text-zinc-400"
+   className =
+     'flex-1 py-2 text-center font-condensed text-xs font-semibold uppercase tracking-widest text-zinc-400'
    ```
 
 - [ ] **Step 4: Typecheck**
@@ -518,6 +545,7 @@ Bring the nav into final voice consistency with Phases 2-5.
 ```bash
 pnpm --filter web typecheck
 ```
+
 Expected: passes.
 
 - [ ] **Step 5: Commit**
@@ -542,6 +570,7 @@ EOF
 ```bash
 git log --oneline -1
 ```
+
 Expected: `refactor(web): tighten nav voice ...` is HEAD.
 
 ---
@@ -555,6 +584,7 @@ Spec calls for a grep pass to catch any leftover sentence-case labels. Earlier p
 ```bash
 rg -n '"(record|leaders?|standings?|stats|games?|roster)"' apps/web/src
 ```
+
 Expected: no matches (already verified earlier in this session).
 
 - [ ] **Step 2: Wider audit — catch label-y strings inside JSX**
@@ -562,11 +592,13 @@ Expected: no matches (already verified earlier in this session).
 ```bash
 rg -n '>(Record|Leaders?|Standings?|Stats|Games?|Roster|Recent|Latest|Featured|Top Performers|Goalie|Position|Defense|Offense|Chemistry|Trend|Skater|Shot Map|Club|Season|Title|Career|Faceoff|Playmaking|Scoring|Overview|Profile|Division|Standing|Mode)\s*<' apps/web/src
 ```
+
 This catches text content inside JSX tags that's sentence-case. Many will be legitimate (uppercase already) — review each match. Anything that's a label needing UPPERCASE wide-tracked treatment but currently rendered without those classes should be tightened.
 
 - [ ] **Step 3: Spot-fix any genuine sentence-case labels found**
 
 For each match identified in Step 2, verify:
+
 - If the surrounding `className` already has `uppercase` + `font-condensed` + appropriate tracking → no fix needed.
 - If the className is missing those, add them. Use Edit tool for each spot fix.
 
@@ -595,6 +627,7 @@ If no changes needed, skip the commit.
 ```bash
 git log --oneline -1
 ```
+
 Expected: latest commit is either the voice-audit fix or whatever the previous commit was.
 
 ---
@@ -604,6 +637,7 @@ Expected: latest commit is either the voice-audit fix or whatever the previous c
 Phase 1's visual-verification harness. Removed at end of renovation per spec.
 
 **Files:**
+
 - Delete: `apps/web/src/app/_kitchen-sink/page.tsx` (and the `_kitchen-sink/` directory)
 
 - [ ] **Step 1: Confirm zero references**
@@ -611,6 +645,7 @@ Phase 1's visual-verification harness. Removed at end of renovation per spec.
 ```bash
 rg -n "_kitchen-sink" apps/web/src apps/web/src/app
 ```
+
 Expected: only the page file itself (or no matches if Next.js resolves it from the filesystem layout).
 
 - [ ] **Step 2: Delete the directory**
@@ -619,6 +654,7 @@ Expected: only the page file itself (or no matches if Next.js resolves it from t
 git rm -r apps/web/src/app/_kitchen-sink
 git status --short
 ```
+
 Expected: a single `D` line for `apps/web/src/app/_kitchen-sink/page.tsx`.
 
 - [ ] **Step 3: Typecheck**
@@ -626,6 +662,7 @@ Expected: a single `D` line for `apps/web/src/app/_kitchen-sink/page.tsx`.
 ```bash
 pnpm --filter web typecheck
 ```
+
 Expected: passes.
 
 - [ ] **Step 4: Commit**
@@ -648,6 +685,7 @@ EOF
 git log --oneline -1
 git status
 ```
+
 Expected: `chore(web): remove kitchen-sink dev page` is HEAD; clean working tree.
 
 ---
@@ -661,6 +699,7 @@ Phase 6 ends when the renovation is fully landed and pushed.
 ```bash
 pnpm typecheck
 ```
+
 Expected: 6 successful tasks.
 
 - [ ] **Step 2: Targeted format pass**
@@ -701,11 +740,13 @@ If nothing changed, skip.
 ```bash
 pnpm --filter web dev
 ```
+
 Wait for "Ready in" line.
 
 - [ ] **Step 4: End-to-end walkthrough — every route**
 
 Open in a browser:
+
 - `http://localhost:<port>/` — home page (Phases 2 + 4 + 6 all visible: LATEST RESULT broadcast hero, ROSTER SPOTLIGHT, SCORING LEADERS, CLUB RECORD STRIP, SEASON RANK, RECENT RESULTS strip with **full-word ResultPill chips**, TITLE RECORDS).
 - `http://localhost:<port>/games` — list page. Each card has its result glow restored (emerald for WIN, rose for LOSS, amber for OTL, dim-rose for DNF). FormStrip pips show full words.
 - `http://localhost:<port>/games/<id>` — detail. HeroCard has BroadcastPanel + result-tinted glow layered on top. Top Performers, Possession Edge, Team Stats, Goalie Spotlight, Scoresheet, Context Footer all retain Phase 4 voice.
@@ -733,6 +774,7 @@ pgrep -af "next-server|next dev" || echo "(stopped)"
 ```bash
 env -u GITHUB_TOKEN git push origin feat/design-system-renovation
 ```
+
 Expected: push succeeds. The `env -u GITHUB_TOKEN` prefix is needed until the user removes the stale token from their shell environment.
 
 - [ ] **Step 7: Final state check**
@@ -741,6 +783,7 @@ Expected: push succeeds. The `env -u GITHUB_TOKEN` prefix is needed until the us
 git status
 git log --oneline main..HEAD | head -20
 ```
+
 Expected: clean tree on `feat/design-system-renovation`; commits ahead of `main` show the full renovation arc (Phase 0's spec + plan, Phase 1 primitives, Phases 2-5 page restyles, Phase 6 cleanup + deferred polish).
 
 ---

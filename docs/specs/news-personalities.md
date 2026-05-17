@@ -5,6 +5,7 @@ Rudimentary character bible for the Boogeymen news system.
 These seven fictional media personalities cover the team before games, between periods, and after the final horn. Each has a distinct tone, angle, and bias so generated articles and interview questions do not all sound like the same bland robot in a blazer.
 
 Use them as:
+
 - article bylines
 - post-game scrum questioners
 - intermission desk voices
@@ -352,18 +353,18 @@ Each personality should have preferred language patterns. Reusing these words he
 
 Use this when generating content by event type.
 
-| Situation | Primary Voice | Secondary Voice | Optional Counter-Voice |
-|---|---|---|---|
-| Routine win | Wade Barlow | June Halberd | Mara Quill |
-| Overtime win | Rico Vale | Wade Barlow | Father Rink |
-| Blowout loss | Dex Mercer | Mara Quill | Talia Voss |
-| Quiet low-event win | Mara Quill | Wade Barlow | June Halberd |
-| Third-period collapse | Dex Mercer | Wade Barlow | Talia Voss |
-| Goalie steal | Talia Voss | Mara Quill | Father Rink |
-| Rivalry game | Rico Vale | Dex Mercer | Father Rink |
-| Captain feature | Talia Voss | Wade Barlow | — |
-| Tactical turnaround | June Halberd | Wade Barlow | Mara Quill |
-| Slump piece | Mara Quill | Talia Voss | Dex Mercer |
+| Situation             | Primary Voice | Secondary Voice | Optional Counter-Voice |
+| --------------------- | ------------- | --------------- | ---------------------- |
+| Routine win           | Wade Barlow   | June Halberd    | Mara Quill             |
+| Overtime win          | Rico Vale     | Wade Barlow     | Father Rink            |
+| Blowout loss          | Dex Mercer    | Mara Quill      | Talia Voss             |
+| Quiet low-event win   | Mara Quill    | Wade Barlow     | June Halberd           |
+| Third-period collapse | Dex Mercer    | Wade Barlow     | Talia Voss             |
+| Goalie steal          | Talia Voss    | Mara Quill      | Father Rink            |
+| Rivalry game          | Rico Vale     | Dex Mercer      | Father Rink            |
+| Captain feature       | Talia Voss    | Wade Barlow     | —                      |
+| Tactical turnaround   | June Halberd  | Wade Barlow     | Mara Quill             |
+| Slump piece           | Mara Quill    | Talia Voss      | Dex Mercer             |
 
 ---
 

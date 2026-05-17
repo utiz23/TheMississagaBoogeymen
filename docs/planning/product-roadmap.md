@@ -113,28 +113,28 @@ Both are now presented honestly in the merged `/stats` and `/roster` routes. The
 
 ## Completed
 
-| Item | Done |
-|---|---|
-| Phase 0–4: Foundation, worker, frontend, production | ✅ |
-| Depth chart on `/roster` | ✅ |
-| Player profile V1 (`/roster/[id]`) | ✅ |
-| Official EA club record on home page | ✅ |
-| Opponent crest pipeline | ✅ |
-| Season rank / division widget | ✅ |
-| Game-mode filter (All / 6s / 3s) across all surfaces | ✅ |
-| Source split: All=EA totals, 6s+3s=local tracked | ✅ |
-| Historical season import — NHL 22, 23, 24, 25 (159 reviewed rows total) | ✅ |
-| Club-member screenshot historical import — NHL 22, 23, 24, 25 (42 canonical rows total) | ✅ |
-| Club/team stats screenshot schema + importer + extractor + review queue | ✅ |
-| Identity drift sweep — `StickMenace` collapsed into `Stick Menace` (id=3) | ✅ |
-| Legacy titles integrated into `/stats` and `/roster`; `/archive/*` retired | ✅ |
-| Legacy `/stats` split into club-scoped totals vs player-card season totals | ✅ |
-| Legacy `/roster` club-scoped only | ✅ |
-| Game log on player profile | ✅ |
-| EA season totals section on player profile | ✅ |
-| Contribution radar on player profile | ✅ |
-| Match detail page V1 (story strip, goalie spotlight, scoresheet) | ✅ |
-| Chemistry analytics: W/W-out + Best Pairs on `/stats` | ✅ |
-| DTW gauge color split fix | ✅ |
-| Form strip "Last N" label coherence fix | ✅ |
-| Event Map dead-weight placeholder removed | ✅ |
+| Item                                                                                    | Done |
+| --------------------------------------------------------------------------------------- | ---- |
+| Phase 0–4: Foundation, worker, frontend, production                                     | ✅   |
+| Depth chart on `/roster`                                                                | ✅   |
+| Player profile V1 (`/roster/[id]`)                                                      | ✅   |
+| Official EA club record on home page                                                    | ✅   |
+| Opponent crest pipeline                                                                 | ✅   |
+| Season rank / division widget                                                           | ✅   |
+| Game-mode filter (All / 6s / 3s) across all surfaces                                    | ✅   |
+| Source split: All=EA totals, 6s+3s=local tracked                                        | ✅   |
+| Historical season import — NHL 22, 23, 24, 25 (159 reviewed rows total)                 | ✅   |
+| Club-member screenshot historical import — NHL 22, 23, 24, 25 (42 canonical rows total) | ✅   |
+| Club/team stats screenshot schema + importer + extractor + review queue                 | ✅   |
+| Identity drift sweep — `StickMenace` collapsed into `Stick Menace` (id=3)               | ✅   |
+| Legacy titles integrated into `/stats` and `/roster`; `/archive/*` retired              | ✅   |
+| Legacy `/stats` split into club-scoped totals vs player-card season totals              | ✅   |
+| Legacy `/roster` club-scoped only                                                       | ✅   |
+| Game log on player profile                                                              | ✅   |
+| EA season totals section on player profile                                              | ✅   |
+| Contribution radar on player profile                                                    | ✅   |
+| Match detail page V1 (story strip, goalie spotlight, scoresheet)                        | ✅   |
+| Chemistry analytics: W/W-out + Best Pairs on `/stats`                                   | ✅   |
+| DTW gauge color split fix                                                               | ✅   |
+| Form strip "Last N" label coherence fix                                                 | ✅   |
+| Event Map dead-weight placeholder removed                                               | ✅   |

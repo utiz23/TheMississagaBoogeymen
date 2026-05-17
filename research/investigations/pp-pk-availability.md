@@ -37,9 +37,9 @@ match window (season-to-date, mode-filtered, last-N, etc).
 
 Live BGM totals for NHL 26 (regular-season, DNF excluded, as of 2026-05-10):
 
-| | Σ ppg | Σ ppo | Σ ppg_against | Σ ppo_against | PP% | PK% |
-|---|---:|---:|---:|---:|---:|---:|
-| BGM | 12 | 59 | 11 | 53 | **20.3%** | **79.2%** |
+|     | Σ ppg | Σ ppo | Σ ppg_against | Σ ppo_against |       PP% |       PK% |
+| --- | ----: | ----: | ------------: | ------------: | --------: | --------: |
+| BGM |    12 |    59 |            11 |            53 | **20.3%** | **79.2%** |
 
 ### Archive — `historical_club_team_stats`
 
@@ -60,11 +60,11 @@ in-game UI didn't track them in those modes.
 
 Sample (NHL 24 reviewed playlists):
 
-| playlist | GP | W | L | OTL | PP% | PK% |
-|---|---:|---:|---:|---:|---:|---:|
-| eashl_6v6 | 294 | 152 | 125 | 17 | 27.46 | 74.62 |
-| eashl_3v3 | 461 | 272 | 161 | 28 | (n/a) | (n/a) |
-| 6_player_full_team | 106 | 48 | 53 | 5 | (varies) | (varies) |
+| playlist           |  GP |   W |   L | OTL |      PP% |      PK% |
+| ------------------ | --: | --: | --: | --: | -------: | -------: |
+| eashl_6v6          | 294 | 152 | 125 |  17 |    27.46 |    74.62 |
+| eashl_3v3          | 461 | 272 | 161 |  28 |    (n/a) |    (n/a) |
+| 6_player_full_team | 106 |  48 |  53 |   5 | (varies) | (varies) |
 
 ## What this enables
 

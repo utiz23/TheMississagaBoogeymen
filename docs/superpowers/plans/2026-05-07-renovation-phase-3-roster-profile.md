@@ -9,6 +9,7 @@
 **Tech Stack:** Next.js 15 App Router (mostly server components, ClubStatsTabs + StatsRecordCard + TitleRecordsTable are Client Components), TypeScript strict, Tailwind CSS 4. No new dependencies. Phase 1 primitives at `apps/web/src/components/ui/{panel,broadcast-panel,section-header,result-pill,stat-strip}.tsx`.
 
 **Working assumptions:**
+
 - Current branch: `feat/design-system-renovation`. Phase 2 commits landed (HEAD ~ commit `fddeadb`).
 - The renovation spec at `docs/superpowers/specs/2026-05-07-boogeymen-renovation-design.md` is authoritative for Phase 3 scope.
 - Run all commands from the repo root: `/home/michal/projects/eanhl-team-website`.
@@ -19,6 +20,7 @@
   - **Keep ResultPips colored squares** (in dead code anyway, removed via deletion) — letter glyphs don't fit at 2.5px sparkline density.
 
 **Out of scope:**
+
 - Goalie-side IA parity (deferred, separate plan).
 - Any structural change to existing roster sections.
 - Any backend/data changes.
@@ -31,35 +33,36 @@
 
 **Files modified — Phase 1 primitive widening:**
 
-| Path | Change | Approx LOC delta |
-|---|---|---|
-| `apps/web/src/components/ui/section-header.tsx` | Add `subtitle?: string` prop. Renders below the label in a tighter dim type. | +6 |
-| `apps/web/src/app/_kitchen-sink/page.tsx` | Add a SectionHeader-with-subtitle variant to the kitchen-sink page so the new prop is verifiable. | +4 |
+| Path                                            | Change                                                                                            | Approx LOC delta |
+| ----------------------------------------------- | ------------------------------------------------------------------------------------------------- | ---------------- |
+| `apps/web/src/components/ui/section-header.tsx` | Add `subtitle?: string` prop. Renders below the label in a tighter dim type.                      | +6               |
+| `apps/web/src/app/_kitchen-sink/page.tsx`       | Add a SectionHeader-with-subtitle variant to the kitchen-sink page so the new prop is verifiable. | +4               |
 
 **Files deleted:**
 
-| Path | Reason |
-|---|---|
-| `apps/web/src/components/roster/recent-form-strip.tsx` | Dead code (not imported anywhere since Phase 0). |
-| `apps/web/src/components/roster/section-heading.tsx` | Obsolete after migrations in Tasks 2-3 (3 consumers all switch to SectionHeader). |
+| Path                                                   | Reason                                                                            |
+| ------------------------------------------------------ | --------------------------------------------------------------------------------- |
+| `apps/web/src/components/roster/recent-form-strip.tsx` | Dead code (not imported anywhere since Phase 0).                                  |
+| `apps/web/src/components/roster/section-heading.tsx`   | Obsolete after migrations in Tasks 2-3 (3 consumers all switch to SectionHeader). |
 
 **Files restyled:**
 
-| Path | Scope |
-|---|---|
-| `apps/web/src/components/roster/contribution-section.tsx` | Swap SectionHeading → SectionHeader; swap SurfaceCard → Panel. |
-| `apps/web/src/components/roster/trend-chart.tsx` | Swap SectionHeading → SectionHeader; swap SurfaceCard → Panel. |
-| `apps/web/src/components/roster/profile-hero.tsx` | Voice audit (UPPERCASE labels, en-dash splits, em-dash for missing); swap any inline result-rendering for `<ResultPill>`; verify AKA placement; outer surface stays a `<section>` (broadcast-panel hero) but inline labels tightened. |
-| `apps/web/src/components/roster/player-game-log-section.tsx` | Swap inline `border border-zinc-800 bg-surface` wrappers for `<Panel>`; replace `<ResultBadge>` import with `<ResultPill size="sm">`; UPPERCASE column headers; tabular-nums on numeric cells; voice on "showing N games" footer. |
-| `apps/web/src/components/roster/career-seasons-table.tsx` | Wrap in `<Panel>`; UPPERCASE column headers; en-dash separators where applicable. |
-| `apps/web/src/components/roster/stats-record-card.tsx` | Wrap tab-strip + content in `<Panel>` if appropriate; UPPERCASE tab labels (already done? verify). |
-| `apps/web/src/components/roster/club-stats-tabs.tsx` | Wrap in `<Panel>`; UPPERCASE labels throughout; tabular-nums on stat cells. |
-| `apps/web/src/components/roster/charts-visuals-section.tsx` | Section heading uses `<SectionHeader>`; child placeholders use `<Panel>`. |
-| `apps/web/src/components/roster/coming-soon-card.tsx` | Wrap in `<Panel>`; UPPERCASE title; voice. |
-| `apps/web/src/components/roster/shot-map.tsx` | Outer wrapper → `<Panel>`; section heading → `<SectionHeader>` with subtitle if applicable. |
-| `apps/web/src/app/roster/[id]/page.tsx` | Replace inline `ErrorState` with `<Panel>`; restyle "← Roster" back link voice; replace the "no local match history yet" inline div with a `<Panel>`. |
+| Path                                                         | Scope                                                                                                                                                                                                                                 |
+| ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `apps/web/src/components/roster/contribution-section.tsx`    | Swap SectionHeading → SectionHeader; swap SurfaceCard → Panel.                                                                                                                                                                        |
+| `apps/web/src/components/roster/trend-chart.tsx`             | Swap SectionHeading → SectionHeader; swap SurfaceCard → Panel.                                                                                                                                                                        |
+| `apps/web/src/components/roster/profile-hero.tsx`            | Voice audit (UPPERCASE labels, en-dash splits, em-dash for missing); swap any inline result-rendering for `<ResultPill>`; verify AKA placement; outer surface stays a `<section>` (broadcast-panel hero) but inline labels tightened. |
+| `apps/web/src/components/roster/player-game-log-section.tsx` | Swap inline `border border-zinc-800 bg-surface` wrappers for `<Panel>`; replace `<ResultBadge>` import with `<ResultPill size="sm">`; UPPERCASE column headers; tabular-nums on numeric cells; voice on "showing N games" footer.     |
+| `apps/web/src/components/roster/career-seasons-table.tsx`    | Wrap in `<Panel>`; UPPERCASE column headers; en-dash separators where applicable.                                                                                                                                                     |
+| `apps/web/src/components/roster/stats-record-card.tsx`       | Wrap tab-strip + content in `<Panel>` if appropriate; UPPERCASE tab labels (already done? verify).                                                                                                                                    |
+| `apps/web/src/components/roster/club-stats-tabs.tsx`         | Wrap in `<Panel>`; UPPERCASE labels throughout; tabular-nums on stat cells.                                                                                                                                                           |
+| `apps/web/src/components/roster/charts-visuals-section.tsx`  | Section heading uses `<SectionHeader>`; child placeholders use `<Panel>`.                                                                                                                                                             |
+| `apps/web/src/components/roster/coming-soon-card.tsx`        | Wrap in `<Panel>`; UPPERCASE title; voice.                                                                                                                                                                                            |
+| `apps/web/src/components/roster/shot-map.tsx`                | Outer wrapper → `<Panel>`; section heading → `<SectionHeader>` with subtitle if applicable.                                                                                                                                           |
+| `apps/web/src/app/roster/[id]/page.tsx`                      | Replace inline `ErrorState` with `<Panel>`; restyle "← Roster" back link voice; replace the "no local match history yet" inline div with a `<Panel>`.                                                                                 |
 
 **Files unchanged (reference only):**
+
 - `apps/web/src/components/roster/depth-chart.tsx` (used by `/roster` list, not by profile page — out of scope, Phase 5)
 - `apps/web/src/components/roster/position-donut.tsx` (Phase 0 already retuned)
 - `apps/web/src/components/roster/shot-map-renderer.tsx` (internal renderer — voice-neutral)
@@ -72,6 +75,7 @@
 The Phase 1 primitive renders a UPPERCASE wide-tracked label and an optional CTA arrow. Roster has 3 consumers (contribution-section, trend-chart, recent-form-strip-being-deleted) that need a subtitle line below the label. This is the third-consumer trigger that the Phase 1 plan reserved for primitive widening.
 
 **Files:**
+
 - Modify: `apps/web/src/components/ui/section-header.tsx`
 - Modify: `apps/web/src/app/_kitchen-sink/page.tsx`
 
@@ -159,10 +163,7 @@ Edit `apps/web/src/app/_kitchen-sink/page.tsx` — find the SectionHeader sectio
 Add after the third one:
 
 ```tsx
-<SectionHeader
-  label="Recent Form"
-  subtitle="Last 15 skater appearances · most recent first"
-/>
+<SectionHeader label="Recent Form" subtitle="Last 15 skater appearances · most recent first" />
 ```
 
 - [ ] **Step 3: Typecheck**
@@ -170,6 +171,7 @@ Add after the third one:
 ```bash
 pnpm --filter web typecheck
 ```
+
 Expected: passes.
 
 - [ ] **Step 4: Commit**
@@ -196,6 +198,7 @@ EOF
 ```bash
 git log --oneline -1
 ```
+
 Expected: `feat(web): add optional subtitle to SectionHeader ...` is HEAD.
 
 ---
@@ -205,6 +208,7 @@ Expected: `feat(web): add optional subtitle to SectionHeader ...` is HEAD.
 Swap the local SectionHeading → SectionHeader (with subtitle), and replace the local `SurfaceCard` helper with `<Panel>`.
 
 **Files:**
+
 - Modify: `apps/web/src/components/roster/contribution-section.tsx`
 
 - [ ] **Step 1: Read current file**
@@ -218,12 +222,14 @@ sed -n '1,160p' apps/web/src/components/roster/contribution-section.tsx
 Make these specific edits in `contribution-section.tsx`:
 
 1. Replace the import line `import { SectionHeading } from '@/components/roster/section-heading'` with:
+
    ```tsx
    import { SectionHeader } from '@/components/ui/section-header'
    import { Panel } from '@/components/ui/panel'
    ```
 
 2. Replace `<SectionHeading title="Season Profile" subtitle={...} />` with:
+
    ```tsx
    <SectionHeader
      label="Season Profile"
@@ -242,6 +248,7 @@ Make these specific edits in `contribution-section.tsx`:
 ```bash
 pnpm --filter web typecheck
 ```
+
 Expected: passes.
 
 - [ ] **Step 4: Commit**
@@ -266,6 +273,7 @@ EOF
 ```bash
 git log --oneline -1
 ```
+
 Expected: `refactor(web): migrate ContributionSection ...` is HEAD.
 
 ---
@@ -275,6 +283,7 @@ Expected: `refactor(web): migrate ContributionSection ...` is HEAD.
 Same pattern as Task 2.
 
 **Files:**
+
 - Modify: `apps/web/src/components/roster/trend-chart.tsx`
 
 - [ ] **Step 1: Read current file**
@@ -288,6 +297,7 @@ sed -n '1,120p' apps/web/src/components/roster/trend-chart.tsx
 Make these specific edits:
 
 1. Replace `import { SectionHeading } from '@/components/roster/section-heading'` with:
+
    ```tsx
    import { SectionHeader } from '@/components/ui/section-header'
    import { Panel } from '@/components/ui/panel'
@@ -304,6 +314,7 @@ Make these specific edits:
 ```bash
 pnpm --filter web typecheck
 ```
+
 Expected: passes.
 
 - [ ] **Step 4: Commit**
@@ -327,6 +338,7 @@ EOF
 ```bash
 git log --oneline -1
 ```
+
 Expected: `refactor(web): migrate TrendChart ...` is HEAD.
 
 ---
@@ -336,6 +348,7 @@ Expected: `refactor(web): migrate TrendChart ...` is HEAD.
 After Tasks 2-3, the local SectionHeading has zero callers (RecentFormStrip is dead code, not imported anywhere). Both files are safe to delete.
 
 **Files:**
+
 - Delete: `apps/web/src/components/roster/recent-form-strip.tsx`
 - Delete: `apps/web/src/components/roster/section-heading.tsx`
 
@@ -345,7 +358,9 @@ After Tasks 2-3, the local SectionHeading has zero callers (RecentFormStrip is d
 grep -rln "RecentFormStrip\|recent-form-strip" apps/web/src/ apps/web/src/app/ 2>&1
 grep -rln "SectionHeading\|section-heading" apps/web/src/ apps/web/src/app/ 2>&1
 ```
+
 Expected:
+
 - First grep: only `apps/web/src/components/roster/recent-form-strip.tsx` itself (self-reference). No `app/roster/[id]/page.tsx`, no other consumers.
 - Second grep: only `apps/web/src/components/roster/section-heading.tsx` itself. No consumers in `contribution-section.tsx` or `trend-chart.tsx` (those got migrated in Tasks 2-3).
 
@@ -358,6 +373,7 @@ git rm apps/web/src/components/roster/recent-form-strip.tsx
 git rm apps/web/src/components/roster/section-heading.tsx
 git status --short | grep -E '^D '
 ```
+
 Expected: 2 lines, both `D `.
 
 - [ ] **Step 3: Typecheck**
@@ -365,6 +381,7 @@ Expected: 2 lines, both `D `.
 ```bash
 pnpm --filter web typecheck
 ```
+
 Expected: passes (no consumers reference either file).
 
 - [ ] **Step 4: Commit**
@@ -389,6 +406,7 @@ EOF
 git log --oneline -1
 git status --short
 ```
+
 Expected: `chore(web): delete dead RecentFormStrip ...` is HEAD; working tree clean.
 
 ---
@@ -398,6 +416,7 @@ Expected: `chore(web): delete dead RecentFormStrip ...` is HEAD; working tree cl
 The biggest restyle target — 450 lines, the visual centerpiece of the roster profile page. Phase 0 already added the AKA line; Phase 3 confirms it matches the spec, applies the design-system voice across labels, and swaps the outer hand-rolled `border border-zinc-800 bg-surface` wrapper for `<Panel>` (or `<BroadcastPanel>` if the section is intended to be a hero broadcast surface — verify against the design-system spec).
 
 **Files:**
+
 - Modify: `apps/web/src/components/roster/profile-hero.tsx`
 
 - [ ] **Step 1: Read current file**
@@ -413,13 +432,16 @@ sed -n '250,450p' apps/web/src/components/roster/profile-hero.tsx
 Make these specific edits in `profile-hero.tsx`:
 
 1. Add imports at the top of the file (after existing imports):
+
    ```tsx
    import { Panel } from '@/components/ui/panel'
    ```
+
    Only add `BroadcastPanel` if Step 3 below decides to use it.
 
 2. **Outer wrapper decision** (around line 111: `<section className="relative overflow-hidden border border-zinc-800 bg-surface">`):
    - The profile hero is a "hero" surface — the design-system spec says broadcast-panel decoration is for hero + leaders. So replace this outer `<section>` with a `<section>` containing a `<BroadcastPanel>`:
+
      ```tsx
      // Before:
      <section className="relative overflow-hidden border border-zinc-800 bg-surface">
@@ -433,6 +455,7 @@ Make these specific edits in `profile-hero.tsx`:
        </BroadcastPanel>
      </section>
      ```
+
    - Add `import { BroadcastPanel } from '@/components/ui/broadcast-panel'` to the imports.
 
 3. **AKA placement audit:** The AKA line was added in Phase 0 (commit `536f18a`). It should be a dim secondary line directly below the gamertag h1, using `font-condensed text-sm font-semibold uppercase tracking-widest text-zinc-500`. Confirm via Read; no edit needed if already correct.
@@ -456,6 +479,7 @@ Make these specific edits in `profile-hero.tsx`:
 ```bash
 pnpm --filter web typecheck
 ```
+
 Expected: passes.
 
 - [ ] **Step 4: Commit**
@@ -481,6 +505,7 @@ EOF
 ```bash
 git log --oneline -1
 ```
+
 Expected: `refactor(web): voice + primitives reconcile on ProfileHero` is HEAD.
 
 ---
@@ -490,6 +515,7 @@ Expected: `refactor(web): voice + primitives reconcile on ProfileHero` is HEAD.
 The game log section currently uses the legacy `<ResultBadge>` from `apps/web/src/components/ui/result-badge.tsx` (the solid red WIN badge — predates the design system). Swap to `<ResultPill size="sm">` and apply Panel + voice audit to the wrapping table.
 
 **Files:**
+
 - Modify: `apps/web/src/components/roster/player-game-log-section.tsx`
 
 - [ ] **Step 1: Read current file**
@@ -502,6 +528,7 @@ sed -n '100,273p' apps/web/src/components/roster/player-game-log-section.tsx
 - [ ] **Step 2: Apply transformations**
 
 1. Replace the import:
+
    ```tsx
    // Before
    import { ResultBadge } from '@/components/ui/result-badge'
@@ -528,6 +555,7 @@ sed -n '100,273p' apps/web/src/components/roster/player-game-log-section.tsx
 ```bash
 pnpm --filter web typecheck
 ```
+
 Expected: passes.
 
 - [ ] **Step 4: Commit**
@@ -551,6 +579,7 @@ EOF
 ```bash
 git log --oneline -1
 ```
+
 Expected: `refactor(web): voice + primitives reconcile on PlayerGameLogSection` is HEAD.
 
 ---
@@ -560,6 +589,7 @@ Expected: `refactor(web): voice + primitives reconcile on PlayerGameLogSection` 
 Two tightly related files: StatsRecordCard is the tabbed wrapper that hosts CareerSeasonsTable + the game log. Both get a light Panel + voice pass.
 
 **Files:**
+
 - Modify: `apps/web/src/components/roster/career-seasons-table.tsx`
 - Modify: `apps/web/src/components/roster/stats-record-card.tsx`
 
@@ -594,6 +624,7 @@ sed -n '1,57p' apps/web/src/components/roster/stats-record-card.tsx
 ```bash
 pnpm --filter web typecheck
 ```
+
 Expected: passes.
 
 - [ ] **Step 5: Commit**
@@ -617,6 +648,7 @@ EOF
 ```bash
 git log --oneline -1
 ```
+
 Expected: `refactor(web): voice + Panel reconcile on career table + stats record card` is HEAD.
 
 ---
@@ -626,6 +658,7 @@ Expected: `refactor(web): voice + Panel reconcile on career table + stats record
 This is a Client Component (uses tab state). 257 lines. Multiple inner tables (Overview, Scoring, Playmaking, Defense, Faceoffs).
 
 **Files:**
+
 - Modify: `apps/web/src/components/roster/club-stats-tabs.tsx`
 
 - [ ] **Step 1: Read current file**
@@ -652,6 +685,7 @@ sed -n '150,257p' apps/web/src/components/roster/club-stats-tabs.tsx
 ```bash
 pnpm --filter web typecheck
 ```
+
 Expected: passes.
 
 - [ ] **Step 4: Commit**
@@ -676,6 +710,7 @@ EOF
 ```bash
 git log --oneline -1
 ```
+
 Expected: `refactor(web): voice + Panel reconcile on ClubStatsTabs` is HEAD.
 
 ---
@@ -685,6 +720,7 @@ Expected: `refactor(web): voice + Panel reconcile on ClubStatsTabs` is HEAD.
 Catch-all task for the smaller surfaces. Each gets a Panel + SectionHeader + voice pass.
 
 **Files:**
+
 - Modify: `apps/web/src/components/roster/charts-visuals-section.tsx`
 - Modify: `apps/web/src/components/roster/coming-soon-card.tsx`
 - Modify: `apps/web/src/components/roster/shot-map.tsx`
@@ -697,6 +733,7 @@ sed -n '1,32p' apps/web/src/components/roster/charts-visuals-section.tsx
 ```
 
 Apply:
+
 1. Add `import { SectionHeader } from '@/components/ui/section-header'`.
 2. Replace the inline `<h2 className="font-condensed text-2xl ...">Charts & Visuals</h2>` with `<SectionHeader label="Charts & Visuals" />`.
 
@@ -707,6 +744,7 @@ sed -n '1,33p' apps/web/src/components/roster/coming-soon-card.tsx
 ```
 
 Apply:
+
 1. Add `import { Panel } from '@/components/ui/panel'`.
 2. Replace the outer `border border-zinc-800 bg-surface` div with `<Panel>`.
 3. UPPERCASE the title + voice on the description (if it has any inline classes that disagree).
@@ -718,14 +756,13 @@ sed -n '1,50p' apps/web/src/components/roster/shot-map.tsx
 ```
 
 Apply:
+
 1. Add imports for `Panel` and `SectionHeader`.
 2. Replace the outer `<section className="border border-zinc-800 bg-surface p-4">` (around line 23) with:
    ```tsx
    <section className="space-y-3">
      <SectionHeader label="Shot Map" />
-     <Panel className="p-4">
-       {/* existing body */}
-     </Panel>
+     <Panel className="p-4">{/* existing body */}</Panel>
    </section>
    ```
    (Move any existing inline section heading inside the body up to the SectionHeader if there is one.)
@@ -737,6 +774,7 @@ sed -n '130,233p' apps/web/src/app/roster/\[id\]/page.tsx
 ```
 
 Apply:
+
 1. Add `import { Panel } from '@/components/ui/panel'` to the imports.
 2. Replace the local `ErrorState` helper's `<div className="flex min-h-[12rem] items-center justify-center border border-zinc-800 bg-surface">` with `<Panel className="flex min-h-[12rem] items-center justify-center">`. The helper can stay as a function or be inlined — either works.
 3. The "no local match history yet" alert at lines 152-160: replace the `rounded border border-zinc-700 bg-zinc-900` div with `<Panel>` and drop `rounded`.
@@ -755,6 +793,7 @@ Apply:
 ```bash
 pnpm --filter web typecheck
 ```
+
 Expected: passes.
 
 - [ ] **Step 6: Commit**
@@ -782,6 +821,7 @@ EOF
 ```bash
 git log --oneline -1
 ```
+
 Expected: `refactor(web): voice + Panel sweep on remaining roster surfaces` is HEAD.
 
 ---
@@ -795,6 +835,7 @@ Phase 3 ends when the roster profile renders correctly with the new voice + prim
 ```bash
 pnpm typecheck
 ```
+
 Expected: 6 successful tasks.
 
 - [ ] **Step 2: Start dev server**
@@ -802,11 +843,13 @@ Expected: 6 successful tasks.
 ```bash
 pnpm --filter web dev
 ```
+
 Wait for "Ready in" line.
 
 - [ ] **Step 3: Walk the roster profile + kitchen-sink**
 
 Open in a browser:
+
 - `http://localhost:<port>/_kitchen-sink` — confirm the new SectionHeader-with-subtitle variant renders correctly.
 - `http://localhost:<port>/roster` — confirm the list still works (Phase 5 territory; should be unaffected).
 - `http://localhost:<port>/roster/<some-skater-id>` — walk through every section:
@@ -873,6 +916,7 @@ pgrep -af "next-server|next dev" || echo "(stopped)"
 ```bash
 git push origin feat/design-system-renovation
 ```
+
 Expected: branch pushes cleanly to origin.
 
 - [ ] **Step 7: Final state check**
@@ -881,6 +925,7 @@ Expected: branch pushes cleanly to origin.
 git status
 git log --oneline main..HEAD | head -25
 ```
+
 Expected: clean tree on `feat/design-system-renovation`; ~10-11 new commits ahead of `main` from Phase 3.
 
 ---

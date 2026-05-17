@@ -9,6 +9,7 @@
 **Tech Stack:** git, pnpm, Drizzle ORM, conventional commits per CLAUDE.md commit protocol.
 
 **Working assumptions:**
+
 - Current branch: `feat/skater-stats-expansion`. HEAD = `b4fdf2b` (the design spec commit just pushed).
 - `main` is behind this branch and a fast-forward is possible (verify in Task 15).
 - The renovation spec at `docs/superpowers/specs/2026-05-07-boogeymen-renovation-design.md` is already committed and pushed; it does NOT appear in this plan's commits.
@@ -21,6 +22,7 @@
 ## Task 1: Tighten .gitignore
 
 **Files:**
+
 - Modify: `.gitignore`
 
 - [ ] **Step 1: Confirm scope**
@@ -28,6 +30,7 @@
 ```bash
 git diff HEAD -- .gitignore | tail -20
 ```
+
 Expected: shows the additions for `/*.png`, `/*.txt`, `* (1).*`, `* (2).*`, `*.zip`, and `docs/design/boogeymen-system/`.
 
 - [ ] **Step 2: Stage**
@@ -36,6 +39,7 @@ Expected: shows the additions for `/*.png`, `/*.txt`, `* (1).*`, `* (2).*`, `*.z
 git add .gitignore
 git status --short | grep -E '^[AM] '
 ```
+
 Expected: a single `M  .gitignore` line.
 
 - [ ] **Step 3: Commit**
@@ -58,6 +62,7 @@ EOF
 ```bash
 git log --oneline -1
 ```
+
 Expected: `chore(repo): ignore root debug artifacts...` is HEAD.
 
 ---
@@ -65,6 +70,7 @@ Expected: `chore(repo): ignore root debug artifacts...` is HEAD.
 ## Task 2: Land 0022 migration + roster query expansion
 
 **Files:**
+
 - Modify: `packages/db/src/schema/player-profiles.ts` (adds `playerName text` column)
 - Modify: `packages/db/src/queries/players.ts` (surfaces new fields in `getRoster`, `getEARoster`, `getPlayerWithProfile`)
 - Modify: `packages/db/migrations/meta/_journal.json`
@@ -81,6 +87,7 @@ git add packages/db/src/schema/player-profiles.ts \
         packages/db/migrations/meta/0022_snapshot.json
 git status --short | grep -E '^[AM] '
 ```
+
 Expected: 5 lines, no other files staged.
 
 - [ ] **Step 2: Build the db package** (required so consumers typecheck against new query shape)
@@ -88,6 +95,7 @@ Expected: 5 lines, no other files staged.
 ```bash
 pnpm --filter @eanhl/db build
 ```
+
 Expected: TypeScript compilation succeeds for `@eanhl/db`.
 
 - [ ] **Step 3: Apply the migration locally**
@@ -96,6 +104,7 @@ Expected: TypeScript compilation succeeds for `@eanhl/db`.
 set -a && source .env && set +a
 pnpm --filter db migrate
 ```
+
 Expected: drizzle reports `0022_mature_paladin.sql` applied (or "already applied" if previously run during dev).
 
 - [ ] **Step 4: Commit**
@@ -120,6 +129,7 @@ EOF
 ```bash
 git log --oneline -1
 ```
+
 Expected: `feat(db): add player_name column ...` is HEAD.
 
 ---
@@ -127,6 +137,7 @@ Expected: `feat(db): add player_name column ...` is HEAD.
 ## Task 3: Add player meta icons component + replace branding flag set
 
 **Files:**
+
 - Create: `apps/web/src/components/player-meta-icons.tsx`
 - Create: `docs/branding/flags/canada.svg`
 - Create: `docs/branding/flags/united-states.svg`
@@ -151,6 +162,7 @@ git add apps/web/src/components/player-meta-icons.tsx \
         docs/branding/logos/platforms/xbox-logo.svg
 git status --short | grep -E '^[ADM] '
 ```
+
 Expected: added branding assets; nothing else.
 
 - [ ] **Step 2: Typecheck the web app** (the new component must compile in isolation — no consumer commits yet)
@@ -158,6 +170,7 @@ Expected: added branding assets; nothing else.
 ```bash
 pnpm --filter web typecheck
 ```
+
 Expected: passes. (Component is added but not yet imported by anything; it's a fresh module.)
 
 - [ ] **Step 3: Commit**
@@ -180,6 +193,7 @@ EOF
 ```bash
 git log --oneline -1
 ```
+
 Expected: `feat(web): add player-meta-icons ...` is HEAD.
 
 ---
@@ -187,6 +201,7 @@ Expected: `feat(web): add player-meta-icons ...` is HEAD.
 ## Task 4: Wire EA W/L/OTL splits + nationality + platform into player cards
 
 **Files:**
+
 - Modify: `apps/web/src/components/home/player-card.tsx`
 - Modify: `apps/web/src/components/roster/depth-chart.tsx`
 
@@ -199,6 +214,7 @@ git add apps/web/src/components/home/player-card.tsx \
         apps/web/src/components/roster/depth-chart.tsx
 git status --short | grep -E '^[AM] '
 ```
+
 Expected: 2 lines, both `M`.
 
 - [ ] **Step 2: Typecheck**
@@ -206,6 +222,7 @@ Expected: 2 lines, both `M`.
 ```bash
 pnpm --filter web typecheck
 ```
+
 Expected: passes (depends on Task 2's db build and Task 3's player-meta-icons component).
 
 - [ ] **Step 3: Commit**
@@ -230,6 +247,7 @@ EOF
 ```bash
 git log --oneline -1
 ```
+
 Expected: `feat(web): wire EA W/L/OTL splits ...` is HEAD.
 
 ---
@@ -237,6 +255,7 @@ Expected: `feat(web): wire EA W/L/OTL splits ...` is HEAD.
 ## Task 5: Support split LD/RD positions in pill + formatter
 
 **Files:**
+
 - Modify: `apps/web/src/components/matches/position-pill.tsx`
 - Modify: `apps/web/src/lib/format.ts`
 
@@ -247,6 +266,7 @@ git add apps/web/src/components/matches/position-pill.tsx \
         apps/web/src/lib/format.ts
 git status --short | grep -E '^[AM] '
 ```
+
 Expected: 2 lines, both `M`.
 
 - [ ] **Step 2: Typecheck**
@@ -254,6 +274,7 @@ Expected: 2 lines, both `M`.
 ```bash
 pnpm --filter web typecheck
 ```
+
 Expected: passes.
 
 - [ ] **Step 3: Commit**
@@ -276,6 +297,7 @@ EOF
 ```bash
 git log --oneline -1
 ```
+
 Expected: `feat(web): recognise leftDefenseMen ...` is HEAD.
 
 ---
@@ -283,6 +305,7 @@ Expected: `feat(web): recognise leftDefenseMen ...` is HEAD.
 ## Task 6: Retune position donut palette
 
 **Files:**
+
 - Modify: `apps/web/src/components/roster/position-donut.tsx`
 
 - [ ] **Step 1: Stage**
@@ -291,6 +314,7 @@ Expected: `feat(web): recognise leftDefenseMen ...` is HEAD.
 git add apps/web/src/components/roster/position-donut.tsx
 git status --short | grep -E '^[AM] '
 ```
+
 Expected: one `M` line.
 
 - [ ] **Step 2: Typecheck**
@@ -298,6 +322,7 @@ Expected: one `M` line.
 ```bash
 pnpm --filter web typecheck
 ```
+
 Expected: passes.
 
 - [ ] **Step 3: Commit**
@@ -319,6 +344,7 @@ EOF
 ```bash
 git log --oneline -1
 ```
+
 Expected: `refactor(web): retune position donut palette ...` is HEAD.
 
 ---
@@ -326,6 +352,7 @@ Expected: `refactor(web): retune position donut palette ...` is HEAD.
 ## Task 7: Show real-name (AKA) line in profile hero
 
 **Files:**
+
 - Modify: `apps/web/src/components/roster/profile-hero.tsx`
 
 - [ ] **Step 1: Stage**
@@ -334,6 +361,7 @@ Expected: `refactor(web): retune position donut palette ...` is HEAD.
 git add apps/web/src/components/roster/profile-hero.tsx
 git status --short | grep -E '^[AM] '
 ```
+
 Expected: one `M` line.
 
 - [ ] **Step 2: Typecheck**
@@ -341,6 +369,7 @@ Expected: one `M` line.
 ```bash
 pnpm --filter web typecheck
 ```
+
 Expected: passes (relies on `playerName` field surfaced in Task 2).
 
 - [ ] **Step 3: Commit**
@@ -362,6 +391,7 @@ EOF
 ```bash
 git log --oneline -1
 ```
+
 Expected: `feat(web): show real-name line ...` is HEAD.
 
 ---
@@ -369,6 +399,7 @@ Expected: `feat(web): show real-name line ...` is HEAD.
 ## Task 8: Refine shot-map zone definitions
 
 **Files:**
+
 - Modify: `apps/web/src/components/roster/shot-map-zones.ts`
 
 This is the largest single-file diff (~244 lines). It refines the empirical EA-index → ice-zone mapping; no consumer changes required.
@@ -379,6 +410,7 @@ This is the largest single-file diff (~244 lines). It refines the empirical EA-i
 git add apps/web/src/components/roster/shot-map-zones.ts
 git status --short | grep -E '^[AM] '
 ```
+
 Expected: one `M` line.
 
 - [ ] **Step 2: Typecheck**
@@ -386,6 +418,7 @@ Expected: one `M` line.
 ```bash
 pnpm --filter web typecheck
 ```
+
 Expected: passes.
 
 - [ ] **Step 3: Commit**
@@ -407,6 +440,7 @@ EOF
 ```bash
 git log --oneline -1
 ```
+
 Expected: `fix(web): refine shot-map zone definitions` is HEAD.
 
 ---
@@ -414,6 +448,7 @@ Expected: `fix(web): refine shot-map zone definitions` is HEAD.
 ## Task 9: Promote shot map to standalone section on profile page
 
 **Files:**
+
 - Modify: `apps/web/src/app/roster/[id]/page.tsx` (drops `RecentFormStrip`, lifts `ShotMap` out of `ChartsVisualsSection`)
 - Modify: `apps/web/src/components/roster/charts-visuals-section.tsx` (drops the now-unused `shotMap?: ReactNode` prop)
 
@@ -424,6 +459,7 @@ git add apps/web/src/app/roster/\[id\]/page.tsx \
         apps/web/src/components/roster/charts-visuals-section.tsx
 git status --short | grep -E '^[AM] '
 ```
+
 Expected: 2 lines, both `M`.
 
 - [ ] **Step 2: Typecheck**
@@ -431,6 +467,7 @@ Expected: 2 lines, both `M`.
 ```bash
 pnpm --filter web typecheck
 ```
+
 Expected: passes.
 
 - [ ] **Step 3: Commit**
@@ -458,6 +495,7 @@ EOF
 ```bash
 git log --oneline -1
 ```
+
 Expected: `refactor(web): promote shot map ...` is HEAD.
 
 ---
@@ -465,6 +503,7 @@ Expected: `refactor(web): promote shot map ...` is HEAD.
 ## Task 10: Swap app icon to PNG
 
 **Files:**
+
 - Delete: `apps/web/src/app/icon.tsx`
 - Create: `apps/web/src/app/icon.png`
 
@@ -475,6 +514,7 @@ git add apps/web/src/app/icon.png
 git rm apps/web/src/app/icon.tsx
 git status --short | grep -E '^[ADM] '
 ```
+
 Expected: 1 added, 1 deleted.
 
 - [ ] **Step 2: Typecheck**
@@ -482,6 +522,7 @@ Expected: 1 added, 1 deleted.
 ```bash
 pnpm --filter web typecheck
 ```
+
 Expected: passes (Next.js resolves icon.png automatically without any TS reference).
 
 - [ ] **Step 3: Commit**
@@ -503,6 +544,7 @@ EOF
 ```bash
 git log --oneline -1
 ```
+
 Expected: `chore(web): swap app favicon ...` is HEAD.
 
 ---
@@ -510,6 +552,7 @@ Expected: `chore(web): swap app favicon ...` is HEAD.
 ## Task 11: Update position-colors spec
 
 **Files:**
+
 - Modify: `docs/specs/position-colors.md`
 
 - [ ] **Step 1: Stage**
@@ -518,6 +561,7 @@ Expected: `chore(web): swap app favicon ...` is HEAD.
 git add docs/specs/position-colors.md
 git status --short | grep -E '^[AM] '
 ```
+
 Expected: one `M` line.
 
 - [ ] **Step 2: Commit**
@@ -539,6 +583,7 @@ EOF
 ```bash
 git log --oneline -1
 ```
+
 Expected: `docs(spec): update position-colors palette ...` is HEAD.
 
 ---
@@ -546,6 +591,7 @@ Expected: `docs(spec): update position-colors palette ...` is HEAD.
 ## Task 12: Add player profile template, dossier specs, and news-personalities spec
 
 **Files:**
+
 - Create: `docs/templates/player-profile-fields.md`
 - Create: `docs/specs/news-personalities.md`
 - Create: `docs/specs/player-dossiers/README.md`
@@ -566,6 +612,7 @@ Expected: `docs(spec): update position-colors palette ...` is HEAD.
 git add docs/templates/player-profile-fields.md docs/specs/news-personalities.md docs/specs/player-dossiers/
 git status --short | grep -E '^A '
 ```
+
 Expected: 12 lines (template + news-personalities + 10 dossier files).
 
 - [ ] **Step 2: Commit**
@@ -590,6 +637,7 @@ EOF
 ```bash
 git log --oneline -1
 ```
+
 Expected: `docs(specs): add player profile template ...` is HEAD.
 
 ---
@@ -597,6 +645,7 @@ Expected: `docs(specs): add player profile template ...` is HEAD.
 ## Task 13: Record 2026-05-05 profile page restructure plan
 
 **Files:**
+
 - Create: `docs/superpowers/plans/2026-05-05-profile-page-restructure.md`
 
 This plan is the one we've been partially executing on the in-flight branch (profile-hero, charts-visuals, etc.). Recording it preserves the rationale for the restructure that the prior commits embodied.
@@ -607,6 +656,7 @@ This plan is the one we've been partially executing on the in-flight branch (pro
 git add docs/superpowers/plans/2026-05-05-profile-page-restructure.md
 git status --short | grep -E '^A '
 ```
+
 Expected: one `A` line.
 
 - [ ] **Step 2: Commit**
@@ -631,6 +681,7 @@ EOF
 ```bash
 git log --oneline -1
 ```
+
 Expected: `docs(plans): record 2026-05-05 profile page restructure plan` is HEAD.
 
 ---
@@ -638,6 +689,7 @@ Expected: `docs(plans): record 2026-05-05 profile page restructure plan` is HEAD
 ## Task 14: Add bundled design references and chelhead research screenshots
 
 **Files:**
+
 - Create: `docs/design/1355427032026083102.webp`
 - Create: `docs/design/375410102025081649.webp`
 - Create: `docs/design/417411112025054300.webp`
@@ -657,6 +709,7 @@ git add "research/chelhead/FireShot Capture 061 - silkyjoker85 - NHL 26 EASHL Pl
         "research/chelhead/FireShot Capture 063 - Connor McDavid Stats - NHL EDGE - NHL.com - [www.nhl.com].png"
 git status --short | grep -E '^A '
 ```
+
 Expected: 10 lines (8 webp + 2 png).
 
 - [ ] **Step 2: Commit**
@@ -679,6 +732,7 @@ EOF
 ```bash
 git status --short
 ```
+
 Expected: empty output (working tree clean).
 
 ---
@@ -690,6 +744,7 @@ Expected: empty output (working tree clean).
 ```bash
 pnpm typecheck
 ```
+
 Expected: passes across all packages.
 
 - [ ] **Step 2: Format pass**
@@ -697,6 +752,7 @@ Expected: passes across all packages.
 ```bash
 pnpm format
 ```
+
 Expected: rewrites any formatting drift; if files change, stage and commit them as `style: pnpm format pass` before continuing.
 
 - [ ] **Step 3: Dev-server walkthrough**
@@ -704,7 +760,9 @@ Expected: rewrites any formatting drift; if files change, stage and commit them 
 ```bash
 pnpm --filter web dev
 ```
+
 Then visit each route in a browser at `localhost:3000`:
+
 - `/`
 - `/games`
 - `/games/<some-id>`
@@ -724,6 +782,7 @@ git fetch origin
 git log --oneline main..feat/skater-stats-expansion | head -20
 git log --oneline feat/skater-stats-expansion..main | head -5
 ```
+
 Expected: first command lists Task 1-14 commits + `b4fdf2b` spec commit; second command is empty (main has no commits the branch lacks → ff is possible).
 
 If second command is non-empty, stop and surface to the user — main has diverged and the merge strategy needs to be chosen explicitly.
@@ -734,6 +793,7 @@ If second command is non-empty, stop and surface to the user — main has diverg
 git checkout main
 git merge --ff-only feat/skater-stats-expansion
 ```
+
 Expected: ff merge succeeds; main now points at the same commit as the feature branch.
 
 - [ ] **Step 6: Push main**
@@ -741,6 +801,7 @@ Expected: ff merge succeeds; main now points at the same commit as the feature b
 ```bash
 git push origin main
 ```
+
 Expected: push succeeds.
 
 - [ ] **Step 7: Delete the merged branch (local + remote)**
@@ -749,6 +810,7 @@ Expected: push succeeds.
 git branch -d feat/skater-stats-expansion
 git push origin --delete feat/skater-stats-expansion
 ```
+
 Expected: local branch deleted (`-d` succeeds because it's fully merged), remote branch deleted.
 
 - [ ] **Step 8: Final verification**
@@ -758,6 +820,7 @@ git status
 git log --oneline -20
 git branch -a | grep skater-stats
 ```
+
 Expected: clean working tree on `main`; the last 16 commits are the Phase 0 commits + the spec commit; no `feat/skater-stats-expansion` branch in `git branch -a` output.
 
 ---

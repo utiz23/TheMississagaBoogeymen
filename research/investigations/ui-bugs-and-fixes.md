@@ -14,6 +14,7 @@
 **Bug:** The "Last 10: 5-2-1" form strip used `n = matches.length` as the denominator for the label. `matches.length` includes DNF matches, making the label incoherent. A "Last 10" label with a "5-2-1" tally is confusing if 2 of those 10 were DNFs (they don't appear in the W-L-OTL count).
 
 **Fix:**
+
 ```ts
 // Before:
 const n = matches.length
@@ -50,6 +51,7 @@ Multiple structural problems found in the Box Score view-model builder:
 4. **Goalie stats in Defense group** — misleading placement
 
 **Fix:** Restructured `buildBoxScore` groups:
+
 - **Offense**: Goals, Assists, Shots, Shooting%, Shot On Net%, Deflections, Power Play record
 - **Possession**: Faceoff%, Pass%, Possession, Time on Attack
 - **Defense**: Hits, Blocked Shots, Takeaways, Giveaways, Interceptions, Penalties, SHG
@@ -78,6 +80,7 @@ FO% was showing `—` for every match card. Investigation confirmed FO% is null 
 **Bug:** The `onLight` prop used `rgba(0,0,0,0.42)` as background — on a near-white card (rank-2 performer), this composites to approximately `rgb(150,150,150)`. The 40%-opacity border (`borderColor + '66'`) also nearly disappeared. Result: unreadable grey smear on medium-value position colors.
 
 **Fix:**
+
 - `backgroundColor`: `rgba(0,0,0,0.42)` → `rgba(8,8,10,0.84)` (near-solid dark)
 - `borderColor`: `style.text + '66'` (40% opacity) → `style.text` (full saturation solid)
 
@@ -101,6 +104,7 @@ See dedicated investigation: `dtw-gauge-bugs.md`.
 **Root cause:** The `score > 0` guard was designed to suppress AI bench/empty slots on the BGM side. It should not apply to opponent players.
 
 **Fix:** Split the filter:
+
 - BGM: keep `score > 0` guard (still needed for AI slot suppression)
 - Opponent: no filter — all opponent players pass through unconditionally
 
@@ -149,6 +153,7 @@ Navbar showed `EASHL · #19224` as a subtitle — exposed internal club ID to us
 Both `6s` and `3s` mode pills used identical `border-zinc-700 bg-zinc-900/70 text-zinc-400` styling — zero visual distinction between game modes.
 
 **Fix:**
+
 - `6s` pill: `border-violet-500/80 bg-violet-950/50 text-violet-300` (violet — distinct from results and 3s)
 - `3s` pill: `border-sky-400/80 bg-sky-950/50 text-sky-300` (sky blue)
 - WIN: `text-emerald-400` with emerald glow + green top bar
@@ -188,10 +193,14 @@ The Possession tab in the roster stats table showed FO% — always null. The goa
 
 ```tsx
 // Before (backwards):
-{rank === 1 ? '★' : rank === 2 ? '★★' : '★★★'}
+{
+  rank === 1 ? '★' : rank === 2 ? '★★' : '★★★'
+}
 // Rank 1 (best) showed fewest stars; rank 3 showed most — visually reads as rank 3 being "better"
 
 // After (correct):
-{rank === 1 ? '★★★' : rank === 2 ? '★★' : '★'}
+{
+  rank === 1 ? '★★★' : rank === 2 ? '★★' : '★'
+}
 // More stars = better = rank 1
 ```

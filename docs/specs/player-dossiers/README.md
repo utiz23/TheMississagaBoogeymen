@@ -3,11 +3,13 @@
 Separate player dossier files for the fictional news system.
 
 Purpose:
+
 - keep player-story intake separate from the reporter/personality bible
 - make it easy to expand one player at a time
 - support future article generation, interview prompts, and recurring storylines
 
 Notes:
+
 - seeded fields come from `docs/templates/player-profile-fields.md`
 - known roster/profile data is prefilled
 - dossiers now use a question-driven 9-part worksheet
@@ -15,6 +17,7 @@ Notes:
 - fill in only what the team can actually answer cleanly
 
 Current roster dossier files:
+
 - [HenryTheBobJr](./henrythebobjr.md)
 - [silkyjoker85](./silkyjoker85.md)
 - [Stick Menace](./stick-menace.md)

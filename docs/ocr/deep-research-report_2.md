@@ -22,14 +22,14 @@ The table below distinguishes what is currently specified for Round 2 from what 
 
 The contents of this table come from the two uploaded briefs. fileciteturn0file1L1-L39 fileciteturn0file0L5-L27
 
-| Aspect | Present in brief | Still missing for a benchmark |
-|---|---|---|
-| Core task | Multi-frame event-list OCR with cross-frame consensus | Formal task statement with input/output schema |
-| Known signals | Text rows, selected state, row order, fuzzy confusions | Exact location and persistence rules for each signal |
-| Auxiliary visual cues | Rink-marker event type, side, selected glow | Explicit linkage between list rows and markers |
-| Round 1 knowledge | Qualitative internal lessons and baseline heuristics | Quantitative metrics, score table, error breakdown |
-| Annotation scope | Implied row text and event outputs | Canonical event IDs, per-frame row boxes, track IDs, visibility flags |
-| Dataset definition | None public identified | Frame count, clip count, fps, resolutions, split policy, release policy |
+| Aspect                | Present in brief                                       | Still missing for a benchmark                                           |
+| --------------------- | ------------------------------------------------------ | ----------------------------------------------------------------------- |
+| Core task             | Multi-frame event-list OCR with cross-frame consensus  | Formal task statement with input/output schema                          |
+| Known signals         | Text rows, selected state, row order, fuzzy confusions | Exact location and persistence rules for each signal                    |
+| Auxiliary visual cues | Rink-marker event type, side, selected glow            | Explicit linkage between list rows and markers                          |
+| Round 1 knowledge     | Qualitative internal lessons and baseline heuristics   | Quantitative metrics, score table, error breakdown                      |
+| Annotation scope      | Implied row text and event outputs                     | Canonical event IDs, per-frame row boxes, track IDs, visibility flags   |
+| Dataset definition    | None public identified                                 | Frame count, clip count, fps, resolutions, split policy, release policy |
 
 A practical **minimum annotation schema** for Round 2 should include: `clip_id`, `frame_id`, `row_box`, `row_track_id`, `selected_flag`, `visibility_fraction`, `cutoff_left/right/top/bottom`, raw row transcription, canonical player/tag strings, event type, team side, time label, period, link-to-marker if visible, and a Boolean for whether the field is lexicon-constrained. Without these labels, it will be hard to separate OCR error from temporal fusion error from parser error during ablation. This is an inference from the task design and from how recent video text benchmarks separate detection, tracking, and recognition. citeturn20search11turn34view0turn19search6
 
@@ -47,25 +47,25 @@ The table below compares the most relevant datasets and benchmark resources.
 
 Dataset statistics and task descriptions below are drawn from the cited dataset papers and the uploaded brief. citeturn1search9turn20search11turn16search0turn35search1 fileciteturn0file1L1-L39
 
-| Dataset / resource | What it contains | Why it matters for Round 2 | Limitation for Round 2 transfer |
-|---|---|---|---|
-| Internal Round 2 brief | Multi-frame event-list OCR task with selected-state and fusion requirements | Direct task definition | No official dataset totals or annotation schema |
-| DSText v2 | 140 video clips from 7 scenarios; dense/small video text spotting tasks | Best public analog for dense, small, temporally varying text; includes sports/game-like difficulty | Natural-scene video, not fixed game UI rows |
-| BOVText | Large bilingual open-world video text dataset with many scenarios | Strong source for tracking and open-world robustness ideas | Much broader domain than short UI event rows |
-| VimTS synthetic video data | Synthetic video text used for cross-domain generalization | Useful template for generating synthetic scrolling/blurred row sequences | Not an event-list benchmark |
-| MME-VideoOCR | 1,464 videos, 2,000 QA pairs, 25 tasks in 44 scenarios | Strong evidence that cross-frame OCR remains difficult | Benchmark is reasoning-heavy, not row extraction |
+| Dataset / resource         | What it contains                                                            | Why it matters for Round 2                                                                         | Limitation for Round 2 transfer                  |
+| -------------------------- | --------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- | ------------------------------------------------ |
+| Internal Round 2 brief     | Multi-frame event-list OCR task with selected-state and fusion requirements | Direct task definition                                                                             | No official dataset totals or annotation schema  |
+| DSText v2                  | 140 video clips from 7 scenarios; dense/small video text spotting tasks     | Best public analog for dense, small, temporally varying text; includes sports/game-like difficulty | Natural-scene video, not fixed game UI rows      |
+| BOVText                    | Large bilingual open-world video text dataset with many scenarios           | Strong source for tracking and open-world robustness ideas                                         | Much broader domain than short UI event rows     |
+| VimTS synthetic video data | Synthetic video text used for cross-domain generalization                   | Useful template for generating synthetic scrolling/blurred row sequences                           | Not an event-list benchmark                      |
+| MME-VideoOCR               | 1,464 videos, 2,000 QA pairs, 25 tasks in 44 scenarios                      | Strong evidence that cross-frame OCR remains difficult                                             | Benchmark is reasoning-heavy, not row extraction |
 
 The model families most worth transferring are summarized below.
 
 The performance claims in this table come from the cited papers. citeturn19search0turn19search6turn20search1turn34view0turn35search1
 
-| Model family | Main idea | Strength for Round 2 | Weakness for Round 2 |
-|---|---|---|---|
-| CoText | Lightweight end-to-end spotting with contrastive temporal learning | Good baseline for temporal consistency under real-time constraints | Harder to repurpose for structured row fields than a modular pipeline |
-| VLSpotter | Visual SR + linguistic + semantic reasoning | Direct precedent for visual-signal fusion | More complex training stack |
-| GoMatching | Strong image spotter plus long/short-term matching | Excellent fit for row-track consensus and modular deployment | Needs good per-frame proposals first |
-| CVTS | Uncertainty-aware conformal calibration over a pretrained tracker | Ideal inspiration for confidence-aware multi-frame correction | Adds calibration stage and uncertainty bookkeeping |
-| VimTS | Unified image/video training and synthetic data | Good long-term option for cross-domain robustness | Likely overkill unless Round 2 labels become much larger |
+| Model family | Main idea                                                          | Strength for Round 2                                               | Weakness for Round 2                                                  |
+| ------------ | ------------------------------------------------------------------ | ------------------------------------------------------------------ | --------------------------------------------------------------------- |
+| CoText       | Lightweight end-to-end spotting with contrastive temporal learning | Good baseline for temporal consistency under real-time constraints | Harder to repurpose for structured row fields than a modular pipeline |
+| VLSpotter    | Visual SR + linguistic + semantic reasoning                        | Direct precedent for visual-signal fusion                          | More complex training stack                                           |
+| GoMatching   | Strong image spotter plus long/short-term matching                 | Excellent fit for row-track consensus and modular deployment       | Needs good per-frame proposals first                                  |
+| CVTS         | Uncertainty-aware conformal calibration over a pretrained tracker  | Ideal inspiration for confidence-aware multi-frame correction      | Adds calibration stage and uncertainty bookkeeping                    |
+| VimTS        | Unified image/video training and synthetic data                    | Good long-term option for cross-domain robustness                  | Likely overkill unless Round 2 labels become much larger              |
 
 ## Recommended pipeline architecture
 
@@ -122,11 +122,11 @@ The best baseline is **confidence-weighted voting over row tracks**, but not at 
 
 A sensible progression for Round 2 is three temporal-fusion tiers:
 
-| Tier | Method | When to use it | Expected trade-off |
-|---|---|---|---|
-| Conservative baseline | Confidence-weighted vote over strings | Very small label budget | Fastest, easiest, weakest on clipped rows |
-| Recommended default | Character-level alignment + uncertainty fusion | Most Round 2 settings | Best balance of gain vs complexity |
-| Advanced | Tiny temporal transformer over row-track embeddings | Only after enough labeled tracks exist | Highest ceiling, weakest data efficiency |
+| Tier                  | Method                                              | When to use it                         | Expected trade-off                        |
+| --------------------- | --------------------------------------------------- | -------------------------------------- | ----------------------------------------- |
+| Conservative baseline | Confidence-weighted vote over strings               | Very small label budget                | Fastest, easiest, weakest on clipped rows |
+| Recommended default   | Character-level alignment + uncertainty fusion      | Most Round 2 settings                  | Best balance of gain vs complexity        |
+| Advanced              | Tiny temporal transformer over row-track embeddings | Only after enough labeled tracks exist | Highest ceiling, weakest data efficiency  |
 
 RNNs and BiGRUs still have value here, especially if the dataset remains small. But recent public evidence suggests that the strongest modern performance gains come either from matching-and-fusion on top of an image OCR backbone or from transformer-style temporal models, not from pure recurrent temporal aggregation. For Round 2, I would use a **non-neural alignment-and-fusion baseline first**, then a small BiGRU or transformer only after ablation proves there is remaining temporal headroom. citeturn19search0turn19search6turn34view0turn35search1
 
@@ -153,12 +153,12 @@ The parser should produce both **raw observations** and a **canonical event**. R
 
 A minimal storage model should include four tables:
 
-| Table | Purpose |
-|---|---|
-| `raw_row_observation` | One record per frame-row hypothesis with OCR logits, strings, visual cues |
-| `row_track` | Temporal aggregation of observations believed to be the same row |
-| `canonical_event` | Final resolved event entity |
-| `model_run` | Exact model versions, decoder settings, calibration version, and replay provenance |
+| Table                 | Purpose                                                                            |
+| --------------------- | ---------------------------------------------------------------------------------- |
+| `raw_row_observation` | One record per frame-row hypothesis with OCR logits, strings, visual cues          |
+| `row_track`           | Temporal aggregation of observations believed to be the same row                   |
+| `canonical_event`     | Final resolved event entity                                                        |
+| `model_run`           | Exact model versions, decoder settings, calibration version, and replay provenance |
 
 This design enables safe backfills. If the decoder, lexicon, or fusion head changes, simply rerun projections from `raw_row_observation` rather than overwriting prior outputs. That also makes future rounds much easier to benchmark honestly. citeturn31search2turn31search16turn32search1turn30search0turn30search9
 
@@ -172,14 +172,14 @@ For the recognizer, start from a compact PaddleOCR model and fine-tune with a do
 
 A concrete first-pass training recipe is:
 
-| Component | Recommendation | Suggested starting hyperparameters |
-|---|---|---|
-| OCR recognizer | Fine-tune PP-OCRv5 or PP-OCRv4 mobile recognizer | AdamW, lr `3e-4`, weight decay `1e-4`, cosine decay, 20–50 epochs |
-| Augmentations | Motion blur, JPEG 50–95, gamma shift, slight crop truncation, highlight overlay, horizontal jitter | 2–4 random corruptions per crop |
-| Decoder | Custom top-K / logit export instead of pure argmax | Keep top `k=5` per time step for fusion experiments |
-| Temporal fusion | Start with alignment + uncertainty; then BiGRU if needed | Context window `5–15` frames per row track |
-| Fusion head | Small MLP over OCR and visual features | 2 layers, hidden sizes `128, 64`, dropout `0.1` |
-| Lexicon matcher | Hybrid confidence + fuzzy-match scorer | Jaro-Winkler plus weighted edit distance; calibrate on held-out tracks |
+| Component       | Recommendation                                                                                     | Suggested starting hyperparameters                                     |
+| --------------- | -------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| OCR recognizer  | Fine-tune PP-OCRv5 or PP-OCRv4 mobile recognizer                                                   | AdamW, lr `3e-4`, weight decay `1e-4`, cosine decay, 20–50 epochs      |
+| Augmentations   | Motion blur, JPEG 50–95, gamma shift, slight crop truncation, highlight overlay, horizontal jitter | 2–4 random corruptions per crop                                        |
+| Decoder         | Custom top-K / logit export instead of pure argmax                                                 | Keep top `k=5` per time step for fusion experiments                    |
+| Temporal fusion | Start with alignment + uncertainty; then BiGRU if needed                                           | Context window `5–15` frames per row track                             |
+| Fusion head     | Small MLP over OCR and visual features                                                             | 2 layers, hidden sizes `128, 64`, dropout `0.1`                        |
+| Lexicon matcher | Hybrid confidence + fuzzy-match scorer                                                             | Jaro-Winkler plus weighted edit distance; calibrate on held-out tracks |
 
 The confidence calibration stage should be explicit. Scene-text recognizers are often overconfident, and the OCR calibration literature shows that post-hoc temperature scaling is a reasonable first calibration method at the sequence level, while more flexible methods should only be tried if sufficient held-out calibration data exists. CVTS further supports using uncertainty estimates to decide which frame-level predictions should dominate the track-level update. For Round 2, sequence-level temperature scaling on a held-out validation set is the right first step; isotonic regression should be reserved for later if calibration error remains high and the calibration set is large enough. citeturn7search2turn7search1turn34view0
 
@@ -189,16 +189,16 @@ The table below compares practical model choices for the major learnable compone
 
 The model footprints below come from official docs where available; the expected Round 2 trade-offs are implementation recommendations. citeturn38view0turn39view0turn39view1turn24view2turn4search3
 
-| Component | Candidate | Footprint / compute | Why choose it | Why not choose it |
-|---|---|---|---|---|
-| Base OCR | PP-OCRv5 mobile recognizer | ~7.5 MB class | Strong practical OCR baseline, easy fine-tune | Need custom decoder for top-K temporal fusion |
-| Base OCR | PP-OCRv4 mobile recognizer | ~7.5 MB class | Simpler, well-tested, small | Lower ceiling than PP-OCRv5 |
-| Runtime | RapidOCR + ONNX Runtime | Multi-runtime ONNX deployment | Fast offline inference, production-friendly | Not a training framework |
-| Icon classifier | Tiny custom CNN | Very small, easiest to train | Strong if icon domain is rigid | May underfit if icon renderings vary |
-| Icon classifier | MobileNetV3-Small | 2.54M params, 0.06 GFLOPS | Strong small transfer baseline | More setup than tiny CNN |
-| Icon classifier | EfficientNet-Lite0 | Edge-oriented transfer model | Better accuracy/latency trade-off if dataset grows | Heavier than necessary for very rigid icons |
-| Temporal fusion | Heuristic alignment + uncertainty | Minimal train cost | Best first production system | Limited ceiling if strong nonlinear effects dominate |
-| Temporal fusion | Tiny transformer | Highest likely ceiling | Good once labeled row tracks are abundant | Harder to train, easier to overfit |
+| Component       | Candidate                         | Footprint / compute           | Why choose it                                      | Why not choose it                                    |
+| --------------- | --------------------------------- | ----------------------------- | -------------------------------------------------- | ---------------------------------------------------- |
+| Base OCR        | PP-OCRv5 mobile recognizer        | ~7.5 MB class                 | Strong practical OCR baseline, easy fine-tune      | Need custom decoder for top-K temporal fusion        |
+| Base OCR        | PP-OCRv4 mobile recognizer        | ~7.5 MB class                 | Simpler, well-tested, small                        | Lower ceiling than PP-OCRv5                          |
+| Runtime         | RapidOCR + ONNX Runtime           | Multi-runtime ONNX deployment | Fast offline inference, production-friendly        | Not a training framework                             |
+| Icon classifier | Tiny custom CNN                   | Very small, easiest to train  | Strong if icon domain is rigid                     | May underfit if icon renderings vary                 |
+| Icon classifier | MobileNetV3-Small                 | 2.54M params, 0.06 GFLOPS     | Strong small transfer baseline                     | More setup than tiny CNN                             |
+| Icon classifier | EfficientNet-Lite0                | Edge-oriented transfer model  | Better accuracy/latency trade-off if dataset grows | Heavier than necessary for very rigid icons          |
+| Temporal fusion | Heuristic alignment + uncertainty | Minimal train cost            | Best first production system                       | Limited ceiling if strong nonlinear effects dominate |
+| Temporal fusion | Tiny transformer                  | Highest likely ceiling        | Good once labeled row tracks are abundant          | Harder to train, easier to overfit                   |
 
 A simple rollout plan is below.
 
@@ -223,25 +223,25 @@ The evaluation must separate **OCR quality**, **temporal fusion quality**, and *
 
 The core metrics I recommend are:
 
-| Metric family | Metric | Purpose |
-|---|---|---|
-| Structured extraction | Exact-match event accuracy | Main user-facing success metric |
-| Field-level OCR | CER / WER / normalized edit distance by field | Distinguishes player, tag, and time failure modes |
-| Tracking / fusion | Row-track IDF1, split rate, merge rate | Measures whether temporal grouping is correct |
-| Event typing | Event-type accuracy, team-side accuracy | Measures visual-signal fusion contribution |
-| Reliability | ECE, Brier score, abstention precision | Measures whether confidence is trustworthy |
-| Runtime | ms/frame, rows/sec, CPU/GPU throughput | Ensures the design stays deployable |
+| Metric family         | Metric                                        | Purpose                                           |
+| --------------------- | --------------------------------------------- | ------------------------------------------------- |
+| Structured extraction | Exact-match event accuracy                    | Main user-facing success metric                   |
+| Field-level OCR       | CER / WER / normalized edit distance by field | Distinguishes player, tag, and time failure modes |
+| Tracking / fusion     | Row-track IDF1, split rate, merge rate        | Measures whether temporal grouping is correct     |
+| Event typing          | Event-type accuracy, team-side accuracy       | Measures visual-signal fusion contribution        |
+| Reliability           | ECE, Brier score, abstention precision        | Measures whether confidence is trustworthy        |
+| Runtime               | ms/frame, rows/sec, CPU/GPU throughput        | Ensures the design stays deployable               |
 
 The most important ablations are straightforward and should be run early:
 
-| Ablation | Compare | What it reveals |
-|---|---|---|
-| Temporal benefit | Single-frame OCR vs confidence vote vs character alignment fusion | Whether multi-frame consensus is actually paying off |
-| Visual benefit | No visual cues vs selected-state only vs selected+icon+scene | Whether fusion improves event parsing or just adds noise |
-| Decoder benefit | Greedy decode vs top-K logit lattice | Whether custom decoding is worth the engineering cost |
-| Calibration benefit | Raw confidence vs temperature-scaled vs uncertainty-aware fusion | Whether confidence can be trusted for track updates |
-| Lexicon benefit | No lexicon vs lexicon-aware resolver | Whether names/tags are sufficiently constrained |
-| Clipping robustness | No partial-row merge vs partial-row merge | Whether cut-off row recovery works |
+| Ablation            | Compare                                                           | What it reveals                                          |
+| ------------------- | ----------------------------------------------------------------- | -------------------------------------------------------- |
+| Temporal benefit    | Single-frame OCR vs confidence vote vs character alignment fusion | Whether multi-frame consensus is actually paying off     |
+| Visual benefit      | No visual cues vs selected-state only vs selected+icon+scene      | Whether fusion improves event parsing or just adds noise |
+| Decoder benefit     | Greedy decode vs top-K logit lattice                              | Whether custom decoding is worth the engineering cost    |
+| Calibration benefit | Raw confidence vs temperature-scaled vs uncertainty-aware fusion  | Whether confidence can be trusted for track updates      |
+| Lexicon benefit     | No lexicon vs lexicon-aware resolver                              | Whether names/tags are sufficiently constrained          |
+| Clipping robustness | No partial-row merge vs partial-row merge                         | Whether cut-off row recovery works                       |
 
 The expected ranking of baselines is also clear, even though exact numbers cannot be responsibly stated without the actual dataset: the internal Round 1-style single-frame heuristic should be the weakest; a fine-tuned single-frame OCR recognizer should improve string quality but still fail on truncation and transient blur; character-level multi-frame fusion should deliver the biggest practical gain; and a learned temporal model should only outperform that baseline once the track annotations are sufficiently large and diverse. That expectation is consistent with recent video text spotting results, especially the gains that come from better temporal association and uncertainty-aware correction rather than from replacing the full OCR stack. citeturn19search0turn19search6turn34view0
 

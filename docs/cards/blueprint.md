@@ -28,15 +28,15 @@ Mythic cards are curated, not automatic.
 
 Every card has the same stable anatomy so the design can scale:
 
-| Zone | Purpose |
-|---|---|
-| Identity block | Number, position, record, win percentage, tier/status label |
-| Portrait block | Silhouette, avatar, generated player render, or profile image |
-| Name row | Platform icon, gamertag/display name, optional title |
-| Stat row | Four role-aware stats, with one featured stat |
-| Footer/meta row | Flag, team crest, and one priority status slot |
-| Add-on layer | Badges, augmentations, enhancement markers, variant trim |
-| Back/detail view | Full progression, badge progress, best games, card history |
+| Zone             | Purpose                                                       |
+| ---------------- | ------------------------------------------------------------- |
+| Identity block   | Number, position, record, win percentage, tier/status label   |
+| Portrait block   | Silhouette, avatar, generated player render, or profile image |
+| Name row         | Platform icon, gamertag/display name, optional title          |
+| Stat row         | Four role-aware stats, with one featured stat                 |
+| Footer/meta row  | Flag, team crest, and one priority status slot                |
+| Add-on layer     | Badges, augmentations, enhancement markers, variant trim      |
+| Back/detail view | Full progression, badge progress, best games, card history    |
 
 The front card should never become a spreadsheet. If a detail does not help the
 player understand identity in under two seconds, it belongs on the back/detail
@@ -59,14 +59,14 @@ achievement into a card tier bump. That would make the system noisy and dumb.
 The user-facing tier ladder should use the status/theme direction already defined
 in this document.
 
-| Tier | Rarity | Player Status | Default Theme | Meaning |
-|---:|---|---|---|---|
-| 1 | Common | Prospect | Away | New, depth, or early-contribution player |
-| 2 | Uncommon | Rookie | Home | Regular contributor with basic proof |
-| 3 | Rare | Stud | Alternate | Clear role identity and meaningful production |
-| 4 | Epic | Elite | Carbon-Fiber | High-impact player with multiple strong badge families |
-| 5 | Legendary | Franchise | Smoke | Club-history player or current pillar |
-| 6 | Mythic | Legend / One of One | Curated Mythic | Manual showcase for true legacy cards |
+| Tier | Rarity    | Player Status       | Default Theme  | Meaning                                                |
+| ---: | --------- | ------------------- | -------------- | ------------------------------------------------------ |
+|    1 | Common    | Prospect            | Away           | New, depth, or early-contribution player               |
+|    2 | Uncommon  | Rookie              | Home           | Regular contributor with basic proof                   |
+|    3 | Rare      | Stud                | Alternate      | Clear role identity and meaningful production          |
+|    4 | Epic      | Elite               | Carbon-Fiber   | High-impact player with multiple strong badge families |
+|    5 | Legendary | Franchise           | Smoke          | Club-history player or current pillar                  |
+|    6 | Mythic    | Legend / One of One | Curated Mythic | Manual showcase for true legacy cards                  |
 
 The tier label may be shown as rarity, player status, or both depending on space.
 The player-status label is usually better for the card face because it sounds
@@ -153,14 +153,14 @@ Front-card badge priority:
 
 Badge display by tier:
 
-| Tier | Front Badge Treatment |
-|---:|---|
-| 1 | Optional tiny badge or empty status slot |
-| 2 | One small highest-badge marker |
-| 3 | One featured badge plus optional mini strip of up to 3 |
-| 4 | Signature badge plate and one progress hint |
-| 5 | Legendary badge plate plus club-rank text |
-| 6 | Curated emblem; best 3-5 badges only |
+| Tier | Front Badge Treatment                                  |
+| ---: | ------------------------------------------------------ |
+|    1 | Optional tiny badge or empty status slot               |
+|    2 | One small highest-badge marker                         |
+|    3 | One featured badge plus optional mini strip of up to 3 |
+|    4 | Signature badge plate and one progress hint            |
+|    5 | Legendary badge plate plus club-rank text              |
+|    6 | Curated emblem; best 3-5 badges only                   |
 
 ### 0.7 Enhancements
 
@@ -171,14 +171,14 @@ Enhancements answer: what is happening right now?
 
 Recommended enhancement families:
 
-| Enhancement | Trigger Direction | Card Treatment |
-|---|---|---|
-| Hot Streak | point streak, goal streak, win streak | red glow, small HOT marker, stat pulse |
-| Clutch | OT goal, GWG, close-game goalie win | stopwatch icon, clutch stamp |
-| Heater | strong last 5 games | recent-form chip, mild animated trim |
-| Lockdown | low goals against, takeaways, shutouts | shield/ice trim, defensive label |
-| Stolen Game | goalie win under heavy shot pressure | save-counter emphasis, goalie plate |
-| Ice Cold | slump state | use carefully; back/detail view first |
+| Enhancement | Trigger Direction                      | Card Treatment                         |
+| ----------- | -------------------------------------- | -------------------------------------- |
+| Hot Streak  | point streak, goal streak, win streak  | red glow, small HOT marker, stat pulse |
+| Clutch      | OT goal, GWG, close-game goalie win    | stopwatch icon, clutch stamp           |
+| Heater      | strong last 5 games                    | recent-form chip, mild animated trim   |
+| Lockdown    | low goals against, takeaways, shutouts | shield/ice trim, defensive label       |
+| Stolen Game | goalie win under heavy shot pressure   | save-counter emphasis, goalie plate    |
+| Ice Cold    | slump state                            | use carefully; back/detail view first  |
 
 Enhancements do not change tier. They can affect carousel ordering and temporary
 front-card labels.
@@ -190,14 +190,14 @@ editorial selection. They can be permanent or event-based.
 
 Augmentation categories:
 
-| Category | Examples |
-|---|---|
-| Badge augmentations | Hat Trick, Shutout, GWG, OT Winner, 30+ Saves |
-| Role augmentations | Captain patch, Alternate patch, Goalie Spotlight |
-| Event augmentations | Playoff Hero, Rivalry Game, Game Night Hero |
-| Record augmentations | Club Record, Team Leader, Career High |
-| Variant augmentations | Home, Away, Alternate, Throwback, Glitch, Playoff |
-| Mythic augmentations | One-of-One serial, custom title, curated lore panel |
+| Category              | Examples                                            |
+| --------------------- | --------------------------------------------------- |
+| Badge augmentations   | Hat Trick, Shutout, GWG, OT Winner, 30+ Saves       |
+| Role augmentations    | Captain patch, Alternate patch, Goalie Spotlight    |
+| Event augmentations   | Playoff Hero, Rivalry Game, Game Night Hero         |
+| Record augmentations  | Club Record, Team Leader, Career High               |
+| Variant augmentations | Home, Away, Alternate, Throwback, Glitch, Playoff   |
+| Mythic augmentations  | One-of-One serial, custom title, curated lore panel |
 
 Front-card limit:
 
@@ -637,29 +637,29 @@ The fourth stat slot, H, should remain the featured stat and should be about 33%
 Default skater setup:
 
 | Slot | Stat |
-|---|---|
-| E | GP |
-| F | G |
-| G | A |
-| H | PTS |
+| ---- | ---- |
+| E    | GP   |
+| F    | G    |
+| G    | A    |
+| H    | PTS  |
 
 Default goalie setup:
 
 | Slot | Stat |
-|---|---|
-| E | GP |
-| F | W |
-| G | SV% |
-| H | SO |
+| ---- | ---- |
+| E    | GP   |
+| F    | W    |
+| G    | SV%  |
+| H    | SO   |
 
 Alternative goalie setup:
 
-| Slot | Stat |
-|---|---|
-| E | GP |
-| F | W |
-| G | Saves |
-| H | SV% |
+| Slot | Stat  |
+| ---- | ----- |
+| E    | GP    |
+| F    | W     |
+| G    | Saves |
+| H    | SV%   |
 
 ---
 
@@ -667,11 +667,11 @@ Alternative goalie setup:
 
 Purpose: identity, branding, and collectible details.
 
-| Slot | Purpose |
-|---|---|
-| I | Flag |
-| J | Team logo |
-| K | Extra slot |
+| Slot | Purpose    |
+| ---- | ---------- |
+| I    | Flag       |
+| J    | Team logo  |
+| K    | Extra slot |
 
 K slot options:
 
@@ -844,39 +844,39 @@ Limit to 3 badges on the front.
 
 Forward:
 
-| Slot | Stat |
-|---|---|
-| E | GP |
-| F | Goals |
-| G | Assists |
-| H | Points |
+| Slot | Stat    |
+| ---- | ------- |
+| E    | GP      |
+| F    | Goals   |
+| G    | Assists |
+| H    | Points  |
 
 Defense:
 
-| Slot | Stat |
-|---|---|
-| E | GP |
-| F | Hits |
-| G | Takeaways |
-| H | Points |
+| Slot | Stat      |
+| ---- | --------- |
+| E    | GP        |
+| F    | Hits      |
+| G    | Takeaways |
+| H    | Points    |
 
 Center:
 
-| Slot | Stat |
-|---|---|
-| E | GP |
-| F | Faceoff Wins |
-| G | Assists |
-| H | Points |
+| Slot | Stat         |
+| ---- | ------------ |
+| E    | GP           |
+| F    | Faceoff Wins |
+| G    | Assists      |
+| H    | Points       |
 
 Goalie:
 
-| Slot | Stat |
-|---|---|
-| E | GP |
-| F | Wins |
-| G | Saves |
-| H | Save % |
+| Slot | Stat   |
+| ---- | ------ |
+| E    | GP     |
+| F    | Wins   |
+| G    | Saves  |
+| H    | Save % |
 
 ### Visual style
 
@@ -1168,14 +1168,14 @@ Example:
 
 The card progression ladder is:
 
-| Tier | Rarity | Player Status | Default Theme |
-|---|---|---|---|
-| 1 | Common | Prospect | Away |
-| 2 | Uncommon | Rookie | Home |
-| 3 | Rare | Stud | Alternate |
-| 4 | Epic | Elite | Carbon-Fiber |
-| 5 | Legendary | Franchise | Smoke |
-| 6 | Mythic | Legend | One of One |
+| Tier | Rarity    | Player Status | Default Theme |
+| ---- | --------- | ------------- | ------------- |
+| 1    | Common    | Prospect      | Away          |
+| 2    | Uncommon  | Rookie        | Home          |
+| 3    | Rare      | Stud          | Alternate     |
+| 4    | Epic      | Elite         | Carbon-Fiber  |
+| 5    | Legendary | Franchise     | Smoke         |
+| 6    | Mythic    | Legend        | One of One    |
 
 Progression should feel like both a sports-card rarity system and an RPG-style player evolution system.
 
@@ -1233,14 +1233,14 @@ This prevents one random stat from making a player look too overpowered.
 
 ## 17. Recommended Unlock Conditions
 
-| Tier | Unlock Condition |
-|---|---|
-| Tier 1 Common Prospect | Any Tier 1 milestone |
-| Tier 2 Uncommon Rookie | 3+ Tier 2 milestones or 1 major Tier 2 milestone |
-| Tier 3 Rare Stud | 3+ Tier 3 milestones |
-| Tier 4 Epic Elite | 2+ Tier 4 milestones |
-| Tier 5 Legendary Franchise | 2+ Tier 5 milestones or 1 club record |
-| Tier 6 Mythic Legend | Any Tier 6 milestone plus manual/admin approval for One of One |
+| Tier                       | Unlock Condition                                               |
+| -------------------------- | -------------------------------------------------------------- |
+| Tier 1 Common Prospect     | Any Tier 1 milestone                                           |
+| Tier 2 Uncommon Rookie     | 3+ Tier 2 milestones or 1 major Tier 2 milestone               |
+| Tier 3 Rare Stud           | 3+ Tier 3 milestones                                           |
+| Tier 4 Epic Elite          | 2+ Tier 4 milestones                                           |
+| Tier 5 Legendary Franchise | 2+ Tier 5 milestones or 1 club record                          |
+| Tier 6 Mythic Legend       | Any Tier 6 milestone plus manual/admin approval for One of One |
 
 ---
 
@@ -1455,14 +1455,14 @@ Badge {
 
 ## 20. Badge Tier Meaning
 
-| Badge Tier | Meaning | Rarity |
-|---|---|---|
-| Tier 1 | Rookie / Starter | Common |
-| Tier 2 | Regular | Uncommon |
-| Tier 3 | Proven | Rare |
-| Tier 4 | Veteran | Epic |
-| Tier 5 | Franchise | Legendary |
-| Tier 6 | Legend | Mythic |
+| Badge Tier | Meaning          | Rarity    |
+| ---------- | ---------------- | --------- |
+| Tier 1     | Rookie / Starter | Common    |
+| Tier 2     | Regular          | Uncommon  |
+| Tier 3     | Proven           | Rare      |
+| Tier 4     | Veteran          | Epic      |
+| Tier 5     | Franchise        | Legendary |
+| Tier 6     | Legend           | Mythic    |
 
 ---
 

@@ -45,11 +45,11 @@ Documents team-level predictive models only — not usable as a per-player formu
 
 From the 7-1 match data (G0obers, 2026 NHL):
 
-| Player | Stats | Chelhead Score |
-|---|---|---|
-| SilkyJoker85 | 1G 6A +6 6H | 31.20 |
-| Camrazz | 4G 1A +6 6H | 24.40 |
-| JoeyFlopfish | 2G 2A +6 10H | 21.10 |
+| Player       | Stats        | Chelhead Score |
+| ------------ | ------------ | -------------- |
+| SilkyJoker85 | 1G 6A +6 6H  | 31.20          |
+| Camrazz      | 4G 1A +6 6H  | 24.40          |
+| JoeyFlopfish | 2G 2A +6 10H | 21.10          |
 
 **Finding:** Chelhead values 6 assists higher than 4 goals. This implies assists weight ≥ goals — consistent with EA's own Ratings model. Chelhead's primary score is EA's official Ratings field (Off/Def/Team numeric values like 100.00 / 70.00 / 95.00), not our counting-stats model. We cannot replicate those because EA's rating fields are not extracted in our transform pipeline.
 
@@ -64,6 +64,7 @@ goals × 4.0 + assists × 2.0 + plusMinus × 0.5 + ...
 ```
 
 **Problems:**
+
 - G:A ratio = 2.0:1 — too goal-heavy vs published models
 - Assists dramatically underweighted; a 1G 6A player ranked below a 4G 1A player
 - Hits at 0.1 — 10 hits = +1 point, essentially invisible
@@ -92,12 +93,12 @@ goals × 4.0 + assists × 3.25 + takeaways × 0.55 + interceptions × 0.45
 
 **G:A ratio: 1.23:1** — within published range (1.16–1.56). Four-tier structure:
 
-| Tier | Factors | Weights |
-|---|---|---|
-| 1 — Core offense | Goals, Assists | 4.0, 3.25 |
+| Tier                | Factors                                      | Weights                |
+| ------------------- | -------------------------------------------- | ---------------------- |
+| 1 — Core offense    | Goals, Assists                               | 4.0, 3.25              |
 | 2 — Strong positive | Takeaways, Interceptions, Blocks, Pen. Drawn | 0.55, 0.45, 0.45, 0.40 |
-| 3 — Strong negative | Giveaways, PIM | −0.45, −0.30 |
-| 4 — Light context | Shots, +/-, Hits, FO Net | 0.12, 0.20, 0.08, 0.08 |
+| 3 — Strong negative | Giveaways, PIM                               | −0.45, −0.30           |
+| 4 — Light context   | Shots, +/-, Hits, FO Net                     | 0.12, 0.20, 0.08, 0.08 |
 
 ---
 
@@ -105,21 +106,21 @@ goals × 4.0 + assists × 3.25 + takeaways × 0.55 + interceptions × 0.45
 
 ### Match 121: 7-1 vs G0obers (goal-heavy)
 
-| Player | Stats | V3 Score |
-|---|---|---|
-| silkyjoker85 | 1G 6A +6, 2 GAs | 28.07 ← **#1** |
-| camrazz | 4G 1A +6, 15 GAs | 18.36 |
-| JoeyFlopfish | 2G 2A +6 | 17.63 |
+| Player       | Stats            | V3 Score       |
+| ------------ | ---------------- | -------------- |
+| silkyjoker85 | 1G 6A +6, 2 GAs  | 28.07 ← **#1** |
+| camrazz      | 4G 1A +6, 15 GAs | 18.36          |
+| JoeyFlopfish | 2G 2A +6         | 17.63          |
 
 Silky ranks #1 because 6 assists × 3.25 = 19.5 base, 15 giveaways × −0.45 = −6.75 drag on camrazz. The assist weight correctly counterbalances high goals in this context. **Correct result.**
 
 ### Match 113: 3-4 vs Buffalo Lippers (assist-heavy)
 
-| Player | Stats | V3 Score |
-|---|---|---|
-| Pratt2016 | 1G 2A | 12.40 **#1** |
-| Stick Menace | 2G 0A, 8 GAs | 12.35 **#2** |
-| HenryTheBobJr | 0G 2A, 1 pen drawn | 9.55 **#3** |
+| Player        | Stats              | V3 Score     |
+| ------------- | ------------------ | ------------ |
+| Pratt2016     | 1G 2A              | 12.40 **#1** |
+| Stick Menace  | 2G 0A, 8 GAs       | 12.35 **#2** |
+| HenryTheBobJr | 0G 2A, 1 pen drawn | 9.55 **#3**  |
 
 2G vs 1G 2A within 0.05 — genuinely equivalent performances. **Correct result.**
 

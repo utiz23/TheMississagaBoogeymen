@@ -5,6 +5,7 @@
 Build the player profile as a **single long page** with an **esports-identity hero**, **current-season-first hierarchy**, and one meaningful analytic section. The page should feel like a flagship internal team profile, but remain grounded in **trusted data only**.
 
 Primary inspirations:
+
 - **Chelhead**: hero presence, profile feels like a person not just a row, one standout analytic
 - **NHL.com**: current-season-first hierarchy, clean progression from snapshot to deeper stats
 - **Esports profiles / Liquipedia patterns**: role, identity, concise profile metadata, archival/history framing
@@ -27,6 +28,7 @@ The profile should be a **single page with anchor navigation**, in this order:
 8. **Gamertag History**
 
 Anchor pills under the hero:
+
 - `Overview`
 - `Career`
 - `EA Totals`
@@ -40,6 +42,7 @@ This keeps the page single-scroll while still making it navigable.
 The hero should be **identity-forward**, not a plain stat block.
 
 Content:
+
 - Gamertag as the dominant headline
 - Small team-context line or chip cluster
 - Position badge using `preferredPosition` when present, otherwise ingested/current position
@@ -50,6 +53,7 @@ Content:
 - “Last seen” timestamp remains present but subordinate
 
 Manual profile data policy:
+
 - V1 supports **DB-only admin edits**
 - No profile editor UI in this slice
 - Manual fields used by the hero:
@@ -57,6 +61,7 @@ Manual profile data policy:
   - new: `clubRoleLabel` as nullable manual text field in `player_profiles`
 
 If manual fields are empty, the hero still renders cleanly with:
+
 - gamertag
 - position badge
 - last seen
@@ -67,23 +72,26 @@ If manual fields are empty, the hero still renders cleanly with:
 Top stat area is **current-season-first**.
 
 Data-source rule:
+
 - Use **EA season totals** for current-season summary metrics where available
 - Use clearly labeled local-derived metrics only when EA does not provide an equivalent
 - Keep source labeling visible and explicit
 
 Top snapshot should show **primary role only**.
 Primary role selection:
+
 - choose the role with the higher current-season GP
 - if tied, prefer the player’s preferred/manual position
 - if still tied, prefer skater over goalie
 
 Snapshot blocks:
+
 - **Skater primary role**:
   - GP
   - G
   - A
   - PTS
-  - +/- 
+  - +/-
   - Hits
   - PIM
   - one supporting rate stat: `P/GP`
@@ -98,6 +106,7 @@ Snapshot blocks:
   - one supporting rate stat: `SV/GP`
 
 If the player has meaningful history in the secondary role:
+
 - render a **compact secondary-role summary strip** below the primary snapshot
 - do not duplicate the full hero block
 
@@ -108,21 +117,25 @@ Goalie-specific content anywhere on the page must be gated by **actual goalie ga
 V1 includes **one** standout analytic section: a contribution wheel.
 
 Purpose:
+
 - make the player page feel smarter than a pile of tables
 - stay feasible with the current data model
 
 Rules:
+
 - Use **current-season data**
 - Role-aware presentation
 - No fake precision or opaque formulas
 
 Implementation model:
+
 - a six-dimension visual contribution summary normalized **against teammates in the same role group** for the same season/game title
 - role groups:
   - skaters
   - goalies
 
 Skater dimensions:
+
 - Scoring
 - Playmaking
 - Shooting Volume
@@ -131,6 +144,7 @@ Skater dimensions:
 - Discipline
 
 Suggested inputs:
+
 - Scoring: goals per GP
 - Playmaking: assists per GP
 - Shooting Volume: shots per GP
@@ -139,6 +153,7 @@ Suggested inputs:
 - Discipline: inverse PIM per GP
 
 Goalie dimensions:
+
 - Win Rate
 - Save %
 - GAA (inverted)
@@ -147,6 +162,7 @@ Goalie dimensions:
 - Workload
 
 Suggested inputs:
+
 - Win Rate: wins over total goalie decisions
 - Save %: goalie save percentage
 - GAA: inverted score, lower is better
@@ -155,6 +171,7 @@ Suggested inputs:
 - Workload: shots against / GP
 
 Presentation:
+
 - if sample size is too small for a role, show a muted “not enough tracked data” state instead of pretending accuracy
 - do not call this an advanced analytics engine; call it a contribution summary
 
@@ -165,6 +182,7 @@ Include a compact **Recent Form** section above the deep tables.
 V1 should avoid thin line charts. Use a concise recent-performance block built from the most recent locally tracked games.
 
 Content:
+
 - last 5 games summary
 - recent `G / A / PTS` for skaters
 - recent `SV% / GA / W-L` for goalies
@@ -178,21 +196,25 @@ This keeps the page current without overcommitting to fragile trend systems.
 Keep the lower half trustworthy and plain.
 
 **Career Stats**
+
 - Boogeymen career / recorded-history totals and breakdowns
 - keep existing career table structure, but fix goalie-column gating
 - if season-by-season is not available beyond game-title scope, do not invent it
 
 **EA Season Totals**
+
 - keep as a clearly labeled secondary section
 - do not fold it fully into the hero
 - explicit label that this is EA-reported season data and not mode-filtered
 
 **Full Game Log**
+
 - keep paginated local game log
 - maintain mode filter behavior
 - keep source-clear empty states
 
 **Gamertag History**
+
 - keep as the archival bottom section
 - no redesign beyond aligning it with the page’s visual language
 
@@ -201,6 +223,7 @@ Keep the lower half trustworthy and plain.
 ### Data / query additions
 
 Add one profile-focused server query or loader shape that aggregates:
+
 - hero/profile identity
 - primary vs secondary role determination
 - current-season summary
@@ -212,9 +235,11 @@ Avoid spreading this logic across multiple page-local helpers.
 ### Schema additions
 
 Add to `player_profiles`:
+
 - `clubRoleLabel text null`
 
 Purpose:
+
 - support one simple manual badge in the hero
 - DB-managed manually for now
 - no editor UI in this slice

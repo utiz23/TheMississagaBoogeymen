@@ -100,13 +100,13 @@ Worker enforces 1 second between API calls (`EA_REQUEST_DELAY_MS`). Exponential 
 
 Known Pro Clubs endpoints used:
 
-| Endpoint | Data |
-|---|---|
-| `clubs/matches` (`gameType5`, `gameType10`, `club_private`) | Match results + player stats |
-| `clubs/members` | Member season stats per player |
-| `clubs/seasonalStats` | All-time club record (W/L/OTL official) |
-| `clubs/seasonRank` | Current season standing + division thresholds |
-| EA crest CDN | Opponent club crests |
+| Endpoint                                                    | Data                                          |
+| ----------------------------------------------------------- | --------------------------------------------- |
+| `clubs/matches` (`gameType5`, `gameType10`, `club_private`) | Match results + player stats                  |
+| `clubs/members`                                             | Member season stats per player                |
+| `clubs/seasonalStats`                                       | All-time club record (W/L/OTL official)       |
+| `clubs/seasonRank`                                          | Current season standing + division thresholds |
+| EA crest CDN                                                | Opponent club crests                          |
 
 **Hard limit documented:** `clubs/matches` returns at most ~5 recent matches per match type regardless of pagination. See `docs/ea-client/` for HAR evidence.
 
@@ -116,11 +116,11 @@ Known Pro Clubs endpoints used:
 
 These were explicitly researched and decided. Do not change silently.
 
-| Context | Source | Label |
-|---|---|---|
-| `gameMode === null` (All) | `ea_member_season_stats` | "EA season totals" |
-| `gameMode === '6s'` or `'3s'` | `player_game_title_stats` | "local tracked" |
-| Club record (all modes) | `club_seasonal_stats` | "EA official" |
-| Club record (mode-filtered) | `club_game_title_stats` | "local · {mode} only" |
+| Context                       | Source                    | Label                 |
+| ----------------------------- | ------------------------- | --------------------- |
+| `gameMode === null` (All)     | `ea_member_season_stats`  | "EA season totals"    |
+| `gameMode === '6s'` or `'3s'` | `player_game_title_stats` | "local tracked"       |
+| Club record (all modes)       | `club_seasonal_stats`     | "EA official"         |
+| Club record (mode-filtered)   | `club_game_title_stats`   | "local · {mode} only" |
 
 **Rule:** Never blend sources. EA totals ≠ local aggregates. Never substitute silently.

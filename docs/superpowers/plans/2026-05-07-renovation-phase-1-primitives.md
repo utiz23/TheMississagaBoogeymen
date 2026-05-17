@@ -9,12 +9,14 @@
 **Tech Stack:** Next.js 15 App Router (server components), TypeScript strict, Tailwind CSS 4 (already configured with the design tokens via `@theme` block), no new dependencies.
 
 **Working assumptions:**
+
 - Current branch: `feat/design-system-renovation`. Created from clean `main` at the start of Phase 1.
 - `apps/web/src/app/globals.css` already defines `--color-*` tokens, `.broadcast-panel`, `.broadcast-panel-soft`, `.tabular`, `--font-condensed`. These are pre-existing and unchanged by this phase.
 - The renovation spec (`docs/superpowers/specs/2026-05-07-boogeymen-renovation-design.md`) is authoritative for primitive APIs; bundle previews under `docs/design/boogeymen-system/preview/*.html` are visual references for variants.
 - Run all commands from the repo root: `/home/michal/projects/eanhl-team-website`.
 
 **Out of scope:**
+
 - Modifying any consumer page or component (no edits to `app/page.tsx`, `app/roster/[id]/page.tsx`, `components/home/*`, `components/matches/*`, `components/roster/*`).
 - Setting up a test runner for apps/web.
 - Adding new design tokens or CSS classes — globals.css is unchanged.
@@ -26,15 +28,15 @@
 
 **New files this phase creates:**
 
-| Path | Responsibility | Approx LOC |
-|---|---|---|
-| `apps/web/src/lib/result-colors.ts` | `ResultKind` type + `getResultStyle(result)` color-class mapping helper | 35 |
-| `apps/web/src/components/ui/panel.tsx` | `<Panel>` — sharp 1px border surface, default/raised tone, optional hover | 45 |
-| `apps/web/src/components/ui/broadcast-panel.tsx` | `<BroadcastPanel>` — Panel + ticker strip + radial glow via existing CSS classes | 40 |
-| `apps/web/src/components/ui/section-header.tsx` | `<SectionHeader>` — UPPERCASE tracking-widest label + optional CTA arrow | 50 |
-| `apps/web/src/components/ui/result-pill.tsx` | `<ResultPill>` — W/L/OTL/DNF chip (size sm) or pill (size md) | 60 |
-| `apps/web/src/components/ui/stat-strip.tsx` | `<StatStrip>` — inline label/value pair runs with optional provenance | 65 |
-| `apps/web/src/app/_kitchen-sink/page.tsx` | Dev-only page rendering every primitive variant | 220 |
+| Path                                             | Responsibility                                                                   | Approx LOC |
+| ------------------------------------------------ | -------------------------------------------------------------------------------- | ---------- |
+| `apps/web/src/lib/result-colors.ts`              | `ResultKind` type + `getResultStyle(result)` color-class mapping helper          | 35         |
+| `apps/web/src/components/ui/panel.tsx`           | `<Panel>` — sharp 1px border surface, default/raised tone, optional hover        | 45         |
+| `apps/web/src/components/ui/broadcast-panel.tsx` | `<BroadcastPanel>` — Panel + ticker strip + radial glow via existing CSS classes | 40         |
+| `apps/web/src/components/ui/section-header.tsx`  | `<SectionHeader>` — UPPERCASE tracking-widest label + optional CTA arrow         | 50         |
+| `apps/web/src/components/ui/result-pill.tsx`     | `<ResultPill>` — W/L/OTL/DNF chip (size sm) or pill (size md)                    | 60         |
+| `apps/web/src/components/ui/stat-strip.tsx`      | `<StatStrip>` — inline label/value pair runs with optional provenance            | 65         |
+| `apps/web/src/app/_kitchen-sink/page.tsx`        | Dev-only page rendering every primitive variant                                  | 220        |
 
 All component files: server components (no `'use client'`), `export function ComponentName(...)` style, `interface Props` typed, `forwardRef` not used (server components don't need refs).
 
@@ -45,6 +47,7 @@ All component files: server components (no `'use client'`), `export function Com
 The helper is a pure mapping function consumed by `<ResultPill>`. Extracting it first lets the pill component import a stable signature.
 
 **Files:**
+
 - Create: `apps/web/src/lib/result-colors.ts`
 
 - [ ] **Step 1: Create the helper file**
@@ -96,6 +99,7 @@ export function getResultStyle(result: ResultKind): ResultStyle {
 ```bash
 pnpm --filter web typecheck
 ```
+
 Expected: passes (helper is internally consistent; no consumers yet).
 
 - [ ] **Step 3: Stage + commit**
@@ -120,6 +124,7 @@ EOF
 ```bash
 git log --oneline -1
 ```
+
 Expected: `feat(web): add result-colors helper ...` is HEAD.
 
 ---
@@ -129,6 +134,7 @@ Expected: `feat(web): add result-colors helper ...` is HEAD.
 The structural workhorse. Sharp 1px border surface, two tones, optional hover lift. Used by every other primitive directly or indirectly.
 
 **Files:**
+
 - Create: `apps/web/src/components/ui/panel.tsx`
 
 - [ ] **Step 1: Create the component file**
@@ -174,6 +180,7 @@ export function Panel({
 ```bash
 pnpm --filter web typecheck
 ```
+
 Expected: passes.
 
 - [ ] **Step 3: Commit**
@@ -198,6 +205,7 @@ EOF
 ```bash
 git log --oneline -1
 ```
+
 Expected: `feat(web): add Panel primitive ...` is HEAD.
 
 ---
@@ -207,6 +215,7 @@ Expected: `feat(web): add Panel primitive ...` is HEAD.
 Panel + the broadcast-strip decoration: a 1px red ticker on top + a soft radial red glow at the top of the surface. The radial glow lives in the existing `.broadcast-panel` / `.broadcast-panel-soft` CSS classes in `globals.css` (no new CSS in this phase). The ticker is rendered as a child div.
 
 **Files:**
+
 - Create: `apps/web/src/components/ui/broadcast-panel.tsx`
 
 - [ ] **Step 1: Create the component file**
@@ -258,6 +267,7 @@ export function BroadcastPanel({
 ```bash
 pnpm --filter web typecheck
 ```
+
 Expected: passes.
 
 - [ ] **Step 3: Commit**
@@ -285,6 +295,7 @@ EOF
 ```bash
 git log --oneline -1
 ```
+
 Expected: `feat(web): add BroadcastPanel primitive ...` is HEAD.
 
 ---
@@ -294,6 +305,7 @@ Expected: `feat(web): add BroadcastPanel primitive ...` is HEAD.
 The UPPERCASE tracking-widest label that sits above every section, with an optional `→` CTA on the right. The two are vertically baseline-aligned with horizontal space-between.
 
 **Files:**
+
 - Create: `apps/web/src/components/ui/section-header.tsx`
 
 - [ ] **Step 1: Create the component file**
@@ -354,6 +366,7 @@ export function SectionHeader({
 ```bash
 pnpm --filter web typecheck
 ```
+
 Expected: passes.
 
 - [ ] **Step 3: Commit**
@@ -378,6 +391,7 @@ EOF
 ```bash
 git log --oneline -1
 ```
+
 Expected: `feat(web): add SectionHeader primitive` is HEAD.
 
 ---
@@ -387,6 +401,7 @@ Expected: `feat(web): add SectionHeader primitive` is HEAD.
 W/L/OTL/DNF chip (sm) or pill (md). The small chip uses a single-letter glyph (W/L/OT/—); the medium pill uses the full word (WIN/LOSS/OT LOSS/DNF). Backed by `getResultStyle()` from Task 1.
 
 **Files:**
+
 - Create: `apps/web/src/components/ui/result-pill.tsx`
 
 - [ ] **Step 1: Create the component file**
@@ -434,6 +449,7 @@ export function ResultPill({ result, size = 'sm', className = '' }: ResultPillPr
 ```bash
 pnpm --filter web typecheck
 ```
+
 Expected: passes (depends on Task 1's `result-colors.ts`).
 
 - [ ] **Step 3: Commit**
@@ -460,6 +476,7 @@ EOF
 ```bash
 git log --oneline -1
 ```
+
 Expected: `feat(web): add ResultPill primitive ...` is HEAD.
 
 ---
@@ -469,6 +486,7 @@ Expected: `feat(web): add ResultPill primitive ...` is HEAD.
 Inline horizontal label/value pair runs. Each item has tiny uppercase label above a tabular condensed-bold value. Optional `accent` flag tints the value rose-400 (used for the WIN column in record strips). Optional bottom provenance row with a red dot + dim text.
 
 **Files:**
+
 - Create: `apps/web/src/components/ui/stat-strip.tsx`
 
 - [ ] **Step 1: Create the component file**
@@ -524,9 +542,7 @@ export function StatStrip({
               <dt className="font-condensed text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-500">
                 {item.label}
               </dt>
-              <dd
-                className={`font-condensed text-2xl font-bold leading-none ${valueColor}`}
-              >
+              <dd className={`font-condensed text-2xl font-bold leading-none ${valueColor}`}>
                 {item.value}
               </dd>
             </div>
@@ -549,6 +565,7 @@ export function StatStrip({
 ```bash
 pnpm --filter web typecheck
 ```
+
 Expected: passes.
 
 - [ ] **Step 3: Commit**
@@ -577,6 +594,7 @@ EOF
 ```bash
 git log --oneline -1
 ```
+
 Expected: `feat(web): add StatStrip primitive ...` is HEAD.
 
 ---
@@ -586,6 +604,7 @@ Expected: `feat(web): add StatStrip primitive ...` is HEAD.
 Renders every primitive variant on a single route at `/_kitchen-sink`. The leading underscore in the segment name is a convention for "internal / not user-facing"; Next.js still serves it. Removed at end of Phase 6.
 
 **Files:**
+
 - Create: `apps/web/src/app/_kitchen-sink/page.tsx`
 
 - [ ] **Step 1: Create the page file**
@@ -614,8 +633,7 @@ export default function KitchenSinkPage() {
           Boogeymen UI Primitives
         </h1>
         <p className="mt-2 max-w-2xl text-sm text-zinc-400">
-          Visual verification harness for the design-system primitives. Compare each
-          variant against{' '}
+          Visual verification harness for the design-system primitives. Compare each variant against{' '}
           <code className="rounded bg-zinc-900 px-1 py-0.5 text-zinc-300">
             docs/design/boogeymen-system/preview/*.html
           </code>
@@ -684,10 +702,7 @@ export default function KitchenSinkPage() {
         <SectionHeader label="SectionHeader" />
         <Panel className="space-y-6 p-6">
           <SectionHeader label="Latest Result" />
-          <SectionHeader
-            label="Scoring Leaders"
-            cta={{ href: '/stats', label: 'All stats' }}
-          />
+          <SectionHeader label="Scoring Leaders" cta={{ href: '/stats', label: 'All stats' }} />
           <SectionHeader label="Page Title (h1)" as="h1" />
         </Panel>
       </section>
@@ -784,6 +799,7 @@ export default function KitchenSinkPage() {
 ```bash
 pnpm --filter web typecheck
 ```
+
 Expected: passes (consumes all 5 primitives + the helper).
 
 - [ ] **Step 3: Commit**
@@ -808,6 +824,7 @@ EOF
 ```bash
 git log --oneline -1
 ```
+
 Expected: `feat(web): add kitchen-sink dev page ...` is HEAD.
 
 ---
@@ -821,6 +838,7 @@ Phase 1 ends when every primitive variant renders correctly in the kitchen-sink 
 ```bash
 pnpm typecheck
 ```
+
 Expected: 6 successful tasks across @eanhl/db, @eanhl/web, @eanhl/worker.
 
 - [ ] **Step 2: Start dev server**
@@ -828,6 +846,7 @@ Expected: 6 successful tasks across @eanhl/db, @eanhl/web, @eanhl/worker.
 ```bash
 pnpm --filter web dev
 ```
+
 Wait for "Ready in" line (Next picks port 3000 or next free port).
 
 - [ ] **Step 3: Walk the kitchen-sink route**
@@ -835,25 +854,30 @@ Wait for "Ready in" line (Next picks port 3000 or next free port).
 Open `http://localhost:<port>/_kitchen-sink` in a browser and confirm:
 
 **Panel section:**
+
 - Three panels in a row. Default = darker fill, raised = lighter fill, hoverable = lifts on hover.
 - All panels have sharp corners (no rounding) and a 1px zinc-800 border.
 
 **BroadcastPanel section:**
+
 - Three panels. First two have a 1px red ticker on top + soft red radial glow at top.
 - `intensity=soft` glow is dimmer than default.
 - `ticker=false` shows the radial glow alone, no top strip.
 
 **SectionHeader section:**
+
 - "LATEST RESULT" — UPPERCASE wide-tracked, dim zinc-500.
 - "SCORING LEADERS" with "All stats →" CTA right-aligned, lifts to zinc-100 on hover.
 - "PAGE TITLE (H1)" rendered with `as="h1"` — same look, semantic h1.
 
 **ResultPill section:**
+
 - sm row: four small chips — green W, rose L, amber OT, zinc —. Letter glyphs only.
 - md row: four pills — green WIN, rose LOSS, amber OT LOSS, zinc DNF. Full words.
 - All pills are `rounded-full` and use `font-condensed font-bold uppercase`.
 
 **StatStrip section:**
+
 - First strip: GP / W / L / OTL / Win% / GF / GA with EA official provenance dot. W and Win% values are rose-400 (accent); OTL value is dim zinc-500.
 - Second strip: tight density, G / A / PTS / +/- / SOG. PTS is rose-400.
 - Third strip: three em-dash placeholders, all dim, with "local · 6s only" provenance.
@@ -898,6 +922,7 @@ If nothing changed (files were already prettier-clean from initial write), skip 
 ```bash
 git push -u origin feat/design-system-renovation
 ```
+
 Expected: branch is now tracked at origin so the work is recoverable.
 
 - [ ] **Step 6: Final state check**
@@ -906,6 +931,7 @@ Expected: branch is now tracked at origin so the work is recoverable.
 git status
 git log --oneline main..HEAD | head -10
 ```
+
 Expected: clean tree on `feat/design-system-renovation`; 7 commits ahead of `main` (one per Task 1-7, plus optional style commit from Task 8 Step 4).
 
 ---

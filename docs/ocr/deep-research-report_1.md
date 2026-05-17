@@ -197,28 +197,28 @@ Assumptions and unspecified constraints used in this synthesis:
 
 ## Comparisons and Tables
 
-| Decision area | Default choice | When to switch | Main tradeoff |
-|---|---|---|---|
-| Global alignment | Affine or projective baseline | If residuals are locally structured | Much safer extrapolation, but cannot absorb local bends |
-| Non-rigid warp | scikit-image TPS or SciPy TPS-RBF | If local distortions remain after affine/projective | More expressive, but more sensitive to noisy landmarks |
-| Local warp fallback | Piecewise-affine | If edge/local regions need tighter local control | Strong local control, less smooth globally |
-| Shape classification | Vertex count + circularity + convexity + orientation | If masks are messy or stylized | Fast, transparent, debuggable |
-| Fill-style classification | Fill ratio + normalized distance-transform stats | If thresholds drift by team/color | Needs stable mask extraction |
-| Color inference | White balance + dominant-color prototypes | If manual color config is too brittle | Extra state/tracking logic |
-| Overlap handling | Watershed + assignment only on ambiguous components | If merged components are common | More code complexity, but avoids polluting easy cases |
-| CNN | Last-stage fallback | If real data defeats rules | Higher labeling and monitoring burden |
+| Decision area             | Default choice                                       | When to switch                                      | Main tradeoff                                           |
+| ------------------------- | ---------------------------------------------------- | --------------------------------------------------- | ------------------------------------------------------- |
+| Global alignment          | Affine or projective baseline                        | If residuals are locally structured                 | Much safer extrapolation, but cannot absorb local bends |
+| Non-rigid warp            | scikit-image TPS or SciPy TPS-RBF                    | If local distortions remain after affine/projective | More expressive, but more sensitive to noisy landmarks  |
+| Local warp fallback       | Piecewise-affine                                     | If edge/local regions need tighter local control    | Strong local control, less smooth globally              |
+| Shape classification      | Vertex count + circularity + convexity + orientation | If masks are messy or stylized                      | Fast, transparent, debuggable                           |
+| Fill-style classification | Fill ratio + normalized distance-transform stats     | If thresholds drift by team/color                   | Needs stable mask extraction                            |
+| Color inference           | White balance + dominant-color prototypes            | If manual color config is too brittle               | Extra state/tracking logic                              |
+| Overlap handling          | Watershed + assignment only on ambiguous components  | If merged components are common                     | More code complexity, but avoids polluting easy cases   |
+| CNN                       | Last-stage fallback                                  | If real data defeats rules                          | Higher labeling and monitoring burden                   |
 
 The comparison above is synthesized from the current SciPy, scikit-image, OpenCV, SimpleITK, and QGIS documentation plus the OpenCV Python issue history. The strongest evidence-backed distinctions are: scikit-image’s clean transform interfaces, SciPy’s smoothing/kernel flexibility and quadratic memory growth with point count, OpenCV’s Python binding risks, and QGIS/SimpleITK’s practical framing of when flexible warps help vs. when they misbehave. citeturn6view0turn5view0turn38view0turn26view0turn27view0turn28view0turn28view1turn37view1turn36view0
 
-| Public artifact | Modality | Relevance to your pipeline |
-|---|---|---|
-| urlChelHeadturn13search4 | EASHL web tracker | Strong evidence that community demand exists for richer NHL/EASHL telemetry |
-| urlChelstats repoturn15search1 | EASHL API-backed app | Shows community preference for exposed/undocumented APIs over OCR |
-| urlRavi Bhagwat EASHL API blogturn13search0 | API reverse-engineering | Best public explanation of undocumented-EA-endpoint fragility |
-| urlProclubs.ioturn13search3 | EA FC tracker | Cross-title evidence that club-stat tooling often follows the API path |
-| urlLeague minimap detection blogturn12search3 | Classical CV on tiny known icons | Closest public analogue to your marker-detection problem |
-| urlLeague minimap detection repoturn12search7 | OpenCV minimap detector | Practical example of screenshot-driven tiny-icon detection |
-| urlLeague minimap scanner repoturn12search11 | CV + small NN | Good analogue for a hybrid classical/deep fallback design |
+| Public artifact                                   | Modality                         | Relevance to your pipeline                                                  |
+| ------------------------------------------------- | -------------------------------- | --------------------------------------------------------------------------- |
+| urlChelHeadturn13search4                      | EASHL web tracker                | Strong evidence that community demand exists for richer NHL/EASHL telemetry |
+| urlChelstats repoturn15search1                | EASHL API-backed app             | Shows community preference for exposed/undocumented APIs over OCR           |
+| urlRavi Bhagwat EASHL API blogturn13search0   | API reverse-engineering          | Best public explanation of undocumented-EA-endpoint fragility               |
+| urlProclubs.ioturn13search3                   | EA FC tracker                    | Cross-title evidence that club-stat tooling often follows the API path      |
+| urlLeague minimap detection blogturn12search3 | Classical CV on tiny known icons | Closest public analogue to your marker-detection problem                    |
+| urlLeague minimap detection repoturn12search7 | OpenCV minimap detector          | Practical example of screenshot-driven tiny-icon detection                  |
+| urlLeague minimap scanner repoturn12search11  | CV + small NN                    | Good analogue for a hybrid classical/deep fallback design                   |
 
 Taken together, these artifacts support a clear inference: around urlElectronic Artshttps://www.ea.com titles, the public community usually chooses APIs if they are reachable, and chooses screenshot CV mainly in miniature-icon interfaces such as minimaps, not in EASHL Action Tracker extraction specifically. citeturn14view0turn14view1turn15search1turn14view3turn12search3turn12search7turn12search11
 
@@ -257,10 +257,10 @@ flowchart TD
 
 The strongest decision-oriented recommendation is to **build this as a classical, confidence-gated pipeline first**:
 
-1. **Implement three warp models only:** affine/projective baseline, regularized TPS, and piecewise-affine fallback.  
-2. **Evaluate them with LOOCV TRE plus edge/exterior sanity probes**, not just in-sample landmark fit.  
-3. **Classify markers with explicit geometry + fill-style + color logic first**, because your class vocabulary is tiny and interpretable.  
-4. **Route only ambiguous merged components into an overlap branch** using watershed/template hypotheses and assignment.  
+1. **Implement three warp models only:** affine/projective baseline, regularized TPS, and piecewise-affine fallback.
+2. **Evaluate them with LOOCV TRE plus edge/exterior sanity probes**, not just in-sample landmark fit.
+3. **Classify markers with explicit geometry + fill-style + color logic first**, because your class vocabulary is tiny and interpretable.
+4. **Route only ambiguous merged components into an overlap branch** using watershed/template hypotheses and assignment.
 5. **Defer a CNN until the validation set proves you need it.** citeturn36view0turn37view1turn35view0turn11search0turn11search1turn22search6
 
 A crisp implementation recommendation for a Python stack in 2026 is:

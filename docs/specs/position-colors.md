@@ -4,37 +4,38 @@ This file defines the canonical position color palette for all position indicato
 
 ## BGM / Home Side
 
-| Position | Key | Hex |
-|---|---|---|
-| Center | `center` | `#c0061c` | #c0061c
-| Left Wing | `leftWing` | `#23cf1d` | #23cf1d
-| Right Wing | `rightWing` | `#2659cf` | #2659cf
-| Left Defense / D1 | `defenseLeft` | `#13dfc8` | #13dfc8
-| Right Defense / D2 | `defenseRight` | `#ece335` | #ece335
-| Goaltender | `goalie` | `#6f00a5` | #6f00a5
+| Position           | Key            | Hex       |
+| ------------------ | -------------- | --------- | ------- |
+| Center             | `center`       | `#c0061c` | #c0061c |
+| Left Wing          | `leftWing`     | `#23cf1d` | #23cf1d |
+| Right Wing         | `rightWing`    | `#2659cf` | #2659cf |
+| Left Defense / D1  | `defenseLeft`  | `#13dfc8` | #13dfc8 |
+| Right Defense / D2 | `defenseRight` | `#ece335` | #ece335 |
+| Goaltender         | `goalie`       | `#6f00a5` | #6f00a5 |
 
 ## Opponent / Away Side
 
-| Position | Key | Hex |
-|---|---|---|
-| Center | `center` | `#cdbf69` | #cdbf69
-| Left Wing | `leftWing` | `#a8508c` | #a8508c
-| Right Wing | `rightWing` | `#5c6959` | #5c6959
-| Left Defense / D1 | `defenseLeft` | `#db8b67` | #db8b67
-| Right Defense / D2 | `defenseRight` | `#d0d963` | #d0d963
-| Goaltender | `goalie` | `#e8aee9` |
+| Position           | Key            | Hex       |
+| ------------------ | -------------- | --------- | ------- |
+| Center             | `center`       | `#cdbf69` | #cdbf69 |
+| Left Wing          | `leftWing`     | `#a8508c` | #a8508c |
+| Right Wing         | `rightWing`    | `#5c6959` | #5c6959 |
+| Left Defense / D1  | `defenseLeft`  | `#db8b67` | #db8b67 |
+| Right Defense / D2 | `defenseRight` | `#d0d963` | #d0d963 |
+| Goaltender         | `goalie`       | `#e8aee9` |
 
 ## Pill Rendering
 
 Pills use three derived values from the base hex — applied via inline `style`:
 
-| Role | Formula |
-|---|---|
-| `text` | Base hex (full opacity) |
+| Role     | Formula                            |
+| -------- | ---------------------------------- |
+| `text`   | Base hex (full opacity)            |
 | `border` | Base hex + `66` alpha suffix (40%) |
-| `bg` | Base hex + `1a` alpha suffix (10%) |
+| `bg`     | Base hex + `1a` alpha suffix (10%) |
 
 Neutral/unknown position falls back to:
+
 - `border: #3f3f46`, `bg: rgba(39,39,42,0.40)`, `text: #a1a1aa`
 
 Implementation: [apps/web/src/components/matches/position-pill.tsx](../../../apps/web/src/components/matches/position-pill.tsx)

@@ -12,6 +12,7 @@ python3 -m game_ocr.cli extract \
 ```
 
 Supported screens:
+
 - `pre_game_lobby_state_1`
 - `pre_game_lobby_state_2`
 - `player_loadout_view`

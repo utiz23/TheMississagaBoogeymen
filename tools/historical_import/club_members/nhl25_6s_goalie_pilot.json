@@ -20,12 +20,24 @@
         {
           "sourceAssetPath": "research/Previous_NHL_Stats/NHL_25/team_leaderboard__08.png",
           "sortedByMetricLabel": "Shutout Periods",
-          "contributedMetrics": ["gaa", "save_pct", "total_saves", "total_goals_against", "shutouts"],
+          "contributedMetrics": [
+            "gaa",
+            "save_pct",
+            "total_saves",
+            "total_goals_against",
+            "shutouts"
+          ],
           "rawExtract": {
             "PLAYER NAME": "Chris Pratt",
-            "INT": 20, "S": 8, "S%": 20.0,
-            "GAA": 5.08, "GA": 134, "SV": 316, "SV%": 70.0,
-            "SO": 1, "SOP": 1
+            "INT": 20,
+            "S": 8,
+            "S%": 20.0,
+            "GAA": 5.08,
+            "GA": 134,
+            "SV": 316,
+            "SV%": 70.0,
+            "SO": 1,
+            "SOP": 1
           },
           "reviewStatus": "reviewed",
           "confidenceScore": 0.9

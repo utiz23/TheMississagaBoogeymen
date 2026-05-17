@@ -15,6 +15,7 @@
 Playwright couldn't find Chrome at its expected location `/opt/google/chrome/chrome`. On this Ubuntu/WSL2 system, Chrome is not installed — only Chromium (via Playwright's own download).
 
 **Chromium binary location:**
+
 ```
 ~/.cache/ms-playwright/chromium-1222/chrome-linux64/chrome
 ```
@@ -29,6 +30,7 @@ sudo ln -sf ~/.cache/ms-playwright/chromium-1222/chrome-linux64/chrome /opt/goog
 ### What It Can Do
 
 Playwright MCP tools pre-approved in `.claude/settings.json`:
+
 - `browser_navigate`, `browser_take_screenshot`, `browser_snapshot`
 - `browser_click`, `browser_fill`, `browser_type`, `browser_hover`
 - `browser_press_key`, `browser_wait_for`, `browser_evaluate`
@@ -51,6 +53,7 @@ Playwright MCP tools pre-approved in `.claude/settings.json`:
 `mcp-postgres` — reads standard env vars (`DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME`).
 
 **Current config in `~/.claude.json`:**
+
 ```
 postgres: npx mcp-postgres
   DB_HOST=localhost
@@ -82,6 +85,7 @@ The `.claude/settings.json` allow-list was consolidated from ~165 specific patte
 
 **Before:** Explicit paths for every single bash command variant
 **After:** Broad glob patterns:
+
 ```json
 "Bash(pnpm *)",
 "Bash(git *)",
@@ -100,17 +104,17 @@ All 20 Playwright MCP tools and 10 Chrome DevTools MCP tools were pre-approved t
 
 ## MCP Ecosystem — Installed Servers
 
-| Server | Purpose | Status |
-|---|---|---|
-| `@playwright/mcp` | Browser automation, screenshots, visual QA | ✓ Working |
-| `chrome-devtools-mcp` | Chrome DevTools protocol access | ✓ Working |
-| `@upstash/context7-mcp` | Library documentation lookup | ✓ Working |
-| `mcp-postgres` | Direct DB queries | ✓ Connected (needs session restart for tools) |
-| `serena` | Code intelligence, LSP, symbol navigation | ✓ Working |
-| GitHub MCP | PR/issue/code search via GitHub API | ✓ Working |
-| Google Drive MCP | File access from Drive | ✓ Working |
-| Supabase MCP | Supabase project management | ✓ Working (not used for this project) |
-| Context7 (claude.ai) | Documentation | ✓ Working |
+| Server                  | Purpose                                    | Status                                        |
+| ----------------------- | ------------------------------------------ | --------------------------------------------- |
+| `@playwright/mcp`       | Browser automation, screenshots, visual QA | ✓ Working                                     |
+| `chrome-devtools-mcp`   | Chrome DevTools protocol access            | ✓ Working                                     |
+| `@upstash/context7-mcp` | Library documentation lookup               | ✓ Working                                     |
+| `mcp-postgres`          | Direct DB queries                          | ✓ Connected (needs session restart for tools) |
+| `serena`                | Code intelligence, LSP, symbol navigation  | ✓ Working                                     |
+| GitHub MCP              | PR/issue/code search via GitHub API        | ✓ Working                                     |
+| Google Drive MCP        | File access from Drive                     | ✓ Working                                     |
+| Supabase MCP            | Supabase project management                | ✓ Working (not used for this project)         |
+| Context7 (claude.ai)    | Documentation                              | ✓ Working                                     |
 
 ---
 

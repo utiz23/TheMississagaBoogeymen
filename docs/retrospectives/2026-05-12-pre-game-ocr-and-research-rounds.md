@@ -23,9 +23,10 @@ cc101de feat(db): add pre-game OCR fields (tier, captain, number, persona, delta
 
 Pre-game OCR ingests 14 captures per match, runs cross-frame consensus, and
 surfaces 10 canonical skater rows with captain marker + 3 X-Factors w/ tier
-+ height/weight/handedness/level on `/games/[id]`. End-to-end validated on
-match 250: **93.7% V2 match** on the parser alone, ~100% after consensus +
-audit-trail at `pending_review` for the raw observations.
+
+- height/weight/handedness/level on `/games/[id]`. End-to-end validated on
+  match 250: **93.7% V2 match** on the parser alone, ~100% after consensus +
+  audit-trail at `pending_review` for the raw observations.
 
 Earlier in the session: marker-extraction Round-2 Deep Research returned a
 usable report (after one false-start 7-min stub); ingested into the dossier.
@@ -57,6 +58,7 @@ y=529 than to maintain 17 fragile pixel-coord ROIs.
 ### 2. Single-pixel / single-character signals are unreliable in OCR
 
 RapidOCR consistently:
+
 - Missed the `'C'` position label for MrHomicide's row (a single uppercase
   char that visually exists in every BGM panel capture).
 - Missed the captain `★` glyph for BGM players (small symbol, mid-saturation).
@@ -64,6 +66,7 @@ RapidOCR consistently:
 - Tokenised concatenated noise into single lines (`XZ4RKY★READY` as one token).
 
 Workarounds that actually worked:
+
 - **Canonical-ordering anchor fill:** if a position label is missing but
   other rows are detected, synthesize the missing anchor from the median
   inter-anchor gap and the known canonical row order (C/LW/RW/LD/RD/G).
@@ -82,6 +85,7 @@ wrong tool. Use position + color sampling.**
 
 41 raw observations from match 250's 14 captures → 10 canonical rows. The
 consensus pass corrected real errors:
+
 - 4 OPP players had wrong levels on their loadout captures (level-extractor
   picked up a different player's strip row when the subject was in AWAY).
   3 lobby observations outvoted the buggy loadout reads.
@@ -109,6 +113,7 @@ simple comparator script with a hand-keyed gold set is enough.
 
 Migration 0032 (5 columns across 3 tables) landed as its own commit before
 the parser rewrite. Then parser + promoter wiring. This:
+
 - Made the schema diff reviewable in isolation.
 - Let the parser rewrite focus on parsing logic, not schema design.
 - Gave the rollback granularity (revert one commit affects only one layer).
@@ -119,6 +124,7 @@ order; ship each as its own commit.
 ### 6. Stage research → debate → ingest → implement
 
 For both pre-game and marker work, the pattern was:
+
 1. Inspect screenshots and existing code → write a dossier
 2. Identify open questions → either spike internally or send to Deep Research
 3. Review findings critically → ingest the actionable bits into the dossier
@@ -132,6 +138,7 @@ architecture changes mid-stream.
 ### 7. Deep Research quality varies dramatically
 
 We got 3 Deep Research outputs this session:
+
 1. **Marker-extraction Round 2** — full structured report, 15/15 questions
    addressed, useful actionable findings (weighted LOOCV-TRE, neighbors=k,
    tiered TRE budgets). Took ~30 min.
@@ -142,6 +149,7 @@ We got 3 Deep Research outputs this session:
    a real Deep Research run. Discarded.
 
 Patterns:
+
 - **Dump prior context into the prompt aggressively.** "Don't re-research
   these established findings" sections work — Round 1 results, internal
   spike findings, scale constraints, the specific domain.
@@ -223,15 +231,16 @@ extract cleanly.** Don't fabricate plausible-looking output. The
 ### 13. Resisted scale-creep from Deep Research
 
 The marker-extraction Round-2 report recommended:
+
 - Stratified landmark-ablation at 13/17/21/25/29 landmarks
 - BiGRU temporal models
 - 10k-30k labelled row crops for the event-list pipeline
 - IDF1/MOTA/MOTP tracking metrics framework
 
 We have one match, ~150 events, hand-tuned 13 landmarks. The right
-response was to take the *operational* recommendations (regularized
+response was to take the _operational_ recommendations (regularized
 TPS, neighbors=k, confidence gates, weighted LOOCV-TRE) and ignore the
-*scale-of-effort* recommendations. The dossier explicitly flags this
+_scale-of-effort_ recommendations. The dossier explicitly flags this
 distinction ingested as "scale-of-effort items deferred — not
 applicable to single-match operational pipeline."
 
@@ -257,7 +266,7 @@ Always run cleanup at the end of a test cycle.
 
 Started the session with `docs/ocr/` containing 12 untracked dossier files
 (from prior sessions) + various untracked spike scripts. Ended the session
-with most of those *still* untracked because the focused commits are
+with most of those _still_ untracked because the focused commits are
 intentionally narrow.
 
 This is borderline unsafe: a wipe of the working tree (worktree cleanup,

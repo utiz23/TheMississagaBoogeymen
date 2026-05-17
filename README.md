@@ -8,11 +8,11 @@ Ingests match data from EA's undocumented Pro Clubs API, archives it to PostgreS
 
 ## What's Inside
 
-| App / Package | Description |
-|---|---|
-| `apps/web` | Next.js 15 (App Router) frontend |
-| `apps/worker` | Ingestion worker — polls EA API every 5 min |
-| `packages/db` | Drizzle ORM schema, migrations, query functions |
+| App / Package        | Description                                      |
+| -------------------- | ------------------------------------------------ |
+| `apps/web`           | Next.js 15 (App Router) frontend                 |
+| `apps/worker`        | Ingestion worker — polls EA API every 5 min      |
+| `packages/db`        | Drizzle ORM schema, migrations, query functions  |
 | `packages/ea-client` | EA Pro Clubs API client (retry, throttle, typed) |
 
 **Pages:** Home · `/games` · `/games/[id]` · `/roster` · `/roster/[id]` · `/stats`
@@ -104,11 +104,11 @@ See `docs/operations/smoke-checks.md` for the default local verification loop an
 
 See `.env.example` for all variables. Key ones:
 
-| Variable | Default | Description |
-|---|---|---|
-| `DATABASE_URL` | — | PostgreSQL connection string |
-| `EA_CLUB_ID` | `19224` | EA club ID |
-| `EA_PLATFORM` | `common-gen5` | EA platform identifier |
-| `POLL_INTERVAL_MS` | `300000` | Worker poll interval (5 min) |
-| `EA_REQUEST_DELAY_MS` | `1000` | Throttle between EA API calls |
-| `HEALTH_PORT` | `3001` | Worker health endpoint port |
+| Variable              | Default       | Description                   |
+| --------------------- | ------------- | ----------------------------- |
+| `DATABASE_URL`        | —             | PostgreSQL connection string  |
+| `EA_CLUB_ID`          | `19224`       | EA club ID                    |
+| `EA_PLATFORM`         | `common-gen5` | EA platform identifier        |
+| `POLL_INTERVAL_MS`    | `300000`      | Worker poll interval (5 min)  |
+| `EA_REQUEST_DELAY_MS` | `1000`        | Throttle between EA API calls |
+| `HEALTH_PORT`         | `3001`        | Worker health endpoint port   |

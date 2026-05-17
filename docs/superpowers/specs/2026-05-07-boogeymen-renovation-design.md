@@ -7,6 +7,7 @@
 **Tech Stack:** Next.js 15 App Router, TypeScript strict, Tailwind CSS 4, server components by default, no new dependencies. Existing `apps/web/src/app/globals.css` already mirrors the design system's CSS variables 1:1, so tokens are not changing.
 
 **Out of Scope:**
+
 - Goalie-side IA parity (deferred — separate plan).
 - New routes or new features (no head-to-head, no opponent stats, no season comparison).
 - Shot map redesign (recently shipped — reframed in a `<BroadcastPanel>` only).
@@ -19,22 +20,24 @@
 
 ## Decisions Locked
 
-| # | Decision | Choice |
-|---|---|---|
-| 1 | Renovation depth | Hybrid — cross-cutting style everywhere; IA changes only on `roster/[id]` and `home` |
-| 2 | Branch strategy | Commit + merge in-flight `feat/skater-stats-expansion` to `main` first; renovation lives on a fresh `feat/design-system-renovation` branch |
-| 3 | Source treatment | Spec-driven rebuild — README + previews are authoritative; staged source is reference, not destination |
-| 4 | Sequencing | Bottom-up — primitives first, then pages |
-| 5 | Approach | B (Lean primitives + targeted IA) — extract only primitives that ≥3 pages clearly need; defer additional extractions |
+| #   | Decision         | Choice                                                                                                                                     |
+| --- | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| 1   | Renovation depth | Hybrid — cross-cutting style everywhere; IA changes only on `roster/[id]` and `home`                                                       |
+| 2   | Branch strategy  | Commit + merge in-flight `feat/skater-stats-expansion` to `main` first; renovation lives on a fresh `feat/design-system-renovation` branch |
+| 3   | Source treatment | Spec-driven rebuild — README + previews are authoritative; staged source is reference, not destination                                     |
+| 4   | Sequencing       | Bottom-up — primitives first, then pages                                                                                                   |
+| 5   | Approach         | B (Lean primitives + targeted IA) — extract only primitives that ≥3 pages clearly need; defer additional extractions                       |
 
 ---
 
 ## Phase Plan
 
 ### Phase 0 — Land in-flight work (`main` branch)
+
 Land the existing `feat/skater-stats-expansion` work as focused commits and merge to `main`. The branch already contains design-aligned profile work that is coherent on its own; landing it keeps the renovation branch from carrying unrelated diff.
 
 **Scope of Phase 0 commits (rough grouping):**
+
 - `feat(db): 0022 player profile fields + new migration` (schema + journal + migration SQL)
 - `feat(web): player meta icons + roster profile-hero polish` (`player-meta-icons.tsx`, profile-hero, branding SVGs)
 - `feat(web): jersey number on home carousel + depth-chart` (already partly committed; collect remaining bits)
@@ -49,6 +52,7 @@ Land the existing `feat/skater-stats-expansion` work as focused commits and merg
 **Branch:** `feat/design-system-renovation` is then created from clean `main`.
 
 ### Phase 1 — Lean primitives layer
+
 Extract 5 shared UI primitives into `apps/web/src/components/ui/`:
 
 1. **`<Panel>`** — sharp 1px border surface (`tone="default" | "raised"`, optional `hoverable`)
@@ -64,7 +68,9 @@ A temporary kitchen-sink dev page at `apps/web/src/app/_kitchen-sink/page.tsx` r
 **Phase 1 ends when:** primitives render correctly in kitchen-sink, no consumer pages have been touched yet, typecheck clean.
 
 ### Phase 2 — Home (`/`) — IA touch + restyle
+
 Reorder per design-system bundle:
+
 1. **LATEST RESULT** — broadcast-hero scoreboard
 2. **SCORING LEADERS** — hero #1 + 4-row pattern across both Goals and Points
 3. **RECORD STRIP** — W/L/OTL · Win% · GP, with provenance tag
@@ -74,7 +80,9 @@ Reorder per design-system bundle:
 Apply UPPERCASE labels, tabular numerals, sharp `rounded-none` panels, broadcast-panel decoration on hero + leaders.
 
 ### Phase 3 — Roster profile (`/roster/[id]`) — IA reconcile + voice audit
+
 The in-flight 2026-05-05 restructure is already structurally aligned. Phase 3 is reconciliation:
+
 - Confirm AKA placement matches spec
 - Add provenance tags on every stat strip
 - Replace inline result pills with `<ResultPill>`
@@ -85,6 +93,7 @@ The in-flight 2026-05-05 restructure is already structurally aligned. Phase 3 is
 No structural rework expected. If reconciliation surfaces real IA gaps, flag and discuss before changing structure.
 
 ### Phase 4 — Games (`/games` + `/games/[id]`) — restyle only
+
 **`/games` (list):** Each row becomes `<Panel hoverable>` with date · BGM crest + score · `<ResultPill>` · opponent crest + abbrev · provenance. Filter pills (`All / 6s / 3s`) get the design-system pill treatment (transparent border → `border-accent bg-accent/10 text-accent` on active). Page header `text-2xl semibold uppercase tracking-widest`.
 
 **`/games/[id]` (detail):** Hero scoreboard becomes `<BroadcastPanel>` with the 3-column us/score/them grid. Score numbers → 5.75rem black tabular condensed. Per-player tables get UPPERCASE column headers, tabular nums, hairline dividers (`divide-zinc-800/60`). Top performers strip uses the leaders pattern.
@@ -92,17 +101,21 @@ No structural rework expected. If reconciliation surfaces real IA gaps, flag and
 If detail page proves heavy, split into 4a (scoreboard hero) + 4b (player tables).
 
 ### Phase 5 — Roster list (`/roster`) + Stats (`/stats`) — restyle only
+
 **`/roster`:** Cards become `<Panel hoverable>`. Jersey number in red accent, name in condensed black uppercase, position pill via `<ResultPill>`-style mapping (already done in flight). `<SectionHeader>` on top.
 
 **`/stats`:** Tables get the same UPPERCASE/tabular treatment as games-detail. Team shot map kept structurally; reframed in `<BroadcastPanel>` with `<SectionHeader>`. No layout changes to the shot map itself.
 
 ### Phase 6 — Cross-cutting cleanup
+
 **Top nav:** `bg-surface/95 backdrop-blur-sm` (only blur in the system), `border-b border-accent/15` (brand fingerprint), active link gets 2-px accent under-bar, links UPPERCASE condensed tracking-widest. Game-title switcher → segmented pill treatment.
 
 **Voice/casing audit grep:**
+
 ```bash
 rg -n '"(record|leaders?|standings?|stats|games?|roster)"' apps/web/src
 ```
+
 Fix any remaining sentence-case labels found.
 
 **Kitchen-sink page removed.** Dev-server walkthrough on every route end-to-end. Final typecheck + format pass.
@@ -112,6 +125,7 @@ Fix any remaining sentence-case labels found.
 ## Verification
 
 **Every phase:**
+
 - `pnpm --filter @eanhl/db build` (if any DB query touched)
 - `pnpm typecheck` from repo root
 - `pnpm format` (write)
@@ -120,6 +134,7 @@ Fix any remaining sentence-case labels found.
 **Phase 1:** Kitchen-sink page eyeball check against `docs/design/boogeymen-system/preview/*.html` mockups.
 
 **Phases 2-5:** For each rebuilt page:
+
 1. Visit at `localhost:3000`
 2. Compare against bundle preview HTML and source rewrite
 3. Click every interactive element (filter pills, tabs, nav, hover states)
@@ -131,6 +146,7 @@ Fix any remaining sentence-case labels found.
 **Commit boundaries:** Each phase = one focused commit (or small commit cluster — Phase 1 may be 5 commits, one per primitive). Conventional `feat(web): …` / `style(web): …` per CLAUDE.md. No "WIP"/"checkpoint" commits.
 
 **Not verified:**
+
 - Automated visual regression (no Storybook/Chromatic infra)
 - Cross-browser parity (modern browsers assumed)
 - Lighthouse/perf budgets (renovation is roughly perf-neutral)
@@ -166,6 +182,7 @@ Both items are out of Phase 4 scope by user direction. Track here so they don't 
 ## File Touch Map
 
 **New files (Phase 1):**
+
 - `apps/web/src/components/ui/panel.tsx`
 - `apps/web/src/components/ui/broadcast-panel.tsx`
 - `apps/web/src/components/ui/section-header.tsx`
@@ -175,6 +192,7 @@ Both items are out of Phase 4 scope by user direction. Track here so they don't 
 - `apps/web/src/app/_kitchen-sink/page.tsx` (temporary, removed in Phase 6)
 
 **Files modified by phase:**
+
 - Phase 2 (Home): `apps/web/src/app/page.tsx`, `apps/web/src/components/home/*`
 - Phase 3 (Roster profile): `apps/web/src/app/roster/[id]/page.tsx`, `apps/web/src/components/roster/{profile-hero,recent-form-strip,stats-record-card,club-stats-tabs,charts-visuals-section}.tsx`
 - Phase 4a (Games list): `apps/web/src/app/games/page.tsx`, `apps/web/src/components/matches/match-row.tsx`
@@ -188,15 +206,15 @@ Both items are out of Phase 4 scope by user direction. Track here so they don't 
 
 This spec describes the **whole renovation arc** but is too large to execute as a single implementation plan. Each phase becomes its own implementation plan via the `writing-plans` skill, executed sequentially:
 
-| Implementation plan | Covers | Branch |
-|---|---|---|
-| `2026-05-XX-renovation-phase-0-land-in-flight.md` | Phase 0 (commit + merge in-flight) | `feat/skater-stats-expansion` → `main` |
-| `2026-05-XX-renovation-phase-1-primitives.md` | Phase 1 (5 primitives + kitchen-sink) | `feat/design-system-renovation` |
-| `2026-05-XX-renovation-phase-2-home.md` | Phase 2 (home IA + restyle) | `feat/design-system-renovation` |
-| `2026-05-XX-renovation-phase-3-roster-profile.md` | Phase 3 (roster reconcile + voice audit) | `feat/design-system-renovation` |
-| `2026-05-XX-renovation-phase-4-games.md` | Phase 4a + 4b (games list + detail) | `feat/design-system-renovation` |
-| `2026-05-XX-renovation-phase-5-roster-stats.md` | Phase 5 (roster list + stats restyle) | `feat/design-system-renovation` |
-| `2026-05-XX-renovation-phase-6-cleanup.md` | Phase 6 (nav + voice audit + kitchen-sink removal) | `feat/design-system-renovation` |
+| Implementation plan                               | Covers                                             | Branch                                 |
+| ------------------------------------------------- | -------------------------------------------------- | -------------------------------------- |
+| `2026-05-XX-renovation-phase-0-land-in-flight.md` | Phase 0 (commit + merge in-flight)                 | `feat/skater-stats-expansion` → `main` |
+| `2026-05-XX-renovation-phase-1-primitives.md`     | Phase 1 (5 primitives + kitchen-sink)              | `feat/design-system-renovation`        |
+| `2026-05-XX-renovation-phase-2-home.md`           | Phase 2 (home IA + restyle)                        | `feat/design-system-renovation`        |
+| `2026-05-XX-renovation-phase-3-roster-profile.md` | Phase 3 (roster reconcile + voice audit)           | `feat/design-system-renovation`        |
+| `2026-05-XX-renovation-phase-4-games.md`          | Phase 4a + 4b (games list + detail)                | `feat/design-system-renovation`        |
+| `2026-05-XX-renovation-phase-5-roster-stats.md`   | Phase 5 (roster list + stats restyle)              | `feat/design-system-renovation`        |
+| `2026-05-XX-renovation-phase-6-cleanup.md`        | Phase 6 (nav + voice audit + kitchen-sink removal) | `feat/design-system-renovation`        |
 
 After each phase ships, decide whether to merge `feat/design-system-renovation` to `main` immediately or batch multiple phases per merge. Default: merge after Phase 2 (first user-visible win) and again at the end of Phase 6. Phases 3-5 ride along on the same branch.
 

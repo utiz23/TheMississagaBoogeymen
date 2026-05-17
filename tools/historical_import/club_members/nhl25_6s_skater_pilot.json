@@ -15,7 +15,14 @@
           "sourceAssetPath": "research/Previous_NHL_Stats/NHL_25/Screenshot 2026-04-30 20-42-23.png",
           "sortedByMetricLabel": "Skater Games Played",
           "contributedMetrics": ["skater_gp", "goalie_gp", "goals", "assists"],
-          "rawExtract": { "PLAYER NAME": "- Silky", "PLAYER LEVEL": "P2 | LVL 21", "SGP": 194, "GGP": 0, "G": 174, "A": 273 },
+          "rawExtract": {
+            "PLAYER NAME": "- Silky",
+            "PLAYER LEVEL": "P2 | LVL 21",
+            "SGP": 194,
+            "GGP": 0,
+            "G": 174,
+            "A": 273
+          },
           "reviewStatus": "reviewed",
           "confidenceScore": 0.95
         }
@@ -35,7 +42,14 @@
           "sourceAssetPath": "research/Previous_NHL_Stats/NHL_25/Screenshot 2026-04-30 20-42-23.png",
           "sortedByMetricLabel": "Skater Games Played",
           "contributedMetrics": ["skater_gp", "goalie_gp", "goals", "assists"],
-          "rawExtract": { "PLAYER NAME": "Lane Hutson", "PLAYER LEVEL": "P1 | LVL 26", "SGP": 135, "GGP": 0, "G": 82, "A": 178 },
+          "rawExtract": {
+            "PLAYER NAME": "Lane Hutson",
+            "PLAYER LEVEL": "P1 | LVL 26",
+            "SGP": 135,
+            "GGP": 0,
+            "G": 82,
+            "A": 178
+          },
           "reviewStatus": "reviewed",
           "confidenceScore": 0.95
         }
@@ -55,7 +69,14 @@
           "sourceAssetPath": "research/Previous_NHL_Stats/NHL_25/Screenshot 2026-04-30 20-42-23.png",
           "sortedByMetricLabel": "Skater Games Played",
           "contributedMetrics": ["skater_gp", "goalie_gp", "goals", "assists"],
-          "rawExtract": { "PLAYER NAME": "Wayne Glensky", "PLAYER LEVEL": "P2 | LVL 24", "SGP": 116, "GGP": 0, "G": 66, "A": 155 },
+          "rawExtract": {
+            "PLAYER NAME": "Wayne Glensky",
+            "PLAYER LEVEL": "P2 | LVL 24",
+            "SGP": 116,
+            "GGP": 0,
+            "G": 66,
+            "A": 155
+          },
           "reviewStatus": "reviewed",
           "confidenceScore": 0.95
         }
@@ -75,7 +96,14 @@
           "sourceAssetPath": "research/Previous_NHL_Stats/NHL_25/Screenshot 2026-04-30 20-42-23.png",
           "sortedByMetricLabel": "Skater Games Played",
           "contributedMetrics": ["skater_gp", "goalie_gp", "goals", "assists"],
-          "rawExtract": { "PLAYER NAME": "Gauzy Nib", "PLAYER LEVEL": "P1 | LVL 18", "SGP": 58, "GGP": 0, "G": 105, "A": 106 },
+          "rawExtract": {
+            "PLAYER NAME": "Gauzy Nib",
+            "PLAYER LEVEL": "P1 | LVL 18",
+            "SGP": 58,
+            "GGP": 0,
+            "G": 105,
+            "A": 106
+          },
           "reviewStatus": "reviewed",
           "confidenceScore": 0.85
         }
@@ -95,7 +123,14 @@
           "sourceAssetPath": "research/Previous_NHL_Stats/NHL_25/Screenshot 2026-04-30 20-42-23.png",
           "sortedByMetricLabel": "Skater Games Played",
           "contributedMetrics": ["skater_gp", "goalie_gp", "goals", "assists"],
-          "rawExtract": { "PLAYER NAME": "Igor Orlov", "PLAYER LEVEL": "P1 | LVL 43", "SGP": 36, "GGP": 0, "G": 64, "A": 47 },
+          "rawExtract": {
+            "PLAYER NAME": "Igor Orlov",
+            "PLAYER LEVEL": "P1 | LVL 43",
+            "SGP": 36,
+            "GGP": 0,
+            "G": 64,
+            "A": 47
+          },
           "reviewStatus": "reviewed",
           "confidenceScore": 0.9
         }
@@ -115,7 +150,14 @@
           "sourceAssetPath": "research/Previous_NHL_Stats/NHL_25/Screenshot 2026-04-30 20-42-23.png",
           "sortedByMetricLabel": "Skater Games Played",
           "contributedMetrics": ["skater_gp", "goalie_gp", "goals", "assists"],
-          "rawExtract": { "PLAYER NAME": "N ew Guy", "PLAYER LEVEL": "P1 | LVL 5", "SGP": 35, "GGP": 0, "G": 33, "A": 21 },
+          "rawExtract": {
+            "PLAYER NAME": "N ew Guy",
+            "PLAYER LEVEL": "P1 | LVL 5",
+            "SGP": 35,
+            "GGP": 0,
+            "G": 33,
+            "A": 21
+          },
           "reviewStatus": "reviewed",
           "confidenceScore": 0.9
         }
@@ -135,7 +177,14 @@
           "sourceAssetPath": "research/Previous_NHL_Stats/NHL_25/Screenshot 2026-04-30 20-42-23.png",
           "sortedByMetricLabel": "Skater Games Played",
           "contributedMetrics": ["skater_gp", "goalie_gp", "goals", "assists"],
-          "rawExtract": { "PLAYER NAME": "Daquarius Mcburn", "PLAYER LEVEL": "P1 | LVL 8", "SGP": 30, "GGP": 0, "G": 34, "A": 16 },
+          "rawExtract": {
+            "PLAYER NAME": "Daquarius Mcburn",
+            "PLAYER LEVEL": "P1 | LVL 8",
+            "SGP": 30,
+            "GGP": 0,
+            "G": 34,
+            "A": 16
+          },
           "reviewStatus": "reviewed",
           "confidenceScore": 0.9
         }
@@ -155,7 +204,14 @@
           "sourceAssetPath": "research/Previous_NHL_Stats/NHL_25/Screenshot 2026-04-30 20-42-23.png",
           "sortedByMetricLabel": "Skater Games Played",
           "contributedMetrics": ["skater_gp", "goalie_gp", "goals", "assists"],
-          "rawExtract": { "PLAYER NAME": "Zee Wanhg", "PLAYER LEVEL": "P1 | LVL 18", "SGP": 20, "GGP": 0, "G": 6, "A": 21 },
+          "rawExtract": {
+            "PLAYER NAME": "Zee Wanhg",
+            "PLAYER LEVEL": "P1 | LVL 18",
+            "SGP": 20,
+            "GGP": 0,
+            "G": 6,
+            "A": 21
+          },
           "reviewStatus": "reviewed",
           "confidenceScore": 0.85
         }
@@ -175,7 +231,14 @@
           "sourceAssetPath": "research/Previous_NHL_Stats/NHL_25/Screenshot 2026-04-30 20-42-23.png",
           "sortedByMetricLabel": "Skater Games Played",
           "contributedMetrics": ["skater_gp", "goalie_gp", "goals", "assists"],
-          "rawExtract": { "PLAYER NAME": "King LeMeat", "PLAYER LEVEL": "LVL 13", "SGP": 13, "GGP": 0, "G": 5, "A": 5 },
+          "rawExtract": {
+            "PLAYER NAME": "King LeMeat",
+            "PLAYER LEVEL": "LVL 13",
+            "SGP": 13,
+            "GGP": 0,
+            "G": 5,
+            "A": 5
+          },
           "reviewStatus": "reviewed",
           "confidenceScore": 0.85
         }

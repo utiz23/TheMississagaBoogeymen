@@ -21,9 +21,9 @@ capture for every match:
    - **State 1** ("class state"): shows Build Class Name (e.g. "Playmaker",
      "Tage Thompson - PowerForward", "Sniper")
    - **State 2** ("identity state"): shows in-game Player Number (e.g. `#11`)
-     + in-game Player Name (e.g. `E. Wanhg`)
-   The two teams **are not synced** in their alternation, so a single
-   capture can have one team in state 1 and the other in state 2.
+     - in-game Player Name (e.g. `E. Wanhg`)
+       The two teams **are not synced** in their alternation, so a single
+       capture can have one team in state 1 and the other in state 2.
 
 2. **Pre-Game Loadout View** — a per-player deep-dive screen showing
    complete build details: 3 X-Factors with tier labels, 23 attribute
@@ -40,42 +40,43 @@ If both teams field human goalies in a future match, that becomes 12.
 
 **Pre-Game Lobby state 1 (per player):**
 
-| Field | Example |
-|---|---|
-| Position | Center / Left Wing / Right Wing / Left Defense / Right Defense / Goalie |
-| Level | `P1 \| Level 17` |
-| Gamertag | `MrHomicide` |
-| Platform | `Xbox` |
-| Height | `6'0"` |
-| Weight | `160lbs` |
-| Build Class Name | `Playmaker`, `Sniper`, `Tage Thompson - PowerForward`, etc. |
-| Leader? | `Yes` / `No` |
-| X-Factor 1 / 2 / 3 (each with tier) | `Wheels - All Star`, `One T - Elite`, `Tape to Tape - Specialist` |
+| Field                               | Example                                                                 |
+| ----------------------------------- | ----------------------------------------------------------------------- |
+| Position                            | Center / Left Wing / Right Wing / Left Defense / Right Defense / Goalie |
+| Level                               | `P1 \| Level 17`                                                        |
+| Gamertag                            | `MrHomicide`                                                            |
+| Platform                            | `Xbox`                                                                  |
+| Height                              | `6'0"`                                                                  |
+| Weight                              | `160lbs`                                                                |
+| Build Class Name                    | `Playmaker`, `Sniper`, `Tage Thompson - PowerForward`, etc.             |
+| Leader?                             | `Yes` / `No`                                                            |
+| X-Factor 1 / 2 / 3 (each with tier) | `Wheels - All Star`, `One T - Elite`, `Tape to Tape - Specialist`       |
 
 **Pre-Game Lobby state 2 — same as state 1 BUT** replaces Build Class
 with two new fields:
 
-| Field | Example |
-|---|---|
-| Player Number | `#11` |
+| Field                         | Example                              |
+| ----------------------------- | ------------------------------------ |
+| Player Number                 | `#11`                                |
 | Player Name (in-game persona) | `E. Wanhg`, `-. Silky`, `H. Jenkins` |
 
 **Pre-Game Loadout View (per player) — strictly richer:**
 
-| Section | Fields |
-|---|---|
-| Player Info | Position, Player_Level, Platform, Name (full in-game name e.g. `Evgeni Wanhg`), Number, GamerTag, Build_Class_Name, Height, Weight, Shot Handness (`Right`/`Left`) |
-| X-Factors | 3 X-Factors, each with name + tier (`Elite` / `All Star` / `Specialist`) |
-| Attributes — Technique | Wrist Shot Accuracy, Slap Shot Accuracy, Speed, Balance, Agility (5 values, 0-99) |
-| Attributes — Power | Wrist Shot Power, Slap Shot Power, Acceleration, Puck Control, Endurance (5) |
-| Attributes — Playstyle | Passing, Offensive Awareness, Body Checking, Stick Checking, Defensive Awareness (5) |
-| Attributes — Tenacity | Hand-Eye, Strength, Durability, Shot Blocking (4) |
-| Attributes — Tactics | Deking, Faceoffs, Discipline, Fighting Skill (4) |
-| Δ column (optional) | per-attribute buff/diff indicator (visual triangle marker) — semantics: change vs base rating |
+| Section                | Fields                                                                                                                                                             |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Player Info            | Position, Player_Level, Platform, Name (full in-game name e.g. `Evgeni Wanhg`), Number, GamerTag, Build_Class_Name, Height, Weight, Shot Handness (`Right`/`Left`) |
+| X-Factors              | 3 X-Factors, each with name + tier (`Elite` / `All Star` / `Specialist`)                                                                                           |
+| Attributes — Technique | Wrist Shot Accuracy, Slap Shot Accuracy, Speed, Balance, Agility (5 values, 0-99)                                                                                  |
+| Attributes — Power     | Wrist Shot Power, Slap Shot Power, Acceleration, Puck Control, Endurance (5)                                                                                       |
+| Attributes — Playstyle | Passing, Offensive Awareness, Body Checking, Stick Checking, Defensive Awareness (5)                                                                               |
+| Attributes — Tenacity  | Hand-Eye, Strength, Durability, Shot Blocking (4)                                                                                                                  |
+| Attributes — Tactics   | Deking, Faceoffs, Discipline, Fighting Skill (4)                                                                                                                   |
+| Δ column (optional)    | per-attribute buff/diff indicator (visual triangle marker) — semantics: change vs base rating                                                                      |
 
-Total per player from Loadout View: **10 player-info fields + 3 X-Factors
-+ 23 attribute ratings = 36 fields**. For 10 skaters: 360 fields plus team
-metadata (game mode, team names).
+Total per player from Loadout View: \*\*10 player-info fields + 3 X-Factors
+
+- 23 attribute ratings = 36 fields\*\*. For 10 skaters: 360 fields plus team
+  metadata (game mode, team names).
 
 ---
 
@@ -83,17 +84,17 @@ metadata (game mode, team names).
 
 ### Inventory
 
-| Asset | Path | State |
-|---|---|---|
-| Lobby state 1 ROI config | [pre_game_lobby_state_1.yaml](../../tools/game_ocr/game_ocr/configs/roi/pre_game_lobby_state_1.yaml) | Defined: 5 regions (game_mode, two team names, two team panels). Each panel is a single large ROI containing all 6 player rows. |
-| Lobby state 2 ROI config | [pre_game_lobby_state_2.yaml](../../tools/game_ocr/game_ocr/configs/roi/pre_game_lobby_state_2.yaml) | **Identical to state 1.** No per-state ROI variation; same coords. |
-| Loadout view ROI config | [player_loadout_view.yaml](../../tools/game_ocr/game_ocr/configs/roi/player_loadout_view.yaml) | Defined: 17 regions covering selected_player, position, name, level, platform, gamertag, home_team, build_class, measurements, handedness, x_factors, and one ROI per attribute group (technique/power/playstyle/tenacity/tactics). |
-| Lobby parser | [`parsers.py:parse_lobby_team`](../../tools/game_ocr/game_ocr/parsers.py) | Splits a panel by position-token markers, builds `PlayerSlot` per row. Single-pass token-token classification, no positional grid. |
-| Loadout parser | [`parsers.py:parse_loadout_result`](../../tools/game_ocr/game_ocr/parsers.py) | Reads each ROI as a single field. **Each attribute group ROI returns ONE attribute value, not 5/4.** |
-| Loadout promoter | [loadout.ts](../../apps/worker/src/ocr-promoters/loadout.ts) | Idempotent. Writes snapshots + x_factors + attributes. Fan-in is 1 snapshot per extraction (correct — loadout is a single-player screen). |
-| Lobby promoter | [pre-game-lobby.ts](../../apps/worker/src/ocr-promoters/pre-game-lobby.ts) | Walks our_team + opponent_team rosters and writes one thin snapshot per detected player slot. CPU/empty slots skipped. |
-| DB schema | [player-loadout.ts](../../packages/db/src/schema/player-loadout.ts) | `player_loadout_snapshots` + `player_loadout_x_factors` + `player_loadout_attributes`. Schema is correct, supports the full V2 target. |
-| Captures available | [research/OCR-SS/Pre-Game-Lobby/](../../research/OCR-SS/Pre-Game-Lobby/) (3), [research/OCR-SS/Pre-Game-Loadouts/](../../research/OCR-SS/Pre-Game-Loadouts/) (11) | Total 14 captures for match 250. |
+| Asset                    | Path                                                                                                                                                              | State                                                                                                                                                                                                                               |
+| ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Lobby state 1 ROI config | [pre_game_lobby_state_1.yaml](../../tools/game_ocr/game_ocr/configs/roi/pre_game_lobby_state_1.yaml)                                                              | Defined: 5 regions (game_mode, two team names, two team panels). Each panel is a single large ROI containing all 6 player rows.                                                                                                     |
+| Lobby state 2 ROI config | [pre_game_lobby_state_2.yaml](../../tools/game_ocr/game_ocr/configs/roi/pre_game_lobby_state_2.yaml)                                                              | **Identical to state 1.** No per-state ROI variation; same coords.                                                                                                                                                                  |
+| Loadout view ROI config  | [player_loadout_view.yaml](../../tools/game_ocr/game_ocr/configs/roi/player_loadout_view.yaml)                                                                    | Defined: 17 regions covering selected_player, position, name, level, platform, gamertag, home_team, build_class, measurements, handedness, x_factors, and one ROI per attribute group (technique/power/playstyle/tenacity/tactics). |
+| Lobby parser             | [`parsers.py:parse_lobby_team`](../../tools/game_ocr/game_ocr/parsers.py)                                                                                         | Splits a panel by position-token markers, builds `PlayerSlot` per row. Single-pass token-token classification, no positional grid.                                                                                                  |
+| Loadout parser           | [`parsers.py:parse_loadout_result`](../../tools/game_ocr/game_ocr/parsers.py)                                                                                     | Reads each ROI as a single field. **Each attribute group ROI returns ONE attribute value, not 5/4.**                                                                                                                                |
+| Loadout promoter         | [loadout.ts](../../apps/worker/src/ocr-promoters/loadout.ts)                                                                                                      | Idempotent. Writes snapshots + x_factors + attributes. Fan-in is 1 snapshot per extraction (correct — loadout is a single-player screen).                                                                                           |
+| Lobby promoter           | [pre-game-lobby.ts](../../apps/worker/src/ocr-promoters/pre-game-lobby.ts)                                                                                        | Walks our_team + opponent_team rosters and writes one thin snapshot per detected player slot. CPU/empty slots skipped.                                                                                                              |
+| DB schema                | [player-loadout.ts](../../packages/db/src/schema/player-loadout.ts)                                                                                               | `player_loadout_snapshots` + `player_loadout_x_factors` + `player_loadout_attributes`. Schema is correct, supports the full V2 target.                                                                                              |
+| Captures available       | [research/OCR-SS/Pre-Game-Lobby/](../../research/OCR-SS/Pre-Game-Lobby/) (3), [research/OCR-SS/Pre-Game-Loadouts/](../../research/OCR-SS/Pre-Game-Loadouts/) (11) | Total 14 captures for match 250.                                                                                                                                                                                                    |
 
 ### Live DB state (match 250, as of 2026-05-12)
 
@@ -198,26 +199,26 @@ one blob and the parser isn't splitting rows reliably.
 
 ## What V2 says we need vs. what we have
 
-| Field | V2 says | DB has | Status |
-|---|---|---|---|
-| Game mode (`6v6`) | ✓ | not persisted | gap |
-| Both team names | ✓ | not persisted | gap |
-| Position per player | C/LW/RW/LD/RD/G | mostly LW/RW/LD/RD; never C | broken |
-| Gamertag | clean string | concatenated garbage | broken |
-| Player Number (state 2) | `#11` | NULL | gap |
-| Player Name in-game (state 2) | `E. Wanhg` | NULL | gap |
-| Player full Name (loadout) | `Evgeni Wanhg` | NULL | gap |
-| Build Class | clean string e.g. `Playmaker` | truncated 7 chars | broken |
-| Height | `6'0"` | sometimes correct, often NULL | partial |
-| Weight | `160lbs` | sometimes correct | partial |
-| Handedness | `Right`/`Left` (loadout) | `SHOOTS RIGHT/LEFT` (some) | partial |
-| Level | `P1 \| Level 17` | mangled (`P11VL17`, `P2LVL41 P2LVL35`) | broken |
-| Platform | `Xbox` | not persisted | gap |
-| Leader/Captain | `Yes`/`No` | not modeled | gap |
-| X-Factor names | 3 | ~1.4 avg, mostly truncated | broken |
-| X-Factor tiers | Elite/All Star/Specialist | not modeled | gap (schema missing) |
-| Attributes (23) | 23 values 0-99 | 5 values per snapshot | broken |
-| Δ column (buff indicator) | binary or directional | not modeled | gap |
+| Field                         | V2 says                       | DB has                                 | Status               |
+| ----------------------------- | ----------------------------- | -------------------------------------- | -------------------- |
+| Game mode (`6v6`)             | ✓                             | not persisted                          | gap                  |
+| Both team names               | ✓                             | not persisted                          | gap                  |
+| Position per player           | C/LW/RW/LD/RD/G               | mostly LW/RW/LD/RD; never C            | broken               |
+| Gamertag                      | clean string                  | concatenated garbage                   | broken               |
+| Player Number (state 2)       | `#11`                         | NULL                                   | gap                  |
+| Player Name in-game (state 2) | `E. Wanhg`                    | NULL                                   | gap                  |
+| Player full Name (loadout)    | `Evgeni Wanhg`                | NULL                                   | gap                  |
+| Build Class                   | clean string e.g. `Playmaker` | truncated 7 chars                      | broken               |
+| Height                        | `6'0"`                        | sometimes correct, often NULL          | partial              |
+| Weight                        | `160lbs`                      | sometimes correct                      | partial              |
+| Handedness                    | `Right`/`Left` (loadout)      | `SHOOTS RIGHT/LEFT` (some)             | partial              |
+| Level                         | `P1 \| Level 17`              | mangled (`P11VL17`, `P2LVL41 P2LVL35`) | broken               |
+| Platform                      | `Xbox`                        | not persisted                          | gap                  |
+| Leader/Captain                | `Yes`/`No`                    | not modeled                            | gap                  |
+| X-Factor names                | 3                             | ~1.4 avg, mostly truncated             | broken               |
+| X-Factor tiers                | Elite/All Star/Specialist     | not modeled                            | gap (schema missing) |
+| Attributes (23)               | 23 values 0-99                | 5 values per snapshot                  | broken               |
+| Δ column (buff indicator)     | binary or directional         | not modeled                            | gap                  |
 
 ---
 
@@ -272,26 +273,26 @@ readable; the data loss is downstream.
 
 Empirically validated grid coordinates:
 
-| element | y center | x center / range |
-|---|---|---|
-| Build class title | ~137 | x=451-773 (centered top) |
-| Top-right gamertag | ~146 | x=1715-1854 |
-| Measurements strip | ~189 | x=1495-1860 (`H \| W \| Handedness`) |
-| X-Factors header | ~254 | centered |
-| X-Factor 1/2/3 icons (centroid) | ~340 | 500 / 1000 / 1500 |
-| X-Factor 1/2/3 names | ~328 | 555-651 / 1054-1125 / 1555-1705 |
-| X-Factor descriptions | ~356 | aligned under names |
-| Active Ability Points line | ~449 + ~472 (value) | x=440-880 |
-| Attributes section header | ~529 | centered |
-| Column headers (T/P/P/T/T) | ~564 | 444-538 / 737-801 / 1031-1122 / 1323-1404 / 1617-1687 |
-| Attribute row 1 (y center) | ~598 | 5 columns |
-| Attribute row 2 | ~656 | |
-| Attribute row 3 | ~714 | |
-| Attribute row 4 | ~771 | |
-| Attribute row 5 (only Technique/Power/Playstyle) | ~830 | |
-| Per-row column-x ranges | — | TECH: label 449-603 / Δ 619-650 / R 664-690 · POWER: 741-876 / 916-945 / 957-982 · PLAY: 1034-1200 / 1205-1240 / 1250-1275 · TENC: 1325-1435 / 1499-1525 / 1543-1567 · TACT: 1619-1725 / 1793-1822 / 1835-1860 |
-| Left-strip roster (HOME/AWAY) | y=180-980 | x=22-377 |
-| Per-row in strip | every ~88 px | position label x=22-128, gamertag x=200-340 |
+| element                                          | y center            | x center / range                                                                                                                                                                                               |
+| ------------------------------------------------ | ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Build class title                                | ~137                | x=451-773 (centered top)                                                                                                                                                                                       |
+| Top-right gamertag                               | ~146                | x=1715-1854                                                                                                                                                                                                    |
+| Measurements strip                               | ~189                | x=1495-1860 (`H \| W \| Handedness`)                                                                                                                                                                           |
+| X-Factors header                                 | ~254                | centered                                                                                                                                                                                                       |
+| X-Factor 1/2/3 icons (centroid)                  | ~340                | 500 / 1000 / 1500                                                                                                                                                                                              |
+| X-Factor 1/2/3 names                             | ~328                | 555-651 / 1054-1125 / 1555-1705                                                                                                                                                                                |
+| X-Factor descriptions                            | ~356                | aligned under names                                                                                                                                                                                            |
+| Active Ability Points line                       | ~449 + ~472 (value) | x=440-880                                                                                                                                                                                                      |
+| Attributes section header                        | ~529                | centered                                                                                                                                                                                                       |
+| Column headers (T/P/P/T/T)                       | ~564                | 444-538 / 737-801 / 1031-1122 / 1323-1404 / 1617-1687                                                                                                                                                          |
+| Attribute row 1 (y center)                       | ~598                | 5 columns                                                                                                                                                                                                      |
+| Attribute row 2                                  | ~656                |                                                                                                                                                                                                                |
+| Attribute row 3                                  | ~714                |                                                                                                                                                                                                                |
+| Attribute row 4                                  | ~771                |                                                                                                                                                                                                                |
+| Attribute row 5 (only Technique/Power/Playstyle) | ~830                |                                                                                                                                                                                                                |
+| Per-row column-x ranges                          | —                   | TECH: label 449-603 / Δ 619-650 / R 664-690 · POWER: 741-876 / 916-945 / 957-982 · PLAY: 1034-1200 / 1205-1240 / 1250-1275 · TENC: 1325-1435 / 1499-1525 / 1543-1567 · TACT: 1619-1725 / 1793-1822 / 1835-1860 |
+| Left-strip roster (HOME/AWAY)                    | y=180-980           | x=22-377                                                                                                                                                                                                       |
+| Per-row in strip                                 | every ~88 px        | position label x=22-128, gamertag x=200-340                                                                                                                                                                    |
 
 Row y-spacing of 58 px (attribute rows) and 88 px (left-strip rows) is
 consistent across all 11 loadout captures. Anchor-based parsing is the
@@ -299,30 +300,30 @@ right approach.
 
 ### Lobby layout reference (1920×1080)
 
-| element | location |
-|---|---|
-| EASHL 6v6 (game mode) | y=130, x=100-290 |
-| THE BOOGEYMEN (our team name) | y=211, x=106-406 |
-| 4TH LINE (opp team name) | y=210, x=1652-1818 |
-| Our team panel | y=270-960, x=85-410 |
-| Opp team panel | y=270-960, x=1500-1860 (narrower) |
-| Per-row vertical band | y-step ~88 px starting at y=288 for our team |
-| Position label per row | x=22-128 (left edge of panel) |
-| Gamertag per row | x=187-340 (top of row) |
-| Build class / `#N-Name` per row | x=152-330 (middle of row) |
-| Height/Weight per row | x=152-280 (lower in row) |
-| Level per row | x=77-170 |
-| Captain marker (★) | OCR'd as `'★'` next to gamertag when present (e.g. MrHomicide) |
-| READY indicator | text `'READY'` adjacent to gamertag |
+| element                         | location                                                       |
+| ------------------------------- | -------------------------------------------------------------- |
+| EASHL 6v6 (game mode)           | y=130, x=100-290                                               |
+| THE BOOGEYMEN (our team name)   | y=211, x=106-406                                               |
+| 4TH LINE (opp team name)        | y=210, x=1652-1818                                             |
+| Our team panel                  | y=270-960, x=85-410                                            |
+| Opp team panel                  | y=270-960, x=1500-1860 (narrower)                              |
+| Per-row vertical band           | y-step ~88 px starting at y=288 for our team                   |
+| Position label per row          | x=22-128 (left edge of panel)                                  |
+| Gamertag per row                | x=187-340 (top of row)                                         |
+| Build class / `#N-Name` per row | x=152-330 (middle of row)                                      |
+| Height/Weight per row           | x=152-280 (lower in row)                                       |
+| Level per row                   | x=77-170                                                       |
+| Captain marker (★)              | OCR'd as `'★'` next to gamertag when present (e.g. MrHomicide) |
+| READY indicator                 | text `'READY'` adjacent to gamertag                            |
 
 ### State 1 vs State 2 detection — solved with 5-line regex
 
-| capture | panel | `#NN` count | build-keyword count | inferred state |
-|---|---|---|---|---|
-| state-1 lobby | our_team | 0 | 6 | **State 1** |
-| state-1 lobby | opp_team | 0 | 2 | State 1 (low confidence) |
-| state-2 lobby | our_team | 5 | 0 | **State 2** |
-| state-2 lobby | opp_team | 0 | 3 | **State 1** ← opp panel is in different state |
+| capture       | panel    | `#NN` count | build-keyword count | inferred state                                |
+| ------------- | -------- | ----------- | ------------------- | --------------------------------------------- |
+| state-1 lobby | our_team | 0           | 6                   | **State 1**                                   |
+| state-1 lobby | opp_team | 0           | 2                   | State 1 (low confidence)                      |
+| state-2 lobby | our_team | 5           | 0                   | **State 2**                                   |
+| state-2 lobby | opp_team | 0           | 3                   | **State 1** ← opp panel is in different state |
 
 Confirmed: **each team alternates independently**. Detection rule per
 team panel:
@@ -341,11 +342,11 @@ Sample a 70×70 px patch centered at (500, 340) / (1000, 340) / (1500, 340)
 for slots 0/1/2. Filter to saturated pixels (S > 100, V > 60). Compute
 circular mean of hue. Classify:
 
-| tier | hue range | example median H | example median S |
-|---|---|---|---|
-| **Elite** | H ≤ 15 OR H ≥ 165 (red, with wrap) | 3 | 220 |
-| **All Star** | 95 ≤ H ≤ 135 (blue) | 114 | 134 |
-| **Specialist** | 15 < H < 35 (yellow/orange) | 21 | 140 |
+| tier           | hue range                          | example median H | example median S |
+| -------------- | ---------------------------------- | ---------------- | ---------------- |
+| **Elite**      | H ≤ 15 OR H ≥ 165 (red, with wrap) | 3                | 220              |
+| **All Star**   | 95 ≤ H ≤ 135 (blue)                | 114              | 134              |
+| **Specialist** | 15 < H < 35 (yellow/orange)        | 21               | 140              |
 
 **Validated 18/18 = 100% on non-transitional captures** across 6
 loadouts (MrHomicide, Stick Menace, HenryTheBobJr, JoeyFlopfish,
@@ -362,10 +363,10 @@ diagnostic generalizes to other capture-quality issues.
 
 V2 catalogues two styles of build class:
 
-| style | example | source |
-|---|---|---|
-| Generic | `Playmaker`, `Sniper`, `Two-Way Forward`, `Puck Moving Defenseman`, `Defensive Defenseman`, `Hybrid Defenseman`, `Power Forward` | base game build catalog |
-| Named/themed | `Cole Caufield - Sniper`, `Tage Thompson - PowerForward`, `Lane Hutson - Puck Moving Defenseman` | NHL-player-themed variants; "{Player Name} - {Class abbreviation}" |
+| style        | example                                                                                                                          | source                                                             |
+| ------------ | -------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| Generic      | `Playmaker`, `Sniper`, `Two-Way Forward`, `Puck Moving Defenseman`, `Defensive Defenseman`, `Hybrid Defenseman`, `Power Forward` | base game build catalog                                            |
+| Named/themed | `Cole Caufield - Sniper`, `Tage Thompson - PowerForward`, `Lane Hutson - Puck Moving Defenseman`                                 | NHL-player-themed variants; "{Player Name} - {Class abbreviation}" |
 
 In the lobby state-1 panel the build is displayed in compact form (e.g.
 `Cole Caufield - SNP`, `Tage Thompson - PWF`); in the loadout view it's
@@ -424,15 +425,15 @@ per-match opp roster) will canonicalize them.
 
 ### Schema additions confirmed
 
-| change | table | column | type |
-|---|---|---|---|
-| add | `player_loadout_x_factors` | `tier` | `text` (Elite/All Star/Specialist) |
-| add | `player_loadout_snapshots` | `is_captain` | `boolean` |
-| add | `player_loadout_snapshots` | `player_number` | `integer` |
-| add | `player_loadout_snapshots` | `player_name_persona` | `text` (the in-game `E. Wanhg` style name; distinct from full-name `Evgeni Wanhg`) |
-| add | `player_loadout_snapshots` | `is_leader` | `boolean` |
-| add | `player_loadout_attributes` | `delta_value` | `smallint` (signed; null when no Δ chip) |
-| add (optional) | `player_loadout_snapshots` | `ap_used` + `ap_total` | `smallint` |
+| change         | table                       | column                 | type                                                                               |
+| -------------- | --------------------------- | ---------------------- | ---------------------------------------------------------------------------------- |
+| add            | `player_loadout_x_factors`  | `tier`                 | `text` (Elite/All Star/Specialist)                                                 |
+| add            | `player_loadout_snapshots`  | `is_captain`           | `boolean`                                                                          |
+| add            | `player_loadout_snapshots`  | `player_number`        | `integer`                                                                          |
+| add            | `player_loadout_snapshots`  | `player_name_persona`  | `text` (the in-game `E. Wanhg` style name; distinct from full-name `Evgeni Wanhg`) |
+| add            | `player_loadout_snapshots`  | `is_leader`            | `boolean`                                                                          |
+| add            | `player_loadout_attributes` | `delta_value`          | `smallint` (signed; null when no Δ chip)                                           |
+| add (optional) | `player_loadout_snapshots`  | `ap_used` + `ap_total` | `smallint`                                                                         |
 
 (The existing `player_name_snapshot` column should be repurposed for the
 full real name like "Evgeni Wanhg" from the loadout view; the persona
@@ -471,17 +472,18 @@ full-frame OCR pass per capture and parse by anchor lines + global
 coordinates.
 
 **Anchor lines** (high-confidence, position-stable):
+
 - Lobby: team-name headers (`THE BOOGEYMEN`, `4TH LINE`), `EASHL 6v6`,
   position labels (C/LW/RW/LD/RD/G) at the left edge of each panel
 - Loadout view: `X-FACTORS`, `ATTRIBUTES`, column headers (`TECHNIQUE` /
   `POWER` / `PLAYSTYLE` / `TENACITY` / `TACTICS`), `ACTIVE ABILITY
-  POINTS (AP):`, top-right gamertag
+POINTS (AP):`, top-right gamertag
 
 **Per-screen parsing strategy:**
 
-| screen | strategy |
-|---|---|
-| Lobby | (1) y-cluster each panel into 6 row-bands (~88 px each, starting at y≈288). (2) Within each band, identify fields by x-range + text-pattern: position label at x=22-128, gamertag at top-most y, level via `LVL` keyword, height/weight via `'` or `"`/`lbs`, build vs `#N-Name` by regex. (3) Detect per-team state via `#NN` regex count (≥3 → state 2, otherwise state 1). |
+| screen       | strategy                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Lobby        | (1) y-cluster each panel into 6 row-bands (~88 px each, starting at y≈288). (2) Within each band, identify fields by x-range + text-pattern: position label at x=22-128, gamertag at top-most y, level via `LVL` keyword, height/weight via `'` or `"`/`lbs`, build vs `#N-Name` by regex. (3) Detect per-team state via `#NN` regex count (≥3 → state 2, otherwise state 1).                                                                                                                                                                                                                                                                        |
 | Loadout view | (1) Locate column headers at y≈564 (TECHNIQUE/POWER/PLAYSTYLE/TENACITY/TACTICS). (2) Compute the 5 column x-bands from those headers. (3) Snap OCR lines into 5 row × 5 column grid (rows at y≈598/656/714/771/830; last two columns only have 4 rows). (4) Per cell, classify token by x-sub-range: label / Δ / R. (5) Extract X-Factor names + tiers separately (tiers via HSV sampling at fixed centroids, names via OCR at fixed y/x). (6) Extract build class from huge centered title at y≈137. (7) Extract gamertag from top-right at y≈146 x≈1715-1854. (8) Extract measurements strip from y≈189 x=1495-1860, split on `\|`/`lbs`/`SHOOTS`. |
 
 ### Layer 2 — State-1/state-2 fusion for lobby (per team)
@@ -509,6 +511,7 @@ redundancy:
   position+gamertag+number+name+level.
 
 Cross-frame consensus pattern:
+
 - Cluster captures by canonical gamertag via RapidFuzz / Jaro-Winkler
   match against the BGM-known + opp-observed vocabulary.
 - Per skater, vote per field across all observations with confidence
@@ -525,14 +528,14 @@ Bucket: red → Elite, blue → All Star, yellow → Specialist.
 
 ### Layer 5 — Schema additions
 
-| change | table | column | type | source |
-|---|---|---|---|---|
-| add | `player_loadout_x_factors` | `tier` | `text` | HSV color of icon |
-| add | `player_loadout_snapshots` | `is_captain` | `boolean` | yellow ★ next to gamertag |
-| add | `player_loadout_snapshots` | `player_number` | `integer` | `#NN` from state-2 lobby or loadout strip |
-| add | `player_loadout_snapshots` | `player_name_persona` | `text` | the `E. Wanhg` short in-game name |
-| add | `player_loadout_attributes` | `delta_value` | `smallint` | Δ chip (signed, null when no chip) |
-| optional | `player_loadout_snapshots` | `ap_used` + `ap_total` | `smallint × 2` | "ACTIVE ABILITY POINTS (AP): N/100" |
+| change   | table                       | column                 | type           | source                                    |
+| -------- | --------------------------- | ---------------------- | -------------- | ----------------------------------------- |
+| add      | `player_loadout_x_factors`  | `tier`                 | `text`         | HSV color of icon                         |
+| add      | `player_loadout_snapshots`  | `is_captain`           | `boolean`      | yellow ★ next to gamertag                 |
+| add      | `player_loadout_snapshots`  | `player_number`        | `integer`      | `#NN` from state-2 lobby or loadout strip |
+| add      | `player_loadout_snapshots`  | `player_name_persona`  | `text`         | the `E. Wanhg` short in-game name         |
+| add      | `player_loadout_attributes` | `delta_value`          | `smallint`     | Δ chip (signed, null when no chip)        |
+| optional | `player_loadout_snapshots`  | `ap_used` + `ap_total` | `smallint × 2` | "ACTIVE ABILITY POINTS (AP): N/100"       |
 
 Existing `player_name_snapshot` should be the full real name like
 "Evgeni Wanhg" from the loadout view (different from persona).
@@ -560,16 +563,16 @@ coverage in V2.
 
 After the internal-research spike, here's where each question landed:
 
-| # | Question | Status |
-|---|---|---|
-| 1 | Grid extraction technique for attribute panel | **Answered**: anchor-based parse on full-frame OCR. The 5-column header row at y=564 is a stable anchor; row y-positions are at 598/656/714/771/830. No need for PP-Structure or layout-parser. |
-| 2 | State 1 vs State 2 detection | **Answered**: per-team `#NN` regex count ≥ 3 → State 2. Trivial. |
-| 3 | X-Factor tier extraction (color vs CNN) | **Answered**: HSV color sampling at fixed icon centroids. 100% accuracy on non-transitional captures with 5-line classifier. No CNN needed. |
-| 4 | Build-class vocabulary | **Answered**: finite catalogue with a generic-vs-themed split. Abbreviations (SNP/PWF/PMD/TWF/DDD) are decodable from the V2 corpus and a hardcoded mapping. |
-| 5 | Selected-player indicator | **Moot**: not needed — the build-class title and top-right gamertag identify the active player directly. |
-| 6 | Left strip as parallel source | **Answered**: 11× redundancy per skater per match via loadout captures + 3× via lobby captures. Use for cross-frame consensus. |
-| 7 | Δ column meaning | **Answered**: Δ = buff/nerf delta (signed int), R = post-buff displayed value. V2's "Δ \| R" column actually shows BASE = R − Δ. Store both Δ and R; base is derivable. |
-| 8 | Goalie loadout view | **Deferred**: no goalie data in match 250 (CPU goalies). Revisit when a real match has human goalies. |
+| #   | Question                                      | Status                                                                                                                                                                                          |
+| --- | --------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | Grid extraction technique for attribute panel | **Answered**: anchor-based parse on full-frame OCR. The 5-column header row at y=564 is a stable anchor; row y-positions are at 598/656/714/771/830. No need for PP-Structure or layout-parser. |
+| 2   | State 1 vs State 2 detection                  | **Answered**: per-team `#NN` regex count ≥ 3 → State 2. Trivial.                                                                                                                                |
+| 3   | X-Factor tier extraction (color vs CNN)       | **Answered**: HSV color sampling at fixed icon centroids. 100% accuracy on non-transitional captures with 5-line classifier. No CNN needed.                                                     |
+| 4   | Build-class vocabulary                        | **Answered**: finite catalogue with a generic-vs-themed split. Abbreviations (SNP/PWF/PMD/TWF/DDD) are decodable from the V2 corpus and a hardcoded mapping.                                    |
+| 5   | Selected-player indicator                     | **Moot**: not needed — the build-class title and top-right gamertag identify the active player directly.                                                                                        |
+| 6   | Left strip as parallel source                 | **Answered**: 11× redundancy per skater per match via loadout captures + 3× via lobby captures. Use for cross-frame consensus.                                                                  |
+| 7   | Δ column meaning                              | **Answered**: Δ = buff/nerf delta (signed int), R = post-buff displayed value. V2's "Δ \| R" column actually shows BASE = R − Δ. Store both Δ and R; base is derivable.                         |
+| 8   | Goalie loadout view                           | **Deferred**: no goalie data in match 250 (CPU goalies). Revisit when a real match has human goalies.                                                                                           |
 
 ### Remaining unknowns (low-priority)
 

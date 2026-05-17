@@ -59,13 +59,13 @@ Previous order had "Current Season Snapshot" after Hero — removed because it d
 
 Computed from skater stats, displayed as an accent chip in the hero:
 
-| Archetype | Conditions |
-|---|---|
-| Sniper | High goals/game, moderate assists |
-| Playmaker | High assists/game, moderate goals |
-| Enforcer | High hits, elevated PIM |
-| Two-Way | Good +/- AND strong defensive stats (TA/blocks) |
-| Balanced | Default / doesn't meet any other threshold |
+| Archetype | Conditions                                      |
+| --------- | ----------------------------------------------- |
+| Sniper    | High goals/game, moderate assists               |
+| Playmaker | High assists/game, moderate goals               |
+| Enforcer  | High hits, elevated PIM                         |
+| Two-Way   | Good +/- AND strong defensive stats (TA/blocks) |
+| Balanced  | Default / doesn't meet any other threshold      |
 
 Goalies do not get an archetype badge.
 
@@ -120,14 +120,14 @@ This is the correct interpretation for "Appearance Record" in the hero strip.
 
 ## Data Sources on Profile Page
 
-| Section | Source | Label |
-|---|---|---|
-| Hero strip (current season) | `player_game_title_stats` | Locally tracked |
-| Contribution Radar | `ea_member_season_stats` | EA season totals (normalized) |
-| Recent Form | `player_match_stats` (last 5 role-matched) | Locally tracked |
-| Game Log | `player_match_stats` | Locally tracked |
-| Career Stats | `player_game_title_stats` | Per game title |
-| EA Season Totals | `ea_member_season_stats` | EA season totals (clearly labeled) |
+| Section                     | Source                                     | Label                              |
+| --------------------------- | ------------------------------------------ | ---------------------------------- |
+| Hero strip (current season) | `player_game_title_stats`                  | Locally tracked                    |
+| Contribution Radar          | `ea_member_season_stats`                   | EA season totals (normalized)      |
+| Recent Form                 | `player_match_stats` (last 5 role-matched) | Locally tracked                    |
+| Game Log                    | `player_match_stats`                       | Locally tracked                    |
+| Career Stats                | `player_game_title_stats`                  | Per game title                     |
+| EA Season Totals            | `ea_member_season_stats`                   | EA season totals (clearly labeled) |
 
 Never mix these silently. EA totals ≠ local aggregates.
 
@@ -136,6 +136,7 @@ Never mix these silently. EA totals ≠ local aggregates.
 ## Member-Only Players
 
 Players created via `ea_member_season_stats` (appear in EA's member list but haven't been in any ingested match). These players:
+
 - Show on the roster with "provisional" marking
 - Have a player profile with "no local match history" notice
 - Have EA Season Totals but no Career Stats, Game Log, or Recent Form

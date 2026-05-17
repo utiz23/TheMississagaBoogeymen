@@ -9,6 +9,7 @@
 **Tech Stack:** Next.js 15 App Router (server components), TypeScript strict, Tailwind CSS 4. Phase 1 primitives at `apps/web/src/components/ui/{panel,broadcast-panel,section-header,result-pill,stat-strip}.tsx` + the helper at `apps/web/src/lib/result-colors.ts` are the design surface. No new dependencies.
 
 **Working assumptions:**
+
 - Current branch: `feat/design-system-renovation`. Phase 1 primitives are landed (HEAD commit cluster 7218e4f..998a7bd).
 - The renovation spec at `docs/superpowers/specs/2026-05-07-boogeymen-renovation-design.md` is authoritative for Phase 2 scope.
 - Run all commands from the repo root: `/home/michal/projects/eanhl-team-website`.
@@ -18,6 +19,7 @@
   - **Final order:** Header → LATEST RESULT → ROSTER SPOTLIGHT → SCORING LEADERS → CLUB RECORD STRIP → SEASON RANK → RECENT RESULTS → TITLE RECORDS.
 
 **Out of scope:**
+
 - Goalie-side roster spotlight changes (carousel cards already restyled in Phase 0).
 - Any `apps/web/src/components/matches/*` changes (that's Phase 4).
 - Any roster profile (`/roster/[id]`) changes (that's Phase 3).
@@ -31,19 +33,21 @@
 
 **New files this phase creates:**
 
-| Path | Responsibility | Approx LOC |
-|---|---|---|
-| `apps/web/src/components/home/club-record-section.tsx` | New `<ClubRecordSection>` — section header + mode filter + record strip variants. Wraps StatStrip primitive. | 130 |
-| `apps/web/src/components/home/recent-games-strip.tsx` | Extracted recent-games-strip; `<RecentGamesStrip>` — uses ResultPill primitive | 70 |
-| `apps/web/src/components/home/record-mode-filter.tsx` | Extracted `<RecordModeFilter>` — segmented pill filter (All / 6s / 3s) shared between RECORD STRIP and ROSTER SPOTLIGHT sections | 50 |
+| Path                                                   | Responsibility                                                                                                                   | Approx LOC |
+| ------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------- | ---------- |
+| `apps/web/src/components/home/club-record-section.tsx` | New `<ClubRecordSection>` — section header + mode filter + record strip variants. Wraps StatStrip primitive.                     | 130        |
+| `apps/web/src/components/home/recent-games-strip.tsx`  | Extracted recent-games-strip; `<RecentGamesStrip>` — uses ResultPill primitive                                                   | 70         |
+| `apps/web/src/components/home/record-mode-filter.tsx`  | Extracted `<RecordModeFilter>` — segmented pill filter (All / 6s / 3s) shared between RECORD STRIP and ROSTER SPOTLIGHT sections | 50         |
 
 **Files modified:**
+
 - `apps/web/src/app/page.tsx` — orchestrator only after Task 8: replace inline section headers with `<SectionHeader>`, replace inline `RecentGamesStrip`/`RecordGameModeFilter` with extracted components, wire in `<ClubRecordSection>`, reorder per locked IA. Will end up around 280–320 lines (down from 487).
 - `apps/web/src/components/home/latest-result.tsx` — replace inline `ResultPill` + hand-rolled CSS panel with the `BroadcastPanel` + `ResultPill` + `SectionHeader` primitives. Drop the local pill helper.
 - `apps/web/src/components/home/leaders-section.tsx` — replace inline `.broadcast-panel` class + inline header markup with `BroadcastPanel` + `SectionHeader` primitives. Tighten visual to match `components-leaders.html` (spotlight border, row hover/selected states, value typography). Structure (4-column grid) stays.
 - `apps/web/src/components/home/season-rank-widget.tsx` — wrap in `Panel`, swap inline labels to UPPERCASE/tabular treatment per design system.
 
 **Files unchanged:**
+
 - `apps/web/src/components/home/player-card.tsx`, `player-carousel.tsx`, `title-records-table.tsx` — Phase 0 work + restyling here would be out of scope; light header swap on the carousel + table sections happens in `page.tsx`.
 - All Phase 1 primitives.
 
@@ -54,6 +58,7 @@
 The current `RecordGameModeFilter` is defined inline in `page.tsx` (lines 313–355). The new `<ClubRecordSection>` (Task 2) needs it; the existing roster-spotlight callsite will use it too. Extract first so both consumers can import a stable component.
 
 **Files:**
+
 - Create: `apps/web/src/components/home/record-mode-filter.tsx`
 
 - [ ] **Step 1: Create the component**
@@ -118,6 +123,7 @@ export function RecordModeFilter({ titleSlug, activeMode }: RecordModeFilterProp
 ```bash
 pnpm --filter web typecheck
 ```
+
 Expected: passes (no consumer yet).
 
 - [ ] **Step 3: Commit**
@@ -142,6 +148,7 @@ EOF
 ```bash
 git log --oneline -1
 ```
+
 Expected: `feat(web): extract RecordModeFilter ...` is HEAD.
 
 ---
@@ -151,6 +158,7 @@ Expected: `feat(web): extract RecordModeFilter ...` is HEAD.
 This is the only structurally new piece on the home page in Phase 2. Wraps a `<SectionHeader>` + `<RecordModeFilter>` + a `<StatStrip>`-driven record strip with three variants (all-modes EA-official, all-modes-fallback when official is missing, mode-filtered local).
 
 **Files:**
+
 - Create: `apps/web/src/components/home/club-record-section.tsx`
 
 - [ ] **Step 1: Create the component**
@@ -310,6 +318,7 @@ function LocalModeRecordStrip({
 ```bash
 pnpm --filter web typecheck
 ```
+
 Expected: passes (consumer wiring happens in Task 8).
 
 - [ ] **Step 3: Commit**
@@ -337,6 +346,7 @@ EOF
 ```bash
 git log --oneline -1
 ```
+
 Expected: `feat(web): add ClubRecordSection ...` is HEAD.
 
 ---
@@ -346,6 +356,7 @@ Expected: `feat(web): add ClubRecordSection ...` is HEAD.
 Replace the hand-rolled `.broadcast-panel`-style CSS literal + the inline result pill helper with Phase 1 primitives. Visual output should be ~unchanged; the diff is structural.
 
 **Files:**
+
 - Modify: `apps/web/src/components/home/latest-result.tsx`
 
 - [ ] **Step 1: Replace the file**
@@ -356,7 +367,13 @@ Write the entire new contents to `apps/web/src/components/home/latest-result.tsx
 import Link from 'next/link'
 import type { Match } from '@eanhl/db'
 import Image from 'next/image'
-import { formatMatchDate, formatRecord, abbreviateTeamName, formatTOA, opponentFaceoffPct } from '@/lib/format'
+import {
+  formatMatchDate,
+  formatRecord,
+  abbreviateTeamName,
+  formatTOA,
+  opponentFaceoffPct,
+} from '@/lib/format'
 import { OpponentCrest } from '@/components/ui/opponent-crest'
 import { BroadcastPanel } from '@/components/ui/broadcast-panel'
 import { ResultPill } from '@/components/ui/result-pill'
@@ -387,8 +404,7 @@ function MatchSnapshot({ match }: { match: Match }) {
   const foOurs =
     match.faceoffPct !== null ? Math.round(parseFloat(match.faceoffPct)).toString() : null
   const foOpponent = opponentFaceoffPct(match.faceoffPct)
-  const foTheirs =
-    foOpponent !== null ? Math.round(parseFloat(foOpponent)).toString() : null
+  const foTheirs = foOpponent !== null ? Math.round(parseFloat(foOpponent)).toString() : null
   const toa = match.timeOnAttack !== null ? formatTOA(match.timeOnAttack) : null
   const showFO = foOurs !== null && foTheirs !== null
 
@@ -515,6 +531,7 @@ export function LatestResult({
 ```
 
 Key changes from previous version:
+
 - Removes the local `RESULT_PILL_CONFIG` and `ResultPill` helper — uses the new `ResultPill` from `@/components/ui/result-pill` at `size="md"`.
 - Removes the hand-rolled radial-gradient + linear-gradient inline `className` literal — uses `<BroadcastPanel>` (which carries the same gradients via the `.broadcast-panel` CSS class + ticker).
 - Drops the old hand-rolled top ticker bar (`<div className="h-1 w-full bg-gradient-to-r from-red-900 via-red-600 to-red-900" />`) — `BroadcastPanel` renders its own ticker.
@@ -528,6 +545,7 @@ Key changes from previous version:
 ```bash
 pnpm --filter web typecheck
 ```
+
 Expected: passes.
 
 - [ ] **Step 3: Commit**
@@ -554,6 +572,7 @@ EOF
 ```bash
 git log --oneline -1
 ```
+
 Expected: `refactor(web): rebuild LatestResult ...` is HEAD.
 
 ---
@@ -563,6 +582,7 @@ Expected: `refactor(web): rebuild LatestResult ...` is HEAD.
 Replace the inline `.broadcast-panel` markup + hand-rolled header with `BroadcastPanel` + `SectionHeader`. The 4-column grid structure (Points hero | Points list | Goals hero | Goals list) stays — it already matches the bundle's "hero #1 + list" pattern. Tighten visual details: spotlight border, row hover/selected states, value typography per `components-leaders.html`.
 
 **Files:**
+
 - Modify: `apps/web/src/components/home/leaders-section.tsx`
 
 - [ ] **Step 1: Replace the file**
@@ -718,7 +738,11 @@ function FeaturedPlayerBlock({
           {player.gamertag}
         </span>
         {pos !== null && (
-          <PositionPill label={pos} position={player.position} isGoalie={player.position === 'goalie'} />
+          <PositionPill
+            label={pos}
+            position={player.position}
+            isGoalie={player.position === 'goalie'}
+          />
         )}
       </div>
 
@@ -779,6 +803,7 @@ function LeaderRow({
 ```
 
 Key changes:
+
 - Wraps the panel in `<BroadcastPanel>` (replaces the `.broadcast-panel` class + hand-rolled ticker).
 - Header uses `<SectionHeader>` for the label; the source line + CTA are rendered alongside (not via SectionHeader's `cta` prop, since the source line wouldn't fit cleanly).
 - Inner column heading `text-xs` → `text-[10px]` to match the system's stat-label size.
@@ -790,6 +815,7 @@ Key changes:
 ```bash
 pnpm --filter web typecheck
 ```
+
 Expected: passes.
 
 - [ ] **Step 3: Commit**
@@ -816,6 +842,7 @@ EOF
 ```bash
 git log --oneline -1
 ```
+
 Expected: `refactor(web): rebuild ScoringLeadersPanel ...` is HEAD.
 
 ---
@@ -825,6 +852,7 @@ Expected: `refactor(web): rebuild ScoringLeadersPanel ...` is HEAD.
 Wrap the widget body in `<Panel>`, replace inline soft labels with UPPERCASE wide-tracked treatment, drop any rounding.
 
 **Files:**
+
 - Modify: `apps/web/src/components/home/season-rank-widget.tsx`
 
 - [ ] **Step 1: Read current file**
@@ -836,6 +864,7 @@ sed -n '1,200p' apps/web/src/components/home/season-rank-widget.tsx
 - [ ] **Step 2: Edit per design-system voice**
 
 Apply the following transformations using the Edit tool:
+
 1. Add import: `import { Panel } from '@/components/ui/panel'` at the top.
 2. Replace the outermost `<div className="border border-zinc-800 bg-surface ...">` (or equivalent panel wrapper) with `<Panel className="...">`.
 3. Replace any `rounded-xl` / `rounded-md` / `rounded-lg` on panel-like elements with no rounding (drop the class).
@@ -849,6 +878,7 @@ Edit each change one at a time. After all edits, the file should be ~115 lines (
 ```bash
 pnpm --filter web typecheck
 ```
+
 Expected: passes.
 
 - [ ] **Step 4: Commit**
@@ -872,6 +902,7 @@ EOF
 ```bash
 git log --oneline -1
 ```
+
 Expected: `refactor(web): apply design-system voice to SeasonRankWidget` is HEAD.
 
 ---
@@ -881,6 +912,7 @@ Expected: `refactor(web): apply design-system voice to SeasonRankWidget` is HEAD
 The current `RecentGamesStrip` lives inline in `page.tsx` (lines 263–309). Extract it to its own file and restyle to use `<ResultPill>` + `<Panel>`.
 
 **Files:**
+
 - Create: `apps/web/src/components/home/recent-games-strip.tsx`
 
 - [ ] **Step 1: Create the new component**
@@ -937,6 +969,7 @@ export function RecentGamesStrip({ matches }: RecentGamesStripProps) {
 ```
 
 Key changes from the inline version:
+
 - Uses `<Panel>` instead of the hand-rolled `border border-zinc-800 bg-surface`.
 - Uses `<ResultPill size="sm">` instead of the inline `RECENT_RESULT_CONFIG` letter chip (which used different en-dash + colors).
 - Drops `rounded` on the game-mode pill (per design-system rules).
@@ -947,6 +980,7 @@ Key changes from the inline version:
 ```bash
 pnpm --filter web typecheck
 ```
+
 Expected: passes (the inline `RecentGamesStrip` in `page.tsx` is still in place; both exist temporarily until Task 8 wires the import).
 
 - [ ] **Step 3: Commit**
@@ -970,6 +1004,7 @@ EOF
 ```bash
 git log --oneline -1
 ```
+
 Expected: `feat(web): extract RecentGamesStrip ...` is HEAD.
 
 ---
@@ -979,6 +1014,7 @@ Expected: `feat(web): extract RecentGamesStrip ...` is HEAD.
 Wrap the table in `<Panel>`, ensure column headers and labels use UPPERCASE/tabular treatment.
 
 **Files:**
+
 - Modify: `apps/web/src/components/home/title-records-table.tsx`
 
 - [ ] **Step 1: Read current file**
@@ -990,6 +1026,7 @@ sed -n '1,200p' apps/web/src/components/home/title-records-table.tsx
 - [ ] **Step 2: Edit per design-system voice**
 
 Apply the following transformations using the Edit tool:
+
 1. Add import: `import { Panel } from '@/components/ui/panel'` at the top.
 2. Replace the outermost wrapper (likely `<div className="border border-zinc-800 bg-surface ...">` or similar) with `<Panel className="overflow-x-auto">`.
 3. Add `font-condensed uppercase tracking-widest text-zinc-500` to all `<th>` cells if not already present.
@@ -1003,6 +1040,7 @@ The table structure (rows, columns, mode-pill controls) is unchanged.
 ```bash
 pnpm --filter web typecheck
 ```
+
 Expected: passes.
 
 - [ ] **Step 4: Commit**
@@ -1025,6 +1063,7 @@ EOF
 ```bash
 git log --oneline -1
 ```
+
 Expected: `refactor(web): apply design-system voice to TitleRecordsTable` is HEAD.
 
 ---
@@ -1034,6 +1073,7 @@ Expected: `refactor(web): apply design-system voice to TitleRecordsTable` is HEA
 The orchestration commit. Replace inline section headers with `<SectionHeader>`, swap inline `RecordGameModeFilter` and `RecentGamesStrip` for the extracted components, wire in `<ClubRecordSection>`, and reorder all sections per the locked Phase 2 IA.
 
 **Files:**
+
 - Modify: `apps/web/src/app/page.tsx`
 
 - [ ] **Step 1: Replace the file**
@@ -1308,10 +1348,8 @@ const HIST_PLAYLISTS_3S = new Set(['eashl_3v3', 'clubs_3v3'])
 
 function liveToRecord(stats: ClubGameTitleStats | null): RecordModeStats | null {
   if (!stats || stats.gamesPlayed === 0) return null
-  const gfg =
-    stats.gamesPlayed > 0 ? (stats.goalsFor / stats.gamesPlayed).toFixed(2) : null
-  const gag =
-    stats.gamesPlayed > 0 ? (stats.goalsAgainst / stats.gamesPlayed).toFixed(2) : null
+  const gfg = stats.gamesPlayed > 0 ? (stats.goalsFor / stats.gamesPlayed).toFixed(2) : null
+  const gag = stats.gamesPlayed > 0 ? (stats.goalsAgainst / stats.gamesPlayed).toFixed(2) : null
   return {
     gamesPlayed: stats.gamesPlayed,
     wins: stats.wins,
@@ -1419,6 +1457,7 @@ function buildTitleRecords(
 ```
 
 Key changes from the previous version:
+
 - Reorders sections to: Header → LATEST RESULT → ROSTER SPOTLIGHT → SCORING LEADERS → CLUB RECORD STRIP → SEASON RANK → RECENT RESULTS → TITLE RECORDS.
 - Wires in `<ClubRecordSection>` (new section).
 - Replaces inline section header markup with `<SectionHeader>` primitive.
@@ -1433,6 +1472,7 @@ Key changes from the previous version:
 ```bash
 pnpm --filter web typecheck
 ```
+
 Expected: passes.
 
 - [ ] **Step 3: Commit**
@@ -1463,6 +1503,7 @@ EOF
 ```bash
 git log --oneline -1 && wc -l apps/web/src/app/page.tsx
 ```
+
 Expected: `feat(web): reorder home IA ...` is HEAD; `page.tsx` is ~330 lines.
 
 ---
@@ -1476,6 +1517,7 @@ Phase 2 ends when the home page renders correctly with the new IA + restyle, ful
 ```bash
 pnpm typecheck
 ```
+
 Expected: 6 successful tasks.
 
 - [ ] **Step 2: Start dev server**
@@ -1483,11 +1525,13 @@ Expected: 6 successful tasks.
 ```bash
 pnpm --filter web dev
 ```
+
 Wait for "Ready in" line.
 
 - [ ] **Step 3: Walk the home page and kitchen-sink**
 
 Open `http://localhost:<port>/` and confirm sections appear in the agreed order:
+
 1. Page header (Boogeymen + game title) — UPPERCASE wide-tracked.
 2. **LATEST RESULT** — broadcast hero with red ticker on top, soft red glow, scoreboard, ResultPill (md size with full word).
 3. **ROSTER SPOTLIGHT** — section header + source line (right-aligned, dim) + carousel.
@@ -1547,6 +1591,7 @@ pgrep -af "next-server|next dev" || echo "(stopped)"
 ```bash
 git push origin feat/design-system-renovation
 ```
+
 Expected: branch pushes cleanly to origin (it already tracks origin from Phase 1 push).
 
 - [ ] **Step 7: Final state check**
@@ -1555,6 +1600,7 @@ Expected: branch pushes cleanly to origin (it already tracks origin from Phase 1
 git status
 git log --oneline main..HEAD | head -20
 ```
+
 Expected: clean tree on `feat/design-system-renovation`; ~9 new commits ahead of `main` from Phase 2 (one per Task 1-8, optional style commit from Task 9 Step 4).
 
 ---

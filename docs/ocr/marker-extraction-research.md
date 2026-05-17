@@ -3,9 +3,11 @@
 Status: **SHIPPED (2026-05-13)** — Current production:
 `spatial.py:pixel_to_hockey` uses **LSF linear + Delaunay hull gate**
 over 21 landmarks. Confidence flag landed end-to-end (DB column + worker
-+ web rendering) in commit `8ad5fbe`.
+
+- web rendering) in commit `8ad5fbe`.
 
 History:
+
 - Commit `a951ec7` shipped Round-3's `tps_neighbors_k=6` (13 landmarks)
 - Commit `9bb202e` expanded landmarks to 21; hull coverage 59% → 89.6%
 - Method switch to LSF linear (Round-4) shipped after the spike found
@@ -36,24 +38,24 @@ to extract:
 
 ### Visual encoding of markers
 
-| signal | how it's rendered | resolves |
-|---|---|---|
-| **shape** | Hit = box, Shot = circle, Penalty = diamond, Goal = hexagon | event type |
-| **fill style** | Home = solid team color + white letter. Away = white interior with team-color outer ring + black letter | team side |
-| **letter** | tiny `H` / `S` / `G` / `P` inside the marker | event type (redundant with shape) |
-| **yellow glow** | overlaid on exactly one marker per frame | which event is currently highlighted |
+| signal          | how it's rendered                                                                                       | resolves                             |
+| --------------- | ------------------------------------------------------------------------------------------------------- | ------------------------------------ |
+| **shape**       | Hit = box, Shot = circle, Penalty = diamond, Goal = hexagon                                             | event type                           |
+| **fill style**  | Home = solid team color + white letter. Away = white interior with team-color outer ring + black letter | team side                            |
+| **letter**      | tiny `H` / `S` / `G` / `P` inside the marker                                                            | event type (redundant with shape)    |
+| **yellow glow** | overlaid on exactly one marker per frame                                                                | which event is currently highlighted |
 
 ### Calibration challenge
 
 The in-game rink art is **stylized**, not a linear scaling of an NHL rink. From
 12 manually-measured Photoshop landmarks, implied `px/ft` ratios on x are:
 
-| feature | implied px/ft on x |
-|---|---|
-| blue lines (±25 ft) | 5.20 |
-| end-zone faceoff dots (±69 ft) | 4.42 |
-| goal lines (±89 ft) | 4.65 |
-| end walls (±100 ft) | 4.73 |
+| feature                        | implied px/ft on x |
+| ------------------------------ | ------------------ |
+| blue lines (±25 ft)            | 5.20               |
+| end-zone faceoff dots (±69 ft) | 4.42               |
+| goal lines (±89 ft)            | 4.65               |
+| end walls (±100 ft)            | 4.73               |
 
 No single linear scaling makes every feature align. Current single-anchor
 calibration (4.74 px/ft, anchored to boards) leaves a 3-5 ft horizontal
@@ -112,17 +114,17 @@ current but classified Beta and single-maintainer.
 
 **Why TPS and not the alternatives:**
 
-| approach | why | why not |
-|---|---|---|
-| Single linear (current) | simple | leaves 3-5 ft error on stylized rink |
-| Affine / projective baseline | safe extrapolation, well-understood | cannot absorb local bends from stylized art |
-| Piecewise linear (per-region) | exact at every landmark | discontinuities at region edges; awkward to inverse |
-| **Thin Plate Spline (recommended)** | exact at every landmark, smooth interpolation, closed-form, no tuning parameters | exact-fit can amplify noisy landmarks → regularize |
-| Piecewise affine (Delaunay triangulation) | exact at landmarks, deterministic local control | requires corner points for full coverage; less smooth between landmarks |
-| B-spline registration (ITK / SimpleITK) | mature registration framework | heavyweight for 10-20 landmarks |
-| Moving Least Squares | smooth | Python ecosystem less standardized than SciPy/skimage |
-| Homography (8-param) | well-known | wrong tool — assumes 3D camera projection, not stylized 2D art |
-| Deep-learning grid-fitting | overkill | not needed for 12 landmark pairs |
+| approach                                  | why                                                                              | why not                                                                 |
+| ----------------------------------------- | -------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| Single linear (current)                   | simple                                                                           | leaves 3-5 ft error on stylized rink                                    |
+| Affine / projective baseline              | safe extrapolation, well-understood                                              | cannot absorb local bends from stylized art                             |
+| Piecewise linear (per-region)             | exact at every landmark                                                          | discontinuities at region edges; awkward to inverse                     |
+| **Thin Plate Spline (recommended)**       | exact at every landmark, smooth interpolation, closed-form, no tuning parameters | exact-fit can amplify noisy landmarks → regularize                      |
+| Piecewise affine (Delaunay triangulation) | exact at landmarks, deterministic local control                                  | requires corner points for full coverage; less smooth between landmarks |
+| B-spline registration (ITK / SimpleITK)   | mature registration framework                                                    | heavyweight for 10-20 landmarks                                         |
+| Moving Least Squares                      | smooth                                                                           | Python ecosystem less standardized than SciPy/skimage                   |
+| Homography (8-param)                      | well-known                                                                       | wrong tool — assumes 3D camera projection, not stylized 2D art          |
+| Deep-learning grid-fitting                | overkill                                                                         | not needed for 12 landmark pairs                                        |
 
 **Implementation sketch** (≤30 lines):
 
@@ -381,6 +383,7 @@ In priority order:
      (treat as mis-clicked) or reduce model flexibility.
 
    (~30 lines of production code + ~80 lines of test harness.)
+
 2. **Re-derive match-250 coords under TPS** and diff against current
    single-linear placements. Confirm the 3-5 ft squeeze in offensive zone
    resolves.
@@ -457,25 +460,25 @@ run via [calibration_spike.py](../../tools/game_ocr/scripts/calibration_spike.py
 
 **X-axis implied px/ft per feature** (centre = pixel 1310, hockey 0):
 
-| feature | hockey x (ft) | implied px/ft |
-|---|---|---|
-| **blue lines** | **±25** | **5.18 — 5.23** |
-| faceoff circle inner edge | ±54 | 4.36 — 4.38 |
-| faceoff hashmark inner | ±67 | 4.41 — 4.43 |
-| faceoff dots | ±69 | 4.43 |
-| faceoff hashmark outer | ±71 | 4.43 — 4.44 |
-| faceoff circle outer edge | ±84 | 4.46 |
-| goal lines | ±89 | 4.64 — 4.66 |
-| boards | ±100 | 4.73 — 4.74 |
+| feature                   | hockey x (ft) | implied px/ft   |
+| ------------------------- | ------------- | --------------- |
+| **blue lines**            | **±25**       | **5.18 — 5.23** |
+| faceoff circle inner edge | ±54           | 4.36 — 4.38     |
+| faceoff hashmark inner    | ±67           | 4.41 — 4.43     |
+| faceoff dots              | ±69           | 4.43            |
+| faceoff hashmark outer    | ±71           | 4.43 — 4.44     |
+| faceoff circle outer edge | ±84           | 4.46            |
+| goal lines                | ±89           | 4.64 — 4.66     |
+| boards                    | ±100          | 4.73 — 4.74     |
 
 **Y-axis implied px/ft per feature** (centre = pixel 608):
 
-| feature | hockey y (ft) | implied px/ft |
-|---|---|---|
-| ez faceoff L-marks (inner) | ±20 | 4.64 — 4.67 |
-| ez faceoff dots | ±22 | 4.35 — 4.42 |
-| ez faceoff L-marks (outer) | ±24 | 4.11 — 4.18 |
-| boards | ±42.5 | 4.79 — 4.83 |
+| feature                    | hockey y (ft) | implied px/ft |
+| -------------------------- | ------------- | ------------- |
+| ez faceoff L-marks (inner) | ±20           | 4.64 — 4.67   |
+| ez faceoff dots            | ±22           | 4.35 — 4.42   |
+| ez faceoff L-marks (outer) | ±24           | 4.11 — 4.18   |
+| boards                     | ±42.5         | 4.79 — 4.83   |
 
 ### Key insight: the stylization is not smooth
 
@@ -497,6 +500,7 @@ artefacts.
 Linear best-fit (least-squares on 13 landmarks): centre (1309, 607),
 half_w 461.6 px (4.62 px/ft global x), half_h 198.2 px (4.66 px/ft global y).
 **Mean in-sample residual = 9.98 px (2.15 ft).** Worst residuals:
+
 - blue lines: ±14-15 px (linear can't honor the 5.20 px/ft of blue lines AND the 4.4 ramp simultaneously)
 - ez faceoff dots: ±13 px on x AND ±5-7 px on y
 - boards: ±11-13 px on x
@@ -506,14 +510,14 @@ construction — exact interpolant).
 
 ### LOOCV-TRE — the surprising result
 
-|  | linear LOOCV-TRE | TPS LOOCV-TRE |
-|---|---|---|
-| **mean** | **12.45 px (2.68 ft)** | **13.67 px (2.95 ft)** |
-| blue lines | 15-17 px | **19-20 px (worse)** |
-| ez faceoff dots | 17 px | **24-25 px (worse)** |
-| goal lines | 2-5 px | **0.6-1.1 px (better)** |
-| boards (left/right) | 14-17 px | **6-7 px (much better)** |
-| boards (top/bottom) | 9-12 px | 13-14 px |
+|                     | linear LOOCV-TRE       | TPS LOOCV-TRE            |
+| ------------------- | ---------------------- | ------------------------ |
+| **mean**            | **12.45 px (2.68 ft)** | **13.67 px (2.95 ft)**   |
+| blue lines          | 15-17 px               | **19-20 px (worse)**     |
+| ez faceoff dots     | 17 px                  | **24-25 px (worse)**     |
+| goal lines          | 2-5 px                 | **0.6-1.1 px (better)**  |
+| boards (left/right) | 14-17 px               | **6-7 px (much better)** |
+| boards (top/bottom) | 9-12 px                | 13-14 px                 |
 
 **TPS does NOT uniformly beat linear on out-of-sample prediction.** Mean
 LOOCV-TRE is 10% WORSE under TPS. The breakdown:
@@ -537,12 +541,12 @@ is the blue lines themselves.
 When TPS is fitted with all 13 landmarks (NOT leave-one-out), it nails
 the hashmark and circle positions with sub-pixel error:
 
-| feature | linear-Δ | TPS-Δ |
-|---|---|---|
-| hashmark outer | ±13 px | -0.3 / -0.6 px |
-| hashmark inner | ±14 px | +0.7 / +0.2 px |
-| circle inner edge | ±13 px | +5.3 / -4.8 px |
-| circle outer edge | ±13 px | +8.1 / -7.2 px |
+| feature           | linear-Δ | TPS-Δ          |
+| ----------------- | -------- | -------------- |
+| hashmark outer    | ±13 px   | -0.3 / -0.6 px |
+| hashmark inner    | ±14 px   | +0.7 / +0.2 px |
+| circle inner edge | ±13 px   | +5.3 / -4.8 px |
+| circle outer edge | ±13 px   | +8.1 / -7.2 px |
 
 So **within the convex hull of landmarks, TPS is excellent.** The
 LOOCV pathology is purely about extrapolating ACROSS the blue-line
@@ -555,7 +559,7 @@ When we remove each landmark and re-measure mean LOOCV-TRE on the rest:
 - Removing **goal-right** worsens TPS LOOCV-TRE by 4.94 px (goal lines
   are anchoring TPS to the right boundary behavior — they're critical).
 - Removing **board-left/right** worsens TPS by 3-3.2 px.
-- Removing **faceoff dots** *helps* the linear fit by ~0.6-1.0 px
+- Removing **faceoff dots** _helps_ the linear fit by ~0.6-1.0 px
   (they're the dots that drag the linear fit toward 4.4 px/ft, then
   blue lines pull it back toward 5.2).
 
@@ -626,7 +630,7 @@ file not committed).
    mode.
 4. **Overlap → watershed + Hungarian assignment.** Distance-transform-
    driven watershed for splitting merged blobs; `scipy.optimize.linear_
-   sum_assignment` for matching candidate sub-instances to expected
+sum_assignment` for matching candidate sub-instances to expected
    events list. Hybrid: only invoke the overlap branch when single-blob
    detection fails the area/aspect-ratio sanity check.
 5. **Color stabilisation upgrade.** Apply gray-world white balance
@@ -637,14 +641,14 @@ file not committed).
 
 ### Detailed findings adopted
 
-| Domain | Adopted | Source rationale |
-|---|---|---|
-| Library swap | `skimage.transform.ThinPlateSplineTransform` primary, `scipy.interpolate.RBFInterpolator` fallback | scikit-image gives transform-object with `inverse`; OpenCV Python bindings unstable. |
-| Failure cascade | affine/projective → regularised TPS → piecewise-affine → no-warp | Gated at each stage by LOOCV-TRE threshold + warp-sanity checks. |
-| Validation | LOOCV-TRE + edge probe + foldover check | SimpleITK guidance; QGIS georeferencer residual reporting. |
-| Outlier screen | Per-landmark omission diff | Standard registration-literature outlier-screen. |
-| Overlap handling | Watershed + `linear_sum_assignment` | Hybrid easy-case / ambiguity-case split. |
-| Color | Gray-world WB + LAB prototypes + eroded interior sampling | Color-recognition-under-challenging-lighting literature. |
+| Domain           | Adopted                                                                                            | Source rationale                                                                     |
+| ---------------- | -------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| Library swap     | `skimage.transform.ThinPlateSplineTransform` primary, `scipy.interpolate.RBFInterpolator` fallback | scikit-image gives transform-object with `inverse`; OpenCV Python bindings unstable. |
+| Failure cascade  | affine/projective → regularised TPS → piecewise-affine → no-warp                                   | Gated at each stage by LOOCV-TRE threshold + warp-sanity checks.                     |
+| Validation       | LOOCV-TRE + edge probe + foldover check                                                            | SimpleITK guidance; QGIS georeferencer residual reporting.                           |
+| Outlier screen   | Per-landmark omission diff                                                                         | Standard registration-literature outlier-screen.                                     |
+| Overlap handling | Watershed + `linear_sum_assignment`                                                                | Hybrid easy-case / ambiguity-case split.                                             |
+| Color            | Gray-world WB + LAB prototypes + eroded interior sampling                                          | Color-recognition-under-challenging-lighting literature.                             |
 
 ### Detailed findings rejected / unchanged
 
@@ -666,7 +670,7 @@ These remain open questions worth a focused next-round query:
    4.73 at boards) shows non-uniform per-feature scaling. Deep Research
    treated all landmarks as equally trustworthy and the disagreement as
    "noisy landmarks." TPS still resolves it (lands every landmark exactly),
-   but the methodology for *diagnosing* per-feature scale disagreement
+   but the methodology for _diagnosing_ per-feature scale disagreement
    independently of TPS LOOCV-TRE is not addressed.
 2. **Our overlap data shape.** Watershed splits silhouettes; our overlap
    is usually two markers at adjacent but separable pixel positions where
@@ -693,12 +697,12 @@ These remain open questions worth a focused next-round query:
 
 ### Adopted library/package additions to consider
 
-| Package | Version (2026) | Role |
-|---|---|---|
-| `scikit-image` | 0.26+ | Primary TPS via `ThinPlateSplineTransform`; piecewise-affine fallback via `PiecewiseAffineTransform` |
-| `scipy` | 1.17+ | Fallback TPS with smoothing via `RBFInterpolator`; `linear_sum_assignment` for overlap matching |
-| `opencv-contrib-python` | 4.13+ | Watershed (`cv2.watershed`), gray-world WB (`cv2.xphoto.createGrayworldWB`); avoid `cv2.createThinPlateSplineShapeTransformer` |
-| `SimpleITK` | 2.5+ | NOT adopting — registration-error notebook used as methodology reference only |
+| Package                 | Version (2026) | Role                                                                                                                           |
+| ----------------------- | -------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `scikit-image`          | 0.26+          | Primary TPS via `ThinPlateSplineTransform`; piecewise-affine fallback via `PiecewiseAffineTransform`                           |
+| `scipy`                 | 1.17+          | Fallback TPS with smoothing via `RBFInterpolator`; `linear_sum_assignment` for overlap matching                                |
+| `opencv-contrib-python` | 4.13+          | Watershed (`cv2.watershed`), gray-world WB (`cv2.xphoto.createGrayworldWB`); avoid `cv2.createThinPlateSplineShapeTransformer` |
+| `SimpleITK`             | 2.5+           | NOT adopting — registration-error notebook used as methodology reference only                                                  |
 
 ---
 
@@ -711,24 +715,24 @@ Same 13 landmarks as v1. Full results in
 
 ### Methods evaluated
 
-| Spike | Method | Library |
-|---|---|---|
-| A | Regularized TPS (smoothing sweep k ∈ {0, 0.1, 0.5, 1, 2, 5, 10, 20, 50, 100}) | `scipy.interpolate.RBFInterpolator(kernel="thin_plate_spline", smoothing=k)` |
-| B | Neighbors=k localization (k ∈ {4, 6, 8, 10, 13}) | `RBFInterpolator(neighbors=k)` |
-| C | Piecewise-affine (Delaunay) | `skimage.transform.PiecewiseAffineTransform` |
-| D | Convex-hull confidence gate | `scipy.spatial.Delaunay.find_simplex` |
-| (baselines) | linear, plain TPS (skimage) | — |
+| Spike       | Method                                                                        | Library                                                                      |
+| ----------- | ----------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| A           | Regularized TPS (smoothing sweep k ∈ {0, 0.1, 0.5, 1, 2, 5, 10, 20, 50, 100}) | `scipy.interpolate.RBFInterpolator(kernel="thin_plate_spline", smoothing=k)` |
+| B           | Neighbors=k localization (k ∈ {4, 6, 8, 10, 13})                              | `RBFInterpolator(neighbors=k)`                                               |
+| C           | Piecewise-affine (Delaunay)                                                   | `skimage.transform.PiecewiseAffineTransform`                                 |
+| D           | Convex-hull confidence gate                                                   | `scipy.spatial.Delaunay.find_simplex`                                        |
+| (baselines) | linear, plain TPS (skimage)                                                   | —                                                                            |
 
 ### Headline results (LOOCV-TRE on 13 landmarks)
 
-| method | coverage | mean (px) | mean (ft) | boundary (px) | inner (px) |
-|---|---:|---:|---:|---:|---:|
-| **linear** (current production) | 13/13 | **12.45** | 2.68 | 10.03 | 14.53 |
-| plain TPS (skimage) | 13/13 | 13.67 | 2.95 | 6.90 | 19.48 |
-| **tps_neighbors_k=6** | 13/13 | **12.72** | 2.74 | **4.52** | 19.74 |
-| tps_neighbors_k=4 | 13/13 | 30.42 | 6.56 | 37.22 | 24.59 |
-| tps_neighbors_k=8 | 13/13 | 13.91 | 3.00 | 6.98 | 19.84 |
-| pwa | **5/13** | 8.02¹ | 1.73¹ | 0.72¹ | 12.88¹ |
+| method                          | coverage | mean (px) | mean (ft) | boundary (px) | inner (px) |
+| ------------------------------- | -------: | --------: | --------: | ------------: | ---------: |
+| **linear** (current production) |    13/13 | **12.45** |      2.68 |         10.03 |      14.53 |
+| plain TPS (skimage)             |    13/13 |     13.67 |      2.95 |          6.90 |      19.48 |
+| **tps_neighbors_k=6**           |    13/13 | **12.72** |      2.74 |      **4.52** |      19.74 |
+| tps_neighbors_k=4               |    13/13 |     30.42 |      6.56 |         37.22 |      24.59 |
+| tps_neighbors_k=8               |    13/13 |     13.91 |      3.00 |          6.98 |      19.84 |
+| pwa                             | **5/13** |     8.02¹ |     1.73¹ |         0.72¹ |     12.88¹ |
 
 ¹ PWA coverage is restricted because held-out boundary landmarks fall
 outside the remaining-landmarks hull — skimage returns the `(-1, -1)`
@@ -774,6 +778,7 @@ predictor with a non-PWA fallback for out-of-hull positions.
 ### Visual sanity — warp grid
 
 Warp-grid renders for both winners:
+
 - `tps_neighbors_k=6`: visible non-linear warp; the green grid lines
   at hockey ±25 land on the rink art's blue lines (slightly wider than
   proportional). No foldovers. Inner grid spacing smoothly transitions
@@ -782,6 +787,7 @@ Warp-grid renders for both winners:
   art's blue lines.
 
 Artifacts (regenerable, not committed):
+
 - `/tmp/calibration-spike-v2-overlay.png`,
   `/tmp/calibration-spike-v2-overlay-boundary.png`
 - `/tmp/calibration-spike-v2-warp-grid.png`,
@@ -793,6 +799,7 @@ Artifacts (regenerable, not committed):
 convex-hull gate applied unconditionally.**
 
 Rationale:
+
 1. **Best boundary fidelity** (4.52 px / 0.97 ft) of any full-coverage
    method. Boundary accuracy is what we actually care about — boards,
    goal lines, and end-zones are where most shot-map-significant events
@@ -887,38 +894,38 @@ Spikes B (`neighbors=k`) and D (hull gate) both produce real recommendations.
 Empirical follow-up to Round-3, executed after the user manually measured
 8 additional landmarks in the rink-art corners. Hypothesis: more boundary
 landmarks lift hull coverage and reduce extrapolation rate. Both
-confirmed; an unexpected secondary finding is that the *method choice*
+confirmed; an unexpected secondary finding is that the _method choice_
 flips.
 
 ### New landmarks (user-measured against the same match-250 frame)
 
-| name | pixel | hockey coord | reasoning |
-|---|---|---|---|
-| `rink-corner-top-left` | (850, 440) | (-99, +35.5) | Rink-art's upper-left rounded corner inner-edge |
-| `rink-corner-bot-left` | (850, 771) | (-99, -35.5) | mirror |
-| `rink-corner-top-right` | (1766, 440) | (+99, +35.5) | symmetric |
-| `rink-corner-bot-right` | (1766, 771) | (+99, -35.5) | symmetric |
-| `goal-line-top-left` | (895, 408) | (-89, +42.5) | Goal line extended to the top board in the art |
-| `goal-line-bot-left` | (895, 805) | (-89, -42.5) | mirror |
-| `goal-line-top-right` | (1722, 408) | (+89, +42.5) | symmetric |
-| `goal-line-bot-right` | (1722, 805) | (+89, -42.5) | symmetric |
+| name                    | pixel       | hockey coord | reasoning                                       |
+| ----------------------- | ----------- | ------------ | ----------------------------------------------- |
+| `rink-corner-top-left`  | (850, 440)  | (-99, +35.5) | Rink-art's upper-left rounded corner inner-edge |
+| `rink-corner-bot-left`  | (850, 771)  | (-99, -35.5) | mirror                                          |
+| `rink-corner-top-right` | (1766, 440) | (+99, +35.5) | symmetric                                       |
+| `rink-corner-bot-right` | (1766, 771) | (+99, -35.5) | symmetric                                       |
+| `goal-line-top-left`    | (895, 408)  | (-89, +42.5) | Goal line extended to the top board in the art  |
+| `goal-line-bot-left`    | (895, 805)  | (-89, -42.5) | mirror                                          |
+| `goal-line-top-right`   | (1722, 408) | (+89, +42.5) | symmetric                                       |
+| `goal-line-bot-right`   | (1722, 805) | (+89, -42.5) | symmetric                                       |
 
 Caveat on the `goal-line-*` set: NHL geometry says the boards at hockey
 x=±89 are at y≈±36.7 (due to the corner-arc curvature), not ±42.5. But
 the rink art draws a nearly-flat top board with very stylized corners
 — the actual y of the art's top board at x=-89 is only ~1.3 ft below
-y=+42.5. Assigning these landmarks hockey (±89, ±42.5) is *art-faithful*
+y=+42.5. Assigning these landmarks hockey (±89, ±42.5) is _art-faithful_
 and works for in-art calibration; the RBF/LSF absorbs the discrepancy.
 
 ### Headline results (LOOCV-TRE on 21 landmarks)
 
-| method | mean (px) | mean (ft) | boundary (px) | inner (px) | Δ vs Round-3 (mean) |
-|---|---:|---:|---:|---:|---:|
-| **linear** | **7.50** | **1.61** | **4.26** | 13.96 | **-4.95** (linear was 12.45 in Round-3) |
-| tps_skimage | 9.78 | 2.11 | 6.88 | 15.58 | -3.89 (was 13.67) |
-| **tps_neighbors_k=6** (shipped) | **9.17** | **1.97** | **7.01** | 13.50 | **-3.55** (was 12.72) |
-| tps_neighbors_k=8 | 8.78 | 1.89 | 5.89 | 14.55 | -5.13 (was 13.91) |
-| pwa (interior-only) | 12.19 | 2.62 | 3.45 | 17.18 | n/a (different coverage) |
+| method                          | mean (px) | mean (ft) | boundary (px) | inner (px) |                     Δ vs Round-3 (mean) |
+| ------------------------------- | --------: | --------: | ------------: | ---------: | --------------------------------------: |
+| **linear**                      |  **7.50** |  **1.61** |      **4.26** |      13.96 | **-4.95** (linear was 12.45 in Round-3) |
+| tps_skimage                     |      9.78 |      2.11 |          6.88 |      15.58 |                       -3.89 (was 13.67) |
+| **tps_neighbors_k=6** (shipped) |  **9.17** |  **1.97** |      **7.01** |      13.50 |                   **-3.55** (was 12.72) |
+| tps_neighbors_k=8               |      8.78 |      1.89 |          5.89 |      14.55 |                       -5.13 (was 13.91) |
+| pwa (interior-only)             |     12.19 |      2.62 |          3.45 |      17.18 |                n/a (different coverage) |
 
 **Hull coverage: 207/231 grid points valid = 89.6%** (was 59.1% with
 13 landmarks).
@@ -968,6 +975,7 @@ reprocessed to pick up the new accuracy.
 
 Grid sample of 21×11 hockey points: 207 valid (in-hull), 24 out-of-hull.
 The 24 out-of-hull points are concentrated at:
+
 - The 4 corner-most points (±100, ±42.5) — outside any rink anyway
 - Strips along the side boards at extreme x (the art's curve in those
   regions isn't covered by the new corner landmarks)
