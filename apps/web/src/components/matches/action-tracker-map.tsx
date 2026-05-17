@@ -721,7 +721,7 @@ function RinkPanel({
   const focusedId = hoveredId ?? selectedId
   const focused = focusedId === null ? null : (events.find((e) => e.id === focusedId) ?? null)
   return (
-    <div className="border border-[var(--color-border)] broadcast-panel-strong px-3.5 pb-2 pt-3.5">
+    <div className="border border-[var(--color-border)] broadcast-panel-strong px-3.5 pb-2 pt-3.5 xl:sticky xl:top-4 xl:self-start">
       <div className="mb-2.5 flex items-center gap-3.5">
         <span className="font-condensed text-[11px] font-bold uppercase tracking-[0.22em] text-[var(--color-fg-4)]">
           Event map · 5-on-5 ice
