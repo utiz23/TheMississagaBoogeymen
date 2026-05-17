@@ -598,39 +598,45 @@ function SummaryStrip({
   ocrConfidence: number | null
 }) {
   return (
-    <div className="flex flex-wrap items-center gap-x-5 gap-y-2 border border-t-0 border-[var(--color-border)] bg-[var(--color-surface)] px-3.5 py-2">
-      <SummaryGroup>
-        <SummaryKV k="Visible" v={String(visible)} />
-        <SummaryKV k="On rink" v={String(onRink)} dim />
-        {offRink > 0 ? (
-          <SummaryKV
-            k="Off rink"
-            v={String(offRink)}
-            dim
-            title="Events that occurred but couldn't be plotted on the rink (typically faceoffs, which are shown in the Faceoff Map below)."
-          />
-        ) : null}
-      </SummaryGroup>
-      <div className="h-7 w-px bg-[var(--color-border)]" aria-hidden />
-      <SummaryGroup>
-        <SummaryKV k="Goals · BGM" v={String(totals.goalsBgm)} accent />
-        <SummaryKV k={oppAbbrev} v={String(totals.goalsOpp)} />
+    <div className="border border-t-0 border-[var(--color-border)] bg-[var(--color-surface)]">
+      {/* Top row — event breakdown, with GOALS promoted */}
+      <div className="flex flex-wrap items-baseline gap-x-5 gap-y-2 px-3.5 pt-2.5 pb-2">
+        <SummaryKV k="Goals · BGM" v={String(totals.goalsBgm)} accent large />
+        <SummaryKV k={oppAbbrev} v={String(totals.goalsOpp)} large />
+        <div className="h-7 w-px bg-[var(--color-border)]" aria-hidden />
         <SummaryKV k="Shots" v={String(totals.shots)} />
         <SummaryKV k="Hits" v={String(totals.hits)} />
         <SummaryKV k="Penalties" v={String(totals.penalties)} />
-      </SummaryGroup>
-      <div className="h-7 w-px bg-[var(--color-border)]" aria-hidden />
-      <SummaryGroup>
-        {ocrConfidence !== null && ocrConfidence < 0.99 ? (
-          <SummaryKV
-            k="OCR confidence"
-            v={ocrConfidence.toFixed(2)}
-            tone={ocrConfidence >= 0.75 ? 'win' : undefined}
-            title="OCR confidence in this match's extracted events. ≥0.99 hidden as uninformative noise; 0.75-0.98 highlighted as 'good'; below 0.75 plain to draw attention."
-          />
-        ) : null}
-        <SummaryKV k="Source" v="Action Tracker OCR · v2" small />
-      </SummaryGroup>
+      </div>
+
+      {/* Secondary row — filter scope + provenance, smaller */}
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 border-t border-[var(--color-border)] px-3.5 py-1.5">
+        <SummaryGroup>
+          <SummaryKV k="Visible" v={String(visible)} small />
+          <SummaryKV k="On rink" v={String(onRink)} dim small />
+          {offRink > 0 ? (
+            <SummaryKV
+              k="Off rink"
+              v={String(offRink)}
+              dim
+              small
+              title="Events that occurred but couldn't be plotted on the rink (typically faceoffs, which are shown in the Faceoff Map below)."
+            />
+          ) : null}
+        </SummaryGroup>
+        <div className="ml-auto flex items-center gap-x-4">
+          {ocrConfidence !== null && ocrConfidence < 0.99 ? (
+            <SummaryKV
+              k="OCR confidence"
+              v={ocrConfidence.toFixed(2)}
+              tone={ocrConfidence >= 0.75 ? 'win' : undefined}
+              small
+              title="OCR confidence in this match's extracted events. ≥0.99 hidden as uninformative noise; 0.75-0.98 highlighted as 'good'; below 0.75 plain to draw attention."
+            />
+          ) : null}
+          <SummaryKV k="Source" v="Action Tracker OCR · v2" small />
+        </div>
+      </div>
     </div>
   )
 }
@@ -646,6 +652,7 @@ function SummaryKV({
   dim,
   tone,
   small,
+  large,
   title,
 }: {
   k: string
@@ -654,6 +661,7 @@ function SummaryKV({
   dim?: boolean
   tone?: 'win' | undefined
   small?: boolean
+  large?: boolean
   title?: string | undefined
 }) {
   const colorClass =
@@ -666,7 +674,12 @@ function SummaryKV({
           : small === true
             ? 'text-[var(--color-fg-3)]'
             : 'text-[var(--color-fg-1)]'
-  const sizeClass = small === true ? 'text-[11px] font-bold' : 'text-[18px] font-black tabular-nums'
+  const sizeClass =
+    large === true
+      ? 'text-[24px] font-black tabular-nums'
+      : small === true
+        ? 'text-[11px] font-bold'
+        : 'text-[18px] font-black tabular-nums'
   return (
     <div className="flex flex-col gap-[1px]" title={title}>
       <span className="font-condensed text-[9px] font-semibold uppercase tracking-[0.22em] text-[var(--color-fg-5)]">
