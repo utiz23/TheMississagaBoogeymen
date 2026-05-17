@@ -37,7 +37,12 @@ export function PossessionEdgeBar({ edge }: PossessionEdgeProps) {
 
         {/* Input grid */}
         <div className="mt-5 grid grid-cols-2 gap-x-6 gap-y-2 sm:grid-cols-4">
-          <Input label="Shots" us={inputs.shots.us} them={inputs.shots.them} />
+          <Input
+            label="Shots"
+            us={inputs.shots.us}
+            them={inputs.shots.them}
+            note={inputs.shots.source === 'ocr' ? 'Box Score' : 'EA'}
+          />
           <Input label="Hits" us={inputs.hits.us} them={inputs.hits.them} />
           {inputs.faceoffPct !== null ? (
             <Input
