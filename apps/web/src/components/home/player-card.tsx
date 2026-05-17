@@ -81,9 +81,7 @@ export function PlayerCard({ player, isActive = false, depth = false }: PlayerCa
       : '—'
   const eaGames = (eaW ?? 0) + (eaL ?? 0) + (eaOtl ?? 0)
   const winPct =
-    eaW !== null && eaL !== null && eaGames > 0
-      ? `${((eaW / eaGames) * 100).toFixed(0)}% Win`
-      : '—'
+    eaW !== null && eaL !== null && eaGames > 0 ? `${((eaW / eaGames) * 100).toFixed(0)}% Win` : '—'
 
   // Stats row — role-gated. Last cell is the `lead` (accent-colored) stat.
   const statCells: Array<{ label: string; value: string; lead?: boolean }> = isGoalie
@@ -140,10 +138,7 @@ export function PlayerCard({ player, isActive = false, depth = false }: PlayerCa
         <span className="platform" aria-hidden>
           <PlatformIcon platform={player.clientPlatform ?? null} />
         </span>
-        <span
-          className="gamertag"
-          title={player.playerName ?? player.gamertag}
-        >
+        <span className="gamertag" title={player.playerName ?? player.gamertag}>
           {player.playerName ?? player.gamertag}
         </span>
       </div>
@@ -162,12 +157,7 @@ export function PlayerCard({ player, isActive = false, depth = false }: PlayerCa
           {player.nationality !== null ? <NationalityFlag code={player.nationality} /> : null}
         </div>
         <div className="cell crest">
-          <Image
-            src="/images/bgm-logo.png"
-            alt="BGM"
-            width={52}
-            height={52}
-          />
+          <Image src="/images/bgm-logo.png" alt="BGM" width={52} height={52} />
         </div>
         <div className="cell" aria-hidden />
       </div>

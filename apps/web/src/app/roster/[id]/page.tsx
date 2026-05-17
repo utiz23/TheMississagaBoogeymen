@@ -124,9 +124,7 @@ export default async function PlayerPage({ params, searchParams }: Props) {
     teamAverage = null
   }
 
-  let teamGoalieAverage:
-    | Awaited<ReturnType<typeof getTeamAverageGoalieShotLocations>>
-    | null = null
+  let teamGoalieAverage: Awaited<ReturnType<typeof getTeamAverageGoalieShotLocations>> | null = null
   try {
     teamGoalieAverage = await getTeamAverageGoalieShotLocations(1)
   } catch {
@@ -256,10 +254,7 @@ export default async function PlayerPage({ params, searchParams }: Props) {
           role="goalie"
           player={resolveNhl26GoalieShotLocations(eaStats)}
           teamAverage={teamGoalieAverage ?? emptyShotLocations()}
-          hasData={
-            teamGoalieAverage !== null &&
-            resolveNhl26GoalieShotLocations(eaStats) !== null
-          }
+          hasData={teamGoalieAverage !== null && resolveNhl26GoalieShotLocations(eaStats) !== null}
           gamertag={overview.player.gamertag}
           playerGp={resolveNhl26GoalieGp(eaStats)}
           updatedDate={new Date().toISOString().slice(0, 10)}
@@ -292,9 +287,7 @@ function resolveNhl26SkaterGp(rows: Awaited<ReturnType<typeof getPlayerEASeasonS
   return nhl26?.skaterGp ?? undefined
 }
 
-function resolveNhl26GoalieShotLocations(
-  rows: Awaited<ReturnType<typeof getPlayerEASeasonStats>>,
-) {
+function resolveNhl26GoalieShotLocations(rows: Awaited<ReturnType<typeof getPlayerEASeasonStats>>) {
   const nhl26 = rows.find((r) => r.gameTitleSlug === 'nhl26')
   return nhl26?.goalieShotLocations ?? null
 }

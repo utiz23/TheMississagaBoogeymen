@@ -28,9 +28,7 @@ const MARKERS: Record<MarkerEventType, ComponentType<MarkerComponentProps>> = {
  * types without a branded marker (e.g. faceoffs — those fall back to a plain
  * dot in callers). The component itself takes `side` + sizing props.
  */
-export function eventMarkerFor(
-  eventType: string,
-): ComponentType<MarkerComponentProps> | null {
+export function eventMarkerFor(eventType: string): ComponentType<MarkerComponentProps> | null {
   if (eventType in MARKERS) return MARKERS[eventType as MarkerEventType]
   return null
 }

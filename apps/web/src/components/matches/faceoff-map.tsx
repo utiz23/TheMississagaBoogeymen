@@ -232,7 +232,12 @@ export function FaceoffMap({
   return (
     <section className="space-y-3">
       <SectionHeader label="Faceoff Map" subtitle="Post-game OCR · per-dot win counts" />
-      <PeriodBar periodList={periodList} periodHasData={periodHasData} value={periodFilter} onChange={setPeriodFilter} />
+      <PeriodBar
+        periodList={periodList}
+        periodHasData={periodHasData}
+        value={periodFilter}
+        onChange={setPeriodFilter}
+      />
       <ZoneSummary
         zones={visibleZones}
         bgmIsHome={bgmIsHome}
@@ -366,7 +371,9 @@ function PeriodBar({
             <SegBtn
               key={n}
               active={value === n}
-              onClick={() => { if (enabled) onChange(n) }}
+              onClick={() => {
+                if (enabled) onChange(n)
+              }}
               label={formatPeriodLabel(n)}
               disabled={!enabled}
             />

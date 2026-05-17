@@ -46,12 +46,11 @@ export function CareerStatsSection({ clubScoped, playerCard, titleName }: Props)
   const [active, setActive] = useState<SourceId>('club')
   // Fallback values rather than asserting non-null so a stale `active` state
   // can't crash the render.
-  const activeSource: SourceTab =
-    SOURCES.find((s) => s.id === active) ?? {
-      id: 'club',
-      label: 'Club-scoped',
-      description: '',
-    }
+  const activeSource: SourceTab = SOURCES.find((s) => s.id === active) ?? {
+    id: 'club',
+    label: 'Club-scoped',
+    description: '',
+  }
 
   return (
     <section className="space-y-3">

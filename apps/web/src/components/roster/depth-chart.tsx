@@ -211,13 +211,7 @@ function RowRail({ label, num }: { label: string; num: string }) {
   )
 }
 
-function SlotCell({
-  slot,
-  positionLabel,
-}: {
-  slot: DepthSlot | null
-  positionLabel: string
-}) {
+function SlotCell({ slot, positionLabel }: { slot: DepthSlot | null; positionLabel: string }) {
   if (slot === null) return <OpenSlot positionLabel={positionLabel} />
   return <PlayerCard player={slot.player} depth={slot.isDepth} />
 }

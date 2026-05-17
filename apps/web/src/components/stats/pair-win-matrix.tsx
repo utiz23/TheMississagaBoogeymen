@@ -175,9 +175,7 @@ export function PairWinMatrix({
         list.sort((a, b) => b.gp - a.gp || a.gamertag.localeCompare(b.gamertag))
         break
       case 'pct':
-        list.sort(
-          (a, b) => b.pct - a.pct || b.gp - a.gp || a.gamertag.localeCompare(b.gamertag),
-        )
+        list.sort((a, b) => b.pct - a.pct || b.gp - a.gp || a.gamertag.localeCompare(b.gamertag))
         break
       case 'pairAvg': {
         const avg = (id: number) => pairAvgByPlayerId.get(id) ?? 0
@@ -197,10 +195,7 @@ export function PairWinMatrix({
   }, [visiblePlayers, orderId, pairAvgByPlayerId])
 
   const playerCount = orderedPlayers.length
-  const visiblePairCount = useMemo(
-    () => Object.keys(filteredPairs).length,
-    [filteredPairs],
-  )
+  const visiblePairCount = useMemo(() => Object.keys(filteredPairs).length, [filteredPairs])
 
   // Grid template: 110px row label + N × minmax(64px, 1fr) data columns +
   // 100px TEAM column. The data cells flex so the matrix fills the container

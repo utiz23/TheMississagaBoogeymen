@@ -166,12 +166,8 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
   const goalsLeaders = [...skaters]
     .sort((a, b) => b.goals - a.goals || b.points - a.points)
     .slice(0, 10)
-  const goalieLeaders = roster.filter(
-    (r) => r.goalieGp > 0 && r.savePct !== null,
-  )
-  const teamGp = officialRecord
-    ? officialRecord.gamesPlayed
-    : (clubStats?.gamesPlayed ?? null)
+  const goalieLeaders = roster.filter((r) => r.goalieGp > 0 && r.savePct !== null)
+  const teamGp = officialRecord ? officialRecord.gamesPlayed : (clubStats?.gamesPlayed ?? null)
 
   return (
     <div className="space-y-8">

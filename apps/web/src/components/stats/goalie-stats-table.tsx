@@ -407,9 +407,7 @@ export function GoalieStatsTable({
                   row={row}
                   cols={view.cols}
                   rank={idx}
-                  meta={
-                    row.playerId !== null && playerMeta ? playerMeta[row.playerId] : undefined
-                  }
+                  meta={row.playerId !== null && playerMeta ? playerMeta[row.playerId] : undefined}
                 />
               ))
             )}
@@ -434,10 +432,7 @@ function GoalieRow({ row, cols, rank, meta }: GoalieRowProps) {
   const tooltip = buildPlayerTooltip(meta, row.gamertag)
   return (
     <tr
-      className={[
-        'border-b border-zinc-800/40 transition-colors hover:bg-surface-raised',
-        stripe,
-      ]
+      className={['border-b border-zinc-800/40 transition-colors hover:bg-surface-raised', stripe]
         .filter(Boolean)
         .join(' ')}
       style={

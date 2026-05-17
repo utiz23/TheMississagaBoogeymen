@@ -95,7 +95,17 @@ export function CareerShotMap({ events }: CareerShotMapProps) {
 function RinkBackground() {
   return (
     <g>
-      <rect x="-100" y="-42.5" width="200" height="85" rx="28" ry="28" fill="#0c1218" stroke="#374151" strokeWidth="0.6" />
+      <rect
+        x="-100"
+        y="-42.5"
+        width="200"
+        height="85"
+        rx="28"
+        ry="28"
+        fill="#0c1218"
+        stroke="#374151"
+        strokeWidth="0.6"
+      />
       <line x1="0" y1="-42.5" x2="0" y2="42.5" stroke="#7f1d1d" strokeWidth="0.5" />
       <line x1="-25" y1="-42.5" x2="-25" y2="42.5" stroke="#2563eb" strokeWidth="0.5" />
       <line x1="25" y1="-42.5" x2="25" y2="42.5" stroke="#2563eb" strokeWidth="0.5" />
@@ -109,7 +119,15 @@ function RinkBackground() {
       ].map(([cx, cy]) => (
         <g key={`fo-${String(cx)}-${String(cy)}`}>
           <circle cx={cx} cy={cy} r="0.6" fill="#7f1d1d" />
-          <circle cx={cx} cy={cy} r="6" fill="none" stroke="#7f1d1d" strokeWidth="0.3" opacity="0.4" />
+          <circle
+            cx={cx}
+            cy={cy}
+            r="6"
+            fill="none"
+            stroke="#7f1d1d"
+            strokeWidth="0.3"
+            opacity="0.4"
+          />
         </g>
       ))}
       <line x1="-89" y1="-32" x2="-89" y2="32" stroke="#7f1d1d" strokeWidth="0.4" />
@@ -150,7 +168,15 @@ function CareerMarker({ event }: { event: PlayerCareerShotRow }) {
   return (
     <g>
       <title>{tooltip}</title>
-      <circle cx={x} cy={y} r={size} fill={fill} fillOpacity={fillOpacity} stroke="#111827" strokeWidth="0.2" />
+      <circle
+        cx={x}
+        cy={y}
+        r={size}
+        fill={fill}
+        fillOpacity={fillOpacity}
+        stroke="#111827"
+        strokeWidth="0.2"
+      />
     </g>
   )
 }

@@ -99,7 +99,7 @@ export function RosterLedger({
   const effectiveScope: Scope = scope === 'alltime' && allTimeReady ? 'alltime' : 'current'
 
   const activeRows = effectiveScope === 'alltime' && allTimeRows ? allTimeRows : rows
-  const activeRecord = effectiveScope === 'alltime' ? allTimeRecord ?? null : record
+  const activeRecord = effectiveScope === 'alltime' ? (allTimeRecord ?? null) : record
   const activeScopeLabel =
     effectiveScope === 'alltime' && allTimeScopeLabel ? allTimeScopeLabel : scopeLabel
   const activeDateRange =
@@ -108,19 +108,10 @@ export function RosterLedger({
   const skaters = activeRows.filter((r) => r.skaterGp > 0)
   const goalies = activeRows.filter((r) => r.goalieGp > 0 && r.savePct !== null)
 
-  const pointsSorted = useMemo(
-    () => [...skaters].sort((a, b) => b.points - a.points),
-    [skaters],
-  )
-  const goalsSorted = useMemo(
-    () => [...skaters].sort((a, b) => b.goals - a.goals),
-    [skaters],
-  )
+  const pointsSorted = useMemo(() => [...skaters].sort((a, b) => b.points - a.points), [skaters])
+  const goalsSorted = useMemo(() => [...skaters].sort((a, b) => b.goals - a.goals), [skaters])
   const svPctSorted = useMemo(
-    () =>
-      [...goalies].sort(
-        (a, b) => parseFloat(b.savePct ?? '0') - parseFloat(a.savePct ?? '0'),
-      ),
+    () => [...goalies].sort((a, b) => parseFloat(b.savePct ?? '0') - parseFloat(a.savePct ?? '0')),
     [goalies],
   )
 
@@ -132,9 +123,7 @@ export function RosterLedger({
 
   const teamGoals = skaters.reduce((acc, r) => acc + r.goals, 0)
 
-  const recordTotal = activeRecord
-    ? activeRecord.wins + activeRecord.losses + activeRecord.otl
-    : 0
+  const recordTotal = activeRecord ? activeRecord.wins + activeRecord.losses + activeRecord.otl : 0
   const winPct =
     activeRecord && recordTotal > 0
       ? formatHockeyPct(activeRecord.wins / Math.max(1, recordTotal))
@@ -287,9 +276,7 @@ export function RosterLedger({
             <>
               <span>
                 <b>
-                  {teamGoals > 0
-                    ? `${Math.round((r.goals / teamGoals) * 100).toString()}%`
-                    : '—'}
+                  {teamGoals > 0 ? `${Math.round((r.goals / teamGoals) * 100).toString()}%` : '—'}
                 </b>{' '}
                 of team
               </span>
@@ -325,8 +312,7 @@ export function RosterLedger({
               </div>
               <div className="rl-lead-foot rl-goalie-foot">
                 <span className="gaa">
-                  <span className="gaa-k">GAA</span>{' '}
-                  <b>{formatGaa(svLeader.gaa)}</b>
+                  <span className="gaa-k">GAA</span> <b>{formatGaa(svLeader.gaa)}</b>
                 </span>
                 <span className="delta eq">{formatCount(svLeader.goalieGp)} GP</span>
                 {svSpark && svSpark.length > 0 ? (
@@ -435,13 +421,7 @@ function DeltaPill({ diff, vsLabel }: { diff: number; vsLabel: string }) {
 
 /** Generic numeric sparkline — column heights normalized to the series max.
  *  Heights snap above a 12% floor so a zero-game still shows a hint. */
-function Sparkline({
-  values,
-  kind = 'positive',
-}: {
-  values: number[]
-  kind?: 'positive'
-}) {
+function Sparkline({ values, kind = 'positive' }: { values: number[]; kind?: 'positive' }) {
   if (values.length === 0) return null
   const max = Math.max(...values, 0.001)
   const minHeight = 12 // %

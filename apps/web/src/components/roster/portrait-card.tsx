@@ -21,8 +21,8 @@ export function PortraitCard({ children }: { children: ReactNode }) {
     const dx = (e.clientX - rect.left) / rect.width - 0.5 // -0.5..0.5
     const dy = (e.clientY - rect.top) / rect.height - 0.5
     // Inverted: cursor-side moves AWAY from viewer (depressed).
-    const rotateX = (-dy * 2) * MAX_TILT_DEG // mouse low → bottom away
-    const rotateY = (dx * 2) * MAX_TILT_DEG // mouse right → right away
+    const rotateX = -dy * 2 * MAX_TILT_DEG // mouse low → bottom away
+    const rotateY = dx * 2 * MAX_TILT_DEG // mouse right → right away
     setTransform(
       `perspective(900px) rotateX(${rotateX.toFixed(2)}deg) rotateY(${rotateY.toFixed(2)}deg)`,
     )

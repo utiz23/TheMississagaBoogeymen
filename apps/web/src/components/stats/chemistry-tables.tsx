@@ -179,12 +179,7 @@ export function WithWithoutTable({ rows }: WithWithoutTableProps) {
                 </td>
                 <td
                   className="px-3 py-2.5 text-right font-condensed text-sm tabular-nums text-zinc-400"
-                  title={recordBreakdown(
-                    row.winsWith,
-                    row.lossesWith,
-                    row.otlWith,
-                    row.dnfWith,
-                  )}
+                  title={recordBreakdown(row.winsWith, row.lossesWith, row.otlWith, row.dnfWith)}
                 >
                   {fmtRecord(row.winsWith, row.lossesWith, row.otlWith)}
                 </td>

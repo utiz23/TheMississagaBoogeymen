@@ -35,12 +35,7 @@ export function ShotMix({ rows }: ShotMixProps) {
   const bgm = aggForSide(rows, 'for')
   const opp = aggForSide(rows, 'against')
 
-  if (
-    bgm.total === null &&
-    opp.total === null &&
-    bgm.snap === null &&
-    opp.snap === null
-  ) {
+  if (bgm.total === null && opp.total === null && bgm.snap === null && opp.snap === null) {
     return null
   }
 
@@ -99,9 +94,7 @@ function Row({
 }) {
   return (
     <>
-      <div className="font-condensed text-xs uppercase tracking-widest text-zinc-400">
-        {label}
-      </div>
+      <div className="font-condensed text-xs uppercase tracking-widest text-zinc-400">{label}</div>
       <div className="text-right tabular-nums text-zinc-200">{forVal ?? '—'}</div>
       <div className="text-right tabular-nums text-zinc-500">{againstVal ?? '—'}</div>
     </>

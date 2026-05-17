@@ -64,9 +64,7 @@ export function ScoringLeadersPanel({
     .sort((a, b) => (b.goalieWins ?? 0) - (a.goalieWins ?? 0))
     .slice(0, ROWS_VISIBLE)
   const savePctBoard = [...goalieLeaders]
-    .sort(
-      (a, b) => parseFloat(b.savePct ?? '0') - parseFloat(a.savePct ?? '0'),
-    )
+    .sort((a, b) => parseFloat(b.savePct ?? '0') - parseFloat(a.savePct ?? '0'))
     .slice(0, ROWS_VISIBLE)
 
   const titleWord = view === 'skaters' ? 'Scoring' : 'Goaltending'
@@ -229,11 +227,7 @@ function LeaderColumn({
   return (
     <div className="sl-col">
       {focused ? (
-        <Link
-          href={`/roster/${String(focused.playerId)}`}
-          className="sl-spot"
-          aria-live="polite"
-        >
+        <Link href={`/roster/${String(focused.playerId)}`} className="sl-spot" aria-live="polite">
           <span className="sl-spot-eyebrow">{focusedEyebrow}</span>
           <div className="sl-spot-frame">
             <SilhouetteIcon />
@@ -254,10 +248,7 @@ function LeaderColumn({
           </div>
           <div className="sl-spot-stats">
             {spotlightStats(focused).map((s) => (
-              <div
-                key={s.label}
-                className={s.lead === true ? 'sl-spot-stat lead' : 'sl-spot-stat'}
-              >
+              <div key={s.label} className={s.lead === true ? 'sl-spot-stat lead' : 'sl-spot-stat'}>
                 <span className="l">{s.label}</span>
                 <span className="v">{String(s.value)}</span>
               </div>

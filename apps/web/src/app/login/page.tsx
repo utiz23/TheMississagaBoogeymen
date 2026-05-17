@@ -18,9 +18,12 @@ function errorText(code: string | undefined): string | null {
   if (code === 'invite_unusable') return 'Invite link is expired, revoked, or already accepted.'
   if (code === 'email_exists') return 'An account already exists for that email. Sign in instead.'
   if (code === 'invalid_invite_form') return 'Name and an 8+ character password are required.'
-  if (code === 'accept_failed') return 'Invite could not be accepted. The player may already be claimed.'
-  if (code === 'bootstrap_closed') return 'Bootstrap is closed. Sign in or ask an admin for an invite.'
-  if (code === 'bootstrap_invalid') return 'Bootstrap requires email, name, player, and an 8+ character password.'
+  if (code === 'accept_failed')
+    return 'Invite could not be accepted. The player may already be claimed.'
+  if (code === 'bootstrap_closed')
+    return 'Bootstrap is closed. Sign in or ask an admin for an invite.'
+  if (code === 'bootstrap_invalid')
+    return 'Bootstrap requires email, name, player, and an 8+ character password.'
   if (code === 'bootstrap_failed') return 'Bootstrap admin could not be created.'
   return 'Unable to complete login.'
 }

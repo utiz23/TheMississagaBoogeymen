@@ -470,13 +470,9 @@ async function ActiveRoster({
 
   const chart = buildChart(eaRows, eligibilityRows)
 
-  const totalGp = eaRows.reduce(
-    (acc, r) => Math.max(acc, r.skaterGp + r.goalieGp),
-    0,
-  )
+  const totalGp = eaRows.reduce((acc, r) => Math.max(acc, r.skaterGp + r.goalieGp), 0)
   const scopeLabel =
-    `SEASON · ${gameTitle.name.toUpperCase()}` +
-    (totalGp > 0 ? ` · ${String(totalGp)} GP` : '')
+    `SEASON · ${gameTitle.name.toUpperCase()}` + (totalGp > 0 ? ` · ${String(totalGp)} GP` : '')
 
   // ─── All-Time data + sparklines ────────────────────────────────────────────
 
@@ -511,18 +507,15 @@ async function ActiveRoster({
   // each tile in either scope. Up to 6 unique IDs (often fewer when leaders
   // overlap across tiles).
   const ptsLeaderId = pickFirst(eaRows, (a, b) => b.points - a.points)?.playerId ?? null
-  const goalsLeaderId =
-    pickFirst(eaRows, (a, b) => b.goals - a.goals)?.playerId ?? null
+  const goalsLeaderId = pickFirst(eaRows, (a, b) => b.goals - a.goals)?.playerId ?? null
   const goalieLeaderId =
     pickFirst(
       eaRows.filter((r) => r.goalieGp > 0 && r.savePct !== null),
       (a, b) => parseFloat(b.savePct ?? '0') - parseFloat(a.savePct ?? '0'),
     )?.playerId ?? null
 
-  const allPtsLeaderId =
-    pickFirst(allTimeRows, (a, b) => b.points - a.points)?.playerId ?? null
-  const allGoalsLeaderId =
-    pickFirst(allTimeRows, (a, b) => b.goals - a.goals)?.playerId ?? null
+  const allPtsLeaderId = pickFirst(allTimeRows, (a, b) => b.points - a.points)?.playerId ?? null
+  const allGoalsLeaderId = pickFirst(allTimeRows, (a, b) => b.goals - a.goals)?.playerId ?? null
   const allGoalieLeaderId =
     pickFirst(
       allTimeRows.filter((r) => r.goalieGp > 0 && r.savePct !== null),

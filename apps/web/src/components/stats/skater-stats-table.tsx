@@ -555,9 +555,7 @@ export function SkaterStatsTable({
                   row={row}
                   cols={view.cols}
                   rank={idx}
-                  meta={
-                    row.playerId !== null && playerMeta ? playerMeta[row.playerId] : undefined
-                  }
+                  meta={row.playerId !== null && playerMeta ? playerMeta[row.playerId] : undefined}
                 />
               ))
             )}

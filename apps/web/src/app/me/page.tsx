@@ -53,9 +53,7 @@ export default async function MyPerformancePage() {
           <h1 className="font-condensed text-2xl font-semibold uppercase tracking-widest text-zinc-50">
             My Performance
           </h1>
-          <p className="text-sm text-zinc-500">
-            {overview.player.gamertag} · private dashboard
-          </p>
+          <p className="text-sm text-zinc-500">{overview.player.gamertag} · private dashboard</p>
         </div>
         <Link
           href={`/roster/${user.playerId.toString()}`}
@@ -67,7 +65,11 @@ export default async function MyPerformancePage() {
 
       <section className="grid gap-px overflow-hidden border border-zinc-800 bg-zinc-800 md:grid-cols-4">
         <Metric label="Skater GP" value={skaterGp.toString()} />
-        <Metric label="Points" value={points.toString()} sub={`${goals.toString()} G · ${assists.toString()} A`} />
+        <Metric
+          label="Points"
+          value={points.toString()}
+          sub={`${goals.toString()} G · ${assists.toString()} A`}
+        />
         <Metric label="Pts / GP" value={skaterGp > 0 ? (points / skaterGp).toFixed(2) : '—'} />
         <Metric label="Goalie GP" value={goalieGp.toString()} />
       </section>
@@ -120,7 +122,11 @@ export default async function MyPerformancePage() {
           </p>
           <div className="mt-5 grid grid-cols-2 gap-px overflow-hidden border border-zinc-800 bg-zinc-800">
             <Metric label="Shooting" value={pct(goals, season?.shots ?? 0)} compact />
-            <Metric label="Role" value={season?.favoritePosition ?? overview.player.position ?? '—'} compact />
+            <Metric
+              label="Role"
+              value={season?.favoritePosition ?? overview.player.position ?? '—'}
+              compact
+            />
           </div>
         </div>
       </section>

@@ -30,31 +30,20 @@ interface PositionEntry {
   gp: number
 }
 
+import { POSITION_META as POSITION_META_SHARED, colorForPosition } from '@/lib/position-colors'
+
+// Roster profile renders a per-position table; pick the relevant subset of
+// the shared palette and expose the same `POSITION_META` shape this file
+// has historically used.
 const POSITION_META: Record<PositionEntry['key'], { tag: string; colorVar: string }> = {
-  center: { tag: 'C', colorVar: 'var(--pos-c)' },
-  defenseMen: { tag: 'D', colorVar: 'var(--pos-d)' },
-  rightWing: { tag: 'RW', colorVar: 'var(--pos-rw)' },
-  goalie: { tag: 'G', colorVar: 'var(--pos-g)' },
-  leftWing: { tag: 'LW', colorVar: 'var(--pos-lw)' },
+  center: POSITION_META_SHARED.center,
+  defenseMen: POSITION_META_SHARED.defenseMen,
+  rightWing: POSITION_META_SHARED.rightWing,
+  goalie: POSITION_META_SHARED.goalie,
+  leftWing: POSITION_META_SHARED.leftWing,
 }
 
-/**
- * Color lookup for the displayed position string. Per docs/specs/position-colors.md:
- *   leftDefenseMen  → --pos-ld (#13dfc8)
- *   rightDefenseMen → --pos-rd (#ece335)
- *   defenseMen      → --pos-d  (alias of --pos-ld; LD is the default when L/R unknown)
- */
-function colorForPosition(pos: string | null | undefined): string {
-  if (pos === null || pos === undefined) return 'var(--color-fg-5)'
-  if (pos === 'leftDefenseMen') return 'var(--pos-ld)'
-  if (pos === 'rightDefenseMen') return 'var(--pos-rd)'
-  if (pos in POSITION_META) return POSITION_META[pos as PositionEntry['key']].colorVar
-  return 'var(--color-fg-5)'
-}
-
-function buildPositionEntries(
-  season: PlayerProfileOverview['currentEaSeason'],
-): PositionEntry[] {
+function buildPositionEntries(season: PlayerProfileOverview['currentEaSeason']): PositionEntry[] {
   if (season === null) return []
   const raw: PositionEntry[] = (
     [
@@ -117,7 +106,8 @@ export function ProfileHero({
   const { player, currentEaSeason } = overview
   const positionEntries = buildPositionEntries(currentEaSeason)
   const positionTotal = positionEntries.reduce((s, e) => s + e.gp, 0)
-  const positionMaxGp = positionEntries.length > 0 ? Math.max(...positionEntries.map((e) => e.gp)) : 0
+  const positionMaxGp =
+    positionEntries.length > 0 ? Math.max(...positionEntries.map((e) => e.gp)) : 0
 
   const displayPosition =
     player.preferredPosition ?? currentEaSeason?.favoritePosition ?? player.position
@@ -128,7 +118,10 @@ export function ProfileHero({
   // Manually-assigned archetype always wins over the stat-derived heuristic.
   const manualArchetype = asArchetype(player.archetype)
   const archetypeLabel =
-    manualArchetype === null && selectedRole === 'skater' && currentEaSeason !== null && currentEaSeason.skaterGp > 0
+    manualArchetype === null &&
+    selectedRole === 'skater' &&
+    currentEaSeason !== null &&
+    currentEaSeason.skaterGp > 0
       ? computeSkaterArchetype(
           currentEaSeason.goals,
           currentEaSeason.assists,
@@ -140,7 +133,9 @@ export function ProfileHero({
 
   const currentGamertag = player.gamertag.toLowerCase()
   const aka = Array.from(
-    new Set(history.filter((h) => h.gamertag.toLowerCase() !== currentGamertag).map((h) => h.gamertag)),
+    new Set(
+      history.filter((h) => h.gamertag.toLowerCase() !== currentGamertag).map((h) => h.gamertag),
+    ),
   )
 
   // Display name: prefer the manually-set in-game name, fall back to gamertag.
@@ -153,16 +148,16 @@ export function ProfileHero({
   const careerGameTitles = career
     .map((c) => c.gameTitleName)
     .filter((n): n is string => n !== null && n !== undefined)
-  const careerRange = careerGameTitles.length > 0
-    ? careerGameTitles.length === 1
-      ? `${careerGameTitles[0]} · sum`
-      : `${careerGameTitles[careerGameTitles.length - 1]}–${careerGameTitles[0]} · sum`
-    : 'Career · sum'
+  const careerRange =
+    careerGameTitles.length > 0
+      ? careerGameTitles.length === 1
+        ? `${careerGameTitles[0]} · sum`
+        : `${careerGameTitles[careerGameTitles.length - 1]}–${careerGameTitles[0]} · sum`
+      : 'Career · sum'
 
   // Pad jersey for the BGM-NNNN ID
-  const jerseyForId = player.jerseyNumber !== null
-    ? player.jerseyNumber.toString().padStart(4, '0')
-    : null
+  const jerseyForId =
+    player.jerseyNumber !== null ? player.jerseyNumber.toString().padStart(4, '0') : null
 
   // Portrait card mini-stats (skater shows G/A/PTS/.PG; goalie shows GP/W/SV%/GAA)
   const portraitStats = buildPortraitStats(currentEaSeason, selectedRole)
@@ -291,10 +286,7 @@ export function ProfileHero({
 
             <div className="ph-pills">
               {positionFull !== null && (
-                <span
-                  className="ph-pill pos"
-                  style={{ '--pos': positionColor } as CSSProperties}
-                >
+                <span className="ph-pill pos" style={{ '--pos': positionColor } as CSSProperties}>
                   <span className="swatch" style={{ background: positionColor }} aria-hidden />
                   {positionFull}
                 </span>
@@ -305,9 +297,7 @@ export function ProfileHero({
                   {archetypeLabel}
                 </span>
               )}
-              {manualArchetype !== null && (
-                <ArchetypePillFlagship archetype={manualArchetype} />
-              )}
+              {manualArchetype !== null && <ArchetypePillFlagship archetype={manualArchetype} />}
               {player.nationality !== null && (
                 <span className="ph-pill flag">
                   <span className="flag-icon" aria-hidden>
@@ -348,10 +338,7 @@ export function ProfileHero({
 
           {/* ── Col 3 — Stat Ledger ──────────────────────────────────── */}
           <aside className="ph-col-ledger">
-            <LedgerBlock
-              title="Last 10 Games"
-              src={`${last10.gp.toString()} GP · per-game`}
-            >
+            <LedgerBlock title="Last 10 Games" src={`${last10.gp.toString()} GP · per-game`}>
               {last10.gp > 0 ? (
                 selectedRole === 'skater' ? (
                   <SkaterLedger
@@ -449,9 +436,8 @@ export function ProfileHero({
                 <div className="ph-pos-bars">
                   {positionEntries.map((e) => {
                     const widthPct = positionMaxGp > 0 ? (e.gp / positionMaxGp) * 100 : 0
-                    const sharePct = positionTotal > 0
-                      ? Math.round((e.gp / positionTotal) * 100)
-                      : 0
+                    const sharePct =
+                      positionTotal > 0 ? Math.round((e.gp / positionTotal) * 100) : 0
                     return (
                       <div
                         key={e.key}
@@ -547,12 +533,7 @@ function RoleTab({
   params.set('role', role)
   if (gameMode !== null) params.set('mode', gameMode)
   return (
-    <Link
-      href={`?${params.toString()}`}
-      className="ph-role-tab"
-      aria-selected={active}
-      role="tab"
-    >
+    <Link href={`?${params.toString()}`} className="ph-role-tab" aria-selected={active} role="tab">
       {children}
     </Link>
   )
@@ -612,11 +593,7 @@ function SkaterLedger({
 }) {
   const pmClass = plusMinus > 0 ? 'pos' : plusMinus < 0 ? 'neg' : ''
   const pmText =
-    plusMinus > 0
-      ? `+${plusMinus.toString()}`
-      : plusMinus < 0
-        ? plusMinus.toString()
-        : '0'
+    plusMinus > 0 ? `+${plusMinus.toString()}` : plusMinus < 0 ? plusMinus.toString() : '0'
   return (
     <div className="ph-ledger-grid cols-5">
       <Stat label="GP" value={gp.toString()} />

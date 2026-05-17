@@ -1,15 +1,6 @@
 import type { Metadata } from 'next'
-import {
-  listAccountInvites,
-  listAccountUsers,
-  listClaimablePlayers,
-} from '@eanhl/db/queries'
-import {
-  assignClaim,
-  createInvite,
-  revokeInvite,
-  setUserDisabled,
-} from '@/app/account-actions'
+import { listAccountInvites, listAccountUsers, listClaimablePlayers } from '@eanhl/db/queries'
+import { assignClaim, createInvite, revokeInvite, setUserDisabled } from '@/app/account-actions'
 import { requireAdmin } from '@/lib/auth'
 
 export const metadata: Metadata = { title: 'Account Admin - Club Stats' }
@@ -54,7 +45,10 @@ export default async function AccountAdminPage({ searchParams }: { searchParams:
         <h2 className="font-condensed text-sm font-bold uppercase tracking-widest text-zinc-200">
           Create Invite
         </h2>
-        <form action={createInvite} className="mt-4 grid gap-3 md:grid-cols-[1.4fr_1fr_0.7fr_0.7fr_auto]">
+        <form
+          action={createInvite}
+          className="mt-4 grid gap-3 md:grid-cols-[1.4fr_1fr_0.7fr_0.7fr_auto]"
+        >
           <input
             name="email"
             type="email"
@@ -70,7 +64,8 @@ export default async function AccountAdminPage({ searchParams }: { searchParams:
             <option value="">Player</option>
             {players.map((player) => (
               <option key={player.id} value={player.id} disabled={player.isClaimed}>
-                {player.gamertag}{player.isClaimed ? ' (claimed)' : ''}
+                {player.gamertag}
+                {player.isClaimed ? ' (claimed)' : ''}
               </option>
             ))}
           </select>
@@ -101,7 +96,10 @@ export default async function AccountAdminPage({ searchParams }: { searchParams:
         </h2>
         <div className="divide-y divide-zinc-800 overflow-hidden border border-zinc-800">
           {users.map((user) => (
-            <div key={user.id} className="grid gap-3 bg-surface p-4 lg:grid-cols-[1fr_1fr_auto_auto] lg:items-center">
+            <div
+              key={user.id}
+              className="grid gap-3 bg-surface p-4 lg:grid-cols-[1fr_1fr_auto_auto] lg:items-center"
+            >
               <div>
                 <div className="font-condensed text-sm font-bold uppercase text-zinc-100">
                   {user.name}
@@ -131,7 +129,8 @@ export default async function AccountAdminPage({ searchParams }: { searchParams:
                 </button>
               </form>
               <div className="font-condensed text-xs font-bold uppercase tracking-widest text-zinc-500">
-                {user.role}{user.disabledAt ? ' · disabled' : ''}
+                {user.role}
+                {user.disabledAt ? ' · disabled' : ''}
               </div>
               <form action={setUserDisabled}>
                 <input type="hidden" name="userId" value={user.id} />
@@ -151,11 +150,15 @@ export default async function AccountAdminPage({ searchParams }: { searchParams:
         </h2>
         <div className="divide-y divide-zinc-800 overflow-hidden border border-zinc-800">
           {invites.map((invite) => (
-            <div key={invite.id} className="grid gap-3 bg-surface p-4 md:grid-cols-[1fr_auto_auto] md:items-center">
+            <div
+              key={invite.id}
+              className="grid gap-3 bg-surface p-4 md:grid-cols-[1fr_auto_auto] md:items-center"
+            >
               <div>
                 <div className="text-sm text-zinc-200">{invite.email}</div>
                 <div className="text-xs text-zinc-500">
-                  {invite.claimedPlayerGamertag} · expires {invite.expiresAt.toISOString().slice(0, 10)}
+                  {invite.claimedPlayerGamertag} · expires{' '}
+                  {invite.expiresAt.toISOString().slice(0, 10)}
                 </div>
               </div>
               <InviteStatus invite={invite} />

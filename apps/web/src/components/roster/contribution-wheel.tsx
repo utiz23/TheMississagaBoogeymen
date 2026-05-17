@@ -66,15 +66,87 @@ interface StatDef {
 }
 
 const STAT_DEFS: StatDef[] = [
-  { id: 'goals',       name: 'Goals',         short: 'G',   color: '#e84131', weight: 0.75,  sign: 1,  extract: (s) => s.goals },
-  { id: 'assists',     name: 'Assists',       short: 'A',   color: '#38bdf8', weight: 0.7,   sign: 1,  extract: (s) => s.assists },
-  { id: 'shots',       name: 'Shots',         short: 'SH',  color: '#14b8a6', weight: 0.075, sign: 1,  extract: (s) => s.shots },
-  { id: 'blocks',      name: 'Blocks',        short: 'BL',  color: '#ece335', weight: 0.05,  sign: 1,  extract: (s) => s.blockedShots },
-  { id: 'takeaways',   name: 'Takeaways',     short: 'TK',  color: '#22c55e', weight: 0.05,  sign: 1,  extract: (s) => s.takeaways },
-  { id: 'hits',        name: 'Hits',          short: 'H',   color: '#fb923c', weight: 0.05,  sign: 1,  extract: (s) => s.hits },
-  { id: 'faceoffWins', name: 'Faceoffs Won',  short: 'FOW', color: '#a855f7', weight: 0.01,  sign: 1,  extract: (s) => s.faceoffWins },
-  { id: 'giveaways',   name: 'Giveaways',     short: 'GA',  color: '#f87171', weight: 0.05,  sign: -1, extract: (s) => s.giveaways },
-  { id: 'pim',         name: 'Penalty Minutes', short: 'PIM', color: '#f97316', weight: 0.15,  sign: -1, extract: (s) => s.pim },
+  {
+    id: 'goals',
+    name: 'Goals',
+    short: 'G',
+    color: '#e84131',
+    weight: 0.75,
+    sign: 1,
+    extract: (s) => s.goals,
+  },
+  {
+    id: 'assists',
+    name: 'Assists',
+    short: 'A',
+    color: '#38bdf8',
+    weight: 0.7,
+    sign: 1,
+    extract: (s) => s.assists,
+  },
+  {
+    id: 'shots',
+    name: 'Shots',
+    short: 'SH',
+    color: '#14b8a6',
+    weight: 0.075,
+    sign: 1,
+    extract: (s) => s.shots,
+  },
+  {
+    id: 'blocks',
+    name: 'Blocks',
+    short: 'BL',
+    color: '#ece335',
+    weight: 0.05,
+    sign: 1,
+    extract: (s) => s.blockedShots,
+  },
+  {
+    id: 'takeaways',
+    name: 'Takeaways',
+    short: 'TK',
+    color: '#22c55e',
+    weight: 0.05,
+    sign: 1,
+    extract: (s) => s.takeaways,
+  },
+  {
+    id: 'hits',
+    name: 'Hits',
+    short: 'H',
+    color: '#fb923c',
+    weight: 0.05,
+    sign: 1,
+    extract: (s) => s.hits,
+  },
+  {
+    id: 'faceoffWins',
+    name: 'Faceoffs Won',
+    short: 'FOW',
+    color: '#a855f7',
+    weight: 0.01,
+    sign: 1,
+    extract: (s) => s.faceoffWins,
+  },
+  {
+    id: 'giveaways',
+    name: 'Giveaways',
+    short: 'GA',
+    color: '#f87171',
+    weight: 0.05,
+    sign: -1,
+    extract: (s) => s.giveaways,
+  },
+  {
+    id: 'pim',
+    name: 'Penalty Minutes',
+    short: 'PIM',
+    color: '#f97316',
+    weight: 0.15,
+    sign: -1,
+    extract: (s) => s.pim,
+  },
 ]
 
 const CX = 210
@@ -181,9 +253,7 @@ export function ContributionWheel({
           </div>
         </header>
         <div className="cw-ticker" />
-        <p className="cw-empty">
-          Not enough season data to build a contribution wheel yet.
-        </p>
+        <p className="cw-empty">Not enough season data to build a contribution wheel yet.</p>
       </section>
     )
   }
@@ -249,9 +319,7 @@ export function ContributionWheel({
           <h2>
             <span className="accent">▌</span>Contribution Wheel
           </h2>
-          <span className="scope">
-            Game-Score share · skater · {gamertag}
-          </span>
+          <span className="scope">Game-Score share · skater · {gamertag}</span>
         </div>
         <div className="cw-meta">
           <span>
@@ -377,12 +445,7 @@ export function ContributionWheel({
                   <text className="cw-callout-pct" x={c.tx} y={c.ty} textAnchor={c.anchor}>
                     {c.pct.toFixed(0)}%
                   </text>
-                  <text
-                    className="cw-callout-name"
-                    x={c.tx}
-                    y={c.ty + 12}
-                    textAnchor={c.anchor}
-                  >
+                  <text className="cw-callout-name" x={c.tx} y={c.ty + 12} textAnchor={c.anchor}>
                     {c.name.toUpperCase()}
                   </text>
                 </g>
@@ -395,9 +458,7 @@ export function ContributionWheel({
                 {effectiveActiveId === null ? 'Net Game Score' : focused.name}
               </div>
               <div className="big">
-                {effectiveActiveId === null
-                  ? splitDecimal(totals.net)
-                  : splitDecimal(focused.imp)}
+                {effectiveActiveId === null ? splitDecimal(totals.net) : splitDecimal(focused.imp)}
               </div>
               <div className="unit">
                 {effectiveActiveId === null
@@ -430,10 +491,7 @@ export function ContributionWheel({
                       <>
                         <span className="sep" />
                         <span>
-                          <b>
-                            #{String(focused.rank.rank)}
-                          </b>{' '}
-                          of {String(focused.rank.total)}
+                          <b>#{String(focused.rank.rank)}</b> of {String(focused.rank.total)}
                         </span>
                       </>
                     ) : null}
@@ -519,10 +577,10 @@ export function ContributionWheel({
           <path d="M12 8v4M12 16h.01" />
         </svg>
         <span>
-          Game Score weights — Goals 0.75, Assists 0.70, Shots 0.075, Blocks/Takeaways/Hits
-          0.05, Faceoffs Won 0.01. Penalty Minutes (−0.15) and Giveaways (−0.05) reduce the
-          net score. Wheel slices show share of <b>positive</b> impact only; the center number
-          reflects net Game Score over {String(gp)} GP.
+          Game Score weights — Goals 0.75, Assists 0.70, Shots 0.075, Blocks/Takeaways/Hits 0.05,
+          Faceoffs Won 0.01. Penalty Minutes (−0.15) and Giveaways (−0.05) reduce the net score.
+          Wheel slices show share of <b>positive</b> impact only; the center number reflects net
+          Game Score over {String(gp)} GP.
           {lowSample ? (
             <>
               {' '}
@@ -597,7 +655,9 @@ function LedgerRow({
         }
       }}
     >
-      <span className="rank">{rankIndex !== null ? String(rankIndex + 1).padStart(2, '0') : '—'}</span>
+      <span className="rank">
+        {rankIndex !== null ? String(rankIndex + 1).padStart(2, '0') : '—'}
+      </span>
       <div className="name">
         <span className="lbl">{stat.name}</span>
         <span className="sub">
@@ -683,9 +743,7 @@ function buildEnriched(
   const total = d.extract(s)
   const imp = total * d.weight * d.sign
   const pg = gp > 0 ? total / gp : 0
-  const rank = teammates
-    ? computeRank(d, total, teammates, playerId)
-    : undefined
+  const rank = teammates ? computeRank(d, total, teammates, playerId) : undefined
   return { ...d, total, imp, pct: 0, pg, rank: rank ?? undefined }
 }
 
@@ -709,14 +767,7 @@ function computeRank(
   return { rank: strictlyBetter + 1, total: others.length + 1 }
 }
 
-function arcPath(
-  cx: number,
-  cy: number,
-  rO: number,
-  rI: number,
-  a1: number,
-  a2: number,
-): string {
+function arcPath(cx: number, cy: number, rO: number, rI: number, a1: number, a2: number): string {
   const large = a2 - a1 > Math.PI ? 1 : 0
   const x1o = cx + Math.cos(a1) * rO
   const y1o = cy + Math.sin(a1) * rO

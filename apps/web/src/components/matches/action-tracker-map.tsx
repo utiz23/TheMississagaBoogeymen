@@ -370,7 +370,9 @@ function FilterBar({
             <SegButton
               key={n}
               active={periodFilter === n}
-              onClick={() => { if (enabled) setPeriodFilter(n) }}
+              onClick={() => {
+                if (enabled) setPeriodFilter(n)
+              }}
               label={formatPeriodLabel(n)}
               count={periodCounts[n] ?? 0}
               disabled={!enabled}

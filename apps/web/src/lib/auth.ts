@@ -3,13 +3,7 @@ import { drizzleAdapter } from '@better-auth/drizzle-adapter'
 import { nextCookies } from 'better-auth/next-js'
 import { headers } from 'next/headers'
 import { redirect } from 'next/navigation'
-import {
-  accounts,
-  db,
-  sessions,
-  users,
-  verifications,
-} from '@eanhl/db'
+import { accounts, db, sessions, users, verifications } from '@eanhl/db'
 import { getAccountUserById } from '@eanhl/db/queries'
 
 const baseURL = process.env.BETTER_AUTH_URL ?? process.env.APP_BASE_URL ?? 'http://localhost:3000'

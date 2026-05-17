@@ -226,8 +226,7 @@ export function ClubStatsTabs({
 
   const today = updatedDate ?? new Date().toISOString().slice(0, 10)
   const subtitle =
-    `EA-Reported · Full Season · ${season.gameTitleName}` +
-    (gamertag ? ` · ${gamertag}` : '')
+    `EA-Reported · Full Season · ${season.gameTitleName}` + (gamertag ? ` · ${gamertag}` : '')
 
   return (
     <section className="cs-module">
@@ -279,12 +278,7 @@ export function ClubStatsTabs({
           <Marquee marquee={marquee} pool={pool} season={season} />
           <div className="cs-subsections">
             {subsections.map((sub) => (
-              <Subsection
-                key={sub.title}
-                title={sub.title}
-                cells={sub.cells}
-                pool={pool}
-              />
+              <Subsection key={sub.title} title={sub.title} cells={sub.cells} pool={pool} />
             ))}
           </div>
         </div>
@@ -384,9 +378,7 @@ function Subsection({
             c.rankKey && pool.length > 0
               ? computeDiffVsAvg(c.rankKey, pool, c.bar, c.unit === '%')
               : null
-          const diffClass = diff
-            ? diffClassFor(diff.diff, c.rankDir ?? 'desc')
-            : null
+          const diffClass = diff ? diffClassFor(diff.diff, c.rankDir ?? 'desc') : null
           return (
             <div key={c.label} className={`cs-cell${c.lead ? ' lead' : ''}`}>
               <div className="cs-cell-head">
@@ -1039,8 +1031,7 @@ const TAB_BUILDERS_GOALIE: Record<GoalieTabKey, TabBuilder> = {
     const otl = s.goalieOtl ?? 0
     const decided = wins + losses + otl
     const winPctRaw = parsePct(s.goalieWinPct)
-    const winPct =
-      winPctRaw ?? (decided > 0 ? (wins / decided) * 100 : 0)
+    const winPct = winPctRaw ?? (decided > 0 ? (wins / decided) * 100 : 0)
     const sv = parsePct(s.goalieSavePct)
     const gaa = parseFloat(s.goalieGaa ?? 'NaN')
     const gamesCompleted = s.goalieGamesCompleted ?? decided
@@ -1288,8 +1279,7 @@ const TAB_BUILDERS_GOALIE: Record<GoalieTabKey, TabBuilder> = {
               label: 'Time on Ice per Game',
               value: gp > 0 ? formatMinutes(toiPerGame) : '—',
               bar: toiPerGame,
-              rankKey: (r) =>
-                r.goalieGp > 0 ? (r.goalieToiSeconds ?? 0) / r.goalieGp : null,
+              rankKey: (r) => (r.goalieGp > 0 ? (r.goalieToiSeconds ?? 0) / r.goalieGp : null),
             },
           ],
         },

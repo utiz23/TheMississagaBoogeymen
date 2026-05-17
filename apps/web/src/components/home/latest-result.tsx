@@ -233,9 +233,7 @@ function StatStrip({
       : null
   const foTheirs =
     faceoffs !== null && faceoffs.oppWins + faceoffs.oppLosses > 0
-      ? Math.round(
-          (faceoffs.oppWins / (faceoffs.oppWins + faceoffs.oppLosses)) * 100,
-        ).toString()
+      ? Math.round((faceoffs.oppWins / (faceoffs.oppWins + faceoffs.oppLosses)) * 100).toString()
       : null
   const showFO = foOurs !== null && foTheirs !== null
 
@@ -251,11 +249,7 @@ function StatStrip({
         b={match.shotsAgainst.toString()}
         dom={shotsDom}
       />
-      <StatCell
-        label="Hits"
-        a={match.hitsFor.toString()}
-        b={match.hitsAgainst.toString()}
-      />
+      <StatCell label="Hits" a={match.hitsFor.toString()} b={match.hitsAgainst.toString()} />
       {showFO ? (
         <StatCell label="FO%" a={foOurs} b={foTheirs} />
       ) : (

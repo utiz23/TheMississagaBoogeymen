@@ -52,12 +52,11 @@ export function ChemistrySection({ withWithout, bestPairs, matrix }: Props) {
   const [active, setActive] = useState<TabId>('matrix')
   // The lookup falls back to a hard-coded default rather than asserting non-null,
   // so a stale `active` value can never crash the component.
-  const activeTab: Tab =
-    TABS.find((t) => t.id === active) ?? {
-      id: 'matrix',
-      label: 'Pair Win Matrix',
-      description: '',
-    }
+  const activeTab: Tab = TABS.find((t) => t.id === active) ?? {
+    id: 'matrix',
+    label: 'Pair Win Matrix',
+    description: '',
+  }
 
   return (
     <section className="space-y-3">

@@ -66,8 +66,6 @@ function parseGameMode(raw: string | string[] | undefined): GameMode | null {
   return (GAME_MODE as readonly string[]).includes(raw) ? (raw as GameMode) : null
 }
 
-
-
 export default async function StatsPage({ searchParams }: { searchParams: SearchParams }) {
   const params = await searchParams
   const titleSlug = typeof params.title === 'string' ? params.title : undefined
@@ -207,9 +205,8 @@ async function ActiveStats({
   // Offense (shots taken) + defense (shots faced) team aggregates feed the
   // Offense/Defense toggle on the team shot map.
   let teamShotAggregates: Awaited<ReturnType<typeof getTeamShotLocationAggregates>> | null = null
-  let teamGoalieAggregates:
-    | Awaited<ReturnType<typeof getTeamGoalieShotLocationAggregates>>
-    | null = null
+  let teamGoalieAggregates: Awaited<ReturnType<typeof getTeamGoalieShotLocationAggregates>> | null =
+    null
   try {
     ;[teamShotAggregates, teamGoalieAggregates] = await Promise.all([
       getTeamShotLocationAggregates(gameTitle.id),
@@ -221,10 +218,8 @@ async function ActiveStats({
   }
 
   const isNhl26 = gameTitle.slug === 'nhl26'
-  const offenseHasData =
-    isNhl26 && (teamShotAggregates?.shotsIce.some((v) => v > 0) ?? false)
-  const defenseHasData =
-    isNhl26 && (teamGoalieAggregates?.shotsIce.some((v) => v > 0) ?? false)
+  const offenseHasData = isNhl26 && (teamShotAggregates?.shotsIce.some((v) => v > 0) ?? false)
+  const defenseHasData = isNhl26 && (teamGoalieAggregates?.shotsIce.some((v) => v > 0) ?? false)
 
   return (
     <PageShell gameTitle={gameTitle}>
@@ -326,9 +321,7 @@ async function ActiveStats({
             titleName={gameTitle.name}
             clubName="Boogeymen"
             updatedLabel={
-              recentMatches[0]
-                ? recentMatches[0].playedAt.toISOString().slice(0, 10)
-                : undefined
+              recentMatches[0] ? recentMatches[0].playedAt.toISOString().slice(0, 10) : undefined
             }
             scope={
               gameMode !== null
@@ -546,7 +539,9 @@ function ArchiveClubTeamSection({
                   <td className="px-3 py-3 text-right font-semibold text-accent">{w}</td>
                   <td className="px-3 py-3 text-right text-zinc-400">{l}</td>
                   <td className="px-3 py-3 text-right text-zinc-500">{otl}</td>
-                  <td className="px-3 py-3 text-right text-zinc-300">{formatWinPct(w, w + l + otl)}</td>
+                  <td className="px-3 py-3 text-right text-zinc-300">
+                    {formatWinPct(w, w + l + otl)}
+                  </td>
                   <td className="px-3 py-3 text-right text-zinc-300">{row.avgGoalsFor ?? '—'}</td>
                   <td className="px-3 py-3 text-right text-zinc-400">
                     {row.avgGoalsAgainst ?? '—'}

@@ -25,7 +25,7 @@ export function DtwChip({ bgmShare, bgmRaw }: { bgmShare: number; bgmRaw: number
   const strokeW = 4
   const clamped = Math.max(1, Math.min(99, bgmShare))
   const splitDeg = -((1 - clamped / 100) * 180)
-  const needleRad = (((1 - clamped / 100) * -180) * Math.PI) / 180
+  const needleRad = ((1 - clamped / 100) * -180 * Math.PI) / 180
   const needleX = cx + Math.cos(needleRad) * (r - 2)
   const needleY = cy + Math.sin(needleRad) * (r - 2)
   const arc = (start: number, end: number) => {

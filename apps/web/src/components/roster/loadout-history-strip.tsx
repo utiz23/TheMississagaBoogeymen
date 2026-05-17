@@ -59,7 +59,9 @@ function Card({ snap }: { snap: PlayerLoadoutSnapshotWithDetails }) {
   }
   const groupAvgs: { group: string; avg: number | null }[] = Object.entries(ATTRIBUTE_GROUPS).map(
     ([group, keys]) => {
-      const vals = keys.map((k) => valueByKey.get(k)).filter((v): v is number => typeof v === 'number')
+      const vals = keys
+        .map((k) => valueByKey.get(k))
+        .filter((v): v is number => typeof v === 'number')
       const avg = vals.length > 0 ? Math.round(vals.reduce((s, v) => s + v, 0) / vals.length) : null
       return { group, avg }
     },
@@ -81,7 +83,11 @@ function Card({ snap }: { snap: PlayerLoadoutSnapshotWithDetails }) {
           {snap.buildClass ?? 'Unknown build'}
         </div>
         <div className="font-condensed text-[11px] uppercase tracking-wider text-zinc-500">
-          {[snap.heightText, snap.weightLbs ? `${String(snap.weightLbs)} lbs` : null, snap.handedness]
+          {[
+            snap.heightText,
+            snap.weightLbs ? `${String(snap.weightLbs)} lbs` : null,
+            snap.handedness,
+          ]
             .filter(Boolean)
             .join(' · ') || '—'}
         </div>

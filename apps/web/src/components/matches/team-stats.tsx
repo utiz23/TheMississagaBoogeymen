@@ -11,7 +11,7 @@ export function TeamStats({ rows }: TeamStatsProps) {
 
   return (
     <section className="space-y-3">
-      <SectionHeader label="Box Score" subtitle="Team totals and aggregate stats" />
+      <SectionHeader label="Team Stats" subtitle="Team totals and aggregate stats" />
       <Panel className="px-4 py-4">
         {/* Side labels */}
         <div className="mb-3 grid grid-cols-[5rem_1fr_5rem] items-center gap-3">

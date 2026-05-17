@@ -4,7 +4,8 @@
 export function NationalityFlag({ code }: { code: string | null }) {
   const normalized = code?.toLowerCase() ?? ''
   if (normalized === 'ca' || normalized === 'can' || normalized === 'canada') return <CanadaFlag />
-  if (normalized === 'us' || normalized === 'usa' || normalized === 'united states') return <UsFlag />
+  if (normalized === 'us' || normalized === 'usa' || normalized === 'united states')
+    return <UsFlag />
   return <PlaceholderFlag />
 }
 
@@ -89,7 +90,16 @@ function PlayStationIcon() {
 function PlaceholderPlatform() {
   return (
     <svg viewBox="0 0 14 10" fill="currentColor" className="h-2.5 w-2.5 text-zinc-800" aria-hidden>
-      <rect x="1" y="1" width="12" height="8" rx="4" fill="none" stroke="currentColor" strokeWidth="1.2" />
+      <rect
+        x="1"
+        y="1"
+        width="12"
+        height="8"
+        rx="4"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.2"
+      />
       <rect x="3.5" y="4" width="1.2" height="3" rx="0.5" />
       <rect x="2.9" y="4.6" width="2.4" height="1.2" rx="0.5" />
       <circle cx="9.5" cy="4.5" r="0.8" />

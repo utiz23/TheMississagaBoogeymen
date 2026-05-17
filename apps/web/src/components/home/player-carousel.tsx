@@ -62,18 +62,12 @@ export function PlayerCarousel({ players }: PlayerCarouselProps) {
     >
       {/* ── Desktop: stacked depth carousel ─────────────────────────────── */}
       <div className="hidden sm:block">
-        <div
-          className="hpcr-stage"
-          onTouchStart={onTouchStart}
-          onTouchEnd={onTouchEnd}
-        >
+        <div className="hpcr-stage" onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
           {/* LIVE indicator — top-left of stage. The label updates with the
               active player so the chrome reads as a broadcast lower-third. */}
           <div className="hpcr-now-tag">
             <span className="live">Live</span>
-            <span className="type">
-              {players[activeIndex]?.gamertag ?? 'Player Spotlight'}
-            </span>
+            <span className="type">{players[activeIndex]?.gamertag ?? 'Player Spotlight'}</span>
           </div>
           {/* Side vignette masks — create the "cards fade into darkness" effect */}
           <div
@@ -108,8 +102,7 @@ export function PlayerCarousel({ players }: PlayerCarouselProps) {
                   transform: `translateX(calc(-50% + ${cfg.x.toString()}px)) translateY(-50%) rotate(${cfg.rotate.toString()}deg) scale(${cfg.scale.toString()})`,
                   opacity: cfg.opacity,
                   zIndex: cfg.zIndex,
-                  transition:
-                    'transform 600ms cubic-bezier(0.22, 0.8, 0.2, 1), opacity 400ms ease',
+                  transition: 'transform 600ms cubic-bezier(0.22, 0.8, 0.2, 1), opacity 400ms ease',
                   cursor: !isActive && visible ? 'pointer' : 'default',
                   // Off-stage cards must not intercept clicks on visible cards below
                   pointerEvents: visible ? 'auto' : 'none',
@@ -134,12 +127,7 @@ export function PlayerCarousel({ players }: PlayerCarouselProps) {
 
         {/* Controls — arrow · progress bars · arrow (bundle pattern) */}
         <div className="hpcr-controls">
-          <button
-            type="button"
-            onClick={prev}
-            aria-label="Previous player"
-            className="hpcr-arrow"
-          >
+          <button type="button" onClick={prev} aria-label="Previous player" className="hpcr-arrow">
             <ChevronLeft />
           </button>
 
@@ -159,12 +147,7 @@ export function PlayerCarousel({ players }: PlayerCarouselProps) {
             ))}
           </div>
 
-          <button
-            type="button"
-            onClick={next}
-            aria-label="Next player"
-            className="hpcr-arrow"
-          >
+          <button type="button" onClick={next} aria-label="Next player" className="hpcr-arrow">
             <ChevronRight />
           </button>
         </div>
@@ -197,9 +180,7 @@ export function PlayerCarousel({ players }: PlayerCarouselProps) {
             onTouchStart={onTouchStart}
             onTouchEnd={onTouchEnd}
           >
-            {players[activeIndex] && (
-              <PlayerCard player={players[activeIndex]} isActive />
-            )}
+            {players[activeIndex] && <PlayerCard player={players[activeIndex]} isActive />}
           </div>
 
           <button

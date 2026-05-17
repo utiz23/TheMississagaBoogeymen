@@ -63,32 +63,32 @@ const BUCKETED_ZONES: IceZoneId[] = [...BUCKETS.hd, ...BUCKETS.mr, ...BUCKETS.lr
 
 /* 5-zone net layout (TL, TR, BL, BR, 5H) — net SVG geometry from the design. */
 const NET_ZONE_DEFS = [
-  { id: 'TL', label: 'Top Shelf L', x: 80,  y: 80,  w: 220, h: 150, lx: 190, ly: 155 },
-  { id: 'TR', label: 'Top Shelf R', x: 300, y: 80,  w: 220, h: 150, lx: 410, ly: 155 },
-  { id: 'BL', label: 'Low L',       x: 80,  y: 230, w: 220, h: 150, lx: 190, ly: 305 },
-  { id: 'BR', label: 'Low R',       x: 300, y: 230, w: 220, h: 150, lx: 410, ly: 305 },
-  { id: '5H', label: 'Five-Hole',   x: 240, y: 305, w: 120, h: 75,  lx: 300, ly: 342 },
+  { id: 'TL', label: 'Top Shelf L', x: 80, y: 80, w: 220, h: 150, lx: 190, ly: 155 },
+  { id: 'TR', label: 'Top Shelf R', x: 300, y: 80, w: 220, h: 150, lx: 410, ly: 155 },
+  { id: 'BL', label: 'Low L', x: 80, y: 230, w: 220, h: 150, lx: 190, ly: 305 },
+  { id: 'BR', label: 'Low R', x: 300, y: 230, w: 220, h: 150, lx: 410, ly: 305 },
+  { id: '5H', label: 'Five-Hole', x: 240, y: 305, w: 120, h: 75, lx: 300, ly: 342 },
 ] as const
 
 /* Number-bubble label positions for each ice zone — sourced from design SVG
  * (matrix scale 3.1358 in the original; converted to viewBox units here). */
 const ZONE_LABEL_POS: Record<IceZoneId, { x: number; y: number }> = {
-  LowSlot:      { x: 420.5, y: 226.1 },
-  HighSlot:     { x: 420.5, y: 427.1 },
-  Crease:       { x: 420.5, y: 131.7 },
-  CenterPoint:  { x: 420.5, y: 632.2 },
-  LCircle:      { x: 222.9, y: 414.2 },
-  RCircle:      { x: 616.8, y: 412.9 },
-  LPoint:       { x: 126.1, y: 605.5 },
-  RPoint:       { x: 713.0, y: 604.2 },
-  LNetSide:     { x: 240.5, y: 167.7 },
-  RNetSide:     { x: 601.4, y: 167.4 },
-  LCorner:      { x: 199.1, y: 76.2 },
-  RCorner:      { x: 641.8, y: 76.5 },
-  OutsideL:     { x: 105.7, y: 261.8 },
-  OutsideR:     { x: 735.4, y: 261.2 },
+  LowSlot: { x: 420.5, y: 226.1 },
+  HighSlot: { x: 420.5, y: 427.1 },
+  Crease: { x: 420.5, y: 131.7 },
+  CenterPoint: { x: 420.5, y: 632.2 },
+  LCircle: { x: 222.9, y: 414.2 },
+  RCircle: { x: 616.8, y: 412.9 },
+  LPoint: { x: 126.1, y: 605.5 },
+  RPoint: { x: 713.0, y: 604.2 },
+  LNetSide: { x: 240.5, y: 167.7 },
+  RNetSide: { x: 601.4, y: 167.4 },
+  LCorner: { x: 199.1, y: 76.2 },
+  RCorner: { x: 641.8, y: 76.5 },
+  OutsideL: { x: 105.7, y: 261.8 },
+  OutsideR: { x: 735.4, y: 261.2 },
   BehindTheNet: { x: 420.5, y: 73.7 },
-  NeutralZone:  { x: 420.5, y: 794.0 },
+  NeutralZone: { x: 420.5, y: 794.0 },
 }
 
 const ALL_ZONES: IceZoneId[] = Object.values(EA_ICE_INDEX_TO_ZONE)
@@ -102,7 +102,10 @@ export function ShotMap(props: Props) {
       <section className="sm-module">
         <header className="sm-head">
           <div className="sm-title">
-            <h2><span className="accent">▌</span>{titleWord} Zone Map · Season</h2>
+            <h2>
+              <span className="accent">▌</span>
+              {titleWord} Zone Map · Season
+            </h2>
             <span className="scope">NHL 26 · Regular</span>
           </div>
         </header>
@@ -183,7 +186,8 @@ function ShotMapContent({
       <header className="sm-head">
         <div className="sm-title">
           <h2>
-            <span className="accent">▌</span>{titleWord} Zone Map · Season
+            <span className="accent">▌</span>
+            {titleWord} Zone Map · Season
           </h2>
           <span className="scope">NHL 26 · Regular</span>
         </div>
@@ -399,12 +403,7 @@ function IceRink({
             const rank = zoneRanks[id]
             const cls = `zone r${String(rank)}${inBucket(id) ? ' in-bucket' : ''}`
             return (
-              <path
-                key={id}
-                className={cls}
-                d={ICE_ZONE_SHAPES[id].d}
-                data-zone={id}
-              >
+              <path key={id} className={cls} d={ICE_ZONE_SHAPES[id].d} data-zone={id}>
                 <title>{tooltipForIceZone(id, zoneValues[id])}</title>
               </path>
             )
@@ -525,7 +524,11 @@ function GoalNet({
       >
         <defs>
           <pattern id="sm-net-mesh" width="14" height="14" patternUnits="userSpaceOnUse">
-            <path d="M 0 0 L 14 14 M 14 0 L 0 14" stroke="rgba(231,229,228,0.07)" strokeWidth="0.6" />
+            <path
+              d="M 0 0 L 14 14 M 14 0 L 0 14"
+              stroke="rgba(231,229,228,0.07)"
+              strokeWidth="0.6"
+            />
           </pattern>
         </defs>
 
@@ -883,7 +886,12 @@ function sumByZones(sl: ShotLocations, ids: IceZoneId[], pickGoals: boolean): nu
   return total
 }
 
-function findHotZone(shots: number[]): { id: IceZoneId; label: string; shots: number; shareLabel: string } {
+function findHotZone(shots: number[]): {
+  id: IceZoneId
+  label: string
+  shots: number
+  shareLabel: string
+} {
   let bestI = -1
   let bestVal = -1
   for (let i = 0; i < shots.length; i++) {
@@ -894,15 +902,13 @@ function findHotZone(shots: number[]): { id: IceZoneId; label: string; shots: nu
     }
   }
   const total = shots.reduce((a, b) => a + b, 0)
-  const id: IceZoneId = bestI >= 0 ? (EA_ICE_INDEX_TO_ZONE[bestI + 1] ?? 'NeutralZone') : 'NeutralZone'
+  const id: IceZoneId =
+    bestI >= 0 ? (EA_ICE_INDEX_TO_ZONE[bestI + 1] ?? 'NeutralZone') : 'NeutralZone'
   return {
     id,
     label: zoneLabel(id),
     shots: Math.round(bestVal > 0 ? bestVal : 0),
-    shareLabel:
-      total > 0 && bestVal > 0
-        ? `${((bestVal / total) * 100).toFixed(0)}%`
-        : '—',
+    shareLabel: total > 0 && bestVal > 0 ? `${((bestVal / total) * 100).toFixed(0)}%` : '—',
   }
 }
 

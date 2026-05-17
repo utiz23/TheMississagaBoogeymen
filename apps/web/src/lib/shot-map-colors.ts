@@ -35,12 +35,7 @@ export const COLOR_PCT_INSUFFICIENT = '#27272a' // gray; rendered with hatching
 
 export const MIN_PCT_SAMPLE = 5
 
-export type DeviationBucket =
-  | 'well-above'
-  | 'above'
-  | 'at-avg'
-  | 'below'
-  | 'well-below'
+export type DeviationBucket = 'well-above' | 'above' | 'at-avg' | 'below' | 'well-below'
 
 export function deviationBucket(playerCount: number, teamAvg: number): DeviationBucket {
   const delta = (playerCount - teamAvg) / Math.max(teamAvg, 1)

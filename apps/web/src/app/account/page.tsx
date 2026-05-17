@@ -30,7 +30,11 @@ export default async function AccountPage() {
         <AccountRow label="Role" value={user.role.toUpperCase()} />
         <AccountRow
           label="Linked Player"
-          value={user.playerId !== null ? user.gamertag ?? `#${user.playerId.toString()}` : 'Unassigned'}
+          value={
+            user.playerId !== null
+              ? (user.gamertag ?? `#${user.playerId.toString()}`)
+              : 'Unassigned'
+          }
         />
       </section>
 

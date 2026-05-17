@@ -48,8 +48,7 @@ export function RecordStrip({
 
   const goalsFor = localStats?.goalsFor ?? null
   const goalsAgainst = localStats?.goalsAgainst ?? null
-  const goalDiff =
-    goalsFor !== null && goalsAgainst !== null ? goalsFor - goalsAgainst : null
+  const goalDiff = goalsFor !== null && goalsAgainst !== null ? goalsFor - goalsAgainst : null
 
   // Dots render newest-first (left → right), matching the source feed which
   // is already newest-first. DNFs are counted as losses everywhere — both for
@@ -265,7 +264,10 @@ export function RecordStrip({
       <footer className="rs-foot">
         <span className="src">
           <span className="dot" />
-          Source <b>EA Official · {gameTitleName} {teamName}</b>
+          Source{' '}
+          <b>
+            EA Official · {gameTitleName} {teamName}
+          </b>
         </span>
         <span>
           Sheet <b>{sheetCode}</b>
@@ -277,9 +279,10 @@ export function RecordStrip({
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
-function computeStreak(
-  results: { result: MatchResult }[],
-): { kind: 'W' | 'L' | 'O'; count: number } {
+function computeStreak(results: { result: MatchResult }[]): {
+  kind: 'W' | 'L' | 'O'
+  count: number
+} {
   if (results.length === 0) return { kind: 'W', count: 0 }
   const first = results[0]
   if (!first) return { kind: 'W', count: 0 }
