@@ -217,11 +217,27 @@ function FinalScore({
 }) {
   return (
     <span className="inline-flex items-baseline gap-1.5 font-condensed font-black tabular-nums">
-      <span className={bgmWon || tied ? 'text-[var(--color-accent)]' : 'text-[var(--color-fg-3)]'}>
+      <span
+        className={
+          tied
+            ? 'text-[var(--color-fg-1)]'
+            : bgmWon
+              ? 'text-[var(--color-accent)]'
+              : 'text-[var(--color-fg-3)]'
+        }
+      >
         {bgm}
       </span>
       <span className="text-[var(--color-fg-6)]">–</span>
-      <span className={!bgmWon && !tied ? 'text-[var(--color-fg-1)]' : 'text-[var(--color-fg-3)]'}>
+      <span
+        className={
+          tied
+            ? 'text-[var(--color-fg-1)]'
+            : bgmWon
+              ? 'text-[var(--color-fg-3)]'
+              : 'text-[var(--color-fg-1)]'
+        }
+      >
         {opp}
       </span>
     </span>
@@ -518,7 +534,11 @@ function GoalCard({
           className={`mt-1 flex items-center gap-2.5 border-t border-[var(--color-border-subtle)] pt-2 ${footOrder}`}
         >
           <span className="font-condensed text-[13px] font-black tabular-nums tracking-[0.02em] text-[var(--color-fg-3)]">
-            <span className="text-[var(--color-accent)]">{scoreCtx.bgmAfter}</span>
+            <span
+              className={scoreCtx.tied ? 'text-[var(--color-fg-1)]' : 'text-[var(--color-accent)]'}
+            >
+              {scoreCtx.bgmAfter}
+            </span>
             <span className="px-1 text-[var(--color-fg-6)]">–</span>
             <span className="text-[var(--color-fg-1)]">{scoreCtx.oppAfter}</span>
           </span>
@@ -697,7 +717,13 @@ function ScoreBubble({ ctx, oppAbbrev }: { ctx: GoalContext; oppAbbrev: string }
       <span
         className={`inline-flex items-baseline gap-1 border bg-[var(--color-charcoal)] px-3 py-1 font-condensed font-black tabular-nums ${tone}`}
       >
-        <span className="text-[16px] text-[var(--color-accent)]">{ctx.bgmAfter}</span>
+        <span
+          className={`text-[16px] ${
+            ctx.tied ? 'text-[var(--color-fg-1)]' : 'text-[var(--color-accent)]'
+          }`}
+        >
+          {ctx.bgmAfter}
+        </span>
         <span className="text-[11px] text-[var(--color-fg-6)]">–</span>
         <span className="text-[16px] text-[var(--color-fg-1)]">{ctx.oppAfter}</span>
       </span>
