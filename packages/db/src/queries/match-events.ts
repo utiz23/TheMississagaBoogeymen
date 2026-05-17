@@ -98,7 +98,10 @@ export async function getMatchEvents(matchId: number) {
     .leftJoin(sql`${players} AS scorer_p`, sql`scorer_p.id = ${matchGoalEvents.scorerPlayerId}`)
     .leftJoin(sql`${players} AS pa_p`, sql`pa_p.id = ${matchGoalEvents.primaryAssistPlayerId}`)
     .leftJoin(sql`${players} AS sa_p`, sql`sa_p.id = ${matchGoalEvents.secondaryAssistPlayerId}`)
-    .leftJoin(sql`${players} AS culprit_p`, sql`culprit_p.id = ${matchPenaltyEvents.culpritPlayerId}`)
+    .leftJoin(
+      sql`${players} AS culprit_p`,
+      sql`culprit_p.id = ${matchPenaltyEvents.culpritPlayerId}`,
+    )
     .where(
       and(
         eq(matchEvents.matchId, matchId),
@@ -109,7 +112,14 @@ export async function getMatchEvents(matchId: number) {
         ),
       ),
     )
-    .orderBy(asc(matchEvents.periodNumber), asc(matchEvents.clock))
+    .orderBy(
+      asc(matchEvents.periodNumber),
+      // clock is text "MM:SS" remaining (in-game countdown from 20:00) — sort
+      // DESC by parsed seconds so events come back chronologically (oldest
+      // first) within each period.
+      sql`(split_part(${matchEvents.clock}, ':', 1)::int * 60
+           + split_part(${matchEvents.clock}, ':', 2)::int) DESC NULLS LAST`,
+    )
 
   return rows
 }

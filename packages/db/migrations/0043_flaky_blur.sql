@@ -1,0 +1,1 @@
+ALTER TABLE "player_loadout_snapshots" ADD COLUMN "build_class_canonical" text;

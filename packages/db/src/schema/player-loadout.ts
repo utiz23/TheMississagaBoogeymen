@@ -56,6 +56,13 @@ export const playerLoadoutSnapshots = pgTable(
       .references(() => ocrExtractions.id),
     position: text('position'),
     buildClass: text('build_class'),
+    /**
+     * Canonical form of `buildClass` produced by `normalize-build-class.ts`,
+     * e.g. "Puck Moving Defenseman" or "Cole Caufield - Sniper". Populated
+     * by `consolidate-loadouts-cli` after the per-field vote. NULL when the
+     * normalizer can't map the raw OCR string — consumers fall back to raw.
+     */
+    buildClassCanonical: text('build_class_canonical'),
     heightText: text('height_text'),
     weightLbs: integer('weight_lbs'),
     handedness: text('handedness'),

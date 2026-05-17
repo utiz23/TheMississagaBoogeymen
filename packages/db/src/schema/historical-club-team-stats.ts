@@ -115,9 +115,7 @@ export const historicalClubTeamStats = pgTable(
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
-  (table) => [
-    uniqueIndex('hct_stats_title_playlist_uniq').on(table.gameTitleId, table.playlist),
-  ],
+  (table) => [uniqueIndex('hct_stats_title_playlist_uniq').on(table.gameTitleId, table.playlist)],
 )
 
 export type HistoricalClubTeamStat = typeof historicalClubTeamStats.$inferSelect

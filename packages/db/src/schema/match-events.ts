@@ -28,7 +28,9 @@ export type MatchEventTeamSide = 'for' | 'against'
  *   The in-game map uses a marker grid; store the raw numeric offset.
  *   rink_zone is added during review: 'offensive' | 'defensive' | 'neutral'.
  *
- * clock: time remaining in the period as shown in-game (MM:SS string, e.g. '14:23').
+ * clock: elapsed time within the period (MM:SS or M:SS string, 0:00 at period start).
+ *   The Events screen renders time REMAINING; promoteEvents converts to elapsed
+ *   before insert so this column matches the Action Tracker convention.
  */
 export const matchEvents = pgTable(
   'match_events',
@@ -89,10 +91,7 @@ export const matchEvents = pgTable(
       'match_events_event_type_check',
       sql`${table.eventType} IN ('goal', 'shot', 'hit', 'penalty', 'faceoff')`,
     ),
-    check(
-      'match_events_team_side_check',
-      sql`${table.teamSide} IN ('for', 'against')`,
-    ),
+    check('match_events_team_side_check', sql`${table.teamSide} IN ('for', 'against')`),
     check(
       'match_events_position_confidence_check',
       sql`${table.positionConfidence} IS NULL OR ${table.positionConfidence} IN ('interpolated', 'extrapolated', 'manual')`,

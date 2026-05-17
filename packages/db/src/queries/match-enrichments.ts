@@ -1,6 +1,11 @@
 import { and, asc, eq, or } from 'drizzle-orm'
 import { db } from '../client.js'
-import { matchPeriodSummaries, matchShotTypeSummaries } from '../schema/index.js'
+import {
+  matchFaceoffDots,
+  matchFaceoffZoneSummaries,
+  matchPeriodSummaries,
+  matchShotTypeSummaries,
+} from '../schema/index.js'
 
 /**
  * Per-period goals/shots/faceoffs for a match.
@@ -57,11 +62,60 @@ export async function getMatchShotTypeSummaries(matchId: number) {
         ),
       ),
     )
-    .orderBy(
-      asc(matchShotTypeSummaries.periodNumber),
-      asc(matchShotTypeSummaries.teamSide),
+    .orderBy(asc(matchShotTypeSummaries.periodNumber), asc(matchShotTypeSummaries.teamSide))
+}
+
+/**
+ * Per-dot face-off outcomes for a match. Same review-status gating as the
+ * other enrichment queries. Ordered by period_number, then dot_id.
+ */
+export async function getMatchFaceoffDots(matchId: number) {
+  return db
+    .select()
+    .from(matchFaceoffDots)
+    .where(
+      and(
+        eq(matchFaceoffDots.matchId, matchId),
+        or(
+          eq(matchFaceoffDots.source, 'ea'),
+          and(eq(matchFaceoffDots.source, 'ocr'), eq(matchFaceoffDots.reviewStatus, 'reviewed')),
+          and(eq(matchFaceoffDots.source, 'manual'), eq(matchFaceoffDots.reviewStatus, 'reviewed')),
+        ),
+      ),
     )
+    .orderBy(asc(matchFaceoffDots.periodNumber), asc(matchFaceoffDots.dotId))
+}
+
+/**
+ * Per-period zone-split faceoff summaries (overall %, OZ wins/total, DZ
+ * wins/total) per team_side. Same review-status gating.
+ */
+export async function getMatchFaceoffZoneSummaries(matchId: number) {
+  return db
+    .select()
+    .from(matchFaceoffZoneSummaries)
+    .where(
+      and(
+        eq(matchFaceoffZoneSummaries.matchId, matchId),
+        or(
+          eq(matchFaceoffZoneSummaries.source, 'ea'),
+          and(
+            eq(matchFaceoffZoneSummaries.source, 'ocr'),
+            eq(matchFaceoffZoneSummaries.reviewStatus, 'reviewed'),
+          ),
+          and(
+            eq(matchFaceoffZoneSummaries.source, 'manual'),
+            eq(matchFaceoffZoneSummaries.reviewStatus, 'reviewed'),
+          ),
+        ),
+      ),
+    )
+    .orderBy(asc(matchFaceoffZoneSummaries.periodNumber), asc(matchFaceoffZoneSummaries.teamSide))
 }
 
 export type MatchPeriodSummaryRow = Awaited<ReturnType<typeof getMatchPeriodSummaries>>[number]
 export type MatchShotTypeSummaryRow = Awaited<ReturnType<typeof getMatchShotTypeSummaries>>[number]
+export type MatchFaceoffDotRow = Awaited<ReturnType<typeof getMatchFaceoffDots>>[number]
+export type MatchFaceoffZoneSummaryRow = Awaited<
+  ReturnType<typeof getMatchFaceoffZoneSummaries>
+>[number]

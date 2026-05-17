@@ -277,7 +277,8 @@ export async function getPairWinMatrix(
       return {
         playerId: Number(r.playerId),
         gamertag: String(r.gamertag),
-        playerName: r.playerName === null || r.playerName === undefined ? null : String(r.playerName),
+        playerName:
+          r.playerName === null || r.playerName === undefined ? null : String(r.playerName),
         gp: Number(r.gp),
         wins,
         losses,

@@ -5,10 +5,7 @@ import {
   players,
   type HistoricalClubMemberGameMode,
 } from '../schema/index.js'
-import type {
-  HistoricalSkaterStatsRow,
-  HistoricalGoalieStatsRow,
-} from './historical.js'
+import type { HistoricalSkaterStatsRow, HistoricalGoalieStatsRow } from './historical.js'
 
 /**
  * Club-scoped historical skater totals from the CLUBS → MEMBERS screen
@@ -181,8 +178,12 @@ export async function getClubMemberSkaterStatsAllModes(
       takeaways: sql<string>`COALESCE(SUM(${historicalClubMemberSeasonStats.takeaways}), 0)`,
       giveaways: sql<string>`COALESCE(SUM(${historicalClubMemberSeasonStats.giveaways}), 0)`,
       // weighted-average pass_pct by skater_gp
-      passPctNum: sql<string | null>`SUM(${historicalClubMemberSeasonStats.passPct} * ${historicalClubMemberSeasonStats.skaterGp})`,
-      passPctDen: sql<string | null>`SUM(CASE WHEN ${historicalClubMemberSeasonStats.passPct} IS NOT NULL THEN ${historicalClubMemberSeasonStats.skaterGp} ELSE 0 END)`,
+      passPctNum: sql<
+        string | null
+      >`SUM(${historicalClubMemberSeasonStats.passPct} * ${historicalClubMemberSeasonStats.skaterGp})`,
+      passPctDen: sql<
+        string | null
+      >`SUM(CASE WHEN ${historicalClubMemberSeasonStats.passPct} IS NOT NULL THEN ${historicalClubMemberSeasonStats.skaterGp} ELSE 0 END)`,
     })
     .from(historicalClubMemberSeasonStats)
     .leftJoin(players, eq(historicalClubMemberSeasonStats.playerId, players.id))
@@ -260,8 +261,12 @@ export async function getClubMemberGoalieStatsAllModes(
       otl: sql<string | null>`SUM(${historicalClubMemberSeasonStats.otl})`,
       shutouts: sql<string | null>`SUM(${historicalClubMemberSeasonStats.shutouts})`,
       totalSaves: sql<string | null>`SUM(${historicalClubMemberSeasonStats.totalSaves})`,
-      totalGoalsAgainst: sql<string | null>`SUM(${historicalClubMemberSeasonStats.totalGoalsAgainst})`,
-      gaaGpDen: sql<string | null>`SUM(CASE WHEN ${historicalClubMemberSeasonStats.totalGoalsAgainst} IS NOT NULL THEN ${historicalClubMemberSeasonStats.goalieGp} ELSE 0 END)`,
+      totalGoalsAgainst: sql<
+        string | null
+      >`SUM(${historicalClubMemberSeasonStats.totalGoalsAgainst})`,
+      gaaGpDen: sql<
+        string | null
+      >`SUM(CASE WHEN ${historicalClubMemberSeasonStats.totalGoalsAgainst} IS NOT NULL THEN ${historicalClubMemberSeasonStats.goalieGp} ELSE 0 END)`,
     })
     .from(historicalClubMemberSeasonStats)
     .leftJoin(players, eq(historicalClubMemberSeasonStats.playerId, players.id))
@@ -283,16 +288,11 @@ export async function getClubMemberGoalieStatsAllModes(
     const ga = toIntOrNull(r.totalGoalsAgainst)
     const gpForGaa = toIntOrNull(r.gaaGpDen)
     const savePct =
-      sv !== null && ga !== null && sv + ga > 0
-        ? ((sv / (sv + ga)) * 100).toFixed(2)
-        : null
+      sv !== null && ga !== null && sv + ga > 0 ? ((sv / (sv + ga)) * 100).toFixed(2) : null
     // Combined GAA = sum(GA) / sum(GP) over rows where GA is non-null.
     // Each goalie_gp is a 60-minute game in the in-game leaderboard, so
     // this mirrors the standard season-level GAA definition.
-    const gaa =
-      ga !== null && gpForGaa !== null && gpForGaa > 0
-        ? (ga / gpForGaa).toFixed(2)
-        : null
+    const gaa = ga !== null && gpForGaa !== null && gpForGaa > 0 ? (ga / gpForGaa).toFixed(2) : null
     return {
       playerId: r.playerId,
       gamertag: r.gamertag,

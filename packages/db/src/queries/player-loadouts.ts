@@ -30,13 +30,26 @@ export async function getPlayerLoadoutSnapshots(playerId: number, limit = 20) {
   const xFactorRows = await db
     .select()
     .from(playerLoadoutXFactors)
-    .where(sql`${playerLoadoutXFactors.loadoutSnapshotId} IN (${sql.join(ids.map((id) => sql`${id}`), sql`,`)})`)
+    .where(
+      sql`${playerLoadoutXFactors.loadoutSnapshotId} IN (${sql.join(
+        ids.map((id) => sql`${id}`),
+        sql`,`,
+      )})`,
+    )
     .orderBy(asc(playerLoadoutXFactors.loadoutSnapshotId), asc(playerLoadoutXFactors.slotIndex))
   const attributeRows = await db
     .select()
     .from(playerLoadoutAttributes)
-    .where(sql`${playerLoadoutAttributes.loadoutSnapshotId} IN (${sql.join(ids.map((id) => sql`${id}`), sql`,`)})`)
-    .orderBy(asc(playerLoadoutAttributes.loadoutSnapshotId), asc(playerLoadoutAttributes.attributeKey))
+    .where(
+      sql`${playerLoadoutAttributes.loadoutSnapshotId} IN (${sql.join(
+        ids.map((id) => sql`${id}`),
+        sql`,`,
+      )})`,
+    )
+    .orderBy(
+      asc(playerLoadoutAttributes.loadoutSnapshotId),
+      asc(playerLoadoutAttributes.attributeKey),
+    )
 
   const xByOwner = new Map<number, typeof xFactorRows>()
   for (const x of xFactorRows) {

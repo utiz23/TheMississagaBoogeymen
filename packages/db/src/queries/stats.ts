@@ -439,9 +439,7 @@ export async function getAllTimeGoalieStats(): Promise<GoalieStatsRow[]> {
     )
     .groupBy(historicalPlayerSeasonStats.playerId)
 
-  const meta = await db
-    .select({ playerId: players.id, gamertag: players.gamertag })
-    .from(players)
+  const meta = await db.select({ playerId: players.id, gamertag: players.gamertag }).from(players)
 
   type Agg = {
     gamesPlayed: number

@@ -62,10 +62,7 @@ export async function getOpponentClub(eaClubId: string) {
 export async function getOpponentClubs(eaClubIds: string[]) {
   if (eaClubIds.length === 0) return []
 
-  return db
-    .select()
-    .from(opponentClubs)
-    .where(inArray(opponentClubs.eaClubId, eaClubIds))
+  return db.select().from(opponentClubs).where(inArray(opponentClubs.eaClubId, eaClubIds))
 }
 
 /**

@@ -19,10 +19,7 @@ export async function listGameTitles() {
  * Inactive archive titles only, newest first.
  */
 export async function listArchiveGameTitles() {
-  const rows = await db
-    .select()
-    .from(gameTitles)
-    .where(eq(gameTitles.isActive, false))
+  const rows = await db.select().from(gameTitles).where(eq(gameTitles.isActive, false))
   return rows.sort((a, b) => {
     const aYear = Number.parseInt(a.slug.replace(/^\D+/u, ''), 10)
     const bYear = Number.parseInt(b.slug.replace(/^\D+/u, ''), 10)
@@ -42,11 +39,7 @@ export async function getGameTitleBySlug(slug: string) {
  * Active game title by slug.
  */
 export async function getActiveGameTitleBySlug(slug: string) {
-  const rows = await db
-    .select()
-    .from(gameTitles)
-    .where(eq(gameTitles.slug, slug))
-    .limit(1)
+  const rows = await db.select().from(gameTitles).where(eq(gameTitles.slug, slug)).limit(1)
   const row = rows[0] ?? null
   return row?.isActive ? row : null
 }
@@ -55,11 +48,7 @@ export async function getActiveGameTitleBySlug(slug: string) {
  * Inactive archive title by slug.
  */
 export async function getArchiveGameTitleBySlug(slug: string) {
-  const rows = await db
-    .select()
-    .from(gameTitles)
-    .where(eq(gameTitles.slug, slug))
-    .limit(1)
+  const rows = await db.select().from(gameTitles).where(eq(gameTitles.slug, slug)).limit(1)
   const row = rows[0] ?? null
   return row && !row.isActive ? row : null
 }

@@ -17,9 +17,7 @@ const NET_LEN = 5
  * Returns four arrays of floats (averages, not rounded).
  * If no qualifying rows exist, all averages are 0.
  */
-export async function getTeamAverageShotLocations(
-  gameTitleId: number,
-): Promise<ShotLocations> {
+export async function getTeamAverageShotLocations(gameTitleId: number): Promise<ShotLocations> {
   const rows = await db
     .select({ shotLocations: eaMemberSeasonStats.shotLocations })
     .from(eaMemberSeasonStats)
@@ -71,9 +69,7 @@ export async function getTeamAverageShotLocations(
  * but returns raw integer sums instead of per-player averages.
  * Used for the team-level shot heatmap on the stats page.
  */
-export async function getTeamShotLocationAggregates(
-  gameTitleId: number,
-): Promise<ShotLocations> {
+export async function getTeamShotLocationAggregates(gameTitleId: number): Promise<ShotLocations> {
   const rows = await db
     .select({ shotLocations: eaMemberSeasonStats.shotLocations })
     .from(eaMemberSeasonStats)

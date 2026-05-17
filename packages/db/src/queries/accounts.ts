@@ -196,7 +196,11 @@ export async function setUserRole(userId: string, role: UserRole) {
 }
 
 export async function getUserByEmail(email: string) {
-  const rows = await db.select().from(users).where(eq(users.email, normalizeEmail(email))).limit(1)
+  const rows = await db
+    .select()
+    .from(users)
+    .where(eq(users.email, normalizeEmail(email)))
+    .limit(1)
   return rows[0] ?? null
 }
 

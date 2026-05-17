@@ -120,11 +120,8 @@ export async function getHistoricalGoalieStats(
       const ga = r.totalGoalsAgainst
       const denom = (sv ?? 0) + (ga ?? 0)
       const savePct =
-        sv !== null && ga !== null && denom > 0
-          ? ((sv / denom) * 100).toFixed(2)
-          : null
-      const totalShotsAgainst =
-        sv !== null && ga !== null ? sv + ga : r.totalShotsAgainst
+        sv !== null && ga !== null && denom > 0 ? ((sv / denom) * 100).toFixed(2) : null
+      const totalShotsAgainst = sv !== null && ga !== null ? sv + ga : r.totalShotsAgainst
       return { ...r, savePct, totalShotsAgainst }
     })
     .sort((a, b) => {
@@ -277,13 +274,10 @@ export async function getHistoricalGoalieStatsAllModes(gameTitleId: number) {
     const ga = toIntOrNull(r.totalGoalsAgainst)
     const toi = toIntOrNull(r.toiSeconds)
     const savePct =
-      sv !== null && ga !== null && sv + ga > 0
-        ? ((sv / (sv + ga)) * 100).toFixed(2)
-        : null
+      sv !== null && ga !== null && sv + ga > 0 ? ((sv / (sv + ga)) * 100).toFixed(2) : null
     // GAA = goals_against * 3600 / toi_seconds (per 60 minutes). Only meaningful
     // when both fields are populated across all aggregated mode-rows.
-    const gaa =
-      ga !== null && toi !== null && toi > 0 ? ((ga * 3600) / toi).toFixed(2) : null
+    const gaa = ga !== null && toi !== null && toi > 0 ? ((ga * 3600) / toi).toFixed(2) : null
     return {
       playerId: r.playerId,
       gamertag: r.gamertag,

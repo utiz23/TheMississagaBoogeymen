@@ -35,7 +35,7 @@ export type OcrScreenType =
 
 export type OcrTransformStatus = 'pending' | 'success' | 'error'
 export type OcrReviewStatus = 'pending_review' | 'reviewed' | 'rejected'
-export type OcrEntityType = 'match' | 'team' | 'player' | 'event' | 'loadout'
+export type OcrEntityType = 'match' | 'team' | 'player' | 'event' | 'loadout' | 'faceoff_dot'
 export type OcrFieldStatus = 'ok' | 'uncertain' | 'missing'
 
 /**

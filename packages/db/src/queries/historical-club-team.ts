@@ -21,12 +21,7 @@ const PLAYLISTS_6S = [
   'clubs_6_players',
 ] satisfies string[]
 
-const PLAYLISTS_3S = [
-  'eashl_3v3',
-  'clubs_3v3',
-  'threes',
-  'quickplay_3v3',
-] satisfies string[]
+const PLAYLISTS_3S = ['eashl_3v3', 'clubs_3v3', 'threes', 'quickplay_3v3'] satisfies string[]
 
 const ALL_PLAYLISTS: string[] = [...PLAYLISTS_6S, ...PLAYLISTS_3S]
 
@@ -46,10 +41,7 @@ function playlistsForMode(gameMode: GameMode | null): string[] {
  * The row set is ordered by games_played DESC so the most-played modes appear
  * first regardless of playlist label alphabetics.
  */
-export async function getHistoricalClubTeamStats(
-  gameTitleId: number,
-  gameMode: GameMode | null,
-) {
+export async function getHistoricalClubTeamStats(gameTitleId: number, gameMode: GameMode | null) {
   const playlists = playlistsForMode(gameMode)
   return db
     .select({

@@ -4,10 +4,7 @@ import {
   extractGoaliePromotedStats,
   extractSkaterPromotedStats,
 } from './import-historical-reviewed.js'
-import {
-  buildMetricColumns,
-  snakeMetricsToCamel,
-} from './import-club-member-reviewed.js'
+import { buildMetricColumns, snakeMetricsToCamel } from './import-club-member-reviewed.js'
 import { buildColumns } from './import-club-team-reviewed.js'
 
 void test('historical skater extraction promotes required and optional stats', () => {
@@ -73,8 +70,5 @@ void test('club team column builder maps known keys and rejects unknown keys', (
   assert.equal(built.avgTimeOnAttack, '07:06')
   assert.equal(built.shootingPct, '20.00')
 
-  assert.throws(
-    () => buildColumns({ nonsense_metric: 1 }),
-    /Unknown metric key: nonsense_metric/u,
-  )
+  assert.throws(() => buildColumns({ nonsense_metric: 1 }), /Unknown metric key: nonsense_metric/u)
 })

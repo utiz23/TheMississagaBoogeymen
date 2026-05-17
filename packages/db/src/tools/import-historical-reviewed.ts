@@ -202,10 +202,7 @@ async function assertNoDuplicateOpenHistory(
     .select()
     .from(playerGamertagHistory)
     .where(
-      and(
-        eq(playerGamertagHistory.playerId, playerId),
-        isNull(playerGamertagHistory.seenUntil),
-      ),
+      and(eq(playerGamertagHistory.playerId, playerId), isNull(playerGamertagHistory.seenUntil)),
     )
   if (open.length > 1) {
     throw new Error(`Player ${String(playerId)} has multiple open gamertag history rows`)
@@ -220,12 +217,7 @@ async function main() {
     import('../client.js'),
     import('../schema/index.js'),
   ])
-  const {
-    gameTitles,
-    historicalPlayerSeasonStats,
-    playerGamertagHistory,
-    players,
-  } = schema
+  const { gameTitles, historicalPlayerSeasonStats, playerGamertagHistory, players } = schema
 
   try {
     const raw = JSON.parse(await readFile(inputPath, 'utf8')) as unknown

@@ -330,10 +330,10 @@ export const eaMemberSeasonStats = pgTable(
  *   sum(goalsIce) === sum(goalsNet)
  */
 export type ShotLocations = {
-  shotsIce: number[]   // length 16
-  goalsIce: number[]   // length 16
-  shotsNet: number[]   // length 5
-  goalsNet: number[]   // length 5
+  shotsIce: number[] // length 16
+  goalsIce: number[] // length 16
+  shotsNet: number[] // length 5
+  goalsNet: number[] // length 5
 }
 
 export type EaMemberSeasonStats = typeof eaMemberSeasonStats.$inferSelect

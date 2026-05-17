@@ -21,10 +21,7 @@ export type HistoricalClubMemberReviewStatus =
   | 'reviewed'
   | 'rejected'
   | 'needs_identity_match'
-export type HistoricalClubMemberSourceReviewStatus =
-  | 'pending_review'
-  | 'reviewed'
-  | 'rejected'
+export type HistoricalClubMemberSourceReviewStatus = 'pending_review' | 'reviewed' | 'rejected'
 
 /**
  * Club-scoped historical member-leaderboard rows from archived screenshots.
@@ -106,12 +103,7 @@ export const historicalClubMemberSeasonStats = pgTable(
       .where(sql`player_id IS NOT NULL`),
     // Unmatched rows: one per (title, mode, role, lowercased snapshot tag).
     uniqueIndex('hcm_season_stats_unmatched_uniq')
-      .on(
-        table.gameTitleId,
-        table.gameMode,
-        table.roleGroup,
-        sql`lower(gamertag_snapshot)`,
-      )
+      .on(table.gameTitleId, table.gameMode, table.roleGroup, sql`lower(gamertag_snapshot)`)
       .where(sql`player_id IS NULL`),
   ],
 )
@@ -152,11 +144,7 @@ export const historicalClubMemberStatSources = pgTable(
   ],
 )
 
-export type HistoricalClubMemberSeasonStat =
-  typeof historicalClubMemberSeasonStats.$inferSelect
-export type NewHistoricalClubMemberSeasonStat =
-  typeof historicalClubMemberSeasonStats.$inferInsert
-export type HistoricalClubMemberStatSource =
-  typeof historicalClubMemberStatSources.$inferSelect
-export type NewHistoricalClubMemberStatSource =
-  typeof historicalClubMemberStatSources.$inferInsert
+export type HistoricalClubMemberSeasonStat = typeof historicalClubMemberSeasonStats.$inferSelect
+export type NewHistoricalClubMemberSeasonStat = typeof historicalClubMemberSeasonStats.$inferInsert
+export type HistoricalClubMemberStatSource = typeof historicalClubMemberStatSources.$inferSelect
+export type NewHistoricalClubMemberStatSource = typeof historicalClubMemberStatSources.$inferInsert

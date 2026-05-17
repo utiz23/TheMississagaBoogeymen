@@ -1,4 +1,4 @@
-import { and, count, eq, asc, desc, inArray, isNull, isNotNull, sql } from 'drizzle-orm'
+import { and, count, eq, asc, desc, inArray, isNull, isNotNull, lt, sql } from 'drizzle-orm'
 import { db } from '../client.js'
 import {
   eaMemberSeasonStats,
@@ -12,10 +12,7 @@ import {
   players,
 } from '../schema/index.js'
 import type { GameMode } from '../schema/index.js'
-import {
-  getHistoricalSkaterStatsAllModes,
-  getHistoricalGoalieStatsAllModes,
-} from './historical.js'
+import { getHistoricalSkaterStatsAllModes, getHistoricalGoalieStatsAllModes } from './historical.js'
 
 /**
  * All player stats for a single match, joined with the player's current gamertag.
@@ -68,14 +65,82 @@ export async function getPlayerMatchStats(matchId: number) {
       penSaves: playerMatchStats.penSaves,
       penShots: playerMatchStats.penShots,
       pokechecks: playerMatchStats.pokechecks,
+      // Manual profile metadata (nullable — profiles are manually-owned)
+      jerseyNumber: playerProfiles.jerseyNumber,
+      archetype: playerProfiles.archetype,
     })
     .from(playerMatchStats)
     .innerJoin(players, eq(playerMatchStats.playerId, players.id))
+    .leftJoin(playerProfiles, eq(playerProfiles.playerId, players.id))
     .where(eq(playerMatchStats.matchId, matchId))
     .orderBy(
       asc(playerMatchStats.isGoalie), // false < true → skaters before goalies
       desc(playerMatchStats.goals),
       desc(playerMatchStats.assists),
+    )
+}
+
+/**
+ * Raw per-match player stats for the given BGM player IDs across all matches
+ * in the same game title played BEFORE `playedAt`. Used to compute each
+ * player's season-to-date average composite score for the "vs season avg"
+ * delta on the Three Stars cards.
+ *
+ * Returns the same column shape as `getPlayerMatchStats` plus the host
+ * match's `scoreFor` / `scoreAgainst` / `result` so the consumer can compute
+ * the win-bonus on each row using the same logic the per-match score uses.
+ *
+ * Empty `playerIds` returns [] without hitting the database.
+ */
+export async function getSeasonPlayerMatchStats(
+  gameTitleId: number,
+  playedAt: Date,
+  playerIds: number[],
+) {
+  if (playerIds.length === 0) return []
+  return db
+    .select({
+      // Player identity
+      playerId: playerMatchStats.playerId,
+      gamertag: players.gamertag,
+      position: playerMatchStats.position,
+      isGoalie: playerMatchStats.isGoalie,
+      // Skater
+      goals: playerMatchStats.goals,
+      assists: playerMatchStats.assists,
+      plusMinus: playerMatchStats.plusMinus,
+      shots: playerMatchStats.shots,
+      hits: playerMatchStats.hits,
+      pim: playerMatchStats.pim,
+      takeaways: playerMatchStats.takeaways,
+      giveaways: playerMatchStats.giveaways,
+      faceoffWins: playerMatchStats.faceoffWins,
+      faceoffLosses: playerMatchStats.faceoffLosses,
+      blockedShots: playerMatchStats.blockedShots,
+      interceptions: playerMatchStats.interceptions,
+      penaltiesDrawn: playerMatchStats.penaltiesDrawn,
+      // Goalie
+      saves: playerMatchStats.saves,
+      goalsAgainst: playerMatchStats.goalsAgainst,
+      shotsAgainst: playerMatchStats.shotsAgainst,
+      breakawaySaves: playerMatchStats.breakawaySaves,
+      despSaves: playerMatchStats.despSaves,
+      penSaves: playerMatchStats.penSaves,
+      pokechecks: playerMatchStats.pokechecks,
+      // Match-level winner signal (so the same +1 Win Bonus applies)
+      scoreFor: matches.scoreFor,
+      scoreAgainst: matches.scoreAgainst,
+      result: matches.result,
+    })
+    .from(playerMatchStats)
+    .innerJoin(players, eq(playerMatchStats.playerId, players.id))
+    .innerJoin(matches, eq(playerMatchStats.matchId, matches.id))
+    .where(
+      and(
+        inArray(playerMatchStats.playerId, playerIds),
+        eq(matches.gameTitleId, gameTitleId),
+        lt(matches.playedAt, playedAt),
+      ),
     )
 }
 
@@ -844,8 +909,7 @@ export async function getAllTimeRosterLedger(): Promise<AllTimeRosterLedgerRow[]
       // shots_against. Mathematically equivalent (shots = saves + GA) but
       // robust to historical rows that captured GA without shots-against.
       const svDenom = gl.goalieSaves + gl.goalieGoalsAgainst
-      const savePct =
-        svDenom > 0 ? ((gl.goalieSaves / svDenom) * 100).toFixed(2) : null
+      const savePct = svDenom > 0 ? ((gl.goalieSaves / svDenom) * 100).toFixed(2) : null
       return {
         playerId: m.playerId,
         gamertag: m.gamertag,
@@ -925,9 +989,7 @@ export interface PlayerCareerSeasonRow {
  * for this playerId, so titles with no data for the player are excluded
  * automatically. Result is sorted newest title first.
  */
-export async function getPlayerCareerSeasons(
-  playerId: number,
-): Promise<PlayerCareerSeasonRow[]> {
+export async function getPlayerCareerSeasons(playerId: number): Promise<PlayerCareerSeasonRow[]> {
   // 1. Find every distinct game_title_id where this player has data
   //    (either EA stats or reviewed historical stats).
   const titleIdRows = await db
@@ -1356,23 +1418,32 @@ function buildGoalieContribution(
       },
       {
         label: 'Save %',
-        value: normalizedMetric(savePct, current.savePct !== null ? parseFloat(current.savePct) : null) ?? 0,
+        value:
+          normalizedMetric(
+            savePct,
+            current.savePct !== null ? parseFloat(current.savePct) : null,
+          ) ?? 0,
       },
       {
         label: 'GAA',
-        value: normalizedMetric(gaa, current.gaa !== null ? parseFloat(current.gaa) : null, true) ?? 0,
+        value:
+          normalizedMetric(gaa, current.gaa !== null ? parseFloat(current.gaa) : null, true) ?? 0,
       },
       {
         label: 'Saves / GP',
-        value: normalizedMetric(savesPerGp, perGp(current.goalieSaves ?? null, current.goalieGp)) ?? 0,
+        value:
+          normalizedMetric(savesPerGp, perGp(current.goalieSaves ?? null, current.goalieGp)) ?? 0,
       },
       {
         label: 'SO / GP',
-        value: normalizedMetric(shutoutsPerGp, perGp(current.shutouts ?? null, current.goalieGp)) ?? 0,
+        value:
+          normalizedMetric(shutoutsPerGp, perGp(current.shutouts ?? null, current.goalieGp)) ?? 0,
       },
       {
         label: 'Workload',
-        value: normalizedMetric(workloadPerGp, perGp(current.goalieShots ?? null, current.goalieGp)) ?? 0,
+        value:
+          normalizedMetric(workloadPerGp, perGp(current.goalieShots ?? null, current.goalieGp)) ??
+          0,
       },
     ],
   }
@@ -1382,7 +1453,9 @@ function buildGoalieContribution(
  * Profile-focused loader shape for the player page hero, current-season snapshot,
  * contribution wheel, and recent-form block.
  */
-export async function getPlayerProfileOverview(playerId: number): Promise<PlayerProfileOverview | null> {
+export async function getPlayerProfileOverview(
+  playerId: number,
+): Promise<PlayerProfileOverview | null> {
   const [player, eaSeasonRows, allModeCareerRows, recentRows] = await Promise.all([
     getPlayerWithProfile(playerId),
     getPlayerEASeasonStats(playerId),
@@ -1397,7 +1470,9 @@ export async function getPlayerProfileOverview(playerId: number): Promise<Player
   const currentLocalSeason =
     (currentSeasonId !== null
       ? allModeCareerRows.find((row) => row.gameTitleId === currentSeasonId)
-      : null) ?? allModeCareerRows[0] ?? null
+      : null) ??
+    allModeCareerRows[0] ??
+    null
 
   const primaryRole = currentRoleFromSeasonRow(player, currentEaSeason)
   // Secondary role requires meaningful participation: ≥3 GP in current EA season OR ≥10 GP in
