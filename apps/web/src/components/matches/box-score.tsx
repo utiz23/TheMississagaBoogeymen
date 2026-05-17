@@ -3,6 +3,7 @@
 import { useId, useRef, useState, type KeyboardEvent } from 'react'
 import type { MatchPeriodSummaryRow } from '@eanhl/db/queries'
 import { abbreviateTeamName } from '@/lib/format'
+import { formatPeriodLabel } from '@/lib/period-label'
 import { SectionHeader } from '@/components/ui/section-header'
 
 interface BoxScoreProps {
@@ -286,7 +287,7 @@ function BoxScoreTable({
                 scope="col"
                 className="border-b border-zinc-800 bg-surface-raised px-3 py-2 text-center font-condensed text-[10px] font-bold uppercase tracking-[0.20em] text-fg-5"
               >
-                <PeriodHeading label={r.periodLabel} number={r.periodNumber} />
+                <PeriodHeading number={r.periodNumber} />
               </th>
             ))}
             <th
@@ -321,9 +322,11 @@ function BoxScoreTable({
   )
 }
 
-function PeriodHeading({ label, number }: { label: string; number: number }) {
+function PeriodHeading({ number }: { number: number }) {
   const isOt = number >= 4
-  return <span className={isOt ? 'font-black text-fg-1' : ''}>{label}</span>
+  return (
+    <span className={isOt ? 'font-black text-fg-1' : ''}>{formatPeriodLabel(number)}</span>
+  )
 }
 
 function BgmRow({
