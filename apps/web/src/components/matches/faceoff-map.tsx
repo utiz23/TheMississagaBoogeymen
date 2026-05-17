@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react'
 import type { MatchFaceoffDotRow, MatchFaceoffZoneSummaryRow } from '@eanhl/db/queries'
 import { SectionHeader } from '@/components/ui/section-header'
 import { RinkSvg } from '@/components/branding/rink'
+import { abbreviateTeamName } from '@/lib/format'
 import { formatPeriodLabel, periodsToShow } from '@/lib/period-label'
 
 /**
@@ -224,7 +225,7 @@ export function FaceoffMap({
     return { away: !awayHas, home: !homeHas }
   }
 
-  const oppAbbr = abbreviateTeam(opponentLabel)
+  const oppAbbr = abbreviateTeamName(opponentLabel)
   const bgmLabel = 'BGM'
   const homeLabel = bgmIsHome ? bgmLabel : oppAbbr
   const awayLabel = bgmIsHome ? oppAbbr : bgmLabel
@@ -488,14 +489,4 @@ function Stat({ label, value }: { label: string; value: string }) {
       <span className="text-[var(--color-fg-1)]">{value}</span>
     </span>
   )
-}
-
-function abbreviateTeam(label: string): string {
-  const words = label.trim().split(/\s+/).filter(Boolean)
-  if (words.length === 0) return 'OPP'
-  if (words.length === 1) return words[0]!.slice(0, 3).toUpperCase()
-  return words
-    .slice(0, 3)
-    .map((w) => w.charAt(0).toUpperCase())
-    .join('')
 }

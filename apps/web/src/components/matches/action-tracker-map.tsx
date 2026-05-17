@@ -4,6 +4,7 @@ import { createContext, useContext, useEffect, useMemo, useRef, useState } from 
 import type { MatchEventRow } from '@eanhl/db/queries'
 import { formatPeriodLabel, periodsToShow } from '@/lib/period-label'
 import { SectionHeader } from '@/components/ui/section-header'
+import { abbreviateTeamName } from '@/lib/format'
 import { RinkSvg } from '@/components/branding/rink'
 import {
   GoalMarker,
@@ -138,7 +139,7 @@ export function ActionTrackerMap({
 
   if (tracked.length === 0) return null
 
-  const oppAbbrev = abbreviateTeam(opponentLabel)
+  const oppAbbrev = abbreviateTeamName(opponentLabel)
 
   const maxPeriodSeen = useMemo(() => {
     let m = 3
@@ -1406,14 +1407,4 @@ function cleanPeriodLabel(raw: string | null): string {
     .replace(/^\s*(?:RT|LT|RB|LB)\s+/i, '')
     .replace(/\s+(?:RT|LT|RB|LB)\s*$/i, '')
     .trim()
-}
-
-function abbreviateTeam(label: string): string {
-  const words = label.trim().split(/\s+/).filter(Boolean)
-  if (words.length === 0) return 'OPP'
-  if (words.length === 1) return words[0]!.slice(0, 3).toUpperCase()
-  return words
-    .slice(0, 3)
-    .map((w) => w.charAt(0).toUpperCase())
-    .join('')
 }

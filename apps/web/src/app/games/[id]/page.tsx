@@ -228,7 +228,6 @@ export default async function GameDetailPage({ params, searchParams }: Props) {
       <EventTimeline
         events={matchEventRows}
         opponentLabel={match.opponentName}
-        oppTeamAbbr={match.oppTeamAbbr}
         bgmWasHome={match.bgmWasHome}
         bgmColor={match.bgmColorHex}
         oppColor={match.oppColorHex}

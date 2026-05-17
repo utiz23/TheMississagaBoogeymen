@@ -5,6 +5,7 @@ import Link from 'next/link'
 import type { MatchEventRow } from '@eanhl/db/queries'
 import { SectionHeader } from '@/components/ui/section-header'
 import { GoalMarker, PenaltyMarker } from '@/components/branding/event-markers'
+import { abbreviateTeamName } from '@/lib/format'
 import { formatPeriodLabel, periodsToShow } from '@/lib/period-label'
 
 /**
@@ -25,7 +26,6 @@ import { formatPeriodLabel, periodsToShow } from '@/lib/period-label'
 interface EventTimelineProps {
   events: MatchEventRow[]
   opponentLabel: string
-  oppTeamAbbr?: string | null
   bgmWasHome?: boolean | null
   bgmColor?: string | null
   oppColor?: string | null
@@ -58,7 +58,6 @@ function resolveMarkerSide(
 export function EventTimeline({
   events,
   opponentLabel,
-  oppTeamAbbr,
   bgmWasHome,
   bgmColor,
   oppColor,
@@ -67,10 +66,7 @@ export function EventTimeline({
   const [periodFilter, setPeriodFilter] = useState<PeriodFilter>('all')
   const [teamFilter, setTeamFilter] = useState<TeamFilter>('all')
 
-  // Prefer the DB-stored team abbreviation (set by the OCR colour extractor)
-  // over a name-derived fallback so the timeline matches the in-game crest.
-  const oppAbbrev =
-    oppTeamAbbr && oppTeamAbbr.length > 0 ? oppTeamAbbr : abbreviateTeam(opponentLabel)
+  const oppAbbrev = abbreviateTeamName(opponentLabel)
 
   const bgmIsHome = bgmWasHome !== false
   const bgmResolved = bgmColor ?? BGM_FALLBACK
@@ -1066,15 +1062,4 @@ function cleanPeriodLabel(raw: string | null): string {
     .replace(/^\s*(?:RT|LT|RB|LB)\s+/i, '')
     .replace(/\s+(?:RT|LT|RB|LB)\s*$/i, '')
     .trim()
-}
-
-function abbreviateTeam(label: string): string {
-  const words = label.trim().split(/\s+/).filter(Boolean)
-  const first = words[0]
-  if (!first) return 'OPP'
-  if (words.length === 1) return first.slice(0, 3).toUpperCase()
-  return words
-    .slice(0, 3)
-    .map((w) => w.charAt(0).toUpperCase())
-    .join('')
 }
