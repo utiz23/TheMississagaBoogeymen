@@ -323,7 +323,7 @@ function BoxScoreTable({
 
 function PeriodHeading({ label, number }: { label: string; number: number }) {
   const isOt = number >= 4
-  return <span className={isOt ? 'text-otl' : ''}>{label}</span>
+  return <span className={isOt ? 'font-black text-fg-1' : ''}>{label}</span>
 }
 
 function BgmRow({
