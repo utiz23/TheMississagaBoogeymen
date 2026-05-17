@@ -302,6 +302,7 @@ export function ActionTrackerMap({
             hoveredId={hoveredId}
             onHover={setHoveredId}
             onSelect={toggleSelected}
+            onClearSelected={clearSelected}
             bgmIsHome={bgmIsHome}
           />
           <RinkPanel
@@ -869,6 +870,7 @@ function EventList({
   hoveredId,
   onHover,
   onSelect,
+  onClearSelected,
   bgmIsHome,
 }: {
   events: MatchEventRow[]
@@ -878,6 +880,7 @@ function EventList({
   hoveredId: number | null
   onHover: (id: number | null) => void
   onSelect: (id: number) => void
+  onClearSelected: () => void
   bgmIsHome: boolean
 }) {
   const scrollRef = useRef<HTMLDivElement | null>(null)
@@ -944,7 +947,33 @@ function EventList({
           shown
         </span>
       </div>
-      <div ref={scrollRef} className="flex-1 overflow-y-auto">
+      <div
+        ref={scrollRef}
+        className="flex-1 overflow-y-auto focus:outline-none"
+        tabIndex={0}
+        role="listbox"
+        aria-label="Event list — use arrow keys to navigate, Enter to select, Escape to clear"
+        onKeyDown={(e) => {
+          if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+            e.preventDefault()
+            if (sorted.length === 0) return
+            const currentIdx = sorted.findIndex((ev) => ev.id === selectedId)
+            const nextIdx =
+              currentIdx === -1
+                ? e.key === 'ArrowDown'
+                  ? 0
+                  : sorted.length - 1
+                : e.key === 'ArrowDown'
+                  ? Math.min(currentIdx + 1, sorted.length - 1)
+                  : Math.max(currentIdx - 1, 0)
+            const next = sorted[nextIdx]
+            if (next) onSelect(next.id)
+          } else if (e.key === 'Escape') {
+            e.preventDefault()
+            onClearSelected()
+          }
+        }}
+      >
         {showPeriodDividers
           ? byPeriod.map((g) => (
               <div key={g.period}>
