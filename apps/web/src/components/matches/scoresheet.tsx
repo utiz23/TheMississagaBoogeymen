@@ -235,7 +235,7 @@ function SkaterRowEl({ row, isBgm }: { row: SkaterRow; isBgm: boolean }) {
                 ]}
               />
               <DetailGroup
-                title="Faceoffs & Pressure"
+                title="Faceoffs"
                 stats={[
                   ['FO W/L', row.faceoffRecord ?? '—'],
                   [
@@ -244,28 +244,38 @@ function SkaterRowEl({ row, isBgm }: { row: SkaterRow; isBgm: boolean }) {
                       ? `${((row.faceoffWins / (row.faceoffWins + row.faceoffLosses)) * 100).toFixed(0)}%`
                       : '—',
                   ],
-                  ['Takeaways', row.takeaways.toString()],
-                  ['Interceptions', row.interceptions.toString()],
                 ]}
               />
               <DetailGroup
-                title="Special Teams & Discipline"
+                title="Special Teams"
                 stats={[
                   ['PPG', row.ppGoals.toString()],
                   ['SHG', row.shGoals.toString()],
+                ]}
+              />
+              <DetailGroup
+                title="Discipline"
+                stats={[
                   ['PIM', row.pim.toString()],
                   ['Penalties Drawn', row.penaltiesDrawn.toString()],
                 ]}
               />
               <DetailGroup
-                title="Discipline & Turnovers"
+                title="Defense"
                 stats={[
-                  ['Giveaways', row.giveaways.toString()],
                   ['Hits', row.hits.toString()],
                   ['Blocks', row.blocks.toString()],
-                  ['TOI', row.toi ?? '—'],
                 ]}
               />
+              <DetailGroup
+                title="Turnovers"
+                stats={[
+                  ['Takeaways', row.takeaways.toString()],
+                  ['Giveaways', row.giveaways.toString()],
+                  ['Interceptions', row.interceptions.toString()],
+                ]}
+              />
+              <DetailGroup title="Workload" stats={[['TOI', row.toi ?? '—']]} />
             </div>
           </td>
         </tr>
