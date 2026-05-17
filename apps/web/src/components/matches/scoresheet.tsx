@@ -106,8 +106,8 @@ function SkaterTable({ rows, isBgm = false }: { rows: SkaterRow[]; isBgm?: boole
             <Th>PTS</Th>
             <Th>+/-</Th>
             <Th>SOG</Th>
-            <Th>Hits</Th>
-            <Th>Blks</Th>
+            <Th hideOnMobile>Hits</Th>
+            <Th hideOnMobile>Blks</Th>
           </tr>
         </thead>
         <tbody className="divide-y divide-zinc-800/60">
@@ -132,9 +132,18 @@ function SkaterRowEl({ row, isBgm }: { row: SkaterRow; isBgm: boolean }) {
   return (
     <>
       <tr
-        className="group cursor-pointer transition-colors hover:bg-surface-raised"
+        className="group cursor-pointer transition-colors hover:bg-surface-raised focus:bg-surface-raised focus:outline-none"
+        role="button"
+        tabIndex={0}
+        aria-expanded={expanded}
         onClick={() => {
           setExpanded((v) => !v)
+        }}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault()
+            setExpanded((v) => !v)
+          }
         }}
       >
         <td className="py-2 pl-4 pr-2 text-sm">
@@ -175,8 +184,8 @@ function SkaterRowEl({ row, isBgm }: { row: SkaterRow; isBgm: boolean }) {
           <span className={pmColor}>{pmLabel}</span>
         </Td>
         <Td>{row.shots.toString()}</Td>
-        <Td>{row.hits.toString()}</Td>
-        <Td>{row.blocks.toString()}</Td>
+        <Td hideOnMobile>{row.hits.toString()}</Td>
+        <Td hideOnMobile>{row.blocks.toString()}</Td>
       </tr>
       {expanded ? (
         <tr className="bg-zinc-950/30">
