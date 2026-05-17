@@ -38,6 +38,7 @@ import { and, eq, sql as drizzleSql } from 'drizzle-orm'
 import type { PromoterContext } from './index.js'
 import { resolveGamertagToPlayer } from './resolve-identity.js'
 import { findExistingMatchEvent } from './match-events-dedup.js'
+import { resolvePeriod } from './resolve-period.js'
 import type { OcrExtractionField } from '../ocr-cli-runner.js'
 
 interface EventRowJson {
@@ -82,7 +83,7 @@ function remainingToElapsed(clock: string): string | null {
 }
 
 export async function promoteEvents(ctx: PromoterContext): Promise<void> {
-  const { result, extractionId, matchId, db } = ctx
+  const { result, extractionId, matchId, sourcePath, db } = ctx
   if (matchId === null) {
     throw new Error('Events promoter requires --match-id at batch ingest time')
   }
@@ -90,22 +91,50 @@ export async function promoteEvents(ctx: PromoterContext): Promise<void> {
   const gameTitleId = await resolveGameTitleIdFromExtraction(db, extractionId)
   const events = Array.isArray(result.events) ? (result.events as EventRowJson[]) : []
 
+  const stats = {
+    inserted: 0,
+    dedup_refreshed: 0,
+    skipped_unknown_type: 0,
+    skipped_missing_clock: 0,
+    skipped_missing_actor: 0,
+    skipped_bad_period: 0,
+    skipped_bad_clock_format: 0,
+  }
+
   for (const ev of events) {
-    if (ev.event_type === 'unknown') continue
+    if (ev.event_type === 'unknown') {
+      stats.skipped_unknown_type++
+      continue
+    }
     const rawClock = stringValue(ev.clock)
     const actor = stringValue(ev.actor_snapshot)
     const teamAbbr = stringValue(ev.team_abbreviation)
-    if (!rawClock || !actor) continue
-    if (ev.period_number < 1) continue
+    if (!rawClock) {
+      stats.skipped_missing_clock++
+      continue
+    }
+    if (!actor) {
+      stats.skipped_missing_actor++
+      continue
+    }
+    const periodNumber = resolvePeriod(ev.period_number, sourcePath)
+    if (periodNumber < 1) {
+      stats.skipped_bad_period++
+      continue
+    }
 
     // Convert Events-screen "remaining" clock to canonical "elapsed" before
     // dedup so rows from Events screen and Action Tracker for the same goal
     // collapse correctly. Drop the row if conversion fails (malformed clock).
     const clock = remainingToElapsed(rawClock)
-    if (!clock) continue
+    if (!clock) {
+      stats.skipped_bad_clock_format++
+      continue
+    }
 
     const teamSide: 'for' | 'against' =
       teamAbbr && BGM_ABBR_ALIASES.has(teamAbbr.toUpperCase()) ? 'for' : 'against'
+    const eventDetail = stringValue(ev.raw_text) ?? null
 
     // Cross-capture dedup: do we already have this event from a prior OCR run?
     // - team_abbreviation is intentionally LEFT OUT of the dedup key — Action
@@ -118,7 +147,7 @@ export async function promoteEvents(ctx: PromoterContext): Promise<void> {
 
     const existingId = await findExistingMatchEvent(db, {
       matchId,
-      periodNumber: ev.period_number,
+      periodNumber,
       eventType: ev.event_type,
       clock,
       actorPlayerId,
@@ -127,18 +156,28 @@ export async function promoteEvents(ctx: PromoterContext): Promise<void> {
 
     let eventId: number
     if (existingId !== null) {
-      // Cross-screen dedup hit. Refresh the extraction pointer; keep core
-      // fields (including spatial x/y from Phase 5) intact.
+      // Cross-screen dedup hit. Events screen has the authoritative
+      // team_abbreviation ('BM' / '4TH') and a derived team_side, plus often
+      // a cleaner raw_text. Refresh those fields in addition to the
+      // extraction pointer. Leave target_*, spatial (x/y/rink_zone/
+      // position_confidence) untouched — those are written by Action Tracker.
       eventId = existingId
       await db
         .update(matchEvents)
-        .set({ ocrExtractionId: extractionId })
+        .set({
+          ocrExtractionId: extractionId,
+          teamSide,
+          ...(teamAbbr !== null ? { teamAbbreviation: teamAbbr } : {}),
+          ...(eventDetail !== null ? { eventDetail } : {}),
+          ...(actorPlayerId !== null ? { actorPlayerId } : {}),
+        })
         .where(eq(matchEvents.id, eventId))
+      stats.dedup_refreshed++
     } else {
       const newEvent: NewMatchEvent = {
         matchId,
-        periodNumber: ev.period_number,
-        periodLabel: ev.period_label || String(ev.period_number),
+        periodNumber,
+        periodLabel: ev.period_label || String(periodNumber),
         clock,
         eventType: ev.event_type,
         teamSide,
@@ -147,7 +186,7 @@ export async function promoteEvents(ctx: PromoterContext): Promise<void> {
         actorGamertagSnapshot: actor,
         targetPlayerId: null,
         targetGamertagSnapshot: null,
-        eventDetail: stringValue(ev.raw_text) ?? null,
+        eventDetail,
         x: null,
         y: null,
         rinkZone: null,
@@ -161,6 +200,7 @@ export async function promoteEvents(ctx: PromoterContext): Promise<void> {
       })
       if (!inserted) throw new Error('Failed to insert match_events row')
       eventId = inserted.id
+      stats.inserted++
     }
 
     // Always upsert the extension table — Events screen is the only source of
@@ -231,6 +271,8 @@ export async function promoteEvents(ctx: PromoterContext): Promise<void> {
         })
     }
   }
+
+  console.log('[events] stats:', JSON.stringify(stats))
 }
 
 async function resolveGameTitleIdFromExtraction(

@@ -50,9 +50,14 @@ function getFlag(name: string): string | undefined {
 }
 
 interface UnresolvedRow {
-  table: 'match_events.actor' | 'match_events.target' | 'match_goal_events.scorer' |
-    'match_goal_events.primary_assist' | 'match_goal_events.secondary_assist' |
-    'match_penalty_events.culprit' | 'player_loadout_snapshots.player'
+  table:
+    | 'match_events.actor'
+    | 'match_events.target'
+    | 'match_goal_events.scorer'
+    | 'match_goal_events.primary_assist'
+    | 'match_goal_events.secondary_assist'
+    | 'match_penalty_events.culprit'
+    | 'player_loadout_snapshots.player'
   rowId: number
   snapshot: string
 }
@@ -125,7 +130,8 @@ async function listUnresolved(dbConn: AnyDb): Promise<UnresolvedRow[]> {
     .from(playerLoadoutSnapshots)
     .where(isNull(playerLoadoutSnapshots.playerId))
   for (const l of loads) {
-    if (l.snap) rows.push({ table: 'player_loadout_snapshots.player', rowId: l.id, snapshot: l.snap })
+    if (l.snap)
+      rows.push({ table: 'player_loadout_snapshots.player', rowId: l.id, snapshot: l.snap })
   }
 
   return rows
@@ -201,7 +207,11 @@ async function runAuto(dbConn: AnyDb): Promise<AutoStats> {
     if (cached !== undefined) {
       playerId = cached
     } else {
-      const result = await resolveGamertagToPlayer(row.snapshot, 0, dbConn as unknown as Parameters<typeof resolveGamertagToPlayer>[2])
+      const result = await resolveGamertagToPlayer(
+        row.snapshot,
+        0,
+        dbConn as unknown as Parameters<typeof resolveGamertagToPlayer>[2],
+      )
       playerId = result.playerId
       cache.set(row.snapshot, playerId)
       stats.byVia[result.via] = (stats.byVia[result.via] ?? 0) + (result.playerId ? 0 : 0)
@@ -218,8 +228,14 @@ async function runAuto(dbConn: AnyDb): Promise<AutoStats> {
   return stats
 }
 
-async function applyManualMap(dbConn: AnyDb, mapStr: string): Promise<{ aliases: number; rowsUpdated: number }> {
-  const pairs = mapStr.split(',').map((p) => p.trim()).filter(Boolean)
+async function applyManualMap(
+  dbConn: AnyDb,
+  mapStr: string,
+): Promise<{ aliases: number; rowsUpdated: number }> {
+  const pairs = mapStr
+    .split(',')
+    .map((p) => p.trim())
+    .filter(Boolean)
   let aliases = 0
   let rowsUpdated = 0
 
@@ -275,7 +291,9 @@ async function applyManualMap(dbConn: AnyDb, mapStr: string): Promise<{ aliases:
 
     // 2. Update every existing unresolved row whose snapshot normalizes to the same key.
     const allUnresolved = await listUnresolved(dbConn)
-    const matching = allUnresolved.filter((r) => lowercaseNormalized(r.snapshot) === aliasNormalized)
+    const matching = allUnresolved.filter(
+      (r) => lowercaseNormalized(r.snapshot) === aliasNormalized,
+    )
     for (const row of matching) {
       await applyResolutionToRow(dbConn, row, playerId)
       rowsUpdated++
@@ -303,7 +321,9 @@ async function main(): Promise<void> {
       grouped.get(key)!.push({ table: r.table, rowId: r.rowId })
     }
     const sorted = Array.from(grouped.entries()).sort((a, b) => b[1].length - a[1].length)
-    console.log(`[resolve] ${String(rows.length)} unresolved row(s) across ${String(sorted.length)} distinct snapshot(s):`)
+    console.log(
+      `[resolve] ${String(rows.length)} unresolved row(s) across ${String(sorted.length)} distinct snapshot(s):`,
+    )
     for (const [snap, hits] of sorted) {
       const tableCounts = new Map<string, number>()
       for (const h of hits) tableCounts.set(h.table, (tableCounts.get(h.table) ?? 0) + 1)
@@ -318,9 +338,7 @@ async function main(): Promise<void> {
   if (isAuto) {
     console.log('[resolve] running auto-resolver against all unresolved snapshots…')
     const stats = await runAuto(db)
-    console.log(
-      `[resolve] auto: ${String(stats.resolved)}/${String(stats.total)} rows resolved`,
-    )
+    console.log(`[resolve] auto: ${String(stats.resolved)}/${String(stats.total)} rows resolved`)
     for (const [via, count] of Object.entries(stats.byVia)) {
       console.log(`  via ${via}: ${String(count)}`)
     }
@@ -330,7 +348,9 @@ async function main(): Promise<void> {
   if (mapStr) {
     console.log(`[resolve] applying manual map: ${mapStr}`)
     const { aliases, rowsUpdated } = await applyManualMap(db, mapStr)
-    console.log(`[resolve] applied ${String(aliases)} alias(es); ${String(rowsUpdated)} row(s) updated`)
+    console.log(
+      `[resolve] applied ${String(aliases)} alias(es); ${String(rowsUpdated)} row(s) updated`,
+    )
     return
   }
 

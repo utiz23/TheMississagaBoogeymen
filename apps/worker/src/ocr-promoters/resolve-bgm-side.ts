@@ -87,5 +87,8 @@ function normalize(s: string): string {
   // Replace any non-alphanumeric run with a single space, then collapse spaces.
   // This keeps tokens like "BM(A)" → "bm a" so substring checks against
   // multi-word names (e.g. "the boogeymen") behave sensibly.
-  return s.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()
+  return s
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim()
 }

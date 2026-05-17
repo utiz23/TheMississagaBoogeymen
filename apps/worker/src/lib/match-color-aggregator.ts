@@ -54,10 +54,7 @@ export async function aggregateMatchColors(
       status: ocrExtractionFields.status,
     })
     .from(ocrExtractionFields)
-    .innerJoin(
-      ocrExtractions,
-      eq(ocrExtractionFields.extractionId, ocrExtractions.id),
-    )
+    .innerJoin(ocrExtractions, eq(ocrExtractionFields.extractionId, ocrExtractions.id))
     .where(
       and(
         eq(ocrExtractions.matchId, matchId),
@@ -158,6 +155,16 @@ function pickMode(rows: FieldRow[], key: string): string | null {
 }
 
 function pickWeightedMode(rows: FieldRow[], key: string): string | null {
+  // For color samples, the trapezoid colour extractor returns LOTS of
+  // low-confidence samples (the goal light lamps tint both trapezoids red
+  // during scored-on plays) and a SMALL number of high-confidence samples
+  // (clean captures of the actual team-tint UI). Total-weight aggregation
+  // lets the contamination win — so for color fields we score by each
+  // colour's MAXIMUM single-sample confidence, with count as a tiebreak.
+  // Sum-weighted mode is fine for non-color fields (kept as legacy path).
+  if (key.endsWith('_color_hex')) {
+    return pickByMaxConfidence(rows, key)
+  }
   const weights = new Map<string, number>()
   for (const r of rows) {
     if (r.fieldKey !== key) continue
@@ -167,6 +174,76 @@ function pickWeightedMode(rows: FieldRow[], key: string): string | null {
     weights.set(v, (weights.get(v) ?? 0) + w)
   }
   return topByCount(weights)
+}
+
+function pickByMaxConfidence(rows: FieldRow[], key: string): string | null {
+  // For each colour, accumulate (count, sum-of-confidence). Two rules:
+  //
+  //   1. Only TRUE-BLACK grayscales (V ≤ 10, e.g. #000000) count as team
+  //      brand colours. Mid-gray samples (#181818, #1c1c1c) come from
+  //      occluded-trapezoid rink shadow, NOT a team's brand colour — when
+  //      a team genuinely uses black they produce LOTS of #000000 samples
+  //      and only sporadic #181818.
+  //
+  //   2. Score by total weighted confidence (count × max-conf bias). A
+  //      colour that shows up many times across many extractions, even at
+  //      modest per-sample confidence, beats a colour that shows up in a
+  //      handful of bright captures.
+  const stats = new Map<string, { totalConf: number; count: number; maxConf: number }>()
+  for (const r of rows) {
+    if (r.fieldKey !== key) continue
+    const v = valueFromRow(r)
+    if (v === null) continue
+    if (isAmbiguousGray(v)) continue
+    const conf = r.confidence !== null ? parseFloat(r.confidence) : 0.0
+    const cur = stats.get(v) ?? { totalConf: 0, count: 0, maxConf: -Infinity }
+    cur.totalConf += conf
+    cur.count += 1
+    cur.maxConf = Math.max(cur.maxConf, conf)
+    stats.set(v, cur)
+  }
+  if (stats.size === 0) return null
+  let best: string | null = null
+  let bestScore = -Infinity
+  for (const [v, s] of stats) {
+    const score = s.totalConf
+    if (score > bestScore) {
+      best = v
+      bestScore = score
+    }
+  }
+  return best
+}
+
+/**
+ * Reject a hex when it's a mid-gray "occluded trapezoid" artefact rather
+ * than a genuine team colour. The trapezoid sampler returns conf=1.0 for
+ * uniform dark-gray captures (e.g. #181818, #1c1c1c) when the trapezoid
+ * is occluded or transparent, exposing the dark rink background. Those
+ * are NOT team colours; they're noise.
+ *
+ * Pass-through cases:
+ *  - True black (V ≤ 10, e.g. #000000) is a legitimate team brand for
+ *    clubs whose in-game tint is black. Keep.
+ *  - Any color with visible saturation (max-min ≥ 20). Keep.
+ *
+ * Reject only the in-between band: low-saturation pixels with max channel
+ * 11–60 — the rink-shadow band the sampler should have rejected upstream
+ * but doesn't.
+ */
+function isAmbiguousGray(hex: string): boolean {
+  if (!hex.startsWith('#') || hex.length !== 7) return false
+  const r = parseInt(hex.slice(1, 3), 16)
+  const g = parseInt(hex.slice(3, 5), 16)
+  const b = parseInt(hex.slice(5, 7), 16)
+  if ([r, g, b].some((n) => Number.isNaN(n))) return false
+  const maxC = Math.max(r, g, b)
+  const minC = Math.min(r, g, b)
+  const saturated = maxC - minC >= 20
+  if (saturated) return false
+  // Grayscale: keep only true blacks (uniform-dark trapezoid is a real
+  // team-brand-black signal); reject the mid-gray band.
+  return maxC > 10 && maxC <= 60
 }
 
 function topByCount(counts: Map<string, number>): string | null {

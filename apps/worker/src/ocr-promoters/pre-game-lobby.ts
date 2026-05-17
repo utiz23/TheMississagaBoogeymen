@@ -121,9 +121,10 @@ interface OcrFieldShape {
   confidence?: number | null
 }
 
-function parseMeasurements(
-  f: OcrFieldShape | undefined,
-): { height: string | null; weight: number | null } {
+function parseMeasurements(f: OcrFieldShape | undefined): {
+  height: string | null
+  weight: number | null
+} {
   if (!f) return { height: null, weight: null }
   const raw = (f.value as string | undefined) ?? f.raw_text ?? ''
   if (!raw) return { height: null, weight: null }

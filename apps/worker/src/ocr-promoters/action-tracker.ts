@@ -9,8 +9,10 @@
  * Action Tracker rows do NOT carry actor team abbreviation directly (the BM/4TH
  * indicator is on the rink map, not the list panel). We infer team_side from
  * the actor gamertag's resolved player_id when possible: BGM player → 'for',
- * else 'against'. If the actor can't be resolved, default to 'for' and flag
- * for review (the row will land at review_status='pending_review' anyway).
+ * else 'against'. If both actor AND target are unresolved we default to
+ * 'against' and log a warning; the row stays at review_status='pending_review'
+ * (which hides it from the UI) until the Events-screen promoter merges in the
+ * authoritative team_abbreviation and overwrites team_side on dedup hit.
  */
 
 import {
@@ -24,6 +26,7 @@ import { and, eq, sql as drizzleSql } from 'drizzle-orm'
 import type { PromoterContext } from './index.js'
 import { resolveGamertagToPlayer } from './resolve-identity.js'
 import { findExistingMatchEvent } from './match-events-dedup.js'
+import { resolvePeriod } from './resolve-period.js'
 import type { OcrExtractionField } from '../ocr-cli-runner.js'
 
 interface ActionTrackerEventJson {
@@ -35,31 +38,6 @@ interface ActionTrackerEventJson {
   target_snapshot: OcrExtractionField
   relation: OcrExtractionField
   clock: OcrExtractionField
-}
-
-/**
- * Derive period number from the capture's parent folder name.
- *
- * The recordings are organised on disk as `…/1st-Period-Events/`,
- * `…/2nd-Period-Events/`, `…/3rd-Period-Events/`, `…/OT-Events/`. When OCR
- * mis-parses the period_label (e.g. picks up extra garbage like "11.1" at the
- * end and the regex bails out, leaving period_number = -1), the folder name
- * is the authoritative fallback. Mirrors the same fallback used in
- * `tools/game_ocr/scripts/inventory_consensus_match.py:period_from_path`.
- */
-function periodFromPath(sourcePath: string): number | null {
-  const parts = sourcePath.replace(/\\/g, '/').replace(/\/+$/, '').split('/')
-  const folder = (parts.length >= 2 ? parts[parts.length - 2] ?? '' : '').toLowerCase()
-  if (folder.includes('1st')) return 1
-  if (folder.includes('2nd')) return 2
-  if (folder.includes('3rd')) return 3
-  if (folder.includes('ot')) return 4
-  return null
-}
-
-function resolvePeriod(eventPeriod: number, sourcePath: string): number {
-  if (eventPeriod >= 1) return eventPeriod
-  return periodFromPath(sourcePath) ?? eventPeriod
 }
 
 /**
@@ -105,14 +83,38 @@ export async function promoteActionTracker(ctx: PromoterContext): Promise<void> 
   const gameTitleId = await resolveGameTitleIdFromExtraction(db, extractionId)
   const events = Array.isArray(result.events) ? (result.events as ActionTrackerEventJson[]) : []
 
+  const stats = {
+    inserted: 0,
+    dedup_refreshed: 0,
+    skipped_unknown_type: 0,
+    skipped_missing_clock: 0,
+    skipped_missing_actor: 0,
+    skipped_bad_period: 0,
+    team_side_defaulted: 0,
+    penalty_placeholder: 0,
+  }
+
   for (const ev of events) {
     const eventType = resolveEventType(ev.event_type, stringValue(ev.raw_text) ?? '')
-    if (eventType === 'unknown') continue
+    if (eventType === 'unknown') {
+      stats.skipped_unknown_type++
+      continue
+    }
     const clock = stringValue(ev.clock)
     const actor = stringValue(ev.actor_snapshot)
-    if (!clock || !actor) continue
+    if (!clock) {
+      stats.skipped_missing_clock++
+      continue
+    }
+    if (!actor) {
+      stats.skipped_missing_actor++
+      continue
+    }
     const periodNumber = resolvePeriod(ev.period_number, sourcePath)
-    if (periodNumber < 1) continue
+    if (periodNumber < 1) {
+      stats.skipped_bad_period++
+      continue
+    }
 
     // Resolve actor + target → players.id. team_side prefers actor → BGM,
     // and falls back to target → BGM (meaning opp did something to a BGM
@@ -126,6 +128,19 @@ export async function promoteActionTracker(ctx: PromoterContext): Promise<void> 
       : { playerId: null }
     const teamSide: 'for' | 'against' =
       actorPlayerId !== null ? 'for' : targetPlayerId !== null ? 'against' : 'against'
+
+    // Both ends unresolved → team_side defaults to 'against' arbitrarily.
+    // The Events promoter (when it later runs) will overwrite team_side from
+    // the authoritative team_abbreviation chip; until then, log so the
+    // brittle default is observable in worker output.
+    if (actorPlayerId === null && targetPlayerId === null) {
+      stats.team_side_defaulted++
+      console.warn(
+        `[action-tracker] team_side defaulted to 'against' — both actor (${actor}) and target (${target ?? '<none>'}) unresolved (match=${String(matchId)}, period=${String(periodNumber)}, clock=${clock})`,
+      )
+    }
+
+    const eventDetail = stringValue(ev.raw_text) ?? null
 
     // Cross-screen dedup via findExistingMatchEvent: prefers resolved
     // player_id when available; falls back to Levenshtein-1 against
@@ -144,10 +159,20 @@ export async function promoteActionTracker(ctx: PromoterContext): Promise<void> 
     })
 
     if (existingId !== null) {
+      // Cross-screen dedup hit. Action Tracker is the only source of
+      // target_* (Events screen doesn't carry it), so backfill those when
+      // present. Do NOT clobber team_abbreviation (Events screen owns it)
+      // or team_side (Events screen has the authoritative chip), and do
+      // NOT touch spatial — that's the Phase 5 update block below.
       await db
         .update(matchEvents)
-        .set({ ocrExtractionId: extractionId })
+        .set({
+          ocrExtractionId: extractionId,
+          ...(targetPlayerId !== null ? { targetPlayerId } : {}),
+          ...(target !== null ? { targetGamertagSnapshot: target } : {}),
+        })
         .where(eq(matchEvents.id, existingId))
+      stats.dedup_refreshed++
       continue
     }
 
@@ -163,7 +188,7 @@ export async function promoteActionTracker(ctx: PromoterContext): Promise<void> 
       actorGamertagSnapshot: actor,
       targetPlayerId,
       targetGamertagSnapshot: target,
-      eventDetail: stringValue(ev.raw_text) ?? null,
+      eventDetail,
       x: null,
       y: null,
       rinkZone: null,
@@ -176,6 +201,7 @@ export async function promoteActionTracker(ctx: PromoterContext): Promise<void> 
       id: matchEvents.id,
     })
     if (!inserted) throw new Error('Failed to insert match_events row')
+    stats.inserted++
 
     if (eventType === 'goal') {
       await db.insert(matchGoalEvents).values({
@@ -189,6 +215,14 @@ export async function promoteActionTracker(ctx: PromoterContext): Promise<void> 
         secondaryAssistSnapshot: null,
       })
     } else if (eventType === 'penalty') {
+      // Action Tracker doesn't carry infraction text — the Events screen is
+      // the only source. Insert with placeholders and log so the row's need
+      // for an Events-screen merge is observable; the existing review_status
+      // ('pending_review') already hides it from the UI until merged.
+      stats.penalty_placeholder++
+      console.warn(
+        `[action-tracker] penalty inserted with placeholder infraction='(unknown)' — awaits Events-screen merge (match=${String(matchId)}, period=${String(periodNumber)}, clock=${clock}, actor=${actor})`,
+      )
       const penaltyRow: NewMatchPenaltyEvent = {
         eventId: inserted.id,
         culpritPlayerId: actorPlayerId,
@@ -239,12 +273,7 @@ export async function promoteActionTracker(ctx: PromoterContext): Promise<void> 
   const selectedEventType = selectedEvent
     ? resolveEventType(selectedEvent.event_type, stringValue(selectedEvent.raw_text) ?? '')
     : 'unknown'
-  if (
-    selectedX != null &&
-    selectedY != null &&
-    selectedEvent &&
-    selectedEventType !== 'unknown'
-  ) {
+  if (selectedX != null && selectedY != null && selectedEvent && selectedEventType !== 'unknown') {
     const clock = stringValue(selectedEvent.clock)
     const actor = stringValue(selectedEvent.actor_snapshot)
     const selectedPeriod = resolvePeriod(selectedEvent.period_number, sourcePath)
@@ -278,6 +307,8 @@ export async function promoteActionTracker(ctx: PromoterContext): Promise<void> 
       }
     }
   }
+
+  console.log('[action-tracker] stats:', JSON.stringify(stats))
 }
 
 async function resolveGameTitleIdFromExtraction(

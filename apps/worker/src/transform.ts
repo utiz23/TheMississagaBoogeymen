@@ -251,8 +251,7 @@ function transformPlayer(playerKey: string, raw: EaPlayerMatchStats): TransformP
 
       // Rank context — rankpoints can come as "--" when unranked.
       rankPoints: parseRankPoints(raw.rankpoints),
-      rankTierAssetId:
-        typeof raw.ranktierassetid === 'string' ? raw.ranktierassetid : null,
+      rankTierAssetId: typeof raw.ranktierassetid === 'string' ? raw.ranktierassetid : null,
       playerLevel: parseIntMaybe(raw.playerLevel),
       playerClass: parseIntMaybe(raw.class),
       posSorted: parseIntMaybe(raw.posSorted),
@@ -335,8 +334,7 @@ function transformOpponentPlayer(
     ratingDefense: parseRatingStr(raw.ratingDefense),
     ratingTeamplay: parseRatingStr(raw.ratingTeamplay),
     rankPoints: parseRankPoints(raw.rankpoints),
-    rankTierAssetId:
-      typeof raw.ranktierassetid === 'string' ? raw.ranktierassetid : null,
+    rankTierAssetId: typeof raw.ranktierassetid === 'string' ? raw.ranktierassetid : null,
     playerLevel: parseIntMaybe(raw.playerLevel),
     playerClass: parseIntMaybe(raw.class),
     posSorted: parseIntMaybe(raw.posSorted),
@@ -488,8 +486,7 @@ export function transformMatch(
   // ── Player stats ─────────────────────────────────────────────────────────────
   const allPlayers = match.players ?? {}
   const ourPlayers: Record<string, EaPlayerMatchStats> = allPlayers[ourClubId] ?? {}
-  const opponentPlayersRaw: Record<string, EaPlayerMatchStats> =
-    allPlayers[opponentClubId] ?? {}
+  const opponentPlayersRaw: Record<string, EaPlayerMatchStats> = allPlayers[opponentClubId] ?? {}
 
   const players: TransformPlayerResult[] = Object.entries(ourPlayers).map(([key, raw]) =>
     transformPlayer(key, raw),
@@ -525,10 +522,8 @@ export function transformMatch(
       ppGoals: ppGoalsRaw,
       ppOpportunities: ppOpportunitiesRaw,
       // Opponent-side aggregates
-      penaltyMinutesAgainst:
-        penaltyMinutesAgainstRaw > 0 ? penaltyMinutesAgainstRaw : null,
-      timeOnAttackAgainst:
-        timeOnAttackAgainstRaw > 0 ? timeOnAttackAgainstRaw : null,
+      penaltyMinutesAgainst: penaltyMinutesAgainstRaw > 0 ? penaltyMinutesAgainstRaw : null,
+      timeOnAttackAgainst: timeOnAttackAgainstRaw > 0 ? timeOnAttackAgainstRaw : null,
       passAttemptsAgainst: passAttemptsAgainstRaw,
       passCompletionsAgainst: passCompletionsAgainstRaw,
       ppGoalsAgainst: ppGoalsAgainstRaw,

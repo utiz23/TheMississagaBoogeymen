@@ -24,6 +24,19 @@ import { resolveGamertagToPlayer } from './resolve-identity.js'
 import { normalizeXFactor } from '../lib/normalize-xfactor.js'
 import type { OcrExtractionField } from '../ocr-cli-runner.js'
 
+/**
+ * Junk gamertags that the OCR pipeline regularly emits as false positives —
+ * section headers (`AWAY`/`HOME`), the sentinel for "no gamertag field"
+ * (`(unknown)`/`?`), and single-character letter-segmentation noise.
+ */
+const JUNK_GAMERTAG_TOKENS = new Set(['away', 'home', 'cpu', '?', '(unknown)'])
+
+function isJunkGamertag(tag: string): boolean {
+  const trimmed = tag.trim()
+  if (trimmed.length <= 1) return true
+  return JUNK_GAMERTAG_TOKENS.has(trimmed.toLowerCase())
+}
+
 export async function promoteLoadout(ctx: PromoterContext): Promise<void> {
   const { result, extractionId, matchId, db } = ctx
 
@@ -31,6 +44,27 @@ export async function promoteLoadout(ctx: PromoterContext): Promise<void> {
 
   const gamertagField = result.gamertag as OcrExtractionField | undefined
   const gamertagSnapshot = stringValue(gamertagField) ?? '(unknown)'
+
+  // Junk-row gate: when the gamertag is OCR noise (AWAY/HOME/CPU/single-char)
+  // AND the snapshot carries no other useful fields, the row is almost
+  // certainly a false positive. Skip the insert so the section never has to
+  // render it. We still allow junk-gamertag rows through when they contain
+  // a real build / jersey / x-factor — the consolidator can vote a better
+  // gamertag in that case.
+  if (isJunkGamertag(gamertagSnapshot)) {
+    const buildClassField = result.build_class as OcrExtractionField | undefined
+    const playerNumberField = result.player_number as OcrExtractionField | undefined
+    const xFactors = Array.isArray(result.x_factors) ? result.x_factors : []
+    const hasBuild = stringValue(buildClassField) !== null
+    const hasNumber = numericValue(playerNumberField) !== null
+    const hasXFactors = xFactors.length > 0
+    if (!hasBuild && !hasNumber && !hasXFactors) {
+      console.log(
+        `[promote/loadout] skip junk row: extractionId=${String(extractionId)} gamertag="${gamertagSnapshot}"`,
+      )
+      return
+    }
+  }
 
   // Post-2026-05 parser shape:
   //   player_name      → short in-game persona "E. Wanhg" (MISSING on loadout view)
@@ -89,7 +123,11 @@ export async function promoteLoadout(ctx: PromoterContext): Promise<void> {
       handedness: stringValue(handField),
       playerLevelRaw: stringValue(levelField, { preferRaw: true }),
       playerLevelNumber: numericValue(levelField),
-      platform: stringValue(platformField),
+      // Platform: strict whitelist gate. Historically the OCR misaligned
+      // ROI dropped gamertag strings into `player_platform`; the read-time
+      // renderer also enforces this list. Any non-platform value becomes
+      // NULL on the snapshot row.
+      platform: whitelistPlatform(stringValue(platformField)),
     })
     .returning()
   if (!snap) throw new Error('failed to insert player_loadout_snapshots row')
@@ -145,7 +183,10 @@ export async function promoteLoadout(ctx: PromoterContext): Promise<void> {
   const attrs = result.attributes as
     | Record<string, { values?: Record<string, OcrExtractionField> }>
     | undefined
-  const attrDeltas = (result.attribute_deltas ?? {}) as Record<string, OcrExtractionField | undefined>
+  const attrDeltas = (result.attribute_deltas ?? {}) as Record<
+    string,
+    OcrExtractionField | undefined
+  >
   if (attrs && typeof attrs === 'object') {
     for (const group of Object.values(attrs)) {
       const values = group.values ?? {}
@@ -220,4 +261,20 @@ function parseWeightLbs(f: OcrExtractionField | undefined): number | null {
   const m = /(\d+)/.exec(text)
   if (!m?.[1]) return null
   return Number.parseInt(m[1], 10)
+}
+
+const PLATFORM_WHITELIST: ReadonlySet<string> = new Set([
+  'xbox',
+  'playstation',
+  'ps5',
+  'ps4',
+  'pc',
+  'switch',
+])
+
+function whitelistPlatform(raw: string | null): string | null {
+  if (!raw) return null
+  const key = raw.trim().toLowerCase()
+  if (!key) return null
+  return PLATFORM_WHITELIST.has(key) ? raw.trim() : null
 }

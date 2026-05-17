@@ -52,8 +52,7 @@ function parseArgs(): CliArgs {
   if (!Number.isFinite(gameTitleId)) throw new Error(`Invalid --game-title-id: ${gameTitleIdStr}`)
 
   const matchIdStr = getFlag('match-id')
-  const matchId =
-    matchIdStr && matchIdStr !== 'null' ? Number.parseInt(matchIdStr, 10) : null
+  const matchId = matchIdStr && matchIdStr !== 'null' ? Number.parseInt(matchIdStr, 10) : null
   if (matchId !== null && !Number.isFinite(matchId)) {
     throw new Error(`Invalid --match-id: ${String(matchIdStr)}`)
   }

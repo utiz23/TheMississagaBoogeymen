@@ -49,9 +49,7 @@ async function main(): Promise<void> {
   )
 
   // Show top unmatched so the operator can grow the alias map.
-  const topUnmatched = [...unmatched.entries()]
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 20)
+  const topUnmatched = [...unmatched.entries()].sort((a, b) => b[1] - a[1]).slice(0, 20)
   for (const [raw, count] of topUnmatched) {
     console.log(`  [unmatched] ${JSON.stringify(raw)} × ${count}`)
   }

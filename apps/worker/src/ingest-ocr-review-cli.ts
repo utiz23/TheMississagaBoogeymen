@@ -110,7 +110,10 @@ async function setExtractionStatus(
   return counts
 }
 
-async function autoApproveBatch(batchId: number, confidenceThreshold: number): Promise<{
+async function autoApproveBatch(
+  batchId: number,
+  confidenceThreshold: number,
+): Promise<{
   candidates: number
   approved: CascadeCounts
 }> {
@@ -122,10 +125,7 @@ async function autoApproveBatch(batchId: number, confidenceThreshold: number): P
         eq(ocrExtractions.batchId, batchId),
         eq(ocrExtractions.reviewStatus, 'pending_review'),
         eq(ocrExtractions.transformStatus, 'success'),
-        gte(
-          ocrExtractions.overallConfidence,
-          confidenceThreshold.toFixed(4) as unknown as string,
-        ),
+        gte(ocrExtractions.overallConfidence, confidenceThreshold.toFixed(4) as unknown as string),
       ),
     )
   const ids = candidates.map((c) => c.id)
@@ -254,8 +254,12 @@ async function main(): Promise<void> {
 
   console.log('Usage:')
   console.log('  pnpm --filter worker ingest-ocr-review status')
-  console.log('  pnpm --filter worker ingest-ocr-review --extraction <id> [--status reviewed|rejected]')
-  console.log('  pnpm --filter worker ingest-ocr-review --batch <id> --auto-approve [--confidence-threshold 0.85]')
+  console.log(
+    '  pnpm --filter worker ingest-ocr-review --extraction <id> [--status reviewed|rejected]',
+  )
+  console.log(
+    '  pnpm --filter worker ingest-ocr-review --batch <id> --auto-approve [--confidence-threshold 0.85]',
+  )
   console.log('  pnpm --filter worker ingest-ocr-review --batch <id> --status reviewed|rejected')
 }
 

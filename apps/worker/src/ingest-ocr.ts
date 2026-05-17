@@ -79,7 +79,13 @@ export async function ingestOcrBatch(input: IngestOcrBatchInput): Promise<Ingest
         }`,
       )
     }
-    return { batchId: null, processed: cli.results.length, succeeded: 0, failed: 0, skippedDryRun: true }
+    return {
+      batchId: null,
+      processed: cli.results.length,
+      succeeded: 0,
+      failed: 0,
+      skippedDryRun: true,
+    }
   }
 
   // Insert (or upsert, when keyed by video_sha256) the batch row up
@@ -319,7 +325,7 @@ export function walkExtractionFields(
       walkPostGameNetChart(result, extractionId, rows)
       break
     case 'post_game_faceoff_map':
-      walkPostGameNetChart(result, extractionId, rows)
+      walkPostGameFaceoffMap(result, extractionId, rows)
       break
     case 'post_game_events':
       walkPostGameEvents(result, extractionId, rows)
@@ -342,12 +348,7 @@ function walkPostGameActionTracker(
   // home_color_hex / away_color_hex are per-frame team-colour samples taken
   // from the trapezoid ROIs behind each goal; the aggregator collapses them
   // across all action_tracker captures for a match.
-  for (const key of [
-    'filter_label',
-    'period_label',
-    'home_color_hex',
-    'away_color_hex',
-  ]) {
+  for (const key of ['filter_label', 'period_label', 'home_color_hex', 'away_color_hex']) {
     const v = result[key]
     if (isExtractionField(v)) rows.push(fieldRow(extractionId, 'match', null, key, v))
   }
@@ -417,6 +418,8 @@ function walkPostGameNetChart(
     'home_label',
     'away_team_abbr',
     'home_team_abbr',
+    'away_header_total_shots',
+    'home_header_total_shots',
   ]) {
     const v = result[key]
     if (isExtractionField(v)) rows.push(fieldRow(extractionId, 'match', null, key, v))
@@ -427,6 +430,51 @@ function walkPostGameNetChart(
     for (const [statKey, statField] of Object.entries(block)) {
       if (isExtractionField(statField)) {
         rows.push(fieldRow(extractionId, 'team', sideKey, statKey, statField))
+      }
+    }
+  }
+}
+
+function walkPostGameFaceoffMap(
+  result: OcrResult,
+  extractionId: number,
+  rows: NewOcrExtractionField[],
+): void {
+  // Match-level: period + team labels + parsed abbreviations (the match-color
+  // aggregator and the promoter both read these by field_key).
+  for (const key of [
+    'period_label',
+    'away_label',
+    'home_label',
+    'away_team_abbr',
+    'home_team_abbr',
+  ]) {
+    const v = result[key]
+    if (isExtractionField(v)) rows.push(fieldRow(extractionId, 'match', null, key, v))
+  }
+  // Per-side text-panel fields: overall_win_pct + verbatim zone strings +
+  // parsed zone wins/total ints.
+  for (const sideKey of ['away', 'home'] as const) {
+    const block = result[sideKey] as Record<string, unknown> | undefined
+    if (!block || typeof block !== 'object') continue
+    for (const [statKey, statField] of Object.entries(block)) {
+      if (isExtractionField(statField)) {
+        rows.push(fieldRow(extractionId, 'team', sideKey, statKey, statField))
+      }
+    }
+  }
+  // Per-dot wins: entity_type='faceoff_dot', entity_key=<dot_id>,
+  // field_key='away_wins'|'home_wins'.
+  const dots = result.dots
+  if (dots && typeof dots === 'object') {
+    for (const [dotId, dot] of Object.entries(dots as Record<string, unknown>)) {
+      if (!dot || typeof dot !== 'object') continue
+      const d = dot as Record<string, unknown>
+      if (isExtractionField(d.away_wins)) {
+        rows.push(fieldRow(extractionId, 'faceoff_dot', dotId, 'away_wins', d.away_wins))
+      }
+      if (isExtractionField(d.home_wins)) {
+        rows.push(fieldRow(extractionId, 'faceoff_dot', dotId, 'home_wins', d.home_wins))
       }
     }
   }
@@ -501,7 +549,9 @@ function walkPreGameLobby(
     ['our_team', 'for'],
     ['opponent_team', 'against'],
   ] as const) {
-    const team = result[teamKey] as { roster?: Array<{ slot_index?: number; fields?: Record<string, unknown> }> } | undefined
+    const team = result[teamKey] as
+      | { roster?: Array<{ slot_index?: number; fields?: Record<string, unknown> }> }
+      | undefined
     if (!team || !Array.isArray(team.roster)) continue
     for (const slot of team.roster) {
       const slotKey = String(slot.slot_index ?? '')

@@ -30,7 +30,7 @@
  */
 
 import { matchEvents } from '@eanhl/db'
-import { and, eq, isNull, sql as drizzleSql } from 'drizzle-orm'
+import { and, eq, isNull } from 'drizzle-orm'
 import type { PromoterDb } from './index.js'
 import { levenshtein } from './resolve-identity.js'
 
@@ -64,7 +64,7 @@ export async function findExistingMatchEvent(
           eq(matchEvents.periodNumber, key.periodNumber),
           eq(matchEvents.eventType, key.eventType),
           eq(matchEvents.source, 'ocr'),
-          drizzleSql`coalesce(${matchEvents.clock}, '') = ${key.clock}`,
+          eq(matchEvents.clock, key.clock),
           eq(matchEvents.actorPlayerId, key.actorPlayerId),
         ),
       )
@@ -83,7 +83,7 @@ export async function findExistingMatchEvent(
         eq(matchEvents.periodNumber, key.periodNumber),
         eq(matchEvents.eventType, key.eventType),
         eq(matchEvents.source, 'ocr'),
-        drizzleSql`coalesce(${matchEvents.clock}, '') = ${key.clock}`,
+        eq(matchEvents.clock, key.clock),
         isNull(matchEvents.actorPlayerId),
       ),
     )

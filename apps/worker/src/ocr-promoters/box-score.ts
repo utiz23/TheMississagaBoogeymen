@@ -14,10 +14,7 @@
  * Skips the synthetic TOT/FINAL row (period_number = -1).
  */
 
-import {
-  matchPeriodSummaries,
-  type NewMatchPeriodSummary,
-} from '@eanhl/db'
+import { matchPeriodSummaries, type NewMatchPeriodSummary } from '@eanhl/db'
 import { and, eq } from 'drizzle-orm'
 import type { PromoterContext } from './index.js'
 import { resolveBgmSide } from './resolve-bgm-side.js'
@@ -46,6 +43,12 @@ export async function promoteBoxScore(ctx: PromoterContext): Promise<void> {
   const sides = await resolveBgmSide(matchId, awayTeamName, homeTeamName, db)
 
   const periods = Array.isArray(result.periods) ? (result.periods as BoxScorePeriodCell[]) : []
+  if (periods.length === 0) {
+    throw new Error(
+      `Box Score ${statKind} extraction produced zero period cells — ` +
+        `likely an ROI miss or non-box-score screen. Review extraction ${extractionId}.`,
+    )
+  }
   for (const cell of periods) {
     // Skip synthetic TOT row — it's an aggregate, not a real period.
     if (cell.period_number < 1) continue

@@ -82,7 +82,17 @@ export async function runOcrCli(input: RunOcrCliInput): Promise<RunOcrCliOutput>
     const exitCode = await new Promise<number>((resolveExit, reject) => {
       const child = spawn(
         pythonBin,
-        ['-m', 'game_ocr.cli', 'extract', '--screen', screen, '--input', inputPath, '--output', outputPath],
+        [
+          '-m',
+          'game_ocr.cli',
+          'extract',
+          '--screen',
+          screen,
+          '--input',
+          inputPath,
+          '--output',
+          outputPath,
+        ],
         {
           cwd: GAME_OCR_DIR,
           env: {
