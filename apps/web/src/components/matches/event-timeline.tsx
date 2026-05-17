@@ -329,14 +329,20 @@ function PeriodDivider({
         <span className="font-condensed text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--color-fg-3)]">
           <b className="font-black tabular-nums text-[var(--color-fg-1)]">{String(goals)}</b>{' '}
           {goals === 1 ? 'Goal' : 'Goals'}
-          {' · '}
-          <b className="font-black tabular-nums text-[var(--color-fg-1)]">
-            {String(penalties)}
-          </b>{' '}
-          Pen
-          {' · '}
-          <b className="font-black tabular-nums text-[var(--color-fg-1)]">{String(total)}</b>{' '}
-          {total === 1 ? 'event' : 'events'}
+          {penalties > 0 ? (
+            <>
+              {' · '}
+              <b className="font-black tabular-nums text-[var(--color-fg-1)]">
+                {String(penalties)}
+              </b>{' '}
+              Pen
+              {' · '}
+              <b className="font-black tabular-nums text-[var(--color-fg-1)]">
+                {String(total)}
+              </b>{' '}
+              {total === 1 ? 'event' : 'events'}
+            </>
+          ) : null}
         </span>
       </span>
     </div>
