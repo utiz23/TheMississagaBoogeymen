@@ -19,12 +19,12 @@ Stats/analytics website for EASHL club **#19224** (platform: common-gen5). EA's 
 
 ### Components
 
-| Component | Role | Technology |
-|---|---|---|
-| **Web App** (`apps/web`) | Frontend + API routes | Next.js 15 (App Router) |
-| **Worker** (`apps/worker`) | Polling, ingestion, aggregation | Standalone Node.js process |
-| **Database** | System of record | PostgreSQL 16 (local Docker) |
-| **Shared DB** (`packages/db`) | Schema, migrations, queries | Drizzle ORM |
+| Component                            | Role                            | Technology                    |
+| ------------------------------------ | ------------------------------- | ----------------------------- |
+| **Web App** (`apps/web`)             | Frontend + API routes           | Next.js 15 (App Router)       |
+| **Worker** (`apps/worker`)           | Polling, ingestion, aggregation | Standalone Node.js process    |
+| **Database**                         | System of record                | PostgreSQL 16 (local Docker)  |
+| **Shared DB** (`packages/db`)        | Schema, migrations, queries     | Drizzle ORM                   |
 | **EA Client** (`packages/ea-client`) | EA API wrapper + retry/throttle | Standalone TypeScript package |
 
 No separate API service — Next.js Server Components query `packages/db` directly. API routes exist only for client-side interactivity.
@@ -168,31 +168,39 @@ eanhl-team-website/
 ### Core Tables
 
 **`game_titles`** — NHL 25, NHL 26, NHL 27...
+
 - `id` (serial PK), `slug` (unique), `name`, `ea_platform`, `ea_club_id`, `api_base_url`, `is_active`, `launched_at`
 
 **`content_seasons`** — In-game battlepass seasons (secondary metadata)
+
 - `id` (serial PK), `game_title_id` (FK), `season_number`, `name`, `started_at`, `ended_at`, `is_current`
 
 **`raw_match_payloads`** — Immutable archive (store-first)
+
 - `id` (bigserial PK), `ea_match_id` (text), `game_title_id` (FK), `match_type`, `source_endpoint`, `payload` (jsonb), `payload_hash`, `transform_status` (`pending|success|error`), `transform_error`, `ingested_at`
 - UNIQUE(`game_title_id`, `ea_match_id`)
 
 **`matches`** — One row per game played
+
 - `id` (bigserial PK), `ea_match_id` (text), `game_title_id` (FK), `content_season_id` (FK nullable), `opponent_club_id`, `opponent_name`, `played_at`, `result` (`WIN|LOSS|OTL|DNF`), `game_mode` (`6s|3s`|null), `ea_game_type_code`
 - Score/team stats: `score_for`, `score_against`, `shots_for`, `shots_against`, `hits_for`, `hits_against`, `faceoff_pct`, `time_on_attack`, `time_on_attack_against`, `penalty_minutes`
 - PP stats: `pass_attempts`, `pass_completions`, `pp_goals`, `pp_opportunities`
 - UNIQUE(`game_title_id`, `ea_match_id`)
 
 **`players`** — Player identity anchor
+
 - `id` (serial PK), `ea_id` (text, nullable — blazeId absent in prod payloads), `gamertag`, `position`, `first_seen_at`, `last_seen_at`
 
 **`player_profiles`** — Extended player metadata
+
 - `id` (serial PK), `player_id` (FK unique), `club_role_label` (text nullable — e.g. "Captain")
 
 **`player_gamertag_history`** — Name change tracking
+
 - `id` (serial PK), `player_id` (FK), `gamertag`, `seen_from`, `seen_until` (nullable)
 
 **`player_match_stats`** — Per-game individual stats
+
 - `id` (bigserial PK), `player_id` (FK), `match_id` (FK bigint), `position`, `is_goalie`, `player_dnf`
 - Skater: `goals`, `assists`, `plus_minus`, `shots`, `hits`, `pim`, `takeaways`, `giveaways`, `faceoff_wins`, `faceoff_losses`, `pass_attempts`, `pass_completions`, `shot_attempts`, `blocked_shots`, `pp_goals`, `sh_goals`, `interceptions`, `penalties_drawn`, `possession`, `deflections`, `saucer_passes`
 - Goalie (nullable): `saves`, `goals_against`, `shots_against`, `breakaway_saves`, `breakaway_shots`, `desp_saves`, `pen_saves`, `pen_shots`, `pokechecks`
@@ -202,17 +210,20 @@ eanhl-team-website/
 ### Aggregate Tables
 
 **`player_game_title_stats`** — Precomputed rollups per player × game title × game mode
+
 - `id` (serial PK), `player_id` (FK), `game_title_id` (FK), `game_mode` (nullable)
 - Skater aggs: `games_played`, `skater_gp`, `goals`, `assists`, `points`, `plus_minus`, `shots`, `hits`, `pim`, `takeaways`, `giveaways`, `faceoff_pct`, `pass_pct`, `shot_attempts`, `toi_seconds`, `skater_toi_seconds`
 - Goalie aggs: `goalie_gp`, `goalie_toi_seconds`, `wins`, `losses`, `otl`, `save_pct`, `gaa`, `shutouts`, `total_saves`, `total_shots_against`, `total_goals_against`
 - UNIQUE(`player_id`, `game_title_id`, COALESCE(`game_mode`, '')) — functional index handles NULL
 
 **`club_game_title_stats`** — Club rollups per game title × game mode
+
 - `id` (serial PK), `game_title_id` (FK), `game_mode` (nullable)
 - `games_played`, `wins`, `losses`, `otl`, `goals_for`, `goals_against`, `shots_per_game`, `hits_per_game`, `faceoff_pct`, `pass_pct`
 - UNIQUE(`game_title_id`, COALESCE(`game_mode`, ''))
 
 **`historical_player_season_stats`** — Reviewed player-card legacy season aggregates (NHL 22–25)
+
 - One row per (game title × player × game mode × position scope × role group). Populated from OCR-driven extraction of legacy stat-table videos; no match-level data exists for these titles.
 - `id` (bigserial PK), `game_title_id` (FK to inactive `game_titles` row), `player_id` (FK), `game_mode` (`'6s'|'3s'`), `position_scope`, `role_group` (`'skater'|'goalie'`), `gamertag_snapshot`
 - Typed skater + goalie columns (mirroring `player_game_title_stats` shape) plus `stats_json` jsonb for the raw OCR record.
@@ -221,6 +232,7 @@ eanhl-team-website/
 - Only `review_status='reviewed'` rows are surfaced by `getHistoricalSkaterStats` / `getHistoricalGoalieStats`.
 
 **`historical_club_member_season_stats`** — Reviewed club-member legacy totals (NHL 22–25)
+
 - One row per (game title × game mode × role group × player) from `CLUBS -> MEMBERS` screenshots.
 - Club-scoped truth: what this player did for BGM in that title/mode.
 - Includes club-member-only fields not present in the player-card source:
@@ -229,10 +241,12 @@ eanhl-team-website/
 - Unmatched unique index: `UNIQUE(game_title_id, game_mode, role_group, lower(gamertag_snapshot))` where `player_id IS NULL`
 
 **`historical_club_member_stat_sources`** — Append-only provenance log
+
 - One row per imported reviewed club-member record per import pass.
 - Source PNG lineage is preserved in the merged review artifacts on disk; DB source rows point at the reviewed merged artifact JSON.
 
 **`historical_club_team_stats`** — Club/team historical totals from `STATS -> CLUB STATS` screenshots
+
 - One row per `(game_title_id, playlist)` — e.g. `eashl_6v6`, `eashl_3v3`, `clubs_6v6`, `threes`, `6_player_full_team`
 - Wide nullable club-total schema covering:
   - record / W-L (`games_played`, `wins`, `losses`, `otl`, `win_loss_streak`, `did_not_finish_pct`, `dnf_wins`, `division_titles`, `club_finals_gp`)
@@ -253,16 +267,20 @@ eanhl-team-website/
 ### Supplementary Tables (EA-sourced, worker-written)
 
 **`ea_member_season_stats`** — EA's official season totals per player (all-modes combined)
+
 - Written by `ingest-members.ts` each cycle. Used as the "All" mode source on `/stats` and home page.
 - Also used for player resolution: creates `players` + `player_profiles` rows for members not yet in any locally ingested match.
 
 **`club_seasonal_stats`** — EA official all-time club record
+
 - One upsert row per game title. `wins`, `losses`, `otl`, `gamesPlayed`, `rankingPoints`, `goals`, `goalsAgainst`.
 
 **`club_season_rank`** — Current season division standing
+
 - One upsert row per game title. Season-specific W/L/OTL (NOT all-time), points, projected points, division info, promotion/hold thresholds. Field names UNVERIFIED (sourced from HAR).
 
 **`opponent_clubs`** — Opponent crest metadata
+
 - One row per unique EA club ID encountered. `crest_asset_id` (nullable), `use_base_asset`. "Fetched but no customKit" is a valid terminal state.
 
 ---
@@ -279,18 +297,18 @@ eanhl-team-website/
 
 ## 5. Data Source Split
 
-| Context | Source | Label |
-|---|---|---|
-| Active title, `gameMode === null` | `ea_member_season_stats` | "EA season totals" |
-| Active title, `gameMode === '6s'` or `'3s'` | `player_game_title_stats` | "local tracked 6s/3s" |
-| Legacy title, `/roster` | `historical_club_member_season_stats` | "Club-scoped totals" |
-| Legacy title, `/stats` club section | `historical_club_member_season_stats` | "Club-scoped totals" |
-| Legacy title, `/stats` player-card section | `historical_player_season_stats` (reviewed) | "Player-card season totals" |
+| Context                                                  | Source                                                                                                          | Label                       |
+| -------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- | --------------------------- |
+| Active title, `gameMode === null`                        | `ea_member_season_stats`                                                                                        | "EA season totals"          |
+| Active title, `gameMode === '6s'` or `'3s'`              | `player_game_title_stats`                                                                                       | "local tracked 6s/3s"       |
+| Legacy title, `/roster`                                  | `historical_club_member_season_stats`                                                                           | "Club-scoped totals"        |
+| Legacy title, `/stats` club section                      | `historical_club_member_season_stats`                                                                           | "Club-scoped totals"        |
+| Legacy title, `/stats` player-card section               | `historical_player_season_stats` (reviewed)                                                                     | "Player-card season totals" |
 | Legacy title, `gameMode === null` on player-card section | `historical_player_season_stats` (reviewed, summed across 6s+3s; rate fields recomputed from underlying counts) | "Player-card season totals" |
-| Player profile — Career Stats | `player_game_title_stats` | (per game title) |
-| Player profile — EA Season Totals | `ea_member_season_stats` | "EA Season Totals" |
-| Club record (all modes) | `club_seasonal_stats` | "EA official" |
-| Club record (mode-filtered) | `club_game_title_stats` | "local · {mode} only" |
+| Player profile — Career Stats                            | `player_game_title_stats`                                                                                       | (per game title)            |
+| Player profile — EA Season Totals                        | `ea_member_season_stats`                                                                                        | "EA Season Totals"          |
+| Club record (all modes)                                  | `club_seasonal_stats`                                                                                           | "EA official"               |
+| Club record (mode-filtered)                              | `club_game_title_stats`                                                                                         | "local · {mode} only"       |
 
 **Rule:** Never blend sources silently. EA totals ≠ local aggregates ≠ player-card legacy aggregates ≠ club-member legacy aggregates.
 
@@ -342,13 +360,13 @@ pnpm --filter worker reprocess --dry-run # preview without writing
 
 ## 7. Failure Modes
 
-| Failure | Response |
-|---|---|
-| EA 429 / 5xx | Per-endpoint exponential backoff (3 retries, 2^n * 500ms + jitter) |
-| EA schema change | Raw payload saved; transform_status='error'; fix code, reprocess |
-| EA API permanently offline | System becomes read-only archive; all historical data preserved |
-| Worker crash | Docker `restart: always` auto-restarts; manual `ingest-now` for recovery |
-| Data gap (worker down during active play, >5 games passed) | Permanent loss; no EA replay; gap logged in ingestion_log |
+| Failure                                                    | Response                                                                 |
+| ---------------------------------------------------------- | ------------------------------------------------------------------------ |
+| EA 429 / 5xx                                               | Per-endpoint exponential backoff (3 retries, 2^n \* 500ms + jitter)      |
+| EA schema change                                           | Raw payload saved; transform_status='error'; fix code, reprocess         |
+| EA API permanently offline                                 | System becomes read-only archive; all historical data preserved          |
+| Worker crash                                               | Docker `restart: always` auto-restarts; manual `ingest-now` for recovery |
+| Data gap (worker down during active play, >5 games passed) | Permanent loss; no EA replay; gap logged in ingestion_log                |
 
 ---
 
@@ -356,12 +374,12 @@ pnpm --filter worker reprocess --dry-run # preview without writing
 
 No Redis. No CDN.
 
-| Data | Strategy | TTL |
-|---|---|---|
-| Club/player aggregates | `revalidate` | 300s |
-| Match list | `revalidate` | 300s |
-| Match detail | `revalidate = false` | Indefinite (immutable once written) |
-| Player/roster | `revalidate` | 3600s |
+| Data                   | Strategy             | TTL                                 |
+| ---------------------- | -------------------- | ----------------------------------- |
+| Club/player aggregates | `revalidate`         | 300s                                |
+| Match list             | `revalidate`         | 300s                                |
+| Match detail           | `revalidate = false` | Indefinite (immutable once written) |
+| Player/roster          | `revalidate`         | 3600s                               |
 
 Worker-side: 1s inter-request delay, exponential backoff on 429/5xx, no concurrent requests within a cycle.
 
@@ -381,19 +399,19 @@ Worker-side: 1s inter-request delay, exponential backoff on 429/5xx, no concurre
    - `5` OT/SO WIN (still 2pts), `6` OT/SO LOSS → **`OTL`**
    - `10` DNF, `16385` (`0x4001`) WIN by opponent forfeit
    - Unknown codes fall back to score-derived WIN/LOSS so future variants don't break ingestion.
-   Full investigation: [`research/investigations/ea-overtime-detection.md`](../research/investigations/ea-overtime-detection.md).
+     Full investigation: [`research/investigations/ea-overtime-detection.md`](../research/investigations/ea-overtime-detection.md).
 
 ---
 
 ## 10. Key Design Tradeoffs
 
-| Topic | Decision | Reasoning |
-|---|---|---|
-| Services | 2 (web + worker), no separate API | API extracted only if second consumer appears |
-| Primary grouping | Game titles, not in-game seasons | Cross-game career stats are the core requirement |
-| Deployment | Docker Compose on home PC | Self-hosted, no cloud costs |
-| Worker scheduler | Non-overlapping async loop | Prevents concurrent ingestion runs |
-| Aggregate unique index | Functional index on COALESCE(game_mode, '') | Standard UNIQUE fails on NULL; this handles NULL=all-modes correctly |
-| EA record source | `club_seasonal_stats` (not local count) | Local match count ≠ real record; EA official record fetched separately |
-| Match PK | Surrogate bigserial (not EA match ID) | Match IDs may not be globally unique across game titles |
-| Goalie stats | Nullable columns in `player_match_stats` | Simpler than table inheritance for a small-roster system |
+| Topic                  | Decision                                    | Reasoning                                                              |
+| ---------------------- | ------------------------------------------- | ---------------------------------------------------------------------- |
+| Services               | 2 (web + worker), no separate API           | API extracted only if second consumer appears                          |
+| Primary grouping       | Game titles, not in-game seasons            | Cross-game career stats are the core requirement                       |
+| Deployment             | Docker Compose on home PC                   | Self-hosted, no cloud costs                                            |
+| Worker scheduler       | Non-overlapping async loop                  | Prevents concurrent ingestion runs                                     |
+| Aggregate unique index | Functional index on COALESCE(game_mode, '') | Standard UNIQUE fails on NULL; this handles NULL=all-modes correctly   |
+| EA record source       | `club_seasonal_stats` (not local count)     | Local match count ≠ real record; EA official record fetched separately |
+| Match PK               | Surrogate bigserial (not EA match ID)       | Match IDs may not be globally unique across game titles                |
+| Goalie stats           | Nullable columns in `player_match_stats`    | Simpler than table inheritance for a small-roster system               |

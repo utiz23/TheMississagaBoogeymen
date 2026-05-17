@@ -29,26 +29,26 @@ Per-screen Pass-2 sample rates (`tools/video_ingest/video_ingest/configs/nhl26.y
 
 ### Key files added / modified in this rewrite
 
-| New | What it does |
-|---|---|
-| `tools/video_ingest/` (entire package) | Two-pass orchestrator |
-| `tools/video_ingest/video_ingest/{pts, pass1_classify, pass2_extract, dispatch, orchestrator, cli, version_detect, gpu_libs}.py` | Core modules |
-| `tools/video_ingest/video_ingest/configs/nhl26.yaml` | Per-version sample rates + N-window knobs |
-| `tools/video_ingest/tests/fixtures/match-250-clip.{mkv,segments.json}` | 60s labeled fixture for unit + e2e |
-| `tools/game_ocr/game_ocr/classifier.py` | Hybrid HSV-cosine + anchor-OCR + OOD classifier |
-| `tools/game_ocr/game_ocr/configs/classifier/nhl26.yaml` | 8-class config calibrated from `ScreenShots/` + 3 multi-opponent extras |
-| `tools/game_ocr/scripts/calibrate_classifier.py` | Regenerates `nhl26.yaml` from labeled fixtures |
-| `tools/game_ocr/calibration/extras/` | Multi-opponent lobby samples (broadens centroid beyond canonical fixture's TRIPORT CHUGS palette) |
-| `packages/db/migrations/0035_legal_iron_lad.sql` | `video_sha256` col + partial unique index |
+| New                                                                                                                              | What it does                                                                                      |
+| -------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| `tools/video_ingest/` (entire package)                                                                                           | Two-pass orchestrator                                                                             |
+| `tools/video_ingest/video_ingest/{pts, pass1_classify, pass2_extract, dispatch, orchestrator, cli, version_detect, gpu_libs}.py` | Core modules                                                                                      |
+| `tools/video_ingest/video_ingest/configs/nhl26.yaml`                                                                             | Per-version sample rates + N-window knobs                                                         |
+| `tools/video_ingest/tests/fixtures/match-250-clip.{mkv,segments.json}`                                                           | 60s labeled fixture for unit + e2e                                                                |
+| `tools/game_ocr/game_ocr/classifier.py`                                                                                          | Hybrid HSV-cosine + anchor-OCR + OOD classifier                                                   |
+| `tools/game_ocr/game_ocr/configs/classifier/nhl26.yaml`                                                                          | 8-class config calibrated from `ScreenShots/` + 3 multi-opponent extras                           |
+| `tools/game_ocr/scripts/calibrate_classifier.py`                                                                                 | Regenerates `nhl26.yaml` from labeled fixtures                                                    |
+| `tools/game_ocr/calibration/extras/`                                                                                             | Multi-opponent lobby samples (broadens centroid beyond canonical fixture's TRIPORT CHUGS palette) |
+| `packages/db/migrations/0035_legal_iron_lad.sql`                                                                                 | `video_sha256` col + partial unique index                                                         |
 
-| Modified | Why |
-|---|---|
-| `apps/worker/src/ingest-ocr.ts` | `videoSha256` field + idempotent upsert |
-| `apps/worker/src/ingest-ocr-cli.ts` | `--video-sha256` flag with hex validation |
-| `tools/game_ocr/game_ocr/cli.py` | New `classify` subcommand (NDJSON output) |
-| `tools/game_ocr/game_ocr/ocr.py` | `RapidOCRBackend(use_gpu=True)` kwarg |
-| `tools/game_ocr/scripts/inventory_consensus_match.py` | argparse + `--cluster-radius-px` + density-aware default |
-| `tools/game_ocr/scripts/cutoff_event_recovery.py` | Filename regex also matches `NNNNN.png` (video-pipeline output) |
+| Modified                                              | Why                                                             |
+| ----------------------------------------------------- | --------------------------------------------------------------- |
+| `apps/worker/src/ingest-ocr.ts`                       | `videoSha256` field + idempotent upsert                         |
+| `apps/worker/src/ingest-ocr-cli.ts`                   | `--video-sha256` flag with hex validation                       |
+| `tools/game_ocr/game_ocr/cli.py`                      | New `classify` subcommand (NDJSON output)                       |
+| `tools/game_ocr/game_ocr/ocr.py`                      | `RapidOCRBackend(use_gpu=True)` kwarg                           |
+| `tools/game_ocr/scripts/inventory_consensus_match.py` | argparse + `--cluster-radius-px` + density-aware default        |
+| `tools/game_ocr/scripts/cutoff_event_recovery.py`     | Filename regex also matches `NNNNN.png` (video-pipeline output) |
 
 ### Run the full pipeline
 
@@ -81,6 +81,17 @@ Then run tier-2/3/4 manually (orchestrator does not auto-trigger them) — see e
 4. **NHL 27 anchors** are stubbed in `version_detect.VERSION_ANCHORS` but empty. First NHL 27 capture → populate the tuple → version-detect picks it up.
 5. **`post_game_events` extractor doesn't run from this pipeline** for match 250 (user viewed the screen only during intermissions, which are correctly rejected). Penalty extraction relies on events tab — if a future video has the user viewing events post-game, those frames will be picked up and processed.
 
+### Review findings on record — 2026-05-16
+
+Video extraction code review surfaced four concrete issues that are not yet fixed:
+
+1. **`video_ingest` CLI import order is broken.** `tools/video_ingest/video_ingest/cli.py` inserts `tools/game_ocr` into `sys.path` only after importing `video_ingest.orchestrator`, but `orchestrator -> pass1_classify` imports `game_ocr` at module import time. In a clean interpreter where `game_ocr` is not already installed, the CLI dies before startup with `ModuleNotFoundError: No module named 'game_ocr'`.
+2. **Cache invalidation is wrong for Pass 1 and Pass 2.** `segments.json` cache reuse is keyed only by video SHA path, not by requested `--version` or classifier config; `pass2/` cache reuse is keyed only by the directory being non-empty, ignoring sample rates, padding, and extract-screen config. Re-running the same video with a different version or changed config can silently reuse stale results.
+3. **Phase-specific CLI commands do not match their contract.** `classify-only` still runs the full orchestrator and can perform Pass 2 extraction on first run; `extract-only` does not actually require cached `segments.json` and will fall back to re-running Pass 1 if the cache is missing.
+4. **Cached Pass 2 metadata is reconstructed incorrectly.** Fresh Pass 2 results record padded extraction windows, but the cache-hit path rebuilds `Pass2Result.start_seconds/end_seconds` from raw segment bounds. That makes `pass2_manifest.json` and dispatch notes differ between fresh and cached runs, which is a bad audit trail for a supposedly reproducible pipeline.
+
+Additional note: `tools/video_ingest/tests/` currently contains only fixture files (`match-250-clip.mkv` and labeled `segments.json`) and no actual test coverage for these cache, CLI-contract, or timestamp-path behaviors.
+
 ---
 
 **Prior phase context** (still applicable to existing manual-screenshot workflow):
@@ -91,19 +102,21 @@ Then run tier-2/3/4 manually (orchestrator does not auto-trigger them) — see e
 
 ### Four-tier OCR position pipeline
 
-| Tier | Tool | Signal | Match 250 contribution |
-|---|---|---|---|
-| 1 | Action-tracker promoter spatial UPDATE (`apps/worker/src/ocr-promoters/action-tracker.ts:225-265`) | Yellow rink marker + clean white-underline detection | 64 events positioned |
-| 2 | `tools/game_ocr/scripts/inventory_consensus_match.py` | Cross-frame consensus of non-yellow markers + greedy `(actor, clock)` matching | +2 events |
-| 3 | `tools/game_ocr/scripts/cutoff_event_recovery.py` | Orphan yellow markers reconciled against orphan events via panel-anchor + next-chronological lookup | +5 events |
-| 4 | `tools/game_ocr/scripts/clock_phantom_check.py` (NEW) | Clock-OCR phantom detection: same `(period, type, actor_player_id)` bucket + clock substring/Levenshtein-1 + position asymmetry → `DELETE` the unpositioned phantom | −1 phantom row |
+| Tier | Tool                                                                                               | Signal                                                                                                                                                              | Match 250 contribution |
+| ---- | -------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------- |
+| 1    | Action-tracker promoter spatial UPDATE (`apps/worker/src/ocr-promoters/action-tracker.ts:225-265`) | Yellow rink marker + clean white-underline detection                                                                                                                | 64 events positioned   |
+| 2    | `tools/game_ocr/scripts/inventory_consensus_match.py`                                              | Cross-frame consensus of non-yellow markers + greedy `(actor, clock)` matching                                                                                      | +2 events              |
+| 3    | `tools/game_ocr/scripts/cutoff_event_recovery.py`                                                  | Orphan yellow markers reconciled against orphan events via panel-anchor + next-chronological lookup                                                                 | +5 events              |
+| 4    | `tools/game_ocr/scripts/clock_phantom_check.py` (NEW)                                              | Clock-OCR phantom detection: same `(period, type, actor_player_id)` bucket + clock substring/Levenshtein-1 + position asymmetry → `DELETE` the unpositioned phantom | −1 phantom row         |
 
 All tiers are idempotent. Tier 3 has three sub-cases:
+
 - **Sub-case B** — panel last plottable row is itself an orphan event → match it (underline rendered just below the OCR'd actor band).
 - **Sub-case A** — anchor is positioned; predict the chronologically-next event after the anchor (older real time = higher clock value = lower index in descending-clock-sorted list).
 - **Sub-case C** — predicted event already positioned; emit consistency-check log only (distance < 5 ft = OK).
 
 ### Other fixes shipped this session
+
 - **Fuzzy actor dedup in promoter** (`apps/worker/src/ocr-promoters/match-events-dedup.ts`, NEW). Replaces the prior exact-string actor dedup in both `action-tracker.ts` and `events.ts`. Two strategies in sequence:
   1. **Resolved-player path** — when `resolveGamertagToPlayer` succeeded (handles BGM-side typos via existing Levenshtein-1 cascade), dedup on `actor_player_id`. Catches SIlKY ↔ SILKY etc.
   2. **Unresolved-actor fuzzy fallback** — for opps (not in `players` / `player_display_aliases`), load same-bucket rows with null `actor_player_id` and Levenshtein-1 compare actor snapshots in TS. Catches WILOE ↔ WILDE and fOEWS ↔ TOEWS.
@@ -118,6 +131,7 @@ All tiers are idempotent. Tier 3 has three sub-cases:
 - **OCR errors: 0**. All match-page sections live on `/games/250`.
 
 **Reproducible procedure for match 250 (clean-slate, no manual cleanups):**
+
 ```bash
 # 1. Optional clean slate — DELETE all match 250 OCR plottable events:
 docker exec eanhl-team-website-db-1 psql -U eanhl -d eanhl -c "
@@ -161,13 +175,344 @@ docker exec eanhl-team-website-db-1 psql -U eanhl -d eanhl -tAc \
 End state: **71 canonical rows, all 71 positioned = 100% coverage**, no manual interventions.
 
 **Open items, ranked:**
+
 1. **Partial-row underline detector improvement** (~1.5 hr, OPTIONAL) — expose `peak_y` and a `state ∈ {matched, peak_no_row_match, no_peak}` from `detect_selected_row_index` in `tools/game_ocr/game_ocr/spatial.py:679-777`. Lets `cutoff_event_recovery.py` distinguish sub-case A vs B without relying on the panel-anchor heuristic.
 2. **Hit-vs-shot discrimination at 8 vertices** (deferred). After the noisy-square-fallback fix, hit ratio 1.31 (was 1.03) but ~90 markers currently classified as "shot" (8-vert circ≥0.85) are likely noisy hits with rounded corners. Distinguishing them without per-marker ground-truth labels is hard. Revisit if a future match shows obviously wrong per-player hit attribution.
 3. **Auto opp-color detection** (~45 min). Match 250 is BGM-away + opp-white; future matches will break.
 4. **Overlap watershed** (~2 hr). Stacked markers at one on-ice spot. Not present in 250 but real games will have it.
 5. **Clock-phantom generalisations** (deferred) — period-bounds check (clock > 20:00 in p1-3 = impossible), OT-lower-bound (clock < game-end-clock impossible), unresolved-actor phantom detection. None of these classes currently have known instances; ship if/when a future match surfaces one.
 
-**Last updated:** 2026-05-12 (shape-classifier hit recall shipped; hit ratio 1.03 → 1.31; pipeline still 71/71)
+**Last updated:** 2026-05-16 (Net-Chart OCR pipeline hardening: period sentinel + multi-frame merge + ALL PERIODS aggregate from header — see session summary below)
+
+---
+
+## Session Summary — 2026-05-16 (Pre-Game Loadout OCR — Attribute + X-Factor completion)
+
+### What was done
+
+Five-phase pass on the `player_loadout_view` OCR pipeline so every match-250 BGM anchor has full 23-attribute coverage + accurate Δ deltas, X-Factor tiers are non-null on every slot, and the previously-broken BGM LD / RD anchors point at the correct source PNGs. Shipped as plan-quirky-reddy.
+
+| Phase | Change                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| ----- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1     | Extended `validate_loadout_v2.py` to also diff per-attribute Δ values, using the user-provided 23-row MrHomicide baseline. Captured pre-tune output to `/tmp/ocr-baseline-pre.txt`. DB inventory showed only DuhPope/HenryTheBobJr/MuttButt/RAIDERSG7/XZ4RKY/shadowassault20/silkyjoker85 had 23 attrs; MrHomicide had 0 (anchor was a lobby capture), JoeyFlopfish + Stick Menace had 5 (wrong/stale source PNGs).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| 2     | Tuned [tools/game_ocr/game_ocr/parsers.py](tools/game_ocr/game_ocr/parsers.py) `_parse_loadout_attributes` + `_extract_cell`. Two specific fixes: (a) **`_infer_delta_sign_from_color()`** samples the chip's background hue when OCR captured a delta digit without a sign — red chip → negative, green chip → positive. (b) **`_rescan_delta_chip()`** falls back to a tight ROI re-OCR (4× bicubic upscale) when the full-frame scan missed the delta entirely. Both fixes pushed MrHomicide from 18/22 to 22/22 delta coverage. All 93 existing pytest tests still pass.                                                                                                                                                                                                                                                                                                                                                                                     |
+| 3     | Skipped — `_classify_xfactor_tier()` already returns correct tiers on every May-10 source PNG. The earlier "null tier" symptom was a data-side artifact of stale anchors, fully resolved by Phase 4's re-ingest.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| 4     | `pg_dump` snapshot to `/tmp/loadout-backup-20260516-2116.sql`. Re-ingested all 11 May-10 PNGs via `pnpm --filter worker ingest-ocr --batch-dir research/OCR-SS/Pre-Game-Loadouts --screen player_loadout_view --game-title-id 1 --match-id 250` (batch 62, 11/11 succeeded). Updated [consolidate-loadouts-cli.ts](apps/worker/src/consolidate-loadouts-cli.ts) `pickAnchor`: (i) normalize gamertags via `normTag()` so `StickMenace` and `Stick Menace` resolve to the same identity; (ii) when multiple candidates match the dominant gamertag, prefer the **most recent** snapshot (highest id) instead of the field-count winner — older snapshots inherit field values from prior consolidator runs (`player_name_persona`, etc.), which artificially inflated their non-null count and locked them in as anchors. Critical subfix: cast `id` to `Number` before comparison; node-postgres returns bigint as string so `"1446" < "509"` lexicographically. |
+| 5     | Updated `match-250-benchmark.test.ts` — restored BGM RD `xFactorsCanonical: ['Elite_Edges', 'Tape_to_Tape', 'Stick_Em_Up']` assertion now that the OCR pipeline produces it. Both benchmark tests pass; 29 unit tests pass. Live `/games/250` opens every BGM drill-down with all 23 attribute rows populated, green tip on every boosted attribute, X-Factor PNG icons on every card (no more dot fallbacks for LD/RD).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+
+### Verified
+
+- `python3 scripts/validate_loadout_v2.py` → MrHomicide 23/23 R, 22/22 Δ matches per-pixel screen content; overall 94.4% across all 5 BGM captures (remaining "diffs" are display-form mismatches: `Tage Thompson - PowerForward` vs `TAGETHOMPSON-PWF`, `Cole Caufield - Sniper` vs `COLECAUFIELD-SNP`, etc., not OCR errors).
+- DB inventory post-consolidation: all 10 reviewed anchors have 23 attributes. Stick Menace + silkyjoker85 have 0 deltas because their actual loadout-view screens show no Δ chips (verified via cropped screenshot — both players have base ratings only).
+- All 30 X-Factor rows (10 anchors × 3 slots) have non-null `tier` and canonical names matching V2 truth.
+- `pnpm --filter @eanhl/worker test` → 29 pass.
+- `node --test apps/worker/dist/__tests__/match-250-benchmark.test.js` → 2 pass.
+
+### Note on the user-provided MrHomicide baseline
+
+The user's manual Tenacity column (hand_eye 94 / strength 90 / durability 80 / shot_blocking 68) appears to be Tactics-column values copy-pasted by mistake. The actual screen shows 92 / 83 / 76 / 75 — verified visually by cropping the source PNG at the Tenacity column. The OCR is correct; the baseline numbers in that block were inadvertently duplicated. All other 19 user-provided baseline values match the screen and the parser output.
+
+### Files added / modified this session
+
+| Modified                                                | Why                                                                                                                                                              |
+| ------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `tools/game_ocr/game_ocr/parsers.py`                    | `_parse_loadout_attributes`/`_extract_cell` accept `image`; new helpers `_infer_delta_sign_from_color()` + `_rescan_delta_chip()` + lazy `_shared_ocr_backend()` |
+| `tools/game_ocr/scripts/validate_loadout_v2.py`         | Extended baseline to include 23 Δ rows for MrHomicide; harness now diffs deltas                                                                                  |
+| `apps/worker/src/consolidate-loadouts-cli.ts`           | `pickAnchor` normalizes gamertags + prefers newest snapshot among matches; `Number()` cast around id comparison                                                  |
+| `apps/worker/src/__tests__/match-250-benchmark.test.ts` | Restored BGM RD canonical X-Factor list                                                                                                                          |
+
+### Data-side rollout
+
+```bash
+docker exec eanhl-team-website-db-1 pg_dump -U eanhl -d eanhl \
+  -t player_loadout_snapshots -t player_loadout_attributes -t player_loadout_x_factors \
+  --data-only > /tmp/loadout-backup-20260516-2116.sql
+
+pnpm --filter worker ingest-ocr \
+  --batch-dir /home/michal/projects/eanhl-team-website/research/OCR-SS/Pre-Game-Loadouts \
+  --screen player_loadout_view --game-title-id 1 --match-id 250
+
+pnpm --filter worker consolidate-loadouts --match 250
+```
+
+11 source PNGs re-extracted into batch 62; new anchors land on `for|C=1445` (MrHomiecide), `for|LW=1446` (StickMenace), `for|LD=1449` (HenryTheBobJr), `for|RD=1450` (JoeyFlopfish), `for|RW=1448` (silkyjoker85).
+
+---
+
+## Session Summary — 2026-05-16 (Lineup & Loadouts punch-list round 2 — 11 follow-ups)
+
+### What was done
+
+Visual + interaction follow-ups on `/games/[id]` **Lineup & Loadouts** after the mockup-adoption work. Shipped as plan-quirky-reddy (the plan file was overwritten again for this round).
+
+| #   | Issue                                                               | Fix shipped                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| --- | ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | `M.Rantanen Stick Menacesilkyjoker85` text concatenation            | `platformDisplayLabel()` now uses a strict whitelist (`Xbox`/`PlayStation`/`PS5`/`PS4`/`PC`/`Switch`). OCR-junk gamertags that landed in the platform column no longer leak through.                                                                                                                                                                                                                                                                                                        |
+| 2   | Platforms missing in UI                                             | DB cleaned: 14 rows of garbage platform values NULL'd via direct UPDATE. Consolidator + promoter now apply the same strict whitelist before write so future ingest can't pollute the column. Real platform OCR (separate parser work) **deferred** — the new anchor parser stubs `player_platform=MISSING` and no clean source exists yet.                                                                                                                                                  |
+| 3   | BGM LD / BGM RD missing X-Factor icons                              | Diagnosed: `_classify_xfactor_tier()` is verified correct on V2 source screenshots. The affected snapshot rows (anchors 147 + 505) were extracted when the parser version of the time either lacked the classifier (May 12) or returned None for that specific frame (May 13). Their source PNGs are gone or wrong-player; real fix needs a re-OCR pass on the current parser. **Deferred** as data work. The renderer falls back to the colored-dot stack so the section degrades cleanly. |
+| 4   | X-Factor name pills consume too much space                          | New `XFactorStack` component: 3 vertical 28px PNG icons (or dot fallback) sitting opposite the jersey/portrait on every player card. Names move to the drill-down panel only. Tooltip on each icon surfaces `Name — Tier`.                                                                                                                                                                                                                                                                  |
+| 5   | Multiple drill-downs open at once                                   | New client wrapper `LineupLadder` owns `openPosition: PositionKey \| null`. `LineupRow` converted to controlled props. Opening row B closes row A automatically.                                                                                                                                                                                                                                                                                                                            |
+| 6   | Replace plain build chip with the existing archetype pill component | `BuildArchetype` component swaps in `ArchetypePillCompact` (from `apps/web/src/components/ui/archetype-pill.tsx`). Canonical-build → archetype enum mapper covers all 8 build classes that appear in OCR. Summary band's bare + reference build chips use the same component, with a `2× PMD` style multiplier when a bare build collapses.                                                                                                                                                 |
+| 7   | Opp side rendered two "C" captain pips (Toews + DuhPope)            | `getMatchLineups` now enforces one captain per side at the end of the pipeline. Ties resolved by canonical position order (C wins over LW, etc.). Benchmark test updated to assert DuhPope `isCaptain: false`.                                                                                                                                                                                                                                                                              |
+| 8   | "Captain" → "Room Leader"                                           | UI string change in the summary band's KV. The in-card jersey `C` pip stays as-is since that's the in-game glyph.                                                                                                                                                                                                                                                                                                                                                                           |
+| 9   | Confusing red bars in attribute drill-down                          | Base bar tone is now neutral (no more red on boosted attributes).                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| 10  | Add green segment for additions, red marker for deductions          | Attribute bar is rendered as a stacked composition: neutral base from 0 to `max(0, value − delta)`, then a green segment (`var(--color-win)` + soft glow) covering the positive boost, OR a red striped marker beyond the current value showing where the rating would have sat without a nerf. Verified live: open RW row has 15 green boost markers + 5 red nerf markers across both players.                                                                                             |
+| 11  | Color the middle position rail                                      | Shared `colorForPosition` helper extracted into `apps/web/src/lib/position-colors.ts`. `PositionBadge` and `LineupExpandPanel.CenterRail` both apply `color-mix(in srgb, var(--pos-X) 10%, transparent)` background + matching border + colored letter. C=red, LW=green, RW=blue, LD=teal, RD=yellow, G=purple per `docs/specs/position-colors.md`.                                                                                                                                         |
+
+### Mid-session inline fixes (asked while iterating)
+
+- Player cards no longer show the reference-player suffix (`T. Thompson`, `C. Caufield`). The reference name appears only inside the drill-down's build block.
+- Summary band trimmed: `X-Factors`, `Elite`, `All Star`, `Specialist` counts are gone — the band now shows `Dressed N/6`, `Goalie`, `Room Leader` plus the build chip row.
+- Global archetype pill compact form converted to 3-letter codes per user spec: `PLY`, `SNP`, `PWF`, `GRN`, `TWF`, `ENF`, `DFD`, `OFD`, `TWD`, `EFD`, `PMD`. Affects every consumer of `ArchetypePillCompact` (roster ledger leader tiles, lineup section, etc).
+
+### Verified
+
+- `pnpm --filter @eanhl/db build`, `pnpm --filter @eanhl/worker build`, `pnpm --filter web typecheck` all clean.
+- `pnpm --filter @eanhl/worker test` → 29 unit tests pass.
+- `node --test apps/worker/dist/__tests__/match-250-benchmark.test.js` → 2 pass (slot data + goalie CPU check).
+- DB inventory: `SELECT DISTINCT platform FROM player_loadout_snapshots ORDER BY 1` returns only `NULL` after the backfill.
+- Live `/games/250`: no platform string after any gamertag; single captain pip (`#11` BGM, `#19` opp); 3-icon X-Factor stack opposite jersey on every card; build pills are 3-letter codes with color/icon from `ArchetypePillCompact`; position badges + expand-rail tinted per-slot; opening BGM C → BGM LW closes C automatically; boosted attribute bars show a green tip at the boost width.
+
+### Known OCR data-quality limits carried forward
+
+- Platform indicator stays hidden across all matches until real platform OCR lands. The whitelist + DB cleanup keeps the column honest in the meantime.
+- BGM LD / BGM RD X-Factor icons fall back to the dot stack because the consolidator-selected anchors for those slots have `tier=NULL` (parser version skew at extraction time). The current anchor parser's tier classifier is verified correct — re-OCR on the source PNGs would restore the icons.
+
+### Files added / modified this session
+
+| New                                                 | What it does                                                                    |
+| --------------------------------------------------- | ------------------------------------------------------------------------------- |
+| `apps/web/src/lib/position-colors.ts`               | Shared `colorForPosition()` + `POSITION_META` + short↔long position-key helpers |
+| `apps/web/src/components/matches/lineup-ladder.tsx` | Client wrapper owning the single open-position state                            |
+
+| Modified                                                  | Why                                                     |
+| --------------------------------------------------------- | ------------------------------------------------------- |
+| `apps/web/src/components/matches/lineup-section.tsx`      | All 11 frontend follow-ups, plus inline trim asks       |
+| `apps/web/src/components/matches/lineup-row.tsx`          | Controlled props (lifted state)                         |
+| `apps/web/src/components/matches/lineup-expand-panel.tsx` | Position-color center rail + attribute bar overlay      |
+| `apps/web/src/components/ui/archetype-pill.tsx`           | Compact pill names converted to 3-letter codes (global) |
+| `apps/web/src/components/roster/profile-hero.tsx`         | Now imports `colorForPosition` from shared lib          |
+| `packages/db/src/queries/match-lineups.ts`                | One-captain-per-side enforcement                        |
+| `apps/worker/src/consolidate-loadouts-cli.ts`             | `sanitizePlatform()` whitelist before voting            |
+| `apps/worker/src/ocr-promoters/loadout.ts`                | `whitelistPlatform()` at insert time                    |
+| `apps/worker/src/__tests__/match-250-benchmark.test.ts`   | DuhPope `isCaptain: false` per Phase 7                  |
+
+### One-shot SQL backfill applied to the live DB (not a migration)
+
+```sql
+UPDATE player_loadout_snapshots
+SET platform = NULL
+WHERE platform IS NOT NULL
+  AND lower(trim(platform)) NOT IN ('xbox','playstation','ps5','ps4','pc','switch');
+-- 14 rows updated
+```
+
+---
+
+## Session Summary — 2026-05-16 (Lineup & Loadouts mockup adoption — 6-phase plan)
+
+### What was done
+
+Six-phase frontend feature pass on `/games/[id]` **Lineup & Loadouts** that closes the gap between the implementation and the design mockup at `boogeymen-design-system/project/Lineup.html`. Shipped as plan-quirky-reddy (the file was overwritten for this round).
+
+| Phase | Change                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            | Files                                                                                                                                                                                                                         |
+| ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1     | `getMatchLineups` now also pulls per-attribute values from `player_loadout_attributes` (same gamertag-normalized pool used for X-Factors so misattributed rows can't leak attributes between players) and exposes them on each `LineupRow` as `attributes: Record<key, {value, delta}> \| null`. New sibling `getMatchLineupProvenance(matchId)` returns capture-time range, source-screen counts, and three confidence aggregates (canonical / tiered / attribute). Plumbed `match.gameMode`, `match.id`, and the provenance object through to `<LineupSection>`. The benchmark test's `LineupRow` contract is preserved (only additive fields). | `packages/db/src/queries/match-lineups.ts`, `apps/web/src/app/games/[id]/page.tsx`, `apps/web/src/components/matches/lineup-section.tsx`                                                                                      |
+| 2     | Summary band: replaced duplicated `VS / VS / EASHL 6s` center stack with mockup's `GAME / 250 / VS / EASHL 6s`. New `Goalie · CPU` KV on both sides. `Dressed N/6` now renders the `/6` dimmed. Build chips show reference-player + canonical build name (`C. Caufield · Sniper`, `T. Thompson · Power Forward`); duplicate bare builds still collapse to `2× PMD`.                                                                                                                                                                                                                                                                               | `apps/web/src/components/matches/lineup-section.tsx` (`SummaryBand`, `SummarySide`, `summarizeBuilds`, new `DressedKV`)                                                                                                       |
+| 3     | Player card polish: X-Factor chips now render the canonical PNG icon (Red/Blue/Gold per tier) via `xFactorIconUrl()` instead of the colored dot. Platform indicator (inline Xbox/PS SVG + label) wires up to `LineupRow.platform`; `platformDisplayLabel()` rejects OCR garbage like `MuttButt` in the platform column. Cards gain hover state (raised surface + lighter border, `cursor: pointer`). `CpuPlaceholderCard` rewritten to the mockup's full layout (jersey `#—`, hatched avatar, persona "CPU Goalie", `cpu-tag`, subline).                                                                                                          | `apps/web/src/components/matches/lineup-section.tsx` (`PlayerCard`, `PlayerInfo`, `XFactorChip`, `PlatformIcon`, `platformDisplayLabel`, `CpuPlaceholderCard`, `Jersey`, `Avatar`)                                            |
+| 4     | In-row drill-down (the marquee mockup interaction). New client component `LineupRow` owns the `open` state, exposes role=button + aria-expanded + Enter/Space toggle. New server component `LineupExpandPanel` renders side-by-side BGM/Opp panels: build block (label + ref + HWH KVs + X-Factor list with PNG icons + 3-tick `XFactorTierRail` + tier word), 5-group attribute breakdown (`ATTRIBUTE_GROUPS` hard-coded) with per-row bar/value/delta. Goalie row stays non-expandable (CPU on both sides).                                                                                                                                     | `apps/web/src/components/matches/lineup-row.tsx` (new), `apps/web/src/components/matches/lineup-expand-panel.tsx` (new), `apps/web/src/components/matches/lineup-section.tsx` (`LadderRow` rewired to pass cards as children) |
+| 5     | OCR provenance footer at the bottom of the section: `Captured` (date range), `Sources` (sentence joining screen-type labels), `Confidence` (mean of the three sub-scores with a `High/Solid/Partial/Low` word), plus three colored badges (`Canonical · 100%`, `Tiered · 67%`, `Attribute · 83%` on match 250). Badge tone is `ok` ≥ 0.9 else `warn`.                                                                                                                                                                                                                                                                                             | `apps/web/src/components/matches/lineup-section.tsx` (new `OcrProvenanceFooter` + helpers)                                                                                                                                    |
+| 6     | Build / typecheck / test sweep clean. Benchmark regression test still passes (the additive `attributes`/`platform`/`buildClassCanonical` fields don't affect its assertions).                                                                                                                                                                                                                                                                                                                                                                                                                                                                     | —                                                                                                                                                                                                                             |
+
+### Verified
+
+- `/games/250` 1600×1400 visual capture: summary band shows `GAME · 250 · VS · EASHL 6s` in the center; both sides show `Goalie · CPU` and `5/6` (with `/6` dimmed); BGM build chips read `T. THOMPSON · POWER FORWARD` and `C. CAUFIELD · SNIPER` alongside `PLAYMAKER` and `2× PMD`. Every X-Factor chip in the ladder shows a small PNG icon. CPU goalie cards have the full layout with hatched fill. Footer reads `Captured · May 12 → May 15 · Pre-game lobby + Loadout view · Confidence Solid · 0.83`.
+- Click BGM C → row expands. Left column: `Playmaker / Wheels-Elite / One T-Elite / Tape to Tape-AllStar` with tier rails (Elite=3 ticks lit). Right column: Toews's `Two-Way Forward / Warrior-Elite / Big Rig-Elite / Rocket-Elite`. Mid column: vertical "Position matchup" label, large `C`, `↑ BGM / OPP ↓` markers. Attribute groups render with the 23 keys grouped into Technique / Power / Playstyle / Tenacity / Tactics; missing values show `—`.
+- `pnpm --filter worker test` → 29 pass.
+- `node --test apps/worker/dist/__tests__/match-250-benchmark.test.js` → 2 pass (slot data + goalie CPU check).
+
+### Known cosmetic data-quality limits (NOT bugs in this work)
+
+- Platform indicator currently renders nothing on match 250: the consolidator-voted `platform` values for the 5 BGM anchors are OCR garbage (`MuttButt`, `silkyjoker85`, etc. — gamertags that landed in the platform column at OCR time). The `platformDisplayLabel()` filter rejects them. A fresh OCR run on the original screenshots would fix the underlying data; the UI is wired up and waits.
+- Attribute breakdown for match 250 mostly renders `—` because the 2026-05-12 OCR captures didn't produce attribute rows; only `deking`, `hand_eye`, `passing`, `wrist_shot_accuracy`, `wrist_shot_power` are populated (5 of 23). UI degrades gracefully — bars render at 0 width with `—` value. Re-OCR would fill them.
+
+### Files added / modified this session
+
+| New                                                       | What it does                                                          |
+| --------------------------------------------------------- | --------------------------------------------------------------------- |
+| `apps/web/src/components/matches/lineup-row.tsx`          | Client wrapper; per-row open state + keyboard a11y                    |
+| `apps/web/src/components/matches/lineup-expand-panel.tsx` | Server-rendered side-by-side attribute breakdown + X-Factor tier rail |
+
+| Modified                                             | Why                                                                        |
+| ---------------------------------------------------- | -------------------------------------------------------------------------- |
+| `packages/db/src/queries/match-lineups.ts`           | Attribute fetch + merge, expose `platform`, new `getMatchLineupProvenance` |
+| `apps/web/src/app/games/[id]/page.tsx`               | Pass `matchId`, `gameMode`, `provenance` to `<LineupSection>`              |
+| `apps/web/src/components/matches/lineup-section.tsx` | All Phase 2/3/5 changes + Phase 4 wiring; `CpuPlaceholderCard` rewrite     |
+
+---
+
+## Session Summary — 2026-05-16 (Lineup & Loadouts remediation — 7-phase plan)
+
+### What was done
+
+Seven-phase fix for the `/games/[id]` **Lineup & Loadouts** section after a review of game 250 found that the read query was discarding fields the consolidator had already merged. Shipped as plan-quirky-reddy.
+
+| Phase | Change                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       | Files                                                                                                                                                                                                                               |
+| ----- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1     | Read query (`getMatchLineups`) prefers `review_status='reviewed'` anchor per `(team_side, position)`. SQL-level junk-gamertag filter (`AWAY`/`HOME`/`CPU`/single-char). X-Factor merge now keyed on normalized gamertag (alphanumeric, lowercased) so misattributed `player_id` from 2026-05-12 loadout-view captures stops leaking foreign X-Factors into a slot. Defensive end-stage filter drops fully-empty rows.                                                                                                                        | `packages/db/src/queries/match-lineups.ts`                                                                                                                                                                                          |
+| 2     | Consolidator (`consolidate-loadouts-cli`) junk-gamertag drop at group build; gamertag now part of the consensus vote (`dominantGamertag`); anchor selection prefers rows whose own gamertag matches group majority; **re-resolves `player_id` from the voted gamertag** via `resolveGamertagToPlayer` inside a per-anchor tx so old misattributed loadout-view rows get the right player linked.                                                                                                                                             | `apps/worker/src/consolidate-loadouts-cli.ts`                                                                                                                                                                                       |
+| 3     | New `build_class_canonical` text column on `player_loadout_snapshots`; new `normalize-build-class.ts` (suffix-code map SNP/PWF/PMD/…, lowercase→uppercase unsticking, vowel-boundary bisect for camel-glued reference names like `TAGETHOMPSON` → `Tage Thompson`); consolidator writes both raw vote + canonical. Migration `0043_flaky_blur.sql` is additive (nullable column, reversible by drop).                                                                                                                                        | `packages/db/migrations/0043_flaky_blur.sql`, `packages/db/src/schema/player-loadout.ts`, `apps/worker/src/lib/normalize-build-class.ts`, `apps/worker/src/consolidate-loadouts-cli.ts`, `packages/db/src/queries/match-lineups.ts` |
+| 4     | Ingest-time junk gate in `promoteLoadout`: when gamertag matches the junk pattern AND the row has no build/jersey/x-factors, skip the insert and log it. Doesn't drop low-confidence but otherwise-useful rows — the consolidator still benefits from them as voters.                                                                                                                                                                                                                                                                        | `apps/worker/src/ocr-promoters/loadout.ts`                                                                                                                                                                                          |
+| 5     | Frontend reads `row.buildClassCanonical` directly; `formatBuild`/`extractBuildRef` replaced with `splitBuild` that splits on the canonical `-` separator and title-cases the reference. `matchupTag` uses a strict canonical-name switch (no more `.slice(0,8)` mid-word). Persona is now `playerNamePersona ?? gamertag` (no full-name fallback) to match Top Performers / Event Timeline. New `isRenderable` guard forces CPU placeholder when a row is junk despite passing earlier filters.                                              | `apps/web/src/components/matches/lineup-section.tsx`                                                                                                                                                                                |
+| 6     | `normalize-build-class.test.ts` (29 cases, node:test). `__tests__/match-250-benchmark.test.ts` asserts `getMatchLineups(250)` matches V2 benchmark slot-by-slot (gamertag, jersey, captain, canonical build, X-Factor canonical names). Two slots have documented data-quality skips: BGM RD X-Factors (anchor 147 is 2026-05-12 OCR misattribution — V2 has Elite Edges/Tape/Stick Em Up but anchor's row stores Wheels/Warrior/Big Rig); Opp LW DuhPope captain flag is the consolidator's OR-fold flagging false-positive captain frames. | `apps/worker/src/lib/normalize-build-class.test.ts`, `apps/worker/src/__tests__/match-250-benchmark.test.ts`                                                                                                                        |
+| 7     | Migration applied; consolidator rerun for match 250; type-check + worker tests green.                                                                                                                                                                                                                                                                                                                                                                                                                                                        | —                                                                                                                                                                                                                                   |
+
+### Verified (visual + tests)
+
+- `/games/250` Lineup & Loadouts renders MrHomiecide #11★ at BGM C, Lane Hutson #48 at BGM RD with correct `/roster/5` link, M. Rantanen #96 at BGM LW with correct `/roster/3` link, CPU Goalie placeholders on both sides (the `AWAY` junk row no longer renders). Build chips render as canonical English ("Power Forward", "PMD", "Two-Way Forward"); matchup-tag corridor is either a clean short tag or `—`.
+- `pnpm --filter worker test` passes 29 normalize-build-class cases.
+- `node --test apps/worker/dist/__tests__/match-250-benchmark.test.js` passes both suites (10 slots + goalie-CPU check).
+
+### Known OCR data-quality limits (NOT bugs in this work)
+
+- BGM RD X-Factors: snap 147 is the only `player_loadout_view` capture for `(for, RD)` and its X-Factor strings (Wheels/Warrior/Big Rig) are from a different player's screen due to OCR misattribution. V2 truth is Elite Edges/Tape to Tape/Stick Em Up. Fixable by a fresh OCR pass on the original 2026-05-12 screenshots.
+- BGM LD X-Factor tiers null (HenryTheBobJr — names correct, tiers missing) — HSV tier classifier didn't run on the 2026-05-12 captures.
+- Opp LW DuhPope `is_captain=true` — OR-fold accumulates false-positive captain markers across frames. V2 says false. Acceptable behavior for now; a `MAJORITY_VOTE` rule on captain would fix it but is broader than this work.
+
+### Files added / modified this session
+
+| New                                                     | What it does                                             |
+| ------------------------------------------------------- | -------------------------------------------------------- |
+| `apps/worker/src/lib/normalize-build-class.ts`          | OCR build-class string → canonical "[Reference - ]Build" |
+| `apps/worker/src/lib/normalize-build-class.test.ts`     | 29-case unit test                                        |
+| `apps/worker/src/__tests__/match-250-benchmark.test.ts` | Match 250 V2-benchmark regression test                   |
+| `packages/db/migrations/0043_flaky_blur.sql`            | Adds `build_class_canonical text` column                 |
+
+| Modified                                             | Why                                                                                           |
+| ---------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| `packages/db/src/schema/player-loadout.ts`           | New `buildClassCanonical` column                                                              |
+| `packages/db/src/queries/match-lineups.ts`           | Anchor-first row selection, junk filter, normalized-gamertag X-Factor pool, expose new column |
+| `apps/worker/src/consolidate-loadouts-cli.ts`        | Gamertag vote, junk gate, build-class normalize, player_id re-resolution                      |
+| `apps/worker/src/ocr-promoters/loadout.ts`           | Ingest-time junk-gamertag gate                                                                |
+| `apps/web/src/components/matches/lineup-section.tsx` | Reads canonical fields, defensive junk guard, strict matchup-tag                              |
+
+---
+
+## Session Summary — 2026-05-16 (Net-Chart OCR hardening + ALL PERIODS aggregate)
+
+### What was done
+
+Five-phase fix for the post-game Net-Chart OCR pipeline. Surfaced via a review of [`apps/worker/src/ocr-promoters/net-chart.ts`](apps/worker/src/ocr-promoters/net-chart.ts) and [`tools/game_ocr/game_ocr/parsers.py`](tools/game_ocr/game_ocr/parsers.py); shipped in one session as plan-phases-to-fix-jaunty-pretzel.
+
+| Phase             | Change                                                                                                                                                                                                                                                                | Files                                                                                      |
+| ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| 1                 | Parser returns `period_number=0` (not `-1`) for unrecognized labels; clean `_clean_period_label_text` helper; multi-line label retry + half-word matchers (`WRIST`, `SLAP`, `BACKHAND`, `SNAP`, `DEFLECT`); dead-code cleanup; `NetChartParserTests` class (14 tests) | `parsers.py`, `models.py`, `tests/test_parsers.py`                                         |
+| 2                 | Promoters refuse to write `period_number=0` rows (throws → `transform_status='error'`); cleanup migration `0042_purge_phantom_all_periods_rows` deletes pre-fix all-NULL `-1` rows                                                                                    | `net-chart.ts`, `faceoff-map.ts`, `migrations/0042_…sql`, `meta/_journal.json`             |
+| 3                 | Preserve-non-null COALESCE merge on multi-frame conflict; `ocrExtractionId` keeps the **first** contributor; `reviewStatus` preserved on conflict                                                                                                                     | `net-chart.ts`, `faceoff-map.ts`                                                           |
+| 4                 | New `header_total_shots_away/home` ROIs on the centered score strip; parser extracts game totals from every per-period frame; promoter recomputes the ALL PERIODS (`period_number=-1`) row from per-period sums after each per-period write                           | `roi/post_game_net_chart.yaml`, `parsers.py`, `models.py`, `ingest-ocr.ts`, `net-chart.ts` |
+| 5 (follow-up A+B) | Header-first priority for `total_shots` (sum is fallback) + `period_label` always overwrites on conflict (clean label beats stale noisy one)                                                                                                                          | `net-chart.ts`, `faceoff-map.ts`                                                           |
+
+### Acceptance — match 250
+
+After clean re-ingest of the four canonical Net-Chart frames in `research/OCR-SS/Action-Tracker/Net-Chart/`:
+
+| period | side    | label           | total                                      | extraction |
+| ------ | ------- | --------------- | ------------------------------------------ | ---------- |
+| **-1** | against | **ALL PERIODS** | **16** ✓ matches header                    | 762        |
+| **-1** | for     | **ALL PERIODS** | **29** ✓ matches header                    | 762        |
+| 1      | against | 1ST PERIOD      | 2                                          | 762        |
+| 1      | for     | 1ST PERIOD      | 5                                          | 762        |
+| 2      | against | 2ND PERIOD      | 3                                          | 761        |
+| 2      | for     | 2ND PERIOD      | 6 (should be 9 — Issue C below)            | 761        |
+| 3      | against | 3RD PERIOD      | NULL (should be 9 — Issue C; OCR'd as `g`) | 760        |
+| 3      | for     | 3RD PERIOD      | 6                                          | 760        |
+| 4      | against | OT              | 2                                          | 759        |
+| 4      | for     | OT              | 6 (should be 9 — Issue C)                  | 759        |
+
+All 70/70 pytest tests pass.
+
+### Deferred — Net-Chart OCR follow-up
+
+**Issue C — digit-confusion misreads in the per-period stat panel.** RapidOCR reads `9` as `6` or `g` in the BM/4TH columns of the stat panel (high confidence, 0.94–0.95). The header-first ALL PERIODS fix sidesteps this for `total_shots` only — per-period rows still carry wrong values, and breakdown columns have no header equivalent.
+
+Concrete scope for a follow-up plan:
+
+1. Tighten per-cell ROIs around individual digits (current `stats_panel` is one big block; each digit is read in isolation by RapidOCR but classification could still benefit from preprocessing).
+2. Build a digit-lookalike map for the EA stat-panel font: at minimum `g`/`q` → `9`. The `6` vs `9` confusion has no signal to disambiguate from text alone — likely needs the digit ROI tightened plus per-digit preprocessing tweaks.
+3. Optional: a tiny per-digit ONNX classifier trained on EA stat-panel digit crops if rule-based recovery plateaus. Precedent for lookalike recovery exists in [`_parse_faceoff_dot`](tools/game_ocr/game_ocr/parsers.py) (`L→1`, CJK glyphs).
+4. After Issue C ships, add a `data_quality` flag on `match_shot_type_summaries` for rows where the header reading and per-period sum disagree on `total_shots`.
+
+**Issue 5 from the original review — PP-shots ROI clipping.** OT-period `power_play_shots` is NULL for both sides because the `SHOTS ON PP` row sits at the bottom of the `stats_panel` ROI and is being clipped (or the row is absent in OT frames — needs visual confirmation against the test video at `K:\2026-05-08_18-25-42.mkv`). Likely fix: bump `stats_panel.height` in [`post_game_net_chart.yaml`](tools/game_ocr/game_ocr/configs/roi/post_game_net_chart.yaml).
+
+### Out-of-scope notes (already captured elsewhere)
+
+- ROI calibration generally — same calibration plan as PP-shots; consider bundling.
+- Faceoff Map dot capture tuning to 100% — older deferred item from 2026-05-16 (see below).
+
+### Plan file
+
+`/home/michal/.claude/plans/plan-phases-to-fix-jaunty-pretzel.md` — kept for reference. Phases 1-5 + the A+B follow-up are all shipped; the plan's "Out of scope" section is the seed for the Issue C plan above.
+
+---
+
+## Session Summary — 2026-05-16 (Faceoff Map rink-dot OCR + inline visualization)
+
+### What was done
+
+Built the full per-dot face-off win-count extraction pipeline for the post-game Faceoff Map screen, plus a `<FaceoffMap>` component mounted on the match detail page below `<ActionTrackerMap>`. Pipeline now:
+
+- Parses the left-side text panel (Overall Win %, Offensive/Defensive Zone splits) — **100% accurate vs ground truth**.
+- Parses the right-side rink diagram's 9 face-off dots × 2 flag chips per dot (red away / dark home) — **~67% capture rate** (14/21 BM wins, 7/11 4TH wins on match 250).
+
+### Files added / modified
+
+- `tools/game_ocr/game_ocr/configs/roi/post_game_faceoff_map.yaml` — added 18 dot sub-ROIs (9 dots × `flag-away`/`flag-home` preprocess modes)
+- `tools/game_ocr/game_ocr/image.py` — new `_isolate_flag_half` + `_detect_red_flag_bbox` (largest red CC) + `_detect_dark_flag_bbox` (low-V mask with aspect/size filters) + `_binarize_for_ocr` (adaptive threshold + 5×5 ellipse open + single-CC fill filter)
+- `tools/game_ocr/game_ocr/parsers.py` — new `_parse_faceoff_dot`, `_split_wins_total`, `_best_single_digit_field`, `_parse_dot_digit`, digit-lookalike map (`L→1`, `O/口/D→0`, `己/Z→2`, `S→5`, etc.)
+- `tools/game_ocr/game_ocr/models.py` — `FaceoffDot` model + extended `FaceoffSideStats` with parsed zone splits + `dots: dict` on `PostGameFaceoffMapResult`
+- `tools/game_ocr/game_ocr/extractor.py` — threaded `regions_meta` (per-ROI crop shape) to parsers
+- `tools/game_ocr/scripts/dump_faceoff_dot_rois.py` — new debug script for ROI calibration
+- `tools/game_ocr/tests/test_parsers.py` — 8 new test cases (single-glyph splits, CJK look-alikes, multi-digit rejection)
+- `packages/db/migrations/0041_robust_the_fallen.sql` — new tables `match_faceoff_dots` and `match_faceoff_zone_summaries`
+- `packages/db/src/schema/match-enrichments.ts` — schema definitions + types
+- `packages/db/src/schema/ocr-pipeline.ts` — `OcrEntityType` extended with `'faceoff_dot'`
+- `packages/db/src/queries/match-enrichments.ts` — new `getMatchFaceoffDots` / `getMatchFaceoffZoneSummaries`
+- `apps/worker/src/ingest-ocr.ts` — new `walkPostGameFaceoffMap` walker (replaces net-chart reuse)
+- `apps/worker/src/ocr-promoters/faceoff-map.ts` — full rewrite from no-op to UPSERT into both new tables
+- `apps/web/src/components/matches/faceoff-map.tsx` — new client component with period filter + zone summary + 9-dot rink overlay
+- `apps/web/src/app/games/[id]/page.tsx` — wired new queries + mounted `<FaceoffMap>`
+- `apps/web/src/components/matches/action-tracker-map.tsx` + `faceoff-map.tsx` — fixed BGM color fallback to be per-TEAM (BGM=red regardless of bgm_was_home) instead of per-side
+
+### OCR accuracy progression
+
+| Version                      | BM total (4 periods) | 4TH total | Notes                                          |
+| ---------------------------- | -------------------- | --------- | ---------------------------------------------- |
+| v2 (initial ROIs)            | 0/21                 | 0/11      | ROIs mis-positioned, below rink                |
+| v5 (tuned + L→1 fallback)    | 11/21                | 4/11      | Single ROI per dot, x-pivot split              |
+| v8 (color-mask split)        | 14/21                | 7/11      | Per-flag isolation via HSV                     |
+| **v10 (adaptive threshold)** | **14/21**            | **7/11**  | Per-pixel local threshold handles transparency |
+
+### Deferred work — Faceoff Map OCR tuning to 100%
+
+User explicitly deferred further iteration after v10. Documented for future pickup:
+
+1. **ROI coordinate nudges for two specific dots** — `lz_top_away` clips by ~5 px on the left in periods 2 and 3; `center` has the largest amount of rink art overlap and frequently fails detection. Try shrinking the center ROI vertically to skip the "CENTER ICE" rink-text region.
+
+2. **Manual review UI** — `match_faceoff_dots.review_status='pending_review'` infrastructure is in place but no UI consumes it. Build a small review screen at `/games/[id]/review/faceoffs` that shows the 9 crops × 5 periods alongside editable inputs. Reuse `tools/game_ocr/scripts/dump_faceoff_dot_rois.py` for crop generation. ~4-8 hours. Brings accuracy to 100% by definition.
+
+3. **Digit-specific classifier** — train a small CNN on flag-chip glyphs to replace RapidOCR for the dot ROIs only. Would need ~50 labeled crops per digit × 10 digits × 2 flag colors = 1000 labels (~1 hour to label with a CLI tool). Likely 99%+ accuracy. ~1-2 days. Worth doing only if match volume scales up enough that manual review becomes a bottleneck.
+
+4. **Multi-frame consensus** — capture the same faceoff_map screen multiple times during a single match and majority-vote across runs. Cheap on engineering, requires capture-process change.
+
+### Residual error modes (for whoever picks this up)
+
+- **RapidOCR non-determinism on tiny digits** — same preprocessed image produces "2" on one call and nothing on the next. Fundamental engine limitation.
+- **Adaptive-threshold rink-line bleed** — the face-off circle's ~3 px arc bleeds through the translucent flag and merges with the digit. Mitigated by 5×5 ellipse open + single-CC keep, but the largest-CC heuristic occasionally picks a rink fragment instead of the digit when the digit is itself fragmented.
+- **CJK character misreads** — RapidOCR's default model includes Chinese characters; small digits get classified as `己` (→ 2), `口` (→ 0), `中` (→ junk). The look-alike map in `parsers.py:_DOT_DIGIT_LOOKALIKES` covers the cases seen so far; new ones will appear on different matches.
+
+### Commit
+
+Not yet committed — user deferred and asked for the deferred items to be captured here first.
 
 ---
 
@@ -204,14 +549,14 @@ if 5 <= n_vertices <= 10 and area >= 500 and circ >= 0.6:
 
 ### Results
 
-| metric | before | after |
-|---|---|---|
-| Hit detection count | 199 | **255 (+28%)** |
-| Hit ratio (detected / events_list) | 1.03 | **1.31** |
-| Shot ratio | 2.30 | 2.30 (unchanged) |
-| Goal ratio | 1.66 | 1.66 (unchanged) |
-| Captures with recall deficit | 42/94 | 30/94 |
-| Remaining "unknown" markers | 102 | 44 (mostly low-circ noise, area<500) |
+| metric                             | before | after                                |
+| ---------------------------------- | ------ | ------------------------------------ |
+| Hit detection count                | 199    | **255 (+28%)**                       |
+| Hit ratio (detected / events_list) | 1.03   | **1.31**                             |
+| Shot ratio                         | 2.30   | 2.30 (unchanged)                     |
+| Goal ratio                         | 1.66   | 1.66 (unchanged)                     |
+| Captures with recall deficit       | 42/94  | 30/94                                |
+| Remaining "unknown" markers        | 102    | 44 (mostly low-circ noise, area<500) |
 
 The +28% hit recovery matches the user's "25-30% of hits in unknown" estimate exactly.
 
@@ -225,8 +570,8 @@ Full 4-tier pipeline run after re-respatialize: **71/71 positioned = 100% covera
 
 ### Commit
 
-| hash | what |
-|---|---|
+| hash      | what                                                                               |
+| --------- | ---------------------------------------------------------------------------------- |
 | `4aa280f` | `fix(ocr): shape classifier — recover hits from 5-10 vertex noisy-square contours` |
 
 ---
@@ -253,8 +598,8 @@ Read-only diagnostic across all matches surfaced exactly one candidate (the 1:10
 
 ### Commit
 
-| hash | what |
-|---|---|
+| hash      | what                                                                         |
+| --------- | ---------------------------------------------------------------------------- |
 | `0a14532` | `feat(ocr): clock_phantom_check — substring/Levenshtein-1 phantom detection` |
 
 ---
@@ -265,12 +610,12 @@ Read-only diagnostic across all matches surfaced exactly one candidate (the 1:10
 
 Match 250's repromote was producing 7 OCR-typo duplicate rows that had to be deleted by hand on every re-run:
 
-| Typo actor | Canonical | Edit |
-|---|---|---|
-| `SIlKY` (×3) | `SILKY` | lowercase `l` for capital `I` |
-| `WILOE` (×2) | `WILDE` | `O` for `D` |
-| `fOEWS` (×1) | `TOEWS` | lowercase `f` for capital `T` |
-| `1:10 SILKY` (×1) | `11:10 SILKY` | clock OCR — separate class |
+| Typo actor        | Canonical     | Edit                          |
+| ----------------- | ------------- | ----------------------------- |
+| `SIlKY` (×3)      | `SILKY`       | lowercase `l` for capital `I` |
+| `WILOE` (×2)      | `WILDE`       | `O` for `D`                   |
+| `fOEWS` (×1)      | `TOEWS`       | lowercase `f` for capital `T` |
+| `1:10 SILKY` (×1) | `11:10 SILKY` | clock OCR — separate class    |
 
 Phase 0 surfaced an important nuance: **opps aren't in `players` or `player_display_aliases`** (only 3 BGM players are registered with display aliases). So `resolveGamertagToPlayer` returns null for TOEWS/WHOOSAH/S. ZUBOV/P. MAGROYNE/L. HUTSON/M. LEHMANN/J. WAGNER. Half of the typo cases couldn't be fixed by a "dedup on actor_player_id" alone.
 
@@ -282,6 +627,7 @@ New helper at `apps/worker/src/ocr-promoters/match-events-dedup.ts` with two str
 2. **Unresolved-actor fuzzy fallback** — when `actor_player_id` is null, load all same-bucket rows (`match_id, period_number, event_type, clock`) with null `actor_player_id` and do an in-TypeScript Levenshtein-1 case-insensitive compare on their actor snapshots. `WILDE` and `WILOE` collide here (edit distance 1). `TOEWS` and `fOEWS` likewise.
 
 Helper is used by:
+
 - `events.ts` existing-check (replaces case-folded exact match).
 - `action-tracker.ts` existing-check (replaces exact-string).
 - `action-tracker.ts` spatial UPDATE WHERE → switched to `WHERE id = targetId` after lookup so the spatial UPDATE lands on the canonical row even when the capture's actor string is a typo.
@@ -291,6 +637,7 @@ Also exports `levenshtein` from `resolve-identity.ts` for reuse.
 ### Match 250 verification
 
 Clean-slate procedure (DELETE all OCR plottable events, then run the three tiers):
+
 - Tier 1 repromote: 72 rows created (was 79 with dupes). All 6 actor-typo pairs collapsed into single canonical rows (SILKY/WILDE/TOEWS). 64 positioned via clean white-underline.
 - Tier 2 consensus: +2 positioned.
 - Tier 3 cutoff recovery: +5 positioned.
@@ -304,12 +651,13 @@ SELECT match_id, period, event_type, clock, actor_player_id, COUNT(*) FROM match
 WHERE source='ocr' AND actor_player_id IS NOT NULL
 GROUP BY ... HAVING COUNT(*) > 1;
 ```
+
 Returns 0 rows. The new dedup catches every resolved-actor dup. The unresolved-actor scan surfaces 1 legitimate near-clock pair on match 250 (WILDE hit + S. ZUBOV hit, both at clock 2:09 in p3) — two distinct players, kept as-is.
 
 ### Commit
 
-| hash | what |
-|---|---|
+| hash      | what                                                                                    |
+| --------- | --------------------------------------------------------------------------------------- |
 | `333d3e3` | `feat(ocr): dedup match_events by actor_player_id (resolved) or Levenshtein-1 fallback` |
 
 ---
@@ -325,6 +673,7 @@ Built `tools/game_ocr/scripts/cutoff_event_recovery.py` as the third tier of the
 ### Algorithm
 
 For each orphan-marker capture:
+
 1. Walk the panel from bottom to find the latest row that maps to a known plottable event (`shot`/`hit`/`goal`/`penalty`). Faceoffs and `unknown` rows are skipped because they're not in `match_events`.
 2. **Sub-case B** — if that anchor is itself an orphan event (last visible row, underline rendered below the OCR'd actor band): match anchor → orphan marker.
 3. **Sub-case A** — if anchor is positioned: predict the chronologically-NEXT event after the anchor (older real time = higher clock value = lower index in the descending-clock-sorted period_events). If next is orphan → match; if positioned → sub-case C consistency check.
@@ -333,14 +682,14 @@ For each orphan-marker capture:
 
 Applied to a freshly-reset match 250 alongside tiers 1 and 2:
 
-| Cap | Predicted | Method | Match the manual mapping? |
-|---|---|---|---|
-| 189 | M. RANTANEN shot 7:39 | sub-case A | ✓ |
-| 190 | (E. WANHG shot 8:03 already positioned) | sub-case C MISMATCH 28ft | flagged for review |
-| 202 | TOEWS hit 18:27 | sub-case A | ✓ |
-| 203 | WHOOSAH hit 19:13 | sub-case A | ✓ |
-| 227 | E. WANHG hit 19:34 | sub-case B | ✓ |
-| 261 | P. MAGROYNE hit 19:42 | sub-case A | ✓ |
+| Cap | Predicted                               | Method                   | Match the manual mapping? |
+| --- | --------------------------------------- | ------------------------ | ------------------------- |
+| 189 | M. RANTANEN shot 7:39                   | sub-case A               | ✓                         |
+| 190 | (E. WANHG shot 8:03 already positioned) | sub-case C MISMATCH 28ft | flagged for review        |
+| 202 | TOEWS hit 18:27                         | sub-case A               | ✓                         |
+| 203 | WHOOSAH hit 19:13                       | sub-case A               | ✓                         |
+| 227 | E. WANHG hit 19:34                      | sub-case B               | ✓                         |
+| 261 | P. MAGROYNE hit 19:42                   | sub-case A               | ✓                         |
 
 All 5 known cutoff cases reproduced. Cap 190 is correctly conservative — flags a position mismatch for review without claiming any UPDATE. Coverage: 72/72 = 100%. Re-running tier 3 emits 0 UPDATEs (idempotent).
 
@@ -351,8 +700,8 @@ All 5 known cutoff cases reproduced. Cap 190 is correctly conservative — flags
 
 ### Commit
 
-| hash | what |
-|---|---|
+| hash      | what                                                                     |
+| --------- | ------------------------------------------------------------------------ |
 | `0c7fd30` | `feat(ocr): cutoff_event_recovery — tier-3 orphan-marker reconciliation` |
 
 ---
@@ -366,6 +715,7 @@ After landing the greedy matcher + period/event-type promoter fixes (see followi
 **The events[0]-fallback corruption bug.** The Action Tracker's white-underline detector failed (returned `selected_event_index = null`) on 5 captures in match 250 — typically because the highlighted row was scrolled to the very edge of the panel and the underline wasn't fully rendered. The yellow rink marker was still detected correctly. The TS promoter then fell back to `events[0]` and wrote the yellow position to whichever event happened to be at the top of the panel — almost always the wrong event.
 
 Currently in DB before the fix:
+
 - S. ZUBOV hit 11:58 had TOEWS hit 18:27's position
 - P. MAGROYNE hit 12:38 had WHOOSAH hit 19:13's position
 - TOEWS shot 3:35 had M. RANTANEN shot 7:39's position
@@ -375,13 +725,13 @@ Fix: when `selected_event_index === null`, skip the spatial UPDATE. Don't corrup
 
 **5 manual attributions for partial-row-cutoff cases.** The user confirmed the yellow-marker → event mapping for each of the 5 captures where detection failed. Wrote them as `position_confidence='interpolated'`:
 
-| event | from capture | yellow (x, y) |
-|---|---|---|
-| TOEWS hit 18:27 (p3, against) | cap 202 | (-76.16, 39.60) |
-| WHOOSAH hit 19:13 (p3, against) | cap 203 | (96.84, 7.82) |
-| M. RANTANEN shot 7:39 (p3, for) | cap 189 | (-66.46, -13.48) |
-| E. WANHG hit 19:34 (p4, for) | cap 227 | (19.34, -38.72) |
-| P. MAGROYNE hit 19:42 (p4, against) | cap 261 (new) | (18.93, -37.10) |
+| event                               | from capture  | yellow (x, y)    |
+| ----------------------------------- | ------------- | ---------------- |
+| TOEWS hit 18:27 (p3, against)       | cap 202       | (-76.16, 39.60)  |
+| WHOOSAH hit 19:13 (p3, against)     | cap 203       | (96.84, 7.82)    |
+| M. RANTANEN shot 7:39 (p3, for)     | cap 189       | (-66.46, -13.48) |
+| E. WANHG hit 19:34 (p4, for)        | cap 227       | (19.34, -38.72)  |
+| P. MAGROYNE hit 19:42 (p4, against) | cap 261 (new) | (18.93, -37.10)  |
 
 The fifth event (P. MAGROYNE 19:42) needed an entirely new capture ingested — the user pointed to `vlcsnap-2026-05-11-21h54m46s196.png`, which had been added to disk after batch 21's original import. Ingested as batch 28 via `pnpm --filter worker ingest-ocr --batch-dir <tmp> --screen post_game_action_tracker --game-title-id 1 --match-id 250`.
 
@@ -391,8 +741,8 @@ The fifth event (P. MAGROYNE 19:42) needed an entirely new capture ingested — 
 
 ### Commit
 
-| hash | what |
-|---|---|
+| hash      | what                                                                 |
+| --------- | -------------------------------------------------------------------- |
 | `e6ebe22` | `fix(ocr): drop events[0] fallback in action-tracker spatial update` |
 
 ---
@@ -410,6 +760,7 @@ The prior FCFS cluster→event assignment was double-plotting. When a cluster re
 Diagnostic confirmed the signal we needed was available: each panel event in `raw_result_json.events` carries `actor_snapshot.value` and `clock.value`. Those let us score `(cluster, event)` pairs by counting how often the event's `(actor, clock)` appears in the panels of the cluster's source captures. Strong for goals (rare); ambiguous for high-density buckets where multiple shots/hits co-appear in the same panels.
 
 New algorithm:
+
 - `MarkerObservation.panel_by_type` — per-capture panel events grouped by `event_type`, attached to every marker observation.
 - `Cluster.candidate_pair_counts()` — aggregates `(actor, clock)` pair counts across the cluster's source captures filtered to the cluster's shape vote.
 - `pair_weight(cands, actor, clock) = 2 × exact_pair + 1 × clock_only + 0.5 × actor_only`. Clock weighted higher than actor because clock OCR is more reliable than gamertag OCR.
@@ -436,24 +787,24 @@ Added `periodFromPath()` that derives the period from the parent folder name (`1
 
 ### Match 250 final state
 
-| metric | before this session | after |
-|---|---|---|
-| Total real events | 72 | 72 (7 OCR-dup rows deleted) |
-| Positioned | 69 (with ~12 mis-attributed) | **67 (all correctly attributed)** |
-| Coverage | 95.8% (inflated) | **93.1% (true)** |
-| Per-player attribution | suspect | high-confidence |
-| Single-capture (yellow) path | 51 | 55 (+4 from period fix, +6 from event_type recovery; consolidated to 55 after dedup with cross-screen events) |
-| Inventory consensus path | 18 (FCFS-attributed, ~half wrong) | 3 (greedy actor+clock attributed) |
-| OCR errors | 0 | 0 |
+| metric                       | before this session               | after                                                                                                         |
+| ---------------------------- | --------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| Total real events            | 72                                | 72 (7 OCR-dup rows deleted)                                                                                   |
+| Positioned                   | 69 (with ~12 mis-attributed)      | **67 (all correctly attributed)**                                                                             |
+| Coverage                     | 95.8% (inflated)                  | **93.1% (true)**                                                                                              |
+| Per-player attribution       | suspect                           | high-confidence                                                                                               |
+| Single-capture (yellow) path | 51                                | 55 (+4 from period fix, +6 from event_type recovery; consolidated to 55 after dedup with cross-screen events) |
+| Inventory consensus path     | 18 (FCFS-attributed, ~half wrong) | 3 (greedy actor+clock attributed)                                                                             |
+| OCR errors                   | 0                                 | 0                                                                                                             |
 
 The 5 truly unpositioned events (`hit @ TOEWS 18:27`, `hit @ WHOOSAH 19:13`, `hit @ P. MAGROYNE 19:42`, `hit @ E. WANHG 19:34`, `shot @ M. RANTANEN 7:39`) all map to captures where the event row was partially scrolled off-screen — the yellow-underline detector needs the full row in frame.
 
 ### Commits
 
-| hash | what |
-|---|---|
+| hash      | what                                                                           |
+| --------- | ------------------------------------------------------------------------------ |
 | `edf5d2f` | `fix(ocr): action-tracker promoter robustness — period + event_type fallbacks` |
-| `6adc748` | `feat(ocr): consensus matcher uses greedy (actor, clock) attribution` |
+| `6adc748` | `feat(ocr): consensus matcher uses greedy (actor, clock) attribution`          |
 
 ---
 
@@ -470,13 +821,13 @@ The 5 truly unpositioned events (`hit @ TOEWS 18:27`, `hit @ WHOOSAH 19:13`, `hi
 
 ### Match 250 final state
 
-| metric | before | after |
-|---|---|---|
-| OCR errors | 4 | **0** |
-| OCR successes | 126 | **130** |
-| Reviewed lineups | 0 | **7** (4 BGM, 3 opp) |
-| Positioned events | 66/72 (92%) | **69/72 (95.8%)** |
-| Unmatched events | 6 | **3** (noise-filtered single-obs clusters) |
+| metric            | before      | after                                      |
+| ----------------- | ----------- | ------------------------------------------ |
+| OCR errors        | 4           | **0**                                      |
+| OCR successes     | 126         | **130**                                    |
+| Reviewed lineups  | 0           | **7** (4 BGM, 3 opp)                       |
+| Positioned events | 66/72 (92%) | **69/72 (95.8%)**                          |
+| Unmatched events  | 6           | **3** (noise-filtered single-obs clusters) |
 
 ---
 
@@ -487,26 +838,26 @@ end-to-end and uncovered two worker bugs in the process.
 
 ### Commits (in order)
 
-| hash | what |
-|---|---|
-| `a2f6db7` | Round-3 internal spike (regularized TPS / neighbors=k / PWA / hull gate). Winner: `tps_neighbors_k=6` with 13 landmarks |
-| `26185a0` | Card-progression deep-research prompt + research queue |
-| `a951ec7` | Shipped Round-3 winner to `spatial.py:pixel_to_hockey` |
-| `0080737` | Dossier flipped to SHIPPED |
-| `8ad5fbe` | Confidence flag end-to-end: migration 0034 `match_events.position_confidence`, worker writes it, web shot map renders extrapolated markers at 50% opacity |
-| `9bb202e` | Round-4: user measured 8 additional corner landmarks → 21 landmarks total. Hull coverage 59% → 89.6%. Unexpected reversal: linear LSF now beats TPS+neighbors=6 on every metric |
-| `0b25439` | Method swap: replaced RBF+neighbors=6 with LSF linear in `spatial.py`. Removed `scipy.interpolate.RBFInterpolator` from hot path; kept `scipy.spatial.Delaunay` for hull gate |
+| hash      | what                                                                                                                                                                                                                                                                                                                             |
+| --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `a2f6db7` | Round-3 internal spike (regularized TPS / neighbors=k / PWA / hull gate). Winner: `tps_neighbors_k=6` with 13 landmarks                                                                                                                                                                                                          |
+| `26185a0` | Card-progression deep-research prompt + research queue                                                                                                                                                                                                                                                                           |
+| `a951ec7` | Shipped Round-3 winner to `spatial.py:pixel_to_hockey`                                                                                                                                                                                                                                                                           |
+| `0080737` | Dossier flipped to SHIPPED                                                                                                                                                                                                                                                                                                       |
+| `8ad5fbe` | Confidence flag end-to-end: migration 0034 `match_events.position_confidence`, worker writes it, web shot map renders extrapolated markers at 50% opacity                                                                                                                                                                        |
+| `9bb202e` | Round-4: user measured 8 additional corner landmarks → 21 landmarks total. Hull coverage 59% → 89.6%. Unexpected reversal: linear LSF now beats TPS+neighbors=6 on every metric                                                                                                                                                  |
+| `0b25439` | Method swap: replaced RBF+neighbors=6 with LSF linear in `spatial.py`. Removed `scipy.interpolate.RBFInterpolator` from hot path; kept `scipy.spatial.Delaunay` for hull gate                                                                                                                                                    |
 | `c6240a7` | Worker promoter bug fix: was using `events[0]` for spatial attribution instead of `events[selected_event_index]`. On match 250, only 3/93 captures had selected_event_index=0; the other 89% were mis-attributed. New `tools/game_ocr/scripts/respatialize_match.py` to reprocess existing matches under the current calibration |
-| `be4f206` | CVAT importer fix: was using its own pre-Round-3 single-anchor linear math; now calls production `spatial.pixel_to_hockey`. Also writes `position_confidence` |
+| `be4f206` | CVAT importer fix: was using its own pre-Round-3 single-anchor linear math; now calls production `spatial.pixel_to_hockey`. Also writes `position_confidence`                                                                                                                                                                    |
 
 ### Calibration trajectory across the day
 
-| stage | landmarks | method | mean LOOCV-TRE | boundary | hull cov |
-|---|---:|---|---:|---:|---:|
-| pre-shipping (single-anchor linear, rink_pixel_box only) | n/a | single linear | 12.45 px / 2.68 ft | 10.03 | n/a |
-| Round-3 shipped | 13 | TPS RBF neighbors=6 | 12.72 px / 2.74 ft | **4.52** | 59.1% |
-| Round-4 landmarks (RBF retained) | 21 | RBF neighbors=6 | 9.17 px / 1.97 ft | 7.01 | 89.6% |
-| **Round-4 final (current prod)** | 21 | **LSF linear** | **7.50 px / 1.61 ft** | **4.26** | 89.6% |
+| stage                                                    | landmarks | method              |        mean LOOCV-TRE | boundary | hull cov |
+| -------------------------------------------------------- | --------: | ------------------- | --------------------: | -------: | -------: |
+| pre-shipping (single-anchor linear, rink_pixel_box only) |       n/a | single linear       |    12.45 px / 2.68 ft |    10.03 |      n/a |
+| Round-3 shipped                                          |        13 | TPS RBF neighbors=6 |    12.72 px / 2.74 ft | **4.52** |    59.1% |
+| Round-4 landmarks (RBF retained)                         |        21 | RBF neighbors=6     |     9.17 px / 1.97 ft |     7.01 |    89.6% |
+| **Round-4 final (current prod)**                         |        21 | **LSF linear**      | **7.50 px / 1.61 ft** | **4.26** |    89.6% |
 
 ### Bugs caught (both pre-dated today)
 
@@ -516,13 +867,13 @@ end-to-end and uncovered two worker bugs in the process.
 
 ### Match 250 final state (after reprocess + CVAT import)
 
-| event_type | total OCR events | positioned | coverage |
-|---|---:|---:|---:|
-| goal | 7 | 6 | 86% |
-| hit | 33 | 26 | 79% |
-| shot | 32 | 19 | 59% |
-| faceoff | 19 | 1 | 5% (expected — not on Action Tracker rink) |
-| **plottable total** | **72** | **51** | **71%** |
+| event_type          | total OCR events | positioned |                                   coverage |
+| ------------------- | ---------------: | ---------: | -----------------------------------------: |
+| goal                |                7 |          6 |                                        86% |
+| hit                 |               33 |         26 |                                        79% |
+| shot                |               32 |         19 |                                        59% |
+| faceoff             |               19 |          1 | 5% (expected — not on Action Tracker rink) |
+| **plottable total** |           **72** |     **51** |                                    **71%** |
 
 All 51 positioned events: `position_confidence = 'interpolated'`. Zero `extrapolated` because the 21-landmark hull encloses every actual on-rink event.
 
@@ -545,12 +896,12 @@ Round-1 internal dossier and pushed forward by Round-2 Deep Research.
 **Round-3 internal spike** ([calibration_spike_v2.py](tools/game_ocr/scripts/calibration_spike_v2.py),
 commit `a2f6db7`): evaluated the four prioritized methods from Round-2.
 
-| Spike | Result |
-|---|---|
-| A — Regularized TPS smoothing sweep | Null result. Smoothing degrades monotonically. |
-| B — `neighbors=k` localization | **Winner: k=6.** Sub-foot boundary fidelity. |
-| C — Piecewise-affine (Delaunay) | Rejected as primary — interior-only (8/13 LOOCV holdouts out-of-hull). |
-| D — Convex-hull gate | 59.1% rink coverage with current 13 landmarks. ~41% needs `extrapolated` flag. |
+| Spike                               | Result                                                                         |
+| ----------------------------------- | ------------------------------------------------------------------------------ |
+| A — Regularized TPS smoothing sweep | Null result. Smoothing degrades monotonically.                                 |
+| B — `neighbors=k` localization      | **Winner: k=6.** Sub-foot boundary fidelity.                                   |
+| C — Piecewise-affine (Delaunay)     | Rejected as primary — interior-only (8/13 LOOCV holdouts out-of-hull).         |
+| D — Convex-hull gate                | 59.1% rink coverage with current 13 landmarks. ~41% needs `extrapolated` flag. |
 
 **Production change** (commit `a951ec7`): replaced
 `spatial.py:pixel_to_hockey` with the `tps_neighbors_k=6 + hull gate`
@@ -608,7 +959,7 @@ UPDATE match_events SET target_player_id=3 WHERE target_gamertag_snapshot='M. RA
 
 Resolved memory: `project_match250_alias_correction_needed.md` deleted from `~/.claude/projects/.../memory/` and removed from the MEMORY.md index. No git changes needed beyond this HANDOFF entry.
 
-**Side-note worth a future look:** `players.id=3` (Stick Menace) has `position='center'` in the DB but the V2 benchmark shows him playing Left Wing in match 250. The `players.position` column may be the player's *canonical/preferred* position, not necessarily the position played in a given match. If this matters for the new lineup queries, the canonical-position story needs nailing down — but it's distinct from the alias bug and not blocking anything observed.
+**Side-note worth a future look:** `players.id=3` (Stick Menace) has `position='center'` in the DB but the V2 benchmark shows him playing Left Wing in match 250. The `players.position` column may be the player's _canonical/preferred_ position, not necessarily the position played in a given match. If this matters for the new lineup queries, the canonical-position story needs nailing down — but it's distinct from the alias bug and not blocking anything observed.
 
 ---
 
@@ -618,7 +969,7 @@ Three-step fix that takes the migration system from "non-canonical, `pnpm migrat
 
 **Step 1 — confirm drizzle's hash format.** Read `node_modules/drizzle-orm/migrator.js`: hash is `sha256(raw_file_content)`. Verified against existing tracked rows for 0028 and 0029 — they matched exactly.
 
-**Step 2 — INSERT tracking rows for 0030/0031/0032/0033.** Computed sha256 for each migration file, used the journal's `when` value as `created_at`, inserted four rows into `drizzle.__drizzle_migrations`. Discovered during the audit that 0031 *was* already applied to the live DB (earlier audit checked for the wrong table name); no schema mutation needed.
+**Step 2 — INSERT tracking rows for 0030/0031/0032/0033.** Computed sha256 for each migration file, used the journal's `when` value as `created_at`, inserted four rows into `drizzle.__drizzle_migrations`. Discovered during the audit that 0031 _was_ already applied to the live DB (earlier audit checked for the wrong table name); no schema mutation needed.
 
 ```sql
 INSERT INTO drizzle.__drizzle_migrations (hash, created_at) VALUES
@@ -630,7 +981,7 @@ INSERT INTO drizzle.__drizzle_migrations (hash, created_at) VALUES
 
 Result: `pnpm --filter db migrate` is now a clean no-op (was previously broken by duplicate-relation errors).
 
-**Step 3 — regenerate the latest snapshot.** `drizzle-kit generate` produced a `0034_sour_hitman` migration duplicating 0031/0032/0033 (because the last existing snapshot was 0030 and the missing intermediate snapshots had nothing to diff against). The fix: rename the *snapshot* drizzle-kit just produced (`meta/0034_snapshot.json`) to `meta/0033_snapshot.json` (filling the missing 0033 snapshot slot — the snapshot file represents post-N state, so post-0034-with-no-changes == post-0033). Then delete the redundant `0034_sour_hitman.sql` and remove the 0034 journal entry. Re-run: **"No schema changes, nothing to migrate 😴."**
+**Step 3 — regenerate the latest snapshot.** `drizzle-kit generate` produced a `0034_sour_hitman` migration duplicating 0031/0032/0033 (because the last existing snapshot was 0030 and the missing intermediate snapshots had nothing to diff against). The fix: rename the _snapshot_ drizzle-kit just produced (`meta/0034_snapshot.json`) to `meta/0033_snapshot.json` (filling the missing 0033 snapshot slot — the snapshot file represents post-N state, so post-0034-with-no-changes == post-0033). Then delete the redundant `0034_sour_hitman.sql` and remove the 0034 journal entry. Re-run: **"No schema changes, nothing to migrate 😴."**
 
 The missing 0026/0031/0032 intermediate snapshots are still missing, but they don't matter for either `migrate` (which uses journal+SQL only) or `generate` (which uses only the latest snapshot as baseline). Historical snapshot record is the only thing slightly less complete than ideal — acceptable cost for not hand-writing JSON.
 
@@ -643,7 +994,7 @@ No SQL file changes (0034_sour_hitman.sql was deleted before any commit).
 
 ### Live DB state after reconciliation
 
-`drizzle.__drizzle_migrations` has 34 rows matching journal entries 0-33. Both `pnpm migrate` and `drizzle-kit generate` are confirmed clean. The team's hand-written-SQL workflow continues to work *and* drizzle-kit can now generate future migrations from schema-file diffs correctly.
+`drizzle.__drizzle_migrations` has 34 rows matching journal entries 0-33. Both `pnpm migrate` and `drizzle-kit generate` are confirmed clean. The team's hand-written-SQL workflow continues to work _and_ drizzle-kit can now generate future migrations from schema-file diffs correctly.
 
 ---
 
@@ -651,26 +1002,26 @@ No SQL file changes (0034_sour_hitman.sql was deleted before any commit).
 
 ### What shipped — 18 focused commits taking ~200 dirty paths to a clean tree
 
-| Hash | Title |
-|---|---|
-| `e23bb22` | chore: gitignore large local artifacts; drop stray probe script |
-| `c36c306` | docs(ocr): commit research dossiers for pre-game, marker, event-list extraction |
-| `a6f25c4` | feat(ocr): land spatial helpers + rink calibration + spike scripts |
-| `22faa4c` | docs(branding): reorganize assets into palettes/logos/icons/flags/rink-event-map |
-| `f2c32ee` | docs(design): organize design assets into Mockups/ and Card_Examples/ |
-| `24bb4d2` | docs: reorganize planning/operations/templates and add docs README |
-| `43d554d` | feat(db): land migrations 0023-0027 + register hand-written 0031-0033 in journal |
-| `4fb95bb` | feat(db): schema + queries layer for accounts, archetypes, ratings, OCR-derived columns |
-| `0ab3726` | feat(auth): account system — better-auth, login/account/admin/me pages |
+| Hash      | Title                                                                                           |
+| --------- | ----------------------------------------------------------------------------------------------- |
+| `e23bb22` | chore: gitignore large local artifacts; drop stray probe script                                 |
+| `c36c306` | docs(ocr): commit research dossiers for pre-game, marker, event-list extraction                 |
+| `a6f25c4` | feat(ocr): land spatial helpers + rink calibration + spike scripts                              |
+| `22faa4c` | docs(branding): reorganize assets into palettes/logos/icons/flags/rink-event-map                |
+| `f2c32ee` | docs(design): organize design assets into Mockups/ and Card_Examples/                           |
+| `24bb4d2` | docs: reorganize planning/operations/templates and add docs README                              |
+| `43d554d` | feat(db): land migrations 0023-0027 + register hand-written 0031-0033 in journal                |
+| `4fb95bb` | feat(db): schema + queries layer for accounts, archetypes, ratings, OCR-derived columns         |
+| `0ab3726` | feat(auth): account system — better-auth, login/account/admin/me pages                          |
 | `afe4e3d` | feat(worker): expand transform for ratings/rank/goalie-locations + OT/SO + OCR loadout plumbing |
-| `ad022ba` | feat(web): shared shell — design-system tokens, brand markers, archetype pills, nav polish |
-| `2461446` | feat(web): home page renovation |
-| `fb734fc` | feat(web): roster page renovation |
-| `73c39e4` | feat(web): stats page renovation |
-| `b5850a4` | feat(web): matches page renovation |
-| `5545fe7` | feat(web): /preview/carousel — bare-bones carousel preview page |
-| `29ac0c5` | docs: catch-up — path fixes, auth env doc, root-level design notes, PP/PK research |
-| (this) | docs(handoff): record working-tree cleanup session |
+| `ad022ba` | feat(web): shared shell — design-system tokens, brand markers, archetype pills, nav polish      |
+| `2461446` | feat(web): home page renovation                                                                 |
+| `fb734fc` | feat(web): roster page renovation                                                               |
+| `73c39e4` | feat(web): stats page renovation                                                                |
+| `b5850a4` | feat(web): matches page renovation                                                              |
+| `5545fe7` | feat(web): /preview/carousel — bare-bones carousel preview page                                 |
+| `29ac0c5` | docs: catch-up — path fixes, auth env doc, root-level design notes, PP/PK research              |
+| (this)    | docs(handoff): record working-tree cleanup session                                              |
 
 Typecheck stayed green across every web/worker commit. Dev server served /games/250 at 200 throughout.
 
@@ -680,17 +1031,17 @@ Typecheck stayed green across every web/worker commit. Dev server served /games/
 
 **Migration system is in a non-canonical state.** Inventory and fix details in commit `43d554d` message and the migration audit produced during cleanup:
 
-| Migration | SQL | Journal | Snapshot | DB applied | Notes |
-|---|---|---|---|---|---|
-| 0023-0025 | ✓ (this session) | ✓ (this session) | ✓ (this session) | ✓ via drizzle | clean |
-| 0026 account_system | ✓ (this session) | ✓ (this session) | **missing** | ✓ via drizzle | snapshot never generated |
-| 0027 test_roster_utiz | ✓ (this session) | ✓ (this session) | n/a (hand-written DO block) | ✓ via drizzle | seed migration, kept as a migration per user pref |
-| 0028-0030 | git | git | git | 0028/0029 via drizzle; **0030 via direct psql** | drift |
-| 0031 BGM attack direction | ✓ (this session) | ✓ (this session, new entry) | **missing** | ✗ **NOT APPLIED** | hand-written, never run |
-| 0032 pre-game loadout fields | git | ✓ (this session, new entry) | **missing** | ✓ **via direct psql** | drift |
-| 0033 loadout team_side | git | ✓ (this session, new entry) | **missing** | ✓ **via direct psql** | drift |
+| Migration                    | SQL              | Journal                     | Snapshot                    | DB applied                                      | Notes                                             |
+| ---------------------------- | ---------------- | --------------------------- | --------------------------- | ----------------------------------------------- | ------------------------------------------------- |
+| 0023-0025                    | ✓ (this session) | ✓ (this session)            | ✓ (this session)            | ✓ via drizzle                                   | clean                                             |
+| 0026 account_system          | ✓ (this session) | ✓ (this session)            | **missing**                 | ✓ via drizzle                                   | snapshot never generated                          |
+| 0027 test_roster_utiz        | ✓ (this session) | ✓ (this session)            | n/a (hand-written DO block) | ✓ via drizzle                                   | seed migration, kept as a migration per user pref |
+| 0028-0030                    | git              | git                         | git                         | 0028/0029 via drizzle; **0030 via direct psql** | drift                                             |
+| 0031 BGM attack direction    | ✓ (this session) | ✓ (this session, new entry) | **missing**                 | ✗ **NOT APPLIED**                               | hand-written, never run                           |
+| 0032 pre-game loadout fields | git              | ✓ (this session, new entry) | **missing**                 | ✓ **via direct psql**                           | drift                                             |
+| 0033 loadout team_side       | git              | ✓ (this session, new entry) | **missing**                 | ✓ **via direct psql**                           | drift                                             |
 
-Effect: `pnpm --filter db migrate` is currently broken — it would try to re-apply 0030 (already applied) and fail with duplicate-table. **The chosen repair path was surgical, not full** — journal is now contiguous, hand-written migrations are registered, but the live `drizzle.__drizzle_migrations` table is *not* reconciled. Next migration session needs to either insert hash rows for 0030/0032/0033, or accept the divergence and continue applying manually.
+Effect: `pnpm --filter db migrate` is currently broken — it would try to re-apply 0030 (already applied) and fail with duplicate-table. **The chosen repair path was surgical, not full** — journal is now contiguous, hand-written migrations are registered, but the live `drizzle.__drizzle_migrations` table is _not_ reconciled. Next migration session needs to either insert hash rows for 0030/0032/0033, or accept the divergence and continue applying manually.
 
 **Drift root cause:** drizzle's migrate runner uses the journal's `when` field for ordering, and when `when` is non-monotonic (which happened because 0028-0030 were generated before 0023-0027), it can skip later migrations. The team's response has been to apply via psql directly, which works but leaves the tracking table out of date.
 
@@ -718,19 +1069,20 @@ Open decisions:
 
 ### What shipped — 5 commits forming a complete pre-game ingestion track
 
-| Hash | Title |
-|---|---|
+| Hash      | Title                                                                     |
+| --------- | ------------------------------------------------------------------------- |
 | `cc101de` | feat(db): add pre-game OCR fields (tier, captain, number, persona, delta) |
-| `f34b400` | feat(ocr): rewrite loadout parser as anchor-based full-frame parse |
-| `3e3f7c4` | feat(worker): wire new loadout parser fields through promoter |
-| `87a863e` | feat(ocr): rewrite lobby parser with per-team state auto-detection |
-| `12694e9` | feat(worker): cross-frame consensus CLI for loadout snapshots |
+| `f34b400` | feat(ocr): rewrite loadout parser as anchor-based full-frame parse        |
+| `3e3f7c4` | feat(worker): wire new loadout parser fields through promoter             |
+| `87a863e` | feat(ocr): rewrite lobby parser with per-team state auto-detection        |
+| `12694e9` | feat(worker): cross-frame consensus CLI for loadout snapshots             |
 
 ### Pre-game OCR pipeline state
 
 **Before this session:** The loadout-view ROIs were catastrophically misaligned (gamertag ROI pointed at the LEFT-STRIP avatar instead of top-right; build_class clipped half the title text; each attribute group ROI captured 1 of 5 rows). Live DB had 28 reviewed-but-garbage snapshots like `"5'8\" 1 175Ibs HenryTheBobJr Iil. 6'0* | 160 bs P2lYL35 JoeyFlopfish CHEL"` as a gamertag value. Attribute coverage was 5/23 per snapshot. Build class truncated to `PUCK M` / `EFENSI DE` / `TAGE TH`. Lobby parser's sort-by-(y,x)-then-walk-position approach scrambled rows when adjacent player y-gaps were small.
 
 **After this session:**
+
 - DB wiped clean of the 28 garbage rows (kept as a reference point in [docs/ocr/pre-game-extraction-research.md](docs/ocr/pre-game-extraction-research.md) but no longer pollutes live data).
 - Both parsers rewritten using full-frame OCR + anchor-based field extraction. Loadout parser: 93.7% V2 match across 5 players × 38 fields. Lobby parser: 100% of expected 18 player slots detected across 3 captures × 2 teams × 6 positions, with per-team state-1/state-2 auto-detection.
 - Schema migration 0032 added `is_captain`, `player_number`, `player_name_persona` on snapshots, `tier` on X-factors, `delta_value` on attributes.
@@ -774,6 +1126,7 @@ Also earlier in the session: event-list Round-2 Deep Research findings were revi
 A LOT of valuable research work is currently sitting in the working directory but not in git. If the working tree is wiped (worktree cleanup, fresh checkout, etc.) it'll be lost. Recommend a `docs(ocr): commit research dossiers + spike scripts` commit early in the next session covering:
 
 **Dossiers** (in `docs/ocr/`, untracked):
+
 - `pre-game-extraction-research.md` — full diagnosis of the pre-game OCR problem + internal research that drove this session's commits
 - `marker-extraction-research.md` — full marker calibration research incl. spike findings and Round-2 ingestion
 - `event-list-extraction-research.md` — event-list problem statement + Round-1/Round-2 findings
@@ -784,9 +1137,11 @@ A LOT of valuable research work is currently sitting in the working directory bu
 - `deep-research-report_1.md`, `_2.md`, `_3.md` — raw Deep Research outputs (verbatim, citation tokens mangled but content readable)
 
 **Calibration data** (in `tools/game_ocr/game_ocr/configs/rink/`, untracked):
+
 - `match250_landmarks.json` — 13 user-measured landmarks + 12 axis-only observations for match 250 (the spike data that defeated plain TPS)
 
 **Spike / diagnostic scripts** (in `tools/game_ocr/scripts/`, untracked):
+
 - `calibration_spike.py` — TPS-vs-linear comparison with LOOCV-TRE
 - `xfactor_tier_spike.py` — HSV classifier (validated 18/18 in this session)
 - `dump_raw_ocr.py` — full-frame + per-ROI OCR dump tool
@@ -852,19 +1207,20 @@ Per the brainstorm at `docs/ocr/metrics-feature-brainstorm.md` and the plan at `
 - **Branding SVG port** — `Rink.svg` + 8 event marker badges (Goal/Shot/Hit/Penalty × Home/Away) ported from `docs/branding/rink-event-map/` into inline JSX in `apps/web/src/components/branding/{rink,event-markers}.tsx`. Source SVGs are now decoupled from the UI; the user can reorganise the branding folder freely.
 - **PeriodSummary** — horizontal cards (4 per period), per-period winner ribbon (BGM red / dim / tied), proportional bars for Goals/Shots/Faceoffs.
 - **EventLog** — vertical-timeline with goal-hex and penalty-diamond markers, BGM/4L sides of the rail, GWG tag on the game-winning goal.
-- **ShotMap** — uses new `RinkSvg`, marker SVG components for goals/shots/hits/penalties, filter chips (now without Faceoffs — they don't render on the map by design), period-filter chips, 2x marker sizes, coverage disclosure under the rink: *"N events positioned on the rink · K captured but not yet placed"*.
+- **ShotMap** — uses new `RinkSvg`, marker SVG components for goals/shots/hits/penalties, filter chips (now without Faceoffs — they don't render on the map by design), period-filter chips, 2x marker sizes, coverage disclosure under the rink: _"N events positioned on the rink · K captured but not yet placed"_.
 - **ShotMix** — Total row promoted (big numbers, separator), subtitle "Most BGM shots: X · Most OPP shots: Y".
 - **LineupCard** (new) — added between TeamStats and PeriodSummary. Two-column BGM/opponent roster from `player_loadout_snapshots` joined via `getMatchLineups()` (new query in `packages/db/src/queries/match-lineups.ts`). Team side derived from raw_result_json (`our_team` vs `opponent_team`) with a player-resolution fallback. CPU/empty slots fill remaining seats as ghost chips.
 
 ### Box-score "Shots" override (OCR wins when present)
 
-`buildBoxScore()` in `apps/web/src/lib/match-recap.ts` now takes `periodSummaries` and overrides EA's `match.shotsFor/_against` with the sum of reviewed OCR per-period shots. The Offense group gains a footnote: *"Shots and shooting % are taken from the in-game Box Score (OCR-reviewed). EA reported X–Y."*. Shooting % and Shot On Net % cascade off the OCR total.
+`buildBoxScore()` in `apps/web/src/lib/match-recap.ts` now takes `periodSummaries` and overrides EA's `match.shotsFor/_against` with the sum of reviewed OCR per-period shots. The Offense group gains a footnote: _"Shots and shooting % are taken from the in-game Box Score (OCR-reviewed). EA reported X–Y."_. Shooting % and Shot On Net % cascade off the OCR total.
 
 For match 250: EA reported 25–15; OCR Box Score reads 29–16 (after manual fix to 9→6 misreads). Page now shows 29–16 with the footnote.
 
 ### Shootout (`SO`) removal
 
 User confirmed EASHL has no shootout. Removed:
+
 - `SO`/`S0` entries from `_BOX_SCORE_PERIOD_NUMBER` / aliases in `tools/game_ocr/game_ocr/parsers.py`.
 - TOT-sum sanity check narrowed from periods 1..7 → 1..6.
 - DB cleanup: 1 stray `match_period_summaries` row at `period_number=7 (SO)` deleted.
@@ -877,6 +1233,7 @@ User confirmed EASHL has no shootout. Removed:
 **Issue 2 (the real bug):** the CVAT importer was using `events[0]` to identify which match_events row a labelled yellow marker corresponded to. **`events[0]` is the FIRST event in the parsed list (chronological top of panel) — NOT the highlighted/selected event.** The OCR pipeline had no way to know which row was selected.
 
 **Fix:**
+
 - `tools/game_ocr/game_ocr/spatial.py` — new `detect_selected_row_index()`. Samples the red-tinted full-row background in the list panel (not just the left-edge team-indicator strip, which appears on every BGM-actor row). Scores each parsed event's y-band by red-pixel count; row with the most red = selected.
 - `tools/game_ocr/game_ocr/parsers.py` — captures each event's actor-row `y_center` (scaled /2 because OCR runs on a 2x upscale via `image.preprocess_image`), calls the detector, attaches `selected_event_index` to `PostGameActionTrackerResult`.
 - `tools/game_ocr/game_ocr/models.py` — adds the field.
@@ -968,11 +1325,11 @@ Discrepancies surfaced (Action Tracker — 5 missing, 17 extra):
 
 The Events screen shows **time remaining in the period**. The Action Tracker shows **time elapsed**.
 
-| Goal | Events screen | Action Tracker | Same event? |
-|---|---|---|---|
-| Silky's 1st | 06:19 (remaining) | 13:41 (elapsed) | yes — `20:00 − 06:19 = 13:41` |
-| Rantanen 2nd | 14:53 | 05:07 | yes — `20:00 − 14:53 = 05:07` |
-| Wanhg OT | 17:23 | 02:37 | yes — `20:00 − 17:23 = 02:37` |
+| Goal         | Events screen     | Action Tracker  | Same event?                   |
+| ------------ | ----------------- | --------------- | ----------------------------- |
+| Silky's 1st  | 06:19 (remaining) | 13:41 (elapsed) | yes — `20:00 − 06:19 = 13:41` |
+| Rantanen 2nd | 14:53             | 05:07           | yes — `20:00 − 14:53 = 05:07` |
+| Wanhg OT     | 17:23             | 02:37           | yes — `20:00 − 17:23 = 02:37` |
 
 Phase 2's cross-capture dedup matches on identical clock strings, so it doesn't collapse Events- and Action-Tracker–sourced rows for the same goal. Result: every goal lives in the DB twice (once per screen). Match 250 has 14 goal rows when there were only 7 actual goals.
 
@@ -985,6 +1342,7 @@ Ground-truth Action Tracker for 3rd period has a `Hit @ 19:13 -, Whoosah → H. 
 Implication for video ingestion: when capturing from a video stream rather than discrete screenshots, frames where the highlighted event is off-screen contribute a YELLOW marker to the rink without the parser knowing which event the marker belongs to. We can't naively associate "first event in list" with the yellow marker in those frames.
 
 Mitigations to consider when wiring video ingestion:
+
 - Detect the off-screen condition: if the visible event list shows N rows but no row appears highlighted, drop the spatial extraction for that frame.
 - Use the prior/next frame's list state to find the "missing" event: if frame K's selection is N+1 (visible) and frame K-1's was N (now off-screen), the K-1 yellow marker belongs to the event that's now at the top of the frame-K list.
 - Or simply: prefer captures where the selected event is clearly visible at the top.
@@ -1052,6 +1410,7 @@ One-off helper to overlay the calibration's `rink_pixel_box`, reference points, 
 ### Smoke test (`tools/game_ocr/tests/test_spatial.py`)
 
 11 unit tests covering:
+
 - Calibration JSON load + parse.
 - Synthetic rink image with a yellow circle at known pixel positions → assert hockey coordinates round-trip within 0.5 units.
 - Box-corner round-trips (top-left → x=-100, y=+42.5; bottom-right → x=+100, y=-42.5).
@@ -1064,6 +1423,7 @@ All 11 pass plus the existing 7 parser tests = 18 total in 13 seconds.
 ### Action Tracker parser integration (`tools/game_ocr/game_ocr/parsers.py`)
 
 `parse_post_game_action_tracker` now accepts an optional `image=None` kwarg. When set (production: extractor passes the loaded full-frame BGR np.ndarray), it runs `extract_selected_event_position` and attaches:
+
 - `selected_event_x: float | None` — hockey-standard
 - `selected_event_y: float | None`
 - `selected_event_rink_zone: 'offensive' | 'defensive' | 'neutral' | None`
@@ -1107,6 +1467,7 @@ Rows with spatial data (x non-null): 16 (42% of total)
 Spot check: SILKY shot at clock 0:01 → `(24.32, 31.91)` neutral zone ≈ high slot, plausible. M. RANTANEN goal at 5:07 → `(64.28, -8.02)` offensive slot, classic goal-scoring position. E. WANHG faceoff at 2:13 → `(-26.43, -33.81)` defensive zone faceoff dot. All within ±5 ft of the visible on-rink position.
 
 UI smoke check (`pnpm --filter web dev`):
+
 - `/games/250` renders ShotMap with 12+ markers visible on the SVG rink.
 - `/roster/11` (MrHomiecide, 5 positioned events) renders CareerShotMap.
 - `/roster/2` (silkyjoker85, 1 positioned event) correctly hides CareerShotMap (below the ≥5 threshold).
@@ -1157,6 +1518,7 @@ Plan: `/home/michal/.claude/plans/abstract-yawning-dream.md`
 End-to-end pipe alive against the 4 already-implemented Python parsers (lobby ×2, loadout, post-game player summary).
 
 New files in `apps/worker/src/`:
+
 - `ocr-cli-runner.ts` — `runOcrCli({screen, inputPath, pythonBin?})`. Spawns `python3 -m game_ocr.cli`, writes JSON to a tempfile, parses, deletes tempfile. Honors `OCR_PYTHON` env var; sets `PYTHONPATH` to `tools/game_ocr`. Tolerates exit code 1 (CLI emits 1 for warnings if JSON wrote anyway).
 - `ingest-ocr.ts` — `ingestOcrBatch(...)` orchestrates: insert one `ocr_capture_batches` row, run CLI, walk results. Per-result transaction: upsert `ocr_extractions` (idempotent on `(batch_id, source_path)`), clear+rewrite `ocr_extraction_fields`, dispatch to per-screen promoter, mark `transform_status` success/error. **One transaction per result, not per batch** — bad screenshots don't roll back the rest.
 - `walkExtractionFields()` — per-screen field walkers emit one `ocr_extraction_fields` row per `ExtractionField` in the parsed result tree, with `entity_type` / `entity_key` per the schema's documented conventions.
@@ -1180,6 +1542,7 @@ All five parsers are wired into `tools/game_ocr/game_ocr/extractor.py` `ScreenRe
 YAMLs: `post_game_box_score_{goals,shots,faceoffs}.yaml`. One shared parser `parse_post_game_box_score(meta, regions, *, stat_kind)`; the 3 screen types differ only by `stat_kind` discriminator.
 
 Layout: tab label top-left, period header row (`1ST 2ND 3RD OT SO TOT`) above two team rows. Parser strategy:
+
 - `_split_into_columns` clusters OCR by horizontal gap to find header columns.
 - `_align_row_to_headers` anchors each stats row's OCR detections to header column x-centers, exploding tightly-spaced glued digit tokens (e.g. `"2331"` → 4 separate digits) by per-character x-slicing.
 - `_BOX_SCORE_PERIOD_ALIASES` covers common OCR misreads (`"S0"` → `"SO"`, `"BRD"` → `"3RD"`, etc.).
@@ -1207,6 +1570,7 @@ YAML: `post_game_faceoff_map.yaml`. Parser `parse_post_game_faceoff_map` capture
 #### Events (full-game scrollable list)
 
 YAML: `post_game_events.yaml`. Parser `parse_post_game_events` groups OCR lines by y, identifies period headers via fuzzy regex (handles OCR-corrupted `"STPERIOD"` and `"BRDPERIOD"` by inferring the period from ordinal-suffix tokens or any leading digit), and parses each event row through three regexes:
+
 - `_EVENT_GOAL_RE`: `<CLOCK> <SCORER>[N] [ASSIST1, ASSIST2]`
 - `_EVENT_GOAL_NO_NUM_RE`: same minus `[N]` (OT-winner edge case)
 - `_EVENT_PENALTY_RE`: `<CLOCK> <PLAYER> <INFRACTION> Minor|Major`
@@ -1214,6 +1578,7 @@ YAML: `post_game_events.yaml`. Parser `parse_post_game_events` groups OCR lines 
 Ornament filter rejects single-letter UI badges (`"L"`, `"TL"`, `"IL"`) that the loss-indicator chip renders to the left of the team logo.
 
 Promoter: `apps/worker/src/ocr-promoters/events.ts`. Cross-capture dedup key: `(matchId, periodNumber, clock, eventType, source='ocr', teamAbbreviation, actorGamertagSnapshot)`. When a row already exists, just refresh `ocr_extraction_id` to the new extraction. Inserts:
+
 - `match_events` row with `source='ocr'`, `reviewStatus='pending_review'`, `eventType='goal'|'penalty'`.
 - `match_goal_events` extension (scorer + goal_number_in_game + up to 2 assists, each gamertag resolved).
 - `match_penalty_events` extension (infraction + penalty_type + minutes derived).
@@ -1246,7 +1611,7 @@ match_penalty_events: 0 rows (no penalties in this match)
 
 ### Open issues to address in Phase 3+
 
-- `Silky` / `SILKY` case mismatch: the Action Tracker captures uppercase gamertags, but the Phase 1 resolve-identity stub does case-insensitive *exact* match against `players.gamertag`. If the DB has `silkyjoker85` but OCR reads `Silky` (just the displayed first name), the resolver returns null. Phase 3 needs alias matching against `player_gamertag_history` and Levenshtein-1 fallback against current gamertags.
+- `Silky` / `SILKY` case mismatch: the Action Tracker captures uppercase gamertags, but the Phase 1 resolve-identity stub does case-insensitive _exact_ match against `players.gamertag`. If the DB has `silkyjoker85` but OCR reads `Silky` (just the displayed first name), the resolver returns null. Phase 3 needs alias matching against `player_gamertag_history` and Levenshtein-1 fallback against current gamertags.
 - OCR misreads of digits (`2`→`7`, `9`→`6`) and chips (`SHOT`→`10HS`, `0:04`→`0:42`) flow through to the DB with confidence intact. Phase 4's review CLI is the canonical fix path.
 - Action Tracker `team_side` heuristic ("if actor resolved → for") is wrong for cases where BGM gamertags don't resolve due to case mismatch. Will improve naturally once Phase 3 lands.
 
@@ -1263,6 +1628,7 @@ Migration `0030_sleepy_gressill.sql` applied directly via `cat | docker exec psq
 ### Production resolver (`apps/worker/src/ocr-promoters/resolve-identity.ts`)
 
 Replaces the Phase 1 stub. Resolution order:
+
 1. Normalize: trim + strip leading `-.`/`.` ornaments + strip trailing punctuation.
 2. Exact case-insensitive match against `players.gamertag`.
 3. Exact match against active `player_gamertag_history` aliases (`seen_until IS NULL`).
@@ -1403,12 +1769,14 @@ Plan: `docs/superpowers/plans/2026-05-10-ocr-schema-integration.md`
 **Index updated:** `packages/db/src/schema/index.ts` exports all 4 new schema files.
 
 **Design decisions preserved:**
+
 - OCR is a 3rd evidence layer — never overwrites EA API canon (`ea_member_season_stats`, `player_match_stats`)
 - `review_status` pattern on all enrichment tables: `'pending_review' | 'reviewed' | 'rejected'`
 - `source` column on period summaries and events: `'ea' | 'ocr' | 'manual'`
 - Self-referential FK on `ocr_extractions.duplicate_of_extraction_id` uses Drizzle's `(): AnyPgColumn =>` lambda syntax
 
 **What's next:**
+
 1. Worker transform: parse OCR CLI output for supported screen types and insert into new tables
 2. Queries: write read-side query functions in `packages/db/src/queries/` for the new tables
 3. UI: surface per-period breakdowns, shot-type charts, event feeds, and loadout views once data flows in
@@ -1425,20 +1793,21 @@ Until today the worker emitted only `WIN | LOSS | DNF` because no overtime
 fixture had been mined to confirm the OTL code. After cross-referencing 71 NHL
 26 BGM payloads, the full result-code set is:
 
-| Code | Meaning | Mapped to |
-|---:|---|---|
-| `1` | Regulation WIN | `WIN` |
-| `2` | Regulation LOSS | `LOSS` |
-| `5` | OT / SO WIN (still 2pts) | `WIN` |
-| `6` | OT / SO LOSS (1pt OTL credit) | **`OTL`** ✨ new |
-| `10` | DNF | `DNF` |
-| `16385` (`0x4001`) | WIN by opponent forfeit | `WIN` |
+|               Code | Meaning                       | Mapped to        |
+| -----------------: | ----------------------------- | ---------------- |
+|                `1` | Regulation WIN                | `WIN`            |
+|                `2` | Regulation LOSS               | `LOSS`           |
+|                `5` | OT / SO WIN (still 2pts)      | `WIN`            |
+|                `6` | OT / SO LOSS (1pt OTL credit) | **`OTL`** ✨ new |
+|               `10` | DNF                           | `DNF`            |
+| `16385` (`0x4001`) | WIN by opponent forfeit       | `WIN`            |
 
 Smoking gun: every code-5/code-6 match has a strict 1-goal margin and the
 codes always pair (`5 ↔ 6`). OT and shootout share the same code — EA does not
 distinguish them — so both fold into `OTL`.
 
 **Files touched:**
+
 - [`apps/worker/src/transform.ts`](apps/worker/src/transform.ts) — `deriveResult()` extended; code 6 → `OTL`, unknown codes still fall back to score-derived WIN/LOSS so future variants don't silently break.
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — Known Assumption #7 updated with the full code table; added assumption #8 about `clubs[id].result` codes.
 - [`research/investigations/ea-overtime-detection.md`](research/investigations/ea-overtime-detection.md) — full evidence + bitfield speculation (new file).
@@ -1450,11 +1819,12 @@ distinguish them — so both fold into `OTL`.
 ### Home record strip — newest-left layout
 
 [`apps/web/src/components/home/record-strip.tsx`](apps/web/src/components/home/record-strip.tsx)
-+ [`record-strip.css`](apps/web/src/components/home/record-strip.css):
 
-- Last-10 dot ribbon flipped: newest match on the **left**, 10-games-ago on the right. Drop the `.reverse()` and swap the meta labels (`← Most recent` / `10 games ago →`).
-- Accent rim outline moved from `:last-child` → `:first-child` so it highlights the most-recent dot.
-- DNFs now count as losses for both the W-L-OTL line in "last 10" and for streak detection (`streakKindFor(DNF) → 'L'`). DNF dots still render with the `·` glyph + loss-style red so disconnects remain visually distinct, but they no longer break a loss streak.
+- [`record-strip.css`](apps/web/src/components/home/record-strip.css):
+
+* Last-10 dot ribbon flipped: newest match on the **left**, 10-games-ago on the right. Drop the `.reverse()` and swap the meta labels (`← Most recent` / `10 games ago →`).
+* Accent rim outline moved from `:last-child` → `:first-child` so it highlights the most-recent dot.
+* DNFs now count as losses for both the W-L-OTL line in "last 10" and for streak detection (`streakKindFor(DNF) → 'L'`). DNF dots still render with the `·` glyph + loss-style red so disconnects remain visually distinct, but they no longer break a loss streak.
 
 ---
 
@@ -1465,6 +1835,7 @@ distinguish them — so both fold into `OTL`.
 Plan: `docs/superpowers/plans/2026-05-05-profile-page-restructure.md`. Branch: `feat/skater-stats-expansion` (continuing the same branch as the skater stats work).
 
 **New IA:**
+
 - ProfileHero (richer two-column layout) — left: gamertag, position/archetype/country pills, bio, **AKA strip** (folded gamertag history), SKATER/GOALIE role selector. Right: **THIS SEASON** stat strip (NHL 26 EA totals), **CAREER TOTALS** stat strip (sum across NHL 22-26), position usage donut, jersey number watermark.
 - RecentFormStrip (compact LAST 5 panel with form dots + record + G/A + +/- + best-recent callout)
 - StatsRecordCard (tabbed wrapper) — **Season-by-Season** tab shows unified per-title rows with EA/Archive source badges; **Game Log** tab shows existing PlayerGameLogSection
@@ -1475,12 +1846,14 @@ Plan: `docs/superpowers/plans/2026-05-05-profile-page-restructure.md`. Branch: `
 **Data layer (commits 1ab8d9e, 93e9d87):** New `getPlayerCareerSeasons(playerId)` query in `packages/db/src/queries/players.ts` returns one row per game title blending sources — NHL 26 from `ea_member_season_stats` (EA-authoritative), NHL 22-25 from `historical_player_season_stats` aggregated across modes via existing `getHistoricalSkaterStatsAllModes` / `getHistoricalGoalieStatsAllModes` helpers. Title-list filter aligned to helper-filter to prevent silent skip of titles with only position-specific scope rows.
 
 **Component extractions** (no behavior change — refactor for maintainability):
+
 - `apps/web/src/components/roster/contribution-section.tsx` (commit 01658e9)
 - `apps/web/src/components/roster/section-heading.tsx` (commit 01658e9)
 - `apps/web/src/components/roster/trend-chart.tsx` + `recent-form-strip.tsx` (commit 0aab56c — split TrendSection)
 - `apps/web/src/components/roster/position-donut.tsx` (commit a60bc6d)
 
 **New components** (commits ee8bc1e, ffceaca, d04baf6, 2cfa40c, 8c2aece):
+
 - `career-seasons-table.tsx` — unified per-title table, filters by role, EA/Archive source badges, derives SHT% / P/GP from underlying counts, +/- color coding
 - `stats-record-card.tsx` — Client Component tabbed wrapper (Server Components passed as ReactNode slots)
 - `coming-soon-card.tsx` — placeholder primitive with dashed border + "Coming soon" pill
@@ -1490,6 +1863,7 @@ Plan: `docs/superpowers/plans/2026-05-05-profile-page-restructure.md`. Branch: `
 **Page restructure (commit 7635a43):** Page file shrank from 1168 → 217 lines (951 deletions, 41 insertions). Deleted inline functions: `HeroSection`, `HeroStatStrip`, `CurrentSeasonSection`, `SeasonStatCard`, `CareerStatsTable`, `EASeasonStatsTable`, `PreviousSeasonStatsTable`, `HeroChip`, `EmptyPanel`, `computeSkaterArchetype`, `roleHref`, `previousTitleSlug`, `buildPreviousSeasonTotals`, dead helpers (`perGame`, `formatDecimal`, `formatDbPct`, `formatSigned`, `signedClass`), Gamertag History `<section>` (folded into ProfileHero AKA). Removed `getPlayerCareerStats`, `getGameTitleBySlug`, `getHistoricalSkaterStatsAllModes`, `getHistoricalGoalieStatsAllModes` imports — they're called only via `getPlayerCareerSeasons` now.
 
 **Smoke check (silkyjoker85, /roster/2):**
+
 - Skater hero THIS SEASON: GP 520, G 426, A 691, PTS 1117, P/GP 2.15, +/- +169, SOG 1841, SHT% 23.1%, HITS 2067
 - Skater hero CAREER TOTALS: GP 1987, G 2047, A 2854, PTS 4901, +/- +854, SOG 8243, SHT% 24.8%, HITS 5630, PIM 1767
 - Goalie hero THIS SEASON: GP 25, W-L-OTL 6-19-0, SV% 74.00%, GAA 4.66, SO 1
@@ -1500,6 +1874,7 @@ Plan: `docs/superpowers/plans/2026-05-05-profile-page-restructure.md`. Branch: `
 **Verification:** lint clean, typecheck clean, both `/roster/2` and `/roster/2?role=goalie` return 200, dev server stable on http://localhost:3002 throughout development.
 
 **Out of scope (future plans):**
+
 - Goalie Club Stats Tabs (Tabs 6-8) — currently a `<ComingSoonCard>` placeholder for goalie role
 - Real Shot Map (data captured in `skGoalsLocationOnIce*` / `skShotsLocationOnIce*`, never visualized)
 - Real Overall Archetype radar
@@ -1518,7 +1893,7 @@ Plan: `docs/superpowers/plans/2026-05-05-skater-stats-expansion.md`. Branch: `fe
 
 **Discovery:** EA's `/members/stats` endpoint returns ~150 fields per player; our `transform-members.ts` was discarding ~125 of them. All 96 ChelHead Club Stats metrics (less the 5 EA-internal ones) are present in the API. Spatial/hot-zone data is also in the raw payload (deferred to a future plan).
 
-**Schema (commit 90bc49c):** Migration `0020_silly_crystal.sql` adds 49 new columns to `ea_member_season_stats` covering ChelHead Tabs 1-5: skater record split (skater_wins/losses/otl/winner_by_dnf/win_pct/dnf), aggregate (games_completed, games_completed_fc, player_quit_disc), position GP splits (lw/rw/c/d_gp), scoring (power_play_goals, short_handed_goals, game_winning_goals, hat_tricks, prev_goals/assists), shooting (shots_per_game, shot_on_net_pct, breakaways/_goals/_pct), playmaking (passes, pass_attempts, interceptions, dekes/_made, deflections, saucer_passes, screen_chances/_goals, possession_seconds, xfactor_zone_used), defense (hits_per_game, fights/_won, blocked_shots, pk_clear_zone, offsides/_per_game, penalties_drawn), faceoffs (faceoff_total/wins/losses, penalty_shot_attempts/goals/pct).
+**Schema (commit 90bc49c):** Migration `0020_silly_crystal.sql` adds 49 new columns to `ea_member_season_stats` covering ChelHead Tabs 1-5: skater record split (skater_wins/losses/otl/winner_by_dnf/win_pct/dnf), aggregate (games_completed, games_completed_fc, player_quit_disc), position GP splits (lw/rw/c/d_gp), scoring (power_play_goals, short_handed_goals, game_winning_goals, hat_tricks, prev_goals/assists), shooting (shots_per_game, shot_on_net_pct, breakaways/\_goals/\_pct), playmaking (passes, pass_attempts, interceptions, dekes/\_made, deflections, saucer_passes, screen_chances/\_goals, possession_seconds, xfactor_zone_used), defense (hits_per_game, fights/\_won, blocked_shots, pk_clear_zone, offsides/\_per_game, penalties_drawn), faceoffs (faceoff_total/wins/losses, penalty_shot_attempts/goals/pct).
 
 **EA client typing (commit 6180fbc):** `EaMemberStats` interface in `packages/ea-client/src/types.ts` extended from 5 named fields to ~80, preserving EA's inconsistent naming (`skDNF`, `gamesCompletedFC`, `xfactor_zoneability_times_used`) verbatim. Catch-all index signature retained.
 
@@ -1533,6 +1908,7 @@ Plan: `docs/superpowers/plans/2026-05-05-skater-stats-expansion.md`. Branch: `fe
 **Wired onto profile (commit a431b39):** 3-line addition to `apps/web/src/app/roster/[id]/page.tsx` — import + conditional render block between EA Season Totals and Previous NHL Season sections. Render gated on `selectedRole === 'skater' && eaStats[0]` — goalie role hides it.
 
 **End-to-end smoke check (silkyjoker85, /roster/2):** All values flow correctly from EA API → DB → query → component → browser. Spot-checked against HAR capture:
+
 - Overview: 545 GP, 466 completed, 67 forced, 275-222-23 record, 52% win, 101 wins by DNF, 79 quit disconnects, center fav position, position split 334/133/33/20 C/D/RW/LW
 - Scoring: GWG 22, Hat Tricks 45, Breakaways 71/28/39.40%, Shooting 23.10%, Shot on Net 81.90%
 - Playmaking: Passes 6725/8945/75.20%, Dekes 526/246, Deflections 137, Saucer 61, Screen 2167/0, Possession 32h 40m
@@ -1542,6 +1918,7 @@ Plan: `docs/superpowers/plans/2026-05-05-skater-stats-expansion.md`. Branch: `fe
 All numbers match HAR exactly (silky hadn't played new games since capture).
 
 **Out of scope (deferred to future plans):**
+
 - Goalie tabs 6-8 (Goalie Overview / Saves / Situations) — requires ~30 more goalie columns and a parallel `<GoalieClubStatsTabs>` component
 - Spatial hot-zone data (`skGoalsLocationOnIce1-16`, `skShotsLocationOnIce1-16`) — IS available in the API, requires `jsonb` column or dedicated table + rink-overlay heatmap UI
 - Per-game derived metrics (gamescore, percentile vs teammates) — derive at query time
@@ -1558,6 +1935,7 @@ All numbers match HAR exactly (silky hadn't played new games since capture).
 Full rewrite of `apps/web/src/app/roster/[id]/page.tsx` (~1250 lines) plus targeted changes to `packages/db/src/queries/players.ts`.
 
 **Hero upgrades:**
+
 - Jersey number (#10 for silkyjoker85), nationality (CANADA), archetype pill (PLAYMAKER / SNIPER / etc.), bio text — all pulled from `player_profiles` table
 - Position usage donut (SVG, `hidden lg:flex`) replaces the old generic silhouette. Segments per position (center/LW/RW/D/goalie) sized by game count, color-coded.
 - "Also plays Goalie" inline stat strip when dual-role GP > 0
@@ -1568,6 +1946,7 @@ Full rewrite of `apps/web/src/app/roster/[id]/page.tsx` (~1250 lines) plus targe
 **Anchor nav updated to:** SEASON / FORM / PROFILE / CAREER / EA TOTALS / GAME LOG
 
 **Current season stat grid** (role-aware):
+
 - Skater: GP, PTS, PTS/GP, G, G/GP, A, A/GP, +/-, Hits, Hits/GP, SHT%, SOG/GP
 - Goalie: GP, W-L-OTL, SV%, GAA, SO, Saves, Saves/GP
 
@@ -1578,6 +1957,7 @@ Full rewrite of `apps/web/src/app/roster/[id]/page.tsx` (~1250 lines) plus targe
 **DB changes:** `PlayerProfileOverview` interface split `contributionSummary`/`recentForm` into dual-role fields (`skaterContribution`, `goalieContribution`, `skaterRecentForm`, `goalieRecentForm`, `trendGames`). `getPlayerProfileOverview` builds both role paths independently.
 
 **Silkyjoker85 profile seeded:**
+
 ```sql
 UPDATE player_profiles SET jersey_number=10, nationality='Canada', preferred_position='center',
 bio='Started as a goalie with the Speds, transitioned into a scoring winger, and now plays as a playmaking center.'
@@ -1587,6 +1967,7 @@ WHERE player_id=2;
 **Verification:** lint clean (13 errors fixed — unused imports, template literal numbers, optional chain), build 4/4 tasks passed. Playwright smoke check at `/roster/2` (desktop 1440px) confirmed: position donut in hero with C/D/LW breakdown, role selector pills, stats grid with per-game rates, trend bar chart with result colors + dashed avg line, contribution donut with 6 color segments, metric bars with matching colors.
 
 **What's next (Phase 2 candidates):**
+
 - Seed `player_profiles` enrichment for remaining players (currently only player_id=2 has data)
 - Per-game rate columns in career/EA tables
 - Goalie role view smoke check (I-amCaKee, player_id=7)
@@ -1740,39 +2121,42 @@ Tooling under `tools/historical_import/club_team_stats/`:
 Two distinct legacy historical sources are now live and intentionally separate:
 
 1. `historical_player_season_stats`
+
 - player-card season totals
 - broader player totals
 - may include games for other clubs
 
 2. `historical_club_member_season_stats`
+
 - club-scoped member totals from `CLUBS -> MEMBERS` screenshots
 - authoritative for "what this player did for the BGM in that title"
 
 Third historical source (built, not yet fully reviewed/imported across titles):
 
 3. `historical_club_team_stats`
+
 - club/team totals from `STATS -> CLUB STATS` screenshots
 - one row per `(game_title_id, playlist)`
 - intended to become the authoritative legacy club-total source once the review queue is promoted and imported
 
 Player-card pipeline counts below are reviewed rows in `historical_player_season_stats`.
 
-| Title | Reviewed rows |
-|---|---:|
-| nhl22 | 43 |
-| nhl23 | 39 |
-| nhl24 | 46 |
-| nhl25 | 31 |
-| **total** | **159** |
+| Title     | Reviewed rows |
+| --------- | ------------: |
+| nhl22     |            43 |
+| nhl23     |            39 |
+| nhl24     |            46 |
+| nhl25     |            31 |
+| **total** |       **159** |
 
 Club-member pipeline counts below are canonical rows in `historical_club_member_season_stats`.
 
-| Title | Skater | Goalie |
-|---|---:|---:|
-| nhl22 | 7 | 3 |
-| nhl23 | 6 | 3 |
-| nhl24 | 8 | 4 |
-| nhl25 | 10 | 1 |
+| Title     | Skater | Goalie |
+| --------- | -----: | -----: |
+| nhl22     |      7 |      3 |
+| nhl23     |      6 |      3 |
+| nhl24     |      8 |      4 |
+| nhl25     |     10 |      1 |
 | **total** | **31** | **11** |
 
 Pipeline status:
@@ -1988,51 +2372,51 @@ Current most likely follow-ups:
 
 ## Locked Schema Decisions
 
-| Decision | Implementation |
-|---|---|
-| Match uniqueness composite | `UNIQUE(game_title_id, ea_match_id)` on `matches` + `raw_match_payloads`; surrogate bigserial PK |
-| `players.ea_id` nullable | Permanently — blazeId absent in all real match payloads |
-| Goalie stats same table | Nullable goalie columns in `player_match_stats` |
-| Aggregate unique index | `UNIQUE(player_id, game_title_id, COALESCE(game_mode, ''))` — handles NULL game_mode |
-| Historical aggregate unique index | `UNIQUE(game_title_id, player_id, game_mode, position_scope, role_group)` |
-| Club-member unique indexes | matched: `UNIQUE(game_title_id, game_mode, role_group, player_id)` where `player_id IS NOT NULL`; unmatched: `UNIQUE(game_title_id, game_mode, role_group, lower(gamertag_snapshot))` where `player_id IS NULL` |
-| `transform_status` | `('pending', 'success', 'error')` |
-| `result` | `('WIN', 'LOSS', 'OTL', 'DNF')` |
+| Decision                          | Implementation                                                                                                                                                                                                  |
+| --------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Match uniqueness composite        | `UNIQUE(game_title_id, ea_match_id)` on `matches` + `raw_match_payloads`; surrogate bigserial PK                                                                                                                |
+| `players.ea_id` nullable          | Permanently — blazeId absent in all real match payloads                                                                                                                                                         |
+| Goalie stats same table           | Nullable goalie columns in `player_match_stats`                                                                                                                                                                 |
+| Aggregate unique index            | `UNIQUE(player_id, game_title_id, COALESCE(game_mode, ''))` — handles NULL game_mode                                                                                                                            |
+| Historical aggregate unique index | `UNIQUE(game_title_id, player_id, game_mode, position_scope, role_group)`                                                                                                                                       |
+| Club-member unique indexes        | matched: `UNIQUE(game_title_id, game_mode, role_group, player_id)` where `player_id IS NOT NULL`; unmatched: `UNIQUE(game_title_id, game_mode, role_group, lower(gamertag_snapshot))` where `player_id IS NULL` |
+| `transform_status`                | `('pending', 'success', 'error')`                                                                                                                                                                               |
+| `result`                          | `('WIN', 'LOSS', 'OTL', 'DNF')`                                                                                                                                                                                 |
 
 ---
 
 ## What's Built
 
-| Surface | Status |
-|---|---|
-| `/` Home | Live — club record, latest result, player carousel, leaders, recent results (NHL 26 only by design) |
-| `/games`, `/games/[id]` | Live — paginated list, mode filter, form strip, trend bullets, quality badges (NHL 26 only) |
-| `/stats` | Live + legacy — title selector across all 5 titles; live view has chemistry + recent + team averages; legacy view shows `Club-scoped totals` and `Player-card season totals` separately |
-| `/roster` | Live + legacy — same selector; legacy view is club-scoped only and hides depth chart |
-| `/roster/[id]` | Live — hero, radar, recent form, game log, career stats with per-season `?title=` links, EA totals, gamertag history |
+| Surface                 | Status                                                                                                                                                                                  |
+| ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `/` Home                | Live — club record, latest result, player carousel, leaders, recent results (NHL 26 only by design)                                                                                     |
+| `/games`, `/games/[id]` | Live — paginated list, mode filter, form strip, trend bullets, quality badges (NHL 26 only)                                                                                             |
+| `/stats`                | Live + legacy — title selector across all 5 titles; live view has chemistry + recent + team averages; legacy view shows `Club-scoped totals` and `Player-card season totals` separately |
+| `/roster`               | Live + legacy — same selector; legacy view is club-scoped only and hides depth chart                                                                                                    |
+| `/roster/[id]`          | Live — hero, radar, recent form, game log, career stats with per-season `?title=` links, EA totals, gamertag history                                                                    |
 
 ---
 
 ## Key Files
 
-| File | Purpose |
-|---|---|
-| `docs/ARCHITECTURE.md` | System architecture + schema reference |
-| `docs/planning/product-roadmap.md` | Product direction + near-term build order |
-| `research/investigations/` | Bug logs, design decisions, API research |
-| `packages/db/src/schema/` | Drizzle table definitions (canonical) |
-| `packages/db/src/schema/historical-club-member-season-stats.ts` | Club-scoped historical member rows + provenance tables |
-| `packages/db/src/schema/historical-club-team-stats.ts` | Club/team historical totals per `(game_title_id, playlist)` |
-| `packages/db/src/queries/historical.ts` | Reviewed-only historical queries (mode-specific + all-modes aggregating) |
-| `packages/db/src/queries/historical-club-member.ts` | Club-scoped historical member queries used by legacy `/stats` and `/roster` |
-| `packages/db/src/queries/game-titles.ts` | `listGameTitles` (active), `listArchiveGameTitles` (inactive), slug resolvers |
-| `packages/db/src/tools/import-historical-reviewed.ts` | Reviewed-row importer for `historical_player_season_stats` |
-| `packages/db/src/tools/import-club-member-reviewed.ts` | Reviewed-row importer for `historical_club_member_season_stats` |
-| `packages/db/src/tools/import-club-team-reviewed.ts` | Reviewed-row importer for `historical_club_team_stats` |
-| `apps/web/src/lib/title-resolver.ts` | Unified active+archive slug resolver used by `/stats` and `/roster` |
-| `apps/web/src/components/title-selector.tsx` | TitleSelector / ModeFilter / EmptyState / `statsSourceLabel` |
-| `apps/worker/src/transform.ts` | Raw EA payload → structured DB types |
-| `apps/worker/src/aggregate.ts` | Precompute player/club aggregates |
-| `apps/web/src/lib/match-recap.ts` | View-model builders for `/games/[id]` |
-| `tools/historical_import/extract_review_artifacts.py` | OCR-driven extractor for legacy stat-table videos |
-| `tools/historical_import/club_team_stats/` | Club/team screenshot extractor, pilot JSONs, and generated review queue |
+| File                                                            | Purpose                                                                       |
+| --------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| `docs/ARCHITECTURE.md`                                          | System architecture + schema reference                                        |
+| `docs/planning/product-roadmap.md`                              | Product direction + near-term build order                                     |
+| `research/investigations/`                                      | Bug logs, design decisions, API research                                      |
+| `packages/db/src/schema/`                                       | Drizzle table definitions (canonical)                                         |
+| `packages/db/src/schema/historical-club-member-season-stats.ts` | Club-scoped historical member rows + provenance tables                        |
+| `packages/db/src/schema/historical-club-team-stats.ts`          | Club/team historical totals per `(game_title_id, playlist)`                   |
+| `packages/db/src/queries/historical.ts`                         | Reviewed-only historical queries (mode-specific + all-modes aggregating)      |
+| `packages/db/src/queries/historical-club-member.ts`             | Club-scoped historical member queries used by legacy `/stats` and `/roster`   |
+| `packages/db/src/queries/game-titles.ts`                        | `listGameTitles` (active), `listArchiveGameTitles` (inactive), slug resolvers |
+| `packages/db/src/tools/import-historical-reviewed.ts`           | Reviewed-row importer for `historical_player_season_stats`                    |
+| `packages/db/src/tools/import-club-member-reviewed.ts`          | Reviewed-row importer for `historical_club_member_season_stats`               |
+| `packages/db/src/tools/import-club-team-reviewed.ts`            | Reviewed-row importer for `historical_club_team_stats`                        |
+| `apps/web/src/lib/title-resolver.ts`                            | Unified active+archive slug resolver used by `/stats` and `/roster`           |
+| `apps/web/src/components/title-selector.tsx`                    | TitleSelector / ModeFilter / EmptyState / `statsSourceLabel`                  |
+| `apps/worker/src/transform.ts`                                  | Raw EA payload → structured DB types                                          |
+| `apps/worker/src/aggregate.ts`                                  | Precompute player/club aggregates                                             |
+| `apps/web/src/lib/match-recap.ts`                               | View-model builders for `/games/[id]`                                         |
+| `tools/historical_import/extract_review_artifacts.py`           | OCR-driven extractor for legacy stat-table videos                             |
+| `tools/historical_import/club_team_stats/`                      | Club/team screenshot extractor, pilot JSONs, and generated review queue       |
