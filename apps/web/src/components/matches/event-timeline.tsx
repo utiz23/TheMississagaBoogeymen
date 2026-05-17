@@ -517,11 +517,6 @@ function GoalCard({
       </div>
       <ActorLine name={scorer.text} id={scorer.id} isGwg={isGwg} />
       <AssistsLine event={event} />
-      {event.eventDetail ? (
-        <span className="font-condensed text-[11px] font-semibold leading-snug tracking-[0.02em] text-[var(--color-fg-4)]">
-          {event.eventDetail}
-        </span>
-      ) : null}
       {scoreCtx ? (
         <div
           className={`mt-1 flex items-center gap-2.5 border-t border-[var(--color-border-subtle)] pt-2 ${footOrder}`}
