@@ -500,8 +500,9 @@ function Footnotes({
   return (
     <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 px-1 pt-1">
       {missingPeriods.length > 0 ? (
-        <span className="font-condensed text-[10px] font-semibold uppercase tracking-[0.18em] text-fg-5">
-          ⚠ {missingPeriods.join(', ')} OCR unavailable — excluded from totals
+        <span className="inline-flex items-center gap-2 font-condensed text-[10px] font-semibold uppercase tracking-[0.18em] text-fg-5">
+          <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-accent" />
+          {missingPeriods.join(', ')} OCR unavailable — excluded from totals
         </span>
       ) : null}
       <span className="ml-auto inline-flex items-center gap-2 font-condensed text-[10px] font-bold uppercase tracking-[0.18em] text-fg-5">
