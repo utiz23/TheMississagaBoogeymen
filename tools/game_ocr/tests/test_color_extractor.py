@@ -121,3 +121,32 @@ def test_batch_runs_per_side() -> None:
 def test_invalid_image_shape_raises() -> None:
     with pytest.raises(ValueError):
         sample_team_colors(np.zeros((100, 100), dtype=np.uint8))
+
+
+def test_detects_white_trapezoid_as_team_color() -> None:
+    # Pure-white opp jersey (e.g. a future opp wearing all-white). Pixels
+    # are high-min, low-chroma — outside both saturated and very-dark
+    # branches. The new white branch must catch them.
+    frame = _make_frame(left_rgb=(216, 0, 24), right_rgb=(245, 240, 240))
+    result = sample_team_colors(frame)
+    # Existing red BGM still works.
+    assert result.left.hex_color == "#d80018"
+    # White right ROI quantizes to a near-white bucket (24-step quantizer).
+    assert result.right.hex_color is not None
+    assert result.right.hex_color.startswith("#")
+    # All channels >= 0xd8 (216) — i.e. unambiguously light.
+    r = int(result.right.hex_color[1:3], 16)
+    g = int(result.right.hex_color[3:5], 16)
+    b = int(result.right.hex_color[5:7], 16)
+    assert min(r, g, b) >= 216, f"expected near-white, got {result.right.hex_color}"
+    assert result.right.confidence > 0.9
+
+
+def test_white_does_not_capture_ice_grey() -> None:
+    # Bright ice highlight near boards (~200,200,200): below the white
+    # threshold of 220. White branch must NOT fire — returns None like
+    # the existing ice-grey case.
+    frame = _make_frame(left_rgb=(200, 200, 200), right_rgb=(200, 200, 200))
+    result = sample_team_colors(frame)
+    assert result.left.hex_color is None
+    assert result.right.hex_color is None

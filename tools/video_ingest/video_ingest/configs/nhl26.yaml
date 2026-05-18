@@ -18,8 +18,11 @@ version: "nhl26"
 
 pass1:
   sample_fps: 1
-  # N consecutive same-type frames required to OPEN a segment.
-  min_run_to_open: 3
+  # N consecutive same-type frames required to OPEN a segment. Bumped from 3
+  # to 2 on 2026-05-18: at 1 fps a brief faceoff-map view (visible for only
+  # 2 frames) was getting rejected; 2 still kills single-frame classifier
+  # hiccups via the max_outliers_within=1 reset rule below.
+  min_run_to_open: 2
   # Tolerate K frames inside a segment whose label disagrees; resets
   # the run only after K+1 in a row.
   max_outliers_within: 1

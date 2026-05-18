@@ -61,6 +61,17 @@ _DARK_THRESHOLD = 55
 # the dominant non-ice cluster typically covers ~10–40% of the ROI.
 _SATURATED_MIN_SHARE = 0.05
 _DARK_DOMINANT_SHARE = 0.30
+# A pixel is "near-white" when its min channel is at or above this value AND
+# chroma is low (the saturated branch already claimed high-chroma pixels, so
+# anything reaching the white branch is by construction low-chroma). Captures
+# pure-white and off-white opp jerseys (match 250's opp wore black, so the
+# dark branch covered that; first matches with all-white kits fall outside
+# both saturated and very-dark and would otherwise return None).
+_WHITE_THRESHOLD = 220
+# Whites tend to fill a large fraction of the trapezoid when present; require
+# a dominant share to avoid grabbing rink-lighting highlights near the boards
+# (which can hit 210-230 on bright ice next to the trapezoid edge).
+_WHITE_DOMINANT_SHARE = 0.30
 
 # Hex output normalisation.
 _HEX_PREFIX = "#"
@@ -193,6 +204,7 @@ def _sample_roi(
 
     saturated: Counter[tuple[int, int, int]] = Counter()
     dark: Counter[tuple[int, int, int]] = Counter()
+    white: Counter[tuple[int, int, int]] = Counter()
     # cv2.imread returns BGR; we swap to RGB on hex emit.
     bgr = crop.reshape(-1, 3)
     for b, g, r in bgr:
@@ -202,6 +214,8 @@ def _sample_roi(
         bucket = _quantize_rgb((ir, ig, ib))
         if (mx - mn) >= _SATURATION_THRESHOLD:
             saturated[bucket] += 1
+        elif mn >= _WHITE_THRESHOLD:
+            white[bucket] += 1
         elif mx <= _DARK_THRESHOLD:
             dark[bucket] += 1
 
@@ -211,6 +225,17 @@ def _sample_roi(
         return TeamColorSample(
             hex_color=_rgb_to_hex(winner),
             confidence=sat_count / total_px,
+            pixel_count=winner_count,
+        )
+
+    # White wins over dark when both fire — high-min is more discriminative
+    # than low-max in EA's UI (ice greys ~70-100 vs jersey whites >220).
+    white_count = sum(white.values())
+    if white_count / total_px >= _WHITE_DOMINANT_SHARE:
+        winner, winner_count = white.most_common(1)[0]
+        return TeamColorSample(
+            hex_color=_rgb_to_hex(winner),
+            confidence=white_count / total_px,
             pixel_count=winner_count,
         )
 

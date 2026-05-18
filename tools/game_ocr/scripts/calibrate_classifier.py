@@ -45,8 +45,9 @@ FUZZY_MAX_DISTANCE = 1
 CLASSES: dict[str, dict] = {
     "pre_game_lobby_state_2": {
         # Multi-opponent calibration: canonical fixtures use TRIPORT CHUGS,
-        # the match-250 clip extras add 4TH LINE. Averaging across opponents
-        # gives a centroid less coupled to a specific opponent's jersey colors.
+        # match-250 extras add 4TH LINE, match-2 extras add BLURKY YOINTS.
+        # Averaging across opponents gives a centroid less coupled to a
+        # specific opponent's jersey colors.
         "fixtures": [
             "Pre-Game Lobby State 1.png",
             "Pre-Game Lobby State 2.png",
@@ -55,6 +56,7 @@ CLASSES: dict[str, dict] = {
             "pre_game_lobby_state_2__match250_t10_vs_4thline.png",
             "pre_game_lobby_state_2__match250_t30_vs_4thline.png",
             "pre_game_lobby_state_2__match250_t40_vs_4thline.png",
+            "pre_game_lobby_state_2__match2_t20_vs_blurkyyoints.png",
         ],
         # 'eashl' (from the EASHL 6V6 mode badge) is robustly present in
         # every lobby frame OCR but absent on splash transitions and
@@ -65,6 +67,9 @@ CLASSES: dict[str, dict] = {
     },
     "player_loadout_view": {
         "fixtures": ["Player Loadout View.png"],
+        "extras": [
+            "player_loadout_view__match2_t32_vs_blurkyyoints.png",
+        ],
         "anchor_substrings": ["player loadouts"],
     },
     "post_game_player_summary": {
@@ -89,14 +94,23 @@ CLASSES: dict[str, dict] = {
         "fixtures": [
             "Post Game Action tracker (All-Goals + Hits + Shots + Penalties + Faceoffs).png",
         ],
+        "extras": [
+            "post_game_action_tracker__match2_t1608_vs_blurkyyoints.png",
+        ],
         "anchor_substrings": ["all events"],
     },
     "post_game_faceoff_map": {
         "fixtures": ["Post Game Event Map Faceoffs.png"],
+        "extras": [
+            "post_game_faceoff_map__match2_t1642_vs_blurkyyoints.png",
+        ],
         "anchor_substrings": ["faceoff"],
     },
     "post_game_net_chart": {
         "fixtures": ["Post Game Event Map Net-Chart.png"],
+        "extras": [
+            "post_game_net_chart__match2_t1645_vs_blurkyyoints.png",
+        ],
         "anchor_substrings": ["net chart"],
     },
 }
