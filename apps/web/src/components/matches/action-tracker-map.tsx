@@ -1,6 +1,14 @@
 'use client'
 
-import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type KeyboardEvent,
+} from 'react'
 import type {
   MatchEventRow,
   MatchFaceoffDotRow,
@@ -674,46 +682,80 @@ function SummaryStrip({
   oppAbbrev: string
   ocrConfidence: number | null
 }) {
+  const [expanded, setExpanded] = useState(false)
+  const teaser = `Match totals · BGM ${String(totals.goalsBgm)} – ${oppAbbrev} ${String(totals.goalsOpp)}`
+  const onToggle = () => {
+    setExpanded((v) => !v)
+  }
+  const onKey = (e: KeyboardEvent<HTMLDivElement>) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault()
+      onToggle()
+    }
+  }
   return (
     <div className="border border-t-0 border-[var(--color-border)] bg-[var(--color-surface)]">
-      {/* Top row — event breakdown, with GOALS promoted */}
-      <div className="flex flex-wrap items-baseline gap-x-5 gap-y-2 px-3.5 pt-2.5 pb-2">
-        <SummaryKV k="Goals · BGM" v={String(totals.goalsBgm)} accent large />
-        <SummaryKV k={oppAbbrev} v={String(totals.goalsOpp)} large />
-        <div className="h-7 w-px bg-[var(--color-border)]" aria-hidden />
-        <SummaryKV k="Shots" v={String(totals.shots)} />
-        <SummaryKV k="Hits" v={String(totals.hits)} />
-        <SummaryKV k="Penalties" v={String(totals.penalties)} />
+      <div
+        role="button"
+        tabIndex={0}
+        aria-expanded={expanded}
+        onClick={onToggle}
+        onKeyDown={onKey}
+        className="flex cursor-pointer items-center gap-3 px-3.5 py-2 outline-none focus-visible:ring-1 focus-visible:ring-[var(--color-accent)] hover:bg-[rgba(232,65,49,0.04)]"
+      >
+        <span className="font-condensed text-[11px] font-bold uppercase tracking-[0.18em] text-[var(--color-fg-3)]">
+          {teaser}
+        </span>
+        <span
+          className="ml-auto font-condensed text-[12px] text-[var(--color-fg-4)]"
+          aria-hidden
+        >
+          {expanded ? '▴' : '▾'}
+        </span>
       </div>
+      {expanded ? (
+        <>
+          {/* Top row — event breakdown, with GOALS promoted. items-center keeps
+              the large (24px) and default (18px) tiles vertically centered. */}
+          <div className="flex flex-wrap items-center gap-x-5 gap-y-2 border-t border-[var(--color-border)] px-3.5 pt-2.5 pb-2">
+            <SummaryKV k="Goals · BGM" v={String(totals.goalsBgm)} accent large />
+            <SummaryKV k={oppAbbrev} v={String(totals.goalsOpp)} large />
+            <div className="h-7 w-px bg-[var(--color-border)]" aria-hidden />
+            <SummaryKV k="Shots" v={String(totals.shots)} />
+            <SummaryKV k="Hits" v={String(totals.hits)} />
+            <SummaryKV k="Penalties" v={String(totals.penalties)} />
+          </div>
 
-      {/* Secondary row — filter scope + provenance, smaller */}
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 border-t border-[var(--color-border)] px-3.5 py-1.5">
-        <SummaryGroup>
-          <SummaryKV k="Visible" v={String(visible)} small />
-          <SummaryKV k="On rink" v={String(onRink)} dim small />
-          {offRink > 0 ? (
-            <SummaryKV
-              k="Off rink"
-              v={String(offRink)}
-              dim
-              small
-              title="Events that occurred but couldn't be plotted on the rink (typically faceoffs, which are shown in the Faceoff Map below)."
-            />
-          ) : null}
-        </SummaryGroup>
-        <div className="ml-auto flex items-center gap-x-4">
-          {ocrConfidence !== null && ocrConfidence < 0.99 ? (
-            <SummaryKV
-              k="OCR confidence"
-              v={ocrConfidence.toFixed(2)}
-              tone={ocrConfidence >= 0.75 ? 'win' : undefined}
-              small
-              title="OCR confidence in this match's extracted events. ≥0.99 hidden as uninformative noise; 0.75-0.98 highlighted as 'good'; below 0.75 plain to draw attention."
-            />
-          ) : null}
-          <SummaryKV k="Source" v="Action Tracker OCR · v2" small />
-        </div>
-      </div>
+          {/* Secondary row — filter scope + provenance, smaller */}
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 border-t border-[var(--color-border)] px-3.5 py-1.5">
+            <SummaryGroup>
+              <SummaryKV k="Visible" v={String(visible)} small />
+              <SummaryKV k="On rink" v={String(onRink)} dim small />
+              {offRink > 0 ? (
+                <SummaryKV
+                  k="Off rink"
+                  v={String(offRink)}
+                  dim
+                  small
+                  title="Events that occurred but couldn't be plotted on the rink (typically faceoffs, which are shown in the Faceoff Map below)."
+                />
+              ) : null}
+            </SummaryGroup>
+            <div className="ml-auto flex items-center gap-x-4">
+              {ocrConfidence !== null && ocrConfidence < 0.99 ? (
+                <SummaryKV
+                  k="OCR confidence"
+                  v={ocrConfidence.toFixed(2)}
+                  tone={ocrConfidence >= 0.75 ? 'win' : undefined}
+                  small
+                  title="OCR confidence in this match's extracted events. ≥0.99 hidden as uninformative noise; 0.75-0.98 highlighted as 'good'; below 0.75 plain to draw attention."
+                />
+              ) : null}
+              <SummaryKV k="Source" v="Action Tracker OCR · v2" small />
+            </div>
+          </div>
+        </>
+      ) : null}
     </div>
   )
 }
