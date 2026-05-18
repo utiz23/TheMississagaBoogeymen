@@ -523,6 +523,8 @@ The `Th` and `Td` helpers already accept a `hideOnMobile` prop but no caller pas
 
 **9. Quick-stat tile order isn't ordered by importance.** SCORE / SHOOTING % / PASS % / FO % / PIM / POSSESSION. Score and PIM are quite different concerns — Score is "how much did this player help win?" and PIM is "how many penalty minutes did they take?". The 3×2 grid layout shows them adjacent. Could reorder by category (offensive metrics first, then discipline) or by importance.
 
+**Status (2026-05-17): Resolved by morning Scoresheet polish sweep (commit `0a0546d`)** — the PIM tile was removed entirely when the real Shooting % tile was added. The remaining 6 tiles (SCORE / Shot On Net % / Shooting % / Pass % / FO % / Possession) are all positive/neutral metrics; the original "PIM mixed with offensive metrics" critique is moot. PIM is still visible in the Discipline detail group below.
+
 **10. The ▸ chevron's `transition-transform` rotates to `rotate-90` on expand** — good visual feedback. But the chevron itself is `text-zinc-500` and small. On hover it doesn't brighten (the hover lifts the row background, not the chevron). Could add `group-hover:text-zinc-300` to the chevron so it reads as "this row is interactive."
 
 **11. The expanded row uses `bg-zinc-950/30`** — barely visible against the surface. Hard to tell where the expand panel ends and the next row begins. A slightly stronger background or a top/bottom accent line would help.
