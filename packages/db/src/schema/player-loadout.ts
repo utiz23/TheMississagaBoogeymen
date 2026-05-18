@@ -44,6 +44,13 @@ export const playerLoadoutSnapshots = pgTable(
     gamertagSnapshot: text('gamertag_snapshot').notNull(),
     playerNameSnapshot: text('player_name_snapshot'),
     playerNamePersona: text('player_name_persona'),
+    /**
+     * Raw OCR persona vote BEFORE alias-table canonicalization. Preserves
+     * the dominant-vote output so the operator can audit which garbled
+     * strings the resolver cleaned up. NULL on snapshots predating the
+     * persona-alias-table fix (2026-05-18).
+     */
+    playerNamePersonaRaw: text('player_name_persona_raw'),
     playerNumber: integer('player_number'),
     isCaptain: boolean('is_captain'),
     teamSide: text('team_side').$type<'for' | 'against'>(),

@@ -29,6 +29,7 @@
 import { db, playerLoadoutSnapshots, sql as postgresSql, type OcrReviewStatus } from '@eanhl/db'
 import { and, eq, sql } from 'drizzle-orm'
 import { normalizeBuildClass } from './lib/normalize-build-class.js'
+import { resolvePersona } from './lib/normalize-persona.js'
 import { resolveGamertagToPlayer } from './ocr-promoters/resolve-identity.js'
 
 interface CliArgs {
@@ -236,6 +237,8 @@ interface ConsensusValues {
   gamertagSnapshot: string
   playerNameSnapshot: string | null
   playerNamePersona: string | null
+  /** Pre-alias-resolution OCR vote, written to player_name_persona_raw for audit. */
+  playerNamePersonaRaw: string | null
   playerNumber: number | null
   isCaptain: boolean | null
   buildClass: string | null
@@ -266,7 +269,14 @@ function consensus(anchor: Snapshot, group: Snapshot[]): ConsensusValues {
       anchor.playerNameSnapshot,
       others.map((s) => s.playerNameSnapshot),
     ),
+    // Persona is voted raw here; alias-table canonicalization happens inside
+    // the per-anchor transaction below (resolvePersona) so the raw vote can
+    // be preserved alongside the cleaned value.
     playerNamePersona: vote(
+      anchor.playerNamePersona,
+      others.map((s) => s.playerNamePersona),
+    ),
+    playerNamePersonaRaw: vote(
       anchor.playerNamePersona,
       others.map((s) => s.playerNamePersona),
     ),
@@ -361,6 +371,18 @@ async function main(): Promise<void> {
         anchor.gameTitleId,
         tx,
       )
+      // Canonicalize the voted persona against the alias table. Raw vote is
+      // preserved in playerNamePersonaRaw (already set in consensus()).
+      const personaResolved = await resolvePersona(merged.playerNamePersona, tx)
+      if (personaResolved && personaResolved.via !== 'raw') {
+        console.log(
+          `  ${key}: persona alias hit: "${merged.playerNamePersona}" → "${personaResolved.canonical}" (via ${personaResolved.via})`,
+        )
+        merged.playerNamePersona = personaResolved.canonical
+      } else if (personaResolved && personaResolved.canonical !== merged.playerNamePersona) {
+        // 'raw' path still strips ornaments; reflect the cleaned value.
+        merged.playerNamePersona = personaResolved.canonical
+      }
       canonicalCount++
       console.log(
         `  ${key}: ${group.length} obs → anchor#${anchor.id} (${anchor.screenType}, gamertag="${anchor.gamertagSnapshot}")`,

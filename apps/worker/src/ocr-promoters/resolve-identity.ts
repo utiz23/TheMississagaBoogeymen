@@ -42,7 +42,7 @@ const ORNAMENT_PREFIX_RE = /^\s*(?:-\s*[.]?\s*|[.]\s*)+/
 const TRAILING_PUNCT_RE = /[\s.,;:!?]+$/
 
 /** Trim, strip leading "-." / "." UI ornaments, strip trailing punctuation. */
-function normalizeSnapshot(s: string): string {
+export function normalizeSnapshot(s: string): string {
   return s.replace(ORNAMENT_PREFIX_RE, '').replace(TRAILING_PUNCT_RE, '').trim()
 }
 
@@ -154,4 +154,4 @@ export async function resolveGamertagToPlayer(
   return { playerId: null, via: 'unresolved' }
 }
 
-export { normalizeSnapshot, lowercaseNormalized }
+export { lowercaseNormalized }

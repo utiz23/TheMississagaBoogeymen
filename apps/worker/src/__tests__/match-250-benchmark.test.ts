@@ -45,6 +45,12 @@ interface ExpectedSlot {
   buildClassCanonical: string
   /** Canonical X-Factor names in slot order; null means "skip assertion" for that slot. */
   xFactorsCanonical: readonly string[] | null
+  /**
+   * Canonical persona string after `resolvePersona()` cleans up the OCR vote.
+   * undefined means "skip the persona assertion" (e.g., for opp slots where
+   * the seed alias map doesn't yet have entries).
+   */
+  playerNamePersonaCanonical?: string
 }
 
 const EXPECTED: readonly ExpectedSlot[] = [
@@ -57,6 +63,7 @@ const EXPECTED: readonly ExpectedSlot[] = [
     isCaptain: true,
     buildClassCanonical: 'Playmaker',
     xFactorsCanonical: ['Wheels', 'One_T', 'Tape_to_Tape'],
+    playerNamePersonaCanonical: 'E. WANHG',
   },
   {
     side: 'bgm',
@@ -66,6 +73,7 @@ const EXPECTED: readonly ExpectedSlot[] = [
     isCaptain: false,
     buildClassCanonical: 'Tage Thompson - Power Forward',
     xFactorsCanonical: ['Big_Rig', 'One_T', 'Ankle_Breaker'],
+    playerNamePersonaCanonical: 'M. RANTANEN',
   },
   {
     side: 'bgm',
@@ -75,6 +83,7 @@ const EXPECTED: readonly ExpectedSlot[] = [
     isCaptain: false,
     buildClassCanonical: 'Cole Caufield - Sniper',
     xFactorsCanonical: ['Quick_Release', 'One_T', 'PressurePlus'],
+    playerNamePersonaCanonical: 'SILKY',
   },
   {
     side: 'bgm',
@@ -84,6 +93,7 @@ const EXPECTED: readonly ExpectedSlot[] = [
     isCaptain: false,
     buildClassCanonical: 'Puck Moving Defenseman',
     xFactorsCanonical: ['Warrior', 'Wheels', 'Quick_Release'],
+    playerNamePersonaCanonical: 'H. JENKINS',
   },
   {
     side: 'bgm',
@@ -97,6 +107,7 @@ const EXPECTED: readonly ExpectedSlot[] = [
     // correct JoeyFlopfish loadout-view capture (snap 1450) with full
     // X-Factor coverage matching V2 truth.
     xFactorsCanonical: ['Elite_Edges', 'Tape_to_Tape', 'Stick_Em_Up'],
+    playerNamePersonaCanonical: 'L. HUTSON',
   },
   // Opponent
   {
@@ -187,6 +198,13 @@ void test('match 250: getMatchLineups returns expected slot data', async () => {
         actual,
         expected.xFactorsCanonical,
         `${expected.side}/${expected.position}: x-factors`,
+      )
+    }
+    if (expected.playerNamePersonaCanonical !== undefined) {
+      assert.equal(
+        row.playerNamePersona,
+        expected.playerNamePersonaCanonical,
+        `${expected.side}/${expected.position}: persona canonical (post-resolvePersona)`,
       )
     }
   }
