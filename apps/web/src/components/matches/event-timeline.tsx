@@ -1,12 +1,11 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import Link from 'next/link'
 import type { MatchEventRow } from '@eanhl/db/queries'
 import { SectionHeader } from '@/components/ui/section-header'
 import { GoalMarker, PenaltyMarker } from '@/components/branding/event-markers'
 import { abbreviateTeamName } from '@/lib/format'
-import { formatPeriodLabel, periodsToShow } from '@/lib/period-label'
 
 /**
  * Event Timeline — Boogeymen Design System "Event Timeline.html" Concept
@@ -18,9 +17,8 @@ import { formatPeriodLabel, periodsToShow } from '@/lib/period-label'
  * and a lead-change banner. The game-winning goal gets a GWG ribbon +
  * accent glow.
  *
- * Story-only: shows goals + penalties. Filters above the timeline:
- *   - Period: All / P1 / P2 / P3 / OT… (auto-derived from data).
- *   - Team: All / BGM / opp.
+ * Story-only: shows goals + penalties. Renders unfiltered — the section
+ * is intentionally a full game-flow narrative, not a queryable view.
  */
 
 interface EventTimelineProps {
@@ -30,9 +28,6 @@ interface EventTimelineProps {
   bgmColor?: string | null
   oppColor?: string | null
 }
-
-type PeriodFilter = 'all' | number
-type TeamFilter = 'all' | 'bgm' | 'opp'
 
 const STORY_TYPES = new Set(['goal', 'penalty'])
 // Same per-team fallbacks the Action Tracker Map uses, so markers in both
@@ -63,9 +58,6 @@ export function EventTimeline({
   oppColor,
 }: EventTimelineProps) {
   const storyEvents = events.filter((e) => STORY_TYPES.has(e.eventType))
-  const [periodFilter, setPeriodFilter] = useState<PeriodFilter>('all')
-  const [teamFilter, setTeamFilter] = useState<TeamFilter>('all')
-
   const oppAbbrev = abbreviateTeamName(opponentLabel)
 
   const bgmIsHome = bgmWasHome !== false
@@ -77,34 +69,10 @@ export function EventTimeline({
     bgmIsHome,
   }
 
-  // GWG is computed against the FULL goal list so filters can't change it.
   const gwgId = useMemo(() => findGameWinningGoalId(storyEvents), [storyEvents])
-
-  // Running score per goal id — needed for the on-rail bubbles.
   const goalContext = useMemo(() => buildGoalContext(storyEvents), [storyEvents])
 
-  const maxPeriodSeen = useMemo(() => {
-    let m = 3
-    for (const e of storyEvents) if (e.periodNumber > m) m = e.periodNumber
-    return m
-  }, [storyEvents])
-
-  const periodList = useMemo(() => periodsToShow(maxPeriodSeen), [maxPeriodSeen])
-
-  const periodHasData = useMemo(() => {
-    const set = new Set<number>()
-    for (const e of storyEvents) set.add(e.periodNumber)
-    return set
-  }, [storyEvents])
-
-  const visible = storyEvents.filter((e) => {
-    if (periodFilter !== 'all' && e.periodNumber !== periodFilter) return false
-    if (teamFilter === 'bgm' && e.teamSide !== 'for') return false
-    if (teamFilter === 'opp' && e.teamSide !== 'against') return false
-    return true
-  })
-
-  // Final score for the bottom anchor — full unfiltered goal counts.
+  // Final score for the bottom anchor.
   const final = useMemo(() => {
     let bgm = 0
     let opp = 0
@@ -117,7 +85,7 @@ export function EventTimeline({
   }, [storyEvents])
 
   // Group by period for divider rendering.
-  const groups = useMemo(() => buildGroups(visible), [visible])
+  const groups = useMemo(() => buildGroups(storyEvents), [storyEvents])
 
   if (storyEvents.length === 0) return null
 
@@ -125,53 +93,34 @@ export function EventTimeline({
     <section className="space-y-3">
       <SectionHeader label="Event Timeline" subtitle="Game flow · goals + penalties" />
 
-      <FilterBar
-        periodFilter={periodFilter}
-        setPeriodFilter={setPeriodFilter}
-        periodList={periodList}
-        periodHasData={periodHasData}
-        teamFilter={teamFilter}
-        setTeamFilter={setTeamFilter}
-        oppAbbrev={oppAbbrev}
-      />
+      <div className="mx-auto max-w-[980px] px-2 sm:px-4">
+        <div className="relative py-2">
+          {/* Central rail with red end-caps */}
+          <Rail />
 
-      {visible.length === 0 ? (
-        <EmptyState
-          onReset={() => {
-            setPeriodFilter('all')
-            setTeamFilter('all')
-          }}
-        />
-      ) : (
-        <div className="mx-auto max-w-[980px] px-2 sm:px-4">
-          <div className="relative py-2">
-            {/* Central rail with red end-caps */}
-            <Rail />
+          {/* Opening face-off anchor */}
+          <Anchor label="Opening face-off" />
 
-            {/* Opening face-off anchor */}
-            <Anchor label="Opening face-off" />
+          {groups.map((g) => (
+            <PeriodSection
+              key={g.period}
+              periodLabel={g.label}
+              events={g.rows}
+              goalContext={goalContext}
+              gwgId={gwgId}
+              oppAbbrev={oppAbbrev}
+              palette={palette}
+            />
+          ))}
 
-            {groups.map((g) => (
-              <PeriodSection
-                key={g.period}
-                periodLabel={g.label}
-                events={g.rows}
-                goalContext={goalContext}
-                gwgId={gwgId}
-                oppAbbrev={oppAbbrev}
-                palette={palette}
-              />
-            ))}
-
-            {/* Final anchor */}
-            <Anchor
-              label={final.tied ? 'Final · tied' : `Final · ${final.bgmWon ? 'BGM' : oppAbbrev}`}
-            >
-              <FinalScore bgm={final.bgm} opp={final.opp} bgmWon={final.bgmWon} tied={final.tied} />
-            </Anchor>
-          </div>
+          {/* Final anchor */}
+          <Anchor
+            label={final.tied ? 'Final · tied' : `Final · ${final.bgmWon ? 'BGM' : oppAbbrev}`}
+          >
+            <FinalScore bgm={final.bgm} opp={final.opp} bgmWon={final.bgmWon} tied={final.tied} />
+          </Anchor>
         </div>
-      )}
+      </div>
     </section>
   )
 }
@@ -738,169 +687,6 @@ function ScoreBubble({ ctx, oppAbbrev }: { ctx: GoalContext; oppAbbrev: string }
       >
         {swing}
       </span>
-    </div>
-  )
-}
-
-// ─── Filter bar + empty state ───────────────────────────────────────────────
-
-function FilterBar({
-  periodFilter,
-  setPeriodFilter,
-  periodList,
-  periodHasData,
-  teamFilter,
-  setTeamFilter,
-  oppAbbrev,
-}: {
-  periodFilter: PeriodFilter
-  setPeriodFilter: (p: PeriodFilter) => void
-  periodList: readonly number[]
-  periodHasData: Set<number>
-  teamFilter: TeamFilter
-  setTeamFilter: (t: TeamFilter) => void
-  oppAbbrev: string
-}) {
-  return (
-    <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border border-[var(--color-border)] bg-[var(--color-surface)] px-3.5 py-2.5">
-      <FilterGroup label="Period">
-        <Segment>
-          <SegButton
-            active={periodFilter === 'all'}
-            onClick={() => {
-              setPeriodFilter('all')
-            }}
-            label="All"
-          />
-          {periodList.map((n) => {
-            const enabled = periodHasData.has(n)
-            return (
-              <SegButton
-                key={n}
-                active={periodFilter === n}
-                onClick={() => {
-                  if (enabled) setPeriodFilter(n)
-                }}
-                label={formatPeriodLabel(n)}
-                disabled={!enabled}
-              />
-            )
-          })}
-        </Segment>
-      </FilterGroup>
-      <FilterGroup label="Team">
-        <Segment>
-          <SegButton
-            active={teamFilter === 'all'}
-            onClick={() => {
-              setTeamFilter('all')
-            }}
-            label="All"
-          />
-          <SegButton
-            active={teamFilter === 'bgm'}
-            onClick={() => {
-              setTeamFilter('bgm')
-            }}
-            label="BGM"
-            tintAccent={teamFilter !== 'bgm'}
-          />
-          <SegButton
-            active={teamFilter === 'opp'}
-            onClick={() => {
-              setTeamFilter('opp')
-            }}
-            label={oppAbbrev}
-          />
-        </Segment>
-      </FilterGroup>
-    </div>
-  )
-}
-
-function FilterGroup({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div className="inline-flex items-center gap-2">
-      <span className="font-condensed text-[9px] font-bold uppercase tracking-[0.22em] text-[var(--color-fg-5)]">
-        {label}
-      </span>
-      {children}
-    </div>
-  )
-}
-
-function Segment({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="inline-flex divide-x divide-[var(--color-border)] border border-[var(--color-border)] bg-[var(--color-background)]">
-      {children}
-    </div>
-  )
-}
-
-function SegButton({
-  active,
-  onClick,
-  label,
-  count,
-  tintAccent,
-  disabled = false,
-}: {
-  active: boolean
-  onClick: () => void
-  label: string
-  count?: number
-  tintAccent?: boolean
-  disabled?: boolean
-}) {
-  const base =
-    'inline-flex items-center gap-1.5 whitespace-nowrap px-2.5 py-1.5 font-condensed text-[10.5px] font-bold uppercase tracking-[0.14em] transition-colors'
-  const tone = disabled
-    ? 'cursor-not-allowed text-[var(--color-fg-6)] opacity-50'
-    : active
-      ? 'bg-[rgba(232,65,49,0.10)] text-[var(--color-accent)]'
-      : tintAccent === true
-        ? 'text-[var(--color-accent)] hover:text-[#ef6a5e]'
-        : 'text-[var(--color-fg-4)] hover:text-[var(--color-fg-2)]'
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-pressed={active}
-      aria-disabled={disabled || undefined}
-      className={`${base} ${tone}`}
-    >
-      <span>{label}</span>
-      {count !== undefined ? (
-        <span
-          className={`min-w-[18px] border px-1 py-[1px] text-center font-condensed text-[9.5px] font-bold tabular-nums ${
-            active
-              ? 'border-[rgba(232,65,49,0.4)] text-[var(--color-accent)]'
-              : 'border-[var(--color-border)] text-[var(--color-fg-5)]'
-          }`}
-        >
-          {count}
-        </span>
-      ) : null}
-    </button>
-  )
-}
-
-function EmptyState({ onReset }: { onReset: () => void }) {
-  return (
-    <div className="mx-auto flex max-w-[420px] flex-col items-center justify-center gap-2 border border-dashed border-[var(--color-border)] bg-[rgba(35,33,34,0.40)] px-6 py-16 text-center">
-      <div className="font-condensed text-[14px] font-extrabold uppercase tracking-[0.18em] text-[var(--color-fg-3)]">
-        No events match
-      </div>
-      <div className="max-w-[280px] font-condensed text-[11px] font-semibold leading-relaxed text-[var(--color-fg-5)]">
-        Try clearing the period or team filter.
-      </div>
-      <button
-        type="button"
-        onClick={onReset}
-        className="mt-2 border border-[rgba(232,65,49,0.4)] bg-[rgba(232,65,49,0.10)] px-3 py-1.5 font-condensed text-[10.5px] font-extrabold uppercase tracking-[0.18em] text-[var(--color-accent)]"
-      >
-        Reset filters
-      </button>
     </div>
   )
 }
