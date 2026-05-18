@@ -186,6 +186,67 @@ End state: **71 canonical rows, all 71 positioned = 100% coverage**, no manual i
 
 ---
 
+## Session Summary — 2026-05-17 (Match-page UI polish marathon — 10 sweeps + 5 standalone fixes)
+
+### What was done
+
+A full-day UI polish arc on the `/games/[id]` match detail page. Started from the Match-ID UI/UX Review (`docs/reviews/Match-ID-UI-UX-Review.md`, ~50 items across 10 sections) and burned the backlog down to ~10 deferred-design / data-layer items.
+
+**Pre-sweep working-tree cleanup (10 commits):** Prettier format sweeps (snapshots + docs + ts/tsx) · DB migrations 0041-0043 (`match_faceoff_dots` + `match_faceoff_zone_summaries` + `build_class_canonical` col + ALL-PERIODS phantom purge) + schema additions · worker promoter changes (consolidate-loadouts persona-aware anchor, faceoff/period promoters) · four match-section renovation feature commits (box-score · top-performers · lineup · possession-edge) · OCR tooling spike + UI/UX review docs.
+
+**Sweeps shipped (10):**
+
+1. **Bar/Color sweep (4 commits)** — `abbreviateTeam` consolidation + 4TH→4L rename across 3 sections, Deserve-to-Win contributor bar color decoupling + sign-based emerald/rose deltas, Event Timeline tied-chip neutral color, Team Stats `↓ BETTER` polarity indicator.
+2. **Scoresheet polish (5 commits)** — Shot On Net% rename + real Shooting% tile (CRITICAL: 117% mislabel resolved — it was actually Shot On Net %, a real EA deflection quirk), 6-group regrouping, PositionPill color normalization via `lib/position-colors.ts`, TeamSide crests + FO W/L tooltip + POSSESSION unit, mobile column collapse + keyboard/ARIA.
+3. **Action Tracker #23 docs cleanup (1 commit)** — audit found event-list ↔ rink-marker integration already wired; marked UI review §8 #3 Resolved.
+4. **Action Tracker polish sweep (6 commits)** — OCR confidence hide at ≥0.99, FACEOFFS chip parenthetical → tooltip, marker-letter legend, two-row summary hierarchy + GOALS chip promotion, sticky rink during scroll, arrow-key navigation through event list.
+5. **Event Timeline mini-sweep (3 commits)** — `BGM +N` → `BGM +N LEAD`, period banner redundancy fix, §7 #8 (assist prefix) marked Resolved.
+6. **Box Score polish sweep (5 commits)** — OT column orange dropped (OTL-loss color collision fix), FACEOFFS phrasing, `formatPeriodLabel` adoption, two-team heatmap tint on per-period winner cells, ⚠ emoji → red ● dot.
+7. **Team Stats polish sweep (5 commits)** — Possession formatted as `mm:ss` (data correction: schema is SECONDS, not touches), DEFENSE split into Defense + Discipline, `barWidth` denominator floor at 5 (sparse-value bar dampener), OPP→4L side label, `rounded-full` bars dropped for sharp aesthetic.
+8. **Top Performers polish sweep (5 commits)** — rank-3 score brightness, season-delta placeholder, drop dim off-stars, Show-All graduated accent tints, §1 #4 + #14 marked Resolved.
+9. **Scoresheet minor sweep (7 commits)** — expanded-panel header → player gamertag, chevron hover brightness, expanded-row contrast + accent rail, Game Score cross-link tooltip, opp "no profile" placeholder, GoalieTable min-w align, §6 #9 marked Resolved.
+
+**Standalone fixes (5):** Team Stats RATINGS placeholder removal (production TODO leak), Box Score GOALS delta indicator, Deserve to Win cleanup bundle (3 review items in 1 commit), Action Tracker OFF RINK rename, Event Timeline §7 #8 doc-resolution.
+
+### Data-correctness findings surfaced during the arc
+
+- **`matches.opp_team_abbr` stale for match 250** — DB stores `"4TH"`; Event Timeline was the only consumer reading it directly (every other section derives `"4L"` from `opponentName` via `abbreviateTeamName`). Bar/Color sweep dropped the DB-precedence path; column now ignored at render time. **Future work:** backfill or deprecate the column entirely.
+- **EA `possession` field is SECONDS, not touches** — DB schema comment is explicit (`Possession time in seconds. EA field: skpossession`). The UI/UX review had framed it as "touches" — a misnomer. Team Stats sweep corrected the rendering to `mm:ss` via the existing `timeRow()` helper.
+- **Five UI-review items silently resolved by earlier work** — Action Tracker §8 #3 (event-list integration), Event Timeline §7 #8 (assist prefix), Top Performers §1 #4 (archetype legend tooltip) + §1 #14 (+/− Unicode mismatch), Scoresheet §6 #9 (PIM tile order). All marked Resolved via doc commits without code changes.
+
+### Sections "closed for polish" by EOD
+
+Action Tracker · Event Timeline · Box Score · Team Stats · Top Performers · Scoresheet (cosmetic done; 1 deferred data-layer item).
+
+### Sections with substantial polish remaining
+
+- **Lineup & Loadouts (7 items)** — some require OCR alias-table work, not pure polish
+- **Faceoff Map (3 items, leaning toward scrap/merge)** — design decision: merge into Action Tracker per UI review §9
+- **Context Footer (never reviewed)** — UI review §10 stub only
+
+### Files touched this session
+
+- `apps/web/src/components/matches/*.tsx` — all UI tweaks landed here
+- `apps/web/src/lib/match-recap.ts` — `BoxScoreRow.polarity` field, `timeRow('Possession', ...)`, Defense/Discipline split, plus morning's `applyLoadoutOverrides` + `computeSeasonAvgs` helpers
+- `apps/web/src/components/ui/archetype-pill.tsx` — 3-letter compact codes (morning renovation)
+- `docs/reviews/Match-ID-UI-UX-Review.md` — 5 Resolved markings + 1 new follow-up note (3a: LD/RD from OCR loadout)
+- `docs/superpowers/plans/2026-05-17-*.md` — 7 sweep plan files (still untracked at EOD)
+
+### Cross-cutting follow-ups deferred
+
+- Strip `@deprecated` `side` / `defenseSide` props from PositionPill call sites (after Bar/Color sweep made them inert)
+- Plumb specific LD/RD position from OCR loadout into `buildScoresheet` (Scoresheet item 3a — real data-layer join in match-recap.ts)
+- Backfill or deprecate `matches.opp_team_abbr` (stale data, ignored at render)
+- Commit the 7 untracked plan files under `docs/superpowers/plans/`
+- Lineup persona-name OCR garbage (`E.WANHG`) — needs `player_display_aliases`-style table for persona names
+- Action Tracker sticky-rink `top-N` calibration if a sticky page nav covers the rink
+
+### Plan files persisted
+
+`docs/superpowers/plans/2026-05-17-{bar-color-sweep,scoresheet-polish,action-tracker-polish-sweep,box-score-polish-sweep,team-stats-polish-sweep,top-performers-polish-sweep,scoresheet-minor-polish}.md` — all untracked at EOD; bundled commit pending.
+
+---
+
 ## Session Summary — 2026-05-16 (Pre-Game Loadout OCR — Attribute + X-Factor completion)
 
 ### What was done
@@ -2309,13 +2370,28 @@ Sanity-check verified end-to-end: every title × mode combination renders correc
 
 ## What's Next
 
-Current most likely follow-ups:
+### Top priority — real blockers
 
-- **`historical_club_team_stats` UI surfacing** — 17 rows are now imported and reviewed. Nothing on `/stats` or `/roster` reads this table yet. Next step is to decide what to surface and build the query + component.
+- **Video-CLI review findings (4 items)** — documented in Current Status above (lines 84-93). The **broken import order in `tools/video_ingest/video_ingest/cli.py`** means the CLI dies in a clean interpreter with `ModuleNotFoundError: No module named 'game_ocr'` — that's a functional blocker. Plus wrong Pass-1/Pass-2 cache invalidation (config-blind reuse can silently use stale results), phase-specific CLI commands not matching their contract, and cached Pass 2 metadata reconstructed incorrectly. Also: `tools/video_ingest/tests/` has fixtures but zero behavioral test coverage. None addressed today.
+
+### UI follow-ups from 2026-05-17 polish arc
+
+- **Lineup & Loadouts polish sweep** — last UI section with sustained polish (7 items). The heaviest (persona-name OCR garbage like `E.WANHG`) needs a `player_display_aliases`-style alias table for persona names — real data work, not pure polish.
+- **Strip `@deprecated` `side` / `defenseSide` props** from `PositionPill` call sites (`scoresheet.tsx`, `star-card.tsx`, `goalie-spotlight.tsx`, `show-all-player-scores.tsx`). Post-Bar/Color sweep the props are inert; mechanical cleanup.
+- **Plumb specific LD/RD position from OCR loadout** into `buildScoresheet` so the Scoresheet position pill renders cyan `LD` or yellow `RD` when known (Scoresheet item 3a). Requires a join from OCR loadout snapshots into `SkaterRow.position`.
+- **Backfill or deprecate `matches.opp_team_abbr`** — DB stores `"4TH"` for match 250, now ignored at render. Either fix the OCR colour-extractor's abbreviation logic so it produces `"4L"`, or drop the column entirely.
+- **Commit the 7 untracked plan files** under `docs/superpowers/plans/2026-05-17-*` — housekeeping; clears a long-standing working-tree flag.
+- **Faceoff Map decision** — UI review §9 leans toward scrap or merge into Action Tracker. Real design call.
+- **Action Tracker sticky-rink `top-N` calibration** — `top-4` may need bumping if a sticky page nav covers the rink.
+
+### Existing roadmap items (untouched 2026-05-17)
+
+- **`historical_club_team_stats` UI surfacing** — 17 rows imported and reviewed. Nothing on `/stats` or `/roster` reads this table yet. Decide what to surface; build query + component.
 - **Legacy table enrichment** — surface club-member-only fields already in DB (`blocked_shots`, `giveaways`, `takeaways`, `interceptions`, `shots`, `shooting_pct`, `shutout_periods`) if/when useful.
 - **Discord alerting cron** — `localhost:3001/health`, notify when stale >30 min.
 - **`pg_dump` backup cron** — daily dump to external drive.
 - **Player profile: EA season TOI** — long-duration format (`17d 22h 47m`); reference ratio ≈ 78% of platform total game time (silkyjoker85 NHL 26 reference); use as backfill estimate only, not claimed stat.
+- **Context Footer review** — UI review §10 stub only; never reviewed.
 
 ### Deferred
 
@@ -2323,6 +2399,10 @@ Current most likely follow-ups:
 - Hot-zone / rink shot maps — blocked by missing spatial data in EA payload.
 - Content season filtering — schema supports it; no UI.
 - **Reintroduce archetype pill on player carousel cards (home page)** — `ArchetypePillCompact` was wired in once and pulled back out 2026-05-09 because it crowded the card. Data path is intact (`player.archetype` is already on `PlayerCardData`); just re-add the `<div className="hpc-archetype">…</div>` block in `apps/web/src/components/home/player-card.tsx` and the matching `.hpc-archetype` margin rule in `player-card.css` once we decide on a less-crowded layout.
+- **Mobile carousel for Top Performers medal cards** — substantive feature work (swipe-snap component + responsive logic + a11y), not single-task polish.
+- **Tag-voice style guide** for cross-section editorial copy harmony — docs project, not code.
+- **Event Timeline one-sided BGM card stacking** (UI review §7 #3) — design decision; changing the team-side=card-side semantic is real layout work.
+- **Event Timeline port mobile left-accent stripe to desktop** (UI review §7 #17) — design decision; desktop already has both stripes facing the spine.
 
 ---
 
