@@ -34,6 +34,29 @@ import {
  */
 const JUNK_GAMERTAGS = new Set(['away', 'home', 'cpu', '?', '(unknown)'])
 
+/**
+ * Re-parse `{ prestige, level }` from the raw OCR string captured at
+ * `player_loadout_snapshots.player_level_raw` (format: `P{prestige}LVL{level}`,
+ * or `LVL{level}` for pre-prestige players). The sibling `player_level_number`
+ * column is unreliable for multi-prestige rows — the upstream parser strips
+ * letters and concatenates the leftover digits (e.g. `P2 LVL34` → 234). Always
+ * derive from raw at read time and ignore the column.
+ */
+const PRESTIGE_LEVEL_RE = /P(\d+)\s*LVL\s*(\d+)/i
+const LEVEL_ONLY_RE = /LVL\s*(\d+)/i
+
+function parsePlayerLevel(raw: string | null): {
+  prestige: number | null
+  level: number | null
+} {
+  if (!raw) return { prestige: null, level: null }
+  const both = raw.match(PRESTIGE_LEVEL_RE)
+  if (both) return { prestige: Number(both[1]), level: Number(both[2]) }
+  const lvl = raw.match(LEVEL_ONLY_RE)
+  if (lvl) return { prestige: null, level: Number(lvl[1]) }
+  return { prestige: null, level: null }
+}
+
 function isJunkGamertag(tag: string | null | undefined): boolean {
   if (!tag) return true
   const trimmed = tag.trim()
@@ -233,27 +256,31 @@ export async function getMatchLineups(matchId: number) {
     return mergeAttributesForPool(pool)
   }
 
-  const buildRow = (anchor: RawSnapshot, xFactors: LineupRow['xFactors']): LineupRow => ({
-    snapshotId: anchor.snapshotId,
-    gamertagSnapshot: anchor.gamertagSnapshot,
-    playerNameSnapshot: anchor.playerNameSnapshot,
-    playerNamePersona: anchor.playerNamePersona,
-    playerNumber: anchor.playerNumber,
-    isCaptain: anchor.isCaptain,
-    position: anchor.position,
-    buildClass: anchor.buildClass,
-    buildClassCanonical: anchor.buildClassCanonical,
-    heightText: anchor.heightText,
-    weightLbs: anchor.weightLbs,
-    handedness: anchor.handedness,
-    playerLevelNumber: anchor.playerLevelNumber,
-    playerLevelRaw: anchor.playerLevelRaw,
-    platform: anchor.platform,
-    capturedAt: anchor.capturedAt,
-    player: anchor.resolvedPlayer,
-    xFactors,
-    attributes: attributesFor(anchor),
-  })
+  const buildRow = (anchor: RawSnapshot, xFactors: LineupRow['xFactors']): LineupRow => {
+    const { prestige, level } = parsePlayerLevel(anchor.playerLevelRaw)
+    return {
+      snapshotId: anchor.snapshotId,
+      gamertagSnapshot: anchor.gamertagSnapshot,
+      playerNameSnapshot: anchor.playerNameSnapshot,
+      playerNamePersona: anchor.playerNamePersona,
+      playerNumber: anchor.playerNumber,
+      isCaptain: anchor.isCaptain,
+      position: anchor.position,
+      buildClass: anchor.buildClass,
+      buildClassCanonical: anchor.buildClassCanonical,
+      heightText: anchor.heightText,
+      weightLbs: anchor.weightLbs,
+      handedness: anchor.handedness,
+      playerLevelNumber: level,
+      playerLevelRaw: anchor.playerLevelRaw,
+      playerPrestigeNumber: prestige,
+      platform: anchor.platform,
+      capturedAt: anchor.capturedAt,
+      player: anchor.resolvedPlayer,
+      xFactors,
+      attributes: attributesFor(anchor),
+    }
+  }
 
   // Step 1: consume consolidator anchors when they exist. Each anchor is the
   // canonical row for a `(team_side, position)` slot — index by that key.
@@ -441,8 +468,11 @@ export interface LineupRow {
   heightText: string | null
   weightLbs: number | null
   handedness: string | null
+  /** Cleaned level (1-50). Re-parsed from `playerLevelRaw` at query time — the DB column is unreliable for multi-prestige rows. */
   playerLevelNumber: number | null
   playerLevelRaw: string | null
+  /** Prestige tier (typically 1-5). NULL for pre-prestige players (raw is `LVL{n}` with no `P` prefix) or when raw parse fails. */
+  playerPrestigeNumber: number | null
   /** Voted platform string ("Xbox", "PS5", …). NULL when none captured. */
   platform: string | null
   capturedAt: Date

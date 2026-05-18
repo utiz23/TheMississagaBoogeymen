@@ -608,6 +608,8 @@ function PlayerCard({ row, side }: { row: LineupRow; side: 'bgm' | 'opp' }) {
           buildLabel={buildLabel}
           buildRef={buildRef}
           hwh={hwh}
+          playerLevelNumber={row.playerLevelNumber}
+          playerPrestigeNumber={row.playerPrestigeNumber}
           align="left"
           isBgm
         />
@@ -626,6 +628,8 @@ function PlayerCard({ row, side }: { row: LineupRow; side: 'bgm' | 'opp' }) {
         buildLabel={buildLabel}
         buildRef={buildRef}
         hwh={hwh}
+        playerLevelNumber={row.playerLevelNumber}
+        playerPrestigeNumber={row.playerPrestigeNumber}
         align="right"
         isBgm={false}
       />
@@ -807,6 +811,8 @@ function PlayerInfo({
   buildLabel,
   buildRef,
   hwh,
+  playerLevelNumber,
+  playerPrestigeNumber,
   align,
   isBgm,
 }: {
@@ -817,6 +823,8 @@ function PlayerInfo({
   buildLabel: string
   buildRef: string | null
   hwh: string
+  playerLevelNumber: number | null
+  playerPrestigeNumber: number | null
   align: 'left' | 'right'
   isBgm: boolean
 }) {
@@ -879,6 +887,16 @@ function PlayerInfo({
         {hwh ? (
           <span className="whitespace-nowrap font-condensed text-[10.5px] font-bold tracking-[0.06em] tabular-nums text-[var(--color-fg-4)]">
             {hwh}
+          </span>
+        ) : null}
+        {playerLevelNumber !== null ? (
+          <span
+            className="whitespace-nowrap font-condensed text-[10.5px] font-bold tracking-[0.06em] tabular-nums text-[var(--color-fg-4)]"
+            title={`EASHL progression — ${
+              playerPrestigeNumber !== null ? `Prestige ${playerPrestigeNumber}, ` : ''
+            }Level ${playerLevelNumber}`}
+          >
+            {playerPrestigeNumber !== null ? `P${playerPrestigeNumber}·` : ''}L{playerLevelNumber}
           </span>
         ) : null}
       </div>
