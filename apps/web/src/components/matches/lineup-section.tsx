@@ -862,7 +862,7 @@ function PlatformBadge({ platform }: { platform: PlatformInfo }) {
   const src = `/assets/platforms/${platform.family}.svg`
   return (
     <span
-      className="ml-1.5 inline-flex items-center gap-1 align-[-2px] font-condensed text-[10px] font-semibold tracking-[0.08em] text-[var(--color-fg-5)]"
+      className="ml-1.5 inline-flex items-center align-[-2px]"
       title={platform.label}
     >
       <Image
@@ -873,7 +873,6 @@ function PlatformBadge({ platform }: { platform: PlatformInfo }) {
         className="h-3 w-3 shrink-0"
         aria-hidden
       />
-      {platform.label}
     </span>
   )
 }
