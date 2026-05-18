@@ -15,8 +15,8 @@ interface StarCardProps {
 const RANK_NAME = { 1: 'First Star', 2: 'Second Star', 3: 'Third Star' } as const
 const RANK_STARS = {
   1: { on: '★★★', off: '' },
-  2: { on: '★★', off: '☆' },
-  3: { on: '★', off: '☆☆' },
+  2: { on: '★★', off: '' },
+  3: { on: '★', off: '' },
 } as const
 
 export function StarCard({ rank, performer, opponentLabel }: StarCardProps) {
