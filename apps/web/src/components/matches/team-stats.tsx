@@ -83,15 +83,15 @@ function Row({ row, isLast }: { row: BoxScoreRow; isLast: boolean }) {
       </div>
 
       <div className="grid grid-cols-2 gap-2">
-        <div className="h-1.5 overflow-hidden rounded-full bg-zinc-800">
+        <div className="h-1.5 overflow-hidden bg-zinc-800">
           <div
-            className="h-full rounded-full bg-accent"
+            className="h-full bg-accent"
             style={{ width: `${barWidth(row.us, row.them).toString()}%` }}
           />
         </div>
-        <div className="h-1.5 overflow-hidden rounded-full bg-zinc-800">
+        <div className="h-1.5 overflow-hidden bg-zinc-800">
           <div
-            className="h-full rounded-full bg-zinc-500"
+            className="h-full bg-zinc-500"
             style={{ width: `${barWidth(row.them, row.us).toString()}%` }}
           />
         </div>
