@@ -256,6 +256,7 @@ function PlayerColumn({
         buildLabel={buildLabel}
         xFactors={xFactors}
         isExpanded={isExpanded}
+        side={side}
       />
       <AttributeBlocks attributes={row.attributes} isExpanded={isExpanded} />
     </div>
@@ -263,7 +264,7 @@ function PlayerColumn({
 }
 
 function ExpandToggle({
-  side: _side,
+  side,
   isExpanded,
   onClick,
 }: {
@@ -275,11 +276,14 @@ function ExpandToggle({
   const activeBg = isExpanded
     ? 'bg-[rgba(232,65,49,0.10)] text-[var(--color-accent)] border-[rgba(232,65,49,0.4)]'
     : 'text-[var(--color-fg-4)] hover:text-[var(--color-accent)] hover:border-[rgba(232,65,49,0.4)] border-[var(--color-border)]'
+  // Mirror BGM's top-right toggle to top-left on opp side so the button
+  // sits opposite the (right-aligned) opp build title.
+  const positionClass = side === 'opp' ? 'left-4' : 'right-4'
   return (
     <button
       type="button"
       onClick={onClick}
-      className={`absolute right-4 top-4 z-10 inline-flex items-center border bg-[var(--color-background)] px-3 py-1.5 font-condensed text-[10.5px] font-bold uppercase tracking-[0.14em] ${activeBg}`}
+      className={`absolute ${positionClass} top-4 z-10 inline-flex items-center border bg-[var(--color-background)] px-3 py-1.5 font-condensed text-[10.5px] font-bold uppercase tracking-[0.14em] ${activeBg}`}
       aria-pressed={isExpanded}
     >
       {label}
@@ -293,12 +297,14 @@ function BuildBlock({
   buildLabel,
   xFactors,
   isExpanded,
+  side,
 }: {
   row: LineupRow
   refPlayer: string | null
   buildLabel: string
   xFactors: LineupRow['xFactors']
   isExpanded: boolean
+  side: 'bgm' | 'opp'
 }) {
   if (isExpanded) {
     return (
@@ -310,6 +316,7 @@ function BuildBlock({
       />
     )
   }
+  const kvJustify = side === 'opp' ? 'justify-end' : ''
   return (
     <div className="border-b border-[var(--color-border)] pb-4">
       <div className="font-condensed text-[9.5px] font-semibold uppercase tracking-[0.22em] text-[var(--color-fg-5)]">
@@ -323,7 +330,7 @@ function BuildBlock({
           Reference build · {refPlayer}
         </div>
       ) : null}
-      <div className="mt-3 flex flex-wrap gap-4 font-condensed text-[11px] font-bold tabular-nums tracking-[0.04em] text-[var(--color-fg-3)]">
+      <div className={`mt-3 flex flex-wrap gap-4 font-condensed text-[11px] font-bold tabular-nums tracking-[0.04em] text-[var(--color-fg-3)] ${kvJustify}`}>
         <KvBlock k="Height" v={row.heightText ?? '—'} />
         <KvBlock k="Weight" v={row.weightLbs !== null ? `${String(row.weightLbs)} lb` : '—'} />
         <KvBlock k="Hand" v={formatHand(row.handedness)} />

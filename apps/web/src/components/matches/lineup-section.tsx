@@ -265,34 +265,63 @@ function SummarySide({
   const buildChips = summarizeBuilds(rows)
   const bgClass = side === 'opp' ? 'bg-[rgba(35,33,34,0.45)]' : ''
   const borderClass = side === 'bgm' ? 'md:border-r md:border-[var(--color-border)]' : ''
+  // Mirror layout: BGM crest on left + content right; OPP crest on right +
+  // content left, with text-right + justify-end so the right edge anchors.
+  const gridCols = side === 'opp' ? 'grid-cols-[1fr_auto]' : 'grid-cols-[auto_1fr]'
+  const justifyClass = side === 'opp' ? 'justify-end' : ''
+  const sideAlign = side === 'opp' ? 'text-right' : ''
   return (
     <div
-      className={`grid grid-cols-[auto_1fr] items-center gap-x-4 gap-y-3 px-5 py-4 ${bgClass} ${borderClass}`}
+      className={`grid ${gridCols} items-center gap-x-4 gap-y-3 px-5 py-4 ${sideAlign} ${bgClass} ${borderClass}`}
     >
-      <div className="flex h-11 w-11 items-center justify-center rounded-full border border-[var(--color-border)] bg-black/30">
-        {crestLogo ? (
-          <Image src={crestLogo} alt={sublabel} width={32} height={32} />
-        ) : (
-          <span className="font-condensed text-[14px] font-black tracking-[0.06em] text-[var(--color-fg-3)]">
-            {sublabel}
-          </span>
-        )}
-      </div>
-      <div>
-        <div className="font-condensed text-[18px] font-black uppercase leading-tight tracking-[0.1em] text-[var(--color-fg-1)]">
-          {name}
-        </div>
-        <div className="mt-1 font-condensed text-[10px] font-semibold uppercase tracking-[0.22em] text-[var(--color-fg-5)]">
-          {sublabel} · {side === 'bgm' ? 'Home' : 'Away'}
-        </div>
-      </div>
-      <div className="col-span-2 flex flex-wrap items-start gap-x-4 gap-y-2.5">
+      {side === 'opp' ? (
+        <>
+          <div>
+            <div className="font-condensed text-[18px] font-black uppercase leading-tight tracking-[0.1em] text-[var(--color-fg-1)]">
+              {name}
+            </div>
+            <div className="mt-1 font-condensed text-[10px] font-semibold uppercase tracking-[0.22em] text-[var(--color-fg-5)]">
+              {sublabel} · Away
+            </div>
+          </div>
+          <div className="flex h-11 w-11 items-center justify-center rounded-full border border-[var(--color-border)] bg-black/30">
+            {crestLogo ? (
+              <Image src={crestLogo} alt={sublabel} width={32} height={32} />
+            ) : (
+              <span className="font-condensed text-[14px] font-black tracking-[0.06em] text-[var(--color-fg-3)]">
+                {sublabel}
+              </span>
+            )}
+          </div>
+        </>
+      ) : (
+        <>
+          <div className="flex h-11 w-11 items-center justify-center rounded-full border border-[var(--color-border)] bg-black/30">
+            {crestLogo ? (
+              <Image src={crestLogo} alt={sublabel} width={32} height={32} />
+            ) : (
+              <span className="font-condensed text-[14px] font-black tracking-[0.06em] text-[var(--color-fg-3)]">
+                {sublabel}
+              </span>
+            )}
+          </div>
+          <div>
+            <div className="font-condensed text-[18px] font-black uppercase leading-tight tracking-[0.1em] text-[var(--color-fg-1)]">
+              {name}
+            </div>
+            <div className="mt-1 font-condensed text-[10px] font-semibold uppercase tracking-[0.22em] text-[var(--color-fg-5)]">
+              {sublabel} · Home
+            </div>
+          </div>
+        </>
+      )}
+      <div className={`col-span-2 flex flex-wrap items-start gap-x-4 gap-y-2.5 ${justifyClass}`}>
         <DressedKV count={dressed} />
         <KV k="Goalie" v={goalieLabel} dim={goalieLabel === 'CPU'} />
         <KV k="Room Leader" v={captain ? `#${String(captain.playerNumber)}` : '—'} />
       </div>
       {buildChips.length > 0 ? (
-        <div className="col-span-2 flex flex-wrap items-center gap-2">
+        <div className={`col-span-2 flex flex-wrap items-center gap-2 ${justifyClass}`}>
           {buildChips.map((chip) => (
             <SummaryBuildChipView key={chip.key} chip={chip} isBgm={side === 'bgm'} />
           ))}
@@ -606,7 +635,7 @@ function PlayerCard({ row, side }: { row: LineupRow; side: 'bgm' | 'opp' }) {
     )
   }
   return (
-    <div className={`${sharedClass} grid-cols-[auto_1fr_56px_64px] border-[var(--color-border)]`}>
+    <div className={`${sharedClass} grid-cols-[auto_1fr_56px_64px] border-r-2 border-[var(--color-border)] border-r-[var(--color-accent)]`}>
       <XFactorStack xFactors={row.xFactors} />
       <PlayerInfo
         persona={persona}
@@ -694,7 +723,7 @@ function CpuPlaceholderCard({ side, position }: { side: 'bgm' | 'opp'; position:
   }
   return (
     <div
-      className={`${sharedClass} grid-cols-[1fr_56px_64px] border-[var(--color-border)]`}
+      className={`${sharedClass} grid-cols-[1fr_56px_64px] border-r-2 border-[var(--color-border)] border-r-[var(--color-accent)]`}
       style={{ background: hatchBackground }}
     >
       <CpuInfo personaLabel={personaLabel} subline={subline} align="right" />
