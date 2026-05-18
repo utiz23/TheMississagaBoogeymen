@@ -188,7 +188,7 @@ function SkaterRowEl({ row, isBgm }: { row: SkaterRow; isBgm: boolean }) {
         <Td hideOnMobile>{row.blocks.toString()}</Td>
       </tr>
       {expanded ? (
-        <tr className="bg-zinc-950/30">
+        <tr className="bg-zinc-900/40 border-l-2 border-accent/30">
           <td colSpan={8} className="px-4 py-4">
             <div className="space-y-4">
               <div className="flex items-center justify-between">
