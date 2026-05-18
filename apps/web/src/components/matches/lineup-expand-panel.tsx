@@ -151,11 +151,17 @@ function PlayerColumn({
   posColor: string
 }) {
   const borderClass = side === 'bgm' ? 'md:border-r md:border-[var(--color-border)]' : ''
+  // Mirror the card-side convention: BGM column anchors left, opp column
+  // anchors right. Text + inline-flex content inherits text-align so the
+  // build label, X-Factor list, KV rows, and attribute group headers all
+  // flow toward the appropriate side.
+  const sideAlignClass = side === 'opp' ? 'text-right' : ''
+  const mobileHeaderJustify = side === 'opp' ? 'justify-end' : ''
   // Mobile-only header: the desktop `CenterRail` is hidden on <md, so the
   // drill-down panel would otherwise lose its "which matchup is this?" anchor.
   // A small `Pos · C` strip per column keeps the context on phone widths.
   const mobilePositionHeader = (
-    <div className="mb-3 flex items-center gap-2 md:hidden">
+    <div className={`mb-3 flex items-center gap-2 md:hidden ${mobileHeaderJustify}`}>
       <span className="font-condensed text-[9px] font-semibold uppercase tracking-[0.22em] text-[var(--color-fg-6)]">
         Pos
       </span>
@@ -172,7 +178,7 @@ function PlayerColumn({
   )
   if (!row) {
     return (
-      <div className={`px-5 py-5 ${borderClass}`}>
+      <div className={`px-5 py-5 ${borderClass} ${sideAlignClass}`}>
         {mobilePositionHeader}
         <div className="font-condensed text-[11px] font-semibold uppercase tracking-[0.22em] text-[var(--color-fg-5)]">
           No data captured for this slot.
@@ -185,7 +191,7 @@ function PlayerColumn({
   const xFactors = row.xFactors
 
   return (
-    <div className={`px-5 py-5 ${borderClass}`}>
+    <div className={`px-5 py-5 ${borderClass} ${sideAlignClass}`}>
       {mobilePositionHeader}
       <BuildBlock row={row} refPlayer={refPlayer} buildLabel={buildLabel} xFactors={xFactors} />
       <AttributeBlocks attributes={row.attributes} />
