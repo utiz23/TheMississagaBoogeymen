@@ -30,7 +30,6 @@ import { BoxScore } from '@/components/matches/box-score'
 import { ShotMix } from '@/components/matches/shot-mix'
 import { EventTimeline } from '@/components/matches/event-timeline'
 import { ActionTrackerMap } from '@/components/matches/action-tracker-map'
-import { FaceoffMap } from '@/components/matches/faceoff-map'
 import { LineupSection } from '@/components/matches/lineup-section'
 import { Panel } from '@/components/ui/panel'
 import {
@@ -239,7 +238,9 @@ export default async function GameDetailPage({ params, searchParams }: Props) {
       />
 
       {/* 5b. OCR-derived Action Tracker (Phase 5 — rink-coordinate spatial extraction +
-            all-type event card list mirroring the in-game post-game Action Tracker). */}
+            all-type event card list mirroring the in-game post-game Action Tracker).
+            As of 2026-05-18 it also hosts the Faceoff Map as a separate view-mode
+            inside the same section header (toggle between "Events" / "Faceoffs"). */}
       <ActionTrackerMap
         events={matchEventRows}
         opponentLabel={match.opponentName}
@@ -247,16 +248,8 @@ export default async function GameDetailPage({ params, searchParams }: Props) {
         bgmWasHome={match.bgmWasHome}
         bgmColor={match.bgmColorHex}
         oppColor={match.oppColorHex}
-      />
-
-      {/* 5c. OCR-derived Faceoff Map — per-dot win counts on the rink. */}
-      <FaceoffMap
-        dots={faceoffDots}
-        zones={faceoffZones}
-        bgmWasHome={match.bgmWasHome}
-        bgmColor={match.bgmColorHex}
-        oppColor={match.oppColorHex}
-        opponentLabel={match.opponentName}
+        faceoffDots={faceoffDots}
+        faceoffZones={faceoffZones}
       />
 
       {/* 6. Context footer (lowest priority — first to cut if scope shrinks) */}

@@ -1,7 +1,11 @@
 'use client'
 
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react'
-import type { MatchEventRow } from '@eanhl/db/queries'
+import type {
+  MatchEventRow,
+  MatchFaceoffDotRow,
+  MatchFaceoffZoneSummaryRow,
+} from '@eanhl/db/queries'
 import { formatPeriodLabel, periodsToShow } from '@/lib/period-label'
 import { SectionHeader } from '@/components/ui/section-header'
 import { abbreviateTeamName } from '@/lib/format'
@@ -59,6 +63,13 @@ interface ActionTrackerMapProps {
   bgmColor?: string | null
   /** OCR-extracted hex for the opponent's in-game tint this match. */
   oppColor?: string | null
+  /**
+   * Faceoff data — when present, the section gains a "Faceoffs" view-mode
+   * toggle that swaps the marker-overlaid rink for a dot-based win-count
+   * visualization (formerly its own standalone FaceoffMap section).
+   */
+  faceoffDots?: MatchFaceoffDotRow[]
+  faceoffZones?: MatchFaceoffZoneSummaryRow[]
 }
 
 // Per-TEAM defaults (not per-side) so BGM keeps its brand red regardless of
@@ -105,6 +116,8 @@ export function ActionTrackerMap({
   bgmWasHome,
   bgmColor,
   oppColor,
+  faceoffDots = [],
+  faceoffZones = [],
 }: ActionTrackerMapProps) {
   void _opponentColor // superseded by bgmColor / oppColor
   // The marker geometry has two design treatments — `home` (solid) and
@@ -136,6 +149,10 @@ export function ActionTrackerMap({
   const [sortMode, setSortMode] = useState<SortMode>('period')
   const [selectedId, setSelectedId] = useState<number | null>(null)
   const [hoveredId, setHoveredId] = useState<number | null>(null)
+  // Section-level view toggle: swap the marker-overlaid rink for the
+  // dot-based faceoff visualization (formerly its own standalone section).
+  const hasFaceoffData = faceoffDots.length > 0 || faceoffZones.length > 0
+  const [viewMode, setViewMode] = useState<'events' | 'faceoffs'>('events')
 
   if (tracked.length === 0) return null
 
@@ -261,63 +278,122 @@ export function ActionTrackerMap({
   return (
     <TeamPaletteContext.Provider value={{ HOME_COLOR, AWAY_COLOR }}>
       <section className="space-y-3">
-        <SectionHeader
-          label="Action Tracker Map"
-          subtitle="Post-game OCR · event positions on the rink"
-        />
-
-        <FilterBar
-          periodList={periodList}
-          periodHasData={periodHasData}
-          periodFilter={periodFilter}
-          setPeriodFilter={setPeriodFilter}
-          teamFilter={teamFilter}
-          setTeamFilter={setTeamFilter}
-          oppAbbrev={oppAbbrev}
-          periodCounts={periodCounts}
-          typeCounts={typeCounts}
-          enabledTypes={enabledTypes}
-          toggleType={toggleType}
-          search={search}
-          setSearch={setSearch}
-          goalsOnly={goalsOnly}
-          toggleGoalsOnly={toggleGoalsOnly}
-        />
-
-        <SummaryStrip
-          visible={visibleCards.length}
-          onRink={visibleMarkers.length}
-          offRink={offRink}
-          totals={matchTotals}
-          oppAbbrev={oppAbbrev}
-          ocrConfidence={ocrConfidence}
-        />
-
-        <div className="grid grid-cols-1 gap-3.5 xl:grid-cols-[380px_1fr]">
-          <EventList
-            events={visibleCards}
-            sortMode={sortMode}
-            setSortMode={setSortMode}
-            selectedId={selectedId}
-            hoveredId={hoveredId}
-            onHover={setHoveredId}
-            onSelect={toggleSelected}
-            onClearSelected={clearSelected}
-            bgmIsHome={bgmIsHome}
+        <div className="flex flex-wrap items-end justify-between gap-2">
+          <SectionHeader
+            label="Action Tracker Map"
+            subtitle={
+              viewMode === 'faceoffs'
+                ? 'Post-game OCR · per-dot faceoff win counts'
+                : 'Post-game OCR · event positions on the rink'
+            }
           />
-          <RinkPanel
-            events={visibleMarkers}
-            oppAbbrev={oppAbbrev}
-            hoveredId={hoveredId}
-            onHover={setHoveredId}
-            selectedId={selectedId}
-            onSelect={toggleSelected}
-            onClearSelected={clearSelected}
-            bgmIsHome={bgmIsHome}
-          />
+          {hasFaceoffData ? (
+            <ViewModeToggle value={viewMode} onChange={setViewMode} />
+          ) : null}
         </div>
+
+        {viewMode === 'events' ? (
+          <>
+            <FilterBar
+              periodList={periodList}
+              periodHasData={periodHasData}
+              periodFilter={periodFilter}
+              setPeriodFilter={setPeriodFilter}
+              teamFilter={teamFilter}
+              setTeamFilter={setTeamFilter}
+              oppAbbrev={oppAbbrev}
+              periodCounts={periodCounts}
+              typeCounts={typeCounts}
+              enabledTypes={enabledTypes}
+              toggleType={toggleType}
+              search={search}
+              setSearch={setSearch}
+              goalsOnly={goalsOnly}
+              toggleGoalsOnly={toggleGoalsOnly}
+            />
+
+            <SummaryStrip
+              visible={visibleCards.length}
+              onRink={visibleMarkers.length}
+              offRink={offRink}
+              totals={matchTotals}
+              oppAbbrev={oppAbbrev}
+              ocrConfidence={ocrConfidence}
+            />
+
+            <div className="grid grid-cols-1 gap-3.5 xl:grid-cols-[380px_1fr]">
+              <EventList
+                events={visibleCards}
+                sortMode={sortMode}
+                setSortMode={setSortMode}
+                selectedId={selectedId}
+                hoveredId={hoveredId}
+                onHover={setHoveredId}
+                onSelect={toggleSelected}
+                onClearSelected={clearSelected}
+                bgmIsHome={bgmIsHome}
+              />
+              <RinkPanel
+                events={visibleMarkers}
+                oppAbbrev={oppAbbrev}
+                hoveredId={hoveredId}
+                onHover={setHoveredId}
+                selectedId={selectedId}
+                onSelect={toggleSelected}
+                onClearSelected={clearSelected}
+                bgmIsHome={bgmIsHome}
+              />
+            </div>
+          </>
+        ) : (
+          <FaceoffsView
+            dots={faceoffDots}
+            zones={faceoffZones}
+            bgmIsHome={bgmIsHome}
+            bgmColor={bgmResolved}
+            oppColor={oppResolved}
+            opponentLabel={opponentLabel}
+          />
+        )}
       </section>
     </TeamPaletteContext.Provider>
+  )
+}
+
+function ViewModeToggle({
+  value,
+  onChange,
+}: {
+  value: 'events' | 'faceoffs'
+  onChange: (v: 'events' | 'faceoffs') => void
+}) {
+  const base =
+    'inline-flex items-center px-3 py-1.5 font-condensed text-[10.5px] font-bold uppercase tracking-[0.14em] whitespace-nowrap transition-colors'
+  return (
+    <div className="inline-flex divide-x divide-[var(--color-border)] border border-[var(--color-border)] bg-[var(--color-background)]">
+      <button
+        type="button"
+        onClick={() => onChange('events')}
+        className={`${base} ${
+          value === 'events'
+            ? 'bg-[rgba(232,65,49,0.10)] text-[var(--color-accent)]'
+            : 'text-[var(--color-fg-4)] hover:text-[var(--color-fg-2)]'
+        }`}
+      >
+        Events
+      </button>
+      <button
+        type="button"
+        onClick={() => onChange('faceoffs')}
+        className={`${base} ${
+          value === 'faceoffs'
+            ? 'bg-[rgba(232,65,49,0.10)] text-[var(--color-accent)]'
+            : 'text-[var(--color-fg-4)] hover:text-[var(--color-fg-2)]'
+        }`}
+      >
+        Faceoffs
+      </button>
+    </div>
   )
 }
 
@@ -1482,4 +1558,341 @@ function cleanPeriodLabel(raw: string | null): string {
     .replace(/^\s*(?:RT|LT|RB|LB)\s+/i, '')
     .replace(/\s+(?:RT|LT|RB|LB)\s*$/i, '')
     .trim()
+}
+
+// ─── Faceoffs view ──────────────────────────────────────────────────────────
+//
+// Renders the same RinkSvg used for events mode but with a dedicated overlay:
+// at each of the 9 canonical faceoff-dot positions, two FaceoffPin SVGs (one
+// per team, the OPP pin horizontally flipped so the pair faces away from each
+// other) carry that side's win count. Pulls dot positions verbatim from the
+// pre-existing FaceoffMap component (rink calibration is identical).
+
+const FACEOFF_DOT_IDS = [
+  'lz_top',
+  'lz_bot',
+  'lnz_top',
+  'lnz_bot',
+  'center',
+  'rnz_top',
+  'rnz_bot',
+  'rz_top',
+  'rz_bot',
+] as const
+
+const FACEOFF_DOT_POSITIONS: Record<
+  (typeof FACEOFF_DOT_IDS)[number],
+  { x: number; y: number }
+> = {
+  lz_top: { x: 374.5, y: 248.42 },
+  lz_bot: { x: 374.5, y: 776.42 },
+  lnz_top: { x: 962.5, y: 248.5 },
+  lnz_bot: { x: 962.5, y: 770.15 },
+  center: { x: 1202.5, y: 512.5 },
+  rnz_top: { x: 1444.89, y: 248.5 },
+  rnz_bot: { x: 1444.89, y: 770.15 },
+  rz_top: { x: 2030.5, y: 248.5 },
+  rz_bot: { x: 2030.5, y: 785.17 },
+}
+
+interface DotWins {
+  awayWins: number | null
+  homeWins: number | null
+}
+
+function FaceoffsView({
+  dots,
+  zones,
+  bgmIsHome,
+  bgmColor,
+  oppColor,
+  opponentLabel,
+}: {
+  dots: MatchFaceoffDotRow[]
+  zones: MatchFaceoffZoneSummaryRow[]
+  bgmIsHome: boolean
+  bgmColor: string
+  oppColor: string
+  opponentLabel: string
+}) {
+  // ALL PERIODS aggregate: sum per-dot wins across periods 1..6, skip the
+  // -1 EA aggregate row to avoid double-count. NULLs treated as 0 for sum;
+  // separately track whether OCR saw nothing at all so we can render an
+  // em-dash instead of "0".
+  const { dotWins, dotUnread } = useMemo(() => {
+    const wins = new Map<string, DotWins>()
+    const seen = new Map<string, { awayHas: boolean; homeHas: boolean }>()
+    for (const d of dots) {
+      if (d.periodNumber === -1) continue
+      const winsEntry = wins.get(d.dotId) ?? { awayWins: 0, homeWins: 0 }
+      winsEntry.awayWins = (winsEntry.awayWins ?? 0) + (d.awayWins ?? 0)
+      winsEntry.homeWins = (winsEntry.homeWins ?? 0) + (d.homeWins ?? 0)
+      wins.set(d.dotId, winsEntry)
+      const seenEntry = seen.get(d.dotId) ?? { awayHas: false, homeHas: false }
+      if (d.awayWins != null) seenEntry.awayHas = true
+      if (d.homeWins != null) seenEntry.homeHas = true
+      seen.set(d.dotId, seenEntry)
+    }
+    return { dotWins: wins, dotUnread: seen }
+  }, [dots])
+
+  // EA aggregate row preferred for the zone summary; fall back to per-period sum.
+  const aggregateZones = useMemo<MatchFaceoffZoneSummaryRow[]>(() => {
+    const aggregate = zones.filter((z) => z.periodNumber === -1)
+    if (aggregate.length > 0) return aggregate
+    const acc = new Map<
+      'home' | 'away',
+      { ozW: number; ozT: number; dzW: number; dzT: number }
+    >()
+    for (const z of zones) {
+      if (z.periodNumber === -1) continue
+      const entry = acc.get(z.teamSide) ?? { ozW: 0, ozT: 0, dzW: 0, dzT: 0 }
+      entry.ozW += z.offensiveZoneWins ?? 0
+      entry.ozT += z.offensiveZoneTotal ?? 0
+      entry.dzW += z.defensiveZoneWins ?? 0
+      entry.dzT += z.defensiveZoneTotal ?? 0
+      acc.set(z.teamSide, entry)
+    }
+    const out: MatchFaceoffZoneSummaryRow[] = []
+    for (const [side, e] of acc) {
+      const totalW = e.ozW + e.dzW
+      const totalT = e.ozT + e.dzT
+      const pct = totalT > 0 ? ((totalW / totalT) * 100).toFixed(2) : null
+      out.push({
+        id: 0,
+        matchId: 0,
+        periodNumber: -1,
+        periodLabel: 'All Periods',
+        teamSide: side,
+        overallWinPct: pct,
+        offensiveZoneWins: e.ozW,
+        offensiveZoneTotal: e.ozT,
+        defensiveZoneWins: e.dzW,
+        defensiveZoneTotal: e.dzT,
+        source: 'ocr',
+        ocrExtractionId: null,
+        reviewStatus: 'reviewed',
+      })
+    }
+    return out
+  }, [zones])
+
+  if (dots.length === 0 && zones.length === 0) return null
+
+  // Pin colour mapping mirrors the side labels: away = visiting team, home =
+  // host team. The view-mode switcher above is BGM-perspective so we look up
+  // colors via bgmIsHome.
+  const AWAY_COLOR = bgmIsHome ? oppColor : bgmColor
+  const HOME_COLOR = bgmIsHome ? bgmColor : oppColor
+  const oppAbbr = abbreviateTeamName(opponentLabel)
+  const homeLabel = bgmIsHome ? 'BGM' : oppAbbr
+  const awayLabel = bgmIsHome ? oppAbbr : 'BGM'
+  const homeZone = aggregateZones.find((z) => z.teamSide === 'home') ?? null
+  const awayZone = aggregateZones.find((z) => z.teamSide === 'away') ?? null
+
+  return (
+    <>
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+        <FaceoffSideStat
+          label={awayLabel}
+          color={AWAY_COLOR}
+          isBgm={!bgmIsHome}
+          zone={awayZone}
+        />
+        <FaceoffSideStat
+          label={homeLabel}
+          color={HOME_COLOR}
+          isBgm={bgmIsHome}
+          zone={homeZone}
+        />
+      </div>
+      <div
+        className="relative w-full border border-[var(--color-border)] bg-[var(--color-surface)] px-3.5 pb-2 pt-3.5"
+        style={{ aspectRatio: `${String(VIEW_W)} / ${String(VIEW_H)}` }}
+      >
+        <RinkSvg className="block h-full w-full" />
+        <svg
+          viewBox={`0 0 ${String(VIEW_W)} ${String(VIEW_H)}`}
+          preserveAspectRatio="xMidYMid meet"
+          className="pointer-events-none absolute inset-0 block h-full w-full"
+          aria-hidden
+        >
+          {FACEOFF_DOT_IDS.map((dotId) => {
+            const pos = FACEOFF_DOT_POSITIONS[dotId]
+            const wins = dotWins.get(dotId)
+            const seen = dotUnread.get(dotId) ?? { awayHas: false, homeHas: false }
+            const awayLbl = seen.awayHas ? String(wins?.awayWins ?? 0) : '—'
+            const homeLbl = seen.homeHas ? String(wins?.homeWins ?? 0) : '—'
+            return (
+              <FaceoffDotPair
+                key={dotId}
+                cx={pos.x}
+                cy={pos.y}
+                awayLabel={awayLbl}
+                homeLabel={homeLbl}
+                awayColor={AWAY_COLOR}
+                homeColor={HOME_COLOR}
+              />
+            )
+          })}
+        </svg>
+      </div>
+    </>
+  )
+}
+
+/**
+ * Two Asset-1 polygon pins at a single faceoff dot — one per team. The OPP
+ * pin is mirrored (scaleX(-1)) so the pair faces away from each other.
+ * Win count overlay in white at the rectangle portion of each pin.
+ */
+function FaceoffDotPair({
+  cx,
+  cy,
+  awayLabel,
+  homeLabel,
+  awayColor,
+  homeColor,
+}: {
+  cx: number
+  cy: number
+  awayLabel: string
+  homeLabel: string
+  awayColor: string
+  homeColor: string
+}) {
+  // Pin viewBox is 76.06×76.99 — scale to a usable size at rink scale.
+  const PIN_W = 70
+  const PIN_H = 71
+  const GAP = 6
+  return (
+    <g transform={`translate(${String(cx)}, ${String(cy)})`}>
+      {/* Away pin — left of dot, original orientation. */}
+      <FaceoffPin
+        x={-PIN_W - GAP / 2}
+        y={-PIN_H / 2}
+        width={PIN_W}
+        height={PIN_H}
+        color={awayColor}
+        label={awayLabel}
+        flipped={false}
+      />
+      {/* Home pin — right of dot, mirrored so the pair faces away. */}
+      <FaceoffPin
+        x={GAP / 2}
+        y={-PIN_H / 2}
+        width={PIN_W}
+        height={PIN_H}
+        color={homeColor}
+        label={homeLabel}
+        flipped
+      />
+    </g>
+  )
+}
+
+/**
+ * Inlined Asset-1 SVG polygon: a top-rectangle with a downward-right
+ * triangular tail. When `flipped`, mirrored horizontally so the tail
+ * points down-LEFT. Label is positioned at the rectangle portion
+ * (upper ~57% of the height) in white.
+ */
+function FaceoffPin({
+  x,
+  y,
+  width,
+  height,
+  color,
+  label,
+  flipped,
+}: {
+  x: number
+  y: number
+  width: number
+  height: number
+  color: string
+  label: string
+  flipped: boolean
+}) {
+  // Source viewBox is 76.06 × 76.99. Scale to (width, height).
+  // Polygon: top-right corner (76.06, 0) is one of the 5 vertices; the
+  // rectangle portion sits at y in [0, 44.28] (top 57%). Tail apex at
+  // (76.06, 76.99). We render in the source coords and use a single
+  // transform to position + scale + (optionally) flip.
+  const sx = width / 76.06
+  const sy = height / 76.99
+  const transform = flipped
+    ? `translate(${String(x + width)}, ${String(y)}) scale(${String(-sx)}, ${String(sy)})`
+    : `translate(${String(x)}, ${String(y)}) scale(${String(sx)}, ${String(sy)})`
+  return (
+    <g transform={transform}>
+      <polygon
+        points="76.06,76.99 52.24,44.28 0,44.28 0,0 76.06,0"
+        fill={color}
+        stroke="rgba(255,255,255,0.55)"
+        strokeWidth={1.2 / Math.max(sx, sy)}
+      />
+      {/* Win count: white text centered in the rectangle portion (y ≈ 22). */}
+      <text
+        x={38.03}
+        y={22.14}
+        textAnchor="middle"
+        dominantBaseline="middle"
+        fontFamily="system-ui, sans-serif"
+        fontSize={32}
+        fontWeight={800}
+        fill="white"
+        transform={flipped ? 'scale(-1, 1) translate(-76.06, 0)' : undefined}
+      >
+        {label}
+      </text>
+    </g>
+  )
+}
+
+function FaceoffSideStat({
+  label,
+  color,
+  isBgm,
+  zone,
+}: {
+  label: string
+  color: string
+  isBgm: boolean
+  zone: MatchFaceoffZoneSummaryRow | null
+}) {
+  const pct = zone?.overallWinPct
+  const oz =
+    zone?.offensiveZoneTotal != null
+      ? `${String(zone.offensiveZoneWins ?? 0)}/${String(zone.offensiveZoneTotal)}`
+      : '—'
+  const dz =
+    zone?.defensiveZoneTotal != null
+      ? `${String(zone.defensiveZoneWins ?? 0)}/${String(zone.defensiveZoneTotal)}`
+      : '—'
+  return (
+    <div className="flex items-center justify-between border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2">
+      <div className="flex items-center gap-2">
+        <span className="inline-block h-3 w-3" style={{ backgroundColor: color }} aria-hidden />
+        <span className="font-condensed text-[11px] font-bold uppercase tracking-[0.18em] text-[var(--color-fg-2)]">
+          {label}
+          {isBgm ? <span className="ml-1 text-[var(--color-accent)]">·</span> : null}
+        </span>
+      </div>
+      <div className="flex items-center gap-4 font-condensed text-[11px] uppercase tracking-[0.12em] tabular-nums text-[var(--color-fg-3)]">
+        <span className="flex items-baseline gap-1">
+          <span className="text-[9px] tracking-[0.22em] text-[var(--color-fg-5)]">Overall</span>
+          <span className="text-[var(--color-fg-1)]">{pct ? `${String(pct)}%` : '—'}</span>
+        </span>
+        <span className="flex items-baseline gap-1">
+          <span className="text-[9px] tracking-[0.22em] text-[var(--color-fg-5)]">OZ</span>
+          <span className="text-[var(--color-fg-1)]">{oz}</span>
+        </span>
+        <span className="flex items-baseline gap-1">
+          <span className="text-[9px] tracking-[0.22em] text-[var(--color-fg-5)]">DZ</span>
+          <span className="text-[var(--color-fg-1)]">{dz}</span>
+        </span>
+      </div>
+    </div>
+  )
 }
