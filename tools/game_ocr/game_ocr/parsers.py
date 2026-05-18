@@ -1380,8 +1380,38 @@ _NET_CHART_LABEL_KEYS = {
     "backhand_shots": ["BACKHANDSHOTS", "BACKHANDSHOT", "BACKHAND"],
     "snap_shots": ["SNAPSHOTS", "SNAPSHOT", "SNAP"],
     "deflections": ["DEFLECTIONS", "DEFLECTION", "DEFLECT"],
-    "power_play_shots": ["SHOTSONPP", "SHOTSPP", "PPSHOTS", "ONPP"],
+    # "PP" is unique to this row across the stats panel — no other label
+    # (TOTAL/WRIST/SLAP/BACKHAND/SNAP/DEFLECTIONS) contains a double P. The
+    # half-word matcher rescues OCR garbling like "SHOTS 0NPP" (digit-0 for
+    # letter-O) → cleaned "SHOTSNPP" which still contains "PP".
+    "power_play_shots": ["SHOTSONPP", "SHOTSPP", "PPSHOTS", "ONPP", "PP"],
 }
+
+
+# Look-alike map for digit cells in the per-period stat panel. RapidOCR
+# misreads `9` as `g/G/q/Q` on the small panel font at confidence 0.94–0.95
+# (Issue C). The 6↔9 confusion is text-only ambiguous and is addressed
+# instead by per-cell ROIs (Issue C, Pass B), not by substitution.
+_NET_CHART_DIGIT_LOOKALIKES = str.maketrans({
+    "g": "9", "G": "9", "q": "9", "Q": "9",
+})
+
+
+def _parse_net_chart_digit(text: str | None) -> int | None:
+    """Parse a Net-Chart cell value, tolerating `g/G/q/Q → 9` misreads.
+
+    Returns an int in [0, 99] or None. The upper cap rejects runaway
+    concatenations (e.g. duplicate detections producing three-digit strings)
+    that would otherwise corrupt a per-period total.
+    """
+    if not text:
+        return None
+    cleaned = text.translate(_NET_CHART_DIGIT_LOOKALIKES)
+    cleaned = re.sub(r"[^0-9]", "", cleaned)
+    if not cleaned:
+        return None
+    value = int(cleaned)
+    return value if 0 <= value <= 99 else None
 
 
 def _net_chart_row_key(text: str) -> str | None:
@@ -1493,13 +1523,18 @@ def parse_post_game_net_chart(meta, regions: dict[str, list[OCRLine]], **_kwargs
         ),
     )
 
-    panel_lines = regions.get("stats_panel", [])
-    rows = _group_lines_by_y(panel_lines, threshold=20.0)
-
     # Initialize all 7 stat fields as MISSING.
     canonical_keys = list(_NET_CHART_LABEL_KEYS.keys())
     away_fields: dict[str, ExtractionField] = {k: ExtractionField(status=FieldStatus.MISSING) for k in canonical_keys}
     home_fields: dict[str, ExtractionField] = {k: ExtractionField(status=FieldStatus.MISSING) for k in canonical_keys}
+
+    # Step 1: Legacy stats_panel block parsing (always runs). Per-cell ROIs
+    # (Step 3 below) act as a high-confidence override on top of this baseline.
+    panel_lines = regions.get("stats_panel", [])
+    rows = _group_lines_by_y(panel_lines, threshold=20.0)
+
+    unclaimed_rows: list[list[OCRLine]] = []
+    matched_max_y: float = 0.0
 
     for row in rows:
         # Find label among row members.
@@ -1525,18 +1560,91 @@ def parse_post_game_net_chart(meta, regions: dict[str, list[OCRLine]], **_kwargs
                     label_token = key
                     label_x_center = sum(line.x_center for line in non_numeric) / len(non_numeric)
         if label_token is None or label_x_center is None:
+            unclaimed_rows.append(row)
             continue
         # Pick numeric tokens by side relative to the label.
         numeric_lines = [line for line in row if re.search(r"[0-9]", line.text)]
         away_lines = [line for line in numeric_lines if line.x_center < label_x_center]
         home_lines = [line for line in numeric_lines if line.x_center > label_x_center]
-        # Allow lone-letter "g" / "S" / "O" tokens to still surface as raw_text.
+        # Allow lone-letter "g" / "S" / "O" tokens to still surface as raw_text
+        # so `_parse_net_chart_digit` can recover them via the lookalike map.
         if not away_lines:
             away_lines = [line for line in row if line.x_center < label_x_center and line.text.strip()]
         if not home_lines:
             home_lines = [line for line in row if line.x_center > label_x_center and line.text.strip()]
-        away_fields[label_token] = field_from_lines(away_lines, parser=parse_int)
-        home_fields[label_token] = field_from_lines(home_lines, parser=parse_int)
+        away_fields[label_token] = field_from_lines(away_lines, parser=_parse_net_chart_digit)
+        home_fields[label_token] = field_from_lines(home_lines, parser=_parse_net_chart_digit)
+        row_max_y = max((line.y_center for line in row), default=0.0)
+        if row_max_y > matched_max_y:
+            matched_max_y = row_max_y
+
+    # Step 2: SHOTS ON PP positional fallback (Issue 5). If the label OCR'd as
+    # garbage AND the row sits below all matched rows (= bottom of panel),
+    # promote its two numeric cells as away/home power_play_shots.
+    if (
+        away_fields["power_play_shots"].status == FieldStatus.MISSING
+        and home_fields["power_play_shots"].status == FieldStatus.MISSING
+        and unclaimed_rows
+    ):
+        below = [
+            r for r in unclaimed_rows
+            if max((line.y_center for line in r), default=0.0) > matched_max_y
+        ]
+        if below:
+            candidate = max(below, key=lambda r: max(line.y_center for line in r))
+            digit_only = [
+                line for line in candidate
+                if re.fullmatch(r"\s*\d+\s*", line.text or "")
+            ]
+            if len(digit_only) >= 2:
+                alpha_lines = [
+                    line for line in candidate
+                    if any(c.isalpha() for c in (line.text or ""))
+                ]
+                if alpha_lines:
+                    split_x = sum(l.x_center for l in alpha_lines) / len(alpha_lines)
+                else:
+                    split_x = sum(l.x_center for l in digit_only) / len(digit_only)
+                away_pp = [line for line in digit_only if line.x_center < split_x]
+                home_pp = [line for line in digit_only if line.x_center > split_x]
+                if away_pp:
+                    away_fields["power_play_shots"] = field_from_lines(
+                        away_pp, parser=_parse_net_chart_digit,
+                    )
+                if home_pp:
+                    home_fields["power_play_shots"] = field_from_lines(
+                        home_pp, parser=_parse_net_chart_digit,
+                    )
+
+    # Step 3: Per-cell ROI override (Issue C, Pass B). Three override paths,
+    # ordered from most-permissive to most-conservative:
+    #
+    #   (a) Legacy was MISSING → per-cell fills the slot at any confidence.
+    #   (b) Per-cell ≥ HIGH_CONF → override (clean disagreement on a tight crop).
+    #   (c) Targeted Issue-C recovery: per-cell `9` overrides legacy `6`. The
+    #       documented misread direction is `9 → 6` on the per-period panel
+    #       font; this asymmetric rule fires only on the known pattern. Other
+    #       digit confusions (e.g. 2↔7) keep the legacy value, preventing
+    #       low-confidence per-cell readings from corrupting clean cells.
+    PER_CELL_OVERRIDE_CONF = 0.85
+    for key in canonical_keys:
+        for side_label, side_fields in (("away", away_fields), ("home", home_fields)):
+            roi_key = f"stats_{key}_{side_label}"
+            if roi_key not in regions:
+                continue
+            per_cell = field_from_lines(
+                regions[roi_key], parser=_parse_net_chart_digit,
+            )
+            if per_cell.value is None:
+                continue
+            legacy = side_fields[key]
+            override = (
+                legacy.status == FieldStatus.MISSING
+                or (per_cell.confidence or 0.0) >= PER_CELL_OVERRIDE_CONF
+                or (per_cell.value == 9 and legacy.value == 6)
+            )
+            if override:
+                side_fields[key] = per_cell
 
     # Game-total shots from the score-strip header. These are identical across
     # every per-period frame, so they double as the source of truth for the

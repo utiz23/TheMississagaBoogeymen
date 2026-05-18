@@ -51,3 +51,94 @@ regions:
     width: 0.070
     height: 0.040
     preprocess: invert-threshold
+  # Per-cell sub-ROIs (Issue C, Pass B). Each cell is isolated so RapidOCR's
+  # digit classifier sees only one numeric glyph at a time, disambiguating
+  # the 6↔9 confusion the panel-block reading can't text-recover. The 14
+  # ROIs (7 shot types × {away, home}) were calibrated against the 1st-period
+  # canonical capture vlcsnap-2026-05-10-02h07m08s705.png — row spacing 0.046
+  # normalized, away column centered at x≈0.075, home column at x≈0.340.
+  # Width is generous (0.050) so 2-digit ALL PERIODS totals fit.
+  stats_total_shots_away:
+    x: 0.050
+    y: 0.270
+    width: 0.050
+    height: 0.040
+    preprocess: invert-threshold
+  stats_total_shots_home:
+    x: 0.315
+    y: 0.270
+    width: 0.050
+    height: 0.040
+    preprocess: invert-threshold
+  stats_wrist_shots_away:
+    x: 0.050
+    y: 0.317
+    width: 0.050
+    height: 0.040
+    preprocess: invert-threshold
+  stats_wrist_shots_home:
+    x: 0.315
+    y: 0.317
+    width: 0.050
+    height: 0.040
+    preprocess: invert-threshold
+  stats_slap_shots_away:
+    x: 0.050
+    y: 0.363
+    width: 0.050
+    height: 0.040
+    preprocess: invert-threshold
+  stats_slap_shots_home:
+    x: 0.315
+    y: 0.363
+    width: 0.050
+    height: 0.040
+    preprocess: invert-threshold
+  stats_backhand_shots_away:
+    x: 0.050
+    y: 0.410
+    width: 0.050
+    height: 0.040
+    preprocess: invert-threshold
+  stats_backhand_shots_home:
+    x: 0.315
+    y: 0.410
+    width: 0.050
+    height: 0.040
+    preprocess: invert-threshold
+  stats_snap_shots_away:
+    x: 0.050
+    y: 0.456
+    width: 0.050
+    height: 0.040
+    preprocess: invert-threshold
+  stats_snap_shots_home:
+    x: 0.315
+    y: 0.456
+    width: 0.050
+    height: 0.040
+    preprocess: invert-threshold
+  stats_deflections_away:
+    x: 0.050
+    y: 0.502
+    width: 0.050
+    height: 0.040
+    preprocess: invert-threshold
+  stats_deflections_home:
+    x: 0.315
+    y: 0.502
+    width: 0.050
+    height: 0.040
+    preprocess: invert-threshold
+  stats_power_play_shots_away:
+    x: 0.050
+    y: 0.548
+    width: 0.050
+    height: 0.040
+    preprocess: invert-threshold
+  stats_power_play_shots_home:
+    x: 0.315
+    y: 0.548
+    width: 0.050
+    height: 0.040
+    preprocess: invert-threshold

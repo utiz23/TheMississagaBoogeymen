@@ -15,6 +15,7 @@ from game_ocr.parsers import (
     _net_chart_row_key,
     _normalize_period_label,
     _parse_faceoff_dot,
+    _parse_net_chart_digit,
     field_from_lines,
     parse_post_game_action_tracker,
     parse_post_game_box_score,
@@ -498,6 +499,195 @@ class NetChartParserTests(unittest.TestCase):
         result = parse_post_game_net_chart(self._meta(), regions)
         self.assertEqual(result.away.wrist_shots.value, 1)
         self.assertEqual(result.home.wrist_shots.value, 0)
+
+    # ─── Digit lookalike (Issue C, Pass A) ────────────────────────────────
+
+    def test_parse_net_chart_digit_lowercase_g_maps_to_9(self) -> None:
+        self.assertEqual(_parse_net_chart_digit("g"), 9)
+
+    def test_parse_net_chart_digit_uppercase_G_maps_to_9(self) -> None:
+        self.assertEqual(_parse_net_chart_digit("G"), 9)
+
+    def test_parse_net_chart_digit_q_and_Q_map_to_9(self) -> None:
+        self.assertEqual(_parse_net_chart_digit("q"), 9)
+        self.assertEqual(_parse_net_chart_digit("Q"), 9)
+
+    def test_parse_net_chart_digit_plain_digits_pass_through(self) -> None:
+        self.assertEqual(_parse_net_chart_digit("6"), 6)
+        self.assertEqual(_parse_net_chart_digit("9"), 9)
+        self.assertEqual(_parse_net_chart_digit("29"), 29)
+
+    def test_parse_net_chart_digit_rejects_three_digit(self) -> None:
+        # Cap rejects runaway concatenations like duplicate detections.
+        self.assertIsNone(_parse_net_chart_digit("123"))
+
+    def test_parse_net_chart_digit_returns_none_for_pure_letter(self) -> None:
+        # Letters not in the lookalike map (no g/G/q/Q) yield None.
+        self.assertIsNone(_parse_net_chart_digit("x"))
+        self.assertIsNone(_parse_net_chart_digit(""))
+
+    def test_full_parser_recovers_g_as_9(self) -> None:
+        # Mirrors the canonical 1st-period frame but swaps the SNAP away cell
+        # for an OCR misread "g" — must surface as 9 after the digit-lookalike
+        # wrap of field_from_lines.
+        regions: dict[str, list[OCRLine]] = {
+            "period_label": [self._line("1ST PERIOD", 300, 80)],
+            "away_label": [self._line("BM(A)", 130, 230)],
+            "home_label": [self._line("4TH(H)", 670, 230)],
+            "stats_panel": [
+                self._line("g", 100, 60),
+                self._line("SNAP SHOTS", 250, 60),
+                self._line("1", 400, 60),
+            ],
+        }
+        result = parse_post_game_net_chart(self._meta(), regions)
+        self.assertEqual(result.away.snap_shots.value, 9)
+        self.assertEqual(result.home.snap_shots.value, 1)
+
+    # ─── SHOTS ON PP row recovery (Issue 5) ───────────────────────────────
+
+    def test_power_play_row_recovered_when_label_garbled(self) -> None:
+        # OCR'd label "SHOTS 0NPP" (digit-0 in place of letter-O). After
+        # stripping non-alpha → "SHOTSNPP". The "PP" half-word matcher
+        # added in this fix identifies the row.
+        regions = self._make_regions(
+            "1ST PERIOD",
+            [
+                ("TOTAL SHOTS", 5, 2),
+                ("WRIST SHOTS", 1, 0),
+                ("SLAPSHOTS", 0, 0),
+                ("BACKHAND SHOTS", 0, 0),
+                ("SNAP SHOTS", 3, 1),
+                ("DEFLECTIONS", 1, 0),
+                ("SHOTS 0NPP", 0, 0),
+            ],
+        )
+        result = parse_post_game_net_chart(self._meta(), regions)
+        self.assertEqual(result.away.power_play_shots.value, 0)
+        self.assertEqual(result.home.power_play_shots.value, 0)
+
+    def test_power_play_row_recovered_via_positional_fallback(self) -> None:
+        # Worst-case: the label OCR fails entirely (no label OCRLine at all)
+        # but the two "0" cells are detected. The positional fallback must
+        # promote the bottommost unclaimed numeric-only row as power_play_shots.
+        regions: dict[str, list[OCRLine]] = {
+            "period_label": [self._line("OT", 300, 80)],
+            "away_label": [self._line("BM(A)", 130, 230)],
+            "home_label": [self._line("4TH(H)", 670, 230)],
+            "stats_panel": [],
+        }
+        # 6 well-formed rows.
+        rows = [
+            ("TOTAL SHOTS", 9, 2),
+            ("WRIST SHOTS", 1, 0),
+            ("SLAPSHOTS", 0, 0),
+            ("BACKHAND SHOTS", 0, 0),
+            ("SNAP SHOTS", 7, 2),
+            ("DEFLECTIONS", 0, 0),
+        ]
+        for i, (label, away, home) in enumerate(rows):
+            y = 60 + i * 50
+            regions["stats_panel"].extend([
+                self._line(str(away), 100, y),
+                self._line(label, 250, y),
+                self._line(str(home), 400, y),
+            ])
+        # Row 7: only the two "0" cells, no label OCRLine.
+        y7 = 60 + 6 * 50
+        regions["stats_panel"].extend([
+            self._line("0", 100, y7),
+            self._line("0", 400, y7),
+        ])
+        result = parse_post_game_net_chart(self._meta(), regions)
+        self.assertEqual(result.away.power_play_shots.value, 0)
+        self.assertEqual(result.home.power_play_shots.value, 0)
+
+    def test_power_play_row_not_invented_when_absent(self) -> None:
+        # Defensive: a 6-row panel (no 7th row at all) must leave both sides'
+        # power_play_shots as MISSING. Locks the positional fallback against
+        # false positives.
+        regions = self._make_regions(
+            "1ST PERIOD",
+            [
+                ("TOTAL SHOTS", 5, 2),
+                ("WRIST SHOTS", 1, 0),
+                ("SLAPSHOTS", 0, 0),
+                ("BACKHAND SHOTS", 0, 0),
+                ("SNAP SHOTS", 3, 1),
+                ("DEFLECTIONS", 1, 0),
+            ],
+        )
+        result = parse_post_game_net_chart(self._meta(), regions)
+        self.assertEqual(result.away.power_play_shots.status, FieldStatus.MISSING)
+        self.assertEqual(result.home.power_play_shots.status, FieldStatus.MISSING)
+
+    # ─── Per-cell ROI precedence (Issue C, Pass B) ────────────────────────
+
+    def test_per_cell_rois_take_precedence_over_panel_block(self) -> None:
+        # When per-cell sub-ROIs are present, the parser must take their
+        # values over the legacy stats_panel block. Tests the backward-compat
+        # branch.
+        regions: dict[str, list[OCRLine]] = {
+            "period_label": [self._line("1ST PERIOD", 300, 80)],
+            "away_label": [self._line("BM(A)", 130, 230)],
+            "home_label": [self._line("4TH(H)", 670, 230)],
+            # Legacy panel says total_shots = 99 / 99 (wrong on purpose).
+            "stats_panel": [
+                self._line("99", 100, 60),
+                self._line("TOTAL SHOTS", 250, 60),
+                self._line("99", 400, 60),
+            ],
+            # Per-cell ROIs say 5 / 2 (default confidence 0.95 ≥ 0.85 threshold).
+            "stats_total_shots_away": [self._line("5", 50, 50)],
+            "stats_total_shots_home": [self._line("2", 50, 50)],
+        }
+        result = parse_post_game_net_chart(self._meta(), regions)
+        self.assertEqual(result.away.total_shots.value, 5)
+        self.assertEqual(result.home.total_shots.value, 2)
+
+    def test_per_cell_low_conf_keeps_legacy_when_disagrees(self) -> None:
+        # Per-cell at confidence below the 0.85 override threshold must NOT
+        # corrupt a clean legacy reading on a non-Issue-C digit pattern.
+        # Locks against the OT `2↔7` regression observed during calibration.
+        regions: dict[str, list[OCRLine]] = {
+            "period_label": [self._line("OT", 300, 80)],
+            "away_label": [self._line("BM(A)", 130, 230)],
+            "home_label": [self._line("4TH(H)", 670, 230)],
+            "stats_panel": [
+                # Legacy reads home TOTAL = 2 at high confidence.
+                self._line("9", 100, 60),
+                self._line("TOTAL SHOTS", 250, 60),
+                OCRLine(text="2", confidence=1.00, x1=385, x2=415, y1=48, y2=72),
+            ],
+            # Per-cell reads home TOTAL = 7 at low confidence (calibration drift).
+            "stats_total_shots_home": [OCRLine(
+                text="7", confidence=0.70, x1=35, x2=65, y1=40, y2=60,
+            )],
+        }
+        result = parse_post_game_net_chart(self._meta(), regions)
+        # Legacy `2` wins over low-conf per-cell `7`.
+        self.assertEqual(result.home.total_shots.value, 2)
+
+    def test_per_cell_9_overrides_legacy_6_at_any_confidence(self) -> None:
+        # Targeted Issue-C recovery: the documented misread is `9 read as 6`.
+        # Per-cell `9` must override legacy `6` even at low confidence.
+        regions: dict[str, list[OCRLine]] = {
+            "period_label": [self._line("OT", 300, 80)],
+            "away_label": [self._line("BM(A)", 130, 230)],
+            "home_label": [self._line("4TH(H)", 670, 230)],
+            "stats_panel": [
+                # Legacy reads away TOTAL = 6 (the misread).
+                OCRLine(text="6", confidence=0.96, x1=85, x2=115, y1=48, y2=72),
+                self._line("TOTAL SHOTS", 250, 60),
+                self._line("2", 400, 60),
+            ],
+            # Per-cell reads 9 at low confidence (still wins under Issue-C rule).
+            "stats_total_shots_away": [OCRLine(
+                text="9", confidence=0.72, x1=35, x2=65, y1=40, y2=60,
+            )],
+        }
+        result = parse_post_game_net_chart(self._meta(), regions)
+        self.assertEqual(result.away.total_shots.value, 9)
 
 
 class BoxScoreParserTests(unittest.TestCase):
