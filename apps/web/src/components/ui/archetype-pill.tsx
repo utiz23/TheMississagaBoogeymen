@@ -133,15 +133,20 @@ function styleVars(meta: ArchetypeMeta): CSSProperties {
 
 /**
  * Compact 22px pill — drop-in for tight contexts (table rows, leader tiles).
+ *
+ * Tooltip prepends the long-form archetype name (e.g. "PLAYMAKER") so users
+ * can decode the 3-letter compact code (`PLY`) on hover. Cross-section:
+ * benefits Top Performers + Scoresheet + Lineup since they all consume this.
  */
 export function ArchetypePillCompact({ archetype }: { archetype: PlayerArchetype }) {
   const meta = META[archetype]
   const [prefix, accent] = meta.compactName
+  const longName = `${meta.name[0]}${meta.name[1]}`
   return (
     <span
       className="arc-mini"
       style={styleVars(meta)}
-      title={`${meta.category} · ${meta.descriptor}`}
+      title={`${longName} · ${meta.category} · ${meta.descriptor}`}
     >
       <span className="ico">
         <ArchetypeIcon archetype={archetype} />

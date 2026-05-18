@@ -16,6 +16,12 @@ interface LineupRowProps {
   bgmCard: ReactNode
   oppCard: ReactNode
   positionBadge: ReactNode
+  /**
+   * Mobile-only matchup strip rendered above the cards (the desktop badge
+   * is hidden on <md). Carries the position letter + "BGM build ↔ OPP build"
+   * tag so phone-width users still see the signature matchup signal.
+   */
+  mobileMatchupStrip?: ReactNode
   expandPanel: ReactNode
   /** When false the row is rendered static (CPU goalie row — nothing to expand). */
   expandable: boolean
@@ -27,6 +33,7 @@ export function LineupRow({
   bgmCard,
   oppCard,
   positionBadge,
+  mobileMatchupStrip,
   expandPanel,
   expandable,
   isOpen,
@@ -61,6 +68,7 @@ export function LineupRow({
 
   return (
     <div data-open={isOpen ? 'true' : 'false'} className="group">
+      {mobileMatchupStrip}
       <div className="grid grid-cols-1 items-stretch md:grid-cols-[1fr_96px_1fr]">
         <div {...cardWrapperProps}>{bgmCard}</div>
         {positionBadge}

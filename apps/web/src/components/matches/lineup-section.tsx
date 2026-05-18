@@ -59,7 +59,7 @@ export function LineupSection({
 
   return (
     <section className="space-y-3">
-      <SectionHeader label="Lineup & Loadouts" subtitle="Pre-game scouting sheet · OCR-derived" />
+      <SectionHeader label="Lineup & Loadouts" subtitle="Pre-game scouting sheet" />
       <SummaryBand
         bgm={bgm}
         opp={opp}
@@ -464,6 +464,12 @@ function buildLadderItem(
     <CpuPlaceholderCard side="opp" position={position} />
   )
   const positionBadge = <PositionBadge position={position} matchup={matchup} />
+  // Mobile-only counterpart: the desktop badge is hidden on <md, so the
+  // matchup tag would otherwise disappear on phone widths. This strip keeps
+  // the signature "BGM build ↔ OPP build" signal visible above the row.
+  const mobileMatchupStrip = (
+    <MobileMatchupStrip position={position} matchup={matchup} />
+  )
 
   const expandPanel = (
     <LineupExpandPanel
@@ -475,7 +481,15 @@ function buildLadderItem(
     />
   )
 
-  return { position, bgmCard, oppCard, positionBadge, expandPanel, expandable }
+  return {
+    position,
+    bgmCard,
+    oppCard,
+    positionBadge,
+    mobileMatchupStrip,
+    expandPanel,
+    expandable,
+  }
 }
 
 const JUNK_GAMERTAG_TOKENS = new Set(['away', 'home', 'cpu', '?', '(unknown)'])
@@ -487,6 +501,37 @@ function isRenderable(row: LineupRow): boolean {
   const hasNumber = row.playerNumber !== null
   const hasXFactors = row.xFactors.length > 0
   return hasBuild || hasNumber || hasXFactors
+}
+
+function MobileMatchupStrip({
+  position,
+  matchup,
+}: {
+  position: PositionKey
+  matchup: string | null
+}) {
+  const color = colorForPosition(position)
+  return (
+    <div
+      className="flex items-center justify-center gap-2 border-y px-3 py-1.5 md:hidden"
+      style={{
+        background: `color-mix(in srgb, ${color} 10%, transparent)`,
+        borderColor: `color-mix(in srgb, ${color} 40%, transparent)`,
+      }}
+    >
+      <span
+        className="font-condensed text-[14px] font-black uppercase tracking-[0.08em] tabular-nums"
+        style={{ color }}
+      >
+        {position}
+      </span>
+      {matchup ? (
+        <span className="font-condensed text-[8.5px] font-bold uppercase tracking-[0.18em] text-[var(--color-fg-5)]">
+          {matchup}
+        </span>
+      ) : null}
+    </div>
+  )
 }
 
 function PositionBadge({ position, matchup }: { position: PositionKey; matchup: string | null }) {
@@ -780,10 +825,13 @@ function PlayerInfo({
   return (
     <div className={`min-w-0 ${textAlign}`}>
       <div className={`flex flex-wrap items-baseline gap-2 ${justify}`}>
-        <span className="font-condensed text-[19px] font-black uppercase leading-none tracking-[0.04em] text-[var(--color-fg-1)]">
+        <span
+          className="font-condensed text-[19px] font-black uppercase leading-none tracking-[0.04em] text-[var(--color-fg-1)]"
+          title="In-game character name (NHL player skin assigned to this lineup slot)"
+        >
           {persona}
         </span>
-        <span className="overflow-hidden truncate font-condensed text-[11px] font-semibold tracking-[0.02em]">
+        <span className="min-w-[80px] overflow-hidden truncate font-condensed text-[11px] font-semibold tracking-[0.02em]">
           {gamertagNode}
           {platform ? <PlatformBadge platform={platform} /> : null}
         </span>

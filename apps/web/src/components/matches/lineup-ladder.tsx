@@ -17,6 +17,7 @@ export interface LineupLadderItem {
   bgmCard: ReactNode
   oppCard: ReactNode
   positionBadge: ReactNode
+  mobileMatchupStrip?: ReactNode
   expandPanel: ReactNode
   expandable: boolean
 }
@@ -36,6 +37,7 @@ export function LineupLadder({ items }: { items: LineupLadderItem[] }) {
             bgmCard={item.bgmCard}
             oppCard={item.oppCard}
             positionBadge={item.positionBadge}
+            mobileMatchupStrip={item.mobileMatchupStrip}
             expandPanel={item.expandPanel}
             expandable={item.expandable}
             isOpen={isOpen}

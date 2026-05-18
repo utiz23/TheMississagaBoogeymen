@@ -94,9 +94,9 @@ export function LineupExpandPanel({
       className="grid grid-cols-1 border border-t-0 bg-[var(--color-surface)] md:grid-cols-[1fr_96px_1fr]"
       style={{ borderColor: `color-mix(in srgb, ${posColor} 40%, transparent)` }}
     >
-      <PlayerColumn row={bgm} refPlayer={bgmRef} side="bgm" />
+      <PlayerColumn row={bgm} refPlayer={bgmRef} side="bgm" position={position} posColor={posColor} />
       <CenterRail position={position} color={posColor} />
-      <PlayerColumn row={opp} refPlayer={oppRef} side="opp" />
+      <PlayerColumn row={opp} refPlayer={oppRef} side="opp" position={position} posColor={posColor} />
     </div>
   )
 }
@@ -141,15 +141,39 @@ function PlayerColumn({
   row,
   refPlayer,
   side,
+  position,
+  posColor,
 }: {
   row: LineupRow | null
   refPlayer: string | null
   side: 'bgm' | 'opp'
+  position: string
+  posColor: string
 }) {
   const borderClass = side === 'bgm' ? 'md:border-r md:border-[var(--color-border)]' : ''
+  // Mobile-only header: the desktop `CenterRail` is hidden on <md, so the
+  // drill-down panel would otherwise lose its "which matchup is this?" anchor.
+  // A small `Pos · C` strip per column keeps the context on phone widths.
+  const mobilePositionHeader = (
+    <div className="mb-3 flex items-center gap-2 md:hidden">
+      <span className="font-condensed text-[9px] font-semibold uppercase tracking-[0.22em] text-[var(--color-fg-6)]">
+        Pos
+      </span>
+      <span
+        className="font-condensed text-[18px] font-black uppercase tracking-[0.08em] tabular-nums"
+        style={{ color: posColor }}
+      >
+        {position}
+      </span>
+      <span className="font-condensed text-[9px] font-semibold uppercase tracking-[0.18em] text-[var(--color-fg-5)]">
+        {side === 'bgm' ? '↑ BGM' : 'OPP ↓'}
+      </span>
+    </div>
+  )
   if (!row) {
     return (
       <div className={`px-5 py-5 ${borderClass}`}>
+        {mobilePositionHeader}
         <div className="font-condensed text-[11px] font-semibold uppercase tracking-[0.22em] text-[var(--color-fg-5)]">
           No data captured for this slot.
         </div>
@@ -162,6 +186,7 @@ function PlayerColumn({
 
   return (
     <div className={`px-5 py-5 ${borderClass}`}>
+      {mobilePositionHeader}
       <BuildBlock row={row} refPlayer={refPlayer} buildLabel={buildLabel} xFactors={xFactors} />
       <AttributeBlocks attributes={row.attributes} />
     </div>
@@ -199,6 +224,7 @@ function BuildBlock({
         <KvBlock
           k="Level"
           v={row.playerLevelNumber !== null ? String(row.playerLevelNumber) : '—'}
+          title="EASHL player progression level (separate from the in-game NHL player's overall rating)"
         />
       </div>
       {xFactors.length > 0 ? (
@@ -217,9 +243,9 @@ function BuildBlock({
   )
 }
 
-function KvBlock({ k, v }: { k: string; v: string }) {
+function KvBlock({ k, v, title }: { k: string; v: string; title?: string }) {
   return (
-    <div className="flex flex-col gap-[2px]">
+    <div className="flex flex-col gap-[2px]" title={title}>
       <span className="font-condensed text-[9px] font-semibold uppercase tracking-[0.18em] text-[var(--color-fg-6)]">
         {k}
       </span>
