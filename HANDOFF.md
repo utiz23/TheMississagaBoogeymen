@@ -182,7 +182,114 @@ End state: **71 canonical rows, all 71 positioned = 100% coverage**, no manual i
 4. **Overlap watershed** (~2 hr). Stacked markers at one on-ice spot. Not present in 250 but real games will have it.
 5. **Clock-phantom generalisations** (deferred) — period-bounds check (clock > 20:00 in p1-3 = impossible), OT-lower-bound (clock < game-end-clock impossible), unresolved-actor phantom detection. None of these classes currently have known instances; ship if/when a future match surfaces one.
 
-**Last updated:** 2026-05-18 (Multi-Match Readiness bundle shipped — Pass-1 `min_run_to_open` 3→2, color extractor learns white-jersey opps, classifier recalibrated with 5 multi-opponent extras from match-2 against BLURKY YOINTS. Earlier same-day: Net-Chart Issue C + Issue 5 bundle and Video-CLI code-review punch-list. See three 2026-05-18 session summaries below.)
+**Last updated:** 2026-05-18 (Lineup persona alias table shipped — new `player_persona_aliases` table + `resolvePersona()` in consolidator + `player_name_persona_raw` audit column. All 10 match-250 anchor personas canonicalized. Earlier same-day: 4-commit checkpoint landed 2 days of uncommitted work; Multi-Match Readiness bundle; Net-Chart Issue C + Issue 5; Video-CLI code-review punch-list. See four 2026-05-18 session summaries below.)
+
+---
+
+## Session Summary — 2026-05-18 (Commit checkpoint + Lineup persona alias table)
+
+### What was done
+
+Two-objective bundle: clear the 2-day uncommitted backlog with four focused commits, then ship the persona-name OCR canonicalization (one of the gating items for "match 250 complete").
+
+**Step 1 — Commit checkpoint (4 commits, in order):**
+- `9c78166` `fix(video-ingest): close 2026-05-16 code-review punch-list` (Video-CLI fixes)
+- `40ce11b` `fix(ocr): Net-Chart Issue C + Issue 5 completion bundle`
+- `6b989ad` `feat(ocr): multi-match readiness bundle`
+- `9b6a961` `docs(handoff): 2026-05-17 plan files + 2026-05-18 session entries`
+
+**Steps 2-7 — Lineup persona alias table:** new feature shipped as commit `d36a046`.
+
+Schema (migration 0044_petite_shiver_man.sql):
+- New table `player_persona_aliases` — distinct from `player_display_aliases`. Maps OCR-captured persona snapshots to a clean canonical string (e.g. `E.Wanhg` → `E. WANHG`). Columns: `id`, `alias`, `normalized_alias` (unique), `canonical_persona`, `player_id` (nullable FK), `source` (`'manual'` / `'auto'`), `created_at`. Indexes: unique on `normalized_alias`; btree on `canonical_persona`.
+- New audit column on `player_loadout_snapshots`: `player_name_persona_raw` preserves the dominant-vote OCR value alongside the canonicalized `player_name_persona`.
+
+Resolver (`apps/worker/src/lib/normalize-persona.ts`):
+- `resolvePersona(rawSnapshot, dbConn)` returns `{ canonical, via }` where `via ∈ {'exact_alias', 'fuzzy_alias', 'raw'}`.
+- 3-step cascade mirroring `resolveGamertagToPlayer`: normalize via `normalizeSnapshot` (now exported from `resolve-identity.ts`) → exact match on `normalized_alias` → Levenshtein-1 fuzzy fallback → ornament-stripped raw.
+- Returns `null` only when input is null/empty/all-ornament; otherwise always returns a usable string.
+
+Consolidator integration (`consolidate-loadouts-cli.ts`):
+- Inside the per-anchor transaction, after `consensus()` votes the dominant raw persona, `resolvePersona()` is called and overwrites `merged.playerNamePersona` with the canonical value; the raw vote is preserved in `merged.playerNamePersonaRaw`.
+- Diagnostic log: `persona alias hit: "raw" → "canonical" (via X)` for exact/fuzzy hits.
+
+Seed SQL (`/tmp/persona-alias-seed.sql`, one-shot operator action — NOT a tracked migration):
+- 19 INSERT rows mapping to 10 canonical forms. All 10 match-250 anchor slots resolved via `exact_alias` on the re-run.
+- Format mirrors existing `player_display_aliases` canonical pattern: UPPERCASE with period-space initials (e.g. `E. WANHG`, `M. RANTANEN`).
+
+### Match-250 canonical persona results (post-consolidator)
+
+```
+side    | position | canonical    | raw
+--------+----------+--------------+-------------
+for     | C        | E. WANHG     | E.Wanhg
+for     | LW       | M. RANTANEN  | M.Rantanen
+for     | RW       | SILKY        | Silky
+for     | LD       | H. JENKINS   | H.Jenkins
+for     | RD       | L. HUTSON    | L.Hutson
+against | C        | TOEWS        | Toews
+against | LW       | WHOOSAH      | Whoosah
+against | RW       | WILDE        | WILDE
+against | LD       | P. MAGROYNE  | P.Magroyne
+against | RD       | S. ZUBOV     | S.Zubov
+```
+
+### Verified
+
+- **36/36 worker tests pass** (29 existing + 7 new persona-resolver tests).
+- **2/2 match-250 benchmark tests pass** — includes 5 new canonical-persona assertions for BGM slots (C/LW/RW/LD/RD).
+- **`pnpm --filter web typecheck` clean** — no schema-consumer drift.
+- Live DB inventory: all 10 reviewed anchors show clean canonical strings; raw values preserved in `player_name_persona_raw`.
+
+### Architecture / schema decisions captured
+
+- **Two separate alias tables, not one.** `player_display_aliases` resolves OCR snapshot → `player_id` (identity). `player_persona_aliases` canonicalizes OCR snapshot → clean string (display). Conflating them would have required a `kind` discriminator column and complicated existing call sites; keeping them separate matches the actual semantic split.
+- **Unique constraint on `normalized_alias` (global, not `(player_id, normalized_alias)`).** One canonical persona per garbled value. Persona is per-match (skin choice), not per-player — so player-keyed aliases would have introduced false-context contradictions.
+- **`normalizeSnapshot` is the shared normalization helper.** Promoted to exported from `resolve-identity.ts` so both gamertag and persona resolvers use the identical ornament/punctuation pipeline.
+
+### What's next (after this bundle)
+
+Match 250 still has several outstanding items before being "complete" (the gating condition for the deferred match-2 DB ingest):
+
+- **OT-for breakdown sum off by 1** (Net-Chart known residual; not a parser bug).
+- **Faceoff Map OCR** at 14/21 BGM + 7/11 4L — either tune to 100% or merge into Action Tracker per UI review §9.
+- **Context Footer** — never reviewed (UI review §10 stub).
+
+After match 250 complete: match-2 DB ingest is unlocked (requires CUDA runtime fix or accepting CPU-only Pass-1 wall clock).
+
+### Files added / modified
+
+| New | Purpose |
+| --- | ------- |
+| `packages/db/src/schema/player-persona-aliases.ts` | Drizzle definition |
+| `packages/db/migrations/0044_petite_shiver_man.sql` | Schema migration |
+| `packages/db/migrations/meta/0044_snapshot.json` | Drizzle snapshot |
+| `apps/worker/src/lib/normalize-persona.ts` | `resolvePersona()` |
+| `apps/worker/src/lib/normalize-persona.test.ts` | 7 integration tests |
+
+| Modified | Why |
+| -------- | --- |
+| `packages/db/src/schema/player-loadout.ts` | `playerNamePersonaRaw` audit column |
+| `packages/db/src/schema/index.ts` | Export new schema |
+| `apps/worker/src/consolidate-loadouts-cli.ts` | Call resolver post-vote; write raw + canonical |
+| `apps/worker/src/ocr-promoters/resolve-identity.ts` | Export `normalizeSnapshot` for reuse |
+| `apps/worker/src/__tests__/match-250-benchmark.test.ts` | 5 canonical-persona assertions |
+
+### Repo state at session end
+
+- All persona-alias work committed as `d36a046 feat(ocr): player_persona_aliases table canonicalizes OCR-garbled persona names`.
+- Working tree clean except `Asset 1.svg` (stray file, pre-existing).
+- DB has migration 0044 applied; 19 alias rows in `player_persona_aliases`; all 10 match-250 anchors `review_status='reviewed'` with canonical personas.
+- Seed SQL at `/tmp/persona-alias-seed.sql` is not committed (intentional — operator-level data, not a tracked migration). Re-applying is idempotent via `ON CONFLICT DO NOTHING`.
+
+### Deliberately deferred
+
+- **Operator CLI for ongoing persona-alias entry** — SQL-only seed this batch; build `ingest-persona-resolve-cli` later if more matches surface new garbage classes.
+- **Backfill `player_name_persona_raw` for historical snapshots** — only re-consolidated rows populate it. Acceptable; column is forward-looking.
+
+### Known infrastructure issue still open
+
+- CUDA broken (`libcublasLt.so.12: cannot open shared object file`). Carried forward from Multi-Match Readiness bundle. Blocks match-2 DB ingest at acceptable wall clock.
 
 ---
 
@@ -487,8 +594,8 @@ Action Tracker · Event Timeline · Box Score · Team Stats · Top Performers ·
 - Strip `@deprecated` `side` / `defenseSide` props from PositionPill call sites (after Bar/Color sweep made them inert)
 - Plumb specific LD/RD position from OCR loadout into `buildScoresheet` (Scoresheet item 3a — real data-layer join in match-recap.ts)
 - Backfill or deprecate `matches.opp_team_abbr` (stale data, ignored at render)
-- Commit the 7 untracked plan files under `docs/superpowers/plans/`
-- Lineup persona-name OCR garbage (`E.WANHG`) — needs `player_display_aliases`-style table for persona names
+- ~~Commit the 7 untracked plan files under `docs/superpowers/plans/`~~ — RESOLVED 2026-05-18 (commit `9b6a961`).
+- ~~Lineup persona-name OCR garbage (`E.WANHG`) — needs `player_display_aliases`-style table for persona names~~ — RESOLVED 2026-05-18 (commit `d36a046`). New `player_persona_aliases` table + `resolvePersona()` in consolidator + `player_name_persona_raw` audit column. See 2026-05-18 session summary.
 - Action Tracker sticky-rink `top-N` calibration if a sticky page nav covers the rink
 
 ### Plan files persisted
@@ -2622,7 +2729,7 @@ Sanity-check verified end-to-end: every title × mode combination renders correc
 
 ### UI follow-ups from 2026-05-17 polish arc
 
-- **Lineup & Loadouts polish sweep** — last UI section with sustained polish (7 items). The heaviest (persona-name OCR garbage like `E.WANHG`) needs a `player_display_aliases`-style alias table for persona names — real data work, not pure polish.
+- **Lineup & Loadouts polish sweep** — last UI section with sustained polish (7 items). ~~The heaviest (persona-name OCR garbage like `E.WANHG`) needs a `player_display_aliases`-style alias table for persona names — real data work, not pure polish.~~ Persona-alias work RESOLVED 2026-05-18 via commit `d36a046`. Remaining 6 items are pure polish.
 - **Strip `@deprecated` `side` / `defenseSide` props** from `PositionPill` call sites (`scoresheet.tsx`, `star-card.tsx`, `goalie-spotlight.tsx`, `show-all-player-scores.tsx`). Post-Bar/Color sweep the props are inert; mechanical cleanup.
 - **Plumb specific LD/RD position from OCR loadout** into `buildScoresheet` so the Scoresheet position pill renders cyan `LD` or yellow `RD` when known (Scoresheet item 3a). Requires a join from OCR loadout snapshots into `SkaterRow.position`.
 - **Backfill or deprecate `matches.opp_team_abbr`** — DB stores `"4TH"` for match 250, now ignored at render. Either fix the OCR colour-extractor's abbreviation logic so it produces `"4L"`, or drop the column entirely.
