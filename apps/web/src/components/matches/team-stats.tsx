@@ -99,7 +99,10 @@ function Row({ row, isLast }: { row: BoxScoreRow; isLast: boolean }) {
 function barWidth(value: string | null, other: string | null): number {
   const ours = parseStat(value)
   const theirs = parseStat(other)
-  const max = Math.max(ours, theirs, 1)
+  // Floor the denominator at 5 so sparse stats (e.g. 1-vs-0 deflections)
+  // don't render as "total domination" full-width bars. At low magnitudes
+  // the bars stay visually small, matching the actual small absolute counts.
+  const max = Math.max(ours, theirs, 5)
   return Math.max(0, Math.min(100, (ours / max) * 100))
 }
 
