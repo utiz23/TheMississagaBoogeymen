@@ -140,7 +140,14 @@ function ScoreRow({
     : entry.isGoalie
       ? 'G'
       : null
-  const rowBg = rank === 1 ? 'bg-accent/[0.06]' : ''
+  const rowBg =
+    rank === 1
+      ? 'bg-accent/[0.06]'
+      : rank === 2
+        ? 'bg-accent/[0.03]'
+        : rank === 3
+          ? 'bg-accent/[0.015]'
+          : ''
   const rankCls = isTop3 ? 'text-accent font-black' : 'text-fg-3'
   const scoreCls =
     rank === 1
