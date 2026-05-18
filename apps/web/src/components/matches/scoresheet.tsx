@@ -344,7 +344,7 @@ function SkaterRowEl({ row, isBgm }: { row: SkaterRow; isBgm: boolean }) {
 function GoalieTable({ rows, isBgm = false }: { rows: GoalieRow[]; isBgm?: boolean }) {
   return (
     <Panel className="overflow-x-auto">
-      <table className="w-full min-w-[480px]">
+      <table className="w-full min-w-[640px]">
         <thead>
           <tr className="border-b border-zinc-800" style={isBgm ? BGM_HEADER_STYLE : undefined}>
             <Th align="left" wide>
