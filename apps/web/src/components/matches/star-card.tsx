@@ -205,7 +205,7 @@ function ScoreBlock({
       ? 'text-accent [text-shadow:0_0_14px_rgba(232,65,49,0.22)]'
       : rank === 2
         ? 'text-fg-1'
-        : 'text-fg-2'
+        : 'text-fg-1'
   return (
     <div className="flex items-baseline gap-3 border-t border-zinc-800/60 px-4 pb-3 pt-2">
       <span
