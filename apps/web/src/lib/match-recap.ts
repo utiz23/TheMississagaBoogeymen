@@ -706,13 +706,16 @@ export function buildBoxScore(
     row('Hits', match.hitsFor, match.hitsAgainst),
     row('Blocked Shots', bgmAgg.blockedShots, oppAgg.blockedShots),
     row('Takeaways', bgmAgg.takeaways, oppAgg.takeaways),
-    { ...row('Giveaways', bgmAgg.giveaways, oppAgg.giveaways), polarity: 'lower-better' as const },
     row('Interceptions', bgmAgg.interceptions, oppAgg.interceptions),
+    row('Short Handed Goals', bgmAgg.shGoals, oppAgg.shGoals),
+  ].filter(nonEmptyRow)
+
+  const disciplineRows: BoxScoreRow[] = [
+    { ...row('Giveaways', bgmAgg.giveaways, oppAgg.giveaways), polarity: 'lower-better' as const },
     {
       ...row('Penalties', match.penaltyMinutes ?? 0, match.penaltyMinutesAgainst ?? 0),
       polarity: 'lower-better' as const,
     },
-    row('Short Handed Goals', bgmAgg.shGoals, oppAgg.shGoals),
   ].filter(nonEmptyRow)
 
   // Goalie group only appears when aggregate goalie data is non-trivially present.
@@ -737,6 +740,7 @@ export function buildBoxScore(
   }
   if (possessionRows.length > 0) groups.push({ title: 'Possession', rows: possessionRows })
   if (defenseRows.length > 0) groups.push({ title: 'Defense', rows: defenseRows })
+  if (disciplineRows.length > 0) groups.push({ title: 'Discipline', rows: disciplineRows })
   if (goalieRows.length > 0) groups.push({ title: 'Goalie', rows: goalieRows })
   return groups
 }
