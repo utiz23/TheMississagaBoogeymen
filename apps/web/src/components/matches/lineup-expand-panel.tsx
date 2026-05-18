@@ -1,3 +1,6 @@
+'use client'
+
+import { useState, type MouseEvent } from 'react'
 import Image from 'next/image'
 import type { LineupRow } from '@eanhl/db/queries'
 import { xFactorIconUrl } from '@/lib/xfactor-asset'
@@ -9,10 +12,13 @@ import { colorForPosition } from '@/lib/position-colors'
  * matchup" rail. Rendered as a child of the client `LineupRow` when its
  * `open` state is true.
  *
- * Pure server component — receives the row pair + the position and emits
- * the panel JSX. All data already lives on `LineupRow.attributes` (after
- * Phase 1 of the mockup-adoption plan) so there's no DB round-trip here.
+ * Client component — owns the per-row `expandedSide` state that drives the
+ * Compare / Expand mode toggle. When a side is expanded, that PlayerColumn
+ * takes the full panel width and the center rail + opposite column hide.
+ * State resets each time the row re-opens (component remounts via parent).
  */
+
+type ExpandedSide = 'bgm' | 'opp' | null
 
 type Tier = 'Elite' | 'All Star' | 'Specialist'
 
@@ -89,14 +95,47 @@ export function LineupExpandPanel({
   oppRef: string | null
 }) {
   const posColor = colorForPosition(position)
+  const [expandedSide, setExpandedSide] = useState<ExpandedSide>(null)
+  const isExpanded = expandedSide !== null
+  // When a side is expanded the panel collapses to a single full-width column;
+  // when not, the original 3-column compare grid renders.
+  const containerClass = isExpanded
+    ? 'border border-t-0 bg-[var(--color-surface)]'
+    : 'grid grid-cols-1 border border-t-0 bg-[var(--color-surface)] md:grid-cols-[1fr_96px_1fr]'
+  const showBgm = !isExpanded || expandedSide === 'bgm'
+  const showOpp = !isExpanded || expandedSide === 'opp'
   return (
     <div
-      className="grid grid-cols-1 border border-t-0 bg-[var(--color-surface)] md:grid-cols-[1fr_96px_1fr]"
+      className={containerClass}
       style={{ borderColor: `color-mix(in srgb, ${posColor} 40%, transparent)` }}
     >
-      <PlayerColumn row={bgm} refPlayer={bgmRef} side="bgm" position={position} posColor={posColor} />
-      <CenterRail position={position} color={posColor} />
-      <PlayerColumn row={opp} refPlayer={oppRef} side="opp" position={position} posColor={posColor} />
+      {showBgm ? (
+        <PlayerColumn
+          row={bgm}
+          refPlayer={bgmRef}
+          side="bgm"
+          position={position}
+          posColor={posColor}
+          isExpanded={expandedSide === 'bgm'}
+          onToggleExpand={() => {
+            setExpandedSide((prev) => (prev === 'bgm' ? null : 'bgm'))
+          }}
+        />
+      ) : null}
+      {!isExpanded ? <CenterRail position={position} color={posColor} /> : null}
+      {showOpp ? (
+        <PlayerColumn
+          row={opp}
+          refPlayer={oppRef}
+          side="opp"
+          position={position}
+          posColor={posColor}
+          isExpanded={expandedSide === 'opp'}
+          onToggleExpand={() => {
+            setExpandedSide((prev) => (prev === 'opp' ? null : 'opp'))
+          }}
+        />
+      ) : null}
     </div>
   )
 }
@@ -143,20 +182,36 @@ function PlayerColumn({
   side,
   position,
   posColor,
+  isExpanded,
+  onToggleExpand,
 }: {
   row: LineupRow | null
   refPlayer: string | null
   side: 'bgm' | 'opp'
   position: string
   posColor: string
+  isExpanded: boolean
+  onToggleExpand: () => void
 }) {
   const borderClass = side === 'bgm' ? 'md:border-r md:border-[var(--color-border)]' : ''
   // Mirror the card-side convention: BGM column anchors left, opp column
   // anchors right. Text + inline-flex content inherits text-align so the
   // build label, X-Factor list, KV rows, and attribute group headers all
-  // flow toward the appropriate side.
+  // flow toward the appropriate side. In Expand mode the column takes the
+  // full panel width so text-align bias still applies meaningfully (the
+  // build header + 5-col grid honor it).
   const sideAlignClass = side === 'opp' ? 'text-right' : ''
   const mobileHeaderJustify = side === 'opp' ? 'justify-end' : ''
+  const expandToggle = (
+    <ExpandToggle
+      side={side}
+      isExpanded={isExpanded}
+      onClick={(e) => {
+        e.stopPropagation()
+        onToggleExpand()
+      }}
+    />
+  )
   // Mobile-only header: the desktop `CenterRail` is hidden on <md, so the
   // drill-down panel would otherwise lose its "which matchup is this?" anchor.
   // A small `Pos · C` strip per column keeps the context on phone widths.
@@ -178,7 +233,8 @@ function PlayerColumn({
   )
   if (!row) {
     return (
-      <div className={`px-5 py-5 ${borderClass} ${sideAlignClass}`}>
+      <div className={`relative px-5 py-5 ${borderClass} ${sideAlignClass}`}>
+        {expandToggle}
         {mobilePositionHeader}
         <div className="font-condensed text-[11px] font-semibold uppercase tracking-[0.22em] text-[var(--color-fg-5)]">
           No data captured for this slot.
@@ -191,11 +247,43 @@ function PlayerColumn({
   const xFactors = row.xFactors
 
   return (
-    <div className={`px-5 py-5 ${borderClass} ${sideAlignClass}`}>
+    <div className={`relative px-5 py-5 ${borderClass} ${sideAlignClass}`}>
+      {expandToggle}
       {mobilePositionHeader}
-      <BuildBlock row={row} refPlayer={refPlayer} buildLabel={buildLabel} xFactors={xFactors} />
-      <AttributeBlocks attributes={row.attributes} />
+      <BuildBlock
+        row={row}
+        refPlayer={refPlayer}
+        buildLabel={buildLabel}
+        xFactors={xFactors}
+        isExpanded={isExpanded}
+      />
+      <AttributeBlocks attributes={row.attributes} isExpanded={isExpanded} />
     </div>
+  )
+}
+
+function ExpandToggle({
+  side: _side,
+  isExpanded,
+  onClick,
+}: {
+  side: 'bgm' | 'opp'
+  isExpanded: boolean
+  onClick: (e: MouseEvent<HTMLButtonElement>) => void
+}) {
+  const label = isExpanded ? 'Compare' : 'Expand'
+  const activeBg = isExpanded
+    ? 'bg-[rgba(232,65,49,0.10)] text-[var(--color-accent)] border-[rgba(232,65,49,0.4)]'
+    : 'text-[var(--color-fg-4)] hover:text-[var(--color-accent)] hover:border-[rgba(232,65,49,0.4)] border-[var(--color-border)]'
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`absolute right-4 top-4 z-10 inline-flex items-center border bg-[var(--color-background)] px-3 py-1.5 font-condensed text-[10.5px] font-bold uppercase tracking-[0.14em] ${activeBg}`}
+      aria-pressed={isExpanded}
+    >
+      {label}
+    </button>
   )
 }
 
@@ -204,12 +292,24 @@ function BuildBlock({
   refPlayer,
   buildLabel,
   xFactors,
+  isExpanded,
 }: {
   row: LineupRow
   refPlayer: string | null
   buildLabel: string
   xFactors: LineupRow['xFactors']
+  isExpanded: boolean
 }) {
+  if (isExpanded) {
+    return (
+      <BuildBlockExpanded
+        row={row}
+        refPlayer={refPlayer}
+        buildLabel={buildLabel}
+        xFactors={xFactors}
+      />
+    )
+  }
   return (
     <div className="border-b border-[var(--color-border)] pb-4">
       <div className="font-condensed text-[9.5px] font-semibold uppercase tracking-[0.22em] text-[var(--color-fg-5)]">
@@ -249,6 +349,55 @@ function BuildBlock({
   )
 }
 
+/**
+ * Expand-mode build header: BUILD label + reference player at the top, then
+ * a side-by-side row with KVs (Height/Weight/Hand/Level) and the new
+ * horizontal X-Factor tiles. Uses the full panel width since the opposite
+ * column + center rail are hidden in expand mode.
+ */
+function BuildBlockExpanded({
+  row,
+  refPlayer,
+  buildLabel,
+  xFactors,
+}: {
+  row: LineupRow
+  refPlayer: string | null
+  buildLabel: string
+  xFactors: LineupRow['xFactors']
+}) {
+  return (
+    <div className="border-b border-[var(--color-border)] pb-5 pr-32">
+      <div className="font-condensed text-[10px] font-semibold uppercase tracking-[0.22em] text-[var(--color-fg-5)]">
+        Build
+      </div>
+      <div className="mt-1 font-condensed text-[28px] font-black uppercase leading-tight tracking-[0.04em] text-[var(--color-fg-1)]">
+        {buildLabel}
+      </div>
+      {refPlayer ? (
+        <div className="mt-0.5 font-condensed text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--color-fg-5)]">
+          Reference build · {refPlayer}
+        </div>
+      ) : null}
+      <div className="mt-4 flex flex-col gap-4 lg:flex-row lg:items-start lg:gap-8">
+        <div className="flex flex-wrap gap-5 font-condensed text-[13px] font-bold tabular-nums tracking-[0.04em] text-[var(--color-fg-3)]">
+          <KvBlock k="Height" v={row.heightText ?? '—'} />
+          <KvBlock k="Weight" v={row.weightLbs !== null ? `${String(row.weightLbs)} lb` : '—'} />
+          <KvBlock k="Hand" v={formatHand(row.handedness)} />
+          <KvBlock
+            k="Level"
+            v={row.playerLevelNumber !== null ? String(row.playerLevelNumber) : '—'}
+            title="EASHL player progression level (separate from the in-game NHL player's overall rating)"
+          />
+        </div>
+        <div className="flex-1">
+          <XFactorRowHorizontal xFactors={xFactors} />
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function KvBlock({ k, v, title }: { k: string; v: string; title?: string }) {
   return (
     <div className="flex flex-col gap-[2px]" title={title}>
@@ -266,6 +415,52 @@ function formatHand(h: string | null): string {
   if (t === 'r' || t.startsWith('right')) return 'Right'
   if (t === 'l' || t.startsWith('left')) return 'Left'
   return h
+}
+
+/**
+ * Expand-mode X-Factor row: three tiles laid out horizontally, big icons,
+ * name + tier word stacked below each. No tier-rail bars glyph — Expand
+ * mode trades the dense Compare-mode rail for a magazine-style tile.
+ */
+function XFactorRowHorizontal({ xFactors }: { xFactors: LineupRow['xFactors'] }) {
+  if (xFactors.length === 0) return null
+  return (
+    <div className="flex flex-wrap items-stretch gap-3">
+      {xFactors.map((xf) => {
+        const display = xf.canonicalName
+          ? xf.canonicalName.replace(/_/g, ' ').replace(/Plus$/, '+')
+          : xf.name
+        const iconUrl = xFactorIconUrl(xf.canonicalName, xf.tier as Tier | null)
+        return (
+          <div
+            key={xf.slotIndex}
+            className="flex min-w-[110px] flex-1 flex-col items-center gap-1.5 border border-[var(--color-border-subtle)] bg-[rgba(58,56,57,0.30)] px-3 py-3"
+          >
+            {iconUrl ? (
+              <Image
+                src={iconUrl}
+                alt=""
+                width={40}
+                height={40}
+                className="h-10 w-10"
+                aria-hidden
+              />
+            ) : (
+              <span className="h-10 w-10" aria-hidden />
+            )}
+            <span className="text-center font-condensed text-[12.5px] font-bold uppercase tracking-[0.04em] text-[var(--color-fg-1)]">
+              {display}
+            </span>
+            <span
+              className={`font-condensed text-[10px] font-bold uppercase tracking-[0.2em] ${tierWordTone(xf.tier as Tier | null)}`}
+            >
+              {xf.tier ?? 'Unknown'}
+            </span>
+          </div>
+        )
+      })}
+    </div>
+  )
 }
 
 function XFactorListRow({
@@ -339,7 +534,13 @@ function tierWordTone(tier: Tier | null): string {
   }
 }
 
-function AttributeBlocks({ attributes }: { attributes: LineupRow['attributes'] }) {
+function AttributeBlocks({
+  attributes,
+  isExpanded,
+}: {
+  attributes: LineupRow['attributes']
+  isExpanded: boolean
+}) {
   if (!attributes || Object.keys(attributes).length === 0) {
     return (
       <div className="mt-4 font-condensed text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--color-fg-5)]">
@@ -347,12 +548,17 @@ function AttributeBlocks({ attributes }: { attributes: LineupRow['attributes'] }
       </div>
     )
   }
+  const gridCols = isExpanded
+    ? 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5'
+    : 'grid-cols-1 md:grid-cols-2'
   return (
-    <div className="mt-4 grid grid-cols-1 gap-x-4 gap-y-3 md:grid-cols-2">
+    <div className={`mt-4 grid gap-x-4 gap-y-3 ${gridCols}`}>
       {ATTRIBUTE_GROUPS.map((g, idx) => (
         <div
           key={g.title}
-          className={idx === ATTRIBUTE_GROUPS.length - 1 ? 'md:col-span-2' : undefined}
+          className={
+            !isExpanded && idx === ATTRIBUTE_GROUPS.length - 1 ? 'md:col-span-2' : undefined
+          }
         >
           <div className="mb-1 border-b border-[var(--color-border-subtle)] pb-1 font-condensed text-[9.5px] font-bold uppercase tracking-[0.22em] text-[var(--color-fg-4)]">
             {g.title}
