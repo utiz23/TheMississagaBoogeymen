@@ -149,7 +149,7 @@ function SkaterRowEl({ row, isBgm }: { row: SkaterRow; isBgm: boolean }) {
         <td className="py-2 pl-4 pr-2 text-sm">
           <div className="flex items-start gap-2">
             <span
-              className={`mt-1 shrink-0 text-zinc-500 transition-transform ${expanded ? 'rotate-90' : ''}`}
+              className={`mt-1 shrink-0 text-zinc-500 transition-colors transition-transform group-hover:text-zinc-300 ${expanded ? 'rotate-90' : ''}`}
             >
               ▸
             </span>
