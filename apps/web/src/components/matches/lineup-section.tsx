@@ -832,19 +832,44 @@ function PlayerInfo({
     </span>
   )
 
+  const personaSpan = (
+    <span
+      className="font-condensed text-[19px] font-black uppercase leading-none tracking-[0.04em] text-[var(--color-fg-1)]"
+      title="In-game character name (NHL player skin assigned to this lineup slot)"
+    >
+      {persona}
+    </span>
+  )
+  const tagSpan = (
+    <span className="min-w-[80px] overflow-hidden truncate font-condensed text-[11px] font-semibold tracking-[0.02em]">
+      {align === 'right' ? (
+        <>
+          {platform ? <PlatformBadge platform={platform} side="left" /> : null}
+          {gamertagNode}
+        </>
+      ) : (
+        <>
+          {gamertagNode}
+          {platform ? <PlatformBadge platform={platform} /> : null}
+        </>
+      )}
+    </span>
+  )
+
   return (
     <div className={`min-w-0 ${textAlign}`}>
       <div className={`flex flex-wrap items-baseline gap-2 ${justify}`}>
-        <span
-          className="font-condensed text-[19px] font-black uppercase leading-none tracking-[0.04em] text-[var(--color-fg-1)]"
-          title="In-game character name (NHL player skin assigned to this lineup slot)"
-        >
-          {persona}
-        </span>
-        <span className="min-w-[80px] overflow-hidden truncate font-condensed text-[11px] font-semibold tracking-[0.02em]">
-          {gamertagNode}
-          {platform ? <PlatformBadge platform={platform} /> : null}
-        </span>
+        {align === 'right' ? (
+          <>
+            {tagSpan}
+            {personaSpan}
+          </>
+        ) : (
+          <>
+            {personaSpan}
+            {tagSpan}
+          </>
+        )}
       </div>
       <div className={`mt-2 flex flex-wrap items-center gap-2.5 ${justify}`}>
         {/* Per design: the player card omits the reference-player name. The
@@ -868,11 +893,19 @@ function PlayerInfo({
  * family is picked from `resolvePlatform()` so this component never sees
  * the raw EA code (`xbsx`, etc.) directly.
  */
-function PlatformBadge({ platform }: { platform: PlatformInfo }) {
+function PlatformBadge({
+  platform,
+  side = 'right',
+}: {
+  platform: PlatformInfo
+  /** Which side of the sibling gamertag this badge sits on. `right` → ml-1.5 (default, BGM). `left` → mr-1.5 (opp mirror). */
+  side?: 'left' | 'right'
+}) {
   const src = `/assets/platforms/${platform.family}.svg`
+  const marginClass = side === 'left' ? 'mr-1.5' : 'ml-1.5'
   return (
     <span
-      className="ml-1.5 inline-flex items-center align-[-2px]"
+      className={`${marginClass} inline-flex items-center align-[-2px]`}
       title={platform.label}
     >
       <Image
