@@ -477,7 +477,6 @@ function buildLadderItem(
   // to render a half-empty card.
   const bgmRow = bgm && isRenderable(bgm) ? bgm : null
   const oppRow = opp && isRenderable(opp) ? opp : null
-  const matchup = buildMatchupString(bgmRow, oppRow)
   // Goalie rows are CPU on both sides for every match observed so far —
   // there's nothing to drill into. Skip the expand wiring entirely.
   const expandable = position !== 'G' && (bgmRow !== null || oppRow !== null)
@@ -492,13 +491,11 @@ function buildLadderItem(
   ) : (
     <CpuPlaceholderCard side="opp" position={position} />
   )
-  const positionBadge = <PositionBadge position={position} matchup={matchup} />
+  const positionBadge = <PositionBadge position={position} />
   // Mobile-only counterpart: the desktop badge is hidden on <md, so the
-  // matchup tag would otherwise disappear on phone widths. This strip keeps
-  // the signature "BGM build ↔ OPP build" signal visible above the row.
-  const mobileMatchupStrip = (
-    <MobileMatchupStrip position={position} matchup={matchup} />
-  )
+  // position letter would otherwise disappear on phone widths. This strip
+  // keeps it as an anchor above each row.
+  const mobileMatchupStrip = <MobileMatchupStrip position={position} />
 
   const expandPanel = (
     <LineupExpandPanel
@@ -532,13 +529,7 @@ function isRenderable(row: LineupRow): boolean {
   return hasBuild || hasNumber || hasXFactors
 }
 
-function MobileMatchupStrip({
-  position,
-  matchup,
-}: {
-  position: PositionKey
-  matchup: string | null
-}) {
+function MobileMatchupStrip({ position }: { position: PositionKey }) {
   const color = colorForPosition(position)
   return (
     <div
@@ -554,16 +545,11 @@ function MobileMatchupStrip({
       >
         {position}
       </span>
-      {matchup ? (
-        <span className="font-condensed text-[8.5px] font-bold uppercase tracking-[0.18em] text-[var(--color-fg-5)]">
-          {matchup}
-        </span>
-      ) : null}
     </div>
   )
 }
 
-function PositionBadge({ position, matchup }: { position: PositionKey; matchup: string | null }) {
+function PositionBadge({ position }: { position: PositionKey }) {
   const color = colorForPosition(position)
   return (
     <div
@@ -582,11 +568,6 @@ function PositionBadge({ position, matchup }: { position: PositionKey; matchup: 
       >
         {position}
       </span>
-      {matchup ? (
-        <span className="flex items-center gap-1.5 font-condensed text-[8.5px] font-bold uppercase tracking-[0.18em] text-[var(--color-fg-5)]">
-          {matchup}
-        </span>
-      ) : null}
     </div>
   )
 }
@@ -1051,43 +1032,6 @@ function tierTone(tier: Tier | null): { cls: string; dot: string } {
         cls: 'border-[var(--color-border)] bg-[var(--color-background)] text-[var(--color-fg-4)]',
         dot: 'bg-[var(--color-fg-5)]',
       }
-  }
-}
-
-function buildMatchupString(bgm: LineupRow | null, opp: LineupRow | null): string | null {
-  if (!bgm && !opp) return null
-  const left = bgm ? matchupTag(bgm) : 'CPU'
-  const right = opp ? matchupTag(opp) : 'CPU'
-  return `${left} ↔ ${right}`
-}
-
-/**
- * Position-badge corridor tag. Strict mapping off the canonical build — no
- * substring matching. When the build doesn't map (e.g. a row still on raw
- * OCR text waiting on consolidation), render `—` rather than chop the
- * source string mid-word.
- */
-function matchupTag(row: LineupRow): string {
-  const { build } = splitBuild(row)
-  switch (build) {
-    case 'Puck Moving Defenseman':
-      return 'PMD'
-    case 'Defensive Defenseman':
-      return 'DEF-D'
-    case 'Offensive Defenseman':
-      return 'OFF-D'
-    case 'Power Forward':
-      return 'PWR-F'
-    case 'Two-Way Forward':
-      return '2-WAY'
-    case 'Playmaker':
-      return 'P-MAKER'
-    case 'Sniper':
-      return 'SNIPER'
-    case 'Grinder':
-      return 'GRIND'
-    default:
-      return '—'
   }
 }
 

@@ -107,7 +107,11 @@ export function LineupExpandPanel({
   return (
     <div
       className={containerClass}
-      style={{ borderColor: `color-mix(in srgb, ${posColor} 40%, transparent)` }}
+      style={
+        isExpanded
+          ? undefined
+          : { borderColor: `color-mix(in srgb, ${posColor} 40%, transparent)` }
+      }
     >
       {showBgm ? (
         <PlayerColumn
