@@ -194,7 +194,7 @@ function SkaterRowEl({ row, isBgm }: { row: SkaterRow; isBgm: boolean }) {
               <div className="flex items-center justify-between">
                 <div>
                   <h4 className="font-condensed text-lg font-semibold text-zinc-100">
-                    Advanced Statistics
+                    {row.gamertag}
                   </h4>
                   <p className="text-sm text-zinc-500">Per-match breakdown</p>
                 </div>
