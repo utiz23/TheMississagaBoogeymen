@@ -81,16 +81,16 @@ Then run tier-2/3/4 manually (orchestrator does not auto-trigger them) — see e
 4. **NHL 27 anchors** are stubbed in `version_detect.VERSION_ANCHORS` but empty. First NHL 27 capture → populate the tuple → version-detect picks it up.
 5. **`post_game_events` extractor doesn't run from this pipeline** for match 250 (user viewed the screen only during intermissions, which are correctly rejected). Penalty extraction relies on events tab — if a future video has the user viewing events post-game, those frames will be picked up and processed.
 
-### Review findings on record — 2026-05-16
+### Review findings on record — 2026-05-16 (RESOLVED 2026-05-18)
 
-Video extraction code review surfaced four concrete issues that are not yet fixed:
+All four issues from the video-extraction code review shipped on 2026-05-18. See the 2026-05-18 session summary below for the full design notes.
 
-1. **`video_ingest` CLI import order is broken.** `tools/video_ingest/video_ingest/cli.py` inserts `tools/game_ocr` into `sys.path` only after importing `video_ingest.orchestrator`, but `orchestrator -> pass1_classify` imports `game_ocr` at module import time. In a clean interpreter where `game_ocr` is not already installed, the CLI dies before startup with `ModuleNotFoundError: No module named 'game_ocr'`.
-2. **Cache invalidation is wrong for Pass 1 and Pass 2.** `segments.json` cache reuse is keyed only by video SHA path, not by requested `--version` or classifier config; `pass2/` cache reuse is keyed only by the directory being non-empty, ignoring sample rates, padding, and extract-screen config. Re-running the same video with a different version or changed config can silently reuse stale results.
-3. **Phase-specific CLI commands do not match their contract.** `classify-only` still runs the full orchestrator and can perform Pass 2 extraction on first run; `extract-only` does not actually require cached `segments.json` and will fall back to re-running Pass 1 if the cache is missing.
-4. **Cached Pass 2 metadata is reconstructed incorrectly.** Fresh Pass 2 results record padded extraction windows, but the cache-hit path rebuilds `Pass2Result.start_seconds/end_seconds` from raw segment bounds. That makes `pass2_manifest.json` and dispatch notes differ between fresh and cached runs, which is a bad audit trail for a supposedly reproducible pipeline.
+1. ✅ **CLI import order** — `sys.path` bootstrap for sibling `tools/game_ocr` moved into `video_ingest/__init__.py` so any caller (CLI, tests, notebooks) gets it before `pass1_classify` imports `game_ocr`. Locked by `tests/test_cli_smoke.py`.
+2. ✅ **Cache invalidation** — `segments.json` and `pass2_manifest.json` now carry cache identifiers (`pass1_cache_key` = sha256 of version YAML + classifier YAML; `pass2_cache_key` = sha256 of version YAML; `segments_hash` = sha256 of segments.json bytes). Drift raises `CacheMismatch` with a structured remediation message and exits 1; `--force-pass1` cascades to clear Pass 2 state automatically. Locked by `tests/test_cache_invalidation.py`.
+3. ✅ **CLI subcommand contracts** — `classify-only` now uses `skip_pass2=True` (never creates `pass2/` or the manifest); `extract-only` now uses `skip_pass1=True` and raises `MissingPass1Cache` with a "run classify-only first" hint when there's no valid `segments.json`. Both subcommands respect their cache; new flags `--force-pass1` / `--force-pass2` re-run on demand. Locked by `tests/test_cli_contracts.py`.
+4. ✅ **Pass 2 manifest reconstruction** — `pass2_manifest.json` is now authoritative: written once by `extract_segments` with the padded extraction windows; cache-hit loads it instead of reconstructing `Pass2Result` from raw segment bounds. Manifest bytes are byte-identical across fresh and cached runs. Locked by `tests/test_pass2_manifest.py`.
 
-Additional note: `tools/video_ingest/tests/` currently contains only fixture files (`match-250-clip.mkv` and labeled `segments.json`) and no actual test coverage for these cache, CLI-contract, or timestamp-path behaviors.
+`tools/video_ingest/tests/` now has 29 tests across 4 files covering CLI smoke, manifest contract, cache invalidation, and subcommand contracts. The fixture (`match-250-clip.mkv` + labeled `segments.json`) is used for manual end-to-end verification, not unit tests.
 
 ---
 
@@ -182,7 +182,257 @@ End state: **71 canonical rows, all 71 positioned = 100% coverage**, no manual i
 4. **Overlap watershed** (~2 hr). Stacked markers at one on-ice spot. Not present in 250 but real games will have it.
 5. **Clock-phantom generalisations** (deferred) — period-bounds check (clock > 20:00 in p1-3 = impossible), OT-lower-bound (clock < game-end-clock impossible), unresolved-actor phantom detection. None of these classes currently have known instances; ship if/when a future match surfaces one.
 
-**Last updated:** 2026-05-16 (Net-Chart OCR pipeline hardening: period sentinel + multi-frame merge + ALL PERIODS aggregate from header — see session summary below)
+**Last updated:** 2026-05-18 (Multi-Match Readiness bundle shipped — Pass-1 `min_run_to_open` 3→2, color extractor learns white-jersey opps, classifier recalibrated with 5 multi-opponent extras from match-2 against BLURKY YOINTS. Earlier same-day: Net-Chart Issue C + Issue 5 bundle and Video-CLI code-review punch-list. See three 2026-05-18 session summaries below.)
+
+---
+
+## Session Summary — 2026-05-18 (Multi-Match Readiness bundle)
+
+### What was done
+
+Three-item bundle prepping the OCR pipeline for second-match ingest. Two of three core items shipped; the third (full DB ingest of match 2) is **explicitly deferred until match 250 is complete** per user decision at end of session.
+
+**Step A — Pass-1 segment-opening knob (5 min)**
+- `tools/video_ingest/video_ingest/configs/nhl26.yaml`: `min_run_to_open: 3 → 2`. Cache invalidation handled automatically via `pass1_cache_key` hashing.
+- Test fixture update in `tools/video_ingest/tests/test_cache_invalidation.py:153` (legacy payload literal). 29/29 video_ingest tests pass.
+
+**Step C — White-jersey color classification (~1 hr, TDD)**
+- New `_WHITE_THRESHOLD = 220` + `_WHITE_DOMINANT_SHARE = 0.30` constants in `tools/game_ocr/game_ocr/color_extractor.py`.
+- Third pixel-classification branch in `_sample_roi()`: `mn >= 220 → white bucket`. Ordering: saturated → white → dark (saturated still wins so a visible logo on a white kit picks the logo color; whites beat darks because high-min is more discriminative than low-max in EA's UI).
+- Hex output is the quantized actual mean (e.g. `#f0f0f0`), not literal `#ffffff`, consistent with how dark-branch emits `#181818` for off-black.
+- Backward-compat verified: match-250's opp black `(20,20,20)` never reaches white branch (`mn=20`), BGM red still hits saturated.
+- 2 new tests in `tools/game_ocr/tests/test_color_extractor.py`: `test_detects_white_trapezoid_as_team_color` + `test_white_does_not_capture_ice_grey`. 10/10 color tests pass; 116 total game_ocr tests.
+
+**Step D — Classifier recalibration with second-match extras**
+- Full-match Pass-1 ingest **killed** after attempted run: RapidOCR on CPU was projected at ~80 min for the 28-min video (1680 frames at 1 fps). The CUDA runtime is broken (`libcublasLt.so.12` missing), so GPU acceleration unavailable. Switched to direct `ffmpeg -vf "fps=1" -ss 1500` extraction → 180 raw frames from t=1500s in ~3 min (no OCR).
+- Pre-game clip (`silkyjoker85_NHL26XboxSeriesXS_20260512_00-45-27.mp4`) ran through full video_ingest pipeline cleanly → 3 segments, 45 frames in `/tmp/eashl-match2-pregame/`.
+- 5 representative frames curated and copied to `tools/game_ocr/calibration/extras/` with naming convention `<class>__match2_t<seconds>_vs_blurkyyoints.png`:
+  - `pre_game_lobby_state_2__match2_t20_vs_blurkyyoints.png` (4th extra alongside existing 3 match-250 4thline samples)
+  - `player_loadout_view__match2_t32_vs_blurkyyoints.png` (first extra; was single-fixture)
+  - `post_game_action_tracker__match2_t1608_vs_blurkyyoints.png` (first extra)
+  - `post_game_faceoff_map__match2_t1642_vs_blurkyyoints.png` (first extra)
+  - `post_game_net_chart__match2_t1645_vs_blurkyyoints.png` (first extra)
+- `tools/game_ocr/scripts/calibrate_classifier.py` updated: `extras: [...]` lists added for each of the 5 classes above.
+- Classifier YAML regenerated: `python3 tools/game_ocr/scripts/calibrate_classifier.py` → `tools/game_ocr/game_ocr/configs/classifier/nhl26.yaml` (8 classes, centroid averaging now spans 2 opponents on those 5).
+
+### Match-2 opponent identified
+
+**Opp team:** "BLURKY YOINTS" (PHI abbreviation in post-game UI). Confirmed against pre-game lobby (THE BOOGEYMEN vs YOINT-themed roster) and post-game action_tracker events (M.Rantanen, H.Yoint, T.My Yoint, etc.). Final score visible in frames: PHI 0 – 2 BM.
+
+### Classes WITHOUT multi-opponent extras (still single-fixture)
+
+3 of 8 classes stay single-fixture-calibrated — the user didn't navigate through these post-game tabs in match-2's video, so no second-opponent frames exist:
+
+- `post_game_box_score_goals` (GOAL SUMMARY tab)
+- `post_game_events` (simple ALL-filter event list)
+- `post_game_player_summary` (PLAYER SUMMARY tab)
+
+Not blocking; these will get extras the next time a match video captures those screens.
+
+### Verified
+
+- `PYTHONPATH=tools/game_ocr python3 -m pytest tools/game_ocr/tests/ -q` → **116 passed** (98 existing + 18 pytest including 2 new color extractor).
+- `PYTHONPATH=tools/video_ingest:tools/game_ocr python3 -m unittest discover tools/video_ingest/tests` → **29/29 pass**.
+- **Match-250 regression check** (re-run classify against canonical fixture with new calibration + knob bump): 3 segments emitted with correct screen-types: `pre_game_lobby_state_2` (7-16s, was 7-15), `player_loadout_view` (17-29s, was 16-28), `pre_game_lobby_state_2` (30-51s, was 29-50). ±1 frame boundary shifts are the expected `min_run_to_open=2` delta; no class regressions.
+
+### Deferred — match-2 DB ingest
+
+**Decision (end-of-session):** real-stats ingest of match 2 is postponed until match 250 is fully resolved. The OCR pipeline is now ready to handle a second match, but we won't actually create the `matches` row + downstream OCR extractions for match 2 until match-250 work is done.
+
+When ready to ingest match-2 for stats, the procedure is:
+1. Fix or work-around the CUDA runtime issue (currently `libcublasLt.so.12` missing → RapidOCR falls back to CPU; Pass-1 on full video takes ~80 min).
+2. Decide match-2's DB id (likely `251`).
+3. Run video_ingest with `--dispatch --game-title-id 1 --match-id 251` on both the full match video and the pre-game clip (same id, so loadouts attach).
+4. Run tier-2/3/4 reprocessing per the existing match-250 procedure (see HANDOFF lines 134-173 above).
+
+### Files added / modified
+
+| New | What it does |
+| --- | --- |
+| `tools/game_ocr/calibration/extras/pre_game_lobby_state_2__match2_t20_vs_blurkyyoints.png` | 4th opp-extra for lobby state 2 |
+| `tools/game_ocr/calibration/extras/player_loadout_view__match2_t32_vs_blurkyyoints.png` | First opp-extra for loadout |
+| `tools/game_ocr/calibration/extras/post_game_action_tracker__match2_t1608_vs_blurkyyoints.png` | First opp-extra for action tracker |
+| `tools/game_ocr/calibration/extras/post_game_faceoff_map__match2_t1642_vs_blurkyyoints.png` | First opp-extra for faceoff map |
+| `tools/game_ocr/calibration/extras/post_game_net_chart__match2_t1645_vs_blurkyyoints.png` | First opp-extra for net chart |
+
+| Modified | Why |
+| --- | --- |
+| `tools/video_ingest/video_ingest/configs/nhl26.yaml` | `min_run_to_open: 3 → 2` |
+| `tools/video_ingest/tests/test_cache_invalidation.py` | Legacy payload literal updated for new knob value |
+| `tools/game_ocr/game_ocr/color_extractor.py` | New `_WHITE_THRESHOLD` + `_WHITE_DOMINANT_SHARE` + `white` Counter branch in `_sample_roi()` |
+| `tools/game_ocr/tests/test_color_extractor.py` | 2 new white-jersey tests |
+| `tools/game_ocr/scripts/calibrate_classifier.py` | `extras: [...]` added for 5 classes |
+| `tools/game_ocr/game_ocr/configs/classifier/nhl26.yaml` | Auto-regenerated by calibrator (centroid averaging now multi-opponent on 5 classes) |
+
+### Repo state at session end
+
+- Nothing committed yet (working tree dirty from this session + the prior Net-Chart bundle session).
+- `/tmp/eashl-match2-pregame/` + `/tmp/match2-postgame/` left in place as reference; can be cleaned up.
+- No schema/DB migrations. No production data touched.
+- Dev server (`pnpm --filter web dev`) still running from earlier in the day.
+
+### Known infrastructure issue surfaced
+
+**CUDA broken**: `libcublasLt.so.12: cannot open shared object file: No such file or directory`. RapidOCR falls back to CPU, making full-video Pass-1 prohibitive (~80 min for 28-min video). Not addressed in this bundle. Listed as a blocker for match-2 DB ingest. Fix likely requires installing CUDA 12.* + cuDNN 9.* runtimes, or accepting CPU-only inference timeline.
+
+### Risk notes for next match
+
+- `_WHITE_DOMINANT_SHARE=0.30` and `_WHITE_THRESHOLD=220` are tuned without real white-jersey data (match-2's opp wore black, not white). Will need empirical validation when an actually-white-kitted opp is ingested.
+- 3 of 8 classifier classes still single-fixture (player_summary, box_score_goals, events) — first capture of those screens against a new opp may classify imperfectly until extras land.
+
+---
+
+## Session Summary — 2026-05-18 (Net-Chart Issue C + Issue 5 — completion bundle)
+
+### What was done
+
+Closed the two deferred items from the 2026-05-16 Net-Chart OCR session in a single TDD-style pass. End state on match 250: **zero NULLs across all 10 `match_shot_type_summaries` rows**, all 3 known Issue C misreads recovered, per-period TOTAL sums match the header (29 / 16) exactly.
+
+**Issue 5 — `SHOTS ON PP` row recovery**
+- Visual inspection of the OT canonical (`vlcsnap-2026-05-10-02h06m55s809.png`) refuted the original "ROI clipping" hypothesis: the row IS inside `stats_panel` with both values = `0`. NULL was a parser-side row-identification miss.
+- `_NET_CHART_LABEL_KEYS["power_play_shots"]` gains `"PP"` as a half-word matcher — unique to this row across all 7 stat labels (no other label contains a double P), so safe to add without conflict.
+- New **positional fallback** in `parse_post_game_net_chart`: when both sides' `power_play_shots` are MISSING after the main loop AND an unclaimed row sits below `matched_max_y`, promote its `≥2` pure-digit lines as away/home values. Split point = alpha-line midpoint (label remnant) or numeric-line midpoint. Guards: locks against false positives when the row is truly absent (test `test_power_play_row_not_invented_when_absent`).
+
+**Issue C — `9 → 6/g` digit recovery, two-pass approach**
+
+Pass A — digit lookalike map mirroring `_DOT_DIGIT_LOOKALIKES` precedent:
+- `_NET_CHART_DIGIT_LOOKALIKES = {g/G/q/Q → 9}` (deliberately omits `6↔9` since text-only ambiguous).
+- New `_parse_net_chart_digit(text)`: translate → strip non-digits → return int in `[0, 99]` or None (cap protects against runaway concatenations).
+- Replaces `parse_int` in both `field_from_lines` calls in the legacy panel-row parser. Recovers `g/G/q/Q` misreads automatically.
+
+Pass B — per-cell ROIs + hybrid override:
+- 14 new sub-ROIs in `post_game_net_chart.yaml` keyed `stats_<shot_type>_<side>` (7 shot types × {away, home}). Calibrated against the 1st-period frame: row spacing 0.046 normalized, away column centered at x≈0.075, home at x≈0.340, width 0.050.
+- New `tools/game_ocr/scripts/dump_net_chart_stat_rois.py` — templated from `dump_faceoff_dot_rois.py`. Emits per-ROI crops + labeled overlay PNG for visual ROI verification.
+- **Hybrid override logic** (not pure replacement): always run legacy stats_panel parse first; per-cell can override under three conditions: (a) legacy is MISSING → fill at any confidence; (b) per-cell confidence ≥ 0.85 → high-conf disagreement override; (c) **targeted Issue-C recovery rule**: per-cell `9` vs legacy `6` overrides at any confidence (the documented misread direction).
+- Calibration discovered an asymmetric tradeoff: per-cell tight crops fix the documented `9↔6` ambiguity AND introduce new `2↔7` confusions on certain OT-frame glyphs. The hybrid rule with targeted recovery solves both: catches `9↔6` wins, prevents `2↔7` regressions.
+
+### Files added / modified
+
+| New | What it does |
+| --- | --- |
+| `tools/game_ocr/scripts/dump_net_chart_stat_rois.py` | Per-cell ROI dump-script for visual calibration (mirrors `dump_faceoff_dot_rois.py`) |
+
+| Modified | Why |
+| --- | --- |
+| `tools/game_ocr/game_ocr/parsers.py` | `_NET_CHART_DIGIT_LOOKALIKES` + `_parse_net_chart_digit`; `power_play_shots` matchers + `"PP"` half-word; positional row-7 fallback; per-cell hybrid override with targeted 9↔6 recovery |
+| `tools/game_ocr/game_ocr/configs/roi/post_game_net_chart.yaml` | 14 new sub-ROIs `stats_<shot>_<side>`; `stats_panel` unchanged |
+| `tools/game_ocr/tests/test_parsers.py` | 13 new tests in `NetChartParserTests` (digit lookalike, label garbled, positional fallback no-false-positive, low-conf disagreement keeps legacy, 9-vs-6 targeted recovery, per-cell precedence) |
+
+### Verified
+
+- `PYTHONPATH=tools/game_ocr python3 -m unittest discover tools/game_ocr/tests` → **98/98 pass** (85 baseline + 13 new).
+- Clean re-ingest of 4 canonical frames into match 250 via `pnpm --filter worker ingest-ocr`: batch 63, 4/4 succeeded.
+- DB acceptance: zero NULLs across all 10 OCR rows. Per-period TOTAL sums exactly match header totals (5+9+6+9=29 for, 2+3+9+2=16 against). ALL PERIODS aggregate auto-recomputed via existing promoter logic.
+
+### Fixed cells (match 250 net-chart)
+
+| Cell | Before | After | Source |
+| --- | --- | --- | --- |
+| 2nd for TOTAL | 6 | **9** | Per-cell 9@0.89 → high-conf override |
+| 3rd against TOTAL | NULL (OCR'd as `g`) | **9** | Lookalike map `g→9` in legacy path |
+| 4 (OT) for TOTAL | 6 | **9** | Per-cell 9@0.72 → targeted 9↔6 rule |
+| 4 (OT) for PP | NULL | **0** | Positional fallback / label-matcher catches `SHOTS ON PP` |
+| 4 (OT) against PP | NULL | **0** | Same |
+| -1 ALL for PP | NULL | **0** | Promoter recompute after per-period fix |
+| -1 ALL against deflections + PP | NULL | **0** | Promoter recompute |
+| 2nd against deflections | NULL | **0** | Promoter recompute |
+
+### Known residual
+
+**OT for breakdown sum** (W+SL+BH+SN+D = 1+0+0+7+0 = **8**) is off by 1 from TOTAL (**9**). Same discrepancy in the original plan-agent manual ground truth. The TOTAL value of 9 is independently supported by the header arithmetic (29 - 5 - 9 - 6 = 9). Likely an OCR miss on a single breakdown cell in the OT source frame. Not a parser bug. No fix attempted in this batch.
+
+### Out of scope (deliberately deferred)
+
+- `data_quality` flag on `match_shot_type_summaries` for header-vs-sum disagreements on TOTAL — sequenced as a follow-up per the plan; ship if the OT-for breakdown discrepancy becomes a recurring class on more matches.
+- Per-digit ONNX classifier — fallback path only if rule-based recovery plateaus on future matches.
+
+### Plan file
+
+`/home/michal/.claude/plans/chart-completion-bundle-issue-purrfect-horizon.md` — kept for reference. All steps shipped except the deferred `data_quality` flag.
+
+### Repo state at session end
+
+- Uncommitted: parsers.py, tests/test_parsers.py, configs/roi/post_game_net_chart.yaml, scripts/dump_net_chart_stat_rois.py (new), HANDOFF.md (this entry).
+- DB: match 250 `match_shot_type_summaries` re-ingested via batch 63; previous OCR rows deleted as part of the verification flow.
+- No schema/DB migrations.
+- Dev server (`pnpm --filter web dev`) was running in the background during the session.
+
+---
+
+## Session Summary — 2026-05-18 (Video-CLI fixes — 2026-05-16 review punch-list closed)
+
+### What was done
+
+All four issues from the 2026-05-16 video-extraction code review shipped, in four TDD-style passes within a single session. Each pass: write failing regression test → apply fix → re-run test → manual fixture verification. Test count went from 0 → 29.
+
+**Issue 1 — CLI import order**
+- Moved sibling-package bootstrap from `cli.py` (where it ran too late) into `video_ingest/__init__.py` (runs once on first import of anything in the package).
+- Removed redundant `sys.path.insert` + `REPO_ROOT` from `cli.py`.
+- `tests/test_cli_smoke.py` (NEW): subprocess-based tests verify `python -m video_ingest.cli --help` and `from video_ingest.orchestrator import ingest` both work in a clean interpreter with only `tools/video_ingest` on PYTHONPATH.
+
+**Issue 4 — Pass 2 manifest reconstruction**
+- `pass2_manifest.json` is now authoritative; written by `extract_segments` with padded windows; loaded (not reconstructed) on cache-hit.
+- Removed the orchestrator's unconditional manifest re-write (the bug source). Manifest bytes are now byte-identical across fresh and cached runs (verified by sha256sum on the fixture).
+- New `write_pass2_manifest` + `load_pass2_manifest` helpers in `pass2_extract.py`.
+- `tests/test_pass2_manifest.py` (NEW): 4 tests covering round-trip, missing-file error, padded-window persistence, and cache-hit equivalence.
+
+**Issue 2 — Cache invalidation**
+- New `CacheMismatch(RuntimeError)` in `pass1_classify.py`, caught at CLI boundary and printed as a structured remediation message (exit 1, no traceback).
+- `segments.json` header now carries `version` + `pass1_cache_key` (sha256 of version YAML ⧺ classifier YAML).
+- `pass2_manifest.json` header now carries `version` + `pass2_cache_key` (sha256 of version YAML) + `segments_hash` (sha256 of segments.json bytes). Classifier drift cascades to Pass 2 via `segments_hash`, so Pass 2 key intentionally excludes the classifier YAML.
+- `--force-pass1` auto-clears Pass 2 state (cascade), matching user-chosen policy.
+- Legacy artifacts (missing the new fields) treated as cache miss — one-time refresh after the fix lands.
+- `tests/test_cache_invalidation.py` (NEW): 13 tests covering hash helpers, schema legacy detection, segments_hash sensitivity, and 6 orchestrator-level end-to-end scenarios with `pts_probe` / `_build_classifier` / `classify_video` / `build_segments` / `_ffmpeg_extract` all monkeypatched (fast, deterministic).
+
+**Issue 3 — CLI subcommand contracts**
+- New `skip_pass1` / `skip_pass2` parameters on `orchestrator.ingest()`; mutual-exclusion guard against the corresponding `force_*` flags.
+- New `MissingPass1Cache(RuntimeError)` raised when `skip_pass1=True` finds no valid `segments.json` (also caught at the CLI boundary).
+- `classify-only` now calls `run_ingest(skip_pass2=True)` and never creates `pass2/` or the manifest (verified on fixture).
+- `extract-only` now calls `run_ingest(skip_pass1=True)`; fails fast with "run classify-only or ingest first" when there's no Pass 1 cache.
+- Both subcommands gained `--force-pass1` / `--force-pass2` flags so users can opt back into the old behavior.
+- `tests/test_cli_contracts.py` (NEW): 10 tests covering both subcommand contracts, full-pipeline regression, and arg validation.
+
+### Files added / modified
+
+| File | Change |
+|---|---|
+| `tools/video_ingest/video_ingest/__init__.py` | sys.path bootstrap for sibling tools/game_ocr (Issue 1) |
+| `tools/video_ingest/video_ingest/pass1_classify.py` | `CacheMismatch`, `MissingPass1Cache`, `compute_pass1_cache_key`, `compute_segments_hash`, `SegmentsJsonLoaded` dataclass; `write_segments_json` / `load_segments_json` schema |
+| `tools/video_ingest/video_ingest/pass2_extract.py` | `compute_pass2_cache_key`, `Pass2ManifestLoaded` dataclass, `write_pass2_manifest`, `load_pass2_manifest`; manifest schema = `{version, pass2_cache_key, segments_hash, entries}`; `extract_segments` requires `version=` + `segments_hash=` |
+| `tools/video_ingest/video_ingest/orchestrator.py` | Cache-key compute/check on both passes; `skip_pass1` / `skip_pass2` params; `force_pass1` cascade clears Pass 2 state; `pass2_manifest.json` no longer written unconditionally |
+| `tools/video_ingest/video_ingest/cli.py` | Removed broken sys.path insert; `_with_cache_mismatch_exit` decorator catches `CacheMismatch` + `MissingPass1Cache`; `classify-only` → `skip_pass2=True` + new `--force-pass1`; `extract-only` → `skip_pass1=True` + new `--force-pass2` |
+| `tools/video_ingest/tests/test_cli_smoke.py` (NEW) | 2 tests — Issue 1 regression |
+| `tools/video_ingest/tests/test_pass2_manifest.py` (NEW) | 4 tests — Issue 4 regression |
+| `tools/video_ingest/tests/test_cache_invalidation.py` (NEW) | 13 tests — Issue 2 regression |
+| `tools/video_ingest/tests/test_cli_contracts.py` (NEW) | 10 tests — Issue 3 regression |
+
+### Schema notes for future readers
+
+- `segments.json` keys: `version` (str), `pass1_cache_key` (`sha256:...`), plus original `video_path`/`video_sha256`/`pass1_config`/`segments`/`frame_classifications`. Files missing the first two are legacy and trigger a fresh Pass 1 (or `MissingPass1Cache` under `extract-only`).
+- `pass2_manifest.json` shape: `{version, pass2_cache_key, segments_hash, entries: [...]}`. Bare-list files (from the Issue-4-only intermediate state earlier in this session) are detected as legacy and trigger a fresh extract.
+
+### What's next (open items, unchanged from prior session unless noted)
+
+Original "Open items, ranked" list (Net-Chart pipeline) still applies. The video-CLI punch-list itself is closed; nothing remains from the 2026-05-16 review.
+
+### Verification
+
+- 29/29 tests pass (`PYTHONPATH=.:../game_ocr python3 -m unittest discover tests`).
+- End-to-end on `tests/fixtures/match-250-clip.mkv` (60s, 3 segments):
+  - Fresh run + cached run: manifest sha256 identical across both.
+  - Edit `configs/nhl26.yaml` byte → `CacheMismatch` with structured stderr message + exit 1, no traceback.
+  - `--force-pass1` → cascades to Pass 2 re-extract automatically.
+  - `classify-only` → `segments.json` only; no `pass2/`, no manifest.
+  - `extract-only` on empty output_root → `MissingPass1Cache` with "run classify-only first" hint, exit 1.
+  - `extract-only` after `classify-only` → Pass 1 cache hit, Pass 2 runs.
+  - `ingest` full pipeline → both passes run, both artifacts written (regression check).
+
+### Repo state at session end
+
+- Nothing committed yet (all changes uncommitted in working tree).
+- `HANDOFF.md` updated (this entry).
+- No schema/DB migrations.
+- No production data touched.
 
 ---
 
@@ -492,18 +742,14 @@ After clean re-ingest of the four canonical Net-Chart frames in `research/OCR-SS
 
 All 70/70 pytest tests pass.
 
-### Deferred — Net-Chart OCR follow-up
+### Deferred — Net-Chart OCR follow-up (RESOLVED 2026-05-18)
 
-**Issue C — digit-confusion misreads in the per-period stat panel.** RapidOCR reads `9` as `6` or `g` in the BM/4TH columns of the stat panel (high confidence, 0.94–0.95). The header-first ALL PERIODS fix sidesteps this for `total_shots` only — per-period rows still carry wrong values, and breakdown columns have no header equivalent.
+Both items shipped on 2026-05-18 in the Net-Chart completion bundle (see top-of-file session summary). Carrying forward only the `data_quality` flag (item 4) as deferred.
 
-Concrete scope for a follow-up plan:
-
-1. Tighten per-cell ROIs around individual digits (current `stats_panel` is one big block; each digit is read in isolation by RapidOCR but classification could still benefit from preprocessing).
-2. Build a digit-lookalike map for the EA stat-panel font: at minimum `g`/`q` → `9`. The `6` vs `9` confusion has no signal to disambiguate from text alone — likely needs the digit ROI tightened plus per-digit preprocessing tweaks.
-3. Optional: a tiny per-digit ONNX classifier trained on EA stat-panel digit crops if rule-based recovery plateaus. Precedent for lookalike recovery exists in [`_parse_faceoff_dot`](tools/game_ocr/game_ocr/parsers.py) (`L→1`, CJK glyphs).
-4. After Issue C ships, add a `data_quality` flag on `match_shot_type_summaries` for rows where the header reading and per-period sum disagree on `total_shots`.
-
-**Issue 5 from the original review — PP-shots ROI clipping.** OT-period `power_play_shots` is NULL for both sides because the `SHOTS ON PP` row sits at the bottom of the `stats_panel` ROI and is being clipped (or the row is absent in OT frames — needs visual confirmation against the test video at `K:\2026-05-08_18-25-42.mkv`). Likely fix: bump `stats_panel.height` in [`post_game_net_chart.yaml`](tools/game_ocr/game_ocr/configs/roi/post_game_net_chart.yaml).
+1. ✅ **Issue C — digit-confusion misreads in the per-period stat panel** — Recovered via three paths working in concert: (a) `_NET_CHART_DIGIT_LOOKALIKES` map (`g/G/q/Q → 9`) at the parser-output level, (b) 14 per-cell sub-ROIs in `post_game_net_chart.yaml` that disambiguate `9` from `6` via tighter digit isolation, (c) hybrid override with a targeted 9↔6 recovery rule. All 3 known misreads on match 250 fixed (2nd-for TOTAL 6→9, 3rd-against TOTAL NULL→9, OT-for TOTAL 6→9). Locked by `test_parse_net_chart_digit_*` + `test_per_cell_9_overrides_legacy_6_at_any_confidence`.
+2. ✅ **Issue 5 — OT `SHOTS ON PP` NULL** — Visual inspection refuted the ROI-clip hypothesis; the row IS inside `stats_panel`. Fix is parser-side: `"PP"` half-word matcher in `_NET_CHART_LABEL_KEYS["power_play_shots"]` + positional row-7 fallback that promotes the bottommost un-claimed numeric row when both sides are MISSING. Locked by `test_power_play_row_recovered_when_label_garbled` + `test_power_play_row_recovered_via_positional_fallback` + `test_power_play_row_not_invented_when_absent`.
+3. **Deferred — `data_quality` flag on `match_shot_type_summaries`** for rows where header reading and per-period sum disagree on `total_shots`. Not shipped in the completion bundle; matches the OT-for breakdown discrepancy (sum 8, total 9) flagged as a known residual. Plan to add migration + promoter logic when a recurring class of disagreements appears on more matches.
+4. **Deferred — per-digit ONNX classifier** for EA stat-panel digits. Fallback if rule-based recovery plateaus on future matches.
 
 ### Out-of-scope notes (already captured elsewhere)
 
