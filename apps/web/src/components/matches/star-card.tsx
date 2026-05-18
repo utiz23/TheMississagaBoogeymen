@@ -231,7 +231,11 @@ function ScoreBlock({
             </span>{' '}
             vs season avg
           </span>
-        ) : null}
+        ) : (
+          <span className="font-condensed text-[10px] font-bold tracking-[0.12em] text-fg-6 italic">
+            — no season data
+          </span>
+        )}
       </div>
     </div>
   )
