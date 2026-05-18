@@ -34,6 +34,8 @@ Reviewed 2026-05-17. Source: [apps/web/src/components/matches/top-performers.tsx
 
 **4. Archetype pill colors lack a legend.** PLY (lavender), SNP (red), PMD (blue), TWF, DFD, etc. Users will see colors change between rows and intuit meaning, but there's no key. Two options: tooltip on hover (cheap), or a tiny `?` icon in the section header that opens a one-row legend.
 
+**Status (2026-05-17): Resolved (tooltip variant)** — audit of `apps/web/src/components/ui/archetype-pill.tsx` confirms `ArchetypePillCompact` already passes `title={`${meta.category} · ${meta.descriptor}`}` on every pill, so hover surfaces "Forward · Vision · Distribution" etc. A persistent legend in the section header is a separate design decision.
+
 **5. Jersey number `—` placeholder shows whenever `playerProfiles` row is missing.** At jersey-number size (28px) the dash competes with the name for attention. Consider hiding the entire jersey slot when null on opponent cards (preserve grid alignment by collapsing that column).
 
 **6. Section header subtitle is redundant.** "Computed from player stats" — "Top Performers" already implies player stats. Either drop the subtitle or repurpose it to clarify ranking ("Ranked by Game Score") which helps first-time readers connect this section to the score breakdown.
@@ -56,6 +58,8 @@ Reviewed 2026-05-17. Source: [apps/web/src/components/matches/top-performers.tsx
 
 **14. `+/-` column header uses a hyphen-minus, not the en-dash used in card legends.** Cards use `+/−` (Unicode minus), table header uses `+/-`. Pick one across both surfaces.
 
+**Status (2026-05-17): Resolved** — audit of `apps/web/src/components/matches/star-card.tsx:265` and `apps/web/src/components/matches/show-all-player-scores.tsx:63` confirms both surfaces now use Unicode minus U+2212. Fix landed between the review's writing and today.
+
 **15. `TOI · SV%` column header is overloaded.** Serves double duty: skaters show TOI, goalies show SV%. The dot suggests both could appear together. Better: `TOI / SV%` with the slash signaling alternation, or split into two narrow columns and dim the one not applicable for that row's position.
 
 ### Issues — Mobile
@@ -73,12 +77,12 @@ Ordered by impact:
 | 2 | Rank-3 score color: `text-fg-2` → `text-fg-1` | 1 line |
 | 1 | Rank-3 card placeholder for missing season delta (preserve alignment) | 5 lines |
 | 11 | Subtle row tint on Show-All ranks 2 and 3 to match card hierarchy | 1–2 lines |
-| 4 | Archetype-pill tooltip OR section-header `?` legend popover | 15–30 lines |
+| 4 | ~~Archetype-pill tooltip OR section-header `?` legend popover~~ — **Resolved 2026-05-17** (tooltip variant already present). | — |
 | 3 | Slightly brighter off-star glyphs OR drop them entirely | 1 line |
 | 13 | Replace Show-All row breakdown table with card-style bar+legend | 30–60 lines |
 | 6 | Section subtitle: "Computed from player stats" → "Ranked by Game Score" | 1 line |
 
-Items 5, 9, 10, 14, 15, 16, 17 are polish to batch together for a single sweep once the above are in.
+Items 5, 9, 10, 15, 16, 17 are polish to batch together for a single sweep once the above are in. (Item 14 ~~+/- hyphen vs Unicode minus mismatch~~ **Resolved 2026-05-17** — both surfaces now Unicode minus.)
 
 ---
 
