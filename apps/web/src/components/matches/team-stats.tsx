@@ -1,13 +1,17 @@
 import type { BoxScoreGroup, BoxScoreRow } from '@/lib/match-recap'
+import { abbreviateTeamName } from '@/lib/format'
 import { SectionHeader } from '@/components/ui/section-header'
 import { Panel } from '@/components/ui/panel'
 
 interface TeamStatsProps {
   rows: BoxScoreGroup[]
+  opponentName: string
 }
 
-export function TeamStats({ rows }: TeamStatsProps) {
+export function TeamStats({ rows, opponentName }: TeamStatsProps) {
   if (rows.length === 0) return null
+
+  const oppAbbrev = abbreviateTeamName(opponentName)
 
   return (
     <section className="space-y-3">
@@ -20,7 +24,7 @@ export function TeamStats({ rows }: TeamStatsProps) {
           </span>
           <span />
           <span className="text-left font-condensed text-xs font-bold uppercase tracking-widest text-zinc-500">
-            OPP
+            {oppAbbrev}
           </span>
         </div>
         <div className="space-y-5">

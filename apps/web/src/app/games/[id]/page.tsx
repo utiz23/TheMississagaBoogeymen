@@ -198,7 +198,7 @@ export default async function GameDetailPage({ params, searchParams }: Props) {
       )}
 
       {/* 3. Team stats */}
-      <TeamStats rows={boxScore} />
+      <TeamStats rows={boxScore} opponentName={match.opponentName} />
 
       {/* 3a. OCR-derived pre-game lineup section with X-Factor PNG icons. */}
       <LineupSection
