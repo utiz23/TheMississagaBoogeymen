@@ -208,7 +208,11 @@ function SkaterRowEl({ row, isBgm }: { row: SkaterRow; isBgm: boolean }) {
                   >
                     View player profile
                   </Link>
-                ) : null}
+                ) : (
+                  <span className="font-condensed text-sm font-semibold uppercase tracking-wide text-zinc-600">
+                    Opponent · no profile
+                  </span>
+                )}
               </div>
               <div className="grid gap-3 sm:grid-cols-3">
                 <DetailStat
