@@ -37,21 +37,38 @@ _LIB_ORDER: tuple[str, ...] = (
 )
 
 
-def _site_packages() -> Path:
-    import sysconfig
-    return Path(sysconfig.get_paths()["purelib"])
+def _nvidia_root() -> Path | None:
+    """Locate site-packages/nvidia/ via Python's import machinery.
+
+    Robust to system-wide, user-local (`pip install --user`), and venv
+    installs. The nvidia-*-cu12 wheels register a `nvidia` namespace
+    package — its `__path__[0]` is the directory we need.
+
+    Previously this used `sysconfig.get_paths()["purelib"]` which returns
+    the system Python's purelib only — when wheels were installed via
+    `pip install --user` they live in `~/.local/lib/.../site-packages/`
+    and the preload silently bailed, forcing onnxruntime back to CPU EP.
+    """
+    try:
+        import nvidia
+    except ImportError:
+        return None
+    paths = getattr(nvidia, "__path__", None)
+    if not paths:
+        return None
+    return Path(paths[0])
 
 
 def preload(verbose: bool = False) -> list[str]:
     """Preload bundled CUDA libs. Returns list of successfully loaded libs."""
-    nvidia = _site_packages() / "nvidia"
-    if not nvidia.exists():
+    nvidia_root = _nvidia_root()
+    if nvidia_root is None:
         if verbose:
-            print("[gpu_libs] no nvidia/ directory in site-packages", file=sys.stderr)
+            print("[gpu_libs] nvidia namespace package not importable", file=sys.stderr)
         return []
     loaded: list[str] = []
     for rel in _LIB_ORDER:
-        p = nvidia / rel
+        p = nvidia_root / rel
         if not p.exists():
             continue
         try:
@@ -61,7 +78,10 @@ def preload(verbose: bool = False) -> list[str]:
             if verbose:
                 print(f"[gpu_libs] preload {p.name} failed: {e}", file=sys.stderr)
     if verbose:
-        print(f"[gpu_libs] preloaded {len(loaded)} CUDA libs", file=sys.stderr)
+        print(
+            f"[gpu_libs] preloaded {len(loaded)} CUDA libs from {nvidia_root}",
+            file=sys.stderr,
+        )
     return loaded
 
 
