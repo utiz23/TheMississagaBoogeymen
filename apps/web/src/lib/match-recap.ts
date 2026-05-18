@@ -696,7 +696,7 @@ export function buildBoxScore(
       oppAgg.passCompletions,
       oppAgg.passAttempts,
     ),
-    row('Possession', bgmAgg.possession, oppAgg.possession),
+    timeRow('Possession', bgmAgg.possession, oppAgg.possession),
     timeRow('Time on Attack', match.timeOnAttack, match.timeOnAttackAgainst),
   ]
     .filter(nonNullable)
