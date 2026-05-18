@@ -211,7 +211,11 @@ function SkaterRowEl({ row, isBgm }: { row: SkaterRow; isBgm: boolean }) {
                 ) : null}
               </div>
               <div className="grid gap-3 sm:grid-cols-3">
-                <DetailStat label="Score" value={row.score.toFixed(2)} />
+                <DetailStat
+                  label="Score"
+                  value={row.score.toFixed(2)}
+                  tooltip="Game Score — same value shown in the Top Performers section above. Ranks players by overall match contribution."
+                />
                 <DetailStat
                   label="Shot On Net %"
                   value={
