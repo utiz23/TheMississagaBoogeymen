@@ -182,7 +182,109 @@ End state: **71 canonical rows, all 71 positioned = 100% coverage**, no manual i
 4. **Overlap watershed** (~2 hr). Stacked markers at one on-ice spot. Not present in 250 but real games will have it.
 5. **Clock-phantom generalisations** (deferred) — period-bounds check (clock > 20:00 in p1-3 = impossible), OT-lower-bound (clock < game-end-clock impossible), unresolved-actor phantom detection. None of these classes currently have known instances; ship if/when a future match surfaces one.
 
-**Last updated:** 2026-05-18 (Lineup persona alias table shipped — new `player_persona_aliases` table + `resolvePersona()` in consolidator + `player_name_persona_raw` audit column. All 10 match-250 anchor personas canonicalized. Earlier same-day: 4-commit checkpoint landed 2 days of uncommitted work; Multi-Match Readiness bundle; Net-Chart Issue C + Issue 5; Video-CLI code-review punch-list. See four 2026-05-18 session summaries below.)
+**Last updated:** 2026-05-18 evening (UI polish marathon — 12 commits closing the parked UI review list except item 7 (player level + prestige). Action-tracker Faceoffs view-mode toggle merged in; lineup expand-panel gained Expand/Compare with horizontal X-Factor tiles; opp-side fully mirrored end-to-end including expand panel, summary band, KV row, card glow, expand toggle, position badge, and PlayerInfo (platform → gamertag → persona order); event-timeline filters dropped; PlatformBadge icon-only; expand-mode border neutralized; matchup tag removed; platform SVGs flipped white-on-dark for contrast. Also: CUDA runtime fix landed (nvidia-package root resolution); match-2 ingest detached and dispatching post-game segments at time of write. See new session summary below.)
+
+---
+
+## Session Summary — 2026-05-18 (evening — UI polish marathon + CUDA fix + match-2 ingest)
+
+### What was done
+
+Long polish-and-cleanup session bridging the persona-alias bundle and the next ingest. **12 commits**, most clearing the parked UI review list, plus an infrastructure unblock (CUDA) and the match-2 ingest restart. No schema changes; pure FE + tools work.
+
+**Polish commits in order (oldest → newest):**
+
+| Commit | Scope |
+| ------ | ----- |
+| `31b7db4` | `fix(video-ingest/gpu): resolve user-local site-packages so preload finds CUDA libs` |
+| `90fca1c` | `feat(matches/action-tracker): Faceoffs merged in as a view-mode toggle` |
+| `590c3bb` | `polish(matches/lineup): 7-item polish sweep closes UI review §4 priority list` |
+| `da69d9e` | `polish(matches/event-timeline): drop period + team filtering — section is story-mode by design` |
+| `36a1bed` | `polish(matches/lineup): PlatformBadge renders only the icon — drop the trailing text label` |
+| `af170d1` | `polish(matches/lineup): mirror opp-side expand panel — right-align content for symmetry with BGM column` |
+| `4e2a706` | `feat(matches/lineup): expand-panel adds Expand/Compare toggle + horizontal X-Factor tiles (items 5 + 6)` |
+| `9bcddc4` | `polish(matches/action-tracker): collapsible SummaryStrip + fix top-row vertical misalignment` |
+| `9031206` | `polish(matches/lineup): opp-side mirror (4 items) — summary band, expand toggle, KV row, card glow` |
+| `2e3cdd1` | `polish(matches/lineup): expand-mode neutral border + drop matchup tag (items 5 + 6)` |
+| `7d261cb` | `polish(assets/platforms): white fill for dark-surface contrast` |
+| `538dfbd` | `polish(matches/lineup): mirror opp PlayerInfo — platform → gamertag → persona` |
+
+### Action Tracker — Faceoffs view-mode toggle (`90fca1c`)
+
+Faceoff Map dropped as a separate visualisation; folded into AT as a `Events / Faceoffs` toggle. New inline SVG components `FaceoffPin` + `FaceoffDotPair` (dueling-pin metaphor using `Asset 1.svg` as reference). SummaryStrip became collapsible with a header bar + chevron and got a top-row vertical alignment fix (`9bcddc4`). Backend remains primary; this consolidates the surface area so the FE side has one map per match.
+
+### Lineup expand-panel — Expand/Compare toggle (`4e2a706`)
+
+`LineupExpandPanel` got per-side `ExpandToggle` (left-4 on BGM, right-4 on opp). Expand mode hides `CenterRail`, switches the active side to full-width, and uses a horizontal `BuildBlockExpanded` + `XFactorRowHorizontal` (40px icons, no tier rail) + 5-col `AttributeBlocks` grid. Mirror commit `af170d1` later right-aligned the opp expand panel for symmetry, and `2e3cdd1` neutralized the panel border in expand mode (drops the position-color tint when expanded).
+
+### Lineup opp-side end-to-end mirror (`590c3bb`, `9031206`, `538dfbd`)
+
+The lineup row is now visually symmetric BGM ↔ opp across every layer:
+- **PlayerCard**: right-edge accent on opp (`border-r-2 border-r-[var(--color-accent)]`); same applied to `CpuPlaceholderCard`.
+- **SummarySide**: opp uses grid-reverse + `text-right` + `justify-end`.
+- **BuildBlock KV row**: side-aware `justify-end` on opp.
+- **PositionBadge**: matchup tag dropped (item 6); position letter retained.
+- **MobileMatchupStrip**: matchup tag dropped to match.
+- **PlayerInfo** (`538dfbd`): JSX children swapped on opp — `[platform-icon][gamertag] [persona]` instead of `[persona] [gamertag][platform-icon]`. `PlatformBadge` gained a `side` prop so the margin moves from `ml-1.5` to `mr-1.5`.
+
+After all this, only items 7 (player level + prestige) remains parked, pending schema verification.
+
+### event-timeline filter drop (`da69d9e`)
+
+216 lines removed — period and team filters were never adopted by the user; section reads as a story strip anyway. Pure deletion.
+
+### PlatformBadge icon-only (`36a1bed`)
+
+Trailing text label dropped from `PlatformBadge`; icon-only render. Set up the contrast issue that `7d261cb` later resolved.
+
+### Platform SVG contrast (`7d261cb`)
+
+`xbox.svg` and `playstation.svg` both shipped with `fill="#000000"` (pure black) on near-black `var(--color-surface)`. Flipped both to `fill="#FFFFFF"` at the asset; no consumer-side change.
+
+### CUDA runtime fix (`31b7db4`)
+
+`tools/video_ingest/video_ingest/gpu_libs.py` — `_site_packages()` returned the system `/usr/local/lib/python3.12/dist-packages`, but NVIDIA wheels were installed user-local at `~/.local/lib/python3.12/site-packages/nvidia/`, so `gpu_libs.preload()` never found `libcublasLt.so.12`. Replaced with `_nvidia_root()` that uses `import nvidia` + `__path__[0]`. CUDA EP now loads; anchor-ROI OCR p50 measured at 191 ms vs ~840 ms on CPU (~4.4× speedup); end-to-end Pass-1 sweep on a 28-min 1080p60 video takes ~25 min wall (vs ~80 min projected pre-fix).
+
+### Match-2 ingest (in flight)
+
+After CUDA fix, kicked off match-2 (id 463, video `2026-05-11_18-17-06.mkv`) detached via `nohup setsid` (PID 53255). At session checkpoint:
+
+- Pass-1: **done** (1680 frames classified, 6 segments emitted in 1501.3s)
+- Pass-2: **done** (335 frames extracted in 14.2s)
+- Dispatch: **in progress** (seg 001 of 6 running through `ingest-ocr-cli`)
+- Output: `/tmp/match2-fullmatch/0a0f1b7a…/`
+- Log: `/tmp/match2-ingest.log`
+
+Steps 3-6 (pre-game clip ingest, consolidate-loadouts, tiers 2/3/4, verification at `/games/463`) pending after dispatch finishes. Match-250 OT-for breakdown sum off-by-one still outstanding (separate residual).
+
+### Verified
+
+- All commits land cleanly; `pnpm --filter web typecheck` clean after each.
+- Visual check at `/games/250` confirms: SVG glyphs white on dark; opp side reads `[xbox] XZ4RKY  TOEWS` (mirror of BGM); expand-mode border is neutral gray; matchup tag absent from both PositionBadge and MobileMatchupStrip; AT SummaryStrip collapses.
+- Match-2 ingest GPU-active (nvidia-smi shows PID 53255 holding 2.7 GB VRAM); 26 min wall so far, on track.
+
+### Files modified (highlights)
+
+| File | What changed |
+| ---- | ------------ |
+| `apps/web/src/components/matches/lineup-section.tsx` | Many: PlatformBadge icon-only + side prop; PositionBadge matchup drop; MobileMatchupStrip matchup drop; opp PlayerCard right-edge accent; CpuPlaceholderCard same; SummarySide opp grid reverse; PlayerInfo mirror order on opp |
+| `apps/web/src/components/matches/lineup-expand-panel.tsx` | ExpandToggle; BuildBlockExpanded; XFactorRowHorizontal; AttributeBlocks 5-col grid; opp-side right-align mirror; expand-mode neutral border; BuildBlock side-aware KV justify |
+| `apps/web/src/components/matches/action-tracker-map.tsx` | Faceoffs view-mode toggle; FaceoffsView + FaceoffPin + FaceoffDotPair components; collapsible SummaryStrip; top-row alignment |
+| `apps/web/src/components/matches/event-timeline.tsx` | Period + team filters removed (216 LOC) |
+| `apps/web/public/assets/platforms/{xbox,playstation}.svg` | fill black → white |
+| `tools/video_ingest/video_ingest/gpu_libs.py` | `_nvidia_root()` replaces `_site_packages()` |
+
+### Repo state at session pause
+
+- Working tree clean except: `Asset 1.svg` (pre-existing stray) and `apps/web/src/app/preview/archetypes/` (untracked preview dir, separate work — not committed). `apps/web/src/components/ui/archetype-pill.tsx` has uncommitted color-palette refresh — separate workstream, intentionally not bundled here.
+- Match-2 ingest still running detached (PID 53255).
+- 12 commits ahead of `d36a046` (the persona-alias entry below).
+
+### Deliberately deferred
+
+- **Item 7 — player level + prestige display.** Last parked UI item. Needs schema verification (might be small FE-only render or a backend + OCR lift).
+- **Match-250 OT-for breakdown sum off-by-one.** Net-Chart residual; not a parser bug.
+- **NHL 27 classifier anchors, per-digit ONNX classifier, partial-row underline detector, hit-vs-shot 8-vertex, data_quality flag, overlap watershed, bgm_attacks hardcoding fix.** All backend OCR follow-ups; each its own session.
 
 ---
 
