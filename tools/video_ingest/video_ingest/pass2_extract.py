@@ -14,12 +14,27 @@ sample granularity in Pass 1.
 
 from __future__ import annotations
 
+import json
 import subprocess
 import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-from video_ingest.pass1_classify import Segment
+from video_ingest.pass1_classify import (
+    Segment,
+    VIDEO_INGEST_CONFIGS_DIR,
+    _sha256_of,
+)
+
+
+PASS2_MANIFEST_FILENAME = "pass2_manifest.json"
+
+
+def compute_pass2_cache_key(version: str) -> str:
+    """Hash of the orchestrator-side version YAML. Pass 2 doesn't need the
+    classifier YAML — classifier changes propagate via segments_hash."""
+    version_yaml = VIDEO_INGEST_CONFIGS_DIR / f"{version}.yaml"
+    return _sha256_of(version_yaml.read_bytes())
 
 
 @dataclass
@@ -80,10 +95,17 @@ def extract_segments(
     config: Pass2Config,
     pass2_root: Path,
     video_duration_seconds: float | None = None,
+    *,
+    version: str,
+    segments_hash: str,
 ) -> list[Pass2Result]:
     """Extract every segment whose screen_type is in `extract_screens`.
     Skipped segments still get an entry in the returned list (frame_count=0)
-    so the orchestrator can log them."""
+    so the orchestrator can log them.
+
+    Writes pass2_manifest.json with the cache identifiers needed for the
+    Issue-2 invalidation contract: pass2_cache_key (config-derived) plus
+    segments_hash (so Pass 1 invalidation cascades to Pass 2)."""
     if config.sample_rates is None or config.extract_screens is None:
         raise ValueError("Pass2Config.sample_rates and extract_screens must be set")
 
@@ -119,4 +141,99 @@ def extract_segments(
             file=sys.stderr,
         )
 
+    write_pass2_manifest(
+        pass2_root.parent / PASS2_MANIFEST_FILENAME,
+        out,
+        version=version,
+        cache_key=compute_pass2_cache_key(version),
+        segments_hash=segments_hash,
+    )
     return out
+
+
+@dataclass
+class Pass2ManifestLoaded:
+    version: str | None
+    pass2_cache_key: str | None
+    segments_hash: str | None
+    results: list[Pass2Result]
+
+    @property
+    def is_legacy(self) -> bool:
+        """True if the manifest lacks the Issue-2 cache-key fields (e.g.,
+        Issue-4 bare-list format). Caller treats this as cache miss."""
+        return (
+            self.version is None
+            or self.pass2_cache_key is None
+            or self.segments_hash is None
+        )
+
+
+def write_pass2_manifest(
+    path: Path,
+    results: list[Pass2Result],
+    *,
+    version: str,
+    cache_key: str,
+    segments_hash: str,
+) -> None:
+    """Persist the Pass 2 manifest. Called once per fresh extraction; the
+    file is the authoritative record of which (padded) windows ffmpeg saw,
+    plus the cache identifiers used to detect config drift on subsequent
+    runs."""
+    entries = [
+        {
+            "segment_index": r.segment_index,
+            "screen_type": r.segment.screen_type,
+            "directory": str(r.directory),
+            "frame_count": r.frame_count,
+            "sample_fps": r.sample_fps,
+            "start_seconds": r.start_seconds,
+            "end_seconds": r.end_seconds,
+        }
+        for r in results
+    ]
+    payload = {
+        "version": version,
+        "pass2_cache_key": cache_key,
+        "segments_hash": segments_hash,
+        "entries": entries,
+    }
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload, indent=2))
+
+
+def load_pass2_manifest(path: Path, segments: list[Segment]) -> Pass2ManifestLoaded:
+    """Load the Pass 2 manifest. Returns a `Pass2ManifestLoaded` whose
+    `version`/`pass2_cache_key`/`segments_hash` are None for legacy bare-list
+    manifests (Issue-4 schema). Raises FileNotFoundError if the manifest is
+    absent."""
+    data = json.loads(path.read_text())
+    if isinstance(data, list):
+        entries = data
+        version = None
+        cache_key = None
+        segments_hash = None
+    else:
+        entries = data.get("entries", [])
+        version = data.get("version")
+        cache_key = data.get("pass2_cache_key")
+        segments_hash = data.get("segments_hash")
+    results: list[Pass2Result] = []
+    for entry in entries:
+        idx = entry["segment_index"]
+        results.append(Pass2Result(
+            segment_index=idx,
+            segment=segments[idx],
+            directory=Path(entry["directory"]),
+            frame_count=entry["frame_count"],
+            sample_fps=entry["sample_fps"],
+            start_seconds=entry["start_seconds"],
+            end_seconds=entry["end_seconds"],
+        ))
+    return Pass2ManifestLoaded(
+        version=version,
+        pass2_cache_key=cache_key,
+        segments_hash=segments_hash,
+        results=results,
+    )

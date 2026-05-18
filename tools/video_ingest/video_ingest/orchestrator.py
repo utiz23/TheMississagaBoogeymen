@@ -13,10 +13,9 @@ and re-uses them (controlled by `force_pass2`).
 
 from __future__ import annotations
 
-import json
 import sys
 import time
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 from pathlib import Path
 
 import yaml
@@ -24,17 +23,25 @@ import yaml
 from video_ingest import gpu_libs
 from video_ingest.dispatch import DispatchResult, dispatch_segments
 from video_ingest.pass1_classify import (
+    CacheMismatch,
+    MissingPass1Cache,
     Pass1Config,
     Segment,
+    VIDEO_INGEST_CONFIGS_DIR,
     build_segments,
     classify_video,
+    compute_pass1_cache_key,
+    compute_segments_hash,
     load_segments_json,
     write_segments_json,
 )
 from video_ingest.pass2_extract import (
+    PASS2_MANIFEST_FILENAME,
     Pass2Config,
     Pass2Result,
+    compute_pass2_cache_key,
     extract_segments,
+    load_pass2_manifest,
 )
 from video_ingest.pts import VideoProbe, probe as pts_probe
 from video_ingest.version_detect import (
@@ -83,12 +90,14 @@ def ingest(
     use_gpu: bool = True,
     force_pass1: bool = False,
     force_pass2: bool = False,
+    skip_pass1: bool = False,
+    skip_pass2: bool = False,
     dispatch: bool = False,
     game_title_id: int | None = None,
     match_id: int | None = None,
     dispatch_dry_run: bool = False,
 ) -> IngestResult:
-    """Run the full two-pass pipeline.
+    """Run the two-pass pipeline.
 
     Args:
       video_path: path to a video file (.mkv/.mp4)
@@ -97,7 +106,16 @@ def ingest(
       use_gpu: pass to the classifier
       force_pass1: re-run Pass 1 even if segments.json exists
       force_pass2: re-extract Pass 2 frames even if segment dirs exist
+      skip_pass1: don't run Pass 1; require valid cached segments.json. Raises
+                  MissingPass1Cache if absent/legacy, CacheMismatch on drift.
+                  Backs `extract-only`.
+      skip_pass2: don't run Pass 2; return empty pass2_results. Backs
+                  `classify-only`.
     """
+    if skip_pass1 and force_pass1:
+        raise ValueError("skip_pass1 and force_pass1 are mutually exclusive")
+    if skip_pass2 and force_pass2:
+        raise ValueError("skip_pass2 and force_pass2 are mutually exclusive")
     # 1. probe
     print(f"[ingest] probing {video_path.name}", file=sys.stderr)
     probe = pts_probe(video_path)
@@ -149,12 +167,57 @@ def ingest(
         extract_screens=set(str(s) for s in vcfg["extract_screens"]),
     )
 
-    # 3. Pass 1 (cached)
+    # 3. Pass 1 (cached). Cache key = sha256(version_yaml + classifier_yaml).
+    # On mismatch the orchestrator raises CacheMismatch (caught at top level)
+    # with a remediation that points at --force-pass1. Force or legacy header
+    # = fresh run; in both cases Pass 2 state is also cleared so the cascade
+    # invariant holds (segments may change → existing Pass 2 is stale).
+    pass2_root = sha_root / "pass2"
+    manifest_path = sha_root / PASS2_MANIFEST_FILENAME
+    pass1_cache_key = compute_pass1_cache_key(version)
+    pass1_was_fresh = False
     elapsed_pass1 = 0.0
+
+    cache_hit_pass1 = False
     if segments_json.exists() and not force_pass1:
-        print(f"[pass1] cache hit at {segments_json}", file=sys.stderr)
-        _, segments = load_segments_json(segments_json)
-    else:
+        loaded = load_segments_json(segments_json)
+        if loaded.is_legacy:
+            if skip_pass1:
+                raise MissingPass1Cache(
+                    f"no valid Pass 1 cache at {segments_json} (legacy format).\n"
+                    f"  Fix: run `video-ingest classify-only` (or `ingest`) first."
+                )
+            print(
+                f"[pass1] legacy segments.json (no cache key); treating as cache miss",
+                file=sys.stderr,
+            )
+        elif loaded.version != version or loaded.pass1_cache_key != pass1_cache_key:
+            raise CacheMismatch(
+                f"cache mismatch at {segments_json}\n"
+                f"  stored:  version={loaded.version}  cache_key={loaded.pass1_cache_key}\n"
+                f"  current: version={version}  cache_key={pass1_cache_key}\n"
+                f"  Cause:   {VIDEO_INGEST_CONFIGS_DIR / f'{version}.yaml'}\n"
+                f"           or game_ocr classifier config for {version} has changed.\n"
+                f"  Fix:     re-run with --force-pass1 (will also re-extract Pass 2)."
+            )
+        else:
+            print(f"[pass1] cache hit at {segments_json}", file=sys.stderr)
+            segments = loaded.segments
+            cache_hit_pass1 = True
+
+    if not cache_hit_pass1 and skip_pass1:
+        raise MissingPass1Cache(
+            f"no Pass 1 cache at {segments_json}.\n"
+            f"  Fix: run `video-ingest classify-only` (or `ingest`) first."
+        )
+
+    if not cache_hit_pass1:
+        # Fresh Pass 1: clear any Pass 2 state so the cascade invariant holds.
+        if pass2_root.exists():
+            import shutil
+            shutil.rmtree(pass2_root)
+        manifest_path.unlink(missing_ok=True)
+
         classifier = _build_classifier(version, use_gpu=use_gpu)
         t0 = time.perf_counter()
         cls_list = classify_video(video_path, classifier, p1cfg)
@@ -167,7 +230,10 @@ def ingest(
             video_sha256=probe.sha256,
             video_path=video_path,
             config=p1cfg,
+            version=version,
+            cache_key=pass1_cache_key,
         )
+        pass1_was_fresh = True
         print(
             f"[pass1] {len(cls_list)} frames classified, "
             f"{len(segments)} segments emitted in {elapsed_pass1:.1f}s",
@@ -180,64 +246,78 @@ def ingest(
                 file=sys.stderr,
             )
 
-    # 4. Pass 2 (per-segment ffmpeg extraction)
-    pass2_root = sha_root / "pass2"
-    t0 = time.perf_counter()
-    if force_pass2 and pass2_root.exists():
-        import shutil
-        shutil.rmtree(pass2_root)
-    if pass2_root.exists() and any(pass2_root.iterdir()) and not force_pass2:
-        print(f"[pass2] cache hit at {pass2_root}", file=sys.stderr)
-        # Reconstruct Pass2Result list from what's on disk so the
-        # caller still gets a usable summary.
-        pass2_results: list[Pass2Result] = []
-        for i, seg in enumerate(segments):
-            if seg.screen_type not in p2cfg.extract_screens:
-                continue
-            from video_ingest.pass2_extract import segment_dir_name
-            seg_dir = pass2_root / segment_dir_name(i, seg)
-            if not seg_dir.exists():
-                continue
-            n = len(list(seg_dir.glob("*.png")))
-            pass2_results.append(Pass2Result(
-                segment_index=i,
-                segment=seg,
-                directory=seg_dir,
-                frame_count=n,
-                sample_fps=p2cfg.sample_rates.get(seg.screen_type, 1.0),
-                start_seconds=seg.start_seconds,
-                end_seconds=seg.end_seconds,
-            ))
+    # 4. Pass 2. Cache identifiers in the manifest:
+    #   - pass2_cache_key: hash of version YAML (detects pass2 config drift)
+    #   - segments_hash:   hash of segments.json bytes (detects Pass 1 drift)
+    # If Pass 1 just ran fresh, segments.json is new → segments_hash differs
+    # by definition; skip the compare and re-extract (cascade).
+    # Under skip_pass2 (classify-only), this whole block is bypassed and the
+    # returned pass2_results is empty.
+    pass2_results: list[Pass2Result] = []
+    elapsed_pass2 = 0.0
+    if skip_pass2:
+        print(f"[pass2] skipped (skip_pass2=True)", file=sys.stderr)
     else:
-        pass2_results = extract_segments(
-            video_path=video_path,
-            segments=segments,
-            config=p2cfg,
-            pass2_root=pass2_root,
-            video_duration_seconds=probe.duration_seconds,
-        )
-    elapsed_pass2 = time.perf_counter() - t0
-    total_frames = sum(r.frame_count for r in pass2_results)
-    print(
-        f"[pass2] {len(pass2_results)} segments, "
-        f"{total_frames} total frames extracted in {elapsed_pass2:.1f}s",
-        file=sys.stderr,
-    )
+        pass2_cache_key = compute_pass2_cache_key(version)
+        segments_hash = compute_segments_hash(segments_json)
+        t0 = time.perf_counter()
+        if force_pass2 and pass2_root.exists():
+            import shutil
+            shutil.rmtree(pass2_root)
+            manifest_path.unlink(missing_ok=True)
 
-    # 5. Pass-2 manifest for downstream dispatch
-    manifest_path = sha_root / "pass2_manifest.json"
-    manifest_path.write_text(json.dumps([
-        {
-            "segment_index": r.segment_index,
-            "screen_type": r.segment.screen_type,
-            "directory": str(r.directory),
-            "frame_count": r.frame_count,
-            "sample_fps": r.sample_fps,
-            "start_seconds": r.start_seconds,
-            "end_seconds": r.end_seconds,
-        }
-        for r in pass2_results
-    ], indent=2))
+        cache_hit_pass2 = False
+        if (
+            not force_pass2
+            and not pass1_was_fresh
+            and pass2_root.exists()
+            and any(pass2_root.iterdir())
+            and manifest_path.exists()
+        ):
+            loaded_p2 = load_pass2_manifest(manifest_path, segments)
+            if loaded_p2.is_legacy:
+                print(
+                    f"[pass2] legacy manifest (no cache key); treating as cache miss",
+                    file=sys.stderr,
+                )
+            elif loaded_p2.pass2_cache_key != pass2_cache_key:
+                raise CacheMismatch(
+                    f"cache mismatch at {manifest_path}\n"
+                    f"  stored:  version={loaded_p2.version}  pass2_cache_key={loaded_p2.pass2_cache_key}\n"
+                    f"  current: version={version}  pass2_cache_key={pass2_cache_key}\n"
+                    f"  Cause:   {VIDEO_INGEST_CONFIGS_DIR / f'{version}.yaml'} pass2 section has changed.\n"
+                    f"  Fix:     re-run with --force-pass2."
+                )
+            elif loaded_p2.segments_hash != segments_hash:
+                raise CacheMismatch(
+                    f"cache mismatch at {manifest_path}\n"
+                    f"  stored:  segments_hash={loaded_p2.segments_hash}\n"
+                    f"  current: segments_hash={segments_hash}\n"
+                    f"  Cause:   segments.json contents differ from when Pass 2 was extracted.\n"
+                    f"  Fix:     re-run with --force-pass2 (or --force-pass1 to re-derive segments)."
+                )
+            else:
+                print(f"[pass2] cache hit at {pass2_root}", file=sys.stderr)
+                pass2_results = loaded_p2.results
+                cache_hit_pass2 = True
+
+        if not cache_hit_pass2:
+            pass2_results = extract_segments(
+                video_path=video_path,
+                segments=segments,
+                config=p2cfg,
+                pass2_root=pass2_root,
+                video_duration_seconds=probe.duration_seconds,
+                version=version,
+                segments_hash=segments_hash,
+            )
+        elapsed_pass2 = time.perf_counter() - t0
+        total_frames = sum(r.frame_count for r in pass2_results)
+        print(
+            f"[pass2] {len(pass2_results)} segments, "
+            f"{total_frames} total frames extracted in {elapsed_pass2:.1f}s",
+            file=sys.stderr,
+        )
 
     # 6. Optional: fan out to ingest-ocr-cli per segment dir.
     dispatch_results: list[DispatchResult] | None = None

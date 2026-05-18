@@ -13,22 +13,35 @@ the same video is idempotent.
 from __future__ import annotations
 
 import sys
+from functools import wraps
 from pathlib import Path
 
 import typer
 
 from video_ingest.orchestrator import ingest as run_ingest
-
-
-REPO_ROOT = Path(__file__).resolve().parents[3]
-# Allow CLI to import game_ocr from sibling tools/ subtree.
-sys.path.insert(0, str(REPO_ROOT / "tools" / "game_ocr"))
+from video_ingest.pass1_classify import CacheMismatch, MissingPass1Cache
 
 
 app = typer.Typer(add_completion=False, no_args_is_help=True)
 
 
+def _with_cache_mismatch_exit(fn):
+    """Catch user-fixable orchestrator errors at the CLI boundary and exit
+    non-zero with the structured message — avoids printing a Python traceback
+    for config drift (`CacheMismatch`) or missing-Pass-1-cache states
+    (`MissingPass1Cache`)."""
+    @wraps(fn)
+    def wrapper(*args, **kwargs):
+        try:
+            return fn(*args, **kwargs)
+        except (CacheMismatch, MissingPass1Cache) as exc:
+            typer.echo(str(exc), err=True)
+            raise typer.Exit(code=1)
+    return wrapper
+
+
 @app.command()
+@_with_cache_mismatch_exit
 def ingest(
     video: Path = typer.Option(..., exists=True, readable=True, resolve_path=True),
     output_root: Path = typer.Option(..., resolve_path=True, help="Per-video sha root sits inside this dir."),
@@ -73,42 +86,47 @@ def ingest(
 
 
 @app.command("classify-only")
+@_with_cache_mismatch_exit
 def classify_only(
     video: Path = typer.Option(..., exists=True, readable=True, resolve_path=True),
     output_root: Path = typer.Option(..., resolve_path=True),
     version: str = typer.Option("nhl26"),
     use_gpu: bool = typer.Option(True),
+    force_pass1: bool = typer.Option(False, help="Re-run Pass 1 even if segments.json cached."),
 ) -> None:
-    """Pass 1 only. Useful for iterating on classifier thresholds without
-    re-extracting PNGs."""
+    """Pass 1 only. Writes segments.json and never touches Pass 2 state.
+    Useful for iterating on classifier thresholds. Respects the Pass 1 cache;
+    pass --force-pass1 to invalidate."""
     res = run_ingest(
         video_path=video,
         output_root=output_root,
         version=version,
         use_gpu=use_gpu,
-        force_pass1=True,
-        force_pass2=False,
+        force_pass1=force_pass1,
+        skip_pass2=True,
     )
-    # Suppress Pass 2 by short-circuiting: re-running will fall through
-    # the cached-Pass2 path. For pure Pass-1 iteration, callers usually
-    # delete the pass2/ dir between runs.
     typer.echo(f"\nsegments.json at {res.sha_root / 'segments.json'}")
+    typer.echo(f"pass1: {len(res.pass1_segments)} segments ({res.elapsed_pass1:.1f}s)")
 
 
 @app.command("extract-only")
+@_with_cache_mismatch_exit
 def extract_only(
     video: Path = typer.Option(..., exists=True, readable=True, resolve_path=True),
     output_root: Path = typer.Option(..., resolve_path=True),
     version: str = typer.Option("nhl26"),
+    force_pass2: bool = typer.Option(False, help="Re-extract Pass 2 frames even if cached."),
 ) -> None:
-    """Pass 2 only (Pass 1 must have run; segments.json must be cached)."""
+    """Pass 2 only. Requires a valid cached segments.json — fails fast with
+    a clear remediation otherwise. Respects the Pass 2 cache; pass
+    --force-pass2 to re-extract."""
     res = run_ingest(
         video_path=video,
         output_root=output_root,
         version=version,
-        use_gpu=False,  # classifier doesn't run; skip GPU init
-        force_pass1=False,
-        force_pass2=True,
+        use_gpu=False,
+        skip_pass1=True,
+        force_pass2=force_pass2,
     )
     total_frames = sum(r.frame_count for r in res.pass2_results)
     typer.echo(f"\nextracted {total_frames} frames across {len(res.pass2_results)} segments")

@@ -17,6 +17,7 @@ bounds. A 1-frame segment covers `[t, t+1)` in source video time.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import subprocess
 import sys
@@ -31,6 +32,41 @@ from game_ocr.classifier import (
     Classifier,
     ClassifyResult,
 )
+from game_ocr.classifier import CONFIGS_DIR as _CLASSIFIER_CONFIGS_DIR
+
+
+VIDEO_INGEST_CONFIGS_DIR = Path(__file__).resolve().parent / "configs"
+
+
+class CacheMismatch(RuntimeError):
+    """Raised when a cached artifact's stored cache key disagrees with the
+    current config. The orchestrator catches this at the top level and emits
+    a structured remediation message before exiting."""
+
+
+class MissingPass1Cache(RuntimeError):
+    """Raised by `extract-only` (orchestrator with skip_pass1=True) when no
+    valid segments.json exists. Cannot proceed without a Pass 1 output."""
+
+
+def _sha256_of(data: bytes) -> str:
+    return "sha256:" + hashlib.sha256(data).hexdigest()
+
+
+def compute_pass1_cache_key(version: str) -> str:
+    """Hash of the orchestrator-side version YAML + the game_ocr classifier
+    YAML for that version. Captures everything that demonstrably changes
+    Pass 1 output."""
+    version_yaml = VIDEO_INGEST_CONFIGS_DIR / f"{version}.yaml"
+    classifier_yaml = _CLASSIFIER_CONFIGS_DIR / f"{version}.yaml"
+    blob = version_yaml.read_bytes() + b"\x00" + classifier_yaml.read_bytes()
+    return _sha256_of(blob)
+
+
+def compute_segments_hash(segments_json_path: Path) -> str:
+    """sha256 of segments.json on disk. Pass 2's manifest records this so
+    Pass 1 invalidation cascades."""
+    return _sha256_of(segments_json_path.read_bytes())
 
 
 @dataclass
@@ -237,8 +273,13 @@ def write_segments_json(
     video_sha256: str,
     video_path: Path,
     config: Pass1Config,
+    *,
+    version: str,
+    cache_key: str,
 ) -> None:
     payload = {
+        "version": version,
+        "pass1_cache_key": cache_key,
         "video_path": str(video_path),
         "video_sha256": video_sha256,
         "pass1_config": asdict(config),
@@ -249,8 +290,28 @@ def write_segments_json(
     out_path.write_text(json.dumps(payload, indent=2))
 
 
-def load_segments_json(path: Path) -> tuple[str, list[Segment]]:
-    """Load segments.json, return (video_sha256, segments)."""
+@dataclass
+class SegmentsJsonLoaded:
+    video_sha256: str
+    version: str | None
+    pass1_cache_key: str | None
+    segments: list[Segment]
+
+    @property
+    def is_legacy(self) -> bool:
+        """True if the file lacks the Issue-2 cache-key fields. Caller should
+        treat this the same as a missing file (cache miss, re-run Pass 1)."""
+        return self.version is None or self.pass1_cache_key is None
+
+
+def load_segments_json(path: Path) -> SegmentsJsonLoaded:
+    """Load segments.json. `version` and `pass1_cache_key` are None for
+    legacy files (pre-Issue 2) so callers can distinguish."""
     data = json.loads(path.read_text())
     segs = [Segment(**s) for s in data["segments"]]
-    return data["video_sha256"], segs
+    return SegmentsJsonLoaded(
+        video_sha256=data["video_sha256"],
+        version=data.get("version"),
+        pass1_cache_key=data.get("pass1_cache_key"),
+        segments=segs,
+    )
