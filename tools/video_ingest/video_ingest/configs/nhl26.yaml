@@ -29,6 +29,23 @@ pass1:
   # Minimum segment duration (in source-video seconds) to emit. Drops
   # micro-segments that are almost certainly classifier hiccups.
   min_segment_seconds: 3
+  # Per-screen overrides for screens the user briefly tabs through in the
+  # post-game flow. Loosened from the strict 3-second default so a 1-2 second
+  # post-game view still emits as a segment. The remaining screens
+  # (post_game_action_tracker, pre_game_lobby_state_2, post_game_player_summary,
+  # post_game_events) are dwelled-on for several seconds in normal play, so
+  # they keep the strict global thresholds to defend against classifier flicker
+  # during mid-gameplay frames.
+  min_segment_seconds_by_screen:
+    player_loadout_view: 1.0
+    post_game_box_score_goals: 1.0
+    post_game_faceoff_map: 1.0
+    post_game_net_chart: 1.0
+  min_run_to_open_by_screen:
+    player_loadout_view: 1
+    post_game_box_score_goals: 1
+    post_game_faceoff_map: 1
+    post_game_net_chart: 1
 
 pass2:
   window_padding_seconds: 1.0

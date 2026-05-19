@@ -155,11 +155,19 @@ def ingest(
 
     # 2. load version config
     vcfg = _load_version_config(version)
+    p1_raw = vcfg["pass1"]
     p1cfg = Pass1Config(
-        sample_fps=float(vcfg["pass1"]["sample_fps"]),
-        min_run_to_open=int(vcfg["pass1"]["min_run_to_open"]),
-        max_outliers_within=int(vcfg["pass1"]["max_outliers_within"]),
-        min_segment_seconds=float(vcfg["pass1"]["min_segment_seconds"]),
+        sample_fps=float(p1_raw["sample_fps"]),
+        min_run_to_open=int(p1_raw["min_run_to_open"]),
+        max_outliers_within=int(p1_raw["max_outliers_within"]),
+        min_segment_seconds=float(p1_raw["min_segment_seconds"]),
+        min_segment_seconds_by_screen={
+            str(k): float(v)
+            for k, v in (p1_raw.get("min_segment_seconds_by_screen") or {}).items()
+        },
+        min_run_to_open_by_screen={
+            str(k): int(v) for k, v in (p1_raw.get("min_run_to_open_by_screen") or {}).items()
+        },
     )
     p2cfg = Pass2Config(
         window_padding_seconds=float(vcfg["pass2"]["window_padding_seconds"]),

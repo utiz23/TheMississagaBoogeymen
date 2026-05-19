@@ -18,6 +18,7 @@ from pathlib import Path
 
 import typer
 
+from video_ingest.annotate import annotate as run_annotate
 from video_ingest.orchestrator import ingest as run_ingest
 from video_ingest.pass1_classify import CacheMismatch, MissingPass1Cache
 
@@ -130,6 +131,43 @@ def extract_only(
     )
     total_frames = sum(r.frame_count for r in res.pass2_results)
     typer.echo(f"\nextracted {total_frames} frames across {len(res.pass2_results)} segments")
+
+
+@app.command()
+def annotate(
+    segments_json: Path = typer.Option(..., exists=True, readable=True, resolve_path=True,
+        help="Path to segments.json from a prior Pass-1 run."),
+    video: Path = typer.Option(None, exists=False, resolve_path=True,
+        help="Source video. Defaults to segments.json's video_path field."),
+    match_id: int = typer.Option(None, help="Match ID to embed in saved PNG filenames."),
+    opp_slug: str = typer.Option("unknown", help="Opponent slug for the filename suffix."),
+    top_n: int = typer.Option(10, help="Cap on candidate frames presented to the operator (5-min budget)."),
+    extras_dir: Path = typer.Option(
+        Path("tools/game_ocr/calibration/extras"),
+        resolve_path=True,
+        help="Directory where labeled PNGs land (existing calibration corpus).",
+    ),
+    tmp_dir: Path = typer.Option(
+        Path("/tmp/annotate-segments"),
+        resolve_path=True,
+        help="Scratch dir for ffmpeg-extracted candidate PNGs.",
+    ),
+) -> None:
+    """Walk operator through top-N ambiguous frames (HSV-voted as a screen
+    type but anchor-gate-demoted to unknown_screen). For each, the operator
+    confirms classifier rejection, relabels with a single key, or skips.
+    Relabeled frames are saved into `extras_dir` using the canonical
+    `<class>__match<id>_t<seconds>_vs_<opp>.png` naming convention so the
+    next `calibrate_classifier` run picks them up."""
+    run_annotate(
+        segments_json=segments_json,
+        video=video,
+        match_id=match_id,
+        opp_slug=opp_slug,
+        top_n=top_n,
+        extras_dir=extras_dir,
+        tmp_dir=tmp_dir,
+    )
 
 
 if __name__ == "__main__":

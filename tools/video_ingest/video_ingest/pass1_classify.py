@@ -75,6 +75,11 @@ class Pass1Config:
     min_run_to_open: int = 3
     max_outliers_within: int = 1
     min_segment_seconds: float = 3.0
+    # Per-screen overrides for short, briefly-viewed post-game screens. When a
+    # screen type appears here, its threshold replaces the global default for
+    # that screen only. Mirrors the per-screen Pass-2 sample_rates pattern.
+    min_segment_seconds_by_screen: dict[str, float] = field(default_factory=dict)
+    min_run_to_open_by_screen: dict[str, int] = field(default_factory=dict)
 
 
 @dataclass
@@ -196,7 +201,10 @@ def build_segments(
         start = open_start
         end = last_match_idx
         seconds = (end - start + 1) * period
-        if seconds + 1e-6 < config.min_segment_seconds:
+        min_seconds_for_screen = config.min_segment_seconds_by_screen.get(
+            open_type, config.min_segment_seconds
+        )
+        if seconds + 1e-6 < min_seconds_for_screen:
             open_type = None
             open_start = None
             outliers_in_open = 0
@@ -223,13 +231,16 @@ def build_segments(
             if c.screen_type == UNKNOWN_SCREEN:
                 continue
             # Look ahead for a run of `min_run_to_open` same-type frames.
+            min_run = config.min_run_to_open_by_screen.get(
+                c.screen_type, config.min_run_to_open
+            )
             run = 1
-            for j in range(i + 1, min(i + config.min_run_to_open, n)):
+            for j in range(i + 1, min(i + min_run, n)):
                 if classifications[j].screen_type == c.screen_type:
                     run += 1
                 else:
                     break
-            if run >= config.min_run_to_open:
+            if run >= min_run:
                 open_type = c.screen_type
                 open_start = i
                 outliers_in_open = 0
@@ -249,13 +260,16 @@ def build_segments(
                     # (Easier: continue and let the next iteration handle it.)
                     # Since we just closed, re-try this frame as an opener.
                     if c.screen_type != UNKNOWN_SCREEN:
+                        min_run = config.min_run_to_open_by_screen.get(
+                            c.screen_type, config.min_run_to_open
+                        )
                         run = 1
-                        for j in range(i + 1, min(i + config.min_run_to_open, n)):
+                        for j in range(i + 1, min(i + min_run, n)):
                             if classifications[j].screen_type == c.screen_type:
                                 run += 1
                             else:
                                 break
-                        if run >= config.min_run_to_open:
+                        if run >= min_run:
                             open_type = c.screen_type
                             open_start = i
                             outliers_in_open = 0
