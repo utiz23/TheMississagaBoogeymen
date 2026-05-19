@@ -2,7 +2,9 @@
 
 ## Current Status
 
-**Phase:** **Redesign plan approved and Phase 0 of it shipped (2026-05-19 night). Plan at `.claude/plans/plan-a-thourough-fix-snappy-wave.md` rewrote the OCR-pipeline path forward after three rounds of critique — honest scope, dependencies first, instrumentation before architecture. Phase 0 scope audit doc at `docs/calibration/redesign-scope-2026-05-19.md` classifies every remaining failure mode into bucket A (recording gap) / B (cheap fix) / C (heavyweight justified) / D (needs instrumentation). Next up: Phase 1a — extend `apps/worker/src/__tests__/match-250-benchmark.test.ts` with `test()` blocks for events / per-period summaries / shot-types / faceoff dots / attributes asserted against the V2 ground truth (~8–10 hrs). No 4-round review cycle on Phase 1a (mechanical transcription); cycle re-runs before any Phase 3 heavyweight change.**
+**Phase:** **Four-round OCR-pipeline redesign research complete (2026-05-19); ground-up redesign plan drafted at `.claude/plans/plan-redesign-ocr-pipeline-2026-05-19.md`; awaiting user review before Phase 0 implementation. The earlier `plan-a-thourough-fix-snappy-wave.md` is superseded — it was a fix-shelf labelled as a redesign. The new plan synthesises Round 1 (internal codebase audit) + Round 2 (external internet survey) + Round 3 (GPT Deep Research literature review) + Round 4 (Codex synthesis) into a five-phase migration: (0) benchmark broadening + evidence schema; (1) HMM/Viterbi Pass-1 replacement with multi-signal emissions; (2) player-loadout-view evidence-layer MVR; (3) post-game stable screens through evidence layer; (4) in-game HUD branch; (5) decommission + Silver/Triage truth tooling. Effort range 330–650 hrs disciplined, 400–750 with full truth tooling. Round artifacts at `docs/calibration/redesign-round-{1,2,3,4}-*.md`.**
+
+**Pre-redesign-research phase (superseded):** **Redesign plan approved and Phase 0 of it shipped (2026-05-19 night). Plan at `.claude/plans/plan-a-thourough-fix-snappy-wave.md` rewrote the OCR-pipeline path forward after three rounds of critique — honest scope, dependencies first, instrumentation before architecture. Phase 0 scope audit doc at `docs/calibration/redesign-scope-2026-05-19.md` classifies every remaining failure mode into bucket A (recording gap) / B (cheap fix) / C (heavyweight justified) / D (needs instrumentation).**
 
 **Phase:** **OCR quality-loop foundations shipped (2026-05-19). Match-quality report CLI now grades any match against 3 layers (L1 classifier recall, L2 actor resolution + lineup fields, L3 downstream completeness). Phase 5a (identity resolution) + Phase 5c (penalty parser) closed major failure modes on match 463. Phase 6 CI gate locks in the wins. Phase 4a deep research in flight (user-submitted, awaiting return) — Phase 4b/c review prompts queued at `docs/calibration/review-prompts.md`. Phase 5b.2 (chevron matcher algorithm) deferred until reviews land.**
 
@@ -189,6 +191,69 @@ End state: **71 canonical rows, all 71 positioned = 100% coverage**, no manual i
 5. **Clock-phantom generalisations** (deferred) — period-bounds check (clock > 20:00 in p1-3 = impossible), OT-lower-bound (clock < game-end-clock impossible), unresolved-actor phantom detection. None of these classes currently have known instances; ship if/when a future match surfaces one.
 
 **Last updated:** 2026-05-19 (OCR quality-loop foundations + full Phase 4 review cycle + Phase 5 execution end-to-end). See session summary below.
+
+---
+
+## Session Summary — 2026-05-19 late-night (Four-round OCR redesign research + final plan drafted)
+
+### What was done
+
+The user caught a serious framing error: the earlier "redesign plan" at `.claude/plans/plan-a-thourough-fix-snappy-wave.md` had been produced without running the four-round research process the user originally requested (internal / external internet / external Codex / deep research). The earlier doc was a fix-shelf labelled as a redesign. Spent this session running the actual four-round cycle and synthesising the result into a new redesign plan.
+
+### Round artifacts (all committed to docs/calibration/)
+
+| Round | File | Source | Words | Headline |
+|---|---|---|---|---|
+| 1 — Internal | `redesign-round-1-internal-2026-05-19.md` | Plan agent against the codebase | ~9,000 | Field budget ~2,550/match; current pipeline attempts ~1,800; in-game HUD = 0 fields captured; box-score-shots/faceoffs unreachable from video ingest; six characterised architectural alternatives. |
+| 2 — External internet | `redesign-round-2-external-internet-2026-05-19.md` | General-purpose agent + WebSearch/WebFetch | ~5,300 | No public OCR-based EASHL tracker exists; community is API-anchored with 3-5 year half-life; VLMs unfit for primary OCR (Gemini 2.5 Pro tops out 73.7% on MME-VideoOCR; Claude Opus 4.7 has 0.09% CC-OCR hallucination — arbiter only); two-pass shape is consensus winner; the silence in the literature *is* the finding. |
+| 3 — Deep research | `redesign-round-3-deep-research-2026-05-19.md` | GPT Deep Research (user-submitted externally) | ~7,000 | Three-layer redesign: probe-and-segment + typed extraction + evidence-and-promotion. HMM/Viterbi over CRF (state space too small for CRF). Three-tier truth (Gold/Silver/Triage). Anchor-relative geometry. Calibrated abstention vs silent hallucination as first-class. |
+| 4 — Codex synthesis | `redesign-round-4-codex-synthesis-2026-05-19.md` | codex:codex-rescue agent | ~8,170 | Adjudicated three real disagreements (EA-API anchoring, V2 expansion vs weak supervision, classifier strategy). Five-stage architecture with explicit artifact contracts. 12 sections including migration plan + effort estimate. |
+
+### Adjudications (Round 4)
+
+- **EA-API anchoring**: Round 1 wins near-term (per-field authority for the ~400 EA-covered fields/match shrinks OCR target to ~1,200 fields); Round 2's posture wins long-term (OCR evidence retained for EA-covered fields so backfill is possible when API decommissions). Per-field authority, not per-pipeline.
+- **Match-250 V2 expansion**: Round 1 wins on the prerequisite (~300 executable assertions before architectural migration); Round 3 wins on the scaling system (Silver weak supervision + Triage active learning, not "key every match in full").
+- **L1 classifier**: Round 3 wins on segmenter (HMM/Viterbi); Round 1 wins on emissions (learned lightweight classifier among multiple signals, not raw HSV-cosine). HSV demoted to one weak emission feature.
+
+### Empirical verification done in-session
+
+Verified Round 1's load-bearing claims against the actual codebase. The 14/11/11/8 schema-vs-promoter-vs-parser-vs-classifier layer mismatch is real; FK column inconsistency (`source_extraction_id` vs `ocr_extraction_id`) confirmed at `packages/db/src/schema/player-loadout.ts:61`; dispatch passes `screen_type` verbatim so box-score-shots/faceoffs really are unreachable from video ingest. **One correction**: all three input rounds under-stated EA API coverage as "~half a dozen fields"; actual coverage is ~40 fields/player (~400 fields/match) per `packages/db/src/schema/player-match-stats.ts`. This strengthens the authority-model recommendation.
+
+### Final plan drafted
+
+`.claude/plans/plan-redesign-ocr-pipeline-2026-05-19.md` — five-phase migration absorbing Round 4's architecture:
+
+| Phase | Goal | Effort |
+|---|---|---|
+| 0 | Benchmark broadening (match-250 V2 → ~300 assertions) + evidence schema (3 new tables) | 40–70 hrs |
+| 1 | HMM/Viterbi Pass 1 with multi-signal emissions | 40–80 hrs |
+| 2 | Loadout-view evidence-layer MVR (proves architecture end-to-end) | 50–90 hrs |
+| 3 | Post-game stable screens through evidence layer (7 sub-families) | 80–150 hrs |
+| 4 | In-game HUD branch (clock + goal overlays, ~600 fields unimplemented today) | 40–80 hrs |
+| 5 | Silver/Triage truth tooling + decommission legacy components | 80–180 hrs |
+
+**Total**: 330–650 hrs disciplined; 400–750 with full truth tooling. At ~15 hrs/week sustained: ~22–50 weeks calendar.
+
+### Five open questions in the plan (need user resolution before Phase 0 ships)
+
+1. Match-250 V2 expansion target — agree on ~300 assertions?
+2. `source_extraction_id` permanent rename or keep dual-name?
+3. Classifier training data — use existing extras + annotate.py, or invest in labelling sprint up front?
+4. HUD branch scope — special-teams timer included in Phase 4?
+5. NHL 27 timing — recalibrate mid-migration or finish on NHL 26?
+
+### Decisions ratified for going forward
+
+- The four-round research cycle is reserved for *re-opening adjudicated architectural decisions*, not for every per-phase tactical choice. Cycle re-fires if a phase proves a prior adjudication wrong.
+- "Checkpoint every phase" is a standing rule. Each phase gets its own focused commit when complete.
+- HANDOFF updates at natural stopping points only.
+
+### Next steps
+
+1. User reviews the redesign plan at `.claude/plans/plan-redesign-ocr-pipeline-2026-05-19.md`.
+2. Resolve the five open questions.
+3. If approved, Phase 0 starts: extend `apps/worker/src/__tests__/match-250-benchmark.test.ts` and draft the evidence-layer migration.
+4. If redirected, identify which adjudication the redirect overturns and decide whether to re-fire the four-round cycle for that decision.
 
 ---
 
