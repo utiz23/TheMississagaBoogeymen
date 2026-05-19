@@ -21,12 +21,15 @@ import {
   ocrCaptureBatches,
   ocrExtractions,
   ocrExtractionFields,
+  ocrSegments,
   type NewOcrCaptureBatch,
   type NewOcrExtractionField,
+  type NewOcrSegment,
   type OcrCaptureKind,
   type OcrEntityType,
   type OcrFieldStatus,
   type OcrScreenType,
+  type OcrSegmentState,
 } from '@eanhl/db'
 import { eq, isNotNull } from 'drizzle-orm'
 import { runOcrCli, type OcrResult, type OcrExtractionField } from './ocr-cli-runner.js'
@@ -145,6 +148,24 @@ export async function ingestOcrBatch(input: IngestOcrBatchInput): Promise<Ingest
     `[ingest-ocr] batch ${String(batchId)} done. processed=${String(cli.results.length)} succeeded=${String(succeeded)} failed=${String(failed)}`,
   )
 
+  // Phase 0 evidence-layer adapter: emit one ocr_segments row per ingest batch.
+  // The legacy pipeline treats one CLI invocation = one screen-type segment;
+  // the HMM/Viterbi decoder in Phase 1 will replace this with multiple decoded
+  // segments per batch. Until then, this row makes "what screen did the system
+  // think it was looking at" a queryable fact instead of segments.json-on-disk.
+  try {
+    await writeSegmentForBatch({
+      matchId,
+      batchId,
+      screen: input.screen,
+      frameCount: cli.results.length,
+      results: cli.results,
+    })
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err)
+    console.warn(`[ingest-ocr] writeSegmentForBatch(${String(batchId)}) skipped: ${msg}`)
+  }
+
   // Roll the per-frame team-colour + home/away signal up to matches.* for
   // this match. Runs once per batch so all per-screen promoters have already
   // written their ocr_extraction_fields rows.
@@ -169,6 +190,62 @@ export async function ingestOcrBatch(input: IngestOcrBatchInput): Promise<Ingest
 async function sha256OfFile(path: string): Promise<string> {
   const data = await readFile(path)
   return createHash('sha256').update(data).digest('hex')
+}
+
+/**
+ * Phase 0 evidence-layer adapter. The legacy pipeline ingests one screen-type
+ * per CLI invocation, so each batch corresponds to exactly one logical segment
+ * for now. Phase 1's HMM/Viterbi decoder will replace this writer with the
+ * proper per-state segmentation.
+ */
+async function writeSegmentForBatch(input: {
+  matchId: number | null
+  batchId: number
+  screen: OcrScreenType
+  frameCount: number
+  results: ReadonlyArray<OcrResult>
+}): Promise<void> {
+  const confidences = input.results
+    .map((r) => r.meta.overall_confidence)
+    .filter((c): c is number => c !== null && Number.isFinite(c))
+  const avgConfidence = confidences.length
+    ? confidences.reduce((a, b) => a + b, 0) / confidences.length
+    : null
+
+  const segment: NewOcrSegment = {
+    matchId: input.matchId,
+    segmentKey: `batch-${String(input.batchId)}`,
+    // OcrScreenType is a subset of OcrSegmentState by construction (the new
+    // states `unknown_or_transition`, `loading_or_intro`, `end_of_video` don't
+    // appear in the legacy enum, so the cast is total here).
+    state: input.screen as unknown as OcrSegmentState,
+    tStartSec: null,
+    tEndSec: null,
+    frameCount: input.frameCount,
+    segmentConfidence: avgConfidence !== null ? avgConfidence.toFixed(4) : null,
+    observabilityStatus: input.frameCount > 0 ? 'observable' : 'not_observable_from_source',
+    uiVersion: 'nhl26',
+    // Tag legacy-emitted segments so Phase 1's HMM/Viterbi rows can be
+    // distinguished from this Phase-0 passthrough by a simple version filter.
+    decoderVersion: 'legacy-passthrough-v0',
+    captureBatchId: input.batchId,
+    notes: null,
+  }
+
+  await db
+    .insert(ocrSegments)
+    .values(segment)
+    .onConflictDoUpdate({
+      target: [ocrSegments.matchId, ocrSegments.segmentKey],
+      set: {
+        state: segment.state,
+        frameCount: segment.frameCount,
+        segmentConfidence: segment.segmentConfidence,
+        observabilityStatus: segment.observabilityStatus,
+        uiVersion: segment.uiVersion,
+        decoderVersion: segment.decoderVersion,
+      },
+    })
 }
 
 async function persistOneResult(
