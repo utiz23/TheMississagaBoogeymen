@@ -1,0 +1,317 @@
+
+> @eanhl/worker@0.0.1 match-quality /home/michal/projects/eanhl-team-website/apps/worker
+> node dist/match-quality-cli.js -- --match 463 --json
+
+{
+  "matchId": 463,
+  "match": {
+    "playedAt": "2026-05-12T00:43:34.000Z",
+    "opponentName": "Blurky Yoints",
+    "result": "WIN",
+    "scoreFor": 2,
+    "scoreAgainst": 0,
+    "bgmWasHome": true,
+    "bgmColorHex": "#d81818",
+    "oppColorHex": "#00f090"
+  },
+  "screens": [
+    {
+      "screenType": "player_loadout_view",
+      "frames": 402,
+      "ok": 402,
+      "err": 0,
+      "reviewed": 2,
+      "avgConf": 0.851,
+      "minConf": 0.352,
+      "maxConf": 0.999
+    },
+    {
+      "screenType": "post_game_action_tracker",
+      "frames": 590,
+      "ok": 590,
+      "err": 0,
+      "reviewed": 590,
+      "avgConf": 0.933,
+      "minConf": 0.886,
+      "maxConf": 0.998
+    },
+    {
+      "screenType": "post_game_box_score_goals",
+      "frames": 3,
+      "ok": 1,
+      "err": 2,
+      "reviewed": 1,
+      "avgConf": 0.867,
+      "minConf": 0.785,
+      "maxConf": 0.949
+    },
+    {
+      "screenType": "post_game_events",
+      "frames": 15,
+      "ok": 15,
+      "err": 0,
+      "reviewed": 12,
+      "avgConf": 0.893,
+      "minConf": 0.675,
+      "maxConf": 0.984
+    },
+    {
+      "screenType": "post_game_faceoff_map",
+      "frames": 7,
+      "ok": 2,
+      "err": 5,
+      "reviewed": 2,
+      "avgConf": 0.836,
+      "minConf": 0.532,
+      "maxConf": 1
+    },
+    {
+      "screenType": "post_game_net_chart",
+      "frames": 4,
+      "ok": 2,
+      "err": 2,
+      "reviewed": 2,
+      "avgConf": 0.878,
+      "minConf": 0.75,
+      "maxConf": 0.949
+    },
+    {
+      "screenType": "post_game_player_summary",
+      "frames": 46,
+      "ok": 46,
+      "err": 0,
+      "reviewed": 24,
+      "avgConf": 0.974,
+      "minConf": 0.891,
+      "maxConf": 0.998
+    },
+    {
+      "screenType": "pre_game_lobby_state_2",
+      "frames": 24,
+      "ok": 24,
+      "err": 0,
+      "reviewed": 24,
+      "avgConf": 0.921,
+      "minConf": 0.886,
+      "maxConf": 0.934
+    }
+  ],
+  "downstream": [
+    {
+      "table": "match_events",
+      "actual": 114,
+      "expected": 104,
+      "reviewed": 114,
+      "notes": "75 have x,y coords"
+    },
+    {
+      "table": "match_goal_events",
+      "actual": 2,
+      "expected": 2,
+      "reviewed": 2,
+      "notes": "EA score 2-0"
+    },
+    {
+      "table": "match_penalty_events",
+      "actual": 5,
+      "expected": 1,
+      "reviewed": 5,
+      "notes": "EA PIM for=4 against=6"
+    },
+    {
+      "table": "match_period_summaries",
+      "actual": 4,
+      "expected": 3,
+      "reviewed": 4,
+      "notes": "result=WIN"
+    },
+    {
+      "table": "match_shot_type_summaries",
+      "actual": 6,
+      "expected": 8,
+      "reviewed": 6,
+      "notes": "per-period BGM+opp + match totals"
+    },
+    {
+      "table": "match_faceoff_dots",
+      "actual": 18,
+      "expected": 9,
+      "reviewed": 18,
+      "notes": "one per zone"
+    },
+    {
+      "table": "match_faceoff_zone_summaries",
+      "actual": 4,
+      "expected": 3,
+      "reviewed": 4,
+      "notes": "one per neutral/o-zone/d-zone"
+    },
+    {
+      "table": "player_loadout_snapshots (reviewed)",
+      "actual": 10,
+      "expected": 10,
+      "reviewed": 10,
+      "notes": "consolidator anchors"
+    },
+    {
+      "table": "player_loadout_attributes",
+      "actual": 23,
+      "expected": 230,
+      "reviewed": 23,
+      "notes": "23 attrs × reviewed slots"
+    },
+    {
+      "table": "player_loadout_x_factors",
+      "actual": 3,
+      "expected": 30,
+      "reviewed": 3,
+      "notes": "3 x-factors × reviewed slots"
+    }
+  ],
+  "periods": [
+    {
+      "periodNumber": 1,
+      "periodLabel": "RT 1ST PERIOD",
+      "total": 33,
+      "goals": 1,
+      "shots": 14,
+      "hits": 10,
+      "faceoffs": 7,
+      "penalties": 1,
+      "plotted": 25,
+      "actorResolved": 15
+    },
+    {
+      "periodNumber": 2,
+      "periodLabel": "RT 2ND PERIOD",
+      "total": 38,
+      "goals": 0,
+      "shots": 15,
+      "hits": 12,
+      "faceoffs": 10,
+      "penalties": 1,
+      "plotted": 24,
+      "actorResolved": 18
+    },
+    {
+      "periodNumber": 3,
+      "periodLabel": "RT 3RD PERIOD",
+      "total": 43,
+      "goals": 1,
+      "shots": 15,
+      "hits": 11,
+      "faceoffs": 13,
+      "penalties": 3,
+      "plotted": 26,
+      "actorResolved": 16
+    }
+  ],
+  "provenance": {
+    "capturedAt": {
+      "earliest": "2026-05-18T23:16:43.625Z",
+      "latest": "2026-05-19T04:29:50.639Z"
+    },
+    "sources": [
+      {
+        "screenType": "player_loadout_view",
+        "snapshotCount": 402
+      },
+      {
+        "screenType": "pre_game_lobby_state_2",
+        "snapshotCount": 228
+      }
+    ],
+    "confidence": {
+      "canonical": 0.8,
+      "tiered": 1,
+      "attribute": 0.0054077438892494055
+    }
+  },
+  "flags": [
+    {
+      "classId": "A",
+      "severity": "warn",
+      "message": "4 duplicate event(s) across 4 (period, clock, type) bucket(s) — OCR-variant dedup failure",
+      "evidence": "P2 10:19 faceoff ×2, P2 10:29 shot ×2, P2 11:07 faceoff ×2, P3 5:40 faceoff ×2"
+    },
+    {
+      "classId": "C",
+      "severity": "fail",
+      "message": "7 event pair(s) share marker (x,y) within 1.0 hockey unit — chevron extractor collisions / cluster-radius too coarse",
+      "evidence": "P1 hit@3:24 (H. O'YOINTSKI) ≈ hit@16:06 (T. MY YOINNT) @(-1.85,21.68); P2 hit@6:13 (H. O'YOINTSKI) ≈ hit@16:13 (H. YOINT) @(80.20,-14.88); P2 shot@14:13 (H. JENKINS) ≈ shot@18:13 (H. JENKINS) @(-62.09,-30.94); P3 shot@0:00 (P. YOINT) ≈ shot@13:28 (T. MY YOINNT) @(-32.54,-20.52); P3 shot@4:01 (J. MINOGUE) ≈ shot@15:32 (C. BENSON) @(-84.41,1.67)"
+    }
+  ],
+  "pending": [
+    {
+      "screenType": "player_loadout_view",
+      "pending": 400,
+      "reviewed": 2,
+      "total": 402
+    },
+    {
+      "screenType": "post_game_action_tracker",
+      "pending": 0,
+      "reviewed": 590,
+      "total": 590
+    },
+    {
+      "screenType": "post_game_box_score_goals",
+      "pending": 2,
+      "reviewed": 1,
+      "total": 3
+    },
+    {
+      "screenType": "post_game_events",
+      "pending": 3,
+      "reviewed": 12,
+      "total": 15
+    },
+    {
+      "screenType": "post_game_faceoff_map",
+      "pending": 5,
+      "reviewed": 2,
+      "total": 7
+    },
+    {
+      "screenType": "post_game_net_chart",
+      "pending": 2,
+      "reviewed": 2,
+      "total": 4
+    },
+    {
+      "screenType": "post_game_player_summary",
+      "pending": 22,
+      "reviewed": 24,
+      "total": 46
+    },
+    {
+      "screenType": "pre_game_lobby_state_2",
+      "pending": 0,
+      "reviewed": 24,
+      "total": 24
+    }
+  ],
+  "layers": {
+    "l1": {
+      "score": null,
+      "pass": null,
+      "notes": "requires labeled fixture set (Phase 3 annotate-segments output)"
+    },
+    "l2": {
+      "score": 0.9183673469387755,
+      "pass": false,
+      "notes": "49/49 BGM-side events resolved; deducted 4 for dupes / wrong-roster hits",
+      "bgmEvents": 49,
+      "bgmResolved": 49,
+      "deductions": 4
+    },
+    "l3": {
+      "score": 0.8423076923076922,
+      "pass": false,
+      "notes": "gaps: match_shot_type_summaries=6/8, player_loadout_attributes=23/230, player_loadout_x_factors=3/30"
+    },
+    "overall": {
+      "pass": false
+    }
+  }
+}

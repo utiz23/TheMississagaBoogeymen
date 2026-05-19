@@ -1,0 +1,363 @@
+
+> @eanhl/worker@0.0.1 match-quality /home/michal/projects/eanhl-team-website/apps/worker
+> node dist/match-quality-cli.js -- --match 250 --json
+
+{
+  "matchId": 250,
+  "match": {
+    "playedAt": "2026-05-09T00:56:27.000Z",
+    "opponentName": "4th Line",
+    "result": "WIN",
+    "scoreFor": 4,
+    "scoreAgainst": 3,
+    "bgmWasHome": false,
+    "bgmColorHex": "#d80018",
+    "oppColorHex": "#000000"
+  },
+  "screens": [
+    {
+      "screenType": "player_loadout_view",
+      "frames": 47,
+      "ok": 47,
+      "err": 0,
+      "reviewed": 11,
+      "avgConf": 0.958,
+      "minConf": 0.82,
+      "maxConf": 0.99
+    },
+    {
+      "screenType": "post_game_action_tracker",
+      "frames": 269,
+      "ok": 269,
+      "err": 0,
+      "reviewed": 0,
+      "avgConf": 0.949,
+      "minConf": 0.502,
+      "maxConf": 0.995
+    },
+    {
+      "screenType": "post_game_box_score_faceoffs",
+      "frames": 1,
+      "ok": 1,
+      "err": 0,
+      "reviewed": 1,
+      "avgConf": 0.961,
+      "minConf": 0.961,
+      "maxConf": 0.961
+    },
+    {
+      "screenType": "post_game_box_score_goals",
+      "frames": 6,
+      "ok": 4,
+      "err": 2,
+      "reviewed": 1,
+      "avgConf": 0.895,
+      "minConf": 0.698,
+      "maxConf": 0.958
+    },
+    {
+      "screenType": "post_game_box_score_shots",
+      "frames": 1,
+      "ok": 1,
+      "err": 0,
+      "reviewed": 1,
+      "avgConf": 0.952,
+      "minConf": 0.952,
+      "maxConf": 0.952
+    },
+    {
+      "screenType": "post_game_events",
+      "frames": 8,
+      "ok": 8,
+      "err": 0,
+      "reviewed": 8,
+      "avgConf": 0.957,
+      "minConf": 0.955,
+      "maxConf": 0.959
+    },
+    {
+      "screenType": "post_game_faceoff_map",
+      "frames": 40,
+      "ok": 40,
+      "err": 0,
+      "reviewed": 0,
+      "avgConf": 0.952,
+      "minConf": 0.925,
+      "maxConf": 0.983
+    },
+    {
+      "screenType": "post_game_net_chart",
+      "frames": 25,
+      "ok": 24,
+      "err": 1,
+      "reviewed": 4,
+      "avgConf": 0.934,
+      "minConf": 0.823,
+      "maxConf": 0.952
+    },
+    {
+      "screenType": "post_game_player_summary",
+      "frames": 54,
+      "ok": 54,
+      "err": 0,
+      "reviewed": 0,
+      "avgConf": 0.944,
+      "minConf": 0.8,
+      "maxConf": 0.998
+    },
+    {
+      "screenType": "pre_game_lobby_state_2",
+      "frames": 100,
+      "ok": 100,
+      "err": 0,
+      "reviewed": 3,
+      "avgConf": 0.92,
+      "minConf": 0.62,
+      "maxConf": 0.976
+    }
+  ],
+  "downstream": [
+    {
+      "table": "match_events",
+      "actual": 101,
+      "expected": 123,
+      "reviewed": 101,
+      "notes": "79 have x,y coords"
+    },
+    {
+      "table": "match_goal_events",
+      "actual": 7,
+      "expected": 7,
+      "reviewed": 7,
+      "notes": "EA score 4-3"
+    },
+    {
+      "table": "match_penalty_events",
+      "actual": 0,
+      "expected": 0,
+      "reviewed": 0,
+      "notes": "EA PIM for=0 against=0"
+    },
+    {
+      "table": "match_period_summaries",
+      "actual": 4,
+      "expected": 3,
+      "reviewed": 4,
+      "notes": "result=WIN"
+    },
+    {
+      "table": "match_shot_type_summaries",
+      "actual": 10,
+      "expected": 8,
+      "reviewed": 0,
+      "notes": "per-period BGM+opp + match totals"
+    },
+    {
+      "table": "match_faceoff_dots",
+      "actual": 36,
+      "expected": 9,
+      "reviewed": 36,
+      "notes": "one per zone"
+    },
+    {
+      "table": "match_faceoff_zone_summaries",
+      "actual": 8,
+      "expected": 3,
+      "reviewed": 8,
+      "notes": "one per neutral/o-zone/d-zone"
+    },
+    {
+      "table": "player_loadout_snapshots (reviewed)",
+      "actual": 10,
+      "expected": 10,
+      "reviewed": 10,
+      "notes": "consolidator anchors"
+    },
+    {
+      "table": "player_loadout_attributes",
+      "actual": 230,
+      "expected": 230,
+      "reviewed": 230,
+      "notes": "23 attrs × reviewed slots"
+    },
+    {
+      "table": "player_loadout_x_factors",
+      "actual": 30,
+      "expected": 30,
+      "reviewed": 30,
+      "notes": "3 x-factors × reviewed slots"
+    }
+  ],
+  "periods": [
+    {
+      "periodNumber": 2,
+      "periodLabel": "RT 2ND PERIOD",
+      "total": 37,
+      "goals": 2,
+      "shots": 11,
+      "hits": 16,
+      "faceoffs": 8,
+      "penalties": 0,
+      "plotted": 29,
+      "actorResolved": 18
+    },
+    {
+      "periodNumber": 3,
+      "periodLabel": "RT 3RDPERIOD 11",
+      "total": 1,
+      "goals": 0,
+      "shots": 0,
+      "hits": 1,
+      "faceoffs": 0,
+      "penalties": 0,
+      "plotted": 1,
+      "actorResolved": 0
+    },
+    {
+      "periodNumber": 3,
+      "periodLabel": "RT 3RD PERIOD",
+      "total": 36,
+      "goals": 4,
+      "shots": 12,
+      "hits": 12,
+      "faceoffs": 8,
+      "penalties": 0,
+      "plotted": 28,
+      "actorResolved": 14
+    },
+    {
+      "periodNumber": 4,
+      "periodLabel": "RT OT",
+      "total": 27,
+      "goals": 1,
+      "shots": 13,
+      "hits": 7,
+      "faceoffs": 6,
+      "penalties": 0,
+      "plotted": 21,
+      "actorResolved": 16
+    }
+  ],
+  "provenance": {
+    "capturedAt": {
+      "earliest": "2026-05-12T21:11:02.280Z",
+      "latest": "2026-05-17T03:18:59.980Z"
+    },
+    "sources": [
+      {
+        "screenType": "pre_game_lobby_state_2",
+        "snapshotCount": 809
+      },
+      {
+        "screenType": "player_loadout_view",
+        "snapshotCount": 47
+      }
+    ],
+    "confidence": {
+      "canonical": 1,
+      "tiered": 1,
+      "attribute": 0.8822197055492639
+    }
+  },
+  "flags": [
+    {
+      "classId": "A",
+      "severity": "fail",
+      "message": "6 duplicate event(s) across 6 (period, clock, type) bucket(s) — OCR-variant dedup failure",
+      "evidence": "P2 10:52 shot ×2, P2 5:42 hit ×2, P3 2:09 hit ×2, P3 8:57 shot ×2, P4 17:07 shot ×2"
+    },
+    {
+      "classId": "B",
+      "severity": "warn",
+      "message": "2 BGM-side event(s) have actor_gamertag_snapshot but no actor_player_id — alias resolver missed"
+    },
+    {
+      "classId": "C",
+      "severity": "fail",
+      "message": "6 event(s) share marker (x,y) coordinates across 6 location(s) — chevron extractor collisions",
+      "evidence": "P4 (31.06,-10.17) ×2, P4 (32.03,-16.30) ×2, P4 (19.34,-38.72) ×2"
+    }
+  ],
+  "pending": [
+    {
+      "screenType": "player_loadout_view",
+      "pending": 36,
+      "reviewed": 11,
+      "total": 47
+    },
+    {
+      "screenType": "post_game_action_tracker",
+      "pending": 269,
+      "reviewed": 0,
+      "total": 269
+    },
+    {
+      "screenType": "post_game_box_score_faceoffs",
+      "pending": 0,
+      "reviewed": 1,
+      "total": 1
+    },
+    {
+      "screenType": "post_game_box_score_goals",
+      "pending": 5,
+      "reviewed": 1,
+      "total": 6
+    },
+    {
+      "screenType": "post_game_box_score_shots",
+      "pending": 0,
+      "reviewed": 1,
+      "total": 1
+    },
+    {
+      "screenType": "post_game_events",
+      "pending": 0,
+      "reviewed": 8,
+      "total": 8
+    },
+    {
+      "screenType": "post_game_faceoff_map",
+      "pending": 40,
+      "reviewed": 0,
+      "total": 40
+    },
+    {
+      "screenType": "post_game_net_chart",
+      "pending": 21,
+      "reviewed": 4,
+      "total": 25
+    },
+    {
+      "screenType": "post_game_player_summary",
+      "pending": 54,
+      "reviewed": 0,
+      "total": 54
+    },
+    {
+      "screenType": "pre_game_lobby_state_2",
+      "pending": 97,
+      "reviewed": 3,
+      "total": 100
+    }
+  ],
+  "layers": {
+    "l1": {
+      "score": null,
+      "pass": null,
+      "notes": "requires labeled fixture set (Phase 3 annotate-segments output)"
+    },
+    "l2": {
+      "score": 0.4158415841584158,
+      "pass": false,
+      "notes": "48/101 events with resolved actor; deducted 6 for dupes / wrong-target fuzzy hits"
+    },
+    "l3": {
+      "score": 1,
+      "pass": true,
+      "notes": "all gates met"
+    },
+    "overall": {
+      "pass": false
+    }
+  }
+}
