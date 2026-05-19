@@ -2034,6 +2034,20 @@ _EVENT_PENALTY_RE = re.compile(
     re.IGNORECASE,
 )
 
+# The actual NHL 26 on-screen format observed in match 463:
+#   "Interference [Minor] [05:43] J. Minogue"
+#   "Tripping [Minor] [02:10] M. Rantanen"
+# OCR sometimes mangles `]` (closing bracket) → `l` so "[Minor]" appears as
+# "[Minorl]" — tolerate trailing `l` inside the bracket span.
+_EVENT_PENALTY_BRACKETED_RE = re.compile(
+    rf"^\s*"
+    r"(?P<infraction>[A-Za-z][A-Za-z\s\-']*?)\s+"
+    r"[\[\(](?P<ptype>Minor|Major)l?[\]\)]?\s+"
+    rf"[\[\(](?P<clock>{_CLOCK_PATTERN})[\]\)]\s+"
+    r"(?P<player>.+?)\s*$",
+    re.IGNORECASE,
+)
+
 
 def _normalize_period_header(text: str) -> tuple[str, int] | None:
     """Match a period header line, tolerating common OCR corruptions.
@@ -2158,8 +2172,11 @@ def _parse_event_line(
             penalty_type=ExtractionField(status=FieldStatus.MISSING),
         )
 
-    # Penalty event.
-    m = _EVENT_PENALTY_RE.match(detail_text)
+    # Penalty event — try the bracketed NHL-26 format first, then fall back to
+    # the legacy clock-first pattern.
+    m = _EVENT_PENALTY_BRACKETED_RE.match(detail_text)
+    if not m:
+        m = _EVENT_PENALTY_RE.match(detail_text)
     if m:
         clock = m.group("clock")
         player = _strip_ornament(m.group("player"))
