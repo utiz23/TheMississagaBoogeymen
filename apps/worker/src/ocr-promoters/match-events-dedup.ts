@@ -30,9 +30,9 @@
  */
 
 import { matchEvents } from '@eanhl/db'
-import { and, eq, isNull } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import type { PromoterDb } from './index.js'
-import { levenshtein } from './resolve-identity.js'
+import { levenshtein, normalizeSnapshot } from './resolve-identity.js'
 
 export interface DedupKey {
   matchId: number
@@ -53,7 +53,8 @@ export async function findExistingMatchEvent(
   db: PromoterDb,
   key: DedupKey,
 ): Promise<number | null> {
-  // Strategy A — resolved-player path.
+  // Strategy A — resolved-player path. Exact match on actor_player_id within
+  // (match, period, type, source, clock).
   if (key.actorPlayerId !== null) {
     const rows = await db
       .select({ id: matchEvents.id })
@@ -69,11 +70,16 @@ export async function findExistingMatchEvent(
         ),
       )
       .limit(1)
-    return rows[0]?.id ?? null
+    if (rows[0]?.id) return rows[0].id
+    // Fall through to Strategy B: a prior insert may have happened before
+    // the alias table seeded this player (actor_player_id was null at the
+    // time but the OCR snapshot matches this event).
   }
 
-  // Strategy B — unresolved-actor fuzzy fallback.
-  // Load candidates in the same bucket with null actor_player_id; Levenshtein-1.
+  // Strategy B — fuzzy snapshot match against ALL same-bucket rows (resolved
+  // or unresolved). Whitespace + casing variants (e.g. "M. RANTANEN" vs
+  // "M.RANTANEN") collapse via normalizeSnapshot before Levenshtein. The
+  // 'unknown_screen' marker is handled by the caller.
   const candidates = await db
     .select({ id: matchEvents.id, snapshot: matchEvents.actorGamertagSnapshot })
     .from(matchEvents)
@@ -84,15 +90,16 @@ export async function findExistingMatchEvent(
         eq(matchEvents.eventType, key.eventType),
         eq(matchEvents.source, 'ocr'),
         eq(matchEvents.clock, key.clock),
-        isNull(matchEvents.actorPlayerId),
       ),
     )
 
-  const target = key.actorSnapshot.toLowerCase()
+  const target = normalizeSnapshot(key.actorSnapshot).toLowerCase()
+  if (!target) return null
   for (const c of candidates) {
-    const snap = (c.snapshot ?? '').toLowerCase()
+    const snap = normalizeSnapshot(c.snapshot ?? '').toLowerCase()
+    if (snap.length === 0) continue
     if (snap === target) return c.id
-    if (snap.length > 0 && levenshtein(snap, target, 1) <= 1) return c.id
+    if (levenshtein(snap, target, 1) <= 1) return c.id
   }
   return null
 }

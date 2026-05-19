@@ -357,6 +357,13 @@ async function main(): Promise<void> {
 
   // Step 3: per-group consensus.
   let canonicalCount = 0
+  const unresolvedPersonas: {
+    side: string
+    position: string
+    gamertag: string
+    raw: string
+  }[] = []
+  const unresolvedGamertags: { side: string; position: string; gamertag: string }[] = []
   for (const [key, group] of groups) {
     const anchor = pickAnchor(group)
     const merged = consensus(anchor, group)
@@ -382,6 +389,27 @@ async function main(): Promise<void> {
       } else if (personaResolved && personaResolved.canonical !== merged.playerNamePersona) {
         // 'raw' path still strips ornaments; reflect the cleaned value.
         merged.playerNamePersona = personaResolved.canonical
+      }
+      if (personaResolved && personaResolved.via === 'raw') {
+        unresolvedPersonas.push({
+          side: anchor.teamSide ?? '?',
+          position: anchor.position ?? '?',
+          gamertag: merged.gamertagSnapshot,
+          raw: personaResolved.canonical,
+        })
+      }
+      // Only flag unresolved gamertags on the BGM (for) side — opp gamertags
+      // live in opponent_player_match_stats and never get a players.id by design.
+      if (
+        resolved.playerId === null &&
+        merged.gamertagSnapshot &&
+        anchor.teamSide === 'for'
+      ) {
+        unresolvedGamertags.push({
+          side: anchor.teamSide,
+          position: anchor.position ?? '?',
+          gamertag: merged.gamertagSnapshot,
+        })
       }
       canonicalCount++
       console.log(
@@ -409,7 +437,48 @@ async function main(): Promise<void> {
   console.log(
     `[consolidate] ${canonicalCount} canonical row(s) ${args.dryRun ? 'would be' : ''} marked reviewed`,
   )
+
+  emitUnresolvedReport(unresolvedPersonas, unresolvedGamertags)
+
   await postgresSql.end()
+}
+
+function emitUnresolvedReport(
+  personas: { side: string; position: string; gamertag: string; raw: string }[],
+  gamertags: { side: string; position: string; gamertag: string }[],
+): void {
+  if (personas.length === 0 && gamertags.length === 0) return
+
+  const pad = (s: string, n: number): string => s.padEnd(n).slice(0, n)
+
+  if (personas.length > 0) {
+    console.log('')
+    console.log('--- UNRESOLVED PERSONAS (need player_persona_aliases seed) ---')
+    for (const p of personas) {
+      console.log(
+        `  ${pad(p.side, 7)} ${pad(p.position, 4)} ${pad(p.gamertag, 24)} → ${p.raw}`,
+      )
+    }
+    const mapPairs = personas
+      .map((p) => `${p.raw}=>${p.raw.toUpperCase().replace(/\./g, '. ').replace(/\s+/g, ' ').trim()}`)
+      .join(',')
+    console.log('Suggested:')
+    console.log(`  pnpm --filter worker promote-persona-alias --map "${mapPairs}"`)
+  }
+
+  if (gamertags.length > 0) {
+    console.log('')
+    console.log('--- UNRESOLVED GAMERTAGS (no players row) ---')
+    for (const g of gamertags) {
+      console.log(`  ${pad(g.side, 7)} ${pad(g.position, 4)} ${g.gamertag}`)
+    }
+    console.log('Suggested:')
+    for (const g of gamertags) {
+      console.log(
+        `  pnpm --filter worker create-player --gamertag "${g.gamertag}" --position ${g.position}`,
+      )
+    }
+  }
 }
 
 main().catch((err: unknown) => {

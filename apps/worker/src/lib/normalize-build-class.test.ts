@@ -13,6 +13,8 @@ const cases: Case[] = [
   { raw: 'Sniper', expected: 'Sniper' },
   { raw: 'Grinder', expected: 'Grinder' },
   { raw: 'Two-Way Forward', expected: 'Two-Way Forward' },
+  { raw: 'Two-Way Defenseman', expected: 'Two-Way Defenseman' },
+  { raw: 'TwoWayDefenseman', expected: 'Two-Way Defenseman' },
   { raw: 'Power Forward', expected: 'Power Forward' },
   { raw: 'Puck Moving Defenseman', expected: 'Puck Moving Defenseman' },
   { raw: 'Defensive Defenseman', expected: 'Defensive Defenseman' },
@@ -36,6 +38,12 @@ const cases: Case[] = [
   { raw: 'Cole Caufield-SNP', expected: 'Cole Caufield - Sniper' },
   { raw: 'TAGETHOMPSON-PWF', expected: 'Tage Thompson - Power Forward' },
   { raw: 'Mikko Rantanen-PWF', expected: 'Mikko Rantanen - Power Forward' },
+  // PLY suffix code (in-game shorthand for the Playmaker build) maps to
+  // Playmaker. The "Mcdavid" casing reflects titleCaseReferenceName's
+  // current first-letter-only rule; preserving internal capitals would
+  // require a separate name-cap rule beyond this fix's scope.
+  { raw: 'Connor McDavid-PLY', expected: 'Connor Mcdavid - Playmaker' },
+  { raw: 'ConnorMcDavid-PLY', expected: 'Connor Mc David - Playmaker' },
 
   // Capitalization quirks on the reference name.
   { raw: 'cole caufield - sniper', expected: 'Cole Caufield - Sniper' },

@@ -12,7 +12,7 @@
  *   - Casing varies between captures of the same player
  */
 
-/** The 8 canonical build names EA exposes through the loadout view. */
+/** Canonical build names EA exposes through the loadout view. */
 export const BUILD_CANONICAL_NAMES: readonly string[] = [
   'Playmaker',
   'Sniper',
@@ -22,6 +22,8 @@ export const BUILD_CANONICAL_NAMES: readonly string[] = [
   'Puck Moving Defenseman',
   'Defensive Defenseman',
   'Offensive Defenseman',
+  // Added in NHL 26 (observed on opp-side LD anchors). Suffix code TWD.
+  'Two-Way Defenseman',
 ]
 
 /**
@@ -35,8 +37,13 @@ const SUFFIX_CODE_TO_BUILD: ReadonlyMap<string, string> = new Map([
   ['DEF', 'Defensive Defenseman'],
   ['OFF', 'Offensive Defenseman'],
   ['TWF', 'Two-Way Forward'],
+  ['TWD', 'Two-Way Defenseman'],
   ['GRD', 'Grinder'],
   ['PMK', 'Playmaker'],
+  // PLY is the in-game shorthand the loadout view emits on reference-player
+  // cards backed by the Playmaker build (e.g. "Connor McDavid-PLY"). Treated
+  // as a synonym of PMK.
+  ['PLY', 'Playmaker'],
 ])
 
 /** Stripped (alphanumeric-only, uppercase) form to canonical build. */
