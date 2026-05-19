@@ -33,6 +33,8 @@ import {
   ocrCaptureBatches,
   ocrExtractions,
   matchEvents,
+  matchFaceoffDots,
+  matchFaceoffZoneSummaries,
   matchPeriodSummaries,
   matchShotTypeSummaries,
   playerLoadoutSnapshots,
@@ -53,6 +55,8 @@ interface CascadeCounts {
   periodSummaries: number
   shotTypeSummaries: number
   loadoutSnapshots: number
+  faceoffDots: number
+  faceoffZoneSummaries: number
 }
 
 async function setExtractionStatus(
@@ -60,7 +64,14 @@ async function setExtractionStatus(
   status: OcrReviewStatus,
 ): Promise<CascadeCounts> {
   if (extractionIds.length === 0) {
-    return { events: 0, periodSummaries: 0, shotTypeSummaries: 0, loadoutSnapshots: 0 }
+    return {
+      events: 0,
+      periodSummaries: 0,
+      shotTypeSummaries: 0,
+      loadoutSnapshots: 0,
+      faceoffDots: 0,
+      faceoffZoneSummaries: 0,
+    }
   }
 
   const counts: CascadeCounts = {
@@ -68,6 +79,8 @@ async function setExtractionStatus(
     periodSummaries: 0,
     shotTypeSummaries: 0,
     loadoutSnapshots: 0,
+    faceoffDots: 0,
+    faceoffZoneSummaries: 0,
   }
 
   // Use a single transaction so the extraction flip and all cascades commit together.
@@ -105,6 +118,20 @@ async function setExtractionStatus(
       .where(inArray(playerLoadoutSnapshots.sourceExtractionId, extractionIds))
       .returning({ id: playerLoadoutSnapshots.id })
     counts.loadoutSnapshots = loadoutRows.length
+
+    const faceoffDotRows = await tx
+      .update(matchFaceoffDots)
+      .set({ reviewStatus: status })
+      .where(inArray(matchFaceoffDots.ocrExtractionId, extractionIds))
+      .returning({ id: matchFaceoffDots.id })
+    counts.faceoffDots = faceoffDotRows.length
+
+    const faceoffZoneRows = await tx
+      .update(matchFaceoffZoneSummaries)
+      .set({ reviewStatus: status })
+      .where(inArray(matchFaceoffZoneSummaries.ocrExtractionId, extractionIds))
+      .returning({ id: matchFaceoffZoneSummaries.id })
+    counts.faceoffZoneSummaries = faceoffZoneRows.length
   })
 
   return counts
@@ -187,7 +214,7 @@ async function showStatus(): Promise<void> {
 
 function logCascade(prefix: string, counts: CascadeCounts): void {
   console.log(
-    `[review] ${prefix}: events=${String(counts.events)} period_summaries=${String(counts.periodSummaries)} shot_type_summaries=${String(counts.shotTypeSummaries)} loadout_snapshots=${String(counts.loadoutSnapshots)}`,
+    `[review] ${prefix}: events=${String(counts.events)} period_summaries=${String(counts.periodSummaries)} shot_type_summaries=${String(counts.shotTypeSummaries)} loadout_snapshots=${String(counts.loadoutSnapshots)} faceoff_dots=${String(counts.faceoffDots)} faceoff_zone_summaries=${String(counts.faceoffZoneSummaries)}`,
   )
 }
 

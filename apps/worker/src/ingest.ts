@@ -268,6 +268,7 @@ export async function persistTransform(result: TransformResult): Promise<void> {
           passCompletionsAgainst: result.match.passCompletionsAgainst ?? null,
           ppGoalsAgainst: result.match.ppGoalsAgainst ?? null,
           ppOpportunitiesAgainst: result.match.ppOpportunitiesAgainst ?? null,
+          bgmWasHome: result.match.bgmWasHome ?? null,
         },
       })
       .returning()

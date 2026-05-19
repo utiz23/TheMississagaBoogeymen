@@ -496,6 +496,17 @@ export function transformMatch(
     ([key, raw]) => transformOpponentPlayer(key, opponentClubId, raw),
   )
 
+  // EA convention on clubs[clubId].teamSide: "0" = home, "1" = away. Falls back
+  // to the first non-null teamSide on our players if the club-level field is
+  // missing (defensive — the field is reliably present in production payloads).
+  const clubTeamSide = parseIntMaybe(ourClub.teamSide)
+  const bgmTeamSide =
+    clubTeamSide !== null
+      ? clubTeamSide
+      : (players.find((p) => p.stats.teamSide !== null && p.stats.teamSide !== undefined)?.stats
+          .teamSide ?? null)
+  const bgmWasHome = bgmTeamSide === 0 ? true : bgmTeamSide === 1 ? false : null
+
   return {
     eaMatchId,
     match: {
@@ -508,6 +519,7 @@ export function transformMatch(
       result,
       scoreFor,
       scoreAgainst,
+      bgmWasHome,
       shotsFor,
       shotsAgainst,
       hitsFor,

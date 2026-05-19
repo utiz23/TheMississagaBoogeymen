@@ -17,7 +17,11 @@
     "ingest-ocr-review": "node dist/ingest-ocr-review-cli.js",
     "consolidate-loadouts": "node dist/consolidate-loadouts-cli.js",
     "repromote-ocr": "node dist/repromote-ocr-cli.js",
-    "backfill-xfactor-canonical": "node dist/backfill-xfactor-canonical-cli.js"
+    "backfill-xfactor-canonical": "node dist/backfill-xfactor-canonical-cli.js",
+    "create-player": "node dist/create-player-cli.js",
+    "promote-persona-alias": "node dist/promote-persona-alias-cli.js",
+    "match-quality": "node dist/match-quality-cli.js",
+    "match-rink-diff": "node dist/match-rink-diff-cli.js"
   },
   "dependencies": {
     "@eanhl/db": "workspace:*",

@@ -75,6 +75,7 @@ export async function aggregateMatchColors(
   let oppTeamAbbr: string | null = null
   let bgmColorHex: string | null = null
   let oppColorHex: string | null = null
+  let resolvedViaAbbr = false
 
   if (homeAbbr !== null || awayAbbr !== null) {
     try {
@@ -84,9 +85,27 @@ export async function aggregateMatchColors(
       oppTeamAbbr = sides.homeIs === 'for' ? awayAbbr : homeAbbr
       bgmColorHex = sides.homeIs === 'for' ? homeColor : awayColor
       oppColorHex = sides.homeIs === 'for' ? awayColor : homeColor
+      resolvedViaAbbr = true
     } catch {
-      // Resolution failed — leave BGM-perspective fields null; the page
-      // falls back to the design palette in that case.
+      // Resolution failed — fall through to the bgm_was_home fallback below.
+    }
+  }
+
+  // Fallback: when team-abbr OCR didn't fire (no net_chart / faceoff_map
+  // segments) OR resolveBgmSide threw, but we still have colour samples,
+  // bind colours using the authoritative matches.bgm_was_home flag the
+  // EA-ingest path wrote. Abbreviations stay null because nothing OCR'd
+  // them, but the colour rail still renders.
+  if (!resolvedViaAbbr && (homeColor !== null || awayColor !== null)) {
+    const [matchRow] = await dbConn
+      .select({ bgmWasHome: matches.bgmWasHome })
+      .from(matches)
+      .where(eq(matches.id, matchId))
+      .limit(1)
+    if (matchRow && matchRow.bgmWasHome !== null) {
+      bgmWasHome = matchRow.bgmWasHome
+      bgmColorHex = matchRow.bgmWasHome ? homeColor : awayColor
+      oppColorHex = matchRow.bgmWasHome ? awayColor : homeColor
     }
   }
 
