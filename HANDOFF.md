@@ -2,6 +2,12 @@
 
 ## Current Status
 
+**Phase:** **Redesign plan approved and Phase 0 of it shipped (2026-05-19 night). Plan at `.claude/plans/plan-a-thourough-fix-snappy-wave.md` rewrote the OCR-pipeline path forward after three rounds of critique — honest scope, dependencies first, instrumentation before architecture. Phase 0 scope audit doc at `docs/calibration/redesign-scope-2026-05-19.md` classifies every remaining failure mode into bucket A (recording gap) / B (cheap fix) / C (heavyweight justified) / D (needs instrumentation). Next up: Phase 1a — extend `apps/worker/src/__tests__/match-250-benchmark.test.ts` with `test()` blocks for events / per-period summaries / shot-types / faceoff dots / attributes asserted against the V2 ground truth (~8–10 hrs). No 4-round review cycle on Phase 1a (mechanical transcription); cycle re-runs before any Phase 3 heavyweight change.**
+
+**Phase:** **OCR quality-loop foundations shipped (2026-05-19). Match-quality report CLI now grades any match against 3 layers (L1 classifier recall, L2 actor resolution + lineup fields, L3 downstream completeness). Phase 5a (identity resolution) + Phase 5c (penalty parser) closed major failure modes on match 463. Phase 6 CI gate locks in the wins. Phase 4a deep research in flight (user-submitted, awaiting return) — Phase 4b/c review prompts queued at `docs/calibration/review-prompts.md`. Phase 5b.2 (chevron matcher algorithm) deferred until reviews land.**
+
+**2026-05-19 wins on match 463:** L2 actor resolution 14.3% → 91.8%, L3 downstream 68.8% → 84.2%, all 5 missing penalties recovered, Joey-Jenkins alias leak (11 events) cleared, dedupe normalization in place. Match 250 lineup-field accuracy 100% (40/40), actor resolution 97.9%.
+
 **Phase:** **Video → match_events pipeline shipped end-to-end (Phases 0-5 of the video rewrite plan).** A single command turns a 32-min `.mkv` into DB rows: probe → 1-fps coarse classify into segments → per-segment dense ffmpeg extraction → fan-out to existing ingest-ocr-cli per segment dir → existing 4-tier downstream finishes the job.
 
 **Verified on the canonical match-250 video** (32 min, 60 fps, 815 MB → 10 segments → 212 frames → 209 successful extractions → 94 match_events). Per-type breakdown identical to the canonical 93 events (7 goals, 31 shots, 35 hits) plus +1 faceoff. Total wall-clock: ~30 min on RTX 3060. Idempotent re-runs via `ocr_capture_batches.video_sha256` unique-when-not-null index.
@@ -182,7 +188,337 @@ End state: **71 canonical rows, all 71 positioned = 100% coverage**, no manual i
 4. **Overlap watershed** (~2 hr). Stacked markers at one on-ice spot. Not present in 250 but real games will have it.
 5. **Clock-phantom generalisations** (deferred) — period-bounds check (clock > 20:00 in p1-3 = impossible), OT-lower-bound (clock < game-end-clock impossible), unresolved-actor phantom detection. None of these classes currently have known instances; ship if/when a future match surfaces one.
 
-**Last updated:** 2026-05-18 evening (UI polish marathon — 12 commits closing the parked UI review list except item 7 (player level + prestige). Action-tracker Faceoffs view-mode toggle merged in; lineup expand-panel gained Expand/Compare with horizontal X-Factor tiles; opp-side fully mirrored end-to-end including expand panel, summary band, KV row, card glow, expand toggle, position badge, and PlayerInfo (platform → gamertag → persona order); event-timeline filters dropped; PlatformBadge icon-only; expand-mode border neutralized; matchup tag removed; platform SVGs flipped white-on-dark for contrast. Also: CUDA runtime fix landed (nvidia-package root resolution); match-2 ingest detached and dispatching post-game segments at time of write. See new session summary below.)
+**Last updated:** 2026-05-19 (OCR quality-loop foundations + full Phase 4 review cycle + Phase 5 execution end-to-end). See session summary below.
+
+---
+
+## Session Summary — 2026-05-19 night (Pipeline redesign plan approved + Phase 0 scope audit)
+
+### What was done
+
+After Phase 5 closed and the user manually QA'd `/games/463`, surfaced 34 individual issues across P1/P2/P3 (action tracker, missing markers, lineup gaps, builds). User asked whether to redesign the pipeline from the ground up. Spent the session producing an honest redesign plan (rejected twice, approved on the third try after 3 rounds of critique), then shipped Phase 0 of it.
+
+### The plan
+
+Approved at `.claude/plans/plan-a-thourough-fix-snappy-wave.md`. Three constraints drove the rewrite:
+
+1. **True scope.** DB migrations, worker code, UI cleanup, and Python OCR tooling are all in play — stop pretending it's a contained extraction-layer change.
+2. **Dependencies first.** Migrations land before code that writes new columns. Instrumentation lands before gates that depend on it.
+3. **Justify heavyweight changes against the cheapest alternative already in the repo.** No architecture pre-committed.
+
+Phases:
+
+| Phase | What | Estimated |
+|---|---|---|
+| 0 | Scope-audit doc (DONE) | ~2 hrs |
+| 1a | V2 correctness verifier (extend `match-250-benchmark.test.ts` with events/periods/shot-types/faceoffs/attributes) | ~8–10 hrs |
+| 1b | Per-screen → per-promoter-output attribution in `match-quality-cli.ts` (do NOT rename existing FK columns like `source_extraction_id`) | ~4 hrs |
+| 1c | Label-persistence in `annotate.py` + `eval_classifier_recall.py` corpus-level report (separate from per-match dashboard — L1 is not a per-match metric) | ~6 hrs |
+| 2 | Cheap-fix shelf (bucket-B items locked by Phase 0 doc; validation harnesses T1/T2/T3 — committed `node:test` cases, not ad-hoc SQL) | variable |
+| 3 | Heavyweight only if Phase 2 fails (multi-prototype classifier / event-first matcher / probabilistic Pass-1) | TBD |
+| 4 | Validation across T1 (V2 verifier) / T2 (363-specific committed tests) / T3 (UI page assertions) | — |
+
+### The 3 critique rounds
+
+Round 1 rejected wholesale. Six findings:
+1. Plan lied about scope ("preserve schema/promoters/UI" then proposed changes to all three).
+2. Milestone graph broken (M1 wrote a column whose migration was scheduled in M4).
+3. L1 acceptance gate not measurable (`match-quality-cli.ts:599` returns `null` with note "requires labeled fixture set").
+4. Phase 1 telemetry didn't exist (no per-screen → table attribution today).
+5. Success criteria stronger than the harness (correctness target on a completeness-only scorer).
+6. Premature architecture (`fuzzy_contains` is already fuzzy; per-screen segmenter overrides already shipped).
+
+Round 2 had 4 findings: validation matrix mixed 250 correctness with 463 fixes (→ split into T1/T2/T3); Phase 1b assumed uniform `ocr_extraction_id` (`player_loadout_snapshots` uses `source_extraction_id`); L1 conceptually wrong as per-match (→ corpus-level report instead); Phase 1a duplicates existing tooling (→ extend `match-250-benchmark.test.ts`, don't build a second truth system).
+
+Round 3 had 3 findings: Phase 1a over-promised reporter output (`node:test` is assertion-based, no auto-aggregation); Phase 1a estimate optimistic at ~4 hrs (→ widened to ~8–10); T2 allowed manual SQL spot-checks (→ require committed `node:test` cases).
+
+### Phase 0 deliverable
+
+`docs/calibration/redesign-scope-2026-05-19.md` (12 KB). Every remaining failure mode from match 463 classified into bucket A/B/C/D:
+
+- **Bucket A (recording-protocol structural)**: L01, L02, AT06, DS01 — not fixable without re-recording.
+- **Bucket B (cheap fix)**: L04 raw `build_class` UI bug; AT01 P2 11:07 faceoff dup; AT02 8:13 wrong target; AT03 6:01 wrong actor; AT08 P2 17:07 phantom faceoff; AT10 P3 2:09 dup; L05 EA-API platform-overlay gap.
+- **Bucket C (heavyweight justified)**: empty (no Phase 3 work pre-committed).
+- **Bucket D (needs Phase 1 instrumentation)**: L03, L05 (overlap), AT05, AT12 — re-classify after Phase 1 instrumentation lands.
+
+### Backlog checkpointed
+
+User asked for "checkpoint every phase". The dirty tree spanned 5 phases of uncommitted work (5a / 5c / 4a / 6 / Phase 0). Now committed as 5 focused commits (+ this HANDOFF update = 6 total). Stray `Asset 1.svg` and the unrelated `archetype-pill` UI work intentionally left out of the checkpoint.
+
+### Decision: review cycle on Phase 1a — no
+
+The four-round cycle (research → internal → external Codex → synthesis) is reserved for architectural decisions. Phase 1a is mechanical V2-to-typed-assertions transcription; reviewing it is review theatre. Cycle re-runs before any Phase 3 heavyweight change ships.
+
+### Next steps
+
+1. **Phase 1a.** Type out `ExpectedEvent[]` / `ExpectedPeriodSummary[]` / `ExpectedShotType[]` / `ExpectedFaceoffDot[]` / `ExpectedAttribute[]` from `research/OCR-SS/Manual OCR benchmark for verification V2.md` into new `test()` blocks in `apps/worker/src/__tests__/match-250-benchmark.test.ts`. Build + run `node --test apps/worker/dist/__tests__/match-250-benchmark.test.js` to capture baseline pass/fail. Plan that some assertions will be `test.skip(...)` initially where OCR drift is real — the V2 verifier is supposed to honestly *expose* defects, not paper over them.
+2. **Phase 1b.** Audit downstream-table FK columns under `packages/db/src/schema/*`; build `{ table → fk_column_name }` map; extend `match-quality-cli.ts` with a per-screen-to-table attribution section that uses the actual column name per table. Only migrate if a table genuinely lacks any FK to `ocr_extractions`.
+3. **Phase 1c.** Extend `annotate.py` to append rows to `tools/game_ocr/calibration/labels/frames_v1.csv` on every label decision. Build `tools/game_ocr/scripts/eval_classifier_recall.py` that loads the CSV and emits a corpus-level recall report.
+
+---
+
+## Session Summary — 2026-05-19 evening (Phase 4 reviews + Phase 5 synthesis-driven execution)
+
+### What was done
+
+Closed the full review loop on the calibration plan, then executed the *synthesis* of three perspectives (deep research / internal / external) rather than the research as-written. Phase 5 shipped four discrete steps; final per-match grades exceed the regression floor.
+
+### Phase 4 — three-perspective reviews
+
+**4a — Deep research** (user-submitted externally). 4-section literature-aligned recommendation set. Top-3 prioritised: (1) Hungarian event-first chevron matcher, (2) labeling/eval loop, (3) scored anchor gate + temporal prior. Saved to `docs/calibration/research-2026-05-19.md`.
+
+**4b — Internal review** (Claude `Plan` sub-agent against the actual codebase). Caught three structural mismatches the research missed:
+- Rec 1's Stage A is broken: `selected_event_index` (in Action Tracker capture) has no DB link to `match_event_id`; event-first seeding needs a schema/storage hop the research didn't surface.
+- Rec 3 misidentifies the root cause: the gate has implicit score via Levenshtein window; the real bottleneck is OCR recall on transient frames (1,228 of 1,230 false-color mid-gameplay frames have no anchor text at all). A calibrator on top of `fuzzy_contains` can't recover frames with no OCR output.
+- Q4 5-min/match budget is aspirational; needs explicit top-N cap.
+
+Saved to `docs/calibration/internal-review-2026-05-19.md`.
+
+**4c — External review** (Codex `codex:rescue` sub-agent, fresh-eyes anti-overengineering). Pushed back harder:
+- Hungarian assignment + DVC + frozen splits + per-class CI gates are pipeline engineering for a volume system. At 30 matches/season + 1 author, the bar is "does this save manual cleanup *this week*?" Most proposed machinery doesn't.
+- Research walked past the simplest path: lean on EA-API as authoritative, treat OCR as decorative enrichment.
+- 5-min budget is fantasy; even 10-min optimistic once selection/manifest overhead is counted.
+- Six collisions on one match isn't a season-wide problem unless the page renders an error a human notices — empirical-first.
+
+Saved to `docs/calibration/external-review-2026-05-19.md`.
+
+### Phase 5 — synthesis plan + four-step execution
+
+**Synthesis** at `docs/calibration/phase-5-plan-2026-05-19.md`. Pivotal decision: empirical-first on whether Class C collisions corrupt the visible page. If yes, cheap mitigation. If no, defer matcher rewrite. The other recommendations (multi-prototype, scored gate, labels manifest) all deferred — none move the needle at current volume.
+
+**Step A — Empirical Class C check + cheap mitigation** (no code)
+- 6 collision pairs on match 463 inspected. 5 are real defects (different players/clocks at same coord); 1 is a legitimate "SILKY shoots twice from same spot 38s apart."
+- Honest mitigation: nulled `(x, y, position_confidence)` on the 10 events in the 5 defective pairs (events still appear in chronological list; just no rink marker).
+- Result: Class C dropped 6 → 1 on match 463. Phase 5b.2 (Hungarian matcher rewrite) **formally deferred** — cheap mitigation cleared the user-visible defect.
+
+**Step B — Minimal `annotate-segments` CLI v0**
+- New `tools/video_ingest/video_ingest/annotate.py` + `annotate` subcommand in `cli.py`.
+- Single sampling criterion: top-N frames where HSV vote was a screen but anchor gate demoted to `unknown_screen` and `color_score >= 0.7`.
+- Per frame: ffmpeg PNG extract → `xdg-open` viewer → single-key prompt → labeled PNG into existing `tools/game_ocr/calibration/extras/<class>__match<id>_t<seconds>_vs_<opp>.png` convention.
+- No labels manifest, no DVC, no eval split — adopt those only if corpus growth proves the need.
+- Usage: `PYTHONPATH=tools/video_ingest:tools/game_ocr python3 -m video_ingest.cli annotate --segments-json <path> --match-id <n> --opp-slug <slug>`
+
+**Step C — Class A heavy-variant cleanup**
+- SQL Levenshtein-2 dedup scoped to `team_side='against'` only (opp-side has no actor_player_id resolution consequence; BGM-side preserved untouched).
+- 3 rows deleted. Class A on match 463 dropped 4 → 1. **L2 actor on 463: 91.8% → 98.0%** (+6.2pp).
+
+**Step D — Regression floor re-baselined**
+- `docs/calibration/regression-floor-match-{250,463}.json` overwritten with current state.
+- Phase 6 CI test passes against new higher floor (52/52 worker tests green).
+
+### Final per-match grades after Phase 5
+
+| Match | L2 actor (baseline → now) | L2 lineup | L3 downstream (baseline → now) | Flags |
+|---|---:|---:|---:|---|
+| 250 | 41.6% → **97.9%** | **100%** | 100% → 100% | A(1), C(3) — all WARN |
+| 463 | 14.3% → **98.0%** | **95%** | 68.8% → **84.2%** | A(1), C(1) — all WARN |
+
+No FAIL flags on either match. All remaining flags are operator-awareness WARNs (heavy-variant OCR residuals + the SILKY/SILKY legitimate same-spot repeat).
+
+### Deferred items with explicit revisit triggers
+
+| Deferred | Revisit trigger |
+|---|---|
+| Phase 5b.2 — Hungarian matcher rewrite | 5+ unattended matches with recurring Class C user-visible defects |
+| Q3 — Multi-prototype classifier | Corpus growth (5+ matches) OR NHL 27 launch |
+| Q2 — Scored anchor gate | Re-research after a labeled fixture set exists (Phase 3 v1+) |
+| Phase 0 — Loadout-attr recovery | After Q3 unlocks classifier corpus growth |
+| 1 residual Class A dupe | If volume reveals it as a pattern |
+| L3 99% on match 463 | Impossible — recording-window gap (P3 net_chart never viewed, only 1/10 loadout slots fully extracted) |
+
+### Files shipped this Phase 4+5 session
+
+| File | Purpose |
+|---|---|
+| `docs/calibration/research-2026-05-19.md` | Deep research output (4 sections + top-3 recs) |
+| `docs/calibration/internal-review-2026-05-19.md` | Insider critique (3 structural mismatches caught) |
+| `docs/calibration/external-review-2026-05-19.md` | Codex anti-overengineering critique |
+| `docs/calibration/phase-5-plan-2026-05-19.md` | Three-perspective synthesis with decisions per Q1–Q4 |
+| `tools/video_ingest/video_ingest/annotate.py` | Step B minimal annotate CLI |
+| `tools/video_ingest/video_ingest/cli.py` | `annotate` subcommand wired |
+| `docs/calibration/regression-floor-match-{250,463}.json` | Step D updated floors |
+
+### Database changes this Phase 5
+
+- 10 match_events rows on 463 had `(x, y, position_confidence)` nulled (5 collision pairs × 2 events).
+- 3 opp-side heavy-variant duplicate rows deleted via Levenshtein-2 SQL pass.
+
+### Decisions of record (so next session doesn't relitigate)
+
+1. **Empirical-first on user-visible defects.** Architectural rewrites stay deferred until a defect is observable on the rendered page; report flags alone are not enough.
+2. **EA-API is authoritative.** OCR is decorative enrichment. Don't engineer the OCR stack to match EA-API ground truth; flag mismatches and move on.
+3. **No labels manifest yet.** Append-only PNGs in `calibration/extras/` is enough until 5+ matches exist. Skip DVC and eval-split infrastructure.
+4. **One residual per failure class is acceptable.** Class A=1, Class C=1, both WARN. Operator-awareness signal only.
+
+---
+
+## Session Summary — 2026-05-19 (OCR quality-loop foundations — Phases 1, 2, 5a, 5c, 6)
+
+### What was done
+
+Stood up the calibration / measurement / regression-gate infrastructure that turns "drop a .mkv and walk away" into a workflow where every match self-grades against a written-down 98% bar. Closed the two highest-impact OCR failure modes match 463 surfaced during manual review.
+
+**Plan locked at:** `/home/michal/.claude/plans/plan-a-thourough-fix-snappy-wave.md` ("Automated OCR-ingest calibration loop"). User-approved choices: per-screen Pass-1 thresholds, pure-query report (no new tables), terminal `annotate-segments` CLI for fixture growth, review order **deep research → internal → external**.
+
+### Phase 1 — Match-quality report CLI (`apps/worker/src/match-quality-cli.ts`)
+
+`pnpm --filter worker match-quality --match <id> [--json]` produces a grade card for any match. Sections:
+
+1. Per-screen OCR extractions (frames / ok / err / reviewed / avg conf / min-max)
+2. Downstream rows vs expected — per `match_events`, `match_goal_events`, `match_period_summaries`, `match_shot_type_summaries`, `match_faceoff_dots`/zones, `player_loadout_snapshots` (reviewed), `player_loadout_attributes`, `player_loadout_x_factors`. Expected counts derived from EA payload (goals = score_for + score_against; periods = 3 + OT; etc.)
+3. Per-period Action Tracker breakdown
+4. Lineup provenance (Canonical / Tiered / Attribute %) — reuses `getMatchLineupProvenance` at `packages/db/src/queries/match-lineups.ts:527-600`
+5. Quality flags — classes A (dedup), B (BGM-unresolved), C (marker collision within 1.0 hockey unit), D (penalty extraction), G (off-roster alias leak)
+6. Pending-review queue
+7. **Layer scores**: L1 (n/a until Phase 3 fixtures), L2 actor resolution, L2 lineup fields, L3 downstream — pass/fail vs 99% bar
+
+Pure-query design — no new tables. Reuses existing `@eanhl/db/queries` helpers.
+
+### Phase 5a — Identity resolution overhaul
+
+Root causes addressed:
+
+1. **Joey/Jenkins alias leak**: `player_display_aliases` had three swapped/wrong rows from a prior manual seed:
+   - Row 5: `L. HUTSON → HenryTheBobJr` (should → JoeyFlopfish)
+   - Row 6: `H. JENKINS → JoeyFlopfish` (should → HenryTheBobJr)
+   - Row 7: `J. WAGNER → HenryTheBobJr` (opp goalie persona; should not exist as BGM alias). Deleted.
+   - Same swap also present in `player_persona_aliases` (rows 7–10) — fixed for data integrity even though resolver doesn't use that table.
+   - Backfilled `actor_player_id` / `target_player_id` on 26 affected match_events rows on match 463 and 5 on match 250.
+
+2. **C. Benson team_side='against' bug**: `C. BENSON` and `Y. LAFALLO` personas existed in `player_persona_aliases` but were never in `player_display_aliases`. Action-tracker actor resolver only uses display aliases. Seeded both via `ingest-ocr-resolve --map "C. BENSON=>12,Y. LAFALLO=>29"` (20 events updated). Then SQL-backfilled `team_side` from `actor_player_id` (95 + 69 rows across both matches).
+
+3. **AT dedup OCR-variant collapse**: `apps/worker/src/ocr-promoters/match-events-dedup.ts` — `findExistingMatchEvent` now (a) falls through Strategy A to Strategy B when no exact actor_player_id match, (b) Strategy B runs against ALL same-bucket rows (not just null-player ones), (c) normalizes snapshots via `normalizeSnapshot()` before Levenshtein. Catches `"M. RANTANEN"` ≡ `"M.RANTANEN"` going forward.
+
+4. **One-time dedup cleanup**: Levenshtein-1 SQL pass using `fuzzystrmatch` extension (newly enabled) collapsed 17 stale duplicate match_event rows on 250+463.
+
+5. **L2 metric corrected**: previous formula `resolvedActors / totalEvents` penalized opp-side events (by design unresolvable). New formula: `(bgmResolved - deductions) / bgmEvents` — measures what's measurable.
+
+### Phase 5c — Penalty parser rebuild
+
+`tools/game_ocr/game_ocr/parsers.py` — added `_EVENT_PENALTY_BRACKETED_RE` for NHL 26's actual on-screen format `<infraction> [<Minor|Major>] [<clock>] <player>` (the existing regex matched the legacy format `<clock> <player> <infraction> Minor|Major`). Tolerates OCR variant `[Minorl]` for `[Minor]`. All 5 missing penalties on match 463 recovered exactly as user manual QA reported:
+
+- P1 14:17 — J. Minogue, Interference
+- P2 17:50 — M. Rantanen, Tripping
+- P3 0:06 — H. O'Yointski, Interference
+- P3 2:23 — C. Benson, Interference
+- P3 16:51 — H. O'Yointski, Tripping
+
+Match-quality CLI Class D check (`EA payload PIM > 0 + 0 penalty rows`) now passes for match 463.
+
+### Phase 5b.1 — Class C detection (collision) fix in report
+
+Initial check used exact (x,y) equality; missed the actual collisions which differ by 0.01–0.06 hockey units. Rewrote as a self-join with `ABS(Δx) <= 1.0 AND ABS(Δy) <= 1.0`. Now correctly surfaces 6 collision pairs on match 463 (3 of which exactly match user QA findings — P2 14:13↔18:13, P3 6:30↔10:32, P3 17:14↔17:52).
+
+### Phase 5b.2 — Matcher algorithm redesign (DEFERRED — failed naive attempt)
+
+`tools/game_ocr/scripts/inventory_consensus_match.py` — added a hockey-space post-clustering merge step (threshold 1.5 hockey units). Result: collision count went 7 → 6 but pairs *shifted around* rather than cleared. Reverted. The fundamental issue is the matcher conflates spatially-close-but-temporally-distinct events; needs **clock-aware clustering** or **event-first matching** (use `selected_event_index` per frame). Deferred to post-review.
+
+### Phase 2 — Baseline doc
+
+`docs/calibration/baseline-2026-05-19.md` — formal "current state" artifact for review consumption. Contains: layer scores baseline vs current, L1 interim proxy from `frame_classifications` (color_class vs final screen_type), L2 spot-check against `research/OCR-SS/Manual OCR benchmark for verification V2.md` (26/30 lineup fields exact on match 250), top-10 ranked failure modes with class tags + status, 4 architectural questions open for review.
+
+### Phase 1 extensions (this session)
+
+- **L2.5 lineup-field accuracy**: separate sub-score for the static lineup screen (gamertag + persona + position + build_class_canonical populated per slot). Match 250: 100% (40/40). Match 463: 95% (38/40 — the 2 missing are the OCR-garbage `build_class_canonical` slots).
+- **`match-rink-diff` CLI** (`apps/worker/src/match-rink-diff-cli.ts`): ASCII rink rendering with `#` glyphs on Class C-collision events. Output saved to `docs/calibration/rink-diff-match-{250,463}.txt` as review attachment.
+
+### Phase 6 — CI regression gate
+
+`apps/worker/src/__tests__/match-quality-regression.test.ts` — spawns the `match-quality --json` CLI for matches 250 and 463, parses the result, asserts each layer score is at or above the floor captured in `docs/calibration/regression-floor-match-{id}.json`. 0.5pp tolerance for cosmetic drift. Any future change that drops a layer below its floor will fail this test. Worker suite now 52/52 passing (50 existing + 2 new).
+
+### Phase 0 — DEFERRED (loadout-attribute coverage)
+
+Two attempts failed:
+1. Pre-game window densification (25-55s, 5 fps, 150 frames at `/tmp/match-463-loadout-recovery/pregame`): captured 0 useful loadout frames — that window was the lobby/skating intro.
+2. Post-game window densification (1555-1680s, 2 fps, 249 frames at `/tmp/match-463-loadout-recovery/postgame`): captured `"END OF GAME"` cinematic screen, not loadout cards.
+
+Conclusion: the user's loadout-card navigation in match 463 happens too briefly + the classifier's anchor-text gate rejects most of those frames. 1,230 frames had `color_class=player_loadout_view` on match 463 (vs 2 accepted). Fix needs Phase 3 (annotate-segments labeled fixtures) + Phase 5 classifier recalibration. Out of scope until reviews land.
+
+### Phase 4a — Deep research IN FLIGHT (user-submitted externally)
+
+Refined prompt produced this session, anchored in the Phase 2 numbers + 4 architectural questions:
+
+1. Chevron-to-event matching algorithm (clock-aware clustering vs event-first matching)
+2. Anchor-text gate calibration for two-stage screen classifiers
+3. Single-centroid vs multi-prototype classifier for visually multimodal classes
+4. Operator-confirmed labeling protocols for fixture-corpus growth
+
+When the research returns, save to `docs/calibration/research-2026-05-19.md` and fire Phase 4b (internal review via Claude sub-agent) using the prompt at `docs/calibration/review-prompts.md`.
+
+### Acceptance / metrics shipped this session
+
+| Match | L2 actor (baseline → now) | L2 lineup (new) | L3 downstream (baseline → now) | Worker tests |
+|---|---:|---:|---:|---:|
+| 250 | 41.6% → 97.9% | 100% | 100% → 100% | 52/52 |
+| 463 | 14.3% → 91.8% | 95% | 68.8% → 84.2% | 52/52 |
+
+### Files added this session
+
+| File | Purpose |
+|---|---|
+| `apps/worker/src/match-quality-cli.ts` | Phase 1 quality-grade report |
+| `apps/worker/src/match-rink-diff-cli.ts` | ASCII rink visualisation w/ collision flags |
+| `apps/worker/src/__tests__/match-quality-regression.test.ts` | Phase 6 CI gate |
+| `docs/calibration/baseline-2026-05-19.md` | Phase 2 baseline doc |
+| `docs/calibration/review-prompts.md` | Phase 4b/c review prompts queued |
+| `docs/calibration/rink-diff-match-{250,463}.txt` | Visual review attachments |
+| `docs/calibration/baseline-match-{250,463}.json` | Pre-Phase-5 snapshots |
+| `docs/calibration/after-phase-{5ac,5abc,2}-match-{250,463}.json` | Stage snapshots |
+| `docs/calibration/regression-floor-match-{250,463}.json` | CI gate floors |
+
+### Files modified this session
+
+| File | Why |
+|---|---|
+| `apps/worker/src/ocr-promoters/match-events-dedup.ts` | Normalize-before-Levenshtein + Strategy A fall-through |
+| `apps/worker/src/ingest-ocr-review-cli.ts` | Cascade extended to faceoff_dots/zones (earlier in day) |
+| `apps/worker/package.json` | `match-quality`, `match-rink-diff` scripts |
+| `tools/game_ocr/game_ocr/parsers.py` | `_EVENT_PENALTY_BRACKETED_RE` for NHL 26 format |
+| `docs/calibration/` (whole dir) | New |
+
+### Database changes
+
+- `player_display_aliases` — rows 5,6 corrected (swap), row 7 deleted (J. WAGNER spurious)
+- `player_persona_aliases` — rows 7-10 swap corrected, BGM player_ids for match 463 personas set
+- `match_events` — actor_player_id/target_player_id/team_side backfilled across 250+463; 17 duplicate rows deleted via Levenshtein-1 SQL pass
+- `match_penalty_events` — 5 new rows for match 463
+- New `player_display_aliases`: C. BENSON → 12, Y. LAFALLO → 29 (match-463 BGM personas)
+- `fuzzystrmatch` Postgres extension enabled (for the dedup SQL)
+
+### Phase status table
+
+| Phase | Status |
+|---|---|
+| 0 (loadout-attr recovery) | Deferred — video-content gap, needs Phase 3 + classifier recal |
+| 1 (match-quality CLI) | Done |
+| 2 (baseline doc) | Done |
+| 3 (annotate-segments CLI) | Deferred until reviews land |
+| 4a (deep research) | In flight (user submitted externally) |
+| 4b (internal review) | Queued — prompt at `docs/calibration/review-prompts.md` |
+| 4c (external review) | Queued |
+| 5a (identity resolution) | Done |
+| 5b.1 (Class C detection) | Done |
+| 5b.2 (matcher algorithm) | Deferred — needs reviews |
+| 5c (penalty parser) | Done |
+| 5 cleanup (Class A heavy variants) | Pending — 4 residuals on 463 |
+| 6 (CI gate) | Done |
+
+### Known non-actionable structural gaps on match 463
+
+- `match_shot_type_summaries=6/8` — net-chart screen showed P1/P2/totals but never P3 during recording (only 2 frames captured; 2 had unreadable period_label). 2 missing rows = P3 against + P3 for. Not closable.
+- `player_loadout_attributes=23/230` — only 1 of 10 slots has full attribute breakdown (HenryTheBobJr's LD). Same recording-window issue. Not closable.
+- `player_loadout_x_factors=3/30` — same root cause as above.
+
+These caps are why match 463's L3 sits at 84.2% structurally and can't reach 99% without rerecording (impossible per user).
+
+### Next steps
+
+When deep research returns:
+1. Save to `docs/calibration/research-2026-05-19.md`.
+2. Fire Phase 4b internal review using the queued prompt — output to `docs/calibration/internal-review-2026-05-19.md`.
+3. Fire Phase 4c external review — output to `docs/calibration/external-review-2026-05-19.md`.
+4. Synthesise into Phase 5 plan at `docs/calibration/phase-5-plan-2026-05-19.md`.
+5. Execute prioritised Phase 5b.2 / Phase 0 / Phase 3 work per the synthesis.
 
 ---
 
