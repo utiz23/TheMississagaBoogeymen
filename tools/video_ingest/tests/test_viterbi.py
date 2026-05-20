@@ -92,3 +92,24 @@ class TestViterbiDecode(unittest.TestCase):
         log_init = np.zeros(3)
         path = viterbi_decode(log_emit, log_trans, log_init)
         self.assertEqual(path.tolist(), [])
+
+    def test_log_init_shape_mismatch_raises(self):
+        log_emit = np.zeros((2, 3))
+        log_trans = np.zeros((3, 3))
+        log_init = np.zeros(4)  # wrong N=4 vs 3
+        with self.assertRaises(ValueError):
+            viterbi_decode(log_emit, log_trans, log_init)
+
+    def test_nan_in_emissions_raises(self):
+        log_emit = np.array([[0.0, float("nan")], [-1.0, -2.0]])
+        log_trans = np.zeros((2, 2))
+        log_init = np.zeros(2)
+        with self.assertRaises(ValueError):
+            viterbi_decode(log_emit, log_trans, log_init)
+
+    def test_nan_in_transitions_raises(self):
+        log_emit = np.zeros((2, 2))
+        log_trans = np.array([[0.0, float("nan")], [-1.0, -2.0]])
+        log_init = np.zeros(2)
+        with self.assertRaises(ValueError):
+            viterbi_decode(log_emit, log_trans, log_init)

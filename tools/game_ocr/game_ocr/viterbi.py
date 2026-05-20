@@ -30,6 +30,9 @@ def viterbi_decode(
         raise ValueError(f"log_trans shape {log_trans.shape} != expected ({N},{N})")
     if log_init.shape != (N,):
         raise ValueError(f"log_init shape {log_init.shape} != expected ({N},)")
+    for _name, _arr in (("log_emit", log_emit), ("log_trans", log_trans), ("log_init", log_init)):
+        if np.any(np.isnan(_arr)):
+            raise ValueError(f"{_name} contains NaN — check upstream emission combiner")
     if T == 0:
         return np.zeros(0, dtype=np.int64)
 
