@@ -55,12 +55,23 @@ def _sha256_of(data: bytes) -> str:
 
 def compute_pass1_cache_key(version: str) -> str:
     """Hash of the orchestrator-side version YAML + the game_ocr classifier
-    YAML for that version. Captures everything that demonstrably changes
-    Pass 1 output."""
+    YAML + the Phase-1 state machine YAML + the Phase-1 weights artifact
+    (when present). Captures everything that demonstrably changes Pass 1
+    output."""
     version_yaml = VIDEO_INGEST_CONFIGS_DIR / f"{version}.yaml"
     classifier_yaml = _CLASSIFIER_CONFIGS_DIR / f"{version}.yaml"
-    blob = version_yaml.read_bytes() + b"\x00" + classifier_yaml.read_bytes()
-    return _sha256_of(blob)
+    parts: list[bytes] = [version_yaml.read_bytes(), b"\x00", classifier_yaml.read_bytes()]
+    # Phase 1: include state machine + weights so engine swaps invalidate.
+    from game_ocr.state_machine import CONFIGS_DIR as _SM_DIR
+    sm_yaml = _SM_DIR / f"{version}.yaml"
+    if sm_yaml.exists():
+        parts.append(b"\x00")
+        parts.append(sm_yaml.read_bytes())
+    weights_json = _CLASSIFIER_CONFIGS_DIR.parent.parent / "weights" / f"{version}-screen-classifier.json"
+    if weights_json.exists():
+        parts.append(b"\x00")
+        parts.append(weights_json.read_bytes())
+    return _sha256_of(b"".join(parts))
 
 
 def compute_segments_hash(segments_json_path: Path) -> str:
@@ -80,6 +91,11 @@ class Pass1Config:
     # that screen only. Mirrors the per-screen Pass-2 sample_rates pattern.
     min_segment_seconds_by_screen: dict[str, float] = field(default_factory=dict)
     min_run_to_open_by_screen: dict[str, int] = field(default_factory=dict)
+    # Phase 1: which Pass-1 engine to use. "run_length" = legacy classifier +
+    # build_segments() path; "viterbi" = pass1_segment.decode_segments() HMM
+    # path. Default stays run_length until weights ship; switch per-version in
+    # configs/<version>.yaml.
+    engine: str = "run_length"
 
 
 @dataclass

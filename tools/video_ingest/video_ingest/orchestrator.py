@@ -82,6 +82,88 @@ def _build_classifier(version: str, use_gpu: bool):
     return Classifier(cfg, use_gpu=use_gpu)
 
 
+def _run_pass1(
+    video_path: Path,
+    classifier_legacy,
+    p1cfg: Pass1Config,
+    version: str,
+) -> tuple[list, list[Segment]]:
+    """Engine dispatch: returns (frame_classifications, segments).
+
+    `engine="run_length"` (legacy): runs the HSV+anchor classifier per frame,
+    then collapses to segments via the N-consecutive-frame rule.
+
+    `engine="viterbi"` (Phase 1): runs the same anchor-text OCR per frame for
+    audit, computes multi-signal FrameFeatures, then feeds them through the
+    learned LR head + emission combiner + Viterbi decoder.
+    """
+    if p1cfg.engine == "viterbi":
+        from game_ocr.emissions import EmissionWeights
+        from game_ocr.frame_features import compute_frame_features
+        from game_ocr.screen_classifier import load_screen_classifier
+        from game_ocr.state_machine import load_state_machine
+        from video_ingest.pass1_classify import (
+            FrameClassification,
+            _iter_raw_bgr_frames,
+        )
+        from video_ingest.pass1_segment import decode_segments
+
+        sm = load_state_machine(version)
+        if sm.sample_fps != p1cfg.sample_fps:
+            raise RuntimeError(
+                f"state machine sample_fps={sm.sample_fps} != Pass-1 config sample_fps={p1cfg.sample_fps}"
+            )
+        weights_path = (
+            Path(__file__).resolve().parents[2] / "game_ocr" / "game_ocr" / "weights"
+            / f"{version}-screen-classifier.json"
+        )
+        if not weights_path.exists():
+            raise FileNotFoundError(
+                f"missing learned screen classifier weights for {version}: {weights_path}\n"
+                f"  Fix: run `python3 tools/game_ocr/scripts/train_screen_classifier.py --version {version}`"
+            )
+        clf = load_screen_classifier(weights_path, sm)
+        cls_list: list = []
+        feats_list = []
+        for idx, frame in enumerate(_iter_raw_bgr_frames(video_path, p1cfg.sample_fps)):
+            anchor_text = classifier_legacy._read_anchor(frame)
+            feats = compute_frame_features(frame, anchor_text=anchor_text, state_machine=sm)
+            feats_list.append(feats)
+            # For audit / annotate.py compatibility, emit a FrameClassification
+            # carrying the raw signals. screen_type stays unknown_or_transition
+            # until the Viterbi pass assigns it below.
+            cls_list.append(FrameClassification(
+                index=idx,
+                seconds=idx / p1cfg.sample_fps,
+                screen_type="unknown_or_transition",
+                color_score=0.0,
+                color_class="",
+                anchor_text=anchor_text,
+            ))
+        segments = decode_segments(
+            features=feats_list,
+            classifier=clf,
+            state_machine=sm,
+            weights=EmissionWeights(),
+        )
+        # Stamp the decoded state back onto the per-frame audit table.
+        for seg in segments:
+            for i in range(seg.start_index, seg.end_index + 1):
+                cls_list[i] = FrameClassification(
+                    index=cls_list[i].index,
+                    seconds=cls_list[i].seconds,
+                    screen_type=seg.screen_type,
+                    color_score=cls_list[i].color_score,
+                    color_class=cls_list[i].color_class,
+                    anchor_text=cls_list[i].anchor_text,
+                )
+        return cls_list, segments
+    else:
+        cls_list = classify_video(video_path, classifier_legacy, p1cfg)
+        segments = build_segments(cls_list, p1cfg)
+        return cls_list, segments
+
+
 def ingest(
     video_path: Path,
     output_root: Path,
@@ -168,6 +250,7 @@ def ingest(
         min_run_to_open_by_screen={
             str(k): int(v) for k, v in (p1_raw.get("min_run_to_open_by_screen") or {}).items()
         },
+        engine=str(p1_raw.get("engine", "run_length")),
     )
     p2cfg = Pass2Config(
         window_padding_seconds=float(vcfg["pass2"]["window_padding_seconds"]),
@@ -228,8 +311,7 @@ def ingest(
 
         classifier = _build_classifier(version, use_gpu=use_gpu)
         t0 = time.perf_counter()
-        cls_list = classify_video(video_path, classifier, p1cfg)
-        segments = build_segments(cls_list, p1cfg)
+        cls_list, segments = _run_pass1(video_path, classifier, p1cfg, version)
         elapsed_pass1 = time.perf_counter() - t0
         write_segments_json(
             segments_json,

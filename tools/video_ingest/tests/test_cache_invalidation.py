@@ -230,15 +230,16 @@ class OrchestratorCacheTests(unittest.TestCase):
         )
         self._probe_patcher.start()
 
-        # 2. classifier build stub — returns a sentinel; classify_video stubbed
-        # to ignore it and return canned segments.
+        # 2. classifier build stub — returns a sentinel; _run_pass1 stubbed
+        # to bypass engine dispatch entirely and return canned segments.
         self._classifier_patcher = mock.patch.object(
             orch_module, "_build_classifier", return_value=object(),
         )
         self._classifier_patcher.start()
 
-        # classify_video must produce something that build_segments can consume,
-        # but we short-circuit build_segments to return our canned segments.
+        # classify_video / build_segments stubs kept for completeness; the
+        # real dispatch is short-circuited via _run_pass1 below so engine
+        # selection (viterbi vs run_length) never runs against fake input.
         self._classify_patcher = mock.patch.object(
             orch_module, "classify_video", return_value=[],
         )
@@ -248,6 +249,18 @@ class OrchestratorCacheTests(unittest.TestCase):
             return_value=self.segments_classified,
         )
         self._build_patcher.start()
+
+        # _run_pass1 is the engine dispatch point; patch it so the tests
+        # stay seconds-fast regardless of which engine nhl26.yaml selects.
+        # side_effect reads self.segments_classified at call time so
+        # test_force_pass1_cascades_to_pass2_invalidation can mutate it.
+        def _fake_run_pass1(video_path, classifier_legacy, p1cfg, version):
+            return [], self.segments_classified
+
+        self._run_pass1_patcher = mock.patch.object(
+            orch_module, "_run_pass1", side_effect=_fake_run_pass1,
+        )
+        self._run_pass1_patcher.start()
 
         # 3. ffmpeg stub
         def fake_ffmpeg(video_path, out_dir, start_seconds, end_seconds, fps):
@@ -265,6 +278,7 @@ class OrchestratorCacheTests(unittest.TestCase):
         self._classifier_patcher.stop()
         self._classify_patcher.stop()
         self._build_patcher.stop()
+        self._run_pass1_patcher.stop()
         self._ffmpeg_patcher.stop()
         self._tmp.cleanup()
 
@@ -366,6 +380,38 @@ class OrchestratorCacheTests(unittest.TestCase):
         # Pass 2 must have re-extracted (cascade), and the manifest changed.
         self.assertNotEqual(manifest.read_bytes(), manifest_before)
         self.assertEqual(len(r.pass2_results), 1)
+
+
+def test_state_machine_drift_invalidates_pass1():
+    """Phase 1: editing state machine YAML cascades to a Pass-1 cache mismatch."""
+    from video_ingest.pass1_classify import compute_pass1_cache_key
+    from game_ocr.state_machine import CONFIGS_DIR as SM_DIR
+    base = compute_pass1_cache_key("nhl26")
+    sm_path = SM_DIR / "nhl26.yaml"
+    original = sm_path.read_bytes()
+    try:
+        sm_path.write_bytes(original + b"\n# touched\n")
+        after = compute_pass1_cache_key("nhl26")
+        assert after != base
+    finally:
+        sm_path.write_bytes(original)
+
+
+def test_weights_drift_invalidates_pass1(tmp_path):
+    """Phase 1: editing the weights JSON cascades to a Pass-1 cache mismatch."""
+    from video_ingest.pass1_classify import compute_pass1_cache_key
+    base = compute_pass1_cache_key("nhl26")
+    # Find weights file in the conventional location.
+    weights = Path(__file__).resolve().parents[2] / "game_ocr" / "game_ocr" / "weights" / "nhl26-screen-classifier.json"
+    if not weights.exists():
+        return  # Skip if weights aren't installed.
+    original = weights.read_bytes()
+    try:
+        weights.write_bytes(original + b"\n")
+        after = compute_pass1_cache_key("nhl26")
+        assert after != base
+    finally:
+        weights.write_bytes(original)
 
 
 if __name__ == "__main__":

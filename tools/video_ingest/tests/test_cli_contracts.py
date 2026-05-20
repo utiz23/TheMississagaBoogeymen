@@ -60,6 +60,15 @@ class CLIContractsTests(unittest.TestCase):
         self._classify_video_mock = mock.MagicMock(return_value=[])
         self._build_classifier_mock = mock.MagicMock(return_value=object())
 
+        # _run_pass1 stub: delegates to the classify_video + build_segments
+        # mocks so assertions like assert_called_once() on _classify_video_mock
+        # still work, while bypassing engine dispatch (viterbi would try to
+        # open the fake video file).
+        def _fake_run_pass1(video_path, classifier_legacy, p1cfg, version):
+            cls = self._classify_video_mock(video_path, classifier_legacy, p1cfg)
+            segs = self.segments_classified
+            return cls, segs
+
         self._patchers = [
             mock.patch.object(orch_module, "pts_probe",
                               return_value=_FakeProbe(self.fake_sha)),
@@ -69,6 +78,8 @@ class CLIContractsTests(unittest.TestCase):
                               new=self._classify_video_mock),
             mock.patch.object(orch_module, "build_segments",
                               return_value=self.segments_classified),
+            mock.patch.object(orch_module, "_run_pass1",
+                              side_effect=_fake_run_pass1),
         ]
         for p in self._patchers:
             p.start()

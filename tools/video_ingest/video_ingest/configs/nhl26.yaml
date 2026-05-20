@@ -29,6 +29,9 @@ pass1:
   # Minimum segment duration (in source-video seconds) to emit. Drops
   # micro-segments that are almost certainly classifier hiccups.
   min_segment_seconds: 3
+  # Phase 1 engine: "viterbi" = HMM/Viterbi decoder (default); "run_length" =
+  # legacy fallback (phase 5 deletes it).
+  engine: viterbi
   # Per-screen overrides for screens the user briefly tabs through in the
   # post-game flow. Loosened from the strict 3-second default so a 1-2 second
   # post-game view still emits as a segment. The remaining screens
