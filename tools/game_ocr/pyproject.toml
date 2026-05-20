@@ -14,6 +14,7 @@ dependencies = [
   "pydantic>=2",
   "PyYAML",
   "rapidocr_onnxruntime",
+  "scikit-learn>=1.3",
   "typer",
 ]
 
@@ -24,4 +25,4 @@ game-ocr = "game_ocr.cli:app"
 packages = ["game_ocr"]
 
 [tool.setuptools.package-data]
-game_ocr = ["configs/roi/*.yaml"]
+game_ocr = ["configs/roi/*.yaml", "configs/state_machine/*.yaml", "weights/*.json"]

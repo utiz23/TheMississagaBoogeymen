@@ -71,6 +71,31 @@ class TestScreenClassifierTrainAndPredict(unittest.TestCase):
         self.assertEqual(logits.shape, (len(self.sm.states),))
         self.assertEqual(int(np.argmax(logits)), target_idx)
 
+    def test_trains_rejects_binary_corpus(self):
+        n = len(self.sm.states)
+        feats = [
+            _fake_features(0.001, 0.4, 20.0, anchor_idx=0, n_states=n),
+            _fake_features(0.001, 0.4, 20.0, anchor_idx=1, n_states=n),
+        ]
+        labels = [self.sm.states[0], self.sm.states[1]]
+        with self.assertRaises(ValueError) as cm:
+            train_screen_classifier(feats, labels, self.sm)
+        self.assertIn("at least 3 distinct states", str(cm.exception))
+
+    def test_trains_rejects_missing_states(self):
+        # Cover 16 of 17 states — miss "end_of_video".
+        states_to_cover = [s for s in self.sm.states if s != "end_of_video"]
+        feats = [
+            _fake_features(0.001, 0.4, 20.0, anchor_idx=self.sm.state_index(s),
+                           n_states=len(self.sm.states))
+            for s in states_to_cover
+        ]
+        labels = list(states_to_cover)
+        with self.assertRaises(ValueError) as cm:
+            train_screen_classifier(feats, labels, self.sm)
+        self.assertIn("missing states", str(cm.exception))
+        self.assertIn("end_of_video", str(cm.exception))
+
 
 class TestScreenClassifierIO(unittest.TestCase):
     def setUp(self):
@@ -98,3 +123,24 @@ class TestScreenClassifierIO(unittest.TestCase):
                 loaded.predict_log_probs(test_feats),
                 atol=1e-9,
             )
+
+    def test_init_rejects_decoder_version_mismatch(self):
+        n = len(self.sm.states)
+        # Train a valid classifier.
+        feats = [
+            _fake_features(0.001, 0.4, 20.0, anchor_idx=i, n_states=n)
+            for i in range(n)
+        ]
+        labels = list(self.sm.states)
+        clf = train_screen_classifier(feats, labels, self.sm)
+        # Craft a weights object with mismatched decoder_version.
+        bad_weights = ScreenClassifierWeights(
+            version=clf.weights.version,
+            decoder_version="hmm-viterbi-vSOMETHING-ELSE",
+            classes=clf.weights.classes,
+            intercept=clf.weights.intercept,
+            coef=clf.weights.coef,
+        )
+        with self.assertRaises(ValueError) as cm:
+            ScreenClassifier(bad_weights, self.sm)
+        self.assertIn("decoder_version", str(cm.exception))

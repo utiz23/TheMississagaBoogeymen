@@ -72,6 +72,11 @@ class ScreenClassifier:
             raise ValueError(
                 f"weights version {weights.version!r} != state machine {state_machine.version!r}"
             )
+        if weights.decoder_version != state_machine.decoder_version:
+            raise ValueError(
+                f"weights decoder_version {weights.decoder_version!r} != "
+                f"state machine {state_machine.decoder_version!r}"
+            )
         if weights.classes != state_machine.states:
             raise ValueError(
                 "weights.classes do not match state machine.states ordering"
@@ -120,6 +125,21 @@ def train_screen_classifier(
     for lbl in labels_list:
         if lbl not in label_to_idx:
             raise ValueError(f"unknown label {lbl!r} not in state machine")
+    unique_labels = set(labels_list)
+    n_seen = len(unique_labels)
+    if n_seen < 3:
+        raise ValueError(
+            f"training corpus must cover at least 3 distinct states (got {n_seen}); "
+            "binary LogisticRegression produces a (1, n_features) coef_ that "
+            "breaks the row-reorder mapping"
+        )
+    missing = set(state_machine.states) - unique_labels
+    if missing:
+        raise ValueError(
+            f"training corpus missing states {sorted(missing)!r}; "
+            "all state-machine states must appear at least once so that "
+            "unseen states do not get all-zero weights that dominate softmax"
+        )
     y = np.array([label_to_idx[lbl] for lbl in labels_list], dtype=np.int64)
 
     # Build a matrix in state-machine order so coef rows align with states.
