@@ -3,7 +3,6 @@ top-level Pass-1 decoder."""
 
 from __future__ import annotations
 
-import math
 import unittest
 
 import numpy as np
@@ -12,7 +11,7 @@ from game_ocr.emissions import EmissionWeights
 from game_ocr.frame_features import FrameFeatures
 from game_ocr.state_machine import load_state_machine
 from video_ingest.pass1_classify import Segment
-from video_ingest.pass1_segment import decode_segments
+from video_ingest.pass1_segment import _enforce_min_duration, decode_segments
 
 
 class _FixedClassifier:
@@ -132,3 +131,36 @@ class TestDecodeSegments(unittest.TestCase):
         self.assertEqual(segments[0].start_seconds, 0.0)
         # end_seconds is exclusive in the legacy contract.
         self.assertEqual(segments[0].end_seconds, 5.0)
+
+    def test_enforce_min_duration_drops_below_threshold(self):
+        # Hand-crafted Segment list, bypassing the HMM:
+        # - 1-frame post_game_player_summary (1s < min 1.5s) — must be dropped
+        # - 2-frame player_loadout_view (2s ≥ min 0.5s) — must be kept
+        # - 3-frame post_game_action_tracker (3s ≥ min 1.5s) — must be kept
+        segs = [
+            Segment(start_index=0, end_index=0, start_seconds=0.0, end_seconds=1.0,
+                    screen_type="post_game_player_summary", frame_count=1, mean_color_score=0.5),
+            Segment(start_index=1, end_index=2, start_seconds=1.0, end_seconds=3.0,
+                    screen_type="player_loadout_view", frame_count=2, mean_color_score=0.5),
+            Segment(start_index=3, end_index=5, start_seconds=3.0, end_seconds=6.0,
+                    screen_type="post_game_action_tracker", frame_count=3, mean_color_score=0.5),
+        ]
+        kept = _enforce_min_duration(segs, self.sm)
+        types = [s.screen_type for s in kept]
+        self.assertNotIn("post_game_player_summary", types)
+        self.assertIn("player_loadout_view", types)
+        self.assertIn("post_game_action_tracker", types)
+        self.assertEqual(len(kept), 2)
+
+    def test_enforce_min_duration_keeps_exact_threshold(self):
+        # Boundary: a segment whose duration is EXACTLY min_duration_seconds
+        # should be kept (the `duration + 1e-6 < min_sec` guard allows equality).
+        min_sec = self.sm.min_duration_seconds("player_loadout_view")  # 0.5
+        seg = Segment(
+            start_index=0, end_index=0,
+            start_seconds=0.0, end_seconds=min_sec,
+            screen_type="player_loadout_view",
+            frame_count=1, mean_color_score=0.5,
+        )
+        kept = _enforce_min_duration([seg], self.sm)
+        self.assertEqual(len(kept), 1)

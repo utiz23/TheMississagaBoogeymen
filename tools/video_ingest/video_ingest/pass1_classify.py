@@ -97,7 +97,7 @@ class Segment:
     start_index: int          # inclusive
     end_index: int            # inclusive
     start_seconds: float      # inclusive (start_index / sample_fps)
-    end_seconds: float        # inclusive (end_index / sample_fps)
+    end_seconds: float        # exclusive ((end_index + 1) / sample_fps)
     screen_type: str
     frame_count: int
     mean_color_score: float
