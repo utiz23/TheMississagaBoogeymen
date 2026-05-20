@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import json
 import math
+import warnings
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable
@@ -115,6 +116,30 @@ def train_screen_classifier(
     *,
     allow_missing_states: bool = False,
 ) -> ScreenClassifier:
+    """Fit a multinomial LogisticRegression over FrameFeatures.
+
+    Args:
+        features: per-fixture FrameFeatures.
+        labels: parallel list of state-machine state names.
+        state_machine: the StateMachine whose state ordering defines
+            the row order of the trained `coef`/`intercept` arrays.
+        allow_missing_states: when False (default), raises ValueError if any
+            state-machine state is absent from `labels`. When True, missing
+            states are assigned `intercept=MISSING_STATE_INTERCEPT` (~-10.0)
+            and all-zero coefs so they cannot win on classifier signal alone;
+            the emission combiner's anchor bonus can still surface them via
+            anchor flags.
+
+    Returns:
+        ScreenClassifier wrapping the trained weights, with row order matching
+        `state_machine.states` (NOT sklearn's sorted classes order).
+
+    Raises:
+        ValueError: when features/labels length mismatch, the corpus is empty,
+            a label is not in `state_machine.states`, fewer than 3 distinct
+            labels appear (binary LR shape mismatch), or — with
+            `allow_missing_states=False` — any state is missing from labels.
+    """
     features_list = list(features)
     labels_list = list(labels)
     if len(features_list) != len(labels_list):
@@ -155,7 +180,16 @@ def train_screen_classifier(
         max_iter=1000,
         C=1.0,
     )
-    lr.fit(X, y)
+    # sklearn warns when len(unique_labels)/len(samples) is high. For a
+    # purpose-built multi-class corpus (≤30 fixtures, 17 states) the ratio
+    # is intentionally high; the warning is a false positive here.
+    with warnings.catch_warnings():
+        warnings.filterwarnings(
+            "ignore",
+            message=".*unique classes.*",
+            category=UserWarning,
+        )
+        lr.fit(X, y)
 
     # sklearn returns coef/intercept ordered by lr.classes_; re-order so
     # row i corresponds to state_machine.states[i].
