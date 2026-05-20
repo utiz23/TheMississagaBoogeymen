@@ -397,14 +397,15 @@ def test_state_machine_drift_invalidates_pass1():
         sm_path.write_bytes(original)
 
 
-def test_weights_drift_invalidates_pass1(tmp_path):
+def test_weights_drift_invalidates_pass1():
     """Phase 1: editing the weights JSON cascades to a Pass-1 cache mismatch."""
+    import pytest
     from video_ingest.pass1_classify import compute_pass1_cache_key
     base = compute_pass1_cache_key("nhl26")
     # Find weights file in the conventional location.
     weights = Path(__file__).resolve().parents[2] / "game_ocr" / "game_ocr" / "weights" / "nhl26-screen-classifier.json"
     if not weights.exists():
-        return  # Skip if weights aren't installed.
+        pytest.skip("weights not installed")
     original = weights.read_bytes()
     try:
         weights.write_bytes(original + b"\n")
@@ -412,6 +413,19 @@ def test_weights_drift_invalidates_pass1(tmp_path):
         assert after != base
     finally:
         weights.write_bytes(original)
+
+
+def test_run_pass1_rejects_unknown_engine():
+    """Phase 1: an unknown engine value must raise ValueError, not silently fall through."""
+    import pytest
+    from unittest.mock import MagicMock
+    from video_ingest.orchestrator import _run_pass1
+    from video_ingest.pass1_classify import Pass1Config
+
+    cfg = Pass1Config(engine="vittirbi")  # typo'd value
+    with pytest.raises(ValueError) as excinfo:
+        _run_pass1(Path("/nonexistent.mkv"), MagicMock(), cfg, "nhl26")
+    assert "vittirbi" in str(excinfo.value)
 
 
 if __name__ == "__main__":

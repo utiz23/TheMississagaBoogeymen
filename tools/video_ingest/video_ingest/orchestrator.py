@@ -158,10 +158,14 @@ def _run_pass1(
                     anchor_text=cls_list[i].anchor_text,
                 )
         return cls_list, segments
-    else:
+    elif p1cfg.engine == "run_length":
         cls_list = classify_video(video_path, classifier_legacy, p1cfg)
         segments = build_segments(cls_list, p1cfg)
         return cls_list, segments
+    else:
+        raise ValueError(
+            f"unknown Pass-1 engine {p1cfg.engine!r}; expected 'viterbi' or 'run_length'"
+        )
 
 
 def ingest(
@@ -288,7 +292,8 @@ def ingest(
                 f"  stored:  version={loaded.version}  cache_key={loaded.pass1_cache_key}\n"
                 f"  current: version={version}  cache_key={pass1_cache_key}\n"
                 f"  Cause:   {VIDEO_INGEST_CONFIGS_DIR / f'{version}.yaml'}\n"
-                f"           or game_ocr classifier config for {version} has changed.\n"
+                f"           or game_ocr classifier config / state machine YAML / "
+                f"screen-classifier weights for {version} has changed.\n"
                 f"  Fix:     re-run with --force-pass1 (will also re-extract Pass 2)."
             )
         else:
