@@ -71,3 +71,45 @@ class TestStateMachineLoader(unittest.TestCase):
     def test_missing_config_raises(self):
         with self.assertRaises(FileNotFoundError):
             load_state_machine("not_a_real_version")
+
+    def test_state_index_unknown_raises_key_error(self):
+        sm = load_state_machine("nhl26")
+        with self.assertRaises(KeyError):
+            sm.state_index("nonexistent_state")
+
+    def test_state_machine_dict_fields_are_immutable(self):
+        sm = load_state_machine("nhl26")
+        with self.assertRaises(TypeError):
+            sm._min_duration["injected"] = 99.9  # type: ignore[index]
+
+    def test_load_rejects_unknown_destination_in_legal_transitions(self):
+        import tempfile, pathlib
+        import yaml as _yaml
+        from game_ocr import state_machine as sm_mod
+        bad_yaml = {
+            "version": "fakebad",
+            "decoder_version": "hmm-viterbi-v1",
+            "sample_fps": 1.0,
+            "min_duration_seconds": {
+                "unknown_or_transition": 0.0,
+                "pre_game_lobby_state_1": 1.0,
+            },
+            "anchor_substrings": {
+                "unknown_or_transition": [],
+                "pre_game_lobby_state_1": ["x"],
+            },
+            "legal_transitions": {
+                "pre_game_lobby_state_1": ["nonexistent_state"],
+            },
+            "initial_log_probs": {"pre_game_lobby_state_1": 0.0},
+        }
+        original = sm_mod.CONFIGS_DIR
+        with tempfile.TemporaryDirectory() as td:
+            tdp = pathlib.Path(td)
+            (tdp / "fakebad.yaml").write_text(_yaml.safe_dump(bad_yaml))
+            sm_mod.CONFIGS_DIR = tdp
+            try:
+                with self.assertRaises(StateMachineConfigError):
+                    load_state_machine("fakebad")
+            finally:
+                sm_mod.CONFIGS_DIR = original

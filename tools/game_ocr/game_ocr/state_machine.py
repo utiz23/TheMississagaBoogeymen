@@ -12,8 +12,10 @@ required so ocr_segments rows can be filtered by decoder_version.
 from __future__ import annotations
 
 import math
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
+from types import MappingProxyType
 
 import yaml
 
@@ -34,13 +36,16 @@ class StateMachine:
     reject_anchor_substrings: tuple[str, ...]
     _log_self_loop_prior: float
     _log_transition_prior: float
-    _min_duration: dict[str, float]
-    _anchor_substrings: dict[str, tuple[str, ...]]
-    _legal_transitions: dict[str, frozenset[str]]
-    _initial_log_probs: dict[str, float]
+    _min_duration: Mapping[str, float]
+    _anchor_substrings: Mapping[str, tuple[str, ...]]
+    _legal_transitions: Mapping[str, frozenset[str]]
+    _initial_log_probs: Mapping[str, float]
 
     def state_index(self, state: str) -> int:
-        return self.states.index(state)
+        try:
+            return self.states.index(state)
+        except ValueError as e:
+            raise KeyError(state) from e
 
     def log_transition(self, src: str, dst: str) -> float:
         if src not in self._legal_transitions:
@@ -84,6 +89,14 @@ def load_state_machine(version: str) -> StateMachine:
         if s not in states:
             raise StateMachineConfigError(f"legal_transitions has unknown state {s!r}")
         legal_transitions[s] = frozenset(dsts or [])
+    # Phase 1 ships with all 17 states named correctly; a typo in a destination
+    # would silently make a transition unreachable. Validate before storing.
+    for src, dst_set in legal_transitions.items():
+        for dst in dst_set:
+            if dst not in states:
+                raise StateMachineConfigError(
+                    f"legal_transitions[{src!r}] references unknown state {dst!r}"
+                )
     # Any state without a row gets an empty out-set.
     for s in states:
         legal_transitions.setdefault(s, frozenset())
@@ -108,8 +121,8 @@ def load_state_machine(version: str) -> StateMachine:
         reject_anchor_substrings=tuple(str(s).lower() for s in raw.get("reject_anchor_substrings", [])),
         _log_self_loop_prior=float(raw.get("log_self_loop_prior", -0.05)),
         _log_transition_prior=float(raw.get("log_transition_prior", -3.0)),
-        _min_duration={s: float(v) for s, v in raw["min_duration_seconds"].items()},
-        _anchor_substrings=anchor_substrings,
-        _legal_transitions=legal_transitions,
-        _initial_log_probs=initial_log_probs,
+        _min_duration=MappingProxyType({s: float(v) for s, v in raw["min_duration_seconds"].items()}),
+        _anchor_substrings=MappingProxyType(anchor_substrings),
+        _legal_transitions=MappingProxyType(legal_transitions),
+        _initial_log_probs=MappingProxyType(initial_log_probs),
     )
