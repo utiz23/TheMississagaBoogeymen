@@ -38,6 +38,8 @@ from game_ocr.state_machine import StateMachine
 
 WEIGHTS_DIR = Path(__file__).resolve().parent / "weights"
 
+MISSING_STATE_INTERCEPT = -10.0
+
 
 @dataclass(frozen=True)
 class ScreenClassifierWeights:
@@ -110,6 +112,8 @@ def train_screen_classifier(
     features: Iterable[FrameFeatures],
     labels: Iterable[str],
     state_machine: StateMachine,
+    *,
+    allow_missing_states: bool = False,
 ) -> ScreenClassifier:
     features_list = list(features)
     labels_list = list(labels)
@@ -133,12 +137,13 @@ def train_screen_classifier(
             "binary LogisticRegression produces a (1, n_features) coef_ that "
             "breaks the row-reorder mapping"
         )
-    missing = set(state_machine.states) - unique_labels
-    if missing:
+    missing = sorted(set(state_machine.states) - unique_labels)
+    if missing and not allow_missing_states:
         raise ValueError(
-            f"training corpus missing states {sorted(missing)!r}; "
-            "all state-machine states must appear at least once so that "
-            "unseen states do not get all-zero weights that dominate softmax"
+            f"training corpus missing states {missing!r}; "
+            "all state-machine states must appear at least once OR "
+            "call with allow_missing_states=True (missing states get "
+            f"intercept={MISSING_STATE_INTERCEPT} so anchor signals can still surface them)"
         )
     y = np.array([label_to_idx[lbl] for lbl in labels_list], dtype=np.int64)
 
@@ -160,6 +165,15 @@ def train_screen_classifier(
     for row, cls in enumerate(sklearn_order):
         coef_full[cls] = lr.coef_[row]
         intercept_full[cls] = lr.intercept_[row]
+
+    # Missing-state fallback: states that were not in the training corpus get a
+    # strongly negative intercept so they never win on classifier signal alone.
+    # The emission combiner's anchor_bonus can still surface them via per-state
+    # anchor flags (Round 4 §4 — learned classifier is one signal among many).
+    if missing:
+        for state in missing:
+            i = state_machine.state_index(state)
+            intercept_full[i] = MISSING_STATE_INTERCEPT
 
     weights = ScreenClassifierWeights(
         version=state_machine.version,

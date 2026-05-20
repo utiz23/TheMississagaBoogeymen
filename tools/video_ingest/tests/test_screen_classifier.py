@@ -96,6 +96,30 @@ class TestScreenClassifierTrainAndPredict(unittest.TestCase):
         self.assertIn("missing states", str(cm.exception))
         self.assertIn("end_of_video", str(cm.exception))
 
+    def test_trains_with_allow_missing_states(self):
+        from game_ocr.screen_classifier import MISSING_STATE_INTERCEPT
+        states_to_cover = [s for s in self.sm.states if s != "end_of_video"]
+        n = len(self.sm.states)
+        feats = [
+            _fake_features(0.001, 0.4, 20.0, anchor_idx=self.sm.state_index(s), n_states=n)
+            for s in states_to_cover
+        ]
+        labels = list(states_to_cover)
+        clf = train_screen_classifier(feats, labels, self.sm, allow_missing_states=True)
+        # Missing state should get the fallback intercept.
+        i_missing = self.sm.state_index("end_of_video")
+        self.assertAlmostEqual(float(clf.weights.intercept[i_missing]), MISSING_STATE_INTERCEPT)
+        # And zero coefs.
+        self.assertTrue(np.all(clf.weights.coef[i_missing] == 0.0))
+        # When predicting on a covered state's features, end_of_video should not win.
+        test_feats = _fake_features(
+            0.001, 0.4, 20.0,
+            anchor_idx=self.sm.state_index("player_loadout_view"),
+            n_states=n,
+        )
+        logits = clf.predict_log_probs(test_feats)
+        self.assertNotEqual(int(np.argmax(logits)), i_missing)
+
 
 class TestScreenClassifierIO(unittest.TestCase):
     def setUp(self):
