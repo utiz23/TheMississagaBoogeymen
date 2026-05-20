@@ -67,7 +67,7 @@ class CLIContractsTests(unittest.TestCase):
         def _fake_run_pass1(video_path, classifier_legacy, p1cfg, version):
             cls = self._classify_video_mock(video_path, classifier_legacy, p1cfg)
             segs = self.segments_classified
-            return cls, segs
+            return cls, segs, "legacy-passthrough-v0-video"
 
         self._patchers = [
             mock.patch.object(orch_module, "pts_probe",

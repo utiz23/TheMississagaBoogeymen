@@ -87,8 +87,8 @@ def _run_pass1(
     classifier_legacy,
     p1cfg: Pass1Config,
     version: str,
-) -> tuple[list, list[Segment]]:
-    """Engine dispatch: returns (frame_classifications, segments).
+) -> tuple[list, list[Segment], str]:
+    """Engine dispatch: returns (frame_classifications, segments, decoder_version).
 
     `engine="run_length"` (legacy): runs the HSV+anchor classifier per frame,
     then collapses to segments via the N-consecutive-frame rule.
@@ -157,11 +157,11 @@ def _run_pass1(
                     color_class=cls_list[i].color_class,
                     anchor_text=cls_list[i].anchor_text,
                 )
-        return cls_list, segments
+        return cls_list, segments, sm.decoder_version
     elif p1cfg.engine == "run_length":
         cls_list = classify_video(video_path, classifier_legacy, p1cfg)
         segments = build_segments(cls_list, p1cfg)
-        return cls_list, segments
+        return cls_list, segments, "legacy-passthrough-v0-video"
     else:
         raise ValueError(
             f"unknown Pass-1 engine {p1cfg.engine!r}; expected 'viterbi' or 'run_length'"
@@ -273,6 +273,8 @@ def ingest(
     pass1_was_fresh = False
     elapsed_pass1 = 0.0
 
+    decoder_version: str | None = None
+
     cache_hit_pass1 = False
     if segments_json.exists() and not force_pass1:
         loaded = load_segments_json(segments_json)
@@ -300,6 +302,14 @@ def ingest(
             print(f"[pass1] cache hit at {segments_json}", file=sys.stderr)
             segments = loaded.segments
             cache_hit_pass1 = True
+            # Cache hit: derive decoder_version from current engine config.
+            # The legacy run_length engine doesn't ship a state machine YAML,
+            # so we default to its tag; the viterbi engine loads sm for the tag.
+            if p1cfg.engine == "viterbi":
+                from game_ocr.state_machine import load_state_machine
+                decoder_version = load_state_machine(version).decoder_version
+            else:
+                decoder_version = "legacy-passthrough-v0-video"
 
     if not cache_hit_pass1 and skip_pass1:
         raise MissingPass1Cache(
@@ -316,7 +326,7 @@ def ingest(
 
         classifier = _build_classifier(version, use_gpu=use_gpu)
         t0 = time.perf_counter()
-        cls_list, segments = _run_pass1(video_path, classifier, p1cfg, version)
+        cls_list, segments, decoder_version = _run_pass1(video_path, classifier, p1cfg, version)
         elapsed_pass1 = time.perf_counter() - t0
         write_segments_json(
             segments_json,
@@ -420,13 +430,6 @@ def ingest(
     if dispatch:
         if game_title_id is None:
             raise ValueError("dispatch=True requires game_title_id")
-        # Read decoder_version from state machine YAML when engine=viterbi;
-        # otherwise tag as legacy passthrough.
-        if p1cfg.engine == "viterbi":
-            from game_ocr.state_machine import load_state_machine
-            decoder_version = load_state_machine(version).decoder_version
-        else:
-            decoder_version = "legacy-passthrough-v0-video"
         t0 = time.perf_counter()
         dispatch_results = dispatch_segments(
             pass2_results,

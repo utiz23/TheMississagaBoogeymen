@@ -137,4 +137,50 @@ def test_dispatch_passes_decoder_version_flag(monkeypatch, tmp_path):
         decoder_version="hmm-viterbi-v1",
         repo_root=tmp_path,
     )
-    assert any("--decoder-version" in c and "hmm-viterbi-v1" in c for c in captured)
+    assert len(captured) == 1
+    cmd = captured[0]
+    assert "--decoder-version" in cmd
+    assert cmd[cmd.index("--decoder-version") + 1] == "hmm-viterbi-v1"
+
+
+def test_dispatch_default_decoder_version_is_legacy(monkeypatch, tmp_path):
+    """When decoder_version is omitted, the default legacy tag is emitted."""
+    from video_ingest.dispatch import dispatch_segments
+    from video_ingest.pass2_extract import Pass2Result
+    from video_ingest.pass1_classify import Segment
+
+    captured: list[list[str]] = []
+
+    class _FakeProc:
+        returncode = 0
+        stdout = ""
+        stderr = ""
+
+    def _fake_run(cmd, **kwargs):
+        captured.append(list(cmd))
+        return _FakeProc()
+
+    monkeypatch.setattr("video_ingest.dispatch.subprocess.run", _fake_run)
+    monkeypatch.setattr("video_ingest.dispatch.shutil.which", lambda _: "/usr/bin/pnpm")
+
+    seg = Segment(
+        start_index=0, end_index=4,
+        start_seconds=10.0, end_seconds=15.0,
+        screen_type="player_loadout_view",
+        frame_count=5, mean_color_score=0.9,
+    )
+    pr = Pass2Result(
+        segment_index=7, segment=seg,
+        directory=tmp_path, frame_count=5,
+        sample_fps=1.0,
+        start_seconds=10.0, end_seconds=15.0,
+    )
+
+    # No decoder_version kwarg — must default to "legacy-passthrough-v0-video".
+    dispatch_segments(
+        [pr], game_title_id=1, match_id=250,
+        video_sha256="a" * 64, ui_version="nhl26",
+        repo_root=tmp_path,
+    )
+    cmd = captured[0]
+    assert cmd[cmd.index("--decoder-version") + 1] == "legacy-passthrough-v0-video"
