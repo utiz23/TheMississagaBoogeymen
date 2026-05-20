@@ -62,6 +62,13 @@ export interface IngestOcrBatchInput {
   videoSegmentStartSec?: number | null
   videoSegmentEndSec?: number | null
   uiVersion?: string | null
+  /**
+   * Optional Pass-1 decoder version tag. Lands in `ocr_segments.decoder_version`.
+   * When omitted, the legacy fallback (`legacy-passthrough-v0-{video|manual}`)
+   * is derived from whether video metadata is present. Phase 1 video pipelines
+   * pass `hmm-viterbi-v1` explicitly when the Viterbi engine is selected.
+   */
+  decoderVersion?: string | null
 }
 
 export interface IngestOcrBatchResult {
@@ -176,6 +183,7 @@ export async function ingestOcrBatch(input: IngestOcrBatchInput): Promise<Ingest
       videoSegmentStartSec: input.videoSegmentStartSec ?? null,
       videoSegmentEndSec: input.videoSegmentEndSec ?? null,
       uiVersion: input.uiVersion ?? null,
+      decoderVersion: input.decoderVersion ?? null,
     })
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)
@@ -235,6 +243,7 @@ async function writeSegmentForBatch(input: {
   videoSegmentStartSec: number | null
   videoSegmentEndSec: number | null
   uiVersion: string | null
+  decoderVersion: string | null
 }): Promise<void> {
   const confidences = input.results
     .map((r) => r.meta.overall_confidence)
@@ -267,9 +276,12 @@ async function writeSegmentForBatch(input: {
     uiVersion: input.uiVersion ?? 'nhl26',
     // Tag legacy-emitted segments so Phase 1's HMM/Viterbi rows can be
     // distinguished from this Phase-0 passthrough by a simple version filter.
-    decoderVersion: hasVideoMeta
-      ? 'legacy-passthrough-v0-video'
-      : 'legacy-passthrough-v0-manual',
+    // If the caller passed an explicit decoder_version (e.g. hmm-viterbi-v1
+    // from the Viterbi engine path), use it; otherwise fall back to the
+    // legacy-derived value.
+    decoderVersion:
+      input.decoderVersion ??
+      (hasVideoMeta ? 'legacy-passthrough-v0-video' : 'legacy-passthrough-v0-manual'),
     captureBatchId: input.batchId,
     notes: null,
   }

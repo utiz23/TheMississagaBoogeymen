@@ -420,6 +420,13 @@ def ingest(
     if dispatch:
         if game_title_id is None:
             raise ValueError("dispatch=True requires game_title_id")
+        # Read decoder_version from state machine YAML when engine=viterbi;
+        # otherwise tag as legacy passthrough.
+        if p1cfg.engine == "viterbi":
+            from game_ocr.state_machine import load_state_machine
+            decoder_version = load_state_machine(version).decoder_version
+        else:
+            decoder_version = "legacy-passthrough-v0-video"
         t0 = time.perf_counter()
         dispatch_results = dispatch_segments(
             pass2_results,
@@ -427,6 +434,7 @@ def ingest(
             match_id=match_id,
             video_sha256=probe.sha256,
             ui_version=version,
+            decoder_version=decoder_version,
             dry_run=dispatch_dry_run,
         )
         elapsed_dispatch = time.perf_counter() - t0

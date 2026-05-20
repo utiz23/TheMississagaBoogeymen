@@ -58,6 +58,7 @@ def dispatch_segments(
     match_id: int | None,
     video_sha256: str,
     ui_version: str = "nhl26",
+    decoder_version: str = "legacy-passthrough-v0-video",
     repo_root: Path | None = None,
     dry_run: bool = False,
 ) -> list[DispatchResult]:
@@ -91,6 +92,7 @@ def dispatch_segments(
             "--video-segment-start-sec", f"{r.start_seconds:.3f}",
             "--video-segment-end-sec", f"{r.end_seconds:.3f}",
             "--ui-version", ui_version,
+            "--decoder-version", decoder_version,
             "--notes",
             f"video_ingest:seg{r.segment_index:03d}:[{r.start_seconds:.1f}..{r.end_seconds:.1f}]s",
         ]

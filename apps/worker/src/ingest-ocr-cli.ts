@@ -38,6 +38,8 @@ interface CliArgs {
   videoSegmentEndSec: number | null
   /** Game version label (e.g. "nhl26") for ocr_segments.ui_version. */
   uiVersion: string | null
+  /** Pass-1 decoder version tag; lands in ocr_segments.decoder_version. */
+  decoderVersion: string | null
 }
 
 function getFlag(name: string): string | undefined {
@@ -98,6 +100,7 @@ function parseArgs(): CliArgs {
   const videoSegmentStartSec = parseOptionalNumber('video-segment-start-sec')
   const videoSegmentEndSec = parseOptionalNumber('video-segment-end-sec')
   const uiVersion = getFlag('ui-version') ?? null
+  const decoderVersion = getFlag('decoder-version') ?? null
 
   return {
     batchDir: resolve(batchDir),
@@ -112,6 +115,7 @@ function parseArgs(): CliArgs {
     videoSegmentStartSec,
     videoSegmentEndSec,
     uiVersion,
+    decoderVersion,
   }
 }
 
@@ -135,6 +139,7 @@ async function main(): Promise<void> {
     videoSegmentStartSec: args.videoSegmentStartSec,
     videoSegmentEndSec: args.videoSegmentEndSec,
     uiVersion: args.uiVersion,
+    decoderVersion: args.decoderVersion,
   })
 
   console.log(
