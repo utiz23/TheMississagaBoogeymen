@@ -48,19 +48,21 @@ test('ocr_segments decoder_version uses well-formed tags', async (t) => {
   // legacy-passthrough-*, Phase 1 may have HMM rows present after Task 14.
   // The test only enforces that whatever rows exist carry a recognised tag.
   const versions = rows.map((r) => r.decoderVersion)
-  for (const v of versions) {
-    assert.ok(
-      v.startsWith('hmm-viterbi-') || v.startsWith('legacy-passthrough-'),
-      `unexpected decoder_version: ${v}`,
-    )
-  }
   assert.ok(
     versions.length >= 1,
     `expected at least one ocr_segments row for match ${TEST_MATCH_ID}`,
   )
+  for (const v of versions) {
+    assert.ok(
+      typeof v === 'string' &&
+        (v.startsWith('hmm-viterbi-') || v.startsWith('legacy-passthrough-')),
+      `unexpected decoder_version (${typeof v}): ${String(v)}`,
+    )
+  }
 })
 
 test.skip('ocr_segments distinct HMM-tagged rows exist after Phase 1 re-ingest', async (t) => {
+  // Guard becomes active when Task 14 removes the `.skip`.
   if (skipIfNoDb(t)) return
 
   const rows = await db
