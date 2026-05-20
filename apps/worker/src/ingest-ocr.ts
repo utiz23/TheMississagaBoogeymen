@@ -51,6 +51,17 @@ export interface IngestOcrBatchInput {
    * idempotent. NULL for manual screenshot batches.
    */
   videoSha256?: string | null
+  /**
+   * Optional Pass-1 segment metadata from the video pipeline orchestrator.
+   * When all three are present, the ocr_segments row uses a stable key of
+   * `${videoSha256}:seg${videoSegmentIndex}` (idempotent across video re-ingests)
+   * plus the real time bounds. Otherwise the segment falls back to
+   * `batch-${batchId}` (one segment per CLI call).
+   */
+  videoSegmentIndex?: number | null
+  videoSegmentStartSec?: number | null
+  videoSegmentEndSec?: number | null
+  uiVersion?: string | null
 }
 
 export interface IngestOcrBatchResult {
@@ -160,6 +171,11 @@ export async function ingestOcrBatch(input: IngestOcrBatchInput): Promise<Ingest
       screen: input.screen,
       frameCount: cli.results.length,
       results: cli.results,
+      videoSha256: input.videoSha256 ?? null,
+      videoSegmentIndex: input.videoSegmentIndex ?? null,
+      videoSegmentStartSec: input.videoSegmentStartSec ?? null,
+      videoSegmentEndSec: input.videoSegmentEndSec ?? null,
+      uiVersion: input.uiVersion ?? null,
     })
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)
@@ -193,10 +209,20 @@ async function sha256OfFile(path: string): Promise<string> {
 }
 
 /**
- * Phase 0 evidence-layer adapter. The legacy pipeline ingests one screen-type
- * per CLI invocation, so each batch corresponds to exactly one logical segment
- * for now. Phase 1's HMM/Viterbi decoder will replace this writer with the
- * proper per-state segmentation.
+ * Phase 0 evidence-layer adapter. Writes one ocr_segments row per CLI batch.
+ *
+ * When called from the video pipeline orchestrator, the caller passes the
+ * Pass-1 segment index + time bounds so the resulting row is keyed on
+ * `${videoSha256}:seg${index}` — stable across video re-ingests so
+ * `on_conflict do_update` makes the operation idempotent and the row
+ * carries the real time bounds from Pass-1 decoding.
+ *
+ * For manual screenshot ingests, the segment_key falls back to `batch-${batchId}`
+ * (each batch = one logical segment).
+ *
+ * Phase 1's HMM/Viterbi decoder will replace this writer with proper
+ * per-state segmentation; the row's `decoder_version` tag distinguishes the
+ * two paths so reports can filter.
  */
 async function writeSegmentForBatch(input: {
   matchId: number | null
@@ -204,6 +230,11 @@ async function writeSegmentForBatch(input: {
   screen: OcrScreenType
   frameCount: number
   results: ReadonlyArray<OcrResult>
+  videoSha256: string | null
+  videoSegmentIndex: number | null
+  videoSegmentStartSec: number | null
+  videoSegmentEndSec: number | null
+  uiVersion: string | null
 }): Promise<void> {
   const confidences = input.results
     .map((r) => r.meta.overall_confidence)
@@ -212,22 +243,33 @@ async function writeSegmentForBatch(input: {
     ? confidences.reduce((a, b) => a + b, 0) / confidences.length
     : null
 
+  const hasVideoMeta =
+    input.videoSha256 !== null && input.videoSegmentIndex !== null
+  const segmentKey = hasVideoMeta
+    ? // Stable per-video segment key — same video re-ingested produces same
+      // (match_id, segment_key) so on_conflict_do_update keeps one row per
+      // logical Pass-1 segment.
+      `vsha-${input.videoSha256!.slice(0, 12)}:seg${String(input.videoSegmentIndex).padStart(4, '0')}`
+    : `batch-${String(input.batchId)}`
+
   const segment: NewOcrSegment = {
     matchId: input.matchId,
-    segmentKey: `batch-${String(input.batchId)}`,
+    segmentKey,
     // OcrScreenType is a subset of OcrSegmentState by construction (the new
     // states `unknown_or_transition`, `loading_or_intro`, `end_of_video` don't
     // appear in the legacy enum, so the cast is total here).
     state: input.screen as unknown as OcrSegmentState,
-    tStartSec: null,
-    tEndSec: null,
+    tStartSec: input.videoSegmentStartSec !== null ? input.videoSegmentStartSec.toFixed(3) : null,
+    tEndSec: input.videoSegmentEndSec !== null ? input.videoSegmentEndSec.toFixed(3) : null,
     frameCount: input.frameCount,
     segmentConfidence: avgConfidence !== null ? avgConfidence.toFixed(4) : null,
     observabilityStatus: input.frameCount > 0 ? 'observable' : 'not_observable_from_source',
-    uiVersion: 'nhl26',
+    uiVersion: input.uiVersion ?? 'nhl26',
     // Tag legacy-emitted segments so Phase 1's HMM/Viterbi rows can be
     // distinguished from this Phase-0 passthrough by a simple version filter.
-    decoderVersion: 'legacy-passthrough-v0',
+    decoderVersion: hasVideoMeta
+      ? 'legacy-passthrough-v0-video'
+      : 'legacy-passthrough-v0-manual',
     captureBatchId: input.batchId,
     notes: null,
   }
@@ -239,11 +281,14 @@ async function writeSegmentForBatch(input: {
       target: [ocrSegments.matchId, ocrSegments.segmentKey],
       set: {
         state: segment.state,
+        tStartSec: segment.tStartSec,
+        tEndSec: segment.tEndSec,
         frameCount: segment.frameCount,
         segmentConfidence: segment.segmentConfidence,
         observabilityStatus: segment.observabilityStatus,
         uiVersion: segment.uiVersion,
         decoderVersion: segment.decoderVersion,
+        captureBatchId: segment.captureBatchId,
       },
     })
 }

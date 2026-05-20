@@ -31,6 +31,13 @@ interface CliArgs {
   notes: string | null
   dryRun: boolean
   videoSha256: string | null
+  /** Pass-1 segment index when called from the video pipeline orchestrator.
+   *  Forms part of the ocr_segments.segment_key for stable, idempotent rows. */
+  videoSegmentIndex: number | null
+  videoSegmentStartSec: number | null
+  videoSegmentEndSec: number | null
+  /** Game version label (e.g. "nhl26") for ocr_segments.ui_version. */
+  uiVersion: string | null
 }
 
 function getFlag(name: string): string | undefined {
@@ -72,6 +79,26 @@ function parseArgs(): CliArgs {
   }
   const videoSha256 = videoSha256Raw ? videoSha256Raw.toLowerCase() : null
 
+  const parseOptionalNumber = (name: string): number | null => {
+    const raw = getFlag(name)
+    if (raw === undefined) return null
+    const n = Number.parseFloat(raw)
+    if (!Number.isFinite(n)) throw new Error(`Invalid --${name}: ${raw}`)
+    return n
+  }
+
+  const videoSegmentIndex = (() => {
+    const n = parseOptionalNumber('video-segment-index')
+    if (n === null) return null
+    if (!Number.isInteger(n) || n < 0) {
+      throw new Error(`--video-segment-index must be a non-negative integer; got ${n}`)
+    }
+    return n
+  })()
+  const videoSegmentStartSec = parseOptionalNumber('video-segment-start-sec')
+  const videoSegmentEndSec = parseOptionalNumber('video-segment-end-sec')
+  const uiVersion = getFlag('ui-version') ?? null
+
   return {
     batchDir: resolve(batchDir),
     screen,
@@ -81,6 +108,10 @@ function parseArgs(): CliArgs {
     notes,
     dryRun,
     videoSha256,
+    videoSegmentIndex,
+    videoSegmentStartSec,
+    videoSegmentEndSec,
+    uiVersion,
   }
 }
 
@@ -100,6 +131,10 @@ async function main(): Promise<void> {
     notes: args.notes,
     dryRun: args.dryRun,
     videoSha256: args.videoSha256,
+    videoSegmentIndex: args.videoSegmentIndex,
+    videoSegmentStartSec: args.videoSegmentStartSec,
+    videoSegmentEndSec: args.videoSegmentEndSec,
+    uiVersion: args.uiVersion,
   })
 
   console.log(

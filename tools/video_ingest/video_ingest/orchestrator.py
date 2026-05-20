@@ -339,6 +339,7 @@ def ingest(
             game_title_id=game_title_id,
             match_id=match_id,
             video_sha256=probe.sha256,
+            ui_version=version,
             dry_run=dispatch_dry_run,
         )
         elapsed_dispatch = time.perf_counter() - t0

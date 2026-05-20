@@ -57,6 +57,7 @@ def dispatch_segments(
     game_title_id: int,
     match_id: int | None,
     video_sha256: str,
+    ui_version: str = "nhl26",
     repo_root: Path | None = None,
     dry_run: bool = False,
 ) -> list[DispatchResult]:
@@ -83,6 +84,13 @@ def dispatch_segments(
             "--game-title-id", str(game_title_id),
             "--capture-kind", "video_frames",
             "--video-sha256", video_sha256,
+            # Pass-1 segment metadata for the ocr_segments adapter (Phase 0
+            # evidence-layer). The segment_key on the worker side becomes
+            # `vsha-<sha-prefix>:seg<NNNN>` — stable across re-ingests.
+            "--video-segment-index", str(r.segment_index),
+            "--video-segment-start-sec", f"{r.start_seconds:.3f}",
+            "--video-segment-end-sec", f"{r.end_seconds:.3f}",
+            "--ui-version", ui_version,
             "--notes",
             f"video_ingest:seg{r.segment_index:03d}:[{r.start_seconds:.1f}..{r.end_seconds:.1f}]s",
         ]
