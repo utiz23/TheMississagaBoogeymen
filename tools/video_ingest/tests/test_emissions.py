@@ -86,3 +86,19 @@ class TestBuildLogEmissions(unittest.TestCase):
         em = build_log_emissions(feats, clf, self.sm, self.weights)
         # State 3 should win because the classifier weight is positive.
         self.assertEqual(int(np.argmax(em[0])), 3)
+
+    def test_classifier_wrong_shape_raises(self):
+        feats = [_feats(17, anchor_idx=None)]
+        clf = _MockClassifier({0: np.full(16, -math.log(17))})  # wrong N
+        with self.assertRaises(ValueError) as cm:
+            build_log_emissions(feats, clf, self.sm, self.weights)
+        self.assertIn("shape", str(cm.exception))
+
+    def test_classifier_nan_raises(self):
+        feats = [_feats(17, anchor_idx=None)]
+        bad = np.full(17, -1.0)
+        bad[3] = float("nan")
+        clf = _MockClassifier({0: bad})
+        with self.assertRaises(ValueError) as cm:
+            build_log_emissions(feats, clf, self.sm, self.weights)
+        self.assertIn("NaN", str(cm.exception))

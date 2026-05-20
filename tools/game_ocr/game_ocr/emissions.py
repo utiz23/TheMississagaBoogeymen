@@ -17,7 +17,6 @@ feature vector, so they don't enter twice here.
 
 from __future__ import annotations
 
-import math
 from dataclasses import dataclass
 from typing import Iterable, Protocol
 
@@ -58,6 +57,10 @@ def build_log_emissions(
         if lp.shape != (n,):
             raise ValueError(
                 f"classifier returned shape {lp.shape}, expected ({n},)"
+            )
+        if np.any(np.isnan(lp)):
+            raise ValueError(
+                f"classifier returned NaN at frame {t}; check ScreenClassifier weights"
             )
         out[t, :] = weights.classifier_weight * lp + weights.anchor_bonus * f.anchor_flags
     return out
