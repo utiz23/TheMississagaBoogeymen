@@ -22,7 +22,7 @@ from dataclasses import dataclass
 import cv2
 import numpy as np
 
-from game_ocr.classifier import fuzzy_contains, hsv_histogram
+from game_ocr.signal_utils import _hsv_histogram_from_hsv, fuzzy_contains
 from game_ocr.state_machine import StateMachine
 
 
@@ -41,8 +41,7 @@ def blur_score(image_bgr: np.ndarray) -> float:
     return float(cv2.Laplacian(gray, cv2.CV_64F).var())
 
 
-def _brightness(image_bgr: np.ndarray) -> float:
-    hsv = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2HSV)
+def _brightness_from_hsv(hsv: np.ndarray) -> float:
     v = hsv[..., 2].astype(np.float64)
     return float(v.mean() / 255.0)
 
@@ -55,7 +54,8 @@ def compute_frame_features(
     hist_bins: tuple[int, int, int] = (12, 4, 4),
     fuzzy_max_distance: int = 1,
 ) -> FrameFeatures:
-    hist = hsv_histogram(image_bgr, hist_bins)
+    hsv = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2HSV)
+    hist = _hsv_histogram_from_hsv(hsv, hist_bins)
 
     anchor_text_lower = anchor_text.lower()
     flags = np.zeros(len(state_machine.states), dtype=np.float64)
@@ -75,6 +75,6 @@ def compute_frame_features(
         anchor_flags=flags,
         anchor_text=anchor_text,
         reject_anchor_present=reject_present,
-        brightness=_brightness(image_bgr),
+        brightness=_brightness_from_hsv(hsv),
         blur_score=blur_score(image_bgr),
     )
