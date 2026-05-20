@@ -53,6 +53,7 @@ min_duration_seconds:
 # Anchor substrings per state — used as one signal in the emission combiner.
 # Multiple states may share substrings; the learned head disambiguates.
 anchor_substrings:
+  unknown_or_transition: []
   pre_game_lobby_state_1: [finding opponent, stay in div]
   pre_game_lobby_state_2: [eashl]
   player_loadout_view: [player loadouts]
@@ -68,11 +69,11 @@ anchor_substrings:
   post_game_action_tracker: [all events]
   post_game_faceoff_map: [faceoff]
   post_game_net_chart: [net chart]
+  end_of_video: []
 
 # Legal transitions. Each row lists states reachable FROM the row's state
 # besides the (implicit) self-loop. Anything NOT listed is illegal (-inf).
-# Self-loops use log_self_loop_prior; listed transitions use log_transition_prior
-# unless overridden per pair below.
+# Self-loops use log_self_loop_prior; listed transitions use log_transition_prior.
 legal_transitions:
   unknown_or_transition:
     - pre_game_lobby_state_1
