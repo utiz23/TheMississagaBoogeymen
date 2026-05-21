@@ -21,9 +21,11 @@ import {
   ocrCaptureBatches,
   ocrExtractions,
   ocrExtractionFields,
+  ocrFieldEvidence,
   ocrSegments,
   type NewOcrCaptureBatch,
   type NewOcrExtractionField,
+  type NewOcrFieldEvidence,
   type NewOcrSegment,
   type OcrCaptureKind,
   type OcrEntityType,
@@ -184,8 +186,9 @@ export async function ingestOcrBatch(input: IngestOcrBatchInput): Promise<Ingest
   // the HMM/Viterbi decoder in Phase 1 will replace this with multiple decoded
   // segments per batch. Until then, this row makes "what screen did the system
   // think it was looking at" a queryable fact instead of segments.json-on-disk.
+  let segmentId: number | null = null
   try {
-    await writeSegmentForBatch({
+    const segRow = await writeSegmentForBatch({
       matchId,
       batchId,
       screen: input.screen,
@@ -198,9 +201,38 @@ export async function ingestOcrBatch(input: IngestOcrBatchInput): Promise<Ingest
       uiVersion: input.uiVersion ?? null,
       decoderVersion: input.decoderVersion ?? null,
     })
+    segmentId = segRow.id
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)
     console.warn(`[ingest-ocr] writeSegmentForBatch(${String(batchId)}) skipped: ${msg}`)
+  }
+
+  // Task 2A-14: write typed_v1 loadout field evidence when the engine produced
+  // a loadout_evidence.json and a segment row was successfully upserted.
+  if (
+    input.loadoutEvidenceJsonPath &&
+    input.loadoutEngine === 'typed_v1' &&
+    segmentId !== null &&
+    matchId !== null
+  ) {
+    try {
+      const jsonContent = await readFile(input.loadoutEvidenceJsonPath, 'utf-8')
+      const records = JSON.parse(jsonContent) as LoadoutEvidenceRecord[]
+      const evResult = await writeFieldEvidenceForBatch({
+        matchId,
+        segmentId,
+        batchId,
+        records,
+      })
+      console.log(
+        `[ingest-ocr] batch ${String(batchId)} field evidence: inserted=${String(evResult.insertedCount)} deleted=${String(evResult.deletedCount)}`,
+      )
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      console.warn(
+        `[ingest-ocr] writeFieldEvidenceForBatch(${String(batchId)}) skipped: ${msg}`,
+      )
+    }
   }
 
   // Roll the per-frame team-colour + home/away signal up to matches.* for
@@ -257,7 +289,7 @@ async function writeSegmentForBatch(input: {
   videoSegmentEndSec: number | null
   uiVersion: string | null
   decoderVersion: string | null
-}): Promise<void> {
+}): Promise<{ id: number }> {
   const confidences = input.results
     .map((r) => r.meta.overall_confidence)
     .filter((c): c is number => c !== null && Number.isFinite(c))
@@ -299,7 +331,7 @@ async function writeSegmentForBatch(input: {
     notes: null,
   }
 
-  await db
+  const [segRow] = await db
     .insert(ocrSegments)
     .values(segment)
     .onConflictDoUpdate({
@@ -316,6 +348,104 @@ async function writeSegmentForBatch(input: {
         captureBatchId: segment.captureBatchId,
       },
     })
+    .returning({ id: ocrSegments.id })
+  if (!segRow) throw new Error('writeSegmentForBatch: no row returned from upsert')
+  return { id: segRow.id }
+}
+
+// ─── Loadout evidence write path (Task 2A-14) ────────────────────────────────
+
+/**
+ * 1:1 mirror of FieldEvidenceRecord.to_dict() from
+ * tools/game_ocr/game_ocr/loadout_evidence.py.
+ * Snake_case keys match the Python JSON output and the Drizzle column names
+ * (Drizzle maps camelCase ↔ snake_case via its pg column name convention).
+ */
+export interface LoadoutEvidenceRecord {
+  screen_state: string // always "player_loadout_view"
+  field_key: string
+  field_family: string // 'open_text' | 'closed_vocab' | 'tabular_numeric' | 'icon' | 'geometry'
+  candidate_value: unknown // string | number | object | null
+  candidate_rank: number
+  raw_confidence: number
+  calibrated_confidence: number
+  extractor_family: string
+  extractor_version: string
+  observability_status: string
+  normalization_status: string
+  screen_instance_key?: string | null
+  subject_slot_key?: string | null
+  support_frame_ids: number[]
+  roi_bbox?: { x: number; y: number; w: number; h: number } | null
+  template_version?: string | null
+  row_key?: string | null
+  column_key?: string | null
+  x_norm?: number | null
+  y_norm?: number | null
+  shape_or_icon_class?: string | null
+}
+
+/**
+ * Writes one `ocr_field_evidence` row per record from a typed_v1 loadout
+ * extraction run.
+ *
+ * **Idempotency contract (Decision F):** in a single transaction, DELETE all
+ * prior rows for `segmentId` regardless of extractor_family or
+ * extractor_version, then bulk-INSERT the new records. The segment is the
+ * atomic unit of "current truth." Stale extractor versions are NOT retained
+ * in the evidence layer — audit lives in `ocr_extractions.raw_result_json`.
+ */
+export async function writeFieldEvidenceForBatch(input: {
+  matchId: number
+  segmentId: number // ocr_segments.id
+  batchId: number
+  records: LoadoutEvidenceRecord[]
+}): Promise<{ insertedCount: number; deletedCount: number }> {
+  return await db.transaction(async (tx) => {
+    // 1. Delete ALL prior rows for this segment (scope = segment, not extractor version).
+    const deleted = await tx
+      .delete(ocrFieldEvidence)
+      .where(eq(ocrFieldEvidence.segmentId, input.segmentId))
+      .returning({ id: ocrFieldEvidence.id })
+
+    // 2. Bulk insert new rows.
+    if (input.records.length === 0) {
+      return { insertedCount: 0, deletedCount: deleted.length }
+    }
+
+    const rows: NewOcrFieldEvidence[] = input.records.map((rec) => ({
+      matchId: input.matchId,
+      segmentId: input.segmentId,
+      screenState: rec.screen_state as OcrSegmentState,
+      screenInstanceKey: rec.screen_instance_key ?? null,
+      subjectSlotKey: rec.subject_slot_key ?? null,
+      fieldKey: rec.field_key,
+      fieldFamily: rec.field_family as NewOcrFieldEvidence['fieldFamily'],
+      candidateValue: rec.candidate_value as NewOcrFieldEvidence['candidateValue'],
+      candidateRank: rec.candidate_rank,
+      rawConfidence: rec.raw_confidence.toString(),
+      calibratedConfidence: rec.calibrated_confidence.toString(),
+      supportFrameIds: rec.support_frame_ids,
+      roiBbox: (rec.roi_bbox ?? null) as NewOcrFieldEvidence['roiBbox'],
+      templateVersion: rec.template_version ?? null,
+      extractorFamily: rec.extractor_family as NewOcrFieldEvidence['extractorFamily'],
+      extractorVersion: rec.extractor_version,
+      observabilityStatus: rec.observability_status as NewOcrFieldEvidence['observabilityStatus'],
+      normalizationStatus: rec.normalization_status as NewOcrFieldEvidence['normalizationStatus'],
+      rowKey: rec.row_key ?? null,
+      columnKey: rec.column_key ?? null,
+      xNorm: rec.x_norm != null ? rec.x_norm.toString() : null,
+      yNorm: rec.y_norm != null ? rec.y_norm.toString() : null,
+      shapeOrIconClass: rec.shape_or_icon_class ?? null,
+    }))
+
+    const inserted = await tx
+      .insert(ocrFieldEvidence)
+      .values(rows)
+      .returning({ id: ocrFieldEvidence.id })
+
+    return { insertedCount: inserted.length, deletedCount: deleted.length }
+  })
 }
 
 async function persistOneResult(
