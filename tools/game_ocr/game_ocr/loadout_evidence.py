@@ -103,6 +103,11 @@ class FieldEvidenceRecord:
     Serialized as JSON via to_dict() for worker consumption.
     Column naming uses snake_case to match the Drizzle ORM's Postgres column
     names (the TS layer maps camelCase ↔ snake_case via Drizzle conventions).
+
+    NOTE (Phase 2A): calibrated_confidence == raw_confidence everywhere in this
+    extractor stack. The two-track design ships now so the evidence schema
+    matches Phase 3+'s contract; per-extractor sigmoid calibration (Round 4 §5
+    n_best confidence mapping) is Phase 3+ work.
     """
 
     screen_state: str

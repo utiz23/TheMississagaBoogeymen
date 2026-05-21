@@ -29,7 +29,7 @@ paths so reports can filter (`legacy-passthrough-v0-*` vs `hmm-viterbi-v1`).
 
 Key design choices:
 
-- **`segment_key` is *stable* across re-ingests, not per-insert random.**
+- **`segment_key` is _stable_ across re-ingests, not per-insert random.**
   For video ingests it's `vsha-<sha-prefix>:seg<NNNN>` (derived from the
   Pass-1 segment index + video sha256). Re-ingesting the same video
   produces the same segments → `on_conflict do_update` makes the operation
@@ -90,14 +90,14 @@ Column families:
 Indexes:
 
 - `ocr_field_evidence_promotion_lookup_idx` on `(match_id, screen_state,
-  field_key, subject_slot_key, candidate_rank)` is the Phase 2 hot path —
+field_key, subject_slot_key, candidate_rank)` is the Phase 2 hot path —
   promotion gate iterates evidence per `(match, screen, field, slot)`
   and walks candidates by rank.
 
 ### `ocr_promotions`
 
-One row per **promotion decision** — even when promotion was *blocked*.
-"Not promoted" is itself an inspectable fact: it captures *which* of
+One row per **promotion decision** — even when promotion was _blocked_.
+"Not promoted" is itself an inspectable fact: it captures _which_ of
 the four blocking conditions fired (`blocked_observability`,
 `blocked_consensus`, `blocked_invariant`, `blocked_authority`) plus a
 free-form `blocking_reason`.
@@ -217,6 +217,15 @@ When implementing a Phase 2 typed extractor + promoter:
 Don't bypass the gate by writing canonical rows directly from extractors.
 That's the architectural error Phase 0 fixes by inserting the evidence
 layer.
+
+**Calibrated vs raw confidence (Phase 2A).** Throughout Phase 2A, the typed
+extractors set `calibrated_confidence = raw_confidence` for every emitted
+record. The two-column design exists so the schema matches Phase 3+'s contract
+where a per-extractor sigmoid calibrator maps raw OCR confidences to
+calibrated posteriors. Until that calibrator ships, downstream consumers
+(promotion gate, blocked-promotion triage) should treat both columns as
+identical — the gate's consensus + dominance thresholds were chosen against
+the raw confidence range.
 
 ## Open questions deferred to Phase 1+
 
