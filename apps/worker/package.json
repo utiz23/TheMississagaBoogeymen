@@ -23,7 +23,8 @@
     "match-quality": "node dist/match-quality-cli.js",
     "match-rink-diff": "node dist/match-rink-diff-cli.js",
     "ocr-segments-report": "node dist/ocr-segments-report-cli.js",
-    "loadout-evidence-report": "node dist/loadout-evidence-report-cli.js"
+    "loadout-evidence-report": "node dist/loadout-evidence-report-cli.js",
+    "repromote-loadout": "node dist/repromote-loadout-cli.js"
   },
   "dependencies": {
     "@eanhl/db": "workspace:*",
