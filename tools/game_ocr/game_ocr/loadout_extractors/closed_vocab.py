@@ -1,4 +1,4 @@
-"""Phase 2A closed-vocabulary loader for the player_loadout_view screen family.
+"""Phase 2A closed-vocabulary loader and extractor for the player_loadout_view screen family.
 
 Public API
 ----------
@@ -16,6 +16,13 @@ ClosedVocab.match_canonical(raw) -> tuple[str, float] | None
 
 ClosedVocab.predict_log_probs(crop)
     Phase 2B stub — always raises NotImplementedError.
+
+ClosedVocabCandidate
+    Typed result record emitted by LoadoutClosedVocabExtractor.
+
+LoadoutClosedVocabExtractor
+    Phase 2A extractor: wraps ClosedVocab.match_canonical to produce
+    ClosedVocabCandidate records. Returns top-1 (N=1 hardcoded in 2A).
 """
 
 from __future__ import annotations
@@ -183,6 +190,176 @@ def load_closed_vocab(family: str, version: str = "nhl26") -> ClosedVocab:
         version=data["version"],
         entries=tuple(compiled_entries),
     )
+
+
+# ---------------------------------------------------------------------------
+# Phase 2A-4: Typed candidate shape + extractor
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class ClosedVocabCandidate:
+    """One candidate value for a closed-vocab field, ready to be promoted to ocr_field_evidence.
+
+    Attributes
+    ----------
+    value:
+        Canonical value (e.g. ``"Sniper"``, ``"Wheels"``, ``"C"``).
+    raw_confidence:
+        Confidence from the matcher: ``1.0`` for exact alias-regex match,
+        ``0.5`` for Levenshtein ≤2 fuzzy fallback.
+    calibrated_confidence:
+        Equal to ``raw_confidence`` in Phase 2A. Phase 3+ will apply Platt
+        scaling or isotonic calibration behind this field.
+    roi_bbox:
+        Normalised bounding box ``{x, y, w, h}`` of the region that was
+        classified, or ``None`` when not applicable (text-only path).
+    """
+
+    value: str
+    raw_confidence: float
+    calibrated_confidence: float
+    roi_bbox: Optional[dict[str, float]] = None
+
+
+class LoadoutClosedVocabExtractor:
+    """Closed-vocab extractor for loadout-view fields.
+
+    Phase 2A uses alias-regex matching only (via :meth:`ClosedVocab.match_canonical`).
+    Returns top-1 candidate per field (N=1 hardcoded). Phase 2B activates the
+    LR-head path and unlocks N>1 ranked candidates behind the same interface.
+
+    Parameters
+    ----------
+    version:
+        NHL game version key matching the config subdirectory (default ``"nhl26"``).
+    """
+
+    EXTRACTOR_VERSION = "closed-vocab-alias-v1"
+
+    def __init__(self, *, version: str = "nhl26") -> None:
+        self._build_classes = load_closed_vocab("build_classes", version=version)
+        self._x_factors = load_closed_vocab("x_factors", version=version)
+        self._positions = load_closed_vocab("positions", version=version)
+        self._platforms = load_closed_vocab("platforms", version=version)
+        self._tiers = load_closed_vocab("x_factor_tiers", version=version)
+
+    # ------------------------------------------------------------------
+    # Text-based classifiers (alias-regex → ClosedVocabCandidate)
+    # ------------------------------------------------------------------
+
+    def classify_build_class(
+        self,
+        ocr_text: str,
+        *,
+        roi_bbox: Optional[dict[str, float]] = None,
+    ) -> list[ClosedVocabCandidate]:
+        """Classify a build-class OCR string to a canonical name.
+
+        Returns a list of 0 or 1 :class:`ClosedVocabCandidate`.
+
+        Empty list means no canonical match within edit-distance 2. The
+        extractor never misclassifies as the nearest canonical — it emits no
+        evidence instead, preserving the downstream decision to reject or
+        escalate.
+        """
+        return self._match_to_candidates(self._build_classes, ocr_text, roi_bbox=roi_bbox)
+
+    def classify_x_factor_name(
+        self,
+        ocr_text: str,
+        *,
+        roi_bbox: Optional[dict[str, float]] = None,
+    ) -> list[ClosedVocabCandidate]:
+        """Classify an X-Factor name OCR string. Returns 0 or 1 candidate."""
+        return self._match_to_candidates(self._x_factors, ocr_text, roi_bbox=roi_bbox)
+
+    def classify_position(
+        self,
+        ocr_text: str,
+        *,
+        roi_bbox: Optional[dict[str, float]] = None,
+    ) -> list[ClosedVocabCandidate]:
+        """Classify a position OCR string (C/LW/RW/LD/RD/G). Returns 0 or 1 candidate."""
+        return self._match_to_candidates(self._positions, ocr_text, roi_bbox=roi_bbox)
+
+    def classify_platform(
+        self,
+        ocr_text: str,
+        *,
+        roi_bbox: Optional[dict[str, float]] = None,
+    ) -> list[ClosedVocabCandidate]:
+        """Classify a platform OCR string. Returns 0 or 1 candidate."""
+        return self._match_to_candidates(self._platforms, ocr_text, roi_bbox=roi_bbox)
+
+    # ------------------------------------------------------------------
+    # Image-based classifier (HSV color sampling via legacy parsers.py)
+    # ------------------------------------------------------------------
+
+    def classify_x_factor_tier_from_image(
+        self,
+        image_bgr,  # noqa: ANN001 — numpy ndarray; avoid hard dep at class level
+        *,
+        cx: int,
+        cy: int,
+        radius: int = 35,
+        roi_bbox: Optional[dict[str, float]] = None,
+    ) -> list[ClosedVocabCandidate]:
+        """Classify an X-Factor tier by HSV color sampling at the given centroid.
+
+        Wraps :func:`game_ocr.parsers._classify_xfactor_tier` verbatim.
+        The legacy function takes the full image plus a centroid ``(cx, cy)``
+        and a ``radius`` (default 35 px) — it crops internally.
+
+        Returns 0 or 1 :class:`ClosedVocabCandidate`:
+
+        - ``"Elite"`` (red hue cluster)
+        - ``"All Star"`` (blue hue cluster)
+        - ``"Specialist"`` (yellow hue cluster)
+        - ``[]`` when the HSV sampling finds no saturated icon (transitional
+          capture) or when ``image_bgr`` is ``None``.
+
+        HSV color sampling yields high confidence (1.0) when it returns at
+        all — the hue clusters are well-separated.
+        """
+        from ..parsers import _classify_xfactor_tier  # local to avoid circular import
+
+        tier = _classify_xfactor_tier(image_bgr, cx, cy, radius)
+        if tier is None:
+            return []
+        return [
+            ClosedVocabCandidate(
+                value=tier,
+                raw_confidence=1.0,
+                calibrated_confidence=1.0,
+                roi_bbox=roi_bbox,
+            )
+        ]
+
+    # ------------------------------------------------------------------
+    # Internal helpers
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _match_to_candidates(
+        vocab: ClosedVocab,
+        ocr_text: str,
+        *,
+        roi_bbox: Optional[dict[str, float]],
+    ) -> list[ClosedVocabCandidate]:
+        """Run match_canonical and wrap the result in a ClosedVocabCandidate list."""
+        result = vocab.match_canonical(ocr_text)
+        if result is None:
+            return []
+        value, confidence = result
+        return [
+            ClosedVocabCandidate(
+                value=value,
+                raw_confidence=confidence,
+                calibrated_confidence=confidence,
+                roi_bbox=roi_bbox,
+            )
+        ]
 
 
 def load_attribute_keys(version: str = "nhl26") -> dict[str, list[str]]:

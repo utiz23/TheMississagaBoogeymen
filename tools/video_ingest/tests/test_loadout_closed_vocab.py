@@ -206,5 +206,252 @@ class TestErrorCases(unittest.TestCase):
             vocab.predict_log_probs(None)
 
 
+# ---------------------------------------------------------------------------
+# Phase 2A-4: ClosedVocabCandidate + LoadoutClosedVocabExtractor
+# ---------------------------------------------------------------------------
+
+from game_ocr.loadout_extractors.closed_vocab import (  # noqa: E402
+    ClosedVocabCandidate,
+    LoadoutClosedVocabExtractor,
+)
+
+
+class TestClosedVocabCandidateShape(unittest.TestCase):
+    def test_candidate_is_frozen_dataclass(self):
+        """ClosedVocabCandidate is a frozen dataclass with the expected fields."""
+        c = ClosedVocabCandidate(
+            value="Sniper",
+            raw_confidence=1.0,
+            calibrated_confidence=1.0,
+            roi_bbox=None,
+        )
+        self.assertEqual(c.value, "Sniper")
+        self.assertAlmostEqual(c.raw_confidence, 1.0)
+        self.assertAlmostEqual(c.calibrated_confidence, 1.0)
+        self.assertIsNone(c.roi_bbox)
+
+    def test_candidate_is_immutable(self):
+        """Frozen dataclass: assigning a field raises FrozenInstanceError."""
+        c = ClosedVocabCandidate(
+            value="Sniper",
+            raw_confidence=1.0,
+            calibrated_confidence=1.0,
+        )
+        with self.assertRaises(Exception):
+            c.value = "Other"  # type: ignore[misc]
+
+    def test_candidate_roi_bbox_defaults_to_none(self):
+        """roi_bbox defaults to None when not supplied."""
+        c = ClosedVocabCandidate(value="C", raw_confidence=1.0, calibrated_confidence=1.0)
+        self.assertIsNone(c.roi_bbox)
+
+    def test_calibrated_confidence_equals_raw_confidence_in_phase_2a(self):
+        """Phase 2A: calibrated_confidence always equals raw_confidence (no calibration yet)."""
+        extractor = LoadoutClosedVocabExtractor()
+        candidates = extractor.classify_build_class("Sniper")
+        self.assertEqual(len(candidates), 1)
+        c = candidates[0]
+        self.assertAlmostEqual(c.calibrated_confidence, c.raw_confidence)
+
+
+class TestClassifyBuildClass(unittest.TestCase):
+    def test_classify_build_class_returns_top1_from_alias_regex(self):
+        """Exact alias match for 'Sniper' returns one ClosedVocabCandidate."""
+        extractor = LoadoutClosedVocabExtractor()
+        result = extractor.classify_build_class("Sniper")
+        self.assertEqual(len(result), 1)
+        c = result[0]
+        self.assertEqual(c.value, "Sniper")
+        self.assertAlmostEqual(c.raw_confidence, 1.0)
+        self.assertAlmostEqual(c.calibrated_confidence, 1.0)
+        self.assertIsNone(c.roi_bbox)
+
+    def test_classify_build_class_fuzzy_typo_returns_top1(self):
+        """Typo within edit-distance 2 returns candidate with confidence 0.5."""
+        extractor = LoadoutClosedVocabExtractor()
+        result = extractor.classify_build_class("Snper")
+        self.assertEqual(len(result), 1)
+        c = result[0]
+        self.assertEqual(c.value, "Sniper")
+        self.assertAlmostEqual(c.raw_confidence, 0.5)
+        self.assertAlmostEqual(c.calibrated_confidence, 0.5)
+
+    def test_classify_build_class_passes_roi_bbox_through(self):
+        """roi_bbox kwarg is passed through to the candidate unchanged."""
+        extractor = LoadoutClosedVocabExtractor()
+        bbox = {"x": 0.1, "y": 0.2, "w": 0.3, "h": 0.05}
+        result = extractor.classify_build_class("Sniper", roi_bbox=bbox)
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0].roi_bbox, bbox)
+
+    def test_classify_build_class_case_insensitive(self):
+        """Alias regex is case-insensitive: 'sniper' → 'Sniper'."""
+        extractor = LoadoutClosedVocabExtractor()
+        result = extractor.classify_build_class("sniper")
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0].value, "Sniper")
+        self.assertAlmostEqual(result[0].raw_confidence, 1.0)
+
+
+class TestUnknownRawReturnsEmptyCandidateList(unittest.TestCase):
+    def test_unknown_raw_returns_empty_candidate_list_not_misclassification(self):
+        """String far from all canonicals returns [] — never a nearest-neighbor candidate."""
+        extractor = LoadoutClosedVocabExtractor()
+        result = extractor.classify_build_class("xyzzy_unknown_blah")
+        # CRITICAL: must be empty list, not None, not a guessed candidate
+        self.assertIsInstance(result, list)
+        self.assertEqual(len(result), 0)
+
+    def test_unknown_returns_list_not_none(self):
+        """Return type is always list, even when no match — callers can len() it safely."""
+        extractor = LoadoutClosedVocabExtractor()
+        result = extractor.classify_build_class("###$$$$%%%")
+        self.assertIsInstance(result, list)
+
+
+class TestClassifyXFactorName(unittest.TestCase):
+    def test_classify_x_factor_name_returns_top1(self):
+        """Exact alias match for 'Wheels' returns one ClosedVocabCandidate."""
+        extractor = LoadoutClosedVocabExtractor()
+        result = extractor.classify_x_factor_name("Wheels")
+        self.assertEqual(len(result), 1)
+        c = result[0]
+        self.assertEqual(c.value, "Wheels")
+        self.assertAlmostEqual(c.raw_confidence, 1.0)
+        self.assertAlmostEqual(c.calibrated_confidence, 1.0)
+        self.assertIsNone(c.roi_bbox)
+
+    def test_classify_x_factor_name_fuzzy_match(self):
+        """Typo within edit-distance 2 returns fuzzy candidate."""
+        extractor = LoadoutClosedVocabExtractor()
+        result = extractor.classify_x_factor_name("Rocket")
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0].value, "Rocket")
+        self.assertAlmostEqual(result[0].raw_confidence, 1.0)
+
+    def test_classify_x_factor_name_unknown_returns_empty(self):
+        """Unknown x-factor name returns []."""
+        extractor = LoadoutClosedVocabExtractor()
+        result = extractor.classify_x_factor_name("xyzzy_unknown_blah")
+        self.assertIsInstance(result, list)
+        self.assertEqual(len(result), 0)
+
+
+class TestClassifyXFactorTierFromImage(unittest.TestCase):
+    def test_classify_x_factor_tier_returns_candidate_when_function_returns_tier(self):
+        """When _classify_xfactor_tier returns 'Elite', wrapper produces one ClosedVocabCandidate."""
+        from unittest.mock import patch
+
+        extractor = LoadoutClosedVocabExtractor()
+        fake_image = object()  # not a real image — mocked away
+
+        with patch(
+            "game_ocr.parsers._classify_xfactor_tier",
+            return_value="Elite",
+        ) as mock_fn:
+            result = extractor.classify_x_factor_tier_from_image(
+                fake_image, cx=100, cy=200, radius=35
+            )
+            mock_fn.assert_called_once_with(fake_image, 100, 200, 35)
+
+        self.assertEqual(len(result), 1)
+        c = result[0]
+        self.assertEqual(c.value, "Elite")
+        self.assertAlmostEqual(c.raw_confidence, 1.0)
+        self.assertAlmostEqual(c.calibrated_confidence, 1.0)
+        self.assertIsNone(c.roi_bbox)
+
+    def test_classify_x_factor_tier_returns_one_of_three(self):
+        """All three valid tier values are accepted."""
+        from unittest.mock import patch
+
+        extractor = LoadoutClosedVocabExtractor()
+        fake_image = object()
+
+        for tier in ("Elite", "All Star", "Specialist"):
+            with self.subTest(tier=tier):
+                with patch(
+                    "game_ocr.parsers._classify_xfactor_tier",
+                    return_value=tier,
+                ):
+                    result = extractor.classify_x_factor_tier_from_image(
+                        fake_image, cx=50, cy=50
+                    )
+                self.assertEqual(len(result), 1)
+                self.assertEqual(result[0].value, tier)
+
+    def test_classify_x_factor_tier_empty_on_none(self):
+        """When _classify_xfactor_tier returns None, wrapper returns []."""
+        from unittest.mock import patch
+
+        extractor = LoadoutClosedVocabExtractor()
+        fake_image = object()
+
+        with patch(
+            "game_ocr.parsers._classify_xfactor_tier",
+            return_value=None,
+        ):
+            result = extractor.classify_x_factor_tier_from_image(
+                fake_image, cx=50, cy=50
+            )
+        self.assertIsInstance(result, list)
+        self.assertEqual(len(result), 0)
+
+    def test_classify_x_factor_tier_passes_roi_bbox(self):
+        """roi_bbox is forwarded to the candidate."""
+        from unittest.mock import patch
+
+        extractor = LoadoutClosedVocabExtractor()
+        bbox = {"x": 0.5, "y": 0.1, "w": 0.1, "h": 0.1}
+
+        with patch(
+            "game_ocr.parsers._classify_xfactor_tier",
+            return_value="Specialist",
+        ):
+            result = extractor.classify_x_factor_tier_from_image(
+                object(), cx=50, cy=50, roi_bbox=bbox
+            )
+        self.assertEqual(result[0].roi_bbox, bbox)
+
+
+class TestClassifyPosition(unittest.TestCase):
+    def test_classify_position_returns_canonical_for_typo(self):
+        """OCR artifact '1w' is an explicit alias for 'LW', so confidence is 1.0.
+
+        '1w' appears as an alias in positions.yaml because OCR commonly mistakes
+        'L' for '1'. The YAML captures this as an exact-regex alias, so the
+        result is confidence 1.0 (not 0.5 fuzzy).
+        """
+        extractor = LoadoutClosedVocabExtractor()
+        result = extractor.classify_position("1w")
+        self.assertIsInstance(result, list)
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0].value, "LW")
+        # '1w' is an explicit alias → exact match → confidence 1.0
+        self.assertAlmostEqual(result[0].raw_confidence, 1.0)
+
+    def test_classify_position_exact_match(self):
+        """Exact match 'C' returns 'C' with confidence 1.0."""
+        extractor = LoadoutClosedVocabExtractor()
+        result = extractor.classify_position("C")
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0].value, "C")
+        self.assertAlmostEqual(result[0].raw_confidence, 1.0)
+
+
+class TestExtractorVersion(unittest.TestCase):
+    def test_extractor_version_is_stamped(self):
+        """EXTRACTOR_VERSION class attribute is the expected sentinel string."""
+        self.assertEqual(
+            LoadoutClosedVocabExtractor.EXTRACTOR_VERSION,
+            "closed-vocab-alias-v1",
+        )
+
+    def test_extractor_accepts_version_kwarg(self):
+        """LoadoutClosedVocabExtractor(version='nhl26') constructs without error."""
+        extractor = LoadoutClosedVocabExtractor(version="nhl26")
+        self.assertIsNotNone(extractor)
+
+
 if __name__ == "__main__":
     unittest.main()
