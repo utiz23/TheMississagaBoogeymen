@@ -8,7 +8,7 @@
  * One snapshot per detected roster slot (typically 6 BGM + 6 opponent = up to 12).
  * CPU/empty slots are skipped.
  *
- * Idempotent on sourceExtractionId: re-running deletes prior snapshot rows from
+ * Idempotent on ocrExtractionId: re-running deletes prior snapshot rows from
  * this extraction before reinserting.
  */
 
@@ -42,7 +42,7 @@ export async function promotePreGameLobby(ctx: PromoterContext): Promise<void> {
   const existingSnapshots = await db
     .select({ id: playerLoadoutSnapshots.id })
     .from(playerLoadoutSnapshots)
-    .where(eq(playerLoadoutSnapshots.sourceExtractionId, extractionId))
+    .where(eq(playerLoadoutSnapshots.ocrExtractionId, extractionId))
   for (const s of existingSnapshots) {
     await db.delete(playerLoadoutXFactors).where(eq(playerLoadoutXFactors.loadoutSnapshotId, s.id))
     await db
@@ -101,7 +101,7 @@ export async function promotePreGameLobby(ctx: PromoterContext): Promise<void> {
         teamSide,
         gameTitleId,
         matchId,
-        sourceExtractionId: extractionId,
+        ocrExtractionId: extractionId,
         position: stringValue(positionField),
         buildClass: stringValue(buildField, { preferRaw: true }),
         heightText: height,

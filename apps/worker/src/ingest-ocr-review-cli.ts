@@ -115,7 +115,7 @@ async function setExtractionStatus(
     const loadoutRows = await tx
       .update(playerLoadoutSnapshots)
       .set({ reviewStatus: status })
-      .where(inArray(playerLoadoutSnapshots.sourceExtractionId, extractionIds))
+      .where(inArray(playerLoadoutSnapshots.ocrExtractionId, extractionIds))
       .returning({ id: playerLoadoutSnapshots.id })
     counts.loadoutSnapshots = loadoutRows.length
 

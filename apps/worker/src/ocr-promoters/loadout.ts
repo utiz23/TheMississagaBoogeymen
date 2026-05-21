@@ -2,7 +2,7 @@
  * Promote a player_loadout_view extraction into player_loadout_snapshots
  * + player_loadout_x_factors + player_loadout_attributes.
  *
- * Idempotent on sourceExtractionId: re-running an extraction deletes the prior
+ * Idempotent on ocrExtractionId: re-running an extraction deletes the prior
  * snapshot row plus its child x_factor / attribute rows before reinserting.
  *
  * One snapshot per loadout view capture — only ever one "selected player" per
@@ -94,7 +94,7 @@ export async function promoteLoadout(ctx: PromoterContext): Promise<void> {
   const existingSnapshots = await db
     .select({ id: playerLoadoutSnapshots.id })
     .from(playerLoadoutSnapshots)
-    .where(eq(playerLoadoutSnapshots.sourceExtractionId, extractionId))
+    .where(eq(playerLoadoutSnapshots.ocrExtractionId, extractionId))
   for (const s of existingSnapshots) {
     await db.delete(playerLoadoutXFactors).where(eq(playerLoadoutXFactors.loadoutSnapshotId, s.id))
     await db
@@ -115,7 +115,7 @@ export async function promoteLoadout(ctx: PromoterContext): Promise<void> {
       teamSide,
       gameTitleId,
       matchId,
-      sourceExtractionId: extractionId,
+      ocrExtractionId: extractionId,
       position: stringValue(positionField),
       buildClass: stringValue(buildClassField),
       heightText: stringValue(heightField),

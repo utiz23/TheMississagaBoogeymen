@@ -69,7 +69,7 @@ interface Snapshot {
   playerLevelNumber: number | null
   platform: string | null
   gameTitleId: number
-  sourceExtractionId: number
+  ocrExtractionId: number
   screenType: string
   reviewStatus: OcrReviewStatus
 }
@@ -86,11 +86,11 @@ async function readSnapshots(matchId: number): Promise<Snapshot[]> {
       pls.weight_lbs AS "weightLbs", pls.handedness,
       pls.player_level_raw AS "playerLevelRaw", pls.player_level_number AS "playerLevelNumber",
       pls.platform, pls.game_title_id AS "gameTitleId",
-      pls.source_extraction_id AS "sourceExtractionId",
+      pls.ocr_extraction_id AS "ocrExtractionId",
       oe.screen_type AS "screenType",
       pls.review_status AS "reviewStatus"
     FROM player_loadout_snapshots pls
-    JOIN ocr_extractions oe ON oe.id = pls.source_extraction_id
+    JOIN ocr_extractions oe ON oe.id = pls.ocr_extraction_id
     WHERE pls.match_id = ${matchId}
     ORDER BY pls.id
   `)

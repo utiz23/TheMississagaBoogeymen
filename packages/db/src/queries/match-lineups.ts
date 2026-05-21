@@ -85,7 +85,7 @@ export async function getMatchLineups(matchId: number) {
       playerLevelRaw: playerLoadoutSnapshots.playerLevelRaw,
       platform: playerLoadoutSnapshots.platform,
       capturedAt: playerLoadoutSnapshots.capturedAt,
-      sourceExtractionId: playerLoadoutSnapshots.sourceExtractionId,
+      ocrExtractionId: playerLoadoutSnapshots.ocrExtractionId,
       playerId: playerLoadoutSnapshots.playerId,
       reviewStatus: playerLoadoutSnapshots.reviewStatus,
       // joined player
@@ -101,7 +101,7 @@ export async function getMatchLineups(matchId: number) {
     })
     .from(playerLoadoutSnapshots)
     .leftJoin(players, eq(players.id, playerLoadoutSnapshots.playerId))
-    .innerJoin(ocrExtractions, eq(ocrExtractions.id, playerLoadoutSnapshots.sourceExtractionId))
+    .innerJoin(ocrExtractions, eq(ocrExtractions.id, playerLoadoutSnapshots.ocrExtractionId))
     .where(
       and(
         eq(playerLoadoutSnapshots.matchId, matchId),
@@ -534,7 +534,7 @@ export async function getMatchLineupProvenance(matchId: number): Promise<MatchLi
       buildClassCanonical: playerLoadoutSnapshots.buildClassCanonical,
     })
     .from(playerLoadoutSnapshots)
-    .innerJoin(ocrExtractions, eq(ocrExtractions.id, playerLoadoutSnapshots.sourceExtractionId))
+    .innerJoin(ocrExtractions, eq(ocrExtractions.id, playerLoadoutSnapshots.ocrExtractionId))
     .where(eq(playerLoadoutSnapshots.matchId, matchId))
 
   if (snapshotMeta.length === 0) {

@@ -58,7 +58,7 @@ export const playerLoadoutSnapshots = pgTable(
       .notNull()
       .references(() => gameTitles.id),
     matchId: bigint('match_id', { mode: 'number' }).references(() => matches.id),
-    sourceExtractionId: bigint('source_extraction_id', { mode: 'number' })
+    ocrExtractionId: bigint('ocr_extraction_id', { mode: 'number' })
       .notNull()
       .references(() => ocrExtractions.id),
     position: text('position'),
