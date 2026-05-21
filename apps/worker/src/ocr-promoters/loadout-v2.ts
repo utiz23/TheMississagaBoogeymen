@@ -515,7 +515,15 @@ export async function promoteLoadoutFromEvidence(input: {
       pendingPromotions.push(fieldDecisionToPromotion(matchId, 'player_loadout_snapshots', snapshotSemanticKey, fieldKey, decision))
     }
 
-    // Snapshot-level promoted row (whole-row)
+    // Snapshot-level promoted row (whole-row).
+    // Collect the union of all evidenceIds from every field decision for this
+    // slot so that the snapshot-level row records which ocr_field_evidence rows
+    // contributed to the promotion decision.
+    const allSlotEvidenceIds = Array.from(
+      new Set(
+        Array.from(sd.fieldDecisions.values()).flatMap((d) => d.evidenceIds),
+      ),
+    )
     pendingPromotions.push({
       matchId,
       targetTable: 'player_loadout_snapshots',
@@ -523,9 +531,9 @@ export async function promoteLoadoutFromEvidence(input: {
       fieldKey: null,
       winningValue: { gamertag: gamertagVal, position: positionVal, team_side: teamSide },
       winningConfidence: null,
-      evidenceCount: 1,
+      evidenceCount: allSlotEvidenceIds.length,
       conflictCount: 0,
-      evidenceIds: [],
+      evidenceIds: allSlotEvidenceIds,
       promotionStatus: 'promoted',
       blockingReason: null,
       authoritySource: 'ocr_evidence',

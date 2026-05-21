@@ -114,22 +114,40 @@ export async function cleanupSentinelMatches(
  * Seeds the minimal roster rows for fixture_match463_single_slot.
  *
  * 5 BGM skaters + 5 opp skaters so getExpectedSlotsForMatch(9002) returns
- * exactly 10 expected slots.  Uses fixed sentinel IDs from expected_canonical.sql
- * so tests can reference them in assertions.
+ * exactly 10 expected slots.
  *
- * HenryTheBobJr (player_id=1, already in production DB) is used for BGM side.
+ * player_match_stats has a unique index on (player_id, match_id), so each BGM
+ * row MUST use a distinct player_id.  We insert 5 sentinel players at IDs
+ * 99021–99025 (one per position) before inserting the match stats rows.
+ * HenryTheBobJr is sentinel 99021 (the LD slot — id=990041, lowest, maps to LD
+ * by toExpectedSlots id-ASC ordering).  The other 4 players are position-only
+ * sentinels with placeholder gamertags.
  */
 async function seedMatch463Roster(matchId: number, db: Db): Promise<void> {
-  // BGM side — 5 skaters.  Uses player_id=1 (HenryTheBobJr) for all slots.
-  // The promoter only needs the positions to build expected slots.
+  // Insert 5 distinct sentinel players for the BGM side.
+  // onConflictDoNothing: safe to call multiple times.
+  await db
+    .insert(players)
+    .values([
+      { id: 99021, gamertag: 'HenryTheBobJr' },
+      { id: 99022, gamertag: 'fix-9002-bgm-d2' },
+      { id: 99023, gamertag: 'fix-9002-bgm-c' },
+      { id: 99024, gamertag: 'fix-9002-bgm-lw' },
+      { id: 99025, gamertag: 'fix-9002-bgm-rw' },
+    ])
+    .onConflictDoNothing()
+
+  // BGM side — 5 skaters, each with a distinct player_id.
+  // Sentinel IDs 99021–99025 map to the 5 positions.
+  // 990041 < 990042 so toExpectedSlots assigns LD=990041, RD=990042.
   await db
     .insert(playerMatchStats)
     .values([
-      { id: 990041, matchId, playerId: 1, position: 'defenseMen', isGoalie: false },
-      { id: 990042, matchId, playerId: 1, position: 'defenseMen', isGoalie: false },
-      { id: 990043, matchId, playerId: 1, position: 'center', isGoalie: false },
-      { id: 990044, matchId, playerId: 1, position: 'leftWing', isGoalie: false },
-      { id: 990045, matchId, playerId: 1, position: 'rightWing', isGoalie: false },
+      { id: 990041, matchId, playerId: 99021, position: 'defenseMen', isGoalie: false },
+      { id: 990042, matchId, playerId: 99022, position: 'defenseMen', isGoalie: false },
+      { id: 990043, matchId, playerId: 99023, position: 'center', isGoalie: false },
+      { id: 990044, matchId, playerId: 99024, position: 'leftWing', isGoalie: false },
+      { id: 990045, matchId, playerId: 99025, position: 'rightWing', isGoalie: false },
     ])
     .onConflictDoNothing()
 

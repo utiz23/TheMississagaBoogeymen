@@ -2,6 +2,15 @@
  * Phase 1 acceptance gate T2 (DEFERRED): match 463's player_loadout_view
  * segment count.
  *
+ * PHASE-1 DEFERRED TEST — superseded by match-463-loadout-slots-fixture.test.ts
+ * (Phase 2A-23 / T2A).
+ *
+ * The original Phase-1 floor "≥7 player_loadout_view segments" was based on a
+ * misunderstanding of HMM segmentation (the HMM correctly groups contiguous
+ * viewing into one segment). The architecturally correct loadout-coverage gate
+ * operates at the per-slot evidence-layer level (Phase 2A-23's fixture-based
+ * test), not the Pass-1 segment count.
+ *
  * Original plan assumption: the HMM would capture ≥7 segments because the
  * legacy run-length segmenter missed sub-second slot traversals. After Task 14
  * re-ingest, we learned the HMM correctly groups contiguous player_loadout_view
@@ -15,8 +24,7 @@
  * (Phase 2 territory: the loadout-snapshot evidence layer + promoter), not
  * the Pass-1 segment count.
  *
- * This test remains `test.skip`'d permanently with this framing. Phase 2 will
- * introduce a per-slot loadout-coverage gate via the evidence layer.
+ * This test remains `test.skip`'d permanently with this framing.
  *
  * Skips when DATABASE_URL is unset or match 463 isn't in the DB.
  */
