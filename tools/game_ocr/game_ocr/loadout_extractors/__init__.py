@@ -11,10 +11,14 @@ Public surface:
 
     IconEvidence         — frozen dataclass; one icon-family candidate
     LoadoutIconExtractor — wraps match_icon + _classify_xfactor_tier
+
+    OpenTextEvidence         — frozen dataclass; one n-best candidate for open-text fields
+    LoadoutOpenTextExtractor — filters RapidOCR lines to ROI, emits ranked candidates
 """
 
 from .closed_vocab import ClosedVocab, ClosedVocabEntry, load_attribute_keys, load_closed_vocab
 from .icon import IconEvidence, LoadoutIconExtractor
+from .open_text import LoadoutOpenTextExtractor, OpenTextEvidence
 from .slot_identity import (
     MAX_ROWS_PER_LOADOUT_SEGMENT,
     ROW_Y_BUCKET_TOLERANCE_PX,
@@ -33,4 +37,6 @@ __all__ = [
     "MAX_ROWS_PER_LOADOUT_SEGMENT",
     "IconEvidence",
     "LoadoutIconExtractor",
+    "OpenTextEvidence",
+    "LoadoutOpenTextExtractor",
 ]
