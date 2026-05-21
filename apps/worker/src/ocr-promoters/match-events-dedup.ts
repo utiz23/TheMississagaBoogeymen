@@ -8,7 +8,23 @@
  * a player's name in just one or two characters (e.g. "SILKY" → "SIlKY",
  * "WILDE" → "WILOE", "TOEWS" → "fOEWS").
  *
- * This helper uses two strategies in sequence:
+ * This helper uses three strategies in sequence:
+ *
+ *   0. Positioned-vs-junk prefix guard. At action-tracker insert time the
+ *      incoming row always has x=null. If an existing row in the same
+ *      (match, period, type, clock) bucket already has x IS NOT NULL and
+ *      its actor snapshot shares the first 4 normalised alphanumeric chars
+ *      with the incoming actor, the incoming row is a junk OCR-variant
+ *      of a positioned canonical event (e.g. "Silky [" vs "SILKY", or
+ *      "S. Zubov (1l" vs "S. ZUBOV"). Drop it. The normalisation mirrors
+ *      the SQL cleanup in docs/calibration/phase1-dedup-cleanup-2026-05-20.sql.
+ *
+ *      NOT triggered when:
+ *        - neither (both unpositioned) or both rows are positioned — falls
+ *          through so genuinely distinct same-time events survive (e.g. two
+ *          different players acting at the same clock with no x/y)
+ *        - actor prefixes differ after stripping non-alpha chars — the
+ *          WILDE / S. ZUBOV case ("wild" ≠ "szub") is preserved correctly.
  *
  *   A. Resolved-player path. If `resolveGamertagToPlayer` succeeded
  *      (Levenshtein-1 + display alias + gamertag history cascade), both
@@ -30,7 +46,7 @@
  */
 
 import { matchEvents } from '@eanhl/db'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, isNotNull } from 'drizzle-orm'
 import type { PromoterDb } from './index.js'
 import { levenshtein, normalizeSnapshot } from './resolve-identity.js'
 
@@ -46,6 +62,19 @@ export interface DedupKey {
 }
 
 /**
+ * Strips all non-alphabetic characters, lowercases, and returns the first
+ * 4 characters. Mirrors the SQL:
+ *   LEFT(LOWER(REGEXP_REPLACE(COALESCE(actor_gamertag_snapshot,''),'[^a-zA-Z]','','g')), 4)
+ *
+ * Used by Strategy 0 to detect "Silky [" ≈ "SILKY", "S. Zubov (1l" ≈ "S. ZUBOV".
+ * Returns empty string when the snapshot is null / empty or all-punctuation.
+ */
+export function normalizeActorForPrefix(snap: string | null): string {
+  if (!snap) return ''
+  return snap.toLowerCase().replace(/[^a-z]/g, '').slice(0, 4)
+}
+
+/**
  * Returns the id of an existing match_events row that represents the
  * same event as the given key, or null if no match. Idempotent.
  */
@@ -53,8 +82,43 @@ export async function findExistingMatchEvent(
   db: PromoterDb,
   key: DedupKey,
 ): Promise<number | null> {
-  // Strategy A — resolved-player path. Exact match on actor_player_id within
-  // (match, period, type, source, clock).
+  // ── Strategy 0 ── Positioned-vs-junk prefix guard ─────────────────────────
+  // At action-tracker insert time the incoming row has x=null. If there is
+  // already a positioned row (x IS NOT NULL) in the same bucket whose actor
+  // shares the first 4 normalised alphanumeric chars with the incoming actor,
+  // the incoming row is an OCR-junk variant that should be suppressed.
+  //
+  // This fires before the resolver / Levenshtein strategies so a junk row
+  // whose actor string is too corrupted for Levenshtein-1 to catch (e.g.
+  // "Silky [" has edit distance 2 from "SILKY" after normalisation) is still
+  // blocked here based on the weaker but sufficient prefix signal.
+  {
+    const incomingPrefix = normalizeActorForPrefix(key.actorSnapshot)
+    if (incomingPrefix.length >= 4) {
+      const positionedRows = await db
+        .select({ id: matchEvents.id, snapshot: matchEvents.actorGamertagSnapshot })
+        .from(matchEvents)
+        .where(
+          and(
+            eq(matchEvents.matchId, key.matchId),
+            eq(matchEvents.periodNumber, key.periodNumber),
+            eq(matchEvents.eventType, key.eventType),
+            eq(matchEvents.source, 'ocr'),
+            eq(matchEvents.clock, key.clock),
+            isNotNull(matchEvents.x),
+          ),
+        )
+      for (const row of positionedRows) {
+        const existingPrefix = normalizeActorForPrefix(row.snapshot ?? null)
+        if (existingPrefix.length >= 4 && existingPrefix === incomingPrefix) {
+          return row.id
+        }
+      }
+    }
+  }
+
+  // ── Strategy A ── Resolved-player path ────────────────────────────────────
+  // Exact match on actor_player_id within (match, period, type, source, clock).
   if (key.actorPlayerId !== null) {
     const rows = await db
       .select({ id: matchEvents.id })
@@ -76,10 +140,10 @@ export async function findExistingMatchEvent(
     // time but the OCR snapshot matches this event).
   }
 
-  // Strategy B — fuzzy snapshot match against ALL same-bucket rows (resolved
-  // or unresolved). Whitespace + casing variants (e.g. "M. RANTANEN" vs
-  // "M.RANTANEN") collapse via normalizeSnapshot before Levenshtein. The
-  // 'unknown_screen' marker is handled by the caller.
+  // ── Strategy B ── Unresolved-actor fuzzy fallback ─────────────────────────
+  // Whitespace + casing variants (e.g. "M. RANTANEN" vs "M.RANTANEN") collapse
+  // via normalizeSnapshot before Levenshtein. The 'unknown_screen' marker is
+  // handled by the caller.
   const candidates = await db
     .select({ id: matchEvents.id, snapshot: matchEvents.actorGamertagSnapshot })
     .from(matchEvents)
