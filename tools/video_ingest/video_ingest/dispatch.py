@@ -59,6 +59,7 @@ def dispatch_segments(
     video_sha256: str,
     ui_version: str = "nhl26",
     decoder_version: str = "legacy-passthrough-v0-video",
+    loadout_engine: str = "legacy",
     repo_root: Path | None = None,
     dry_run: bool = False,
 ) -> list[DispatchResult]:
@@ -98,6 +99,13 @@ def dispatch_segments(
         ]
         if match_id is not None:
             cmd.extend(["--match-id", str(match_id)])
+        # Task 2A-11: loadout-engine flag (always present; default 'legacy').
+        cmd.extend(["--loadout-engine", loadout_engine])
+        # Task 2A-11: loadout-evidence-json flag (typed_v1 only, file must exist).
+        if loadout_engine == "typed_v1":
+            loadout_evidence_path = r.directory / "loadout_evidence.json"
+            if loadout_evidence_path.exists():
+                cmd.extend(["--loadout-evidence-json", str(loadout_evidence_path)])
         if dry_run:
             cmd.append("--dry-run")
 

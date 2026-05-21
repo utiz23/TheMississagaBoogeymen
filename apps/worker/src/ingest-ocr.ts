@@ -69,6 +69,19 @@ export interface IngestOcrBatchInput {
    * pass `hmm-viterbi-v1` explicitly when the Viterbi engine is selected.
    */
   decoderVersion?: string | null
+  /**
+   * Pass-2 loadout extraction engine: 'typed_v1' | 'legacy'. Default 'legacy'.
+   * Task 2A-14 will use this to select the write path for loadout field evidence.
+   * For now accepted and stored in the input but does not change behaviour.
+   */
+  loadoutEngine?: string
+  /**
+   * Absolute path to `loadout_evidence.json` written by the typed_v1 extractor.
+   * Only provided when loadout_engine='typed_v1' AND the file exists in the
+   * segment directory. Task 2A-14 reads + ingests this file via
+   * writeFieldEvidenceForBatch(). Accepted here but not yet acted on.
+   */
+  loadoutEvidenceJsonPath?: string | null
 }
 
 export interface IngestOcrBatchResult {

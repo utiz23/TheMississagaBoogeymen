@@ -184,3 +184,179 @@ def test_dispatch_default_decoder_version_is_legacy(monkeypatch, tmp_path):
     )
     cmd = captured[0]
     assert cmd[cmd.index("--decoder-version") + 1] == "legacy-passthrough-v0-video"
+
+
+# ---------------------------------------------------------------------------
+# Task 2A-11: --loadout-engine + --loadout-evidence-json flag plumbing
+# ---------------------------------------------------------------------------
+
+
+def _make_loadout_results(directory: Path) -> list[Pass2Result]:
+    """One player_loadout_view segment for loadout-flag tests."""
+    seg = Segment(
+        start_index=0,
+        end_index=4,
+        start_seconds=10.0,
+        end_seconds=15.0,
+        screen_type="player_loadout_view",
+        frame_count=5,
+        mean_color_score=0.9,
+    )
+    return [
+        Pass2Result(
+            segment_index=3,
+            segment=seg,
+            directory=directory,
+            frame_count=5,
+            sample_fps=1.0,
+            start_seconds=10.0,
+            end_seconds=15.0,
+        )
+    ]
+
+
+def _fake_pnpm_run(captured: list[list[str]]):
+    """Return a side-effect function that appends cmd to `captured`."""
+    class _FakeProc:
+        returncode = 0
+        stdout = ""
+        stderr = ""
+
+    def _run(cmd, **kwargs):
+        captured.append(list(cmd))
+        return _FakeProc()
+
+    return _run
+
+
+def test_dispatch_passes_loadout_engine_flag(monkeypatch, tmp_path):
+    """dispatch_segments always passes --loadout-engine to ingest-ocr-cli.
+
+    typed_v1 → '--loadout-engine typed_v1'
+    legacy   → '--loadout-engine legacy'
+    """
+    from video_ingest.dispatch import dispatch_segments
+
+    repo_root = tmp_path / "repo"
+    repo_root.mkdir()
+    (repo_root / "pnpm-workspace.yaml").write_text("")
+    seg_dir = tmp_path / "seg"
+    seg_dir.mkdir()
+
+    # --- typed_v1 case ---
+    captured_v1: list[list[str]] = []
+    monkeypatch.setattr("video_ingest.dispatch.subprocess.run", _fake_pnpm_run(captured_v1))
+    monkeypatch.setattr("video_ingest.dispatch.shutil.which", lambda _: "/usr/bin/pnpm")
+    dispatch_segments(
+        _make_loadout_results(seg_dir),
+        game_title_id=1,
+        match_id=250,
+        video_sha256="b" * 64,
+        ui_version="nhl26",
+        repo_root=repo_root,
+        loadout_engine="typed_v1",
+    )
+    assert len(captured_v1) == 1
+    cmd_v1 = captured_v1[0]
+    assert "--loadout-engine" in cmd_v1
+    assert cmd_v1[cmd_v1.index("--loadout-engine") + 1] == "typed_v1"
+
+    # --- legacy case ---
+    captured_leg: list[list[str]] = []
+    monkeypatch.setattr("video_ingest.dispatch.subprocess.run", _fake_pnpm_run(captured_leg))
+    dispatch_segments(
+        _make_loadout_results(seg_dir),
+        game_title_id=1,
+        match_id=250,
+        video_sha256="b" * 64,
+        ui_version="nhl26",
+        repo_root=repo_root,
+        loadout_engine="legacy",
+    )
+    assert len(captured_leg) == 1
+    cmd_leg = captured_leg[0]
+    assert "--loadout-engine" in cmd_leg
+    assert cmd_leg[cmd_leg.index("--loadout-engine") + 1] == "legacy"
+
+
+def test_dispatch_passes_loadout_evidence_json_path(monkeypatch, tmp_path):
+    """When loadout_engine='typed_v1' AND loadout_evidence.json exists,
+    --loadout-evidence-json <path> is included in the CLI invocation.
+    When loadout_engine='legacy', the flag is omitted even if the file exists."""
+    from video_ingest.dispatch import dispatch_segments
+
+    repo_root = tmp_path / "repo"
+    repo_root.mkdir()
+    (repo_root / "pnpm-workspace.yaml").write_text("")
+    seg_dir = tmp_path / "seg"
+    seg_dir.mkdir()
+
+    # Create the evidence file so the conditional is satisfied.
+    evidence_path = seg_dir / "loadout_evidence.json"
+    evidence_path.write_text("[]")
+
+    # --- typed_v1 + file present → flag included ---
+    captured_v1: list[list[str]] = []
+    monkeypatch.setattr("video_ingest.dispatch.subprocess.run", _fake_pnpm_run(captured_v1))
+    monkeypatch.setattr("video_ingest.dispatch.shutil.which", lambda _: "/usr/bin/pnpm")
+    dispatch_segments(
+        _make_loadout_results(seg_dir),
+        game_title_id=1,
+        match_id=250,
+        video_sha256="c" * 64,
+        ui_version="nhl26",
+        repo_root=repo_root,
+        loadout_engine="typed_v1",
+    )
+    cmd_v1 = captured_v1[0]
+    assert "--loadout-evidence-json" in cmd_v1, (
+        "--loadout-evidence-json must be present when loadout_engine=typed_v1 and file exists"
+    )
+    assert cmd_v1[cmd_v1.index("--loadout-evidence-json") + 1] == str(evidence_path)
+
+    # --- legacy + file present → flag omitted ---
+    captured_leg: list[list[str]] = []
+    monkeypatch.setattr("video_ingest.dispatch.subprocess.run", _fake_pnpm_run(captured_leg))
+    dispatch_segments(
+        _make_loadout_results(seg_dir),
+        game_title_id=1,
+        match_id=250,
+        video_sha256="c" * 64,
+        ui_version="nhl26",
+        repo_root=repo_root,
+        loadout_engine="legacy",
+    )
+    cmd_leg = captured_leg[0]
+    assert "--loadout-evidence-json" not in cmd_leg, (
+        "--loadout-evidence-json must NOT appear when loadout_engine=legacy"
+    )
+
+
+def test_dispatch_omits_loadout_evidence_json_when_file_missing(monkeypatch, tmp_path):
+    """Even with loadout_engine='typed_v1', if loadout_evidence.json doesn't
+    exist (e.g. non-loadout segment or extractor skipped), the flag is omitted."""
+    from video_ingest.dispatch import dispatch_segments
+
+    repo_root = tmp_path / "repo"
+    repo_root.mkdir()
+    (repo_root / "pnpm-workspace.yaml").write_text("")
+    seg_dir = tmp_path / "seg"
+    seg_dir.mkdir()
+    # Deliberately do NOT create loadout_evidence.json.
+
+    captured: list[list[str]] = []
+    monkeypatch.setattr("video_ingest.dispatch.subprocess.run", _fake_pnpm_run(captured))
+    monkeypatch.setattr("video_ingest.dispatch.shutil.which", lambda _: "/usr/bin/pnpm")
+    dispatch_segments(
+        _make_loadout_results(seg_dir),
+        game_title_id=1,
+        match_id=250,
+        video_sha256="d" * 64,
+        ui_version="nhl26",
+        repo_root=repo_root,
+        loadout_engine="typed_v1",
+    )
+    cmd = captured[0]
+    assert "--loadout-evidence-json" not in cmd, (
+        "--loadout-evidence-json must be omitted when the file is absent"
+    )

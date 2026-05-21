@@ -40,6 +40,13 @@ interface CliArgs {
   uiVersion: string | null
   /** Pass-1 decoder version tag; lands in ocr_segments.decoder_version. */
   decoderVersion: string | null
+  /** Pass-2 loadout extraction engine: 'typed_v1' | 'legacy'. Default 'legacy'.
+   *  Task 2A-14 will act on this; for now it is accepted and threaded through. */
+  loadoutEngine: string
+  /** Path to loadout_evidence.json written by the typed_v1 extractor.
+   *  Only present when loadout_engine='typed_v1' AND the file exists.
+   *  Task 2A-14 will read and ingest this file. */
+  loadoutEvidenceJsonPath: string | null
 }
 
 function getFlag(name: string): string | undefined {
@@ -102,6 +109,13 @@ function parseArgs(): CliArgs {
   const uiVersion = getFlag('ui-version') ?? null
   const decoderVersion = getFlag('decoder-version') ?? null
 
+  const loadoutEngineRaw = getFlag('loadout-engine') ?? 'legacy'
+  if (!['typed_v1', 'legacy'].includes(loadoutEngineRaw)) {
+    throw new Error(`Invalid --loadout-engine: ${loadoutEngineRaw}; expected 'typed_v1' or 'legacy'`)
+  }
+  const loadoutEngine = loadoutEngineRaw
+  const loadoutEvidenceJsonPath = getFlag('loadout-evidence-json') ?? null
+
   return {
     batchDir: resolve(batchDir),
     screen,
@@ -116,6 +130,8 @@ function parseArgs(): CliArgs {
     videoSegmentEndSec,
     uiVersion,
     decoderVersion,
+    loadoutEngine,
+    loadoutEvidenceJsonPath,
   }
 }
 
@@ -140,6 +156,8 @@ async function main(): Promise<void> {
     videoSegmentEndSec: args.videoSegmentEndSec,
     uiVersion: args.uiVersion,
     decoderVersion: args.decoderVersion,
+    loadoutEngine: args.loadoutEngine,
+    loadoutEvidenceJsonPath: args.loadoutEvidenceJsonPath,
   })
 
   console.log(
