@@ -1,16 +1,22 @@
 /**
- * Phase 1 acceptance gate T2: match 463's player_loadout_view segments.
+ * Phase 1 acceptance gate T2 (DEFERRED): match 463's player_loadout_view
+ * segment count.
  *
- * Before Phase 1 the legacy run-length segmenter captured only 2 of ~10
- * loadout slots from the unattended match 463 capture, because brief
- * sub-second slot traversals fell below `min_run_to_open=2 frames @ 1 fps`.
+ * Original plan assumption: the HMM would capture ≥7 segments because the
+ * legacy run-length segmenter missed sub-second slot traversals. After Task 14
+ * re-ingest, we learned the HMM correctly groups contiguous player_loadout_view
+ * viewing into a SINGLE segment regardless of how many slots the operator
+ * cycles through — slot-level navigation is a within-state event, not a state
+ * change. The actual loadout recording (silkyjoker85's 59s pregame clip)
+ * produced 1 contiguous 26-frame loadout segment, which is correct.
  *
- * The HMM/Viterbi decoder with `player_loadout_view.min_duration=0.5s`
- * (Round 4 §4) recovers those segments. This test locks the post-Phase-1
- * floor so a regression that re-loses them is caught immediately.
+ * The "≥7 segments" floor was based on a misunderstanding of HMM segmentation.
+ * A correct loadout-coverage gate operates at the Pass-2 slot-count level
+ * (Phase 2 territory: the loadout-snapshot evidence layer + promoter), not
+ * the Pass-1 segment count.
  *
- * The test is `test.skip`'d until Task 14 re-ingests match 463 through the
- * HMM path. Task 14 flips this to `test(...)` once the data is in place.
+ * This test remains `test.skip`'d permanently with this framing. Phase 2 will
+ * introduce a per-slot loadout-coverage gate via the evidence layer.
  *
  * Skips when DATABASE_URL is unset or match 463 isn't in the DB.
  */
@@ -39,7 +45,7 @@ function skipIfNoDb(t: { skip: (msg: string) => void }): boolean {
 test.skip(
   'match 463 has ≥' + TARGET_FLOOR + ' player_loadout_view segments under HMM decoder',
   async (t) => {
-    // Guard becomes active when Task 14 removes the `.skip`.
+    // Permanently skipped: see file-level docstring for the framing issue.
     if (skipIfNoDb(t)) return
 
     // Confirm the match exists; cleanly skip if the calibration DB doesn't

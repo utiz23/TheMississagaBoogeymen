@@ -61,8 +61,7 @@ test('ocr_segments decoder_version uses well-formed tags', async (t) => {
   }
 })
 
-test.skip('ocr_segments distinct HMM-tagged rows exist after Phase 1 re-ingest', async (t) => {
-  // Guard becomes active when Task 14 removes the `.skip`.
+test('ocr_segments distinct HMM-tagged rows exist after Phase 1 re-ingest', async (t) => {
   if (skipIfNoDb(t)) return
 
   const rows = await db
