@@ -1,0 +1,701 @@
+/**
+ * loadout-v2 promoter — evidence-gate → canonical write
+ *
+ * `promoteLoadoutFromEvidence` is the Task 2A-17 orchestrator.  It reads
+ * ocr_field_evidence rows for a match, runs the generic promotion gate per
+ * (slot_key, field_key), enforces the Promotable Slot Field Matrix, and
+ * writes:
+ *   - player_loadout_snapshots (one per promoted slot)
+ *   - player_loadout_x_factors (child block; all-or-nothing 3/3)
+ *   - player_loadout_attributes (child block; floor ≥20/23)
+ *   - ocr_promotions (one row per per-field gate decision + observability gaps)
+ *
+ * Idempotent on matchId: previous ocr_promotions rows for the same match are
+ * deleted before re-running (upsert semantics via the unique index).
+ *
+ * Architecture:
+ *   Stage A — evidence grouping + gate calls + in-memory decision aggregation
+ *   Stage B — canonical writes + ocr_promotions writes inside a transaction
+ */
+
+import {
+  db as defaultDb,
+  ocrPromotions,
+  playerLoadoutSnapshots,
+  playerLoadoutXFactors,
+  playerLoadoutAttributes,
+  playerPersonaAliases,
+  matches,
+  type NewPlayerLoadoutXFactor,
+  type NewPlayerLoadoutAttribute,
+} from '@eanhl/db'
+import { eq, sql } from 'drizzle-orm'
+import { getFieldEvidenceForLoadoutSlot, getExpectedSlotsForMatch } from '@eanhl/db/queries'
+import type { ExpectedSlot } from '@eanhl/db/queries'
+import type { Database } from '@eanhl/db'
+import type { GateCandidate, PromotionDecision } from '../lib/promotion-gate.js'
+import { runPromotionGate } from '../lib/promotion-gate.js'
+import { resolveGamertagToPlayer, normalizeSnapshot } from './resolve-identity.js'
+import { normalizeXFactor } from '../lib/normalize-xfactor.js'
+import type { PromoterDb } from './index.js'
+
+// ─── types ─────────────────────────────────────────────────────────────────────
+
+export interface PromoteLoadoutFromEvidenceResult {
+  promotedSnapshotCount: number
+  blockedSnapshotCount: number
+  promotionRowsWritten: number
+}
+
+/**
+ * Per-slot decision aggregated from gate runs + team-side binding.
+ * Carries everything needed to decide canonical writes + ocr_promotions rows.
+ */
+interface SlotDecision {
+  slotKey: string
+  /** Gate decision per field_key. */
+  fieldDecisions: Map<string, PromotionDecision>
+  /**
+   * Post-binding team_side. Null means binding failed (unresolved gamertag).
+   * Used as the target_semantic_key dimension for ocr_promotions rows.
+   */
+  resolvedTeamSide: 'for' | 'against' | null
+  /** Promoted position value (string) or null. */
+  resolvedPosition: string | null
+  /** playerId from resolveGamertagToPlayer; null if unresolved. */
+  resolvedPlayerId: number | null
+  /** gameTitleId derived from the gamertag evidence's support_frame_ids batch. */
+  gameTitleId: number
+  /** ocrExtractionId: first support_frame_id from the winning gamertag evidence. */
+  ocrExtractionId: number
+  /**
+   * Why the snapshot was blocked at the slot level (not a field-level block).
+   * null means the slot may promote if all HARD fields pass.
+   */
+  snapshotBlockReason: string | null
+}
+
+/** Shape of one ocr_promotions row to insert (before DB write). */
+interface PendingPromotion {
+  matchId: number
+  targetTable: string
+  targetSemanticKey: Record<string, unknown>
+  fieldKey: string | null
+  winningValue: unknown
+  winningConfidence: number | null
+  evidenceCount: number
+  conflictCount: number
+  evidenceIds: number[]
+  promotionStatus: 'promoted' | 'blocked_consensus' | 'blocked_observability' | 'blocked_invariant' | 'blocked_authority'
+  blockingReason: string | null
+  authoritySource: 'manual_truth' | 'ea_api' | 'ocr_evidence' | null
+}
+
+// ─── constants ─────────────────────────────────────────────────────────────────
+
+/** Loadout HARD fields that must all promote for a snapshot to be written. */
+const HARD_FIELD_KEYS = new Set([
+  'gamertag',
+  'position',
+])
+
+/**
+ * X-Factor field keys for slot indices 0, 1, 2.
+ * The child block requires all 3 to promote.
+ */
+const XFACTOR_FIELD_KEYS = ['x_factor_name_0', 'x_factor_name_1', 'x_factor_name_2'] as const
+
+/**
+ * Attribute field keys.  23 in total.  At least 20 must promote for the
+ * child block to write.
+ */
+const ATTRIBUTE_FIELD_KEYS = new Set([
+  'attr_wrist_shot_accuracy', 'attr_slap_shot_accuracy', 'attr_speed', 'attr_balance', 'attr_agility',
+  'attr_wrist_shot_power', 'attr_slap_shot_power', 'attr_acceleration', 'attr_puck_control', 'attr_endurance',
+  'attr_passing', 'attr_offensive_awareness', 'attr_body_checking', 'attr_stick_checking', 'attr_defensive_awareness',
+  'attr_hand_eye', 'attr_strength', 'attr_durability', 'attr_shot_blocking',
+  'attr_deking', 'attr_faceoffs', 'attr_discipline', 'attr_fighting_skill',
+])
+
+const ATTRIBUTE_PROMOTION_FLOOR = 20
+
+// Positions valid for EASHL loadout views.
+const VALID_POSITIONS = new Set(['C', 'LW', 'RW', 'LD', 'RD', 'G', 'center', 'leftWing', 'rightWing', 'defenseMen', 'goalie'])
+
+// ─── main export ───────────────────────────────────────────────────────────────
+
+export async function promoteLoadoutFromEvidence(input: {
+  matchId: number
+  db?: Database
+}): Promise<PromoteLoadoutFromEvidenceResult> {
+  const db = input.db ?? defaultDb
+  const { matchId } = input
+
+  // ── Step 1: Read all loadout evidence for the match (one round-trip) ─────────
+  const allEvidence = await getFieldEvidenceForLoadoutSlot(matchId)
+
+  // ── Step 2: Group by (subject_slot_key, field_key), sort by candidate_rank ──
+  // evidenceBySlot: Map<slotKey, Map<fieldKey, evidence_rows_sorted_by_rank>>
+  const evidenceBySlot = new Map<string, Map<string, typeof allEvidence>>()
+  for (const row of allEvidence) {
+    const slotKey = row.subjectSlotKey ?? '__no_slot__'
+    if (!evidenceBySlot.has(slotKey)) {
+      evidenceBySlot.set(slotKey, new Map())
+    }
+    const slotMap = evidenceBySlot.get(slotKey)!
+    if (!slotMap.has(row.fieldKey)) {
+      slotMap.set(row.fieldKey, [])
+    }
+    slotMap.get(row.fieldKey)!.push(row)
+  }
+  // Within each (slot, field), rows are already sorted by candidateRank ASC
+  // from the query order; no secondary sort needed.
+
+  // ── Step 3: Derive gameTitleId for this match ─────────────────────────────
+  // We need gameTitleId for snapshot inserts. Derive it from the first evidence
+  // row's match_id → matches.game_title_id. Cache per match.
+  const gameTitleId = await resolveGameTitleIdForMatch(db, matchId)
+
+  // ── Steps 3-4: Per-slot gate calls + team-side binding ────────────────────
+  const slotDecisions: SlotDecision[] = []
+
+  for (const [slotKey, fieldMap] of evidenceBySlot.entries()) {
+    // Run the gate for each field in this slot.
+    const fieldDecisions = new Map<string, PromotionDecision>()
+    for (const [fieldKey, rows] of fieldMap.entries()) {
+      const candidates: GateCandidate[] = rows.map((r) => ({
+        candidateRank: r.candidateRank,
+        value: r.candidateValue,
+        rawConfidence: r.rawConfidence !== null ? Number(r.rawConfidence) : 0,
+        calibratedConfidence: r.calibratedConfidence !== null ? Number(r.calibratedConfidence) : 0,
+        evidenceId: r.id,
+      }))
+      const decision = runPromotionGate({ candidates })
+      fieldDecisions.set(fieldKey, decision)
+    }
+
+    // Determine ocrExtractionId: first supportFrameId from any gamertag evidence.
+    const gamertagRows = fieldMap.get('gamertag') ?? []
+    let ocrExtractionId = 0
+    for (const row of gamertagRows) {
+      if (row.supportFrameIds && row.supportFrameIds.length > 0) {
+        ocrExtractionId = row.supportFrameIds[0]!
+        break
+      }
+    }
+    // Fallback: try any field's support_frame_ids
+    if (ocrExtractionId === 0) {
+      outer: for (const rows of fieldMap.values()) {
+        for (const row of rows) {
+          if (row.supportFrameIds && row.supportFrameIds.length > 0) {
+            ocrExtractionId = row.supportFrameIds[0]!
+            break outer
+          }
+        }
+      }
+    }
+
+    // ── Step 4: Team-side binding ──────────────────────────────────────────
+    const gamertagDecision = fieldDecisions.get('gamertag')
+    const positionDecision = fieldDecisions.get('position')
+
+    let resolvedTeamSide: 'for' | 'against' | null = null
+    let resolvedPlayerId: number | null = null
+    let snapshotBlockReason: string | null = null
+    let resolvedPosition: string | null = null
+
+    if (gamertagDecision?.status === 'promoted' && typeof gamertagDecision.winningValue === 'string') {
+      const gamertag = gamertagDecision.winningValue
+      const resolution = await resolveGamertagToPlayer(gamertag, gameTitleId, db as unknown as PromoterDb)
+      resolvedPlayerId = resolution.playerId
+      // Per legacy semantics: resolved → 'for', unresolved → 'against'.
+      // But the spec says: if resolution returns null → blocked with unresolved_team_side.
+      if (resolution.playerId !== null) {
+        resolvedTeamSide = 'for'
+      } else {
+        // Unresolved gamertag → team_side cannot be determined → snapshot blocks.
+        // Per task spec: "resolveGamertagToPlayer returns null → blocks with unresolved_team_side"
+        // However, the legacy loadout promoter uses 'against' for unresolved. The v2 spec
+        // is explicit: unresolved → blocked with reason 'unresolved_team_side'.
+        snapshotBlockReason = 'unresolved_team_side'
+      }
+    }
+
+    // Position: validate closed-vocab
+    if (positionDecision?.status === 'promoted' && typeof positionDecision.winningValue === 'string') {
+      const pos = positionDecision.winningValue
+      if (VALID_POSITIONS.has(pos)) {
+        resolvedPosition = pos
+      } else {
+        // Invalid position closes off the snapshot
+        if (!snapshotBlockReason) {
+          snapshotBlockReason = 'unresolved_position'
+        }
+      }
+    } else if (!positionDecision || positionDecision.status !== 'promoted') {
+      if (!snapshotBlockReason) {
+        snapshotBlockReason = 'unresolved_position'
+      }
+    }
+
+    slotDecisions.push({
+      slotKey,
+      fieldDecisions,
+      resolvedTeamSide,
+      resolvedPosition,
+      resolvedPlayerId,
+      gameTitleId,
+      ocrExtractionId,
+      snapshotBlockReason,
+    })
+  }
+
+  // ── Step 9 (partial): Duplicate position-per-team validation ──────────────
+  // Track promoted snapshots by (teamSide, position) to detect duplicates.
+  const promotedPositions = new Map<string, string>() // key: `${teamSide}:${position}` → slotKey
+
+  // Annotate duplicate slots before writing.
+  const duplicateSlots = new Set<string>()
+  for (const sd of slotDecisions) {
+    if (sd.snapshotBlockReason) continue
+    if (!sd.resolvedTeamSide || !sd.resolvedPosition) continue
+    const key = `${sd.resolvedTeamSide}:${sd.resolvedPosition}`
+    if (promotedPositions.has(key)) {
+      // This slot is a duplicate — mark it blocked.
+      duplicateSlots.add(sd.slotKey)
+    } else {
+      promotedPositions.set(key, sd.slotKey)
+    }
+  }
+  // Apply duplicate blocks.
+  for (const sd of slotDecisions) {
+    if (duplicateSlots.has(sd.slotKey)) {
+      sd.snapshotBlockReason = 'duplicate_position_per_team'
+    }
+  }
+
+  // ── Step 8: Expected-roster observability ────────────────────────────────
+  const expectedSlots = await getExpectedSlotsForMatch(matchId, db)
+  const coveredKeys = new Set<string>()
+  for (const sd of slotDecisions) {
+    if (sd.snapshotBlockReason) continue
+    if (sd.resolvedTeamSide && sd.resolvedPosition) {
+      coveredKeys.add(`${sd.resolvedTeamSide}:${sd.resolvedPosition}`)
+    }
+  }
+  const absentExpectedSlots: ExpectedSlot[] = expectedSlots.filter(
+    (s) => !coveredKeys.has(`${s.teamSide}:${s.position}`),
+  )
+
+  // ── Stage B: DB writes ───────────────────────────────────────────────────
+  const pendingPromotions: PendingPromotion[] = []
+  let promotedSnapshotCount = 0
+  let blockedSnapshotCount = 0
+
+  for (const sd of slotDecisions) {
+    const semanticKey: Record<string, unknown> = {
+      match_id: matchId,
+      slot_key: sd.slotKey,
+      team_side: sd.resolvedTeamSide,
+      position: sd.resolvedPosition,
+    }
+
+    // ── If slot is blocked at snapshot level ────────────────────────────────
+    if (sd.snapshotBlockReason) {
+      blockedSnapshotCount++
+      pendingPromotions.push({
+        matchId,
+        targetTable: 'player_loadout_snapshots',
+        targetSemanticKey: semanticKey,
+        fieldKey: null,
+        winningValue: null,
+        winningConfidence: null,
+        evidenceCount: 0,
+        conflictCount: 0,
+        evidenceIds: [],
+        promotionStatus: 'blocked_invariant',
+        blockingReason: sd.snapshotBlockReason,
+        authoritySource: null,
+      })
+
+      // Still record per-field decisions for triage.
+      for (const [fieldKey, decision] of sd.fieldDecisions.entries()) {
+        pendingPromotions.push(fieldDecisionToPromotion(matchId, 'player_loadout_snapshots', semanticKey, fieldKey, decision))
+      }
+      continue
+    }
+
+    // ── Check HARD fields ────────────────────────────────────────────────────
+    // All HARD fields (gamertag, position) must be promoted.
+    let hardFieldsOk = true
+    for (const hardField of HARD_FIELD_KEYS) {
+      const dec = sd.fieldDecisions.get(hardField)
+      if (!dec || dec.status !== 'promoted') {
+        hardFieldsOk = false
+        break
+      }
+    }
+
+    if (!hardFieldsOk) {
+      blockedSnapshotCount++
+      pendingPromotions.push({
+        matchId,
+        targetTable: 'player_loadout_snapshots',
+        targetSemanticKey: semanticKey,
+        fieldKey: null,
+        winningValue: null,
+        winningConfidence: null,
+        evidenceCount: 0,
+        conflictCount: 0,
+        evidenceIds: [],
+        promotionStatus: 'blocked_invariant',
+        blockingReason: 'hard_fields_not_promoted',
+        authoritySource: null,
+      })
+      for (const [fieldKey, decision] of sd.fieldDecisions.entries()) {
+        pendingPromotions.push(fieldDecisionToPromotion(matchId, 'player_loadout_snapshots', semanticKey, fieldKey, decision))
+      }
+      continue
+    }
+
+    // ── Snapshot row is promotable — collect field values ────────────────────
+    const gamertagVal = String(sd.fieldDecisions.get('gamertag')!.winningValue ?? '')
+    const positionVal = sd.resolvedPosition!
+    const teamSide = sd.resolvedTeamSide!
+
+    // Persona alias resolution (Step 6)
+    const personaRawDecision = sd.fieldDecisions.get('player_name_persona')
+    const personaRaw = personaRawDecision?.status === 'promoted'
+      ? String(personaRawDecision.winningValue ?? '')
+      : null
+    const personaCanonical = personaRaw ? await resolvePersonaAlias(db, personaRaw) : null
+
+    // Optional fields
+    const playerNameFullDecision = sd.fieldDecisions.get('player_name_full')
+    const playerNameFull = playerNameFullDecision?.status === 'promoted'
+      ? String(playerNameFullDecision.winningValue ?? '')
+      : null
+    const playerNumberDecision = sd.fieldDecisions.get('player_number')
+    const playerNumber = playerNumberDecision?.status === 'promoted' && typeof playerNumberDecision.winningValue === 'number'
+      ? playerNumberDecision.winningValue
+      : null
+    const isCaptainDecision = sd.fieldDecisions.get('is_captain')
+    const isCaptain = isCaptainDecision?.status === 'promoted' && typeof isCaptainDecision.winningValue === 'boolean'
+      ? isCaptainDecision.winningValue
+      : null
+    const buildClassDecision = sd.fieldDecisions.get('build_class')
+    const buildClass = buildClassDecision?.status === 'promoted'
+      ? String(buildClassDecision.winningValue ?? '')
+      : null
+    const heightDecision = sd.fieldDecisions.get('height')
+    const heightText = heightDecision?.status === 'promoted'
+      ? String(heightDecision.winningValue ?? '')
+      : null
+    const weightDecision = sd.fieldDecisions.get('weight')
+    const weightLbs = weightDecision?.status === 'promoted' && typeof weightDecision.winningValue === 'number'
+      ? weightDecision.winningValue
+      : null
+    const handednessDecision = sd.fieldDecisions.get('handedness')
+    const handedness = handednessDecision?.status === 'promoted'
+      ? String(handednessDecision.winningValue ?? '')
+      : null
+    const platformDecision = sd.fieldDecisions.get('player_platform')
+    const platform = platformDecision?.status === 'promoted'
+      ? whitelistPlatform(String(platformDecision.winningValue ?? ''))
+      : null
+    const levelRawDecision = sd.fieldDecisions.get('player_level_raw')
+    const playerLevelRaw = levelRawDecision?.status === 'promoted'
+      ? String(levelRawDecision.winningValue ?? '')
+      : null
+    const levelNumDecision = sd.fieldDecisions.get('player_level_number')
+    const playerLevelNumber = levelNumDecision?.status === 'promoted' && typeof levelNumDecision.winningValue === 'number'
+      ? levelNumDecision.winningValue
+      : null
+
+    // ── Write snapshot row (inside transaction below) ───────────────────────
+    promotedSnapshotCount++
+
+    // ── X-Factor child block check ──────────────────────────────────────────
+    const xfDecisions = XFACTOR_FIELD_KEYS.map((fk) => sd.fieldDecisions.get(fk))
+    const xfAllPromoted = xfDecisions.every((d) => d?.status === 'promoted')
+    const writeXFactors = xfAllPromoted && xfDecisions.length === 3
+
+    // ── Attribute child block check ─────────────────────────────────────────
+    const attrDecisions: Array<[string, PromotionDecision]> = []
+    for (const attrKey of ATTRIBUTE_FIELD_KEYS) {
+      const dec = sd.fieldDecisions.get(attrKey)
+      if (dec) attrDecisions.push([attrKey, dec])
+    }
+    const promotedAttrCount = attrDecisions.filter(([, d]) => d.status === 'promoted').length
+    const writeAttributes = promotedAttrCount >= ATTRIBUTE_PROMOTION_FLOOR
+
+    // ── DB writes in a transaction ───────────────────────────────────────────
+    await db.transaction(async (tx) => {
+      // Insert snapshot row
+      const [snap] = await tx
+        .insert(playerLoadoutSnapshots)
+        .values({
+          playerId: sd.resolvedPlayerId,
+          gamertagSnapshot: gamertagVal,
+          playerNameSnapshot: playerNameFull,
+          playerNamePersona: personaCanonical ?? personaRaw,
+          playerNamePersonaRaw: personaRaw,
+          playerNumber,
+          isCaptain,
+          teamSide,
+          gameTitleId: sd.gameTitleId,
+          matchId,
+          ocrExtractionId: sd.ocrExtractionId,
+          position: positionVal,
+          buildClass,
+          heightText,
+          weightLbs,
+          handedness,
+          platform,
+          playerLevelRaw,
+          playerLevelNumber,
+        })
+        .returning({ id: playerLoadoutSnapshots.id })
+      if (!snap) throw new Error(`Failed to insert snapshot for slot ${sd.slotKey}`)
+
+      // X-Factor child rows
+      if (writeXFactors) {
+        const xfRows: NewPlayerLoadoutXFactor[] = XFACTOR_FIELD_KEYS.map((fk, i) => {
+          const dec = sd.fieldDecisions.get(fk)!
+          const name = String(dec.winningValue ?? '')
+          const tierDec = sd.fieldDecisions.get(`x_factor_tier_${i}`)
+          const tier = tierDec?.status === 'promoted'
+            ? (String(tierDec.winningValue) as 'Elite' | 'All Star' | 'Specialist')
+            : null
+          return {
+            loadoutSnapshotId: snap.id,
+            slotIndex: i,
+            xFactorName: name,
+            xFactorNameCanonical: normalizeXFactor(name),
+            tier,
+          }
+        })
+        await tx.insert(playerLoadoutXFactors).values(xfRows)
+      }
+
+      // Attribute child rows
+      if (writeAttributes) {
+        const attrRows: NewPlayerLoadoutAttribute[] = attrDecisions
+          .filter(([, d]) => d.status === 'promoted')
+          .map(([attrKey, d]) => ({
+            loadoutSnapshotId: snap.id,
+            attributeKey: attrKey.replace(/^attr_/, ''), // strip 'attr_' prefix to get canonical key
+            rawText: typeof d.winningValue === 'string' ? d.winningValue : String(d.winningValue ?? ''),
+            value: typeof d.winningValue === 'number' ? d.winningValue : null,
+            deltaValue: null, // delta evidence would come from a separate field_key
+            confidence: d.winningConfidence !== undefined ? String(d.winningConfidence.toFixed(4)) : null,
+          }))
+        await tx.insert(playerLoadoutAttributes).values(attrRows)
+      }
+    })
+
+    // ── Build ocr_promotions rows for this slot ──────────────────────────────
+    const snapshotSemanticKey = { match_id: matchId, team_side: teamSide, position: positionVal }
+
+    // Per-field promotions
+    for (const [fieldKey, decision] of sd.fieldDecisions.entries()) {
+      pendingPromotions.push(fieldDecisionToPromotion(matchId, 'player_loadout_snapshots', snapshotSemanticKey, fieldKey, decision))
+    }
+
+    // Snapshot-level promoted row (whole-row)
+    pendingPromotions.push({
+      matchId,
+      targetTable: 'player_loadout_snapshots',
+      targetSemanticKey: snapshotSemanticKey,
+      fieldKey: null,
+      winningValue: { gamertag: gamertagVal, position: positionVal, team_side: teamSide },
+      winningConfidence: null,
+      evidenceCount: 1,
+      conflictCount: 0,
+      evidenceIds: [],
+      promotionStatus: 'promoted',
+      blockingReason: null,
+      authoritySource: 'ocr_evidence',
+    })
+
+    // X-Factor child block: if NOT written, record blocked rows for each xf field
+    if (!writeXFactors) {
+      for (let i = 0; i < XFACTOR_FIELD_KEYS.length; i++) {
+        const fk = XFACTOR_FIELD_KEYS[i]!
+        const dec = sd.fieldDecisions.get(fk)
+        if (!dec || dec.status !== 'promoted') {
+          const xfSemanticKey = { match_id: matchId, team_side: teamSide, position: positionVal, slot_index: i }
+          pendingPromotions.push({
+            matchId,
+            targetTable: 'player_loadout_x_factors',
+            targetSemanticKey: xfSemanticKey,
+            fieldKey: fk,
+            winningValue: null,
+            winningConfidence: null,
+            evidenceCount: dec?.evidenceIds.length ?? 0,
+            conflictCount: dec?.conflictCount ?? 0,
+            evidenceIds: dec?.evidenceIds ?? [],
+            promotionStatus: dec?.status ?? 'blocked_observability',
+            blockingReason: dec?.blockingReason ?? 'x_factor_child_block_incomplete',
+            authoritySource: null,
+          })
+        }
+      }
+    }
+
+    // Attribute child block: record blocked attribute rows if not written
+    if (!writeAttributes) {
+      for (const [attrKey, dec] of attrDecisions) {
+        if (dec.status !== 'promoted') {
+          const attrSemanticKey = { match_id: matchId, team_side: teamSide, position: positionVal, attribute_key: attrKey }
+          pendingPromotions.push({
+            matchId,
+            targetTable: 'player_loadout_attributes',
+            targetSemanticKey: attrSemanticKey,
+            fieldKey: attrKey,
+            winningValue: null,
+            winningConfidence: null,
+            evidenceCount: dec.evidenceIds.length,
+            conflictCount: dec.conflictCount,
+            evidenceIds: dec.evidenceIds,
+            promotionStatus: dec.status,
+            blockingReason: dec.blockingReason ?? null,
+            authoritySource: null,
+          })
+        }
+      }
+    }
+  }
+
+  // ── Step 8: Emit blocked_observability rows for absent expected slots ──────
+  for (const absent of absentExpectedSlots) {
+    pendingPromotions.push({
+      matchId,
+      targetTable: 'player_loadout_snapshots',
+      targetSemanticKey: { match_id: matchId, team_side: absent.teamSide, position: absent.position },
+      fieldKey: null,
+      winningValue: null,
+      winningConfidence: null,
+      evidenceCount: 0,
+      conflictCount: 0,
+      evidenceIds: [],
+      promotionStatus: 'blocked_observability',
+      blockingReason: 'not_observable_from_source',
+      authoritySource: null,
+    })
+  }
+
+  // ── Write all ocr_promotions rows ─────────────────────────────────────────
+  // Strategy: delete all prior promotion rows for this match+target_table
+  // combination, then batch-insert the new set. This gives idempotency on
+  // re-runs without needing a functional-index conflict target in Drizzle.
+  let promotionRowsWritten = 0
+  if (pendingPromotions.length > 0) {
+    // Delete prior rows for this match (all target tables touched by this run).
+    await db
+      .delete(ocrPromotions)
+      .where(eq(ocrPromotions.matchId, matchId))
+
+    // Batch insert all pending promotion rows.
+    await db.insert(ocrPromotions).values(
+      pendingPromotions.map((p) => ({
+        matchId: p.matchId,
+        targetTable: p.targetTable,
+        targetSemanticKey: p.targetSemanticKey,
+        fieldKey: p.fieldKey,
+        winningValue: p.winningValue,
+        winningConfidence: p.winningConfidence !== null ? String(p.winningConfidence.toFixed(4)) : null,
+        evidenceCount: p.evidenceCount,
+        conflictCount: p.conflictCount,
+        evidenceIds: p.evidenceIds.length > 0 ? p.evidenceIds : null,
+        promotionStatus: p.promotionStatus,
+        blockingReason: p.blockingReason,
+        authoritySource: p.authoritySource,
+      })),
+    )
+    promotionRowsWritten = pendingPromotions.length
+  }
+
+  return {
+    promotedSnapshotCount,
+    blockedSnapshotCount,
+    promotionRowsWritten,
+  }
+}
+
+// ─── helpers ────────────────────────────────────────────────────────────────────
+
+/**
+ * Resolve gameTitleId for a match by querying matches.
+ * Falls back to game_title_id=1 (NHL 26) for sentinel matches in tests.
+ */
+async function resolveGameTitleIdForMatch(
+  db: Database,
+  matchId: number,
+): Promise<number> {
+  const [row] = await db
+    .select({ gameTitleId: matches.gameTitleId })
+    .from(matches)
+    .where(eq(matches.id, matchId))
+    .limit(1)
+  if (!row) {
+    // Fallback: use game_title_id=1 (NHL 26) for sentinel matches without a match row.
+    return 1
+  }
+  return row.gameTitleId
+}
+
+/**
+ * Resolve a raw persona string against the player_persona_aliases table.
+ * Returns the canonical persona if found, else null (raw value is used as-is).
+ */
+async function resolvePersonaAlias(
+  db: Database,
+  personaRaw: string,
+): Promise<string | null> {
+  const normalized = normalizeSnapshot(personaRaw).toLowerCase()
+  const [row] = await db
+    .select({ canonicalPersona: playerPersonaAliases.canonicalPersona })
+    .from(playerPersonaAliases)
+    .where(eq(playerPersonaAliases.normalizedAlias, normalized))
+    .limit(1)
+  return row?.canonicalPersona ?? null
+}
+
+/**
+ * Convert a PromotionDecision for a single field into a PendingPromotion
+ * for the ocr_promotions table.
+ */
+function fieldDecisionToPromotion(
+  matchId: number,
+  targetTable: string,
+  targetSemanticKey: Record<string, unknown>,
+  fieldKey: string,
+  decision: PromotionDecision,
+): PendingPromotion {
+  return {
+    matchId,
+    targetTable,
+    targetSemanticKey,
+    fieldKey,
+    winningValue: decision.winningValue ?? null,
+    winningConfidence: decision.winningConfidence ?? null,
+    evidenceCount: decision.evidenceIds.length,
+    conflictCount: decision.conflictCount,
+    evidenceIds: decision.evidenceIds,
+    promotionStatus: decision.status,
+    blockingReason: decision.blockingReason ?? null,
+    authoritySource: decision.authoritySource ?? null,
+  }
+}
+
+const PLATFORM_WHITELIST: ReadonlySet<string> = new Set([
+  'xbox', 'playstation', 'ps5', 'ps4', 'pc', 'switch',
+])
+
+function whitelistPlatform(raw: string | null): string | null {
+  if (!raw) return null
+  const key = raw.trim().toLowerCase()
+  if (!key) return null
+  return PLATFORM_WHITELIST.has(key) ? raw.trim() : null
+}
