@@ -14,6 +14,7 @@
 
 import { sql } from '@eanhl/db'
 import {
+  getMatchSegmentDecoderVersionCounts,
   getMatchSegments,
   getMatchSegmentStateCounts,
   getPromotionStatusCounts,
@@ -56,6 +57,17 @@ async function main(): Promise<void> {
   const m = args.matchId
 
   console.log(`\n=== ocr_segments — match ${m} ===\n`)
+
+  // Phase 1: show decoder_version distribution at-a-glance so operators
+  // can distinguish HMM-decoded rows from legacy passthrough.
+  const byDecoder = await getMatchSegmentDecoderVersionCounts(m)
+  if (byDecoder.length > 0) {
+    console.log(`  segments by decoder_version:`)
+    for (const r of byDecoder) {
+      console.log(`    ${pad(r.decoderVersion, 36)} ${pad(r.segmentCount, 4, 'r')} segment(s)`)
+    }
+    console.log()
+  }
 
   const stateCounts = await getMatchSegmentStateCounts(m)
   if (stateCounts.length === 0) {

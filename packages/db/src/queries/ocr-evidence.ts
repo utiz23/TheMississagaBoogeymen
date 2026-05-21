@@ -60,6 +60,26 @@ export type MatchSegmentStateCountRow = Awaited<
 >[number]
 
 /**
+ * Segments grouped by decoder_version, with per-version counts. Used by the
+ * `ocr-segments-report` CLI to surface the HMM vs legacy passthrough split
+ * introduced in Phase 1.
+ */
+export async function getMatchSegmentDecoderVersionCounts(matchId: number): Promise<
+  Array<{ decoderVersion: string; segmentCount: number }>
+> {
+  const rows = await db
+    .select({
+      decoderVersion: ocrSegments.decoderVersion,
+      segmentCount: sql<number>`count(*)::int`,
+    })
+    .from(ocrSegments)
+    .where(eq(ocrSegments.matchId, matchId))
+    .groupBy(ocrSegments.decoderVersion)
+    .orderBy(ocrSegments.decoderVersion)
+  return rows
+}
+
+/**
  * All field evidence for a match, optionally filtered by screen state and
  * semantic field key. Each row is one *candidate* — Phase 2's promotion gate
  * collapses these into one `ocr_promotions` row per (target_table, key).
