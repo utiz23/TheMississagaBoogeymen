@@ -218,3 +218,57 @@ export async function getBlockedPromotions(matchId: number, limit = 50) {
     .orderBy(desc(ocrPromotions.decidedAt))
     .limit(limit)
 }
+
+/**
+ * All field evidence for a match scoped to the `player_loadout_view` screen
+ * state, optionally filtered to a single subject slot key. Used by the loadout
+ * promoter (Task 2A-17) to bulk-read all candidates for a given slot in one
+ * round-trip, hitting the `ocr_field_evidence_match_screen_slot_idx` B-tree
+ * index added in Phase 2A-13.
+ *
+ * When `slotKey` is omitted, returns all loadout-view evidence for the match
+ * (useful for promoter bootstrap — read once, fan out per slot in memory).
+ */
+export async function getFieldEvidenceForLoadoutSlot(
+  matchId: number,
+  slotKey?: string,
+): Promise<FieldEvidenceRow[]> {
+  const conditions = [
+    eq(ocrFieldEvidence.matchId, matchId),
+    eq(ocrFieldEvidence.screenState, 'player_loadout_view'),
+  ]
+  if (slotKey !== undefined) {
+    conditions.push(eq(ocrFieldEvidence.subjectSlotKey, slotKey))
+  }
+  return db
+    .select()
+    .from(ocrFieldEvidence)
+    .where(and(...conditions))
+    .orderBy(
+      asc(ocrFieldEvidence.subjectSlotKey),
+      asc(ocrFieldEvidence.fieldKey),
+      asc(ocrFieldEvidence.candidateRank),
+    )
+}
+
+/**
+ * All promotion outcomes for a match that targeted the `player_loadout_snapshots`
+ * table, ordered by team_side + position + field_key. Used by the loadout
+ * promoter (Task 2A-17) to inspect prior outcomes before writing or re-running.
+ */
+export async function getLoadoutPromotionsForMatch(matchId: number): Promise<PromotionRow[]> {
+  return db
+    .select()
+    .from(ocrPromotions)
+    .where(
+      and(
+        eq(ocrPromotions.matchId, matchId),
+        eq(ocrPromotions.targetTable, 'player_loadout_snapshots'),
+      ),
+    )
+    .orderBy(
+      sql`${ocrPromotions.targetSemanticKey}->>'team_side'`,
+      sql`${ocrPromotions.targetSemanticKey}->>'position'`,
+      asc(ocrPromotions.fieldKey),
+    )
+}

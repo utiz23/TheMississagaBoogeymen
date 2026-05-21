@@ -187,6 +187,11 @@ export const ocrFieldEvidence = pgTable(
       table.subjectSlotKey,
       table.candidateRank,
     ),
+    index('ocr_field_evidence_match_screen_slot_idx').on(
+      table.matchId,
+      table.screenState,
+      table.subjectSlotKey,
+    ),
   ],
 )
 
