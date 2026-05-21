@@ -476,7 +476,9 @@ class TestExtractorVersionIsStamped(unittest.TestCase):
         """extract_loadout_evidence passes extractor_version through to every record."""
         from game_ocr.loadout_evidence import EXTRACTOR_VERSION
 
-        bundles = [_make_bundle()]
+        # Use _make_subject_bundle (new contract) — extract_loadout_evidence uses
+        # assemble_loadout_subject_bundles which produces LoadoutSubjectBundle.
+        bundles = [_make_subject_bundle()]
         records = _run_extract_evidence(
             bundles,
             open_ev=[_make_open_text_evidence()],
@@ -805,6 +807,186 @@ class TestMergeObservability(unittest.TestCase):
             self._merge("observable", "not_observable_from_source"),
             "not_observable_from_source",
         )
+
+
+# ---------------------------------------------------------------------------
+# Test 10: identity fields emitted from canonical_subject (new contract)
+# ---------------------------------------------------------------------------
+
+
+def _make_subject_bundle_with_identity(
+    gamertag: str = "MrHomiecide",
+    position: str = "LW",
+    jersey_number: int = 11,
+    player_name_full: str = "Evgeni Wanhg",
+    build_class_raw: str = "TAGETHOMPSON-PWF",
+    player_level_raw: str = "P1LVL17",
+    is_captain: bool = False,
+) -> Any:
+    """Create a LoadoutSubjectBundle with a fully-populated canonical_subject."""
+    from game_ocr.loadout_bundle import LoadoutSubjectBundle
+    from game_ocr.loadout_extractors.slot_identity import SubjectIdentity
+
+    si = SubjectIdentity(
+        gamertag=gamertag,
+        gamertag_confidence=0.95,
+        position=position,
+        position_confidence=0.92,
+        jersey_number=jersey_number,
+        jersey_confidence=0.90,
+        player_name_full=player_name_full,
+        player_name_confidence=0.88,
+        is_captain=is_captain,
+        is_captain_confidence=0.85 if is_captain else None,
+        build_class_raw=build_class_raw,
+        build_class_confidence=0.88,
+        player_level_raw=player_level_raw,
+        player_level_confidence=0.91,
+        anchor_y=240,
+        observability="observable",
+    )
+    return LoadoutSubjectBundle(
+        slot_key="loadout_slot_seg0000_subject00",
+        subject_ordinal=0,
+        segment_index=0,
+        canonical_subject=si,
+        frame_paths=(Path("/fake/seg0/00001.png"),),
+        best_frame_path=Path("/fake/seg0/00001.png"),
+        best_frame_sharpness_score=100.0,
+        all_subject_identities=(si,),
+        support_frame_indices=(0,),
+        observability="observable",
+    )
+
+
+def _run_subject_bundle_evidence(bundle) -> list:
+    """Run _evidence_for_subject_bundle with all extractors mocked (no image, no OCR)."""
+    from game_ocr.loadout_evidence import _evidence_for_subject_bundle
+    from game_ocr.loadout_extractors.closed_vocab import LoadoutClosedVocabExtractor, ClosedVocabCandidate
+    from game_ocr.loadout_extractors.tabular_numeric import LoadoutTabularExtractor
+    from game_ocr.loadout_extractors.icon import LoadoutIconExtractor
+    from game_ocr.loadout_extractors.open_text import LoadoutOpenTextExtractor
+
+    dummy_img = _make_dummy_image()
+    cv_extractor = LoadoutClosedVocabExtractor()
+    tab_extractor = LoadoutTabularExtractor()
+    icon_extractor = LoadoutIconExtractor()
+    ot_extractor = LoadoutOpenTextExtractor()
+
+    # Return a fake build_class candidate for classify_build_class
+    fake_bc_cand = ClosedVocabCandidate(value="Power Forward", raw_confidence=0.9, calibrated_confidence=0.9)
+
+    with patch("game_ocr.loadout_evidence.cv2.imread", return_value=dummy_img), \
+         patch("game_ocr.loadout_evidence._load_frame_ocr_lines", return_value=[]), \
+         patch.object(cv_extractor, "classify_build_class", return_value=[fake_bc_cand]), \
+         patch.object(cv_extractor, "classify_x_factor_name", return_value=[]), \
+         patch.object(cv_extractor, "classify_x_factor_tier_from_image", return_value=[]), \
+         patch.object(tab_extractor, "extract_attribute_grid", return_value=[]), \
+         patch.object(icon_extractor, "extract_xfactor_icons", return_value=[]):
+        return _evidence_for_subject_bundle(
+            bundle, cv_extractor, tab_extractor, icon_extractor, ot_extractor, "test-v1"
+        )
+
+
+class TestIdentityFieldsFromCanonicalSubject(unittest.TestCase):
+    """_evidence_for_subject_bundle emits identity fields from canonical_subject (not static ROIs)."""
+
+    def _get_records(self, **kwargs) -> list:
+        bundle = _make_subject_bundle_with_identity(**kwargs)
+        return _run_subject_bundle_evidence(bundle)
+
+    def _rank0_value(self, records: list, field_key: str):
+        """Return the candidate_value of the rank-0 record for field_key, or sentinel."""
+        for r in records:
+            if r.field_key == field_key and r.candidate_rank == 0:
+                return r.candidate_value
+        return "MISSING"
+
+    def test_gamertag_emitted_from_canonical_subject(self):
+        records = self._get_records(gamertag="MrHomiecide")
+        self.assertEqual(self._rank0_value(records, "gamertag"), "MrHomiecide")
+
+    def test_position_emitted_from_canonical_subject(self):
+        records = self._get_records(position="LW")
+        self.assertEqual(self._rank0_value(records, "position"), "LW")
+
+    def test_jersey_number_emitted_from_canonical_subject(self):
+        records = self._get_records(jersey_number=11)
+        self.assertEqual(self._rank0_value(records, "jersey_number"), 11)
+
+    def test_persona_raw_is_player_name_full(self):
+        """persona_raw field gets the player_name_full value from canonical_subject."""
+        records = self._get_records(player_name_full="Evgeni Wanhg")
+        self.assertEqual(self._rank0_value(records, "persona_raw"), "Evgeni Wanhg")
+
+    def test_player_level_raw_emitted_from_canonical_subject(self):
+        records = self._get_records(player_level_raw="P1LVL17")
+        self.assertEqual(self._rank0_value(records, "player_level_raw"), "P1LVL17")
+
+    def test_build_class_raw_audit_record_emitted(self):
+        """build_class_raw (open_text, audit trail) is emitted with the raw title-bar text."""
+        records = self._get_records(build_class_raw="TAGETHOMPSON-PWF")
+        self.assertEqual(self._rank0_value(records, "build_class_raw"), "TAGETHOMPSON-PWF")
+
+    def test_build_class_canonical_from_closed_vocab(self):
+        """build_class (closed_vocab) is emitted as canonical name via classify_build_class."""
+        records = self._get_records(build_class_raw="TAGETHOMPSON-PWF")
+        bc_cv_rec = next(
+            (r for r in records if r.field_key == "build_class" and r.field_family == "closed_vocab"),
+            None,
+        )
+        self.assertIsNotNone(bc_cv_rec, "Expected a closed_vocab build_class record")
+        self.assertEqual(bc_cv_rec.candidate_value, "Power Forward")
+
+    def test_all_identity_fields_have_open_text_family(self):
+        """Identity fields from canonical_subject are emitted as 'open_text' family."""
+        records = self._get_records()
+        identity_field_keys = {"gamertag", "position", "jersey_number", "persona_raw",
+                                "player_level_raw", "is_captain", "build_class_raw"}
+        for r in records:
+            if r.field_key in identity_field_keys:
+                self.assertEqual(
+                    r.field_family, "open_text",
+                    f"field_key={r.field_key!r} expected open_text family, got {r.field_family!r}",
+                )
+
+    def test_none_identity_fields_emit_low_quality_record(self):
+        """None values in canonical_subject still produce a rank-0 low_quality record."""
+        from game_ocr.loadout_extractors.slot_identity import SubjectIdentity
+        from game_ocr.loadout_bundle import LoadoutSubjectBundle
+
+        # Build a subject with only gamertag (all other identity fields None)
+        si = SubjectIdentity(gamertag="PartialPlayer", gamertag_confidence=0.9)
+        bundle = LoadoutSubjectBundle(
+            slot_key="loadout_slot_seg0000_subject00",
+            subject_ordinal=0,
+            segment_index=0,
+            canonical_subject=si,
+            frame_paths=(Path("/fake/seg0/00001.png"),),
+            best_frame_path=Path("/fake/seg0/00001.png"),
+            best_frame_sharpness_score=100.0,
+            all_subject_identities=(si,),
+            support_frame_indices=(0,),
+            observability="observable",
+        )
+        records = _run_subject_bundle_evidence(bundle)
+
+        # position, jersey_number, etc. should be emitted as low_quality with None value
+        pos_rec = next((r for r in records if r.field_key == "position" and r.candidate_rank == 0), None)
+        self.assertIsNotNone(pos_rec)
+        self.assertIsNone(pos_rec.candidate_value)
+        self.assertEqual(pos_rec.observability_status, "low_quality")
+
+    def test_position_not_emitted_from_closed_vocab_for_subject_bundles(self):
+        """For subject bundles, position is NOT emitted as a closed_vocab record
+        (it comes from identity fields instead)."""
+        records = self._get_records()
+        position_cv_records = [
+            r for r in records
+            if r.field_key == "position" and r.field_family == "closed_vocab"
+        ]
+        self.assertEqual(len(position_cv_records), 0,
+                         "position should not appear as closed_vocab for subject bundles")
 
 
 if __name__ == "__main__":

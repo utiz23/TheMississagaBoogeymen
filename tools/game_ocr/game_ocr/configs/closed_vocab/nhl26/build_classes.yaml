@@ -12,6 +12,10 @@ entries:
       - "(?i)^plyamaker$"
       - "(?i)^pl[y]maker$"
       - "(?i)^p[l1]aymaker$"
+      # Title-bar abbreviation suffix (e.g. "PLAYER NAME - PLY" or "PLAYERNAME-PLY")
+      # Pattern uses .* prefix to fullmatch the entire title-bar string
+      - "(?i)^.*[\\-\\s]PLY$"
+      - "(?i)^PLY$"
 
   - canonical: "Sniper"
     aliases:
@@ -19,45 +23,73 @@ entries:
       - "(?i)^snlper$"
       - "(?i)^sn[i]per$"
       - "(?i)^[sS5]niper$"
+      # Title-bar abbreviation suffix (e.g. "JAKEETHAN-SNI")
+      - "(?i)^.*[\\-\\s]SNI$"
+      - "(?i)^SNI$"
 
   - canonical: "Grinder"
     aliases:
       - "(?i)^grinder$"
       - "(?i)^grinde[r]$"
       - "(?i)^gri[n]der$"
+      # Title-bar abbreviation suffix (e.g. "PLAYER-GRD")
+      - "(?i)^.*[\\-\\s]GRD$"
+      - "(?i)^GRD$"
 
   - canonical: "Two-Way Forward"
     aliases:
       - "(?i)^two[\\s_]?way[\\s_]?forward$"
       - "(?i)^twowayforward$"
       - "(?i)^two[\\s_]?w[a]y[\\s_]?forward$"
+      # Title-bar abbreviations
+      - "(?i)^.*[\\-\\s]TWF$"
+      - "(?i)^TWF$"
+      - "(?i)^.*[\\-\\s]2WF$"
+      - "(?i)^2WF$"
 
   - canonical: "Power Forward"
     aliases:
       - "(?i)^power[\\s_]?forward$"
       - "(?i)^powerforward$"
       - "(?i)^pow[e]r[\\s_]?forward$"
+      # Title-bar abbreviation suffix (e.g. "TAGETHOMPSON-PWF")
+      - "(?i)^.*[\\-\\s]PWF$"
+      - "(?i)^PWF$"
 
   - canonical: "Puck Moving Defenseman"
     aliases:
       - "(?i)^puck[\\s_]?moving[\\s_]?defenseman$"
       - "(?i)^puckmovingdefenseman$"
       - "(?i)^puc[k][\\s_]?mov[i]ng[\\s_]?defenseman$"
+      # Title-bar abbreviation
+      - "(?i)^.*[\\-\\s]PMD$"
+      - "(?i)^PMD$"
 
   - canonical: "Defensive Defenseman"
     aliases:
       - "(?i)^defensive[\\s_]?defenseman$"
       - "(?i)^defensivedefenseman$"
       - "(?i)^defen[s]ive[\\s_]?defenseman$"
+      # Title-bar abbreviation
+      - "(?i)^.*[\\-\\s]DFD$"
+      - "(?i)^DFD$"
 
   - canonical: "Offensive Defenseman"
     aliases:
       - "(?i)^offensive[\\s_]?defenseman$"
       - "(?i)^offensivedefenseman$"
       - "(?i)^offen[s]ive[\\s_]?defenseman$"
+      # Title-bar abbreviation
+      - "(?i)^.*[\\-\\s]OFD$"
+      - "(?i)^OFD$"
 
   - canonical: "Two-Way Defenseman"
     aliases:
       - "(?i)^two[\\s_]?way[\\s_]?defenseman$"
       - "(?i)^twowaydefenseman$"
       - "(?i)^two[\\s_]?w[a]y[\\s_]?defenseman$"
+      # Title-bar abbreviations
+      - "(?i)^.*[\\-\\s]TWD$"
+      - "(?i)^TWD$"
+      - "(?i)^.*[\\-\\s]2WD$"
+      - "(?i)^2WD$"

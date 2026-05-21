@@ -345,9 +345,95 @@ class TestSubjectIdentityDataclass(unittest.TestCase):
         self.assertIsNone(si.build_class_confidence)
         self.assertIsNone(si.anchor_y)
 
+    def test_optional_fields_include_player_level_raw(self):
+        """player_level_raw and player_level_confidence default to None."""
+        si = SubjectIdentity(gamertag="TestPlayer", gamertag_confidence=0.9)
+        self.assertIsNone(si.player_level_raw)
+        self.assertIsNone(si.player_level_confidence)
+
     def test_default_observability_is_observable(self):
         si = SubjectIdentity(gamertag="TestPlayer", gamertag_confidence=0.9)
         self.assertEqual(si.observability, "observable")
+
+
+# ---------------------------------------------------------------------------
+# Test: player_level_raw extraction from left-strip row
+# ---------------------------------------------------------------------------
+
+
+class TestPlayerLevelRawExtraction(unittest.TestCase):
+    """player_level_raw is extracted from 'P<gen>LVL<num>' pattern in the left-strip row."""
+
+    def _level_line(self, text: str, y: float, conf: float = 0.9) -> OCRLine:
+        """Level line at x_center ≈ 179 (slightly left of main content band)."""
+        return OCRLine(text=text, confidence=conf, x1=155.0, y1=y - 8, x2=205.0, y2=y + 8)
+
+    def test_player_level_extracted_from_matched_row(self):
+        """P1LVL17 in the same row as subject → player_level_raw = 'P1LVL17'."""
+        lines = [
+            _gamertag_line_top_right("HenryBob"),
+            _pos_line("LD", 540.0),
+            _gamertag_line_left("HenryBob", 540.0),
+            self._level_line("P1LVL17", 540.0),
+            _number_name_line("#7 - Hubert Jenkins", 540.0),
+        ]
+        result = extract_subject_identity(_DUMMY_IMAGE, ocr_lines=lines)
+        self.assertIsNotNone(result)
+        self.assertEqual(result.player_level_raw, "P1LVL17")
+
+    def test_player_level_p2_pattern(self):
+        """P2LVL34 (gen 2) is also recognised."""
+        lines = [
+            _gamertag_line_top_right("SomePlayer"),
+            _pos_line("C", 300.0),
+            _gamertag_line_left("SomePlayer", 300.0),
+            self._level_line("P2LVL34", 300.0),
+        ]
+        result = extract_subject_identity(_DUMMY_IMAGE, ocr_lines=lines)
+        self.assertIsNotNone(result)
+        self.assertEqual(result.player_level_raw, "P2LVL34")
+
+    def test_player_level_none_when_not_present(self):
+        """No level line in the row → player_level_raw is None."""
+        lines = [
+            _gamertag_line_top_right("SomePlayer"),
+            _pos_line("LW", 390.0),
+            _gamertag_line_left("SomePlayer", 390.0),
+            _number_name_line("#11 - Test Name", 390.0),
+        ]
+        result = extract_subject_identity(_DUMMY_IMAGE, ocr_lines=lines)
+        self.assertIsNotNone(result)
+        self.assertIsNone(result.player_level_raw)
+
+    def test_player_level_from_non_subject_row_not_returned(self):
+        """Level line for a different row is not returned for the subject."""
+        lines = [
+            _gamertag_line_top_right("SubjectPlayer"),
+            # Row 0: non-subject with level
+            _pos_line("LW", 300.0),
+            _gamertag_line_left("OtherPlayer", 300.0),
+            self._level_line("P1LVL99", 300.0),
+            # Row 1: subject with no level
+            _pos_line("C", 400.0),
+            _gamertag_line_left("SubjectPlayer", 400.0),
+        ]
+        result = extract_subject_identity(_DUMMY_IMAGE, ocr_lines=lines)
+        self.assertIsNotNone(result)
+        # Level from OtherPlayer's row must NOT be attributed to subject
+        self.assertIsNone(result.player_level_raw)
+
+
+# ---------------------------------------------------------------------------
+# Test: MAX_ROWS constant
+# ---------------------------------------------------------------------------
+
+
+class TestMaxRowsConstant(unittest.TestCase):
+    """MAX_ROWS_PER_LOADOUT_SEGMENT reflects 6v6 with human goalies = 12."""
+
+    def test_max_rows_is_12(self):
+        from game_ocr.loadout_extractors.slot_identity import MAX_ROWS_PER_LOADOUT_SEGMENT
+        self.assertEqual(MAX_ROWS_PER_LOADOUT_SEGMENT, 12)
 
 
 # ---------------------------------------------------------------------------

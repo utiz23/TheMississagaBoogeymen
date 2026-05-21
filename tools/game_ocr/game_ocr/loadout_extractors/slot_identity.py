@@ -54,8 +54,16 @@ from ..ocr import OCRLine
 ROW_Y_BUCKET_TOLERANCE_PX: int = 6
 """Rows whose anchor-Y values are within this many pixels are merged into one bucket."""
 
-MAX_ROWS_PER_LOADOUT_SEGMENT: int = 10
-"""Up to 10 distinct subjects may appear across a segment (5 BGM + 5 opp)."""
+MAX_ROWS_PER_LOADOUT_SEGMENT: int = 12
+"""Up to 12 distinct subjects may appear across a segment (6 BGM + 6 opp, both goalies human)."""
+
+# NOTE: HOME/AWAY header authority
+# The visual HOME/AWAY section headers in the loadout pregame menu are NOT a
+# reliable source of team_side. BGM wears their AWAY uniform in-game; the
+# post-game screens list them as AWAY despite the loadout menu showing them as
+# HOME. team_side is determined exclusively by the worker promoter via
+# resolveGamertagToPlayer with opponent_player_match_stats fallback.
+# This module does NOT read HOME/AWAY headers for any purpose.
 
 # Position-label spatial constraints
 _POS_X_MAX: float = 130.0
@@ -63,7 +71,7 @@ _POS_Y_MIN: float = 180.0
 _POS_Y_MAX: float = 980.0
 
 # Row-content spatial constraints
-_ROW_CONTENT_X_MIN: float = 180.0
+_ROW_CONTENT_X_MIN: float = 130.0  # extended left to capture level at x≈179
 _ROW_CONTENT_X_MAX: float = 400.0
 _ROW_BAND_HALF_HEIGHT: float = 45.0
 
@@ -91,6 +99,10 @@ _NUMBER_RE = re.compile(r"#(\d{1,3})")
 
 # Persona/full-name pattern: "#N - Name" or "#N-Name"
 _NAME_RE = re.compile(r"#\d{1,3}\s*[-–.]+\s*(.+)")
+
+# Player-level pattern: "P<gen>LVL<num>" e.g. "P1LVL17", "P2LVL34"
+# Appears in the left strip at x≈179, alongside each player's row.
+_LEVEL_RE = re.compile(r"P\d+LVL(\d+)", re.IGNORECASE)
 
 
 # ---------------------------------------------------------------------------
@@ -136,6 +148,10 @@ class SubjectIdentity:
     # Build class from the title bar
     build_class_raw: Optional[str] = None   # e.g. "PWF" or "Power Forward"
     build_class_confidence: Optional[float] = None
+
+    # Player level from the left-strip row (pattern: P<gen>LVL<num>, e.g. "P1LVL17")
+    player_level_raw: Optional[str] = None   # raw string, e.g. "P1LVL17"
+    player_level_confidence: Optional[float] = None
 
     # Anchor Y of the matched left-strip row (for row-scoped downstream extractors)
     anchor_y: Optional[int] = None
@@ -268,7 +284,7 @@ def _parse_row_evidence(
     anchor: OCRLine,
     content_lines: list[OCRLine],
 ) -> dict:
-    """Extract position, jersey, player_name, is_captain from one matched row."""
+    """Extract position, jersey, player_name, is_captain, player_level from one matched row."""
     pos_upper = anchor.text.strip().upper().replace(" ", "")
     evidence: dict = {
         "position": pos_upper if pos_upper in _POS_SET else None,
@@ -279,6 +295,8 @@ def _parse_row_evidence(
         "player_name_confidence": None,
         "is_captain": None,
         "is_captain_confidence": None,
+        "player_level_raw": None,
+        "player_level_confidence": None,
     }
 
     for line in content_lines:
@@ -289,11 +307,18 @@ def _parse_row_evidence(
             evidence["is_captain"] = True
             evidence["is_captain_confidence"] = line.confidence
 
-        # Jersey number from "#N" pattern
-        m_num = _NUMBER_RE.search(text)
-        if m_num and evidence["jersey_number"] is None:
-            evidence["jersey_number"] = int(m_num.group(1))
-            evidence["jersey_confidence"] = line.confidence
+        # Player level pattern: "P<gen>LVL<num>" (e.g. "P1LVL17")
+        m_lvl = _LEVEL_RE.search(text)
+        if m_lvl and evidence["player_level_raw"] is None:
+            evidence["player_level_raw"] = text.strip()
+            evidence["player_level_confidence"] = line.confidence
+
+        # Jersey number from "#N" pattern — skip level lines to avoid false positives
+        if not m_lvl:
+            m_num = _NUMBER_RE.search(text)
+            if m_num and evidence["jersey_number"] is None:
+                evidence["jersey_number"] = int(m_num.group(1))
+                evidence["jersey_confidence"] = line.confidence
 
         # Full name from "#N - Name" pattern
         m_name = _NAME_RE.search(text)
@@ -381,6 +406,8 @@ def extract_subject_identity(
             is_captain_confidence=evidence["is_captain_confidence"],
             build_class_raw=build_class_raw,
             build_class_confidence=build_class_conf,
+            player_level_raw=evidence["player_level_raw"],
+            player_level_confidence=evidence["player_level_confidence"],
             anchor_y=anchor_y_int,
             observability=observability,
         )

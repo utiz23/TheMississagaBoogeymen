@@ -268,11 +268,24 @@ def _evidence_for_subject_bundle(
     open_text: LoadoutOpenTextExtractor,
     extractor_version: str,
 ) -> list[FieldEvidenceRecord]:
-    """Run all 4 extractors on one subject bundle (on the best frame only)."""
+    """Run all 4 extractors on one subject bundle (on the best frame only).
+
+    Identity fields (gamertag, position, jersey_number, is_captain,
+    persona_raw, player_level_raw, build_class) are emitted DIRECTLY from
+    bundle.canonical_subject — NOT from static-ROI open_text calls.  The old
+    approach used fixed ROI windows that don't align with the subject's
+    variable left-strip row Y, producing None values for every identity field.
+
+    NOTE: The visual HOME/AWAY section headers in the loadout pregame menu are
+    NOT read here and are NOT a source of team_side.  team_side is determined
+    exclusively by the worker promoter via resolveGamertagToPlayer with
+    opponent_player_match_stats fallback.
+    """
     records: list[FieldEvidenceRecord] = []
     support_frames = bundle.support_frame_indices
     slot_key = bundle.slot_key
     bundle_observability = bundle.observability
+    identity = bundle.canonical_subject
 
     # Load best frame image
     image_bgr: Optional[np.ndarray] = cv2.imread(str(bundle.best_frame_path))
@@ -283,38 +296,69 @@ def _evidence_for_subject_bundle(
     except FileNotFoundError:
         all_ocr_lines = []
 
-    # ── 1. Open-text extractor ───────────────────────────────────────────────
-    open_text_fields = [
-        ("gamertag", _ROI_GAMERTAG),
-        ("persona_raw", _ROI_PERSONA_RAW),
-        ("player_level_raw", _ROI_PLAYER_LEVEL),
+    # ── 1. Identity fields from canonical_subject ────────────────────────────
+    # Each identity field emits ONE rank-0 FieldEvidenceRecord with the value
+    # from canonical_subject.  If the value is None, the record is emitted with
+    # observability='low_quality' so the promotion gate sees "tried but failed".
+    #
+    # persona_raw = player_name_full: the loadout view shows the in-game player
+    # name (e.g. "Evgeni Wanhg") in the left-strip row.  The DB's persona_raw
+    # is the short pre-game-lobby alias (e.g. "E. Wanhg"), which is cross-matched
+    # in the promoter via pre_game_lobby_state_2.  We store player_name_full
+    # here and let the promoter do the cross-match.
+    _identity_field_defs: list[tuple[str, Any, Optional[float]]] = [
+        ("gamertag",          identity.gamertag,          identity.gamertag_confidence),
+        ("position",          identity.position,          identity.position_confidence),
+        ("jersey_number",     identity.jersey_number,     identity.jersey_confidence),
+        ("is_captain",        identity.is_captain,        identity.is_captain_confidence),
+        ("persona_raw",       identity.player_name_full,  identity.player_name_confidence),
+        ("player_level_raw",  identity.player_level_raw,  identity.player_level_confidence),
     ]
-    for field_key, roi in open_text_fields:
-        candidates = open_text.extract_open_text_for_roi(
-            all_ocr_lines,
-            roi_bbox=roi,
-            field_key=field_key,
-        )
-        for ot_ev in candidates:
-            norm_status = "normalized" if ot_ev.value else "unnormalized"
-            records.append(
-                FieldEvidenceRecord(
-                    screen_state=SCREEN_STATE,
-                    subject_slot_key=slot_key,
-                    field_key=ot_ev.field_key,
-                    field_family="open_text",
-                    candidate_value=ot_ev.value,
-                    candidate_rank=ot_ev.candidate_rank,
-                    raw_confidence=ot_ev.raw_confidence,
-                    calibrated_confidence=ot_ev.calibrated_confidence,
-                    extractor_family="open_text",
-                    extractor_version=extractor_version,
-                    observability_status=_merge_observability(bundle_observability, ot_ev.observability),
-                    normalization_status=norm_status,
-                    support_frame_ids=support_frames,
-                    roi_bbox=ot_ev.roi_bbox,
-                )
+    for field_key, value, conf in _identity_field_defs:
+        has_value = value is not None
+        eff_conf = conf or 0.0
+        obs_status = "observable" if has_value else "low_quality"
+        norm_status = "normalized" if has_value else "unnormalized"
+        records.append(
+            FieldEvidenceRecord(
+                screen_state=SCREEN_STATE,
+                subject_slot_key=slot_key,
+                field_key=field_key,
+                field_family="open_text",
+                candidate_value=value,
+                candidate_rank=0,
+                raw_confidence=eff_conf,
+                calibrated_confidence=eff_conf,
+                extractor_family="open_text",
+                extractor_version=extractor_version,
+                observability_status=_merge_observability(bundle_observability, obs_status),
+                normalization_status=norm_status,
+                support_frame_ids=support_frames,
             )
+        )
+
+    # build_class_raw as open_text (audit trail — raw value from title bar)
+    bc_raw = identity.build_class_raw
+    bc_raw_conf = identity.build_class_confidence or 0.0
+    records.append(
+        FieldEvidenceRecord(
+            screen_state=SCREEN_STATE,
+            subject_slot_key=slot_key,
+            field_key="build_class_raw",
+            field_family="open_text",
+            candidate_value=bc_raw,
+            candidate_rank=0,
+            raw_confidence=bc_raw_conf,
+            calibrated_confidence=bc_raw_conf,
+            extractor_family="open_text",
+            extractor_version=extractor_version,
+            observability_status=_merge_observability(
+                bundle_observability, "observable" if bc_raw else "low_quality"
+            ),
+            normalization_status="normalized" if bc_raw else "unnormalized",
+            support_frame_ids=support_frames,
+        )
+    )
 
     # ── 2. Closed-vocab extractor ────────────────────────────────────────────
     cv_records = _closed_vocab_records_for_subject_bundle(
@@ -325,40 +369,43 @@ def _evidence_for_subject_bundle(
         extractor_version=extractor_version,
         support_frames=support_frames,
         bundle_observability=bundle_observability,
+        build_class_raw=bc_raw,
     )
     records.extend(cv_records)
 
     # ── 3. Tabular numeric extractor ─────────────────────────────────────────
+    # Called ONCE via _extract_all_attribute_groups which iterates all 5 group
+    # columns internally — NOT 5× in a loop.  slot_anchor_y=0 means the
+    # attribute grid uses its fixed empirical row-y constants (598, 656, …)
+    # which are correct for the right pane (not the left-strip row Y).
     if image_bgr is not None:
-        for group_name, cx in _FALLBACK_COLUMN_CX.items():
-            tab_evidences = tabular.extract_attribute_grid(
-                image_bgr,
-                slot_anchor_y=0,
-                ocr_lines=all_ocr_lines,
-                column_cx=cx,
-            )
-            for tab_ev in tab_evidences:
-                norm_status = "normalized" if tab_ev.value is not None else "failed"
-                records.append(
-                    FieldEvidenceRecord(
-                        screen_state=SCREEN_STATE,
-                        subject_slot_key=slot_key,
-                        field_key=f"attribute_{tab_ev.row_key}_{tab_ev.column_key}",
-                        field_family="tabular_numeric",
-                        candidate_value=tab_ev.value,
-                        candidate_rank=tab_ev.candidate_rank,
-                        raw_confidence=tab_ev.raw_confidence,
-                        calibrated_confidence=tab_ev.calibrated_confidence,
-                        extractor_family="tabular_numeric",
-                        extractor_version=extractor_version,
-                        observability_status=_merge_observability(bundle_observability, tab_ev.observability),
-                        normalization_status=norm_status,
-                        support_frame_ids=support_frames,
-                        roi_bbox=tab_ev.roi_bbox,
-                        row_key=tab_ev.row_key,
-                        column_key=tab_ev.column_key,
-                    )
+        tab_evidences = _extract_all_attribute_groups(
+            tabular=tabular,
+            image_bgr=image_bgr,
+            ocr_lines=all_ocr_lines,
+        )
+        for tab_ev in tab_evidences:
+            norm_status = "normalized" if tab_ev.value is not None else "failed"
+            records.append(
+                FieldEvidenceRecord(
+                    screen_state=SCREEN_STATE,
+                    subject_slot_key=slot_key,
+                    field_key=f"attribute_{tab_ev.row_key}_{tab_ev.column_key}",
+                    field_family="tabular_numeric",
+                    candidate_value=tab_ev.value,
+                    candidate_rank=tab_ev.candidate_rank,
+                    raw_confidence=tab_ev.raw_confidence,
+                    calibrated_confidence=tab_ev.calibrated_confidence,
+                    extractor_family="tabular_numeric",
+                    extractor_version=extractor_version,
+                    observability_status=_merge_observability(bundle_observability, tab_ev.observability),
+                    normalization_status=norm_status,
+                    support_frame_ids=support_frames,
+                    roi_bbox=tab_ev.roi_bbox,
+                    row_key=tab_ev.row_key,
+                    column_key=tab_ev.column_key,
                 )
+            )
 
     # ── 4. Icon extractor ─────────────────────────────────────────────────────
     if image_bgr is not None:
@@ -528,6 +575,53 @@ def _evidence_for_bundle(
 
 
 # ---------------------------------------------------------------------------
+# Tabular attribute extraction helper
+# ---------------------------------------------------------------------------
+
+
+def _extract_all_attribute_groups(
+    *,
+    tabular: LoadoutTabularExtractor,
+    image_bgr: Any,
+    ocr_lines: list[OCRLine],
+) -> list[NumericCellEvidence]:
+    """Extract attribute grid records for ALL 5 groups, deduped per (row_key, column_key).
+
+    Background: ``LoadoutTabularExtractor.extract_attribute_grid`` iterates all 23
+    attribute keys for a single column_cx.  Since the attribute grid has 5 groups at
+    different X positions, naive iteration over all 5 group columns would produce
+    23×5 = 115 records per (value|delta) column — each attribute key appearing 5×.
+
+    Correct approach: call the extractor ONCE PER GROUP cx, then keep only the records
+    whose row_key belongs to that group.  The group membership is loaded from
+    attribute_keys.yaml (same source as the tabular extractor's own key list).
+
+    slot_anchor_y=0 is correct: the right-pane attribute grid uses fixed empirical
+    y-centres (598, 656, 714, 771, 830) that don't shift with the subject's left-strip
+    row Y position.
+    """
+    from .loadout_extractors.closed_vocab import load_attribute_keys
+    attr_groups = load_attribute_keys()  # {group_name: [key, ...]}
+
+    all_evidences: list[NumericCellEvidence] = []
+    for group_name, cx in _FALLBACK_COLUMN_CX.items():
+        group_keys = set(attr_groups.get(group_name, []))
+        if not group_keys:
+            continue  # skip unknown groups
+        group_evidences = tabular.extract_attribute_grid(
+            image_bgr,
+            slot_anchor_y=0,
+            ocr_lines=ocr_lines,
+            column_cx=cx,
+        )
+        # Keep only records for THIS group's attribute keys
+        for ev in group_evidences:
+            if ev.row_key in group_keys:
+                all_evidences.append(ev)
+    return all_evidences
+
+
+# ---------------------------------------------------------------------------
 # Closed-vocab helpers
 # ---------------------------------------------------------------------------
 
@@ -541,8 +635,15 @@ def _closed_vocab_records_for_subject_bundle(
     extractor_version: str,
     support_frames: tuple[int, ...],
     bundle_observability: str,
+    build_class_raw: Optional[str] = None,
 ) -> list[FieldEvidenceRecord]:
-    """Extract closed-vocab evidence for a subject bundle."""
+    """Extract closed-vocab evidence for a subject bundle.
+
+    For the new-contract subject bundles, build_class is classified from the
+    canonical_subject's build_class_raw (passed in) rather than by re-reading
+    the title bar from OCR lines.  position is now emitted from identity fields
+    and is NOT re-classified here for subject bundles.
+    """
     return _closed_vocab_core(
         slot_key=bundle.slot_key,
         ocr_lines=ocr_lines,
@@ -551,6 +652,8 @@ def _closed_vocab_records_for_subject_bundle(
         extractor_version=extractor_version,
         support_frames=support_frames,
         bundle_observability=bundle_observability,
+        build_class_raw=build_class_raw,
+        emit_position=False,  # position comes from identity field emission
     )
 
 
@@ -573,6 +676,8 @@ def _closed_vocab_records_for_bundle(
         extractor_version=extractor_version,
         support_frames=support_frames,
         bundle_observability=bundle_observability,
+        build_class_raw=None,  # use OCR band (legacy path)
+        emit_position=True,    # legacy bundles still need position from closed-vocab
     )
 
 
@@ -585,8 +690,22 @@ def _closed_vocab_core(
     extractor_version: str,
     support_frames: tuple[int, ...],
     bundle_observability: str,
+    build_class_raw: Optional[str] = None,
+    emit_position: bool = True,
 ) -> list[FieldEvidenceRecord]:
-    """Core closed-vocab evidence extraction (shared by old and new bundle types)."""
+    """Core closed-vocab evidence extraction (shared by old and new bundle types).
+
+    Parameters
+    ----------
+    build_class_raw:
+        When provided (new subject-bundle path), classify_build_class is called
+        on this raw text (from canonical_subject.build_class_raw, e.g. the full
+        title-bar string like "TAGETHOMPSON-PWF").  When None (legacy path),
+        the title-bar OCR band is re-read from ocr_lines.
+    emit_position:
+        When False (new subject-bundle path), position is NOT emitted here —
+        it was already emitted as an open_text record from canonical_subject.
+    """
     records: list[FieldEvidenceRecord] = []
 
     def _cv_to_record(
@@ -633,13 +752,19 @@ def _closed_vocab_core(
             )
         return out
 
-    # build_class (title bar y≈110-175)
-    title_text = _join_lines_in_band(ocr_lines, y_min=110.0, y_max=175.0, x_min=300.0, x_max=1400.0)
-    records.extend(_cv_to_record(extractor.classify_build_class(title_text), "build_class"))
+    # build_class: canonical name via closed-vocab classifier
+    # New path: use build_class_raw from canonical_subject (e.g. "TAGETHOMPSON-PWF")
+    # Legacy path: re-read title bar band from OCR lines
+    if build_class_raw is not None:
+        bc_text = build_class_raw
+    else:
+        bc_text = _join_lines_in_band(ocr_lines, y_min=110.0, y_max=175.0, x_min=300.0, x_max=1400.0)
+    records.extend(_cv_to_record(extractor.classify_build_class(bc_text), "build_class"))
 
-    # position (left strip, y 180-980, x < 130)
-    pos_text = _join_lines_in_band(ocr_lines, y_min=180.0, y_max=980.0, x_min=0.0, x_max=130.0)
-    records.extend(_cv_to_record(extractor.classify_position(pos_text), "position"))
+    # position (left strip, y 180-980, x < 130) — only for legacy bundles
+    if emit_position:
+        pos_text = _join_lines_in_band(ocr_lines, y_min=180.0, y_max=980.0, x_min=0.0, x_max=130.0)
+        records.extend(_cv_to_record(extractor.classify_position(pos_text), "position"))
 
     # x_factor names (3 slots)
     _XFACTOR_SLOT_CENTERS = [500, 1000, 1500]

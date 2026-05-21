@@ -226,6 +226,13 @@ def _merge_identities(identities: list[SubjectIdentity]) -> SubjectIdentity:
     else:
         best_bc, best_bc_conf = None, None
 
+    # Player level: highest confidence
+    lvl_ids = [(s.player_level_raw, s.player_level_confidence) for s in identities if s.player_level_raw is not None]
+    if lvl_ids:
+        best_lvl, best_lvl_conf = max(lvl_ids, key=lambda t: t[1] or 0)
+    else:
+        best_lvl, best_lvl_conf = None, None
+
     # Anchor Y: from the best-position frame (most confident position match)
     anchor_y = best_pos_conf and next(
         (s.anchor_y for s in identities if s.position_confidence == best_pos_conf),
@@ -252,6 +259,8 @@ def _merge_identities(identities: list[SubjectIdentity]) -> SubjectIdentity:
         is_captain_confidence=captain_conf,
         build_class_raw=best_bc,
         build_class_confidence=best_bc_conf,
+        player_level_raw=best_lvl,
+        player_level_confidence=best_lvl_conf,
         anchor_y=anchor_y,
         observability=observability,
     )
