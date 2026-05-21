@@ -1,4 +1,14 @@
-"""Hybrid screen-type classifier for Pass-1 video segmentation.
+"""Hybrid screen-type classifier (LEGACY — single-prototype HSV + anchor).
+
+NOTE: As of Phase 1 of the OCR pipeline redesign (2026-05-19), this classifier
+is demoted to a fallback signal and its primary role (frame-level screen
+discrimination) is replaced by game_ocr.screen_classifier.ScreenClassifier
+(learned LR head) fed into game_ocr.viterbi via game_ocr.emissions.
+
+This module survives because the legacy `pass1.engine=run_length` path still
+imports it, and because `classify_video` is the anchor-text source for the
+HMM engine's frame_features call. Phase 5 deletes the legacy engine path; the
+anchor-text helpers in this module may be refactored out at that time.
 
 Two signals per frame:
 

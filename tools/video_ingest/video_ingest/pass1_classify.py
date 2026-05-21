@@ -1,4 +1,12 @@
-"""Pass 1: segment a video into screen-type windows.
+"""Pass 1 (LEGACY — run-length engine): segment a video into screen-type windows.
+
+NOTE: As of Phase 1 of the OCR pipeline redesign (2026-05-19), this module is
+the legacy fallback path. The default engine is pass1_segment.decode_segments()
+(HMM/Viterbi). This module survives only while `pass1.engine=run_length` is a
+supported option. Phase 5 deletes this file.
+
+When extending Pass 1 going forward, change the HMM path in
+`tools/video_ingest/video_ingest/pass1_segment.py`, not here.
 
 Decodes the input video at a coarse 1 fps via ffmpeg piped to a
 raw-BGR stream (no disk hit). For each sampled frame we run the
