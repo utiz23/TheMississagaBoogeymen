@@ -14,6 +14,8 @@
 
 import { sql } from '@eanhl/db'
 import {
+  getFieldEvidenceForLoadoutSlot,
+  getLoadoutPromotionsForMatch,
   getMatchSegmentDecoderVersionCounts,
   getMatchSegments,
   getMatchSegmentStateCounts,
@@ -73,7 +75,9 @@ async function main(): Promise<void> {
   if (stateCounts.length === 0) {
     console.log('  (no segments)\n')
   } else {
-    console.log(`  ${pad('state', 32)} ${pad('segments', 10, 'r')} ${pad('frames', 8, 'r')} ${pad('avg_conf', 10, 'r')}`)
+    console.log(
+      `  ${pad('state', 32)} ${pad('segments', 10, 'r')} ${pad('frames', 8, 'r')} ${pad('avg_conf', 10, 'r')}`,
+    )
     console.log(`  ${'-'.repeat(32)} ${'-'.repeat(10)} ${'-'.repeat(8)} ${'-'.repeat(10)}`)
     let totalSegs = 0
     let totalFrames = 0
@@ -163,6 +167,92 @@ async function main(): Promise<void> {
       if (promos.length > 100) console.log(`  … and ${promos.length - 100} more`)
       console.log()
     }
+  }
+
+  // Phase 2B-5: loadout per-slot breakdown when player_loadout_view evidence exists
+  const loadoutEvidence = await getFieldEvidenceForLoadoutSlot(m)
+  const loadoutPromos = await getLoadoutPromotionsForMatch(m)
+
+  if (loadoutEvidence.length > 0) {
+    console.log(`=== Loadout per-slot breakdown ===\n`)
+
+    // Group field evidence by subject_slot_key
+    const bySlot = new Map<string | null, typeof loadoutEvidence>()
+    for (const row of loadoutEvidence) {
+      const key = row.subjectSlotKey ?? null
+      if (!bySlot.has(key)) bySlot.set(key, [])
+      bySlot.get(key)!.push(row)
+    }
+
+    // Group promotions by target_semantic_key.position (which maps to slot semantics)
+    const promosBySlotPosition = new Map<
+      string,
+      {
+        promoted: number
+        blocked: number
+      }
+    >()
+    for (const p of loadoutPromos) {
+      // Extract position from target_semantic_key if available
+      let posKey = 'unknown'
+      if (p.targetSemanticKey !== null && typeof p.targetSemanticKey === 'object') {
+        const pos = (p.targetSemanticKey as Record<string, unknown>)['position']
+        if (pos !== undefined) {
+          posKey = String(pos)
+        }
+      }
+      if (!promosBySlotPosition.has(posKey)) {
+        promosBySlotPosition.set(posKey, { promoted: 0, blocked: 0 })
+      }
+      const stats = promosBySlotPosition.get(posKey)!
+      if (p.promotionStatus === 'promoted') {
+        stats.promoted += 1
+      } else {
+        stats.blocked += 1
+      }
+    }
+
+    // Sort slot keys: nulls last, then alphabetically
+    const sortedSlotKeys = [...bySlot.keys()].sort((a, b) => {
+      if (a === null && b === null) return 0
+      if (a === null) return 1
+      if (b === null) return -1
+      return a.localeCompare(b)
+    })
+
+    console.log(
+      `  ${pad('Slot', 46)} ${pad('Promoted', 10, 'r')} ${pad('Blocked', 9, 'r')} ${pad('Top conf', 10, 'r')}`,
+    )
+    console.log(`  ${'-'.repeat(46)} ${'-'.repeat(10)} ${'-'.repeat(9)} ${'-'.repeat(10)}`)
+
+    for (const slotKey of sortedSlotKeys) {
+      const rows = bySlot.get(slotKey)!
+
+      // Count promoted/blocked for this slot from ocr_promotions
+      const posKey =
+        slotKey !== null && slotKey.includes('_')
+          ? (slotKey.split('_').pop() ?? 'unknown')
+          : (slotKey ?? 'null')
+      const slotPromoStats = promosBySlotPosition.get(posKey) ?? { promoted: 0, blocked: 0 }
+
+      // Compute top candidate confidence (rank=0 records) across all fields in this slot
+      const topCandidates = rows
+        .filter((r) => r.candidateRank === 0)
+        .map((r) => Number(r.rawConfidence ?? 0))
+      const avgTopConf =
+        topCandidates.length > 0
+          ? (topCandidates.reduce((a, b) => a + b, 0) / topCandidates.length).toFixed(2)
+          : '-'
+
+      console.log(
+        `  ${pad(slotKey ?? '<no slot>', 46)} ${pad(slotPromoStats.promoted, 10, 'r')} ${pad(
+          slotPromoStats.blocked,
+          9,
+          'r',
+        )} ${pad(avgTopConf, 10, 'r')}`,
+      )
+    }
+    console.log()
   }
 }
 
