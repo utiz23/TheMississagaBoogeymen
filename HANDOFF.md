@@ -1,5 +1,75 @@
 # Handoff
 
+## Session Summary — 2026-05-21 (Phase 2A architectural fix — one subject per frame)
+
+### What was done
+
+Real-data run on match-250 revealed the fundamental Phase 2A design error: the
+original `slot_identity.py` / `loadout_bundle.py` assumed "one frame = all 5
+visible roster rows all get right-pane data." The actual EA NHL loadout-view
+has ONE selected subject per frame — the right-pane (build class, X-Factors,
+attributes) belongs ONLY to that subject.
+
+Architectural redesign committed (SHA `9a4a5b6`):
+
+- **`SubjectIdentity`** (new): identifies one subject per frame via top-right
+  gamertag match to left-strip row, mirroring legacy `_parse_loadout_left_strip`.
+  Returns `None` if no subject identified.
+- **`extract_subject_identity()`** (new): one subject per frame.
+- **`LoadoutSubjectBundle`** (new): one bundle per distinct subject across the
+  segment, deduped by fuzzy gamertag match (Levenshtein ≤2 on 6-char prefix).
+- **`assemble_loadout_subject_bundles()`** (new): per-frame subject → dedupe →
+  bundles ordered by first-frame appearance.
+- **`extract_loadout_evidence()`** rewritten: extractors run ONCE per bundle on
+  the best (sharpest) frame, attributing right-pane data only to that subject.
+- Old `SlotIdentity`, `extract_slot_identities`, `LoadoutFrameBundle`,
+  `assemble_loadout_bundles` kept as deprecated backward-compat shims.
+- 52 new unit tests: `test_subject_identity.py` + `test_loadout_subject_bundle.py`.
+- Existing 89 tests still pass (updated patch targets + MAX_ROWS constant).
+
+Real-data result: match-250 seg-002 (15 frames) → **903 records, 3 distinct
+subjects** (vs. 1660 mostly-empty records from the broken design). The 3
+subjects correspond to the subset of roster slots the operator navigated to
+in that segment.
+
+OCR diagnostic output for sampled frames:
+- Frame 1: no clear subject (lobby/transitional state, title bar = "9^9")
+- Frame 5 & 10: subject = **StickMenace** (top-right), title bar = "TAGETHOMPSON-PWF"
+- Frame 15: no clear subject (back to lobby state)
+
+### Current status
+
+Branch: `feat/ocr-pipeline-phase-2`. All 141 loadout-related tests pass.
+
+T1A fixture parity test (test_loadout_evidence_fixture_parity.py) is still in
+"SKIPPED" state — its fixtures predate this architectural change. The fixture
+JSON files reference `"loadout_slot_seg{N}_row{R}"` slot keys; the new extractor
+produces `"loadout_slot_seg{N}_subject{NN}"` keys. Fixture JSON + PROVENANCE
+updates are the next task before T1A can go GREEN.
+
+### What's next
+
+1. **Update fixture JSON files** in `calibration/extras/loadout/fixtures/` to
+   use new `subject{NN}` slot key format and re-run parity test T1A.
+2. **Worker integration**: `writeFieldEvidenceForBatch` / `loadout-v2.ts`
+   promoter need to accept the new `subject_slot_key` format. Inspect
+   `loadout_slot_key` parsing assumptions.
+3. **Real-data navigation coverage**: with 3/10 subjects visible in 15 frames,
+   the operator should navigate through all 10 slots per match. Confirm the
+   video capture workflow covers the full roster.
+
+### Open decisions / blockers
+
+- The 6-char prefix fuzzy match conflates gamertags sharing the same 6-char
+  prefix (e.g. "PlayerA" and "PlayerB" — not a real-data issue but note for
+  fixture test design).
+- `position` extraction works when the left-strip position label aligns with
+  the subject's row, but the subject anchor match is based on gamertag content
+  in [x=180..400], so frames where the top-right gamertag has very low OCR
+  confidence may produce `not_observable_from_source` partial identities.
+
+---
+
 ## Session Summary — 2026-05-21 (Phase 2A — Loadout Evidence-Layer MVR shipped + 2B-tooling done)
 
 ### What was done
