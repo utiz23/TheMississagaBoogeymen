@@ -25,6 +25,7 @@ import {
   playerLoadoutXFactors,
   playerLoadoutAttributes,
   playerPersonaAliases,
+  opponentPlayerMatchStats,
   matches,
   type NewPlayerLoadoutXFactor,
   type NewPlayerLoadoutAttribute,
@@ -208,16 +209,28 @@ export async function promoteLoadoutFromEvidence(input: {
       const gamertag = gamertagDecision.winningValue
       const resolution = await resolveGamertagToPlayer(gamertag, gameTitleId, db as unknown as PromoterDb)
       resolvedPlayerId = resolution.playerId
-      // Per legacy semantics: resolved → 'for', unresolved → 'against'.
-      // But the spec says: if resolution returns null → blocked with unresolved_team_side.
       if (resolution.playerId !== null) {
+        // Resolved to a known player → BGM side ('for').
         resolvedTeamSide = 'for'
       } else {
-        // Unresolved gamertag → team_side cannot be determined → snapshot blocks.
-        // Per task spec: "resolveGamertagToPlayer returns null → blocks with unresolved_team_side"
-        // However, the legacy loadout promoter uses 'against' for unresolved. The v2 spec
-        // is explicit: unresolved → blocked with reason 'unresolved_team_side'.
-        snapshotBlockReason = 'unresolved_team_side'
+        // Unresolved. Check if the gamertag appears in opponent_player_match_stats
+        // for this match. If yes, write as team_side='against' with playerId=null
+        // (opponent players are not in the players table by design).
+        // If not found in either table, block with 'unresolved_team_side'.
+        const oppRows = await db
+          .select({ id: opponentPlayerMatchStats.id, gamertag: opponentPlayerMatchStats.gamertag })
+          .from(opponentPlayerMatchStats)
+          .where(eq(opponentPlayerMatchStats.matchId, matchId))
+        const normGamertag = gamertag.toLowerCase()
+        const oppMatch = oppRows.find(
+          (r) => r.gamertag !== null && r.gamertag.toLowerCase() === normGamertag,
+        )
+        if (oppMatch !== undefined) {
+          resolvedTeamSide = 'against'
+          // playerId stays null — opponents are not in the players table.
+        } else {
+          snapshotBlockReason = 'unresolved_team_side'
+        }
       }
     }
 
