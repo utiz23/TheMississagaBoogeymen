@@ -7,10 +7,20 @@ FieldEvidenceRecord
     ``to_dict()`` produces the exact JSON contract consumed by the worker's
     ``writeFieldEvidenceForBatch`` (Task 2A-14).
 
-extract_loadout_evidence(bundle_dir, *, segment_index, extractor_version)
-    Top-level entry point: reads frames + per-frame OCR lines from
-    ``bundle_dir``, runs the four family extractors over each per-slot bundle,
-    and returns a flat list of FieldEvidenceRecord ready to JSON-serialize.
+extract_loadout_evidence(bundle_dir, *, segment_index, extractor_version,
+                         ocr_lines_per_frame, use_gpu)
+    Top-level entry point: reads frames from ``bundle_dir``, optionally runs
+    RapidOCR when ``ocr_lines_per_frame`` is not provided, runs the four
+    family extractors over each per-slot bundle, and returns a flat list of
+    FieldEvidenceRecord ready to JSON-serialize.
+
+Frame naming convention (Pass-2 output):
+    bundle_dir/00001.png  (5-digit zero-padded, NO "frame_" prefix)
+    bundle_dir/00002.png  ...
+
+    When ocr_lines_per_frame is None (the default), RapidOCR is run
+    internally on each PNG.  Pass the list explicitly to skip OCR (used
+    by tests and by future worker-time callers that already have OCR output).
 
 Family → FieldEvidenceRecord adapter rules
 ------------------------------------------
@@ -45,7 +55,7 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass, asdict
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Optional, Sequence
 
 import cv2
 import numpy as np
@@ -55,7 +65,7 @@ from .loadout_extractors.closed_vocab import LoadoutClosedVocabExtractor, Closed
 from .loadout_extractors.tabular_numeric import LoadoutTabularExtractor, NumericCellEvidence
 from .loadout_extractors.icon import LoadoutIconExtractor, IconEvidence
 from .loadout_extractors.open_text import LoadoutOpenTextExtractor, OpenTextEvidence
-from .ocr import OCRLine
+from .ocr import OCRLine, RapidOCRBackend
 
 EXTRACTOR_VERSION = "loadout-evidence-v1"
 SCREEN_STATE = "player_loadout_view"
@@ -152,26 +162,38 @@ def extract_loadout_evidence(
     *,
     segment_index: int,
     extractor_version: str = EXTRACTOR_VERSION,
+    ocr_lines_per_frame: Sequence[Sequence[OCRLine]] | None = None,
+    use_gpu: bool = False,
 ) -> list[FieldEvidenceRecord]:
     """Top-level entry point: bundle_dir → list[FieldEvidenceRecord].
 
-    Reads frames + per-frame OCR lines from bundle_dir, runs the bundle
+    Reads PNG frames from bundle_dir, runs OCR if needed, runs the bundle
     assembler, then dispatches each bundle to the 4 family extractors.
     Returns flat list of evidence records ready to JSON-serialize.
 
-    bundle_dir convention (mirrors Pass-2 output):
-        bundle_dir/frame_NNNN.png
-        bundle_dir/ocr_lines_NNNN.json   (RapidOCR output per frame, where NNNN
-                                          matches the 4-digit suffix of frame_NNNN.png)
+    Frame naming convention (Pass-2 output):
+        bundle_dir/00001.png  (5-digit zero-padded, NO "frame_" prefix)
+
+    When ``ocr_lines_per_frame`` is None (the default), RapidOCR is run
+    internally on each PNG using ``RapidOCRBackend``.  Pass the list
+    explicitly to reuse pre-computed OCR output (e.g. from worker-time
+    invocation or tests).
 
     Parameters
     ----------
     bundle_dir:
-        Directory containing frame PNGs + matching ocr_lines JSON files.
+        Directory containing 5-digit zero-padded PNGs (00001.png, …).
     segment_index:
         Pass-1 segment index (used in slot_key construction).
     extractor_version:
         Version string stamped onto every FieldEvidenceRecord.
+    ocr_lines_per_frame:
+        Optional pre-computed OCR lines, one sequence per frame in the
+        same order as sorted frame paths.  When None, RapidOCR is run
+        internally.
+    use_gpu:
+        Passed to RapidOCRBackend when OCR is run internally.  Ignored
+        when ``ocr_lines_per_frame`` is provided.
 
     Returns
     -------
@@ -180,28 +202,36 @@ def extract_loadout_evidence(
 
     Raises
     ------
-    FileNotFoundError:
-        When a per-frame ocr_lines file is missing.
     ValueError:
         When no frames are found in bundle_dir.
     """
-    # 1. Discover frames + OCR lines
-    frame_paths = sorted(bundle_dir.glob("frame_*.png"))
+    # 1. Discover frames — 5-digit zero-padded PNGs (00001.png etc.)
+    frame_paths = sorted(bundle_dir.glob("[0-9]*.png"))
     if not frame_paths:
-        raise ValueError(f"No frame_*.png files found in {bundle_dir}")
+        raise ValueError(f"No PNG frames found in {bundle_dir}")
 
-    ocr_lines_per_frame: list[list[OCRLine]] = []
-    for frame_path in frame_paths:
-        ocr_lines_per_frame.append(_load_frame_ocr_lines(frame_path))
+    # 2. Obtain OCR lines — run RapidOCR internally if not provided
+    if ocr_lines_per_frame is None:
+        backend = RapidOCRBackend(use_gpu=use_gpu)
+        computed: list[list[OCRLine]] = []
+        for fp in frame_paths:
+            img = cv2.imread(str(fp))
+            if img is None:
+                computed.append([])
+            else:
+                computed.append(backend.read(img))
+        resolved_ocr: list[list[OCRLine]] = computed
+    else:
+        resolved_ocr = [list(lines) for lines in ocr_lines_per_frame]
 
-    # 2. Assemble bundles
+    # 3. Assemble bundles
     bundles = assemble_loadout_bundles(
         frame_paths,
         segment_index=segment_index,
-        ocr_lines_per_frame=ocr_lines_per_frame,
+        ocr_lines_per_frame=resolved_ocr,
     )
 
-    # 3. Run extractors per bundle
+    # 4. Run extractors per bundle
     closed_vocab = LoadoutClosedVocabExtractor()
     tabular = LoadoutTabularExtractor()
     icon = LoadoutIconExtractor()
@@ -224,13 +254,15 @@ def extract_loadout_evidence(
 
 
 def _load_frame_ocr_lines(frame_path: Path) -> list[OCRLine]:
-    """Load per-frame OCR lines from the sibling ocr_lines_NNNN.json file.
+    """Load per-frame OCR lines from the sibling ocr_lines_{stem}.json file.
+
+    The stem is the full filename stem of the frame PNG (e.g. "00001" for
+    "00001.png"), matching the naming convention written by Pass-2 ffmpeg.
 
     Separated into its own function so tests can patch it independently from
     all other Path.open calls (e.g., YAML config file reads in extractor inits).
     """
-    suffix = frame_path.stem.split("_", 1)[1]
-    lines_path = frame_path.parent / f"ocr_lines_{suffix}.json"
+    lines_path = frame_path.parent / f"ocr_lines_{frame_path.stem}.json"
     if not lines_path.exists():
         raise FileNotFoundError(f"OCR lines file missing: {lines_path}")
     with lines_path.open() as fp:

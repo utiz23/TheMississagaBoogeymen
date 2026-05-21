@@ -201,7 +201,10 @@ def _run_extract_evidence(
     icon_ev=None,
     extractor_version: str = "test-v1",
 ) -> list:
-    """Run extract_loadout_evidence with bundle assembly AND all 4 extractors mocked."""
+    """Run extract_loadout_evidence with bundle assembly AND all 4 extractors mocked.
+
+    Passes ocr_lines_per_frame=[] explicitly so RapidOCR is never instantiated.
+    """
     from game_ocr.loadout_evidence import extract_loadout_evidence
     from game_ocr.loadout_extractors.closed_vocab import LoadoutClosedVocabExtractor
     from game_ocr.loadout_extractors.tabular_numeric import LoadoutTabularExtractor
@@ -210,8 +213,8 @@ def _run_extract_evidence(
 
     dummy_img = _make_dummy_image()
 
-    # Fake frame paths returned by glob
-    fake_frames = [Path("/fake/frame_0000.png"), Path("/fake/frame_0001.png")]
+    # Fake frame paths returned by glob — use 5-digit zero-padded names (Pass-2 convention)
+    fake_frames = [Path("/fake/00001.png"), Path("/fake/00002.png")]
 
     with patch("game_ocr.loadout_evidence.assemble_loadout_bundles", return_value=bundles), \
          patch("game_ocr.loadout_evidence.cv2.imread", return_value=dummy_img), \
@@ -225,8 +228,13 @@ def _run_extract_evidence(
          patch.object(LoadoutClosedVocabExtractor, "classify_x_factor_name", return_value=cv_ev or []), \
          patch.object(LoadoutClosedVocabExtractor, "classify_x_factor_tier_from_image", return_value=cv_ev or []):
 
+        # Pass ocr_lines_per_frame=[] to bypass internal RapidOCR instantiation;
+        # assemble_loadout_bundles is mocked so the empty list is never indexed.
         return extract_loadout_evidence(
-            Path("/fake/bundle_dir"), segment_index=0, extractor_version=extractor_version
+            Path("/fake/bundle_dir"),
+            segment_index=0,
+            extractor_version=extractor_version,
+            ocr_lines_per_frame=[],
         )
 
 
@@ -605,26 +613,11 @@ class TestFamilyAdapterFieldMapping(unittest.TestCase):
 # ---------------------------------------------------------------------------
 
 
-class TestMissingOcrLinesRaisesFileNotFoundError(unittest.TestCase):
-    """extract_loadout_evidence raises FileNotFoundError when a per-frame ocr_lines file is missing."""
-
-    def test_raises_when_ocr_lines_missing(self):
-        import tempfile
-        import cv2
-
-        from game_ocr.loadout_evidence import extract_loadout_evidence
-
-        with tempfile.TemporaryDirectory() as tmp:
-            bundle_dir = Path(tmp) / "bundle"
-            bundle_dir.mkdir()
-            # Write a frame PNG but NO matching ocr_lines file
-            img = np.zeros((10, 10, 3), dtype=np.uint8)
-            cv2.imwrite(str(bundle_dir / "frame_0000.png"), img)
-
-            with self.assertRaises(FileNotFoundError):
-                extract_loadout_evidence(bundle_dir, segment_index=0)
+class TestFrameGlobAndOcrLinesHandling(unittest.TestCase):
+    """extract_loadout_evidence uses 5-digit zero-padded PNG names and runs OCR internally."""
 
     def test_raises_when_no_frames(self):
+        """Empty bundle_dir raises ValueError (no PNGs match [0-9]*.png)."""
         import tempfile
 
         from game_ocr.loadout_evidence import extract_loadout_evidence
@@ -635,6 +628,73 @@ class TestMissingOcrLinesRaisesFileNotFoundError(unittest.TestCase):
             # Empty directory — no frames
             with self.assertRaises(ValueError):
                 extract_loadout_evidence(bundle_dir, segment_index=0)
+
+    def test_frame_prefix_png_not_matched_by_glob(self):
+        """frame_NNNN.png files (old convention) are NOT matched — only [0-9]*.png."""
+        import tempfile
+        import cv2
+
+        from game_ocr.loadout_evidence import extract_loadout_evidence
+
+        with tempfile.TemporaryDirectory() as tmp:
+            bundle_dir = Path(tmp) / "bundle"
+            bundle_dir.mkdir()
+            # Write a PNG using the OLD "frame_" prefix convention
+            img = np.zeros((10, 10, 3), dtype=np.uint8)
+            cv2.imwrite(str(bundle_dir / "frame_0000.png"), img)
+            # The glob [0-9]*.png should NOT match "frame_0000.png"
+            # → no frames found → ValueError
+            with self.assertRaises(ValueError):
+                extract_loadout_evidence(bundle_dir, segment_index=0)
+
+    def test_runs_rapidocr_when_lines_not_provided(self):
+        """When ocr_lines_per_frame is None, RapidOCR is invoked on each PNG.
+
+        Uses a tiny synthetic PNG + mocks RapidOCRBackend to return known
+        OCR lines; verifies that assemble_loadout_bundles receives the
+        mocked output (not an empty list from a missing JSON file).
+        """
+        import tempfile
+        import cv2
+
+        from game_ocr.loadout_evidence import extract_loadout_evidence
+        from game_ocr.ocr import OCRLine
+
+        known_line = OCRLine(text="AutoOCR", confidence=0.99, x1=10.0, y1=10.0, x2=200.0, y2=30.0)
+
+        with tempfile.TemporaryDirectory() as tmp:
+            bundle_dir = Path(tmp) / "bundle"
+            bundle_dir.mkdir()
+            # Write a 5-digit zero-padded PNG (correct Pass-2 convention)
+            img = np.zeros((1080, 1920, 3), dtype=np.uint8)
+            cv2.imwrite(str(bundle_dir / "00001.png"), img)
+
+            captured_ocr_args: list = []
+
+            def _fake_assemble(frame_paths, *, segment_index, ocr_lines_per_frame):
+                captured_ocr_args.append(list(ocr_lines_per_frame))
+                return []  # return empty bundles → empty records list
+
+            with patch("game_ocr.loadout_evidence.assemble_loadout_bundles", side_effect=_fake_assemble), \
+                 patch("game_ocr.loadout_evidence.RapidOCRBackend") as MockBackend:
+                mock_backend_instance = MagicMock()
+                mock_backend_instance.read.return_value = [known_line]
+                MockBackend.return_value = mock_backend_instance
+
+                records = extract_loadout_evidence(bundle_dir, segment_index=0)
+
+            # Verify RapidOCRBackend was instantiated and .read() called
+            MockBackend.assert_called_once_with(use_gpu=False)
+            mock_backend_instance.read.assert_called_once()
+
+            # Verify assemble_loadout_bundles received the mocked OCR lines
+            self.assertEqual(len(captured_ocr_args), 1)
+            lines_passed = captured_ocr_args[0]
+            self.assertEqual(len(lines_passed), 1, "expected one frame's lines")
+            self.assertEqual(lines_passed[0][0].text, "AutoOCR")
+
+            # No records because assemble returned empty
+            self.assertEqual(records, [])
 
 
 # ---------------------------------------------------------------------------
