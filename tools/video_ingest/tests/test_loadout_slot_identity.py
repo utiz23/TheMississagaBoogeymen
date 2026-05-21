@@ -443,7 +443,8 @@ class TestSlotIdentityDataclass(unittest.TestCase):
 
     def test_constants_have_expected_values(self):
         self.assertEqual(ROW_Y_BUCKET_TOLERANCE_PX, 6)
-        self.assertEqual(MAX_ROWS_PER_LOADOUT_SEGMENT, 5)
+        # MAX_ROWS_PER_LOADOUT_SEGMENT now counts distinct subjects (5 BGM + 5 opp = 10)
+        self.assertEqual(MAX_ROWS_PER_LOADOUT_SEGMENT, 10)
 
 
 if __name__ == "__main__":

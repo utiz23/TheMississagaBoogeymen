@@ -6,8 +6,11 @@ Public surface:
     load_closed_vocab  — load an entries:-schema YAML by family + version
     load_attribute_keys — load attribute_keys.yaml (groups:-schema) as dict
 
-    SlotIdentity       — frozen dataclass; one slot's geometric identity + OCR evidence
-    extract_slot_identities — extract slot identities from a loadout-view frame
+    SubjectIdentity         — frozen dataclass; ONE frame's identified subject (new)
+    extract_subject_identity — identify the subject of a single loadout-view frame (new)
+
+    SlotIdentity            — DEPRECATED frozen dataclass (old one-row-per-visible-row contract)
+    extract_slot_identities — DEPRECATED extract slot identities from a frame
 
     IconEvidence         — frozen dataclass; one icon-family candidate
     LoadoutIconExtractor — wraps match_icon + _classify_xfactor_tier
@@ -22,6 +25,10 @@ from .open_text import LoadoutOpenTextExtractor, OpenTextEvidence
 from .slot_identity import (
     MAX_ROWS_PER_LOADOUT_SEGMENT,
     ROW_Y_BUCKET_TOLERANCE_PX,
+    # New (Phase 2A revised)
+    SubjectIdentity,
+    extract_subject_identity,
+    # Deprecated (Phase 2A original, kept for backward compat)
     SlotIdentity,
     extract_slot_identities,
 )
@@ -31,6 +38,10 @@ __all__ = [
     "ClosedVocabEntry",
     "load_closed_vocab",
     "load_attribute_keys",
+    # New
+    "SubjectIdentity",
+    "extract_subject_identity",
+    # Deprecated (backward compat)
     "SlotIdentity",
     "extract_slot_identities",
     "ROW_Y_BUCKET_TOLERANCE_PX",

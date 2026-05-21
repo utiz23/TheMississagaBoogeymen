@@ -1,30 +1,42 @@
-"""Phase 2A-3: slot identity extractor — geometric subject_slot_key.
+"""Phase 2A (revised): single-subject-per-frame loadout identity extractor.
 
 Public API
 ----------
-extract_slot_identities(image_bgr, *, segment_index, ocr_lines) -> list[SlotIdentity]
-    Extract one SlotIdentity per visible row in the loadout left strip.
+extract_subject_identity(image_bgr, *, ocr_lines) -> SubjectIdentity | None
+    Identify the SUBJECT of a single loadout-view frame.
 
-SlotIdentity
-    Frozen dataclass.  `slot_key` is purely geometric (never includes OCR text).
-    Evidence fields (gamertag, position, jersey_number, is_captain, persona_raw)
-    carry what OCR saw at the row — they are attributes, not identity.
+SubjectIdentity
+    Frozen dataclass.  One subject per frame — the player whose right-pane
+    data (build class, X-Factors, attributes) is currently displayed.
 
 Design notes
 ------------
-- Row detection re-uses the position-label anchor approach from
-  parsers._parse_loadout_left_strip:
-    • Position label (C/LW/RW/LD/RD/G) at x_center < 130, y in (180..980).
-    • Row content at x_center in (180..400), within ±45 px of anchor y.
-- Y-bucketing (ROW_Y_BUCKET_TOLERANCE_PX=6) collapses near-duplicate anchors
-  that can arise from RapidOCR re-detecting the same glyph at slightly
-  different bounding boxes.
-- is_captain detection uses the captain-glyph set from parsers.py; the
-  image_bgr parameter is accepted but currently unused (colour-sampling for
-  captain was not needed — glyph detection in OCR text is sufficient).
-  This is Option A from the task notes: heavy HSV image dependency is avoided.
-- Closed-vocab position classification (e.g. "C" → canonical "C") happens in
-  Task 2A-4; this task just stores the raw position string.
+The EA NHL loadout-view UI shows:
+  - LEFT STRIP: all visible roster rows (HOME + AWAY), with position labels
+    (C/LW/RW/LD/RD/G) at x_center < 130.
+  - RIGHT PANE: data for the ONE currently-selected subject.
+  - TOP-RIGHT CORNER: the subject's gamertag.
+  - TITLE BAR: "<Player name> - <Build class>" (e.g., "TAGE THOMPSON - PWF").
+
+So per-frame: exactly ONE subject's right-pane data is visible. The other
+left-strip rows are context only.
+
+Strategy (mirrors legacy parsers.py:_parse_loadout_left_strip):
+  1. Find the subject's gamertag — top-right corner (y<200, x>1400).
+  2. Find position-label anchors in the left strip (x<130, y in [180,980]).
+  3. For each anchor, check if the row's content (x in [180,400], y±45)
+     fuzzy-matches the subject's gamertag.
+  4. Once matched, harvest position, jersey_number, player_name_full,
+     is_captain from that row.
+  5. Title-bar build class (raw): from text at y[100,175], x[300,1200].
+
+slot_key is NOT assigned here — that happens at bundle-aggregation time.
+
+Backward-compat exports
+-----------------------
+The old SlotIdentity / extract_slot_identities names are still exported as
+deprecated thin wrappers so existing callers (tests, pass2_extract.py) do
+not break immediately.  They will be removed in Phase 2B.
 """
 
 from __future__ import annotations
@@ -42,29 +54,39 @@ from ..ocr import OCRLine
 ROW_Y_BUCKET_TOLERANCE_PX: int = 6
 """Rows whose anchor-Y values are within this many pixels are merged into one bucket."""
 
-MAX_ROWS_PER_LOADOUT_SEGMENT: int = 5
-"""One roster (BGM or opponent) shows at most 5 visible slots."""
+MAX_ROWS_PER_LOADOUT_SEGMENT: int = 10
+"""Up to 10 distinct subjects may appear across a segment (5 BGM + 5 opp)."""
 
-# Position-label spatial constraints (from parsers._parse_loadout_left_strip):
-_POS_X_MAX: float = 130.0          # x_center must be below this for a position label
-_POS_Y_MIN: float = 180.0          # strip starts after the UI chrome
-_POS_Y_MAX: float = 980.0          # strip ends before the footer chrome
+# Position-label spatial constraints
+_POS_X_MAX: float = 130.0
+_POS_Y_MIN: float = 180.0
+_POS_Y_MAX: float = 980.0
 
-# Row-content spatial constraints:
-_ROW_CONTENT_X_MIN: float = 180.0  # gamertag / number-name content starts here
-_ROW_CONTENT_X_MAX: float = 400.0  # and ends here
-_ROW_BAND_HALF_HEIGHT: float = 45.0  # ±45 px of anchor y_center
+# Row-content spatial constraints
+_ROW_CONTENT_X_MIN: float = 180.0
+_ROW_CONTENT_X_MAX: float = 400.0
+_ROW_BAND_HALF_HEIGHT: float = 45.0
 
-# Confidence threshold below which all evidence is considered "low quality".
+# Subject gamertag location: top-right corner
+_GAMERTAG_Y_MAX: float = 200.0
+_GAMERTAG_X_MIN: float = 1400.0
+
+# Title-bar location: y in [100, 175], x in [300, 1200]
+_TITLE_Y_MIN: float = 100.0
+_TITLE_Y_MAX: float = 175.0
+_TITLE_X_MIN: float = 300.0
+_TITLE_X_MAX: float = 1200.0
+
+# Confidence threshold below which evidence is considered low quality
 _EVIDENCE_CONFIDENCE_THRESHOLD: float = 0.50
 
-# Recognised position tokens.
+# Recognised position tokens
 _POS_SET = {"C", "LW", "RW", "LD", "RD", "G"}
 
-# Captain glyphs (from parsers.py).
+# Captain glyphs (from parsers.py)
 _CAPTAIN_GLYPHS = {"★", "✯", "✦", "✪", "✩"}
 
-# Jersey-number pattern: matches "#N" or "#NN" or "#NNN"
+# Jersey-number pattern: matches "#N", "#NN", "#NNN"
 _NUMBER_RE = re.compile(r"#(\d{1,3})")
 
 # Persona/full-name pattern: "#N - Name" or "#N-Name"
@@ -72,52 +94,54 @@ _NAME_RE = re.compile(r"#\d{1,3}\s*[-–.]+\s*(.+)")
 
 
 # ---------------------------------------------------------------------------
-# Dataclass
+# SubjectIdentity dataclass (new, replaces SlotIdentity)
 # ---------------------------------------------------------------------------
 
 
 @dataclass(frozen=True)
-class SlotIdentity:
-    """One slot's identity + the noisy OCR evidence attributed to it.
+class SubjectIdentity:
+    """Identity of the SUBJECT of a single loadout-view frame.
 
-    ``slot_key`` is purely geometric — the same row Y-bucket across every frame
-    in a bundle produces the same slot_key, regardless of OCR variation in any
-    text field.  The downstream promoter / closed-vocab extractor (2A-4) binds
-    team_side and resolves canonical position.
+    The subject is the player whose right-pane data (build class, X-Factors,
+    attribute grid) is currently displayed. Identified by matching the
+    top-right gamertag against the visible left-strip rows.
 
-    All evidence fields are Optional; absent fields stay None.
+    ``slot_key`` is NOT set here — it is assigned at bundle-aggregation time.
 
     observability values
     --------------------
     ``'observable'``
-        At least one evidence field is populated above the confidence threshold.
+        Subject identified with at least one evidence field above the
+        confidence threshold.
     ``'low_quality'``
-        The row was detected (anchor present + content lines found) but all
-        evidence lines are below the confidence threshold.
+        Subject identified but all evidence fields are below threshold.
     ``'not_observable_from_source'``
-        The row was geometrically located via its position anchor but no content
-        lines fell within the row band.
+        No subject could be identified (gamertag absent or no row match).
     """
 
-    # Identity (purely geometric)
-    slot_key: str           # "loadout_slot_seg{NNNN}_row{R}"
-    row_ordinal: int        # 0..4, ascending Y (topmost = 0)
-    anchor_y: int           # Y pixel of the anchor line's center in the source image
+    # Primary identity (from top-right OCR)
+    gamertag: str
+    gamertag_confidence: float
 
-    # Evidence fields
-    position: Optional[str] = None
+    # Evidence from the matched left-strip row
+    position: Optional[str] = None          # 'C' | 'LW' | 'RW' | 'LD' | 'RD' | 'G'
     position_confidence: Optional[float] = None
-    gamertag: Optional[str] = None
-    gamertag_confidence: Optional[float] = None
     jersey_number: Optional[int] = None
     jersey_confidence: Optional[float] = None
+    player_name_full: Optional[str] = None  # from "#N - Name" pattern
+    player_name_confidence: Optional[float] = None
     is_captain: Optional[bool] = None
     is_captain_confidence: Optional[float] = None
-    persona_raw: Optional[str] = None
-    persona_raw_confidence: Optional[float] = None
 
-    # Per-slot quality flag
-    observability: str = "observable"  # 'observable' | 'low_quality' | 'not_observable_from_source'
+    # Build class from the title bar
+    build_class_raw: Optional[str] = None   # e.g. "PWF" or "Power Forward"
+    build_class_confidence: Optional[float] = None
+
+    # Anchor Y of the matched left-strip row (for row-scoped downstream extractors)
+    anchor_y: Optional[int] = None
+
+    # Quality flag
+    observability: str = "observable"
 
 
 # ---------------------------------------------------------------------------
@@ -125,8 +149,83 @@ class SlotIdentity:
 # ---------------------------------------------------------------------------
 
 
+def _normalize_tag(text: str) -> str:
+    """Lowercase, strip non-alphanumeric characters."""
+    return re.sub(r"[^a-z0-9]", "", text.lower())
+
+
+def _levenshtein(a: str, b: str) -> int:
+    """Simple O(m*n) Levenshtein distance."""
+    if a == b:
+        return 0
+    m, n = len(a), len(b)
+    if m < n:
+        a, b, m, n = b, a, n, m
+    row = list(range(n + 1))
+    for i, ca in enumerate(a, 1):
+        prev = row[0]
+        row[0] = i
+        for j, cb in enumerate(b, 1):
+            prev, row[j] = row[j], min(row[j] + 1, row[j - 1] + 1, prev + (ca != cb))
+    return row[n]
+
+
+def _fuzzy_gamertag_match(query_norm: str, text_norm: str) -> bool:
+    """Return True if query_norm is a substring of text_norm, or
+    Levenshtein(query_norm[:6], text_norm[:6]) <= 2 when the prefix is >=3 chars."""
+    if not query_norm:
+        return False
+    head = query_norm[: min(6, len(query_norm))]
+    # Substring match (fast path — legacy parsers.py strategy)
+    if head and head in text_norm:
+        return True
+    # Full fuzzy match when prefix is long enough to avoid false positives
+    if len(head) >= 3 and _levenshtein(head, text_norm[: len(head)]) <= 2:
+        return True
+    return False
+
+
+def _extract_subject_gamertag(ocr_lines: Sequence[OCRLine]) -> tuple[str | None, float | None]:
+    """Find the subject gamertag in the top-right corner (y<200, x>1400).
+
+    Returns (gamertag_text, confidence) or (None, None) if not found.
+    """
+    candidates = [
+        l for l in ocr_lines
+        if l.y_center < _GAMERTAG_Y_MAX and l.x_center > _GAMERTAG_X_MIN
+        and l.text.strip()
+    ]
+    if not candidates:
+        return None, None
+    # Pick the highest-confidence candidate; gamertag is the top-right line
+    best = max(candidates, key=lambda l: l.confidence)
+    return best.text.strip(), best.confidence
+
+
+def _extract_title_bar_build_class(ocr_lines: Sequence[OCRLine]) -> tuple[str | None, float | None]:
+    """Extract the raw build class from the title bar.
+
+    Title bar format: "<PLAYER NAME> - <BUILD CLASS>" (e.g., "TAGE THOMPSON - PWF").
+    We return the whole title-bar OCR text as build_class_raw for the closed-vocab
+    extractor to parse; or just the portion after the last "-" if the pattern matches.
+    """
+    title_lines = [
+        l for l in ocr_lines
+        if _TITLE_Y_MIN <= l.y_center <= _TITLE_Y_MAX
+        and _TITLE_X_MIN <= l.x_center <= _TITLE_X_MAX
+        and l.text.strip()
+    ]
+    if not title_lines:
+        return None, None
+    title_lines.sort(key=lambda l: l.x_center)
+    joined = " ".join(l.text for l in title_lines)
+    # Confidence: average of all title-bar lines
+    conf = sum(l.confidence for l in title_lines) / len(title_lines)
+    return joined.strip(), conf
+
+
 def _extract_anchor_lines(ocr_lines: Sequence[OCRLine]) -> list[OCRLine]:
-    """Return position-label lines that qualify as row anchors."""
+    """Return position-label lines that qualify as left-strip row anchors."""
     return [
         line for line in ocr_lines
         if (
@@ -138,41 +237,24 @@ def _extract_anchor_lines(ocr_lines: Sequence[OCRLine]) -> list[OCRLine]:
 
 
 def _bucket_anchors(anchors: list[OCRLine]) -> list[OCRLine]:
-    """Merge anchors that fall within ROW_Y_BUCKET_TOLERANCE_PX of each other.
-
-    Uses a simple greedy single-pass bucket approach: sort by y_center, then
-    group consecutive anchors that are within tolerance of the first member's y.
-    Returns one representative (the one with the highest confidence) per bucket,
-    capped at MAX_ROWS_PER_LOADOUT_SEGMENT.
-    """
+    """Merge anchors within ROW_Y_BUCKET_TOLERANCE_PX; one representative per bucket."""
     if not anchors:
         return []
-
     sorted_anchors = sorted(anchors, key=lambda l: l.y_center)
     buckets: list[list[OCRLine]] = []
     current_bucket: list[OCRLine] = [sorted_anchors[0]]
-
     for anchor in sorted_anchors[1:]:
-        # Compare against the first element of the current bucket
         if anchor.y_center - current_bucket[0].y_center <= ROW_Y_BUCKET_TOLERANCE_PX:
             current_bucket.append(anchor)
         else:
             buckets.append(current_bucket)
             current_bucket = [anchor]
     buckets.append(current_bucket)
-
-    # Pick the highest-confidence anchor per bucket as the representative
-    representatives = [
-        max(bucket, key=lambda l: l.confidence)
-        for bucket in buckets
-    ]
-
-    # Cap at MAX_ROWS_PER_LOADOUT_SEGMENT (top-most rows win)
-    return representatives[:MAX_ROWS_PER_LOADOUT_SEGMENT]
+    return [max(b, key=lambda l: l.confidence) for b in buckets]
 
 
 def _row_content_lines(ocr_lines: Sequence[OCRLine], anchor_y: float) -> list[OCRLine]:
-    """Return lines that fall in the row band around anchor_y, within the content X range."""
+    """Return lines in the row band around anchor_y within the content X range."""
     return [
         line for line in ocr_lines
         if (
@@ -186,22 +268,17 @@ def _parse_row_evidence(
     anchor: OCRLine,
     content_lines: list[OCRLine],
 ) -> dict:
-    """Extract evidence fields from the anchor line and its content lines.
-
-    Returns a dict suitable for spreading into SlotIdentity constructor kwargs.
-    """
+    """Extract position, jersey, player_name, is_captain from one matched row."""
     pos_upper = anchor.text.strip().upper().replace(" ", "")
     evidence: dict = {
         "position": pos_upper if pos_upper in _POS_SET else None,
         "position_confidence": anchor.confidence if pos_upper in _POS_SET else None,
-        "gamertag": None,
-        "gamertag_confidence": None,
         "jersey_number": None,
         "jersey_confidence": None,
+        "player_name_full": None,
+        "player_name_confidence": None,
         "is_captain": None,
         "is_captain_confidence": None,
-        "persona_raw": None,
-        "persona_raw_confidence": None,
     }
 
     for line in content_lines:
@@ -212,97 +289,181 @@ def _parse_row_evidence(
             evidence["is_captain"] = True
             evidence["is_captain_confidence"] = line.confidence
 
-        # Jersey number and persona-name from "#N - Name" lines
+        # Jersey number from "#N" pattern
         m_num = _NUMBER_RE.search(text)
         if m_num and evidence["jersey_number"] is None:
             evidence["jersey_number"] = int(m_num.group(1))
             evidence["jersey_confidence"] = line.confidence
 
+        # Full name from "#N - Name" pattern
         m_name = _NAME_RE.search(text)
-        if m_name and evidence["persona_raw"] is None:
-            persona = m_name.group(1).strip(". ")
-            if persona:
-                evidence["persona_raw"] = persona
-                evidence["persona_raw_confidence"] = line.confidence
-
-        # Gamertag: a content line that is NOT a "#N" line and NOT a jersey-name line
-        # is treated as the gamertag. Pick the first one found.
-        if evidence["gamertag"] is None and not m_num:
-            evidence["gamertag"] = text
-            evidence["gamertag_confidence"] = line.confidence
+        if m_name and evidence["player_name_full"] is None:
+            full_name = m_name.group(1).strip(". ")
+            if full_name:
+                evidence["player_name_full"] = full_name
+                evidence["player_name_confidence"] = line.confidence
 
     return evidence
 
 
-def _determine_observability(evidence: dict, has_content_lines: bool) -> str:
-    """Classify observability based on evidence quality."""
-    if not has_content_lines:
-        return "not_observable_from_source"
+# ---------------------------------------------------------------------------
+# Public API — new contract
+# ---------------------------------------------------------------------------
 
-    # Check whether at least one evidence field (excluding position, which comes
-    # from the anchor and is always present for detected rows) has confidence
-    # above threshold.
-    confidence_values = [
-        v for k, v in evidence.items()
-        if k.endswith("_confidence") and k != "position_confidence" and v is not None
-    ]
-    if not confidence_values:
-        # Only position was found (anchor only effectively) — but we have content lines
-        # so check position confidence
-        pos_conf = evidence.get("position_confidence")
-        if pos_conf is not None and pos_conf >= _EVIDENCE_CONFIDENCE_THRESHOLD:
-            return "observable"
-        return "not_observable_from_source"
 
-    if all(c < _EVIDENCE_CONFIDENCE_THRESHOLD for c in confidence_values):
-        return "low_quality"
-    return "observable"
+def extract_subject_identity(
+    image_bgr,  # numpy.ndarray (H, W, 3) BGR — accepted but not used in Phase 2A
+    *,
+    ocr_lines: Sequence[OCRLine],
+) -> "SubjectIdentity | None":
+    """Identify the subject of a single loadout-view frame.
+
+    Returns a SubjectIdentity if the subject can be identified, or None if:
+      - No gamertag found in the top-right corner.
+      - No left-strip row matches the gamertag (subject can still be partially
+        identified with just gamertag + build_class if anchor matching fails).
+
+    Strategy:
+      1. Find gamertag in top-right corner (y<200, x>1400).
+      2. Extract title-bar build class raw text.
+      3. Find left-strip position-label anchors.
+      4. Fuzzy-match the subject's gamertag against each anchor's row content.
+      5. Harvest position/jersey/player_name/is_captain from the matched row.
+    """
+    # Step 1: Find subject gamertag from top-right corner
+    gamertag_text, gamertag_conf = _extract_subject_gamertag(ocr_lines)
+    if not gamertag_text:
+        return None
+
+    # Step 2: Extract title-bar build class
+    build_class_raw, build_class_conf = _extract_title_bar_build_class(ocr_lines)
+
+    # Step 3: Find and bucket position-label anchors
+    raw_anchors = _extract_anchor_lines(ocr_lines)
+    anchors = _bucket_anchors(raw_anchors)
+
+    # Step 4: Match the subject's gamertag against each anchor's row
+    gt_normalized = _normalize_tag(gamertag_text)
+    subject_anchor: OCRLine | None = None
+    subject_content_lines: list[OCRLine] = []
+
+    for anchor in anchors:
+        content_lines = _row_content_lines(ocr_lines, anchor.y_center)
+        joined_norm = _normalize_tag(" ".join(l.text for l in content_lines))
+        if _fuzzy_gamertag_match(gt_normalized, joined_norm):
+            subject_anchor = anchor
+            subject_content_lines = content_lines
+            break
+
+    # Step 5: Harvest evidence from the matched row (or emit partial identity)
+    if subject_anchor is not None:
+        evidence = _parse_row_evidence(subject_anchor, subject_content_lines)
+        anchor_y_int = int(round(subject_anchor.y_center))
+
+        # Determine observability
+        has_useful_evidence = any([
+            evidence["position"] is not None and (evidence["position_confidence"] or 0) >= _EVIDENCE_CONFIDENCE_THRESHOLD,
+            evidence["jersey_number"] is not None and (evidence["jersey_confidence"] or 0) >= _EVIDENCE_CONFIDENCE_THRESHOLD,
+            (gamertag_conf or 0) >= _EVIDENCE_CONFIDENCE_THRESHOLD,
+        ])
+        observability = "observable" if has_useful_evidence else "low_quality"
+
+        return SubjectIdentity(
+            gamertag=gamertag_text,
+            gamertag_confidence=gamertag_conf or 0.0,
+            position=evidence["position"],
+            position_confidence=evidence["position_confidence"],
+            jersey_number=evidence["jersey_number"],
+            jersey_confidence=evidence["jersey_confidence"],
+            player_name_full=evidence["player_name_full"],
+            player_name_confidence=evidence["player_name_confidence"],
+            is_captain=evidence["is_captain"],
+            is_captain_confidence=evidence["is_captain_confidence"],
+            build_class_raw=build_class_raw,
+            build_class_confidence=build_class_conf,
+            anchor_y=anchor_y_int,
+            observability=observability,
+        )
+    else:
+        # Could not match the gamertag to a left-strip row, but we still have
+        # the gamertag (and maybe build class) — emit a partial identity.
+        # observability='not_observable_from_source' signals that left-strip
+        # context was not available (likely a transitional frame).
+        observability = (
+            "observable"
+            if (gamertag_conf or 0) >= _EVIDENCE_CONFIDENCE_THRESHOLD
+            else "not_observable_from_source"
+        )
+        return SubjectIdentity(
+            gamertag=gamertag_text,
+            gamertag_confidence=gamertag_conf or 0.0,
+            build_class_raw=build_class_raw,
+            build_class_confidence=build_class_conf,
+            observability=observability,
+        )
 
 
 # ---------------------------------------------------------------------------
-# Public API
+# Backward-compat shim — SlotIdentity (deprecated)
 # ---------------------------------------------------------------------------
+# The old SlotIdentity / extract_slot_identities names are kept to avoid
+# breaking existing tests and callers during the transition.  They are
+# scheduled for removal in Phase 2B.
+
+
+@dataclass(frozen=True)
+class SlotIdentity:
+    """DEPRECATED: use SubjectIdentity instead.
+
+    Kept for backward compatibility with existing tests and callers.
+    Will be removed in Phase 2B.
+    """
+
+    # Identity (purely geometric — kept for compat)
+    slot_key: str
+    row_ordinal: int
+    anchor_y: int
+
+    # Evidence fields
+    position: Optional[str] = None
+    position_confidence: Optional[float] = None
+    gamertag: Optional[str] = None
+    gamertag_confidence: Optional[float] = None
+    jersey_number: Optional[int] = None
+    jersey_confidence: Optional[float] = None
+    is_captain: Optional[bool] = None
+    is_captain_confidence: Optional[float] = None
+    persona_raw: Optional[str] = None
+    persona_raw_confidence: Optional[float] = None
+
+    observability: str = "observable"
 
 
 def extract_slot_identities(
-    image_bgr,  # numpy.ndarray (H, W, 3) BGR — accepted but not used in Phase 2A-3
+    image_bgr,
     *,
     segment_index: int,
     ocr_lines: Sequence[OCRLine],
 ) -> list[SlotIdentity]:
-    """Extract slot identities from a single loadout-view frame.
+    """DEPRECATED: Extract slot identities from a single loadout-view frame.
 
-    Parameters
-    ----------
-    image_bgr:
-        Full-frame BGR image (numpy array, H×W×3).  Not used in Phase 2A-3
-        (captain glyph detection reads OCR text; HSV sampling is deferred to
-        Phase 2B).  Accepted for API stability.
-    segment_index:
-        Integer index of the video segment this frame belongs to.  Used to
-        construct the slot_key; zero-padded to 4 digits.
-    ocr_lines:
-        Sequence of OCRLine objects from a single RapidOCR pass over the full
-        frame.
+    This implements the OLD "one SlotIdentity per visible row" contract.
+    It is preserved for backward compat with existing tests and callers
+    during the Phase 2A → 2B transition.  Use extract_subject_identity()
+    for new code.
 
-    Returns
-    -------
-    list[SlotIdentity]
-        One SlotIdentity per detected row, sorted by row_ordinal (ascending Y).
-        At most MAX_ROWS_PER_LOADOUT_SEGMENT (5) records.
+    Note: extract_slot_identities caps at MAX_ROWS_PER_LOADOUT_SEGMENT=5 for
+    the old interface (one roster), even though the new constant is 10.
     """
-    # Step 1: Find position-label anchors in the left strip.
+    _OLD_MAX = 5
+
     raw_anchors = _extract_anchor_lines(ocr_lines)
     if not raw_anchors:
         return []
 
-    # Step 2: Y-bucket the anchors (merge duplicates, cap at 5).
-    bucketed_anchors = _bucket_anchors(raw_anchors)
+    anchors = _bucket_anchors(raw_anchors)
+    sorted_anchors = sorted(anchors, key=lambda l: l.y_center)[:_OLD_MAX]
 
-    # Step 3: Sort by y_center ascending → assign row_ordinal 0..4.
-    sorted_anchors = sorted(bucketed_anchors, key=lambda l: l.y_center)
-
-    # Step 4 & 5: Build one SlotIdentity per row.
     result: list[SlotIdentity] = []
     for row_ordinal, anchor in enumerate(sorted_anchors):
         slot_key = f"loadout_slot_seg{segment_index:04d}_row{row_ordinal}"
@@ -310,7 +471,35 @@ def extract_slot_identities(
 
         content_lines = _row_content_lines(ocr_lines, anchor.y_center)
         evidence = _parse_row_evidence(anchor, content_lines)
-        observability = _determine_observability(evidence, bool(content_lines))
+
+        # Observability for legacy contract
+        if not content_lines:
+            observability = "not_observable_from_source"
+        else:
+            confidence_values = [
+                v for k, v in evidence.items()
+                if k.endswith("_confidence") and k != "position_confidence" and v is not None
+            ]
+            if not confidence_values:
+                pos_conf = evidence.get("position_confidence")
+                if pos_conf is not None and pos_conf >= _EVIDENCE_CONFIDENCE_THRESHOLD:
+                    observability = "observable"
+                else:
+                    observability = "not_observable_from_source"
+            elif all(c < _EVIDENCE_CONFIDENCE_THRESHOLD for c in confidence_values):
+                observability = "low_quality"
+            else:
+                observability = "observable"
+
+        # Derive gamertag from content (first non-number line)
+        gamertag = None
+        gamertag_conf = None
+        for line in content_lines:
+            text = line.text.strip()
+            if not _NUMBER_RE.search(text):
+                gamertag = text
+                gamertag_conf = line.confidence
+                break
 
         result.append(
             SlotIdentity(
@@ -319,14 +508,14 @@ def extract_slot_identities(
                 anchor_y=anchor_y_int,
                 position=evidence["position"],
                 position_confidence=evidence["position_confidence"],
-                gamertag=evidence["gamertag"],
-                gamertag_confidence=evidence["gamertag_confidence"],
+                gamertag=gamertag,
+                gamertag_confidence=gamertag_conf,
                 jersey_number=evidence["jersey_number"],
                 jersey_confidence=evidence["jersey_confidence"],
                 is_captain=evidence["is_captain"],
                 is_captain_confidence=evidence["is_captain_confidence"],
-                persona_raw=evidence["persona_raw"],
-                persona_raw_confidence=evidence["persona_raw_confidence"],
+                persona_raw=evidence["player_name_full"],
+                persona_raw_confidence=evidence["player_name_confidence"],
                 observability=observability,
             )
         )

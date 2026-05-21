@@ -48,8 +48,46 @@ def _make_slot_identity(slot_key: str, row_ordinal: int = 0) -> Any:
     )
 
 
-def _make_bundle(slot_key: str = "loadout_slot_seg0000_row0", row_ordinal: int = 0) -> Any:
-    """Create a minimal synthetic LoadoutFrameBundle."""
+def _make_subject_identity(gamertag: str = "TestPlayer") -> Any:
+    """Create a minimal synthetic SubjectIdentity."""
+    from game_ocr.loadout_extractors.slot_identity import SubjectIdentity
+    return SubjectIdentity(
+        gamertag=gamertag,
+        gamertag_confidence=0.95,
+        position="C",
+        position_confidence=0.95,
+        observability="observable",
+    )
+
+
+def _make_subject_bundle(
+    slot_key: str = "loadout_slot_seg0000_subject00",
+    subject_ordinal: int = 0,
+) -> Any:
+    """Create a minimal synthetic LoadoutSubjectBundle (new contract)."""
+    from game_ocr.loadout_bundle import LoadoutSubjectBundle
+
+    si = _make_subject_identity()
+    return LoadoutSubjectBundle(
+        slot_key=slot_key,
+        subject_ordinal=subject_ordinal,
+        segment_index=0,
+        canonical_subject=si,
+        frame_paths=(Path("/fake/seg0/00001.png"),),
+        best_frame_path=Path("/fake/seg0/00001.png"),
+        best_frame_sharpness_score=100.0,
+        all_subject_identities=(si,),
+        support_frame_indices=(0,),
+        observability="observable",
+    )
+
+
+def _make_bundle(slot_key: str = "loadout_slot_seg0000_subject00", row_ordinal: int = 0) -> Any:
+    """Create a minimal synthetic LoadoutFrameBundle (deprecated; kept for backward compat tests).
+
+    NOTE: Tests that use _evidence_for_bundle directly still use LoadoutFrameBundle.
+    Tests that use extract_loadout_evidence should switch to _make_subject_bundle.
+    """
     from game_ocr.loadout_bundle import LoadoutFrameBundle
 
     si = _make_slot_identity(slot_key, row_ordinal)
@@ -68,12 +106,12 @@ def _make_bundle(slot_key: str = "loadout_slot_seg0000_row0", row_ordinal: int =
 
 
 def _make_bundle_with_observability(obs: str) -> Any:
-    """Make a bundle with a specific observability status."""
+    """Make a LoadoutFrameBundle with a specific observability status (deprecated)."""
     from game_ocr.loadout_bundle import LoadoutFrameBundle
 
-    si = _make_slot_identity("loadout_slot_seg0000_row0")
+    si = _make_slot_identity("loadout_slot_seg0000_subject00")
     return LoadoutFrameBundle(
-        slot_key="loadout_slot_seg0000_row0",
+        slot_key="loadout_slot_seg0000_subject00",
         row_ordinal=0,
         segment_index=0,
         frame_paths=(Path("/fake/seg0/frame_0000.png"),),
@@ -87,7 +125,8 @@ def _make_bundle_with_observability(obs: str) -> Any:
 
 
 def _make_5_bundles() -> list:
-    return [_make_bundle(f"loadout_slot_seg0000_row{i}", i) for i in range(5)]
+    """Return 5 LoadoutSubjectBundles (new contract) for use with extract_loadout_evidence."""
+    return [_make_subject_bundle(f"loadout_slot_seg0000_subject{i:02d}", i) for i in range(5)]
 
 
 def _make_dummy_image():
@@ -204,6 +243,7 @@ def _run_extract_evidence(
     """Run extract_loadout_evidence with bundle assembly AND all 4 extractors mocked.
 
     Passes ocr_lines_per_frame=[] explicitly so RapidOCR is never instantiated.
+    Now patches assemble_loadout_subject_bundles (new contract).
     """
     from game_ocr.loadout_evidence import extract_loadout_evidence
     from game_ocr.loadout_extractors.closed_vocab import LoadoutClosedVocabExtractor
@@ -216,7 +256,7 @@ def _run_extract_evidence(
     # Fake frame paths returned by glob — use 5-digit zero-padded names (Pass-2 convention)
     fake_frames = [Path("/fake/00001.png"), Path("/fake/00002.png")]
 
-    with patch("game_ocr.loadout_evidence.assemble_loadout_bundles", return_value=bundles), \
+    with patch("game_ocr.loadout_evidence.assemble_loadout_subject_bundles", return_value=bundles), \
          patch("game_ocr.loadout_evidence.cv2.imread", return_value=dummy_img), \
          patch("pathlib.Path.glob", return_value=iter(fake_frames)), \
          patch("game_ocr.loadout_evidence._load_frame_ocr_lines", return_value=[]), \
@@ -229,7 +269,7 @@ def _run_extract_evidence(
          patch.object(LoadoutClosedVocabExtractor, "classify_x_factor_tier_from_image", return_value=cv_ev or []):
 
         # Pass ocr_lines_per_frame=[] to bypass internal RapidOCR instantiation;
-        # assemble_loadout_bundles is mocked so the empty list is never indexed.
+        # assemble_loadout_subject_bundles is mocked so the empty list is never indexed.
         return extract_loadout_evidence(
             Path("/fake/bundle_dir"),
             segment_index=0,
@@ -651,7 +691,7 @@ class TestFrameGlobAndOcrLinesHandling(unittest.TestCase):
         """When ocr_lines_per_frame is None, RapidOCR is invoked on each PNG.
 
         Uses a tiny synthetic PNG + mocks RapidOCRBackend to return known
-        OCR lines; verifies that assemble_loadout_bundles receives the
+        OCR lines; verifies that assemble_loadout_subject_bundles receives the
         mocked output (not an empty list from a missing JSON file).
         """
         import tempfile
@@ -675,7 +715,7 @@ class TestFrameGlobAndOcrLinesHandling(unittest.TestCase):
                 captured_ocr_args.append(list(ocr_lines_per_frame))
                 return []  # return empty bundles → empty records list
 
-            with patch("game_ocr.loadout_evidence.assemble_loadout_bundles", side_effect=_fake_assemble), \
+            with patch("game_ocr.loadout_evidence.assemble_loadout_subject_bundles", side_effect=_fake_assemble), \
                  patch("game_ocr.loadout_evidence.RapidOCRBackend") as MockBackend:
                 mock_backend_instance = MagicMock()
                 mock_backend_instance.read.return_value = [known_line]
@@ -687,7 +727,7 @@ class TestFrameGlobAndOcrLinesHandling(unittest.TestCase):
             MockBackend.assert_called_once_with(use_gpu=False)
             mock_backend_instance.read.assert_called_once()
 
-            # Verify assemble_loadout_bundles received the mocked OCR lines
+            # Verify assemble_loadout_subject_bundles received the mocked OCR lines
             self.assertEqual(len(captured_ocr_args), 1)
             lines_passed = captured_ocr_args[0]
             self.assertEqual(len(lines_passed), 1, "expected one frame's lines")
