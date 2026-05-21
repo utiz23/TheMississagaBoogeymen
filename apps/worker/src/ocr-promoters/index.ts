@@ -33,14 +33,37 @@ export interface PromoterContext {
    *  parse it from the period_label text. */
   sourcePath: string
   db: PromoterDb
+  /**
+   * Pass-2 loadout extraction engine flag (forwarded from IngestOcrBatchInput).
+   * When 'typed_v1', per-extraction promoteLoadout is SKIPPED for
+   * player_loadout_view screens; the per-match promoteLoadoutFromEvidence
+   * runs at end of batch instead. Default undefined/legacy preserves existing
+   * behaviour.
+   */
+  loadoutEngine?: string
 }
 
 export type Promoter = (ctx: PromoterContext) => Promise<void>
 
+/**
+ * Wraps the legacy promoteLoadout in a guard that skips promotion when
+ * loadoutEngine='typed_v1'. The typed_v1 path runs promoteLoadoutFromEvidence
+ * once per match at the end of ingestOcrBatch (after writeFieldEvidenceForBatch).
+ */
+const loadoutPromoterWithEngineGuard: Promoter = async (ctx) => {
+  if (ctx.loadoutEngine === 'typed_v1') {
+    // typed_v1 path: skip per-extraction promotion. The per-match
+    // promoteLoadoutFromEvidence will run in ingest-ocr.ts after
+    // all extractions in the batch have been processed.
+    return
+  }
+  await promoteLoadout(ctx)
+}
+
 const promoters: Partial<Record<OcrScreenType, Promoter>> = {
   pre_game_lobby_state_1: promotePreGameLobby,
   pre_game_lobby_state_2: promotePreGameLobby,
-  player_loadout_view: promoteLoadout,
+  player_loadout_view: loadoutPromoterWithEngineGuard,
   post_game_player_summary: promotePostGamePlayerSummary,
   post_game_box_score_goals: promoteBoxScore,
   post_game_box_score_shots: promoteBoxScore,

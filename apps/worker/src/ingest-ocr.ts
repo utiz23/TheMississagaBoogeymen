@@ -36,6 +36,7 @@ import {
 import { eq, isNotNull } from 'drizzle-orm'
 import { runOcrCli, type OcrResult, type OcrExtractionField } from './ocr-cli-runner.js'
 import { getPromoter, type PromoterDb } from './ocr-promoters/index.js'
+import { promoteLoadoutFromEvidence } from './ocr-promoters/loadout-v2.js'
 import { applyMatchColors } from './lib/match-color-aggregator.js'
 
 export interface IngestOcrBatchInput {
@@ -166,9 +167,11 @@ export async function ingestOcrBatch(input: IngestOcrBatchInput): Promise<Ingest
   let succeeded = 0
   let failed = 0
 
+  const loadoutEngine = input.loadoutEngine ?? 'legacy'
+
   for (const result of cli.results) {
     try {
-      await persistOneResult(batchId, matchId, result)
+      await persistOneResult(batchId, matchId, result, loadoutEngine)
       succeeded++
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
@@ -232,6 +235,22 @@ export async function ingestOcrBatch(input: IngestOcrBatchInput): Promise<Ingest
       console.warn(
         `[ingest-ocr] writeFieldEvidenceForBatch(${String(batchId)}) skipped: ${msg}`,
       )
+    }
+  }
+
+  // Task 2A-18: typed_v1 per-match loadout promotion. Runs AFTER
+  // writeFieldEvidenceForBatch has written all evidence rows for this segment,
+  // consuming them in a single pass across all segments for the match.
+  // Legacy path keeps per-extraction promoteLoadout (guarded in index.ts).
+  if (loadoutEngine === 'typed_v1' && matchId !== null) {
+    try {
+      const promResult = await promoteLoadoutFromEvidence({ matchId })
+      console.log(
+        `[ingest-ocr] batch ${String(batchId)} loadout-v2: promoted=${String(promResult.promotedSnapshotCount)} blocked=${String(promResult.blockedSnapshotCount)} promotionRows=${String(promResult.promotionRowsWritten)}`,
+      )
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      console.warn(`[ingest-ocr] promoteLoadoutFromEvidence(${String(matchId)}) skipped: ${msg}`)
     }
   }
 
@@ -452,6 +471,7 @@ async function persistOneResult(
   batchId: number,
   matchId: number | null,
   result: OcrResult,
+  loadoutEngine: string,
 ): Promise<void> {
   const sourcePath = result.meta.source_path
   const sourceHash = await sha256OfFile(sourcePath).catch(() => null)
@@ -525,7 +545,7 @@ async function persistOneResult(
     }
 
     try {
-      await promoter({ result, extractionId: ext.id, matchId, sourcePath, db: tx as PromoterDb })
+      await promoter({ result, extractionId: ext.id, matchId, sourcePath, loadoutEngine, db: tx as PromoterDb })
       await tx
         .update(ocrExtractions)
         .set({ transformStatus: 'success', transformError: null })
