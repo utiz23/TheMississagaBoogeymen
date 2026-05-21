@@ -80,10 +80,12 @@ INSERT INTO player_loadout_x_factors (
   (90162, 90060, 2, 'TAPE TOTAPE','Tape_to_Tape', 'Specialist')
 ON CONFLICT (id) DO NOTHING;
 -- NOTE: NO player_loadout_attributes rows for snapshot 90060.
--- Attribute child block is BLOCKED: only 18/23 attributes above threshold (conf=0.3
--- for the last 5), which is below ATTRIBUTE_PROMOTION_FLOOR=20. The promoter
--- writes blocked_consensus or blocked_observability promotion rows for the failing
--- attributes but writes NO player_loadout_attributes rows.
+-- Attribute child block is BLOCKED: only 18 attribute field records exist in
+-- degraded_evidence.json (5 were removed entirely so their field_key has no
+-- evidence row). promotedAttrCount=18 < ATTRIBUTE_PROMOTION_FLOOR=20 → writeAttributes=false.
+-- No player_loadout_attributes rows written; blocked_observability rows emitted in
+-- ocr_promotions for the 18 promoted attrs (since writeAttributes=false triggers the
+-- block-recording path for each non-promoted attr; the 5 absent fields never appear).
 
 -- Slot B: snapshot promoted; x_factors NOT promoted (only 2/3 above threshold);
 --         no attributes provided.
@@ -101,8 +103,10 @@ INSERT INTO player_loadout_snapshots (
   NULL, NULL, 1, 99999, 'reviewed'
 ) ON CONFLICT (id) DO NOTHING;
 -- NOTE: NO player_loadout_x_factors rows for snapshot 90061.
--- X-Factor child block BLOCKED: x_factor_name_2 had conf=0.3 (below threshold) →
--- gate returns blocked_observability for that field → writeXFactors=false.
+-- X-Factor child block BLOCKED: x_factor_name_2 has no evidence record in
+-- degraded_evidence.json (the low_quality record was removed entirely). The promoter
+-- calls sd.fieldDecisions.get('x_factor_name_2') which returns undefined.
+-- xfAllPromoted = xfDecisions.every(d => d?.status === 'promoted') = false → writeXFactors=false.
 -- NOTE: NO player_loadout_attributes rows for snapshot 90061 (no attr evidence provided).
 
 -- Slot C (junk gamertag "AWAY"): NO snapshot row.

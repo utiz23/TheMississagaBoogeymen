@@ -37,24 +37,31 @@ constructed to trigger specific gate behaviors:
   A null value may or may not block depending on how the promoter handles null
   winning values.
   
-  **Safe interpretation:** The fixture demonstrates the INTENT of attribute-floor
-  degradation. The precise gate behavior for null-value candidates may need
-  adjustment when running T8A. The PROVENANCE documents this as a known
-  clarification point: the test harness for T8A must verify that `writeAttributes`
-  logic uses `promotedAttrCount >= 20` where `promotedAttrCount` counts gate
-  decisions with `status === 'promoted'`. If null candidates still promote, the
-  fixture may need to use fewer than 20 attribute records (omit 4 entirely) to
-  hit the floor. The canonical SQL documents the expected outcome (no attributes
-  written for Slot A) and the evidence JSON documents the intent.
+  **Resolution (T8A clarification applied):** The null-value low-confidence records
+  (conf=0.3) ALSO promote via the gate (single candidate below threshold, no
+  competitors, still reaches Step 6 → `status='promoted'`). Therefore the 5 null
+  attribute records were REMOVED ENTIRELY from `degraded_evidence.json` during T8A
+  implementation. With 18 attribute evidence records present (not 23), `promotedAttrCount=18`
+  which is < ATTRIBUTE_PROMOTION_FLOOR=20, so `writeAttributes=false` as intended.
+  The same fix was applied to Slot B's `x_factor_name_2`: that record was removed
+  entirely so `sd.fieldDecisions.get('x_factor_name_2')` returns `undefined`, causing
+  `xfAllPromoted=false` and blocking the x_factor child block.
 
 ## Slot breakdown
 
 | Slot key | Gamertag | Scenario | Expected snapshot | Expected x_factors | Expected attributes |
 |----------|----------|----------|------------------|--------------------|---------------------|
-| `loadout_slot_seg0001_row0` | SlotA_Player | Valid gamertag + position + 18/23 attrs | PROMOTED | PROMOTED (3/3) | BLOCKED (18 < 20 floor) |
-| `loadout_slot_seg0001_row1` | SlotB_Player | Valid gamertag + position + 2/3 x_factors | PROMOTED | BLOCKED (2/3) | BLOCKED (no attr evidence) |
-| `loadout_slot_seg0001_row2` | AWAY | Junk gamertag | BLOCKED (unresolved_team_side) | — | — |
-| `loadout_slot_seg0001_row3` | GhostNeverHeardOf | Unresolvable gamertag | BLOCKED (unresolved_team_side) | — | — |
+| `loadout_slot_seg0001_row0` | SlotA_Player | Valid gamertag + position + 18 attr records (5 omitted) | PROMOTED | PROMOTED (3/3) | BLOCKED (18 < 20 floor) |
+| `loadout_slot_seg0001_row1` | SlotB_Player | Valid gamertag + position + 2 x_factor_name records (x_factor_name_2 omitted) | PROMOTED | BLOCKED (name_2 absent → not all 3) | BLOCKED (no attr evidence) |
+| `loadout_slot_seg0001_row2` | AWAY | Junk gamertag (not in players table + not in opp_match_stats) | BLOCKED (unresolved_team_side) | — | — |
+| `loadout_slot_seg0001_row3` | GhostNeverHeardOf | Unresolvable gamertag (not in players or opp_match_stats) | BLOCKED (unresolved_team_side) | — | — |
+
+**Evidence record counts (post T8A fix):**
+- Slot A: 30 records (6 identity + 6 x_factor + 18 attr)
+- Slot B: 11 records (6 identity + 5 x_factor [name_2 omitted] + 0 attr)
+- Slot C: 3 records (gamertag + position + is_captain)
+- Slot D: 35 records (6 identity + 6 x_factor + 23 attr)
+- Total: 79 records
 
 ## Sentinel IDs used
 
@@ -67,12 +74,14 @@ constructed to trigger specific gate behaviors:
 
 ## Key gate behaviors exercised
 
-1. **Attribute floor** (Slot A): `ATTRIBUTE_PROMOTION_FLOOR = 20`. With 18
-   promoted + 5 blocked attributes, `writeAttributes = (18 >= 20) = false`.
-   No `player_loadout_attributes` rows written.
+1. **Attribute floor** (Slot A): `ATTRIBUTE_PROMOTION_FLOOR = 20`. Only 18 attr
+   field records exist in the evidence (5 were omitted entirely). Gate returns
+   'promoted' for all 18 present fields. `promotedAttrCount = 18 < 20 →
+   writeAttributes = false`. No `player_loadout_attributes` rows written.
 
-2. **X-Factor child block** (Slot B): `writeXFactors = xfDecisions.every(d => d.status === 'promoted')`.
-   With 2/3 promoted and x_factor_name_2 returning blocked_observability,
+2. **X-Factor child block** (Slot B): `writeXFactors = xfDecisions.every(d => d?.status === 'promoted')`.
+   `x_factor_name_2` has no evidence record → `sd.fieldDecisions.get('x_factor_name_2')` returns
+   `undefined` → `undefined?.status` is `undefined` ≠ 'promoted' → `xfAllPromoted = false` →
    `writeXFactors = false`. No `player_loadout_x_factors` rows written.
 
 3. **Junk gamertag block** (Slot C): "AWAY" is not in `players` table →
