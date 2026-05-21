@@ -26,6 +26,11 @@ from video_ingest.pass1_classify import (
     _sha256_of,
 )
 
+# Lazy import sentinel — populated on first use when loadout_engine='typed_v1'.
+# Exposed at module scope so unit tests can patch it without a live game_ocr
+# install: `patch("video_ingest.pass2_extract.extract_loadout_evidence", ...)`
+extract_loadout_evidence = None  # type: ignore[assignment]
+
 
 PASS2_MANIFEST_FILENAME = "pass2_manifest.json"
 
@@ -42,6 +47,11 @@ class Pass2Config:
     window_padding_seconds: float = 1.0
     sample_rates: dict[str, float] = None  # type: ignore[assignment]
     extract_screens: set[str] = None  # type: ignore[assignment]
+    # loadout_engine: selects the player_loadout_view extraction path.
+    # 'legacy' (default) = existing parse_loadout_result() pass-through.
+    # 'typed_v1'         = extract_loadout_evidence() → loadout_evidence.json.
+    # Task 2B-9 flips the production default to 'typed_v1'.
+    loadout_engine: str = "legacy"
 
 
 def _ffmpeg_extract(
@@ -126,6 +136,20 @@ def extract_segments(
 
         seg_dir = pass2_root / segment_dir_name(i, seg)
         frame_count = _ffmpeg_extract(video_path, seg_dir, start, end, fps)
+
+        # --- loadout_engine dispatch (player_loadout_view only) ---------------
+        if seg.screen_type == "player_loadout_view":
+            loadout_engine = config.loadout_engine
+            if loadout_engine == "typed_v1":
+                _run_typed_v1_loadout(seg_dir, segment_index=i)
+            elif loadout_engine != "legacy":
+                raise ValueError(
+                    f"Unknown pass2.loadout_engine: {loadout_engine!r}; "
+                    f"expected 'legacy' or 'typed_v1'"
+                )
+            # 'legacy' branch: no action here — downstream ingest-ocr-cli /
+            # parse_loadout_result() handles this segment as before.
+
         out.append(Pass2Result(
             segment_index=i,
             segment=seg,
@@ -149,6 +173,35 @@ def extract_segments(
         segments_hash=segments_hash,
     )
     return out
+
+
+def _run_typed_v1_loadout(seg_dir: Path, *, segment_index: int) -> None:
+    """Run the typed_v1 loadout extractor and write FieldEvidenceRecord[] JSON.
+
+    Lazily imports ``extract_loadout_evidence`` from ``game_ocr.loadout_evidence``
+    on first call (keeps Pass-2 startup fast and allows test patching at the
+    module-level name ``video_ingest.pass2_extract.extract_loadout_evidence``).
+
+    Writes ``<seg_dir>/loadout_evidence.json``.
+    """
+    global extract_loadout_evidence  # noqa: PLW0603
+    if extract_loadout_evidence is None:
+        from game_ocr.loadout_evidence import (  # type: ignore[no-redef]
+            extract_loadout_evidence as _extract,
+        )
+        # Assign to the module-level name so subsequent calls (and tests that
+        # patch after the first import) see the same object.
+        import video_ingest.pass2_extract as _self
+        _self.extract_loadout_evidence = _extract
+        extract_loadout_evidence = _extract
+
+    records = extract_loadout_evidence(
+        bundle_dir=seg_dir,
+        segment_index=segment_index,
+    )
+    out_path = seg_dir / "loadout_evidence.json"
+    with out_path.open("w") as fp:
+        json.dump([r.to_dict() for r in records], fp, indent=2)
 
 
 @dataclass

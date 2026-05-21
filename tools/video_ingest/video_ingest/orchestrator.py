@@ -260,6 +260,7 @@ def ingest(
         window_padding_seconds=float(vcfg["pass2"]["window_padding_seconds"]),
         sample_rates={str(k): float(v) for k, v in vcfg["pass2"]["sample_rates"].items()},
         extract_screens=set(str(s) for s in vcfg["extract_screens"]),
+        loadout_engine=str(vcfg["pass2"].get("loadout_engine", "legacy")),
     )
 
     # 3. Pass 1 (cached). Cache key = sha256(version_yaml + classifier_yaml).

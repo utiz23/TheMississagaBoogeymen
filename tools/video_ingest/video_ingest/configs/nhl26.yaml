@@ -52,6 +52,10 @@ pass1:
 
 pass2:
   window_padding_seconds: 1.0
+  # loadout_engine: selects the player_loadout_view extraction path.
+  # 'legacy' = existing parse_loadout_result() pass-through (default through Phase 2A).
+  # 'typed_v1' = new extract_loadout_evidence() → loadout_evidence.json (Task 2B-9 flips default).
+  loadout_engine: legacy
   sample_rates:
     post_game_action_tracker: 5
     post_game_player_summary: 1
