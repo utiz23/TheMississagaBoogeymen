@@ -3,6 +3,7 @@ family: x_factors
 # 28 canonical X-Factor names from NHL 26.
 # Sources: XFACTOR_CANONICAL_NAMES in apps/worker/src/lib/normalize-xfactor.ts
 # Aliases include common OCR errors: space collapse, character misreads, case variance.
+# Note: [x] and [xy] notation flags OCR-error-prone characters; [l1] / [O0] / [sS5] add digit confusion.
 
 entries:
   - canonical: "Ankle_Breaker"
@@ -38,11 +39,13 @@ entries:
       - "(?i)^dialed[\\s_]?in$"
       - "(?i)^dialed[\\s_]?i[n]$"
       - "(?i)^dial[e]d[\\s_]?in$"
+      - "(?i)^dia[l1]ed[\\s_]?in$"
 
   - canonical: "Elite_Edges"
     aliases:
       - "(?i)^elite[\\s_]?edges$"
       - "(?i)^elite[\\s_]?edg[e]?s$"
+      - "(?i)^e[l1]ite[\\s_]?edges$"
 
   - canonical: "Hipster"
     aliases:
@@ -60,6 +63,7 @@ entries:
     aliases:
       - "(?i)^one[\\s_]?t$"
       - "(?i)^on[e]t$"
+      - "(?i)^[O0]ne[\\s_]?t$"
 
   - canonical: "Post_to_Post"
     aliases:
@@ -152,6 +156,7 @@ entries:
       - "(?i)^truculence$"
       - "(?i)^trucule[n]ce$"
       - "(?i)^trucule?nce$"
+      - "(?i)^truc[uo]lence$"
 
   - canonical: "Unstoppable"
     aliases:
@@ -170,3 +175,4 @@ entries:
       - "(?i)^wheels$"
       - "(?i)^whee[l]s$"
       - "(?i)^wh[e]els$"
+      - "(?i)^whee[l1]s$"

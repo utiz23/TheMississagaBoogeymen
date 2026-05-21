@@ -2,12 +2,14 @@ version: nhl26
 family: x_factor_tiers
 # X-Factor activation tiers (Elite, All Star, Specialist).
 # Visually distinct UI labels with good OCR baseline; minimal aliases needed.
+# Note: [x] notation flags OCR-error-prone characters; [l1] / [sS5] add digit confusion.
 
 entries:
   - canonical: "Elite"
     aliases:
       - "(?i)^elite$"
       - "(?i)^elit[e]$"
+      - "(?i)^e[l1]ite$"
 
   - canonical: "All Star"
     aliases:
@@ -20,3 +22,4 @@ entries:
       - "(?i)^specialist$"
       - "(?i)^specia[l]ist$"
       - "(?i)^specialist[s]?$"
+      - "(?i)^[sS5]pecialist$"

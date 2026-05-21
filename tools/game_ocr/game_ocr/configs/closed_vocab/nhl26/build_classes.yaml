@@ -2,6 +2,7 @@ version: nhl26
 family: build_classes
 # Build class names from NHL 26, including both bare builds and reference-player themed variants.
 # Sources: BUILD_CANONICAL_NAMES + suffix codes in apps/worker/src/lib/normalize-build-class.ts
+# Note: [x] and [xy] notation flags OCR-error-prone characters; [l1] / [sS5] add digit confusion.
 
 entries:
   - canonical: "Playmaker"
@@ -10,12 +11,14 @@ entries:
       - "(?i)^play[\\s_]?maker$"
       - "(?i)^plyamaker$"
       - "(?i)^pl[y]maker$"
+      - "(?i)^p[l1]aymaker$"
 
   - canonical: "Sniper"
     aliases:
       - "(?i)^sniper$"
       - "(?i)^snlper$"
       - "(?i)^sn[i]per$"
+      - "(?i)^[sS5]niper$"
 
   - canonical: "Grinder"
     aliases:

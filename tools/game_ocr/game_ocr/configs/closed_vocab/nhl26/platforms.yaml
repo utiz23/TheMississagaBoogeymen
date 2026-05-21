@@ -13,7 +13,6 @@ entries:
     aliases:
       - "(?i)^playstation$"
       - "(?i)^play[\\s_]?station$"
-      - "(?i)^ps[45]?$"
       - "(?i)^psx$"
 
   - canonical: "ps5"
@@ -37,4 +36,3 @@ entries:
     aliases:
       - "(?i)^switch$"
       - "(?i)^nintendo[\\s_]?switch$"
-      - "(?i)^swit[ch]$"

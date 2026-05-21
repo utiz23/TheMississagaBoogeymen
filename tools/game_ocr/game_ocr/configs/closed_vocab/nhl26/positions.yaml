@@ -2,6 +2,7 @@ version: nhl26
 family: positions
 # Six EASHL positions with common OCR error aliases.
 # Common errors include: "0" → "G", "1" → "I" vs "L", "O" → "0", "1.W" → "LW", etc.
+# Note: [x] notation flags OCR-error-prone characters; [l1] / [O0] add digit confusion.
 
 entries:
   - canonical: "C"
@@ -22,7 +23,6 @@ entries:
     aliases:
       - "(?i)^rw$"
       - "(?i)^r\\.w$"
-      - "(?i)^1r$"
       - "(?i)^rw[e]?$"
       - "(?i)^right[\\s_]?wing$"
 
@@ -44,5 +44,5 @@ entries:
     aliases:
       - "(?i)^g$"
       - "(?i)^0$"
-      - "(?i)^g[o]a[l]?[ie]?$"
+      - "(?i)^goali[e]?$"
       - "(?i)^goaltender$"
