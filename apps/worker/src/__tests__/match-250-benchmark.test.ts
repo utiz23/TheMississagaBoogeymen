@@ -42,8 +42,9 @@ import {
   playerLoadoutSnapshots,
   players,
   ocrExtractions,
+  ocrSegments,
 } from '@eanhl/db'
-import { eq, inArray } from 'drizzle-orm'
+import { eq, inArray, and, sql } from 'drizzle-orm'
 
 after(async () => {
   await postgresSql.end()
@@ -1268,4 +1269,41 @@ void test('match 250: gamemode + team identity + final score match V2', async ()
   // V2 final score: BM 4 / 4th 3 (Player-Summary header + Box-Score).
   assert.equal(row.scoreFor, 4, 'score_for (BGM final)')
   assert.equal(row.scoreAgainst, 3, 'score_against (opp final)')
+})
+
+void test('match 250: at least one HMM-decoded segment landed', async () => {
+  if (!process.env['DATABASE_URL']) return
+  const rows = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(ocrSegments)
+    .where(
+      and(
+        eq(ocrSegments.matchId, 250),
+        eq(ocrSegments.decoderVersion, 'hmm-viterbi-v1'),
+      ),
+    )
+  const count = rows[0]?.count ?? 0
+  assert.ok(
+    count >= 1,
+    `expected at least one hmm-viterbi-v1 segment for match 250, got ${count}`,
+  )
+})
+
+void test('match 250: HMM-decoded segment time bounds are populated', async () => {
+  if (!process.env['DATABASE_URL']) return
+  const rows = await db
+    .select({ tStart: ocrSegments.tStartSec, tEnd: ocrSegments.tEndSec })
+    .from(ocrSegments)
+    .where(
+      and(
+        eq(ocrSegments.matchId, 250),
+        eq(ocrSegments.decoderVersion, 'hmm-viterbi-v1'),
+      ),
+    )
+    .limit(5)
+  assert.ok(rows.length > 0, 'no hmm-viterbi-v1 segments to sample')
+  for (const r of rows) {
+    assert.ok(r.tStart !== null, 't_start_sec must be populated by HMM decoder')
+    assert.ok(r.tEnd !== null, 't_end_sec must be populated by HMM decoder')
+  }
 })
