@@ -56,6 +56,8 @@ pass2:
     post_game_action_tracker: 5
     post_game_player_summary: 1
     post_game_box_score_goals: 1
+    post_game_box_score_shots: 1
+    post_game_box_score_faceoffs: 1
     post_game_events: 1
     post_game_faceoff_map: 1
     post_game_net_chart: 1
@@ -64,10 +66,16 @@ pass2:
 
 # Screen types we DO extract in Pass-2. Anything else (unknown_screen,
 # pre_game_lobby_state_1, in_game_*, etc.) is logged + skipped.
+# Phase 1: post_game_box_score_{shots,faceoffs} added now that the HMM
+# decoder can distinguish them from the goals tab (state machine YAML +
+# trained weights cover all three tabs). Worker-side walkers and promoter
+# maps already handle these screen types.
 extract_screens:
   - post_game_action_tracker
   - post_game_player_summary
   - post_game_box_score_goals
+  - post_game_box_score_shots
+  - post_game_box_score_faceoffs
   - post_game_events
   - post_game_faceoff_map
   - post_game_net_chart
