@@ -1,0 +1,48 @@
+version: nhl26
+family: positions
+# Six EASHL positions with common OCR error aliases.
+# Common errors include: "0" → "G", "1" → "I" vs "L", "O" → "0", "1.W" → "LW", etc.
+
+entries:
+  - canonical: "C"
+    aliases:
+      - "(?i)^c$"
+      - "(?i)^cen[t]?$"
+
+  - canonical: "LW"
+    aliases:
+      - "(?i)^lw$"
+      - "(?i)^l\\.w$"
+      - "(?i)^1\\.w$"
+      - "(?i)^1w$"
+      - "(?i)^lw[e]?$"
+      - "(?i)^left[\\s_]?wing$"
+
+  - canonical: "RW"
+    aliases:
+      - "(?i)^rw$"
+      - "(?i)^r\\.w$"
+      - "(?i)^1r$"
+      - "(?i)^rw[e]?$"
+      - "(?i)^right[\\s_]?wing$"
+
+  - canonical: "LD"
+    aliases:
+      - "(?i)^ld$"
+      - "(?i)^l\\.d$"
+      - "(?i)^1\\.d$"
+      - "(?i)^1d$"
+      - "(?i)^left[\\s_]?d[e]?f[en]?$"
+
+  - canonical: "RD"
+    aliases:
+      - "(?i)^rd$"
+      - "(?i)^r\\.d$"
+      - "(?i)^right[\\s_]?d[e]?f[en]?$"
+
+  - canonical: "G"
+    aliases:
+      - "(?i)^g$"
+      - "(?i)^0$"
+      - "(?i)^g[o]a[l]?[ie]?$"
+      - "(?i)^goaltender$"

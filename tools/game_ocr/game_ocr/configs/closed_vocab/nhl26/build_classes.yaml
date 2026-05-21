@@ -1,0 +1,60 @@
+version: nhl26
+family: build_classes
+# Build class names from NHL 26, including both bare builds and reference-player themed variants.
+# Sources: BUILD_CANONICAL_NAMES + suffix codes in apps/worker/src/lib/normalize-build-class.ts
+
+entries:
+  - canonical: "Playmaker"
+    aliases:
+      - "(?i)^playmaker$"
+      - "(?i)^play[\\s_]?maker$"
+      - "(?i)^plyamaker$"
+      - "(?i)^pl[y]maker$"
+
+  - canonical: "Sniper"
+    aliases:
+      - "(?i)^sniper$"
+      - "(?i)^snlper$"
+      - "(?i)^sn[i]per$"
+
+  - canonical: "Grinder"
+    aliases:
+      - "(?i)^grinder$"
+      - "(?i)^grinde[r]$"
+      - "(?i)^gri[n]der$"
+
+  - canonical: "Two-Way Forward"
+    aliases:
+      - "(?i)^two[\\s_]?way[\\s_]?forward$"
+      - "(?i)^twowayforward$"
+      - "(?i)^two[\\s_]?w[a]y[\\s_]?forward$"
+
+  - canonical: "Power Forward"
+    aliases:
+      - "(?i)^power[\\s_]?forward$"
+      - "(?i)^powerforward$"
+      - "(?i)^pow[e]r[\\s_]?forward$"
+
+  - canonical: "Puck Moving Defenseman"
+    aliases:
+      - "(?i)^puck[\\s_]?moving[\\s_]?defenseman$"
+      - "(?i)^puckmovingdefenseman$"
+      - "(?i)^puc[k][\\s_]?mov[i]ng[\\s_]?defenseman$"
+
+  - canonical: "Defensive Defenseman"
+    aliases:
+      - "(?i)^defensive[\\s_]?defenseman$"
+      - "(?i)^defensivedefenseman$"
+      - "(?i)^defen[s]ive[\\s_]?defenseman$"
+
+  - canonical: "Offensive Defenseman"
+    aliases:
+      - "(?i)^offensive[\\s_]?defenseman$"
+      - "(?i)^offensivedefenseman$"
+      - "(?i)^offen[s]ive[\\s_]?defenseman$"
+
+  - canonical: "Two-Way Defenseman"
+    aliases:
+      - "(?i)^two[\\s_]?way[\\s_]?defenseman$"
+      - "(?i)^twowaydefenseman$"
+      - "(?i)^two[\\s_]?w[a]y[\\s_]?defenseman$"

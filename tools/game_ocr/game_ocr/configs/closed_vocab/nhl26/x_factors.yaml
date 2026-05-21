@@ -1,0 +1,172 @@
+version: nhl26
+family: x_factors
+# 28 canonical X-Factor names from NHL 26.
+# Sources: XFACTOR_CANONICAL_NAMES in apps/worker/src/lib/normalize-xfactor.ts
+# Aliases include common OCR errors: space collapse, character misreads, case variance.
+
+entries:
+  - canonical: "Ankle_Breaker"
+    aliases:
+      - "(?i)^ankle[\\s_]?breaker$"
+      - "(?i)^ankl[e_]breaker$"
+      - "(?i)^angle[\\s_]?breaker$"
+
+  - canonical: "Backhand_Beauty"
+    aliases:
+      - "(?i)^backhand[\\s_]?beauty$"
+      - "(?i)^backward[\\s_]?beauty$"
+      - "(?i)^backhand[\\s_]?beatuy$"
+
+  - canonical: "Big_Rig"
+    aliases:
+      - "(?i)^big[\\s_]?rig$"
+      - "(?i)^bi[g_]rig$"
+
+  - canonical: "Big_Tipper"
+    aliases:
+      - "(?i)^big[\\s_]?tipper$"
+      - "(?i)^big[\\s_]?tipp?er$"
+
+  - canonical: "Born_Leader"
+    aliases:
+      - "(?i)^born[\\s_]?leader$"
+      - "(?i)^bornleader$"
+      - "(?i)^born[\\s_]?leade[r]$"
+
+  - canonical: "Dialed_In"
+    aliases:
+      - "(?i)^dialed[\\s_]?in$"
+      - "(?i)^dialed[\\s_]?i[n]$"
+      - "(?i)^dial[e]d[\\s_]?in$"
+
+  - canonical: "Elite_Edges"
+    aliases:
+      - "(?i)^elite[\\s_]?edges$"
+      - "(?i)^elite[\\s_]?edg[e]?s$"
+
+  - canonical: "Hipster"
+    aliases:
+      - "(?i)^hipster$"
+      - "(?i)^hipste[r]$"
+      - "(?i)^hip[s]ter$"
+
+  - canonical: "No_Contest"
+    aliases:
+      - "(?i)^no[\\s_]?contest$"
+      - "(?i)^nocontest$"
+      - "(?i)^no[\\s_]?c[o]ntest$"
+
+  - canonical: "One_T"
+    aliases:
+      - "(?i)^one[\\s_]?t$"
+      - "(?i)^on[e]t$"
+
+  - canonical: "Post_to_Post"
+    aliases:
+      - "(?i)^post[\\s_]?to[\\s_]?post$"
+      - "(?i)^posttopost$"
+      - "(?i)^pos[t]to[\\s_]?post$"
+
+  - canonical: "PressurePlus"
+    aliases:
+      - "(?i)^pressure[\\s_]?plus$"
+      - "(?i)^pressure\\+$"
+      - "(?i)^pressureplus$"
+      - "(?i)^pressure$"
+      - "(?i)^pressu?re[\\s_]?plus$"
+
+  - canonical: "Quick_Draw"
+    aliases:
+      - "(?i)^quick[\\s_]?draw$"
+      - "(?i)^quic[k]draw$"
+      - "(?i)^quick[\\s_]?dra[w]$"
+
+  - canonical: "Quick_Release"
+    aliases:
+      - "(?i)^quick[\\s_]?release$"
+      - "(?i)^quickrelease$"
+      - "(?i)^quick[\\s_]?rele[a]se$"
+
+  - canonical: "Quickpick"
+    aliases:
+      - "(?i)^quickpick$"
+      - "(?i)^quick[\\s_]?pick$"
+      - "(?i)^quic[k]pick$"
+
+  - canonical: "Recharge"
+    aliases:
+      - "(?i)^recharge$"
+      - "(?i)^recha[r]ge$"
+      - "(?i)^re[c]harge$"
+
+  - canonical: "Rocket"
+    aliases:
+      - "(?i)^rocket$"
+      - "(?i)^rocke[t]$"
+      - "(?i)^ro[c]ket$"
+
+  - canonical: "Second_Wind"
+    aliases:
+      - "(?i)^second[\\s_]?wind$"
+      - "(?i)^secondwind$"
+      - "(?i)^secon[d][\\s_]?wind$"
+
+  - canonical: "Send_It"
+    aliases:
+      - "(?i)^send[\\s_]?it$"
+      - "(?i)^sendit$"
+      - "(?i)^sen[d]it$"
+
+  - canonical: "Show_Stopper"
+    aliases:
+      - "(?i)^show[\\s_]?stopper$"
+      - "(?i)^showstopper$"
+      - "(?i)^show[\\s_]?stop?per$"
+
+  - canonical: "Spark_Plug"
+    aliases:
+      - "(?i)^spark[\\s_]?plug$"
+      - "(?i)^sparkplug$"
+      - "(?i)^spa[r]k[\\s_]?plug$"
+
+  - canonical: "Sponge"
+    aliases:
+      - "(?i)^sponge$"
+      - "(?i)^spong[e]$"
+      - "(?i)^spon[g]e$"
+
+  - canonical: "Stick_Em_Up"
+    aliases:
+      - "(?i)^stick[\\s_]?em[\\s_]?up$"
+      - "(?i)^stickem[\\s_]?up$"
+      - "(?i)^stick[\\s_]?e[m]up$"
+
+  - canonical: "Tape_to_Tape"
+    aliases:
+      - "(?i)^tape[\\s_]?to[\\s_]?tape$"
+      - "(?i)^tapetotape$"
+      - "(?i)^tape[\\s_]?t[o]tape$"
+
+  - canonical: "Truculence"
+    aliases:
+      - "(?i)^truculence$"
+      - "(?i)^trucule[n]ce$"
+      - "(?i)^trucule?nce$"
+
+  - canonical: "Unstoppable"
+    aliases:
+      - "(?i)^unstoppable$"
+      - "(?i)^unsto[p]pable$"
+      - "(?i)^unstop[p]able$"
+
+  - canonical: "Warrior"
+    aliases:
+      - "(?i)^warrior$"
+      - "(?i)^warrio[r]$"
+      - "(?i)^wa[r]rior$"
+
+  - canonical: "Wheels"
+    aliases:
+      - "(?i)^wheels$"
+      - "(?i)^whee[l]s$"
+      - "(?i)^wh[e]els$"

@@ -1,0 +1,39 @@
+version: nhl26
+family: attribute_keys
+# Loadout attribute keys grouped by family (technique, power, playstyle, tenacity, tactics).
+# Mirrors _LOADOUT_ATTRS_PER_GROUP in tools/game_ocr/game_ocr/parsers.py:459-464
+# Each key includes basic aliases for common OCR errors (space collapse, underscore variance).
+
+groups:
+  technique:
+    - wrist_shot_accuracy
+    - slap_shot_accuracy
+    - speed
+    - balance
+    - agility
+
+  power:
+    - wrist_shot_power
+    - slap_shot_power
+    - acceleration
+    - puck_control
+    - endurance
+
+  playstyle:
+    - passing
+    - offensive_awareness
+    - body_checking
+    - stick_checking
+    - defensive_awareness
+
+  tenacity:
+    - hand_eye
+    - strength
+    - durability
+    - shot_blocking
+
+  tactics:
+    - deking
+    - faceoffs
+    - discipline
+    - fighting_skill

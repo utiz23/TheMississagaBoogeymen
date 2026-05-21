@@ -1,0 +1,40 @@
+version: nhl26
+family: platforms
+# Gaming platforms NHL 26 is available on, with common OCR case/abbreviation variants.
+
+entries:
+  - canonical: "xbox"
+    aliases:
+      - "(?i)^xbox$"
+      - "(?i)^xbox[\\s_]?one$"
+      - "(?i)^xb[o]x$"
+
+  - canonical: "playstation"
+    aliases:
+      - "(?i)^playstation$"
+      - "(?i)^play[\\s_]?station$"
+      - "(?i)^ps[45]?$"
+      - "(?i)^psx$"
+
+  - canonical: "ps5"
+    aliases:
+      - "(?i)^ps5$"
+      - "(?i)^ps[\\s_]?5$"
+      - "(?i)^p5$"
+
+  - canonical: "ps4"
+    aliases:
+      - "(?i)^ps4$"
+      - "(?i)^ps[\\s_]?4$"
+      - "(?i)^p4$"
+
+  - canonical: "pc"
+    aliases:
+      - "(?i)^pc$"
+      - "(?i)^p[c]$"
+
+  - canonical: "switch"
+    aliases:
+      - "(?i)^switch$"
+      - "(?i)^nintendo[\\s_]?switch$"
+      - "(?i)^swit[ch]$"
