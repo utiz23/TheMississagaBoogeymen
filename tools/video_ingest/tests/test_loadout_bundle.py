@@ -113,10 +113,10 @@ class TestGroupFramesByGeometricSlotKey(unittest.TestCase):
         self.assertEqual(len(bundle_C.frame_paths), 2)
 
 
-class TestPicksLowestBlurFramePerSlot(unittest.TestCase):
-    """best_frame_path is the frame with the lowest blur score (most in focus)."""
+class TestPicksSharpestFramePerSlot(unittest.TestCase):
+    """best_frame_path is the frame with the highest blur score (sharpest)."""
 
-    def test_picks_lowest_blur_frame_per_slot(self):
+    def test_picks_sharpest_frame_per_slot(self):
         from game_ocr.loadout_bundle import assemble_loadout_bundles
 
         seg = 3
@@ -124,7 +124,7 @@ class TestPicksLowestBlurFramePerSlot(unittest.TestCase):
         slot_key = f"loadout_slot_seg{seg:04d}_row0"
         identity = _make_slot_identity(slot_key, row_ordinal=0)
 
-        # blur_scores: [10, 5, 15] — lowest is frame index 1 (blur=5 → sharpest)
+        # blur_scores: [10, 5, 15] — highest is frame index 2 (blur=15 → sharpest)
         blur_scores_sequence = [10.0, 5.0, 15.0]
         blur_call_count = [0]
 
@@ -148,8 +148,8 @@ class TestPicksLowestBlurFramePerSlot(unittest.TestCase):
 
         self.assertEqual(len(bundles), 1)
         bundle = bundles[0]
-        self.assertEqual(bundle.best_frame_path, frames[1])
-        self.assertAlmostEqual(bundle.best_frame_blur_score, 5.0)
+        self.assertEqual(bundle.best_frame_path, frames[2])
+        self.assertAlmostEqual(bundle.best_frame_blur_score, 15.0)
 
 
 class TestSkipsFramesWithNoRecognisableSlot(unittest.TestCase):

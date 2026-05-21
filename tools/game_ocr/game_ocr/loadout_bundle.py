@@ -15,10 +15,9 @@ Design notes
 - Grouping is purely geometric: slot_key from Task 2A-3 is the group key.
   OCR text variation does not affect grouping.
 - Best frame selection uses blur_score (Laplacian variance) from Phase 1's
-  frame_features module.  Lower score = less in focus (higher variance = sharper).
-  Wait — blur_score = Laplacian variance, so HIGHER is sharper.  We pick
-  the frame with the HIGHEST blur_score (argmax), which is the sharpest frame.
-  The field is named best_frame_blur_score and carries the winning score.
+  frame_features module. Laplacian variance is higher-is-sharper: higher
+  variance = sharper edges. We pick argmax(blur_scores) to select the sharpest
+  frame in the group. The field best_frame_blur_score carries the variance value.
 - Position stability: for each bundle, compute the fraction of frames where
   the modal position appears.  If < POSITION_STABILITY_THRESHOLD (0.80),
   log a WARNING and set observability='obstructed'.  Frames with position=None
@@ -95,7 +94,7 @@ class LoadoutFrameBundle:
     """Frame path with the highest blur_score (== sharpest / least blurry)."""
 
     best_frame_blur_score: float
-    """blur_score (Laplacian variance) of the best frame."""
+    """Laplacian variance of the best frame. Higher = sharper."""
 
     slot_identities: tuple[SlotIdentity, ...]
     """One SlotIdentity per entry in frame_paths (parallel list)."""
@@ -198,12 +197,11 @@ def assemble_loadout_bundles(
         images = [e[2] for e in entries]
         identities = [e[3] for e in entries]
 
-        # Best frame: lowest blur_score per task spec.
-        # Note: blur_score() returns Laplacian variance (higher = sharper), but the
-        # task spec defines "best frame" as the one with the *lowest* blur_score value.
-        # We follow the spec here; callers that want the sharpest frame can invert.
+        # Best frame: highest blur_score (= sharpest).
+        # blur_score() returns Laplacian variance: higher = sharper edges.
+        # We pick argmax to select the sharpest frame in the group.
         blur_scores = [blur_score(img) for img in images]
-        best_idx_in_group = int(np.argmin(blur_scores))
+        best_idx_in_group = int(np.argmax(blur_scores))
 
         # Position stability: fraction of frames where modal position appears
         positions = [i.position for i in identities if i.position is not None]
