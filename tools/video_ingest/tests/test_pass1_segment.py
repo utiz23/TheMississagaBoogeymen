@@ -164,3 +164,76 @@ class TestDecodeSegments(unittest.TestCase):
         )
         kept = _enforce_min_duration([seg], self.sm)
         self.assertEqual(len(kept), 1)
+
+
+import json
+import shutil
+from pathlib import Path
+
+FIXTURE_DIR = Path(__file__).resolve().parent / "fixtures"
+CLIP = FIXTURE_DIR / "match-250-clip.mkv"
+LABELS = FIXTURE_DIR / "match-250-clip-segments.json"
+
+
+@unittest.skipUnless(shutil.which("ffmpeg"), "ffmpeg not on PATH")
+@unittest.skipUnless(CLIP.exists(), "test clip not present")
+class TestEndToEndOnLabeledClip(unittest.TestCase):
+    """The 60-second labeled clip should decode into per-frame states that
+    match the ground-truth labels on at least 45 of 60 frames (75%)."""
+
+    def test_majority_of_frames_match_labels(self):
+        from game_ocr.classifier import Classifier, load_classifier_config
+        from game_ocr.emissions import EmissionWeights
+        from game_ocr.frame_features import compute_frame_features
+        from game_ocr.screen_classifier import load_screen_classifier
+        from game_ocr.state_machine import load_state_machine
+        from video_ingest.pass1_classify import _iter_raw_bgr_frames
+        from video_ingest.pass1_segment import decode_segments
+
+        sm = load_state_machine("nhl26")
+        legacy = Classifier(load_classifier_config("nhl26"), use_gpu=False)
+        weights = (
+            Path(__file__).resolve().parents[2] / "game_ocr" / "game_ocr"
+            / "weights" / "nhl26-screen-classifier.json"
+        )
+        if not weights.exists():
+            self.skipTest("Phase 1 weights not yet trained")
+        clf = load_screen_classifier(weights, sm)
+
+        feats = []
+        for frame in _iter_raw_bgr_frames(CLIP, 1.0):
+            anchor = legacy._read_anchor(frame)
+            feats.append(compute_frame_features(frame, anchor_text=anchor, state_machine=sm))
+
+        segments = decode_segments(
+            features=feats,
+            classifier=clf,
+            state_machine=sm,
+            weights=EmissionWeights(),
+        )
+
+        # Build per-frame decoded labels.
+        decoded = ["unknown_or_transition"] * len(feats)
+        for seg in segments:
+            for i in range(seg.start_index, seg.end_index + 1):
+                decoded[i] = seg.screen_type
+
+        # Compare against ground truth. Labels file uses `unknown_screen`;
+        # decoder uses `unknown_or_transition`. Both map to "not extracted".
+        gt_raw = json.loads(LABELS.read_text())
+        gt = ["unknown_or_transition"] * gt_raw["frame_count"]
+        for entry in gt_raw["segments"]:
+            label = entry["screen_type"]
+            if label == "unknown_screen":
+                label = "unknown_or_transition"
+            for i in range(entry["start_frame"], entry["end_frame"] + 1):
+                if i < len(gt):
+                    gt[i] = label
+
+        matches = sum(1 for a, b in zip(decoded, gt) if a == b)
+        # 60 frames; require ≥45/60 = 75% per-frame match.
+        self.assertGreaterEqual(
+            matches, 45,
+            f"per-frame match {matches}/{len(gt)} below 45 (75%). "
+            f"Decoded: {decoded[:10]}... GT: {gt[:10]}...",
+        )
