@@ -5,13 +5,26 @@ Public surface:
     ClosedVocabEntry   — single entry (canonical + compiled alias patterns)
     load_closed_vocab  — load an entries:-schema YAML by family + version
     load_attribute_keys — load attribute_keys.yaml (groups:-schema) as dict
+
+    SlotIdentity       — frozen dataclass; one slot's geometric identity + OCR evidence
+    extract_slot_identities — extract slot identities from a loadout-view frame
 """
 
 from .closed_vocab import ClosedVocab, ClosedVocabEntry, load_attribute_keys, load_closed_vocab
+from .slot_identity import (
+    MAX_ROWS_PER_LOADOUT_SEGMENT,
+    ROW_Y_BUCKET_TOLERANCE_PX,
+    SlotIdentity,
+    extract_slot_identities,
+)
 
 __all__ = [
     "ClosedVocab",
     "ClosedVocabEntry",
     "load_closed_vocab",
     "load_attribute_keys",
+    "SlotIdentity",
+    "extract_slot_identities",
+    "ROW_Y_BUCKET_TOLERANCE_PX",
+    "MAX_ROWS_PER_LOADOUT_SEGMENT",
 ]
