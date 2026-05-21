@@ -8,9 +8,13 @@ Public surface:
 
     SlotIdentity       — frozen dataclass; one slot's geometric identity + OCR evidence
     extract_slot_identities — extract slot identities from a loadout-view frame
+
+    IconEvidence         — frozen dataclass; one icon-family candidate
+    LoadoutIconExtractor — wraps match_icon + _classify_xfactor_tier
 """
 
 from .closed_vocab import ClosedVocab, ClosedVocabEntry, load_attribute_keys, load_closed_vocab
+from .icon import IconEvidence, LoadoutIconExtractor
 from .slot_identity import (
     MAX_ROWS_PER_LOADOUT_SEGMENT,
     ROW_Y_BUCKET_TOLERANCE_PX,
@@ -27,4 +31,6 @@ __all__ = [
     "extract_slot_identities",
     "ROW_Y_BUCKET_TOLERANCE_PX",
     "MAX_ROWS_PER_LOADOUT_SEGMENT",
+    "IconEvidence",
+    "LoadoutIconExtractor",
 ]
