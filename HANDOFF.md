@@ -1,5 +1,180 @@
 # Handoff
 
+## Session Summary — 2026-05-21 (Phase 2A — Loadout Evidence-Layer MVR shipped + 2B-tooling done)
+
+### What was done
+
+Phase 2A (24 tasks) built the full loadout evidence-layer stack on top of
+the Phase 1 HMM/Viterbi foundation. Four typed Python extractor families
+(`jersey_number`, `player_name`, `archetype`, `build_attributes`) plus a
+`slot_identity` resolver, `loadout_bundle.py` assembler, and
+`loadout_evidence.py` entry point were added under
+`tools/game_ocr/game_ocr/loadout_extractors/`. Dispatch-flag plumbing for
+the `loadout` family was threaded through `pass2_extract.py`.
+
+On the database side: rename migration `0046_loadout_extraction_id_rename.sql`
+(renamed `source_extraction_id` to `extraction_source_id` throughout
+`ocr_field_evidence`) and promoter-lookup index migration
+`0047_ocr_field_evidence_promoter_indexes.sql`. A new query
+`getExpectedSlotsForMatch` uses the `player_match_stats` +
+`opponent_player_match_stats` authority chain to resolve expected roster slots.
+
+Worker additions: `writeFieldEvidenceForBatch` with per-segment
+delete-all-then-insert idempotency; `runPromotionGate` generic gate +
+`loadout-invariants.ts` module; `loadout-v2.ts` promoter with team_side
+binding fallback through `opponent_player_match_stats`.
+
+Test infrastructure: three committed fixtures (`fixture_match250_full_lobby`
+— 610 evidence records + canonical; `fixture_match463_single_slot` — 61
+records + 9 observability blocks + roster seed; `fixture_synthetic_degraded`
+— 79 records covering 4 matrix-branch scenarios); fixture loader + DB seeder;
+30 new tests all passing.
+
+Phase 2B-tooling (Tasks 2B-0a, 2B-4, 2B-5, 2B-6, 2B-12) delivered: authority
+readiness checkpoint (→ Path B decision), `loadout-evidence-report` CLI,
+extended `ocr-segments-report` with loadout breakdown, `repromote-loadout
+--dry-run` CLI, and calibration scaffolding documentation. Commits span
+`93ec61a` (Phase 2A-1) through `4a359c2` (Phase 2B-12) on branch
+`feat/ocr-pipeline-phase-2`.
+
+### Acceptance gates
+
+| Gate | Status |
+|------|--------|
+| T1A — Python extractor parity | SKIPPED (operator-TODO: populate `tools/game_ocr/calibration/extras/loadout/fixtures/{fixture_match250_full_lobby,fixture_match463_single_slot}/frames/` with PNGs from real loadout segments) |
+| T2A — match-463 fixture per-slot coverage | GREEN (4/4) |
+| T3A — round-trip integrity | covered by T2A + T6A asserts |
+| T4A — gate blocks consensus conflict | GREEN |
+| T5A — match-250 V2 benchmark on legacy path | GREEN (18/18) |
+| T6A — promoter-vs-committed-JSON parity | GREEN (10/10) |
+| T7A — `source_extraction_id` rename complete | GREEN |
+| T8A — synthetic degraded fixture matrix branches | GREEN (16/16) |
+
+### Key files added / modified
+
+Python extractor stack:
+- `tools/game_ocr/game_ocr/loadout_extractors/jersey_number.py`
+- `tools/game_ocr/game_ocr/loadout_extractors/player_name.py`
+- `tools/game_ocr/game_ocr/loadout_extractors/archetype.py`
+- `tools/game_ocr/game_ocr/loadout_extractors/build_attributes.py`
+- `tools/game_ocr/game_ocr/loadout_extractors/slot_identity.py`
+- `tools/game_ocr/game_ocr/loadout_bundle.py`
+- `tools/game_ocr/game_ocr/loadout_evidence.py`
+- `tools/video_ingest/video_ingest/pass2_extract.py` — dispatch flag plumbing
+
+Configs:
+- `tools/game_ocr/game_ocr/configs/closed_vocab/nhl26/*.yaml` — alias-regex vocab for archetype + build attributes
+
+DB migrations:
+- `packages/db/drizzle/0046_loadout_extraction_id_rename.sql`
+- `packages/db/drizzle/0047_ocr_field_evidence_promoter_indexes.sql`
+
+Drizzle schema:
+- `packages/db/src/schema/player-loadout.ts` — rename applied
+- `packages/db/src/schema/ocr-evidence.ts` — promoter-lookup index
+
+Queries:
+- `packages/db/src/queries/expected-roster.ts` — `getExpectedSlotsForMatch`
+- `packages/db/src/queries/ocr-evidence.ts` — extended for evidence write path
+
+Worker:
+- `apps/worker/src/ocr-promoters/loadout-v2.ts`
+- `apps/worker/src/lib/promotion-gate.ts`
+- `apps/worker/src/lib/loadout-invariants.ts`
+- `apps/worker/src/ingest-ocr.ts` — evidence write path wired in
+
+CLIs:
+- `apps/worker/src/loadout-evidence-report-cli.ts`
+- `apps/worker/src/repromote-loadout-cli.ts`
+
+Test fixtures:
+- `tools/game_ocr/calibration/extras/loadout/fixtures/fixture_match250_full_lobby/`
+- `tools/game_ocr/calibration/extras/loadout/fixtures/fixture_match463_single_slot/`
+- `tools/game_ocr/calibration/extras/loadout/fixtures/fixture_synthetic_degraded/`
+
+Tests (all in `apps/worker/src/__tests__/`):
+- `loadout-canonical-row-fixture.test.ts`
+- `match-463-loadout-slots-fixture.test.ts`
+- `loadout-degraded-fixture.test.ts`
+- `loadout-evidence-write-path.test.ts`
+- `loadout-promotion-gate.test.ts`
+- `ocr-promoter-dispatch.test.ts`
+- `expected-roster.test.ts`
+
+### Notable adjudications during implementation
+
+- **team_side binding fallback.** `loadout-v2.ts` falls back to
+  `opponent_player_match_stats` when `resolveGamertagToPlayer` fails — required
+  for opp-side gamertags not present in the `players` table.
+- **Gate floor semantics.** The 18/23 attribute floor in the synthetic degraded
+  fixture had to be encoded as ABSENT evidence records (not low-confidence
+  records) to actually block promotion — the gate promotes single uncontested
+  candidates regardless of confidence floor.
+- **match463 expected_roster_seed.sql schema mismatch.** Columns in the SQL seed
+  file diverged from the live schema; the fixture seeder uses Drizzle directly.
+  Mismatch documented in fixture PROVENANCE.md.
+- **Authority readiness → Path B.** Task 2B-0a checkpoint: matches 1 + 2 return
+  6 pairs each (structural 3v3 limit); matches 250 + 463 return 10 pairs each
+  (full 6v6). Cutover proceeds on matches 250 + 463 first.
+
+### Phase 2B work remaining (operator-gated)
+
+| Task | Depends on | What it needs |
+|------|-----------|---------------|
+| 2B-1 — crop labeling corpus | Operator time | Extract frame crops from real loadout segments; label archetype + build rows |
+| 2B-2 — LR head training | 2B-1 corpus | Train closed-vocab LR classifier on labeled crops |
+| 2B-3 — LR head activation | 2B-2 weights | Swap alias-regex → LR head in extractor families; re-run T1A |
+| 2B-7 — parallel-diff inspection | Operator review | Run legacy vs loadout-v2 side-by-side on matches 250 + 463; review diffs |
+| 2B-8 — backup + cutover | 2B-7 approval | Create `_phase2_backup_*` tables; flip live snapshots to loadout-v2 output |
+| 2B-9 — default flag flip | 2B-8 cutover | Change `pass2.loadout_engine: legacy` → `v2` in nhl26.yaml |
+| 2B-10 — real-match gates (T1B, T2B, T4B) | 2B-9 flip | Acceptance tests on production data post-cutover |
+| 2B-11 — CI gate amendment | 2B-10 green | Add 2B gates to `match-quality-regression.test.ts` |
+| T1A fixture frames | Operator | Populate `frames/` directories (currently `.gitkeep`) with PNGs from real loadout segments to unlock Python extractor parity test |
+
+### Rollback procedure
+
+The following SQL restores legacy loadout snapshots if cutover (Task 2B-8)
+needs to be reverted. **These backup tables only exist after Task 2B-8 runs.**
+Until cutover, this procedure is documented but not yet exercisable.
+
+```sql
+-- Restore legacy loadout snapshots if cutover (Task 2B-8) needs reversion:
+DELETE FROM player_loadout_snapshots WHERE match_id IN (1,2,250,463);
+INSERT INTO player_loadout_snapshots SELECT * FROM _phase2_backup_player_loadout_snapshots;
+DELETE FROM player_loadout_x_factors WHERE loadout_snapshot_id IN (SELECT id FROM _phase2_backup_player_loadout_snapshots);
+INSERT INTO player_loadout_x_factors SELECT * FROM _phase2_backup_player_loadout_x_factors;
+DELETE FROM player_loadout_attributes WHERE loadout_snapshot_id IN (SELECT id FROM _phase2_backup_player_loadout_snapshots);
+INSERT INTO player_loadout_attributes SELECT * FROM _phase2_backup_player_loadout_attributes;
+```
+
+### What's still legacy / unchanged on purpose
+
+- Default `pass2.loadout_engine: legacy` — Task 2B-9 flips this after cutover.
+- Closed-vocab classifier — Phase 2A uses alias-regex only; LR head ships in
+  2B-2/2B-3 once 2B-1 crop labeling produces a corpus.
+- HUD branch (Phase 4) — untouched.
+- `pre_game_lobby_state_2` extractor (Phase 3) — untouched.
+- All other post-game screens — untouched.
+- Consolidator + persona-alias system — out of scope per plan.
+
+### Next
+
+Phase 2B execution requires operator decisions:
+
+1. Populate `tools/game_ocr/calibration/extras/loadout/fixtures/*/frames/`
+   with PNGs from real loadout segments to unlock T1A.
+2. Decide whether to run parallel-diff inspection (Task 2B-7) and proceed to
+   cutover for matches 250 + 463 (2B-7 → 2B-8 → 2B-9 → 2B-10 → 2B-11).
+3. Build training corpus for closed-vocab LR head (2B-1 → 2B-2 → 2B-3).
+
+After those decisions land, Phase 2B finishes the cutover + LR-head
+activation; Phase 3 then generalizes the pipeline to other post-game screens.
+
+Plan reference: `/home/michal/.claude/plans/synchronous-frolicking-locket.md`
+Phases 2A complete; 2B in progress.
+
+---
+
 ## Session Summary — 2026-05-20 (Phase 1 — HMM/Viterbi Pass-1 shipped)
 
 ### What was done
@@ -52,8 +227,8 @@ again at ≥97.92% L2 for match 250 and ≥97.96% L2 for match 463.
   `end_of_video` (a sentinel) uses the `MISSING_STATE_INTERCEPT=-10.0`
   fallback.
 - **T4 — HMM segments visible in `ocr-segments-report`:** `pnpm --filter
-  worker ocr-segments-report --match 250` shows a `segments by
-  decoder_version` block. For match 250: 56 hmm-viterbi-v1 + 44
+worker ocr-segments-report --match 250` shows a `segments by
+decoder_version` block. For match 250: 56 hmm-viterbi-v1 + 44
   legacy-passthrough-v0-backfill. For match 463: 56 hmm-viterbi-v1 + 20
   legacy-passthrough-v0-backfill.
 - **Phase-6 CI gate** (`match-quality-regression.test.ts`): green after
@@ -86,11 +261,12 @@ again at ≥97.92% L2 for match 250 and ≥97.96% L2 for match 463.
 ### Next
 
 Phase 2 — Loadout-view evidence-layer MVR. Build the typed extractor stack
-+ promotion gate for `player_loadout_view`. The HMM decoder from Phase 1 is
-already capturing loadout segments (1 contiguous segment for match 463's
-silkyjoker pregame clip, 1 for match 250). Phase 2 will introduce per-slot
-loadout-snapshot evidence rows and a corresponding coverage gate that
-reframes T2 correctly.
+
+- promotion gate for `player_loadout_view`. The HMM decoder from Phase 1 is
+  already capturing loadout segments (1 contiguous segment for match 463's
+  silkyjoker pregame clip, 1 for match 250). Phase 2 will introduce per-slot
+  loadout-snapshot evidence rows and a corresponding coverage gate that
+  reframes T2 correctly.
 
 Plan reference: `.claude/plans/plan-redesign-ocr-pipeline-2026-05-19.md`
 Phase 2.
@@ -313,12 +489,12 @@ The user caught a serious framing error: the earlier "redesign plan" at `.claude
 
 ### Round artifacts (all committed to docs/calibration/)
 
-| Round | File | Source | Words | Headline |
-|---|---|---|---|---|
-| 1 — Internal | `redesign-round-1-internal-2026-05-19.md` | Plan agent against the codebase | ~9,000 | Field budget ~2,550/match; current pipeline attempts ~1,800; in-game HUD = 0 fields captured; box-score-shots/faceoffs unreachable from video ingest; six characterised architectural alternatives. |
-| 2 — External internet | `redesign-round-2-external-internet-2026-05-19.md` | General-purpose agent + WebSearch/WebFetch | ~5,300 | No public OCR-based EASHL tracker exists; community is API-anchored with 3-5 year half-life; VLMs unfit for primary OCR (Gemini 2.5 Pro tops out 73.7% on MME-VideoOCR; Claude Opus 4.7 has 0.09% CC-OCR hallucination — arbiter only); two-pass shape is consensus winner; the silence in the literature *is* the finding. |
-| 3 — Deep research | `redesign-round-3-deep-research-2026-05-19.md` | GPT Deep Research (user-submitted externally) | ~7,000 | Three-layer redesign: probe-and-segment + typed extraction + evidence-and-promotion. HMM/Viterbi over CRF (state space too small for CRF). Three-tier truth (Gold/Silver/Triage). Anchor-relative geometry. Calibrated abstention vs silent hallucination as first-class. |
-| 4 — Codex synthesis | `redesign-round-4-codex-synthesis-2026-05-19.md` | codex:codex-rescue agent | ~8,170 | Adjudicated three real disagreements (EA-API anchoring, V2 expansion vs weak supervision, classifier strategy). Five-stage architecture with explicit artifact contracts. 12 sections including migration plan + effort estimate. |
+| Round                 | File                                               | Source                                        | Words  | Headline                                                                                                                                                                                                                                                                                                                    |
+| --------------------- | -------------------------------------------------- | --------------------------------------------- | ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1 — Internal          | `redesign-round-1-internal-2026-05-19.md`          | Plan agent against the codebase               | ~9,000 | Field budget ~2,550/match; current pipeline attempts ~1,800; in-game HUD = 0 fields captured; box-score-shots/faceoffs unreachable from video ingest; six characterised architectural alternatives.                                                                                                                         |
+| 2 — External internet | `redesign-round-2-external-internet-2026-05-19.md` | General-purpose agent + WebSearch/WebFetch    | ~5,300 | No public OCR-based EASHL tracker exists; community is API-anchored with 3-5 year half-life; VLMs unfit for primary OCR (Gemini 2.5 Pro tops out 73.7% on MME-VideoOCR; Claude Opus 4.7 has 0.09% CC-OCR hallucination — arbiter only); two-pass shape is consensus winner; the silence in the literature _is_ the finding. |
+| 3 — Deep research     | `redesign-round-3-deep-research-2026-05-19.md`     | GPT Deep Research (user-submitted externally) | ~7,000 | Three-layer redesign: probe-and-segment + typed extraction + evidence-and-promotion. HMM/Viterbi over CRF (state space too small for CRF). Three-tier truth (Gold/Silver/Triage). Anchor-relative geometry. Calibrated abstention vs silent hallucination as first-class.                                                   |
+| 4 — Codex synthesis   | `redesign-round-4-codex-synthesis-2026-05-19.md`   | codex:codex-rescue agent                      | ~8,170 | Adjudicated three real disagreements (EA-API anchoring, V2 expansion vs weak supervision, classifier strategy). Five-stage architecture with explicit artifact contracts. 12 sections including migration plan + effort estimate.                                                                                           |
 
 ### Adjudications (Round 4)
 
@@ -334,14 +510,14 @@ Verified Round 1's load-bearing claims against the actual codebase. The 14/11/11
 
 `.claude/plans/plan-redesign-ocr-pipeline-2026-05-19.md` — five-phase migration absorbing Round 4's architecture:
 
-| Phase | Goal | Effort |
-|---|---|---|
-| 0 | Benchmark broadening (match-250 V2 → ~300 assertions) + evidence schema (3 new tables) | 40–70 hrs |
-| 1 | HMM/Viterbi Pass 1 with multi-signal emissions | 40–80 hrs |
-| 2 | Loadout-view evidence-layer MVR (proves architecture end-to-end) | 50–90 hrs |
-| 3 | Post-game stable screens through evidence layer (7 sub-families) | 80–150 hrs |
-| 4 | In-game HUD branch (clock + goal overlays, ~600 fields unimplemented today) | 40–80 hrs |
-| 5 | Silver/Triage truth tooling + decommission legacy components | 80–180 hrs |
+| Phase | Goal                                                                                   | Effort     |
+| ----- | -------------------------------------------------------------------------------------- | ---------- |
+| 0     | Benchmark broadening (match-250 V2 → ~300 assertions) + evidence schema (3 new tables) | 40–70 hrs  |
+| 1     | HMM/Viterbi Pass 1 with multi-signal emissions                                         | 40–80 hrs  |
+| 2     | Loadout-view evidence-layer MVR (proves architecture end-to-end)                       | 50–90 hrs  |
+| 3     | Post-game stable screens through evidence layer (7 sub-families)                       | 80–150 hrs |
+| 4     | In-game HUD branch (clock + goal overlays, ~600 fields unimplemented today)            | 40–80 hrs  |
+| 5     | Silver/Triage truth tooling + decommission legacy components                           | 80–180 hrs |
 
 **Total**: 330–650 hrs disciplined; 400–750 with full truth tooling. At ~15 hrs/week sustained: ~22–50 weeks calendar.
 
@@ -355,7 +531,7 @@ Verified Round 1's load-bearing claims against the actual codebase. The 14/11/11
 
 ### Decisions ratified for going forward
 
-- The four-round research cycle is reserved for *re-opening adjudicated architectural decisions*, not for every per-phase tactical choice. Cycle re-fires if a phase proves a prior adjudication wrong.
+- The four-round research cycle is reserved for _re-opening adjudicated architectural decisions_, not for every per-phase tactical choice. Cycle re-fires if a phase proves a prior adjudication wrong.
 - "Checkpoint every phase" is a standing rule. Each phase gets its own focused commit when complete.
 - HANDOFF updates at natural stopping points only.
 
@@ -384,19 +560,20 @@ Approved at `.claude/plans/plan-a-thourough-fix-snappy-wave.md`. Three constrain
 
 Phases:
 
-| Phase | What | Estimated |
-|---|---|---|
-| 0 | Scope-audit doc (DONE) | ~2 hrs |
-| 1a | V2 correctness verifier (extend `match-250-benchmark.test.ts` with events/periods/shot-types/faceoffs/attributes) | ~8–10 hrs |
-| 1b | Per-screen → per-promoter-output attribution in `match-quality-cli.ts` (do NOT rename existing FK columns like `source_extraction_id`) | ~4 hrs |
-| 1c | Label-persistence in `annotate.py` + `eval_classifier_recall.py` corpus-level report (separate from per-match dashboard — L1 is not a per-match metric) | ~6 hrs |
-| 2 | Cheap-fix shelf (bucket-B items locked by Phase 0 doc; validation harnesses T1/T2/T3 — committed `node:test` cases, not ad-hoc SQL) | variable |
-| 3 | Heavyweight only if Phase 2 fails (multi-prototype classifier / event-first matcher / probabilistic Pass-1) | TBD |
-| 4 | Validation across T1 (V2 verifier) / T2 (363-specific committed tests) / T3 (UI page assertions) | — |
+| Phase | What                                                                                                                                                    | Estimated |
+| ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- |
+| 0     | Scope-audit doc (DONE)                                                                                                                                  | ~2 hrs    |
+| 1a    | V2 correctness verifier (extend `match-250-benchmark.test.ts` with events/periods/shot-types/faceoffs/attributes)                                       | ~8–10 hrs |
+| 1b    | Per-screen → per-promoter-output attribution in `match-quality-cli.ts` (do NOT rename existing FK columns like `source_extraction_id`)                  | ~4 hrs    |
+| 1c    | Label-persistence in `annotate.py` + `eval_classifier_recall.py` corpus-level report (separate from per-match dashboard — L1 is not a per-match metric) | ~6 hrs    |
+| 2     | Cheap-fix shelf (bucket-B items locked by Phase 0 doc; validation harnesses T1/T2/T3 — committed `node:test` cases, not ad-hoc SQL)                     | variable  |
+| 3     | Heavyweight only if Phase 2 fails (multi-prototype classifier / event-first matcher / probabilistic Pass-1)                                             | TBD       |
+| 4     | Validation across T1 (V2 verifier) / T2 (363-specific committed tests) / T3 (UI page assertions)                                                        | —         |
 
 ### The 3 critique rounds
 
 Round 1 rejected wholesale. Six findings:
+
 1. Plan lied about scope ("preserve schema/promoters/UI" then proposed changes to all three).
 2. Milestone graph broken (M1 wrote a column whose migration was scheduled in M4).
 3. L1 acceptance gate not measurable (`match-quality-cli.ts:599` returns `null` with note "requires labeled fixture set").
@@ -427,7 +604,7 @@ The four-round cycle (research → internal → external Codex → synthesis) is
 
 ### Next steps
 
-1. **Phase 1a.** Type out `ExpectedEvent[]` / `ExpectedPeriodSummary[]` / `ExpectedShotType[]` / `ExpectedFaceoffDot[]` / `ExpectedAttribute[]` from `research/OCR-SS/Manual OCR benchmark for verification V2.md` into new `test()` blocks in `apps/worker/src/__tests__/match-250-benchmark.test.ts`. Build + run `node --test apps/worker/dist/__tests__/match-250-benchmark.test.js` to capture baseline pass/fail. Plan that some assertions will be `test.skip(...)` initially where OCR drift is real — the V2 verifier is supposed to honestly *expose* defects, not paper over them.
+1. **Phase 1a.** Type out `ExpectedEvent[]` / `ExpectedPeriodSummary[]` / `ExpectedShotType[]` / `ExpectedFaceoffDot[]` / `ExpectedAttribute[]` from `research/OCR-SS/Manual OCR benchmark for verification V2.md` into new `test()` blocks in `apps/worker/src/__tests__/match-250-benchmark.test.ts`. Build + run `node --test apps/worker/dist/__tests__/match-250-benchmark.test.js` to capture baseline pass/fail. Plan that some assertions will be `test.skip(...)` initially where OCR drift is real — the V2 verifier is supposed to honestly _expose_ defects, not paper over them.
 2. **Phase 1b.** Audit downstream-table FK columns under `packages/db/src/schema/*`; build `{ table → fk_column_name }` map; extend `match-quality-cli.ts` with a per-screen-to-table attribution section that uses the actual column name per table. Only migrate if a table genuinely lacks any FK to `ocr_extractions`.
 3. **Phase 1c.** Extend `annotate.py` to append rows to `tools/game_ocr/calibration/labels/frames_v1.csv` on every label decision. Build `tools/game_ocr/scripts/eval_classifier_recall.py` that loads the CSV and emits a corpus-level recall report.
 
@@ -437,13 +614,14 @@ The four-round cycle (research → internal → external Codex → synthesis) is
 
 ### What was done
 
-Closed the full review loop on the calibration plan, then executed the *synthesis* of three perspectives (deep research / internal / external) rather than the research as-written. Phase 5 shipped four discrete steps; final per-match grades exceed the regression floor.
+Closed the full review loop on the calibration plan, then executed the _synthesis_ of three perspectives (deep research / internal / external) rather than the research as-written. Phase 5 shipped four discrete steps; final per-match grades exceed the regression floor.
 
 ### Phase 4 — three-perspective reviews
 
 **4a — Deep research** (user-submitted externally). 4-section literature-aligned recommendation set. Top-3 prioritised: (1) Hungarian event-first chevron matcher, (2) labeling/eval loop, (3) scored anchor gate + temporal prior. Saved to `docs/calibration/research-2026-05-19.md`.
 
 **4b — Internal review** (Claude `Plan` sub-agent against the actual codebase). Caught three structural mismatches the research missed:
+
 - Rec 1's Stage A is broken: `selected_event_index` (in Action Tracker capture) has no DB link to `match_event_id`; event-first seeding needs a schema/storage hop the research didn't surface.
 - Rec 3 misidentifies the root cause: the gate has implicit score via Levenshtein window; the real bottleneck is OCR recall on transient frames (1,228 of 1,230 false-color mid-gameplay frames have no anchor text at all). A calibrator on top of `fuzzy_contains` can't recover frames with no OCR output.
 - Q4 5-min/match budget is aspirational; needs explicit top-N cap.
@@ -451,7 +629,8 @@ Closed the full review loop on the calibration plan, then executed the *synthesi
 Saved to `docs/calibration/internal-review-2026-05-19.md`.
 
 **4c — External review** (Codex `codex:rescue` sub-agent, fresh-eyes anti-overengineering). Pushed back harder:
-- Hungarian assignment + DVC + frozen splits + per-class CI gates are pipeline engineering for a volume system. At 30 matches/season + 1 author, the bar is "does this save manual cleanup *this week*?" Most proposed machinery doesn't.
+
+- Hungarian assignment + DVC + frozen splits + per-class CI gates are pipeline engineering for a volume system. At 30 matches/season + 1 author, the bar is "does this save manual cleanup _this week_?" Most proposed machinery doesn't.
 - Research walked past the simplest path: lean on EA-API as authoritative, treat OCR as decorative enrichment.
 - 5-min budget is fantasy; even 10-min optimistic once selection/manifest overhead is counted.
 - Six collisions on one match isn't a season-wide problem unless the page renders an error a human notices — empirical-first.
@@ -463,11 +642,13 @@ Saved to `docs/calibration/external-review-2026-05-19.md`.
 **Synthesis** at `docs/calibration/phase-5-plan-2026-05-19.md`. Pivotal decision: empirical-first on whether Class C collisions corrupt the visible page. If yes, cheap mitigation. If no, defer matcher rewrite. The other recommendations (multi-prototype, scored gate, labels manifest) all deferred — none move the needle at current volume.
 
 **Step A — Empirical Class C check + cheap mitigation** (no code)
+
 - 6 collision pairs on match 463 inspected. 5 are real defects (different players/clocks at same coord); 1 is a legitimate "SILKY shoots twice from same spot 38s apart."
 - Honest mitigation: nulled `(x, y, position_confidence)` on the 10 events in the 5 defective pairs (events still appear in chronological list; just no rink marker).
 - Result: Class C dropped 6 → 1 on match 463. Phase 5b.2 (Hungarian matcher rewrite) **formally deferred** — cheap mitigation cleared the user-visible defect.
 
 **Step B — Minimal `annotate-segments` CLI v0**
+
 - New `tools/video_ingest/video_ingest/annotate.py` + `annotate` subcommand in `cli.py`.
 - Single sampling criterion: top-N frames where HSV vote was a screen but anchor gate demoted to `unknown_screen` and `color_score >= 0.7`.
 - Per frame: ffmpeg PNG extract → `xdg-open` viewer → single-key prompt → labeled PNG into existing `tools/game_ocr/calibration/extras/<class>__match<id>_t<seconds>_vs_<opp>.png` convention.
@@ -475,44 +656,46 @@ Saved to `docs/calibration/external-review-2026-05-19.md`.
 - Usage: `PYTHONPATH=tools/video_ingest:tools/game_ocr python3 -m video_ingest.cli annotate --segments-json <path> --match-id <n> --opp-slug <slug>`
 
 **Step C — Class A heavy-variant cleanup**
+
 - SQL Levenshtein-2 dedup scoped to `team_side='against'` only (opp-side has no actor_player_id resolution consequence; BGM-side preserved untouched).
 - 3 rows deleted. Class A on match 463 dropped 4 → 1. **L2 actor on 463: 91.8% → 98.0%** (+6.2pp).
 
 **Step D — Regression floor re-baselined**
+
 - `docs/calibration/regression-floor-match-{250,463}.json` overwritten with current state.
 - Phase 6 CI test passes against new higher floor (52/52 worker tests green).
 
 ### Final per-match grades after Phase 5
 
-| Match | L2 actor (baseline → now) | L2 lineup | L3 downstream (baseline → now) | Flags |
-|---|---:|---:|---:|---|
-| 250 | 41.6% → **97.9%** | **100%** | 100% → 100% | A(1), C(3) — all WARN |
-| 463 | 14.3% → **98.0%** | **95%** | 68.8% → **84.2%** | A(1), C(1) — all WARN |
+| Match | L2 actor (baseline → now) | L2 lineup | L3 downstream (baseline → now) | Flags                 |
+| ----- | ------------------------: | --------: | -----------------------------: | --------------------- |
+| 250   |         41.6% → **97.9%** |  **100%** |                    100% → 100% | A(1), C(3) — all WARN |
+| 463   |         14.3% → **98.0%** |   **95%** |              68.8% → **84.2%** | A(1), C(1) — all WARN |
 
 No FAIL flags on either match. All remaining flags are operator-awareness WARNs (heavy-variant OCR residuals + the SILKY/SILKY legitimate same-spot repeat).
 
 ### Deferred items with explicit revisit triggers
 
-| Deferred | Revisit trigger |
-|---|---|
-| Phase 5b.2 — Hungarian matcher rewrite | 5+ unattended matches with recurring Class C user-visible defects |
-| Q3 — Multi-prototype classifier | Corpus growth (5+ matches) OR NHL 27 launch |
-| Q2 — Scored anchor gate | Re-research after a labeled fixture set exists (Phase 3 v1+) |
-| Phase 0 — Loadout-attr recovery | After Q3 unlocks classifier corpus growth |
-| 1 residual Class A dupe | If volume reveals it as a pattern |
-| L3 99% on match 463 | Impossible — recording-window gap (P3 net_chart never viewed, only 1/10 loadout slots fully extracted) |
+| Deferred                               | Revisit trigger                                                                                        |
+| -------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| Phase 5b.2 — Hungarian matcher rewrite | 5+ unattended matches with recurring Class C user-visible defects                                      |
+| Q3 — Multi-prototype classifier        | Corpus growth (5+ matches) OR NHL 27 launch                                                            |
+| Q2 — Scored anchor gate                | Re-research after a labeled fixture set exists (Phase 3 v1+)                                           |
+| Phase 0 — Loadout-attr recovery        | After Q3 unlocks classifier corpus growth                                                              |
+| 1 residual Class A dupe                | If volume reveals it as a pattern                                                                      |
+| L3 99% on match 463                    | Impossible — recording-window gap (P3 net_chart never viewed, only 1/10 loadout slots fully extracted) |
 
 ### Files shipped this Phase 4+5 session
 
-| File | Purpose |
-|---|---|
-| `docs/calibration/research-2026-05-19.md` | Deep research output (4 sections + top-3 recs) |
-| `docs/calibration/internal-review-2026-05-19.md` | Insider critique (3 structural mismatches caught) |
-| `docs/calibration/external-review-2026-05-19.md` | Codex anti-overengineering critique |
-| `docs/calibration/phase-5-plan-2026-05-19.md` | Three-perspective synthesis with decisions per Q1–Q4 |
-| `tools/video_ingest/video_ingest/annotate.py` | Step B minimal annotate CLI |
-| `tools/video_ingest/video_ingest/cli.py` | `annotate` subcommand wired |
-| `docs/calibration/regression-floor-match-{250,463}.json` | Step D updated floors |
+| File                                                     | Purpose                                              |
+| -------------------------------------------------------- | ---------------------------------------------------- |
+| `docs/calibration/research-2026-05-19.md`                | Deep research output (4 sections + top-3 recs)       |
+| `docs/calibration/internal-review-2026-05-19.md`         | Insider critique (3 structural mismatches caught)    |
+| `docs/calibration/external-review-2026-05-19.md`         | Codex anti-overengineering critique                  |
+| `docs/calibration/phase-5-plan-2026-05-19.md`            | Three-perspective synthesis with decisions per Q1–Q4 |
+| `tools/video_ingest/video_ingest/annotate.py`            | Step B minimal annotate CLI                          |
+| `tools/video_ingest/video_ingest/cli.py`                 | `annotate` subcommand wired                          |
+| `docs/calibration/regression-floor-match-{250,463}.json` | Step D updated floors                                |
 
 ### Database changes this Phase 5
 
@@ -587,7 +770,7 @@ Initial check used exact (x,y) equality; missed the actual collisions which diff
 
 ### Phase 5b.2 — Matcher algorithm redesign (DEFERRED — failed naive attempt)
 
-`tools/game_ocr/scripts/inventory_consensus_match.py` — added a hockey-space post-clustering merge step (threshold 1.5 hockey units). Result: collision count went 7 → 6 but pairs *shifted around* rather than cleared. Reverted. The fundamental issue is the matcher conflates spatially-close-but-temporally-distinct events; needs **clock-aware clustering** or **event-first matching** (use `selected_event_index` per frame). Deferred to post-review.
+`tools/game_ocr/scripts/inventory_consensus_match.py` — added a hockey-space post-clustering merge step (threshold 1.5 hockey units). Result: collision count went 7 → 6 but pairs _shifted around_ rather than cleared. Reverted. The fundamental issue is the matcher conflates spatially-close-but-temporally-distinct events; needs **clock-aware clustering** or **event-first matching** (use `selected_event_index` per frame). Deferred to post-review.
 
 ### Phase 2 — Baseline doc
 
@@ -605,6 +788,7 @@ Initial check used exact (x,y) equality; missed the actual collisions which diff
 ### Phase 0 — DEFERRED (loadout-attribute coverage)
 
 Two attempts failed:
+
 1. Pre-game window densification (25-55s, 5 fps, 150 frames at `/tmp/match-463-loadout-recovery/pregame`): captured 0 useful loadout frames — that window was the lobby/skating intro.
 2. Post-game window densification (1555-1680s, 2 fps, 249 frames at `/tmp/match-463-loadout-recovery/postgame`): captured `"END OF GAME"` cinematic screen, not loadout cards.
 
@@ -624,33 +808,33 @@ When the research returns, save to `docs/calibration/research-2026-05-19.md` and
 ### Acceptance / metrics shipped this session
 
 | Match | L2 actor (baseline → now) | L2 lineup (new) | L3 downstream (baseline → now) | Worker tests |
-|---|---:|---:|---:|---:|
-| 250 | 41.6% → 97.9% | 100% | 100% → 100% | 52/52 |
-| 463 | 14.3% → 91.8% | 95% | 68.8% → 84.2% | 52/52 |
+| ----- | ------------------------: | --------------: | -----------------------------: | -----------: |
+| 250   |             41.6% → 97.9% |            100% |                    100% → 100% |        52/52 |
+| 463   |             14.3% → 91.8% |             95% |                  68.8% → 84.2% |        52/52 |
 
 ### Files added this session
 
-| File | Purpose |
-|---|---|
-| `apps/worker/src/match-quality-cli.ts` | Phase 1 quality-grade report |
-| `apps/worker/src/match-rink-diff-cli.ts` | ASCII rink visualisation w/ collision flags |
-| `apps/worker/src/__tests__/match-quality-regression.test.ts` | Phase 6 CI gate |
-| `docs/calibration/baseline-2026-05-19.md` | Phase 2 baseline doc |
-| `docs/calibration/review-prompts.md` | Phase 4b/c review prompts queued |
-| `docs/calibration/rink-diff-match-{250,463}.txt` | Visual review attachments |
-| `docs/calibration/baseline-match-{250,463}.json` | Pre-Phase-5 snapshots |
-| `docs/calibration/after-phase-{5ac,5abc,2}-match-{250,463}.json` | Stage snapshots |
-| `docs/calibration/regression-floor-match-{250,463}.json` | CI gate floors |
+| File                                                             | Purpose                                     |
+| ---------------------------------------------------------------- | ------------------------------------------- |
+| `apps/worker/src/match-quality-cli.ts`                           | Phase 1 quality-grade report                |
+| `apps/worker/src/match-rink-diff-cli.ts`                         | ASCII rink visualisation w/ collision flags |
+| `apps/worker/src/__tests__/match-quality-regression.test.ts`     | Phase 6 CI gate                             |
+| `docs/calibration/baseline-2026-05-19.md`                        | Phase 2 baseline doc                        |
+| `docs/calibration/review-prompts.md`                             | Phase 4b/c review prompts queued            |
+| `docs/calibration/rink-diff-match-{250,463}.txt`                 | Visual review attachments                   |
+| `docs/calibration/baseline-match-{250,463}.json`                 | Pre-Phase-5 snapshots                       |
+| `docs/calibration/after-phase-{5ac,5abc,2}-match-{250,463}.json` | Stage snapshots                             |
+| `docs/calibration/regression-floor-match-{250,463}.json`         | CI gate floors                              |
 
 ### Files modified this session
 
-| File | Why |
-|---|---|
-| `apps/worker/src/ocr-promoters/match-events-dedup.ts` | Normalize-before-Levenshtein + Strategy A fall-through |
-| `apps/worker/src/ingest-ocr-review-cli.ts` | Cascade extended to faceoff_dots/zones (earlier in day) |
-| `apps/worker/package.json` | `match-quality`, `match-rink-diff` scripts |
-| `tools/game_ocr/game_ocr/parsers.py` | `_EVENT_PENALTY_BRACKETED_RE` for NHL 26 format |
-| `docs/calibration/` (whole dir) | New |
+| File                                                  | Why                                                     |
+| ----------------------------------------------------- | ------------------------------------------------------- |
+| `apps/worker/src/ocr-promoters/match-events-dedup.ts` | Normalize-before-Levenshtein + Strategy A fall-through  |
+| `apps/worker/src/ingest-ocr-review-cli.ts`            | Cascade extended to faceoff_dots/zones (earlier in day) |
+| `apps/worker/package.json`                            | `match-quality`, `match-rink-diff` scripts              |
+| `tools/game_ocr/game_ocr/parsers.py`                  | `_EVENT_PENALTY_BRACKETED_RE` for NHL 26 format         |
+| `docs/calibration/` (whole dir)                       | New                                                     |
 
 ### Database changes
 
@@ -663,21 +847,21 @@ When the research returns, save to `docs/calibration/research-2026-05-19.md` and
 
 ### Phase status table
 
-| Phase | Status |
-|---|---|
-| 0 (loadout-attr recovery) | Deferred — video-content gap, needs Phase 3 + classifier recal |
-| 1 (match-quality CLI) | Done |
-| 2 (baseline doc) | Done |
-| 3 (annotate-segments CLI) | Deferred until reviews land |
-| 4a (deep research) | In flight (user submitted externally) |
-| 4b (internal review) | Queued — prompt at `docs/calibration/review-prompts.md` |
-| 4c (external review) | Queued |
-| 5a (identity resolution) | Done |
-| 5b.1 (Class C detection) | Done |
-| 5b.2 (matcher algorithm) | Deferred — needs reviews |
-| 5c (penalty parser) | Done |
-| 5 cleanup (Class A heavy variants) | Pending — 4 residuals on 463 |
-| 6 (CI gate) | Done |
+| Phase                              | Status                                                         |
+| ---------------------------------- | -------------------------------------------------------------- |
+| 0 (loadout-attr recovery)          | Deferred — video-content gap, needs Phase 3 + classifier recal |
+| 1 (match-quality CLI)              | Done                                                           |
+| 2 (baseline doc)                   | Done                                                           |
+| 3 (annotate-segments CLI)          | Deferred until reviews land                                    |
+| 4a (deep research)                 | In flight (user submitted externally)                          |
+| 4b (internal review)               | Queued — prompt at `docs/calibration/review-prompts.md`        |
+| 4c (external review)               | Queued                                                         |
+| 5a (identity resolution)           | Done                                                           |
+| 5b.1 (Class C detection)           | Done                                                           |
+| 5b.2 (matcher algorithm)           | Deferred — needs reviews                                       |
+| 5c (penalty parser)                | Done                                                           |
+| 5 cleanup (Class A heavy variants) | Pending — 4 residuals on 463                                   |
+| 6 (CI gate)                        | Done                                                           |
 
 ### Known non-actionable structural gaps on match 463
 
@@ -690,6 +874,7 @@ These caps are why match 463's L3 sits at 84.2% structurally and can't reach 99%
 ### Next steps
 
 When deep research returns:
+
 1. Save to `docs/calibration/research-2026-05-19.md`.
 2. Fire Phase 4b internal review using the queued prompt — output to `docs/calibration/internal-review-2026-05-19.md`.
 3. Fire Phase 4c external review — output to `docs/calibration/external-review-2026-05-19.md`.
@@ -706,20 +891,20 @@ Long polish-and-cleanup session bridging the persona-alias bundle and the next i
 
 **Polish commits in order (oldest → newest):**
 
-| Commit | Scope |
-| ------ | ----- |
-| `31b7db4` | `fix(video-ingest/gpu): resolve user-local site-packages so preload finds CUDA libs` |
-| `90fca1c` | `feat(matches/action-tracker): Faceoffs merged in as a view-mode toggle` |
-| `590c3bb` | `polish(matches/lineup): 7-item polish sweep closes UI review §4 priority list` |
-| `da69d9e` | `polish(matches/event-timeline): drop period + team filtering — section is story-mode by design` |
-| `36a1bed` | `polish(matches/lineup): PlatformBadge renders only the icon — drop the trailing text label` |
+| Commit    | Scope                                                                                                     |
+| --------- | --------------------------------------------------------------------------------------------------------- |
+| `31b7db4` | `fix(video-ingest/gpu): resolve user-local site-packages so preload finds CUDA libs`                      |
+| `90fca1c` | `feat(matches/action-tracker): Faceoffs merged in as a view-mode toggle`                                  |
+| `590c3bb` | `polish(matches/lineup): 7-item polish sweep closes UI review §4 priority list`                           |
+| `da69d9e` | `polish(matches/event-timeline): drop period + team filtering — section is story-mode by design`          |
+| `36a1bed` | `polish(matches/lineup): PlatformBadge renders only the icon — drop the trailing text label`              |
 | `af170d1` | `polish(matches/lineup): mirror opp-side expand panel — right-align content for symmetry with BGM column` |
 | `4e2a706` | `feat(matches/lineup): expand-panel adds Expand/Compare toggle + horizontal X-Factor tiles (items 5 + 6)` |
-| `9bcddc4` | `polish(matches/action-tracker): collapsible SummaryStrip + fix top-row vertical misalignment` |
-| `9031206` | `polish(matches/lineup): opp-side mirror (4 items) — summary band, expand toggle, KV row, card glow` |
-| `2e3cdd1` | `polish(matches/lineup): expand-mode neutral border + drop matchup tag (items 5 + 6)` |
-| `7d261cb` | `polish(assets/platforms): white fill for dark-surface contrast` |
-| `538dfbd` | `polish(matches/lineup): mirror opp PlayerInfo — platform → gamertag → persona` |
+| `9bcddc4` | `polish(matches/action-tracker): collapsible SummaryStrip + fix top-row vertical misalignment`            |
+| `9031206` | `polish(matches/lineup): opp-side mirror (4 items) — summary band, expand toggle, KV row, card glow`      |
+| `2e3cdd1` | `polish(matches/lineup): expand-mode neutral border + drop matchup tag (items 5 + 6)`                     |
+| `7d261cb` | `polish(assets/platforms): white fill for dark-surface contrast`                                          |
+| `538dfbd` | `polish(matches/lineup): mirror opp PlayerInfo — platform → gamertag → persona`                           |
 
 ### Action Tracker — Faceoffs view-mode toggle (`90fca1c`)
 
@@ -732,6 +917,7 @@ Faceoff Map dropped as a separate visualisation; folded into AT as a `Events / F
 ### Lineup opp-side end-to-end mirror (`590c3bb`, `9031206`, `538dfbd`)
 
 The lineup row is now visually symmetric BGM ↔ opp across every layer:
+
 - **PlayerCard**: right-edge accent on opp (`border-r-2 border-r-[var(--color-accent)]`); same applied to `CpuPlaceholderCard`.
 - **SummarySide**: opp uses grid-reverse + `text-right` + `justify-end`.
 - **BuildBlock KV row**: side-aware `justify-end` on opp.
@@ -777,14 +963,14 @@ Steps 3-6 (pre-game clip ingest, consolidate-loadouts, tiers 2/3/4, verification
 
 ### Files modified (highlights)
 
-| File | What changed |
-| ---- | ------------ |
-| `apps/web/src/components/matches/lineup-section.tsx` | Many: PlatformBadge icon-only + side prop; PositionBadge matchup drop; MobileMatchupStrip matchup drop; opp PlayerCard right-edge accent; CpuPlaceholderCard same; SummarySide opp grid reverse; PlayerInfo mirror order on opp |
-| `apps/web/src/components/matches/lineup-expand-panel.tsx` | ExpandToggle; BuildBlockExpanded; XFactorRowHorizontal; AttributeBlocks 5-col grid; opp-side right-align mirror; expand-mode neutral border; BuildBlock side-aware KV justify |
-| `apps/web/src/components/matches/action-tracker-map.tsx` | Faceoffs view-mode toggle; FaceoffsView + FaceoffPin + FaceoffDotPair components; collapsible SummaryStrip; top-row alignment |
-| `apps/web/src/components/matches/event-timeline.tsx` | Period + team filters removed (216 LOC) |
-| `apps/web/public/assets/platforms/{xbox,playstation}.svg` | fill black → white |
-| `tools/video_ingest/video_ingest/gpu_libs.py` | `_nvidia_root()` replaces `_site_packages()` |
+| File                                                      | What changed                                                                                                                                                                                                                    |
+| --------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `apps/web/src/components/matches/lineup-section.tsx`      | Many: PlatformBadge icon-only + side prop; PositionBadge matchup drop; MobileMatchupStrip matchup drop; opp PlayerCard right-edge accent; CpuPlaceholderCard same; SummarySide opp grid reverse; PlayerInfo mirror order on opp |
+| `apps/web/src/components/matches/lineup-expand-panel.tsx` | ExpandToggle; BuildBlockExpanded; XFactorRowHorizontal; AttributeBlocks 5-col grid; opp-side right-align mirror; expand-mode neutral border; BuildBlock side-aware KV justify                                                   |
+| `apps/web/src/components/matches/action-tracker-map.tsx`  | Faceoffs view-mode toggle; FaceoffsView + FaceoffPin + FaceoffDotPair components; collapsible SummaryStrip; top-row alignment                                                                                                   |
+| `apps/web/src/components/matches/event-timeline.tsx`      | Period + team filters removed (216 LOC)                                                                                                                                                                                         |
+| `apps/web/public/assets/platforms/{xbox,playstation}.svg` | fill black → white                                                                                                                                                                                                              |
+| `tools/video_ingest/video_ingest/gpu_libs.py`             | `_nvidia_root()` replaces `_site_packages()`                                                                                                                                                                                    |
 
 ### Repo state at session pause
 
@@ -807,6 +993,7 @@ Steps 3-6 (pre-game clip ingest, consolidate-loadouts, tiers 2/3/4, verification
 Two-objective bundle: clear the 2-day uncommitted backlog with four focused commits, then ship the persona-name OCR canonicalization (one of the gating items for "match 250 complete").
 
 **Step 1 — Commit checkpoint (4 commits, in order):**
+
 - `9c78166` `fix(video-ingest): close 2026-05-16 code-review punch-list` (Video-CLI fixes)
 - `40ce11b` `fix(ocr): Net-Chart Issue C + Issue 5 completion bundle`
 - `6b989ad` `feat(ocr): multi-match readiness bundle`
@@ -815,19 +1002,23 @@ Two-objective bundle: clear the 2-day uncommitted backlog with four focused comm
 **Steps 2-7 — Lineup persona alias table:** new feature shipped as commit `d36a046`.
 
 Schema (migration 0044_petite_shiver_man.sql):
+
 - New table `player_persona_aliases` — distinct from `player_display_aliases`. Maps OCR-captured persona snapshots to a clean canonical string (e.g. `E.Wanhg` → `E. WANHG`). Columns: `id`, `alias`, `normalized_alias` (unique), `canonical_persona`, `player_id` (nullable FK), `source` (`'manual'` / `'auto'`), `created_at`. Indexes: unique on `normalized_alias`; btree on `canonical_persona`.
 - New audit column on `player_loadout_snapshots`: `player_name_persona_raw` preserves the dominant-vote OCR value alongside the canonicalized `player_name_persona`.
 
 Resolver (`apps/worker/src/lib/normalize-persona.ts`):
+
 - `resolvePersona(rawSnapshot, dbConn)` returns `{ canonical, via }` where `via ∈ {'exact_alias', 'fuzzy_alias', 'raw'}`.
 - 3-step cascade mirroring `resolveGamertagToPlayer`: normalize via `normalizeSnapshot` (now exported from `resolve-identity.ts`) → exact match on `normalized_alias` → Levenshtein-1 fuzzy fallback → ornament-stripped raw.
 - Returns `null` only when input is null/empty/all-ornament; otherwise always returns a usable string.
 
 Consolidator integration (`consolidate-loadouts-cli.ts`):
+
 - Inside the per-anchor transaction, after `consensus()` votes the dominant raw persona, `resolvePersona()` is called and overwrites `merged.playerNamePersona` with the canonical value; the raw vote is preserved in `merged.playerNamePersonaRaw`.
 - Diagnostic log: `persona alias hit: "raw" → "canonical" (via X)` for exact/fuzzy hits.
 
 Seed SQL (`/tmp/persona-alias-seed.sql`, one-shot operator action — NOT a tracked migration):
+
 - 19 INSERT rows mapping to 10 canonical forms. All 10 match-250 anchor slots resolved via `exact_alias` on the re-run.
 - Format mirrors existing `player_display_aliases` canonical pattern: UPPERCASE with period-space initials (e.g. `E. WANHG`, `M. RANTANEN`).
 
@@ -873,21 +1064,21 @@ After match 250 complete: match-2 DB ingest is unlocked (requires CUDA runtime f
 
 ### Files added / modified
 
-| New | Purpose |
-| --- | ------- |
-| `packages/db/src/schema/player-persona-aliases.ts` | Drizzle definition |
-| `packages/db/migrations/0044_petite_shiver_man.sql` | Schema migration |
-| `packages/db/migrations/meta/0044_snapshot.json` | Drizzle snapshot |
-| `apps/worker/src/lib/normalize-persona.ts` | `resolvePersona()` |
-| `apps/worker/src/lib/normalize-persona.test.ts` | 7 integration tests |
+| New                                                 | Purpose             |
+| --------------------------------------------------- | ------------------- |
+| `packages/db/src/schema/player-persona-aliases.ts`  | Drizzle definition  |
+| `packages/db/migrations/0044_petite_shiver_man.sql` | Schema migration    |
+| `packages/db/migrations/meta/0044_snapshot.json`    | Drizzle snapshot    |
+| `apps/worker/src/lib/normalize-persona.ts`          | `resolvePersona()`  |
+| `apps/worker/src/lib/normalize-persona.test.ts`     | 7 integration tests |
 
-| Modified | Why |
-| -------- | --- |
-| `packages/db/src/schema/player-loadout.ts` | `playerNamePersonaRaw` audit column |
-| `packages/db/src/schema/index.ts` | Export new schema |
-| `apps/worker/src/consolidate-loadouts-cli.ts` | Call resolver post-vote; write raw + canonical |
-| `apps/worker/src/ocr-promoters/resolve-identity.ts` | Export `normalizeSnapshot` for reuse |
-| `apps/worker/src/__tests__/match-250-benchmark.test.ts` | 5 canonical-persona assertions |
+| Modified                                                | Why                                            |
+| ------------------------------------------------------- | ---------------------------------------------- |
+| `packages/db/src/schema/player-loadout.ts`              | `playerNamePersonaRaw` audit column            |
+| `packages/db/src/schema/index.ts`                       | Export new schema                              |
+| `apps/worker/src/consolidate-loadouts-cli.ts`           | Call resolver post-vote; write raw + canonical |
+| `apps/worker/src/ocr-promoters/resolve-identity.ts`     | Export `normalizeSnapshot` for reuse           |
+| `apps/worker/src/__tests__/match-250-benchmark.test.ts` | 5 canonical-persona assertions                 |
 
 ### Repo state at session end
 
@@ -914,10 +1105,12 @@ After match 250 complete: match-2 DB ingest is unlocked (requires CUDA runtime f
 Three-item bundle prepping the OCR pipeline for second-match ingest. Two of three core items shipped; the third (full DB ingest of match 2) is **explicitly deferred until match 250 is complete** per user decision at end of session.
 
 **Step A — Pass-1 segment-opening knob (5 min)**
+
 - `tools/video_ingest/video_ingest/configs/nhl26.yaml`: `min_run_to_open: 3 → 2`. Cache invalidation handled automatically via `pass1_cache_key` hashing.
 - Test fixture update in `tools/video_ingest/tests/test_cache_invalidation.py:153` (legacy payload literal). 29/29 video_ingest tests pass.
 
 **Step C — White-jersey color classification (~1 hr, TDD)**
+
 - New `_WHITE_THRESHOLD = 220` + `_WHITE_DOMINANT_SHARE = 0.30` constants in `tools/game_ocr/game_ocr/color_extractor.py`.
 - Third pixel-classification branch in `_sample_roi()`: `mn >= 220 → white bucket`. Ordering: saturated → white → dark (saturated still wins so a visible logo on a white kit picks the logo color; whites beat darks because high-min is more discriminative than low-max in EA's UI).
 - Hex output is the quantized actual mean (e.g. `#f0f0f0`), not literal `#ffffff`, consistent with how dark-branch emits `#181818` for off-black.
@@ -925,6 +1118,7 @@ Three-item bundle prepping the OCR pipeline for second-match ingest. Two of thre
 - 2 new tests in `tools/game_ocr/tests/test_color_extractor.py`: `test_detects_white_trapezoid_as_team_color` + `test_white_does_not_capture_ice_grey`. 10/10 color tests pass; 116 total game_ocr tests.
 
 **Step D — Classifier recalibration with second-match extras**
+
 - Full-match Pass-1 ingest **killed** after attempted run: RapidOCR on CPU was projected at ~80 min for the 28-min video (1680 frames at 1 fps). The CUDA runtime is broken (`libcublasLt.so.12` missing), so GPU acceleration unavailable. Switched to direct `ffmpeg -vf "fps=1" -ss 1500` extraction → 180 raw frames from t=1500s in ~3 min (no OCR).
 - Pre-game clip (`silkyjoker85_NHL26XboxSeriesXS_20260512_00-45-27.mp4`) ran through full video_ingest pipeline cleanly → 3 segments, 45 frames in `/tmp/eashl-match2-pregame/`.
 - 5 representative frames curated and copied to `tools/game_ocr/calibration/extras/` with naming convention `<class>__match2_t<seconds>_vs_blurkyyoints.png`:
@@ -961,6 +1155,7 @@ Not blocking; these will get extras the next time a match video captures those s
 **Decision (end-of-session):** real-stats ingest of match 2 is postponed until match 250 is fully resolved. The OCR pipeline is now ready to handle a second match, but we won't actually create the `matches` row + downstream OCR extractions for match 2 until match-250 work is done.
 
 When ready to ingest match-2 for stats, the procedure is:
+
 1. Fix or work-around the CUDA runtime issue (currently `libcublasLt.so.12` missing → RapidOCR falls back to CPU; Pass-1 on full video takes ~80 min).
 2. Decide match-2's DB id (likely `251`).
 3. Run video_ingest with `--dispatch --game-title-id 1 --match-id 251` on both the full match video and the pre-game clip (same id, so loadouts attach).
@@ -968,22 +1163,22 @@ When ready to ingest match-2 for stats, the procedure is:
 
 ### Files added / modified
 
-| New | What it does |
-| --- | --- |
-| `tools/game_ocr/calibration/extras/pre_game_lobby_state_2__match2_t20_vs_blurkyyoints.png` | 4th opp-extra for lobby state 2 |
-| `tools/game_ocr/calibration/extras/player_loadout_view__match2_t32_vs_blurkyyoints.png` | First opp-extra for loadout |
+| New                                                                                            | What it does                       |
+| ---------------------------------------------------------------------------------------------- | ---------------------------------- |
+| `tools/game_ocr/calibration/extras/pre_game_lobby_state_2__match2_t20_vs_blurkyyoints.png`     | 4th opp-extra for lobby state 2    |
+| `tools/game_ocr/calibration/extras/player_loadout_view__match2_t32_vs_blurkyyoints.png`        | First opp-extra for loadout        |
 | `tools/game_ocr/calibration/extras/post_game_action_tracker__match2_t1608_vs_blurkyyoints.png` | First opp-extra for action tracker |
-| `tools/game_ocr/calibration/extras/post_game_faceoff_map__match2_t1642_vs_blurkyyoints.png` | First opp-extra for faceoff map |
-| `tools/game_ocr/calibration/extras/post_game_net_chart__match2_t1645_vs_blurkyyoints.png` | First opp-extra for net chart |
+| `tools/game_ocr/calibration/extras/post_game_faceoff_map__match2_t1642_vs_blurkyyoints.png`    | First opp-extra for faceoff map    |
+| `tools/game_ocr/calibration/extras/post_game_net_chart__match2_t1645_vs_blurkyyoints.png`      | First opp-extra for net chart      |
 
-| Modified | Why |
-| --- | --- |
-| `tools/video_ingest/video_ingest/configs/nhl26.yaml` | `min_run_to_open: 3 → 2` |
-| `tools/video_ingest/tests/test_cache_invalidation.py` | Legacy payload literal updated for new knob value |
-| `tools/game_ocr/game_ocr/color_extractor.py` | New `_WHITE_THRESHOLD` + `_WHITE_DOMINANT_SHARE` + `white` Counter branch in `_sample_roi()` |
-| `tools/game_ocr/tests/test_color_extractor.py` | 2 new white-jersey tests |
-| `tools/game_ocr/scripts/calibrate_classifier.py` | `extras: [...]` added for 5 classes |
-| `tools/game_ocr/game_ocr/configs/classifier/nhl26.yaml` | Auto-regenerated by calibrator (centroid averaging now multi-opponent on 5 classes) |
+| Modified                                                | Why                                                                                          |
+| ------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| `tools/video_ingest/video_ingest/configs/nhl26.yaml`    | `min_run_to_open: 3 → 2`                                                                     |
+| `tools/video_ingest/tests/test_cache_invalidation.py`   | Legacy payload literal updated for new knob value                                            |
+| `tools/game_ocr/game_ocr/color_extractor.py`            | New `_WHITE_THRESHOLD` + `_WHITE_DOMINANT_SHARE` + `white` Counter branch in `_sample_roi()` |
+| `tools/game_ocr/tests/test_color_extractor.py`          | 2 new white-jersey tests                                                                     |
+| `tools/game_ocr/scripts/calibrate_classifier.py`        | `extras: [...]` added for 5 classes                                                          |
+| `tools/game_ocr/game_ocr/configs/classifier/nhl26.yaml` | Auto-regenerated by calibrator (centroid averaging now multi-opponent on 5 classes)          |
 
 ### Repo state at session end
 
@@ -994,7 +1189,7 @@ When ready to ingest match-2 for stats, the procedure is:
 
 ### Known infrastructure issue surfaced
 
-**CUDA broken**: `libcublasLt.so.12: cannot open shared object file: No such file or directory`. RapidOCR falls back to CPU, making full-video Pass-1 prohibitive (~80 min for 28-min video). Not addressed in this bundle. Listed as a blocker for match-2 DB ingest. Fix likely requires installing CUDA 12.* + cuDNN 9.* runtimes, or accepting CPU-only inference timeline.
+**CUDA broken**: `libcublasLt.so.12: cannot open shared object file: No such file or directory`. RapidOCR falls back to CPU, making full-video Pass-1 prohibitive (~80 min for 28-min video). Not addressed in this bundle. Listed as a blocker for match-2 DB ingest. Fix likely requires installing CUDA 12._ + cuDNN 9._ runtimes, or accepting CPU-only inference timeline.
 
 ### Risk notes for next match
 
@@ -1010,6 +1205,7 @@ When ready to ingest match-2 for stats, the procedure is:
 Closed the two deferred items from the 2026-05-16 Net-Chart OCR session in a single TDD-style pass. End state on match 250: **zero NULLs across all 10 `match_shot_type_summaries` rows**, all 3 known Issue C misreads recovered, per-period TOTAL sums match the header (29 / 16) exactly.
 
 **Issue 5 — `SHOTS ON PP` row recovery**
+
 - Visual inspection of the OT canonical (`vlcsnap-2026-05-10-02h06m55s809.png`) refuted the original "ROI clipping" hypothesis: the row IS inside `stats_panel` with both values = `0`. NULL was a parser-side row-identification miss.
 - `_NET_CHART_LABEL_KEYS["power_play_shots"]` gains `"PP"` as a half-word matcher — unique to this row across all 7 stat labels (no other label contains a double P), so safe to add without conflict.
 - New **positional fallback** in `parse_post_game_net_chart`: when both sides' `power_play_shots` are MISSING after the main loop AND an unclaimed row sits below `matched_max_y`, promote its `≥2` pure-digit lines as away/home values. Split point = alpha-line midpoint (label remnant) or numeric-line midpoint. Guards: locks against false positives when the row is truly absent (test `test_power_play_row_not_invented_when_absent`).
@@ -1017,11 +1213,13 @@ Closed the two deferred items from the 2026-05-16 Net-Chart OCR session in a sin
 **Issue C — `9 → 6/g` digit recovery, two-pass approach**
 
 Pass A — digit lookalike map mirroring `_DOT_DIGIT_LOOKALIKES` precedent:
+
 - `_NET_CHART_DIGIT_LOOKALIKES = {g/G/q/Q → 9}` (deliberately omits `6↔9` since text-only ambiguous).
 - New `_parse_net_chart_digit(text)`: translate → strip non-digits → return int in `[0, 99]` or None (cap protects against runaway concatenations).
 - Replaces `parse_int` in both `field_from_lines` calls in the legacy panel-row parser. Recovers `g/G/q/Q` misreads automatically.
 
 Pass B — per-cell ROIs + hybrid override:
+
 - 14 new sub-ROIs in `post_game_net_chart.yaml` keyed `stats_<shot_type>_<side>` (7 shot types × {away, home}). Calibrated against the 1st-period frame: row spacing 0.046 normalized, away column centered at x≈0.075, home at x≈0.340, width 0.050.
 - New `tools/game_ocr/scripts/dump_net_chart_stat_rois.py` — templated from `dump_faceoff_dot_rois.py`. Emits per-ROI crops + labeled overlay PNG for visual ROI verification.
 - **Hybrid override logic** (not pure replacement): always run legacy stats_panel parse first; per-cell can override under three conditions: (a) legacy is MISSING → fill at any confidence; (b) per-cell confidence ≥ 0.85 → high-conf disagreement override; (c) **targeted Issue-C recovery rule**: per-cell `9` vs legacy `6` overrides at any confidence (the documented misread direction).
@@ -1029,15 +1227,15 @@ Pass B — per-cell ROIs + hybrid override:
 
 ### Files added / modified
 
-| New | What it does |
-| --- | --- |
+| New                                                  | What it does                                                                         |
+| ---------------------------------------------------- | ------------------------------------------------------------------------------------ |
 | `tools/game_ocr/scripts/dump_net_chart_stat_rois.py` | Per-cell ROI dump-script for visual calibration (mirrors `dump_faceoff_dot_rois.py`) |
 
-| Modified | Why |
-| --- | --- |
-| `tools/game_ocr/game_ocr/parsers.py` | `_NET_CHART_DIGIT_LOOKALIKES` + `_parse_net_chart_digit`; `power_play_shots` matchers + `"PP"` half-word; positional row-7 fallback; per-cell hybrid override with targeted 9↔6 recovery |
-| `tools/game_ocr/game_ocr/configs/roi/post_game_net_chart.yaml` | 14 new sub-ROIs `stats_<shot>_<side>`; `stats_panel` unchanged |
-| `tools/game_ocr/tests/test_parsers.py` | 13 new tests in `NetChartParserTests` (digit lookalike, label garbled, positional fallback no-false-positive, low-conf disagreement keeps legacy, 9-vs-6 targeted recovery, per-cell precedence) |
+| Modified                                                       | Why                                                                                                                                                                                              |
+| -------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `tools/game_ocr/game_ocr/parsers.py`                           | `_NET_CHART_DIGIT_LOOKALIKES` + `_parse_net_chart_digit`; `power_play_shots` matchers + `"PP"` half-word; positional row-7 fallback; per-cell hybrid override with targeted 9↔6 recovery         |
+| `tools/game_ocr/game_ocr/configs/roi/post_game_net_chart.yaml` | 14 new sub-ROIs `stats_<shot>_<side>`; `stats_panel` unchanged                                                                                                                                   |
+| `tools/game_ocr/tests/test_parsers.py`                         | 13 new tests in `NetChartParserTests` (digit lookalike, label garbled, positional fallback no-false-positive, low-conf disagreement keeps legacy, 9-vs-6 targeted recovery, per-cell precedence) |
 
 ### Verified
 
@@ -1047,16 +1245,16 @@ Pass B — per-cell ROIs + hybrid override:
 
 ### Fixed cells (match 250 net-chart)
 
-| Cell | Before | After | Source |
-| --- | --- | --- | --- |
-| 2nd for TOTAL | 6 | **9** | Per-cell 9@0.89 → high-conf override |
-| 3rd against TOTAL | NULL (OCR'd as `g`) | **9** | Lookalike map `g→9` in legacy path |
-| 4 (OT) for TOTAL | 6 | **9** | Per-cell 9@0.72 → targeted 9↔6 rule |
-| 4 (OT) for PP | NULL | **0** | Positional fallback / label-matcher catches `SHOTS ON PP` |
-| 4 (OT) against PP | NULL | **0** | Same |
-| -1 ALL for PP | NULL | **0** | Promoter recompute after per-period fix |
-| -1 ALL against deflections + PP | NULL | **0** | Promoter recompute |
-| 2nd against deflections | NULL | **0** | Promoter recompute |
+| Cell                            | Before              | After | Source                                                    |
+| ------------------------------- | ------------------- | ----- | --------------------------------------------------------- |
+| 2nd for TOTAL                   | 6                   | **9** | Per-cell 9@0.89 → high-conf override                      |
+| 3rd against TOTAL               | NULL (OCR'd as `g`) | **9** | Lookalike map `g→9` in legacy path                        |
+| 4 (OT) for TOTAL                | 6                   | **9** | Per-cell 9@0.72 → targeted 9↔6 rule                       |
+| 4 (OT) for PP                   | NULL                | **0** | Positional fallback / label-matcher catches `SHOTS ON PP` |
+| 4 (OT) against PP               | NULL                | **0** | Same                                                      |
+| -1 ALL for PP                   | NULL                | **0** | Promoter recompute after per-period fix                   |
+| -1 ALL against deflections + PP | NULL                | **0** | Promoter recompute                                        |
+| 2nd against deflections         | NULL                | **0** | Promoter recompute                                        |
 
 ### Known residual
 
@@ -1087,17 +1285,20 @@ Pass B — per-cell ROIs + hybrid override:
 All four issues from the 2026-05-16 video-extraction code review shipped, in four TDD-style passes within a single session. Each pass: write failing regression test → apply fix → re-run test → manual fixture verification. Test count went from 0 → 29.
 
 **Issue 1 — CLI import order**
+
 - Moved sibling-package bootstrap from `cli.py` (where it ran too late) into `video_ingest/__init__.py` (runs once on first import of anything in the package).
 - Removed redundant `sys.path.insert` + `REPO_ROOT` from `cli.py`.
 - `tests/test_cli_smoke.py` (NEW): subprocess-based tests verify `python -m video_ingest.cli --help` and `from video_ingest.orchestrator import ingest` both work in a clean interpreter with only `tools/video_ingest` on PYTHONPATH.
 
 **Issue 4 — Pass 2 manifest reconstruction**
+
 - `pass2_manifest.json` is now authoritative; written by `extract_segments` with padded windows; loaded (not reconstructed) on cache-hit.
 - Removed the orchestrator's unconditional manifest re-write (the bug source). Manifest bytes are now byte-identical across fresh and cached runs (verified by sha256sum on the fixture).
 - New `write_pass2_manifest` + `load_pass2_manifest` helpers in `pass2_extract.py`.
 - `tests/test_pass2_manifest.py` (NEW): 4 tests covering round-trip, missing-file error, padded-window persistence, and cache-hit equivalence.
 
 **Issue 2 — Cache invalidation**
+
 - New `CacheMismatch(RuntimeError)` in `pass1_classify.py`, caught at CLI boundary and printed as a structured remediation message (exit 1, no traceback).
 - `segments.json` header now carries `version` + `pass1_cache_key` (sha256 of version YAML ⧺ classifier YAML).
 - `pass2_manifest.json` header now carries `version` + `pass2_cache_key` (sha256 of version YAML) + `segments_hash` (sha256 of segments.json bytes). Classifier drift cascades to Pass 2 via `segments_hash`, so Pass 2 key intentionally excludes the classifier YAML.
@@ -1106,6 +1307,7 @@ All four issues from the 2026-05-16 video-extraction code review shipped, in fou
 - `tests/test_cache_invalidation.py` (NEW): 13 tests covering hash helpers, schema legacy detection, segments_hash sensitivity, and 6 orchestrator-level end-to-end scenarios with `pts_probe` / `_build_classifier` / `classify_video` / `build_segments` / `_ffmpeg_extract` all monkeypatched (fast, deterministic).
 
 **Issue 3 — CLI subcommand contracts**
+
 - New `skip_pass1` / `skip_pass2` parameters on `orchestrator.ingest()`; mutual-exclusion guard against the corresponding `force_*` flags.
 - New `MissingPass1Cache(RuntimeError)` raised when `skip_pass1=True` finds no valid `segments.json` (also caught at the CLI boundary).
 - `classify-only` now calls `run_ingest(skip_pass2=True)` and never creates `pass2/` or the manifest (verified on fixture).
@@ -1115,17 +1317,17 @@ All four issues from the 2026-05-16 video-extraction code review shipped, in fou
 
 ### Files added / modified
 
-| File | Change |
-|---|---|
-| `tools/video_ingest/video_ingest/__init__.py` | sys.path bootstrap for sibling tools/game_ocr (Issue 1) |
-| `tools/video_ingest/video_ingest/pass1_classify.py` | `CacheMismatch`, `MissingPass1Cache`, `compute_pass1_cache_key`, `compute_segments_hash`, `SegmentsJsonLoaded` dataclass; `write_segments_json` / `load_segments_json` schema |
-| `tools/video_ingest/video_ingest/pass2_extract.py` | `compute_pass2_cache_key`, `Pass2ManifestLoaded` dataclass, `write_pass2_manifest`, `load_pass2_manifest`; manifest schema = `{version, pass2_cache_key, segments_hash, entries}`; `extract_segments` requires `version=` + `segments_hash=` |
-| `tools/video_ingest/video_ingest/orchestrator.py` | Cache-key compute/check on both passes; `skip_pass1` / `skip_pass2` params; `force_pass1` cascade clears Pass 2 state; `pass2_manifest.json` no longer written unconditionally |
-| `tools/video_ingest/video_ingest/cli.py` | Removed broken sys.path insert; `_with_cache_mismatch_exit` decorator catches `CacheMismatch` + `MissingPass1Cache`; `classify-only` → `skip_pass2=True` + new `--force-pass1`; `extract-only` → `skip_pass1=True` + new `--force-pass2` |
-| `tools/video_ingest/tests/test_cli_smoke.py` (NEW) | 2 tests — Issue 1 regression |
-| `tools/video_ingest/tests/test_pass2_manifest.py` (NEW) | 4 tests — Issue 4 regression |
-| `tools/video_ingest/tests/test_cache_invalidation.py` (NEW) | 13 tests — Issue 2 regression |
-| `tools/video_ingest/tests/test_cli_contracts.py` (NEW) | 10 tests — Issue 3 regression |
+| File                                                        | Change                                                                                                                                                                                                                                       |
+| ----------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `tools/video_ingest/video_ingest/__init__.py`               | sys.path bootstrap for sibling tools/game_ocr (Issue 1)                                                                                                                                                                                      |
+| `tools/video_ingest/video_ingest/pass1_classify.py`         | `CacheMismatch`, `MissingPass1Cache`, `compute_pass1_cache_key`, `compute_segments_hash`, `SegmentsJsonLoaded` dataclass; `write_segments_json` / `load_segments_json` schema                                                                |
+| `tools/video_ingest/video_ingest/pass2_extract.py`          | `compute_pass2_cache_key`, `Pass2ManifestLoaded` dataclass, `write_pass2_manifest`, `load_pass2_manifest`; manifest schema = `{version, pass2_cache_key, segments_hash, entries}`; `extract_segments` requires `version=` + `segments_hash=` |
+| `tools/video_ingest/video_ingest/orchestrator.py`           | Cache-key compute/check on both passes; `skip_pass1` / `skip_pass2` params; `force_pass1` cascade clears Pass 2 state; `pass2_manifest.json` no longer written unconditionally                                                               |
+| `tools/video_ingest/video_ingest/cli.py`                    | Removed broken sys.path insert; `_with_cache_mismatch_exit` decorator catches `CacheMismatch` + `MissingPass1Cache`; `classify-only` → `skip_pass2=True` + new `--force-pass1`; `extract-only` → `skip_pass1=True` + new `--force-pass2`     |
+| `tools/video_ingest/tests/test_cli_smoke.py` (NEW)          | 2 tests — Issue 1 regression                                                                                                                                                                                                                 |
+| `tools/video_ingest/tests/test_pass2_manifest.py` (NEW)     | 4 tests — Issue 4 regression                                                                                                                                                                                                                 |
+| `tools/video_ingest/tests/test_cache_invalidation.py` (NEW) | 13 tests — Issue 2 regression                                                                                                                                                                                                                |
+| `tools/video_ingest/tests/test_cli_contracts.py` (NEW)      | 10 tests — Issue 3 regression                                                                                                                                                                                                                |
 
 ### Schema notes for future readers
 
