@@ -1,0 +1,163 @@
+"""Tests for `lobby_extractors.slot_identity`.
+
+Synthetic OCR fixtures exercise the per-row field extraction. The legacy
+parser's behavior on the same line shapes is the spec: gamertag cleaning,
+#NN-Persona regex, LVL extraction, captain ★ + READY glyph detection,
+state_1 build-class detection, measurement parsing.
+"""
+
+from __future__ import annotations
+
+import unittest
+
+from game_ocr.lobby_extractors.row_grouping import (
+    LOBBY_CANONICAL_ROW_ORDER,
+    detect_lobby_rows,
+)
+from game_ocr.lobby_extractors.slot_identity import (
+    CAPTAIN_GLYPHS,
+    identify_lobby_subjects,
+    slot_key_for,
+)
+from game_ocr.ocr import OCRLine
+
+
+def _line(text: str, x_center: float, y_center: float, conf: float = 0.95) -> OCRLine:
+    return OCRLine(
+        text=text,
+        confidence=conf,
+        x1=x_center - 30,
+        x2=x_center + 30,
+        y1=y_center - 12,
+        y2=y_center + 12,
+    )
+
+
+def _state2_frame() -> list[OCRLine]:
+    """6 BGM + 6 opp anchors with #NN-Persona + gamertag per row."""
+    lines: list[OCRLine] = []
+    for i, position in enumerate(LOBBY_CANONICAL_ROW_ORDER):
+        y = 300 + i * 88
+        lines.append(_line(position, 77, y))
+        lines.append(_line(position, 1844, y))
+        # BGM panel rows.
+        lines.append(_line(f"BgmGT{i}", 250, y - 12))
+        lines.append(_line(f"#{10 + i}-Persona{i}", 250, y + 10))
+        # Opp panel rows.
+        lines.append(_line(f"OppGT{i}", 1700, y - 12))
+        lines.append(_line(f"#{20 + i}-OppPersona{i}", 1700, y + 10))
+    return lines
+
+
+class SlotKeyTests(unittest.TestCase):
+    def test_slot_key_for_our_team(self) -> None:
+        self.assertEqual(slot_key_for("our_team", "C"), "lobby_for_C")
+        self.assertEqual(slot_key_for("our_team", "LD"), "lobby_for_LD")
+
+    def test_slot_key_for_opponent_team(self) -> None:
+        self.assertEqual(slot_key_for("opponent_team", "G"), "lobby_against_G")
+
+
+class IdentifyLobbySubjectsTests(unittest.TestCase):
+    def test_full_state2_frame_emits_12_subjects(self) -> None:
+        rows = detect_lobby_rows(_state2_frame())
+        subjects = identify_lobby_subjects(rows)
+        self.assertEqual(len(subjects), 12)
+        for s in subjects:
+            self.assertEqual(s.panel_state, "state_2")
+            self.assertFalse(s.is_empty_or_cpu)
+
+    def test_state2_extracts_player_number_and_persona(self) -> None:
+        rows = detect_lobby_rows(_state2_frame())
+        subjects = identify_lobby_subjects(rows)
+        bgm_c = next(s for s in subjects if s.slot_key == "lobby_for_C")
+        self.assertEqual(bgm_c.player_number, 10)
+        self.assertEqual(bgm_c.player_name_persona, "Persona0")
+        # Opponent G is the 5th row (index 5), so #25-OppPersona5.
+        opp_g = next(s for s in subjects if s.slot_key == "lobby_against_G")
+        self.assertEqual(opp_g.player_number, 25)
+        self.assertEqual(opp_g.player_name_persona, "OppPersona5")
+
+    def test_state2_extracts_gamertag(self) -> None:
+        rows = detect_lobby_rows(_state2_frame())
+        subjects = identify_lobby_subjects(rows)
+        bgm_c = next(s for s in subjects if s.slot_key == "lobby_for_C")
+        self.assertEqual(bgm_c.gamertag, "BgmGT0")
+        opp_lw = next(s for s in subjects if s.slot_key == "lobby_against_LW")
+        self.assertEqual(opp_lw.gamertag, "OppGT1")
+
+    def test_cpu_row_marked_empty_and_skipped(self) -> None:
+        # BGM panel: G row is CPU.
+        lines = _state2_frame()
+        lines.append(_line("CPU", 250, 740, 0.97))
+        rows = detect_lobby_rows(lines)
+        subjects = identify_lobby_subjects(rows)
+        bgm_g = next(s for s in subjects if s.slot_key == "lobby_for_G")
+        self.assertTrue(bgm_g.is_empty_or_cpu)
+        self.assertIsNone(bgm_g.gamertag)
+
+    def test_captain_glyph_concatenated_into_gamertag(self) -> None:
+        # Synthesize a row where gamertag line has ★ glyph + READY chip
+        # concatenated by RapidOCR (e.g. "XZ4RKY★READY").
+        lines = [
+            _line("LW", 77, 300),
+            _line("XZ4RKY★READY", 250, 290),
+            _line("#11-E. Wanhg", 250, 308),
+        ]
+        rows = detect_lobby_rows(lines)
+        bgm_rows = [r for r in rows if r.team_side == "our_team"]
+        subjects = identify_lobby_subjects(bgm_rows)
+        lw = next(s for s in subjects if s.position == "LW")
+        self.assertEqual(lw.gamertag, "XZ4RKY")
+        self.assertTrue(lw.is_captain)
+        self.assertTrue(lw.is_ready)
+
+    def test_level_extraction(self) -> None:
+        lines = [
+            _line("C", 77, 300),
+            _line("PlayerX", 250, 290),
+            _line("P1LVL17", 250, 310),
+        ]
+        rows = detect_lobby_rows(lines)
+        subjects = identify_lobby_subjects([r for r in rows if r.team_side == "our_team"])
+        c = next(s for s in subjects if s.position == "C")
+        self.assertEqual(c.player_level_number, 17)
+        self.assertEqual(c.player_level_raw, "P1LVL17")
+
+    def test_measurements_extraction(self) -> None:
+        lines = [
+            _line("RW", 77, 300),
+            _line("PlayerY", 250, 290),
+            _line("6'0\"|160lbs", 250, 320),
+        ]
+        rows = detect_lobby_rows(lines)
+        subjects = identify_lobby_subjects([r for r in rows if r.team_side == "our_team"])
+        rw = next(s for s in subjects if s.position == "RW")
+        self.assertEqual(rw.height_text, "6'0\"")
+        self.assertEqual(rw.weight_lbs, 160)
+
+    def test_state1_extracts_build_class(self) -> None:
+        # State_1 = no #NN patterns. The build-class line "Sniper" should
+        # populate build_class_raw.
+        lines = [
+            _line("C", 77, 300),
+            _line("MrHomicide", 250, 290),
+            _line("Sniper", 250, 310),
+        ]
+        rows = detect_lobby_rows(lines)
+        bgm = [r for r in rows if r.team_side == "our_team"]
+        self.assertEqual(bgm[0].panel_state, "state_1")
+        subjects = identify_lobby_subjects(bgm)
+        c = next(s for s in subjects if s.position == "C")
+        self.assertEqual(c.build_class_raw, "Sniper")
+
+    def test_position_confidence_propagated(self) -> None:
+        rows = detect_lobby_rows(_state2_frame())
+        subjects = identify_lobby_subjects(rows)
+        for s in subjects:
+            # All anchors in the fixture are real (conf=0.95), not synthesized.
+            self.assertGreater(s.position_confidence, 0.5)
+
+
+if __name__ == "__main__":
+    unittest.main()

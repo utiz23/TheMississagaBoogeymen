@@ -29,18 +29,28 @@ from .row_grouping import (
     fill_missing_position_anchors,
     group_rows_for_panel,
 )
+from .slot_identity import (
+    CAPTAIN_GLYPHS,
+    LobbySubjectIdentity,
+    identify_lobby_subjects,
+    slot_key_for,
+)
 
 __all__ = [
     "BGM_ANCHOR_X_MAX",
     "BGM_PANEL_X_RANGE",
+    "CAPTAIN_GLYPHS",
     "LOBBY_CANONICAL_ROW_ORDER",
     "LOBBY_POSITION_TOKENS",
     "LOBBY_TEAM_SIDE_LABELS",
     "LobbyRow",
+    "LobbySubjectIdentity",
     "OPP_ANCHOR_X_MIN",
     "OPP_PANEL_X_RANGE",
     "detect_lobby_rows",
     "detect_panel_state",
     "fill_missing_position_anchors",
     "group_rows_for_panel",
+    "identify_lobby_subjects",
+    "slot_key_for",
 ]
