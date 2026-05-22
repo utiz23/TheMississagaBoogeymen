@@ -440,6 +440,8 @@ def ingest(
             video_sha256=probe.sha256,
             ui_version=version,
             decoder_version=decoder_version,
+            loadout_engine=p2cfg.loadout_engine,
+            lobby_engine=p2cfg.lobby_engine,
             dry_run=dispatch_dry_run,
         )
         elapsed_dispatch = time.perf_counter() - t0

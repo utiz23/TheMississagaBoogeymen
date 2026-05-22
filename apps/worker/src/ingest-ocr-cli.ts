@@ -47,6 +47,12 @@ interface CliArgs {
    *  Only present when loadout_engine='typed_v1' AND the file exists.
    *  Task 2A-14 will read and ingest this file. */
   loadoutEvidenceJsonPath: string | null
+  /** Pass-2 lobby extraction engine: 'typed_v1' | 'legacy'. Default 'legacy'.
+   *  Phase 3b — only affects pre_game_lobby_state_2 segments. */
+  lobbyEngine: string
+  /** Path to lobby_evidence.json written by the typed_v1 extractor.
+   *  Only present when lobby_engine='typed_v1' AND the file exists. */
+  lobbyEvidenceJsonPath: string | null
 }
 
 function getFlag(name: string): string | undefined {
@@ -111,10 +117,21 @@ function parseArgs(): CliArgs {
 
   const loadoutEngineRaw = getFlag('loadout-engine') ?? 'legacy'
   if (!['typed_v1', 'legacy'].includes(loadoutEngineRaw)) {
-    throw new Error(`Invalid --loadout-engine: ${loadoutEngineRaw}; expected 'typed_v1' or 'legacy'`)
+    throw new Error(
+      `Invalid --loadout-engine: ${loadoutEngineRaw}; expected 'typed_v1' or 'legacy'`,
+    )
   }
   const loadoutEngine = loadoutEngineRaw
   const loadoutEvidenceJsonPath = getFlag('loadout-evidence-json') ?? null
+
+  const lobbyEngineRaw = getFlag('lobby-engine') ?? 'legacy'
+  if (!['typed_v1', 'legacy'].includes(lobbyEngineRaw)) {
+    throw new Error(
+      `Invalid --lobby-engine: ${lobbyEngineRaw}; expected 'typed_v1' or 'legacy'`,
+    )
+  }
+  const lobbyEngine = lobbyEngineRaw
+  const lobbyEvidenceJsonPath = getFlag('lobby-evidence-json') ?? null
 
   return {
     batchDir: resolve(batchDir),
@@ -132,6 +149,8 @@ function parseArgs(): CliArgs {
     decoderVersion,
     loadoutEngine,
     loadoutEvidenceJsonPath,
+    lobbyEngine,
+    lobbyEvidenceJsonPath,
   }
 }
 
@@ -158,6 +177,8 @@ async function main(): Promise<void> {
     decoderVersion: args.decoderVersion,
     loadoutEngine: args.loadoutEngine,
     loadoutEvidenceJsonPath: args.loadoutEvidenceJsonPath,
+    lobbyEngine: args.lobbyEngine,
+    lobbyEvidenceJsonPath: args.lobbyEvidenceJsonPath,
   })
 
   console.log(

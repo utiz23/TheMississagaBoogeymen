@@ -360,3 +360,116 @@ def test_dispatch_omits_loadout_evidence_json_when_file_missing(monkeypatch, tmp
     assert "--loadout-evidence-json" not in cmd, (
         "--loadout-evidence-json must be omitted when the file is absent"
     )
+
+
+# ---------------------------------------------------------------------------
+# Task 3B-5: --lobby-engine + --lobby-evidence-json flag plumbing
+# ---------------------------------------------------------------------------
+
+
+def _make_lobby_results(directory: Path) -> list[Pass2Result]:
+    """One pre_game_lobby_state_2 segment for lobby-flag tests."""
+    seg = Segment(
+        start_index=10,
+        end_index=20,
+        start_seconds=10.0,
+        end_seconds=21.0,
+        screen_type="pre_game_lobby_state_2",
+        frame_count=11,
+        mean_color_score=0.9,
+    )
+    return [
+        Pass2Result(
+            segment_index=4,
+            segment=seg,
+            directory=directory,
+            frame_count=11,
+            sample_fps=1.0,
+            start_seconds=10.0,
+            end_seconds=21.0,
+        )
+    ]
+
+
+def test_dispatch_passes_lobby_engine_flag(monkeypatch, tmp_path):
+    """dispatch_segments always passes --lobby-engine to ingest-ocr-cli."""
+    from video_ingest.dispatch import dispatch_segments
+
+    repo_root = tmp_path / "repo"
+    repo_root.mkdir()
+    (repo_root / "pnpm-workspace.yaml").write_text("")
+    seg_dir = tmp_path / "seg"
+    seg_dir.mkdir()
+
+    # typed_v1
+    captured_v1: list[list[str]] = []
+    monkeypatch.setattr("video_ingest.dispatch.subprocess.run", _fake_pnpm_run(captured_v1))
+    monkeypatch.setattr("video_ingest.dispatch.shutil.which", lambda _: "/usr/bin/pnpm")
+    dispatch_segments(
+        _make_lobby_results(seg_dir),
+        game_title_id=1,
+        match_id=250,
+        video_sha256="e" * 64,
+        ui_version="nhl26",
+        repo_root=repo_root,
+        lobby_engine="typed_v1",
+    )
+    assert "--lobby-engine" in captured_v1[0]
+    assert captured_v1[0][captured_v1[0].index("--lobby-engine") + 1] == "typed_v1"
+
+    # legacy
+    captured_leg: list[list[str]] = []
+    monkeypatch.setattr("video_ingest.dispatch.subprocess.run", _fake_pnpm_run(captured_leg))
+    dispatch_segments(
+        _make_lobby_results(seg_dir),
+        game_title_id=1,
+        match_id=250,
+        video_sha256="e" * 64,
+        ui_version="nhl26",
+        repo_root=repo_root,
+        lobby_engine="legacy",
+    )
+    assert captured_leg[0][captured_leg[0].index("--lobby-engine") + 1] == "legacy"
+
+
+def test_dispatch_passes_lobby_evidence_json_path(monkeypatch, tmp_path):
+    """When lobby_engine='typed_v1' AND lobby_evidence.json exists, the path
+    is included as --lobby-evidence-json. When 'legacy', the flag is omitted."""
+    from video_ingest.dispatch import dispatch_segments
+
+    repo_root = tmp_path / "repo"
+    repo_root.mkdir()
+    (repo_root / "pnpm-workspace.yaml").write_text("")
+    seg_dir = tmp_path / "seg"
+    seg_dir.mkdir()
+    evidence_path = seg_dir / "lobby_evidence.json"
+    evidence_path.write_text("[]")
+
+    captured_v1: list[list[str]] = []
+    monkeypatch.setattr("video_ingest.dispatch.subprocess.run", _fake_pnpm_run(captured_v1))
+    monkeypatch.setattr("video_ingest.dispatch.shutil.which", lambda _: "/usr/bin/pnpm")
+    dispatch_segments(
+        _make_lobby_results(seg_dir),
+        game_title_id=1,
+        match_id=250,
+        video_sha256="f" * 64,
+        ui_version="nhl26",
+        repo_root=repo_root,
+        lobby_engine="typed_v1",
+    )
+    cmd_v1 = captured_v1[0]
+    assert "--lobby-evidence-json" in cmd_v1
+    assert cmd_v1[cmd_v1.index("--lobby-evidence-json") + 1] == str(evidence_path)
+
+    captured_leg: list[list[str]] = []
+    monkeypatch.setattr("video_ingest.dispatch.subprocess.run", _fake_pnpm_run(captured_leg))
+    dispatch_segments(
+        _make_lobby_results(seg_dir),
+        game_title_id=1,
+        match_id=250,
+        video_sha256="f" * 64,
+        ui_version="nhl26",
+        repo_root=repo_root,
+        lobby_engine="legacy",
+    )
+    assert "--lobby-evidence-json" not in captured_leg[0]

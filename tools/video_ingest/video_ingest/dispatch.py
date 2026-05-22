@@ -60,6 +60,7 @@ def dispatch_segments(
     ui_version: str = "nhl26",
     decoder_version: str = "legacy-passthrough-v0-video",
     loadout_engine: str = "legacy",
+    lobby_engine: str = "legacy",
     repo_root: Path | None = None,
     dry_run: bool = False,
 ) -> list[DispatchResult]:
@@ -106,6 +107,13 @@ def dispatch_segments(
             loadout_evidence_path = r.directory / "loadout_evidence.json"
             if loadout_evidence_path.exists():
                 cmd.extend(["--loadout-evidence-json", str(loadout_evidence_path)])
+        # Task 3B-5: lobby-engine flag (always present; default 'legacy').
+        cmd.extend(["--lobby-engine", lobby_engine])
+        # Task 3B-5: lobby-evidence-json flag (typed_v1 only, file must exist).
+        if lobby_engine == "typed_v1":
+            lobby_evidence_path = r.directory / "lobby_evidence.json"
+            if lobby_evidence_path.exists():
+                cmd.extend(["--lobby-evidence-json", str(lobby_evidence_path)])
         if dry_run:
             cmd.append("--dry-run")
 

@@ -85,6 +85,19 @@ export interface IngestOcrBatchInput {
    * writeFieldEvidenceForBatch(). Accepted here but not yet acted on.
    */
   loadoutEvidenceJsonPath?: string | null
+  /**
+   * Pass-2 lobby extraction engine: 'typed_v1' | 'legacy'. Default 'legacy'.
+   * Phase 3b — selects whether `pre_game_lobby_state_2` ingest writes typed
+   * evidence (typed_v1) or only the legacy `player_loadout_snapshots` path.
+   */
+  lobbyEngine?: string
+  /**
+   * Absolute path to `lobby_evidence.json` written by the typed_v1 extractor.
+   * Only provided when lobby_engine='typed_v1' AND the file exists in the
+   * segment directory. Same JSON shape as loadout_evidence.json (the
+   * FieldEvidenceRecord contract); ingested via writeFieldEvidenceForBatch.
+   */
+  lobbyEvidenceJsonPath?: string | null
 }
 
 export interface IngestOcrBatchResult {
@@ -232,9 +245,33 @@ export async function ingestOcrBatch(input: IngestOcrBatchInput): Promise<Ingest
       )
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
-      console.warn(
-        `[ingest-ocr] writeFieldEvidenceForBatch(${String(batchId)}) skipped: ${msg}`,
+      console.warn(`[ingest-ocr] writeFieldEvidenceForBatch(${String(batchId)}) skipped: ${msg}`)
+    }
+  }
+
+  // Task 3B-5: write typed_v1 lobby field evidence — same JSON contract as
+  // loadout, only the screen_state differs. Reuses writeFieldEvidenceForBatch.
+  if (
+    input.lobbyEvidenceJsonPath &&
+    input.lobbyEngine === 'typed_v1' &&
+    segmentId !== null &&
+    matchId !== null
+  ) {
+    try {
+      const jsonContent = await readFile(input.lobbyEvidenceJsonPath, 'utf-8')
+      const records = JSON.parse(jsonContent) as LoadoutEvidenceRecord[]
+      const evResult = await writeFieldEvidenceForBatch({
+        matchId,
+        segmentId,
+        batchId,
+        records,
+      })
+      console.log(
+        `[ingest-ocr] batch ${String(batchId)} lobby field evidence: inserted=${String(evResult.insertedCount)} deleted=${String(evResult.deletedCount)}`,
       )
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      console.warn(`[ingest-ocr] writeFieldEvidenceForBatch(${String(batchId)}, lobby) skipped: ${msg}`)
     }
   }
 
@@ -316,8 +353,7 @@ async function writeSegmentForBatch(input: {
     ? confidences.reduce((a, b) => a + b, 0) / confidences.length
     : null
 
-  const hasVideoMeta =
-    input.videoSha256 !== null && input.videoSegmentIndex !== null
+  const hasVideoMeta = input.videoSha256 !== null && input.videoSegmentIndex !== null
   const segmentKey = hasVideoMeta
     ? // Stable per-video segment key — same video re-ingested produces same
       // (match_id, segment_key) so on_conflict_do_update keeps one row per
@@ -545,7 +581,14 @@ async function persistOneResult(
     }
 
     try {
-      await promoter({ result, extractionId: ext.id, matchId, sourcePath, loadoutEngine, db: tx as PromoterDb })
+      await promoter({
+        result,
+        extractionId: ext.id,
+        matchId,
+        sourcePath,
+        loadoutEngine,
+        db: tx as PromoterDb,
+      })
       await tx
         .update(ocrExtractions)
         .set({ transformStatus: 'success', transformError: null })
