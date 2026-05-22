@@ -43,14 +43,15 @@ from scripts.label_loadout_crops import (  # noqa: E402
 
 
 def _synthetic_frame(h: int = 1080, w: int = 1920) -> np.ndarray:
-    """Return a BGR frame with random-noise content.
+    """Return a BGR frame with high-contrast content.
 
-    Random noise gives the crops high enough variance to pass the
-    blank-crop auto-skip filter in label_crops(). A solid black frame
-    triggers the auto-skip and would zero out save counts in the tests.
+    Binary noise (0 or 255 per pixel) gives stddev≈127 — well above the
+    blank-crop auto-skip threshold (std<80). Uniform random noise stddev
+    ≈73 which would borderline fail the threshold check.
     """
     rng = np.random.default_rng(seed=42)
-    return rng.integers(0, 256, size=(h, w, 3), dtype=np.uint8)
+    binary = rng.integers(0, 2, size=(h, w, 3), dtype=np.uint8) * 255
+    return binary
 
 
 def _write_png(path: Path, image: np.ndarray) -> None:
