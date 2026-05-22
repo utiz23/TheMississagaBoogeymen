@@ -142,6 +142,43 @@ _NAME_RE = re.compile(r"#\d{1,3}\s*[-–.]+\s*(.+)")
 # Appears in the left strip at x≈179, alongside each player's row.
 _LEVEL_RE = re.compile(r"P\d+LVL(\d+)", re.IGNORECASE)
 
+# Persona-summary indicator: "#NN-Name" or "-Name-#NN" — appears on the row
+# BELOW the gamertag for each slot.  Must NOT be promoted as a gamertag.
+_PERSONA_SUMMARY_RE = re.compile(r"#\d{1,3}\s*[-–]|-#\d{1,3}\b|^-[A-Za-z]")
+
+# HUD labels and headers that appear in the left strip but are NOT slots.
+# Normalized to uppercase-no-punct before comparison.
+_HUD_LABELS_NORMALIZED: set[str] = {
+    "HOME", "AWAY", "CHEL", "XFACTORS", "ATTRIBUTES", "VIEWPROFILE",
+    "VIEWINGLOADOUTS", "ACTIVEABILITYPOINTSAP", "ACTIVEABILITYPOINTS",
+    "XFACTORGLOSSARY", "BACK", "POWER", "TECHNIQUE", "ENDURANCE",
+    "SPORTS", "BPORTS", "EASPORTS",
+    # CPU placeholder occupies an empty roster slot (no human goalie etc.).
+    # Treated as a non-slot for OCR purposes; CPU goalies are handled by
+    # the promoter via a dedicated invariant if/when needed.
+    "CPU",
+}
+
+# Standalone level-fragment pattern: "LVL34" without the "P<gen>" prefix that
+# `_LEVEL_RE` requires.  This appears when the player-level row is OCR'd as
+# two separate tokens.
+_BARE_LEVEL_RE = re.compile(r"^LVL\d+$", re.IGNORECASE)
+
+# Team-name headers (e.g. "THE BOOGEYMEN") appear at the very top of the left
+# strip.  They are all-caps with no digits, distinct from gamertags which
+# usually contain mixed case or digits.  Heuristic: an all-caps multi-word
+# string with length >5 (avoids gamertags like "CPU" / "AWAY" already in HUD
+# list) and no digits is treated as a team-name header.
+def _looks_like_team_name_header(text: str) -> bool:
+    if any(c.isdigit() for c in text):
+        return False
+    if " " not in text:
+        return False
+    return text == text.upper() and len(text) > 5
+
+# Height/weight indicator pattern: "5'10|160lbs", "6'2"170lbs" etc.
+_HEIGHT_WEIGHT_RE = re.compile(r"\d['′’‚]\d.*lbs?", re.IGNORECASE)
+
 
 # ---------------------------------------------------------------------------
 # PositionGrid — geometric inference of missing position labels
@@ -659,8 +696,9 @@ def _extract_gamertag_from_content_lines(
     """Extract the best gamertag candidate from a set of content lines.
 
     Returns (gamertag_text, confidence) or None if no gamertag found.
-    Filters out lines that match level patterns, number patterns, or
-    empty strings.
+    Filters out lines that match level patterns, number patterns,
+    persona summaries (``#NN-Name`` and ``-Name-#NN``), HUD labels
+    (HOME/AWAY/CHEL/etc.), height/weight indicators, and empty strings.
     """
     for line in sorted(content_lines, key=lambda l: l.confidence, reverse=True):
         text = line.text.strip()
@@ -680,6 +718,25 @@ def _extract_gamertag_from_content_lines(
             continue
         # Must have at least one alphabetic character
         if not any(c.isalpha() for c in text):
+            continue
+        # Skip persona-summary indicators ("#11-Evgeni Wanhg", "-Toews-#19",
+        # "Pat Magroyne-#23"): these appear on the row BELOW the gamertag
+        # and must not become their own slot.
+        if _PERSONA_SUMMARY_RE.search(text):
+            continue
+        # Skip height/weight indicators that leak into the content band.
+        if _HEIGHT_WEIGHT_RE.search(text):
+            continue
+        # Skip standalone level fragments ("LVL34") that escape _LEVEL_RE.
+        if _BARE_LEVEL_RE.match(text):
+            continue
+        # Skip team-name headers (e.g. "THE BOOGEYMEN") that appear at the
+        # top of the left strip.
+        if _looks_like_team_name_header(text):
+            continue
+        # Skip HUD labels (HOME, AWAY, CHEL, X-FACTORS, etc.).
+        normalized = "".join(c for c in text.upper() if c.isalpha())
+        if normalized in _HUD_LABELS_NORMALIZED:
             continue
         return text, line.confidence
     return None

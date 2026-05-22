@@ -394,16 +394,30 @@ def assemble_loadout_subject_bundles(
             else:
                 roster_groups[matched_roster_idx].append((frame_idx, frame_path, image, roster_id))
 
-    # After collecting all frames, remove any roster group whose canonical
-    # gamertag matches a subject-view group (can happen if a player was
-    # also seen as a subject in a different frame order).
-    subject_canonicals = set(
-        _normalize_tag(c.gamertag) for c in canonical_per_group
-    )
-    final_roster_groups = [
-        (rg, can) for rg, can in zip(roster_groups, canonical_per_roster)
-        if _normalize_tag(can.gamertag) not in subject_canonicals
+    # After collecting all frames, merge each roster group into a canonical
+    # identity and then drop any roster group whose merged identity matches
+    # a subject-view group (exact OR fuzzy on gamertag, jersey+position
+    # tiebreak).  This catches the case where the roster group's FIRST-frame
+    # OCR reading differed from the subject group's eventual canonical
+    # (e.g. "sllyjoker85" first → merged to "silkyjoker85" → must dedupe
+    # against subject "silkyjoker85").  Also drop roster groups whose merged
+    # identity fuzzy-matches another roster group's canonical to collapse
+    # OCR variants ("sikyjoker85" / "sllyjoker85" / "silkyjoker85").
+    subject_merged_canonicals = [
+        _merge_identities([e[3] for e in g]) for g in subject_groups
     ]
+    roster_merged_canonicals = [
+        _merge_identities([e[3] for e in g]) for g in roster_groups
+    ]
+    final_roster_groups: list[tuple[list, SubjectIdentity]] = []
+    kept_roster_canonicals: list[SubjectIdentity] = []
+    for rg, merged in zip(roster_groups, roster_merged_canonicals):
+        if any(_subjects_are_same(s, merged) for s in subject_merged_canonicals):
+            continue
+        if any(_subjects_are_same(k, merged) for k in kept_roster_canonicals):
+            continue
+        final_roster_groups.append((rg, merged))
+        kept_roster_canonicals.append(merged)
 
     # Build subject-view bundles
     bundles: list[LoadoutSubjectBundle] = []
