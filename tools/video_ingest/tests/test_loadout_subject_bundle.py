@@ -514,5 +514,77 @@ class TestLoadoutSubjectBundleDataclass(unittest.TestCase):
         self.assertEqual(bundle.observability, "observable")
 
 
+# ---------------------------------------------------------------------------
+# Test: is_subject_view flag on bundles
+# ---------------------------------------------------------------------------
+
+
+class TestIsSubjectViewFlag(unittest.TestCase):
+    """LoadoutSubjectBundle.is_subject_view distinguishes subject-view from roster-only."""
+
+    def test_bundle_is_subject_view_when_extract_subject_identity_produces_subject(self):
+        """Bundles produced by extract_subject_identity have is_subject_view=True."""
+        from game_ocr.loadout_bundle import assemble_loadout_subject_bundles
+
+        frames = _fake_paths(2)
+        subject = _make_subject_identity("StickMenace")
+        dummy_img = _dummy_bgr_image()
+
+        with patch("game_ocr.loadout_bundle.cv2.imread", return_value=dummy_img), \
+             patch("game_ocr.loadout_bundle.extract_subject_identity", return_value=subject), \
+             patch("game_ocr.loadout_bundle.extract_roster_only_identities", return_value=[]), \
+             patch("game_ocr.loadout_bundle.blur_score", return_value=50.0), \
+             patch("game_ocr.loadout_bundle._extract_anchor_lines", return_value=[]), \
+             patch("game_ocr.loadout_bundle._bucket_anchors", return_value=[]):
+
+            bundles = assemble_loadout_subject_bundles(
+                frames, segment_index=0, ocr_lines_per_frame=[[], []]
+            )
+
+        self.assertEqual(len(bundles), 1)
+        self.assertTrue(bundles[0].is_subject_view)
+
+    def test_bundle_is_roster_only_when_player_never_selected(self):
+        """Roster-only bundles (extract_roster_only_identities result, no subject) have is_subject_view=False."""
+        from game_ocr.loadout_bundle import assemble_loadout_subject_bundles
+
+        frames = _fake_paths(2)
+        roster_player = _make_subject_identity("JoeyFlopfish")
+        dummy_img = _dummy_bgr_image()
+
+        with patch("game_ocr.loadout_bundle.cv2.imread", return_value=dummy_img), \
+             patch("game_ocr.loadout_bundle.extract_subject_identity", return_value=None), \
+             patch("game_ocr.loadout_bundle.extract_roster_only_identities", return_value=[roster_player]), \
+             patch("game_ocr.loadout_bundle.blur_score", return_value=50.0), \
+             patch("game_ocr.loadout_bundle._extract_anchor_lines", return_value=[]), \
+             patch("game_ocr.loadout_bundle._bucket_anchors", return_value=[]):
+
+            bundles = assemble_loadout_subject_bundles(
+                frames, segment_index=0, ocr_lines_per_frame=[[], []]
+            )
+
+        roster_only_bundles = [b for b in bundles if not b.is_subject_view]
+        self.assertTrue(len(roster_only_bundles) >= 1)
+        self.assertEqual(roster_only_bundles[0].canonical_subject.gamertag, "JoeyFlopfish")
+
+    def test_default_bundle_is_subject_view_true(self):
+        """Default value of is_subject_view on LoadoutSubjectBundle is True."""
+        from game_ocr.loadout_bundle import LoadoutSubjectBundle
+
+        si = _make_subject_identity()
+        bundle = LoadoutSubjectBundle(
+            slot_key="loadout_slot_seg0000_subject00",
+            subject_ordinal=0,
+            segment_index=0,
+            canonical_subject=si,
+            frame_paths=(Path("/fake/00001.png"),),
+            best_frame_path=Path("/fake/00001.png"),
+            best_frame_sharpness_score=50.0,
+            all_subject_identities=(si,),
+            support_frame_indices=(0,),
+        )
+        self.assertTrue(bundle.is_subject_view)
+
+
 if __name__ == "__main__":
     unittest.main()

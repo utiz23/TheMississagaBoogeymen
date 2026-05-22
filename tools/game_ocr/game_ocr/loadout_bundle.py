@@ -48,10 +48,15 @@ import numpy as np
 from .loadout_extractors.slot_identity import (
     SubjectIdentity,
     SlotIdentity,
+    PositionGrid,
     extract_subject_identity,
     extract_slot_identities,
+    extract_roster_only_identities,
+    build_position_grids,
     _normalize_tag,
     _levenshtein,
+    _extract_anchor_lines,
+    _bucket_anchors,
 )
 from .frame_features import blur_score
 
@@ -116,6 +121,12 @@ class LoadoutSubjectBundle:
 
     observability: str = "observable"
     """'observable' | 'low_quality' | 'not_observable_from_source'"""
+
+    is_subject_view: bool = True
+    """True if at least one contributing frame had the operator navigated to this
+    player (subject-view bundle). False for roster-only bundles — players visible
+    in the left strip but never selected by the operator. Roster-only bundles have
+    identity fields only (no build_class / X-Factor / attribute right-pane data)."""
 
 
 # ---------------------------------------------------------------------------
@@ -314,11 +325,17 @@ def assemble_loadout_subject_bundles(
             f"frames count {len(frames)} != ocr_lines_per_frame count {len(ocr_lines_per_frame)}"
         )
 
-    # Per-frame: read image + extract one subject identity
+    # Per-frame: read image + extract one subject identity + roster-only identities
     # Groups: list of (subject_ordinal, list of (frame_idx, frame_path, image, SubjectIdentity))
     # We maintain insertion order (first appearance of each subject)
+    # subject_groups: entries where the player was actively selected (subject-view)
+    # roster_groups: entries for players visible in left strip but never selected
     subject_groups: list[list[tuple[int, Path, np.ndarray, SubjectIdentity]]] = []
     canonical_per_group: list[SubjectIdentity] = []
+
+    # Roster-only groups: same shape as subject_groups but is_subject_view=False
+    roster_groups: list[list[tuple[int, Path, np.ndarray, SubjectIdentity]]] = []
+    canonical_per_roster: list[SubjectIdentity] = []
 
     for frame_idx, (frame_path, lines) in enumerate(zip(frames, ocr_lines_per_frame)):
         image = cv2.imread(str(frame_path))
@@ -327,24 +344,68 @@ def assemble_loadout_subject_bundles(
             continue
 
         subject = extract_subject_identity(image, ocr_lines=lines)
-        if subject is None:
-            continue  # No recognisable subject in this frame
 
-        # Find the matching group or create a new one
-        matched_group_idx: int | None = None
-        for g_idx, rep in enumerate(canonical_per_group):
-            if _subjects_are_same(rep, subject):
-                matched_group_idx = g_idx
-                break
+        # Build position grids for roster-only extraction
+        raw_anchors = _extract_anchor_lines(lines)
+        anchors = _bucket_anchors(raw_anchors)
+        grids = build_position_grids(anchors)
 
-        if matched_group_idx is None:
-            # New subject
-            subject_groups.append([(frame_idx, frame_path, image, subject)])
-            canonical_per_group.append(subject)
-        else:
-            subject_groups[matched_group_idx].append((frame_idx, frame_path, image, subject))
+        # Roster-only extraction: identity-only rows not matching the subject
+        subject_gt = subject.gamertag if subject is not None else None
+        roster_identities = extract_roster_only_identities(
+            image,
+            ocr_lines=lines,
+            subject_gamertag=subject_gt,
+            grids=grids,
+        )
 
-    # Build bundles
+        # Process subject identity
+        if subject is not None:
+            matched_group_idx: int | None = None
+            for g_idx, rep in enumerate(canonical_per_group):
+                if _subjects_are_same(rep, subject):
+                    matched_group_idx = g_idx
+                    break
+
+            if matched_group_idx is None:
+                subject_groups.append([(frame_idx, frame_path, image, subject)])
+                canonical_per_group.append(subject)
+            else:
+                subject_groups[matched_group_idx].append((frame_idx, frame_path, image, subject))
+
+        # Process roster-only identities
+        for roster_id in roster_identities:
+            # Skip if this gamertag is already a subject-view bundle
+            already_subject = any(
+                _subjects_are_same(rep, roster_id) for rep in canonical_per_group
+            )
+            if already_subject:
+                continue
+
+            matched_roster_idx: int | None = None
+            for r_idx, rep in enumerate(canonical_per_roster):
+                if _subjects_are_same(rep, roster_id):
+                    matched_roster_idx = r_idx
+                    break
+
+            if matched_roster_idx is None:
+                roster_groups.append([(frame_idx, frame_path, image, roster_id)])
+                canonical_per_roster.append(roster_id)
+            else:
+                roster_groups[matched_roster_idx].append((frame_idx, frame_path, image, roster_id))
+
+    # After collecting all frames, remove any roster group whose canonical
+    # gamertag matches a subject-view group (can happen if a player was
+    # also seen as a subject in a different frame order).
+    subject_canonicals = set(
+        _normalize_tag(c.gamertag) for c in canonical_per_group
+    )
+    final_roster_groups = [
+        (rg, can) for rg, can in zip(roster_groups, canonical_per_roster)
+        if _normalize_tag(can.gamertag) not in subject_canonicals
+    ]
+
+    # Build subject-view bundles
     bundles: list[LoadoutSubjectBundle] = []
     for subject_ordinal, group in enumerate(subject_groups):
         frame_indices = [e[0] for e in group]
@@ -373,6 +434,39 @@ def assemble_loadout_subject_bundles(
                 all_subject_identities=tuple(identities),
                 support_frame_indices=tuple(frame_indices),
                 observability=canonical.observability,
+                is_subject_view=True,
+            )
+        )
+
+    # Build roster-only bundles (continuing the ordinal from subject bundles)
+    next_ordinal = len(subject_groups)
+    for rg_idx, (group, canonical_ro) in enumerate(final_roster_groups):
+        frame_indices = [e[0] for e in group]
+        frame_paths_group = [e[1] for e in group]
+        images = [e[2] for e in group]
+        identities = [e[3] for e in group]
+
+        sharpness_scores = [blur_score(img) for img in images]
+        best_idx_in_group = int(np.argmax(sharpness_scores))
+
+        canonical = _merge_identities(identities)
+
+        subject_ordinal = next_ordinal + rg_idx
+        slot_key = f"loadout_slot_seg{segment_index:04d}_subject{subject_ordinal:02d}"
+
+        bundles.append(
+            LoadoutSubjectBundle(
+                slot_key=slot_key,
+                subject_ordinal=subject_ordinal,
+                segment_index=segment_index,
+                canonical_subject=canonical,
+                frame_paths=tuple(frame_paths_group),
+                best_frame_path=frame_paths_group[best_idx_in_group],
+                best_frame_sharpness_score=sharpness_scores[best_idx_in_group],
+                all_subject_identities=tuple(identities),
+                support_frame_indices=tuple(frame_indices),
+                observability=canonical.observability,
+                is_subject_view=False,
             )
         )
 

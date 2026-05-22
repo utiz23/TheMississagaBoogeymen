@@ -5,6 +5,21 @@ Public API
 extract_subject_identity(image_bgr, *, ocr_lines) -> SubjectIdentity | None
     Identify the SUBJECT of a single loadout-view frame.
 
+extract_roster_only_identities(image_bgr, *, ocr_lines, subject_gamertag, grids)
+    -> list[SubjectIdentity]
+    Extract identity-only entries for left-strip rows that are NOT the subject.
+
+PositionGrid
+    Dataclass representing a cluster of position-label anchors with inferred
+    Y positions for missing labels.
+
+build_position_grids(detected_anchors, *, canonical_order) -> list[PositionGrid]
+    Cluster detected position-label anchors into grids and infer missing
+    positions by canonical lineup order + median spacing.
+
+position_for_row_y(row_y, grids) -> tuple[str, float] | None
+    Look up the position label and confidence for a given row Y.
+
 SubjectIdentity
     Frozen dataclass.  One subject per frame — the player whose right-pane
     data (build class, X-Factors, attributes) is currently displayed.
@@ -24,11 +39,22 @@ left-strip rows are context only.
 Strategy (mirrors legacy parsers.py:_parse_loadout_left_strip):
   1. Find the subject's gamertag — top-right corner (y<200, x>1400).
   2. Find position-label anchors in the left strip (x<130, y in [180,980]).
-  3. For each anchor, check if the row's content (x in [180,400], y±45)
-     fuzzy-matches the subject's gamertag.
-  4. Once matched, harvest position, jersey_number, player_name_full,
+  3. Build PositionGrids from the detected anchors to infer missing positions.
+  4. For each anchor (detected or inferred), check if the row's content
+     (x in [180,400], y±45) fuzzy-matches the subject's gamertag.
+  5. Once matched, harvest position, jersey_number, player_name_full,
      is_captain from that row.
-  5. Title-bar build class (raw): from text at y[100,175], x[300,1200].
+  6. Title-bar build class (raw): from text at y[100,175], x[300,1200].
+
+Position inference (Gap 1 fix):
+  When ≥2 position labels ARE detected in a row cluster, infer missing
+  positions using canonical lineup order (6v6: C/LW/RW/LD/RD/G) and
+  median row spacing. Inferred positions get confidence 0.7.
+
+Roster-only extraction (Gap 2 fix):
+  For left-strip rows whose gamertag does NOT match the subject, emit
+  identity-only SubjectIdentity instances (build_class_raw=None). These
+  are used to capture players the operator never selected.
 
 slot_key is NOT assigned here — that happens at bundle-aggregation time.
 
@@ -42,7 +68,8 @@ not break immediately.  They will be removed in Phase 2B.
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass
+import statistics
+from dataclasses import dataclass, field
 from typing import Optional, Sequence
 
 from ..ocr import OCRLine
@@ -91,6 +118,17 @@ _EVIDENCE_CONFIDENCE_THRESHOLD: float = 0.50
 # Recognised position tokens
 _POS_SET = {"C", "LW", "RW", "LD", "RD", "G"}
 
+# Canonical lineup orders for position inference
+_CANONICAL_LINEUP_6S: tuple[str, ...] = ("C", "LW", "RW", "LD", "RD", "G")
+_CANONICAL_LINEUP_3S: tuple[str, ...] = ("C", "W", "D", "G")
+
+# Position inference constants
+_INFERRED_POSITION_CONFIDENCE: float = 0.7
+_DETECTED_POSITION_CONFIDENCE_FALLBACK: float = 1.0
+_GRID_CLUSTER_GAP_MULTIPLIER: float = 2.0  # gap > 2× median spacing → new cluster
+_GRID_MAX_SPACING_VARIANCE_RATIO: float = 0.30  # reject if stddev/median > 30%
+_GRID_MIN_DETECTED_LABELS: int = 2  # minimum detected labels to attempt inference
+
 # Captain glyphs (from parsers.py)
 _CAPTAIN_GLYPHS = {"★", "✯", "✦", "✪", "✩"}
 
@@ -103,6 +141,234 @@ _NAME_RE = re.compile(r"#\d{1,3}\s*[-–.]+\s*(.+)")
 # Player-level pattern: "P<gen>LVL<num>" e.g. "P1LVL17", "P2LVL34"
 # Appears in the left strip at x≈179, alongside each player's row.
 _LEVEL_RE = re.compile(r"P\d+LVL(\d+)", re.IGNORECASE)
+
+
+# ---------------------------------------------------------------------------
+# PositionGrid — geometric inference of missing position labels
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class PositionGrid:
+    """A cluster of left-strip rows with known or inferred position labels.
+
+    Each slot maps a position label (e.g. "C", "LW") to its Y pixel coordinate
+    and a confidence value:
+      - 1.0 for detected (RapidOCR actually read the label)
+      - 0.7 for inferred (computed from canonical order + median spacing)
+
+    ``detected_count`` is the number of anchors that were directly detected
+    (as opposed to inferred by extrapolation).
+    """
+
+    slots: tuple[tuple[str, float, float], ...]
+    """Tuple of (position_label, y_center, confidence) for each slot in this cluster."""
+
+    detected_count: int
+    """Number of slots with confidence == 1.0 (detected, not inferred)."""
+
+
+def build_position_grids(
+    detected_anchors: list[OCRLine],
+    *,
+    canonical_order: tuple[str, ...] = _CANONICAL_LINEUP_6S,
+) -> list[PositionGrid]:
+    """Build PositionGrid objects from detected position-label OCR lines.
+
+    Algorithm:
+      1. Sort anchors by Y.
+      2. Cluster anchors: a Y-gap > 2× median inter-anchor spacing starts a
+         new cluster. This separates BGM rows from opponent rows when the two
+         groups appear in the left strip with a large visual gap between them.
+      3. Per cluster: map each detected position to its canonical-order index
+         to compute median spacing. Extrapolate the Y positions for undetected
+         slots.
+      4. Reject clusters where the spacing standard deviation / median > 30%.
+      5. A cluster with fewer than _GRID_MIN_DETECTED_LABELS (2) detected
+         labels is not enough to infer spacing reliably — return no grid for
+         that cluster.
+
+    Parameters
+    ----------
+    detected_anchors:
+        List of OCRLine objects that qualified as position-label anchors
+        (i.e. returned by ``_extract_anchor_lines`` + ``_bucket_anchors``).
+    canonical_order:
+        The canonical position order to use for index mapping and
+        extrapolation. Defaults to 6v6 (C/LW/RW/LD/RD/G).
+
+    Returns
+    -------
+    list[PositionGrid]
+        One PositionGrid per cluster (may be empty if no clusters qualify).
+    """
+    if not detected_anchors:
+        return []
+
+    # Sort by Y
+    sorted_anchors = sorted(detected_anchors, key=lambda a: a.y_center)
+
+    # Compute spacings between adjacent anchors to determine cluster threshold
+    if len(sorted_anchors) >= 2:
+        spacings = [
+            sorted_anchors[i + 1].y_center - sorted_anchors[i].y_center
+            for i in range(len(sorted_anchors) - 1)
+        ]
+        median_spacing = statistics.median(spacings)
+        cluster_gap_threshold = _GRID_CLUSTER_GAP_MULTIPLIER * median_spacing
+    else:
+        # Only 1 anchor — nothing to cluster
+        return []
+
+    # Cluster anchors
+    clusters: list[list[OCRLine]] = []
+    current_cluster = [sorted_anchors[0]]
+    for anchor in sorted_anchors[1:]:
+        gap = anchor.y_center - current_cluster[-1].y_center
+        if gap > cluster_gap_threshold:
+            clusters.append(current_cluster)
+            current_cluster = [anchor]
+        else:
+            current_cluster.append(anchor)
+    clusters.append(current_cluster)
+
+    grids: list[PositionGrid] = []
+    for cluster in clusters:
+        grid = _build_grid_for_cluster(cluster, canonical_order)
+        if grid is not None:
+            grids.append(grid)
+    return grids
+
+
+def _build_grid_for_cluster(
+    cluster: list[OCRLine],
+    canonical_order: tuple[str, ...],
+) -> PositionGrid | None:
+    """Build a PositionGrid for a single cluster of anchors.
+
+    Returns None if the cluster doesn't qualify for inference (too few detected
+    labels, inconsistent spacing, or all positions already detected with no
+    inference needed but < 2 detected labels).
+    """
+    if len(cluster) < _GRID_MIN_DETECTED_LABELS:
+        # Only 1 detected label — can't determine spacing reliably
+        # Still emit a grid with just the detected label at its actual Y.
+        if len(cluster) == 1:
+            a = cluster[0]
+            pos = a.text.strip().upper().replace(" ", "")
+            if pos in _POS_SET:
+                return PositionGrid(
+                    slots=((pos, a.y_center, a.confidence),),
+                    detected_count=1,
+                )
+        return None
+
+    # Map detected positions to canonical indices
+    pos_to_y: dict[str, float] = {}
+    for a in cluster:
+        pos = a.text.strip().upper().replace(" ", "")
+        if pos in _POS_SET:
+            pos_to_y[pos] = a.y_center
+
+    if len(pos_to_y) < _GRID_MIN_DETECTED_LABELS:
+        return None
+
+    # Find the canonical indices of the detected positions
+    detected_indices: list[int] = []
+    for i, pos in enumerate(canonical_order):
+        if pos in pos_to_y:
+            detected_indices.append(i)
+
+    if len(detected_indices) < _GRID_MIN_DETECTED_LABELS:
+        return None
+
+    # Compute median spacing between adjacent detected canonical positions
+    detected_y_values = [pos_to_y[canonical_order[i]] for i in detected_indices]
+    index_gaps = [detected_indices[j + 1] - detected_indices[j] for j in range(len(detected_indices) - 1)]
+    y_gaps = [detected_y_values[j + 1] - detected_y_values[j] for j in range(len(detected_y_values) - 1)]
+
+    # Normalize to per-slot spacing (gap in Y / gap in canonical index)
+    per_slot_spacings = [y_g / i_g for y_g, i_g in zip(y_gaps, index_gaps) if i_g > 0]
+    if not per_slot_spacings:
+        return None
+
+    median_per_slot = statistics.median(per_slot_spacings)
+    if len(per_slot_spacings) > 1:
+        try:
+            stddev = statistics.stdev(per_slot_spacings)
+        except statistics.StatisticsError:
+            stddev = 0.0
+        if median_per_slot > 0 and stddev / median_per_slot > _GRID_MAX_SPACING_VARIANCE_RATIO:
+            # Inconsistent spacing — reject this cluster
+            return None
+
+    # Use the first detected position as the reference anchor
+    ref_canonical_idx = detected_indices[0]
+    ref_y = detected_y_values[0]
+
+    # Determine the full range of canonical positions to cover:
+    # - Always include all positions between first and last detected (gap filling)
+    # - Extrapolate to the edges of canonical_order if the outermost Y values
+    #   are consistent with the spacing (i.e., the cluster looks like it represents
+    #   a full lineup where the boundary positions weren't OCR'd).
+    #
+    # We use a simple heuristic: extend 1 slot beyond each detected endpoint
+    # when the cluster spacing is consistent (already validated above).
+    min_idx = max(0, detected_indices[0] - 1)
+    max_idx = min(len(canonical_order) - 1, detected_indices[-1] + 1)
+
+    # Build slots for all canonical positions in the extended range
+    slots: list[tuple[str, float, float]] = []
+    for i in range(min_idx, max_idx + 1):
+        pos = canonical_order[i]
+        # Compute Y by extrapolating from reference
+        y = ref_y + (i - ref_canonical_idx) * median_per_slot
+        if pos in pos_to_y:
+            # Use detected Y and full confidence
+            slots.append((pos, pos_to_y[pos], 1.0))
+        else:
+            # Use inferred Y and reduced confidence
+            slots.append((pos, y, _INFERRED_POSITION_CONFIDENCE))
+
+    detected_count = sum(1 for s in slots if s[2] == 1.0)
+    return PositionGrid(slots=tuple(slots), detected_count=detected_count)
+
+
+def position_for_row_y(
+    row_y: float,
+    grids: list[PositionGrid],
+    *,
+    tolerance_px: float = 35.0,
+) -> tuple[str, float] | None:
+    """Find the position label and confidence for a row at the given Y coordinate.
+
+    Searches all grids for the slot whose Y is closest to ``row_y`` within
+    ``tolerance_px``.
+
+    Parameters
+    ----------
+    row_y:
+        The Y center of the row to look up.
+    grids:
+        The list of PositionGrid objects to search.
+    tolerance_px:
+        Maximum Y distance between row_y and a grid slot Y to count as a match.
+        Default 35 px (slightly less than half the typical 80px row spacing).
+
+    Returns
+    -------
+    tuple[str, float] | None
+        (position_label, confidence) if a match is found, else None.
+    """
+    best: tuple[str, float] | None = None
+    best_dist = float("inf")
+    for grid in grids:
+        for pos, slot_y, conf in grid.slots:
+            dist = abs(slot_y - row_y)
+            if dist < tolerance_px and dist < best_dist:
+                best_dist = dist
+                best = (pos, conf)
+    return best
 
 
 # ---------------------------------------------------------------------------
@@ -303,7 +569,35 @@ def _parse_row_evidence(
         "player_level_raw": None,
         "player_level_confidence": None,
     }
+    _parse_content_into_evidence(evidence, content_lines)
+    return evidence
 
+
+def _parse_row_evidence_no_anchor(content_lines: list[OCRLine]) -> dict:
+    """Extract evidence from content lines when no position-label anchor is available.
+
+    Same as _parse_row_evidence but without a position-label anchor to parse.
+    The position fields default to None and are expected to be filled by the
+    PositionGrid caller.
+    """
+    evidence: dict = {
+        "position": None,
+        "position_confidence": None,
+        "jersey_number": None,
+        "jersey_confidence": None,
+        "player_name_full": None,
+        "player_name_confidence": None,
+        "is_captain": None,
+        "is_captain_confidence": None,
+        "player_level_raw": None,
+        "player_level_confidence": None,
+    }
+    _parse_content_into_evidence(evidence, content_lines)
+    return evidence
+
+
+def _parse_content_into_evidence(evidence: dict, content_lines: list[OCRLine]) -> None:
+    """Populate evidence dict in-place from content_lines (shared by both parse helpers)."""
     for line in content_lines:
         text = line.text.strip()
 
@@ -333,7 +627,62 @@ def _parse_row_evidence(
                 evidence["player_name_full"] = full_name
                 evidence["player_name_confidence"] = line.confidence
 
-    return evidence
+
+def _find_content_row_ys(ocr_lines: Sequence[OCRLine]) -> list[float]:
+    """Find distinct Y positions that have content in the row content band.
+
+    Returns sorted list of Y center positions that are likely row centers,
+    bucketed by ROW_Y_BUCKET_TOLERANCE_PX to avoid duplicates.
+    """
+    # Collect all lines in the content band
+    content_lines = [
+        l for l in ocr_lines
+        if _ROW_CONTENT_X_MIN < l.x_center < _ROW_CONTENT_X_MAX
+        and _POS_Y_MIN < l.y_center < _POS_Y_MAX
+    ]
+    if not content_lines:
+        return []
+
+    # Bucket Y positions
+    sorted_ys = sorted(set(round(l.y_center) for l in content_lines))
+    bucketed: list[float] = []
+    for y in sorted_ys:
+        if not bucketed or y - bucketed[-1] > ROW_Y_BUCKET_TOLERANCE_PX:
+            bucketed.append(float(y))
+
+    return bucketed
+
+
+def _extract_gamertag_from_content_lines(
+    content_lines: list[OCRLine],
+) -> tuple[str, float] | None:
+    """Extract the best gamertag candidate from a set of content lines.
+
+    Returns (gamertag_text, confidence) or None if no gamertag found.
+    Filters out lines that match level patterns, number patterns, or
+    empty strings.
+    """
+    for line in sorted(content_lines, key=lambda l: l.confidence, reverse=True):
+        text = line.text.strip()
+        if not text:
+            continue
+        # Skip level lines
+        if _LEVEL_RE.search(text):
+            continue
+        # Skip pure number/jersey patterns
+        if _NUMBER_RE.match(text):
+            continue
+        # Skip lines that are mostly numeric
+        if text.replace("#", "").replace("-", "").replace(" ", "").isdigit():
+            continue
+        # Skip short single-char strings (position labels that leaked into content band)
+        if len(text) <= 1:
+            continue
+        # Must have at least one alphabetic character
+        if not any(c.isalpha() for c in text):
+            continue
+        return text, line.confidence
+    return None
 
 
 # ---------------------------------------------------------------------------
@@ -357,8 +706,13 @@ def extract_subject_identity(
       1. Find gamertag in top-right corner (y<200, x>1400).
       2. Extract title-bar build class raw text.
       3. Find left-strip position-label anchors.
-      4. Fuzzy-match the subject's gamertag against each anchor's row content.
-      5. Harvest position/jersey/player_name/is_captain from the matched row.
+      4. Build PositionGrids from detected anchors (for position inference).
+      5. Fuzzy-match the subject's gamertag against each anchor's row content.
+         For rows not containing a detected anchor, scan all content rows and
+         also try PositionGrid lookup for position inference.
+      6. Harvest position/jersey/player_name/is_captain from the matched row.
+         If the row's anchor didn't have a recognized position, use
+         position_for_row_y() to infer position from the grid.
     """
     # Step 1: Find subject gamertag from top-right corner
     gamertag_text, gamertag_conf = _extract_subject_gamertag(ocr_lines)
@@ -372,23 +726,64 @@ def extract_subject_identity(
     raw_anchors = _extract_anchor_lines(ocr_lines)
     anchors = _bucket_anchors(raw_anchors)
 
-    # Step 4: Match the subject's gamertag against each anchor's row
+    # Step 4: Build PositionGrids for position inference
+    grids = build_position_grids(anchors)
+
+    # Step 5: Match the subject's gamertag against each anchor's row
     gt_normalized = _normalize_tag(gamertag_text)
     subject_anchor: OCRLine | None = None
+    subject_anchor_y: float | None = None
     subject_content_lines: list[OCRLine] = []
+    subject_inferred_position: tuple[str, float] | None = None
 
+    # First pass: try rows with detected anchors
     for anchor in anchors:
         content_lines = _row_content_lines(ocr_lines, anchor.y_center)
         joined_norm = _normalize_tag(" ".join(l.text for l in content_lines))
         if _fuzzy_gamertag_match(gt_normalized, joined_norm):
             subject_anchor = anchor
+            subject_anchor_y = anchor.y_center
             subject_content_lines = content_lines
             break
 
-    # Step 5: Harvest evidence from the matched row (or emit partial identity)
-    if subject_anchor is not None:
-        evidence = _parse_row_evidence(subject_anchor, subject_content_lines)
-        anchor_y_int = int(round(subject_anchor.y_center))
+    # Second pass: if not found via anchors, scan content rows directly and
+    # use PositionGrid to infer position for the matched row.
+    if subject_anchor is None and grids:
+        # Collect all distinct Y positions that have content lines in the
+        # gamertag band.  We don't need an anchor line to identify the row.
+        candidate_ys = _find_content_row_ys(ocr_lines)
+        for row_y in candidate_ys:
+            content_lines = _row_content_lines(ocr_lines, row_y)
+            if not content_lines:
+                continue
+            joined_norm = _normalize_tag(" ".join(l.text for l in content_lines))
+            if _fuzzy_gamertag_match(gt_normalized, joined_norm):
+                subject_anchor_y = row_y
+                subject_content_lines = content_lines
+                # No OCR anchor for this row — look up position from grid
+                inferred = position_for_row_y(row_y, grids)
+                if inferred is not None:
+                    subject_inferred_position = inferred
+                break
+
+    # Step 6: Harvest evidence from the matched row (or emit partial identity)
+    if subject_anchor is not None or subject_anchor_y is not None:
+        if subject_anchor is not None:
+            evidence = _parse_row_evidence(subject_anchor, subject_content_lines)
+            anchor_y_int = int(round(subject_anchor.y_center))
+            # Override position if anchor didn't detect one but grid can infer it
+            if evidence["position"] is None and grids:
+                inferred = position_for_row_y(subject_anchor.y_center, grids)
+                if inferred is not None:
+                    evidence["position"] = inferred[0]
+                    evidence["position_confidence"] = inferred[1]
+        else:
+            # No detected anchor for this row — synthesize evidence
+            evidence = _parse_row_evidence_no_anchor(subject_content_lines)
+            anchor_y_int = int(round(subject_anchor_y))  # type: ignore[arg-type]
+            if subject_inferred_position is not None:
+                evidence["position"] = subject_inferred_position[0]
+                evidence["position_confidence"] = subject_inferred_position[1]
 
         # Determine observability
         has_useful_evidence = any([
@@ -442,6 +837,155 @@ def extract_subject_identity(
             build_class_confidence=build_class_conf,
             observability=observability,
         )
+
+
+def extract_roster_only_identities(
+    image_bgr,  # numpy.ndarray (H, W, 3) BGR — accepted but not used currently
+    *,
+    ocr_lines: Sequence[OCRLine],
+    subject_gamertag: str | None,
+    grids: list[PositionGrid],
+) -> list[SubjectIdentity]:
+    """Extract identity-only entries for left-strip rows that are NOT the subject.
+
+    For each visible content row whose gamertag does NOT fuzzy-match the subject:
+      - Extract gamertag, position (via PositionGrid), jersey, name, level, is_captain
+      - build_class_raw = None (no right-pane data for non-selected players)
+      - observability = 'observable' if confident; else 'low_quality'
+
+    Parameters
+    ----------
+    image_bgr:
+        Frame image (not currently used; reserved for future pixel-level heuristics).
+    ocr_lines:
+        OCR lines for the frame.
+    subject_gamertag:
+        The subject's gamertag (to exclude from roster-only results).
+        If None, all rows are treated as non-subject rows.
+    grids:
+        Pre-built PositionGrid list for this frame (from build_position_grids).
+
+    Returns
+    -------
+    list[SubjectIdentity]
+        One SubjectIdentity per non-subject row that could be identified with a
+        gamertag.  Entries have build_class_raw=None and anchor_y set to the
+        row's Y center.  Empty list if no non-subject rows are found.
+    """
+    subject_norm = _normalize_tag(subject_gamertag) if subject_gamertag else None
+
+    raw_anchors = _extract_anchor_lines(ocr_lines)
+    anchors = _bucket_anchors(raw_anchors)
+
+    # Collect rows from detected anchors first
+    processed_ys: set[int] = set()
+    result: list[SubjectIdentity] = []
+
+    for anchor in anchors:
+        content_lines = _row_content_lines(ocr_lines, anchor.y_center)
+        anchor_y_int = int(round(anchor.y_center))
+
+        # Find the best gamertag candidate in this row
+        gamertag_candidate = _extract_gamertag_from_content_lines(content_lines)
+        if gamertag_candidate is None:
+            processed_ys.add(anchor_y_int)
+            continue
+
+        gt_text, gt_conf = gamertag_candidate
+        gt_norm = _normalize_tag(gt_text)
+
+        # Skip if this row is the subject
+        if subject_norm and _fuzzy_gamertag_match(subject_norm, gt_norm):
+            processed_ys.add(anchor_y_int)
+            continue
+
+        # Build evidence from the row
+        evidence = _parse_row_evidence(anchor, content_lines)
+        # Override position if anchor didn't detect one but grid can infer it
+        if evidence["position"] is None and grids:
+            inferred = position_for_row_y(anchor.y_center, grids)
+            if inferred is not None:
+                evidence["position"] = inferred[0]
+                evidence["position_confidence"] = inferred[1]
+
+        has_useful_evidence = any([
+            evidence["position"] is not None and (evidence["position_confidence"] or 0) >= _EVIDENCE_CONFIDENCE_THRESHOLD,
+            evidence["jersey_number"] is not None and (evidence["jersey_confidence"] or 0) >= _EVIDENCE_CONFIDENCE_THRESHOLD,
+            (gt_conf or 0) >= _EVIDENCE_CONFIDENCE_THRESHOLD,
+        ])
+        observability = "observable" if has_useful_evidence else "low_quality"
+
+        result.append(SubjectIdentity(
+            gamertag=gt_text,
+            gamertag_confidence=gt_conf,
+            position=evidence["position"],
+            position_confidence=evidence["position_confidence"],
+            jersey_number=evidence["jersey_number"],
+            jersey_confidence=evidence["jersey_confidence"],
+            player_name_full=evidence["player_name_full"],
+            player_name_confidence=evidence["player_name_confidence"],
+            is_captain=evidence["is_captain"],
+            is_captain_confidence=evidence["is_captain_confidence"],
+            build_class_raw=None,       # no right-pane data for non-selected rows
+            build_class_confidence=None,
+            player_level_raw=evidence["player_level_raw"],
+            player_level_confidence=evidence["player_level_confidence"],
+            anchor_y=anchor_y_int,
+            observability=observability,
+        ))
+        processed_ys.add(anchor_y_int)
+
+    # Also scan content rows whose Y wasn't covered by a detected anchor
+    if grids:
+        candidate_ys = _find_content_row_ys(ocr_lines)
+        for row_y in candidate_ys:
+            row_y_int = int(round(row_y))
+            # Skip if already processed via a detected anchor
+            if any(abs(row_y_int - py) <= ROW_Y_BUCKET_TOLERANCE_PX for py in processed_ys):
+                continue
+            content_lines = _row_content_lines(ocr_lines, row_y)
+            if not content_lines:
+                continue
+            gamertag_candidate = _extract_gamertag_from_content_lines(content_lines)
+            if gamertag_candidate is None:
+                continue
+            gt_text, gt_conf = gamertag_candidate
+            gt_norm = _normalize_tag(gt_text)
+            if subject_norm and _fuzzy_gamertag_match(subject_norm, gt_norm):
+                continue
+            # Try grid position lookup
+            inferred = position_for_row_y(row_y, grids)
+            evidence = _parse_row_evidence_no_anchor(content_lines)
+            if inferred is not None:
+                evidence["position"] = inferred[0]
+                evidence["position_confidence"] = inferred[1]
+            has_useful_evidence = any([
+                evidence["position"] is not None and (evidence["position_confidence"] or 0) >= _EVIDENCE_CONFIDENCE_THRESHOLD,
+                evidence["jersey_number"] is not None and (evidence["jersey_confidence"] or 0) >= _EVIDENCE_CONFIDENCE_THRESHOLD,
+                (gt_conf or 0) >= _EVIDENCE_CONFIDENCE_THRESHOLD,
+            ])
+            observability = "observable" if has_useful_evidence else "low_quality"
+            result.append(SubjectIdentity(
+                gamertag=gt_text,
+                gamertag_confidence=gt_conf,
+                position=evidence["position"],
+                position_confidence=evidence["position_confidence"],
+                jersey_number=evidence["jersey_number"],
+                jersey_confidence=evidence["jersey_confidence"],
+                player_name_full=evidence["player_name_full"],
+                player_name_confidence=evidence["player_name_confidence"],
+                is_captain=evidence["is_captain"],
+                is_captain_confidence=evidence["is_captain_confidence"],
+                build_class_raw=None,
+                build_class_confidence=None,
+                player_level_raw=evidence["player_level_raw"],
+                player_level_confidence=evidence["player_level_confidence"],
+                anchor_y=row_y_int,
+                observability=observability,
+            ))
+            processed_ys.add(row_y_int)
+
+    return result
 
 
 # ---------------------------------------------------------------------------

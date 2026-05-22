@@ -253,12 +253,19 @@ def extract_loadout_evidence(
     records: list[FieldEvidenceRecord] = []
     for bundle in bundles:
         best_frame_lines = ocr_lines_by_path.get(bundle.best_frame_path, [])
-        records.extend(
-            _evidence_for_subject_bundle(
-                bundle, closed_vocab, tabular, icon, open_text, extractor_version,
-                best_frame_ocr_lines=best_frame_lines,
+        if bundle.is_subject_view:
+            records.extend(
+                _evidence_for_subject_bundle(
+                    bundle, closed_vocab, tabular, icon, open_text, extractor_version,
+                    best_frame_ocr_lines=best_frame_lines,
+                )
             )
-        )
+        else:
+            records.extend(
+                _evidence_for_roster_only_bundle(
+                    bundle, extractor_version,
+                )
+            )
 
     return records
 
@@ -447,6 +454,66 @@ def _evidence_for_subject_bundle(
                     shape_or_icon_class=ic_ev.shape_or_icon_class or None,
                 )
             )
+
+    return records
+
+
+# ---------------------------------------------------------------------------
+# Roster-only bundle dispatcher
+# ---------------------------------------------------------------------------
+
+
+def _evidence_for_roster_only_bundle(
+    bundle: LoadoutSubjectBundle,
+    extractor_version: str,
+) -> list[FieldEvidenceRecord]:
+    """Emit identity-field FieldEvidenceRecords for a roster-only bundle.
+
+    Roster-only bundles represent players visible in the left strip but never
+    selected as subjects by the operator. They have no right-pane data (build
+    class, X-Factors, attributes). Only the identity fields are emitted:
+      gamertag, position, jersey_number, is_captain, persona_raw, player_level_raw
+
+    build_class_raw is explicitly NOT emitted — it is None for roster-only entries
+    and emitting it would create misleading 'low_quality' evidence records that
+    could confuse the promoter gate.
+    """
+    records: list[FieldEvidenceRecord] = []
+    support_frames = bundle.support_frame_indices
+    slot_key = bundle.slot_key
+    bundle_observability = bundle.observability
+    identity = bundle.canonical_subject
+
+    _identity_field_defs: list[tuple[str, object, object]] = [
+        ("gamertag",          identity.gamertag,          identity.gamertag_confidence),
+        ("position",          identity.position,          identity.position_confidence),
+        ("jersey_number",     identity.jersey_number,     identity.jersey_confidence),
+        ("is_captain",        identity.is_captain,        identity.is_captain_confidence),
+        ("persona_raw",       identity.player_name_full,  identity.player_name_confidence),
+        ("player_level_raw",  identity.player_level_raw,  identity.player_level_confidence),
+    ]
+    for field_key, value, conf in _identity_field_defs:
+        has_value = value is not None
+        eff_conf = conf or 0.0
+        obs_status = "observable" if has_value else "low_quality"
+        norm_status = "normalized" if has_value else "unnormalized"
+        records.append(
+            FieldEvidenceRecord(
+                screen_state=SCREEN_STATE,
+                subject_slot_key=slot_key,
+                field_key=field_key,
+                field_family="open_text",
+                candidate_value=value,
+                candidate_rank=0,
+                raw_confidence=eff_conf,
+                calibrated_confidence=eff_conf,
+                extractor_family="open_text",
+                extractor_version=extractor_version,
+                observability_status=_merge_observability(bundle_observability, obs_status),
+                normalization_status=norm_status,
+                support_frame_ids=support_frames,
+            )
+        )
 
     return records
 

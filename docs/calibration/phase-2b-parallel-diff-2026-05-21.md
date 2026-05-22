@@ -539,3 +539,83 @@ All three field-key mismatches are resolved:
 
 Categorical match rate remains 100% (0 categorical mismatches in both matches).
 Attribute coverage is now 23/23 per snapshot (subject to the promoter floor of ≥20).
+
+---
+
+## Update 2 — 2026-05-21 (post position inference + roster-only extraction)
+
+Two additional fixes implemented to reach 10-of-10 player coverage per match.
+
+### Changes implemented
+
+**Gap 1 — PositionGrid (geometric inference):**
+- Added `PositionGrid` dataclass and `build_position_grids()` function to
+  `slot_identity.py`. When RapidOCR misses single-char position labels (C, G)
+  but detects ≥2 multi-char ones (LW, RW, LD, RD), infer missing positions using
+  canonical lineup order (6v6: C/LW/RW/LD/RD/G) + median row spacing.
+- Inferred positions get confidence 0.7 vs 1.0 for detected labels.
+- `extract_subject_identity` now builds grids early and falls back to
+  `position_for_row_y()` when an anchor has no recognized position label.
+- Supports both 6v6 and 3v3 via `canonical_order` parameter.
+- **Match 250 effect:** MrHomiecide (subject00) now has position inferred → no
+  longer blocked by `unresolved_position`. Promotes with C + inferred confidence.
+- **Match 463 effect:** StickMenace (subject00) and DaveL-234 (subject02) both
+  get inferred positions → previously blocked subjects now promote.
+
+**Gap 2 — Roster-only extraction:**
+- Added `extract_roster_only_identities()` function to `slot_identity.py`. For each
+  left-strip row whose gamertag does NOT fuzzy-match the subject, emit a
+  `SubjectIdentity` with identity fields populated but `build_class_raw=None`.
+- `LoadoutSubjectBundle.is_subject_view` bool field distinguishes subject-view
+  bundles (full right-pane data) from roster-only bundles (identity only).
+- `assemble_loadout_subject_bundles()` now collects BOTH subject-view bundles and
+  roster-only bundles per frame. Roster players that later become subjects are
+  promoted to subject-view status and removed from the roster-only list.
+- `_evidence_for_roster_only_bundle()` in `loadout_evidence.py` emits only
+  identity fields (gamertag, position, jersey_number, is_captain, persona_raw,
+  player_level_raw) for roster-only bundles — NO build_class, NO X-Factors,
+  NO attributes.
+- **Match 250 effect:** JoeyFlopfish (BGM RD, never selected by operator in the
+  13-second recording) now appears as a roster-only bundle. Promoter writes
+  snapshot with NULL buildClass and no X-Factor/attribute child rows.
+- **Match 463 effect:** Any player visible in the roster context but not navigated
+  to is now captured.
+
+### Post-fix expected results (to be verified by re-running Pass-2 + dry-run)
+
+| Match | Before | Expected after |
+|-------|--------|----------------|
+| 250 | 8 promotable snapshots (9 bundles; 1 blocked on position) | 10 promotable snapshots |
+| 463 | 7 promotable snapshots (9 bundles; 2 blocked on position) | 10 promotable snapshots |
+
+Expected breakdown for match 250:
+- 9 subject-view bundles: 9 promotable (MrHomiecide now has inferred position C)
+- 1 roster-only bundle: JoeyFlopfish (for/RD) with identity only
+- Total: 10 snapshots
+
+Expected breakdown for match 463:
+- 9 subject-view bundles: 9 promotable (StickMenace + DaveL-234 now have inferred positions)
+- Any additional roster-only entries for players not navigated to
+- Minimum: 10 snapshots
+
+### Fixture update
+
+`tools/game_ocr/calibration/extras/loadout/fixtures/fixture_match250_full_lobby/expected_loadout_evidence.json`
+was regenerated to reflect the improved extraction:
+- subject00 (MrHomiecide): `jersey_number` now 11 (previously None), `persona_raw`
+  now 'Evgeni Wanhg' (previously None) — these were always in the OCR lines but the
+  match was blocked by missing position anchor; PositionGrid inference now finds the row.
+- Additional roster-only bundle entries appear for players not selected in this
+  15-frame segment.
+
+### Test suite impact
+
+New tests added (Step 7):
+- `test_subject_identity.py`: 20 new tests for PositionGrid, position_for_row_y,
+  extract_roster_only_identities, and inferred-position subject extraction
+- `test_loadout_subject_bundle.py`: 3 new tests for `is_subject_view` flag
+
+Pre-existing test failures (NOT caused by this work):
+- `test_loadout_closed_vocab.py::TestErrorCases::test_predict_log_probs_raises_not_implemented`
+- `test_loadout_closed_vocab.py::TestExtractorVersion::test_extractor_version_is_stamped`
+These were failing before this PR (version string and error type mismatches unrelated to identity/roster extraction).
