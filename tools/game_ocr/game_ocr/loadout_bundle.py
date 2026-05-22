@@ -205,10 +205,24 @@ def _merge_identities(identities: list[SubjectIdentity]) -> SubjectIdentity:
     gamertag = best_gt.gamertag
     gamertag_confidence = best_gt.gamertag_confidence
 
-    # Position: highest confidence among those that have it
-    pos_ids = [(s.position, s.position_confidence) for s in identities if s.position is not None]
-    if pos_ids:
-        best_pos, best_pos_conf = max(pos_ids, key=lambda t: t[1] or 0)
+    # Position: prefer the most-frequently observed position; tiebreak by
+    # highest confidence.  Counting observations across frames is more robust
+    # than max-confidence alone, because a single noisy frame (e.g. an
+    # intro/splash transitional frame) can produce a phantom position label
+    # with conf=1.0 that wins over many consistent observations.
+    pos_obs = [(s.position, s.position_confidence) for s in identities if s.position is not None]
+    if pos_obs:
+        # Build (position, vote_count, max_conf) per distinct position
+        counts: dict[str, list[float]] = {}
+        for pos, conf in pos_obs:
+            counts.setdefault(pos, []).append(conf or 0.0)
+        ranked = sorted(
+            counts.items(),
+            key=lambda kv: (len(kv[1]), max(kv[1])),
+            reverse=True,
+        )
+        best_pos = ranked[0][0]
+        best_pos_conf = max(counts[best_pos])
     else:
         best_pos, best_pos_conf = None, None
 

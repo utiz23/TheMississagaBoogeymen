@@ -346,14 +346,22 @@ export async function promoteLoadoutFromEvidence(input: {
         // for this match. If yes, write as team_side='against' with playerId=null
         // (opponent players are not in the players table by design).
         // If not found in either table, block with 'unresolved_team_side'.
+        //
+        // Whitespace-tolerant comparison: OCR sometimes joins multi-word
+        // gamertags ("RAIDERS G7" → "RAIDERSG7").  Compare with whitespace
+        // removed in addition to lowercase normalization.
         const oppRows = await db
           .select({ id: opponentPlayerMatchStats.id, gamertag: opponentPlayerMatchStats.gamertag })
           .from(opponentPlayerMatchStats)
           .where(eq(opponentPlayerMatchStats.matchId, matchId))
+        const stripWS = (s: string) => s.toLowerCase().replace(/\s+/g, '')
         const normGamertag = gamertag.toLowerCase()
-        const oppMatch = oppRows.find(
-          (r) => r.gamertag !== null && r.gamertag.toLowerCase() === normGamertag,
-        )
+        const compactGamertag = stripWS(gamertag)
+        const oppMatch = oppRows.find((r) => {
+          if (r.gamertag === null) return false
+          const lc = r.gamertag.toLowerCase()
+          return lc === normGamertag || stripWS(r.gamertag) === compactGamertag
+        })
         if (oppMatch !== undefined) {
           resolvedTeamSide = 'against'
           // playerId stays null — opponents are not in the players table.

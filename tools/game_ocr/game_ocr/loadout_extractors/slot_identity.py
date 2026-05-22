@@ -100,7 +100,7 @@ _POS_Y_MAX: float = 980.0
 # Row-content spatial constraints
 _ROW_CONTENT_X_MIN: float = 130.0  # extended left to capture level at x≈179
 _ROW_CONTENT_X_MAX: float = 400.0
-_ROW_BAND_HALF_HEIGHT: float = 45.0
+_ROW_BAND_HALF_HEIGHT: float = 30.0
 
 # Subject gamertag location: top-right corner
 _GAMERTAG_Y_MAX: float = 200.0
@@ -157,6 +157,10 @@ _HUD_LABELS_NORMALIZED: set[str] = {
     # Treated as a non-slot for OCR purposes; CPU goalies are handled by
     # the promoter via a dedicated invariant if/when needed.
     "CPU",
+    # Pre-game lobby HUD strings that occasionally leak into the loadout
+    # view OCR window during transitional frames.
+    "HOCKEY", "EAHOCKEY", "READY", "NOTREADY", "READYUP",
+    "CONTINUE", "PROCEED", "ACCEPT", "DECLINE", "OPTIONS",
 }
 
 # Standalone level-fragment pattern: "LVL34" without the "P<gen>" prefix that
@@ -176,8 +180,18 @@ def _looks_like_team_name_header(text: str) -> bool:
         return False
     return text == text.upper() and len(text) > 5
 
-# Height/weight indicator pattern: "5'10|160lbs", "6'2"170lbs" etc.
-_HEIGHT_WEIGHT_RE = re.compile(r"\d['′’‚]\d.*lbs?", re.IGNORECASE)
+# Height/weight indicator pattern.  OCR variants include:
+#   "5'10|160lbs"  (apostrophe between feet and inches)
+#   "6'2"170lbs"   (apostrophe + double-quote)
+#   "5°8\"|175bs"  (degree sign instead of apostrophe, "bs" missing 'l')
+#   "61|194lbs"    (apostrophe stripped → 5'1 reads as 51 / 61)
+# Heuristic: a short string containing "lbs" or "bs" (after one or more
+# digits + optional vertical bar) is a height/weight indicator.
+_HEIGHT_WEIGHT_RE = re.compile(
+    r"^\d+\s*['′’‚°\"]?\s*\d*\s*[|]?\s*\d+\s*l?bs?$|"
+    r"\d['′’‚°\"]\d.*l?bs?",
+    re.IGNORECASE,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -513,11 +527,16 @@ def _extract_subject_gamertag(ocr_lines: Sequence[OCRLine]) -> tuple[str | None,
     very top of the screen — e.g. "554", "299,783", "100" — appear in the same
     bbox region but are not gamertags). The actual gamertag has alphabetic chars.
     """
+    def _is_hud_label(text: str) -> bool:
+        normalized = "".join(c for c in text.upper() if c.isalpha())
+        return normalized in _HUD_LABELS_NORMALIZED
+
     candidates = [
         l for l in ocr_lines
         if l.y_center < _GAMERTAG_Y_MAX and l.x_center > _GAMERTAG_X_MIN
         and l.text.strip()
         and any(c.isalpha() for c in l.text)
+        and not _is_hud_label(l.text.strip())  # reject EA SPORTS branding etc.
     ]
     if not candidates:
         return None, None

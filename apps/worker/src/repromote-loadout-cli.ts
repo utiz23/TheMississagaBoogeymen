@@ -45,6 +45,7 @@ export interface CanonicalSnapshot {
   readonly buildClass: string | null
   readonly playerNumber: number | null
   readonly isCaptain: boolean | null
+  readonly playerNamePersonaRaw?: string | null
 }
 
 export interface DiffResult {
@@ -286,6 +287,19 @@ async function main(): Promise<void> {
       for (const c of diff.changed.slice(0, 10)) {
         console.log(`    ~ ${c.key}: ${c.diffFields.join(', ')}`)
       }
+    }
+
+    // Show what the typed_v1 promoter newly wrote (rows in proposed whose IDs
+    // are not present in before).
+    const beforeIds = new Set(before.snapshots.map((s) => s.id))
+    const newlyWritten = diff.proposedSnapshots.filter((s) => !beforeIds.has(s.id))
+    console.log(
+      `\n[DRY-RUN] Newly-written by typed_v1 promoter: ${String(newlyWritten.length)} snapshots`,
+    )
+    for (const s of newlyWritten) {
+      console.log(
+        `    > ${s.teamSide}|${s.position}: ${s.gamertagSnapshot} #${String(s.playerNumber)} build=${String(s.buildClass)} persona=${String(s.playerNamePersonaRaw)}`,
+      )
     }
 
     console.log(`\n[DRY-RUN] No writes committed.`)
