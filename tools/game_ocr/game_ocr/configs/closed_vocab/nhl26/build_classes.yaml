@@ -23,9 +23,12 @@ entries:
       - "(?i)^snlper$"
       - "(?i)^sn[i]per$"
       - "(?i)^[sS5]niper$"
-      # Title-bar abbreviation suffix (e.g. "JAKEETHAN-SNI")
+      # Title-bar abbreviation suffixes — SNI and SNP both used in NHL 26
+      # (e.g. "JAKEETHAN-SNI", "COLECAUFIELD-SNP")
       - "(?i)^.*[\\-\\s]SNI$"
       - "(?i)^SNI$"
+      - "(?i)^.*[\\-\\s]SNP$"
+      - "(?i)^SNP$"
 
   - canonical: "Grinder"
     aliases:
@@ -40,6 +43,7 @@ entries:
     aliases:
       - "(?i)^two[\\s_]?way[\\s_]?forward$"
       - "(?i)^twowayforward$"
+      - "(?i)^.*twowayforward$"
       - "(?i)^two[\\s_]?w[a]y[\\s_]?forward$"
       # Title-bar abbreviations
       - "(?i)^.*[\\-\\s]TWF$"
@@ -51,6 +55,7 @@ entries:
     aliases:
       - "(?i)^power[\\s_]?forward$"
       - "(?i)^powerforward$"
+      - "(?i)^.*powerforward$"
       - "(?i)^pow[e]r[\\s_]?forward$"
       # Title-bar abbreviation suffix (e.g. "TAGETHOMPSON-PWF")
       - "(?i)^.*[\\-\\s]PWF$"
@@ -60,6 +65,7 @@ entries:
     aliases:
       - "(?i)^puck[\\s_]?moving[\\s_]?defenseman$"
       - "(?i)^puckmovingdefenseman$"
+      - "(?i)^.*puckmovingdefenseman$"
       - "(?i)^puc[k][\\s_]?mov[i]ng[\\s_]?defenseman$"
       # Title-bar abbreviation
       - "(?i)^.*[\\-\\s]PMD$"
@@ -69,6 +75,7 @@ entries:
     aliases:
       - "(?i)^defensive[\\s_]?defenseman$"
       - "(?i)^defensivedefenseman$"
+      - "(?i)^.*defensivedefenseman$"
       - "(?i)^defen[s]ive[\\s_]?defenseman$"
       # Title-bar abbreviation
       - "(?i)^.*[\\-\\s]DFD$"
@@ -78,6 +85,7 @@ entries:
     aliases:
       - "(?i)^offensive[\\s_]?defenseman$"
       - "(?i)^offensivedefenseman$"
+      - "(?i)^.*offensivedefenseman$"
       - "(?i)^offen[s]ive[\\s_]?defenseman$"
       # Title-bar abbreviation
       - "(?i)^.*[\\-\\s]OFD$"

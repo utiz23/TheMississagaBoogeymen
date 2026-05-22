@@ -417,10 +417,19 @@ def extract_subject_identity(
             observability=observability,
         )
     else:
-        # Could not match the gamertag to a left-strip row, but we still have
-        # the gamertag (and maybe build class) — emit a partial identity.
-        # observability='not_observable_from_source' signals that left-strip
-        # context was not available (likely a transitional frame).
+        # No left-strip row matched the gamertag. Two sub-cases:
+        #
+        # (a) Title bar has a build_class — likely a real subject whose
+        #     row OCR was weak; emit partial identity so downstream can
+        #     try to dedupe across frames via gamertag fuzzy-match.
+        # (b) No build_class either — this is almost certainly a transient
+        #     frame (menu transition, loading screen, scrolling between
+        #     screens) where the top-right caught a stray bit of text but
+        #     no real subject is shown. Drop the identity entirely to
+        #     avoid polluting bundle aggregation with spurious "PORTS"-
+        #     style fragments.
+        if not build_class_raw:
+            return None
         observability = (
             "observable"
             if (gamertag_conf or 0) >= _EVIDENCE_CONFIDENCE_THRESHOLD

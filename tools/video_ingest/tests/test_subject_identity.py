@@ -254,31 +254,39 @@ class TestBuildClassFromTitleBar(unittest.TestCase):
 class TestPartialIdentityWhenNoRowMatch(unittest.TestCase):
     """When the top-right gamertag can't be matched to a left-strip row, return partial identity."""
 
-    def test_partial_identity_returned_when_no_row_match(self):
-        """Gamertag found in top-right but no matching left-strip row → partial SubjectIdentity."""
+    def test_partial_identity_returned_when_no_row_match_with_build_class(self):
+        """No row match, but title bar has a build class → partial SubjectIdentity.
+
+        The build_class anchors the subject as a real selection (operator has
+        the loadout view open on this player). Real frame may have weak row OCR
+        but title bar is usually clean.
+        """
         lines = [
             _gamertag_line_top_right("UnknownPlayer"),
+            _title_bar_line("SOMEPLAYER-PWF"),
             # Left strip has rows, but none match "UnknownPlayer"
             _pos_line("LW", 300.0), _gamertag_line_left("OtherPlayer1", 300.0),
             _pos_line("RW", 390.0), _gamertag_line_left("OtherPlayer2", 390.0),
         ]
         result = extract_subject_identity(_DUMMY_IMAGE, ocr_lines=lines)
         self.assertIsNotNone(result)
-        # Gamertag is set from top-right
         self.assertEqual(result.gamertag, "UnknownPlayer")
-        # Position is not set (no row match)
+        self.assertEqual(result.build_class_raw, "SOMEPLAYER-PWF")
         self.assertIsNone(result.position)
-        # Observability reflects inability to match row
         self.assertIn(result.observability, ("observable", "not_observable_from_source"))
 
-    def test_gamertag_still_populated_from_top_right(self):
-        """Even without a row match, gamertag reflects the top-right OCR."""
+    def test_returns_none_when_no_row_match_and_no_build_class(self):
+        """No row match AND no title-bar build_class → return None.
+
+        This filters spurious subjects from transitional frames where the
+        top-right OCR caught stray text (e.g., 'PORTS', menu labels, etc.)
+        that doesn't correspond to a real player selection.
+        """
         lines = [
             _gamertag_line_top_right("SomeUnmatchedTag", conf=0.85),
         ]
         result = extract_subject_identity(_DUMMY_IMAGE, ocr_lines=lines)
-        self.assertIsNotNone(result)
-        self.assertEqual(result.gamertag, "SomeUnmatchedTag")
+        self.assertIsNone(result)
 
 
 # ---------------------------------------------------------------------------
@@ -309,13 +317,13 @@ class TestSubjectObservability(unittest.TestCase):
         self.assertIsNotNone(result)
         self.assertIn(result.observability, ("low_quality", "not_observable_from_source"))
 
-    def test_not_observable_when_no_row_match_and_low_confidence(self):
+    def test_returns_none_when_no_row_match_and_low_confidence_no_build_class(self):
+        """Spurious-subject filter: low-confidence gamertag + no row + no build_class = None."""
         lines = [
             _gamertag_line_top_right("XYZ", conf=0.10),
         ]
         result = extract_subject_identity(_DUMMY_IMAGE, ocr_lines=lines)
-        self.assertIsNotNone(result)
-        self.assertEqual(result.observability, "not_observable_from_source")
+        self.assertIsNone(result)
 
 
 # ---------------------------------------------------------------------------
