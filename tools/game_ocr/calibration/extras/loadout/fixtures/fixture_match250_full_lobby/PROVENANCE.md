@@ -1,6 +1,116 @@
 # Fixture Provenance — fixture_match250_full_lobby
 
-## Source of truth
+## Structure (current — Phase 2A T1A real-data restructure)
+
+```
+fixture_match250_full_lobby/
+├── frames/                           # 15 PNGs from real Pass-2 run (T1A gate)
+│   ├── 00001.png … 00015.png
+├── expected_loadout_evidence.json    # Real extractor output, 602 records × 9 subjects
+├── expected_canonical.sql            # V2-verified canonical rows, sentinel match 9001
+├── seg_bgm/                          # Hand-authored evidence JSON (T6A/T2A/T8A Node tests)
+│   ├── expected_loadout_evidence.json
+│   └── frames/                       # Empty — T1A for seg_bgm skips silently
+├── seg_opp/                          # Hand-authored evidence JSON (T6A/T2A/T8A Node tests)
+│   ├── expected_loadout_evidence.json
+│   └── frames/                       # Empty — T1A for seg_opp skips silently
+└── PROVENANCE.md
+```
+
+The root-level `expected_loadout_evidence.json` and `frames/` are used by the
+**Python T1A gate** (`test_loadout_evidence_fixture_parity.py::test_match250_parity`).
+
+The `seg_bgm/` and `seg_opp/` hand-authored JSONs are used by the **Node T6A/T2A/T8A
+gates** via `loadFixture('fixture_match250_full_lobby')` in
+`apps/worker/src/__tests__/fixtures/loadout-fixture-loader.ts`.
+
+---
+
+## Source of truth — frames/
+
+**Source video:** `/mnt/k/NHL/NHL26/2026-05-08_18-25-42.mkv`
+(WSL: `/mnt/k/2026-05-08_18-25-42.mkv`)
+
+**Pipeline run:** Phase 2A typed_v1 OCR pipeline, Pass-2 extraction.
+
+**Content hash:** `a55b2ebfd01fc51e5ab825b779357b1367ed904c081558e79bc2903cb49f6088`
+
+**Segment:** `seg-002-player_loadout_view` (15 frames: `00001.png` — `00015.png`)
+
+**Run timestamp:** 2026-05-20 (approximate; frames from `/tmp/typed-v1-match250/`)
+
+**segment_index used:** 2 (subject_slot_key prefix: `loadout_slot_seg0002_*`)
+
+---
+
+## Source of truth — expected_loadout_evidence.json
+
+**Authoring strategy (Option B):** Real extractor output used as the starting template.
+Field values cross-checked against V2 benchmark (`apps/worker/src/__tests__/match-250-benchmark.test.ts`)
+and production canonical DB rows for the fields V2 asserts. The extractor output
+is the fixture — this test LOCKS the current extractor behavior.
+
+**Total records:** 602 across 9 subjects.
+**Extractor version stamped:** `loadout-evidence-v2`
+
+### Subjects extracted (subject00–subject08)
+
+| subject_slot_key                    | gamertag        | position | jersey | V2-match |
+|-------------------------------------|-----------------|----------|--------|----------|
+| loadout_slot_seg0002_subject00      | MrHomiecide     | —        | —      | V2: C, #11, captain |
+| loadout_slot_seg0002_subject01      | StickMenace     | LW       | 96     | V2: "Stick Menace" (space — known OCR artifact) |
+| loadout_slot_seg0002_subject02      | HenryTheBobJr   | LD       | 7      | V2: LD, #7 ✓ |
+| loadout_slot_seg0002_subject03      | XZ4RKY          | C        | 19     | V2: C, #19, captain ✓ |
+| loadout_slot_seg0002_subject04      | RAIDERSG7       | RW       | 7      | V2: RW, #7 ✓ |
+| loadout_slot_seg0002_subject05      | shadowassault20 | RD       | 56     | V2: RD, #56 ✓ |
+| loadout_slot_seg0002_subject06      | silkyjoker85    | RW       | 10     | V2: RW, #10 ✓ |
+| loadout_slot_seg0002_subject07      | Duh Pope        | LW       | 95     | V2: "DuhPope" (no space — known OCR artifact) |
+| loadout_slot_seg0002_subject08      | MuttButt        | LD       | 23     | V2: LD, #23 ✓ |
+
+**JoeyFlopfish is absent:** only 9 subjects appear in the 15-frame bundle. JoeyFlopfish
+(BGM RD, #48) was not navigated to in this recording segment.
+
+### Known extractor artifacts vs V2 ground truth
+
+| Field | Subject | Extractor value | V2 / DB canonical | Action |
+|-------|---------|----------------|-------------------|--------|
+| gamertag | subject01 | `StickMenace` | `Stick Menace` | Fixture locks extractor behavior; PROVENANCE notes discrepancy |
+| gamertag | subject07 | `Duh Pope` | `DuhPope` | Same — OCR added space |
+| is_captain | subject00 | `null` (low_quality) | `true` (V2) | Extractor cannot read captain icon in this frame set |
+| is_captain | subject03 | `null` (low_quality) | `true` (XZ4RKY, V2) | Same |
+| position, jersey, persona_raw | subject00 | all null (low_quality) | V2: C, #11, E. WANHG | Extractor limitation for subject00 frames |
+| persona_raw | subject03–05, 07–08 | null | V2: various | Persona not captured for opp subjects |
+
+### Per-field provenance
+
+| Field category | V2-verified? | Notes |
+|----------------|-------------|-------|
+| `gamertag` (candidate_value) | Mostly yes | subject01/subject07 have known space artifacts |
+| `position` | Yes (where observable) | subject00 is low_quality |
+| `jersey_number` | Yes (where observable) | subject00 is low_quality |
+| `is_captain` | Not captured | All null (low_quality) — this frame set does not expose captain icon |
+| `build_class` | Yes (canonical value) | build_class_raw may differ from canonical |
+| `x_factor_name_*` | Yes (where observable) | Many subjects have initial null then observable in later ranks |
+| `x_factor_tier_*` | Extractor-as-correct | Tiers not V2-asserted; locked from extractor output |
+| Attribute values (23 keys) | Partial | Values match canonical SQL for visible rows |
+| Attribute deltas | Extractor-as-correct | Many null due to frame visibility; locked from extractor output |
+| `player_level_raw` | Extractor-as-correct | V2 asserts player_level_number (int), not raw string |
+| `persona_raw` | Partial | V2 asserts canonical persona form; extractor captures raw OCR |
+
+### Attribute row notes
+
+For ALL 9 subjects, `attribute_deking_value` is `null` (low_quality). This appears to be a
+consistent OCR limitation with this frame set — the deking row is not reliably readable.
+Consequently, `attribute_faceoffs_value`, `attribute_discipline_value`, and
+`attribute_fighting_skill_value` extracted by the extractor reflect what is ACTUALLY at
+those fixed pixel positions — they are NOT shifted from deking. The values differ from the
+canonical DB rows (which were ingested via a different pipeline run / older extractor).
+
+These differences are locked in the fixture as extractor-currently-correct for this frame set.
+
+---
+
+## Source of truth — expected_canonical.sql
 
 - **Canonical rows** (`expected_canonical.sql`): copied verbatim from production
   `player_loadout_snapshots` + `player_loadout_x_factors` + `player_loadout_attributes`
@@ -22,84 +132,60 @@
   Cross-checked 2026-05-21: queried DB directly, compared each field against
   the benchmark assertions, confirmed exact matches.
 
-- **Evidence JSON** (`seg_bgm/expected_loadout_evidence.json`,
-  `seg_opp/expected_loadout_evidence.json`): hand-authored from first principles
-  to be structurally consistent with the canonical rows and the promotion gate
-  semantics in `apps/worker/src/lib/promotion-gate.ts`. The system-under-test
-  (the Python extractor) was NOT invoked during authoring.
+  **Note:** The canonical SQL covers 10 slots including JoeyFlopfish (BGM RD),
+  even though JoeyFlopfish does not appear in the T1A fixture. The canonical SQL
+  is used by the T6A Node test, which uses the hand-authored `seg_bgm/` and
+  `seg_opp/` evidence JSONs that DO include all 10 slots.
 
-  Authoring strategy: for each slot, construct the minimal set of evidence
-  records that `runPromotionGate` + `promoteLoadoutFromEvidence` (Task 2A-17)
-  would promote into the canonical snapshot/x_factors/attributes rows above.
-  Per record: `calibrated_confidence=0.9` for open_text+closed_vocab (rank 0),
-  `1.0` for icon, `0.85` for tabular_numeric. All candidates are rank 0
-  (single uncontested hypothesis), so `conflictCount=0` and the gate promotes
-  without entering the dominance check.
-
-- **PNG frames** (`seg_bgm/frames/`, `seg_opp/frames/`): TODO — operator must
-  populate before running T1A (Python extractor parity). Phase 1 segment
-  directories (`/tmp/vi-canonical/…/pass2/seg-001-player_loadout_view` and
-  `/tmp/vi-phase1-smoke/…/pass2/seg-002-player_loadout_view`) were not present
-  on disk at fixture authoring time (temporary directories cleaned up after
-  Phase 1 runs). The operator should re-extract these segments from the
-  canonical test recording (`/mnt/k/2026-05-08_18-25-42.mkv`) using the
-  Phase 1 pipeline before running T1A tests.
-
-## Per-field provenance
-
-| Field | Source | V2-locked? |
-|-------|--------|------------|
-| `gamertag_snapshot` | Production DB reviewed row + V2 benchmark | Yes |
-| `position` | Production DB reviewed row + V2 benchmark | Yes |
-| `is_captain` | Production DB reviewed row + V2 benchmark | Yes |
-| `build_class_canonical` | Production DB reviewed row + V2 benchmark | Yes |
-| `x_factor_name_canonical[0,1,2]` | Production DB reviewed row + V2 benchmark | Yes |
-| `height_text` | Production DB reviewed row + V2 benchmark (Family 7) | Yes |
-| `weight_lbs` | Production DB reviewed row + V2 benchmark (Family 7) | Yes |
-| `player_level_number` | Production DB reviewed row + V2 benchmark (Family 7) | Yes |
-| `player_name_persona` | Production DB reviewed row + V2 benchmark (Family 1) | Yes |
-| `x_factor_tier` | Production DB reviewed row (tiers not V2-asserted per benchmark comment) | DB only |
-| Attribute values (23 keys) | Production DB reviewed rows (IDs 2257–2509) | DB only |
-| `player_level_raw`, `build_class` (raw) | Production DB reviewed row | DB only |
-
-## Sentinel IDs used
-
-| Sentinel | Range | Purpose |
-|----------|-------|---------|
-| `match_id` | 9001 | Sentinel match to avoid FK conflicts with real data |
-| `player_id` (BGM) | 99001–99005 | Sentinel players (BGM side) |
-| `snapshot.id` | 90001–90010 | 10 loadout snapshot sentinel rows |
-| `x_factor.id` | 90100–90129 | 30 x_factor child rows |
-| `attribute.id` | 90200–90429 | 230 attribute child rows |
-| `ocr_extraction_id` | 99999 | Placeholder (no FK enforcement in test DB) |
-
-## Evidence record counts
-
-| Segment | Slots | Records per slot | Total |
-|---------|-------|-----------------|-------|
-| `seg_bgm` | 5 | 61 | 305 |
-| `seg_opp` | 5 | 61 | 305 |
-| **Combined** | **10** | **61** | **610** |
-
-Per-slot record breakdown (61 per slot):
-- 1 gamertag (open_text)
-- 1 position (closed_vocab)
-- 1 player_number (open_text)
-- 1 is_captain (icon)
-- 1 build_class (closed_vocab)
-- 1 player_name_persona (open_text)
-- 1 height (open_text)
-- 1 weight (open_text)
-- 1 player_level_number (open_text)
-- 3 x_factor_name (closed_vocab, slots 0/1/2)
-- 3 x_factor_tier (closed_vocab, slots 0/1/2)
-- 23 attr_* value (tabular_numeric, column_key=value)
-- 23 attr_*_delta value (tabular_numeric, column_key=delta)
-= **61 records per slot**
+---
 
 ## Fixture serves acceptance gates
 
-- **T1A** (Python extractor parity): run extractor against `frames/`; compare
-  output to `expected_loadout_evidence.json`. Requires PNG population (see TODO above).
-- **T6A** (Node promoter parity): run `promoteLoadoutFromEvidence` with evidence
-  from this fixture; assert DB state matches `expected_canonical.sql`.
+- **T1A** (Python extractor parity): `test_match250_parity` runs extractor against
+  `frames/`; compares output to `expected_loadout_evidence.json` (root level).
+  Gate is ACTIVE when frames/ is populated (602 records, 9 subjects).
+
+- **T6A** (Node promoter parity): `loadout-canonical-row-fixture.test.ts` promotes
+  `seg_bgm/expected_loadout_evidence.json` + `seg_opp/expected_loadout_evidence.json`
+  (hand-authored, 610 records, 10 slots) and asserts against `expected_canonical.sql`.
+
+---
+
+## Regeneration recipe
+
+To regenerate `expected_loadout_evidence.json` and `frames/` after a pipeline change:
+
+```bash
+# 1. Re-run Pass-2 on the canonical test recording
+python tools/video_ingest/cli.py ingest /mnt/k/NHL/NHL26/2026-05-08_18-25-42.mkv \
+    --force-pass2 --out /tmp/typed-v1-match250-new/
+
+# 2. Find the seg-002-player_loadout_view output
+SEG=/tmp/typed-v1-match250-new/<hash>/pass2/seg-002-player_loadout_view
+
+# 3. Copy frames
+cp $SEG/*.png tools/game_ocr/calibration/extras/loadout/fixtures/fixture_match250_full_lobby/frames/
+
+# 4. Replace expected JSON
+cp $SEG/loadout_evidence.json \
+   tools/game_ocr/calibration/extras/loadout/fixtures/fixture_match250_full_lobby/expected_loadout_evidence.json
+
+# 5. Cross-check gamertags / positions against V2 benchmark and update PROVENANCE.md
+# 6. Run T1A to confirm the new fixture passes:
+source .venv-1/bin/activate
+PYTHONPATH=tools/game_ocr:tools/video_ingest python -m pytest \
+    tools/video_ingest/tests/test_loadout_evidence_fixture_parity.py::TestLoadoutEvidenceFixtureParity::test_match250_parity -v
+```
+
+---
+
+## Sentinel IDs used (canonical SQL / Node tests)
+
+| Sentinel            | Range       | Purpose                                             |
+| ------------------- | ----------- | --------------------------------------------------- |
+| `match_id`          | 9001        | Sentinel match to avoid FK conflicts with real data |
+| `player_id` (BGM)   | 99001–99005 | Sentinel players (BGM side)                         |
+| `snapshot.id`       | 90001–90010 | 10 loadout snapshot sentinel rows                   |
+| `x_factor.id`       | 90100–90129 | 30 x_factor child rows                              |
+| `attribute.id`      | 90200–90429 | 230 attribute child rows                            |
+| `ocr_extraction_id` | 99999       | Placeholder (no FK enforcement in test DB)          |
