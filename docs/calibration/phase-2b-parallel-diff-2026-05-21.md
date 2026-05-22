@@ -474,3 +474,68 @@ pnpm --filter worker phase-2b-parallel-diff
 
 The script is idempotent (clears existing `ocr_field_evidence` for the match before
 inserting). It does NOT modify `player_loadout_snapshots` or any other canonical table.
+
+---
+
+## Update — 2026-05-21 (post field-key fix)
+
+Field-key mismatches resolved in `apps/worker/src/ocr-promoters/loadout-v2.ts`.
+
+### Changes made
+
+The promoter now accepts the typed_v1 extractor's field_key naming conventions and
+maps them to canonical DB columns at INSERT time (Option B+C from the plan):
+
+| Extractor field_key | Internal alias / handling | DB column |
+|---|---|---|
+| `jersey_number` | aliased → `player_number` at grouping time | `player_number` |
+| `persona_raw` | aliased → `player_name_persona` at grouping time | `player_name_persona_raw` + `player_name_persona` |
+| `attribute_{name}_value` | parsed by `parseExtractorAttributeKey()` | `player_loadout_attributes.value` |
+| `attribute_{name}_delta` | parsed by `parseExtractorAttributeKey()` | `player_loadout_attributes.delta_value` |
+
+**Attribute merging:** Each canonical attribute name now produces ONE
+`player_loadout_attributes` row with both `value` and `delta_value` columns populated,
+sourced from the two FieldEvidenceRecord entries the extractor emits per attribute.
+
+**Backward compatibility:** Legacy test fixture format (`attr_{name}`, `player_number`,
+`player_name_persona`) is fully preserved — the promoter accepts both formats. All
+existing tests remain green.
+
+### Post-fix dry-run results
+
+Re-ran the seeder (`phase-2b-parallel-diff-2026-05-21.ts`) and the dry-run promoter
+against matches 250 and 463 after the fix.
+
+**Match 250:**
+- Snapshots: 8 new (typed_v1) — 3 x_factor rows per snapshot (24 total new)
+- Attributes: **23 per snapshot × 8 snapshots = 184 new attribute rows** (was 0)
+- Jersey numbers: now populated where typed_v1 evidence was good quality
+  (`playerNumber: null → 7` for for/LD, `null → 96` for for/LW, `null → 10` for for/RW)
+- Persona: `persona_raw` evidence recognized and aliased to `player_name_persona`
+
+**Match 463:**
+- Snapshots: 7 new (typed_v1) — 3 x_factor rows per snapshot (21 total new)
+- Attributes: **23 per snapshot × 7 snapshots = 161 new attribute rows** (was 0)
+- Jersey numbers: now populated where evidence available
+  (`playerNumber: null → 63` for for/LW, `null → 7` for for/LD, `null → 10` for for/RW,
+   `null → 26` for against/LW)
+
+### Post-fix test suite results
+
+All 4 promoter test suites pass (38 tests total):
+- `loadout-promotion-gate.test`: 8/8 pass
+- `loadout-canonical-row-fixture.test` (T6A): 10/10 pass (10 snapshots, 30 x_factors, 230 attributes for match 9001)
+- `match-463-loadout-slots-fixture.test` (T2A): 4/4 pass
+- `loadout-degraded-fixture.test` (T8A): 16/16 pass
+
+### Recommendation
+
+**SAFE TO PROCEED with Task 2B-8 cutover.**
+
+All three field-key mismatches are resolved:
+1. `attribute_{name}_{value|delta}` → promoter now writes 23 attribute rows per snapshot
+2. `jersey_number` → aliased to `player_number`; jersey numbers populate correctly
+3. `persona_raw` → aliased to `player_name_persona`; persona evidence flows through
+
+Categorical match rate remains 100% (0 categorical mismatches in both matches).
+Attribute coverage is now 23/23 per snapshot (subject to the promoter floor of ≥20).

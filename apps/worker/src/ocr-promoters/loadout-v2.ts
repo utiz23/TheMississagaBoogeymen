@@ -87,7 +87,12 @@ interface PendingPromotion {
   evidenceCount: number
   conflictCount: number
   evidenceIds: number[]
-  promotionStatus: 'promoted' | 'blocked_consensus' | 'blocked_observability' | 'blocked_invariant' | 'blocked_authority'
+  promotionStatus:
+    | 'promoted'
+    | 'blocked_consensus'
+    | 'blocked_observability'
+    | 'blocked_invariant'
+    | 'blocked_authority'
   blockingReason: string | null
   authoritySource: 'manual_truth' | 'ea_api' | 'ocr_evidence' | null
 }
@@ -95,10 +100,7 @@ interface PendingPromotion {
 // ─── constants ─────────────────────────────────────────────────────────────────
 
 /** Loadout HARD fields that must all promote for a snapshot to be written. */
-const HARD_FIELD_KEYS = new Set([
-  'gamertag',
-  'position',
-])
+const HARD_FIELD_KEYS = new Set(['gamertag', 'position'])
 
 /**
  * X-Factor field keys for slot indices 0, 1, 2.
@@ -107,21 +109,128 @@ const HARD_FIELD_KEYS = new Set([
 const XFACTOR_FIELD_KEYS = ['x_factor_name_0', 'x_factor_name_1', 'x_factor_name_2'] as const
 
 /**
- * Attribute field keys.  23 in total.  At least 20 must promote for the
- * child block to write.
+ * The 23 canonical attribute names (without any prefix).
+ * Used for both the extractor's `attribute_{name}_{value|delta}` format and the
+ * legacy test-fixture `attr_{name}` format.
+ */
+const CANONICAL_ATTRIBUTE_NAMES = new Set([
+  'wrist_shot_accuracy',
+  'slap_shot_accuracy',
+  'speed',
+  'balance',
+  'agility',
+  'wrist_shot_power',
+  'slap_shot_power',
+  'acceleration',
+  'puck_control',
+  'endurance',
+  'passing',
+  'offensive_awareness',
+  'body_checking',
+  'stick_checking',
+  'defensive_awareness',
+  'hand_eye',
+  'strength',
+  'durability',
+  'shot_blocking',
+  'deking',
+  'faceoffs',
+  'discipline',
+  'fighting_skill',
+])
+
+/**
+ * Attribute field keys in the LEGACY format (test fixtures authored before
+ * Phase 2A typed_v1 extractor).  At least 20 must promote for the child block
+ * to write.
+ *
+ * The typed_v1 extractor emits `attribute_{name}_value` and
+ * `attribute_{name}_delta` instead.  Both formats are accepted by the promoter.
  */
 const ATTRIBUTE_FIELD_KEYS = new Set([
-  'attr_wrist_shot_accuracy', 'attr_slap_shot_accuracy', 'attr_speed', 'attr_balance', 'attr_agility',
-  'attr_wrist_shot_power', 'attr_slap_shot_power', 'attr_acceleration', 'attr_puck_control', 'attr_endurance',
-  'attr_passing', 'attr_offensive_awareness', 'attr_body_checking', 'attr_stick_checking', 'attr_defensive_awareness',
-  'attr_hand_eye', 'attr_strength', 'attr_durability', 'attr_shot_blocking',
-  'attr_deking', 'attr_faceoffs', 'attr_discipline', 'attr_fighting_skill',
+  'attr_wrist_shot_accuracy',
+  'attr_slap_shot_accuracy',
+  'attr_speed',
+  'attr_balance',
+  'attr_agility',
+  'attr_wrist_shot_power',
+  'attr_slap_shot_power',
+  'attr_acceleration',
+  'attr_puck_control',
+  'attr_endurance',
+  'attr_passing',
+  'attr_offensive_awareness',
+  'attr_body_checking',
+  'attr_stick_checking',
+  'attr_defensive_awareness',
+  'attr_hand_eye',
+  'attr_strength',
+  'attr_durability',
+  'attr_shot_blocking',
+  'attr_deking',
+  'attr_faceoffs',
+  'attr_discipline',
+  'attr_fighting_skill',
 ])
 
 const ATTRIBUTE_PROMOTION_FLOOR = 20
 
+/**
+ * Parse an extractor-format attribute field_key of the form
+ * `attribute_{name}_{value|delta}` into its constituent parts.
+ *
+ * Returns `{name, column: 'value' | 'delta'}` on match, or `null` if the key
+ * does not match the extractor format.
+ *
+ * The extractor (loadout_evidence.py) builds field_key as:
+ *   `f"attribute_{tab_ev.row_key}_{tab_ev.column_key}"`
+ * where column_key is either `"value"` or `"delta"`.
+ */
+function parseExtractorAttributeKey(
+  fieldKey: string,
+): { name: string; column: 'value' | 'delta' } | null {
+  if (!fieldKey.startsWith('attribute_')) return null
+  const rest = fieldKey.slice('attribute_'.length) // e.g. "speed_value" or "speed_delta"
+  if (rest.endsWith('_value')) {
+    const name = rest.slice(0, -'_value'.length)
+    if (CANONICAL_ATTRIBUTE_NAMES.has(name)) return { name, column: 'value' }
+  } else if (rest.endsWith('_delta')) {
+    const name = rest.slice(0, -'_delta'.length)
+    if (CANONICAL_ATTRIBUTE_NAMES.has(name)) return { name, column: 'delta' }
+  }
+  return null
+}
+
+/**
+ * Field-key aliases from typed_v1 extractor → internal canonical name.
+ *
+ * The typed_v1 extractor (loadout_evidence.py) emits these field_keys from
+ * the subject's canonical_subject (SubjectIdentity):
+ *   - `jersey_number`  → maps to `player_number`  (DB column: player_number)
+ *   - `persona_raw`    → maps to `player_name_persona` (raw persona string)
+ *
+ * These aliases are resolved during evidence grouping so the downstream gate
+ * and write logic sees the same internal key regardless of extractor version.
+ */
+const FIELD_KEY_ALIASES: Readonly<Record<string, string>> = {
+  jersey_number: 'player_number',
+  persona_raw: 'player_name_persona',
+}
+
 // Positions valid for EASHL loadout views.
-const VALID_POSITIONS = new Set(['C', 'LW', 'RW', 'LD', 'RD', 'G', 'center', 'leftWing', 'rightWing', 'defenseMen', 'goalie'])
+const VALID_POSITIONS = new Set([
+  'C',
+  'LW',
+  'RW',
+  'LD',
+  'RD',
+  'G',
+  'center',
+  'leftWing',
+  'rightWing',
+  'defenseMen',
+  'goalie',
+])
 
 // ─── main export ───────────────────────────────────────────────────────────────
 
@@ -137,17 +246,30 @@ export async function promoteLoadoutFromEvidence(input: {
 
   // ── Step 2: Group by (subject_slot_key, field_key), sort by candidate_rank ──
   // evidenceBySlot: Map<slotKey, Map<fieldKey, evidence_rows_sorted_by_rank>>
+  //
+  // Field-key normalisation happens here so all downstream logic sees a single
+  // consistent key space regardless of which extractor version produced the row:
+  //
+  //   typed_v1 extractor key          → internal key used by promoter
+  //   jersey_number                   → player_number
+  //   persona_raw                     → player_name_persona
+  //   attribute_{name}_value          → attribute_{name}_value  (kept as-is; parsed later)
+  //   attribute_{name}_delta          → attribute_{name}_delta  (kept as-is; parsed later)
+  //   attr_{name}   (legacy fixture)  → attr_{name}            (kept; ATTRIBUTE_FIELD_KEYS)
+  //   attr_{name}_delta (legacy)      → attr_{name}_delta      (kept; not counted for floor)
   const evidenceBySlot = new Map<string, Map<string, typeof allEvidence>>()
   for (const row of allEvidence) {
     const slotKey = row.subjectSlotKey ?? '__no_slot__'
+    // Resolve field-key alias (jersey_number → player_number, persona_raw → player_name_persona).
+    const effectiveFieldKey = FIELD_KEY_ALIASES[row.fieldKey] ?? row.fieldKey
     if (!evidenceBySlot.has(slotKey)) {
       evidenceBySlot.set(slotKey, new Map())
     }
     const slotMap = evidenceBySlot.get(slotKey)!
-    if (!slotMap.has(row.fieldKey)) {
-      slotMap.set(row.fieldKey, [])
+    if (!slotMap.has(effectiveFieldKey)) {
+      slotMap.set(effectiveFieldKey, [])
     }
-    slotMap.get(row.fieldKey)!.push(row)
+    slotMap.get(effectiveFieldKey)!.push(row)
   }
   // Within each (slot, field), rows are already sorted by candidateRank ASC
   // from the query order; no secondary sort needed.
@@ -205,9 +327,16 @@ export async function promoteLoadoutFromEvidence(input: {
     let snapshotBlockReason: string | null = null
     let resolvedPosition: string | null = null
 
-    if (gamertagDecision?.status === 'promoted' && typeof gamertagDecision.winningValue === 'string') {
+    if (
+      gamertagDecision?.status === 'promoted' &&
+      typeof gamertagDecision.winningValue === 'string'
+    ) {
       const gamertag = gamertagDecision.winningValue
-      const resolution = await resolveGamertagToPlayer(gamertag, gameTitleId, db as unknown as PromoterDb)
+      const resolution = await resolveGamertagToPlayer(
+        gamertag,
+        gameTitleId,
+        db as unknown as PromoterDb,
+      )
       resolvedPlayerId = resolution.playerId
       if (resolution.playerId !== null) {
         // Resolved to a known player → BGM side ('for').
@@ -235,7 +364,10 @@ export async function promoteLoadoutFromEvidence(input: {
     }
 
     // Position: validate closed-vocab
-    if (positionDecision?.status === 'promoted' && typeof positionDecision.winningValue === 'string') {
+    if (
+      positionDecision?.status === 'promoted' &&
+      typeof positionDecision.winningValue === 'string'
+    ) {
       const pos = positionDecision.winningValue
       if (VALID_POSITIONS.has(pos)) {
         resolvedPosition = pos
@@ -333,7 +465,15 @@ export async function promoteLoadoutFromEvidence(input: {
 
       // Still record per-field decisions for triage.
       for (const [fieldKey, decision] of sd.fieldDecisions.entries()) {
-        pendingPromotions.push(fieldDecisionToPromotion(matchId, 'player_loadout_snapshots', semanticKey, fieldKey, decision))
+        pendingPromotions.push(
+          fieldDecisionToPromotion(
+            matchId,
+            'player_loadout_snapshots',
+            semanticKey,
+            fieldKey,
+            decision,
+          ),
+        )
       }
       continue
     }
@@ -366,7 +506,15 @@ export async function promoteLoadoutFromEvidence(input: {
         authoritySource: null,
       })
       for (const [fieldKey, decision] of sd.fieldDecisions.entries()) {
-        pendingPromotions.push(fieldDecisionToPromotion(matchId, 'player_loadout_snapshots', semanticKey, fieldKey, decision))
+        pendingPromotions.push(
+          fieldDecisionToPromotion(
+            matchId,
+            'player_loadout_snapshots',
+            semanticKey,
+            fieldKey,
+            decision,
+          ),
+        )
       }
       continue
     }
@@ -378,52 +526,61 @@ export async function promoteLoadoutFromEvidence(input: {
 
     // Persona alias resolution (Step 6)
     const personaRawDecision = sd.fieldDecisions.get('player_name_persona')
-    const personaRaw = personaRawDecision?.status === 'promoted'
-      ? String(personaRawDecision.winningValue ?? '')
-      : null
+    const personaRaw =
+      personaRawDecision?.status === 'promoted'
+        ? String(personaRawDecision.winningValue ?? '')
+        : null
     const personaCanonical = personaRaw ? await resolvePersonaAlias(db, personaRaw) : null
 
     // Optional fields
     const playerNameFullDecision = sd.fieldDecisions.get('player_name_full')
-    const playerNameFull = playerNameFullDecision?.status === 'promoted'
-      ? String(playerNameFullDecision.winningValue ?? '')
-      : null
+    const playerNameFull =
+      playerNameFullDecision?.status === 'promoted'
+        ? String(playerNameFullDecision.winningValue ?? '')
+        : null
     const playerNumberDecision = sd.fieldDecisions.get('player_number')
-    const playerNumber = playerNumberDecision?.status === 'promoted' && typeof playerNumberDecision.winningValue === 'number'
-      ? playerNumberDecision.winningValue
-      : null
+    const playerNumber =
+      playerNumberDecision?.status === 'promoted' &&
+      typeof playerNumberDecision.winningValue === 'number'
+        ? playerNumberDecision.winningValue
+        : null
     const isCaptainDecision = sd.fieldDecisions.get('is_captain')
-    const isCaptain = isCaptainDecision?.status === 'promoted' && typeof isCaptainDecision.winningValue === 'boolean'
-      ? isCaptainDecision.winningValue
-      : null
+    const isCaptain =
+      isCaptainDecision?.status === 'promoted' &&
+      typeof isCaptainDecision.winningValue === 'boolean'
+        ? isCaptainDecision.winningValue
+        : null
     const buildClassDecision = sd.fieldDecisions.get('build_class')
-    const buildClass = buildClassDecision?.status === 'promoted'
-      ? String(buildClassDecision.winningValue ?? '')
-      : null
+    const buildClass =
+      buildClassDecision?.status === 'promoted'
+        ? String(buildClassDecision.winningValue ?? '')
+        : null
     const heightDecision = sd.fieldDecisions.get('height')
-    const heightText = heightDecision?.status === 'promoted'
-      ? String(heightDecision.winningValue ?? '')
-      : null
+    const heightText =
+      heightDecision?.status === 'promoted' ? String(heightDecision.winningValue ?? '') : null
     const weightDecision = sd.fieldDecisions.get('weight')
-    const weightLbs = weightDecision?.status === 'promoted' && typeof weightDecision.winningValue === 'number'
-      ? weightDecision.winningValue
-      : null
+    const weightLbs =
+      weightDecision?.status === 'promoted' && typeof weightDecision.winningValue === 'number'
+        ? weightDecision.winningValue
+        : null
     const handednessDecision = sd.fieldDecisions.get('handedness')
-    const handedness = handednessDecision?.status === 'promoted'
-      ? String(handednessDecision.winningValue ?? '')
-      : null
+    const handedness =
+      handednessDecision?.status === 'promoted'
+        ? String(handednessDecision.winningValue ?? '')
+        : null
     const platformDecision = sd.fieldDecisions.get('player_platform')
-    const platform = platformDecision?.status === 'promoted'
-      ? whitelistPlatform(String(platformDecision.winningValue ?? ''))
-      : null
+    const platform =
+      platformDecision?.status === 'promoted'
+        ? whitelistPlatform(String(platformDecision.winningValue ?? ''))
+        : null
     const levelRawDecision = sd.fieldDecisions.get('player_level_raw')
-    const playerLevelRaw = levelRawDecision?.status === 'promoted'
-      ? String(levelRawDecision.winningValue ?? '')
-      : null
+    const playerLevelRaw =
+      levelRawDecision?.status === 'promoted' ? String(levelRawDecision.winningValue ?? '') : null
     const levelNumDecision = sd.fieldDecisions.get('player_level_number')
-    const playerLevelNumber = levelNumDecision?.status === 'promoted' && typeof levelNumDecision.winningValue === 'number'
-      ? levelNumDecision.winningValue
-      : null
+    const playerLevelNumber =
+      levelNumDecision?.status === 'promoted' && typeof levelNumDecision.winningValue === 'number'
+        ? levelNumDecision.winningValue
+        : null
 
     // ── Write snapshot row (inside transaction below) ───────────────────────
     promotedSnapshotCount++
@@ -434,12 +591,71 @@ export async function promoteLoadoutFromEvidence(input: {
     const writeXFactors = xfAllPromoted && xfDecisions.length === 3
 
     // ── Attribute child block check ─────────────────────────────────────────
-    const attrDecisions: Array<[string, PromotionDecision]> = []
-    for (const attrKey of ATTRIBUTE_FIELD_KEYS) {
-      const dec = sd.fieldDecisions.get(attrKey)
-      if (dec) attrDecisions.push([attrKey, dec])
+    //
+    // Two attribute evidence formats are accepted:
+    //
+    // (A) Extractor format (typed_v1):
+    //     field_key = `attribute_{name}_value`  → base value (int)
+    //     field_key = `attribute_{name}_delta`  → +/- chip delta (int | null)
+    //     Each canonical attribute name produces TWO evidence records.
+    //     They are merged into ONE player_loadout_attributes row per name with
+    //     both `value` and `delta_value` columns populated.
+    //     An attribute is considered "promoted" when its `_value` record promotes.
+    //
+    // (B) Legacy fixture format (pre-Phase-2A-typed_v1 test fixtures):
+    //     field_key = `attr_{name}` → base value (int)
+    //     field_key = `attr_{name}_delta` → optional delta (int) — not counted toward floor
+    //     An attribute is considered "promoted" when its `attr_{name}` record promotes.
+    //
+    // The floor of 20 promoted attributes is applied consistently in both formats.
+
+    // Merged attribute map: canonical name → {valueDec, deltaDec}
+    interface AttrMerge {
+      valueDec: PromotionDecision | null
+      deltaDec: PromotionDecision | null
     }
-    const promotedAttrCount = attrDecisions.filter(([, d]) => d.status === 'promoted').length
+    const mergedAttrs = new Map<string, AttrMerge>()
+
+    for (const [fieldKey, dec] of sd.fieldDecisions.entries()) {
+      // --- Format A: attribute_{name}_{value|delta} ---
+      const parsed = parseExtractorAttributeKey(fieldKey)
+      if (parsed !== null) {
+        const existing = mergedAttrs.get(parsed.name) ?? { valueDec: null, deltaDec: null }
+        if (parsed.column === 'value') {
+          existing.valueDec = dec
+        } else {
+          existing.deltaDec = dec
+        }
+        mergedAttrs.set(parsed.name, existing)
+        continue
+      }
+      // --- Format B: attr_{name} (legacy; ATTRIBUTE_FIELD_KEYS) ---
+      if (ATTRIBUTE_FIELD_KEYS.has(fieldKey)) {
+        const name = fieldKey.replace(/^attr_/, '')
+        const existing = mergedAttrs.get(name) ?? { valueDec: null, deltaDec: null }
+        existing.valueDec = dec // legacy: no separate _value key
+        mergedAttrs.set(name, existing)
+        continue
+      }
+      // --- Format B delta: attr_{name}_delta ---
+      if (fieldKey.startsWith('attr_') && fieldKey.endsWith('_delta')) {
+        const name = fieldKey.slice('attr_'.length, -'_delta'.length)
+        if (CANONICAL_ATTRIBUTE_NAMES.has(name)) {
+          const existing = mergedAttrs.get(name) ?? { valueDec: null, deltaDec: null }
+          existing.deltaDec = dec
+          mergedAttrs.set(name, existing)
+        }
+      }
+    }
+
+    // attrDecisions: one entry per canonical attribute name that has at least a valueDec
+    const attrDecisions: Array<[string, AttrMerge]> = []
+    for (const [name, merge] of mergedAttrs.entries()) {
+      if (merge.valueDec !== null) {
+        attrDecisions.push([name, merge])
+      }
+    }
+    const promotedAttrCount = attrDecisions.filter(([, m]) => m.valueDec?.status === 'promoted').length
     const writeAttributes = promotedAttrCount >= ATTRIBUTE_PROMOTION_FLOOR
 
     // ── DB writes in a transaction ───────────────────────────────────────────
@@ -477,9 +693,10 @@ export async function promoteLoadoutFromEvidence(input: {
           const dec = sd.fieldDecisions.get(fk)!
           const name = String(dec.winningValue ?? '')
           const tierDec = sd.fieldDecisions.get(`x_factor_tier_${i}`)
-          const tier = tierDec?.status === 'promoted'
-            ? (String(tierDec.winningValue) as 'Elite' | 'All Star' | 'Specialist')
-            : null
+          const tier =
+            tierDec?.status === 'promoted'
+              ? (String(tierDec.winningValue) as 'Elite' | 'All Star' | 'Specialist')
+              : null
           return {
             loadoutSnapshotId: snap.id,
             slotIndex: i,
@@ -494,15 +711,26 @@ export async function promoteLoadoutFromEvidence(input: {
       // Attribute child rows
       if (writeAttributes) {
         const attrRows: NewPlayerLoadoutAttribute[] = attrDecisions
-          .filter(([, d]) => d.status === 'promoted')
-          .map(([attrKey, d]) => ({
-            loadoutSnapshotId: snap.id,
-            attributeKey: attrKey.replace(/^attr_/, ''), // strip 'attr_' prefix to get canonical key
-            rawText: typeof d.winningValue === 'string' ? d.winningValue : String(d.winningValue ?? ''),
-            value: typeof d.winningValue === 'number' ? d.winningValue : null,
-            deltaValue: null, // delta evidence would come from a separate field_key
-            confidence: d.winningConfidence !== undefined ? String(d.winningConfidence.toFixed(4)) : null,
-          }))
+          .filter(([, m]) => m.valueDec?.status === 'promoted')
+          .map(([name, m]) => {
+            const vDec = m.valueDec!
+            const dDec = m.deltaDec
+            const rawValue = vDec.winningValue
+            const rawDelta = dDec?.status === 'promoted' ? dDec.winningValue : null
+            return {
+              loadoutSnapshotId: snap.id,
+              attributeKey: name,
+              rawText:
+                typeof rawValue === 'string' ? rawValue : String(rawValue ?? ''),
+              value: typeof rawValue === 'number' ? rawValue : null,
+              deltaValue:
+                typeof rawDelta === 'number' ? rawDelta : null,
+              confidence:
+                vDec.winningConfidence !== undefined
+                  ? String(vDec.winningConfidence.toFixed(4))
+                  : null,
+            }
+          })
         await tx.insert(playerLoadoutAttributes).values(attrRows)
       }
     })
@@ -512,7 +740,15 @@ export async function promoteLoadoutFromEvidence(input: {
 
     // Per-field promotions
     for (const [fieldKey, decision] of sd.fieldDecisions.entries()) {
-      pendingPromotions.push(fieldDecisionToPromotion(matchId, 'player_loadout_snapshots', snapshotSemanticKey, fieldKey, decision))
+      pendingPromotions.push(
+        fieldDecisionToPromotion(
+          matchId,
+          'player_loadout_snapshots',
+          snapshotSemanticKey,
+          fieldKey,
+          decision,
+        ),
+      )
     }
 
     // Snapshot-level promoted row (whole-row).
@@ -520,9 +756,7 @@ export async function promoteLoadoutFromEvidence(input: {
     // slot so that the snapshot-level row records which ocr_field_evidence rows
     // contributed to the promotion decision.
     const allSlotEvidenceIds = Array.from(
-      new Set(
-        Array.from(sd.fieldDecisions.values()).flatMap((d) => d.evidenceIds),
-      ),
+      new Set(Array.from(sd.fieldDecisions.values()).flatMap((d) => d.evidenceIds)),
     )
     pendingPromotions.push({
       matchId,
@@ -545,7 +779,12 @@ export async function promoteLoadoutFromEvidence(input: {
         const fk = XFACTOR_FIELD_KEYS[i]!
         const dec = sd.fieldDecisions.get(fk)
         if (!dec || dec.status !== 'promoted') {
-          const xfSemanticKey = { match_id: matchId, team_side: teamSide, position: positionVal, slot_index: i }
+          const xfSemanticKey = {
+            match_id: matchId,
+            team_side: teamSide,
+            position: positionVal,
+            slot_index: i,
+          }
           pendingPromotions.push({
             matchId,
             targetTable: 'player_loadout_x_factors',
@@ -566,21 +805,27 @@ export async function promoteLoadoutFromEvidence(input: {
 
     // Attribute child block: record blocked attribute rows if not written
     if (!writeAttributes) {
-      for (const [attrKey, dec] of attrDecisions) {
-        if (dec.status !== 'promoted') {
-          const attrSemanticKey = { match_id: matchId, team_side: teamSide, position: positionVal, attribute_key: attrKey }
+      for (const [name, merge] of attrDecisions) {
+        const vDec = merge.valueDec
+        if (!vDec || vDec.status !== 'promoted') {
+          const attrSemanticKey = {
+            match_id: matchId,
+            team_side: teamSide,
+            position: positionVal,
+            attribute_key: name,
+          }
           pendingPromotions.push({
             matchId,
             targetTable: 'player_loadout_attributes',
             targetSemanticKey: attrSemanticKey,
-            fieldKey: attrKey,
+            fieldKey: name,
             winningValue: null,
             winningConfidence: null,
-            evidenceCount: dec.evidenceIds.length,
-            conflictCount: dec.conflictCount,
-            evidenceIds: dec.evidenceIds,
-            promotionStatus: dec.status,
-            blockingReason: dec.blockingReason ?? null,
+            evidenceCount: vDec?.evidenceIds.length ?? 0,
+            conflictCount: vDec?.conflictCount ?? 0,
+            evidenceIds: vDec?.evidenceIds ?? [],
+            promotionStatus: vDec?.status ?? 'blocked_observability',
+            blockingReason: vDec?.blockingReason ?? null,
             authoritySource: null,
           })
         }
@@ -593,7 +838,11 @@ export async function promoteLoadoutFromEvidence(input: {
     pendingPromotions.push({
       matchId,
       targetTable: 'player_loadout_snapshots',
-      targetSemanticKey: { match_id: matchId, team_side: absent.teamSide, position: absent.position },
+      targetSemanticKey: {
+        match_id: matchId,
+        team_side: absent.teamSide,
+        position: absent.position,
+      },
       fieldKey: null,
       winningValue: null,
       winningConfidence: null,
@@ -613,9 +862,7 @@ export async function promoteLoadoutFromEvidence(input: {
   let promotionRowsWritten = 0
   if (pendingPromotions.length > 0) {
     // Delete prior rows for this match (all target tables touched by this run).
-    await db
-      .delete(ocrPromotions)
-      .where(eq(ocrPromotions.matchId, matchId))
+    await db.delete(ocrPromotions).where(eq(ocrPromotions.matchId, matchId))
 
     // Batch insert all pending promotion rows.
     await db.insert(ocrPromotions).values(
@@ -625,7 +872,8 @@ export async function promoteLoadoutFromEvidence(input: {
         targetSemanticKey: p.targetSemanticKey,
         fieldKey: p.fieldKey,
         winningValue: p.winningValue,
-        winningConfidence: p.winningConfidence !== null ? String(p.winningConfidence.toFixed(4)) : null,
+        winningConfidence:
+          p.winningConfidence !== null ? String(p.winningConfidence.toFixed(4)) : null,
         evidenceCount: p.evidenceCount,
         conflictCount: p.conflictCount,
         evidenceIds: p.evidenceIds.length > 0 ? p.evidenceIds : null,
@@ -650,10 +898,7 @@ export async function promoteLoadoutFromEvidence(input: {
  * Resolve gameTitleId for a match by querying matches.
  * Falls back to game_title_id=1 (NHL 26) for sentinel matches in tests.
  */
-async function resolveGameTitleIdForMatch(
-  db: Database,
-  matchId: number,
-): Promise<number> {
+async function resolveGameTitleIdForMatch(db: Database, matchId: number): Promise<number> {
   const [row] = await db
     .select({ gameTitleId: matches.gameTitleId })
     .from(matches)
@@ -670,10 +915,7 @@ async function resolveGameTitleIdForMatch(
  * Resolve a raw persona string against the player_persona_aliases table.
  * Returns the canonical persona if found, else null (raw value is used as-is).
  */
-async function resolvePersonaAlias(
-  db: Database,
-  personaRaw: string,
-): Promise<string | null> {
+async function resolvePersonaAlias(db: Database, personaRaw: string): Promise<string | null> {
   const normalized = normalizeSnapshot(personaRaw).toLowerCase()
   const [row] = await db
     .select({ canonicalPersona: playerPersonaAliases.canonicalPersona })
@@ -711,7 +953,12 @@ function fieldDecisionToPromotion(
 }
 
 const PLATFORM_WHITELIST: ReadonlySet<string> = new Set([
-  'xbox', 'playstation', 'ps5', 'ps4', 'pc', 'switch',
+  'xbox',
+  'playstation',
+  'ps5',
+  'ps4',
+  'pc',
+  'switch',
 ])
 
 function whitelistPlatform(raw: string | null): string | null {
