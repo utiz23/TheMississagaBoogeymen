@@ -232,25 +232,34 @@ def _resolve_live_view_path() -> Path:
 
 
 _LIVE_VIEW_PATH = _resolve_live_view_path()
-_BLANK_STDDEV_THRESHOLD = 80.0  # crops with pixel stddev below this are "empty/transitional"
+# Per-family blank-crop stddev thresholds.
+#
+# Crops with pixel stddev below the threshold are considered "empty/transitional"
+# and auto-skipped (no operator prompt).
+#
+# Calibration from match-250:
+#   build_class title bar (large white text on black): std=113 when rendered,
+#     std=54 during avatar-bleed pre-render frames. Threshold 80 cleanly separates.
+#   x_factor_name (small white text next to colored icon): std=58-72 when rendered,
+#     std<25 during pre-render. Threshold 40 cleanly separates.
+_BLANK_STDDEV_THRESHOLDS: dict[str, float] = {
+    "build_class": 80.0,
+    "x_factor_name": 40.0,
+}
 
 
-def _crop_is_blank(crop: np.ndarray) -> bool:
+def _crop_is_blank(crop: np.ndarray, family: str) -> bool:
     """True if the crop is empty, transitional, or showing pre-render content.
 
-    Uses pixel stddev as the "is there content" heuristic:
-      - Real title-bar or icon-label crops have stddev > 100 (large text on
-        dark/transparent backgrounds creates high contrast)
-      - Transitional / pre-render frames (uniform black, or solid skin-tone
-        avatar fill from the lobby render bleeding through) have stddev < 80
-      - Empirically calibrated from match-250 frames 1, 5, 10 (std=54, 113, 113)
-
-    Frames 1-3 of every loadout segment are typically transitional and get
-    auto-skipped.
+    Uses pixel stddev as the "is there content" heuristic. The threshold is
+    calibrated per family because X-Factor label crops (small text on small
+    region) have legitimately lower contrast than title-bar crops (large text
+    on large region).
     """
     if crop.size == 0:
         return True
-    return float(crop.std()) < _BLANK_STDDEV_THRESHOLD
+    threshold = _BLANK_STDDEV_THRESHOLDS.get(family, 80.0)
+    return float(crop.std()) < threshold
 
 
 def _show_crop_info(crop: np.ndarray, tmp_path: Path) -> None:
@@ -389,7 +398,7 @@ def label_crops(
             region_label = region["label"]
 
             # Auto-skip blank/transitional crops (UI not yet rendered, etc.)
-            if _crop_is_blank(crop):
+            if _crop_is_blank(crop, family):
                 print(f"[{idx}/{total}] {stem} / {region_label} — blank crop, auto-skipped")
                 skipped += 1
                 continue
