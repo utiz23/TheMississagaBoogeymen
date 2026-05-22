@@ -194,7 +194,44 @@ def _already_labeled(corpus_root: Path, family: str, source_stem: str, region_la
     return False
 
 
-_LIVE_VIEW_PATH = Path("/tmp/labelcrop-current.png")
+def _resolve_live_view_path() -> Path:
+    """Pick the best path for the live-view file.
+
+    Windows Photos auto-refreshes reliably ONLY on local Windows files; on
+    WSL UNC paths (\\wsl.localhost\\Ubuntu\\tmp\\*) the file watcher is
+    flaky and Photos doesn't reload on overwrite.
+
+    Order of preference:
+      1. /mnt/c/Users/<user>/labelcrop-current.png   (writable Windows home)
+      2. /tmp/labelcrop-current.png                  (fallback)
+    """
+    import os
+    candidates_root = Path("/mnt/c/Users")
+    if candidates_root.exists():
+        # Prefer the env's USER if it matches a Windows user, else first non-system user
+        for candidate in (os.environ.get("USER", ""), os.environ.get("USERNAME", "")):
+            if candidate and (candidates_root / candidate).is_dir():
+                target = candidates_root / candidate / "labelcrop-current.png"
+                try:
+                    target.parent.mkdir(parents=True, exist_ok=True)
+                    return target
+                except (OSError, PermissionError):
+                    pass
+        # Try to discover any usable user dir
+        for child in candidates_root.iterdir():
+            if child.is_dir() and child.name.lower() not in {"all users", "default", "default user", "public"}:
+                target = child / "labelcrop-current.png"
+                try:
+                    target.parent.mkdir(parents=True, exist_ok=True)
+                    # Write-test
+                    target.touch()
+                    return target
+                except (OSError, PermissionError):
+                    continue
+    return Path("/tmp/labelcrop-current.png")
+
+
+_LIVE_VIEW_PATH = _resolve_live_view_path()
 _BLANK_STDDEV_THRESHOLD = 80.0  # crops with pixel stddev below this are "empty/transitional"
 
 
