@@ -195,56 +195,62 @@ def _already_labeled(corpus_root: Path, family: str, source_stem: str, region_la
 
 
 _LIVE_VIEW_PATH = Path("/tmp/labelcrop-current.png")
+_BLACK_VARIANCE_THRESHOLD = 50.0  # crops with pixel variance below this are considered "empty/transitional"
+
+
+def _crop_is_blank(crop: np.ndarray) -> bool:
+    """True if the crop is mostly empty/black (transitional frame, no rendered UI).
+
+    Uses pixel variance as a simple "is there content" heuristic. Real title-bar
+    or icon-label crops have variance >100; transitional frames before the UI
+    renders have variance near 0 (uniform black or near-black).
+    """
+    if crop.size == 0:
+        return True
+    return float(crop.std()) < _BLACK_VARIANCE_THRESHOLD
 
 
 def _show_crop_info(crop: np.ndarray, tmp_path: Path) -> None:
-    """Save crop to a temp file for operator inspection.
+    """Save crop to a temp file + live-view file for operator inspection.
 
-    Writes BOTH to the per-session temp path (history) AND to a fixed
-    `/tmp/labelcrop-current.png` path that the operator opens ONCE in their
-    image viewer (Windows Photos or similar). The fixed path is overwritten
-    each crop; the viewer auto-refreshes on file change.
+    The live-view file at /tmp/labelcrop-current.png is overwritten each
+    prompt; the operator opens it ONCE in their image viewer and that
+    viewer refreshes on file change.
     """
     cv2.imwrite(str(tmp_path), crop)
     cv2.imwrite(str(_LIVE_VIEW_PATH), crop)
-    print(f"    -> crop: {crop.shape[1]}x{crop.shape[0]} (open {_LIVE_VIEW_PATH} in your viewer; refreshes each prompt)")
 
 
-def _open_live_viewer_once() -> None:
-    """Try to launch the Windows default image viewer on the fixed live-view path.
-
-    On WSL, uses `cmd.exe /c start "" <windows-unc-path>` which reliably opens
-    the file in the user's default app (Windows Photos). explorer.exe with a
-    Linux path opens File Explorer on Documents instead — not what we want.
-
-    Best-effort: silently no-ops on non-WSL systems.
-    """
-    import shutil
+def _wsl_windows_path(linux_path: Path) -> str:
+    """Convert a Linux path to a Windows-readable UNC path via wslpath."""
     import subprocess
-    if not shutil.which("cmd.exe"):
-        return
-    # Make sure the file exists before launching (else default app refuses)
-    if not _LIVE_VIEW_PATH.exists():
-        cv2.imwrite(str(_LIVE_VIEW_PATH), np.zeros((1, 1, 3), dtype=np.uint8))
-    # Convert /tmp/labelcrop-current.png → \\wsl.localhost\<distro>\tmp\labelcrop-current.png
     try:
         result = subprocess.run(
-            ["wslpath", "-w", str(_LIVE_VIEW_PATH)],
+            ["wslpath", "-w", str(linux_path)],
             capture_output=True, text=True, check=True,
         )
-        win_path = result.stdout.strip()
+        return result.stdout.strip()
     except (subprocess.CalledProcessError, FileNotFoundError):
-        win_path = str(_LIVE_VIEW_PATH)  # fallback; may or may not work
-    try:
-        # cmd.exe /c start "" "<path>"  → opens with default Windows app
-        subprocess.Popen(
-            ["cmd.exe", "/c", "start", "", win_path],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-        )
-        print(f"    -> launched Windows default image viewer on {win_path}")
-    except Exception as exc:
-        print(f"    -> could not auto-launch viewer ({exc}); open {_LIVE_VIEW_PATH} manually")
+        return str(linux_path)
+
+
+def _print_viewer_instructions() -> None:
+    """Print one-line instructions for opening the live-view file.
+
+    We don't auto-launch — that opened multiple Photos windows on retry and
+    didn't reliably refresh on file change. The operator opens the file
+    manually ONCE; Windows Photos auto-refreshes when the file is overwritten.
+    """
+    import shutil
+    win_path = _wsl_windows_path(_LIVE_VIEW_PATH) if shutil.which("wslpath") else str(_LIVE_VIEW_PATH)
+    print("─" * 72)
+    print(f"  Live crop preview file:")
+    print(f"    Linux  : {_LIVE_VIEW_PATH}")
+    print(f"    Windows: {win_path}")
+    print(f"  Open the Windows path ONCE in your default image viewer (Photos).")
+    print(f"  It refreshes automatically as you label each crop.")
+    print(f"  Tip: blank/black crops (transitional frames) auto-skip — keep typing.")
+    print("─" * 72)
 
 
 def _present_menu(canonical_names: list[str]) -> None:
@@ -306,12 +312,11 @@ def label_crops(
 
     print(f"\nFamily: {family}  |  {total} unlabeled crop(s) to process")
     print(f"Corpus: {corpus_root / family}")
-    print("─" * 60)
+    if not dry_run:
+        _print_viewer_instructions()
+    print()
     _present_menu(canonical_names)
     print()
-    if not dry_run:
-        _open_live_viewer_once()
-        print()
 
     saved = 0
     skipped = 0
@@ -331,6 +336,13 @@ def label_crops(
 
             stem = png_path.stem
             region_label = region["label"]
+
+            # Auto-skip blank/transitional crops (UI not yet rendered, etc.)
+            if _crop_is_blank(crop):
+                print(f"[{idx}/{total}] {stem} / {region_label} — blank crop, auto-skipped")
+                skipped += 1
+                continue
+
             _show_crop_info(crop, tmp_crop_path)
 
             choice = _prompt_operator(
