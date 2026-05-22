@@ -135,8 +135,11 @@ _CAPTAIN_GLYPHS = {"★", "✯", "✦", "✪", "✩"}
 # Jersey-number pattern: matches "#N", "#NN", "#NNN"
 _NUMBER_RE = re.compile(r"#(\d{1,3})")
 
-# Persona/full-name pattern: "#N - Name" or "#N-Name"
+# Persona/full-name pattern.  Two layout variants in EA NHL loadout views:
+#   BGM section:  "#11 - Evgeni Wanhg"  (number first, then name)
+#   Opp section:  "-Toews-#19"          (dash, name, dash, number)
 _NAME_RE = re.compile(r"#\d{1,3}\s*[-–.]+\s*(.+)")
+_NAME_RE_OPP = re.compile(r"^[-–.]\s*(.+?)\s*[-–.]\s*#\d{1,3}\s*$")
 
 # Player-level pattern: "P<gen>LVL<num>" e.g. "P1LVL17", "P2LVL34"
 # Appears in the left strip at x≈179, alongside each player's row.
@@ -675,10 +678,16 @@ def _parse_content_into_evidence(evidence: dict, content_lines: list[OCRLine]) -
                 evidence["jersey_number"] = int(m_num.group(1))
                 evidence["jersey_confidence"] = line.confidence
 
-        # Full name from "#N - Name" pattern
-        m_name = _NAME_RE.search(text)
-        if m_name and evidence["player_name_full"] is None:
-            full_name = m_name.group(1).strip(". ")
+        # Full name from BGM "#N - Name" or Opp "-Name-#N" pattern
+        if evidence["player_name_full"] is None:
+            m_name = _NAME_RE.search(text)
+            full_name: str | None = None
+            if m_name:
+                full_name = m_name.group(1).strip(". ")
+            else:
+                m_opp = _NAME_RE_OPP.match(text)
+                if m_opp:
+                    full_name = m_opp.group(1).strip(". ")
             if full_name:
                 evidence["player_name_full"] = full_name
                 evidence["player_name_confidence"] = line.confidence
