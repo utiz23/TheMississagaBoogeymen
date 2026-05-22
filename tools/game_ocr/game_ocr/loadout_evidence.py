@@ -244,11 +244,19 @@ def extract_loadout_evidence(
     icon = LoadoutIconExtractor()
     open_text = LoadoutOpenTextExtractor()
 
+    # Build a Path → ocr_lines lookup so per-bundle extraction can use the
+    # already-computed OCR data instead of trying to load from disk.
+    ocr_lines_by_path: dict[Path, list[OCRLine]] = {
+        fp: list(lines) for fp, lines in zip(frame_paths, resolved_ocr)
+    }
+
     records: list[FieldEvidenceRecord] = []
     for bundle in bundles:
+        best_frame_lines = ocr_lines_by_path.get(bundle.best_frame_path, [])
         records.extend(
             _evidence_for_subject_bundle(
-                bundle, closed_vocab, tabular, icon, open_text, extractor_version
+                bundle, closed_vocab, tabular, icon, open_text, extractor_version,
+                best_frame_ocr_lines=best_frame_lines,
             )
         )
 
@@ -267,6 +275,8 @@ def _evidence_for_subject_bundle(
     icon: LoadoutIconExtractor,
     open_text: LoadoutOpenTextExtractor,
     extractor_version: str,
+    *,
+    best_frame_ocr_lines: list[OCRLine] | None = None,
 ) -> list[FieldEvidenceRecord]:
     """Run all 4 extractors on one subject bundle (on the best frame only).
 
@@ -290,11 +300,16 @@ def _evidence_for_subject_bundle(
     # Load best frame image
     image_bgr: Optional[np.ndarray] = cv2.imread(str(bundle.best_frame_path))
 
-    # Load OCR lines for best frame (try per-frame JSON sidecar first)
-    try:
-        all_ocr_lines = _load_frame_ocr_lines(bundle.best_frame_path)
-    except FileNotFoundError:
-        all_ocr_lines = []
+    # Use OCR lines passed in by the orchestrator (already computed during
+    # bundle assembly). Fall back to JSON sidecar load only if the caller
+    # didn't supply them (e.g., unit tests using legacy disk-based fixtures).
+    if best_frame_ocr_lines is not None:
+        all_ocr_lines = best_frame_ocr_lines
+    else:
+        try:
+            all_ocr_lines = _load_frame_ocr_lines(bundle.best_frame_path)
+        except FileNotFoundError:
+            all_ocr_lines = []
 
     # ── 1. Identity fields from canonical_subject ────────────────────────────
     # Each identity field emits ONE rank-0 FieldEvidenceRecord with the value

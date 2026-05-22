@@ -205,11 +205,16 @@ def _extract_subject_gamertag(ocr_lines: Sequence[OCRLine]) -> tuple[str | None,
     """Find the subject gamertag in the top-right corner (y<200, x>1400).
 
     Returns (gamertag_text, confidence) or (None, None) if not found.
+
+    Filters out pure-numeric candidates (HUD currency/notification numerals at the
+    very top of the screen — e.g. "554", "299,783", "100" — appear in the same
+    bbox region but are not gamertags). The actual gamertag has alphabetic chars.
     """
     candidates = [
         l for l in ocr_lines
         if l.y_center < _GAMERTAG_Y_MAX and l.x_center > _GAMERTAG_X_MIN
         and l.text.strip()
+        and any(c.isalpha() for c in l.text)
     ]
     if not candidates:
         return None, None
