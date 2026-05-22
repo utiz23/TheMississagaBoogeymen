@@ -24,7 +24,8 @@
     "match-rink-diff": "node dist/match-rink-diff-cli.js",
     "ocr-segments-report": "node dist/ocr-segments-report-cli.js",
     "loadout-evidence-report": "node dist/loadout-evidence-report-cli.js",
-    "repromote-loadout": "node dist/repromote-loadout-cli.js"
+    "repromote-loadout": "node dist/repromote-loadout-cli.js",
+    "phase-2b-parallel-diff": "node dist/__scripts__/phase-2b-parallel-diff-2026-05-21.js"
   },
   "dependencies": {
     "@eanhl/db": "workspace:*",
