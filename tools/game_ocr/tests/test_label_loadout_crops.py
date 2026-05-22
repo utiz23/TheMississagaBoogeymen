@@ -209,7 +209,9 @@ class TestLabelCropsSavePath(unittest.TestCase):
         import tempfile
         self._tmp = tempfile.TemporaryDirectory()
         self.corpus_root = Path(self._tmp.name) / "crops"
-        self.source_dir = Path(self._tmp.name) / "source"
+        # Source dir name matches the player_loadout_view filter so PNGs survive
+        # the relevance check applied by label_crops.
+        self.source_dir = Path(self._tmp.name) / "seg-001-player_loadout_view"
         self.source_dir.mkdir()
         # Empty fixture root so the function finds no canonical fixture PNGs
         self._empty_fixtures = Path(self._tmp.name) / "empty_fixtures"

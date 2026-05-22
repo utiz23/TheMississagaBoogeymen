@@ -129,6 +129,25 @@ def _extract_crop(image_bgr: np.ndarray, region: dict) -> np.ndarray:
     return image_bgr[y1:y2, x1:x2].copy()
 
 
+def _is_loadout_relevant_path(png_path: Path) -> bool:
+    """True if the PNG path belongs to a player_loadout_view segment.
+
+    Used to filter the source PNG queue so the labeler doesn't sweep in
+    1000+ PNGs from non-loadout segments (post_game_*, etc.) when the
+    operator passes --source pointing at a top-level Pass-2 output root.
+
+    A path is loadout-relevant if any directory component contains
+    `player_loadout_view` OR if it lives in a `frames` subdir of a fixture.
+    """
+    parts = [p.lower() for p in png_path.parts]
+    if any("player_loadout_view" in p for p in parts):
+        return True
+    # Fixture convention: <fixture_name>/frames/<file>.png — the parent dir is `frames`
+    if png_path.parent.name.lower() == "frames":
+        return True
+    return False
+
+
 def _collect_pngs(*dirs: Path) -> list[Path]:
     """Walk one or more directories for .png files (non-recursive-flat)."""
     found: list[Path] = []
@@ -192,28 +211,38 @@ def _show_crop_info(crop: np.ndarray, tmp_path: Path) -> None:
 
 
 def _open_live_viewer_once() -> None:
-    """Try to launch a Windows image viewer on the fixed live-view path.
+    """Try to launch the Windows default image viewer on the fixed live-view path.
 
-    Best-effort: works on WSL via explorer.exe; falls back silently otherwise.
-    The user only needs to do this once per session — after the first crop
-    the viewer auto-refreshes.
+    On WSL, uses `cmd.exe /c start "" <windows-unc-path>` which reliably opens
+    the file in the user's default app (Windows Photos). explorer.exe with a
+    Linux path opens File Explorer on Documents instead — not what we want.
+
+    Best-effort: silently no-ops on non-WSL systems.
     """
     import shutil
     import subprocess
-    if not shutil.which("explorer.exe"):
+    if not shutil.which("cmd.exe"):
         return
-    # Make sure the file exists before launching (else explorer might 404)
+    # Make sure the file exists before launching (else default app refuses)
     if not _LIVE_VIEW_PATH.exists():
-        # Write a 1x1 black placeholder so the viewer has something to open
         cv2.imwrite(str(_LIVE_VIEW_PATH), np.zeros((1, 1, 3), dtype=np.uint8))
+    # Convert /tmp/labelcrop-current.png → \\wsl.localhost\<distro>\tmp\labelcrop-current.png
     try:
-        # explorer.exe accepts Linux /tmp/ paths via WSL path translation
+        result = subprocess.run(
+            ["wslpath", "-w", str(_LIVE_VIEW_PATH)],
+            capture_output=True, text=True, check=True,
+        )
+        win_path = result.stdout.strip()
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        win_path = str(_LIVE_VIEW_PATH)  # fallback; may or may not work
+    try:
+        # cmd.exe /c start "" "<path>"  → opens with default Windows app
         subprocess.Popen(
-            ["explorer.exe", str(_LIVE_VIEW_PATH)],
+            ["cmd.exe", "/c", "start", "", win_path],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
         )
-        print(f"    -> launched Windows viewer on {_LIVE_VIEW_PATH}")
+        print(f"    -> launched Windows default image viewer on {win_path}")
     except Exception as exc:
         print(f"    -> could not auto-launch viewer ({exc}); open {_LIVE_VIEW_PATH} manually")
 
@@ -245,9 +274,15 @@ def label_crops(
     vocab = load_closed_vocab(yaml_family)
     canonical_names = [e.canonical for e in vocab.entries]
 
-    # Collect source PNGs
+    # Collect source PNGs, then filter to player_loadout_view segments only.
+    # Without the filter, --source /tmp/typed-v1-match250/ pulls in 1000+ PNGs
+    # from 56 unrelated segment dirs.
     fixture_dirs = list(FIXTURE_ROOT.glob("*/frames")) + list(FIXTURE_ROOT.glob("*/seg_*/frames"))
-    all_pngs = _collect_pngs(*fixture_dirs, *extra_sources)
+    raw_pngs = _collect_pngs(*fixture_dirs, *extra_sources)
+    all_pngs = [p for p in raw_pngs if _is_loadout_relevant_path(p)]
+    if extra_sources and not all_pngs:
+        print(f"warn: no player_loadout_view PNGs found under {[str(s) for s in extra_sources]}", file=sys.stderr)
+        print(f"      (filter looks for paths containing 'player_loadout_view' or under 'frames/' dirs)", file=sys.stderr)
 
     regions = FAMILY_REGIONS.get(family)
     if not regions:
