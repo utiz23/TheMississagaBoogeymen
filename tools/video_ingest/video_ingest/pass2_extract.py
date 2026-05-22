@@ -30,6 +30,9 @@ from video_ingest.pass1_classify import (
 # Exposed at module scope so unit tests can patch it without a live game_ocr
 # install: `patch("video_ingest.pass2_extract.extract_loadout_evidence", ...)`
 extract_loadout_evidence = None  # type: ignore[assignment]
+# Lazy import sentinel for the Phase 3b lobby extractor — same pattern as
+# loadout. Populated on first use when lobby_engine='typed_v1'.
+extract_lobby_evidence = None  # type: ignore[assignment]
 
 
 PASS2_MANIFEST_FILENAME = "pass2_manifest.json"
@@ -50,8 +53,15 @@ class Pass2Config:
     # loadout_engine: selects the player_loadout_view extraction path.
     # 'legacy' (default) = existing parse_loadout_result() pass-through.
     # 'typed_v1'         = extract_loadout_evidence() → loadout_evidence.json.
-    # Task 2B-9 flips the production default to 'typed_v1'.
+    # Task 2B-9 flipped the production default to 'typed_v1'.
     loadout_engine: str = "legacy"
+    # lobby_engine: selects the pre_game_lobby_state_2 extraction path.
+    # 'legacy' (default) = existing parse_pre_game_result() pass-through
+    #                       (still used for pre_game_lobby_state_1 — no
+    #                       typed extractor exists for that state per Phase 3a).
+    # 'typed_v1'         = extract_lobby_evidence() → lobby_evidence.json.
+    # Task 3B-8 flips the production default to 'typed_v1' for state_2 only.
+    lobby_engine: str = "legacy"
 
 
 def _ffmpeg_extract(
@@ -150,6 +160,24 @@ def extract_segments(
             # 'legacy' branch: no action here — downstream ingest-ocr-cli /
             # parse_loadout_result() handles this segment as before.
 
+        # --- lobby_engine dispatch (pre_game_lobby_state_2 only) --------------
+        if seg.screen_type == "pre_game_lobby_state_2":
+            lobby_engine = config.lobby_engine
+            if lobby_engine == "typed_v1":
+                _run_typed_v1_lobby(seg_dir, segment_index=i)
+            elif lobby_engine != "legacy":
+                raise ValueError(
+                    f"Unknown pass2.lobby_engine: {lobby_engine!r}; "
+                    f"expected 'legacy' or 'typed_v1'"
+                )
+            # 'legacy' branch: no action here — downstream ingest-ocr-cli /
+            # parse_pre_game_result() handles this segment as before.
+            # NOTE: pre_game_lobby_state_1 does NOT get a typed-v1 path
+            # because Phase 3a confirmed state_1 frames don't appear in
+            # operator recordings (see docs/calibration/phase-3a-hmm-
+            # disambiguation-2026-05-22.md). state_1 segments continue
+            # through the legacy parser.
+
         out.append(Pass2Result(
             segment_index=i,
             segment=seg,
@@ -200,6 +228,31 @@ def _run_typed_v1_loadout(seg_dir: Path, *, segment_index: int) -> None:
         segment_index=segment_index,
     )
     out_path = seg_dir / "loadout_evidence.json"
+    with out_path.open("w") as fp:
+        json.dump([r.to_dict() for r in records], fp, indent=2)
+
+
+def _run_typed_v1_lobby(seg_dir: Path, *, segment_index: int) -> None:
+    """Run the typed_v1 lobby extractor and write FieldEvidenceRecord[] JSON.
+
+    Mirrors `_run_typed_v1_loadout`: lazy import of `extract_lobby_evidence`
+    from ``game_ocr.lobby_evidence`` on first call; writes
+    ``<seg_dir>/lobby_evidence.json``.
+    """
+    global extract_lobby_evidence  # noqa: PLW0603
+    if extract_lobby_evidence is None:
+        from game_ocr.lobby_evidence import (  # type: ignore[no-redef]
+            extract_lobby_evidence as _extract,
+        )
+        import video_ingest.pass2_extract as _self
+        _self.extract_lobby_evidence = _extract
+        extract_lobby_evidence = _extract
+
+    records = extract_lobby_evidence(
+        bundle_dir=seg_dir,
+        segment_index=segment_index,
+    )
+    out_path = seg_dir / "lobby_evidence.json"
     with out_path.open("w") as fp:
         json.dump([r.to_dict() for r in records], fp, indent=2)
 

@@ -54,8 +54,15 @@ pass2:
   window_padding_seconds: 1.0
   # loadout_engine: selects the player_loadout_view extraction path.
   # 'legacy' = existing parse_loadout_result() pass-through (default through Phase 2A).
-  # 'typed_v1' = new extract_loadout_evidence() → loadout_evidence.json (Task 2B-9 flips default).
+  # 'typed_v1' = new extract_loadout_evidence() → loadout_evidence.json (Task 2B-9 flipped default).
   loadout_engine: typed_v1
+  # lobby_engine: selects the pre_game_lobby_state_2 extraction path.
+  # 'legacy' = existing parse_pre_game_result() pass-through.
+  # 'typed_v1' = extract_lobby_evidence() → lobby_evidence.json (Task 3B-8 cutover).
+  # pre_game_lobby_state_1 always uses the legacy path — Phase 3a confirmed
+  # no state_1 frames in operator recordings (see docs/calibration/
+  # phase-3a-hmm-disambiguation-2026-05-22.md).
+  lobby_engine: typed_v1
   sample_rates:
     post_game_action_tracker: 5
     post_game_player_summary: 1
