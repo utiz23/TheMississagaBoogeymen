@@ -232,6 +232,28 @@ const VALID_POSITIONS = new Set([
   'goalie',
 ])
 
+// Map EA's long-form opponent_player_match_stats.position to the short
+// codes the loadout view OCR uses.  Returns null when the long form is
+// ambiguous (`defenseMen` could be LD or RD).
+function opponentPositionToShortCode(p: string | null): string | null {
+  if (p === null) return null
+  switch (p) {
+    case 'center':
+      return 'C'
+    case 'leftWing':
+      return 'LW'
+    case 'rightWing':
+      return 'RW'
+    case 'goalie':
+      return 'G'
+    // 'defenseMen' is intentionally NOT mapped — it's ambiguous between
+    // LD and RD.  Snapshots with only this authority must be disambiguated
+    // by another signal.
+    default:
+      return null
+  }
+}
+
 // ─── main export ───────────────────────────────────────────────────────────────
 
 export async function promoteLoadoutFromEvidence(input: {
@@ -326,6 +348,9 @@ export async function promoteLoadoutFromEvidence(input: {
     let resolvedPlayerId: number | null = null
     let snapshotBlockReason: string | null = null
     let resolvedPosition: string | null = null
+    // Stash for authority-position fallback when the OCR position is null
+    // but the opponent_player_match_stats row has a known position.
+    const resolutionAuthorityPosition: { value: string | null } = { value: null }
 
     if (
       gamertagDecision?.status === 'promoted' &&
@@ -347,47 +372,80 @@ export async function promoteLoadoutFromEvidence(input: {
         // (opponent players are not in the players table by design).
         // If not found in either table, block with 'unresolved_team_side'.
         //
-        // Whitespace-tolerant comparison: OCR sometimes joins multi-word
-        // gamertags ("RAIDERS G7" → "RAIDERSG7").  Compare with whitespace
-        // removed in addition to lowercase normalization.
+        // Matching strategy, in order:
+        //   1. Exact case-insensitive
+        //   2. Whitespace-removed (OCR joins multi-word gamertags:
+        //      "RAIDERS G7" → "RAIDERSG7")
+        //   3. Levenshtein-1 on whitespace-stripped form (covers single-char
+        //      OCR errors like O↔0: "DAMICO2323" → "DAMIC02323")
         const oppRows = await db
-          .select({ id: opponentPlayerMatchStats.id, gamertag: opponentPlayerMatchStats.gamertag })
+          .select({ id: opponentPlayerMatchStats.id, gamertag: opponentPlayerMatchStats.gamertag, position: opponentPlayerMatchStats.position })
           .from(opponentPlayerMatchStats)
           .where(eq(opponentPlayerMatchStats.matchId, matchId))
         const stripWS = (s: string) => s.toLowerCase().replace(/\s+/g, '')
         const normGamertag = gamertag.toLowerCase()
         const compactGamertag = stripWS(gamertag)
-        const oppMatch = oppRows.find((r) => {
+        let oppMatch = oppRows.find((r) => {
           if (r.gamertag === null) return false
           const lc = r.gamertag.toLowerCase()
           return lc === normGamertag || stripWS(r.gamertag) === compactGamertag
         })
+        if (oppMatch === undefined) {
+          // Levenshtein-1 fallback on compact form
+          const oneEdit = (a: string, b: string): boolean => {
+            if (Math.abs(a.length - b.length) > 1) return false
+            // Try substitution / deletion / insertion
+            let i = 0, j = 0, diffs = 0
+            while (i < a.length && j < b.length) {
+              if (a[i] !== b[j]) {
+                if (++diffs > 1) return false
+                if (a.length > b.length) i++
+                else if (a.length < b.length) j++
+                else { i++; j++ }
+              } else { i++; j++ }
+            }
+            return diffs + (a.length - i) + (b.length - j) <= 1
+          }
+          oppMatch = oppRows.find((r) => {
+            if (r.gamertag === null) return false
+            return oneEdit(stripWS(r.gamertag), compactGamertag)
+          })
+        }
         if (oppMatch !== undefined) {
           resolvedTeamSide = 'against'
           // playerId stays null — opponents are not in the players table.
+          // Stash the authority position for later use if the OCR position
+          // evidence is unresolved.
+          ;(resolutionAuthorityPosition as { value: string | null }).value = (oppMatch.position as string | null) ?? null
         } else {
           snapshotBlockReason = 'unresolved_team_side'
         }
       }
     }
 
-    // Position: validate closed-vocab
-    if (
-      positionDecision?.status === 'promoted' &&
-      typeof positionDecision.winningValue === 'string'
-    ) {
-      const pos = positionDecision.winningValue
-      if (VALID_POSITIONS.has(pos)) {
-        resolvedPosition = pos
-      } else {
-        // Invalid position closes off the snapshot
-        if (!snapshotBlockReason) {
-          snapshotBlockReason = 'unresolved_position'
+    // Position: validate closed-vocab.  The gate may promote a NULL value
+    // when the only candidate had candidate_value IS NULL (low-quality
+    // observability marker — value=null + conf=0).  Treat null/empty as
+    // unresolved_position UNLESS the opponent authority has a position for
+    // this gamertag, in which case map the EA long-form to short code and
+    // use that.
+    {
+      let useAuthFallback = true
+      if (positionDecision?.status === 'promoted') {
+        const raw = positionDecision.winningValue
+        const pos = typeof raw === 'string' ? raw : ''
+        if (pos !== '' && VALID_POSITIONS.has(pos)) {
+          resolvedPosition = pos
+          useAuthFallback = false
         }
       }
-    } else if (!positionDecision || positionDecision.status !== 'promoted') {
-      if (!snapshotBlockReason) {
-        snapshotBlockReason = 'unresolved_position'
+      if (useAuthFallback) {
+        const authShort = opponentPositionToShortCode(resolutionAuthorityPosition.value)
+        if (authShort !== null) {
+          resolvedPosition = authShort
+        } else if (!snapshotBlockReason) {
+          snapshotBlockReason = 'unresolved_position'
+        }
       }
     }
 
