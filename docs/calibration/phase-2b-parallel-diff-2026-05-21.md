@@ -619,3 +619,84 @@ Pre-existing test failures (NOT caused by this work):
 - `test_loadout_closed_vocab.py::TestErrorCases::test_predict_log_probs_raises_not_implemented`
 - `test_loadout_closed_vocab.py::TestExtractorVersion::test_extractor_version_is_stamped`
 These were failing before this PR (version string and error type mismatches unrelated to identity/roster extraction).
+
+---
+
+## Update 3 — 2026-05-22 (post JoeyFlopfish investigation + RAIDERSG7 whitespace fix)
+
+The user challenged the assumption that JoeyFlopfish was simply absent from
+match 250's recording: "in match 250 the operator goes through the loadouts
+multiple times in the pregame loadout screen joey is fully visible and so is
+his build". Investigation traced the actual recording at
+`/mnt/k/NHL/NHL26/2026-05-08_18-25-42.mkv` and found three real bugs:
+
+### Diagnosis
+
+1. **Joey IS visible in the left strip, never navigated as subject.** The
+   single HMM `player_loadout_view` segment (t=16-29s, 13 frames) captures
+   the operator navigating through 9 distinct right-pane subjects:
+   MrHomiecide, StickMenace, HenryTheBobJr, XZ4RKY, RAIDERSG7,
+   shadowassault20, silkyjoker85, Duh Pope, MuttButt. JoeyFlopfish appears
+   on the LEFT STRIP roster (row y=536 across frames) but the operator
+   never selects him as the right-pane subject. The build summary (#48
+   "-Lane Hutson-") IS visible on the persona row below his gamertag, but
+   the FULL right-pane build (X-Factors, attributes) is not in the
+   recording.
+
+2. **Row-content scanner crossed slot boundaries.** With
+   `_ROW_BAND_HALF_HEIGHT=45`, the LD position-label anchor at y=474 was
+   grabbing JoeyFlopfish's gamertag at y=536 (62 px away) and attributing
+   Joey to LD with HenryTheBobJr's jersey/persona. Tightened to 30 px so
+   each anchor only sees content within its own slot.
+
+3. **Position merge picked phantom transitional frame.** A single splash
+   frame (EA SPORTS branding) produced a phantom LD position label at
+   conf=1.0 with no jersey/name. The merge picked it because it tied
+   conf=1.0 with the 12 legitimate RD observations. Merge now
+   vote-counts position observations across frames (tiebreak by max
+   confidence) — majority RD wins.
+
+4. **Opponent-table lookup was whitespace-intolerant.** RAIDERSG7 was
+   extracted as a single token but the opponent_player_match_stats row
+   shows "RAIDERS G7" with a space. Exact case-insensitive comparison
+   failed. The promoter now also compares with whitespace removed
+   (`"raidersg7" == "raidersg7"` ✓) and resolves to team_side='against'.
+
+### Post-fix dry-run results
+
+| Match | Promoted before | Promoted after | New slots |
+|---|---|---|---|
+| 250 | 8 | **10** | JoeyFlopfish RD #48 (no build_class, roster-only), RAIDERSG7 RW #7 Sniper |
+| 463 | 8 | 8 | unchanged (no new gamertags emerged from these fixes for 463) |
+
+Match 250 final dry-run output:
+```
+[DRY-RUN] Newly-written by typed_v1 promoter: 10 snapshots
+    > for|C: MrHomiecide #11 build=Playmaker persona=Evgeni Wanhg
+    > for|LW: StickMenace #96 build=Power Forward persona=Mikko Rantanen
+    > for|LD: HenryTheBobJr #7 build=Puck Moving Defenseman persona=Hubert Jenkins
+    > against|C: XZ4RKY #19 build=Two-Way Forward persona=
+    > against|RW: RAIDERSG7 #7 build=Sniper persona=
+    > against|RD: shadowassault20 #56 build=Puck Moving Defenseman persona=
+    > for|RW: silkyjoker85 #10 build=Sniper persona=Silky
+    > against|LW: Duh Pope #95 build=Sniper persona=
+    > against|LD: MuttButt #23 build=Defensive Defenseman persona=
+    > for|RD: JoeyFlopfish #48 build=null persona=Lane Hutson
+```
+
+This matches the canonical 10-player lineup for match 250.
+
+### Commits
+
+- `fcb6210` fix(ocr): Phase 2B roster-only — junk filter + fuzzy dedup against subjects
+- `2dfdec5` fix(ocr): Phase 2B JoeyFlopfish + RAIDERSG7 — tighten row band, position vote, whitespace-tolerant opponent match
+
+### Open items for cutover (2B-8)
+
+- JoeyFlopfish snapshot is roster-only: `build_class=null` and no
+  `player_loadout_x_factors` / `player_loadout_attributes` child rows.
+  That's expected per the field matrix — those are SOFT fields and may
+  be null when the player was never navigated to.
+- 1 sikyjoker85 OCR variant in match 250 + 2 noise rows in match 463
+  (DaveL-234 position=null, etc.) — all will be blocked by promoter
+  invariants (position=null is HARD, gamertag-noise → unresolved_team_side).
