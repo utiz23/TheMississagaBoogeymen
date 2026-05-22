@@ -1,4 +1,4 @@
-"""Phase 2A closed-vocabulary loader and extractor for the player_loadout_view screen family.
+"""Phase 2A/2B closed-vocabulary loader and extractor for the player_loadout_view screen family.
 
 Public API
 ----------
@@ -14,27 +14,49 @@ ClosedVocab.match_canonical(raw) -> tuple[str, float] | None
     Confidence 1.0 = exact alias regex full-match.
     Confidence 0.5 = Levenshtein edit-distance ≤ 2 fuzzy fallback.
 
-ClosedVocab.predict_log_probs(crop)
-    Phase 2B stub — always raises NotImplementedError.
+ClosedVocab.predict_log_probs(crop) -> np.ndarray
+    Phase 2B LR-head classifier.  Loads trained weights from the JSON
+    artifact at game_ocr/weights/nhl26-loadout-<family>-classifier.json.
+    Returns a float64 array of log-probabilities (one entry per class, in
+    the order of self.entries).  Raises NotImplementedError when the weights
+    file has not been produced yet (forward-compatible with Phase 2A deployments).
 
 ClosedVocabCandidate
     Typed result record emitted by LoadoutClosedVocabExtractor.
 
 LoadoutClosedVocabExtractor
-    Phase 2A extractor: wraps ClosedVocab.match_canonical to produce
-    ClosedVocabCandidate records. Returns top-1 (N=1 hardcoded in 2A).
+    Phase 2A/2B extractor.  Phase 2A uses alias-regex (rank 0) only.
+    Phase 2B adds LR-head image classifiers (rank 1) as second-chance
+    candidates when weights are available.
+
+    New in Phase 2B:
+        classify_build_class_from_image(crop_bgr) -> list[ClosedVocabCandidate]
+        classify_x_factor_name_from_image(crop_bgr) -> list[ClosedVocabCandidate]
 """
 
 from __future__ import annotations
 
+import json
+import math
 import re
 from dataclasses import dataclass, field
+from functools import lru_cache
 from pathlib import Path
 from typing import Optional
 
+import numpy as np
 import yaml
 
 CONFIG_ROOT = Path(__file__).parent.parent / "configs" / "closed_vocab"
+WEIGHTS_DIR = Path(__file__).parent.parent / "weights"
+
+# Family identifier used in the weights filename.
+# The YAML family strings (build_classes, x_factors) are mapped to the
+# shorter user-facing keys (build_class, x_factor_name) used by the CLI.
+_YAML_FAMILY_TO_LR_KEY: dict[str, str] = {
+    "build_classes": "build_class",
+    "x_factors": "x_factor_name",
+}
 
 
 @dataclass(frozen=True)
@@ -93,25 +115,149 @@ class ClosedVocab:
             return (best_canonical, 0.5)
         return None
 
-    def predict_log_probs(self, crop):  # noqa: ANN001
-        """Phase 2B LR-head classifier stub.
+    def predict_log_probs(self, crop: "np.ndarray") -> "np.ndarray":
+        """Phase 2B LR-head image classifier.
 
-        Phase 2A uses alias-regex matching only via :meth:`match_canonical`.
-        This method is reserved for Phase 2B, which will wire in a trained
-        sklearn LogisticRegression head behind the same interface.
+        Loads trained weights from
+        ``game_ocr/weights/<version>-loadout-<family_key>-classifier.json``
+        (produced by ``train_loadout_closed_vocab.py``).
 
-        Raises
-        ------
-        NotImplementedError: always, in Phase 2A.
+        Args:
+            crop: BGR uint8 ndarray — the image region to classify.
+
+        Returns:
+            float64 array of log-probabilities, one entry per class in
+            ``self.entries`` order.  Classes not present in the trained
+            weights receive ``log(1e-10)`` (near-zero probability).
+
+        Raises:
+            NotImplementedError: when the weights file has not been produced
+                yet.  This preserves forward compatibility with Phase 2A
+                deployments where training has not run.
         """
-        raise NotImplementedError(
-            "predict_log_probs is a Phase 2B feature; "
-            "Phase 2A uses ClosedVocab.match_canonical (alias regex) only."
+        weights = _load_lr_weights(
+            version=self.version,
+            family=self.family,
+            weights_dir=WEIGHTS_DIR,
         )
+        if weights is None:
+            raise NotImplementedError(
+                f"predict_log_probs: weights file not found for "
+                f"version={self.version!r}, family={self.family!r}. "
+                "Run: python tools/game_ocr/scripts/train_loadout_closed_vocab.py"
+            )
+
+        feat = _extract_lr_features(crop)  # (n_features,)
+        logits = weights["coef"] @ feat + weights["intercept"]  # (n_classes_trained,)
+
+        # Map trained class names → self.entries order.
+        # Classes in self.entries not in the trained set get log(1e-10).
+        trained_classes: list[str] = weights["classes"]
+        trained_idx = {name: i for i, name in enumerate(trained_classes)}
+
+        _LOG_NEAR_ZERO = math.log(1e-10)
+        log_probs_trained = _log_softmax(logits)
+
+        n_entries = len(self.entries)
+        out = np.full(n_entries, _LOG_NEAR_ZERO, dtype=np.float64)
+        for i, entry in enumerate(self.entries):
+            j = trained_idx.get(entry.canonical)
+            if j is not None:
+                out[i] = log_probs_trained[j]
+        return out
 
 
 # ---------------------------------------------------------------------------
-# Internal helpers
+# Internal helpers — LR head (Phase 2B)
+# ---------------------------------------------------------------------------
+
+# HSV histogram bins — must match train_loadout_closed_vocab.py
+_LR_HSV_BINS: tuple[int, int, int] = (8, 4, 4)  # 128 total
+_LR_N_FEATURES = _LR_HSV_BINS[0] * _LR_HSV_BINS[1] * _LR_HSV_BINS[2] + 4  # 132
+
+
+@lru_cache(maxsize=8)
+def _load_lr_weights(
+    version: str,
+    family: str,
+    weights_dir: Path,
+) -> Optional[dict]:
+    """Load and cache LR weights JSON for one (version, family) pair.
+
+    The file is looked up at:
+        ``<weights_dir>/<version>-loadout-<family_key>-classifier.json``
+
+    where ``family_key`` is the short user-facing name (e.g. ``"build_class"``)
+    derived from the YAML family string (e.g. ``"build_classes"``).
+
+    Returns the parsed JSON dict (with coef/intercept as numpy arrays), or
+    None when the file does not exist.
+    """
+    lr_key = _YAML_FAMILY_TO_LR_KEY.get(family, family)
+    path = weights_dir / f"{version}-loadout-{lr_key}-classifier.json"
+    if not path.exists():
+        return None
+    raw = json.loads(path.read_text())
+    return {
+        "classes": raw["classes"],
+        "coef": np.asarray(raw["coef"], dtype=np.float64),
+        "intercept": np.asarray(raw["intercept"], dtype=np.float64),
+    }
+
+
+def _extract_lr_features(image_bgr: "np.ndarray") -> "np.ndarray":
+    """Extract the 132-d feature vector used by the LR head.
+
+    Mirrors ``extract_crop_features`` in ``train_loadout_closed_vocab.py``
+    exactly: 8×4×4 HSV histogram + pixel mean + pixel std + aspect ratio +
+    log1p(Laplacian variance).  Imported here via cv2 directly to avoid
+    importing the script module.
+    """
+    import cv2  # local to avoid hard dep at module import time
+
+    if image_bgr is None or image_bgr.size == 0:
+        raise ValueError("empty image passed to _extract_lr_features")
+
+    resized = cv2.resize(image_bgr, (64, 64), interpolation=cv2.INTER_AREA)
+
+    hsv = cv2.cvtColor(resized, cv2.COLOR_BGR2HSV)
+    h_bins, s_bins, v_bins = _LR_HSV_BINS
+    hist = cv2.calcHist(
+        [hsv], [0, 1, 2], None,
+        [h_bins, s_bins, v_bins],
+        [0, 180, 0, 256, 0, 256],
+    )
+    flat = hist.flatten().astype(np.float64)
+    total = flat.sum()
+    hist_norm = flat / total if total > 0 else flat
+
+    gray = cv2.cvtColor(resized, cv2.COLOR_BGR2GRAY).astype(np.float64)
+    pix_mean = gray.mean() / 255.0
+    pix_std = gray.std() / 255.0
+
+    h_orig, w_orig = image_bgr.shape[:2]
+    aspect = float(w_orig) / float(h_orig) if h_orig > 0 else 1.0
+
+    lap_var = float(cv2.Laplacian(gray, cv2.CV_64F).var())
+    log_blur = math.log1p(max(0.0, lap_var))
+
+    out = np.empty(_LR_N_FEATURES, dtype=np.float64)
+    out[:128] = hist_norm
+    out[128] = pix_mean
+    out[129] = pix_std
+    out[130] = aspect
+    out[131] = log_blur
+    return out
+
+
+def _log_softmax(logits: "np.ndarray") -> "np.ndarray":
+    """Numerically stable log-softmax."""
+    m = float(logits.max())
+    return logits - (m + math.log(float(np.exp(logits - m).sum())))
+
+
+# ---------------------------------------------------------------------------
+# Internal helpers — Levenshtein (Phase 2A)
 # ---------------------------------------------------------------------------
 
 
@@ -235,7 +381,7 @@ class LoadoutClosedVocabExtractor:
         NHL game version key matching the config subdirectory (default ``"nhl26"``).
     """
 
-    EXTRACTOR_VERSION = "closed-vocab-alias-v1"
+    EXTRACTOR_VERSION = "closed-vocab-v2"  # Phase 2B: LR head + alias-regex
 
     def __init__(self, *, version: str = "nhl26") -> None:
         self._build_classes = load_closed_vocab("build_classes", version=version)
@@ -291,6 +437,89 @@ class LoadoutClosedVocabExtractor:
     ) -> list[ClosedVocabCandidate]:
         """Classify a platform OCR string. Returns 0 or 1 candidate."""
         return self._match_to_candidates(self._platforms, ocr_text, roi_bbox=roi_bbox)
+
+    # ------------------------------------------------------------------
+    # Image-based classifiers — Phase 2B LR head (second-chance candidates)
+    # ------------------------------------------------------------------
+
+    def classify_build_class_from_image(
+        self,
+        crop_bgr,  # noqa: ANN001 — numpy ndarray; avoid hard dep at class level
+        *,
+        roi_bbox: Optional[dict[str, float]] = None,
+    ) -> list[ClosedVocabCandidate]:
+        """Classify a build-class title-bar crop using the LR head.
+
+        Intended as a **second-chance** classifier that the orchestrator calls
+        when :meth:`classify_build_class` (alias-regex, rank 0) returns no
+        match or a low-confidence match.
+
+        Returns 0 or 1 :class:`ClosedVocabCandidate` (the argmax class):
+
+        - Confidence is the softmax-probability of the argmax class
+          (``exp(log_prob[argmax])``).
+        - The candidate's ``roi_bbox`` is set to the supplied value.
+
+        Returns ``[]`` when:
+        - The weights file is absent (Phase 2B not bootstrapped yet).
+        - ``crop_bgr`` is None or empty.
+        - The argmax softmax probability is below the 0.50 threshold.
+
+        Forward-compatible: when weights are absent, this method silently
+        returns ``[]`` (no error), preserving the Phase 2A alias-regex path.
+        """
+        return self._lr_classify(self._build_classes, crop_bgr, roi_bbox=roi_bbox)
+
+    def classify_x_factor_name_from_image(
+        self,
+        crop_bgr,  # noqa: ANN001 — numpy ndarray; avoid hard dep at class level
+        *,
+        roi_bbox: Optional[dict[str, float]] = None,
+    ) -> list[ClosedVocabCandidate]:
+        """Classify an X-Factor name icon-label crop using the LR head.
+
+        Same contract as :meth:`classify_build_class_from_image` but operates
+        on the X-Factor icon-label strip rather than the title bar.
+
+        Returns ``[]`` when weights are absent, crop is empty, or confidence
+        is below the 0.50 threshold.
+        """
+        return self._lr_classify(self._x_factors, crop_bgr, roi_bbox=roi_bbox)
+
+    # LR head confidence threshold: below this the LR result is discarded
+    _LR_CONFIDENCE_THRESHOLD: float = 0.50
+
+    @staticmethod
+    def _lr_classify(
+        vocab: ClosedVocab,
+        crop_bgr,  # noqa: ANN001
+        *,
+        roi_bbox: Optional[dict[str, float]],
+    ) -> list[ClosedVocabCandidate]:
+        """Internal: run vocab.predict_log_probs on a crop and return top-1 candidate."""
+        if crop_bgr is None:
+            return []
+        try:
+            log_probs = vocab.predict_log_probs(crop_bgr)
+        except NotImplementedError:
+            return []
+        except Exception:  # noqa: BLE001 — defensive: don't crash the pipeline on LR errors
+            return []
+
+        argmax_idx = int(np.argmax(log_probs))
+        prob = float(np.exp(log_probs[argmax_idx]))
+        if prob < LoadoutClosedVocabExtractor._LR_CONFIDENCE_THRESHOLD:
+            return []
+
+        canonical = vocab.entries[argmax_idx].canonical
+        return [
+            ClosedVocabCandidate(
+                value=canonical,
+                raw_confidence=prob,
+                calibrated_confidence=prob,
+                roi_bbox=roi_bbox,
+            )
+        ]
 
     # ------------------------------------------------------------------
     # Image-based classifier (HSV color sampling via legacy parsers.py)
