@@ -700,3 +700,74 @@ This matches the canonical 10-player lineup for match 250.
 - 1 sikyjoker85 OCR variant in match 250 + 2 noise rows in match 463
   (DaveL-234 position=null, etc.) — all will be blocked by promoter
   invariants (position=null is HARD, gamertag-noise → unresolved_team_side).
+
+---
+
+## Update 4 — 2026-05-22 (match 463 position-null fixes)
+
+Investigated why match 463 stayed at 8 promoted snapshots despite the
+Joey/RAIDERSG7 work. Found three independent issues affecting opponents:
+
+### Diagnosis
+
+1. **Gate vacuously promoted null position values.** When position
+   evidence had `candidate_value IS NULL` (low-quality observability
+   marker, conf=0), the gate's single-candidate path promoted with
+   `winningValue=null`. The promoter's position validator only checked
+   `typeof === 'string'` — null skipped both that branch and the fallback
+   `else if (status !== 'promoted')`. `snapshotBlockReason` stayed unset
+   and the snapshot was written with `position=null`. Affected
+   DaveL-234 (subject02) in match 463: appeared as `against|null`.
+
+2. **Opponent lookup couldn't handle single-char OCR errors.**
+   DAMICO2323 (opponent DB) vs DAMIC02323 (OCR, O↔0 confusion) failed
+   exact and whitespace-stripped comparison. The slot blocked with
+   `unresolved_team_side`.
+
+3. **No authority-position fallback.** When OCR fails to read the
+   position label, the opponent_player_match_stats row often has a
+   known long-form position (`center` / `leftWing` / etc.). Without a
+   fallback, snapshots blocked even though authoritative data existed.
+
+### Fixes (commit 65f9fac)
+
+1. Position validator collapsed into one branch; null/empty
+   `winningValue` now correctly triggers authority fallback or
+   `unresolved_position` block.
+2. Opponent lookup gains a Levenshtein-1 step on the whitespace-stripped
+   form (handles `DAMICO2323` ↔ `DAMIC02323` and similar single-char
+   errors).
+3. Authority position fallback added: when OCR position is unresolved
+   AND the matched opponent row has a known long-form position, map
+   `center → C`, `leftWing → LW`, `rightWing → RW`, `goalie → G`. The
+   ambiguous `defenseMen` is intentionally NOT mapped (can't
+   disambiguate LD vs RD without another signal).
+
+### Post-fix results
+
+| Match | Promoted | Notes |
+|---|---|---|
+| 250 | **10** | full lineup; no regression from this update |
+| 463 | **9** | DaveL-234 now `against|C`, DAMIC02323 now `against|RW`; Thick Ooze (10th) absent from evidence entirely |
+
+Match 463 final dry-run output:
+```
+[DRY-RUN] Newly-written by typed_v1 promoter: 9 snapshots
+    > for|C: StickMenace #96 build=Power Forward persona=MikkoRantanen
+    > for|LD: HenryTheBobJr #7 build=Puck Moving Defenseman persona=Hubert Jenkins
+    > against|C: DaveL-234 #88 build=Playmaker persona=
+    > against|LD: WoolyWetBeef #86 build=Two-Way Defenseman persona=
+    > for|RW: silkyjoker85 #10 build=Sniper persona=Silky
+    > for|RD: Orygoon-Ducks #77 build=Puck Moving Defenseman persona=Yuzzalead lafallo
+    > against|LW: KLyons023 #26 build=Sniper persona=
+    > for|LW: Pratt2016 #63 build=Playmaker persona=CBenson
+    > against|RW: DAMIC02323 #26 build=null persona=
+```
+
+Thick Ooze (expected opp defenseMen) is absent from typed_v1 evidence —
+the operator never navigated to him and his gamertag wasn't readable
+on the left strip. He'll be `blocked_observability` after cutover.
+
+### Worker test suite
+
+`pnpm --filter worker test`: 193 passed, 1 skipped (pre-existing), 0 failures.
