@@ -175,10 +175,47 @@ def _already_labeled(corpus_root: Path, family: str, source_stem: str, region_la
     return False
 
 
+_LIVE_VIEW_PATH = Path("/tmp/labelcrop-current.png")
+
+
 def _show_crop_info(crop: np.ndarray, tmp_path: Path) -> None:
-    """Save crop to a temp file for operator inspection."""
+    """Save crop to a temp file for operator inspection.
+
+    Writes BOTH to the per-session temp path (history) AND to a fixed
+    `/tmp/labelcrop-current.png` path that the operator opens ONCE in their
+    image viewer (Windows Photos or similar). The fixed path is overwritten
+    each crop; the viewer auto-refreshes on file change.
+    """
     cv2.imwrite(str(tmp_path), crop)
-    print(f"    -> crop saved to: {tmp_path}  (shape: {crop.shape[1]}x{crop.shape[0]})")
+    cv2.imwrite(str(_LIVE_VIEW_PATH), crop)
+    print(f"    -> crop: {crop.shape[1]}x{crop.shape[0]} (open {_LIVE_VIEW_PATH} in your viewer; refreshes each prompt)")
+
+
+def _open_live_viewer_once() -> None:
+    """Try to launch a Windows image viewer on the fixed live-view path.
+
+    Best-effort: works on WSL via explorer.exe; falls back silently otherwise.
+    The user only needs to do this once per session — after the first crop
+    the viewer auto-refreshes.
+    """
+    import shutil
+    import subprocess
+    if not shutil.which("explorer.exe"):
+        return
+    # Make sure the file exists before launching (else explorer might 404)
+    if not _LIVE_VIEW_PATH.exists():
+        # Write a 1x1 black placeholder so the viewer has something to open
+        cv2.imwrite(str(_LIVE_VIEW_PATH), np.zeros((1, 1, 3), dtype=np.uint8))
+    try:
+        # explorer.exe accepts Linux /tmp/ paths via WSL path translation
+        subprocess.Popen(
+            ["explorer.exe", str(_LIVE_VIEW_PATH)],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        print(f"    -> launched Windows viewer on {_LIVE_VIEW_PATH}")
+    except Exception as exc:
+        print(f"    -> could not auto-launch viewer ({exc}); open {_LIVE_VIEW_PATH} manually")
 
 
 def _present_menu(canonical_names: list[str]) -> None:
@@ -237,6 +274,9 @@ def label_crops(
     print("─" * 60)
     _present_menu(canonical_names)
     print()
+    if not dry_run:
+        _open_live_viewer_once()
+        print()
 
     saved = 0
     skipped = 0
