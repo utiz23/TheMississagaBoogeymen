@@ -289,8 +289,16 @@ def label_crops(
     # Collect source PNGs, then filter to player_loadout_view segments only.
     # Without the filter, --source /tmp/typed-v1-match250/ pulls in 1000+ PNGs
     # from 56 unrelated segment dirs.
-    fixture_dirs = list(FIXTURE_ROOT.glob("*/frames")) + list(FIXTURE_ROOT.glob("*/seg_*/frames"))
-    raw_pngs = _collect_pngs(*fixture_dirs, *extra_sources)
+    #
+    # When the operator passes an explicit --source, we DO NOT also walk the
+    # fixture frames — that would double-count the same PNGs (operator usually
+    # points --source at the same data the fixtures hold). Use --source alone
+    # for production data; omit it to label the committed fixture frames.
+    if extra_sources:
+        raw_pngs = _collect_pngs(*extra_sources)
+    else:
+        fixture_dirs = list(FIXTURE_ROOT.glob("*/frames")) + list(FIXTURE_ROOT.glob("*/seg_*/frames"))
+        raw_pngs = _collect_pngs(*fixture_dirs)
     all_pngs = [p for p in raw_pngs if _is_loadout_relevant_path(p)]
     if extra_sources and not all_pngs:
         print(f"warn: no player_loadout_view PNGs found under {[str(s) for s in extra_sources]}", file=sys.stderr)
