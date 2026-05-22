@@ -29,6 +29,8 @@ import {
   ocrExtractions,
   ocrPromotions,
   playerLoadoutSnapshots,
+  playerLoadoutXFactors,
+  playerLoadoutAttributes,
   matches,
 } from '@eanhl/db'
 import { and, eq, inArray, sql } from 'drizzle-orm'
@@ -175,6 +177,29 @@ export async function promoteLobbyFromEvidence(input: {
 
   const gameTitleId = await resolveGameTitleIdForMatch(db, matchId)
 
+  // Resolve a valid ocr_extractions.id for this match's lobby segments.
+  // Phase 2B's typed extractors write `support_frame_ids` as raw frame
+  // INDICES (0, 1, 2, 3) — not DB primary keys. We need a real
+  // ocr_extractions.id for the snapshot's FK. Take the first lobby
+  // extraction for the match; the snapshot row's exact extraction_id
+  // is provenance metadata and any lobby extraction in the same match
+  // is semantically equivalent.
+  const lobbyExtractionRows = await db
+    .select({ id: ocrExtractions.id })
+    .from(ocrExtractions)
+    .where(
+      and(
+        eq(ocrExtractions.matchId, matchId),
+        eq(ocrExtractions.screenType, 'pre_game_lobby_state_2'),
+      ),
+    )
+    .limit(1)
+  const lobbyExtractionId = lobbyExtractionRows[0]?.id ?? null
+  if (lobbyExtractionId === null) {
+    // No lobby extraction exists for this match — nothing to promote.
+    return { promotedSnapshotCount: 0, blockedSnapshotCount: 0, promotionRowsWritten: 0 }
+  }
+
   const slotDecisions: LobbySlotDecision[] = []
 
   for (const [slotKey, fieldMap] of evidenceBySlot.entries()) {
@@ -202,28 +227,24 @@ export async function promoteLobbyFromEvidence(input: {
           r.calibratedConfidence !== null ? Number(r.calibratedConfidence) : 0,
         evidenceId: r.id,
       }))
-      const decision = runPromotionGate({ candidates })
+      // Lobby evidence collects one candidate per (slot, field) per lobby
+      // SEGMENT. When a match has 2+ lobby segments (e.g. one before
+      // loadout navigation, one after), each contributes its own candidate
+      // with a similar OCR confidence - they're multi-frame observations
+      // of the SAME field, not competing readings. The default 1.5x
+      // dominance ratio interprets two close-confidence rows as
+      // 'blocked_consensus'; for lobby we want the highest-confidence
+      // candidate to win regardless of dominance. Set dominanceRatio: 1.0
+      // so any non-tie wins.
+      const decision = runPromotionGate({ candidates, dominanceRatio: 1.0 })
       fieldDecisions.set(fieldKey, decision)
     }
 
-    const gamertagRows = fieldMap.get('gamertag') ?? []
-    let ocrExtractionId = 0
-    for (const row of gamertagRows) {
-      if (row.supportFrameIds && row.supportFrameIds.length > 0) {
-        ocrExtractionId = row.supportFrameIds[0]!
-        break
-      }
-    }
-    if (ocrExtractionId === 0) {
-      outer: for (const rows of fieldMap.values()) {
-        for (const row of rows) {
-          if (row.supportFrameIds && row.supportFrameIds.length > 0) {
-            ocrExtractionId = row.supportFrameIds[0]!
-            break outer
-          }
-        }
-      }
-    }
+    // All snapshots for this match's lobby get tied to the same real
+    // lobby ocr_extractions.id (resolved above) so the FK is valid. The
+    // `support_frame_ids` in evidence rows are frame INDICES from the
+    // typed extractor and can't be used as DB IDs.
+    const ocrExtractionId = lobbyExtractionId
 
     let resolvedPlayerId: number | null = null
     if (parsed.teamSide === 'for') {
@@ -254,6 +275,9 @@ export async function promoteLobbyFromEvidence(input: {
   }
 
   // Idempotency: drop prior lobby-sourced snapshots for this match before insert.
+  // Cascade through child tables (x_factors + attributes may have been
+  // populated by the post-promotion consolidator, even though THIS promoter
+  // never writes them directly).
   const priorLobbyExtractionIds = (
     await db
       .select({ id: ocrExtractions.id })
@@ -266,14 +290,28 @@ export async function promoteLobbyFromEvidence(input: {
       )
   ).map((r) => r.id)
   if (priorLobbyExtractionIds.length > 0) {
-    await db
-      .delete(playerLoadoutSnapshots)
-      .where(
-        and(
-          eq(playerLoadoutSnapshots.matchId, matchId),
-          inArray(playerLoadoutSnapshots.ocrExtractionId, priorLobbyExtractionIds),
-        ),
-      )
+    const priorSnapshotIds = (
+      await db
+        .select({ id: playerLoadoutSnapshots.id })
+        .from(playerLoadoutSnapshots)
+        .where(
+          and(
+            eq(playerLoadoutSnapshots.matchId, matchId),
+            inArray(playerLoadoutSnapshots.ocrExtractionId, priorLobbyExtractionIds),
+          ),
+        )
+    ).map((r) => r.id)
+    if (priorSnapshotIds.length > 0) {
+      await db
+        .delete(playerLoadoutXFactors)
+        .where(inArray(playerLoadoutXFactors.loadoutSnapshotId, priorSnapshotIds))
+      await db
+        .delete(playerLoadoutAttributes)
+        .where(inArray(playerLoadoutAttributes.loadoutSnapshotId, priorSnapshotIds))
+      await db
+        .delete(playerLoadoutSnapshots)
+        .where(inArray(playerLoadoutSnapshots.id, priorSnapshotIds))
+    }
   }
 
   const pendingPromotions: PendingPromotion[] = []
@@ -390,10 +428,16 @@ export async function promoteLobbyFromEvidence(input: {
       playerLevelNumber,
     })
 
+    // Include source_screen + slot_key so the (target_table,
+    // target_semantic_key, field_key) unique index doesn't clash with
+    // loadout-v2's promotions, which use the SAME (team_side, position)
+    // pair but a different source (player_loadout_view).
     const snapshotSemanticKey = {
       match_id: matchId,
       team_side: sd.teamSide,
       position: positionVal,
+      slot_key: sd.slotKey,
+      source_screen: 'pre_game_lobby_state_2',
     }
 
     for (const [fieldKey, decision] of sd.fieldDecisions.entries()) {

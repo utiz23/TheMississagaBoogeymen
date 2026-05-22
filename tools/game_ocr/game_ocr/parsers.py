@@ -25,7 +25,12 @@ from game_ocr.models import (
     PreGameLobbyResult,
     TeamSummary,
 )
-from game_ocr.lobby_extractors.row_grouping import (
+# Import the row-grouping submodule DIRECTLY (not via lobby_extractors/__init__.py)
+# to avoid a circular import: lobby_extractors/__init__.py also imports
+# slot_identity, which pulls in loadout_extractors.icon → parsers._classify_xfactor_tier.
+# parsers.py is mid-init when that chain fires, so we import the submodule
+# without triggering the package __init__.
+from game_ocr.lobby_extractors.row_grouping import (  # noqa: E402
     BGM_ANCHOR_X_MAX,
     BGM_PANEL_X_RANGE,
     LOBBY_POSITION_TOKENS,
