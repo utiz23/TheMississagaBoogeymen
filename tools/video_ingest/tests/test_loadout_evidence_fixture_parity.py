@@ -6,9 +6,8 @@ fixture PNGs and diffs the output against ``expected_loadout_evidence.json``.
 The fixture JSON is authored truth (per Task 2A-19 PROVENANCE.md); this test
 locks the extractor → JSON contract for the diffed fixtures.
 
-Pre-condition: operator must populate ``frames/*.png`` in each fixture's segment
-directory.  When ``frames/`` is empty (only ``.gitkeep`` present), the relevant
-test SKIPs silently.
+Pre-condition: operator must populate ``frames/*.png`` in the fixture directory.
+When ``frames/`` is empty (no ``*.png`` files), the relevant test SKIPs silently.
 
 CI behaviour: this test runs in the existing pytest CI step.  When PNGs are
 present it asserts the diff matches within tolerances.  When absent it records
@@ -23,9 +22,8 @@ Tolerances
 
 Fixtures covered
 ----------------
-fixture_match250_full_lobby/seg_bgm   — 305 records (BGM roster)
-fixture_match250_full_lobby/seg_opp   — 305 records (opponent roster)
-fixture_match463_single_slot          — 61 records  (HenryTheBobJr single-slot)
+fixture_match250_full_lobby   — 602 records (9 subjects, 15 frames)
+fixture_match463_single_slot  — 61 records  (HenryTheBobJr single-slot)
 """
 from __future__ import annotations
 
@@ -171,24 +169,38 @@ def _diff_records(expected: list[dict], actual: list[dict]) -> list[str]:
     return diffs
 
 
-def _run_parity_assert(test_case: unittest.TestCase, seg_dir: Path, segment_index: int) -> None:
+def _run_parity_assert(
+    test_case: unittest.TestCase,
+    fixture_dir: Path,
+    segment_index: int,
+) -> None:
     """Core helper: run extractor + diff against expected JSON, assert no diffs.
 
-    Skips when ``frames/`` has no PNGs (operator-TODO placeholder).
+    Skips when ``fixture_dir/frames/`` has no PNGs (operator-TODO placeholder).
     Fails with the first 10 mismatch messages when diffs are found.
+
+    Parameters
+    ----------
+    fixture_dir:
+        Root directory of the fixture.  Expected JSON is at
+        ``fixture_dir/expected_loadout_evidence.json``; frames are at
+        ``fixture_dir/frames/*.png``.
+    segment_index:
+        Pass-1 segment index passed to ``extract_loadout_evidence`` — must
+        match the index used during the canonical extractor run that produced
+        the expected JSON (so that ``subject_slot_key`` values align).
     """
-    if not _frames_present(seg_dir):
+    if not _frames_present(fixture_dir):
         test_case.skipTest(
-            f"Operator-TODO: populate {seg_dir / 'frames'} with fixture PNGs to enable T1A"
+            f"Operator-TODO: populate {fixture_dir / 'frames'} with fixture PNGs to enable T1A"
         )
 
-    expected_path = seg_dir / "expected_loadout_evidence.json"
+    expected_path = fixture_dir / "expected_loadout_evidence.json"
     expected = _load_expected(expected_path)
 
     actual_records = extract_loadout_evidence(
-        bundle_dir=seg_dir / "frames",
+        bundle_dir=fixture_dir / "frames",
         segment_index=segment_index,
-        extractor_version="loadout-evidence-v1",
     )
     actual = [r.to_dict() for r in actual_records]
 
@@ -217,27 +229,24 @@ class TestLoadoutEvidenceFixtureParity(unittest.TestCase):
     ``expected_loadout_evidence.json`` within the declared tolerances.
     """
 
-    def test_match250_seg_bgm_parity(self):
-        """Match-250 BGM-roster segment — 305 expected records.
+    def test_match250_parity(self):
+        """Match-250 full lobby — 602 expected records (9 subjects, 15 frames).
+
+        Expected JSON: fixture_match250_full_lobby/expected_loadout_evidence.json
+        Frames:        fixture_match250_full_lobby/frames/00001.png … 00015.png
+
+        These are the real Pass-2 extracted frames from
+        ``/mnt/k/NHL/NHL26/2026-05-08_18-25-42.mkv`` (segment seg-002-player_loadout_view).
+        segment_index=2 matches the original extractor run so that
+        ``subject_slot_key`` values (``loadout_slot_seg0002_subjectNN``) align.
 
         Skip reason: populate
         tools/game_ocr/calibration/extras/loadout/fixtures/
-            fixture_match250_full_lobby/seg_bgm/frames/
-        with the match-250 BGM-roster frame PNGs to run this gate.
+            fixture_match250_full_lobby/frames/
+        with the match-250 frame PNGs to run this gate.
         """
-        seg_dir = _FIXTURE_ROOT / "fixture_match250_full_lobby" / "seg_bgm"
-        _run_parity_assert(self, seg_dir, segment_index=1)
-
-    def test_match250_seg_opp_parity(self):
-        """Match-250 opponent-roster segment — 305 expected records.
-
-        Skip reason: populate
-        tools/game_ocr/calibration/extras/loadout/fixtures/
-            fixture_match250_full_lobby/seg_opp/frames/
-        with the match-250 opponent-roster frame PNGs to run this gate.
-        """
-        seg_dir = _FIXTURE_ROOT / "fixture_match250_full_lobby" / "seg_opp"
-        _run_parity_assert(self, seg_dir, segment_index=2)
+        fixture_dir = _FIXTURE_ROOT / "fixture_match250_full_lobby"
+        _run_parity_assert(self, fixture_dir, segment_index=2)
 
     def test_match463_single_slot_parity(self):
         """Match-463 single-slot segment (HenryTheBobJr) — 61 expected records.
@@ -247,8 +256,8 @@ class TestLoadoutEvidenceFixtureParity(unittest.TestCase):
             fixture_match463_single_slot/frames/
         with the match-463 HenryTheBobJr frame PNGs to run this gate.
         """
-        seg_dir = _FIXTURE_ROOT / "fixture_match463_single_slot"
-        _run_parity_assert(self, seg_dir, segment_index=1)
+        fixture_dir = _FIXTURE_ROOT / "fixture_match463_single_slot"
+        _run_parity_assert(self, fixture_dir, segment_index=1)
 
 
 # ---------------------------------------------------------------------------
