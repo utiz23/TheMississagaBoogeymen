@@ -195,19 +195,25 @@ def _already_labeled(corpus_root: Path, family: str, source_stem: str, region_la
 
 
 _LIVE_VIEW_PATH = Path("/tmp/labelcrop-current.png")
-_BLACK_VARIANCE_THRESHOLD = 50.0  # crops with pixel variance below this are considered "empty/transitional"
+_BLANK_STDDEV_THRESHOLD = 80.0  # crops with pixel stddev below this are "empty/transitional"
 
 
 def _crop_is_blank(crop: np.ndarray) -> bool:
-    """True if the crop is mostly empty/black (transitional frame, no rendered UI).
+    """True if the crop is empty, transitional, or showing pre-render content.
 
-    Uses pixel variance as a simple "is there content" heuristic. Real title-bar
-    or icon-label crops have variance >100; transitional frames before the UI
-    renders have variance near 0 (uniform black or near-black).
+    Uses pixel stddev as the "is there content" heuristic:
+      - Real title-bar or icon-label crops have stddev > 100 (large text on
+        dark/transparent backgrounds creates high contrast)
+      - Transitional / pre-render frames (uniform black, or solid skin-tone
+        avatar fill from the lobby render bleeding through) have stddev < 80
+      - Empirically calibrated from match-250 frames 1, 5, 10 (std=54, 113, 113)
+
+    Frames 1-3 of every loadout segment are typically transitional and get
+    auto-skipped.
     """
     if crop.size == 0:
         return True
-    return float(crop.std()) < _BLACK_VARIANCE_THRESHOLD
+    return float(crop.std()) < _BLANK_STDDEV_THRESHOLD
 
 
 def _show_crop_info(crop: np.ndarray, tmp_path: Path) -> None:
@@ -346,7 +352,7 @@ def label_crops(
             _show_crop_info(crop, tmp_crop_path)
 
             choice = _prompt_operator(
-                f"[{idx}/{total}] {stem} / {region_label} — label? > "
+                f"[{idx}/{total}] {stem} / {region_label} — label (1-N, s=skip, q=quit) + Enter > "
             )
 
             if choice == "q":
