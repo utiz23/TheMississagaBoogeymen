@@ -25,6 +25,15 @@ from game_ocr.models import (
     PreGameLobbyResult,
     TeamSummary,
 )
+from game_ocr.lobby_extractors.row_grouping import (
+    BGM_ANCHOR_X_MAX,
+    BGM_PANEL_X_RANGE,
+    LOBBY_POSITION_TOKENS,
+    LOBBY_TEAM_SIDE_LABELS,
+    OPP_ANCHOR_X_MIN,
+    OPP_PANEL_X_RANGE,
+    group_rows_for_panel,
+)
 from game_ocr.ocr import OCRLine
 from game_ocr.utils import normalize_text, parse_int, parse_percentage, split_height_weight
 
@@ -79,11 +88,13 @@ def average_confidence(fields: list[ExtractionField]) -> float | None:
 #      pattern + x-range relative to the anchor.
 #   4. Detect per-team state by counting `#NN` patterns in the panel.
 
-_LOBBY_POSITION_TOKENS = {"C", "LW", "RW", "LD", "RD", "G"}
-# UI labels at the top of the left/right roster panels — show up as the
-# topmost OCR'd text in border rows and were being picked as gamertag
-# candidates (e.g. the opp goalie slot rendered as a player named "Away").
-_LOBBY_TEAM_SIDE_LABELS = {"HOME", "AWAY"}
+# Re-export the lobby constants under their original `_LOBBY_*` names so
+# `_parse_lobby_row` and callers that reach into this module keep working
+# during the Phase 3b transition. The single home is now
+# `lobby_extractors/row_grouping.py`.
+_LOBBY_POSITION_TOKENS = LOBBY_POSITION_TOKENS
+_LOBBY_TEAM_SIDE_LABELS = LOBBY_TEAM_SIDE_LABELS
+
 # Build vocabulary for state-1 detection / build-class extraction. Includes both
 # generic builds ("Playmaker", "Sniper", ...) and themed-build keywords seen in V2.
 _LOBBY_BUILD_KEYWORDS = re.compile(
@@ -92,75 +103,6 @@ _LOBBY_BUILD_KEYWORDS = re.compile(
     r"PWF|SNP|PMD|TWF|DDD|HBF|HBD|TwoWay|Two-Way|PowerForward|Power)\b",
     re.IGNORECASE,
 )
-_LOBBY_HASH_RE = re.compile(r"#\d{1,3}")
-
-
-_LOBBY_CANONICAL_ROW_ORDER = ["C", "LW", "RW", "LD", "RD", "G"]
-
-
-def _fill_missing_position_anchors(detected: list[OCRLine]) -> list[OCRLine]:
-    """Synthesize anchors for rows whose position label RapidOCR failed to read.
-
-    The lobby panel has 6 rows in canonical order C / LW / RW / LD / RD / G with
-    a stable ~88 px y-gap between rows. Single-character position labels (notably
-    'C') sometimes don't get tokenized by the OCR backend even when the row is
-    fully visible. When that happens, we infer the missing anchor's y by
-    extrapolating from the detected anchors' median gap, and synthesize an
-    OCRLine with the correct position text and the inferred y_center.
-
-    Returns the (possibly-augmented) anchor list, sorted by y_center, in canonical
-    row order.
-    """
-    if not detected:
-        return []
-    detected_set = {a.text.strip().upper().replace(" ", "") for a in detected}
-    # Median gap between adjacent detected anchors (fallback 88 px).
-    gaps = [
-        detected[i + 1].y_center - detected[i].y_center
-        for i in range(len(detected) - 1)
-    ]
-    median_gap = sorted(gaps)[len(gaps) // 2] if gaps else 88.0
-    # Detected position → canonical index lookup.
-    canonical_index = {pos: i for i, pos in enumerate(_LOBBY_CANONICAL_ROW_ORDER)}
-    # Anchor with the smallest canonical index that we DID detect → use it as the
-    # reference for back-fill / forward-fill.
-    anchored = sorted(detected, key=lambda l: canonical_index.get(l.text.strip().upper().replace(" ", ""), 999))
-    ref = anchored[0]
-    ref_idx = canonical_index.get(ref.text.strip().upper().replace(" ", ""), 0)
-
-    result: list[OCRLine] = []
-    for i, pos in enumerate(_LOBBY_CANONICAL_ROW_ORDER):
-        if pos in detected_set:
-            # Use the real detected line.
-            real = next(l for l in detected if l.text.strip().upper().replace(" ", "") == pos)
-            result.append(real)
-            continue
-        # Synthesize: y_center = ref.y_center + (i - ref_idx) * median_gap.
-        synth_y = ref.y_center + (i - ref_idx) * median_gap
-        result.append(
-            OCRLine(
-                text=pos,
-                confidence=0.0,  # synthetic — downstream can downweight if needed
-                x1=ref.x1, x2=ref.x2,
-                y1=synth_y - 12, y2=synth_y + 12,
-            )
-        )
-    result.sort(key=lambda l: l.y_center)
-    # Only keep anchors that fall within the panel's vertical range.
-    return [l for l in result if 250 < l.y_center < 980]
-
-
-def _detect_panel_state(panel_lines: list[OCRLine]) -> str:
-    """Per-team state detection by `#NN` pattern count.
-
-    State 2 ('identity state') shows `#11 - E. Wanhg` style rows for every player.
-    State 1 ('class state') shows build class names instead. >= 3 hash patterns →
-    state_2; otherwise state_1. With 5 skater rows on each team in a 6v6 lobby, a
-    fully-rendered state_2 panel emits 5 hash patterns; partial captures emit fewer.
-    """
-    joined = " ".join(l.text for l in panel_lines)
-    n_hash = len(_LOBBY_HASH_RE.findall(joined))
-    return "state_2" if n_hash >= 3 else "state_1"
 
 
 def parse_lobby_team(
@@ -172,59 +114,38 @@ def parse_lobby_team(
 ) -> TeamSummary:
     """Parse a single team panel from full-frame OCR lines.
 
+    Thin wrapper around `lobby_extractors.row_grouping.group_rows_for_panel`.
+    Both legacy and typed paths converge on the same row-grouping
+    implementation; this function adapts the row list back into the legacy
+    `TeamSummary` + `PlayerSlot` shape that `parse_pre_game_result` returns.
+
     panel_x_range: x-band of the panel's data lines (gamertag, build, level, etc.).
     anchor_x_max: position labels are at x_center < this value (BGM panel: ~130).
     anchor_x_min: position labels are at x_center > this value (Opp panel: ~1820).
     Exactly one of anchor_x_min / anchor_x_max must be set.
-
-    Returns a TeamSummary with one PlayerSlot per detected position-label anchor,
-    plus the detected per-team state.
     """
-    if (anchor_x_max is None) == (anchor_x_min is None):
-        raise ValueError("Provide exactly one of anchor_x_min or anchor_x_max")
-
-    # Find position-label anchors. Each anchor's y_center is the row centre.
-    detected_anchors: list[OCRLine] = []
-    for line in all_lines:
-        if line.text.strip().upper().replace(" ", "") not in _LOBBY_POSITION_TOKENS:
-            continue
-        if not (250 < line.y_center < 980):
-            continue
-        if anchor_x_max is not None and line.x_center > anchor_x_max:
-            continue
-        if anchor_x_min is not None and line.x_center < anchor_x_min:
-            continue
-        detected_anchors.append(line)
-    detected_anchors.sort(key=lambda l: l.y_center)
-    anchors = _fill_missing_position_anchors(detected_anchors)
-
-    # Panel content lines for state detection (everything in the data x-band).
-    panel_lines = [
-        l for l in all_lines
-        if panel_x_range[0] <= l.x_center <= panel_x_range[1] and 250 < l.y_center < 980
-    ]
-    state = _detect_panel_state(panel_lines)
+    team_side = "our_team" if anchor_x_max is not None else "opponent_team"
+    rows, panel_lines, state = group_rows_for_panel(
+        all_lines,
+        team_side=team_side,
+        panel_x_range=panel_x_range,
+        anchor_x_max=anchor_x_max,
+        anchor_x_min=anchor_x_min,
+    )
 
     roster: list[PlayerSlot] = []
-    for idx, anchor in enumerate(anchors, start=1):
-        # Row content sits within ±45 px of anchor.y_center, restricted to the
-        # data x-band so we don't accidentally pull text from the opposite team.
-        row_lines = [
-            l for l in all_lines
-            if abs(l.y_center - anchor.y_center) < 45
-            and panel_x_range[0] <= l.x_center <= panel_x_range[1]
-        ]
-        fields = _parse_lobby_row(anchor, row_lines, state)
+    for idx, row in enumerate(rows, start=1):
+        fields = _parse_lobby_row(row.anchor, row.row_lines, row.panel_state)
         roster.append(
             PlayerSlot(
                 slot_index=idx,
-                raw_lines=[anchor.text] + [l.text for l in row_lines],
+                raw_lines=[row.anchor.text] + [line.text for line in row.row_lines],
                 fields=fields,
             )
         )
     return TeamSummary(
         roster=roster,
-        raw_lines=[l.text for l in panel_lines],
+        raw_lines=[line.text for line in panel_lines],
         state=state,
     )
 
@@ -424,13 +345,13 @@ def parse_pre_game_result(meta, regions: dict[str, list[OCRLine]], include_playe
     # ── Per-team panel parse ──
     our_team = parse_lobby_team(
         lines,
-        panel_x_range=(85, 410),
-        anchor_x_max=130,  # BGM position labels at far left (x_center ~77)
+        panel_x_range=BGM_PANEL_X_RANGE,
+        anchor_x_max=BGM_ANCHOR_X_MAX,
     )
     opp_team = parse_lobby_team(
         lines,
-        panel_x_range=(1500, 1825),
-        anchor_x_min=1820,  # Opp position labels at far right (x_center ~1844)
+        panel_x_range=OPP_PANEL_X_RANGE,
+        anchor_x_min=OPP_ANCHOR_X_MIN,
     )
 
     return PreGameLobbyResult(
