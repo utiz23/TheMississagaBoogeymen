@@ -74,3 +74,6 @@ apps/web/src/probe-queries.mjs
 
 # Local OCR pipeline backup snapshots — do not commit.
 .tmp-backups/
+
+# Phase 3a diagnostic TSVs (regenerate via scripts/diagnose_segments.py)
+tools/game_ocr/diagnostics/

@@ -113,6 +113,7 @@ def diagnose(
     gt_ranges: list[GroundTruthInterval],
     version: str,
     out_path: Path,
+    max_frames: int | None = None,
 ) -> None:
     sm = load_state_machine(version)
     weights_path = _GAME_OCR_SRC / "game_ocr" / "weights" / f"{version}-screen-classifier.json"
@@ -146,6 +147,8 @@ def diagnose(
     with out_path.open("w") as fh:
         print(header, file=fh)
         for idx, frame in enumerate(_iter_raw_bgr_frames(video_path, sm.sample_fps)):
+            if max_frames is not None and idx >= max_frames:
+                break
             t_sec = idx * sample_period
             anchor_text = legacy._read_anchor(frame)
             feats = compute_frame_features(frame, anchor_text=anchor_text, state_machine=sm)
@@ -186,6 +189,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--version", default="nhl26")
     parser.add_argument("--out", type=Path, required=True,
                         help="Output TSV path (e.g. tools/game_ocr/diagnostics/phase-3a/match250.tsv)")
+    parser.add_argument("--max-frames", type=int, default=None,
+                        help="Stop after N sampled frames. Useful for the pre-game window only.")
     args = parser.parse_args(argv)
 
     if not args.video.exists():
@@ -199,6 +204,7 @@ def main(argv: list[str] | None = None) -> int:
         gt_ranges=parse_gt_ranges(args.gt_ranges),
         version=args.version,
         out_path=args.out,
+        max_frames=args.max_frames,
     )
     return 0
 
