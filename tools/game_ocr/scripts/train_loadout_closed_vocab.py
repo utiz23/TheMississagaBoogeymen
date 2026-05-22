@@ -145,19 +145,22 @@ def extract_crop_features(image_bgr: np.ndarray) -> np.ndarray:
 def load_corpus(
     family: str,
     corpus_root: Path = CORPUS_ROOT,
+    min_examples_per_class: int = MIN_EXAMPLES_PER_CLASS,
 ) -> tuple[list[np.ndarray], list[str]]:
     """Load feature vectors and labels from the labeled crop corpus.
 
     Args:
         family: one of ``"build_class"``, ``"x_factor_name"``.
         corpus_root: path to the crops root.
+        min_examples_per_class: minimum labels required per class
+            (default 3). Lower (e.g. 1) for sparse bootstrap corpora.
 
     Returns:
         (features, labels) — parallel lists.
         features: list of 132-d float64 arrays.
         labels: list of canonical-name strings.
 
-    Classes with fewer than MIN_EXAMPLES_PER_CLASS examples are excluded with
+    Classes with fewer than min_examples_per_class examples are excluded with
     a warning.  If the corpus directory does not exist, returns ([], []).
     """
     family_root = corpus_root / family
@@ -186,10 +189,10 @@ def load_corpus(
     features: list[np.ndarray] = []
     labels: list[str] = []
     for canonical, feats in sorted(raw_by_class.items()):
-        if len(feats) < MIN_EXAMPLES_PER_CLASS:
+        if len(feats) < min_examples_per_class:
             print(
                 f"warn: class {canonical!r} has only {len(feats)} example(s) "
-                f"(< {MIN_EXAMPLES_PER_CLASS} minimum) — skipped.  "
+                f"(< {min_examples_per_class} minimum) — skipped.  "
                 f"Run label_loadout_crops.py to add more examples.",
                 file=sys.stderr,
             )
@@ -212,6 +215,7 @@ def train_family(
     corpus_root: Path = CORPUS_ROOT,
     weights_dir: Path = WEIGHTS_DIR,
     evaluate: bool = False,
+    min_examples_per_class: int = MIN_EXAMPLES_PER_CLASS,
 ) -> Path | None:
     """Train a LogisticRegression for one family.  Returns the saved weights path, or None on failure.
 
@@ -222,6 +226,8 @@ def train_family(
         weights_dir: directory to write the JSON weights file.
         evaluate: when True, run stratified k-fold cross-validation and print
             top-1 accuracy before fitting the full model.
+        min_examples_per_class: minimum labels required per class. Default 3
+            for robust training; lower to 1-2 for sparse bootstrap corpora.
 
     Returns:
         Path to the written JSON file, or None when corpus is insufficient.
@@ -229,7 +235,11 @@ def train_family(
     print(f"\n{'─' * 60}", file=sys.stderr)
     print(f"Training: {version}-loadout-{family}-classifier", file=sys.stderr)
 
-    features, labels = load_corpus(family, corpus_root=corpus_root)
+    features, labels = load_corpus(
+        family,
+        corpus_root=corpus_root,
+        min_examples_per_class=min_examples_per_class,
+    )
 
     n_total = len(features)
     n_classes = len(set(labels))
@@ -360,6 +370,13 @@ def main() -> int:
         default=WEIGHTS_DIR,
         help=f"Output directory for JSON weight files (default: {WEIGHTS_DIR}).",
     )
+    ap.add_argument(
+        "--min-class-size",
+        type=int,
+        default=MIN_EXAMPLES_PER_CLASS,
+        help=f"Minimum labels per class to include in training (default: {MIN_EXAMPLES_PER_CLASS}). "
+             f"Lower (e.g. 1) for sparse bootstrap corpora.",
+    )
     args = ap.parse_args()
 
     families = AVAILABLE_FAMILIES if args.all else [args.family]
@@ -371,6 +388,7 @@ def main() -> int:
             corpus_root=args.corpus_root,
             weights_dir=args.weights_dir,
             evaluate=args.evaluate,
+            min_examples_per_class=args.min_class_size,
         )
         if result is None:
             failures += 1
