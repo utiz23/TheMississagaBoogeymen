@@ -244,7 +244,7 @@ _LIVE_VIEW_PATH = _resolve_live_view_path()
 #     std<25 during pre-render. Threshold 40 cleanly separates.
 _BLANK_STDDEV_THRESHOLDS: dict[str, float] = {
     "build_class": 80.0,
-    "x_factor_name": 40.0,
+    "x_factor_name": 55.0,
 }
 
 
