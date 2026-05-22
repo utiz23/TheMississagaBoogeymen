@@ -44,7 +44,11 @@ function makeOcrResult(screenType: string): OcrResult {
 
 // ─── minimal PromoterContext stub ─────────────────────────────────────────────
 
-function makeCtx(screenType: string, loadoutEngine?: string): PromoterContext {
+function makeCtx(
+  screenType: string,
+  loadoutEngine?: string,
+  lobbyEngine?: string,
+): PromoterContext {
   // We use a mock db that returns empty arrays for all queries so the promoter
   // doesn't actually hit postgres. The dispatch guard fires BEFORE any real
   // DB call in the legacy loadout path, so this is safe.
@@ -67,16 +71,17 @@ function makeCtx(screenType: string, loadoutEngine?: string): PromoterContext {
   if (loadoutEngine !== undefined) {
     base.loadoutEngine = loadoutEngine
   }
+  if (lobbyEngine !== undefined) {
+    base.lobbyEngine = lobbyEngine
+  }
   return base
 }
 
 // ─── Test suite ───────────────────────────────────────────────────────────────
 
 describe('ocr-promoter-dispatch (Task 2A-18)', () => {
-
   // ── Scenario 1: legacy engine ──────────────────────────────────────────────
   describe('loadoutEngine=legacy (or undefined)', () => {
-
     test('getPromoter returns a function for player_loadout_view', () => {
       const promoter = getPromoter('player_loadout_view')
       assert.ok(typeof promoter === 'function', 'promoter should be a function')
@@ -113,35 +118,42 @@ describe('ocr-promoter-dispatch (Task 2A-18)', () => {
       // With typed_v1, the guard must return early — no DB calls, no throw.
       const ctx = makeCtx('player_loadout_view', 'typed_v1')
       // Use a db mock that throws if any method is called — verifies no DB access.
-      const strictMock = new Proxy({}, {
-        get(_target, prop) {
-          throw new Error(`DB method "${String(prop)}" was called but should NOT be for typed_v1`)
+      const strictMock = new Proxy(
+        {},
+        {
+          get(_target, prop) {
+            throw new Error(`DB method "${String(prop)}" was called but should NOT be for typed_v1`)
+          },
         },
-      })
-      const strictCtx: PromoterContext = { ...ctx, db: strictMock as unknown as PromoterContext['db'] }
+      )
+      const strictCtx: PromoterContext = {
+        ...ctx,
+        db: strictMock as unknown as PromoterContext['db'],
+      }
       // Should resolve cleanly without ever touching the DB.
       await assert.doesNotReject(
         () => promoter(strictCtx),
         'typed_v1 guard must return early without any DB access',
       )
     })
-
   })
 
   // ── Scenario 2: typed_v1 engine guard ─────────────────────────────────────
   describe('loadoutEngine=typed_v1 guard', () => {
-
     test('typed_v1 guard returns without calling legacy promoteLoadout internals', async () => {
       const promoter = getPromoter('player_loadout_view')
       assert.ok(promoter, 'promoter defined')
 
       let dbMethodCalled = false
-      const spyMock = new Proxy({}, {
-        get(_target, prop) {
-          dbMethodCalled = true
-          throw new Error(`DB method "${String(prop)}" was called unexpectedly`)
+      const spyMock = new Proxy(
+        {},
+        {
+          get(_target, prop) {
+            dbMethodCalled = true
+            throw new Error(`DB method "${String(prop)}" was called unexpectedly`)
+          },
         },
-      })
+      )
 
       const ctx = makeCtx('player_loadout_view', 'typed_v1')
       const spyCtx: PromoterContext = { ...ctx, db: spyMock as unknown as PromoterContext['db'] }
@@ -161,13 +173,18 @@ describe('ocr-promoter-dispatch (Task 2A-18)', () => {
       let entered = false
       try {
         // Override db with a spy that records entry but allows the call.
-        const spyMock = new Proxy({}, {
-          get(_target, prop) {
-            entered = true
-            // Simulate a rejection so we can detect the promoter was entered.
-            return () => { throw new Error(`mock DB rejection for ${String(prop)}`) }
+        const spyMock = new Proxy(
+          {},
+          {
+            get(_target, prop) {
+              entered = true
+              // Simulate a rejection so we can detect the promoter was entered.
+              return () => {
+                throw new Error(`mock DB rejection for ${String(prop)}`)
+              }
+            },
           },
-        })
+        )
         const spyCtx: PromoterContext = { ...ctx, db: spyMock as unknown as PromoterContext['db'] }
         await promoter(spyCtx)
       } catch {
@@ -176,12 +193,89 @@ describe('ocr-promoter-dispatch (Task 2A-18)', () => {
       }
       assert.equal(entered, true, 'box_score promoter was entered regardless of loadoutEngine')
     })
+  })
 
+  // ── Scenario 4: lobby engine guard (Phase 3b) ──────────────────────────────
+  describe('lobbyEngine=typed_v1 guard (Phase 3b)', () => {
+    test('pre_game_lobby_state_2 short-circuits with typed_v1', async () => {
+      const promoter = getPromoter('pre_game_lobby_state_2')
+      assert.ok(promoter, 'pre_game_lobby_state_2 promoter defined')
+      const ctx = makeCtx('pre_game_lobby_state_2', undefined, 'typed_v1')
+      const strictMock = new Proxy(
+        {},
+        {
+          get(_target, prop) {
+            throw new Error(`DB method "${String(prop)}" called but typed_v1 guard should short-circuit`)
+          },
+        },
+      )
+      const strictCtx: PromoterContext = {
+        ...ctx,
+        db: strictMock as unknown as PromoterContext['db'],
+      }
+      await assert.doesNotReject(() => promoter(strictCtx))
+    })
+
+    test('pre_game_lobby_state_1 ALWAYS uses legacy regardless of lobbyEngine', async () => {
+      // State_1 has no typed extractor; the guard does not gate it.
+      const promoter = getPromoter('pre_game_lobby_state_1')
+      assert.ok(promoter, 'pre_game_lobby_state_1 promoter defined')
+      let dbCalled = false
+      const spyMock = new Proxy(
+        {},
+        {
+          get(_target, prop) {
+            dbCalled = true
+            return () => {
+              throw new Error(`mock DB rejection for ${String(prop)}`)
+            }
+          },
+        },
+      )
+      const ctx = makeCtx('pre_game_lobby_state_1', undefined, 'typed_v1')
+      const spyCtx: PromoterContext = {
+        ...ctx,
+        db: spyMock as unknown as PromoterContext['db'],
+      }
+      try {
+        await promoter(spyCtx)
+      } catch {
+        // expected — mock throws
+      }
+      assert.equal(dbCalled, true, 'state_1 must enter legacy promoter even when lobbyEngine=typed_v1')
+    })
+
+    test('pre_game_lobby_state_2 enters legacy when lobbyEngine=undefined', async () => {
+      const promoter = getPromoter('pre_game_lobby_state_2')
+      assert.ok(promoter, 'promoter defined')
+      let dbCalled = false
+      const spyMock = new Proxy(
+        {},
+        {
+          get(_target, prop) {
+            dbCalled = true
+            return () => {
+              throw new Error(`mock DB rejection for ${String(prop)}`)
+            }
+          },
+        },
+      )
+      const ctx = makeCtx('pre_game_lobby_state_2', undefined, undefined)
+      const spyCtx: PromoterContext = {
+        ...ctx,
+        db: spyMock as unknown as PromoterContext['db'],
+      }
+      try {
+        await promoter(spyCtx)
+      } catch {
+        // expected
+      }
+      assert.equal(dbCalled, true, 'undefined lobbyEngine should NOT short-circuit (legacy path)')
+    })
   })
 
   // ── Scenario 3: undefined loadoutEngine is treated as legacy ──────────────
   describe('loadoutEngine=undefined defaults to legacy behaviour', () => {
-
     test('undefined loadoutEngine does NOT skip player_loadout_view', async () => {
       const promoter = getPromoter('player_loadout_view')
       assert.ok(promoter, 'promoter defined')
@@ -191,24 +285,34 @@ describe('ocr-promoter-dispatch (Task 2A-18)', () => {
       // any method is accessed, which is caught by the promoter's try/catch
       // inside the transaction and avoids dangling async rejections.
       let dbMethodCalled = false
-      const strictMock = new Proxy({}, {
-        get(_target, prop) {
-          dbMethodCalled = true
-          // Return a function that throws synchronously so there's no dangling promise.
-          return () => { throw new Error(`mock DB rejection for ${String(prop)} — guard was NOT triggered`) }
+      const strictMock = new Proxy(
+        {},
+        {
+          get(_target, prop) {
+            dbMethodCalled = true
+            // Return a function that throws synchronously so there's no dangling promise.
+            return () => {
+              throw new Error(`mock DB rejection for ${String(prop)} — guard was NOT triggered`)
+            }
+          },
         },
-      })
+      )
       const ctx = makeCtx('player_loadout_view', undefined)
-      const strictCtx: PromoterContext = { ...ctx, db: strictMock as unknown as PromoterContext['db'] }
+      const strictCtx: PromoterContext = {
+        ...ctx,
+        db: strictMock as unknown as PromoterContext['db'],
+      }
 
       try {
         await promoter(strictCtx)
       } catch {
         // Expected — mock DB throws. What matters: DB was actually accessed.
       }
-      assert.equal(dbMethodCalled, true, 'DB should be accessed when loadoutEngine is undefined (legacy)')
+      assert.equal(
+        dbMethodCalled,
+        true,
+        'DB should be accessed when loadoutEngine is undefined (legacy)',
+      )
     })
-
   })
-
 })

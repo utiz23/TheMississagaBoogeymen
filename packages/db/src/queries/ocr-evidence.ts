@@ -29,10 +29,7 @@ export async function getMatchSegments(matchId: number) {
     .select()
     .from(ocrSegments)
     .where(eq(ocrSegments.matchId, matchId))
-    .orderBy(
-      sql`${ocrSegments.tStartSec} ASC NULLS LAST`,
-      asc(ocrSegments.id),
-    )
+    .orderBy(sql`${ocrSegments.tStartSec} ASC NULLS LAST`, asc(ocrSegments.id))
 }
 
 export type MatchSegmentRow = Awaited<ReturnType<typeof getMatchSegments>>[number]
@@ -64,9 +61,9 @@ export type MatchSegmentStateCountRow = Awaited<
  * `ocr-segments-report` CLI to surface the HMM vs legacy passthrough split
  * introduced in Phase 1.
  */
-export async function getMatchSegmentDecoderVersionCounts(matchId: number): Promise<
-  Array<{ decoderVersion: string; segmentCount: number }>
-> {
+export async function getMatchSegmentDecoderVersionCounts(
+  matchId: number,
+): Promise<Array<{ decoderVersion: string; segmentCount: number }>> {
   const rows = await db
     .select({
       decoderVersion: ocrSegments.decoderVersion,
@@ -192,9 +189,7 @@ export async function getPromotionStatusCounts(matchId: number) {
     .orderBy(ocrPromotions.promotionStatus)
 }
 
-export type PromotionStatusCountRow = Awaited<
-  ReturnType<typeof getPromotionStatusCounts>
->[number]
+export type PromotionStatusCountRow = Awaited<ReturnType<typeof getPromotionStatusCounts>>[number]
 
 /**
  * Triage queue: blocked promotions ordered by recency. Phase 5's review UI
@@ -236,6 +231,33 @@ export async function getFieldEvidenceForLoadoutSlot(
   const conditions = [
     eq(ocrFieldEvidence.matchId, matchId),
     eq(ocrFieldEvidence.screenState, 'player_loadout_view'),
+  ]
+  if (slotKey !== undefined) {
+    conditions.push(eq(ocrFieldEvidence.subjectSlotKey, slotKey))
+  }
+  return db
+    .select()
+    .from(ocrFieldEvidence)
+    .where(and(...conditions))
+    .orderBy(
+      asc(ocrFieldEvidence.subjectSlotKey),
+      asc(ocrFieldEvidence.fieldKey),
+      asc(ocrFieldEvidence.candidateRank),
+    )
+}
+
+/**
+ * Phase 3b mirror of `getFieldEvidenceForLoadoutSlot` scoped to
+ * `screen_state='pre_game_lobby_state_2'`. Lobby has 12 fixed subjects per
+ * frame keyed by `lobby_{for|against}_{C|LW|RW|LD|RD|G}`.
+ */
+export async function getFieldEvidenceForLobbySlot(
+  matchId: number,
+  slotKey?: string,
+): Promise<FieldEvidenceRow[]> {
+  const conditions = [
+    eq(ocrFieldEvidence.matchId, matchId),
+    eq(ocrFieldEvidence.screenState, 'pre_game_lobby_state_2'),
   ]
   if (slotKey !== undefined) {
     conditions.push(eq(ocrFieldEvidence.subjectSlotKey, slotKey))

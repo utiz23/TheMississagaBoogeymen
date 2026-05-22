@@ -37,6 +37,7 @@ import { eq, isNotNull } from 'drizzle-orm'
 import { runOcrCli, type OcrResult, type OcrExtractionField } from './ocr-cli-runner.js'
 import { getPromoter, type PromoterDb } from './ocr-promoters/index.js'
 import { promoteLoadoutFromEvidence } from './ocr-promoters/loadout-v2.js'
+import { promoteLobbyFromEvidence } from './ocr-promoters/lobby-v2.js'
 import { applyMatchColors } from './lib/match-color-aggregator.js'
 
 export interface IngestOcrBatchInput {
@@ -181,10 +182,11 @@ export async function ingestOcrBatch(input: IngestOcrBatchInput): Promise<Ingest
   let failed = 0
 
   const loadoutEngine = input.loadoutEngine ?? 'legacy'
+  const lobbyEngine = input.lobbyEngine ?? 'legacy'
 
   for (const result of cli.results) {
     try {
-      await persistOneResult(batchId, matchId, result, loadoutEngine)
+      await persistOneResult(batchId, matchId, result, loadoutEngine, lobbyEngine)
       succeeded++
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
@@ -288,6 +290,22 @@ export async function ingestOcrBatch(input: IngestOcrBatchInput): Promise<Ingest
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
       console.warn(`[ingest-ocr] promoteLoadoutFromEvidence(${String(matchId)}) skipped: ${msg}`)
+    }
+  }
+
+  // Task 3B-6: typed_v1 per-match lobby promotion. Mirrors loadout-v2 above.
+  // Runs after the lobby evidence has been written (via writeFieldEvidenceForBatch
+  // in the lobby-evidence block earlier). Legacy path keeps per-extraction
+  // promotePreGameLobby (guarded in ocr-promoters/index.ts).
+  if (lobbyEngine === 'typed_v1' && matchId !== null) {
+    try {
+      const promResult = await promoteLobbyFromEvidence({ matchId })
+      console.log(
+        `[ingest-ocr] batch ${String(batchId)} lobby-v2: promoted=${String(promResult.promotedSnapshotCount)} blocked=${String(promResult.blockedSnapshotCount)} promotionRows=${String(promResult.promotionRowsWritten)}`,
+      )
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      console.warn(`[ingest-ocr] promoteLobbyFromEvidence(${String(matchId)}) skipped: ${msg}`)
     }
   }
 
@@ -508,6 +526,7 @@ async function persistOneResult(
   matchId: number | null,
   result: OcrResult,
   loadoutEngine: string,
+  lobbyEngine: string,
 ): Promise<void> {
   const sourcePath = result.meta.source_path
   const sourceHash = await sha256OfFile(sourcePath).catch(() => null)
@@ -587,6 +606,7 @@ async function persistOneResult(
         matchId,
         sourcePath,
         loadoutEngine,
+        lobbyEngine,
         db: tx as PromoterDb,
       })
       await tx

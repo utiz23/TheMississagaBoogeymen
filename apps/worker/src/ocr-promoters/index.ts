@@ -41,6 +41,14 @@ export interface PromoterContext {
    * behaviour.
    */
   loadoutEngine?: string
+  /**
+   * Pass-2 lobby extraction engine flag (Phase 3b). When 'typed_v1', per-
+   * extraction `promotePreGameLobby` is SKIPPED for `pre_game_lobby_state_2`
+   * screens; the per-match `promoteLobbyFromEvidence` runs at end of batch.
+   * pre_game_lobby_state_1 always uses the legacy promoter (no typed
+   * extractor exists for state_1 per Phase 3a).
+   */
+  lobbyEngine?: string
 }
 
 export type Promoter = (ctx: PromoterContext) => Promise<void>
@@ -60,9 +68,24 @@ const loadoutPromoterWithEngineGuard: Promoter = async (ctx) => {
   await promoteLoadout(ctx)
 }
 
+/**
+ * Wraps the legacy promotePreGameLobby in a guard that skips promotion when
+ * lobbyEngine='typed_v1'. The typed_v1 path runs promoteLobbyFromEvidence
+ * once per match at the end of ingestOcrBatch.
+ *
+ * Only applies to pre_game_lobby_state_2 — pre_game_lobby_state_1 has no
+ * typed extractor and always uses the legacy path.
+ */
+const lobbyPromoterWithEngineGuard: Promoter = async (ctx) => {
+  if (ctx.lobbyEngine === 'typed_v1') {
+    return
+  }
+  await promotePreGameLobby(ctx)
+}
+
 const promoters: Partial<Record<OcrScreenType, Promoter>> = {
   pre_game_lobby_state_1: promotePreGameLobby,
-  pre_game_lobby_state_2: promotePreGameLobby,
+  pre_game_lobby_state_2: lobbyPromoterWithEngineGuard,
   player_loadout_view: loadoutPromoterWithEngineGuard,
   post_game_player_summary: promotePostGamePlayerSummary,
   post_game_box_score_goals: promoteBoxScore,
