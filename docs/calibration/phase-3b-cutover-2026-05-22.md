@@ -282,6 +282,60 @@ YAML stays at `lobby_engine: typed_v1`. Backup table
 `_phase3b_backup_player_loadout_snapshots` remains in place pending
 operator sign-off.
 
+### Phase 3c follow-up (2026-05-23 session, after cutover)
+
+Phase 3c (commit `ff1584a` + `01787fa`) closed the gamertag junk-filter
+gap exposed by the cutover. Result on match 250 lobby data after
+re-running Pass-2 + dispatch + consolidator:
+
+| Field | Before Phase 3c | After Phase 3c |
+|---|---|---|
+| gamertag | 7/10 (70%) ❌ | **9/10 (90%) ✓** |
+| position | 10/10 ✓ | 10/10 ✓ |
+| build_class | 1/10 (test bar 90%) ❌ | 1/2 emitted (50%) — slot-band issue |
+| persona | 3/10 ❌ | 1/10 — alias seeding gap (Codex Task A) |
+
+Specific fixes that landed:
+- `against/RD`: "CHEL" (UI label) → `shadowassault20` (real gamertag)
+- `for/RW`: "VIEWINGLOADOUTS" (UI label) → `silkyjoker85` (real gamertag)
+- `against/C`: "SPORTS" (match 463) → `DaveL-234`
+- `against/LD`: "SPORTS" (match 463) → `WoolyWetBeef`
+- `for/RD` (match 463): "Puck Moving Defenseman" (build-class string) → null
+  (no real gamertag in this slot's OCR — honest)
+
+Remaining gate failures after Phase 3c:
+- **Hard-field gate (build_class):** 1/2 emitted, fails ≥90%. The
+  for/LW slot has `gamertag="DuhPope"` (opp player) → `build_class="Sniper"`
+  — both correct for DuhPope, but DuhPope is on the OPP panel, not BGM.
+  Slot-band alignment in `row_grouping.py` is pulling content from
+  adjacent rows. **Phase 3d work.**
+- **Soft-field gate (persona):** 1/10. Persona accuracy is purely an
+  alias-seeding gap — `player_persona_aliases` table needs ~20-30
+  INSERTs to canonicalize `H.Yoint` → `H. YOINTSKI`, `E.Wanhg` →
+  `E. WANHG`, etc. **Codex Task A (operator-driven data entry).**
+
+### loadout-v2 FK fix (2026-05-23 session, commit d9a292f)
+
+Phase 2B preexisting bug surfaced during Phase 3b cutover dispatch.
+loadout-v2 wrote `player_loadout_snapshots.ocr_extraction_id` from
+`evidence_row.supportFrameIds[0]` — but those are bundle-internal frame
+INDICES (0, 1, 2), not DB primary keys. Some inserts failed with FK
+violations; most silently wrote snapshots pointed at random unrelated
+extractions on other screen types.
+
+Fix mirrors lobby-v2 pattern: resolve a real `ocr_extractions.id` once
+per match at the top of `promoteLoadoutFromEvidence` via
+`SELECT id FROM ocr_extractions WHERE match_id=? AND screen_type='player_loadout_view' LIMIT 1`.
+Use for all slot inserts.
+
+Cleanup: ~156 polluted snapshots on match 250 (pointed at events /
+faceoff_map / net_chart extractions) were deleted before re-running.
+Backups stay in place via `_phase3b_backup_player_loadout_snapshots`.
+
+8/8 existing loadout-promotion-gate tests still pass — the test
+fixtures happened to seed real extraction IDs in `support_frame_ids`,
+masking the production-vs-test divergence.
+
 ## Open items for follow-up
 
 - `is_ready` evidence is written to `ocr_field_evidence` but never
