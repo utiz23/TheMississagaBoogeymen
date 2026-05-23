@@ -159,5 +159,77 @@ class IdentifyLobbySubjectsTests(unittest.TestCase):
             self.assertGreater(s.position_confidence, 0.5)
 
 
+class GamertagJunkFilterTests(unittest.TestCase):
+    """Phase 3c: gamertag candidate filtering rejects UI labels + build-class strings.
+
+    Both rejection paths fall through to the next candidate in the row's
+    y-stack. The real gamertag is expected to be the topmost line that
+    survives all filters.
+    """
+
+    def test_rejects_ui_label_viewingloadouts(self) -> None:
+        # "VIEWING LOADOUTS" appears as a top-of-row OCR line in some match
+        # 250 captures. Expectation: filter rejects it; real gamertag wins.
+        # NOTE: filter normalizes via strip().upper().replace(" ", "") so
+        # "VIEWING LOADOUTS" → "VIEWINGLOADOUTS" which IS in the denylist.
+        lines = [
+            _line("C", 77, 300),
+            _line("VIEWING LOADOUTS", 250, 285),   # y=285 (topmost)
+            _line("MrHomiecide", 250, 295),          # real gamertag
+            _line("#11-E.Wanhg", 250, 310),
+        ]
+        rows = detect_lobby_rows(lines)
+        bgm_rows = [r for r in rows if r.team_side == "our_team"]
+        subjects = identify_lobby_subjects(bgm_rows)
+        c = next(s for s in subjects if s.position == "C")
+        self.assertEqual(c.gamertag, "MrHomiecide")
+
+    def test_rejects_ui_label_chel(self) -> None:
+        # "CHEL" picked up from the NHL CHEL header on some opp-panel
+        # captures. Same expectation as above.
+        lines = [
+            _line("RD", 1844, 300),
+            _line("CHEL", 1700, 285),                # topmost
+            _line("shadowassault20", 1700, 295),     # real gamertag
+            _line("#56-A.Player", 1700, 310),
+        ]
+        rows = detect_lobby_rows(lines)
+        opp_rows = [r for r in rows if r.team_side == "opponent_team"]
+        subjects = identify_lobby_subjects(opp_rows)
+        rd = next(s for s in subjects if s.position == "RD")
+        self.assertEqual(rd.gamertag, "shadowassault20")
+
+    def test_rejects_build_class_as_gamertag(self) -> None:
+        # In a state_1 frame where the build-class line wasn't pre-extracted
+        # (or appears AGAIN above the gamertag), closed-vocab match rejects
+        # it. Real gamertag wins.
+        lines = [
+            _line("RD", 77, 300),
+            _line("Puck Moving Defenseman", 250, 285),  # build class as topmost
+            _line("JoeyFlopfish", 250, 295),               # real gamertag
+            _line("#48-L.Hutson", 250, 310),
+        ]
+        rows = detect_lobby_rows(lines)
+        bgm_rows = [r for r in rows if r.team_side == "our_team"]
+        subjects = identify_lobby_subjects(bgm_rows)
+        rd = next(s for s in subjects if s.position == "RD")
+        self.assertEqual(rd.gamertag, "JoeyFlopfish")
+
+    def test_rejects_themed_build_class_abbreviation(self) -> None:
+        # `MatthewTkachuk-PWF` is a themed build class with the suffix
+        # abbreviation form. The vocab's `^.*[-\s]PWF$` alias should match.
+        lines = [
+            _line("C", 77, 300),
+            _line("MatthewTkachuk-PWF", 250, 285),   # themed build class
+            _line("Stick Menace", 250, 295),           # real gamertag
+            _line("#96-M.Rantanen", 250, 310),
+        ]
+        rows = detect_lobby_rows(lines)
+        bgm_rows = [r for r in rows if r.team_side == "our_team"]
+        subjects = identify_lobby_subjects(bgm_rows)
+        c = next(s for s in subjects if s.position == "C")
+        self.assertEqual(c.gamertag, "Stick Menace")
+
+
 if __name__ == "__main__":
     unittest.main()

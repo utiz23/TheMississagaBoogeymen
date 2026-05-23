@@ -49,6 +49,28 @@ from game_ocr.ocr import OCRLine
 
 CAPTAIN_GLYPHS: tuple[str, ...] = ("★", "✯", "✦", "✪", "✩")
 
+# Phase 3c: UI chrome and navigation labels that RapidOCR picks up from the
+# lobby UI (top-bar tabs, brand labels, READY chip, etc.) and that the legacy
+# parser sometimes promoted as gamertags. Comparison key is the candidate's
+# text normalized as `strip().upper().replace(" ", "")` so single-line lines
+# like "VIEWING LOADOUTS" collapse to "VIEWINGLOADOUTS" and match.
+#
+# Operator-grown list. Add new entries when production data shows a new false
+# positive. Avoid entries shorter than 4 chars to minimize collision with real
+# gamertags. Position tokens + HOME/AWAY are excluded ELSEWHERE
+# (LOBBY_POSITION_TOKENS, LOBBY_TEAM_SIDE_LABELS).
+LOBBY_UI_LABEL_DENYLIST: frozenset[str] = frozenset({
+    # Game / mode labels
+    "CHEL", "EASHL", "EASPORTS", "ZASPORTS", "SPORTS",
+    # Top-bar nav tabs
+    "PLAY", "LOADOUTS", "CLUBS", "CUSTOMIZE", "SEASONPASS",
+    "STORE", "REWARDS", "STATS", "OBJECTIVES",
+    # Lobby state / readiness indicators that survive the existing READY strip
+    "READY", "VIEWINGLOADOUTS",
+    # Pre-game arena chrome
+    "ARENA", "CLUBRANK", "GAMESTARTSIN", "VIEWOBJECTIVES",
+})
+
 _HASH_PERSONA_RE = re.compile(r"#(\d{1,3})\s*[-.]+\s*(.+)")
 _LVL_RE = re.compile(r"LVL(\d{1,3})")
 _HEIGHT_RE = re.compile(r"(\d)['°′]\s*(\d{1,2})")
@@ -63,6 +85,28 @@ _LOBBY_BUILD_KEYWORDS = re.compile(
     r"PWF|SNP|PMD|TWF|DDD|HBF|HBD|TwoWay|Two-Way|PowerForward|Power)\b",
     re.IGNORECASE,
 )
+
+# Phase 3c: lazy-loaded closed-vocab for build_classes. Used in
+# `_filter_gamertag_candidates` to reject candidates that match a canonical
+# build class (e.g. RapidOCR picked "Puck Moving Defenseman" as a gamertag
+# when the build-class line was the topmost-y in the row band).
+# Cached module-level so the YAML loads once per Python process.
+_BUILD_CLASS_VOCAB = None  # type: ignore[var-annotated]
+
+
+def _build_class_vocab():
+    """Return the cached ClosedVocab(family='build_classes', version='nhl26').
+
+    Lazy import to avoid pulling in `loadout_extractors.closed_vocab` at
+    module-load time (parsers.py imports row_grouping from this package; a
+    top-level closed_vocab import would re-trigger the Phase 3b circular-
+    import condition described in `lobby_extractors/__init__.py`).
+    """
+    global _BUILD_CLASS_VOCAB  # noqa: PLW0603
+    if _BUILD_CLASS_VOCAB is None:
+        from game_ocr.loadout_extractors.closed_vocab import load_closed_vocab
+        _BUILD_CLASS_VOCAB = load_closed_vocab("build_classes", version="nhl26")
+    return _BUILD_CLASS_VOCAB
 
 
 # ─── Dataclass ──────────────────────────────────────────────────────────────
@@ -279,8 +323,18 @@ def _filter_gamertag_candidates(
 ) -> list[OCRLine]:
     """Filter rule lifted from `_parse_lobby_row` — strip out lines that are
     obviously NOT gamertag candidates (position labels, #NN, LVL, h/w, the
-    AWAY/HOME team-side label, the build-class line already extracted)."""
+    AWAY/HOME team-side label, the build-class line already extracted).
+
+    Phase 3c additions: reject UI navigation chrome (`LOBBY_UI_LABEL_DENYLIST`)
+    and lines that closed-vocab-match a canonical build class. Phase 3b cutover
+    observed RapidOCR picking up `VIEWING LOADOUTS`, `CHEL`, `SPORTS`, and
+    `Puck Moving Defenseman` as gamertag candidates on real match data; these
+    two filters reject all of those.
+    """
     out: list[OCRLine] = []
+    vocab = None  # Lazy-load only when the cheap-string filters don't already
+                  # reject the candidate, to avoid loading the YAML when no
+                  # line gets that far.
     for line in row_lines:
         text = line.text
         if "#" in text:
@@ -296,9 +350,19 @@ def _filter_gamertag_candidates(
             continue
         if normalized in LOBBY_TEAM_SIDE_LABELS:
             continue
+        if normalized in LOBBY_UI_LABEL_DENYLIST:
+            continue
         if build_raw is not None and text == build_raw:
             continue
         if not _clean_gamertag(text):
+            continue
+        # Closed-vocab match against build_classes. We run this last because
+        # it's the most expensive check. `match_canonical` returns
+        # `(canonical, confidence)` or None; reject when any match (exact 1.0
+        # or fuzzy ≥0.5) is produced.
+        if vocab is None:
+            vocab = _build_class_vocab()
+        if vocab.match_canonical(_clean_gamertag(text)) is not None:
             continue
         out.append(line)
     return out
