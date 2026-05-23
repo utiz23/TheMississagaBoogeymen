@@ -46,11 +46,36 @@ _LOBBY_Y_MIN = 250
 _LOBBY_Y_MAX = 980
 
 # Row-band tolerance: data lines belonging to a row sit within this many
-# pixels of the position anchor's y_center.
-_LOBBY_ROW_BAND_PX = 45
+# pixels of the position anchor's y_center. Phase 3d tightened 45 → 35
+# (each row is ~88 px tall; half is 44, leaving 9 px margin) to reduce
+# within-frame cross-row bleed while still catching off-canonical OCR.
+_LOBBY_ROW_BAND_PX = 35
 
 # Default y-gap between adjacent rows when only one anchor was OCR'd.
 _LOBBY_DEFAULT_ROW_GAP_PX = 88.0
+
+# Canonical y_center positions for the 6 lobby rows at 1920×1080 NHL 26 UI.
+# Empirically observed from match-250 + match-463 OCR evidence: BGM and opp
+# panels share the same y origins; only the x-band differs. Rows are spaced
+# ~88 px apart. Used by `relabel_anchors_to_canonical` to fix frames where
+# OCR detected a position label at the wrong y (e.g. "LW" detected at the C
+# row's y because the position labels jittered up one row). NOTE: if a
+# future resolution differs from 1920×1080, this map needs adjustment.
+LOBBY_CANONICAL_ROW_YS: dict[str, float] = {
+    "C": 318.0,
+    "LW": 406.0,
+    "RW": 493.0,
+    "LD": 582.0,
+    "RD": 670.0,
+    "G": 757.0,
+}
+
+# When a detected position label sits more than this many pixels from the
+# canonical y for its labeled position, trust geometry over OCR: relabel
+# the anchor to the position whose canonical y is closest. 35 ≈ half a
+# row gap minus margin — wider than typical resolution jitter (~5 px) but
+# tight enough that a full-row shift (88 px) always trips relabeling.
+_LOBBY_ANCHOR_SNAP_TOLERANCE_PX = 35.0
 
 _LOBBY_HASH_RE = re.compile(r"#\d{1,3}")
 
@@ -102,6 +127,65 @@ def detect_panel_state(panel_lines: list[OCRLine]) -> PanelState:
     return "state_2" if n_hash >= 3 else "state_1"
 
 
+def relabel_anchors_to_canonical(detected: list[OCRLine]) -> list[OCRLine]:
+    """Trust geometry over OCR label when they disagree by >tolerance.
+
+    OCR sometimes reads a position label at the wrong y. On match 250 BGM
+    panel the position labels jittered up by one row in a subset of frames,
+    so e.g. "LW" was detected at y=298 (close to C's canonical y=318), then
+    every downstream row was attributed one slot up — landing real LW data
+    in the lobby_for_C slot's evidence bucket and so on.
+
+    When a detected anchor sits more than `_LOBBY_ANCHOR_SNAP_TOLERANCE_PX`
+    from the canonical y for its labeled position, this helper relabels the
+    anchor to the position whose canonical y is closest. If that target
+    position already has a well-placed real anchor in the same frame, the
+    misplaced anchor is dropped instead (the synthesizer downstream will
+    fill its original-label position with a canonical-y synthetic anchor).
+
+    Returns the relabeled anchor list. Anchors whose OCR-read text isn't a
+    canonical position token (defensive) pass through unchanged.
+    """
+    # First pass: identify which positions have a well-placed real anchor.
+    well_placed: set[str] = set()
+    for a in detected:
+        ocr_label = a.text.strip().upper().replace(" ", "")
+        if ocr_label not in LOBBY_CANONICAL_ROW_YS:
+            continue
+        dist = abs(LOBBY_CANONICAL_ROW_YS[ocr_label] - a.y_center)
+        if dist <= _LOBBY_ANCHOR_SNAP_TOLERANCE_PX:
+            well_placed.add(ocr_label)
+
+    out: list[OCRLine] = []
+    for a in detected:
+        ocr_label = a.text.strip().upper().replace(" ", "")
+        if ocr_label not in LOBBY_CANONICAL_ROW_YS:
+            out.append(a)
+            continue
+        dist_own = abs(LOBBY_CANONICAL_ROW_YS[ocr_label] - a.y_center)
+        if dist_own <= _LOBBY_ANCHOR_SNAP_TOLERANCE_PX:
+            out.append(a)
+            continue
+        # Out of tolerance — find nearest canonical position by y.
+        new_label = min(
+            LOBBY_CANONICAL_ROW_YS,
+            key=lambda p: abs(LOBBY_CANONICAL_ROW_YS[p] - a.y_center),
+        )
+        # If that position already has a well-placed real anchor, drop this
+        # misplaced one — letting the synthesizer fill the original slot
+        # from canonical y. Avoids fighting two anchors for the same slot.
+        if new_label in well_placed:
+            continue
+        out.append(
+            OCRLine(
+                text=new_label,
+                confidence=a.confidence * 0.5,  # halve: we overrode the label
+                x1=a.x1, x2=a.x2, y1=a.y1, y2=a.y2,
+            )
+        )
+    return out
+
+
 def fill_missing_position_anchors(detected: list[OCRLine]) -> list[OCRLine]:
     """Synthesize anchors for rows whose position label RapidOCR failed to read.
 
@@ -128,7 +212,21 @@ def fill_missing_position_anchors(detected: list[OCRLine]) -> list[OCRLine]:
         key=lambda l: canonical_index.get(l.text.strip().upper().replace(" ", ""), 999),
     )
     ref = anchored[0]
-    ref_idx = canonical_index.get(ref.text.strip().upper().replace(" ", ""), 0)
+    ref_label = ref.text.strip().upper().replace(" ", "")
+    ref_idx = canonical_index.get(ref_label, 0)
+
+    # Phase 3d: prefer canonical-y as the synthesis reference when the ref
+    # anchor is itself well-placed (post-relabel). This breaks the
+    # "topmost-anchor-drift propagation" failure where a slightly-off ref
+    # would shift every synthesized row by the same offset.
+    ref_canonical_y = LOBBY_CANONICAL_ROW_YS.get(ref_label)
+    if (
+        ref_canonical_y is not None
+        and abs(ref.y_center - ref_canonical_y) <= _LOBBY_ANCHOR_SNAP_TOLERANCE_PX
+    ):
+        synthesis_base_y = ref_canonical_y
+    else:
+        synthesis_base_y = ref.y_center
 
     result: list[OCRLine] = []
     for i, pos in enumerate(LOBBY_CANONICAL_ROW_ORDER):
@@ -139,7 +237,7 @@ def fill_missing_position_anchors(detected: list[OCRLine]) -> list[OCRLine]:
             )
             result.append(real)
             continue
-        synth_y = ref.y_center + (i - ref_idx) * median_gap
+        synth_y = synthesis_base_y + (i - ref_idx) * median_gap
         result.append(
             OCRLine(
                 text=pos,
@@ -199,6 +297,10 @@ def group_rows_for_panel(
             continue
         detected_anchors.append(line)
     detected_anchors.sort(key=lambda l: l.y_center)
+    # Phase 3d: relabel anchors whose detected y disagrees with their OCR-read
+    # position label by more than the tolerance. Closes the match-250 BGM
+    # one-row-up shift where "LW" was detected at C's row y.
+    detected_anchors = relabel_anchors_to_canonical(detected_anchors)
     anchors = fill_missing_position_anchors(detected_anchors)
 
     panel_lines = [

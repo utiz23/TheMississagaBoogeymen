@@ -164,10 +164,7 @@ const EXPECTED: readonly ExpectedSlot[] = [
     isCaptain: false,
     buildClassCanonical: 'Defensive Defenseman',
     xFactorsCanonical: ['Quickpick', 'Elite_Edges', 'Rocket'],
-    // V2 truth: P. MAGROYNE. Loadout-view canonical row has empty persona
-    // (operator didn't navigate to this opp slot) and lobby snapshot has
-    // slot-band contamination from for/LD. Restore this expectation when
-    // Phase 3d closes the slot-band issue.
+    playerNamePersonaCanonical: 'P. MAGROYNE',
   },
   {
     side: 'opponent',
@@ -177,7 +174,7 @@ const EXPECTED: readonly ExpectedSlot[] = [
     isCaptain: false,
     buildClassCanonical: 'Puck Moving Defenseman',
     xFactorsCanonical: ['Wheels', 'Warrior', 'Big_Rig'],
-    // V2 truth: S. ZUBOV. Same Phase 3d caveat as opp/LD above.
+    playerNamePersonaCanonical: 'S. ZUBOV',
   },
 ]
 
@@ -257,25 +254,30 @@ void test('match 250: getMatchLineups returns expected slot data', async () => {
         )
       }
     }
-    if (expected.playerNamePersonaCanonical !== undefined && row.playerNamePersona !== null) {
+    if (
+      expected.playerNamePersonaCanonical !== undefined &&
+      row.playerNamePersona !== null &&
+      row.playerNamePersona !== ''
+    ) {
       // Phase 2B cutover note: typed_v1 captures the loadout-view persona
       // form (e.g. "Evgeni Wanhg") rather than the lobby-state shortened
       // initial form (e.g. "E. WANHG").  Both reference the same player.
       // The persona-alias resolver runs in the promoter; until aliases for
       // the loadout form are seeded, accept either representation.  Phase 3
       // will unify persona conventions via player_persona_aliases seeding.
+      //
+      // Phase 3d: empty string is treated the same as null (no persona
+      // observed). This covers consolidator canonical rows for opp slots
+      // the operator didn't navigate to during loadout view — their
+      // playerNamePersona is "" rather than NULL.
       const personaMatches =
         row.playerNamePersona === expected.playerNamePersonaCanonical ||
         row.playerNamePersona.toLowerCase() ===
           expected.playerNamePersonaCanonical.toLowerCase()
-      if (!personaMatches) {
-        // Accept loadout-view raw form as long as it's non-empty and the
-        // canonical aliasing hasn't been seeded yet.
-        assert.ok(
-          row.playerNamePersona.length > 0,
-          `${expected.side}/${expected.position}: persona canonical (got "${String(row.playerNamePersona)}", expected "${expected.playerNamePersonaCanonical}")`,
-        )
-      }
+      assert.ok(
+        personaMatches,
+        `${expected.side}/${expected.position}: persona canonical (got "${String(row.playerNamePersona)}", expected "${expected.playerNamePersonaCanonical}")`,
+      )
     }
   }
 })

@@ -98,11 +98,12 @@ class IdentifyLobbySubjectsTests(unittest.TestCase):
 
     def test_captain_glyph_concatenated_into_gamertag(self) -> None:
         # Synthesize a row where gamertag line has ★ glyph + READY chip
-        # concatenated by RapidOCR (e.g. "XZ4RKY★READY").
+        # concatenated by RapidOCR (e.g. "XZ4RKY★READY"). Anchor at canonical
+        # LW y so the Phase 3d relabeler preserves the LW label.
         lines = [
-            _line("LW", 77, 300),
-            _line("XZ4RKY★READY", 250, 290),
-            _line("#11-E. Wanhg", 250, 308),
+            _line("LW", 77, 406),
+            _line("XZ4RKY★READY", 250, 396),
+            _line("#11-E. Wanhg", 250, 414),
         ]
         rows = detect_lobby_rows(lines)
         bgm_rows = [r for r in rows if r.team_side == "our_team"]
@@ -125,10 +126,11 @@ class IdentifyLobbySubjectsTests(unittest.TestCase):
         self.assertEqual(c.player_level_raw, "P1LVL17")
 
     def test_measurements_extraction(self) -> None:
+        # Anchor at canonical RW y (493) so Phase 3d relabeler preserves it.
         lines = [
-            _line("RW", 77, 300),
-            _line("PlayerY", 250, 290),
-            _line("6'0\"|160lbs", 250, 320),
+            _line("RW", 77, 493),
+            _line("PlayerY", 250, 483),
+            _line("6'0\"|160lbs", 250, 513),
         ]
         rows = detect_lobby_rows(lines)
         subjects = identify_lobby_subjects([r for r in rows if r.team_side == "our_team"])
@@ -186,12 +188,12 @@ class GamertagJunkFilterTests(unittest.TestCase):
 
     def test_rejects_ui_label_chel(self) -> None:
         # "CHEL" picked up from the NHL CHEL header on some opp-panel
-        # captures. Same expectation as above.
+        # captures. Same expectation as above. Anchor at canonical RD y (670).
         lines = [
-            _line("RD", 1844, 300),
-            _line("CHEL", 1700, 285),                # topmost
-            _line("shadowassault20", 1700, 295),     # real gamertag
-            _line("#56-A.Player", 1700, 310),
+            _line("RD", 1844, 670),
+            _line("CHEL", 1700, 655),                # topmost
+            _line("shadowassault20", 1700, 665),     # real gamertag
+            _line("#56-A.Player", 1700, 680),
         ]
         rows = detect_lobby_rows(lines)
         opp_rows = [r for r in rows if r.team_side == "opponent_team"]
@@ -202,12 +204,12 @@ class GamertagJunkFilterTests(unittest.TestCase):
     def test_rejects_build_class_as_gamertag(self) -> None:
         # In a state_1 frame where the build-class line wasn't pre-extracted
         # (or appears AGAIN above the gamertag), closed-vocab match rejects
-        # it. Real gamertag wins.
+        # it. Real gamertag wins. Anchor at canonical RD y (670).
         lines = [
-            _line("RD", 77, 300),
-            _line("Puck Moving Defenseman", 250, 285),  # build class as topmost
-            _line("JoeyFlopfish", 250, 295),               # real gamertag
-            _line("#48-L.Hutson", 250, 310),
+            _line("RD", 77, 670),
+            _line("Puck Moving Defenseman", 250, 655),  # build class as topmost
+            _line("JoeyFlopfish", 250, 665),               # real gamertag
+            _line("#48-L.Hutson", 250, 680),
         ]
         rows = detect_lobby_rows(lines)
         bgm_rows = [r for r in rows if r.team_side == "our_team"]
