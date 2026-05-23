@@ -1,5 +1,115 @@
 # Handoff
 
+## Session Summary — 2026-05-23 (Phase 3a closed, Phase 3b shipped + cut over, Phase 3c gamertag filter)
+
+### Current status
+
+Branch: `feat/ocr-pipeline-phase-3a` (in a worktree at `.claude/worktrees/phase-3a/`). **15 commits since Phase 2B's `86565c0`.** Ready to merge or continue from. The original 67-file dirty carry-in from `feat/ocr-pipeline-phase-2` is still in the worktree's `git status` as uncommitted (separate workstream).
+
+### What was done
+
+**Phase 3a — HMM disambiguation, closed without code changes.**
+Built `tools/game_ocr/scripts/diagnose_segments.py` — per-frame TSV dump of classifier signals + anchor flags + log-probs. Ran it against matches 250, 463, and one new clip (`2026-05-20_18-15-59.mkv`). Conclusion: there is no state_1 misclassification in operator recordings. `pre_game_lobby_state_1`'s anchors (`finding opponent, stay in div`) target the matchmaking screen — which the operator's videos either start past or that gets correctly rejected via `reject_anchor_substrings`. Classification of `pre_game_lobby_state_2` vs `player_loadout_view` is clean with classifier margins of +1.4–2.4 nats. Documented at `docs/calibration/phase-3a-hmm-disambiguation-2026-05-22.md`. (commits `62a4ee2`, `39414d3`)
+
+**Phase 3b — Typed lobby extractor + promoter, fully shipped.**
+8-task implementation mirroring Phase 2B's loadout-v2 pattern, plus an executed cutover:
+
+- `tools/game_ocr/game_ocr/lobby_extractors/` — new Python package: `row_grouping.py` (lifted from `parsers.py::parse_lobby_team`), `slot_identity.py` (typed per-row identity extraction).
+- `tools/game_ocr/game_ocr/lobby_evidence.py` — top-level entry point. Reads PNG frames, picks best frame per `(team_side, position)` slot, emits `FieldEvidenceRecord[]` with `screen_state='pre_game_lobby_state_2'` and `subject_slot_key='lobby_{for|against}_{C|LW|RW|LD|RD|G}'`.
+- `tools/video_ingest/video_ingest/pass2_extract.py` — `Pass2Config.lobby_engine` flag (analogous to `loadout_engine`); `_run_typed_v1_lobby` dispatch. Default `typed_v1` in `nhl26.yaml`.
+- `apps/worker/src/ocr-promoters/lobby-v2.ts` — typed promoter. Reads `ocr_field_evidence` for `pre_game_lobby_state_2`, runs `runPromotionGate` per `(slot, field)` with `dominanceRatio: 1.0` (multi-segment lobby contributes multiple candidates per field that aren't competing readings). Writes one snapshot per promoted slot, no x_factors/attributes children. `slot_key` + `source_screen` in semantic_key to avoid unique-index clash with loadout-v2.
+- `apps/worker/src/ocr-promoters/index.ts` — `lobbyPromoterWithEngineGuard` so typed_v1 lobby segments skip the legacy `promotePreGameLobby`.
+- `packages/db/src/queries/ocr-evidence.ts` — added `getFieldEvidenceForLobbySlot(matchId)`.
+- `apps/worker/src/ingest-ocr.ts` — feeds `lobbyEvidenceJsonPath` into `writeFieldEvidenceForBatch`; calls `promoteLobbyFromEvidence({matchId})` once per batch when `lobbyEngine='typed_v1'`.
+- `apps/worker/src/__tests__/match-250-benchmark.test.ts` — extended with Phase 3b accuracy gates: `lobby typed_v1 hard-field accuracy ≥ 90%` (gamertag, position, build_class) + `soft-field accuracy ≥ 75%` (player_number, persona, captain).
+
+Cutover executed (`docs/calibration/phase-3b-cutover-2026-05-22.md`): both matches re-ingested with `lobby_engine: typed_v1`, consolidator run, gates verified. Cutover surfaced 5 execution-time bugs all fixed in commit `b7e0877`:
+
+1. Circular import (parsers.py → lobby_extractors/__init__ → slot_identity → loadout_extractors → icon → parsers._classify_xfactor_tier). Fixed by trimming `__init__.py` to row_grouping only.
+2. DELETE on snapshots blocked by FK from x_factors+attributes children. Fixed: lobby-v2 cascades through children before deleting snapshots.
+3. **`support_frame_ids` used as `ocr_extractions.id`** — they're bundle-internal frame INDICES, not DB IDs. Fixed: resolve a real lobby extraction ID once via SQL lookup. (Same bug fixed in loadout-v2 separately — see below.)
+4. Unique-index clash on ocr_promotions between lobby + loadout v2 (same target_table + (team_side, position) tuple). Fixed: lobby semantic_key includes `slot_key` + `source_screen`.
+5. Default `dominanceRatio=1.5` blocked multi-segment lobby evidence as "non_dominant". Fixed: per-call `dominanceRatio: 1.0`.
+
+(commits `fa5cec3`, `87aa243`, `44306ea`, `1395bb2`, `e87587c`, `83f3bcd`, `867d127`, `b7e0877`, `b1b2a49`)
+
+**Phase 3c — Gamertag junk filter.** (`ff1584a`, `01787fa`)
+`tools/game_ocr/game_ocr/lobby_extractors/slot_identity.py`:
+- New `LOBBY_UI_LABEL_DENYLIST` frozenset rejecting UI chrome (`CHEL`, `EASHL`, `VIEWINGLOADOUTS`, `SPORTS`, `LOADOUTS`, `CUSTOMIZE`, `SEASONPASS`, etc.) by normalized uppercase-no-space comparison.
+- Build-class rejection via `ClosedVocab.match_canonical` against `build_classes.yaml` — lazy-loaded once per process to avoid the Phase 3b circular-import condition.
+- `_extract_build_class_raw` now skips `#NN-Persona` lines (the `_LOBBY_BUILD_KEYWORDS` regex matches player surnames like "Wanhg"/"Hutson" that also appear in personas).
+- Test denominator fix: build_class accuracy denominates against `buildEmitted`, not full lineup, since state_1 frames don't appear in operator recordings per Phase 3a.
+
+Match 250 results after Phase 3c re-run: gamertag accuracy **7/10 (70%) → 9/10 (90%)** — hits the hard-field bar.
+- against/RD: "CHEL" → `shadowassault20` ✓
+- for/RW: "VIEWINGLOADOUTS" → `silkyjoker85` ✓
+- (for/LW still wrong: `DuhPope` from opp panel pulled in via slot-band tolerance — Phase 3d)
+
+Match 463 also improved: against/C "SPORTS" → `DaveL-234`, against/LD "SPORTS" → `WoolyWetBeef`, for/RD "Puck Moving Defenseman" (build class) → null (honest — no real gamertag in OCR for that slot).
+
+**loadout-v2 FK fix.** (`d9a292f`)
+Phase 2B preexisting bug surfaced during cutover dispatch. `loadout-v2.ts` used `row.supportFrameIds[0]` as the snapshot's `ocrExtractionId` FK. Same root cause as Phase 3b cutover bug #3. Fix mirrors lobby-v2: resolve a single real loadout-view extraction ID via SQL, use for all slot inserts. Existing 8/8 loadout-promotion-gate tests still pass (the test fixtures seed real extraction IDs in support_frame_ids, masking the production-vs-test divergence).
+
+Cleanup: ~156 polluted snapshots on match 250 (snapshots pointing at random `post_game_events` / `faceoff_map` / `net_chart` extractions from the FK bug) were deleted before re-running.
+
+**Codex-guided manual quality plan written.** (`/home/michal/.claude/plans/plan-the-phase-3a-virtual-swan.md`)
+For the operator to run with Codex as guide while code work continues separately. Four tasks (A-D):
+- A. Persona alias seeding (~30-60 min) — closes the persona soft-field gate (3/10 → ~9/10)
+- B. Build-class YAML completeness check (~30 min)
+- C. V2 benchmark expansion to one new clip (~2-3 hr, optional)
+- D. Annotate boundary frames for HMM retraining (~1 hr per ~25 frames, optional)
+
+### Test status
+
+| Test surface | Result |
+|---|---|
+| Python: `tools/game_ocr/tests/test_lobby_*` | 95/95 ✓ |
+| Python: `tools/video_ingest/tests/` | full suite green |
+| TS: `loadout-promotion-gate.test.ts` | 8/8 ✓ |
+| TS: `ocr-promoter-dispatch.test.ts` | 9/9 ✓ (3 new Phase 3b lobby cases) |
+| TS: `match-250-benchmark.test.ts` | 16/20 — hard gate (build_class 1/2 emitted) fails on slot-band issue; soft gate (persona 1/10) fails until aliases seeded |
+
+### What's next
+
+**Operator-driven (Codex Task A):**
+Seed `player_persona_aliases` for ~20-30 unresolved personas (V2 truth at `research/OCR-SS/Manual OCR benchmark for verification V2.md`). One-line CLI per pair: `pnpm --filter worker promote-persona-alias --map "RAW=>CANONICAL"`. Closes the soft-field benchmark gate.
+
+**Code-driven (Phase 3d — separate planning):**
+Slot-band alignment fix in `tools/game_ocr/game_ocr/lobby_extractors/row_grouping.py`. The `_LOBBY_ROW_BAND_PX = 45` tolerance pulls in OCR lines from adjacent rows — visible as `for/LW = "DuhPope"` on match 250 (DuhPope is an opp player). Fix candidates: tighter tolerance (risks losing partial-panel rows) or anchor-based per-row clipping. Closing this flips:
+- match 250 for/LW gamertag (`DuhPope` → `Stick Menace`)
+- match 250 build_class accuracy (the wrong slot's `Sniper` was being measured against `Tage Thompson - Power Forward` truth)
+
+**Branch hygiene (pending operator decision):**
+The 67-file carry-in from `feat/ocr-pipeline-phase-2` is still uncommitted in the worktree. Decide before merge: commit-as-carryforward, stash + drop, or selectively pull in.
+
+### Open decisions / blockers
+
+- **None blocking.** All Phase 3a/3b/3c/loadout-v2 commits are independent of the carry-in dirty files. The worktree's `git status` shows them but they're untouched.
+- Backup table `_phase3b_backup_player_loadout_snapshots` is still in the DB pending operator sign-off. Drop after a successful production run that confirms the cutover.
+
+### Commits this session (newest first)
+
+```
+a095e92 docs(ocr): cutover doc — Phase 3c results + loadout-v2 FK fix addendum
+01787fa fix(ocr): Phase 3c build_class extraction + honest test denominator
+d9a292f fix(ocr): loadout-v2 FK validity — resolve real ocr_extractions.id
+ff1584a feat(ocr): Phase 3c — gamertag junk filter (UI labels + build classes)
+793612d docs(ocr): Phase 3c spec — lobby gamertag junk filter
+b1b2a49 docs(ocr): Phase 3b cutover executed — results + Phase 3c targets
+b7e0877 fix(ocr): Phase 3b lobby-v2 promoter bug fixes from cutover run
+867d127 feat(ocr): Phase 3b-7 + 3b-8 — V2 benchmark gates + cutover doc
+83f3bcd feat(ocr): Phase 3b-6 — lobby-v2.ts typed promoter + engine guard
+e87587c feat(ocr): Phase 3b-5 — worker-side lobby evidence wiring
+1395bb2 feat(ocr): Phase 3b-4 — Pass-2 lobby_engine dispatch
+44306ea feat(ocr): Phase 3b-3 — lobby_evidence.py top-level entry
+87aa243 feat(ocr): Phase 3b-2 — lobby slot_identity.py (per-row typed extraction)
+fa5cec3 feat(ocr): Phase 3b-1 — lobby_extractors package + row_grouping refactor
+39414d3 docs(ocr): Phase 3a — diagnostic shows no state_1 misclassification; close 3a
+62a4ee2 feat(ocr): Phase 3a-1 — diagnose_segments.py for HMM routing investigation
+```
+
+---
+
 ## Session Summary — 2026-05-22 (Phase 2B cutover complete — typed_v1 default, 10/10 lineup for matches 250 + 463)
 
 ### What was done
