@@ -39,6 +39,7 @@ import type { Database } from '@eanhl/db'
 import type { GateCandidate, PromotionDecision } from '../lib/promotion-gate.js'
 import { runPromotionGate } from '../lib/promotion-gate.js'
 import { resolveGamertagToPlayer } from './resolve-identity.js'
+import { resolvePersona } from '../lib/normalize-persona.js'
 import type { PromoterDb } from './index.js'
 
 export interface PromoteLobbyFromEvidenceResult {
@@ -394,6 +395,12 @@ export async function promoteLobbyFromEvidence(input: {
     }
 
     const personaRaw = promotedString(sd.fieldDecisions.get('player_name_persona'))
+    // Resolve OCR persona snapshot against player_persona_aliases. Falls back to
+    // the ornament-stripped raw value when no alias matches. Mirrors what the
+    // consolidator does, but at promote time so the benchmark (which reads
+    // player_loadout_snapshots.player_name_persona directly) sees canonicals.
+    const personaResolved = personaRaw ? await resolvePersona(personaRaw, db) : null
+    const personaCanonical = personaResolved?.canonical ?? personaRaw
     const playerNumber = promotedNumber(sd.fieldDecisions.get('player_number'))
     const isCaptain = promotedBool(sd.fieldDecisions.get('is_captain'))
     const buildClass = promotedString(sd.fieldDecisions.get('build_class'))
@@ -410,7 +417,7 @@ export async function promoteLobbyFromEvidence(input: {
       playerId: sd.resolvedPlayerId,
       gamertagSnapshot: gamertagVal,
       playerNameSnapshot: null,
-      playerNamePersona: personaRaw,
+      playerNamePersona: personaCanonical,
       playerNamePersonaRaw: personaRaw,
       playerNumber,
       isCaptain,

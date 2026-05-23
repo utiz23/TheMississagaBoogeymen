@@ -132,6 +132,7 @@ const EXPECTED: readonly ExpectedSlot[] = [
     isCaptain: true,
     buildClassCanonical: 'Two-Way Forward',
     xFactorsCanonical: ['Warrior', 'Big_Rig', 'Rocket'],
+    playerNamePersonaCanonical: 'TOEWS',
   },
   {
     side: 'opponent',
@@ -143,6 +144,7 @@ const EXPECTED: readonly ExpectedSlot[] = [
     isCaptain: false,
     buildClassCanonical: 'Sniper',
     xFactorsCanonical: ['Quick_Release', 'Elite_Edges', 'Warrior'],
+    playerNamePersonaCanonical: 'WHOOSAH',
   },
   {
     side: 'opponent',
@@ -152,6 +154,7 @@ const EXPECTED: readonly ExpectedSlot[] = [
     isCaptain: false,
     buildClassCanonical: 'Sniper',
     xFactorsCanonical: ['Quick_Release', 'One_T', 'Tape_to_Tape'],
+    playerNamePersonaCanonical: 'WILDE',
   },
   {
     side: 'opponent',
@@ -161,6 +164,10 @@ const EXPECTED: readonly ExpectedSlot[] = [
     isCaptain: false,
     buildClassCanonical: 'Defensive Defenseman',
     xFactorsCanonical: ['Quickpick', 'Elite_Edges', 'Rocket'],
+    // V2 truth: P. MAGROYNE. Loadout-view canonical row has empty persona
+    // (operator didn't navigate to this opp slot) and lobby snapshot has
+    // slot-band contamination from for/LD. Restore this expectation when
+    // Phase 3d closes the slot-band issue.
   },
   {
     side: 'opponent',
@@ -170,6 +177,7 @@ const EXPECTED: readonly ExpectedSlot[] = [
     isCaptain: false,
     buildClassCanonical: 'Puck Moving Defenseman',
     xFactorsCanonical: ['Wheels', 'Warrior', 'Big_Rig'],
+    // V2 truth: S. ZUBOV. Same Phase 3d caveat as opp/LD above.
   },
 ]
 
