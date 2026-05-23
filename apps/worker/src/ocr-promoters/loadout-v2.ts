@@ -20,6 +20,7 @@
 
 import {
   db as defaultDb,
+  ocrExtractions,
   ocrPromotions,
   playerLoadoutSnapshots,
   playerLoadoutXFactors,
@@ -30,7 +31,7 @@ import {
   type NewPlayerLoadoutXFactor,
   type NewPlayerLoadoutAttribute,
 } from '@eanhl/db'
-import { eq, sql } from 'drizzle-orm'
+import { and, eq, sql } from 'drizzle-orm'
 import { getFieldEvidenceForLoadoutSlot, getExpectedSlotsForMatch } from '@eanhl/db/queries'
 import type { ExpectedSlot } from '@eanhl/db/queries'
 import type { Database } from '@eanhl/db'
@@ -301,6 +302,38 @@ export async function promoteLoadoutFromEvidence(input: {
   // row's match_id → matches.game_title_id. Cache per match.
   const gameTitleId = await resolveGameTitleIdForMatch(db, matchId)
 
+  // Resolve a valid ocr_extractions.id for this match's loadout-view
+  // segments. Phase 2B's typed extractors write evidence row
+  // `support_frame_ids` as bundle-internal frame INDICES (0, 1, 2, ...)
+  // — not DB primary keys. Using those as the snapshot's `ocrExtractionId`
+  // either fails the FK or silently writes random extraction IDs that
+  // happen to coincide with small ints. We take the first real loadout
+  // extraction for the match; provenance metadata (exact extraction_id)
+  // is degraded but FK is valid, and downstream consumers can still
+  // recover per-segment provenance via `ocr_field_evidence.segment_id`
+  // through the new evidence rows.
+  //
+  // Phase 3b's lobby-v2 already does this; same pattern here closes the
+  // matching latent bug for loadout-view that has been silently masked
+  // by ID coincidences since Phase 2B.
+  const loadoutExtractionRows = await db
+    .select({ id: ocrExtractions.id })
+    .from(ocrExtractions)
+    .where(
+      and(
+        eq(ocrExtractions.matchId, matchId),
+        eq(ocrExtractions.screenType, 'player_loadout_view'),
+      ),
+    )
+    .limit(1)
+  const resolvedLoadoutExtractionId = loadoutExtractionRows[0]?.id ?? null
+  if (resolvedLoadoutExtractionId === null) {
+    // No loadout-view extraction exists for this match — nothing to
+    // promote. (Tests + production both seed an extraction first via
+    // ingest-ocr-cli; this branch only fires on fresh DBs.)
+    return { promotedSnapshotCount: 0, blockedSnapshotCount: 0, promotionRowsWritten: 0 }
+  }
+
   // ── Steps 3-4: Per-slot gate calls + team-side binding ────────────────────
   const slotDecisions: SlotDecision[] = []
 
@@ -319,26 +352,12 @@ export async function promoteLoadoutFromEvidence(input: {
       fieldDecisions.set(fieldKey, decision)
     }
 
-    // Determine ocrExtractionId: first supportFrameId from any gamertag evidence.
-    const gamertagRows = fieldMap.get('gamertag') ?? []
-    let ocrExtractionId = 0
-    for (const row of gamertagRows) {
-      if (row.supportFrameIds && row.supportFrameIds.length > 0) {
-        ocrExtractionId = row.supportFrameIds[0]!
-        break
-      }
-    }
-    // Fallback: try any field's support_frame_ids
-    if (ocrExtractionId === 0) {
-      outer: for (const rows of fieldMap.values()) {
-        for (const row of rows) {
-          if (row.supportFrameIds && row.supportFrameIds.length > 0) {
-            ocrExtractionId = row.supportFrameIds[0]!
-            break outer
-          }
-        }
-      }
-    }
+    // Use the match-wide resolved loadout extraction ID (see top of fn).
+    // Production evidence rows have bundle-internal frame INDICES in
+    // support_frame_ids, NOT real ocr_extractions.id values. Test fixtures
+    // happen to seed real extraction IDs in support_frame_ids — they still
+    // work because the match-wide lookup returns the seeded extraction.
+    const ocrExtractionId = resolvedLoadoutExtractionId
 
     // ── Step 4: Team-side binding ──────────────────────────────────────────
     const gamertagDecision = fieldDecisions.get('gamertag')
