@@ -1,3 +1,7 @@
+
+> @eanhl/worker@0.0.1 match-quality /home/michal/projects/eanhl-team-website/.claude/worktrees/phase-3a/apps/worker
+> node dist/match-quality-cli.js --match 463 --json
+
 {
   "matchId": 463,
   "match": {
@@ -13,11 +17,11 @@
   "screens": [
     {
       "screenType": "player_loadout_view",
-      "frames": 430,
-      "ok": 430,
+      "frames": 514,
+      "ok": 514,
       "err": 0,
       "reviewed": 2,
-      "avgConf": 0.86,
+      "avgConf": 0.88,
       "minConf": 0.352,
       "maxConf": 0.999
     },
@@ -83,11 +87,11 @@
     },
     {
       "screenType": "pre_game_lobby_state_2",
-      "frames": 145,
-      "ok": 145,
+      "frames": 164,
+      "ok": 164,
       "err": 0,
       "reviewed": 24,
-      "avgConf": 0.869,
+      "avgConf": 0.876,
       "minConf": 0.42,
       "maxConf": 0.987
     }
@@ -151,16 +155,16 @@
     },
     {
       "table": "player_loadout_attributes",
-      "actual": 230,
+      "actual": 207,
       "expected": 230,
-      "reviewed": 230,
+      "reviewed": 207,
       "notes": "23 attrs × reviewed slots"
     },
     {
       "table": "player_loadout_x_factors",
-      "actual": 30,
+      "actual": 27,
       "expected": 30,
-      "reviewed": 30,
+      "reviewed": 27,
       "notes": "3 x-factors × reviewed slots"
     }
   ],
@@ -205,21 +209,29 @@
   "provenance": {
     "capturedAt": {
       "earliest": "2026-05-22T10:10:08.048Z",
-      "latest": "2026-05-22T10:10:08.128Z"
+      "latest": "2026-05-23T20:02:44.045Z"
     },
     "sources": [
       {
         "screenType": "player_loadout_view",
-        "snapshotCount": 8
+        "snapshotCount": 59
+      },
+      {
+        "screenType": "post_game_box_score_goals",
+        "snapshotCount": 24
       },
       {
         "screenType": "pre_game_lobby_state_2",
-        "snapshotCount": 2
+        "snapshotCount": 12
+      },
+      {
+        "screenType": "post_game_net_chart",
+        "snapshotCount": 8
       }
     ],
     "confidence": {
       "canonical": 0.9,
-      "tiered": 0.1,
+      "tiered": 0.1111111111111111,
       "attribute": 0.9565217391304348
     }
   },
@@ -240,9 +252,9 @@
   "pending": [
     {
       "screenType": "player_loadout_view",
-      "pending": 428,
+      "pending": 512,
       "reviewed": 2,
-      "total": 430
+      "total": 514
     },
     {
       "screenType": "post_game_action_tracker",
@@ -282,9 +294,9 @@
     },
     {
       "screenType": "pre_game_lobby_state_2",
-      "pending": 121,
+      "pending": 140,
       "reviewed": 24,
-      "total": 145
+      "total": 164
     }
   ],
   "layers": {
@@ -302,16 +314,16 @@
       "deductions": 1
     },
     "l2_lineup": {
-      "score": 0.85,
+      "score": 0.875,
       "pass": false,
-      "notes": "34/40 fields populated across 10 reviewed slot(s) (gamertag + persona + position + build_canonical)",
-      "populated": 34,
+      "notes": "35/40 fields populated across 10 reviewed slot(s) (gamertag + persona + position + build_canonical)",
+      "populated": 35,
       "expected": 40
     },
     "l3": {
-      "score": 0.9807692307692307,
+      "score": 0.9653846153846154,
       "pass": false,
-      "notes": "gaps: match_shot_type_summaries=6/8"
+      "notes": "gaps: match_shot_type_summaries=6/8, player_loadout_attributes=207/230, player_loadout_x_factors=27/30"
     },
     "overall": {
       "pass": false

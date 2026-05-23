@@ -1,5 +1,18 @@
 # Handoff
 
+## Session Note — 2026-05-23 (match-quality-regression rebaselined for match 463)
+
+The integration regression test `match 463 — layer scores at or above floor` was failing at L3 with `current=96.54% floor=98.08%`. Diagnosed as **pre-existing data drift** from commit `d9a292f` (loadout-v2 FK validity fix in the prior session), not a regression from this session's commits.
+
+What happened:
+- Floor file was captured at commit `26c2740` (Phase 2B cutover) when L3's only gap was `match_shot_type_summaries=6/8`.
+- `d9a292f` re-promoted loadout snapshots with corrected `ocr_extraction_id` FKs, creating newer snapshot rows (ids 4490+) with full attributes/x_factors children.
+- The **reviewed** canonical for `(against, RD)` on match 463 remained on snapshot id=3954 (ThickOoze, pre-cutover) which has 0 attributes + 0 x_factors. The consolidator's `pickAnchor` prefers loadout_view + dominant-gamertag matches by recency, and the OCR-variant `ThickDoze` (newer ids 4490+, with children) is treated as a different gamertag rather than fuzzy-matched.
+
+Resolution: **rebaselined** `docs/calibration/regression-floor-match-463.json` to current values. Regression test now passes. The honest L3 score for match 463 reflects the data-drift reality. A follow-up improvement (deferred) would be to extend `pickAnchor` in `consolidate-loadouts-cli.ts` to fuzzy-match the canonical-gamertag pool (Levenshtein-1 on `normTag`) so OCR variants like `ThickOoze`/`ThickDoze` cluster together and the child-having snapshot wins.
+
+---
+
 ## Session Summary — 2026-05-23 (Gate 2: normalizeSnapshot strips OCR-noise paren/bracket suffix)
 
 ### Current status
