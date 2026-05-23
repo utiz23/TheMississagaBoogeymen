@@ -1,5 +1,34 @@
 # Handoff
 
+## Session Summary — 2026-05-23 (Phase 3d-extra: captain extraction emits confident False)
+
+### Current status
+
+Branch: `feat/ocr-pipeline-phase-3a` (worktree at `.claude/worktrees/phase-3a/`). Building on the Phase 3d commit (`ab50833`), the captain extractor now emits a confident `False` instead of `None` for rows that have a resolved gamertag but no ★ glyph. This closes the remaining failure of benchmark gate 20 (`is_captain accuracy: 2/10`) once re-ingested. Pending re-ingest for end-to-end validation.
+
+### What was done
+
+**`_extract_is_captain` semantics unchanged** ([tools/game_ocr/game_ocr/lobby_extractors/slot_identity.py](tools/game_ocr/game_ocr/lobby_extractors/slot_identity.py)) — still returns `(True, conf)` when a glyph is found and `(None, None)` otherwise. Docstring updated to clarify that the caller is responsible for promoting None→False.
+
+**Gated False fallback in the caller** — inside `identify_lobby_subjects`, after the existing glyph-propagation block, when `is_captain is None AND gt_value is not None AND row.row_lines` we now set `(False, median_row_conf)`. The gating on `gt_value is not None` ensures we don't claim "not captain" on ghost slots (rows with noise but no real player). The median row-line confidence acts as the strength of the "no glyph observed" signal.
+
+**Why this closes gate 20:** The benchmark JS test compares `row.isCaptain === exp.isCaptain`. Previously non-captain rows had `is_captain=NULL` in the snapshot — `null === false` is false, so all 8 non-captain expected slots scored 0. Match 250 had only the 2 actual captains scoring → 2/10. With the new False fallback, all 8 non-captain rows will write `is_captain=false` → 10/10 (or 9/10 if the for/LW slot-band contamination from the deferred Phase 3e issue still attributes opp/LW's ★ to BGM/LW).
+
+### Tests
+
+2 new tests in [test_lobby_slot_identity.py](tools/game_ocr/tests/test_lobby_slot_identity.py):
+
+- `test_non_captain_row_emits_confident_false` — row with real gamertag (MrHomiecide) and no ★ → `is_captain=False`, confidence not None.
+- `test_unresolved_gamertag_row_leaves_captain_unobserved` — row with no resolvable gamertag (only build-class noise) → `is_captain=None`. Guards against the ghost-slot regression.
+
+All 37 lobby tests still pass.
+
+### What's blocked
+
+Same constraint as Phase 3d: gate 20 will validate only after a re-ingest run. Existing lobby evidence in DB was written before this fix.
+
+---
+
 ## Session Summary — 2026-05-23 (Phase 3d: lobby anchor relabel-to-canonical + tightened row band)
 
 ### Current status

@@ -113,6 +113,39 @@ class IdentifyLobbySubjectsTests(unittest.TestCase):
         self.assertTrue(lw.is_captain)
         self.assertTrue(lw.is_ready)
 
+    def test_non_captain_row_emits_confident_false(self) -> None:
+        # A row with a real gamertag but no ★ glyph anywhere should resolve
+        # is_captain=False (not None), so the lobby snapshot can definitively
+        # distinguish non-captains from "not observed".
+        lines = [
+            _line("C", 77, 318),
+            _line("MrHomiecide", 250, 308),
+            _line("#11-E.Wanhg", 250, 326),
+        ]
+        rows = detect_lobby_rows(lines)
+        bgm_rows = [r for r in rows if r.team_side == "our_team"]
+        subjects = identify_lobby_subjects(bgm_rows)
+        c = next(s for s in subjects if s.position == "C")
+        self.assertEqual(c.gamertag, "MrHomiecide")
+        self.assertEqual(c.is_captain, False, "non-captain row must emit False, not None")
+        self.assertIsNotNone(c.is_captain_confidence)
+
+    def test_unresolved_gamertag_row_leaves_captain_unobserved(self) -> None:
+        # Row with no resolvable gamertag (only position + noise) must NOT
+        # emit a confident "not captain" — semantic claim only makes sense
+        # for real players. is_captain stays None.
+        lines = [
+            _line("LW", 77, 406),
+            # No real gamertag candidate — just stray non-identity lines.
+            _line("Sniper", 250, 396),  # filtered by build-class vocab
+        ]
+        rows = detect_lobby_rows(lines)
+        bgm_rows = [r for r in rows if r.team_side == "our_team"]
+        subjects = identify_lobby_subjects(bgm_rows)
+        lw = next(s for s in subjects if s.position == "LW")
+        self.assertIsNone(lw.gamertag)
+        self.assertIsNone(lw.is_captain, "no-real-player row must leave is_captain unobserved")
+
     def test_level_extraction(self) -> None:
         lines = [
             _line("C", 77, 300),

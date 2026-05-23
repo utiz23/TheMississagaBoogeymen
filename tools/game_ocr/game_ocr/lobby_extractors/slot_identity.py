@@ -255,6 +255,13 @@ def _extract_is_ready(
 def _extract_is_captain(
     row_lines: Sequence[OCRLine],
 ) -> tuple[Optional[bool], Optional[float]]:
+    """Detect the captain ★ glyph in any line of the row.
+
+    Returns (True, conf) when a glyph is found, (None, None) otherwise. The
+    caller (`identify_lobby_subjects`) decides whether the None result should
+    be promoted to a confident False — that requires knowing whether the row
+    has a real player (gt_value is not None), which this helper doesn't see.
+    """
     for line in row_lines:
         if any(glyph in line.text for glyph in CAPTAIN_GLYPHS):
             return True, line.confidence
@@ -499,6 +506,16 @@ def identify_lobby_subjects(
                     is_captain, is_captain_conf = True, line.confidence
                 if is_ready is None and "READY" in line.text.upper():
                     is_ready, is_ready_conf = True, line.confidence
+
+        # Phase 3d closure (gate 20): when we have a real player on this row
+        # (gt_value resolved) AND no ★ glyph appeared in any row line, that
+        # IS evidence of "not captain" — distinct from "not observed". Emit
+        # a confident False so the lobby snapshot's is_captain matches the
+        # V2 benchmark for non-captain rows. The confidence is a row-line
+        # median so the gate sees a calibrated, non-saturated value.
+        if is_captain is None and gt_value is not None and row.row_lines:
+            confs = sorted(line.confidence for line in row.row_lines)
+            is_captain, is_captain_conf = False, confs[len(confs) // 2]
 
         # observability: 'observable' if at least one identity field above
         # position is populated; 'low_quality' otherwise.
