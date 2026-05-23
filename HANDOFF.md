@@ -1,5 +1,40 @@
 # Handoff
 
+## Session Summary — 2026-05-23 (Gate 2: normalizeSnapshot strips OCR-noise paren/bracket suffix)
+
+### Current status
+
+Branch: `feat/ocr-pipeline-phase-3a`. Match-250 benchmark **Gate 2 (post-game goal events) now passes**. Previously failed on `P2@13:41/for: BGM scorer canonical gamertag` (`"Silky ["` not resolving to `silkyjoker85`) and `P3@0:52/against: opp scorer snapshot (normalized)` (`"S. ZUBOV (1L"` not normalizing to `"S. ZUBOV"`). Root cause: stray bracket/paren noise from RapidOCR that survived `normalizeSnapshot`.
+
+### What was done
+
+Extended both copies of `normalizeSnapshot` to strip from the first `(` or `[` onward:
+
+- [apps/worker/src/ocr-promoters/resolve-identity.ts](apps/worker/src/ocr-promoters/resolve-identity.ts) — added `TRAILING_PAREN_BRACKET_RE = /\s*[(\[].*$/`, run before `TRAILING_PUNCT_RE`. This is the shared resolver used by the worker's identity-resolution pipeline.
+- [apps/worker/src/__tests__/match-250-benchmark.test.ts](apps/worker/src/__tests__/match-250-benchmark.test.ts) — added the same regex to the test's local normalizer so the benchmark comparison strips the same junk.
+
+After the regex change, ran `pnpm --filter worker ingest-ocr-resolve --auto` against the production DB: 1 row resolved (`Silky [` → `player_id=2` (silkyjoker85) via the existing `player_display_aliases` table). All 4 BGM goal events on match 250 now have `scorer_player_id` populated.
+
+Real gamertags with parens/brackets are vanishingly rare; for the cases we'd intentionally support (e.g. `DaveL-234`, dashes), the regex leaves the string untouched. Verified by 7 new tests in [apps/worker/src/ocr-promoters/__tests__/normalize-snapshot.test.ts](apps/worker/src/ocr-promoters/__tests__/normalize-snapshot.test.ts) covering: leading ornament, trailing punctuation, bracket strip, parenthesized-suffix strip, real-gamertag preservation (including dashes), compound prefix+suffix, empty/whitespace edges.
+
+### Benchmark scoreboard
+
+| Gate | Before | After |
+|---|---|---|
+| 1 — getMatchLineups slot data | ok | ok |
+| 2 — post-game goal events | **not ok** | **ok** |
+| 15 — pre-game lobby BGM loadout fields | not ok (stale evidence) | not ok (stale evidence) |
+| 19 — lobby typed_v1 hard-field accuracy | not ok (stale evidence) | not ok (stale evidence) |
+| 20 — lobby typed_v1 soft-field accuracy | not ok (stale evidence) | not ok (stale evidence) |
+
+Gates 15/19/20 fail on lobby snapshots that were written by the OLD Python extractor (before Phase 3d). They will validate on the next re-ingest. Phase 3e (cross-panel persona puzzle) is still queued for fresh-data investigation.
+
+### What's next
+
+Same as the prior entries: re-ingest a match (any match) to validate the lobby pipeline changes (Phase 3d + captain-False fallback) end-to-end. If contamination patterns persist after fresh ingest, Phase 3e cross-panel work begins.
+
+---
+
 ## Session Summary — 2026-05-23 (Phase 3d-extra: captain extraction emits confident False)
 
 ### Current status

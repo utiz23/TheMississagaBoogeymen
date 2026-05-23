@@ -40,10 +40,21 @@ export interface ResolvedPlayer {
 
 const ORNAMENT_PREFIX_RE = /^\s*(?:-\s*[.]?\s*|[.]\s*)+/
 const TRAILING_PUNCT_RE = /[\s.,;:!?]+$/
+// OCR noise: stray parenthesized / bracketed suffix that real gamertags
+// almost never use, but RapidOCR commonly inserts (e.g. "Silky [", "S.
+// Zubov (1l"). Strip from the FIRST `(` or `[` onward. The leading
+// whitespace match swallows a typical " (junk" form so we don't leave
+// dangling spaces; bracket form "Silky [" gives "Silky".
+const TRAILING_PAREN_BRACKET_RE = /\s*[(\[].*$/
 
-/** Trim, strip leading "-." / "." UI ornaments, strip trailing punctuation. */
+/** Trim, strip leading "-." / "." UI ornaments, strip trailing punctuation,
+ *  strip OCR-noise paren/bracket suffix. */
 export function normalizeSnapshot(s: string): string {
-  return s.replace(ORNAMENT_PREFIX_RE, '').replace(TRAILING_PUNCT_RE, '').trim()
+  return s
+    .replace(ORNAMENT_PREFIX_RE, '')
+    .replace(TRAILING_PAREN_BRACKET_RE, '')
+    .replace(TRAILING_PUNCT_RE, '')
+    .trim()
 }
 
 function lowercaseNormalized(s: string): string {

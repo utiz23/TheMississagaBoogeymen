@@ -423,12 +423,14 @@ const EXPECTED_GOALS: readonly ExpectedGoal[] = [
 ]
 
 /** Normalize a snapshot for comparison: strip leading "-," or "-." ornament
- * prefix, collapse whitespace, uppercase. Handles V2's "-, SIlky" vs DB's
- * "-. Silky" (different punctuation) and case-mixing in the OCR output. */
+ * prefix, strip OCR-noise paren/bracket suffix (e.g. "S. ZUBOV (1L" → "S. ZUBOV"),
+ * collapse whitespace, uppercase. Handles V2's "-, SIlky" vs DB's "-. Silky"
+ * (different punctuation), case-mixing, and trailing OCR junk. */
 function normalizeSnapshot(s: string | null | undefined): string {
   if (!s) return ''
   return s
     .replace(/^-\s*[,.]?\s*/, '')
+    .replace(/\s*[(\[].*$/, '')
     .replace(/\s+/g, ' ')
     .trim()
     .toUpperCase()
