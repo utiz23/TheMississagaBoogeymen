@@ -1659,6 +1659,7 @@ void test('match 250: lobby typed_v1 hard-field accuracy ≥ 90%', async () => {
   let gamertagOk = 0
   let positionOk = 0
   let buildOk = 0
+  let buildEmitted = 0
   const denom = EXPECTED.length
 
   for (const exp of EXPECTED) {
@@ -1670,6 +1671,7 @@ void test('match 250: lobby typed_v1 hard-field accuracy ≥ 90%', async () => {
     }
     if (row.position === exp.position) positionOk++
     if (row.buildClass !== null) {
+      buildEmitted++
       // accept either canonical form (with persona prefix) or simple form
       const expectedSimple = exp.buildClassCanonical.includes(' - ')
         ? exp.buildClassCanonical.split(' - ').pop()!
@@ -1692,13 +1694,15 @@ void test('match 250: lobby typed_v1 hard-field accuracy ≥ 90%', async () => {
     positionOk / denom >= 0.9,
     `lobby position accuracy: ${positionOk}/${denom} — need ≥ 90%`,
   )
-  // build_class is only available in state_1 frames (Phase 3a confirmed none
-  // in recordings). When typed_v1 emits zero build_class rows, this gate is
-  // vacuously satisfied; assert non-strictly so the test stays green.
-  if (buildOk > 0) {
+  // build_class is only emitted on state_1 frames (per Phase 3a closure
+  // doc — state_1 doesn't appear in operator recordings). The denominator
+  // for accuracy is the SLOTS THAT EMITTED A VALUE, not the full lineup;
+  // counting non-emitted slots as wrong would make this gate
+  // structurally impossible to pass.
+  if (buildEmitted > 0) {
     assert.ok(
-      buildOk / denom >= 0.9,
-      `lobby build_class accuracy: ${buildOk}/${denom} — need ≥ 90% (when emitted)`,
+      buildOk / buildEmitted >= 0.9,
+      `lobby build_class accuracy: ${buildOk}/${buildEmitted} emitted — need ≥ 90% on emitted slots`,
     )
   }
 })

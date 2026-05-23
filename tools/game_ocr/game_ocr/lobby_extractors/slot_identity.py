@@ -296,6 +296,13 @@ def _extract_build_class_raw(
             continue
         if any(glyph in text for glyph in CAPTAIN_GLYPHS) or "READY" in text.upper():
             continue
+        # Phase 3c: skip state_2 `#NN-Persona` lines. The persona half can
+        # contain player surnames (e.g. "Wanhg", "Hutson") that the
+        # _LOBBY_BUILD_KEYWORDS regex matches via the themed-build vocab —
+        # the line would be wrongly classified as a build_class. State_1
+        # build_class lines never start with `#`.
+        if _HASH_PERSONA_RE.search(text):
+            continue
         if _LOBBY_BUILD_KEYWORDS.search(text) or re.search(r"[A-Za-z]\s*-\s*[A-Za-z]", text):
             return text, line.confidence
     return None, None
