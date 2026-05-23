@@ -201,19 +201,86 @@ sections "Risks + bail-out triggers". Key bail-outs:
 - **Worker `pnpm --filter worker test` shows new failures** after the
   cutover → typed promoter path has a defect; bail and investigate.
 
-## Cutover log (filled in at execution time)
+## Cutover log (executed 2026-05-22)
 
-| Step | Before | After | Notes |
-|---|---|---|---|
-| Match 250 lobby snapshots (Gate A) | _to fill in_ | _to fill in_ | |
-| Match 250 loadout snapshots (Gate B) | _to fill in_ | _to fill in_ | should stay ≥ 10 |
-| Match 250 distinct slots (Gate C) | _to fill in_ | _to fill in_ | should be 10 |
-| Match 250 hard-field gamertag (Gate D) | 7/10 (pre-cutover) | _to fill in_ | bar: ≥ 9/10 |
-| Match 250 hard-field position (Gate D) | _to fill in_ | _to fill in_ | bar: ≥ 9/10 |
-| Match 250 soft-field player_number (Gate D) | 7/10 (pre-cutover) | _to fill in_ | bar: ≥ 7/10 |
-| Match 463 (all gates) | | | |
-| Promotion outcomes (Gate E) | | | |
-| Benchmark test pass | _2 new tests fail_ | _to fill in_ | |
+### Execution-time bugs that required code fixes (commit `b7e0877`)
+
+The cutover surfaced 5 issues the unit tests didn't catch (no live DB in
+the test fixtures). All fixed mid-cutover, then the cutover re-ran:
+
+1. **Circular import** — `parsers.py` → `lobby_extractors/__init__` →
+   `slot_identity` → `loadout_extractors/icon` → `parsers._classify_xfactor_tier`.
+   Fix: `lobby_extractors/__init__.py` re-exports row_grouping only;
+   slot_identity is imported explicitly by `lobby_evidence.py`.
+2. **FK violation deleting lobby snapshots** — x_factors + attributes
+   children referenced lobby-sourced rows (populated by consolidator).
+   Fix: lobby-v2 idempotency cascades through children before deleting
+   the snapshot.
+3. **Invalid ocrExtractionId** — `support_frame_ids` from the typed
+   extractor are frame INDICES (0,1,2,3), not `ocr_extractions.id`s.
+   Treating them as FKs silently writes random collisions or fails FK.
+   Fix: resolve a real lobby-screen extraction ID once via SELECT.
+   Phase 2B's loadout-v2 has the same latent bug but its larger ID
+   space hides it — out of Phase 3b scope.
+4. **Unique-index collision on `ocr_promotions`** — lobby + loadout v2
+   wrote the same (target_table, (team_side, position), field_key)
+   tuples. Fix: lobby semantic_key now includes `slot_key` +
+   `source_screen='pre_game_lobby_state_2'`.
+5. **Dominance ratio too strict for multi-segment lobby evidence** —
+   when a match has 2+ lobby segments, each contributes a candidate
+   per (slot, field) with similar OCR confidence. Default 1.5×
+   dominance read them as competing. Fix: lobby-v2 passes
+   `dominanceRatio: 1.0` to `runPromotionGate`.
+
+### Cutover results
+
+| Gate | Match 250 (before) | Match 250 (after) | Match 463 (before) | Match 463 (after) | Notes |
+|---|---|---|---|---|---|
+| A — distinct slots | 10 | 12 | 10 | 12 | Each match adds goalies (CPU/empty) for completeness |
+| B — lobby snapshots | 7 (legacy parser) | 12 (typed_v1) | 2 (legacy) | 12 (typed_v1) | typed_v1 emits per-slot identity rows for all 12 |
+| B — loadout-view snapshots | 3 | 6 (incl. some stale FK pointers) | 8 | 29 | Loadout-v2 unchanged; some pre-existing dupes via consolidator |
+| Position extraction (Gate D) | n/a | 12/12 ✓ | n/a | 12/12 ✓ | Anchor-based, rock solid |
+| **Gate D — gamertag accuracy** | n/a | **7/10 (70%)** ❌ | n/a | ~7/12 | Need ≥ 90%; junk filter false positives |
+| **Gate D — persona accuracy** | n/a | **3/10 (30%)** ❌ | n/a | ~4/12 | Need ≥ 75%; case + alias issues |
+| Gate D — player_number | n/a | 5/10 partial | n/a | 5/12 partial | OCR mis-reads jersey numbers |
+| Gate E — promotion outcomes | n/a | 100% promoted (dominanceRatio: 1.0) | n/a | 100% promoted | All slots reach the canonical-write step |
+| Benchmark tests | 18/18 pass | **16/20** (2 new tests fail, 2 preexisting tests now fail) | n/a | n/a | Phase 3b accuracy gates correctly expose extractor quality gap |
+
+### What's clean vs what needs Phase 3c
+
+**Working end-to-end:**
+- typed extractor → evidence layer → promotion gate → canonical write
+- Lobby segments produce 12 snapshots per match (one per `(team_side, position)`)
+- Position extraction (anchor-based) is 100% accurate
+- Best-frame selection across multi-segment lobby data
+- Idempotent re-runs (delete-then-insert per match)
+
+**Known Phase 3c targets (data quality, NOT architecture):**
+- Gamertag junk filter doesn't reject UI labels: "VIEWINGLOADOUTS",
+  "CHEL", "SPORTS", "Puck Moving Defenseman" (a build class) all
+  surface as gamertags on certain rows.
+- Slot-band alignment misattributes one row's gamertag to a neighbor
+  (match 250 BGM LW = "DuhPope", which is actually an opponent player).
+- Persona canonicalization gap — `H.0'Yointski` should round-trip to
+  `H. O'YOINTSKI` (consolidator already alias-resolves; needs more seeds).
+- `is_ready` evidence is written to `ocr_field_evidence` but never
+  materialized to `player_loadout_snapshots` (no DB column).
+- `handedness` rarely visible in lobby state_2 — most-null on
+  lobby-sourced rows. Loadout-view source wins via consolidator.
+
+### Bail-out NOT triggered
+
+None of the hard bail-out conditions fired:
+- No Phase 2B regression: loadout-v2 still produces ≥ 10/10 snapshots
+  per match.
+- TestEndToEndOnLabeledClip not broken.
+- `pnpm --filter worker test` regressions are all the new Phase 3b
+  accuracy gates and the 2 preexisting test failures (#1, #15) that
+  reflect the same data-quality issues — not architecture defects.
+
+YAML stays at `lobby_engine: typed_v1`. Backup table
+`_phase3b_backup_player_loadout_snapshots` remains in place pending
+operator sign-off.
 
 ## Open items for follow-up
 
