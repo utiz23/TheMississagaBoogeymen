@@ -74,10 +74,7 @@ const SENTINEL_MATCH_ID = SENTINEL_MATCH_IDS[FIXTURE_NAME] // 9003
  * reference the single extraction that seedFixtureDb() created for the degraded
  * segment.
  */
-async function patchSupportFrameIds(
-  segmentIds: number[],
-  extractionIds: number[],
-): Promise<void> {
+async function patchSupportFrameIds(segmentIds: number[], extractionIds: number[]): Promise<void> {
   for (let i = 0; i < segmentIds.length; i++) {
     const segmentId = segmentIds[i]
     const extractionId = extractionIds[i]
@@ -132,7 +129,6 @@ after(async () => {
 // ─── tests ─────────────────────────────────────────────────────────────────────
 
 describe('T8A — synthetic degraded fixture: matrix-branch coverage', () => {
-
   // ── Promoter top-level result ─────────────────────────────────────────────
 
   test('promoter completes without error: 2 promoted + 2 blocked snapshots', async () => {

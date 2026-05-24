@@ -72,15 +72,15 @@ Reviewed 2026-05-17. Source: [apps/web/src/components/matches/top-performers.tsx
 
 Ordered by impact:
 
-| # | Change | Effort |
-| --- | --- | --- |
-| 2 | Rank-3 score color: `text-fg-2` → `text-fg-1` | 1 line |
-| 1 | Rank-3 card placeholder for missing season delta (preserve alignment) | 5 lines |
-| 11 | Subtle row tint on Show-All ranks 2 and 3 to match card hierarchy | 1–2 lines |
-| 4 | ~~Archetype-pill tooltip OR section-header `?` legend popover~~ — **Resolved 2026-05-17** (tooltip variant already present). | — |
-| 3 | Slightly brighter off-star glyphs OR drop them entirely | 1 line |
-| 13 | Replace Show-All row breakdown table with card-style bar+legend | 30–60 lines |
-| 6 | Section subtitle: "Computed from player stats" → "Ranked by Game Score" | 1 line |
+| #   | Change                                                                                                                       | Effort      |
+| --- | ---------------------------------------------------------------------------------------------------------------------------- | ----------- |
+| 2   | Rank-3 score color: `text-fg-2` → `text-fg-1`                                                                                | 1 line      |
+| 1   | Rank-3 card placeholder for missing season delta (preserve alignment)                                                        | 5 lines     |
+| 11  | Subtle row tint on Show-All ranks 2 and 3 to match card hierarchy                                                            | 1–2 lines   |
+| 4   | ~~Archetype-pill tooltip OR section-header `?` legend popover~~ — **Resolved 2026-05-17** (tooltip variant already present). | —           |
+| 3   | Slightly brighter off-star glyphs OR drop them entirely                                                                      | 1 line      |
+| 13  | Replace Show-All row breakdown table with card-style bar+legend                                                              | 30–60 lines |
+| 6   | Section subtitle: "Computed from player stats" → "Ranked by Game Score"                                                      | 1 line      |
 
 Items 5, 9, 10, 15, 16, 17 are polish to batch together for a single sweep once the above are in. (Item 14 ~~+/- hyphen vs Unicode minus mismatch~~ **Resolved 2026-05-17** — both surfaces now Unicode minus.)
 
@@ -105,6 +105,7 @@ Reviewed 2026-05-17. Source: [apps/web/src/components/matches/possession-edge.ts
 ### Issues — Important
 
 **1. Delta color collision: both positive and negative deltas render in `text-accent` (red).** In the expanded panel, `+7.2 to DtW` (SHOTS, BGM wins) and `-3.5 to DtW` (HITS, OPP wins) both show in accent red. Only the sign differentiates. A quick scan reads "all red = all good", which is wrong — the −3.5 is BGM's loss on that factor. Convention elsewhere on the page (top-performers `+/−`, score-breakdown legend) uses **emerald-400 for positive, rose-400 for negative**. Match it here:
+
 - `winner === 'bgm'` → emerald-400 (BGM gained on this factor)
 - `winner === 'opp'` → rose-400 (BGM lost on this factor)
 - Tied → fg-3
@@ -143,16 +144,16 @@ Reviewed 2026-05-17. Source: [apps/web/src/components/matches/possession-edge.ts
 
 Ordered by impact:
 
-| # | Change | Effort |
-| --- | --- | --- |
-| 1 | Per-row delta color: green for positive, rose for negative (replace dual-accent) | 1–2 lines in `ContributorRow` |
-| 2 | Consistent bar coloring: BGM always accent, OPP always neutral; vary intensity by winner | 4–6 lines in `ContributorRow` |
-| 3 | Drop redundant "✓ Result matches" indicator in methodology row | 4 lines |
-| 4 | Drop bottom-row formula pills (per-row weight pills already cover this) | 10 lines |
-| 5 | Drop duplicate "DESERVE TO WIN" captions under the percentages | 1 line per side |
-| 6 | Add `pts` unit suffix to `EDGE +19.4` | 1 line |
-| 7 | Soften "OCR missing" to "Unavailable" or "Not captured" | 1 line |
-| 8 | Add small "▾" affordance hint next to the collapsible summary label | 1 line |
+| #   | Change                                                                                   | Effort                        |
+| --- | ---------------------------------------------------------------------------------------- | ----------------------------- |
+| 1   | Per-row delta color: green for positive, rose for negative (replace dual-accent)         | 1–2 lines in `ContributorRow` |
+| 2   | Consistent bar coloring: BGM always accent, OPP always neutral; vary intensity by winner | 4–6 lines in `ContributorRow` |
+| 3   | Drop redundant "✓ Result matches" indicator in methodology row                           | 4 lines                       |
+| 4   | Drop bottom-row formula pills (per-row weight pills already cover this)                  | 10 lines                      |
+| 5   | Drop duplicate "DESERVE TO WIN" captions under the percentages                           | 1 line per side               |
+| 6   | Add `pts` unit suffix to `EDGE +19.4`                                                    | 1 line                        |
+| 7   | Soften "OCR missing" to "Unavailable" or "Not captured"                                  | 1 line                        |
+| 8   | Add small "▾" affordance hint next to the collapsible summary label                      | 1 line                        |
 
 Items 9, 10, 11 are stylistic / maintenance polish to address in a separate sweep.
 
@@ -179,10 +180,12 @@ Reviewed 2026-05-17. Source: [apps/web/src/components/matches/team-stats.tsx](ap
 ### Issues — Important
 
 **1. Bar polarity is inverted for lower-is-better stats.** (Already captured as todo #10.) Concrete example on match 250:
+
 - GIVEAWAYS 44 vs 38 → BGM has more = WORSE → BGM bar renders wider (red, prominent)
 - HITS 14 vs 39 → BGM has fewer = WORSE → BGM bar renders narrower (red, weak)
 
 The "wider red = BGM wins" rule fails on giveaways and penalty minutes. A scanner reading the page bottom-up sees "BGM dominated giveaways" which is the opposite of truth. Fix options:
+
 - Track "polarity" per stat and invert the bar fill (or color) for lower-is-better stats
 - Always color the BGM bar red regardless of which side is "winning"; use the relative widths to encode the ratio — direction of polarity is implicit in the label semantics
 - Add a `↓ better` or `↑ better` micro-indicator on inverted-polarity stats
@@ -192,6 +195,7 @@ Same root cause as the Deserve to Win contributor bars. Land them in one sweep.
 **2. POSSESSION row shows `1471 vs 1162` with no unit.** (Already captured as todo #13.) The number is some EA-API "possession touches" count. Without a unit, it's meaningless — a casual viewer might think "1471 minutes of possession" (nonsense). TIME ON ATTACK below it (`12:42 / 6:11`) communicates the same idea with a real unit. Either label this as `Possession (touches)` / `Possession events` / `Touches`, or drop the row (TOA covers it).
 
 **3. RATINGS placeholder is dead UI.** "RATINGS ARE RESERVED FOR LATER EXTRACTION / DERIVATION" inside a dashed-border block. (Already captured as todo #15.) On a canonical match page this leaks a TODO into production output. Either:
+
 - Hide the entire RATINGS group when no data exists (cleanest), **or**
 - Drop the placeholder and label as `Coming soon` very subtly, **or**
 - Just remove the RATINGS group from `buildBoxScore` until shipping
@@ -201,12 +205,14 @@ Recommend the first.
 ### Issues — Minor
 
 **4. DEFENSE group mixes "more is better" and "less is better" stats.** Hits, Blocked Shots, Takeaways, Interceptions, Short-Handed Goals = more is better. Giveaways, Penalties = less is better. Calling the whole group DEFENSE is technically defensible (giveaways are defensive failures) but makes the bar-direction confusion (#1 above) harder to mentally correct. Consider splitting:
+
 - `DEFENSE` (more better): Hits, Blocked Shots, Takeaways, Interceptions
 - `DISCIPLINE` or `MISTAKES` (less better): Giveaways, Penalties, Short-Handed Goals against
 
 Or just label the inverted-polarity rows explicitly with a `↓` indicator inline.
 
 **5. Sparse-value bars look misleading.** DEFLECTIONS 1 vs 0 renders as a full-width BGM bar and zero-width OPP bar — visually "BGM dominated deflections" — but the absolute difference is one deflection. The `barWidth` helper uses `Math.max(ours, theirs, 1)` as the denominator, so 1-vs-0 maxes at 1.0 = 100%. Consider:
+
 - Capping bar width at a soft maximum (say 75%) when the larger value is < 5, so visual emphasis matches actual signal strength
 - Or rendering no bar at all when the larger value is < 3 (just the numbers)
 
@@ -232,17 +238,17 @@ Or just label the inverted-polarity rows explicitly with a `↓` indicator inlin
 
 Ordered by impact:
 
-| # | Change | Effort |
-| --- | --- | --- |
-| 1 | Bar polarity fix for lower-is-better stats (combined with Deserve to Win #2) | 10–20 lines |
-| 2 | Label or drop POSSESSION integer | 1–3 lines |
-| 3 | Hide RATINGS group entirely until data ships | 2 lines |
-| 4 | Use opponent abbreviation (`4L`) instead of generic `OPP` for side label | 4 lines |
-| 5 | Add `↓ better` indicator on inverted-polarity rows (alternative to bar invert) | 6–10 lines |
-| 6 | Cap bar width when absolute values are tiny (sparse-value sanity) | 4 lines in `barWidth` |
-| 7 | Token migration: zinc → fg-* CSS vars | 10–15 lines |
-| 8 | ARIA labels on bar wrappers | 3 lines per Row |
-| 9 | Drop section subtitle ("Team totals and aggregate stats") | 1 line |
+| #   | Change                                                                         | Effort                |
+| --- | ------------------------------------------------------------------------------ | --------------------- |
+| 1   | Bar polarity fix for lower-is-better stats (combined with Deserve to Win #2)   | 10–20 lines           |
+| 2   | Label or drop POSSESSION integer                                               | 1–3 lines             |
+| 3   | Hide RATINGS group entirely until data ships                                   | 2 lines               |
+| 4   | Use opponent abbreviation (`4L`) instead of generic `OPP` for side label       | 4 lines               |
+| 5   | Add `↓ better` indicator on inverted-polarity rows (alternative to bar invert) | 6–10 lines            |
+| 6   | Cap bar width when absolute values are tiny (sparse-value sanity)              | 4 lines in `barWidth` |
+| 7   | Token migration: zinc → fg-\* CSS vars                                         | 10–15 lines           |
+| 8   | ARIA labels on bar wrappers                                                    | 3 lines per Row       |
+| 9   | Drop section subtitle ("Team totals and aggregate stats")                      | 1 line                |
 
 Items 7, 9–13 are polish to batch with general page-wide token/a11y cleanup.
 
@@ -278,9 +284,10 @@ This is the most distinctive section on the page — a true "tale of the tape" a
 ### Issues — Important
 
 **1. In-game character name OCR'd as `E.WANHG` (should be E.WANHO or similar).** (Already captured as todo #28.) Match 250 has visible OCR slips in persona names: `E.WANHG` (probably `E.WANHO` — Erik Wanho?), `WHOOSAH` looks legitimate but worth verifying. A canonical-match page showing visible OCR garbage in a tale-of-the-tape weakens the whole section's credibility. Two strategies:
+
 - Manual correction list for known characters (low effort, scales poorly)
 - Post-OCR fuzzy-match against a database of in-game character name aliases (more work, scales)
-The user already has `player_display_aliases` for gamertags; an analogous table for `player_name_persona` could close this.
+  The user already has `player_display_aliases` for gamertags; an analogous table for `player_name_persona` could close this.
 
 **2. The `MISSISSAUGA BOOGEYMEN` summary band title overlaps the meta strip on tight viewports.** At mid-widths (around 768–900px), the summary side wraps inelegantly and the build-chip row stacks below the KV row, while the opposite side stays compact. Visual asymmetry. Either set a `min-width` on each summary side so both wrap at the same width, or stack the build chips on a new row regardless of width.
 
@@ -292,7 +299,7 @@ The user already has `player_display_aliases` for gamertags; an analogous table 
 
 **5. Build-chip row in the summary band uses different visual languages** for ref builds vs bare builds. Ref builds get the full `ArchetypePill` (icon + label), bare builds get a count prefix (`2× PMD`) and the same pill. Visually fine but the count prefix is tiny and easily missed. Consider rendering the multiplier inside the pill or as a small superscript badge attached to the pill.
 
-**6. The persona name (`E.WANHG`, `M.RANTANEN`) vs gamertag (`MrHomiecide`, `Stick Menace`) duality** is conceptually correct but takes a second to parse the first time. Persona is the in-game character name (the human-controlled NHL player), gamertag is the EASHL player behind the controller. Worth a one-line legend at the top of the section (`persona = in-game character · gamertag = EASHL player`) on first viewing, or a tooltip on the persona name explaining what it is. Otherwise new readers will read "M.RANTANEN  Stick Menace" as "Mikko Rantanen, also known as Stick Menace?".
+**6. The persona name (`E.WANHG`, `M.RANTANEN`) vs gamertag (`MrHomiecide`, `Stick Menace`) duality** is conceptually correct but takes a second to parse the first time. Persona is the in-game character name (the human-controlled NHL player), gamertag is the EASHL player behind the controller. Worth a one-line legend at the top of the section (`persona = in-game character · gamertag = EASHL player`) on first viewing, or a tooltip on the persona name explaining what it is. Otherwise new readers will read "M.RANTANEN Stick Menace" as "Mikko Rantanen, also known as Stick Menace?".
 
 **7. Section subtitle `Pre-game scouting sheet · OCR-derived`** is information-dense. "OCR-derived" is also covered by the provenance footer below. Could simplify to just `Pre-game scouting sheet` — the footer carries the provenance.
 
@@ -320,16 +327,16 @@ The user already has `player_display_aliases` for gamertags; an analogous table 
 
 Ordered by impact:
 
-| # | Change | Effort |
-| --- | --- | --- |
-| 1 | Persona name OCR fix list (manual aliases) — eliminate visible OCR garbage | 15–30 lines + data |
-| 2 | Mobile: show matchup tag (`P-MAKER ↔ 2-WAY`) as a strip above each row | 10–20 lines |
-| 3 | Reserve min-width or wrap gamertag on a new line on narrow widths | 5–10 lines |
-| 4 | One-line legend explaining persona vs gamertag (tooltip on persona name) | 10–15 lines |
-| 5 | Build-chip legend OR tooltips on PLY/SNP/PWF/etc. (cross-ref todo #17) | 15–30 lines |
-| 6 | Tooltip on `LEVEL` value explaining it's EASHL player progression | 5 lines |
-| 7 | Position anchor inside expand panel (so mobile retains "C matchup" context) | 10 lines |
-| 8 | Drop "OCR-derived" from section subtitle (footer covers it) | 1 line |
+| #   | Change                                                                      | Effort             |
+| --- | --------------------------------------------------------------------------- | ------------------ |
+| 1   | Persona name OCR fix list (manual aliases) — eliminate visible OCR garbage  | 15–30 lines + data |
+| 2   | Mobile: show matchup tag (`P-MAKER ↔ 2-WAY`) as a strip above each row      | 10–20 lines        |
+| 3   | Reserve min-width or wrap gamertag on a new line on narrow widths           | 5–10 lines         |
+| 4   | One-line legend explaining persona vs gamertag (tooltip on persona name)    | 10–15 lines        |
+| 5   | Build-chip legend OR tooltips on PLY/SNP/PWF/etc. (cross-ref todo #17)      | 15–30 lines        |
+| 6   | Tooltip on `LEVEL` value explaining it's EASHL player progression           | 5 lines            |
+| 7   | Position anchor inside expand panel (so mobile retains "C matchup" context) | 10 lines           |
+| 8   | Drop "OCR-derived" from section subtitle (footer covers it)                 | 1 line             |
 
 Items 9–16 are polish to batch with later sweeps.
 
@@ -352,7 +359,7 @@ Reviewed 2026-05-17. Source: [apps/web/src/components/matches/box-score.tsx](app
 
 - **Tabbed metric switch is a major UX win.** Three tabs (GOALS / SHOTS / FACEOFFS) reveal the same per-period breakdown for each metric. Old design rendered all three metrics in every period card → 12 data points stacked vertically. New design surfaces 12 data points in one compact table with a one-click metric switch. Much faster to scan, much less vertical bloat.
 - **Tab summaries carry totals at all times.** Even when the active tab is GOALS, the SHOTS tab still shows `29 – 16 +13` and FACEOFFS shows `70.0% 21 of 30`. Total state is always visible across all three metrics — you don't have to switch tabs to see the headline number for any metric.
-- **Per-period winners highlighted in-place.** For GOALS mode, the period where BGM scored more (2nd, OT) shows the BGM number in accent red and the opp number muted; reverse on the period BGM lost (3rd). The table tells the *story* of the game period-by-period without text labels — exactly the right visual encoding.
+- **Per-period winners highlighted in-place.** For GOALS mode, the period where BGM scored more (2nd, OT) shows the BGM number in accent red and the opp number muted; reverse on the period BGM lost (3rd). The table tells the _story_ of the game period-by-period without text labels — exactly the right visual encoding.
 - **OT period gets distinct color treatment.** Column header for OT renders in `text-otl` (orange), separating regulation from overtime visually.
 - **Total column has a subtle accent gradient.** Last column reads as "the answer" — bigger font (24px), accent border-left, gradient background. Winning team's total gets a glow shadow (`text-shadow:0 0 10px rgba(...)`).
 - **FACEOFFS mode adds a sub-row of per-period percentages.** BGM row: `6 | 5 | 5 | 5 | 21`, and immediately below in smaller text: `75.0% | 62.5% | 62.5% | 83.3% | 70.0%`. Context without crowding the main row.
@@ -370,6 +377,7 @@ Reviewed 2026-05-17. Source: [apps/web/src/components/matches/box-score.tsx](app
 ```
 
 **2. `text-otl` (orange) on OT period header collides with the OTL-loss result color** elsewhere on the page. A casual reader who's seen the `OTL` result pill on the hero card might read the orange OT column header as "this period was lost in OT", which is the opposite of the intended meaning (just "this period was overtime"). Either:
+
 - Use a different color for OT period headers (e.g., the OTL accent but desaturated, or just a different family)
 - Or accept the collision since `text-otl` is the closest semantic match for "overtime"
 
@@ -384,6 +392,7 @@ If keeping `text-otl`, add a tooltip clarifying ("OT — overtime period") on ho
 **5. Period numbers `1ST/2ND/3RD` look identical to the table.** In real hockey, the 3rd period is often the most consequential. The current design treats every period equally. Could add a subtle accent (e.g., slightly bolder font, or a thin top border) to the 3rd period column to indicate its weight. Or accept the egalitarian treatment as "data first, narrative second."
 
 **6. `⚠` glyph in the missing-periods footnote** is a different visual language from the `●` pulse-dot used in the OCR-reviewed badge alongside it. Both convey "warning vs okay" but the icon families clash. Either:
+
 - Use `●` (red) for the warning too (consistent shape, color encodes meaning)
 - Or use an outline triangle SVG icon instead of the emoji `⚠` for typographic consistency
 
@@ -411,16 +420,16 @@ If keeping `text-otl`, add a tooltip clarifying ("OT — overtime period") on ho
 
 Ordered by impact:
 
-| # | Change | Effort |
-| --- | --- | --- |
-| 1 | Add delta indicator to GOALS tab (parity with SHOTS) | 2 lines |
-| 2 | Resolve OT-header color collision with OTL result color (or add tooltip) | 5–10 lines |
-| 3 | Adopt shared `formatPeriodLabel(periodNumber)` for column headers | 3 lines |
-| 4 | Drop "OCR-reviewed" from section subtitle (footer covers it) | 1 line |
-| 5 | Faint heatmap tint on period-winner cells (optional polish) | 6–10 lines |
-| 6 | Amplify active-tab indicator (stronger ticker-strip or text contrast) | 3 lines |
-| 7 | Cleaner phrasing for FACEOFFS summary (`21 of 30` → `21W · 30 total`) | 1 line |
-| 8 | Replace `⚠` emoji with SVG outline triangle for icon consistency | 5 lines |
+| #   | Change                                                                   | Effort     |
+| --- | ------------------------------------------------------------------------ | ---------- |
+| 1   | Add delta indicator to GOALS tab (parity with SHOTS)                     | 2 lines    |
+| 2   | Resolve OT-header color collision with OTL result color (or add tooltip) | 5–10 lines |
+| 3   | Adopt shared `formatPeriodLabel(periodNumber)` for column headers        | 3 lines    |
+| 4   | Drop "OCR-reviewed" from section subtitle (footer covers it)             | 1 line     |
+| 5   | Faint heatmap tint on period-winner cells (optional polish)              | 6–10 lines |
+| 6   | Amplify active-tab indicator (stronger ticker-strip or text contrast)    | 3 lines    |
+| 7   | Cleaner phrasing for FACEOFFS summary (`21 of 30` → `21W · 30 total`)    | 1 line     |
+| 8   | Replace `⚠` emoji with SVG outline triangle for icon consistency         | 5 lines    |
 
 Items 9–15 are stylistic polish or future-proofing.
 
@@ -460,7 +469,7 @@ The quick-stat tile labeled "SHOOTING %" computes `(shots / shotAttempts) * 100`
 
 The **117% value is not a math bug** — it's a real EA data quirk that the user has seen before:
 
-> *"It is possible to score without shooting. When some event happens that causes the puck to go into the net, the goal is awarded to the person who last touched it on the opposite team."*
+> _"It is possible to score without shooting. When some event happens that causes the puck to go into the net, the goal is awarded to the person who last touched it on the opposite team."_
 
 So a deflection or redirect where the puck enters the goal credits the deflecting player with `shots +1` (and possibly `goals +1`) but **not** `shotAttempts +1` — because they didn't actually take a shot. Result: `shots > shotAttempts` is legitimate EA data, not a render artifact. The 117% is true to what EA recorded.
 
@@ -481,6 +490,7 @@ Recommended fix (replaces earlier "clamp at 100%" advice — clamping would hide
 4. **Optional explainer tooltip on Shot On Net % > 100%** ("can exceed 100% when goals are awarded on deflections that aren't counted as shot attempts") so readers who notice the unusual value understand the EA quirk rather than assuming the page is broken.
 
 **2. Section-redundant detail groups: "Special Teams & Discipline" + "Discipline & Turnovers"** share the word "Discipline" but split the stats arbitrarily. PIM appears in "Special Teams & Discipline" alongside PPG/SHG/Penalties Drawn. Giveaways/Hits/Blocks appear in "Discipline & Turnovers" alongside TOI. The grouping logic isn't intuitive — why is PIM with PPG but not with Penalties Drawn (those go together)? Why is TOI under "Discipline & Turnovers"? Recommend:
+
 - **Special Teams**: PPG, SHG
 - **Discipline**: PIM, Penalties Drawn
 - **Defense**: Hits, Blocks
@@ -492,6 +502,7 @@ Or merge the two confusing groups into a single "Discipline & Special Teams" wit
 ### Issues — Important
 
 **3. Position pill colors are inconsistent across the table.** Visible in the screenshot:
+
 - BGM D pills: HenryTheBobJr `D` (cyan), JoeyFlopfish `D` (cyan/teal)
 - 4L D pills: shadowassault20 `D` (yellow/olive), DUH POPE `LW` (purple), MUTTBUTT `D` (yellow)
 - BGM C pill (MrHomiecide): red
@@ -506,6 +517,7 @@ Same position rendering different colors across rows is jarring. The `PositionPi
 **3a. Position pill should reflect the specific position when OCR has it.** Current behavior: the Scoresheet's `SkaterRow.position` comes from EA's `player_match_stats`, which only records the generic position type (`defenseMen`) — so the pill always falls back to the cyan `D`. The Lineup section's OCR-derived loadout data DOES distinguish `leftDefenseMen` (cyan `LD`) vs `rightDefenseMen` (yellow `RD`) per slot. When that information is available for a given player on a given match, the Scoresheet should pass the specific position through to `PositionPill` so it renders `LD` (cyan) or `RD` (yellow). Cyan `D` stays as the fallback when only the generic position is known. Requires plumbing the OCR loadout-derived position from the lineup data layer into the Scoresheet `SkaterRow` builder (`buildScoresheet` in `match-recap.ts`).
 
 **4. Table layout collapses awkwardly on mobile.** At 390px, the table is `overflow-x-auto` with `min-w-[640px]`. Only PLAYER + G + A columns are visible; PTS / +/− / SOG / Hits / Blks are off-screen to the right. The user has to scroll the table horizontally — there's no visual hint that more columns exist. Two improvements:
+
 - Add a subtle right-edge fade gradient on the panel to signal "scroll right for more"
 - Or apply `hideOnMobile` to the lower-priority columns (Hits, Blks) and prioritize the high-value ones (PTS, +/-, SOG)
 
@@ -549,17 +561,17 @@ The `Th` and `Td` helpers already accept a `hideOnMobile` prop but no caller pas
 
 Ordered by impact:
 
-| # | Change | Effort |
-| --- | --- | --- |
-| 1 | **Rename "Shooting %" → "Shot On Net %"** + add a real `goals/shots` Shooting % tile + drop duplicate Shot On Net % row in SHOOTING group | 10–15 lines |
-| 2 | Reorganize "Special Teams & Discipline" + "Discipline & Turnovers" into intuitive groups | 30–50 lines |
-| 3 | Add keyboard + ARIA semantics to skater row (`tabIndex`, `role`, `aria-expanded`, key handler) | 10 lines |
-| 4 | Apply `hideOnMobile` to Hits + Blks columns (or add scroll-affordance gradient) | 4 lines |
-| 5 | Resolve position pill color inconsistency for D (cross-ref #17) | 5–10 lines in `position-pill.tsx` |
-| 6 | Drop duplicate "Shot On Net %" in SHOOTING group OR add real "Shooting %" tile | 5 lines |
-| 7 | Unify Possession formatting (with or without `s` suffix) | 1 line |
-| 8 | Add team crest icons next to team labels (cross-ref todo #21) | 5–10 lines |
-| 9 | Brighten chevron on row hover | 1 line |
+| #   | Change                                                                                                                                    | Effort                            |
+| --- | ----------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------- |
+| 1   | **Rename "Shooting %" → "Shot On Net %"** + add a real `goals/shots` Shooting % tile + drop duplicate Shot On Net % row in SHOOTING group | 10–15 lines                       |
+| 2   | Reorganize "Special Teams & Discipline" + "Discipline & Turnovers" into intuitive groups                                                  | 30–50 lines                       |
+| 3   | Add keyboard + ARIA semantics to skater row (`tabIndex`, `role`, `aria-expanded`, key handler)                                            | 10 lines                          |
+| 4   | Apply `hideOnMobile` to Hits + Blks columns (or add scroll-affordance gradient)                                                           | 4 lines                           |
+| 5   | Resolve position pill color inconsistency for D (cross-ref #17)                                                                           | 5–10 lines in `position-pill.tsx` |
+| 6   | Drop duplicate "Shot On Net %" in SHOOTING group OR add real "Shooting %" tile                                                            | 5 lines                           |
+| 7   | Unify Possession formatting (with or without `s` suffix)                                                                                  | 1 line                            |
+| 8   | Add team crest icons next to team labels (cross-ref todo #21)                                                                             | 5–10 lines                        |
+| 9   | Brighten chevron on row hover                                                                                                             | 1 line                            |
 
 Items 10–18 are polish to batch with later sweeps.
 
@@ -585,10 +597,10 @@ Reviewed 2026-05-17. Source: [apps/web/src/components/matches/event-timeline.tsx
 
 ### What's working
 
-- **Vertical spine with running-score chips between events** is genuinely the best storytelling device on the page. As you scroll, you watch the score evolve `1-0 → 2-0 → 2-1 → 3-1 → 3-2 → 3-3 → 4-3 WINS`. No other section makes you *feel* the rhythm of the game.
+- **Vertical spine with running-score chips between events** is genuinely the best storytelling device on the page. As you scroll, you watch the score evolve `1-0 → 2-0 → 2-1 → 3-1 → 3-2 → 3-3 → 4-3 WINS`. No other section makes you _feel_ the rhythm of the game.
 - **Period banners with event counts** (`2ND PERIOD · 2 GOALS · 0 PEN · 2 EVENTS`) anchor each section and let the user judge "how busy was this period?" without scanning the events.
 - **Alternating BGM-left / OPP-right card layout on desktop** mirrors the visual language of "your team scored" vs "their team scored." Cards on the left = BGM offense; cards on the right = OPP offense. Visceral signal.
-- **Lead-change tags on the running-score chips and inside cards** narrate the rhythm: `BGM TAKES LEAD 1-0`, `BGM +2 2-0`, `4TH CLOSES 2-1`, `— TIED 3-3`, `BGM WINS 4-3`. These four-word phrases are the page's best example of editorial copywriting — they tell you what the score change *meant*.
+- **Lead-change tags on the running-score chips and inside cards** narrate the rhythm: `BGM TAKES LEAD 1-0`, `BGM +2 2-0`, `4TH CLOSES 2-1`, `— TIED 3-3`, `BGM WINS 4-3`. These four-word phrases are the page's best example of editorial copywriting — they tell you what the score change _meant_.
 - **GWG (Game-Winning Goal) treatment is on point.** Special accent-red glow shadow on the card border, `GWG · GAME-WINNER` ribbon banner on the corner, scorer name in accent red. The most important goal in the game gets visible weight. Carries Page-of-Year style.
 - **OT banner styling** uses amber/orange (`text-otl` token) consistent with the OT color treatment elsewhere on the page (Box Score column header). The hierarchy stays.
 - **OPENING FACE-OFF marker** at top and **FINAL · BGM · 4 – 3** banner at bottom anchor the timeline with start/end states. Red dot on the spine above OPENING and below FINAL.
@@ -600,6 +612,7 @@ Reviewed 2026-05-17. Source: [apps/web/src/components/matches/event-timeline.tsx
 ### Issues — Important
 
 **1. `4TH CLOSES` tag is ambiguous.** `4TH` reads as either:
+
 - "4th period" — which doesn't exist in regulation hockey
 - "4TH LINE" — the team name (correct interpretation here)
 
@@ -608,6 +621,7 @@ The team is abbreviated as `4L` everywhere else on the page (Action Tracker, Fac
 **2. Tied-game score chips render both score numbers in red.** Visible in the screenshot — `3 3 — TIED` has both numbers in `text-accent`. This reads as "BGM tied them" (an active, BGM-favorable framing) when the literal meaning is "the game is tied" (neutral). Fix: when verdict is tied, render both numbers in `text-fg-1` (neutral white). Cross-references todo #20.
 
 **3. Multiple BGM goals stack on one side without alternating.** Period 2 had 2 BGM goals → both cards on the left, leaving the right side completely empty for ~400px of vertical scroll. When BGM has a lopsided period (3+ goals in a row), the asymmetry magnifies. Current rule is `team-side = card-side`. Alternatives:
+
 - Keep current rule (most semantic — left always = BGM)
 - Alternate strictly (always L→R→L→R regardless of team) — easier to scan but loses the team-identity-by-position signal
 - Hybrid: alternate within a period, but reset to "BGM left" at each period banner
@@ -617,6 +631,7 @@ Current behavior is defensible; just call out that long unilateral runs feel unb
 ### Issues — Minor
 
 **4. `BGM +2` tag is unclear.** Could mean:
+
 - BGM leads by 2 goals (correct interpretation)
 - BGM scored 2 goals in this period
 - BGM has a +2 differential of some other metric
@@ -650,6 +665,7 @@ Spelled-out version `BGM LEADS BY 2` would be unambiguous but verbose. Compromis
 ### Issues — Cross-component consistency
 
 **16. Tag wording inconsistency across the page.**
+
 - Period Summary (old): "BGM took this period" / "Lost this period" / "Tied this period" (now obsolete — section was redesigned)
 - Event Timeline: `BGM TAKES LEAD` / `4TH CLOSES` / `— TIED` / `BGM +2` / `BGM WINS`
 - Box Score period winner: implicit via accent-red coloring, no text label
@@ -671,17 +687,17 @@ The Event Timeline tags are the most editorial of all of these. Style guide for 
 
 Ordered by impact:
 
-| # | Change | Effort |
-| --- | --- | --- |
-| 1 | Use `oppAbbrev` consistently (`4L` everywhere, not `4TH`) | 5 lines |
-| 2 | Neutral color for tied-game score chips (cross-ref todo #20) | 4 lines |
-| 3 | Clarify `BGM +2` → `BGM +2 LEAD` | 1 line |
-| 4 | Drop redundant `EVENTS` from period banner when it equals goals+penalties | 5 lines |
-| 5 | Port mobile left-accent stripe to desktop (cross-ref todo #29) | 10–20 lines |
-| 6 | `aria-label` on score chips with full narrative | 5 lines |
-| 7 | Stronger weight/size on lead-change banners | 1–2 lines |
-| 8 | ~~Replace `△` assist prefix with `A:` text or `↳` glyph~~ — **Resolved 2026-05-17** (was already shipped). | — |
-| 9 | Tag voice style guide for cross-section harmony | docs |
+| #   | Change                                                                                                     | Effort      |
+| --- | ---------------------------------------------------------------------------------------------------------- | ----------- |
+| 1   | Use `oppAbbrev` consistently (`4L` everywhere, not `4TH`)                                                  | 5 lines     |
+| 2   | Neutral color for tied-game score chips (cross-ref todo #20)                                               | 4 lines     |
+| 3   | Clarify `BGM +2` → `BGM +2 LEAD`                                                                           | 1 line      |
+| 4   | Drop redundant `EVENTS` from period banner when it equals goals+penalties                                  | 5 lines     |
+| 5   | Port mobile left-accent stripe to desktop (cross-ref todo #29)                                             | 10–20 lines |
+| 6   | `aria-label` on score chips with full narrative                                                            | 5 lines     |
+| 7   | Stronger weight/size on lead-change banners                                                                | 1–2 lines   |
+| 8   | ~~Replace `△` assist prefix with `A:` text or `↳` glyph~~ — **Resolved 2026-05-17** (was already shipped). | —           |
+| 9   | Tag voice style guide for cross-section harmony                                                            | docs        |
 
 Items 10–20 are polish.
 
@@ -689,7 +705,7 @@ Items 10–20 are polish.
 
 - **#12** ("Normalize Event Timeline running-score chip tags") — directly addressed by issues #1 (4TH→4L) and #4 (BGM +2 clarity)
 - **#20** (Tied-game chip color) — directly addressed by issue #2
-- **#24** ("Add '1ST PERIOD' banner") — **OBSOLETE.** Post-Task 3, empty periods show as a *disabled filter chip* (1ST is dimmed in the chip row). The timeline never had a 1ST PERIOD banner because there were no events; this was the right call. The current empty-period treatment is the disabled chip — recommend removing this todo.
+- **#24** ("Add '1ST PERIOD' banner") — **OBSOLETE.** Post-Task 3, empty periods show as a _disabled filter chip_ (1ST is dimmed in the chip row). The timeline never had a 1ST PERIOD banner because there were no events; this was the right call. The current empty-period treatment is the disabled chip — recommend removing this todo.
 - **#29** (port mobile accent stripe to desktop) — issue #5 above
 
 ### Closing note
@@ -721,6 +737,7 @@ Reviewed 2026-05-17. Source: [apps/web/src/components/matches/action-tracker-map
 ### Issues — Important
 
 **1. `UNPLACED` is still mild jargon (Task 4 partially addressed todo #18 by renaming from `DISPLACED`).** The new word is better but still ambiguous — "what wasn't placed?" Better candidates:
+
 - **`OFF RINK`** (implies "events not on the rink visualization")
 - **`NO POSITION`** (more literal)
 - Hide entirely when 0 (often the case)
@@ -734,15 +751,18 @@ Worth a one-line tooltip on hover regardless of the label: "Events that occurred
 **Status (2026-05-17): Resolved** — audit of `apps/web/src/components/matches/action-tracker-map.tsx` confirms the wiring is complete and bidirectional. List row click selects the marker (with halo + glow + fade-others); list row hover highlights the marker (with soft halo); marker click selects the row + scrolls it into view; marker hover tints the row + inset ring. Hover-wins-over-select tooltip on the focused marker, `aria-pressed` on the event button, click-outside-rink clears selection, mouse-leave-rink clears hover. Parent state: `selectedId` + `hoveredId` at action-tracker-map.tsx:137-138, shared by `EventList` and `RinkPanel` props.
 
 **4. `FACEOFFS 7 (LIST ONLY)` parenthetical is cryptic.** Assumes the reader knows what "LIST ONLY" means (= shown in event list, not plotted on rink). Better:
+
 - Icon-only treatment with a hover tooltip ("Not plotted on rink — see Faceoff Map below")
 - Or a small info icon (`ⓘ`) instead of the parenthetical
 
 **5. Summary stats row mixes three concepts in one horizontal strip.**
+
 - Filter scope: `VISIBLE 34 / ON RINK 27 / UNPLACED 7`
 - Event breakdown: `GOALS · BGM 4 / 4L 3 / SHOTS 31 / HITS 35 / PENALTIES 0`
 - Provenance: `OCR CONFIDENCE 1.00 / SOURCE: Action Tracker OCR · v2`
 
 All visually equal-weight, which makes hierarchy hard to scan. Reorganize:
+
 - Top row: event breakdown (the most important: `4 - 3 GOALS · 31 SHOTS · 35 HITS · 0 PEN`)
 - Below: filter scope (smaller text) and provenance (smaller, right-aligned)
 
@@ -753,6 +773,7 @@ Or break into two distinct strips with a visual separator.
 **6. `GOALS · BGM 4 / 4L 3` is the most important number on the page (the final score) but gets cramped treatment** alongside SHOTS/HITS/PENALTIES at the same weight. Visually, GOALS is just one of five count chips. Could be promoted (larger font, accent treatment) or moved to its own row.
 
 **7. Markers cluster near the net** (visible in the screenshot — multiple `S`, `H`, `G` overlap on the right side of the rink). When too many events happen near the same spot, they become unreadable. Possible mitigations:
+
 - A subtle jitter / dodge layout when markers overlap
 - A "zoom" interaction on dense areas
 - Or accept clutter as data signal (lots of action in that zone)
@@ -793,17 +814,17 @@ Or break into two distinct strips with a visual separator.
 
 Ordered by impact:
 
-| # | Change | Effort |
-| --- | --- | --- |
-| 1 | ~~Wire event-list row hover → corresponding rink marker highlight (todo #23)~~ — **Resolved 2026-05-17.** | — |
-| 2 | Hide OCR confidence when ≥ 0.99; show with amber/tooltip when sub-confident (todo #19) | 10 lines |
-| 3 | Rename `UNPLACED` → `OFF RINK` or hide when 0; add tooltip (todo #18) | 5 lines |
-| 4 | Promote `GOALS · BGM 4 / 4L 3` in the summary stats row (typography weight) | 5–10 lines |
-| 5 | Reorganize summary stats into 2 distinct strips (event breakdown above, provenance/scope below) | 20–30 lines |
-| 6 | Inline rink legend (`S = shot · H = hit · G = goal`) | 10 lines |
-| 7 | Replace `FACEOFFS 7 (LIST ONLY)` parenthetical with info icon + tooltip | 5 lines |
-| 8 | Sticky positioning on the rink panel during long list scrolls | 5 lines |
-| 9 | Keyboard navigation through event list (arrow keys) | 15–25 lines |
+| #   | Change                                                                                                    | Effort      |
+| --- | --------------------------------------------------------------------------------------------------------- | ----------- |
+| 1   | ~~Wire event-list row hover → corresponding rink marker highlight (todo #23)~~ — **Resolved 2026-05-17.** | —           |
+| 2   | Hide OCR confidence when ≥ 0.99; show with amber/tooltip when sub-confident (todo #19)                    | 10 lines    |
+| 3   | Rename `UNPLACED` → `OFF RINK` or hide when 0; add tooltip (todo #18)                                     | 5 lines     |
+| 4   | Promote `GOALS · BGM 4 / 4L 3` in the summary stats row (typography weight)                               | 5–10 lines  |
+| 5   | Reorganize summary stats into 2 distinct strips (event breakdown above, provenance/scope below)           | 20–30 lines |
+| 6   | Inline rink legend (`S = shot · H = hit · G = goal`)                                                      | 10 lines    |
+| 7   | Replace `FACEOFFS 7 (LIST ONLY)` parenthetical with info icon + tooltip                                   | 5 lines     |
+| 8   | Sticky positioning on the rink panel during long list scrolls                                             | 5 lines     |
+| 9   | Keyboard navigation through event list (arrow keys)                                                       | 15–25 lines |
 
 Items 10–21 are polish.
 
@@ -830,6 +851,7 @@ Reviewed 2026-05-17. Source: [apps/web/src/components/matches/faceoff-map.tsx](a
 **1. Low information density per pixel.** The section adds ~700px of vertical scroll. 9 faceoff dots × 2 numbers (BGM/OPP win counts) = 18 data points spread across a 600px rink. Most dots in EASHL 6s never see a faceoff (corners, behind-the-net) — those markers render as `— —` placeholders, contributing noise without information. In the screenshot, **4 of 9 dots show `— —`** (the corner dots in both ends never fire). The signal-to-real-estate ratio is poor.
 
 **2. Most of its data is redundant.** Per-team overall faceoff % is already shown in:
+
 - Box Score FACEOFFS tab (`70.0% · 21 of 30`, plus per-period breakdown)
 - Top Performers (MrHomiecide shows `FO % 70` on the C card)
 - Scoresheet expanded panel (`FO W/L 21-9`, `FO % 70%`)
@@ -838,6 +860,7 @@ Reviewed 2026-05-17. Source: [apps/web/src/components/matches/faceoff-map.tsx](a
 The Faceoff Map's overall percentages (`72.73%` BGM / `26.67%` 4L) don't agree with the other sections' 70.0% — likely a per-dot OCR weighting vs raw count difference, but **the numbers diverging from the rest of the page erodes credibility** rather than building it.
 
 **3. The genuinely unique value is small.** Only two data points exist nowhere else:
+
 - Per-dot win counts (geographic distribution)
 - OZ/DZ summary chips (`OZ 6/7 · DZ 2/4`)
 
@@ -852,6 +875,7 @@ Both could fit in a 6-row table or a single chip group. Neither justifies a full
 **A. Shield-marker design.** The shield-shaped per-dot markers (red for BGM, dark for OPP, with win counts inside) are genuinely well-designed. Visually distinct from any other marker on the page. If Action Tracker gets a new faceoff marker type, this shape could become it (sized smaller, like the existing S/H/G markers).
 
 **B. Per-dot win counts.** The granular data answers "where did BGM dominate faceoffs?" — a real question. In Action Tracker, this could surface as:
+
 - Faceoff markers on the rink (currently faceoffs are `(LIST ONLY)`, unplotted)
 - Hover/click tooltip on each marker showing the dot's overall win record (`Center: BGM 3 - OPP 0`)
 
@@ -871,33 +895,33 @@ Both could fit in a 6-row table or a single chip group. Neither justifies a full
 
 If keeping (against the user's current lean):
 
-| # | Change | Effort |
-| --- | --- | --- |
-| 1 | Drop `— —` placeholder markers on unused dots | 5 lines |
-| 2 | Reconcile overall % with Box Score (one source of truth) | 5–10 lines |
-| 3 | Compress the rink size by ~30% (it's the wrong-priority widget on the page) | 5 lines |
-| 4 | Drop the duplicate period filter (or keep it as the only place faceoffs filter by period) | 5 lines |
+| #   | Change                                                                                    | Effort     |
+| --- | ----------------------------------------------------------------------------------------- | ---------- |
+| 1   | Drop `— —` placeholder markers on unused dots                                             | 5 lines    |
+| 2   | Reconcile overall % with Box Score (one source of truth)                                  | 5–10 lines |
+| 3   | Compress the rink size by ~30% (it's the wrong-priority widget on the page)               | 5 lines    |
+| 4   | Drop the duplicate period filter (or keep it as the only place faceoffs filter by period) | 5 lines    |
 
 If merging into Action Tracker (the user's current lean):
 
-| # | Change | Effort |
-| --- | --- | --- |
-| A | Add faceoff event coordinates to the `match_events` rows (data layer) | depends on OCR pipeline |
-| B | Render faceoff markers in AT's rink (new marker type, "F" letter or the shield shape) | 30–50 lines in AT |
-| C | Move OZ/DZ summary chips to Box Score FACEOFFS tab or AT filter row | 10–15 lines |
-| D | Add per-dot hover tooltip showing dot win record (`Center: BGM 3 - OPP 0`) | 15–25 lines |
-| E | Delete `faceoff-map.tsx` + the section render in `page.tsx` | -501 lines |
+| #   | Change                                                                                | Effort                  |
+| --- | ------------------------------------------------------------------------------------- | ----------------------- |
+| A   | Add faceoff event coordinates to the `match_events` rows (data layer)                 | depends on OCR pipeline |
+| B   | Render faceoff markers in AT's rink (new marker type, "F" letter or the shield shape) | 30–50 lines in AT       |
+| C   | Move OZ/DZ summary chips to Box Score FACEOFFS tab or AT filter row                   | 10–15 lines             |
+| D   | Add per-dot hover tooltip showing dot win record (`Center: BGM 3 - OPP 0`)            | 15–25 lines             |
+| E   | Delete `faceoff-map.tsx` + the section render in `page.tsx`                           | -501 lines              |
 
 If scrapping outright (simplest):
 
-| # | Change | Effort |
-| --- | --- | --- |
-| X | Delete `faceoff-map.tsx` + remove section render in `page.tsx` | -501 lines, -1 import |
-| Y | Move OZ/DZ summary into Box Score FACEOFFS tab (only piece worth keeping) | 10 lines |
+| #   | Change                                                                    | Effort                |
+| --- | ------------------------------------------------------------------------- | --------------------- |
+| X   | Delete `faceoff-map.tsx` + remove section render in `page.tsx`            | -501 lines, -1 import |
+| Y   | Move OZ/DZ summary into Box Score FACEOFFS tab (only piece worth keeping) | 10 lines              |
 
 ### Mobile
 
-The Faceoff Map renders correctly on mobile (rink scales down, shield markers compress). But the mobile case actually *amplifies* the "why is this a section?" problem — vertical scroll is more expensive on mobile, and this section adds ~600px of scroll for ~5 actually-data-bearing markers. Worth less on mobile than desktop.
+The Faceoff Map renders correctly on mobile (rink scales down, shield markers compress). But the mobile case actually _amplifies_ the "why is this a section?" problem — vertical scroll is more expensive on mobile, and this section adds ~600px of scroll for ~5 actually-data-bearing markers. Worth less on mobile than desktop.
 
 ### Closing note
 

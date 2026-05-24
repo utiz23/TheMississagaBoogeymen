@@ -24,8 +24,8 @@ interface ArchetypeMeta {
 
 const META: Record<PlayerArchetype, ArchetypeMeta> = {
   playmaker: {
-    color: '#38bdf8',
-    rgb: '56,189,248',
+    color: '#3AB7FF',
+    rgb: '58,183,255',
     name: ['PLAY', 'MAKER'],
     compactName: ['', 'PLY'],
     category: 'Forward',
@@ -33,8 +33,8 @@ const META: Record<PlayerArchetype, ArchetypeMeta> = {
     id: 'A·01',
   },
   sniper: {
-    color: '#ef4444',
-    rgb: '239,68,68',
+    color: '#FF5A4F',
+    rgb: '255,90,79',
     name: ['', 'SNIPER'],
     compactName: ['', 'SNP'],
     category: 'Forward',
@@ -42,8 +42,8 @@ const META: Record<PlayerArchetype, ArchetypeMeta> = {
     id: 'A·02',
   },
   'power-forward': {
-    color: '#fb923c',
-    rgb: '251,146,60',
+    color: '#FF9B42',
+    rgb: '255,155,66',
     name: ['POWER ', 'FWD'],
     compactName: ['', 'PWF'],
     category: 'Forward',
@@ -51,8 +51,8 @@ const META: Record<PlayerArchetype, ArchetypeMeta> = {
     id: 'A·03',
   },
   grinder: {
-    color: '#d97706',
-    rgb: '217,119,6',
+    color: '#C68A2B',
+    rgb: '198,138,43',
     name: ['', 'GRINDER'],
     compactName: ['', 'GRN'],
     category: 'Forward',
@@ -60,8 +60,8 @@ const META: Record<PlayerArchetype, ArchetypeMeta> = {
     id: 'A·04',
   },
   'two-way-fwd': {
-    color: '#22c55e',
-    rgb: '34,197,94',
+    color: '#47C772',
+    rgb: '71,199,114',
     name: ['TWO-WAY ', 'FWD'],
     compactName: ['', 'TWF'],
     category: 'Forward',
@@ -69,8 +69,8 @@ const META: Record<PlayerArchetype, ArchetypeMeta> = {
     id: 'A·05',
   },
   enforcer: {
-    color: '#dc2626',
-    rgb: '220,38,38',
+    color: '#C92A2A',
+    rgb: '201,42,42',
     name: ['', 'ENFORCER'],
     compactName: ['', 'ENF'],
     category: 'Forward',
@@ -78,8 +78,8 @@ const META: Record<PlayerArchetype, ArchetypeMeta> = {
     id: 'A·06',
   },
   'defensive-d': {
-    color: '#94a3b8',
-    rgb: '148,163,184',
+    color: '#8FA3B8',
+    rgb: '143,163,184',
     name: ['DEFENSIVE ', 'D'],
     compactName: ['', 'DFD'],
     category: 'Defenseman',
@@ -87,8 +87,8 @@ const META: Record<PlayerArchetype, ArchetypeMeta> = {
     id: 'A·07',
   },
   'offensive-d': {
-    color: '#a855f7',
-    rgb: '168,85,247',
+    color: '#4D7CFE',
+    rgb: '77,124,254',
     name: ['OFFENSIVE ', 'D'],
     compactName: ['', 'OFD'],
     category: 'Defenseman',
@@ -96,8 +96,8 @@ const META: Record<PlayerArchetype, ArchetypeMeta> = {
     id: 'A·08',
   },
   'two-way-d': {
-    color: '#14b8a6',
-    rgb: '20,184,166',
+    color: '#22B8A7',
+    rgb: '34,184,167',
     name: ['TWO-WAY ', 'D'],
     compactName: ['', 'TWD'],
     category: 'Defenseman',
@@ -105,8 +105,8 @@ const META: Record<PlayerArchetype, ArchetypeMeta> = {
     id: 'A·09',
   },
   'enforcer-d': {
-    color: '#9f1239',
-    rgb: '159,18,57',
+    color: '#7A1E3A',
+    rgb: '122,30,58',
     name: ['ENFORCER ', 'D'],
     compactName: ['', 'EFD'],
     category: 'Defenseman',
@@ -114,8 +114,8 @@ const META: Record<PlayerArchetype, ArchetypeMeta> = {
     id: 'A·10',
   },
   puckmover: {
-    color: '#6366f1',
-    rgb: '99,102,241',
+    color: '#6A5CFF',
+    rgb: '106,92,255',
     name: ['PUCK-MOVING ', 'D'],
     compactName: ['', 'PMD'],
     category: 'Defenseman',

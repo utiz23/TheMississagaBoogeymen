@@ -15,23 +15,23 @@ Below is the canonical field set across all screens that the redesign must relia
 
 **Lobby (state 1 + state 2 combined).** `source-screen-inventory.md:9-57`. Per-team panel × 2 teams × 6 slots:
 
-| Field group | Per slot | Per match |
-|---|---:|---:|
-| `gamemode` (one for both teams) | 1 | 1 |
-| `team_name` × 2 teams | 1 | 2 |
-| Per-slot: `position`, `position_colour`, `player_level`, `gamertag`, `platform`, `is_captain`, `is_cpu_or_empty` (state-invariant) | 7 | 7 × 6 × 2 = 84 |
-| State-1 only: `build_class`, `build_height`, `build_weight`, `x_factor_1/2/3` | 6 | 6 × 5 × 2 = 60 (G is CPU, skip) |
-| State-2 only: `player_number`, `player_name` (persona) | 2 | 2 × 5 × 2 = 20 |
+| Field group                                                                                                                        | Per slot |                       Per match |
+| ---------------------------------------------------------------------------------------------------------------------------------- | -------: | ------------------------------: |
+| `gamemode` (one for both teams)                                                                                                    |        1 |                               1 |
+| `team_name` × 2 teams                                                                                                              |        1 |                               2 |
+| Per-slot: `position`, `position_colour`, `player_level`, `gamertag`, `platform`, `is_captain`, `is_cpu_or_empty` (state-invariant) |        7 |                  7 × 6 × 2 = 84 |
+| State-1 only: `build_class`, `build_height`, `build_weight`, `x_factor_1/2/3`                                                      |        6 | 6 × 5 × 2 = 60 (G is CPU, skip) |
+| State-2 only: `player_number`, `player_name` (persona)                                                                             |        2 |                  2 × 5 × 2 = 20 |
 
 Subtotal lobby: ≈ **3 + 84 + 60 + 20 = 167 fields/match**.
 
 **Player Loadout View.** `source-screen-inventory.md:60-107`. Per slot (10 BGM+opp skaters):
 
-| Field group | Per slot |
-|---|---:|
-| Identity & build: `is_selected`, `player_position`, `player_name_full`, `player_level`, `platform`, `gamertag`, `home_or_away`, `build_class`, `height`, `weight`, `handedness` | 11 |
-| `x_factor_1/2/3` (each carries name + tier — V2 has these as a single hyphenated string but they're 2 fields apiece) | 3 names + 3 tiers = 6 |
-| Attributes (5 groups × 4-5 keys = 23 attrs; each attr has a value 0–99 AND a delta chip; V2 shows the value column only) | 23 values + 23 deltas = 46 |
+| Field group                                                                                                                                                                     |                   Per slot |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------: |
+| Identity & build: `is_selected`, `player_position`, `player_name_full`, `player_level`, `platform`, `gamertag`, `home_or_away`, `build_class`, `height`, `weight`, `handedness` |                         11 |
+| `x_factor_1/2/3` (each carries name + tier — V2 has these as a single hyphenated string but they're 2 fields apiece)                                                            |      3 names + 3 tiers = 6 |
+| Attributes (5 groups × 4-5 keys = 23 attrs; each attr has a value 0–99 AND a delta chip; V2 shows the value column only)                                                        | 23 values + 23 deltas = 46 |
 
 Subtotal loadout: 11 + 6 + 46 = **63 fields/slot × 10 slots = 630 fields/match** when fully captured.
 
@@ -48,6 +48,7 @@ Subtotal loadout: 11 + 6 + 46 = **63 fields/slot × 10 slots = 630 fields/match*
 **Box Score (3 tabs: goals, shots, faceoffs).** `source-screen-inventory.md:190-220`. Each tab: 2 teams × ≥4 periods × 1 stat = 8 cells, plus 2 team labels + 1 tab label + ≥4 period labels. ~15 fields/tab × 3 tabs = **≈ 45 fields/match**.
 
 **Post-Game Events.** `source-screen-inventory.md:222-241`. List screen, scrollable. Per event:
+
 - Goal: 6 fields (period, team_abbr, time, scorer, goal_number, [assist1, assist2])
 - Penalty: 6 fields (period, team_abbr, time, infraction, type, culprit)
 
@@ -61,18 +62,18 @@ Match 250 V2 (`research/OCR-SS/Manual OCR benchmark for verification V2.md:1066-
 
 ### Roll-up
 
-| Screen group | Fields/match | Instances/match (frames needed) |
-|---|---:|---:|
-| Lobby (states 1+2) | ~167 | ≥2 frames (one per state) |
-| Loadout View | ~630 | ≥10 frames (one per slot) |
-| In-Game Clock | ~450 (50 moments × 9) | continuous |
-| In-Game Goal Overlay | ~144 (24 instances × 6) | event-driven |
-| Post-Game Player Summary | ~86 | 1 |
-| Box Score (3 tabs) | ~45 | ≥3 |
-| Post-Game Events | ~35–60 | 1 (may need to scroll) |
-| Action Tracker — list | ~740 | ≥4 (one per period; needs scrolling) |
-| Action Tracker — Faceoff Map | ~152 | ≥4 |
-| Action Tracker — Net Chart | ~100 | ≥4 |
+| Screen group                 |            Fields/match |      Instances/match (frames needed) |
+| ---------------------------- | ----------------------: | -----------------------------------: |
+| Lobby (states 1+2)           |                    ~167 |            ≥2 frames (one per state) |
+| Loadout View                 |                    ~630 |            ≥10 frames (one per slot) |
+| In-Game Clock                |   ~450 (50 moments × 9) |                           continuous |
+| In-Game Goal Overlay         | ~144 (24 instances × 6) |                         event-driven |
+| Post-Game Player Summary     |                     ~86 |                                    1 |
+| Box Score (3 tabs)           |                     ~45 |                                   ≥3 |
+| Post-Game Events             |                  ~35–60 |               1 (may need to scroll) |
+| Action Tracker — list        |                    ~740 | ≥4 (one per period; needs scrolling) |
+| Action Tracker — Faceoff Map |                    ~152 |                                   ≥4 |
+| Action Tracker — Net Chart   |                    ~100 |                                   ≥4 |
 
 **Total: ≈ 2,550 fields/match across ≈ 30–40 distinct frame-views.** This is "the definition of done" — every one of these has to land at ≥98% per-field accuracy without manual review. The current pipeline attempts roughly the post-game subset (≈ 1,800 fields) and is hitting ~92–98% L2 / 84–100% L3.
 
@@ -137,112 +138,115 @@ For each screen in `source-screen-inventory.md`, I classify fields as **captured
 
 ### 3.1 Pre-Game Lobby — `pre_game_lobby_state_1` / `_state_2`
 
-| Field | Status | Parser | Promoter |
-|---|---|---|---|
-| `gamemode` | Captured (>95% on m250/m463) | `parsers.py:396-404` | `pre-game-lobby.ts` does not persist it. **Captured-but-dropped.** |
-| `team_name` (both) | Captured but dropped | `parsers.py:406-422` | `pre-game-lobby.ts` does not write team names. |
-| Per-slot `position` | Captured 100% (anchored on position-label OCR, fallback synthesis at `parsers.py:101-150`) | `parsers.py:209-229` | `pre-game-lobby.ts:75, 92-113` writes `position` |
-| `gamertag` | Captured ≥87% exact, ~100% fuzzy-equivalent (`baseline-2026-05-19.md:65-83`) | `parsers.py:355-385` | `pre-game-lobby.ts:65-69, 94` |
-| `player_level` | Captured | `parsers.py:273-284` | `pre-game-lobby.ts:77, 110-111` |
-| `platform` | **Not attempted** in this parser; field is `null` in pre-game-lobby.ts:112 | — | — |
-| `is_captain` | Captured | `parsers.py:295-301` | `pre-game-lobby.ts:81-83, 99-100` |
-| `is_cpu_or_empty` | Captured | `parsers.py:254-259` | Used to skip insert; not persisted |
-| `build_class` (state 1) | Captured | `parsers.py:323-335` | `pre-game-lobby.ts:78, 106` |
-| `build_height`/`weight` (state 1) | Captured but parsing is regex-fragile | `parsers.py:261-272`, `pre-game-lobby.ts:124-137` | Persists |
-| `x_factor_1/2/3` (state 1) | **Not attempted** in lobby parser (only in Loadout View) | — | — |
-| `player_number` (state 2) | Captured | `parsers.py:304-317` | `pre-game-lobby.ts:99` |
-| `player_name` persona (state 2) | Captured | `parsers.py:309-318` | `pre-game-lobby.ts:98` |
+| Field                             | Status                                                                                     | Parser                                            | Promoter                                                           |
+| --------------------------------- | ------------------------------------------------------------------------------------------ | ------------------------------------------------- | ------------------------------------------------------------------ |
+| `gamemode`                        | Captured (>95% on m250/m463)                                                               | `parsers.py:396-404`                              | `pre-game-lobby.ts` does not persist it. **Captured-but-dropped.** |
+| `team_name` (both)                | Captured but dropped                                                                       | `parsers.py:406-422`                              | `pre-game-lobby.ts` does not write team names.                     |
+| Per-slot `position`               | Captured 100% (anchored on position-label OCR, fallback synthesis at `parsers.py:101-150`) | `parsers.py:209-229`                              | `pre-game-lobby.ts:75, 92-113` writes `position`                   |
+| `gamertag`                        | Captured ≥87% exact, ~100% fuzzy-equivalent (`baseline-2026-05-19.md:65-83`)               | `parsers.py:355-385`                              | `pre-game-lobby.ts:65-69, 94`                                      |
+| `player_level`                    | Captured                                                                                   | `parsers.py:273-284`                              | `pre-game-lobby.ts:77, 110-111`                                    |
+| `platform`                        | **Not attempted** in this parser; field is `null` in pre-game-lobby.ts:112                 | —                                                 | —                                                                  |
+| `is_captain`                      | Captured                                                                                   | `parsers.py:295-301`                              | `pre-game-lobby.ts:81-83, 99-100`                                  |
+| `is_cpu_or_empty`                 | Captured                                                                                   | `parsers.py:254-259`                              | Used to skip insert; not persisted                                 |
+| `build_class` (state 1)           | Captured                                                                                   | `parsers.py:323-335`                              | `pre-game-lobby.ts:78, 106`                                        |
+| `build_height`/`weight` (state 1) | Captured but parsing is regex-fragile                                                      | `parsers.py:261-272`, `pre-game-lobby.ts:124-137` | Persists                                                           |
+| `x_factor_1/2/3` (state 1)        | **Not attempted** in lobby parser (only in Loadout View)                                   | —                                                 | —                                                                  |
+| `player_number` (state 2)         | Captured                                                                                   | `parsers.py:304-317`                              | `pre-game-lobby.ts:99`                                             |
+| `player_name` persona (state 2)   | Captured                                                                                   | `parsers.py:309-318`                              | `pre-game-lobby.ts:98`                                             |
 
 Lobby net coverage: **~75% of inventory fields**, but team names + X-factors are dropped. X-factors live on loadout view only and only there are they read. Lobby state-1 x-factors are visible but the lobby parser ignores them.
 
 ### 3.2 Player Loadout View — `player_loadout_view`
 
-| Field | Status | Where |
-|---|---|---|
-| `player_position`, `player_number`, `player_name_full`, `is_captain` | Captured | `parsers.py:541-625`, promoted at `loadout.ts:73-104` |
-| `gamertag` | Captured | `parsers.py:911-919` |
-| `player_level` | Captured | `parsers.py:1013-1032` |
-| `platform` | **Not attempted by parser.** Always MISSING (`parsers.py:1049`). Whitelisted to `null` in `loadout.ts:266-280`. |
-| `build_class` | Captured | `parsers.py:903-909` |
-| `height` / `weight` / `handedness` | Captured | `parsers.py:628-667` |
-| `ap_used`/`ap_total` | Captured | `parsers.py:988-1008` |
-| `x_factor_1/2/3` name | Captured (text + icon template match) | `parsers.py:925-968` |
-| `x_factor_1/2/3` tier | Captured (HSV) | `_classify_xfactor_tier` `parsers.py:473-503` |
-| 23 attributes × {value, delta} | Captured | `parsers.py:670-708` + `_rescan_delta_chip` |
+| Field                                                                | Status                                                                                                          | Where                                                 |
+| -------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------- |
+| `player_position`, `player_number`, `player_name_full`, `is_captain` | Captured                                                                                                        | `parsers.py:541-625`, promoted at `loadout.ts:73-104` |
+| `gamertag`                                                           | Captured                                                                                                        | `parsers.py:911-919`                                  |
+| `player_level`                                                       | Captured                                                                                                        | `parsers.py:1013-1032`                                |
+| `platform`                                                           | **Not attempted by parser.** Always MISSING (`parsers.py:1049`). Whitelisted to `null` in `loadout.ts:266-280`. |
+| `build_class`                                                        | Captured                                                                                                        | `parsers.py:903-909`                                  |
+| `height` / `weight` / `handedness`                                   | Captured                                                                                                        | `parsers.py:628-667`                                  |
+| `ap_used`/`ap_total`                                                 | Captured                                                                                                        | `parsers.py:988-1008`                                 |
+| `x_factor_1/2/3` name                                                | Captured (text + icon template match)                                                                           | `parsers.py:925-968`                                  |
+| `x_factor_1/2/3` tier                                                | Captured (HSV)                                                                                                  | `_classify_xfactor_tier` `parsers.py:473-503`         |
+| 23 attributes × {value, delta}                                       | Captured                                                                                                        | `parsers.py:670-708` + `_rescan_delta_chip`           |
 
 **Caveat: capture-rate is the bottleneck, not parse-rate.** On match 463 the loadout parser is 100% accurate on the one slot it sees (HenryTheBobJr) and 0% on the other 9 because they're never even segmented (`baseline-2026-05-19.md:38-48`, `redesign-scope-2026-05-19.md:31-33`). This is an L1 failure not an L2 failure.
 
 ### 3.3 In-Game Clock and Goal Overlays — `in_game_clock`, `in_game_goal_state_1/2`
 
 **Not attempted at all.** OcrScreenType has the enum values (`packages/db/src/schema/ocr-pipeline.ts:25-27`) but:
+
 - No classifier centroid in `tools/game_ocr/game_ocr/configs/classifier/nhl26.yaml`
 - No `ScreenDefinition` in `tools/game_ocr/game_ocr/extractor.py:37-93`
 - No `parse_in_game_*` function in `tools/game_ocr/game_ocr/parsers.py`
 - No promoter entry in `apps/worker/src/ocr-promoters/index.ts:40-52`
 - No row in `_test_match-250-benchmark.test.ts`
 
-This is the biggest gap vs. the V2 inventory. The clock/goal overlay would feed period_number determination (current pipeline uses *folder names* in `apps/worker/src/ocr-promoters/resolve-period.ts` and the inventory consensus matcher's `period_from_path()` at `inventory_consensus_match.py:183-201` — both fail closed when the operator hasn't labelled paths) and would give us scoring authority that doesn't depend on the post-game events/AT screens.
+This is the biggest gap vs. the V2 inventory. The clock/goal overlay would feed period_number determination (current pipeline uses _folder names_ in `apps/worker/src/ocr-promoters/resolve-period.ts` and the inventory consensus matcher's `period_from_path()` at `inventory_consensus_match.py:183-201` — both fail closed when the operator hasn't labelled paths) and would give us scoring authority that doesn't depend on the post-game events/AT screens.
 
 ### 3.4 Post-Game Player Summary — `post_game_player_summary`
 
-| Field | Status |
-|---|---|
+| Field                                  | Status                                                                                                                     |
+| -------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
 | Team labels + final scores (away/home) | Captured but de-prioritised — the promoter is a no-op (`apps/worker/src/ocr-promoters/post-game-player-summary.ts:16-19`). |
-| Per-player rows | Captured by `build_player_record` (`parsers.py:1066-1091`), **never persisted** because EA API has the same data. |
+| Per-player rows                        | Captured by `build_player_record` (`parsers.py:1066-1091`), **never persisted** because EA API has the same data.          |
 
 This is the only screen where the promoter is intentionally a no-op. Fine in isolation, but it's the second example (after team names in the lobby) of "captured but dropped". The redesign's authority-model story has to either declare these fields out of scope or commit to writing them somewhere.
 
 ### 3.5 Box Score (3 tabs)
 
-| Field | Status |
-|---|---|
-| `period` × {`away_value`, `home_value`} for each of `goals`, `shots`, `faceoffs` | Captured | `parsers.py:1254-1356` + `box-score.ts:52-103` |
-| Per-period TOT (summed) | Captured, with sanity-check warnings on mismatch (`parsers.py:1319-1345`) |
-| `stat_kind` discrimination | **Anti-feature.** The classifier has only `post_game_box_score_goals` as a class (`tools/game_ocr/game_ocr/configs/classifier/nhl26.yaml:153`). The `post_game_box_score_shots` and `post_game_box_score_faceoffs` parser entries (`extractor.py:63-71`) exist but are unreachable through video ingest — the dispatch (`tools/video_ingest/video_ingest/dispatch.py:82,94,108`) uses `segment.screen_type` which is whatever Pass-1 classified the segment as. **All three box-score tabs in a video recording are classified as `post_game_box_score_goals` and only the goals parser runs on them.** This means box-score-shots and box-score-faceoffs are currently **unreachable from video ingest** and depend entirely on manual-screenshot ingest with explicit screen-type override at `ingest-ocr-cli` time.
+| Field                                                                            | Status                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| -------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------- |
+| `period` × {`away_value`, `home_value`} for each of `goals`, `shots`, `faceoffs` | Captured                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               | `parsers.py:1254-1356` + `box-score.ts:52-103` |
+| Per-period TOT (summed)                                                          | Captured, with sanity-check warnings on mismatch (`parsers.py:1319-1345`)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| `stat_kind` discrimination                                                       | **Anti-feature.** The classifier has only `post_game_box_score_goals` as a class (`tools/game_ocr/game_ocr/configs/classifier/nhl26.yaml:153`). The `post_game_box_score_shots` and `post_game_box_score_faceoffs` parser entries (`extractor.py:63-71`) exist but are unreachable through video ingest — the dispatch (`tools/video_ingest/video_ingest/dispatch.py:82,94,108`) uses `segment.screen_type` which is whatever Pass-1 classified the segment as. **All three box-score tabs in a video recording are classified as `post_game_box_score_goals` and only the goals parser runs on them.** This means box-score-shots and box-score-faceoffs are currently **unreachable from video ingest** and depend entirely on manual-screenshot ingest with explicit screen-type override at `ingest-ocr-cli` time. |
 
 ### 3.6 Post-Game Events
 
-| Field | Status |
-|---|---|
-| Per-event `period_label`, `team_abbr`, `clock`, `event_type` | Captured | `parsers.py:2052-2293`, `events.ts:103-205` |
-| Goal `scorer`, `goal_number_in_game`, `assist1`, `assist2` | Captured | `parsers.py:2128-2173`, `events.ts:210-246` |
-| Penalty `culprit`, `infraction`, `type`, `minutes` | Captured (NHL-26 bracketed format added Phase 5c, `parsers.py:2042-2049`) |
-| Cross-screen dedup w/ Action Tracker | Implemented at `events.ts:148-176`, `match-events-dedup.ts:52-105` |
+| Field                                                        | Status                                                                    |
+| ------------------------------------------------------------ | ------------------------------------------------------------------------- | ------------------------------------------- |
+| Per-event `period_label`, `team_abbr`, `clock`, `event_type` | Captured                                                                  | `parsers.py:2052-2293`, `events.ts:103-205` |
+| Goal `scorer`, `goal_number_in_game`, `assist1`, `assist2`   | Captured                                                                  | `parsers.py:2128-2173`, `events.ts:210-246` |
+| Penalty `culprit`, `infraction`, `type`, `minutes`           | Captured (NHL-26 bracketed format added Phase 5c, `parsers.py:2042-2049`) |
+| Cross-screen dedup w/ Action Tracker                         | Implemented at `events.ts:148-176`, `match-events-dedup.ts:52-105`        |
 
 Failure modes ≥10%:
+
 - "remaining" → "elapsed" clock conversion (`events.ts:69-83`) drops any malformed clock without a fallback. Match 463 lost ~5 penalties pre-Phase-5c (`baseline-2026-05-19.md:95`).
 - Ornament prefix stripping `_strip_ornament` (`parsers.py:2101-2103`) handles `-.` but Match 250 V2 has `-, SIlky` (line 1071) with a comma not a period — actor parsing fails on this on m250 OT goal events.
 
 ### 3.7 Post-Game Action Tracker — list panel
 
-| Field | Status |
-|---|---|
-| Per-event `actor`, `target`, `relation`, `event_type`, `clock` | Captured | `parsers.py:2372-2493`, `action-tracker.ts:97-237` |
-| `selected_event_index` + `selected_event_x/y/zone` | Captured | `parsers.py:2495-2568`, `action-tracker.ts:246-309` |
-| `detected_markers` (all colored markers on the rink) | Captured | `parsers.py:2530-2546` |
-| Cross-screen dedup w/ events | `match-events-dedup.ts:52-105` |
-| Team color trapezoid sampling | Captured | `parsers.py:2576-2598` |
+| Field                                                          | Status                         |
+| -------------------------------------------------------------- | ------------------------------ | --------------------------------------------------- |
+| Per-event `actor`, `target`, `relation`, `event_type`, `clock` | Captured                       | `parsers.py:2372-2493`, `action-tracker.ts:97-237`  |
+| `selected_event_index` + `selected_event_x/y/zone`             | Captured                       | `parsers.py:2495-2568`, `action-tracker.ts:246-309` |
+| `detected_markers` (all colored markers on the rink)           | Captured                       | `parsers.py:2530-2546`                              |
+| Cross-screen dedup w/ events                                   | `match-events-dedup.ts:52-105` |
+| Team color trapezoid sampling                                  | Captured                       | `parsers.py:2576-2598`                              |
 
 Failure modes ≥10%:
-- 11–13 wrong-actor/target attributions per match pre-Phase-5a (`baseline-2026-05-19.md:96-97`). Mostly fixed by `display_aliases` rows but the *mechanism* is stale alias leak (Class G), not OCR.
+
+- 11–13 wrong-actor/target attributions per match pre-Phase-5a (`baseline-2026-05-19.md:96-97`). Mostly fixed by `display_aliases` rows but the _mechanism_ is stale alias leak (Class G), not OCR.
 - Penalty rows from Action Tracker carry no infraction text (`action-tracker.ts:217-235`); the row is inserted with infraction='(unknown)' awaiting Events-screen merge. ~5/match.
 - `event_type='unknown'` on 5–10% of rows; recovered by `inferEventTypeFromRawText` regex (`action-tracker.ts:53-67`).
 
 ### 3.8 Faceoff Map
 
-| Field | Status |
-|---|---|
+| Field                                                                                                             | Status   |
+| ----------------------------------------------------------------------------------------------------------------- | -------- | ----------------------------------------------- |
 | `period_label`, `away_label`/`home_label`, `overall_win_pct`, `offensive_zone_w/t`, `defensive_zone_w/t` per side | Captured | `parsers.py:1866-1983`, `faceoff-map.ts:81-118` |
-| 9 dot W/L per period | Captured | `parsers.py:1943-1983` |
+| 9 dot W/L per period                                                                                              | Captured | `parsers.py:1943-1983`                          |
 
 Failure modes: single-digit dot readings rely on a lookalike-to-digit translation table (`parsers.py:1805-1812`) including CJK characters because RapidOCR's default model is multilingual. Net failure rate on single dots is low for m250 but unverified on m463 (no V2).
 
 ### 3.9 Net Chart
 
-| Field | Status |
-|---|---|
-| 7 stat-rows × {away, home} | Captured with per-cell ROI override on disagreement (`parsers.py:1629-1647`) |
-| Game-total shots from score-strip header | Captured | `parsers.py:1654-1663` |
+| Field                                            | Status                                                                                           |
+| ------------------------------------------------ | ------------------------------------------------------------------------------------------------ | ------------------------------------------------------------- |
+| 7 stat-rows × {away, home}                       | Captured with per-cell ROI override on disagreement (`parsers.py:1629-1647`)                     |
+| Game-total shots from score-strip header         | Captured                                                                                         | `parsers.py:1654-1663`                                        |
 | Per-period x/y shot locations on the net diagram | **Not attempted.** Net Chart's net diagram has shot dots; nothing parses them. V2 shows empty `X | Y` columns (lines 951-956) — even V2's manual key didn't try. |
 
 Open L3 gap: 6/8 rows for `match_shot_type_summaries` on match 463 (`baseline-2026-05-19.md:103` defect #9). The 2 missing rows are P3-period rows the operator never navigated to.
@@ -320,6 +324,7 @@ Catch: this doesn't solve loadout-card capture rate. Even a perfect classifier w
 **Gain:** EA Pro Clubs API gives you authoritative per-match player stats keyed by `gamertag` (the `name` field — `apps/worker/src/ingest-members.ts:42-103`). Goals, assists, hits, shots, PIM, TOI, faceoff-w/l per player are all in EA payload (`packages/db/src/schema/player-match-stats.ts:42-105`). For the BGM side every player exists in `players`; that's why `resolveGamertagToPlayer` succeeds 97-98% on BGM-side events.
 
 If you treat EA API as canonical for the metrics it has, OCR's job shrinks to the screens EA doesn't cover:
+
 - **Loadouts** (build_class, x_factors, attributes) — not in EA API. OCR-only.
 - **Action Tracker spatial** (rink x/y coords) — not in EA API. OCR-only.
 - **Faceoff Dot Map** (per-dot W/L breakdown) — not in EA API. OCR-only.
@@ -327,13 +332,13 @@ If you treat EA API as canonical for the metrics it has, OCR's job shrinks to th
 - **Period-by-period stats** — not in EA API at the period level. OCR-only.
 - **Opponent identity** — partially OCR (the opponent gamertags ARE captured by EA but only as `opponent_player_match_stats` keyed by `ea_player_id` — `packages/db/src/schema/opponent-player-match-stats.ts`). Cross-link to OCR personas is non-trivial.
 
-**Cost:** EA API is the *only* source for per-player base stats. If it's down or rate-limited or schema-drifts on NHL 27, every match ingests with empty stats. The current pipeline already has this dependency via `apps/worker/src/ingest.ts`, so it's not a new risk.
+**Cost:** EA API is the _only_ source for per-player base stats. If it's down or rate-limited or schema-drifts on NHL 27, every match ingests with empty stats. The current pipeline already has this dependency via `apps/worker/src/ingest.ts`, so it's not a new risk.
 
 **Needs:** an explicit authority-model document. Currently the schema's `EnrichmentSource = 'ea' | 'ocr' | 'manual'` (`packages/db/src/schema/match-enrichments.ts:15`) implies the design already understands this. The redesign should make it explicit which fields are EA-authoritative and which are OCR-authoritative.
 
 **Migration:** stop OCR-promoting player_match_stats fields (Player Summary screen is already a no-op — good). Add explicit "OCR is not authoritative for goals/assists per player" to the design.
 
-**Honest take:** **this is the highest-leverage architectural move.** It shrinks the OCR success criterion from "extract 2,550 fields/match at 98%" to "extract ~1,000 OCR-unique fields/match at 98%". The 1,000 that remain are the *hard* fields (spatial, attributes, dots, shot-type) but at least the budget shrinks and the EA-redundant work goes away.
+**Honest take:** **this is the highest-leverage architectural move.** It shrinks the OCR success criterion from "extract 2,550 fields/match at 98%" to "extract ~1,000 OCR-unique fields/match at 98%". The 1,000 that remain are the _hard_ fields (spatial, attributes, dots, shot-type) but at least the budget shrinks and the EA-redundant work goes away.
 
 ### 4.7 Hybrid (recommended for synthesis)
 
@@ -356,7 +361,7 @@ Estimate from the V2 file itself (`research/OCR-SS/Manual OCR benchmark for veri
 
 A defensible truth system needs three tiers:
 
-**Tier 1 — EA-API-derived truth (free per match, no human time).** Every field that's in `player_match_stats` becomes a verifier assertion automatically: per-match goals/assists totals must match, shots per player must match, faceoff-win/loss per player must match. This validates the *event aggregates* without keying individual events. The EA `aggregates.json`-derived expected values are already in `match-quality-cli.ts:97-138`. Generalise this.
+**Tier 1 — EA-API-derived truth (free per match, no human time).** Every field that's in `player_match_stats` becomes a verifier assertion automatically: per-match goals/assists totals must match, shots per player must match, faceoff-win/loss per player must match. This validates the _event aggregates_ without keying individual events. The EA `aggregates.json`-derived expected values are already in `match-quality-cli.ts:97-138`. Generalise this.
 
 **Tier 2 — V2-full for the canonical pilot, once (match 250).** Hand-key the rest of match 250's V2 into runnable assertions: every Action Tracker event (3 periods × ~30 events = ~90 rows), every faceoff dot per period (~72 cells), every net-chart cell (~56 cells), every event (7 goals), every box score (~30 cells). Roughly 300 assertions to add. **Yes, this should happen before any redesign work**, because without it you can't tell whether a redesign regressed something subtle. Cost: 4–6 hours of careful keying.
 
@@ -431,11 +436,11 @@ The codebase repeatedly demonstrates that 0.93–0.99 confidence still produces 
 
 ### 7.7 Cross-screen dedup happens at the wrong layer
 
-`match-events-dedup.ts` is in the promoter layer. The dedup decision uses {match, period, type, clock, actor} as the key, with Levenshtein-1 fallback. But by the time the dedup runs, the *Action Tracker* row may already have spatial (x,y), while the *Events* row is still being inserted — and the spatial UPDATE separately runs at `action-tracker.ts:246-309`. This means: an Events-screen capture processed AFTER the matching Action Tracker capture overwrites the Action Tracker's team_side and team_abbreviation but the spatial UPDATE may attribute to the wrong row when scrolling/sorting changes ordering. The architecture is "OCR is fact, dedup merges later" but the dedup logic is buried in two promoter files and depends on insertion order.
+`match-events-dedup.ts` is in the promoter layer. The dedup decision uses {match, period, type, clock, actor} as the key, with Levenshtein-1 fallback. But by the time the dedup runs, the _Action Tracker_ row may already have spatial (x,y), while the _Events_ row is still being inserted — and the spatial UPDATE separately runs at `action-tracker.ts:246-309`. This means: an Events-screen capture processed AFTER the matching Action Tracker capture overwrites the Action Tracker's team_side and team_abbreviation but the spatial UPDATE may attribute to the wrong row when scrolling/sorting changes ordering. The architecture is "OCR is fact, dedup merges later" but the dedup logic is buried in two promoter files and depends on insertion order.
 
 ### 7.8 Single-prototype HSV centroid is calibrated from ONE png per class
 
-This is in `baseline-2026-05-19.md:119` as Q3 ("Is averaged HSV histogram appropriate for visually-multimodal classes (10 different loadout cards with different player photos)?"). Confirmed by inspecting the YAML (each class has one centroid array). It is *not* appropriate. This is the single biggest L1 reliability bug.
+This is in `baseline-2026-05-19.md:119` as Q3 ("Is averaged HSV histogram appropriate for visually-multimodal classes (10 different loadout cards with different player photos)?"). Confirmed by inspecting the YAML (each class has one centroid array). It is _not_ appropriate. This is the single biggest L1 reliability bug.
 
 ## 8. What I would NOT do at this volume
 

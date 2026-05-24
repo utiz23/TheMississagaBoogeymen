@@ -14,10 +14,7 @@
  */
 
 import { sql } from '@eanhl/db'
-import {
-  getFieldEvidenceForLoadoutSlot,
-  getLoadoutPromotionsForMatch,
-} from '@eanhl/db/queries'
+import { getFieldEvidenceForLoadoutSlot, getLoadoutPromotionsForMatch } from '@eanhl/db/queries'
 import { getExpectedSlotsForMatch } from '@eanhl/db/queries'
 
 interface CliArgs {
@@ -78,7 +75,9 @@ async function main(): Promise<void> {
   }
 
   if (evidence.length === 0) {
-    console.log('Field evidence: 0 rows (no player_loadout_view evidence — typed_v1 promoter not yet run for this match)\n')
+    console.log(
+      'Field evidence: 0 rows (no player_loadout_view evidence — typed_v1 promoter not yet run for this match)\n',
+    )
   } else {
     console.log(`Field evidence: ${evidence.length} rows across ${bySlot.size} slot key(s)\n`)
   }
@@ -101,10 +100,18 @@ async function main(): Promise<void> {
     }
     console.log(`Promotions: ${promotions.length} decisions`)
     console.log(`  ${pad('promoted', 24)} ${pad(promotionCounts.promoted, 6, 'r')}`)
-    console.log(`  ${pad('blocked_consensus', 24)} ${pad(promotionCounts.blocked_consensus, 6, 'r')}`)
-    console.log(`  ${pad('blocked_observability', 24)} ${pad(promotionCounts.blocked_observability, 6, 'r')}`)
-    console.log(`  ${pad('blocked_invariant', 24)} ${pad(promotionCounts.blocked_invariant, 6, 'r')}`)
-    console.log(`  ${pad('blocked_authority', 24)} ${pad(promotionCounts.blocked_authority, 6, 'r')}`)
+    console.log(
+      `  ${pad('blocked_consensus', 24)} ${pad(promotionCounts.blocked_consensus, 6, 'r')}`,
+    )
+    console.log(
+      `  ${pad('blocked_observability', 24)} ${pad(promotionCounts.blocked_observability, 6, 'r')}`,
+    )
+    console.log(
+      `  ${pad('blocked_invariant', 24)} ${pad(promotionCounts.blocked_invariant, 6, 'r')}`,
+    )
+    console.log(
+      `  ${pad('blocked_authority', 24)} ${pad(promotionCounts.blocked_authority, 6, 'r')}`,
+    )
     console.log()
   }
 
@@ -131,7 +138,9 @@ async function main(): Promise<void> {
         fieldsByKey.get(k)!.push(r)
       }
 
-      console.log(`  ${slotKey ?? '<no slot>'}: ${fieldsByKey.size} field(s), ${rows.length} candidate(s)`)
+      console.log(
+        `  ${slotKey ?? '<no slot>'}: ${fieldsByKey.size} field(s), ${rows.length} candidate(s)`,
+      )
 
       if (args.verbose) {
         // Sample: top candidate (rank 0) per field, sorted by field key
@@ -144,9 +153,7 @@ async function main(): Promise<void> {
           if (top === undefined) continue
           const valueStr = JSON.stringify(top.candidateValue)
           const conf = top.rawConfidence !== null ? Number(top.rawConfidence).toFixed(4) : '-'
-          console.log(
-            `    ${pad(fieldKey, 40)} ${pad(valueStr.slice(0, 30), 32)} conf=${conf}`,
-          )
+          console.log(`    ${pad(fieldKey, 40)} ${pad(valueStr.slice(0, 30), 32)} conf=${conf}`)
         }
       }
       console.log()
@@ -157,9 +164,7 @@ async function main(): Promise<void> {
   const blocked = promotions.filter((p) => p.promotionStatus !== 'promoted')
   if (blocked.length > 0) {
     console.log(`Blocked promotions (${blocked.length}):\n`)
-    console.log(
-      `  ${pad('status', 24)} ${pad('field_key', 28)} ${pad('semantic_key', 50)} reason`,
-    )
+    console.log(`  ${pad('status', 24)} ${pad('field_key', 28)} ${pad('semantic_key', 50)} reason`)
     console.log(`  ${'-'.repeat(24)} ${'-'.repeat(28)} ${'-'.repeat(50)} ${'-'.repeat(20)}`)
     for (const b of blocked.slice(0, 50)) {
       const key = b.targetSemanticKey !== null ? JSON.stringify(b.targetSemanticKey) : '-'

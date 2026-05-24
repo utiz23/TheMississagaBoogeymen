@@ -14,17 +14,18 @@
 
 A pre-implementation audit of the morning's Three Stars revamp ([commit `fa67d7b`](https://github.com/eanhl/repo)) found that **3 of the 7 UI-review items called out in the review are already resolved or out-of-scope-for-polish**:
 
-| UI review § | Item | Status |
-|---|---|---|
-| §1 #2 | Rank-3 score too dim | **In scope** (Task 1) |
-| §1 #1 | Rank-3 missing season-delta placeholder | **In scope** (Task 2) |
-| §1 #3 | Off-stars (`☆`) too dim | **In scope** (Task 3) |
-| §1 #11 | Show-All ranks 2/3 lack medal tint | **In scope** (Task 4) |
-| §1 #4 | Archetype pill legend | **Resolved** — `ArchetypePillCompact` already has `title=` hover tooltip with `${meta.category} · ${meta.descriptor}` (doc fix Task 5) |
-| §1 #14 | `+/−` Unicode hyphen mismatch | **Resolved** — both card and table now use Unicode minus U+2212 (doc fix Task 5) |
-| §1 #16 | Mobile carousel for medal cards | **Deferred** — substantive feature work (swipe-snap component + responsive logic + a11y), not single-task polish |
+| UI review § | Item                                    | Status                                                                                                                                 |
+| ----------- | --------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| §1 #2       | Rank-3 score too dim                    | **In scope** (Task 1)                                                                                                                  |
+| §1 #1       | Rank-3 missing season-delta placeholder | **In scope** (Task 2)                                                                                                                  |
+| §1 #3       | Off-stars (`☆`) too dim                 | **In scope** (Task 3)                                                                                                                  |
+| §1 #11      | Show-All ranks 2/3 lack medal tint      | **In scope** (Task 4)                                                                                                                  |
+| §1 #4       | Archetype pill legend                   | **Resolved** — `ArchetypePillCompact` already has `title=` hover tooltip with `${meta.category} · ${meta.descriptor}` (doc fix Task 5) |
+| §1 #14      | `+/−` Unicode hyphen mismatch           | **Resolved** — both card and table now use Unicode minus U+2212 (doc fix Task 5)                                                       |
+| §1 #16      | Mobile carousel for medal cards         | **Deferred** — substantive feature work (swipe-snap component + responsive logic + a11y), not single-task polish                       |
 
 User decisions (2026-05-17):
+
 - **Item 3 (off-stars):** drop entirely → `★★★ / ★★ / ★` (cleanest medal-podium pattern; star count alone signals rank)
 - **Item 4 (Show-All tints):** graduated accent — rank 1 = `bg-accent/[0.06]` (current), rank 2 = `bg-accent/[0.03]`, rank 3 = `bg-accent/[0.015]` (heatmap echoing the cards above)
 
@@ -34,13 +35,13 @@ Intended outcome: Top Performers becomes the page's cleanest medal-podium surfac
 
 ## File Map
 
-| Touched in | File | Why |
-|---|---|---|
-| Task 1 | `apps/web/src/components/matches/star-card.tsx` | Rank-3 score `text-fg-2` → `text-fg-1` (line 208) |
-| Task 2 | `apps/web/src/components/matches/star-card.tsx` | Add `— no season data` placeholder when `vsSeasonAvg === null` (lines 220-234) |
-| Task 3 | `apps/web/src/components/matches/star-card.tsx` | Drop `off: '☆'` / `off: '☆☆'` from `RANK_STARS` (lines 16-20) |
-| Task 4 | `apps/web/src/components/matches/show-all-player-scores.tsx` | Graduated row tints for ranks 1-3 (line 143) |
-| Task 5 | `docs/reviews/Match-ID-UI-UX-Review.md` | Mark UI review §1 #4 + §1 #14 Resolved |
+| Touched in | File                                                         | Why                                                                            |
+| ---------- | ------------------------------------------------------------ | ------------------------------------------------------------------------------ |
+| Task 1     | `apps/web/src/components/matches/star-card.tsx`              | Rank-3 score `text-fg-2` → `text-fg-1` (line 208)                              |
+| Task 2     | `apps/web/src/components/matches/star-card.tsx`              | Add `— no season data` placeholder when `vsSeasonAvg === null` (lines 220-234) |
+| Task 3     | `apps/web/src/components/matches/star-card.tsx`              | Drop `off: '☆'` / `off: '☆☆'` from `RANK_STARS` (lines 16-20)                  |
+| Task 4     | `apps/web/src/components/matches/show-all-player-scores.tsx` | Graduated row tints for ranks 1-3 (line 143)                                   |
+| Task 5     | `docs/reviews/Match-ID-UI-UX-Review.md`                      | Mark UI review §1 #4 + §1 #14 Resolved                                         |
 
 Five commits. Tasks 1-3 all touch `star-card.tsx`; line-disjoint. Task 4 is `show-all-player-scores.tsx`. Task 5 is doc-only.
 
@@ -49,6 +50,7 @@ Five commits. Tasks 1-3 all touch `star-card.tsx`; line-disjoint. Task 4 is `sho
 ### Task 1: Rank-3 score brightness — `text-fg-2` → `text-fg-1`
 
 **Files:**
+
 - Modify: `apps/web/src/components/matches/star-card.tsx` (lines 203-208 — `scoreCls`)
 
 - [ ] **Step 1: Bump rank-3 score color**
@@ -116,6 +118,7 @@ EOF
 ### Task 2: Rank-3 season-delta placeholder
 
 **Files:**
+
 - Modify: `apps/web/src/components/matches/star-card.tsx` (lines 220-234 — `vsSeasonAvg` render)
 
 - [ ] **Step 1: Replace the null-collapse with a faint placeholder**
@@ -123,45 +126,49 @@ EOF
 The current render at lines 220-234:
 
 ```tsx
-{performer.vsSeasonAvg !== null ? (
-  <span className="font-condensed text-[10px] font-bold tabular-nums tracking-[0.12em] text-fg-4">
-    <span
-      className={
-        performer.vsSeasonAvg >= 0
-          ? 'font-extrabold text-emerald-400'
-          : 'font-extrabold text-rose-400'
-      }
-    >
-      {performer.vsSeasonAvg >= 0 ? '+' : ''}
-      {performer.vsSeasonAvg.toFixed(1)}
-    </span>{' '}
-    vs season avg
-  </span>
-) : null}
+{
+  performer.vsSeasonAvg !== null ? (
+    <span className="font-condensed text-[10px] font-bold tabular-nums tracking-[0.12em] text-fg-4">
+      <span
+        className={
+          performer.vsSeasonAvg >= 0
+            ? 'font-extrabold text-emerald-400'
+            : 'font-extrabold text-rose-400'
+        }
+      >
+        {performer.vsSeasonAvg >= 0 ? '+' : ''}
+        {performer.vsSeasonAvg.toFixed(1)}
+      </span>{' '}
+      vs season avg
+    </span>
+  ) : null
+}
 ```
 
 When `vsSeasonAvg === null` (e.g., SHADOWASSAULT20 — no season data on file), the slot collapses entirely and the card's score block sits lopsided next to ranks 1-2. Replace with (always render a span at the same line height; show placeholder text when null):
 
 ```tsx
-{performer.vsSeasonAvg !== null ? (
-  <span className="font-condensed text-[10px] font-bold tabular-nums tracking-[0.12em] text-fg-4">
-    <span
-      className={
-        performer.vsSeasonAvg >= 0
-          ? 'font-extrabold text-emerald-400'
-          : 'font-extrabold text-rose-400'
-      }
-    >
-      {performer.vsSeasonAvg >= 0 ? '+' : ''}
-      {performer.vsSeasonAvg.toFixed(1)}
-    </span>{' '}
-    vs season avg
-  </span>
-) : (
-  <span className="font-condensed text-[10px] font-bold tracking-[0.12em] text-fg-6 italic">
-    — no season data
-  </span>
-)}
+{
+  performer.vsSeasonAvg !== null ? (
+    <span className="font-condensed text-[10px] font-bold tabular-nums tracking-[0.12em] text-fg-4">
+      <span
+        className={
+          performer.vsSeasonAvg >= 0
+            ? 'font-extrabold text-emerald-400'
+            : 'font-extrabold text-rose-400'
+        }
+      >
+        {performer.vsSeasonAvg >= 0 ? '+' : ''}
+        {performer.vsSeasonAvg.toFixed(1)}
+      </span>{' '}
+      vs season avg
+    </span>
+  ) : (
+    <span className="font-condensed text-[10px] font-bold tracking-[0.12em] text-fg-6 italic">
+      — no season data
+    </span>
+  )
+}
 ```
 
 The placeholder uses `text-fg-6` (the dimmest foreground token) + italic so it visually recedes — readers know the slot is "empty by design" not "we forgot to render".
@@ -205,6 +212,7 @@ EOF
 ### Task 3: Drop off-stars for clean medal-podium look
 
 **Files:**
+
 - Modify: `apps/web/src/components/matches/star-card.tsx` (lines 16-20 — `RANK_STARS`)
 
 - [ ] **Step 1: Remove the `off` glyphs from the rank map**
@@ -241,6 +249,7 @@ Expected: 0 errors. (`as const` ensures the empty strings type-check identically
 - [ ] **Step 3: Manual browser verification**
 
 Navigate to `/games/250`. Top Performers cards should now show:
+
 - Rank 1 (FIRST STAR) — `★★★` solid accent red
 - Rank 2 (SECOND STAR) — `★★` (no dim `☆` after)
 - Rank 3 (THIRD STAR) — `★` (no dim `☆☆` after)
@@ -277,6 +286,7 @@ EOF
 ### Task 4: Show-All row tints — graduated accent
 
 **Files:**
+
 - Modify: `apps/web/src/components/matches/show-all-player-scores.tsx` (line 143 — `rowBg`)
 
 - [ ] **Step 1: Replace the single rank-1 tint with a 3-rank gradient**
@@ -348,9 +358,11 @@ EOF
 ### Task 5: Mark UI review §1 #4 + §1 #14 Resolved
 
 **Files:**
+
 - Modify: `docs/reviews/Match-ID-UI-UX-Review.md` (§1 issue #4 body + #14 body + suggested-next-moves table rows)
 
 **Why this task:** Pre-implementation audit found that two §1 items don't need any code work:
+
 - **#4 (Archetype pill legend):** `ArchetypePillCompact` already has a `title=` hover tooltip carrying `${meta.category} · ${meta.descriptor}` (e.g., "Forward · Vision · Distribution" for PLY). The UI review's "no key" framing is stale — there IS a key, it's just a tooltip rather than a persistent legend.
 - **#14 (`+/−` Unicode mismatch):** Both card and table surfaces now use Unicode minus U+2212. Some commit between the review's writing and today silently fixed this.
 

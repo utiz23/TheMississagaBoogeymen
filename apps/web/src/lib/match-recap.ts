@@ -304,10 +304,7 @@ export function applyLoadoutOverrides<
     jerseyNumber?: number | null
     archetype?: PlayerArchetype | null
   },
->(
-  rows: T[],
-  lineupRows: LineupRow[],
-): T[] {
+>(rows: T[], lineupRows: LineupRow[]): T[] {
   if (lineupRows.length === 0) return rows
   const byPlayerId = new Map<number, LineupRow>()
   const byGamertag = new Map<string, LineupRow>()

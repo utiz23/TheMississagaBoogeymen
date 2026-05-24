@@ -14,18 +14,19 @@
 
 Today's morning Scoresheet polish sweep (commits `0a0546d` → `6cbe153`) landed the CRITICAL fixes (Shooting% mislabel, group regrouping, PositionPill colors, mobile column collapse, keyboard/ARIA, crests, tooltip plumbing). The UI review §6 backlog has 8 minor items remaining; today's audit found:
 
-| UI review § | Item | Status |
-|---|---|---|
-| §6 #8 | "Advanced Statistics / Per-match breakdown" header redundancy | **In scope** (Task 1) |
-| §6 #10 | Chevron `▸` hover brightness | **In scope** (Task 2) |
-| §6 #11 | Expanded row `bg-zinc-950/30` barely visible | **In scope** (Task 3) |
-| §6 #12 | "Score" tile cross-link to Top Performers | **In scope** (Task 4) |
-| §6 #13 | Opp expanded-panel empty right side | **In scope** (Task 5) |
-| §6 #15 | Goalie/skater min-w mismatch (480px vs 640px) | **In scope** (Task 6) |
-| §6 #9 | Quick-stat tile order ranks PIM with offensive metrics | **Resolved** by morning sweep (PIM tile removed; remaining 6 tiles are coherent — Task 7) |
-| §6 #3a | Position pill specific LD/RD when OCR loadout has it | **Out of scope** — requires data-layer plumbing in `buildScoresheet` to join OCR loadout snapshots into SkaterRow.position; real data work, not polish |
+| UI review § | Item                                                          | Status                                                                                                                                                 |
+| ----------- | ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| §6 #8       | "Advanced Statistics / Per-match breakdown" header redundancy | **In scope** (Task 1)                                                                                                                                  |
+| §6 #10      | Chevron `▸` hover brightness                                  | **In scope** (Task 2)                                                                                                                                  |
+| §6 #11      | Expanded row `bg-zinc-950/30` barely visible                  | **In scope** (Task 3)                                                                                                                                  |
+| §6 #12      | "Score" tile cross-link to Top Performers                     | **In scope** (Task 4)                                                                                                                                  |
+| §6 #13      | Opp expanded-panel empty right side                           | **In scope** (Task 5)                                                                                                                                  |
+| §6 #15      | Goalie/skater min-w mismatch (480px vs 640px)                 | **In scope** (Task 6)                                                                                                                                  |
+| §6 #9       | Quick-stat tile order ranks PIM with offensive metrics        | **Resolved** by morning sweep (PIM tile removed; remaining 6 tiles are coherent — Task 7)                                                              |
+| §6 #3a      | Position pill specific LD/RD when OCR loadout has it          | **Out of scope** — requires data-layer plumbing in `buildScoresheet` to join OCR loadout snapshots into SkaterRow.position; real data work, not polish |
 
 User decisions (2026-05-17):
+
 - **Header (#8):** replace the "Advanced Statistics / Per-match breakdown" pair with the player gamertag — when the panel is scrolled, the gamertag identifies whose stats are being shown.
 - **Opp right side (#13):** render a faint "Opponent — no profile" placeholder where the "View Player Profile" link would be for BGM players — preserves layout symmetry + explicit signal.
 
@@ -35,15 +36,15 @@ Intended outcome: Scoresheet drops to ~1 deferred item (#3a — data-layer work)
 
 ## File Map
 
-| Touched in | File | Why |
-|---|---|---|
-| Task 1 | `apps/web/src/components/matches/scoresheet.tsx` | Replace expanded-panel header with player gamertag (lines 196-199) |
-| Task 2 | `apps/web/src/components/matches/scoresheet.tsx` | Add `group-hover:text-zinc-300` to chevron (lines 151-155); confirm the parent row has `group` class |
-| Task 3 | `apps/web/src/components/matches/scoresheet.tsx` | Strengthen expanded row contrast — `bg-zinc-950/30` → `bg-zinc-900/40` + left-accent rail (line 191) |
-| Task 4 | `apps/web/src/components/matches/scoresheet.tsx` | Add tooltip on Score tile pointing to Top Performers (line 214 area) |
-| Task 5 | `apps/web/src/components/matches/scoresheet.tsx` | Render "Opponent — no profile" placeholder when `row.playerId === null` (lines 201-211) |
-| Task 6 | `apps/web/src/components/matches/scoresheet.tsx` | Align GoalieTable `min-w-[480px]` → `min-w-[640px]` to match SkaterTable (line 339) |
-| Task 7 | `docs/reviews/Match-ID-UI-UX-Review.md` | Mark §6 #9 Resolved (PIM tile already removed by morning sweep) |
+| Touched in | File                                             | Why                                                                                                  |
+| ---------- | ------------------------------------------------ | ---------------------------------------------------------------------------------------------------- |
+| Task 1     | `apps/web/src/components/matches/scoresheet.tsx` | Replace expanded-panel header with player gamertag (lines 196-199)                                   |
+| Task 2     | `apps/web/src/components/matches/scoresheet.tsx` | Add `group-hover:text-zinc-300` to chevron (lines 151-155); confirm the parent row has `group` class |
+| Task 3     | `apps/web/src/components/matches/scoresheet.tsx` | Strengthen expanded row contrast — `bg-zinc-950/30` → `bg-zinc-900/40` + left-accent rail (line 191) |
+| Task 4     | `apps/web/src/components/matches/scoresheet.tsx` | Add tooltip on Score tile pointing to Top Performers (line 214 area)                                 |
+| Task 5     | `apps/web/src/components/matches/scoresheet.tsx` | Render "Opponent — no profile" placeholder when `row.playerId === null` (lines 201-211)              |
+| Task 6     | `apps/web/src/components/matches/scoresheet.tsx` | Align GoalieTable `min-w-[480px]` → `min-w-[640px]` to match SkaterTable (line 339)                  |
+| Task 7     | `docs/reviews/Match-ID-UI-UX-Review.md`          | Mark §6 #9 Resolved (PIM tile already removed by morning sweep)                                      |
 
 Seven commits. Tasks 1-6 all touch `scoresheet.tsx`; line-disjoint. Task 7 is doc-only.
 
@@ -52,6 +53,7 @@ Seven commits. Tasks 1-6 all touch `scoresheet.tsx`; line-disjoint. Task 7 is do
 ### Task 1: Replace expanded-panel header with gamertag
 
 **Files:**
+
 - Modify: `apps/web/src/components/matches/scoresheet.tsx` (lines 196-199)
 
 - [ ] **Step 1: Replace "Advanced Statistics / Per-match breakdown" with player gamertag**
@@ -116,6 +118,7 @@ EOF
 ### Task 2: Chevron hover brightness
 
 **Files:**
+
 - Modify: `apps/web/src/components/matches/scoresheet.tsx` (lines 151-155 — chevron span)
 
 - [ ] **Step 1: Add `group-hover:text-zinc-300` to the chevron**
@@ -123,9 +126,7 @@ EOF
 The chevron span (around lines 151-155) currently:
 
 ```tsx
-<span
-  className={`mt-1 shrink-0 text-zinc-500 transition-transform ${expanded ? 'rotate-90' : ''}`}
->
+<span className={`mt-1 shrink-0 text-zinc-500 transition-transform ${expanded ? 'rotate-90' : ''}`}>
   ▸
 </span>
 ```
@@ -180,6 +181,7 @@ EOF
 ### Task 3: Strengthen expanded row contrast
 
 **Files:**
+
 - Modify: `apps/web/src/components/matches/scoresheet.tsx` (line 191 — expanded `<tr>`)
 
 - [ ] **Step 1: Strengthen the expanded row background + add accent left rail**
@@ -208,6 +210,7 @@ Expected: 0 errors.
 - [ ] **Step 3: Manual browser verification**
 
 Navigate to `/games/250`. Expand any skater row. The expanded `<tr>` should now have:
+
 - Slightly more visible dark background (deeper than the surrounding surface)
 - A thin red accent rail on the left edge, signaling the panel start/end
 
@@ -243,6 +246,7 @@ EOF
 ### Task 4: Game Score cross-link tooltip
 
 **Files:**
+
 - Modify: `apps/web/src/components/matches/scoresheet.tsx` (lines 213-216 area — Score `DetailStat`)
 
 - [ ] **Step 1: Add `tooltip` prop to the Score tile**
@@ -306,6 +310,7 @@ EOF
 ### Task 5: Opp "no profile" placeholder
 
 **Files:**
+
 - Modify: `apps/web/src/components/matches/scoresheet.tsx` (lines 201-211 — `View Player Profile` conditional)
 
 - [ ] **Step 1: Replace the null branch with a placeholder**
@@ -313,37 +318,41 @@ EOF
 The `View Player Profile` link conditional (lines 201-211) currently:
 
 ```tsx
-{row.playerId !== null ? (
-  <Link
-    href={`/roster/${row.playerId.toString()}`}
-    className="font-condensed text-sm font-bold uppercase tracking-wide text-accent hover:text-accent/80"
-    onClick={(e) => {
-      e.stopPropagation()
-    }}
-  >
-    View player profile
-  </Link>
-) : null}
+{
+  row.playerId !== null ? (
+    <Link
+      href={`/roster/${row.playerId.toString()}`}
+      className="font-condensed text-sm font-bold uppercase tracking-wide text-accent hover:text-accent/80"
+      onClick={(e) => {
+        e.stopPropagation()
+      }}
+    >
+      View player profile
+    </Link>
+  ) : null
+}
 ```
 
 Replace the null branch with a faint placeholder:
 
 ```tsx
-{row.playerId !== null ? (
-  <Link
-    href={`/roster/${row.playerId.toString()}`}
-    className="font-condensed text-sm font-bold uppercase tracking-wide text-accent hover:text-accent/80"
-    onClick={(e) => {
-      e.stopPropagation()
-    }}
-  >
-    View player profile
-  </Link>
-) : (
-  <span className="font-condensed text-sm font-semibold uppercase tracking-wide text-zinc-600">
-    Opponent · no profile
-  </span>
-)}
+{
+  row.playerId !== null ? (
+    <Link
+      href={`/roster/${row.playerId.toString()}`}
+      className="font-condensed text-sm font-bold uppercase tracking-wide text-accent hover:text-accent/80"
+      onClick={(e) => {
+        e.stopPropagation()
+      }}
+    >
+      View player profile
+    </Link>
+  ) : (
+    <span className="font-condensed text-sm font-semibold uppercase tracking-wide text-zinc-600">
+      Opponent · no profile
+    </span>
+  )
+}
 ```
 
 Layout stays symmetric (link or placeholder always renders in the same slot); reader gets explicit signal that opp rows don't link out by design (not a bug).
@@ -386,6 +395,7 @@ EOF
 ### Task 6: Align GoalieTable min-width to 640px
 
 **Files:**
+
 - Modify: `apps/web/src/components/matches/scoresheet.tsx` (line 339 — GoalieTable)
 
 - [ ] **Step 1: Bump GoalieTable `min-w-[480px]` → `min-w-[640px]`**
@@ -442,6 +452,7 @@ EOF
 ### Task 7: Mark UI review §6 #9 Resolved
 
 **Files:**
+
 - Modify: `docs/reviews/Match-ID-UI-UX-Review.md` (§6 issue #9 body + suggested-next-moves row if present)
 
 **Why this task:** UI review §6 #9 called out that the quick-stat tile order mixed PIM (penalty minutes) with offensive metrics — confusing reader scan. Today's morning Scoresheet polish sweep (commit `0a0546d`) removed the PIM tile entirely (PIM stays in the Discipline detail group below). The remaining 6 tiles (SCORE / Shot On Net % / Shooting % / Pass % / FO % / Possession) are all positive/neutral metrics — no mixing concern. The original §9 critique is moot.

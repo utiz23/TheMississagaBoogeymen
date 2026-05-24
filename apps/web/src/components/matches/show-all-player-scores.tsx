@@ -135,11 +135,7 @@ function ScoreRow({
   onToggle: () => void
 }) {
   const isTop3 = rank <= 3
-  const posLabel = entry.position
-    ? formatPosition(entry.position)
-    : entry.isGoalie
-      ? 'G'
-      : null
+  const posLabel = entry.position ? formatPosition(entry.position) : entry.isGoalie ? 'G' : null
   const rowBg =
     rank === 1
       ? 'bg-accent/[0.06]'
@@ -192,7 +188,9 @@ function ScoreRow({
         <td className={`px-3 py-2 font-condensed text-[12px] tabular-nums ${rankCls}`}>
           {rank}
           {isTop3 ? (
-            <span className="ml-1 font-bold tracking-[0.1em] text-accent">{RANK_STARS[rank - 1]}</span>
+            <span className="ml-1 font-bold tracking-[0.1em] text-accent">
+              {RANK_STARS[rank - 1]}
+            </span>
           ) : null}
         </td>
         <td className="px-3 py-2">
@@ -255,10 +253,7 @@ function ScoreRow({
       </tr>
       {isOpen ? (
         <tr id={`row-${rank.toString()}-breakdown`}>
-          <td
-            colSpan={10}
-            className="border-b border-zinc-800 bg-background/40 px-4 py-3 sm:px-6"
-          >
+          <td colSpan={10} className="border-b border-zinc-800 bg-background/40 px-4 py-3 sm:px-6">
             <BreakdownTable breakdown={entry.breakdown} />
           </td>
         </tr>
@@ -324,9 +319,7 @@ function FactorRow({ fac }: { fac: ScoreFactor }) {
     <tr className={`border-b border-zinc-800/30 ${isZero ? 'opacity-40' : ''}`}>
       <td className="py-1 text-fg-4">{fac.label}</td>
       <td className="py-1 text-right tabular-nums text-fg-3">{displayValue}</td>
-      <td className="py-1 text-right tabular-nums text-fg-5">
-        ×{Math.abs(fac.weight).toFixed(2)}
-      </td>
+      <td className="py-1 text-right tabular-nums text-fg-5">×{Math.abs(fac.weight).toFixed(2)}</td>
       <td
         className={`py-1 text-right font-semibold tabular-nums ${isNeg ? 'text-rose-400' : isZero ? 'text-fg-5' : 'text-emerald-400'}`}
       >

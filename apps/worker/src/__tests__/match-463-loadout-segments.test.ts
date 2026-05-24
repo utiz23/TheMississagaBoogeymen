@@ -58,9 +58,7 @@ test.skip(
 
     // Confirm the match exists; cleanly skip if the calibration DB doesn't
     // have it yet (e.g. on a fresh checkout before Task 14 ingests).
-    const matchPresent = await db.execute(
-      sql`SELECT 1 FROM matches WHERE id = ${MATCH_ID} LIMIT 1`,
-    )
+    const matchPresent = await db.execute(sql`SELECT 1 FROM matches WHERE id = ${MATCH_ID} LIMIT 1`)
     const rowCount = Array.isArray(matchPresent)
       ? matchPresent.length
       : ((matchPresent as { rows?: unknown[] }).rows?.length ?? 0)

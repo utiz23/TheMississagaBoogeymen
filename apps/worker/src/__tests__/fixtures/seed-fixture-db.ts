@@ -258,24 +258,22 @@ export async function seedFixtureDb(
   await cleanupSentinelMatches([matchId], db)
 
   // 2. Insert minimal matches row.
-  await db
-    .insert(matches)
-    .values({
-      id: matchId,
-      gameTitleId: GAME_TITLE_ID,
-      eaMatchId: `fixture-match-${matchId}`,
-      matchType: 'gameType5',
-      opponentClubId: '88888',
-      opponentName: `Sentinel Opponent (fixture ${matchId})`,
-      playedAt: new Date('2026-01-01T00:00:00Z'),
-      result: 'WIN',
-      scoreFor: 0,
-      scoreAgainst: 0,
-      shotsFor: 0,
-      shotsAgainst: 0,
-      hitsFor: 0,
-      hitsAgainst: 0,
-    })
+  await db.insert(matches).values({
+    id: matchId,
+    gameTitleId: GAME_TITLE_ID,
+    eaMatchId: `fixture-match-${matchId}`,
+    matchType: 'gameType5',
+    opponentClubId: '88888',
+    opponentName: `Sentinel Opponent (fixture ${matchId})`,
+    playedAt: new Date('2026-01-01T00:00:00Z'),
+    result: 'WIN',
+    scoreFor: 0,
+    scoreAgainst: 0,
+    shotsFor: 0,
+    shotsAgainst: 0,
+    hitsFor: 0,
+    hitsAgainst: 0,
+  })
 
   // 3. Per fixture segment: insert capture batch + extraction + ocr_segments.
   const batchIds: number[] = []
@@ -311,8 +309,7 @@ export async function seedFixtureDb(
         reviewStatus: 'reviewed',
       })
       .returning({ id: ocrExtractions.id })
-    if (!extractionRow)
-      throw new Error(`Failed to insert extraction for segment ${seg.segmentKey}`)
+    if (!extractionRow) throw new Error(`Failed to insert extraction for segment ${seg.segmentKey}`)
     extractionIds.push(extractionRow.id)
 
     // ocr_segments
@@ -395,10 +392,8 @@ export async function seedEvidenceRecords(
         templateVersion: rec.template_version ?? null,
         extractorFamily: rec.extractor_family as NewOcrFieldEvidence['extractorFamily'],
         extractorVersion: rec.extractor_version,
-        observabilityStatus:
-          rec.observability_status as NewOcrFieldEvidence['observabilityStatus'],
-        normalizationStatus:
-          rec.normalization_status as NewOcrFieldEvidence['normalizationStatus'],
+        observabilityStatus: rec.observability_status as NewOcrFieldEvidence['observabilityStatus'],
+        normalizationStatus: rec.normalization_status as NewOcrFieldEvidence['normalizationStatus'],
         rowKey: rec.row_key ?? null,
         columnKey: rec.column_key ?? null,
         xNorm: rec.x_norm != null ? rec.x_norm.toString() : null,

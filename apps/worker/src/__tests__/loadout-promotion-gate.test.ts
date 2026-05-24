@@ -160,7 +160,9 @@ async function seedCompleteSlot(opts: {
   omitFields?: Set<string>
 }): Promise<void> {
   const {
-    matchId, slotKey, extractionId,
+    matchId,
+    slotKey,
+    extractionId,
     gamertag = RESOLVED_GAMERTAG,
     position = 'C',
     includeXFactors = false,
@@ -172,32 +174,78 @@ async function seedCompleteSlot(opts: {
   const getConf = (fk: string) => overrideConfs[fk] ?? HIGH_CONF
 
   if (!omitFields.has('gamertag')) {
-    await seedEvidence({ matchId, slotKey, fieldKey: 'gamertag', candidateValue: gamertag, confidence: getConf('gamertag'), extractionId })
+    await seedEvidence({
+      matchId,
+      slotKey,
+      fieldKey: 'gamertag',
+      candidateValue: gamertag,
+      confidence: getConf('gamertag'),
+      extractionId,
+    })
   }
   if (!omitFields.has('position')) {
-    await seedEvidence({ matchId, slotKey, fieldKey: 'position', candidateValue: position, confidence: getConf('position'), extractionId })
+    await seedEvidence({
+      matchId,
+      slotKey,
+      fieldKey: 'position',
+      candidateValue: position,
+      confidence: getConf('position'),
+      extractionId,
+    })
   }
 
   if (includeXFactors) {
     for (let i = 0; i < 3; i++) {
       const fk = `x_factor_name_${i}` as string
       if (!omitFields.has(fk)) {
-        await seedEvidence({ matchId, slotKey, fieldKey: fk, candidateValue: `X-Factor-${i}`, confidence: getConf(fk), extractionId })
+        await seedEvidence({
+          matchId,
+          slotKey,
+          fieldKey: fk,
+          candidateValue: `X-Factor-${i}`,
+          confidence: getConf(fk),
+          extractionId,
+        })
       }
     }
   }
 
   if (includeAttributes) {
     const ATTR_KEYS = [
-      'attr_wrist_shot_accuracy', 'attr_slap_shot_accuracy', 'attr_speed', 'attr_balance', 'attr_agility',
-      'attr_wrist_shot_power', 'attr_slap_shot_power', 'attr_acceleration', 'attr_puck_control', 'attr_endurance',
-      'attr_passing', 'attr_offensive_awareness', 'attr_body_checking', 'attr_stick_checking', 'attr_defensive_awareness',
-      'attr_hand_eye', 'attr_strength', 'attr_durability', 'attr_shot_blocking',
-      'attr_deking', 'attr_faceoffs', 'attr_discipline', 'attr_fighting_skill',
+      'attr_wrist_shot_accuracy',
+      'attr_slap_shot_accuracy',
+      'attr_speed',
+      'attr_balance',
+      'attr_agility',
+      'attr_wrist_shot_power',
+      'attr_slap_shot_power',
+      'attr_acceleration',
+      'attr_puck_control',
+      'attr_endurance',
+      'attr_passing',
+      'attr_offensive_awareness',
+      'attr_body_checking',
+      'attr_stick_checking',
+      'attr_defensive_awareness',
+      'attr_hand_eye',
+      'attr_strength',
+      'attr_durability',
+      'attr_shot_blocking',
+      'attr_deking',
+      'attr_faceoffs',
+      'attr_discipline',
+      'attr_fighting_skill',
     ]
     for (const fk of ATTR_KEYS) {
       if (!omitFields.has(fk)) {
-        await seedEvidence({ matchId, slotKey, fieldKey: fk, candidateValue: 80, confidence: getConf(fk), extractionId })
+        await seedEvidence({
+          matchId,
+          slotKey,
+          fieldKey: fk,
+          candidateValue: 80,
+          confidence: getConf(fk),
+          extractionId,
+        })
       }
     }
   }
@@ -214,15 +262,54 @@ async function seedExpectedRoster(matchId: number): Promise<void> {
   ]
   await db.insert(playerMatchStats).values(
     BGM_POSITIONS.map(({ playerId, position }) => ({
-      matchId, playerId, position, isGoalie: false, teamSide: 0,
+      matchId,
+      playerId,
+      position,
+      isGoalie: false,
+      teamSide: 0,
     })),
   )
   await db.insert(opponentPlayerMatchStats).values([
-    { matchId, eaPlayerId: 'opp-2a17-1', opponentClubId: '88888', gamertag: 'OppA', position: 'center', isGoalie: false },
-    { matchId, eaPlayerId: 'opp-2a17-2', opponentClubId: '88888', gamertag: 'OppB', position: 'leftWing', isGoalie: false },
-    { matchId, eaPlayerId: 'opp-2a17-3', opponentClubId: '88888', gamertag: 'OppC', position: 'rightWing', isGoalie: false },
-    { matchId, eaPlayerId: 'opp-2a17-4', opponentClubId: '88888', gamertag: 'OppD', position: 'defenseMen', isGoalie: false },
-    { matchId, eaPlayerId: 'opp-2a17-5', opponentClubId: '88888', gamertag: 'OppE', position: 'defenseMen', isGoalie: false },
+    {
+      matchId,
+      eaPlayerId: 'opp-2a17-1',
+      opponentClubId: '88888',
+      gamertag: 'OppA',
+      position: 'center',
+      isGoalie: false,
+    },
+    {
+      matchId,
+      eaPlayerId: 'opp-2a17-2',
+      opponentClubId: '88888',
+      gamertag: 'OppB',
+      position: 'leftWing',
+      isGoalie: false,
+    },
+    {
+      matchId,
+      eaPlayerId: 'opp-2a17-3',
+      opponentClubId: '88888',
+      gamertag: 'OppC',
+      position: 'rightWing',
+      isGoalie: false,
+    },
+    {
+      matchId,
+      eaPlayerId: 'opp-2a17-4',
+      opponentClubId: '88888',
+      gamertag: 'OppD',
+      position: 'defenseMen',
+      isGoalie: false,
+    },
+    {
+      matchId,
+      eaPlayerId: 'opp-2a17-5',
+      opponentClubId: '88888',
+      gamertag: 'OppE',
+      position: 'defenseMen',
+      isGoalie: false,
+    },
   ])
 }
 
@@ -238,15 +325,21 @@ async function cleanup(matchIds: number[]): Promise<void> {
     .where(inArray(playerLoadoutSnapshots.matchId, matchIds))
   const snapIds = snaps.map((s) => s.id)
   if (snapIds.length > 0) {
-    await db.delete(playerLoadoutXFactors).where(inArray(playerLoadoutXFactors.loadoutSnapshotId, snapIds))
-    await db.delete(playerLoadoutAttributes).where(inArray(playerLoadoutAttributes.loadoutSnapshotId, snapIds))
+    await db
+      .delete(playerLoadoutXFactors)
+      .where(inArray(playerLoadoutXFactors.loadoutSnapshotId, snapIds))
+    await db
+      .delete(playerLoadoutAttributes)
+      .where(inArray(playerLoadoutAttributes.loadoutSnapshotId, snapIds))
     await db.delete(playerLoadoutSnapshots).where(inArray(playerLoadoutSnapshots.matchId, matchIds))
   }
   // Delete evidence
   await db.delete(ocrFieldEvidence).where(inArray(ocrFieldEvidence.matchId, matchIds))
   // Delete roster rows
   await db.delete(playerMatchStats).where(inArray(playerMatchStats.matchId, matchIds))
-  await db.delete(opponentPlayerMatchStats).where(inArray(opponentPlayerMatchStats.matchId, matchIds))
+  await db
+    .delete(opponentPlayerMatchStats)
+    .where(inArray(opponentPlayerMatchStats.matchId, matchIds))
   // Delete extractions (FK order: extractions → batches)
   const batchIds = await db
     .select({ id: ocrCaptureBatches.id })
@@ -327,9 +420,15 @@ describe('loadout-v2 promoter', () => {
     const result = await promoteLoadoutFromEvidence({ matchId, db })
 
     // All resolvable slots should promote.
-    assert.ok(result.promotedSnapshotCount > 0, `At least 1 snapshot should be promoted, got ${result.promotedSnapshotCount}`)
+    assert.ok(
+      result.promotedSnapshotCount > 0,
+      `At least 1 snapshot should be promoted, got ${result.promotedSnapshotCount}`,
+    )
     // No more than slotsToCreate slots were seeded.
-    assert.ok(result.promotedSnapshotCount <= slotsToCreate, `Promoted ${result.promotedSnapshotCount} <= seeded ${slotsToCreate}`)
+    assert.ok(
+      result.promotedSnapshotCount <= slotsToCreate,
+      `Promoted ${result.promotedSnapshotCount} <= seeded ${slotsToCreate}`,
+    )
 
     const snapRows = await db
       .select()
@@ -344,14 +443,22 @@ describe('loadout-v2 promoter', () => {
         .from(playerLoadoutXFactors)
         .where(inArray(playerLoadoutXFactors.loadoutSnapshotId, snapIds))
       // Each promoted slot seeded 3 x_factors → 3×promotedCount rows
-      assert.equal(xfRows.length, result.promotedSnapshotCount * 3, '3 x_factor rows per promoted snapshot')
+      assert.equal(
+        xfRows.length,
+        result.promotedSnapshotCount * 3,
+        '3 x_factor rows per promoted snapshot',
+      )
 
       const attrRows = await db
         .select()
         .from(playerLoadoutAttributes)
         .where(inArray(playerLoadoutAttributes.loadoutSnapshotId, snapIds))
       // 23 attributes per promoted slot
-      assert.equal(attrRows.length, result.promotedSnapshotCount * 23, '23 attribute rows per promoted snapshot')
+      assert.equal(
+        attrRows.length,
+        result.promotedSnapshotCount * 23,
+        '23 attribute rows per promoted snapshot',
+      )
     }
 
     // ocr_promotions rows should exist
@@ -407,7 +514,11 @@ describe('loadout-v2 promoter', () => {
       )
     assert.equal(obsRows.length, 9, '9 absent slots → 9 blocked_observability rows')
     for (const row of obsRows) {
-      assert.equal(row.blockingReason, 'not_observable_from_source', 'reason is not_observable_from_source')
+      assert.equal(
+        row.blockingReason,
+        'not_observable_from_source',
+        'reason is not_observable_from_source',
+      )
     }
   })
 
@@ -454,9 +565,10 @@ describe('loadout-v2 promoter', () => {
         ),
       )
     const snapshotLevelBlock = blockedRows.find(
-      (r) => r.fieldKey === null &&
+      (r) =>
+        r.fieldKey === null &&
         (r.promotionStatus === 'blocked_invariant' ||
-         r.promotionStatus === 'blocked_observability')
+          r.promotionStatus === 'blocked_observability'),
     )
     assert.ok(snapshotLevelBlock, 'snapshot-level blocked promotion row exists')
     const reason = snapshotLevelBlock!.blockingReason ?? ''
@@ -479,9 +591,32 @@ describe('loadout-v2 promoter', () => {
 
     // Seed two candidates for the same field at similar confidence → consensus block
     // field_key 'gamertag' with two competing values
-    await seedEvidence({ matchId, slotKey, fieldKey: 'gamertag', candidateValue: RESOLVED_GAMERTAG, confidence: 0.55, extractionId, candidateRank: 0 })
-    await seedEvidence({ matchId, slotKey, fieldKey: 'gamertag', candidateValue: 'silkyjoker85', confidence: 0.52, extractionId, candidateRank: 1 })
-    await seedEvidence({ matchId, slotKey, fieldKey: 'position', candidateValue: 'LW', confidence: HIGH_CONF, extractionId })
+    await seedEvidence({
+      matchId,
+      slotKey,
+      fieldKey: 'gamertag',
+      candidateValue: RESOLVED_GAMERTAG,
+      confidence: 0.55,
+      extractionId,
+      candidateRank: 0,
+    })
+    await seedEvidence({
+      matchId,
+      slotKey,
+      fieldKey: 'gamertag',
+      candidateValue: 'silkyjoker85',
+      confidence: 0.52,
+      extractionId,
+      candidateRank: 1,
+    })
+    await seedEvidence({
+      matchId,
+      slotKey,
+      fieldKey: 'position',
+      candidateValue: 'LW',
+      confidence: HIGH_CONF,
+      extractionId,
+    })
 
     await promoteLoadoutFromEvidence({ matchId, db })
 
@@ -489,30 +624,26 @@ describe('loadout-v2 promoter', () => {
     const gamertagPromotion = await db
       .select()
       .from(ocrPromotions)
-      .where(
-        and(
-          eq(ocrPromotions.matchId, matchId),
-          eq(ocrPromotions.fieldKey, 'gamertag'),
-        ),
-      )
+      .where(and(eq(ocrPromotions.matchId, matchId), eq(ocrPromotions.fieldKey, 'gamertag')))
     assert.ok(gamertagPromotion.length > 0, 'gamertag promotion row exists')
     // With 0.55 vs 0.52 confidence, ratio = 0.55/0.52 ≈ 1.058 < 1.5 → blocked_consensus
-    assert.equal(gamertagPromotion[0]!.promotionStatus, 'blocked_consensus', 'gamertag is blocked_consensus due to non-dominant top')
+    assert.equal(
+      gamertagPromotion[0]!.promotionStatus,
+      'blocked_consensus',
+      'gamertag is blocked_consensus due to non-dominant top',
+    )
 
     // The position field should be promoted
     const positionPromotion = await db
       .select()
       .from(ocrPromotions)
-      .where(
-        and(
-          eq(ocrPromotions.matchId, matchId),
-          eq(ocrPromotions.fieldKey, 'position'),
-        ),
-      )
+      .where(and(eq(ocrPromotions.matchId, matchId), eq(ocrPromotions.fieldKey, 'position')))
     // Position may or may not exist depending on how blocked slots are handled
     if (positionPromotion.length > 0) {
       assert.ok(
-        ['promoted', 'blocked_invariant', 'blocked_consensus', 'blocked_observability'].includes(positionPromotion[0]!.promotionStatus),
+        ['promoted', 'blocked_invariant', 'blocked_consensus', 'blocked_observability'].includes(
+          positionPromotion[0]!.promotionStatus,
+        ),
         'position has a valid promotion status',
       )
     }
@@ -537,12 +668,21 @@ describe('loadout-v2 promoter', () => {
     const slotKey = 'loadout_slot_seg9500_row0'
 
     await seedCompleteSlot({
-      matchId, slotKey, extractionId,
+      matchId,
+      slotKey,
+      extractionId,
       gamertag: RESOLVED_GAMERTAG,
       position: 'C',
     })
     // Seed a player_name_persona evidence with the alias value
-    await seedEvidence({ matchId, slotKey, fieldKey: 'player_name_persona', candidateValue: 'ALIAS_OLD_2A17', confidence: HIGH_CONF, extractionId })
+    await seedEvidence({
+      matchId,
+      slotKey,
+      fieldKey: 'player_name_persona',
+      candidateValue: 'ALIAS_OLD_2A17',
+      confidence: HIGH_CONF,
+      extractionId,
+    })
 
     const result = await promoteLoadoutFromEvidence({ matchId, db })
 
@@ -553,8 +693,16 @@ describe('loadout-v2 promoter', () => {
       .from(playerLoadoutSnapshots)
       .where(eq(playerLoadoutSnapshots.matchId, matchId))
     assert.equal(snapRows.length, 1, '1 snapshot row in DB')
-    assert.equal(snapRows[0]!.playerNamePersona, 'PersonaCanonical_2A17', 'playerNamePersona is resolved canonical')
-    assert.equal(snapRows[0]!.playerNamePersonaRaw, 'ALIAS_OLD_2A17', 'playerNamePersonaRaw preserves the raw alias')
+    assert.equal(
+      snapRows[0]!.playerNamePersona,
+      'PersonaCanonical_2A17',
+      'playerNamePersona is resolved canonical',
+    )
+    assert.equal(
+      snapRows[0]!.playerNamePersonaRaw,
+      'ALIAS_OLD_2A17',
+      'playerNamePersonaRaw preserves the raw alias',
+    )
   })
 
   // ─── Test 6: X-Factor child block skipped when 1 of 3 blocks ─────────────
@@ -569,7 +717,9 @@ describe('loadout-v2 promoter', () => {
     const slotKey = 'loadout_slot_seg9600_row0'
 
     await seedCompleteSlot({
-      matchId, slotKey, extractionId,
+      matchId,
+      slotKey,
+      extractionId,
       gamertag: RESOLVED_GAMERTAG,
       position: 'C',
       includeXFactors: false,
@@ -577,16 +727,50 @@ describe('loadout-v2 promoter', () => {
     })
 
     // Seed 2 high-conf x_factors and 1 with competing low-conf (consensus block)
-    await seedEvidence({ matchId, slotKey, fieldKey: 'x_factor_name_0', candidateValue: 'Tape-to-Tape', confidence: HIGH_CONF, extractionId })
-    await seedEvidence({ matchId, slotKey, fieldKey: 'x_factor_name_1', candidateValue: 'One Tee', confidence: HIGH_CONF, extractionId })
+    await seedEvidence({
+      matchId,
+      slotKey,
+      fieldKey: 'x_factor_name_0',
+      candidateValue: 'Tape-to-Tape',
+      confidence: HIGH_CONF,
+      extractionId,
+    })
+    await seedEvidence({
+      matchId,
+      slotKey,
+      fieldKey: 'x_factor_name_1',
+      candidateValue: 'One Tee',
+      confidence: HIGH_CONF,
+      extractionId,
+    })
     // x_factor_name_2: two competing values → blocked_consensus
-    await seedEvidence({ matchId, slotKey, fieldKey: 'x_factor_name_2', candidateValue: 'Puck on a String', confidence: 0.55, extractionId, candidateRank: 0 })
-    await seedEvidence({ matchId, slotKey, fieldKey: 'x_factor_name_2', candidateValue: 'Pressure+', confidence: 0.52, extractionId, candidateRank: 1 })
+    await seedEvidence({
+      matchId,
+      slotKey,
+      fieldKey: 'x_factor_name_2',
+      candidateValue: 'Puck on a String',
+      confidence: 0.55,
+      extractionId,
+      candidateRank: 0,
+    })
+    await seedEvidence({
+      matchId,
+      slotKey,
+      fieldKey: 'x_factor_name_2',
+      candidateValue: 'Pressure+',
+      confidence: 0.52,
+      extractionId,
+      candidateRank: 1,
+    })
 
     const result = await promoteLoadoutFromEvidence({ matchId, db })
 
     // Snapshot should promote (HARD fields are fine)
-    assert.equal(result.promotedSnapshotCount, 1, 'snapshot promoted even though 1 x_factor blocked')
+    assert.equal(
+      result.promotedSnapshotCount,
+      1,
+      'snapshot promoted even though 1 x_factor blocked',
+    )
 
     const snapRows = await db
       .select()
@@ -605,12 +789,7 @@ describe('loadout-v2 promoter', () => {
     const xfPromoRows = await db
       .select()
       .from(ocrPromotions)
-      .where(
-        and(
-          eq(ocrPromotions.matchId, matchId),
-          eq(ocrPromotions.fieldKey, 'x_factor_name_2'),
-        ),
-      )
+      .where(and(eq(ocrPromotions.matchId, matchId), eq(ocrPromotions.fieldKey, 'x_factor_name_2')))
     assert.ok(xfPromoRows.length > 0, 'x_factor_name_2 has a promotion row')
     assert.ok(
       xfPromoRows[0]!.promotionStatus !== 'promoted',
@@ -630,7 +809,9 @@ describe('loadout-v2 promoter', () => {
     const slotKey = 'loadout_slot_seg9700_row0'
 
     await seedCompleteSlot({
-      matchId, slotKey, extractionId,
+      matchId,
+      slotKey,
+      extractionId,
       gamertag: RESOLVED_GAMERTAG,
       position: 'C',
       includeXFactors: false,
@@ -639,20 +820,58 @@ describe('loadout-v2 promoter', () => {
 
     // Seed only 19 attribute fields at high confidence (below 20 floor)
     const ATTR_KEYS_PARTIAL = [
-      'attr_wrist_shot_accuracy', 'attr_slap_shot_accuracy', 'attr_speed', 'attr_balance', 'attr_agility',
-      'attr_wrist_shot_power', 'attr_slap_shot_power', 'attr_acceleration', 'attr_puck_control', 'attr_endurance',
-      'attr_passing', 'attr_offensive_awareness', 'attr_body_checking', 'attr_stick_checking', 'attr_defensive_awareness',
-      'attr_hand_eye', 'attr_strength', 'attr_durability', 'attr_shot_blocking',
+      'attr_wrist_shot_accuracy',
+      'attr_slap_shot_accuracy',
+      'attr_speed',
+      'attr_balance',
+      'attr_agility',
+      'attr_wrist_shot_power',
+      'attr_slap_shot_power',
+      'attr_acceleration',
+      'attr_puck_control',
+      'attr_endurance',
+      'attr_passing',
+      'attr_offensive_awareness',
+      'attr_body_checking',
+      'attr_stick_checking',
+      'attr_defensive_awareness',
+      'attr_hand_eye',
+      'attr_strength',
+      'attr_durability',
+      'attr_shot_blocking',
       // 19 total — omitting deking, faceoffs, discipline, fighting_skill (4 attributes)
     ]
     for (const fk of ATTR_KEYS_PARTIAL) {
-      await seedEvidence({ matchId, slotKey, fieldKey: fk, candidateValue: 80, confidence: HIGH_CONF, extractionId })
+      await seedEvidence({
+        matchId,
+        slotKey,
+        fieldKey: fk,
+        candidateValue: 80,
+        confidence: HIGH_CONF,
+        extractionId,
+      })
     }
     // Seed 4 blocked (competing) attribute fields
     const BLOCKED_ATTRS = ['attr_deking', 'attr_faceoffs', 'attr_discipline', 'attr_fighting_skill']
     for (const fk of BLOCKED_ATTRS) {
-      await seedEvidence({ matchId, slotKey, fieldKey: fk, candidateValue: 70, confidence: 0.55, extractionId, candidateRank: 0 })
-      await seedEvidence({ matchId, slotKey, fieldKey: fk, candidateValue: 65, confidence: 0.52, extractionId, candidateRank: 1 })
+      await seedEvidence({
+        matchId,
+        slotKey,
+        fieldKey: fk,
+        candidateValue: 70,
+        confidence: 0.55,
+        extractionId,
+        candidateRank: 0,
+      })
+      await seedEvidence({
+        matchId,
+        slotKey,
+        fieldKey: fk,
+        candidateValue: 65,
+        confidence: 0.52,
+        extractionId,
+        candidateRank: 1,
+      })
     }
 
     const result = await promoteLoadoutFromEvidence({ matchId, db })
@@ -671,19 +890,18 @@ describe('loadout-v2 promoter', () => {
       .select()
       .from(playerLoadoutAttributes)
       .where(eq(playerLoadoutAttributes.loadoutSnapshotId, snapRows[0]!.id))
-    assert.equal(attrRows.length, 0, 'no attribute rows written (child block skipped, 19 < 20 floor)')
+    assert.equal(
+      attrRows.length,
+      0,
+      'no attribute rows written (child block skipped, 19 < 20 floor)',
+    )
 
     // Blocked attribute promotion rows exist
     for (const fk of BLOCKED_ATTRS) {
       const promoRows = await db
         .select()
         .from(ocrPromotions)
-        .where(
-          and(
-            eq(ocrPromotions.matchId, matchId),
-            eq(ocrPromotions.fieldKey, fk),
-          ),
-        )
+        .where(and(eq(ocrPromotions.matchId, matchId), eq(ocrPromotions.fieldKey, fk)))
       assert.ok(promoRows.length > 0, `${fk} has a promotion row`)
       assert.ok(
         promoRows[0]!.promotionStatus !== 'promoted',
@@ -705,7 +923,9 @@ describe('loadout-v2 promoter', () => {
 
     // Seed with a gamertag that will NOT resolve to any player
     await seedCompleteSlot({
-      matchId, slotKey, extractionId,
+      matchId,
+      slotKey,
+      extractionId,
       gamertag: GHOST_GAMERTAG,
       position: 'RW',
     })
@@ -738,6 +958,10 @@ describe('loadout-v2 promoter', () => {
       (r) => r.fieldKey === null && r.promotionStatus === 'blocked_invariant',
     )
     assert.ok(blockedRow, 'snapshot-level blocked_invariant promotion row exists')
-    assert.equal(blockedRow!.blockingReason, 'unresolved_team_side', 'blocking_reason is unresolved_team_side')
+    assert.equal(
+      blockedRow!.blockingReason,
+      'unresolved_team_side',
+      'blocking_reason is unresolved_team_side',
+    )
   })
 })

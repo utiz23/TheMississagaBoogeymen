@@ -44,7 +44,7 @@ Spawn via `codex:rescue` subagent_type.
 > - `docs/calibration/research-2026-05-19.md`
 > - `docs/calibration/internal-review-2026-05-19.md` (output of Phase 4b)
 >
-> What's *missing* from the recommendations that anyone working inside the codebase would assume? What blind spots does the internal review likely have?
+> What's _missing_ from the recommendations that anyone working inside the codebase would assume? What blind spots does the internal review likely have?
 >
 > Focus the critique on:
 >

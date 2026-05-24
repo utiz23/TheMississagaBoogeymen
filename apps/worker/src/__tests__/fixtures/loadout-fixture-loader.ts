@@ -173,9 +173,7 @@ export function loadFixture(name: FixtureName): LoadedFixture {
         {
           segmentKey: 'fixture-seg-degraded',
           dir: fixtureDir,
-          expectedEvidence: readEvidenceJson(
-            path.join(fixtureDir, 'degraded_evidence.json'),
-          ),
+          expectedEvidence: readEvidenceJson(path.join(fixtureDir, 'degraded_evidence.json')),
         },
       ]
       // degraded_canonical.sql, not expected_canonical.sql
@@ -185,9 +183,7 @@ export function loadFixture(name: FixtureName): LoadedFixture {
         segments,
         expectedCanonicalSqlPath: path.join(fixtureDir, 'degraded_canonical.sql'),
       }
-      const obsBlocksDeg = optionalPath(
-        path.join(fixtureDir, 'expected_observability_blocks.sql'),
-      )
+      const obsBlocksDeg = optionalPath(path.join(fixtureDir, 'expected_observability_blocks.sql'))
       if (obsBlocksDeg) resultDegraded.expectedObservabilityBlocksSqlPath = obsBlocksDeg
       const rosterSeedDeg = optionalPath(path.join(fixtureDir, 'expected_roster_seed.sql'))
       if (rosterSeedDeg) resultDegraded.expectedRosterSeedSqlPath = rosterSeedDeg

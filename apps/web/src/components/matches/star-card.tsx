@@ -78,12 +78,7 @@ export function StarCard({ rank, performer, opponentLabel }: StarCardProps) {
 // ─── Header (rank label + stars) ──────────────────────────────────────────────
 
 function Header({ rank }: { rank: 1 | 2 | 3 }) {
-  const labelCls =
-    rank === 1
-      ? 'text-accent'
-      : rank === 2
-        ? 'text-fg-2'
-        : 'text-fg-4'
+  const labelCls = rank === 1 ? 'text-accent' : rank === 2 ? 'text-fg-2' : 'text-fg-4'
   const onCls =
     rank === 1
       ? 'text-accent [text-shadow:0_0_8px_rgba(232,65,49,0.5)]'
@@ -137,9 +132,7 @@ function Jersey({ rank, jersey }: { rank: 1 | 2 | 3; jersey: number | null }) {
   // Jersey number comes from playerProfiles (manually-owned). Opponent
   // entries and BGM players without a profile fall back to "—".
   const numCls =
-    rank === 1
-      ? 'text-accent [text-shadow:0_0_14px_rgba(232,65,49,0.30)]'
-      : 'text-fg-1'
+    rank === 1 ? 'text-accent [text-shadow:0_0_14px_rgba(232,65,49,0.30)]' : 'text-fg-1'
   return (
     <div className="flex min-w-[44px] flex-col items-center leading-none">
       <span className="font-condensed text-[9px] font-bold tracking-[0.12em] text-fg-6">#</span>
@@ -193,13 +186,7 @@ function MetaChips({
 
 // ─── Score block (hero score + "vs season avg" delta) ─────────────────────────
 
-function ScoreBlock({
-  rank,
-  performer,
-}: {
-  rank: 1 | 2 | 3
-  performer: TopPerformerWithDelta
-}) {
+function ScoreBlock({ rank, performer }: { rank: 1 | 2 | 3; performer: TopPerformerWithDelta }) {
   const scoreCls =
     rank === 1
       ? 'text-accent [text-shadow:0_0_14px_rgba(232,65,49,0.22)]'
@@ -268,7 +255,11 @@ function StatLine({ performer }: { performer: TopPerformerWithDelta }) {
       <Stat
         label="+/−"
         value={s.plusMinus >= 0 ? `+${s.plusMinus.toString()}` : s.plusMinus.toString()}
-        {...(s.plusMinus > 0 ? { tone: 'pos' as const } : s.plusMinus < 0 ? { tone: 'neg' as const } : {})}
+        {...(s.plusMinus > 0
+          ? { tone: 'pos' as const }
+          : s.plusMinus < 0
+            ? { tone: 'neg' as const }
+            : {})}
       />
       <Stat label="SOG" value={s.shots.toString()} dim />
       {isCenter && s.faceoffPct !== null ? (
@@ -276,11 +267,7 @@ function StatLine({ performer }: { performer: TopPerformerWithDelta }) {
       ) : (
         <Stat label="Hits" value={s.hits.toString()} dim />
       )}
-      <Stat
-        label="TOI"
-        value={s.toiSeconds !== null ? formatSeconds(s.toiSeconds) : '—'}
-        dim
-      />
+      <Stat label="TOI" value={s.toiSeconds !== null ? formatSeconds(s.toiSeconds) : '—'} dim />
     </div>
   )
 }

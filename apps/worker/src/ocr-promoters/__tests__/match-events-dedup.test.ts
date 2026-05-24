@@ -80,16 +80,24 @@ test('normalizeActorForPrefix: numeric chars are stripped', () => {
 test('Strategy 0: known OCR-junk pairs from Phase 1 HMM re-ingest all share 4-char prefix', () => {
   // These are the actual corrupt actor strings from match 250 (HMM re-ingest)
   const pairs: Array<[string, string, string]> = [
-    ['SILKY', 'Silky [', 'silk'],      // P2 13:41 goal
-    ['TOEWS', 'Toews [2l', 'toew'],    // P3 1:09 goal
+    ['SILKY', 'Silky [', 'silk'], // P2 13:41 goal
+    ['TOEWS', 'Toews [2l', 'toew'], // P3 1:09 goal
     ['S. ZUBOV', 'S. Zubov (1l', 'szub'], // P3 0:52 goal
     ['M. RANTANEN', 'M. RANI ANEN', 'mran'], // match 463 P2 15:08 faceoff
   ]
   for (const [canonical, junk, expectedPrefix] of pairs) {
     const canonPrefix = normalizeActorForPrefix(canonical)
     const junkPrefix = normalizeActorForPrefix(junk)
-    assert.equal(canonPrefix, expectedPrefix, `canonical "${canonical}" should normalize to "${expectedPrefix}"`)
-    assert.equal(junkPrefix, expectedPrefix, `junk "${junk}" should normalize to "${expectedPrefix}"`)
+    assert.equal(
+      canonPrefix,
+      expectedPrefix,
+      `canonical "${canonical}" should normalize to "${expectedPrefix}"`,
+    )
+    assert.equal(
+      junkPrefix,
+      expectedPrefix,
+      `junk "${junk}" should normalize to "${expectedPrefix}"`,
+    )
     assert.equal(canonPrefix, junkPrefix, `"${canonical}" and "${junk}" should share prefix`)
   }
 })
@@ -103,7 +111,7 @@ test('Strategy 0: match 463 faceoff pairs with different first letter do NOT sha
   assert.notEqual(hPrefix, rPrefix)
 })
 
-test('Strategy 0: H. O\'YOINTSKI and H. U\'YOINISKI do NOT share 4-char prefix', () => {
+test("Strategy 0: H. O'YOINTSKI and H. U'YOINISKI do NOT share 4-char prefix", () => {
   // These are genuinely corrupt OCR reads of different opponent names.
   // The strategy correctly does NOT collapse them via prefix (first 4: hoyo vs huyo).
   const prefix1 = normalizeActorForPrefix("H. O'YOINTSKI")

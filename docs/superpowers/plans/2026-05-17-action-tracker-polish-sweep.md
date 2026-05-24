@@ -14,15 +14,15 @@
 
 After today's bar/color sweep + Scoresheet polish + Action Tracker OFF RINK rename, seven Action Tracker UI-review items remain. They cluster naturally into a single-file sweep:
 
-| # | Item | UI review § | Type |
-|---|---|---|---|
-| 1 | Hide `OCR CONFIDENCE 1.00` when ≥ 0.99 | §8 #2 | Noise reduction |
-| 2 | `FACEOFFS (LIST ONLY)` parenthetical → tooltip + `ⓘ` | §8 #4 | UX polish |
-| 3 | Summary strip hierarchy reorganization | §8 #5 | Layout |
-| 4 | Marker letter legend (S/H/G/P) | §8 #8 | Discoverability |
-| 5 | Sticky rink during long list scrolls | §8 #11 | Interaction |
-| 6 | Keyboard navigation through event list | §8 #12 | A11y |
-| 7 | GOALS chip typography promotion | §8 #6 | Hierarchy |
+| #   | Item                                                 | UI review § | Type            |
+| --- | ---------------------------------------------------- | ----------- | --------------- |
+| 1   | Hide `OCR CONFIDENCE 1.00` when ≥ 0.99               | §8 #2       | Noise reduction |
+| 2   | `FACEOFFS (LIST ONLY)` parenthetical → tooltip + `ⓘ` | §8 #4       | UX polish       |
+| 3   | Summary strip hierarchy reorganization               | §8 #5       | Layout          |
+| 4   | Marker letter legend (S/H/G/P)                       | §8 #8       | Discoverability |
+| 5   | Sticky rink during long list scrolls                 | §8 #11      | Interaction     |
+| 6   | Keyboard navigation through event list               | §8 #12      | A11y            |
+| 7   | GOALS chip typography promotion                      | §8 #6       | Hierarchy       |
 
 Items 3 and 7 share the same `SummaryStrip` JSX rewrite — bundled into Task 4 below. The remaining 5 stay individual.
 
@@ -32,13 +32,14 @@ The intended outcome: the Action Tracker section reads as the page's most polish
 
 ## File Map
 
-| Touched in | File | Why |
-|---|---|---|
-| Tasks 1-6 | `apps/web/src/components/matches/action-tracker-map.tsx` | All six fixes |
+| Touched in | File                                                     | Why           |
+| ---------- | -------------------------------------------------------- | ------------- |
+| Tasks 1-6  | `apps/web/src/components/matches/action-tracker-map.tsx` | All six fixes |
 
 Six commits, single file. Each task is line-disjoint from the others except Task 4 (which bundles items 3 + 7 by necessity).
 
 **Existing patterns to reuse:**
+
 - `SummaryKV` with `title?: string | undefined` prop + `ⓘ` glyph — pattern established by the just-shipped OFF RINK fix ([action-tracker-map.tsx:631-678](apps/web/src/components/matches/action-tracker-map.tsx#L631)).
 - `text-emerald-400` / `text-rose-400` / amber for tone states — already in `SummaryKV` via the `tone='win'` prop.
 - `data-event-id` attribute for scroll/keyboard targeting — already on `EventCard` ([line 1031](apps/web/src/components/matches/action-tracker-map.tsx#L1031)).
@@ -49,6 +50,7 @@ Six commits, single file. Each task is line-disjoint from the others except Task
 ### Task 1: Hide OCR CONFIDENCE when ≥ 0.99
 
 **Files:**
+
 - Modify: `apps/web/src/components/matches/action-tracker-map.tsx` (lines 620-627 inside `SummaryStrip`)
 
 - [ ] **Step 1: Replace the OCR confidence render with a perfect-score gate**
@@ -56,27 +58,28 @@ Six commits, single file. Each task is line-disjoint from the others except Task
 Currently lines 620-627:
 
 ```tsx
-        {ocrConfidence !== null && ocrConfidence >= 0.75 ? (
-          <SummaryKV k="OCR confidence" v={ocrConfidence.toFixed(2)} tone="win" />
-        ) : (
-          <SummaryKV
-            k="OCR confidence"
-            v={ocrConfidence === null ? '—' : ocrConfidence.toFixed(2)}
-          />
-        )}
+{
+  ocrConfidence !== null && ocrConfidence >= 0.75 ? (
+    <SummaryKV k="OCR confidence" v={ocrConfidence.toFixed(2)} tone="win" />
+  ) : (
+    <SummaryKV k="OCR confidence" v={ocrConfidence === null ? '—' : ocrConfidence.toFixed(2)} />
+  )
+}
 ```
 
 Replace with (hide entirely when ≥ 0.99 — perfect score is uninformative noise; show with `tone='win'` for 0.75-0.98, plain when sub-0.75; explainer tooltip explains the metric):
 
 ```tsx
-        {ocrConfidence !== null && ocrConfidence < 0.99 ? (
-          <SummaryKV
-            k="OCR confidence"
-            v={ocrConfidence.toFixed(2)}
-            tone={ocrConfidence >= 0.75 ? 'win' : undefined}
-            title="OCR confidence in this match's extracted events. ≥0.99 hidden as uninformative noise; 0.75-0.98 highlighted as 'good'; below 0.75 plain to draw attention."
-          />
-        ) : null}
+{
+  ocrConfidence !== null && ocrConfidence < 0.99 ? (
+    <SummaryKV
+      k="OCR confidence"
+      v={ocrConfidence.toFixed(2)}
+      tone={ocrConfidence >= 0.75 ? 'win' : undefined}
+      title="OCR confidence in this match's extracted events. ≥0.99 hidden as uninformative noise; 0.75-0.98 highlighted as 'good'; below 0.75 plain to draw attention."
+    />
+  ) : null
+}
 ```
 
 - [ ] **Step 2: Typecheck**
@@ -125,6 +128,7 @@ EOF
 ### Task 2: FACEOFFS "(LIST ONLY)" parenthetical → tooltip + `ⓘ`
 
 **Files:**
+
 - Modify: `apps/web/src/components/matches/action-tracker-map.tsx` (lines 529-532 inside `TypeToggle`)
 
 - [ ] **Step 1: Replace the "List only" `<span>` with a tooltip glyph**
@@ -132,25 +136,29 @@ EOF
 Currently lines 529-532:
 
 ```tsx
-        {isFaceoff ? (
-          <span className="font-condensed text-[8.5px] font-semibold tracking-[0.18em] text-[var(--color-fg-5)]">
-            List only
-          </span>
-        ) : null}
+{
+  isFaceoff ? (
+    <span className="font-condensed text-[8.5px] font-semibold tracking-[0.18em] text-[var(--color-fg-5)]">
+      List only
+    </span>
+  ) : null
+}
 ```
 
 Replace with a small `ⓘ` glyph that carries the explainer in a native `title=` tooltip (matches the `SummaryKV` pattern):
 
 ```tsx
-        {isFaceoff ? (
-          <span
-            className="ml-1 text-[var(--color-fg-6)]"
-            aria-hidden
-            title="Faceoffs are tracked but not plotted on the rink — see the Faceoff Map section below for per-dot positions."
-          >
-            ⓘ
-          </span>
-        ) : null}
+{
+  isFaceoff ? (
+    <span
+      className="ml-1 text-[var(--color-fg-6)]"
+      aria-hidden
+      title="Faceoffs are tracked but not plotted on the rink — see the Faceoff Map section below for per-dot positions."
+    >
+      ⓘ
+    </span>
+  ) : null
+}
 ```
 
 The chip header now reads `FACEOFFS 7 ⓘ` (with hover-tooltip) instead of `FACEOFFS 7 (LIST ONLY)`. The same explainer that's now on the OFF RINK kv (Task 5 of the prior sweep) shows up here too — natural duplication, since both kv values count the same events.
@@ -199,6 +207,7 @@ EOF
 ### Task 3: Marker letter legend (S/H/G/P)
 
 **Files:**
+
 - Modify: `apps/web/src/components/matches/action-tracker-map.tsx` (line 716, append a new legend strip under the RinkPanel header)
 
 - [ ] **Step 1: Add a small legend strip under the rink header**
@@ -206,16 +215,16 @@ EOF
 The `RinkPanel` header (lines 708-716) currently reads:
 
 ```tsx
-      <div className="mb-2.5 flex items-center gap-3.5">
-        <span className="font-condensed text-[11px] font-bold uppercase tracking-[0.22em] text-[var(--color-fg-4)]">
-          Event map · 5-on-5 ice
-        </span>
-        <div className="ml-auto flex items-center gap-3.5 font-condensed text-[10px] font-bold uppercase tracking-[0.18em]">
-          <span className="text-[var(--color-fg-3)]">{oppAbbrev} ←</span>
-          <span className="text-[var(--color-fg-6)]">defends · attacks</span>
-          <span className="text-[var(--color-accent)]">→ BGM</span>
-        </div>
-      </div>
+<div className="mb-2.5 flex items-center gap-3.5">
+  <span className="font-condensed text-[11px] font-bold uppercase tracking-[0.22em] text-[var(--color-fg-4)]">
+    Event map · 5-on-5 ice
+  </span>
+  <div className="ml-auto flex items-center gap-3.5 font-condensed text-[10px] font-bold uppercase tracking-[0.18em]">
+    <span className="text-[var(--color-fg-3)]">{oppAbbrev} ←</span>
+    <span className="text-[var(--color-fg-6)]">defends · attacks</span>
+    <span className="text-[var(--color-accent)]">→ BGM</span>
+  </div>
+</div>
 ```
 
 After this `<div>`, add a second small legend strip explaining the marker letters:
@@ -279,6 +288,7 @@ EOF
 **Why bundled:** Items 3 (hierarchy) and 7 (GOALS promotion) both rewrite the same `SummaryStrip` JSX block. Splitting them produces a no-op intermediate commit that would just be reverted by the second commit. One commit covers both.
 
 **Files:**
+
 - Modify: `apps/web/src/components/matches/action-tracker-map.tsx` (lines 596-625 — `SummaryStrip` JSX); may extend `SummaryKV` if a `large?` size prop is needed
 
 - [ ] **Step 1: Restructure SummaryStrip into a two-row hierarchy**
@@ -332,6 +342,7 @@ The current SummaryStrip flattens three concerns into one wrap-row at equal visu
 ```
 
 Notes:
+
 - GOALS · BGM + opp goals are the headline at `large` size (new prop, see Step 2). Shots / Hits / Penalties stay at default size as the secondary breakdown on the same row.
 - The OFF RINK kv (with its tooltip) and OCR confidence kv (with its sub-0.99 gate from Task 1) both move into the smaller secondary row as `small`. They're filter scope + provenance, demoted accordingly.
 - The flex layout uses `items-baseline` on the top row so the big numbers and labels align cleanly across the GOALS / Shots / Hits / Penalties chips.
@@ -402,6 +413,7 @@ Expected: 0 errors.
 - [ ] **Step 4: Manual browser verification**
 
 Navigate to `/games/250`. The Action Tracker summary strip should now show:
+
 - **Top row (bigger):** `GOALS · BGM **4**` / `4L **3**` (24px, accent on BGM) | divider | `SHOTS 29` / `HITS 35` / `PENALTIES 0` (18px)
 - **Bottom row (smaller):** `VISIBLE 34 / ON RINK 27 / OFF RINK 7 ⓘ` (11px, left-aligned) | gap | `SOURCE Action Tracker OCR · v2` (right-aligned, no OCR confidence since 1.00 is hidden)
 
@@ -441,6 +453,7 @@ EOF
 ### Task 5: Sticky rink during long list scrolls
 
 **Files:**
+
 - Modify: `apps/web/src/components/matches/action-tracker-map.tsx` (line 707 — the RinkPanel outer wrapper)
 
 - [ ] **Step 1: Add sticky positioning to the RinkPanel wrapper**
@@ -458,6 +471,7 @@ Replace with (adds `xl:sticky xl:top-4 xl:self-start` — only sticky at xl brea
 ```
 
 Notes:
+
 - `xl:sticky` activates only at xl breakpoint where the grid is `xl:grid-cols-[380px_1fr]` (line 296). At narrower breakpoints the panes stack vertically and sticky doesn't apply (and would be wrong anyway).
 - `xl:top-4` gives 16px clearance below the page top when stuck. If the site has a top nav that's also sticky, this may need to be `xl:top-16` or similar — calibrate by eye after the change lands.
 - `xl:self-start` is required for sticky to work in a grid item: without it, the grid item stretches to fill the column height and there's no overflow for sticky to engage on.
@@ -503,6 +517,7 @@ EOF
 ### Task 6: Keyboard navigation through the event list
 
 **Files:**
+
 - Modify: `apps/web/src/components/matches/action-tracker-map.tsx` (lines 820-915 — `EventList` component)
 
 - [ ] **Step 1: Add an `onClearSelected` prop to `EventList` for the Escape handler**
@@ -521,17 +536,17 @@ In `EventList`'s props (insert after `onSelect`):
 In the parent `<EventList>` JSX (line 297-306), add the prop:
 
 ```tsx
-          <EventList
-            events={visibleCards}
-            sortMode={sortMode}
-            setSortMode={setSortMode}
-            selectedId={selectedId}
-            hoveredId={hoveredId}
-            onHover={setHoveredId}
-            onSelect={toggleSelected}
-            onClearSelected={clearSelected}
-            bgmIsHome={bgmIsHome}
-          />
+<EventList
+  events={visibleCards}
+  sortMode={sortMode}
+  setSortMode={setSortMode}
+  selectedId={selectedId}
+  hoveredId={hoveredId}
+  onHover={setHoveredId}
+  onSelect={toggleSelected}
+  onClearSelected={clearSelected}
+  bgmIsHome={bgmIsHome}
+/>
 ```
 
 - [ ] **Step 2: Wire arrow-key + Escape navigation on the scroll container**

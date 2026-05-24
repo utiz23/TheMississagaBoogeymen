@@ -24,9 +24,11 @@ export const revalidate = 300
 
 const PAGE_SIZE = 20
 type ResultFilter = 'all' | 'WIN' | 'LOSS' | 'OTL_DNF'
+type GamesModeFilter = GameMode | 'dev' | null
+const DEV_MATCH_IDS = [250, 463] as const
 interface GamesFilters {
   titleSlug: string | undefined
-  gameMode: GameMode | null
+  gameMode: GamesModeFilter
   resultFilter: ResultFilter
   opponent: string
 }
@@ -52,8 +54,9 @@ function parsePage(raw: string | string[] | undefined): number {
   return Number.isFinite(n) && n >= 1 ? n : 1
 }
 
-function parseGameMode(raw: string | string[] | undefined): GameMode | null {
+function parseGameMode(raw: string | string[] | undefined): GamesModeFilter {
   if (typeof raw !== 'string') return null
+  if (raw === 'dev') return 'dev'
   return (GAME_MODE as readonly string[]).includes(raw) ? (raw as GameMode) : null
 }
 
@@ -72,6 +75,14 @@ function resultValues(filter: ResultFilter): MatchResult | MatchResult[] | null 
   return filter
 }
 
+function devMatchIds(gameMode: GamesModeFilter): number[] | null {
+  return gameMode === 'dev' ? [...DEV_MATCH_IDS] : null
+}
+
+function dbGameMode(gameMode: GamesModeFilter): GameMode | null {
+  return gameMode === 'dev' ? null : gameMode
+}
+
 export default async function GamesPage({ searchParams }: { searchParams: SearchParams }) {
   const params = await searchParams
   const titleSlug = typeof params.title === 'string' ? params.title : undefined
@@ -81,6 +92,8 @@ export default async function GamesPage({ searchParams }: { searchParams: Search
   const page = parsePage(params.page)
   const offset = (page - 1) * PAGE_SIZE
   const filters: GamesFilters = { titleSlug, gameMode, resultFilter, opponent }
+  const matchIds = devMatchIds(gameMode)
+  const queryGameMode = dbGameMode(gameMode)
 
   const { gameTitle, titles, invalidRequested } = await resolveGameTitle(titleSlug)
 
@@ -102,23 +115,26 @@ export default async function GamesPage({ searchParams }: { searchParams: Search
         gameTitleId: gameTitle.id,
         limit: PAGE_SIZE,
         offset,
-        gameMode,
+        gameMode: queryGameMode,
         result: resultValues(resultFilter),
         opponent,
+        matchIds,
       }),
       countMatches({
         gameTitleId: gameTitle.id,
-        gameMode,
+        gameMode: queryGameMode,
         result: resultValues(resultFilter),
         opponent,
+        matchIds,
       }),
       getRecentMatches({
         gameTitleId: gameTitle.id,
         limit: 10,
         offset: 0,
-        gameMode,
+        gameMode: queryGameMode,
         result: resultValues(resultFilter),
         opponent,
+        matchIds,
       }),
     ])
     opponentClubs = await getOpponentClubs(
@@ -268,10 +284,11 @@ function gamesHref(filters: GamesFilters, page?: number): string {
   return `/games${qs ? `?${qs}` : ''}`
 }
 
-const MODE_LABELS: { mode: GameMode | null; label: string }[] = [
+const MODE_LABELS: { mode: GamesModeFilter; label: string }[] = [
   { mode: null, label: 'All' },
   { mode: '6s', label: '6s' },
   { mode: '3s', label: '3s' },
+  { mode: 'dev', label: 'Dev' },
 ]
 
 const RESULT_LABELS: { value: ResultFilter; label: string }[] = [
@@ -434,7 +451,9 @@ function clearFiltersHref(filters: GamesFilters): string {
 
 function buildEmptyMessage(gameTitleName: string, filters: GamesFilters): string {
   const parts: string[] = []
-  if (filters.gameMode !== null) parts.push(filters.gameMode)
+  if (filters.gameMode !== null) {
+    parts.push(filters.gameMode === 'dev' ? 'dev selection' : filters.gameMode)
+  }
   if (filters.resultFilter === 'WIN') parts.push('wins')
   else if (filters.resultFilter === 'LOSS') parts.push('losses')
   else if (filters.resultFilter === 'OTL_DNF') parts.push('OTL/DNF results')

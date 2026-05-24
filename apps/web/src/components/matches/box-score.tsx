@@ -159,10 +159,7 @@ function ModeTab({
       className={wrapperCls}
     >
       {active ? (
-        <span
-          aria-hidden
-          className="ticker-strip ticker-strip-thin absolute inset-x-0 top-0"
-        />
+        <span aria-hidden className="ticker-strip ticker-strip-thin absolute inset-x-0 top-0" />
       ) : null}
       <span
         className={`font-condensed text-[11px] font-bold uppercase tracking-[0.22em] ${
@@ -186,11 +183,7 @@ function ModeTabSummary({
   active: boolean
 }) {
   if (totals.forVal === null || totals.againstVal === null) {
-    return (
-      <span className="font-condensed text-[18px] font-black tabular-nums text-fg-5">
-        —
-      </span>
-    )
+    return <span className="font-condensed text-[18px] font-black tabular-nums text-fg-5">—</span>
   }
   const bgmAhead = totals.forVal > totals.againstVal
   const oppAhead = totals.againstVal > totals.forVal
@@ -257,13 +250,9 @@ function BoxScoreTable({
 }) {
   const totals = computeTotals(rows, mode)
   const bgmWinsTotal =
-    totals.forVal !== null &&
-    totals.againstVal !== null &&
-    totals.forVal > totals.againstVal
+    totals.forVal !== null && totals.againstVal !== null && totals.forVal > totals.againstVal
   const oppWinsTotal =
-    totals.forVal !== null &&
-    totals.againstVal !== null &&
-    totals.againstVal > totals.forVal
+    totals.forVal !== null && totals.againstVal !== null && totals.againstVal > totals.forVal
 
   return (
     <div
@@ -324,9 +313,7 @@ function BoxScoreTable({
 
 function PeriodHeading({ number }: { number: number }) {
   const isOt = number >= 4
-  return (
-    <span className={isOt ? 'font-black text-fg-1' : ''}>{formatPeriodLabel(number)}</span>
-  )
+  return <span className={isOt ? 'font-black text-fg-1' : ''}>{formatPeriodLabel(number)}</span>
 }
 
 function BgmRow({
@@ -352,8 +339,7 @@ function BgmRow({
       </th>
       {rows.map((r) => {
         const { forVal, againstVal } = getModeValues(r, mode)
-        const isPeriodWinner =
-          forVal !== null && againstVal !== null && forVal > againstVal
+        const isPeriodWinner = forVal !== null && againstVal !== null && forVal > againstVal
         return (
           <td
             key={r.id}
@@ -407,8 +393,7 @@ function OppRow({
       </th>
       {rows.map((r) => {
         const { forVal, againstVal } = getModeValues(r, mode)
-        const isPeriodWinner =
-          forVal !== null && againstVal !== null && againstVal > forVal
+        const isPeriodWinner = forVal !== null && againstVal !== null && againstVal > forVal
         return (
           <td
             key={r.id}
@@ -426,11 +411,7 @@ function OppRow({
       })}
       <td
         className={`border-l border-accent/40 bg-accent/[0.04] px-3 py-3 text-center font-condensed text-[24px] font-black tabular-nums ${
-          totals.againstVal === null
-            ? 'text-fg-5'
-            : isWinner
-              ? 'text-fg-1'
-              : 'text-fg-3'
+          totals.againstVal === null ? 'text-fg-5' : isWinner ? 'text-fg-1' : 'text-fg-3'
         }`}
       >
         {totals.againstVal ?? '—'}
@@ -511,11 +492,7 @@ function Footnotes({
           className={`h-1.5 w-1.5 rounded-full ${
             sourceKind === 'ocr' ? 'bg-emerald-400' : 'bg-fg-3'
           }`}
-          style={
-            sourceKind === 'ocr'
-              ? { boxShadow: '0 0 6px rgba(16,185,129,0.6)' }
-              : undefined
-          }
+          style={sourceKind === 'ocr' ? { boxShadow: '0 0 6px rgba(16,185,129,0.6)' } : undefined}
         />
         {sourceKind === 'ocr' ? 'OCR-reviewed · post-game' : 'EA · official'}
       </span>

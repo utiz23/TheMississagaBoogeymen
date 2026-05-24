@@ -140,8 +140,5 @@ export async function getExpectedSlotsForMatch(
     return []
   }
 
-  return [
-    ...toExpectedSlots(bgmRows, 'for'),
-    ...toExpectedSlots(oppRows, 'against'),
-  ]
+  return [...toExpectedSlots(bgmRows, 'for'), ...toExpectedSlots(oppRows, 'against')]
 }

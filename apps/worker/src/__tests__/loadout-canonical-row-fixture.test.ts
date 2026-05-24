@@ -91,11 +91,26 @@ const BGM_MATCH_STATS = [
  * Sentinel IDs 990006–990010.
  */
 const OPP_MATCH_STATS = [
-  { id: 990006, eaPlayerId: 'fix-9001-opp-c',  gamertag: 'XZ4RKY',          position: 'center' as const },
-  { id: 990007, eaPlayerId: 'fix-9001-opp-lw', gamertag: 'DuhPope',          position: 'leftWing' as const },
-  { id: 990008, eaPlayerId: 'fix-9001-opp-rw', gamertag: 'RAIDERSG7',        position: 'rightWing' as const },
-  { id: 990009, eaPlayerId: 'fix-9001-opp-ld', gamertag: 'MuttButt',         position: 'defenseMen' as const },
-  { id: 990010, eaPlayerId: 'fix-9001-opp-rd', gamertag: 'shadowassault20',  position: 'defenseMen' as const },
+  { id: 990006, eaPlayerId: 'fix-9001-opp-c', gamertag: 'XZ4RKY', position: 'center' as const },
+  { id: 990007, eaPlayerId: 'fix-9001-opp-lw', gamertag: 'DuhPope', position: 'leftWing' as const },
+  {
+    id: 990008,
+    eaPlayerId: 'fix-9001-opp-rw',
+    gamertag: 'RAIDERSG7',
+    position: 'rightWing' as const,
+  },
+  {
+    id: 990009,
+    eaPlayerId: 'fix-9001-opp-ld',
+    gamertag: 'MuttButt',
+    position: 'defenseMen' as const,
+  },
+  {
+    id: 990010,
+    eaPlayerId: 'fix-9001-opp-rd',
+    gamertag: 'shadowassault20',
+    position: 'defenseMen' as const,
+  },
 ]
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
@@ -159,10 +174,7 @@ async function seedRosterForSentinelMatch(matchId: number): Promise<void> {
  * After seedEvidenceRecords(), set each segment's evidence rows to reference
  * the extraction row that seedFixtureDb() created for that segment.
  */
-async function patchSupportFrameIds(
-  segmentIds: number[],
-  extractionIds: number[],
-): Promise<void> {
+async function patchSupportFrameIds(segmentIds: number[], extractionIds: number[]): Promise<void> {
   for (let i = 0; i < segmentIds.length; i++) {
     const segmentId = segmentIds[i]
     const extractionId = extractionIds[i]
@@ -176,14 +188,12 @@ async function patchSupportFrameIds(
 
 /** Delete sentinel players inserted by seedSentinelPlayers(). */
 async function cleanupSentinelPlayers(): Promise<void> {
-  await db
-    .delete(players)
-    .where(
-      inArray(
-        players.id,
-        BGM_SENTINEL_PLAYERS.map((p) => p.id),
-      ),
-    )
+  await db.delete(players).where(
+    inArray(
+      players.id,
+      BGM_SENTINEL_PLAYERS.map((p) => p.id),
+    ),
+  )
 }
 
 // ─── test state ───────────────────────────────────────────────────────────────
@@ -263,11 +273,7 @@ describe('T6A — promoter-vs-committed-JSON canonical-row parity', () => {
       .from(playerLoadoutSnapshots)
       .where(eq(playerLoadoutSnapshots.matchId, SENTINEL_MATCH_ID))
 
-    assert.equal(
-      snapshots.length,
-      10,
-      `expected 10 snapshots, got ${snapshots.length}`,
-    )
+    assert.equal(snapshots.length, 10, `expected 10 snapshots, got ${snapshots.length}`)
   })
 
   test('promoter writes 30 x_factor rows (3 per snapshot × 10)', async () => {
@@ -285,11 +291,7 @@ describe('T6A — promoter-vs-committed-JSON canonical-row parity', () => {
       .from(playerLoadoutXFactors)
       .where(inArray(playerLoadoutXFactors.loadoutSnapshotId, snapIds))
 
-    assert.equal(
-      xFactors.length,
-      30,
-      `expected 30 x_factor rows, got ${xFactors.length}`,
-    )
+    assert.equal(xFactors.length, 30, `expected 30 x_factor rows, got ${xFactors.length}`)
   })
 
   test('promoter writes 230 attribute rows (23 per snapshot × 10)', async () => {
@@ -307,11 +309,7 @@ describe('T6A — promoter-vs-committed-JSON canonical-row parity', () => {
       .from(playerLoadoutAttributes)
       .where(inArray(playerLoadoutAttributes.loadoutSnapshotId, snapIds))
 
-    assert.equal(
-      attributes.length,
-      230,
-      `expected 230 attribute rows, got ${attributes.length}`,
-    )
+    assert.equal(attributes.length, 230, `expected 230 attribute rows, got ${attributes.length}`)
   })
 
   // ── Authority source assertion ─────────────────────────────────────────────
@@ -495,10 +493,12 @@ describe('T6A — promoter-vs-committed-JSON canonical-row parity', () => {
       .select({ id: playerLoadoutSnapshots.id })
       .from(playerLoadoutSnapshots)
       .where(eq(playerLoadoutSnapshots.matchId, SENTINEL_MATCH_ID))
-      .then((rows) => rows.find((r) => {
-        // We need gamertagSnapshot — re-query with that column.
-        return false
-      }))
+      .then((rows) =>
+        rows.find((r) => {
+          // We need gamertagSnapshot — re-query with that column.
+          return false
+        }),
+      )
     // Re-query with full column set:
     const snaps = await db
       .select()

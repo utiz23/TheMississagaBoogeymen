@@ -103,7 +103,10 @@ void test('blocks_authority when manual_truth disagrees', () => {
   })
   const result = runPromotionGate({ candidates, authorityResolver: resolver })
   assert.equal(result.status, 'blocked_authority')
-  assert.ok(result.blockingReason?.includes('authority_manual_truth_disagrees_with_ocr'), result.blockingReason)
+  assert.ok(
+    result.blockingReason?.includes('authority_manual_truth_disagrees_with_ocr'),
+    result.blockingReason,
+  )
   assert.equal(result.conflictCount, 0) // only one candidate above threshold
 })
 
@@ -219,7 +222,10 @@ void test('first failing invariant short-circuits remaining predicates', () => {
   const first = failingPredicate('first', 'first_fails')
   const second: InvariantPredicate = {
     name: 'second',
-    check: () => { secondCalled = true; return { ok: true } },
+    check: () => {
+      secondCalled = true
+      return { ok: true }
+    },
   }
   const result = runPromotionGate({ candidates, invariantPredicates: [first, second] })
   assert.equal(result.status, 'blocked_invariant')

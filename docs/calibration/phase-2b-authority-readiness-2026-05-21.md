@@ -46,12 +46,12 @@ Script output from `getExpectedSlotsForMatch(matchId)` for matches 1, 2, 250, 46
   against / RW
 ```
 
-| Match | Returned pairs | Game mode | Notes |
-|-------|---------------|-----------|-------|
-| 1     | 6             | 3v3       | 3 for (LD, C, LW) + 3 against (C, LD, LW); no RW/RD — 3s skaters only |
-| 2     | 6             | 3v3       | Same as match 1 (symmetric EA payload) |
-| 250   | 10            | 6v6       | 5 for (LD, RW, LW, C, RD) + 5 against — full 5-skater lineup per side |
-| 463   | 10            | 6v6       | Same as match 250 pattern |
+| Match | Returned pairs | Game mode | Notes                                                                 |
+| ----- | -------------- | --------- | --------------------------------------------------------------------- |
+| 1     | 6              | 3v3       | 3 for (LD, C, LW) + 3 against (C, LD, LW); no RW/RD — 3s skaters only |
+| 2     | 6              | 3v3       | Same as match 1 (symmetric EA payload)                                |
+| 250   | 10             | 6v6       | 5 for (LD, RW, LW, C, RD) + 5 against — full 5-skater lineup per side |
+| 463   | 10             | 6v6       | Same as match 250 pattern                                             |
 
 All four matches return >0 pairs. No match hits Path C (0 rows). No `match_lineups`
 table exists; `player_match_stats` + `opponent_player_match_stats` are the single

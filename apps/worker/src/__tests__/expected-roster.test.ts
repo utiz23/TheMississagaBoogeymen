@@ -71,15 +71,11 @@ async function insertSentinelMatch(eaMatchId: string): Promise<number> {
 /** Clean up all sentinel rows in FK-safe order. */
 async function cleanup(): Promise<void> {
   if (sentinelMatchIds.length === 0) return
-  await db
-    .delete(playerMatchStats)
-    .where(inArray(playerMatchStats.matchId, sentinelMatchIds))
+  await db.delete(playerMatchStats).where(inArray(playerMatchStats.matchId, sentinelMatchIds))
   await db
     .delete(opponentPlayerMatchStats)
     .where(inArray(opponentPlayerMatchStats.matchId, sentinelMatchIds))
-  await db
-    .delete(matches)
-    .where(inArray(matches.id, sentinelMatchIds))
+  await db.delete(matches).where(inArray(matches.id, sentinelMatchIds))
   sentinelMatchIds = []
 }
 
@@ -126,11 +122,46 @@ void test('test_returns_pairs_when_authoritative_table_populated', async () => {
     })),
   )
   await db.insert(opponentPlayerMatchStats).values([
-    { matchId, eaPlayerId: 'opp-1', opponentClubId: '99999', gamertag: 'OppPlayer1', position: 'center', isGoalie: false },
-    { matchId, eaPlayerId: 'opp-2', opponentClubId: '99999', gamertag: 'OppPlayer2', position: 'leftWing', isGoalie: false },
-    { matchId, eaPlayerId: 'opp-3', opponentClubId: '99999', gamertag: 'OppPlayer3', position: 'rightWing', isGoalie: false },
-    { matchId, eaPlayerId: 'opp-4', opponentClubId: '99999', gamertag: 'OppPlayer4', position: 'defenseMen', isGoalie: false },
-    { matchId, eaPlayerId: 'opp-5', opponentClubId: '99999', gamertag: 'OppPlayer5', position: 'defenseMen', isGoalie: false },
+    {
+      matchId,
+      eaPlayerId: 'opp-1',
+      opponentClubId: '99999',
+      gamertag: 'OppPlayer1',
+      position: 'center',
+      isGoalie: false,
+    },
+    {
+      matchId,
+      eaPlayerId: 'opp-2',
+      opponentClubId: '99999',
+      gamertag: 'OppPlayer2',
+      position: 'leftWing',
+      isGoalie: false,
+    },
+    {
+      matchId,
+      eaPlayerId: 'opp-3',
+      opponentClubId: '99999',
+      gamertag: 'OppPlayer3',
+      position: 'rightWing',
+      isGoalie: false,
+    },
+    {
+      matchId,
+      eaPlayerId: 'opp-4',
+      opponentClubId: '99999',
+      gamertag: 'OppPlayer4',
+      position: 'defenseMen',
+      isGoalie: false,
+    },
+    {
+      matchId,
+      eaPlayerId: 'opp-5',
+      opponentClubId: '99999',
+      gamertag: 'OppPlayer5',
+      position: 'defenseMen',
+      isGoalie: false,
+    },
   ])
 
   const slots = await getExpectedSlotsForMatch(matchId)
@@ -174,9 +205,30 @@ void test('test_falls_back_to_player_match_stats_when_lineups_empty', async () =
 
   // Only seed opponent side — BGM side is empty.
   await db.insert(opponentPlayerMatchStats).values([
-    { matchId, eaPlayerId: 'opp-a', opponentClubId: '99999', gamertag: 'OppA', position: 'center', isGoalie: false },
-    { matchId, eaPlayerId: 'opp-b', opponentClubId: '99999', gamertag: 'OppB', position: 'leftWing', isGoalie: false },
-    { matchId, eaPlayerId: 'opp-c', opponentClubId: '99999', gamertag: 'OppC', position: 'defenseMen', isGoalie: false },
+    {
+      matchId,
+      eaPlayerId: 'opp-a',
+      opponentClubId: '99999',
+      gamertag: 'OppA',
+      position: 'center',
+      isGoalie: false,
+    },
+    {
+      matchId,
+      eaPlayerId: 'opp-b',
+      opponentClubId: '99999',
+      gamertag: 'OppB',
+      position: 'leftWing',
+      isGoalie: false,
+    },
+    {
+      matchId,
+      eaPlayerId: 'opp-c',
+      opponentClubId: '99999',
+      gamertag: 'OppC',
+      position: 'defenseMen',
+      isGoalie: false,
+    },
   ])
 
   const slots = await getExpectedSlotsForMatch(matchId)
@@ -219,9 +271,30 @@ void test('test_handles_partial_lineup', async () => {
     { matchId, playerId: PLAYER_IDS[2], position: 'defenseMen', isGoalie: false, teamSide: 0 },
   ])
   await db.insert(opponentPlayerMatchStats).values([
-    { matchId, eaPlayerId: 'opp-p1', opponentClubId: '99999', gamertag: 'Partial1', position: 'center', isGoalie: false },
-    { matchId, eaPlayerId: 'opp-p2', opponentClubId: '99999', gamertag: 'Partial2', position: 'rightWing', isGoalie: false },
-    { matchId, eaPlayerId: 'opp-p3', opponentClubId: '99999', gamertag: 'Partial3', position: 'goalie', isGoalie: true },
+    {
+      matchId,
+      eaPlayerId: 'opp-p1',
+      opponentClubId: '99999',
+      gamertag: 'Partial1',
+      position: 'center',
+      isGoalie: false,
+    },
+    {
+      matchId,
+      eaPlayerId: 'opp-p2',
+      opponentClubId: '99999',
+      gamertag: 'Partial2',
+      position: 'rightWing',
+      isGoalie: false,
+    },
+    {
+      matchId,
+      eaPlayerId: 'opp-p3',
+      opponentClubId: '99999',
+      gamertag: 'Partial3',
+      position: 'goalie',
+      isGoalie: true,
+    },
   ])
 
   const slots = await getExpectedSlotsForMatch(matchId)

@@ -87,7 +87,6 @@ export function EventTimeline({
   // Group by period for divider rendering.
   const groups = useMemo(() => buildGroups(storyEvents), [storyEvents])
 
-  if (storyEvents.length === 0) return null
 
   return (
     <section className="space-y-3">

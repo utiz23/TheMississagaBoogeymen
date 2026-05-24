@@ -16,6 +16,7 @@ The hockey-canonical use of the term "box score" is the period-by-period table �
 The user iterated on a mockup that introduced mode tabs (Goals/Shots/Faceoffs) and a period card grid. They kept the direction but felt the result was "convoluted" — three different per-mode cell treatments (giant scoreboard / split bars / pct chips), an asymmetric wider Total card, a redundant bottom "summary strip", and OT support that wasn't visible in the rendered example.
 
 This revamp:
+
 - Renames section #1's header `"Box Score"` → `"Team Stats"` to free the canonical name.
 - Replaces `<PeriodSummary>` with a new `<BoxScore>` component using mode tabs + a plain HTML table (periods as columns, teams as rows).
 - Drops the mode-specific cell treatments — same table structure for every mode, only the values change. The eye stays anchored when tabbing modes.
@@ -40,6 +41,7 @@ SectionHeader
 A three-column segmented control inside a bordered panel. Each tab is a `<button>` with `role="tab"` inside a `role="tablist"` container.
 
 Each tab carries:
+
 - **Label** — `"Goals"` / `"Shots"` / `"Faceoffs"` (font-condensed, uppercase, tight tracking, 11px).
 - **Summary** — the mode's headline:
   - Goals: `"5 – 3"` (BGM accent on winner side; opp side `--color-fg-3`).
@@ -47,6 +49,7 @@ Each tab carries:
   - Faceoffs: `"62.2%  28 of 45"` (pct large, raw split smaller and dimmer; pct is BGM-perspective).
 
 Active tab gets:
+
 - 2px accent ticker strip on top (uses existing `.ticker-strip ticker-strip-thin` utility),
 - Soft red wash background gradient,
 - Accent-colored label and summary.
@@ -54,6 +57,7 @@ Active tab gets:
 Default: Goals. Mode state is local React state; no URL/storage persistence (out of scope).
 
 Keyboard interaction:
+
 - Arrow Left / Right cycle between tabs (roving tabindex pattern — only the active tab has `tabIndex={0}`, others are -1).
 - Home / End jump to first / last.
 - Enter / Space activate the focused tab.
@@ -62,26 +66,31 @@ Keyboard interaction:
 ### The table
 
 A single `<table>` with:
+
 - One `<thead>` row of `<th scope="col">` cells: `Team · P1 · P2 · P3 [· OT · OT2 · OT3] · Total`.
 - One `<tbody>` row per team (BGM first, opponent second). The team-name cell is `<th scope="row">`.
 - For Faceoffs mode only, one secondary `<tr>` directly under the BGM row carrying per-period win percentages (see below).
 
 Period columns:
+
 - Each is named after `MatchPeriodSummaryRow.periodLabel` (e.g. `"1st"`, `"OT"`, `"OT2"`). OT/OT2/OT3 labels render in `--color-otl` amber.
 - A period that exists in `rows` gets a column. Periods missing from `rows` (e.g. game ended in regulation) are simply not rendered — no empty placeholder.
 - A period that exists but has no value for the active mode renders `—` in muted text (`--color-fg-5`) and is excluded from the Total computation.
 
 Total column:
+
 - Always present, always rightmost.
 - Larger font (24px vs 17px for period cells), soft red wash background (`rgba(232,65,49,0.04)`), 1px accent-line left border.
 - BGM cell uses `--color-accent` when BGM is the mode winner, paper otherwise; the winner cell gets a soft text-shadow glow. Opponent cell uses paper when winner, `--color-fg-3` when not.
 
 Cell values:
+
 - **Goals** mode — integer goals per period (e.g. `2`).
 - **Shots** mode — integer shots per period (e.g. `12`).
 - **Faceoffs** mode — integer faceoff **wins** per period (e.g. `8`). The pct row carries the percentage.
 
 Per-period winner cells:
+
 - BGM cell when `goalsFor > goalsAgainst` (or `shotsFor > shotsAgainst` / `faceoffsFor > faceoffsAgainst`) gets the accent color + bold weight.
 - Opponent cell when opp leads that period: cell value rendered in paper white + bold (no accent — accent stays a BGM signal).
 - Tied period: both cells stay default colors (BGM `--color-fg-3`, opp `--color-fg-3`).
@@ -144,6 +153,7 @@ export function BoxScore({ rows, opponentLabel }: BoxScoreProps): JSX.Element | 
 Returns `null` when `rows.length === 0` (same gate as the current `<PeriodSummary>`).
 
 Internal structure:
+
 - `<SectionHeader>` (existing component).
 - `<ModeTabs>` (private to this file) — three buttons + roving tabindex + `tablist` role.
 - `<BoxScoreTable>` (private) — the table itself, takes `mode` + `rows` + `opponentLabel` + the `bgmAbbrev`.
@@ -157,7 +167,10 @@ Three small pure helpers in the same file (or hoisted to `match-recap.ts` if reu
 ```ts
 type BoxScoreMode = 'goals' | 'shots' | 'faceoffs'
 
-interface ModeValues { for: number | null; against: number | null }
+interface ModeValues {
+  for: number | null
+  against: number | null
+}
 
 function getModeValues(row: MatchPeriodSummaryRow, mode: BoxScoreMode): ModeValues
 // → goals: { for: row.goalsFor, against: row.goalsAgainst }, etc.

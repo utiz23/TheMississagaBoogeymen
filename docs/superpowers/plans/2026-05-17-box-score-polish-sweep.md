@@ -14,15 +14,16 @@
 
 After today's Box Score GOALS delta indicator fix (commit `b0a614e`) — the only Box Score code change so far — five UI-review polish items remain. They cluster naturally into a single-file sweep:
 
-| # | Item | UI review § | Type |
-|---|---|---|---|
-| 1 | OT period column header `text-otl` collides with OTL-loss result color | §5 #2 | Visual bug |
-| 2 | FACEOFFS tab summary `21 of 30` phrasing | §5 #3 | UX polish |
-| 3 | `r.periodLabel` raw use should adopt shared `formatPeriodLabel` | §5 #4 | Future-proofing |
-| 4 | Per-period winner cells need a faint heatmap tint | §5 #10 | Visual signal |
-| 5 | Missing-period footnote `⚠` emoji breaks icon-family consistency with `●` | §5 #6 | Typographic polish |
+| #   | Item                                                                      | UI review § | Type               |
+| --- | ------------------------------------------------------------------------- | ----------- | ------------------ |
+| 1   | OT period column header `text-otl` collides with OTL-loss result color    | §5 #2       | Visual bug         |
+| 2   | FACEOFFS tab summary `21 of 30` phrasing                                  | §5 #3       | UX polish          |
+| 3   | `r.periodLabel` raw use should adopt shared `formatPeriodLabel`           | §5 #4       | Future-proofing    |
+| 4   | Per-period winner cells need a faint heatmap tint                         | §5 #10      | Visual signal      |
+| 5   | Missing-period footnote `⚠` emoji breaks icon-family consistency with `●` | §5 #6       | Typographic polish |
 
 User decisions (2026-05-17):
+
 - **OT color (item 1):** drop orange entirely, use neutral `text-fg-1`.
 - **Heatmap scope (item 4):** both teams — BGM cells in accent-red tint, OPP cells in neutral tint (matches the page-wide BGM=accent / OPP=neutral convention).
 - **FACEOFFS phrasing (item 2, default):** `21W · 30 total` (matches the FO W/L convention used by the Scoresheet's faceoff row).
@@ -34,10 +35,10 @@ Intended outcome: the Box Score section becomes the page's cleanest tabular surf
 
 ## File Map
 
-| Touched in | File | Why |
-|---|---|---|
-| Tasks 1-5 | `apps/web/src/components/matches/box-score.tsx` | All five fixes |
-| Task 3 | (also import from `apps/web/src/lib/period-label.ts`) | Reuse existing `formatPeriodLabel` helper |
+| Touched in | File                                                  | Why                                       |
+| ---------- | ----------------------------------------------------- | ----------------------------------------- |
+| Tasks 1-5  | `apps/web/src/components/matches/box-score.tsx`       | All five fixes                            |
+| Task 3     | (also import from `apps/web/src/lib/period-label.ts`) | Reuse existing `formatPeriodLabel` helper |
 
 Five commits, single file. Each task is line-disjoint from the others.
 
@@ -52,6 +53,7 @@ Five commits, single file. Each task is line-disjoint from the others.
 ### Task 1: Drop OT orange — use neutral `text-fg-1`
 
 **Files:**
+
 - Modify: `apps/web/src/components/matches/box-score.tsx` (lines 324-327 — `PeriodHeading`)
 
 - [ ] **Step 1: Replace the OT-orange conditional with a neutral brighter color**
@@ -124,6 +126,7 @@ EOF
 ### Task 2: FACEOFFS tab summary phrasing — `N of M` → `NW · M total`
 
 **Files:**
+
 - Modify: `apps/web/src/components/matches/box-score.tsx` (line 209 — inside the `mode === 'faceoffs'` branch of `ModeTabSummary`)
 
 - [ ] **Step 1: Replace the "N of M" template with "NW · M total"**
@@ -131,17 +134,17 @@ EOF
 Line 209 currently renders:
 
 ```tsx
-          {totalAttempts > 0
-            ? `${totals.forVal.toString()} of ${totalAttempts.toString()}`
-            : '—'}
+{
+  totalAttempts > 0 ? `${totals.forVal.toString()} of ${totalAttempts.toString()}` : '—'
+}
 ```
 
 Replace with (compact-wins-with-total phrasing — matches the FO W/L convention used by the Scoresheet):
 
 ```tsx
-          {totalAttempts > 0
-            ? `${totals.forVal.toString()}W · ${totalAttempts.toString()} total`
-            : '—'}
+{
+  totalAttempts > 0 ? `${totals.forVal.toString()}W · ${totalAttempts.toString()} total` : '—'
+}
 ```
 
 Renders `21W · 30 total` instead of `21 of 30`. Compact, hockey-conventional, no "of" ambiguity.
@@ -188,6 +191,7 @@ EOF
 ### Task 3: Adopt shared `formatPeriodLabel` for column headers
 
 **Files:**
+
 - Modify: `apps/web/src/components/matches/box-score.tsx` (top imports + lines 289 + 324-327 — `PeriodHeading` + its call site)
 
 - [ ] **Step 1: Import `formatPeriodLabel`**
@@ -214,9 +218,7 @@ with:
 ```tsx
 function PeriodHeading({ number }: { number: number }) {
   const isOt = number >= 4
-  return (
-    <span className={isOt ? 'font-black text-fg-1' : ''}>{formatPeriodLabel(number)}</span>
-  )
+  return <span className={isOt ? 'font-black text-fg-1' : ''}>{formatPeriodLabel(number)}</span>
 }
 ```
 
@@ -227,13 +229,13 @@ function PeriodHeading({ number }: { number: number }) {
 Line 289 currently passes both props:
 
 ```tsx
-                <PeriodHeading label={r.periodLabel} number={r.periodNumber} />
+<PeriodHeading label={r.periodLabel} number={r.periodNumber} />
 ```
 
 Drop the `label` prop (the helper derives it from `number`):
 
 ```tsx
-                <PeriodHeading number={r.periodNumber} />
+<PeriodHeading number={r.periodNumber} />
 ```
 
 `r.periodLabel` is no longer consumed in this surface — but it stays on the data row in case other surfaces need it (and it's harmless if unused here).
@@ -277,6 +279,7 @@ EOF
 ### Task 4: Heatmap tint on per-period winner cells (both teams)
 
 **Files:**
+
 - Modify: `apps/web/src/components/matches/box-score.tsx` (lines 350-367 — `BgmRow` cells, and lines 405-422 — `OppRow` cells)
 
 - [ ] **Step 1: Add accent-red tint to BGM-won period cells**
@@ -284,49 +287,51 @@ EOF
 The `BgmRow` per-cell render (lines 350-367) already computes `isPeriodWinner`. Add a conditional background tint to the cell className. Currently:
 
 ```tsx
-      {rows.map((r) => {
-        const { forVal, againstVal } = getModeValues(r, mode)
-        const isPeriodWinner =
-          forVal !== null && againstVal !== null && forVal > againstVal
-        return (
-          <td
-            key={r.id}
-            className={`border-b border-zinc-800/40 px-3 py-3 text-center font-condensed text-[17px] tabular-nums ${
-              forVal === null
-                ? 'font-bold text-fg-5'
-                : isPeriodWinner
-                  ? 'font-black text-accent'
-                  : 'font-bold text-fg-2'
-            }`}
-          >
-            {forVal ?? '—'}
-          </td>
-        )
-      })}
+{
+  rows.map((r) => {
+    const { forVal, againstVal } = getModeValues(r, mode)
+    const isPeriodWinner = forVal !== null && againstVal !== null && forVal > againstVal
+    return (
+      <td
+        key={r.id}
+        className={`border-b border-zinc-800/40 px-3 py-3 text-center font-condensed text-[17px] tabular-nums ${
+          forVal === null
+            ? 'font-bold text-fg-5'
+            : isPeriodWinner
+              ? 'font-black text-accent'
+              : 'font-bold text-fg-2'
+        }`}
+      >
+        {forVal ?? '—'}
+      </td>
+    )
+  })
+}
 ```
 
 Replace the className template with (add the `isPeriodWinner ? 'bg-accent/[0.04]' : ''` tint as a separate token):
 
 ```tsx
-      {rows.map((r) => {
-        const { forVal, againstVal } = getModeValues(r, mode)
-        const isPeriodWinner =
-          forVal !== null && againstVal !== null && forVal > againstVal
-        return (
-          <td
-            key={r.id}
-            className={`border-b border-zinc-800/40 px-3 py-3 text-center font-condensed text-[17px] tabular-nums ${
-              forVal === null
-                ? 'font-bold text-fg-5'
-                : isPeriodWinner
-                  ? 'font-black text-accent'
-                  : 'font-bold text-fg-2'
-            } ${isPeriodWinner ? 'bg-accent/[0.04]' : ''}`}
-          >
-            {forVal ?? '—'}
-          </td>
-        )
-      })}
+{
+  rows.map((r) => {
+    const { forVal, againstVal } = getModeValues(r, mode)
+    const isPeriodWinner = forVal !== null && againstVal !== null && forVal > againstVal
+    return (
+      <td
+        key={r.id}
+        className={`border-b border-zinc-800/40 px-3 py-3 text-center font-condensed text-[17px] tabular-nums ${
+          forVal === null
+            ? 'font-bold text-fg-5'
+            : isPeriodWinner
+              ? 'font-black text-accent'
+              : 'font-bold text-fg-2'
+        } ${isPeriodWinner ? 'bg-accent/[0.04]' : ''}`}
+      >
+        {forVal ?? '—'}
+      </td>
+    )
+  })
+}
 ```
 
 `bg-accent/[0.04]` is a 4% opacity tint — faint enough that it doesn't fight the text, just enough to read as a heatmap on a quick scan.
@@ -336,25 +341,26 @@ Replace the className template with (add the `isPeriodWinner ? 'bg-accent/[0.04]
 `OppRow` (lines 405-422) is structurally identical. Apply the same pattern with a neutral tint (matches the page-wide BGM=accent / OPP=neutral convention):
 
 ```tsx
-      {rows.map((r) => {
-        const { forVal, againstVal } = getModeValues(r, mode)
-        const isPeriodWinner =
-          againstVal !== null && forVal !== null && againstVal > forVal
-        return (
-          <td
-            key={r.id}
-            className={`border-b border-zinc-800/40 px-3 py-3 text-center font-condensed text-[17px] tabular-nums ${
-              againstVal === null
-                ? 'font-bold text-fg-5'
-                : isPeriodWinner
-                  ? 'font-black text-fg-1'
-                  : 'font-bold text-fg-3'
-            } ${isPeriodWinner ? 'bg-fg-4/[0.04]' : ''}`}
-          >
-            {againstVal ?? '—'}
-          </td>
-        )
-      })}
+{
+  rows.map((r) => {
+    const { forVal, againstVal } = getModeValues(r, mode)
+    const isPeriodWinner = againstVal !== null && forVal !== null && againstVal > forVal
+    return (
+      <td
+        key={r.id}
+        className={`border-b border-zinc-800/40 px-3 py-3 text-center font-condensed text-[17px] tabular-nums ${
+          againstVal === null
+            ? 'font-bold text-fg-5'
+            : isPeriodWinner
+              ? 'font-black text-fg-1'
+              : 'font-bold text-fg-3'
+        } ${isPeriodWinner ? 'bg-fg-4/[0.04]' : ''}`}
+      >
+        {againstVal ?? '—'}
+      </td>
+    )
+  })
+}
 ```
 
 The `isPeriodWinner` check is reversed for OppRow (`againstVal > forVal` instead of `forVal > againstVal`) — read the existing code at line 407-408 to confirm the exact form and preserve it; the only change is the appended `${isPeriodWinner ? 'bg-fg-4/[0.04]' : ''}` token in the className template.
@@ -369,6 +375,7 @@ Expected: 0 errors.
 - [ ] **Step 4: Manual browser verification**
 
 Navigate to `/games/250` (BGM won 4-3 in OT). Box Score table cells should now show:
+
 - GOALS tab: 2ND period BGM cell tinted accent-red (BGM scored 2 to opp's 0); 3RD period OPP cell tinted neutral (opp scored 2 to BGM's 1); OT cell tinted accent-red (BGM scored the GWG)
 - SHOTS tab: similar per-period winner tinting based on shot counts
 - FACEOFFS tab: per-period faceoff-winner tinting
@@ -409,6 +416,7 @@ EOF
 ### Task 5: `⚠` emoji → red `●` for icon-family consistency
 
 **Files:**
+
 - Modify: `apps/web/src/components/matches/box-score.tsx` (lines 499-502 — missing-period footnote in `Footnotes`)
 
 - [ ] **Step 1: Replace the `⚠` emoji with a red pulse-dot**
@@ -416,22 +424,26 @@ EOF
 The missing-period footnote (lines 499-502) currently:
 
 ```tsx
-        {missingPeriods.length > 0 ? (
-          <span className="font-condensed text-[10px] font-semibold uppercase tracking-[0.18em] text-fg-5">
-            ⚠ {missingPeriods.join(', ')} OCR unavailable — excluded from totals
-          </span>
-        ) : null}
+{
+  missingPeriods.length > 0 ? (
+    <span className="font-condensed text-[10px] font-semibold uppercase tracking-[0.18em] text-fg-5">
+      ⚠ {missingPeriods.join(', ')} OCR unavailable — excluded from totals
+    </span>
+  ) : null
+}
 ```
 
 Replace with (red `●` mirrors the green `●` used by the OCR-reviewed badge below; same shape, color encodes meaning):
 
 ```tsx
-        {missingPeriods.length > 0 ? (
-          <span className="inline-flex items-center gap-2 font-condensed text-[10px] font-semibold uppercase tracking-[0.18em] text-fg-5">
-            <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-accent" />
-            {missingPeriods.join(', ')} OCR unavailable — excluded from totals
-          </span>
-        ) : null}
+{
+  missingPeriods.length > 0 ? (
+    <span className="inline-flex items-center gap-2 font-condensed text-[10px] font-semibold uppercase tracking-[0.18em] text-fg-5">
+      <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-accent" />
+      {missingPeriods.join(', ')} OCR unavailable — excluded from totals
+    </span>
+  ) : null
+}
 ```
 
 Switched outer `<span>` to `inline-flex items-center gap-2` (so the dot + text align on the baseline, matching the OCR-reviewed badge at lines 504-516). The dot is `bg-accent` (the page's red token), `aria-hidden` (decorative; the text carries the meaning).

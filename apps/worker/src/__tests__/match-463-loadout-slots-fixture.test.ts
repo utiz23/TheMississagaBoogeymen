@@ -68,10 +68,7 @@ const SENTINEL_MATCH_ID = SENTINEL_MATCH_IDS[FIXTURE_NAME] // 9002
  * time). The promoter uses support_frame_ids[0] as ocrExtractionId, which it
  * writes to player_loadout_snapshots.ocr_extraction_id (NOT NULL FK).
  */
-async function patchSupportFrameIds(
-  segmentIds: number[],
-  extractionIds: number[],
-): Promise<void> {
+async function patchSupportFrameIds(segmentIds: number[], extractionIds: number[]): Promise<void> {
   for (let i = 0; i < segmentIds.length; i++) {
     const segmentId = segmentIds[i]
     const extractionId = extractionIds[i]

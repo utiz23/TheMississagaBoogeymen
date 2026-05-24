@@ -50,7 +50,6 @@ export function LineupSection({
 }: LineupSectionProps) {
   const bgm = lineups.bgm
   const opp = lineups.opponent
-  if (bgm.length === 0 && opp.length === 0) return null
 
   const bgmByPos = bucketByPosition(bgm)
   const oppByPos = bucketByPosition(opp)
@@ -618,7 +617,9 @@ function PlayerCard({ row, side }: { row: LineupRow; side: 'bgm' | 'opp' }) {
     )
   }
   return (
-    <div className={`${sharedClass} grid-cols-[auto_1fr_56px_64px] border-r-2 border-[var(--color-border)] border-r-[var(--color-accent)]`}>
+    <div
+      className={`${sharedClass} grid-cols-[auto_1fr_56px_64px] border-r-2 border-[var(--color-border)] border-r-[var(--color-accent)]`}
+    >
       <XFactorStack xFactors={row.xFactors} />
       <PlayerInfo
         persona={persona}
@@ -922,10 +923,7 @@ function PlatformBadge({
   const src = `/assets/platforms/${platform.family}.svg`
   const marginClass = side === 'left' ? 'mr-1.5' : 'ml-1.5'
   return (
-    <span
-      className={`${marginClass} inline-flex items-center align-[-2px]`}
-      title={platform.label}
-    >
+    <span className={`${marginClass} inline-flex items-center align-[-2px]`} title={platform.label}>
       <Image
         src={src}
         alt={platform.label}

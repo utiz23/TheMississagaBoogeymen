@@ -235,9 +235,7 @@ function SkaterRowEl({ row, isBgm }: { row: SkaterRow; isBgm: boolean }) {
                 />
                 <DetailStat
                   label="Shooting %"
-                  value={
-                    row.shots > 0 ? `${((row.goals / row.shots) * 100).toFixed(0)}%` : '—'
-                  }
+                  value={row.shots > 0 ? `${((row.goals / row.shots) * 100).toFixed(0)}%` : '—'}
                 />
                 <DetailStat
                   label="Pass %"

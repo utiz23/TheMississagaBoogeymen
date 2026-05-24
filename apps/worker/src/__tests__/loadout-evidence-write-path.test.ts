@@ -123,7 +123,12 @@ describe('writeFieldEvidenceForBatch', () => {
     const records: LoadoutEvidenceRecord[] = [
       makeRecord({ field_key: 'build_class', candidate_rank: 0 }),
       makeRecord({ field_key: 'position', candidate_rank: 0 }),
-      makeRecord({ field_key: 'gamertag', field_family: 'open_text', extractor_family: 'open_text', candidate_rank: 0 }),
+      makeRecord({
+        field_key: 'gamertag',
+        field_family: 'open_text',
+        extractor_family: 'open_text',
+        candidate_rank: 0,
+      }),
     ]
 
     const result = await writeFieldEvidenceForBatch({
@@ -203,9 +208,22 @@ describe('writeFieldEvidenceForBatch', () => {
 
     // Re-ingest with v2 extractor_version.
     const v2Records: LoadoutEvidenceRecord[] = [
-      makeRecord({ field_key: 'build_class', extractor_version: '2a14-test-v2', candidate_value: 'Power Forward' }),
-      makeRecord({ field_key: 'position', extractor_version: '2a14-test-v2', candidate_value: 'LD' }),
-      makeRecord({ field_key: 'gamertag', extractor_version: '2a14-test-v2', field_family: 'open_text', extractor_family: 'open_text' }),
+      makeRecord({
+        field_key: 'build_class',
+        extractor_version: '2a14-test-v2',
+        candidate_value: 'Power Forward',
+      }),
+      makeRecord({
+        field_key: 'position',
+        extractor_version: '2a14-test-v2',
+        candidate_value: 'LD',
+      }),
+      makeRecord({
+        field_key: 'gamertag',
+        extractor_version: '2a14-test-v2',
+        field_family: 'open_text',
+        extractor_family: 'open_text',
+      }),
     ]
 
     const second = await writeFieldEvidenceForBatch({
@@ -308,13 +326,28 @@ describe('writeFieldEvidenceForBatch', () => {
     const recordsA: LoadoutEvidenceRecord[] = [
       makeRecord({ field_key: 'build_class', subject_slot_key: 'slot_A_0' }),
       makeRecord({ field_key: 'position', subject_slot_key: 'slot_A_0' }),
-      makeRecord({ field_key: 'gamertag', subject_slot_key: 'slot_A_0', field_family: 'open_text', extractor_family: 'open_text' }),
+      makeRecord({
+        field_key: 'gamertag',
+        subject_slot_key: 'slot_A_0',
+        field_family: 'open_text',
+        extractor_family: 'open_text',
+      }),
     ]
 
     const recordsB: LoadoutEvidenceRecord[] = [
-      makeRecord({ field_key: 'build_class', subject_slot_key: 'slot_B_0', candidate_value: 'Grinder' }),
+      makeRecord({
+        field_key: 'build_class',
+        subject_slot_key: 'slot_B_0',
+        candidate_value: 'Grinder',
+      }),
       makeRecord({ field_key: 'position', subject_slot_key: 'slot_B_0', candidate_value: 'RW' }),
-      makeRecord({ field_key: 'gamertag', subject_slot_key: 'slot_B_0', field_family: 'open_text', extractor_family: 'open_text', candidate_value: 'PlayerB' }),
+      makeRecord({
+        field_key: 'gamertag',
+        subject_slot_key: 'slot_B_0',
+        field_family: 'open_text',
+        extractor_family: 'open_text',
+        candidate_value: 'PlayerB',
+      }),
     ]
 
     // Write 3 records to segment A.

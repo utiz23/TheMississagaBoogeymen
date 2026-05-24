@@ -16,12 +16,7 @@
  * Prints inserted / updated / no-op counts at the end.
  */
 
-import {
-  db,
-  sql as dbSql,
-  playerPersonaAliases,
-  type NewPlayerPersonaAlias,
-} from '@eanhl/db'
+import { db, sql as dbSql, playerPersonaAliases, type NewPlayerPersonaAlias } from '@eanhl/db'
 import { eq } from 'drizzle-orm'
 import { normalizeSnapshot } from './ocr-promoters/resolve-identity.js'
 
@@ -63,9 +58,7 @@ async function applyMap(mapStr: string): Promise<ApplyStats> {
     const cleaned = normalizeSnapshot(rawAlias)
     const normalized = cleaned.toLowerCase()
     if (!normalized) {
-      console.warn(
-        `[promote-persona-alias] alias '${rawAlias}' normalizes to empty — skipping`,
-      )
+      console.warn(`[promote-persona-alias] alias '${rawAlias}' normalizes to empty — skipping`)
       stats.skipped++
       continue
     }
@@ -81,9 +74,7 @@ async function applyMap(mapStr: string): Promise<ApplyStats> {
 
     if (existing) {
       if (existing.canonical === canonical) {
-        console.log(
-          `[promote-persona-alias] no-op: '${rawAlias}' → '${canonical}' already present`,
-        )
+        console.log(`[promote-persona-alias] no-op: '${rawAlias}' → '${canonical}' already present`)
         stats.noop++
         continue
       }

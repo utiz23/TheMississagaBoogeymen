@@ -55,7 +55,10 @@ function skipIfNoDb(t: { skip: (msg: string) => void }): boolean {
 }
 
 async function loadFloor(matchId: number): Promise<QualitySnapshot> {
-  const filePath = path.join(REPO_ROOT, `docs/calibration/regression-floor-match-${String(matchId)}.json`)
+  const filePath = path.join(
+    REPO_ROOT,
+    `docs/calibration/regression-floor-match-${String(matchId)}.json`,
+  )
   const text = await readFile(filePath, 'utf8')
   // Tolerate the pnpm preamble lines that prefix the JSON when captured via shell.
   const start = text.indexOf('{')
@@ -65,7 +68,12 @@ async function loadFloor(matchId: number): Promise<QualitySnapshot> {
 function runQualityCli(matchId: number): QualitySnapshot {
   const result = spawnSync(
     'node',
-    [path.join(REPO_ROOT, 'apps/worker/dist/match-quality-cli.js'), '--match', String(matchId), '--json'],
+    [
+      path.join(REPO_ROOT, 'apps/worker/dist/match-quality-cli.js'),
+      '--match',
+      String(matchId),
+      '--json',
+    ],
     { encoding: 'utf8', maxBuffer: 4 * 1024 * 1024 },
   )
   if (result.status !== 0) {
@@ -82,9 +90,7 @@ function compareLayer(
 ): void {
   if (!floor || floor.score === null) return // floor has no signal — skip
   if (!current || current.score === null) {
-    assert.fail(
-      `${name}: current score is null but floor was ${(floor.score * 100).toFixed(1)}%`,
-    )
+    assert.fail(`${name}: current score is null but floor was ${(floor.score * 100).toFixed(1)}%`)
   }
   // Allow a sub-percent tolerance (0.5pp) for cosmetic floating-point drift.
   const tolerance = 0.005

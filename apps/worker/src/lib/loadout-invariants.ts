@@ -43,7 +43,13 @@ export const TOTAL_ATTRIBUTE_COUNT = 23 as const
  * Comparison in junkGamertagWithoutSupportingEvidence is
  * case-insensitive (call `.toUpperCase()` before `has()`).
  */
-export const JUNK_GAMERTAGS: ReadonlySet<string> = new Set(['AWAY', 'HOME', 'CPU', '?', '(UNKNOWN)'])
+export const JUNK_GAMERTAGS: ReadonlySet<string> = new Set([
+  'AWAY',
+  'HOME',
+  'CPU',
+  '?',
+  '(UNKNOWN)',
+])
 
 /**
  * Canonical build-class set derived from normalize-build-class.ts.
@@ -101,9 +107,7 @@ export interface CandidateLike {
  * @param xFactorCandidates Array of exactly 3 CandidateLike entries for
  *   x_factor_name_0, x_factor_name_1, x_factor_name_2 (order by slot_index).
  */
-export function exactly3XFactorsPerSlot(
-  xFactorCandidates: CandidateLike[],
-): InvariantResult {
+export function exactly3XFactorsPerSlot(xFactorCandidates: CandidateLike[]): InvariantResult {
   const promotedCount = xFactorCandidates.filter(
     (c) => c.candidateValue !== null && c.candidateValue !== undefined && c.rawConfidence > 0,
   ).length
@@ -151,11 +155,7 @@ export function atLeast20Of23AttributesPerSlot(
  * @param min   Lower bound (inclusive). Default 0.
  * @param max   Upper bound (inclusive). Default 99.
  */
-export function jerseyNumberInRange(
-  value: unknown,
-  min = 0,
-  max = 99,
-): InvariantResult {
+export function jerseyNumberInRange(value: unknown, min = 0, max = 99): InvariantResult {
   if (typeof value !== 'number' || !Number.isInteger(value) || Number.isNaN(value)) {
     return { ok: false, violationReason: `jersey_number_not_integer_${String(value)}` }
   }

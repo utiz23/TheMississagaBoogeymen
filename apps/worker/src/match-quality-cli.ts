@@ -60,9 +60,15 @@ async function buildScreenTable(matchId: number): Promise<ScreenRow[]> {
       ok: sql<string>`COUNT(*) FILTER (WHERE ${ocrExtractions.transformStatus} = 'success')::text`,
       err: sql<string>`COUNT(*) FILTER (WHERE ${ocrExtractions.transformStatus} = 'error')::text`,
       reviewed: sql<string>`COUNT(*) FILTER (WHERE ${ocrExtractions.reviewStatus} = 'reviewed')::text`,
-      avgConf: sql<string | null>`ROUND(AVG(${ocrExtractions.overallConfidence})::numeric, 3)::text`,
-      minConf: sql<string | null>`ROUND(MIN(${ocrExtractions.overallConfidence})::numeric, 3)::text`,
-      maxConf: sql<string | null>`ROUND(MAX(${ocrExtractions.overallConfidence})::numeric, 3)::text`,
+      avgConf: sql<
+        string | null
+      >`ROUND(AVG(${ocrExtractions.overallConfidence})::numeric, 3)::text`,
+      minConf: sql<
+        string | null
+      >`ROUND(MIN(${ocrExtractions.overallConfidence})::numeric, 3)::text`,
+      maxConf: sql<
+        string | null
+      >`ROUND(MAX(${ocrExtractions.overallConfidence})::numeric, 3)::text`,
     })
     .from(ocrExtractions)
     .where(eq(ocrExtractions.matchId, matchId))
@@ -333,8 +339,6 @@ interface DupeRow {
   event_type: string
   n: number
 }
-
-
 
 async function buildQualityFlags(
   matchId: number,
@@ -616,8 +620,7 @@ async function computeLayers(
       const match = /^(\d+)\s/.exec(f.message)
       return acc + (match && match[1] ? Number(match[1]) : 0)
     }, 0)
-  const l2score =
-    bgmEvents > 0 ? Math.max(0, (bgmResolved - failsDeducted) / bgmEvents) : 0
+  const l2score = bgmEvents > 0 ? Math.max(0, (bgmResolved - failsDeducted) / bgmEvents) : 0
   const l2 = {
     score: l2score,
     pass: l2score >= L2_THRESHOLD,
@@ -756,8 +759,7 @@ function renderHuman(
   lines.push('   table                                  actual / exp  rev  notes')
   for (const d of downstream) {
     const ratio = d.expected !== null && d.expected > 0 ? d.actual / d.expected : null
-    const tag =
-      ratio === null ? '   ' : ratio >= 1 ? ' OK' : ratio >= L3_THRESHOLD ? 'OK ' : 'GAP'
+    const tag = ratio === null ? '   ' : ratio >= 1 ? ' OK' : ratio >= L3_THRESHOLD ? 'OK ' : 'GAP'
     lines.push(
       `   ${tag} ${bar(d.table, 38)} ${String(d.actual).padStart(4)} / ${String(d.expected ?? '—').padStart(4)}  ${String(d.reviewed).padStart(4)}  ${d.notes}`,
     )

@@ -107,7 +107,18 @@ function projectY(y: number): number {
 
 function glyphFor(ev: EventRow, inCollision: boolean): string {
   if (inCollision) return '#' // collision-flagged
-  const base = ev.eventType === 'shot' ? 's' : ev.eventType === 'hit' ? 'h' : ev.eventType === 'goal' ? 'G' : ev.eventType === 'faceoff' ? 'f' : ev.eventType === 'penalty' ? 'P' : '?'
+  const base =
+    ev.eventType === 'shot'
+      ? 's'
+      : ev.eventType === 'hit'
+        ? 'h'
+        : ev.eventType === 'goal'
+          ? 'G'
+          : ev.eventType === 'faceoff'
+            ? 'f'
+            : ev.eventType === 'penalty'
+              ? 'P'
+              : '?'
   return ev.teamSide === 'for' ? base.toUpperCase() : base.toLowerCase()
 }
 
@@ -149,7 +160,9 @@ function renderRink(
   const lines: string[] = []
   lines.push('')
   lines.push(`Match ${matchId} — ${periodLabel}`)
-  lines.push(`Glyphs: G/g=goal  S/s=shot  H/h=hit  F/f=faceoff  P/p=penalty  (upper=BGM, lower=opp)`)
+  lines.push(
+    `Glyphs: G/g=goal  S/s=shot  H/h=hit  F/f=faceoff  P/p=penalty  (upper=BGM, lower=opp)`,
+  )
   lines.push(`Markers in Class C collision pair (within 1.0 hockey unit of another event): #`)
   lines.push('')
   lines.push(' OPP ATK ←' + '─'.repeat(COLS - 14) + '→ BGM ATK')
@@ -171,15 +184,11 @@ function renderCollisionList(events: EventRow[], collisions: Set<number>): strin
   const lines: string[] = []
   lines.push('--- Class C collision pairs ---')
   // Group by (period, rounded x, rounded y) to surface which events share a position
-  const groups = [...byPos.entries()].sort(
-    (a, b) => b[1].length - a[1].length,
-  )
+  const groups = [...byPos.entries()].sort((a, b) => b[1].length - a[1].length)
   for (const [, group] of groups) {
     if (group.length < 2) continue
     const first = group[0]!
-    lines.push(
-      `  P${first.period} @(${first.x.toFixed(2)}, ${first.y.toFixed(2)}):`,
-    )
+    lines.push(`  P${first.period} @(${first.x.toFixed(2)}, ${first.y.toFixed(2)}):`)
     for (const ev of group) {
       lines.push(
         `    id=${ev.id}  ${ev.eventType}@${ev.clock}  ${ev.teamSide}  actor="${ev.actor ?? '?'}"`,

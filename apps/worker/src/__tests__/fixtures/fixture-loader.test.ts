@@ -21,16 +21,8 @@ describe('loadFixture', () => {
   test('loads match250 fixture with 2 segments (305 + 305 records)', () => {
     const fixture = loadFixture('fixture_match250_full_lobby')
     assert.equal(fixture.segments.length, 2, '2 segments: seg_bgm and seg_opp')
-    assert.equal(
-      fixture.segments[0]?.expectedEvidence.length,
-      305,
-      'seg_bgm has 305 records',
-    )
-    assert.equal(
-      fixture.segments[1]?.expectedEvidence.length,
-      305,
-      'seg_opp has 305 records',
-    )
+    assert.equal(fixture.segments[0]?.expectedEvidence.length, 305, 'seg_bgm has 305 records')
+    assert.equal(fixture.segments[1]?.expectedEvidence.length, 305, 'seg_opp has 305 records')
     assert.equal(fixture.sentinelMatchId, 9001, 'sentinel match ID is 9001')
     assert.equal(SENTINEL_MATCH_IDS['fixture_match250_full_lobby'], 9001)
     // Segment keys
@@ -45,11 +37,7 @@ describe('loadFixture', () => {
   test('loads match463 fixture with 1 segment (61 records)', () => {
     const fixture = loadFixture('fixture_match463_single_slot')
     assert.equal(fixture.segments.length, 1, '1 segment at fixture root')
-    assert.equal(
-      fixture.segments[0]?.expectedEvidence.length,
-      61,
-      '61 records',
-    )
+    assert.equal(fixture.segments[0]?.expectedEvidence.length, 61, '61 records')
     assert.equal(fixture.sentinelMatchId, 9002, 'sentinel match ID is 9002')
     assert.equal(SENTINEL_MATCH_IDS['fixture_match463_single_slot'], 9002)
     assert.equal(fixture.segments[0]?.segmentKey, 'fixture-seg-1')

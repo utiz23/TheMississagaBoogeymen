@@ -15,6 +15,7 @@ export async function getRecentMatches(params: {
   gameMode?: GameMode | null
   result?: MatchResult | MatchResult[] | null
   opponent?: string | null
+  matchIds?: number[] | null
 }) {
   const where = buildMatchListWhere(params)
 
@@ -36,6 +37,7 @@ export async function countMatches(params: {
   gameMode?: GameMode | null
   result?: MatchResult | MatchResult[] | null
   opponent?: string | null
+  matchIds?: number[] | null
 }) {
   const where = buildMatchListWhere(params)
 
@@ -48,11 +50,16 @@ function buildMatchListWhere(params: {
   gameMode?: GameMode | null
   result?: MatchResult | MatchResult[] | null
   opponent?: string | null
+  matchIds?: number[] | null
 }) {
   const conditions: SQL[] = [eq(matches.gameTitleId, params.gameTitleId)]
 
   if (params.gameMode != null) {
     conditions.push(eq(matches.gameMode, params.gameMode))
+  }
+
+  if (params.matchIds && params.matchIds.length > 0) {
+    conditions.push(inArray(matches.id, params.matchIds))
   }
 
   if (Array.isArray(params.result) && params.result.length > 0) {

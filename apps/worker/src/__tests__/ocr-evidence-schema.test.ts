@@ -28,13 +28,7 @@
 
 import test, { after, before } from 'node:test'
 import assert from 'node:assert/strict'
-import {
-  db,
-  sql,
-  ocrSegments,
-  ocrFieldEvidence,
-  ocrPromotions,
-} from '@eanhl/db'
+import { db, sql, ocrSegments, ocrFieldEvidence, ocrPromotions } from '@eanhl/db'
 import { and, eq, like } from 'drizzle-orm'
 
 // Use match 250 (existing, well-known) as the FK target; all sentinel rows
@@ -49,12 +43,8 @@ async function cleanup(): Promise<void> {
   await db
     .delete(ocrPromotions)
     .where(like(ocrPromotions.targetTable, `${SENTINEL_TARGET_TABLE_PREFIX}%`))
-  await db
-    .delete(ocrFieldEvidence)
-    .where(like(ocrFieldEvidence.extractorVersion, 'phase0-test-%'))
-  await db
-    .delete(ocrSegments)
-    .where(like(ocrSegments.decoderVersion, 'phase0-test-%'))
+  await db.delete(ocrFieldEvidence).where(like(ocrFieldEvidence.extractorVersion, 'phase0-test-%'))
+  await db.delete(ocrSegments).where(like(ocrSegments.decoderVersion, 'phase0-test-%'))
 }
 
 before(async () => {
@@ -125,10 +115,7 @@ void test('ocr_segments: insert + upsert on (match_id, segment_key)', async () =
     .select()
     .from(ocrSegments)
     .where(
-      and(
-        eq(ocrSegments.matchId, TEST_MATCH_ID),
-        eq(ocrSegments.segmentKey, SENTINEL_SEGMENT_KEY),
-      ),
+      and(eq(ocrSegments.matchId, TEST_MATCH_ID), eq(ocrSegments.segmentKey, SENTINEL_SEGMENT_KEY)),
     )
   assert.equal(rows.length, 1, 'unique index prevents duplicate')
 })
@@ -233,10 +220,7 @@ void test('ocr_field_evidence: geometry-extractor columns round-trip', async () 
     .select()
     .from(ocrSegments)
     .where(
-      and(
-        eq(ocrSegments.matchId, TEST_MATCH_ID),
-        eq(ocrSegments.segmentKey, SENTINEL_KEY_TWO),
-      ),
+      and(eq(ocrSegments.matchId, TEST_MATCH_ID), eq(ocrSegments.segmentKey, SENTINEL_KEY_TWO)),
     )
   const segId = segs[0]!.id
 
@@ -310,41 +294,37 @@ void test('ocr_promotions: every promotion_status enum value is accepted', async
 void test('ocr_promotions: unique index on (target_table, target_semantic_key, field_key) prevents dupes', async () => {
   if (!process.env['DATABASE_URL']) return
   // First insert.
-  await db
-    .insert(ocrPromotions)
-    .values({
+  await db.insert(ocrPromotions).values({
+    matchId: TEST_MATCH_ID,
+    targetTable: 'phase0_unique_test',
+    targetSemanticKey: { match_id: TEST_MATCH_ID, slot: 'unique' },
+    fieldKey: 'build_class',
+    winningValue: 'Playmaker',
+    winningConfidence: '0.9000',
+    evidenceCount: 1,
+    conflictCount: 0,
+    evidenceIds: [],
+    promotionStatus: 'promoted',
+    authoritySource: 'ocr_evidence',
+  })
+
+  // Second insert with same (target_table, semantic_key, field_key) should
+  // conflict — assert the unique index catches it.
+  let conflictThrown = false
+  try {
+    await db.insert(ocrPromotions).values({
       matchId: TEST_MATCH_ID,
       targetTable: 'phase0_unique_test',
       targetSemanticKey: { match_id: TEST_MATCH_ID, slot: 'unique' },
       fieldKey: 'build_class',
-      winningValue: 'Playmaker',
-      winningConfidence: '0.9000',
+      winningValue: 'Sniper',
+      winningConfidence: '0.8000',
       evidenceCount: 1,
       conflictCount: 0,
       evidenceIds: [],
       promotionStatus: 'promoted',
       authoritySource: 'ocr_evidence',
     })
-
-  // Second insert with same (target_table, semantic_key, field_key) should
-  // conflict — assert the unique index catches it.
-  let conflictThrown = false
-  try {
-    await db
-      .insert(ocrPromotions)
-      .values({
-        matchId: TEST_MATCH_ID,
-        targetTable: 'phase0_unique_test',
-        targetSemanticKey: { match_id: TEST_MATCH_ID, slot: 'unique' },
-        fieldKey: 'build_class',
-        winningValue: 'Sniper',
-        winningConfidence: '0.8000',
-        evidenceCount: 1,
-        conflictCount: 0,
-        evidenceIds: [],
-        promotionStatus: 'promoted',
-        authoritySource: 'ocr_evidence',
-      })
   } catch (err) {
     conflictThrown = true
     const msg = err instanceof Error ? err.message : String(err)
@@ -365,10 +345,7 @@ void test('ocr_segments → ocr_field_evidence FK cascade: deleting segment requ
     .select()
     .from(ocrSegments)
     .where(
-      and(
-        eq(ocrSegments.matchId, TEST_MATCH_ID),
-        eq(ocrSegments.segmentKey, SENTINEL_KEY_TWO),
-      ),
+      and(eq(ocrSegments.matchId, TEST_MATCH_ID), eq(ocrSegments.segmentKey, SENTINEL_KEY_TWO)),
     )
   const segId = segs[0]!.id
 
@@ -388,15 +365,9 @@ void test('ocr_segments → ocr_field_evidence FK cascade: deleting segment requ
   } catch {
     fkBlocked = true
   }
-  assert.ok(
-    fkBlocked,
-    'FK should prevent deleting a segment that has evidence rows pointing at it',
-  )
+  assert.ok(fkBlocked, 'FK should prevent deleting a segment that has evidence rows pointing at it')
 
   // Independent verification: re-query the segment — it must still exist.
-  const stillThere = await db
-    .select()
-    .from(ocrSegments)
-    .where(eq(ocrSegments.id, segId))
+  const stillThere = await db.select().from(ocrSegments).where(eq(ocrSegments.id, segId))
   assert.equal(stillThere.length, 1, 'segment row not deleted (FK held)')
 })

@@ -400,11 +400,7 @@ async function main(): Promise<void> {
       }
       // Only flag unresolved gamertags on the BGM (for) side — opp gamertags
       // live in opponent_player_match_stats and never get a players.id by design.
-      if (
-        resolved.playerId === null &&
-        merged.gamertagSnapshot &&
-        anchor.teamSide === 'for'
-      ) {
+      if (resolved.playerId === null && merged.gamertagSnapshot && anchor.teamSide === 'for') {
         unresolvedGamertags.push({
           side: anchor.teamSide,
           position: anchor.position ?? '?',
@@ -455,12 +451,12 @@ function emitUnresolvedReport(
     console.log('')
     console.log('--- UNRESOLVED PERSONAS (need player_persona_aliases seed) ---')
     for (const p of personas) {
-      console.log(
-        `  ${pad(p.side, 7)} ${pad(p.position, 4)} ${pad(p.gamertag, 24)} → ${p.raw}`,
-      )
+      console.log(`  ${pad(p.side, 7)} ${pad(p.position, 4)} ${pad(p.gamertag, 24)} → ${p.raw}`)
     }
     const mapPairs = personas
-      .map((p) => `${p.raw}=>${p.raw.toUpperCase().replace(/\./g, '. ').replace(/\s+/g, ' ').trim()}`)
+      .map(
+        (p) => `${p.raw}=>${p.raw.toUpperCase().replace(/\./g, '. ').replace(/\s+/g, ' ').trim()}`,
+      )
       .join(',')
     console.log('Suggested:')
     console.log(`  pnpm --filter worker promote-persona-alias --map "${mapPairs}"`)

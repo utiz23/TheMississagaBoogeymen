@@ -108,9 +108,7 @@ export function LineupExpandPanel({
     <div
       className={containerClass}
       style={
-        isExpanded
-          ? undefined
-          : { borderColor: `color-mix(in srgb, ${posColor} 40%, transparent)` }
+        isExpanded ? undefined : { borderColor: `color-mix(in srgb, ${posColor} 40%, transparent)` }
       }
     >
       {showBgm ? (
@@ -334,7 +332,9 @@ function BuildBlock({
           Reference build · {refPlayer}
         </div>
       ) : null}
-      <div className={`mt-3 flex flex-wrap gap-4 font-condensed text-[11px] font-bold tabular-nums tracking-[0.04em] text-[var(--color-fg-3)] ${kvJustify}`}>
+      <div
+        className={`mt-3 flex flex-wrap gap-4 font-condensed text-[11px] font-bold tabular-nums tracking-[0.04em] text-[var(--color-fg-3)] ${kvJustify}`}
+      >
         <KvBlock k="Height" v={row.heightText ?? '—'} />
         <KvBlock k="Weight" v={row.weightLbs !== null ? `${String(row.weightLbs)} lb` : '—'} />
         <KvBlock k="Hand" v={formatHand(row.handedness)} />

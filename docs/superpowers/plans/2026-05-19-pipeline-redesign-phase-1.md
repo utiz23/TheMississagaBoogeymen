@@ -90,6 +90,7 @@ Each file has one responsibility. The Viterbi decoder is a **pure function** so 
 ### Task 1 — State machine YAML config + schema
 
 **Files:**
+
 - Create: `tools/game_ocr/game_ocr/configs/state_machine/nhl26.yaml`
 - Test: none yet (just data)
 
@@ -108,8 +109,8 @@ Create `tools/game_ocr/game_ocr/configs/state_machine/nhl26.yaml`:
 # addition. -inf marks an illegal transition. Self-loops are not listed and
 # default to log_self_loop_prior.
 
-version: "nhl26"
-decoder_version: "hmm-viterbi-v1"
+version: 'nhl26'
+decoder_version: 'hmm-viterbi-v1'
 
 # Sample rate the decoder expects. Mismatched sample_fps is a hard error.
 sample_fps: 1.0
@@ -135,10 +136,10 @@ min_duration_seconds:
   unknown_or_transition: 0.0
   pre_game_lobby_state_1: 2.0
   pre_game_lobby_state_2: 2.0
-  player_loadout_view: 0.5      # Round 4 §4 — sub-second slot traversal
+  player_loadout_view: 0.5 # Round 4 §4 — sub-second slot traversal
   loading_or_intro: 0.0
-  in_game_clock: 5.0            # long gameplay dwell
-  in_game_goal_state_1: 0.5     # transient overlay
+  in_game_clock: 5.0 # long gameplay dwell
+  in_game_goal_state_1: 0.5 # transient overlay
   in_game_goal_state_2: 0.5
   post_game_player_summary: 1.5
   post_game_box_score_goals: 1.0
@@ -157,7 +158,7 @@ anchor_substrings:
   pre_game_lobby_state_2: [eashl]
   player_loadout_view: [player loadouts]
   loading_or_intro: [now loading, world chel, season]
-  in_game_clock: []             # HUD scoreboard has no top-bar text anchor
+  in_game_clock: [] # HUD scoreboard has no top-bar text anchor
   in_game_goal_state_1: [scores, goal]
   in_game_goal_state_2: [assist]
   post_game_player_summary: [player summary]
@@ -323,6 +324,7 @@ git commit -m "feat(ocr): Phase 1 state machine YAML for HMM/Viterbi Pass-1"
 ### Task 2 — State machine loader
 
 **Files:**
+
 - Create: `tools/game_ocr/game_ocr/state_machine.py`
 - Test: `tools/video_ingest/tests/test_state_machine.py`
 
@@ -550,6 +552,7 @@ git commit -m "feat(ocr): Phase 1 state machine loader + tests"
 ### Task 3 — Pure-function Viterbi decoder
 
 **Files:**
+
 - Create: `tools/game_ocr/game_ocr/viterbi.py`
 - Test: `tools/video_ingest/tests/test_viterbi.py`
 
@@ -736,6 +739,7 @@ git commit -m "feat(ocr): Phase 1 Viterbi decoder pure function + tests"
 ### Task 4 — Multi-signal frame feature extractor
 
 **Files:**
+
 - Create: `tools/game_ocr/game_ocr/frame_features.py`
 - Test: `tools/video_ingest/tests/test_frame_features.py`
 
@@ -949,6 +953,7 @@ git commit -m "feat(ocr): Phase 1 multi-signal frame feature extractor + tests"
 ### Task 5 — Small learned screen classifier (sklearn LR head)
 
 **Files:**
+
 - Create: `tools/game_ocr/game_ocr/screen_classifier.py`
 - Create: `tools/game_ocr/game_ocr/weights/.gitkeep` (empty placeholder until Task 6)
 - Test: `tools/video_ingest/tests/test_screen_classifier.py`
@@ -1281,6 +1286,7 @@ git commit -m "feat(ocr): Phase 1 learned screen classifier (sklearn LR head) + 
 ### Task 6 — Training script + corpus expansion driver
 
 **Files:**
+
 - Create: `tools/game_ocr/scripts/train_screen_classifier.py`
 - Create: `tools/game_ocr/scripts/label_state_machine_corpus.py`
 
@@ -1600,6 +1606,7 @@ git commit -m "feat(ocr): Phase 1 LR-head training + corpus expansion scripts; i
 ### Task 7 — Emission combiner
 
 **Files:**
+
 - Create: `tools/game_ocr/game_ocr/emissions.py`
 - Test: `tools/video_ingest/tests/test_emissions.py`
 
@@ -1792,6 +1799,7 @@ git commit -m "feat(ocr): Phase 1 emission combiner + tests"
 ### Task 8 — `pass1_segment.decode_segments()` top-level decoder
 
 **Files:**
+
 - Create: `tools/video_ingest/video_ingest/pass1_segment.py`
 - Test: `tools/video_ingest/tests/test_pass1_segment.py`
 
@@ -2088,6 +2096,7 @@ git commit -m "feat(ocr): Phase 1 HMM/Viterbi decode_segments() + integration te
 ### Task 9 — Wire `pass1_segment` into the orchestrator behind a `pass1.engine` flag
 
 **Files:**
+
 - Modify: `tools/video_ingest/video_ingest/configs/nhl26.yaml`
 - Modify: `tools/video_ingest/video_ingest/orchestrator.py`
 - Modify: `tools/video_ingest/video_ingest/pass1_classify.py` (extend `Pass1Config` only)
@@ -2311,6 +2320,7 @@ git commit -m "feat(ocr): Phase 1 wire Viterbi engine into orchestrator behind p
 ### Task 10 — Thread `decoder_version` from orchestrator → dispatch → ingest-ocr-cli
 
 **Files:**
+
 - Modify: `tools/video_ingest/video_ingest/dispatch.py`
 - Modify: `apps/worker/src/ingest-ocr-cli.ts`
 - Modify: `apps/worker/src/ingest-ocr.ts`
@@ -2439,7 +2449,7 @@ interface CliArgs {
 Inside `parseArgs()` after the `uiVersion` parse:
 
 ```typescript
-  const decoderVersion = getFlag('decoder-version') ?? null
+const decoderVersion = getFlag('decoder-version') ?? null
 ```
 
 Add `decoderVersion` to the returned object and pass it through the call to `ingestOcrBatch` in the same file (mirroring `uiVersion`).
@@ -2495,6 +2505,7 @@ git commit -m "feat(ocr): Phase 1 thread decoder_version through dispatch + inge
 ### Task 11 — `ocr_segments` decoder_version distinction test (TS)
 
 **Files:**
+
 - Create: `apps/worker/src/__tests__/ocr-segments-hmm-vs-legacy.test.ts`
 
 Locks in that legacy-emitted and HMM-emitted segments are distinguishable in the database.
@@ -2569,6 +2580,7 @@ git commit -m "test(ocr): Phase 1 ocr_segments HMM vs legacy decoder_version tes
 ### Task 12 — Box-score tab fixtures
 
 **Files:**
+
 - Add fixtures: `tools/game_ocr/calibration/extras/post_game_box_score_shots__match250_t<T>_vs_4thline.png`, `post_game_box_score_faceoffs__match250_t<T>_vs_4thline.png`
 - Run: `train_screen_classifier.py`
 
@@ -2608,12 +2620,12 @@ As of Phase 1 commit, neither match 250 nor match 463 contain those tabs
 in the recorded gameplay. The gate stays conditional: when the next operator
 captures a recording that tabs through Shot Summary / Faceoff Summary, run:
 
-  python3 tools/game_ocr/scripts/label_state_machine_corpus.py \
-    --segments /tmp/vi-canonical/<sha>/segments.json \
-    --video /mnt/k/NHL/NHL26/<file>.mkv \
-    --match-id <N> --opp <slug>
+python3 tools/game_ocr/scripts/label_state_machine_corpus.py \
+ --segments /tmp/vi-canonical/<sha>/segments.json \
+ --video /mnt/k/NHL/NHL26/<file>.mkv \
+ --match-id <N> --opp <slug>
 
-  python3 tools/game_ocr/scripts/train_screen_classifier.py --version nhl26
+python3 tools/game_ocr/scripts/train_screen_classifier.py --version nhl26
 
 Then commit the resulting weights JSON. The state machine YAML already
 encodes both states; the gate becomes verifiable as soon as the corpus has
@@ -2638,6 +2650,7 @@ git commit -m "feat(ocr): Phase 1 box-score tab fixtures (or pending marker)"
 ### Task 13 — Match 463 loadout segment count regression test
 
 **Files:**
+
 - Create: `apps/worker/src/__tests__/match-463-loadout-segments.test.ts`
 
 Phase 1 T2 gate per the redesign plan: match 463 loadout segment count goes from 2 → ≥7 of 10 slots captured.
@@ -2670,8 +2683,7 @@ const MATCH_ID = 463
 const TARGET_FLOOR = 7
 
 test('match 463 has ≥7 player_loadout_view segments under HMM decoder', async () => {
-  const matchRows = await db
-    .execute(sql`SELECT 1 FROM matches WHERE id = ${MATCH_ID} LIMIT 1`)
+  const matchRows = await db.execute(sql`SELECT 1 FROM matches WHERE id = ${MATCH_ID} LIMIT 1`)
   if ((matchRows as { rows: unknown[] }).rows.length === 0) {
     console.log('[skip] match 463 not in DB')
     return
@@ -2679,11 +2691,13 @@ test('match 463 has ≥7 player_loadout_view segments under HMM decoder', async 
   const rows = await db
     .select({ count: sql<number>`count(*)::int` })
     .from(ocrSegments)
-    .where(and(
-      eq(ocrSegments.matchId, MATCH_ID),
-      eq(ocrSegments.state, 'player_loadout_view' as const),
-      eq(ocrSegments.decoderVersion, 'hmm-viterbi-v1'),
-    ))
+    .where(
+      and(
+        eq(ocrSegments.matchId, MATCH_ID),
+        eq(ocrSegments.state, 'player_loadout_view' as const),
+        eq(ocrSegments.decoderVersion, 'hmm-viterbi-v1'),
+      ),
+    )
   assert.ok(
     rows[0].count >= TARGET_FLOOR,
     `expected ≥${TARGET_FLOOR} loadout segments under HMM decoder for match 463, got ${rows[0].count}`,
@@ -2742,7 +2756,7 @@ Expected stderr output:
 
 ```
 [pass1] N frames classified, M segments emitted in T.Ts
-  seg ... 
+  seg ...
 [pass2] ...
 [dispatch] K ok, 0 failed
 ```
@@ -2800,6 +2814,7 @@ git commit -m "test(ocr): Phase 1 enable HMM-tagged ocr_segments + match-463 loa
 ### Task 15 — Match 250 V2 benchmark still green (T1 gate)
 
 **Files:**
+
 - Extend: `apps/worker/src/__tests__/match-250-benchmark.test.ts`
 
 Round 4 §10 + plan T1 gate: every Phase that touches a 250-covered field must keep T1 green. Phase 1 should not break the existing 397 assertions, AND should let previously-skipped assertions become enforceable (e.g. anything gated on the HMM decoder running).
@@ -2823,10 +2838,7 @@ test.describe('Phase 1 HMM Pass-1 invariants', () => {
     const rows = await db
       .select({ count: sql<number>`count(*)::int` })
       .from(ocrSegments)
-      .where(and(
-        eq(ocrSegments.matchId, 250),
-        eq(ocrSegments.decoderVersion, 'hmm-viterbi-v1'),
-      ))
+      .where(and(eq(ocrSegments.matchId, 250), eq(ocrSegments.decoderVersion, 'hmm-viterbi-v1')))
     assert.ok(rows[0].count >= 1, 'expected at least one hmm-viterbi-v1 segment for match 250')
   })
 
@@ -2834,10 +2846,7 @@ test.describe('Phase 1 HMM Pass-1 invariants', () => {
     const rows = await db
       .select({ tStart: ocrSegments.tStartSec, tEnd: ocrSegments.tEndSec })
       .from(ocrSegments)
-      .where(and(
-        eq(ocrSegments.matchId, 250),
-        eq(ocrSegments.decoderVersion, 'hmm-viterbi-v1'),
-      ))
+      .where(and(eq(ocrSegments.matchId, 250), eq(ocrSegments.decoderVersion, 'hmm-viterbi-v1')))
       .limit(5)
     for (const r of rows) {
       assert.ok(r.tStart !== null, 't_start_sec must be populated by HMM decoder')
@@ -2870,6 +2879,7 @@ git commit -m "test(ocr): Phase 1 add HMM-decoder invariants to match-250 V2 ben
 ### Task 16 — Update `ocr-segments-report` CLI to surface decoder_version
 
 **Files:**
+
 - Modify: `apps/worker/src/ocr-segments-report-cli.ts` (or wherever the existing CLI lives)
 
 Phase 0 shipped this CLI. Phase 1 makes the report distinguish HMM vs legacy rows so the operator can verify the migration end-to-end.
@@ -2922,6 +2932,7 @@ git commit -m "feat(worker): Phase 1 ocr-segments-report shows decoder_version d
 ### Task 17 — Legacy fallback documentation + deprecation marker
 
 **Files:**
+
 - Modify: `tools/video_ingest/video_ingest/pass1_classify.py` (module docstring)
 - Modify: `tools/game_ocr/game_ocr/classifier.py` (module docstring)
 
@@ -2979,6 +2990,7 @@ git commit -m "docs(ocr): Phase 1 mark legacy Pass-1 modules as fallback-only"
 ### Task 18 — End-to-end smoke test against the 60s clip fixture
 
 **Files:**
+
 - Extend: `tools/video_ingest/tests/test_pass1_segment.py`
 
 The repo has a labeled 60s clip at `tools/video_ingest/tests/fixtures/match-250-clip.mkv` with ground-truth segments in `match-250-clip-segments.json`. Phase 1's decoder must produce something close to the labels.
@@ -3079,6 +3091,7 @@ git commit -m "test(ocr): Phase 1 end-to-end Viterbi against the 60s labeled cli
 ### Task 19 — HANDOFF + Phase-1 checkpoint commit
 
 **Files:**
+
 - Modify: `HANDOFF.md`
 
 Per the project Commit Protocol + the redesign plan's "checkpoint every phase" rule.
@@ -3123,38 +3136,39 @@ distribution. Match 250 + match 463 re-ingested through the new path.
 
 ### Key files added / modified
 
-| New | What |
-|---|---|
-| `tools/game_ocr/game_ocr/configs/state_machine/nhl26.yaml` | 17-state machine + transition matrix + min-duration priors |
-| `tools/game_ocr/game_ocr/state_machine.py` | YAML loader + log-prob accessors |
-| `tools/game_ocr/game_ocr/frame_features.py` | Per-frame HSV + anchor flags + blur + brightness extractor |
-| `tools/game_ocr/game_ocr/screen_classifier.py` | sklearn LR head + JSON weights I/O |
-| `tools/game_ocr/game_ocr/emissions.py` | Combines features + classifier output into (T, N) log emissions |
-| `tools/game_ocr/game_ocr/viterbi.py` | Pure-function log-space decoder |
-| `tools/game_ocr/game_ocr/weights/nhl26-screen-classifier.json` | Trained LR weights (committed) |
-| `tools/game_ocr/scripts/train_screen_classifier.py` | Idempotent training driver |
-| `tools/game_ocr/scripts/label_state_machine_corpus.py` | Operator-driven corpus expansion across 17 states |
-| `tools/video_ingest/video_ingest/pass1_segment.py` | HMM/Viterbi top-level Pass-1 decoder |
+| New                                                            | What                                                            |
+| -------------------------------------------------------------- | --------------------------------------------------------------- |
+| `tools/game_ocr/game_ocr/configs/state_machine/nhl26.yaml`     | 17-state machine + transition matrix + min-duration priors      |
+| `tools/game_ocr/game_ocr/state_machine.py`                     | YAML loader + log-prob accessors                                |
+| `tools/game_ocr/game_ocr/frame_features.py`                    | Per-frame HSV + anchor flags + blur + brightness extractor      |
+| `tools/game_ocr/game_ocr/screen_classifier.py`                 | sklearn LR head + JSON weights I/O                              |
+| `tools/game_ocr/game_ocr/emissions.py`                         | Combines features + classifier output into (T, N) log emissions |
+| `tools/game_ocr/game_ocr/viterbi.py`                           | Pure-function log-space decoder                                 |
+| `tools/game_ocr/game_ocr/weights/nhl26-screen-classifier.json` | Trained LR weights (committed)                                  |
+| `tools/game_ocr/scripts/train_screen_classifier.py`            | Idempotent training driver                                      |
+| `tools/game_ocr/scripts/label_state_machine_corpus.py`         | Operator-driven corpus expansion across 17 states               |
+| `tools/video_ingest/video_ingest/pass1_segment.py`             | HMM/Viterbi top-level Pass-1 decoder                            |
 
-| Modified | Why |
-|---|---|
-| `tools/video_ingest/video_ingest/orchestrator.py` | `pass1.engine` dispatch + decoder_version plumbing |
-| `tools/video_ingest/video_ingest/dispatch.py` | `--decoder-version` CLI flag |
-| `tools/video_ingest/video_ingest/pass1_classify.py` | `Pass1Config.engine`, cache-key includes state-machine + weights |
-| `tools/video_ingest/video_ingest/configs/nhl26.yaml` | `pass1.engine: viterbi` |
-| `apps/worker/src/ingest-ocr-cli.ts` | `--decoder-version` flag |
-| `apps/worker/src/ingest-ocr.ts` | Pass-through to `writeSegmentForBatch.decoderVersion` |
-| `apps/worker/src/__tests__/match-250-benchmark.test.ts` | +2 HMM invariants |
-| `apps/worker/src/__tests__/match-463-loadout-segments.test.ts` | NEW |
-| `apps/worker/src/__tests__/ocr-segments-hmm-vs-legacy.test.ts` | NEW |
+| Modified                                                       | Why                                                              |
+| -------------------------------------------------------------- | ---------------------------------------------------------------- |
+| `tools/video_ingest/video_ingest/orchestrator.py`              | `pass1.engine` dispatch + decoder_version plumbing               |
+| `tools/video_ingest/video_ingest/dispatch.py`                  | `--decoder-version` CLI flag                                     |
+| `tools/video_ingest/video_ingest/pass1_classify.py`            | `Pass1Config.engine`, cache-key includes state-machine + weights |
+| `tools/video_ingest/video_ingest/configs/nhl26.yaml`           | `pass1.engine: viterbi`                                          |
+| `apps/worker/src/ingest-ocr-cli.ts`                            | `--decoder-version` flag                                         |
+| `apps/worker/src/ingest-ocr.ts`                                | Pass-through to `writeSegmentForBatch.decoderVersion`            |
+| `apps/worker/src/__tests__/match-250-benchmark.test.ts`        | +2 HMM invariants                                                |
+| `apps/worker/src/__tests__/match-463-loadout-segments.test.ts` | NEW                                                              |
+| `apps/worker/src/__tests__/ocr-segments-hmm-vs-legacy.test.ts` | NEW                                                              |
 
 ### Next
 
 Phase 2 — Loadout-view evidence-layer MVR. Build the typed extractor stack
-+ promotion gate for `player_loadout_view`. The HMM decoder from Phase 1 is
-already capturing the brief loadout segments that Phase 2 will extract from.
-Plan reference: `.claude/plans/plan-redesign-ocr-pipeline-2026-05-19.md`
-Phase 2.
+
+- promotion gate for `player_loadout_view`. The HMM decoder from Phase 1 is
+  already capturing the brief loadout segments that Phase 2 will extract from.
+  Plan reference: `.claude/plans/plan-redesign-ocr-pipeline-2026-05-19.md`
+  Phase 2.
 ```
 
 - [ ] **Step 2: Run all gates one final time**

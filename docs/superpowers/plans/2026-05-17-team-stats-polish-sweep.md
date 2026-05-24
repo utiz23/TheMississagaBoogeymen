@@ -14,17 +14,18 @@
 
 After today's two earlier Team Stats fixes (RATINGS placeholder removal in commit `2b428c9` + the `↓ BETTER` polarity indicator in commit `1a0242c`), five UI-review polish items remain — all single-file or single-builder-function changes that cluster naturally into a sweep:
 
-| # | Item | UI review § | Type |
-|---|---|---|---|
-| 1 | `Possession 1471 vs 1162` has no unit — actually seconds, not touches | §3 #13 | Labeling |
-| 2 | DEFENSE group mixes "more better" + "less better" stats | §3 #4 | Group structure |
-| 3 | Sparse-value bar (1-vs-0 = full-width "domination") | §3 #5 | Visual signal |
-| 4 | Side label `OPP` should use real abbreviation `4L` | §3 #6 | Consistency |
-| 5 | `rounded-full` bars break sharp esports aesthetic | §3 #9 | Polish |
+| #   | Item                                                                  | UI review § | Type            |
+| --- | --------------------------------------------------------------------- | ----------- | --------------- |
+| 1   | `Possession 1471 vs 1162` has no unit — actually seconds, not touches | §3 #13      | Labeling        |
+| 2   | DEFENSE group mixes "more better" + "less better" stats               | §3 #4       | Group structure |
+| 3   | Sparse-value bar (1-vs-0 = full-width "domination")                   | §3 #5       | Visual signal   |
+| 4   | Side label `OPP` should use real abbreviation `4L`                    | §3 #6       | Consistency     |
+| 5   | `rounded-full` bars break sharp esports aesthetic                     | §3 #9       | Polish          |
 
 **Important data correction:** The UI review (and an earlier draft of this plan) framed the `possession` field as a "touches" counter. The DB schema is explicit at [packages/db/src/schema/player-match-stats.ts:75](packages/db/src/schema/player-match-stats.ts#L75): `/** Possession time in seconds. EA field: skpossession. */`. Match 250's `1471 vs 1162` = `24:31 vs 19:22`. This is total puck-time anywhere on the rink — distinct from `Time on Attack` (TOA), which is only offensive-zone seconds. Both metrics stay.
 
 User decisions (2026-05-17):
+
 - **Item 1:** swap the `row(...)` for the existing `timeRow(...)` helper that already formats seconds as `mm:ss` (same shape as Time on Attack below it). Label stays `Possession`.
 - **Item 2:** Defense + Discipline two-way split (SHG stays in Defense, as a "killed AND scored" achievement)
 - **Item 3:** floor denominator at 5 in `barWidth` — uniform scaling so sparse stats read as low magnitude
@@ -35,13 +36,13 @@ The intended outcome: Team Stats becomes the page's most semantically clean tabu
 
 ## File Map
 
-| Touched in | File | Why |
-|---|---|---|
-| Task 1 | `apps/web/src/lib/match-recap.ts` | Swap `row('Possession', ...)` for `timeRow('Possession', ...)` so seconds render as `mm:ss` (line 699) |
-| Task 2 | `apps/web/src/lib/match-recap.ts` | Split current `defenseRows` array into two arrays + push two groups in place of one (lines 705-716, 730) |
-| Task 3 | `apps/web/src/components/matches/team-stats.tsx` | Change `Math.max(ours, theirs, 1)` → `Math.max(ours, theirs, 5)` in `barWidth` (line 102) |
-| Task 4 | `apps/web/src/components/matches/team-stats.tsx` + `apps/web/src/app/games/[id]/page.tsx` | Add `opponentName` prop to TeamStats; derive `oppAbbrev` via `abbreviateTeamName`; render in place of "OPP" label (lines 5-7, 22-24); pass prop from page.tsx |
-| Task 5 | `apps/web/src/components/matches/team-stats.tsx` | Remove `rounded-full` from bar containers + fills (lines 82, 84, 88, 90) |
+| Touched in | File                                                                                      | Why                                                                                                                                                           |
+| ---------- | ----------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Task 1     | `apps/web/src/lib/match-recap.ts`                                                         | Swap `row('Possession', ...)` for `timeRow('Possession', ...)` so seconds render as `mm:ss` (line 699)                                                        |
+| Task 2     | `apps/web/src/lib/match-recap.ts`                                                         | Split current `defenseRows` array into two arrays + push two groups in place of one (lines 705-716, 730)                                                      |
+| Task 3     | `apps/web/src/components/matches/team-stats.tsx`                                          | Change `Math.max(ours, theirs, 1)` → `Math.max(ours, theirs, 5)` in `barWidth` (line 102)                                                                     |
+| Task 4     | `apps/web/src/components/matches/team-stats.tsx` + `apps/web/src/app/games/[id]/page.tsx` | Add `opponentName` prop to TeamStats; derive `oppAbbrev` via `abbreviateTeamName`; render in place of "OPP" label (lines 5-7, 22-24); pass prop from page.tsx |
+| Task 5     | `apps/web/src/components/matches/team-stats.tsx`                                          | Remove `rounded-full` from bar containers + fills (lines 82, 84, 88, 90)                                                                                      |
 
 Five commits. Tasks 1 + 2 both touch `match-recap.ts`; line-disjoint. Tasks 3, 4, 5 all touch `team-stats.tsx`; line-disjoint.
 
@@ -55,6 +56,7 @@ Five commits. Tasks 1 + 2 both touch `match-recap.ts`; line-disjoint. Tasks 3, 4
 ### Task 1: Format Possession as `mm:ss` via `timeRow` helper
 
 **Files:**
+
 - Modify: `apps/web/src/lib/match-recap.ts` (line 699 — inside `buildBoxScore` `possessionRows`)
 
 - [ ] **Step 1: Swap `row(...)` for `timeRow(...)`**
@@ -120,6 +122,7 @@ EOF
 ### Task 2: Split DEFENSE → Defense + Discipline
 
 **Files:**
+
 - Modify: `apps/web/src/lib/match-recap.ts` (lines 705-716 — `defenseRows` array; line 730 — group push)
 
 - [ ] **Step 1: Split `defenseRows` into two arrays**
@@ -127,38 +130,38 @@ EOF
 Currently lines 705-716 build one array with mixed polarity:
 
 ```ts
-  const defenseRows: BoxScoreRow[] = [
-    row('Hits', match.hitsFor, match.hitsAgainst),
-    row('Blocked Shots', bgmAgg.blockedShots, oppAgg.blockedShots),
-    row('Takeaways', bgmAgg.takeaways, oppAgg.takeaways),
-    { ...row('Giveaways', bgmAgg.giveaways, oppAgg.giveaways), polarity: 'lower-better' as const },
-    row('Interceptions', bgmAgg.interceptions, oppAgg.interceptions),
-    {
-      ...row('Penalties', match.penaltyMinutes ?? 0, match.penaltyMinutesAgainst ?? 0),
-      polarity: 'lower-better' as const,
-    },
-    row('Short Handed Goals', bgmAgg.shGoals, oppAgg.shGoals),
-  ].filter(nonEmptyRow)
+const defenseRows: BoxScoreRow[] = [
+  row('Hits', match.hitsFor, match.hitsAgainst),
+  row('Blocked Shots', bgmAgg.blockedShots, oppAgg.blockedShots),
+  row('Takeaways', bgmAgg.takeaways, oppAgg.takeaways),
+  { ...row('Giveaways', bgmAgg.giveaways, oppAgg.giveaways), polarity: 'lower-better' as const },
+  row('Interceptions', bgmAgg.interceptions, oppAgg.interceptions),
+  {
+    ...row('Penalties', match.penaltyMinutes ?? 0, match.penaltyMinutesAgainst ?? 0),
+    polarity: 'lower-better' as const,
+  },
+  row('Short Handed Goals', bgmAgg.shGoals, oppAgg.shGoals),
+].filter(nonEmptyRow)
 ```
 
 Replace with two arrays — Defense (higher-better) keeping the SHG row; Discipline (lower-better) holding Giveaways + Penalties:
 
 ```ts
-  const defenseRows: BoxScoreRow[] = [
-    row('Hits', match.hitsFor, match.hitsAgainst),
-    row('Blocked Shots', bgmAgg.blockedShots, oppAgg.blockedShots),
-    row('Takeaways', bgmAgg.takeaways, oppAgg.takeaways),
-    row('Interceptions', bgmAgg.interceptions, oppAgg.interceptions),
-    row('Short Handed Goals', bgmAgg.shGoals, oppAgg.shGoals),
-  ].filter(nonEmptyRow)
+const defenseRows: BoxScoreRow[] = [
+  row('Hits', match.hitsFor, match.hitsAgainst),
+  row('Blocked Shots', bgmAgg.blockedShots, oppAgg.blockedShots),
+  row('Takeaways', bgmAgg.takeaways, oppAgg.takeaways),
+  row('Interceptions', bgmAgg.interceptions, oppAgg.interceptions),
+  row('Short Handed Goals', bgmAgg.shGoals, oppAgg.shGoals),
+].filter(nonEmptyRow)
 
-  const disciplineRows: BoxScoreRow[] = [
-    { ...row('Giveaways', bgmAgg.giveaways, oppAgg.giveaways), polarity: 'lower-better' as const },
-    {
-      ...row('Penalties', match.penaltyMinutes ?? 0, match.penaltyMinutesAgainst ?? 0),
-      polarity: 'lower-better' as const,
-    },
-  ].filter(nonEmptyRow)
+const disciplineRows: BoxScoreRow[] = [
+  { ...row('Giveaways', bgmAgg.giveaways, oppAgg.giveaways), polarity: 'lower-better' as const },
+  {
+    ...row('Penalties', match.penaltyMinutes ?? 0, match.penaltyMinutesAgainst ?? 0),
+    polarity: 'lower-better' as const,
+  },
+].filter(nonEmptyRow)
 ```
 
 - [ ] **Step 2: Push both groups in sequence (Defense then Discipline)**
@@ -166,16 +169,16 @@ Replace with two arrays — Defense (higher-better) keeping the SHG row; Discipl
 Around line 730 currently:
 
 ```ts
-  if (defenseRows.length > 0) groups.push({ title: 'Defense', rows: defenseRows })
-  if (goalieRows.length > 0) groups.push({ title: 'Goalie', rows: goalieRows })
+if (defenseRows.length > 0) groups.push({ title: 'Defense', rows: defenseRows })
+if (goalieRows.length > 0) groups.push({ title: 'Goalie', rows: goalieRows })
 ```
 
 Insert the Discipline push between Defense and Goalie:
 
 ```ts
-  if (defenseRows.length > 0) groups.push({ title: 'Defense', rows: defenseRows })
-  if (disciplineRows.length > 0) groups.push({ title: 'Discipline', rows: disciplineRows })
-  if (goalieRows.length > 0) groups.push({ title: 'Goalie', rows: goalieRows })
+if (defenseRows.length > 0) groups.push({ title: 'Defense', rows: defenseRows })
+if (disciplineRows.length > 0) groups.push({ title: 'Discipline', rows: disciplineRows })
+if (goalieRows.length > 0) groups.push({ title: 'Goalie', rows: goalieRows })
 ```
 
 The Team Stats section will now render five groups: OFFENSE → POSSESSION → DEFENSE → DISCIPLINE → GOALIE. The `↓ BETTER` indicator from the earlier polarity-indicator commit (commit `1a0242c`) is preserved on the Discipline rows.
@@ -223,6 +226,7 @@ EOF
 ### Task 3: Floor `barWidth` denominator at 5
 
 **Files:**
+
 - Modify: `apps/web/src/components/matches/team-stats.tsx` (line 102 — inside `barWidth`)
 
 - [ ] **Step 1: Change `Math.max(ours, theirs, 1)` → `Math.max(ours, theirs, 5)`**
@@ -253,6 +257,7 @@ function barWidth(value: string | null, other: string | null): number {
 ```
 
 Behavioral impact:
+
 - `1-vs-0`: max=5, BGM bar 20%, OPP bar 0% (was 100%/0%) — looks like a small lead, matches reality
 - `3-vs-2`: max=5, BGM bar 60%, OPP bar 40% (was 100%/67%) — proportions preserved
 - `12-vs-8`: max=12, BGM bar 100%, OPP bar 67% (unchanged from before)
@@ -266,6 +271,7 @@ Expected: 0 errors.
 - [ ] **Step 3: Manual browser verification**
 
 Navigate to `/games/250`. Team Stats → look for rows with small counts:
+
 - DEFLECTIONS 1 vs 0 (under OFFENSE): BGM bar should now be ~20% width instead of 100%. Reads as "we had one, they had none" — small magnitude.
 - Any row with counts ≥ 5 on the higher side (Hits 14-vs-39, Giveaways 44-vs-38, etc.) should be unchanged.
 
@@ -307,6 +313,7 @@ EOF
 ### Task 4: Side label `OPP` → `4L` via opp abbreviation
 
 **Files:**
+
 - Modify: `apps/web/src/components/matches/team-stats.tsx` (lines 1-7, 22-24)
 - Modify: `apps/web/src/app/games/[id]/page.tsx` (TeamStats call site — add `opponentName` prop)
 
@@ -442,6 +449,7 @@ EOF
 ### Task 5: Drop `rounded-full` bars
 
 **Files:**
+
 - Modify: `apps/web/src/components/matches/team-stats.tsx` (lines 82, 84, 88, 90 — bar containers + fills)
 
 - [ ] **Step 1: Remove `rounded-full` from all four bar classes**
@@ -449,39 +457,39 @@ EOF
 The `Row` component's bar markup (lines 81-94) currently:
 
 ```tsx
-      <div className="grid grid-cols-2 gap-2">
-        <div className="h-1.5 overflow-hidden rounded-full bg-zinc-800">
-          <div
-            className="h-full rounded-full bg-accent"
-            style={{ width: `${barWidth(row.us, row.them).toString()}%` }}
-          />
-        </div>
-        <div className="h-1.5 overflow-hidden rounded-full bg-zinc-800">
-          <div
-            className="h-full rounded-full bg-zinc-500"
-            style={{ width: `${barWidth(row.them, row.us).toString()}%` }}
-          />
-        </div>
-      </div>
+<div className="grid grid-cols-2 gap-2">
+  <div className="h-1.5 overflow-hidden rounded-full bg-zinc-800">
+    <div
+      className="h-full rounded-full bg-accent"
+      style={{ width: `${barWidth(row.us, row.them).toString()}%` }}
+    />
+  </div>
+  <div className="h-1.5 overflow-hidden rounded-full bg-zinc-800">
+    <div
+      className="h-full rounded-full bg-zinc-500"
+      style={{ width: `${barWidth(row.them, row.us).toString()}%` }}
+    />
+  </div>
+</div>
 ```
 
 Drop `rounded-full` from each of the four `className` strings:
 
 ```tsx
-      <div className="grid grid-cols-2 gap-2">
-        <div className="h-1.5 overflow-hidden bg-zinc-800">
-          <div
-            className="h-full bg-accent"
-            style={{ width: `${barWidth(row.us, row.them).toString()}%` }}
-          />
-        </div>
-        <div className="h-1.5 overflow-hidden bg-zinc-800">
-          <div
-            className="h-full bg-zinc-500"
-            style={{ width: `${barWidth(row.them, row.us).toString()}%` }}
-          />
-        </div>
-      </div>
+<div className="grid grid-cols-2 gap-2">
+  <div className="h-1.5 overflow-hidden bg-zinc-800">
+    <div
+      className="h-full bg-accent"
+      style={{ width: `${barWidth(row.us, row.them).toString()}%` }}
+    />
+  </div>
+  <div className="h-1.5 overflow-hidden bg-zinc-800">
+    <div
+      className="h-full bg-zinc-500"
+      style={{ width: `${barWidth(row.them, row.us).toString()}%` }}
+    />
+  </div>
+</div>
 ```
 
 Squared corners match the page-wide sharp/aggressive esports aesthetic (per CLAUDE.md "Always-dark theme. Red accents, sharp/aggressive esports aesthetic"). Every other section's bars (Deserve to Win contributor bars, Action Tracker rink markers, etc.) use squared corners.

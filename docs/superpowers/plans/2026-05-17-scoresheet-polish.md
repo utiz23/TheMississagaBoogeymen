@@ -33,13 +33,13 @@ The intended outcome is a single focused arc that lands the two CRITICAL fixes, 
 
 ## File Map
 
-| Touched in | File | Why |
-|---|---|---|
-| Task 1 | `apps/web/src/components/matches/scoresheet.tsx` | Rename "Shooting %" tile → "Shot On Net %"; add real Shooting % tile; add Shooting % row to SHOOTING group; drop PIM tile (PIM stays in detail group); add explainer tooltip on Shot On Net % when > 100% |
-| Task 2 | `apps/web/src/components/matches/scoresheet.tsx` | Split last two groups into five atomic groups: Special Teams (PPG, SHG) / Discipline (PIM, Penalties Drawn) / Defense (Hits, Blocks) / Turnovers (Takeaways, Giveaways, Interceptions) / Workload (TOI) |
-| Task 3 | `apps/web/src/components/matches/position-pill.tsx` | Drop the side-aware `POSITION_STYLE` palette; use `colorForPosition()` + `POSITION_META` from `lib/position-colors.ts`. Single color per position across BGM/opp, L/R. |
-| Task 4 | `apps/web/src/components/matches/scoresheet.tsx` + `apps/web/src/app/games/[id]/page.tsx` | TeamSide gets BGM logo / opponent crest in the team-label `<h3>`. Drop redundant section subtitle. Unify POSSESSION format. Add FO W/L "team total" tooltip. |
-| Task 5 | `apps/web/src/components/matches/scoresheet.tsx` | Apply `hideOnMobile` to Hits + Blks columns. Add `role="button"`, `tabIndex={0}`, `aria-expanded`, `onKeyDown` (Enter / Space) to skater rows. |
+| Touched in | File                                                                                      | Why                                                                                                                                                                                                       |
+| ---------- | ----------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Task 1     | `apps/web/src/components/matches/scoresheet.tsx`                                          | Rename "Shooting %" tile → "Shot On Net %"; add real Shooting % tile; add Shooting % row to SHOOTING group; drop PIM tile (PIM stays in detail group); add explainer tooltip on Shot On Net % when > 100% |
+| Task 2     | `apps/web/src/components/matches/scoresheet.tsx`                                          | Split last two groups into five atomic groups: Special Teams (PPG, SHG) / Discipline (PIM, Penalties Drawn) / Defense (Hits, Blocks) / Turnovers (Takeaways, Giveaways, Interceptions) / Workload (TOI)   |
+| Task 3     | `apps/web/src/components/matches/position-pill.tsx`                                       | Drop the side-aware `POSITION_STYLE` palette; use `colorForPosition()` + `POSITION_META` from `lib/position-colors.ts`. Single color per position across BGM/opp, L/R.                                    |
+| Task 4     | `apps/web/src/components/matches/scoresheet.tsx` + `apps/web/src/app/games/[id]/page.tsx` | TeamSide gets BGM logo / opponent crest in the team-label `<h3>`. Drop redundant section subtitle. Unify POSSESSION format. Add FO W/L "team total" tooltip.                                              |
+| Task 5     | `apps/web/src/components/matches/scoresheet.tsx`                                          | Apply `hideOnMobile` to Hits + Blks columns. Add `role="button"`, `tabIndex={0}`, `aria-expanded`, `onKeyDown` (Enter / Space) to skater rows.                                                            |
 
 **Existing helpers to reuse (do not re-implement):**
 
@@ -56,6 +56,7 @@ The intended outcome is a single focused arc that lands the two CRITICAL fixes, 
 **Why first:** Highest user-visible data-correctness fix. Single file, three local edits to `SkaterRowEl` (lines 170-210).
 
 **Files:**
+
 - Modify: `apps/web/src/components/matches/scoresheet.tsx` (lines 170-210)
 
 - [ ] **Step 1: Rebuild the 6-tile grid**
@@ -63,44 +64,35 @@ The intended outcome is a single focused arc that lands the two CRITICAL fixes, 
 Replace the tile grid (lines 170-197) — drop PIM, rename "Shooting %" → "Shot On Net %", add real Shooting % (`goals / shots`), keep the others. The grid stays `sm:grid-cols-3`:
 
 ```tsx
-              <div className="grid gap-3 sm:grid-cols-3">
-                <DetailStat label="Score" value={row.score.toFixed(2)} />
-                <DetailStat
-                  label="Shot On Net %"
-                  value={
-                    row.shotAttempts > 0
-                      ? `${((row.shots / row.shotAttempts) * 100).toFixed(0)}%`
-                      : '—'
-                  }
-                  tooltip={
-                    row.shotAttempts > 0 && row.shots > row.shotAttempts
-                      ? 'Can exceed 100% — EA credits deflection goals as shots without recording a shot attempt.'
-                      : undefined
-                  }
-                />
-                <DetailStat
-                  label="Shooting %"
-                  value={
-                    row.shots > 0 ? `${((row.goals / row.shots) * 100).toFixed(0)}%` : '—'
-                  }
-                />
-                <DetailStat
-                  label="Pass %"
-                  value={row.passPct !== null ? `${row.passPct.toFixed(0)}%` : '—'}
-                />
-                <DetailStat
-                  label="FO %"
-                  value={
-                    row.faceoffWins + row.faceoffLosses > 0
-                      ? `${((row.faceoffWins / (row.faceoffWins + row.faceoffLosses)) * 100).toFixed(0)}%`
-                      : '—'
-                  }
-                />
-                <DetailStat
-                  label="Possession"
-                  value={row.possessionSeconds > 0 ? `${row.possessionSeconds.toString()}s` : '—'}
-                />
-              </div>
+<div className="grid gap-3 sm:grid-cols-3">
+  <DetailStat label="Score" value={row.score.toFixed(2)} />
+  <DetailStat
+    label="Shot On Net %"
+    value={row.shotAttempts > 0 ? `${((row.shots / row.shotAttempts) * 100).toFixed(0)}%` : '—'}
+    tooltip={
+      row.shotAttempts > 0 && row.shots > row.shotAttempts
+        ? 'Can exceed 100% — EA credits deflection goals as shots without recording a shot attempt.'
+        : undefined
+    }
+  />
+  <DetailStat
+    label="Shooting %"
+    value={row.shots > 0 ? `${((row.goals / row.shots) * 100).toFixed(0)}%` : '—'}
+  />
+  <DetailStat label="Pass %" value={row.passPct !== null ? `${row.passPct.toFixed(0)}%` : '—'} />
+  <DetailStat
+    label="FO %"
+    value={
+      row.faceoffWins + row.faceoffLosses > 0
+        ? `${((row.faceoffWins / (row.faceoffWins + row.faceoffLosses)) * 100).toFixed(0)}%`
+        : '—'
+    }
+  />
+  <DetailStat
+    label="Possession"
+    value={row.possessionSeconds > 0 ? `${row.possessionSeconds.toString()}s` : '—'}
+  />
+</div>
 ```
 
 New tile order: SCORE / Shot On Net % / Shooting % | Pass % / FO % / Possession. PIM removed from the tile row; it remains in the new "Discipline" detail group (Task 2). The `tooltip` prop drives a `title=` attribute on the tile — added in Step 2.
@@ -127,15 +119,7 @@ function DetailStat({ label, value }: { label: string; value: string }) {
 Replace with (preserving the existing class strings exactly — only adding the tooltip surface):
 
 ```tsx
-function DetailStat({
-  label,
-  value,
-  tooltip,
-}: {
-  label: string
-  value: string
-  tooltip?: string
-}) {
+function DetailStat({ label, value, tooltip }: { label: string; value: string; tooltip?: string }) {
   return (
     <div className="border border-zinc-800 bg-zinc-900/50 px-3 py-2" title={tooltip}>
       <div className="font-condensed text-[10px] font-semibold uppercase tracking-[0.22em] text-zinc-500">
@@ -161,20 +145,18 @@ The `title=` attribute on the wrapper surfaces the tooltip natively; the small `
 The SHOOTING group at lines 198-210 currently has `Shots / Attempts`, `Shot On Net %`, `Deflections`. Add a `Shooting %` row alongside (the row/tile duplication is the established pattern — Pass %, FO %, Possession all appear in both places):
 
 ```tsx
-              <DetailGroup
-                title="Shooting"
-                stats={[
-                  ['Shots / Attempts', `${row.shots.toString()}/${row.shotAttempts.toString()}`],
-                  [
-                    'Shot On Net %',
-                    row.shotAttempts > 0
-                      ? `${((row.shots / row.shotAttempts) * 100).toFixed(1)}%`
-                      : '—',
-                  ],
-                  ['Shooting %', row.shots > 0 ? `${((row.goals / row.shots) * 100).toFixed(1)}%` : '—'],
-                  ['Deflections', row.deflections.toString()],
-                ]}
-              />
+<DetailGroup
+  title="Shooting"
+  stats={[
+    ['Shots / Attempts', `${row.shots.toString()}/${row.shotAttempts.toString()}`],
+    [
+      'Shot On Net %',
+      row.shotAttempts > 0 ? `${((row.shots / row.shotAttempts) * 100).toFixed(1)}%` : '—',
+    ],
+    ['Shooting %', row.shots > 0 ? `${((row.goals / row.shots) * 100).toFixed(1)}%` : '—'],
+    ['Deflections', row.deflections.toString()],
+  ]}
+/>
 ```
 
 (Same `.toFixed(1)` precision as the existing `Shot On Net %` row.)
@@ -187,6 +169,7 @@ Expected: 0 errors.
 - [ ] **Step 5: Manual browser verification**
 
 Navigate to `/games/250`, expand MrHomicide's row (1G on 7 SOG, 6 shotAttempts per the DB):
+
 - Tile row should show **Shot On Net % = 117%** (with a small `ⓘ` glyph and tooltip "Can exceed 100% — EA credits deflection goals as shots without recording a shot attempt.")
 - New **Shooting % = 14%** tile shown next to it (1/7)
 - PIM tile **gone** from the headline grid
@@ -232,6 +215,7 @@ EOF
 **Why second:** Same file as Task 1, line-disjoint (Task 1 touched lines 170-210; this touches 237-254). Resolves the "two groups both named Discipline" structural mess.
 
 **Files:**
+
 - Modify: `apps/web/src/components/matches/scoresheet.tsx` (lines 237-254)
 
 - [ ] **Step 1: Replace the two confused groups with five atomic ones**
@@ -320,6 +304,7 @@ EOF
 **Why third:** Cross-cutting fix to `position-pill.tsx` — affects Scoresheet, Top Performers (`star-card.tsx`), and Goalie Spotlight (`goalie-spotlight.tsx`). Removes the side-aware `POSITION_STYLE` table and uses the canonical `colorForPosition()` from `lib/position-colors.ts`. Single source of truth.
 
 **Files:**
+
 - Modify: `apps/web/src/components/matches/position-pill.tsx` (full rewrite of the style logic; props unchanged)
 
 - [ ] **Step 1: Rewrite `position-pill.tsx` to use `lib/position-colors.ts`**
@@ -351,12 +336,7 @@ interface PositionPillProps {
   onLight?: boolean
 }
 
-export function PositionPill({
-  label,
-  position,
-  isGoalie,
-  onLight = false,
-}: PositionPillProps) {
+export function PositionPill({ label, position, isGoalie, onLight = false }: PositionPillProps) {
   // Resolve which canonical position key to color by. PositionPill receives
   // raw EA position strings ("defenseMen", "leftDefenseMen", etc.) plus a
   // boolean for goalie. colorForPosition() maps either short or long form.
@@ -368,7 +348,9 @@ export function PositionPill({
       className="inline-flex items-center justify-center rounded-sm border px-1.5 py-0.5 font-condensed text-[10px] font-bold uppercase tracking-widest tabular"
       style={{
         borderColor: onLight ? color : `color-mix(in srgb, ${color} 40%, transparent)`,
-        backgroundColor: onLight ? 'rgba(8,8,10,0.84)' : `color-mix(in srgb, ${color} 10%, transparent)`,
+        backgroundColor: onLight
+          ? 'rgba(8,8,10,0.84)'
+          : `color-mix(in srgb, ${color} 10%, transparent)`,
         color,
       }}
     >
@@ -379,6 +361,7 @@ export function PositionPill({
 ```
 
 Notes:
+
 - `side` and `defenseSide` props kept (`@deprecated`) so call sites don't break — they're simply ignored. A follow-up cleanup can strip them.
 - `color-mix(in srgb, X 40%, transparent)` reproduces the old `66`/`1a` alpha hex suffixes (40% / ~10% opacity) using the CSS-var color. Browser support is universal in 2026 evergreen browsers.
 - For BGM `defenseMen` (line 124 in scoresheet.tsx passes `position="defenseMen"`), `colorForPosition("defenseMen")` returns `var(--pos-d)` (cyan, per `lib/position-colors.ts:41`). Same for opp. The L/R asymmetry disappears.
@@ -391,6 +374,7 @@ Expected: 0 errors. Call sites passing `side` / `defenseSide` continue to compil
 - [ ] **Step 3: Manual browser verification**
 
 Navigate to `/games/250`. Check three surfaces:
+
 1. **Scoresheet:** Both BGM and opp D pills (HenryTheBobJr, JoeyFlopfish, shadowassault20, MUTTBUTT) render in the same cyan (`var(--pos-d)`). Centers (MrHomicide) in red, wings in green/blue per the canonical palette.
 2. **Top Performers (star-card):** Per-card position pills follow the same colors. No BGM-vs-opp drift.
 3. **Goalie Spotlight:** Goalie pill in purple (`var(--pos-g)` = #6f00a5).
@@ -432,6 +416,7 @@ EOF
 **Why fourth:** Polish bundle in `scoresheet.tsx` + `page.tsx` prop threading. All edits are small and line-disjoint from Tasks 1/2/3.
 
 **Files:**
+
 - Modify: `apps/web/src/components/matches/scoresheet.tsx` (lines 22-26 subtitle, 36-46 TeamSide, 195 + 220 possession, 226 FO W/L)
 - Modify: `apps/web/src/app/games/[id]/page.tsx` (line 223 — add crest props to ScoresheetSection)
 
@@ -603,18 +588,18 @@ Wrapper markup preserved verbatim — only the `stats` tuple type widens and the
 In `apps/web/src/app/games/[id]/page.tsx` at line 223, the current call is:
 
 ```tsx
-        <ScoresheetSection scoresheet={scoresheet} />
+<ScoresheetSection scoresheet={scoresheet} />
 ```
 
 Replace with:
 
 ```tsx
-        <ScoresheetSection
-          scoresheet={scoresheet}
-          opponentCrestAssetId={opponentCrestAssetId}
-          opponentCrestUseBaseAsset={opponentCrestUseBaseAsset}
-          opponentName={match.opponentName}
-        />
+<ScoresheetSection
+  scoresheet={scoresheet}
+  opponentCrestAssetId={opponentCrestAssetId}
+  opponentCrestUseBaseAsset={opponentCrestUseBaseAsset}
+  opponentName={match.opponentName}
+/>
 ```
 
 `opponentCrestAssetId` and `opponentCrestUseBaseAsset` are already in scope (defined at lines 124-125 of the same file).
@@ -627,6 +612,7 @@ Expected: 0 errors.
 - [ ] **Step 8: Manual browser verification**
 
 Navigate to `/games/250`. The Scoresheet section should now show:
+
 - Section header: just "Scoresheet" (no subtitle line)
 - Each TeamSide's `<h3>`: 24px crest, team label, then the small "BGM" red pill for the BGM side
 - Expand any skater: Possession value matches between tile (no `s`) and group row (already no `s`)
@@ -668,6 +654,7 @@ EOF
 **Why last:** Pure a11y + mobile polish. Single file, line-disjoint from prior tasks.
 
 **Files:**
+
 - Modify: `apps/web/src/components/matches/scoresheet.tsx` (lines 75-76 column headers, 144-145 cells, 100-104 row interaction)
 
 - [ ] **Step 1: Apply `hideOnMobile` to Hits + Blks columns**
@@ -722,6 +709,7 @@ Expected: 0 errors.
 - [ ] **Step 4: Manual browser verification**
 
 At `/games/250`:
+
 - Resize the browser to < 640px (or use mobile devtools). Hits + Blks columns should disappear from the table; PTS / +/− / SOG remain.
 - At desktop width, Tab through the Scoresheet skater rows. Each row should focus (visible focus ring via `focus:bg-surface-raised`). Press Enter or Space → row expands. Press again → collapses.
 

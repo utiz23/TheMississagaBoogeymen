@@ -162,8 +162,6 @@ export function ActionTrackerMap({
   const hasFaceoffData = faceoffDots.length > 0 || faceoffZones.length > 0
   const [viewMode, setViewMode] = useState<'events' | 'faceoffs'>('events')
 
-  if (tracked.length === 0) return null
-
   const oppAbbrev = abbreviateTeamName(opponentLabel)
 
   const maxPeriodSeen = useMemo(() => {
@@ -295,9 +293,7 @@ export function ActionTrackerMap({
                 : 'Post-game OCR · event positions on the rink'
             }
           />
-          {hasFaceoffData ? (
-            <ViewModeToggle value={viewMode} onChange={setViewMode} />
-          ) : null}
+          {hasFaceoffData ? <ViewModeToggle value={viewMode} onChange={setViewMode} /> : null}
         </div>
 
         {viewMode === 'events' ? (
@@ -706,10 +702,7 @@ function SummaryStrip({
         <span className="font-condensed text-[11px] font-bold uppercase tracking-[0.18em] text-[var(--color-fg-3)]">
           {teaser}
         </span>
-        <span
-          className="ml-auto font-condensed text-[12px] text-[var(--color-fg-4)]"
-          aria-hidden
-        >
+        <span className="ml-auto font-condensed text-[12px] text-[var(--color-fg-4)]" aria-hidden>
           {expanded ? '▴' : '▾'}
         </span>
       </div>
@@ -1622,10 +1615,7 @@ const FACEOFF_DOT_IDS = [
   'rz_bot',
 ] as const
 
-const FACEOFF_DOT_POSITIONS: Record<
-  (typeof FACEOFF_DOT_IDS)[number],
-  { x: number; y: number }
-> = {
+const FACEOFF_DOT_POSITIONS: Record<(typeof FACEOFF_DOT_IDS)[number], { x: number; y: number }> = {
   lz_top: { x: 374.5, y: 248.42 },
   lz_bot: { x: 374.5, y: 776.42 },
   lnz_top: { x: 962.5, y: 248.5 },
@@ -1682,10 +1672,7 @@ function FaceoffsView({
   const aggregateZones = useMemo<MatchFaceoffZoneSummaryRow[]>(() => {
     const aggregate = zones.filter((z) => z.periodNumber === -1)
     if (aggregate.length > 0) return aggregate
-    const acc = new Map<
-      'home' | 'away',
-      { ozW: number; ozT: number; dzW: number; dzT: number }
-    >()
+    const acc = new Map<'home' | 'away', { ozW: number; ozT: number; dzW: number; dzT: number }>()
     for (const z of zones) {
       if (z.periodNumber === -1) continue
       const entry = acc.get(z.teamSide) ?? { ozW: 0, ozT: 0, dzW: 0, dzT: 0 }
@@ -1735,18 +1722,8 @@ function FaceoffsView({
   return (
     <>
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-        <FaceoffSideStat
-          label={awayLabel}
-          color={AWAY_COLOR}
-          isBgm={!bgmIsHome}
-          zone={awayZone}
-        />
-        <FaceoffSideStat
-          label={homeLabel}
-          color={HOME_COLOR}
-          isBgm={bgmIsHome}
-          zone={homeZone}
-        />
+        <FaceoffSideStat label={awayLabel} color={AWAY_COLOR} isBgm={!bgmIsHome} zone={awayZone} />
+        <FaceoffSideStat label={homeLabel} color={HOME_COLOR} isBgm={bgmIsHome} zone={homeZone} />
       </div>
       <div
         className="relative w-full border border-[var(--color-border)] bg-[var(--color-surface)] px-3.5 pb-2 pt-3.5"

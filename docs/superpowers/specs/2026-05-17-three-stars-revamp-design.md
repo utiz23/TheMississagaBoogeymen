@@ -11,6 +11,7 @@ The shipped Top Performers component renders three cards with gold / silver / br
 The expanded "Show all player scores" panel groups by team (BGM block, then opponent block). That makes it easy to scan your team but hard to spot cross-team standouts — and the recent DtW work made cross-team ranking visible everywhere else on the page.
 
 The revamp:
+
 - Replaces the gold/silver/bronze gradient cards with brand-surface cards, applying the **scoreboard color rule** (winner takes the accent) — rank 1 gets the red wash, rank 2 paper, rank 3 plain. Accent belongs to **rank**, not team or position.
 - Adds **portrait + jersey + team chip + position chip** to each card. The position chip is a **plain zinc pill** here — not the canonical color-coded `PositionPill` used elsewhere — because the star card's job is to make rank the lone color signal. The site-wide position palette is unchanged.
 - Adds a **"vs season avg" delta** under the score so the user knows how unusual this player's performance was for their season.
@@ -25,11 +26,11 @@ Grid of three cards, ordered **1 → 2 → 3 left to right** (1st star on the le
 
 Rank-aware emphasis (the scoreboard color rule):
 
-| Rank | Card background | Border | Score color | Portrait border | Jersey color | Stars |
-|------|-----------------|--------|-------------|-----------------|--------------|-------|
-| 1 | `linear-gradient(180deg, rgba(232,65,49,0.06), surface 40%)` + 2px ticker strip on top | accent-line | accent (with `0 0 14px rgba(232,65,49,0.22)` glow) | accent + soft red glow | accent | ★★★ in accent (glow) |
-| 2 | `linear-gradient(180deg, rgba(235,235,235,0.04), surface 40%)` | default | paper (`--color-fg-1`) | default | paper | ★★ in paper |
-| 3 | plain surface | default | secondary text (`--color-fg-2`) | default | paper | ★ in secondary |
+| Rank | Card background                                                                        | Border      | Score color                                        | Portrait border        | Jersey color | Stars                |
+| ---- | -------------------------------------------------------------------------------------- | ----------- | -------------------------------------------------- | ---------------------- | ------------ | -------------------- |
+| 1    | `linear-gradient(180deg, rgba(232,65,49,0.06), surface 40%)` + 2px ticker strip on top | accent-line | accent (with `0 0 14px rgba(232,65,49,0.22)` glow) | accent + soft red glow | accent       | ★★★ in accent (glow) |
+| 2    | `linear-gradient(180deg, rgba(235,235,235,0.04), surface 40%)`                         | default     | paper (`--color-fg-1`)                             | default                | paper        | ★★ in paper          |
+| 3    | plain surface                                                                          | default     | secondary text (`--color-fg-2`)                    | default                | paper        | ★ in secondary       |
 
 The accent is **rank-bound, not team-bound**. If the opponent's player is the 1st star, the card still gets the red wash — but the team chip says (e.g.) "4TH" not "BGM".
 
@@ -52,19 +53,20 @@ When open, reveals a single flat `<table>` ranked by score desc.
 
 **Columns**:
 
-| Column | Behavior |
-|--------|----------|
-| # (rank) | "1" + ★★★ stars on rank 1; "2" + ★★; "3" + ★; plain number from rank 4 down. Click-target for expand. |
-| Team + Position | BGM/OPP chip + position pill. |
-| Player | Gamertag in condensed-bold uppercase. Wrapped in `<Link href="/roster/[id]">` for BGM, plain text for OPP. |
-| G | Goals, right-aligned tabular. |
-| A | Assists. |
-| +/− | Plus/minus, tinted win-green or loss-red. |
-| SOG | Shots on goal. |
-| TOA | Time on attack, formatted `m:ss`. For **goalies**, this cell shows "SV%" instead. |
-| Score | Composite. Accent on rank 1; paper-white on ranks 2 & 3; secondary on the rest. Larger font-weight. |
+| Column          | Behavior                                                                                                   |
+| --------------- | ---------------------------------------------------------------------------------------------------------- |
+| # (rank)        | "1" + ★★★ stars on rank 1; "2" + ★★; "3" + ★; plain number from rank 4 down. Click-target for expand.      |
+| Team + Position | BGM/OPP chip + position pill.                                                                              |
+| Player          | Gamertag in condensed-bold uppercase. Wrapped in `<Link href="/roster/[id]">` for BGM, plain text for OPP. |
+| G               | Goals, right-aligned tabular.                                                                              |
+| A               | Assists.                                                                                                   |
+| +/−             | Plus/minus, tinted win-green or loss-red.                                                                  |
+| SOG             | Shots on goal.                                                                                             |
+| TOA             | Time on attack, formatted `m:ss`. For **goalies**, this cell shows "SV%" instead.                          |
+| Score           | Composite. Accent on rank 1; paper-white on ranks 2 & 3; secondary on the rest. Larger font-weight.        |
 
 Row treatment:
+
 - Rank 1 row gets a soft `rgba(232,65,49,0.06)` background wash. Ranks 2 and 3 keep the default surface but render their rank cell in accent.
 - Every row is a click-to-expand `<button>` (visually a `<tr>`). One row open at a time — opening row X closes any previously-open row.
 - Expanded state inserts a child `<tr>` whose single `<td colspan>` hosts the existing **factor × weight = contribution** breakdown table — same data and layout that ships today, just transplanted from the grouped panel into a flat-table row.
@@ -72,6 +74,7 @@ Row treatment:
 **Goalies** appear in the same flat table by composite score. Their G / A / +/− / SOG cells render `—`. The TOA cell becomes SV%. Their expanded breakdown uses goalie-appropriate factors (Saves, GA, SV%, Pokechecks, etc.) — the existing `goalieBreakdown` already returns the right shape.
 
 **Empty / missing-data**:
+
 - Whole `<TopPerformers>` section hides when `performers.length === 0 && allTeamScores.length === 0` (same gate as today).
 - "Show all" button text shows the actual count: `"12 players"`.
 - An individual player with no recorded activity is already filtered out upstream by `hasRecordedActivity`.
@@ -156,13 +159,14 @@ const topPerformers = attachSeasonAvgs(
 
 ```tsx
 interface TopPerformersProps {
-  performers: TopPerformerWithDelta[]   // always 3 or fewer, score-sorted
-  allTeamScores: PlayerScoreEntry[]     // full ranked list for the expander
+  performers: TopPerformerWithDelta[] // always 3 or fewer, score-sorted
+  allTeamScores: PlayerScoreEntry[] // full ranked list for the expander
   opponentLabel: string
 }
 ```
 
 Renders:
+
 1. `<SectionHeader label="Top Performers" subtitle="Computed from player stats" />`
 2. Grid of 0–3 `<StarCard>` server components.
 3. `<ShowAllPlayerScores entries={allTeamScores} opponentLabel={opponentLabel} />` client component.
@@ -186,12 +190,13 @@ Pure presentational — no client state. The full performer breakdown is include
 'use client'
 
 interface ShowAllPlayerScoresProps {
-  entries: PlayerScoreEntry[]   // flat, sorted by score desc, BGM + opponent
+  entries: PlayerScoreEntry[] // flat, sorted by score desc, BGM + opponent
   opponentLabel: string
 }
 ```
 
 Owns two pieces of state:
+
 - `panelOpen: boolean` — whether the full table is visible (default `false`).
 - `openRow: number | null` — index of the currently-expanded row (default `null`).
 
@@ -200,12 +205,14 @@ Clicking a row sets `openRow` to that index, or back to `null` if it was already
 ## What gets deleted
 
 From `apps/web/src/components/matches/top-performers.tsx`:
+
 - `cardClass()` — gold/silver/bronze switch. Delete.
 - `PerformerCard` — replaced by `<StarCard>` in a new file.
 - `ScoreGroup` — grouped BGM/OPP rendering. Delete.
 - `ScoreRow` — replaced by the flat-table row in `<ShowAllPlayerScores>`.
 
 **Keep and move** (do not duplicate):
+
 - `BreakdownTable` and `FactorRow` — the per-factor breakdown table is reused inside the flat-table expanded row. Move them to `show-all-player-scores.tsx` (or a shared helpers file if it ends up being used in more than one place).
 
 **Position chip on the star card** — does NOT use the canonical color-coded `PositionPill`. Instead the card renders a plain zinc pill inline (one-off styling, the same one used in the show-all table and the design bundle). This is deliberate (see Motivation). The canonical `PositionPill` is unchanged and still used on the scoresheet, depth chart, lineup section, etc.

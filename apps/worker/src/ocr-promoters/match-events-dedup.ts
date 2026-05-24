@@ -71,7 +71,10 @@ export interface DedupKey {
  */
 export function normalizeActorForPrefix(snap: string | null): string {
   if (!snap) return ''
-  return snap.toLowerCase().replace(/[^a-z]/g, '').slice(0, 4)
+  return snap
+    .toLowerCase()
+    .replace(/[^a-z]/g, '')
+    .slice(0, 4)
 }
 
 /**

@@ -35,34 +35,34 @@
 
 ## Per-field provenance
 
-| Field | Source | Notes |
-|-------|--------|-------|
-| `gamertag_snapshot` | Production DB row 1688 | 'HenryTheBobJr' |
-| `position` | Production DB row 1688 | 'LD' |
-| `player_number` | Production DB row 1688 | 7 |
-| `is_captain` | Production DB row 1688 | false |
-| `build_class_canonical` | Production DB row 1688 | 'Puck Moving Defenseman' |
-| `x_factor_name_canonical[0,1,2]` | Production DB x_factor rows | Warrior/Wheels/Quick_Release |
-| `x_factor_tier[0,1,2]` | Production DB x_factor rows | All Star/All Star/Specialist |
-| `height_text` | Production DB row 1688 | '6\'0"' |
-| `weight_lbs` | Production DB row 1688 | 160 |
-| `player_level_number` | Production DB row 1688 | 38 |
-| `player_name_persona` | Production DB row 1688 | 'H. JENKINS' |
-| Attribute values (23 keys) | Production DB attribute rows for snapshot 1688 | All 23 present |
+| Field                            | Source                                         | Notes                        |
+| -------------------------------- | ---------------------------------------------- | ---------------------------- |
+| `gamertag_snapshot`              | Production DB row 1688                         | 'HenryTheBobJr'              |
+| `position`                       | Production DB row 1688                         | 'LD'                         |
+| `player_number`                  | Production DB row 1688                         | 7                            |
+| `is_captain`                     | Production DB row 1688                         | false                        |
+| `build_class_canonical`          | Production DB row 1688                         | 'Puck Moving Defenseman'     |
+| `x_factor_name_canonical[0,1,2]` | Production DB x_factor rows                    | Warrior/Wheels/Quick_Release |
+| `x_factor_tier[0,1,2]`           | Production DB x_factor rows                    | All Star/All Star/Specialist |
+| `height_text`                    | Production DB row 1688                         | '6\'0"'                      |
+| `weight_lbs`                     | Production DB row 1688                         | 160                          |
+| `player_level_number`            | Production DB row 1688                         | 38                           |
+| `player_name_persona`            | Production DB row 1688                         | 'H. JENKINS'                 |
+| Attribute values (23 keys)       | Production DB attribute rows for snapshot 1688 | All 23 present               |
 
 Cross-checked 2026-05-21: queried DB directly for match 463, confirmed match
 with the V2 benchmark (HenryTheBobJr LD slot locked by lineup test).
 
 ## Sentinel IDs used
 
-| Sentinel | Value | Purpose |
-|----------|-------|---------|
-| `match_id` | 9002 | Sentinel match (no collision with real data) |
-| `player_id` | 99004 | HenryTheBobJr sentinel (reused from match250 fixture) |
-| `snapshot.id` | 90050 | Single promoted snapshot |
-| `x_factor.id` | 90150–90152 | 3 x_factor rows |
-| `attribute.id` | 90500–90522 | 23 attribute rows |
-| `ocr_promotion.id` | 91050–91058 | 9 observability block rows |
+| Sentinel           | Value       | Purpose                                               |
+| ------------------ | ----------- | ----------------------------------------------------- |
+| `match_id`         | 9002        | Sentinel match (no collision with real data)          |
+| `player_id`        | 99004       | HenryTheBobJr sentinel (reused from match250 fixture) |
+| `snapshot.id`      | 90050       | Single promoted snapshot                              |
+| `x_factor.id`      | 90150–90152 | 3 x_factor rows                                       |
+| `attribute.id`     | 90500–90522 | 23 attribute rows                                     |
+| `ocr_promotion.id` | 91050–91058 | 9 observability block rows                            |
 
 ## Fixture serves acceptance gates
 

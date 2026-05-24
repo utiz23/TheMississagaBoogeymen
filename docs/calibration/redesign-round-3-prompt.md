@@ -51,7 +51,9 @@ Per-match field budget: ~600+ fields when you multiply slots × fields × period
 A literature-grounded redesign recommendation. Required sections:
 
 ### 1. Architecture survey
+
 Survey the published literature on extracting structured data from video at scale. Focus areas:
+
 - Two-pass (probe + dense) vs single-pass continuous vs event-driven (transition-detect → extract-once)
 - HMM / Viterbi / CRF segmenters for UI-state sequences
 - Probabilistic OCR (multi-hypothesis output) vs hard-decision OCR
@@ -61,19 +63,24 @@ Survey the published literature on extracting structured data from video at scal
 For each: cite papers, state the architectural pattern, give the operational tradeoffs (latency, accuracy, calibration cost, robustness to UI drift).
 
 ### 2. Specific recommendation for THIS pipeline
+
 Given the constraints (single author, ~30 matches/season, NHL 26 → 27 UI shift, no API ground truth, no test-time review, RTX 3060 available, Postgres-backed), recommend a specific ground-up architecture. Be opinionated. Justify with citations. Sketch the data flow end-to-end (frame → ?? → field set).
 
 ### 3. The truth system
+
 At 98% per-field accuracy across ~600 fields, the truth system is part of the redesign — not an external check on it. The current V2-style hand-keyed markdown exists for 1 match. Recommend an architecture for the truth system that scales with the metric inventory but doesn't require 30 matches × 8 hrs/match of manual keying. Cite literature on semi-supervised labelling, weak supervision (Snorkel, etc.), and active-learning for low-resource OCR.
 
 ### 4. The calibration loop
+
 The redesign must survive the NHL 26 → 27 UI change without throwing away corpus. Recommend a calibration architecture: what gets versioned, what gets re-trained, what gets templated, what gets re-keyed. Cite production examples or relevant academic work.
 
 ### 5. Honest tradeoffs against the current design
-For each redesign recommendation, give the *cost* of the change: developer-hours, hardware, third-party API spend, model serving overhead, migration risk. Don't sell the redesign — characterise it.
+
+For each redesign recommendation, give the _cost_ of the change: developer-hours, hardware, third-party API spend, model serving overhead, migration risk. Don't sell the redesign — characterise it.
 
 ### 6. What you would NOT recommend
-Final section. Which of the literature-blessed approaches are wrong for *this* context (single author, ~30 matches/season, no test-time review). Be willing to call ambitious approaches over-engineered.
+
+Final section. Which of the literature-blessed approaches are wrong for _this_ context (single author, ~30 matches/season, no test-time review). Be willing to call ambitious approaches over-engineered.
 
 ## Hard constraints
 
