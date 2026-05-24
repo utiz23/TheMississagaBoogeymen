@@ -34,6 +34,7 @@ tools/game_ocr/ScreenShots/
 
 # Claude session state (settings.json IS tracked; only the lock file is ephemeral)
 .claude/scheduled_tasks.lock
+.claude/worktrees/
 
 # Historical extractor outputs — regenerable, multi-GB, never belong in git
 tools/historical_import/output_*/
