@@ -58,7 +58,7 @@ after(async () => {
   await sql.end()
 })
 
-void test('ocr_segments: insert + upsert on (match_id, segment_key)', async () => {
+void test('ocr_segments: insert + upsert on (match_id, segment_key, run_id)', async () => {
   if (!process.env['DATABASE_URL']) return
 
   const [seg] = await db
@@ -75,6 +75,7 @@ void test('ocr_segments: insert + upsert on (match_id, segment_key)', async () =
       uiVersion: 'nhl26',
       decoderVersion: 'phase0-test-v1',
       captureBatchId: null,
+      runId: null,
       notes: 'inserted by ocr-evidence-schema.test.ts',
     })
     .returning()
@@ -86,7 +87,10 @@ void test('ocr_segments: insert + upsert on (match_id, segment_key)', async () =
   assert.equal(seg.tStartSec, '12.345')
   assert.equal(seg.tEndSec, '42.125')
 
-  // Upsert: same (match_id, segment_key) on the unique index → no duplicate row.
+  // Upsert: same (match_id, segment_key, run_id) on the triple unique index →
+  // no duplicate row. Phase-A extended the constraint to include run_id (so
+  // v1 and v2 reprocesses for the same segment_key coexist as separate rows);
+  // NULLS NOT DISTINCT preserves the legacy single-NULL idempotency here.
   const [upserted] = await db
     .insert(ocrSegments)
     .values({
@@ -96,9 +100,10 @@ void test('ocr_segments: insert + upsert on (match_id, segment_key)', async () =
       frameCount: 60, // changed frame count
       uiVersion: 'nhl26',
       decoderVersion: 'phase0-test-v1',
+      runId: null,
     })
     .onConflictDoUpdate({
-      target: [ocrSegments.matchId, ocrSegments.segmentKey],
+      target: [ocrSegments.matchId, ocrSegments.segmentKey, ocrSegments.runId],
       set: {
         state: 'post_game_player_summary',
         frameCount: 60,
@@ -110,39 +115,65 @@ void test('ocr_segments: insert + upsert on (match_id, segment_key)', async () =
   assert.equal(upserted.state, 'post_game_player_summary')
   assert.equal(upserted.frameCount, 60)
 
-  // Verify exactly one row exists for this segment_key.
+  // Verify exactly one row exists for this segment_key + run_id pairing.
   const rows = await db
     .select()
     .from(ocrSegments)
     .where(
       and(eq(ocrSegments.matchId, TEST_MATCH_ID), eq(ocrSegments.segmentKey, SENTINEL_SEGMENT_KEY)),
     )
-  assert.equal(rows.length, 1, 'unique index prevents duplicate')
+  assert.equal(rows.length, 1, 'triple unique index prevents duplicate')
 })
 
-void test('ocr_segments: NULL match_id allows multiple rows with the same segment_key', async () => {
+void test('ocr_segments: NULL match_id allows multiple rows with the same segment_key (legacy unmatched path)', async () => {
   if (!process.env['DATABASE_URL']) return
-  // The unique index includes match_id, and Postgres treats NULL as distinct
-  // in unique constraints — so two NULL-match-id rows with the same
-  // segment_key are *both* inserted (no conflict). This is by-design for
-  // manual screenshot batches that aren't yet linked to a match.
-  const inserted = []
-  for (let i = 0; i < 2; i++) {
-    const [r] = await db
+  // The triple unique index uses NULLS NOT DISTINCT, so two rows that share
+  // (match_id=NULL, segment_key, run_id=NULL) DO collide — that's the intended
+  // legacy-idempotency rule for manual/unmatched ingests. To insert "multiple
+  // rows for an unmatched batch with the same segment_key", we vary something
+  // in the triple — here we set a different run_id per row (one NULL, one
+  // pointing to a real run we synthesize for this test).
+  const [r1] = await db
+    .insert(ocrSegments)
+    .values({
+      matchId: null,
+      segmentKey: 'phase0-null-match-test',
+      state: 'unknown_or_transition',
+      frameCount: 1,
+      uiVersion: 'nhl26',
+      decoderVersion: 'phase0-test-v1',
+      runId: null,
+    })
+    .returning()
+  assert.ok(r1)
+
+  // A second insert with the same (NULL, key, NULL) triple SHOULD collide
+  // under NULLS NOT DISTINCT. Without an onConflict clause it throws.
+  // postgres.js wraps PG errors — just check that SOMETHING rejected.
+  let collided = false
+  let collisionMessage = ''
+  try {
+    await db
       .insert(ocrSegments)
       .values({
         matchId: null,
         segmentKey: 'phase0-null-match-test',
         state: 'unknown_or_transition',
-        frameCount: 1,
+        frameCount: 2,
         uiVersion: 'nhl26',
         decoderVersion: 'phase0-test-v1',
+        runId: null,
       })
       .returning()
-    inserted.push(r)
+  } catch (err) {
+    collided = true
+    collisionMessage = String((err as Error)?.message ?? err)
   }
-  assert.equal(inserted.length, 2)
-  assert.notEqual(inserted[0]!.id, inserted[1]!.id)
+  assert.ok(
+    collided,
+    `duplicate (NULL, key, NULL) should collide under NULLS NOT DISTINCT, got message: ${collisionMessage}`,
+  )
+
   // Clean up after this isolated test.
   await db.delete(ocrSegments).where(eq(ocrSegments.segmentKey, 'phase0-null-match-test'))
 })

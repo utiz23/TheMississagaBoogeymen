@@ -12,6 +12,7 @@ import {
   uniqueIndex,
 } from 'drizzle-orm/pg-core'
 import { matches } from './matches.js'
+import { ocrDecoderRuns } from './ocr-decoder-runs.js'
 
 /**
  * Phase 0 of the OCR-pipeline redesign (plan-redesign-ocr-pipeline-2026-05-19).
@@ -25,10 +26,14 @@ import { matches } from './matches.js'
  */
 
 /**
- * Round 4 §4 — 17 explicit screen states for the HMM/Viterbi decoder.
+ * Round 4 §4 — explicit screen states for the HMM/Viterbi decoder.
  * Extends the legacy `OcrScreenType` (14 entries) with the missing
  * `unknown_or_transition`, `loading_or_intro`, `end_of_video` states.
  * Kept as a distinct type so the legacy enum stays frozen during migration.
+ *
+ * Phase-A v2 additions (Plan: Protect the typed OCR pipeline via pass1
+ * classifier remediation): `menu_club_management`, `player_loadout_landing`,
+ * `menu_world_of_chel`. All 17 legacy names remain valid; new names append.
  */
 export type OcrSegmentState =
   | 'unknown_or_transition'
@@ -48,6 +53,10 @@ export type OcrSegmentState =
   | 'post_game_faceoff_map'
   | 'post_game_net_chart'
   | 'end_of_video'
+  // Phase-A v2 additions
+  | 'menu_club_management'
+  | 'player_loadout_landing'
+  | 'menu_world_of_chel'
 
 /** Five extractor families from Round 4 §5. */
 export type OcrExtractorFamily =
@@ -107,13 +116,27 @@ export const ocrSegments = pgTable(
     decoderVersion: text('decoder_version').notNull(),
     /** Provenance: which capture batch (legacy `ocr_capture_batches`) this segment came from. */
     captureBatchId: bigint('capture_batch_id', { mode: 'number' }),
+    /**
+     * Phase-A: which decoder run this segment belongs to. NULL for legacy /
+     * unmatched batches (see ocr_decoder_runs.ts scope note); the live-read
+     * filter accepts both NULL and active-run rows.
+     */
+    runId: bigint('run_id', { mode: 'number' }).references(() => ocrDecoderRuns.id),
     notes: text('notes'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
-    uniqueIndex('ocr_segments_match_segment_uniq').on(table.matchId, table.segmentKey),
+    // Phase-A: triple-uniqueness lets v1 and v2 rows for the same segment_key
+    // coexist for the same match (one per run). Drizzle 0.45 has no
+    // .nullsNotDistinct() — generated migration hand-edited to add it.
+    uniqueIndex('ocr_segments_match_segment_run_uniq').on(
+      table.matchId,
+      table.segmentKey,
+      table.runId,
+    ),
     index('ocr_segments_match_state_idx').on(table.matchId, table.state),
     index('ocr_segments_state_observability_idx').on(table.state, table.observabilityStatus),
+    index('ocr_segments_run_idx').on(table.runId),
   ],
 )
 
@@ -175,6 +198,12 @@ export const ocrFieldEvidence = pgTable(
     xNorm: numeric('x_norm', { precision: 6, scale: 4 }),
     yNorm: numeric('y_norm', { precision: 6, scale: 4 }),
     shapeOrIconClass: text('shape_or_icon_class'),
+    /**
+     * Phase-A: which decoder run this evidence row belongs to. NULL for legacy
+     * / unmatched batches. Live-read queries use the `liveRunFilter` helper
+     * which accepts NULL OR active-run rows.
+     */
+    runId: bigint('run_id', { mode: 'number' }).references(() => ocrDecoderRuns.id),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
@@ -192,6 +221,7 @@ export const ocrFieldEvidence = pgTable(
       table.screenState,
       table.subjectSlotKey,
     ),
+    index('ocr_field_evidence_run_idx').on(table.runId),
   ],
 )
 
@@ -227,15 +257,26 @@ export const ocrPromotions = pgTable(
     blockingReason: text('blocking_reason'),
     authoritySource: text('authority_source').$type<OcrAuthoritySource>(),
     decidedAt: timestamp('decided_at', { withTimezone: true }).notNull().defaultNow(),
+    /**
+     * Phase-A: which decoder run produced this promotion. NULL for legacy /
+     * pre-Phase-A rows. Critical: included in the uniqueness key so reprocess
+     * doesn't collide on (target_table, target_semantic_key, field_key).
+     */
+    runId: bigint('run_id', { mode: 'number' }).references(() => ocrDecoderRuns.id),
   },
   (table) => [
-    uniqueIndex('ocr_promotions_target_uniq').on(
+    // Phase-A: include run_id so v1 and v2 promotions for the same slot+field
+    // coexist. Generated migration hand-edited to add NULLS NOT DISTINCT so
+    // legacy single-NULL idempotency is preserved.
+    uniqueIndex('ocr_promotions_target_run_uniq').on(
       table.targetTable,
       sql`(target_semantic_key::text)`,
       table.fieldKey,
+      table.runId,
     ),
     index('ocr_promotions_match_status_idx').on(table.matchId, table.promotionStatus),
     index('ocr_promotions_blocked_idx').on(table.promotionStatus, table.matchId),
+    index('ocr_promotions_run_idx').on(table.runId),
   ],
 )
 
