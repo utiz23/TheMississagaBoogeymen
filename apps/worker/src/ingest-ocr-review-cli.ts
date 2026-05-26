@@ -40,6 +40,7 @@ import {
   playerLoadoutSnapshots,
   type OcrReviewStatus,
 } from '@eanhl/db'
+import { liveRunFilter } from '@eanhl/db/queries'
 import { and, eq, gte, inArray, sql } from 'drizzle-orm'
 
 const isStatus = process.argv.includes('status')
@@ -153,6 +154,8 @@ async function autoApproveBatch(
         eq(ocrExtractions.reviewStatus, 'pending_review'),
         eq(ocrExtractions.transformStatus, 'success'),
         gte(ocrExtractions.overallConfidence, confidenceThreshold.toFixed(4) as unknown as string),
+        // Phase-A: don't auto-approve extractions from a superseded run.
+        liveRunFilter(ocrExtractions.runId),
       ),
     )
   const ids = candidates.map((c) => c.id)

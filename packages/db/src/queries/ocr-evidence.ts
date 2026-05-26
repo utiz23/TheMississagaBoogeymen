@@ -9,8 +9,9 @@
  * are defined in Round 4 §6 of the redesign synthesis.
  */
 
-import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, inArray, sql, type AnyColumn } from 'drizzle-orm'
 import { db } from '../client.js'
+import { ocrDecoderRuns } from '../schema/ocr-decoder-runs.js'
 import {
   ocrFieldEvidence,
   ocrPromotions,
@@ -18,6 +19,33 @@ import {
   type OcrPromotionStatus,
   type OcrSegmentState,
 } from '../schema/ocr-evidence.js'
+
+/**
+ * Phase-A: SQL fragment that filters to the "current state" for canonical
+ * metric reads. A row counts as live if either:
+ *   - run_id IS NULL (legacy / unmatched scope — pre-Phase-A rows kept
+ *     visible so non-reprocess ingests keep working), OR
+ *   - run_id points at an `ocr_decoder_runs` row with `is_active = true`
+ *     (the canonical "winner" run for that match).
+ *
+ * Use in WHERE clauses on tables with a `run_id` column:
+ *   ocr_segments, ocr_field_evidence, ocr_extractions, ocr_promotions,
+ *   ocr_capture_batches.
+ *
+ * Audit / debug / history queries (e.g. "everything ever said about this
+ * match", reviewer history reads) must NOT use this helper — they want
+ * the full multi-run picture.
+ *
+ * Implementation note: uses a subquery against `ocr_decoder_runs`. That
+ * table is small (one row per match per ingest run) and the active-run
+ * subquery is highly selective; cost is negligible compared to the parent
+ * scan. A LEFT JOIN form would be slightly faster on very large
+ * candidate sets but harder to compose with the existing `and(...conditions)`
+ * pattern — revisit if EXPLAIN shows it mattering.
+ */
+export function liveRunFilter(runIdColumn: AnyColumn) {
+  return sql`(${runIdColumn} IS NULL OR ${runIdColumn} IN (SELECT id FROM ${ocrDecoderRuns} WHERE is_active = true))`
+}
 
 /**
  * All segments for a match, ordered by t_start_sec (NULLs last so manual
@@ -28,7 +56,7 @@ export async function getMatchSegments(matchId: number) {
   return db
     .select()
     .from(ocrSegments)
-    .where(eq(ocrSegments.matchId, matchId))
+    .where(and(eq(ocrSegments.matchId, matchId), liveRunFilter(ocrSegments.runId)))
     .orderBy(sql`${ocrSegments.tStartSec} ASC NULLS LAST`, asc(ocrSegments.id))
 }
 
@@ -47,7 +75,7 @@ export async function getMatchSegmentStateCounts(matchId: number) {
       avgConfidence: sql<number | null>`AVG(${ocrSegments.segmentConfidence})::float`,
     })
     .from(ocrSegments)
-    .where(eq(ocrSegments.matchId, matchId))
+    .where(and(eq(ocrSegments.matchId, matchId), liveRunFilter(ocrSegments.runId)))
     .groupBy(ocrSegments.state)
     .orderBy(ocrSegments.state)
 }
@@ -70,7 +98,7 @@ export async function getMatchSegmentDecoderVersionCounts(
       segmentCount: sql<number>`count(*)::int`,
     })
     .from(ocrSegments)
-    .where(eq(ocrSegments.matchId, matchId))
+    .where(and(eq(ocrSegments.matchId, matchId), liveRunFilter(ocrSegments.runId)))
     .groupBy(ocrSegments.decoderVersion)
     .orderBy(ocrSegments.decoderVersion)
   return rows
@@ -86,8 +114,17 @@ export async function listFieldEvidence(input: {
   screenState?: OcrSegmentState
   fieldKey?: string
   subjectSlotKey?: string
+  /**
+   * Phase-A: include rows from non-active (superseded) runs as well. Defaults
+   * to false — typical "current state" reads only see the active run + legacy
+   * NULL-run rows. Set true for audit/history dumps that need full provenance.
+   */
+  includeAllRuns?: boolean
 }) {
   const conditions = [eq(ocrFieldEvidence.matchId, input.matchId)]
+  if (input.includeAllRuns !== true) {
+    conditions.push(liveRunFilter(ocrFieldEvidence.runId))
+  }
   if (input.screenState !== undefined) {
     conditions.push(eq(ocrFieldEvidence.screenState, input.screenState))
   }
@@ -128,7 +165,7 @@ export async function groupFieldEvidenceForPromotion(matchId: number) {
       maxConfidence: sql<number | null>`MAX(${ocrFieldEvidence.calibratedConfidence})::float`,
     })
     .from(ocrFieldEvidence)
-    .where(eq(ocrFieldEvidence.matchId, matchId))
+    .where(and(eq(ocrFieldEvidence.matchId, matchId), liveRunFilter(ocrFieldEvidence.runId)))
     .groupBy(
       ocrFieldEvidence.screenState,
       ocrFieldEvidence.fieldKey,
@@ -155,8 +192,16 @@ export type PromotionCandidateRow = Awaited<
 export async function listPromotions(input: {
   matchId: number
   status?: OcrPromotionStatus | ReadonlyArray<OcrPromotionStatus>
+  /**
+   * Phase-A: include promotions from non-active (superseded) runs as well.
+   * Defaults to false; set true for audit/history reads.
+   */
+  includeAllRuns?: boolean
 }) {
   const conditions = [eq(ocrPromotions.matchId, input.matchId)]
+  if (input.includeAllRuns !== true) {
+    conditions.push(liveRunFilter(ocrPromotions.runId))
+  }
   if (input.status !== undefined) {
     if (typeof input.status === 'string') {
       conditions.push(eq(ocrPromotions.promotionStatus, input.status))
@@ -184,7 +229,7 @@ export async function getPromotionStatusCounts(matchId: number) {
       count: sql<number>`COUNT(*)::int`,
     })
     .from(ocrPromotions)
-    .where(eq(ocrPromotions.matchId, matchId))
+    .where(and(eq(ocrPromotions.matchId, matchId), liveRunFilter(ocrPromotions.runId)))
     .groupBy(ocrPromotions.promotionStatus)
     .orderBy(ocrPromotions.promotionStatus)
 }
@@ -208,6 +253,7 @@ export async function getBlockedPromotions(matchId: number, limit = 50) {
           'blocked_invariant',
           'blocked_authority',
         ]),
+        liveRunFilter(ocrPromotions.runId),
       ),
     )
     .orderBy(desc(ocrPromotions.decidedAt))
@@ -231,6 +277,7 @@ export async function getFieldEvidenceForLoadoutSlot(
   const conditions = [
     eq(ocrFieldEvidence.matchId, matchId),
     eq(ocrFieldEvidence.screenState, 'player_loadout_view'),
+    liveRunFilter(ocrFieldEvidence.runId),
   ]
   if (slotKey !== undefined) {
     conditions.push(eq(ocrFieldEvidence.subjectSlotKey, slotKey))
@@ -258,6 +305,7 @@ export async function getFieldEvidenceForLobbySlot(
   const conditions = [
     eq(ocrFieldEvidence.matchId, matchId),
     eq(ocrFieldEvidence.screenState, 'pre_game_lobby_state_2'),
+    liveRunFilter(ocrFieldEvidence.runId),
   ]
   if (slotKey !== undefined) {
     conditions.push(eq(ocrFieldEvidence.subjectSlotKey, slotKey))
@@ -286,6 +334,7 @@ export async function getLoadoutPromotionsForMatch(matchId: number): Promise<Pro
       and(
         eq(ocrPromotions.matchId, matchId),
         eq(ocrPromotions.targetTable, 'player_loadout_snapshots'),
+        liveRunFilter(ocrPromotions.runId),
       ),
     )
     .orderBy(
