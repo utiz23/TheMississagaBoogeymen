@@ -136,13 +136,15 @@ Do not update `HANDOFF.md` mid-task. Update it at natural stopping points only.
 
 ## Commit Protocol
 
-Commit behavior in this repo must be deliberate.
+Commit behavior in this repo is delegated to Claude's judgment.
 
 ### Default rules
 
-- Do not commit automatically just because files changed.
-- Commit when the user explicitly asks, asks for a backup/sync point, or wants a stable verified checkpoint preserved.
-- Do not include unrelated dirty files unless the user explicitly says to commit everything.
+- Commit whenever a natural checkpoint is reached: a verified schema change, a passing-test feature increment, a finished refactor, an applied migration, etc. Don't wait to be asked.
+- A reasonable cadence is one focused commit per logical unit of work (one feature, one fix, one schema/migration, one docs update). Avoid letting many unrelated changes pile up in the working tree.
+- Do not commit something broken (failing typecheck, failing tests, half-applied migration). If a checkpoint isn't verifiable, finish or revert first.
+- Do not include unrelated dirty files in a focused commit. If the working tree has unrelated drift, either stash it, leave it alone, or commit it separately with its own message.
+- If in doubt about scope or whether something should ship, ask — but the default is to commit and keep moving.
 
 ### Before any commit
 
