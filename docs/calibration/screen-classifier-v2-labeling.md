@@ -28,8 +28,11 @@ contingent on what the bench shows.
 | `loading_or_intro` (tightened: no WoC splash) | 20 | currently 0 |
 | `unknown_or_transition` | 20 | currently 0 |
 
-Run `python3 tools/game_ocr/scripts/label_state_machine_corpus.py --counts`
-any time to see live counts.
+Run `python3 tools/game_ocr/scripts/label_state_machine_corpus.py --counts
+--extra-states menu_club_management,player_loadout_landing,menu_world_of_chel`
+any time to see live counts. `--extra-states` is required while the 3 new
+classes are not yet registered in `nhl26.yaml` (S3 will add them and the flag
+will be a no-op once the YAML catches up).
 
 ## Workflow
 
@@ -62,8 +65,13 @@ Press `s` (or Enter) to skip, `q` to quit.
 ```bash
 python3 tools/game_ocr/scripts/label_state_machine_corpus.py \
     --from-inbox tools/game_ocr/calibration/extras/_inbox \
+    --extra-states menu_club_management,player_loadout_landing,menu_world_of_chel \
     --target-class menu_club_management
 ```
+
+`--extra-states` appends the 3 new (not-yet-in-YAML) classes to the menu so
+you can pick them by index. They show up at positions 17/18/19 in the
+numbered state menu.
 
 Walk through every PNG; for each, decide which of the 17(+3) states it
 actually shows and enter the corresponding number. `--target-class` just
@@ -80,7 +88,9 @@ unlabeled candidates in the inbox so a later pass can pick them up.
 ### 3. Check counts
 
 ```bash
-python3 tools/game_ocr/scripts/label_state_machine_corpus.py --counts --target 30
+python3 tools/game_ocr/scripts/label_state_machine_corpus.py \
+    --counts --target 30 \
+    --extra-states menu_club_management,player_loadout_landing,menu_world_of_chel
 ```
 
 Print the per-class status. Anything still `[need +N]` for a Wave-A class

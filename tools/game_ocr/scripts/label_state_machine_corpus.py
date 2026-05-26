@@ -281,6 +281,17 @@ def _run_from_inbox(args: argparse.Namespace, sm_states: list[str]) -> int:
     return 0
 
 
+def _parse_extra_states(raw: str | None) -> list[str]:
+    if not raw:
+        return []
+    out: list[str] = []
+    for tok in raw.split(","):
+        s = tok.strip()
+        if s:
+            out.append(s)
+    return out
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     # Mode selectors (mutually exclusive in practice; if multiple set, --counts
@@ -301,6 +312,17 @@ def main() -> int:
         type=str,
         default=None,
         help="Show this class as the suggested default when labeling (Phase-A bulk-by-class pass).",
+    )
+    ap.add_argument(
+        "--extra-states",
+        type=str,
+        default=None,
+        help=(
+            "Comma-separated class names to append to the state-machine menu "
+            "(e.g. 'menu_club_management,player_loadout_landing'). Lets the "
+            "operator label classes that are not yet registered in nhl26.yaml. "
+            "The trainer will skip these until S3 adds them to sm.states."
+        ),
     )
     # Legacy --segments mode args (still required for that path)
     ap.add_argument("--segments", type=Path, default=None)
@@ -325,18 +347,23 @@ def main() -> int:
     args = ap.parse_args()
 
     sm = load_state_machine(args.version)
+    extra_states = _parse_extra_states(args.extra_states)
+    overlap = [s for s in extra_states if s in sm.states]
+    if overlap:
+        ap.error(f"--extra-states overlaps existing sm.states: {overlap}")
+    effective_states: list[str] = list(sm.states) + extra_states
 
     if args.counts:
-        _print_counts(args.extras_dir, sm.states, args.target)
+        _print_counts(args.extras_dir, effective_states, args.target)
         return 0
 
     if args.from_inbox is not None:
-        return _run_from_inbox(args, sm.states)
+        return _run_from_inbox(args, effective_states)
 
     # Legacy mode requires both --segments and --video.
     if args.segments is None or args.video is None:
         ap.error("legacy mode requires --segments and --video (or use --from-inbox / --counts)")
-    return _run_from_segments(args, sm.states)
+    return _run_from_segments(args, effective_states)
 
 
 if __name__ == "__main__":
