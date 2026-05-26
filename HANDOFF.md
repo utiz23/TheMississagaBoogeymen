@@ -1,5 +1,64 @@
 # Handoff
 
+## Session Summary — 2026-05-26 (Phase-A screen-classifier-v2: storage + read/write threading + A2 labeling prep)
+
+### Current status
+
+Branch: `feat/screen-classifier-v2-a1`. Seven commits since `af01074` (main). Phase A of the screen-classifier-v2 plan is well under way:
+
+- **A1 done**: schema + migration + storage layer + read/write/dispatch threading + decoder-version dispatch audit. 49 worker tests across 8 OCR/promoter files all green (`ocr-evidence-schema`, `ocr-live-run-filter`, `loadout-promoter-run-scope`, `loadout-promotion-gate`, `match-463-loadout-slots-fixture`, `loadout-degraded-fixture`, `loadout-evidence-write-path`, `ocr-decoder-runs-backfill`). Python pytest 386 pass / 3 pre-existing failures unrelated to this branch.
+- **A2 prep done**: bulk frame extractor + extended labeler (--from-inbox, --counts, --target-class) + regex priors YAML skeleton + operator runbook + proving-bench fixture README. All inert until S3 wires the v2 feature pipeline in.
+
+Plan file: `/home/michal/.claude/plans/multi-session-strategic-fix-for-misty-hamster.md` (six rounds of Codex review applied; current state is the authoritative spec).
+
+### What Was Done — A1 commits
+
+| Commit | Sub-task |
+|---|---|
+| `64fed0f` | A1.1-5 schema + migration + 5-table backfill + sanity asserts (288/227/3090/10503/2744 rows backfilled clean) |
+| `c0a5cd6` | A1.6 `liveRunFilter` helper + 11 query call sites + review CLI + 2 e2e tests |
+| `02a8809` | A1.7 promoter `runId` param + snapshot activation gate + 1 e2e test |
+| `6474528` | A1.8/A1.9 `--run-id` threaded TS+Python (ingest-ocr-cli → ingestOcrBatch + dispatch.py + orchestrator.py + cli.py) |
+| `bc1a8c1` | A1.10 decoder_version dispatch audit + column contract comments |
+| `f3f1421` | A1.11 backfill multi-source provenance verification (5 tests) |
+| `edc2c3d` | A2 prep — bulk extractor + labeling tool extensions + regex priors YAML + runbook + bench README |
+
+### What's Next
+
+Two roughly-equal options:
+
+1. **Pause for operator labeling.** Operator runs `bulk_extract_label_candidates.py --root /mnt/k/NHL/NHL26 --interval 30`, then `label_state_machine_corpus.py --from-inbox … --target-class …` for the 5 Wave-A classes. Target: 20-30 frames per class for proving phase. When `--counts` shows Wave A at target, resume with S3 (feature pipeline upgrade) + S5 retrain + A3 reprocess in one focused session.
+2. **Land S3 now (feature pipeline upgrade gated off).** `compute_frame_features_v2`, per-quadrant HSV histograms, regex priors loader, decoder_version bump to `'hmm-viterbi-v2'` — all shipped behind `engine: viterbi_v2` config toggle. Default stays v1 until S5 flips it.
+
+Recommendation: option 1 — S3 is high-leverage code that's most reviewable when data is flowing through it.
+
+### Operator runbook for the labeling pass
+
+[docs/calibration/screen-classifier-v2-labeling.md](docs/calibration/screen-classifier-v2-labeling.md). Per-class targets:
+
+| Class | Target | Current |
+|---|---|---|
+| `menu_club_management` | 30 | 0 (new) |
+| `player_loadout_landing` | 30 | 0 (new) |
+| `menu_world_of_chel` | 30 | 0 (new) |
+| `player_loadout_view` (tightened) | 30 | 1 |
+| `pre_game_lobby_state_2` (tightened) | 30 | 4 |
+| `loading_or_intro` (tightened) | 20 | 0 |
+| `unknown_or_transition` | 20 | 0 |
+
+### Open Decisions / Blockers
+
+None blocking. Two design contracts now enforced by column-level comments in [ocr-decoder-runs.ts](packages/db/src/schema/ocr-decoder-runs.ts) and [ocr-evidence.ts](packages/db/src/schema/ocr-evidence.ts):
+
+- `ocr_decoder_runs.decoder_version` is **provenance metadata** (may contain `'legacy-mixed'`); MUST NOT be used for runtime dispatch.
+- `ocr_segments.decoder_version` is **operational** (always a runnable engine name); safe to dispatch on.
+
+### Plan deviation note
+
+CLAUDE.md commit protocol was relaxed mid-session (commit `4c299cf` on main): commits now happen at Claude's judgment whenever a natural checkpoint is reached, rather than requiring explicit user requests.
+
+---
+
 ## Session Note — 2026-05-23 (match-quality-regression rebaselined for match 463)
 
 The integration regression test `match 463 — layer scores at or above floor` was failing at L3 with `current=96.54% floor=98.08%`. Diagnosed as **pre-existing data drift** from commit `d9a292f` (loadout-v2 FK validity fix in the prior session), not a regression from this session's commits.
