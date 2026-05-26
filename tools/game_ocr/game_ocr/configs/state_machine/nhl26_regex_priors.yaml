@@ -1,0 +1,82 @@
+# Phase-A regex priors for the v2 screen classifier (NHL 26).
+#
+# Wired into the feature pipeline by S3 (`compute_frame_features_v2` in
+# frame_features.py). Until that lands, this file is informational only — the
+# v1 path doesn't load it. The skeleton below documents the minimum regexes
+# Phase A needs to distinguish:
+#
+#   - Real pre-game lobby (both team panels visible) from the CLUB management
+#     screen (single team panel, no opponent).
+#   - The PLAYER LOADOUTS hub from the loadout-detail screen with its
+#     HOME/AWAY left-strip.
+#   - The WORLD OF CHEL splash from generic loading screens.
+#
+# Each regex runs against OCR text from one of two ROIs:
+#   - `top_bar`: top ~200px of the frame (default, current anchor ROI).
+#   - `side_strip`: left ~200px-wide strip, y=200..1080 (new in v2 to read
+#     the HOME/AWAY column on the loadout-detail screen).
+#
+# When a regex matches, a per-class flag bit lands in the feature vector at
+# the position assigned by the YAML order below. Coefficients are learned by
+# train_screen_classifier.py — the regex flags are inputs, not hard rules.
+
+version: "v0.1"
+roi_definitions:
+  top_bar:
+    description: "Top header band; same as the current anchor ROI."
+    bbox: [0, 0, 1920, 200]   # [x, y, w, h] in 1920x1080 native coords
+  side_strip:
+    description: "Left vertical strip containing the HOME/AWAY column on loadout-detail."
+    bbox: [0, 200, 220, 880]
+
+# ─── Phase-A new classes (must-win for the proving bench) ─────────────────────
+
+menu_club_management:
+  # The CLUB screen shows "THE <TEAM NAME>" header + a single roster column
+  # with no opponent panel. The "CLUBS" tab in the navbar is the strongest
+  # disambiguator from a real pre-game lobby (which is on the "PLAY" tab).
+  - { name: club_word, pattern: '\bclub\b', roi: top_bar }
+  - { name: manage_lineups, pattern: '\bmanage\s+(lineups|roster)\b', roi: top_bar }
+  - { name: clubs_tab, pattern: '\bclubs\b', roi: top_bar }
+
+player_loadout_landing:
+  # The PLAYER LOADOUTS hub: grid of loadout cards, no HOME/AWAY strip yet.
+  - { name: title, pattern: '\bplayer\s+loadouts?\b', roi: top_bar }
+  - { name: select_hint, pattern: '\bselect\s+a\s+loadout\b' }
+
+menu_world_of_chel:
+  # The splash with the "WORLD OF CHEL" title text + silhouette. Anchor is
+  # the title text — present on every frame of the splash.
+  - { name: title, pattern: '\bworld\s+of\s+chel\b', roi: top_bar }
+
+# ─── Classes Phase-A tightens (existing states that bleed into wrong frames) ──
+
+# The "loadout-detail" screen now produces only `player_loadout_view` evidence;
+# the landing screen above produces `player_loadout_landing`. The
+# HOME/AWAY side strip is the unique signature of the detail view.
+player_loadout_view:
+  - { name: home_strip, pattern: '\bhome\b', roi: side_strip }
+  - { name: away_strip, pattern: '\baway\b', roi: side_strip }
+
+# Real pre-game lobby has the EASHL header AND a matchmaking countdown phrase.
+# The CLUB screen and PLAYER LOADOUTS landing both have "eashl" in the navbar,
+# so we need a stronger disambiguator — the countdown / "ready up" cue.
+pre_game_lobby_state_2:
+  - { name: eashl_title, pattern: '\beashl\b', roi: top_bar }
+  - { name: ready_up, pattern: '\bready\s*up\b' }
+  - { name: matchmaking, pattern: '\bmatchmaking\b' }
+
+loading_or_intro:
+  # Generic loading screens between the menu and gameplay. The "WORLD OF CHEL"
+  # text is now claimed by menu_world_of_chel; loading_or_intro keeps the
+  # generic "now loading"-style cues.
+  - { name: now_loading, pattern: '\bnow\s+loading\b' }
+  - { name: loading, pattern: '\bloading\b' }
+
+unknown_or_transition:
+  # Catch-all reject anchors: text that appears on transitional / OOD screens
+  # and should *prevent* the classifier from leaking into a real screen class.
+  - { name: customize, pattern: '\bcustomize\b' }
+  - { name: season_pass, pattern: '\bseason\s*pass\b' }
+  - { name: rewards, pattern: '\brewards\b' }
+  - { name: waiting_for, pattern: '\bwaiting\s+for\b' }
