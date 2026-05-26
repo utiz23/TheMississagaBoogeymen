@@ -112,7 +112,13 @@ export const ocrSegments = pgTable(
       .default('observable'),
     /** Game version label (e.g. "nhl26") for per-version asset versioning. */
     uiVersion: text('ui_version').notNull(),
-    /** Pass-1 decoder + state-machine YAML sha for reproducibility. */
+    /**
+     * OPERATIONAL Pass-1 decoder identity. Always a real runnable engine name
+     * (`'hmm-viterbi-v1'`, `'legacy-passthrough-v0-video'`,
+     * `'legacy-passthrough-v0-manual'`). Safe to dispatch on. Distinct from
+     * `ocr_decoder_runs.decoder_version`, which is provenance metadata and
+     * may contain synthetic markers. See ocr-decoder-runs.ts for the rule.
+     */
     decoderVersion: text('decoder_version').notNull(),
     /** Provenance: which capture batch (legacy `ocr_capture_batches`) this segment came from. */
     captureBatchId: bigint('capture_batch_id', { mode: 'number' }),

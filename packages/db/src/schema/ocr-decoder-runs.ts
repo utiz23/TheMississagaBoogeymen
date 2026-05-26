@@ -44,8 +44,18 @@ export const ocrDecoderRuns = pgTable(
      */
     videoSha256: text('video_sha256'),
     /**
-     * Operational engine name OR synthetic provenance marker. New runs use
-     * runnable engine names; backfill may use `'legacy-mixed'`.
+     * PROVENANCE metadata, NOT an operational dispatch label.
+     *
+     * New runs (reprocess + new ingests) write a runnable engine name here
+     * (`'hmm-viterbi-v1'`, `'legacy-passthrough-v0-video'`, …). The S1
+     * backfill writes `'legacy-mixed'` for matches whose pre-Phase-A
+     * `ocr_segments.decoder_version` values were heterogeneous.
+     *
+     * **Code MUST NOT use this column to dispatch on a runtime engine.**
+     * Always read the per-segment `ocr_segments.decoder_version` column
+     * for that — it is always a real engine name. The A1.10 audit
+     * confirmed no operational reader of this column exists in the repo;
+     * keep it that way.
      */
     decoderVersion: text('decoder_version').notNull(),
     /** sha256 of weights JSON in use at ingest time (or backfill time for synthetic runs). */
