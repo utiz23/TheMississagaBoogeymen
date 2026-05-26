@@ -70,6 +70,11 @@ research/OCR-SS/
 # CVAT labeling workspace — multi-hundred-MB local annotation data
 cvat/
 
+# Label Studio (local labeling tool) — per-developer state + raw inbox + export JSON
+.label-studio-data/
+tools/game_ocr/calibration/extras/_inbox/
+label-studio-export-*.json
+
 # Stray one-off probe scripts that landed under src/ by mistake
 apps/web/src/probe-queries.mjs
 
