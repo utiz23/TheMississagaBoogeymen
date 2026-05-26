@@ -53,6 +53,10 @@ interface CliArgs {
   /** Path to lobby_evidence.json written by the typed_v1 extractor.
    *  Only present when lobby_engine='typed_v1' AND the file exists. */
   lobbyEvidenceJsonPath: string | null
+  /** Phase-A: the `ocr_decoder_runs.id` this ingest belongs to. When
+   *  provided, every row written by this call is tagged with this run.
+   *  Reprocess CLI sets this; legacy / one-shot calls leave it null. */
+  runId: number | null
 }
 
 function getFlag(name: string): string | undefined {
@@ -133,6 +137,12 @@ function parseArgs(): CliArgs {
   const lobbyEngine = lobbyEngineRaw
   const lobbyEvidenceJsonPath = getFlag('lobby-evidence-json') ?? null
 
+  const runIdRaw = getFlag('run-id')
+  const runId = runIdRaw && runIdRaw !== 'null' ? Number.parseInt(runIdRaw, 10) : null
+  if (runId !== null && !Number.isFinite(runId)) {
+    throw new Error(`Invalid --run-id: ${String(runIdRaw)}`)
+  }
+
   return {
     batchDir: resolve(batchDir),
     screen,
@@ -151,6 +161,7 @@ function parseArgs(): CliArgs {
     loadoutEvidenceJsonPath,
     lobbyEngine,
     lobbyEvidenceJsonPath,
+    runId,
   }
 }
 
@@ -179,6 +190,7 @@ async function main(): Promise<void> {
     loadoutEvidenceJsonPath: args.loadoutEvidenceJsonPath,
     lobbyEngine: args.lobbyEngine,
     lobbyEvidenceJsonPath: args.lobbyEvidenceJsonPath,
+    runId: args.runId,
   })
 
   console.log(

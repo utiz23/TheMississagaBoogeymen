@@ -182,6 +182,7 @@ def ingest(
     game_title_id: int | None = None,
     match_id: int | None = None,
     dispatch_dry_run: bool = False,
+    run_id: int | None = None,
 ) -> IngestResult:
     """Run the two-pass pipeline.
 
@@ -443,6 +444,7 @@ def ingest(
             loadout_engine=p2cfg.loadout_engine,
             lobby_engine=p2cfg.lobby_engine,
             dry_run=dispatch_dry_run,
+            run_id=run_id,
         )
         elapsed_dispatch = time.perf_counter() - t0
         ok = sum(1 for r in dispatch_results if r.returncode == 0)

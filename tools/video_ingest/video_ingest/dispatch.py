@@ -63,6 +63,7 @@ def dispatch_segments(
     lobby_engine: str = "legacy",
     repo_root: Path | None = None,
     dry_run: bool = False,
+    run_id: int | None = None,
 ) -> list[DispatchResult]:
     """Run ingest-ocr-cli once per segment dir. Returns per-segment
     return codes + tail of stdout/stderr for debug.
@@ -100,6 +101,13 @@ def dispatch_segments(
         ]
         if match_id is not None:
             cmd.extend(["--match-id", str(match_id)])
+        # Phase-A: decoder-run scope. When the orchestrator was invoked
+        # via `video_ingest reprocess --match-id N`, the reprocess CLI
+        # creates a candidate ocr_decoder_runs row up front and passes
+        # its id here. Every worker-side insert gets tagged with this
+        # run_id; live-read queries gate on (is_active OR NULL).
+        if run_id is not None:
+            cmd.extend(["--run-id", str(run_id)])
         # Task 2A-11: loadout-engine flag (always present; default 'legacy').
         cmd.extend(["--loadout-engine", loadout_engine])
         # Task 2A-11: loadout-evidence-json flag (typed_v1 only, file must exist).

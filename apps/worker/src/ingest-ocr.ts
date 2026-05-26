@@ -99,6 +99,18 @@ export interface IngestOcrBatchInput {
    * FieldEvidenceRecord contract); ingested via writeFieldEvidenceForBatch.
    */
   lobbyEvidenceJsonPath?: string | null
+  /**
+   * Phase-A: the `ocr_decoder_runs.id` this ingest invocation belongs to.
+   * When set, EVERY row written by this call (batch, segment, evidence,
+   * extraction, downstream promotions) is tagged with this run_id. When
+   * omitted, all rows are written with `run_id IS NULL` — the legacy
+   * unmatched-batch path that pre-Phase-A code expects.
+   *
+   * The reprocess CLI (A3) creates a candidate run row up front and passes
+   * its id here so promote-validate-activate can write into a pre-active
+   * run scope.
+   */
+  runId?: number | null
 }
 
 export interface IngestOcrBatchResult {
@@ -142,26 +154,34 @@ export async function ingestOcrBatch(input: IngestOcrBatchInput): Promise<Ingest
   // Insert (or upsert, when keyed by video_sha256) the batch row up
   // front so all extractions can reference it.
   const videoSha256 = input.videoSha256 ?? null
+  const runId = input.runId ?? null
   const batchValues: NewOcrCaptureBatch = {
     gameTitleId: input.gameTitleId,
     matchId,
     sourceDirectory: input.batchDir,
     captureKind,
     videoSha256,
+    runId,
     notes: input.notes ?? null,
   }
 
   let batchRow: typeof ocrCaptureBatches.$inferSelect | undefined
   if (videoSha256) {
     // Idempotent path for video-pipeline ingests: re-running on the
-    // same (sha, dir) returns the existing batch row instead of
-    // inserting a duplicate. The unique-when-not-null index makes the
-    // ON CONFLICT match cleanly.
+    // same (sha, dir, run_id) returns the existing batch row instead of
+    // inserting a duplicate. Phase-A: conflict target includes run_id so
+    // v1 and v2 reprocesses for the same video produce separate batch
+    // rows (each tied to its own decoder run). NULLS NOT DISTINCT on the
+    // index preserves the legacy NULL-run idempotency.
     const upserted = await db
       .insert(ocrCaptureBatches)
       .values(batchValues)
       .onConflictDoUpdate({
-        target: [ocrCaptureBatches.videoSha256, ocrCaptureBatches.sourceDirectory],
+        target: [
+          ocrCaptureBatches.videoSha256,
+          ocrCaptureBatches.sourceDirectory,
+          ocrCaptureBatches.runId,
+        ],
         targetWhere: isNotNull(ocrCaptureBatches.videoSha256),
         set: {
           matchId,
@@ -186,7 +206,7 @@ export async function ingestOcrBatch(input: IngestOcrBatchInput): Promise<Ingest
 
   for (const result of cli.results) {
     try {
-      await persistOneResult(batchId, matchId, result, loadoutEngine, lobbyEngine)
+      await persistOneResult(batchId, matchId, result, loadoutEngine, lobbyEngine, runId)
       succeeded++
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
@@ -218,6 +238,7 @@ export async function ingestOcrBatch(input: IngestOcrBatchInput): Promise<Ingest
       videoSegmentEndSec: input.videoSegmentEndSec ?? null,
       uiVersion: input.uiVersion ?? null,
       decoderVersion: input.decoderVersion ?? null,
+      runId,
     })
     segmentId = segRow.id
   } catch (err) {
@@ -241,6 +262,7 @@ export async function ingestOcrBatch(input: IngestOcrBatchInput): Promise<Ingest
         segmentId,
         batchId,
         records,
+        runId,
       })
       console.log(
         `[ingest-ocr] batch ${String(batchId)} field evidence: inserted=${String(evResult.insertedCount)} deleted=${String(evResult.deletedCount)}`,
@@ -267,6 +289,7 @@ export async function ingestOcrBatch(input: IngestOcrBatchInput): Promise<Ingest
         segmentId,
         batchId,
         records,
+        runId,
       })
       console.log(
         `[ingest-ocr] batch ${String(batchId)} lobby field evidence: inserted=${String(evResult.insertedCount)} deleted=${String(evResult.deletedCount)}`,
@@ -283,7 +306,7 @@ export async function ingestOcrBatch(input: IngestOcrBatchInput): Promise<Ingest
   // Legacy path keeps per-extraction promoteLoadout (guarded in index.ts).
   if (loadoutEngine === 'typed_v1' && matchId !== null) {
     try {
-      const promResult = await promoteLoadoutFromEvidence({ matchId })
+      const promResult = await promoteLoadoutFromEvidence({ matchId, runId })
       console.log(
         `[ingest-ocr] batch ${String(batchId)} loadout-v2: promoted=${String(promResult.promotedSnapshotCount)} blocked=${String(promResult.blockedSnapshotCount)} promotionRows=${String(promResult.promotionRowsWritten)}`,
       )
@@ -299,7 +322,7 @@ export async function ingestOcrBatch(input: IngestOcrBatchInput): Promise<Ingest
   // promotePreGameLobby (guarded in ocr-promoters/index.ts).
   if (lobbyEngine === 'typed_v1' && matchId !== null) {
     try {
-      const promResult = await promoteLobbyFromEvidence({ matchId })
+      const promResult = await promoteLobbyFromEvidence({ matchId, runId })
       console.log(
         `[ingest-ocr] batch ${String(batchId)} lobby-v2: promoted=${String(promResult.promotedSnapshotCount)} blocked=${String(promResult.blockedSnapshotCount)} promotionRows=${String(promResult.promotionRowsWritten)}`,
       )
@@ -363,6 +386,8 @@ async function writeSegmentForBatch(input: {
   videoSegmentEndSec: number | null
   uiVersion: string | null
   decoderVersion: string | null
+  /** Phase-A: decoder-run scope this segment belongs to. NULL for legacy. */
+  runId: number | null
 }): Promise<{ id: number }> {
   const confidences = input.results
     .map((r) => r.meta.overall_confidence)
@@ -401,14 +426,18 @@ async function writeSegmentForBatch(input: {
       input.decoderVersion ??
       (hasVideoMeta ? 'legacy-passthrough-v0-video' : 'legacy-passthrough-v0-manual'),
     captureBatchId: input.batchId,
+    runId: input.runId,
     notes: null,
   }
 
+  // Phase-A: conflict target includes run_id so v1 and v2 segments for the
+  // same (match_id, segment_key) coexist as distinct rows; the unique index
+  // uses NULLS NOT DISTINCT to preserve the legacy single-NULL idempotency.
   const [segRow] = await db
     .insert(ocrSegments)
     .values(segment)
     .onConflictDoUpdate({
-      target: [ocrSegments.matchId, ocrSegments.segmentKey],
+      target: [ocrSegments.matchId, ocrSegments.segmentKey, ocrSegments.runId],
       set: {
         state: segment.state,
         tStartSec: segment.tStartSec,
@@ -473,6 +502,12 @@ export async function writeFieldEvidenceForBatch(input: {
   segmentId: number // ocr_segments.id
   batchId: number
   records: LoadoutEvidenceRecord[]
+  /**
+   * Phase-A: decoder-run scope. NULL for legacy / unmatched batches. Every
+   * row inserted by this call is tagged with this id so live readers can
+   * filter by active-run.
+   */
+  runId?: number | null
 }): Promise<{ insertedCount: number; deletedCount: number }> {
   return await db.transaction(async (tx) => {
     // 1. Delete ALL prior rows for this segment (scope = segment, not extractor version).
@@ -510,6 +545,7 @@ export async function writeFieldEvidenceForBatch(input: {
       xNorm: rec.x_norm != null ? rec.x_norm.toString() : null,
       yNorm: rec.y_norm != null ? rec.y_norm.toString() : null,
       shapeOrIconClass: rec.shape_or_icon_class ?? null,
+      runId: input.runId ?? null,
     }))
 
     const inserted = await tx
@@ -527,6 +563,7 @@ async function persistOneResult(
   result: OcrResult,
   loadoutEngine: string,
   lobbyEngine: string,
+  runId: number | null,
 ): Promise<void> {
   const sourcePath = result.meta.source_path
   const sourceHash = await sha256OfFile(sourcePath).catch(() => null)
@@ -548,8 +585,11 @@ async function persistOneResult(
         rawResultJson: result as unknown as object,
         transformStatus: 'pending',
         transformError: null,
+        runId,
       })
       .onConflictDoUpdate({
+        // (batch_id, source_path) is transitively run-scoped via the batch
+        // row's run_id, so no need to add run_id to the conflict target.
         target: [ocrExtractions.batchId, ocrExtractions.sourcePath],
         set: {
           screenType: result.meta.screen_type,
@@ -562,6 +602,7 @@ async function persistOneResult(
           rawResultJson: result as unknown as object,
           transformStatus: 'pending',
           transformError: null,
+          runId,
         },
       })
       .returning()

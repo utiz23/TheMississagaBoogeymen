@@ -54,6 +54,15 @@ def ingest(
     game_title_id: int = typer.Option(None, help="Required when --dispatch is set."),
     match_id: int = typer.Option(None, help="Optional match_id to pass to ingest-ocr-cli."),
     dispatch_dry_run: bool = typer.Option(False, help="Pass --dry-run to each ingest-ocr-cli subprocess."),
+    run_id: int = typer.Option(
+        None,
+        help=(
+            "Phase-A: ocr_decoder_runs.id this ingest belongs to. When set, every "
+            "worker-side insert is tagged with this run. Typically created by the "
+            "reprocess CLI before invoking this command; leave unset for legacy "
+            "one-shot ingests (rows get run_id=NULL)."
+        ),
+    ),
 ) -> None:
     """Run the full pipeline against a single video file. With
     `--dispatch`, fans out to the worker's ingest-ocr-cli to write
@@ -69,6 +78,7 @@ def ingest(
         game_title_id=game_title_id,
         match_id=match_id,
         dispatch_dry_run=dispatch_dry_run,
+        run_id=run_id,
     )
     typer.echo(f"\nsha:    {res.probe.sha256}")
     typer.echo(f"root:   {res.sha_root}")
