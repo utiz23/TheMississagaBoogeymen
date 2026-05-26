@@ -32,7 +32,11 @@ import {
   type NewPlayerLoadoutAttribute,
 } from '@eanhl/db'
 import { and, eq, sql } from 'drizzle-orm'
-import { getFieldEvidenceForLoadoutSlot, getExpectedSlotsForMatch } from '@eanhl/db/queries'
+import {
+  getFieldEvidenceForLoadoutSlot,
+  getExpectedSlotsForMatch,
+  getActiveRunIdForMatch,
+} from '@eanhl/db/queries'
 import type { ExpectedSlot } from '@eanhl/db/queries'
 import type { Database } from '@eanhl/db'
 import type { GateCandidate, PromotionDecision } from '../lib/promotion-gate.js'
@@ -259,13 +263,41 @@ function opponentPositionToShortCode(p: string | null): string | null {
 
 export async function promoteLoadoutFromEvidence(input: {
   matchId: number
+  /**
+   * Phase-A: when supplied, promote against this specific decoder run rather
+   * than the currently-active one. The reprocess CLI passes the candidate
+   * run's id here so we can compute + persist promotions BEFORE flipping
+   * activation. When omitted (the legacy/normal call path), resolves to the
+   * match's currently-active run (or `null` if none — e.g. test fixtures).
+   *
+   * Canonical snapshot tables (player_loadout_snapshots, x_factors,
+   * attributes) are only written when this resolves to the active run. When
+   * promoting against a non-active candidate, snapshots are deferred — the
+   * reprocess CLI calls a separate rebuild step at activation time.
+   */
+  runId?: number | null
   db?: Database
 }): Promise<PromoteLoadoutFromEvidenceResult> {
   const db = input.db ?? defaultDb
   const { matchId } = input
 
-  // ── Step 1: Read all loadout evidence for the match (one round-trip) ─────────
-  const allEvidence = await getFieldEvidenceForLoadoutSlot(matchId)
+  // Resolve effective run + activation gate (Phase-A).
+  // - For evidence READS: pass input.runId as-is. undefined → liveRunFilter
+  //   (active + NULL legs); a specific id → strictly that run.
+  // - For ocr_promotions WRITES + the writeSnapshots gate: resolve undefined
+  //   to the current active run so default callers tag their promotions with
+  //   the active run id.
+  const activeRunId = await getActiveRunIdForMatch(matchId)
+  const effectiveRunIdForWrites =
+    input.runId !== undefined ? input.runId : activeRunId
+  const writeSnapshots = effectiveRunIdForWrites === activeRunId
+
+  // ── Step 1: Read loadout evidence scoped to the requested run (or live) ──
+  const allEvidence = await getFieldEvidenceForLoadoutSlot(
+    matchId,
+    undefined,
+    input.runId,
+  )
 
   // ── Step 2: Group by (subject_slot_key, field_key), sort by candidate_rank ──
   // evidenceBySlot: Map<slotKey, Map<fieldKey, evidence_rows_sorted_by_rank>>
@@ -743,7 +775,10 @@ export async function promoteLoadoutFromEvidence(input: {
     const promotedAttrCount = attrDecisions.filter(([, m]) => m.valueDec?.status === 'promoted').length
     const writeAttributes = promotedAttrCount >= ATTRIBUTE_PROMOTION_FLOOR
 
-    // ── DB writes in a transaction ───────────────────────────────────────────
+    // ── DB writes in a transaction (skipped when promoting against a
+    //     non-active candidate run; rebuildCanonicalsFromActiveRun handles
+    //     snapshot rebuild at activation time). ─────────────────────────────
+    if (writeSnapshots) {
     await db.transaction(async (tx) => {
       // Insert snapshot row
       const [snap] = await tx
@@ -819,6 +854,7 @@ export async function promoteLoadoutFromEvidence(input: {
         await tx.insert(playerLoadoutAttributes).values(attrRows)
       }
     })
+    }
 
     // ── Build ocr_promotions rows for this slot ──────────────────────────────
     const snapshotSemanticKey = { match_id: matchId, team_side: teamSide, position: positionVal }
@@ -941,15 +977,22 @@ export async function promoteLoadoutFromEvidence(input: {
   }
 
   // ── Write all ocr_promotions rows ─────────────────────────────────────────
-  // Strategy: delete all prior promotion rows for this match+target_table
-  // combination, then batch-insert the new set. This gives idempotency on
-  // re-runs without needing a functional-index conflict target in Drizzle.
+  // Strategy: delete prior promotion rows for this (match, run_id) tuple,
+  // then batch-insert the new set. Scoping by run_id (Phase-A) means a v2
+  // reprocess won't blow away v1 promotions — they stay in their own run for
+  // audit/rollback.
   let promotionRowsWritten = 0
   if (pendingPromotions.length > 0) {
-    // Delete prior rows for this match (all target tables touched by this run).
-    await db.delete(ocrPromotions).where(eq(ocrPromotions.matchId, matchId))
+    await db.delete(ocrPromotions).where(
+      and(
+        eq(ocrPromotions.matchId, matchId),
+        effectiveRunIdForWrites === null
+          ? sql`${ocrPromotions.runId} IS NULL`
+          : eq(ocrPromotions.runId, effectiveRunIdForWrites),
+      ),
+    )
 
-    // Batch insert all pending promotion rows.
+    // Batch insert all pending promotion rows, tagged with the effective runId.
     await db.insert(ocrPromotions).values(
       pendingPromotions.map((p) => ({
         matchId: p.matchId,
@@ -965,6 +1008,7 @@ export async function promoteLoadoutFromEvidence(input: {
         promotionStatus: p.promotionStatus,
         blockingReason: p.blockingReason,
         authoritySource: p.authoritySource,
+        runId: effectiveRunIdForWrites,
       })),
     )
     promotionRowsWritten = pendingPromotions.length

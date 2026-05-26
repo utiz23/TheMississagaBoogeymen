@@ -34,7 +34,7 @@ import {
   matches,
 } from '@eanhl/db'
 import { and, eq, inArray, sql } from 'drizzle-orm'
-import { getFieldEvidenceForLobbySlot } from '@eanhl/db/queries'
+import { getFieldEvidenceForLobbySlot, getActiveRunIdForMatch } from '@eanhl/db/queries'
 import type { Database } from '@eanhl/db'
 import type { GateCandidate, PromotionDecision } from '../lib/promotion-gate.js'
 import { runPromotionGate } from '../lib/promotion-gate.js'
@@ -156,12 +156,30 @@ function promotedBool(decision: PromotionDecision | undefined): boolean | null {
 
 export async function promoteLobbyFromEvidence(input: {
   matchId: number
+  /**
+   * Phase-A: when supplied, promote against this specific decoder run rather
+   * than the currently-active one. See loadout-v2.ts for full semantics.
+   * Canonical snapshot writes are skipped when this resolves to a non-active
+   * run; rebuildCanonicalsFromActiveRun handles them at activation time.
+   */
+  runId?: number | null
   db?: Database
 }): Promise<PromoteLobbyFromEvidenceResult> {
   const db = input.db ?? defaultDb
   const { matchId } = input
 
-  const allEvidence = await getFieldEvidenceForLobbySlot(matchId)
+  // Resolve effective run + activation gate (Phase-A). See loadout-v2.ts for
+  // the full reasoning behind the two-name split.
+  const activeRunId = await getActiveRunIdForMatch(matchId)
+  const effectiveRunIdForWrites =
+    input.runId !== undefined ? input.runId : activeRunId
+  const writeSnapshots = effectiveRunIdForWrites === activeRunId
+
+  const allEvidence = await getFieldEvidenceForLobbySlot(
+    matchId,
+    undefined,
+    input.runId,
+  )
 
   const evidenceBySlot = new Map<string, Map<string, typeof allEvidence>>()
   for (const row of allEvidence) {
@@ -279,6 +297,11 @@ export async function promoteLobbyFromEvidence(input: {
   // Cascade through child tables (x_factors + attributes may have been
   // populated by the post-promotion consolidator, even though THIS promoter
   // never writes them directly).
+  //
+  // Phase-A: skip snapshot delete/rebuild when promoting against a non-active
+  // candidate run — snapshots are reserved for the active run and rebuilt at
+  // activation time by the reprocess CLI.
+  if (writeSnapshots) {
   const priorLobbyExtractionIds = (
     await db
       .select({ id: ocrExtractions.id })
@@ -313,6 +336,7 @@ export async function promoteLobbyFromEvidence(input: {
         .delete(playerLoadoutSnapshots)
         .where(inArray(playerLoadoutSnapshots.id, priorSnapshotIds))
     }
+  }
   }
 
   const pendingPromotions: PendingPromotion[] = []
@@ -413,27 +437,29 @@ export async function promoteLobbyFromEvidence(input: {
     const playerLevelNumber = promotedNumber(sd.fieldDecisions.get('player_level_number'))
 
     promotedSnapshotCount++
-    await db.insert(playerLoadoutSnapshots).values({
-      playerId: sd.resolvedPlayerId,
-      gamertagSnapshot: gamertagVal,
-      playerNameSnapshot: null,
-      playerNamePersona: personaCanonical,
-      playerNamePersonaRaw: personaRaw,
-      playerNumber,
-      isCaptain,
-      teamSide: sd.teamSide,
-      gameTitleId,
-      matchId,
-      ocrExtractionId: sd.ocrExtractionId,
-      position: positionVal,
-      buildClass,
-      heightText,
-      weightLbs,
-      handedness,
-      platform,
-      playerLevelRaw,
-      playerLevelNumber,
-    })
+    if (writeSnapshots) {
+      await db.insert(playerLoadoutSnapshots).values({
+        playerId: sd.resolvedPlayerId,
+        gamertagSnapshot: gamertagVal,
+        playerNameSnapshot: null,
+        playerNamePersona: personaCanonical,
+        playerNamePersonaRaw: personaRaw,
+        playerNumber,
+        isCaptain,
+        teamSide: sd.teamSide,
+        gameTitleId,
+        matchId,
+        ocrExtractionId: sd.ocrExtractionId,
+        position: positionVal,
+        buildClass,
+        heightText,
+        weightLbs,
+        handedness,
+        platform,
+        playerLevelRaw,
+        playerLevelNumber,
+      })
+    }
 
     // Include source_screen + slot_key so the (target_table,
     // target_semantic_key, field_key) unique index doesn't clash with
@@ -485,6 +511,9 @@ export async function promoteLobbyFromEvidence(input: {
 
   let promotionRowsWritten = 0
   if (pendingPromotions.length > 0) {
+    // Phase-A: scope prior-row delete to (matchId, run_id) — leaves other
+    // runs' lobby promotions intact for audit/rollback. Still scoped to the
+    // lobby slot_key pattern so loadout-v2's promotions stay untouched.
     await db
       .delete(ocrPromotions)
       .where(
@@ -492,6 +521,9 @@ export async function promoteLobbyFromEvidence(input: {
           eq(ocrPromotions.matchId, matchId),
           eq(ocrPromotions.targetTable, 'player_loadout_snapshots'),
           sql`${ocrPromotions.targetSemanticKey}->>'slot_key' LIKE 'lobby\\_%' ESCAPE '\\'`,
+          effectiveRunIdForWrites === null
+            ? sql`${ocrPromotions.runId} IS NULL`
+            : eq(ocrPromotions.runId, effectiveRunIdForWrites),
         ),
       )
 
@@ -510,6 +542,7 @@ export async function promoteLobbyFromEvidence(input: {
         promotionStatus: p.promotionStatus,
         blockingReason: p.blockingReason,
         authoritySource: p.authoritySource,
+        runId: effectiveRunIdForWrites,
       })),
     )
     promotionRowsWritten = pendingPromotions.length

@@ -48,6 +48,23 @@ export function liveRunFilter(runIdColumn: AnyColumn) {
 }
 
 /**
+ * Phase-A: return the active `ocr_decoder_runs.id` for a match, or `null`
+ * if no active run exists yet (e.g., a freshly-imported match that hasn't
+ * been ingested through the new pipeline, or a test fixture).
+ *
+ * The promoters use this to resolve "which run am I writing under?" when
+ * called without an explicit runId argument.
+ */
+export async function getActiveRunIdForMatch(matchId: number): Promise<number | null> {
+  const rows = await db
+    .select({ id: ocrDecoderRuns.id })
+    .from(ocrDecoderRuns)
+    .where(and(eq(ocrDecoderRuns.matchId, matchId), eq(ocrDecoderRuns.isActive, true)))
+    .limit(1)
+  return rows[0]?.id ?? null
+}
+
+/**
  * All segments for a match, ordered by t_start_sec (NULLs last so manual
  * screenshot batches appear after timed video segments). Phase 1 will use
  * this to render the decoder timeline for `/admin/segments/<match>`.
@@ -273,12 +290,25 @@ export async function getBlockedPromotions(matchId: number, limit = 50) {
 export async function getFieldEvidenceForLoadoutSlot(
   matchId: number,
   slotKey?: string,
+  /**
+   * Phase-A: when supplied, scope evidence reads to this specific run_id
+   * (used by the reprocess CLI to promote against a candidate run that's
+   * not yet active). When omitted, falls back to the live-run filter
+   * (active-run + NULL-leg).
+   */
+  runId?: number | null,
 ): Promise<FieldEvidenceRow[]> {
   const conditions = [
     eq(ocrFieldEvidence.matchId, matchId),
     eq(ocrFieldEvidence.screenState, 'player_loadout_view'),
-    liveRunFilter(ocrFieldEvidence.runId),
   ]
+  if (runId === undefined) {
+    conditions.push(liveRunFilter(ocrFieldEvidence.runId))
+  } else if (runId === null) {
+    conditions.push(sql`${ocrFieldEvidence.runId} IS NULL`)
+  } else {
+    conditions.push(eq(ocrFieldEvidence.runId, runId))
+  }
   if (slotKey !== undefined) {
     conditions.push(eq(ocrFieldEvidence.subjectSlotKey, slotKey))
   }
@@ -301,12 +331,20 @@ export async function getFieldEvidenceForLoadoutSlot(
 export async function getFieldEvidenceForLobbySlot(
   matchId: number,
   slotKey?: string,
+  /** Phase-A: see `getFieldEvidenceForLoadoutSlot` runId semantics. */
+  runId?: number | null,
 ): Promise<FieldEvidenceRow[]> {
   const conditions = [
     eq(ocrFieldEvidence.matchId, matchId),
     eq(ocrFieldEvidence.screenState, 'pre_game_lobby_state_2'),
-    liveRunFilter(ocrFieldEvidence.runId),
   ]
+  if (runId === undefined) {
+    conditions.push(liveRunFilter(ocrFieldEvidence.runId))
+  } else if (runId === null) {
+    conditions.push(sql`${ocrFieldEvidence.runId} IS NULL`)
+  } else {
+    conditions.push(eq(ocrFieldEvidence.runId, runId))
+  }
   if (slotKey !== undefined) {
     conditions.push(eq(ocrFieldEvidence.subjectSlotKey, slotKey))
   }
