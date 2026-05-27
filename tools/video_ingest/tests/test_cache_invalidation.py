@@ -387,7 +387,8 @@ def test_state_machine_drift_invalidates_pass1():
     from video_ingest.pass1_classify import compute_pass1_cache_key
     from game_ocr.state_machine import CONFIGS_DIR as SM_DIR
     base = compute_pass1_cache_key("nhl26")
-    sm_path = SM_DIR / "nhl26.yaml"
+    # v1 engine cache key reads the v1 state machine YAML.
+    sm_path = SM_DIR / "nhl26-v1.yaml"
     original = sm_path.read_bytes()
     try:
         sm_path.write_bytes(original + b"\n# touched\n")
@@ -403,7 +404,7 @@ def test_weights_drift_invalidates_pass1():
     from video_ingest.pass1_classify import compute_pass1_cache_key
     base = compute_pass1_cache_key("nhl26")
     # Find weights file in the conventional location.
-    weights = Path(__file__).resolve().parents[2] / "game_ocr" / "game_ocr" / "weights" / "nhl26-screen-classifier.json"
+    weights = Path(__file__).resolve().parents[2] / "game_ocr" / "game_ocr" / "weights" / "nhl26-screen-classifier-v1.json"
     if not weights.exists():
         pytest.skip("weights not installed")
     original = weights.read_bytes()

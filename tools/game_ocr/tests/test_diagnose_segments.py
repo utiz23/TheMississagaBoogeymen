@@ -17,7 +17,7 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 SCRIPT = REPO_ROOT / "tools" / "game_ocr" / "scripts" / "diagnose_segments.py"
 CLIP = REPO_ROOT / "tools" / "video_ingest" / "tests" / "fixtures" / "match-250-clip.mkv"
 LABELS = REPO_ROOT / "tools" / "video_ingest" / "tests" / "fixtures" / "match-250-clip-segments.json"
-WEIGHTS = REPO_ROOT / "tools" / "game_ocr" / "game_ocr" / "weights" / "nhl26-screen-classifier.json"
+WEIGHTS = REPO_ROOT / "tools" / "game_ocr" / "game_ocr" / "weights" / "nhl26-screen-classifier-v1.json"
 
 
 @unittest.skipUnless(shutil.which("ffmpeg"), "ffmpeg not on PATH")

@@ -69,13 +69,14 @@ def compute_pass1_cache_key(version: str) -> str:
     version_yaml = VIDEO_INGEST_CONFIGS_DIR / f"{version}.yaml"
     classifier_yaml = _CLASSIFIER_CONFIGS_DIR / f"{version}.yaml"
     parts: list[bytes] = [version_yaml.read_bytes(), b"\x00", classifier_yaml.read_bytes()]
-    # Phase 1: include state machine + weights so engine swaps invalidate.
+    # Phase 1 v1 engine: hash the v1 state machine YAML + v1 weights artifact.
+    # When v2 ships (S5.4) this function will become engine-aware.
     from game_ocr.state_machine import CONFIGS_DIR as _SM_DIR
-    sm_yaml = _SM_DIR / f"{version}.yaml"
+    sm_yaml = _SM_DIR / f"{version}-v1.yaml"
     if sm_yaml.exists():
         parts.append(b"\x00")
         parts.append(sm_yaml.read_bytes())
-    weights_json = _CLASSIFIER_CONFIGS_DIR.parent.parent / "weights" / f"{version}-screen-classifier.json"
+    weights_json = _CLASSIFIER_CONFIGS_DIR.parent.parent / "weights" / f"{version}-screen-classifier-v1.json"
     if weights_json.exists():
         parts.append(b"\x00")
         parts.append(weights_json.read_bytes())

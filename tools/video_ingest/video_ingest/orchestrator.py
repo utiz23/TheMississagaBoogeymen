@@ -108,19 +108,21 @@ def _run_pass1(
         )
         from video_ingest.pass1_segment import decode_segments
 
-        sm = load_state_machine(version)
+        # v1 engine loads the v1 state machine + v1 weights. The unversioned
+        # `nhl26.yaml` is reserved for v2 once S5.1 bumps it.
+        sm = load_state_machine(f"{version}-v1")
         if sm.sample_fps != p1cfg.sample_fps:
             raise RuntimeError(
                 f"state machine sample_fps={sm.sample_fps} != Pass-1 config sample_fps={p1cfg.sample_fps}"
             )
         weights_path = (
             Path(__file__).resolve().parents[2] / "game_ocr" / "game_ocr" / "weights"
-            / f"{version}-screen-classifier.json"
+            / f"{version}-screen-classifier-v1.json"
         )
         if not weights_path.exists():
             raise FileNotFoundError(
                 f"missing learned screen classifier weights for {version}: {weights_path}\n"
-                f"  Fix: run `python3 tools/game_ocr/scripts/train_screen_classifier.py --version {version}`"
+                f"  Fix: run `python3 tools/game_ocr/scripts/train_screen_classifier.py --version {version} --engine viterbi`"
             )
         clf = load_screen_classifier(weights_path, sm)
         cls_list: list = []

@@ -115,8 +115,10 @@ def diagnose(
     out_path: Path,
     max_frames: int | None = None,
 ) -> None:
-    sm = load_state_machine(version)
-    weights_path = _GAME_OCR_SRC / "game_ocr" / "weights" / f"{version}-screen-classifier.json"
+    # diagnose_segments is currently a v1-engine diagnostic. S5.4 will add
+    # a --engine flag if a v2 diagnostic is needed; until then, hardcode v1.
+    sm = load_state_machine(f"{version}-v1")
+    weights_path = _GAME_OCR_SRC / "game_ocr" / "weights" / f"{version}-screen-classifier-v1.json"
     if not weights_path.exists():
         raise SystemExit(f"missing classifier weights: {weights_path}")
     clf = load_screen_classifier(weights_path, sm)

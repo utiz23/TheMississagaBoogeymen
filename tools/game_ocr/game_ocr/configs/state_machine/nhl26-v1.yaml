@@ -1,0 +1,212 @@
+# nhl26.yaml — Phase 1 HMM/Viterbi state machine config.
+#
+# Stable semantic ontology: state set and legal transitions are constant
+# across NHL 26 → 27 (Round 4 §9). UI-specific assets (anchor templates,
+# class dictionaries) live in per-version configs alongside this file.
+#
+# Probabilities are stored as natural-log values so the decoder uses log-space
+# addition. -inf marks an illegal transition. Self-loops are not listed and
+# default to log_self_loop_prior.
+
+version: "nhl26"
+decoder_version: "hmm-viterbi-v1"
+
+# Sample rate the decoder expects. Mismatched sample_fps is a hard error.
+sample_fps: 1.0
+
+# Default self-loop prior (in nats). High value = decoder prefers to stay in
+# the current state — UI screens are stable for many frames.
+log_self_loop_prior: -0.05
+
+# Default off-diagonal transition prior. Lower than self-loop by design.
+log_transition_prior: -3.0
+
+# Hard rejections at the emission stage — same as classifier.reject_anchor_substrings.
+reject_anchor_substrings:
+  - customize
+  - seasonpass
+  - rewards
+  - waiting for
+
+# Minimum duration in seconds. After Viterbi decode, runs shorter than the
+# state's minimum are merged into the surrounding state (or unknown_or_transition
+# if neighbors disagree). Calibrated from current run_length defaults + Round 4 §4.
+min_duration_seconds:
+  unknown_or_transition: 0.0
+  pre_game_lobby_state_1: 2.0
+  pre_game_lobby_state_2: 2.0
+  player_loadout_view: 0.5      # Round 4 §4 — sub-second slot traversal
+  loading_or_intro: 0.0
+  in_game_clock: 5.0            # long gameplay dwell
+  in_game_goal_state_1: 0.5     # transient overlay
+  in_game_goal_state_2: 0.5
+  post_game_player_summary: 1.5
+  post_game_box_score_goals: 1.0
+  post_game_box_score_shots: 1.0
+  post_game_box_score_faceoffs: 1.0
+  post_game_events: 1.5
+  post_game_action_tracker: 1.5
+  post_game_faceoff_map: 1.0
+  post_game_net_chart: 1.0
+  end_of_video: 0.0
+
+# Anchor substrings per state — used as one signal in the emission combiner.
+# Multiple states may share substrings; the learned head disambiguates.
+anchor_substrings:
+  unknown_or_transition: []
+  pre_game_lobby_state_1: [finding opponent, stay in div]
+  pre_game_lobby_state_2: [eashl]
+  player_loadout_view: [player loadouts]
+  loading_or_intro: [now loading, world chel, season]
+  in_game_clock: []             # HUD scoreboard has no top-bar text anchor
+  in_game_goal_state_1: [scores, goal]
+  in_game_goal_state_2: [assist]
+  post_game_player_summary: [player summary]
+  post_game_box_score_goals: [goal summary]
+  post_game_box_score_shots: [shot summary, shots summary]
+  post_game_box_score_faceoffs: [faceoff summary, face-off summary]
+  post_game_events: [all]
+  post_game_action_tracker: [all events]
+  post_game_faceoff_map: [faceoff]
+  post_game_net_chart: [net chart]
+  end_of_video: []
+
+# Legal transitions. Each row lists states reachable FROM the row's state
+# besides the (implicit) self-loop. Anything NOT listed is illegal (-inf).
+# Self-loops use log_self_loop_prior; listed transitions use log_transition_prior.
+legal_transitions:
+  unknown_or_transition:
+    - pre_game_lobby_state_1
+    - pre_game_lobby_state_2
+    - player_loadout_view
+    - loading_or_intro
+    - in_game_clock
+    - post_game_player_summary
+    - post_game_box_score_goals
+    - post_game_box_score_shots
+    - post_game_box_score_faceoffs
+    - post_game_events
+    - post_game_action_tracker
+    - post_game_faceoff_map
+    - post_game_net_chart
+    - end_of_video
+  pre_game_lobby_state_1:
+    - unknown_or_transition
+    - pre_game_lobby_state_2
+    - player_loadout_view
+    - loading_or_intro
+  pre_game_lobby_state_2:
+    - unknown_or_transition
+    - pre_game_lobby_state_1
+    - player_loadout_view
+    - loading_or_intro
+  player_loadout_view:
+    - unknown_or_transition
+    - pre_game_lobby_state_1
+    - pre_game_lobby_state_2
+    - loading_or_intro
+  loading_or_intro:
+    - unknown_or_transition
+    - in_game_clock
+    - pre_game_lobby_state_2
+  in_game_clock:
+    - unknown_or_transition
+    - in_game_goal_state_1
+    - post_game_player_summary
+    - end_of_video
+  in_game_goal_state_1:
+    - unknown_or_transition
+    - in_game_goal_state_2
+    - in_game_clock
+  in_game_goal_state_2:
+    - unknown_or_transition
+    - in_game_clock
+  post_game_player_summary:
+    - unknown_or_transition
+    - post_game_box_score_goals
+    - post_game_box_score_shots
+    - post_game_box_score_faceoffs
+    - post_game_events
+    - post_game_action_tracker
+    - post_game_faceoff_map
+    - post_game_net_chart
+    - end_of_video
+  post_game_box_score_goals:
+    - unknown_or_transition
+    - post_game_box_score_shots
+    - post_game_box_score_faceoffs
+    - post_game_player_summary
+    - post_game_events
+    - post_game_action_tracker
+    - post_game_faceoff_map
+    - post_game_net_chart
+    - end_of_video
+  post_game_box_score_shots:
+    - unknown_or_transition
+    - post_game_box_score_goals
+    - post_game_box_score_faceoffs
+    - post_game_player_summary
+    - post_game_events
+    - post_game_action_tracker
+    - post_game_faceoff_map
+    - post_game_net_chart
+    - end_of_video
+  post_game_box_score_faceoffs:
+    - unknown_or_transition
+    - post_game_box_score_goals
+    - post_game_box_score_shots
+    - post_game_player_summary
+    - post_game_events
+    - post_game_action_tracker
+    - post_game_faceoff_map
+    - post_game_net_chart
+    - end_of_video
+  post_game_events:
+    - unknown_or_transition
+    - post_game_box_score_goals
+    - post_game_box_score_shots
+    - post_game_box_score_faceoffs
+    - post_game_player_summary
+    - post_game_action_tracker
+    - post_game_faceoff_map
+    - post_game_net_chart
+    - end_of_video
+  post_game_action_tracker:
+    - unknown_or_transition
+    - post_game_box_score_goals
+    - post_game_box_score_shots
+    - post_game_box_score_faceoffs
+    - post_game_player_summary
+    - post_game_events
+    - post_game_faceoff_map
+    - post_game_net_chart
+    - end_of_video
+  post_game_faceoff_map:
+    - unknown_or_transition
+    - post_game_box_score_goals
+    - post_game_box_score_shots
+    - post_game_box_score_faceoffs
+    - post_game_player_summary
+    - post_game_events
+    - post_game_action_tracker
+    - post_game_net_chart
+    - end_of_video
+  post_game_net_chart:
+    - unknown_or_transition
+    - post_game_box_score_goals
+    - post_game_box_score_shots
+    - post_game_box_score_faceoffs
+    - post_game_player_summary
+    - post_game_events
+    - post_game_action_tracker
+    - post_game_faceoff_map
+    - end_of_video
+  end_of_video: []
+
+# Initial state distribution (log probs). Uniform over plausible openers;
+# everything else is -inf (illegal as the first state).
+initial_log_probs:
+  unknown_or_transition: -1.0
+  pre_game_lobby_state_1: -1.5
+  pre_game_lobby_state_2: -1.5
+  loading_or_intro: -2.0

@@ -190,11 +190,11 @@ class TestEndToEndOnLabeledClip(unittest.TestCase):
         from video_ingest.pass1_classify import _iter_raw_bgr_frames
         from video_ingest.pass1_segment import decode_segments
 
-        sm = load_state_machine("nhl26")
+        sm = load_state_machine("nhl26-v1")
         legacy = Classifier(load_classifier_config("nhl26"), use_gpu=False)
         weights = (
             Path(__file__).resolve().parents[2] / "game_ocr" / "game_ocr"
-            / "weights" / "nhl26-screen-classifier.json"
+            / "weights" / "nhl26-screen-classifier-v1.json"
         )
         if not weights.exists():
             self.skipTest("Phase 1 weights not yet trained")
