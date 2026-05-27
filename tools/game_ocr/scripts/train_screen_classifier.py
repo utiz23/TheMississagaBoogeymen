@@ -3,20 +3,26 @@
 Walks the canonical ScreenShots/ + calibration/extras/ corpora plus a small
 labeled slice of the match-250 60s clip fixture to cover catch-all states
 (unknown_or_transition, loading_or_intro). Runs the RapidOCR backend once
-per fixture to compute anchor-text, builds FrameFeatures, fits sklearn
-LogisticRegression, and writes the JSON weights artifact at
-tools/game_ocr/game_ocr/weights/<version>-screen-classifier.json.
+per fixture to compute anchor-text (or both v2 ROIs), builds frame features,
+fits sklearn LogisticRegression, and writes the JSON weights artifact.
+
+S5: --engine flag dispatches between v1 (legacy single-anchor pipeline)
+and v2 (per-quadrant HSV + regex priors + both-ROI OCR). Each engine
+reads its own state machine YAML and writes its own weights file:
+
+  --engine viterbi      → load nhl26-v1.yaml, save nhl26-screen-classifier-v1.json
+  --engine viterbi_v2   → load nhl26.yaml,    save nhl26-screen-classifier-v2.json
 
 States the corpus genuinely cannot cover today (e.g. end_of_video,
 post_game_box_score_shots, post_game_box_score_faceoffs) get the
 MISSING_STATE_INTERCEPT fallback so they never win on classifier signal
 alone — anchor flags + emission_bonus surface them downstream.
 
-Idempotent: re-running overwrites the weights file. Commit the regenerated
-weights as part of the same change.
+Idempotent: re-running overwrites the engine's weights file. Commit the
+regenerated weights as part of the same change.
 
 Usage:
-    PYTHONPATH=tools/game_ocr python3 tools/game_ocr/scripts/train_screen_classifier.py [--version nhl26]
+    PYTHONPATH=tools/game_ocr python3 tools/game_ocr/scripts/train_screen_classifier.py [--engine viterbi_v2] [--version nhl26]
 """
 
 from __future__ import annotations
@@ -26,6 +32,7 @@ import subprocess
 import sys
 import tempfile
 from pathlib import Path
+from typing import Literal
 
 import cv2
 import numpy as np
@@ -36,8 +43,13 @@ sys.path.insert(0, str(GAME_OCR))
 
 from game_ocr.classifier import _scale_roi  # noqa: E402 -- internal helper
 from game_ocr.frame_features import compute_frame_features  # noqa: E402
+from game_ocr.frame_pipeline_v2 import compute_frame_features_v2_from_image  # noqa: E402
 from game_ocr.ocr import RapidOCRBackend  # noqa: E402
-from game_ocr.screen_classifier import train_screen_classifier  # noqa: E402
+from game_ocr.regex_priors import load_regex_priors  # noqa: E402
+from game_ocr.screen_classifier import (  # noqa: E402
+    train_screen_classifier,
+    train_screen_classifier_v2,
+)
 from game_ocr.state_machine import load_state_machine  # noqa: E402
 from game_ocr.utils import normalize_text  # noqa: E402
 
@@ -48,11 +60,7 @@ EXTRAS = GAME_OCR / "calibration" / "extras"
 CLIP_FIXTURE = REPO_ROOT / "tools" / "video_ingest" / "tests" / "fixtures" / "match-250-clip.mkv"
 
 
-# Canonical-fixture filename → state label. The original screenshot set
-# covers 12 of 17 states; the remaining 5 either rely on extras + clip
-# frames (unknown_or_transition, loading_or_intro) or fall through to
-# the missing-state fallback (end_of_video, post_game_box_score_shots,
-# post_game_box_score_faceoffs).
+# Canonical-fixture filename → state label.
 CANONICAL: dict[str, str] = {
     "Pre-Game Lobby State 1.png": "pre_game_lobby_state_1",
     "Pre-Game Lobby State 2.png": "pre_game_lobby_state_2",
@@ -68,9 +76,6 @@ CANONICAL: dict[str, str] = {
     "In Game Goal Part 2.png": "in_game_goal_state_2",
 }
 
-# Clip-frame timestamps (seconds) → state label, picked from the labeled clip
-# segments JSON. Provides ≥1 training point for catch-all states that have
-# no canonical screenshot fixture.
 CLIP_FRAMES: list[tuple[float, str]] = [
     (3.0, "unknown_or_transition"),    # FINDING OPPONENT matchmaking screen
     (51.0, "loading_or_intro"),        # WORLD CHEL splash transition
@@ -113,18 +118,55 @@ def _extract_clip_frame(clip_path: Path, seconds: float, out_path: Path) -> bool
     return r.returncode == 0 and out_path.exists()
 
 
+def _resolve_state_machine_version(version: str, engine: str) -> str:
+    """v1 engine reads {version}-v1.yaml; v2 engine reads {version}.yaml."""
+    if engine == "viterbi":
+        return f"{version}-v1"
+    if engine == "viterbi_v2":
+        return version
+    raise ValueError(f"unknown engine: {engine!r}")
+
+
+def _weights_path(version: str, engine: str) -> Path:
+    suffix = "v1" if engine == "viterbi" else "v2"
+    return GAME_OCR / "game_ocr" / "weights" / f"{version}-screen-classifier-{suffix}.json"
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--version", default="nhl26")
-    ap.add_argument("--anchor-roi", type=int, nargs=4, default=[0, 0, 1920, 200])
+    ap.add_argument(
+        "--engine",
+        choices=("viterbi", "viterbi_v2"),
+        default="viterbi_v2",
+        help="Pass-1 decoder family. viterbi=v1 (anchor-text only), viterbi_v2=v2 (per-quadrant HSV + regex priors + both-ROI OCR).",
+    )
+    ap.add_argument("--anchor-roi", type=int, nargs=4, default=[0, 0, 1920, 200],
+                    help="(v1 only) anchor-text ROI in 1920x1080 native coords.")
     args = ap.parse_args()
 
-    sm = load_state_machine(args.version)
+    sm_version = _resolve_state_machine_version(args.version, args.engine)
+    sm = load_state_machine(sm_version)
     ocr = RapidOCRBackend(use_gpu=False)
+
+    # v2 needs regex priors for feature-vector position contract.
+    regex_priors = load_regex_priors(args.version) if args.engine == "viterbi_v2" else None
+
+    print(f"engine={args.engine}  state_machine={sm_version}  decoder_version={sm.decoder_version}", file=sys.stderr)
+    if regex_priors is not None:
+        print(f"regex priors: {regex_priors.n_priors()} flags across {len(regex_priors.priors_by_state)} states", file=sys.stderr)
 
     feats: list = []
     labels: list[str] = []
     skipped: list[str] = []
+
+    def _featurize(img: np.ndarray):
+        if args.engine == "viterbi_v2":
+            return compute_frame_features_v2_from_image(
+                img, regex_priors=regex_priors, ocr_backend=ocr,
+            )
+        anchor = _read_anchor_text(img, ocr, tuple(args.anchor_roi))
+        return compute_frame_features(img, anchor_text=anchor, state_machine=sm)
 
     # Canonical fixtures.
     for fname, label in CANONICAL.items():
@@ -136,22 +178,21 @@ def main() -> int:
             print(f"warn: canonical label {label!r} not in state machine, skipping", file=sys.stderr)
             continue
         img = _read_image(path)
-        anchor = _read_anchor_text(img, ocr, tuple(args.anchor_roi))
-        feats.append(compute_frame_features(img, anchor_text=anchor, state_machine=sm))
+        feats.append(_featurize(img))
         labels.append(label)
         print(f"  + canonical {label}  ←  {fname}", file=sys.stderr)
 
-    # Extras.
+    # Extras (the labeled corpus from calibration/extras/).
+    extras_count = 0
     for path in sorted(EXTRAS.glob("*.png")):
         lbl = _extras_label(path.name)
         if lbl is None or lbl not in sm.states:
-            print(f"warn: extras file {path.name} has unrecognised label, skipping", file=sys.stderr)
-            continue
+            continue  # silently skip — deferred classes leave PNGs in extras/
         img = _read_image(path)
-        anchor = _read_anchor_text(img, ocr, tuple(args.anchor_roi))
-        feats.append(compute_frame_features(img, anchor_text=anchor, state_machine=sm))
+        feats.append(_featurize(img))
         labels.append(lbl)
-        print(f"  + extra {lbl}  ←  {path.name}", file=sys.stderr)
+        extras_count += 1
+    print(f"  + extras: {extras_count} labeled PNGs", file=sys.stderr)
 
     # Clip frames for catch-all states.
     if CLIP_FIXTURE.exists():
@@ -165,8 +206,7 @@ def main() -> int:
                     print(f"warn: ffmpeg failed at t={seconds}s; skipping", file=sys.stderr)
                     continue
                 img = _read_image(out)
-                anchor = _read_anchor_text(img, ocr, tuple(args.anchor_roi))
-                feats.append(compute_frame_features(img, anchor_text=anchor, state_machine=sm))
+                feats.append(_featurize(img))
                 labels.append(lbl)
                 print(f"  + clip {lbl}  ←  t={int(seconds)}s", file=sys.stderr)
     else:
@@ -180,8 +220,14 @@ def main() -> int:
     covered = set(labels)
     missing = sorted(set(sm.states) - covered)
 
-    clf = train_screen_classifier(feats, labels, sm, allow_missing_states=True)
-    out_path = GAME_OCR / "game_ocr" / "weights" / f"{args.version}-screen-classifier.json"
+    if args.engine == "viterbi_v2":
+        clf = train_screen_classifier_v2(
+            feats, labels, sm, regex_priors, allow_missing_states=True,
+        )
+    else:
+        clf = train_screen_classifier(feats, labels, sm, allow_missing_states=True)
+
+    out_path = _weights_path(args.version, args.engine)
     clf.save(out_path)
     print(f"\ntrained on {len(feats)} samples covering {len(covered)} of {len(sm.states)} states", file=sys.stderr)
     if missing:
