@@ -124,6 +124,23 @@ likely feature-pipeline-side (regex priors miss a screen variant, HSV
 quadrants don't capture the layout difference, etc.) — that's S3's
 territory; iterate on the feature pipeline rather than adding more labels.
 
+## Distinguishing WoC sub-screens
+
+`menu_world_of_chel`, `player_loadout_landing`, and `menu_club_management` all
+share the same WoC navigation chrome (the top tab bar
+`PLAY | LOADOUTS | CLUBS | CUSTOMIZE | SEASON PASS | STORE | REWARDS | STATS`).
+The class is determined by which tab is **highlighted/active**:
+
+| Active tab | Class |
+|---|---|
+| LOADOUTS | `player_loadout_landing` (left = list of loadout names, right = LOADOUT N summary card, bottom = MAKE LOADOUT ACTIVE) |
+| CLUBS | `menu_club_management` |
+| PLAY / CUSTOMIZE / SEASON PASS / STORE / REWARDS / STATS | `menu_world_of_chel` |
+
+`player_loadout_view` is the drill-down for ONE loadout — **no top tab bar**,
+big PLAYER CLASS header, 5-column ATTRIBUTES grid with stat bars and
+green/red deltas, "RENAME LOADOUT" in the bottom controls.
+
 ## Filename convention
 
 Labeled PNGs follow `<state>__match<N>_t<T>_vs_<opp>.png` (or

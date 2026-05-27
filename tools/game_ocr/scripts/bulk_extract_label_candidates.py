@@ -147,6 +147,8 @@ def extract_one(
     inbox: Path,
     interval_sec: float,
     dedup: bool,
+    end_time_sec: float | None = None,
+    start_time_sec: float = 0.0,
 ) -> dict[str, object]:
     """Extract candidate frames from a single video. Returns a manifest dict."""
     duration = _probe_duration_sec(video)
@@ -162,8 +164,9 @@ def extract_one(
     dropped_dupes = 0
     skipped_existing = 0
 
-    t = 0.0
-    while t < duration:
+    upper_bound = min(duration, end_time_sec) if end_time_sec is not None else duration
+    t = max(0.0, start_time_sec)
+    while t < upper_bound:
         out_name = f"cand-t{int(t):05d}.png"
         out_path = out_dir / out_name
         if out_path.exists():
@@ -236,6 +239,18 @@ def main() -> int:
         action="store_true",
         help="Disable exact-thumbnail dedup (keep every sampled frame).",
     )
+    ap.add_argument(
+        "--start-time",
+        type=float,
+        default=0.0,
+        help="Skip the first N seconds of each video before sampling.",
+    )
+    ap.add_argument(
+        "--end-time",
+        type=float,
+        default=None,
+        help="Stop sampling after this many seconds (e.g. 600 = first 10 min only). Useful when only the early pre-game-menu portion is interesting.",
+    )
     args = ap.parse_args()
 
     if args.video is None and args.root is None:
@@ -251,7 +266,12 @@ def main() -> int:
     args.inbox.mkdir(parents=True, exist_ok=True)
     total_written = 0
     for v in videos:
-        m = extract_one(v, args.inbox, args.interval, dedup=not args.no_dedup)
+        m = extract_one(
+            v, args.inbox, args.interval,
+            dedup=not args.no_dedup,
+            start_time_sec=args.start_time,
+            end_time_sec=args.end_time,
+        )
         candidates = m.get("candidates", [])
         if isinstance(candidates, list):
             total_written += len(candidates)

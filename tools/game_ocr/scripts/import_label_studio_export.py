@@ -44,8 +44,11 @@ _FN_RE = re.compile(r"cand-t(\d+)\.png$")
 
 def _parse_image_path(image_url: str) -> Path | None:
     """LS exports `data.image` as e.g.
-    '/data/local-files/?d=2026-05-22_17-21-34/cand-t01230.png'.
-    Return the path relative to INBOX_DIR, or None if unparseable.
+    '/data/local-files/?d=inbox/2026-05-22_17-21-34/cand-t01230.png'.
+    The `d=` value is relative to LOCAL_FILES_DOCUMENT_ROOT (which we set to
+    /label-studio/files), but the bind-mounted host inbox is one level
+    deeper at /label-studio/files/inbox. Strip the leading "inbox/" segment
+    so the result is relative to the host's _inbox/ directory.
     """
     parsed = urlparse(image_url)
     qs = parsed.query
@@ -58,6 +61,9 @@ def _parse_image_path(image_url: str) -> Path | None:
     rel = unquote(qs[2:])
     if "?" in rel:
         rel = rel.split("?", 1)[0]
+    # Strip the LOCAL_FILES_DOCUMENT_ROOT-relative "inbox/" prefix.
+    if rel.startswith("inbox/"):
+        rel = rel[len("inbox/"):]
     return Path(rel)
 
 
