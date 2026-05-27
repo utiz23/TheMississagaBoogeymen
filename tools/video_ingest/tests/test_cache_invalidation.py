@@ -386,31 +386,61 @@ def test_state_machine_drift_invalidates_pass1():
     """Phase 1: editing state machine YAML cascades to a Pass-1 cache mismatch."""
     from video_ingest.pass1_classify import compute_pass1_cache_key
     from game_ocr.state_machine import CONFIGS_DIR as SM_DIR
-    base = compute_pass1_cache_key("nhl26")
-    # v1 engine cache key reads the v1 state machine YAML.
+    # Engine-aware (S5.4): explicit viterbi exercises the v1 path; viterbi_v2 reads
+    # the unversioned YAML. Test the v1 path here — v2 has its own coverage below.
+    base = compute_pass1_cache_key("nhl26", "viterbi")
     sm_path = SM_DIR / "nhl26-v1.yaml"
     original = sm_path.read_bytes()
     try:
         sm_path.write_bytes(original + b"\n# touched\n")
-        after = compute_pass1_cache_key("nhl26")
+        after = compute_pass1_cache_key("nhl26", "viterbi")
         assert after != base
     finally:
         sm_path.write_bytes(original)
 
 
+def test_state_machine_drift_invalidates_pass1_v2():
+    """v2 engine cache key reads nhl26.yaml directly (no -v1 suffix)."""
+    from video_ingest.pass1_classify import compute_pass1_cache_key
+    from game_ocr.state_machine import CONFIGS_DIR as SM_DIR
+    base = compute_pass1_cache_key("nhl26", "viterbi_v2")
+    sm_path = SM_DIR / "nhl26.yaml"
+    original = sm_path.read_bytes()
+    try:
+        sm_path.write_bytes(original + b"\n# touched\n")
+        after = compute_pass1_cache_key("nhl26", "viterbi_v2")
+        assert after != base
+    finally:
+        sm_path.write_bytes(original)
+
+
+def test_regex_priors_drift_invalidates_pass1_v2():
+    """v2 cache key includes regex_priors YAML — editing it invalidates."""
+    from video_ingest.pass1_classify import compute_pass1_cache_key
+    from game_ocr.state_machine import CONFIGS_DIR as SM_DIR
+    base = compute_pass1_cache_key("nhl26", "viterbi_v2")
+    yaml_path = SM_DIR / "nhl26_regex_priors.yaml"
+    original = yaml_path.read_bytes()
+    try:
+        yaml_path.write_bytes(original + b"\n# touched\n")
+        after = compute_pass1_cache_key("nhl26", "viterbi_v2")
+        assert after != base
+    finally:
+        yaml_path.write_bytes(original)
+
+
 def test_weights_drift_invalidates_pass1():
-    """Phase 1: editing the weights JSON cascades to a Pass-1 cache mismatch."""
+    """Phase 1: editing the v1 weights JSON cascades to a Pass-1 cache mismatch."""
     import pytest
     from video_ingest.pass1_classify import compute_pass1_cache_key
-    base = compute_pass1_cache_key("nhl26")
-    # Find weights file in the conventional location.
+    base = compute_pass1_cache_key("nhl26", "viterbi")
     weights = Path(__file__).resolve().parents[2] / "game_ocr" / "game_ocr" / "weights" / "nhl26-screen-classifier-v1.json"
     if not weights.exists():
         pytest.skip("weights not installed")
     original = weights.read_bytes()
     try:
         weights.write_bytes(original + b"\n")
-        after = compute_pass1_cache_key("nhl26")
+        after = compute_pass1_cache_key("nhl26", "viterbi")
         assert after != base
     finally:
         weights.write_bytes(original)

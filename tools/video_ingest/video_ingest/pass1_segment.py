@@ -27,8 +27,13 @@ from typing import Iterable, Protocol
 
 import numpy as np
 
-from game_ocr.emissions import EmissionWeights, build_log_emissions
-from game_ocr.frame_features import FrameFeatures
+from game_ocr.emissions import (
+    EmissionWeights,
+    build_log_emissions,
+    build_log_emissions_v2,
+)
+from game_ocr.frame_features import FrameFeatures, FrameFeaturesV2
+from game_ocr.regex_priors import RegexPriorsConfig
 from game_ocr.state_machine import StateMachine
 from game_ocr.viterbi import viterbi_decode
 from video_ingest.pass1_classify import Segment
@@ -36,6 +41,10 @@ from video_ingest.pass1_classify import Segment
 
 class _ClassifierProto(Protocol):
     def predict_log_probs(self, features: FrameFeatures) -> np.ndarray: ...
+
+
+class _ClassifierV2Proto(Protocol):
+    def predict_log_probs(self, features: FrameFeaturesV2) -> np.ndarray: ...
 
 
 def _build_log_transitions(state_machine: StateMachine) -> np.ndarray:
@@ -114,6 +123,29 @@ def decode_segments(
     if not feats_list:
         return []
     log_emit = build_log_emissions(feats_list, classifier, state_machine, weights)
+    log_trans = _build_log_transitions(state_machine)
+    log_init = _build_log_initial(state_machine)
+    path = viterbi_decode(log_emit, log_trans, log_init)
+    segments = _collapse_to_segments(path, state_machine, log_emit)
+    return _enforce_min_duration(segments, state_machine)
+
+
+def decode_segments_v2(
+    *,
+    features: Iterable[FrameFeaturesV2],
+    classifier: _ClassifierV2Proto,
+    state_machine: StateMachine,
+    regex_priors: RegexPriorsConfig,
+    weights: EmissionWeights,
+) -> list[Segment]:
+    """v2 Viterbi decode. Same algorithm as decode_segments; only the
+    emissions builder differs (regex-prior-derived anchor bonus + reject)."""
+    feats_list = list(features)
+    if not feats_list:
+        return []
+    log_emit = build_log_emissions_v2(
+        feats_list, classifier, state_machine, regex_priors, weights,
+    )
     log_trans = _build_log_transitions(state_machine)
     log_init = _build_log_initial(state_machine)
     path = viterbi_decode(log_emit, log_trans, log_init)

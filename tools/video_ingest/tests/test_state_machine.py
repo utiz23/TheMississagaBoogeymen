@@ -16,12 +16,22 @@ class TestStateMachineLoader(unittest.TestCase):
     def test_loads_nhl26_config(self):
         sm = load_state_machine("nhl26")
         self.assertEqual(sm.version, "nhl26")
-        self.assertEqual(sm.decoder_version, "hmm-viterbi-v1")
+        # S5.1: bumped to v2; new state menu_world_of_chel added.
+        self.assertEqual(sm.decoder_version, "hmm-viterbi-v2")
         self.assertIn("player_loadout_view", sm.states)
         self.assertIn("post_game_box_score_shots", sm.states)
         self.assertIn("end_of_video", sm.states)
-        # All 17 states from Round 4 §4 present.
+        self.assertIn("menu_world_of_chel", sm.states)
+        # 17 v1 states + 1 v2 addition (menu_world_of_chel).
+        self.assertEqual(len(sm.states), 18)
+
+    def test_loads_nhl26_v1_config_for_rollback(self):
+        """v1 state machine YAML stays loadable for the engine=viterbi rollback path."""
+        sm = load_state_machine("nhl26-v1")
+        self.assertEqual(sm.version, "nhl26")
+        self.assertEqual(sm.decoder_version, "hmm-viterbi-v1")
         self.assertEqual(len(sm.states), 17)
+        self.assertNotIn("menu_world_of_chel", sm.states)
 
     def test_min_duration_lookup(self):
         sm = load_state_machine("nhl26")

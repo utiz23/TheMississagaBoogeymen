@@ -160,13 +160,81 @@ def _run_pass1(
                     anchor_text=cls_list[i].anchor_text,
                 )
         return cls_list, segments, sm.decoder_version
+    elif p1cfg.engine == "viterbi_v2":
+        from game_ocr.emissions import EmissionWeights
+        from game_ocr.frame_pipeline_v2 import compute_frame_features_v2_from_image
+        from game_ocr.ocr import RapidOCRBackend
+        from game_ocr.regex_priors import load_regex_priors
+        from game_ocr.screen_classifier import load_screen_classifier
+        from game_ocr.state_machine import load_state_machine
+        from video_ingest.pass1_classify import (
+            FrameClassification,
+            _iter_raw_bgr_frames,
+        )
+        from video_ingest.pass1_segment import decode_segments_v2
+
+        sm = load_state_machine(version)
+        if sm.sample_fps != p1cfg.sample_fps:
+            raise RuntimeError(
+                f"state machine sample_fps={sm.sample_fps} != Pass-1 config sample_fps={p1cfg.sample_fps}"
+            )
+        weights_path = (
+            Path(__file__).resolve().parents[2] / "game_ocr" / "game_ocr" / "weights"
+            / f"{version}-screen-classifier-v2.json"
+        )
+        if not weights_path.exists():
+            raise FileNotFoundError(
+                f"missing v2 learned screen classifier weights for {version}: {weights_path}\n"
+                f"  Fix: run `python3 tools/game_ocr/scripts/train_screen_classifier.py --version {version} --engine viterbi_v2`"
+            )
+        clf = load_screen_classifier(weights_path, sm)
+        regex_priors = load_regex_priors(version)
+        # v2 OCRs both ROIs (top_bar + side_strip) per frame via the injected
+        # backend. CPU is fine — the bottleneck is two small crops, not the
+        # whole-frame OCR the legacy classifier did.
+        ocr = RapidOCRBackend(use_gpu=False)
+
+        cls_list: list = []
+        feats_list = []
+        for idx, frame in enumerate(_iter_raw_bgr_frames(video_path, p1cfg.sample_fps)):
+            feats = compute_frame_features_v2_from_image(
+                frame, regex_priors=regex_priors, ocr_backend=ocr,
+            )
+            feats_list.append(feats)
+            cls_list.append(FrameClassification(
+                index=idx,
+                seconds=idx / p1cfg.sample_fps,
+                screen_type="unknown_or_transition",
+                color_score=0.0,
+                color_class="",
+                anchor_text=feats.top_bar_text,
+            ))
+        segments = decode_segments_v2(
+            features=feats_list,
+            classifier=clf,
+            state_machine=sm,
+            regex_priors=regex_priors,
+            weights=EmissionWeights(),
+        )
+        for seg in segments:
+            for i in range(seg.start_index, seg.end_index + 1):
+                cls_list[i] = FrameClassification(
+                    index=cls_list[i].index,
+                    seconds=cls_list[i].seconds,
+                    screen_type=seg.screen_type,
+                    color_score=cls_list[i].color_score,
+                    color_class=cls_list[i].color_class,
+                    anchor_text=cls_list[i].anchor_text,
+                )
+        return cls_list, segments, sm.decoder_version
     elif p1cfg.engine == "run_length":
         cls_list = classify_video(video_path, classifier_legacy, p1cfg)
         segments = build_segments(cls_list, p1cfg)
         return cls_list, segments, "legacy-passthrough-v0-video"
     else:
         raise ValueError(
-            f"unknown Pass-1 engine {p1cfg.engine!r}; expected 'viterbi' or 'run_length'"
+            f"unknown Pass-1 engine {p1cfg.engine!r}; "
+            f"expected 'viterbi_v2' (default), 'viterbi' (v1 rollback), or 'run_length' (legacy)"
         )
 
 
@@ -274,7 +342,7 @@ def ingest(
     # invariant holds (segments may change → existing Pass 2 is stale).
     pass2_root = sha_root / "pass2"
     manifest_path = sha_root / PASS2_MANIFEST_FILENAME
-    pass1_cache_key = compute_pass1_cache_key(version)
+    pass1_cache_key = compute_pass1_cache_key(version, p1cfg.engine)
     pass1_was_fresh = False
     elapsed_pass1 = 0.0
 

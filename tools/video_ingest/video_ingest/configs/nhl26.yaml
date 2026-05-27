@@ -29,9 +29,13 @@ pass1:
   # Minimum segment duration (in source-video seconds) to emit. Drops
   # micro-segments that are almost certainly classifier hiccups.
   min_segment_seconds: 3
-  # Phase 1 engine: "viterbi" = HMM/Viterbi decoder (default); "run_length" =
-  # legacy fallback (phase 5 deletes it).
-  engine: viterbi
+  # Phase 1 engine. As of S5 (2026-05-27):
+  #   "viterbi_v2" (default) — v2 LR head + regex priors + both-ROI OCR;
+  #     reads weights/nhl26-screen-classifier-v2.json and nhl26.yaml state machine.
+  #   "viterbi"               — v1 single-anchor LR head; reads
+  #     weights/nhl26-screen-classifier-v1.json and nhl26-v1.yaml state machine.
+  #   "run_length"            — legacy fallback (phase 5 deletes it).
+  engine: viterbi_v2
   # Per-screen overrides for screens the user briefly tabs through in the
   # post-game flow. Loosened from the strict 3-second default so a 1-2 second
   # post-game view still emits as a segment. The remaining screens
