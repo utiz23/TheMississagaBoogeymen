@@ -36,7 +36,10 @@ class TestBlurScore(unittest.TestCase):
 
 class TestComputeFrameFeatures(unittest.TestCase):
     def setUp(self):
-        self.sm = load_state_machine("nhl26")
+        # v1 compute_frame_features tests use the 17-class v1 state machine
+        # explicitly so S5.1's bump to 18 classes on the unsuffixed nhl26.yaml
+        # doesn't break the hardcoded shape asserts.
+        self.sm = load_state_machine("nhl26-v1")
 
     def test_hsv_histogram_shape(self):
         frame = _solid_frame(1080, 1920, (50, 100, 200))
