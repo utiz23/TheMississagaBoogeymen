@@ -34,7 +34,13 @@ class _ClassifierProto(Protocol):
 @dataclass(frozen=True)
 class EmissionWeights:
     classifier_weight: float = 1.0
-    anchor_bonus: float = 2.0
+    # Tuned 2026-05-27 (S5.5): 2.0 → 3.0. The proving bench's offline Viterbi
+    # simulator showed the early-lobby frames (eashl_title fires, classifier
+    # confidently votes unknown) need ≥ +3 anchor lift to overcome the
+    # -3.0 transition penalty out of unknown_or_transition with the default
+    # -0.05 self-loop. See tools/video_ingest/tests/fixtures/
+    # screen-classifier-proving-bench/README.md "tuning" section.
+    anchor_bonus: float = 3.0
     reject_floor: float = -20.0
 
 

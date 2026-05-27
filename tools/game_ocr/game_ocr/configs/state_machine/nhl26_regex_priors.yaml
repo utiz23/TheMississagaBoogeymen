@@ -80,3 +80,9 @@ unknown_or_transition:
   - { name: season_pass, pattern: '\bseason\s*pass\b' }
   - { name: rewards, pattern: '\brewards\b' }
   - { name: waiting_for, pattern: '\bwaiting\s+for\b' }
+  # Post-game / season-end leaderboard ("SEASON N ELITE CUP CHAMPIONS …").
+  # The leaderboard is OOD — we route it to unknown_or_transition rather than
+  # letting the classifier leak into loading_or_intro. The regex omits the
+  # trailing word boundary because OCR runs "elite cup champions" together as
+  # "elitecupcha…" in side_strip output (see S5.5 diagnostic on match-250).
+  - { name: leaderboard_cup, pattern: '\belite\s*cup', roi: side_strip }

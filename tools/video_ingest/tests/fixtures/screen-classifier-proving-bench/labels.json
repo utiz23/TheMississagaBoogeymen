@@ -16,30 +16,24 @@
         { "t_start_sec": 7,  "t_end_sec": 15, "expected": "pre_game_lobby_state_2", "notes": "LOBBY with LOADOUT/READY overlay + both team rosters." },
         { "t_start_sec": 16, "t_end_sec": 28, "expected": "player_loadout_view",    "notes": "PLAYER LOADOUTS detail view with HOME/AWAY side strip + X-FACTORS/ATTRIBUTES." },
         { "t_start_sec": 29, "t_end_sec": 50, "expected": "pre_game_lobby_state_2", "notes": "Back in the lobby after exiting loadout detail." },
-        { "t_start_sec": 51, "t_end_sec": 52, "expected": "menu_world_of_chel",     "notes": "WORLD OF CHEL splash transition — newly distinct state in S5.1." },
-        { "t_start_sec": 53, "t_end_sec": 59, "expected": "unknown_or_transition", "notes": "Season 4 leaderboard / post-game splash — OOD, no dedicated state." }
+        { "t_start_sec": 51, "t_end_sec": 51, "expected": "menu_world_of_chel",     "notes": "WORLD OF CHEL splash transition — newly distinct state in S5.1. Boundary tightened to 1 frame on 2026-05-27: frame 52 visually shows the leaderboard already (STINKY BROCCOLI / ELITE CUP CHAMPIONS), not the splash." },
+        { "t_start_sec": 52, "t_end_sec": 59, "expected": "unknown_or_transition", "notes": "Season 4 leaderboard / post-game splash — OOD, no dedicated state. Span extended from t=53 to t=52 on 2026-05-27 after visual inspection of t02.png." }
       ]
     },
     {
       "name": "match-968-menu-sequence",
       "path": "clip-match968-menu-sequence.mkv",
-      "description": "Match 968 first 60s: the original failure case. The session navigates CLUB management → PLAYER LOADOUTS hub → loadout detail → WORLD OF CHEL splash before entering a lobby. v1 mis-classified the first 3 spans as pre_game_lobby_state_2, contaminating the typed lobby extractor. v2 must classify these correctly OR fall back to unknown_or_transition for the two deferred classes.",
-      "labels": [],
-      "_operator_workflow": [
-        "Watch the clip frame-by-frame (e.g. `ffplay clip-match968-menu-sequence.mkv` or extract 1-fps thumbnails with `ffmpeg -i clip-match968-menu-sequence.mkv -vf fps=1 t%02d.png`).",
-        "For each contiguous span of frames showing the same screen, append a {t_start_sec, t_end_sec, expected, notes} entry.",
-        "Valid `expected` values (must match game_ocr nhl26.yaml states):",
-        "  in_game_clock | in_game_goal_state_1 | in_game_goal_state_2",
-        "  loading_or_intro | menu_world_of_chel",
-        "  player_loadout_view (HOME/AWAY side strip + single-player loadout panels)",
-        "  pre_game_lobby_state_1 | pre_game_lobby_state_2",
-        "  post_game_action_tracker | post_game_box_score_{goals,shots,faceoffs}",
-        "  post_game_events | post_game_faceoff_map | post_game_net_chart | post_game_player_summary",
-        "  unknown_or_transition | end_of_video",
-        "Two extra labels are RELAXED for deferred classes (see deferred_classes_relaxed above):",
-        "  menu_club_management   — single-team CLUB panel; v2 may classify as unknown_or_transition",
-        "  player_loadout_landing — PLAYER LOADOUTS hub (grid of cards, no HOME/AWAY strip); same allowance",
-        "Once labels are populated, the proving-bench test will start gating this clip. Hard zero pre_game_lobby_state_2 predictions over the CLUB/loadout/WoC spans is also asserted."
+      "description": "Match 968 first 60s: the original failure case. The session navigates CLUB management → PLAYER LOADOUTS hub → loadout detail → back to lobby → WORLD OF CHEL splash → SEASON 4 leaderboard recap → OPENING CLASH cutscene. v1 mis-classified the CLUB/loadout/WoC spans as pre_game_lobby_state_2, contaminating the typed lobby extractor. v2 must classify these correctly OR fall back to unknown_or_transition for the two deferred classes (menu_club_management, player_loadout_landing).",
+      "labels": [
+        { "t_start_sec": 0,  "t_end_sec": 5,  "expected": "menu_club_management",  "notes": "Single THE BOOGEYMEN team panel + WORLD OF CHEL background; nav shows CLUBS tab highlighted. Deferred class — relaxed to unknown_or_transition." },
+        { "t_start_sec": 6,  "t_end_sec": 8,  "expected": "pre_game_lobby_state_2", "notes": "Lobby with both teams visible + LOADOUT/READY overlay menu + 'GAME STARTS IN' countdown." },
+        { "t_start_sec": 9,  "t_end_sec": 9,  "expected": "unknown_or_transition", "notes": "Transition frame: PLAYER LOADOUTS title fading in but LOADOUT/READY overlay + lobby panels still visible. Genuinely ambiguous (both lobby and landing classifiers can defend their reading); not testable. Mirrors match-250's matchmaking-frame treatment." },
+        { "t_start_sec": 10, "t_end_sec": 13, "expected": "player_loadout_landing", "notes": "PLAYER LOADOUTS hub: blank card with X-FACTORS/ATTRIBUTES placeholders + X-FACTOR GLOSSARY footer hint. Deferred — relaxed." },
+        { "t_start_sec": 14, "t_end_sec": 33, "expected": "player_loadout_view",    "notes": "Loadout detail with HOME/AWAY side strip and a specific player loaded (TKACHUK / TAGE THOMPSON / GRIZZER / TWO-WAY DEFENSEMAN / POWER FORWARD, etc.)." },
+        { "t_start_sec": 34, "t_end_sec": 45, "expected": "pre_game_lobby_state_2", "notes": "Back in the lobby after exiting loadouts; both teams visible with all-READY status." },
+        { "t_start_sec": 46, "t_end_sec": 47, "expected": "menu_world_of_chel",     "notes": "WORLD OF CHEL splash transition. Stylized title at mid-frame; OCR typically can't read it." },
+        { "t_start_sec": 48, "t_end_sec": 57, "expected": "unknown_or_transition", "notes": "Season 4 ELITE CUP CHAMPIONS leaderboard recap — same OOD screen as match-250's t=52-59. Tightened by the leaderboard_cup reject prior in S5.5." },
+        { "t_start_sec": 58, "t_end_sec": 59, "expected": "loading_or_intro",       "notes": "'OPENING CLASH' pre-game cutscene (team banners, BM vs mtl) — closest legitimate state for a loading-style intro." }
       ]
     }
   ]

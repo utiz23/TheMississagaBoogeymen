@@ -434,7 +434,10 @@ def train_screen_classifier_v2(
         )
     y = np.array([label_to_idx[lbl] for lbl in labels_list], dtype=np.int64)
 
-    lr = LogisticRegression(solver="lbfgs", max_iter=1000, C=1.0)
+    # max_iter bumped from 1000 to 3000 on 2026-05-27 (S5.5): the original
+    # training run hit the cap with a ConvergenceWarning. 3000 lets LBFGS
+    # actually converge on the 998-sample × 272-feature problem.
+    lr = LogisticRegression(solver="lbfgs", max_iter=3000, C=1.0)
     with warnings.catch_warnings():
         warnings.filterwarnings(
             "ignore", message=".*unique classes.*", category=UserWarning,
