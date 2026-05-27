@@ -1,5 +1,78 @@
 # Handoff
 
+## Session Summary — 2026-05-27 PM (Phase-A: S3 milestones B+C + S5.1-5.4 — v2 classifier shipped, default flipped to viterbi_v2)
+
+### Current status
+
+Branch: `feat/screen-classifier-v2-a1` (19 commits ahead of main, HEAD `456d02b`). v2 screen classifier is now the default Pass-1 engine. v1 path remains opt-in (`engine: viterbi`) for rollback. S5.5 (proving-bench validation) deferred to a separate session — it requires operator-labeled ground truth on 4 video clips.
+
+### What was done this session (continuation of 2026-05-27 AM)
+
+**S3 milestone B (commit `5a5b5df`):** `compute_frame_features_v2()` in [frame_features.py](tools/game_ocr/game_ocr/frame_features.py) — pure feature math (full-frame + 4 quadrant HSV, brightness/blur/edge-density, regex prior flags, OCR presence flags). 22 unit tests. v1 path untouched.
+
+**S3 milestone C (commit `5d627aa`):** `compute_frame_features_v2_from_image()` in new [frame_pipeline_v2.py](tools/game_ocr/game_ocr/frame_pipeline_v2.py) — end-to-end ROI scale + crop + OCR + delegate. Required `OCRBackend` injection (no default, since RapidOCR is ~2s cold-start). 13 tests including a gated real-RapidOCR e2e against `Player Loadout View.png`.
+
+**S5.2 (commit `0184c16`):** Versioned-decoder infrastructure. Renamed `nhl26-screen-classifier.json` → `-v1.json`; copied `nhl26.yaml` → `nhl26-v1.yaml` (preserves rollback); added `ScreenClassifierV2` + `feature_vector_v2` + `train_screen_classifier_v2` + `load_screen_classifier()` schema_version dispatch. 11 new unit tests.
+
+**S5.1 (commit `e29d4d8`):** Bumped `nhl26.yaml` decoder_version to `hmm-viterbi-v2`, added `menu_world_of_chel` state (`min_duration`, anchors, legal transitions both ways with 5 source states, `initial_log_probs`). Moved `"world chel"` substring from `loading_or_intro` anchors to the new dedicated state. State count 17 → 18.
+
+**S5.3 (commit `6eb381f`):** `train_screen_classifier.py` learned `--engine {viterbi, viterbi_v2}` with `viterbi_v2` as the new default. Resolves state-machine + weights paths per engine. Ran training on 998 samples (12 canonical + 984 extras + 2 clip frames) covering all 18 states — produced [nhl26-screen-classifier-v2.json](tools/game_ocr/game_ocr/weights/nhl26-screen-classifier-v2.json) (138KB, coef (18, 272), n_priors=17). Spot-check on `Player Loadout View.png`: 98% confidence on the correct class. sklearn LBFGS hit max_iter=1000 with a convergence warning — acceptable for now; S5.5 bench will gate whether to retune.
+
+**S5.4 (commits `6f9f7ab` + `456d02b`):**
+- Engine config flipped: `tools/video_ingest/video_ingest/configs/nhl26.yaml` `engine: viterbi` → `viterbi_v2` (v1 still selectable for rollback).
+- `orchestrator._run_pass1` gained `elif p1cfg.engine == "viterbi_v2"` branch — loads v2 state machine + v2 weights + regex priors + RapidOCR backend, computes v2 features per frame, runs `decode_segments_v2`.
+- New `build_log_emissions_v2` in [emissions.py](tools/game_ocr/game_ocr/emissions.py) derives the per-state anchor bonus from `regex_prior_flags` (grouped by their owning state in `priors_flat`). Reject path fires on any prior owned by `unknown_or_transition`. Priors owned by deferred classes (`menu_club_management`, `player_loadout_landing`) silently contribute nothing.
+- New `decode_segments_v2` in [pass1_segment.py](tools/video_ingest/video_ingest/pass1_segment.py) — parallels `decode_segments`, reuses `_build_log_initial/_build_log_transitions/_collapse_to_segments/_enforce_min_duration`.
+- `compute_pass1_cache_key(version, engine="viterbi_v2")` is engine-aware: v1 hashes -v1.yaml + -v1.json; v2 hashes nhl26.yaml + -v2.json + nhl26_regex_priors.yaml. Without this, editing v2 regex priors silently leaves stale Pass-1 cache.
+- Followup commit fixed `test_frame_features.py` to load `nhl26-v1` explicitly (its shape asserts assumed 17 classes; broke when nhl26.yaml bumped to 18).
+- New test coverage: 6 build_log_emissions_v2 tests + 2 v2 cache-key tests + 1 v1-rollback state-machine test.
+
+### Sparse-class deferral
+
+Of the 3 candidate v2 classes from the regex priors YAML, only `menu_world_of_chel` had enough labels (217 PNGs) to train. `menu_club_management` (3 PNGs) and `player_loadout_landing` (0 PNGs) stay out of `nhl26.yaml` until a future labeling round produces ~15-20 PNGs each. The regex priors YAML keeps those classes defined; the v2 emissions code silently drops their priors when the state isn't in the state machine. Misclassification of those screens falls back to `unknown_or_transition`, which keeps the typed extractors safe.
+
+### S5.5 (deferred) — proving bench
+
+Not done this session because it requires operator-labeled ground truth on 4 video clips (~120 frames at 1 fps). The plan target was:
+- `match-968-loadout-leak.mkv` (the original trigger case from `/mnt/k/NHL/NHL26/match 968/`)
+- `match-250-lobby-good.mkv` (regression check)
+- `match-250-loadout-detail.mkv`
+- `match-967-misc.mkv`
+
+Plus a hand-built `labels.json` with per-frame expected state, plus a `test_screen_classifier_proving_bench.py` enforcing ≥90% per-clip accuracy and zero `pre_game_lobby_state_2` predictions over the CLUB/loadout/WoC spans on the 968 clip.
+
+Without this, v2 is shipped untested at the clip level — the only confidence is from the canonical-screenshot spot-check (98% on Player Loadout View) and unit tests. A3 reprocess of match 968 with v2 weights should NOT begin until S5.5 lands.
+
+### Test status
+
+- `game_ocr`: 261 passed (from baseline 250 + 11 new v2 tests), 3 skipped. No regressions.
+- `video_ingest`: 395 passed (from baseline 386 + 9 new — 6 v2 emissions, 2 v2 cache key, 1 v1-rollback), 1 skipped. 3 pre-existing failures (`test_loadout_closed_vocab.py::TestErrorCases::test_predict_log_probs_raises_not_implemented`, `TestExtractorVersion::test_extractor_version_is_stamped`, `test_loadout_evidence_fixture_parity.py::test_match250_parity`) — confirmed pre-existing via stash test; none caused by S5 changes.
+- `apps/worker`: 203 passed, 3 failures (`match-250-benchmark.test.ts` lobby asserts at lines 1105 + nearby) — pre-existing per stash-and-rerun check.
+
+### What's next (S5.5 then A3)
+
+**S5.5 (next session, ~2-3h):**
+1. Extract 4 clips from `/mnt/k/NHL/NHL26/match {250,968,967}/*.mkv` via ffmpeg per the plan recipe (CRF 28, 720p, ~5MB each).
+2. Hand-label `labels.json` per the schema in [proving-bench README](tools/video_ingest/tests/fixtures/screen-classifier-proving-bench/README.md).
+3. Write `tools/video_ingest/tests/test_screen_classifier_proving_bench.py` (gated `RUN_CLASSIFIER_E2E`) that loads each clip → runs v2 pipeline → asserts ≥90% per-clip accuracy + hard-zero `pre_game_lobby_state_2` on the 968 CLUB/loadout/WoC spans.
+4. If acceptance fails: revisit sklearn `max_iter` (currently 1000, hit the cap during S5.3 training) or feature scaling.
+
+**A3 (after S5.5 green):**
+- Build `video_ingest reprocess` Typer subcommand per master plan A3.
+- Reprocess match 968 (trigger case) + match 250 (regression check).
+
+### Rollback path
+
+If v2 misbehaves in production: flip [configs/nhl26.yaml](tools/video_ingest/video_ingest/configs/nhl26.yaml) `engine: viterbi_v2` → `viterbi`. The v1 weights + state machine YAML are preserved as `-v1.json` and `nhl26-v1.yaml`; v1 path is exercised by existing tests.
+
+### Local-only artifacts (unchanged)
+
+- `tools/game_ocr/calibration/extras/*.png` (~990 labeled PNGs, ~3GB)
+- `tools/game_ocr/calibration/extras/_inbox/` (~1010 candidates, ~2GB)
+- `.label-studio-data/`
+
+---
+
 ## Session Summary — 2026-05-27 (Phase-A screen-classifier-v2: S3 milestone A done + lobby relabel round 4)
 
 ### Current status
