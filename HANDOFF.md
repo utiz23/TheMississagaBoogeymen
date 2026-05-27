@@ -1,5 +1,105 @@
 # Handoff
 
+## Session Summary — 2026-05-26 PM (Phase-A screen-classifier-v2: A2 labeling pass complete via Label Studio)
+
+### Current status
+
+Branch: `feat/screen-classifier-v2-a1` (10 commits ahead of main). A2 labeling pass complete: 817 labels across 20 classes, 4 of 7 Wave-A targets met. Ready for S3 (feature pipeline v2 + regex priors + decoder_version bump) + S5 (retrain + proving bench).
+
+### What was done this session
+
+**Label Studio infra (committed `a5be9f3`):**
+- `setup_label_studio_project.py` — idempotently creates the screen-classifier-v2 project with 20-class XML config + hotkeys, attaches `_inbox/` as recursive localfiles storage, syncs all candidates as tasks.
+- `import_label_studio_export.py` — converts LS JSON export to the trainer's filename convention `<class>__match<N>_t<T>_vs_<opp>.png`.
+- LS 1.23.0 gotchas documented: needs `--user 1000:1000` on docker run, JWTSettings.legacy_api_tokens_enabled flipped via `manage.py shell` after first start, localfiles storage path must be a subdir of LOCAL_FILES_DOCUMENT_ROOT, `recursive_scan=True` required on storage (not the API default).
+
+**Labeler --extra-states flag (committed `e3d7ab1`):**
+- Lets operator label classes not yet in nhl26.yaml (the 3 NEW classes). Labeler menu offers them as choices 17/18/19; trainer's existing "skip unknown label" guard means PNGs sit in extras/ until S3 extends sm.states.
+
+**3 rounds of labeling, final scorecard (committed `def8642`):**
+
+| Class | Got | Target | Status |
+|---|---|---|---|
+| `menu_world_of_chel` (NEW) | **202** | 30 | ✓✓✓ |
+| `unknown_or_transition` | 166 | 20 | ✓ |
+| `in_game_clock` | 343 | 30 | ✓ |
+| `loading_or_intro` (tighten) | 35 | 20 | ✓ |
+| `player_loadout_view` (tighten) | 37 | 30 | ✓ |
+| `pre_game_lobby_state_2` (tighten) | 9 | 30 | -21 |
+| `menu_club_management` (NEW) | 3 | 30 | -27 |
+| `player_loadout_landing` (NEW) | 0 | 30 | -30 |
+
+**Critical discovery — WoC sub-screen taxonomy:**
+`menu_world_of_chel`, `player_loadout_landing`, `menu_club_management` all share the same WoC navigation chrome (top tab bar `PLAY | LOADOUTS | CLUBS | CUSTOMIZE | SEASON PASS | STORE | REWARDS | STATS`). Class is determined by which tab is **highlighted**:
+- LOADOUTS → `player_loadout_landing`
+- CLUBS → `menu_club_management`
+- PLAY / CUSTOMIZE / SEASON PASS / STORE / REWARDS / STATS → `menu_world_of_chel`
+
+`player_loadout_view` is the drill-down for ONE loadout — no top tab bar, big PLAYER CLASS header, 5-column ATTRIBUTES grid. Visual rule documented in [docs/calibration/screen-classifier-v2-labeling.md](docs/calibration/screen-classifier-v2-labeling.md).
+
+The 3 stubborn-zero classes (`loadout_landing`, `club_management`) appear to be inherently sub-second screens in real EASHL gameplay — user navigates THROUGH the LOADOUTS tab on the way to a specific loadout drill-down, so even 1s sampling missed them. Plan's regex priors design (S3) is specifically meant to compensate for this — `\bplayer\s+loadouts\b`, `\bclub\b`, etc. fire on visible screen text.
+
+### Local-only artifacts (not in git)
+
+- `tools/game_ocr/calibration/extras/*.png` (807 new labeled PNGs, 2.9GB) — derivable from `label-studio-export.json` + source videos at `/mnt/k/NHL/NHL26/match {250,463,967,968}/` and `/mnt/k/NHL/NHL26/2026-05-21_20-13-44.mkv`. Trainer reads these.
+- `tools/game_ocr/calibration/extras/_inbox/` (840 candidate PNGs, ~1.6GB) — bulk-extracted source frames before labeling. Regenerable via `bulk_extract_label_candidates.py`.
+- `.label-studio-data/` — LS DB + media. Holds the authoritative annotation state. Container `eanhl-label-studio` is currently running on port 8080.
+
+### What's next
+
+S3 (feature pipeline v2):
+- Add 3 new states (`menu_club_management`, `player_loadout_landing`, `menu_world_of_chel`) to [nhl26.yaml](tools/game_ocr/game_ocr/configs/state_machine/nhl26.yaml) — min_duration_seconds, anchor_substrings, legal_transitions, initial_log_probs.
+- Bump `decoder_version: "hmm-viterbi-v2"` in nhl26.yaml.
+- Implement `compute_frame_features_v2()` in [frame_features.py](tools/game_ocr/game_ocr/frame_features.py) — per-quadrant HSV (4 × 48 bins) + full-frame HSV (48 bins) + per-class regex flags + OCR presence flags + per-quadrant brightness/blur/edge density.
+- Bump classifier `schema_version=2` in [screen_classifier.py](tools/game_ocr/game_ocr/screen_classifier.py).
+- Wire regex priors loader from [nhl26_regex_priors.yaml](tools/game_ocr/game_ocr/configs/state_machine/nhl26_regex_priors.yaml) (skeleton already exists from A2 prep).
+- Default engine stays viterbi (v1) via [tools/video_ingest/video_ingest/configs/nhl26.yaml](tools/video_ingest/video_ingest/configs/nhl26.yaml) until S5 flips it.
+
+S5 (retrain + proving bench):
+- Run `train_screen_classifier.py --version nhl26` — folds the 817 labels (plus the 0/3 sparse-NEW-class ones via regex priors compensation) into v2 weights.
+- New test `tools/video_ingest/tests/test_screen_classifier_proving_bench.py` — load proving-bench clips, assert per-frame class match ≥ 90%.
+- If bench fails for one of the 3 sparse classes (most likely `player_loadout_landing`), we know exactly which one to top up via targeted extraction. Avoids speculative over-labeling.
+
+A3 (reprocess CLI + bad-clip re-ingest):
+- Build `video_ingest reprocess` Typer subcommand (or `tools/video_ingest/video_ingest/reprocess.py`).
+- Implements promote-validate-activate-rebuild flow against match 968 (trigger case) + match 250 (regression check).
+
+### LS container resume notes for fresh sessions
+
+```bash
+# If container is stopped:
+docker start eanhl-label-studio  # state persists in .label-studio-data/
+
+# If container needs recreation (e.g., after Docker daemon reset):
+docker run -d \
+  --name eanhl-label-studio --user 1000:1000 \
+  -p 8080:8080 \
+  -v "$(pwd)/.label-studio-data:/label-studio/data" \
+  -v "$(pwd)/tools/game_ocr/calibration/extras/_inbox:/label-studio/files/inbox:ro" \
+  -e LABEL_STUDIO_USERNAME=admin@eanhl.local \
+  -e LABEL_STUDIO_PASSWORD=eanhl1234 \
+  -e LABEL_STUDIO_USER_TOKEN=eanhl-local-token-12345 \
+  -e LABEL_STUDIO_LOCAL_FILES_SERVING_ENABLED=true \
+  -e LABEL_STUDIO_LOCAL_FILES_DOCUMENT_ROOT=/label-studio/files \
+  heartexlabs/label-studio:latest
+
+# Re-enable legacy tokens (once, after first start):
+docker exec eanhl-label-studio python /label-studio/label_studio/manage.py shell -c "
+from jwt_auth.models import JWTSettings
+from organizations.models import Organization
+js, _ = JWTSettings.objects.get_or_create(organization=Organization.objects.first())
+js.legacy_api_tokens_enabled = True; js.api_tokens_enabled = True; js.save()"
+
+# Re-pull current labels: snapshot of label-studio-export.json is in the repo,
+# but for fresh state use:
+curl -s -H "Authorization: Token eanhl-local-token-12345" \
+  "http://localhost:8080/api/projects/1/export?exportType=JSON" \
+  -o label-studio-export.json
+python3 tools/game_ocr/scripts/import_label_studio_export.py label-studio-export.json
+```
+
+---
+
 ## Session Summary — 2026-05-26 (Phase-A screen-classifier-v2: storage + read/write threading + A2 labeling prep)
 
 ### Current status
