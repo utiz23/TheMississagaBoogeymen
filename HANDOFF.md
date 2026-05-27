@@ -1,5 +1,67 @@
 # Handoff
 
+## Session Summary — 2026-05-27 PM2 (Phase-A: S5.5 proving-bench prep — scaffold done, v2 model needs tuning)
+
+### Current status
+
+Branch: `feat/screen-classifier-v2-a1` (20 commits ahead of main, HEAD `8e14d8b`). Proving-bench scaffolding is in place: match-968 clip extracted, match-250 fully labeled, test file written, schema documented. **First end-to-end run measured 66.7% accuracy on match-250 (40/60 frames)** — below the 90% bar. Next session is model tuning against the bench until it goes green, then match-968 hand-labeling, then A3 reprocess.
+
+### What was done this session
+
+**Match-968 clip (commit `8e14d8b`):** Extracted 60s @ 1080p CRF 26 (11MB) from `/mnt/k/NHL/NHL26/match 968/2026-05-22_17-21-34.mkv` at t=0..60s. Captures the original failure case (CLUB → loadouts → detail → WORLD OF CHEL). Awaits operator labeling.
+
+**labels.json (commit `8e14d8b`):** Schema includes `version`, `fps`, `deferred_classes_relaxed`, per-clip `{ name, path, description, labels: [{t_start_sec, t_end_sec, expected, notes}] }`. Match-250 fully labeled (auto-converted from the existing [match-250-clip-segments.json](tools/video_ingest/tests/fixtures/match-250-clip-segments.json) hand-label from 2026-05-13, remapped to v2 vocabulary — frames 51-52 are now `menu_world_of_chel` per S5.1's new state). Match-968 has empty `labels` + embedded operator workflow in `_operator_workflow`. Reuses the existing match-250-clip.mkv via relative path (no duplication).
+
+**test_screen_classifier_proving_bench.py (commit `8e14d8b`):** Gated `RUN_CLASSIFIER_E2E=1`. One subTest per clip; warn-and-skip when labels empty. Asserts per-clip ≥ 90% with deferred-class relaxation (expected ∈ {menu_club_management, player_loadout_landing} + prediction == unknown_or_transition counts as a match). Hard-zero rule: zero `pre_game_lobby_state_2` predictions over {menu_club_management, player_loadout_landing, player_loadout_view, menu_world_of_chel} spans.
+
+### v2 quality findings (first proving-bench run on match-250)
+
+Per-frame predict-vs-expected diagnostic on match-250 (60s):
+
+| Frames | Expected | Got | Count |
+|---|---|---|---|
+| 0-6 | unknown_or_transition | unknown_or_transition | 7 ✓ |
+| 7-15 | pre_game_lobby_state_2 | **unknown_or_transition** | 9 ✗ |
+| 16-17 | player_loadout_view | **unknown_or_transition** | 2 ✗ |
+| 18-28 | player_loadout_view | player_loadout_view | 11 ✓ |
+| 29-50 | pre_game_lobby_state_2 | pre_game_lobby_state_2 | 22 ✓ |
+| 51-52 | menu_world_of_chel | **loading_or_intro** | 2 ✗ |
+| 53-59 | unknown_or_transition | **loading_or_intro** | 7 ✗ |
+
+Three concrete failure modes (full discussion in [proving-bench README.md](tools/video_ingest/tests/fixtures/screen-classifier-proving-bench/README.md)):
+
+1. **First lobby segment misclassified, second classifies correctly.** Same screen at t=7..15s and t=29..50s. Likely a Viterbi initial-prior + min-duration interaction (`unknown_or_transition: -1.0` initial prior is strongly favored; `pre_game_lobby_state_2: 2.0` min-duration may also be filtering). The "GAME STARTS IN" countdown text in the early lobby may also produce different feature signals.
+
+2. **WORLD OF CHEL splash → `loading_or_intro`** (t=51..52s). The `menu_world_of_chel.title` regex prior didn't fire — the splash's stylized text isn't OCR'd cleanly. Investigate via diagnose_segments tooling or print the v2 OCR output on those frames; consider regex expansion.
+
+3. **Post-game leaderboard → `loading_or_intro`** (t=53..59s). The `loading_or_intro` anchor `season` (in [nhl26.yaml](tools/game_ocr/game_ocr/configs/state_machine/nhl26.yaml)) matches "SEASON 4 ELITE CUP CHAMPIONS". Tighten to `\bnow\s+loading\b` only or add more-specific phrasing.
+
+### What's next (S5.5 tuning then A3)
+
+**S5.5 (next session, ~2-4h):**
+
+1. **Debug failure mode 3 first (lowest-effort win)** — drop the bare `season` anchor from `loading_or_intro` in nhl26.yaml. Re-run bench; expect ~7 fewer mis-frames (53-59 should flip to unknown_or_transition).
+2. **Debug failure mode 2** — extract frames 51-52 from match-250 clip; run `compute_frame_features_v2_from_image` on them with verbose OCR output; understand why `world of chel` regex doesn't fire. May need to expand to `\bworld\s*of\s*chel\b` (allow no-space variant), or accept that the OCR backend can't read the stylized splash and instead anchor by an adjacent UI element.
+3. **Debug failure mode 1** — extract one frame from the first lobby (e.g. t=10s) + one from the second (t=35s); compare their v2 features (HSV histograms, regex prior flags, ocr_presence_flags). If feature signals are similar, the issue is Viterbi-level (initial prior). If different, the issue is the classifier (training data for the early-lobby visual variant).
+4. After model passes 90% on match-250: hand-label match-968 per `labels.json._operator_workflow`. Use `ffmpeg -i clip-match968-menu-sequence.mkv -vf fps=1 t%02d.png` for thumbnails.
+5. Run the bench against both clips; tune again if match-968 fails.
+6. Possibly bump sklearn `max_iter` from 1000 (training hit the cap with a convergence warning in S5.3) — retrain after anchor changes.
+
+**A3 (after S5.5 green):** Build `video_ingest reprocess` Typer subcommand. Reprocess match 968 (trigger case) + match 250 (regression check).
+
+### Reused fixture pattern
+
+[tools/video_ingest/tests/fixtures/match-250-clip.mkv](tools/video_ingest/tests/fixtures/match-250-clip.mkv) (20MB, 60s) and its [segments JSON](tools/video_ingest/tests/fixtures/match-250-clip-segments.json) (hand-labeled 2026-05-13) are reused by the proving bench via relative path — no duplication. Pattern: future bench clips can either live in `screen-classifier-proving-bench/` or be referenced from elsewhere via the `path` field in labels.json.
+
+### Test status (unchanged from PM session)
+
+- game_ocr: 261 passed (3 skipped), no regressions.
+- video_ingest: 395 passed + 3 pre-existing failures (loadout_closed_vocab / fixture parity — unrelated to S5).
+- worker: 203 passed + 3 pre-existing failures (match-250 lobby benchmark — unrelated to S5).
+- Proving bench: 1 clip labeled, 1 clip unlabeled. Labeled clip fails at 66.7% (intentional — gates v2 quality).
+
+---
+
 ## Session Summary — 2026-05-27 PM (Phase-A: S3 milestones B+C + S5.1-5.4 — v2 classifier shipped, default flipped to viterbi_v2)
 
 ### Current status
