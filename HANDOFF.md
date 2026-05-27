@@ -1,5 +1,97 @@
 # Handoff
 
+## Session Summary — 2026-05-27 (Phase-A screen-classifier-v2: S3 milestone A done + lobby relabel round 4)
+
+### Current status
+
+Branch: `feat/screen-classifier-v2-a1` (13 commits ahead of main). S3 milestone A done (regex priors loader). Lobby labels reworked with the BGM-side rule after the user identified that earlier lobby labeling lacked consistent ground rules. Ready for S3 milestone B (`compute_frame_features_v2`).
+
+### What was done this session (continuation of 2026-05-26 PM session)
+
+**S3 milestone A — regex priors loader (committed `03c58f5`):**
+- New module [tools/game_ocr/game_ocr/regex_priors.py](tools/game_ocr/game_ocr/regex_priors.py) loads the Phase-A regex priors YAML that `compute_frame_features_v2` will consume.
+- `priors_flat` is the canonical stable ordering used to assign per-prior flag positions in the v2 feature vector (insertion order is the load-bearing contract).
+- 14 unit tests in [test_regex_priors.py](tools/game_ocr/tests/test_regex_priors.py): structural validation, regex compilation, ROI references, prior-name uniqueness, default-ROI fallback. All pass.
+- The existing [nhl26_regex_priors.yaml](tools/game_ocr/game_ocr/configs/state_machine/nhl26_regex_priors.yaml) ships 7 classes / 22 priors per A2 prep — no changes needed.
+- Not yet wired into runtime. v1 path untouched.
+
+**Round 4 lobby relabel — BGM-side rule (committed `3cce172`):**
+
+Driven by user feedback: "the varying degree of states made it confusing." Earlier lobby labels had inconsistent ground rules across the BGM/opponent cycle interleaving.
+
+Established the canonical decision tree for all WoC + lobby frames:
+
+```
+Top tab bar visible (PLAY | LOADOUTS | CLUBS | …)?
+├── YES → use the menu class:
+│   ├── LOADOUTS highlighted → player_loadout_landing
+│   ├── CLUBS highlighted    → menu_club_management
+│   └── any other tab        → menu_world_of_chel
+│
+└── NO → is the BGM (left) roster panel visible?
+    ├── YES → look at BGM rows' cycle phase:
+    │   ├── Build class rows ("POWER FORWARD", "SNIPER", …) → pre_game_lobby_state_1
+    │   ├── Jersey# + persona ("#19 DEVOURER", …)           → pre_game_lobby_state_2
+    │   └── Mid-cycle (text fading in/out)                  → unknown_or_transition
+    └── NO → not a lobby; label by whatever it actually is
+```
+
+Key insight: the BGM-side rule ignores opponent panel entirely (which cycles independently and confounded earlier labeling). The "top tab bar wins" hierarchy resolves the ambiguous case where BGM roster appears alongside WoC chrome (during pre-pregame matchmaking).
+
+Process: wiped 13 existing `pre_game_lobby_state_1/2` annotations via LS API, bulk-extracted first 90s of each match video at 2s interval (168 new candidates), user relabeled the 181 unannotated tasks. The relabel added +15 to state_1, +4 to state_2 plus collateral re-labels of menu/loading frames as the user applied the cleaner rule across overlapping classes.
+
+### Final label scorecard (987 total across 20 classes)
+
+| Class | Got | Target | Status |
+|---|---|---|---|
+| `in_game_clock` | 363 | 30 | ✓✓✓ |
+| `menu_world_of_chel` (NEW) | 217 | 30 | ✓✓✓ |
+| `unknown_or_transition` | 205 | 20 | ✓✓✓ |
+| `loading_or_intro` (tighten) | 83 | 20 | ✓✓ |
+| `player_loadout_view` (tighten) | 66 | 30 | ✓✓ |
+| `pre_game_lobby_state_1` | 22 | 30 | -8 (close) |
+| `pre_game_lobby_state_2` (tighten) | 13 | 30 | -17 |
+| `menu_club_management` (NEW) | 3 | 30 | -27 |
+| `player_loadout_landing` (NEW) | 0 | 30 | -30 |
+| (other 11 classes) | ~14 | varies | mostly weak |
+
+**5 of 8 Wave-A targets hit.** The 3 remaining gaps (`lobby_state_2`, `club_management`, `loadout_landing`) are inherently rare/brief screens that the regex priors are specifically designed to compensate for: `\bplayer\s+loadouts\b`, `\bclubs?\b`, etc. fire on visible screen text.
+
+### What's next (S3 milestones B + C, then S5)
+
+**S3 milestone B (next session):**
+- `FrameFeaturesV2` dataclass in [frame_features.py](tools/game_ocr/game_ocr/frame_features.py).
+- `compute_frame_features_v2()` function — same signature as v1 but produces the richer feature set: per-quadrant HSV (4 × 48 bins) + full-frame HSV (48) + per-prior flag computation + per-quadrant brightness/blur/edge density.
+- Stub/skeleton first, then fill in.
+- Tests against canonical screenshots in `tools/game_ocr/ScreenShots/`.
+
+**S3 milestone C:**
+- Full implementation of compute_frame_features_v2 including the side-strip ROI OCR pass.
+- Regex prior flag computation across top_bar + side_strip text.
+- OCR presence flags (any text? any digit? specific keywords?).
+
+**S5 (separate session):**
+- Bump `decoder_version: hmm-viterbi-v2` in [nhl26.yaml](tools/game_ocr/game_ocr/configs/state_machine/nhl26.yaml).
+- Add the 3 new states (`menu_club_management`, `player_loadout_landing`, `menu_world_of_chel`) to nhl26.yaml.
+- Bump classifier `schema_version=2`.
+- Add v2 paths to `train_screen_classifier.py` + `load_screen_classifier()` dispatching.
+- Run train → produces v2 weights file.
+- New test `test_screen_classifier_proving_bench.py` — proving-bench clip validation.
+
+**A3 (after S5 bench is green):**
+- Build `video_ingest reprocess` Typer subcommand.
+- Reprocess match 968 (trigger case) + match 250 (regression check).
+
+### Local-only artifacts (not in git)
+
+- `tools/game_ocr/calibration/extras/*.png` (~990 labeled PNGs, ~3GB) — derivable from `label-studio-export.json` + source videos.
+- `tools/game_ocr/calibration/extras/_inbox/` (~1010 candidate PNGs, ~2GB) — bulk-extracted source frames. Regenerable via `bulk_extract_label_candidates.py`.
+- `.label-studio-data/` — LS DB + media. Container `eanhl-label-studio` runs on port 8080.
+
+### LS container resume notes — see prior session summary below
+
+---
+
 ## Session Summary — 2026-05-26 PM (Phase-A screen-classifier-v2: A2 labeling pass complete via Label Studio)
 
 ### Current status
