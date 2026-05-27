@@ -9,7 +9,7 @@
 # default to log_self_loop_prior.
 
 version: "nhl26"
-decoder_version: "hmm-viterbi-v1"
+decoder_version: "hmm-viterbi-v2"
 
 # Sample rate the decoder expects. Mismatched sample_fps is a hard error.
 sample_fps: 1.0
@@ -49,6 +49,7 @@ min_duration_seconds:
   post_game_faceoff_map: 1.0
   post_game_net_chart: 1.0
   end_of_video: 0.0
+  menu_world_of_chel: 0.5       # WORLD OF CHEL splash (S5 — v2)
 
 # Anchor substrings per state — used as one signal in the emission combiner.
 # Multiple states may share substrings; the learned head disambiguates.
@@ -57,7 +58,7 @@ anchor_substrings:
   pre_game_lobby_state_1: [finding opponent, stay in div]
   pre_game_lobby_state_2: [eashl]
   player_loadout_view: [player loadouts]
-  loading_or_intro: [now loading, world chel, season]
+  loading_or_intro: [now loading, season]   # "world chel" moved to menu_world_of_chel in S5
   in_game_clock: []             # HUD scoreboard has no top-bar text anchor
   in_game_goal_state_1: [scores, goal]
   in_game_goal_state_2: [assist]
@@ -70,6 +71,7 @@ anchor_substrings:
   post_game_faceoff_map: [faceoff]
   post_game_net_chart: [net chart]
   end_of_video: []
+  menu_world_of_chel: [world of chel]   # S5 — distinct from generic loading
 
 # Legal transitions. Each row lists states reachable FROM the row's state
 # besides the (implicit) self-loop. Anything NOT listed is illegal (-inf).
@@ -90,25 +92,30 @@ legal_transitions:
     - post_game_faceoff_map
     - post_game_net_chart
     - end_of_video
+    - menu_world_of_chel
   pre_game_lobby_state_1:
     - unknown_or_transition
     - pre_game_lobby_state_2
     - player_loadout_view
     - loading_or_intro
+    - menu_world_of_chel
   pre_game_lobby_state_2:
     - unknown_or_transition
     - pre_game_lobby_state_1
     - player_loadout_view
     - loading_or_intro
+    - menu_world_of_chel
   player_loadout_view:
     - unknown_or_transition
     - pre_game_lobby_state_1
     - pre_game_lobby_state_2
     - loading_or_intro
+    - menu_world_of_chel
   loading_or_intro:
     - unknown_or_transition
     - in_game_clock
     - pre_game_lobby_state_2
+    - menu_world_of_chel
   in_game_clock:
     - unknown_or_transition
     - in_game_goal_state_1
@@ -202,6 +209,12 @@ legal_transitions:
     - post_game_faceoff_map
     - end_of_video
   end_of_video: []
+  menu_world_of_chel:
+    - unknown_or_transition
+    - loading_or_intro
+    - pre_game_lobby_state_1
+    - pre_game_lobby_state_2
+    - player_loadout_view
 
 # Initial state distribution (log probs). Uniform over plausible openers;
 # everything else is -inf (illegal as the first state).
@@ -210,3 +223,4 @@ initial_log_probs:
   pre_game_lobby_state_1: -1.5
   pre_game_lobby_state_2: -1.5
   loading_or_intro: -2.0
+  menu_world_of_chel: -2.0      # S5 — plausible opener (recordings often start mid-menu)
