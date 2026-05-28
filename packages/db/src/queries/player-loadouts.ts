@@ -18,6 +18,12 @@ export async function getPlayerLoadoutSnapshots(playerId: number, limit = 20) {
       and(
         eq(playerLoadoutSnapshots.playerId, playerId),
         eq(playerLoadoutSnapshots.reviewStatus, 'reviewed'),
+        // Defense-in-depth: CPU placeholder rows always have player_id=null
+        // (the lobby-v2 promoter never assigns them to a real player), so
+        // they would never match the playerId filter above. Explicit filter
+        // documents the intent and protects against future code paths that
+        // might write is_cpu=true rows with a non-null player_id.
+        eq(playerLoadoutSnapshots.isCpu, false),
       ),
     )
     .orderBy(desc(playerLoadoutSnapshots.capturedAt))

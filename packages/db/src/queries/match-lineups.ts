@@ -88,6 +88,7 @@ export async function getMatchLineups(matchId: number) {
       ocrExtractionId: playerLoadoutSnapshots.ocrExtractionId,
       playerId: playerLoadoutSnapshots.playerId,
       reviewStatus: playerLoadoutSnapshots.reviewStatus,
+      isCpu: playerLoadoutSnapshots.isCpu,
       // joined player
       resolvedPlayer: sql<{ id: number; gamertag: string } | null>`
         CASE WHEN ${playerLoadoutSnapshots.playerId} IS NULL THEN NULL ELSE
@@ -105,6 +106,12 @@ export async function getMatchLineups(matchId: number) {
     .where(
       and(
         eq(playerLoadoutSnapshots.matchId, matchId),
+        // CPU/empty placeholders never surface in the lineup. The lobby-v2
+        // promoter writes `is_cpu=true` rows for slots that the OCR identified
+        // as CPU-controlled or empty (typical in CPU-goalie EASHL matches);
+        // those rows carry `player_id=null` and gamertags like 'CPU' that
+        // would otherwise leak into the merge pool below.
+        eq(playerLoadoutSnapshots.isCpu, false),
         // Reject obvious-junk gamertags at the source. `AWAY`/`HOME` are
         // common false positives when OCR mistakes a section header for a
         // gamertag; single-char strings like `m`/`?` are letter-segmentation
@@ -162,21 +169,28 @@ export async function getMatchLineups(matchId: number) {
   type RawSnapshot = (typeof rawSnapshots)[number]
 
   /**
-   * Build the X-Factor merge pool keyed by *normalized gamertag*. Using the
-   * raw player_id is unsafe: old loadout-view captures sometimes resolved
-   * to the wrong player (e.g. snap 142 has player_id=11 / MrHomicide but is
-   * actually Stick Menace's LW capture), so a player_id-keyed pool would
-   * leak the wrong player's X-Factors into a slot. Normalized-gamertag
-   * matching (strip non-alphanumeric, lowercase) tolerates spacing/casing
-   * drift like "Stick Menace" ↔ "StickMenace" while still rejecting the
-   * OCR junk variants like "MrHomiecide Evoeni Wan".
+   * Build the X-Factor / attribute merge pool keyed by *(team side, normalized
+   * gamertag)*. Using the raw player_id is unsafe: old loadout-view captures
+   * sometimes resolved to the wrong player (e.g. snap 142 has player_id=11 /
+   * MrHomicide but is actually Stick Menace's LW capture), so a player_id-keyed
+   * pool would leak the wrong player's X-Factors into a slot. Normalized-gamertag
+   * matching (strip non-alphanumeric, lowercase) tolerates spacing/casing drift
+   * like "Stick Menace" ↔ "StickMenace" while still rejecting the OCR junk
+   * variants like "MrHomiecide Evoeni Wan".
+   *
+   * The team-side prefix prevents cross-team leakage when the same gamertag
+   * appears on BOTH sides — most commonly the 'CPU' / 'XZ4RKY' placeholder
+   * strings that some OCR variants leave on CPU-controlled slots, but in
+   * principle any real-player collision between BGM and the opponent would
+   * have merged x-factors/attributes between rows.
    */
   const normalizeTag = (tag: string | null | undefined): string =>
     (tag ?? '').toLowerCase().replace(/[^a-z0-9]/g, '')
   const xfactorPoolByTag = new Map<string, RawSnapshot[]>()
   for (const s of rawSnapshots) {
-    const key = normalizeTag(s.gamertagSnapshot)
-    if (!key) continue
+    const tag = normalizeTag(s.gamertagSnapshot)
+    if (!tag) continue
+    const key = `${decideTeamSide(s)}|${tag}`
     const list = xfactorPoolByTag.get(key) ?? []
     list.push(s)
     xfactorPoolByTag.set(key, list)
@@ -225,7 +239,8 @@ export async function getMatchLineups(matchId: number) {
 
   const xFactorsFor = (anchor: RawSnapshot): LineupRow['xFactors'] => {
     const tag = normalizeTag(anchor.gamertagSnapshot)
-    const pool = tag ? (xfactorPoolByTag.get(tag) ?? [anchor]) : [anchor]
+    const key = tag ? `${decideTeamSide(anchor)}|${tag}` : ''
+    const pool = key ? (xfactorPoolByTag.get(key) ?? [anchor]) : [anchor]
     return mergeXFactorsForPool(pool)
   }
 
@@ -252,7 +267,8 @@ export async function getMatchLineups(matchId: number) {
 
   const attributesFor = (anchor: RawSnapshot): LineupRow['attributes'] => {
     const tag = normalizeTag(anchor.gamertagSnapshot)
-    const pool = tag ? (xfactorPoolByTag.get(tag) ?? [anchor]) : [anchor]
+    const key = tag ? `${decideTeamSide(anchor)}|${tag}` : ''
+    const pool = key ? (xfactorPoolByTag.get(key) ?? [anchor]) : [anchor]
     return mergeAttributesForPool(pool)
   }
 
