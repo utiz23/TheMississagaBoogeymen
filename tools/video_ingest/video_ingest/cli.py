@@ -21,6 +21,7 @@ import typer
 from video_ingest.annotate import annotate as run_annotate
 from video_ingest.orchestrator import ingest as run_ingest
 from video_ingest.pass1_classify import CacheMismatch, MissingPass1Cache
+from video_ingest.reprocess import reprocess as run_reprocess
 
 
 app = typer.Typer(add_completion=False, no_args_is_help=True)
@@ -178,6 +179,9 @@ def annotate(
         extras_dir=extras_dir,
         tmp_dir=tmp_dir,
     )
+
+
+app.command(name="reprocess")(run_reprocess)
 
 
 if __name__ == "__main__":
