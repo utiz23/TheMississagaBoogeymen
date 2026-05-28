@@ -32,6 +32,7 @@ import {
   playerLoadoutXFactors,
   playerLoadoutAttributes,
   matches,
+  type Database,
 } from '@eanhl/db'
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import { getFieldEvidenceForLobbySlot, getActiveRunIdForMatch } from '@eanhl/db/queries'
@@ -179,7 +180,7 @@ export async function promoteLobbyFromEvidence(input: {
   // sees the in-flight `is_active` flip from the same tx.
   const activeRunId = await getActiveRunIdForMatch(
     matchId,
-    db as unknown as import('@eanhl/db').Database,
+    db as unknown as Database,
   )
   const effectiveRunIdForWrites =
     input.runId !== undefined ? input.runId : activeRunId
