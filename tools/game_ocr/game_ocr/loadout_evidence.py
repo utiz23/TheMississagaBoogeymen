@@ -382,6 +382,29 @@ def _evidence_for_subject_bundle(
         )
     )
 
+    # is_cpu=False for contract symmetry with lobby_evidence. The loadout view
+    # never observes CPU slots (operators only navigate to human subjects), but
+    # emitting the boolean lets the promoter read fieldDecisions.is_cpu without
+    # an `else default` branch (Commit 2 of CPU-goalie lineage fix).
+    records.append(
+        FieldEvidenceRecord(
+            screen_state=SCREEN_STATE,
+            subject_slot_key=slot_key,
+            field_key="is_cpu",
+            field_family="icon",
+            candidate_value=False,
+            candidate_rank=0,
+            raw_confidence=1.0,        # deterministic boolean, not an OCR string
+            calibrated_confidence=1.0,
+            extractor_family="icon",
+            extractor_version=extractor_version,
+            observability_status="observable",
+            normalization_status="normalized",
+            support_frame_ids=support_frames,
+            shape_or_icon_class=None,
+        )
+    )
+
     # ── 2. Closed-vocab extractor ────────────────────────────────────────────
     cv_records = _closed_vocab_records_for_subject_bundle(
         bundle=bundle,
@@ -514,6 +537,28 @@ def _evidence_for_roster_only_bundle(
                 support_frame_ids=support_frames,
             )
         )
+
+    # is_cpu=False — contract symmetry with lobby_evidence (Commit 2 of
+    # CPU-goalie lineage fix). Loadout-view never observes CPU; emitting
+    # the boolean lets the promoter read fieldDecisions.is_cpu uniformly.
+    records.append(
+        FieldEvidenceRecord(
+            screen_state=SCREEN_STATE,
+            subject_slot_key=slot_key,
+            field_key="is_cpu",
+            field_family="icon",
+            candidate_value=False,
+            candidate_rank=0,
+            raw_confidence=1.0,
+            calibrated_confidence=1.0,
+            extractor_family="icon",
+            extractor_version=extractor_version,
+            observability_status="observable",
+            normalization_status="normalized",
+            support_frame_ids=support_frames,
+            shape_or_icon_class=None,
+        )
+    )
 
     return records
 

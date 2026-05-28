@@ -145,6 +145,60 @@ class LobbyEvidenceTests(unittest.TestCase):
         # Position is still emitted as observable.
         position_r = next(r for r in bgm_g if r.field_key == "position")
         self.assertEqual(position_r.observability_status, "observable")
+        # is_cpu must also be present alongside the low_quality gamertag marker.
+        is_cpu_r = next(r for r in bgm_g if r.field_key == "is_cpu")
+        self.assertEqual(is_cpu_r.candidate_value, True)
+        self.assertEqual(is_cpu_r.field_family, "icon")
+        self.assertEqual(is_cpu_r.observability_status, "observable")
+        self.assertEqual(is_cpu_r.normalization_status, "normalized")
+        self.assertEqual(is_cpu_r.raw_confidence, 1.0)
+        self.assertEqual(is_cpu_r.shape_or_icon_class, "cpu")
+
+    def test_cpu_slot_is_cpu_record_coexists_with_low_quality_gamertag(self) -> None:
+        # Regression: CPU-row early-return must NOT drop the is_cpu record.
+        lines = _state2_frame()
+        lines.append(_line("CPU", 250, 740, 0.97))
+        bundle = _empty_bundle(1)
+        try:
+            records = extract_lobby_evidence(
+                bundle,
+                segment_index=0,
+                ocr_lines_per_frame=[lines],
+            )
+        finally:
+            for p in bundle.iterdir():
+                p.unlink()
+            bundle.rmdir()
+        bgm_g_field_keys = {
+            r.field_key for r in records if r.subject_slot_key == "lobby_for_G"
+        }
+        # Position, is_cpu, gamertag-low_quality marker — all three present.
+        self.assertIn("position", bgm_g_field_keys)
+        self.assertIn("is_cpu", bgm_g_field_keys)
+        self.assertIn("gamertag", bgm_g_field_keys)
+
+    def test_human_slot_emits_is_cpu_false(self) -> None:
+        bundle = _empty_bundle(1)
+        try:
+            records = extract_lobby_evidence(
+                bundle,
+                segment_index=0,
+                ocr_lines_per_frame=[_state2_frame()],
+            )
+        finally:
+            for p in bundle.iterdir():
+                p.unlink()
+            bundle.rmdir()
+        # Every one of the 12 human slots must emit is_cpu=False.
+        is_cpu_records = [r for r in records if r.field_key == "is_cpu"]
+        self.assertEqual(len(is_cpu_records), 12)
+        for r in is_cpu_records:
+            self.assertEqual(r.candidate_value, False)
+            self.assertEqual(r.field_family, "icon")
+            self.assertEqual(r.observability_status, "observable")
+            self.assertEqual(r.normalization_status, "normalized")
+            self.assertEqual(r.raw_confidence, 1.0)
+            self.assertIsNone(r.shape_or_icon_class)
 
     def test_best_frame_selection_picks_higher_confidence(self) -> None:
         # Two frames: frame 0 has all confidences = 0.5, frame 1 has 0.9.

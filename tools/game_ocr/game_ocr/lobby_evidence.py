@@ -210,6 +210,25 @@ def _records_for_subject(
         )
     )
 
+    # is_cpu — deterministic boolean emitted for EVERY slot (CPU and human).
+    # Downstream promoter reads this via fieldDecisions to write the boolean
+    # into player_loadout_snapshots.is_cpu (Commit 1 of CPU-goalie lineage fix).
+    records.append(
+        _record(
+            subject=subject,
+            field_key="is_cpu",
+            field_family="icon",
+            candidate_value=subject.is_empty_or_cpu,
+            raw_confidence=1.0,        # deterministic boolean, not an OCR string
+            observability_status="observable",
+            normalization_status="normalized",
+            roi_bbox=roi_bbox,
+            support_frame_ids=support_frame_ids,
+            extractor_version=extractor_version,
+            shape_or_icon_class="cpu" if subject.is_empty_or_cpu else None,
+        )
+    )
+
     # CPU / empty: emit gamertag as low_quality marker and stop here.
     if subject.is_empty_or_cpu:
         records.append(
