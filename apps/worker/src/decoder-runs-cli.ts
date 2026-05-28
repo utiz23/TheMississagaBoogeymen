@@ -29,7 +29,12 @@
  *     rows are written — the CLI just prints the would-be flip as JSON.
  *
  *   undo              --match-id N [--dry-run]
- *     (Task 5 — not yet implemented)
+ *     Reverts a prior activation. Finds the most recent inactive run for
+ *     the match (MAX(completed_at) WHERE is_active=false AND completed_at
+ *     IS NOT NULL) and delegates to `activate` so the same atomic flip +
+ *     canonical rebuild applies. Exits non-zero when no prior inactive
+ *     run exists. With --dry-run, the underlying activate dry-run output
+ *     is printed.
  *
  * Exit codes:
  *   0 — success
@@ -41,7 +46,7 @@ import {
   sql as sqlTag,
   ocrDecoderRuns,
 } from '@eanhl/db'
-import { and, eq } from 'drizzle-orm'
+import { and, desc, eq, sql } from 'drizzle-orm'
 
 import { rebuildCanonicalsFromActiveRun } from './lib/rebuild-canonicals-from-active-run.js'
 import { validateCandidateRun } from './lib/validate-candidate-run.js'
@@ -248,6 +253,45 @@ async function activate(argv: string[]): Promise<void> {
   )
 }
 
+async function undo(argv: string[]): Promise<void> {
+  const matchIdRaw = getFlag(argv, 'match-id')
+  if (!matchIdRaw) {
+    throw new Error('undo requires --match-id <positive integer>')
+  }
+  const matchId = Number(matchIdRaw)
+  if (!Number.isFinite(matchId) || !Number.isInteger(matchId) || matchId <= 0) {
+    throw new Error(
+      `undo requires --match-id <positive integer>; got: ${matchIdRaw}`,
+    )
+  }
+  const dryRun = argv.includes('--dry-run')
+
+  // Find the prior inactive run for the match (latest completed_at).
+  // We only consider inactive runs with a completed_at stamp — runs that
+  // never finished (completed_at IS NULL) aren't valid revert targets.
+  const prior = await db
+    .select({ id: ocrDecoderRuns.id })
+    .from(ocrDecoderRuns)
+    .where(
+      and(
+        eq(ocrDecoderRuns.matchId, matchId),
+        eq(ocrDecoderRuns.isActive, false),
+        sql`${ocrDecoderRuns.completedAt} IS NOT NULL`,
+      ),
+    )
+    .orderBy(desc(ocrDecoderRuns.completedAt))
+    .limit(1)
+  if (prior.length === 0) {
+    throw new Error(`undo: no prior inactive run found for match ${matchId}`)
+  }
+  // Delegate to activate. Same atomic flip + canonical rebuild applies.
+  await activate([
+    '--run-id',
+    String(prior[0]!.id),
+    ...(dryRun ? ['--dry-run'] : []),
+  ])
+}
+
 async function main(): Promise<void> {
   const [subcommand, ...rest] = process.argv.slice(2)
   switch (subcommand) {
@@ -261,7 +305,8 @@ async function main(): Promise<void> {
       await activate(rest)
       break
     case 'undo':
-      throw new Error(`subcommand '${subcommand}' not yet implemented (Task 5)`)
+      await undo(rest)
+      break
     default:
       throw new Error(
         `unknown subcommand: ${subcommand ?? '(none)'}; expected create-candidate | validate | activate | undo`,
