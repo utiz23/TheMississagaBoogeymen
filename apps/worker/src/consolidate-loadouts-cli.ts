@@ -9,7 +9,8 @@
  * Algorithm (v1 — simple majority, no CWMV weighting):
  *
  *   1. Reset all `reviewed` rows back to `pending_review` (idempotent).
- *   2. Group by `(team_side, position)`. Goalies (CPU) are skipped at ingest.
+ *   2. Group by `(team_side, position)`. CPU placeholder rows are filtered
+ *      here so they're never anchors.
  *   3. Per group:
  *      a. Pick an anchor row — prefer loadout-view-sourced rows (they have
  *         X-Factors + attributes attached), tiebreak by gamertag confidence.
@@ -72,6 +73,7 @@ interface Snapshot {
   ocrExtractionId: number
   screenType: string
   reviewStatus: OcrReviewStatus
+  isCpu: boolean
 }
 
 async function readSnapshots(matchId: number): Promise<Snapshot[]> {
@@ -88,7 +90,8 @@ async function readSnapshots(matchId: number): Promise<Snapshot[]> {
       pls.platform, pls.game_title_id AS "gameTitleId",
       pls.ocr_extraction_id AS "ocrExtractionId",
       oe.screen_type AS "screenType",
-      pls.review_status AS "reviewStatus"
+      pls.review_status AS "reviewStatus",
+      pls.is_cpu AS "isCpu"
     FROM player_loadout_snapshots pls
     JOIN ocr_extractions oe ON oe.id = pls.ocr_extraction_id
     WHERE pls.match_id = ${matchId}
@@ -335,13 +338,18 @@ async function main(): Promise<void> {
   const snapshots = await readSnapshots(args.matchId)
   console.log(`[consolidate] read ${snapshots.length} raw snapshot(s)`)
 
-  // Step 2: group by (team_side, position). Junk-gamertag rows are dropped
-  // here so they can't be picked as anchors and can't pollute the
-  // gamertag/field votes within a group.
+  // Step 2: group by (team_side, position). Junk-gamertag rows and CPU
+  // placeholder rows are dropped here so they can't be picked as anchors
+  // and can't pollute the gamertag/field votes within a group.
   const groups = new Map<string, Snapshot[]>()
   let junkSkipped = 0
+  let cpuSkipped = 0
   for (const s of snapshots) {
     if (!s.position || !s.teamSide) continue // skip unclassified rows
+    if (s.isCpu) {
+      cpuSkipped++
+      continue
+    }
     if (isJunkGamertag(s.gamertagSnapshot)) {
       junkSkipped++
       continue
@@ -352,7 +360,7 @@ async function main(): Promise<void> {
     groups.set(key, arr)
   }
   console.log(
-    `[consolidate] ${groups.size} canonical group(s) detected (skipped ${junkSkipped} junk-gamertag row(s))`,
+    `[consolidate] ${groups.size} canonical group(s) detected (skipped ${junkSkipped} junk-gamertag row(s), ${cpuSkipped} CPU row(s))`,
   )
 
   // Step 3: per-group consensus.
