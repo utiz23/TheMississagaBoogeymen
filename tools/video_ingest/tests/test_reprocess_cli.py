@@ -1,15 +1,43 @@
-"""Task 8 — reprocess subcommand skeleton CLI surface.
+"""Task 9 — full reprocess flow tests.
 
-Pins the command's existence and the required flag set. The full reprocess
-body lands in Task 9; here we only assert the CLI surface and the --undo
-escape valve is wired through to decoder-runs-cli.
+Three layers:
+
+1. **CLI surface** (Task 8 carry-over): the reprocess subcommand is
+   registered with the expected flags. Cheap, no DB.
+
+2. **Helper unit tests**: ``_file_sha256`` + ``_compute_hashes`` are pure
+   functions over on-disk artifact bytes; testable with ``tmp_path`` +
+   ``monkeypatch.setattr`` to swap REPO_ROOT.
+
+3. **Integration smoke** (``--undo --dry-run`` against a real existing
+   match): exercises the full Python → pnpm → decoder-runs-cli shell-out
+   chain in read-only mode. Requires the local Docker stack + a built
+   worker. Skipped when ``RUN_REPROCESS_INTEGRATION`` is unset because
+   it depends on cluster state (existing decoder runs for match 250).
+
+4. **Full E2E**: opt-in via ``RUN_REPROCESS_E2E=1``. Actually runs the
+   3-5 minute create-ingest-promote-validate-activate flow against
+   match 250 (the canonical pilot match). Documented but skipped by
+   default.
 """
 
 from __future__ import annotations
 
+import hashlib
+import json
+import os
+import subprocess
+import sys
+from pathlib import Path
+
+import pytest
 from typer.testing import CliRunner
 
+from video_ingest import reprocess as reprocess_mod
 from video_ingest.cli import app
+
+
+# ─── CLI-surface tests (Task 8 carry-over) ───────────────────────────────────
 
 
 def test_reprocess_subcommand_help_lists_required_args() -> None:
@@ -27,3 +55,199 @@ def test_reprocess_subcommand_is_registered() -> None:
     # `--match-id` is required; bare `reprocess` must error.
     result = runner.invoke(app, ["reprocess"])
     assert result.exit_code != 0
+
+
+# ─── helper unit tests ───────────────────────────────────────────────────────
+
+
+def test_file_sha256_matches_hashlib(tmp_path: Path) -> None:
+    payload = b"the quick brown fox jumps over the lazy decoder run\n"
+    target = tmp_path / "sample.bin"
+    target.write_bytes(payload)
+    expected = hashlib.sha256(payload).hexdigest()
+    assert reprocess_mod._file_sha256(target) == expected
+    # sha256 hex strings are always 64 chars.
+    assert len(reprocess_mod._file_sha256(target)) == 64
+
+
+def _seed_fake_artifacts(
+    repo_root: Path, version: str, *, weights_body: bytes, sm_body: bytes, priors_body: bytes
+) -> None:
+    """Lay out a fake REPO_ROOT/tools/game_ocr/... tree with the three
+    artifact files _compute_hashes reads. Used by the unit tests below
+    to swap REPO_ROOT via monkeypatch.setattr."""
+    weights_dir = repo_root / "tools" / "game_ocr" / "game_ocr" / "weights"
+    sm_dir = repo_root / "tools" / "game_ocr" / "game_ocr" / "configs" / "state_machine"
+    weights_dir.mkdir(parents=True)
+    sm_dir.mkdir(parents=True)
+    (weights_dir / f"{version}-screen-classifier-v2.json").write_bytes(weights_body)
+    (sm_dir / f"{version}.yaml").write_bytes(sm_body)
+    (sm_dir / f"{version}_regex_priors.yaml").write_bytes(priors_body)
+
+
+def test_compute_hashes_returns_two_64char_hex_strings(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _seed_fake_artifacts(
+        tmp_path, "nhltest",
+        weights_body=b'{"weights": "v2"}\n',
+        sm_body=b"sm: yaml\n",
+        priors_body=b"priors: yaml\n",
+    )
+    monkeypatch.setattr(reprocess_mod, "REPO_ROOT", tmp_path)
+    weights_hash, config_hash = reprocess_mod._compute_hashes("nhltest")
+    assert len(weights_hash) == 64 and len(config_hash) == 64
+    assert all(c in "0123456789abcdef" for c in weights_hash)
+    assert all(c in "0123456789abcdef" for c in config_hash)
+
+
+def test_compute_hashes_is_deterministic(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _seed_fake_artifacts(
+        tmp_path, "nhltest",
+        weights_body=b'{"x": 1}\n',
+        sm_body=b"sm\n",
+        priors_body=b"priors\n",
+    )
+    monkeypatch.setattr(reprocess_mod, "REPO_ROOT", tmp_path)
+    first = reprocess_mod._compute_hashes("nhltest")
+    second = reprocess_mod._compute_hashes("nhltest")
+    assert first == second
+
+
+def test_compute_hashes_changes_when_state_machine_yaml_changes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _seed_fake_artifacts(
+        tmp_path, "nhltest",
+        weights_body=b'{"x": 1}\n',
+        sm_body=b"sm: original\n",
+        priors_body=b"priors\n",
+    )
+    monkeypatch.setattr(reprocess_mod, "REPO_ROOT", tmp_path)
+    weights_hash_a, config_hash_a = reprocess_mod._compute_hashes("nhltest")
+
+    # Mutate state-machine YAML; weights_hash should NOT change but
+    # config_hash MUST change.
+    sm_path = tmp_path / "tools" / "game_ocr" / "game_ocr" / "configs" / "state_machine" / "nhltest.yaml"
+    sm_path.write_bytes(b"sm: mutated\n")
+    weights_hash_b, config_hash_b = reprocess_mod._compute_hashes("nhltest")
+    assert weights_hash_a == weights_hash_b
+    assert config_hash_a != config_hash_b
+
+
+def test_compute_hashes_changes_when_regex_priors_yaml_changes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _seed_fake_artifacts(
+        tmp_path, "nhltest",
+        weights_body=b'{"x": 1}\n',
+        sm_body=b"sm\n",
+        priors_body=b"priors: original\n",
+    )
+    monkeypatch.setattr(reprocess_mod, "REPO_ROOT", tmp_path)
+    _, config_hash_a = reprocess_mod._compute_hashes("nhltest")
+
+    priors_path = tmp_path / "tools" / "game_ocr" / "game_ocr" / "configs" / "state_machine" / "nhltest_regex_priors.yaml"
+    priors_path.write_bytes(b"priors: mutated\n")
+    _, config_hash_b = reprocess_mod._compute_hashes("nhltest")
+    assert config_hash_a != config_hash_b
+
+
+def test_compute_hashes_raises_on_missing_artifact(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Lay out only the weights file; missing YAMLs should raise with a
+    # clear message naming the missing path.
+    weights_dir = tmp_path / "tools" / "game_ocr" / "game_ocr" / "weights"
+    weights_dir.mkdir(parents=True)
+    (weights_dir / "nhltest-screen-classifier-v2.json").write_bytes(b"{}")
+    monkeypatch.setattr(reprocess_mod, "REPO_ROOT", tmp_path)
+    with pytest.raises(RuntimeError, match=r"required v2 artifact missing"):
+        reprocess_mod._compute_hashes("nhltest")
+
+
+# ─── integration: --undo --dry-run smoke test ────────────────────────────────
+
+
+def _integration_enabled() -> bool:
+    return os.environ.get("RUN_REPROCESS_INTEGRATION") == "1"
+
+
+@pytest.mark.skipif(
+    not _integration_enabled(),
+    reason="set RUN_REPROCESS_INTEGRATION=1 to enable (requires local DB + built worker)",
+)
+def test_reprocess_undo_dry_run_against_match_250() -> None:
+    """Run the real CLI with --undo --dry-run against match 250.
+
+    Read-only — no DB writes. Requires the local docker stack to be up
+    and the worker dist/ to be built.
+
+    Two valid outcomes (both exercise the Python → pnpm → decoder-runs-cli
+    shell chain end-to-end):
+
+      a. A prior inactive+completed run exists for match 250: CLI exits 0
+         and prints an activate dry-run JSON payload with
+         ``would_activate_run_id`` / ``would_deactivate_run_id``.
+      b. No prior inactive+completed run exists (the typical state after
+         only the first ingest): the underlying decoder-runs-cli errors
+         out with ``undo: no prior inactive run found``. The Python
+         orchestrator surfaces that as a non-zero exit with the message
+         in stderr.
+
+    We accept either case — the test's purpose is to prove the
+    orchestration plumbing works, not to assert a specific DB state.
+    """
+    repo_root = Path(__file__).resolve().parents[3]
+    env = os.environ.copy()
+    env["PYTHONPATH"] = f"{repo_root / 'tools' / 'video_ingest'}:{repo_root / 'tools' / 'game_ocr'}"
+    cmd = [
+        sys.executable, "-m", "video_ingest.cli",
+        "reprocess", "--match-id", "250", "--undo", "--dry-run",
+    ]
+    res = subprocess.run(cmd, capture_output=True, text=True, env=env, cwd=repo_root)
+    combined = res.stdout + "\n" + res.stderr
+    if res.returncode == 0:
+        # Case (a): activate dry-run payload landed on stdout.
+        assert (
+            "would_activate_run_id" in res.stdout
+            or "would_deactivate_run_id" in res.stdout
+        ), f"expected dry-run payload in stdout, got:\n{combined}"
+    else:
+        # Case (b): orchestrator propagated decoder-runs-cli's "no prior
+        # inactive run" error. Any other failure mode (DB unreachable,
+        # worker not built, schema drift) is a real bug.
+        assert "no prior inactive run" in combined, (
+            f"unexpected failure mode (exit {res.returncode}):\n{combined}"
+        )
+
+
+# ─── opt-in full E2E ─────────────────────────────────────────────────────────
+
+
+@pytest.mark.skipif(
+    os.environ.get("RUN_REPROCESS_E2E") != "1",
+    reason="set RUN_REPROCESS_E2E=1 to enable; heavy — 3-5 minutes against match 250",
+)
+def test_reprocess_full_flow_against_match_250() -> None:
+    """Opt-in full reprocess against match 250.
+
+    Runs the real create-ingest-promote-validate-activate pipeline.
+    Takes 3-5 minutes and modifies the DB (creates a new
+    ocr_decoder_runs row, flips activation). Use only when validating
+    the operational flow before Task 10/11 manual runs.
+
+    No assertions on intermediate state — just exits 0 if the full
+    pipeline runs cleanly end-to-end.
+    """
+    repo_root = Path(__file__).resolve().parents[3]
+    env = os.environ.copy()
+    env["PYTHONPATH"] = f"{repo_root / 'tools' / 'video_ingest'}:{repo_root / 'tools' / 'game_ocr'}"
+    cmd = [
+        sys.executable, "-m", "video_ingest.cli",
+        "reprocess", "--match-id", "250",
+    ]
+    res = subprocess.run(cmd, env=env, cwd=repo_root)
+    assert res.returncode == 0, f"reprocess exited {res.returncode}"
