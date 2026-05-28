@@ -81,6 +81,16 @@ export const playerLoadoutSnapshots = pgTable(
       .notNull()
       .$type<OcrReviewStatus>()
       .default('pending_review'),
+    /**
+     * True when the lobby OCR identified this slot as a CPU/empty placeholder
+     * (no human player). Source: `tools/game_ocr/game_ocr/lobby_extractors/
+     * slot_identity.py::_is_cpu_or_empty`, propagated through
+     * `lobby_evidence.py` and written by the lobby-v2 promoter. Defaults to
+     * false; goalies in CPU-controlled EASHL modes are the typical case.
+     * Downstream queries filter `is_cpu = false` so CPU rows never surface in
+     * lineups, anchors, or quality metrics.
+     */
+    isCpu: boolean('is_cpu').notNull().default(false),
   },
   (table) => [
     index('player_loadout_snapshots_player_idx').on(table.playerId),
@@ -90,6 +100,9 @@ export const playerLoadoutSnapshots = pgTable(
       table.teamSide,
       table.position,
     ),
+    index('player_loadout_snapshots_match_human_idx')
+      .on(table.matchId)
+      .where(sql`${table.isCpu} = false`),
   ],
 )
 
