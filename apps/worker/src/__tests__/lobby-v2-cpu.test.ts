@@ -398,6 +398,20 @@ void test('resolveGamertagToPlayer is NOT invoked for CPU rows (player_id stays 
     rawConfidence: '1.0',
     calibratedConfidence: '1.0',
   })
+  // Seed a promotable gamertag='CPU' so gamertagDecision.status === 'promoted'
+  // with winningValue === 'CPU'. Without this, the resolver's inner guard at
+  // lobby-v2.ts:292-295 short-circuits regardless of the !isCpu guard at :290,
+  // making the regression coverage illusory. With this seed, removing the
+  // !isCpu guard would cause resolveGamertagToPlayer to fire, find the bait
+  // player above, and bind snap.playerId — which the assertion below catches.
+  await seedEvidence({
+    matchId: fx.matchId,
+    extractionId: fx.extractionId,
+    slotKey: 'lobby_for_G',
+    fieldKey: 'gamertag',
+    fieldFamily: 'open_text',
+    candidateValue: 'CPU',
+  })
 
   await promoteLobbyFromEvidence({ matchId: fx.matchId })
 
