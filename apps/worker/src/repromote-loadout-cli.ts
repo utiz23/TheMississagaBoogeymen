@@ -1,5 +1,5 @@
 /**
- * pnpm --filter worker repromote-loadout -- --match <id> [--dry-run]
+ * pnpm --filter worker repromote-loadout -- --match <id> [--run-id <N>] [--dry-run]
  *
  * Re-runs the typed_v1 loadout promoter against existing ocr_field_evidence
  * for the given match. Strict prerequisite: the match must have been ingested
@@ -13,6 +13,14 @@
  * --dry-run: collects the proposed canonical-row writes inside a transaction
  *            that always rolls back. Prints a diff (added/removed/changed)
  *            vs. the current canonical rows. No writes occur.
+ *
+ * --run-id <N>: scope the promote to a specific decoder run rather than the
+ *               currently-active (or NULL-legacy) run. Used by the A3
+ *               reprocess CLI (Task 9) to promote a candidate run BEFORE
+ *               activation. Canonical writes are skipped automatically when
+ *               N is not the active run (the promoter's writeSnapshots gate
+ *               handles this — see loadout-v2.ts). Default: undefined →
+ *               legacy "live run" behavior unchanged.
  *
  * Without --dry-run: runs promoteLoadoutFromEvidence for real (writes canonical
  *                    rows + ocr_promotions). Use this to re-apply the gate after
@@ -59,9 +67,14 @@ export interface DiffResult {
 
 // ─── arg parsing ───────────────────────────────────────────────────────────────
 
-export function parseArgs(argv: string[]): { matchId: number; dryRun: boolean } {
+export function parseArgs(argv: string[]): {
+  matchId: number
+  dryRun: boolean
+  runId?: number
+} {
   let matchId: number | undefined
   let dryRun = false
+  let runId: number | undefined
 
   for (let i = 2; i < argv.length; i++) {
     if (argv[i] === '--dry-run') {
@@ -69,20 +82,35 @@ export function parseArgs(argv: string[]): { matchId: number; dryRun: boolean } 
     } else if (argv[i] === '--match') {
       const raw = argv[i + 1]
       if (!raw) {
-        console.error('Usage: repromote-loadout --match <matchId> [--dry-run]')
+        console.error('Usage: repromote-loadout --match <matchId> [--run-id <N>] [--dry-run]')
         process.exit(1)
       }
       matchId = Number(raw)
+      i++
+    } else if (argv[i] === '--run-id') {
+      const raw = argv[i + 1]
+      if (!raw) {
+        console.error('Usage: repromote-loadout --match <matchId> [--run-id <N>] [--dry-run]')
+        process.exit(1)
+      }
+      const parsed = Number(raw)
+      if (!Number.isFinite(parsed) || !Number.isInteger(parsed) || parsed <= 0) {
+        console.error(`--run-id must be a positive integer; got: ${raw}`)
+        process.exit(1)
+      }
+      runId = parsed
       i++
     }
   }
 
   if (matchId === undefined || !Number.isFinite(matchId)) {
-    console.error('Usage: repromote-loadout --match <matchId> [--dry-run]')
+    console.error('Usage: repromote-loadout --match <matchId> [--run-id <N>] [--dry-run]')
     process.exit(1)
   }
 
-  return { matchId: matchId!, dryRun }
+  return runId !== undefined
+    ? { matchId: matchId!, dryRun, runId }
+    : { matchId: matchId!, dryRun }
 }
 
 // ─── strict prereq check ───────────────────────────────────────────────────────
@@ -207,6 +235,7 @@ export function diffSnapshotArrays(
 export async function runDryRun(
   matchId: number,
   db: Database = defaultDb,
+  runId?: number,
 ): Promise<DiffResult> {
   const before = await snapshotCanonical(matchId, db)
 
@@ -216,7 +245,11 @@ export async function runDryRun(
   try {
     await db.transaction(async (tx) => {
       // Run the promoter inside the transaction.
-      await promoteLoadoutFromEvidence({ matchId, db: tx as unknown as Database })
+      await promoteLoadoutFromEvidence({
+        matchId,
+        db: tx as unknown as Database,
+        ...(runId !== undefined ? { runId } : {}),
+      })
       // Capture proposed state before rolling back.
       proposed = await snapshotCanonical(matchId, tx as unknown as Database)
       // Force rollback — TransactionRollbackError propagates out of the callback.
@@ -245,7 +278,7 @@ export async function runDryRun(
 // ─── CLI entrypoint ───────────────────────────────────────────────────────────
 
 async function main(): Promise<void> {
-  const { matchId, dryRun } = parseArgs(process.argv)
+  const { matchId, dryRun, runId } = parseArgs(process.argv)
 
   // Strict prereq check
   const evCount = await getLoadoutEvidenceCount(matchId)
@@ -256,6 +289,9 @@ async function main(): Promise<void> {
     process.exit(2)
   }
   console.log(`Loadout evidence rows for match ${String(matchId)}: ${String(evCount)}`)
+  if (runId !== undefined) {
+    console.log(`Scoping promote to runId=${String(runId)} (candidate run; canonical writes gated by activation)`)
+  }
 
   // Capture before state
   const before = await snapshotCanonical(matchId)
@@ -265,7 +301,7 @@ async function main(): Promise<void> {
 
   if (dryRun) {
     console.log(`\n[DRY-RUN] Running promoter inside rolled-back transaction…`)
-    const diff = await runDryRun(matchId)
+    const diff = await runDryRun(matchId, defaultDb, runId)
 
     console.log(
       `[DRY-RUN] Proposed: ${String(diff.proposedSnapshots.length)} snapshots, ${String(diff.proposedXFactorCount)} x_factors, ${String(diff.proposedAttributeCount)} attributes`,
@@ -305,7 +341,11 @@ async function main(): Promise<void> {
     console.log(`\n[DRY-RUN] No writes committed.`)
   } else {
     // Run for real
-    const result = await promoteLoadoutFromEvidence({ matchId, db: defaultDb })
+    const result = await promoteLoadoutFromEvidence({
+      matchId,
+      db: defaultDb,
+      ...(runId !== undefined ? { runId } : {}),
+    })
     const after = await snapshotCanonical(matchId)
     console.log(
       `After: ${String(after.snapshots.length)} snapshots, ${String(after.xFactorCount)} x_factors, ${String(after.attributeCount)} attributes`,
