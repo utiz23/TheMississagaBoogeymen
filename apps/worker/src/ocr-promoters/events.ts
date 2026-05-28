@@ -143,12 +143,7 @@ export async function promoteEvents(ctx: PromoterContext): Promise<void> {
     // - actor matching uses findExistingMatchEvent: prefer resolved player_id
     //   when available; fall back to Levenshtein-1 against same-bucket
     //   unresolved peers (handles OCR typos like fOEWS→TOEWS).
-    const { playerId: actorPlayerId } = await resolveActorForMatch(
-      actor,
-      matchId,
-      gameTitleId,
-      db,
-    )
+    const { playerId: actorPlayerId } = await resolveActorForMatch(actor, matchId, gameTitleId, db)
 
     const existingId = await findExistingMatchEvent(db, {
       matchId,

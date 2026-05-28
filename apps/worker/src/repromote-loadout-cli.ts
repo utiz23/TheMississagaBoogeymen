@@ -108,9 +108,7 @@ export function parseArgs(argv: string[]): {
     process.exit(1)
   }
 
-  return runId !== undefined
-    ? { matchId: matchId!, dryRun, runId }
-    : { matchId: matchId!, dryRun }
+  return runId !== undefined ? { matchId: matchId!, dryRun, runId } : { matchId: matchId!, dryRun }
 }
 
 // ─── strict prereq check ───────────────────────────────────────────────────────
@@ -199,12 +197,7 @@ export function diffSnapshotArrays(
     } else {
       const beforeRow = beforeByKey.get(key)!
       const diffFields: string[] = []
-      const fields = [
-        'gamertagSnapshot',
-        'buildClass',
-        'playerNumber',
-        'isCaptain',
-      ] as const
+      const fields = ['gamertagSnapshot', 'buildClass', 'playerNumber', 'isCaptain'] as const
       for (const field of fields) {
         if (beforeRow[field] !== afterRow[field]) {
           diffFields.push(`${field}: ${String(beforeRow[field])} → ${String(afterRow[field])}`)
@@ -239,8 +232,11 @@ export async function runDryRun(
 ): Promise<DiffResult> {
   const before = await snapshotCanonical(matchId, db)
 
-  let proposed: { snapshots: CanonicalSnapshot[]; xFactorCount: number; attributeCount: number } =
-    { snapshots: [], xFactorCount: 0, attributeCount: 0 }
+  let proposed: { snapshots: CanonicalSnapshot[]; xFactorCount: number; attributeCount: number } = {
+    snapshots: [],
+    xFactorCount: 0,
+    attributeCount: 0,
+  }
 
   try {
     await db.transaction(async (tx) => {
@@ -290,7 +286,9 @@ async function main(): Promise<void> {
   }
   console.log(`Loadout evidence rows for match ${String(matchId)}: ${String(evCount)}`)
   if (runId !== undefined) {
-    console.log(`Scoping promote to runId=${String(runId)} (candidate run; canonical writes gated by activation)`)
+    console.log(
+      `Scoping promote to runId=${String(runId)} (candidate run; canonical writes gated by activation)`,
+    )
   }
 
   // Capture before state

@@ -8,6 +8,7 @@ them up with full context.
 ## Sampling architecture
 
 ### A. Navigation-event detection + best-of-window logic
+
 At 3 fps we get 4-5 samples per ~1.5s subject window and rely on the bundle
 assembler's fuzzy-gamertag dedup to collapse them. A smarter version would
 detect navigation events (left-strip selection change) in the 1 fps coarse
@@ -17,6 +18,7 @@ ingestion-cost overhead on segments where every subject was already captured at
 "navigation-event" object passed to Pass-2; per-window best-frame selection.
 
 ### B. Issue-triggered nearest-frame walking
+
 When Pass-2 detects a "problem" frame (low gamertag confidence, X-Factor names
 present but icon template-match below threshold, mid-transition gradient
 detected), walk the source video frame-by-frame outward until the issue clears
@@ -25,6 +27,7 @@ source video access at Pass-2 time (currently Pass-2 only sees PNGs); explicit
 issue detector per extractor family.
 
 ### D. Adaptive sampling rate
+
 Drop loadout fps back to 1 when the operator isn't actively navigating (subject
 stable across frames). Bump to 3-5 only during active navigation. Saves cost
 on long static dwells (e.g., operator paused on one subject for 10 seconds).
@@ -33,6 +36,7 @@ Requires: motion / text-diff signal between consecutive frames.
 ## Extractor sophistication
 
 ### X-Factor icon-loading detection
+
 Several frames in match 250 (operator-confirmed via screenshot) had X-Factor
 names visible but icons still loading. Our current extractor either captures
 both or neither — there's no "names found but icons not yet loaded; wait" path.
@@ -41,6 +45,7 @@ x_factor_name candidate has high confidence, mark the frame as transitional
 and prefer a later frame in the same subject bundle.
 
 ### Transition / fade detection
+
 Subject-change transitions in EA NHL UI have a brief crossfade. A 3 fps
 sample landing mid-fade captures a half-rendered right pane. Add an HSV-delta
 detector that scores frames "fade vs solid"; bundle assembler prefers solid.
@@ -48,6 +53,7 @@ detector that scores frames "fade vs solid"; bundle assembler prefers solid.
 ## Screen-class scope
 
 ### READY-UP screen extractor
+
 The pre-game "READY UP" lobby (both teams side-by-side, each player as a
 4-line block: gamertag / build_class+position / h/w / level) is currently
 mis-classified by the HMM as `player_loadout_view`. Our loadout-detail
@@ -57,6 +63,7 @@ h/w + level. NOTE: it does NOT replace the loadout-detail extractor —
 X-Factors and attributes are still only in the detail view.
 
 ### HMM classifier — distinguish READY-UP from loadout-detail
+
 With the dedicated extractor in place, the HMM state machine should
 classify the two screens separately so we don't waste loadout-detail OCR
 on READY-UP frames. Will need ~30-50 labeled READY-UP frames per game

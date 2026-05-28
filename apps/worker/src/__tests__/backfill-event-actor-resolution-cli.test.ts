@@ -48,10 +48,7 @@ const SENTINEL_MATCH_TAG = 'test-sentinel-backfill'
 const SENTINEL_PLAYER_TAG = 'test-sentinel-backfill-player'
 
 const REPO_ROOT = path.resolve(process.cwd())
-const CLI_PATH = path.resolve(
-  REPO_ROOT,
-  'apps/worker/dist/backfill-event-actor-resolution-cli.js',
-)
+const CLI_PATH = path.resolve(REPO_ROOT, 'apps/worker/dist/backfill-event-actor-resolution-cli.js')
 
 const sentinelMatchIds: Set<number> = new Set()
 const sentinelPlayerIds: Set<number> = new Set()
@@ -66,14 +63,10 @@ async function cleanupMatch(matchId: number): Promise<void> {
   ).map((r) => r.id)
   if (eventIds.length > 0) {
     await db.delete(matchGoalEvents).where(inArray(matchGoalEvents.eventId, eventIds))
-    await db
-      .delete(matchPenaltyEvents)
-      .where(inArray(matchPenaltyEvents.eventId, eventIds))
+    await db.delete(matchPenaltyEvents).where(inArray(matchPenaltyEvents.eventId, eventIds))
     await db.delete(matchEvents).where(inArray(matchEvents.id, eventIds))
   }
-  await db
-    .delete(playerLoadoutSnapshots)
-    .where(eq(playerLoadoutSnapshots.matchId, matchId))
+  await db.delete(playerLoadoutSnapshots).where(eq(playerLoadoutSnapshots.matchId, matchId))
   await db.delete(ocrExtractions).where(eq(ocrExtractions.matchId, matchId))
   await db.delete(ocrCaptureBatches).where(eq(ocrCaptureBatches.matchId, matchId))
   await db.delete(matches).where(eq(matches.id, matchId))
@@ -494,11 +487,7 @@ void test('--dry-run reports counters but does not write', async () => {
     .select({ actorPlayerId: matchEvents.actorPlayerId })
     .from(matchEvents)
     .where(eq(matchEvents.id, eventId))
-  assert.equal(
-    row?.actorPlayerId,
-    ghost.id,
-    'dry-run must not write — actor_player_id still ghost',
-  )
+  assert.equal(row?.actorPlayerId, ghost.id, 'dry-run must not write — actor_player_id still ghost')
 })
 
 // ── 6. goal-event-symmetry ───────────────────────────────────────────────

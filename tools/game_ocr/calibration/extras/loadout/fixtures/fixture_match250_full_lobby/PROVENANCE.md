@@ -39,7 +39,7 @@ gates** via `loadFixture('fixture_match250_full_lobby')` in
 
 **Run timestamp:** 2026-05-20 (approximate; frames from `/tmp/typed-v1-match250/`)
 
-**segment_index used:** 2 (subject_slot_key prefix: `loadout_slot_seg0002_*`)
+**segment_index used:** 2 (subject*slot_key prefix: `loadout_slot_seg0002*\*`)
 
 ---
 
@@ -55,47 +55,47 @@ is the fixture — this test LOCKS the current extractor behavior.
 
 ### Subjects extracted (subject00–subject08)
 
-| subject_slot_key                    | gamertag        | position | jersey | V2-match |
-|-------------------------------------|-----------------|----------|--------|----------|
-| loadout_slot_seg0002_subject00      | MrHomiecide     | —        | —      | V2: C, #11, captain |
-| loadout_slot_seg0002_subject01      | StickMenace     | LW       | 96     | V2: "Stick Menace" (space — known OCR artifact) |
-| loadout_slot_seg0002_subject02      | HenryTheBobJr   | LD       | 7      | V2: LD, #7 ✓ |
-| loadout_slot_seg0002_subject03      | XZ4RKY          | C        | 19     | V2: C, #19, captain ✓ |
-| loadout_slot_seg0002_subject04      | RAIDERSG7       | RW       | 7      | V2: RW, #7 ✓ |
-| loadout_slot_seg0002_subject05      | shadowassault20 | RD       | 56     | V2: RD, #56 ✓ |
-| loadout_slot_seg0002_subject06      | silkyjoker85    | RW       | 10     | V2: RW, #10 ✓ |
-| loadout_slot_seg0002_subject07      | Duh Pope        | LW       | 95     | V2: "DuhPope" (no space — known OCR artifact) |
-| loadout_slot_seg0002_subject08      | MuttButt        | LD       | 23     | V2: LD, #23 ✓ |
+| subject_slot_key               | gamertag        | position | jersey | V2-match                                        |
+| ------------------------------ | --------------- | -------- | ------ | ----------------------------------------------- |
+| loadout_slot_seg0002_subject00 | MrHomiecide     | —        | —      | V2: C, #11, captain                             |
+| loadout_slot_seg0002_subject01 | StickMenace     | LW       | 96     | V2: "Stick Menace" (space — known OCR artifact) |
+| loadout_slot_seg0002_subject02 | HenryTheBobJr   | LD       | 7      | V2: LD, #7 ✓                                    |
+| loadout_slot_seg0002_subject03 | XZ4RKY          | C        | 19     | V2: C, #19, captain ✓                           |
+| loadout_slot_seg0002_subject04 | RAIDERSG7       | RW       | 7      | V2: RW, #7 ✓                                    |
+| loadout_slot_seg0002_subject05 | shadowassault20 | RD       | 56     | V2: RD, #56 ✓                                   |
+| loadout_slot_seg0002_subject06 | silkyjoker85    | RW       | 10     | V2: RW, #10 ✓                                   |
+| loadout_slot_seg0002_subject07 | Duh Pope        | LW       | 95     | V2: "DuhPope" (no space — known OCR artifact)   |
+| loadout_slot_seg0002_subject08 | MuttButt        | LD       | 23     | V2: LD, #23 ✓                                   |
 
 **JoeyFlopfish is absent:** only 9 subjects appear in the 15-frame bundle. JoeyFlopfish
 (BGM RD, #48) was not navigated to in this recording segment.
 
 ### Known extractor artifacts vs V2 ground truth
 
-| Field | Subject | Extractor value | V2 / DB canonical | Action |
-|-------|---------|----------------|-------------------|--------|
-| gamertag | subject01 | `StickMenace` | `Stick Menace` | Fixture locks extractor behavior; PROVENANCE notes discrepancy |
-| gamertag | subject07 | `Duh Pope` | `DuhPope` | Same — OCR added space |
-| is_captain | subject00 | `null` (low_quality) | `true` (V2) | Extractor cannot read captain icon in this frame set |
-| is_captain | subject03 | `null` (low_quality) | `true` (XZ4RKY, V2) | Same |
-| position, jersey, persona_raw | subject00 | all null (low_quality) | V2: C, #11, E. WANHG | Extractor limitation for subject00 frames |
-| persona_raw | subject03–05, 07–08 | null | V2: various | Persona not captured for opp subjects |
+| Field                         | Subject             | Extractor value        | V2 / DB canonical    | Action                                                         |
+| ----------------------------- | ------------------- | ---------------------- | -------------------- | -------------------------------------------------------------- |
+| gamertag                      | subject01           | `StickMenace`          | `Stick Menace`       | Fixture locks extractor behavior; PROVENANCE notes discrepancy |
+| gamertag                      | subject07           | `Duh Pope`             | `DuhPope`            | Same — OCR added space                                         |
+| is_captain                    | subject00           | `null` (low_quality)   | `true` (V2)          | Extractor cannot read captain icon in this frame set           |
+| is_captain                    | subject03           | `null` (low_quality)   | `true` (XZ4RKY, V2)  | Same                                                           |
+| position, jersey, persona_raw | subject00           | all null (low_quality) | V2: C, #11, E. WANHG | Extractor limitation for subject00 frames                      |
+| persona_raw                   | subject03–05, 07–08 | null                   | V2: various          | Persona not captured for opp subjects                          |
 
 ### Per-field provenance
 
-| Field category | V2-verified? | Notes |
-|----------------|-------------|-------|
-| `gamertag` (candidate_value) | Mostly yes | subject01/subject07 have known space artifacts |
-| `position` | Yes (where observable) | subject00 is low_quality |
-| `jersey_number` | Yes (where observable) | subject00 is low_quality |
-| `is_captain` | Not captured | All null (low_quality) — this frame set does not expose captain icon |
-| `build_class` | Yes (canonical value) | build_class_raw may differ from canonical |
-| `x_factor_name_*` | Yes (where observable) | Many subjects have initial null then observable in later ranks |
-| `x_factor_tier_*` | Extractor-as-correct | Tiers not V2-asserted; locked from extractor output |
-| Attribute values (23 keys) | Partial | Values match canonical SQL for visible rows |
-| Attribute deltas | Extractor-as-correct | Many null due to frame visibility; locked from extractor output |
-| `player_level_raw` | Extractor-as-correct | V2 asserts player_level_number (int), not raw string |
-| `persona_raw` | Partial | V2 asserts canonical persona form; extractor captures raw OCR |
+| Field category               | V2-verified?           | Notes                                                                |
+| ---------------------------- | ---------------------- | -------------------------------------------------------------------- |
+| `gamertag` (candidate_value) | Mostly yes             | subject01/subject07 have known space artifacts                       |
+| `position`                   | Yes (where observable) | subject00 is low_quality                                             |
+| `jersey_number`              | Yes (where observable) | subject00 is low_quality                                             |
+| `is_captain`                 | Not captured           | All null (low_quality) — this frame set does not expose captain icon |
+| `build_class`                | Yes (canonical value)  | build_class_raw may differ from canonical                            |
+| `x_factor_name_*`            | Yes (where observable) | Many subjects have initial null then observable in later ranks       |
+| `x_factor_tier_*`            | Extractor-as-correct   | Tiers not V2-asserted; locked from extractor output                  |
+| Attribute values (23 keys)   | Partial                | Values match canonical SQL for visible rows                          |
+| Attribute deltas             | Extractor-as-correct   | Many null due to frame visibility; locked from extractor output      |
+| `player_level_raw`           | Extractor-as-correct   | V2 asserts player_level_number (int), not raw string                 |
+| `persona_raw`                | Partial                | V2 asserts canonical persona form; extractor captures raw OCR        |
 
 ### Attribute row notes
 

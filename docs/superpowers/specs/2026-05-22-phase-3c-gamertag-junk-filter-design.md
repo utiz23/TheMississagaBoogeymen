@@ -4,11 +4,11 @@
 
 Phase 3b's cutover surfaced a measurable extractor data-quality gap: the typed lobby promoter's gamertag accuracy was 7/10 (70%) on match 250, failing the `≥ 90%` hard-field bar codified in `match-250-benchmark.test.ts`. Three error patterns account for all failures:
 
-| Pattern | Examples | Where |
-|---|---|---|
-| UI navigation/header text picked as gamertag | "CHEL", "VIEWINGLOADOUTS", "SPORTS", "ZA SPORTS" | match 250: against/RD, for/RW; match 463: against/C, against/LD |
-| Build-class strings picked as gamertag | "Puck Moving Defenseman" | match 463: for/RD |
-| Adjacent-row content bleeds into a slot | "DuhPope" assigned to BGM LW (opponent player on BGM row) | match 250: for/LW |
+| Pattern                                      | Examples                                                  | Where                                                           |
+| -------------------------------------------- | --------------------------------------------------------- | --------------------------------------------------------------- |
+| UI navigation/header text picked as gamertag | "CHEL", "VIEWINGLOADOUTS", "SPORTS", "ZA SPORTS"          | match 250: against/RD, for/RW; match 463: against/C, against/LD |
+| Build-class strings picked as gamertag       | "Puck Moving Defenseman"                                  | match 463: for/RD                                               |
+| Adjacent-row content bleeds into a slot      | "DuhPope" assigned to BGM LW (opponent player on BGM row) | match 250: for/LW                                               |
 
 The first two are filter problems — `_filter_gamertag_candidates` in `tools/game_ocr/game_ocr/lobby_extractors/slot_identity.py` doesn't recognize UI labels or build-class strings as junk. The third is a slot-band alignment problem (deferred to Phase 3d).
 
@@ -17,12 +17,14 @@ This spec scopes the surgical filter fix only. Closes 2 of 3 error patterns → 
 ## Scope
 
 **In scope:**
+
 - UI-label denylist constant in `slot_identity.py`, mirroring the existing `LOBBY_POSITION_TOKENS` / `LOBBY_TEAM_SIDE_LABELS` constants. Normalized (uppercase, no-space) comparison.
 - Build-class rejection via `ClosedVocab.match_canonical` against the existing `build_classes` vocabulary YAML. Lazy-load + cache on the extractor module.
 - Two new unit tests in `test_lobby_slot_identity.py` covering both rejection paths.
 - Re-run the Phase 3b cutover ingest + consolidator on matches 250 + 463, then verify `lobby typed_v1 hard-field accuracy ≥ 90%` benchmark test passes.
 
 **Out of scope (Phase 3d candidates):**
+
 - Slot-band alignment fix (BGM LW = "DuhPope")
 - Persona alias seeding (`H.0'Yointski` → `H. O'YOINTSKI`; closes the soft-field gap)
 - Loadout-v2 FK bug (Phase 2B preexisting)
@@ -56,6 +58,7 @@ Comparison key: `text.strip().upper().replace(" ", "")`. Matches the same normal
 `ClosedVocab.match_canonical(text)` already exists (see `tools/game_ocr/game_ocr/loadout_extractors/closed_vocab.py`). Returns `(canonical, confidence)` or `None`. Confidence is `1.0` for exact regex match, `0.5` for Levenshtein-≤2 fuzzy fallback. Reject when match returns a `(canonical, ≥0.5)` tuple — i.e., any non-null match.
 
 Implementation:
+
 ```python
 # slot_identity.py — module scope
 from .loadout_extractors.closed_vocab import ClosedVocab, load_closed_vocab
@@ -104,11 +107,13 @@ Order: cheap string compare first, closed-vocab match last (it's the most expens
 ## Critical files
 
 **To modify:**
+
 - `tools/game_ocr/game_ocr/lobby_extractors/slot_identity.py` — add `LOBBY_UI_LABEL_DENYLIST`, `_build_class_vocab()`, update `_filter_gamertag_candidates`. Export `LOBBY_UI_LABEL_DENYLIST` from `__init__.py`.
-- `tools/game_ocr/game_ocr/lobby_extractors/__init__.py` — re-export `LOBBY_UI_LABEL_DENYLIST` (the package's __init__ already deliberately avoids importing `slot_identity` to prevent the Phase 3b circular import; the denylist constant can stay slot_identity-local).
+- `tools/game_ocr/game_ocr/lobby_extractors/__init__.py` — re-export `LOBBY_UI_LABEL_DENYLIST` (the package's **init** already deliberately avoids importing `slot_identity` to prevent the Phase 3b circular import; the denylist constant can stay slot_identity-local).
 - `tools/game_ocr/tests/test_lobby_slot_identity.py` — add 2 new tests.
 
 **Reused (no changes):**
+
 - `tools/game_ocr/game_ocr/loadout_extractors/closed_vocab.py::load_closed_vocab` + `ClosedVocab.match_canonical`.
 - `tools/game_ocr/game_ocr/configs/closed_vocab/nhl26/build_classes.yaml`.
 - `apps/worker/src/__tests__/match-250-benchmark.test.ts` — existing accuracy gates re-exercise after re-ingest.
@@ -183,6 +188,7 @@ Complete when ALL hold:
 ## Bail-out triggers
 
 Revert the filter changes if:
+
 - Any existing Python test fails after the change.
 - Match 463's gamertag accuracy regresses (currently ~7/12; should stay ≥ 7/12).
 - Match 250's loadout-view snapshots regress below Phase 2B's 10/10 floor.

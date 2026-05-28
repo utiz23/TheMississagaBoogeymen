@@ -80,9 +80,7 @@ async function cleanupMatch(matchId: number): Promise<void> {
       .delete(playerLoadoutAttributes)
       .where(inArray(playerLoadoutAttributes.loadoutSnapshotId, snapIds))
   }
-  await db
-    .delete(playerLoadoutSnapshots)
-    .where(eq(playerLoadoutSnapshots.matchId, matchId))
+  await db.delete(playerLoadoutSnapshots).where(eq(playerLoadoutSnapshots.matchId, matchId))
   await db.delete(ocrPromotions).where(eq(ocrPromotions.matchId, matchId))
   await db.delete(ocrFieldEvidence).where(eq(ocrFieldEvidence.matchId, matchId))
   await db.delete(ocrExtractions).where(eq(ocrExtractions.matchId, matchId))
@@ -182,19 +180,24 @@ void test('decoder-runs-cli create-candidate inserts a row with is_active=false 
 
   const result = runCli([
     'create-candidate',
-    '--match-id', String(fx.matchId),
-    '--video-sha256', 'deadbeef',
-    '--decoder-version', 'hmm-viterbi-v2',
-    '--weights-hash', 'wh-test',
-    '--config-hash', 'ch-test',
+    '--match-id',
+    String(fx.matchId),
+    '--video-sha256',
+    'deadbeef',
+    '--decoder-version',
+    'hmm-viterbi-v2',
+    '--weights-hash',
+    'wh-test',
+    '--config-hash',
+    'ch-test',
   ])
 
-  assert.equal(
-    result.status,
-    0,
-    `expected exit 0, got ${result.status}; stderr: ${result.stderr}`,
-  )
-  const lastJsonLine = result.stdout.trim().split('\n').filter((l) => l.startsWith('{')).pop()
+  assert.equal(result.status, 0, `expected exit 0, got ${result.status}; stderr: ${result.stderr}`)
+  const lastJsonLine = result.stdout
+    .trim()
+    .split('\n')
+    .filter((l) => l.startsWith('{'))
+    .pop()
   assert.ok(lastJsonLine, `expected JSON on stdout, got: ${result.stdout}`)
   const payload = JSON.parse(lastJsonLine)
   assert.equal(typeof payload.run_id, 'number')
@@ -203,10 +206,7 @@ void test('decoder-runs-cli create-candidate inserts a row with is_active=false 
   sentinelRunIds.add(payload.run_id)
 
   // Verify the row exists in the DB with the expected fields.
-  const [row] = await db
-    .select()
-    .from(ocrDecoderRuns)
-    .where(eq(ocrDecoderRuns.id, payload.run_id))
+  const [row] = await db.select().from(ocrDecoderRuns).where(eq(ocrDecoderRuns.id, payload.run_id))
   assert.ok(row, 'expected ocr_decoder_runs row to exist')
   assert.equal(row.matchId, fx.matchId)
   assert.equal(row.isActive, false)
@@ -221,14 +221,26 @@ void test('decoder-runs-cli create-candidate exits non-zero when --match-id is m
 
   const result = runCli([
     'create-candidate',
-    '--video-sha256', 'deadbeef',
-    '--decoder-version', 'hmm-viterbi-v2',
-    '--weights-hash', 'wh-test',
-    '--config-hash', 'ch-test',
+    '--video-sha256',
+    'deadbeef',
+    '--decoder-version',
+    'hmm-viterbi-v2',
+    '--weights-hash',
+    'wh-test',
+    '--config-hash',
+    'ch-test',
   ])
 
-  assert.notEqual(result.status, 0, `expected non-zero exit when --match-id missing; stdout: ${result.stdout} stderr: ${result.stderr}`)
-  assert.match(result.stderr, /match-id/i, `expected stderr to mention match-id; got: ${result.stderr}`)
+  assert.notEqual(
+    result.status,
+    0,
+    `expected non-zero exit when --match-id missing; stdout: ${result.stdout} stderr: ${result.stderr}`,
+  )
+  assert.match(
+    result.stderr,
+    /match-id/i,
+    `expected stderr to mention match-id; got: ${result.stderr}`,
+  )
 })
 
 void test('decoder-runs-cli create-candidate exits non-zero when --match-id is non-numeric', async () => {
@@ -236,15 +248,28 @@ void test('decoder-runs-cli create-candidate exits non-zero when --match-id is n
 
   const result = runCli([
     'create-candidate',
-    '--match-id', 'not-a-number',
-    '--video-sha256', 'deadbeef',
-    '--decoder-version', 'hmm-viterbi-v2',
-    '--weights-hash', 'wh-test',
-    '--config-hash', 'ch-test',
+    '--match-id',
+    'not-a-number',
+    '--video-sha256',
+    'deadbeef',
+    '--decoder-version',
+    'hmm-viterbi-v2',
+    '--weights-hash',
+    'wh-test',
+    '--config-hash',
+    'ch-test',
   ])
 
-  assert.notEqual(result.status, 0, `expected non-zero exit when --match-id non-numeric; stdout: ${result.stdout} stderr: ${result.stderr}`)
-  assert.match(result.stderr, /match-id/i, `expected stderr to mention match-id; got: ${result.stderr}`)
+  assert.notEqual(
+    result.status,
+    0,
+    `expected non-zero exit when --match-id non-numeric; stdout: ${result.stdout} stderr: ${result.stderr}`,
+  )
+  assert.match(
+    result.stderr,
+    /match-id/i,
+    `expected stderr to mention match-id; got: ${result.stderr}`,
+  )
 })
 
 void test('decoder-runs-cli errors on unknown subcommand', async () => {
@@ -446,10 +471,7 @@ void test('decoder-runs-cli validate exits 2 when validation fails (loadout floo
     details: { failureReasons: string[] }
   }
   assert.equal(payload.ok, false)
-  assert.ok(
-    payload.details.failureReasons.length > 0,
-    'expected at least one failure reason',
-  )
+  assert.ok(payload.details.failureReasons.length > 0, 'expected at least one failure reason')
 })
 
 void test('decoder-runs-cli validate exits 1 when --run-id is missing', async () => {
@@ -485,10 +507,7 @@ async function insertActivateFixture(
   suffix: string,
   options: { v1IsActive: boolean } = { v1IsActive: true },
 ): Promise<ActivateFixtureResult> {
-  const existingPlayers = await db
-    .select({ gamertag: players.gamertag })
-    .from(players)
-    .limit(2)
+  const existingPlayers = await db.select({ gamertag: players.gamertag }).from(players).limit(2)
   assert.ok(
     existingPlayers[0] && existingPlayers[1],
     'DB must have at least two players for the activate fixture',
@@ -526,10 +545,7 @@ async function insertActivateFixture(
   sentinelRunIds.add(runV1.id)
   sentinelRunIds.add(runV2.id)
 
-  async function makeBatchAndExtraction(
-    runId: number,
-    label: string,
-  ): Promise<number> {
+  async function makeBatchAndExtraction(runId: number, label: string): Promise<number> {
     const [b] = await db
       .insert(ocrCaptureBatches)
       .values({
@@ -623,14 +639,8 @@ void test('decoder-runs-cli activate flips activation atomically and rebuilds ca
   assert.equal(payload.match_id, fx.matchId)
 
   // v1 should now be inactive, v2 should be active with completedAt set.
-  const [v1] = await db
-    .select()
-    .from(ocrDecoderRuns)
-    .where(eq(ocrDecoderRuns.id, fx.v1RunId))
-  const [v2] = await db
-    .select()
-    .from(ocrDecoderRuns)
-    .where(eq(ocrDecoderRuns.id, fx.v2RunId))
+  const [v1] = await db.select().from(ocrDecoderRuns).where(eq(ocrDecoderRuns.id, fx.v1RunId))
+  const [v2] = await db.select().from(ocrDecoderRuns).where(eq(ocrDecoderRuns.id, fx.v2RunId))
   assert.equal(v1?.isActive, false, 'expected v1 to be deactivated')
   assert.equal(v2?.isActive, true, 'expected v2 to be active')
   assert.ok(v2?.completedAt, 'expected v2.completedAt to be stamped')
@@ -663,10 +673,7 @@ void test('decoder-runs-cli activate succeeds when no prior active run exists', 
     `expected exit 0 even with no prior active run; stderr: ${result.stderr}`,
   )
 
-  const [v2] = await db
-    .select()
-    .from(ocrDecoderRuns)
-    .where(eq(ocrDecoderRuns.id, fx.v2RunId))
+  const [v2] = await db.select().from(ocrDecoderRuns).where(eq(ocrDecoderRuns.id, fx.v2RunId))
   assert.equal(v2?.isActive, true)
 })
 
@@ -685,12 +692,7 @@ void test('decoder-runs-cli activate --dry-run does not modify the DB', async ()
     .from(playerLoadoutSnapshots)
     .where(eq(playerLoadoutSnapshots.matchId, fx.matchId))
 
-  const result = runCli([
-    'activate',
-    '--run-id',
-    String(fx.v2RunId),
-    '--dry-run',
-  ])
+  const result = runCli(['activate', '--run-id', String(fx.v2RunId), '--dry-run'])
   assert.equal(result.status, 0, `stderr: ${result.stderr}`)
   const lastJson = result.stdout
     .trim()
@@ -723,11 +725,7 @@ void test('decoder-runs-cli activate --dry-run does not modify the DB', async ()
     beforeRuns.sort((a, b) => a.id - b.id),
     'dry-run must not modify ocr_decoder_runs',
   )
-  assert.equal(
-    afterSnaps.length,
-    beforeSnaps.length,
-    'dry-run must not write canonical snapshots',
-  )
+  assert.equal(afterSnaps.length, beforeSnaps.length, 'dry-run must not write canonical snapshots')
 })
 
 void test('decoder-runs-cli activate fails when target run is already active', async () => {
@@ -803,10 +801,7 @@ interface UndoFixtureResult {
  * traced to v1.
  */
 async function insertUndoFixture(suffix: string): Promise<UndoFixtureResult> {
-  const existingPlayers = await db
-    .select({ gamertag: players.gamertag })
-    .from(players)
-    .limit(2)
+  const existingPlayers = await db.select({ gamertag: players.gamertag }).from(players).limit(2)
   assert.ok(
     existingPlayers[0] && existingPlayers[1],
     'DB must have at least two players for the undo fixture',
@@ -848,10 +843,7 @@ async function insertUndoFixture(suffix: string): Promise<UndoFixtureResult> {
   sentinelRunIds.add(runV1.id)
   sentinelRunIds.add(runV2.id)
 
-  async function makeBatchAndExtraction(
-    runId: number,
-    label: string,
-  ): Promise<number> {
+  async function makeBatchAndExtraction(runId: number, label: string): Promise<number> {
     const [b] = await db
       .insert(ocrCaptureBatches)
       .values({
@@ -944,14 +936,8 @@ void test('decoder-runs-cli undo flips activation back to the prior inactive run
   assert.equal(payload.match_id, fx.matchId)
 
   // v1 should now be active, v2 should be inactive.
-  const [v1] = await db
-    .select()
-    .from(ocrDecoderRuns)
-    .where(eq(ocrDecoderRuns.id, fx.v1RunId))
-  const [v2] = await db
-    .select()
-    .from(ocrDecoderRuns)
-    .where(eq(ocrDecoderRuns.id, fx.v2RunId))
+  const [v1] = await db.select().from(ocrDecoderRuns).where(eq(ocrDecoderRuns.id, fx.v1RunId))
+  const [v2] = await db.select().from(ocrDecoderRuns).where(eq(ocrDecoderRuns.id, fx.v2RunId))
   assert.equal(v1?.isActive, true, 'expected v1 to be re-activated')
   assert.equal(v2?.isActive, false, 'expected v2 to be deactivated')
 
@@ -1004,10 +990,7 @@ void test('decoder-runs-cli undo picks the inactive run with the latest complete
 
   // Three runs: v1 (older inactive), v2 (newer inactive), v3 (currently active).
   // undo should pick v2 (latest completed_at among inactive runs).
-  const existingPlayers = await db
-    .select({ gamertag: players.gamertag })
-    .from(players)
-    .limit(2)
+  const existingPlayers = await db.select({ gamertag: players.gamertag }).from(players).limit(2)
   assert.ok(
     existingPlayers[0] && existingPlayers[1],
     'DB must have at least two players for the undo fixture',
@@ -1140,18 +1123,9 @@ void test('decoder-runs-cli undo picks the inactive run with the latest complete
   )
 
   // v2 active, v1 + v3 inactive.
-  const [v1After] = await db
-    .select()
-    .from(ocrDecoderRuns)
-    .where(eq(ocrDecoderRuns.id, runV1.id))
-  const [v2After] = await db
-    .select()
-    .from(ocrDecoderRuns)
-    .where(eq(ocrDecoderRuns.id, runV2.id))
-  const [v3After] = await db
-    .select()
-    .from(ocrDecoderRuns)
-    .where(eq(ocrDecoderRuns.id, runV3.id))
+  const [v1After] = await db.select().from(ocrDecoderRuns).where(eq(ocrDecoderRuns.id, runV1.id))
+  const [v2After] = await db.select().from(ocrDecoderRuns).where(eq(ocrDecoderRuns.id, runV2.id))
+  const [v3After] = await db.select().from(ocrDecoderRuns).where(eq(ocrDecoderRuns.id, runV3.id))
   assert.equal(v1After?.isActive, false)
   assert.equal(v2After?.isActive, true)
   assert.equal(v3After?.isActive, false)
@@ -1205,11 +1179,7 @@ void test('decoder-runs-cli undo --dry-run does not modify the DB', async () => 
     beforeRuns.sort((a, b) => a.id - b.id),
     'dry-run must not modify ocr_decoder_runs',
   )
-  assert.equal(
-    afterSnaps.length,
-    beforeSnaps.length,
-    'dry-run must not write canonical snapshots',
-  )
+  assert.equal(afterSnaps.length, beforeSnaps.length, 'dry-run must not write canonical snapshots')
 })
 
 void test('decoder-runs-cli undo exits 1 when --match-id is missing', async () => {

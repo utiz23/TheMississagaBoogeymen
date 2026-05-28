@@ -122,12 +122,7 @@ export async function promoteActionTracker(ctx: PromoterContext): Promise<void> 
     // doesn't show team abbreviations, so we infer team identity through
     // the rostered-player check on both ends of the event.
     const target = stringValue(ev.target_snapshot)
-    const { playerId: actorPlayerId } = await resolveActorForMatch(
-      actor,
-      matchId,
-      gameTitleId,
-      db,
-    )
+    const { playerId: actorPlayerId } = await resolveActorForMatch(actor, matchId, gameTitleId, db)
     const { playerId: targetPlayerId } = target
       ? await resolveActorForMatch(target, matchId, gameTitleId, db)
       : { playerId: null }

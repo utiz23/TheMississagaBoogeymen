@@ -25,13 +25,7 @@
 
 import test, { after, before } from 'node:test'
 import assert from 'node:assert/strict'
-import {
-  db,
-  sql as rawSql,
-  ocrCaptureBatches,
-  ocrDecoderRuns,
-  ocrSegments,
-} from '@eanhl/db'
+import { db, sql as rawSql, ocrCaptureBatches, ocrDecoderRuns, ocrSegments } from '@eanhl/db'
 import { and, eq, isNotNull, sql } from 'drizzle-orm'
 
 before(async () => {
@@ -120,7 +114,9 @@ void test('backfill provenance: single-source matches have non-NULL video_sha256
       })
       .from(ocrCaptureBatches)
       .where(eq(ocrCaptureBatches.matchId, run.matchId))
-    const distinctShas = new Set(batches.map((b) => b.videoSha256).filter((s): s is string => s !== null))
+    const distinctShas = new Set(
+      batches.map((b) => b.videoSha256).filter((s): s is string => s !== null),
+    )
     const hasManual = batches.some((b) => b.videoSha256 === null)
 
     const expectedShaSet = distinctShas.size === 1 && !hasManual

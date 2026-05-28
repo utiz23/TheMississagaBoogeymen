@@ -130,9 +130,7 @@ function parseArgs(): CliArgs {
 
   const lobbyEngineRaw = getFlag('lobby-engine') ?? 'legacy'
   if (!['typed_v1', 'legacy'].includes(lobbyEngineRaw)) {
-    throw new Error(
-      `Invalid --lobby-engine: ${lobbyEngineRaw}; expected 'typed_v1' or 'legacy'`,
-    )
+    throw new Error(`Invalid --lobby-engine: ${lobbyEngineRaw}; expected 'typed_v1' or 'legacy'`)
   }
   const lobbyEngine = lobbyEngineRaw
   const lobbyEvidenceJsonPath = getFlag('lobby-evidence-json') ?? null

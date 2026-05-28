@@ -183,7 +183,7 @@ Lobby net coverage: **~75% of inventory fields**, but team names + X-factors are
 - No promoter entry in `apps/worker/src/ocr-promoters/index.ts:40-52`
 - No row in `_test_match-250-benchmark.test.ts`
 
-This is the biggest gap vs. the V2 inventory. The clock/goal overlay would feed period_number determination (current pipeline uses _folder names_ in `apps/worker/src/ocr-promoters/resolve-period.ts` and the inventory consensus matcher's `period_from_path()` at `inventory_consensus_match.py:183-201` — both fail closed when the operator hasn't labelled paths) and would give us scoring authority that doesn't depend on the post-game events/AT screens.
+This is the biggest gap vs. the V2 inventory. The clock/goal overlay would feed period*number determination (current pipeline uses \_folder names* in `apps/worker/src/ocr-promoters/resolve-period.ts` and the inventory consensus matcher's `period_from_path()` at `inventory_consensus_match.py:183-201` — both fail closed when the operator hasn't labelled paths) and would give us scoring authority that doesn't depend on the post-game events/AT screens.
 
 ### 3.4 Post-Game Player Summary — `post_game_player_summary`
 

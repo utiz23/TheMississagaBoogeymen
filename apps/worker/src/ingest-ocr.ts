@@ -296,7 +296,9 @@ export async function ingestOcrBatch(input: IngestOcrBatchInput): Promise<Ingest
       )
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
-      console.warn(`[ingest-ocr] writeFieldEvidenceForBatch(${String(batchId)}, lobby) skipped: ${msg}`)
+      console.warn(
+        `[ingest-ocr] writeFieldEvidenceForBatch(${String(batchId)}, lobby) skipped: ${msg}`,
+      )
     }
   }
 

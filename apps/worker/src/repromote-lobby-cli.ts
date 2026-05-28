@@ -51,9 +51,7 @@ function parseArgs(argv: string[]): { matchIds: number[]; runId?: number } {
 async function main(): Promise<void> {
   const { matchIds, runId } = parseArgs(process.argv.slice(2))
   for (const matchId of matchIds) {
-    const r = await promoteLobbyFromEvidence(
-      runId !== undefined ? { matchId, runId } : { matchId },
-    )
+    const r = await promoteLobbyFromEvidence(runId !== undefined ? { matchId, runId } : { matchId })
     console.log(
       `[repromote-lobby] match=${matchId} runId=${runId ?? 'live'} promoted=${r.promotedSnapshotCount} blocked=${r.blockedSnapshotCount} promotionRows=${r.promotionRowsWritten}`,
     )

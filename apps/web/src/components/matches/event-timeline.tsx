@@ -87,7 +87,6 @@ export function EventTimeline({
   // Group by period for divider rendering.
   const groups = useMemo(() => buildGroups(storyEvents), [storyEvents])
 
-
   return (
     <section className="space-y-3">
       <SectionHeader label="Event Timeline" subtitle="Game flow · goals + penalties" />

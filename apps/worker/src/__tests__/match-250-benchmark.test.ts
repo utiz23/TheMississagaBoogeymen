@@ -272,8 +272,7 @@ void test('match 250: getMatchLineups returns expected slot data', async () => {
       // playerNamePersona is "" rather than NULL.
       const personaMatches =
         row.playerNamePersona === expected.playerNamePersonaCanonical ||
-        row.playerNamePersona.toLowerCase() ===
-          expected.playerNamePersonaCanonical.toLowerCase()
+        row.playerNamePersona.toLowerCase() === expected.playerNamePersonaCanonical.toLowerCase()
       assert.ok(
         personaMatches,
         `${expected.side}/${expected.position}: persona canonical (got "${String(row.playerNamePersona)}", expected "${expected.playerNamePersonaCanonical}")`,
@@ -1532,10 +1531,7 @@ void test('match 250: pre-game lobby BGM loadout fields match V2', async () => {
     const gtMatches =
       actualGt === expected.gamertag ||
       actualGt.replace(/\s+/g, '') === expected.gamertag.replace(/\s+/g, '')
-    assert.ok(
-      gtMatches,
-      `${tag}: gamertag (got "${actualGt}", expected "${expected.gamertag}")`,
-    )
+    assert.ok(gtMatches, `${tag}: gamertag (got "${actualGt}", expected "${expected.gamertag}")`)
     if (row.heightText !== null) {
       assert.equal(row.heightText, expected.heightText, `${tag}: height_text`)
     }
@@ -1652,7 +1648,11 @@ async function loadLobbySnapshotsForMatch(matchId: number): Promise<LobbySnapsho
   return rows as LobbySnapshotRow[]
 }
 
-function findSlotRow(rows: LobbySnapshotRow[], side: 'bgm' | 'opponent', position: string): LobbySnapshotRow | undefined {
+function findSlotRow(
+  rows: LobbySnapshotRow[],
+  side: 'bgm' | 'opponent',
+  position: string,
+): LobbySnapshotRow | undefined {
   const teamSide = side === 'bgm' ? 'for' : 'against'
   return rows.find((r) => r.teamSide === teamSide && r.position === position)
 }
@@ -1662,8 +1662,8 @@ void test('match 250: lobby typed_v1 hard-field accuracy ≥ 90%', async () => {
   const rows = await loadLobbySnapshotsForMatch(250)
   if (rows.length === 0) {
     console.warn(
-      '[match-250-benchmark] no lobby-sourced snapshots for match 250 — '
-        + 'cutover not yet run; skipping Phase 3b hard-field gate',
+      '[match-250-benchmark] no lobby-sourced snapshots for match 250 — ' +
+        'cutover not yet run; skipping Phase 3b hard-field gate',
     )
     return
   }
@@ -1678,7 +1678,9 @@ void test('match 250: lobby typed_v1 hard-field accuracy ≥ 90%', async () => {
     const row = findSlotRow(rows, exp.side, exp.position)
     if (!row) continue
     const actualGt = row.gamertagSnapshot
-    if (actualGt.replace(/\s+/g, '').toLowerCase() === exp.gamertag.replace(/\s+/g, '').toLowerCase()) {
+    if (
+      actualGt.replace(/\s+/g, '').toLowerCase() === exp.gamertag.replace(/\s+/g, '').toLowerCase()
+    ) {
       gamertagOk++
     }
     if (row.position === exp.position) positionOk++

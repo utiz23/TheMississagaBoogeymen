@@ -14,10 +14,10 @@
 
 Targets (confirmed once cutover finishes):
 
-| Match | Expected lobby snapshots (typed_v1) | Hard-field accuracy bar | Soft-field accuracy bar |
-|---|---|---|---|
-| 250 | 10 (5 BGM + 5 opp; goalies CPU) | gamertag, position ≥ 90% | player_number, persona, captain ≥ 75% |
-| 463 | 10 | same | same |
+| Match | Expected lobby snapshots (typed_v1) | Hard-field accuracy bar  | Soft-field accuracy bar               |
+| ----- | ----------------------------------- | ------------------------ | ------------------------------------- |
+| 250   | 10 (5 BGM + 5 opp; goalies CPU)     | gamertag, position ≥ 90% | player_number, persona, captain ≥ 75% |
+| 463   | 10                                  | same                     | same                                  |
 
 ## Cutover procedure
 
@@ -159,6 +159,7 @@ node --test apps/worker/dist/__tests__/match-250-benchmark.test.js
 ```
 
 Phase 3b new tests must now pass:
+
 - `match 250: lobby typed_v1 hard-field accuracy ≥ 90%`
 - `match 250: lobby typed_v1 soft-field accuracy ≥ 75%`
 
@@ -178,7 +179,7 @@ Then flip the YAML:
 ```yaml
 # tools/video_ingest/video_ingest/configs/nhl26.yaml
 pass2:
-  lobby_engine: legacy   # was: typed_v1
+  lobby_engine: legacy # was: typed_v1
 ```
 
 Backup tables are intentionally NOT dropped after cutover — they remain
@@ -193,8 +194,7 @@ sections "Risks + bail-out triggers". Key bail-outs:
 - **Phase 2B loadout-snapshot count regresses below 10** on either match
   → revert YAML, restore backups, escalate.
 - **Lobby promoter produces ZERO snapshots for either match** despite
-  evidence rows being written → check ocr_promotions for `blocked_*`
-  reasons, lower the gate `consensusThreshold` to 0.45 if closed-vocab
+  evidence rows being written → check ocr*promotions for `blocked*\*`reasons, lower the gate`consensusThreshold` to 0.45 if closed-vocab
   fuzzy matches (confidence 0.5) are being dropped.
 - **`TestEndToEndOnLabeledClip` (Python) drops below 45/60** after the
   cutover → unrelated regression; investigate before retry.
@@ -234,21 +234,22 @@ the test fixtures). All fixed mid-cutover, then the cutover re-ran:
 
 ### Cutover results
 
-| Gate | Match 250 (before) | Match 250 (after) | Match 463 (before) | Match 463 (after) | Notes |
-|---|---|---|---|---|---|
-| A — distinct slots | 10 | 12 | 10 | 12 | Each match adds goalies (CPU/empty) for completeness |
-| B — lobby snapshots | 7 (legacy parser) | 12 (typed_v1) | 2 (legacy) | 12 (typed_v1) | typed_v1 emits per-slot identity rows for all 12 |
-| B — loadout-view snapshots | 3 | 6 (incl. some stale FK pointers) | 8 | 29 | Loadout-v2 unchanged; some pre-existing dupes via consolidator |
-| Position extraction (Gate D) | n/a | 12/12 ✓ | n/a | 12/12 ✓ | Anchor-based, rock solid |
-| **Gate D — gamertag accuracy** | n/a | **7/10 (70%)** ❌ | n/a | ~7/12 | Need ≥ 90%; junk filter false positives |
-| **Gate D — persona accuracy** | n/a | **3/10 (30%)** ❌ | n/a | ~4/12 | Need ≥ 75%; case + alias issues |
-| Gate D — player_number | n/a | 5/10 partial | n/a | 5/12 partial | OCR mis-reads jersey numbers |
-| Gate E — promotion outcomes | n/a | 100% promoted (dominanceRatio: 1.0) | n/a | 100% promoted | All slots reach the canonical-write step |
-| Benchmark tests | 18/18 pass | **16/20** (2 new tests fail, 2 preexisting tests now fail) | n/a | n/a | Phase 3b accuracy gates correctly expose extractor quality gap |
+| Gate                           | Match 250 (before) | Match 250 (after)                                          | Match 463 (before) | Match 463 (after) | Notes                                                          |
+| ------------------------------ | ------------------ | ---------------------------------------------------------- | ------------------ | ----------------- | -------------------------------------------------------------- |
+| A — distinct slots             | 10                 | 12                                                         | 10                 | 12                | Each match adds goalies (CPU/empty) for completeness           |
+| B — lobby snapshots            | 7 (legacy parser)  | 12 (typed_v1)                                              | 2 (legacy)         | 12 (typed_v1)     | typed_v1 emits per-slot identity rows for all 12               |
+| B — loadout-view snapshots     | 3                  | 6 (incl. some stale FK pointers)                           | 8                  | 29                | Loadout-v2 unchanged; some pre-existing dupes via consolidator |
+| Position extraction (Gate D)   | n/a                | 12/12 ✓                                                    | n/a                | 12/12 ✓           | Anchor-based, rock solid                                       |
+| **Gate D — gamertag accuracy** | n/a                | **7/10 (70%)** ❌                                          | n/a                | ~7/12             | Need ≥ 90%; junk filter false positives                        |
+| **Gate D — persona accuracy**  | n/a                | **3/10 (30%)** ❌                                          | n/a                | ~4/12             | Need ≥ 75%; case + alias issues                                |
+| Gate D — player_number         | n/a                | 5/10 partial                                               | n/a                | 5/12 partial      | OCR mis-reads jersey numbers                                   |
+| Gate E — promotion outcomes    | n/a                | 100% promoted (dominanceRatio: 1.0)                        | n/a                | 100% promoted     | All slots reach the canonical-write step                       |
+| Benchmark tests                | 18/18 pass         | **16/20** (2 new tests fail, 2 preexisting tests now fail) | n/a                | n/a               | Phase 3b accuracy gates correctly expose extractor quality gap |
 
 ### What's clean vs what needs Phase 3c
 
 **Working end-to-end:**
+
 - typed extractor → evidence layer → promotion gate → canonical write
 - Lobby segments produce 12 snapshots per match (one per `(team_side, position)`)
 - Position extraction (anchor-based) is 100% accurate
@@ -256,6 +257,7 @@ the test fixtures). All fixed mid-cutover, then the cutover re-ran:
 - Idempotent re-runs (delete-then-insert per match)
 
 **Known Phase 3c targets (data quality, NOT architecture):**
+
 - Gamertag junk filter doesn't reject UI labels: "VIEWINGLOADOUTS",
   "CHEL", "SPORTS", "Puck Moving Defenseman" (a build class) all
   surface as gamertags on certain rows.
@@ -271,6 +273,7 @@ the test fixtures). All fixed mid-cutover, then the cutover re-ran:
 ### Bail-out NOT triggered
 
 None of the hard bail-out conditions fired:
+
 - No Phase 2B regression: loadout-v2 still produces ≥ 10/10 snapshots
   per match.
 - TestEndToEndOnLabeledClip not broken.
@@ -288,14 +291,15 @@ Phase 3c (commit `ff1584a` + `01787fa`) closed the gamertag junk-filter
 gap exposed by the cutover. Result on match 250 lobby data after
 re-running Pass-2 + dispatch + consolidator:
 
-| Field | Before Phase 3c | After Phase 3c |
-|---|---|---|
-| gamertag | 7/10 (70%) ❌ | **9/10 (90%) ✓** |
-| position | 10/10 ✓ | 10/10 ✓ |
-| build_class | 1/10 (test bar 90%) ❌ | 1/2 emitted (50%) — slot-band issue |
-| persona | 3/10 ❌ | 1/10 — alias seeding gap (Codex Task A) |
+| Field       | Before Phase 3c        | After Phase 3c                          |
+| ----------- | ---------------------- | --------------------------------------- |
+| gamertag    | 7/10 (70%) ❌          | **9/10 (90%) ✓**                        |
+| position    | 10/10 ✓                | 10/10 ✓                                 |
+| build_class | 1/10 (test bar 90%) ❌ | 1/2 emitted (50%) — slot-band issue     |
+| persona     | 3/10 ❌                | 1/10 — alias seeding gap (Codex Task A) |
 
 Specific fixes that landed:
+
 - `against/RD`: "CHEL" (UI label) → `shadowassault20` (real gamertag)
 - `for/RW`: "VIEWINGLOADOUTS" (UI label) → `silkyjoker85` (real gamertag)
 - `against/C`: "SPORTS" (match 463) → `DaveL-234`
@@ -304,6 +308,7 @@ Specific fixes that landed:
   (no real gamertag in this slot's OCR — honest)
 
 Remaining gate failures after Phase 3c:
+
 - **Hard-field gate (build_class):** 1/2 emitted, fails ≥90%. The
   for/LW slot has `gamertag="DuhPope"` (opp player) → `build_class="Sniper"`
   — both correct for DuhPope, but DuhPope is on the OPP panel, not BGM.

@@ -51,9 +51,7 @@ const dbForResolver = db as unknown as Parameters<typeof resolveActorForMatch>[3
 const sentinelMatchIds: Set<number> = new Set()
 
 async function cleanupMatch(matchId: number): Promise<void> {
-  await db
-    .delete(playerLoadoutSnapshots)
-    .where(eq(playerLoadoutSnapshots.matchId, matchId))
+  await db.delete(playerLoadoutSnapshots).where(eq(playerLoadoutSnapshots.matchId, matchId))
   await db.delete(ocrExtractions).where(eq(ocrExtractions.matchId, matchId))
   await db.delete(ocrCaptureBatches).where(eq(ocrCaptureBatches.matchId, matchId))
   await db.delete(matches).where(eq(matches.id, matchId))
@@ -321,7 +319,12 @@ void test('null/empty snapshot → unresolved (no DB lineup query)', async () =>
   assert.equal(nullSnap.via, 'unresolved')
   assert.equal(nullSnap.globalPlayerId, null)
 
-  const undefinedSnap = await resolveActorForMatch(undefined, m.matchId, GAME_TITLE_ID, dbForResolver)
+  const undefinedSnap = await resolveActorForMatch(
+    undefined,
+    m.matchId,
+    GAME_TITLE_ID,
+    dbForResolver,
+  )
   assert.equal(undefinedSnap.playerId, null)
   assert.equal(undefinedSnap.via, 'unresolved')
   assert.equal(undefinedSnap.globalPlayerId, null)

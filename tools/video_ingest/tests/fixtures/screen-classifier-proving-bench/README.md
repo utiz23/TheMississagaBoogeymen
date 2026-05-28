@@ -13,18 +13,18 @@ existing regression tests on matches 250/463 hold, Phase A is done.
 > **Sparse-class deferral.** S5 only added `menu_world_of_chel` to the
 > state machine; `menu_club_management` (3 PNGs) and `player_loadout_landing`
 > (0 PNGs) are deferred until a future labeling round produces ~15-20 PNGs
-> each. The proving-bench test treats those two labels as *relaxed*: a
+> each. The proving-bench test treats those two labels as _relaxed_: a
 > frame labeled `menu_club_management` or `player_loadout_landing` passes
 > the gate when prediction matches OR when prediction is
 > `unknown_or_transition`. See `labels.json`'s `deferred_classes_relaxed`.
 
 ## Current bench state — S5.5 prep (2026-05-27)
 
-| Clip | Status | Frames | Notes |
-|---|---|---|---|
-| `match-250-lobby-loadout` (60s) | **labeled, gated** | 60 | Auto-converted from the existing match-250-clip-segments.json (hand-labeled 2026-05-13). First proving-bench run measured **66.7% accuracy** — below the 90% bar. See "v2 quality findings" below. |
-| `match-968-menu-sequence` (60s) | **clip extracted, labels pending** | 60 | Operator must label per the workflow in `labels.json._operator_workflow`. |
-| `match-967-misc` | not extracted (optional) | — | Plan calls for ~30s cross-match coverage; skip until needed. |
+| Clip                            | Status                             | Frames | Notes                                                                                                                                                                                              |
+| ------------------------------- | ---------------------------------- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `match-250-lobby-loadout` (60s) | **labeled, gated**                 | 60     | Auto-converted from the existing match-250-clip-segments.json (hand-labeled 2026-05-13). First proving-bench run measured **66.7% accuracy** — below the 90% bar. See "v2 quality findings" below. |
+| `match-968-menu-sequence` (60s) | **clip extracted, labels pending** | 60     | Operator must label per the workflow in `labels.json._operator_workflow`.                                                                                                                          |
+| `match-967-misc`                | not extracted (optional)           | —      | Plan calls for ~30s cross-match coverage; skip until needed.                                                                                                                                       |
 
 ## v2 quality findings (S5.5 prep diagnostic on match-250)
 
@@ -95,21 +95,21 @@ screen-classifier-proving-bench/
 ```jsonc
 {
   "version": "v0.1",
-  "fps": 1.0,                       // labels assume 1 fps sampling
+  "fps": 1.0, // labels assume 1 fps sampling
   "clips": [
     {
       "filename": "clip-1-match968-menu-sequence.mkv",
       "description": "Match 968 first 60s: CLUB→loadouts→detail→splash",
       "labels": [
         // One entry per sampled frame (or one entry per run-length segment)
-        { "t_start_sec": 0,   "t_end_sec": 11,  "expected": "menu_club_management" },
-        { "t_start_sec": 11,  "t_end_sec": 33,  "expected": "player_loadout_landing" },
-        { "t_start_sec": 33,  "t_end_sec": 47,  "expected": "player_loadout_view" },
-        { "t_start_sec": 47,  "t_end_sec": 57,  "expected": "menu_world_of_chel" }
-      ]
-    }
+        { "t_start_sec": 0, "t_end_sec": 11, "expected": "menu_club_management" },
+        { "t_start_sec": 11, "t_end_sec": 33, "expected": "player_loadout_landing" },
+        { "t_start_sec": 33, "t_end_sec": 47, "expected": "player_loadout_view" },
+        { "t_start_sec": 47, "t_end_sec": 57, "expected": "menu_world_of_chel" },
+      ],
+    },
     // ...
-  ]
+  ],
 }
 ```
 

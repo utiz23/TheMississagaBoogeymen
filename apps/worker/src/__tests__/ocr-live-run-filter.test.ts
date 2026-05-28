@@ -14,14 +14,7 @@
 
 import test, { after, before } from 'node:test'
 import assert from 'node:assert/strict'
-import {
-  db,
-  sql,
-  ocrDecoderRuns,
-  ocrFieldEvidence,
-  ocrPromotions,
-  ocrSegments,
-} from '@eanhl/db'
+import { db, sql, ocrDecoderRuns, ocrFieldEvidence, ocrPromotions, ocrSegments } from '@eanhl/db'
 import {
   getFieldEvidenceForLoadoutSlot,
   getFieldEvidenceForLobbySlot,
@@ -47,12 +40,8 @@ async function cleanup(): Promise<void> {
   await db
     .delete(ocrSegments)
     .where(like(ocrSegments.decoderVersion, `${SENTINEL_DECODER_PREFIX}%`))
-  await db
-    .delete(ocrPromotions)
-    .where(eq(ocrPromotions.targetTable, SENTINEL_TARGET_TABLE))
-  await db
-    .delete(ocrDecoderRuns)
-    .where(like(ocrDecoderRuns.notes, `${SENTINEL_DECODER_PREFIX}%`))
+  await db.delete(ocrPromotions).where(eq(ocrPromotions.targetTable, SENTINEL_TARGET_TABLE))
+  await db.delete(ocrDecoderRuns).where(like(ocrDecoderRuns.notes, `${SENTINEL_DECODER_PREFIX}%`))
 }
 
 before(async () => {
@@ -81,9 +70,9 @@ void test('liveRunFilter hides superseded-run rows, keeps active-run + NULL-run 
       weightsHash: 'test-active',
       configHash: 'test-active',
       isActive: false, // first INSERT can't be active because the partial-unique
-                       // index lets only one match have an active run, and the
-                       // backfill row already holds that slot. We test the
-                       // filter by directly toggling is_active below.
+      // index lets only one match have an active run, and the
+      // backfill row already holds that slot. We test the
+      // filter by directly toggling is_active below.
       notes: `${SENTINEL_DECODER_PREFIX}active-run`,
     })
     .returning()
@@ -119,7 +108,10 @@ void test('liveRunFilter hides superseded-run rows, keeps active-run + NULL-run 
       .update(ocrDecoderRuns)
       .set({ isActive: false })
       .where(eq(ocrDecoderRuns.id, realBackfillRunId))
-    await db.update(ocrDecoderRuns).set({ isActive: true }).where(eq(ocrDecoderRuns.id, activeRun.id))
+    await db
+      .update(ocrDecoderRuns)
+      .set({ isActive: true })
+      .where(eq(ocrDecoderRuns.id, activeRun.id))
 
     // ─── Insert one segment + one evidence row per run + one NULL-run row ────
     const [segActive] = await db
@@ -238,10 +230,7 @@ void test('liveRunFilter hides superseded-run rows, keeps active-run + NULL-run 
     )
     assert.ok(loadoutSlots.has('phaseA_test_slot_active'), 'active-run loadout row visible')
     assert.ok(loadoutSlots.has('phaseA_test_slot_nullrun'), 'NULL-run loadout row visible (legacy)')
-    assert.ok(
-      !loadoutSlots.has('phaseA_test_slot_superseded'),
-      'superseded-run loadout row hidden',
-    )
+    assert.ok(!loadoutSlots.has('phaseA_test_slot_superseded'), 'superseded-run loadout row hidden')
 
     // Lobby evidence reader
     const lobbyRows = await getFieldEvidenceForLobbySlot(TEST_MATCH_ID)
@@ -252,10 +241,7 @@ void test('liveRunFilter hides superseded-run rows, keeps active-run + NULL-run 
     )
     assert.ok(lobbySlots.has('phaseA_lobby_slot_active'), 'active-run lobby row visible')
     assert.ok(lobbySlots.has('phaseA_lobby_slot_nullrun'), 'NULL-run lobby row visible (legacy)')
-    assert.ok(
-      !lobbySlots.has('phaseA_lobby_slot_superseded'),
-      'superseded-run lobby row hidden',
-    )
+    assert.ok(!lobbySlots.has('phaseA_lobby_slot_superseded'), 'superseded-run lobby row hidden')
 
     // Promotion reader
     const allPromotions = await db
@@ -290,10 +276,7 @@ void test('liveRunFilter hides superseded-run rows, keeps active-run + NULL-run 
       (s.segmentKey ?? '').startsWith(SENTINEL_SEGMENT_PREFIX),
     )
     const segmentKeys = new Set(sentinelSegments.map((s) => s.segmentKey))
-    assert.ok(
-      segmentKeys.has(`${SENTINEL_SEGMENT_PREFIX}active`),
-      'active-run segment visible',
-    )
+    assert.ok(segmentKeys.has(`${SENTINEL_SEGMENT_PREFIX}active`), 'active-run segment visible')
     assert.ok(
       segmentKeys.has(`${SENTINEL_SEGMENT_PREFIX}nullrun`),
       'NULL-run segment visible (legacy)',
@@ -307,7 +290,10 @@ void test('liveRunFilter hides superseded-run rows, keeps active-run + NULL-run 
     //      superseded, the originally-superseded sentinel run becomes active.
     //      Verifies that "is_active" is the only thing the helper consults —
     //      no caching of run identity in the rows themselves. ──────────────
-    await db.update(ocrDecoderRuns).set({ isActive: false }).where(eq(ocrDecoderRuns.id, activeRun.id))
+    await db
+      .update(ocrDecoderRuns)
+      .set({ isActive: false })
+      .where(eq(ocrDecoderRuns.id, activeRun.id))
     await db
       .update(ocrDecoderRuns)
       .set({ isActive: true })
@@ -343,7 +329,10 @@ void test('liveRunFilter hides superseded-run rows, keeps active-run + NULL-run 
           inArray(ocrDecoderRuns.id, [activeRun.id, supersededRun.id]),
         ),
       )
-    await db.update(ocrDecoderRuns).set({ isActive: true }).where(eq(ocrDecoderRuns.id, realBackfillRunId))
+    await db
+      .update(ocrDecoderRuns)
+      .set({ isActive: true })
+      .where(eq(ocrDecoderRuns.id, realBackfillRunId))
   }
 })
 
@@ -389,8 +378,14 @@ void test('liveRunFilter on listFieldEvidence: includeAllRuns flag bypasses the 
   assert.ok(activeRun && supersededRun)
 
   try {
-    await db.update(ocrDecoderRuns).set({ isActive: false }).where(eq(ocrDecoderRuns.id, currentActive.id))
-    await db.update(ocrDecoderRuns).set({ isActive: true }).where(eq(ocrDecoderRuns.id, activeRun.id))
+    await db
+      .update(ocrDecoderRuns)
+      .set({ isActive: false })
+      .where(eq(ocrDecoderRuns.id, currentActive.id))
+    await db
+      .update(ocrDecoderRuns)
+      .set({ isActive: true })
+      .where(eq(ocrDecoderRuns.id, activeRun.id))
 
     const [seg] = await db
       .insert(ocrSegments)
@@ -472,6 +467,9 @@ void test('liveRunFilter on listFieldEvidence: includeAllRuns flag bypasses the 
           inArray(ocrDecoderRuns.id, [activeRun.id, supersededRun.id]),
         ),
       )
-    await db.update(ocrDecoderRuns).set({ isActive: true }).where(eq(ocrDecoderRuns.id, currentActive.id))
+    await db
+      .update(ocrDecoderRuns)
+      .set({ isActive: true })
+      .where(eq(ocrDecoderRuns.id, currentActive.id))
   }
 })

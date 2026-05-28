@@ -73,9 +73,7 @@ async function cleanupMatch(matchId: number): Promise<void> {
       .delete(playerLoadoutAttributes)
       .where(inArray(playerLoadoutAttributes.loadoutSnapshotId, snapIds))
   }
-  await db
-    .delete(playerLoadoutSnapshots)
-    .where(eq(playerLoadoutSnapshots.matchId, matchId))
+  await db.delete(playerLoadoutSnapshots).where(eq(playerLoadoutSnapshots.matchId, matchId))
   await db.delete(ocrPromotions).where(eq(ocrPromotions.matchId, matchId))
   await db.delete(ocrFieldEvidence).where(eq(ocrFieldEvidence.matchId, matchId))
   await db.delete(ocrExtractions).where(eq(ocrExtractions.matchId, matchId))
@@ -178,13 +176,8 @@ interface LoadoutFixtureResult {
   v2Gamertag: string
 }
 
-async function insertLoadoutTwoRunFixture(
-  suffix: string,
-): Promise<LoadoutFixtureResult> {
-  const existingPlayers = await db
-    .select({ gamertag: players.gamertag })
-    .from(players)
-    .limit(2)
+async function insertLoadoutTwoRunFixture(suffix: string): Promise<LoadoutFixtureResult> {
+  const existingPlayers = await db.select({ gamertag: players.gamertag }).from(players).limit(2)
   assert.ok(
     existingPlayers[0] && existingPlayers[1],
     'DB must have at least two players for the loadout fixture',
@@ -222,10 +215,7 @@ async function insertLoadoutTwoRunFixture(
   sentinelRunIds.add(runV1.id)
   sentinelRunIds.add(runV2.id)
 
-  async function makeBatchAndExtraction(
-    runId: number,
-    label: string,
-  ): Promise<number> {
+  async function makeBatchAndExtraction(runId: number, label: string): Promise<number> {
     const [b] = await db
       .insert(ocrCaptureBatches)
       .values({
@@ -303,13 +293,8 @@ interface LobbyFixtureResult {
   v2Gamertag: string
 }
 
-async function insertLobbyTwoRunFixture(
-  suffix: string,
-): Promise<LobbyFixtureResult> {
-  const existingPlayers = await db
-    .select({ gamertag: players.gamertag })
-    .from(players)
-    .limit(2)
+async function insertLobbyTwoRunFixture(suffix: string): Promise<LobbyFixtureResult> {
+  const existingPlayers = await db.select({ gamertag: players.gamertag }).from(players).limit(2)
   assert.ok(
     existingPlayers[0] && existingPlayers[1],
     'DB must have at least two players for the lobby fixture',
@@ -347,10 +332,7 @@ async function insertLobbyTwoRunFixture(
   sentinelRunIds.add(runV1.id)
   sentinelRunIds.add(runV2.id)
 
-  async function makeBatchAndExtraction(
-    runId: number,
-    label: string,
-  ): Promise<number> {
+  async function makeBatchAndExtraction(runId: number, label: string): Promise<number> {
     const [b] = await db
       .insert(ocrCaptureBatches)
       .values({
@@ -431,8 +413,10 @@ void test('repromote-loadout --run-id <candidate>: tags ocr_promotions with the 
   const fx = await insertLoadoutTwoRunFixture('loadout-candidate')
 
   const result = runCli(LOADOUT_CLI, [
-    '--match', String(fx.matchId),
-    '--run-id', String(fx.v2RunId),
+    '--match',
+    String(fx.matchId),
+    '--run-id',
+    String(fx.v2RunId),
   ])
 
   assert.equal(
@@ -487,10 +471,7 @@ void test('repromote-lobby --run-id <candidate>: tags ocr_promotions with the ca
 
   const fx = await insertLobbyTwoRunFixture('lobby-candidate')
 
-  const result = runCli(LOBBY_CLI, [
-    '--match', String(fx.matchId),
-    '--run-id', String(fx.v2RunId),
-  ])
+  const result = runCli(LOBBY_CLI, ['--match', String(fx.matchId), '--run-id', String(fx.v2RunId)])
 
   assert.equal(
     result.status,
@@ -536,10 +517,7 @@ void test('repromote-loadout without --run-id: legacy live-run path writes canon
   if (!process.env['DATABASE_URL']) return
 
   // Single active run with seeded loadout evidence.
-  const existingPlayers = await db
-    .select({ gamertag: players.gamertag })
-    .from(players)
-    .limit(1)
+  const existingPlayers = await db.select({ gamertag: players.gamertag }).from(players).limit(1)
   assert.ok(existingPlayers[0], 'DB must have at least one player')
   const gamertag = existingPlayers[0]!.gamertag
 
@@ -641,39 +619,25 @@ void test('repromote-loadout --run-id non-numeric: exits non-zero', async () => 
   if (!process.env['DATABASE_URL']) return
 
   // We don't even need a real match — argv parsing fails before any DB read.
-  const result = runCli(LOADOUT_CLI, [
-    '--match', '1',
-    '--run-id', 'banana',
-  ])
+  const result = runCli(LOADOUT_CLI, ['--match', '1', '--run-id', 'banana'])
 
   assert.notEqual(
     result.status,
     0,
     `expected non-zero exit on --run-id banana; stdout: ${result.stdout}; stderr: ${result.stderr}`,
   )
-  assert.match(
-    result.stderr,
-    /run-id/i,
-    `expected stderr to mention run-id; got: ${result.stderr}`,
-  )
+  assert.match(result.stderr, /run-id/i, `expected stderr to mention run-id; got: ${result.stderr}`)
 })
 
 void test('repromote-lobby --run-id non-numeric: exits non-zero', async () => {
   if (!process.env['DATABASE_URL']) return
 
-  const result = runCli(LOBBY_CLI, [
-    '--match', '1',
-    '--run-id', 'banana',
-  ])
+  const result = runCli(LOBBY_CLI, ['--match', '1', '--run-id', 'banana'])
 
   assert.notEqual(
     result.status,
     0,
     `expected non-zero exit on --run-id banana; stdout: ${result.stdout}; stderr: ${result.stderr}`,
   )
-  assert.match(
-    result.stderr,
-    /run-id/i,
-    `expected stderr to mention run-id; got: ${result.stderr}`,
-  )
+  assert.match(result.stderr, /run-id/i, `expected stderr to mention run-id; got: ${result.stderr}`)
 })

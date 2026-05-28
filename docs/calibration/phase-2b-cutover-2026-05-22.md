@@ -8,10 +8,10 @@
 
 Targets (confirmed by post-resample dry-run; values written below at execution time):
 
-| Match | Expected promoted snapshots |
-|---|---|
-| 250 | 10 (5 BGM + 5 opp, full lineup incl JoeyFlopfish RD) |
-| 463 | 10 (5 BGM + 5 opp, full lineup incl ThickOoze RD) |
+| Match | Expected promoted snapshots                          |
+| ----- | ---------------------------------------------------- |
+| 250   | 10 (5 BGM + 5 opp, full lineup incl JoeyFlopfish RD) |
+| 463   | 10 (5 BGM + 5 opp, full lineup incl ThickOoze RD)    |
 
 ## Cutover procedure
 

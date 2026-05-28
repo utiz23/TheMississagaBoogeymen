@@ -123,12 +123,7 @@ export async function validateCandidateRun(
       count: sql<number>`count(*)::int`.as('count'),
     })
     .from(ocrExtractions)
-    .where(
-      and(
-        eq(ocrExtractions.runId, runId),
-        eq(ocrExtractions.transformStatus, 'error'),
-      ),
-    )
+    .where(and(eq(ocrExtractions.runId, runId), eq(ocrExtractions.transformStatus, 'error')))
     .groupBy(sql`coalesce(${ocrExtractions.transformError}, '<no message>')`)
   const extractorErrors: ExtractorErrorBucket[] = errorRows.map((r) => ({
     kind: String(r.kind),
@@ -137,21 +132,15 @@ export async function validateCandidateRun(
 
   const failureReasons: string[] = []
   if (loadoutPromotionCount < minLoadout) {
-    failureReasons.push(
-      `loadout promotions ${loadoutPromotionCount} < floor ${minLoadout}`,
-    )
+    failureReasons.push(`loadout promotions ${loadoutPromotionCount} < floor ${minLoadout}`)
   }
   if (lobbyPromotionCount < minLobby) {
-    failureReasons.push(
-      `lobby promotions ${lobbyPromotionCount} < floor ${minLobby}`,
-    )
+    failureReasons.push(`lobby promotions ${lobbyPromotionCount} < floor ${minLobby}`)
   }
   if (extractorErrors.length > 0) {
     const totalErrors = extractorErrors.reduce((acc, e) => acc + e.count, 0)
     const summary = extractorErrors.map((e) => `${e.kind}=${e.count}`).join(', ')
-    failureReasons.push(
-      `extractor errors present (${totalErrors} total): ${summary}`,
-    )
+    failureReasons.push(`extractor errors present (${totalErrors} total): ${summary}`)
   }
 
   return {

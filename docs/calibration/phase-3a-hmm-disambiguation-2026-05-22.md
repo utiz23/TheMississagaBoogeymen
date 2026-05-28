@@ -26,13 +26,14 @@ The Phase 2B deferred doc described the lobby READY-UP screen as a "4-line block
 
 ### Classifier behavior per recording
 
-| Match | Lobby state_2 | Loadout view | State_1 frames | Misrouted |
-|---|---|---|---|---|
-| 250 (frames 0-89) | 39 (✓ clean — anchor `eashl 6v6`) | 13 (✓ clean — anchor `playerloadouts`) | 0 | none |
-| 463 (full 59 frames) | 17 (✓ clean) | 26 (✓ clean) | 0 | none |
-| new clip 2026-05-20 (frames 0-180) | 45 (✓ clean) | 14 (✓ clean) | 0 | none |
+| Match                              | Lobby state_2                     | Loadout view                           | State_1 frames | Misrouted |
+| ---------------------------------- | --------------------------------- | -------------------------------------- | -------------- | --------- |
+| 250 (frames 0-89)                  | 39 (✓ clean — anchor `eashl 6v6`) | 13 (✓ clean — anchor `playerloadouts`) | 0              | none      |
+| 463 (full 59 frames)               | 17 (✓ clean)                      | 26 (✓ clean)                           | 0              | none      |
+| new clip 2026-05-20 (frames 0-180) | 45 (✓ clean)                      | 14 (✓ clean)                           | 0              | none      |
 
 In every recording, `anchor_text` containing `eashl` correctly fires the state_2 anchor; `playerloadouts` correctly fires the loadout-view anchor. Classifier log-prob margins on confident frames:
+
 - `lp[state_2] - lp[loadout] ≈ +2.4` nats on state_2 frames (state_2 winning by a comfortable margin)
 - `lp[loadout] - lp[state_2] ≈ +1.4` nats on loadout frames (loadout winning)
 

@@ -31,20 +31,20 @@ were never OCR-ingested in production.
 The typed_v1 extractor uses different field key names than the promoter expects
 for several fields. Full comparison:
 
-| Typed_v1 field key | Promoter expected key | Impact |
-|---|---|---|
-| `gamertag` | `gamertag` | MATCH — no issue |
-| `position` | `position` | MATCH — no issue |
-| `build_class` | `build_class` | MATCH — no issue |
-| `is_captain` | `is_captain` | MATCH — low_quality obs; promoter doesn't get it |
-| `x_factor_name_{0,1,2}` | `x_factor_name_{0,1,2}` | MATCH — works |
-| `x_factor_tier_{0,1,2}` | `x_factor_tier_{0,1,2}` | MATCH — works |
-| `player_level_raw` | `player_level_raw` | MATCH — works |
-| **`jersey_number`** | **`player_number`** | **MISMATCH** — jersey_number not populated |
-| **`persona_raw`** | **`player_name_persona`** | **MISMATCH** — persona not populated |
-| **`attribute_{name}_{value\|delta}`** | **`attr_{name}`** | **MISMATCH** — attributes not populated |
-| (absent) | `height`, `weight`, `handedness` | Not extracted by typed_v1 |
-| (absent) | `player_level_number`, `player_name_full`, `player_platform` | Not extracted by typed_v1 |
+| Typed_v1 field key                    | Promoter expected key                                        | Impact                                           |
+| ------------------------------------- | ------------------------------------------------------------ | ------------------------------------------------ |
+| `gamertag`                            | `gamertag`                                                   | MATCH — no issue                                 |
+| `position`                            | `position`                                                   | MATCH — no issue                                 |
+| `build_class`                         | `build_class`                                                | MATCH — no issue                                 |
+| `is_captain`                          | `is_captain`                                                 | MATCH — low_quality obs; promoter doesn't get it |
+| `x_factor_name_{0,1,2}`               | `x_factor_name_{0,1,2}`                                      | MATCH — works                                    |
+| `x_factor_tier_{0,1,2}`               | `x_factor_tier_{0,1,2}`                                      | MATCH — works                                    |
+| `player_level_raw`                    | `player_level_raw`                                           | MATCH — works                                    |
+| **`jersey_number`**                   | **`player_number`**                                          | **MISMATCH** — jersey_number not populated       |
+| **`persona_raw`**                     | **`player_name_persona`**                                    | **MISMATCH** — persona not populated             |
+| **`attribute_{name}_{value\|delta}`** | **`attr_{name}`**                                            | **MISMATCH** — attributes not populated          |
+| (absent)                              | `height`, `weight`, `handedness`                             | Not extracted by typed_v1                        |
+| (absent)                              | `player_level_number`, `player_name_full`, `player_platform` | Not extracted by typed_v1                        |
 
 ### Impact by mismatch:
 
@@ -52,9 +52,10 @@ for several fields. Full comparison:
 The typed_v1 evidence contains `jersey_number` field keys with good quality values
 (e.g., jersey=96 for StickMenace, jersey=19 for XZ4RKY). The promoter reads
 `player_number`. Result: all jersey numbers will be null after cutover.
+
 - Match 250: 8 subjects have jersey evidence; all will produce null `playerNumber`
 - Match 463: subjects 01, 03, 04, 05 have jersey evidence; same result
-This explains the dry-run diff showing `playerNumber: 95 → null`, `23 → null`, `19 → null`.
+  This explains the dry-run diff showing `playerNumber: 95 → null`, `23 → null`, `19 → null`.
 
 **`persona_raw` → `player_name_persona` mismatch:**
 The typed_v1 evidence contains `persona_raw` field keys. The promoter reads
@@ -63,27 +64,28 @@ The legacy pipeline captured personas (e.g., `player_name_persona = "Toews"`
 for XZ4RKY in match 250). This is an information loss.
 
 **`attribute_*_value` → `attr_*` mismatch:**
-The typed_v1 extractor emits attribute evidence with field keys in the form
-`attribute_{name}_{value|delta}`. The promoter expects `attr_{name}`.
+The typed*v1 extractor emits attribute evidence with field keys in the form
+`attribute*{name}_{value|delta}`. The promoter expects `attr_{name}`.
 Result: zero `player_loadout_attributes` rows written after cutover.
 
 **Current legacy state for reference:**
+
 - Match 250: 1228 attribute rows (from legacy pipeline)
 - Match 463: 9890 attribute rows (from legacy pipeline)
 
 **After cutover with current typed_v1 evidence:** 0 attribute rows for both matches.
 This is a hard regression that must be resolved before cutover.
 
-**Root cause for all mismatches:** The typed_v1 extractor was developed with different
+**Root cause for all mismatches:** The typed*v1 extractor was developed with different
 field key conventions than the fixture files and the promoter. The fixture files
-(`expected_loadout_evidence.json`) use `player_number`, `attr_*`, and no `persona_raw`
+(`expected_loadout_evidence.json`) use `player_number`, `attr*\*`, and no `persona_raw`
 — they match the promoter's expected keys.
 
 **Resolution required before 2B-8:** Align field keys between typed_v1 extractor
 and the promoter. Options:
-  a. Re-run the typed_v1 extractor with corrected field key convention (cleanest)
-  b. Add a normalization shim in `ingest-ocr.ts` that renames on write
-  c. Update the promoter to accept both naming conventions
+a. Re-run the typed_v1 extractor with corrected field key convention (cleanest)
+b. Add a normalization shim in `ingest-ocr.ts` that renames on write
+c. Update the promoter to accept both naming conventions
 
 This finding does NOT block understanding the gamertag/position/build_class diff,
 which is the primary safety check for Phase 2B-8 categorical correctness.
@@ -97,22 +99,23 @@ which is the primary safety check for Phase 2B-8 categorical correctness.
 **Evidence records loaded:** 602 (9 subjects × 60 fields/subject + 42 low-quality)
 
 **Evidence record counts per evidence JSON:**
+
 - 9 subjects: `loadout_slot_seg0002_subject00` through `subject08`
 - 60 fields per subject (10 core + 23 attribute_value + 23 attribute_delta + 4 sparse)
 
 ### Subjects extracted by typed_v1
 
-| subject_slot_key | gamertag | position | build_class | jersey | team_side (resolved) | position_obs |
-|---|---|---|---|---|---|---|
-| subject00 | MrHomiecide | (null) | Playmaker | (null) | for (BGM) | low_quality → BLOCKED |
-| subject01 | StickMenace | LW | Power Forward | 96 | for (BGM) | observable |
-| subject02 | HenryTheBobJr | LD | Puck Moving Defenseman | 7 | for (BGM) | observable |
-| subject03 | XZ4RKY | C | Two-Way Forward | 19 | against (opp) | observable |
-| subject04 | RAIDERSG7 | RW | Sniper | 7 | against (opp) | observable |
-| subject05 | shadowassault20 | RD | Puck Moving Defenseman | 56 | against (opp) | observable |
-| subject06 | silkyjoker85 | RW | Sniper | 10 | for (BGM) | observable |
-| subject07 | Duh Pope | LW | Sniper | 95 | against (opp) | observable |
-| subject08 | MuttButt | LD | Defensive Defenseman | 23 | against (opp) | observable |
+| subject_slot_key | gamertag        | position | build_class            | jersey | team_side (resolved) | position_obs          |
+| ---------------- | --------------- | -------- | ---------------------- | ------ | -------------------- | --------------------- |
+| subject00        | MrHomiecide     | (null)   | Playmaker              | (null) | for (BGM)            | low_quality → BLOCKED |
+| subject01        | StickMenace     | LW       | Power Forward          | 96     | for (BGM)            | observable            |
+| subject02        | HenryTheBobJr   | LD       | Puck Moving Defenseman | 7      | for (BGM)            | observable            |
+| subject03        | XZ4RKY          | C        | Two-Way Forward        | 19     | against (opp)        | observable            |
+| subject04        | RAIDERSG7       | RW       | Sniper                 | 7      | against (opp)        | observable            |
+| subject05        | shadowassault20 | RD       | Puck Moving Defenseman | 56     | against (opp)        | observable            |
+| subject06        | silkyjoker85    | RW       | Sniper                 | 10     | for (BGM)            | observable            |
+| subject07        | Duh Pope        | LW       | Sniper                 | 95     | against (opp)        | observable            |
+| subject08        | MuttButt        | LD       | Defensive Defenseman   | 23     | against (opp)        | observable            |
 
 **Missing from typed_v1 (BGM RD):** JoeyFlopfish not observed in the loadout
 segment. Expected because typed_v1 processed a single segment (seg-002) which may
@@ -153,17 +156,18 @@ slots (including two null-position slots from early dev iterations). The propose
 adds 8 new typed_v1 rows — one per promotable subject — which share the same
 13 keys and therefore show as "changed."
 
-| Slot | Legacy field value | Typed_v1 proposed | V2 ground truth | Assessment |
-|---|---|---|---|---|
-| against/LW | gamertag=DuhPope, build=null, jersey=95 | gamertag=Duh Pope, build=Sniper, jersey=null | gamertag=DuhPope, build=Sniper, jersey=95 | PARTIAL MATCH — gamertag whitespace variant `Duh Pope` matches EA roster spelling. build_class correct. jersey regression (typed_v1 jersey obs=null; legacy had it). |
-| against/LD | gamertag=MuttButt, build=null, jersey=23 | gamertag=MuttButt, build=Defensive Defenseman, jersey=null | gamertag=MuttButt, build=Defensive Defenseman, jersey=23 | PARTIAL MATCH — build_class correct. jersey regression (low_quality in typed_v1). |
-| against/C | gamertag=XZ4RKY, build=null, jersey=19, isCaptain=true | gamertag=XZ4RKY, build=Two-Way Forward, jersey=null, isCaptain=null | gamertag=XZ4RKY, build=Two-Way Forward, jersey=19, isCaptain=true | PARTIAL MATCH — gamertag correct, build_class correct. jersey + isCaptain regression (not captured by typed_v1). |
-| against/RD | gamertag=shadowassault20, build=null | gamertag=shadowassault20, build=Puck Moving Defenseman | gamertag=shadowassault20, build=Puck Moving Defenseman | MATCH — gamertag + build both correct. |
-| for/LW | gamertag=StickMenace, build=Tage Thompson-PWF | gamertag=StickMenace, build=Power Forward | gamertag=Stick Menace (canonical); build=Tage Thompson - Power Forward (canonical) | NOTE — typed_v1 uses raw build label "Power Forward" vs legacy OCR "Tage Thompson-PWF". V2 canonical is "Tage Thompson - Power Forward". Legacy was closer to V2 canonical, typed_v1 loses the persona prefix. |
-| for/RW | gamertag=silkyjoker85, build=Cole Caufield-SNP | gamertag=silkyjoker85, build=Sniper | gamertag=silkyjoker85, build=Cole Caufield - Sniper (canonical) | NOTE — typed_v1 uses raw "Sniper" vs legacy OCR "Cole Caufield-SNP". V2 canonical is "Cole Caufield - Sniper". Same regression as for/LW. |
-| for/null | build=PLAYMAKER | build=Playmaker | n/a (dev artifact slot) | Casing fix. The for/null slot is a dev artifact from early iterations; the typed_v1 row has correct casing. |
+| Slot       | Legacy field value                                     | Typed_v1 proposed                                                   | V2 ground truth                                                                    | Assessment                                                                                                                                                                                                     |
+| ---------- | ------------------------------------------------------ | ------------------------------------------------------------------- | ---------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| against/LW | gamertag=DuhPope, build=null, jersey=95                | gamertag=Duh Pope, build=Sniper, jersey=null                        | gamertag=DuhPope, build=Sniper, jersey=95                                          | PARTIAL MATCH — gamertag whitespace variant `Duh Pope` matches EA roster spelling. build_class correct. jersey regression (typed_v1 jersey obs=null; legacy had it).                                           |
+| against/LD | gamertag=MuttButt, build=null, jersey=23               | gamertag=MuttButt, build=Defensive Defenseman, jersey=null          | gamertag=MuttButt, build=Defensive Defenseman, jersey=23                           | PARTIAL MATCH — build_class correct. jersey regression (low_quality in typed_v1).                                                                                                                              |
+| against/C  | gamertag=XZ4RKY, build=null, jersey=19, isCaptain=true | gamertag=XZ4RKY, build=Two-Way Forward, jersey=null, isCaptain=null | gamertag=XZ4RKY, build=Two-Way Forward, jersey=19, isCaptain=true                  | PARTIAL MATCH — gamertag correct, build_class correct. jersey + isCaptain regression (not captured by typed_v1).                                                                                               |
+| against/RD | gamertag=shadowassault20, build=null                   | gamertag=shadowassault20, build=Puck Moving Defenseman              | gamertag=shadowassault20, build=Puck Moving Defenseman                             | MATCH — gamertag + build both correct.                                                                                                                                                                         |
+| for/LW     | gamertag=StickMenace, build=Tage Thompson-PWF          | gamertag=StickMenace, build=Power Forward                           | gamertag=Stick Menace (canonical); build=Tage Thompson - Power Forward (canonical) | NOTE — typed_v1 uses raw build label "Power Forward" vs legacy OCR "Tage Thompson-PWF". V2 canonical is "Tage Thompson - Power Forward". Legacy was closer to V2 canonical, typed_v1 loses the persona prefix. |
+| for/RW     | gamertag=silkyjoker85, build=Cole Caufield-SNP         | gamertag=silkyjoker85, build=Sniper                                 | gamertag=silkyjoker85, build=Cole Caufield - Sniper (canonical)                    | NOTE — typed_v1 uses raw "Sniper" vs legacy OCR "Cole Caufield-SNP". V2 canonical is "Cole Caufield - Sniper". Same regression as for/LW.                                                                      |
+| for/null   | build=PLAYMAKER                                        | build=Playmaker                                                     | n/a (dev artifact slot)                                                            | Casing fix. The for/null slot is a dev artifact from early iterations; the typed_v1 row has correct casing.                                                                                                    |
 
 **Not in diff (unchanged keys):**
+
 - `for/RD` (JoeyFlopfish): not extracted by typed_v1; legacy row persists unchanged
 - `against/RW` (RAIDERSG7): appears in subject04, gamertag=RAIDERSG7, build=Sniper → V2 gamertag=RAIDERSG7, build=Sniper — MATCH, but diff doesn't show it because the legacy also had the same values
 
@@ -171,19 +175,19 @@ adds 8 new typed_v1 rows — one per promotable subject — which share the same
 
 Fields compared per slot: gamertag, position, buildClass, playerNumber, isCaptain (5 fields × ~12 meaningful slots)
 
-| Category | Count | Details |
-|---|---|---|
-| Gamertag categorical mismatches | 0 | `Duh Pope` vs `DuhPope` is a whitespace variant, not a categorical mismatch — EA roster shows `Duh Pope` with space |
-| Build class categorical mismatches | 0 | All proposed build_class values match V2 ground truth (modulo raw-vs-canonical distinction) |
-| Jersey number regressions | 3 | against/C, against/LW, against/LD all had jersey_number in legacy; typed_v1 returned low_quality |
-| is_captain regressions | 1 | against/C had isCaptain=true in legacy; typed_v1 returned null for all subjects |
+| Category                           | Count | Details                                                                                                             |
+| ---------------------------------- | ----- | ------------------------------------------------------------------------------------------------------------------- |
+| Gamertag categorical mismatches    | 0     | `Duh Pope` vs `DuhPope` is a whitespace variant, not a categorical mismatch — EA roster shows `Duh Pope` with space |
+| Build class categorical mismatches | 0     | All proposed build_class values match V2 ground truth (modulo raw-vs-canonical distinction)                         |
+| Jersey number regressions          | 3     | against/C, against/LW, against/LD all had jersey_number in legacy; typed_v1 returned low_quality                    |
+| is_captain regressions             | 1     | against/C had isCaptain=true in legacy; typed_v1 returned null for all subjects                                     |
 
 **Categorical mismatches (raw value wrong, not just regression):** 0
 
 ### Attribute integer drift — Match 250
 
-Not applicable to this diff: typed_v1 attribute field keys (`attribute_*_value`) do not
-match promoter field keys (`attr_*`). The proposed attribute count = 0 for all new
+Not applicable to this diff: typed*v1 attribute field keys (`attribute*_*value`) do not
+match promoter field keys (`attr*_`). The proposed attribute count = 0 for all new
 typed_v1 rows. Legacy attribute rows (1228) survive the dry-run rollback and remain
 in DB. Attribute comparison blocked by the field key mismatch finding above.
 
@@ -197,19 +201,20 @@ in DB. Attribute comparison blocked by the field key mismatch finding above.
 
 ### Subjects extracted by typed_v1
 
-| subject_slot_key | gamertag | position | build_class | team_side (resolved) | position_obs |
-|---|---|---|---|---|---|
-| subject00 | StickMenace | (null) | Power Forward | for (BGM) | low_quality → BLOCKED |
-| subject01 | HenryTheBobJr | LD | Puck Moving Defenseman | for (BGM) | observable |
-| subject02 | DaveL-234 | (null) | Playmaker | against (opp) | low_quality → BLOCKED |
-| subject03 | WoolyWetBeef | LD | Two-Way Defenseman | against (opp) | observable |
-| subject04 | silkyjoker85 | RW | Sniper | for (BGM) | observable |
-| subject05 | Orygoon-Ducks | RD | Puck Moving Defenseman | for (BGM) | observable |
-| subject06 | KLyons023 | LW | Sniper | against (opp) | observable |
-| subject07 | Pratt2016 | LW | Playmaker | for (BGM) | observable |
-| subject08 | SPORTS | LW | (null) | against (opp) | observable — build_class low_quality |
+| subject_slot_key | gamertag      | position | build_class            | team_side (resolved) | position_obs                         |
+| ---------------- | ------------- | -------- | ---------------------- | -------------------- | ------------------------------------ |
+| subject00        | StickMenace   | (null)   | Power Forward          | for (BGM)            | low_quality → BLOCKED                |
+| subject01        | HenryTheBobJr | LD       | Puck Moving Defenseman | for (BGM)            | observable                           |
+| subject02        | DaveL-234     | (null)   | Playmaker              | against (opp)        | low_quality → BLOCKED                |
+| subject03        | WoolyWetBeef  | LD       | Two-Way Defenseman     | against (opp)        | observable                           |
+| subject04        | silkyjoker85  | RW       | Sniper                 | for (BGM)            | observable                           |
+| subject05        | Orygoon-Ducks | RD       | Puck Moving Defenseman | for (BGM)            | observable                           |
+| subject06        | KLyons023     | LW       | Sniper                 | against (opp)        | observable                           |
+| subject07        | Pratt2016     | LW       | Playmaker              | for (BGM)            | observable                           |
+| subject08        | SPORTS        | LW       | (null)                 | against (opp)        | observable — build_class low_quality |
 
 **Notes on subject mapping:**
+
 - `StickMenace` (subject00): gamertag resolves to BGM player `Stick Menace` (canonical). Blocked by position=null.
 - `DaveL-234` (subject02): appears in opponent roster as `DaveL-234`. Blocked by position=null.
 - `WoolyWetBeef` (subject03): EA roster shows `WoolyWet Beef` (with space). Typo variant — the promoter will look up opponent by gamertag case-insensitive; normalization may handle it.
@@ -241,31 +246,31 @@ Diff:
 
 ### Diff analysis against ground truth (match 463)
 
-| Slot | Legacy field value | Typed_v1 proposed | Ground truth | Assessment |
-|---|---|---|---|---|
-| against/null | gamertag=(unknown) | gamertag=DaveL-234, build=Playmaker | DaveL-234 is opp/C (blocked: position=null) | The `against/null` proposed row is the DaveL-234 slot that had position=null — typed_v1 resolved the gamertag but not the position. This is progress (gamertag identified) but position still null. |
-| for/LW | gamertag=Pratt2016, build=Connor McDavid-PLY | gamertag=Pratt2016, build=Playmaker | Pratt2016, LW, build=Connor McDavid - Playmaker (canonical) | PARTIAL MATCH — gamertag correct. typed_v1 raw "Playmaker" vs legacy "Connor McDavid-PLY". V2 canonical would be "Connor McDavid - Playmaker". Same raw-vs-canonical issue as match 250. |
-| for/RW | gamertag=silkyjoker85, build=Cole Caufield-SNP | gamertag=silkyjoker85, build=Sniper | silkyjoker85, RW, build=Cole Caufield - Sniper (canonical) | PARTIAL MATCH — gamertag correct. Same raw-vs-canonical issue. |
-| against/LW | gamertag=B, build=null | gamertag=KLyons023, build=Sniper | KLyons023, LW, opp | IMPROVEMENT — legacy had garbage gamertag "B" (OCR junk); typed_v1 correctly reads KLyons023. This is a real correction. |
-| for/RD | gamertag=Orygoon-Ducks, build=null, jersey=77 | gamertag=Orygoon-Ducks, build=Puck Moving Defenseman, jersey=null | Orygoon-Ducks, RD | PARTIAL MATCH — gamertag correct, build correct. jersey regression (typed_v1 did not extract jersey_number reliably for this subject). |
-| for/null | build=MATTHEWTKACHUK-PWF | build=Power Forward | Stick Menace, C, build=Matthew Tkachuk - Power Forward | dev artifact slot (position null). typed_v1 correctly identifies raw build "Power Forward"; legacy had ALL-CAPS raw. |
+| Slot         | Legacy field value                             | Typed_v1 proposed                                                 | Ground truth                                                | Assessment                                                                                                                                                                                          |
+| ------------ | ---------------------------------------------- | ----------------------------------------------------------------- | ----------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| against/null | gamertag=(unknown)                             | gamertag=DaveL-234, build=Playmaker                               | DaveL-234 is opp/C (blocked: position=null)                 | The `against/null` proposed row is the DaveL-234 slot that had position=null — typed_v1 resolved the gamertag but not the position. This is progress (gamertag identified) but position still null. |
+| for/LW       | gamertag=Pratt2016, build=Connor McDavid-PLY   | gamertag=Pratt2016, build=Playmaker                               | Pratt2016, LW, build=Connor McDavid - Playmaker (canonical) | PARTIAL MATCH — gamertag correct. typed_v1 raw "Playmaker" vs legacy "Connor McDavid-PLY". V2 canonical would be "Connor McDavid - Playmaker". Same raw-vs-canonical issue as match 250.            |
+| for/RW       | gamertag=silkyjoker85, build=Cole Caufield-SNP | gamertag=silkyjoker85, build=Sniper                               | silkyjoker85, RW, build=Cole Caufield - Sniper (canonical)  | PARTIAL MATCH — gamertag correct. Same raw-vs-canonical issue.                                                                                                                                      |
+| against/LW   | gamertag=B, build=null                         | gamertag=KLyons023, build=Sniper                                  | KLyons023, LW, opp                                          | IMPROVEMENT — legacy had garbage gamertag "B" (OCR junk); typed_v1 correctly reads KLyons023. This is a real correction.                                                                            |
+| for/RD       | gamertag=Orygoon-Ducks, build=null, jersey=77  | gamertag=Orygoon-Ducks, build=Puck Moving Defenseman, jersey=null | Orygoon-Ducks, RD                                           | PARTIAL MATCH — gamertag correct, build correct. jersey regression (typed_v1 did not extract jersey_number reliably for this subject).                                                              |
+| for/null     | build=MATTHEWTKACHUK-PWF                       | build=Power Forward                                               | Stick Menace, C, build=Matthew Tkachuk - Power Forward      | dev artifact slot (position null). typed_v1 correctly identifies raw build "Power Forward"; legacy had ALL-CAPS raw.                                                                                |
 
 ### Categorical mismatch count — Match 463
 
-| Category | Count | Details |
-|---|---|---|
-| Gamertag categorical mismatches | 0 | All proposed gamertags are correct for their slot |
-| Build class categorical mismatches | 0 | All proposed build_class values are the raw form of the correct canonical (Playmaker, Sniper, Puck Moving Defenseman) |
-| Jersey number regressions | 1 | for/RD (Orygoon-Ducks) jersey was 77 in legacy; typed_v1 returned null |
-| is_captain regressions | 0 | No captain expected in this match |
-| Categorical improvements | 1 | against/LW: KLyons023 corrects legacy garbage "B" |
+| Category                           | Count | Details                                                                                                               |
+| ---------------------------------- | ----- | --------------------------------------------------------------------------------------------------------------------- |
+| Gamertag categorical mismatches    | 0     | All proposed gamertags are correct for their slot                                                                     |
+| Build class categorical mismatches | 0     | All proposed build_class values are the raw form of the correct canonical (Playmaker, Sniper, Puck Moving Defenseman) |
+| Jersey number regressions          | 1     | for/RD (Orygoon-Ducks) jersey was 77 in legacy; typed_v1 returned null                                                |
+| is_captain regressions             | 0     | No captain expected in this match                                                                                     |
+| Categorical improvements           | 1     | against/LW: KLyons023 corrects legacy garbage "B"                                                                     |
 
 **Categorical mismatches (raw value wrong, not just regression):** 0
 
 ### Attribute integer drift — Match 463
 
-Same situation as match 250: typed_v1 attribute field keys (`attribute_*_value`) do
-not match promoter field keys (`attr_*`). The proposed attribute count = 0 for all
+Same situation as match 250: typed*v1 attribute field keys (`attribute*_*value`) do
+not match promoter field keys (`attr*_`). The proposed attribute count = 0 for all
 new typed_v1 rows. Legacy attribute rows (9890) remain in DB through the rolled-back
 dry-run. Attribute comparison blocked by the field key mismatch finding.
 
@@ -275,8 +280,8 @@ dry-run. Attribute comparison blocked by the field key mismatch finding.
 
 ### Finding 1 (BLOCKER): Attribute field key mismatch
 
-The typed_v1 extractor uses `attribute_{name}_{value|delta}` field keys. The
-promoter expects `attr_{name}`. Result: zero attribute evidence reaches the promoter,
+The typed*v1 extractor uses `attribute*{name}_{value|delta}`field keys. The
+promoter expects`attr_{name}`. Result: zero attribute evidence reaches the promoter,
 zero `player_loadout_attributes` rows will be written after cutover.
 
 This is a hard blocker for attribute coverage but does NOT affect the safety of the
@@ -351,33 +356,33 @@ matched via partial normalization, or the typed_v1 subject03 resolved differentl
 
 ### Match 250
 
-| Side | Pos | Legacy gamertag | Typed_v1 gamertag | Match? | Legacy build | Typed_v1 build | Build match? |
-|------|-----|-----------------|-------------------|--------|--------------|----------------|--------------|
-| for | C | MrHomiecide | MrHomiecide | YES (blocked, pos=null) | Playmaker | Playmaker | YES |
-| for | LW | StickMenace | StickMenace | YES | Tage Thompson-PWF | Power Forward | RAW ONLY |
-| for | RW | silkyjoker85 | silkyjoker85 | YES | Cole Caufield-SNP | Sniper | RAW ONLY |
-| for | LD | HenryTheBobJr | HenryTheBobJr | YES | Puck Moving Defenseman | Puck Moving Defenseman | YES |
-| for | RD | JoeyFlopfish | (not extracted) | NOT OBSERVED | Puck Moving Defenseman | — | — |
-| against | C | XZ4RKY | XZ4RKY | YES | Two-Way Forward | Two-Way Forward | YES |
-| against | LW | DuhPope | Duh Pope | YES (whitespace) | Sniper | Sniper | YES |
-| against | RW | RAIDERSG7 | RAIDERSG7 | YES | Sniper | Sniper | YES |
-| against | LD | MuttButt | MuttButt | YES | Defensive Defenseman | Defensive Defenseman | YES |
-| against | RD | shadowassault20 | shadowassault20 | YES | Puck Moving Defenseman | Puck Moving Defenseman | YES |
+| Side    | Pos | Legacy gamertag | Typed_v1 gamertag | Match?                  | Legacy build           | Typed_v1 build         | Build match? |
+| ------- | --- | --------------- | ----------------- | ----------------------- | ---------------------- | ---------------------- | ------------ |
+| for     | C   | MrHomiecide     | MrHomiecide       | YES (blocked, pos=null) | Playmaker              | Playmaker              | YES          |
+| for     | LW  | StickMenace     | StickMenace       | YES                     | Tage Thompson-PWF      | Power Forward          | RAW ONLY     |
+| for     | RW  | silkyjoker85    | silkyjoker85      | YES                     | Cole Caufield-SNP      | Sniper                 | RAW ONLY     |
+| for     | LD  | HenryTheBobJr   | HenryTheBobJr     | YES                     | Puck Moving Defenseman | Puck Moving Defenseman | YES          |
+| for     | RD  | JoeyFlopfish    | (not extracted)   | NOT OBSERVED            | Puck Moving Defenseman | —                      | —            |
+| against | C   | XZ4RKY          | XZ4RKY            | YES                     | Two-Way Forward        | Two-Way Forward        | YES          |
+| against | LW  | DuhPope         | Duh Pope          | YES (whitespace)        | Sniper                 | Sniper                 | YES          |
+| against | RW  | RAIDERSG7       | RAIDERSG7         | YES                     | Sniper                 | Sniper                 | YES          |
+| against | LD  | MuttButt        | MuttButt          | YES                     | Defensive Defenseman   | Defensive Defenseman   | YES          |
+| against | RD  | shadowassault20 | shadowassault20   | YES                     | Puck Moving Defenseman | Puck Moving Defenseman | YES          |
 
 ### Match 463
 
-| Side | Pos | Legacy gamertag | Typed_v1 gamertag | Match? | Legacy build | Typed_v1 build | Build match? |
-|------|-----|-----------------|-------------------|--------|--------------|----------------|--------------|
-| for | C | Stick Menace | StickMenace | YES (blocked, pos=null) | MatthewTkachuk-PWF | Power Forward | RAW ONLY |
-| for | LW | Pratt2016 | Pratt2016 | YES | Connor McDavid-PLY | Playmaker | RAW ONLY |
-| for | RW | silkyjoker85 | silkyjoker85 | YES | Cole Caufield-SNP | Sniper | RAW ONLY |
-| for | LD | HenryTheBobJr | HenryTheBobJr | YES | Puck Moving Defenseman | Puck Moving Defenseman | YES |
-| for | RD | Orygoon-Ducks | Orygoon-Ducks | YES | (null) | Puck Moving Defenseman | IMPROVEMENT |
-| against | C | DaveL-234 | DaveL-234 | YES (blocked, pos=null) | Playmaker | Playmaker | YES |
-| against | LW | B | KLyons023 | CORRECTION (legacy was junk) | (null) | Sniper | IMPROVEMENT |
-| against | RW | DAMIC02323 | DAMIC02323 (inferred) | — | — | — | — |
-| against | LD | WoolyWatBeef | WoolyWetBeef | VARIANT | Two-Way Defenseman | Two-Way Defenseman | YES |
-| against | RD | ENF | — | NOT OBSERVED | — | — | — |
+| Side    | Pos | Legacy gamertag | Typed_v1 gamertag     | Match?                       | Legacy build           | Typed_v1 build         | Build match? |
+| ------- | --- | --------------- | --------------------- | ---------------------------- | ---------------------- | ---------------------- | ------------ |
+| for     | C   | Stick Menace    | StickMenace           | YES (blocked, pos=null)      | MatthewTkachuk-PWF     | Power Forward          | RAW ONLY     |
+| for     | LW  | Pratt2016       | Pratt2016             | YES                          | Connor McDavid-PLY     | Playmaker              | RAW ONLY     |
+| for     | RW  | silkyjoker85    | silkyjoker85          | YES                          | Cole Caufield-SNP      | Sniper                 | RAW ONLY     |
+| for     | LD  | HenryTheBobJr   | HenryTheBobJr         | YES                          | Puck Moving Defenseman | Puck Moving Defenseman | YES          |
+| for     | RD  | Orygoon-Ducks   | Orygoon-Ducks         | YES                          | (null)                 | Puck Moving Defenseman | IMPROVEMENT  |
+| against | C   | DaveL-234       | DaveL-234             | YES (blocked, pos=null)      | Playmaker              | Playmaker              | YES          |
+| against | LW  | B               | KLyons023             | CORRECTION (legacy was junk) | (null)                 | Sniper                 | IMPROVEMENT  |
+| against | RW  | DAMIC02323      | DAMIC02323 (inferred) | —                            | —                      | —                      | —            |
+| against | LD  | WoolyWatBeef    | WoolyWetBeef          | VARIANT                      | Two-Way Defenseman     | Two-Way Defenseman     | YES          |
+| against | RD  | ENF             | —                     | NOT OBSERVED                 | —                      | —                      | —            |
 
 ---
 
@@ -394,8 +399,9 @@ There are three distinct mismatches:
 3. **`persona_raw` → `player_name_persona`:** All persona fields become null.
 
 **Fix options (apply consistently):**
-- Option A (preferred): Update the typed_v1 extractor to emit the correct field
-  keys (`attr_*`, `player_number`, `player_name_persona`), aligning with the
+
+- Option A (preferred): Update the typed*v1 extractor to emit the correct field
+  keys (`attr*\*`, `player_number`, `player_name_persona`), aligning with the
   fixture convention. Re-run evidence generation for matches 250 and 463.
 - Option B: Add a field key normalization shim that translates typed_v1 keys
   to the promoter's expected keys before writing to `ocr_field_evidence`.
@@ -421,7 +427,8 @@ Once the attribute field key mismatch is fixed:
 ### Threshold check (from plan spec)
 
 > If categorical mismatches exceed expectation (provisional threshold: >0 for match 250,
-> >2 fields for matches 463/1/2), abort cutover and investigate.
+>
+> > 2 fields for matches 463/1/2), abort cutover and investigate.
 
 - Match 250: **0 categorical mismatches.** Threshold: 0 allowed. **PASS.**
 - Match 463: **0 categorical mismatches.** Threshold: 2 allowed. **PASS.**
@@ -467,6 +474,7 @@ One-shot evidence seeder used for this inspection:
 `apps/worker/src/__scripts__/phase-2b-parallel-diff-2026-05-21.ts`
 
 Run with:
+
 ```bash
 set -a && source .env && set +a
 pnpm --filter worker phase-2b-parallel-diff
@@ -486,12 +494,12 @@ Field-key mismatches resolved in `apps/worker/src/ocr-promoters/loadout-v2.ts`.
 The promoter now accepts the typed_v1 extractor's field_key naming conventions and
 maps them to canonical DB columns at INSERT time (Option B+C from the plan):
 
-| Extractor field_key | Internal alias / handling | DB column |
-|---|---|---|
-| `jersey_number` | aliased → `player_number` at grouping time | `player_number` |
-| `persona_raw` | aliased → `player_name_persona` at grouping time | `player_name_persona_raw` + `player_name_persona` |
-| `attribute_{name}_value` | parsed by `parseExtractorAttributeKey()` | `player_loadout_attributes.value` |
-| `attribute_{name}_delta` | parsed by `parseExtractorAttributeKey()` | `player_loadout_attributes.delta_value` |
+| Extractor field_key      | Internal alias / handling                        | DB column                                         |
+| ------------------------ | ------------------------------------------------ | ------------------------------------------------- |
+| `jersey_number`          | aliased → `player_number` at grouping time       | `player_number`                                   |
+| `persona_raw`            | aliased → `player_name_persona` at grouping time | `player_name_persona_raw` + `player_name_persona` |
+| `attribute_{name}_value` | parsed by `parseExtractorAttributeKey()`         | `player_loadout_attributes.value`                 |
+| `attribute_{name}_delta` | parsed by `parseExtractorAttributeKey()`         | `player_loadout_attributes.delta_value`           |
 
 **Attribute merging:** Each canonical attribute name now produces ONE
 `player_loadout_attributes` row with both `value` and `delta_value` columns populated,
@@ -507,6 +515,7 @@ Re-ran the seeder (`phase-2b-parallel-diff-2026-05-21.ts`) and the dry-run promo
 against matches 250 and 463 after the fix.
 
 **Match 250:**
+
 - Snapshots: 8 new (typed_v1) — 3 x_factor rows per snapshot (24 total new)
 - Attributes: **23 per snapshot × 8 snapshots = 184 new attribute rows** (was 0)
 - Jersey numbers: now populated where typed_v1 evidence was good quality
@@ -514,15 +523,17 @@ against matches 250 and 463 after the fix.
 - Persona: `persona_raw` evidence recognized and aliased to `player_name_persona`
 
 **Match 463:**
+
 - Snapshots: 7 new (typed_v1) — 3 x_factor rows per snapshot (21 total new)
 - Attributes: **23 per snapshot × 7 snapshots = 161 new attribute rows** (was 0)
 - Jersey numbers: now populated where evidence available
   (`playerNumber: null → 63` for for/LW, `null → 7` for for/LD, `null → 10` for for/RW,
-   `null → 26` for against/LW)
+  `null → 26` for against/LW)
 
 ### Post-fix test suite results
 
 All 4 promoter test suites pass (38 tests total):
+
 - `loadout-promotion-gate.test`: 8/8 pass
 - `loadout-canonical-row-fixture.test` (T6A): 10/10 pass (10 snapshots, 30 x_factors, 230 attributes for match 9001)
 - `match-463-loadout-slots-fixture.test` (T2A): 4/4 pass
@@ -533,6 +544,7 @@ All 4 promoter test suites pass (38 tests total):
 **SAFE TO PROCEED with Task 2B-8 cutover.**
 
 All three field-key mismatches are resolved:
+
 1. `attribute_{name}_{value|delta}` → promoter now writes 23 attribute rows per snapshot
 2. `jersey_number` → aliased to `player_number`; jersey numbers populate correctly
 3. `persona_raw` → aliased to `player_name_persona`; persona evidence flows through
@@ -549,6 +561,7 @@ Two additional fixes implemented to reach 10-of-10 player coverage per match.
 ### Changes implemented
 
 **Gap 1 — PositionGrid (geometric inference):**
+
 - Added `PositionGrid` dataclass and `build_position_grids()` function to
   `slot_identity.py`. When RapidOCR misses single-char position labels (C, G)
   but detects ≥2 multi-char ones (LW, RW, LD, RD), infer missing positions using
@@ -563,6 +576,7 @@ Two additional fixes implemented to reach 10-of-10 player coverage per match.
   get inferred positions → previously blocked subjects now promote.
 
 **Gap 2 — Roster-only extraction:**
+
 - Added `extract_roster_only_identities()` function to `slot_identity.py`. For each
   left-strip row whose gamertag does NOT fuzzy-match the subject, emit a
   `SubjectIdentity` with identity fields populated but `build_class_raw=None`.
@@ -583,17 +597,19 @@ Two additional fixes implemented to reach 10-of-10 player coverage per match.
 
 ### Post-fix expected results (to be verified by re-running Pass-2 + dry-run)
 
-| Match | Before | Expected after |
-|-------|--------|----------------|
-| 250 | 8 promotable snapshots (9 bundles; 1 blocked on position) | 10 promotable snapshots |
-| 463 | 7 promotable snapshots (9 bundles; 2 blocked on position) | 10 promotable snapshots |
+| Match | Before                                                    | Expected after          |
+| ----- | --------------------------------------------------------- | ----------------------- |
+| 250   | 8 promotable snapshots (9 bundles; 1 blocked on position) | 10 promotable snapshots |
+| 463   | 7 promotable snapshots (9 bundles; 2 blocked on position) | 10 promotable snapshots |
 
 Expected breakdown for match 250:
+
 - 9 subject-view bundles: 9 promotable (MrHomiecide now has inferred position C)
 - 1 roster-only bundle: JoeyFlopfish (for/RD) with identity only
 - Total: 10 snapshots
 
 Expected breakdown for match 463:
+
 - 9 subject-view bundles: 9 promotable (StickMenace + DaveL-234 now have inferred positions)
 - Any additional roster-only entries for players not navigated to
 - Minimum: 10 snapshots
@@ -602,6 +618,7 @@ Expected breakdown for match 463:
 
 `tools/game_ocr/calibration/extras/loadout/fixtures/fixture_match250_full_lobby/expected_loadout_evidence.json`
 was regenerated to reflect the improved extraction:
+
 - subject00 (MrHomiecide): `jersey_number` now 11 (previously None), `persona_raw`
   now 'Evgeni Wanhg' (previously None) — these were always in the OCR lines but the
   match was blocked by missing position anchor; PositionGrid inference now finds the row.
@@ -611,14 +628,16 @@ was regenerated to reflect the improved extraction:
 ### Test suite impact
 
 New tests added (Step 7):
+
 - `test_subject_identity.py`: 20 new tests for PositionGrid, position_for_row_y,
   extract_roster_only_identities, and inferred-position subject extraction
 - `test_loadout_subject_bundle.py`: 3 new tests for `is_subject_view` flag
 
 Pre-existing test failures (NOT caused by this work):
+
 - `test_loadout_closed_vocab.py::TestErrorCases::test_predict_log_probs_raises_not_implemented`
 - `test_loadout_closed_vocab.py::TestExtractorVersion::test_extractor_version_is_stamped`
-These were failing before this PR (version string and error type mismatches unrelated to identity/roster extraction).
+  These were failing before this PR (version string and error type mismatches unrelated to identity/roster extraction).
 
 ---
 
@@ -664,12 +683,13 @@ his build". Investigation traced the actual recording at
 
 ### Post-fix dry-run results
 
-| Match | Promoted before | Promoted after | New slots |
-|---|---|---|---|
-| 250 | 8 | **10** | JoeyFlopfish RD #48 (no build_class, roster-only), RAIDERSG7 RW #7 Sniper |
-| 463 | 8 | 8 | unchanged (no new gamertags emerged from these fixes for 463) |
+| Match | Promoted before | Promoted after | New slots                                                                 |
+| ----- | --------------- | -------------- | ------------------------------------------------------------------------- |
+| 250   | 8               | **10**         | JoeyFlopfish RD #48 (no build_class, roster-only), RAIDERSG7 RW #7 Sniper |
+| 463   | 8               | 8              | unchanged (no new gamertags emerged from these fixes for 463)             |
 
 Match 250 final dry-run output:
+
 ```
 [DRY-RUN] Newly-written by typed_v1 promoter: 10 snapshots
     > for|C: MrHomiecide #11 build=Playmaker persona=Evgeni Wanhg
@@ -745,12 +765,13 @@ Joey/RAIDERSG7 work. Found three independent issues affecting opponents:
 
 ### Post-fix results
 
-| Match | Promoted | Notes |
-|---|---|---|
-| 250 | **10** | full lineup; no regression from this update |
-| 463 | **9** | DaveL-234 now `against|C`, DAMIC02323 now `against|RW`; Thick Ooze (10th) absent from evidence entirely |
+| Match | Promoted | Notes                                       |
+| ----- | -------- | ------------------------------------------- | --------------------------- | ---------------------------------------------------- |
+| 250   | **10**   | full lineup; no regression from this update |
+| 463   | **9**    | DaveL-234 now `against                      | C`, DAMIC02323 now `against | RW`; Thick Ooze (10th) absent from evidence entirely |
 
 Match 463 final dry-run output:
+
 ```
 [DRY-RUN] Newly-written by typed_v1 promoter: 9 snapshots
     > for|C: StickMenace #96 build=Power Forward persona=MikkoRantanen

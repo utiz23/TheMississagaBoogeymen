@@ -65,9 +65,7 @@ export async function rebuildCanonicalsFromActiveRun(
     .where(and(eq(ocrDecoderRuns.matchId, matchId), eq(ocrDecoderRuns.isActive, true)))
     .limit(1)
   if (activeRows.length === 0) {
-    throw new Error(
-      `rebuildCanonicalsFromActiveRun: no active run for match ${matchId}`,
-    )
+    throw new Error(`rebuildCanonicalsFromActiveRun: no active run for match ${matchId}`)
   }
   const activeRunId = activeRows[0]!.id
 
@@ -86,9 +84,7 @@ export async function rebuildCanonicalsFromActiveRun(
     await db
       .delete(playerLoadoutAttributes)
       .where(inArray(playerLoadoutAttributes.loadoutSnapshotId, priorSnapshotIds))
-    await db
-      .delete(playerLoadoutSnapshots)
-      .where(eq(playerLoadoutSnapshots.matchId, matchId))
+    await db.delete(playerLoadoutSnapshots).where(eq(playerLoadoutSnapshots.matchId, matchId))
   }
 
   // Re-run the v2 promoters with the active run id. The promoters'

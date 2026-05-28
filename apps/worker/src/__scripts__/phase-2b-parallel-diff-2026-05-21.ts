@@ -93,10 +93,7 @@ function clamp64(v: number | null | undefined): string | null {
   return Math.min(v, 9.9999).toFixed(4)
 }
 
-function mapFrameIdsToExtractionIds(
-  frameIds: number[],
-  extractionIdBase: number,
-): number[] {
+function mapFrameIdsToExtractionIds(frameIds: number[], extractionIdBase: number): number[] {
   return frameIds.map((fid) => extractionIdBase + fid)
 }
 
@@ -123,7 +120,9 @@ async function main(): Promise<void> {
       .delete(ocrFieldEvidence)
       .where(eq(ocrFieldEvidence.matchId, cfg.matchId))
       .returning({ id: ocrFieldEvidence.id })
-    console.log(`Cleared ${String(deleted.length)} existing ocr_field_evidence rows for match ${String(cfg.matchId)}`)
+    console.log(
+      `Cleared ${String(deleted.length)} existing ocr_field_evidence rows for match ${String(cfg.matchId)}`,
+    )
 
     // Build insert rows
     const rows: NewOcrFieldEvidence[] = records.map((rec): NewOcrFieldEvidence => {
@@ -167,18 +166,24 @@ async function main(): Promise<void> {
       await db.insert(ocrFieldEvidence).values(chunk)
       inserted += chunk.length
     }
-    console.log(`Inserted ${String(inserted)} ocr_field_evidence rows for match ${String(cfg.matchId)}`)
+    console.log(
+      `Inserted ${String(inserted)} ocr_field_evidence rows for match ${String(cfg.matchId)}`,
+    )
 
     // Verify
     const verifyResult = await db
       .select({ count: drizzleSql<number>`count(*)::int` })
       .from(ocrFieldEvidence)
-      .where(and(
-        eq(ocrFieldEvidence.matchId, cfg.matchId),
-        eq(ocrFieldEvidence.screenState, 'player_loadout_view'),
-      ))
+      .where(
+        and(
+          eq(ocrFieldEvidence.matchId, cfg.matchId),
+          eq(ocrFieldEvidence.screenState, 'player_loadout_view'),
+        ),
+      )
     const count = verifyResult[0]?.count ?? 0
-    console.log(`Verified: ${String(count)} player_loadout_view rows in DB for match ${String(cfg.matchId)}`)
+    console.log(
+      `Verified: ${String(count)} player_loadout_view rows in DB for match ${String(cfg.matchId)}`,
+    )
   }
 
   console.log('\n=========================================================')

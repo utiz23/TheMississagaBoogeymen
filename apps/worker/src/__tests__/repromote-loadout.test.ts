@@ -106,8 +106,20 @@ async function seedSentinelPlayers9011(): Promise<void> {
   await db
     .insert(playerMatchStats)
     .values([
-      { id: 991010, matchId: SENTINEL_WITH_EVIDENCE, playerId: 99101, position: 'center', isGoalie: false },
-      { id: 991011, matchId: SENTINEL_WITH_EVIDENCE, playerId: 99102, position: 'leftWing', isGoalie: false },
+      {
+        id: 991010,
+        matchId: SENTINEL_WITH_EVIDENCE,
+        playerId: 99101,
+        position: 'center',
+        isGoalie: false,
+      },
+      {
+        id: 991011,
+        matchId: SENTINEL_WITH_EVIDENCE,
+        playerId: 99102,
+        position: 'leftWing',
+        isGoalie: false,
+      },
     ])
     .onConflictDoNothing()
 
@@ -182,7 +194,11 @@ async function insertSentinelBatchAndSegment(
  *
  * For the dry-run test we seed two 'for' slots (BGM) and one 'against' slot (OPP).
  */
-async function seedMinimalEvidence(matchId: number, segmentId: number, extractionId: number): Promise<void> {
+async function seedMinimalEvidence(
+  matchId: number,
+  segmentId: number,
+  extractionId: number,
+): Promise<void> {
   // Build a typed evidence record. All common fields are set here; per-slot
   // overrides are applied in the records array.
   function makeEvidence(
@@ -250,8 +266,12 @@ async function cleanupSentinelMatches(matchIds: number[]): Promise<void> {
   const snapIds = snapRows.map((s) => s.id)
 
   if (snapIds.length > 0) {
-    await db.delete(playerLoadoutXFactors).where(inArray(playerLoadoutXFactors.loadoutSnapshotId, snapIds))
-    await db.delete(playerLoadoutAttributes).where(inArray(playerLoadoutAttributes.loadoutSnapshotId, snapIds))
+    await db
+      .delete(playerLoadoutXFactors)
+      .where(inArray(playerLoadoutXFactors.loadoutSnapshotId, snapIds))
+    await db
+      .delete(playerLoadoutAttributes)
+      .where(inArray(playerLoadoutAttributes.loadoutSnapshotId, snapIds))
     await db.delete(playerLoadoutSnapshots).where(inArray(playerLoadoutSnapshots.matchId, matchIds))
   }
 
@@ -289,13 +309,18 @@ async function cleanupSentinelMatches(matchIds: number[]): Promise<void> {
 
   // player_match_stats / opponent_player_match_stats
   await db.delete(playerMatchStats).where(inArray(playerMatchStats.matchId, matchIds))
-  await db.delete(opponentPlayerMatchStats).where(inArray(opponentPlayerMatchStats.matchId, matchIds))
+  await db
+    .delete(opponentPlayerMatchStats)
+    .where(inArray(opponentPlayerMatchStats.matchId, matchIds))
 
   await db.delete(matches).where(inArray(matches.id, matchIds))
 
   // sentinel players
   await db.delete(players).where(
-    inArray(players.id, SENTINEL_PLAYERS_9011.map((p) => p.id)),
+    inArray(
+      players.id,
+      SENTINEL_PLAYERS_9011.map((p) => p.id),
+    ),
   )
 }
 
@@ -415,7 +440,12 @@ describe('repromote-loadout CLI behavior', () => {
 
   // ── T4: diffSnapshotArrays unit test (pure function, no DB) ──────────────
   test('diffSnapshotArrays detects added/removed/changed correctly', () => {
-    const snap = (teamSide: string, position: string, gamertag: string, extra?: Partial<CanonicalSnapshot>): CanonicalSnapshot => ({
+    const snap = (
+      teamSide: string,
+      position: string,
+      gamertag: string,
+      extra?: Partial<CanonicalSnapshot>,
+    ): CanonicalSnapshot => ({
       id: 1,
       matchId: 9010,
       teamSide,

@@ -68,24 +68,12 @@ async function cleanupMatch(matchId: number): Promise<void> {
       .delete(playerLoadoutAttributes)
       .where(inArray(playerLoadoutAttributes.loadoutSnapshotId, snapIds))
   }
-  await db
-    .delete(playerLoadoutSnapshots)
-    .where(eq(playerLoadoutSnapshots.matchId, matchId))
-  await db
-    .delete(ocrPromotions)
-    .where(eq(ocrPromotions.matchId, matchId))
-  await db
-    .delete(ocrFieldEvidence)
-    .where(eq(ocrFieldEvidence.matchId, matchId))
-  await db
-    .delete(ocrExtractions)
-    .where(eq(ocrExtractions.matchId, matchId))
-  await db
-    .delete(ocrCaptureBatches)
-    .where(eq(ocrCaptureBatches.matchId, matchId))
-  await db
-    .delete(ocrDecoderRuns)
-    .where(eq(ocrDecoderRuns.matchId, matchId))
+  await db.delete(playerLoadoutSnapshots).where(eq(playerLoadoutSnapshots.matchId, matchId))
+  await db.delete(ocrPromotions).where(eq(ocrPromotions.matchId, matchId))
+  await db.delete(ocrFieldEvidence).where(eq(ocrFieldEvidence.matchId, matchId))
+  await db.delete(ocrExtractions).where(eq(ocrExtractions.matchId, matchId))
+  await db.delete(ocrCaptureBatches).where(eq(ocrCaptureBatches.matchId, matchId))
+  await db.delete(ocrDecoderRuns).where(eq(ocrDecoderRuns.matchId, matchId))
   await db.delete(matches).where(eq(matches.id, matchId))
 }
 
@@ -136,10 +124,7 @@ interface SetupFixtureResult {
  */
 async function setupFixtureMatch(eaMatchSuffix: string): Promise<SetupFixtureResult> {
   // Two existing players → two distinct resolvable gamertags.
-  const existingPlayers = await db
-    .select({ gamertag: players.gamertag })
-    .from(players)
-    .limit(2)
+  const existingPlayers = await db.select({ gamertag: players.gamertag }).from(players).limit(2)
   assert.ok(
     existingPlayers[0] && existingPlayers[1],
     'DB must have at least two players for this test',

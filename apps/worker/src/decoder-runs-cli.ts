@@ -41,11 +41,7 @@
  *   1 — argument validation error, unknown subcommand, or DB error
  *   2 — `validate` returned ok=false (fail-soft)
  */
-import {
-  db,
-  sql as sqlTag,
-  ocrDecoderRuns,
-} from '@eanhl/db'
+import { db, sql as sqlTag, ocrDecoderRuns } from '@eanhl/db'
 import { and, desc, eq, sql } from 'drizzle-orm'
 
 import { rebuildCanonicalsFromActiveRun } from './lib/rebuild-canonicals-from-active-run.js'
@@ -64,9 +60,7 @@ async function createCandidate(argv: string[]): Promise<void> {
   }
   const matchId = Number(matchIdRaw)
   if (!Number.isFinite(matchId) || !Number.isInteger(matchId) || matchId <= 0) {
-    throw new Error(
-      `create-candidate requires --match-id <positive integer>; got: ${matchIdRaw}`,
-    )
+    throw new Error(`create-candidate requires --match-id <positive integer>; got: ${matchIdRaw}`)
   }
 
   const decoderVersion = getFlag(argv, 'decoder-version')
@@ -100,9 +94,7 @@ async function createCandidate(argv: string[]): Promise<void> {
     throw new Error('create-candidate: insert returned no row')
   }
 
-  process.stdout.write(
-    JSON.stringify({ run_id: row.id, is_active: row.isActive }) + '\n',
-  )
+  process.stdout.write(JSON.stringify({ run_id: row.id, is_active: row.isActive }) + '\n')
 }
 
 /**
@@ -110,17 +102,12 @@ async function createCandidate(argv: string[]): Promise<void> {
  * value is present but not a finite non-negative integer (rejecting
  * `'abc'`, `'-3'`, `'4.5'`, etc.).
  */
-function parseOptionalNonNegativeInt(
-  argv: string[],
-  name: string,
-): number | undefined {
+function parseOptionalNonNegativeInt(argv: string[], name: string): number | undefined {
   const raw = getFlag(argv, name)
   if (raw === undefined) return undefined
   const n = Number(raw)
   if (!Number.isFinite(n) || !Number.isInteger(n) || n < 0) {
-    throw new Error(
-      `--${name} must be a non-negative integer; got: ${raw}`,
-    )
+    throw new Error(`--${name} must be a non-negative integer; got: ${raw}`)
   }
   return n
 }
@@ -132,9 +119,7 @@ async function validate(argv: string[]): Promise<void> {
   }
   const runId = Number(runIdRaw)
   if (!Number.isFinite(runId) || !Number.isInteger(runId) || runId <= 0) {
-    throw new Error(
-      `validate requires --run-id <positive integer>; got: ${runIdRaw}`,
-    )
+    throw new Error(`validate requires --run-id <positive integer>; got: ${runIdRaw}`)
   }
 
   const minLoadout = parseOptionalNonNegativeInt(argv, 'min-loadout')
@@ -166,9 +151,7 @@ async function activate(argv: string[]): Promise<void> {
   }
   const runId = Number(runIdRaw)
   if (!Number.isFinite(runId) || !Number.isInteger(runId) || runId <= 0) {
-    throw new Error(
-      `activate requires --run-id <positive integer>; got: ${runIdRaw}`,
-    )
+    throw new Error(`activate requires --run-id <positive integer>; got: ${runIdRaw}`)
   }
   const dryRun = argv.includes('--dry-run')
 
@@ -190,12 +173,7 @@ async function activate(argv: string[]): Promise<void> {
     const [prior] = await db
       .select({ id: ocrDecoderRuns.id })
       .from(ocrDecoderRuns)
-      .where(
-        and(
-          eq(ocrDecoderRuns.matchId, matchId),
-          eq(ocrDecoderRuns.isActive, true),
-        ),
-      )
+      .where(and(eq(ocrDecoderRuns.matchId, matchId), eq(ocrDecoderRuns.isActive, true)))
       .limit(1)
     process.stdout.write(
       JSON.stringify({
@@ -220,12 +198,7 @@ async function activate(argv: string[]): Promise<void> {
     await tx
       .update(ocrDecoderRuns)
       .set({ isActive: false })
-      .where(
-        and(
-          eq(ocrDecoderRuns.matchId, matchId),
-          eq(ocrDecoderRuns.isActive, true),
-        ),
-      )
+      .where(and(eq(ocrDecoderRuns.matchId, matchId), eq(ocrDecoderRuns.isActive, true)))
     await tx
       .update(ocrDecoderRuns)
       .set({ isActive: true, completedAt: new Date() })
@@ -260,9 +233,7 @@ async function undo(argv: string[]): Promise<void> {
   }
   const matchId = Number(matchIdRaw)
   if (!Number.isFinite(matchId) || !Number.isInteger(matchId) || matchId <= 0) {
-    throw new Error(
-      `undo requires --match-id <positive integer>; got: ${matchIdRaw}`,
-    )
+    throw new Error(`undo requires --match-id <positive integer>; got: ${matchIdRaw}`)
   }
   const dryRun = argv.includes('--dry-run')
 
@@ -285,11 +256,7 @@ async function undo(argv: string[]): Promise<void> {
     throw new Error(`undo: no prior inactive run found for match ${matchId}`)
   }
   // Delegate to activate. Same atomic flip + canonical rebuild applies.
-  await activate([
-    '--run-id',
-    String(prior[0]!.id),
-    ...(dryRun ? ['--dry-run'] : []),
-  ])
+  await activate(['--run-id', String(prior[0]!.id), ...(dryRun ? ['--dry-run'] : [])])
 }
 
 async function main(): Promise<void> {
@@ -317,8 +284,7 @@ async function main(): Promise<void> {
 main()
   .then(() => process.exit(0))
   .catch((err: unknown) => {
-    const msg =
-      err instanceof Error ? err.message : typeof err === 'string' ? err : String(err)
+    const msg = err instanceof Error ? err.message : typeof err === 'string' ? err : String(err)
     console.error(msg)
     process.exit(1)
   })

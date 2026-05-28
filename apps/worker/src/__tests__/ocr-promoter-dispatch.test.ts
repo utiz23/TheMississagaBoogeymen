@@ -205,7 +205,9 @@ describe('ocr-promoter-dispatch (Task 2A-18)', () => {
         {},
         {
           get(_target, prop) {
-            throw new Error(`DB method "${String(prop)}" called but typed_v1 guard should short-circuit`)
+            throw new Error(
+              `DB method "${String(prop)}" called but typed_v1 guard should short-circuit`,
+            )
           },
         },
       )
@@ -242,7 +244,11 @@ describe('ocr-promoter-dispatch (Task 2A-18)', () => {
       } catch {
         // expected — mock throws
       }
-      assert.equal(dbCalled, true, 'state_1 must enter legacy promoter even when lobbyEngine=typed_v1')
+      assert.equal(
+        dbCalled,
+        true,
+        'state_1 must enter legacy promoter even when lobbyEngine=typed_v1',
+      )
     })
 
     test('pre_game_lobby_state_2 enters legacy when lobbyEngine=undefined', async () => {

@@ -248,7 +248,11 @@ void test('validateCandidateRun returns ok=true with floor-satisfying promotions
 
   const result = await validateCandidateRun(fx.runId)
 
-  assert.equal(result.ok, true, `expected ok=true, got reasons: ${result.details.failureReasons.join(', ')}`)
+  assert.equal(
+    result.ok,
+    true,
+    `expected ok=true, got reasons: ${result.details.failureReasons.join(', ')}`,
+  )
   assert.equal(result.details.runId, fx.runId)
   assert.equal(result.details.matchId, fx.matchId)
   assert.equal(result.details.loadoutPromotionCount, 5)
@@ -269,10 +273,18 @@ void test('validateCandidateRun returns ok=false when extractor errors are prese
   const result = await validateCandidateRun(fx.runId)
 
   assert.equal(result.ok, false, 'expected ok=false when extractor errors are non-zero')
-  assert.equal(result.details.extractorErrors.length, 1, 'expected one bucket for the single error kind')
+  assert.equal(
+    result.details.extractorErrors.length,
+    1,
+    'expected one bucket for the single error kind',
+  )
   assert.equal(result.details.extractorErrors[0]!.count, 3)
   const reasonsJoined = result.details.failureReasons.join(' | ')
-  assert.match(reasonsJoined, /extractor errors/i, `expected reasons to mention extractor errors; got: ${reasonsJoined}`)
+  assert.match(
+    reasonsJoined,
+    /extractor errors/i,
+    `expected reasons to mention extractor errors; got: ${reasonsJoined}`,
+  )
 })
 
 void test('validateCandidateRun returns ok=false when loadout promotion count is below floor', async () => {
@@ -292,7 +304,11 @@ void test('validateCandidateRun returns ok=false when loadout promotion count is
   // Must mention the actual count (2) and the floor (5).
   assert.match(reasonsJoined, /2/, `expected reasons to mention the count 2; got: ${reasonsJoined}`)
   assert.match(reasonsJoined, /5/, `expected reasons to mention the floor 5; got: ${reasonsJoined}`)
-  assert.match(reasonsJoined, /loadout/i, `expected reasons to mention "loadout"; got: ${reasonsJoined}`)
+  assert.match(
+    reasonsJoined,
+    /loadout/i,
+    `expected reasons to mention "loadout"; got: ${reasonsJoined}`,
+  )
 })
 
 void test('validateCandidateRun throws when the run does not exist', async () => {

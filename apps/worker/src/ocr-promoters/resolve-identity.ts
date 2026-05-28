@@ -223,15 +223,10 @@ export async function resolveActorForMatch(
     .selectDistinct({ playerId: playerLoadoutSnapshots.playerId })
     .from(playerLoadoutSnapshots)
     .where(
-      and(
-        eq(playerLoadoutSnapshots.matchId, matchId),
-        isNotNull(playerLoadoutSnapshots.playerId),
-      ),
+      and(eq(playerLoadoutSnapshots.matchId, matchId), isNotNull(playerLoadoutSnapshots.playerId)),
     )
   const lineupPlayerIds = new Set<number>(
-    lineupRows
-      .map((r) => r.playerId)
-      .filter((id): id is number => id !== null),
+    lineupRows.map((r) => r.playerId).filter((id): id is number => id !== null),
   )
   if (lineupPlayerIds.size === 0) {
     return {

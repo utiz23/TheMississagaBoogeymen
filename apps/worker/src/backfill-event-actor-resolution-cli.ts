@@ -114,10 +114,7 @@ interface BackfillOptions {
   verbose: boolean
 }
 
-async function backfillMatch(
-  matchId: number,
-  opts: BackfillOptions,
-): Promise<MatchCounters> {
+async function backfillMatch(matchId: number, opts: BackfillOptions): Promise<MatchCounters> {
   // 1. Resolve game_title_id once.
   const [match] = await db
     .select({ gameTitleId: matches.gameTitleId })
@@ -228,31 +225,17 @@ async function backfillMatch(
         promoterTx,
       )
       const newPrimary = g.primaryAssistSnapshot
-        ? await resolveActorForMatch(
-            g.primaryAssistSnapshot,
-            matchId,
-            gameTitleId,
-            promoterTx,
-          )
+        ? await resolveActorForMatch(g.primaryAssistSnapshot, matchId, gameTitleId, promoterTx)
         : { playerId: null as number | null }
       const newSecondary = g.secondaryAssistSnapshot
-        ? await resolveActorForMatch(
-            g.secondaryAssistSnapshot,
-            matchId,
-            gameTitleId,
-            promoterTx,
-          )
+        ? await resolveActorForMatch(g.secondaryAssistSnapshot, matchId, gameTitleId, promoterTx)
         : { playerId: null as number | null }
 
       const scorerDelta = classifyChange(g.scorerPlayerId, newScorer.playerId)
       const primaryDelta = classifyChange(g.primaryAssistPlayerId, newPrimary.playerId)
-      const secondaryDelta = classifyChange(
-        g.secondaryAssistPlayerId,
-        newSecondary.playerId,
-      )
+      const secondaryDelta = classifyChange(g.secondaryAssistPlayerId, newSecondary.playerId)
 
-      const goalChanged =
-        scorerDelta.changed || primaryDelta.changed || secondaryDelta.changed
+      const goalChanged = scorerDelta.changed || primaryDelta.changed || secondaryDelta.changed
       if (goalChanged) counters.goal_changes++
 
       if (opts.verbose && goalChanged) {
@@ -269,12 +252,8 @@ async function backfillMatch(
           .update(matchGoalEvents)
           .set({
             ...(scorerDelta.changed ? { scorerPlayerId: newScorer.playerId } : {}),
-            ...(primaryDelta.changed
-              ? { primaryAssistPlayerId: newPrimary.playerId }
-              : {}),
-            ...(secondaryDelta.changed
-              ? { secondaryAssistPlayerId: newSecondary.playerId }
-              : {}),
+            ...(primaryDelta.changed ? { primaryAssistPlayerId: newPrimary.playerId } : {}),
+            ...(secondaryDelta.changed ? { secondaryAssistPlayerId: newSecondary.playerId } : {}),
           })
           .where(eq(matchGoalEvents.eventId, g.eventId))
       }
@@ -335,9 +314,7 @@ async function main(): Promise<void> {
     throw new Error('--match and --all are mutually exclusive')
   }
   if (!matchFlag && !all) {
-    throw new Error(
-      'one of --match <id> or --all is required (use --all to backfill every match)',
-    )
+    throw new Error('one of --match <id> or --all is required (use --all to backfill every match)')
   }
   if (limitRaw !== undefined && !all) {
     throw new Error('--limit is only valid with --all')
@@ -350,10 +327,7 @@ async function main(): Promise<void> {
     matchIds = [parsePositiveInt('match', matchFlag)]
   } else {
     const limit = limitRaw !== undefined ? parsePositiveInt('limit', limitRaw) : undefined
-    const baseQuery = db
-      .select({ id: matches.id })
-      .from(matches)
-      .orderBy(asc(matches.id))
+    const baseQuery = db.select({ id: matches.id }).from(matches).orderBy(asc(matches.id))
     const rows = limit !== undefined ? await baseQuery.limit(limit) : await baseQuery
     matchIds = rows.map((r) => r.id)
   }
@@ -367,8 +341,7 @@ async function main(): Promise<void> {
 main()
   .then(() => process.exit(0))
   .catch((err: unknown) => {
-    const msg =
-      err instanceof Error ? err.message : typeof err === 'string' ? err : String(err)
+    const msg = err instanceof Error ? err.message : typeof err === 'string' ? err : String(err)
     console.error(msg)
     process.exit(1)
   })

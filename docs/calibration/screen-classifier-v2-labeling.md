@@ -18,15 +18,15 @@ contingent on what the bench shows.
 
 ## Phase-A label targets
 
-| Class | Target | Status |
-|---|---|---|
-| `menu_club_management` | 30 | new — start at 0 |
-| `player_loadout_landing` | 30 | new — start at 0 |
-| `menu_world_of_chel` | 30 | new — start at 0 |
-| `player_loadout_view` (tightened: detail-only) | 30 | currently 1, retag if needed |
-| `pre_game_lobby_state_2` (tightened: 2-panel only) | 30 | currently 4 |
-| `loading_or_intro` (tightened: no WoC splash) | 20 | currently 0 |
-| `unknown_or_transition` | 20 | currently 0 |
+| Class                                              | Target | Status                       |
+| -------------------------------------------------- | ------ | ---------------------------- |
+| `menu_club_management`                             | 30     | new — start at 0             |
+| `player_loadout_landing`                           | 30     | new — start at 0             |
+| `menu_world_of_chel`                               | 30     | new — start at 0             |
+| `player_loadout_view` (tightened: detail-only)     | 30     | currently 1, retag if needed |
+| `pre_game_lobby_state_2` (tightened: 2-panel only) | 30     | currently 4                  |
+| `loading_or_intro` (tightened: no WoC splash)      | 20     | currently 0                  |
+| `unknown_or_transition`                            | 20     | currently 0                  |
 
 Run `python3 tools/game_ocr/scripts/label_state_machine_corpus.py --counts
 --extra-states menu_club_management,player_loadout_landing,menu_world_of_chel`
@@ -131,11 +131,11 @@ share the same WoC navigation chrome (the top tab bar
 `PLAY | LOADOUTS | CLUBS | CUSTOMIZE | SEASON PASS | STORE | REWARDS | STATS`).
 The class is determined by which tab is **highlighted/active**:
 
-| Active tab | Class |
-|---|---|
-| LOADOUTS | `player_loadout_landing` (left = list of loadout names, right = LOADOUT N summary card, bottom = MAKE LOADOUT ACTIVE) |
-| CLUBS | `menu_club_management` |
-| PLAY / CUSTOMIZE / SEASON PASS / STORE / REWARDS / STATS | `menu_world_of_chel` |
+| Active tab                                               | Class                                                                                                                 |
+| -------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| LOADOUTS                                                 | `player_loadout_landing` (left = list of loadout names, right = LOADOUT N summary card, bottom = MAKE LOADOUT ACTIVE) |
+| CLUBS                                                    | `menu_club_management`                                                                                                |
+| PLAY / CUSTOMIZE / SEASON PASS / STORE / REWARDS / STATS | `menu_world_of_chel`                                                                                                  |
 
 `player_loadout_view` is the drill-down for ONE loadout — **no top tab bar**,
 big PLAYER CLASS header, 5-column ATTRIBUTES grid with stat bars and

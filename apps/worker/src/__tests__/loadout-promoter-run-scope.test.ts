@@ -47,24 +47,14 @@ async function cleanup(): Promise<void> {
   if (!process.env['DATABASE_URL']) return
   if (sentinelMatchId !== null) {
     // Order respects FK direction.
-    await db
-      .delete(ocrPromotions)
-      .where(eq(ocrPromotions.matchId, sentinelMatchId))
+    await db.delete(ocrPromotions).where(eq(ocrPromotions.matchId, sentinelMatchId))
     await db
       .delete(playerLoadoutSnapshots)
       .where(eq(playerLoadoutSnapshots.matchId, sentinelMatchId))
-    await db
-      .delete(ocrFieldEvidence)
-      .where(eq(ocrFieldEvidence.matchId, sentinelMatchId))
-    await db
-      .delete(ocrExtractions)
-      .where(eq(ocrExtractions.matchId, sentinelMatchId))
-    await db
-      .delete(ocrCaptureBatches)
-      .where(eq(ocrCaptureBatches.matchId, sentinelMatchId))
-    await db
-      .delete(ocrDecoderRuns)
-      .where(eq(ocrDecoderRuns.matchId, sentinelMatchId))
+    await db.delete(ocrFieldEvidence).where(eq(ocrFieldEvidence.matchId, sentinelMatchId))
+    await db.delete(ocrExtractions).where(eq(ocrExtractions.matchId, sentinelMatchId))
+    await db.delete(ocrCaptureBatches).where(eq(ocrCaptureBatches.matchId, sentinelMatchId))
+    await db.delete(ocrDecoderRuns).where(eq(ocrDecoderRuns.matchId, sentinelMatchId))
     await db.delete(matches).where(eq(matches.id, sentinelMatchId))
     sentinelMatchId = null
   }
@@ -125,10 +115,7 @@ void test('promoter scopes evidence + writes by runId; snapshots skipped for non
 
   // ── Need a resolvable gamertag so the loadout promoter can promote past
   //    the resolved-player-id gate. Pick any existing player from the DB. ──
-  const existingPlayers = await db
-    .select({ gamertag: players.gamertag })
-    .from(players)
-    .limit(1)
+  const existingPlayers = await db.select({ gamertag: players.gamertag }).from(players).limit(1)
   assert.ok(existingPlayers[0], 'DB must have at least one player for this test')
   const resolvedGamertag = existingPlayers[0].gamertag
 
@@ -248,9 +235,7 @@ void test('promoter scopes evidence + writes by runId; snapshots skipped for non
     candidatePromotions.length > 0,
     `expected promotion rows tagged with runB, got ${candidatePromotions.length}`,
   )
-  const candidatePositionPromotion = candidatePromotions.find(
-    (p) => p.fieldKey === 'position',
-  )
+  const candidatePositionPromotion = candidatePromotions.find((p) => p.fieldKey === 'position')
   assert.equal(
     candidatePositionPromotion?.winningValue,
     'LW',
