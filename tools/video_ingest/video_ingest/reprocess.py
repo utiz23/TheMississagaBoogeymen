@@ -243,6 +243,15 @@ def reprocess(
       6. (skipped on ``--dry-run``) ``decoder-runs-cli validate``.
          Exit 2 + ``failureReasons`` on failure.
       7. (skipped on ``--dry-run``) ``decoder-runs-cli activate``.
+      8. (skipped on ``--dry-run``) ``consolidate-loadouts`` —
+         sets ``review_status='reviewed'`` on the anchor snapshot per
+         (team_side, position) via cross-frame consensus. Without this
+         the match-quality lineup check is empty and class-G fires on
+         every resolved actor.
+      9. (skipped on ``--dry-run``) ``backfill-event-actor-resolution``
+         — re-resolves actor/target on existing ``match_events`` using
+         the new match-scoped resolver. Idempotent; runs OUTSIDE the
+         activate transaction.
 
     With ``--undo``: shells through ``decoder-runs-cli undo --match-id N``;
     ``--dry-run`` is forwarded so the operator can preview the flip.
@@ -300,6 +309,8 @@ def reprocess(
                     "would_repromote_lobby_for_run_id": new_run_id,
                     "would_validate_run_id": new_run_id,
                     "would_activate_run_id": new_run_id,
+                    "would_consolidate_loadouts_for_match": match_id,
+                    "would_backfill_event_actor_resolution_for_match": match_id,
                 },
                 indent=2,
             )
@@ -357,3 +368,34 @@ def reprocess(
     # match colours — all atomic on the TS side.
     act = _run_decoder_runs_cli("activate", "--run-id", str(new_run_id))
     typer.echo(json.dumps({"step": "activate", **act}, indent=2))
+
+    # 8. consolidate-loadouts — sets review_status='reviewed' on the
+    #    anchor snapshot per (team_side, position) via cross-frame
+    #    consensus. Required because the match-quality CLI's class-G
+    #    lineup check (apps/worker/src/match-quality-cli.ts) filters
+    #    to reviewed-only snapshots; without consolidate the lineup
+    #    subquery is empty and every resolved actor trips the leak
+    #    flag. Runs OUTSIDE the activate transaction — idempotent.
+    _run_streaming(
+        [
+            "pnpm", "--filter", "@eanhl/worker", "consolidate-loadouts",
+            "--",
+            "--match", str(match_id),
+        ],
+        description=f"consolidate-loadouts for match {match_id}",
+    )
+
+    # 9. backfill-event-actor-resolution — re-resolves actor/target on
+    #    existing match_events using the new match-scoped resolver
+    #    (Commit 1 — resolveActorForMatch). Nulls out wrong-roster
+    #    hits, binds previously-unresolved actors that now appear in
+    #    lineup. Symmetric on match_goal_events + match_penalty_events.
+    #    Idempotent — safe to re-run.
+    _run_streaming(
+        [
+            "pnpm", "--filter", "@eanhl/worker", "backfill-event-actor-resolution",
+            "--",
+            "--match", str(match_id),
+        ],
+        description=f"backfill-event-actor-resolution for match {match_id}",
+    )

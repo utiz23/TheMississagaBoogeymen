@@ -57,6 +57,61 @@ def test_reprocess_subcommand_is_registered() -> None:
     assert result.exit_code != 0
 
 
+def test_reprocess_dry_run_includes_consolidate_and_backfill_steps(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The dry-run payload must include the consolidate + backfill steps
+    so operators can audit the full plan before committing to a real
+    reprocess. These two steps (8 + 9 in the pipeline) run post-activate
+    and are required for the match-quality CLI's class-G lineup check
+    to see anchor snapshots.
+
+    Pure CLI-surface test: stubs out the helpers that touch the DB +
+    on-disk artifacts so the assertion focuses on the JSON shape that
+    the dry-run branch emits.
+    """
+    fake_match = 250
+    fake_run_id = 9999
+
+    monkeypatch.setattr(
+        reprocess_mod, "_compute_hashes",
+        lambda version: ("a" * 64, "b" * 64),
+    )
+    monkeypatch.setattr(
+        reprocess_mod, "_resolve_video_path",
+        lambda match_id: (Path("/tmp/fake-video.mkv"), "c" * 64),
+    )
+    monkeypatch.setattr(
+        reprocess_mod, "_run_decoder_runs_cli",
+        lambda *args: {"run_id": fake_run_id, "is_active": False, "_exit": 0},
+    )
+
+    runner = CliRunner()
+    result = runner.invoke(app, ["reprocess", "--match-id", str(fake_match), "--dry-run"])
+    assert result.exit_code == 0, (
+        f"dry-run exited {result.exit_code}; exception={result.exception!r}\n"
+        f"stdout:\n{result.stdout}"
+    )
+    assert "would_consolidate_loadouts_for_match" in result.stdout, (
+        f"dry-run payload missing consolidate step, got:\n{result.stdout}"
+    )
+    assert "would_backfill_event_actor_resolution_for_match" in result.stdout, (
+        f"dry-run payload missing backfill step, got:\n{result.stdout}"
+    )
+    # The two new keys should reference the match id (per-match scope),
+    # not the run id — the worker CLIs accept --match, not --run-id.
+    # The dry-run prints two JSON blobs: a create-candidate summary and
+    # the dry-run plan. Grab the last one (containing dry_run: true).
+    blobs = [
+        json.loads(blob)
+        for blob in result.stdout.replace("}\n{", "}|||{").split("|||")
+        if blob.strip().startswith("{")
+    ]
+    dry_run_blob = next(b for b in blobs if b.get("dry_run") is True)
+    assert dry_run_blob["would_consolidate_loadouts_for_match"] == fake_match
+    assert dry_run_blob["would_backfill_event_actor_resolution_for_match"] == fake_match
+
+
 # ─── helper unit tests ───────────────────────────────────────────────────────
 
 
@@ -234,9 +289,13 @@ def test_reprocess_undo_dry_run_against_match_250() -> None:
 def test_reprocess_full_flow_against_match_250() -> None:
     """Opt-in full reprocess against match 250.
 
-    Runs the real create-ingest-promote-validate-activate pipeline.
+    Runs the real 9-step pipeline:
+      create → ingest → repromote-loadout → repromote-lobby → validate
+      → activate → consolidate-loadouts → backfill-event-actor-resolution.
+
     Takes 3-5 minutes and modifies the DB (creates a new
-    ocr_decoder_runs row, flips activation). Use only when validating
+    ocr_decoder_runs row, flips activation, consolidates loadout
+    snapshots, re-resolves event actors). Use only when validating
     the operational flow before Task 10/11 manual runs.
 
     No assertions on intermediate state — just exits 0 if the full
