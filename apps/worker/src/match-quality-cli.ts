@@ -221,6 +221,7 @@ async function buildDownstreamCounts(
       and(
         eq(playerLoadoutSnapshots.matchId, matchId),
         eq(playerLoadoutSnapshots.reviewStatus, 'reviewed'),
+        eq(playerLoadoutSnapshots.isCpu, false),
       ),
     )) as Array<{ n: string }>
   const reviewedAnchors = Number(anchorStats!.n)
@@ -243,6 +244,7 @@ async function buildDownstreamCounts(
       and(
         eq(playerLoadoutSnapshots.matchId, matchId),
         eq(playerLoadoutSnapshots.reviewStatus, 'reviewed'),
+        eq(playerLoadoutSnapshots.isCpu, false),
       ),
     )) as Array<{ n: string }>
   out.push({
@@ -264,6 +266,7 @@ async function buildDownstreamCounts(
       and(
         eq(playerLoadoutSnapshots.matchId, matchId),
         eq(playerLoadoutSnapshots.reviewStatus, 'reviewed'),
+        eq(playerLoadoutSnapshots.isCpu, false),
       ),
     )) as Array<{ n: string }>
   out.push({
