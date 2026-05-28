@@ -40,7 +40,7 @@ import {
   playerLoadoutXFactors,
   playerLoadoutAttributes,
 } from '@eanhl/db'
-import { and, eq, inArray, like } from 'drizzle-orm'
+import { eq, inArray, like } from 'drizzle-orm'
 import { rebuildCanonicalsFromActiveRun } from '../lib/rebuild-canonicals-from-active-run.js'
 
 const GAME_TITLE_ID = 1 // NHL 26
