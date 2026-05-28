@@ -75,6 +75,10 @@ cvat/
 tools/game_ocr/calibration/extras/_inbox/
 label-studio-export-*.json
 
+# Loose screen-classifier debug PNGs emitted by Pass-1 to calibration/extras/
+# at run time. Tracked fixtures live in extras/loadout/fixtures/ and stay tracked.
+tools/game_ocr/calibration/extras/*.png
+
 # Stray one-off probe scripts that landed under src/ by mistake
 apps/web/src/probe-queries.mjs
 
