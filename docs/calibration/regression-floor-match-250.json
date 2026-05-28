@@ -13,21 +13,21 @@
   "screens": [
     {
       "screenType": "player_loadout_view",
-      "frames": 62,
-      "ok": 62,
+      "frames": 146,
+      "ok": 146,
       "err": 0,
       "reviewed": 11,
-      "avgConf": 0.955,
+      "avgConf": 0.953,
       "minConf": 0.82,
       "maxConf": 0.99
     },
     {
       "screenType": "post_game_action_tracker",
-      "frames": 374,
-      "ok": 374,
+      "frames": 479,
+      "ok": 479,
       "err": 0,
       "reviewed": 6,
-      "avgConf": 0.944,
+      "avgConf": 0.942,
       "minConf": 0.49,
       "maxConf": 1
     },
@@ -43,11 +43,11 @@
     },
     {
       "screenType": "post_game_box_score_goals",
-      "frames": 15,
-      "ok": 8,
-      "err": 7,
+      "frames": 24,
+      "ok": 12,
+      "err": 12,
       "reviewed": 1,
-      "avgConf": 0.882,
+      "avgConf": 0.879,
       "minConf": 0.698,
       "maxConf": 0.958
     },
@@ -63,8 +63,8 @@
     },
     {
       "screenType": "post_game_events",
-      "frames": 238,
-      "ok": 238,
+      "frames": 466,
+      "ok": 466,
       "err": 0,
       "reviewed": 8,
       "avgConf": 0.921,
@@ -73,28 +73,28 @@
     },
     {
       "screenType": "post_game_faceoff_map",
-      "frames": 1576,
-      "ok": 45,
-      "err": 1531,
+      "frames": 3114,
+      "ok": 50,
+      "err": 3064,
       "reviewed": 0,
-      "avgConf": 0.74,
+      "avgConf": 0.736,
       "minConf": 0.501,
       "maxConf": 0.998
     },
     {
       "screenType": "post_game_net_chart",
-      "frames": 61,
-      "ok": 28,
-      "err": 33,
+      "frames": 97,
+      "ok": 32,
+      "err": 65,
       "reviewed": 4,
-      "avgConf": 0.873,
+      "avgConf": 0.858,
       "minConf": 0.586,
       "maxConf": 0.976
     },
     {
       "screenType": "post_game_player_summary",
-      "frames": 109,
-      "ok": 109,
+      "frames": 164,
+      "ok": 164,
       "err": 0,
       "reviewed": 0,
       "avgConf": 0.944,
@@ -103,8 +103,8 @@
     },
     {
       "screenType": "pre_game_lobby_state_2",
-      "frames": 174,
-      "ok": 174,
+      "frames": 283,
+      "ok": 283,
       "err": 0,
       "reviewed": 3,
       "avgConf": 0.925,
@@ -164,22 +164,22 @@
     },
     {
       "table": "player_loadout_snapshots (reviewed)",
-      "actual": 10,
+      "actual": 11,
       "expected": 10,
-      "reviewed": 10,
+      "reviewed": 11,
       "notes": "consolidator anchors"
     },
     {
       "table": "player_loadout_attributes",
       "actual": 230,
-      "expected": 230,
+      "expected": 253,
       "reviewed": 230,
       "notes": "23 attrs × reviewed slots"
     },
     {
       "table": "player_loadout_x_factors",
       "actual": 30,
-      "expected": 30,
+      "expected": 33,
       "reviewed": 30,
       "notes": "3 x-factors × reviewed slots"
     }
@@ -224,21 +224,21 @@
   ],
   "provenance": {
     "capturedAt": {
-      "earliest": "2026-05-22T10:10:06.255Z",
-      "latest": "2026-05-22T10:10:06.335Z"
+      "earliest": "2026-05-28T18:22:37.459Z",
+      "latest": "2026-05-28T18:22:37.459Z"
     },
     "sources": [
       {
         "screenType": "pre_game_lobby_state_2",
-        "snapshotCount": 7
+        "snapshotCount": 12
       },
       {
         "screenType": "player_loadout_view",
-        "snapshotCount": 3
+        "snapshotCount": 10
       }
     ],
     "confidence": {
-      "canonical": 1,
+      "canonical": 0.9090909090909091,
       "tiered": 0.1,
       "attribute": 0.9521739130434783
     }
@@ -260,15 +260,15 @@
   "pending": [
     {
       "screenType": "player_loadout_view",
-      "pending": 51,
+      "pending": 135,
       "reviewed": 11,
-      "total": 62
+      "total": 146
     },
     {
       "screenType": "post_game_action_tracker",
-      "pending": 368,
+      "pending": 473,
       "reviewed": 6,
-      "total": 374
+      "total": 479
     },
     {
       "screenType": "post_game_box_score_faceoffs",
@@ -278,9 +278,9 @@
     },
     {
       "screenType": "post_game_box_score_goals",
-      "pending": 14,
+      "pending": 23,
       "reviewed": 1,
-      "total": 15
+      "total": 24
     },
     {
       "screenType": "post_game_box_score_shots",
@@ -290,33 +290,33 @@
     },
     {
       "screenType": "post_game_events",
-      "pending": 230,
+      "pending": 458,
       "reviewed": 8,
-      "total": 238
+      "total": 466
     },
     {
       "screenType": "post_game_faceoff_map",
-      "pending": 1576,
+      "pending": 3114,
       "reviewed": 0,
-      "total": 1576
+      "total": 3114
     },
     {
       "screenType": "post_game_net_chart",
-      "pending": 57,
+      "pending": 93,
       "reviewed": 4,
-      "total": 61
+      "total": 97
     },
     {
       "screenType": "post_game_player_summary",
-      "pending": 109,
+      "pending": 164,
       "reviewed": 0,
-      "total": 109
+      "total": 164
     },
     {
       "screenType": "pre_game_lobby_state_2",
-      "pending": 171,
+      "pending": 280,
       "reviewed": 3,
-      "total": 174
+      "total": 283
     }
   ],
   "layers": {
@@ -334,16 +334,16 @@
       "deductions": 1
     },
     "l2_lineup": {
-      "score": 0.875,
+      "score": 0.9090909090909091,
       "pass": false,
-      "notes": "35/40 fields populated across 10 reviewed slot(s) (gamertag + persona + position + build_canonical)",
-      "populated": 35,
-      "expected": 40
+      "notes": "40/44 fields populated across 11 reviewed slot(s) (gamertag + persona + position + build_canonical)",
+      "populated": 40,
+      "expected": 44
     },
     "l3": {
-      "score": 1,
-      "pass": true,
-      "notes": "all gates met"
+      "score": 0.9834710743801651,
+      "pass": false,
+      "notes": "gaps: player_loadout_attributes=230/253, player_loadout_x_factors=30/33"
     },
     "overall": {
       "pass": false
