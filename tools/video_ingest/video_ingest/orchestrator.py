@@ -53,6 +53,23 @@ from video_ingest.version_detect import (
 CONFIGS_DIR = Path(__file__).resolve().parent / "configs"
 
 
+def compute_pass2_cache_dir(root: Path, sha: str, run_id: int | None) -> Path:
+    """Resolve the Pass-2 cache directory for a given video sha.
+
+    When `run_id` is provided, the directory is scoped as
+    ``<root>/<sha>/pass2-run-<run_id>`` so concurrent reprocesses against
+    the same video don't share extracted PNG output. When `run_id` is
+    ``None`` (legacy single-run ingest), the directory name is the
+    historical ``pass2``.
+
+    Pass-1 outputs are versioned by ``compute_pass1_cache_key`` (S5.4) and
+    therefore don't need analogous scoping; only Pass-2 PNGs lack a cache-
+    key-derived path, hence the explicit ``run_id`` suffix here.
+    """
+    name = f"pass2-run-{run_id}" if run_id is not None else "pass2"
+    return root / sha / name
+
+
 @dataclass
 class IngestResult:
     probe: VideoProbe
@@ -340,7 +357,7 @@ def ingest(
     # with a remediation that points at --force-pass1. Force or legacy header
     # = fresh run; in both cases Pass 2 state is also cleared so the cascade
     # invariant holds (segments may change → existing Pass 2 is stale).
-    pass2_root = sha_root / "pass2"
+    pass2_root = compute_pass2_cache_dir(output_root, probe.sha256, run_id)
     manifest_path = sha_root / PASS2_MANIFEST_FILENAME
     pass1_cache_key = compute_pass1_cache_key(version, p1cfg.engine)
     pass1_was_fresh = False
