@@ -24,7 +24,7 @@ import {
 } from '@eanhl/db'
 import { and, eq, sql as drizzleSql } from 'drizzle-orm'
 import type { PromoterContext } from './index.js'
-import { resolveGamertagToPlayer } from './resolve-identity.js'
+import { resolveActorForMatch } from './resolve-identity.js'
 import { findExistingMatchEvent } from './match-events-dedup.js'
 import { resolvePeriod } from './resolve-period.js'
 import type { OcrExtractionField } from '../ocr-cli-runner.js'
@@ -122,9 +122,14 @@ export async function promoteActionTracker(ctx: PromoterContext): Promise<void> 
     // doesn't show team abbreviations, so we infer team identity through
     // the rostered-player check on both ends of the event.
     const target = stringValue(ev.target_snapshot)
-    const { playerId: actorPlayerId } = await resolveGamertagToPlayer(actor, gameTitleId, db)
+    const { playerId: actorPlayerId } = await resolveActorForMatch(
+      actor,
+      matchId,
+      gameTitleId,
+      db,
+    )
     const { playerId: targetPlayerId } = target
-      ? await resolveGamertagToPlayer(target, gameTitleId, db)
+      ? await resolveActorForMatch(target, matchId, gameTitleId, db)
       : { playerId: null }
     const teamSide: 'for' | 'against' =
       actorPlayerId !== null ? 'for' : targetPlayerId !== null ? 'against' : 'against'
@@ -281,8 +286,9 @@ export async function promoteActionTracker(ctx: PromoterContext): Promise<void> 
       // Use the same dedup-aware lookup as the insert loop so the spatial
       // UPDATE lands on the canonical row even when this capture's actor
       // string is a Levenshtein-1 typo of an existing row's actor.
-      const { playerId: selectedActorPlayerId } = await resolveGamertagToPlayer(
+      const { playerId: selectedActorPlayerId } = await resolveActorForMatch(
         actor,
+        matchId,
         gameTitleId,
         db,
       )

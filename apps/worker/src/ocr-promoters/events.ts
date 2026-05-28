@@ -36,7 +36,7 @@ import {
 } from '@eanhl/db'
 import { and, eq, sql as drizzleSql } from 'drizzle-orm'
 import type { PromoterContext } from './index.js'
-import { resolveGamertagToPlayer } from './resolve-identity.js'
+import { resolveActorForMatch } from './resolve-identity.js'
 import { findExistingMatchEvent } from './match-events-dedup.js'
 import { resolvePeriod } from './resolve-period.js'
 import type { OcrExtractionField } from '../ocr-cli-runner.js'
@@ -143,7 +143,12 @@ export async function promoteEvents(ctx: PromoterContext): Promise<void> {
     // - actor matching uses findExistingMatchEvent: prefer resolved player_id
     //   when available; fall back to Levenshtein-1 against same-bucket
     //   unresolved peers (handles OCR typos like fOEWS→TOEWS).
-    const { playerId: actorPlayerId } = await resolveGamertagToPlayer(actor, gameTitleId, db)
+    const { playerId: actorPlayerId } = await resolveActorForMatch(
+      actor,
+      matchId,
+      gameTitleId,
+      db,
+    )
 
     const existingId = await findExistingMatchEvent(db, {
       matchId,
@@ -213,10 +218,10 @@ export async function promoteEvents(ctx: PromoterContext): Promise<void> {
       const primary = assists[0] ? stringValue(assists[0]) : null
       const secondary = assists[1] ? stringValue(assists[1]) : null
       const primaryPlayerId = primary
-        ? (await resolveGamertagToPlayer(primary, gameTitleId, db)).playerId
+        ? (await resolveActorForMatch(primary, matchId, gameTitleId, db)).playerId
         : null
       const secondaryPlayerId = secondary
-        ? (await resolveGamertagToPlayer(secondary, gameTitleId, db)).playerId
+        ? (await resolveActorForMatch(secondary, matchId, gameTitleId, db)).playerId
         : null
 
       const goalRow: NewMatchGoalEvent = {

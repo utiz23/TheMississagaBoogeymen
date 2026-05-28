@@ -22,8 +22,13 @@
  * Never inserts new `players` rows. EA API ingest is the only path for that.
  */
 
-import { players, playerGamertagHistory, playerDisplayAliases } from '@eanhl/db'
-import { and, eq, isNull, sql } from 'drizzle-orm'
+import {
+  players,
+  playerGamertagHistory,
+  playerDisplayAliases,
+  playerLoadoutSnapshots,
+} from '@eanhl/db'
+import { and, eq, isNotNull, isNull, sql } from 'drizzle-orm'
 import type { PromoterDb } from './index.js'
 
 export interface ResolvedPlayer {
@@ -166,3 +171,81 @@ export async function resolveGamertagToPlayer(
 }
 
 export { lowercaseNormalized }
+
+export type ResolvedActorVia =
+  | ResolvedPlayer['via']
+  | 'roster_mismatch'
+  | 'empty_lineup_passthrough'
+
+export interface ResolvedActor {
+  playerId: number | null
+  via: ResolvedActorVia
+  /**
+   * The id the global resolver returned, even when filtered out.
+   * Lets the backfill CLI emit per-row diagnostic logs without re-resolving.
+   */
+  globalPlayerId: number | null
+}
+
+/**
+ * Match-scoped actor resolver. Wraps `resolveGamertagToPlayer` and filters
+ * the result against `player_loadout_snapshots` for the given match.
+ *
+ * Semantics:
+ *   - Global resolver returns null → return that result unchanged.
+ *   - Global resolver returns a player_id IN this match's lineup → return it.
+ *   - Global resolver returns a player_id NOT in lineup → return null with
+ *     via='roster_mismatch'. The global id is preserved on globalPlayerId
+ *     for diagnostics.
+ *   - Lineup is empty (zero rows OR all rows have player_id=null) → pass
+ *     the global resolver's result through with via='empty_lineup_passthrough'.
+ *     This is a safety net for ingest order races (action-tracker landing
+ *     before loadout-v2). The backfill CLI cleans these up post-consolidate.
+ *
+ * Lineup query is intentionally ALL snapshots (not filtered to
+ * review_status='reviewed'). The match-quality CLI's class-G check uses
+ * the reviewed-only subset, but that runs downstream of consolidate;
+ * this resolver runs at event-ingest time, upstream. Distinct gates,
+ * distinct questions — see plan's "Risks" section.
+ */
+export async function resolveActorForMatch(
+  rawSnapshot: string | null | undefined,
+  matchId: number,
+  gameTitleId: number,
+  dbConn: PromoterDb,
+): Promise<ResolvedActor> {
+  const global = await resolveGamertagToPlayer(rawSnapshot, gameTitleId, dbConn)
+  if (global.playerId === null) {
+    return { playerId: null, via: global.via, globalPlayerId: null }
+  }
+  // Lineup gate. ALL snapshots, not just reviewed — see header comment.
+  const lineupRows = await dbConn
+    .selectDistinct({ playerId: playerLoadoutSnapshots.playerId })
+    .from(playerLoadoutSnapshots)
+    .where(
+      and(
+        eq(playerLoadoutSnapshots.matchId, matchId),
+        isNotNull(playerLoadoutSnapshots.playerId),
+      ),
+    )
+  const lineupPlayerIds = new Set<number>(
+    lineupRows
+      .map((r) => r.playerId)
+      .filter((id): id is number => id !== null),
+  )
+  if (lineupPlayerIds.size === 0) {
+    return {
+      playerId: global.playerId,
+      via: 'empty_lineup_passthrough',
+      globalPlayerId: global.playerId,
+    }
+  }
+  if (lineupPlayerIds.has(global.playerId)) {
+    return {
+      playerId: global.playerId,
+      via: global.via,
+      globalPlayerId: global.playerId,
+    }
+  }
+  return { playerId: null, via: 'roster_mismatch', globalPlayerId: global.playerId }
+}
