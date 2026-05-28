@@ -49,6 +49,9 @@ tools/historical_import/output_*/
 /*.png
 /*.txt
 
+# Bin for those root-level screenshots — non-destructive holding area
+.local-screenshots/
+
 # Accidental browser-download duplicates ("foo (1).ext", "foo (2).ext")
 * (1).*
 * (2).*
