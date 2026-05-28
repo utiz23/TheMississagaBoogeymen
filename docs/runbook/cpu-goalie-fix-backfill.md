@@ -36,7 +36,7 @@ Then re-run the consolidate step so the now-CPU row is dropped from the
 reviewed-anchors set:
 
 ```bash
-pnpm --filter worker consolidate-loadouts-cli --match-id $1
+pnpm --filter worker consolidate-loadouts --match $1
 ```
 
 ### Caveats
@@ -45,6 +45,9 @@ pnpm --filter worker consolidate-loadouts-cli --match-id $1
   video review, or opponent-team knowledge).
 - **Never generalize** to a blanket `WHERE position = 'G'` update — see below.
 - One slot per statement; do not batch across matches.
+- This template keys on `position` being non-NULL. If the target slot has
+  `position IS NULL` (rare for goalies), use `(match_id, team_side, slot_index)`
+  from `ocr_field_evidence` or other anchor instead.
 
 ## Why this is not auto-applied
 
@@ -53,3 +56,15 @@ the master plan. A blanket "every goalie before date X was CPU" backfill would
 silently corrupt those lineups when we re-enable the relevant modes. Forcing
 the operator to confirm each match preserves the invariant that `is_cpu = true`
 means "OCR or operator verified this slot has no human."
+
+## Verification
+
+After the UPDATE + consolidate, confirm the flag actually landed on the slots
+you intended (and only those):
+
+```sql
+SELECT team_side, position, gamertag_snapshot, is_cpu
+FROM player_loadout_snapshots
+WHERE match_id = $1 AND is_cpu = true
+ORDER BY team_side, position;
+```
