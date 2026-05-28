@@ -128,7 +128,15 @@ async function listUnresolved(dbConn: AnyDb): Promise<UnresolvedRow[]> {
   const loads = await dbConn
     .select({ id: playerLoadoutSnapshots.id, snap: playerLoadoutSnapshots.gamertagSnapshot })
     .from(playerLoadoutSnapshots)
-    .where(isNull(playerLoadoutSnapshots.playerId))
+    .where(
+      and(
+        isNull(playerLoadoutSnapshots.playerId),
+        // CPU rows carry a synthetic 'CPU' gamertag and have no human to
+        // resolve to — exclude them so the resolver doesn't waste cycles
+        // on guaranteed-no-op lookups.
+        eq(playerLoadoutSnapshots.isCpu, false),
+      ),
+    )
   for (const l of loads) {
     if (l.snap)
       rows.push({ table: 'player_loadout_snapshots.player', rowId: l.id, snapshot: l.snap })

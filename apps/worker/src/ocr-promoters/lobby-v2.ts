@@ -56,6 +56,14 @@ interface LobbySlotDecision {
   position: string
   ocrExtractionId: number
   resolvedPlayerId: number | null
+  /**
+   * True when the lobby OCR identified this slot as CPU/empty (no human
+   * player). Sourced from the `is_cpu` field evidence promoted by the gate.
+   * CPU rows still get a snapshot — with a synthetic gamertag='CPU' — so
+   * downstream queries can see the slot exists, but identity resolution and
+   * the hard-fields gamertag check are skipped for them.
+   */
+  isCpu: boolean
   snapshotBlockReason: string | null
 }
 
@@ -178,19 +186,11 @@ export async function promoteLobbyFromEvidence(input: {
   // the full reasoning behind the two-name split.
   // Pass `db` so a caller mid-transaction (e.g. decoder-runs-cli activate)
   // sees the in-flight `is_active` flip from the same tx.
-  const activeRunId = await getActiveRunIdForMatch(
-    matchId,
-    db as unknown as Database,
-  )
-  const effectiveRunIdForWrites =
-    input.runId !== undefined ? input.runId : activeRunId
+  const activeRunId = await getActiveRunIdForMatch(matchId, db as unknown as Database)
+  const effectiveRunIdForWrites = input.runId !== undefined ? input.runId : activeRunId
   const writeSnapshots = effectiveRunIdForWrites === activeRunId
 
-  const allEvidence = await getFieldEvidenceForLobbySlot(
-    matchId,
-    undefined,
-    input.runId,
-  )
+  const allEvidence = await getFieldEvidenceForLobbySlot(matchId, undefined, input.runId)
 
   const evidenceBySlot = new Map<string, Map<string, typeof allEvidence>>()
   for (const row of allEvidence) {
@@ -242,6 +242,7 @@ export async function promoteLobbyFromEvidence(input: {
         position: '',
         ocrExtractionId: 0,
         resolvedPlayerId: null,
+        isCpu: false,
         snapshotBlockReason: 'invalid_slot_key',
       })
       continue
@@ -253,8 +254,7 @@ export async function promoteLobbyFromEvidence(input: {
         candidateRank: r.candidateRank,
         value: r.candidateValue,
         rawConfidence: r.rawConfidence !== null ? Number(r.rawConfidence) : 0,
-        calibratedConfidence:
-          r.calibratedConfidence !== null ? Number(r.calibratedConfidence) : 0,
+        calibratedConfidence: r.calibratedConfidence !== null ? Number(r.calibratedConfidence) : 0,
         evidenceId: r.id,
       }))
       // Lobby evidence collects one candidate per (slot, field) per lobby
@@ -276,8 +276,18 @@ export async function promoteLobbyFromEvidence(input: {
     // typed extractor and can't be used as DB IDs.
     const ocrExtractionId = lobbyExtractionId
 
+    // CPU detection: lobby extractor emits is_cpu=true for slots flagged
+    // as CPU/empty placeholders (typically the goalie slot in EASHL modes
+    // when no human is in net). Read the decision once here so the resolve
+    // block, hard-fields gate, and snapshot insert all see the same value.
+    const isCpu = promotedBool(fieldDecisions.get('is_cpu')) ?? false
+
     let resolvedPlayerId: number | null = null
-    if (parsed.teamSide === 'for') {
+    // Skip identity resolution for CPU rows — there's no human to bind to,
+    // and the synthetic 'CPU' gamertag (written below) is in the junk
+    // denylist so a stray resolveGamertagToPlayer call would always
+    // return null anyway.
+    if (parsed.teamSide === 'for' && !isCpu) {
       const gamertagDecision = fieldDecisions.get('gamertag')
       if (
         gamertagDecision?.status === 'promoted' &&
@@ -300,6 +310,7 @@ export async function promoteLobbyFromEvidence(input: {
       position: parsed.position,
       ocrExtractionId,
       resolvedPlayerId,
+      isCpu,
       snapshotBlockReason: null,
     })
   }
@@ -313,41 +324,41 @@ export async function promoteLobbyFromEvidence(input: {
   // candidate run — snapshots are reserved for the active run and rebuilt at
   // activation time by the reprocess CLI.
   if (writeSnapshots) {
-  const priorLobbyExtractionIds = (
-    await db
-      .select({ id: ocrExtractions.id })
-      .from(ocrExtractions)
-      .where(
-        and(
-          eq(ocrExtractions.matchId, matchId),
-          eq(ocrExtractions.screenType, 'pre_game_lobby_state_2'),
-        ),
-      )
-  ).map((r) => r.id)
-  if (priorLobbyExtractionIds.length > 0) {
-    const priorSnapshotIds = (
+    const priorLobbyExtractionIds = (
       await db
-        .select({ id: playerLoadoutSnapshots.id })
-        .from(playerLoadoutSnapshots)
+        .select({ id: ocrExtractions.id })
+        .from(ocrExtractions)
         .where(
           and(
-            eq(playerLoadoutSnapshots.matchId, matchId),
-            inArray(playerLoadoutSnapshots.ocrExtractionId, priorLobbyExtractionIds),
+            eq(ocrExtractions.matchId, matchId),
+            eq(ocrExtractions.screenType, 'pre_game_lobby_state_2'),
           ),
         )
     ).map((r) => r.id)
-    if (priorSnapshotIds.length > 0) {
-      await db
-        .delete(playerLoadoutXFactors)
-        .where(inArray(playerLoadoutXFactors.loadoutSnapshotId, priorSnapshotIds))
-      await db
-        .delete(playerLoadoutAttributes)
-        .where(inArray(playerLoadoutAttributes.loadoutSnapshotId, priorSnapshotIds))
-      await db
-        .delete(playerLoadoutSnapshots)
-        .where(inArray(playerLoadoutSnapshots.id, priorSnapshotIds))
+    if (priorLobbyExtractionIds.length > 0) {
+      const priorSnapshotIds = (
+        await db
+          .select({ id: playerLoadoutSnapshots.id })
+          .from(playerLoadoutSnapshots)
+          .where(
+            and(
+              eq(playerLoadoutSnapshots.matchId, matchId),
+              inArray(playerLoadoutSnapshots.ocrExtractionId, priorLobbyExtractionIds),
+            ),
+          )
+      ).map((r) => r.id)
+      if (priorSnapshotIds.length > 0) {
+        await db
+          .delete(playerLoadoutXFactors)
+          .where(inArray(playerLoadoutXFactors.loadoutSnapshotId, priorSnapshotIds))
+        await db
+          .delete(playerLoadoutAttributes)
+          .where(inArray(playerLoadoutAttributes.loadoutSnapshotId, priorSnapshotIds))
+        await db
+          .delete(playerLoadoutSnapshots)
+          .where(inArray(playerLoadoutSnapshots.id, priorSnapshotIds))
+      }
     }
-  }
   }
 
   const pendingPromotions: PendingPromotion[] = []
@@ -399,7 +410,12 @@ export async function promoteLobbyFromEvidence(input: {
     const positionVal =
       positionRaw !== null && VALID_POSITIONS.has(positionRaw) ? positionRaw : null
 
-    if (gamertagVal === null || positionVal === null) {
+    // Hard-fields gate: position is always required (we need to know which
+    // slot this snapshot belongs to). Gamertag is required EXCEPT for CPU
+    // rows — the CPU slot is identified by its is_cpu flag, not by a human
+    // gamertag, and we write a synthetic 'CPU' string below for defense in
+    // depth (the value is in the junk-gamertag denylist anyway).
+    if ((!sd.isCpu && gamertagVal === null) || positionVal === null) {
       blockedSnapshotCount++
       pendingPromotions.push({
         matchId,
@@ -451,7 +467,13 @@ export async function promoteLobbyFromEvidence(input: {
     if (writeSnapshots) {
       await db.insert(playerLoadoutSnapshots).values({
         playerId: sd.resolvedPlayerId,
-        gamertagSnapshot: gamertagVal,
+        // CPU rows get a synthetic 'CPU' gamertag so the column is non-null
+        // for downstream code that assumes a value. The string is on the
+        // junk-gamertag denylist in match-lineups.ts so it never surfaces
+        // in lineup outputs even if the is_cpu filter is ever bypassed.
+        // The non-null assertion on gamertagVal is sound: the hard-fields
+        // gate above only continues here when (isCpu || gamertagVal!==null).
+        gamertagSnapshot: sd.isCpu ? 'CPU' : gamertagVal!,
         playerNameSnapshot: null,
         playerNamePersona: personaCanonical,
         playerNamePersonaRaw: personaRaw,
@@ -469,6 +491,7 @@ export async function promoteLobbyFromEvidence(input: {
         platform,
         playerLevelRaw,
         playerLevelNumber,
+        isCpu: sd.isCpu,
       })
     }
 

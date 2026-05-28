@@ -295,16 +295,11 @@ export async function promoteLoadoutFromEvidence(input: {
   // Pass `db` so a caller mid-transaction (e.g. decoder-runs-cli activate)
   // sees the in-flight `is_active` flip from the same tx.
   const activeRunId = await getActiveRunIdForMatch(matchId, db as unknown as Database)
-  const effectiveRunIdForWrites =
-    input.runId !== undefined ? input.runId : activeRunId
+  const effectiveRunIdForWrites = input.runId !== undefined ? input.runId : activeRunId
   const writeSnapshots = effectiveRunIdForWrites === activeRunId
 
   // ── Step 1: Read loadout evidence scoped to the requested run (or live) ──
-  const allEvidence = await getFieldEvidenceForLoadoutSlot(
-    matchId,
-    undefined,
-    input.runId,
-  )
+  const allEvidence = await getFieldEvidenceForLoadoutSlot(matchId, undefined, input.runId)
 
   // ── Step 2: Group by (subject_slot_key, field_key), sort by candidate_rank ──
   // evidenceBySlot: Map<slotKey, Map<fieldKey, evidence_rows_sorted_by_rank>>
@@ -437,7 +432,11 @@ export async function promoteLoadoutFromEvidence(input: {
         //   3. Levenshtein-1 on whitespace-stripped form (covers single-char
         //      OCR errors like O↔0: "DAMICO2323" → "DAMIC02323")
         const oppRows = await db
-          .select({ id: opponentPlayerMatchStats.id, gamertag: opponentPlayerMatchStats.gamertag, position: opponentPlayerMatchStats.position })
+          .select({
+            id: opponentPlayerMatchStats.id,
+            gamertag: opponentPlayerMatchStats.gamertag,
+            position: opponentPlayerMatchStats.position,
+          })
           .from(opponentPlayerMatchStats)
           .where(eq(opponentPlayerMatchStats.matchId, matchId))
         const stripWS = (s: string) => s.toLowerCase().replace(/\s+/g, '')
@@ -453,14 +452,22 @@ export async function promoteLoadoutFromEvidence(input: {
           const oneEdit = (a: string, b: string): boolean => {
             if (Math.abs(a.length - b.length) > 1) return false
             // Try substitution / deletion / insertion
-            let i = 0, j = 0, diffs = 0
+            let i = 0,
+              j = 0,
+              diffs = 0
             while (i < a.length && j < b.length) {
               if (a[i] !== b[j]) {
                 if (++diffs > 1) return false
                 if (a.length > b.length) i++
                 else if (a.length < b.length) j++
-                else { i++; j++ }
-              } else { i++; j++ }
+                else {
+                  i++
+                  j++
+                }
+              } else {
+                i++
+                j++
+              }
             }
             return diffs + (a.length - i) + (b.length - j) <= 1
           }
@@ -474,7 +481,8 @@ export async function promoteLoadoutFromEvidence(input: {
           // playerId stays null — opponents are not in the players table.
           // Stash the authority position for later use if the OCR position
           // evidence is unresolved.
-          ;(resolutionAuthorityPosition as { value: string | null }).value = (oppMatch.position as string | null) ?? null
+          ;(resolutionAuthorityPosition as { value: string | null }).value =
+            (oppMatch.position as string | null) ?? null
         } else {
           snapshotBlockReason = 'unresolved_team_side'
         }
@@ -547,10 +555,7 @@ export async function promoteLoadoutFromEvidence(input: {
   // getExpectedSlotsForMatch still expects the top-level Database type;
   // safe to cast because PgTransaction inherits the same query-builder
   // surface that the function uses.
-  const expectedSlots = await getExpectedSlotsForMatch(
-    matchId,
-    db as unknown as Database,
-  )
+  const expectedSlots = await getExpectedSlotsForMatch(matchId, db as unknown as Database)
   const coveredKeys = new Set<string>()
   for (const sd of slotDecisions) {
     if (sd.snapshotBlockReason) continue
@@ -785,88 +790,99 @@ export async function promoteLoadoutFromEvidence(input: {
         attrDecisions.push([name, merge])
       }
     }
-    const promotedAttrCount = attrDecisions.filter(([, m]) => m.valueDec?.status === 'promoted').length
+    const promotedAttrCount = attrDecisions.filter(
+      ([, m]) => m.valueDec?.status === 'promoted',
+    ).length
     const writeAttributes = promotedAttrCount >= ATTRIBUTE_PROMOTION_FLOOR
+
+    // is_cpu from the field evidence — always false in loadout view (the
+    // operator can't navigate to a CPU subject's loadout screen), but read
+    // here for contract symmetry with lobby-v2 so any future loadout-view
+    // extractor that does start emitting is_cpu is honoured automatically.
+    const isCpuDecision = sd.fieldDecisions.get('is_cpu')
+    const isCpu =
+      isCpuDecision?.status === 'promoted' && typeof isCpuDecision.winningValue === 'boolean'
+        ? isCpuDecision.winningValue
+        : false
 
     // ── DB writes in a transaction (skipped when promoting against a
     //     non-active candidate run; rebuildCanonicalsFromActiveRun handles
     //     snapshot rebuild at activation time). ─────────────────────────────
     if (writeSnapshots) {
-    await db.transaction(async (tx) => {
-      // Insert snapshot row
-      const [snap] = await tx
-        .insert(playerLoadoutSnapshots)
-        .values({
-          playerId: sd.resolvedPlayerId,
-          gamertagSnapshot: gamertagVal,
-          playerNameSnapshot: playerNameFull,
-          playerNamePersona: personaCanonical ?? personaRaw,
-          playerNamePersonaRaw: personaRaw,
-          playerNumber,
-          isCaptain,
-          teamSide,
-          gameTitleId: sd.gameTitleId,
-          matchId,
-          ocrExtractionId: sd.ocrExtractionId,
-          position: positionVal,
-          buildClass,
-          heightText,
-          weightLbs,
-          handedness,
-          platform,
-          playerLevelRaw,
-          playerLevelNumber,
-        })
-        .returning({ id: playerLoadoutSnapshots.id })
-      if (!snap) throw new Error(`Failed to insert snapshot for slot ${sd.slotKey}`)
+      await db.transaction(async (tx) => {
+        // Insert snapshot row
+        const [snap] = await tx
+          .insert(playerLoadoutSnapshots)
+          .values({
+            playerId: sd.resolvedPlayerId,
+            gamertagSnapshot: gamertagVal,
+            playerNameSnapshot: playerNameFull,
+            playerNamePersona: personaCanonical ?? personaRaw,
+            playerNamePersonaRaw: personaRaw,
+            playerNumber,
+            isCaptain,
+            teamSide,
+            gameTitleId: sd.gameTitleId,
+            matchId,
+            ocrExtractionId: sd.ocrExtractionId,
+            position: positionVal,
+            buildClass,
+            heightText,
+            weightLbs,
+            handedness,
+            platform,
+            playerLevelRaw,
+            playerLevelNumber,
+            isCpu,
+          })
+          .returning({ id: playerLoadoutSnapshots.id })
+        if (!snap) throw new Error(`Failed to insert snapshot for slot ${sd.slotKey}`)
 
-      // X-Factor child rows
-      if (writeXFactors) {
-        const xfRows: NewPlayerLoadoutXFactor[] = XFACTOR_FIELD_KEYS.map((fk, i) => {
-          const dec = sd.fieldDecisions.get(fk)!
-          const name = String(dec.winningValue ?? '')
-          const tierDec = sd.fieldDecisions.get(`x_factor_tier_${i}`)
-          const tier =
-            tierDec?.status === 'promoted'
-              ? (String(tierDec.winningValue) as 'Elite' | 'All Star' | 'Specialist')
-              : null
-          return {
-            loadoutSnapshotId: snap.id,
-            slotIndex: i,
-            xFactorName: name,
-            xFactorNameCanonical: normalizeXFactor(name),
-            tier,
-          }
-        })
-        await tx.insert(playerLoadoutXFactors).values(xfRows)
-      }
-
-      // Attribute child rows
-      if (writeAttributes) {
-        const attrRows: NewPlayerLoadoutAttribute[] = attrDecisions
-          .filter(([, m]) => m.valueDec?.status === 'promoted')
-          .map(([name, m]) => {
-            const vDec = m.valueDec!
-            const dDec = m.deltaDec
-            const rawValue = vDec.winningValue
-            const rawDelta = dDec?.status === 'promoted' ? dDec.winningValue : null
+        // X-Factor child rows
+        if (writeXFactors) {
+          const xfRows: NewPlayerLoadoutXFactor[] = XFACTOR_FIELD_KEYS.map((fk, i) => {
+            const dec = sd.fieldDecisions.get(fk)!
+            const name = String(dec.winningValue ?? '')
+            const tierDec = sd.fieldDecisions.get(`x_factor_tier_${i}`)
+            const tier =
+              tierDec?.status === 'promoted'
+                ? (String(tierDec.winningValue) as 'Elite' | 'All Star' | 'Specialist')
+                : null
             return {
               loadoutSnapshotId: snap.id,
-              attributeKey: name,
-              rawText:
-                typeof rawValue === 'string' ? rawValue : String(rawValue ?? ''),
-              value: typeof rawValue === 'number' ? rawValue : null,
-              deltaValue:
-                typeof rawDelta === 'number' ? rawDelta : null,
-              confidence:
-                vDec.winningConfidence !== undefined
-                  ? String(vDec.winningConfidence.toFixed(4))
-                  : null,
+              slotIndex: i,
+              xFactorName: name,
+              xFactorNameCanonical: normalizeXFactor(name),
+              tier,
             }
           })
-        await tx.insert(playerLoadoutAttributes).values(attrRows)
-      }
-    })
+          await tx.insert(playerLoadoutXFactors).values(xfRows)
+        }
+
+        // Attribute child rows
+        if (writeAttributes) {
+          const attrRows: NewPlayerLoadoutAttribute[] = attrDecisions
+            .filter(([, m]) => m.valueDec?.status === 'promoted')
+            .map(([name, m]) => {
+              const vDec = m.valueDec!
+              const dDec = m.deltaDec
+              const rawValue = vDec.winningValue
+              const rawDelta = dDec?.status === 'promoted' ? dDec.winningValue : null
+              return {
+                loadoutSnapshotId: snap.id,
+                attributeKey: name,
+                rawText: typeof rawValue === 'string' ? rawValue : String(rawValue ?? ''),
+                value: typeof rawValue === 'number' ? rawValue : null,
+                deltaValue: typeof rawDelta === 'number' ? rawDelta : null,
+                confidence:
+                  vDec.winningConfidence !== undefined
+                    ? String(vDec.winningConfidence.toFixed(4))
+                    : null,
+              }
+            })
+          await tx.insert(playerLoadoutAttributes).values(attrRows)
+        }
+      })
     }
 
     // ── Build ocr_promotions rows for this slot ──────────────────────────────
@@ -996,14 +1012,16 @@ export async function promoteLoadoutFromEvidence(input: {
   // audit/rollback.
   let promotionRowsWritten = 0
   if (pendingPromotions.length > 0) {
-    await db.delete(ocrPromotions).where(
-      and(
-        eq(ocrPromotions.matchId, matchId),
-        effectiveRunIdForWrites === null
-          ? sql`${ocrPromotions.runId} IS NULL`
-          : eq(ocrPromotions.runId, effectiveRunIdForWrites),
-      ),
-    )
+    await db
+      .delete(ocrPromotions)
+      .where(
+        and(
+          eq(ocrPromotions.matchId, matchId),
+          effectiveRunIdForWrites === null
+            ? sql`${ocrPromotions.runId} IS NULL`
+            : eq(ocrPromotions.runId, effectiveRunIdForWrites),
+        ),
+      )
 
     // Batch insert all pending promotion rows, tagged with the effective runId.
     await db.insert(ocrPromotions).values(
