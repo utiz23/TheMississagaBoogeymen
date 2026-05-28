@@ -30,9 +30,17 @@ import {
   db,
   sql as rawSql,
   matches,
+  players,
+  ocrCaptureBatches,
   ocrDecoderRuns,
+  ocrExtractions,
+  ocrFieldEvidence,
+  ocrPromotions,
+  playerLoadoutSnapshots,
+  playerLoadoutXFactors,
+  playerLoadoutAttributes,
 } from '@eanhl/db'
-import { eq, like } from 'drizzle-orm'
+import { eq, inArray, like } from 'drizzle-orm'
 
 const GAME_TITLE_ID = 1 // NHL 26
 const SENTINEL_TAG = 'A3-T3-decoder-runs-cli'
@@ -56,6 +64,29 @@ const sentinelMatchIds: Set<number> = new Set()
 const sentinelRunIds: Set<number> = new Set()
 
 async function cleanupMatch(matchId: number): Promise<void> {
+  // Order respects FK direction. player_loadout_x_factors + _attributes
+  // hang off player_loadout_snapshots — collect the snap ids first.
+  const snapIds = (
+    await db
+      .select({ id: playerLoadoutSnapshots.id })
+      .from(playerLoadoutSnapshots)
+      .where(eq(playerLoadoutSnapshots.matchId, matchId))
+  ).map((r) => r.id)
+  if (snapIds.length > 0) {
+    await db
+      .delete(playerLoadoutXFactors)
+      .where(inArray(playerLoadoutXFactors.loadoutSnapshotId, snapIds))
+    await db
+      .delete(playerLoadoutAttributes)
+      .where(inArray(playerLoadoutAttributes.loadoutSnapshotId, snapIds))
+  }
+  await db
+    .delete(playerLoadoutSnapshots)
+    .where(eq(playerLoadoutSnapshots.matchId, matchId))
+  await db.delete(ocrPromotions).where(eq(ocrPromotions.matchId, matchId))
+  await db.delete(ocrFieldEvidence).where(eq(ocrFieldEvidence.matchId, matchId))
+  await db.delete(ocrExtractions).where(eq(ocrExtractions.matchId, matchId))
+  await db.delete(ocrCaptureBatches).where(eq(ocrCaptureBatches.matchId, matchId))
   await db.delete(ocrDecoderRuns).where(eq(ocrDecoderRuns.matchId, matchId))
   await db.delete(matches).where(eq(matches.id, matchId))
 }
@@ -216,18 +247,16 @@ void test('decoder-runs-cli create-candidate exits non-zero when --match-id is n
   assert.match(result.stderr, /match-id/i, `expected stderr to mention match-id; got: ${result.stderr}`)
 })
 
-void test('decoder-runs-cli stubs validate/activate/undo with informative errors', async () => {
+void test('decoder-runs-cli stubs undo with informative error', async () => {
   if (!process.env['DATABASE_URL']) return
 
-  for (const sub of ['validate', 'activate', 'undo']) {
-    const result = runCli([sub, '--run-id', '1'])
-    assert.notEqual(result.status, 0, `expected non-zero exit for stubbed '${sub}'`)
-    assert.match(
-      result.stderr,
-      /not yet implemented|Task 4|Task 5/i,
-      `expected stub error for '${sub}'; got: ${result.stderr}`,
-    )
-  }
+  const result = runCli(['undo', '--match-id', '1'])
+  assert.notEqual(result.status, 0, `expected non-zero exit for stubbed 'undo'`)
+  assert.match(
+    result.stderr,
+    /not yet implemented|Task 5/i,
+    `expected stub error for 'undo'; got: ${result.stderr}`,
+  )
 })
 
 void test('decoder-runs-cli errors on unknown subcommand', async () => {
@@ -236,4 +265,527 @@ void test('decoder-runs-cli errors on unknown subcommand', async () => {
   const result = runCli(['frobnicate'])
   assert.notEqual(result.status, 0)
   assert.match(result.stderr, /unknown subcommand/i, `got: ${result.stderr}`)
+})
+
+// ────────────────────────────────────────────────────────────────────────
+// Task 4 — validate + activate
+//
+// The validate tests reuse the same promotion-shape fixture as the
+// validateCandidateRun unit tests: whole-row promoted ocr_promotions rows
+// with target_table='player_loadout_snapshots'. Loadout rows omit
+// source_screen; lobby rows tag source_screen='pre_game_lobby_state_2'.
+//
+// The activate tests reuse the rebuild-canonicals fixture shape: real
+// player rows (so gamertag resolution succeeds), two decoder runs (v1
+// inactive / v2 inactive candidate), and distinct loadout evidence per
+// run. After `activate --run-id <v2>`, the v2 evidence projects into
+// player_loadout_snapshots and v2 is marked is_active=true.
+// ────────────────────────────────────────────────────────────────────────
+
+const HIGH_CONF = '0.95'
+
+interface ValidateFixtureOptions {
+  loadoutPromotionCount: number
+  lobbyPromotionCount: number
+  extractorErrorCount?: number
+}
+
+interface ValidateFixtureResult {
+  matchId: number
+  runId: number
+}
+
+async function insertValidateFixture(
+  suffix: string,
+  opts: ValidateFixtureOptions,
+): Promise<ValidateFixtureResult> {
+  const { matchId } = await insertFixtureMatch(suffix)
+  const errorCount = opts.extractorErrorCount ?? 0
+
+  const [run] = await db
+    .insert(ocrDecoderRuns)
+    .values({
+      matchId,
+      videoSha256: null,
+      decoderVersion: 'hmm-viterbi-v2',
+      weightsHash: `wh-${suffix}`,
+      configHash: `ch-${suffix}`,
+      isActive: false,
+      notes: `${SENTINEL_TAG}-${suffix}`,
+    })
+    .returning({ id: ocrDecoderRuns.id })
+  assert.ok(run)
+  const runId = run.id
+  sentinelRunIds.add(runId)
+
+  const [batch] = await db
+    .insert(ocrCaptureBatches)
+    .values({
+      gameTitleId: GAME_TITLE_ID,
+      matchId,
+      sourceDirectory: `/tmp/${SENTINEL_TAG}/${suffix}`,
+      captureKind: 'manual_screenshots',
+      notes: `${SENTINEL_TAG}-${suffix}`,
+      runId,
+    })
+    .returning({ id: ocrCaptureBatches.id })
+  if (!batch) throw new Error('batch insert failed')
+
+  const positions = ['C', 'LW', 'RW', 'LD', 'RD']
+  for (let i = 0; i < opts.loadoutPromotionCount; i++) {
+    const position = positions[i % positions.length]!
+    await db.insert(ocrPromotions).values({
+      matchId,
+      targetTable: 'player_loadout_snapshots',
+      targetSemanticKey: {
+        match_id: matchId,
+        team_side: 'home',
+        position,
+        slot_idx: i,
+      },
+      fieldKey: null,
+      winningValue: {
+        gamertag: `LOADOUT_PLAYER_${i}`,
+        position,
+        team_side: 'home',
+      },
+      winningConfidence: '0.9500',
+      evidenceCount: 1,
+      conflictCount: 0,
+      evidenceIds: [],
+      promotionStatus: 'promoted',
+      blockingReason: null,
+      authoritySource: 'ocr_evidence',
+      runId,
+    })
+  }
+  for (let i = 0; i < opts.lobbyPromotionCount; i++) {
+    const position = positions[i % positions.length]!
+    await db.insert(ocrPromotions).values({
+      matchId,
+      targetTable: 'player_loadout_snapshots',
+      targetSemanticKey: {
+        match_id: matchId,
+        team_side: 'home',
+        position,
+        slot_key: `lobby_${i}`,
+        source_screen: 'pre_game_lobby_state_2',
+      },
+      fieldKey: null,
+      winningValue: {
+        gamertag: `LOBBY_PLAYER_${i}`,
+        position,
+        team_side: 'home',
+        source_screen: 'pre_game_lobby_state_2',
+      },
+      winningConfidence: '0.9500',
+      evidenceCount: 1,
+      conflictCount: 0,
+      evidenceIds: [],
+      promotionStatus: 'promoted',
+      blockingReason: null,
+      authoritySource: 'ocr_evidence',
+      runId,
+    })
+  }
+  for (let i = 0; i < errorCount; i++) {
+    await db.insert(ocrExtractions).values({
+      batchId: batch.id,
+      matchId,
+      screenType: 'player_loadout_view',
+      sourcePath: `/tmp/${SENTINEL_TAG}/${suffix}/err${i}.png`,
+      rawResultJson: {},
+      transformStatus: 'error',
+      transformError: 'extractor_blew_up',
+      runId,
+    })
+  }
+
+  return { matchId, runId }
+}
+
+void test('decoder-runs-cli validate exits 0 and prints ok=true when validation passes', async () => {
+  if (!process.env['DATABASE_URL']) return
+
+  const fx = await insertValidateFixture('validate-ok', {
+    loadoutPromotionCount: 5,
+    lobbyPromotionCount: 1,
+  })
+
+  const result = runCli(['validate', '--run-id', String(fx.runId)])
+  assert.equal(
+    result.status,
+    0,
+    `expected exit 0; stderr: ${result.stderr}; stdout: ${result.stdout}`,
+  )
+  const lastJson = result.stdout
+    .trim()
+    .split('\n')
+    .filter((l) => l.startsWith('{'))
+    .pop()
+  assert.ok(lastJson, `expected JSON stdout; got: ${result.stdout}`)
+  const payload = JSON.parse(lastJson) as {
+    ok: boolean
+    details: { loadoutPromotionCount: number; lobbyPromotionCount: number }
+  }
+  assert.equal(payload.ok, true)
+  assert.equal(payload.details.loadoutPromotionCount, 5)
+  assert.equal(payload.details.lobbyPromotionCount, 1)
+})
+
+void test('decoder-runs-cli validate exits 2 when validation fails (loadout floor not met)', async () => {
+  if (!process.env['DATABASE_URL']) return
+
+  const fx = await insertValidateFixture('validate-fail', {
+    loadoutPromotionCount: 2,
+    lobbyPromotionCount: 0,
+  })
+
+  const result = runCli(['validate', '--run-id', String(fx.runId)])
+  assert.equal(
+    result.status,
+    2,
+    `expected exit 2 on validation failure; stderr: ${result.stderr}; stdout: ${result.stdout}`,
+  )
+  const lastJson = result.stdout
+    .trim()
+    .split('\n')
+    .filter((l) => l.startsWith('{'))
+    .pop()
+  assert.ok(lastJson, `expected JSON stdout on fail-soft; got: ${result.stdout}`)
+  const payload = JSON.parse(lastJson) as {
+    ok: boolean
+    details: { failureReasons: string[] }
+  }
+  assert.equal(payload.ok, false)
+  assert.ok(
+    payload.details.failureReasons.length > 0,
+    'expected at least one failure reason',
+  )
+})
+
+void test('decoder-runs-cli validate exits 1 when --run-id is missing', async () => {
+  if (!process.env['DATABASE_URL']) return
+  const result = runCli(['validate'])
+  assert.equal(result.status, 1)
+  assert.match(result.stderr, /run-id/i, `got: ${result.stderr}`)
+})
+
+void test('decoder-runs-cli validate exits 1 when --run-id is non-numeric', async () => {
+  if (!process.env['DATABASE_URL']) return
+  const result = runCli(['validate', '--run-id', 'banana'])
+  assert.equal(result.status, 1)
+  assert.match(result.stderr, /run-id/i, `got: ${result.stderr}`)
+})
+
+// ─── activate fixtures ────────────────────────────────────────────────
+
+interface ActivateFixtureResult {
+  matchId: number
+  v1RunId: number
+  v2RunId: number
+  v1Gamertag: string
+  v2Gamertag: string
+}
+
+/**
+ * Insert a match with two decoder runs (v1 active, v2 inactive candidate).
+ * Each run has its own loadout evidence (distinct gamertag + position) so
+ * the post-activate canonical snapshot can be unambiguously traced to v2.
+ */
+async function insertActivateFixture(
+  suffix: string,
+  options: { v1IsActive: boolean } = { v1IsActive: true },
+): Promise<ActivateFixtureResult> {
+  const existingPlayers = await db
+    .select({ gamertag: players.gamertag })
+    .from(players)
+    .limit(2)
+  assert.ok(
+    existingPlayers[0] && existingPlayers[1],
+    'DB must have at least two players for the activate fixture',
+  )
+  const v1Gamertag = existingPlayers[0]!.gamertag
+  const v2Gamertag = existingPlayers[1]!.gamertag
+
+  const { matchId } = await insertFixtureMatch(suffix)
+
+  const [runV1] = await db
+    .insert(ocrDecoderRuns)
+    .values({
+      matchId,
+      videoSha256: null,
+      decoderVersion: 'hmm-viterbi-v1',
+      weightsHash: `wh-v1-${suffix}`,
+      configHash: `ch-v1-${suffix}`,
+      isActive: options.v1IsActive,
+      notes: `${SENTINEL_TAG}-runV1`,
+    })
+    .returning({ id: ocrDecoderRuns.id })
+  const [runV2] = await db
+    .insert(ocrDecoderRuns)
+    .values({
+      matchId,
+      videoSha256: null,
+      decoderVersion: 'hmm-viterbi-v2',
+      weightsHash: `wh-v2-${suffix}`,
+      configHash: `ch-v2-${suffix}`,
+      isActive: false,
+      notes: `${SENTINEL_TAG}-runV2`,
+    })
+    .returning({ id: ocrDecoderRuns.id })
+  assert.ok(runV1 && runV2)
+  sentinelRunIds.add(runV1.id)
+  sentinelRunIds.add(runV2.id)
+
+  async function makeBatchAndExtraction(
+    runId: number,
+    label: string,
+  ): Promise<number> {
+    const [b] = await db
+      .insert(ocrCaptureBatches)
+      .values({
+        gameTitleId: GAME_TITLE_ID,
+        matchId,
+        sourceDirectory: `/tmp/${SENTINEL_TAG}/${suffix}/${label}`,
+        captureKind: 'manual_screenshots',
+        notes: `${SENTINEL_TAG}-${label}`,
+        runId,
+      })
+      .returning({ id: ocrCaptureBatches.id })
+    if (!b) throw new Error('batch insert failed')
+    const [x] = await db
+      .insert(ocrExtractions)
+      .values({
+        batchId: b.id,
+        matchId,
+        screenType: 'player_loadout_view',
+        sourcePath: `/tmp/${SENTINEL_TAG}/${suffix}/${label}/frame001.png`,
+        rawResultJson: {},
+        transformStatus: 'success',
+        runId,
+      })
+      .returning({ id: ocrExtractions.id })
+    if (!x) throw new Error('extraction insert failed')
+    return x.id
+  }
+
+  const v1ExtractionId = await makeBatchAndExtraction(runV1.id, 'runV1')
+  const v2ExtractionId = await makeBatchAndExtraction(runV2.id, 'runV2')
+
+  async function seed(
+    runId: number,
+    extractionId: number,
+    fieldKey: string,
+    value: unknown,
+  ): Promise<void> {
+    await db.insert(ocrFieldEvidence).values({
+      matchId,
+      screenState: 'player_loadout_view',
+      subjectSlotKey: 'loadout_slot_T4_activate',
+      fieldKey,
+      fieldFamily: 'closed_vocab',
+      candidateValue: value,
+      candidateRank: 0,
+      rawConfidence: HIGH_CONF,
+      calibratedConfidence: HIGH_CONF,
+      supportFrameIds: [extractionId],
+      extractorFamily: 'closed_vocab',
+      extractorVersion: `${SENTINEL_TAG}-v1`,
+      runId,
+    })
+  }
+  await seed(runV1.id, v1ExtractionId, 'gamertag', v1Gamertag)
+  await seed(runV1.id, v1ExtractionId, 'position', 'C')
+  await seed(runV2.id, v2ExtractionId, 'gamertag', v2Gamertag)
+  await seed(runV2.id, v2ExtractionId, 'position', 'LW')
+
+  return {
+    matchId,
+    v1RunId: runV1.id,
+    v2RunId: runV2.id,
+    v1Gamertag,
+    v2Gamertag,
+  }
+}
+
+void test('decoder-runs-cli activate flips activation atomically and rebuilds canonicals from the new active run', async () => {
+  if (!process.env['DATABASE_URL']) return
+
+  const fx = await insertActivateFixture('activate-happy', { v1IsActive: true })
+
+  const result = runCli(['activate', '--run-id', String(fx.v2RunId)])
+  assert.equal(
+    result.status,
+    0,
+    `expected exit 0; stderr: ${result.stderr}; stdout: ${result.stdout}`,
+  )
+  const lastJson = result.stdout
+    .trim()
+    .split('\n')
+    .filter((l) => l.startsWith('{'))
+    .pop()
+  assert.ok(lastJson, `expected JSON stdout; got: ${result.stdout}`)
+  const payload = JSON.parse(lastJson) as {
+    activated_run_id: number
+    match_id: number
+    loadout_snapshots_written: number
+  }
+  assert.equal(payload.activated_run_id, fx.v2RunId)
+  assert.equal(payload.match_id, fx.matchId)
+
+  // v1 should now be inactive, v2 should be active with completedAt set.
+  const [v1] = await db
+    .select()
+    .from(ocrDecoderRuns)
+    .where(eq(ocrDecoderRuns.id, fx.v1RunId))
+  const [v2] = await db
+    .select()
+    .from(ocrDecoderRuns)
+    .where(eq(ocrDecoderRuns.id, fx.v2RunId))
+  assert.equal(v1?.isActive, false, 'expected v1 to be deactivated')
+  assert.equal(v2?.isActive, true, 'expected v2 to be active')
+  assert.ok(v2?.completedAt, 'expected v2.completedAt to be stamped')
+
+  // Canonical snapshots should reflect v2 evidence only.
+  const snaps = await db
+    .select()
+    .from(playerLoadoutSnapshots)
+    .where(eq(playerLoadoutSnapshots.matchId, fx.matchId))
+  assert.equal(snaps.length, 1, `expected 1 canonical snapshot; got ${snaps.length}`)
+  assert.equal(
+    snaps[0]!.gamertagSnapshot,
+    fx.v2Gamertag,
+    'canonical snapshot should carry the v2 gamertag (not v1)',
+  )
+  assert.equal(snaps[0]!.position, 'LW')
+})
+
+void test('decoder-runs-cli activate succeeds when no prior active run exists', async () => {
+  if (!process.env['DATABASE_URL']) return
+
+  const fx = await insertActivateFixture('activate-first-ever', {
+    v1IsActive: false,
+  })
+
+  const result = runCli(['activate', '--run-id', String(fx.v2RunId)])
+  assert.equal(
+    result.status,
+    0,
+    `expected exit 0 even with no prior active run; stderr: ${result.stderr}`,
+  )
+
+  const [v2] = await db
+    .select()
+    .from(ocrDecoderRuns)
+    .where(eq(ocrDecoderRuns.id, fx.v2RunId))
+  assert.equal(v2?.isActive, true)
+})
+
+void test('decoder-runs-cli activate --dry-run does not modify the DB', async () => {
+  if (!process.env['DATABASE_URL']) return
+
+  const fx = await insertActivateFixture('activate-dryrun', { v1IsActive: true })
+
+  // Pre-state snapshot
+  const beforeRuns = await db
+    .select({ id: ocrDecoderRuns.id, isActive: ocrDecoderRuns.isActive })
+    .from(ocrDecoderRuns)
+    .where(eq(ocrDecoderRuns.matchId, fx.matchId))
+  const beforeSnaps = await db
+    .select({ id: playerLoadoutSnapshots.id })
+    .from(playerLoadoutSnapshots)
+    .where(eq(playerLoadoutSnapshots.matchId, fx.matchId))
+
+  const result = runCli([
+    'activate',
+    '--run-id',
+    String(fx.v2RunId),
+    '--dry-run',
+  ])
+  assert.equal(result.status, 0, `stderr: ${result.stderr}`)
+  const lastJson = result.stdout
+    .trim()
+    .split('\n')
+    .filter((l) => l.startsWith('{'))
+    .pop()
+  assert.ok(lastJson)
+  const payload = JSON.parse(lastJson) as {
+    would_deactivate_run_id: number | null
+    would_activate_run_id: number
+    would_rebuild_canonicals_for_match: number
+    dry_run: boolean
+  }
+  assert.equal(payload.would_deactivate_run_id, fx.v1RunId)
+  assert.equal(payload.would_activate_run_id, fx.v2RunId)
+  assert.equal(payload.would_rebuild_canonicals_for_match, fx.matchId)
+  assert.equal(payload.dry_run, true)
+
+  // Post-state must equal pre-state.
+  const afterRuns = await db
+    .select({ id: ocrDecoderRuns.id, isActive: ocrDecoderRuns.isActive })
+    .from(ocrDecoderRuns)
+    .where(eq(ocrDecoderRuns.matchId, fx.matchId))
+  const afterSnaps = await db
+    .select({ id: playerLoadoutSnapshots.id })
+    .from(playerLoadoutSnapshots)
+    .where(eq(playerLoadoutSnapshots.matchId, fx.matchId))
+  assert.deepEqual(
+    afterRuns.sort((a, b) => a.id - b.id),
+    beforeRuns.sort((a, b) => a.id - b.id),
+    'dry-run must not modify ocr_decoder_runs',
+  )
+  assert.equal(
+    afterSnaps.length,
+    beforeSnaps.length,
+    'dry-run must not write canonical snapshots',
+  )
+})
+
+void test('decoder-runs-cli activate fails when target run is already active', async () => {
+  if (!process.env['DATABASE_URL']) return
+
+  // Setup: insert a match with one already-active run.
+  const { matchId } = await insertFixtureMatch('activate-already-active')
+  const [run] = await db
+    .insert(ocrDecoderRuns)
+    .values({
+      matchId,
+      videoSha256: null,
+      decoderVersion: 'hmm-viterbi-v2',
+      weightsHash: 'wh-already-active',
+      configHash: 'ch-already-active',
+      isActive: true,
+      notes: `${SENTINEL_TAG}-already-active`,
+    })
+    .returning({ id: ocrDecoderRuns.id })
+  assert.ok(run)
+  sentinelRunIds.add(run.id)
+
+  const result = runCli(['activate', '--run-id', String(run.id)])
+  assert.equal(result.status, 1)
+  assert.match(
+    result.stderr,
+    /already active/i,
+    `expected stderr to mention "already active"; got: ${result.stderr}`,
+  )
+})
+
+void test('decoder-runs-cli activate fails when target run does not exist', async () => {
+  if (!process.env['DATABASE_URL']) return
+
+  const result = runCli(['activate', '--run-id', '999999999'])
+  assert.equal(result.status, 1)
+  assert.match(
+    result.stderr,
+    /not found/i,
+    `expected stderr to mention "not found"; got: ${result.stderr}`,
+  )
+})
+
+void test('decoder-runs-cli activate exits 1 when --run-id is missing', async () => {
+  if (!process.env['DATABASE_URL']) return
+  const result = runCli(['activate'])
+  assert.equal(result.status, 1)
+  assert.match(result.stderr, /run-id/i, `got: ${result.stderr}`)
 })

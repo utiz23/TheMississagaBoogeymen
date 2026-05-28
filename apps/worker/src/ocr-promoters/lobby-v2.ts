@@ -35,7 +35,7 @@ import {
 } from '@eanhl/db'
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import { getFieldEvidenceForLobbySlot, getActiveRunIdForMatch } from '@eanhl/db/queries'
-import type { Database } from '@eanhl/db'
+import type { DbOrTx } from './index.js'
 import type { GateCandidate, PromotionDecision } from '../lib/promotion-gate.js'
 import { runPromotionGate } from '../lib/promotion-gate.js'
 import { resolveGamertagToPlayer } from './resolve-identity.js'
@@ -97,7 +97,7 @@ function whitelistPlatform(raw: string | null): string | null {
   return PLATFORM_WHITELIST.has(lower) ? lower : null
 }
 
-async function resolveGameTitleIdForMatch(db: Database, matchId: number): Promise<number> {
+async function resolveGameTitleIdForMatch(db: DbOrTx, matchId: number): Promise<number> {
   const [row] = await db
     .select({ gameTitleId: matches.gameTitleId })
     .from(matches)
@@ -163,14 +163,24 @@ export async function promoteLobbyFromEvidence(input: {
    * run; rebuildCanonicalsFromActiveRun handles them at activation time.
    */
   runId?: number | null
-  db?: Database
+  /**
+   * Accepts either the top-level `Database` connection or an outer
+   * `PromoterDb` (PgTransaction) so callers (e.g. decoder-runs-cli
+   * activate) can keep the whole promote+rebuild flow atomic.
+   */
+  db?: DbOrTx
 }): Promise<PromoteLobbyFromEvidenceResult> {
   const db = input.db ?? defaultDb
   const { matchId } = input
 
   // Resolve effective run + activation gate (Phase-A). See loadout-v2.ts for
   // the full reasoning behind the two-name split.
-  const activeRunId = await getActiveRunIdForMatch(matchId)
+  // Pass `db` so a caller mid-transaction (e.g. decoder-runs-cli activate)
+  // sees the in-flight `is_active` flip from the same tx.
+  const activeRunId = await getActiveRunIdForMatch(
+    matchId,
+    db as unknown as import('@eanhl/db').Database,
+  )
   const effectiveRunIdForWrites =
     input.runId !== undefined ? input.runId : activeRunId
   const writeSnapshots = effectiveRunIdForWrites === activeRunId

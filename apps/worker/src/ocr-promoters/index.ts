@@ -23,6 +23,19 @@ import type { OcrResult } from '../ocr-cli-runner.js'
 
 export type PromoterDb = Parameters<Parameters<typeof db.transaction>[0]>[0]
 
+/**
+ * Union of the top-level Drizzle `Database` (a `PgDatabase`) and a
+ * `PromoterDb` (a `PgTransaction`). Use this for functions that need
+ * to accept either the default db connection OR an existing outer
+ * transaction so the caller can keep multiple writes atomic.
+ *
+ * Drizzle's `PgTransaction` extends `PgDatabase` so all the query
+ * builder methods (`select`, `insert`, `update`, `delete`, `transaction`)
+ * are present on both. `tx.transaction(...)` opens a savepoint, which
+ * is what we want for nested-transaction code paths inside promoters.
+ */
+export type DbOrTx = typeof db | PromoterDb
+
 export interface PromoterContext {
   result: OcrResult
   extractionId: number

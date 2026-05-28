@@ -43,7 +43,7 @@ import type { GateCandidate, PromotionDecision } from '../lib/promotion-gate.js'
 import { runPromotionGate } from '../lib/promotion-gate.js'
 import { resolveGamertagToPlayer, normalizeSnapshot } from './resolve-identity.js'
 import { normalizeXFactor } from '../lib/normalize-xfactor.js'
-import type { PromoterDb } from './index.js'
+import type { DbOrTx, PromoterDb } from './index.js'
 
 // ─── types ─────────────────────────────────────────────────────────────────────
 
@@ -276,7 +276,12 @@ export async function promoteLoadoutFromEvidence(input: {
    * reprocess CLI calls a separate rebuild step at activation time.
    */
   runId?: number | null
-  db?: Database
+  /**
+   * Accepts either the top-level `Database` connection or an outer
+   * `PromoterDb` (PgTransaction) so callers (e.g. decoder-runs-cli
+   * activate) can keep the whole promote+rebuild flow atomic.
+   */
+  db?: DbOrTx
 }): Promise<PromoteLoadoutFromEvidenceResult> {
   const db = input.db ?? defaultDb
   const { matchId } = input
@@ -287,7 +292,9 @@ export async function promoteLoadoutFromEvidence(input: {
   // - For ocr_promotions WRITES + the writeSnapshots gate: resolve undefined
   //   to the current active run so default callers tag their promotions with
   //   the active run id.
-  const activeRunId = await getActiveRunIdForMatch(matchId)
+  // Pass `db` so a caller mid-transaction (e.g. decoder-runs-cli activate)
+  // sees the in-flight `is_active` flip from the same tx.
+  const activeRunId = await getActiveRunIdForMatch(matchId, db as unknown as Database)
   const effectiveRunIdForWrites =
     input.runId !== undefined ? input.runId : activeRunId
   const writeSnapshots = effectiveRunIdForWrites === activeRunId
@@ -537,7 +544,13 @@ export async function promoteLoadoutFromEvidence(input: {
   }
 
   // ── Step 8: Expected-roster observability ────────────────────────────────
-  const expectedSlots = await getExpectedSlotsForMatch(matchId, db)
+  // getExpectedSlotsForMatch still expects the top-level Database type;
+  // safe to cast because PgTransaction inherits the same query-builder
+  // surface that the function uses.
+  const expectedSlots = await getExpectedSlotsForMatch(
+    matchId,
+    db as unknown as Database,
+  )
   const coveredKeys = new Set<string>()
   for (const sd of slotDecisions) {
     if (sd.snapshotBlockReason) continue
@@ -1027,7 +1040,7 @@ export async function promoteLoadoutFromEvidence(input: {
  * Resolve gameTitleId for a match by querying matches.
  * Falls back to game_title_id=1 (NHL 26) for sentinel matches in tests.
  */
-async function resolveGameTitleIdForMatch(db: Database, matchId: number): Promise<number> {
+async function resolveGameTitleIdForMatch(db: DbOrTx, matchId: number): Promise<number> {
   const [row] = await db
     .select({ gameTitleId: matches.gameTitleId })
     .from(matches)
@@ -1044,7 +1057,7 @@ async function resolveGameTitleIdForMatch(db: Database, matchId: number): Promis
  * Resolve a raw persona string against the player_persona_aliases table.
  * Returns the canonical persona if found, else null (raw value is used as-is).
  */
-async function resolvePersonaAlias(db: Database, personaRaw: string): Promise<string | null> {
+async function resolvePersonaAlias(db: DbOrTx, personaRaw: string): Promise<string | null> {
   const normalized = normalizeSnapshot(personaRaw).toLowerCase()
   const [row] = await db
     .select({ canonicalPersona: playerPersonaAliases.canonicalPersona })

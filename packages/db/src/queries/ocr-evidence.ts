@@ -10,7 +10,7 @@
  */
 
 import { and, asc, desc, eq, inArray, sql, type AnyColumn } from 'drizzle-orm'
-import { db } from '../client.js'
+import { db, type Database } from '../client.js'
 import { ocrDecoderRuns } from '../schema/ocr-decoder-runs.js'
 import {
   ocrFieldEvidence,
@@ -54,9 +54,21 @@ export function liveRunFilter(runIdColumn: AnyColumn) {
  *
  * The promoters use this to resolve "which run am I writing under?" when
  * called without an explicit runId argument.
+ *
+ * Accepts an optional db override (Database OR PgTransaction-compatible)
+ * so callers that are mid-transaction can read the run's *committed-or-
+ * pending* activation state from within the same tx. The cli-driven
+ * `decoder-runs activate` flow flips `is_active` inside a tx and then
+ * calls into the promoters via `rebuildCanonicalsFromActiveRun`; that
+ * chain needs to see the in-flight flip, which only the same tx
+ * connection can. Default is the shared module-level db.
  */
-export async function getActiveRunIdForMatch(matchId: number): Promise<number | null> {
-  const rows = await db
+export async function getActiveRunIdForMatch(
+  matchId: number,
+  dbOverride?: Database,
+): Promise<number | null> {
+  const conn = dbOverride ?? db
+  const rows = await conn
     .select({ id: ocrDecoderRuns.id })
     .from(ocrDecoderRuns)
     .where(and(eq(ocrDecoderRuns.matchId, matchId), eq(ocrDecoderRuns.isActive, true)))

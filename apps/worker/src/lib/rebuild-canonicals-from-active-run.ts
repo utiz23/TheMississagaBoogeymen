@@ -22,16 +22,14 @@
  * re-promotes. The promoters themselves additionally delete prior
  * (match, runId) `ocr_promotions` rows before insert.
  *
- * Single-transaction caveat: the underlying promoters open their own
- * inner transactions and the project's `Database` type doesn't currently
- * model a Drizzle Transaction (it's `typeof db`). Wrapping the whole
- * helper in one outer transaction would require widening every
- * promoter's `db?: Database` parameter to a union with `PgTransaction`.
- * For Task 1 the delete + re-promote are performed sequentially against
- * the default db (not atomically). The activate flow (Task 4) lives at a
- * higher layer and can decide whether it needs an outer transaction
- * around `UPDATE ocr_decoder_runs SET is_active=…` plus this helper —
- * see Task 1 report notes.
+ * Atomicity: the `options.db` parameter accepts either the top-level
+ * `Database` connection or a `PromoterDb` (PgTransaction), so callers
+ * can wrap the entire rebuild inside an outer transaction. The
+ * `decoder-runs-cli activate` flow uses this to keep the
+ * deactivate-old / activate-new / rebuild-canonicals operations atomic.
+ * When the underlying promoter calls `db.transaction(...)` against a
+ * PgTransaction, Drizzle opens a savepoint rather than a new top-level
+ * transaction — which is the correct nested-transaction semantics.
  */
 
 import { and, eq, inArray } from 'drizzle-orm'
@@ -41,10 +39,12 @@ import {
   playerLoadoutSnapshots,
   playerLoadoutXFactors,
   playerLoadoutAttributes,
-  type Database,
 } from '@eanhl/db'
 import { promoteLoadoutFromEvidence } from '../ocr-promoters/loadout-v2.js'
 import { promoteLobbyFromEvidence } from '../ocr-promoters/lobby-v2.js'
+import type { DbOrTx } from '../ocr-promoters/index.js'
+
+export type { DbOrTx } from '../ocr-promoters/index.js'
 
 export interface RebuildCanonicalsResult {
   loadoutSnapshotsWritten: number
@@ -54,7 +54,7 @@ export interface RebuildCanonicalsResult {
 
 export async function rebuildCanonicalsFromActiveRun(
   matchId: number,
-  options?: { db?: Database },
+  options?: { db?: DbOrTx },
 ): Promise<RebuildCanonicalsResult> {
   const db = options?.db ?? defaultDb
 

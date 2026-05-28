@@ -15,10 +15,18 @@
  *     `JSON.parse`.
  *
  *   validate          --run-id N [--min-loadout K] [--min-lobby K]
- *     (Task 4 — not yet implemented)
+ *     Runs `validateCandidateRun(N)` and prints its full result as JSON
+ *     on stdout. Exit 0 when ok=true; exit 2 when ok=false (fail-soft
+ *     so callers can decide to abort or continue).
  *
  *   activate          --run-id N [--dry-run]
- *     (Task 4 — not yet implemented)
+ *     Atomic flip from any existing active run for the same match to the
+ *     target run, then rebuild canonical snapshot tables from the now-
+ *     active run's evidence. All three steps (deactivate prior, activate
+ *     target, rebuildCanonicalsFromActiveRun) run inside a single Drizzle
+ *     transaction. `applyMatchColors` runs after the tx commits because
+ *     it's idempotent and opens its own transaction. With --dry-run, no
+ *     rows are written — the CLI just prints the would-be flip as JSON.
  *
  *   undo              --match-id N [--dry-run]
  *     (Task 5 — not yet implemented)
@@ -26,13 +34,18 @@
  * Exit codes:
  *   0 — success
  *   1 — argument validation error, unknown subcommand, or DB error
- *   2 — reserved for `validate` fail-soft (Task 4)
+ *   2 — `validate` returned ok=false (fail-soft)
  */
 import {
   db,
   sql as sqlTag,
   ocrDecoderRuns,
 } from '@eanhl/db'
+import { and, eq } from 'drizzle-orm'
+
+import { rebuildCanonicalsFromActiveRun } from './lib/rebuild-canonicals-from-active-run.js'
+import { validateCandidateRun } from './lib/validate-candidate-run.js'
+import { applyMatchColors } from './lib/match-color-aggregator.js'
 
 function getFlag(argv: string[], name: string): string | undefined {
   const i = argv.indexOf(`--${name}`)
@@ -87,6 +100,154 @@ async function createCandidate(argv: string[]): Promise<void> {
   )
 }
 
+/**
+ * Parse a numeric --flag. Returns `undefined` if absent. Throws when the
+ * value is present but not a finite non-negative integer (rejecting
+ * `'abc'`, `'-3'`, `'4.5'`, etc.).
+ */
+function parseOptionalNonNegativeInt(
+  argv: string[],
+  name: string,
+): number | undefined {
+  const raw = getFlag(argv, name)
+  if (raw === undefined) return undefined
+  const n = Number(raw)
+  if (!Number.isFinite(n) || !Number.isInteger(n) || n < 0) {
+    throw new Error(
+      `--${name} must be a non-negative integer; got: ${raw}`,
+    )
+  }
+  return n
+}
+
+async function validate(argv: string[]): Promise<void> {
+  const runIdRaw = getFlag(argv, 'run-id')
+  if (!runIdRaw) {
+    throw new Error('validate requires --run-id <positive integer>')
+  }
+  const runId = Number(runIdRaw)
+  if (!Number.isFinite(runId) || !Number.isInteger(runId) || runId <= 0) {
+    throw new Error(
+      `validate requires --run-id <positive integer>; got: ${runIdRaw}`,
+    )
+  }
+
+  const minLoadout = parseOptionalNonNegativeInt(argv, 'min-loadout')
+  const minLobby = parseOptionalNonNegativeInt(argv, 'min-lobby')
+
+  const result = await validateCandidateRun(runId, {
+    ...(minLoadout !== undefined ? { minLoadoutSnapshots: minLoadout } : {}),
+    ...(minLobby !== undefined ? { minLobbySnapshots: minLobby } : {}),
+  })
+
+  process.stdout.write(JSON.stringify(result) + '\n')
+
+  // Fail-soft: ok=false → exit 2. Caller (Python orchestrator) decides
+  // whether to abort the reprocess. The success exit (0) propagates
+  // through the main() Promise chain.
+  if (!result.ok) {
+    // Flush + ensure DB pool is closed before exiting so the JSON line
+    // lands on stdout. main()'s finally() runs sqlTag.end() — duplicate
+    // it here because we bypass main()'s normal `.then(() => exit(0))`.
+    await sqlTag.end()
+    process.exit(2)
+  }
+}
+
+async function activate(argv: string[]): Promise<void> {
+  const runIdRaw = getFlag(argv, 'run-id')
+  if (!runIdRaw) {
+    throw new Error('activate requires --run-id <positive integer>')
+  }
+  const runId = Number(runIdRaw)
+  if (!Number.isFinite(runId) || !Number.isInteger(runId) || runId <= 0) {
+    throw new Error(
+      `activate requires --run-id <positive integer>; got: ${runIdRaw}`,
+    )
+  }
+  const dryRun = argv.includes('--dry-run')
+
+  // Look up the target run. Must exist + not already be active.
+  const [target] = await db
+    .select()
+    .from(ocrDecoderRuns)
+    .where(eq(ocrDecoderRuns.id, runId))
+    .limit(1)
+  if (!target) {
+    throw new Error(`activate: run ${runId} not found`)
+  }
+  if (target.isActive) {
+    throw new Error(`activate: run ${runId} is already active`)
+  }
+  const matchId = target.matchId
+
+  if (dryRun) {
+    const [prior] = await db
+      .select({ id: ocrDecoderRuns.id })
+      .from(ocrDecoderRuns)
+      .where(
+        and(
+          eq(ocrDecoderRuns.matchId, matchId),
+          eq(ocrDecoderRuns.isActive, true),
+        ),
+      )
+      .limit(1)
+    process.stdout.write(
+      JSON.stringify({
+        would_deactivate_run_id: prior?.id ?? null,
+        would_activate_run_id: runId,
+        would_rebuild_canonicals_for_match: matchId,
+        dry_run: true,
+      }) + '\n',
+    )
+    return
+  }
+
+  // Atomic flip + rebuild in one outer transaction.
+  // 1. Deactivate any current active run for the match.
+  // 2. Activate the target run + stamp completed_at.
+  // 3. Rebuild canonicals from the now-active run.
+  // rebuildCanonicalsFromActiveRun accepts a `db: DbOrTx`, so it joins
+  // the outer transaction.
+  let loadoutSnapshotsWritten = 0
+  let lobbySnapshotsWritten = 0
+  await db.transaction(async (tx) => {
+    await tx
+      .update(ocrDecoderRuns)
+      .set({ isActive: false })
+      .where(
+        and(
+          eq(ocrDecoderRuns.matchId, matchId),
+          eq(ocrDecoderRuns.isActive, true),
+        ),
+      )
+    await tx
+      .update(ocrDecoderRuns)
+      .set({ isActive: true, completedAt: new Date() })
+      .where(eq(ocrDecoderRuns.id, runId))
+    const rebuildResult = await rebuildCanonicalsFromActiveRun(matchId, {
+      db: tx,
+    })
+    loadoutSnapshotsWritten = rebuildResult.loadoutSnapshotsWritten
+    lobbySnapshotsWritten = rebuildResult.lobbySnapshotsWritten
+  })
+
+  // applyMatchColors is idempotent + opens its own transaction internally;
+  // safe to run outside the activation tx. If it throws, the flip already
+  // committed — operator can re-run colour aggregation later without
+  // re-triggering the flip.
+  await applyMatchColors(matchId)
+
+  process.stdout.write(
+    JSON.stringify({
+      activated_run_id: runId,
+      match_id: matchId,
+      loadout_snapshots_written: loadoutSnapshotsWritten,
+      lobby_snapshots_written: lobbySnapshotsWritten,
+    }) + '\n',
+  )
+}
+
 async function main(): Promise<void> {
   const [subcommand, ...rest] = process.argv.slice(2)
   switch (subcommand) {
@@ -94,11 +255,13 @@ async function main(): Promise<void> {
       await createCandidate(rest)
       break
     case 'validate':
+      await validate(rest)
+      break
     case 'activate':
+      await activate(rest)
+      break
     case 'undo':
-      throw new Error(
-        `subcommand '${subcommand}' not yet implemented (Task 4/5)`,
-      )
+      throw new Error(`subcommand '${subcommand}' not yet implemented (Task 5)`)
     default:
       throw new Error(
         `unknown subcommand: ${subcommand ?? '(none)'}; expected create-candidate | validate | activate | undo`,
