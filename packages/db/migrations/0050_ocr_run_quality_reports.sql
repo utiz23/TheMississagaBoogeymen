@@ -55,6 +55,43 @@ CREATE INDEX IF NOT EXISTS "ocr_run_quality_reports_generated_idx"
   ON "ocr_run_quality_reports" ("generated_at" DESC);
 --> statement-breakpoint
 
+-- Score-range CHECK constraints. Real L1/L2/L3 scores are bounded 0.0-1.0,
+-- but numeric(5,4) permits up to 9.9999 — without these guards a future CLI
+-- bug (bad denominator, etc.) would silently insert garbage and corrupt
+-- trend queries. l1_score is nullable; the others are NOT NULL so the IS
+-- NULL branch isn't needed but doesn't hurt anything.
+--
+-- Postgres has no native ADD CONSTRAINT IF NOT EXISTS; the DO/EXCEPTION
+-- pattern keeps this migration idempotent (re-applying against a DB that
+-- already has the constraint is a no-op rather than an error).
+DO $$ BEGIN
+  ALTER TABLE "ocr_run_quality_reports"
+    ADD CONSTRAINT "ocr_run_quality_reports_l1_score_range_chk"
+    CHECK ("l1_score" IS NULL OR ("l1_score" BETWEEN 0 AND 1));
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+--> statement-breakpoint
+
+DO $$ BEGIN
+  ALTER TABLE "ocr_run_quality_reports"
+    ADD CONSTRAINT "ocr_run_quality_reports_l2_score_range_chk"
+    CHECK ("l2_score" BETWEEN 0 AND 1);
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+--> statement-breakpoint
+
+DO $$ BEGIN
+  ALTER TABLE "ocr_run_quality_reports"
+    ADD CONSTRAINT "ocr_run_quality_reports_l2_lineup_score_range_chk"
+    CHECK ("l2_lineup_score" BETWEEN 0 AND 1);
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+--> statement-breakpoint
+
+DO $$ BEGIN
+  ALTER TABLE "ocr_run_quality_reports"
+    ADD CONSTRAINT "ocr_run_quality_reports_l3_score_range_chk"
+    CHECK ("l3_score" BETWEEN 0 AND 1);
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+--> statement-breakpoint
+
 COMMENT ON TABLE "ocr_run_quality_reports" IS
   'Run-level OCR quality reports — one row per ocr_decoder_runs.id. Captures L1/L2/L3 aggregate scores (numeric columns for cheap trend queries) plus the full structured report (jsonb). Observability-only: never read on canonical metric paths. Append-only; FKs to ocr_decoder_runs and matches are one-way with NO CASCADE. The report jsonb shape is owned by the Phase-3 quality-report CLI (tools/game_ocr/...) — bump schema_version when that shape changes. See docs/research/video-extraction-architecture-review-2026-05-28.md §6.';
 

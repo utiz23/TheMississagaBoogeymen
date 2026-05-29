@@ -42,6 +42,10 @@ import { ocrDecoderRuns } from './ocr-decoder-runs.js'
  *   - `l1Score` is nullable: ground-truth fixtures for L1 may not exist
  *     yet at the time the report is produced.
  *   - `l2Score`, `l2LineupScore`, `l3Score` are required.
+ *   - All four score columns are bounded 0.0-1.0 by DB-level CHECK
+ *     constraints (`*_range_chk`). Drizzle 0.45 has no fluent `.check()`
+ *     API; the constraints live in migration 0050. Any future change to
+ *     score semantics must update both the schema docs and the migration.
  *   - `totalWallMs` is nullable: backfilled rows (synthetic / historical
  *     re-scoring) have no real runtime to attribute.
  */
@@ -60,6 +64,8 @@ export const ocrRunQualityReports = pgTable(
     /** Bumped whenever the structural shape of `report` changes. */
     schemaVersion: smallint('schema_version').notNull(),
     overallPass: boolean('overall_pass').notNull(),
+    // Score columns are bounded 0.0-1.0 by DB-level CHECK constraints
+    // defined in migration 0050 (`*_range_chk`) — see file docstring.
     /** NULL when L1 ground-truth fixtures are not yet available. */
     l1Score: numeric('l1_score', { precision: 5, scale: 4 }),
     l2Score: numeric('l2_score', { precision: 5, scale: 4 }).notNull(),
