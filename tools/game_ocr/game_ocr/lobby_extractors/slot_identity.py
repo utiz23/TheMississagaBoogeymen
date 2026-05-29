@@ -30,7 +30,7 @@ than reporting wrong data.
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Literal, Optional, Sequence
 
 from game_ocr.lobby_extractors.row_grouping import (
@@ -195,6 +195,95 @@ def _clean_gamertag(text: str) -> str:
     cleaned = re.sub(r"\s*READY\s*", "", cleaned, flags=re.IGNORECASE)
     cleaned = re.sub(r"\s+x$", "", cleaned).strip()
     return cleaned
+
+
+def _normalize_for_cross_team_dedup(gamertag: Optional[str]) -> Optional[str]:
+    """Normalize for cross-team duplicate detection.
+
+    Strip everything but alphanumerics, lowercase. Returns None when the
+    input is None, empty, or drops below 3 chars after stripping — short
+    strings are OCR noise (single chars, '?', etc.) and would false-positive
+    across legitimately-empty slots.
+    """
+    if gamertag is None:
+        return None
+    stripped = re.sub(r"[^A-Za-z0-9]", "", gamertag).lower()
+    return stripped if len(stripped) >= 3 else None
+
+
+def _demote_cross_team_duplicates(
+    subjects: list[LobbySubjectIdentity],
+) -> list[LobbySubjectIdentity]:
+    """Force is_empty_or_cpu=True on subjects whose normalized gamertag
+    appears on >1 team_side in the same frame.
+
+    Real human gamertags cannot appear on both rosters of an EASHL lobby
+    simultaneously — a player belongs to at most one team. Any cross-team
+    duplicate is therefore structurally an EA test-database CPU placeholder
+    (e.g., 'XZ4RKY' for match 250, 'bad' for match 968).
+
+    OCR-agnostic — works for any placeholder text without an enumerated
+    allow-list. Deterministic — same input always produces same output.
+    Composes with the OR-fold semantics in lobby-v2.ts: detector-side
+    dedup handles the obvious cases; OR-fold handles residual cases where
+    one frame correctly identified CPU via the existing _is_cpu_or_empty
+    path and another mis-read the placeholder.
+    """
+    teams_by_tag: dict[str, set[TeamSide]] = {}
+    for s in subjects:
+        if s.is_empty_or_cpu:
+            continue  # already CPU per the literal-"CPU" check; no gamertag
+        norm = _normalize_for_cross_team_dedup(s.gamertag)
+        if norm is None:
+            continue
+        teams_by_tag.setdefault(norm, set()).add(s.team_side)
+
+    duplicates = {tag for tag, teams in teams_by_tag.items() if len(teams) > 1}
+    if not duplicates:
+        return subjects
+
+    out: list[LobbySubjectIdentity] = []
+    for s in subjects:
+        norm = _normalize_for_cross_team_dedup(s.gamertag)
+        if norm is not None and norm in duplicates:
+            # Replace with a CPU-shape identity matching the contract of
+            # the existing _is_cpu_or_empty branch at line 467-477: only
+            # slot_key, team_side, position, position_confidence,
+            # is_empty_or_cpu, anchor_y, panel_state, observability are
+            # meaningful. All other fields cleared so downstream consumers
+            # see a consistent CPU-row shape regardless of how the slot
+            # got demoted.
+            out.append(replace(
+                s,
+                is_empty_or_cpu=True,
+                gamertag=None,
+                gamertag_confidence=None,
+                player_number=None,
+                player_number_confidence=None,
+                player_name_persona=None,
+                player_name_persona_confidence=None,
+                build_class_raw=None,
+                build_class_confidence=None,
+                player_level_raw=None,
+                player_level_number=None,
+                player_level_confidence=None,
+                is_captain=None,
+                is_captain_confidence=None,
+                is_ready=None,
+                is_ready_confidence=None,
+                height_text=None,
+                height_confidence=None,
+                weight_lbs=None,
+                weight_confidence=None,
+                handedness=None,
+                handedness_confidence=None,
+                platform=None,
+                platform_confidence=None,
+                observability="low_quality",
+            ))
+        else:
+            out.append(s)
+    return out
 
 
 def _is_cpu_or_empty(row_lines: Sequence[OCRLine]) -> bool:
@@ -564,4 +653,4 @@ def identify_lobby_subjects(
                 observability=observability,
             )
         )
-    return out
+    return _demote_cross_team_duplicates(out)

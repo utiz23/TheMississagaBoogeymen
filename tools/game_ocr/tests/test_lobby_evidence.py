@@ -258,6 +258,51 @@ class LobbyEvidenceTests(unittest.TestCase):
             ):
                 self.assertIn(key, d, msg=f"missing key {key!r} in record dict")
 
+    def test_cross_team_duplicate_emits_is_cpu_true_for_both_slots(self) -> None:
+        # Real human gamertags cannot appear on both rosters of an EASHL
+        # lobby simultaneously, so a same-frame cross-team duplicate (e.g.
+        # 'XZ4RKY' on match 250) is structurally a CPU placeholder OCR
+        # misread as text. The detector-side dedup must demote both slots
+        # so the evidence layer emits is_cpu=True for them.
+        lines: list[OCRLine] = []
+        for i, position in enumerate(LOBBY_CANONICAL_ROW_ORDER):
+            y = 300 + i * 88
+            lines.append(_line(position, 77, y))
+            lines.append(_line(position, 1844, y))
+            # BGM panel: G (i==5) reads XZ4RKY; others unique.
+            bgm_gt = "XZ4RKY" if position == "G" else f"BgmGT{i}"
+            lines.append(_line(bgm_gt, 250, y - 12))
+            lines.append(_line(f"#{10 + i}-Persona{i}", 250, y + 10))
+            # Opp panel: C (i==0) reads XZ4RKY; others unique.
+            opp_gt = "XZ4RKY" if position == "C" else f"OppGT{i}"
+            lines.append(_line(opp_gt, 1700, y - 12))
+            lines.append(_line(f"#{20 + i}-OppPersona{i}", 1700, y + 10))
+
+        bundle = _empty_bundle(1)
+        try:
+            records = extract_lobby_evidence(
+                bundle,
+                segment_index=42,
+                ocr_lines_per_frame=[lines],
+            )
+        finally:
+            for p in bundle.iterdir():
+                p.unlink()
+            bundle.rmdir()
+
+        bgm_g_is_cpu = next(
+            r for r in records
+            if r.subject_slot_key == "lobby_for_G" and r.field_key == "is_cpu"
+        )
+        opp_c_is_cpu = next(
+            r for r in records
+            if r.subject_slot_key == "lobby_against_C" and r.field_key == "is_cpu"
+        )
+        self.assertEqual(bgm_g_is_cpu.candidate_value, True)
+        self.assertEqual(bgm_g_is_cpu.shape_or_icon_class, "cpu")
+        self.assertEqual(opp_c_is_cpu.candidate_value, True)
+        self.assertEqual(opp_c_is_cpu.shape_or_icon_class, "cpu")
+
     def test_empty_bundle_dir_raises(self) -> None:
         bundle = _empty_bundle(0)
         try:

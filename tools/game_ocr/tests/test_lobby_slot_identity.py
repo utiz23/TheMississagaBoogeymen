@@ -16,6 +16,8 @@ from game_ocr.lobby_extractors.row_grouping import (
 )
 from game_ocr.lobby_extractors.slot_identity import (
     CAPTAIN_GLYPHS,
+    LobbySubjectIdentity,
+    _demote_cross_team_duplicates,
     identify_lobby_subjects,
     slot_key_for,
 )
@@ -264,6 +266,149 @@ class GamertagJunkFilterTests(unittest.TestCase):
         subjects = identify_lobby_subjects(bgm_rows)
         c = next(s for s in subjects if s.position == "C")
         self.assertEqual(c.gamertag, "Stick Menace")
+
+
+class CrossTeamDuplicateDedupTests(unittest.TestCase):
+    """Phase 3: cross-team gamertag duplicates are structurally CPU placeholders.
+
+    A real human gamertag cannot appear on both rosters of the same EASHL
+    lobby simultaneously, so any cross-team duplicate is an EA test-database
+    CPU placeholder (e.g. 'XZ4RKY' for match 250, 'bad' for match 968) that
+    OCR mistakenly read as text instead of detecting the CPU marker.
+    """
+
+    @staticmethod
+    def _subject(
+        team_side: str,
+        position: str,
+        gamertag,
+        *,
+        is_empty_or_cpu: bool = False,
+    ) -> LobbySubjectIdentity:
+        return LobbySubjectIdentity(
+            slot_key=slot_key_for(team_side, position),  # type: ignore[arg-type]
+            team_side=team_side,  # type: ignore[arg-type]
+            position=position,
+            position_confidence=0.95,
+            is_empty_or_cpu=is_empty_or_cpu,
+            gamertag=gamertag,
+            gamertag_confidence=0.9 if gamertag is not None else None,
+            anchor_y=300,
+            panel_state="state_2",
+        )
+
+    def test_cross_team_dedup_demotes_both_sides(self) -> None:
+        subjects = [
+            self._subject("our_team", "G", "XZ4RKY"),
+            self._subject("opponent_team", "C", "XZ4RKY"),
+        ]
+        out = _demote_cross_team_duplicates(subjects)
+        bgm_g = next(s for s in out if s.slot_key == "lobby_for_G")
+        opp_c = next(s for s in out if s.slot_key == "lobby_against_C")
+        self.assertTrue(bgm_g.is_empty_or_cpu)
+        self.assertIsNone(bgm_g.gamertag)
+        self.assertTrue(opp_c.is_empty_or_cpu)
+        self.assertIsNone(opp_c.gamertag)
+
+    def test_cross_team_dedup_preserves_unique_gamertags(self) -> None:
+        # 6 BGM positions × 6 opp positions with unique gamertags each.
+        positions = list(LOBBY_CANONICAL_ROW_ORDER)
+        subjects: list[LobbySubjectIdentity] = []
+        for i, pos in enumerate(positions):
+            subjects.append(self._subject("our_team", pos, f"BgmPlayer{i}"))
+            subjects.append(self._subject("opponent_team", pos, f"OppPlayer{i}"))
+        out = _demote_cross_team_duplicates(subjects)
+        self.assertEqual(len(out), 12)
+        for s in out:
+            self.assertFalse(
+                s.is_empty_or_cpu,
+                msg=f"slot {s.slot_key} was wrongly demoted",
+            )
+
+    def test_cross_team_dedup_tolerates_whitespace_and_case(self) -> None:
+        subjects = [
+            self._subject("our_team", "G", "XZ4 RKY"),
+            self._subject("opponent_team", "C", "xz4rky"),
+        ]
+        out = _demote_cross_team_duplicates(subjects)
+        for s in out:
+            self.assertTrue(
+                s.is_empty_or_cpu,
+                msg=f"slot {s.slot_key} should have been demoted",
+            )
+            self.assertIsNone(s.gamertag)
+
+    def test_cross_team_dedup_skips_short_gamertags(self) -> None:
+        # Single-char "?" duplicated across teams is OCR noise, NOT a CPU
+        # placeholder — length-3 floor protects against false positives on
+        # legitimately-empty / poorly-read slots.
+        subjects = [
+            self._subject("our_team", "G", "?"),
+            self._subject("opponent_team", "C", "?"),
+        ]
+        out = _demote_cross_team_duplicates(subjects)
+        for s in out:
+            self.assertFalse(
+                s.is_empty_or_cpu,
+                msg=f"short-string slot {s.slot_key} must not be demoted",
+            )
+
+    def test_cross_team_dedup_skips_already_cpu_subjects(self) -> None:
+        # A subject already flagged is_empty_or_cpu (literal "CPU" string)
+        # has gamertag=None; the post-processor must skip it cleanly and
+        # leave it in its existing CPU shape.
+        already_cpu = self._subject(
+            "our_team", "G", None, is_empty_or_cpu=True,
+        )
+        other = self._subject("opponent_team", "C", "RealPlayer")
+        out = _demote_cross_team_duplicates([already_cpu, other])
+        bgm_g = next(s for s in out if s.slot_key == "lobby_for_G")
+        opp_c = next(s for s in out if s.slot_key == "lobby_against_C")
+        self.assertTrue(bgm_g.is_empty_or_cpu)
+        self.assertIsNone(bgm_g.gamertag)
+        self.assertFalse(opp_c.is_empty_or_cpu)
+        self.assertEqual(opp_c.gamertag, "RealPlayer")
+
+
+class IdentifyLobbySubjectsCrossTeamDedupIntegrationTests(unittest.TestCase):
+    def test_identify_lobby_subjects_demotes_cross_team_duplicates(self) -> None:
+        # Build a 12-row state_2 frame, then mutate BGM-G AND opp-C gamertags
+        # to both read "XZ4RKY". After identify_lobby_subjects + post-processor,
+        # both should be demoted to CPU; the other 10 must remain real.
+        lines: list[OCRLine] = []
+        # BGM-G is row index 5 (positions: C, LW, RW, LD, RD, G), opp-C is
+        # row index 0 on the opponent panel.
+        for i, position in enumerate(LOBBY_CANONICAL_ROW_ORDER):
+            y = 300 + i * 88
+            lines.append(_line(position, 77, y))
+            lines.append(_line(position, 1844, y))
+            # BGM panel: G (i==5) gets XZ4RKY; everyone else gets unique tag.
+            bgm_gt = "XZ4RKY" if position == "G" else f"BgmGT{i}"
+            lines.append(_line(bgm_gt, 250, y - 12))
+            lines.append(_line(f"#{10 + i}-Persona{i}", 250, y + 10))
+            # Opp panel: C (i==0) gets XZ4RKY; everyone else gets unique tag.
+            opp_gt = "XZ4RKY" if position == "C" else f"OppGT{i}"
+            lines.append(_line(opp_gt, 1700, y - 12))
+            lines.append(_line(f"#{20 + i}-OppPersona{i}", 1700, y + 10))
+
+        subjects = identify_lobby_subjects(detect_lobby_rows(lines))
+        self.assertEqual(len(subjects), 12)
+
+        bgm_g = next(s for s in subjects if s.slot_key == "lobby_for_G")
+        opp_c = next(s for s in subjects if s.slot_key == "lobby_against_C")
+        self.assertTrue(bgm_g.is_empty_or_cpu)
+        self.assertTrue(opp_c.is_empty_or_cpu)
+
+        other_slots = [
+            s for s in subjects
+            if s.slot_key not in {"lobby_for_G", "lobby_against_C"}
+        ]
+        self.assertEqual(len(other_slots), 10)
+        for s in other_slots:
+            self.assertFalse(
+                s.is_empty_or_cpu,
+                msg=f"slot {s.slot_key} wrongly demoted (gamertag={s.gamertag!r})",
+            )
 
 
 if __name__ == "__main__":
