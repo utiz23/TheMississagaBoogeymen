@@ -26,10 +26,13 @@ import {
 } from '@eanhl/db'
 import { getMatchById, getMatchLineupProvenance } from '@eanhl/db/queries'
 import { and, eq, isNotNull, sql } from 'drizzle-orm'
-
-const L1_THRESHOLD = 0.99
-const L2_THRESHOLD = 0.99
-const L3_THRESHOLD = 0.99
+import {
+  L1_THRESHOLD,
+  L2_THRESHOLD,
+  L3_THRESHOLD,
+  computeLayers,
+  type LayerScores,
+} from './lib/quality-layers.js'
 
 function getFlag(name: string): string | undefined {
   const idx = process.argv.indexOf(`--${name}`)
@@ -568,147 +571,6 @@ async function buildPendingReview(matchId: number): Promise<PendingReview[]> {
     reviewed: Number(r.reviewed),
     total: Number(r.total),
   }))
-}
-
-interface LayerScores {
-  l1: { score: number | null; pass: boolean | null; notes: string }
-  l2: {
-    score: number
-    pass: boolean
-    notes: string
-    bgmEvents: number
-    bgmResolved: number
-    deductions: number
-  }
-  /** L2.5 — lineup-field accuracy on reviewed loadout anchors. Complementary
-   *  to L2 (event resolution) — measures the *static* lineup screen rather
-   *  than per-event resolution. Counts populated-vs-expected for each of the
-   *  10 slot × {gamertag, persona, position, build_class_canonical} fields. */
-  l2_lineup: {
-    score: number
-    pass: boolean
-    notes: string
-    populated: number
-    expected: number
-  }
-  l3: { score: number; pass: boolean; notes: string }
-  overall: { pass: boolean }
-}
-
-async function computeLayers(
-  matchId: number,
-  downstream: DownstreamRow[],
-  flags: QualityFlag[],
-): Promise<LayerScores> {
-  const l1 = {
-    score: null as number | null,
-    pass: null as boolean | null,
-    notes: 'requires labeled fixture set (Phase 3 annotate-segments output)',
-  }
-
-  // L2 — BGM-side actor resolution rate. Opp-side events have no players row
-  // by design, so they can't contribute. The denominator is BGM events only.
-  const [bgmCounts] = (await db
-    .select({
-      bgm: sql<string>`COUNT(*) FILTER (WHERE ${matchEvents.teamSide} = 'for')::text`,
-      bgmResolved: sql<string>`COUNT(*) FILTER (WHERE ${matchEvents.teamSide} = 'for' AND ${matchEvents.actorPlayerId} IS NOT NULL)::text`,
-    })
-    .from(matchEvents)
-    .where(eq(matchEvents.matchId, matchId))) as Array<{ bgm: string; bgmResolved: string }>
-  const bgmEvents = Number(bgmCounts!.bgm)
-  const bgmResolved = Number(bgmCounts!.bgmResolved)
-  const failsDeducted = flags
-    .filter((f) => f.classId === 'A' || f.classId === 'G')
-    .reduce((acc, f) => {
-      const match = /^(\d+)\s/.exec(f.message)
-      return acc + (match && match[1] ? Number(match[1]) : 0)
-    }, 0)
-  const l2score = bgmEvents > 0 ? Math.max(0, (bgmResolved - failsDeducted) / bgmEvents) : 0
-  const l2 = {
-    score: l2score,
-    pass: l2score >= L2_THRESHOLD,
-    notes: `${bgmResolved}/${bgmEvents} BGM-side events resolved; deducted ${failsDeducted} for dupes / wrong-roster hits`,
-    bgmEvents,
-    bgmResolved,
-    deductions: failsDeducted,
-  }
-
-  // L2.5 — lineup-field accuracy. Of the 10 reviewed slots × 4 critical fields
-  // (gamertag_snapshot, player_name_persona, position, build_class_canonical),
-  // count populated as accurate. Expected denominator = 4 × reviewed_slots
-  // (caps at 40 for a complete lineup). This is a *separate* L2 dimension
-  // from event resolution and surfaces the static lineup-screen quality.
-  const [lineupCounts] = (await db
-    .select({
-      slots: sql<string>`COUNT(*)::text`,
-      gt: sql<string>`COUNT(*) FILTER (WHERE ${playerLoadoutSnapshots.gamertagSnapshot} IS NOT NULL AND length(${playerLoadoutSnapshots.gamertagSnapshot}) > 1)::text`,
-      persona: sql<string>`COUNT(*) FILTER (WHERE ${playerLoadoutSnapshots.playerNamePersona} IS NOT NULL AND length(${playerLoadoutSnapshots.playerNamePersona}) > 1)::text`,
-      pos: sql<string>`COUNT(*) FILTER (WHERE ${playerLoadoutSnapshots.position} IS NOT NULL)::text`,
-      build: sql<string>`COUNT(*) FILTER (WHERE ${playerLoadoutSnapshots.buildClassCanonical} IS NOT NULL)::text`,
-    })
-    .from(playerLoadoutSnapshots)
-    .where(
-      and(
-        eq(playerLoadoutSnapshots.matchId, matchId),
-        eq(playerLoadoutSnapshots.reviewStatus, 'reviewed'),
-      ),
-    )) as Array<{ slots: string; gt: string; persona: string; pos: string; build: string }>
-  const reviewedSlots = Number(lineupCounts!.slots)
-  const lineupPopulated =
-    Number(lineupCounts!.gt) +
-    Number(lineupCounts!.persona) +
-    Number(lineupCounts!.pos) +
-    Number(lineupCounts!.build)
-  const lineupExpected = 4 * reviewedSlots
-  const l2_lineup_score = lineupExpected > 0 ? lineupPopulated / lineupExpected : 0
-  const l2_lineup = {
-    score: l2_lineup_score,
-    pass: l2_lineup_score >= L2_THRESHOLD,
-    notes: `${lineupPopulated}/${lineupExpected} fields populated across ${reviewedSlots} reviewed slot(s) (gamertag + persona + position + build_canonical)`,
-    populated: lineupPopulated,
-    expected: lineupExpected,
-  }
-
-  const weights: Record<string, number> = {
-    match_goal_events: 2,
-    match_period_summaries: 2,
-    match_penalty_events: 2,
-    match_shot_type_summaries: 1,
-    match_faceoff_dots: 1,
-    match_faceoff_zone_summaries: 1,
-    'player_loadout_snapshots (reviewed)': 2,
-    player_loadout_attributes: 1,
-    player_loadout_x_factors: 1,
-    match_events: 0,
-  }
-  let weightedScore = 0
-  let totalWeight = 0
-  const completenessLines: string[] = []
-  for (const d of downstream) {
-    if (d.expected === null || d.expected === 0) continue
-    const ratio = Math.min(1, d.actual / d.expected)
-    const w = weights[d.table] ?? 1
-    if (w === 0) continue
-    weightedScore += ratio * w
-    totalWeight += w
-    if (ratio < 1) {
-      completenessLines.push(`${d.table}=${d.actual}/${d.expected}`)
-    }
-  }
-  const l3score = totalWeight > 0 ? weightedScore / totalWeight : 0
-  const l3 = {
-    score: l3score,
-    pass: l3score >= L3_THRESHOLD,
-    notes: completenessLines.length > 0 ? `gaps: ${completenessLines.join(', ')}` : 'all gates met',
-  }
-
-  return {
-    l1,
-    l2,
-    l2_lineup,
-    l3,
-    overall: { pass: l2.pass && l2_lineup.pass && l3.pass && (l1.pass ?? true) },
-  }
 }
 
 function bar(s: string, n: number): string {
