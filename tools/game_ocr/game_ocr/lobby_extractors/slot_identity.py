@@ -247,12 +247,12 @@ def _demote_cross_team_duplicates(
         norm = _normalize_for_cross_team_dedup(s.gamertag)
         if norm is not None and norm in duplicates:
             # Replace with a CPU-shape identity matching the contract of
-            # the existing _is_cpu_or_empty branch at line 467-477: only
-            # slot_key, team_side, position, position_confidence,
-            # is_empty_or_cpu, anchor_y, panel_state, observability are
-            # meaningful. All other fields cleared so downstream consumers
-            # see a consistent CPU-row shape regardless of how the slot
-            # got demoted.
+            # the existing _is_cpu_or_empty branch: only slot_key,
+            # team_side, position, position_confidence, is_empty_or_cpu,
+            # anchor_y, panel_state, observability are meaningful. All
+            # other fields cleared so downstream consumers see a
+            # consistent CPU-row shape regardless of how the slot got
+            # demoted.
             out.append(replace(
                 s,
                 is_empty_or_cpu=True,
