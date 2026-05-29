@@ -41,11 +41,19 @@ import { ocrDecoderRuns } from './ocr-decoder-runs.js'
  * Score columns:
  *   - `l1Score` is nullable: ground-truth fixtures for L1 may not exist
  *     yet at the time the report is produced.
- *   - `l2Score`, `l2LineupScore`, `l3Score` are required.
+ *   - `overallPass`, `l2Score`, `l2LineupScore`, `l3Score` are nullable too
+ *     since Codex P1-2 (migration 0051): these are layer-compute outputs
+ *     that only meaningfully reflect a run's contribution when that run is
+ *     the active run for its match. For inactive / superseded runs
+ *     (--all-runs backfill, historical comparisons) layer compute is
+ *     skipped and these columns are NULL. The body's `layers.computed`
+ *     boolean discriminates the two cases.
  *   - All four score columns are bounded 0.0-1.0 by DB-level CHECK
  *     constraints (`*_range_chk`). Drizzle 0.45 has no fluent `.check()`
- *     API; the constraints live in migration 0050. Any future change to
- *     score semantics must update both the schema docs and the migration.
+ *     API; the constraints live in migration 0050. NULL passes a CHECK
+ *     (UNKNOWN), so migration 0051 only had to drop NOT NULL — no
+ *     constraint changes needed. Any future change to score semantics
+ *     must update both the schema docs and the migrations.
  *   - `totalWallMs` is nullable: backfilled rows (synthetic / historical
  *     re-scoring) have no real runtime to attribute.
  */
@@ -63,14 +71,19 @@ export const ocrRunQualityReports = pgTable(
     generatedAt: timestamp('generated_at', { withTimezone: true }).notNull().defaultNow(),
     /** Bumped whenever the structural shape of `report` changes. */
     schemaVersion: smallint('schema_version').notNull(),
-    overallPass: boolean('overall_pass').notNull(),
+    /** NULL when the run is not active for its match (layer compute skipped). See Codex P1-2 / migration 0051. */
+    overallPass: boolean('overall_pass'),
     // Score columns are bounded 0.0-1.0 by DB-level CHECK constraints
-    // defined in migration 0050 (`*_range_chk`) — see file docstring.
+    // defined in migration 0050 (`*_range_chk`); migration 0051 dropped
+    // NOT NULL on overall_pass + l2/l2_lineup/l3 — see file docstring.
     /** NULL when L1 ground-truth fixtures are not yet available. */
     l1Score: numeric('l1_score', { precision: 5, scale: 4 }),
-    l2Score: numeric('l2_score', { precision: 5, scale: 4 }).notNull(),
-    l2LineupScore: numeric('l2_lineup_score', { precision: 5, scale: 4 }).notNull(),
-    l3Score: numeric('l3_score', { precision: 5, scale: 4 }).notNull(),
+    /** NULL when layer compute was skipped (run not active for match). */
+    l2Score: numeric('l2_score', { precision: 5, scale: 4 }),
+    /** NULL when layer compute was skipped (run not active for match). */
+    l2LineupScore: numeric('l2_lineup_score', { precision: 5, scale: 4 }),
+    /** NULL when layer compute was skipped (run not active for match). */
+    l3Score: numeric('l3_score', { precision: 5, scale: 4 }),
     /** NULL for backfilled / synthetic rescoring rows with no real runtime. */
     totalWallMs: bigint('total_wall_ms', { mode: 'number' }),
     totalSegments: integer('total_segments').notNull(),

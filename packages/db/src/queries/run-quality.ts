@@ -117,9 +117,7 @@ export async function buildPromotionDistribution(
       .groupBy(ocrPromotions.promotionStatus),
     c
       .select({
-        reason: sql<
-          string | null
-        >`COALESCE(${ocrPromotions.blockingReason}, 'none')`,
+        reason: sql<string | null>`COALESCE(${ocrPromotions.blockingReason}, 'none')`,
         count: sql<string>`COUNT(*)::text`,
       })
       .from(ocrPromotions)
@@ -362,7 +360,7 @@ export async function buildDefenseLayerCounters(
     junk_gamertag_blocks_python: null,
     notes: [
       'cross-team-dupe demotions are silent in v1; is_cpu_or_demoted_combined currently equals is_cpu_demotions',
-      'cross_team_dupes_segment_level_heuristic is a segment-level heuristic — may overcount vs Python\'s frame-level cross-team dedup; frame provenance not stored in v1',
+      "cross_team_dupes_segment_level_heuristic is a segment-level heuristic — may overcount vs Python's frame-level cross-team dedup; frame provenance not stored in v1",
       'junk_gamertag_blocks_python is null in v1 — Python extractor drops are silent and do not reach the evidence layer',
     ],
   }
@@ -473,11 +471,15 @@ export async function countSegmentsByRun(runId: number, conn?: Database): Promis
 export interface RunQualityReportDerivedColumns {
   matchId: number
   schemaVersion: number
-  overallPass: boolean
+  /** NULL when layer compute was skipped (run not active for match). Codex P1-2. */
+  overallPass: boolean | null
   l1Score: number | null
-  l2Score: number
-  l2LineupScore: number
-  l3Score: number
+  /** NULL when layer compute was skipped (run not active for match). Codex P1-2. */
+  l2Score: number | null
+  /** NULL when layer compute was skipped (run not active for match). Codex P1-2. */
+  l2LineupScore: number | null
+  /** NULL when layer compute was skipped (run not active for match). Codex P1-2. */
+  l3Score: number | null
   totalWallMs: number | null
   totalSegments: number
   totalDemoted: number
@@ -513,8 +515,7 @@ export async function upsertRunQualityReport(
   // Numeric columns on this table are NUMERIC(5,4). Drizzle's pg driver
   // accepts strings for numeric fields; pass them as strings so the precision
   // is preserved and there's no float-rounding surprise.
-  const toNumericString = (n: number | null): string | null =>
-    n === null ? null : n.toString()
+  const toNumericString = (n: number | null): string | null => (n === null ? null : n.toString())
 
   const values = {
     runId,
@@ -522,9 +523,9 @@ export async function upsertRunQualityReport(
     schemaVersion: derivedColumns.schemaVersion,
     overallPass: derivedColumns.overallPass,
     l1Score: toNumericString(derivedColumns.l1Score),
-    l2Score: toNumericString(derivedColumns.l2Score) as string,
-    l2LineupScore: toNumericString(derivedColumns.l2LineupScore) as string,
-    l3Score: toNumericString(derivedColumns.l3Score) as string,
+    l2Score: toNumericString(derivedColumns.l2Score),
+    l2LineupScore: toNumericString(derivedColumns.l2LineupScore),
+    l3Score: toNumericString(derivedColumns.l3Score),
     totalWallMs: derivedColumns.totalWallMs,
     totalSegments: derivedColumns.totalSegments,
     totalDemoted: derivedColumns.totalDemoted,
@@ -566,4 +567,3 @@ export async function upsertRunQualityReport(
   if (!row) throw new Error(`upsertRunQualityReport: no row returned for runId=${runId}`)
   return row.id
 }
-
