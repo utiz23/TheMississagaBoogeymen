@@ -846,6 +846,33 @@ void test('--all-runs skips runs with completed_at IS NULL (race-vs-reprocess de
   }
 })
 
+void test('--all-runs --stage-runtimes is rejected at argv level (Codex R3 P2)', async (t) => {
+  // No DB required — the guard fires before any query runs. Skip is kept for
+  // parity with sibling tests so DATABASE_URL-less environments behave the
+  // same way as the rest of the suite.
+  if (!process.env['DATABASE_URL']) {
+    t.skip('DATABASE_URL not set')
+    return
+  }
+  // The path doesn't need to exist — the guard runs before file load.
+  const result = runCli(['--all-runs', '--stage-runtimes', '/tmp/anything.json'])
+  assert.equal(
+    result.status,
+    1,
+    `expected exit 1; stdout: ${result.stdout}; stderr: ${result.stderr}`,
+  )
+  assert.match(
+    result.stderr,
+    /--stage-runtimes is not allowed with --all-runs/i,
+    `expected stderr to explain the rejection; got: ${result.stderr}`,
+  )
+  assert.match(
+    result.stderr,
+    /--run-id/i,
+    `expected stderr to point at --run-id as the right flag; got: ${result.stderr}`,
+  )
+})
+
 void test('inactive run: --json body has layers.computed=false + null scores (Codex P1-2)', async (t) => {
   if (!process.env['DATABASE_URL']) {
     t.skip('DATABASE_URL not set')

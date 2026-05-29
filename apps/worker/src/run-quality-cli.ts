@@ -771,6 +771,22 @@ async function runSingle(argv: string[]): Promise<void> {
 }
 
 async function runAll(argv: string[]): Promise<void> {
+  // Codex round 3 P2: --stage-runtimes carries per-run measured data. Combining
+  // it with --all-runs would load the file once and apply the same runtime to
+  // every iteration — and with --force, that one accidental invocation stamps
+  // the same measurement onto thousands of unrelated reports. The flag
+  // combination has no sensible use case, so we reject it at argv level before
+  // any DB query runs.
+  if (hasFlag(argv, 'stage-runtimes')) {
+    process.stderr.write(
+      '--stage-runtimes is not allowed with --all-runs.\n' +
+        'The stage-runtimes file is per-run; applying one file to every run would\n' +
+        'stamp the same measurement onto unrelated reports. Use --run-id N\n' +
+        '--stage-runtimes <path> --emit-row instead.\n',
+    )
+    process.exit(1)
+  }
+
   const emitMode = hasFlag(argv, 'emit-row')
   const force = hasFlag(argv, 'force')
 
