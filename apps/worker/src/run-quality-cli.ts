@@ -352,7 +352,7 @@ async function buildReportBody(run: DecoderRunRow, opts: BuildReportOptions): Pr
       {
         is_cpu_demotions: 0,
         is_cpu_or_demoted_combined: 0,
-        cross_team_dupes_inferred: null,
+        cross_team_dupes_segment_level_heuristic: null,
         or_fold_inferences: 0,
         hard_field_blocks: 0,
         junk_gamertag_blocks_ts: 0,

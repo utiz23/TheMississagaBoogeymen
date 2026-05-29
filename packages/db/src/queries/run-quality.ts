@@ -182,12 +182,16 @@ export interface DefenseLayerCounters {
    */
   is_cpu_or_demoted_combined: number
   /**
-   * Heuristic — may double-count CPU rows that share normalized tags. Best
-   * effort; operators should compare against `is_cpu_demotions` for a clean
-   * baseline. NULL when the in-SQL inference is not safe (currently never;
-   * documented for future tightening).
+   * Segment-level heuristic — may overcount vs Python's frame-level
+   * `_demote_cross_team_duplicates` (slot_identity.py). Python operates on a
+   * single frame's `subjects` list; lobby evidence picks the best frame per
+   * slot across the whole segment (lobby_evidence.py), so grouping by
+   * segment_id can flag cross-team pairs that never coexisted in one frame.
+   * The frame-level counter requires per-frame evidence provenance not
+   * stored in v1. May also double-count CPU rows that share normalized tags.
+   * NULL when the in-SQL inference is not safe (currently never).
    */
-  cross_team_dupes_inferred: number | null
+  cross_team_dupes_segment_level_heuristic: number | null
   or_fold_inferences: number
   hard_field_blocks: number
   junk_gamertag_blocks_ts: number
@@ -295,11 +299,18 @@ export async function buildDefenseLayerCounters(
 
   const isCpuDemotions = Number(cpuCountRow.count)
 
-  // Cross-team-dupes-inferred — heuristic per Phase-3 detector logic:
+  // Cross-team-dupes — segment-level heuristic per Phase-3 detector logic:
   // normalize gamertag via lowercase + strip non-alphanumeric, then count
   // unique normalized strings that appear on >1 team_side within the same
-  // segment (a proxy for "same frame"). team_side is encoded in the slot
-  // key like `lobby_for_C` / `lobby_against_G`.
+  // segment. team_side is encoded in the slot key like `lobby_for_C` /
+  // `lobby_against_G`.
+  //
+  // P2-2: this is a SEGMENT-level grouping (proxy), NOT a frame-level
+  // grouping. Python's _demote_cross_team_duplicates operates on a single
+  // frame's subjects list; lobby evidence picks the best frame per slot
+  // across the whole segment, so this counter can flag pairs that never
+  // coexisted in one frame. The frame-level counter requires per-frame
+  // provenance not stored in v1.
   const normalize = (raw: unknown): string | null => {
     const s = typeof raw === 'string' ? raw : raw == null ? '' : String(raw)
     const stripped = s.replace(/[^A-Za-z0-9]/g, '').toLowerCase()
@@ -335,14 +346,14 @@ export async function buildDefenseLayerCounters(
       if (sides.size > 1) dupeSet.add(norm)
     }
   }
-  const crossTeamDupesInferred = dupeSet.size
+  const crossTeamDupesSegmentLevelHeuristic = dupeSet.size
 
   return {
     is_cpu_demotions: isCpuDemotions,
     // v1: cross-team-dupe demotions are silent at the detector, so this
     // collapses to the same number as is_cpu_demotions for now.
     is_cpu_or_demoted_combined: isCpuDemotions,
-    cross_team_dupes_inferred: crossTeamDupesInferred,
+    cross_team_dupes_segment_level_heuristic: crossTeamDupesSegmentLevelHeuristic,
     or_fold_inferences: Number(orFoldRow.count),
     hard_field_blocks: Number(hardBlockRow.count),
     junk_gamertag_blocks_ts: Number(junkTsRow.count),
@@ -351,7 +362,7 @@ export async function buildDefenseLayerCounters(
     junk_gamertag_blocks_python: null,
     notes: [
       'cross-team-dupe demotions are silent in v1; is_cpu_or_demoted_combined currently equals is_cpu_demotions',
-      'cross_team_dupes_inferred is a heuristic (lobby gamertag candidates normalized + grouped by segment); may double-count CPU placeholders',
+      'cross_team_dupes_segment_level_heuristic is a segment-level heuristic — may overcount vs Python\'s frame-level cross-team dedup; frame provenance not stored in v1',
       'junk_gamertag_blocks_python is null in v1 — Python extractor drops are silent and do not reach the evidence layer',
     ],
   }

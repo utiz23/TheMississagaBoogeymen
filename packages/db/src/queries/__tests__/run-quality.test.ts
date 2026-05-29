@@ -346,7 +346,11 @@ void test('buildDefenseLayerCounters counts CPU-evidence + hard-field blocks', a
   const counters = await buildDefenseLayerCounters(f.runId)
   assert.equal(counters.is_cpu_demotions, 2)
   assert.equal(counters.is_cpu_or_demoted_combined, 2)
-  assert.equal(counters.cross_team_dupes_inferred, 1, 'XZ4RKY on both sides should count once')
+  assert.equal(
+    counters.cross_team_dupes_segment_level_heuristic,
+    1,
+    'XZ4RKY on both sides should count once (segment-level heuristic)',
+  )
   assert.equal(counters.hard_field_blocks, 1)
   assert.equal(counters.junk_gamertag_blocks_ts, 0)
   assert.equal(counters.junk_gamertag_blocks_python, null)
