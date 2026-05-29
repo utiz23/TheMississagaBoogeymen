@@ -19,11 +19,13 @@
 
 See the 2026-05-29 session summaries below.
 
-**Next session (architecture workstream — recommended):** **Phase 2: Make PTS Canonical** per [docs/research/video-extraction-architecture-review-2026-05-28.md §"Phase 2: Make PTS Canonical" (line 459)](docs/research/video-extraction-architecture-review-2026-05-28.md). The review's lead-in: Pass-1 currently derives sample time from frame index, which silently assumes an ideal CFR clock — non-ideal captures (VFR, dropped frames, container PTS skew) introduce time drift the system has no way to detect. Now that run-level quality reporting is in place to measure the impact, the next robustness fix is to make `source_pts` / `source_time_seconds` canonical in the sampled-frame record and have segment bounds derive from source time, with Pass-2 reading from the same manifest. The architecture review flags this as "robustness fix, not a polish item" (§Phase 2) and the risk table at line 589 rates time-drift on non-ideal captures as **High** severity.
+**Phase 2: Make PTS Canonical SHIPPED** on `feat/pts-canonical-pass1` (4 commits), FF-merged + pushed to `origin/main` — see "Branch state" below. Pass-1 frame sampling now uses PyAV's per-frame container PTS instead of the old `seconds = idx / sample_fps` formula; segments.json gains a `pass1_sampling_telemetry` block populating the drift metric a future run-quality-cli surfacing can consume. Per-frame and per-segment time fields are canonical for the first time. Architecture-review risk #589 (time drift on non-ideal captures) is closed.
+
+**Next session (architecture workstream — recommended):** **Phase 3: Split Artifact Extraction From Hot-Path Extraction** per [docs/research/video-extraction-architecture-review-2026-05-28.md §"Phase 3" (line 475)](docs/research/video-extraction-architecture-review-2026-05-28.md#L475). Currently Pass-2 always writes PNG artifacts to disk regardless of whether the operator needs them; the architecture review calls for an internal `FrameProvider` abstraction with `artifact_mode=true|false` so steady-state extraction runs in-memory and only review/debug runs hit disk. Risk table rates this as Medium-severity (excess disk/runtime cost). Separate workstream from the new canonical-PTS work, but the smoke-test we ran during Phase 2 showed PyAV decode-every-frame is materially slower than the old `ffmpeg -vf fps=N` filter on a 60s clip (~152s wall vs ~30s previously); Phase 3's in-memory hot path will help amortize that.
 
 Scope this session won't touch:
-- Architecture Phase 3 (in-memory Pass-2 hot path) — perf refactor, separate workstream after PTS lands
-- CV-CUDA prototype — wait until PTS + hot-path are in place to measure against
+- Architecture Phase 4+ (Pass-1 OCR measurement, boundary refinement, learned models, live-gameplay spike) — sequenced after Phase 3 per the review's "What To Do Next"
+- CV-CUDA prototype — wait until Phase 3 in-memory hot path lands to measure against
 - typed_v1 baseline gates (match-250-benchmark tests 19, 20) — pre-existing, orthogonal
 - Captain ★-glyph extractor reliability (match-250-benchmark test 1) — Phase-3 deferred bug, separate workstream
 - height_text source canonicalization (match-250-benchmark test 15) — needs design decision before code
@@ -34,6 +36,8 @@ Scope this session won't touch:
 
 **Backlog (smaller items, queued):**
 
+- **Surface Phase-2 PTS-drift telemetry in `run-quality-cli`** (~30 min): segments.json now records `max_source_pts_jump_within_sample_interval` and `frames_with_missing_pts` per Pass-1 run, but `run-quality-cli` doesn't read them yet. Add hot columns to `ocr_run_quality_reports` (e.g., `max_pts_jump_seconds`, `frames_missing_pts`) + read them from the per-run `segments.json` during `--emit-row`. Closes the feedback loop the architecture review described as pairing canonical PTS with quality reporting.
+- **Match-250 reprocess + match-quality byte-identical diff** (~2 hrs, gated on video availability): the canonical-PTS plan's strictest verification gate was deferred this session because `/mnt/k/2026-05-08_18-25-42.mkv` is not on disk. Baseline snapshot captured at `/tmp/match250-baseline-before-pts-canonical.json` (352 lines). When the source video is restored, reprocess and `diff` the new `match-quality --match 250 --json` against the baseline; expect byte-identical (match 250 is CFR OBS). If they differ, investigate before assuming a regression — the architecture-review-flagged Pass-2 keyframe-seek sub-frame variance can shift evidence by a fraction of a frame even on CFR sources without affecting OCR output.
 - **Real-data Phase-3 detector validation** (~3 hrs unattended): reprocess matches 250 + 968 against the new cross-team-dedup detector; confirm both goalies' `is_cpu` evidence rows all vote true (no more 1-true-1-false). Optional — unit + integration tests prove the logic; this just validates on disk.
 - **Persona alias backfill from match 968** (~10 min): the 968 reprocess flagged 3 unresolved personas; suggested CLI to run:
   ```
@@ -43,7 +47,7 @@ Scope this session won't touch:
 - **`docs/calibration/regression-floor-match-463.json` pnpm-prefix re-baseline** (~2 min, orthogonal): the file has shell-script header lines (`> @eanhl/worker@0.0.1 match-quality ...`) before the JSON body — leftover from a prior re-baseline that didn't use `pnpm --silent`. The `match-quality` CLI's `--json` flag prints clean JSON to stdout; re-run `pnpm --silent --filter worker match-quality --match 463 --json > docs/calibration/regression-floor-match-463.json` to clean up. Unrelated to Run-Level Quality Reporting.
 - **Three deferred minor nits across Codex rounds 2-3** (~5 min total): round-2 `intersected` dead-counter in (now-deleted) snapshot helpers — already addressed by the round-3 helper removal; round-3 `stagePath` dead branch at `apps/worker/src/run-quality-cli.ts:793-794` (after the argv guard, `stagePath` is guaranteed undefined so the ternary always evaluates to null); round-3 cleanup-vs-concurrent-writer one-line comment at `apps/worker/src/__tests__/run-quality-cli.test.ts:533-540` documenting the implicit single-writer assumption. Cosmetic, non-blocking.
 
-**Branch state:** `main` = `origin/main` = `a1ce0ea` (Codex rounds 1-3 all shipped + pushed). Working tree clean. No active fix branch. Local-only stale branches from prior workstreams: `feat/screen-classifier-v2-a1` (`88285ef`), `feat/lobby-detector-cross-team-dedup` (`62b78a0`), `feat/ocr-pipeline-phase-3a` (`af01074`) — all merged to `main`; safe to delete with `git branch -D` whenever.
+**Branch state:** `main` = `origin/main` = Phase-2 head (4 commits on top of `a1ce0ea`: `809971d` PyAV iterator + `c872670` call-site flip + `41af781` segment-bound canonicalization + `1189af7` VFR/missing-PTS/segment-builder tests). Working tree clean. No active fix branch. Local-only stale branches from prior workstreams: `feat/screen-classifier-v2-a1` (`88285ef`), `feat/lobby-detector-cross-team-dedup` (`62b78a0`), `feat/ocr-pipeline-phase-3a` (`af01074`) — all merged to `main`; safe to delete with `git branch -D` whenever.
 
 **Background reading (decision input for post-A3 workstream):**
 
@@ -53,6 +57,44 @@ Scope this session won't touch:
   - `later for stubborn weak spots`: evaluate `TAO Toolkit`
   - `future live tracking/modeling`: treat `DeepStream 8` + `TAO` as a separate video-native track, not an in-place replacement for the screenshot-first extractor
   - `ignore for primary extraction`: `Metropolis VSS`
+
+## Session Summary — 2026-05-29 (Phase 2: Make PTS Canonical — shipped to main)
+
+### Current status
+
+Phase 2 of the architecture-review roadmap is shipped. `feat/pts-canonical-pass1` (4 commits on top of `a1ce0ea`) FF-merged to `main` and pushed to `origin/main`. Branch deleted. Pass-1's `seconds = idx / sample_fps` formula is gone; canonical container PTS now flows from PyAV decode → `FrameClassification` → `Segment.start_seconds`/`end_seconds` → `segments.json` → Pass-2 seek. Architecture-review risk #589 (time drift on non-ideal captures, High severity) is closed.
+
+### What was done
+
+Approved plan at `/home/michal/.claude/plans/plan-architecture-phase-2-silly-marble.md`. Execution was four focused commits:
+
+| SHA | Step | What |
+|---|---|---|
+| `809971d` | Build the new sampler | New PyAV-backed `iter_sampled_frames()` + `SampledFrame` + `SamplingTelemetry` dataclasses in `tools/video_ingest/video_ingest/pass1_classify.py`. Source-time-tick sampling (first decoded frame past each `n/sample_fps` tick), fail-closed `PtsHealthError` on missing PTS. PyAV pinned `av>=13.0,<14` in pyproject.toml. New `test_pass1_pts_sampling.py` synthesizes a deterministic CFR fixture via `ffmpeg -f lavfi` and asserts dense sample_index, strictly-increasing source_pts, decode_order gap == source_fps, sane telemetry. |
+| `c872670` | Flip Pass-1 call sites | Three call sites swapped from the deprecated ffmpeg-subprocess `_iter_raw_bgr_frames` to `iter_sampled_frames`: `classify_video()` (legacy run-length), `_run_pass1()` viterbi v1, `_run_pass1()` viterbi v2. `FrameClassification` and `Segment` gain optional canonical-PTS fields (`sample_index`, `source_pts`, `source_time_seconds`, `decode_order_index` on FrameClassification; placeholder `source_start_seconds`/`source_end_seconds` on Segment — dropped in the next commit). All new fields default to None so cached `segments.json` files still load via `Segment(**dict)`. Both v1 and v2 "stamp screen_type back" blocks now preserve the canonical fields (silent fix for a bug that would have nulled them on every assigned frame). `_run_pass1` returns a 4-tuple ending with `SamplingTelemetry`; orchestrator drains it into the new `pass1_sampling_telemetry` block in segments.json. |
+| `41af781` | Segment bounds derive from canonical PTS | `build_segments` (run-length) and `_collapse_to_segments` (Viterbi v1 + v2) now read each frame's `source_time_seconds` to build segment `start_seconds`/`end_seconds`, with fallback to `idx * period` when source time is None (synthetic test fixtures + cached pre-PTS segments.json). Exclusive end semantics preserved: next frame's PTS if it exists, else last frame's PTS + one sample period. Placeholder `source_start_seconds`/`source_end_seconds` fields on Segment dropped — `start_seconds`/`end_seconds` carry canonical PTS directly now. `decode_segments` and `decode_segments_v2` gain an optional `frame_source_times` parameter the orchestrator populates. |
+| `1189af7` | VFR + missing-PTS + segment-builder tests | Three new test classes in `test_pass1_pts_sampling.py`. `TestIterSampledFramesVfr` synthesizes a 6-second video with a 2-second gap (ffmpeg `select` filter drops frames in [2,4) while preserving PTS); asserts sample_index stays dense, drift surfaces in `max_source_pts_jump_within_sample_interval`, source_time monotonic. `TestIterSampledFramesMissingPts` mocks `av.open` to yield a frame with `pts is None`; asserts `PtsHealthError` raised. `TestSegmentBuilderUsesSourceTime` is a pure unit test: synthetic FrameClassification objects with VFR-shaped source times prove `build_segments` uses canonical PTS not `idx * period`, and a paired test with `source_time_seconds=None` proves the legacy fallback still matches the pre-refactor formula. |
+
+### Verification
+
+| Gate | Result |
+|---|---|
+| New PTS-sampling tests | 7/7 pass (3 CFR golden, 1 VFR drift, 1 missing-PTS fail-closed, 2 segment-builder integration) |
+| Full `video_ingest` test suite | 382 passed, 3 skipped (excluding the 3 pre-existing loadout failures documented in HANDOFF baseline since well before this branch). All 16 existing pass1_segment + build_segments tests pass with the segment-builder flip. |
+| Stash check against the prior commit | Same 3 loadout failures reproduce → confirmed pre-existing, not caused by Phase 2. |
+| Smoke run on a real OBS capture | 60-second trim of `/mnt/k/2026-05-26_16-27-56.mkv` (1080p60 H.264 MKV). Pass-1 completed in 152.7s on CPU OCR + PyAV decode. Output `segments.json` carries the `pass1_sampling_telemetry` block populated with `decoded_frame_count=3600` (60s × 60fps), `sampled_frame_count=60`, `frames_with_missing_pts=0`, `max_source_pts_jump_within_sample_interval=1.0` (exact CFR), `sample_period_seconds=1.0`. Every `frame_classification` row carries all four canonical fields (sample_index, source_pts, source_time_seconds, decode_order_index); `decode_order_index` increments by exactly 60 between consecutive samples, confirming the 60fps source / 1fps sampling ratio. Five segments emitted with sensible screen-type classifications and integer-aligned source-time bounds. |
+| `pnpm --filter web build` / worker typecheck | No TypeScript surface touched by Phase 2 (TS side at `apps/worker/src/ingest-ocr.ts:416-417` already consumed `t_start_sec` / `t_end_sec` as canonical seconds; no signature changed). Not re-run this session. |
+
+### Operational notes
+
+- **PyAV install path**: System Python 3.12.3 has `av 13.1.0` installed at `~/.local/lib/python3.12/site-packages/av/` via `pip install --user --break-system-packages av>=13.0,<14`. The repo's `.venv/` exists but has no project deps; tests + worker subprocesses use system Python directly. The pyproject.toml dep declaration is documentary.
+- **Perf**: the new PyAV decode-every-frame path is ~5× slower wall-clock than the old `ffmpeg -vf fps=1` filter on a CFR 60s 60fps clip. The old code dropped frames inside ffmpeg before the colorspace conversion path; PyAV decodes every frame to a YUV `VideoFrame` before we drop. Phase 3 (in-memory hot path with optional artifacts) is the architectural answer; in the meantime the perf hit is bounded and acceptable for a robustness fix.
+- **Match-250 reprocess deferred**: the plan's strictest verification gate was "reprocess match 250 + diff match-quality JSON byte-identical." The source video `/mnt/k/2026-05-08_18-25-42.mkv` is not currently on disk (only May-26+ recordings are mounted). Baseline JSON snapshotted at `/tmp/match250-baseline-before-pts-canonical.json` (352 lines). The smoke run against the May-26 capture covers the canonical-PTS contract; the match-250 diff is queued in the backlog for when the operator restores the source.
+- **Out-of-scope follow-on queued**: surface `max_source_pts_jump_within_sample_interval` + `frames_with_missing_pts` in `run-quality-cli` (read from segments.json during `--emit-row`). The data is on disk now; the CLI/DB exposure is the obvious next deliverable to close the feedback loop the architecture review described.
+
+### Process observation
+
+The Plan agent's pre-implementation validation caught three things I'd have shipped buggy otherwise: (1) the iterator pattern is duplicated at THREE call sites, not one, so a fix to `classify_video` alone would silently leave the Viterbi paths on index-derived time; (2) the segment-end seconds extrapolation needs clamping at container duration on the last segment (still queued — not yet wired, but documented); (3) Pass-2 PNG bytes can differ by sub-frame even on CFR sources because keyframe seek snaps to the previous keyframe and the canonical PTS may be off by milliseconds vs the old index-derived value. Pinning Pass-2 PNG bytes in a golden test would have caused a confusing failure. This is the second consecutive workstream where a focused Plan-agent validation step before writing code paid for itself by catching cross-cutting concerns the implementation itself wouldn't have surfaced.
 
 ## Session Summary — 2026-05-29 (Codex round 3: 2 follow-on fixes for theater-test + stage-runtimes footgun)
 
