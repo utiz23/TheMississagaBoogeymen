@@ -77,6 +77,10 @@ cvat/
 .label-studio-data/
 tools/game_ocr/calibration/extras/_inbox/
 label-studio-export-*.json
+# Also ignore the unsuffixed canonical export — labels live in the local
+# Label Studio instance, not in git. The file grows fast (1.5MB+) and its
+# format flips between single-line and pretty-printed across exports.
+/label-studio-export.json
 
 # Loose screen-classifier debug PNGs emitted by Pass-1 to calibration/extras/
 # at run time. Tracked fixtures live in extras/loadout/fixtures/ and stay tracked.
