@@ -41,6 +41,7 @@ import {
   buildPromotionDistribution,
   buildDefenseLayerCounters,
   buildUnresolvedCounts,
+  countSegmentsByRun,
   upsertRunQualityReport,
   getActiveRunIdForMatch,
   getMatchById,
@@ -204,8 +205,15 @@ interface ReportRuntime {
 
 interface ReportScreens {
   by_screen_type: ScreenRowByRun[]
+  /**
+   * `frames` counts `ocr_extractions` rows (per-frame).
+   * `segments` counts `ocr_segments` rows (per-segment) — added in the Codex
+   * P3 fix so the hot column `ocr_run_quality_reports.total_segments` reflects
+   * the segment layer it's named after rather than the frame layer.
+   */
   totals: {
     frames: number
+    segments: number
     ok: number
     err: number
     reviewed: number
@@ -326,8 +334,9 @@ async function buildReportBody(run: DecoderRunRow, opts: BuildReportOptions): Pr
   }
 
   // Run-scoped queries — these all key off run.id.
-  const [screenRows, promotions, defenseLayers, unresolved] = await Promise.all([
+  const [screenRows, segmentCount, promotions, defenseLayers, unresolved] = await Promise.all([
     safeCall<ScreenRowByRun[]>('screens', [], () => buildScreenTableByRun(run.id)),
+    safeCall<number>('segments', 0, () => countSegmentsByRun(run.id)),
     safeCall<PromotionDistribution>(
       'promotions',
       {
@@ -477,6 +486,7 @@ async function buildReportBody(run: DecoderRunRow, opts: BuildReportOptions): Pr
       by_screen_type: screenRows,
       totals: {
         frames: totalFrames,
+        segments: segmentCount,
         ok: totalOk,
         err: totalErr,
         reviewed: totalReviewed,
@@ -523,7 +533,10 @@ function deriveColumns(body: ReportBody): {
     l2LineupScore: body.layers.l2_lineup.score,
     l3Score: body.layers.l3.score,
     totalWallMs: body.runtime.total_wall_ms,
-    totalSegments: body.screens.totals.frames,
+    // Hot column `total_segments` mirrors the segment layer (ocr_segments
+    // count), not the frame layer. See Codex P3. The frame count remains
+    // available in body.screens.totals.frames for forensic reads.
+    totalSegments: body.screens.totals.segments,
     totalDemoted,
     totalUnresolved: body.unresolved.totals.all,
   }

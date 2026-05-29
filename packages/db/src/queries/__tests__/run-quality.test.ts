@@ -25,6 +25,7 @@ import {
   ocrFieldEvidence,
   ocrPromotions,
   ocrRunQualityReports,
+  ocrSegments,
   playerLoadoutSnapshots,
   matchEvents,
 } from '../../index.js'
@@ -33,11 +34,16 @@ import {
   buildPromotionDistribution,
   buildDefenseLayerCounters,
   buildUnresolvedCounts,
+  countSegmentsByRun,
   upsertRunQualityReport,
 } from '../run-quality.js'
 
 const GAME_TITLE_ID = 1 // NHL 26
-const SENTINEL_MATCH_IDS = [9201, 9202, 9203, 9204, 9205] as const
+const SENTINEL_MATCH_IDS = [
+  9201, 9202, 9203, 9204, 9205,
+  // P2-1 (personas-leak) + P3 (segments count) sentinels
+  9216, 9217, 9218, 9219, 9220,
+] as const
 
 interface SeededFixture {
   matchId: number
@@ -65,6 +71,7 @@ async function cleanupSentinels(): Promise<void> {
       .where(inArray(ocrRunQualityReports.runId, runIds))
     await db.delete(ocrPromotions).where(inArray(ocrPromotions.runId, runIds))
     await db.delete(ocrFieldEvidence).where(inArray(ocrFieldEvidence.runId, runIds))
+    await db.delete(ocrSegments).where(inArray(ocrSegments.runId, runIds))
   }
   await db
     .delete(playerLoadoutSnapshots)
@@ -487,4 +494,156 @@ void test('upsertRunQualityReport: insert, conflict throws, force updates', asyn
   )
   assert.equal(Number(second!.l2), 0.95, 'l2 should reflect the force update')
   assert.deepEqual(second!.body, { hello: 'world-2' })
+})
+
+void test('buildUnresolvedCounts.personas does not leak across runs on the same match (Codex P2-1)', async (t) => {
+  if (!process.env['DATABASE_URL']) {
+    t.skip('DATABASE_URL not set — run-quality integration tests require DB.')
+    return
+  }
+  // Seed two runs on the same match. runA owns one snapshot with persona=NULL;
+  // runB owns one snapshot with persona=NULL as well. Pre-fix, scoping by
+  // match_id only meant runA's count would also see runB's snapshot — leaking
+  // 2 instead of 1. With the run-scoped join through ocr_extractions, runA's
+  // personas count is 1 and runB's is 1.
+  const matchId = 9216
+  const a = await seedFixture(matchId)
+
+  // Seed a second run + extraction on the SAME match.
+  const [runB] = await db
+    .insert(ocrDecoderRuns)
+    .values({
+      matchId,
+      videoSha256: `sentinel-run-quality-${matchId}-runB-sha`,
+      decoderVersion: 'hmm-viterbi-v1',
+      weightsHash: 'sentinel-weights-runB',
+      configHash: 'sentinel-config-runB',
+      isActive: false,
+      notes: `run-quality sentinel ${matchId} runB`,
+    })
+    .returning({ id: ocrDecoderRuns.id })
+  assert.ok(runB)
+
+  const [batchB] = await db
+    .insert(ocrCaptureBatches)
+    .values({
+      gameTitleId: GAME_TITLE_ID,
+      matchId,
+      runId: runB!.id,
+      sourceDirectory: `test-sentinel-run-quality-${matchId}-runB-dir`,
+      captureKind: 'manual_screenshots',
+    })
+    .returning({ id: ocrCaptureBatches.id })
+  assert.ok(batchB)
+
+  const [extractionB] = await db
+    .insert(ocrExtractions)
+    .values({
+      batchId: batchB!.id,
+      matchId,
+      runId: runB!.id,
+      screenType: 'player_loadout_view',
+      sourcePath: `test-sentinel-run-quality-${matchId}-runB/seed.png`,
+      sourceHash: `test-sentinel-run-quality-${matchId}-runB-hash`,
+      rawResultJson: {},
+      transformStatus: 'success',
+      reviewStatus: 'reviewed',
+      overallConfidence: '0.9000',
+    })
+    .returning({ id: ocrExtractions.id })
+  assert.ok(extractionB)
+
+  // One persona=NULL snapshot per run.
+  await db.insert(playerLoadoutSnapshots).values([
+    {
+      gamertagSnapshot: 'runA-snap',
+      teamSide: 'for',
+      position: 'C',
+      gameTitleId: GAME_TITLE_ID,
+      matchId,
+      ocrExtractionId: a.extractionId,
+      reviewStatus: 'reviewed',
+      playerNamePersona: null,
+    },
+    {
+      gamertagSnapshot: 'runB-snap',
+      teamSide: 'for',
+      position: 'LW',
+      gameTitleId: GAME_TITLE_ID,
+      matchId,
+      ocrExtractionId: extractionB!.id,
+      reviewStatus: 'reviewed',
+      playerNamePersona: null,
+    },
+  ])
+
+  const countsA = await buildUnresolvedCounts(a.runId)
+  const countsB = await buildUnresolvedCounts(runB!.id)
+  assert.equal(countsA.personas, 1, 'runA should see exactly its own persona=NULL snapshot')
+  assert.equal(countsB.personas, 1, 'runB should see exactly its own persona=NULL snapshot')
+})
+
+void test('countSegmentsByRun returns ocr_segments count for the run (Codex P3)', async (t) => {
+  if (!process.env['DATABASE_URL']) {
+    t.skip('DATABASE_URL not set — run-quality integration tests require DB.')
+    return
+  }
+  // Seed N=2 ocr_segments rows + M=3 ocr_extractions rows for the same run.
+  // The hot column must mirror the segment count, not the frame count.
+  const matchId = 9217
+  const f = await seedFixture(matchId)
+
+  // Two extra extractions on top of the seedFixture's first one (M=3 total).
+  await db.insert(ocrExtractions).values([
+    {
+      batchId: f.batchId,
+      matchId,
+      runId: f.runId,
+      screenType: 'player_loadout_view',
+      sourcePath: `test-sentinel-run-quality-${matchId}/seed-2.png`,
+      rawResultJson: {},
+      transformStatus: 'success',
+      reviewStatus: 'reviewed',
+      overallConfidence: '0.9000',
+    },
+    {
+      batchId: f.batchId,
+      matchId,
+      runId: f.runId,
+      screenType: 'player_loadout_view',
+      sourcePath: `test-sentinel-run-quality-${matchId}/seed-3.png`,
+      rawResultJson: {},
+      transformStatus: 'success',
+      reviewStatus: 'reviewed',
+      overallConfidence: '0.9000',
+    },
+  ])
+
+  // N=2 segments for this run.
+  await db.insert(ocrSegments).values([
+    {
+      matchId,
+      segmentKey: 'seg-001',
+      state: 'pre_game_lobby_state_2',
+      uiVersion: 'nhl26',
+      decoderVersion: 'hmm-viterbi-v1',
+      runId: f.runId,
+    },
+    {
+      matchId,
+      segmentKey: 'seg-002',
+      state: 'post_game_box_score_goals',
+      uiVersion: 'nhl26',
+      decoderVersion: 'hmm-viterbi-v1',
+      runId: f.runId,
+    },
+  ])
+
+  const segments = await countSegmentsByRun(f.runId)
+  assert.equal(segments, 2, 'expected exactly 2 segments for this run')
+
+  const screenRows = await buildScreenTableByRun(f.runId)
+  const frames = screenRows.reduce((acc, r) => acc + r.frames, 0)
+  assert.equal(frames, 3, 'sanity: expected 3 ocr_extractions on the run (1 seed + 2 added)')
+  assert.notEqual(segments, frames, 'frames and segments must be distinguishable for this test')
 })

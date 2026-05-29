@@ -14,9 +14,8 @@
 
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import { db, type Database } from '../client.js'
-import { ocrFieldEvidence, ocrPromotions } from '../schema/ocr-evidence.js'
+import { ocrFieldEvidence, ocrPromotions, ocrSegments } from '../schema/ocr-evidence.js'
 import { ocrExtractions } from '../schema/ocr-pipeline.js'
-import { ocrDecoderRuns } from '../schema/ocr-decoder-runs.js'
 import { ocrRunQualityReports } from '../schema/ocr-run-quality-reports.js'
 import { playerLoadoutSnapshots } from '../schema/player-loadout.js'
 import { matchEvents } from '../schema/match-events.js'
@@ -373,8 +372,10 @@ export interface UnresolvedCounts {
  * `ocr_run_quality_reports`.
  *
  *   - gamertags: blocked gamertag promotions for this run
- *   - personas:  player_loadout_snapshots rows for the run's match where
- *                player_name_persona is still null (post-gate resolution miss)
+ *   - personas:  player_loadout_snapshots rows whose source extraction belongs
+ *                to this run where player_name_persona is still null (post-gate
+ *                resolution miss). Scoped via ocr_extractions.run_id so other
+ *                runs on the same match do not leak into this run's count.
  *   - actor_bindings_for_side: BGM-side match_events with no actor_player_id
  *                              whose source extraction belongs to this run
  */
@@ -396,12 +397,16 @@ export async function buildUnresolvedCounts(
         ),
       )
       .then((rs) => rs[0] ?? { count: '0' }),
+    // P2-1: scope by run via the snapshot's source extraction. Filtering by
+    // match_id only leaks stale snapshots from other runs on the same match
+    // (e.g. a superseded prior run with persona=NULL) into this run's count.
     c
       .select({ count: sql<string>`COUNT(*)::text` })
       .from(playerLoadoutSnapshots)
+      .innerJoin(ocrExtractions, eq(playerLoadoutSnapshots.ocrExtractionId, ocrExtractions.id))
       .where(
         and(
-          sql`${playerLoadoutSnapshots.matchId} = (SELECT ${ocrDecoderRuns.matchId} FROM ${ocrDecoderRuns} WHERE ${ocrDecoderRuns.id} = ${runId})`,
+          eq(ocrExtractions.runId, runId),
           sql`${playerLoadoutSnapshots.playerNamePersona} IS NULL`,
         ),
       )
@@ -432,7 +437,27 @@ export async function buildUnresolvedCounts(
   }
 }
 
-// ── 5. upsert writer ─────────────────────────────────────────────────────────
+// ── 5. segment count (run-scoped) ────────────────────────────────────────────
+
+/**
+ * Count of `ocr_segments` rows attributed to a single run.
+ *
+ * Phase-3 originally projected `body.screens.totals.frames` (per-extraction
+ * count) into the `total_segments` hot column on `ocr_run_quality_reports`.
+ * That column name implies the segment layer; frames live on the extraction
+ * layer. This helper gives the report body a real per-run segment count so
+ * the hot column lines up with its name. See Codex P3.
+ */
+export async function countSegmentsByRun(runId: number, conn?: Database): Promise<number> {
+  const c = conn ?? db
+  const [row] = await c
+    .select({ count: sql<string>`COUNT(*)::text` })
+    .from(ocrSegments)
+    .where(eq(ocrSegments.runId, runId))
+  return Number(row?.count ?? '0')
+}
+
+// ── 6. upsert writer ─────────────────────────────────────────────────────────
 
 export interface RunQualityReportDerivedColumns {
   matchId: number

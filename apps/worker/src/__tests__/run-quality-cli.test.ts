@@ -28,6 +28,7 @@ import {
   ocrFieldEvidence,
   ocrPromotions,
   ocrRunQualityReports,
+  ocrSegments,
   playerLoadoutSnapshots,
   playerLoadoutAttributes,
   playerLoadoutXFactors,
@@ -40,6 +41,8 @@ const SENTINEL_MATCH_IDS = [
   9301, 9302, 9303, 9304, 9305, 9306, 9307, 9308, 9309, 9310,
   // P1-1 race-vs-reprocess test
   9311, 9312, 9313, 9314, 9315,
+  // P3 segments-hot-column test
+  9316, 9317, 9318, 9319, 9320,
 ] as const
 
 const REPO_ROOT = path.resolve(process.cwd())
@@ -60,6 +63,7 @@ async function cleanupSentinels(): Promise<void> {
     await db.delete(ocrRunQualityReports).where(inArray(ocrRunQualityReports.runId, runIds))
     await db.delete(ocrPromotions).where(inArray(ocrPromotions.runId, runIds))
     await db.delete(ocrFieldEvidence).where(inArray(ocrFieldEvidence.runId, runIds))
+    await db.delete(ocrSegments).where(inArray(ocrSegments.runId, runIds))
   }
 
   // Loadout child tables hang off snapshots — collect snap ids first.
@@ -577,7 +581,7 @@ void test('hot-column mirrors: overall_pass + scores + counters match the body',
       l2_lineup: { score: number }
       l3: { score: number }
     }
-    screens: { totals: { frames: number } }
+    screens: { totals: { frames: number; segments: number } }
     defense_layers: {
       is_cpu_or_demoted_combined: number
       hard_field_blocks: number
@@ -591,13 +595,87 @@ void test('hot-column mirrors: overall_pass + scores + counters match the body',
   assert.equal(Number(row!.l2Score), body.layers.l2.score)
   assert.equal(Number(row!.l2LineupScore), body.layers.l2_lineup.score)
   assert.equal(Number(row!.l3Score), body.layers.l3.score)
-  assert.equal(row!.totalSegments, body.screens.totals.frames)
+  // Post-P3: hot column mirrors the segment count, not the frame count.
+  assert.equal(row!.totalSegments, body.screens.totals.segments)
   const expectedDemoted =
     body.defense_layers.is_cpu_or_demoted_combined +
     body.defense_layers.hard_field_blocks +
     body.defense_layers.junk_gamertag_blocks_ts
   assert.equal(row!.totalDemoted, expectedDemoted)
   assert.equal(row!.totalUnresolved, body.unresolved.totals.all)
+})
+
+void test('totals.segments is independent from totals.frames; hot column mirrors segments (Codex P3)', async (t) => {
+  if (!process.env['DATABASE_URL']) {
+    t.skip('DATABASE_URL not set')
+    return
+  }
+  // Seed N=2 ocr_segments + M=3 ocr_extractions on the same run. The body
+  // must expose both `frames` (=M) and `segments` (=N), and the hot column
+  // `total_segments` must mirror the segment count.
+  const f = await seedFixture(9316)
+
+  await db.insert(ocrExtractions).values([
+    {
+      batchId: f.batchId,
+      matchId: f.matchId,
+      runId: f.runId,
+      screenType: 'player_loadout_view',
+      sourcePath: `test-sentinel-run-quality-cli-${f.matchId}/seed-2.png`,
+      rawResultJson: {},
+      transformStatus: 'success',
+      reviewStatus: 'reviewed',
+      overallConfidence: '0.9000',
+    },
+    {
+      batchId: f.batchId,
+      matchId: f.matchId,
+      runId: f.runId,
+      screenType: 'player_loadout_view',
+      sourcePath: `test-sentinel-run-quality-cli-${f.matchId}/seed-3.png`,
+      rawResultJson: {},
+      transformStatus: 'success',
+      reviewStatus: 'reviewed',
+      overallConfidence: '0.9000',
+    },
+  ])
+
+  await db.insert(ocrSegments).values([
+    {
+      matchId: f.matchId,
+      segmentKey: 'seg-001',
+      state: 'pre_game_lobby_state_2',
+      uiVersion: 'nhl26',
+      decoderVersion: 'hmm-viterbi-v1',
+      runId: f.runId,
+    },
+    {
+      matchId: f.matchId,
+      segmentKey: 'seg-002',
+      state: 'post_game_box_score_goals',
+      uiVersion: 'nhl26',
+      decoderVersion: 'hmm-viterbi-v1',
+      runId: f.runId,
+    },
+  ])
+
+  const result = runCli(['--run-id', String(f.runId), '--emit-row', '--force'])
+  assert.equal(result.status, 0, `stderr: ${result.stderr}`)
+
+  const [row] = await db
+    .select({
+      report: ocrRunQualityReports.report,
+      totalSegments: ocrRunQualityReports.totalSegments,
+    })
+    .from(ocrRunQualityReports)
+    .where(eq(ocrRunQualityReports.runId, f.runId))
+  assert.ok(row)
+  const body = row!.report as {
+    screens: { totals: { frames: number; segments: number } }
+  }
+  assert.equal(body.screens.totals.frames, 3, 'expected 3 ocr_extractions')
+  assert.equal(body.screens.totals.segments, 2, 'expected 2 ocr_segments')
+  assert.equal(row!.totalSegments, 2, 'hot column total_segments must mirror segment count')
 })
 
 void test('--all-runs skips runs with completed_at IS NULL (race-vs-reprocess defense)', async (t) => {
