@@ -2,18 +2,50 @@
 
 ## To-Do
 
-**Two branches ready to merge (operator merge call, in order):**
+**Next session (architecture workstream — recommended):** **Run-level quality reporting** per [docs/research/video-extraction-architecture-review-2026-05-28.md §6 "Metrics are not stage-oriented enough"](docs/research/video-extraction-architecture-review-2026-05-28.md) and §"Recommended Target Architecture" (line ~418). The CPU-goalie fix demonstrated the value of per-reprocess visibility — we manually queried DB rows + ran `match-quality` CLI repeatedly to understand whether each layer (detector / OR-fold / read filter / isEmptyRow) was firing correctly. Without quality reporting, future you can't easily verify the multi-layer pipeline in the wild, and future model/vendor evaluation (CV-CUDA prototype later) needs trend lines to measure against.
 
-1. **`feat/screen-classifier-v2-a1`** — 62 commits ahead of `main`. CPU-goalie fix + OR-fold semantics + repo cleanup. Match 250 L3 = 1.0, both reprocessed matches' goalies carry `is_cpu=true`. All tests green.
-2. **`feat/lobby-detector-cross-team-dedup`** — stacks on the above; +2 commits for Phase-3 detector hardening (cross-team duplicate detection in `slot_identity.py`). Makes the `is_cpu` signal structurally authoritative at the detector layer. Composes with OR-fold.
+Architecture review §6 calls for a per-ingest quality report artifact that answers:
+- What did we find? (segments classified, slots emitted, evidence rows)
+- What did we skip? (CPU rows demoted, junk-gamertag rows filtered, low-quality observability)
+- What evidence was promoted? (gate decisions, blocked counts by reason)
+- What remained unresolved? (unresolved gamertags, personas, actor bindings)
+- How long did each stage take? (Pass-1 / Pass-2 / promote / consolidate / backfill)
 
-After both merge, the `is_cpu` end-to-end pipeline is:
-- **Detector** (Python `slot_identity.py`): emits `is_cpu=true` for literal "CPU" rows AND for cross-team gamertag duplicates (structurally a CPU placeholder)
-- **Promoter** (TS `lobby-v2.ts`): OR-fold semantics — any frame voting true wins (catches residual cases where detector only fired on some frames)
-- **Read layer** (`getMatchLineups`, `match-quality-cli`, `consolidate-loadouts`): filters `is_cpu=true` rows out of lineups, anchors, and metric denominators
-- **Defense-in-depth** (`isEmptyRow` in `match-lineups.ts`): hides rows with no build + no jersey + no x-factors as a last-line filter
+Stage-level production metrics the architecture review lists:
+- version detection accuracy
+- Pass 1 segment recall + false-positive rate
+- boundary error in seconds
+- Pass 2 frame count per segment
+- OCR field recall + precision
+- promotion precision
+- manual review burden
+- runtime per video
+- disk footprint per video
 
-No further blocking work on the CPU-goalie story. Phase-3 real-data validation (reprocess matches 250 + 968) is optional; unit + integration tests already prove the detector logic. Existing matches' `is_cpu` columns continue to read correctly via OR-fold + isEmptyRow until they're reprocessed at the operator's convenience.
+Relevant existing code to read/extend:
+- `apps/worker/src/match-quality-cli.ts` — current per-match scoring; already produces layer JSON; the natural extension point
+- `apps/worker/src/reprocess.py` (Python pipeline orchestrator) — runs the create-candidate → ingest → promote → validate → activate → consolidate → backfill flow; quality report should emit at the end
+- `docs/calibration/regression-floor-match-{250,463}.json` — existing per-match snapshots; quality report is the run-time companion
+- `ocr_decoder_runs` table — quality report should attach to a specific `run_id` for traceability
+
+Scope this session won't touch:
+- Architecture #1 (canonical source timestamps) — contract change, separate workstream
+- Architecture #2 (in-memory Pass-2 hot path) — perf refactor, separate workstream
+- CV-CUDA prototype — wait until quality reporting is in place to measure against
+- typed_v1 baseline gates (match-250-benchmark tests 19, 20) — pre-existing, orthogonal
+- Captain ★-glyph extractor reliability (match-250-benchmark test 1) — Phase-3 deferred bug, separate workstream
+- height_text source canonicalization (match-250-benchmark test 15) — needs design decision before code
+
+**Backlog (smaller items, queued):**
+
+- **Real-data Phase-3 detector validation** (~3 hrs unattended): reprocess matches 250 + 968 against the new cross-team-dedup detector; confirm both goalies' `is_cpu` evidence rows all vote true (no more 1-true-1-false). Optional — unit + integration tests prove the logic; this just validates on disk.
+- **Persona alias backfill from match 968** (~10 min): the 968 reprocess flagged 3 unresolved personas; suggested CLI to run:
+  ```
+  pnpm --filter worker promote-persona-alias --map "TortaaaaaaPounddddder=>TORTAAAAAAPOUNDDDDDER,WizNiewski=>WIZNIEWSKI,H.Koch=>H. KOCH"
+  ```
+- **Match 968 opp C row gap**: `Oatmeal15942/H.Koch` has gamertag + persona in lobby but 0 xfactors/attrs (no loadout-view captures). Either operator didn't navigate to this player during recording, or extraction failed. Investigation only; no code change identified.
+
+**Branch state:** `main` = `origin/main` = `ed27b4c`. Working tree clean (label-studio-export.json on disk but gitignored). Local-only stale branches: `feat/screen-classifier-v2-a1` (`88285ef`) and `feat/lobby-detector-cross-team-dedup` (`ed27b4c`) — commits all in `main`; safe to delete with `git branch -D` whenever.
 
 **Background reading (decision input for post-A3 workstream):**
 
@@ -23,6 +55,57 @@ No further blocking work on the CPU-goalie story. Phase-3 real-data validation (
   - `later for stubborn weak spots`: evaluate `TAO Toolkit`
   - `future live tracking/modeling`: treat `DeepStream 8` + `TAO` as a separate video-native track, not an in-place replacement for the screenshot-first extractor
   - `ignore for primary extraction`: `Metropolis VSS`
+
+## Session Summary — 2026-05-29 (final: branches merged + pushed; operator drift committed; tree clean)
+
+### Current status
+
+`main` = `origin/main` = `ed27b4c`. Both Phase-3-era branches fast-forward-merged to `main` and pushed to GitHub. Operator working-tree drift triaged + addressed. Repo is at a clean checkpoint ready for next-session migration to Run-level quality reporting workstream.
+
+### What was done (post-Phase-3)
+
+**Merges (2 fast-forwards via `git push . <src>:main` to dodge working-tree checkout):**
+
+| SHA range | Branch merged |
+|---|---|
+| `4c299cf..88285ef` | `feat/screen-classifier-v2-a1` (62 commits — CPU-goalie + OR-fold + repo cleanup) |
+| `88285ef..e68dc08` | `feat/lobby-detector-cross-team-dedup` (3 commits — Phase-3 detector hardening) |
+
+**Push to origin:**
+
+```
+af01074..e68dc08  main -> main
+```
+
+66 commits delivered to GitHub (the prior unpushed `4c299cf docs(claude-md)` + 65 from this session).
+
+**Operator working-tree drift triage (2 cleanup commits):**
+
+| SHA | Commit |
+|---|---|
+| `9cea42c` | `chore(ocr): commit S5.5 retrained weights + proving-bench labels + match-250 fixture refresh` — 5 files of artifacts produced by already-shipped S5.5 (`d1cdfee`) and Phase 2B (`22fb2a4`, `e449833`, `bc066c6`) work that never landed. Aligns origin with the local artifact state the test suite has been running against. Net diff: -5,378 lines (weights got more compact via Phase 2B-2 pruning). |
+| `ed27b4c` | `chore: ignore label-studio-export.json + untrack the existing copy` — gitignore widened to include the unsuffixed canonical export alongside the existing `label-studio-export-*.json` wildcard. File preserved on disk via `git rm --cached`; your Label Studio instance remains the source of truth for labels. |
+
+Then pushed:
+
+```
+e68dc08..ed27b4c  main -> main
+```
+
+### Final tally (session totals)
+
+- **22 commits this session** on `feat/screen-classifier-v2-a1` → `feat/lobby-detector-cross-team-dedup` → merged into `main` → pushed to `origin/main`
+- Working tree: **clean** (0 modifications, 0 untracked)
+- `label-studio-export.json` on disk (1.5MB), gitignored
+- Stale local branches: `feat/screen-classifier-v2-a1`, `feat/lobby-detector-cross-team-dedup` — commits all in `main`; safe to delete
+
+### Test status (final, on origin/main)
+
+- `tools/game_ocr/tests/`: **284 passed, 1 skipped, 0 failed** (was 277 baseline; +7 new for Phase-3 detector tests)
+- `apps/worker/dist/__tests__/lobby-v2-cpu.test.js`: 5/5 PASS
+- `apps/worker/dist/__tests__/match-quality-regression.test.js`: 2/2 PASS at new floor (match 250 L3 = 1.0)
+- `apps/worker/dist/__tests__/match-250-benchmark.test.js`: 16/20 PASS — test 4 (CPU goalie no-row) closed; tests 1, 15, 19, 20 unchanged Phase-3-deferred + typed_v1 baseline (separate workstreams)
+- 3 pre-existing video_ingest fixture-parity failures unchanged
 
 ## Session Summary — 2026-05-29 (continued: Phase-3 detector hardening ships on new branch)
 
