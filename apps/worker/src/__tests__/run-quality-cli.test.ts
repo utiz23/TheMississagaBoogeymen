@@ -34,7 +34,7 @@ import {
   playerLoadoutXFactors,
   matchEvents,
 } from '@eanhl/db'
-import { eq, inArray, sql } from 'drizzle-orm'
+import { eq, inArray } from 'drizzle-orm'
 
 const GAME_TITLE_ID = 1 // NHL 26
 const SENTINEL_MATCH_IDS = [
@@ -218,77 +218,6 @@ function lastJsonLine(stdout: string): string | undefined {
     .pop()
 }
 
-// ── --all-runs safety snapshot ────────────────────────────────────────────────
-//
-// The two `--all-runs --emit-row --force` tests below operate on every run in
-// `ocr_decoder_runs` (not just sentinels). After Codex round 2 P2 (runtime
-// preservation in upsertRunQualityReport), the destructive blast radius is
-// contained — runtime fields are physically preserved by the COALESCE-based
-// DO UPDATE — but the test pattern is still a footgun. This helper captures
-// {total_wall_ms, report->'runtime'} for all non-sentinel rows before the
-// test and asserts identical state after cleanup, proving the test didn't
-// permanently mutate any production-run report data.
-
-interface RuntimeSnapshotRow {
-  runId: number
-  totalWallMs: number | null
-  runtime: unknown // sub-document of report->'runtime'
-}
-
-async function snapshotProductionRuntime(sentinelRunIds: Set<number>): Promise<RuntimeSnapshotRow[]> {
-  const rows = await db
-    .select({
-      runId: ocrRunQualityReports.runId,
-      totalWallMs: ocrRunQualityReports.totalWallMs,
-      runtime: sql<unknown>`${ocrRunQualityReports.report}->'runtime'`,
-    })
-    .from(ocrRunQualityReports)
-  return rows
-    .filter((r) => !sentinelRunIds.has(r.runId))
-    .map((r) => ({ runId: r.runId, totalWallMs: r.totalWallMs, runtime: r.runtime }))
-    .sort((a, b) => a.runId - b.runId)
-}
-
-/**
- * Asserts that runtime fields on production runs that ALREADY HAD a quality
- * report before the test were NOT mutated. The Codex R2 P2 contract is about
- * preservation of measured runtime, not about preventing new rows altogether
- * (the test cleanup deletes any new rows below). We compare on the
- * intersection of runIds present in both snapshots: any pre-existing row's
- * total_wall_ms + report->'runtime' must be byte-identical after the
- * destructive CLI call.
- */
-function assertRuntimeSnapshotUnchanged(
-  before: RuntimeSnapshotRow[],
-  after: RuntimeSnapshotRow[],
-): void {
-  const afterById = new Map(after.map((r) => [r.runId, r]))
-  let intersected = 0
-  for (const b of before) {
-    const a = afterById.get(b.runId)
-    assert.ok(
-      a,
-      `production-run runId=${b.runId} had a report before the test but is gone after — the --all-runs test deleted rows`,
-    )
-    intersected++
-    assert.equal(
-      a!.totalWallMs,
-      b.totalWallMs,
-      `production-run runId=${b.runId} total_wall_ms mutated (before=${b.totalWallMs}, after=${a!.totalWallMs}) — Codex R2 P2 runtime-preservation contract broken`,
-    )
-    assert.deepEqual(
-      a!.runtime,
-      b.runtime,
-      `production-run runId=${b.runId} report->'runtime' mutated — Codex R2 P2 runtime-preservation contract broken`,
-    )
-  }
-  // Pure sanity: ensure the loop actually executed the assertions for
-  // every pre-existing row. If `before` was empty, the contract is
-  // trivially satisfied — surface that explicitly to the test log so a
-  // future reader doesn't mistake a green test for proof.
-  void intersected
-}
-
 // ── lifecycle ────────────────────────────────────────────────────────────────
 
 before(async () => {
@@ -449,72 +378,247 @@ void test('--force overwrites an existing row (generated_at advances)', async (t
   )
 })
 
-void test('--all-runs --emit-row writes a row per run; runtime is null', async (t) => {
+void test('--all-runs --emit-row (no --force) writes only to runs without a report; skips existing', async (t) => {
   if (!process.env['DATABASE_URL']) {
     t.skip('DATABASE_URL not set')
     return
   }
-  // Seed three runs across three matches — IDs 9307, 9308, 9309.
-  // Note: --all-runs iterates EVERY run in ocr_decoder_runs (not just
-  // sentinels). After Codex R2 P2 (runtime preservation in
-  // upsertRunQualityReport), the destructive write physically cannot
-  // clobber measured runtime data on production rows — but we still
-  // assert that property end-to-end here by snapshotting and comparing
-  // {total_wall_ms, report->'runtime'} for every non-sentinel row
-  // before and after the destructive CLI call (plus cleanup).
-  const f7 = await seedFixture(9307)
-  const f8 = await seedFixture(9308)
-  const f9 = await seedFixture(9309)
+  // Codex R3 P1: never run `--force` globally against the DB in tests. The
+  // safe `--all-runs` path is `--emit-row` without `--force` — the upsert
+  // plain INSERTs and on-conflict SKIPS, so pre-existing production rows are
+  // physically untouched. We assert that contract via the set-of-run_ids
+  // snapshot pattern (no per-row content comparison needed because no
+  // production row is reachable for mutation).
+  //
+  // Sentinel set:
+  //   (a) 9307 — completed run, NO existing report  → must get a new backfill row
+  //   (b) 9308 — incomplete run (completed_at=null) → must remain rowless
+  //   (c) 9309 — completed run, WITH existing report → row must be unchanged
+  const fNoReport = await seedFixture(9307)
+  const fIncomplete = await seedFixture(9308, /* isActive */ true, /* completedAt */ null)
+  const fWithReport = await seedFixture(9309)
 
-  const sentinelRunIds = new Set<number>([f7.runId, f8.runId, f9.runId])
-
-  // Snapshot non-sentinel run ids that exist in ocr_decoder_runs right now.
-  // After the CLI call, we delete any ocr_run_quality_reports rows that
-  // belong to these non-sentinel runs (they're production runs we don't
-  // want to leave polluted with synthetic backfill rows). The snapshot
-  // above is the safety check that proves runtime data survived.
-  const allRunsBefore = await db.select({ id: ocrDecoderRuns.id }).from(ocrDecoderRuns)
-  const nonSentinelRunIds = allRunsBefore.map((r) => r.id).filter((id) => !sentinelRunIds.has(id))
-
-  const productionRuntimeBefore = await snapshotProductionRuntime(sentinelRunIds)
-
-  try {
-    const result = runCli(['--all-runs', '--emit-row', '--force'])
-    assert.equal(
-      result.status,
-      0,
-      `expected exit 0; stderr-tail: ${result.stderr.split('\n').slice(-5).join(' | ')}`,
-    )
-
-    for (const runId of [f7.runId, f8.runId, f9.runId]) {
-      const [row] = await db
-        .select({
-          report: ocrRunQualityReports.report,
-          totalWallMs: ocrRunQualityReports.totalWallMs,
-        })
-        .from(ocrRunQualityReports)
-        .where(eq(ocrRunQualityReports.runId, runId))
-      assert.ok(row, `expected a report row for run ${runId}`)
-      assert.equal(row!.totalWallMs, null, `expected totalWallMs null for backfill run ${runId}`)
-      const body = row!.report as Record<string, unknown>
-      const runtime = body['runtime'] as Record<string, unknown>
-      assert.equal(runtime['total_wall_ms'], null)
-      assert.equal(runtime['captured_from'], 'backfill')
-    }
-
-    // Codex R2 P2 contract: production-run runtime fields must be
-    // untouched by --all-runs --force. The snapshot taken before the CLI
-    // call must match what's in the DB right now (i.e. before cleanup).
-    const productionRuntimeMidTest = await snapshotProductionRuntime(sentinelRunIds)
-    assertRuntimeSnapshotUnchanged(productionRuntimeBefore, productionRuntimeMidTest)
-  } finally {
-    // Clean up any reports written against non-sentinel (production) runs.
-    if (nonSentinelRunIds.length > 0) {
-      await db
-        .delete(ocrRunQualityReports)
-        .where(inArray(ocrRunQualityReports.runId, nonSentinelRunIds))
-    }
+  // Seed sentinel (c)'s pre-existing report directly so its prior content
+  // survives the no-force --all-runs pass.
+  const seededTotalWallMs = 4242
+  const seededReportBody = {
+    schema_version: 1,
+    seeded_for_test: 'r3-p1-no-force-skip',
+    runtime: {
+      total_wall_ms: seededTotalWallMs,
+      stages: { ingest_ms: 99 },
+      captured_at: '2026-05-29T00:00:00Z',
+      captured_from: 'reprocess.py',
+    },
   }
+  await db.insert(ocrRunQualityReports).values({
+    runId: fWithReport.runId,
+    matchId: fWithReport.matchId,
+    schemaVersion: 1,
+    overallPass: true,
+    l1Score: null,
+    l2Score: '0.9000',
+    l2LineupScore: '0.9000',
+    l3Score: '0.9000',
+    totalWallMs: seededTotalWallMs,
+    totalSegments: 7,
+    totalDemoted: 0,
+    totalUnresolved: 0,
+    report: seededReportBody,
+  })
+
+  // Snapshot the run_id set with a report row BEFORE the CLI runs. Because
+  // we run without --force, every run_id present in this set must still be
+  // present afterward and its content must be untouched (verified end-to-end
+  // for the sentinel we seeded; verified by set-relationship for everything
+  // else — no production row is even reachable for mutation without --force).
+  const preexistingReportRunIds = new Set<number>(
+    (await db.select({ runId: ocrRunQualityReports.runId }).from(ocrRunQualityReports)).map(
+      (r) => r.runId,
+    ),
+  )
+  assert.ok(
+    preexistingReportRunIds.has(fWithReport.runId),
+    'sentinel (c) seeded report should be in the pre-existing set',
+  )
+  assert.ok(
+    !preexistingReportRunIds.has(fNoReport.runId),
+    'sentinel (a) should not yet have a report',
+  )
+  assert.ok(
+    !preexistingReportRunIds.has(fIncomplete.runId),
+    'sentinel (b) should not yet have a report',
+  )
+
+  const result = runCli(['--all-runs', '--emit-row'])
+  assert.equal(
+    result.status,
+    0,
+    `expected exit 0; stderr-tail: ${result.stderr.split('\n').slice(-5).join(' | ')}`,
+  )
+
+  // (a) Sentinel without a prior report now has a backfill row.
+  const [aRow] = await db
+    .select({
+      report: ocrRunQualityReports.report,
+      totalWallMs: ocrRunQualityReports.totalWallMs,
+    })
+    .from(ocrRunQualityReports)
+    .where(eq(ocrRunQualityReports.runId, fNoReport.runId))
+  assert.ok(aRow, `expected a backfill report row for sentinel (a) run ${fNoReport.runId}`)
+  assert.equal(aRow!.totalWallMs, null, 'sentinel (a) backfill should have null total_wall_ms')
+  const aBody = aRow!.report as Record<string, unknown>
+  const aRuntime = aBody['runtime'] as Record<string, unknown>
+  assert.equal(aRuntime['captured_from'], 'backfill')
+
+  // (b) Incomplete sentinel must remain rowless — the round-1 completed_at
+  // filter excludes it from the iteration.
+  const bRows = await db
+    .select({ id: ocrRunQualityReports.id })
+    .from(ocrRunQualityReports)
+    .where(eq(ocrRunQualityReports.runId, fIncomplete.runId))
+  assert.equal(bRows.length, 0, 'sentinel (b) incomplete run must not get a report')
+
+  // (c) Pre-existing report row must be byte-identical content for the
+  // fields we seeded (the skip-on-conflict path doesn't even touch this row).
+  const [cRow] = await db
+    .select({
+      report: ocrRunQualityReports.report,
+      totalWallMs: ocrRunQualityReports.totalWallMs,
+      totalSegments: ocrRunQualityReports.totalSegments,
+    })
+    .from(ocrRunQualityReports)
+    .where(eq(ocrRunQualityReports.runId, fWithReport.runId))
+  assert.ok(cRow, 'sentinel (c) pre-existing row should still be present')
+  assert.equal(
+    cRow!.totalWallMs,
+    seededTotalWallMs,
+    'sentinel (c) seeded total_wall_ms must be preserved (no --force)',
+  )
+  assert.equal(cRow!.totalSegments, 7, 'sentinel (c) seeded total_segments must be preserved')
+  const cBody = cRow!.report as Record<string, unknown>
+  assert.equal(
+    cBody['seeded_for_test'],
+    'r3-p1-no-force-skip',
+    'sentinel (c) seeded report body must be preserved',
+  )
+
+  // Set-relationship check: after the CLI runs, the set of run_ids with a
+  // report row is a SUPERSET of the pre-existing set. The skip-on-conflict
+  // path physically cannot delete any pre-existing report, so no run_id that
+  // was in the snapshot can have dropped out.
+  const afterReportRunIds = new Set<number>(
+    (await db.select({ runId: ocrRunQualityReports.runId }).from(ocrRunQualityReports)).map(
+      (r) => r.runId,
+    ),
+  )
+  for (const runId of preexistingReportRunIds) {
+    assert.ok(
+      afterReportRunIds.has(runId),
+      `pre-existing report for run ${runId} disappeared — no-force --all-runs must never delete rows`,
+    )
+  }
+  assert.ok(
+    afterReportRunIds.has(fNoReport.runId),
+    'sentinel (a) must have a new backfill report row',
+  )
+
+  // Best-effort cleanup of any newly-written backfill rows on non-sentinel
+  // (production) runs. These are runs that were completed but lacked a
+  // report at test start; the no-force --all-runs pass added a content-only
+  // backfill row for each. Pre-existing rows are physically untouched
+  // (skip-on-conflict). The sentinel rows themselves are cleaned up by the
+  // suite-wide teardown.
+  const sentinelRunIds = new Set<number>([fNoReport.runId, fIncomplete.runId, fWithReport.runId])
+  const newlyWrittenNonSentinel = [...afterReportRunIds].filter(
+    (id) => !preexistingReportRunIds.has(id) && !sentinelRunIds.has(id),
+  )
+  if (newlyWrittenNonSentinel.length > 0) {
+    await db
+      .delete(ocrRunQualityReports)
+      .where(inArray(ocrRunQualityReports.runId, newlyWrittenNonSentinel))
+  }
+})
+
+void test('--force on a single run preserves measured runtime (Codex R2 P2 contract, scoped)', async (t) => {
+  if (!process.env['DATABASE_URL']) {
+    t.skip('DATABASE_URL not set')
+    return
+  }
+  // Codex R3 P1: this replaces the old global `--all-runs --emit-row --force`
+  // scenario with a scoped `--run-id N --emit-row --force` scenario that's
+  // structurally safe. We verify the same semantic — "force overwrite respects
+  // the runtime-preservation contract" — without ever running --force against
+  // any production row.
+  const f = await seedFixture(9312)
+
+  // Seed a pre-existing report directly with measured runtime (total_wall_ms
+  // and a populated runtime sub-object with stages.ingest_ms set so the
+  // CASE/jsonb_set branch in upsertRunQualityReport selects "preserve").
+  const seededTotalWallMs = 1234
+  const seededReportBody = {
+    schema_version: 1,
+    seeded_for_test: 'r3-p1-force-preserves-runtime',
+    runtime: {
+      total_wall_ms: seededTotalWallMs,
+      stages: { ingest_ms: 77 },
+      captured_at: '2026-05-29T01:23:45Z',
+      captured_from: 'reprocess.py',
+    },
+  }
+  await db.insert(ocrRunQualityReports).values({
+    runId: f.runId,
+    matchId: f.matchId,
+    schemaVersion: 1,
+    overallPass: true,
+    l1Score: null,
+    l2Score: '0.5000',
+    l2LineupScore: '0.5000',
+    l3Score: '0.5000',
+    totalWallMs: seededTotalWallMs,
+    totalSegments: 1,
+    totalDemoted: 0,
+    totalUnresolved: 0,
+    report: seededReportBody,
+  })
+
+  // Run --emit-row --force WITHOUT --stage-runtimes → backfill mode → the
+  // round-2 commit-2 contract requires total_wall_ms and runtime.stages to
+  // be preserved from the prior row. Content fields (e.g. report->'run') are
+  // refreshed.
+  const result = runCli(['--run-id', String(f.runId), '--emit-row', '--force'])
+  assert.equal(result.status, 0, `stderr: ${result.stderr}; stdout: ${result.stdout}`)
+
+  const [row] = await db
+    .select({
+      report: ocrRunQualityReports.report,
+      totalWallMs: ocrRunQualityReports.totalWallMs,
+    })
+    .from(ocrRunQualityReports)
+    .where(eq(ocrRunQualityReports.runId, f.runId))
+  assert.ok(row, 'row should still be present after --force')
+  assert.equal(
+    row!.totalWallMs,
+    seededTotalWallMs,
+    `total_wall_ms must be preserved across --force when no --stage-runtimes provided; got ${row!.totalWallMs}`,
+  )
+  const body = row!.report as Record<string, unknown>
+  const runtime = body['runtime'] as Record<string, unknown>
+  assert.equal(
+    runtime['total_wall_ms'],
+    seededTotalWallMs,
+    'report->runtime->total_wall_ms must be preserved across --force',
+  )
+  const stages = runtime['stages'] as Record<string, unknown> | null
+  assert.ok(stages, 'report->runtime->stages must be preserved (not nulled out)')
+  assert.equal((stages as Record<string, number>)['ingest_ms'], 77)
+  assert.equal(runtime['captured_from'], 'reprocess.py')
+
+  // Content fields ARE refreshed (the run.run_id is present and matches the
+  // sentinel — the seeded report body had no run.run_id key at all).
+  const runMeta = body['run'] as Record<string, unknown> | undefined
+  assert.ok(runMeta, 'report.run should be populated by the refreshed body')
+  assert.equal(runMeta!['run_id'], f.runId)
 })
 
 void test('--stage-runtimes injects runtime block; total_wall_ms + captured_from match file', async (t) => {
@@ -763,86 +867,92 @@ void test('totals.segments is independent from totals.frames; hot column mirrors
   assert.equal(row!.totalSegments, 2, 'hot column total_segments must mirror segment count')
 })
 
-void test('--all-runs skips runs with completed_at IS NULL (race-vs-reprocess defense)', async (t) => {
+void test('--all-runs skips runs with completed_at IS NULL until completed (race-vs-reprocess lifecycle)', async (t) => {
   if (!process.env['DATABASE_URL']) {
     t.skip('DATABASE_URL not set')
     return
   }
-
+  // Codex R3 P1: this test exercises the lifecycle "incomplete run → mark
+  // completed → next --all-runs pass writes the row". It is structurally
+  // safe because we never use --force: the upsert plain INSERTs and on-
+  // conflict SKIPS, so no production row is reachable for mutation.
+  //
   // Seed a run that is still mid-pipeline: completed_at = NULL. Without the
   // P1-1 filter, --all-runs would race against the in-flight reprocess and
   // write a runtime=null backfill row first. With the filter, the row is
   // skipped until reprocess sets completed_at.
-  const f = await seedFixture(9311, /* isActive */ true, /* completedAt */ null)
+  const f = await seedFixture(9313, /* isActive */ true, /* completedAt */ null)
 
-  // Snapshot non-sentinel runs so we can clean up any prod rows we touch.
-  // Same Codex R2 P2 safety property as the other --all-runs test:
-  // snapshot {total_wall_ms, runtime} for every non-sentinel row and
-  // assert identical before cleanup.
-  const SENTINEL_RUN_IDS = new Set<number>([f.runId])
-  const allRunsBefore = await db.select({ id: ocrDecoderRuns.id }).from(ocrDecoderRuns)
-  const nonSentinelRunIds = allRunsBefore.map((r) => r.id).filter((id) => !SENTINEL_RUN_IDS.has(id))
+  // Snapshot pre-existing report run_ids so we can leave them untouched and
+  // clean up only what the test newly wrote on non-sentinel runs.
+  const preexistingReportRunIds = new Set<number>(
+    (await db.select({ runId: ocrRunQualityReports.runId }).from(ocrRunQualityReports)).map(
+      (r) => r.runId,
+    ),
+  )
 
-  const productionRuntimeBefore = await snapshotProductionRuntime(SENTINEL_RUN_IDS)
+  const first = runCli(['--all-runs', '--emit-row'])
+  assert.equal(
+    first.status,
+    0,
+    `expected exit 0; stderr-tail: ${first.stderr.split('\n').slice(-5).join(' | ')}`,
+  )
+  assert.match(
+    first.stderr,
+    /incomplete runs skipped/i,
+    `expected stderr to mention skip behavior; got: ${first.stderr.split('\n').slice(0, 3).join(' | ')}`,
+  )
 
-  try {
-    const first = runCli(['--all-runs', '--emit-row', '--force'])
-    assert.equal(
-      first.status,
-      0,
-      `expected exit 0; stderr-tail: ${first.stderr.split('\n').slice(-5).join(' | ')}`,
-    )
-    assert.match(
-      first.stderr,
-      /incomplete runs skipped/i,
-      `expected stderr to mention skip behavior; got: ${first.stderr.split('\n').slice(0, 3).join(' | ')}`,
-    )
+  const beforeRows = await db
+    .select({ id: ocrRunQualityReports.id })
+    .from(ocrRunQualityReports)
+    .where(eq(ocrRunQualityReports.runId, f.runId))
+  assert.equal(
+    beforeRows.length,
+    0,
+    `expected 0 report rows for incomplete run ${f.runId}; got ${beforeRows.length}`,
+  )
 
-    const beforeRows = await db
-      .select({ id: ocrRunQualityReports.id })
-      .from(ocrRunQualityReports)
-      .where(eq(ocrRunQualityReports.runId, f.runId))
-    assert.equal(
-      beforeRows.length,
-      0,
-      `expected 0 report rows for incomplete run ${f.runId}; got ${beforeRows.length}`,
-    )
+  // Now mark the run completed and re-run — the row should be written.
+  await db
+    .update(ocrDecoderRuns)
+    .set({ completedAt: new Date() })
+    .where(eq(ocrDecoderRuns.id, f.runId))
 
-    // Now mark the run completed and re-run — the row should be written.
+  const second = runCli(['--all-runs', '--emit-row'])
+  assert.equal(
+    second.status,
+    0,
+    `expected exit 0; stderr-tail: ${second.stderr.split('\n').slice(-5).join(' | ')}`,
+  )
+
+  const afterRows = await db
+    .select({ id: ocrRunQualityReports.id })
+    .from(ocrRunQualityReports)
+    .where(eq(ocrRunQualityReports.runId, f.runId))
+  assert.equal(
+    afterRows.length,
+    1,
+    `expected 1 report row after completed_at is set; got ${afterRows.length}`,
+  )
+
+  // Best-effort cleanup: the two --all-runs --emit-row passes write content-
+  // only backfill rows for any completed production run that lacked a
+  // report at test start. The skip-on-conflict path leaves pre-existing
+  // rows physically untouched; we delete only newly-added non-sentinel
+  // rows. The sentinel row itself is cleaned up by the suite-wide teardown.
+  const afterReportRunIds = new Set<number>(
+    (await db.select({ runId: ocrRunQualityReports.runId }).from(ocrRunQualityReports)).map(
+      (r) => r.runId,
+    ),
+  )
+  const newlyWrittenNonSentinel = [...afterReportRunIds].filter(
+    (id) => !preexistingReportRunIds.has(id) && id !== f.runId,
+  )
+  if (newlyWrittenNonSentinel.length > 0) {
     await db
-      .update(ocrDecoderRuns)
-      .set({ completedAt: new Date() })
-      .where(eq(ocrDecoderRuns.id, f.runId))
-
-    const second = runCli(['--all-runs', '--emit-row', '--force'])
-    assert.equal(
-      second.status,
-      0,
-      `expected exit 0; stderr-tail: ${second.stderr.split('\n').slice(-5).join(' | ')}`,
-    )
-
-    const afterRows = await db
-      .select({ id: ocrRunQualityReports.id })
-      .from(ocrRunQualityReports)
-      .where(eq(ocrRunQualityReports.runId, f.runId))
-    assert.equal(
-      afterRows.length,
-      1,
-      `expected 1 report row after completed_at is set; got ${afterRows.length}`,
-    )
-
-    // Codex R2 P2 contract: production-run runtime fields must be
-    // untouched by either --all-runs call (the first was a no-op for f
-    // because completed_at was NULL; the second wrote f's row but should
-    // not have touched anyone else's).
-    const productionRuntimeMidTest = await snapshotProductionRuntime(SENTINEL_RUN_IDS)
-    assertRuntimeSnapshotUnchanged(productionRuntimeBefore, productionRuntimeMidTest)
-  } finally {
-    if (nonSentinelRunIds.length > 0) {
-      await db
-        .delete(ocrRunQualityReports)
-        .where(inArray(ocrRunQualityReports.runId, nonSentinelRunIds))
-    }
+      .delete(ocrRunQualityReports)
+      .where(inArray(ocrRunQualityReports.runId, newlyWrittenNonSentinel))
   }
 })
 
