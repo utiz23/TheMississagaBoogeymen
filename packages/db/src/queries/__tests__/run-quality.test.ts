@@ -429,14 +429,37 @@ void test('upsertRunQualityReport: insert, conflict throws, force updates', asyn
   assert.ok(first, 'expected report row after insert')
   const firstGeneratedAt = first!.generatedAt
 
-  // Second insert without force MUST throw on unique constraint.
+  // Second insert without force MUST throw a unique-constraint violation
+  // (Postgres SQLSTATE 23505). Phase 3's CLI needs to distinguish a
+  // "user-correctable conflict" (existing report → suggest --force) from
+  // a generic DB failure, so we pin the error shape here rather than
+  // accepting any thrown value. Drizzle wraps driver errors in
+  // `DrizzleQueryError.cause`, so we walk the chain.
   let conflictErr: unknown = null
   try {
     await upsertRunQualityReport(f.runId, body, derived)
   } catch (e) {
     conflictErr = e
   }
-  assert.ok(conflictErr, 'expected unique-violation on second insert without force')
+  assert.ok(conflictErr, 'expected error on second insert without force')
+  const codes: Array<string | undefined> = []
+  const messages: string[] = []
+  let cur: unknown = conflictErr
+  for (let i = 0; i < 5 && cur && typeof cur === 'object'; i++) {
+    const obj = cur as { code?: string; message?: string; cause?: unknown }
+    codes.push(obj.code)
+    if (obj.message) messages.push(obj.message)
+    cur = obj.cause
+  }
+  const isUniqueViolation =
+    codes.includes('23505') ||
+    messages.some((m) =>
+      /duplicate key value violates unique constraint/i.test(m),
+    )
+  assert.ok(
+    isUniqueViolation,
+    `expected unique-violation (code 23505); got codes=${JSON.stringify(codes)} messages=${JSON.stringify(messages)}`,
+  )
 
   // Force-update path: same runId, new body + new score.
   await new Promise((resolve) => setTimeout(resolve, 50)) // ensure timestamp moves

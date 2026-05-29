@@ -12,13 +12,9 @@
  * want to inspect.
  */
 
-import { and, eq, inArray, sql, type SQL } from 'drizzle-orm'
+import { and, eq, inArray, sql } from 'drizzle-orm'
 import { db, type Database } from '../client.js'
-import {
-  ocrFieldEvidence,
-  ocrPromotions,
-  type OcrPromotionStatus,
-} from '../schema/ocr-evidence.js'
+import { ocrFieldEvidence, ocrPromotions } from '../schema/ocr-evidence.js'
 import { ocrExtractions } from '../schema/ocr-pipeline.js'
 import { ocrDecoderRuns } from '../schema/ocr-decoder-runs.js'
 import { ocrRunQualityReports } from '../schema/ocr-run-quality-reports.js'
@@ -455,6 +451,8 @@ export interface RunQualityReportDerivedColumns {
 export interface UpsertRunQualityReportOpts {
   /** If true, conflict on (run_id) updates existing row in a single statement. */
   force?: boolean
+  /** Optional connection (e.g. inside a transaction). Defaults to module `db`. */
+  conn?: Database
 }
 
 /**
@@ -473,8 +471,8 @@ export async function upsertRunQualityReport(
   body: Record<string, unknown>,
   derivedColumns: RunQualityReportDerivedColumns,
   opts?: UpsertRunQualityReportOpts,
-  conn?: Database,
 ): Promise<number> {
+  const { force = false, conn } = opts ?? {}
   const c = conn ?? db
   // Numeric columns on this table are NUMERIC(5,4). Drizzle's pg driver
   // accepts strings for numeric fields; pass them as strings so the precision
@@ -498,7 +496,7 @@ export async function upsertRunQualityReport(
     report: body,
   }
 
-  if (opts?.force === true) {
+  if (force) {
     const [row] = await c
       .insert(ocrRunQualityReports)
       .values(values)
@@ -533,10 +531,3 @@ export async function upsertRunQualityReport(
   return row.id
 }
 
-// Re-export the promotion status type so callers that consume the return
-// shape can lean on the existing enum without re-importing from the schema.
-export type { OcrPromotionStatus }
-
-// Internal: silence the unused-import linter when SQL is re-imported by
-// consumers via re-exports. Drop if/when an additional helper needs it.
-export type _RunQualityInternalSql = SQL

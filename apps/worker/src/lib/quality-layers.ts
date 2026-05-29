@@ -66,6 +66,12 @@ export interface LayerScores {
   overall: { pass: boolean }
 }
 
+/**
+ * Compute L1/L2/L2.5/L3 layer scores for a match.
+ *
+ * Side effects: runs read-only DB queries against `match_events` and
+ * `player_loadout_snapshots` for the given `matchId`. No writes.
+ */
 export async function computeLayers(
   matchId: number,
   downstream: DownstreamRow[],
