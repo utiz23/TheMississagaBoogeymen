@@ -8,7 +8,7 @@
 2. **Apply runbook stopgap SQL** for match 250's confirmed-CPU goalies → re-run consolidate → L3 → 1.0 → rebaseline `docs/calibration/regression-floor-match-250.json` as commit 6b.
 3. **Harden the Python detector** (Phase 3 follow-up — separate workstream). The right long-term fix uses cross-team duplicate detection (a real gamertag can't be on both rosters in the same lobby) but is out of scope for this branch.
 
-Branch `feat/screen-classifier-v2-a1` is **12 ahead of main, none pushed** — operator decision on merge.
+Branch `feat/screen-classifier-v2-a1` is **57 ahead of main, none pushed** — operator decision on merge.
 
 **Background reading (decision input for post-A3 workstream):**
 
@@ -23,7 +23,7 @@ Branch `feat/screen-classifier-v2-a1` is **12 ahead of main, none pushed** — o
 
 ### Current status
 
-Branch: `feat/screen-classifier-v2-a1` at HEAD (12 commits ahead of where the prior session ended at `1a68984`; 47 ahead of `main`). **CPU-goalie fix complete — 6 plan commits + 2 review-driven fixups + 4 cleanup commits.** Match 250 + 968 both reprocessed against the new code. User-visible acceptance criteria all met. One open finding pushes a decision to the A-gate (see To-Do above).
+Branch: `feat/screen-classifier-v2-a1` at HEAD `d71f7c7` (13 commits ahead of where the prior session ended at `1a68984`; 57 ahead of `main`). **CPU-goalie fix complete — 6 plan commits + 2 review-driven fixups + 4 cleanup commits + this HANDOFF.** Match 250 + 968 both reprocessed against the new code. User-visible acceptance criteria all met. One open finding pushes a decision to the A-gate (see To-Do above).
 
 ### What was done this session
 
