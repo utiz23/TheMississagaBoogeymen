@@ -42,6 +42,35 @@ def _synthesize_cfr(out_path: Path, duration_s: int, fps: int) -> None:
     subprocess.run(cmd, check=True, capture_output=True)
 
 
+def _synthesize_vfr_with_gap(
+    out_path: Path,
+    duration_s: int,
+    fps: int,
+    gap_start_s: int,
+    gap_len_s: int,
+) -> None:
+    """Synthesize a video with a deliberate timing gap mid-stream. ffmpeg's
+    `select` filter drops frames in `[gap_start_s, gap_start_s + gap_len_s)`
+    while preserving original PTS for the rest, simulating dropped-frame
+    VFR behavior. The resulting container has a presentation-time hole
+    spanning `gap_len_s` seconds.
+    """
+    select_expr = f"not(between(t,{gap_start_s},{gap_start_s + gap_len_s}))"
+    cmd = [
+        "ffmpeg", "-y", "-v", "error",
+        "-f", "lavfi",
+        "-i", f"color=color=black:size=192x108:rate={fps}:duration={duration_s}",
+        "-vf", f"select='{select_expr}'",
+        # Don't reset PTS — let the gap propagate to the container.
+        "-vsync", "vfr",
+        "-pix_fmt", "yuv420p",
+        "-c:v", "libx264",
+        "-preset", "ultrafast",
+        str(out_path),
+    ]
+    subprocess.run(cmd, check=True, capture_output=True)
+
+
 @unittest.skipUnless(_ffmpeg_available(), "ffmpeg not on PATH")
 @unittest.skipUnless(_pyav_available(), "PyAV not installed")
 class TestIterSampledFramesCfr(unittest.TestCase):
@@ -153,6 +182,189 @@ class TestIterSampledFramesCfr(unittest.TestCase):
             self.assertEqual(s.image.shape, (108, 192, 3))
             self.assertEqual(str(s.image.dtype), "uint8")
             self.assertTrue(s.image.flags["C_CONTIGUOUS"])
+
+
+@unittest.skipUnless(_ffmpeg_available(), "ffmpeg not on PATH")
+@unittest.skipUnless(_pyav_available(), "PyAV not installed")
+class TestIterSampledFramesVfr(unittest.TestCase):
+    """A source with a deliberate mid-stream gap should:
+      - emit at sample_index without holes (we never skip a slot)
+      - surface the gap in `max_source_pts_jump_within_sample_interval`
+      - emit canonical PTS that reflects the real source time of each
+        kept frame, not the index-derived approximation
+    This is the regression test for the architecture review's
+    "time drift on non-ideal captures" risk.
+    """
+
+    DURATION_S = 6
+    SOURCE_FPS = 30
+    SAMPLE_FPS = 1.0
+    GAP_START_S = 2  # drop seconds [2, 4)
+    GAP_LEN_S = 2
+
+    def test_drift_visible_in_telemetry_and_sample_times(self):
+        from video_ingest.pass1_classify import (
+            SamplingTelemetry,
+            iter_sampled_frames,
+        )
+
+        with TemporaryDirectory() as tmp:
+            video = Path(tmp) / "vfr.mp4"
+            _synthesize_vfr_with_gap(
+                video, self.DURATION_S, self.SOURCE_FPS,
+                self.GAP_START_S, self.GAP_LEN_S,
+            )
+
+            tele = SamplingTelemetry()
+            samples = list(iter_sampled_frames(
+                video, self.SAMPLE_FPS,
+                width=192, height=108, telemetry=tele,
+            ))
+
+        # sample_index is dense (no holes — we emit the next available
+        # frame past each missed tick).
+        self.assertEqual(
+            [s.sample_index for s in samples],
+            list(range(len(samples))),
+            "sample_index should never skip slots even when the source has a gap",
+        )
+
+        # The drift metric must surface a jump materially larger than
+        # one sample period. With a 2-second gap and 1s sampling, the
+        # observed max jump should be ≥ ~2s (it could be larger if the
+        # sampling tick lines up such that the gap spans more than one
+        # interval).
+        self.assertGreater(
+            tele.max_source_pts_jump_within_sample_interval,
+            1.0 / self.SAMPLE_FPS * 1.5,
+            f"VFR gap not surfaced in telemetry: "
+            f"max_jump={tele.max_source_pts_jump_within_sample_interval}",
+        )
+
+        # Source times must be monotonically non-decreasing — the canonical
+        # contract holds even across the gap.
+        for i in range(1, len(samples)):
+            self.assertGreaterEqual(
+                samples[i].source_time_seconds,
+                samples[i - 1].source_time_seconds,
+            )
+
+
+@unittest.skipUnless(_pyav_available(), "PyAV not installed")
+class TestIterSampledFramesMissingPts(unittest.TestCase):
+    """If the decoder produces a frame with `pts is None` we must fail
+    closed: Pass-1 cannot reason about source time without PTS. This is
+    a pure unit test against a stubbed container — no fixture needed.
+    """
+
+    def test_missing_pts_raises_pts_health_error(self):
+        from unittest.mock import MagicMock, patch
+
+        from video_ingest.pass1_classify import iter_sampled_frames
+        from video_ingest.pts import PtsHealthError
+
+        # Fake stream with a valid time_base, then a single frame with
+        # pts=None to trigger the fail-closed path on the first decode.
+        from fractions import Fraction
+
+        bad_frame = MagicMock()
+        bad_frame.pts = None
+
+        fake_stream = MagicMock()
+        fake_stream.time_base = Fraction(1, 30)
+        fake_stream.start_time = 0
+
+        fake_container = MagicMock()
+        fake_container.streams.video = [fake_stream]
+        # First decoded frame has pts=None, so the fail-closed check
+        # fires before any reformat / image conversion path runs.
+        fake_container.decode.return_value = iter([bad_frame])
+
+        with patch("av.open", return_value=fake_container):
+            with self.assertRaises(PtsHealthError) as cm:
+                list(iter_sampled_frames(Path("/dev/null"), 1.0,
+                                         width=192, height=108))
+
+        self.assertIn("PTS", str(cm.exception))
+
+
+class TestSegmentBuilderUsesSourceTime(unittest.TestCase):
+    """build_segments should consume `FrameClassification.source_time_seconds`
+    when present, so segment bounds reflect real source-PTS not the
+    enumerate index. This is a pure unit test — no real video.
+    """
+
+    def test_canonical_pts_overrides_index_derived(self):
+        from video_ingest.pass1_classify import (
+            FrameClassification,
+            Pass1Config,
+            build_segments,
+        )
+
+        # Construct 5 frames at sample_fps=1.0 but with VFR-shaped source
+        # times: [0.0, 1.0, 3.5, 4.5, 5.5] — a 1.5s gap between sample 1
+        # and sample 2. Index-derived seconds would say start=1.0 for the
+        # second sample; canonical PTS must say start=3.5.
+        source_times = [0.0, 1.0, 3.5, 4.5, 5.5]
+        cls_list = [
+            FrameClassification(
+                index=i, seconds=t,
+                screen_type="pre_game_lobby_state_2",
+                color_score=0.5, color_class="", anchor_text="",
+                sample_index=i, source_pts=int(t * 30000),
+                source_time_seconds=t, decode_order_index=i,
+            )
+            for i, t in enumerate(source_times)
+        ]
+
+        cfg = Pass1Config(
+            sample_fps=1.0,
+            min_run_to_open=3,
+            min_segment_seconds=0.0,  # disable the duration gate
+        )
+        segments = build_segments(cls_list, cfg)
+        self.assertEqual(len(segments), 1)
+        seg = segments[0]
+        self.assertEqual(seg.start_index, 0)
+        self.assertEqual(seg.end_index, 4)
+        # Segment bounds derive from source PTS, not index*period.
+        self.assertEqual(seg.start_seconds, 0.0)
+        # Exclusive end = last frame's source time + one sample period
+        # (no frame past index 4 exists).
+        self.assertAlmostEqual(seg.end_seconds, 5.5 + 1.0, places=6)
+
+    def test_fallback_when_source_time_seconds_is_none(self):
+        from video_ingest.pass1_classify import (
+            FrameClassification,
+            Pass1Config,
+            build_segments,
+        )
+
+        # Legacy-shaped FrameClassification (no canonical fields). The
+        # fallback must produce identical results to the pre-refactor
+        # `index * period` formula so cached pre-PTS segments.json files
+        # keep loading cleanly.
+        cls_list = [
+            FrameClassification(
+                index=i, seconds=float(i),
+                screen_type="pre_game_lobby_state_2",
+                color_score=0.5, color_class="", anchor_text="",
+                # New fields explicitly None.
+                sample_index=None, source_pts=None,
+                source_time_seconds=None, decode_order_index=None,
+            )
+            for i in range(5)
+        ]
+        cfg = Pass1Config(
+            sample_fps=1.0,
+            min_run_to_open=3,
+            min_segment_seconds=0.0,
+        )
+        segments = build_segments(cls_list, cfg)
+        self.assertEqual(len(segments), 1)
+        seg = segments[0]
+        self.assertEqual(seg.start_seconds, 0.0)
+        self.assertEqual(seg.end_seconds, 5.0)  # (end + 1) * period
 
 
 if __name__ == "__main__":
