@@ -43,6 +43,8 @@ const SENTINEL_MATCH_IDS = [
   9201, 9202, 9203, 9204, 9205,
   // P2-1 (personas-leak) + P3 (segments count) sentinels
   9216, 9217, 9218, 9219, 9220,
+  // Codex round 2 P2 (runtime-wipe preservation) sentinels
+  9221, 9222, 9223, 9224, 9225, 9226, 9227, 9228, 9229,
 ] as const
 
 interface SeededFixture {
@@ -497,7 +499,13 @@ void test('upsertRunQualityReport: insert, conflict throws, force updates', asyn
     `expected generated_at to advance (first=${firstGeneratedAt.toISOString()}, second=${second!.generatedAt.toISOString()})`,
   )
   assert.equal(Number(second!.l2), 0.95, 'l2 should reflect the force update')
-  assert.deepEqual(second!.body, { hello: 'world-2' })
+  // Per Codex R2 P2 (runtime preservation): the upsert grafts the existing
+  // report->'runtime' onto the new body when the incoming body's
+  // runtime.stages is null/missing. The original body here has no runtime
+  // key, so the existing-report fallback kicks in too — both are null,
+  // and the final COALESCE seeds `runtime: null` into the row. Content
+  // fields ("hello") still reflect the new body.
+  assert.equal((second!.body as Record<string, unknown>)['hello'], 'world-2')
 })
 
 void test('buildUnresolvedCounts.personas does not leak across runs on the same match (Codex P2-1)', async (t) => {
@@ -650,4 +658,154 @@ void test('countSegmentsByRun returns ocr_segments count for the run (Codex P3)'
   const frames = screenRows.reduce((acc, r) => acc + r.frames, 0)
   assert.equal(frames, 3, 'sanity: expected 3 ocr_extractions on the run (1 seed + 2 added)')
   assert.notEqual(segments, frames, 'frames and segments must be distinguishable for this test')
+})
+
+void test('upsertRunQualityReport: force-update with null runtime preserves measured runtime (Codex R2 P2)', async (t) => {
+  if (!process.env['DATABASE_URL']) {
+    t.skip('DATABASE_URL not set — run-quality integration tests require DB.')
+    return
+  }
+  // Seed a row that represents a real reprocess emit: total_wall_ms=1234,
+  // body.runtime.stages={ingest_ms:1234}. Then run a backfill-style force
+  // upsert: totalWallMs=null + body.runtime.stages=null. The runtime must
+  // be preserved; only the non-runtime columns (l2_score, segments, etc.)
+  // should reflect the new content.
+  const matchId = 9221
+  const f = await seedFixture(matchId)
+
+  const measuredDerived = {
+    matchId,
+    schemaVersion: 1,
+    overallPass: true,
+    l1Score: null,
+    l2Score: 0.9,
+    l2LineupScore: 0.9,
+    l3Score: 0.9,
+    totalWallMs: 1234,
+    totalSegments: 10,
+    totalDemoted: 0,
+    totalUnresolved: 0,
+  }
+  const measuredBody = {
+    schema_version: 1,
+    runtime: {
+      total_wall_ms: 1234,
+      stages: { ingest_ms: 1234 },
+      captured_from: 'reprocess.py',
+      captured_at: '2026-05-29T00:00:00Z',
+    },
+  }
+  await upsertRunQualityReport(f.runId, measuredBody, measuredDerived)
+
+  // Now overwrite with a backfill-style row (no runtime data).
+  const backfillDerived = {
+    ...measuredDerived,
+    l2Score: 0.5, // content metric changes
+    totalSegments: 22, // content metric changes
+    totalWallMs: null, // backfill has no measurement
+  }
+  const backfillBody = {
+    schema_version: 1,
+    runtime: {
+      total_wall_ms: null,
+      stages: null,
+      captured_from: 'backfill',
+      captured_at: '2026-05-29T01:00:00Z',
+    },
+  }
+  await upsertRunQualityReport(f.runId, backfillBody, backfillDerived, { force: true })
+
+  const [row] = await db
+    .select({
+      totalWallMs: ocrRunQualityReports.totalWallMs,
+      l2: ocrRunQualityReports.l2Score,
+      totalSegments: ocrRunQualityReports.totalSegments,
+      report: ocrRunQualityReports.report,
+    })
+    .from(ocrRunQualityReports)
+    .where(eq(ocrRunQualityReports.runId, f.runId))
+  assert.ok(row, 'expected report row after backfill force-upsert')
+
+  // Runtime preserved.
+  assert.equal(
+    row!.totalWallMs,
+    1234,
+    'total_wall_ms must be preserved from the original measurement',
+  )
+  const body = row!.report as { runtime: { stages: Record<string, number> | null; total_wall_ms: number | null; captured_from: string } }
+  assert.ok(body.runtime, 'runtime sub-object must survive')
+  assert.equal(body.runtime.total_wall_ms, 1234, 'runtime.total_wall_ms preserved')
+  assert.ok(body.runtime.stages, 'runtime.stages must not be nulled')
+  assert.equal(body.runtime.stages!['ingest_ms'], 1234, 'runtime.stages.ingest_ms preserved')
+  assert.equal(
+    body.runtime.captured_from,
+    'reprocess.py',
+    'captured_from preserved (proves whole runtime sub-object was grafted)',
+  )
+
+  // Content metrics overwritten.
+  assert.equal(Number(row!.l2), 0.5, 'l2_score reflects backfill content')
+  assert.equal(row!.totalSegments, 22, 'total_segments reflects backfill content')
+})
+
+void test('upsertRunQualityReport: force-update with non-null runtime overwrites measurement (Codex R2 P2)', async (t) => {
+  if (!process.env['DATABASE_URL']) {
+    t.skip('DATABASE_URL not set — run-quality integration tests require DB.')
+    return
+  }
+  // Inverse of the previous test: when the new emit has real runtime data
+  // (non-null total_wall_ms + non-null runtime.stages), it must overwrite
+  // the existing measurement. Real reprocess running on a previously-
+  // backfilled row needs to win.
+  const matchId = 9222
+  const f = await seedFixture(matchId)
+
+  const firstDerived = {
+    matchId,
+    schemaVersion: 1,
+    overallPass: true,
+    l1Score: null,
+    l2Score: 0.9,
+    l2LineupScore: 0.9,
+    l3Score: 0.9,
+    totalWallMs: 1234,
+    totalSegments: 10,
+    totalDemoted: 0,
+    totalUnresolved: 0,
+  }
+  const firstBody = {
+    schema_version: 1,
+    runtime: {
+      total_wall_ms: 1234,
+      stages: { ingest_ms: 1234 },
+      captured_from: 'reprocess.py',
+      captured_at: '2026-05-29T00:00:00Z',
+    },
+  }
+  await upsertRunQualityReport(f.runId, firstBody, firstDerived)
+
+  const secondDerived = { ...firstDerived, totalWallMs: 5678 }
+  const secondBody = {
+    schema_version: 1,
+    runtime: {
+      total_wall_ms: 5678,
+      stages: { ingest_ms: 5678 },
+      captured_from: 'reprocess.py',
+      captured_at: '2026-05-29T02:00:00Z',
+    },
+  }
+  await upsertRunQualityReport(f.runId, secondBody, secondDerived, { force: true })
+
+  const [row] = await db
+    .select({
+      totalWallMs: ocrRunQualityReports.totalWallMs,
+      report: ocrRunQualityReports.report,
+    })
+    .from(ocrRunQualityReports)
+    .where(eq(ocrRunQualityReports.runId, f.runId))
+  assert.ok(row)
+  assert.equal(row!.totalWallMs, 5678, 'non-null total_wall_ms wins via COALESCE')
+  const body = row!.report as { runtime: { stages: Record<string, number>; total_wall_ms: number } }
+  assert.equal(body.runtime.total_wall_ms, 5678, 'runtime.total_wall_ms overwritten')
+  assert.equal(body.runtime.stages['ingest_ms'], 5678, 'runtime.stages.ingest_ms overwritten')
 })

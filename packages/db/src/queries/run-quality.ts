@@ -502,6 +502,20 @@ export interface UpsertRunQualityReportOpts {
  *   - `force = false / undefined`: plain INSERT. On conflict, Postgres throws
  *     a unique-violation; the caller decides whether to retry with force.
  *
+ * Runtime-field preservation (Codex round 2 P2 — runtime wipe):
+ * The DO UPDATE branch preserves `total_wall_ms` and the `report.runtime`
+ * sub-object whenever the incoming row carries nulls there. This prevents
+ * a content-only `--all-runs --emit-row --force` backfill (which has no
+ * `--stage-runtimes`, so totalWallMs is null and body.runtime.stages is null)
+ * from clobbering a previously-recorded source-of-truth measurement written
+ * by reprocess.py. Specifically:
+ *   - totalWallMs: COALESCE(EXCLUDED, existing) → new non-null overwrites,
+ *     null preserves existing.
+ *   - report: when the incoming body's runtime.stages is null/missing
+ *     (backfill mode), the existing row's report->'runtime' is grafted onto
+ *     the new report via jsonb_set. Real reprocess emits (non-null stages)
+ *     overwrite the whole report unchanged.
+ *
  * Returns the inserted/updated row id.
  */
 export async function upsertRunQualityReport(
@@ -547,11 +561,32 @@ export async function upsertRunQualityReport(
           l2Score: values.l2Score,
           l2LineupScore: values.l2LineupScore,
           l3Score: values.l3Score,
-          totalWallMs: values.totalWallMs,
+          // Preserve existing measured runtime when the incoming row is
+          // content-only (backfill via --all-runs has totalWallMs=null).
+          // EXCLUDED is the proposed-new-row alias; the bare table reference
+          // (via the Drizzle column expression) refers to the existing row
+          // inside ON CONFLICT DO UPDATE. See Codex round 2 P2 (runtime wipe).
+          totalWallMs: sql`COALESCE(EXCLUDED.total_wall_ms, ${ocrRunQualityReports.totalWallMs})`,
           totalSegments: values.totalSegments,
           totalDemoted: values.totalDemoted,
           totalUnresolved: values.totalUnresolved,
-          report: values.report,
+          // Preserve report->'runtime' when the new body's runtime.stages is
+          // null/missing (backfill mode); otherwise overwrite the whole
+          // report. The inner COALESCE handles the case where the existing
+          // report also lacks a runtime key (Phase-2 era rows or legacy
+          // fixtures) — without it, jsonb_set(..., NULL) returns NULL and
+          // the NOT NULL constraint on report would reject the update.
+          // See Codex round 2 P2 (runtime wipe).
+          report: sql`CASE
+              WHEN (EXCLUDED.report->'runtime'->'stages') IS NULL
+                OR (EXCLUDED.report->'runtime'->'stages') = 'null'::jsonb
+              THEN jsonb_set(
+                EXCLUDED.report,
+                '{runtime}',
+                COALESCE(${ocrRunQualityReports.report}->'runtime', EXCLUDED.report->'runtime', 'null'::jsonb)
+              )
+              ELSE EXCLUDED.report
+            END`,
           generatedAt: sql`now()`,
         },
       })
