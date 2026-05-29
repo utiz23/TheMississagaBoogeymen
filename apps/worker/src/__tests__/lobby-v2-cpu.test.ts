@@ -430,3 +430,81 @@ void test('resolveGamertagToPlayer is NOT invoked for CPU rows (player_id stays 
       `which would mean the resolver bound to bait player id ${String(baitPlayer.id)}`,
   )
 })
+
+void test('test 5: OR-fold — any is_cpu=true vote wins despite conflicting false vote', async () => {
+  if (!process.env['DATABASE_URL']) return
+  const fx = await setupSentinelMatch('orfold-1')
+
+  // Mimic match 250's exact failure shape:
+  //  - position=G (mandatory anchor for the slot to exist)
+  //  - is_cpu=true from one segment (the detector correctly fires)
+  //  - is_cpu=false from another segment (detector confused by EA placeholder)
+  //  - gamertag='XZ4RKY' (the EA test-DB placeholder that confuses the detector)
+  //
+  // To make this test load-bearing for the OR-fold change, the `false` vote
+  // is given marginally higher calibratedConfidence than the `true` vote so
+  // the democratic gate in runPromotionGate (which sorts by calibrated
+  // confidence) would promote `false`. Without OR-fold, the snapshot lands
+  // with is_cpu=false; with OR-fold, the `true` vote wins regardless of
+  // confidence ranking. Both votes still carry raw_confidence=1.0 (the
+  // Python detector's hard yes/no signal) — that's the structurally
+  // meaningful invariant the OR-fold relies on.
+  await seedEvidence({
+    matchId: fx.matchId,
+    extractionId: fx.extractionId,
+    slotKey: 'lobby_for_G',
+    fieldKey: 'position',
+    fieldFamily: 'closed_vocab',
+    candidateValue: 'G',
+  })
+  await seedEvidence({
+    matchId: fx.matchId,
+    extractionId: fx.extractionId,
+    slotKey: 'lobby_for_G',
+    fieldKey: 'is_cpu',
+    fieldFamily: 'icon',
+    candidateValue: true,
+    rawConfidence: '1.0',
+    calibratedConfidence: '0.95',
+  })
+  await seedEvidence({
+    matchId: fx.matchId,
+    extractionId: fx.extractionId,
+    slotKey: 'lobby_for_G',
+    fieldKey: 'is_cpu',
+    fieldFamily: 'icon',
+    candidateValue: false,
+    rawConfidence: '1.0',
+    calibratedConfidence: '1.0',
+  })
+  await seedEvidence({
+    matchId: fx.matchId,
+    extractionId: fx.extractionId,
+    slotKey: 'lobby_for_G',
+    fieldKey: 'gamertag',
+    fieldFamily: 'open_text',
+    candidateValue: 'XZ4RKY',
+  })
+
+  await promoteLobbyFromEvidence({ matchId: fx.matchId })
+
+  const [row] = await db
+    .select({
+      isCpu: playerLoadoutSnapshots.isCpu,
+      gamertag: playerLoadoutSnapshots.gamertagSnapshot,
+    })
+    .from(playerLoadoutSnapshots)
+    .where(eq(playerLoadoutSnapshots.matchId, fx.matchId))
+
+  assert.ok(row, 'expected a snapshot row to be written for the goalie slot')
+  assert.equal(
+    row.isCpu,
+    true,
+    'OR-fold semantics: any is_cpu=true vote should win, even against conflicting false vote',
+  )
+  assert.equal(
+    row.gamertag,
+    'CPU',
+    'CPU rows should have synthetic gamertag override "CPU", not the misread XZ4RKY placeholder',
+  )
+})

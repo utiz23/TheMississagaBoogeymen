@@ -276,11 +276,22 @@ export async function promoteLobbyFromEvidence(input: {
     // typed extractor and can't be used as DB IDs.
     const ocrExtractionId = lobbyExtractionId
 
-    // CPU detection: lobby extractor emits is_cpu=true for slots flagged
-    // as CPU/empty placeholders (typically the goalie slot in EASHL modes
-    // when no human is in net). Read the decision once here so the resolve
-    // block, hard-fields gate, and snapshot insert all see the same value.
-    const isCpu = promotedBool(fieldDecisions.get('is_cpu')) ?? false
+    // OR-fold semantics for is_cpu: any frame voting true wins, bypassing
+    // the democratic vote in runPromotionGate. is_cpu has asymmetric failure
+    // cost (false-negative leaves a CPU row inflating metrics + risking
+    // render leaks; false-positive merely removes one row, recoverable via
+    // operator review). The Python detector emits raw_confidence=1.0 only on
+    // positive identification, so any 'true' vote is structurally meaningful
+    // and not OCR noise. The democratic vote loses to 'false' when one frame
+    // correctly detects CPU and another mis-reads EA's placeholder gamertag
+    // (e.g. 'XZ4RKY' for match 250, 'bad' for match 968) as a real human.
+    // TODO Phase-3: harden the detector itself via cross-team duplicate
+    // detection in slot_identity.py — a real gamertag can't appear on both
+    // rosters of the same lobby simultaneously.
+    const isCpuRows = fieldMap.get('is_cpu') ?? []
+    const isCpu = isCpuRows.some(
+      (r) => r.candidateValue === true || r.candidateValue === 'true',
+    )
 
     let resolvedPlayerId: number | null = null
     // Skip identity resolution for CPU rows — there's no human to bind to,
