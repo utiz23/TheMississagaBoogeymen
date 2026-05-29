@@ -4,10 +4,13 @@
 
 **Previously queued (now shipped + merged + pushed):** Run-level quality reporting shipped on `feat/run-level-quality-reporting` (14 commits), FF-merged to `main` and pushed to `origin/main` at SHA `a8ca2b6`. Branch deleted. New `ocr_run_quality_reports` table + `run-quality` CLI + `_StageTimer` hooks in `reprocess.py` answer the architecture-review §6 stage-level-metrics questions per run.
 
-**Codex second-opinion review completed (two rounds).** Brief at `/home/michal/.claude/plans/codex-review-request-run-level-quality-reporting.md`.
+**Codex second-opinion review completed (three rounds).** Brief at `/home/michal/.claude/plans/codex-review-request-run-level-quality-reporting.md`.
 
-- **Round 1:** Codex flagged 2 P1, 2 P2, and 1 P3 correctness findings — all 5 verified and fixed on `fix/run-quality-codex-findings` (6 commits including HANDOFF update), FF-merged + pushed to `origin/main` at SHA `9c08c86`. Branch deleted.
-- **Round 2:** Codex follow-up flagged 1 residual P1 (activate-to-emit race window) + 2 P2s (runtime wipe under `--all-runs --force`, destructive integration tests). All 3 verified and fixed on `fix/run-quality-codex-round-2` (3 commits, HEAD `e2eb5dc`). Review approved ready to FF-merge.
+- **Round 1:** 2 P1 + 2 P2 + 1 P3 correctness findings — fixed on `fix/run-quality-codex-findings`, FF-merged + pushed at `9c08c86`.
+- **Round 2:** Residual P1 (activate-to-emit race) + 2 P2s (runtime wipe under force, destructive tests with toothless snapshot pattern) — fixed on `fix/run-quality-codex-round-2`, FF-merged + pushed at `06ec317`.
+- **Round 3:** P1 (round-2 test fix was theater — cleanup still nuked production rows) + P2 (`--all-runs --stage-runtimes` accepted as a footgun combo) — fixed on `fix/run-quality-codex-round-3` (3 commits, HEAD `4398644`). Review approved ready to FF-merge.
+
+**Pattern observation:** Codex caught real bugs in all three rounds (5, then 3, then 2). The per-phase spec + code-quality subagent reviews missed every one because they're cross-cutting concerns — race windows across files, semantic gaps between layers, test safety against shared state. Future workstreams should explicitly include a static cross-cutting review pass (e.g., a Codex round) before merging.
 
 See the 2026-05-29 session summaries below.
 
@@ -30,7 +33,7 @@ Scope this session won't touch:
 - **Match 968 opp C row gap**: `Oatmeal15942/H.Koch` has gamertag + persona in lobby but 0 xfactors/attrs (no loadout-view captures). Either operator didn't navigate to this player during recording, or extraction failed. Investigation only; no code change identified.
 - **`docs/calibration/regression-floor-match-463.json` pnpm-prefix re-baseline** (~2 min, orthogonal): the file has shell-script header lines (`> @eanhl/worker@0.0.1 match-quality ...`) before the JSON body — leftover from a prior re-baseline that didn't use `pnpm --silent`. The `match-quality` CLI's `--json` flag prints clean JSON to stdout; re-run `pnpm --silent --filter worker match-quality --match 463 --json > docs/calibration/regression-floor-match-463.json` to clean up. Unrelated to Run-Level Quality Reporting.
 
-**Branch state:** `main` = `origin/main` = `9c08c86` (Codex round 1 fixes shipped + pushed). Active branch `fix/run-quality-codex-round-2` at HEAD `e2eb5dc` (3 commits on top of `main`). NOT yet merged, NOT yet pushed. Working tree clean. Local-only stale branches from prior workstreams: `feat/screen-classifier-v2-a1` (`88285ef`), `feat/lobby-detector-cross-team-dedup` (`62b78a0`), `feat/ocr-pipeline-phase-3a` (`af01074`) — all merged to `main`; safe to delete with `git branch -D` whenever.
+**Branch state:** `main` = `origin/main` = `06ec317` (Codex rounds 1-2 shipped + pushed). Active branch `fix/run-quality-codex-round-3` at HEAD `4398644` (2 commits on top of `main`). NOT yet merged, NOT yet pushed. Working tree clean. Local-only stale branches from prior workstreams: `feat/screen-classifier-v2-a1` (`88285ef`), `feat/lobby-detector-cross-team-dedup` (`62b78a0`), `feat/ocr-pipeline-phase-3a` (`af01074`) — all merged to `main`; safe to delete with `git branch -D` whenever.
 
 **Background reading (decision input for post-A3 workstream):**
 
@@ -40,6 +43,52 @@ Scope this session won't touch:
   - `later for stubborn weak spots`: evaluate `TAO Toolkit`
   - `future live tracking/modeling`: treat `DeepStream 8` + `TAO` as a separate video-native track, not an in-place replacement for the screenshot-first extractor
   - `ignore for primary extraction`: `Metropolis VSS`
+
+## Session Summary — 2026-05-29 (Codex round 3: 2 follow-on fixes for theater-test + stage-runtimes footgun)
+
+### Current status
+
+Branch `fix/run-quality-codex-round-3` at HEAD `4398644` (2 commits on top of `main` = `06ec317`). Both Codex round-3 findings verified real and fixed. Focused review approved ready to FF-merge. NOT yet merged, NOT yet pushed.
+
+### What was done
+
+After round 2's fixes landed + pushed at `06ec317`, Codex ran a third static review and flagged 2 more findings — both real, both caught by the same cross-cutting lens that found rounds 1 and 2.
+
+| SHA | Codex finding | Why this matters |
+|---|---|---|
+| `cca036e` | **P2 footgun:** `--all-runs --stage-runtimes` accepted with no rejection | The CLI loaded the stage-runtimes file ONCE and applied the same measurement to every iteration. Combined with `--force`, one accidental `--all-runs --force --stage-runtimes /tmp/run-X.json` could stamp the same measured runtime onto thousands of unrelated reports. Fix: argv-level rejection at the top of `runAll()` (before any DB query); exits 1 with stderr pointing operator at `--run-id N` for single-run emit. |
+| `4398644` | **P1:** round-2 test snapshot-assert was theater — cleanup still deleted production rows | Round 2's `assertRuntimeSnapshotUnchanged` only proved runtime fields unchanged AT INSPECTION TIME — but the cleanup that followed (`delete WHERE runId IN nonSentinelRunIds`) nuked EVERY non-sentinel report row, including legitimate pre-existing production rows. The snapshot proved nothing because destruction happened AFTER inspection. Fix: replace the two destructive `--all-runs --emit-row --force` tests with scoped scenarios — Test 1 uses `--all-runs --emit-row` (no force, conflict-skip semantics) + 3 sentinels in mixed states; Test 2 uses scoped `--run-id N --emit-row --force` against a single sentinel for runtime-preservation verification. Removes the round-2 helpers + tightens cleanup to delete ONLY rows the test created. |
+
+### Test status
+
+- `run-quality-cli.test.js`: **17/17 pass** (was 15 after round 2; +1 argv-rejection test from cca036e, +1 new scoped scenario from 4398644 net)
+- `run-quality.test.js`: 9/9 pass (unchanged)
+- `quality-layers.test.js`: 2/2 pass (unchanged)
+- Python `test_reprocess_stage_timing.py` + `test_reprocess_cli.py`: 17 passed, 2 skipped (unchanged)
+- Byte-identical `match-quality` contract for match 250: zero diff
+- `grep "all-runs.*force"` in test file: only test names + comments documenting the removed pattern; no destructive invocation remains
+
+### Why this matters
+
+The round-2 fix to the destructive tests was theater — added assertion, didn't address the destructive write. Codex caught the lie. Round-3 actually removes the destructive write (replaces `--all-runs --force` with `--all-runs` + scoped `--run-id --force`), so the integration tests are now structurally incapable of mutating pre-existing production rows. The argv guard closes the operator footgun that would let a careless backfill invocation stamp the same measurement everywhere.
+
+Pattern across three rounds: Codex's static cross-cutting review caught real bugs each time (5, then 3, then 2). The per-phase implementer + reviewer pattern is solid for in-scope correctness but blind to lifecycle interactions, race windows, and test safety against shared state. Worth noting for future workstreams' review planning.
+
+### Minor open nits (deferred)
+
+- `run-quality-cli.ts:793-794` — after the new argv guard, `stagePath` is guaranteed undefined, so `const runtime = stagePath ? loadStageRuntimes(stagePath) : null` always evaluates to null. Could simplify to `const runtime = null` for clarity. Non-blocking.
+- `run-quality-cli.test.ts` Test 1 cleanup: a one-line comment noting "if a concurrent CLI run wrote rows between the afterReportRunIds snapshot and the delete, those would be in the delete set" would document the implicit single-writer assumption. No concurrent writer exists in practice; flag in case test parallelization is ever introduced.
+
+Both queued for the same "future minor cleanup" pass as the round-2 dead-counter nit.
+
+### Critical files
+
+- `apps/worker/src/run-quality-cli.ts` (argv guard at the top of `runAll`)
+- `apps/worker/src/__tests__/run-quality-cli.test.ts` (test restructure; net +110 lines for multi-sentinel scaffolding + side-effect cleanup; removed round-2 snapshot helpers)
+
+### Branch state
+
+On `fix/run-quality-codex-round-3` at HEAD `4398644`. `main` = `origin/main` = `06ec317`. After FF: `main` → `4398644`, 2 commits ahead of origin. Operator decision pending: FF + push, or hold.
 
 ## Session Summary — 2026-05-29 (Codex round 2: 3 follow-on fixes for residual race + runtime wipe + destructive tests)
 
