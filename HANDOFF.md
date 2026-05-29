@@ -19,9 +19,13 @@
 
 See the 2026-05-29 session summaries below.
 
-**Phase 2: Make PTS Canonical SHIPPED** on `feat/pts-canonical-pass1` (4 commits), FF-merged + pushed to `origin/main` — see "Branch state" below. Pass-1 frame sampling now uses PyAV's per-frame container PTS instead of the old `seconds = idx / sample_fps` formula; segments.json gains a `pass1_sampling_telemetry` block populating the drift metric a future run-quality-cli surfacing can consume. Per-frame and per-segment time fields are canonical for the first time. Architecture-review risk #589 (time drift on non-ideal captures) is closed.
+**Phase 2: Make PTS Canonical SHIPPED** on `feat/pts-canonical-pass1` (4 commits), FF-merged + pushed to `origin/main`. Pass-1 frame sampling now uses PyAV's per-frame container PTS instead of the old `seconds = idx / sample_fps` formula; segments.json gains a `pass1_sampling_telemetry` block populating the drift metric a future run-quality-cli surfacing can consume. Per-frame and per-segment time fields are canonical for the first time. Architecture-review risk #589 (time drift on non-ideal captures) is closed.
 
-**Next session (architecture workstream — recommended):** **Phase 3: Split Artifact Extraction From Hot-Path Extraction** per [docs/research/video-extraction-architecture-review-2026-05-28.md §"Phase 3" (line 475)](docs/research/video-extraction-architecture-review-2026-05-28.md#L475). Currently Pass-2 always writes PNG artifacts to disk regardless of whether the operator needs them; the architecture review calls for an internal `FrameProvider` abstraction with `artifact_mode=true|false` so steady-state extraction runs in-memory and only review/debug runs hit disk. Risk table rates this as Medium-severity (excess disk/runtime cost). Separate workstream from the new canonical-PTS work, but the smoke-test we ran during Phase 2 showed PyAV decode-every-frame is materially slower than the old `ffmpeg -vf fps=N` filter on a 60s clip (~152s wall vs ~30s previously); Phase 3's in-memory hot path will help amortize that.
+**Workstream W1: typed_v1 segments skip legacy game_ocr.cli SHIPPED** on `feat/worker-typed-v1-no-cli` (1 commit). Predecessor to Phase 3 — the architecture-review's "Phase 3" wording said "drop PNG writes for steady-state Pass-2," but tracing the worker showed every dispatched segment (including typed_v1) crosses a `runOcrCli` subprocess boundary that globs PNGs as IPC. The supplemental typed_v1 evidence JSON is independent of `cli.results`, but the legacy CLI's frame count + per-frame extractions feed `ocr_segments.frame_count` + the match-quality/run-quality dashboards. Naive "skip ffmpeg for typed_v1" would silently zero `frameCount` and flip `observabilityStatus='not_observable_from_source'` — data loss in production.
+
+W1 cuts the dependency cleanly: Pass-2 dispatch passes `--frame-count` to the worker; for `player_loadout_view` × `loadout_engine=typed_v1` or `pre_game_lobby_state_2` × `lobby_engine=typed_v1` segments the worker SKIPS `runOcrCli`, synthesizes a single stub `ocr_extractions` row (ocr_backend=`typed_v1_summary`, source_path=`<typed_v1:summary:vsha-<sha-prefix>:seg<NNNN>>`), and back-fills `overall_confidence` from mean(`calibrated_confidence`) across the evidence records after `writeFieldEvidenceForBatch` runs. Legacy segments unchanged. Match-250 baseline `match-quality --json` byte-identical post-merge (the carve-out fires only on new typed_v1 ingests).
+
+**Next session (architecture workstream — recommended):** **Phase 3: Split Artifact Extraction From Hot-Path Extraction** per [docs/research/video-extraction-architecture-review-2026-05-28.md §"Phase 3" (line 475)](docs/research/video-extraction-architecture-review-2026-05-28.md#L475). With W1 shipped, the worker no longer needs PNGs for typed_v1 segments; Pass-2 can now drop the ffmpeg-extract-PNG step for those segments and switch to an in-memory `FrameProvider` per the architecture review's design. Risk table rates this as Medium-severity (excess disk/runtime cost). Phase-2 smoke-test showed PyAV decode-every-frame is ~5× slower wall-clock than the old `ffmpeg -vf fps=N` filter on a 60s clip (~152s vs ~30s previously); Phase 3's in-memory hot path is the architectural answer.
 
 Scope this session won't touch:
 - Architecture Phase 4+ (Pass-1 OCR measurement, boundary refinement, learned models, live-gameplay spike) — sequenced after Phase 3 per the review's "What To Do Next"
@@ -47,7 +51,7 @@ Scope this session won't touch:
 - **`docs/calibration/regression-floor-match-463.json` pnpm-prefix re-baseline** (~2 min, orthogonal): the file has shell-script header lines (`> @eanhl/worker@0.0.1 match-quality ...`) before the JSON body — leftover from a prior re-baseline that didn't use `pnpm --silent`. The `match-quality` CLI's `--json` flag prints clean JSON to stdout; re-run `pnpm --silent --filter worker match-quality --match 463 --json > docs/calibration/regression-floor-match-463.json` to clean up. Unrelated to Run-Level Quality Reporting.
 - **Three deferred minor nits across Codex rounds 2-3** (~5 min total): round-2 `intersected` dead-counter in (now-deleted) snapshot helpers — already addressed by the round-3 helper removal; round-3 `stagePath` dead branch at `apps/worker/src/run-quality-cli.ts:793-794` (after the argv guard, `stagePath` is guaranteed undefined so the ternary always evaluates to null); round-3 cleanup-vs-concurrent-writer one-line comment at `apps/worker/src/__tests__/run-quality-cli.test.ts:533-540` documenting the implicit single-writer assumption. Cosmetic, non-blocking.
 
-**Branch state:** `main` = `origin/main` = Phase-2 head (4 commits on top of `a1ce0ea`: `809971d` PyAV iterator + `c872670` call-site flip + `41af781` segment-bound canonicalization + `1189af7` VFR/missing-PTS/segment-builder tests). Working tree clean. No active fix branch. Local-only stale branches from prior workstreams: `feat/screen-classifier-v2-a1` (`88285ef`), `feat/lobby-detector-cross-team-dedup` (`62b78a0`), `feat/ocr-pipeline-phase-3a` (`af01074`) — all merged to `main`; safe to delete with `git branch -D` whenever.
+**Branch state:** `main` = `origin/main` = W1 head (Phase 2's 4 commits + W1's 1 commit `1d5092a` on top of `a1ce0ea`). Working tree clean. No active fix branch. Local-only stale branches from prior workstreams: `feat/screen-classifier-v2-a1` (`88285ef`), `feat/lobby-detector-cross-team-dedup` (`62b78a0`), `feat/ocr-pipeline-phase-3a` (`af01074`) — all merged to `main`; safe to delete with `git branch -D` whenever.
 
 **Background reading (decision input for post-A3 workstream):**
 
@@ -57,6 +61,39 @@ Scope this session won't touch:
   - `later for stubborn weak spots`: evaluate `TAO Toolkit`
   - `future live tracking/modeling`: treat `DeepStream 8` + `TAO` as a separate video-native track, not an in-place replacement for the screenshot-first extractor
   - `ignore for primary extraction`: `Metropolis VSS`
+
+## Session Summary — 2026-05-29 (W1: typed_v1 segments skip legacy game_ocr.cli — shipped to main)
+
+### Current status
+
+Workstream W1 — predecessor to architecture Phase 3 — is shipped. `feat/worker-typed-v1-no-cli` (1 commit, `1d5092a`) FF-merged to `main` and pushed to `origin/main`. Branch deleted. typed_v1 segments (player_loadout_view × loadout_engine=typed_v1, pre_game_lobby_state_2 × lobby_engine=typed_v1) now skip the legacy `runOcrCli` subprocess and its PNG glob entirely. Phase 3 (Pass-2 drops PNG writes for typed_v1 segments) is unblocked.
+
+### Why this came before Phase 3
+
+The architecture review's §"Phase 3" called for an `artifact_mode=false` mode where Pass-2 doesn't write PNGs in steady state. The naive read was "FrameProvider abstraction + skip the ffmpeg PNG-write step." Exploring the worker showed that even typed_v1 segments cross a worker subprocess boundary (`dispatch.py:84` → `ingest-ocr.ts:134` → `runOcrCli` → `python -m game_ocr.cli extract --input <batch_dir>` → globs PNGs). The typed_v1 evidence JSON is supplemental; the legacy CLI's `cli.results.length` feeds `ocr_segments.frame_count` (load-bearing — drives `observabilityStatus`), and per-result confidence feeds the match-quality dashboard. Naively skipping ffmpeg would have produced empty batch dirs → `frameCount=0` → `observabilityStatus='not_observable_from_source'` → silent data loss in production.
+
+W1 cuts the worker's dependency on PNGs cleanly so Phase 3 can land safely after. The Plan agent caught this during scoping (described in process observation below).
+
+### What was done
+
+| SHA | What |
+|---|---|
+| `1d5092a` | (1) `dispatch.py:84` adds `--frame-count str(r.frame_count)` to the dispatched worker command. (2) `ingest-ocr-cli.ts` parses `--frame-count` into `input.frameCount: number \| null`. (3) `ingest-ocr.ts` adds two exported helpers: `isTypedV1CarveOut(screen, loadoutEngine, lobbyEngine, frameCount)` and `synthesizeTypedV1Stub(screen, videoSha256, videoSegmentIndex, frameCount)`. The predicate fires for the two known typed_v1 screen-types when `frameCount` is supplied. The stub has `ocr_backend='typed_v1_summary'`, `source_path='<typed_v1:summary:vsha-<sha-prefix>:seg<NNNN>>'` (or `<...:batch:<screen>>` fallback), `success=true`, `overall_confidence=null`, a `typed_v1_summary: {frame_count}` field. (4) `ingestOcrBatch` checks the predicate at entry, skips `runOcrCli` on hit, uses `cli = {results: [stub]}` instead. Frame count comes from `input.frameCount`, not `cli.results.length`. (5) `persistOneResult` short-circuits the per-screen promoter dispatch when `result.meta.ocr_backend === 'typed_v1_summary'` (the typed_v1 evidence path owns promotion). (6) After `writeFieldEvidenceForBatch` runs, the carve-out back-fills `ocr_extractions.overall_confidence` with `mean(calibrated_confidence)` across the typed_v1 evidence records — preserves the match-quality + run-quality confidence signal. |
+
+### Test results
+
+| Gate | Result |
+|---|---|
+| New unit tests (`apps/worker/src/__tests__/ingest-ocr-typed-v1-carve-out.test.ts`) | 12/12 pass. Cover the predicate matrix (typed_v1 × loadout/lobby × screen-type × frameCount-presence/absence) and the stub shape (NOT NULL satisfaction, source_path patterns with + without video metadata, ISO timestamp, frame_count blob). |
+| Dispatch tests (`test_dispatch_segment_flags.py`) | 16/16 pass including a new assertion that `--frame-count` appears in the dispatched cmd with the right value. |
+| TypeScript worker typecheck | Clean. |
+| `match-quality --match 250 --json` | Byte-identical to the Phase-2 baseline at `/tmp/match250-baseline-before-pts-canonical.json`. Expected: W1 only affects new typed_v1 ingests; match 250's stored data was produced under the legacy path and is unchanged. |
+| `run-quality --run-id 584 --json` | Full payload, sensible output (the active run for match 968). |
+| Full worker test suite (`pnpm --filter worker test`) | 208 pass / 63 pre-existing failures. The 63 are all CLI-spawning tests hitting a doubled-path resolution bug (`/home/michal/projects/eanhl-team-website/apps/worker/apps/worker/dist/<cli>.js` — pwd already at `apps/worker` so the relative path doubles). Same baseline on main; not caused by W1. Queued in the "Integration test architecture redesign" follow-on. |
+
+### Process observation
+
+The Plan agent's pre-implementation validation was load-bearing for W1's existence. I had drafted "Phase 3: add FrameProvider abstraction, skip ffmpeg for typed_v1 segments, ship it" as the next workstream. The Plan agent traced the worker dispatch path and surfaced that `runOcrCli` runs unconditionally for every segment including typed_v1, that the legacy CLI's `cli.results.length` is what writes `ocr_segments.frame_count` (load-bearing), and that skipping ffmpeg without a worker-side change would silently zero frameCount and flip observabilityStatus — production data loss. That single observation rescoped the work from "one Phase 3" into "W1 first, then Phase 3," changing both the order and the risk profile of the next-month roadmap. Third consecutive workstream where a focused Plan-agent pass before writing code prevented a real bug class.
 
 ## Session Summary — 2026-05-29 (Phase 2: Make PTS Canonical — shipped to main)
 
