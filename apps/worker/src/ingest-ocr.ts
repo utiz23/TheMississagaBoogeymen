@@ -33,7 +33,7 @@ import {
   type OcrScreenType,
   type OcrSegmentState,
 } from '@eanhl/db'
-import { eq, isNotNull } from 'drizzle-orm'
+import { and, eq, isNotNull } from 'drizzle-orm'
 import { runOcrCli, type OcrResult, type OcrExtractionField } from './ocr-cli-runner.js'
 import { getPromoter, type PromoterDb } from './ocr-promoters/index.js'
 import { promoteLoadoutFromEvidence } from './ocr-promoters/loadout-v2.js'
@@ -100,6 +100,18 @@ export interface IngestOcrBatchInput {
    */
   lobbyEvidenceJsonPath?: string | null
   /**
+   * Pass-2 segment frame count, threaded through dispatch from the video
+   * pipeline orchestrator. When the segment is on a typed_v1 engine path
+   * (`screen='player_loadout_view' && loadoutEngine='typed_v1'`, or
+   * `screen='pre_game_lobby_state_2' && lobbyEngine='typed_v1'`) AND this
+   * is provided, `ingestOcrBatch` SKIPS the legacy `runOcrCli` subprocess
+   * + PNG glob entirely. Frame count comes from this field instead of
+   * `cli.results.length`; one stub `ocr_extractions` row gets written per
+   * segment for observability. Legacy engines ignore this field and keep
+   * deriving frame count from the PNG-walking CLI as before.
+   */
+  frameCount?: number | null
+  /**
    * Phase-A: the `ocr_decoder_runs.id` this ingest invocation belongs to.
    * When set, EVERY row written by this call (batch, segment, evidence,
    * extraction, downstream promotions) is tagged with this run_id. When
@@ -121,9 +133,72 @@ export interface IngestOcrBatchResult {
   skippedDryRun: boolean
 }
 
+/**
+ * True when this segment is a typed_v1 path that does NOT need the
+ * legacy game_ocr.cli subprocess to run. The typed_v1 evidence JSON
+ * (produced by Pass-2's in-process typed extractors) is fully
+ * independent of `cli.results`; for these segments the legacy CLI
+ * call is purely observational and can be skipped, removing Pass-2's
+ * dependency on PNGs-on-disk for typed_v1 segments.
+ *
+ * Exported for unit testing — call sites should rely on the in-line
+ * carve-out check in `ingestOcrBatch`.
+ */
+export function isTypedV1CarveOut(
+  screen: OcrScreenType,
+  loadoutEngine: string,
+  lobbyEngine: string,
+  frameCount: number | null | undefined,
+): boolean {
+  if (frameCount === null || frameCount === undefined) return false
+  if (screen === 'player_loadout_view' && loadoutEngine === 'typed_v1') return true
+  if (screen === 'pre_game_lobby_state_2' && lobbyEngine === 'typed_v1') return true
+  return false
+}
+
+/**
+ * Synthesize a single stub `OcrResult` for a typed_v1 segment so the
+ * downstream `persistOneResult` + `writeSegmentForBatch` pipeline runs
+ * unchanged. The stub satisfies the NOT NULL constraints on
+ * `ocr_extractions` (source_path, raw_result_json, ocr_backend) and
+ * yields no per-field rows (the typed_v1 path writes evidence into
+ * `ocr_field_evidence` directly, not via `walkExtractionFields`).
+ *
+ * Exported for unit testing.
+ */
+export function synthesizeTypedV1Stub(
+  screen: OcrScreenType,
+  videoSha256: string | null,
+  videoSegmentIndex: number | null,
+  frameCount: number,
+): OcrResult {
+  const segTag =
+    videoSha256 && videoSegmentIndex !== null
+      ? `vsha-${videoSha256.slice(0, 12)}:seg${String(videoSegmentIndex).padStart(4, '0')}`
+      : `batch:${screen}`
+  return {
+    meta: {
+      screen_type: screen,
+      source_path: `<typed_v1:summary:${segTag}>`,
+      processed_at: new Date().toISOString(),
+      ocr_backend: 'typed_v1_summary',
+      overall_confidence: null,
+      duplicate_of: null,
+    },
+    success: true,
+    errors: [],
+    warnings: [],
+    typed_v1_summary: {
+      frame_count: frameCount,
+    },
+  }
+}
+
 export async function ingestOcrBatch(input: IngestOcrBatchInput): Promise<IngestOcrBatchResult> {
   const captureKind = input.captureKind ?? 'manual_screenshots'
   const matchId = input.matchId ?? null
+  const loadoutEngine = input.loadoutEngine ?? 'legacy'
+  const lobbyEngine = input.lobbyEngine ?? 'legacy'
 
   console.log(
     `[ingest-ocr] batch screen=${input.screen} dir=${input.batchDir} match=${matchId ?? 'null'}${
@@ -131,8 +206,35 @@ export async function ingestOcrBatch(input: IngestOcrBatchInput): Promise<Ingest
     }`,
   )
 
-  const cli = await runOcrCli({ screen: input.screen, inputPath: input.batchDir })
-  console.log(`[ingest-ocr] CLI returned ${String(cli.results.length)} result(s)`)
+  // Typed-v1 carve-out: skip the legacy Python OCR subprocess. The
+  // typed_v1 evidence JSON written by Pass-2 is the source of truth for
+  // these segments; the legacy CLI's per-frame extractions are purely
+  // observational, replaced here by one stub `ocr_extractions` row whose
+  // `overall_confidence` gets back-filled from the typed_v1 evidence
+  // after `writeFieldEvidenceForBatch` runs.
+  const carveOut = isTypedV1CarveOut(
+    input.screen,
+    loadoutEngine,
+    lobbyEngine,
+    input.frameCount,
+  )
+
+  let cli: { results: OcrResult[] }
+  if (carveOut) {
+    const stub = synthesizeTypedV1Stub(
+      input.screen,
+      input.videoSha256 ?? null,
+      input.videoSegmentIndex ?? null,
+      input.frameCount as number,
+    )
+    cli = { results: [stub] }
+    console.log(
+      `[ingest-ocr] typed_v1 carve-out: skipping runOcrCli (frameCount=${String(input.frameCount)} from dispatch)`,
+    )
+  } else {
+    cli = await runOcrCli({ screen: input.screen, inputPath: input.batchDir })
+    console.log(`[ingest-ocr] CLI returned ${String(cli.results.length)} result(s)`)
+  }
 
   if (input.dryRun) {
     for (const r of cli.results) {
@@ -201,9 +303,6 @@ export async function ingestOcrBatch(input: IngestOcrBatchInput): Promise<Ingest
   let succeeded = 0
   let failed = 0
 
-  const loadoutEngine = input.loadoutEngine ?? 'legacy'
-  const lobbyEngine = input.lobbyEngine ?? 'legacy'
-
   for (const result of cli.results) {
     try {
       await persistOneResult(batchId, matchId, result, loadoutEngine, lobbyEngine, runId)
@@ -224,13 +323,18 @@ export async function ingestOcrBatch(input: IngestOcrBatchInput): Promise<Ingest
   // the HMM/Viterbi decoder in Phase 1 will replace this with multiple decoded
   // segments per batch. Until then, this row makes "what screen did the system
   // think it was looking at" a queryable fact instead of segments.json-on-disk.
+  // Frame count: under the typed_v1 carve-out the stub `cli.results`
+  // has length 1, which would lie about how many frames Pass-2 actually
+  // processed. Use the Pass-2-supplied `input.frameCount` instead.
+  const segmentFrameCount = carveOut ? (input.frameCount as number) : cli.results.length
+
   let segmentId: number | null = null
   try {
     const segRow = await writeSegmentForBatch({
       matchId,
       batchId,
       screen: input.screen,
-      frameCount: cli.results.length,
+      frameCount: segmentFrameCount,
       results: cli.results,
       videoSha256: input.videoSha256 ?? null,
       videoSegmentIndex: input.videoSegmentIndex ?? null,
@@ -246,6 +350,12 @@ export async function ingestOcrBatch(input: IngestOcrBatchInput): Promise<Ingest
     console.warn(`[ingest-ocr] writeSegmentForBatch(${String(batchId)}) skipped: ${msg}`)
   }
 
+  // Collect every typed_v1 evidence record processed in this batch so the
+  // carve-out stub's confidence can be back-filled from the mean calibrated
+  // confidence below. A typed_v1 segment is loadout XOR lobby, but writing
+  // this as a union keeps the back-fill symmetric.
+  const typedV1Records: LoadoutEvidenceRecord[] = []
+
   // Task 2A-14: write typed_v1 loadout field evidence when the engine produced
   // a loadout_evidence.json and a segment row was successfully upserted.
   if (
@@ -257,6 +367,7 @@ export async function ingestOcrBatch(input: IngestOcrBatchInput): Promise<Ingest
     try {
       const jsonContent = await readFile(input.loadoutEvidenceJsonPath, 'utf-8')
       const records = JSON.parse(jsonContent) as LoadoutEvidenceRecord[]
+      typedV1Records.push(...records)
       const evResult = await writeFieldEvidenceForBatch({
         matchId,
         segmentId,
@@ -284,6 +395,7 @@ export async function ingestOcrBatch(input: IngestOcrBatchInput): Promise<Ingest
     try {
       const jsonContent = await readFile(input.lobbyEvidenceJsonPath, 'utf-8')
       const records = JSON.parse(jsonContent) as LoadoutEvidenceRecord[]
+      typedV1Records.push(...records)
       const evResult = await writeFieldEvidenceForBatch({
         matchId,
         segmentId,
@@ -299,6 +411,39 @@ export async function ingestOcrBatch(input: IngestOcrBatchInput): Promise<Ingest
       console.warn(
         `[ingest-ocr] writeFieldEvidenceForBatch(${String(batchId)}, lobby) skipped: ${msg}`,
       )
+    }
+  }
+
+  // Carve-out confidence back-fill: the stub `ocr_extractions` row was
+  // written with `overall_confidence = null` because the typed_v1 evidence
+  // didn't exist yet at synthesis time. Now that it's loaded, populate
+  // the column with the mean `calibrated_confidence` across all evidence
+  // records in this segment so match-quality + run-quality dashboards
+  // surface a meaningful number.
+  if (carveOut && typedV1Records.length > 0) {
+    const confidences = typedV1Records
+      .map((r) => r.calibrated_confidence)
+      .filter((c): c is number => typeof c === 'number' && Number.isFinite(c))
+    if (confidences.length > 0) {
+      const mean = confidences.reduce((a, b) => a + b, 0) / confidences.length
+      try {
+        const updated = await db
+          .update(ocrExtractions)
+          .set({ overallConfidence: mean.toFixed(4) })
+          .where(
+            and(
+              eq(ocrExtractions.batchId, batchId),
+              eq(ocrExtractions.ocrBackend, 'typed_v1_summary'),
+            ),
+          )
+          .returning({ id: ocrExtractions.id })
+        console.log(
+          `[ingest-ocr] batch ${String(batchId)} typed_v1 stub confidence back-fill: rows=${String(updated.length)} mean=${mean.toFixed(4)} (from ${String(confidences.length)} evidence records)`,
+        )
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err)
+        console.warn(`[ingest-ocr] stub confidence back-fill(${String(batchId)}) skipped: ${msg}`)
+      }
     }
   }
 
@@ -627,6 +772,19 @@ async function persistOneResult(
           transformStatus: 'error',
           transformError: result.errors.join('; ') || 'parser failed',
         })
+        .where(eq(ocrExtractions.id, ext.id))
+      return
+    }
+
+    // Typed-v1 carve-out stub: the row is purely observational. The
+    // promoter dispatch is owned by the typed_v1 evidence path
+    // (`writeFieldEvidenceForBatch` + `promoteLoadoutFromEvidence` /
+    // `promoteLobbyFromEvidence`), which runs separately after this
+    // function returns. Mark success and exit.
+    if (result.meta.ocr_backend === 'typed_v1_summary') {
+      await tx
+        .update(ocrExtractions)
+        .set({ transformStatus: 'success', transformError: null })
         .where(eq(ocrExtractions.id, ext.id))
       return
     }

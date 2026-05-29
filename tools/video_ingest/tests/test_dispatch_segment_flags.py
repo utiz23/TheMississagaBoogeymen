@@ -96,6 +96,10 @@ def test_dispatch_segments_passes_phase0_segment_flags(tmp_path: Path) -> None:
     assert cmd[cmd.index("--video-sha256") + 1] == "a" * 64
     assert "--match-id" in cmd
     assert cmd[cmd.index("--match-id") + 1] == "250"
+    # W1: --frame-count threads the Pass-2 segment frame count to the worker
+    # so typed_v1 segments can skip the legacy game_ocr.cli + PNG glob.
+    assert "--frame-count" in cmd, f"missing --frame-count in {cmd}"
+    assert cmd[cmd.index("--frame-count") + 1] == "30"
 
 
 def test_dispatch_passes_decoder_version_flag(monkeypatch, tmp_path):

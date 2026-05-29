@@ -53,6 +53,13 @@ interface CliArgs {
   /** Path to lobby_evidence.json written by the typed_v1 extractor.
    *  Only present when lobby_engine='typed_v1' AND the file exists. */
   lobbyEvidenceJsonPath: string | null
+  /** Pass-2 segment frame count. When present AND the segment is on a
+   *  typed_v1 engine path, `ingestOcrBatch` skips `runOcrCli` (saves the
+   *  legacy Python subprocess + PNG glob) and uses this as the canonical
+   *  frame count for `ocr_segments.frame_count`. Required for the typed_v1
+   *  carve-out; ignored on legacy segments (which still derive frame count
+   *  from `cli.results.length`). */
+  frameCount: number | null
   /** Phase-A: the `ocr_decoder_runs.id` this ingest belongs to. When
    *  provided, every row written by this call is tagged with this run.
    *  Reprocess CLI sets this; legacy / one-shot calls leave it null. */
@@ -135,6 +142,16 @@ function parseArgs(): CliArgs {
   const lobbyEngine = lobbyEngineRaw
   const lobbyEvidenceJsonPath = getFlag('lobby-evidence-json') ?? null
 
+  const frameCountRaw = getFlag('frame-count')
+  let frameCount: number | null = null
+  if (frameCountRaw !== undefined) {
+    const n = Number.parseInt(frameCountRaw, 10)
+    if (!Number.isInteger(n) || n < 0) {
+      throw new Error(`--frame-count must be a non-negative integer; got ${frameCountRaw}`)
+    }
+    frameCount = n
+  }
+
   const runIdRaw = getFlag('run-id')
   const runId = runIdRaw && runIdRaw !== 'null' ? Number.parseInt(runIdRaw, 10) : null
   if (runId !== null && !Number.isFinite(runId)) {
@@ -159,6 +176,7 @@ function parseArgs(): CliArgs {
     loadoutEvidenceJsonPath,
     lobbyEngine,
     lobbyEvidenceJsonPath,
+    frameCount,
     runId,
   }
 }
@@ -188,6 +206,7 @@ async function main(): Promise<void> {
     loadoutEvidenceJsonPath: args.loadoutEvidenceJsonPath,
     lobbyEngine: args.lobbyEngine,
     lobbyEvidenceJsonPath: args.lobbyEvidenceJsonPath,
+    frameCount: args.frameCount,
     runId: args.runId,
   })
 

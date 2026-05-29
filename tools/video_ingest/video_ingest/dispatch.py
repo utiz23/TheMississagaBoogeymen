@@ -94,6 +94,11 @@ def dispatch_segments(
             "--video-segment-index", str(r.segment_index),
             "--video-segment-start-sec", f"{r.start_seconds:.3f}",
             "--video-segment-end-sec", f"{r.end_seconds:.3f}",
+            # Pass-2-supplied frame count. The worker uses this directly for
+            # typed_v1 segments (skipping the legacy game_ocr.cli subprocess +
+            # PNG glob entirely); legacy segments still derive frame count
+            # from `cli.results.length` and ignore this flag.
+            "--frame-count", str(r.frame_count),
             "--ui-version", ui_version,
             "--decoder-version", decoder_version,
             "--notes",
