@@ -42,8 +42,8 @@ New branch `feat/run-level-quality-reporting` at HEAD `e3f2d9a` (12 commits ahea
 
 ### What was done
 
-- **Phase 1 — Schema:** new `ocr_run_quality_reports` table keyed `(run_id, scope_type, scope)` with CHECK (0..1) on all score columns + JSONB content payload. Commits `befeaec`, `a35d75b`.
-- **Phase 2 — DB layer:** `upsertRunQualityReport` writer + `getLatestActiveRunForMatch` / `getRunsNeedingQualityReport` query helpers + 5 conflict/lookup tests. Commits `d8fa9fd`, `4e305ef`.
+- **Phase 1 — Schema:** new `ocr_run_quality_reports` table keyed UNIQUE on `run_id` (one row per ingest run) with CHECK (0..1) on all score columns + JSONB content payload. Commits `befeaec`, `a35d75b`.
+- **Phase 2 — DB layer:** `upsertRunQualityReport` writer + `getActiveRunIdForMatch` / `getRunsNeedingQualityReport` query helpers + 5 conflict/lookup tests. Commits `d8fa9fd`, `4e305ef`.
 - **Phase 3 — Shared compute:** extracted `computeLayers` (L2 / L2.5 / L3 scoring) into `lib/quality-layers.ts` so the run CLI and the existing per-match CLI share one implementation; byte-identical match-quality output preserved for 250 + 463. Then extracted `buildDownstreamCounts` + `buildQualityFlags` into `lib/quality-inputs.ts` so the report content payload is library-grade, not CLI-coupled. Commits `3a5a8cb`, `6ccf83b`.
 - **Phase 4 — Run CLI + Python emit:** new `apps/worker/src/run-quality-cli.ts` supports `--run-id N`, `--match-id N`, `--all-runs`, `--json`, `--emit-row`, exit codes 0/1/2 for pass/fail/error. `reprocess.py` wraps each stage with `_StageTimer`, writes `/tmp/ingest-cache/run-<N>-stage-runtimes.json`, then shells out to the CLI's `--emit-row` post-pipeline (best-effort: failure logs to stderr but reprocess still exits 0). 11 integration tests on the CLI + 8 Python tests on stage timing + emit. Commits `24837d9`, `6428029`, `68adec7`, `3464a56`, `6e794fb`, `e3f2d9a`.
 - **Phase 5 — Docs:** this HANDOFF entry + new `run-quality` CLI lines added to `CLAUDE.md` commands block.
@@ -83,7 +83,7 @@ pnpm --filter worker run-quality --match-id 968 --json
 pnpm --filter worker run-quality --all-runs --emit-row
 ```
 
-Future reprocesses auto-emit the row at the end of the pipeline. Operators can re-emit any time via the CLI; the row upserts on `(run_id, scope_type, scope)`.
+Future reprocesses auto-emit the row at the end of the pipeline. Operators can re-emit any time via the CLI; the row upserts on `run_id` (UNIQUE — one row per ingest run).
 
 ### Test status
 
@@ -122,6 +122,7 @@ Modified:
 - **Trend dashboards** — single-row reads work; no time-series view yet.
 - **Quality gating** — reports record pass/fail per layer but no enforcement (won't block a reprocess from activating).
 - **Match-463 calibration prefix fix** — see Backlog; orthogonal ~2-min cleanup.
+- **JSON body casing normalization** — outer wrapper is snake_case (`schema_version`, `by_screen_type`, `total_wall_ms`) but per-screen objects pass through camelCase (`screenType`, `avgConf`, `minConf`, `maxConf`) from Drizzle. Cosmetic; consider a snake_case map in a future cleanup if external consumers materialize. Touches both `match-quality-cli` and `run-quality-cli`. Deferred deliberately — fixing now would break the byte-identical regression-floor contract since `match-quality-cli` already emits camelCase `ScreenRow` keys.
 
 ### Operational notes
 
