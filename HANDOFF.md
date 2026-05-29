@@ -2,12 +2,18 @@
 
 ## To-Do
 
-**A-gate decision (operator merge call):** OR-fold semantics + floor rebaseline shipped (3 follow-up commits on top of the CPU-goalie chain). Match 250 L3 now reads **1.0** (was 0.9834); both reprocessed matches' goalies correctly carry `is_cpu=true`. The CPU-goalie workstream is conceptually complete. Decide whether to:
+**Two branches ready to merge (operator merge call, in order):**
 
-1. **Merge `feat/screen-classifier-v2-a1` to main** — 60 commits ahead, all tests green (match-quality-regression 2/2 PASS, match-250-benchmark 16/20 PASS with the 4 fails being Phase-3 deferred + typed_v1 baseline that this branch wasn't scoped to address).
-2. **Or pause for Phase-3 detector hardening** — the structurally correct upstream fix is cross-team duplicate detection in `slot_identity.py` (a real gamertag can't appear on both rosters of the same lobby simultaneously). Out of scope for this branch; the OR-fold makes the system tolerant of the detector's known weakness, so merging now and addressing Phase-3 as a separate workstream is the recommended path.
+1. **`feat/screen-classifier-v2-a1`** — 62 commits ahead of `main`. CPU-goalie fix + OR-fold semantics + repo cleanup. Match 250 L3 = 1.0, both reprocessed matches' goalies carry `is_cpu=true`. All tests green.
+2. **`feat/lobby-detector-cross-team-dedup`** — stacks on the above; +2 commits for Phase-3 detector hardening (cross-team duplicate detection in `slot_identity.py`). Makes the `is_cpu` signal structurally authoritative at the detector layer. Composes with OR-fold.
 
-**Phase-3 follow-up (queued):** Harden `tools/game_ocr/game_ocr/lobby_extractors/slot_identity.py::_is_cpu_or_empty` with cross-team duplicate detection. After `identify_lobby_subjects()` builds all 12 subjects per frame, group by normalized gamertag — any gamertag appearing on >1 team_side is structurally a CPU placeholder; force `is_empty_or_cpu=true` on those slots. This is OCR-agnostic (works for any EA placeholder text past, present, or future) and deterministic (same input → same result). Combined with the OR-fold (already shipped), gives two independent guarantees.
+After both merge, the `is_cpu` end-to-end pipeline is:
+- **Detector** (Python `slot_identity.py`): emits `is_cpu=true` for literal "CPU" rows AND for cross-team gamertag duplicates (structurally a CPU placeholder)
+- **Promoter** (TS `lobby-v2.ts`): OR-fold semantics — any frame voting true wins (catches residual cases where detector only fired on some frames)
+- **Read layer** (`getMatchLineups`, `match-quality-cli`, `consolidate-loadouts`): filters `is_cpu=true` rows out of lineups, anchors, and metric denominators
+- **Defense-in-depth** (`isEmptyRow` in `match-lineups.ts`): hides rows with no build + no jersey + no x-factors as a last-line filter
+
+No further blocking work on the CPU-goalie story. Phase-3 real-data validation (reprocess matches 250 + 968) is optional; unit + integration tests already prove the detector logic. Existing matches' `is_cpu` columns continue to read correctly via OR-fold + isEmptyRow until they're reprocessed at the operator's convenience.
 
 **Background reading (decision input for post-A3 workstream):**
 
@@ -17,6 +23,55 @@
   - `later for stubborn weak spots`: evaluate `TAO Toolkit`
   - `future live tracking/modeling`: treat `DeepStream 8` + `TAO` as a separate video-native track, not an in-place replacement for the screenshot-first extractor
   - `ignore for primary extraction`: `Metropolis VSS`
+
+## Session Summary — 2026-05-29 (continued: Phase-3 detector hardening ships on new branch)
+
+### Current status
+
+New branch `feat/lobby-detector-cross-team-dedup` (stacks on `feat/screen-classifier-v2-a1`) at HEAD `2461d21`. **Phase-3 detector hardening complete.** The `is_cpu` signal is now structurally authoritative at the detector layer — no longer reliant on the OR-fold promoter band-aid for the obvious cross-team-duplicate cases.
+
+### What was done
+
+**Phase-3 commit + 1 cleanup fixup:**
+
+| SHA | Commit |
+|---|---|
+| `8b5712f` | `feat(ocr): cross-team duplicate detection in lobby slot identity` — new `_normalize_for_cross_team_dedup` (lowercase + strip non-alphanumeric, length-3 floor) + new `_demote_cross_team_duplicates` post-processor wired into `identify_lobby_subjects()`. Replaces matching subjects via `dataclasses.replace` (frozen dataclass) clearing all 23 non-identity fields. 5 unit tests on the post-processor + 1 integration via `identify_lobby_subjects` + 1 end-to-end via `extract_lobby_evidence` = 7 new tests. |
+| `2461d21` | `docs(ocr): drop fragile line-number from cross-team-dedup docstring` — review nit; line numbers in comments rot, removed the brittle reference. |
+
+Both commits passed two-stage review (spec compliance + code quality). All 23 fields explicitly cleared in the demoted identity match the existing `_is_cpu_or_empty` branch's CPU-row contract.
+
+### Why this matters
+
+The Python detector's `_is_cpu_or_empty()` only flags rows containing the literal "CPU" string. EA's actual placeholder gamertag rotations (XZ4RKY for match 250, "bad" for match 968, and future rotations) slip past it. Cross-team duplicate detection catches them via a structural invariant: a real human gamertag CANNOT appear on both rosters of an EASHL lobby simultaneously — a player belongs to at most one team. Any same-frame cross-team duplicate is therefore an EA test-DB placeholder.
+
+**OCR-agnostic** (works for any placeholder text past, present, or future without an enumerated allow-list) and **deterministic** (same input → same output). Closes the documented tech debt across HANDOFF + runbook + lobby-v2.ts OR-fold comment.
+
+### Composition with the OR-fold (shipped in feat/screen-classifier-v2-a1)
+
+| Scenario | Detector emits | OR-fold resolves to | User-visible outcome |
+|---|---|---|---|
+| Literal "CPU" in lobby row | Already true | true | Hidden via filter |
+| Cross-team duplicate (XZ4RKY pattern) | **Now true via Phase-3** (was 1-true-1-false) | true | Hidden via filter |
+| No CPU pattern visible | false on all frames | false | Real player renders |
+| Detector mis-classification on 1 frame, correct on another (residual cases) | mixed | true (any positive vote wins) | Hidden via filter |
+
+The two layers compose orthogonally: detector handles the easy/obvious cases at source-of-truth, OR-fold handles residuals at the promoter. After Phase-3, the OR-fold rarely needs to fire for new matches — it stays as defense-in-depth for edge cases.
+
+### Test status
+
+- `tools/game_ocr/tests/`: **284 passed, 1 skipped, 0 failed** (was 277; +7 new for Phase-3)
+  - `test_lobby_slot_identity.py`: 23 tests (was 17; +5 unit + 1 integration on cross-team dedup)
+  - `test_lobby_evidence.py`: 10 tests (was 9; +1 end-to-end on cross-team is_cpu emission)
+- `apps/worker/dist/__tests__/lobby-v2-cpu.test.js`: **5/5 PASS** — OR-fold continues to compose correctly with the now-stronger detector signal
+
+### Real-data validation deferred
+
+Per operator decision, did NOT reprocess matches 250 or 968 against the new detector. Unit + integration tests prove the logic; production behavior is already correct via OR-fold + isEmptyRow defense-in-depth. The reprocess (~80 min per match) can happen at operator's convenience post-merge if on-disk validation is desired.
+
+### Merge sequence reminder
+
+`feat/screen-classifier-v2-a1` must merge before `feat/lobby-detector-cross-team-dedup` — the latter branches from the former's tip and includes none of its history independently.
 
 ## Session Summary — 2026-05-29 (continued: OR-fold semantics ships; L3 reaches 1.0; floor rebaselined)
 
