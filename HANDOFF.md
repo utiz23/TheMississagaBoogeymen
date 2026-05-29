@@ -2,7 +2,7 @@
 
 ## To-Do
 
-**Previously queued (now shipped):** Run-level quality reporting shipped on `feat/run-level-quality-reporting` (12 commits, HEAD `e3f2d9a`). New `ocr_run_quality_reports` table + `run-quality` CLI + `_StageTimer` hooks in `reprocess.py` answer the architecture-review §6 stage-level-metrics questions per run. Not yet merged to `main`. See the 2026-05-28 session summary below.
+**Previously queued (now shipped + merged + pushed):** Run-level quality reporting shipped on `feat/run-level-quality-reporting` (14 commits), FF-merged to `main` and pushed to `origin/main` at HEAD `a8ca2b6`. Branch deleted. New `ocr_run_quality_reports` table + `run-quality` CLI + `_StageTimer` hooks in `reprocess.py` answer the architecture-review §6 stage-level-metrics questions per run. **Second-opinion review request for Codex** drafted at `/home/michal/.claude/plans/codex-review-request-run-level-quality-reporting.md` (operator to hand off or invoke `codex:rescue`). See the 2026-05-28 session summary below.
 
 **Next session (architecture workstream — recommended):** **Phase 2: Make PTS Canonical** per [docs/research/video-extraction-architecture-review-2026-05-28.md §"Phase 2: Make PTS Canonical" (line 459)](docs/research/video-extraction-architecture-review-2026-05-28.md). The review's lead-in: Pass-1 currently derives sample time from frame index, which silently assumes an ideal CFR clock — non-ideal captures (VFR, dropped frames, container PTS skew) introduce time drift the system has no way to detect. Now that run-level quality reporting is in place to measure the impact, the next robustness fix is to make `source_pts` / `source_time_seconds` canonical in the sampled-frame record and have segment bounds derive from source time, with Pass-2 reading from the same manifest. The architecture review flags this as "robustness fix, not a polish item" (§Phase 2) and the risk table at line 589 rates time-drift on non-ideal captures as **High** severity.
 
@@ -23,7 +23,7 @@ Scope this session won't touch:
 - **Match 968 opp C row gap**: `Oatmeal15942/H.Koch` has gamertag + persona in lobby but 0 xfactors/attrs (no loadout-view captures). Either operator didn't navigate to this player during recording, or extraction failed. Investigation only; no code change identified.
 - **`docs/calibration/regression-floor-match-463.json` pnpm-prefix re-baseline** (~2 min, orthogonal): the file has shell-script header lines (`> @eanhl/worker@0.0.1 match-quality ...`) before the JSON body — leftover from a prior re-baseline that didn't use `pnpm --silent`. The `match-quality` CLI's `--json` flag prints clean JSON to stdout; re-run `pnpm --silent --filter worker match-quality --match 463 --json > docs/calibration/regression-floor-match-463.json` to clean up. Unrelated to Run-Level Quality Reporting.
 
-**Branch state:** `main` = `origin/main` = `ed27b4c`. Active branch `feat/run-level-quality-reporting` at HEAD `e3f2d9a` (12 commits ahead of `main`, NOT yet merged, NOT yet pushed). Working tree clean (label-studio-export.json on disk but gitignored). Local-only stale branches: `feat/screen-classifier-v2-a1` (`88285ef`) and `feat/lobby-detector-cross-team-dedup` (`ed27b4c`) — commits all in `main`; safe to delete with `git branch -D` whenever.
+**Branch state:** `main` = `origin/main` = `a8ca2b6`. Working tree clean. `feat/run-level-quality-reporting` already deleted (merged + pushed). Local-only stale branches from prior workstreams: `feat/screen-classifier-v2-a1` (`88285ef`), `feat/lobby-detector-cross-team-dedup` (`62b78a0`), `feat/ocr-pipeline-phase-3a` (`af01074`) — all merged to `main`; safe to delete with `git branch -D` whenever.
 
 **Background reading (decision input for post-A3 workstream):**
 
@@ -34,11 +34,11 @@ Scope this session won't touch:
   - `future live tracking/modeling`: treat `DeepStream 8` + `TAO` as a separate video-native track, not an in-place replacement for the screenshot-first extractor
   - `ignore for primary extraction`: `Metropolis VSS`
 
-## Session Summary — 2026-05-28 (Run-Level Quality Reporting shipped)
+## Session Summary — 2026-05-28 (Run-Level Quality Reporting shipped + merged + pushed)
 
 ### Current status
 
-New branch `feat/run-level-quality-reporting` at HEAD `e3f2d9a` (12 commits ahead of `main`; NOT yet merged; NOT yet pushed). Phases 1-5 of the Run-Level Quality Reporting workstream are complete: schema landed, query helpers + writer wired, layer-compute extracted from `match-quality-cli` into a shared lib, dedicated `run-quality` CLI shipped with full JSON and `--emit-row` paths, `reprocess.py` wraps stages with a `_StageTimer` and emits a runtime-bearing row on best-effort, docs updated. To verify: `pnpm --filter worker run-quality --run-id <id> --json` returns `schema_version: 1` (smoked on run 584).
+`main` = `origin/main` = `a8ca2b6` (14 commits from this workstream FF-merged + pushed). `feat/run-level-quality-reporting` deleted. All 5 phases complete: schema landed, query helpers + writer wired, layer-compute extracted from `match-quality-cli` into a shared lib, dedicated `run-quality` CLI shipped with full JSON and `--emit-row` paths, `reprocess.py` wraps stages with a `_StageTimer` and emits a runtime-bearing row on best-effort, docs updated. Codex second-opinion review request drafted at `/home/michal/.claude/plans/codex-review-request-run-level-quality-reporting.md`. To verify: `pnpm --filter worker run-quality --run-id <id> --json` returns `schema_version: 1` (smoked on run 584).
 
 ### What was done
 
@@ -64,6 +64,8 @@ New branch `feat/run-level-quality-reporting` at HEAD `e3f2d9a` (12 commits ahea
 | `68adec7` | `feat(video_ingest): wrap reprocess stages with _StageTimer + emit run-quality row` |
 | `3464a56` | `test(video_ingest): unit tests for reprocess stage timing + emit shell-out` |
 | `e3f2d9a` | `fix(video_ingest): clarify best-effort comment + include stdout in emit failure log` |
+| `7c1667b` | `docs(handoff): ship Run-Level Quality Reporting + bump To-Do to next workstream` |
+| `a8ca2b6` | `docs: fix run-quality table keying claim + function-name drift in HANDOFF` |
 
 ### Why this matters
 
@@ -132,7 +134,11 @@ Modified:
 
 ### Branch state
 
-On `feat/run-level-quality-reporting` at HEAD `e3f2d9a`. NOT yet merged to `main`. NOT yet pushed to `origin`. Next operator action is at-leisure merge + push.
+`main` = `origin/main` = `a8ca2b6` (14 commits delivered). `feat/run-level-quality-reporting` deleted post-merge. Next operator action at the start of the next session: either run the Codex review (`/home/michal/.claude/plans/codex-review-request-run-level-quality-reporting.md`) or kick off the next architectural workstream (Make PTS Canonical).
+
+### Codex review request
+
+Drafted at `/home/michal/.claude/plans/codex-review-request-run-level-quality-reporting.md`. Self-contained brief with 8 specific review asks (A–H): cross-team-dedup heuristic correctness, `--all-runs` concurrency safety, TS↔Python stage-runtimes contract resilience, byte-identical regression gate stability, CHECK constraint vs float boundary, SQL/path-injection safety, test isolation, `errors[]` envelope behavior. Includes known limitations to skip and exact verification commands. Operator can hand off manually or invoke `codex:rescue` to delegate.
 
 ## Session Summary — 2026-05-29 (final: branches merged + pushed; operator drift committed; tree clean)
 
