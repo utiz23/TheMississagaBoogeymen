@@ -2,13 +2,12 @@
 
 ## To-Do
 
-**A-gate decision (next):** Decide whether to apply the runbook stopgap SQL ([docs/runbook/cpu-goalie-fix-backfill.md](docs/runbook/cpu-goalie-fix-backfill.md)) for match 250's BGM goalie row. The CPU-goalie fix shipped end-to-end (12 commits) and user-visible behavior is correct on both reprocessed matches (250 + 968), but the Python `_is_cpu_or_empty()` detector mis-classifies the EA "XZ4RKY"/"bad" CPU placeholder text 50% of the time, leaving `is_cpu=false` on the BGM goalie in `player_loadout_snapshots`. The merge-pool team-scoping fix and the `isEmptyRow` defense-in-depth filter both hide the row anyway — but match 250's L3 metric still reads 0.9834 (the goalie inflates the denominator) instead of the predicted 1.0. Three options for the operator:
+**A-gate decision (operator merge call):** OR-fold semantics + floor rebaseline shipped (3 follow-up commits on top of the CPU-goalie chain). Match 250 L3 now reads **1.0** (was 0.9834); both reprocessed matches' goalies correctly carry `is_cpu=true`. The CPU-goalie workstream is conceptually complete. Decide whether to:
 
-1. **Accept as-is** — user-visible behavior correct; L3 floor unchanged at 0.9834 (regression still PASS); document the Python detector limitation as a known wart.
-2. **Apply runbook stopgap SQL** for match 250's confirmed-CPU goalies → re-run consolidate → L3 → 1.0 → rebaseline `docs/calibration/regression-floor-match-250.json` as commit 6b.
-3. **Harden the Python detector** (Phase 3 follow-up — separate workstream). The right long-term fix uses cross-team duplicate detection (a real gamertag can't be on both rosters in the same lobby) but is out of scope for this branch.
+1. **Merge `feat/screen-classifier-v2-a1` to main** — 60 commits ahead, all tests green (match-quality-regression 2/2 PASS, match-250-benchmark 16/20 PASS with the 4 fails being Phase-3 deferred + typed_v1 baseline that this branch wasn't scoped to address).
+2. **Or pause for Phase-3 detector hardening** — the structurally correct upstream fix is cross-team duplicate detection in `slot_identity.py` (a real gamertag can't appear on both rosters of the same lobby simultaneously). Out of scope for this branch; the OR-fold makes the system tolerant of the detector's known weakness, so merging now and addressing Phase-3 as a separate workstream is the recommended path.
 
-Branch `feat/screen-classifier-v2-a1` is **57 ahead of main, none pushed** — operator decision on merge.
+**Phase-3 follow-up (queued):** Harden `tools/game_ocr/game_ocr/lobby_extractors/slot_identity.py::_is_cpu_or_empty` with cross-team duplicate detection. After `identify_lobby_subjects()` builds all 12 subjects per frame, group by normalized gamertag — any gamertag appearing on >1 team_side is structurally a CPU placeholder; force `is_empty_or_cpu=true` on those slots. This is OCR-agnostic (works for any EA placeholder text past, present, or future) and deterministic (same input → same result). Combined with the OR-fold (already shipped), gives two independent guarantees.
 
 **Background reading (decision input for post-A3 workstream):**
 
@@ -18,6 +17,68 @@ Branch `feat/screen-classifier-v2-a1` is **57 ahead of main, none pushed** — o
   - `later for stubborn weak spots`: evaluate `TAO Toolkit`
   - `future live tracking/modeling`: treat `DeepStream 8` + `TAO` as a separate video-native track, not an in-place replacement for the screenshot-first extractor
   - `ignore for primary extraction`: `Metropolis VSS`
+
+## Session Summary — 2026-05-29 (continued: OR-fold semantics ships; L3 reaches 1.0; floor rebaselined)
+
+### Current status
+
+Branch `feat/screen-classifier-v2-a1` at HEAD `5d044d6` (3 commits after the prior session-summary entry; 60 commits ahead of `main`). **The L3 wart is closed.** OR-fold semantics for `is_cpu` resolves the Python detector's 1-vote-true-vs-1-vote-false ambiguity by making any positive vote authoritative. Match 250 L3 = 1.0 (up from 0.9834). Both matches' BGM goalies now carry `is_cpu=true` in `player_loadout_snapshots`. Floor JSON rebaselined.
+
+### What was done (continued)
+
+**OR-fold semantics (1 plan commit + 1 fixup + 1 chore commit):**
+
+| SHA | Commit |
+|---|---|
+| `84e1610` | `feat(worker): OR-fold semantics for is_cpu in lobby promoter` — replaces `promotedBool(fieldDecisions.get('is_cpu')) ?? false` with `isCpuRows.some(r => r.candidateValue === true || r.candidateValue === 'true')`. Reads raw evidence rows from `fieldMap` directly, bypassing the gate ONLY for this one field (the gate's PromotionDecision is still computed and written to `ocr_promotions` for the audit trail). Rationale: `is_cpu` has asymmetric failure cost (false-negative = the bug we just fixed; false-positive = recoverable in operator review). Plus a load-bearing test 5 in `lobby-v2-cpu.test.ts` mimicking match 250's exact failure shape (XZ4RKY gamertag + 1-true + 1-false votes). |
+| `b417af4` | `docs(worker): correct OR-fold comment about Python raw_confidence` — code-review nit: the rationale comment claimed the Python detector emits raw_confidence=1.0 "only on positive identification" (wrong — it emits 1.0 unconditionally because the boolean is deterministic). Reworded to be accurate. |
+| `5d044d6` | `chore(calibration): rebaseline regression-floor-match-250 post OR-fold` — L3 floor → 1.0, L2_lineup → 0.95. |
+
+Both commits passed two-stage review (spec compliance + code quality reviewer subagents). Implementer flagged a smart deviation in the load-bearing test: equal-confidence is_cpu votes are non-deterministic across machines (stable sort tiebreak), so they seeded `false` at `calibratedConfidence='1.0'` and `true` at `'0.95'` to force the democratic-vote path to land on `false` (the buggy outcome) deterministically. The OR-fold then bypasses the gate's verdict regardless of confidence ranking, so the test exercises exactly the semantic path that fixes production.
+
+**Fast-path execution discovery:**
+
+Instead of two ~80-min full reprocesses of matches 250 + 968 (Python OCR + repromote + consolidate + backfill), used `pnpm --filter worker repromote-lobby -- --match N --run-id <active>` to re-run ONLY the TS lobby promoter against the existing run's evidence rows, followed by `consolidate-loadouts`. Total wall: ~20 seconds vs ~3 hours. Justified because only the TS promoter changed — no OCR weights, no Python emitter changes — so re-OCR'ing the video would produce byte-identical evidence rows.
+
+This also dodged the provenance-uniqueness collision (the new reprocess would have collided with the existing active runs 583 + 584 since `(match_id, video_sha256, decoder_version, weights_hash)` is unchanged).
+
+**Match 250 post-OR-fold results:**
+
+```
+DB state (player_loadout_snapshots for match 250 G):
+  for     | G | CPU | t | pending_review   ← was 'XZ4RKY' / f / reviewed
+  against | G | CPU | t | pending_review   ← was '' / f / pending_review
+
+match-quality:
+  L2 actor:   0.9792 (unchanged — actor resolution wasn't affected)
+  L2 lineup:  0.95 (was 0.9091; goalie's 4 nulls no longer count: 38/40 vs 40/44)
+  L3:         1.0 (was 0.9834; all gates met) ✅
+```
+
+**Match 968 post-OR-fold results:**
+
+Same DB shape: both goalies now `is_cpu=true, gamertag_snapshot='CPU'`. L3 = 0.8179 (gaps unrelated to OR-fold — match 968's opp C row has 0 xf + 0 attrs, an issue independent from CPU detection).
+
+**Floor JSON shifts (commit 5d044d6):**
+
+- Match 250: L3 0.9834 → 1.0, L2_lineup 0.9091 → 0.95
+- Match 463: byte-identical to existing floor — re-checked via fresh `match-quality --json` output; no shift, no rebaseline needed (match 463 either has no CPU goalie or its detector vote landed correctly on the prior reprocess).
+
+### Test status (final, after OR-fold)
+
+- `lobby-v2-cpu`: **5/5 PASS** (4 prior tests + new test 5 load-bearing OR-fold). Verified load-bearing: temporarily revert the OR-fold change → test 5 FAILS with `false !== true` → restore → test 5 PASSES.
+- `consolidate-loadouts-cpu`: 3/3 PASS (unchanged).
+- `match-lineups-cpu`: 4/4 PASS (unchanged).
+- `match-quality-cpu`: 1/1 PASS (unchanged).
+- `match-quality-regression`: **2/2 PASS** (match 250 at new 1.0 floor, match 463 at existing floor).
+- `match-250-benchmark`: 16/20 PASS — test 4 (CPU goalie no-row) still PASSES; remaining fails (tests 1, 15, 19, 20) unchanged Phase-3 deferred + typed_v1 baseline.
+- Pre-existing test-isolation artifacts when running multiple CPU test files together (documented in HANDOFF baseline): each file passes individually; combined runs fail spuriously due to sentinel-fixture cross-test pollution. Not a regression from this work.
+
+### Operational notes
+
+The fast-path discovery (repromote-lobby with existing run) is worth remembering for any future change that touches only the TS promoter without changing Python OCR weights. Saves ~80 min wall per match.
+
+The `dry-run` mode of `video_ingest reprocess` actually INSERTS the candidate run row (despite the name), which causes provenance-uniqueness collisions on the real reprocess. Workaround documented in plan file `plan-promoter-or-fold-semantics-eventual-pumpkin.md` Risks #3. Worth fixing in a future Python CLI cleanup pass.
 
 ## Session Summary — 2026-05-29 (CPU-goalie fix shipped end-to-end; both matches reprocessed; L3 partial)
 
