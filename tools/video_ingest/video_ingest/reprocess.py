@@ -455,10 +455,14 @@ def reprocess(
     # 10. Best-effort run-quality row emission. Writes the per-stage
     #     wall-time accumulator to a tempfile, then shells out to the
     #     Phase-3 worker CLI to persist a row into ocr_run_quality_reports.
-    #     ANY failure here (file write, subprocess, non-zero exit) is
-    #     swallowed and logged to stderr — the upstream activate +
-    #     consolidate + backfill steps already succeeded and an operator
-    #     can re-emit the row offline if needed.
+    #     Failures are logged to stderr and the row is skipped, but the
+    #     reprocess still exits 0. A failed file write short-circuits past
+    #     the TS CLI emit (no point calling the CLI with a non-existent
+    #     path); a failed TS CLI exit similarly leaves no row but doesn't
+    #     propagate. The operator can later run `pnpm --filter
+    #     @eanhl/worker run-quality --run-id N --emit-row --stage-runtimes
+    #     <path>` manually if the file is still on disk, or `--all-runs
+    #     --emit-row` for a content-only retroactive report.
     total_wall_ms = int(sum(stages.values()))
     stage_runtimes_path = (
         DEFAULT_INGEST_CACHE / f"run-{new_run_id}-stage-runtimes.json"
@@ -513,8 +517,9 @@ def reprocess(
                 typer.echo(emit_result.stdout, err=True)
         else:
             typer.echo(
-                f"[run-quality] emit failed (exit {emit_result.returncode}): "
-                f"{emit_result.stderr}",
+                f"[run-quality] emit failed (exit {emit_result.returncode})\n"
+                f"  stdout: {emit_result.stdout.strip()}\n"
+                f"  stderr: {emit_result.stderr.strip()}",
                 err=True,
             )
     except Exception as e:  # noqa: BLE001 — best-effort
