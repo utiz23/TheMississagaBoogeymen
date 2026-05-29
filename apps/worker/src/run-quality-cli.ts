@@ -29,6 +29,22 @@
  *                          carrying per-stage and total wall times. When omitted,
  *                          runtime is null and `captured_from = 'backfill'`.
  *
+ * Body shape — `layers` section (Codex P1-2):
+ *   The body's `layers.computed` boolean discriminates two cases:
+ *
+ *     - `computed: true`  → run was active for its match; L2/L2.5/L3 scores
+ *       reflect the run's actual contribution. l2/l2_lineup/l3 fields are
+ *       non-null. The hot columns mirror these values.
+ *     - `computed: false` → run was inactive (superseded / backfill candidate).
+ *       `computeLayers` would have read match-scoped DB state (match_events,
+ *       player_loadout_snapshots) that reflects the CURRENT canonical run,
+ *       not this row's, so layer compute is skipped. l2/l2_lineup/l3 score
+ *       + pass + overall_pass are NULL. The hot columns are NULL too.
+ *
+ *   The l1 sub-section is always `{score: null, pass: null, notes: …}` (L1
+ *   ground-truth fixtures pending); orthogonal to the computed/not-computed
+ *   discriminator.
+ *
  * Exit codes:
  *   0 — success
  *   1 — argument validation, conflict without --force, missing run, malformed input
@@ -222,24 +238,32 @@ interface ReportScreens {
 }
 
 interface ReportLayersSerialized {
+  /**
+   * Codex P1-2 discriminator. `true` when this run was the active run for
+   * its match and layer compute reflects the run's contribution; `false`
+   * when the run was inactive and compute was skipped to avoid attributing
+   * canonical-state metrics to a superseded run. All l2/l2_lineup/l3
+   * score+pass fields and overall_pass are null when `computed === false`.
+   */
+  computed: boolean
   l1: { score: null; pass: null; notes: string }
   l2: {
-    score: number
-    pass: boolean
-    bgm_events: number
-    bgm_resolved: number
-    deductions: number
+    score: number | null
+    pass: boolean | null
+    bgm_events: number | null
+    bgm_resolved: number | null
+    deductions: number | null
     notes: string
   }
   l2_lineup: {
-    score: number
-    pass: boolean
-    populated: number
-    expected: number
+    score: number | null
+    pass: boolean | null
+    populated: number | null
+    expected: number | null
     notes: string
   }
-  l3: { score: number; pass: boolean; notes: string }
-  overall_pass: boolean
+  l3: { score: number | null; pass: boolean | null; notes: string }
+  overall_pass: boolean | null
 }
 
 interface ReportBody {
@@ -254,8 +278,9 @@ interface ReportBody {
   errors: Array<{ section: string; message: string }>
 }
 
-function serializeLayers(layers: LayerScores): ReportLayersSerialized {
+function serializeComputedLayers(layers: LayerScores): ReportLayersSerialized {
   return {
+    computed: true,
     l1: {
       score: null,
       pass: null,
@@ -282,6 +307,39 @@ function serializeLayers(layers: LayerScores): ReportLayersSerialized {
       notes: layers.l3.notes,
     },
     overall_pass: layers.overall.pass,
+  }
+}
+
+/**
+ * Produce a `computed: false` layers section for inactive runs. Codex P1-2:
+ * `computeLayers` queries match-scoped DB state (match_events,
+ * player_loadout_snapshots) that only belongs to the active run — running
+ * it against an inactive run would attribute canonical metrics to a
+ * superseded row. Skip the compute and store NULLs so trend dashboards
+ * can tell "not computed" apart from "computed = 0".
+ */
+function notComputedLayers(matchId: number, l1Note: string): ReportLayersSerialized {
+  const note = `not computed: run is not active for match ${matchId} (layers reflect canonical state)`
+  return {
+    computed: false,
+    l1: { score: null, pass: null, notes: l1Note },
+    l2: {
+      score: null,
+      pass: null,
+      bgm_events: null,
+      bgm_resolved: null,
+      deductions: null,
+      notes: note,
+    },
+    l2_lineup: {
+      score: null,
+      pass: null,
+      populated: null,
+      expected: null,
+      notes: note,
+    },
+    l3: { score: null, pass: null, notes: note },
+    overall_pass: null,
   }
 }
 
@@ -373,66 +431,87 @@ async function buildReportBody(run: DecoderRunRow, opts: BuildReportOptions): Pr
     ),
   ])
 
-  // Match-scoped queries — required to compute the L2/L2.5/L3 layer scores.
-  // We need the match row for the downstream/expected-counts and quality flags.
-  const match = await safeCall<Awaited<ReturnType<typeof getMatchById>>>('match', null, () =>
-    getMatchById(run.matchId),
-  )
+  // Layer compute (L2/L2.5/L3) is match-scoped — it reads match_events and
+  // player_loadout_snapshots filtered by match_id alone, which is the active
+  // run's contribution. For inactive / superseded runs we skip compute and
+  // store nulls (Codex P1-2). l1 stays a stub regardless: the L1 ground-truth
+  // fixture path is orthogonal v1 work.
+  const l1Note = 'ground-truth fixtures pending'
 
-  let layers: LayerScores
-  if (match) {
-    const downstream = await safeCall<Awaited<ReturnType<typeof buildDownstreamCounts>>>(
-      'downstream',
-      [],
-      () => buildDownstreamCounts(run.matchId, match),
+  let serializedLayers: ReportLayersSerialized
+  if (!run.isActive) {
+    // No DB calls for the layer inputs — purely a NULL row.
+    serializedLayers = notComputedLayers(run.matchId, l1Note)
+  } else {
+    const match = await safeCall<Awaited<ReturnType<typeof getMatchById>>>('match', null, () =>
+      getMatchById(run.matchId),
     )
-    const flags = await safeCall<Awaited<ReturnType<typeof buildQualityFlags>>>('flags', [], () =>
-      buildQualityFlags(run.matchId, match),
-    )
-    layers = await safeCall<LayerScores>(
-      'layers',
-      {
-        l1: { score: null, pass: null, notes: 'computeLayers failed' },
+    if (!match) {
+      // Active run but match row gone — surface explicit failure as a not-computed result.
+      serializedLayers = {
+        computed: false,
+        l1: { score: null, pass: null, notes: l1Note },
         l2: {
-          score: 0,
-          pass: false,
-          notes: 'computeLayers failed',
-          bgmEvents: 0,
-          bgmResolved: 0,
-          deductions: 0,
+          score: null,
+          pass: null,
+          bgm_events: null,
+          bgm_resolved: null,
+          deductions: null,
+          notes: 'not computed: match row not found',
         },
         l2_lineup: {
-          score: 0,
-          pass: false,
-          notes: 'computeLayers failed',
-          populated: 0,
-          expected: 0,
+          score: null,
+          pass: null,
+          populated: null,
+          expected: null,
+          notes: 'not computed: match row not found',
         },
-        l3: { score: 0, pass: false, notes: 'computeLayers failed' },
-        overall: { pass: false },
-      },
-      () => computeLayers(run.matchId, downstream, flags),
-    )
-  } else {
-    layers = {
-      l1: { score: null, pass: null, notes: 'match row not found' },
-      l2: {
-        score: 0,
-        pass: false,
-        notes: 'match row not found',
-        bgmEvents: 0,
-        bgmResolved: 0,
-        deductions: 0,
-      },
-      l2_lineup: {
-        score: 0,
-        pass: false,
-        notes: 'match row not found',
-        populated: 0,
-        expected: 0,
-      },
-      l3: { score: 0, pass: false, notes: 'match row not found' },
-      overall: { pass: false },
+        l3: { score: null, pass: null, notes: 'not computed: match row not found' },
+        overall_pass: null,
+      }
+    } else {
+      const downstream = await safeCall<Awaited<ReturnType<typeof buildDownstreamCounts>>>(
+        'downstream',
+        [],
+        () => buildDownstreamCounts(run.matchId, match),
+      )
+      const flags = await safeCall<Awaited<ReturnType<typeof buildQualityFlags>>>('flags', [], () =>
+        buildQualityFlags(run.matchId, match),
+      )
+      // Sentinel that signals computeLayers failed and we should fall through
+      // to a not-computed serialization with a failure note.
+      const FAILED_SENTINEL = Symbol('computeLayers-failed')
+      const layersOrFailed = await safeCall<LayerScores | typeof FAILED_SENTINEL>(
+        'layers',
+        FAILED_SENTINEL,
+        () => computeLayers(run.matchId, downstream, flags),
+      )
+      if (layersOrFailed === FAILED_SENTINEL) {
+        const failNote = 'not computed: computeLayers failed (see errors[])'
+        serializedLayers = {
+          computed: false,
+          l1: { score: null, pass: null, notes: l1Note },
+          l2: {
+            score: null,
+            pass: null,
+            bgm_events: null,
+            bgm_resolved: null,
+            deductions: null,
+            notes: failNote,
+          },
+          l2_lineup: {
+            score: null,
+            pass: null,
+            populated: null,
+            expected: null,
+            notes: failNote,
+          },
+          l3: { score: null, pass: null, notes: failNote },
+          overall_pass: null,
+        }
+      } else {
+        serializedLayers = serializeComputedLayers(layersOrFailed)
+      }
     }
   }
 
@@ -496,7 +575,7 @@ async function buildReportBody(run: DecoderRunRow, opts: BuildReportOptions): Pr
     promotions,
     defense_layers: defenseLayers,
     unresolved,
-    layers: serializeLayers(layers),
+    layers: serializedLayers,
     errors,
   }
 }
@@ -504,11 +583,11 @@ async function buildReportBody(run: DecoderRunRow, opts: BuildReportOptions): Pr
 function deriveColumns(body: ReportBody): {
   matchId: number
   schemaVersion: number
-  overallPass: boolean
+  overallPass: boolean | null
   l1Score: number | null
-  l2Score: number
-  l2LineupScore: number
-  l3Score: number
+  l2Score: number | null
+  l2LineupScore: number | null
+  l3Score: number | null
   totalWallMs: number | null
   totalSegments: number
   totalDemoted: number
@@ -524,14 +603,19 @@ function deriveColumns(body: ReportBody): {
     body.defense_layers.is_cpu_or_demoted_combined +
     body.defense_layers.hard_field_blocks +
     body.defense_layers.junk_gamertag_blocks_ts
+  // Codex P1-2: when layer compute was skipped (run not active for match),
+  // mirror nulls into the hot columns so trend dashboards can tell
+  // "not computed" apart from "computed = 0". Defense / unresolved / segment
+  // counters are run-scoped and remain valid regardless.
+  const layerComputed = body.layers.computed
   return {
     matchId: body.run.match_id,
     schemaVersion: 1,
-    overallPass: body.layers.overall_pass,
+    overallPass: layerComputed ? body.layers.overall_pass : null,
     l1Score: null,
-    l2Score: body.layers.l2.score,
-    l2LineupScore: body.layers.l2_lineup.score,
-    l3Score: body.layers.l3.score,
+    l2Score: layerComputed ? body.layers.l2.score : null,
+    l2LineupScore: layerComputed ? body.layers.l2_lineup.score : null,
+    l3Score: layerComputed ? body.layers.l3.score : null,
     totalWallMs: body.runtime.total_wall_ms,
     // Hot column `total_segments` mirrors the segment layer (ocr_segments
     // count), not the frame layer. See Codex P3. The frame count remains
@@ -568,13 +652,17 @@ function renderHumanSummary(body: ReportBody): string {
   lines.push(
     `   unresolved: gamertags=${body.unresolved.gamertags} personas=${body.unresolved.personas} actor_bindings=${body.unresolved.actor_bindings_for_side} total=${body.unresolved.totals.all}`,
   )
-  const pctL2 = (body.layers.l2.score * 100).toFixed(1)
-  const pctL2L = (body.layers.l2_lineup.score * 100).toFixed(1)
-  const pctL3 = (body.layers.l3.score * 100).toFixed(1)
-  lines.push(
-    `   layers: L2=${pctL2}% (${body.layers.l2.pass ? 'PASS' : 'FAIL'})  L2.5=${pctL2L}% (${body.layers.l2_lineup.pass ? 'PASS' : 'FAIL'})  L3=${pctL3}% (${body.layers.l3.pass ? 'PASS' : 'FAIL'})`,
-  )
-  lines.push(`   overall: ${body.layers.overall_pass ? '[ PASS ]' : '[ FAIL ]'}`)
+  const fmtPct = (v: number | null): string => (v === null ? 'n/a' : `${(v * 100).toFixed(1)}%`)
+  const fmtPass = (v: boolean | null): string => (v === null ? 'SKIP' : v ? 'PASS' : 'FAIL')
+  if (body.layers.computed) {
+    lines.push(
+      `   layers: L2=${fmtPct(body.layers.l2.score)} (${fmtPass(body.layers.l2.pass)})  L2.5=${fmtPct(body.layers.l2_lineup.score)} (${fmtPass(body.layers.l2_lineup.pass)})  L3=${fmtPct(body.layers.l3.score)} (${fmtPass(body.layers.l3.pass)})`,
+    )
+    lines.push(`   overall: ${body.layers.overall_pass ? '[ PASS ]' : '[ FAIL ]'}`)
+  } else {
+    lines.push(`   layers: not computed (run not active for match)`)
+    lines.push(`   overall: [ SKIP ]`)
+  }
   if (body.errors.length > 0) {
     lines.push(`   errors: ${body.errors.length} partial-section failure(s)`)
     for (const e of body.errors.slice(0, 5)) {

@@ -43,6 +43,8 @@ const SENTINEL_MATCH_IDS = [
   9311, 9312, 9313, 9314, 9315,
   // P3 segments-hot-column test
   9316, 9317, 9318, 9319, 9320,
+  // P1-2 inactive-run layer-skip tests
+  9321, 9322, 9323, 9324, 9325,
 ] as const
 
 const REPO_ROOT = path.resolve(process.cwd())
@@ -693,9 +695,7 @@ void test('--all-runs skips runs with completed_at IS NULL (race-vs-reprocess de
   // Snapshot non-sentinel runs so we can clean up any prod rows we touch.
   const SENTINEL_RUN_IDS = new Set<number>([f.runId])
   const allRunsBefore = await db.select({ id: ocrDecoderRuns.id }).from(ocrDecoderRuns)
-  const nonSentinelRunIds = allRunsBefore
-    .map((r) => r.id)
-    .filter((id) => !SENTINEL_RUN_IDS.has(id))
+  const nonSentinelRunIds = allRunsBefore.map((r) => r.id).filter((id) => !SENTINEL_RUN_IDS.has(id))
 
   try {
     const first = runCli(['--all-runs', '--emit-row', '--force'])
@@ -749,4 +749,85 @@ void test('--all-runs skips runs with completed_at IS NULL (race-vs-reprocess de
         .where(inArray(ocrRunQualityReports.runId, nonSentinelRunIds))
     }
   }
+})
+
+void test('inactive run: --json body has layers.computed=false + null scores (Codex P1-2)', async (t) => {
+  if (!process.env['DATABASE_URL']) {
+    t.skip('DATABASE_URL not set')
+    return
+  }
+  // Seed an inactive run. computeLayers would otherwise read match-scoped
+  // state from the active run (or nothing, since there is none here) and
+  // attribute it to this superseded row. The P1-2 fix skips the compute
+  // and stores nulls so trend dashboards can tell "not computed" apart
+  // from "computed = 0".
+  const f = await seedFixture(9321, /* isActive */ false)
+  const result = runCli(['--run-id', String(f.runId), '--json'])
+  assert.equal(result.status, 0, `stderr: ${result.stderr}; stdout: ${result.stdout}`)
+  const line = lastJsonLine(result.stdout)
+  assert.ok(line, `expected JSON line; got: ${result.stdout}`)
+  const body = JSON.parse(line!) as {
+    layers: {
+      computed: boolean
+      l1: { score: null; pass: null }
+      l2: { score: number | null; pass: boolean | null; notes: string }
+      l2_lineup: { score: number | null; pass: boolean | null }
+      l3: { score: number | null; pass: boolean | null }
+      overall_pass: boolean | null
+    }
+  }
+  assert.equal(body.layers.computed, false, 'expected layers.computed=false on inactive run')
+  assert.equal(body.layers.l2.score, null, 'l2.score must be null when layers not computed')
+  assert.equal(body.layers.l2.pass, null, 'l2.pass must be null when layers not computed')
+  assert.equal(body.layers.l2_lineup.score, null, 'l2_lineup.score must be null')
+  assert.equal(body.layers.l2_lineup.pass, null, 'l2_lineup.pass must be null')
+  assert.equal(body.layers.l3.score, null, 'l3.score must be null')
+  assert.equal(body.layers.l3.pass, null, 'l3.pass must be null')
+  assert.equal(body.layers.overall_pass, null, 'overall_pass must be null')
+  assert.match(
+    body.layers.l2.notes,
+    /not computed|not active/i,
+    `expected l2.notes to mention 'not computed' or 'not active'; got: ${body.layers.l2.notes}`,
+  )
+})
+
+void test('inactive run: --emit-row writes NULL hot columns for layer scores (Codex P1-2)', async (t) => {
+  if (!process.env['DATABASE_URL']) {
+    t.skip('DATABASE_URL not set')
+    return
+  }
+  const f = await seedFixture(9322, /* isActive */ false)
+  const result = runCli(['--run-id', String(f.runId), '--emit-row'])
+  assert.equal(result.status, 0, `stderr: ${result.stderr}; stdout: ${result.stdout}`)
+
+  const [row] = await db
+    .select({
+      overallPass: ocrRunQualityReports.overallPass,
+      l1Score: ocrRunQualityReports.l1Score,
+      l2Score: ocrRunQualityReports.l2Score,
+      l2LineupScore: ocrRunQualityReports.l2LineupScore,
+      l3Score: ocrRunQualityReports.l3Score,
+      totalSegments: ocrRunQualityReports.totalSegments,
+      totalDemoted: ocrRunQualityReports.totalDemoted,
+      totalUnresolved: ocrRunQualityReports.totalUnresolved,
+    })
+    .from(ocrRunQualityReports)
+    .where(eq(ocrRunQualityReports.runId, f.runId))
+  assert.ok(row, 'expected a report row to be written for inactive run')
+
+  // Layer-derived hot columns must all be NULL.
+  assert.equal(row!.overallPass, null, 'overall_pass must be NULL for inactive run')
+  assert.equal(row!.l1Score, null, 'l1_score must always be NULL (ground-truth pending)')
+  assert.equal(row!.l2Score, null, 'l2_score must be NULL when layers not computed')
+  assert.equal(row!.l2LineupScore, null, 'l2_lineup_score must be NULL when layers not computed')
+  assert.equal(row!.l3Score, null, 'l3_score must be NULL when layers not computed')
+
+  // Run-scoped counter columns are independent of isActive and remain non-null.
+  assert.notEqual(row!.totalSegments, null, 'total_segments is run-scoped and must remain non-null')
+  assert.notEqual(row!.totalDemoted, null, 'total_demoted is run-scoped and must remain non-null')
+  assert.notEqual(
+    row!.totalUnresolved,
+    null,
+    'total_unresolved is run-scoped and must remain non-null',
+  )
 })
