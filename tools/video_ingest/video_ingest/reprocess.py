@@ -19,6 +19,8 @@ import os
 import shlex
 import subprocess
 import sys
+import time
+from datetime import datetime, timezone
 from pathlib import Path
 
 import typer
@@ -214,6 +216,34 @@ def _run_streaming(cmd: list[str], *, description: str) -> None:
         )
 
 
+# ─── stage timing helper ──────────────────────────────────────────────────────
+
+
+class _StageTimer:
+    """Context manager that records elapsed wall time (ms) into a shared
+    ``stages`` dict under ``key``.
+
+    Built on ``time.monotonic()`` (not ``time.perf_counter()``) because
+    we're timing across subprocess boundaries — ``monotonic`` is what
+    ``subprocess.run`` itself uses internally, so the numbers stay
+    consistent end-to-end. ``perf_counter`` is intended for sub-call
+    timing and offers no real benefit at the seconds-to-minutes scales
+    we report here.
+    """
+
+    def __init__(self, stages: dict[str, float], key: str) -> None:
+        self._stages = stages
+        self._key = key
+        self._t0 = 0.0
+
+    def __enter__(self) -> "_StageTimer":
+        self._t0 = time.monotonic()
+        return self
+
+    def __exit__(self, *_exc: object) -> None:
+        self._stages[self._key] = (time.monotonic() - self._t0) * 1000.0
+
+
 # ─── Typer command ────────────────────────────────────────────────────────────
 
 
@@ -267,6 +297,10 @@ def reprocess(
     # 1. Hashes from the on-disk v2 artifacts.
     weights_hash, config_hash = _compute_hashes(version)
 
+    # Per-stage wall-time accumulator. Populated by ``_StageTimer``
+    # below; consumed at end-of-pipeline to emit the run-quality row.
+    stages: dict[str, float] = {}
+
     # 2. Resolve the source video path + sha256.
     if video is not None:
         video_path = video
@@ -275,14 +309,15 @@ def reprocess(
         video_path, video_sha256 = _resolve_video_path(match_id)
 
     # 3. Create the candidate run.
-    create_result = _run_decoder_runs_cli(
-        "create-candidate",
-        "--match-id", str(match_id),
-        "--video-sha256", video_sha256,
-        "--decoder-version", "hmm-viterbi-v2",
-        "--weights-hash", weights_hash,
-        "--config-hash", config_hash,
-    )
+    with _StageTimer(stages, "create_candidate_ms"):
+        create_result = _run_decoder_runs_cli(
+            "create-candidate",
+            "--match-id", str(match_id),
+            "--video-sha256", video_sha256,
+            "--decoder-version", "hmm-viterbi-v2",
+            "--weights-hash", weights_hash,
+            "--config-hash", config_hash,
+        )
     new_run_id = create_result["run_id"]
     typer.echo(
         json.dumps(
@@ -318,35 +353,49 @@ def reprocess(
         return
 
     # 4. Ingest into the candidate. Long-running (3-5 min on match 250).
-    _run_streaming(
-        [
-            "python3", "-m", "video_ingest.cli", "ingest",
-            "--video", str(video_path),
-            "--output-root", str(DEFAULT_INGEST_CACHE),
-            "--version", version,
-            "--force-pass1", "--force-pass2",
-            "--dispatch",
-            "--match-id", str(match_id),
-            "--run-id", str(new_run_id),
-            "--game-title-id", str(NHL26_GAME_TITLE_ID),
-        ],
-        description=f"ingest match {match_id} into candidate run {new_run_id}",
-    )
-
-    # 5. Promote loadout + lobby against the candidate run.
-    for cli_script in ("repromote-loadout", "repromote-lobby"):
+    with _StageTimer(stages, "ingest_ms"):
         _run_streaming(
             [
-                "pnpm", "--filter", "@eanhl/worker", cli_script,
+                "python3", "-m", "video_ingest.cli", "ingest",
+                "--video", str(video_path),
+                "--output-root", str(DEFAULT_INGEST_CACHE),
+                "--version", version,
+                "--force-pass1", "--force-pass2",
+                "--dispatch",
+                "--match-id", str(match_id),
+                "--run-id", str(new_run_id),
+                "--game-title-id", str(NHL26_GAME_TITLE_ID),
+            ],
+            description=f"ingest match {match_id} into candidate run {new_run_id}",
+        )
+
+    # 5. Promote loadout + lobby against the candidate run.
+    #    Unrolled (was a 2-iter loop) so each stage gets its own timer
+    #    keyed for the Phase-4 run-quality report.
+    with _StageTimer(stages, "repromote_loadout_ms"):
+        _run_streaming(
+            [
+                "pnpm", "--filter", "@eanhl/worker", "repromote-loadout",
                 "--",
                 "--match", str(match_id),
                 "--run-id", str(new_run_id),
             ],
-            description=f"{cli_script} for match {match_id} run {new_run_id}",
+            description=f"repromote-loadout for match {match_id} run {new_run_id}",
+        )
+    with _StageTimer(stages, "repromote_lobby_ms"):
+        _run_streaming(
+            [
+                "pnpm", "--filter", "@eanhl/worker", "repromote-lobby",
+                "--",
+                "--match", str(match_id),
+                "--run-id", str(new_run_id),
+            ],
+            description=f"repromote-lobby for match {match_id} run {new_run_id}",
         )
 
     # 6. Validate. exit 2 = fail-soft from the worker side.
-    val = _run_decoder_runs_cli("validate", "--run-id", str(new_run_id))
+    with _StageTimer(stages, "validate_ms"):
+        val = _run_decoder_runs_cli("validate", "--run-id", str(new_run_id))
     if val.get("_exit") == 2:
         typer.echo(
             json.dumps(
@@ -366,7 +415,8 @@ def reprocess(
 
     # 7. Activate. Flips is_active, rebuilds canonicals, recomputes
     # match colours — all atomic on the TS side.
-    act = _run_decoder_runs_cli("activate", "--run-id", str(new_run_id))
+    with _StageTimer(stages, "activate_ms"):
+        act = _run_decoder_runs_cli("activate", "--run-id", str(new_run_id))
     typer.echo(json.dumps({"step": "activate", **act}, indent=2))
 
     # 8. consolidate-loadouts — sets review_status='reviewed' on the
@@ -376,14 +426,15 @@ def reprocess(
     #    to reviewed-only snapshots; without consolidate the lineup
     #    subquery is empty and every resolved actor trips the leak
     #    flag. Runs OUTSIDE the activate transaction — idempotent.
-    _run_streaming(
-        [
-            "pnpm", "--filter", "@eanhl/worker", "consolidate-loadouts",
-            "--",
-            "--match", str(match_id),
-        ],
-        description=f"consolidate-loadouts for match {match_id}",
-    )
+    with _StageTimer(stages, "consolidate_loadouts_ms"):
+        _run_streaming(
+            [
+                "pnpm", "--filter", "@eanhl/worker", "consolidate-loadouts",
+                "--",
+                "--match", str(match_id),
+            ],
+            description=f"consolidate-loadouts for match {match_id}",
+        )
 
     # 9. backfill-event-actor-resolution — re-resolves actor/target on
     #    existing match_events using the new match-scoped resolver
@@ -391,11 +442,80 @@ def reprocess(
     #    hits, binds previously-unresolved actors that now appear in
     #    lineup. Symmetric on match_goal_events + match_penalty_events.
     #    Idempotent — safe to re-run.
-    _run_streaming(
-        [
-            "pnpm", "--filter", "@eanhl/worker", "backfill-event-actor-resolution",
-            "--",
-            "--match", str(match_id),
-        ],
-        description=f"backfill-event-actor-resolution for match {match_id}",
+    with _StageTimer(stages, "backfill_event_actor_resolution_ms"):
+        _run_streaming(
+            [
+                "pnpm", "--filter", "@eanhl/worker", "backfill-event-actor-resolution",
+                "--",
+                "--match", str(match_id),
+            ],
+            description=f"backfill-event-actor-resolution for match {match_id}",
+        )
+
+    # 10. Best-effort run-quality row emission. Writes the per-stage
+    #     wall-time accumulator to a tempfile, then shells out to the
+    #     Phase-3 worker CLI to persist a row into ocr_run_quality_reports.
+    #     ANY failure here (file write, subprocess, non-zero exit) is
+    #     swallowed and logged to stderr — the upstream activate +
+    #     consolidate + backfill steps already succeeded and an operator
+    #     can re-emit the row offline if needed.
+    total_wall_ms = int(sum(stages.values()))
+    stage_runtimes_path = (
+        DEFAULT_INGEST_CACHE / f"run-{new_run_id}-stage-runtimes.json"
     )
+    stage_runtimes_payload = {
+        "stages": {
+            # Coerce float ms → int ms for the persisted row (DB column
+            # is integer-typed). The TS-side validator accepts both.
+            **{k: int(v) for k, v in stages.items()},
+            # The emit's own wall time would belong here, but we cannot
+            # record it in the file we're about to write (it's the wall
+            # time of writing this file + the shell-out itself). Leave
+            # null for v1; the validator accepts null/missing.
+            "run_quality_emit_ms": None,
+        },
+        "total_wall_ms": total_wall_ms,
+        "captured_at": datetime.now(timezone.utc).isoformat(),
+        "captured_from": "reprocess.py",
+    }
+    try:
+        stage_runtimes_path.parent.mkdir(parents=True, exist_ok=True)
+        stage_runtimes_path.write_text(json.dumps(stage_runtimes_payload, indent=2))
+    except Exception as e:  # noqa: BLE001 — best-effort
+        typer.echo(
+            f"[run-quality] stage-runtimes file write failed: {e}", err=True
+        )
+        return
+
+    try:
+        emit_t0 = time.monotonic()
+        emit_result = subprocess.run(
+            [
+                "pnpm", "--filter", "@eanhl/worker", "run-quality",
+                "--run-id", str(new_run_id),
+                "--emit-row",
+                "--stage-runtimes", str(stage_runtimes_path),
+            ],
+            cwd=REPO_ROOT,
+            capture_output=True,
+            text=True,
+        )
+        emit_wall_ms = int((time.monotonic() - emit_t0) * 1000.0)
+        if emit_result.returncode == 0:
+            # NOTE: emit_wall_ms is the wall time of the emit itself.
+            # It's NOT recorded into the row (would require re-emit).
+            # Logged to stderr only for operator visibility.
+            typer.echo(
+                f"[run-quality] row emitted (emit_wall_ms={emit_wall_ms})",
+                err=True,
+            )
+            if emit_result.stdout.strip():
+                typer.echo(emit_result.stdout, err=True)
+        else:
+            typer.echo(
+                f"[run-quality] emit failed (exit {emit_result.returncode}): "
+                f"{emit_result.stderr}",
+                err=True,
+            )
+    except Exception as e:  # noqa: BLE001 — best-effort
+        typer.echo(f"[run-quality] emit threw: {e}", err=True)
