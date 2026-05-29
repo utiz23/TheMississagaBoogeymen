@@ -68,17 +68,38 @@ def _collapse_to_segments(
     path: np.ndarray,
     state_machine: StateMachine,
     emissions: np.ndarray,
+    frame_source_times: list[float] | None = None,
 ) -> list[Segment]:
+    """Collapse a Viterbi state path into segments with canonical-PTS times.
+
+    `frame_source_times`, when provided, is the per-sample
+    `source_time_seconds` array from Pass-1's canonical PTS. When omitted
+    (synthetic feats in unit tests, or any caller that lacks PTS context)
+    falls back to the legacy `index * period` semantics so the function
+    stays usable without the orchestrator wiring.
+    """
     if len(path) == 0:
         return []
     period = 1.0 / state_machine.sample_fps
+    n = len(path)
+
+    def _source_time_at(idx: int) -> float:
+        if frame_source_times is not None and idx < len(frame_source_times):
+            return frame_source_times[idx]
+        return idx * period
+
     segments: list[Segment] = []
     run_start = 0
-    for t in range(1, len(path) + 1):
-        if t == len(path) or path[t] != path[run_start]:
+    for t in range(1, n + 1):
+        if t == n or path[t] != path[run_start]:
             state_idx = int(path[run_start])
             state_name = state_machine.states[state_idx]
             end = t - 1
+            start_seconds = _source_time_at(run_start)
+            if end + 1 < n:
+                end_seconds = _source_time_at(end + 1)
+            else:
+                end_seconds = _source_time_at(end) + period
             # Mean per-frame posterior over the assigned state (proxy: emission
             # value normalised against the row max). For the legacy Segment
             # contract we just store the mean emission magnitude on the assigned
@@ -88,8 +109,8 @@ def _collapse_to_segments(
             segments.append(Segment(
                 start_index=run_start,
                 end_index=end,
-                start_seconds=run_start * period,
-                end_seconds=(end + 1) * period,
+                start_seconds=start_seconds,
+                end_seconds=end_seconds,
                 screen_type=state_name,
                 frame_count=end - run_start + 1,
                 mean_color_score=mean_score,
@@ -118,6 +139,7 @@ def decode_segments(
     classifier: _ClassifierProto,
     state_machine: StateMachine,
     weights: EmissionWeights,
+    frame_source_times: list[float] | None = None,
 ) -> list[Segment]:
     feats_list = list(features)
     if not feats_list:
@@ -126,7 +148,9 @@ def decode_segments(
     log_trans = _build_log_transitions(state_machine)
     log_init = _build_log_initial(state_machine)
     path = viterbi_decode(log_emit, log_trans, log_init)
-    segments = _collapse_to_segments(path, state_machine, log_emit)
+    segments = _collapse_to_segments(
+        path, state_machine, log_emit, frame_source_times,
+    )
     return _enforce_min_duration(segments, state_machine)
 
 
@@ -137,6 +161,7 @@ def decode_segments_v2(
     state_machine: StateMachine,
     regex_priors: RegexPriorsConfig,
     weights: EmissionWeights,
+    frame_source_times: list[float] | None = None,
 ) -> list[Segment]:
     """v2 Viterbi decode. Same algorithm as decode_segments; only the
     emissions builder differs (regex-prior-derived anchor bonus + reject)."""
@@ -149,5 +174,7 @@ def decode_segments_v2(
     log_trans = _build_log_transitions(state_machine)
     log_init = _build_log_initial(state_machine)
     path = viterbi_decode(log_emit, log_trans, log_init)
-    segments = _collapse_to_segments(path, state_machine, log_emit)
+    segments = _collapse_to_segments(
+        path, state_machine, log_emit, frame_source_times,
+    )
     return _enforce_min_duration(segments, state_machine)

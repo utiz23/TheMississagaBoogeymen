@@ -149,18 +149,17 @@ class FrameClassification:
 class Segment:
     start_index: int          # inclusive
     end_index: int            # inclusive
-    start_seconds: float      # inclusive — derived from source PTS once the
-                              # segment builders flip; until then, still
-                              # equal to `start_index / sample_fps`.
-    end_seconds: float        # exclusive — same migration story as above.
+    start_seconds: float      # inclusive — canonical container PTS of the
+                              # first sampled frame in the segment, zero-based
+                              # against stream start time. Pass-2 feeds this
+                              # to ffmpeg `-ss` for seek.
+    end_seconds: float        # exclusive — canonical container PTS of the
+                              # frame immediately past the segment, or the
+                              # last sample's PTS + one sample period if no
+                              # such frame exists.
     screen_type: str
     frame_count: int
     mean_color_score: float
-    # Canonical-PTS fields. Optional + None default so old segments.json
-    # files (which lack these keys) still pass `Segment(**dict)` in
-    # `load_segments_json`. New runs populate them from `SampledFrame`.
-    source_start_seconds: float | None = None
-    source_end_seconds: float | None = None
 
 
 @dataclass
@@ -372,6 +371,15 @@ def build_segments(
     n = len(classifications)
     period = 1.0 / config.sample_fps
 
+    def _source_time_at(idx: int) -> float:
+        """Return the canonical-PTS sample time at `idx`, falling back to
+        the index-derived value when the field is None (cached pre-PTS
+        segments.json or synthetic test fixtures)."""
+        c = classifications[idx]
+        if c.source_time_seconds is not None:
+            return c.source_time_seconds
+        return idx * period
+
     segments: list[Segment] = []
     open_type: str | None = None
     open_start: int | None = None
@@ -385,7 +393,15 @@ def build_segments(
             return
         start = open_start
         end = last_match_idx
-        seconds = (end - start + 1) * period
+        start_seconds = _source_time_at(start)
+        # Exclusive end: use the next frame's source time if available
+        # (matches the legacy "(end + 1) * period" semantics on CFR);
+        # otherwise extrapolate by one sample period past the last frame.
+        if end + 1 < n:
+            end_seconds = _source_time_at(end + 1)
+        else:
+            end_seconds = _source_time_at(end) + period
+        seconds = end_seconds - start_seconds
         min_seconds_for_screen = config.min_segment_seconds_by_screen.get(
             open_type, config.min_segment_seconds
         )
@@ -399,8 +415,8 @@ def build_segments(
         segments.append(Segment(
             start_index=start,
             end_index=end,
-            start_seconds=start * period,
-            end_seconds=(end + 1) * period,  # exclusive end for downstream slicing
+            start_seconds=start_seconds,
+            end_seconds=end_seconds,  # exclusive end for downstream slicing
             screen_type=open_type,
             frame_count=end - start + 1,
             mean_color_score=float(np.mean(run_color)) if run_color else 0.0,

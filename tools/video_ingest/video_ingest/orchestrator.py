@@ -181,6 +181,7 @@ def _run_pass1(
             classifier=clf,
             state_machine=sm,
             weights=EmissionWeights(),
+            frame_source_times=[c.source_time_seconds for c in cls_list],
         )
         # Stamp the decoded state back onto the per-frame audit table.
         # Preserve the canonical-PTS fields populated upstream — these
@@ -267,6 +268,7 @@ def _run_pass1(
             state_machine=sm,
             regex_priors=regex_priors,
             weights=EmissionWeights(),
+            frame_source_times=[c.source_time_seconds for c in cls_list],
         )
         for seg in segments:
             for i in range(seg.start_index, seg.end_index + 1):
