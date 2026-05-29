@@ -4,13 +4,18 @@
 
 **Previously queued (now shipped + merged + pushed):** Run-level quality reporting shipped on `feat/run-level-quality-reporting` (14 commits), FF-merged to `main` and pushed to `origin/main` at SHA `a8ca2b6`. Branch deleted. New `ocr_run_quality_reports` table + `run-quality` CLI + `_StageTimer` hooks in `reprocess.py` answer the architecture-review §6 stage-level-metrics questions per run.
 
-**Codex second-opinion review completed (three rounds).** Brief at `/home/michal/.claude/plans/codex-review-request-run-level-quality-reporting.md`.
+**Codex second-opinion review completed (three rounds, plus one apparent re-paste).** Brief at `/home/michal/.claude/plans/codex-review-request-run-level-quality-reporting.md`.
 
 - **Round 1:** 2 P1 + 2 P2 + 1 P3 correctness findings — fixed on `fix/run-quality-codex-findings`, FF-merged + pushed at `9c08c86`.
 - **Round 2:** Residual P1 (activate-to-emit race) + 2 P2s (runtime wipe under force, destructive tests with toothless snapshot pattern) — fixed on `fix/run-quality-codex-round-2`, FF-merged + pushed at `06ec317`.
-- **Round 3:** P1 (round-2 test fix was theater — cleanup still nuked production rows) + P2 (`--all-runs --stage-runtimes` accepted as a footgun combo) — fixed on `fix/run-quality-codex-round-3` (3 commits, HEAD `4398644`). Review approved ready to FF-merge.
+- **Round 3:** P1 (round-2 test fix was theater — cleanup still nuked production rows) + P2 (`--all-runs --stage-runtimes` footgun) — fixed on `fix/run-quality-codex-round-3`, FF-merged + pushed at `a1ce0ea`.
+- **Round 4 (apparent re-paste):** the operator pasted Codex output that was byte-identical to round 3's findings (same line numbers `run-quality-cli.test.ts:510, :840`, `run-quality-cli.ts:773`). Verification against `main` HEAD `a1ce0ea` confirmed the round-3 fixes are in place: line 510 is now an assertion loop (`pre-existing report ... disappeared` safety check), line 538 is the safe set-difference delete (`afterReportRunIds - preexistingReportRunIds - sentinels`), line 780 is the argv guard rejecting `--stage-runtimes` with `--all-runs`. Conclusion: stale review / re-paste, not new findings. No code change made.
 
-**Pattern observation:** Codex caught real bugs in all three rounds (5, then 3, then 2). The per-phase spec + code-quality subagent reviews missed every one because they're cross-cutting concerns — race windows across files, semantic gaps between layers, test safety against shared state. Future workstreams should explicitly include a static cross-cutting review pass (e.g., a Codex round) before merging.
+**Process observations (both correct):**
+
+1. **Codex's cross-cutting review caught real bugs the per-phase subagent reviews missed in every round** (rounds 1+2+3 = 10 findings total: race windows, lifecycle gaps, test safety, cross-system semantic mismatch, hot-column-vs-source misalignment, operator footguns). Per-phase spec + code-quality reviews are solid for in-scope correctness but blind to lifecycle / shared-state / cross-system concerns. Future workstreams should explicitly include a static cross-cutting review pass before merging.
+
+2. **The fix-loop pattern across the three Codex rounds had a blind spot.** Each round I treated Codex's output as a list of literal defects, dispatched implementer prompts with mechanical patches ("delete this line", "add this guard"), and reviewer subagents confirmed "the implementer did what the prompt said." That's the wrong question — the right question is "is the structural choice that makes this class of bug possible the actual thing that needs to change?" For the recurring test-destructiveness finding specifically, the root cause is **the integration test architecture** (CLI-spawned tests against a shared live DB with global mutating commands), not any one cleanup statement. No amount of cleanup-tightening makes that structurally safe. See the "Deferred follow-ons" section below — the architectural test redesign is queued as a real backlog item.
 
 See the 2026-05-29 session summaries below.
 
@@ -23,6 +28,10 @@ Scope this session won't touch:
 - Captain ★-glyph extractor reliability (match-250-benchmark test 1) — Phase-3 deferred bug, separate workstream
 - height_text source canonicalization (match-250-benchmark test 15) — needs design decision before code
 
+**Deferred follow-on (architectural, queued from Codex review series):**
+
+- **Integration test architecture redesign.** The `apps/worker/src/__tests__/*.test.ts` suite spawns the built CLI via `spawnSync` against the live shared Postgres container. For single-run scenarios (`--run-id N`) the sentinel-scoped pattern works fine. For global-iteration scenarios (`--all-runs`) the pattern is structurally hard to keep safe — Codex flagged a "the cleanup deletes too much" variant in rounds 2 and 3, and each round we patched the cleanup statement rather than the architecture. The cleanup is now correct (uses set-difference, only deletes test-written rows) but the test is still writing rows for every completed production run during the test window. Three possible architectural fixes, in increasing order of effort: (a) skip global `--all-runs` tests entirely and trust the per-run tests + the (trivial) loop semantics — cheapest, may be enough; (b) test `runAll()` programmatically against a scoped DB connection rather than spawning the CLI; (c) introduce a per-test scratch DB / transactional-rollback wrapper for the whole worker test suite. Worth opening a small brainstorm next time this surface gets touched. Not a current correctness blocker.
+
 **Backlog (smaller items, queued):**
 
 - **Real-data Phase-3 detector validation** (~3 hrs unattended): reprocess matches 250 + 968 against the new cross-team-dedup detector; confirm both goalies' `is_cpu` evidence rows all vote true (no more 1-true-1-false). Optional — unit + integration tests prove the logic; this just validates on disk.
@@ -32,8 +41,9 @@ Scope this session won't touch:
   ```
 - **Match 968 opp C row gap**: `Oatmeal15942/H.Koch` has gamertag + persona in lobby but 0 xfactors/attrs (no loadout-view captures). Either operator didn't navigate to this player during recording, or extraction failed. Investigation only; no code change identified.
 - **`docs/calibration/regression-floor-match-463.json` pnpm-prefix re-baseline** (~2 min, orthogonal): the file has shell-script header lines (`> @eanhl/worker@0.0.1 match-quality ...`) before the JSON body — leftover from a prior re-baseline that didn't use `pnpm --silent`. The `match-quality` CLI's `--json` flag prints clean JSON to stdout; re-run `pnpm --silent --filter worker match-quality --match 463 --json > docs/calibration/regression-floor-match-463.json` to clean up. Unrelated to Run-Level Quality Reporting.
+- **Three deferred minor nits across Codex rounds 2-3** (~5 min total): round-2 `intersected` dead-counter in (now-deleted) snapshot helpers — already addressed by the round-3 helper removal; round-3 `stagePath` dead branch at `apps/worker/src/run-quality-cli.ts:793-794` (after the argv guard, `stagePath` is guaranteed undefined so the ternary always evaluates to null); round-3 cleanup-vs-concurrent-writer one-line comment at `apps/worker/src/__tests__/run-quality-cli.test.ts:533-540` documenting the implicit single-writer assumption. Cosmetic, non-blocking.
 
-**Branch state:** `main` = `origin/main` = `06ec317` (Codex rounds 1-2 shipped + pushed). Active branch `fix/run-quality-codex-round-3` at HEAD `4398644` (2 commits on top of `main`). NOT yet merged, NOT yet pushed. Working tree clean. Local-only stale branches from prior workstreams: `feat/screen-classifier-v2-a1` (`88285ef`), `feat/lobby-detector-cross-team-dedup` (`62b78a0`), `feat/ocr-pipeline-phase-3a` (`af01074`) — all merged to `main`; safe to delete with `git branch -D` whenever.
+**Branch state:** `main` = `origin/main` = `a1ce0ea` (Codex rounds 1-3 all shipped + pushed). Working tree clean. No active fix branch. Local-only stale branches from prior workstreams: `feat/screen-classifier-v2-a1` (`88285ef`), `feat/lobby-detector-cross-team-dedup` (`62b78a0`), `feat/ocr-pipeline-phase-3a` (`af01074`) — all merged to `main`; safe to delete with `git branch -D` whenever.
 
 **Background reading (decision input for post-A3 workstream):**
 
