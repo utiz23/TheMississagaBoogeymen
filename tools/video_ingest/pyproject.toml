@@ -13,6 +13,10 @@ dependencies = [
   "PyYAML",
   "typer",
   "scikit-learn>=1.3",
+  # PyAV: pinned to a 13.x line. Pass-1 uses it for canonical container
+  # PTS per decoded frame; libav bumps occasionally break the wheel ABI,
+  # so pin tight and bump deliberately when the source ffmpeg changes.
+  "av>=13.0,<14",
   # game_ocr is sourced via PYTHONPATH; not pinned here to keep the
   # tools/ dirs decoupled.
 ]

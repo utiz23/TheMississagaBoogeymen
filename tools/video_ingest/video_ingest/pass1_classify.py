@@ -41,6 +41,7 @@ from game_ocr.classifier import (
     ClassifyResult,
 )
 from game_ocr.classifier import CONFIGS_DIR as _CLASSIFIER_CONFIGS_DIR
+from video_ingest.pts import PtsHealthError
 
 
 VIDEO_INGEST_CONFIGS_DIR = Path(__file__).resolve().parent / "configs"
@@ -145,15 +146,167 @@ class Segment:
     mean_color_score: float
 
 
+@dataclass
+class SampledFrame:
+    """One sampled frame, with canonical container PTS attached.
+
+    `source_time_seconds` is zero-based against the stream's first PTS so it
+    matches what ffmpeg's `-ss` argument expects downstream (Pass 2 seeks by
+    container time). `decode_order_index` is the index in PyAV's decode
+    iterator — since PyAV emits in presentation order, this is also the
+    presentation-order position of the frame in the decoded stream.
+    """
+    sample_index: int
+    source_pts: int
+    source_time_seconds: float
+    decode_order_index: int
+    image: np.ndarray  # (height, width, 3) uint8 BGR
+
+
+@dataclass
+class SamplingTelemetry:
+    """Side-channel counters captured during sampling. The orchestrator
+    writes these into the pass-1 metadata block of `segments.json` so a
+    later run-quality pass can flag VFR / dropped-frame drift.
+
+    `max_source_pts_jump_within_sample_interval` is the largest observed gap
+    between consecutive emitted samples' `source_time_seconds`. On an ideal
+    CFR source sampled at 1 fps it should be ≈ 1.0; values materially above
+    `1.0 / sample_fps` indicate dropped frames or VFR bursts.
+    """
+    decoded_frame_count: int = 0
+    sampled_frame_count: int = 0
+    frames_with_missing_pts: int = 0
+    max_source_pts_jump_within_sample_interval: float = 0.0
+    sample_period_seconds: float = 0.0
+
+
+def iter_sampled_frames(
+    video_path: Path,
+    sample_fps: float,
+    *,
+    width: int = 1920,
+    height: int = 1080,
+    telemetry: "SamplingTelemetry | None" = None,
+) -> Iterator[SampledFrame]:
+    """Decode the input video with PyAV and emit one frame per source-time
+    tick (`n / sample_fps`), with the frame's canonical container PTS
+    attached. Replaces the old `ffmpeg -vf fps=N` pipeline whose synthetic
+    resampled PTS dropped the link to the source clock.
+
+    Sampling semantics:
+      - For each emission, pick the first decoded frame whose
+        `source_time_seconds >= next_tick`, where
+        `next_tick = sample_index * (1.0 / sample_fps)`.
+      - Frames inside a tick window after one was emitted are dropped.
+      - If the source has a hole (no decoded frame at or near a tick) we
+        do NOT skip the sample slot — the next available frame past the
+        tick gets emitted with the next `sample_index`. The drift metric
+        in `telemetry` surfaces the gap so the operator can see it.
+
+    Fails closed (raises `PtsHealthError`) if any decoded frame has
+    `pts is None`. Pass 1 cannot reason about source time without PTS;
+    the upstream `pts.probe()` already screens for this on the first
+    100 packets, so reaching this fallback should be rare.
+
+    `telemetry`, if passed, is mutated in place as frames are decoded.
+    Callers read it after iteration completes.
+    """
+    import av
+
+    if telemetry is None:
+        telemetry = SamplingTelemetry()
+    telemetry.sample_period_seconds = 1.0 / sample_fps
+
+    container = av.open(str(video_path))
+    try:
+        stream = container.streams.video[0]
+        time_base = stream.time_base
+        if time_base is None:
+            raise PtsHealthError(
+                f"video stream has no time_base in {video_path.name}; "
+                f"cannot convert PTS to seconds"
+            )
+        start_pts = stream.start_time if stream.start_time is not None else 0
+
+        sample_period = 1.0 / sample_fps
+        next_tick_seconds = 0.0
+        sample_index = 0
+        last_emitted_source_time: float | None = None
+
+        decoded_idx = -1
+        for decoded_idx, frame in enumerate(container.decode(stream)):
+            if frame.pts is None:
+                telemetry.frames_with_missing_pts += 1
+                raise PtsHealthError(
+                    f"frame at decode index {decoded_idx} has no PTS in "
+                    f"{video_path.name}; Pass 1 needs canonical container "
+                    f"PTS to derive source time"
+                )
+
+            source_pts = frame.pts - start_pts
+            source_time_seconds = float(source_pts * time_base)
+
+            if source_time_seconds + 1e-9 < next_tick_seconds:
+                # Not yet at the next sample tick; drop this frame.
+                continue
+
+            # Reformat-and-convert in one step: swscale resizes + converts
+            # pixfmt to bgr24, which numpy then sees as (H, W, 3) uint8.
+            if frame.width != width or frame.height != height:
+                img = frame.reformat(
+                    width=width, height=height, format="bgr24",
+                ).to_ndarray()
+            else:
+                img = frame.to_ndarray(format="bgr24")
+            # PyAV's swscale path can produce a non-contiguous ndarray;
+            # downstream consumers (cv2, the classifier) want contiguous.
+            if not img.flags["C_CONTIGUOUS"]:
+                img = np.ascontiguousarray(img)
+            # Guard against unexpected shape from reformat (shouldn't fire
+            # but cheap to assert before it becomes a confusing IndexError
+            # in the classifier).
+            assert img.shape == (height, width, 3) and img.dtype == np.uint8, (
+                f"reformatted frame shape={img.shape} dtype={img.dtype} "
+                f"(expected ({height}, {width}, 3) uint8)"
+            )
+
+            yield SampledFrame(
+                sample_index=sample_index,
+                source_pts=source_pts,
+                source_time_seconds=source_time_seconds,
+                decode_order_index=decoded_idx,
+                image=img,
+            )
+
+            if last_emitted_source_time is not None:
+                jump = source_time_seconds - last_emitted_source_time
+                if jump > telemetry.max_source_pts_jump_within_sample_interval:
+                    telemetry.max_source_pts_jump_within_sample_interval = jump
+            last_emitted_source_time = source_time_seconds
+
+            sample_index += 1
+            next_tick_seconds = sample_index * sample_period
+
+        telemetry.decoded_frame_count = decoded_idx + 1
+        telemetry.sampled_frame_count = sample_index
+    finally:
+        container.close()
+
+
 def _iter_raw_bgr_frames(
     video_path: Path,
     sample_fps: float,
     width: int = 1920,
     height: int = 1080,
 ) -> Iterator[np.ndarray]:
-    """Stream BGR frames from ffmpeg at `sample_fps`. Each yielded frame
-    is a (height, width, 3) np.uint8 array. Caller is responsible for
-    not retaining frames across loop iterations beyond what they need."""
+    """DEPRECATED — kept only until callers migrate to `iter_sampled_frames`.
+
+    Index-derived sampling: yields BGR frames from ffmpeg's `-vf fps=N`
+    filter. The output PTS is synthetic; there's no way to map back to
+    source-video time. Will be deleted once the three call sites in
+    `orchestrator.py` and `classify_video` move to `iter_sampled_frames`.
+    """
     cmd = [
         "ffmpeg", "-v", "error",
         "-i", str(video_path),
