@@ -53,6 +53,10 @@ pnpm --filter db migrate  # Run migrations
 pnpm --filter worker reprocess            # Reprocess failed transforms
 pnpm --filter worker reprocess --dry-run  # Preview reprocessing
 pnpm --filter worker reprocess --all      # Reprocess ALL raw payloads (backfill after schema/transform change)
+pnpm --filter worker run-quality --run-id N --json        # Print run-quality report (read-only)
+pnpm --filter worker run-quality --run-id N --emit-row    # Write report row to ocr_run_quality_reports
+pnpm --filter worker run-quality --match-id N --json      # Convenience: resolve to active run
+pnpm --filter worker run-quality --all-runs --emit-row    # Backfill content-only reports for every run
 docker compose up         # Start all services (web + worker + postgres)
 docker compose up db      # Start only PostgreSQL
 ```

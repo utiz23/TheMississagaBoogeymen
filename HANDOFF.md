@@ -2,36 +2,13 @@
 
 ## To-Do
 
-**Next session (architecture workstream — recommended):** **Run-level quality reporting** per [docs/research/video-extraction-architecture-review-2026-05-28.md §6 "Metrics are not stage-oriented enough"](docs/research/video-extraction-architecture-review-2026-05-28.md) and §"Recommended Target Architecture" (line ~418). The CPU-goalie fix demonstrated the value of per-reprocess visibility — we manually queried DB rows + ran `match-quality` CLI repeatedly to understand whether each layer (detector / OR-fold / read filter / isEmptyRow) was firing correctly. Without quality reporting, future you can't easily verify the multi-layer pipeline in the wild, and future model/vendor evaluation (CV-CUDA prototype later) needs trend lines to measure against.
+**Previously queued (now shipped):** Run-level quality reporting shipped on `feat/run-level-quality-reporting` (12 commits, HEAD `e3f2d9a`). New `ocr_run_quality_reports` table + `run-quality` CLI + `_StageTimer` hooks in `reprocess.py` answer the architecture-review §6 stage-level-metrics questions per run. Not yet merged to `main`. See the 2026-05-28 session summary below.
 
-Architecture review §6 calls for a per-ingest quality report artifact that answers:
-- What did we find? (segments classified, slots emitted, evidence rows)
-- What did we skip? (CPU rows demoted, junk-gamertag rows filtered, low-quality observability)
-- What evidence was promoted? (gate decisions, blocked counts by reason)
-- What remained unresolved? (unresolved gamertags, personas, actor bindings)
-- How long did each stage take? (Pass-1 / Pass-2 / promote / consolidate / backfill)
-
-Stage-level production metrics the architecture review lists:
-- version detection accuracy
-- Pass 1 segment recall + false-positive rate
-- boundary error in seconds
-- Pass 2 frame count per segment
-- OCR field recall + precision
-- promotion precision
-- manual review burden
-- runtime per video
-- disk footprint per video
-
-Relevant existing code to read/extend:
-- `apps/worker/src/match-quality-cli.ts` — current per-match scoring; already produces layer JSON; the natural extension point
-- `apps/worker/src/reprocess.py` (Python pipeline orchestrator) — runs the create-candidate → ingest → promote → validate → activate → consolidate → backfill flow; quality report should emit at the end
-- `docs/calibration/regression-floor-match-{250,463}.json` — existing per-match snapshots; quality report is the run-time companion
-- `ocr_decoder_runs` table — quality report should attach to a specific `run_id` for traceability
+**Next session (architecture workstream — recommended):** **Phase 2: Make PTS Canonical** per [docs/research/video-extraction-architecture-review-2026-05-28.md §"Phase 2: Make PTS Canonical" (line 459)](docs/research/video-extraction-architecture-review-2026-05-28.md). The review's lead-in: Pass-1 currently derives sample time from frame index, which silently assumes an ideal CFR clock — non-ideal captures (VFR, dropped frames, container PTS skew) introduce time drift the system has no way to detect. Now that run-level quality reporting is in place to measure the impact, the next robustness fix is to make `source_pts` / `source_time_seconds` canonical in the sampled-frame record and have segment bounds derive from source time, with Pass-2 reading from the same manifest. The architecture review flags this as "robustness fix, not a polish item" (§Phase 2) and the risk table at line 589 rates time-drift on non-ideal captures as **High** severity.
 
 Scope this session won't touch:
-- Architecture #1 (canonical source timestamps) — contract change, separate workstream
-- Architecture #2 (in-memory Pass-2 hot path) — perf refactor, separate workstream
-- CV-CUDA prototype — wait until quality reporting is in place to measure against
+- Architecture Phase 3 (in-memory Pass-2 hot path) — perf refactor, separate workstream after PTS lands
+- CV-CUDA prototype — wait until PTS + hot-path are in place to measure against
 - typed_v1 baseline gates (match-250-benchmark tests 19, 20) — pre-existing, orthogonal
 - Captain ★-glyph extractor reliability (match-250-benchmark test 1) — Phase-3 deferred bug, separate workstream
 - height_text source canonicalization (match-250-benchmark test 15) — needs design decision before code
@@ -44,8 +21,9 @@ Scope this session won't touch:
   pnpm --filter worker promote-persona-alias --map "TortaaaaaaPounddddder=>TORTAAAAAAPOUNDDDDDER,WizNiewski=>WIZNIEWSKI,H.Koch=>H. KOCH"
   ```
 - **Match 968 opp C row gap**: `Oatmeal15942/H.Koch` has gamertag + persona in lobby but 0 xfactors/attrs (no loadout-view captures). Either operator didn't navigate to this player during recording, or extraction failed. Investigation only; no code change identified.
+- **`docs/calibration/regression-floor-match-463.json` pnpm-prefix re-baseline** (~2 min, orthogonal): the file has shell-script header lines (`> @eanhl/worker@0.0.1 match-quality ...`) before the JSON body — leftover from a prior re-baseline that didn't use `pnpm --silent`. The `match-quality` CLI's `--json` flag prints clean JSON to stdout; re-run `pnpm --silent --filter worker match-quality --match 463 --json > docs/calibration/regression-floor-match-463.json` to clean up. Unrelated to Run-Level Quality Reporting.
 
-**Branch state:** `main` = `origin/main` = `ed27b4c`. Working tree clean (label-studio-export.json on disk but gitignored). Local-only stale branches: `feat/screen-classifier-v2-a1` (`88285ef`) and `feat/lobby-detector-cross-team-dedup` (`ed27b4c`) — commits all in `main`; safe to delete with `git branch -D` whenever.
+**Branch state:** `main` = `origin/main` = `ed27b4c`. Active branch `feat/run-level-quality-reporting` at HEAD `e3f2d9a` (12 commits ahead of `main`, NOT yet merged, NOT yet pushed). Working tree clean (label-studio-export.json on disk but gitignored). Local-only stale branches: `feat/screen-classifier-v2-a1` (`88285ef`) and `feat/lobby-detector-cross-team-dedup` (`ed27b4c`) — commits all in `main`; safe to delete with `git branch -D` whenever.
 
 **Background reading (decision input for post-A3 workstream):**
 
@@ -55,6 +33,105 @@ Scope this session won't touch:
   - `later for stubborn weak spots`: evaluate `TAO Toolkit`
   - `future live tracking/modeling`: treat `DeepStream 8` + `TAO` as a separate video-native track, not an in-place replacement for the screenshot-first extractor
   - `ignore for primary extraction`: `Metropolis VSS`
+
+## Session Summary — 2026-05-28 (Run-Level Quality Reporting shipped)
+
+### Current status
+
+New branch `feat/run-level-quality-reporting` at HEAD `e3f2d9a` (12 commits ahead of `main`; NOT yet merged; NOT yet pushed). Phases 1-5 of the Run-Level Quality Reporting workstream are complete: schema landed, query helpers + writer wired, layer-compute extracted from `match-quality-cli` into a shared lib, dedicated `run-quality` CLI shipped with full JSON and `--emit-row` paths, `reprocess.py` wraps stages with a `_StageTimer` and emits a runtime-bearing row on best-effort, docs updated. To verify: `pnpm --filter worker run-quality --run-id <id> --json` returns `schema_version: 1` (smoked on run 584).
+
+### What was done
+
+- **Phase 1 — Schema:** new `ocr_run_quality_reports` table keyed `(run_id, scope_type, scope)` with CHECK (0..1) on all score columns + JSONB content payload. Commits `befeaec`, `a35d75b`.
+- **Phase 2 — DB layer:** `upsertRunQualityReport` writer + `getLatestActiveRunForMatch` / `getRunsNeedingQualityReport` query helpers + 5 conflict/lookup tests. Commits `d8fa9fd`, `4e305ef`.
+- **Phase 3 — Shared compute:** extracted `computeLayers` (L2 / L2.5 / L3 scoring) into `lib/quality-layers.ts` so the run CLI and the existing per-match CLI share one implementation; byte-identical match-quality output preserved for 250 + 463. Then extracted `buildDownstreamCounts` + `buildQualityFlags` into `lib/quality-inputs.ts` so the report content payload is library-grade, not CLI-coupled. Commits `3a5a8cb`, `6ccf83b`.
+- **Phase 4 — Run CLI + Python emit:** new `apps/worker/src/run-quality-cli.ts` supports `--run-id N`, `--match-id N`, `--all-runs`, `--json`, `--emit-row`, exit codes 0/1/2 for pass/fail/error. `reprocess.py` wraps each stage with `_StageTimer`, writes `/tmp/ingest-cache/run-<N>-stage-runtimes.json`, then shells out to the CLI's `--emit-row` post-pipeline (best-effort: failure logs to stderr but reprocess still exits 0). 11 integration tests on the CLI + 8 Python tests on stage timing + emit. Commits `24837d9`, `6428029`, `68adec7`, `3464a56`, `6e794fb`, `e3f2d9a`.
+- **Phase 5 — Docs:** this HANDOFF entry + new `run-quality` CLI lines added to `CLAUDE.md` commands block.
+
+### Phase-by-phase commits
+
+| SHA | Commit |
+|---|---|
+| `befeaec` | `feat(db): add ocr_run_quality_reports table for run-level quality reporting` |
+| `a35d75b` | `fix(db): add CHECK (0..1) constraints on ocr_run_quality_reports score columns` |
+| `d8fa9fd` | `feat(db): add run-quality query helpers + writer` |
+| `4e305ef` | `fix(db): tighten upsertRunQualityReport signature + conflict test + drop dead-export` |
+| `3a5a8cb` | `refactor(worker): extract computeLayers into shared lib/quality-layers.ts` |
+| `6ccf83b` | `refactor(worker): extract buildDownstreamCounts + buildQualityFlags to lib/quality-inputs.ts` |
+| `24837d9` | `feat(worker): add run-quality CLI` |
+| `6428029` | `test(worker): integration tests for run-quality CLI` |
+| `6e794fb` | `fix(worker): dedup quality-types + document totalDemoted overlap + pending_review FIXME marker` |
+| `68adec7` | `feat(video_ingest): wrap reprocess stages with _StageTimer + emit run-quality row` |
+| `3464a56` | `test(video_ingest): unit tests for reprocess stage timing + emit shell-out` |
+| `e3f2d9a` | `fix(video_ingest): clarify best-effort comment + include stdout in emit failure log` |
+
+### Why this matters
+
+The CPU-goalie fix (2026-05-29 sessions) burned hours of manual DB queries + repeated `match-quality` runs to confirm whether detector / OR-fold / read-filter / isEmptyRow were composing correctly. Without a persisted, run-keyed quality artifact, every future multi-layer fix re-pays that cost. This workstream lays the trend-line scaffold the architecture review §6 calls for: every reprocess now drops a structured row covering screens / promotions / defense / unresolved / layers / runtime per stage, so future model-vendor evaluation (CV-CUDA prototype, TAO probes) can measure deltas against a reproducible baseline instead of ad-hoc spelunking.
+
+### How to use the new artifact
+
+```bash
+set -a && source .env && set +a
+# Read-only inspect a specific run
+pnpm --silent --filter worker run-quality --run-id 584 --json | jq .layers
+# Persist the report row (best-effort idempotent upsert)
+pnpm --filter worker run-quality --run-id 584 --emit-row
+# Resolve a match's active run automatically
+pnpm --filter worker run-quality --match-id 968 --json
+# Backfill content-only reports for every run (runtime stages will be null for historical runs)
+pnpm --filter worker run-quality --all-runs --emit-row
+```
+
+Future reprocesses auto-emit the row at the end of the pipeline. Operators can re-emit any time via the CLI; the row upserts on `(run_id, scope_type, scope)`.
+
+### Test status
+
+- **New tests:** `quality-layers` 2/2, `run-quality` (db queries) 5/5, `run-quality-cli` 11/11, `reprocess-stage-timing` 8/8 (Python).
+- **Contract preserved:** byte-identical `match-quality` output for matches 250 + 463 (the shared-compute refactor is a pure extract).
+- **Smoke:** `pnpm --silent --filter worker run-quality --run-id 584 --json` returns `schema_version: 1` and a complete payload.
+- **Pre-existing failures unchanged:** the 43 pre-existing worker test failures (typed_v1 baseline + Phase-3-deferred) are orthogonal to this workstream.
+
+### Critical files
+
+New:
+- `packages/db/migrations/0050_ocr_run_quality_reports.sql`
+- `packages/db/src/schema/ocr-run-quality-reports.ts`
+- `packages/db/src/queries/run-quality.ts`
+- `packages/db/src/queries/__tests__/run-quality.test.ts`
+- `apps/worker/src/lib/quality-layers.ts`
+- `apps/worker/src/lib/quality-inputs.ts`
+- `apps/worker/src/run-quality-cli.ts`
+- `apps/worker/src/__tests__/quality-layers.test.ts`
+- `apps/worker/src/__tests__/run-quality-cli.test.ts`
+- `tools/video_ingest/tests/test_reprocess_stage_timing.py`
+
+Modified:
+- `apps/worker/src/match-quality-cli.ts` (now delegates layer-compute + downstream-counts to shared libs)
+- `apps/worker/package.json` (new `run-quality` script)
+- `packages/db/src/queries/index.ts`, `packages/db/src/schema/index.ts` (re-exports)
+- `tools/video_ingest/video_ingest/reprocess.py` (stage timing + best-effort emit-row shell-out)
+
+### Out of scope for v1 / Deferred follow-ons
+
+- **Pass-1 / Pass-2 wall separation** — v1 lumps all OCR stages into one bucket; per-stage breakdown deferred.
+- **L1 ground-truth recall metrics** — requires labeled fixture set from Phase-3 annotate-segments output; emitted as `null` for now.
+- **Explicit cross-team-dedup marker in defense layer** — currently subsumed under `is_cpu_or_demoted_combined`; the report flags this in the `notes` array.
+- **Python junk-gamertag trace** — drops are silent at the extractor; `junk_gamertag_blocks_python` is `null` in v1.
+- **Web UI inspector** — JSON-only artifact for now; no admin route to browse reports.
+- **Trend dashboards** — single-row reads work; no time-series view yet.
+- **Quality gating** — reports record pass/fail per layer but no enforcement (won't block a reprocess from activating).
+- **Match-463 calibration prefix fix** — see Backlog; orthogonal ~2-min cleanup.
+
+### Operational notes
+
+- **Best-effort emit:** if the TS CLI fails post-reprocess (DB blip, schema drift, etc.), the failure is logged to stderr but the reprocess itself still exits 0. Operators can manually re-emit any time via `pnpm --filter worker run-quality --run-id N --emit-row`.
+- **Stage-runtime tempfiles:** land at `/tmp/ingest-cache/run-<N>-stage-runtimes.json` and persist after the reprocess. They are small JSON files; operator can clean periodically (or leave; no functional harm).
+- **All-runs backfill:** historical runs will have `runtime.captured_from: "backfill"` and `runtime.stages: null` since stage timings weren't captured pre-Phase-4.
+
+### Branch state
+
+On `feat/run-level-quality-reporting` at HEAD `e3f2d9a`. NOT yet merged to `main`. NOT yet pushed to `origin`. Next operator action is at-leisure merge + push.
 
 ## Session Summary — 2026-05-29 (final: branches merged + pushed; operator drift committed; tree clean)
 
