@@ -2,7 +2,9 @@
 
 ## To-Do
 
-**Previously queued (now shipped + merged + pushed):** Run-level quality reporting shipped on `feat/run-level-quality-reporting` (14 commits), FF-merged to `main` and pushed to `origin/main` at HEAD `a8ca2b6`. Branch deleted. New `ocr_run_quality_reports` table + `run-quality` CLI + `_StageTimer` hooks in `reprocess.py` answer the architecture-review §6 stage-level-metrics questions per run. **Second-opinion review request for Codex** drafted at `/home/michal/.claude/plans/codex-review-request-run-level-quality-reporting.md` (operator to hand off or invoke `codex:rescue`). See the 2026-05-28 session summary below.
+**Previously queued (now shipped + merged + pushed):** Run-level quality reporting shipped on `feat/run-level-quality-reporting` (14 commits), FF-merged to `main` and pushed to `origin/main` at SHA `a8ca2b6`. Branch deleted. New `ocr_run_quality_reports` table + `run-quality` CLI + `_StageTimer` hooks in `reprocess.py` answer the architecture-review §6 stage-level-metrics questions per run.
+
+**Codex second-opinion review completed.** Brief at `/home/michal/.claude/plans/codex-review-request-run-level-quality-reporting.md`. Codex flagged 2 P1, 2 P2, and 1 P3 correctness findings — all 5 verified against the code and fixed on `fix/run-quality-codex-findings` (5 commits, HEAD `e933818`). Final review approved ready to FF-merge. See the 2026-05-29 (Codex follow-up) session summary below.
 
 **Next session (architecture workstream — recommended):** **Phase 2: Make PTS Canonical** per [docs/research/video-extraction-architecture-review-2026-05-28.md §"Phase 2: Make PTS Canonical" (line 459)](docs/research/video-extraction-architecture-review-2026-05-28.md). The review's lead-in: Pass-1 currently derives sample time from frame index, which silently assumes an ideal CFR clock — non-ideal captures (VFR, dropped frames, container PTS skew) introduce time drift the system has no way to detect. Now that run-level quality reporting is in place to measure the impact, the next robustness fix is to make `source_pts` / `source_time_seconds` canonical in the sampled-frame record and have segment bounds derive from source time, with Pass-2 reading from the same manifest. The architecture review flags this as "robustness fix, not a polish item" (§Phase 2) and the risk table at line 589 rates time-drift on non-ideal captures as **High** severity.
 
@@ -23,7 +25,7 @@ Scope this session won't touch:
 - **Match 968 opp C row gap**: `Oatmeal15942/H.Koch` has gamertag + persona in lobby but 0 xfactors/attrs (no loadout-view captures). Either operator didn't navigate to this player during recording, or extraction failed. Investigation only; no code change identified.
 - **`docs/calibration/regression-floor-match-463.json` pnpm-prefix re-baseline** (~2 min, orthogonal): the file has shell-script header lines (`> @eanhl/worker@0.0.1 match-quality ...`) before the JSON body — leftover from a prior re-baseline that didn't use `pnpm --silent`. The `match-quality` CLI's `--json` flag prints clean JSON to stdout; re-run `pnpm --silent --filter worker match-quality --match 463 --json > docs/calibration/regression-floor-match-463.json` to clean up. Unrelated to Run-Level Quality Reporting.
 
-**Branch state:** `main` = `origin/main` = `a8ca2b6`. Working tree clean. `feat/run-level-quality-reporting` already deleted (merged + pushed). Local-only stale branches from prior workstreams: `feat/screen-classifier-v2-a1` (`88285ef`), `feat/lobby-detector-cross-team-dedup` (`62b78a0`), `feat/ocr-pipeline-phase-3a` (`af01074`) — all merged to `main`; safe to delete with `git branch -D` whenever.
+**Branch state:** local `main` = `3e13e51` (one HANDOFF doc commit on top of `origin/main` = `a8ca2b6`). Active branch `fix/run-quality-codex-findings` at HEAD `e933818` (5 commits on top of local `main`). NOT yet merged, NOT yet pushed. Working tree clean. Local-only stale branches from prior workstreams: `feat/screen-classifier-v2-a1` (`88285ef`), `feat/lobby-detector-cross-team-dedup` (`62b78a0`), `feat/ocr-pipeline-phase-3a` (`af01074`) — all merged to `main`; safe to delete with `git branch -D` whenever.
 
 **Background reading (decision input for post-A3 workstream):**
 
@@ -33,6 +35,62 @@ Scope this session won't touch:
   - `later for stubborn weak spots`: evaluate `TAO Toolkit`
   - `future live tracking/modeling`: treat `DeepStream 8` + `TAO` as a separate video-native track, not an in-place replacement for the screenshot-first extractor
   - `ignore for primary extraction`: `Metropolis VSS`
+
+## Session Summary — 2026-05-29 (Codex review follow-up: 5 correctness fixes shipped on fix branch)
+
+### Current status
+
+Branch `fix/run-quality-codex-findings` at HEAD `e933818` (5 commits on top of local `main` = `3e13e51`). All 5 Codex review findings verified against the code and fixed. Combined spec-compliance + code-quality review approved ready to FF-merge. NOT yet merged to `main`, NOT yet pushed to `origin`.
+
+### What was done
+
+Codex returned a static cross-cutting review of the Run-Level Quality Reporting workstream with 5 findings (2 P1, 2 P2, 1 P3). All verified real and fixed.
+
+| SHA | Codex finding | Commit | Why this matters |
+|---|---|---|---|
+| `432f642` | **P1-1** `--all-runs` race vs in-progress reprocess | `fix(worker): --all-runs skips incomplete runs to prevent race with reprocess` | Without the filter, a concurrent `--all-runs --emit-row` would write a backfill row with `runtime=null` for an in-progress candidate run; reprocess.py's final emit would then conflict-without-force and silently fail, leaving the run permanently with the content-only row. Fix: `runAll()` now filters `isNotNull(completedAt)` so reprocess.py's emit is always the first writer. |
+| `643c780` | **P2-1** + **P3** scope correctness | `fix(db,worker): scope personas + total_segments to actual run` | (P2-1) `buildUnresolvedCounts.personas` filtered by match_id only, so stale snapshots from other runs inflated this run's count — now joins through `ocr_extractions.run_id`. (P3) `total_segments` hot column actually stored `body.screens.totals.frames` (per-extraction). Added `countSegmentsByRun` helper that queries `ocr_segments` directly; body now exposes both `frames` and `segments`; hot column writes the real segment count. |
+| `97bd2c3` | **P2-2** cross-team-dupes naming | `refactor(db,worker): rename cross_team_dupes_inferred → segment_level_heuristic` | TS heuristic groups by `segmentId`, but Python's `_demote_cross_team_duplicates` is per-frame on a single `subjects` list. Same-tag pairs that never coexisted in one frame can still appear in the same segment. Renamed the body field to `cross_team_dupes_segment_level_heuristic` + updated `notes` to explicitly contrast segment-level vs frame-level. No SQL change. |
+| `d4d567c` | **P1-2** schema | `feat(db): relax NOT NULL on layer hot columns + migration 0051` | Migration 0051 drops `NOT NULL` from `overall_pass`, `l2_score`, `l2_lineup_score`, `l3_score`. The CHECK (0..1) constraints from 0050 continue to permit NULL (NULL passes a BETWEEN-CHECK as UNKNOWN). Idempotent ALTER COLUMN. Schema file updated to match. |
+| `e933818` | **P1-2** behavior | `feat(worker): only compute layer scores when run is active (P1-2)` | Layer scores via `computeLayers(matchId, …)` only reflect a run's actual contribution when that run IS the active run. For inactive / superseded runs (`--all-runs` backfill), the body now sets `layers.computed = false` and l2/l2_lineup/l3 are all `{score: null, pass: null, notes: 'not computed: run is not active for match N (layers reflect canonical state)'}`. Hot columns mirror null. L1 unchanged (always null/null/ground-truth-pending). |
+
+### Test status
+
+- `run-quality-cli.test.js`: 15/15 pass (was 11 originally, +4 new)
+- `run-quality.test.js` (db queries): 7/7 pass (was 5 originally, +2 new)
+- `quality-layers.test.js`: 2/2 pass (untouched)
+- Byte-identical `match-quality` contract for matches 250 + 463: zero diff (the layer-compute lib is shared with `match-quality-cli` and its semantics for the canonical/active-match path are unchanged).
+- Live smoke: active run 584 → `computed: true, l2_score: 0.83928…, overall_pass: false`; inactive run 556 → `computed: false, l2_score: null, overall_pass: null`.
+
+### Why this matters
+
+The Codex review caught two real bugs that would have silently corrupted the workstream's stated purpose:
+1. **P1-1 race:** any operator workflow that ran `--all-runs --emit-row` while a reprocess was active could permanently lose the runtime-bearing row.
+2. **P1-2 layer-scope:** every historical run's stored layer scores would have been the current canonical scores, breaking decoder-version comparison and CV-CUDA trend analysis — the workstream's two most-cited motivations.
+
+Plus two correctness gaps (P2-1 personas leak across runs, P3 misnamed segment count) and one naming clarity issue (P2-2). All fixed surgically with no Python touched, no shared-lib refactor, and the byte-identical match-quality contract preserved.
+
+### Critical files
+
+Modified:
+- `apps/worker/src/run-quality-cli.ts`
+- `apps/worker/src/__tests__/run-quality-cli.test.ts`
+- `packages/db/src/queries/run-quality.ts`
+- `packages/db/src/queries/__tests__/run-quality.test.ts`
+- `packages/db/src/schema/ocr-run-quality-reports.ts`
+
+Added:
+- `packages/db/migrations/0051_ocr_run_quality_reports_nullable_layers.sql`
+
+### Operational notes
+
+- The `--all-runs` skip-incomplete behavior is now logged: `run-quality: --all-runs iterating N completed run(s) (incomplete runs skipped)`.
+- The new `layers.computed: boolean` flag is the single discriminator for whether the layer scores can be trusted as run-scoped. Reports written before 0051 have non-null layer scores AND no `computed` flag in the JSONB body (since their schema_version was still 1); future tooling reading historical reports should treat absent `computed` as "unknown" rather than assume `true`.
+- Migration 0051 is idempotent — re-running it against an already-nullable column is a no-op.
+
+### Branch state
+
+On `fix/run-quality-codex-findings` at HEAD `e933818`. Local `main` is at `3e13e51` (one HANDOFF doc commit ahead of `origin/main` = `a8ca2b6`). After FF: `main` → `e933818`, 6 commits ahead of `origin`. Operator decision pending: FF + push, or hold for further review.
 
 ## Session Summary — 2026-05-28 (Run-Level Quality Reporting shipped + merged + pushed)
 
