@@ -12,6 +12,8 @@
 import { db, matchEvents, playerLoadoutSnapshots } from '@eanhl/db'
 import { and, eq, sql } from 'drizzle-orm'
 
+import { type DownstreamRow, type QualityFlag } from './quality-inputs.js'
+
 /**
  * L1/L2/L3 pass thresholds. L1 is currently unused at runtime (L1 scoring
  * requires labeled-fixture ground truth that doesn't exist yet) but is kept
@@ -22,24 +24,13 @@ export const L2_THRESHOLD = 0.99
 export const L3_THRESHOLD = 0.99
 
 /**
- * Minimal shape of the inputs `computeLayers` needs. Kept narrow so the
- * function can be called from either the match-quality or the future
- * run-quality CLI without dragging the full interface graph along.
+ * `DownstreamRow` and `QualityFlag` are the minimal shapes `computeLayers`
+ * needs. They are owned by `quality-inputs.ts` (the producer of these rows
+ * via `buildDownstreamCounts` / `buildQualityFlags`); `quality-layers.ts` is
+ * the consumer. Re-imported here so a future field addition cannot silently
+ * disagree between the two modules.
  */
-export interface DownstreamRow {
-  table: string
-  actual: number
-  expected: number | null
-  reviewed: number
-  notes: string
-}
-
-export interface QualityFlag {
-  classId: 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G'
-  severity: 'fail' | 'warn'
-  message: string
-  evidence?: string
-}
+export { type DownstreamRow, type QualityFlag } from './quality-inputs.js'
 
 export interface LayerScores {
   l1: { score: number | null; pass: boolean | null; notes: string }

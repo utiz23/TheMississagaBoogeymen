@@ -431,6 +431,9 @@ async function buildReportBody(run: DecoderRunRow, opts: BuildReportOptions): Pr
   // computed as `max(0, frames - reviewed)` because the screen helper
   // only exposes frames + reviewed + ok + err (not the review_status
   // enum breakdown).
+  // FIXME(schema:pending_review-buckets): when buildScreenTableByRun gains
+  //   explicit review_status bucket counts (rejected vs pending_review),
+  //   replace this approximation with COUNT(*) FILTER (WHERE review_status = 'pending_review').
   let totalFrames = 0
   let totalOk = 0
   let totalErr = 0
@@ -501,6 +504,12 @@ function deriveColumns(body: ReportBody): {
   totalDemoted: number
   totalUnresolved: number
 } {
+  // NOTE(totalDemoted-overlap): this sum may double-count a single evidence
+  //   row that hits multiple defense layers (e.g. an is_cpu=true row whose
+  //   promotion also blocked on hard_fields). The per-layer breakdown in
+  //   `body.defense_layers` keeps the underlying counts intact (no info
+  //   loss), so this is a column-level approximation, not an authoritative
+  //   total. Future schema/observability work should grep this marker.
   const totalDemoted =
     body.defense_layers.is_cpu_or_demoted_combined +
     body.defense_layers.hard_field_blocks +
