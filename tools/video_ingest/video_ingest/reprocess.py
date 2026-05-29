@@ -463,6 +463,21 @@ def reprocess(
     #     @eanhl/worker run-quality --run-id N --emit-row --stage-runtimes
     #     <path>` manually if the file is still on disk, or `--all-runs
     #     --emit-row` for a content-only retroactive report.
+    #
+    #     --force is always passed: completed_at gets stamped during the
+    #     activate step (step 7) so a concurrent `--all-runs --emit-row`
+    #     can sneak in and write a content-only backfill row during steps
+    #     8-10. Without --force, our final emit (the real source-of-truth
+    #     path — we have the actual --stage-runtimes) would conflict and
+    #     the best-effort try/except would swallow it, permanently leaving
+    #     the backfill row behind. With --force, reprocess always wins.
+    #     This is safe because (a) reprocess.py IS the source-of-truth
+    #     path for this run's quality report, and (b) the writer's
+    #     ON CONFLICT DO UPDATE preserves existing runtime fields when
+    #     fed nulls (see upsertRunQualityReport in
+    #     packages/db/src/queries/run-quality.ts), so a backfill row
+    #     written between activate and this emit can't destroy our
+    #     measured runtime even if it landed first.
     total_wall_ms = int(sum(stages.values()))
     stage_runtimes_path = (
         DEFAULT_INGEST_CACHE / f"run-{new_run_id}-stage-runtimes.json"
@@ -498,6 +513,7 @@ def reprocess(
                 "pnpm", "--filter", "@eanhl/worker", "run-quality",
                 "--run-id", str(new_run_id),
                 "--emit-row",
+                "--force",
                 "--stage-runtimes", str(stage_runtimes_path),
             ],
             cwd=REPO_ROOT,

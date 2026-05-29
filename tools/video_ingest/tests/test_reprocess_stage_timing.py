@@ -231,6 +231,15 @@ def test_full_pipeline_writes_stage_runtimes_file_and_invokes_emit(
     assert "--stage-runtimes" in emit_cmd
     sr_idx = emit_cmd.index("--stage-runtimes")
     assert emit_cmd[sr_idx + 1] == str(expected_path)
+    # --force is required: completed_at is stamped during activate (step 7)
+    # so a concurrent `--all-runs --emit-row` can write a backfill row
+    # during steps 8-10. Without --force, our source-of-truth emit would
+    # conflict and the best-effort try/except would swallow it, leaving
+    # the backfill row in place. See reprocess.py docstring + Codex R2 P1.
+    assert "--force" in emit_cmd, (
+        "reprocess.py must pass --force on the final emit to win race "
+        "against backfill (Codex R2 P1). See reprocess.py step 10."
+    )
 
 
 def test_emit_subprocess_failure_does_not_propagate(
