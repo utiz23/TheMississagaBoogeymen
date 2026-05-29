@@ -4,7 +4,12 @@
 
 **Previously queued (now shipped + merged + pushed):** Run-level quality reporting shipped on `feat/run-level-quality-reporting` (14 commits), FF-merged to `main` and pushed to `origin/main` at SHA `a8ca2b6`. Branch deleted. New `ocr_run_quality_reports` table + `run-quality` CLI + `_StageTimer` hooks in `reprocess.py` answer the architecture-review §6 stage-level-metrics questions per run.
 
-**Codex second-opinion review completed.** Brief at `/home/michal/.claude/plans/codex-review-request-run-level-quality-reporting.md`. Codex flagged 2 P1, 2 P2, and 1 P3 correctness findings — all 5 verified against the code and fixed on `fix/run-quality-codex-findings` (5 commits, HEAD `e933818`). Final review approved ready to FF-merge. See the 2026-05-29 (Codex follow-up) session summary below.
+**Codex second-opinion review completed (two rounds).** Brief at `/home/michal/.claude/plans/codex-review-request-run-level-quality-reporting.md`.
+
+- **Round 1:** Codex flagged 2 P1, 2 P2, and 1 P3 correctness findings — all 5 verified and fixed on `fix/run-quality-codex-findings` (6 commits including HANDOFF update), FF-merged + pushed to `origin/main` at SHA `9c08c86`. Branch deleted.
+- **Round 2:** Codex follow-up flagged 1 residual P1 (activate-to-emit race window) + 2 P2s (runtime wipe under `--all-runs --force`, destructive integration tests). All 3 verified and fixed on `fix/run-quality-codex-round-2` (3 commits, HEAD `e2eb5dc`). Review approved ready to FF-merge.
+
+See the 2026-05-29 session summaries below.
 
 **Next session (architecture workstream — recommended):** **Phase 2: Make PTS Canonical** per [docs/research/video-extraction-architecture-review-2026-05-28.md §"Phase 2: Make PTS Canonical" (line 459)](docs/research/video-extraction-architecture-review-2026-05-28.md). The review's lead-in: Pass-1 currently derives sample time from frame index, which silently assumes an ideal CFR clock — non-ideal captures (VFR, dropped frames, container PTS skew) introduce time drift the system has no way to detect. Now that run-level quality reporting is in place to measure the impact, the next robustness fix is to make `source_pts` / `source_time_seconds` canonical in the sampled-frame record and have segment bounds derive from source time, with Pass-2 reading from the same manifest. The architecture review flags this as "robustness fix, not a polish item" (§Phase 2) and the risk table at line 589 rates time-drift on non-ideal captures as **High** severity.
 
@@ -25,7 +30,7 @@ Scope this session won't touch:
 - **Match 968 opp C row gap**: `Oatmeal15942/H.Koch` has gamertag + persona in lobby but 0 xfactors/attrs (no loadout-view captures). Either operator didn't navigate to this player during recording, or extraction failed. Investigation only; no code change identified.
 - **`docs/calibration/regression-floor-match-463.json` pnpm-prefix re-baseline** (~2 min, orthogonal): the file has shell-script header lines (`> @eanhl/worker@0.0.1 match-quality ...`) before the JSON body — leftover from a prior re-baseline that didn't use `pnpm --silent`. The `match-quality` CLI's `--json` flag prints clean JSON to stdout; re-run `pnpm --silent --filter worker match-quality --match 463 --json > docs/calibration/regression-floor-match-463.json` to clean up. Unrelated to Run-Level Quality Reporting.
 
-**Branch state:** local `main` = `3e13e51` (one HANDOFF doc commit on top of `origin/main` = `a8ca2b6`). Active branch `fix/run-quality-codex-findings` at HEAD `e933818` (5 commits on top of local `main`). NOT yet merged, NOT yet pushed. Working tree clean. Local-only stale branches from prior workstreams: `feat/screen-classifier-v2-a1` (`88285ef`), `feat/lobby-detector-cross-team-dedup` (`62b78a0`), `feat/ocr-pipeline-phase-3a` (`af01074`) — all merged to `main`; safe to delete with `git branch -D` whenever.
+**Branch state:** `main` = `origin/main` = `9c08c86` (Codex round 1 fixes shipped + pushed). Active branch `fix/run-quality-codex-round-2` at HEAD `e2eb5dc` (3 commits on top of `main`). NOT yet merged, NOT yet pushed. Working tree clean. Local-only stale branches from prior workstreams: `feat/screen-classifier-v2-a1` (`88285ef`), `feat/lobby-detector-cross-team-dedup` (`62b78a0`), `feat/ocr-pipeline-phase-3a` (`af01074`) — all merged to `main`; safe to delete with `git branch -D` whenever.
 
 **Background reading (decision input for post-A3 workstream):**
 
@@ -35,6 +40,56 @@ Scope this session won't touch:
   - `later for stubborn weak spots`: evaluate `TAO Toolkit`
   - `future live tracking/modeling`: treat `DeepStream 8` + `TAO` as a separate video-native track, not an in-place replacement for the screenshot-first extractor
   - `ignore for primary extraction`: `Metropolis VSS`
+
+## Session Summary — 2026-05-29 (Codex round 2: 3 follow-on fixes for residual race + runtime wipe + destructive tests)
+
+### Current status
+
+Branch `fix/run-quality-codex-round-2` at HEAD `e2eb5dc` (3 commits on top of `main` = `9c08c86`). All 3 Codex round-2 findings verified real and fixed. Combined spec-compliance + code-quality review approved ready to FF-merge. NOT yet merged, NOT yet pushed.
+
+### What was done
+
+After round 1's fixes landed + pushed at `9c08c86`, Codex performed a second static review and flagged 3 more findings, all related to the lifecycle interaction between real reprocess runs and backfill mode.
+
+| SHA | Codex finding | Why this matters |
+|---|---|---|
+| `ae28206` | **P1 residual race window** between activate and final emit | `decoder-runs-cli activate` stamps `completed_at`, but `reprocess.py` still runs stages 8 (consolidate), 9 (backfill-event-actor), and 10 (final emit) after. During that ~30-60 sec window the run looks "completed" to `--all-runs`, so a concurrent backfill can race-write a content-only row, then reprocess.py's emit conflicts-without-force and best-effort fails — leaving the run permanently with the wrong row. Fix: reprocess.py emit now always passes `--force`. Combined with the COALESCE preservation in commit 2, this means real reprocess always wins the race AND backfill physically cannot destroy measured runtime. |
+| `1675fbb` | **P2 runtime wipe under `--all-runs --force`** | `upsertRunQualityReport`'s `.onConflictDoUpdate` wrote all columns unconditionally — including `total_wall_ms: null` and the body's `report.runtime` — when force-updating without `--stage-runtimes`. A backfill refresh could destroy measured runtime data from a prior real reprocess. Fix: `totalWallMs` set clause now uses `COALESCE(EXCLUDED.total_wall_ms, ocr_run_quality_reports.total_wall_ms)`; `report` set clause uses a CASE that preserves the existing `runtime` sub-object via `jsonb_set` when the new body has `runtime.stages = null`. Triple-COALESCE fallback `'null'::jsonb` guards legacy rows. Two new tests (matchIds 9221, 9222) lock the contract: backfill preserves measured runtime; real-reprocess overwrites a prior measurement. |
+| `e2eb5dc` | **P2 destructive integration tests on live DB** | Two `--all-runs` tests in `run-quality-cli.test.ts` previously ran against every decoder run on the live DB and cleaned up only non-sentinel rows. The destructive window was contained by commit 2 (runtime preserved), but the test pattern was still loose. Fix: new `snapshotProductionRuntime` + `assertRuntimeSnapshotUnchanged` helpers capture `{run_id, total_wall_ms, report->'runtime'}` for non-sentinel rows before each `--all-runs` test and assert byte-identical equality on the intersection after. Proves no permanent mutation of production-run report data. |
+
+### Test status
+
+- `run-quality.test.js` (db queries): **9/9 pass** (was 7/7 — added 2 runtime-preservation tests)
+- `run-quality-cli.test.js`: **15/15 pass** (count unchanged; both `--all-runs` tests now run with snapshot+assert safety hooks)
+- `quality-layers.test.js`: **2/2 pass** (untouched)
+- Python `test_reprocess_stage_timing.py` + `test_reprocess_cli.py`: **17 passed, 2 skipped** (the existing argv assertion was updated to expect `--force`)
+- Byte-identical `match-quality` contract for match 250: **zero diff** vs `regression-floor-match-250.json`
+- Active-run smoke: `computed: true` confirmed
+
+### Why this matters
+
+Round 1 narrowed the race window from "any concurrent backfill" to "any concurrent backfill against an in-progress reprocess (completed_at NOT NULL)." Round 2 closes the remaining window via `--force` + COALESCE preservation. Real reprocess writes are now structurally protected against backfill clobbering. The destructive-test fix turns a footgun into a hardened safety contract — the integration suite proves it can't mutate production data even by accident.
+
+The minor open nit from the review: `assertRuntimeSnapshotUnchanged` has a dead `intersected` counter with a comment that overstates what the code does. Non-blocking; defer to a future minor cleanup.
+
+### Critical files
+
+Modified:
+- `tools/video_ingest/video_ingest/reprocess.py` (`--force` in emit argv + inline comment update)
+- `tools/video_ingest/tests/test_reprocess_stage_timing.py` (argv assertion includes `--force`)
+- `packages/db/src/queries/run-quality.ts` (DO UPDATE clause uses COALESCE + CASE; docblock expanded)
+- `packages/db/src/queries/__tests__/run-quality.test.ts` (2 new runtime-preservation tests at sentinels 9221, 9222)
+- `apps/worker/src/__tests__/run-quality-cli.test.ts` (snapshot helpers + applied to both `--all-runs` tests)
+
+### Operational notes
+
+- Real reprocess's `--force` flag is structurally safe: the runtime preservation in upsert (commit 2) ensures backfill can never destroy measured data. The only "destructive" interaction is the real reprocess overwriting a prior backfill row — which is the correct semantic.
+- Legacy reports written before commit 2 landed may have `report.runtime = null`. The triple-COALESCE fallback in the CASE expression guards against `jsonb_set` returning NULL in that case. Forward-compatible.
+- Future tooling that reads `total_wall_ms` should still null-check (the field is correctly nullable; a row may be content-only by intent).
+
+### Branch state
+
+On `fix/run-quality-codex-round-2` at HEAD `e2eb5dc`. `main` = `origin/main` = `9c08c86`. After FF: `main` → `e2eb5dc`, 3 commits ahead of origin. Operator decision pending: FF + push, or hold.
 
 ## Session Summary — 2026-05-29 (Codex review follow-up: 5 correctness fixes shipped on fix branch)
 
