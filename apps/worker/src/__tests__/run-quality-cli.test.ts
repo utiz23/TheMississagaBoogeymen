@@ -36,7 +36,11 @@ import {
 import { eq, inArray } from 'drizzle-orm'
 
 const GAME_TITLE_ID = 1 // NHL 26
-const SENTINEL_MATCH_IDS = [9301, 9302, 9303, 9304, 9305, 9306, 9307, 9308, 9309, 9310] as const
+const SENTINEL_MATCH_IDS = [
+  9301, 9302, 9303, 9304, 9305, 9306, 9307, 9308, 9309, 9310,
+  // P1-1 race-vs-reprocess test
+  9311, 9312, 9313, 9314, 9315,
+] as const
 
 const REPO_ROOT = path.resolve(process.cwd())
 const CLI_PATH = path.resolve(REPO_ROOT, 'apps/worker/dist/run-quality-cli.js')
@@ -100,7 +104,16 @@ interface SeededFixture {
   extractionId: number
 }
 
-async function seedFixture(matchId: number, isActive: boolean = true): Promise<SeededFixture> {
+async function seedFixture(
+  matchId: number,
+  isActive: boolean = true,
+  /**
+   * Defaults to `new Date()` so the seeded run is treated as "completed" by
+   * the P1-1 `--all-runs` filter. Pass `null` to simulate a mid-pipeline run
+   * (the race-vs-reprocess scenario the filter was added to defend against).
+   */
+  completedAt: Date | null = new Date(),
+): Promise<SeededFixture> {
   await db.insert(matches).values({
     id: matchId,
     gameTitleId: GAME_TITLE_ID,
@@ -127,6 +140,7 @@ async function seedFixture(matchId: number, isActive: boolean = true): Promise<S
       weightsHash: `wh-${matchId}`,
       configHash: `ch-${matchId}`,
       isActive,
+      completedAt,
       notes: `run-quality-cli sentinel ${matchId}`,
     })
     .returning({ id: ocrDecoderRuns.id })
@@ -584,4 +598,77 @@ void test('hot-column mirrors: overall_pass + scores + counters match the body',
     body.defense_layers.junk_gamertag_blocks_ts
   assert.equal(row!.totalDemoted, expectedDemoted)
   assert.equal(row!.totalUnresolved, body.unresolved.totals.all)
+})
+
+void test('--all-runs skips runs with completed_at IS NULL (race-vs-reprocess defense)', async (t) => {
+  if (!process.env['DATABASE_URL']) {
+    t.skip('DATABASE_URL not set')
+    return
+  }
+
+  // Seed a run that is still mid-pipeline: completed_at = NULL. Without the
+  // P1-1 filter, --all-runs would race against the in-flight reprocess and
+  // write a runtime=null backfill row first. With the filter, the row is
+  // skipped until reprocess sets completed_at.
+  const f = await seedFixture(9311, /* isActive */ true, /* completedAt */ null)
+
+  // Snapshot non-sentinel runs so we can clean up any prod rows we touch.
+  const SENTINEL_RUN_IDS = new Set<number>([f.runId])
+  const allRunsBefore = await db.select({ id: ocrDecoderRuns.id }).from(ocrDecoderRuns)
+  const nonSentinelRunIds = allRunsBefore
+    .map((r) => r.id)
+    .filter((id) => !SENTINEL_RUN_IDS.has(id))
+
+  try {
+    const first = runCli(['--all-runs', '--emit-row', '--force'])
+    assert.equal(
+      first.status,
+      0,
+      `expected exit 0; stderr-tail: ${first.stderr.split('\n').slice(-5).join(' | ')}`,
+    )
+    assert.match(
+      first.stderr,
+      /incomplete runs skipped/i,
+      `expected stderr to mention skip behavior; got: ${first.stderr.split('\n').slice(0, 3).join(' | ')}`,
+    )
+
+    const beforeRows = await db
+      .select({ id: ocrRunQualityReports.id })
+      .from(ocrRunQualityReports)
+      .where(eq(ocrRunQualityReports.runId, f.runId))
+    assert.equal(
+      beforeRows.length,
+      0,
+      `expected 0 report rows for incomplete run ${f.runId}; got ${beforeRows.length}`,
+    )
+
+    // Now mark the run completed and re-run — the row should be written.
+    await db
+      .update(ocrDecoderRuns)
+      .set({ completedAt: new Date() })
+      .where(eq(ocrDecoderRuns.id, f.runId))
+
+    const second = runCli(['--all-runs', '--emit-row', '--force'])
+    assert.equal(
+      second.status,
+      0,
+      `expected exit 0; stderr-tail: ${second.stderr.split('\n').slice(-5).join(' | ')}`,
+    )
+
+    const afterRows = await db
+      .select({ id: ocrRunQualityReports.id })
+      .from(ocrRunQualityReports)
+      .where(eq(ocrRunQualityReports.runId, f.runId))
+    assert.equal(
+      afterRows.length,
+      1,
+      `expected 1 report row after completed_at is set; got ${afterRows.length}`,
+    )
+  } finally {
+    if (nonSentinelRunIds.length > 0) {
+      await db
+        .delete(ocrRunQualityReports)
+        .where(inArray(ocrRunQualityReports.runId, nonSentinelRunIds))
+    }
+  }
 })

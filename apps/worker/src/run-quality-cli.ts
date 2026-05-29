@@ -49,7 +49,7 @@ import {
   type DefenseLayerCounters,
   type UnresolvedCounts,
 } from '@eanhl/db/queries'
-import { asc, eq } from 'drizzle-orm'
+import { asc, eq, isNotNull } from 'drizzle-orm'
 import { computeLayers, type LayerScores } from './lib/quality-layers.js'
 import { buildDownstreamCounts, buildQualityFlags } from './lib/quality-inputs.js'
 
@@ -676,6 +676,11 @@ async function runAll(argv: string[]): Promise<void> {
   const stagePath = getFlag(argv, 'stage-runtimes')
   const runtime = stagePath ? loadStageRuntimes(stagePath) : null
 
+  // Skip runs with completed_at IS NULL — those are mid-pipeline reprocess
+  // candidates. Including them creates a race with reprocess.py's final emit:
+  // the backfill could win first (runtime=null), then reprocess's --force-less
+  // final emit hits ON CONFLICT and fails best-effort-silently, leaving the
+  // run permanently stuck on the content-only backfill row. See Codex P1-1.
   const runs = await db
     .select({
       id: ocrDecoderRuns.id,
@@ -688,9 +693,12 @@ async function runAll(argv: string[]): Promise<void> {
       completedAt: ocrDecoderRuns.completedAt,
     })
     .from(ocrDecoderRuns)
+    .where(isNotNull(ocrDecoderRuns.completedAt))
     .orderBy(asc(ocrDecoderRuns.id))
 
-  process.stderr.write(`run-quality: --all-runs iterating ${runs.length} run(s)\n`)
+  process.stderr.write(
+    `run-quality: --all-runs iterating ${runs.length} completed run(s) (incomplete runs skipped)\n`,
+  )
 
   let written = 0
   let skipped = 0
