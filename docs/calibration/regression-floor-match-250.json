@@ -13,8 +13,8 @@
   "screens": [
     {
       "screenType": "player_loadout_view",
-      "frames": 146,
-      "ok": 146,
+      "frames": 185,
+      "ok": 185,
       "err": 0,
       "reviewed": 11,
       "avgConf": 0.953,
@@ -103,11 +103,11 @@
     },
     {
       "screenType": "pre_game_lobby_state_2",
-      "frames": 283,
-      "ok": 283,
+      "frames": 318,
+      "ok": 318,
       "err": 0,
       "reviewed": 3,
-      "avgConf": 0.925,
+      "avgConf": 0.923,
       "minConf": 0.62,
       "maxConf": 0.982
     }
@@ -164,22 +164,22 @@
     },
     {
       "table": "player_loadout_snapshots (reviewed)",
-      "actual": 11,
+      "actual": 10,
       "expected": 10,
-      "reviewed": 11,
+      "reviewed": 10,
       "notes": "consolidator anchors"
     },
     {
       "table": "player_loadout_attributes",
       "actual": 230,
-      "expected": 253,
+      "expected": 230,
       "reviewed": 230,
       "notes": "23 attrs × reviewed slots"
     },
     {
       "table": "player_loadout_x_factors",
       "actual": 30,
-      "expected": 33,
+      "expected": 30,
       "reviewed": 30,
       "notes": "3 x-factors × reviewed slots"
     }
@@ -224,8 +224,8 @@
   ],
   "provenance": {
     "capturedAt": {
-      "earliest": "2026-05-28T18:22:37.459Z",
-      "latest": "2026-05-28T18:22:37.459Z"
+      "earliest": "2026-05-28T23:07:12.918Z",
+      "latest": "2026-05-29T02:10:28.897Z"
     },
     "sources": [
       {
@@ -238,7 +238,7 @@
       }
     ],
     "confidence": {
-      "canonical": 0.9090909090909091,
+      "canonical": 1,
       "tiered": 0.1,
       "attribute": 0.9521739130434783
     }
@@ -260,9 +260,9 @@
   "pending": [
     {
       "screenType": "player_loadout_view",
-      "pending": 135,
+      "pending": 174,
       "reviewed": 11,
-      "total": 146
+      "total": 185
     },
     {
       "screenType": "post_game_action_tracker",
@@ -314,9 +314,9 @@
     },
     {
       "screenType": "pre_game_lobby_state_2",
-      "pending": 280,
+      "pending": 315,
       "reviewed": 3,
-      "total": 283
+      "total": 318
     }
   ],
   "layers": {
@@ -334,16 +334,16 @@
       "deductions": 1
     },
     "l2_lineup": {
-      "score": 0.9090909090909091,
+      "score": 0.95,
       "pass": false,
-      "notes": "40/44 fields populated across 11 reviewed slot(s) (gamertag + persona + position + build_canonical)",
-      "populated": 40,
-      "expected": 44
+      "notes": "38/40 fields populated across 10 reviewed slot(s) (gamertag + persona + position + build_canonical)",
+      "populated": 38,
+      "expected": 40
     },
     "l3": {
-      "score": 0.9834710743801651,
-      "pass": false,
-      "notes": "gaps: player_loadout_attributes=230/253, player_loadout_x_factors=30/33"
+      "score": 1,
+      "pass": true,
+      "notes": "all gates met"
     },
     "overall": {
       "pass": false
