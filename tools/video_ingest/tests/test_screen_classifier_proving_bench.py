@@ -96,7 +96,7 @@ def _run_v2_pipeline_per_frame(clip_path: Path) -> list[str]:
     from game_ocr.regex_priors import load_regex_priors
     from game_ocr.screen_classifier import load_screen_classifier
     from game_ocr.state_machine import load_state_machine
-    from video_ingest.pass1_classify import _iter_raw_bgr_frames
+    from video_ingest.pass1_classify import iter_sampled_frames
     from video_ingest.pass1_segment import decode_segments_v2
 
     sm = load_state_machine("nhl26")
@@ -115,10 +115,10 @@ def _run_v2_pipeline_per_frame(clip_path: Path) -> list[str]:
     ocr = RapidOCRBackend(use_gpu=False)
 
     feats = []
-    for frame in _iter_raw_bgr_frames(clip_path, sample_fps=1.0):
+    for sf in iter_sampled_frames(clip_path, sample_fps=1.0):
         feats.append(
             compute_frame_features_v2_from_image(
-                frame, regex_priors=regex_priors, ocr_backend=ocr,
+                sf.image, regex_priors=regex_priors, ocr_backend=ocr,
             )
         )
     segments = decode_segments_v2(

@@ -133,17 +133,34 @@ class FrameClassification:
     color_score: float
     color_class: str
     anchor_text: str
+    # Canonical-PTS fields populated by the new PyAV sampler. Optional with
+    # None defaults so callers that still construct via the deprecated
+    # ffmpeg-subprocess path don't trip until the call-site flip lands.
+    # `seconds` and `source_time_seconds` agree once the flip ships; both
+    # are kept (the former for back-compat with consumers like annotate.py
+    # that read `.seconds`).
+    sample_index: int | None = None
+    source_pts: int | None = None
+    source_time_seconds: float | None = None
+    decode_order_index: int | None = None
 
 
 @dataclass
 class Segment:
     start_index: int          # inclusive
     end_index: int            # inclusive
-    start_seconds: float      # inclusive (start_index / sample_fps)
-    end_seconds: float        # exclusive ((end_index + 1) / sample_fps)
+    start_seconds: float      # inclusive — derived from source PTS once the
+                              # segment builders flip; until then, still
+                              # equal to `start_index / sample_fps`.
+    end_seconds: float        # exclusive — same migration story as above.
     screen_type: str
     frame_count: int
     mean_color_score: float
+    # Canonical-PTS fields. Optional + None default so old segments.json
+    # files (which lack these keys) still pass `Segment(**dict)` in
+    # `load_segments_json`. New runs populate them from `SampledFrame`.
+    source_start_seconds: float | None = None
+    source_end_seconds: float | None = None
 
 
 @dataclass
@@ -294,63 +311,36 @@ def iter_sampled_frames(
         container.close()
 
 
-def _iter_raw_bgr_frames(
-    video_path: Path,
-    sample_fps: float,
-    width: int = 1920,
-    height: int = 1080,
-) -> Iterator[np.ndarray]:
-    """DEPRECATED — kept only until callers migrate to `iter_sampled_frames`.
-
-    Index-derived sampling: yields BGR frames from ffmpeg's `-vf fps=N`
-    filter. The output PTS is synthetic; there's no way to map back to
-    source-video time. Will be deleted once the three call sites in
-    `orchestrator.py` and `classify_video` move to `iter_sampled_frames`.
-    """
-    cmd = [
-        "ffmpeg", "-v", "error",
-        "-i", str(video_path),
-        "-vf", f"fps={sample_fps},scale={width}:{height}",
-        "-f", "rawvideo",
-        "-pix_fmt", "bgr24",
-        "pipe:1",
-    ]
-    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE)
-    assert proc.stdout is not None
-    frame_size = width * height * 3
-    try:
-        while True:
-            buf = proc.stdout.read(frame_size)
-            if not buf or len(buf) < frame_size:
-                break
-            yield np.frombuffer(buf, dtype=np.uint8).reshape(height, width, 3)
-    finally:
-        proc.stdout.close()
-        proc.wait()
-        if proc.returncode != 0:
-            raise RuntimeError(f"ffmpeg exited {proc.returncode} for {video_path}")
-
-
 def classify_video(
     video_path: Path,
     classifier: Classifier,
     config: Pass1Config,
     *,
     on_frame: Callable[[FrameClassification], None] | None = None,
+    telemetry: "SamplingTelemetry | None" = None,
 ) -> list[FrameClassification]:
     """Run classifier on every Pass-1-sampled frame. Returns the full
     per-frame table. `on_frame` is a progress hook (called once per frame).
+    `telemetry`, if passed, is filled in with PTS drift counters during
+    sampling (the orchestrator drains it into the `segments.json` pass1
+    metadata block).
     """
     out: list[FrameClassification] = []
-    for idx, frame in enumerate(_iter_raw_bgr_frames(video_path, config.sample_fps)):
-        r: ClassifyResult = classifier.classify(frame)
+    for sf in iter_sampled_frames(
+        video_path, config.sample_fps, telemetry=telemetry,
+    ):
+        r: ClassifyResult = classifier.classify(sf.image)
         rec = FrameClassification(
-            index=idx,
-            seconds=idx / config.sample_fps,
+            index=sf.sample_index,
+            seconds=sf.source_time_seconds,
             screen_type=r.screen_type,
             color_score=r.color_score,
             color_class=r.color_class,
             anchor_text=r.anchor_text,
+            sample_index=sf.sample_index,
+            source_pts=sf.source_pts,
+            source_time_seconds=sf.source_time_seconds,
+            decode_order_index=sf.decode_order_index,
         )
         out.append(rec)
         if on_frame is not None:
@@ -485,6 +475,7 @@ def write_segments_json(
     *,
     version: str,
     cache_key: str,
+    sampling_telemetry: "SamplingTelemetry | None" = None,
 ) -> None:
     payload = {
         "version": version,
@@ -495,6 +486,10 @@ def write_segments_json(
         "segments": [asdict(s) for s in segments],
         "frame_classifications": [asdict(c) for c in classifications],
     }
+    if sampling_telemetry is not None:
+        # Additive metadata block; old readers ignore unknown keys. Surfaces
+        # the source-PTS drift signal a future run-quality CLI will consume.
+        payload["pass1_sampling_telemetry"] = asdict(sampling_telemetry)
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(json.dumps(payload, indent=2))
 

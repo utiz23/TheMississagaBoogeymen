@@ -104,8 +104,9 @@ def _run_pass1(
     classifier_legacy,
     p1cfg: Pass1Config,
     version: str,
-) -> tuple[list, list[Segment], str]:
-    """Engine dispatch: returns (frame_classifications, segments, decoder_version).
+) -> tuple[list, list[Segment], str, "SamplingTelemetry"]:
+    """Engine dispatch: returns (frame_classifications, segments,
+    decoder_version, sampling_telemetry).
 
     `engine="run_length"` (legacy): runs the HSV+anchor classifier per frame,
     then collapses to segments via the N-consecutive-frame rule.
@@ -114,6 +115,10 @@ def _run_pass1(
     audit, computes multi-signal FrameFeatures, then feeds them through the
     learned LR head + emission combiner + Viterbi decoder.
     """
+    # Imported here so `SamplingTelemetry` is in scope for the return type
+    # without forcing a top-level import (the file already lazy-imports
+    # pass1_classify inside each engine branch).
+    from video_ingest.pass1_classify import SamplingTelemetry
     if p1cfg.engine == "viterbi":
         from game_ocr.emissions import EmissionWeights
         from game_ocr.frame_features import compute_frame_features
@@ -121,13 +126,18 @@ def _run_pass1(
         from game_ocr.state_machine import load_state_machine
         from video_ingest.pass1_classify import (
             FrameClassification,
-            _iter_raw_bgr_frames,
+            SamplingTelemetry,
+            iter_sampled_frames,
         )
         from video_ingest.pass1_segment import decode_segments
 
         # v1 engine loads the v1 state machine + v1 weights. The unversioned
         # `nhl26.yaml` is reserved for v2 once S5.1 bumps it.
         sm = load_state_machine(f"{version}-v1")
+        # `sample_fps` now describes the cadence at which Pass-1 emits ticks,
+        # not the source of segment timing — actual times come from container
+        # PTS via `iter_sampled_frames`. The invariant below still matters so
+        # the state machine's expected tick rate matches what we feed it.
         if sm.sample_fps != p1cfg.sample_fps:
             raise RuntimeError(
                 f"state machine sample_fps={sm.sample_fps} != Pass-1 config sample_fps={p1cfg.sample_fps}"
@@ -144,20 +154,27 @@ def _run_pass1(
         clf = load_screen_classifier(weights_path, sm)
         cls_list: list = []
         feats_list = []
-        for idx, frame in enumerate(_iter_raw_bgr_frames(video_path, p1cfg.sample_fps)):
-            anchor_text = classifier_legacy._read_anchor(frame)
-            feats = compute_frame_features(frame, anchor_text=anchor_text, state_machine=sm)
+        sampling_telemetry = SamplingTelemetry()
+        for sf in iter_sampled_frames(
+            video_path, p1cfg.sample_fps, telemetry=sampling_telemetry,
+        ):
+            anchor_text = classifier_legacy._read_anchor(sf.image)
+            feats = compute_frame_features(sf.image, anchor_text=anchor_text, state_machine=sm)
             feats_list.append(feats)
             # For audit / annotate.py compatibility, emit a FrameClassification
             # carrying the raw signals. screen_type stays unknown_or_transition
             # until the Viterbi pass assigns it below.
             cls_list.append(FrameClassification(
-                index=idx,
-                seconds=idx / p1cfg.sample_fps,
+                index=sf.sample_index,
+                seconds=sf.source_time_seconds,
                 screen_type="unknown_or_transition",
                 color_score=0.0,
                 color_class="",
                 anchor_text=anchor_text,
+                sample_index=sf.sample_index,
+                source_pts=sf.source_pts,
+                source_time_seconds=sf.source_time_seconds,
+                decode_order_index=sf.decode_order_index,
             ))
         segments = decode_segments(
             features=feats_list,
@@ -166,17 +183,25 @@ def _run_pass1(
             weights=EmissionWeights(),
         )
         # Stamp the decoded state back onto the per-frame audit table.
+        # Preserve the canonical-PTS fields populated upstream — these
+        # encode source time, not classifier output, and must survive the
+        # screen-type reassignment.
         for seg in segments:
             for i in range(seg.start_index, seg.end_index + 1):
+                prev = cls_list[i]
                 cls_list[i] = FrameClassification(
-                    index=cls_list[i].index,
-                    seconds=cls_list[i].seconds,
+                    index=prev.index,
+                    seconds=prev.seconds,
                     screen_type=seg.screen_type,
-                    color_score=cls_list[i].color_score,
-                    color_class=cls_list[i].color_class,
-                    anchor_text=cls_list[i].anchor_text,
+                    color_score=prev.color_score,
+                    color_class=prev.color_class,
+                    anchor_text=prev.anchor_text,
+                    sample_index=prev.sample_index,
+                    source_pts=prev.source_pts,
+                    source_time_seconds=prev.source_time_seconds,
+                    decode_order_index=prev.decode_order_index,
                 )
-        return cls_list, segments, sm.decoder_version
+        return cls_list, segments, sm.decoder_version, sampling_telemetry
     elif p1cfg.engine == "viterbi_v2":
         from game_ocr.emissions import EmissionWeights
         from game_ocr.frame_pipeline_v2 import compute_frame_features_v2_from_image
@@ -186,11 +211,14 @@ def _run_pass1(
         from game_ocr.state_machine import load_state_machine
         from video_ingest.pass1_classify import (
             FrameClassification,
-            _iter_raw_bgr_frames,
+            SamplingTelemetry,
+            iter_sampled_frames,
         )
         from video_ingest.pass1_segment import decode_segments_v2
 
         sm = load_state_machine(version)
+        # See v1 path note: `sample_fps` is the tick cadence, not segment
+        # timing. PTS comes from the container via `iter_sampled_frames`.
         if sm.sample_fps != p1cfg.sample_fps:
             raise RuntimeError(
                 f"state machine sample_fps={sm.sample_fps} != Pass-1 config sample_fps={p1cfg.sample_fps}"
@@ -213,18 +241,25 @@ def _run_pass1(
 
         cls_list: list = []
         feats_list = []
-        for idx, frame in enumerate(_iter_raw_bgr_frames(video_path, p1cfg.sample_fps)):
+        sampling_telemetry = SamplingTelemetry()
+        for sf in iter_sampled_frames(
+            video_path, p1cfg.sample_fps, telemetry=sampling_telemetry,
+        ):
             feats = compute_frame_features_v2_from_image(
-                frame, regex_priors=regex_priors, ocr_backend=ocr,
+                sf.image, regex_priors=regex_priors, ocr_backend=ocr,
             )
             feats_list.append(feats)
             cls_list.append(FrameClassification(
-                index=idx,
-                seconds=idx / p1cfg.sample_fps,
+                index=sf.sample_index,
+                seconds=sf.source_time_seconds,
                 screen_type="unknown_or_transition",
                 color_score=0.0,
                 color_class="",
                 anchor_text=feats.top_bar_text,
+                sample_index=sf.sample_index,
+                source_pts=sf.source_pts,
+                source_time_seconds=sf.source_time_seconds,
+                decode_order_index=sf.decode_order_index,
             ))
         segments = decode_segments_v2(
             features=feats_list,
@@ -235,19 +270,28 @@ def _run_pass1(
         )
         for seg in segments:
             for i in range(seg.start_index, seg.end_index + 1):
+                prev = cls_list[i]
                 cls_list[i] = FrameClassification(
-                    index=cls_list[i].index,
-                    seconds=cls_list[i].seconds,
+                    index=prev.index,
+                    seconds=prev.seconds,
                     screen_type=seg.screen_type,
-                    color_score=cls_list[i].color_score,
-                    color_class=cls_list[i].color_class,
-                    anchor_text=cls_list[i].anchor_text,
+                    color_score=prev.color_score,
+                    color_class=prev.color_class,
+                    anchor_text=prev.anchor_text,
+                    sample_index=prev.sample_index,
+                    source_pts=prev.source_pts,
+                    source_time_seconds=prev.source_time_seconds,
+                    decode_order_index=prev.decode_order_index,
                 )
-        return cls_list, segments, sm.decoder_version
+        return cls_list, segments, sm.decoder_version, sampling_telemetry
     elif p1cfg.engine == "run_length":
-        cls_list = classify_video(video_path, classifier_legacy, p1cfg)
+        sampling_telemetry = SamplingTelemetry()
+        cls_list = classify_video(
+            video_path, classifier_legacy, p1cfg,
+            telemetry=sampling_telemetry,
+        )
         segments = build_segments(cls_list, p1cfg)
-        return cls_list, segments, "legacy-passthrough-v0-video"
+        return cls_list, segments, "legacy-passthrough-v0-video", sampling_telemetry
     else:
         raise ValueError(
             f"unknown Pass-1 engine {p1cfg.engine!r}; "
@@ -416,7 +460,9 @@ def ingest(
 
         classifier = _build_classifier(version, use_gpu=use_gpu)
         t0 = time.perf_counter()
-        cls_list, segments, decoder_version = _run_pass1(video_path, classifier, p1cfg, version)
+        cls_list, segments, decoder_version, sampling_telemetry = _run_pass1(
+            video_path, classifier, p1cfg, version,
+        )
         elapsed_pass1 = time.perf_counter() - t0
         write_segments_json(
             segments_json,
@@ -427,6 +473,7 @@ def ingest(
             config=p1cfg,
             version=version,
             cache_key=pass1_cache_key,
+            sampling_telemetry=sampling_telemetry,
         )
         pass1_was_fresh = True
         print(

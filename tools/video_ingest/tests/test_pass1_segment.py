@@ -187,7 +187,7 @@ class TestEndToEndOnLabeledClip(unittest.TestCase):
         from game_ocr.frame_features import compute_frame_features
         from game_ocr.screen_classifier import load_screen_classifier
         from game_ocr.state_machine import load_state_machine
-        from video_ingest.pass1_classify import _iter_raw_bgr_frames
+        from video_ingest.pass1_classify import iter_sampled_frames
         from video_ingest.pass1_segment import decode_segments
 
         sm = load_state_machine("nhl26-v1")
@@ -201,9 +201,9 @@ class TestEndToEndOnLabeledClip(unittest.TestCase):
         clf = load_screen_classifier(weights, sm)
 
         feats = []
-        for frame in _iter_raw_bgr_frames(CLIP, 1.0):
-            anchor = legacy._read_anchor(frame)
-            feats.append(compute_frame_features(frame, anchor_text=anchor, state_machine=sm))
+        for sf in iter_sampled_frames(CLIP, 1.0):
+            anchor = legacy._read_anchor(sf.image)
+            feats.append(compute_frame_features(sf.image, anchor_text=anchor, state_machine=sm))
 
         segments = decode_segments(
             features=feats,

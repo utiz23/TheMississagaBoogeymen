@@ -65,9 +65,10 @@ class CLIContractsTests(unittest.TestCase):
         # still work, while bypassing engine dispatch (viterbi would try to
         # open the fake video file).
         def _fake_run_pass1(video_path, classifier_legacy, p1cfg, version):
+            from video_ingest.pass1_classify import SamplingTelemetry
             cls = self._classify_video_mock(video_path, classifier_legacy, p1cfg)
             segs = self.segments_classified
-            return cls, segs, "legacy-passthrough-v0-video"
+            return cls, segs, "legacy-passthrough-v0-video", SamplingTelemetry()
 
         self._patchers = [
             mock.patch.object(orch_module, "pts_probe",

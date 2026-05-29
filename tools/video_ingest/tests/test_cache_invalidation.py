@@ -255,7 +255,8 @@ class OrchestratorCacheTests(unittest.TestCase):
         # side_effect reads self.segments_classified at call time so
         # test_force_pass1_cascades_to_pass2_invalidation can mutate it.
         def _fake_run_pass1(video_path, classifier_legacy, p1cfg, version):
-            return [], self.segments_classified, "legacy-passthrough-v0-video"
+            from video_ingest.pass1_classify import SamplingTelemetry
+            return [], self.segments_classified, "legacy-passthrough-v0-video", SamplingTelemetry()
 
         self._run_pass1_patcher = mock.patch.object(
             orch_module, "_run_pass1", side_effect=_fake_run_pass1,
