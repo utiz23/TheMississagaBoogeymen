@@ -1,4 +1,5 @@
-"""Frame provider abstraction — Phase 3a scaffolding.
+"""Frame provider abstraction — Phase 3a scaffolding (+ FilteredFrameProvider
+for visual-prefilter Phase 2; see `visual_prefilter/`).
 
 The architecture review at `docs/research/video-extraction-architecture-review-2026-05-28.md`
 §"Phase 3" wants Pass-2's frame feed to be modal:
@@ -29,7 +30,7 @@ import re
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterator
+from typing import Callable, Iterator
 
 import numpy as np
 
@@ -208,3 +209,65 @@ class InMemoryFrameProvider(FrameProvider):
                 source_pts=sf.source_pts,
                 frame_index=emit_index,
             )
+
+
+# ─── FilteredFrameProvider ────────────────────────────────────────────────────
+
+
+FrameSelector = Callable[[list[FrameRecord]], list[int]]
+
+
+class FilteredFrameProvider(FrameProvider):
+    """Wraps another `FrameProvider` and yields only the frames a selector picks.
+
+    Contract (visual-prefilter Phase 2):
+
+      - `iter_frames()` materialises the inner provider EXACTLY ONCE into a
+        list, calls `selector(records) -> indices` once, then yields the
+        chosen records in their original order.
+      - Each yielded `FrameRecord` preserves the inner provider's
+        `frame_index`. The wrapper does NOT renumber; downstream
+        `support_frame_ids` in evidence records continue to refer to the
+        inner provider's emit ordinal so selection doesn't break traceability.
+      - Selector return values are de-duplicated and sorted; out-of-range or
+        negative indices raise `ValueError` (selector bugs should be loud).
+      - The wrapper is single-iteration, like every other `FrameProvider`.
+
+    Selectors are pure functions in production: typically a closure that
+    runs `compute_visual_signals` on each frame and calls
+    `visual_prefilter.select_frames(...)`. Keeping the selector signature
+    `list[FrameRecord] -> list[int]` lets tests pass dummy closures without
+    standing up the prefilter signal pipeline.
+    """
+
+    def __init__(self, inner: FrameProvider, selector: FrameSelector) -> None:
+        self.inner = inner
+        self.selector = selector
+
+    def iter_frames(self) -> Iterator[FrameRecord]:
+        records = list(self.inner.iter_frames())
+        if not records:
+            return
+        indices = self.selector(records)
+        # De-dup + sort to enforce original order; reject obviously bad indices.
+        n = len(records)
+        normalized: list[int] = []
+        seen: set[int] = set()
+        for i in indices:
+            if not isinstance(i, (int, np.integer)):
+                raise ValueError(
+                    f"selector returned non-integer index {i!r} (type {type(i).__name__})"
+                )
+            ii = int(i)
+            if ii < 0 or ii >= n:
+                raise ValueError(
+                    f"selector returned out-of-range index {ii} for "
+                    f"{n}-frame inner provider"
+                )
+            if ii in seen:
+                continue
+            seen.add(ii)
+            normalized.append(ii)
+        normalized.sort()
+        for i in normalized:
+            yield records[i]

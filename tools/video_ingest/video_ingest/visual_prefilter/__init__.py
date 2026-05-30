@@ -4,9 +4,20 @@ modules (`pass1_policy`, `pass2_policy`) and template matching land in
 follow-up phases.
 """
 
+from video_ingest.visual_prefilter.pass2_policy import (
+    dhash,
+    hamming_distance,
+    select_frames,
+)
 from video_ingest.visual_prefilter.signals import (
     VisualSignals,
     compute_visual_signals,
 )
 
-__all__ = ["VisualSignals", "compute_visual_signals"]
+__all__ = [
+    "VisualSignals",
+    "compute_visual_signals",
+    "dhash",
+    "hamming_distance",
+    "select_frames",
+]

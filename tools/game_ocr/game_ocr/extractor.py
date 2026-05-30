@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from pathlib import Path
 from statistics import mean
 from typing import Callable
+
+SELECTED_FRAMES_SIDECAR_NAME = "selected_frames.json"
 
 from game_ocr.config import ScreenConfig, load_screen_config
 from game_ocr.image import crop_region, load_image, preprocess_image
@@ -143,6 +146,23 @@ class Extractor:
             files = sorted(
                 [path for path in input_path.iterdir() if path.is_file() and path.suffix.lower() in {".png", ".jpg", ".jpeg", ".bmp"}]
             )
+            # Visual-prefilter sidecar (Phase 2): when present in a directory
+            # input, restrict `files` to the listed basenames preserving the
+            # existing sort + extension filter. Missing basenames are skipped
+            # silently — see Visual Prefilter Phase 2 plan for the rationale
+            # (cache invalidation already self-corrects stale sidecars; the
+            # per-result warning surface is keyed to a BaseExtractionResult
+            # that doesn't exist for a missing file). Single-file inputs do
+            # not honour the sidecar — only dir scans are subject to filtering.
+            sidecar = input_path / SELECTED_FRAMES_SIDECAR_NAME
+            if sidecar.is_file():
+                try:
+                    listed = json.loads(sidecar.read_text())
+                except (OSError, json.JSONDecodeError):
+                    listed = None
+                if isinstance(listed, list):
+                    allowed = {str(name) for name in listed}
+                    files = [p for p in files if p.name in allowed]
         else:
             files = [input_path]
 
