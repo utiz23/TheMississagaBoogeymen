@@ -2,7 +2,14 @@
 
 ## To-Do
 
-**Status (2026-05-30):** No new work yet today. The next workstream to pick up is **Phase 3c** (see "Next session" below). Yesterday's wrap-up follows.
+**Status (2026-05-30):** **Phase 3c SHIPPED on `feat/phase3c-artifact-mode-default`** — the architecture-review Phase-3 arc is now complete. `Pass2Config.artifact_mode` defaults to `False` across all entry points (`Pass2Config` field, `compute_pass2_cache_key`, `write_pass2_manifest`, orchestrator YAML fallback, and both `video-ingest ingest`/`extract-only` CLI flags). The cache-mismatch error at `orchestrator.py:543` now detects when the only manifest-introspectable diff is `artifact_mode` and emits a tailored message that leads with the reuse-cache remediation (re-pass the previous flag) before the regenerate option (`--force-pass2`). Two test-harness `_run()` helpers (`test_cache_invalidation.py`, `test_cli_contracts.py`) gained `kwargs.setdefault("artifact_mode", True)` so their mocked-`_ffmpeg_extract` path keeps running; the in-memory provider needs a real video that those fixtures don't supply. New tailored-error test covers both flip directions. Full `tools/video_ingest` suite: 437 passed, 4 skipped, same 3 pre-existing failures as the Phase 3b baseline.
+
+**Back-compat outcome for existing operator caches (load-bearing — read this):** every Pass-2 cache written before this flip has `artifact_mode=True` in the manifest. On the first post-flip run with no flags passed, the operator will hit `CacheMismatch`. The new tailored message names the field and tells them how to recover:
+
+- Re-pass `--pass2-artifacts` to reuse the existing cache as-is (typed_v1 extractors still glob the PNG dir; nothing has to re-decode).
+- Re-pass `--force-pass2` (with no `--pass2-artifacts`) to regenerate the cache under the new in-memory mode.
+
+**No migration shim was added by design.** The cache key includes the `artifact_mode` byte specifically so a flip invalidates — silent reuse would feed typed_v1 in-memory extractors a directory of PNGs they no longer know how to consume, or feed PNG-mode extractors an empty directory. Adding a "stored=True, current=False is compatible" heuristic adds a permanent special case for a one-time upgrade; the tailored error covers the operator-facing pain instead. Future agent: do not add the shim quietly. If you do, write down why here.
 
 **Yesterday's wrap-up (2026-05-29):** Four architecture-review workstreams shipped in sequence, all FF-merged to `main` and pushed:
 
@@ -11,9 +18,9 @@
 3. **Phase 3a (FrameProvider scaffolding)** — 1 commit, `1a5b2ca` + HANDOFF `d22756b`. `FrameProvider` ABC + `PngFrameProvider` + `InMemoryFrameProvider`, `Pass2Config.artifact_mode`, cache-key + manifest wiring, `--pass2-artifacts/--no-pass2-artifacts` CLI flag. Hot path NOT yet rewired (3b's job).
 4. **Phase 3b (FrameProvider rewire end-to-end)** — 5 commits, `dd629bd` → `8191e58`. Bundle gains `best_frame_image`/`best_frame_index` and drops path fields; assembler signature flips from `Sequence[Path]` to `Sequence[FrameRecordLike]`; `extract_*_evidence` accept a `FrameProvider`; sidecar JSON fallback removed (fail-closed RuntimeError); Pass-2 main loop gates `_ffmpeg_extract` on `artifact_mode` AND typed_v1, choosing `PngFrameProvider` (legacy) or `InMemoryFrameProvider` (no-PNG). `EXTRACTOR_VERSION` bumped (`loadout-evidence-v3`, `lobby-evidence-v2`). New parity test `test_pass2_artifact_mode_gating.py` proves PNG side-effect inversion + byte-identical `loadout_evidence.json` between modes. The disk-write savings are live for typed_v1 segments.
 
-**Next session — Phase 3c (small):** flip the reprocess CLI / orchestrator default to `artifact_mode=False`; polish operator-facing cache-mismatch error messages on manifest mode flips. Sub-half-day workstream. After 3c, ingestion is in-memory by default and the CV-CUDA prototype can be measured against a real no-PNG baseline.
+**Next session — Phase 4+ unblocked / CV-CUDA prototype measurable.** With Phase 3 complete, the next architecture-review workstream is Phase 4 (Pass-1 OCR measurement, boundary refinement, learned models, live-gameplay spike) per the review's "What To Do Next." Independently, the in-memory hot path is now the steady state so the CV-CUDA prototype can be measured against a real no-PNG baseline. Also viable: the smaller backlog items below (PTS-drift telemetry surfacing in `run-quality-cli`, persona alias backfill, etc.).
 
-**Process observation (5× consecutive):** Plan agent's pre-implementation pass changed the workstream *shape* on every architecture workstream this session — caught the 3-call-sites pattern in Phase 2, the worker-subprocess dependency in Phase 3 → W1, the path-typed bundle layer that became 3a/3b/3c, and on Phase 3b itself flagged the "no back-compat shim" assumption that would have forced threading `fps` through the extractor public API. A focused Plan agent before code earns its tokens.
+**Process observation (5× consecutive):** Plan agent's pre-implementation pass changed the workstream *shape* on every architecture workstream this session — caught the 3-call-sites pattern in Phase 2, the worker-subprocess dependency in Phase 3 → W1, the path-typed bundle layer that became 3a/3b/3c, and on Phase 3b itself flagged the "no back-compat shim" assumption that would have forced threading `fps` through the extractor public API. Phase 3c continued the streak — the Plan agent caught three docstrings/help-strings still claiming "default True" that the initial scope missed, and confirmed the no-migration-shim call rather than letting it slide. A focused Plan agent before code earns its tokens.
 
 ---
 
@@ -46,7 +53,7 @@ W1 cuts the dependency cleanly: Pass-2 dispatch passes `--frame-count` to the wo
 
 **Phase 3b SHIPPED** on `feat/phase3b-frameprovider-rewire` (5 commits, `dd629bd` → `8191e58`), FF-merged + pushed. Bundle layer + extractors + Pass-2 dispatch all consume `FrameProvider`; `artifact_mode=False` now skips `_ffmpeg_extract` and the PNG-glob path entirely for typed_v1 segments. Sidecar JSON fallback removed (was fail-open empty OCR; now fail-closed `RuntimeError` when `best_frame_ocr_lines` is None) — this addresses the specific risk HANDOFF flagged when Phase 3b was queued. See the 2026-05-29 Phase 3b session summary below for the full surface mapping.
 
-**Next session (architecture workstream — recommended):** **Phase 3c: flip reprocess CLI default + operator-facing cache-mismatch polish.** Today the orchestrator's `pass2.artifact_mode` defaults to True (legacy PNG-on-disk); 3c flips it to False so the in-memory path is the steady-state hot path. Also tighten the cache-mismatch error message when the operator switches modes (`compute_pass2_cache_key` already invalidates, but the operator-facing wording is generic). Sub-half-day workstream.
+**Next session (architecture workstream — recommended):** Phase 3 is complete (3c shipped 2026-05-30 — see top of file). The next architecture-review workstream is Phase 4 (Pass-1 OCR measurement, boundary refinement, learned models, live-gameplay spike) per the review's "What To Do Next." The CV-CUDA prototype is now measurable against a real no-PNG baseline.
 
 Scope this session won't touch:
 - Architecture Phase 4+ (Pass-1 OCR measurement, boundary refinement, learned models, live-gameplay spike) — sequenced after Phase 3 per the review's "What To Do Next"
@@ -72,7 +79,7 @@ Scope this session won't touch:
 - **`docs/calibration/regression-floor-match-463.json` pnpm-prefix re-baseline** (~2 min, orthogonal): the file has shell-script header lines (`> @eanhl/worker@0.0.1 match-quality ...`) before the JSON body — leftover from a prior re-baseline that didn't use `pnpm --silent`. The `match-quality` CLI's `--json` flag prints clean JSON to stdout; re-run `pnpm --silent --filter worker match-quality --match 463 --json > docs/calibration/regression-floor-match-463.json` to clean up. Unrelated to Run-Level Quality Reporting.
 - **Three deferred minor nits across Codex rounds 2-3** (~5 min total): round-2 `intersected` dead-counter in (now-deleted) snapshot helpers — already addressed by the round-3 helper removal; round-3 `stagePath` dead branch at `apps/worker/src/run-quality-cli.ts:793-794` (after the argv guard, `stagePath` is guaranteed undefined so the ternary always evaluates to null); round-3 cleanup-vs-concurrent-writer one-line comment at `apps/worker/src/__tests__/run-quality-cli.test.ts:533-540` documenting the implicit single-writer assumption. Cosmetic, non-blocking.
 
-**Branch state:** `main` = `origin/main` = `f1dcced` (HEAD = Phase 3b HANDOFF commit on top of code commit `8191e58`). Full chain since the prior HANDOFF (`d22756b`): Phase 2 / W1 wrap-up (`50e1918`) → Phase 3b (`dd629bd` C1, `7dbf09f` C2, `7faca07` C3, `79c366e` C4, `8191e58` C5, `f1dcced` HANDOFF). Working tree clean. No active fix branch. Local-only stale branches from prior workstreams: `feat/screen-classifier-v2-a1` (`88285ef`), `feat/lobby-detector-cross-team-dedup` (`62b78a0`), `feat/ocr-pipeline-phase-3a` (`af01074`) — all merged to `main`; safe to delete with `git branch -D` whenever.
+**Branch state:** `main` = `764e5a1` (cold-start HANDOFF tidy on top of Phase 3b code `8191e58`). Active branch `feat/phase3c-artifact-mode-default` holds the Phase 3c code commit on top of `764e5a1`, awaiting FF-merge + push. Local-only stale branches from prior workstreams: `feat/screen-classifier-v2-a1` (`88285ef`), `feat/lobby-detector-cross-team-dedup` (`62b78a0`), `feat/ocr-pipeline-phase-3a` (`af01074`), and Phase 3b's `feat/phase3b-frameprovider-rewire` — all merged to `main`; safe to delete with `git branch -D` whenever.
 
 **Background reading (decision input for post-A3 workstream):**
 
@@ -82,6 +89,40 @@ Scope this session won't touch:
   - `later for stubborn weak spots`: evaluate `TAO Toolkit`
   - `future live tracking/modeling`: treat `DeepStream 8` + `TAO` as a separate video-native track, not an in-place replacement for the screenshot-first extractor
   - `ignore for primary extraction`: `Metropolis VSS`
+
+## Session Summary — 2026-05-30 (Phase 3c: artifact_mode default flip + tailored cache-mismatch error — shipped on branch)
+
+### Current status
+
+Phase 3c — the wrap-up of the architecture-review Phase 3 arc — is shipped on `feat/phase3c-artifact-mode-default`, awaiting FF-merge to `main`. `Pass2Config.artifact_mode` now defaults to `False` across all six entry points (3 in `pass2_extract.py`, 1 in `orchestrator.py` YAML fallback, 2 in `cli.py` for the `ingest` and `extract-only` commands), and the `CacheMismatch` raised at `orchestrator.py:543` now detects when the cached `artifact_mode` differs from the configured one and emits a tailored message that names the field and leads with the reuse-cache remediation. With this, ingestion is in-memory by default for typed_v1 segments — PNG-on-disk becomes a legacy opt-in (`--pass2-artifacts`) for operators who want disk artifacts for review/debug. The CV-CUDA prototype can now be measured against a real no-PNG baseline.
+
+### What was done
+
+| File | Change |
+|---|---|
+| `tools/video_ingest/video_ingest/pass2_extract.py` | `compute_pass2_cache_key`, `Pass2Config.artifact_mode`, `write_pass2_manifest` default `True` → `False`. Docstrings rewritten to describe in-memory as steady state and PNG-on-disk as the legacy opt-in. |
+| `tools/video_ingest/video_ingest/orchestrator.py` | YAML-fallback literal flipped `True` → `False`; resolution comment updated. New `if loaded_p2.artifact_mode is not None and loaded_p2.artifact_mode != p2cfg.artifact_mode` branch at line 543 raises a tailored `CacheMismatch` that names `artifact_mode`, leads with `--pass2-artifacts` / `--no-pass2-artifacts` (whichever matches the cached mode) as the primary fix, and offers `--force-pass2` as secondary. `is_legacy` already routes pre-3a manifests away from this branch; the `is not None` guard is defensive against future `is_legacy` drift. |
+| `tools/video_ingest/video_ingest/cli.py` | Both `--pass2-artifacts/--no-pass2-artifacts` flag defaults (`ingest` + `extract-only`) flipped `True` → `False`. Help strings rewritten — `[default: no-pass2-artifacts]` now shows in `--help`. |
+| `tools/video_ingest/tests/test_cache_invalidation.py` | `test_pass2_cache_key_flips_when_artifact_mode_changes` default-equality assertion flipped from `True` to `False`. New `test_pass2_artifact_mode_flip_emits_tailored_cache_mismatch` exercises both flip directions; direction 2 rewrites the manifest's `artifact_mode` + recomputes `pass2_cache_key` rather than running `InMemoryFrameProvider` against the fixture's fake video. `_run()` gained `kwargs.setdefault("artifact_mode", True)` so the existing 20 tests keep using the mocked `_ffmpeg_extract` path (the in-memory provider needs a real video those mocks don't supply). |
+| `tools/video_ingest/tests/test_cli_contracts.py` | Same `kwargs.setdefault("artifact_mode", True)` shim on its `_run()` helper for the same reason. |
+
+### Test results
+
+Full `tools/video_ingest` suite: **437 passed, 4 skipped, 3 failed**. The 3 failures (`test_predict_log_probs_raises_not_implemented`, `test_extractor_version_is_stamped`, `test_match250_parity`) are the same pre-existing failures documented in HANDOFF since before Phase 3a — none are new. Net delta vs Phase 3b baseline: +1 passing (the new tailored-error test).
+
+### Operational notes
+
+- **Existing operator caches will hit the tailored error on the first post-flip run.** See the top-of-file back-compat note. Both remediation paths are valid: `--pass2-artifacts` reuses the cache as-is, `--force-pass2` regenerates under the new in-memory mode. No migration shim was added by design (silent reuse across modes is unsafe).
+- **Test-fixture artifact_mode default override is intentional, not a bug.** Two `_run()` helpers (`test_cache_invalidation.py`, `test_cli_contracts.py`) explicitly `kwargs.setdefault("artifact_mode", True)`. The reason is fixture-specific: those test suites mock `_ffmpeg_extract` but not `InMemoryFrameProvider` / `av.open`, and the fixture's `/fake/video.mkv` doesn't exist on disk. Tests that exercise mode-flip semantics pass `artifact_mode=` explicitly. The Phase 3b parity test (`test_pass2_artifact_mode_gating.py`) is unaffected because it synthesizes a real 3-second mp4.
+- **No worker-side TypeScript change required.** `apps/worker` does not construct `Pass2Config`; the video ingest pathway is entirely Python (worker `reprocess` shells through `tools/video_ingest/video_ingest/reprocess.py` which shells `video-ingest ingest` without `--pass2-artifacts` flags). The CLI default flip propagates automatically.
+- **`nhl26.yaml` was deliberately not edited.** `pass2.artifact_mode` remains unset there; defaults belong in code, the YAML is the override layer. Adding it would create a duplicate source of truth that a future operator flipping the Python default would forget to update.
+- **Frame-provider module header was left as-is.** `tools/video_ingest/video_ingest/frame_provider.py` describes the two modes neutrally (what each does), not which is default. No edit needed.
+
+### Process observation
+
+The Plan agent's pre-implementation pass made the same shape-changing contribution as on Phases 2/3a/3b: it caught three docstrings/help strings still saying "default True" that the initial six-site default-flip scope had missed (one in `orchestrator.py`'s resolution comment, two in `cli.py` help text). It also explicitly affirmed the no-migration-shim call — without that affirmation, the safer-feeling-but-wrong "stored=True compatible with current=False" shim would have been an easy temptation. The tailored error message is the design that makes the no-shim choice operator-friendly, and the Plan agent's "lead with reuse-cache, drop the 'other fields may have changed' hedge" refinement made the message land.
+
+The test-suite collateral damage (4 CLI contract tests + 1 cache-invalidation test temporarily broken) was not predicted by the Plan agent — the mock surface (`_ffmpeg_extract` only, not `InMemoryFrameProvider`) was below the agent's exploration depth. Caught at run-test time and fixed with the same one-line `setdefault` pattern in both fixtures. Pattern noted: any future default flip on a flag whose code branches into a mocked vs. unmocked surface should grep test fixtures for the unmocked path.
 
 ## Session Summary — 2026-05-29 (Phase 3b: FrameProvider rewire end-to-end — shipped to main)
 
