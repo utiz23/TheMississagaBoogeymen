@@ -2,7 +2,9 @@
 
 ## To-Do
 
-**Session wrap-up (2026-05-29):** Four architecture-review workstreams shipped in sequence today, all FF-merged to `main` and pushed:
+**Status (2026-05-30):** No new work yet today. The next workstream to pick up is **Phase 3c** (see "Next session" below). Yesterday's wrap-up follows.
+
+**Yesterday's wrap-up (2026-05-29):** Four architecture-review workstreams shipped in sequence, all FF-merged to `main` and pushed:
 
 1. **Phase 2 (canonical PTS in Pass-1)** — 4 commits, `1ba88f3` head. PyAV-backed `iter_sampled_frames` replaces `seconds = idx / sample_fps`; segments.json gains a `pass1_sampling_telemetry` block. Architecture-review risk #589 (time drift on non-ideal captures, High severity) closed.
 2. **W1 (worker skips legacy game_ocr.cli for typed_v1)** — 1 commit, `1d5092a`. Worker carve-out + single stub `ocr_extractions` row + confidence back-fill. Predecessor to Phase 3 (caught by Plan agent: naive Phase 3 would have silently zeroed `frameCount` → `observabilityStatus='not_observable_from_source'`).
@@ -70,7 +72,7 @@ Scope this session won't touch:
 - **`docs/calibration/regression-floor-match-463.json` pnpm-prefix re-baseline** (~2 min, orthogonal): the file has shell-script header lines (`> @eanhl/worker@0.0.1 match-quality ...`) before the JSON body — leftover from a prior re-baseline that didn't use `pnpm --silent`. The `match-quality` CLI's `--json` flag prints clean JSON to stdout; re-run `pnpm --silent --filter worker match-quality --match 463 --json > docs/calibration/regression-floor-match-463.json` to clean up. Unrelated to Run-Level Quality Reporting.
 - **Three deferred minor nits across Codex rounds 2-3** (~5 min total): round-2 `intersected` dead-counter in (now-deleted) snapshot helpers — already addressed by the round-3 helper removal; round-3 `stagePath` dead branch at `apps/worker/src/run-quality-cli.ts:793-794` (after the argv guard, `stagePath` is guaranteed undefined so the ternary always evaluates to null); round-3 cleanup-vs-concurrent-writer one-line comment at `apps/worker/src/__tests__/run-quality-cli.test.ts:533-540` documenting the implicit single-writer assumption. Cosmetic, non-blocking.
 
-**Branch state:** `main` = `origin/main` = `8191e58` (HEAD = Phase 3b C5). Full chain since the last HANDOFF: Phase 3a (`1a5b2ca`, `d22756b`) → Phase 2 / W1 wrap-up (`50e1918`) → Phase 3b (`dd629bd` C1, `7dbf09f` C2, `7faca07` C3, `79c366e` C4, `8191e58` C5). Working tree clean. No active fix branch. Local-only stale branches from prior workstreams: `feat/screen-classifier-v2-a1` (`88285ef`), `feat/lobby-detector-cross-team-dedup` (`62b78a0`), `feat/ocr-pipeline-phase-3a` (`af01074`) — all merged to `main`; safe to delete with `git branch -D` whenever.
+**Branch state:** `main` = `origin/main` = `f1dcced` (HEAD = Phase 3b HANDOFF commit on top of code commit `8191e58`). Full chain since the prior HANDOFF (`d22756b`): Phase 2 / W1 wrap-up (`50e1918`) → Phase 3b (`dd629bd` C1, `7dbf09f` C2, `7faca07` C3, `79c366e` C4, `8191e58` C5, `f1dcced` HANDOFF). Working tree clean. No active fix branch. Local-only stale branches from prior workstreams: `feat/screen-classifier-v2-a1` (`88285ef`), `feat/lobby-detector-cross-team-dedup` (`62b78a0`), `feat/ocr-pipeline-phase-3a` (`af01074`) — all merged to `main`; safe to delete with `git branch -D` whenever.
 
 **Background reading (decision input for post-A3 workstream):**
 
