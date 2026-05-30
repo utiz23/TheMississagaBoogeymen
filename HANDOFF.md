@@ -2,7 +2,40 @@
 
 ## To-Do
 
-**Status (2026-05-30 — later):** **Phase 4 Part A SHIPPED on `feat/phase4-pass1-instrumentation`** — materiality measured. Pass-1 OCR is unambiguously material; Part B is justified.
+**Status (2026-05-30 — latest):** **Phase 4 Part B SHIPPED on `feat/phase4-partb-telemetry-plumbing`** (5 commits, awaiting FF-merge + push to `main`). Pass-1 sub-phase telemetry is now persisted through `ocr_run_quality_reports`, and the C1 timer-attribution bug discovered during Part A measurement is fixed.
+
+**What changed (Part B):**
+
+1. **C1 — Timer fix.** `iter_sampled_frames` switched from implicit `for x in container.decode(stream):` to explicit `next(iterator)` so the decode timer wraps PyAV's `next()` call. Previously the decode work landed in the gap between the prior iteration's accumulator update and the next timer start; it then fell into `classify_ms` (computed by subtraction). Re-measurement on the same 56s clip shows `decode_ms=15.4s` (11.5% of Pass-1) where Part A's bug reported sub-millisecond — bug-fix headline number. `classify_ms` is now genuinely OCR-only time (still 88% of Pass-1 on this fixture; consistent with Part A's "OCR is material" finding).
+2. **C2 — Sidecar emission.** Orchestrator writes `<sha>/ingest-run-<run_id>-timings.json` after Pass-2 (or `<sha>/ingest_timings.json` for direct CLI without `run_id`). Six fields: `pass1_decode_ms`, `pass1_classify_ms`, `pass1_viterbi_ms`, `pass1_ms`, `pass2_ms`, `pass1_cache_hit`. Run-scoped path mirrors the existing `pass2-run-<run_id>` collision-avoidance pattern so concurrent reprocesses against the same source video each get their own file.
+3. **C3 — `reprocess.py` plumbing.** Reads the run-scoped sidecar after the `video-ingest ingest` subprocess returns; projects the five numeric fields into `stage_runtimes_payload["stages"]` and `pass1_cache_hit` as a NEW top-level key alongside `total_wall_ms` / `captured_at` / `captured_from`. Missing sidecar (older orchestrator, write failure) → all new fields null; parse failure logs to stderr but reprocess still exits 0.
+4. **C4 — TS `run-quality-cli` schema extensions.** `StageRuntimes` interface + `STAGE_KEYS` array + `emptyStages()` factory all gain the five numeric keys. `StageRuntimesFile` + `ReportRuntime` gain `pass1_cache_hit: boolean | null` at top level (not in `stages`, because the STAGE_KEYS loop validates numeric only). New validator block rejects non-boolean `pass1_cache_hit` with a specific error message.
+5. **C5 — End-to-end verification.** Live two-run smoke against `/mnt/k/Replay_2026-05-26_17-47-37.mkv` (56s clip): fresh sidecar shows decode 15.4s / classify 118s / cache_hit=false; second run shows all `pass1_*_ms = 0.0` + cache_hit=true + `pass2_ms=0.28ms` (Pass-2 cache-load wall time, NOT zeroed — confirms the asymmetric cache-hit contract). Unit tests cover the fresh-run-through-reprocess path (`test_ingest_timings_sidecar_projects_pass1_keys_into_payload`) and the end-to-end JSONB row write (`--stage-runtimes round-trips Phase 4 Part B Pass-1 sub-phase keys + pass1_cache_hit`).
+
+**Deferred follow-up:** live reprocess.py end-to-end against a real DB-resident match (would need a match in `ocr_capture_batches` + its video on disk). Not gating — the fresh-run path is covered by C3+C4 unit tests at both the Python (stage-runtimes payload assembly) and TS (JSONB row write + read back) levels.
+
+**Analytics query template — use this when querying Pass-1 cost trends across runs:**
+```sql
+SELECT
+  id, run_id, generated_at,
+  (report->'runtime'->'stages'->>'pass1_ms')::int AS pass1_ms,
+  (report->'runtime'->'stages'->>'pass1_classify_ms')::int AS pass1_classify_ms,
+  (report->'runtime'->'stages'->>'pass1_decode_ms')::int AS pass1_decode_ms,
+  (report->'runtime'->'stages'->>'pass1_viterbi_ms')::int AS pass1_viterbi_ms,
+  (report->'runtime'->'stages'->>'pass2_ms')::int AS pass2_ms
+FROM ocr_run_quality_reports
+WHERE (report->'runtime'->>'pass1_cache_hit')::bool IS NOT TRUE  -- exclude cache hits
+ORDER BY id DESC
+LIMIT 20;
+```
+
+**Test results:** Full `tools/video_ingest` suite — 443 passed (+2 new C3 tests), 4 skipped, 3 pre-existing failures unchanged. Targeted TS stage-runtimes tests — 5/5 pass (4 new + 1 existing). Worker typecheck clean. Full worker suite has 13 failures + 26 cancelled tests that pre-date this branch (Codex review series flagged the integration-test architecture; see "Deferred follow-on" further down this file).
+
+**Next session — algorithmic Phase 4 work now unblocked.** With trend-tracking infrastructure in place, the architecture review's prescribed sequence opens: visual prefiltering before OCR → batch ROI OCR → test RapidOCR GPU in this environment → only then evaluate CV-CUDA preprocessing. Pick whichever fits the next session's appetite — visual prefiltering is the smallest first step (skip OCR on uninteresting frames via cheap visual features). CV-CUDA prototype is also a viable parallel track now that the no-PNG baseline + sub-phase telemetry exist.
+
+---
+
+**Status (2026-05-30 — earlier):** **Phase 4 Part A SHIPPED on `feat/phase4-pass1-instrumentation`** — materiality measured. Pass-1 OCR is unambiguously material; Part B is justified.
 
 **Headline numbers from `/mnt/k/2026-05-26_17-53-36.mkv` (824M, 34.6-min CFR 60fps capture):**
 
