@@ -307,8 +307,27 @@ def iter_sampled_frames(
         last_emitted_source_time: float | None = None
         decode_accum += time.perf_counter() - setup_t
 
+        # Phase 4 Part B fix: switch from the implicit `for` loop to an
+        # explicit iterator so the decode timer wraps PyAV's `next()` call.
+        # Python `for x in iter:` calls `next(iter)` between iterations
+        # but BEFORE the body re-enters — meaning the decode work that
+        # happens inside `next()` lands in the gap between this iteration's
+        # `decode_accum += ...` and the next `iter_t = time.perf_counter()`.
+        # The implicit-loop pattern undercounted decode_ms by orders of
+        # magnitude (Part A measured 4.3s decode for a 35-minute video,
+        # which then fell into classify_ms by subtraction). Explicit
+        # iteration moves the next() call inside the timed region.
+        iterator = container.decode(stream)
         decoded_idx = -1
-        for decoded_idx, frame in enumerate(container.decode(stream)):
+        while True:
+            next_t = time.perf_counter()
+            try:
+                frame = next(iterator)
+            except StopIteration:
+                decode_accum += time.perf_counter() - next_t
+                break
+            decode_accum += time.perf_counter() - next_t
+            decoded_idx += 1
             iter_t = time.perf_counter()
             if frame.pts is None:
                 telemetry.frames_with_missing_pts += 1

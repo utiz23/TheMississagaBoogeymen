@@ -245,13 +245,25 @@ class TestIterSampledFramesDecodeTimer(unittest.TestCase):
                 time.sleep(0.05)  # 50ms × 3 samples = 150ms of consumer work
 
         self.assertEqual(len(samples), self.DURATION_S)
-        # Decode actually ran, so the field is populated.
-        self.assertGreater(tele.decode_ms, 0.0)
-        # Decode time on a 3s × 30fps black-frame clip is small (well
-        # under 1 second even on a slow runner). Crucially it must be
-        # less than the ~150ms of consumer stalls if those were leaking
-        # in. We assert decode_ms < 150ms as a coarse upper bound that
-        # proves consumer time is excluded.
+        # Phase 4 Part B: decode_ms must capture real PyAV next() work,
+        # not just generator-body overhead. The original implementation
+        # missed PyAV's decode call entirely (timer started AFTER `next()`
+        # inside the `for` loop) and reported near-zero ms even on
+        # multi-thousand-frame videos. The fix uses an explicit iterator
+        # so the timer wraps `next(iterator)`. On this fixture (90
+        # decoded frames of 192×108 H.264) the fix produces ~5-30ms;
+        # the original bug produced sub-millisecond values. 2.0ms is
+        # tight enough to catch a regression of the bug but loose enough
+        # to survive faster/slower CI hardware.
+        self.assertGreater(
+            tele.decode_ms, 2.0,
+            f"decode_ms={tele.decode_ms}ms looks like the explicit-iterator "
+            f"fix regressed — the original bug reported <1ms on this fixture "
+            f"because PyAV's next() call was outside the timed region.",
+        )
+        # Crucially it must be less than the ~150ms of consumer stalls
+        # if those were leaking in. We assert decode_ms < 150ms as a
+        # coarse upper bound that proves consumer time is excluded.
         self.assertLess(
             tele.decode_ms, 150.0,
             f"decode_ms={tele.decode_ms}ms — looks like consumer stalls are "
