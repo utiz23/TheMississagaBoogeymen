@@ -2,6 +2,18 @@
 
 ## To-Do
 
+**Session wrap-up (2026-05-29):** Three architecture-review workstreams shipped in sequence today, all FF-merged to `main` and pushed:
+
+1. **Phase 2 (canonical PTS in Pass-1)** — 4 commits, `1ba88f3` head. PyAV-backed `iter_sampled_frames` replaces `seconds = idx / sample_fps`; segments.json gains a `pass1_sampling_telemetry` block. Architecture-review risk #589 (time drift on non-ideal captures, High severity) closed.
+2. **W1 (worker skips legacy game_ocr.cli for typed_v1)** — 1 commit, `1d5092a`. Worker carve-out + single stub `ocr_extractions` row + confidence back-fill. Predecessor to Phase 3 (caught by Plan agent: naive Phase 3 would have silently zeroed `frameCount` → `observabilityStatus='not_observable_from_source'`).
+3. **Phase 3a (FrameProvider scaffolding)** — 1 commit, `1a5b2ca` + HANDOFF `d22756b`. `FrameProvider` ABC + `PngFrameProvider` + `InMemoryFrameProvider`, `Pass2Config.artifact_mode`, cache-key + manifest wiring, `--pass2-artifacts/--no-pass2-artifacts` CLI flag. Hot path NOT yet rewired (Phase 3b's job).
+
+**Next session — Phase 3b**: rewire `LoadoutSubjectBundle` from path-typed to image+frame_index-typed; swap the `cv2.imread(str(...))` sites in `tools/game_ocr/game_ocr/loadout_evidence.py:308,317,590,594` and the 4+ `loadout_extractors/*.py` files; wire `pass2_extract.py:_run_typed_v1_loadout` / `_run_typed_v1_lobby` to construct an `InMemoryFrameProvider` and skip `_ffmpeg_extract` when `config.artifact_mode = False` and the segment is typed_v1. After 3b lands, `artifact_mode=False` delivers the disk-write savings. Half-day workstream. See Phase 3a session summary below for the bundle-layer surface mapping.
+
+**Process observation (4× consecutive):** Plan agent's pre-implementation pass changed the workstream *shape* on every architecture workstream this session — caught the 3-call-sites pattern in Phase 2, the worker-subprocess dependency in Phase 3 → W1, and the path-typed bundle layer in Phase 3 → 3a/3b/3c. A focused Plan agent before code earns its tokens.
+
+---
+
 **Previously queued (now shipped + merged + pushed):** Run-level quality reporting shipped on `feat/run-level-quality-reporting` (14 commits), FF-merged to `main` and pushed to `origin/main` at SHA `a8ca2b6`. Branch deleted. New `ocr_run_quality_reports` table + `run-quality` CLI + `_StageTimer` hooks in `reprocess.py` answer the architecture-review §6 stage-level-metrics questions per run.
 
 **Codex second-opinion review completed (three rounds, plus one apparent re-paste).** Brief at `/home/michal/.claude/plans/codex-review-request-run-level-quality-reporting.md`.
@@ -58,7 +70,7 @@ Scope this session won't touch:
 - **`docs/calibration/regression-floor-match-463.json` pnpm-prefix re-baseline** (~2 min, orthogonal): the file has shell-script header lines (`> @eanhl/worker@0.0.1 match-quality ...`) before the JSON body — leftover from a prior re-baseline that didn't use `pnpm --silent`. The `match-quality` CLI's `--json` flag prints clean JSON to stdout; re-run `pnpm --silent --filter worker match-quality --match 463 --json > docs/calibration/regression-floor-match-463.json` to clean up. Unrelated to Run-Level Quality Reporting.
 - **Three deferred minor nits across Codex rounds 2-3** (~5 min total): round-2 `intersected` dead-counter in (now-deleted) snapshot helpers — already addressed by the round-3 helper removal; round-3 `stagePath` dead branch at `apps/worker/src/run-quality-cli.ts:793-794` (after the argv guard, `stagePath` is guaranteed undefined so the ternary always evaluates to null); round-3 cleanup-vs-concurrent-writer one-line comment at `apps/worker/src/__tests__/run-quality-cli.test.ts:533-540` documenting the implicit single-writer assumption. Cosmetic, non-blocking.
 
-**Branch state:** `main` = `origin/main` = Phase-3a head (Phase 2's 4 commits + W1's 1 commit `1d5092a` + Phase 3a's commit `1a5b2ca` on top of `a1ce0ea`). Working tree clean. No active fix branch. Local-only stale branches from prior workstreams: `feat/screen-classifier-v2-a1` (`88285ef`), `feat/lobby-detector-cross-team-dedup` (`62b78a0`), `feat/ocr-pipeline-phase-3a` (`af01074`) — all merged to `main`; safe to delete with `git branch -D` whenever.
+**Branch state:** `main` = `origin/main` = `d22756b` (HEAD = Phase 3a HANDOFF commit on top of code commit `1a5b2ca`; full chain `a1ce0ea` → Phase 2 (`809971d`, `c872670`, `41af781`, `1189af7`, `1ba88f3`) → W1 (`1d5092a`, `0ede90c`) → Phase 3a (`1a5b2ca`, `d22756b`)). Working tree clean. No active fix branch. Local-only stale branches from prior workstreams: `feat/screen-classifier-v2-a1` (`88285ef`), `feat/lobby-detector-cross-team-dedup` (`62b78a0`), `feat/ocr-pipeline-phase-3a` (`af01074`) — all merged to `main`; safe to delete with `git branch -D` whenever.
 
 **Background reading (decision input for post-A3 workstream):**
 
