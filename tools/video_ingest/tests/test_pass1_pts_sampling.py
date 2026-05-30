@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import shutil
 import subprocess
+import time
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -182,6 +183,81 @@ class TestIterSampledFramesCfr(unittest.TestCase):
             self.assertEqual(s.image.shape, (108, 192, 3))
             self.assertEqual(str(s.image.dtype), "uint8")
             self.assertTrue(s.image.flags["C_CONTIGUOUS"])
+
+
+class TestSamplingTelemetryDefaults(unittest.TestCase):
+    """Phase-4 fields default to zero-equivalents so legacy code paths
+    constructing SamplingTelemetry() without timing knowledge still get
+    safe values (e.g., the cache-hit path returns SamplingTelemetry()
+    + pass1_cache_hit=True and the other fields stay at 0.0/False)."""
+
+    def test_phase4_timing_fields_default_zero(self):
+        from video_ingest.pass1_classify import SamplingTelemetry
+
+        tele = SamplingTelemetry()
+        # Phase-2 fields stay at safe defaults.
+        self.assertEqual(tele.decoded_frame_count, 0)
+        self.assertEqual(tele.sampled_frame_count, 0)
+        self.assertEqual(tele.frames_with_missing_pts, 0)
+        self.assertEqual(tele.max_source_pts_jump_within_sample_interval, 0.0)
+        self.assertEqual(tele.sample_period_seconds, 0.0)
+        # Phase-4 additions.
+        self.assertEqual(tele.decode_ms, 0.0)
+        self.assertEqual(tele.classify_ms, 0.0)
+        self.assertEqual(tele.viterbi_ms, 0.0)
+        self.assertEqual(tele.elapsed_pass1_ms, 0.0)
+        self.assertFalse(tele.pass1_cache_hit)
+
+
+@unittest.skipUnless(_ffmpeg_available(), "ffmpeg not on PATH")
+@unittest.skipUnless(_pyav_available(), "PyAV not installed")
+class TestIterSampledFramesDecodeTimer(unittest.TestCase):
+    """Phase 4: `iter_sampled_frames` accumulates wall time spent inside
+    its own decode loop into `telemetry.decode_ms`. Python generators are
+    synchronous — the consumer's time between yields must NOT be counted.
+    """
+
+    DURATION_S = 3
+    SOURCE_FPS = 30
+    SAMPLE_FPS = 1.0
+
+    def test_decode_ms_positive_and_excludes_consumer_time(self):
+        from video_ingest.pass1_classify import (
+            SamplingTelemetry,
+            iter_sampled_frames,
+        )
+
+        with TemporaryDirectory() as tmp:
+            video = Path(tmp) / "cfr.mp4"
+            _synthesize_cfr(video, self.DURATION_S, self.SOURCE_FPS)
+
+            tele = SamplingTelemetry()
+            # Consumer deliberately stalls 50ms between yields. The
+            # `accum += ... ; yield` ordering inside iter_sampled_frames
+            # means each stall lands during a yield suspension — decode_ms
+            # must NOT include it.
+            samples = []
+            for sf in iter_sampled_frames(
+                video, self.SAMPLE_FPS,
+                width=192, height=108, telemetry=tele,
+            ):
+                samples.append(sf)
+                time.sleep(0.05)  # 50ms × 3 samples = 150ms of consumer work
+
+        self.assertEqual(len(samples), self.DURATION_S)
+        # Decode actually ran, so the field is populated.
+        self.assertGreater(tele.decode_ms, 0.0)
+        # Decode time on a 3s × 30fps black-frame clip is small (well
+        # under 1 second even on a slow runner). Crucially it must be
+        # less than the ~150ms of consumer stalls if those were leaking
+        # in. We assert decode_ms < 150ms as a coarse upper bound that
+        # proves consumer time is excluded.
+        self.assertLess(
+            tele.decode_ms, 150.0,
+            f"decode_ms={tele.decode_ms}ms — looks like consumer stalls are "
+            f"leaking into the decode timer (expected <150ms; consumer "
+            f"stalled ~150ms total via time.sleep)",
+        )
 
 
 @unittest.skipUnless(_ffmpeg_available(), "ffmpeg not on PATH")

@@ -29,6 +29,7 @@ import hashlib
 import json
 import subprocess
 import sys
+import time
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Callable, Iterator
@@ -181,20 +182,45 @@ class SampledFrame:
 
 @dataclass
 class SamplingTelemetry:
-    """Side-channel counters captured during sampling. The orchestrator
-    writes these into the pass-1 metadata block of `segments.json` so a
-    later run-quality pass can flag VFR / dropped-frame drift.
+    """Side-channel counters + Phase-4 timing fields captured during Pass-1.
+    The orchestrator writes these into the pass-1 metadata block of
+    `segments.json` so a later run-quality pass can flag VFR /
+    dropped-frame drift AND surface where Pass-1 wall time was spent.
 
     `max_source_pts_jump_within_sample_interval` is the largest observed gap
     between consecutive emitted samples' `source_time_seconds`. On an ideal
     CFR source sampled at 1 fps it should be ≈ 1.0; values materially above
     `1.0 / sample_fps` indicate dropped frames or VFR bursts.
+
+    Timing fields (Phase 4):
+    - `decode_ms`: wall time accumulated inside `iter_sampled_frames` for
+       PyAV decode + reformat work, excluding consumer time between yields.
+    - `classify_ms`: wall time the orchestrator's per-frame classifier
+       loop spent excluding decode (derived: loop_total - decode_ms).
+    - `viterbi_ms`: wall time spent in `decode_segments(_v2)` /
+       `build_segments`.
+    - `elapsed_pass1_ms`: outer wall time of the whole Pass-1 engine
+       branch (NOT a sum of sub-phases; uninstrumented overhead lives in
+       the residual `elapsed_pass1_ms - (decode + classify + viterbi)`).
+
+    Cache-hit semantics: when the orchestrator returns a cached Pass-1
+    result, it constructs a fresh `SamplingTelemetry(pass1_cache_hit=True)`
+    with all `*_ms` and `*_count` fields at default 0/0.0 — meaning "this
+    run did not measure Pass-1." The stored telemetry block in segments.json
+    is NOT read forward onto the in-memory result; it describes the prior
+    fresh run, not this one. Aggregations across runs should filter on
+    `pass1_cache_hit == False` to compare like-with-like.
     """
     decoded_frame_count: int = 0
     sampled_frame_count: int = 0
     frames_with_missing_pts: int = 0
     max_source_pts_jump_within_sample_interval: float = 0.0
     sample_period_seconds: float = 0.0
+    decode_ms: float = 0.0
+    classify_ms: float = 0.0
+    viterbi_ms: float = 0.0
+    elapsed_pass1_ms: float = 0.0
+    pass1_cache_hit: bool = False
 
 
 def iter_sampled_frames(
@@ -245,8 +271,17 @@ def iter_sampled_frames(
         telemetry = SamplingTelemetry()
     telemetry.sample_period_seconds = 1.0 / sample_fps
 
+    # Phase 4: accumulate decode-side wall time. Python generators are
+    # synchronous — the consumer's classifier work runs between yields
+    # and does NOT contribute to `decode_accum` because every per-iteration
+    # timer ends BEFORE the yield. Container open + stream setup also
+    # count as decode time (one-time cost amortized over all frames).
+    decode_accum = 0.0
+    open_t = time.perf_counter()
     container = av.open(str(video_path))
+    decode_accum += time.perf_counter() - open_t
     try:
+        setup_t = time.perf_counter()
         stream = container.streams.video[0]
         time_base = stream.time_base
         if time_base is None:
@@ -270,9 +305,11 @@ def iter_sampled_frames(
         next_tick_seconds = tick_origin
         sample_index = 0
         last_emitted_source_time: float | None = None
+        decode_accum += time.perf_counter() - setup_t
 
         decoded_idx = -1
         for decoded_idx, frame in enumerate(container.decode(stream)):
+            iter_t = time.perf_counter()
             if frame.pts is None:
                 telemetry.frames_with_missing_pts += 1
                 raise PtsHealthError(
@@ -291,12 +328,15 @@ def iter_sampled_frames(
             # PngFrameProvider parity test would otherwise see N+1 frames
             # in-memory vs N PNGs on disk for the same segment bounds.
             if start_seconds is not None and source_time_seconds + 1e-9 < start_seconds:
+                decode_accum += time.perf_counter() - iter_t
                 continue
             if end_seconds is not None and source_time_seconds + 1e-9 >= end_seconds:
+                decode_accum += time.perf_counter() - iter_t
                 break
 
             if source_time_seconds + 1e-9 < next_tick_seconds:
                 # Not yet at the next sample tick; drop this frame.
+                decode_accum += time.perf_counter() - iter_t
                 continue
 
             # Reformat-and-convert in one step: swscale resizes + converts
@@ -319,6 +359,9 @@ def iter_sampled_frames(
                 f"(expected ({height}, {width}, 3) uint8)"
             )
 
+            # Stop the decode timer BEFORE yield so the consumer's
+            # classifier time isn't attributed to decode.
+            decode_accum += time.perf_counter() - iter_t
             yield SampledFrame(
                 sample_index=sample_index,
                 source_pts=source_pts,
@@ -326,6 +369,7 @@ def iter_sampled_frames(
                 decode_order_index=decoded_idx,
                 image=img,
             )
+            post_yield_t = time.perf_counter()
 
             if last_emitted_source_time is not None:
                 jump = source_time_seconds - last_emitted_source_time
@@ -335,11 +379,13 @@ def iter_sampled_frames(
 
             sample_index += 1
             next_tick_seconds = tick_origin + sample_index * sample_period
+            decode_accum += time.perf_counter() - post_yield_t
 
         telemetry.decoded_frame_count = decoded_idx + 1
         telemetry.sampled_frame_count = sample_index
     finally:
         container.close()
+        telemetry.decode_ms = decode_accum * 1000.0
 
 
 def classify_video(
