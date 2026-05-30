@@ -101,6 +101,19 @@ interface StageRuntimes {
   consolidate_loadouts_ms: number | null
   backfill_event_actor_resolution_ms: number | null
   run_quality_emit_ms: number | null
+  // Phase 4 Part B — Pass-1 sub-phase + Pass-2 wall-time fields sourced
+  // from the orchestrator's per-run ingest_timings.json sidecar via
+  // reprocess.py. All null when the sidecar is missing (older
+  // orchestrator, write failure, or --all-runs --emit-row backfill
+  // path which doesn't run the ingest pipeline). Aggregations across
+  // runs should filter on `report.runtime.pass1_cache_hit IS NOT TRUE`
+  // when computing materiality trends — see the analytics query
+  // template in HANDOFF.
+  pass1_ms: number | null
+  pass2_ms: number | null
+  pass1_decode_ms: number | null
+  pass1_classify_ms: number | null
+  pass1_viterbi_ms: number | null
 }
 
 interface StageRuntimesFile {
@@ -108,6 +121,10 @@ interface StageRuntimesFile {
   total_wall_ms: number | null
   captured_at: string | null
   captured_from: 'reprocess.py' | 'backfill'
+  // Phase 4 Part B — top-level (NOT in stages) because stages is
+  // contractually timing-only (number | null) and the STAGE_KEYS loop
+  // would reject a boolean. Lands in JSONB as report.runtime.pass1_cache_hit.
+  pass1_cache_hit: boolean | null
 }
 
 const STAGE_KEYS: ReadonlyArray<keyof StageRuntimes> = [
@@ -120,6 +137,12 @@ const STAGE_KEYS: ReadonlyArray<keyof StageRuntimes> = [
   'consolidate_loadouts_ms',
   'backfill_event_actor_resolution_ms',
   'run_quality_emit_ms',
+  // Phase 4 Part B keys — same number | null contract as the rest.
+  'pass1_ms',
+  'pass2_ms',
+  'pass1_decode_ms',
+  'pass1_classify_ms',
+  'pass1_viterbi_ms',
 ]
 
 function emptyStages(): StageRuntimes {
@@ -133,6 +156,11 @@ function emptyStages(): StageRuntimes {
     consolidate_loadouts_ms: null,
     backfill_event_actor_resolution_ms: null,
     run_quality_emit_ms: null,
+    pass1_ms: null,
+    pass2_ms: null,
+    pass1_decode_ms: null,
+    pass1_classify_ms: null,
+    pass1_viterbi_ms: null,
   }
 }
 
@@ -196,7 +224,19 @@ function loadStageRuntimes(path: string): StageRuntimesFile {
       : (() => {
           throw new Error(`--stage-runtimes: captured_from must be 'reprocess.py' or 'backfill'`)
         })()
-  return { stages, total_wall_ms, captured_at, captured_from }
+  // Phase 4 Part B: pass1_cache_hit lives top-level (separate validator
+  // because boolean values would fail the stages STAGE_KEYS loop). Older
+  // stage-runtimes files (pre-Part-B) lack the key entirely → null.
+  const cacheHitRaw = obj['pass1_cache_hit']
+  const pass1_cache_hit =
+    cacheHitRaw === null || cacheHitRaw === undefined
+      ? null
+      : typeof cacheHitRaw === 'boolean'
+        ? cacheHitRaw
+        : (() => {
+            throw new Error(`--stage-runtimes: pass1_cache_hit must be boolean or null`)
+          })()
+  return { stages, total_wall_ms, captured_at, captured_from, pass1_cache_hit }
 }
 
 // ── body assembly ────────────────────────────────────────────────────────────
@@ -217,6 +257,10 @@ interface ReportRuntime {
   stages: StageRuntimes | null
   captured_at: string | null
   captured_from: 'reprocess.py' | 'backfill'
+  // Phase 4 Part B — top-level (NOT in stages). Lands in JSONB as
+  // report.runtime.pass1_cache_hit. Analytics filter on `IS NOT TRUE`
+  // when computing across-run Pass-1 cost trends.
+  pass1_cache_hit: boolean | null
 }
 
 interface ReportScreens {
@@ -540,12 +584,14 @@ async function buildReportBody(run: DecoderRunRow, opts: BuildReportOptions): Pr
         stages: opts.runtime.stages,
         captured_at: opts.runtime.captured_at,
         captured_from: opts.runtime.captured_from,
+        pass1_cache_hit: opts.runtime.pass1_cache_hit,
       }
     : {
         total_wall_ms: null,
         stages: null,
         captured_at: null,
         captured_from: 'backfill',
+        pass1_cache_hit: null,
       }
 
   return {

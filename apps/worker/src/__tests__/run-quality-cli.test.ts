@@ -45,6 +45,8 @@ const SENTINEL_MATCH_IDS = [
   9316, 9317, 9318, 9319, 9320,
   // P1-2 inactive-run layer-skip tests
   9321, 9322, 9323, 9324, 9325,
+  // Phase 4 Part B stage-runtimes round-trip tests
+  9326, 9327, 9328, 9329,
 ] as const
 
 const REPO_ROOT = path.resolve(process.cwd())
@@ -665,9 +667,141 @@ void test('--stage-runtimes injects runtime block; total_wall_ms + captured_from
   assert.equal(runtime['total_wall_ms'], 4500)
   assert.equal(runtime['captured_from'], 'reprocess.py')
   assert.equal(runtime['captured_at'], '2026-05-28T12:34:56Z')
-  const stages = runtime['stages'] as Record<string, number>
+  const stages = runtime['stages'] as Record<string, number | null>
   assert.equal(stages['ingest_ms'], 200)
   assert.equal(stages['run_quality_emit_ms'], 900)
+  // Phase 4 Part B: forward-compat — a pre-Part-B fixture (no Phase-4
+  // stage keys, no pass1_cache_hit) must produce a persisted row whose
+  // new fields are null so downstream analytics can distinguish "didn't
+  // measure" from "measured zero." The loader sets them via emptyStages.
+  assert.equal(stages['pass1_ms'], null)
+  assert.equal(stages['pass1_classify_ms'], null)
+  assert.equal(stages['pass1_decode_ms'], null)
+  assert.equal(stages['pass1_viterbi_ms'], null)
+  assert.equal(stages['pass2_ms'], null)
+  assert.equal(runtime['pass1_cache_hit'], null)
+})
+
+void test('--stage-runtimes round-trips Phase 4 Part B Pass-1 sub-phase keys + pass1_cache_hit', async (t) => {
+  if (!process.env['DATABASE_URL']) {
+    t.skip('DATABASE_URL not set')
+    return
+  }
+  const f = await seedFixture(9326)
+
+  const tmpDir = mkdtempSync(path.join(tmpdir(), 'run-quality-cli-partb-'))
+  const stagePath = path.join(tmpDir, 'stage-runtimes.json')
+  const stageData = {
+    stages: {
+      create_candidate_ms: 100,
+      ingest_ms: 80000,
+      repromote_loadout_ms: 300,
+      repromote_lobby_ms: 400,
+      validate_ms: 500,
+      activate_ms: 600,
+      consolidate_loadouts_ms: 700,
+      backfill_event_actor_resolution_ms: 800,
+      run_quality_emit_ms: 900,
+      // Phase 4 Part B numeric keys.
+      pass1_ms: 65000,
+      pass2_ms: 9000,
+      pass1_decode_ms: 600,
+      pass1_classify_ms: 64000,
+      pass1_viterbi_ms: 400,
+    },
+    total_wall_ms: 84000,
+    captured_at: '2026-05-30T20:00:00Z',
+    captured_from: 'reprocess.py',
+    // Phase 4 Part B top-level boolean.
+    pass1_cache_hit: false,
+  }
+  writeFileSync(stagePath, JSON.stringify(stageData), 'utf8')
+
+  const result = runCli(['--run-id', String(f.runId), '--emit-row', '--stage-runtimes', stagePath])
+  assert.equal(result.status, 0, `stderr: ${result.stderr}; stdout: ${result.stdout}`)
+
+  const [row] = await db
+    .select({ report: ocrRunQualityReports.report })
+    .from(ocrRunQualityReports)
+    .where(eq(ocrRunQualityReports.runId, f.runId))
+  assert.ok(row)
+  const body = row!.report as Record<string, unknown>
+  const runtime = body['runtime'] as Record<string, unknown>
+  const stages = runtime['stages'] as Record<string, number | null>
+  // Numeric stage keys round-trip verbatim.
+  assert.equal(stages['pass1_ms'], 65000)
+  assert.equal(stages['pass2_ms'], 9000)
+  assert.equal(stages['pass1_decode_ms'], 600)
+  assert.equal(stages['pass1_classify_ms'], 64000)
+  assert.equal(stages['pass1_viterbi_ms'], 400)
+  // pass1_cache_hit lands top-level on runtime, NOT inside stages.
+  assert.equal(runtime['pass1_cache_hit'], false)
+  assert.equal(stages['pass1_cache_hit'], undefined)
+})
+
+void test('--stage-runtimes accepts pass1_cache_hit=true and pass1_cache_hit=null', async (t) => {
+  if (!process.env['DATABASE_URL']) {
+    t.skip('DATABASE_URL not set')
+    return
+  }
+  // Two fixtures: one with cache_hit=true, one with cache_hit explicitly null.
+  for (const [seedOffset, cacheHitValue] of [[9327, true], [9328, null]] as const) {
+    const f = await seedFixture(seedOffset)
+    const tmpDir = mkdtempSync(path.join(tmpdir(), 'run-quality-cli-partb-'))
+    const stagePath = path.join(tmpDir, 'stage-runtimes.json')
+    writeFileSync(stagePath, JSON.stringify({
+      stages: {
+        create_candidate_ms: null, ingest_ms: null, repromote_loadout_ms: null,
+        repromote_lobby_ms: null, validate_ms: null, activate_ms: null,
+        consolidate_loadouts_ms: null, backfill_event_actor_resolution_ms: null,
+        run_quality_emit_ms: null,
+      },
+      total_wall_ms: null,
+      captured_at: null,
+      captured_from: 'reprocess.py',
+      pass1_cache_hit: cacheHitValue,
+    }), 'utf8')
+
+    const result = runCli(['--run-id', String(f.runId), '--emit-row', '--stage-runtimes', stagePath])
+    assert.equal(result.status, 0, `cache_hit=${cacheHitValue}: ${result.stderr}`)
+
+    const [row] = await db
+      .select({ report: ocrRunQualityReports.report })
+      .from(ocrRunQualityReports)
+      .where(eq(ocrRunQualityReports.runId, f.runId))
+    const runtime = (row!.report as Record<string, unknown>)['runtime'] as Record<string, unknown>
+    assert.equal(runtime['pass1_cache_hit'], cacheHitValue)
+  }
+})
+
+void test('--stage-runtimes rejects pass1_cache_hit when non-boolean', async (t) => {
+  if (!process.env['DATABASE_URL']) {
+    t.skip('DATABASE_URL not set')
+    return
+  }
+  const f = await seedFixture(9329)
+  const tmpDir = mkdtempSync(path.join(tmpdir(), 'run-quality-cli-partb-'))
+  const stagePath = path.join(tmpDir, 'stage-runtimes.json')
+  writeFileSync(stagePath, JSON.stringify({
+    stages: {
+      create_candidate_ms: null, ingest_ms: null, repromote_loadout_ms: null,
+      repromote_lobby_ms: null, validate_ms: null, activate_ms: null,
+      consolidate_loadouts_ms: null, backfill_event_actor_resolution_ms: null,
+      run_quality_emit_ms: null,
+    },
+    total_wall_ms: null,
+    captured_at: null,
+    captured_from: 'reprocess.py',
+    pass1_cache_hit: 'not-a-bool',  // String — must be rejected.
+  }), 'utf8')
+
+  const result = runCli(['--run-id', String(f.runId), '--emit-row', '--stage-runtimes', stagePath])
+  assert.notEqual(result.status, 0, 'expected non-zero exit for invalid pass1_cache_hit')
+  assert.match(
+    result.stderr,
+    /pass1_cache_hit must be boolean or null/i,
+    `expected pass1_cache_hit error, got: ${result.stderr}`,
+  )
 })
 
 // Stand-alone tests that don't require sentinel cleanup of additional state.
