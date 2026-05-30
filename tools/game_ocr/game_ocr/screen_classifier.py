@@ -254,6 +254,7 @@ def _load_v2(raw: dict, state_machine: StateMachine) -> "ScreenClassifierV2":
         n_priors=int(raw["n_priors"]),
         intercept=np.asarray(raw["intercept"], dtype=np.float64),
         coef=np.asarray(raw["coef"], dtype=np.float64),
+        n_prefilter_features=int(raw.get("n_prefilter_features", 0)),
     )
     return ScreenClassifierV2(weights, state_machine)
 
@@ -292,6 +293,7 @@ def feature_vector_v2(
     state_machine: StateMachine,
     *,
     n_priors: int,
+    n_prefilter_features: int = 0,
 ) -> np.ndarray:
     """Concatenate v2 signals into a single 1-D float vector.
 
@@ -302,7 +304,13 @@ def feature_vector_v2(
        || log1p(quadrant_blur)(4)
        || quadrant_edge_density(4)
        || regex_prior_flags(n_priors)
-       || ocr_presence_flags(3)]
+       || ocr_presence_flags(3)
+       || prefilter_features(n_prefilter_features)]
+
+    `n_prefilter_features` defaults to 0 so legacy callers (and legacy weight
+    files via `ScreenClassifierV2Weights.n_prefilter_features=0`) get the
+    unchanged 255+n_priors layout. New visual-prefilter-aware training passes
+    a positive count and populates `features.prefilter_features` to match.
 
     The `state_machine` arg is accepted for parity with v1 + future state-aware
     extensions; it is unused here (v2 has no per-state anchor flags — regex
@@ -314,7 +322,12 @@ def feature_vector_v2(
             f"regex_prior_flags has {features.regex_prior_flags.shape[0]} dims, "
             f"expected {n_priors}"
         )
-    total = _V2_FIXED_DIMS + n_priors
+    if features.prefilter_features.shape[0] != n_prefilter_features:
+        raise ValueError(
+            f"prefilter_features has {features.prefilter_features.shape[0]} dims, "
+            f"expected {n_prefilter_features}"
+        )
+    total = _V2_FIXED_DIMS + n_priors + n_prefilter_features
     out = np.empty(total, dtype=np.float64)
     i = 0
     out[i:i + 48] = features.full_frame_hsv; i += 48
@@ -325,6 +338,8 @@ def feature_vector_v2(
     out[i:i + 4] = features.quadrant_edge_density; i += 4
     out[i:i + n_priors] = features.regex_prior_flags; i += n_priors
     out[i:i + 3] = features.ocr_presence_flags; i += 3
+    out[i:i + n_prefilter_features] = features.prefilter_features
+    i += n_prefilter_features
     assert i == total, f"feature_vector_v2 packed {i} dims, expected {total}"
     return out
 
@@ -337,6 +352,10 @@ class ScreenClassifierV2Weights:
     n_priors: int
     intercept: np.ndarray
     coef: np.ndarray
+    # Count of visual-prefilter features appended to the LR input vector.
+    # Defaults to 0 so legacy weight files (which omit this key) load unchanged
+    # — see _load_v2 + ScreenClassifierV2.__init__ for the expected_cols calc.
+    n_prefilter_features: int = 0
 
 
 class ScreenClassifierV2:
@@ -360,17 +379,25 @@ class ScreenClassifierV2:
             raise ValueError(
                 "weights.classes do not match state machine.states ordering"
             )
-        expected_cols = _V2_FIXED_DIMS + weights.n_priors
+        expected_cols = (
+            _V2_FIXED_DIMS + weights.n_priors + weights.n_prefilter_features
+        )
         if weights.coef.shape[1] != expected_cols:
             raise ValueError(
                 f"weights.coef has {weights.coef.shape[1]} cols, "
-                f"expected {expected_cols} for n_priors={weights.n_priors}"
+                f"expected {expected_cols} for n_priors={weights.n_priors} "
+                f"n_prefilter_features={weights.n_prefilter_features}"
             )
         self.weights = weights
         self.state_machine = state_machine
 
     def predict_log_probs(self, features: FrameFeaturesV2) -> np.ndarray:
-        x = feature_vector_v2(features, self.state_machine, n_priors=self.weights.n_priors)
+        x = feature_vector_v2(
+            features,
+            self.state_machine,
+            n_priors=self.weights.n_priors,
+            n_prefilter_features=self.weights.n_prefilter_features,
+        )
         logits = self.weights.coef @ x + self.weights.intercept
         m = float(logits.max())
         log_sum_exp = m + math.log(float(np.exp(logits - m).sum()))
@@ -383,6 +410,7 @@ class ScreenClassifierV2:
             "decoder_version": self.weights.decoder_version,
             "classes": list(self.weights.classes),
             "n_priors": self.weights.n_priors,
+            "n_prefilter_features": self.weights.n_prefilter_features,
             "intercept": self.weights.intercept.tolist(),
             "coef": self.weights.coef.tolist(),
         }
@@ -397,9 +425,15 @@ def train_screen_classifier_v2(
     regex_priors: RegexPriorsConfig,
     *,
     allow_missing_states: bool = False,
+    n_prefilter_features: int = 0,
 ) -> ScreenClassifierV2:
     """Fit a multinomial LogisticRegression over FrameFeaturesV2. Mirror of
     `train_screen_classifier` with the v2 feature vectorizer.
+
+    `n_prefilter_features` is plumbed into both `feature_vector_v2` and the
+    resulting weights so prefilter-aware training corpora (with non-empty
+    `FrameFeaturesV2.prefilter_features`) ship weights whose `expected_cols`
+    matches the runtime vectorizer. Defaults to 0 for current trainers.
     """
     features_list = list(features)
     labels_list = list(labels)
@@ -410,7 +444,15 @@ def train_screen_classifier_v2(
 
     n_priors = regex_priors.n_priors()
     X = np.stack(
-        [feature_vector_v2(f, state_machine, n_priors=n_priors) for f in features_list]
+        [
+            feature_vector_v2(
+                f,
+                state_machine,
+                n_priors=n_priors,
+                n_prefilter_features=n_prefilter_features,
+            )
+            for f in features_list
+        ]
     )
     label_to_idx = {s: i for i, s in enumerate(state_machine.states)}
     for lbl in labels_list:
@@ -463,5 +505,6 @@ def train_screen_classifier_v2(
         n_priors=n_priors,
         intercept=intercept_full,
         coef=coef_full,
+        n_prefilter_features=n_prefilter_features,
     )
     return ScreenClassifierV2(weights, state_machine)
