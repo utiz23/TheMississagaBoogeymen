@@ -64,6 +64,19 @@ def ingest(
             "one-shot ingests (rows get run_id=NULL)."
         ),
     ),
+    pass2_artifacts: bool = typer.Option(
+        True,
+        "--pass2-artifacts/--no-pass2-artifacts",
+        help=(
+            "Phase 3a: write PNG frames to disk per segment (default True). "
+            "Pass --no-pass2-artifacts to skip the PNG write step for "
+            "typed_v1 segments and feed frames in memory instead (Phase 3b "
+            "wires the in-memory hot path; until then this only changes the "
+            "manifest + cache key so re-runs don't reuse the wrong mode's "
+            "cache). Switching this flag invalidates the pass2 cache for "
+            "this video."
+        ),
+    ),
 ) -> None:
     """Run the full pipeline against a single video file. With
     `--dispatch`, fans out to the worker's ingest-ocr-cli to write
@@ -80,6 +93,7 @@ def ingest(
         match_id=match_id,
         dispatch_dry_run=dispatch_dry_run,
         run_id=run_id,
+        artifact_mode=pass2_artifacts,
     )
     typer.echo(f"\nsha:    {res.probe.sha256}")
     typer.echo(f"root:   {res.sha_root}")
@@ -128,6 +142,16 @@ def extract_only(
     output_root: Path = typer.Option(..., resolve_path=True),
     version: str = typer.Option("nhl26"),
     force_pass2: bool = typer.Option(False, help="Re-extract Pass 2 frames even if cached."),
+    pass2_artifacts: bool = typer.Option(
+        True,
+        "--pass2-artifacts/--no-pass2-artifacts",
+        help=(
+            "Phase 3a: write PNG frames to disk per segment (default True). "
+            "Pass --no-pass2-artifacts to skip PNG writes for typed_v1 "
+            "segments (Phase 3b wires the in-memory hot path). Switching "
+            "this flag invalidates the pass2 cache for this video."
+        ),
+    ),
 ) -> None:
     """Pass 2 only. Requires a valid cached segments.json — fails fast with
     a clear remediation otherwise. Respects the Pass 2 cache; pass
@@ -139,6 +163,7 @@ def extract_only(
         use_gpu=False,
         skip_pass1=True,
         force_pass2=force_pass2,
+        artifact_mode=pass2_artifacts,
     )
     total_frames = sum(r.frame_count for r in res.pass2_results)
     typer.echo(f"\nextracted {total_frames} frames across {len(res.pass2_results)} segments")

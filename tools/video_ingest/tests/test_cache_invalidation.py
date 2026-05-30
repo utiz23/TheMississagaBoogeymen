@@ -89,6 +89,30 @@ class CacheKeyHelperTests(unittest.TestCase):
                 k2 = compute_pass1_cache_key("nhl26")
         self.assertNotEqual(k1, k2)
 
+    def test_pass2_cache_key_flips_when_artifact_mode_changes(self) -> None:
+        """Phase 3a: switching artifact_mode must invalidate the pass2
+        cache. A cached PNG-on-disk run is structurally incompatible with
+        a fresh in-memory run (the directory layout the typed_v1
+        extractors expect differs) — silent reuse would yield wrong
+        output. The cache key change is what triggers CacheMismatch."""
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_video = Path(tmp) / "video"
+            tmp_video.mkdir()
+            (tmp_video / "nhl26.yaml").write_text("a: 1\n")
+            with mock.patch.object(p2_module, "VIDEO_INGEST_CONFIGS_DIR", tmp_video):
+                k_artifacts = compute_pass2_cache_key("nhl26", artifact_mode=True)
+                k_no_artifacts = compute_pass2_cache_key("nhl26", artifact_mode=False)
+        self.assertNotEqual(k_artifacts, k_no_artifacts)
+        # Default arg must equal explicit True.
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_video = Path(tmp) / "video"
+            tmp_video.mkdir()
+            (tmp_video / "nhl26.yaml").write_text("a: 1\n")
+            with mock.patch.object(p2_module, "VIDEO_INGEST_CONFIGS_DIR", tmp_video):
+                k_default = compute_pass2_cache_key("nhl26")
+                k_explicit_true = compute_pass2_cache_key("nhl26", artifact_mode=True)
+        self.assertEqual(k_default, k_explicit_true)
+
     def test_pass2_cache_key_depends_only_on_version_yaml(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             tmp_video = Path(tmp) / "video"

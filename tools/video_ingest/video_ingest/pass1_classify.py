@@ -204,6 +204,8 @@ def iter_sampled_frames(
     width: int = 1920,
     height: int = 1080,
     telemetry: "SamplingTelemetry | None" = None,
+    start_seconds: float | None = None,
+    end_seconds: float | None = None,
 ) -> Iterator[SampledFrame]:
     """Decode the input video with PyAV and emit one frame per source-time
     tick (`n / sample_fps`), with the frame's canonical container PTS
@@ -213,12 +215,21 @@ def iter_sampled_frames(
     Sampling semantics:
       - For each emission, pick the first decoded frame whose
         `source_time_seconds >= next_tick`, where
-        `next_tick = sample_index * (1.0 / sample_fps)`.
+        `next_tick = tick_origin + sample_index * (1.0 / sample_fps)`.
       - Frames inside a tick window after one was emitted are dropped.
       - If the source has a hole (no decoded frame at or near a tick) we
         do NOT skip the sample slot — the next available frame past the
         tick gets emitted with the next `sample_index`. The drift metric
         in `telemetry` surfaces the gap so the operator can see it.
+
+    Phase 3a — bounded segment mode: when `start_seconds` / `end_seconds`
+    are supplied the iterator seeks to a keyframe before `start_seconds`,
+    skips frames whose source time is before the window, and stops once
+    the source time exceeds `end_seconds`. Tick origin shifts to
+    `start_seconds` so the first emitted sample lands at the segment
+    boundary. Pass-1 always passes `None` for both (whole-video decode);
+    the new `InMemoryFrameProvider` in `frame_provider.py` passes them
+    so segment-bounded decode covers only the labeled time range.
 
     Fails closed (raises `PtsHealthError`) if any decoded frame has
     `pts is None`. Pass 1 cannot reason about source time without PTS;
@@ -245,8 +256,18 @@ def iter_sampled_frames(
             )
         start_pts = stream.start_time if stream.start_time is not None else 0
 
+        # Bounded segment seek: jump to a keyframe at or before
+        # `start_seconds` so we don't decode the whole video. PyAV's
+        # `seek` flushes the decoder; we still receive frames whose PTS
+        # is before the target, which the `source_time_seconds < start`
+        # guard inside the loop drops.
+        if start_seconds is not None:
+            offset_pts = int(start_seconds / float(time_base)) + start_pts
+            container.seek(offset_pts, stream=stream, any_frame=False, backward=True)
+
         sample_period = 1.0 / sample_fps
-        next_tick_seconds = 0.0
+        tick_origin = start_seconds if start_seconds is not None else 0.0
+        next_tick_seconds = tick_origin
         sample_index = 0
         last_emitted_source_time: float | None = None
 
@@ -262,6 +283,17 @@ def iter_sampled_frames(
 
             source_pts = frame.pts - start_pts
             source_time_seconds = float(source_pts * time_base)
+
+            # Bounded segment: drop pre-window frames the seek surfaced,
+            # stop once we're at or past the window's exclusive end.
+            # `end_seconds` is exclusive to match `Segment.end_seconds`'s
+            # documented convention + ffmpeg's `-to` semantics — the
+            # PngFrameProvider parity test would otherwise see N+1 frames
+            # in-memory vs N PNGs on disk for the same segment bounds.
+            if start_seconds is not None and source_time_seconds + 1e-9 < start_seconds:
+                continue
+            if end_seconds is not None and source_time_seconds + 1e-9 >= end_seconds:
+                break
 
             if source_time_seconds + 1e-9 < next_tick_seconds:
                 # Not yet at the next sample tick; drop this frame.
@@ -302,7 +334,7 @@ def iter_sampled_frames(
             last_emitted_source_time = source_time_seconds
 
             sample_index += 1
-            next_tick_seconds = sample_index * sample_period
+            next_tick_seconds = tick_origin + sample_index * sample_period
 
         telemetry.decoded_frame_count = decoded_idx + 1
         telemetry.sampled_frame_count = sample_index

@@ -316,6 +316,7 @@ def ingest(
     match_id: int | None = None,
     dispatch_dry_run: bool = False,
     run_id: int | None = None,
+    artifact_mode: bool | None = None,
 ) -> IngestResult:
     """Run the two-pass pipeline.
 
@@ -331,6 +332,11 @@ def ingest(
                   Backs `extract-only`.
       skip_pass2: don't run Pass 2; return empty pass2_results. Backs
                   `classify-only`.
+      artifact_mode: Phase 3a override for Pass2Config.artifact_mode. When
+                    None (default) the value is taken from the version
+                    YAML. When True/False the CLI flag takes precedence
+                    over the config — the canonical entry point for
+                    `--pass2-artifacts/--no-pass2-artifacts`.
     """
     if skip_pass1 and force_pass1:
         raise ValueError("skip_pass1 and force_pass1 are mutually exclusive")
@@ -390,12 +396,22 @@ def ingest(
         },
         engine=str(p1_raw.get("engine", "run_length")),
     )
+    # artifact_mode resolution: CLI override > version YAML > default True.
+    # The YAML key is `pass2.artifact_mode` (optional; bool). The CLI flag
+    # takes precedence so an operator can flip mode without editing the
+    # config file.
+    p2cfg_artifact_mode = (
+        artifact_mode
+        if artifact_mode is not None
+        else bool(vcfg["pass2"].get("artifact_mode", True))
+    )
     p2cfg = Pass2Config(
         window_padding_seconds=float(vcfg["pass2"]["window_padding_seconds"]),
         sample_rates={str(k): float(v) for k, v in vcfg["pass2"]["sample_rates"].items()},
         extract_screens=set(str(s) for s in vcfg["extract_screens"]),
         loadout_engine=str(vcfg["pass2"].get("loadout_engine", "legacy")),
         lobby_engine=str(vcfg["pass2"].get("lobby_engine", "legacy")),
+        artifact_mode=p2cfg_artifact_mode,
     )
 
     # 3. Pass 1 (cached). Cache key = sha256(version_yaml + classifier_yaml).
@@ -502,7 +518,7 @@ def ingest(
     if skip_pass2:
         print(f"[pass2] skipped (skip_pass2=True)", file=sys.stderr)
     else:
-        pass2_cache_key = compute_pass2_cache_key(version)
+        pass2_cache_key = compute_pass2_cache_key(version, p2cfg.artifact_mode)
         segments_hash = compute_segments_hash(segments_json)
         t0 = time.perf_counter()
         if force_pass2 and pass2_root.exists():

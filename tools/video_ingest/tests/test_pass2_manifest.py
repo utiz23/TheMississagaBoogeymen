@@ -85,6 +85,66 @@ class ManifestRoundTripTests(unittest.TestCase):
             with self.assertRaises(FileNotFoundError):
                 load_pass2_manifest(path, [])
 
+    def test_manifest_round_trip_preserves_artifact_mode(self) -> None:
+        """Phase 3a: artifact_mode is a top-level manifest field. Both
+        True and False values survive write → load, and the
+        Pass2ManifestLoaded.is_legacy property recognises both as fresh."""
+        seg = _make_segment((5.0, 10.0), "player_loadout_view")
+        result = Pass2Result(
+            segment_index=0,
+            segment=seg,
+            directory=Path("/fake/pass2/seg-000-player_loadout_view"),
+            frame_count=5,
+            sample_fps=1.0,
+            start_seconds=4.0,
+            end_seconds=11.0,
+        )
+        for mode in (True, False):
+            with self.subTest(artifact_mode=mode):
+                with tempfile.TemporaryDirectory() as tmp:
+                    path = Path(tmp) / "pass2_manifest.json"
+                    write_pass2_manifest(
+                        path,
+                        [result],
+                        version="nhl26",
+                        cache_key="sha256:test",
+                        segments_hash="sha256:seg",
+                        artifact_mode=mode,
+                    )
+                    loaded = load_pass2_manifest(path, [seg])
+                self.assertEqual(loaded.artifact_mode, mode)
+                self.assertFalse(loaded.is_legacy)
+
+    def test_legacy_manifest_without_artifact_mode_field_is_legacy(self) -> None:
+        """Phase 3a: a manifest written before artifact_mode existed must
+        load as legacy so the cache-mismatch path forces a fresh extract
+        under whatever mode the operator now selects."""
+        seg = _make_segment((5.0, 10.0), "player_loadout_view")
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "pass2_manifest.json"
+            # Hand-write a pre-Phase-3a manifest: schema is the 4-field
+            # header + entries, no artifact_mode key.
+            payload = {
+                "version": "nhl26",
+                "pass2_cache_key": "sha256:test",
+                "segments_hash": "sha256:seg",
+                "entries": [
+                    {
+                        "segment_index": 0,
+                        "screen_type": "player_loadout_view",
+                        "directory": "/fake/dir",
+                        "frame_count": 5,
+                        "sample_fps": 1.0,
+                        "start_seconds": 4.0,
+                        "end_seconds": 11.0,
+                    }
+                ],
+            }
+            path.write_text(json.dumps(payload))
+            loaded = load_pass2_manifest(path, [seg])
+        self.assertIsNone(loaded.artifact_mode)
+        self.assertTrue(loaded.is_legacy)
+
 
 class ExtractWritesManifestTests(unittest.TestCase):
     """extract_segments must write the manifest itself, with the padded

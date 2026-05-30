@@ -38,11 +38,18 @@ extract_lobby_evidence = None  # type: ignore[assignment]
 PASS2_MANIFEST_FILENAME = "pass2_manifest.json"
 
 
-def compute_pass2_cache_key(version: str) -> str:
-    """Hash of the orchestrator-side version YAML. Pass 2 doesn't need the
-    classifier YAML — classifier changes propagate via segments_hash."""
+def compute_pass2_cache_key(version: str, artifact_mode: bool = True) -> str:
+    """Hash of the orchestrator-side version YAML + the artifact_mode flag.
+    Pass 2 doesn't need the classifier YAML — classifier changes propagate
+    via segments_hash. The artifact_mode byte is included so a switch
+    between PNG-on-disk and in-memory frame providers invalidates the
+    cache (running typed_v1 evidence extraction without artifacts when
+    the cached run had PNGs would produce a directory the extractors
+    can't read)."""
     version_yaml = VIDEO_INGEST_CONFIGS_DIR / f"{version}.yaml"
-    return _sha256_of(version_yaml.read_bytes())
+    parts: list[bytes] = [version_yaml.read_bytes(), b"\x00"]
+    parts.append(b"artifact_mode=true" if artifact_mode else b"artifact_mode=false")
+    return _sha256_of(b"".join(parts))
 
 
 @dataclass
@@ -62,6 +69,14 @@ class Pass2Config:
     # 'typed_v1'         = extract_lobby_evidence() → lobby_evidence.json.
     # Task 3B-8 flips the production default to 'typed_v1' for state_2 only.
     lobby_engine: str = "legacy"
+    # Phase 3a: artifact mode. True = write PNGs to disk per segment (the
+    # legacy behavior, fed to legacy game_ocr.cli + the existing typed_v1
+    # extractors that glob the segment dir). False = process frames in
+    # memory and only write evidence JSON. Phase 3a scaffolds the flag +
+    # cache key inclusion; Phase 3b wires the typed_v1 extractors to
+    # consume a `FrameProvider` so the False path actually skips PNG
+    # writes for those segments. Default True preserves today's behavior.
+    artifact_mode: bool = True
 
 
 def _ffmpeg_extract(
@@ -197,8 +212,9 @@ def extract_segments(
         pass2_root.parent / PASS2_MANIFEST_FILENAME,
         out,
         version=version,
-        cache_key=compute_pass2_cache_key(version),
+        cache_key=compute_pass2_cache_key(version, config.artifact_mode),
         segments_hash=segments_hash,
+        artifact_mode=config.artifact_mode,
     )
     return out
 
@@ -262,16 +278,21 @@ class Pass2ManifestLoaded:
     version: str | None
     pass2_cache_key: str | None
     segments_hash: str | None
+    # Phase 3a: artifact_mode the cached run wrote with. None on legacy
+    # manifests that pre-date the field — treated as a cache miss so the
+    # operator's current artifact_mode setting takes effect on re-extract.
+    artifact_mode: bool | None
     results: list[Pass2Result]
 
     @property
     def is_legacy(self) -> bool:
-        """True if the manifest lacks the Issue-2 cache-key fields (e.g.,
-        Issue-4 bare-list format). Caller treats this as cache miss."""
+        """True if the manifest lacks any required Issue-2 / Phase-3a
+        cache field. Caller treats this as cache miss."""
         return (
             self.version is None
             or self.pass2_cache_key is None
             or self.segments_hash is None
+            or self.artifact_mode is None
         )
 
 
@@ -282,6 +303,7 @@ def write_pass2_manifest(
     version: str,
     cache_key: str,
     segments_hash: str,
+    artifact_mode: bool = True,
 ) -> None:
     """Persist the Pass 2 manifest. Called once per fresh extraction; the
     file is the authoritative record of which (padded) windows ffmpeg saw,
@@ -303,6 +325,7 @@ def write_pass2_manifest(
         "version": version,
         "pass2_cache_key": cache_key,
         "segments_hash": segments_hash,
+        "artifact_mode": artifact_mode,
         "entries": entries,
     }
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -311,20 +334,31 @@ def write_pass2_manifest(
 
 def load_pass2_manifest(path: Path, segments: list[Segment]) -> Pass2ManifestLoaded:
     """Load the Pass 2 manifest. Returns a `Pass2ManifestLoaded` whose
-    `version`/`pass2_cache_key`/`segments_hash` are None for legacy bare-list
-    manifests (Issue-4 schema). Raises FileNotFoundError if the manifest is
-    absent."""
+    `version`/`pass2_cache_key`/`segments_hash`/`artifact_mode` are None
+    for legacy bare-list manifests (Issue-4 schema) or pre-Phase-3a
+    manifests that pre-date the artifact_mode field. Raises
+    FileNotFoundError if the manifest is absent."""
     data = json.loads(path.read_text())
     if isinstance(data, list):
         entries = data
         version = None
         cache_key = None
         segments_hash = None
+        artifact_mode: bool | None = None
     else:
         entries = data.get("entries", [])
         version = data.get("version")
         cache_key = data.get("pass2_cache_key")
         segments_hash = data.get("segments_hash")
+        # `artifact_mode` was introduced in Phase 3a. Pre-existing manifests
+        # lack the key; treat that as None (legacy) so the cache mismatch
+        # path forces a fresh extract under the operator's current setting.
+        artifact_mode = data.get("artifact_mode")
+        if artifact_mode is not None and not isinstance(artifact_mode, bool):
+            raise ValueError(
+                f"pass2_manifest.json `artifact_mode` must be a bool when present, "
+                f"got {type(artifact_mode).__name__}: {artifact_mode!r}"
+            )
     results: list[Pass2Result] = []
     for entry in entries:
         idx = entry["segment_index"]
@@ -341,5 +375,6 @@ def load_pass2_manifest(path: Path, segments: list[Segment]) -> Pass2ManifestLoa
         version=version,
         pass2_cache_key=cache_key,
         segments_hash=segments_hash,
+        artifact_mode=artifact_mode,
         results=results,
     )
