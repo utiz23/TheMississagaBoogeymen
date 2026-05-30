@@ -25,7 +25,14 @@ See the 2026-05-29 session summaries below.
 
 W1 cuts the dependency cleanly: Pass-2 dispatch passes `--frame-count` to the worker; for `player_loadout_view` × `loadout_engine=typed_v1` or `pre_game_lobby_state_2` × `lobby_engine=typed_v1` segments the worker SKIPS `runOcrCli`, synthesizes a single stub `ocr_extractions` row (ocr_backend=`typed_v1_summary`, source_path=`<typed_v1:summary:vsha-<sha-prefix>:seg<NNNN>>`), and back-fills `overall_confidence` from mean(`calibrated_confidence`) across the evidence records after `writeFieldEvidenceForBatch` runs. Legacy segments unchanged. Match-250 baseline `match-quality --json` byte-identical post-merge (the carve-out fires only on new typed_v1 ingests).
 
-**Next session (architecture workstream — recommended):** **Phase 3: Split Artifact Extraction From Hot-Path Extraction** per [docs/research/video-extraction-architecture-review-2026-05-28.md §"Phase 3" (line 475)](docs/research/video-extraction-architecture-review-2026-05-28.md#L475). With W1 shipped, the worker no longer needs PNGs for typed_v1 segments; Pass-2 can now drop the ffmpeg-extract-PNG step for those segments and switch to an in-memory `FrameProvider` per the architecture review's design. Risk table rates this as Medium-severity (excess disk/runtime cost). Phase-2 smoke-test showed PyAV decode-every-frame is ~5× slower wall-clock than the old `ffmpeg -vf fps=N` filter on a 60s clip (~152s vs ~30s previously); Phase 3's in-memory hot path is the architectural answer.
+**Phase 3a: FrameProvider scaffolding + artifact_mode flag SHIPPED** on `feat/phase3a-frame-provider-scaffolding` (1 commit, `1a5b2ca`). Plan-agent validation surfaced that "Phase 3 = drop PNGs" was naively scoped: `LoadoutSubjectBundle` is path-typed and threads `Path` deep into 4+ `loadout_extractors/*.py` files that `cv2.imread(str(...))`. The bundle layer is the real refactor cost, not the two extractor entry points. Scoping Phase 3 into 3a → 3b → 3c was the user-approved sequence.
+
+3a ships the abstraction + tests + cache/config wiring without touching the hot path: new `tools/video_ingest/video_ingest/frame_provider.py` exports `FrameProvider` ABC, `PngFrameProvider` (wraps existing glob+imread), `InMemoryFrameProvider` (PyAV bounded segment decode reusing Phase-2's `iter_sampled_frames` with new `start_seconds`/`end_seconds` params). `Pass2Config.artifact_mode: bool = True` (default preserves today). `compute_pass2_cache_key` includes the flag so switching invalidates. Manifest gains a top-level `artifact_mode` field; pre-3a manifests load as legacy (cache miss). CLI: `video-ingest ingest|extract-only --pass2-artifacts/--no-pass2-artifacts`.
+
+**Next session (architecture workstream — recommended):** **Phase 3b: rewire LoadoutSubjectBundle + extractors to consume FrameProvider**. Today `bundle.best_frame_path: Path` and `bundle.frame_paths: tuple[Path, ...]` get passed to extractors that call `cv2.imread(str(bundle.best_frame_path))` at `tools/game_ocr/game_ocr/loadout_evidence.py:308,317,590,594` and through ~4 `loadout_extractors/*.py` files (and `lobby_subjects.py`). 3b changes the bundle records to carry image bytes + frame_index instead of paths, swaps the imread sites to take frames from a `FrameProvider`, and wires the typed_v1 dispatch in `pass2_extract.py:_run_typed_v1_loadout` / `_run_typed_v1_lobby` to construct an `InMemoryFrameProvider(video_path, seg.start_seconds - pad, seg.end_seconds + pad, fps)` and skip `_ffmpeg_extract` when `config.artifact_mode = False` and the segment is typed_v1. After 3b lands, `artifact_mode=False` actually delivers the disk-write savings; 3c then flips the reprocess CLI default to False and polishes operator-facing error messages on cache-mismatch.
+
+Also queued in the small-items backlog (now sequenced AFTER Phase 3b/3c per the new ordering):
+- **`_load_frame_ocr_lines()` sidecar fallback** at `loadout_evidence.py:317` reads `<frame>.ocr.json` next to the PNG. In `artifact_mode=False` this sidecar never exists. 3b must add a fail-closed guard (assertion / explicit error) when the sidecar fallback would fire from an in-memory provider — silent degradation here means downstream evidence drops with empty OCR lines.
 
 Scope this session won't touch:
 - Architecture Phase 4+ (Pass-1 OCR measurement, boundary refinement, learned models, live-gameplay spike) — sequenced after Phase 3 per the review's "What To Do Next"
@@ -51,7 +58,7 @@ Scope this session won't touch:
 - **`docs/calibration/regression-floor-match-463.json` pnpm-prefix re-baseline** (~2 min, orthogonal): the file has shell-script header lines (`> @eanhl/worker@0.0.1 match-quality ...`) before the JSON body — leftover from a prior re-baseline that didn't use `pnpm --silent`. The `match-quality` CLI's `--json` flag prints clean JSON to stdout; re-run `pnpm --silent --filter worker match-quality --match 463 --json > docs/calibration/regression-floor-match-463.json` to clean up. Unrelated to Run-Level Quality Reporting.
 - **Three deferred minor nits across Codex rounds 2-3** (~5 min total): round-2 `intersected` dead-counter in (now-deleted) snapshot helpers — already addressed by the round-3 helper removal; round-3 `stagePath` dead branch at `apps/worker/src/run-quality-cli.ts:793-794` (after the argv guard, `stagePath` is guaranteed undefined so the ternary always evaluates to null); round-3 cleanup-vs-concurrent-writer one-line comment at `apps/worker/src/__tests__/run-quality-cli.test.ts:533-540` documenting the implicit single-writer assumption. Cosmetic, non-blocking.
 
-**Branch state:** `main` = `origin/main` = W1 head (Phase 2's 4 commits + W1's 1 commit `1d5092a` on top of `a1ce0ea`). Working tree clean. No active fix branch. Local-only stale branches from prior workstreams: `feat/screen-classifier-v2-a1` (`88285ef`), `feat/lobby-detector-cross-team-dedup` (`62b78a0`), `feat/ocr-pipeline-phase-3a` (`af01074`) — all merged to `main`; safe to delete with `git branch -D` whenever.
+**Branch state:** `main` = `origin/main` = Phase-3a head (Phase 2's 4 commits + W1's 1 commit `1d5092a` + Phase 3a's commit `1a5b2ca` on top of `a1ce0ea`). Working tree clean. No active fix branch. Local-only stale branches from prior workstreams: `feat/screen-classifier-v2-a1` (`88285ef`), `feat/lobby-detector-cross-team-dedup` (`62b78a0`), `feat/ocr-pipeline-phase-3a` (`af01074`) — all merged to `main`; safe to delete with `git branch -D` whenever.
 
 **Background reading (decision input for post-A3 workstream):**
 
@@ -61,6 +68,46 @@ Scope this session won't touch:
   - `later for stubborn weak spots`: evaluate `TAO Toolkit`
   - `future live tracking/modeling`: treat `DeepStream 8` + `TAO` as a separate video-native track, not an in-place replacement for the screenshot-first extractor
   - `ignore for primary extraction`: `Metropolis VSS`
+
+## Session Summary — 2026-05-29 (Phase 3a: FrameProvider scaffolding + artifact_mode flag — shipped to main)
+
+### Current status
+
+Phase 3a — the scaffolding layer for the Phase 3 in-memory hot path — is shipped. `feat/phase3a-frame-provider-scaffolding` (1 commit, `1a5b2ca`) FF-merged to `main` and pushed to `origin/main`. Branch deleted. New `FrameProvider` ABC + two implementations live in `tools/video_ingest/video_ingest/frame_provider.py`; `Pass2Config.artifact_mode` + CLI flag + cache-key + manifest wiring are in place. PNGs still get written exactly as before — the toggle is reachable but the hot path isn't rewired yet (that's Phase 3b).
+
+### Why scaffolding before the full refactor
+
+Initial scoping read "Phase 3 = drop PNGs for typed_v1 segments." Plan-agent validation surfaced that `LoadoutSubjectBundle` carries `Path` objects deep into the typed_v1 extractor chain — `bundle.best_frame_path: Path`, `bundle.frame_paths: tuple[Path, ...]` flow through `loadout_evidence.py:308,317,590,594` and ~4 `loadout_extractors/*.py` files that all `cv2.imread(str(...))`. The bundle layer is the real refactor cost, not the two extractor entry points. User approved a 3-sub-workstream sequence: 3a (scaffolding, this session) → 3b (bundle rewire, next session) → 3c (CLI defaults + operator polish, after).
+
+### What was done
+
+| Aspect | Detail |
+|---|---|
+| **New module** | `tools/video_ingest/video_ingest/frame_provider.py`. Exports `FrameRecord` (image + source_time_seconds + source_pts + frame_index), `FrameProvider` ABC with `iter_frames()`, `PngFrameProvider(directory, fps)` (wraps existing `[0-9]*.png` glob + cv2.imread loop; source_pts always None because PNG extraction discarded it), `InMemoryFrameProvider(video_path, start_seconds, end_seconds, fps)` (PyAV bounded decode). |
+| **iter_sampled_frames augmentation** | Optional `start_seconds` / `end_seconds` params (default None → current whole-video behavior). When supplied: PyAV `container.seek(int(start_seconds / time_base), backward=True)` to a keyframe before start, drop pre-window frames, stop on past-end. Tick origin shifts to `start_seconds`. End is exclusive (matches `Segment.end_seconds`'s docstring + ffmpeg `-to` semantics so PNG provider and in-memory provider see the same frame count for the same bounds). |
+| **Pass-2 config** | `Pass2Config.artifact_mode: bool = True` (default preserves today). Optional YAML key `pass2.artifact_mode` overrides per-version; CLI flag overrides YAML. |
+| **Cache key** | `compute_pass2_cache_key(version, artifact_mode=True)` now includes the flag byte. Switching the mode invalidates the cache so a cached PNG-mode dir can't be silently reused under an in-memory request (the typed_v1 extractors' expected dir layout would differ). |
+| **Manifest** | `write_pass2_manifest` accepts + serializes a top-level `artifact_mode` field. `Pass2ManifestLoaded.artifact_mode: bool \| None`. `is_legacy` returns True when the field is missing — pre-Phase-3a manifests fall through to a fresh extract under the operator's current setting. |
+| **CLI** | `video-ingest ingest --pass2-artifacts/--no-pass2-artifacts` and `video-ingest extract-only --pass2-artifacts/--no-pass2-artifacts`. Both flags thread through `orchestrator.ingest()`'s new `artifact_mode` kwarg into the `Pass2Config` construction. |
+
+### Test results
+
+| Gate | Result |
+|---|---|
+| New FrameProvider tests | 9/9 pass: 5 covering `PngFrameProvider` (glob + index ordering, non-index file filtering, fps-driven time, fps validation, fail-closed on unreadable PNG); 3 covering `InMemoryFrameProvider` (bounded segment count + times, full-video bounds, invalid arg validation); 1 structural-parity test that asserts what the two providers MUST agree on (count, frame_index sequence, sample period delta) vs what they MUST differ on (absolute source_time_seconds, source_pts presence). |
+| New artifact_mode tests | 3/3 pass: manifest round-trip preserves artifact_mode for both True and False (via subTests); legacy manifest without the field loads as `is_legacy=True`; cache key flips when artifact_mode changes; default arg equals explicit True. |
+| Phase-2 regression check | 23/23 pass on `iter_sampled_frames` + segment-builder tests with the new optional bounds params (unbounded path = identical behavior). |
+| Full video_ingest suite | 394 passed, 3 skipped (excluding the 3 pre-existing loadout failures documented in HANDOFF baseline). |
+
+### Operational notes
+
+- **No production hot-path change yet.** Phase 3a only adds the abstraction + toggle. PNG writes proceed exactly as before in both `artifact_mode=True` and `artifact_mode=False` paths because the typed_v1 extractors still glob the segment dir directly. Phase 3b changes that.
+- **End-of-segment exclusive convention.** Phase 3a's bounded `iter_sampled_frames` treats `end_seconds` as exclusive (matching ffmpeg `-to`). Caught during the parity test where PNG provider yielded 3 frames in [1,4) but in-memory yielded 4 with t=4 inclusive. Without that fix, Phase 3b's swap would have produced an extra frame per segment on every typed_v1 ingest.
+- **CLI flag is opt-in for now.** `--no-pass2-artifacts` is reachable but inert until 3b — passing it today just invalidates the cache (forces re-extract) without actually skipping PNG writes. The operator-facing docs are deliberately minimal until 3b ships.
+
+### Process observation
+
+Plan agent's bundle-layer catch was load-bearing for the new ordering. The naive Phase-3 plan would have shipped a `FrameProvider` swap at the two extractor entry points only, broken the path-typed bundle calls everywhere downstream, and required either rolling back or rushing the bundle refactor under pressure. The split into 3a/3b/3c keeps each step under a half-day of focused work and reviewable in isolation. Fourth consecutive workstream where the Plan agent's pre-implementation pass changed the workstream shape, not just the implementation details.
 
 ## Session Summary — 2026-05-29 (W1: typed_v1 segments skip legacy game_ocr.cli — shipped to main)
 
