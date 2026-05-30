@@ -24,7 +24,7 @@ S5 wires v2 into the runtime.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import cv2
 import numpy as np
@@ -120,6 +120,11 @@ class FrameFeaturesV2:
       - `quadrant_edge_density`: (4,)  in [0, 1]
       - `regex_prior_flags`:     (regex_priors.n_priors(),)  0/1, in priors_flat order
       - `ocr_presence_flags`:    (len(OCR_PRESENCE_FLAG_NAMES),)  0/1, in declared order
+      - `prefilter_features`:    (n_prefilter,)  visual-prefilter signals appended
+        at the end of the LR feature vector. Defaults to length 0 for backward
+        compatibility with callers (e.g. compute_frame_features_v2) that don't
+        produce prefilter signals; new training code populates this and ships
+        weights with `n_prefilter_features > 0`.
     """
 
     full_frame_hsv: np.ndarray
@@ -131,6 +136,9 @@ class FrameFeaturesV2:
     ocr_presence_flags: np.ndarray
     top_bar_text: str
     side_strip_text: str
+    prefilter_features: np.ndarray = field(
+        default_factory=lambda: np.zeros(0, dtype=np.float64)
+    )
 
 
 def _quadrants(image: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
