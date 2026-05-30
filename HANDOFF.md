@@ -2,7 +2,7 @@
 
 ## To-Do
 
-**Status (2026-05-30 — latest):** **Phase 4 Part B SHIPPED on `feat/phase4-partb-telemetry-plumbing`** (5 commits, awaiting FF-merge + push to `main`). Pass-1 sub-phase telemetry is now persisted through `ocr_run_quality_reports`, and the C1 timer-attribution bug discovered during Part A measurement is fixed.
+**Status (2026-05-30 — latest):** **Phase 4 Part B SHIPPED** — FF-merged to `main` and pushed to `origin/main` at `a8fec72`. Branch `feat/phase4-partb-telemetry-plumbing` deleted. Pass-1 sub-phase telemetry is now persisted through `ocr_run_quality_reports`, and the C1 timer-attribution bug discovered during Part A measurement is fixed. Commit chain on `main` from the prior Part A HEAD (`14467e7`): `57fcb2d` C1 → `76f83a7` C2 → `3fb60ee` C3 → `df70889` C4 → `a8fec72` C5/HANDOFF.
 
 **What changed (Part B):**
 
@@ -141,7 +141,7 @@ Scope this session won't touch:
 - **`docs/calibration/regression-floor-match-463.json` pnpm-prefix re-baseline** (~2 min, orthogonal): the file has shell-script header lines (`> @eanhl/worker@0.0.1 match-quality ...`) before the JSON body — leftover from a prior re-baseline that didn't use `pnpm --silent`. The `match-quality` CLI's `--json` flag prints clean JSON to stdout; re-run `pnpm --silent --filter worker match-quality --match 463 --json > docs/calibration/regression-floor-match-463.json` to clean up. Unrelated to Run-Level Quality Reporting.
 - **Three deferred minor nits across Codex rounds 2-3** (~5 min total): round-2 `intersected` dead-counter in (now-deleted) snapshot helpers — already addressed by the round-3 helper removal; round-3 `stagePath` dead branch at `apps/worker/src/run-quality-cli.ts:793-794` (after the argv guard, `stagePath` is guaranteed undefined so the ternary always evaluates to null); round-3 cleanup-vs-concurrent-writer one-line comment at `apps/worker/src/__tests__/run-quality-cli.test.ts:533-540` documenting the implicit single-writer assumption. Cosmetic, non-blocking.
 
-**Branch state:** `main` = `764e5a1` (cold-start HANDOFF tidy on top of Phase 3b code `8191e58`). Active branch `feat/phase3c-artifact-mode-default` holds the Phase 3c code commit on top of `764e5a1`, awaiting FF-merge + push. Local-only stale branches from prior workstreams: `feat/screen-classifier-v2-a1` (`88285ef`), `feat/lobby-detector-cross-team-dedup` (`62b78a0`), `feat/ocr-pipeline-phase-3a` (`af01074`), and Phase 3b's `feat/phase3b-frameprovider-rewire` — all merged to `main`; safe to delete with `git branch -D` whenever.
+**Branch state:** `main` = `origin/main` = `a8fec72` (Phase 4 Part B C5/HANDOFF on top of C4 `df70889`). Working tree clean (only untracked egg-info / uv.lock files). No active feature branch. Full chain since the prior session's `f1dcced`: Phase 3c (`343e79e` code, `84f1461` HANDOFF) → Phase 4 Part A (`1942b63` C1, `c3304c3` C2, `14467e7` C3/HANDOFF) → Phase 4 Part B (`57fcb2d` C1, `76f83a7` C2, `3fb60ee` C3, `df70889` C4, `a8fec72` C5/HANDOFF). Local-only stale branches from prior workstreams: `feat/screen-classifier-v2-a1` (`88285ef`), `feat/lobby-detector-cross-team-dedup` (`62b78a0`), `feat/ocr-pipeline-phase-3a` (`af01074`) — all merged to `main`; safe to delete with `git branch -D` whenever.
 
 **Background reading (decision input for post-A3 workstream):**
 
