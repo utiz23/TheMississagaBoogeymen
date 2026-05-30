@@ -2,7 +2,36 @@
 
 ## To-Do
 
-**Status (2026-05-30):** **Phase 3c SHIPPED on `feat/phase3c-artifact-mode-default`** — the architecture-review Phase-3 arc is now complete. `Pass2Config.artifact_mode` defaults to `False` across all entry points (`Pass2Config` field, `compute_pass2_cache_key`, `write_pass2_manifest`, orchestrator YAML fallback, and both `video-ingest ingest`/`extract-only` CLI flags). The cache-mismatch error at `orchestrator.py:543` now detects when the only manifest-introspectable diff is `artifact_mode` and emits a tailored message that leads with the reuse-cache remediation (re-pass the previous flag) before the regenerate option (`--force-pass2`). Two test-harness `_run()` helpers (`test_cache_invalidation.py`, `test_cli_contracts.py`) gained `kwargs.setdefault("artifact_mode", True)` so their mocked-`_ffmpeg_extract` path keeps running; the in-memory provider needs a real video that those fixtures don't supply. New tailored-error test covers both flip directions. Full `tools/video_ingest` suite: 437 passed, 4 skipped, same 3 pre-existing failures as the Phase 3b baseline.
+**Status (2026-05-30 — later):** **Phase 4 Part A SHIPPED on `feat/phase4-pass1-instrumentation`** — materiality measured. Pass-1 OCR is unambiguously material; Part B is justified.
+
+**Headline numbers from `/mnt/k/2026-05-26_17-53-36.mkv` (824M, 34.6-min CFR 60fps capture):**
+
+| Metric | Value |
+|---|---|
+| total_wall (`/usr/bin/time`) | **4777.5 s** (79.6 min) |
+| Pass-1 (`elapsed_pass1_ms`) | **3945.2 s** (65.8 min) — **82.6% of total wall** |
+| Pass-2 | 551.1 s (9.2 min) |
+| Residual (total − pass1) | 832 s (pass2 + ~280 s orchestrator startup) |
+
+Pass-1 sub-phase breakdown:
+
+| Field | Value | % of Pass-1 |
+|---|---|---|
+| `classify_ms` | 3940.6 s | **99.88%** |
+| `decode_ms` | 4.3 s | 0.11% |
+| `viterbi_ms` | 0.068 s | 0.0017% |
+
+**Materiality decision:** both gates crossed by huge margins.
+- `classify_pct = 99.88%` (gate: > 30%) ✓
+- `ocr_of_total = classify_ms / total_wall = 82.5%` (gate: > 10%) ✓
+
+**Known measurement bug — call this out before Part B trend-tracking lands:** the `decode_ms` field undercounts PyAV decode work. The accumulator pattern inside `iter_sampled_frames` resets the timer at each loop iteration's `iter_t = time.perf_counter()`, which fires AFTER Python's `for` statement calls `next(container.decode(stream))`. PyAV's actual H.264 decode of 124,479 1080p frames happens inside that `next()` call but lands in the gap between `decode_accum += ...` and the next `iter_t` — uncaptured. The wall-time of that decode work falls into `classify_ms` instead (which is computed as `loop_total - decode_ms` and therefore absorbs the orphaned decode work). So `classify_ms` is effectively "PyAV decode + per-frame OCR + classifier logic" lumped together. The materiality decision is unchanged by the conflation (even bounding PyAV decode at 400–1200 s based on typical CPU 1080p H.264 rates, pure-OCR cost is 57–72% of Pass-1 wall — still far above both gates), but the field semantics need fixing before Part B exposes them in `ocr_run_quality_reports` for cross-run analytics. Fix: switch from the implicit `for` loop to an explicit `iterator = container.decode(stream); next(iterator)` pattern with the decode timer wrapping the `next()` call.
+
+**Next session — Phase 4 Part B opens.** Per the architecture review §"Phase 4 → if material," the prescribed work is sequenced: visual prefiltering before OCR → batch ROI OCR → test RapidOCR GPU in this environment → only then evaluate CV-CUDA preprocessing. The CV-CUDA prototype is now also measurable against a real no-PNG baseline. Smaller wins worth bundling: (a) fix the `decode_ms` timer-attribution bug, (b) persist `elapsed_pass2` into the new `<sha>/ingest_timings.json` sidecar so `pass2_ms` is a first-class field, (c) plumb the new keys through `reprocess.py` + `apps/worker/src/run-quality-cli.ts` so trend tracking lands in `ocr_run_quality_reports`. The plan at `~/.claude/plans/plan-phase-3-c-floating-sparrow.md` (named for the prior Phase-3c task; reused for Phase 4) has the Part B wiring sketch ready.
+
+---
+
+**Status (2026-05-30 — earlier):** **Phase 3c SHIPPED on `feat/phase3c-artifact-mode-default`** — the architecture-review Phase-3 arc is now complete. `Pass2Config.artifact_mode` defaults to `False` across all entry points (`Pass2Config` field, `compute_pass2_cache_key`, `write_pass2_manifest`, orchestrator YAML fallback, and both `video-ingest ingest`/`extract-only` CLI flags). The cache-mismatch error at `orchestrator.py:543` now detects when the only manifest-introspectable diff is `artifact_mode` and emits a tailored message that leads with the reuse-cache remediation (re-pass the previous flag) before the regenerate option (`--force-pass2`). Two test-harness `_run()` helpers (`test_cache_invalidation.py`, `test_cli_contracts.py`) gained `kwargs.setdefault("artifact_mode", True)` so their mocked-`_ffmpeg_extract` path keeps running; the in-memory provider needs a real video that those fixtures don't supply. New tailored-error test covers both flip directions. Full `tools/video_ingest` suite: 437 passed, 4 skipped, same 3 pre-existing failures as the Phase 3b baseline.
 
 **Back-compat outcome for existing operator caches (load-bearing — read this):** every Pass-2 cache written before this flip has `artifact_mode=True` in the manifest. On the first post-flip run with no flags passed, the operator will hit `CacheMismatch`. The new tailored message names the field and tells them how to recover:
 
