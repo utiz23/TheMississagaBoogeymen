@@ -396,14 +396,15 @@ def ingest(
         },
         engine=str(p1_raw.get("engine", "run_length")),
     )
-    # artifact_mode resolution: CLI override > version YAML > default True.
-    # The YAML key is `pass2.artifact_mode` (optional; bool). The CLI flag
-    # takes precedence so an operator can flip mode without editing the
-    # config file.
+    # artifact_mode resolution: CLI override > version YAML > default False
+    # (Phase 3c: in-memory hot path is steady state; legacy PNG-on-disk is
+    # opt-in via --pass2-artifacts or `pass2.artifact_mode: true` in the
+    # version YAML). The YAML key is optional. CLI takes precedence so an
+    # operator can flip mode without editing the config file.
     p2cfg_artifact_mode = (
         artifact_mode
         if artifact_mode is not None
-        else bool(vcfg["pass2"].get("artifact_mode", True))
+        else bool(vcfg["pass2"].get("artifact_mode", False))
     )
     p2cfg = Pass2Config(
         window_padding_seconds=float(vcfg["pass2"]["window_padding_seconds"]),
@@ -541,6 +542,31 @@ def ingest(
                     file=sys.stderr,
                 )
             elif loaded_p2.pass2_cache_key != pass2_cache_key:
+                # Phase 3c: when the only attribute we can introspect from
+                # the manifest (artifact_mode) differs, name it in the
+                # message and lead with the reuse-cache remediation. After
+                # the Phase-3c default flip, every pre-flip on-disk cache
+                # will hit this branch on the first re-run; the tailored
+                # wording turns that into a self-service fix instead of a
+                # head-scratcher. None-guard is defensive — `is_legacy`
+                # already routes pre-3a manifests above.
+                if (
+                    loaded_p2.artifact_mode is not None
+                    and loaded_p2.artifact_mode != p2cfg.artifact_mode
+                ):
+                    prev_flag = (
+                        "--pass2-artifacts"
+                        if loaded_p2.artifact_mode
+                        else "--no-pass2-artifacts"
+                    )
+                    raise CacheMismatch(
+                        f"cache mismatch at {manifest_path}\n"
+                        f"  stored:  artifact_mode={loaded_p2.artifact_mode}  pass2_cache_key={loaded_p2.pass2_cache_key}\n"
+                        f"  current: artifact_mode={p2cfg.artifact_mode}  pass2_cache_key={pass2_cache_key}\n"
+                        f"  Cause:   the pass2 artifact_mode flag flipped since this cache was written.\n"
+                        f"  Fix:     re-run with `{prev_flag}` to reuse the existing cache as-is,\n"
+                        f"           or `--force-pass2` to regenerate the cache under the new mode."
+                    )
                 raise CacheMismatch(
                     f"cache mismatch at {manifest_path}\n"
                     f"  stored:  version={loaded_p2.version}  pass2_cache_key={loaded_p2.pass2_cache_key}\n"

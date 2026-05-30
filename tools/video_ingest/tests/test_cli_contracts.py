@@ -120,6 +120,11 @@ class CLIContractsTests(unittest.TestCase):
         self._tmp.cleanup()
 
     def _run(self, **kwargs):
+        # Default to artifact_mode=True so the mocked `_ffmpeg_extract`
+        # path runs. The in-memory provider (the Phase-3c default) calls
+        # av.open() on the source video, which doesn't exist in this
+        # fixture.
+        kwargs.setdefault("artifact_mode", True)
         return orch_module.ingest(
             video_path=Path("/fake/video.mkv"),
             output_root=self.output_root,

@@ -38,14 +38,16 @@ extract_lobby_evidence = None  # type: ignore[assignment]
 PASS2_MANIFEST_FILENAME = "pass2_manifest.json"
 
 
-def compute_pass2_cache_key(version: str, artifact_mode: bool = True) -> str:
+def compute_pass2_cache_key(version: str, artifact_mode: bool = False) -> str:
     """Hash of the orchestrator-side version YAML + the artifact_mode flag.
     Pass 2 doesn't need the classifier YAML — classifier changes propagate
     via segments_hash. The artifact_mode byte is included so a switch
     between PNG-on-disk and in-memory frame providers invalidates the
     cache (running typed_v1 evidence extraction without artifacts when
     the cached run had PNGs would produce a directory the extractors
-    can't read)."""
+    can't read). Phase 3c flipped the default to False (in-memory is the
+    steady-state hot path); True is retained as the legacy PNG-on-disk
+    opt-in for operators who want artifacts on disk for review/debug."""
     version_yaml = VIDEO_INGEST_CONFIGS_DIR / f"{version}.yaml"
     parts: list[bytes] = [version_yaml.read_bytes(), b"\x00"]
     parts.append(b"artifact_mode=true" if artifact_mode else b"artifact_mode=false")
@@ -69,14 +71,14 @@ class Pass2Config:
     # 'typed_v1'         = extract_lobby_evidence() → lobby_evidence.json.
     # Task 3B-8 flips the production default to 'typed_v1' for state_2 only.
     lobby_engine: str = "legacy"
-    # Phase 3a: artifact mode. True = write PNGs to disk per segment (the
-    # legacy behavior, fed to legacy game_ocr.cli + the existing typed_v1
-    # extractors that glob the segment dir). False = process frames in
-    # memory and only write evidence JSON. Phase 3a scaffolds the flag +
-    # cache key inclusion; Phase 3b wires the typed_v1 extractors to
-    # consume a `FrameProvider` so the False path actually skips PNG
-    # writes for those segments. Default True preserves today's behavior.
-    artifact_mode: bool = True
+    # Phase 3a/b/c: artifact mode. False (default since Phase 3c) =
+    # process frames in memory and only write evidence JSON — typed_v1
+    # segments skip the ffmpeg PNG-extract step entirely. True = write
+    # PNGs to disk per segment (the legacy behavior, fed to legacy
+    # game_ocr.cli + the typed_v1 extractors that glob the segment dir)
+    # — retained as an opt-in for operators who want artifacts on disk
+    # for review/debug. Switching this flag invalidates the pass2 cache.
+    artifact_mode: bool = False
 
 
 def _ffmpeg_extract(
@@ -385,7 +387,7 @@ def write_pass2_manifest(
     version: str,
     cache_key: str,
     segments_hash: str,
-    artifact_mode: bool = True,
+    artifact_mode: bool = False,
 ) -> None:
     """Persist the Pass 2 manifest. Called once per fresh extraction; the
     file is the authoritative record of which (padded) windows ffmpeg saw,

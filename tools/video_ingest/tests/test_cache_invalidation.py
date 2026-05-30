@@ -118,15 +118,16 @@ class CacheKeyHelperTests(unittest.TestCase):
                 k_artifacts = compute_pass2_cache_key("nhl26", artifact_mode=True)
                 k_no_artifacts = compute_pass2_cache_key("nhl26", artifact_mode=False)
         self.assertNotEqual(k_artifacts, k_no_artifacts)
-        # Default arg must equal explicit True.
+        # Phase 3c: default arg must equal explicit False (in-memory hot
+        # path is the steady state since Phase 3c).
         with tempfile.TemporaryDirectory() as tmp:
             tmp_video = Path(tmp) / "video"
             tmp_video.mkdir()
             (tmp_video / "nhl26.yaml").write_text("a: 1\n")
             with mock.patch.object(p2_module, "VIDEO_INGEST_CONFIGS_DIR", tmp_video):
                 k_default = compute_pass2_cache_key("nhl26")
-                k_explicit_true = compute_pass2_cache_key("nhl26", artifact_mode=True)
-        self.assertEqual(k_default, k_explicit_true)
+                k_explicit_false = compute_pass2_cache_key("nhl26", artifact_mode=False)
+        self.assertEqual(k_default, k_explicit_false)
 
     def test_pass2_cache_key_depends_only_on_version_yaml(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -323,6 +324,12 @@ class OrchestratorCacheTests(unittest.TestCase):
         self._tmp.cleanup()
 
     def _run(self, **kwargs):
+        # Default to artifact_mode=True so the mocked `_ffmpeg_extract`
+        # path runs. The in-memory provider (the Phase-3c default) calls
+        # av.open() on the source video, which doesn't exist in this
+        # fixture. Tests that specifically exercise mode-flip semantics
+        # pass artifact_mode= explicitly.
+        kwargs.setdefault("artifact_mode", True)
         return orch_module.ingest(
             video_path=Path("/fake/video.mkv"),
             output_root=self.output_root,
@@ -382,6 +389,46 @@ class OrchestratorCacheTests(unittest.TestCase):
         with self.assertRaises(CacheMismatch) as ctx:
             self._run()
         self.assertIn("segments_hash", str(ctx.exception))
+
+    def test_pass2_artifact_mode_flip_emits_tailored_cache_mismatch(self) -> None:
+        """Phase 3c: when the only manifest-introspectable attribute that
+        differs is ``artifact_mode``, the raised CacheMismatch must name
+        the field by name and lead with the reuse-cache remediation
+        (re-pass the previous flag), with `--force-pass2` as a secondary
+        option. Exercises both flip directions.
+
+        The cache-key check runs before extract_segments, so the second
+        invocation in each direction never reaches the InMemoryFrameProvider
+        path that would `av.open` the (non-existent) fake video."""
+        # Direction 1: stored=True → run with False. Primary fix: --pass2-artifacts.
+        self._run(artifact_mode=True)  # writes manifest with True (mocked)
+        with self.assertRaises(CacheMismatch) as ctx:
+            self._run(artifact_mode=False)
+        msg = str(ctx.exception)
+        self.assertIn("artifact_mode", msg)
+        self.assertIn("--pass2-artifacts", msg)
+        self.assertIn("--force-pass2", msg)
+        # Reuse-cache hint must come BEFORE force-regenerate.
+        self.assertLess(msg.index("--pass2-artifacts"), msg.index("--force-pass2"))
+
+        # Direction 2: stored=False → run with True. Primary fix: --no-pass2-artifacts.
+        # Manually rewrite the manifest's artifact_mode + recompute the
+        # pass2_cache_key to simulate a cache that was written under
+        # artifact_mode=False, without actually running InMemoryFrameProvider
+        # against the fake video.
+        manifest = self.output_root / self.fake_sha / PASS2_MANIFEST_FILENAME
+        data = json.loads(manifest.read_text())
+        data["artifact_mode"] = False
+        data["pass2_cache_key"] = compute_pass2_cache_key("nhl26", artifact_mode=False)
+        manifest.write_text(json.dumps(data))
+
+        with self.assertRaises(CacheMismatch) as ctx:
+            self._run(artifact_mode=True)
+        msg = str(ctx.exception)
+        self.assertIn("artifact_mode", msg)
+        self.assertIn("--no-pass2-artifacts", msg)
+        self.assertIn("--force-pass2", msg)
+        self.assertLess(msg.index("--no-pass2-artifacts"), msg.index("--force-pass2"))
 
     def test_pass2_legacy_manifest_falls_through_to_fresh_extract(self) -> None:
         self._run()

@@ -65,16 +65,15 @@ def ingest(
         ),
     ),
     pass2_artifacts: bool = typer.Option(
-        True,
+        False,
         "--pass2-artifacts/--no-pass2-artifacts",
         help=(
-            "Phase 3a: write PNG frames to disk per segment (default True). "
-            "Pass --no-pass2-artifacts to skip the PNG write step for "
-            "typed_v1 segments and feed frames in memory instead (Phase 3b "
-            "wires the in-memory hot path; until then this only changes the "
-            "manifest + cache key so re-runs don't reuse the wrong mode's "
-            "cache). Switching this flag invalidates the pass2 cache for "
-            "this video."
+            "Write PNG frames to disk per segment. Default (since Phase 3c) "
+            "is no artifacts — typed_v1 segments stream in memory via the "
+            "Phase 3b hot path and only evidence JSON is persisted. Pass "
+            "--pass2-artifacts to opt into the legacy PNG-on-disk behavior "
+            "(useful for review/debug). Switching this flag invalidates "
+            "the pass2 cache for this video."
         ),
     ),
 ) -> None:
@@ -143,13 +142,15 @@ def extract_only(
     version: str = typer.Option("nhl26"),
     force_pass2: bool = typer.Option(False, help="Re-extract Pass 2 frames even if cached."),
     pass2_artifacts: bool = typer.Option(
-        True,
+        False,
         "--pass2-artifacts/--no-pass2-artifacts",
         help=(
-            "Phase 3a: write PNG frames to disk per segment (default True). "
-            "Pass --no-pass2-artifacts to skip PNG writes for typed_v1 "
-            "segments (Phase 3b wires the in-memory hot path). Switching "
-            "this flag invalidates the pass2 cache for this video."
+            "Write PNG frames to disk per segment. Default (since Phase 3c) "
+            "is no artifacts — typed_v1 segments stream in memory via the "
+            "Phase 3b hot path and only evidence JSON is persisted. Pass "
+            "--pass2-artifacts to opt into the legacy PNG-on-disk behavior "
+            "(useful for review/debug). Switching this flag invalidates "
+            "the pass2 cache for this video."
         ),
     ),
 ) -> None:
