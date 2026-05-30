@@ -160,21 +160,23 @@ def extract_segments(
             continue
 
         seg_dir = pass2_root / segment_dir_name(i, seg)
-        frame_count = _ffmpeg_extract(video_path, seg_dir, start, end, fps)
-
-        # Phase 3b: typed_v1 dispatch now receives a FrameProvider. We
-        # construct PngFrameProvider here so the legacy hot path keeps
-        # globbing the same PNGs ffmpeg just wrote. C4 will gate
-        # _ffmpeg_extract and switch to InMemoryFrameProvider for
-        # artifact_mode=False.
-        from video_ingest.frame_provider import PngFrameProvider
-        png_provider = PngFrameProvider(seg_dir, fps=fps)
+        provider, frame_count = _resolve_frame_source(
+            video_path=video_path,
+            seg_dir=seg_dir,
+            start=start,
+            end=end,
+            fps=fps,
+            seg=seg,
+            config=config,
+        )
 
         # --- loadout_engine dispatch (player_loadout_view only) ---------------
         if seg.screen_type == "player_loadout_view":
             loadout_engine = config.loadout_engine
             if loadout_engine == "typed_v1":
-                _run_typed_v1_loadout(seg_dir, png_provider, segment_index=i)
+                count = _run_typed_v1_loadout(seg_dir, provider, segment_index=i)
+                if frame_count is None:
+                    frame_count = count
             elif loadout_engine != "legacy":
                 raise ValueError(
                     f"Unknown pass2.loadout_engine: {loadout_engine!r}; "
@@ -187,7 +189,9 @@ def extract_segments(
         if seg.screen_type == "pre_game_lobby_state_2":
             lobby_engine = config.lobby_engine
             if lobby_engine == "typed_v1":
-                _run_typed_v1_lobby(seg_dir, png_provider, segment_index=i)
+                count = _run_typed_v1_lobby(seg_dir, provider, segment_index=i)
+                if frame_count is None:
+                    frame_count = count
             elif lobby_engine != "legacy":
                 raise ValueError(
                     f"Unknown pass2.lobby_engine: {lobby_engine!r}; "
@@ -225,6 +229,59 @@ def extract_segments(
         artifact_mode=config.artifact_mode,
     )
     return out
+
+
+def _resolve_frame_source(
+    *,
+    video_path: Path,
+    seg_dir: Path,
+    start: float,
+    end: float,
+    fps: float,
+    seg: Segment,
+    config: "Pass2Config",
+) -> tuple["FrameProvider", int | None]:
+    """Pick the frame source for one Pass-2 segment.
+
+    Phase 3b C4: when ``config.artifact_mode`` is False AND the segment is a
+    typed_v1 loadout or lobby segment, skip ``_ffmpeg_extract`` and stream
+    decoded frames straight from the source mkv via ``InMemoryFrameProvider``.
+    Otherwise (artifact_mode=True OR a non-typed_v1 segment such as a legacy
+    parser screen), ``_ffmpeg_extract`` writes PNGs as before and a
+    ``PngFrameProvider`` re-reads them.
+
+    The second return value is the frame count when known eagerly (PNG path),
+    or ``None`` when the typed_v1 extractor is the only place that learns the
+    count (in-memory path). Callers must populate ``Pass2Result.frame_count``
+    from ``_run_typed_v1_*`` in the in-memory case.
+
+    ``seg_dir`` is created either way — ``loadout_evidence.json`` /
+    ``lobby_evidence.json`` are still written there.
+    """
+    from video_ingest.frame_provider import (
+        InMemoryFrameProvider,
+        PngFrameProvider,
+    )
+
+    typed_v1_seg = (
+        (seg.screen_type == "player_loadout_view"
+         and config.loadout_engine == "typed_v1")
+        or (seg.screen_type == "pre_game_lobby_state_2"
+            and config.lobby_engine == "typed_v1")
+    )
+    if config.artifact_mode or not typed_v1_seg:
+        n = _ffmpeg_extract(video_path, seg_dir, start, end, fps)
+        return PngFrameProvider(seg_dir, fps=fps), n
+    seg_dir.mkdir(parents=True, exist_ok=True)
+    return (
+        InMemoryFrameProvider(
+            video_path=video_path,
+            start_seconds=start,
+            end_seconds=end,
+            fps=fps,
+        ),
+        None,
+    )
 
 
 def _run_typed_v1_loadout(
