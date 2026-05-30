@@ -2,15 +2,16 @@
 
 ## To-Do
 
-**Session wrap-up (2026-05-29):** Three architecture-review workstreams shipped in sequence today, all FF-merged to `main` and pushed:
+**Session wrap-up (2026-05-29):** Four architecture-review workstreams shipped in sequence today, all FF-merged to `main` and pushed:
 
 1. **Phase 2 (canonical PTS in Pass-1)** — 4 commits, `1ba88f3` head. PyAV-backed `iter_sampled_frames` replaces `seconds = idx / sample_fps`; segments.json gains a `pass1_sampling_telemetry` block. Architecture-review risk #589 (time drift on non-ideal captures, High severity) closed.
 2. **W1 (worker skips legacy game_ocr.cli for typed_v1)** — 1 commit, `1d5092a`. Worker carve-out + single stub `ocr_extractions` row + confidence back-fill. Predecessor to Phase 3 (caught by Plan agent: naive Phase 3 would have silently zeroed `frameCount` → `observabilityStatus='not_observable_from_source'`).
-3. **Phase 3a (FrameProvider scaffolding)** — 1 commit, `1a5b2ca` + HANDOFF `d22756b`. `FrameProvider` ABC + `PngFrameProvider` + `InMemoryFrameProvider`, `Pass2Config.artifact_mode`, cache-key + manifest wiring, `--pass2-artifacts/--no-pass2-artifacts` CLI flag. Hot path NOT yet rewired (Phase 3b's job).
+3. **Phase 3a (FrameProvider scaffolding)** — 1 commit, `1a5b2ca` + HANDOFF `d22756b`. `FrameProvider` ABC + `PngFrameProvider` + `InMemoryFrameProvider`, `Pass2Config.artifact_mode`, cache-key + manifest wiring, `--pass2-artifacts/--no-pass2-artifacts` CLI flag. Hot path NOT yet rewired (3b's job).
+4. **Phase 3b (FrameProvider rewire end-to-end)** — 5 commits, `dd629bd` → `8191e58`. Bundle gains `best_frame_image`/`best_frame_index` and drops path fields; assembler signature flips from `Sequence[Path]` to `Sequence[FrameRecordLike]`; `extract_*_evidence` accept a `FrameProvider`; sidecar JSON fallback removed (fail-closed RuntimeError); Pass-2 main loop gates `_ffmpeg_extract` on `artifact_mode` AND typed_v1, choosing `PngFrameProvider` (legacy) or `InMemoryFrameProvider` (no-PNG). `EXTRACTOR_VERSION` bumped (`loadout-evidence-v3`, `lobby-evidence-v2`). New parity test `test_pass2_artifact_mode_gating.py` proves PNG side-effect inversion + byte-identical `loadout_evidence.json` between modes. The disk-write savings are live for typed_v1 segments.
 
-**Next session — Phase 3b**: rewire `LoadoutSubjectBundle` from path-typed to image+frame_index-typed; swap the `cv2.imread(str(...))` sites in `tools/game_ocr/game_ocr/loadout_evidence.py:308,317,590,594` and the 4+ `loadout_extractors/*.py` files; wire `pass2_extract.py:_run_typed_v1_loadout` / `_run_typed_v1_lobby` to construct an `InMemoryFrameProvider` and skip `_ffmpeg_extract` when `config.artifact_mode = False` and the segment is typed_v1. After 3b lands, `artifact_mode=False` delivers the disk-write savings. Half-day workstream. See Phase 3a session summary below for the bundle-layer surface mapping.
+**Next session — Phase 3c (small):** flip the reprocess CLI / orchestrator default to `artifact_mode=False`; polish operator-facing cache-mismatch error messages on manifest mode flips. Sub-half-day workstream. After 3c, ingestion is in-memory by default and the CV-CUDA prototype can be measured against a real no-PNG baseline.
 
-**Process observation (4× consecutive):** Plan agent's pre-implementation pass changed the workstream *shape* on every architecture workstream this session — caught the 3-call-sites pattern in Phase 2, the worker-subprocess dependency in Phase 3 → W1, and the path-typed bundle layer in Phase 3 → 3a/3b/3c. A focused Plan agent before code earns its tokens.
+**Process observation (5× consecutive):** Plan agent's pre-implementation pass changed the workstream *shape* on every architecture workstream this session — caught the 3-call-sites pattern in Phase 2, the worker-subprocess dependency in Phase 3 → W1, the path-typed bundle layer that became 3a/3b/3c, and on Phase 3b itself flagged the "no back-compat shim" assumption that would have forced threading `fps` through the extractor public API. A focused Plan agent before code earns its tokens.
 
 ---
 
@@ -41,10 +42,9 @@ W1 cuts the dependency cleanly: Pass-2 dispatch passes `--frame-count` to the wo
 
 3a ships the abstraction + tests + cache/config wiring without touching the hot path: new `tools/video_ingest/video_ingest/frame_provider.py` exports `FrameProvider` ABC, `PngFrameProvider` (wraps existing glob+imread), `InMemoryFrameProvider` (PyAV bounded segment decode reusing Phase-2's `iter_sampled_frames` with new `start_seconds`/`end_seconds` params). `Pass2Config.artifact_mode: bool = True` (default preserves today). `compute_pass2_cache_key` includes the flag so switching invalidates. Manifest gains a top-level `artifact_mode` field; pre-3a manifests load as legacy (cache miss). CLI: `video-ingest ingest|extract-only --pass2-artifacts/--no-pass2-artifacts`.
 
-**Next session (architecture workstream — recommended):** **Phase 3b: rewire LoadoutSubjectBundle + extractors to consume FrameProvider**. Today `bundle.best_frame_path: Path` and `bundle.frame_paths: tuple[Path, ...]` get passed to extractors that call `cv2.imread(str(bundle.best_frame_path))` at `tools/game_ocr/game_ocr/loadout_evidence.py:308,317,590,594` and through ~4 `loadout_extractors/*.py` files (and `lobby_subjects.py`). 3b changes the bundle records to carry image bytes + frame_index instead of paths, swaps the imread sites to take frames from a `FrameProvider`, and wires the typed_v1 dispatch in `pass2_extract.py:_run_typed_v1_loadout` / `_run_typed_v1_lobby` to construct an `InMemoryFrameProvider(video_path, seg.start_seconds - pad, seg.end_seconds + pad, fps)` and skip `_ffmpeg_extract` when `config.artifact_mode = False` and the segment is typed_v1. After 3b lands, `artifact_mode=False` actually delivers the disk-write savings; 3c then flips the reprocess CLI default to False and polishes operator-facing error messages on cache-mismatch.
+**Phase 3b SHIPPED** on `feat/phase3b-frameprovider-rewire` (5 commits, `dd629bd` → `8191e58`), FF-merged + pushed. Bundle layer + extractors + Pass-2 dispatch all consume `FrameProvider`; `artifact_mode=False` now skips `_ffmpeg_extract` and the PNG-glob path entirely for typed_v1 segments. Sidecar JSON fallback removed (was fail-open empty OCR; now fail-closed `RuntimeError` when `best_frame_ocr_lines` is None) — this addresses the specific risk HANDOFF flagged when Phase 3b was queued. See the 2026-05-29 Phase 3b session summary below for the full surface mapping.
 
-Also queued in the small-items backlog (now sequenced AFTER Phase 3b/3c per the new ordering):
-- **`_load_frame_ocr_lines()` sidecar fallback** at `loadout_evidence.py:317` reads `<frame>.ocr.json` next to the PNG. In `artifact_mode=False` this sidecar never exists. 3b must add a fail-closed guard (assertion / explicit error) when the sidecar fallback would fire from an in-memory provider — silent degradation here means downstream evidence drops with empty OCR lines.
+**Next session (architecture workstream — recommended):** **Phase 3c: flip reprocess CLI default + operator-facing cache-mismatch polish.** Today the orchestrator's `pass2.artifact_mode` defaults to True (legacy PNG-on-disk); 3c flips it to False so the in-memory path is the steady-state hot path. Also tighten the cache-mismatch error message when the operator switches modes (`compute_pass2_cache_key` already invalidates, but the operator-facing wording is generic). Sub-half-day workstream.
 
 Scope this session won't touch:
 - Architecture Phase 4+ (Pass-1 OCR measurement, boundary refinement, learned models, live-gameplay spike) — sequenced after Phase 3 per the review's "What To Do Next"
@@ -70,7 +70,7 @@ Scope this session won't touch:
 - **`docs/calibration/regression-floor-match-463.json` pnpm-prefix re-baseline** (~2 min, orthogonal): the file has shell-script header lines (`> @eanhl/worker@0.0.1 match-quality ...`) before the JSON body — leftover from a prior re-baseline that didn't use `pnpm --silent`. The `match-quality` CLI's `--json` flag prints clean JSON to stdout; re-run `pnpm --silent --filter worker match-quality --match 463 --json > docs/calibration/regression-floor-match-463.json` to clean up. Unrelated to Run-Level Quality Reporting.
 - **Three deferred minor nits across Codex rounds 2-3** (~5 min total): round-2 `intersected` dead-counter in (now-deleted) snapshot helpers — already addressed by the round-3 helper removal; round-3 `stagePath` dead branch at `apps/worker/src/run-quality-cli.ts:793-794` (after the argv guard, `stagePath` is guaranteed undefined so the ternary always evaluates to null); round-3 cleanup-vs-concurrent-writer one-line comment at `apps/worker/src/__tests__/run-quality-cli.test.ts:533-540` documenting the implicit single-writer assumption. Cosmetic, non-blocking.
 
-**Branch state:** `main` = `origin/main` = `d22756b` (HEAD = Phase 3a HANDOFF commit on top of code commit `1a5b2ca`; full chain `a1ce0ea` → Phase 2 (`809971d`, `c872670`, `41af781`, `1189af7`, `1ba88f3`) → W1 (`1d5092a`, `0ede90c`) → Phase 3a (`1a5b2ca`, `d22756b`)). Working tree clean. No active fix branch. Local-only stale branches from prior workstreams: `feat/screen-classifier-v2-a1` (`88285ef`), `feat/lobby-detector-cross-team-dedup` (`62b78a0`), `feat/ocr-pipeline-phase-3a` (`af01074`) — all merged to `main`; safe to delete with `git branch -D` whenever.
+**Branch state:** `main` = `origin/main` = `8191e58` (HEAD = Phase 3b C5). Full chain since the last HANDOFF: Phase 3a (`1a5b2ca`, `d22756b`) → Phase 2 / W1 wrap-up (`50e1918`) → Phase 3b (`dd629bd` C1, `7dbf09f` C2, `7faca07` C3, `79c366e` C4, `8191e58` C5). Working tree clean. No active fix branch. Local-only stale branches from prior workstreams: `feat/screen-classifier-v2-a1` (`88285ef`), `feat/lobby-detector-cross-team-dedup` (`62b78a0`), `feat/ocr-pipeline-phase-3a` (`af01074`) — all merged to `main`; safe to delete with `git branch -D` whenever.
 
 **Background reading (decision input for post-A3 workstream):**
 
@@ -80,6 +80,46 @@ Scope this session won't touch:
   - `later for stubborn weak spots`: evaluate `TAO Toolkit`
   - `future live tracking/modeling`: treat `DeepStream 8` + `TAO` as a separate video-native track, not an in-place replacement for the screenshot-first extractor
   - `ignore for primary extraction`: `Metropolis VSS`
+
+## Session Summary — 2026-05-29 (Phase 3b: FrameProvider rewire end-to-end — shipped to main)
+
+### Current status
+
+Phase 3b — the rewire that makes `artifact_mode=False` actually load-bearing — is shipped. `feat/phase3b-frameprovider-rewire` (5 commits, `dd629bd` → `8191e58`) FF-merged to `main` and pushed to `origin/main`. Branch deleted. When the operator passes `--no-pass2-artifacts` AND the segment is `(player_loadout_view, loadout_engine=typed_v1)` or `(pre_game_lobby_state_2, lobby_engine=typed_v1)`, Pass-2 skips `_ffmpeg_extract` entirely and the typed_v1 extractors consume in-memory frames from an `InMemoryFrameProvider`. All other segments (legacy parsers, non-typed_v1) still get PNGs as before.
+
+### Why 5 commits, not 1
+
+The plan agent's pre-implementation pass — for the fifth consecutive workstream — changed the shape: pointed out that the bundler's `cv2.imread` was hidden inside a "no-shim required" extractor refactor, that the test surface for direct-`LoadoutSubjectBundle` constructors covered 7 sites (not the 3 the HANDOFF initially named), and that the `EXTRACTOR_VERSION` bump needed to ride alongside the field removal not before it. The 5-commit split kept each diff under ~250 lines and each commit individually green against the baseline.
+
+| Commit | What |
+|---|---|
+| `dd629bd` C1 | `LoadoutSubjectBundle` gains `best_frame_image: Optional[np.ndarray]` and `best_frame_index: Optional[int]`, populated by the assembler from the already-decoded image (no extra `imread`). Path fields kept, defaults `None` so direct constructors compile. Zero behavior change. |
+| `7dbf09f` C2 | `assemble_loadout_subject_bundles` signature flips: `Sequence[Path]` → `Sequence[FrameRecordLike]` (Protocol — avoids `game_ocr` importing `video_ingest`). Internal `cv2.imread` dropped; bundler reads `record.image` and uses `record.frame_index` for original ordinals. New optional `frame_paths` kwarg threads legacy paths so bundles still emit them through C4 (removed in C5). `extract_loadout_evidence` materializes a small `_PngFrameRecord` shim per PNG. ~17 bundler-call test sites migrate to `_fake_records`; the "skip frame when imread None" test rephrases to "skip record when `image is None`". |
+| `7faca07` C3 | `extract_*_evidence` accept `frame_provider` kwarg; either `bundle_dir` (legacy) OR `frame_provider` (new). Return type changes to `tuple[list[FieldEvidenceRecord], int]` — the frame count is observed during the single iteration so Pass-2 can populate `Pass2Result.frame_count` without a second decode. `cv2.imread(str(bundle.best_frame_path))` at lines 308 and 590 → `bundle.best_frame_image`. OCR-lookup dict rekeyed from `dict[Path, list[OCRLine]]` to `dict[int, list[OCRLine]]`. `_load_frame_ocr_lines` sidecar fallback at lines 317 and 594 → `RuntimeError`-on-None (fail-closed; the sidecar can't exist under in-memory operation and silent degradation would corrupt every typed_v1 record). `_run_typed_v1_loadout`/`_lobby` accept the provider positionally and return the count; Pass-2 main loop constructs `PngFrameProvider(seg_dir, fps)` after `_ffmpeg_extract`. Test stubs that wrote empty bytes to `00001.png` now write a 86-byte valid 10×10 PNG so `PngFrameProvider`'s fail-closed imread succeeds. |
+| `79c366e` C4 | New `_resolve_frame_source` helper encodes the gating predicate (`skip_pngs = (not artifact_mode) AND typed_v1_seg`). When triggered: `_ffmpeg_extract` is skipped, `seg_dir.mkdir` runs for the `*_evidence.json` write, and `InMemoryFrameProvider(video_path, start, end, fps)` is constructed and threaded into the dispatch. New `test_pass2_artifact_mode_gating.py` synthesizes a 3-second CFR mp4, runs `extract_segments` twice (mode True vs False), and asserts: (a) provider class inverts (`PngFrameProvider` vs `InMemoryFrameProvider`), (b) PNG side-effect inverts (PNGs in True-mode seg_dir; zero in False-mode), (c) `loadout_evidence.json` is byte-identical between modes, (d) `Pass2Result.frame_count` is populated in both modes. |
+| `8191e58` C5 | `LoadoutSubjectBundle.frame_paths` and `best_frame_path` deleted. Assembler's `frame_paths` kwarg dropped. `EXTRACTOR_VERSION`: `loadout-evidence-v2` → `v3`, `lobby-evidence-v1` → `v2`. 5 of the 7 direct-constructor test sites drop the kwargs; the game_ocr `_bundle()` helper passes `best_frame_image=None` to preserve the pre-Phase-3b "nonexistent path → cv2.imread None → extractor short-circuits" test trick (extractors guard `if image_bgr is None`). The C2-only back-compat test `test_legacy_frame_paths_kwarg_populates_path_fields` removed. |
+
+### Test results
+
+Same 3 pre-existing failures as the baseline (`test_loadout_closed_vocab.py::TestErrorCases::test_predict_log_probs_raises_not_implemented`, `TestExtractorVersion::test_extractor_version_is_stamped`, `test_loadout_evidence_fixture_parity.py::test_match250_parity`) — all flagged in HANDOFF since well before Phase 3b. Full `tools/video_ingest` suite: 436 passed, 4 skipped, 3 baseline failures. Full `tools/game_ocr` suite: 266 passed, 1 skipped, 1 pre-existing failure (`test_diagnose_segments` — unrelated import bug).
+
+### Operational notes
+
+- **Sidecar fallback is gone for real.** `_load_frame_ocr_lines` still exists in `loadout_evidence.py` because the deprecated `_evidence_for_bundle` (LoadoutFrameBundle path, test-only) calls it. The production path is fully closed: any caller of `_evidence_for_subject_bundle` / `_evidence_for_roster_only_bundle` that fails to supply `best_frame_ocr_lines` raises `RuntimeError` immediately.
+- **Legacy LoadoutFrameBundle cluster preserved.** `LoadoutFrameBundle`, `assemble_loadout_bundles`, `_evidence_for_bundle`, and `_load_frame_ocr_lines` all remain. ~30 tests exercise the LoadoutFrameBundle path. Plan said "delete if no test still calls them"; many do. Migration is orthogonal to the artifact_mode=False objective and was deliberately deferred.
+- **Test fixture pattern: valid PNG bytes.** 4 test files (`test_cache_invalidation.py`, `test_cli_contracts.py`, `test_pass2_manifest.py`, `test_dispatch_loadout_engine_flag.py`) had `(out_dir / "00001.png").write_bytes(b"")` stubs that worked under the old "imread None → empty OCR list, silent success" path. Under Phase 3a's `PngFrameProvider` they raise (fail-closed on imread None). The fix is a 86-byte `_VALID_PNG_BYTES` constant that decodes to a 10×10 black image. Pattern is documented inline.
+- **CLI flag default unchanged.** `--pass2-artifacts/--no-pass2-artifacts` still defaults to True. Phase 3c flips the default after a final manual smoke pass.
+
+### Process observation
+
+The "additive C1 → behavioral C2 → contract-change C3 → gating C4 → cleanup C5" decomposition is reusable for any refactor that touches a dataclass + signature + dispatch + tests. Each commit answers exactly one question:
+- C1: "what new fields exist?"
+- C2: "what does the producer's contract look like?"
+- C3: "what does the consumer's contract look like?"
+- C4: "where does the new behavior actually fire?"
+- C5: "what dead code can we drop now that nothing reads it?"
+
+Reviewers can answer "does this commit do what it claims?" without holding the rest in their head. Worth carrying forward.
 
 ## Session Summary — 2026-05-29 (Phase 3a: FrameProvider scaffolding + artifact_mode flag — shipped to main)
 
