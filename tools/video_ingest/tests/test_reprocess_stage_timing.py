@@ -192,12 +192,18 @@ def test_full_pipeline_writes_stage_runtimes_file_and_invokes_emit(
         f"got cache_dir contents: {list(cache_dir.iterdir()) if cache_dir.exists() else '(no dir)'}"
     )
     payload = json.loads(expected_path.read_text())
+    # Phase 4 Part B added `pass1_cache_hit` as a new top-level key
+    # (boolean, separate from `stages` which stays timing-only). It's
+    # null here because this test doesn't lay down a sidecar.
     assert set(payload.keys()) == {
         "stages", "total_wall_ms", "captured_at", "captured_from",
+        "pass1_cache_hit",
     }, f"unexpected top-level keys: {sorted(payload.keys())}"
     assert payload["captured_from"] == "reprocess.py"
     assert isinstance(payload["total_wall_ms"], int)
     assert isinstance(payload["captured_at"], str) and payload["captured_at"]
+    # No sidecar laid down by this fixture → pass1_cache_hit is null.
+    assert payload["pass1_cache_hit"] is None
     # stages should contain at least the 8 timed pipeline keys (run_quality_emit_ms is null).
     expected_stage_keys = {
         "create_candidate_ms",
@@ -212,6 +218,23 @@ def test_full_pipeline_writes_stage_runtimes_file_and_invokes_emit(
     assert expected_stage_keys.issubset(set(payload["stages"].keys())), (
         f"missing stage keys: {expected_stage_keys - set(payload['stages'].keys())}"
     )
+    # Phase 4 Part B: five new Pass-1 sub-phase + Pass-2 keys land in
+    # stages. All null here because this test doesn't write a sidecar
+    # (the _run_streaming stub doesn't actually invoke the orchestrator).
+    phase4_keys = {
+        "pass1_ms",
+        "pass2_ms",
+        "pass1_decode_ms",
+        "pass1_classify_ms",
+        "pass1_viterbi_ms",
+    }
+    assert phase4_keys.issubset(set(payload["stages"].keys())), (
+        f"missing Phase 4 Part B keys: {phase4_keys - set(payload['stages'].keys())}"
+    )
+    for k in phase4_keys:
+        assert payload["stages"][k] is None, (
+            f"expected stages.{k} == None (no sidecar laid down), got {payload['stages'][k]}"
+        )
     # run_quality_emit_ms is intentionally null in the file (v1 — see code).
     assert payload["stages"].get("run_quality_emit_ms") is None
 
@@ -377,6 +400,119 @@ def test_dry_run_skips_stage_runtimes_file_and_emit(
     assert emit_calls == [], (
         f"--dry-run should not invoke run-quality, got: {emit_calls}"
     )
+
+
+def test_ingest_timings_sidecar_projects_pass1_keys_into_payload(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    _fake_artifacts: None,
+) -> None:
+    """Phase 4 Part B: when the orchestrator-emitted
+    ingest-run-<id>-timings.json sidecar is present, reprocess.py projects
+    its six fields into the stage-runtimes payload — five timing keys go
+    into `stages`, `pass1_cache_hit` goes top-level.
+
+    `_fake_artifacts` makes `_resolve_video_path` return `"c" * 64` as
+    the video sha; the sidecar path matches that."""
+    fake_run_id = 5151
+    cache_dir = tmp_path / "ingest-cache"
+    monkeypatch.setattr(reprocess_mod, "DEFAULT_INGEST_CACHE", cache_dir)
+
+    # Lay down the sidecar BEFORE the CLI invocation. The stubbed
+    # `_run_streaming` below doesn't actually invoke the orchestrator,
+    # so we simulate the orchestrator's output directly.
+    fake_sha = "c" * 64
+    sidecar_path = cache_dir / fake_sha / f"ingest-run-{fake_run_id}-timings.json"
+    sidecar_path.parent.mkdir(parents=True, exist_ok=True)
+    sidecar_path.write_text(json.dumps({
+        "pass1_decode_ms": 1234.5,
+        "pass1_classify_ms": 67890.1,
+        "pass1_viterbi_ms": 4.2,
+        "pass1_ms": 69128.8,
+        "pass2_ms": 5500.0,
+        "pass1_cache_hit": False,
+    }))
+
+    monkeypatch.setattr(
+        reprocess_mod, "_run_decoder_runs_cli",
+        _make_decoder_runs_stub(fake_run_id),
+    )
+    monkeypatch.setattr(
+        reprocess_mod, "_run_streaming",
+        lambda cmd, *, description: None,
+    )
+    monkeypatch.setattr(
+        reprocess_mod.subprocess, "run",
+        lambda cmd, **kwargs: subprocess.CompletedProcess(
+            args=cmd, returncode=0, stdout='{"_exit": 0}\n', stderr=""
+        ),
+    )
+
+    runner = CliRunner()
+    result = runner.invoke(app, ["reprocess", "--match-id", "250"])
+    assert result.exit_code == 0, (
+        f"reprocess exited {result.exit_code}; exception={result.exception!r}\n"
+        f"stdout:\n{result.stdout}"
+    )
+
+    payload = json.loads(
+        (cache_dir / f"run-{fake_run_id}-stage-runtimes.json").read_text()
+    )
+    # Coerced float ms → int ms (DB column is integer-typed).
+    assert payload["stages"]["pass1_decode_ms"] == 1234
+    assert payload["stages"]["pass1_classify_ms"] == 67890
+    assert payload["stages"]["pass1_viterbi_ms"] == 4
+    assert payload["stages"]["pass1_ms"] == 69128
+    assert payload["stages"]["pass2_ms"] == 5500
+    # Boolean lands top-level, NOT in stages.
+    assert payload["pass1_cache_hit"] is False
+    assert "pass1_cache_hit" not in payload["stages"]
+
+
+def test_ingest_timings_missing_sidecar_is_silent(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    _fake_artifacts: None,
+) -> None:
+    """Phase 4 Part B: a missing sidecar (older orchestrator that doesn't
+    write it, or a write failure) MUST NOT crash reprocess. All five
+    Phase-4 stage keys + the top-level pass1_cache_hit field become null
+    so downstream analytics can distinguish 'didn't measure' from
+    'measured zero.'"""
+    fake_run_id = 6262
+    cache_dir = tmp_path / "ingest-cache"
+    monkeypatch.setattr(reprocess_mod, "DEFAULT_INGEST_CACHE", cache_dir)
+    # NO sidecar laid down.
+
+    monkeypatch.setattr(
+        reprocess_mod, "_run_decoder_runs_cli",
+        _make_decoder_runs_stub(fake_run_id),
+    )
+    monkeypatch.setattr(
+        reprocess_mod, "_run_streaming",
+        lambda cmd, *, description: None,
+    )
+    monkeypatch.setattr(
+        reprocess_mod.subprocess, "run",
+        lambda cmd, **kwargs: subprocess.CompletedProcess(
+            args=cmd, returncode=0, stdout='{"_exit": 0}\n', stderr=""
+        ),
+    )
+
+    runner = CliRunner()
+    result = runner.invoke(app, ["reprocess", "--match-id", "250"])
+    assert result.exit_code == 0, (
+        f"reprocess exited {result.exit_code}; exception={result.exception!r}\n"
+        f"stdout:\n{result.stdout}"
+    )
+
+    payload = json.loads(
+        (cache_dir / f"run-{fake_run_id}-stage-runtimes.json").read_text()
+    )
+    for k in ("pass1_decode_ms", "pass1_classify_ms", "pass1_viterbi_ms",
+              "pass1_ms", "pass2_ms"):
+        assert payload["stages"][k] is None, f"expected stages.{k} is None"
+    assert payload["pass1_cache_hit"] is None
 
 
 def test_undo_skips_stage_runtimes_file_and_emit(

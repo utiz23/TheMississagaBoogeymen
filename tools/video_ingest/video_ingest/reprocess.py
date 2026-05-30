@@ -482,6 +482,26 @@ def reprocess(
     stage_runtimes_path = (
         DEFAULT_INGEST_CACHE / f"run-{new_run_id}-stage-runtimes.json"
     )
+
+    # Phase 4 Part B: read the per-run sidecar the orchestrator wrote at
+    # the end of the `ingest` subprocess. Path is run-scoped to avoid
+    # cross-run overwrite when two reprocesses race on the same video
+    # sha. Missing file (older orchestrator, write failure, or non-ingest
+    # path) → all new keys land as null in the persisted row; the TS
+    # loader accepts null/missing.
+    ingest_timings_path = (
+        DEFAULT_INGEST_CACHE / video_sha256 / f"ingest-run-{new_run_id}-timings.json"
+    )
+    ingest_timings: dict | None = None
+    if ingest_timings_path.exists():
+        try:
+            ingest_timings = json.loads(ingest_timings_path.read_text())
+        except Exception as e:  # noqa: BLE001 — best-effort
+            typer.echo(
+                f"[run-quality] ingest_timings parse failed (treating as missing): {e}",
+                err=True,
+            )
+
     stage_runtimes_payload = {
         "stages": {
             # Coerce float ms → int ms for the persisted row (DB column
@@ -492,10 +512,34 @@ def reprocess(
             # time of writing this file + the shell-out itself). Leave
             # null for v1; the validator accepts null/missing.
             "run_quality_emit_ms": None,
+            # Phase 4 Part B: five new Pass-1 sub-phase + Pass-2 keys.
+            # All null when the sidecar is missing so downstream analytics
+            # can distinguish "didn't measure" from "measured zero."
+            "pass1_ms": (
+                int(ingest_timings["pass1_ms"]) if ingest_timings else None
+            ),
+            "pass2_ms": (
+                int(ingest_timings["pass2_ms"]) if ingest_timings else None
+            ),
+            "pass1_decode_ms": (
+                int(ingest_timings["pass1_decode_ms"]) if ingest_timings else None
+            ),
+            "pass1_classify_ms": (
+                int(ingest_timings["pass1_classify_ms"]) if ingest_timings else None
+            ),
+            "pass1_viterbi_ms": (
+                int(ingest_timings["pass1_viterbi_ms"]) if ingest_timings else None
+            ),
         },
         "total_wall_ms": total_wall_ms,
         "captured_at": datetime.now(timezone.utc).isoformat(),
         "captured_from": "reprocess.py",
+        # Phase 4 Part B: top-level (NOT in stages) — boolean, follows the
+        # TS-side schema where stages is timing-only and pass1_cache_hit
+        # lands at the same level as total_wall_ms / captured_at.
+        "pass1_cache_hit": (
+            ingest_timings["pass1_cache_hit"] if ingest_timings else None
+        ),
     }
     try:
         stage_runtimes_path.parent.mkdir(parents=True, exist_ok=True)
