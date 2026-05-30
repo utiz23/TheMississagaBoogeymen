@@ -13,6 +13,7 @@ and re-uses them (controlled by `force_pass2`).
 
 from __future__ import annotations
 
+import json
 import sys
 import time
 from dataclasses import dataclass
@@ -685,6 +686,36 @@ def ingest(
             f"[dispatch] {ok} ok, {failed} failed in {elapsed_dispatch:.1f}s",
             file=sys.stderr,
         )
+
+    # Phase 4 Part B: emit run-scoped ingest_timings.json sidecar so
+    # reprocess.py can read structured Pass-1 sub-phase telemetry +
+    # Pass-2 wall time without parsing CLI stdout. Run-scoped path
+    # (when run_id is provided) mirrors compute_pass2_cache_dir's
+    # collision-avoidance pattern; concurrent reprocesses against the
+    # same source video each write to their own file. Direct CLI use
+    # (run_id is None) falls back to the unscoped name — concurrent
+    # direct ingests are operator-managed.
+    if sampling_telemetry is not None:
+        timings_payload = {
+            "pass1_decode_ms": sampling_telemetry.decode_ms,
+            "pass1_classify_ms": sampling_telemetry.classify_ms,
+            "pass1_viterbi_ms": sampling_telemetry.viterbi_ms,
+            "pass1_ms": sampling_telemetry.elapsed_pass1_ms,
+            # Pass-2 cache hit: elapsed_pass2 is the genuine wall time
+            # the orchestrator spent on Pass-2 in THIS run (including
+            # the cache-load path) — small but real. We do NOT zero it
+            # or add a pass2_cache_hit flag; pass2_ms always means
+            # "wall time this run spent on Pass-2" for a stable
+            # analytics contract.
+            "pass2_ms": elapsed_pass2 * 1000.0,
+            "pass1_cache_hit": sampling_telemetry.pass1_cache_hit,
+        }
+        timings_filename = (
+            f"ingest-run-{run_id}-timings.json"
+            if run_id is not None
+            else "ingest_timings.json"
+        )
+        (sha_root / timings_filename).write_text(json.dumps(timings_payload, indent=2))
 
     return IngestResult(
         probe=probe,

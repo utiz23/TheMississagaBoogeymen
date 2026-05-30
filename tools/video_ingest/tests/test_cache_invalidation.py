@@ -391,7 +391,10 @@ class OrchestratorCacheTests(unittest.TestCase):
         """Phase 4: IngestResult.sampling_telemetry follows the cache-hit
         truth model — fresh runs expose populated *_ms fields with
         pass1_cache_hit=False; cache hits expose zeroed fields with
-        pass1_cache_hit=True (never the stored fresh-run values)."""
+        pass1_cache_hit=True (never the stored fresh-run values).
+
+        Part B extension: also assert the ingest_timings.json sidecar
+        is emitted with the expected six-field shape on both passes."""
         r1 = self._run()  # fresh
         self.assertIsNotNone(r1.sampling_telemetry)
         self.assertFalse(r1.sampling_telemetry.pass1_cache_hit)
@@ -399,8 +402,27 @@ class OrchestratorCacheTests(unittest.TestCase):
         # SamplingTelemetry() with all timing fields at 0.0 (no real work
         # ran). We can only assert "the orchestrator populated the field
         # at all"; the real timing assertions happen in the live ingest
-        # measurement in Commit 3.
+        # measurement in Commit 5.
         self.assertEqual(r1.sampling_telemetry.elapsed_pass1_ms, 0.0)
+
+        # Part B: sidecar present, six expected keys, pass1_cache_hit=False
+        # on the fresh pass. Direct CLI usage (run_id is None in this
+        # test harness) writes the unscoped path.
+        sidecar = self.output_root / self.fake_sha / "ingest_timings.json"
+        self.assertTrue(sidecar.exists(), f"ingest_timings.json missing at {sidecar}")
+        payload1 = json.loads(sidecar.read_text())
+        self.assertEqual(
+            set(payload1.keys()),
+            {
+                "pass1_decode_ms",
+                "pass1_classify_ms",
+                "pass1_viterbi_ms",
+                "pass1_ms",
+                "pass2_ms",
+                "pass1_cache_hit",
+            },
+        )
+        self.assertFalse(payload1["pass1_cache_hit"])
 
         r2 = self._run()  # cache hit
         self.assertIsNotNone(r2.sampling_telemetry)
@@ -412,6 +434,17 @@ class OrchestratorCacheTests(unittest.TestCase):
         self.assertEqual(r2.sampling_telemetry.decode_ms, 0.0)
         self.assertEqual(r2.sampling_telemetry.classify_ms, 0.0)
         self.assertEqual(r2.sampling_telemetry.viterbi_ms, 0.0)
+
+        # Part B: sidecar overwritten with cache-hit values. All
+        # pass1_*_ms fields == 0; pass1_cache_hit=True. pass2_ms may
+        # also be ~0 here because Pass-2 hits cache too in the mocked
+        # harness (no zeroing applied; analytics filter heuristically).
+        payload2 = json.loads(sidecar.read_text())
+        self.assertTrue(payload2["pass1_cache_hit"])
+        self.assertEqual(payload2["pass1_ms"], 0.0)
+        self.assertEqual(payload2["pass1_decode_ms"], 0.0)
+        self.assertEqual(payload2["pass1_classify_ms"], 0.0)
+        self.assertEqual(payload2["pass1_viterbi_ms"], 0.0)
 
     def test_pass1_raises_on_cache_key_mismatch(self) -> None:
         self._run()
