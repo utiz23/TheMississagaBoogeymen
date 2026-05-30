@@ -26,6 +26,7 @@ from video_ingest.pass1_classify import (
     CacheMismatch,
     MissingPass1Cache,
     Pass1Config,
+    SamplingTelemetry,
     Segment,
     VIDEO_INGEST_CONFIGS_DIR,
     build_segments,
@@ -78,6 +79,11 @@ class IngestResult:
     pass2_results: list[Pass2Result]
     elapsed_pass1: float
     elapsed_pass2: float
+    # Phase 4: sub-phase timings + cache-hit flag for Pass-1. None when the
+    # caller skipped Pass-1 entirely (skip_pass1=True without cache); on a
+    # cache hit the field is populated but with pass1_cache_hit=True and
+    # all *_ms fields at 0.0 to signal "this run did not measure Pass-1."
+    sampling_telemetry: SamplingTelemetry | None = None
     dispatch_results: list[DispatchResult] | None = None
     elapsed_dispatch: float = 0.0
 
@@ -131,6 +137,12 @@ def _run_pass1(
         )
         from video_ingest.pass1_segment import decode_segments
 
+        # Phase 4: outer wall-time timer for this engine branch. Sub-phase
+        # timers (decode/classify/viterbi) populate during the work below;
+        # the outer timer captures any uninstrumented overhead in the
+        # residual `elapsed_pass1_ms - (decode + classify + viterbi)`.
+        pass1_branch_start = time.perf_counter()
+
         # v1 engine loads the v1 state machine + v1 weights. The unversioned
         # `nhl26.yaml` is reserved for v2 once S5.1 bumps it.
         sm = load_state_machine(f"{version}-v1")
@@ -155,6 +167,7 @@ def _run_pass1(
         cls_list: list = []
         feats_list = []
         sampling_telemetry = SamplingTelemetry()
+        loop_t = time.perf_counter()
         for sf in iter_sampled_frames(
             video_path, p1cfg.sample_fps, telemetry=sampling_telemetry,
         ):
@@ -176,6 +189,12 @@ def _run_pass1(
                 source_time_seconds=sf.source_time_seconds,
                 decode_order_index=sf.decode_order_index,
             ))
+        loop_total_ms = (time.perf_counter() - loop_t) * 1000.0
+        # classify_ms = wall time of the consumer loop minus the decode
+        # time iter_sampled_frames accumulated into telemetry.decode_ms.
+        sampling_telemetry.classify_ms = max(0.0, loop_total_ms - sampling_telemetry.decode_ms)
+
+        viterbi_t = time.perf_counter()
         segments = decode_segments(
             features=feats_list,
             classifier=clf,
@@ -183,6 +202,7 @@ def _run_pass1(
             weights=EmissionWeights(),
             frame_source_times=[c.source_time_seconds for c in cls_list],
         )
+        sampling_telemetry.viterbi_ms = (time.perf_counter() - viterbi_t) * 1000.0
         # Stamp the decoded state back onto the per-frame audit table.
         # Preserve the canonical-PTS fields populated upstream — these
         # encode source time, not classifier output, and must survive the
@@ -202,6 +222,7 @@ def _run_pass1(
                     source_time_seconds=prev.source_time_seconds,
                     decode_order_index=prev.decode_order_index,
                 )
+        sampling_telemetry.elapsed_pass1_ms = (time.perf_counter() - pass1_branch_start) * 1000.0
         return cls_list, segments, sm.decoder_version, sampling_telemetry
     elif p1cfg.engine == "viterbi_v2":
         from game_ocr.emissions import EmissionWeights
@@ -216,6 +237,9 @@ def _run_pass1(
             iter_sampled_frames,
         )
         from video_ingest.pass1_segment import decode_segments_v2
+
+        # Phase 4: outer wall-time timer for this engine branch.
+        pass1_branch_start = time.perf_counter()
 
         sm = load_state_machine(version)
         # See v1 path note: `sample_fps` is the tick cadence, not segment
@@ -243,6 +267,7 @@ def _run_pass1(
         cls_list: list = []
         feats_list = []
         sampling_telemetry = SamplingTelemetry()
+        loop_t = time.perf_counter()
         for sf in iter_sampled_frames(
             video_path, p1cfg.sample_fps, telemetry=sampling_telemetry,
         ):
@@ -262,6 +287,10 @@ def _run_pass1(
                 source_time_seconds=sf.source_time_seconds,
                 decode_order_index=sf.decode_order_index,
             ))
+        loop_total_ms = (time.perf_counter() - loop_t) * 1000.0
+        sampling_telemetry.classify_ms = max(0.0, loop_total_ms - sampling_telemetry.decode_ms)
+
+        viterbi_t = time.perf_counter()
         segments = decode_segments_v2(
             features=feats_list,
             classifier=clf,
@@ -270,6 +299,7 @@ def _run_pass1(
             weights=EmissionWeights(),
             frame_source_times=[c.source_time_seconds for c in cls_list],
         )
+        sampling_telemetry.viterbi_ms = (time.perf_counter() - viterbi_t) * 1000.0
         for seg in segments:
             for i in range(seg.start_index, seg.end_index + 1):
                 prev = cls_list[i]
@@ -285,14 +315,27 @@ def _run_pass1(
                     source_time_seconds=prev.source_time_seconds,
                     decode_order_index=prev.decode_order_index,
                 )
+        sampling_telemetry.elapsed_pass1_ms = (time.perf_counter() - pass1_branch_start) * 1000.0
         return cls_list, segments, sm.decoder_version, sampling_telemetry
     elif p1cfg.engine == "run_length":
+        # Phase 4: outer wall-time timer for this engine branch.
+        pass1_branch_start = time.perf_counter()
         sampling_telemetry = SamplingTelemetry()
+        loop_t = time.perf_counter()
         cls_list = classify_video(
             video_path, classifier_legacy, p1cfg,
             telemetry=sampling_telemetry,
         )
+        loop_total_ms = (time.perf_counter() - loop_t) * 1000.0
+        sampling_telemetry.classify_ms = max(0.0, loop_total_ms - sampling_telemetry.decode_ms)
+
+        viterbi_t = time.perf_counter()
         segments = build_segments(cls_list, p1cfg)
+        # The legacy run-length builder isn't a Viterbi decoder, but it
+        # occupies the same orchestrator slot — keeping the timer name
+        # consistent across engines simplifies the analytics query.
+        sampling_telemetry.viterbi_ms = (time.perf_counter() - viterbi_t) * 1000.0
+        sampling_telemetry.elapsed_pass1_ms = (time.perf_counter() - pass1_branch_start) * 1000.0
         return cls_list, segments, "legacy-passthrough-v0-video", sampling_telemetry
     else:
         raise ValueError(
@@ -427,6 +470,14 @@ def ingest(
     elapsed_pass1 = 0.0
 
     decoder_version: str | None = None
+    # Phase 4: sampling_telemetry carries the Pass-1 sub-phase timings +
+    # cache-hit flag through to IngestResult. On a fresh run, _run_pass1
+    # returns a populated instance below. On a cache hit, we construct a
+    # fresh SamplingTelemetry(pass1_cache_hit=True) — we deliberately do
+    # NOT read forward the stored fresh-run telemetry from segments.json
+    # (that would conflate "didn't run this time" with "ran with these
+    # numbers"). The stored block stays on disk as a per-video reference.
+    sampling_telemetry: SamplingTelemetry | None = None
 
     cache_hit_pass1 = False
     if segments_json.exists() and not force_pass1:
@@ -455,6 +506,9 @@ def ingest(
             print(f"[pass1] cache hit at {segments_json}", file=sys.stderr)
             segments = loaded.segments
             cache_hit_pass1 = True
+            # Phase 4 cache-hit telemetry: signal "didn't run this time"
+            # via the flag; all *_ms fields stay at 0.0.
+            sampling_telemetry = SamplingTelemetry(pass1_cache_hit=True)
             # Cache hit: derive decoder_version from current engine config.
             # The legacy run_length engine doesn't ship a state machine YAML,
             # so we default to its tag; the viterbi engine loads sm for the tag.
@@ -639,6 +693,7 @@ def ingest(
         pass2_results=pass2_results,
         elapsed_pass1=elapsed_pass1,
         elapsed_pass2=elapsed_pass2,
+        sampling_telemetry=sampling_telemetry,
         dispatch_results=dispatch_results,
         elapsed_dispatch=elapsed_dispatch,
     )

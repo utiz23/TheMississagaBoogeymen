@@ -200,6 +200,49 @@ class SegmentsJsonSchemaTests(unittest.TestCase):
         self.assertTrue(loaded.is_legacy)
         self.assertIsNone(loaded.version)
         self.assertIsNone(loaded.pass1_cache_key)
+        # Phase 4: pre-Phase-2 files lack the telemetry block entirely.
+        self.assertIsNone(loaded.sampling_telemetry)
+
+    def test_pre_phase4_segments_json_loads_with_default_timing_fields(self) -> None:
+        """Phase 4: files written by Phase-2/3 ingests have a
+        pass1_sampling_telemetry block with only the Phase-2 fields
+        (decoded_frame_count / sampled_frame_count / etc.) — no
+        decode_ms / classify_ms / viterbi_ms / elapsed_pass1_ms /
+        pass1_cache_hit. The loader's `SamplingTelemetry(**raw_tele)`
+        call must accept the partial dict and default the new fields
+        to safe zero-equivalents."""
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "segments.json"
+            # Pre-Phase-4 telemetry block: Phase-2 fields only.
+            payload = {
+                "version": "nhl26",
+                "pass1_cache_key": "sha256:test",
+                "video_path": "/v.mkv",
+                "video_sha256": "abc",
+                "pass1_config": {"sample_fps": 1, "min_run_to_open": 2,
+                                 "max_outliers_within": 1, "min_segment_seconds": 3.0},
+                "segments": [],
+                "frame_classifications": [],
+                "pass1_sampling_telemetry": {
+                    "decoded_frame_count": 1800,
+                    "sampled_frame_count": 60,
+                    "frames_with_missing_pts": 0,
+                    "max_source_pts_jump_within_sample_interval": 1.02,
+                    "sample_period_seconds": 1.0,
+                },
+            }
+            path.write_text(json.dumps(payload))
+            loaded = load_segments_json(path)
+        # Phase-2 fields round-trip.
+        self.assertIsNotNone(loaded.sampling_telemetry)
+        self.assertEqual(loaded.sampling_telemetry.decoded_frame_count, 1800)
+        self.assertEqual(loaded.sampling_telemetry.sampled_frame_count, 60)
+        # Phase-4 fields default cleanly.
+        self.assertEqual(loaded.sampling_telemetry.decode_ms, 0.0)
+        self.assertEqual(loaded.sampling_telemetry.classify_ms, 0.0)
+        self.assertEqual(loaded.sampling_telemetry.viterbi_ms, 0.0)
+        self.assertEqual(loaded.sampling_telemetry.elapsed_pass1_ms, 0.0)
+        self.assertFalse(loaded.sampling_telemetry.pass1_cache_hit)
 
 
 class Pass2ManifestSchemaTests(unittest.TestCase):
@@ -343,6 +386,32 @@ class OrchestratorCacheTests(unittest.TestCase):
         r2 = self._run()
         self.assertEqual(r1.probe.sha256, r2.probe.sha256)
         self.assertEqual(len(r1.pass2_results), len(r2.pass2_results))
+
+    def test_phase4_sampling_telemetry_fresh_vs_cache_hit(self) -> None:
+        """Phase 4: IngestResult.sampling_telemetry follows the cache-hit
+        truth model — fresh runs expose populated *_ms fields with
+        pass1_cache_hit=False; cache hits expose zeroed fields with
+        pass1_cache_hit=True (never the stored fresh-run values)."""
+        r1 = self._run()  # fresh
+        self.assertIsNotNone(r1.sampling_telemetry)
+        self.assertFalse(r1.sampling_telemetry.pass1_cache_hit)
+        # _run_pass1 is mocked via _fake_run_pass1 → returns a default
+        # SamplingTelemetry() with all timing fields at 0.0 (no real work
+        # ran). We can only assert "the orchestrator populated the field
+        # at all"; the real timing assertions happen in the live ingest
+        # measurement in Commit 3.
+        self.assertEqual(r1.sampling_telemetry.elapsed_pass1_ms, 0.0)
+
+        r2 = self._run()  # cache hit
+        self.assertIsNotNone(r2.sampling_telemetry)
+        self.assertTrue(r2.sampling_telemetry.pass1_cache_hit)
+        # Cache-hit run MUST zero the timing fields — even though the
+        # on-disk segments.json carries the fresh-run telemetry block,
+        # the in-memory result must NOT surface those stale values.
+        self.assertEqual(r2.sampling_telemetry.elapsed_pass1_ms, 0.0)
+        self.assertEqual(r2.sampling_telemetry.decode_ms, 0.0)
+        self.assertEqual(r2.sampling_telemetry.classify_ms, 0.0)
+        self.assertEqual(r2.sampling_telemetry.viterbi_ms, 0.0)
 
     def test_pass1_raises_on_cache_key_mismatch(self) -> None:
         self._run()

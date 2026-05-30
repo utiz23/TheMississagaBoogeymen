@@ -594,6 +594,15 @@ class SegmentsJsonLoaded:
     version: str | None
     pass1_cache_key: str | None
     segments: list[Segment]
+    # Phase 4: the on-disk pass1_sampling_telemetry block, surfaced for
+    # analytics + future Part-B run-quality plumbing. None for pre-Phase-2
+    # files that predate the telemetry block (orthogonal to `is_legacy`
+    # which keys only on the cache-key fields). The orchestrator does NOT
+    # use this on cache hit — it constructs a fresh
+    # SamplingTelemetry(pass1_cache_hit=True) instead — but having the
+    # field on the loader keeps reads for Part B and trend analytics
+    # straightforward.
+    sampling_telemetry: SamplingTelemetry | None = None
 
     @property
     def is_legacy(self) -> bool:
@@ -604,12 +613,21 @@ class SegmentsJsonLoaded:
 
 def load_segments_json(path: Path) -> SegmentsJsonLoaded:
     """Load segments.json. `version` and `pass1_cache_key` are None for
-    legacy files (pre-Issue 2) so callers can distinguish."""
+    legacy files (pre-Issue 2) so callers can distinguish.
+    `sampling_telemetry` is None for files written before Phase 2 (no
+    block) and populated otherwise; pre-Phase-4 files lack the new timing
+    fields but `SamplingTelemetry(**raw_tele)` accepts the partial dict
+    because the new fields default safely."""
     data = json.loads(path.read_text())
     segs = [Segment(**s) for s in data["segments"]]
+    raw_tele = data.get("pass1_sampling_telemetry")
+    sampling_telemetry = (
+        SamplingTelemetry(**raw_tele) if raw_tele is not None else None
+    )
     return SegmentsJsonLoaded(
         video_sha256=data["video_sha256"],
         version=data.get("version"),
         pass1_cache_key=data.get("pass1_cache_key"),
         segments=segs,
+        sampling_telemetry=sampling_telemetry,
     )
