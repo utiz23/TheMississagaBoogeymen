@@ -198,7 +198,7 @@ def _run_parity_assert(
     expected_path = fixture_dir / "expected_loadout_evidence.json"
     expected = _load_expected(expected_path)
 
-    actual_records = extract_loadout_evidence(
+    actual_records, _ = extract_loadout_evidence(
         bundle_dir=fixture_dir / "frames",
         segment_index=segment_index,
     )

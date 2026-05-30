@@ -58,7 +58,7 @@ class LobbyEvidenceTests(unittest.TestCase):
     def test_emits_records_for_all_12_slots(self) -> None:
         bundle = _empty_bundle(1)
         try:
-            records = extract_lobby_evidence(
+            records, _ = extract_lobby_evidence(
                 bundle,
                 segment_index=42,
                 ocr_lines_per_frame=[_state2_frame()],
@@ -81,7 +81,7 @@ class LobbyEvidenceTests(unittest.TestCase):
     def test_field_families_assigned_correctly(self) -> None:
         bundle = _empty_bundle(1)
         try:
-            records = extract_lobby_evidence(
+            records, _ = extract_lobby_evidence(
                 bundle,
                 segment_index=1,
                 ocr_lines_per_frame=[_state2_frame()],
@@ -108,7 +108,7 @@ class LobbyEvidenceTests(unittest.TestCase):
     def test_state2_emits_player_number_and_persona(self) -> None:
         bundle = _empty_bundle(1)
         try:
-            records = extract_lobby_evidence(
+            records, _ = extract_lobby_evidence(
                 bundle,
                 segment_index=7,
                 ocr_lines_per_frame=[_state2_frame()],
@@ -130,7 +130,7 @@ class LobbyEvidenceTests(unittest.TestCase):
         lines.append(_line("CPU", 250, 740, 0.97))
         bundle = _empty_bundle(1)
         try:
-            records = extract_lobby_evidence(
+            records, _ = extract_lobby_evidence(
                 bundle,
                 segment_index=0,
                 ocr_lines_per_frame=[lines],
@@ -160,7 +160,7 @@ class LobbyEvidenceTests(unittest.TestCase):
         lines.append(_line("CPU", 250, 740, 0.97))
         bundle = _empty_bundle(1)
         try:
-            records = extract_lobby_evidence(
+            records, _ = extract_lobby_evidence(
                 bundle,
                 segment_index=0,
                 ocr_lines_per_frame=[lines],
@@ -180,7 +180,7 @@ class LobbyEvidenceTests(unittest.TestCase):
     def test_human_slot_emits_is_cpu_false(self) -> None:
         bundle = _empty_bundle(1)
         try:
-            records = extract_lobby_evidence(
+            records, _ = extract_lobby_evidence(
                 bundle,
                 segment_index=0,
                 ocr_lines_per_frame=[_state2_frame()],
@@ -218,7 +218,7 @@ class LobbyEvidenceTests(unittest.TestCase):
             lines_low.append(_line(f"#{20 + i}-OppPersona{i}", 1700, y + 10, conf=0.5))
         bundle = _empty_bundle(2)
         try:
-            records = extract_lobby_evidence(
+            records, _ = extract_lobby_evidence(
                 bundle,
                 segment_index=99,
                 ocr_lines_per_frame=[lines_low, _state2_frame()],
@@ -237,7 +237,7 @@ class LobbyEvidenceTests(unittest.TestCase):
     def test_record_dict_serializable(self) -> None:
         bundle = _empty_bundle(1)
         try:
-            records = extract_lobby_evidence(
+            records, _ = extract_lobby_evidence(
                 bundle,
                 segment_index=0,
                 ocr_lines_per_frame=[_state2_frame()],
@@ -280,7 +280,7 @@ class LobbyEvidenceTests(unittest.TestCase):
 
         bundle = _empty_bundle(1)
         try:
-            records = extract_lobby_evidence(
+            records, _ = extract_lobby_evidence(
                 bundle,
                 segment_index=42,
                 ocr_lines_per_frame=[lines],

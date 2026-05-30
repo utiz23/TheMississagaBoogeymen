@@ -259,7 +259,6 @@ def _run_extract_evidence(
     with patch("game_ocr.loadout_evidence.assemble_loadout_subject_bundles", return_value=bundles), \
          patch("game_ocr.loadout_evidence.cv2.imread", return_value=dummy_img), \
          patch("pathlib.Path.glob", return_value=iter(fake_frames)), \
-         patch("game_ocr.loadout_evidence._load_frame_ocr_lines", return_value=[]), \
          patch.object(LoadoutOpenTextExtractor, "extract_open_text_for_roi", return_value=open_ev or []), \
          patch.object(LoadoutTabularExtractor, "extract_attribute_grid", return_value=tab_ev or []), \
          patch.object(LoadoutIconExtractor, "extract_xfactor_icons", return_value=icon_ev or []), \
@@ -268,14 +267,15 @@ def _run_extract_evidence(
          patch.object(LoadoutClosedVocabExtractor, "classify_x_factor_name", return_value=cv_ev or []), \
          patch.object(LoadoutClosedVocabExtractor, "classify_x_factor_tier_from_image", return_value=cv_ev or []):
 
-        # Pass ocr_lines_per_frame=[] to bypass internal RapidOCR instantiation;
-        # assemble_loadout_subject_bundles is mocked so the empty list is never indexed.
-        return extract_loadout_evidence(
+        # ocr_lines_per_frame matches the 2 fake frame paths so the assembler
+        # mock receives a sensibly-aligned list (it's mocked anyway).
+        records, _ = extract_loadout_evidence(
             Path("/fake/bundle_dir"),
             segment_index=0,
             extractor_version=extractor_version,
-            ocr_lines_per_frame=[],
+            ocr_lines_per_frame=[[], []],
         )
+        return records
 
 
 # ---------------------------------------------------------------------------
@@ -723,7 +723,7 @@ class TestFrameGlobAndOcrLinesHandling(unittest.TestCase):
                 mock_backend_instance.read.return_value = [known_line]
                 MockBackend.return_value = mock_backend_instance
 
-                records = extract_loadout_evidence(bundle_dir, segment_index=0)
+                records, frame_count = extract_loadout_evidence(bundle_dir, segment_index=0)
 
             # Verify RapidOCRBackend was instantiated and .read() called
             MockBackend.assert_called_once_with(use_gpu=False)
@@ -737,6 +737,7 @@ class TestFrameGlobAndOcrLinesHandling(unittest.TestCase):
 
             # No records because assemble returned empty
             self.assertEqual(records, [])
+            self.assertEqual(frame_count, 1)
 
 
 # ---------------------------------------------------------------------------
@@ -855,6 +856,8 @@ def _make_subject_bundle_with_identity(
         best_frame_sharpness_score=100.0,
         all_subject_identities=(si,),
         support_frame_indices=(0,),
+        best_frame_image=_make_dummy_image(),
+        best_frame_index=0,
         observability="observable",
     )
 
@@ -876,15 +879,14 @@ def _run_subject_bundle_evidence(bundle) -> list:
     # Return a fake build_class candidate for classify_build_class
     fake_bc_cand = ClosedVocabCandidate(value="Power Forward", raw_confidence=0.9, calibrated_confidence=0.9)
 
-    with patch("game_ocr.loadout_evidence.cv2.imread", return_value=dummy_img), \
-         patch("game_ocr.loadout_evidence._load_frame_ocr_lines", return_value=[]), \
-         patch.object(cv_extractor, "classify_build_class", return_value=[fake_bc_cand]), \
+    with patch.object(cv_extractor, "classify_build_class", return_value=[fake_bc_cand]), \
          patch.object(cv_extractor, "classify_x_factor_name", return_value=[]), \
          patch.object(cv_extractor, "classify_x_factor_tier_from_image", return_value=[]), \
          patch.object(tab_extractor, "extract_attribute_grid", return_value=[]), \
          patch.object(icon_extractor, "extract_xfactor_icons", return_value=[]):
         return _evidence_for_subject_bundle(
-            bundle, cv_extractor, tab_extractor, icon_extractor, ot_extractor, "test-v1"
+            bundle, cv_extractor, tab_extractor, icon_extractor, ot_extractor, "test-v1",
+            best_frame_ocr_lines=[],
         )
 
 

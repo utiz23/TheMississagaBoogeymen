@@ -154,7 +154,7 @@ class TypedV1EngineWritesJsonTest(unittest.TestCase):
 
             with patch(
                 "video_ingest.pass2_extract.extract_loadout_evidence",
-                return_value=fake_records,
+                return_value=(fake_records, len(fake_records)),
             ) as mock_extract:
                 results = extract_segments(
                     video_path=Path("/fake/video.mkv"),

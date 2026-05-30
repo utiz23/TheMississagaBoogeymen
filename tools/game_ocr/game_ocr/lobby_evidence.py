@@ -24,6 +24,7 @@ from statistics import mean
 from typing import Any, Optional, Sequence
 
 import cv2
+import numpy as np
 
 from .lobby_extractors.row_grouping import (
     BGM_PANEL_X_RANGE,
@@ -48,57 +49,61 @@ SCREEN_STATE = "pre_game_lobby_state_2"
 
 
 def extract_lobby_evidence(
-    bundle_dir: Path,
+    bundle_dir: Optional[Path] = None,
     *,
     segment_index: int,
     extractor_version: str = EXTRACTOR_VERSION,
     ocr_lines_per_frame: Sequence[Sequence[OCRLine]] | None = None,
     use_gpu: bool = False,
-) -> list[FieldEvidenceRecord]:
-    """Top-level entry: bundle_dir → list[FieldEvidenceRecord].
+    frame_provider: Optional[Any] = None,
+) -> tuple[list[FieldEvidenceRecord], int]:
+    """Top-level entry: frames → ``(records, frame_count)``.
 
-    Reads PNG frames from `bundle_dir`, optionally runs RapidOCR per frame,
-    detects lobby rows and identifies subjects on every frame, picks the
-    best frame per slot (highest mean row confidence), and emits per-field
-    `FieldEvidenceRecord`s for the chosen slot/frame.
+    Pass either ``bundle_dir`` (legacy disk path — reads PNGs from the
+    directory) OR ``frame_provider`` (Phase 3b in-memory path). Exactly one
+    must be supplied.
 
-    Parameters
-    ----------
-    bundle_dir:
-        Directory containing 5-digit zero-padded PNGs.
-    segment_index:
-        Pass-1 segment index — included in `support_frame_ids` for the
-        chosen frame.
-    extractor_version:
-        Stamped onto every emitted FieldEvidenceRecord.
-    ocr_lines_per_frame:
-        Optional pre-computed OCR lines (one sequence per frame). When
-        None, RapidOCR is run internally.
-    use_gpu:
-        Forwarded to RapidOCRBackend when OCR is run internally.
+    Detects lobby rows + identifies subjects on every frame, picks the best
+    frame per ``(team_side, position)`` slot (highest mean row confidence),
+    and emits per-field ``FieldEvidenceRecord``s for the chosen slot/frame.
 
     Returns
     -------
-    list[FieldEvidenceRecord]
-        Flat list, one record per (slot_key × field × candidate_rank).
-        Slots that are CPU/empty emit a single low_quality marker on
-        gamertag so the promoter can record the slot as
-        blocked_observability.
+    tuple[list[FieldEvidenceRecord], int]
+        Flat list of evidence records and the number of frames observed.
+        The frame count is what the caller writes into Pass-2's manifest.
 
     Raises
     ------
-    ValueError:
-        When no frames are found in bundle_dir.
+    ValueError
+        When neither (or both) ``bundle_dir`` and ``frame_provider`` are
+        supplied, or when ``bundle_dir`` contains no PNGs.
     """
-    frame_paths = sorted(bundle_dir.glob("[0-9]*.png"))
-    if not frame_paths:
-        raise ValueError(f"No PNG frames found in {bundle_dir}")
+    if (bundle_dir is None) == (frame_provider is None):
+        raise ValueError(
+            "extract_lobby_evidence requires exactly one of bundle_dir or frame_provider"
+        )
 
+    # 1. Materialize the per-frame image sequence (used only for OCR; lobby
+    #    has no subject bundle layer and never holds an image past this loop).
+    if bundle_dir is not None:
+        frame_paths = sorted(bundle_dir.glob("[0-9]*.png"))
+        if not frame_paths:
+            raise ValueError(f"No PNG frames found in {bundle_dir}")
+        frame_images: list[Optional[np.ndarray]] = [
+            cv2.imread(str(fp)) for fp in frame_paths
+        ]
+    else:
+        records_list = list(frame_provider.iter_frames())
+        frame_images = [getattr(r, "image", None) for r in records_list]
+
+    frame_count = len(frame_images)
+
+    # 2. Obtain OCR lines (one per frame).
     if ocr_lines_per_frame is None:
         backend = RapidOCRBackend(use_gpu=use_gpu)
         ocr_lines_per_frame_computed: list[list[OCRLine]] = []
-        for fp in frame_paths:
-            img = cv2.imread(str(fp))
+        for img in frame_images:
             if img is None:
                 ocr_lines_per_frame_computed.append([])
             else:
@@ -106,10 +111,15 @@ def extract_lobby_evidence(
         ocr_lines_per_frame = ocr_lines_per_frame_computed
     else:
         ocr_lines_per_frame = [list(lines) for lines in ocr_lines_per_frame]
+        if len(ocr_lines_per_frame) != frame_count:
+            raise ValueError(
+                f"ocr_lines_per_frame count {len(ocr_lines_per_frame)} != "
+                f"frame count {frame_count}"
+            )
 
     open_text_extractor = LoadoutOpenTextExtractor()
 
-    # Per-frame: detect rows + identify subjects. Cache so we can pick the
+    # 3. Per-frame: detect rows + identify subjects. Cache so we can pick the
     # best frame per slot without re-running.
     per_frame_subjects: list[list[LobbySubjectIdentity]] = []
     for frame_lines in ocr_lines_per_frame:
@@ -119,7 +129,7 @@ def extract_lobby_evidence(
         )
         per_frame_subjects.append(subjects)
 
-    # Pick best frame per slot: highest mean confidence across the row's
+    # 4. Pick best frame per slot: highest mean confidence across the row's
     # populated identity fields. Ties broken by earliest frame index.
     best_per_slot: dict[str, tuple[int, LobbySubjectIdentity]] = {}
     for frame_idx, subjects in enumerate(per_frame_subjects):
@@ -138,7 +148,7 @@ def extract_lobby_evidence(
                 extractor_version=extractor_version,
             )
         )
-    return records
+    return records, frame_count
 
 
 # ─── Per-subject record builder ─────────────────────────────────────────────

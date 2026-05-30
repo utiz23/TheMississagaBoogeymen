@@ -54,8 +54,9 @@ class LobbyEngineDispatchTests(unittest.TestCase):
 
             calls: list[Path] = []
 
-            def fake_typed_lobby(seg_dir: Path, *, segment_index: int) -> None:
+            def fake_typed_lobby(seg_dir: Path, frame_provider, *, segment_index: int) -> int:
                 calls.append(seg_dir)
+                return 1
 
             def fake_ffmpeg(video_path, out_dir, start, end, fps):
                 out_dir.mkdir(parents=True, exist_ok=True)
@@ -82,8 +83,9 @@ class LobbyEngineDispatchTests(unittest.TestCase):
             pass2_root = tmp_path / "pass2"
             calls: list[Path] = []
 
-            def fake_typed_lobby(seg_dir: Path, *, segment_index: int) -> None:
+            def fake_typed_lobby(seg_dir: Path, frame_provider, *, segment_index: int) -> int:
                 calls.append(seg_dir)
+                return 1
 
             def fake_ffmpeg(video_path, out_dir, start, end, fps):
                 out_dir.mkdir(parents=True, exist_ok=True)
@@ -151,12 +153,15 @@ class LobbyEngineDispatchTests(unittest.TestCase):
                 support_frame_ids=(42,),
             )
 
-            def fake_extract(*, bundle_dir, segment_index):
-                return [sample_record]
+            def fake_extract(*, frame_provider, segment_index):
+                return [sample_record], 1
 
-            # Patch the lazy-import sentinel directly.
+            # Patch the lazy-import sentinel directly. Pass a stub provider —
+            # _run_typed_v1_lobby forwards it to extract_lobby_evidence, which
+            # is mocked above so the provider is never iterated.
+            stub_provider = object()
             with patch.object(pass2_extract, "extract_lobby_evidence", new=fake_extract):
-                pass2_extract._run_typed_v1_lobby(seg_dir, segment_index=42)
+                pass2_extract._run_typed_v1_lobby(seg_dir, stub_provider, segment_index=42)
 
             out = seg_dir / "lobby_evidence.json"
             self.assertTrue(out.exists())

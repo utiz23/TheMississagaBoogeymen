@@ -181,31 +181,30 @@ class FieldEvidenceRecord:
 
 
 def extract_loadout_evidence(
-    bundle_dir: Path,
+    bundle_dir: Optional[Path] = None,
     *,
     segment_index: int,
     extractor_version: str = EXTRACTOR_VERSION,
     ocr_lines_per_frame: Sequence[Sequence[OCRLine]] | None = None,
     use_gpu: bool = False,
-) -> list[FieldEvidenceRecord]:
-    """Top-level entry point: bundle_dir → list[FieldEvidenceRecord].
+    frame_provider: Optional[Any] = None,
+) -> tuple[list[FieldEvidenceRecord], int]:
+    """Top-level entry point: frames → ``(records, frame_count)``.
 
-    Reads PNG frames from bundle_dir, assembles subject bundles (one per
-    distinct player navigated to), then runs 4 family extractors ONCE per
-    bundle on the best frame, attributing right-pane data only to that
-    subject.
+    Pass either ``bundle_dir`` (legacy disk path — reads PNGs from the
+    directory) OR ``frame_provider`` (Phase 3b in-memory path — iterates an
+    already-decoded sequence of frames). Exactly one must be supplied.
 
-    Frame naming convention (Pass-2 output):
-        bundle_dir/00001.png  (5-digit zero-padded, NO "frame_" prefix)
-
-    When ``ocr_lines_per_frame`` is None (the default), RapidOCR is run
-    internally on each PNG.  Pass the list explicitly to reuse pre-computed
-    OCR output (e.g. from worker-time invocation or tests).
+    Returns a tuple of (flat list of FieldEvidenceRecord, number of frames
+    observed). The frame count is what the caller writes into the Pass-2
+    manifest's ``frame_count`` field — under ``artifact_mode=False`` it is
+    the only honest source since there are no PNGs on disk to glob.
 
     Parameters
     ----------
     bundle_dir:
         Directory containing 5-digit zero-padded PNGs (00001.png, …).
+        Legacy path. Removed in Phase 3b C5; supply ``frame_provider`` instead.
     segment_index:
         Pass-1 segment index (used in slot_key construction).
     extractor_version:
@@ -215,28 +214,45 @@ def extract_loadout_evidence(
         When None, RapidOCR is run internally.
     use_gpu:
         Passed to RapidOCRBackend when OCR is run internally.
-
-    Returns
-    -------
-    list[FieldEvidenceRecord]
-        Flat list, one record per (subject × field × candidate_rank).
+    frame_provider:
+        A ``video_ingest.frame_provider.FrameProvider`` (any object whose
+        ``iter_frames()`` yields ``FrameRecord``-like values). When supplied,
+        bypasses disk reads entirely.
 
     Raises
     ------
-    ValueError:
-        When no frames are found in bundle_dir.
+    ValueError
+        When neither (or both) ``bundle_dir`` and ``frame_provider`` are
+        supplied, or when ``bundle_dir`` contains no PNGs.
     """
-    # 1. Discover frames
-    frame_paths = sorted(bundle_dir.glob("[0-9]*.png"))
-    if not frame_paths:
-        raise ValueError(f"No PNG frames found in {bundle_dir}")
+    if (bundle_dir is None) == (frame_provider is None):
+        raise ValueError(
+            "extract_loadout_evidence requires exactly one of bundle_dir or frame_provider"
+        )
 
-    # 2. Obtain OCR lines
+    # 1. Materialize frame_records + optional legacy paths.
+    frame_records: list[Any]
+    frame_paths: Optional[list[Path]]
+    if bundle_dir is not None:
+        frame_paths = sorted(bundle_dir.glob("[0-9]*.png"))
+        if not frame_paths:
+            raise ValueError(f"No PNG frames found in {bundle_dir}")
+        # None-image records are passed through; the bundler skips them with a
+        # warning, preserving the legacy "Could not read frame" behavior.
+        frame_records = [
+            _PngFrameRecord(image=cv2.imread(str(fp)), frame_index=i)
+            for i, fp in enumerate(frame_paths)
+        ]
+    else:
+        frame_paths = None
+        frame_records = list(frame_provider.iter_frames())
+
+    # 2. Obtain OCR lines (one per record, in record order).
     if ocr_lines_per_frame is None:
         backend = RapidOCRBackend(use_gpu=use_gpu)
         computed: list[list[OCRLine]] = []
-        for fp in frame_paths:
-            img = cv2.imread(str(fp))
+        for record in frame_records:
+            img = getattr(record, "image", None)
             if img is None:
                 computed.append([])
             else:
@@ -244,20 +260,13 @@ def extract_loadout_evidence(
         resolved_ocr: list[list[OCRLine]] = computed
     else:
         resolved_ocr = [list(lines) for lines in ocr_lines_per_frame]
+        if len(resolved_ocr) != len(frame_records):
+            raise ValueError(
+                f"ocr_lines_per_frame count {len(resolved_ocr)} != "
+                f"frame_records count {len(frame_records)}"
+            )
 
-    # 3. Materialize one FrameRecord-like value per PNG (image + frame_index).
-    #    Phase 3b: the assembler no longer reads disk; the caller hands it
-    #    in-memory frames. The legacy ``frame_paths`` sequence is also threaded
-    #    through so bundle.best_frame_path keeps working until C3 swaps the
-    #    consumers to bundle.best_frame_image. None-image frames are passed
-    #    through with image=None so the assembler preserves its
-    #    "Could not read frame" warning behavior.
-    frame_records = [
-        _PngFrameRecord(image=cv2.imread(str(fp)), frame_index=i)
-        for i, fp in enumerate(frame_paths)
-    ]
-
-    # 4. Assemble subject bundles
+    # 3. Assemble subject bundles
     bundles = assemble_loadout_subject_bundles(
         frame_records,
         segment_index=segment_index,
@@ -271,15 +280,17 @@ def extract_loadout_evidence(
     icon = LoadoutIconExtractor()
     open_text = LoadoutOpenTextExtractor()
 
-    # Build a Path → ocr_lines lookup so per-bundle extraction can use the
-    # already-computed OCR data instead of trying to load from disk.
-    ocr_lines_by_path: dict[Path, list[OCRLine]] = {
-        fp: list(lines) for fp, lines in zip(frame_paths, resolved_ocr)
+    # Phase 3b: OCR lookup is keyed by frame_index rather than Path so the same
+    # dispatch works whether the records came from PNGs on disk or an
+    # in-memory FrameProvider.
+    ocr_lines_by_index: dict[int, list[OCRLine]] = {
+        record.frame_index: list(lines)
+        for record, lines in zip(frame_records, resolved_ocr)
     }
 
     records: list[FieldEvidenceRecord] = []
     for bundle in bundles:
-        best_frame_lines = ocr_lines_by_path.get(bundle.best_frame_path, [])
+        best_frame_lines = ocr_lines_by_index.get(bundle.best_frame_index, [])
         if bundle.is_subject_view:
             records.extend(
                 _evidence_for_subject_bundle(
@@ -294,7 +305,7 @@ def extract_loadout_evidence(
                 )
             )
 
-    return records
+    return records, len(frame_records)
 
 
 # ---------------------------------------------------------------------------
@@ -331,19 +342,23 @@ def _evidence_for_subject_bundle(
     bundle_observability = bundle.observability
     identity = bundle.canonical_subject
 
-    # Load best frame image
-    image_bgr: Optional[np.ndarray] = cv2.imread(str(bundle.best_frame_path))
+    # Phase 3b: read the in-memory best-frame image carried by the bundle. In
+    # ``artifact_mode=False`` there is no PNG to imread, so this is the only
+    # honest path. ``best_frame_image`` is populated by the bundler from the
+    # already-decoded ndarray it used for blur_score scoring.
+    image_bgr: Optional[np.ndarray] = bundle.best_frame_image
 
-    # Use OCR lines passed in by the orchestrator (already computed during
-    # bundle assembly). Fall back to JSON sidecar load only if the caller
-    # didn't supply them (e.g., unit tests using legacy disk-based fixtures).
-    if best_frame_ocr_lines is not None:
-        all_ocr_lines = best_frame_ocr_lines
-    else:
-        try:
-            all_ocr_lines = _load_frame_ocr_lines(bundle.best_frame_path)
-        except FileNotFoundError:
-            all_ocr_lines = []
+    # Phase 3b: OCR lines MUST be supplied by the orchestrator (always
+    # pre-computed during bundle assembly). The previous sidecar-JSON
+    # fallback (``ocr_lines_{stem}.json`` on disk) does not exist under
+    # in-memory operation, and silent degradation to empty OCR would corrupt
+    # every typed_v1 evidence record. Fail closed.
+    if best_frame_ocr_lines is None:
+        raise RuntimeError(
+            "best_frame_ocr_lines must be supplied; the sidecar-JSON fallback "
+            "was removed in Phase 3b. Orchestrators must pre-compute OCR."
+        )
+    all_ocr_lines = best_frame_ocr_lines
 
     # ── 1. Identity fields from canonical_subject ────────────────────────────
     # Each identity field emits ONE rank-0 FieldEvidenceRecord with the value

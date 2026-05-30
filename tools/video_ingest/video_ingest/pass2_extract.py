@@ -162,11 +162,19 @@ def extract_segments(
         seg_dir = pass2_root / segment_dir_name(i, seg)
         frame_count = _ffmpeg_extract(video_path, seg_dir, start, end, fps)
 
+        # Phase 3b: typed_v1 dispatch now receives a FrameProvider. We
+        # construct PngFrameProvider here so the legacy hot path keeps
+        # globbing the same PNGs ffmpeg just wrote. C4 will gate
+        # _ffmpeg_extract and switch to InMemoryFrameProvider for
+        # artifact_mode=False.
+        from video_ingest.frame_provider import PngFrameProvider
+        png_provider = PngFrameProvider(seg_dir, fps=fps)
+
         # --- loadout_engine dispatch (player_loadout_view only) ---------------
         if seg.screen_type == "player_loadout_view":
             loadout_engine = config.loadout_engine
             if loadout_engine == "typed_v1":
-                _run_typed_v1_loadout(seg_dir, segment_index=i)
+                _run_typed_v1_loadout(seg_dir, png_provider, segment_index=i)
             elif loadout_engine != "legacy":
                 raise ValueError(
                     f"Unknown pass2.loadout_engine: {loadout_engine!r}; "
@@ -179,7 +187,7 @@ def extract_segments(
         if seg.screen_type == "pre_game_lobby_state_2":
             lobby_engine = config.lobby_engine
             if lobby_engine == "typed_v1":
-                _run_typed_v1_lobby(seg_dir, segment_index=i)
+                _run_typed_v1_lobby(seg_dir, png_provider, segment_index=i)
             elif lobby_engine != "legacy":
                 raise ValueError(
                     f"Unknown pass2.lobby_engine: {lobby_engine!r}; "
@@ -219,12 +227,22 @@ def extract_segments(
     return out
 
 
-def _run_typed_v1_loadout(seg_dir: Path, *, segment_index: int) -> None:
+def _run_typed_v1_loadout(
+    seg_dir: Path,
+    frame_provider: "FrameProvider",
+    *,
+    segment_index: int,
+) -> int:
     """Run the typed_v1 loadout extractor and write FieldEvidenceRecord[] JSON.
 
     Lazily imports ``extract_loadout_evidence`` from ``game_ocr.loadout_evidence``
     on first call (keeps Pass-2 startup fast and allows test patching at the
     module-level name ``video_ingest.pass2_extract.extract_loadout_evidence``).
+
+    Phase 3b: takes a ``FrameProvider`` (caller-supplied — Pass-2's main loop
+    constructs ``PngFrameProvider`` or ``InMemoryFrameProvider`` based on
+    ``artifact_mode``) and returns the observed frame count so the manifest
+    can be populated without re-globbing PNGs.
 
     Writes ``<seg_dir>/loadout_evidence.json``.
     """
@@ -239,21 +257,27 @@ def _run_typed_v1_loadout(seg_dir: Path, *, segment_index: int) -> None:
         _self.extract_loadout_evidence = _extract
         extract_loadout_evidence = _extract
 
-    records = extract_loadout_evidence(
-        bundle_dir=seg_dir,
+    records, frame_count = extract_loadout_evidence(
+        frame_provider=frame_provider,
         segment_index=segment_index,
     )
     out_path = seg_dir / "loadout_evidence.json"
     with out_path.open("w") as fp:
         json.dump([r.to_dict() for r in records], fp, indent=2)
+    return frame_count
 
 
-def _run_typed_v1_lobby(seg_dir: Path, *, segment_index: int) -> None:
+def _run_typed_v1_lobby(
+    seg_dir: Path,
+    frame_provider: "FrameProvider",
+    *,
+    segment_index: int,
+) -> int:
     """Run the typed_v1 lobby extractor and write FieldEvidenceRecord[] JSON.
 
     Mirrors `_run_typed_v1_loadout`: lazy import of `extract_lobby_evidence`
     from ``game_ocr.lobby_evidence`` on first call; writes
-    ``<seg_dir>/lobby_evidence.json``.
+    ``<seg_dir>/lobby_evidence.json``. Returns the observed frame count.
     """
     global extract_lobby_evidence  # noqa: PLW0603
     if extract_lobby_evidence is None:
@@ -264,13 +288,14 @@ def _run_typed_v1_lobby(seg_dir: Path, *, segment_index: int) -> None:
         _self.extract_lobby_evidence = _extract
         extract_lobby_evidence = _extract
 
-    records = extract_lobby_evidence(
-        bundle_dir=seg_dir,
+    records, frame_count = extract_lobby_evidence(
+        frame_provider=frame_provider,
         segment_index=segment_index,
     )
     out_path = seg_dir / "lobby_evidence.json"
     with out_path.open("w") as fp:
         json.dump([r.to_dict() for r in records], fp, indent=2)
+    return frame_count
 
 
 @dataclass
