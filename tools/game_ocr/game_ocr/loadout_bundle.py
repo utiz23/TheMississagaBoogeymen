@@ -40,10 +40,22 @@ import logging
 from collections import Counter
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional, Sequence
+from typing import Optional, Protocol, Sequence
 
 import cv2
 import numpy as np
+
+
+class FrameRecordLike(Protocol):
+    """Structural type matching ``video_ingest.frame_provider.FrameRecord``.
+
+    Using a Protocol avoids a hard import of ``video_ingest`` from
+    ``game_ocr`` (which would create a circular dependency with
+    ``video_ingest.pass2_extract`` → ``game_ocr.loadout_evidence``).
+    """
+
+    image: Optional[np.ndarray]
+    frame_index: int
 
 from .loadout_extractors.slot_identity import (
     SubjectIdentity,
@@ -104,20 +116,24 @@ class LoadoutSubjectBundle:
     canonical_subject: SubjectIdentity
     """The highest-confidence merged identity for this subject."""
 
-    frame_paths: tuple[Path, ...]
-    """All frames where this subject was selected (in input order)."""
-
-    best_frame_path: Path
-    """Frame path with the highest blur_score (sharpest)."""
-
     best_frame_sharpness_score: float
     """Laplacian variance of the best frame. Higher = sharper edges."""
 
     all_subject_identities: tuple[SubjectIdentity, ...]
-    """One SubjectIdentity per contributing frame (parallel to frame_paths)."""
+    """One SubjectIdentity per contributing frame (parallel to
+    ``support_frame_indices``)."""
 
     support_frame_indices: tuple[int, ...]
     """Global frame indices (offsets into the input ``frames`` list)."""
+
+    frame_paths: tuple[Path, ...] = ()
+    """DEPRECATED (removed in Phase 3b C5): all frames where this subject was
+    selected. Empty when the assembler ran from an in-memory frame source."""
+
+    best_frame_path: Optional[Path] = None
+    """DEPRECATED (removed in Phase 3b C5): path of the sharpest frame.
+    ``None`` when the assembler ran from an in-memory frame source — use
+    ``best_frame_image`` and ``best_frame_index`` instead."""
 
     best_frame_image: Optional[np.ndarray] = None
     """The sharpest frame's BGR pixels (paired with ``best_frame_path`` /
@@ -309,10 +325,11 @@ def _merge_identities(identities: list[SubjectIdentity]) -> SubjectIdentity:
 
 
 def assemble_loadout_subject_bundles(
-    frames: Sequence[Path],
+    frame_records: Sequence[FrameRecordLike],
     *,
     segment_index: int,
     ocr_lines_per_frame: Sequence[Sequence] | None = None,
+    frame_paths: Sequence[Path] | None = None,
 ) -> list[LoadoutSubjectBundle]:
     """Per-frame: extract one subject. Across frames: dedupe by fuzzy gamertag match.
 
@@ -322,13 +339,21 @@ def assemble_loadout_subject_bundles(
 
     Parameters
     ----------
-    frames:
-        Paths to PNGs from one Pass-1 segment.
+    frame_records:
+        One ``FrameRecord``-like value per source frame (must expose ``image``
+        and ``frame_index``). ``image`` may be ``None`` to signal an unreadable
+        frame; such records are skipped with a warning.
     segment_index:
         Pass-1 segment_index (for slot_key construction).
     ocr_lines_per_frame:
-        One OCRLine list per frame (parallel to ``frames``).  Required — the
-        bundle assembler does not re-run OCR.
+        One OCRLine list per record (parallel to ``frame_records``). Required —
+        the bundle assembler does not re-run OCR.
+    frame_paths:
+        DEPRECATED back-compat plumbing (removed in Phase 3b C5). When
+        supplied, must be indexable by ``record.frame_index`` so that emitted
+        ``frame_paths`` / ``best_frame_path`` reflect the legacy disk-based
+        contract. Pass ``None`` from the in-memory hot path; the resulting
+        bundles will have ``frame_paths=()`` and ``best_frame_path=None``.
 
     Returns
     -------
@@ -338,35 +363,36 @@ def assemble_loadout_subject_bundles(
     Raises
     ------
     ValueError
-        If ``ocr_lines_per_frame`` is None or has a different length than ``frames``.
+        If ``ocr_lines_per_frame`` is None or has a different length than ``frame_records``.
     """
     if ocr_lines_per_frame is None:
         raise ValueError(
             "ocr_lines_per_frame is required; bundle assembler does not re-run OCR"
         )
-    frames = list(frames)
+    frame_records = list(frame_records)
     ocr_lines_per_frame = list(ocr_lines_per_frame)
-    if len(frames) != len(ocr_lines_per_frame):
+    if len(frame_records) != len(ocr_lines_per_frame):
         raise ValueError(
-            f"frames count {len(frames)} != ocr_lines_per_frame count {len(ocr_lines_per_frame)}"
+            f"frame_records count {len(frame_records)} != ocr_lines_per_frame count {len(ocr_lines_per_frame)}"
         )
 
-    # Per-frame: read image + extract one subject identity + roster-only identities
-    # Groups: list of (subject_ordinal, list of (frame_idx, frame_path, image, SubjectIdentity))
-    # We maintain insertion order (first appearance of each subject)
+    # Per-frame: extract one subject identity + roster-only identities.
+    # Groups: list of (frame_idx, image, SubjectIdentity).
+    # We maintain insertion order (first appearance of each subject).
     # subject_groups: entries where the player was actively selected (subject-view)
     # roster_groups: entries for players visible in left strip but never selected
-    subject_groups: list[list[tuple[int, Path, np.ndarray, SubjectIdentity]]] = []
+    subject_groups: list[list[tuple[int, np.ndarray, SubjectIdentity]]] = []
     canonical_per_group: list[SubjectIdentity] = []
 
     # Roster-only groups: same shape as subject_groups but is_subject_view=False
-    roster_groups: list[list[tuple[int, Path, np.ndarray, SubjectIdentity]]] = []
+    roster_groups: list[list[tuple[int, np.ndarray, SubjectIdentity]]] = []
     canonical_per_roster: list[SubjectIdentity] = []
 
-    for frame_idx, (frame_path, lines) in enumerate(zip(frames, ocr_lines_per_frame)):
-        image = cv2.imread(str(frame_path))
+    for record, lines in zip(frame_records, ocr_lines_per_frame):
+        frame_idx = record.frame_index
+        image = record.image
         if image is None:
-            logger.warning("Could not read frame %d: %s", frame_idx, frame_path)
+            logger.warning("Could not read frame %d", frame_idx)
             continue
 
         subject = extract_subject_identity(image, ocr_lines=lines)
@@ -394,10 +420,10 @@ def assemble_loadout_subject_bundles(
                     break
 
             if matched_group_idx is None:
-                subject_groups.append([(frame_idx, frame_path, image, subject)])
+                subject_groups.append([(frame_idx, image, subject)])
                 canonical_per_group.append(subject)
             else:
-                subject_groups[matched_group_idx].append((frame_idx, frame_path, image, subject))
+                subject_groups[matched_group_idx].append((frame_idx, image, subject))
 
         # Process roster-only identities
         for roster_id in roster_identities:
@@ -415,10 +441,10 @@ def assemble_loadout_subject_bundles(
                     break
 
             if matched_roster_idx is None:
-                roster_groups.append([(frame_idx, frame_path, image, roster_id)])
+                roster_groups.append([(frame_idx, image, roster_id)])
                 canonical_per_roster.append(roster_id)
             else:
-                roster_groups[matched_roster_idx].append((frame_idx, frame_path, image, roster_id))
+                roster_groups[matched_roster_idx].append((frame_idx, image, roster_id))
 
     # After collecting all frames, merge each roster group into a canonical
     # identity and then drop any roster group whose merged identity matches
@@ -430,10 +456,10 @@ def assemble_loadout_subject_bundles(
     # identity fuzzy-matches another roster group's canonical to collapse
     # OCR variants ("sikyjoker85" / "sllyjoker85" / "silkyjoker85").
     subject_merged_canonicals = [
-        _merge_identities([e[3] for e in g]) for g in subject_groups
+        _merge_identities([e[2] for e in g]) for g in subject_groups
     ]
     roster_merged_canonicals = [
-        _merge_identities([e[3] for e in g]) for g in roster_groups
+        _merge_identities([e[2] for e in g]) for g in roster_groups
     ]
     final_roster_groups: list[tuple[list, SubjectIdentity]] = []
     kept_roster_canonicals: list[SubjectIdentity] = []
@@ -449,9 +475,8 @@ def assemble_loadout_subject_bundles(
     bundles: list[LoadoutSubjectBundle] = []
     for subject_ordinal, group in enumerate(subject_groups):
         frame_indices = [e[0] for e in group]
-        frame_paths_group = [e[1] for e in group]
-        images = [e[2] for e in group]
-        identities = [e[3] for e in group]
+        images = [e[1] for e in group]
+        identities = [e[2] for e in group]
 
         # Best frame: highest blur_score
         sharpness_scores = [blur_score(img) for img in images]
@@ -462,17 +487,24 @@ def assemble_loadout_subject_bundles(
 
         slot_key = f"loadout_slot_seg{segment_index:04d}_subject{subject_ordinal:02d}"
 
+        if frame_paths is not None:
+            paths_group = tuple(frame_paths[i] for i in frame_indices)
+            best_path = paths_group[best_idx_in_group]
+        else:
+            paths_group = ()
+            best_path = None
+
         bundles.append(
             LoadoutSubjectBundle(
                 slot_key=slot_key,
                 subject_ordinal=subject_ordinal,
                 segment_index=segment_index,
                 canonical_subject=canonical,
-                frame_paths=tuple(frame_paths_group),
-                best_frame_path=frame_paths_group[best_idx_in_group],
                 best_frame_sharpness_score=sharpness_scores[best_idx_in_group],
                 all_subject_identities=tuple(identities),
                 support_frame_indices=tuple(frame_indices),
+                frame_paths=paths_group,
+                best_frame_path=best_path,
                 best_frame_image=images[best_idx_in_group],
                 best_frame_index=frame_indices[best_idx_in_group],
                 observability=canonical.observability,
@@ -484,9 +516,8 @@ def assemble_loadout_subject_bundles(
     next_ordinal = len(subject_groups)
     for rg_idx, (group, canonical_ro) in enumerate(final_roster_groups):
         frame_indices = [e[0] for e in group]
-        frame_paths_group = [e[1] for e in group]
-        images = [e[2] for e in group]
-        identities = [e[3] for e in group]
+        images = [e[1] for e in group]
+        identities = [e[2] for e in group]
 
         sharpness_scores = [blur_score(img) for img in images]
         best_idx_in_group = int(np.argmax(sharpness_scores))
@@ -496,17 +527,24 @@ def assemble_loadout_subject_bundles(
         subject_ordinal = next_ordinal + rg_idx
         slot_key = f"loadout_slot_seg{segment_index:04d}_subject{subject_ordinal:02d}"
 
+        if frame_paths is not None:
+            paths_group = tuple(frame_paths[i] for i in frame_indices)
+            best_path = paths_group[best_idx_in_group]
+        else:
+            paths_group = ()
+            best_path = None
+
         bundles.append(
             LoadoutSubjectBundle(
                 slot_key=slot_key,
                 subject_ordinal=subject_ordinal,
                 segment_index=segment_index,
                 canonical_subject=canonical,
-                frame_paths=tuple(frame_paths_group),
-                best_frame_path=frame_paths_group[best_idx_in_group],
                 best_frame_sharpness_score=sharpness_scores[best_idx_in_group],
                 all_subject_identities=tuple(identities),
                 support_frame_indices=tuple(frame_indices),
+                frame_paths=paths_group,
+                best_frame_path=best_path,
                 best_frame_image=images[best_idx_in_group],
                 best_frame_index=frame_indices[best_idx_in_group],
                 observability=canonical.observability,

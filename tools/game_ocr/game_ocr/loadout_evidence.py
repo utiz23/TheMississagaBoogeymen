@@ -86,6 +86,20 @@ from .ocr import OCRLine, RapidOCRBackend
 EXTRACTOR_VERSION = "loadout-evidence-v2"
 SCREEN_STATE = "player_loadout_view"
 
+
+@dataclass(frozen=True)
+class _PngFrameRecord:
+    """Minimal record handed to the bundler when frames come from disk PNGs.
+
+    Mirrors the ``video_ingest.frame_provider.FrameRecord`` surface used by
+    ``assemble_loadout_subject_bundles`` (``image`` + ``frame_index``) without
+    importing across the tools/ boundary. Phase 3b C3 will swap this for the
+    real ``FrameRecord`` plumbed from the Pass-2 ``FrameProvider``.
+    """
+
+    image: Optional[np.ndarray]
+    frame_index: int
+
 # ---------------------------------------------------------------------------
 # ROI constants (mirrored from parsers.py geometry)
 # ---------------------------------------------------------------------------
@@ -231,11 +245,24 @@ def extract_loadout_evidence(
     else:
         resolved_ocr = [list(lines) for lines in ocr_lines_per_frame]
 
-    # 3. Assemble subject bundles (new contract)
+    # 3. Materialize one FrameRecord-like value per PNG (image + frame_index).
+    #    Phase 3b: the assembler no longer reads disk; the caller hands it
+    #    in-memory frames. The legacy ``frame_paths`` sequence is also threaded
+    #    through so bundle.best_frame_path keeps working until C3 swaps the
+    #    consumers to bundle.best_frame_image. None-image frames are passed
+    #    through with image=None so the assembler preserves its
+    #    "Could not read frame" warning behavior.
+    frame_records = [
+        _PngFrameRecord(image=cv2.imread(str(fp)), frame_index=i)
+        for i, fp in enumerate(frame_paths)
+    ]
+
+    # 4. Assemble subject bundles
     bundles = assemble_loadout_subject_bundles(
-        frame_paths,
+        frame_records,
         segment_index=segment_index,
         ocr_lines_per_frame=resolved_ocr,
+        frame_paths=frame_paths,
     )
 
     # 4. Run extractors per bundle (ONCE, on best frame only)

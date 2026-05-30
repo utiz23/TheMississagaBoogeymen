@@ -50,6 +50,22 @@ def _dummy_bgr_image():
     return np.zeros((10, 10, 3), dtype=np.uint8)
 
 
+class _StubRecord:
+    """FrameRecord-like stub for bundler tests (image + frame_index only)."""
+
+    __slots__ = ("image", "frame_index")
+
+    def __init__(self, image, frame_index: int):
+        self.image = image
+        self.frame_index = frame_index
+
+
+def _fake_records(n: int, *, image=None) -> list[_StubRecord]:
+    """``n`` records carrying the same dummy BGR image and dense indices 0..n-1."""
+    img = image if image is not None else _dummy_bgr_image()
+    return [_StubRecord(image=img, frame_index=i) for i in range(n)]
+
+
 # ---------------------------------------------------------------------------
 # Test: basic bundle creation
 # ---------------------------------------------------------------------------
@@ -61,25 +77,24 @@ class TestAssembleSubjectBundlesBasic(unittest.TestCase):
     def test_single_subject_across_multiple_frames_creates_one_bundle(self):
         from game_ocr.loadout_bundle import assemble_loadout_subject_bundles
 
-        frames = _fake_paths(3)
+        records = _fake_records(3)
         subject = _make_subject_identity("StickMenace")
         dummy_img = _dummy_bgr_image()
 
-        with patch("game_ocr.loadout_bundle.cv2.imread", return_value=dummy_img), \
-             patch("game_ocr.loadout_bundle.extract_subject_identity", return_value=subject), \
+        with patch("game_ocr.loadout_bundle.extract_subject_identity", return_value=subject), \
              patch("game_ocr.loadout_bundle.blur_score", return_value=50.0):
 
             bundles = assemble_loadout_subject_bundles(
-                frames, segment_index=2, ocr_lines_per_frame=[[], [], []]
+                records, segment_index=2, ocr_lines_per_frame=[[], [], []]
             )
 
         self.assertEqual(len(bundles), 1)
-        self.assertEqual(len(bundles[0].frame_paths), 3)
+        self.assertEqual(len(bundles[0].support_frame_indices), 3)
 
     def test_three_distinct_subjects_creates_three_bundles(self):
         from game_ocr.loadout_bundle import assemble_loadout_subject_bundles
 
-        frames = _fake_paths(3)
+        records = _fake_records(3)
         # Use clearly distinct gamertags (not sharing 6-char prefix)
         subjects = [
             _make_subject_identity("StickMenace"),
@@ -89,13 +104,12 @@ class TestAssembleSubjectBundlesBasic(unittest.TestCase):
         dummy_img = _dummy_bgr_image()
         subject_iter = iter(subjects)
 
-        with patch("game_ocr.loadout_bundle.cv2.imread", return_value=dummy_img), \
-             patch("game_ocr.loadout_bundle.extract_subject_identity",
+        with patch("game_ocr.loadout_bundle.extract_subject_identity",
                    side_effect=lambda *a, **kw: next(subject_iter)), \
              patch("game_ocr.loadout_bundle.blur_score", return_value=50.0):
 
             bundles = assemble_loadout_subject_bundles(
-                frames, segment_index=2, ocr_lines_per_frame=[[], [], []]
+                records, segment_index=2, ocr_lines_per_frame=[[], [], []]
             )
 
         self.assertEqual(len(bundles), 3)
@@ -103,43 +117,42 @@ class TestAssembleSubjectBundlesBasic(unittest.TestCase):
     def test_returns_empty_when_no_subjects_identified(self):
         from game_ocr.loadout_bundle import assemble_loadout_subject_bundles
 
-        frames = _fake_paths(3)
+        records = _fake_records(3)
         dummy_img = _dummy_bgr_image()
 
-        with patch("game_ocr.loadout_bundle.cv2.imread", return_value=dummy_img), \
-             patch("game_ocr.loadout_bundle.extract_subject_identity", return_value=None), \
+        with patch("game_ocr.loadout_bundle.extract_subject_identity", return_value=None), \
              patch("game_ocr.loadout_bundle.blur_score", return_value=50.0):
 
             bundles = assemble_loadout_subject_bundles(
-                frames, segment_index=0, ocr_lines_per_frame=[[], [], []]
+                records, segment_index=0, ocr_lines_per_frame=[[], [], []]
             )
 
         self.assertEqual(bundles, [])
 
-    def test_skips_frames_where_image_cannot_be_read(self):
+    def test_skips_records_where_image_is_none(self):
+        """Phase 3b: assembler skips records whose image is None (the
+        equivalent of cv2.imread → None on the legacy path). The skipped
+        record's frame_index does not appear in any bundle."""
         from game_ocr.loadout_bundle import assemble_loadout_subject_bundles
 
-        frames = _fake_paths(3)
         subject = _make_subject_identity("PlayerA")
-        call_count = [0]
+        # Frame 1 is unreadable (image=None).
+        records = [
+            _StubRecord(image=_dummy_bgr_image(), frame_index=0),
+            _StubRecord(image=None, frame_index=1),
+            _StubRecord(image=_dummy_bgr_image(), frame_index=2),
+        ]
 
-        def mock_imread(path):
-            call_count[0] += 1
-            if call_count[0] == 2:
-                return None  # Frame 1 cannot be read
-            return _dummy_bgr_image()
-
-        with patch("game_ocr.loadout_bundle.cv2.imread", side_effect=mock_imread), \
-             patch("game_ocr.loadout_bundle.extract_subject_identity", return_value=subject), \
+        with patch("game_ocr.loadout_bundle.extract_subject_identity", return_value=subject), \
              patch("game_ocr.loadout_bundle.blur_score", return_value=50.0):
 
             bundles = assemble_loadout_subject_bundles(
-                frames, segment_index=0, ocr_lines_per_frame=[[], [], []]
+                records, segment_index=0, ocr_lines_per_frame=[[], [], []]
             )
 
         self.assertEqual(len(bundles), 1)
-        # Only 2 frames contributed (frame 1 was unreadable)
-        self.assertEqual(len(bundles[0].frame_paths), 2)
+        # Only 2 frames contributed (frame_index 1 was unreadable)
+        self.assertEqual(bundles[0].support_frame_indices, (0, 2))
 
 
 # ---------------------------------------------------------------------------
@@ -154,7 +167,7 @@ class TestSubjectBundleSlotKeyFormat(unittest.TestCase):
         import re
         from game_ocr.loadout_bundle import assemble_loadout_subject_bundles
 
-        frames = _fake_paths(2)
+        records = _fake_records(2)
         subjects = [
             _make_subject_identity("PlayerA"),
             _make_subject_identity("PlayerB"),
@@ -162,13 +175,12 @@ class TestSubjectBundleSlotKeyFormat(unittest.TestCase):
         dummy_img = _dummy_bgr_image()
         subject_iter = iter(subjects)
 
-        with patch("game_ocr.loadout_bundle.cv2.imread", return_value=dummy_img), \
-             patch("game_ocr.loadout_bundle.extract_subject_identity",
+        with patch("game_ocr.loadout_bundle.extract_subject_identity",
                    side_effect=lambda *a, **kw: next(subject_iter)), \
              patch("game_ocr.loadout_bundle.blur_score", return_value=50.0):
 
             bundles = assemble_loadout_subject_bundles(
-                frames, segment_index=5, ocr_lines_per_frame=[[], []]
+                records, segment_index=5, ocr_lines_per_frame=[[], []]
             )
 
         pattern = re.compile(r"^loadout_slot_seg\d{4}_subject\d{2}$")
@@ -178,16 +190,15 @@ class TestSubjectBundleSlotKeyFormat(unittest.TestCase):
     def test_slot_key_segment_index_padded(self):
         from game_ocr.loadout_bundle import assemble_loadout_subject_bundles
 
-        frames = _fake_paths(1)
+        records = _fake_records(1)
         dummy_img = _dummy_bgr_image()
 
-        with patch("game_ocr.loadout_bundle.cv2.imread", return_value=dummy_img), \
-             patch("game_ocr.loadout_bundle.extract_subject_identity",
+        with patch("game_ocr.loadout_bundle.extract_subject_identity",
                    return_value=_make_subject_identity("PlayerA")), \
              patch("game_ocr.loadout_bundle.blur_score", return_value=50.0):
 
             bundles = assemble_loadout_subject_bundles(
-                frames, segment_index=7, ocr_lines_per_frame=[[]]
+                records, segment_index=7, ocr_lines_per_frame=[[]]
             )
 
         self.assertEqual(len(bundles), 1)
@@ -205,7 +216,7 @@ class TestBundleDedupesByFuzzyGamertag(unittest.TestCase):
     def test_exact_same_gamertag_same_bundle(self):
         from game_ocr.loadout_bundle import assemble_loadout_subject_bundles
 
-        frames = _fake_paths(2)
+        records = _fake_records(2)
         # Same gamertag across 2 frames → 1 bundle
         subjects = [
             _make_subject_identity("StickMenace"),
@@ -214,23 +225,22 @@ class TestBundleDedupesByFuzzyGamertag(unittest.TestCase):
         dummy_img = _dummy_bgr_image()
         subject_iter = iter(subjects)
 
-        with patch("game_ocr.loadout_bundle.cv2.imread", return_value=dummy_img), \
-             patch("game_ocr.loadout_bundle.extract_subject_identity",
+        with patch("game_ocr.loadout_bundle.extract_subject_identity",
                    side_effect=lambda *a, **kw: next(subject_iter)), \
              patch("game_ocr.loadout_bundle.blur_score", return_value=50.0):
 
             bundles = assemble_loadout_subject_bundles(
-                frames, segment_index=0, ocr_lines_per_frame=[[], []]
+                records, segment_index=0, ocr_lines_per_frame=[[], []]
             )
 
         self.assertEqual(len(bundles), 1)
-        self.assertEqual(len(bundles[0].frame_paths), 2)
+        self.assertEqual(len(bundles[0].support_frame_indices), 2)
 
     def test_ocr_typo_in_gamertag_same_bundle(self):
         """'StickMenace' and 'StickMenacc' (1-char OCR typo) → same bundle."""
         from game_ocr.loadout_bundle import assemble_loadout_subject_bundles
 
-        frames = _fake_paths(2)
+        records = _fake_records(2)
         subjects = [
             _make_subject_identity("StickMenace"),  # clean frame
             _make_subject_identity("StickMenacc"),  # OCR typo on 'e' → 'c'
@@ -238,13 +248,12 @@ class TestBundleDedupesByFuzzyGamertag(unittest.TestCase):
         dummy_img = _dummy_bgr_image()
         subject_iter = iter(subjects)
 
-        with patch("game_ocr.loadout_bundle.cv2.imread", return_value=dummy_img), \
-             patch("game_ocr.loadout_bundle.extract_subject_identity",
+        with patch("game_ocr.loadout_bundle.extract_subject_identity",
                    side_effect=lambda *a, **kw: next(subject_iter)), \
              patch("game_ocr.loadout_bundle.blur_score", return_value=50.0):
 
             bundles = assemble_loadout_subject_bundles(
-                frames, segment_index=0, ocr_lines_per_frame=[[], []]
+                records, segment_index=0, ocr_lines_per_frame=[[], []]
             )
 
         # Should be 1 bundle (fuzzy match)
@@ -254,7 +263,7 @@ class TestBundleDedupesByFuzzyGamertag(unittest.TestCase):
         """'StickMenace' and 'JoeyFlopfish' → separate bundles."""
         from game_ocr.loadout_bundle import assemble_loadout_subject_bundles
 
-        frames = _fake_paths(2)
+        records = _fake_records(2)
         subjects = [
             _make_subject_identity("StickMenace"),
             _make_subject_identity("JoeyFlopfish"),
@@ -262,13 +271,12 @@ class TestBundleDedupesByFuzzyGamertag(unittest.TestCase):
         dummy_img = _dummy_bgr_image()
         subject_iter = iter(subjects)
 
-        with patch("game_ocr.loadout_bundle.cv2.imread", return_value=dummy_img), \
-             patch("game_ocr.loadout_bundle.extract_subject_identity",
+        with patch("game_ocr.loadout_bundle.extract_subject_identity",
                    side_effect=lambda *a, **kw: next(subject_iter)), \
              patch("game_ocr.loadout_bundle.blur_score", return_value=50.0):
 
             bundles = assemble_loadout_subject_bundles(
-                frames, segment_index=0, ocr_lines_per_frame=[[], []]
+                records, segment_index=0, ocr_lines_per_frame=[[], []]
             )
 
         self.assertEqual(len(bundles), 2)
@@ -285,7 +293,7 @@ class TestBestFrameSelection(unittest.TestCase):
     def test_picks_sharpest_frame(self):
         from game_ocr.loadout_bundle import assemble_loadout_subject_bundles
 
-        frames = _fake_paths(3)
+        records = _fake_records(3)
         subject = _make_subject_identity("PlayerA")
         sharpness_values = [10.0, 50.0, 25.0]  # frame 1 (index 1) is sharpest
         call_count = [0]
@@ -297,17 +305,17 @@ class TestBestFrameSelection(unittest.TestCase):
 
         dummy_img = _dummy_bgr_image()
 
-        with patch("game_ocr.loadout_bundle.cv2.imread", return_value=dummy_img), \
-             patch("game_ocr.loadout_bundle.extract_subject_identity", return_value=subject), \
+        with patch("game_ocr.loadout_bundle.extract_subject_identity", return_value=subject), \
              patch("game_ocr.loadout_bundle.blur_score", side_effect=mock_blur):
 
             bundles = assemble_loadout_subject_bundles(
-                frames, segment_index=0, ocr_lines_per_frame=[[], [], []]
+                records, segment_index=0, ocr_lines_per_frame=[[], [], []]
             )
 
         self.assertEqual(len(bundles), 1)
         bundle = bundles[0]
-        self.assertEqual(bundle.best_frame_path, frames[1])
+        # frame_index 1 (the middle record) had the highest blur_score.
+        self.assertEqual(bundle.best_frame_index, 1)
         self.assertAlmostEqual(bundle.best_frame_sharpness_score, 50.0)
 
 
@@ -322,7 +330,7 @@ class TestCanonicalSubjectMerging(unittest.TestCase):
     def test_canonical_subject_gamertag_from_highest_confidence(self):
         from game_ocr.loadout_bundle import assemble_loadout_subject_bundles
 
-        frames = _fake_paths(2)
+        records = _fake_records(2)
         # Frame 0: low confidence gamertag
         s0 = SubjectIdentity(gamertag="StickMenace", gamertag_confidence=0.6, position="RW",
                              position_confidence=0.9, observability="observable")
@@ -332,13 +340,12 @@ class TestCanonicalSubjectMerging(unittest.TestCase):
         dummy_img = _dummy_bgr_image()
         subject_iter = iter([s0, s1])
 
-        with patch("game_ocr.loadout_bundle.cv2.imread", return_value=dummy_img), \
-             patch("game_ocr.loadout_bundle.extract_subject_identity",
+        with patch("game_ocr.loadout_bundle.extract_subject_identity",
                    side_effect=lambda *a, **kw: next(subject_iter)), \
              patch("game_ocr.loadout_bundle.blur_score", return_value=50.0):
 
             bundles = assemble_loadout_subject_bundles(
-                frames, segment_index=0, ocr_lines_per_frame=[[], []]
+                records, segment_index=0, ocr_lines_per_frame=[[], []]
             )
 
         self.assertEqual(len(bundles), 1)
@@ -348,7 +355,7 @@ class TestCanonicalSubjectMerging(unittest.TestCase):
     def test_position_from_contributing_frame_with_highest_position_confidence(self):
         from game_ocr.loadout_bundle import assemble_loadout_subject_bundles
 
-        frames = _fake_paths(2)
+        records = _fake_records(2)
         s0 = SubjectIdentity(gamertag="PlayerA", gamertag_confidence=0.9,
                              position="RW", position_confidence=0.6, observability="observable")
         s1 = SubjectIdentity(gamertag="PlayerA", gamertag_confidence=0.9,
@@ -356,13 +363,12 @@ class TestCanonicalSubjectMerging(unittest.TestCase):
         dummy_img = _dummy_bgr_image()
         subject_iter = iter([s0, s1])
 
-        with patch("game_ocr.loadout_bundle.cv2.imread", return_value=dummy_img), \
-             patch("game_ocr.loadout_bundle.extract_subject_identity",
+        with patch("game_ocr.loadout_bundle.extract_subject_identity",
                    side_effect=lambda *a, **kw: next(subject_iter)), \
              patch("game_ocr.loadout_bundle.blur_score", return_value=50.0):
 
             bundles = assemble_loadout_subject_bundles(
-                frames, segment_index=0, ocr_lines_per_frame=[[], []]
+                records, segment_index=0, ocr_lines_per_frame=[[], []]
             )
 
         self.assertEqual(len(bundles), 1)
@@ -380,7 +386,7 @@ class TestSupportFrameIndices(unittest.TestCase):
     def test_support_frame_indices_match_frame_positions(self):
         from game_ocr.loadout_bundle import assemble_loadout_subject_bundles
 
-        frames = _fake_paths(4)
+        records = _fake_records(4)
         # Use clearly distinct gamertags (not sharing 6-char prefix)
         subject_A = _make_subject_identity("StickMenace")
         subject_B = _make_subject_identity("HenryTheBobJr")
@@ -389,13 +395,12 @@ class TestSupportFrameIndices(unittest.TestCase):
         dummy_img = _dummy_bgr_image()
         subject_iter = iter(subjects)
 
-        with patch("game_ocr.loadout_bundle.cv2.imread", return_value=dummy_img), \
-             patch("game_ocr.loadout_bundle.extract_subject_identity",
+        with patch("game_ocr.loadout_bundle.extract_subject_identity",
                    side_effect=lambda *a, **kw: next(subject_iter)), \
              patch("game_ocr.loadout_bundle.blur_score", return_value=50.0):
 
             bundles = assemble_loadout_subject_bundles(
-                frames, segment_index=0, ocr_lines_per_frame=[[], [], [], []]
+                records, segment_index=0, ocr_lines_per_frame=[[], [], [], []]
             )
 
         self.assertEqual(len(bundles), 2)
@@ -442,7 +447,7 @@ class TestSubjectOrdinalOrdering(unittest.TestCase):
     def test_first_seen_subject_has_ordinal_0(self):
         from game_ocr.loadout_bundle import assemble_loadout_subject_bundles
 
-        frames = _fake_paths(3)
+        records = _fake_records(3)
         # Use clearly distinct gamertags (not sharing 6-char prefix)
         subjects = [
             _make_subject_identity("StickMenace"),   # frame 0 — first seen
@@ -452,13 +457,12 @@ class TestSubjectOrdinalOrdering(unittest.TestCase):
         dummy_img = _dummy_bgr_image()
         subject_iter = iter(subjects)
 
-        with patch("game_ocr.loadout_bundle.cv2.imread", return_value=dummy_img), \
-             patch("game_ocr.loadout_bundle.extract_subject_identity",
+        with patch("game_ocr.loadout_bundle.extract_subject_identity",
                    side_effect=lambda *a, **kw: next(subject_iter)), \
              patch("game_ocr.loadout_bundle.blur_score", return_value=50.0):
 
             bundles = assemble_loadout_subject_bundles(
-                frames, segment_index=0, ocr_lines_per_frame=[[], [], []]
+                records, segment_index=0, ocr_lines_per_frame=[[], [], []]
             )
 
         ordinals = [b.subject_ordinal for b in bundles]
@@ -526,19 +530,18 @@ class TestIsSubjectViewFlag(unittest.TestCase):
         """Bundles produced by extract_subject_identity have is_subject_view=True."""
         from game_ocr.loadout_bundle import assemble_loadout_subject_bundles
 
-        frames = _fake_paths(2)
+        records = _fake_records(2)
         subject = _make_subject_identity("StickMenace")
         dummy_img = _dummy_bgr_image()
 
-        with patch("game_ocr.loadout_bundle.cv2.imread", return_value=dummy_img), \
-             patch("game_ocr.loadout_bundle.extract_subject_identity", return_value=subject), \
+        with patch("game_ocr.loadout_bundle.extract_subject_identity", return_value=subject), \
              patch("game_ocr.loadout_bundle.extract_roster_only_identities", return_value=[]), \
              patch("game_ocr.loadout_bundle.blur_score", return_value=50.0), \
              patch("game_ocr.loadout_bundle._extract_anchor_lines", return_value=[]), \
              patch("game_ocr.loadout_bundle._bucket_anchors", return_value=[]):
 
             bundles = assemble_loadout_subject_bundles(
-                frames, segment_index=0, ocr_lines_per_frame=[[], []]
+                records, segment_index=0, ocr_lines_per_frame=[[], []]
             )
 
         self.assertEqual(len(bundles), 1)
@@ -548,19 +551,18 @@ class TestIsSubjectViewFlag(unittest.TestCase):
         """Roster-only bundles (extract_roster_only_identities result, no subject) have is_subject_view=False."""
         from game_ocr.loadout_bundle import assemble_loadout_subject_bundles
 
-        frames = _fake_paths(2)
+        records = _fake_records(2)
         roster_player = _make_subject_identity("JoeyFlopfish")
         dummy_img = _dummy_bgr_image()
 
-        with patch("game_ocr.loadout_bundle.cv2.imread", return_value=dummy_img), \
-             patch("game_ocr.loadout_bundle.extract_subject_identity", return_value=None), \
+        with patch("game_ocr.loadout_bundle.extract_subject_identity", return_value=None), \
              patch("game_ocr.loadout_bundle.extract_roster_only_identities", return_value=[roster_player]), \
              patch("game_ocr.loadout_bundle.blur_score", return_value=50.0), \
              patch("game_ocr.loadout_bundle._extract_anchor_lines", return_value=[]), \
              patch("game_ocr.loadout_bundle._bucket_anchors", return_value=[]):
 
             bundles = assemble_loadout_subject_bundles(
-                frames, segment_index=0, ocr_lines_per_frame=[[], []]
+                records, segment_index=0, ocr_lines_per_frame=[[], []]
             )
 
         roster_only_bundles = [b for b in bundles if not b.is_subject_view]
@@ -603,32 +605,63 @@ class TestBundleCarriesBestFrameImage(unittest.TestCase):
     def test_best_frame_image_is_populated_and_index_matches(self):
         from game_ocr.loadout_bundle import assemble_loadout_subject_bundles
 
-        frames = _fake_paths(3)
         subject = _make_subject_identity("StickMenace")
         dummy_img = _dummy_bgr_image()
+        records = _fake_records(3, image=dummy_img)
 
         # Frame 1 is the sharpest (frame_index 1 in the input).
         blur_scores_iter = iter([10.0, 99.0, 20.0])
 
-        with patch("game_ocr.loadout_bundle.cv2.imread", return_value=dummy_img), \
-             patch("game_ocr.loadout_bundle.extract_subject_identity",
+        with patch("game_ocr.loadout_bundle.extract_subject_identity",
                    return_value=subject), \
              patch("game_ocr.loadout_bundle.blur_score",
                    side_effect=lambda img: next(blur_scores_iter)):
 
             bundles = assemble_loadout_subject_bundles(
-                frames, segment_index=2, ocr_lines_per_frame=[[], [], []]
+                records, segment_index=2, ocr_lines_per_frame=[[], [], []]
             )
 
         self.assertEqual(len(bundles), 1)
         b = bundles[0]
         self.assertIsNotNone(b.best_frame_image)
-        # Same array the assembler scored — not a re-read.
+        # Same ndarray the assembler scored — not a re-read.
         self.assertIs(b.best_frame_image, dummy_img)
         # Index matches the support_frame_indices entry with the max sharpness.
         self.assertEqual(b.best_frame_index, b.support_frame_indices[1])
-        # Path field is preserved (kept until C5).
-        self.assertEqual(b.best_frame_path, b.frame_paths[1])
+        # Without a frame_paths kwarg, the legacy path fields are empty / None.
+        self.assertEqual(b.frame_paths, ())
+        self.assertIsNone(b.best_frame_path)
+
+    def test_legacy_frame_paths_kwarg_populates_path_fields(self):
+        """Phase 3b back-compat: when ``frame_paths`` is supplied, bundles
+        emit the legacy path fields keyed by ``record.frame_index``.
+
+        Removed in C5; until then this keeps the disk-based extractor path
+        producing the same bundles."""
+        from game_ocr.loadout_bundle import assemble_loadout_subject_bundles
+
+        subject = _make_subject_identity("StickMenace")
+        records = _fake_records(3)
+        paths = _fake_paths(3)
+
+        blur_scores_iter = iter([10.0, 99.0, 20.0])
+
+        with patch("game_ocr.loadout_bundle.extract_subject_identity",
+                   return_value=subject), \
+             patch("game_ocr.loadout_bundle.blur_score",
+                   side_effect=lambda img: next(blur_scores_iter)):
+
+            bundles = assemble_loadout_subject_bundles(
+                records,
+                segment_index=2,
+                ocr_lines_per_frame=[[], [], []],
+                frame_paths=paths,
+            )
+
+        self.assertEqual(len(bundles), 1)
+        b = bundles[0]
+        self.assertEqual(b.frame_paths, tuple(paths))
+        self.assertEqual(b.best_frame_path, paths[1])
 
 
 if __name__ == "__main__":

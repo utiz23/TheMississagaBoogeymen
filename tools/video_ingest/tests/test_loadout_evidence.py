@@ -713,7 +713,7 @@ class TestFrameGlobAndOcrLinesHandling(unittest.TestCase):
 
             captured_ocr_args: list = []
 
-            def _fake_assemble(frame_paths, *, segment_index, ocr_lines_per_frame):
+            def _fake_assemble(frame_records, *, segment_index, ocr_lines_per_frame, frame_paths=None):
                 captured_ocr_args.append(list(ocr_lines_per_frame))
                 return []  # return empty bundles → empty records list
 
