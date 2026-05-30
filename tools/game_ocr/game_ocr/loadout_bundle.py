@@ -119,6 +119,18 @@ class LoadoutSubjectBundle:
     support_frame_indices: tuple[int, ...]
     """Global frame indices (offsets into the input ``frames`` list)."""
 
+    best_frame_image: Optional[np.ndarray] = None
+    """The sharpest frame's BGR pixels (paired with ``best_frame_path`` /
+    ``best_frame_index``). Optional only so test fixtures constructed before
+    Phase 3b can still build a bundle without pre-decoded pixels; production
+    assembly always populates this."""
+
+    best_frame_index: Optional[int] = None
+    """Global frame index of ``best_frame_image`` — the entry in
+    ``support_frame_indices`` whose blur_score was highest. Used by the
+    extractor to key per-frame OCR lines under the in-memory provider where
+    paths are not available."""
+
     observability: str = "observable"
     """'observable' | 'low_quality' | 'not_observable_from_source'"""
 
@@ -461,6 +473,8 @@ def assemble_loadout_subject_bundles(
                 best_frame_sharpness_score=sharpness_scores[best_idx_in_group],
                 all_subject_identities=tuple(identities),
                 support_frame_indices=tuple(frame_indices),
+                best_frame_image=images[best_idx_in_group],
+                best_frame_index=frame_indices[best_idx_in_group],
                 observability=canonical.observability,
                 is_subject_view=True,
             )
@@ -493,6 +507,8 @@ def assemble_loadout_subject_bundles(
                 best_frame_sharpness_score=sharpness_scores[best_idx_in_group],
                 all_subject_identities=tuple(identities),
                 support_frame_indices=tuple(frame_indices),
+                best_frame_image=images[best_idx_in_group],
+                best_frame_index=frame_indices[best_idx_in_group],
                 observability=canonical.observability,
                 is_subject_view=False,
             )

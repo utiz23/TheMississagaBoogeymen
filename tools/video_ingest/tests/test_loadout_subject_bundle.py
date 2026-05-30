@@ -586,5 +586,50 @@ class TestIsSubjectViewFlag(unittest.TestCase):
         self.assertTrue(bundle.is_subject_view)
 
 
+# ---------------------------------------------------------------------------
+# Test: Phase 3b additive contract — best_frame_image / best_frame_index
+# ---------------------------------------------------------------------------
+
+
+class TestBundleCarriesBestFrameImage(unittest.TestCase):
+    """Phase 3b C1: assembled bundles carry the best frame's BGR pixels
+    and its global index, alongside the legacy path fields.
+
+    The image is the same ndarray the assembler used to score sharpness
+    (no second imread). best_frame_index matches the support_frame_indices
+    entry whose blur_score was highest.
+    """
+
+    def test_best_frame_image_is_populated_and_index_matches(self):
+        from game_ocr.loadout_bundle import assemble_loadout_subject_bundles
+
+        frames = _fake_paths(3)
+        subject = _make_subject_identity("StickMenace")
+        dummy_img = _dummy_bgr_image()
+
+        # Frame 1 is the sharpest (frame_index 1 in the input).
+        blur_scores_iter = iter([10.0, 99.0, 20.0])
+
+        with patch("game_ocr.loadout_bundle.cv2.imread", return_value=dummy_img), \
+             patch("game_ocr.loadout_bundle.extract_subject_identity",
+                   return_value=subject), \
+             patch("game_ocr.loadout_bundle.blur_score",
+                   side_effect=lambda img: next(blur_scores_iter)):
+
+            bundles = assemble_loadout_subject_bundles(
+                frames, segment_index=2, ocr_lines_per_frame=[[], [], []]
+            )
+
+        self.assertEqual(len(bundles), 1)
+        b = bundles[0]
+        self.assertIsNotNone(b.best_frame_image)
+        # Same array the assembler scored — not a re-read.
+        self.assertIs(b.best_frame_image, dummy_img)
+        # Index matches the support_frame_indices entry with the max sharpness.
+        self.assertEqual(b.best_frame_index, b.support_frame_indices[1])
+        # Path field is preserved (kept until C5).
+        self.assertEqual(b.best_frame_path, b.frame_paths[1])
+
+
 if __name__ == "__main__":
     unittest.main()
