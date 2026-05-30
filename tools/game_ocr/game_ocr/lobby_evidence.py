@@ -41,7 +41,7 @@ from .loadout_evidence import FieldEvidenceRecord
 from .loadout_extractors.open_text import LoadoutOpenTextExtractor
 from .ocr import OCRLine, RapidOCRBackend
 
-EXTRACTOR_VERSION = "lobby-evidence-v1"
+EXTRACTOR_VERSION = "lobby-evidence-v2"
 SCREEN_STATE = "pre_game_lobby_state_2"
 
 

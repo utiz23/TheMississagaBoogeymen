@@ -73,8 +73,6 @@ def _make_subject_bundle(
         subject_ordinal=subject_ordinal,
         segment_index=0,
         canonical_subject=si,
-        frame_paths=(Path("/fake/seg0/00001.png"),),
-        best_frame_path=Path("/fake/seg0/00001.png"),
         best_frame_sharpness_score=100.0,
         all_subject_identities=(si,),
         support_frame_indices=(0,),
@@ -713,7 +711,7 @@ class TestFrameGlobAndOcrLinesHandling(unittest.TestCase):
 
             captured_ocr_args: list = []
 
-            def _fake_assemble(frame_records, *, segment_index, ocr_lines_per_frame, frame_paths=None):
+            def _fake_assemble(frame_records, *, segment_index, ocr_lines_per_frame):
                 captured_ocr_args.append(list(ocr_lines_per_frame))
                 return []  # return empty bundles → empty records list
 
@@ -851,8 +849,6 @@ def _make_subject_bundle_with_identity(
         subject_ordinal=0,
         segment_index=0,
         canonical_subject=si,
-        frame_paths=(Path("/fake/seg0/00001.png"),),
-        best_frame_path=Path("/fake/seg0/00001.png"),
         best_frame_sharpness_score=100.0,
         all_subject_identities=(si,),
         support_frame_indices=(0,),
@@ -964,8 +960,6 @@ class TestIdentityFieldsFromCanonicalSubject(unittest.TestCase):
             subject_ordinal=0,
             segment_index=0,
             canonical_subject=si,
-            frame_paths=(Path("/fake/seg0/00001.png"),),
-            best_frame_path=Path("/fake/seg0/00001.png"),
             best_frame_sharpness_score=100.0,
             all_subject_identities=(si,),
             support_frame_indices=(0,),

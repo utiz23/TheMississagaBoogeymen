@@ -126,20 +126,10 @@ class LoadoutSubjectBundle:
     support_frame_indices: tuple[int, ...]
     """Global frame indices (offsets into the input ``frames`` list)."""
 
-    frame_paths: tuple[Path, ...] = ()
-    """DEPRECATED (removed in Phase 3b C5): all frames where this subject was
-    selected. Empty when the assembler ran from an in-memory frame source."""
-
-    best_frame_path: Optional[Path] = None
-    """DEPRECATED (removed in Phase 3b C5): path of the sharpest frame.
-    ``None`` when the assembler ran from an in-memory frame source — use
-    ``best_frame_image`` and ``best_frame_index`` instead."""
-
     best_frame_image: Optional[np.ndarray] = None
-    """The sharpest frame's BGR pixels (paired with ``best_frame_path`` /
-    ``best_frame_index``). Optional only so test fixtures constructed before
-    Phase 3b can still build a bundle without pre-decoded pixels; production
-    assembly always populates this."""
+    """The sharpest frame's BGR pixels. Optional only so test fixtures
+    constructed without pre-decoded pixels can still build a bundle;
+    production assembly always populates this."""
 
     best_frame_index: Optional[int] = None
     """Global frame index of ``best_frame_image`` — the entry in
@@ -329,7 +319,6 @@ def assemble_loadout_subject_bundles(
     *,
     segment_index: int,
     ocr_lines_per_frame: Sequence[Sequence] | None = None,
-    frame_paths: Sequence[Path] | None = None,
 ) -> list[LoadoutSubjectBundle]:
     """Per-frame: extract one subject. Across frames: dedupe by fuzzy gamertag match.
 
@@ -348,12 +337,6 @@ def assemble_loadout_subject_bundles(
     ocr_lines_per_frame:
         One OCRLine list per record (parallel to ``frame_records``). Required —
         the bundle assembler does not re-run OCR.
-    frame_paths:
-        DEPRECATED back-compat plumbing (removed in Phase 3b C5). When
-        supplied, must be indexable by ``record.frame_index`` so that emitted
-        ``frame_paths`` / ``best_frame_path`` reflect the legacy disk-based
-        contract. Pass ``None`` from the in-memory hot path; the resulting
-        bundles will have ``frame_paths=()`` and ``best_frame_path=None``.
 
     Returns
     -------
@@ -487,13 +470,6 @@ def assemble_loadout_subject_bundles(
 
         slot_key = f"loadout_slot_seg{segment_index:04d}_subject{subject_ordinal:02d}"
 
-        if frame_paths is not None:
-            paths_group = tuple(frame_paths[i] for i in frame_indices)
-            best_path = paths_group[best_idx_in_group]
-        else:
-            paths_group = ()
-            best_path = None
-
         bundles.append(
             LoadoutSubjectBundle(
                 slot_key=slot_key,
@@ -503,8 +479,6 @@ def assemble_loadout_subject_bundles(
                 best_frame_sharpness_score=sharpness_scores[best_idx_in_group],
                 all_subject_identities=tuple(identities),
                 support_frame_indices=tuple(frame_indices),
-                frame_paths=paths_group,
-                best_frame_path=best_path,
                 best_frame_image=images[best_idx_in_group],
                 best_frame_index=frame_indices[best_idx_in_group],
                 observability=canonical.observability,
@@ -527,13 +501,6 @@ def assemble_loadout_subject_bundles(
         subject_ordinal = next_ordinal + rg_idx
         slot_key = f"loadout_slot_seg{segment_index:04d}_subject{subject_ordinal:02d}"
 
-        if frame_paths is not None:
-            paths_group = tuple(frame_paths[i] for i in frame_indices)
-            best_path = paths_group[best_idx_in_group]
-        else:
-            paths_group = ()
-            best_path = None
-
         bundles.append(
             LoadoutSubjectBundle(
                 slot_key=slot_key,
@@ -543,8 +510,6 @@ def assemble_loadout_subject_bundles(
                 best_frame_sharpness_score=sharpness_scores[best_idx_in_group],
                 all_subject_identities=tuple(identities),
                 support_frame_indices=tuple(frame_indices),
-                frame_paths=paths_group,
-                best_frame_path=best_path,
                 best_frame_image=images[best_idx_in_group],
                 best_frame_index=frame_indices[best_idx_in_group],
                 observability=canonical.observability,

@@ -62,19 +62,19 @@ def _bundle(
     is_subject_view: bool = True,
     slot_key: str = "loadout_slot_seg0001_subject00",
 ) -> LoadoutSubjectBundle:
-    # best_frame_path intentionally points at a non-existent file so cv2.imread
-    # returns None and the right-pane extractors short-circuit cleanly.
-    fake_path = Path("/nonexistent/loadout_evidence_test/00001.png")
+    # Phase 3b: leaving best_frame_image=None makes the right-pane extractors
+    # short-circuit on ``if image_bgr is None`` — same observable behavior as
+    # the pre-3b "best_frame_path → cv2.imread → None" trick.
     return LoadoutSubjectBundle(
         slot_key=slot_key,
         subject_ordinal=0,
         segment_index=1,
         canonical_subject=identity,
-        frame_paths=(fake_path,),
-        best_frame_path=fake_path,
         best_frame_sharpness_score=100.0,
         all_subject_identities=(identity,),
         support_frame_indices=(0,),
+        best_frame_image=None,
+        best_frame_index=0,
         observability="observable",
         is_subject_view=is_subject_view,
     )

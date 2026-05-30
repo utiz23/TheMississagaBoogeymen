@@ -83,7 +83,7 @@ from .loadout_extractors.icon import LoadoutIconExtractor, IconEvidence
 from .loadout_extractors.open_text import LoadoutOpenTextExtractor, OpenTextEvidence
 from .ocr import OCRLine, RapidOCRBackend
 
-EXTRACTOR_VERSION = "loadout-evidence-v2"
+EXTRACTOR_VERSION = "loadout-evidence-v3"
 SCREEN_STATE = "player_loadout_view"
 
 
@@ -230,21 +230,19 @@ def extract_loadout_evidence(
             "extract_loadout_evidence requires exactly one of bundle_dir or frame_provider"
         )
 
-    # 1. Materialize frame_records + optional legacy paths.
+    # 1. Materialize frame_records.
     frame_records: list[Any]
-    frame_paths: Optional[list[Path]]
     if bundle_dir is not None:
-        frame_paths = sorted(bundle_dir.glob("[0-9]*.png"))
-        if not frame_paths:
+        legacy_paths = sorted(bundle_dir.glob("[0-9]*.png"))
+        if not legacy_paths:
             raise ValueError(f"No PNG frames found in {bundle_dir}")
         # None-image records are passed through; the bundler skips them with a
         # warning, preserving the legacy "Could not read frame" behavior.
         frame_records = [
             _PngFrameRecord(image=cv2.imread(str(fp)), frame_index=i)
-            for i, fp in enumerate(frame_paths)
+            for i, fp in enumerate(legacy_paths)
         ]
     else:
-        frame_paths = None
         frame_records = list(frame_provider.iter_frames())
 
     # 2. Obtain OCR lines (one per record, in record order).
@@ -271,7 +269,6 @@ def extract_loadout_evidence(
         frame_records,
         segment_index=segment_index,
         ocr_lines_per_frame=resolved_ocr,
-        frame_paths=frame_paths,
     )
 
     # 4. Run extractors per bundle (ONCE, on best frame only)

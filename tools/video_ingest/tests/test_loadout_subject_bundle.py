@@ -491,8 +491,6 @@ class TestLoadoutSubjectBundleDataclass(unittest.TestCase):
             subject_ordinal=0,
             segment_index=0,
             canonical_subject=si,
-            frame_paths=(Path("/fake/00001.png"),),
-            best_frame_path=Path("/fake/00001.png"),
             best_frame_sharpness_score=50.0,
             all_subject_identities=(si,),
             support_frame_indices=(0,),
@@ -509,8 +507,6 @@ class TestLoadoutSubjectBundleDataclass(unittest.TestCase):
             subject_ordinal=0,
             segment_index=0,
             canonical_subject=si,
-            frame_paths=(Path("/fake/00001.png"),),
-            best_frame_path=Path("/fake/00001.png"),
             best_frame_sharpness_score=50.0,
             all_subject_identities=(si,),
             support_frame_indices=(0,),
@@ -579,8 +575,6 @@ class TestIsSubjectViewFlag(unittest.TestCase):
             subject_ordinal=0,
             segment_index=0,
             canonical_subject=si,
-            frame_paths=(Path("/fake/00001.png"),),
-            best_frame_path=Path("/fake/00001.png"),
             best_frame_sharpness_score=50.0,
             all_subject_identities=(si,),
             support_frame_indices=(0,),
@@ -628,40 +622,6 @@ class TestBundleCarriesBestFrameImage(unittest.TestCase):
         self.assertIs(b.best_frame_image, dummy_img)
         # Index matches the support_frame_indices entry with the max sharpness.
         self.assertEqual(b.best_frame_index, b.support_frame_indices[1])
-        # Without a frame_paths kwarg, the legacy path fields are empty / None.
-        self.assertEqual(b.frame_paths, ())
-        self.assertIsNone(b.best_frame_path)
-
-    def test_legacy_frame_paths_kwarg_populates_path_fields(self):
-        """Phase 3b back-compat: when ``frame_paths`` is supplied, bundles
-        emit the legacy path fields keyed by ``record.frame_index``.
-
-        Removed in C5; until then this keeps the disk-based extractor path
-        producing the same bundles."""
-        from game_ocr.loadout_bundle import assemble_loadout_subject_bundles
-
-        subject = _make_subject_identity("StickMenace")
-        records = _fake_records(3)
-        paths = _fake_paths(3)
-
-        blur_scores_iter = iter([10.0, 99.0, 20.0])
-
-        with patch("game_ocr.loadout_bundle.extract_subject_identity",
-                   return_value=subject), \
-             patch("game_ocr.loadout_bundle.blur_score",
-                   side_effect=lambda img: next(blur_scores_iter)):
-
-            bundles = assemble_loadout_subject_bundles(
-                records,
-                segment_index=2,
-                ocr_lines_per_frame=[[], [], []],
-                frame_paths=paths,
-            )
-
-        self.assertEqual(len(bundles), 1)
-        b = bundles[0]
-        self.assertEqual(b.frame_paths, tuple(paths))
-        self.assertEqual(b.best_frame_path, paths[1])
 
 
 if __name__ == "__main__":
