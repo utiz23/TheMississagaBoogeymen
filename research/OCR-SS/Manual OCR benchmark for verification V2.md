@@ -707,9 +707,14 @@ No data collected.
 > (1) the hand-keyed 17:39 receiver was **E. Wanhg**, but the video shows
 > **H. Jenkins** (matching OCR and DB row id267) — corrected above; the manual
 > entry had conflated the 17:39 Toews→Jenkins hit with the separate 19:43
-> Toews→Wanhg hit. (2) The 19:43 hit is confirmed real but is not spatially
-> placed in the DB (coordinates default to 15.00, 0.00 — re-spatialization
-> still pending; event existence/attribution is correct).
+> Toews→Wanhg hit. (2) The 19:43 hit is confirmed real and is now spatially
+> placed: it was a known "operator scrolled too fast" case — the event's list
+> card was off-screen (cut off at the bottom) while its selected marker stayed
+> on the rink — so the original ingest left a `15.00, 0.00` `manual` placeholder.
+> Recovered on 2026-05-31 from
+> `research/OCR-SS/Action-Tracker/2nd-Period-Events/vlcsnap-2026-05-31-12h39m41s259.png`
+> via the spatial pipeline (`extract_selected_event_position`, confidence 1.0)
+> → DB row id288 updated to **x=10.08, y=-6.81, neutral** (`interpolated`).
 
 ---
 
