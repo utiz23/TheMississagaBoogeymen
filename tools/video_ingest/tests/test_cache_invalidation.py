@@ -337,7 +337,7 @@ class OrchestratorCacheTests(unittest.TestCase):
         # stay seconds-fast regardless of which engine nhl26.yaml selects.
         # side_effect reads self.segments_classified at call time so
         # test_force_pass1_cascades_to_pass2_invalidation can mutate it.
-        def _fake_run_pass1(video_path, classifier_legacy, p1cfg, version):
+        def _fake_run_pass1(video_path, classifier_legacy, p1cfg, version, *, use_gpu=True):
             from video_ingest.pass1_classify import SamplingTelemetry
             return [], self.segments_classified, "legacy-passthrough-v0-video", SamplingTelemetry()
 

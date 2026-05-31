@@ -79,7 +79,7 @@ class CLIContractsTests(unittest.TestCase):
         # mocks so assertions like assert_called_once() on _classify_video_mock
         # still work, while bypassing engine dispatch (viterbi would try to
         # open the fake video file).
-        def _fake_run_pass1(video_path, classifier_legacy, p1cfg, version):
+        def _fake_run_pass1(video_path, classifier_legacy, p1cfg, version, *, use_gpu=True):
             from video_ingest.pass1_classify import SamplingTelemetry
             cls = self._classify_video_mock(video_path, classifier_legacy, p1cfg)
             segs = self.segments_classified

@@ -111,6 +111,8 @@ def _run_pass1(
     classifier_legacy,
     p1cfg: Pass1Config,
     version: str,
+    *,
+    use_gpu: bool = True,
 ) -> tuple[list, list[Segment], str, "SamplingTelemetry"]:
     """Engine dispatch: returns (frame_classifications, segments,
     decoder_version, sampling_telemetry).
@@ -260,10 +262,15 @@ def _run_pass1(
             )
         clf = load_screen_classifier(weights_path, sm)
         regex_priors = load_regex_priors(version)
-        # v2 OCRs both ROIs (top_bar + side_strip) per frame via the injected
-        # backend. CPU is fine — the bottleneck is two small crops, not the
-        # whole-frame OCR the legacy classifier did.
-        ocr = RapidOCRBackend(use_gpu=False)
+        # v2 OCRs both ROIs (top_bar 1920x200 + side_strip 220x880) per
+        # frame via the injected backend. Use the orchestrator-level
+        # use_gpu flag — the prior `use_gpu=False` hardcode predated the
+        # silent CPU-fallback discovery and assumed the ROIs were "small
+        # crops". They're not: microbench shows ~4.5x speedup per OCR
+        # call on a 3060 (top_bar 828ms→173ms p50, side_strip 803ms→180ms
+        # p50) once RapidOCRBackend.__init__'s nvidia-*-cu12 preload runs
+        # successfully. Pass-1 wall on the 187 MB fixture: ~20 min → ~5 min.
+        ocr = RapidOCRBackend(use_gpu=use_gpu)
 
         cls_list: list = []
         feats_list = []
@@ -535,7 +542,7 @@ def ingest(
         classifier = _build_classifier(version, use_gpu=use_gpu)
         t0 = time.perf_counter()
         cls_list, segments, decoder_version, sampling_telemetry = _run_pass1(
-            video_path, classifier, p1cfg, version,
+            video_path, classifier, p1cfg, version, use_gpu=use_gpu,
         )
         elapsed_pass1 = time.perf_counter() - t0
         write_segments_json(
