@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import ctypes
+import sys
 from dataclasses import dataclass
 from typing import Protocol
 
@@ -7,6 +9,30 @@ import numpy as np
 from rapidocr_onnxruntime import RapidOCR
 
 from game_ocr.utils import normalize_text
+
+
+# CUDA 12 + cuDNN 9 runtime libraries that onnxruntime-gpu's
+# CUDAExecutionProvider dlopens at session construction. If any are missing,
+# onnxruntime silently falls back to CPU and rapidocr_onnxruntime won't tell
+# you. _probe_cuda_runtime() below tries to load each via ctypes and returns
+# the list of names that failed — empty list = all loadable = GPU should work.
+_REQUIRED_CUDA_LIBS: tuple[str, ...] = (
+    "libcublasLt.so.12",   # cuBLAS — the one that bit us first
+    "libcublas.so.12",
+    "libcudart.so.12",
+    "libcudnn.so.9",       # cuDNN 9
+)
+
+
+def _probe_cuda_runtime() -> list[str]:
+    """Return the subset of _REQUIRED_CUDA_LIBS that failed to dlopen."""
+    missing: list[str] = []
+    for name in _REQUIRED_CUDA_LIBS:
+        try:
+            ctypes.CDLL(name)
+        except OSError:
+            missing.append(name)
+    return missing
 
 
 @dataclass
@@ -39,6 +65,32 @@ class RapidOCRBackend:
 
     def __init__(self, *, use_gpu: bool = False) -> None:
         if use_gpu:
+            # Defensive check: onnxruntime-gpu silently falls back to
+            # CPUExecutionProvider when CUDAExecutionProvider's runtime libs
+            # are missing (e.g., the WSL2 default lacks libcublasLt.so.12 +
+            # cuDNN 9). The fallback warning goes to stderr at session-
+            # construction time inside RapidOCR and is easy to miss in the
+            # firehose of a long-running ingest run — Pass-1 ends up taking
+            # 5-10x longer than expected with no obvious cause.  Probe the
+            # required CUDA 12 runtime libraries up front; print a single,
+            # high-visibility line to stderr listing what's missing so the
+            # operator can fix it. We do NOT raise — preserving the silent-
+            # fallback behaviour is important for environments that
+            # legitimately don't have GPU and pass use_gpu=True out of
+            # convenience.
+            missing = _probe_cuda_runtime()
+            if missing:
+                print(
+                    "[ocr] WARN: use_gpu=True but CUDA runtime libraries "
+                    f"unavailable ({', '.join(missing)}). RapidOCR will "
+                    "silently fall back to CPU inference — Pass-1 will run "
+                    "5-10x slower than the GPU baseline. Fix: install CUDA "
+                    "12.* toolkit + cuDNN 9.* matching the onnxruntime-gpu "
+                    "wheel (on WSL2: the cuda-keyring + cuda-toolkit-12-* "
+                    "apt repo; cuDNN 9 via the same NVIDIA repo).",
+                    file=sys.stderr,
+                    flush=True,
+                )
             self._engine = RapidOCR(
                 det_use_cuda=True,
                 cls_use_cuda=True,
