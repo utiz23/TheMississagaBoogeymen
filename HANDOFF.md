@@ -2,17 +2,30 @@
 
 ## To-Do
 
-**Status (2026-05-31 — latest):** **Visual Prefilter Phases 1-3 PUSHED** on `feat/visual-prefilter` (4 commits, `origin/feat/visual-prefilter`). **Not merged, no PR opened yet.** Pass-2 prefilter chain is end-to-end wired and real-video-verified; runtime impact on `main` if merged would be zero because `visual_prefilter.pass2_enabled` defaults to `false` in `configs/nhl26.yaml`. Plan file at `~/.claude/plans/swirling-humming-moore.md`.
+**Status (2026-05-31 — latest):** **Two PRs SHIPPED to `main`** via rebase-merge: PR #2 (RapidOCR GPU fix, 3 commits) and PR #1 (Visual Prefilter Phases 1–3, 5 commits). 8 new commits sit above the prior Phase 4 Part B head (`744fc99`). `origin/main` tip is `71e73e0`. Both feature branches deleted (remote + local). Plan file at `~/.claude/plans/swirling-humming-moore.md`.
 
-**Commit chain (oldest → newest):**
-- `8e82e0b` Phase 1 — `video_ingest/visual_prefilter/signals.py` (`VisualSignals` + `compute_visual_signals()`); additive `n_prefilter_features` field on `FrameFeaturesV2` + kwarg on `feature_vector_v2()` + field on `ScreenClassifierV2Weights` (default 0, backward-compatible — legacy weight files load unchanged).
-- `3813318` Phase 2 — `visual_prefilter/pass2_policy.py` with `select_frames()` (dHash dedup + uniform downsample to per-screen budget); `FilteredFrameProvider` in `frame_provider.py`; `Extractor.extract_input()` in `tools/game_ocr/game_ocr/extractor.py` honours an optional `selected_frames.json` sidecar in directory inputs (single seam — Python owns the directory walk).
-- `9b64d5c` Phase 3 — `VisualPrefilterPass2Config` dataclass, selection block in `extract_segments()` (typed-v1: wrap provider; legacy: write sidecar), per-segment telemetry on `Pass2Result`, `compute_pass2_cache_key()` extended with `_prefilter_fingerprint(...)`, `visual_prefilter` block in `configs/nhl26.yaml` (default `pass2_enabled: false`), `--prefilter / --no-prefilter` CLI flag on `ingest` and `extract-only`, orchestrator wiring (CLI > YAML > default-false precedence).
-- `0b5f073` fix — `extract_segments()` was re-computing `compute_pass2_cache_key()` inside `write_pass2_manifest()` without threading `prefilter`, so enabled-prefilter runs persisted a stale `prefilter=off` cache_key and would `CacheMismatch` against their own manifest on any subsequent run. Caught by the real-video A/B; locked by `test_manifest_cache_key_includes_prefilter_fingerprint` regression.
+**Headline outcomes on `main`:**
+- **Pass-1 wall ~2.15× faster** on the 187 MB fixture (1183 s → 549 s) — GPU acceleration genuinely engaged for the first time
+- **Visual Prefilter shipped default-off** — runtime byte-identical to pre-merge unless `visual_prefilter.pass2_enabled: true` in YAML or `--prefilter` on CLI; opting in saves ~3.8× on Pass-2 wall via per-screen dHash dedup + budget cap
+- Silent CPU-fallback failure mode that hid the GPU slowdown is now surfaced via a loud `[ocr] WARN:` line at backend construction
 
-**Defaults & flag-off parity:** YAML ships `pass2_enabled: false`. With prefilter off, `_prefilter_fingerprint()` returns `b"prefilter=off"`, so `compute_pass2_cache_key()` produces a key bit-identical to pre-Phase-3 — existing caches survive. Locked by `test_pass2_cache_key_unchanged_when_prefilter_omitted_or_disabled` (in `test_cache_invalidation.py`).
+**Commit chain on `main` (oldest → newest, from `744fc99..71e73e0`):**
 
-**Per-screen starter budgets in `configs/nhl26.yaml` (conservative, tune during enable-mode rollout):**
+PR #2 — RapidOCR GPU fix:
+- `c154675` `fix(ocr): warn loudly when use_gpu=True but CUDA runtime libs are missing` — `_probe_cuda_runtime()` ctypes-dlopens `libcublasLt.so.12` / `libcublas.so.12` / `libcudart.so.12` / `libcudnn.so.9` at `RapidOCRBackend.__init__` time; prints a single `[ocr] WARN:` line listing what's missing + remediation. Does not raise — preserves silent-fallback for environments that legitimately don't have GPU.
+- `49a6f63` `fix(ocr): preload nvidia-*-cu12 wheels so RapidOCR actually uses GPU` — `_preload_nvidia_cu12_libs()` walks `<venv>/lib/python3.12/site-packages/nvidia/<lib>/lib/` in dep-safe order (cuda_runtime + nvjitlink → cublas / cufft / curand / cusolver / cusparse → cudnn) and `ctypes.CDLL(..., mode=RTLD_GLOBAL)`s each `.so.*`. Root cause: the pip wheels (transitive deps of `onnxruntime-gpu`) install the libs to disk but don't register the directory with ld.so. No apt install needed.
+- `87f6600` `fix(orchestrator): thread use_gpu into _run_pass1 (was hardcoded False)` — viterbi_v2 engine had `RapidOCRBackend(use_gpu=False)` hardcoded with the comment "CPU is fine — small crops". The "small crops" are 1920×200 + 220×880 — large enough that GPU matters a lot. Threads `use_gpu` kwarg through `_run_pass1`; test stubs in `test_cli_contracts.py` + `test_cache_invalidation.py` updated to accept it.
+
+PR #1 — Visual Prefilter Phases 1–3:
+- `7c5405e` Phase 1 — `video_ingest/visual_prefilter/signals.py` (`VisualSignals` + `compute_visual_signals()`); additive `n_prefilter_features` field on `FrameFeaturesV2` + kwarg on `feature_vector_v2()` + field on `ScreenClassifierV2Weights` (default 0, backward-compatible — legacy weight files load unchanged)
+- `8490485` Phase 2 — `visual_prefilter/pass2_policy.py` with `select_frames()` (dHash dedup + uniform downsample to per-screen budget); `FilteredFrameProvider` in `frame_provider.py`; `Extractor.extract_input()` in `tools/game_ocr/game_ocr/extractor.py` honours optional `selected_frames.json` sidecar (Python owns the directory walk — single seam)
+- `822e294` Phase 3 — `VisualPrefilterPass2Config` dataclass, selection block in `extract_segments()` (typed-v1: wrap provider; legacy: write sidecar), per-segment telemetry on `Pass2Result`, `compute_pass2_cache_key()` extended with `_prefilter_fingerprint(...)`, `visual_prefilter` block in `configs/nhl26.yaml` (default `pass2_enabled: false`), `--prefilter / --no-prefilter` CLI flag on `ingest` + `extract-only`
+- `dfe31ec` fix — `extract_segments()` was re-computing `compute_pass2_cache_key()` inside `write_pass2_manifest()` without threading `prefilter`, so enabled-prefilter runs persisted a stale `prefilter=off` cache_key. Caught by the real-video A/B; regression locked by `test_manifest_cache_key_includes_prefilter_fingerprint`
+- `71e73e0` docs(handoff) for the branch (this entry supersedes that one)
+
+**Defaults & flag-off parity:** YAML ships `pass2_enabled: false`. With prefilter off, `_prefilter_fingerprint()` returns `b"prefilter=off"`, so `compute_pass2_cache_key()` produces a key bit-identical to pre-Phase-3. Existing on-disk Pass-2 caches survive the merge. Locked by `test_pass2_cache_key_unchanged_when_prefilter_omitted_or_disabled` in `tests/test_cache_invalidation.py`.
+
+**Per-screen starter budgets in `configs/nhl26.yaml` (conservative — tune as enable-mode rolls out):**
 - `post_game_action_tracker: 8`
 - `post_game_events: 4`
 - `post_game_faceoff_map: 3`, `post_game_net_chart: 3`, `post_game_player_summary: 3`
@@ -20,25 +33,44 @@
 - `pre_game_lobby_state_2: 4`, `player_loadout_view: 6`
 - `dedup_dhash_distance: {}` (defaults to 8; per-screen overrides only when needed)
 
-**Test surface:** ~72 new prefilter tests across the four commits; full suites 304 game_ocr + 452 video_ingest passing. Pre-existing `test_diagnose_segments` / `test_loadout_closed_vocab` `EXTRACTOR_VERSION` drift / `test_loadout_evidence_fixture_parity` match-250 failures unchanged on main — none related to this branch.
+**End-to-end verification (numbers locked at merge time):**
 
-**End-to-end verification on `/mnt/k/2026-05-26_17-17-00.mkv` (187 MB, 471s of footage; match-250 video at `/mnt/k/NHL/NHL26/match 250/2026-05-08_18-25-42.mkv` is 32 min and too slow for an A/B cycle in one sitting):**
-- Baseline → prefilter, all 3 typed-v1 segments shrink as the budget+dedup dictate: seg-001 lobby 17→3 frames; seg-003 loadout 60→6 (budget cap hit exactly); seg-004 lobby 15→4.
-- Pass-2 wall: **670s → 173s** (3.8× speedup from running typed-v1 OCR on 13 vs 92 frames).
-- Manifest `pass2_cache_key` differs: `sha256:3c7300c976ae825b…` (off) vs `sha256:1d2563991f7ef2bf…` (on).
-- Telemetry populated on every entry: `prefilter_frames_scanned`, `prefilter_frames_selected`, `prefilter_selection_ms` (e.g. seg-003: 60 / 6 / 1646 ms).
-- `support_frame_ids` in `loadout_evidence.json` shrank from 57 unique → 5 unique (extractor only saw the wrapped subset). Lobby segments had 1 unique id either way (content drove the result).
-- No `selected_frames.json` sidecar appeared anywhere (all three segments are typed-v1 — the legacy-PNG sidecar path didn't run in this fixture; the sidecar contract itself is covered by `test_extract_input_selected_frames.py` in game_ocr).
+GPU fix — `classify-only` on `/mnt/k/2026-05-26_17-17-00.mkv` (187 MB, 472 frames), from `ingest_timings.json`:
 
-**Pass-1 perf observation (NOT a regression from this branch).** Pass-1 took ~20 min for 472 frames on the 187 MB fixture even with the host quiet — ~2.5 sec/frame, vs the YAML's documented ~336ms p50 panel-crop OCR baseline on RTX 3060. Pass-1 uses the wider top-of-screen anchor ROI `[0,0,1920,200]` (much bigger crop than the panel crops the baseline measures). GPU at 1-17% during Pass-1 suggests CPU-bound preprocessing is the bottleneck. Worth a separate measurement pass at some point; not in scope for this branch.
+| Sub-phase | Before (CPU) | After (GPU) | Speedup |
+|---|---|---|---|
+| `pass1_decode_ms` | 109 s | 99 s | unchanged (PyAV-bound, not GPU-accelerated) |
+| `pass1_classify_ms` | 1073 s | 450 s | **2.38×** |
+| `pass1_viterbi_ms` | 14 ms | 13 ms | negligible |
+| **Total Pass-1** | **1183 s** | **549 s** | **2.15×** |
 
-**Queued / out of scope on this branch (separate slices when ready):**
-1. **Open the PR** — `gh pr create --title "feat(prefilter): visual prefilter (Phases 1-3 Pass-2 chain)" --base main --head feat/visual-prefilter`. Branch is push-ready.
-2. **Worker telemetry persistence** — extend `apps/worker/src/run-quality-cli.ts` `StageRuntimes` interface + `STAGE_KEYS` for the new manifest fields; Drizzle migration adding nullable `prefilter_frames_scanned`, `prefilter_frames_selected`, `prefilter_selection_ms` columns to `ocr_run_quality_reports`. Smallest next slice; unblocks DB visibility into the new manifest values. Same pattern as Phase 4 Part B C4/C5.
-3. **Match-250 ground-truth A/B** — re-fetch the 32-min video, run baseline + prefilter, diff against the V2 benchmark. Needs `/mnt/k/NHL/NHL26/match 250/2026-05-08_18-25-42.mkv` and roughly a 2-hour wall budget per run-pair at current Pass-1 speed.
-4. **Pass-1 wiring** — `pass1_policy.py` with `pass1_emissions_bias()`, integration into `pass1_segment.py`, classifier retrain with `n_prefilter_features > 0`. Larger slice (retrain dependency). The signal primitives + classifier seam are already in place from Phase 1.
-5. **Templates + centroid reconciliation** — V1 12·4·4 (192-dim) HSV centroids in classifier YAML vs V2 8·3·2 (48-dim) histogram in `VisualSignals`. Prerequisite for centroid-cosine gating in `select_frames` AND for the template-anchor features in Pass-1. Two options: regenerate centroids in V2 layout, or carry both histograms in `VisualSignals`.
-6. **`configs/nhl27.yaml`** — file doesn't exist yet. When it lands, mirror the `visual_prefilter` block from `nhl26.yaml`.
+Per-OCR-call microbench (`/tmp/bench_pass1_ocr.py` against synthetic crops): top_bar 1920×200 ~828 ms → ~173 ms (4.8×); side_strip 220×880 ~803 ms → ~180 ms (4.5×); panel_crop 300×300 ~142 ms → ~24 ms (5.9×). End-to-end is less because decode + Python overhead aren't GPU-accelerated and real game UI has more text per frame than synthetic noise.
+
+Prefilter — same fixture, `--no-prefilter` vs `--prefilter`:
+
+| Segment | Baseline frames | Prefilter frames | Telemetry |
+|---|---|---|---|
+| seg-001 pre_game_lobby_state_2 | 17 | **3** | scanned=17, selected=3, 491 ms |
+| seg-003 player_loadout_view | 60 | **6** | scanned=60, selected=6, 1646 ms (budget hit exactly) |
+| seg-004 pre_game_lobby_state_2 | 15 | **4** | scanned=15, selected=4, 431 ms (budget hit) |
+
+Pass-2 wall: **670 s → 173 s** (3.8× from running typed-v1 OCR on 13 vs 92 frames). `pass2_cache_key` differs: `sha256:3c7300c976ae825b…` vs `sha256:1d2563991f7ef2bf…`. Loadout evidence `support_frame_ids`: 57 unique → 5 unique. No `selected_frames.json` appeared (all three segments are typed-v1; sidecar path covered by `test_extract_input_selected_frames.py`).
+
+**Test surface (on `main`):** ~82 new tests across both PRs. Full suites green: 304 game_ocr + 452 video_ingest. Pre-existing `test_diagnose_segments` / `test_loadout_closed_vocab` `EXTRACTOR_VERSION` drift / `test_loadout_evidence_fixture_parity` match-250 failures unchanged — none related to either PR.
+
+**Queued — next slices in rough priority order:**
+
+1. **Worker telemetry persistence** — extend `apps/worker/src/run-quality-cli.ts` `StageRuntimes` interface + `STAGE_KEYS` for `prefilter_frames_scanned` / `prefilter_frames_selected` / `prefilter_selection_ms`; Drizzle migration adding nullable columns to `ocr_run_quality_reports`. Now unblocked (PR #1 merged); same pattern as Phase 4 Part B C4/C5. Smallest follow-up.
+2. **Match-250 ground-truth A/B** — now practical at ~25 min total ingest thanks to the GPU fix (was ~60+ min before). Run baseline (`--no-prefilter`) and prefilter-on against `/mnt/k/NHL/NHL26/match 250/2026-05-08_18-25-42.mkv`, diff segment classification + extracted evidence against the V2 benchmark (per memory: V2 benchmark is the source of truth for match 250). Validates the prefilter against ground truth, not just self-consistency.
+3. **Pass-1 wiring** — `pass1_policy.py` with `pass1_emissions_bias()`, integration into `pass1_segment.py`, classifier retrain with `n_prefilter_features > 0`. The signal primitives + classifier seam are already on `main` from Phase 1; retraining was always the gate.
+4. **Templates + centroid reconciliation** — V1 12·4·4 (192-dim) HSV centroids in classifier YAML vs V2 8·3·2 (48-dim) histogram in `VisualSignals`. Prerequisite for centroid-cosine gating in `select_frames` AND for the template-anchor features in Pass-1. Two options to decide: regenerate centroids in V2 layout (classifier-training pipeline change), or carry both histograms in `VisualSignals` (data duplication).
+5. **`configs/nhl27.yaml`** — file doesn't exist yet. When NHL 27 ships, mirror the `visual_prefilter` block from `nhl26.yaml`.
+
+**Operational notes for the next session:**
+
+- The `nvidia-*-cu12` pip wheels need to be in the active venv for the GPU preload to find them. `onnxruntime-gpu` pulls them as transitive deps. `.venv-1` on this host has them; `.venv` (the project's standard uv venv) needs `pip install av` to also have PyAV — system python3 has PyAV but no nvidia-cu12 wheels. If a future operator hits Pass-1 wall regressions, first check the `[ocr] WARN:` line is absent on stderr.
+- `/tmp/bench_pass1_ocr.py` (microbench used during the GPU fix verification) is in `/tmp`, not in repo. Recreate as needed; the contract is "construct `RapidOCRBackend(use_gpu=...)`, time `read()` on synthetic 1920×200 / 220×880 / 300×300 crops over N iterations, report p50/p95/mean".
+- HANDOFF.md is large (5500+ lines). When trimming/restructuring becomes worth it, drop pre-Phase-3 status entries since the architecture has moved on.
 
 ---
 
