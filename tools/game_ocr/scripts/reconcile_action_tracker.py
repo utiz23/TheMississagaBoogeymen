@@ -40,7 +40,14 @@ Usage:
             'position_confidence', position_confidence))
           FROM match_events
           WHERE match_id=250 AND source='ocr'
-            AND event_type IN ('shot','hit','goal','penalty')))" \\
+            AND event_type IN ('shot','hit','goal','penalty')),
+        'period_summaries', (SELECT json_agg(json_build_object(
+            'period_number', period_number,
+            'goals_for', goals_for, 'goals_against', goals_against,
+            'shots_for', shots_for, 'shots_against', shots_against,
+            'faceoffs_for', faceoffs_for, 'faceoffs_against', faceoffs_against))
+          FROM match_period_summaries
+          WHERE match_id=250 AND source='ocr' AND review_status='reviewed'))" \\
     | python3 tools/game_ocr/scripts/reconcile_action_tracker.py 250 \\
     | docker exec -i eanhl-team-website-db-1 psql -U eanhl -d eanhl
 
@@ -231,6 +238,79 @@ def build_canonical_events(extractions: list[dict]) -> dict[int, list[dict]]:
     for p in by_period:
         by_period[p].sort(key=lambda e: clock_to_seconds(e.get("clock")), reverse=True)
     return by_period
+
+
+# ─── completeness anchors ──────────────────────────────────────────────────
+
+
+@dataclass
+class Completeness:
+    period: int
+    event_type: str
+    anchor: int | None        # target count, or None if no anchor available
+    anchor_source: str        # 'box_score' | 'census' | 'none'
+    found: int                # distinct events seen in the canonical card union
+    positioned: int           # match_events of this type with x set
+    short: int                # max(0, anchor - found): event rows not even captured
+    pos_short: int            # max(0, found - positioned): captured but unpositioned
+
+
+_BOX_SCORE_COLS = {
+    "goal": ("goals_for", "goals_against"),
+    "shot": ("shots_for", "shots_against"),
+    "faceoff": ("faceoffs_for", "faceoffs_against"),
+}
+
+
+def build_completeness(
+    canonical_by_period: dict[int, list[dict]],
+    me_by_period: dict[int, list[dict]],
+    census_by_period: dict[int, dict[tuple[str, str], int]],
+    period_summaries: list[dict],
+) -> list[Completeness]:
+    """Per (period, event_type): target count vs found vs positioned.
+
+    Two shortfalls are surfaced:
+      - `short` (anchor - found): event ROWS not even captured. Reliable only
+        for box-score types (goals/shots/faceoffs). The hit "anchor" is the
+        census-frame count, which under-counts (occlusion), so it is shown for
+        reference but rarely drives a `short`.
+      - `pos_short` (found - positioned): events captured but lacking a rink
+        position. Type-agnostic and always meaningful — this is the actionable
+        signal for hits, where no reliable count anchor exists."""
+    ps_by_period = {r["period_number"]: r for r in (period_summaries or [])
+                    if isinstance(r.get("period_number"), int)}
+    out: list[Completeness] = []
+    periods = set(canonical_by_period) | set(me_by_period) | set(ps_by_period)
+    for period in sorted(periods):
+        found = Counter(e.get("event_type") for e in canonical_by_period.get(period, []))
+        positioned = Counter(e.get("event_type") for e in me_by_period.get(period, [])
+                             if e.get("x") is not None)
+        census = census_by_period.get(period, {})
+        types = set(found) | set(positioned) | set(_BOX_SCORE_COLS) | {"hit"}
+        for et in sorted(types):
+            anchor: int | None = None
+            source = "none"
+            if et in _BOX_SCORE_COLS:
+                ps = ps_by_period.get(period)
+                if ps is not None:
+                    fc, ac = _BOX_SCORE_COLS[et]
+                    if ps.get(fc) is not None and ps.get(ac) is not None:
+                        anchor = int(ps[fc]) + int(ps[ac])
+                        source = "box_score"
+            elif et == "hit":
+                census_hits = census.get(("hit", "for"), 0) + census.get(("hit", "against"), 0)
+                if census_hits > 0:
+                    anchor, source = census_hits, "census"
+            fnd, pos = found.get(et, 0), positioned.get(et, 0)
+            if anchor is None and fnd == 0 and pos == 0:
+                continue
+            short = max(0, anchor - fnd) if anchor is not None else 0
+            # Faceoffs have no rink marker, so they are never positioned —
+            # don't flag them as an unpositioned shortfall.
+            pos_short = 0 if et == "faceoff" else max(0, fnd - pos)
+            out.append(Completeness(period, et, anchor, source, fnd, pos, short, pos_short))
+    return out
 
 
 # ─── marker clustering per period ──────────────────────────────────────────
@@ -444,10 +524,13 @@ def emit_update_sql(u: Update) -> str:
 
 
 def build_report(match_id: int, results: list[ReconResult],
-                 canonical: dict[int, list[dict]],
-                 census_by_period: dict[int, dict[tuple[str, str], int]]) -> str:
+                 completeness: list[Completeness]) -> str:
     lines = [f"Action Tracker reconciliation — match {match_id}", "=" * 52]
+    comp_by_period: dict[int, list[Completeness]] = {}
+    for c in completeness:
+        comp_by_period.setdefault(c.period, []).append(c)
     total_updates = sum(len(r.updates) for r in results)
+    total_short = sum(c.short for c in completeness)
     for r in sorted(results, key=lambda r: r.period):
         lines.append(f"\nPeriod {r.period}:")
         by_method = Counter(u.method for u in r.updates)
@@ -461,10 +544,21 @@ def build_report(match_id: int, results: list[ReconResult],
         if r.ambiguous:
             for key, no, ng in r.ambiguous:
                 lines.append(f"  AMBIGUOUS {key}: {no} orphan markers ↔ {ng} gap events — not bound")
-        census = census_by_period.get(r.period)
-        if census:
-            lines.append(f"  census marker counts: {census}")
-    lines.append(f"\nTotal positions recovered: {total_updates}")
+        comp = sorted(comp_by_period.get(r.period, []), key=lambda c: c.event_type)
+        if comp:
+            lines.append("  completeness (anchor / found / positioned):")
+            for c in comp:
+                anchor = f"{c.anchor}({c.anchor_source})" if c.anchor is not None else "?"
+                flags = []
+                if c.short:
+                    flags.append(f"SHORT {c.short} rows (not captured)")
+                if c.pos_short:
+                    flags.append(f"{c.pos_short} unpositioned")
+                flag = ("  ← " + "; ".join(flags)) if flags else ""
+                lines.append(f"    {c.event_type:8} anchor={anchor:>14} "
+                             f"found={c.found:<3} positioned={c.positioned:<3}{flag}")
+    lines.append(f"\nTotal positions recovered: {total_updates}; "
+                 f"total events short of anchor: {total_short}")
     return "\n".join(lines)
 
 
@@ -487,6 +581,7 @@ def main() -> int:
     payload = json.loads(payload_text)
     extractions = payload.get("extractions") or []
     match_events = payload.get("match_events") or []
+    period_summaries = payload.get("period_summaries") or []
 
     me_by_period: dict[int, list[dict]] = {}
     for e in match_events:
@@ -523,7 +618,8 @@ def main() -> int:
             yellow_clusters=yellow_by_period.get(period, []),
         ))
 
-    print(build_report(args.match_id, results, canonical, census_by_period), file=sys.stderr)
+    completeness = build_completeness(canonical, me_by_period, census_by_period, period_summaries)
+    print(build_report(args.match_id, results, completeness), file=sys.stderr)
 
     if args.dry_run:
         return 0

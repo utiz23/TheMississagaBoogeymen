@@ -156,6 +156,52 @@ class AnchorTests(unittest.TestCase):
         self.assertEqual(counts[("shot", "for")], 1)
 
 
+# ─── completeness anchors ──────────────────────────────────────────────────
+
+
+class CompletenessTests(unittest.TestCase):
+    def test_box_score_and_census_anchors_with_shortfall(self):
+        canonical = {2: [
+            {"event_type": "shot"}, {"event_type": "shot"},          # 2 shots found
+            {"event_type": "hit"}, {"event_type": "hit"}, {"event_type": "hit"},
+            {"event_type": "goal"},
+            {"event_type": "faceoff"},
+        ]}
+        me = {2: [
+            {"event_type": "shot", "x": 1.0}, {"event_type": "shot", "x": None},
+            {"event_type": "hit", "x": 2.0}, {"event_type": "hit", "x": None},
+            {"event_type": "hit", "x": None},
+        ]}
+        census = {2: {("hit", "for"): 1, ("hit", "against"): 2}}      # hit anchor 3
+        ps = [{"period_number": 2, "goals_for": 1, "goals_against": 0,
+               "shots_for": 2, "shots_against": 1,
+               "faceoffs_for": 1, "faceoffs_against": 0}]
+        comp = {(c.period, c.event_type): c
+                for c in rat.build_completeness(canonical, me, census, ps)}
+        self.assertEqual(comp[(2, "shot")].anchor, 3)               # 2 + 1
+        self.assertEqual(comp[(2, "shot")].anchor_source, "box_score")
+        self.assertEqual(comp[(2, "shot")].found, 2)
+        self.assertEqual(comp[(2, "shot")].positioned, 1)
+        self.assertEqual(comp[(2, "shot")].short, 1)                # 3 - 2
+        self.assertEqual(comp[(2, "hit")].anchor, 3)
+        self.assertEqual(comp[(2, "hit")].anchor_source, "census")
+        self.assertEqual(comp[(2, "hit")].found, 3)
+        self.assertEqual(comp[(2, "hit")].short, 0)
+        self.assertEqual(comp[(2, "goal")].anchor, 1)
+        self.assertEqual(comp[(2, "faceoff")].anchor, 1)
+        # position shortfall (found - positioned), type-agnostic except faceoff
+        self.assertEqual(comp[(2, "shot")].pos_short, 1)   # 2 found, 1 positioned
+        self.assertEqual(comp[(2, "hit")].pos_short, 2)    # 3 found, 1 positioned
+        self.assertEqual(comp[(2, "faceoff")].pos_short, 0)  # faceoffs never positioned
+
+    def test_hit_anchor_none_without_census_frame(self):
+        comp = {(c.period, c.event_type): c for c in
+                rat.build_completeness({2: [{"event_type": "hit"}]}, {2: []}, {}, [])}
+        self.assertIsNone(comp[(2, "hit")].anchor)
+        self.assertEqual(comp[(2, "hit")].anchor_source, "none")
+        self.assertEqual(comp[(2, "hit")].short, 0)
+
+
 # ─── binding engine ────────────────────────────────────────────────────────
 
 
