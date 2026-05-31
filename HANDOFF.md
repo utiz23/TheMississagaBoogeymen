@@ -2,7 +2,25 @@
 
 ## To-Do
 
-**Status (2026-05-31 — latest):** **Two PRs SHIPPED to `main`** via rebase-merge: PR #2 (RapidOCR GPU fix, 3 commits) and PR #1 (Visual Prefilter Phases 1–3, 5 commits). 8 new commits sit above the prior Phase 4 Part B head (`744fc99`). `origin/main` tip is `71e73e0`. Both feature branches deleted (remote + local). Plan file at `~/.claude/plans/swirling-humming-moore.md`.
+**Status (2026-05-31 — latest):** **Match-250 ground-truth A/B audit → OCR goal-parser fix SHIPPED to `main`.** `origin/main` tip is `fee567d`. Triggered by running `tools/game_ocr/scripts/benchmark_side_by_side.py --match-id 250`.
+
+**What shipped:**
+- **PR #3 merged** (`fc0408a`, merge `8a51e90`) — `fix(ocr): harden goal-number bracket parsing against OCR corruption`. Root cause: `_EVENT_GOAL_RE` in `tools/game_ocr/game_ocr/parsers.py` only matched a single well-formed goal-number ornament bracket. Two OCR corruptions broke scorer extraction on match 250's Events screen: `[(1)` (doubled opening bracket → stray `[` glued to scorer, e.g. `Silky [`) and `(1l` (closing `)` misread as `l` → regex falls through, whole ornament glued + goal number lost, e.g. `S. Zubov (1l` with null goal#). Fix: opening bracket may repeat (`[\[\(]+`), closing tolerates `l` (`[\]\)l]`) — mirrors the existing penalty regex's `l?` tolerance. 2 regression tests added; full parser suite 68/68 green.
+- **Match-250 existing rows corrected** (surgical DB update, NOT repromote): `match_goal_events` event 236 `Silky [`→`Silky`; event 231 `S. Zubov (1l`→`S. Zubov` + `goal_number_in_game` null→1. Chose surgical over `repromote-ocr --screen post_game_events` because repromote would re-OCR (impossible — source frames gone) and risk a duplicate-insert (reparsed actor `Silky` is Levenshtein-2 from stored `Silky [`, breaking the dedup match). Player attribution was already correct (Silky=player_id 2; Zubov is opponent, null expected) — only the display string was garbled.
+- **Benchmark baseline now version-controlled** (`fee567d`): narrowed `.gitignore` rule 71 from `research/OCR-SS/` to `research/OCR-SS/*` + `!research/OCR-SS/*.md` so the ~169 MB media stays ignored but the 3 markdown ground-truth docs are tracked. They were the canonical regression baseline yet un-versioned. The V2 benchmark also gained the 3 real P2 Action Tracker events past 17:39 (see Finding 2).
+
+**Findings:**
+- **Finding 1 (real bug, fixed):** the goal-bracket corruption above.
+- **Finding 2 (not a bug):** the 3 P2 Action Tracker "extras" the A/B flagged (`18:06` hit Magroyne→Hutson, `19:43` hit Toews→Wanhg, `19:59` faceoff Wanhg/Toews) are **real events** — the manual V2 benchmark's P2 list simply stopped at 17:39. Each corroborated across 6–18 frames at ≥0.90; frame 9445 carries period label `2ND PERIOD` so the assignment is sound. Reconciled into the V2 doc with a provenance note.
+- **Lesson:** Action Tracker clocks are per-period elapsed, so the *same* elapsed time recurs every period. A clock-only cross-check falsely flagged ~7 "dropped" events that were really correctly-assigned P3/P4 events. Always partition by period.
+
+**Verification:** `benchmark_vs_truth.py --match-id 250` → Box Score 24/24, Goals 7/7, Action Tracker 95/95 — **100% across the board.**
+
+**Open (blocked — cannot resolve):** the canonical match-250 source video `2026-05-08_18-25-42.mkv` is **gone** (not on K: root/subdirs/recycle bin as of 2026-05-31; original `/tmp` ingest frames also cleaned). So two match-250 items can't be arbitrated against ground-truth footage: (1) `17:39` P2 hit receiver — OCR consensus says **H. Jenkins**, hand-key says E. Wanhg; (2) `19:43` P2 hit has no spatial placement (coords `15.00,0.00`). Memory `reference_test_video` updated to flag the video as gone. If the user re-records, capture a fresh canonical video.
+
+---
+
+**Status (2026-05-31 — prior session):** **Two PRs SHIPPED to `main`** via rebase-merge: PR #2 (RapidOCR GPU fix, 3 commits) and PR #1 (Visual Prefilter Phases 1–3, 5 commits). 8 new commits sit above the prior Phase 4 Part B head (`744fc99`). `origin/main` tip is `71e73e0`. Both feature branches deleted (remote + local). Plan file at `~/.claude/plans/swirling-humming-moore.md`.
 
 **Headline outcomes on `main`:**
 - **Pass-1 wall ~2.15× faster** on the 187 MB fixture (1183 s → 549 s) — GPU acceleration genuinely engaged for the first time
