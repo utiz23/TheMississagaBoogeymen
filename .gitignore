@@ -67,8 +67,12 @@ research/**/*.har
 research/**/*_files/
 research/Previous_NHL_Stats/
 
-# OCR source screenshots — large binary capture set, kept on disk only
-research/OCR-SS/
+# OCR source screenshots — large binary capture set, kept on disk only.
+# Exception: the small markdown ground-truth / benchmark files are the
+# canonical regression baseline (read by tools/game_ocr benchmark scripts),
+# so they are version-controlled; only the media subdirs stay ignored.
+research/OCR-SS/*
+!research/OCR-SS/*.md
 
 # CVAT labeling workspace — multi-hundred-MB local annotation data
 cvat/
