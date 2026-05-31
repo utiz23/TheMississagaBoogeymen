@@ -2,7 +2,21 @@
 
 ## To-Do
 
-**Status (2026-05-31 — latest):** **Match-250 ground-truth A/B audit → OCR goal-parser fix SHIPPED to `main`.** `origin/main` tip is `fee567d`. Triggered by running `tools/game_ocr/scripts/benchmark_side_by_side.py --match-id 250`.
+**Status (2026-05-31 — latest):** **Action Tracker reconciliation post-pass built — PR #4 OPEN (not merged).** Branch `feat/ocr-action-tracker-reconcile` (commit `fb0ab35`), pushed. Generalizes the one-off 19:43 position fix into a re-runnable system.
+
+**What it is:** `tools/game_ocr/scripts/reconcile_action_tracker.py` — period-level reconciliation that recovers missing event **positions** the per-frame pass (`inventory_consensus_match`) can't, because a scrolled-too-fast event's card and rink marker are never co-visible. Pure matching core + thin stdin(`{extractions, match_events}`)/stdout(SQL) shell, reusing `inventory_consensus_match` clustering/voting/`pair_weight`. Per period: canonical event union (all frames) → census-frame (faceoff-selected, zero-yellow) hit anchor → Stage A pair_weight → orphan **prune** (drop re-detections co-located with positioned events) → Stage B 1:1 elimination by type+team → Stage C **yellow-salvage** (lone gap ↔ lone scroll-past yellow marker — the 19:43 mechanism).
+
+**Trust/safety:** all writes inferred → `position_confidence='extrapolated'`, `review_status` never changed; guarded UPDATE (`x IS NULL AND position_confidence IS DISTINCT FROM 'manual'`) never clobbers positioned/manual rows. **v1 UPDATE-only** (no INSERT of new identities; true row-gaps report-only — authoritative dedup stays in the TS promoter).
+
+**Validation:** 18 pure unit tests (`tests/test_reconcile_action_tracker.py`); full game_ocr suite green except the **pre-existing unrelated** `test_diagnose_segments` failure (video_ingest `_iter_raw_bgr_frames` rename — not ours). End-to-end: **ingested the 19:43 clarifying frame as batch 3664** (manual_screenshots; scroll-past, yellow marker at `10.08,-6.81`; promoter `dedup_refreshed=6, inserted=0`), then live-DB reconcile with id288 nulled in-query re-derives the video-verified position via yellow-salvage; on live state it's a no-op (idempotent, no-clobber). `id288` remains `10.08,-6.81 interpolated` (untouched).
+
+**Design history (for the next session):** approved plan was census/non-yellow-elimination + report-only-INSERT. Code review + real data forced three corrections, all applied: (1) trust — census/pair_weight matches are inferences, not "direct"/reviewed; (2) deps — feed `match_events` via stdin, don't import the psql-shelling `get_match_events`; (3) INSERT dropped from v1. Then real data exposed that 288's marker is **yellow-only** (never a non-yellow cluster) and its clarifying frame wasn't ingested → added yellow-salvage + orphan-prune + the frame ingest. Spec: `~/.claude/plans/proceed-with-planning-approach-quiet-hammock.md`.
+
+**What's next:** review/merge **PR #4**. Then (deferred) wire reconciliation into live ingest; consider the INSERT-missing-identities path **only** via the TS promoter; backfill is the future general-match payoff (match 250 is hand-curated so it barely exercises recovery).
+
+---
+
+**Status (2026-05-31 — earlier today):** **Match-250 ground-truth A/B audit → OCR goal-parser fix SHIPPED to `main`.** `origin/main` tip is `fee567d`. Triggered by running `tools/game_ocr/scripts/benchmark_side_by_side.py --match-id 250`.
 
 **What shipped:**
 - **PR #3 merged** (`fc0408a`, merge `8a51e90`) — `fix(ocr): harden goal-number bracket parsing against OCR corruption`. Root cause: `_EVENT_GOAL_RE` in `tools/game_ocr/game_ocr/parsers.py` only matched a single well-formed goal-number ornament bracket. Two OCR corruptions broke scorer extraction on match 250's Events screen: `[(1)` (doubled opening bracket → stray `[` glued to scorer, e.g. `Silky [`) and `(1l` (closing `)` misread as `l` → regex falls through, whole ornament glued + goal number lost, e.g. `S. Zubov (1l` with null goal#). Fix: opening bracket may repeat (`[\[\(]+`), closing tolerates `l` (`[\]\)l]`) — mirrors the existing penalty regex's `l?` tolerance. 2 regression tests added; full parser suite 68/68 green.
