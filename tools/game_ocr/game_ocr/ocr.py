@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import ctypes
+import importlib.util
 import sys
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Protocol
 
 import numpy as np
@@ -24,6 +26,21 @@ _REQUIRED_CUDA_LIBS: tuple[str, ...] = (
 )
 
 
+# Dependency-safe order for preloading the pip-installed nvidia-*-cu12
+# wheels. cuda_runtime + nvjitlink ship symbols cublas/cufft/etc. depend
+# on; cudnn loads last because its sub-libraries chain through cublas.
+_NVIDIA_PRELOAD_ORDER: tuple[str, ...] = (
+    "cuda_runtime",
+    "nvjitlink",
+    "cublas",
+    "cufft",
+    "curand",
+    "cusolver",
+    "cusparse",
+    "cudnn",
+)
+
+
 def _probe_cuda_runtime() -> list[str]:
     """Return the subset of _REQUIRED_CUDA_LIBS that failed to dlopen."""
     missing: list[str] = []
@@ -33,6 +50,41 @@ def _probe_cuda_runtime() -> list[str]:
         except OSError:
             missing.append(name)
     return missing
+
+
+def _preload_nvidia_cu12_libs() -> bool:
+    """Best-effort dlopen of nvidia-*-cu12 pip-installed shared libs so
+    onnxruntime's CUDAExecutionProvider can find them via the process
+    dynamic symbol table without LD_LIBRARY_PATH.
+
+    Returns True iff after preload every entry in _REQUIRED_CUDA_LIBS is
+    loadable via the plain `ctypes.CDLL(name)` path the bare ld.so lookup
+    uses. False when the nvidia/ namespace package isn't installed (the
+    apt-installed CUDA case — libs are already on ld.so path) or any
+    required lib remains missing.
+
+    Pip wheels under `site-packages/nvidia/<lib>/lib/` are not on ld.so's
+    search path by default; without this preload, RapidOCR silently falls
+    back to CPU even though all the libraries are present on disk."""
+    try:
+        spec = importlib.util.find_spec("nvidia")
+    except (ImportError, ValueError):
+        return False
+    if spec is None or not spec.submodule_search_locations:
+        return False
+    nvidia_root = Path(next(iter(spec.submodule_search_locations)))
+    for sub in _NVIDIA_PRELOAD_ORDER:
+        lib_dir = nvidia_root / sub / "lib"
+        if not lib_dir.is_dir():
+            continue
+        for so in sorted(lib_dir.glob("*.so.*")):
+            try:
+                ctypes.CDLL(str(so), mode=ctypes.RTLD_GLOBAL)
+            except OSError:
+                # Best-effort: one missing lib doesn't doom the rest, and
+                # _probe_cuda_runtime() below surfaces the real verdict.
+                pass
+    return not _probe_cuda_runtime()
 
 
 @dataclass
@@ -67,27 +119,32 @@ class RapidOCRBackend:
         if use_gpu:
             # Defensive check: onnxruntime-gpu silently falls back to
             # CPUExecutionProvider when CUDAExecutionProvider's runtime libs
-            # are missing (e.g., the WSL2 default lacks libcublasLt.so.12 +
-            # cuDNN 9). The fallback warning goes to stderr at session-
-            # construction time inside RapidOCR and is easy to miss in the
-            # firehose of a long-running ingest run — Pass-1 ends up taking
-            # 5-10x longer than expected with no obvious cause.  Probe the
-            # required CUDA 12 runtime libraries up front; print a single,
-            # high-visibility line to stderr listing what's missing so the
-            # operator can fix it. We do NOT raise — preserving the silent-
-            # fallback behaviour is important for environments that
-            # legitimately don't have GPU and pass use_gpu=True out of
-            # convenience.
+            # are missing OR not on ld.so's search path. The fallback warning
+            # goes to stderr at session-construction time inside RapidOCR
+            # and is easy to miss in the firehose of a long-running ingest —
+            # Pass-1 ends up taking 5-10x longer than expected with no
+            # obvious cause.
+            #
+            # Common case on this project's WSL2 hosts: the pip wheels
+            # (nvidia-cublas-cu12, nvidia-cudnn-cu12, etc., dragged in by
+            # `onnxruntime-gpu`) install the .so files under
+            # `site-packages/nvidia/<lib>/lib/` but don't register that
+            # directory with the dynamic linker. _preload_nvidia_cu12_libs()
+            # dlopens each via ctypes with RTLD_GLOBAL so the symbols land
+            # in the process address space before RapidOCR initialises
+            # its CUDAExecutionProvider session.
+            _preload_nvidia_cu12_libs()
             missing = _probe_cuda_runtime()
             if missing:
                 print(
                     "[ocr] WARN: use_gpu=True but CUDA runtime libraries "
                     f"unavailable ({', '.join(missing)}). RapidOCR will "
                     "silently fall back to CPU inference — Pass-1 will run "
-                    "5-10x slower than the GPU baseline. Fix: install CUDA "
-                    "12.* toolkit + cuDNN 9.* matching the onnxruntime-gpu "
-                    "wheel (on WSL2: the cuda-keyring + cuda-toolkit-12-* "
-                    "apt repo; cuDNN 9 via the same NVIDIA repo).",
+                    "5-10x slower than the GPU baseline. Fix: install the "
+                    "pip wheels matching onnxruntime-gpu's CUDA 12 / cuDNN "
+                    "9 requirement (e.g. `pip install nvidia-cudnn-cu12 "
+                    "nvidia-cublas-cu12`) or apt-install cuda-toolkit-12-* "
+                    "+ cuDNN 9 via the NVIDIA WSL repo.",
                     file=sys.stderr,
                     flush=True,
                 )
