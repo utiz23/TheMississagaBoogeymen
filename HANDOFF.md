@@ -2,7 +2,7 @@
 
 ## To-Do
 
-**Status (2026-05-31 — latest):** **Action Tracker reconciliation post-pass SHIPPED — PR #4 MERGED to `main`** (merge `078a481`; 5 commits incl. completeness anchors + OCR-variant dedup fix; branch deleted). `origin/main` tip is `078a481`. Generalizes the one-off 19:43 position fix into a re-runnable system.
+**Status (2026-05-31 — latest):** **Action Tracker reconciliation post-pass SHIPPED — PR #4 MERGED to `main`** (merge `078a481`; 5 commits incl. completeness anchors + OCR-variant dedup fix; branch deleted). Generalizes the one-off 19:43 position fix into a re-runnable system.
 
 **What it is:** `tools/game_ocr/scripts/reconcile_action_tracker.py` — period-level reconciliation that recovers missing event **positions** the per-frame pass (`inventory_consensus_match`) can't, because a scrolled-too-fast event's card and rink marker are never co-visible. Pure matching core + thin stdin(`{extractions, match_events}`)/stdout(SQL) shell, reusing `inventory_consensus_match` clustering/voting/`pair_weight`. Per period: canonical event union (all frames) → census-frame (faceoff-selected, zero-yellow) hit anchor → Stage A pair_weight → orphan **prune** (drop re-detections co-located with positioned events) → Stage B 1:1 elimination by type+team → Stage C **yellow-salvage** (lone gap ↔ lone scroll-past yellow marker — the 19:43 mechanism).
 
