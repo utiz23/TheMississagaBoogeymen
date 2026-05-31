@@ -260,6 +260,61 @@ class TestLegacyPathSidecar(unittest.TestCase):
             self.assertGreaterEqual(results[0].prefilter_selection_ms, 0.0)
             self.assertEqual(results[0].frame_count, 3)
 
+    def test_manifest_cache_key_includes_prefilter_fingerprint(self) -> None:
+        """Regression: a real-video A/B with --no-prefilter vs --prefilter
+        was producing identical manifest cache_keys because
+        `extract_segments` re-computed `compute_pass2_cache_key` without
+        threading the `prefilter` kwarg through to `write_pass2_manifest`.
+        That would trip CacheMismatch on every subsequent run after enabling
+        the feature.
+
+        This test runs `extract_segments` twice with the same Pass2Config
+        and same output dirs, once with prefilter=None and once with
+        prefilter enabled, then asserts the manifests' cache_keys differ.
+        Locks the orchestrator/extract_segments cache-key parity contract.
+        """
+        # Use different pass2_roots so neither run sees the other's PNGs.
+        cfg = Pass2Config(
+            window_padding_seconds=0.0,
+            sample_rates={"post_game_box_score_goals": 1.0},
+            extract_screens={"post_game_box_score_goals"},
+            artifact_mode=True,
+        )
+        prefilter_on = VisualPrefilterPass2Config(
+            enabled=True,
+            frame_budget={"post_game_box_score_goals": 5},
+            dedup_dhash_distance={"post_game_box_score_goals": 4},
+        )
+
+        def _run(prefilter, root_name) -> str:
+            with tempfile.TemporaryDirectory() as tmp:
+                pass2_root = Path(tmp) / root_name
+                extract_segments(
+                    video_path=Path("/fake/video.mkv"),
+                    segments=[_make_segment("post_game_box_score_goals")],
+                    config=cfg,
+                    pass2_root=pass2_root,
+                    video_duration_seconds=30.0,
+                    version="nhl26",
+                    segments_hash="sha256:test",
+                    prefilter=prefilter,
+                )
+                manifest = json.loads(
+                    (pass2_root.parent / PASS2_MANIFEST_FILENAME).read_text()
+                )
+                return manifest["pass2_cache_key"]
+
+        key_off = _run(prefilter=None, root_name="off")
+        key_on = _run(prefilter=prefilter_on, root_name="on")
+        self.assertNotEqual(
+            key_off,
+            key_on,
+            "extract_segments must thread the `prefilter` kwarg into "
+            "write_pass2_manifest's compute_pass2_cache_key call; otherwise "
+            "an enabled-prefilter run writes a stale prefilter=off cache_key "
+            "and any subsequent run will CacheMismatch on its own manifest.",
+        )
+
     def test_legacy_manifest_carries_prefilter_fields(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             pass2_root = Path(tmp) / "pass2"
