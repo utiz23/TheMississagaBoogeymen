@@ -1938,7 +1938,12 @@ _EVENT_GOAL_RE = re.compile(
     rf"^\s*"
     rf"(?P<clock>{_CLOCK_PATTERN})\s+"
     r"(?P<scorer>.+?)\s*"
-    r"[\[\(](?P<goal_num>\d+)[\]\)]\s*"
+    # Goal-number ornament. OCR corrupts the brackets in two ways seen in the
+    # wild (match 250): a doubled/stray opening bracket "[(1)" and a closing
+    # ')' misread as the letter 'l' ("(1l"). Allow the opener to repeat so the
+    # stray bracket is consumed (not glued to the scorer), and accept 'l' as a
+    # closing-bracket variant — mirroring the penalty regex's `l?` tolerance.
+    r"[\[\(]+(?P<goal_num>\d+)[\]\)l]\s*"
     r"[\[\(](?P<assists>.+?)[\]\)]\s*$",
     re.IGNORECASE,
 )

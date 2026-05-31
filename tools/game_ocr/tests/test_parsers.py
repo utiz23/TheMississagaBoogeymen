@@ -14,6 +14,7 @@ from game_ocr.parsers import (
     _net_chart_period_number,
     _net_chart_row_key,
     _normalize_period_label,
+    _parse_event_line,
     _parse_faceoff_dot,
     _parse_net_chart_digit,
     field_from_lines,
@@ -975,6 +976,27 @@ class EventsParserTests(unittest.TestCase):
         self.assertEqual(ev.clock.value, "12:34")
         self.assertEqual(ev.infraction.value, "Tripping")
         self.assertEqual(ev.penalty_type.value, "Minor")
+
+    def test_goal_doubled_opening_bracket_drops_stray_bracket(self) -> None:
+        # OCR misreads the "(1)" goal-number ornament as "[(1)", which glues a
+        # stray '[' onto the scorer. Regression from match 250 (Silky goal).
+        ev = _parse_event_line(
+            "06:19 -. Silky [(1) (E. Wanhg)", 0.95, "BM", 0.99, "2ND", 2
+        )
+        self.assertEqual(ev.event_type, "goal")
+        self.assertEqual(ev.actor_snapshot.value, "Silky")
+        self.assertEqual(ev.goal_number_in_game.value, 1)
+
+    def test_goal_paren_close_misread_as_l_recovers_number(self) -> None:
+        # OCR misreads the closing ')' of "(1)" as the letter 'l' → "(1l", so
+        # the whole ornament was gluing onto the scorer and the goal number was
+        # lost. Regression from match 250 (S. Zubov goal).
+        ev = _parse_event_line(
+            "19:08 S. Zubov (1l (-. Whoosah)", 0.95, "4TH", 0.99, "3RD", 3
+        )
+        self.assertEqual(ev.event_type, "goal")
+        self.assertEqual(ev.actor_snapshot.value, "S. Zubov")
+        self.assertEqual(ev.goal_number_in_game.value, 1)
 
     def test_unknown_row_without_clock_surfaces_missing_clock(self) -> None:
         # A row that doesn't match goal/penalty regexes and has no clock
