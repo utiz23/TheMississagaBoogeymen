@@ -693,23 +693,23 @@ No data collected.
 | Faceoff    | 1340                                 | 2nd          | E. Wanhg                           | -, Toews                         |                              |
 | Goal       | 1341                                 | 2nd          | -, Silky                           | M. Lehmann                       |                              |
 | Hit        | 1343                                 | 2nd          | -, Toews                           | E. Wanhg                         |                              |
-| Hit        | 1739                                 | 2nd          | -, Toews                           | E. Wanhg                         |                              |
+| Hit        | 1739                                 | 2nd          | -, Toews                           | H. Jenkins                       |                              |
 | Hit        | 1806                                 | 2nd          | P. Magroyne                        | L. Hutson                        |                              |
 | Hit        | 1943                                 | 2nd          | -, Toews                           | E. Wanhg                         |                              |
 | Faceoff    | 1959                                 | 2nd          | E. Wanhg                           | -, Toews                         |                              |
 
 > **Note (2026-05-31):** The original hand transcription of the 2nd-period
-> Action Tracker stopped at 17:39. The three rows above (18:06, 19:43, 19:59)
-> were reconciled from multi-frame OCR consensus (each corroborated across
-> 6–18 independent post-game Action Tracker frames at ≥0.90 confidence) — they
-> are **not** independently hand-keyed. The canonical match-250 source video
-> (`2026-05-08_18-25-42.mkv`) is no longer on disk (deleted from K:, not in
-> the recycle bin as of 2026-05-31), so independent re-keying from the game UI
-> is **no longer possible** — these rows rest on multi-frame OCR consensus.
-> Two discrepancies remain unresolved for the same reason: (1) OCR reads the
-> 17:39 hit receiver as **H. Jenkins**, not E. Wanhg as hand-keyed; (2) the
-> 19:43 hit is not spatially placed (no orange-marker coordinate was
-> recovered).
+> Action Tracker stopped at 17:39. The post-17:39 rows (18:06, 19:43, 19:59)
+> were added — and the 17:39 receiver corrected — after **verification against
+> the canonical source video** (`K:\NHL\NHL26\match 250\2026-05-08_18-25-42.mkv`,
+> sha256 `a55b2ebf…f6088`), whose 2nd-period Action Tracker screen (video
+> t≈1856–1877 s) shows these events directly. Two resolved discrepancies:
+> (1) the hand-keyed 17:39 receiver was **E. Wanhg**, but the video shows
+> **H. Jenkins** (matching OCR and DB row id267) — corrected above; the manual
+> entry had conflated the 17:39 Toews→Jenkins hit with the separate 19:43
+> Toews→Wanhg hit. (2) The 19:43 hit is confirmed real but is not spatially
+> placed in the DB (coordinates default to 15.00, 0.00 — re-spatialization
+> still pending; event existence/attribution is correct).
 
 ---
 
