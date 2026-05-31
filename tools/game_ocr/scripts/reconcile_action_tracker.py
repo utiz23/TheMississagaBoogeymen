@@ -130,6 +130,32 @@ def normalize_actor(raw: str | None) -> str:
     return re.sub(r"[^a-z0-9]", "", raw.lower())
 
 
+def _edit_distance_le1(a: str, b: str) -> bool:
+    """True if `a` and `b` are within edit distance 1 (sub/insert/delete).
+    Used to collapse OCR letter-variant actors (e.g. WILDE vs WILOE), mirroring
+    the TS promoter's Levenshtein-1 dedup."""
+    if a == b:
+        return True
+    la, lb = len(a), len(b)
+    if abs(la - lb) > 1:
+        return False
+    if la == lb:  # one substitution
+        return sum(1 for x, y in zip(a, b) if x != y) == 1
+    if la > lb:   # ensure `a` is the shorter
+        a, b = b, a
+    i = j = diff = 0
+    while i < len(a) and j < len(b):
+        if a[i] == b[j]:
+            i += 1
+            j += 1
+        else:
+            diff += 1
+            if diff > 1:
+                return False
+            j += 1  # skip the extra char in the longer string
+    return True
+
+
 _COLOR_TO_SIDE = {"red": "for", "white": "against"}
 
 # Orphan markers within this many hockey-units of an already-positioned event
@@ -215,9 +241,10 @@ def census_marker_counts(raw: dict) -> dict[tuple[str, str], int]:
 
 def build_canonical_events(extractions: list[dict]) -> dict[int, list[dict]]:
     """Union ALL event cards across every frame (selected and non-selected),
-    dedup by (period, event_type, normalized clock, normalized actor). Returns
-    per-period lists sorted by clock (earliest-in-real-time first)."""
-    seen: set[tuple] = set()
+    dedup by (period, event_type, normalized clock) with actors collapsed at
+    edit-distance 1 so OCR letter-variants (e.g. WILDE vs WILOE) don't inflate
+    the count. Returns per-period lists sorted by clock (earliest first)."""
+    seen_actors: dict[tuple, list[str]] = {}
     by_period: dict[int, list[dict]] = {}
     for row in extractions:
         raw = row.get("raw_result_json", {}) or {}
@@ -228,10 +255,12 @@ def build_canonical_events(extractions: list[dict]) -> dict[int, list[dict]]:
             actor = field_value(e.get("actor_snapshot"))
             if not et or et == "unknown" or not isinstance(period, int) or period < 1:
                 continue
-            key = (period, et, normalize_clock(clock), normalize_actor(actor))
-            if key in seen:
+            bkey = (period, et, normalize_clock(clock))
+            na = normalize_actor(actor)
+            bucket = seen_actors.setdefault(bkey, [])
+            if any(_edit_distance_le1(na, s) for s in bucket):
                 continue
-            seen.add(key)
+            bucket.append(na)
             by_period.setdefault(period, []).append(
                 {"event_type": et, "clock": clock, "actor": actor, "period": period}
             )

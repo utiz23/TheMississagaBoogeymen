@@ -117,6 +117,23 @@ class CanonicalEventTests(unittest.TestCase):
         )
         self.assertEqual(len(canon[2]), 3)  # no duplicate of 17:39
 
+    def test_canonical_collapses_ocr_letter_variant_actors(self):
+        # WILDE vs WILOE at the same (period, type, clock) is ONE shot — an
+        # OCR D->O misread, not two events. Mirrors the promoter's Levenshtein-1.
+        f1 = _frame(1, 2, [_event("shot", "1:46", "WILDE", 2)], 0, [])
+        f2 = _frame(2, 2, [_event("shot", "1:46", "WILOE", 2)], 0, [])
+        canon = rat.build_canonical_events([f1, f2])
+        shots = [e for e in canon[2] if e["event_type"] == "shot"]
+        self.assertEqual(len(shots), 1)
+
+    def test_canonical_keeps_distinct_actors_at_same_clock(self):
+        # Genuinely different shooters at the same clock are NOT merged
+        # (Levenshtein > 1).
+        f = _frame(1, 2, [_event("shot", "5:00", "SILKY", 2),
+                          _event("shot", "5:00", "TOEWS", 2)], 0, [])
+        canon = rat.build_canonical_events([f])
+        self.assertEqual(len([e for e in canon[2] if e["event_type"] == "shot"]), 2)
+
 
 # ─── census frame detection ────────────────────────────────────────────────
 
