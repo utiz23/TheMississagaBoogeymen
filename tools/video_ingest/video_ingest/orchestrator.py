@@ -41,6 +41,7 @@ from video_ingest.pass2_extract import (
     PASS2_MANIFEST_FILENAME,
     Pass2Config,
     Pass2Result,
+    VisualPrefilterPass2Config,
     compute_pass2_cache_key,
     extract_segments,
     load_pass2_manifest,
@@ -361,6 +362,7 @@ def ingest(
     dispatch_dry_run: bool = False,
     run_id: int | None = None,
     artifact_mode: bool | None = None,
+    prefilter_enabled: bool | None = None,
 ) -> IngestResult:
     """Run the two-pass pipeline.
 
@@ -381,6 +383,12 @@ def ingest(
                     YAML. When True/False the CLI flag takes precedence
                     over the config — the canonical entry point for
                     `--pass2-artifacts/--no-pass2-artifacts`.
+      prefilter_enabled: Visual Prefilter Phase 3 override for
+                    `visual_prefilter.pass2_enabled`. None (default) =
+                    use the version YAML; True/False = CLI override.
+                    Switching the effective state invalidates the Pass-2
+                    cache via the prefilter fingerprint in
+                    `compute_pass2_cache_key`.
     """
     if skip_pass1 and force_pass1:
         raise ValueError("skip_pass1 and force_pass1 are mutually exclusive")
@@ -457,6 +465,29 @@ def ingest(
         loadout_engine=str(vcfg["pass2"].get("loadout_engine", "legacy")),
         lobby_engine=str(vcfg["pass2"].get("lobby_engine", "legacy")),
         artifact_mode=p2cfg_artifact_mode,
+    )
+    # Visual Prefilter Phase 3: instantiate VisualPrefilterPass2Config from
+    # the YAML `visual_prefilter` block. CLI override > YAML > default False
+    # (same precedence as artifact_mode). Pass2 selection only runs when
+    # enabled AND the segment's screen_type has a configured frame_budget.
+    vp_raw = vcfg.get("visual_prefilter") or {}
+    vp_pass2_raw = vp_raw.get("pass2") or {}
+    yaml_prefilter_enabled = bool(vp_raw.get("pass2_enabled", False))
+    effective_prefilter_enabled = (
+        prefilter_enabled
+        if prefilter_enabled is not None
+        else yaml_prefilter_enabled
+    )
+    prefilter_cfg = VisualPrefilterPass2Config(
+        enabled=effective_prefilter_enabled,
+        frame_budget={
+            str(k): int(v)
+            for k, v in (vp_pass2_raw.get("frame_budget") or {}).items()
+        },
+        dedup_dhash_distance={
+            str(k): int(v)
+            for k, v in (vp_pass2_raw.get("dedup_dhash_distance") or {}).items()
+        },
     )
 
     # 3. Pass 1 (cached). Cache key = sha256(version_yaml + classifier_yaml).
@@ -574,7 +605,9 @@ def ingest(
     if skip_pass2:
         print(f"[pass2] skipped (skip_pass2=True)", file=sys.stderr)
     else:
-        pass2_cache_key = compute_pass2_cache_key(version, p2cfg.artifact_mode)
+        pass2_cache_key = compute_pass2_cache_key(
+            version, p2cfg.artifact_mode, prefilter=prefilter_cfg,
+        )
         segments_hash = compute_segments_hash(segments_json)
         t0 = time.perf_counter()
         if force_pass2 and pass2_root.exists():
@@ -651,6 +684,7 @@ def ingest(
                 video_duration_seconds=probe.duration_seconds,
                 version=version,
                 segments_hash=segments_hash,
+                prefilter=prefilter_cfg,
             )
         elapsed_pass2 = time.perf_counter() - t0
         total_frames = sum(r.frame_count for r in pass2_results)

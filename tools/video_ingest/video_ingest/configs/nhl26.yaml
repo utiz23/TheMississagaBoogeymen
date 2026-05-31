@@ -84,6 +84,37 @@ pass2:
     # frame.  See docs/calibration/phase-2b-parallel-diff-2026-05-21.md.
     player_loadout_view: 3
 
+# Visual Prefilter Phase 3 — per-segment Pass-2 frame selection.
+# Default `pass2_enabled: false` so this YAML ships byte-for-byte
+# compatible with pre-Phase-3 behaviour. Flip to true (or pass
+# `--prefilter` on the CLI) to opt in. Each segment whose screen_type
+# is keyed in `pass2.frame_budget` runs `compute_visual_signals` +
+# `select_frames`: near-duplicate frames are dropped via dHash and the
+# survivor count is uniformly downsampled to the per-screen budget.
+# Screens absent from `frame_budget` are untouched (no filtering).
+# Switching the effective state (CLI > YAML) invalidates the pass2
+# cache via the prefilter fingerprint in `compute_pass2_cache_key`.
+visual_prefilter:
+  pass2_enabled: false
+  pass2:
+    # Starter caps — conservative; tune during enabled-mode verification.
+    # Action-tracker keeps the largest budget because it's the densest
+    # (5 fps) screen and carries the most per-frame event-map detail.
+    frame_budget:
+      post_game_action_tracker: 8
+      post_game_box_score_goals: 2
+      post_game_box_score_shots: 2
+      post_game_box_score_faceoffs: 2
+      post_game_events: 4
+      post_game_faceoff_map: 3
+      post_game_net_chart: 3
+      post_game_player_summary: 3
+      pre_game_lobby_state_2: 4
+      player_loadout_view: 6
+    # dedup_dhash_distance: per-screen Hamming-distance threshold for
+    # the dHash near-duplicate check. Absent screens default to 8.
+    dedup_dhash_distance: {}
+
 # Screen types we DO extract in Pass-2. Anything else (unknown_screen,
 # pre_game_lobby_state_1, in_game_*, etc.) is logged + skipped.
 # Phase 1: post_game_box_score_{shots,faceoffs} added now that the HMM
