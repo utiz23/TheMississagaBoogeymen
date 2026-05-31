@@ -16,7 +16,11 @@
 
 **Verification:** `benchmark_vs_truth.py --match-id 250` → Box Score 24/24, Goals 7/7, Action Tracker 95/95 — **100% across the board.**
 
-**Open (blocked — cannot resolve):** the canonical match-250 source video `2026-05-08_18-25-42.mkv` is **gone** (not on K: root/subdirs/recycle bin as of 2026-05-31; original `/tmp` ingest frames also cleaned). So two match-250 items can't be arbitrated against ground-truth footage: (1) `17:39` P2 hit receiver — OCR consensus says **H. Jenkins**, hand-key says E. Wanhg; (2) `19:43` P2 hit has no spatial placement (coords `15.00,0.00`). Memory `reference_test_video` updated to flag the video as gone. If the user re-records, capture a fresh canonical video.
+**Video spot-check — DONE (both items resolved against ground truth):** the canonical match-250 source video was located at `K:\NHL\NHL26\match 250\2026-05-08_18-25-42.mkv` (sha256 `a55b2ebf…f6088` == the batch's `video_sha256` — definitive). Reference videos live under `K:\NHL\NHL26\`, each benchmark match in its own subfolder; K: root only holds recent unsorted captures (an earlier root-only check wrongly concluded the video was deleted). Extracted the 2nd-period post-game Action Tracker screen via `ffmpeg -ss 1868` (segment time range from `ocr_capture_batches.notes`) and read it directly:
+- `17:39` P2 hit receiver is **H. Jenkins** — OCR/DB (row id267) were correct; the V2 benchmark hand-key wrongly had E. Wanhg. **Corrected the doc** (commit `9731271`). The manual entry had conflated the 17:39 Toews→Jenkins hit with the separate 19:43 Toews→Wanhg hit.
+- `19:43` Toews→Wanhg hit is a **real, distinct event** (confirmed on screen). Still spatially unplaced in DB (coords default `15.00,0.00`) — re-spatialization is the only remaining (optional) follow-up; existence/attribution are correct.
+
+Memory `reference_test_video` updated with the NHL26 folder structure + the video-time-range→ffmpeg verification method.
 
 ---
 
