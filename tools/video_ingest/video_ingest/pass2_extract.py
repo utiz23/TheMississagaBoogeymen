@@ -457,7 +457,13 @@ def extract_segments(
         pass2_root.parent / PASS2_MANIFEST_FILENAME,
         out,
         version=version,
-        cache_key=compute_pass2_cache_key(version, config.artifact_mode),
+        # Must pass `prefilter` through so the manifest's cache_key matches
+        # what the orchestrator computes on the next run; otherwise an
+        # enabled-prefilter run writes a "prefilter=off" cache_key and any
+        # subsequent run trips CacheMismatch.
+        cache_key=compute_pass2_cache_key(
+            version, config.artifact_mode, prefilter=prefilter,
+        ),
         segments_hash=segments_hash,
         artifact_mode=config.artifact_mode,
     )
