@@ -76,6 +76,18 @@ def ingest(
             "the pass2 cache for this video."
         ),
     ),
+    prefilter: bool | None = typer.Option(
+        None,
+        "--prefilter/--no-prefilter",
+        help=(
+            "Visual Prefilter Phase 3: when enabled, per-segment Pass-2 "
+            "frame selection drops near-duplicates (dHash) and caps each "
+            "screen to its configured frame_budget before OCR. Default "
+            "(omitted) = use the version YAML's `visual_prefilter.pass2_enabled` "
+            "(currently false). Switching the effective state invalidates "
+            "the pass2 cache for this video."
+        ),
+    ),
 ) -> None:
     """Run the full pipeline against a single video file. With
     `--dispatch`, fans out to the worker's ingest-ocr-cli to write
@@ -93,6 +105,7 @@ def ingest(
         dispatch_dry_run=dispatch_dry_run,
         run_id=run_id,
         artifact_mode=pass2_artifacts,
+        prefilter_enabled=prefilter,
     )
     typer.echo(f"\nsha:    {res.probe.sha256}")
     typer.echo(f"root:   {res.sha_root}")
@@ -153,6 +166,15 @@ def extract_only(
             "the pass2 cache for this video."
         ),
     ),
+    prefilter: bool | None = typer.Option(
+        None,
+        "--prefilter/--no-prefilter",
+        help=(
+            "Visual Prefilter Phase 3 override. Default (omitted) defers to "
+            "the version YAML's `visual_prefilter.pass2_enabled`. Switching "
+            "the effective state invalidates the pass2 cache."
+        ),
+    ),
 ) -> None:
     """Pass 2 only. Requires a valid cached segments.json — fails fast with
     a clear remediation otherwise. Respects the Pass 2 cache; pass
@@ -165,6 +187,7 @@ def extract_only(
         skip_pass1=True,
         force_pass2=force_pass2,
         artifact_mode=pass2_artifacts,
+        prefilter_enabled=prefilter,
     )
     total_frames = sum(r.frame_count for r in res.pass2_results)
     typer.echo(f"\nextracted {total_frames} frames across {len(res.pass2_results)} segments")

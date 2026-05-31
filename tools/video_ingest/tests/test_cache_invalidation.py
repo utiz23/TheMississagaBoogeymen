@@ -29,6 +29,7 @@ from video_ingest.pass2_extract import (
     PASS2_MANIFEST_FILENAME,
     Pass2Config,
     Pass2Result,
+    VisualPrefilterPass2Config,
     compute_pass2_cache_key,
     load_pass2_manifest,
     write_pass2_manifest,
@@ -128,6 +129,135 @@ class CacheKeyHelperTests(unittest.TestCase):
                 k_default = compute_pass2_cache_key("nhl26")
                 k_explicit_false = compute_pass2_cache_key("nhl26", artifact_mode=False)
         self.assertEqual(k_default, k_explicit_false)
+
+    # ---- Visual Prefilter Phase 3 -------------------------------------------
+
+    def test_pass2_cache_key_unchanged_when_prefilter_omitted_or_disabled(self) -> None:
+        """Flag-off safety: omitting the `prefilter` kwarg, passing None,
+        and passing a disabled config must all produce the same key, AND
+        that key must match the pre-Phase-3 (artifact_mode-only) hash so
+        existing caches survive."""
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_video = Path(tmp) / "video"
+            tmp_video.mkdir()
+            (tmp_video / "nhl26.yaml").write_text("a: 1\n")
+            with mock.patch.object(p2_module, "VIDEO_INGEST_CONFIGS_DIR", tmp_video):
+                k_omitted = compute_pass2_cache_key("nhl26", artifact_mode=False)
+                k_none = compute_pass2_cache_key(
+                    "nhl26", artifact_mode=False, prefilter=None,
+                )
+                k_disabled = compute_pass2_cache_key(
+                    "nhl26",
+                    artifact_mode=False,
+                    prefilter=VisualPrefilterPass2Config(
+                        enabled=False,
+                        frame_budget={"post_game_action_tracker": 8},
+                    ),
+                )
+        self.assertEqual(k_omitted, k_none)
+        self.assertEqual(k_omitted, k_disabled)
+
+    def test_pass2_cache_key_flips_when_prefilter_enabled(self) -> None:
+        """Enabling the prefilter must invalidate cached Pass-2 output:
+        the on-disk artefacts now reflect a filtered subset, not the full
+        extract — silent reuse would yield wrong evidence."""
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_video = Path(tmp) / "video"
+            tmp_video.mkdir()
+            (tmp_video / "nhl26.yaml").write_text("a: 1\n")
+            with mock.patch.object(p2_module, "VIDEO_INGEST_CONFIGS_DIR", tmp_video):
+                k_off = compute_pass2_cache_key("nhl26", artifact_mode=False)
+                k_on = compute_pass2_cache_key(
+                    "nhl26",
+                    artifact_mode=False,
+                    prefilter=VisualPrefilterPass2Config(
+                        enabled=True,
+                        frame_budget={"post_game_action_tracker": 8},
+                    ),
+                )
+        self.assertNotEqual(k_off, k_on)
+
+    def test_pass2_cache_key_flips_when_frame_budget_changes(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_video = Path(tmp) / "video"
+            tmp_video.mkdir()
+            (tmp_video / "nhl26.yaml").write_text("a: 1\n")
+            with mock.patch.object(p2_module, "VIDEO_INGEST_CONFIGS_DIR", tmp_video):
+                k_a = compute_pass2_cache_key(
+                    "nhl26",
+                    artifact_mode=False,
+                    prefilter=VisualPrefilterPass2Config(
+                        enabled=True,
+                        frame_budget={"post_game_action_tracker": 8},
+                    ),
+                )
+                k_b = compute_pass2_cache_key(
+                    "nhl26",
+                    artifact_mode=False,
+                    prefilter=VisualPrefilterPass2Config(
+                        enabled=True,
+                        frame_budget={"post_game_action_tracker": 12},
+                    ),
+                )
+        self.assertNotEqual(k_a, k_b)
+
+    def test_pass2_cache_key_flips_when_dhash_distance_changes(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_video = Path(tmp) / "video"
+            tmp_video.mkdir()
+            (tmp_video / "nhl26.yaml").write_text("a: 1\n")
+            with mock.patch.object(p2_module, "VIDEO_INGEST_CONFIGS_DIR", tmp_video):
+                k_a = compute_pass2_cache_key(
+                    "nhl26",
+                    artifact_mode=False,
+                    prefilter=VisualPrefilterPass2Config(
+                        enabled=True,
+                        frame_budget={"post_game_action_tracker": 8},
+                        dedup_dhash_distance={"post_game_action_tracker": 8},
+                    ),
+                )
+                k_b = compute_pass2_cache_key(
+                    "nhl26",
+                    artifact_mode=False,
+                    prefilter=VisualPrefilterPass2Config(
+                        enabled=True,
+                        frame_budget={"post_game_action_tracker": 8},
+                        dedup_dhash_distance={"post_game_action_tracker": 4},
+                    ),
+                )
+        self.assertNotEqual(k_a, k_b)
+
+    def test_pass2_cache_key_stable_across_dict_insertion_order(self) -> None:
+        """The prefilter fingerprint serializes dicts with sorted keys so
+        insertion-order shuffles don't spuriously invalidate caches."""
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_video = Path(tmp) / "video"
+            tmp_video.mkdir()
+            (tmp_video / "nhl26.yaml").write_text("a: 1\n")
+            with mock.patch.object(p2_module, "VIDEO_INGEST_CONFIGS_DIR", tmp_video):
+                k_a = compute_pass2_cache_key(
+                    "nhl26",
+                    artifact_mode=False,
+                    prefilter=VisualPrefilterPass2Config(
+                        enabled=True,
+                        frame_budget={
+                            "post_game_action_tracker": 8,
+                            "post_game_events": 4,
+                        },
+                    ),
+                )
+                k_b = compute_pass2_cache_key(
+                    "nhl26",
+                    artifact_mode=False,
+                    prefilter=VisualPrefilterPass2Config(
+                        enabled=True,
+                        frame_budget={
+                            "post_game_events": 4,
+                            "post_game_action_tracker": 8,
+                        },
+                    ),
+                )
+        self.assertEqual(k_a, k_b)
 
     def test_pass2_cache_key_depends_only_on_version_yaml(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

@@ -14,10 +14,13 @@ sample granularity in Pass 1.
 
 from __future__ import annotations
 
+import hashlib
 import json
+import re
 import subprocess
 import sys
-from dataclasses import dataclass
+import time
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from video_ingest.pass1_classify import (
@@ -38,8 +41,53 @@ extract_lobby_evidence = None  # type: ignore[assignment]
 PASS2_MANIFEST_FILENAME = "pass2_manifest.json"
 
 
-def compute_pass2_cache_key(version: str, artifact_mode: bool = False) -> str:
-    """Hash of the orchestrator-side version YAML + the artifact_mode flag.
+@dataclass
+class VisualPrefilterPass2Config:
+    """Visual-prefilter Phase 3: per-segment frame selection knobs.
+
+    `enabled=False` (default) keeps the existing Pass-2 behaviour byte-for-byte:
+    no provider wrapping, no sidecar write, no cache-key change. When enabled,
+    each segment whose `screen_type` is keyed in `frame_budget` runs
+    `compute_visual_signals` + `select_frames` over the provider's frames and
+    OCRs only the selected subset. Screens absent from `frame_budget` are
+    untouched (no cap, no filtering).
+    """
+
+    enabled: bool = False
+    frame_budget: dict[str, int] = field(default_factory=dict)
+    dedup_dhash_distance: dict[str, int] = field(default_factory=dict)
+
+
+def _prefilter_fingerprint(prefilter: "VisualPrefilterPass2Config | None") -> bytes:
+    """Stable hash input for compute_pass2_cache_key.
+
+    Returns ``b"prefilter=off"`` when the prefilter is missing or disabled so
+    pre-Phase-3 caches (which never saw a prefilter byte) stay valid. When
+    enabled, returns ``b"prefilter:" + sha256(<json>)`` over a sorted-key
+    serialization of the config so a tunable change invalidates the cache."""
+    if prefilter is None or not prefilter.enabled:
+        return b"prefilter=off"
+    payload = json.dumps(
+        {
+            "enabled": True,
+            "frame_budget": dict(sorted(prefilter.frame_budget.items())),
+            "dedup_dhash_distance": dict(sorted(prefilter.dedup_dhash_distance.items())),
+        },
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    return b"prefilter:" + hashlib.sha256(payload).hexdigest().encode("ascii")
+
+
+def compute_pass2_cache_key(
+    version: str,
+    artifact_mode: bool = False,
+    *,
+    prefilter: "VisualPrefilterPass2Config | None" = None,
+) -> str:
+    """Hash of the orchestrator-side version YAML + the artifact_mode flag
+    + the visual-prefilter fingerprint.
+
     Pass 2 doesn't need the classifier YAML — classifier changes propagate
     via segments_hash. The artifact_mode byte is included so a switch
     between PNG-on-disk and in-memory frame providers invalidates the
@@ -47,10 +95,18 @@ def compute_pass2_cache_key(version: str, artifact_mode: bool = False) -> str:
     the cached run had PNGs would produce a directory the extractors
     can't read). Phase 3c flipped the default to False (in-memory is the
     steady-state hot path); True is retained as the legacy PNG-on-disk
-    opt-in for operators who want artifacts on disk for review/debug."""
+    opt-in for operators who want artifacts on disk for review/debug.
+
+    Visual Prefilter Phase 3 adds the prefilter fingerprint as a third
+    hash input. The fingerprint is ``b"prefilter=off"`` when the
+    prefilter is disabled or absent, so caches written before Phase 3
+    (or with the feature flipped off) stay valid bit-for-bit.
+    """
     version_yaml = VIDEO_INGEST_CONFIGS_DIR / f"{version}.yaml"
     parts: list[bytes] = [version_yaml.read_bytes(), b"\x00"]
     parts.append(b"artifact_mode=true" if artifact_mode else b"artifact_mode=false")
+    parts.append(b"\x00")
+    parts.append(_prefilter_fingerprint(prefilter))
     return _sha256_of(b"".join(parts))
 
 
@@ -124,6 +180,70 @@ class Pass2Result:
     sample_fps: float
     start_seconds: float
     end_seconds: float
+    # Visual Prefilter Phase 3 per-segment telemetry. All None when the
+    # prefilter was disabled or this segment had no configured frame_budget
+    # (so legacy manifests and disabled runs continue to deserialize cleanly).
+    prefilter_frames_scanned: int | None = None
+    prefilter_frames_selected: int | None = None
+    prefilter_selection_ms: float | None = None
+
+
+@dataclass
+class _PrefilterSelection:
+    """Internal return value of `_run_prefilter_selection`."""
+    indices: list[int]
+    frames_scanned: int
+    selection_ms: float
+
+
+def _run_prefilter_selection(
+    records: list,
+    *,
+    frame_budget: int,
+    dhash_max_distance: int,
+) -> _PrefilterSelection:
+    """Compute visual signals for every materialised FrameRecord and pick
+    indices via `select_frames`. Pure given inputs; the only side-effect
+    is the wall-clock timer for telemetry."""
+    # Late imports keep pass2_extract importable without OpenCV at module-load
+    # time and let tests patch these symbols on `pass2_extract` if needed.
+    from video_ingest.visual_prefilter.pass2_policy import select_frames
+    from video_ingest.visual_prefilter.signals import compute_visual_signals
+
+    t0 = time.perf_counter()
+    signals = [compute_visual_signals(r.image) for r in records]
+    indices = select_frames(
+        signals,
+        frame_budget=frame_budget,
+        dhash_max_distance=dhash_max_distance,
+    )
+    elapsed_ms = (time.perf_counter() - t0) * 1000.0
+    return _PrefilterSelection(
+        indices=indices,
+        frames_scanned=len(records),
+        selection_ms=elapsed_ms,
+    )
+
+
+_PNG_INDEX_RE = re.compile(r"^(\d+)\.png$")
+
+
+def _png_basenames_in_provider_order(seg_dir: Path) -> list[str]:
+    """Return PNG basenames in the same order `PngFrameProvider._resolve_paths`
+    would yield them — so the i-th basename matches the i-th `FrameRecord` from
+    `iter_frames()`. Used by the legacy-path sidecar write to map selected
+    record indices back to filenames the downstream Extractor will glob.
+
+    Mirrors the `[0-9]*.png` glob + `^\\d+\\.png$` regex filter in
+    `frame_provider.PngFrameProvider._resolve_paths`."""
+    pairs: list[tuple[int, str]] = []
+    for p in sorted(seg_dir.glob("[0-9]*.png")):
+        m = _PNG_INDEX_RE.match(p.name)
+        if m is None:
+            continue
+        pairs.append((int(m.group(1)), p.name))
+    pairs.sort()
+    return [name for _, name in pairs]
 
 
 def extract_segments(
@@ -135,6 +255,7 @@ def extract_segments(
     *,
     version: str,
     segments_hash: str,
+    prefilter: VisualPrefilterPass2Config | None = None,
 ) -> list[Pass2Result]:
     """Extract every segment whose screen_type is in `extract_screens`.
     Skipped segments still get an entry in the returned list (frame_count=0)
@@ -142,9 +263,26 @@ def extract_segments(
 
     Writes pass2_manifest.json with the cache identifiers needed for the
     Issue-2 invalidation contract: pass2_cache_key (config-derived) plus
-    segments_hash (so Pass 1 invalidation cascades to Pass 2)."""
+    segments_hash (so Pass 1 invalidation cascades to Pass 2).
+
+    When ``prefilter`` is supplied and enabled, segments whose screen_type
+    has a configured `frame_budget` run the visual prefilter:
+    - Typed-v1 segments: the provider is wrapped in `FilteredFrameProvider`,
+      so the typed extractor's `list(iter_frames())` only sees the selected
+      subset.
+    - Legacy (PNG-on-disk) segments: the provider is materialised here,
+      `select_frames` runs, and `selected_frames.json` is written into
+      `seg_dir`. The downstream `Extractor.extract_input()` honours that
+      sidecar (Visual Prefilter Phase 2 contract).
+    Either way, per-segment prefilter telemetry is recorded on the
+    `Pass2Result` for the manifest serializer."""
     if config.sample_rates is None or config.extract_screens is None:
         raise ValueError("Pass2Config.sample_rates and extract_screens must be set")
+
+    # Late import keeps OpenCV / numpy out of pass2_extract's import path
+    # when the prefilter is disabled (the common case).
+    from video_ingest.frame_provider import FilteredFrameProvider
+    from game_ocr.extractor import SELECTED_FRAMES_SIDECAR_NAME
 
     out: list[Pass2Result] = []
     pass2_root.mkdir(parents=True, exist_ok=True)
@@ -171,6 +309,84 @@ def extract_segments(
             seg=seg,
             config=config,
         )
+
+        # --- visual prefilter (Phase 3) ---------------------------------------
+        # When enabled AND this screen has a configured frame_budget, narrow
+        # the provider/PNG set before the typed-v1 extractor consumes the
+        # provider (typed-v1) or the downstream worker globs the seg_dir
+        # (legacy). Screens absent from `frame_budget` are unaffected.
+        prefilter_stats: dict[str, float | int] | None = None
+        if (
+            prefilter is not None
+            and prefilter.enabled
+            and seg.screen_type in prefilter.frame_budget
+        ):
+            budget = int(prefilter.frame_budget[seg.screen_type])
+            dhash_dist = int(
+                prefilter.dedup_dhash_distance.get(seg.screen_type, 8)
+            )
+            is_typed_v1 = (
+                (seg.screen_type == "player_loadout_view"
+                 and config.loadout_engine == "typed_v1")
+                or (seg.screen_type == "pre_game_lobby_state_2"
+                    and config.lobby_engine == "typed_v1")
+            )
+            if is_typed_v1:
+                # Wrap the provider so the typed extractor only ever sees the
+                # selected subset. Telemetry is captured by closure on
+                # `prefilter_stats` when the selector fires inside
+                # FilteredFrameProvider.iter_frames().
+                prefilter_stats = {
+                    "frames_scanned": 0,
+                    "frames_selected": 0,
+                    "selection_ms": 0.0,
+                }
+                _captured = prefilter_stats  # name the cell for the closure
+
+                def _selector(records, _budget=budget, _dhd=dhash_dist,
+                              _stats=_captured):
+                    sel = _run_prefilter_selection(
+                        records,
+                        frame_budget=_budget,
+                        dhash_max_distance=_dhd,
+                    )
+                    _stats["frames_scanned"] = sel.frames_scanned
+                    _stats["frames_selected"] = len(sel.indices)
+                    _stats["selection_ms"] = sel.selection_ms
+                    return sel.indices
+
+                provider = FilteredFrameProvider(provider, selector=_selector)
+            else:
+                # Legacy/PNG path: PNGs already on disk via _ffmpeg_extract.
+                # Materialise the provider once, select, and write the
+                # sidecar — the downstream Extractor.extract_input() will
+                # restrict its directory walk to the listed basenames.
+                records = list(provider.iter_frames())
+                sel = _run_prefilter_selection(
+                    records,
+                    frame_budget=budget,
+                    dhash_max_distance=dhash_dist,
+                )
+                png_basenames = _png_basenames_in_provider_order(seg_dir)
+                if len(png_basenames) != len(records):
+                    raise RuntimeError(
+                        f"prefilter PNG-mode mismatch in {seg_dir}: "
+                        f"PngFrameProvider yielded {len(records)} records "
+                        f"but seg_dir contains {len(png_basenames)} matching "
+                        f"PNGs — selection-index → basename mapping is unsafe"
+                    )
+                selected_basenames = [png_basenames[idx] for idx in sel.indices]
+                (seg_dir / SELECTED_FRAMES_SIDECAR_NAME).write_text(
+                    json.dumps(selected_basenames)
+                )
+                prefilter_stats = {
+                    "frames_scanned": sel.frames_scanned,
+                    "frames_selected": len(sel.indices),
+                    "selection_ms": sel.selection_ms,
+                }
+                # Reflect the new effective frame count for the manifest:
+                # downstream will only OCR the selected subset.
+                frame_count = len(sel.indices)
 
         # --- loadout_engine dispatch (player_loadout_view only) ---------------
         if seg.screen_type == "player_loadout_view":
@@ -215,6 +431,21 @@ def extract_segments(
             sample_fps=fps,
             start_seconds=start,
             end_seconds=end,
+            prefilter_frames_scanned=(
+                int(prefilter_stats["frames_scanned"])
+                if prefilter_stats is not None
+                else None
+            ),
+            prefilter_frames_selected=(
+                int(prefilter_stats["frames_selected"])
+                if prefilter_stats is not None
+                else None
+            ),
+            prefilter_selection_ms=(
+                float(prefilter_stats["selection_ms"])
+                if prefilter_stats is not None
+                else None
+            ),
         ))
         print(
             f"  seg {i:03d}  {seg.screen_type:30s}  {start:6.1f}s..{end:6.1f}s  "
@@ -402,6 +633,11 @@ def write_pass2_manifest(
             "sample_fps": r.sample_fps,
             "start_seconds": r.start_seconds,
             "end_seconds": r.end_seconds,
+            # Visual Prefilter Phase 3: always serialized; None when the
+            # prefilter was off or didn't apply to this screen.
+            "prefilter_frames_scanned": r.prefilter_frames_scanned,
+            "prefilter_frames_selected": r.prefilter_frames_selected,
+            "prefilter_selection_ms": r.prefilter_selection_ms,
         }
         for r in results
     ]
@@ -454,6 +690,12 @@ def load_pass2_manifest(path: Path, segments: list[Segment]) -> Pass2ManifestLoa
             sample_fps=entry["sample_fps"],
             start_seconds=entry["start_seconds"],
             end_seconds=entry["end_seconds"],
+            # Visual Prefilter Phase 3: optional fields. Pre-Phase-3
+            # manifests lack the keys → default to None (matches the
+            # dataclass default, treated as "prefilter didn't apply").
+            prefilter_frames_scanned=entry.get("prefilter_frames_scanned"),
+            prefilter_frames_selected=entry.get("prefilter_frames_selected"),
+            prefilter_selection_ms=entry.get("prefilter_selection_ms"),
         ))
     return Pass2ManifestLoaded(
         version=version,
