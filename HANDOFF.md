@@ -5,9 +5,23 @@
 > **🔴 ACTIVE PRIORITY (set 2026-06-01): "Finish the OCR/Video-Ingestion Pipeline Revamp (Tier 2)" — plan `~/.claude/plans/ok-so-can-you-starry-umbrella.md`.**
 > This plan is THE priority until it is completed. All other plans/roadmaps are subordinate to it.
 > Any "status", "next up", or progress reference in this file is in reference to THIS plan until it
-> is explicitly marked complete or the user redirects. Workstreams: WS0 ship/stabilize → WS1 close
-> Phase 4 (measurement-gated) → WS2 (conditional) / WS3 / WS4 / WS5 → WS6 acceptance gate.
-> **Progress:** WS0b ✅ (EXTRACTOR_VERSION test fixed, branch `fix/pipeline-ws0-closeout`). In flight: WS0c, then WS0a redeploy.
+> is explicitly marked complete or the user redirects.
+>
+> **Progress (branch `fix/pipeline-ws0-closeout`, 6 commits):**
+> - **WS0a ✅ worker REDEPLOYED & LIVE** — image was 3+ weeks stale (May-7); reconcile hook now in
+>   the running container (`dist/reconcile-positions.js` present). Verifies fully on next OCR batch.
+> - **WS0b ✅** EXTRACTOR_VERSION test fixed. **WS0c ✅** egg-info gitignored + uv.lock committed.
+> - **WS1b ✅** Visual-Prefilter telemetry persisted (sidecar→reprocess→run-quality-cli); tests green.
+> - **WS3 ✅ evidence-capture** (per-frame OCR text + visual signals on VersionGuess; 3 tests).
+>   **Visual-anchor discriminator DEFERRED** (user) — needs NHL 27 refs / centroid work.
+> - **WS1a ✅ measured → Pass-1 OCR STILL MATERIAL** (classify 82.2%, ocr_of_total 35.7%). **WS2 justified.**
+> - **WS4 → ROBUST long-term path chosen (user).** Design spec:
+>   `docs/ocr/action-tracker-identity-recovery-design.md`. **~10–14 eng-days, staged** — own branch + TDD.
+>
+> **NEXT (multi-session — user to steer priority):** WS5 (test-DB isolation, ~1–2d, unblocks trustworthy
+> verification) · WS2 (Pass-1 prefilter wiring + classifier retrain, justified) · WS4 robust build
+> (Stage 1 first) · WS6 acceptance (needs a real non-curated match + operator ground-truth).
+> Merge `fix/pipeline-ws0-closeout` (WS0+WS1b+WS3) to main when ready.
 
 **Status (2026-06-01 — latest):** **Reconciliation wired into LIVE INGEST — PR #5 MERGED to `main`** (merge `c961063`; 4 commits: feat + docs + review-fix; branch `feat/reconcile-live-ingest` deleted). The standalone post-pass (PR #4) now runs automatically at the tail of every OCR batch, so scroll-past positions recover during ingest instead of via the manual psql pipeline. Closes the top deferred item from the prior entry.
 
