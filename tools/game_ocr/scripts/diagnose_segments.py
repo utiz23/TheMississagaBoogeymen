@@ -53,7 +53,7 @@ from game_ocr.classifier import Classifier, load_classifier_config  # noqa: E402
 from game_ocr.frame_features import compute_frame_features  # noqa: E402
 from game_ocr.screen_classifier import load_screen_classifier  # noqa: E402
 from game_ocr.state_machine import load_state_machine  # noqa: E402
-from video_ingest.pass1_classify import _iter_raw_bgr_frames  # noqa: E402
+from video_ingest.pass1_classify import iter_sampled_frames  # noqa: E402
 
 
 @dataclass(frozen=True)
@@ -148,9 +148,10 @@ def diagnose(
     rows_written = 0
     with out_path.open("w") as fh:
         print(header, file=fh)
-        for idx, frame in enumerate(_iter_raw_bgr_frames(video_path, sm.sample_fps)):
+        for idx, sf in enumerate(iter_sampled_frames(video_path, sm.sample_fps)):
             if max_frames is not None and idx >= max_frames:
                 break
+            frame = sf.image
             t_sec = idx * sample_period
             anchor_text = legacy._read_anchor(frame)
             feats = compute_frame_features(frame, anchor_text=anchor_text, state_machine=sm)

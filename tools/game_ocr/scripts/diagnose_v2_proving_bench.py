@@ -44,7 +44,7 @@ from game_ocr.ocr import RapidOCRBackend  # noqa: E402
 from game_ocr.regex_priors import load_regex_priors  # noqa: E402
 from game_ocr.screen_classifier import load_screen_classifier  # noqa: E402
 from game_ocr.state_machine import load_state_machine  # noqa: E402
-from video_ingest.pass1_classify import _iter_raw_bgr_frames  # noqa: E402
+from video_ingest.pass1_classify import iter_sampled_frames  # noqa: E402
 from video_ingest.pass1_segment import decode_segments_v2  # noqa: E402
 
 
@@ -93,10 +93,10 @@ def main() -> int:
 
     feats = []
     print(f"Reading frames from {clip_path}…", file=sys.stderr)
-    for i, frame in enumerate(_iter_raw_bgr_frames(clip_path, sample_fps=1.0)):
+    for i, sf in enumerate(iter_sampled_frames(clip_path, sample_fps=1.0)):
         feats.append(
             compute_frame_features_v2_from_image(
-                frame, regex_priors=regex_priors, ocr_backend=ocr,
+                sf.image, regex_priors=regex_priors, ocr_backend=ocr,
             )
         )
         if (i + 1) % 10 == 0:

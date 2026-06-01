@@ -61,8 +61,12 @@ class TestDiagnoseSegments(unittest.TestCase):
         ):
             self.assertIn(col, header, msg=f"missing column {col!r}")
 
-        # 60-second clip at 1 fps → 60 rows
-        self.assertEqual(len(rows), 60, msg=f"expected 60 rows, got {len(rows)}")
+        # match-250-clip.mkv is 60.066s; the canonical-PTS sampler
+        # (iter_sampled_frames, the production Pass-1 sampler since c872670)
+        # emits one sample per 1s boundary t=0..60 = 61 rows. The old
+        # ffmpeg `fps=1` sampler emitted 60; this assertion was updated when
+        # diagnose_segments.py was rewired to the canonical-PTS sampler.
+        self.assertEqual(len(rows), 61, msg=f"expected 61 rows, got {len(rows)}")
 
         # Spot-check the first row's log-probs are finite.
         first = rows[0]
