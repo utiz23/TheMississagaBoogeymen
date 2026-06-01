@@ -93,7 +93,7 @@ if (host !== 'localhost' && host !== '127.0.0.1') {
 }
 
 const dbUser = decodeURIComponent(url.username || 'eanhl')
-const srcDb = url.pathname.replace(/^\//, '') || 'eanhl'
+const srcDb = decodeURIComponent(url.pathname.replace(/^\//, '')) || 'eanhl'
 if (!srcDb) die('could not derive source database name from DATABASE_URL')
 
 const testDb = `eanhl_test_${process.pid}_${Date.now().toString(36)}`
@@ -157,7 +157,10 @@ try {
   const stale = execFileSync(
     'docker',
     ['exec', CONTAINER, 'psql', '-U', dbUser, '-d', 'postgres', '-tA', '-c',
-      "SELECT datname FROM pg_database WHERE datname LIKE 'eanhl_test_%'"],
+      // Only orphaned clones (no live connections) — never a concurrent run's
+      // in-use clone, which `DROP ... WITH (FORCE)` would yank mid-suite.
+      "SELECT datname FROM pg_database d WHERE datname LIKE 'eanhl_test_%' " +
+        'AND NOT EXISTS (SELECT 1 FROM pg_stat_activity a WHERE a.datname = d.datname)'],
     { encoding: 'utf8' },
   )
     .split('\n')
@@ -181,6 +184,10 @@ try {
   dockerPsql('postgres', `CREATE DATABASE "${testDb}"`)
   created = true
   // Pipe dump->restore entirely inside the container (fast, no host round-trip).
+  // `set -o pipefail` so a pg_dump failure is NOT masked by psql exiting 0 (which
+  // would leave a silently-partial clone). Values are passed as positional args
+  // ($1=user $2=src $3=test) and quoted, so a db/user name with shell metachars
+  // can't break or inject into the command.
   execFileSync(
     'docker',
     [
@@ -188,8 +195,13 @@ try {
       CONTAINER,
       'bash',
       '-lc',
-      `pg_dump -U ${dbUser} --no-owner --no-privileges ${srcDb} | ` +
-        `psql -U ${dbUser} -d ${testDb} -q -v ON_ERROR_STOP=1`,
+      'set -o pipefail; ' +
+        'pg_dump -U "$1" --no-owner --no-privileges "$2" | ' +
+        'psql -U "$1" -d "$3" -q -v ON_ERROR_STOP=1',
+      'with-test-db', // $0
+      dbUser, // $1
+      srcDb, // $2
+      testDb, // $3
     ],
     { stdio: ['ignore', 'inherit', 'inherit'] },
   )
