@@ -18,10 +18,30 @@
 > - **WS4 → ROBUST long-term path chosen (user).** Design spec:
 >   `docs/ocr/action-tracker-identity-recovery-design.md`. **~10–14 eng-days, staged** — own branch + TDD.
 >
-> **NEXT (multi-session — user to steer priority):** WS5 (test-DB isolation, ~1–2d, unblocks trustworthy
-> verification) · WS2 (Pass-1 prefilter wiring + classifier retrain, justified) · WS4 robust build
-> (Stage 1 first) · WS6 acceptance (needs a real non-curated match + operator ground-truth).
-> Merge `fix/pipeline-ws0-closeout` (WS0+WS1b+WS3) to main when ready.
+> **>>> NEXT UP (active — starting in a new chat): WS5 — Worker integration-test DB isolation redesign.**
+> ~13 worker integration failures stem from a **shared live DB + global CLI mutations** (Codex flagged
+> it architectural, not assertion-level). **Decided strategy: ephemeral/dedicated test DB — NOT per-test
+> transaction rollback** (7 test files shell out to the built CLI via `spawnSync` on separate DB
+> connections, so a parent transaction can't contain them). Those files:
+> `apps/worker/src/__tests__/{run-quality-cli,decoder-runs-cli,repromote-cli-run-id,consolidate-loadouts-cpu,
+> backfill-event-actor-resolution-cli,match-quality-regression,match-quality-cpu}.test.ts`. The runner is
+> `node --test apps/worker/dist/**/*.test.js` run **from repo ROOT** (the tests derive `REPO_ROOT=process.cwd()`
+> and `CLI_PATH=apps/worker/dist/run-quality-cli.js` — running from `apps/worker` doubles the path and fails).
+> Tests already use **sentinel match-ID namespacing** (e.g. 9301-9310); harden that + deterministic teardown
+> as the fallback if a full ephemeral DB is too heavy. Also re-scope the `--all-runs --force` scenarios so
+> they can't touch production rows. **Goal: full `pnpm --filter worker` suite green, no pre-existing-failure
+> carve-outs.** Plan WS5 section: `~/.claude/plans/ok-so-can-you-starry-umbrella.md`. Est. ~1–2d.
+>
+> **Then (multi-session, user to steer):** WS2 (Pass-1 prefilter wiring + classifier retrain — justified by
+> WS1a's still-material result) · WS4 robust build (Stage 1 first per
+> `docs/ocr/action-tracker-identity-recovery-design.md`, ~10–14d) · WS6 acceptance (real non-curated match
+> + operator ground-truth). **Merge `fix/pipeline-ws0-closeout` (WS0+WS1b+WS3, 7 commits, tree clean) to
+> main when ready** — those workstreams are independently complete + verified.
+>
+> **Env notes for a cold start:** only `.venv-1` has pytest + the GPU stack (onnxruntime-CUDA + PyAV); run
+> Python tests as `cd tools/<pkg> && PYTHONPATH=.:../game_ocr ../../.venv-1/bin/python -m pytest …`
+> (`game_ocr` and `video_ingest` live in separate per-tool venvs, so neither alone imports both — PYTHONPATH
+> bridges them). DB on host port **5433**, `DATABASE_URL` in `.env` (`set -a && source .env && set +a`).
 
 **Status (2026-06-01 — latest):** **Reconciliation wired into LIVE INGEST — PR #5 MERGED to `main`** (merge `c961063`; 4 commits: feat + docs + review-fix; branch `feat/reconcile-live-ingest` deleted). The standalone post-pass (PR #4) now runs automatically at the tail of every OCR batch, so scroll-past positions recover during ingest instead of via the manual psql pipeline. Closes the top deferred item from the prior entry.
 
