@@ -33,11 +33,13 @@
 >   restored `pnpm --filter worker test <selector>`) — all fixed pre-merge. **8 remaining failures are
 >   PRE-EXISTING & non-isolation, tracked as known-red** (see the WS5 status entry below).
 >
-> **>>> NEXT UP (active — user to steer): merge `feat/ws4-identity-recovery`, then WS4 Stage 2b / WS2 / WS6.**
-> Merge the WS4 branch to `main` + redeploy worker (Stage 2a goes live on deploy; default-ON,
-> pending_review-safe) · WS4 **Stage 2b** (marker association/clustering → identity+position together,
-> resolves the multiplicity limitation) · WS2 (Pass-1 prefilter wiring + classifier retrain) ·
-> WS6 acceptance (real non-curated match + operator ground-truth). Optional cleanup: the 8 WS5
+> **>>> NEXT UP (active): PLAN WS4 Stage 2b IN A NEW CHAT (user's call).** WS4 Stage 1+2a are merged
+> to `main` + pushed to `origin` + container redeployed (see status below). Stage 2b = marker
+> association via cross-frame consensus + position clustering → recovers exact position alongside
+> identity AND resolves the 2a multiplicity limitation. It is a substantial design — do a full
+> planning pass (Explore → Plan agent → review) as Stages 1/2a did. Then: WS2 (Pass-1 prefilter
+> wiring + classifier retrain) · WS6 acceptance (real non-curated match + operator ground-truth).
+> Optional cleanup: the 8 WS5
 > known-red failures (2 of which — batch-missing-`run_id`, match-968 decoder provenance — may flag real
 > minor prod data drift worth a backfill). The `fix/pipeline-ws0-closeout` branch now equals `main`
 > (safe to delete).
@@ -47,7 +49,9 @@
 > (`game_ocr` and `video_ingest` live in separate per-tool venvs, so neither alone imports both — PYTHONPATH
 > bridges them). DB on host port **5433**, `DATABASE_URL` in `.env` (`set -a && source .env && set +a`).
 
-**Status (2026-06-01 — WS4 Stage 1 + 2a MERGED to `main` @ `a97513a` (ff); worker container redeployed):** Branch `feat/ws4-identity-recovery` fast-forward-merged to `main` (still LOCAL — not pushed to origin; `origin/main` is behind by 4 commits). Worker container rebuilt + restarted, healthy (`[members] nhl26: 10/10 upserted`, clean poll cycle).
+**Status (2026-06-01 — WS4 Stage 1 + 2a MERGED to `main` + PUSHED to `origin` @ `92597fc`; worker container redeployed):** Branch `feat/ws4-identity-recovery` fast-forward-merged to `main` and **pushed — `origin/main` is synced** (through the handoff-correction commit `92597fc`; feature is `6e26e69`). Worker container rebuilt + restarted, healthy (`[members] nhl26: 10/10 upserted`, clean poll cycle).
+
+**Stage 2a verification (as far as is safe — true live signal pending):** the INSERT path is verified against a prod **clone** by the WS5-isolated integration test (`orphan_cards → pending_review row`); the producer is confirmed **read-only** on real match 250 (5 orphan cards found); `resolveOrphanCard` is unit-tested with real roster seeding. A forced **live write** to match 250 was deliberately **NOT** performed — the safety classifier blocked it and the plan said not to write to live data / not to perturb the canonical reference match. **True live confirmation awaits the next operator-run OCR batch** (host-side; needs operator video/frames). To confirm then: look for the orphan-recovery log line + new `match_events` rows with `clock=null`, `x=null`, `review_status='pending_review'`. Kill switch `OCR_IDENTITY_RECOVERY_ENABLED=false`.
 
 **⚠️ DEPLOYMENT MODEL CORRECTION (important, observed this session):** The **worker container has no `python3` and no `tools/`** — it runs ONLY the EA-API poll loop (pure TS). **OCR ingestion — and therefore the reconcile + WS4 identity-recovery tail — runs HOST-SIDE via the CLI** (`ingestOcrBatch` is invoked only from `ingest-ocr-cli.ts`, never the container poll loop). So **rebuilding the worker *container* does NOT activate OCR/reconcile/identity behavior** (the WS0a "redeploy so the reconcile hook fires" framing was checking the wrong artifact — the file is in the container but the container never calls it). What actually activates Stage 2a in prod: (1) host `apps/worker/dist` rebuilt (done — `pnpm --filter @eanhl/worker build`), (2) the committed Python tool with `build_orphan_cards` (on `main`), (3) `OCR_IDENTITY_RECOVERY_ENABLED` default-ON. **The next operator-run OCR batch with an Action Tracker screen will produce `orphan_cards` → `pending_review` rows.** Run OCR ingestion with a Python that has the OCR stack (`.venv-1` / set `OCR_PYTHON`); `build_orphan_cards` adds no new Python deps (stdlib only), so it runs wherever the existing reconcile tool ran.
 
@@ -67,7 +71,7 @@
 
 **Verification:** Python **37/37** (12 new). TS **14/14** targeted; full worker suite **355 pass / 8 fail / 1 skip** — the 8 are the unchanged pre-existing WS5 known-red set, **no new reds**; promoter suite green (guards the `deriveTeamSide` refactor); typecheck clean. **Real-data read-only check: 5 distinct orphan cards recovered from match 250** (e.g. P2 hits M. RANTANEN / TOEWS, P3/P4 shots). Branch unmerged → nothing live until merge+deploy; identity-recovery flag also gates it.
 
-**>>> NEXT UP:** merge `feat/ws4-identity-recovery` + redeploy (Stage 2a goes live, pending_review-safe), then WS4 Stage 2b / WS2 / WS6 — user to steer.
+**>>> NEXT UP:** ✅ merged + pushed + container redeployed (done). Next = **plan WS4 Stage 2b in a new chat**, then WS2 / WS6.
 
 ---
 
