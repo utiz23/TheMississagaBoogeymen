@@ -25,6 +25,7 @@ build
 .venv/
 .venv-*/
 __pycache__/
+*.egg-info/
 
 # OCR tool — screenshots are large binary assets, not source code
 tools/game_ocr/ScreenShots/
