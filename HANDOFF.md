@@ -17,31 +17,44 @@
 > - **WS1a ✅ measured → Pass-1 OCR STILL MATERIAL** (classify 82.2%, ocr_of_total 35.7%). **WS2 justified.**
 > - **WS4 → ROBUST long-term path chosen (user).** Design spec:
 >   `docs/ocr/action-tracker-identity-recovery-design.md`. **~10–14 eng-days, staged** — own branch + TDD.
+> - **WS5 ✅ DONE — worker integration-test suite now isolated, deterministic, hang-free.** Per-run
+>   ephemeral DB clone harness (`apps/worker/scripts/with-test-db.mjs`, wired as `pnpm --filter worker
+>   test` / `test:integration`). The 7 target `spawnSync` CLI files all pass under isolation; prod DB
+>   byte-unchanged across runs; clone dropped each run. Plus a teardown-hang root-cause fix
+>   (`{ timeout: 5 }` on 24 timeout-less pool `.end()` calls). 2 commits on the branch. **8 remaining
+>   failures are PRE-EXISTING & non-isolation, tracked as known-red** (see the WS5 status entry below).
 >
-> **>>> NEXT UP (active — starting in a new chat): WS5 — Worker integration-test DB isolation redesign.**
-> ~13 worker integration failures stem from a **shared live DB + global CLI mutations** (Codex flagged
-> it architectural, not assertion-level). **Decided strategy: ephemeral/dedicated test DB — NOT per-test
-> transaction rollback** (7 test files shell out to the built CLI via `spawnSync` on separate DB
-> connections, so a parent transaction can't contain them). Those files:
-> `apps/worker/src/__tests__/{run-quality-cli,decoder-runs-cli,repromote-cli-run-id,consolidate-loadouts-cpu,
-> backfill-event-actor-resolution-cli,match-quality-regression,match-quality-cpu}.test.ts`. The runner is
-> `node --test apps/worker/dist/**/*.test.js` run **from repo ROOT** (the tests derive `REPO_ROOT=process.cwd()`
-> and `CLI_PATH=apps/worker/dist/run-quality-cli.js` — running from `apps/worker` doubles the path and fails).
-> Tests already use **sentinel match-ID namespacing** (e.g. 9301-9310); harden that + deterministic teardown
-> as the fallback if a full ephemeral DB is too heavy. Also re-scope the `--all-runs --force` scenarios so
-> they can't touch production rows. **Goal: full `pnpm --filter worker` suite green, no pre-existing-failure
-> carve-outs.** Plan WS5 section: `~/.claude/plans/ok-so-can-you-starry-umbrella.md`. Est. ~1–2d.
->
-> **Then (multi-session, user to steer):** WS2 (Pass-1 prefilter wiring + classifier retrain — justified by
-> WS1a's still-material result) · WS4 robust build (Stage 1 first per
-> `docs/ocr/action-tracker-identity-recovery-design.md`, ~10–14d) · WS6 acceptance (real non-curated match
-> + operator ground-truth). **Merge `fix/pipeline-ws0-closeout` (WS0+WS1b+WS3, 7 commits, tree clean) to
-> main when ready** — those workstreams are independently complete + verified.
+> **>>> NEXT UP (active — user to steer): WS2, WS4 robust, WS6 (all multi-session).**
+> WS2 (Pass-1 prefilter wiring + classifier retrain — justified by WS1a's still-material result) ·
+> WS4 robust build (Stage 1 first per `docs/ocr/action-tracker-identity-recovery-design.md`, ~10–14d) ·
+> WS6 acceptance (real non-curated match + operator ground-truth). Optional cleanup: the 8 WS5
+> known-red failures (2 of which — batch-missing-`run_id`, match-968 decoder provenance — may flag real
+> minor prod data drift worth a backfill).
+> **Merge `fix/pipeline-ws0-closeout` (WS0+WS1b+WS3+WS5, tree clean) to main when ready** — those
+> workstreams are independently complete + verified.
 >
 > **Env notes for a cold start:** only `.venv-1` has pytest + the GPU stack (onnxruntime-CUDA + PyAV); run
 > Python tests as `cd tools/<pkg> && PYTHONPATH=.:../game_ocr ../../.venv-1/bin/python -m pytest …`
 > (`game_ocr` and `video_ingest` live in separate per-tool venvs, so neither alone imports both — PYTHONPATH
 > bridges them). DB on host port **5433**, `DATABASE_URL` in `.env` (`set -a && source .env && set +a`).
+
+**Status (2026-06-01 — WS5 COMPLETE):** **Worker integration-test suite isolated, deterministic, hang-free.** 2 commits on `fix/pipeline-ws0-closeout` (`37ff56d` teardown-timeout fix, `992f8e6` isolation harness).
+
+**What shipped:**
+- **Per-run ephemeral DB clone harness** — `apps/worker/scripts/with-test-db.mjs`, wired as `pnpm --filter worker test` and `test:integration`. It `pg_dump`-clones the local dev DB into a throwaway `eanhl_test_<pid>`, points `DATABASE_URL` at it, runs the full suite serially **from repo root**, then drops it. Key seam: `@eanhl/db` reads `DATABASE_URL` at import time and the `spawnSync`'d CLIs inherit `process.env`, so **both the in-process `db` singleton and every CLI hit the clone — zero test-file edits for the redirect.** A *clone* (not a blank migrate) is required because ~10 tests anchor on real match 250/463 data migrations don't recreate. Guards: refuses non-local `DATABASE_URL`, checks container reachability, sweeps leaked clones at startup, async `spawn` so SIGINT/SIGTERM drop the clone, `--test-force-exit` backstop. Also fixes the old `test` script's wrong cwd (doubled `REPO_ROOT`, broke the spawnSync CLI tests).
+- **Teardown-hang root-cause fix** — added `{ timeout: 5 }` to 24 timeout-less pool `.end()` calls. Under `node --test` (process-per-file), a timeout-less `postgres.end()` in an `after` hook can hang forever and wedge the serial run (observed intermittently in `match-463-loadout-slots-fixture`). Mirrors run-quality-cli's existing pattern.
+
+**Verification:** prod `eanhl` DB byte-unchanged across 3 runs (`ocr_extractions=11254, matches=147, reports=7, match_events=373`); clone dropped each run; all **38** test files discovered/run; clone proven byte-faithful to live (identical row counts incl. 430156 extraction_fields). Deterministic across two completed runs: **330 pass / 8 fail / 1 skip** (the 1 skip = `match-463-loadout-segments`, intentionally permanent). The **7 target `spawnSync` CLI files all pass** under isolation — the WS5 goal. Failures dropped 14 (old shared-DB baseline) → 8.
+
+**The 8 remaining failures are PRE-EXISTING & NOT isolation-related (tracked known-red, user decision 2026-05-31):**
+- *Fixture (2):* `fixture-loader` (`synthetic_degraded` static JSON has 79 records, test expects 85 — no DB involved); `match-463-loadout-slots-fixture`.
+- *Calibration thresholds (4):* `match-250-benchmark` getMatchLineups slot data; `lobby-v2` BGM loadout fields vs V2; lobby typed_v1 gamertag accuracy 70% < 90%; lobby player_number 2/10 < 75%.
+- *Real data-invariant drift (2, `ocr-decoder-runs-backfill`):* 1 match-linked batch has no `run_id` (expected 0); match 968's run has mixed decoders `[hmm-viterbi-v1, hmm-viterbi-v2]` but wasn't backfilled to `legacy-mixed`. **These two may indicate genuine minor prod data drift worth a backfill** — separate follow-up, not a test bug per se.
+- All match the previously-documented pre-existing fail families (loadout/lobby/decoder-runs/match-250-benchmark); proven non-isolation because the clone is byte-identical to live and the fixture case reads a static file. **No `test.skip` carve-outs added** — every red is understood and visible.
+
+**>>> NEXT UP:** WS2 / WS4-robust / WS6 (multi-session, user to steer). Optional: chase the 2 data-drift failures.
+
+---
 
 **Status (2026-06-01 — latest):** **Reconciliation wired into LIVE INGEST — PR #5 MERGED to `main`** (merge `c961063`; 4 commits: feat + docs + review-fix; branch `feat/reconcile-live-ingest` deleted). The standalone post-pass (PR #4) now runs automatically at the tail of every OCR batch, so scroll-past positions recover during ingest instead of via the manual psql pipeline. Closes the top deferred item from the prior entry.
 
