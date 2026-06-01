@@ -38,6 +38,11 @@ import numpy as np
 
 
 RUN_E2E = os.environ.get("RUN_CLASSIFIER_E2E", "0") == "1"
+# WS2: when "on", run the SAME pre-OCR gate the orchestrator runs (loaded from
+# nhl26.yaml via the shared parser — never hardcoded here, so the acceptance
+# test can't drift from shipped thresholds) and pin gated frames to
+# unknown_or_transition. Both arms ("off"/"on") must meet the accuracy gate.
+WS2_GATE = os.environ.get("WS2_GATE", "off").strip().lower()
 
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -96,8 +101,11 @@ def _run_v2_pipeline_per_frame(clip_path: Path) -> list[str]:
     from game_ocr.regex_priors import load_regex_priors
     from game_ocr.screen_classifier import load_screen_classifier
     from game_ocr.state_machine import load_state_machine
+    from game_ocr.ocr import _NullOCRBackend
     from video_ingest.pass1_classify import iter_sampled_frames
     from video_ingest.pass1_segment import decode_segments_v2
+    from video_ingest.visual_prefilter.pass1_policy import gate, parse_gate_config
+    from video_ingest.visual_prefilter.signals import compute_visual_signals
 
     sm = load_state_machine("nhl26")
     regex_priors = load_regex_priors("nhl26")
@@ -113,20 +121,41 @@ def _run_v2_pipeline_per_frame(clip_path: Path) -> list[str]:
         )
     clf = load_screen_classifier(weights_path, sm)
     ocr = RapidOCRBackend(use_gpu=False)
+    null_ocr = _NullOCRBackend()
+
+    # WS2 gate config from the same YAML the orchestrator reads (shared parser).
+    gate_cfg = None
+    if WS2_GATE == "on":
+        import yaml as _yaml
+
+        vcfg = _yaml.safe_load(
+            (
+                REPO_ROOT / "tools" / "video_ingest" / "video_ingest"
+                / "configs" / "nhl26.yaml"
+            ).read_text()
+        )
+        gate_cfg = parse_gate_config(vcfg["pass1"])
 
     feats = []
+    gated_mask: list[bool] = []
     for sf in iter_sampled_frames(clip_path, sample_fps=1.0):
+        is_gated = False
+        if gate_cfg is not None and gate_cfg.enabled:
+            is_gated = gate(compute_visual_signals(sf.image), gate_cfg) == "skip"
         feats.append(
             compute_frame_features_v2_from_image(
-                sf.image, regex_priors=regex_priors, ocr_backend=ocr,
+                sf.image, regex_priors=regex_priors,
+                ocr_backend=null_ocr if is_gated else ocr,
             )
         )
+        gated_mask.append(is_gated)
     segments = decode_segments_v2(
         features=feats,
         classifier=clf,
         state_machine=sm,
         regex_priors=regex_priors,
         weights=EmissionWeights(),
+        gated_mask=gated_mask,
     )
 
     # Stamp the decoded state onto each per-frame slot (default unknown

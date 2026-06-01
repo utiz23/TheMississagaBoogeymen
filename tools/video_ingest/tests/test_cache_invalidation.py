@@ -748,6 +748,26 @@ def test_regex_priors_drift_invalidates_pass1_v2():
         yaml_path.write_bytes(original)
 
 
+def test_gate_fingerprint_none_is_legacy_cache_key():
+    """WS2: None gate fingerprint ⇒ byte-identical key to a pre-WS2 build, so
+    existing non-gate caches are preserved."""
+    from video_ingest.pass1_classify import compute_pass1_cache_key
+    legacy = compute_pass1_cache_key("nhl26", "viterbi_v2")
+    with_none = compute_pass1_cache_key("nhl26", "viterbi_v2", None)
+    assert legacy == with_none
+
+
+def test_gate_fingerprint_invalidates_pass1():
+    """WS2: an effective-on gate (and each threshold tuning) yields a distinct
+    Pass-1 cache key so runtime env/CLI overrides stay cache-correct."""
+    from video_ingest.pass1_classify import compute_pass1_cache_key
+    base = compute_pass1_cache_key("nhl26", "viterbi_v2", None)
+    on_a = compute_pass1_cache_key("nhl26", "viterbi_v2", "gate:b=0.06,e=0.005,lb=2.0,all=1")
+    on_b = compute_pass1_cache_key("nhl26", "viterbi_v2", "gate:b=0.06,e=0.02,lb=2.0,all=1")
+    assert on_a != base
+    assert on_a != on_b
+
+
 def test_weights_drift_invalidates_pass1():
     """Phase 1: editing the v1 weights JSON cascades to a Pass-1 cache mismatch."""
     import pytest

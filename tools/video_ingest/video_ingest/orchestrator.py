@@ -14,6 +14,7 @@ and re-uses them (controlled by `force_pass2`).
 from __future__ import annotations
 
 import json
+import os
 import sys
 import time
 from dataclasses import dataclass
@@ -231,7 +232,7 @@ def _run_pass1(
     elif p1cfg.engine == "viterbi_v2":
         from game_ocr.emissions import EmissionWeights
         from game_ocr.frame_pipeline_v2 import compute_frame_features_v2_from_image
-        from game_ocr.ocr import RapidOCRBackend
+        from game_ocr.ocr import RapidOCRBackend, _NullOCRBackend
         from game_ocr.regex_priors import load_regex_priors
         from game_ocr.screen_classifier import load_screen_classifier
         from game_ocr.state_machine import load_state_machine
@@ -241,6 +242,8 @@ def _run_pass1(
             iter_sampled_frames,
         )
         from video_ingest.pass1_segment import decode_segments_v2
+        from video_ingest.visual_prefilter.pass1_policy import gate
+        from video_ingest.visual_prefilter.signals import compute_visual_signals
 
         # Phase 4: outer wall-time timer for this engine branch.
         pass1_branch_start = time.perf_counter()
@@ -272,18 +275,33 @@ def _run_pass1(
         # p50) once RapidOCRBackend.__init__'s nvidia-*-cu12 preload runs
         # successfully. Pass-1 wall on the 187 MB fixture: ~20 min → ~5 min.
         ocr = RapidOCRBackend(use_gpu=use_gpu)
+        # WS2 pre-OCR gate: for frames the gate classifies as unambiguously
+        # non-text, swap in a no-op OCR backend so the expensive RapidOCR ROI
+        # reads are skipped, and record the frame in `gated_mask` so the
+        # emissions builder pins it to unknown_or_transition (a no-OCR frame
+        # must not be scored on visual features alone).
+        null_ocr = _NullOCRBackend()
+        gate_cfg = p1cfg.pass1_gate
 
         cls_list: list = []
         feats_list = []
+        gated_mask: list[bool] = []
         sampling_telemetry = SamplingTelemetry()
         loop_t = time.perf_counter()
         for sf in iter_sampled_frames(
             video_path, p1cfg.sample_fps, telemetry=sampling_telemetry,
         ):
+            is_gated = False
+            if gate_cfg is not None and getattr(gate_cfg, "enabled", False):
+                is_gated = gate(compute_visual_signals(sf.image), gate_cfg) == "skip"
             feats = compute_frame_features_v2_from_image(
-                sf.image, regex_priors=regex_priors, ocr_backend=ocr,
+                sf.image, regex_priors=regex_priors,
+                ocr_backend=null_ocr if is_gated else ocr,
             )
             feats_list.append(feats)
+            gated_mask.append(is_gated)
+            if is_gated:
+                sampling_telemetry.frames_gated += 1
             cls_list.append(FrameClassification(
                 index=sf.sample_index,
                 seconds=sf.source_time_seconds,
@@ -307,6 +325,7 @@ def _run_pass1(
             regex_priors=regex_priors,
             weights=EmissionWeights(),
             frame_source_times=[c.source_time_seconds for c in cls_list],
+            gated_mask=gated_mask,
         )
         sampling_telemetry.viterbi_ms = (time.perf_counter() - viterbi_t) * 1000.0
         for seg in segments:
@@ -370,6 +389,7 @@ def ingest(
     run_id: int | None = None,
     artifact_mode: bool | None = None,
     prefilter_enabled: bool | None = None,
+    pass1_gate_enabled: bool | None = None,
 ) -> IngestResult:
     """Run the two-pass pipeline.
 
@@ -396,6 +416,13 @@ def ingest(
                     Switching the effective state invalidates the Pass-2
                     cache via the prefilter fingerprint in
                     `compute_pass2_cache_key`.
+      pass1_gate_enabled: WS2 pre-OCR gate override for
+                    `pass1.pre_ocr_gate.enabled`. None (default) = use the
+                    version YAML; True/False = CLI override (the OFF/ON A/B
+                    switch). The env kill switch `OCR_PASS1_GATE_ENABLED=false`
+                    overrides this to disabled. Switching the effective state
+                    invalidates the Pass-1 cache via the gate fingerprint in
+                    `compute_pass1_cache_key`.
     """
     if skip_pass1 and force_pass1:
         raise ValueError("skip_pass1 and force_pass1 are mutually exclusive")
@@ -466,6 +493,22 @@ def ingest(
         },
         engine=str(p1_raw.get("engine", "run_length")),
     )
+    # WS2 pre-OCR gate: resolve the effective gate once. Precedence is
+    # env-disable > CLI > YAML (the env switch is a disable-only kill switch).
+    # `parse_gate_config` is the SINGLE YAML→GateConfig path, shared with the
+    # proving-bench acceptance test so thresholds can't drift.
+    from video_ingest.visual_prefilter.pass1_policy import (
+        parse_gate_config,
+        resolve_effective_gate,
+    )
+
+    _env_gate = os.environ.get("OCR_PASS1_GATE_ENABLED")
+    _env_disabled = _env_gate is not None and _env_gate.strip().lower() in ("false", "0")
+    p1cfg.pass1_gate = resolve_effective_gate(
+        parse_gate_config(p1_raw),
+        cli_enabled=pass1_gate_enabled,
+        env_disabled=_env_disabled,
+    )
     # artifact_mode resolution: CLI override > version YAML > default False
     # (Phase 3c: in-memory hot path is steady state; legacy PNG-on-disk is
     # opt-in via --pass2-artifacts or `pass2.artifact_mode: true` in the
@@ -515,7 +558,11 @@ def ingest(
     # invariant holds (segments may change → existing Pass 2 is stale).
     pass2_root = compute_pass2_cache_dir(output_root, probe.sha256, run_id)
     manifest_path = sha_root / PASS2_MANIFEST_FILENAME
-    pass1_cache_key = compute_pass1_cache_key(version, p1cfg.engine)
+    from video_ingest.visual_prefilter.pass1_policy import gate_cache_fingerprint
+
+    pass1_cache_key = compute_pass1_cache_key(
+        version, p1cfg.engine, gate_cache_fingerprint(p1cfg.pass1_gate)
+    )
     pass1_was_fresh = False
     elapsed_pass1 = 0.0
 
