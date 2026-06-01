@@ -34,10 +34,11 @@
 >   restored `pnpm --filter worker test <selector>`) — all fixed pre-merge. **8 remaining failures are
 >   PRE-EXISTING & non-isolation, tracked as known-red** (see the WS5 status entry below).
 >
-> **>>> NEXT UP (active): WS4 Stage 2b MERGED to `main` (not yet pushed; host `dist` not yet rebuilt).**
-> Rebuild host `apps/worker/dist` (`pnpm --filter @eanhl/worker build`) so the next operator OCR batch
-> emits positioned orphan rows; push when ready. Then: WS2 (Pass-1 prefilter wiring + classifier
-> retrain) · WS6 acceptance (real non-curated match + operator ground-truth). Optional cleanup: the 8
+> **>>> NEXT UP (active): WS4 Stage 2b MERGED to `main` + PUSHED to `origin` @ `b73e447` (host `dist`
+> not yet rebuilt).** Rebuild host `apps/worker/dist` (`pnpm --filter @eanhl/worker build`) so the next
+> operator OCR batch emits positioned orphan rows. Then the two REMAINING workstreams: WS2 (Pass-1
+> prefilter wiring + classifier retrain) · WS6 acceptance (real non-curated match + operator
+> ground-truth). Optional: WS4 Stage 3 (clock re-OCR). Optional cleanup: the 8
 > WS5 known-red failures (2 of which — batch-missing-`run_id`, match-968 decoder provenance — may flag
 > real minor prod data drift worth a backfill). The `fix/pipeline-ws0-closeout` branch now equals
 > `main` (safe to delete).
