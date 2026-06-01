@@ -114,7 +114,7 @@ describe('writeFieldEvidenceForBatch', () => {
   after(async () => {
     if (!process.env['DATABASE_URL']) return
     await cleanup()
-    await sql.end()
+    await sql.end({ timeout: 5 })
   })
 
   test('writes one row per candidate', async () => {

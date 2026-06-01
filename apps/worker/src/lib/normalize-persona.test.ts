@@ -14,7 +14,7 @@ import { resolvePersona } from './normalize-persona.js'
 
 after(async () => {
   if (process.env['DATABASE_URL']) {
-    await postgresSql.end()
+    await postgresSql.end({ timeout: 5 })
   }
 })
 

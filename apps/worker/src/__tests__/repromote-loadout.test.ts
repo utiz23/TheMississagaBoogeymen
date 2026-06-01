@@ -352,7 +352,7 @@ before(async () => {
 after(async () => {
   if (!process.env['DATABASE_URL']) return
   await cleanupSentinelMatches([SENTINEL_NO_EVIDENCE, SENTINEL_WITH_EVIDENCE])
-  await sql.end()
+  await sql.end({ timeout: 5 })
 })
 
 // ─── tests ────────────────────────────────────────────────────────────────────

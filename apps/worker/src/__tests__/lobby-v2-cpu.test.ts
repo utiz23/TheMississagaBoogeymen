@@ -117,7 +117,7 @@ after(async () => {
     await db.delete(players).where(inArray(players.id, Array.from(sentinelPlayerIds)))
   }
   await cleanupAllSentinels()
-  await rawSql.end()
+  await rawSql.end({ timeout: 5 })
 })
 
 interface FixtureResult {

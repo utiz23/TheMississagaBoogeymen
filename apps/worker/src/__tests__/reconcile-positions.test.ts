@@ -151,7 +151,7 @@ before(async () => {
 after(async () => {
   if (!process.env['DATABASE_URL']) return
   await cleanup()
-  await sql.end()
+  await sql.end({ timeout: 5 })
 })
 
 void test('guard updates NULL-confidence unpositioned row, skips manual + positioned', async () => {

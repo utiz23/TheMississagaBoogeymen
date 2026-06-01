@@ -85,7 +85,7 @@ after(async () => {
     }
   }
   await cleanupAllSentinels()
-  await rawSql.end()
+  await rawSql.end({ timeout: 5 })
 })
 
 interface FixtureSetupOptions {

@@ -105,7 +105,7 @@ describe('seedFixtureDb', () => {
   after(async () => {
     if (!process.env['DATABASE_URL']) return
     await cleanupSentinelMatches(seededMatchIds)
-    await sql.end()
+    await sql.end({ timeout: 5 })
   })
 
   test('seeds a sentinel match for synthetic_degraded without errors', async () => {

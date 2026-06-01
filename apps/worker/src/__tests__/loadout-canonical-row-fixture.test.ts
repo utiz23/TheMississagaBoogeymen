@@ -235,7 +235,7 @@ after(async () => {
   // Cleanup in FK-safe order.
   await cleanupSentinelMatches([SENTINEL_MATCH_ID])
   await cleanupSentinelPlayers()
-  await sql.end()
+  await sql.end({ timeout: 5 })
 })
 
 // ─── tests ────────────────────────────────────────────────────────────────────

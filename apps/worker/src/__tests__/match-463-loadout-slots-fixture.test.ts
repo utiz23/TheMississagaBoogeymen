@@ -113,7 +113,7 @@ after(async () => {
   // players that seedMatch463Roster inserted.
   await cleanupSentinelMatches([SENTINEL_MATCH_ID])
   await db.delete(players).where(inArray(players.id, SENTINEL_PLAYER_IDS_463))
-  await sql.end()
+  await sql.end({ timeout: 5 })
 })
 
 // ─── tests ───────────────────────────────────────────────────────────────────────

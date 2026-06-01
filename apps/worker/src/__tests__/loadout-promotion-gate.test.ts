@@ -379,7 +379,7 @@ after(async () => {
   await cleanup(allSentinelMatchIds)
   // Clean up persona alias rows.
   await db.delete(playerPersonaAliases).where(like(playerPersonaAliases.alias, '%ALIAS_OLD_2A17%'))
-  await sql.end()
+  await sql.end({ timeout: 5 })
 })
 
 // ─── Test 1: 10 slots fully promoted ─────────────────────────────────────────

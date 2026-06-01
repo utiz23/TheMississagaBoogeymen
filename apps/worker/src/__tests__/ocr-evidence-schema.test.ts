@@ -55,7 +55,7 @@ before(async () => {
 after(async () => {
   if (!process.env['DATABASE_URL']) return
   await cleanup()
-  await sql.end()
+  await sql.end({ timeout: 5 })
 })
 
 void test('ocr_segments: insert + upsert on (match_id, segment_key, run_id)', async () => {

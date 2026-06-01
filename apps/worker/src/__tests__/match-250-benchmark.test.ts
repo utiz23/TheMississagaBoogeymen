@@ -47,7 +47,7 @@ import {
 import { eq, inArray, and, sql } from 'drizzle-orm'
 
 after(async () => {
-  await postgresSql.end()
+  await postgresSql.end({ timeout: 5 })
 })
 
 interface ExpectedSlot {

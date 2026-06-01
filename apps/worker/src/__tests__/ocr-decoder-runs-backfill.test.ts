@@ -34,7 +34,7 @@ before(async () => {
 
 after(async () => {
   if (!process.env['DATABASE_URL']) return
-  await rawSql.end()
+  await rawSql.end({ timeout: 5 })
 })
 
 void test('every match-linked batch has run_id; unmatched batches keep run_id NULL', async () => {

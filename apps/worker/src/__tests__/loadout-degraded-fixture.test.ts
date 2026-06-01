@@ -123,7 +123,7 @@ after(async () => {
   // are left in place (they may be needed by other tests; cleanupSentinelMatches does
   // not delete players rows to avoid cross-test interference).
   await cleanupSentinelMatches([SENTINEL_MATCH_ID])
-  await sql.end()
+  await sql.end({ timeout: 5 })
 })
 
 // ─── tests ─────────────────────────────────────────────────────────────────────

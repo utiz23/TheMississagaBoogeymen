@@ -52,7 +52,7 @@ before(async () => {
 after(async () => {
   if (!process.env['DATABASE_URL']) return
   await cleanup()
-  await sql.end()
+  await sql.end({ timeout: 5 })
 })
 
 void test('liveRunFilter hides superseded-run rows, keeps active-run + NULL-run rows', async () => {

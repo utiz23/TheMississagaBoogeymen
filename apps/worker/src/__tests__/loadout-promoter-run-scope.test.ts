@@ -84,7 +84,7 @@ before(async () => {
 after(async () => {
   if (!process.env['DATABASE_URL']) return
   await cleanup()
-  await sql.end()
+  await sql.end({ timeout: 5 })
 })
 
 void test('promoter scopes evidence + writes by runId; snapshots skipped for non-active candidate', async () => {
