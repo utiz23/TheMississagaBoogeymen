@@ -88,6 +88,18 @@ def ingest(
             "the pass2 cache for this video."
         ),
     ),
+    pass1_gate: bool | None = typer.Option(
+        None,
+        "--pass1-gate/--no-pass1-gate",
+        help=(
+            "WS2 pre-OCR gate: when enabled, frames classified as "
+            "unambiguously non-text (black/fade) skip the expensive Pass-1 "
+            "OCR. Default (omitted) = use the version YAML's "
+            "`pass1.pre_ocr_gate.enabled`. Use --no-pass1-gate for an OFF/ON "
+            "A/B against --pass1-gate (each invalidates the Pass-1 cache). The "
+            "env var OCR_PASS1_GATE_ENABLED=false force-disables regardless."
+        ),
+    ),
 ) -> None:
     """Run the full pipeline against a single video file. With
     `--dispatch`, fans out to the worker's ingest-ocr-cli to write
@@ -106,6 +118,7 @@ def ingest(
         run_id=run_id,
         artifact_mode=pass2_artifacts,
         prefilter_enabled=prefilter,
+        pass1_gate_enabled=pass1_gate,
     )
     typer.echo(f"\nsha:    {res.probe.sha256}")
     typer.echo(f"root:   {res.sha_root}")
@@ -131,6 +144,14 @@ def classify_only(
     version: str = typer.Option("nhl26"),
     use_gpu: bool = typer.Option(True),
     force_pass1: bool = typer.Option(False, help="Re-run Pass 1 even if segments.json cached."),
+    pass1_gate: bool | None = typer.Option(
+        None,
+        "--pass1-gate/--no-pass1-gate",
+        help=(
+            "WS2 pre-OCR gate override (OFF/ON A/B for Pass-1 wall). Default "
+            "= version YAML. Each effective state has its own Pass-1 cache key."
+        ),
+    ),
 ) -> None:
     """Pass 1 only. Writes segments.json and never touches Pass 2 state.
     Useful for iterating on classifier thresholds. Respects the Pass 1 cache;
@@ -142,6 +163,7 @@ def classify_only(
         use_gpu=use_gpu,
         force_pass1=force_pass1,
         skip_pass2=True,
+        pass1_gate_enabled=pass1_gate,
     )
     typer.echo(f"\nsegments.json at {res.sha_root / 'segments.json'}")
     typer.echo(f"pass1: {len(res.pass1_segments)} segments ({res.elapsed_pass1:.1f}s)")

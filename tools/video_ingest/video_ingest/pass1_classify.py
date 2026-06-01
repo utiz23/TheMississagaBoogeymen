@@ -63,10 +63,20 @@ def _sha256_of(data: bytes) -> str:
     return "sha256:" + hashlib.sha256(data).hexdigest()
 
 
-def compute_pass1_cache_key(version: str, engine: str = "viterbi_v2") -> str:
+def compute_pass1_cache_key(
+    version: str, engine: str = "viterbi_v2", gate_fingerprint: str | None = None
+) -> str:
     """Hash of every input that demonstrably changes Pass-1 output for the
     given engine. Engine-aware as of S5.4: v1 and v2 each read their own
-    state-machine YAML + weights artifact (+ regex priors for v2)."""
+    state-machine YAML + weights artifact (+ regex priors for v2).
+
+    `gate_fingerprint` (WS2): the effective pre-OCR gate state. The gate's
+    enabled/threshold state is set at runtime (YAML + env kill switch + CLI
+    override), so it does NOT live entirely in the hashed config files — the
+    env/CLI overrides would otherwise reuse a stale cached segments.json. When
+    not None it is folded into the key so any change to effective gate behavior
+    correctly invalidates the cache. None (gate effectively disabled) ⇒
+    byte-identical key to a pre-WS2 build."""
     version_yaml = VIDEO_INGEST_CONFIGS_DIR / f"{version}.yaml"
     classifier_yaml = _CLASSIFIER_CONFIGS_DIR / f"{version}.yaml"
     parts: list[bytes] = [version_yaml.read_bytes(), b"\x00", classifier_yaml.read_bytes()]
@@ -99,6 +109,9 @@ def compute_pass1_cache_key(version: str, engine: str = "viterbi_v2") -> str:
     if regex_priors_yaml is not None and regex_priors_yaml.exists():
         parts.append(b"\x00")
         parts.append(regex_priors_yaml.read_bytes())
+    if gate_fingerprint is not None:
+        parts.append(b"\x00")
+        parts.append(gate_fingerprint.encode("utf-8"))
     return _sha256_of(b"".join(parts))
 
 
@@ -124,6 +137,11 @@ class Pass1Config:
     # path. Default stays run_length until weights ship; switch per-version in
     # configs/<version>.yaml.
     engine: str = "run_length"
+    # WS2: effective pre-OCR gate (post env/CLI override). None = disabled.
+    # Only the viterbi_v2 engine honors it. Typed loosely to avoid importing
+    # the policy module here (it pulls in cv2 via signals); the orchestrator
+    # sets it to a `GateConfig | None`.
+    pass1_gate: object | None = None
 
 
 @dataclass
@@ -221,6 +239,9 @@ class SamplingTelemetry:
     viterbi_ms: float = 0.0
     elapsed_pass1_ms: float = 0.0
     pass1_cache_hit: bool = False
+    # WS2: count of frames the pre-OCR gate skipped OCR on (viterbi_v2 only).
+    # Denominator is `sampled_frame_count`. 0 when the gate is disabled.
+    frames_gated: int = 0
 
 
 def iter_sampled_frames(

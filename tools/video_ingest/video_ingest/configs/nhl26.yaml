@@ -53,6 +53,26 @@ pass1:
     post_game_box_score_goals: 1
     post_game_faceoff_map: 1
     post_game_net_chart: 1
+  # WS2 pre-OCR gate: skip the expensive per-frame OCR on frames that are
+  # UNAMBIGUOUSLY non-text (black / fade / loading), then pin them to
+  # unknown_or_transition. Conservative: a frame is gated only when ALL
+  # configured criteria agree (require_all). Thresholds are upper bounds — a
+  # frame qualifies as non-text when its signal is <= the bound.
+  #   max_edge_density — primary discriminator: text/UI chrome produces many
+  #     Canny edges; a flat fade has ~none (and the AND on it protects in-game
+  #     gameplay, whose clock overlay carries edges).
+  #   max_log_blur — log1p(Laplacian variance); sharp text is high, a flat
+  #     frame is near-zero.
+  #   max_brightness — strong fade/blackout co-signal.
+  # Launch values gate a black-frame signature only (smallest safe win).
+  # Widen max_edge_density against the proving bench to recover more.
+  # ABSENT block ⇒ gate disabled. Env kill switch: OCR_PASS1_GATE_ENABLED=false.
+  pre_ocr_gate:
+    enabled: true
+    require_all: true
+    max_brightness: 0.06
+    max_edge_density: 0.005
+    max_log_blur: 2.0
 
 pass2:
   window_padding_seconds: 1.0
