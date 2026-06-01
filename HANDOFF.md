@@ -2,7 +2,11 @@
 
 ## To-Do
 
-**Status (2026-05-31 — latest):** **Reconciliation wired into LIVE INGEST — committed on branch `feat/reconcile-live-ingest` (`c346d98`), NOT yet pushed/PR'd.** The standalone post-pass (PR #4) now runs automatically at the tail of every OCR batch, so scroll-past positions recover during ingest instead of via the manual psql pipeline. Closes the top deferred item from the prior entry.
+**Status (2026-06-01 — latest):** **Reconciliation wired into LIVE INGEST — PR #5 MERGED to `main`** (merge `c961063`; 4 commits: feat + docs + review-fix; branch `feat/reconcile-live-ingest` deleted). The standalone post-pass (PR #4) now runs automatically at the tail of every OCR batch, so scroll-past positions recover during ingest instead of via the manual psql pipeline. Closes the top deferred item from the prior entry.
+
+**Pre-merge review fix (`0b0251e`):** `applyProposals` validates the cross-process `confidence_label` against `{interpolated, extrapolated}` and skips+warns on drift rather than blind-casting onto the enum column (a bad label would trip the position-confidence CHECK constraint and roll back the whole batch's proposals). Also documented `OCR_RECONCILE_ENABLED` + `OCR_PYTHON` in `.env.example`. TS reconcile test now 6 cases.
+
+**E2E smoke (real spawn path, live match 250):** `reconcilePositions(250, runId=1)` read 479 AT extractions → real `python3 --json` subprocess → parsed → guarded apply → `proposed=0 applied=0`, zero rows changed (idempotent no-op on already-positioned data; restore confirmed zero net change). Note match-250 run topology: active run = **583**, but AT extractions live under **run 1** (479) + **NULL** (1, the batch-3664 clarifying frame). A null-and-rederive demo on id288 was skipped — id288's marker is in the NULL-run clarifying frame and a second unpositioned P2 shot remains, so two P2 gaps vs one salvage cluster ⇒ tool correctly reports *ambiguous*, binds nothing. Re-derivation correctness stays proven by the unit tests + the prior manual reconcile.
 
 **What it is:** at the tail of `ingestOcrBatch()` (`apps/worker/src/ingest-ocr.ts`, after all promoters commit), the worker reconciles the batch's match when the batch produced a `post_game_action_tracker` extraction. New module `apps/worker/src/reconcile-positions.ts`:
 - Builds the Python tool's stdin payload via Drizzle (extractions + canonical `match_events` + reviewed `match_period_summaries`) — replaces the manual `json_agg` queries.
@@ -13,7 +17,7 @@
 
 **Validation:** Python 25/25 (22 + 3 new `--json` tests). New TS `apps/worker/src/__tests__/reconcile-positions.test.ts` 5/5 (guard updates NULL-confidence row, skips manual/positioned, run-scope, NULL-run fallback, throws-on-failure, no-AT no-op). Full worker suite: **zero regressions** — verified full-vs-full with changes stashed (baseline 14 fail / 297 pass → with-changes 11 fail / 300 pass; the with-changes failure set is a strict subset of baseline; the residual fails are pre-existing flaky loadout/lobby/decoder-runs/match-250-benchmark tests on the shared live DB, unrelated). Manual SQL mode emits the identical `BEGIN;…COMMIT;` block. db+worker build clean.
 
-**What's next:** push `feat/reconcile-live-ingest` + open a PR when ready (not done — awaiting go-ahead). Then the remaining deferred items below.
+**What's next (deferred, no active work):** (1) worker prefilter-telemetry persistence (smallest queued slice); (2) the INSERT-missing-identities path via the TS promoter (lets reconciliation close true row-gaps, not just positions); (3) the real payoff — run reconciliation on a **future non-curated match** (match 250 is hand-curated so it barely exercises recovery; the live hook now does this automatically on the next real ingest).
 
 ---
 
