@@ -116,6 +116,11 @@ function card(opts: {
   target?: string | null
   extractionId: number
   eventType?: 'shot' | 'hit' | 'goal' | 'penalty'
+  x?: number | null
+  y?: number | null
+  rinkZone?: string | null
+  bindMethod?: string
+  clusterColorSide?: 'for' | 'against' | 'unknown' | null
 }): RawOrphanCard {
   return {
     period_number: 2,
@@ -125,6 +130,11 @@ function card(opts: {
     target_snapshot: opts.target ?? null,
     event_detail: 'orphan',
     ocr_extraction_id: opts.extractionId,
+    x: opts.x ?? null,
+    y: opts.y ?? null,
+    rink_zone: opts.rinkZone ?? null,
+    bind_method: opts.bindMethod ?? 'none',
+    cluster_color_side: opts.clusterColorSide ?? null,
   }
 }
 
@@ -184,6 +194,42 @@ void test('resolveOrphanCard: unresolved actor → null id, team_side=against', 
   )
   assert.equal(proposal.actor_player_id, null)
   assert.equal(proposal.team_side, 'against')
+})
+
+void test('resolveOrphanCard: positioned card carries x/y/rink_zone through to the proposal', async () => {
+  if (!process.env['DATABASE_URL']) return
+  const p = await firstPlayer()
+  const m = await createSentinelMatch('positioned')
+  await seedLineup(m.matchId, m.extractionId, p.id, p.gamertag)
+
+  const proposal = await resolveOrphanCard(
+    card({ actor: p.gamertag, extractionId: m.extractionId, x: 36.5, y: 36.2, rinkZone: 'offensive', bindMethod: 'co_occurrence' }),
+    m.matchId,
+    GAME_TITLE_ID,
+    dbForResolver,
+  )
+  assert.equal(proposal.x, 36.5)
+  assert.equal(proposal.y, 36.2)
+  assert.equal(proposal.rink_zone, 'offensive')
+  assert.equal(proposal.team_side, 'for')
+})
+
+void test('resolveOrphanCard: cluster_color_side disagreeing with roster does NOT flip team_side', async () => {
+  if (!process.env['DATABASE_URL']) return
+  const p = await firstPlayer()
+  const m = await createSentinelMatch('color-disagree')
+  await seedLineup(m.matchId, m.extractionId, p.id, p.gamertag)
+
+  // Rostered actor → roster says 'for'. Cluster color claims 'against'. Roster
+  // is authoritative; team_side stays 'for', the position is kept.
+  const proposal = await resolveOrphanCard(
+    card({ actor: p.gamertag, extractionId: m.extractionId, x: 10.0, y: -6.0, rinkZone: 'neutral', clusterColorSide: 'against' }),
+    m.matchId,
+    GAME_TITLE_ID,
+    dbForResolver,
+  )
+  assert.equal(proposal.team_side, 'for')
+  assert.equal(proposal.x, 10.0)
 })
 
 void test('resolveOrphanCard: actor unresolved + target rostered → against, target_player_id set', async () => {

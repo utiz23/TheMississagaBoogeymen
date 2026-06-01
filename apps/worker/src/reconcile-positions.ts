@@ -83,6 +83,15 @@ export interface IdentityProposal {
   target_player_id: number | null
   event_detail: string | null
   ocr_extraction_id: number
+  /**
+   * Recovered rink position (WS4 Stage 2b), or null when the producer could not
+   * bind the orphan to a marker cluster. When set, the INSERT lands the row
+   * positioned with `position_confidence='extrapolated'`; when null it inserts
+   * unpositioned, exactly as Stage 2a did.
+   */
+  x: number | null
+  y: number | null
+  rink_zone: string | null
 }
 
 /**
@@ -101,6 +110,22 @@ export interface RawOrphanCard {
   target_snapshot: string | null
   event_detail: string | null
   ocr_extraction_id: number
+  /**
+   * Position bound by the Stage-2b producer via cross-frame marker consensus,
+   * or null when no cluster bound. OPTIONAL on the wire so a pre-2b producer
+   * (which omits them) still parses; `resolveOrphanCard` defaults them to null.
+   */
+  x?: number | null
+  y?: number | null
+  rink_zone?: string | null
+  /** 'co_occurrence' when a cluster bound, else 'none'. Diagnostic only. */
+  bind_method?: string
+  /**
+   * The bound cluster's color-derived side ('for'/'against'/'unknown'), a HINT
+   * only. Roster-derived team_side is authoritative; a disagreement is logged
+   * but never flips team_side or drops the position.
+   */
+  cluster_color_side?: 'for' | 'against' | 'unknown' | null
 }
 
 /** The `--json` stdout shape of `reconcile_action_tracker.py`. */
@@ -148,6 +173,8 @@ export interface ReconcilePositionsResult {
   applied: number
   /** Identity orphans inserted as new pending_review rows (WS4). 0 live in Stage 1. */
   identity_inserted: number
+  /** Of `identity_inserted`, how many landed with a recovered position (WS4 Stage 2b). */
+  identity_inserted_positioned: number
   /** Identity proposals that dedup-hit an existing row and refreshed it (WS4). */
   identity_dedup_refreshed: number
   /** Identity proposals skipped because >1 candidate matched — ambiguous (WS4). */
@@ -184,6 +211,7 @@ export async function reconcilePositions(
       proposed: 0,
       applied: 0,
       identity_inserted: 0,
+      identity_inserted_positioned: 0,
       identity_dedup_refreshed: 0,
       identity_ambiguous: 0,
       identity_skipped_invalid: 0,
@@ -199,6 +227,7 @@ export async function reconcilePositions(
   // run OUTSIDE applyIdentityProposals' transaction.
   let identity: ApplyIdentityResult = {
     inserted: 0,
+    insertedPositioned: 0,
     dedupRefreshed: 0,
     ambiguous: 0,
     skippedInvalid: 0,
@@ -217,6 +246,7 @@ export async function reconcilePositions(
     proposed: output.updates.length,
     applied,
     identity_inserted: identity.inserted,
+    identity_inserted_positioned: identity.insertedPositioned,
     identity_dedup_refreshed: identity.dedupRefreshed,
     identity_ambiguous: identity.ambiguous,
     identity_skipped_invalid: identity.skippedInvalid,
@@ -225,6 +255,8 @@ export async function reconcilePositions(
 
 export interface ApplyIdentityResult {
   inserted: number
+  /** Of `inserted`, how many landed with a recovered position (WS4 Stage 2b). */
+  insertedPositioned: number
   dedupRefreshed: number
   ambiguous: number
   skippedInvalid: number
@@ -270,17 +302,36 @@ export async function resolveOrphanCard(
   const { playerId: targetPlayerId } = card.target_snapshot
     ? await resolveActorForMatch(card.target_snapshot, matchId, gameTitleId, conn)
     : { playerId: null }
+  const teamSide = deriveTeamSide(actorPlayerId, targetPlayerId)
+
+  // The producer's marker color is a position-derived HINT; the roster-derived
+  // team_side is authoritative (color detection is less reliable than the
+  // roster check). Surface a disagreement for observability but trust the
+  // roster — never flip team_side, never drop the spatial fact.
+  if (
+    card.cluster_color_side &&
+    card.cluster_color_side !== 'unknown' &&
+    card.cluster_color_side !== teamSide
+  ) {
+    console.warn(
+      `[reconcile][identity] cluster color side '${card.cluster_color_side}' disagrees with roster team_side '${teamSide}' — trusting roster (match=${String(matchId)} period=${String(card.period_number)} type=${card.event_type} actor=${card.actor_snapshot})`,
+    )
+  }
+
   return {
     period_number: card.period_number,
     period_label: card.period_label,
     event_type: card.event_type,
-    team_side: deriveTeamSide(actorPlayerId, targetPlayerId),
+    team_side: teamSide,
     actor_snapshot: card.actor_snapshot,
     actor_player_id: actorPlayerId,
     target_snapshot: card.target_snapshot,
     target_player_id: targetPlayerId,
     event_detail: card.event_detail,
     ocr_extraction_id: card.ocr_extraction_id,
+    x: card.x ?? null,
+    y: card.y ?? null,
+    rink_zone: card.rink_zone ?? null,
   }
 }
 
@@ -300,11 +351,12 @@ export async function applyIdentityProposals(
   matchId: number,
 ): Promise<ApplyIdentityResult> {
   if (proposals.length === 0) {
-    return { inserted: 0, dedupRefreshed: 0, ambiguous: 0, skippedInvalid: 0 }
+    return { inserted: 0, insertedPositioned: 0, dedupRefreshed: 0, ambiguous: 0, skippedInvalid: 0 }
   }
 
   return db.transaction(async (tx) => {
     let inserted = 0
+    let insertedPositioned = 0
     let dedupRefreshed = 0
     let ambiguous = 0
     let skippedInvalid = 0
@@ -358,9 +410,13 @@ export async function applyIdentityProposals(
       }
 
       // 2c. Zero match → mint a pending_review row, mirroring the promoter's
-      // insert (action-tracker.ts:179-234). clock is null (orphan), x/y/zone
-      // null, position_confidence unset; goal/penalty extension row in the SAME
-      // transaction so a base row can never be left without its extension.
+      // insert (action-tracker.ts:179-234). clock is null (orphan). WS4 Stage 2b:
+      // when the producer bound a marker cluster, land the row positioned with
+      // position_confidence='extrapolated' (every binding is an inference);
+      // otherwise insert unpositioned exactly as Stage 2a did. Goal/penalty
+      // extension row in the SAME transaction so a base row can never be left
+      // without its extension.
+      const positioned = p.x !== null && p.y !== null
       const newEvent: NewMatchEvent = {
         matchId,
         periodNumber: p.period_number,
@@ -374,9 +430,10 @@ export async function applyIdentityProposals(
         targetPlayerId: p.target_player_id,
         targetGamertagSnapshot: p.target_snapshot,
         eventDetail: p.event_detail,
-        x: null,
-        y: null,
-        rinkZone: null,
+        x: positioned ? String(p.x) : null,
+        y: positioned ? String(p.y) : null,
+        rinkZone: positioned ? p.rink_zone : null,
+        positionConfidence: positioned ? 'extrapolated' : null,
         source: 'ocr',
         ocrExtractionId: p.ocr_extraction_id,
         reviewStatus: 'pending_review',
@@ -406,9 +463,10 @@ export async function applyIdentityProposals(
         })
       }
       inserted++
+      if (positioned) insertedPositioned++
     }
 
-    return { inserted, dedupRefreshed, ambiguous, skippedInvalid }
+    return { inserted, insertedPositioned, dedupRefreshed, ambiguous, skippedInvalid }
   })
 }
 

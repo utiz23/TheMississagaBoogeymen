@@ -86,6 +86,9 @@ function proposal(opts: {
   actorPlayerId?: number | null
   targetSnapshot?: string | null
   targetPlayerId?: number | null
+  x?: number | null
+  y?: number | null
+  rinkZone?: string | null
 }): IdentityProposal {
   return {
     period_number: opts.period,
@@ -98,6 +101,9 @@ function proposal(opts: {
     target_player_id: opts.targetPlayerId ?? null,
     event_detail: null,
     ocr_extraction_id: extractionId,
+    x: opts.x ?? null,
+    y: opts.y ?? null,
+    rink_zone: opts.rinkZone ?? null,
   }
 }
 
@@ -184,6 +190,23 @@ void test('zero-match shot proposal → inserts a pending_review row, no extensi
   // shot has no extension table
   const goals = await db.select().from(matchGoalEvents).where(eq(matchGoalEvents.eventId, row.id))
   assert.equal(goals.length, 0)
+})
+
+void test('zero-match POSITIONED shot proposal → inserts pending_review row with x/y/extrapolated (WS4 Stage 2b)', async () => {
+  if (!process.env['DATABASE_URL']) return
+  const res = await applyIdentityProposals(
+    [proposal({ period: 71, actor: 'POSGHOST', x: 36.5, y: 36.2, rinkZone: 'offensive' })],
+    TEST_MATCH_ID,
+  )
+  assert.equal(res.inserted, 1)
+  assert.equal(res.insertedPositioned, 1)
+  const rows = await bucketRows(71)
+  assert.equal(rows.length, 1)
+  const row = rows[0]!
+  assert.equal(row.x, '36.50')
+  assert.equal(row.positionConfidence, 'extrapolated')
+  assert.equal(row.reviewStatus, 'pending_review')
+  assert.equal(row.clock, null)
 })
 
 void test('zero-match goal proposal → base row + matchGoalEvents row', async () => {

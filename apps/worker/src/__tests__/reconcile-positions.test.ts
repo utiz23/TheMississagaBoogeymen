@@ -291,6 +291,7 @@ void test('no AT extractions for the run → no-op, tool not called', async () =
     proposed: 0,
     applied: 0,
     identity_inserted: 0,
+    identity_inserted_positioned: 0,
     identity_dedup_refreshed: 0,
     identity_ambiguous: 0,
     identity_skipped_invalid: 0,
@@ -358,6 +359,50 @@ void test('orphan_cards from the tool → resolved + inserted as a pending_revie
   assert.equal(rows[0]?.x, null)
   assert.equal(rows[0]?.reviewStatus, 'pending_review')
   assert.equal(rows[0]?.source, 'ocr')
+})
+
+void test('positioned orphan_card from the tool → inserted positioned + counter set (WS4 Stage 2b)', async () => {
+  if (!process.env['DATABASE_URL']) return
+
+  const fakeTool = (_matchId: number, _payload: ReconcilePayload): Promise<ReconcileToolOutput> =>
+    Promise.resolve({
+      match_id: TEST_MATCH_ID,
+      updates: [],
+      orphan_cards: [
+        {
+          period_number: 74,
+          period_label: '74',
+          event_type: 'shot',
+          actor_snapshot: `${SENTINEL}orphan-positioned`,
+          target_snapshot: null,
+          event_detail: 'orphan',
+          ocr_extraction_id: runAExtId,
+          x: 36.5,
+          y: 36.2,
+          rink_zone: 'offensive',
+          bind_method: 'co_occurrence',
+          cluster_color_side: 'against',
+        },
+      ],
+    })
+
+  const result = await reconcilePositions(TEST_MATCH_ID, runAId, fakeTool)
+  assert.equal(result.identity_inserted, 1)
+  assert.equal(result.identity_inserted_positioned, 1)
+  const rows = await db
+    .select({
+      x: matchEvents.x,
+      rinkZone: matchEvents.rinkZone,
+      positionConfidence: matchEvents.positionConfidence,
+      reviewStatus: matchEvents.reviewStatus,
+    })
+    .from(matchEvents)
+    .where(like(matchEvents.actorGamertagSnapshot, `${SENTINEL}orphan-positioned`))
+  assert.equal(rows.length, 1)
+  assert.equal(rows[0]?.x, '36.50')
+  assert.equal(rows[0]?.rinkZone, 'offensive')
+  assert.equal(rows[0]?.positionConfidence, 'extrapolated')
+  assert.equal(rows[0]?.reviewStatus, 'pending_review')
 })
 
 void test('OCR_IDENTITY_RECOVERY_ENABLED=false → orphan cards are a no-op', async () => {
