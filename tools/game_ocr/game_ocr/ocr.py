@@ -177,3 +177,17 @@ class RapidOCRBackend:
                     )
                 )
         return lines
+
+
+class _NullOCRBackend:
+    """OCRBackend that reads nothing. Slotted in by the Pass-1 pre-OCR gate
+    (WS2) for frames classified as unambiguously non-text: the frame still
+    builds a full FrameFeaturesV2 (cheap visual features), but the expensive
+    RapidOCR ROI reads are skipped, so all OCR-derived fields come back empty
+    (top_bar_text/side_strip_text="" → zeroed regex_prior_flags /
+    ocr_presence_flags). Satisfies the OCRBackend Protocol."""
+
+    name = "null"
+
+    def read(self, image: np.ndarray) -> list[OCRLine]:
+        return []
