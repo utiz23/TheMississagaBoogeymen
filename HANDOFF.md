@@ -2,6 +2,13 @@
 
 ## To-Do
 
+> **🔴 ACTIVE PRIORITY (set 2026-06-01): "Finish the OCR/Video-Ingestion Pipeline Revamp (Tier 2)" — plan `~/.claude/plans/ok-so-can-you-starry-umbrella.md`.**
+> This plan is THE priority until it is completed. All other plans/roadmaps are subordinate to it.
+> Any "status", "next up", or progress reference in this file is in reference to THIS plan until it
+> is explicitly marked complete or the user redirects. Workstreams: WS0 ship/stabilize → WS1 close
+> Phase 4 (measurement-gated) → WS2 (conditional) / WS3 / WS4 / WS5 → WS6 acceptance gate.
+> **Progress:** WS0b ✅ (EXTRACTOR_VERSION test fixed, branch `fix/pipeline-ws0-closeout`). In flight: WS0c, then WS0a redeploy.
+
 **Status (2026-06-01 — latest):** **Reconciliation wired into LIVE INGEST — PR #5 MERGED to `main`** (merge `c961063`; 4 commits: feat + docs + review-fix; branch `feat/reconcile-live-ingest` deleted). The standalone post-pass (PR #4) now runs automatically at the tail of every OCR batch, so scroll-past positions recover during ingest instead of via the manual psql pipeline. Closes the top deferred item from the prior entry.
 
 **Pre-merge review fix (`0b0251e`):** `applyProposals` validates the cross-process `confidence_label` against `{interpolated, extrapolated}` and skips+warns on drift rather than blind-casting onto the enum column (a bad label would trip the position-confidence CHECK constraint and roll back the whole batch's proposals). Also documented `OCR_RECONCILE_ENABLED` + `OCR_PYTHON` in `.env.example`. TS reconcile test now 6 cases.
