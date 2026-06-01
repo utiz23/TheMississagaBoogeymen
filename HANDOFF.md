@@ -15,10 +15,12 @@
 > - **WS3 ✅ evidence-capture** (per-frame OCR text + visual signals on VersionGuess; 3 tests).
 >   **Visual-anchor discriminator DEFERRED** (user) — needs NHL 27 refs / centroid work.
 > - **WS1a ✅ measured → Pass-1 OCR STILL MATERIAL** (classify 82.2%, ocr_of_total 35.7%). **WS2 justified.**
-> - **WS2 ⏸ IMPLEMENTED on `feat/ws2-pass1-prefilter-gate` (UNMERGED, NOT pushed — held for review).**
->   Conservative Pass-1 pre-OCR gate; zero-regression confirmed (bench ON ≡ OFF). NOT claimed "done":
->   the proving bench is pre-existing absolute-red (separate follow-up) and the gate fires on 0 frames
->   on current bench clips so the wall saving is unmeasured. Tuning deferred. See the WS2 status entry.
+> - **WS2 ✅ MERGED to `main` (NOT pushed).** Conservative Pass-1 pre-OCR gate (default-ON, env kill
+>   switch `OCR_PASS1_GATE_ENABLED=false`); zero-regression confirmed (bench ON ≡ OFF). Merged via
+>   `--no-ff` after the proving-bench re-anchoring landed, so its bench arm runs against green labels.
+>   Caveats unchanged: the gate fires on 0 frames on the bench clips (bright menu/lobby), so the wall
+>   saving is **unmeasured** — needs a host ingest on footage with fades/black frames
+>   (`classify-only --pass1-gate` vs `--no-pass1-gate`). `max_edge_density` tuning deferred.
 > - **WS4 → ROBUST long-term path chosen (user). Stage 1 ✅ + Stage 2a ✅ + Stage 2b ✅ MERGED to
 >   `main`.** Stage 1 = clock-independent dedup + guarded identity INSERT machinery. **Stage 2a = the
 >   PRODUCER**: Python `build_orphan_cards` (extends `reconcile_action_tracker.py --json` with
@@ -38,28 +40,36 @@
 >   restored `pnpm --filter worker test <selector>`) — all fixed pre-merge. **8 remaining failures are
 >   PRE-EXISTING & non-isolation, tracked as known-red** (see the WS5 status entry below).
 >
-> **>>> NEXT UP: WS6** (acceptance: real non-curated match + operator ground-truth). WS2 is IMPLEMENTED
-> on branch `feat/ws2-pass1-prefilter-gate` (5 commits, **UNMERGED, NOT pushed — held for review**, see
-> the WS2 status entry below). WS4 is fully DONE (Stage 1+2a+2b merged + pushed `9e5addd`, host `dist`
-> rebuilt). Optional: WS4 Stage 3 (clock re-OCR). Separate follow-up tracked below: **the proving bench
-> is pre-existing absolute-RED** (independent of WS2). Optional cleanup: the 8 WS5 known-red failures.
-> The `fix/pipeline-ws0-closeout` branch equals `main` (safe to delete).
+> **>>> NEXT UP: WS6** (acceptance: real non-curated match + operator ground-truth). WS2 ✅ MERGED to
+> `main` (merge `ae3f46d`, NOT pushed). WS4 is fully DONE (Stage 1+2a+2b merged + pushed `9e5addd`, host
+> `dist` rebuilt). Optional: WS4 Stage 3 (clock re-OCR); measure the WS2 wall saving on real fade/black
+> footage; the 8 WS5 known-red failures. NOT pushed: `main` is ahead of `origin/main` by the
+> proving-bench + WS2 merges — push when ready. The `fix/pipeline-ws0-closeout`,
+> `feat/ws2-pass1-prefilter-gate`, and `investigate/proving-bench-red` branches are all merged into
+> `main` (safe to delete).
 >
-> **>>> FOLLOW-UP (separate from WS2 — do NOT fold into it): proving-bench pre-existing RED.**
-> `test_screen_classifier_proving_bench.py` (`RUN_CLASSIFIER_E2E=1`) is absolute-red on the **baseline**
-> (gate OFF / pre-WS2 behavior): `match-968-menu-sequence` scores **88.3% (53/60) < 90%**; both clip
-> subtests fail. This is a v2-classifier / labels issue (labels.json last touched 2026-05-28), NOT caused
-> by WS2 — WS2's gate does not fire on these clips at all. Needs its own investigation: is it a labels
-> drift, a classifier regression, or a threshold that needs the deferred-class relaxation widened? Until
-> resolved, the proving bench cannot be used as a green acceptance gate; WS2 was accepted on the
-> **zero-regression (ON ≡ OFF)** criterion instead.
+> **>>> RESOLVED (2026-06-01): proving-bench RED — root-caused + fixed (merged `main`).**
+> `test_screen_classifier_proving_bench.py` (`RUN_CLASSIFIER_E2E=1`) was absolute-red on the baseline
+> (match-968 88.3%, match-250 91.7% + a hard-zero contamination hit). **Root cause:** commit `c872670`
+> flipped Pass-1 from the ffmpeg-fps sampler (`_iter_raw_bgr_frames`) to the PyAV canonical-PTS sampler
+> (`iter_sampled_frames`); the per-second labels were authored against the OLD frames and the new sampler
+> returns a different physical frame at ~18/60 transition-boundary seconds. Weights + labels were
+> byte-identical to the green commit `d1cdfee` — only the frames moved. The E2E gate is behind
+> `RUN_CLASSIFIER_E2E=1` and was never run post-flip, so it landed silently. **Fix:** re-anchored
+> `labels.json` to the canonical-PTS frames (boundary shifts only, verified by eye; no model/threshold
+> change) → match-968 **95.0%**, match-250 **96.7%**, 0 contamination, bench green. Also rewired the two
+> diagnostic scripts (`diagnose_segments.py`, `diagnose_v2_proving_bench.py`) off the deleted
+> `_iter_raw_bgr_frames`. Findings: `docs/ocr/proving-bench-red-findings.md`. (Old follow-up text below
+> retained for context.) The original hypotheses (labels drift / classifier regression / threshold) were
+> all refuted in favor of the sampler-swap root cause above; the bench is now a green acceptance gate
+> again. WS2 was independently accepted on the **zero-regression (ON ≡ OFF)** criterion.
 >
 > **Env notes for a cold start:** only `.venv-1` has pytest + the GPU stack (onnxruntime-CUDA + PyAV); run
 > Python tests as `cd tools/<pkg> && PYTHONPATH=.:../game_ocr ../../.venv-1/bin/python -m pytest …`
 > (`game_ocr` and `video_ingest` live in separate per-tool venvs, so neither alone imports both — PYTHONPATH
 > bridges them). DB on host port **5433**, `DATABASE_URL` in `.env` (`set -a && source .env && set +a`).
 
-**Status (2026-06-01 — WS2 IMPLEMENTED on `feat/ws2-pass1-prefilter-gate`, UNMERGED + NOT pushed, held for review):** **Conservative Pass-1 pre-OCR gate (Phase A, heuristic).** Frames classified as unambiguously non-text (black/fade/loading) skip the expensive per-frame RapidOCR and are pinned to `unknown_or_transition`. Built via TDD across 5 layers/commits off `main`. Plan: `~/.claude/plans/plan-ws2-elegant-eich.md`.
+**Status (2026-06-01 — WS2 ✅ MERGED to `main` via `--no-ff` `ae3f46d`, NOT pushed):** **Conservative Pass-1 pre-OCR gate (Phase A, heuristic).** Frames classified as unambiguously non-text (black/fade/loading) skip the expensive per-frame RapidOCR and are pinned to `unknown_or_transition`. Built via TDD across 5 layers/commits off `main`. Plan: `~/.claude/plans/plan-ws2-elegant-eich.md`.
 
 **What shipped (5 commits, `c574515`→`be89a77`):**
 - **L0** `_NullOCRBackend` (`game_ocr/ocr.py`) — no-op OCR slotted in for gated frames.
