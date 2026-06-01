@@ -47,7 +47,15 @@
 > (`game_ocr` and `video_ingest` live in separate per-tool venvs, so neither alone imports both — PYTHONPATH
 > bridges them). DB on host port **5433**, `DATABASE_URL` in `.env` (`set -a && source .env && set +a`).
 
-**Status (2026-06-01 — WS4 Stage 2a COMPLETE on branch `feat/ws4-identity-recovery`, `6e26e69`, unmerged):** **The orphan-identity recovery PRODUCER — activates the Stage-1 INSERT seam.** Built via TDD. Recovers garbled-clock Action Tracker events the live promoter drops (`action-tracker.ts:105`) as `review_status='pending_review'` rows.
+**Status (2026-06-01 — WS4 Stage 1 + 2a MERGED to `main` @ `a97513a` (ff); worker container redeployed):** Branch `feat/ws4-identity-recovery` fast-forward-merged to `main` (still LOCAL — not pushed to origin; `origin/main` is behind by 4 commits). Worker container rebuilt + restarted, healthy (`[members] nhl26: 10/10 upserted`, clean poll cycle).
+
+**⚠️ DEPLOYMENT MODEL CORRECTION (important, observed this session):** The **worker container has no `python3` and no `tools/`** — it runs ONLY the EA-API poll loop (pure TS). **OCR ingestion — and therefore the reconcile + WS4 identity-recovery tail — runs HOST-SIDE via the CLI** (`ingestOcrBatch` is invoked only from `ingest-ocr-cli.ts`, never the container poll loop). So **rebuilding the worker *container* does NOT activate OCR/reconcile/identity behavior** (the WS0a "redeploy so the reconcile hook fires" framing was checking the wrong artifact — the file is in the container but the container never calls it). What actually activates Stage 2a in prod: (1) host `apps/worker/dist` rebuilt (done — `pnpm --filter @eanhl/worker build`), (2) the committed Python tool with `build_orphan_cards` (on `main`), (3) `OCR_IDENTITY_RECOVERY_ENABLED` default-ON. **The next operator-run OCR batch with an Action Tracker screen will produce `orphan_cards` → `pending_review` rows.** Run OCR ingestion with a Python that has the OCR stack (`.venv-1` / set `OCR_PYTHON`); `build_orphan_cards` adds no new Python deps (stdlib only), so it runs wherever the existing reconcile tool ran.
+
+**To verify Stage 2a live:** run a host OCR batch on a match with garbled-clock AT cards; expect a `[reconcile][identity]` / orphan-recovery log line and new `match_events` rows with `clock=null`, `x=null`, `review_status='pending_review'`. Kill switch: `OCR_IDENTITY_RECOVERY_ENABLED=false`.
+
+---
+
+**Status (2026-06-01 — WS4 Stage 2a COMPLETE, pre-merge):** **The orphan-identity recovery PRODUCER — activates the Stage-1 INSERT seam.** Built via TDD. Recovers garbled-clock Action Tracker events the live promoter drops (`action-tracker.ts:105`) as `review_status='pending_review'` rows.
 
 **What shipped (identity-only — no marker association; that's Stage 2b):**
 - **Architecture decision (from exploration):** raw AT data has **no team signal**, so the producer emits RAW orphan cards and the worker resolves identity + team_side in TS (reusing the live promoter's resolver). A recovered orphan thus resolves to exactly the identity the live path would have produced with a legible clock — which lets the clockless dedup collapse it against the real row if one appears.
