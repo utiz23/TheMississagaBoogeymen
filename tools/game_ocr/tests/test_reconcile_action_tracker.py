@@ -480,6 +480,24 @@ class JsonModeTests(unittest.TestCase):
         self.assertEqual(doc["orphan_cards"][0]["event_type"], "shot")
         self.assertEqual(doc["orphan_cards"][0]["actor_snapshot"], "RANTANEN")
 
+    def test_json_mode_emits_positioned_orphan_card(self):
+        # WS4 Stage 2b: a garbled-clock orphan whose marker is detected across
+        # frames comes out of --json already positioned + bound.
+        frames = [
+            _frame(i, 2, [_orphan_event("shot", "RANTANEN", 2)], None,
+                   [_marker("red", "shot", 36.5, 36.2, 1200, 500)])
+            for i in range(1, 30)
+        ]
+        payload = {"extractions": frames, "match_events": [], "period_summaries": []}
+        rc, stdout = self._run_main(json.dumps(payload), ["reconcile", "250", "--json"])
+        self.assertEqual(rc, 0)
+        card = json.loads(stdout)["orphan_cards"][0]
+        self.assertAlmostEqual(card["x"], 36.5, places=2)
+        self.assertAlmostEqual(card["y"], 36.2, places=2)
+        self.assertEqual(card["rink_zone"], "offensive")
+        self.assertEqual(card["bind_method"], "co_occurrence")
+        self.assertEqual(card["cluster_color_side"], "for")
+
     def test_dry_run_json_mode_emits_empty_orphan_cards(self):
         ext = _frame(7, 2, [_orphan_event("shot", "RANTANEN", 2)], None, [])
         payload = {"extractions": [ext], "match_events": [], "period_summaries": []}
@@ -574,6 +592,145 @@ class OrphanCardTests(unittest.TestCase):
             cards = rat.build_orphan_cards([ext])
         self.assertEqual(len(cards), 1)
         self.assertIn("multiplicity", err.getvalue().lower())
+
+
+class OrphanPanelIndexTests(unittest.TestCase):
+    """build_orphan_panel_index (WS4 Stage 2b) — actor↔frame co-occurrence."""
+
+    def test_panel_index_maps_identity_to_capture_ids(self):
+        frames = [
+            _frame(7, 2, [_orphan_event("shot", "RANTANEN", 2)], None,
+                   [_marker("red", "shot", 36.5, 36.2, 1200, 500)]),
+            _frame(9, 2, [_orphan_event("shot", "RANTANEN", 2)], None, []),
+        ]
+        idx = rat.build_orphan_panel_index(frames)
+        self.assertEqual(idx[(2, "shot", "rantanen", "")], {7, 9})
+
+    def test_panel_index_keys_event_level_period_not_frame_period(self):
+        # Frame-level period (3) disagrees with event-level period (2). The
+        # index must key on the EVENT period — the same authority the card and
+        # the live promoter use — so card↔index always align (Finding 3).
+        frame = _frame(7, 3, [_orphan_event("shot", "RANTANEN", 2)], None, [])
+        idx = rat.build_orphan_panel_index([frame])
+        self.assertIn((2, "shot", "rantanen", ""), idx)
+        self.assertNotIn((3, "shot", "rantanen", ""), idx)
+
+
+class OrphanBindingTests(unittest.TestCase):
+    """bind_orphan_cards (WS4 Stage 2b) — attach positions + split multiplicity."""
+
+    def _bind(self, frames, periods=None):
+        with redirect_stderr(io.StringIO()):
+            cards = rat.build_orphan_cards(frames)
+            idx = rat.build_orphan_panel_index(frames)
+            clusters = rat.build_period_clusters(frames)
+            results = [rat.reconcile_period(p, clusters.get(p, []), [])
+                       for p in (periods if periods is not None else clusters)]
+            return rat.bind_orphan_cards(cards, idx, results)
+
+    def test_single_orphan_binds_to_cluster_position(self):
+        # The real match-250 case: a 115-frame orphan shot marker at ~(36.5,36.2)
+        # whose card clock was garbled → one positioned card, offensive zone.
+        frames = [
+            _frame(i, 2, [_orphan_event("shot", "RANTANEN", 2)], None,
+                   [_marker("red", "shot", 36.5, 36.2, 1200, 500)])
+            for i in range(1, 116)
+        ]
+        bound = self._bind(frames)
+        self.assertEqual(len(bound), 1)
+        c = bound[0]
+        self.assertAlmostEqual(c["x"], 36.5, places=2)
+        self.assertAlmostEqual(c["y"], 36.2, places=2)
+        self.assertEqual(c["rink_zone"], "offensive")
+        self.assertEqual(c["bind_method"], "co_occurrence")
+        self.assertEqual(c["cluster_color_side"], "for")  # red marker → 'for'
+        self.assertEqual(c["actor_snapshot"], "RANTANEN")
+
+    def test_two_distinct_clusters_split_same_identity(self):
+        # One identity, two markers per frame at distinct positions → 2a
+        # collapses to one card; 2b fans it out to TWO positioned cards.
+        frames = [
+            _frame(i, 2, [_orphan_event("shot", "RANTANEN", 2)], None,
+                   [_marker("red", "shot", 36.5, 36.2, 1200, 500),
+                    _marker("red", "shot", -40.0, -10.0, 400, 300)])
+            for i in range(1, 30)
+        ]
+        bound = self._bind(frames)
+        self.assertEqual(len(bound), 2)
+        xs = sorted(c["x"] for c in bound)
+        self.assertEqual(xs, [-40.0, 36.5])
+        self.assertTrue(all(c["bind_method"] == "co_occurrence" for c in bound))
+
+    def test_contending_identities_higher_score_wins_cluster(self):
+        # RANTANEN co-occurs with the marker in 5 frames, MAKAR in 2; the lone
+        # cluster goes to RANTANEN, MAKAR falls back unpositioned.
+        frames = []
+        for i in range(1, 6):
+            events = [_orphan_event("shot", "RANTANEN", 2)]
+            if i <= 2:
+                events.append(_orphan_event("shot", "MAKAR", 2))
+            frames.append(_frame(i, 2, events, None,
+                                 [_marker("red", "shot", 36.5, 36.2, 1200, 500)]))
+        bound = self._bind(frames)
+        by_actor = {c["actor_snapshot"]: c for c in bound}
+        self.assertEqual(by_actor["RANTANEN"]["bind_method"], "co_occurrence")
+        self.assertEqual(by_actor["MAKAR"]["bind_method"], "none")
+        self.assertIsNone(by_actor["MAKAR"]["x"])
+
+    def test_orphan_with_no_marker_stays_unpositioned(self):
+        frames = [_frame(7, 2, [_orphan_event("hit", "TOEWS", 2)], None, [])]
+        bound = self._bind(frames)
+        self.assertEqual(len(bound), 1)
+        self.assertIsNone(bound[0]["x"])
+        self.assertIsNone(bound[0]["y"])
+        self.assertIsNone(bound[0]["rink_zone"])
+        self.assertEqual(bound[0]["bind_method"], "none")
+        self.assertIsNone(bound[0]["cluster_color_side"])
+
+    def test_redetection_of_positioned_event_not_eligible(self):
+        # The orphan's only marker sits on an already-positioned event, so
+        # reconcile_period prunes that cluster (absent from res.orphans) and the
+        # card finds nothing to bind → unpositioned, never steals the position.
+        frames = [
+            _frame(i, 2, [_orphan_event("shot", "RANTANEN", 2)], None,
+                   [_marker("red", "shot", 71.0, -38.7, 1450, 760)])
+            for i in range(1, 30)
+        ]
+        with redirect_stderr(io.StringIO()):
+            cards = rat.build_orphan_cards(frames)
+            idx = rat.build_orphan_panel_index(frames)
+            clusters = rat.build_period_clusters(frames)
+            positioned = _me(287, 2, "shot", "18:06", "OTHER", "for",
+                             x=71.0, y=-38.7, position_confidence="interpolated")
+            results = [rat.reconcile_period(2, clusters.get(2, []), [positioned])]
+            bound = rat.bind_orphan_cards(cards, idx, results)
+        self.assertEqual(len(bound), 1)
+        self.assertEqual(bound[0]["bind_method"], "none")
+
+    def test_binds_when_frame_capture_period_differs_from_event_period(self):
+        # Frame's capture period (select_capture_period → 5 via the selected
+        # faceoff) disagrees with the orphan event's period (2). Binding is
+        # frame-based (capture_id), so it still binds; the card keeps period 2
+        # (WS4 Finding 3 regression guard).
+        frames = []
+        for i in range(1, 30):
+            faceoff = _event("faceoff", "13:40", "WANHG", 5)
+            shot = _orphan_event("shot", "RANTANEN", 2)
+            frames.append(_frame(i, 5, [faceoff, shot], 0,
+                                 [_marker("red", "shot", 36.5, 36.2, 1200, 500)]))
+        bound = self._bind(frames)
+        self.assertEqual(len(bound), 1)
+        self.assertEqual(bound[0]["period_number"], 2)
+        self.assertAlmostEqual(bound[0]["x"], 36.5, places=2)
+        self.assertEqual(bound[0]["bind_method"], "co_occurrence")
+
+    def test_binding_is_idempotent(self):
+        frames = [
+            _frame(i, 2, [_orphan_event("shot", "RANTANEN", 2)], None,
+                   [_marker("red", "shot", 36.5, 36.2, 1200, 500)])
+            for i in range(1, 30)
+        ]
+        self.assertEqual(self._bind(frames), self._bind(frames))
 
 
 if __name__ == "__main__":

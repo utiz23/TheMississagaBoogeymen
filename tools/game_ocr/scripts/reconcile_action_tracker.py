@@ -358,6 +358,128 @@ def build_orphan_cards(extractions: list[dict]) -> list[dict]:
     return [{k: v for k, v in card.items() if k != "_conf"} for card in best.values()]
 
 
+def build_orphan_panel_index(
+    extractions: list[dict],
+) -> dict[tuple, set[int]]:
+    """Map each orphan identity → the set of frame `capture_id`s it appears in
+    (WS4 Stage 2b binding signal).
+
+    Mirrors `build_orphan_cards`' loop and filters EXACTLY (garbled clock,
+    plottable type, actor present) so the keys line up one-for-one with the
+    cards. The key uses **event-level** `period_number` — the same authority the
+    card and the live promoter use — NOT `select_capture_period`; that keeps
+    card↔index aligned even when a frame's capture period disagrees with its
+    events' period (WS4 Finding 3). Binding then scores a card against a marker
+    cluster by intersecting these capture_ids with the cluster's marker
+    capture_ids — a clock-free, frame-exact analogue of `pair_weight`'s actor
+    term, immune to period-bucket mismatch.
+    """
+    plottable = {"shot", "hit", "goal", "penalty"}
+    index: dict[tuple, set[int]] = {}
+    for row in extractions:
+        raw = row.get("raw_result_json", {}) or {}
+        ext_id = row.get("id", 0)
+        for e in raw.get("events", []) or []:
+            et = e.get("event_type")
+            if et not in plottable:
+                continue
+            clock_field = e.get("clock") or {}
+            if not (isinstance(clock_field, dict) and clock_field.get("status") == "missing"):
+                continue
+            actor = field_value(e.get("actor_snapshot"))
+            if not actor:
+                continue
+            period = e.get("period_number")
+            if not isinstance(period, int) or period < 1:
+                continue
+            target = field_value(e.get("target_snapshot"))
+            key = (period, et, normalize_actor(actor), normalize_actor(target))
+            index.setdefault(key, set()).add(ext_id)
+    return index
+
+
+def _emit_orphan_card(card: dict, cluster: "Cluster | None") -> dict:
+    """A pre-binding identity card → an output card carrying a position (when a
+    cluster bound) or the unpositioned fallback. The original identity fields
+    are preserved verbatim so the TS resolver sees a uniform shape."""
+    out = {k: v for k, v in card.items()}
+    if cluster is None:
+        out.update(x=None, y=None, rink_zone=None,
+                   bind_method="none", cluster_color_side=None)
+    else:
+        hx, hy, zone = cluster.median_hockey()
+        out.update(x=round(hx, 2), y=round(hy, 2), rink_zone=zone,
+                   bind_method="co_occurrence", cluster_color_side=cluster.team_side())
+    return out
+
+
+def bind_orphan_cards(
+    cards: list[dict],
+    panel_index: dict[tuple, set[int]],
+    recon_results: list,
+) -> list[dict]:
+    """Attach rink positions to orphan identity cards by binding each to its
+    marker cluster, and split same-identity multiplicities into N positioned
+    cards (WS4 Stage 2b).
+
+    The *cluster* is the scarce, consume-once unit (it represents one distinct
+    physical event); a *card* fans out to every cluster it wins, so one collapsed
+    identity card → K positioned cards when K distinct clusters co-occur with it.
+
+    Eligible clusters are the FLATTENED union of `reconcile_period`'s `res.orphans`
+    across every period — markers with no promoted event, with re-detections of
+    already-positioned events already pruned out. Flattening makes binding immune
+    to the card/cluster period-authority mismatch (WS4 Finding 3): the score is a
+    frame-exact `capture_id` intersection, not a period-bucketed lookup.
+
+    A card that wins no cluster passes through UNPOSITIONED (`bind_method='none'`)
+    — a strict superset of Stage 2a, never dropping a recoverable identity.
+    """
+    eligible: list[tuple] = []  # (cluster, shape, capture_ids)
+    for r in recon_results:
+        for c in r.orphans:
+            eligible.append((c, c.shape_vote(), {m.capture_id for m in c.markers}))
+
+    triples: list[tuple] = []  # (score, card_idx, cluster_idx)
+    for ci, card in enumerate(cards):
+        key = (
+            card["period_number"], card["event_type"],
+            normalize_actor(card["actor_snapshot"]),
+            normalize_actor(card.get("target_snapshot")),
+        )
+        frames = panel_index.get(key, set())
+        if not frames:
+            continue
+        for kj, (_clu, shape, cap_ids) in enumerate(eligible):
+            if shape != card["event_type"]:
+                continue
+            score = len(frames & cap_ids)
+            if score > 0:
+                triples.append((score, ci, kj))
+
+    # Greedy: highest co-occurrence first (deterministic tiebreak by cluster
+    # centroid). Consume the CLUSTER, never the card — a card wins every
+    # unclaimed cluster it out-scores others on.
+    triples.sort(key=lambda t: (-t[0], eligible[t[2]][0].median_pixel()))
+    consumed: set[int] = set()
+    won: dict[int, list[int]] = {}
+    for _score, ci, kj in triples:
+        if kj in consumed:
+            continue
+        consumed.add(kj)
+        won.setdefault(ci, []).append(kj)
+
+    out: list[dict] = []
+    for ci, card in enumerate(cards):
+        clusters_won = won.get(ci, [])
+        if not clusters_won:
+            out.append(_emit_orphan_card(card, None))
+            continue
+        for kj in clusters_won:
+            out.append(_emit_orphan_card(card, eligible[kj][0]))
+    return out
+
+
 # ─── completeness anchors ──────────────────────────────────────────────────
 
 
@@ -761,7 +883,15 @@ def main() -> int:
             }
             for u in updates
         ]
-        orphan_cards = [] if args.dry_run else build_orphan_cards(extractions)
+        # WS4 Stage 2b: bind each recovered identity to its marker cluster
+        # (cross-frame consensus) so the card lands positioned, and split
+        # same-identity multiplicities by position. `results` already carries
+        # each period's orphan clusters (markers with no promoted event).
+        orphan_cards = [] if args.dry_run else bind_orphan_cards(
+            build_orphan_cards(extractions),
+            build_orphan_panel_index(extractions),
+            results,
+        )
         print(json.dumps({
             "match_id": args.match_id,
             "updates": proposals,
