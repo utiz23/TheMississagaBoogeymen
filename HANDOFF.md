@@ -15,8 +15,13 @@
 > - **WS3 ✅ evidence-capture** (per-frame OCR text + visual signals on VersionGuess; 3 tests).
 >   **Visual-anchor discriminator DEFERRED** (user) — needs NHL 27 refs / centroid work.
 > - **WS1a ✅ measured → Pass-1 OCR STILL MATERIAL** (classify 82.2%, ocr_of_total 35.7%). **WS2 justified.**
-> - **WS4 → ROBUST long-term path chosen (user).** Design spec:
->   `docs/ocr/action-tracker-identity-recovery-design.md`. **~10–14 eng-days, staged** — own branch + TDD.
+> - **WS4 → ROBUST long-term path chosen (user). Stage 1 ✅ DONE** on branch
+>   `feat/ws4-identity-recovery` (`5b688ee`, NOT yet merged). Clock-independent dedup
+>   (`findExistingMatchEventClockless`) + guarded identity INSERT (`applyIdentityProposals`),
+>   spec-faithful & INERT (no live behavior — Python tool emits positions only; `inserts` dormant).
+>   18 new tests green; full worker suite 348 pass / 8 known-red / 1 skip. **Stages 2–3 remain**
+>   (~7–10d Python recovery pass + optional clock re-OCR). Design spec:
+>   `docs/ocr/action-tracker-identity-recovery-design.md`.
 > - **WS5 ✅ DONE — worker integration-test suite now isolated, deterministic, hang-free.** Per-run
 >   ephemeral DB clone harness (`apps/worker/scripts/with-test-db.mjs`, wired as `pnpm --filter worker
 >   test` / `test:integration`). The 7 target `spawnSync` CLI files all pass under isolation; prod DB
@@ -26,9 +31,10 @@
 >   restored `pnpm --filter worker test <selector>`) — all fixed pre-merge. **8 remaining failures are
 >   PRE-EXISTING & non-isolation, tracked as known-red** (see the WS5 status entry below).
 >
-> **>>> NEXT UP (active — user to steer): WS2, WS4 robust, WS6 (all multi-session).**
+> **>>> NEXT UP (active — user to steer): WS2, WS4 Stage 2, WS6 (all multi-session).**
 > WS2 (Pass-1 prefilter wiring + classifier retrain — justified by WS1a's still-material result) ·
-> WS4 robust build (Stage 1 first per `docs/ocr/action-tracker-identity-recovery-design.md`, ~10–14d) ·
+> **WS4 Stage 2** (Python `recover_action_tracker_identities.py` — the PRODUCER that feeds Stage 1's
+> now-built `inserts` seam; ~7–10d) — and merging `feat/ws4-identity-recovery` to `main` ·
 > WS6 acceptance (real non-curated match + operator ground-truth). Optional cleanup: the 8 WS5
 > known-red failures (2 of which — batch-missing-`run_id`, match-968 decoder provenance — may flag real
 > minor prod data drift worth a backfill). The `fix/pipeline-ws0-closeout` branch now equals `main`
@@ -38,6 +44,21 @@
 > Python tests as `cd tools/<pkg> && PYTHONPATH=.:../game_ocr ../../.venv-1/bin/python -m pytest …`
 > (`game_ocr` and `video_ingest` live in separate per-tool venvs, so neither alone imports both — PYTHONPATH
 > bridges them). DB on host port **5433**, `DATABASE_URL` in `.env` (`set -a && source .env && set +a`).
+
+**Status (2026-06-01 — WS4 Stage 1 COMPLETE on branch `feat/ws4-identity-recovery`, `5b688ee`, unmerged):** **Clock-independent dedup + guarded identity-recovery INSERT machinery — spec-faithful & inert.** Built via TDD; recovers Action Tracker events whose clock was garbled/null (the live promoter drops these at `action-tracker.ts:105`).
+
+**What shipped (machinery only — decided with user; no live behavior change):**
+- **`findExistingMatchEventClockless`** (`apps/worker/src/ocr-promoters/match-events-dedup.ts`) — a NEW sibling dedup authority (the existing `findExistingMatchEvent` is byte-unchanged so the live promoter is untouched). Bucket = `(matchId, periodNumber, eventType, teamSide, source='ocr')` with **no clock filter**; resolved-player exact-id path then Levenshtein-1 fuzzy on `normalizeSnapshot`'d actor. Returns `{kind:'hit'|'insert'|'ambiguous'}`. Searches the **full** bucket (positioned + unpositioned) so a recovered orphan can never duplicate an already-positioned event (deliberate hardening over the spec's literal "unpositioned").
+- **`applyIdentityProposals`** (`apps/worker/src/reconcile-positions.ts`) — own transaction. Per proposal: (1) blank-actor guard → skip (no identity anchor; ext snapshot cols are notNull); (2) clockless dedup; (3) **hit → REFRESH** `ocr_extraction_id` + `target_*` mirroring the promoter's hit branch (`action-tracker.ts:161-176`), never clobbers `team_side`/spatial/`position_confidence`; **ambiguous → skip+warn** (never guess); **zero-match → INSERT** a `pending_review` row (clock null, x/y null) + goal/penalty extension row atomically. Wired into `reconcilePositions` via optional `ReconcileToolOutput.inserts` (`?? []`).
+- **INERT by design:** the Python tool emits `updates` only, never `inserts`, so the INSERT path is a guaranteed live no-op until WS4 Stage 2 supplies the producer. `ReconcilePositionsResult` gained `identity_inserted / identity_dedup_refreshed / identity_ambiguous / identity_skipped_invalid` (all 0 live in Stage 1).
+
+**Review fixes folded in pre-build (3 findings):** (1) two-transaction boundary documented as deliberate — both halves idempotent & self-healing, an identity failure must not revert good position fixes; (2) blank-actor junk guard added + tested; (3) hit→refresh (not skip) to truly mirror the promoter.
+
+**Verification:** worker typecheck clean. New tests: `match-events-dedup-clockless` (9) + `reconcile-identity` (8) + a live-no-op wiring test in `reconcile-positions` — all green. Full worker suite **348 pass / 8 fail / 1 skip**; the 8 are the unchanged pre-existing WS5 known-red set (no new reds). Branch NOT merged — design spec mandates review before any live run; and the path stays inert regardless until Stage 2.
+
+**>>> NEXT UP:** WS4 Stage 2 (the Python producer feeding the `inserts` seam) + merge this branch, OR WS2 / WS6 — user to steer.
+
+---
 
 **Status (2026-06-01 — WS5 COMPLETE & MERGED to `main`):** **Worker integration-test suite isolated, deterministic, hang-free.** 4 commits, merged via fast-forward (`8fd07f4..4cfa6cc`): `37ff56d` teardown-timeout fix, `992f8e6` isolation harness, `5432950` local-review hardening, `4cfa6cc` Codex-review hardening (age-gated sweep + restored test selectors). Run it with `pnpm --filter worker test` (full) or `pnpm --filter worker test <selector>` (subset, e.g. `decoder-runs-cli`).
 
