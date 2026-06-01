@@ -162,14 +162,19 @@ def decode_segments_v2(
     regex_priors: RegexPriorsConfig,
     weights: EmissionWeights,
     frame_source_times: list[float] | None = None,
+    gated_mask: list[bool] | None = None,
 ) -> list[Segment]:
     """v2 Viterbi decode. Same algorithm as decode_segments; only the
-    emissions builder differs (regex-prior-derived anchor bonus + reject)."""
+    emissions builder differs (regex-prior-derived anchor bonus + reject).
+
+    `gated_mask` (WS2): forwarded to `build_log_emissions_v2`; gated frames
+    (Pass-1 pre-OCR gate skipped OCR) are pinned to `unknown_or_transition`."""
     feats_list = list(features)
     if not feats_list:
         return []
     log_emit = build_log_emissions_v2(
         feats_list, classifier, state_machine, regex_priors, weights,
+        gated_mask=gated_mask,
     )
     log_trans = _build_log_transitions(state_machine)
     log_init = _build_log_initial(state_machine)

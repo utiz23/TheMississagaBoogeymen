@@ -83,6 +83,7 @@ def build_log_emissions_v2(
     state_machine: StateMachine,
     regex_priors: RegexPriorsConfig,
     weights: EmissionWeights,
+    gated_mask: list[bool] | None = None,
 ) -> np.ndarray:
     """v2 emission combiner. FrameFeaturesV2 has no `anchor_flags` /
     `reject_anchor_present`; we derive the same signals from
@@ -93,10 +94,20 @@ def build_log_emissions_v2(
     `unknown_or_transition` matches (mirrors v1's reject_anchor_substrings
     role; the regex priors YAML's `unknown_or_transition` entries are the
     Phase-A catch-all reject anchors per its design comment).
+
+    `gated_mask` (WS2): one bool per frame. A gated frame is one the Pass-1
+    pre-OCR gate skipped OCR on — its OCR-derived features are empty, so it
+    must NOT be scored by the classifier (visual-only features could misread a
+    no-OCR frame as a text screen). Gated frames take the same reject path as a
+    fired reject anchor: pinned to `unknown_or_transition`.
     """
     feats_list = list(features)
     n = len(state_machine.states)
     T = len(feats_list)
+    if gated_mask is not None and len(gated_mask) != T:
+        raise ValueError(
+            f"gated_mask length {len(gated_mask)} != frame count {T}"
+        )
     out = np.full((T, n), 0.0, dtype=np.float64)
     unk_idx = state_machine.state_index("unknown_or_transition")
 
@@ -113,7 +124,10 @@ def build_log_emissions_v2(
     state_indices = {s: state_machine.state_index(s) for s in state_machine.states}
 
     for t, f in enumerate(feats_list):
-        if reject_positions and any(f.regex_prior_flags[i] == 1.0 for i in reject_positions):
+        is_gated = gated_mask is not None and gated_mask[t]
+        if is_gated or (
+            reject_positions and any(f.regex_prior_flags[i] == 1.0 for i in reject_positions)
+        ):
             out[t, :] = weights.reject_floor
             out[t, unk_idx] = weights.reject_floor + 1.0
             continue

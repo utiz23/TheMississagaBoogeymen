@@ -211,6 +211,50 @@ class TestBuildLogEmissionsV2(unittest.TestCase):
             build_log_emissions_v2(feats, clf, self.sm, self.priors, self.weights)
         self.assertIn("NaN", str(cm.exception))
 
+    def test_gated_frame_pinned_to_unknown(self):
+        # A confident classifier would otherwise win some non-unknown state.
+        # Gating frame 1 must pin it to unknown_or_transition regardless,
+        # while frames 0 and 2 are unaffected.
+        unk_idx = self.sm.state_index("unknown_or_transition")
+        win = (unk_idx + 1) % self.n  # any non-unknown state
+        lp = np.full(self.n, -10.0)
+        lp[win] = 0.0  # classifier strongly prefers `win`
+        feats = [_feats_v2(self.priors.n_priors()) for _ in range(3)]
+        clf = _MockClassifierV2(lp)
+        em = build_log_emissions_v2(
+            feats, clf, self.sm, self.priors, self.weights,
+            gated_mask=[False, True, False],
+        )
+        # Gated frame 1 → unknown wins at reject_floor + 1.
+        self.assertEqual(int(np.argmax(em[1])), unk_idx)
+        self.assertEqual(em[1, unk_idx], -20.0 + 1.0)
+        for i in range(self.n):
+            if i != unk_idx:
+                self.assertLessEqual(em[1, i], -20.0 + 1e-9)
+        # Non-gated frames 0 and 2 still follow the classifier.
+        self.assertEqual(int(np.argmax(em[0])), win)
+        self.assertEqual(int(np.argmax(em[2])), win)
+
+    def test_gated_mask_length_mismatch_raises(self):
+        feats = [_feats_v2(self.priors.n_priors()) for _ in range(3)]
+        clf = _MockClassifierV2(np.full(self.n, -math.log(self.n)))
+        with self.assertRaises(ValueError) as cm:
+            build_log_emissions_v2(
+                feats, clf, self.sm, self.priors, self.weights,
+                gated_mask=[False, True],  # wrong length
+            )
+        self.assertIn("length", str(cm.exception))
+
+    def test_no_gated_mask_is_byte_identical(self):
+        feats = [_feats_v2(self.priors.n_priors(), fired_prior_idx=None) for _ in range(4)]
+        clf_a = _MockClassifierV2(np.full(self.n, -math.log(self.n)))
+        clf_b = _MockClassifierV2(np.full(self.n, -math.log(self.n)))
+        without = build_log_emissions_v2(feats, clf_a, self.sm, self.priors, self.weights)
+        with_none = build_log_emissions_v2(
+            feats, clf_b, self.sm, self.priors, self.weights, gated_mask=None,
+        )
+        np.testing.assert_array_equal(without, with_none)
+
     def test_priors_for_deferred_states_silently_dropped(self):
         # `player_loadout_landing` and `menu_club_management` priors exist in YAML
         # but the state machine doesn't include those states (S5 sparse-class
