@@ -39,6 +39,7 @@ import { getPromoter, type PromoterDb } from './ocr-promoters/index.js'
 import { promoteLoadoutFromEvidence } from './ocr-promoters/loadout-v2.js'
 import { promoteLobbyFromEvidence } from './ocr-promoters/lobby-v2.js'
 import { applyMatchColors } from './lib/match-color-aggregator.js'
+import { reconcilePositions } from './reconcile-positions.js'
 
 export interface IngestOcrBatchInput {
   batchDir: string
@@ -493,6 +494,29 @@ export async function ingestOcrBatch(input: IngestOcrBatchInput): Promise<Ingest
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
       console.warn(`[ingest-ocr] applyMatchColors(${String(matchId)}) skipped: ${msg}`)
+    }
+  }
+
+  // Recover scroll-past Action Tracker positions the per-frame pass couldn't
+  // place (card and rink marker never co-visible in one frame). Runs once per
+  // batch after all promoters have committed match_events. Gated on this batch
+  // producing Action Tracker evidence (other screens add no marker data) and on
+  // the OCR_RECONCILE_ENABLED kill switch. Best-effort: a failure here never
+  // fails the batch — positions are recoverable on the next reconcile. Mirrors
+  // the loadout-v2 / lobby-v2 tail blocks; this is the single swallow layer
+  // (reconcilePositions itself stays honest).
+  const hasActionTracker = cli.results.some(
+    (r) => r.meta.screen_type === 'post_game_action_tracker' && r.success,
+  )
+  if (matchId !== null && hasActionTracker && process.env.OCR_RECONCILE_ENABLED !== 'false') {
+    try {
+      const recon = await reconcilePositions(matchId, runId)
+      console.log(
+        `[ingest-ocr] match ${String(matchId)} reconcile: proposed=${String(recon.proposed)} applied=${String(recon.applied)}`,
+      )
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      console.warn(`[ingest-ocr] reconcilePositions(${String(matchId)}) skipped: ${msg}`)
     }
   }
 

@@ -7,9 +7,13 @@ tests build synthetic `raw_result_json` frames + match_events rows directly.
 
 from __future__ import annotations
 
+import io
+import json
 import sys
 import unittest
+from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
+from unittest import mock
 
 SCRIPTS = Path(__file__).resolve().parents[1] / "scripts"
 sys.path.insert(0, str(SCRIPTS))
@@ -391,6 +395,63 @@ class EmissionTests(unittest.TestCase):
         self.assertIn("y='-6.81'", sql)
         self.assertIn("rink_zone='neutral'", sql)
         self.assertIn("WHERE id=288", sql)
+
+
+# ─── --json output mode (worker tail-hook contract) ────────────────────────
+
+
+class JsonModeTests(unittest.TestCase):
+    """The worker calls this script with --json and applies the proposals via
+    Drizzle. These exercise main()'s thin shell end-to-end (stdin → stdout)."""
+
+    def _scroll_past_payload(self):
+        # The 19:43 case as main() sees it: a yellow-only scroll-past frame
+        # (selected card off-screen) carrying the marker at (10.08, -6.81),
+        # plus the unpositioned gap row it should bind to via yellow-salvage.
+        ext = _frame(
+            1, 2, [_event("hit", "19:43", "TOEWS", 2)],
+            None,  # selected card off-screen → scroll-past
+            [_marker("yellow", "unknown", 10.08, -6.81, 1356, 639)],
+        )
+        me = _me(288, 2, "hit", "19:43", "TOEWS", "against", x=None)
+        return {"extractions": [ext], "match_events": [me], "period_summaries": []}
+
+    def _run_main(self, stdin_text, argv):
+        out = io.StringIO()
+        with mock.patch.object(sys, "stdin", io.StringIO(stdin_text)), \
+                mock.patch.object(sys, "argv", argv), \
+                redirect_stdout(out), redirect_stderr(io.StringIO()):
+            rc = rat.main()
+        return rc, out.getvalue()
+
+    def test_json_mode_emits_proposals(self):
+        rc, stdout = self._run_main(
+            json.dumps(self._scroll_past_payload()), ["reconcile", "250", "--json"])
+        self.assertEqual(rc, 0)
+        doc = json.loads(stdout)
+        self.assertEqual(doc["match_id"], 250)
+        self.assertEqual(len(doc["updates"]), 1)
+        u = doc["updates"][0]
+        self.assertEqual(u["event_id"], 288)
+        self.assertAlmostEqual(u["x"], 10.08, places=2)
+        self.assertAlmostEqual(u["y"], -6.81, places=2)
+        self.assertEqual(u["rink_zone"], "neutral")
+        self.assertEqual(u["confidence_label"], "extrapolated")
+        self.assertEqual(u["method"], "yellow_salvage")
+
+    def test_dry_run_json_mode_emits_empty_updates(self):
+        rc, stdout = self._run_main(
+            json.dumps(self._scroll_past_payload()),
+            ["reconcile", "250", "--json", "--dry-run"])
+        self.assertEqual(rc, 0)
+        doc = json.loads(stdout)
+        self.assertEqual(doc["match_id"], 250)
+        self.assertEqual(doc["updates"], [])
+
+    def test_json_mode_no_input_emits_empty_updates(self):
+        rc, stdout = self._run_main("", ["reconcile", "250", "--json"])
+        self.assertEqual(rc, 0)
+        self.assertEqual(json.loads(stdout), {"match_id": 250, "updates": []})
 
 
 if __name__ == "__main__":
