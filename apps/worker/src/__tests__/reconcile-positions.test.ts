@@ -197,6 +197,40 @@ void test('guard updates NULL-confidence unpositioned row, skips manual + positi
   assert.equal(byId.get(positionedId)?.conf, 'interpolated')
 })
 
+void test('proposal with unexpected confidence_label is skipped, not applied (no batch rollback)', async () => {
+  if (!process.env['DATABASE_URL']) return
+
+  // Two NULL-conf gap rows: one valid proposal, one with a bogus confidence
+  // label that the CHECK constraint would reject. The bad one must be skipped
+  // so the good one still applies (no whole-transaction rollback).
+  const goodId = await seedEvent({ tag: 'cast-good', x: null, positionConfidence: null })
+  const badId = await seedEvent({ tag: 'cast-bad', x: null, positionConfidence: null })
+
+  const fakeTool = (_matchId: number, _payload: ReconcilePayload): Promise<ReconcileToolOutput> =>
+    Promise.resolve({
+      match_id: TEST_MATCH_ID,
+      updates: [
+        { event_id: goodId, x: 1.5, y: 2.5, rink_zone: 'neutral', confidence_label: 'extrapolated', method: 'elimination' },
+        { event_id: badId, x: 3.5, y: 4.5, rink_zone: 'neutral', confidence_label: 'bogus', method: 'elimination' },
+      ],
+    })
+
+  const result = await reconcilePositions(TEST_MATCH_ID, runAId, fakeTool)
+  assert.equal(result.proposed, 2)
+  assert.equal(result.applied, 1) // good applied; bad skipped (not a rollback)
+
+  const rows = await db
+    .select({ id: matchEvents.id, x: matchEvents.x, conf: matchEvents.positionConfidence })
+    .from(matchEvents)
+    .where(like(matchEvents.actorGamertagSnapshot, `${SENTINEL}cast-%`))
+  const byId = new Map(rows.map((r) => [r.id, r]))
+  assert.equal(byId.get(goodId)?.x, '1.50')
+  assert.equal(byId.get(goodId)?.conf, 'extrapolated')
+  // Bad row untouched (skipped before the UPDATE).
+  assert.equal(byId.get(badId)?.x, null)
+  assert.equal(byId.get(badId)?.conf, null)
+})
+
 void test('payload AT-extraction read is scoped to the provided runId', async () => {
   if (!process.env['DATABASE_URL']) return
 

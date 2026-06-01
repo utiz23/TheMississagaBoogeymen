@@ -402,7 +402,7 @@ class Update:
     y: float
     rink_zone: str
     confidence_label: str
-    method: str  # 'pairweight' | 'elimination'
+    method: str  # 'pairweight' | 'elimination' | 'yellow_salvage'
 
 
 @dataclass

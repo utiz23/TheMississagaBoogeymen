@@ -186,6 +186,16 @@ async function buildPayload(matchId: number, runId: number | null): Promise<Reco
 }
 
 /**
+ * Position confidence labels this tool is allowed to write. The Python tool only
+ * ever emits 'extrapolated' (all inferred), but `confidence_label` crosses a
+ * process boundary as a plain string, so we validate it rather than blind-cast:
+ * an unexpected value would trip the `match_events_position_confidence_check`
+ * CHECK constraint and roll back the WHOLE batch's proposals, not just the bad
+ * row. 'manual' is reserved for human entry and is never written here.
+ */
+const WRITABLE_CONFIDENCE = new Set<string>(['interpolated', 'extrapolated'])
+
+/**
  * Apply position proposals with the no-clobber guard. Returns the count of rows
  * actually changed. `review_status` is never written.
  */
@@ -195,13 +205,19 @@ async function applyProposals(proposals: ReconcileProposal[]): Promise<number> {
   return db.transaction(async (tx) => {
     let applied = 0
     for (const p of proposals) {
+      if (!WRITABLE_CONFIDENCE.has(p.confidence_label)) {
+        console.warn(
+          `[reconcile] skipping proposal for event ${String(p.event_id)}: unexpected confidence_label '${p.confidence_label}'`,
+        )
+        continue
+      }
       const changed = await tx
         .update(matchEvents)
         .set({
           x: String(p.x),
           y: String(p.y),
           rinkZone: p.rink_zone,
-          positionConfidence: p.confidence_label as 'interpolated' | 'extrapolated' | 'manual',
+          positionConfidence: p.confidence_label as 'interpolated' | 'extrapolated',
         })
         .where(
           and(
