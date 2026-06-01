@@ -15,13 +15,15 @@
 > - **WS3 ✅ evidence-capture** (per-frame OCR text + visual signals on VersionGuess; 3 tests).
 >   **Visual-anchor discriminator DEFERRED** (user) — needs NHL 27 refs / centroid work.
 > - **WS1a ✅ measured → Pass-1 OCR STILL MATERIAL** (classify 82.2%, ocr_of_total 35.7%). **WS2 justified.**
-> - **WS4 → ROBUST long-term path chosen (user). Stage 1 ✅ DONE** on branch
->   `feat/ws4-identity-recovery` (`5b688ee`, NOT yet merged). Clock-independent dedup
->   (`findExistingMatchEventClockless`) + guarded identity INSERT (`applyIdentityProposals`),
->   spec-faithful & INERT (no live behavior — Python tool emits positions only; `inserts` dormant).
->   18 new tests green; full worker suite 348 pass / 8 known-red / 1 skip. **Stages 2–3 remain**
->   (~7–10d Python recovery pass + optional clock re-OCR). Design spec:
->   `docs/ocr/action-tracker-identity-recovery-design.md`.
+> - **WS4 → ROBUST long-term path chosen (user). Stage 1 ✅ + Stage 2a ✅ DONE** on branch
+>   `feat/ws4-identity-recovery` (`5b688ee`, `6e26e69`, NOT yet merged). Stage 1 = clock-independent
+>   dedup + guarded identity INSERT machinery. **Stage 2a = the PRODUCER** that activates it: Python
+>   `build_orphan_cards` (extends `reconcile_action_tracker.py --json` with `orphan_cards`) recovers
+>   garbled-clock AT events the live promoter drops; TS `resolveOrphanCard` resolves identity +
+>   team_side and feeds `applyIdentityProposals` → `pending_review` rows. Gated by
+>   `OCR_IDENTITY_RECOVERY_ENABLED` (default ON; inert until branch merged+deployed). Real-data check:
+>   5 orphan cards recovered from match 250. **Stage 2b (marker association / multiplicity) + Stage 3
+>   (clock re-OCR) remain.** Design spec: `docs/ocr/action-tracker-identity-recovery-design.md`.
 > - **WS5 ✅ DONE — worker integration-test suite now isolated, deterministic, hang-free.** Per-run
 >   ephemeral DB clone harness (`apps/worker/scripts/with-test-db.mjs`, wired as `pnpm --filter worker
 >   test` / `test:integration`). The 7 target `spawnSync` CLI files all pass under isolation; prod DB
@@ -31,10 +33,10 @@
 >   restored `pnpm --filter worker test <selector>`) — all fixed pre-merge. **8 remaining failures are
 >   PRE-EXISTING & non-isolation, tracked as known-red** (see the WS5 status entry below).
 >
-> **>>> NEXT UP (active — user to steer): WS2, WS4 Stage 2, WS6 (all multi-session).**
-> WS2 (Pass-1 prefilter wiring + classifier retrain — justified by WS1a's still-material result) ·
-> **WS4 Stage 2** (Python `recover_action_tracker_identities.py` — the PRODUCER that feeds Stage 1's
-> now-built `inserts` seam; ~7–10d) — and merging `feat/ws4-identity-recovery` to `main` ·
+> **>>> NEXT UP (active — user to steer): merge `feat/ws4-identity-recovery`, then WS4 Stage 2b / WS2 / WS6.**
+> Merge the WS4 branch to `main` + redeploy worker (Stage 2a goes live on deploy; default-ON,
+> pending_review-safe) · WS4 **Stage 2b** (marker association/clustering → identity+position together,
+> resolves the multiplicity limitation) · WS2 (Pass-1 prefilter wiring + classifier retrain) ·
 > WS6 acceptance (real non-curated match + operator ground-truth). Optional cleanup: the 8 WS5
 > known-red failures (2 of which — batch-missing-`run_id`, match-968 decoder provenance — may flag real
 > minor prod data drift worth a backfill). The `fix/pipeline-ws0-closeout` branch now equals `main`
@@ -44,6 +46,22 @@
 > Python tests as `cd tools/<pkg> && PYTHONPATH=.:../game_ocr ../../.venv-1/bin/python -m pytest …`
 > (`game_ocr` and `video_ingest` live in separate per-tool venvs, so neither alone imports both — PYTHONPATH
 > bridges them). DB on host port **5433**, `DATABASE_URL` in `.env` (`set -a && source .env && set +a`).
+
+**Status (2026-06-01 — WS4 Stage 2a COMPLETE on branch `feat/ws4-identity-recovery`, `6e26e69`, unmerged):** **The orphan-identity recovery PRODUCER — activates the Stage-1 INSERT seam.** Built via TDD. Recovers garbled-clock Action Tracker events the live promoter drops (`action-tracker.ts:105`) as `review_status='pending_review'` rows.
+
+**What shipped (identity-only — no marker association; that's Stage 2b):**
+- **Architecture decision (from exploration):** raw AT data has **no team signal**, so the producer emits RAW orphan cards and the worker resolves identity + team_side in TS (reusing the live promoter's resolver). A recovered orphan thus resolves to exactly the identity the live path would have produced with a legible clock — which lets the clockless dedup collapse it against the real row if one appears.
+- **Python** (`reconcile_action_tracker.py`): new `build_orphan_cards` extends `--json` with an `orphan_cards` list. Filters to garbled-clock (`clock.status=='missing'`) + actor-present + **plottable types** (shot/hit/goal/penalty; skips faceoff/unknown/missing-actor). Cross-frame dedup by `(period, type, norm actor, norm target)` → one card per identity (a 115-frame orphan ≠ 115 cards), keeping the highest-confidence frame's `ocr_extraction_id`. **SQL mode byte-unchanged.**
+- **TS** (`reconcile-positions.ts`): `RawOrphanCard` + `resolveOrphanCard` (actor/target → player id via `resolveActorForMatch`; `team_side` via the new shared `deriveTeamSide` extracted from the promoter) + `resolveGameTitleId`; wired into `reconcilePositions`, gated by **`OCR_IDENTITY_RECOVERY_ENABLED` (default ON)**. Replaced the Stage-1 placeholder `ReconcileToolOutput.inserts` with `orphan_cards`.
+- **Known limitation (deliberate, deferred to Stage 2b):** the clock-free identity key can't separate two distinct same-(period,type,team,actor) garbled events — 2a recovers one and **warns on stderr** (not silent). No corruption (dedup returns `ambiguous`). True separation needs marker position = Stage 2b.
+
+**Review (3 findings, all addressed pre-build):** (1) multiplicity made visible + documented; (2) verification uses plain `--json` (read-only); (3) faceoffs excluded (position pass never plots them); + N+1 resolution cost noted as bounded (mirrors the promoter).
+
+**Verification:** Python **37/37** (12 new). TS **14/14** targeted; full worker suite **355 pass / 8 fail / 1 skip** — the 8 are the unchanged pre-existing WS5 known-red set, **no new reds**; promoter suite green (guards the `deriveTeamSide` refactor); typecheck clean. **Real-data read-only check: 5 distinct orphan cards recovered from match 250** (e.g. P2 hits M. RANTANEN / TOEWS, P3/P4 shots). Branch unmerged → nothing live until merge+deploy; identity-recovery flag also gates it.
+
+**>>> NEXT UP:** merge `feat/ws4-identity-recovery` + redeploy (Stage 2a goes live, pending_review-safe), then WS4 Stage 2b / WS2 / WS6 — user to steer.
+
+---
 
 **Status (2026-06-01 — WS4 Stage 1 COMPLETE on branch `feat/ws4-identity-recovery`, `5b688ee`, unmerged):** **Clock-independent dedup + guarded identity-recovery INSERT machinery — spec-faithful & inert.** Built via TDD; recovers Action Tracker events whose clock was garbled/null (the live promoter drops these at `action-tracker.ts:105`).
 
