@@ -209,6 +209,35 @@ void test('zero-match POSITIONED shot proposal → inserts pending_review row wi
   assert.equal(row.clock, null)
 })
 
+void test('two same-identity POSITIONED proposals at distinct positions → two rows (WS4 Stage 2b split)', async () => {
+  if (!process.env['DATABASE_URL']) return
+  // Finding 1: through the sequential apply loop the second card would, with an
+  // identity-only key, see exactly one prior row and dedup-hit. Position-as-
+  // identity keeps them distinct so BOTH insert.
+  const a = proposal({ period: 76, actor: 'SPLIT', x: 36.5, y: 36.2, rinkZone: 'offensive' })
+  const b = proposal({ period: 76, actor: 'SPLIT', x: -40.0, y: -10.0, rinkZone: 'defensive' })
+  const res = await applyIdentityProposals([a, b], TEST_MATCH_ID)
+  assert.equal(res.inserted, 2)
+  assert.equal(res.insertedPositioned, 2)
+  const rows = await bucketRows(76)
+  assert.equal(rows.length, 2)
+  assert.deepEqual(
+    rows.map((r) => r.x).sort(),
+    ['-40.00', '36.50'],
+  )
+})
+
+void test('re-running positioned proposals inserts nothing new (idempotent)', async () => {
+  if (!process.env['DATABASE_URL']) return
+  const p = proposal({ period: 77, actor: 'IDEM', x: 12.0, y: 8.0, rinkZone: 'neutral' })
+  const first = await applyIdentityProposals([p], TEST_MATCH_ID)
+  assert.equal(first.inserted, 1)
+  const second = await applyIdentityProposals([p], TEST_MATCH_ID)
+  assert.equal(second.inserted, 0)
+  assert.equal(second.dedupRefreshed, 1)
+  assert.equal((await bucketRows(77)).length, 1)
+})
+
 void test('zero-match goal proposal → base row + matchGoalEvents row', async () => {
   if (!process.env['DATABASE_URL']) return
   const res = await applyIdentityProposals(

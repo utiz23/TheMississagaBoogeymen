@@ -40,6 +40,7 @@ async function seed(opts: {
   actor: string
   actorPlayerId?: number | null
   x?: string | null
+  y?: string | null
   clock?: string | null
 }): Promise<number> {
   const [row] = await db
@@ -54,7 +55,7 @@ async function seed(opts: {
       actorPlayerId: opts.actorPlayerId ?? null,
       actorGamertagSnapshot: `${SENTINEL}${opts.actor}`,
       x: opts.x ?? null,
-      y: opts.x == null ? null : '0.00',
+      y: opts.x == null ? null : (opts.y ?? '0.00'),
       source: 'ocr',
     })
     .returning({ id: matchEvents.id })
@@ -69,6 +70,8 @@ function key(opts: {
   teamSide?: 'for' | 'against'
   actor: string
   actorPlayerId?: number | null
+  x?: number | null
+  y?: number | null
 }): ClocklessDedupKey {
   return {
     matchId: TEST_MATCH_ID,
@@ -77,6 +80,8 @@ function key(opts: {
     teamSide: opts.teamSide ?? 'for',
     actorPlayerId: opts.actorPlayerId ?? null,
     actorSnapshot: `${SENTINEL}${opts.actor}`,
+    x: opts.x ?? null,
+    y: opts.y ?? null,
   }
 }
 
@@ -162,6 +167,73 @@ void test('clock is ignored: a clock-bearing bucket row is still found', async (
   const id = await seed({ period: 98, actor: 'CLOCKD', clock: '12:34' })
   const res = await findExistingMatchEventClockless(db, key({ period: 98, actor: 'CLOCKD' }))
   assert.deepEqual(res, { kind: 'hit', id })
+})
+
+// ── WS4 Stage 2b: position is part of the effective identity when present ──
+
+void test('two identity matches + incoming position matches exactly one → hit on that one', async () => {
+  if (!process.env['DATABASE_URL']) return
+  await seed({ period: 100, actor: 'POSA', x: '36.50', y: '36.20' })
+  const idB = await seed({ period: 100, actor: 'POSA', x: '-40.00', y: '-10.00' })
+  // Identity matches both rows (same normalized actor), but the incoming
+  // position rounds to (-40,-10) → only idB survives → hit.
+  const res = await findExistingMatchEventClockless(
+    db,
+    key({ period: 100, actor: 'POSA', x: -40.1, y: -9.8 }),
+  )
+  assert.deepEqual(res, { kind: 'hit', id: idB })
+})
+
+void test('two identity matches + incoming position matches none → insert (distinct event)', async () => {
+  if (!process.env['DATABASE_URL']) return
+  await seed({ period: 101, actor: 'POSB', x: '36.50', y: '36.20' })
+  await seed({ period: 101, actor: 'POSB', x: '-40.00', y: '-10.00' })
+  const res = await findExistingMatchEventClockless(
+    db,
+    key({ period: 101, actor: 'POSB', x: 5.0, y: 5.0 }),
+  )
+  assert.deepEqual(res, { kind: 'insert' })
+})
+
+void test('two identity matches at the SAME rounded position → still ambiguous', async () => {
+  if (!process.env['DATABASE_URL']) return
+  const id1 = await seed({ period: 102, actor: 'POSC', x: '12.10', y: '8.40' })
+  const id2 = await seed({ period: 102, actor: 'POSC', x: '11.90', y: '8.30' })
+  const res = await findExistingMatchEventClockless(
+    db,
+    key({ period: 102, actor: 'POSC', x: 12.0, y: 8.4 }),
+  )
+  assert.equal(res.kind, 'ambiguous')
+  if (res.kind !== 'ambiguous') return
+  assert.deepEqual([...res.candidateIds].sort((a, b) => a - b), [id1, id2].sort((a, b) => a - b))
+})
+
+void test('null incoming position + two identity matches → ambiguous (Stage-1 behavior unchanged)', async () => {
+  if (!process.env['DATABASE_URL']) return
+  await seed({ period: 103, actor: 'POSD', x: '1.00', y: '1.00' })
+  await seed({ period: 103, actor: 'POSD', x: '2.00', y: '2.00' })
+  const res = await findExistingMatchEventClockless(db, key({ period: 103, actor: 'POSD' }))
+  assert.equal(res.kind, 'ambiguous')
+})
+
+void test('incoming position + lone UNPOSITIONED identity match → hit (backfill candidate)', async () => {
+  if (!process.env['DATABASE_URL']) return
+  const id = await seed({ period: 104, actor: 'POSE', x: null })
+  const res = await findExistingMatchEventClockless(
+    db,
+    key({ period: 104, actor: 'POSE', x: 36.5, y: 36.2 }),
+  )
+  assert.deepEqual(res, { kind: 'hit', id })
+})
+
+void test('incoming position + lone positioned match at a DIFFERENT rounded position → insert', async () => {
+  if (!process.env['DATABASE_URL']) return
+  await seed({ period: 105, actor: 'POSF', x: '80.00', y: '5.00' })
+  const res = await findExistingMatchEventClockless(
+    db,
+    key({ period: 105, actor: 'POSF', x: -80.0, y: -5.0 }),
+  )
+  assert.deepEqual(res, { kind: 'insert' })
 })
 
 void test('empty/whitespace actor, no player id → insert (no match)', async () => {

@@ -91,6 +91,17 @@ export interface ClocklessDedupKey {
   teamSide: 'for' | 'against'
   actorPlayerId: number | null
   actorSnapshot: string
+  /**
+   * Recovered rink position (WS4 Stage 2b), or null. When non-null, position
+   * becomes PART OF the effective identity: among identity matches, only rows
+   * at the same rounded (x, y) — or still unpositioned (a backfill candidate) —
+   * count. This lets two genuinely-distinct same-identity events at different
+   * positions both insert through the sequential apply loop (a >1-only
+   * tie-break would collapse the second into the first). When null, the
+   * identity-only Stage-1 behavior is preserved byte-for-byte.
+   */
+  x?: number | null
+  y?: number | null
 }
 
 /**
@@ -127,7 +138,13 @@ export async function findExistingMatchEventClockless(
   key: ClocklessDedupKey,
 ): Promise<ClocklessDedupResult> {
   const bucket = await db
-    .select({ id: matchEvents.id, actorPlayerId: matchEvents.actorPlayerId, snapshot: matchEvents.actorGamertagSnapshot })
+    .select({
+      id: matchEvents.id,
+      actorPlayerId: matchEvents.actorPlayerId,
+      snapshot: matchEvents.actorGamertagSnapshot,
+      x: matchEvents.x,
+      y: matchEvents.y,
+    })
     .from(matchEvents)
     .where(
       and(
@@ -139,6 +156,9 @@ export async function findExistingMatchEventClockless(
       ),
     )
 
+  const posById = new Map<number, { x: string | null; y: string | null }>(
+    bucket.map((r) => [r.id, { x: r.x, y: r.y }]),
+  )
   const matched = new Set<number>()
 
   // ── Strategy A ── Resolved-player path ────────────────────────────────────
@@ -162,9 +182,29 @@ export async function findExistingMatchEventClockless(
     }
   }
 
-  if (matched.size === 0) return { kind: 'insert' }
-  if (matched.size === 1) return { kind: 'hit', id: [...matched][0]! }
-  return { kind: 'ambiguous', candidateIds: [...matched] }
+  // ── WS4 Stage 2b ── Position refinement ───────────────────────────────────
+  // When the incoming orphan carries a recovered position, position is part of
+  // the effective identity: keep only identity matches at the SAME rounded
+  // position, plus still-unpositioned rows (a positioned card can backfill one).
+  // Rows positioned at a DIFFERENT rounded spot are genuinely distinct events
+  // and must not block this insert. A null incoming position leaves `matched`
+  // untouched → byte-for-byte the identity-only Stage-1 behavior.
+  let effective = matched
+  if (key.x != null && key.y != null) {
+    const rx = Math.round(key.x)
+    const ry = Math.round(key.y)
+    effective = new Set(
+      [...matched].filter((id) => {
+        const pos = posById.get(id)
+        if (!pos || pos.x === null || pos.y === null) return true // unpositioned → backfill candidate
+        return Math.round(Number(pos.x)) === rx && Math.round(Number(pos.y)) === ry
+      }),
+    )
+  }
+
+  if (effective.size === 0) return { kind: 'insert' }
+  if (effective.size === 1) return { kind: 'hit', id: [...effective][0]! }
+  return { kind: 'ambiguous', candidateIds: [...effective] }
 }
 
 /**

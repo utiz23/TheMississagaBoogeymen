@@ -381,6 +381,10 @@ export async function applyIdentityProposals(
         teamSide: p.team_side,
         actorPlayerId: p.actor_player_id,
         actorSnapshot: p.actor_snapshot,
+        // WS4 Stage 2b: position is part of the effective identity when present,
+        // so two distinct same-identity orphans at different spots both insert.
+        x: p.x,
+        y: p.y,
       })
 
       // 2a. Dedup hit → REFRESH, mirroring the promoter's hit branch
@@ -396,6 +400,27 @@ export async function applyIdentityProposals(
             ...(p.target_snapshot !== null ? { targetGamertagSnapshot: p.target_snapshot } : {}),
           })
           .where(eq(matchEvents.id, res.id))
+        // WS4 Stage 2b: if this positioned card hit an UNPOSITIONED existing row,
+        // backfill the recovered position (self-heals a pre-2b orphan recovered
+        // without one). Separate guarded UPDATE so a positioned/manual row is
+        // never clobbered — mirrors applyProposals' no-clobber guard exactly.
+        if (p.x !== null && p.y !== null) {
+          await tx
+            .update(matchEvents)
+            .set({
+              x: String(p.x),
+              y: String(p.y),
+              rinkZone: p.rink_zone,
+              positionConfidence: 'extrapolated',
+            })
+            .where(
+              and(
+                eq(matchEvents.id, res.id),
+                isNull(matchEvents.x),
+                sql`${matchEvents.positionConfidence} IS DISTINCT FROM 'manual'`,
+              ),
+            )
+        }
         dedupRefreshed++
         continue
       }
