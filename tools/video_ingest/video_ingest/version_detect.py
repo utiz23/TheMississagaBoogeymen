@@ -53,11 +53,27 @@ UNKNOWN_VERSION = "unknown_version"
 
 
 @dataclass(frozen=True)
+class FrameEvidence:
+    """Per-sampled-frame audit record (WS3). Lets an operator see exactly
+    WHY a version was chosen or rejected: the OCR text the anchor matcher
+    saw, plus cheap full-frame visual signals (reused from the Visual
+    Prefilter). Captured for every successfully-decoded sampled frame."""
+    sampled_seconds: float
+    ocr_text: str
+    brightness: float
+    log_blur: float
+    edge_density: float
+
+
+@dataclass(frozen=True)
 class VersionGuess:
     version: str
     confidence: float
     hit_counts: dict[str, int]
     sampled_seconds: tuple[float, ...]
+    # WS3: per-frame audit evidence. Empty when no frame decoded. Default
+    # keeps older constructors/tests that don't pass it working.
+    frame_evidence: tuple[FrameEvidence, ...] = ()
 
 
 def _grab_frames(
@@ -65,10 +81,12 @@ def _grab_frames(
     timestamps: tuple[float, ...],
     width: int = 1920,
     height: int = 1080,
-) -> list[np.ndarray]:
+) -> list[tuple[float, np.ndarray]]:
     """Decode one frame at each `timestamps` value. Uses ffmpeg with -ss
-    seek before -i for fast keyframe-aligned decode. Returns BGR ndarrays."""
-    frames: list[np.ndarray] = []
+    seek before -i for fast keyframe-aligned decode. Returns (timestamp,
+    BGR ndarray) pairs so the caller can attribute per-frame evidence;
+    timestamps whose decode failed are omitted."""
+    frames: list[tuple[float, np.ndarray]] = []
     for ts in timestamps:
         cmd = [
             "ffmpeg", "-v", "error", "-y",
@@ -86,7 +104,7 @@ def _grab_frames(
         frame = np.frombuffer(proc.stdout[: width * height * 3], dtype=np.uint8).reshape(
             height, width, 3
         )
-        frames.append(frame)
+        frames.append((ts, frame))
     return frames
 
 
@@ -117,6 +135,7 @@ def detect_version(
     from game_ocr.classifier import fuzzy_contains
     from game_ocr.ocr import RapidOCRBackend
     from game_ocr.utils import normalize_text
+    from video_ingest.visual_prefilter.signals import compute_visual_signals
 
     # Sample timestamps: skip the first/last 5% to avoid title cards.
     if sample_count < 1:
@@ -138,6 +157,7 @@ def detect_version(
             confidence=0.0,
             hit_counts={v: 0 for v in VERSION_ANCHORS},
             sampled_seconds=timestamps,
+            frame_evidence=(),
         )
 
     ocr = RapidOCRBackend(use_gpu=use_gpu)
@@ -147,16 +167,36 @@ def detect_version(
     # x is full-width so off-center version anchors are caught too.
     hit_counts: dict[str, int] = {v: 0 for v in VERSION_ANCHORS}
     seen_anchors: dict[str, set[str]] = {v: set() for v in VERSION_ANCHORS}
-    for frame in frames:
+    # WS3: capture per-frame audit evidence as we go.
+    frame_evidence: list[FrameEvidence] = []
+    for ts, frame in frames:
         h, w = frame.shape[:2]
         roi = frame[: max(1, int(h * 0.20)), :]  # top 20% of frame
         lines = ocr.read(roi)
         text = " ".join(normalize_text(l.text) for l in lines if l.text).lower()
+        # WS3: cheap full-frame visual signals for the audit trail (reuses
+        # the Visual Prefilter). Best-effort — a signal failure must not
+        # break detection.
+        try:
+            sig = compute_visual_signals(frame)
+            brightness, log_blur, edge_density = (
+                sig.brightness, sig.log_blur, sig.edge_density,
+            )
+        except Exception:  # noqa: BLE001 — evidence is non-critical
+            brightness = log_blur = edge_density = float("nan")
+        frame_evidence.append(FrameEvidence(
+            sampled_seconds=ts,
+            ocr_text=text,
+            brightness=brightness,
+            log_blur=log_blur,
+            edge_density=edge_density,
+        ))
         for version, anchors in VERSION_ANCHORS.items():
             for anchor in anchors:
                 if fuzzy_contains(text, anchor, max_distance=1):
                     hit_counts[version] += 1
                     seen_anchors[version].add(anchor)
+    frame_evidence_t = tuple(frame_evidence)
 
     # Score: distinct anchors hit / total configured per version.
     scores: dict[str, float] = {}
@@ -179,12 +219,14 @@ def detect_version(
             confidence=best_score,
             hit_counts=hit_counts,
             sampled_seconds=timestamps,
+            frame_evidence=frame_evidence_t,
         )
     return VersionGuess(
         version=best_version,
         confidence=best_score,
         hit_counts=hit_counts,
         sampled_seconds=timestamps,
+        frame_evidence=frame_evidence_t,
     )
 
 
@@ -215,3 +257,10 @@ if __name__ == "__main__":  # pragma: no cover
     print(f"confidence: {guess.confidence:.2f}")
     print(f"hits:       {guess.hit_counts}")
     print(f"sampled_ts: {[round(t, 1) for t in guess.sampled_seconds]}")
+    print("evidence:")
+    for ev in guess.frame_evidence:
+        ocr_preview = ev.ocr_text[:100] + ("…" if len(ev.ocr_text) > 100 else "")
+        print(
+            f"  t={ev.sampled_seconds:7.1f}s  bright={ev.brightness:.2f} "
+            f"blur={ev.log_blur:.2f} edge={ev.edge_density:.2f}  ocr={ocr_preview!r}"
+        )

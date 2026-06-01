@@ -431,6 +431,17 @@ def ingest(
             f"confidence={guess.confidence:.2f}  hits={guess.hit_counts}",
             file=sys.stderr,
         )
+        # WS3: surface the per-frame detection evidence so an operator can
+        # see WHY a version was chosen or rejected (esp. on an
+        # unknown_version bail). One line per sampled frame.
+        for ev in guess.frame_evidence:
+            ocr_preview = ev.ocr_text[:80] + ("…" if len(ev.ocr_text) > 80 else "")
+            print(
+                f"[ingest]   t={ev.sampled_seconds:7.1f}s  "
+                f"bright={ev.brightness:.2f} blur={ev.log_blur:.2f} "
+                f"edge={ev.edge_density:.2f}  ocr={ocr_preview!r}",
+                file=sys.stderr,
+            )
         if guess.version == UNKNOWN_VERSION:
             raise RuntimeError(
                 "version_detect could not identify the game UI version. "
