@@ -76,3 +76,17 @@ the accuracy threshold (hides the issue). Also fix the two diagnostic scripts to
 
 Reproduce / dump tool: `tools/game_ocr/scripts/diag_bench_current.py` (uses the current
 `iter_sampled_frames` path; dumps per-second expected/predicted/OCR/top3).
+
+## RESOLVED (2026-06-01)
+
+Applied on this branch:
+- **Re-anchored `labels.json`** to the canonical-PTS sampler (boundary shifts only, verified by
+  eye against dumped frames; no model/threshold change). match-968 **88.3% → 95.0%**;
+  match-250 **91.7% (+1 contamination) → 96.7% (0 contamination)**. Both clips PASS; full
+  proving bench green (`RUN_CLASSIFIER_E2E=1`).
+- **Fixed the two diagnostic scripts** (`diagnose_segments.py`, `diagnose_v2_proving_bench.py`)
+  to use `iter_sampled_frames`; updated `test_diagnose_segments` row count 60→61 (60.066s clip
+  → 61 canonical-PTS samples). `test_diagnose_segments` now green.
+
+Remaining misses are honest 1-frame model limitations kept as ground truth (WoC splashes the
+classifier reads as `unknown_or_transition`; the opening-clash intro), not relabeled to pass.
