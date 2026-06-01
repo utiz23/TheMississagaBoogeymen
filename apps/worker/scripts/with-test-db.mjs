@@ -151,14 +151,25 @@ for (const sig of ['SIGINT', 'SIGTERM']) {
   })
 }
 
-// Safety net: drop any clones leaked by a previously hard-killed run (a kill mid
+// Safety net: drop clones leaked by a previously hard-killed run (a kill mid
 // dump/restore can outrun teardown). Best-effort — never block the run on it.
+//
+// A clone is swept only if it is BOTH (a) unconnected and (b) older than
+// SWEEP_MIN_AGE_MS. Neither alone is safe against a concurrent run: an in-use
+// clone briefly has zero connections between tests / during teardown (so the
+// connection check races), and a concurrent run's clone is recent (so the age
+// check protects it). The clone name encodes its creation time as a base36 ms
+// timestamp (eanhl_test_<pid>_<base36ms>); a real run never lasts SWEEP_MIN_AGE_MS,
+// so any clone older than that with no connections is a genuine orphan.
+const SWEEP_MIN_AGE_MS = 2 * 60 * 60 * 1000 // 2h ≫ a full suite run
+function cloneAgeMs(name) {
+  const ts = parseInt(name.slice(name.lastIndexOf('_') + 1), 36)
+  return Number.isFinite(ts) && ts > 0 ? Date.now() - ts : NaN
+}
 try {
-  const stale = execFileSync(
+  const candidates = execFileSync(
     'docker',
     ['exec', CONTAINER, 'psql', '-U', dbUser, '-d', 'postgres', '-tA', '-c',
-      // Only orphaned clones (no live connections) — never a concurrent run's
-      // in-use clone, which `DROP ... WITH (FORCE)` would yank mid-suite.
       "SELECT datname FROM pg_database d WHERE datname LIKE 'eanhl_test_%' " +
         'AND NOT EXISTS (SELECT 1 FROM pg_stat_activity a WHERE a.datname = d.datname)'],
     { encoding: 'utf8' },
@@ -166,10 +177,14 @@ try {
     .split('\n')
     .map((s) => s.trim())
     .filter(Boolean)
-  for (const s of stale) {
+  for (const s of candidates) {
+    const age = cloneAgeMs(s)
+    // Skip unparseable names (be conservative) and anything recent enough to be
+    // a concurrent run's clone.
+    if (!Number.isFinite(age) || age < SWEEP_MIN_AGE_MS) continue
     try {
       dockerPsql('postgres', `DROP DATABASE IF EXISTS "${s}" WITH (FORCE)`)
-      console.error(`[with-test-db] swept stale clone ${s}`)
+      console.error(`[with-test-db] swept stale clone ${s} (age ${Math.round(age / 60000)}m)`)
     } catch {
       /* leave it; not fatal */
     }
@@ -224,15 +239,37 @@ if (!existsSync(DIST_DIR)) {
   die(`${DIST_DIR} not found — build first (pnpm --filter @eanhl/worker build).`)
 }
 
-const testFiles = readdirSync(DIST_DIR, { recursive: true })
+const allTestFiles = readdirSync(DIST_DIR, { recursive: true })
   .filter((p) => typeof p === 'string' && p.endsWith('.test.js'))
   .map((p) => path.join(DIST_DIR, p))
   .sort()
 
-console.error(`[with-test-db] discovered ${testFiles.length} test file(s) under apps/worker/dist`)
+// Positional args = test-file selectors (substring match), so the targeted
+// workflow still works under isolation, e.g.
+//   pnpm --filter worker test decoder-runs-cli
+// No args → the full suite. Selectors match on the .test.js path (the .ts source
+// name works too, since dist mirrors src). Matching is against the clone, so a
+// targeted run is isolated the same as a full run.
+const selectors = process.argv.slice(2)
+const testFiles =
+  selectors.length === 0
+    ? allTestFiles
+    : allTestFiles.filter((f) => selectors.some((s) => f.includes(s.replace(/\.ts$/, ''))))
+
+if (selectors.length === 0) {
+  console.error(`[with-test-db] discovered ${testFiles.length} test file(s) under apps/worker/dist`)
+} else {
+  console.error(
+    `[with-test-db] selectors [${selectors.join(', ')}] matched ${testFiles.length}/${allTestFiles.length} file(s)`,
+  )
+}
 if (testFiles.length === 0) {
   dropClone()
-  die('no test files discovered — did the build run?')
+  die(
+    selectors.length === 0
+      ? 'no test files discovered — did the build run?'
+      : `no test files matched selectors: ${selectors.join(', ')}`,
+  )
 }
 
 // ── 6. Run the suite (serial) against the clone, then drop it ───────────────────
