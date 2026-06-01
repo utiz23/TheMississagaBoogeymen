@@ -23,7 +23,11 @@ I/O contract (pure core + thin shell):
            extractions: [{id, source_path, raw_result_json}, ...]
            match_events: [{id, period_number, event_type, team_side, clock,
                            actor, x, y, position_confidence}, ...]
-  stdout = one `BEGIN; … COMMIT;` block of UPDATE statements (empty if nothing).
+  stdout = one `BEGIN; … COMMIT;` block of UPDATE statements (empty if nothing),
+           OR — with --json — a JSON object of position proposals for a
+           programmatic caller (the worker tail hook applies them via Drizzle):
+             {"match_id": N, "updates": [{"event_id", "x", "y", "rink_zone",
+                                          "confidence_label", "method"}, ...]}
   stderr = a human-readable reconciliation report.
 
 Usage:
@@ -51,8 +55,8 @@ Usage:
     | python3 tools/game_ocr/scripts/reconcile_action_tracker.py 250 \\
     | docker exec -i eanhl-team-website-db-1 psql -U eanhl -d eanhl
 
-Add --dry-run to print only the report (no SQL). Idempotent: a fully-reconciled
-period re-run emits an empty BEGIN/COMMIT.
+Add --dry-run to print only the report (no SQL / empty --json updates).
+Idempotent: a fully-reconciled period re-run emits an empty BEGIN/COMMIT.
 """
 
 from __future__ import annotations
@@ -398,7 +402,7 @@ class Update:
     y: float
     rink_zone: str
     confidence_label: str
-    method: str  # 'pairweight' | 'elimination'
+    method: str  # 'pairweight' | 'elimination' | 'yellow_salvage'
 
 
 @dataclass
@@ -601,11 +605,19 @@ def main() -> int:
     parser.add_argument("match_id", type=int)
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--cluster-radius-px", type=float, default=None)
+    parser.add_argument(
+        "--json", action="store_true", dest="json_out",
+        help="emit position proposals as JSON on stdout instead of SQL "
+             "(for programmatic callers, e.g. the worker tail hook)",
+    )
     args = parser.parse_args()
 
     payload_text = sys.stdin.read().strip()
     if not payload_text or payload_text == "null":
-        print("-- no input", flush=True)
+        if args.json_out:
+            print(json.dumps({"match_id": args.match_id, "updates": []}))
+        else:
+            print("-- no input", flush=True)
         return 0
     payload = json.loads(payload_text)
     extractions = payload.get("extractions") or []
@@ -650,10 +662,26 @@ def main() -> int:
     completeness = build_completeness(canonical, me_by_period, census_by_period, period_summaries)
     print(build_report(args.match_id, results, completeness), file=sys.stderr)
 
+    updates = [u for r in results for u in r.updates]
+
+    # JSON mode: proposals on stdout (report already on stderr). The worker
+    # applies these via Drizzle with the same guard the SQL mode encodes.
+    # --dry-run yields an empty proposal list (report-only), matching SQL mode.
+    if args.json_out:
+        proposals = [] if args.dry_run else [
+            {
+                "event_id": u.event_id, "x": u.x, "y": u.y,
+                "rink_zone": u.rink_zone, "confidence_label": u.confidence_label,
+                "method": u.method,
+            }
+            for u in updates
+        ]
+        print(json.dumps({"match_id": args.match_id, "updates": proposals}))
+        return 0
+
     if args.dry_run:
         return 0
 
-    updates = [u for r in results for u in r.updates]
     print("BEGIN;")
     for u in updates:
         print(emit_update_sql(u))

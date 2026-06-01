@@ -2,7 +2,22 @@
 
 ## To-Do
 
-**Status (2026-05-31 — latest):** **Action Tracker reconciliation post-pass SHIPPED — PR #4 MERGED to `main`** (merge `078a481`; 5 commits incl. completeness anchors + OCR-variant dedup fix; branch deleted). Generalizes the one-off 19:43 position fix into a re-runnable system.
+**Status (2026-05-31 — latest):** **Reconciliation wired into LIVE INGEST — committed on branch `feat/reconcile-live-ingest` (`c346d98`), NOT yet pushed/PR'd.** The standalone post-pass (PR #4) now runs automatically at the tail of every OCR batch, so scroll-past positions recover during ingest instead of via the manual psql pipeline. Closes the top deferred item from the prior entry.
+
+**What it is:** at the tail of `ingestOcrBatch()` (`apps/worker/src/ingest-ocr.ts`, after all promoters commit), the worker reconciles the batch's match when the batch produced a `post_game_action_tracker` extraction. New module `apps/worker/src/reconcile-positions.ts`:
+- Builds the Python tool's stdin payload via Drizzle (extractions + canonical `match_events` + reviewed `match_period_summaries`) — replaces the manual `json_agg` queries.
+- Spawns `reconcile_action_tracker.py <matchId> --json` (new additive `--json` mode emits position **proposals** on stdout; report still on stderr; default SQL mode unchanged so the manual pipeline keeps working byte-for-byte).
+- Applies proposals via Drizzle. **Write authority + the no-clobber guard live in TS.** The guard mirrors the Python `position_confidence IS DISTINCT FROM 'manual'` exactly — a plain `ne()` would skip NULL-confidence rows (the exact unpositioned rows we target), gutting the feature.
+
+**Key design decisions (locked):** (1) trigger = end of every OCR batch, idempotent self-correction across multi-batch matches; (2) apply path = JSON proposals → Drizzle (not executing opaque subprocess SQL); (3) **run scope** = the AT-extraction read is scoped to the run *currently being ingested* (`eq(runId)` when present, `liveRunFilter` fallback when NULL) — NOT canonical `liveRunFilter`, because the AT promoter writes canonical `match_events` even for candidate/non-active runs, so an active-only read would miss the just-written rows; (4) default-ON with `OCR_RECONCILE_ENABLED=false` kill switch; (5) single swallow layer — `reconcilePositions` throws honestly, the ingest tail owns the try/catch (mirrors loadout-v2/lobby-v2 blocks), so a reconcile failure never fails the batch. Spec: `~/.claude/plans/im-not-sure-which-logical-gosling.md`.
+
+**Validation:** Python 25/25 (22 + 3 new `--json` tests). New TS `apps/worker/src/__tests__/reconcile-positions.test.ts` 5/5 (guard updates NULL-confidence row, skips manual/positioned, run-scope, NULL-run fallback, throws-on-failure, no-AT no-op). Full worker suite: **zero regressions** — verified full-vs-full with changes stashed (baseline 14 fail / 297 pass → with-changes 11 fail / 300 pass; the with-changes failure set is a strict subset of baseline; the residual fails are pre-existing flaky loadout/lobby/decoder-runs/match-250-benchmark tests on the shared live DB, unrelated). Manual SQL mode emits the identical `BEGIN;…COMMIT;` block. db+worker build clean.
+
+**What's next:** push `feat/reconcile-live-ingest` + open a PR when ready (not done — awaiting go-ahead). Then the remaining deferred items below.
+
+---
+
+**Status (2026-05-31 — earlier):** **Action Tracker reconciliation post-pass SHIPPED — PR #4 MERGED to `main`** (merge `078a481`; 5 commits incl. completeness anchors + OCR-variant dedup fix; branch deleted). Generalizes the one-off 19:43 position fix into a re-runnable system.
 
 **What it is:** `tools/game_ocr/scripts/reconcile_action_tracker.py` — period-level reconciliation that recovers missing event **positions** the per-frame pass (`inventory_consensus_match`) can't, because a scrolled-too-fast event's card and rink marker are never co-visible. Pure matching core + thin stdin(`{extractions, match_events}`)/stdout(SQL) shell, reusing `inventory_consensus_match` clustering/voting/`pair_weight`. Per period: canonical event union (all frames) → census-frame (faceoff-selected, zero-yellow) hit anchor → Stage A pair_weight → orphan **prune** (drop re-detections co-located with positioned events) → Stage B 1:1 elimination by type+team → Stage C **yellow-salvage** (lone gap ↔ lone scroll-past yellow marker — the 19:43 mechanism).
 
