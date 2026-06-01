@@ -34,14 +34,49 @@
 >   restored `pnpm --filter worker test <selector>`) — all fixed pre-merge. **8 remaining failures are
 >   PRE-EXISTING & non-isolation, tracked as known-red** (see the WS5 status entry below).
 >
-> **>>> NEXT UP (active): WS4 Stage 2b MERGED to `main` + PUSHED to `origin` @ `b73e447` (host `dist`
-> not yet rebuilt).** Rebuild host `apps/worker/dist` (`pnpm --filter @eanhl/worker build`) so the next
-> operator OCR batch emits positioned orphan rows. Then the two REMAINING workstreams: WS2 (Pass-1
-> prefilter wiring + classifier retrain) · WS6 acceptance (real non-curated match + operator
-> ground-truth). Optional: WS4 Stage 3 (clock re-OCR). Optional cleanup: the 8
-> WS5 known-red failures (2 of which — batch-missing-`run_id`, match-968 decoder provenance — may flag
-> real minor prod data drift worth a backfill). The `fix/pipeline-ws0-closeout` branch now equals
-> `main` (safe to delete).
+> **>>> NEXT UP (active): WS2 — being SCOPED (brainstorming, design AGREED, spec not yet written).**
+> WS4 is fully DONE: Stage 1+2a+2b merged + pushed (`9e5addd`) **and host `apps/worker/dist` REBUILT**
+> (positioned orphan recovery is live-ready; first true-live signal comes from the next operator OCR
+> batch or WS6). The two REMAINING workstreams are **WS2** (in progress, below) and **WS6** (acceptance:
+> real non-curated match + operator ground-truth). Optional: WS4 Stage 3 (clock re-OCR). Optional
+> cleanup: the 8 WS5 known-red failures (2 of which — batch-missing-`run_id`, match-968 decoder
+> provenance — may flag real minor prod data drift worth a backfill). The `fix/pipeline-ws0-closeout`
+> branch equals `main` (safe to delete).
+>
+> **>>> WS2 SCOPING STATE (resume here in the new chat) — brainstorming skill mid-flow; next step =
+> write the design doc, then `writing-plans`.** Decisions locked with the user:
+> - **Cost model (verified):** Pass-1 OCRs every sampled frame to build classifier text-features
+>   (`orchestrator.py:283` `compute_frame_features_v2_from_image` per-ROI RapidOCR = the ~498s
+>   `pass1_classify_ms`, 35.7% of wall). The ONLY real lever is a **pre-OCR gate** that skips OCR on
+>   cheap-signal-implausible frames. "Down-weighting" emissions saves nothing (OCR already ran).
+> - **Posture = CONSERVATIVE:** gate only frames *unambiguously* non-text; **zero proving-bench
+>   recall regression** is the hard constraint.
+> - **Done-bar = SHIP ANY SAFE WIN:** no minimum wall-cut target; report the number, ship whatever is
+>   safe; deeper perf (batch ROI OCR, CV-CUDA) stays deferred.
+> - **Approach = A then B.** **Phase A (build now):** heuristic gate, NO retrain. **Phase B (conditional
+>   fast-follow, separately justified if A's win is too small):** populate `FrameFeaturesV2.prefilter_features`
+>   (3 signals) + retrain classifier (`n_prefilter_features=3`) for a learned gate — carries a non-text
+>   training-data-collection sub-task.
+> - **Agreed Phase-A design:** new `tools/video_ingest/video_ingest/visual_prefilter/pass1_policy.py`
+>   with `gate(VisualSignals, GateConfig) -> "ocr"|"skip"` (threshold on brightness/log_blur/edge_density)
+>   + `pass1_emissions_bias(gated_mask,…)`. In the `orchestrator.py:280-298` loop: compute
+>   `compute_visual_signals(sf.image)` first; on "skip" build the same `FrameFeaturesV2` via a
+>   `_NullOCRBackend` (`.read()→[]`, no real OCR) and mark `gated=True`; `decode_segments_v2` /
+>   `build_log_emissions_v2` apply the bias to pin gated frames to `unknown_or_transition` (so a no-OCR
+>   frame is never misread as a text screen). Thresholds in `nhl26.yaml` (absent → gate disabled).
+> - **Acceptance:** proving bench (`test_screen_classifier_proving_bench.py`, 2 clips, `RUN_CLASSIFIER_E2E=1`,
+>   ≥90% per-frame + match-968 hard-zero) shows ZERO regression with gate ON; instrument
+>   `frames_gated/frames_total` + Pass-1 wall on/off and report.
+> - **OPEN (ask user first thing):** ship gate **default-ON** (conservative, proven zero-regression
+>   pre-merge) with kill switch `OCR_PASS1_GATE_ENABLED=false` — vs default-OFF until a live batch
+>   confirms. I proposed default-ON; awaiting confirmation.
+> - **Phase-B machinery is ALREADY built + tested** (do not rebuild): `prefilter_features` field,
+>   `feature_vector_v2(n_prefilter_features)`, weights schema/save/load, `train_screen_classifier_v2`
+>   all support it (`test_screen_classifier_n_prefilter_features.py`). `compute_visual_signals()`
+>   (`visual_prefilter/signals.py:66`) yields brightness/log_blur/edge_density — use those, NOT the HSV
+>   histogram (avoids the centroid layout fork). Training corpus ~1000 samples is mostly TEXT-screen
+>   screenshots → Phase B's risk is sparse non-text training data.
+> - Design doc target: `docs/superpowers/specs/2026-06-01-ws2-pass1-prefilter-gate-design.md`.
 >
 > **Env notes for a cold start:** only `.venv-1` has pytest + the GPU stack (onnxruntime-CUDA + PyAV); run
 > Python tests as `cd tools/<pkg> && PYTHONPATH=.:../game_ocr ../../.venv-1/bin/python -m pytest …`
