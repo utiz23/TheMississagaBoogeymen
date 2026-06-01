@@ -444,7 +444,7 @@ class TestExtractorVersion(unittest.TestCase):
         """EXTRACTOR_VERSION class attribute is the expected sentinel string."""
         self.assertEqual(
             LoadoutClosedVocabExtractor.EXTRACTOR_VERSION,
-            "closed-vocab-alias-v1",
+            "closed-vocab-v2",
         )
 
     def test_extractor_accepts_version_kwarg(self):
