@@ -15,7 +15,7 @@
 > - **WS3 ✅ evidence-capture** (per-frame OCR text + visual signals on VersionGuess; 3 tests).
 >   **Visual-anchor discriminator DEFERRED** (user) — needs NHL 27 refs / centroid work.
 > - **WS1a ✅ measured → Pass-1 OCR STILL MATERIAL** (classify 82.2%, ocr_of_total 35.7%). **WS2 justified.**
-> - **WS2 ✅ MERGED to `main` (NOT pushed).** Conservative Pass-1 pre-OCR gate (default-ON, env kill
+> - **WS2 ✅ MERGED + PUSHED to `origin/main`.** Conservative Pass-1 pre-OCR gate (default-ON, env kill
 >   switch `OCR_PASS1_GATE_ENABLED=false`); zero-regression confirmed (bench ON ≡ OFF). Merged via
 >   `--no-ff` after the proving-bench re-anchoring landed, so its bench arm runs against green labels.
 >   Caveats unchanged: the gate fires on 0 frames on the bench clips (bright menu/lobby), so the wall
@@ -40,13 +40,14 @@
 >   restored `pnpm --filter worker test <selector>`) — all fixed pre-merge. **8 remaining failures are
 >   PRE-EXISTING & non-isolation, tracked as known-red** (see the WS5 status entry below).
 >
-> **>>> NEXT UP: WS6** (acceptance: real non-curated match + operator ground-truth). WS2 ✅ MERGED to
-> `main` (merge `ae3f46d`, NOT pushed). WS4 is fully DONE (Stage 1+2a+2b merged + pushed `9e5addd`, host
-> `dist` rebuilt). Optional: WS4 Stage 3 (clock re-OCR); measure the WS2 wall saving on real fade/black
-> footage; the 8 WS5 known-red failures. NOT pushed: `main` is ahead of `origin/main` by the
-> proving-bench + WS2 merges — push when ready. The `fix/pipeline-ws0-closeout`,
-> `feat/ws2-pass1-prefilter-gate`, and `investigate/proving-bench-red` branches are all merged into
-> `main` (safe to delete).
+> **>>> NEXT UP: WS6** (acceptance: real non-curated match + operator ground-truth). WS2 + the
+> proving-bench fix are ✅ MERGED + PUSHED — **`main` = `origin/main` @ `3a995b8`** (WS2 merge `ae3f46d`).
+> WS4 is fully DONE (Stage 1+2a+2b, host `dist` rebuilt). Optional: WS4 Stage 3 (clock re-OCR); measure
+> the WS2 wall saving on real fade/black footage; the 8 WS5 known-red failures. The merged branches
+> (`feat/ws2-pass1-prefilter-gate`, `investigate/proving-bench-red`, `fix/pipeline-ws0-closeout`) have
+> been **deleted**. Stale local branches still present (older, already merged — prune when convenient):
+> `feat/ocr-pipeline-phase-3a`, `feat/lobby-detector-cross-team-dedup`, `feat/screen-classifier-v2-a1`,
+> `feat/ws4-identity-recovery`.
 >
 > **>>> RESOLVED (2026-06-01): proving-bench RED — root-caused + fixed (merged `main`).**
 > `test_screen_classifier_proving_bench.py` (`RUN_CLASSIFIER_E2E=1`) was absolute-red on the baseline
