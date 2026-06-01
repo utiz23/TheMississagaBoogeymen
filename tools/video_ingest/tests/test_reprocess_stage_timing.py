@@ -431,6 +431,10 @@ def test_ingest_timings_sidecar_projects_pass1_keys_into_payload(
         "pass1_ms": 69128.8,
         "pass2_ms": 5500.0,
         "pass1_cache_hit": False,
+        # WS1b: prefilter-on run → run-level aggregates present.
+        "prefilter_frames_scanned": 92,
+        "prefilter_frames_selected": 13,
+        "prefilter_selection_ms": 2568.7,
     }))
 
     monkeypatch.setattr(
@@ -467,6 +471,72 @@ def test_ingest_timings_sidecar_projects_pass1_keys_into_payload(
     # Boolean lands top-level, NOT in stages.
     assert payload["pass1_cache_hit"] is False
     assert "pass1_cache_hit" not in payload["stages"]
+    # WS1b: prefilter aggregates project into stages, coerced float→int.
+    assert payload["stages"]["prefilter_frames_scanned"] == 92
+    assert payload["stages"]["prefilter_frames_selected"] == 13
+    assert payload["stages"]["prefilter_selection_ms"] == 2568
+
+
+def test_ingest_timings_null_prefilter_projects_null_into_stages(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    _fake_artifacts: None,
+) -> None:
+    """WS1b: a present sidecar from a prefilter-DISABLED run carries
+    prefilter_* = null. Unlike the Phase-4 keys (always numeric when the
+    sidecar exists), the prefilter keys must survive null-within-sidecar and
+    land as null in `stages` — proving reprocess guards on the value, not just
+    sidecar presence (a bare int(None) would crash)."""
+    fake_run_id = 5252
+    cache_dir = tmp_path / "ingest-cache"
+    monkeypatch.setattr(reprocess_mod, "DEFAULT_INGEST_CACHE", cache_dir)
+
+    fake_sha = "c" * 64
+    sidecar_path = cache_dir / fake_sha / f"ingest-run-{fake_run_id}-timings.json"
+    sidecar_path.parent.mkdir(parents=True, exist_ok=True)
+    sidecar_path.write_text(json.dumps({
+        "pass1_decode_ms": 1234.5,
+        "pass1_classify_ms": 67890.1,
+        "pass1_viterbi_ms": 4.2,
+        "pass1_ms": 69128.8,
+        "pass2_ms": 5500.0,
+        "pass1_cache_hit": False,
+        # prefilter disabled → orchestrator wrote nulls.
+        "prefilter_frames_scanned": None,
+        "prefilter_frames_selected": None,
+        "prefilter_selection_ms": None,
+    }))
+
+    monkeypatch.setattr(
+        reprocess_mod, "_run_decoder_runs_cli",
+        _make_decoder_runs_stub(fake_run_id),
+    )
+    monkeypatch.setattr(
+        reprocess_mod, "_run_streaming",
+        lambda cmd, *, description: None,
+    )
+    monkeypatch.setattr(
+        reprocess_mod.subprocess, "run",
+        lambda cmd, **kwargs: subprocess.CompletedProcess(
+            args=cmd, returncode=0, stdout='{"_exit": 0}\n', stderr=""
+        ),
+    )
+
+    runner = CliRunner()
+    result = runner.invoke(app, ["reprocess", "--match-id", "250"])
+    assert result.exit_code == 0, (
+        f"reprocess exited {result.exit_code}; exception={result.exception!r}\n"
+        f"stdout:\n{result.stdout}"
+    )
+
+    payload = json.loads(
+        (cache_dir / f"run-{fake_run_id}-stage-runtimes.json").read_text()
+    )
+    # Pass-4 numeric keys still project; prefilter keys are null (not crashed).
+    assert payload["stages"]["pass1_classify_ms"] == 67890
+    for k in ("prefilter_frames_scanned", "prefilter_frames_selected",
+              "prefilter_selection_ms"):
+        assert payload["stages"][k] is None, f"expected stages.{k} is None"
 
 
 def test_ingest_timings_missing_sidecar_is_silent(
@@ -510,7 +580,10 @@ def test_ingest_timings_missing_sidecar_is_silent(
         (cache_dir / f"run-{fake_run_id}-stage-runtimes.json").read_text()
     )
     for k in ("pass1_decode_ms", "pass1_classify_ms", "pass1_viterbi_ms",
-              "pass1_ms", "pass2_ms"):
+              "pass1_ms", "pass2_ms",
+              # WS1b prefilter keys null on missing sidecar too.
+              "prefilter_frames_scanned", "prefilter_frames_selected",
+              "prefilter_selection_ms"):
         assert payload["stages"][k] is None, f"expected stages.{k} is None"
     assert payload["pass1_cache_hit"] is None
 

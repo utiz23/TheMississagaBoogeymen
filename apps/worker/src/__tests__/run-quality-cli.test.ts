@@ -708,6 +708,10 @@ void test('--stage-runtimes round-trips Phase 4 Part B Pass-1 sub-phase keys + p
       pass1_decode_ms: 600,
       pass1_classify_ms: 64000,
       pass1_viterbi_ms: 400,
+      // WS1b Visual-Prefilter Pass-2 selection telemetry (numeric keys).
+      prefilter_frames_scanned: 92,
+      prefilter_frames_selected: 13,
+      prefilter_selection_ms: 2568,
     },
     total_wall_ms: 84000,
     captured_at: '2026-05-30T20:00:00Z',
@@ -737,6 +741,10 @@ void test('--stage-runtimes round-trips Phase 4 Part B Pass-1 sub-phase keys + p
   // pass1_cache_hit lands top-level on runtime, NOT inside stages.
   assert.equal(runtime['pass1_cache_hit'], false)
   assert.equal(stages['pass1_cache_hit'], undefined)
+  // WS1b prefilter keys round-trip verbatim inside stages.
+  assert.equal(stages['prefilter_frames_scanned'], 92)
+  assert.equal(stages['prefilter_frames_selected'], 13)
+  assert.equal(stages['prefilter_selection_ms'], 2568)
 })
 
 void test('--stage-runtimes accepts pass1_cache_hit=true and pass1_cache_hit=null', async (t) => {

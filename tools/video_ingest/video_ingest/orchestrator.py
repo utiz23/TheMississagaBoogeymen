@@ -737,6 +737,20 @@ def ingest(
     # (run_id is None) falls back to the unscoped name — concurrent
     # direct ingests are operator-managed.
     if sampling_telemetry is not None:
+        # WS1b: aggregate the per-segment Visual-Prefilter telemetry
+        # (Pass2Result.prefilter_*) into run-level totals for the sidecar.
+        # Each field stays None when EVERY segment is None (prefilter off or
+        # no configured budget), preserving the "null when disabled" contract;
+        # otherwise it sums the non-None segments. selection_ms sums to total
+        # selection wall across segments.
+        def _sum_prefilter(attr: str) -> float | None:
+            vals = [
+                getattr(r, attr)
+                for r in pass2_results
+                if getattr(r, attr) is not None
+            ]
+            return sum(vals) if vals else None
+
         timings_payload = {
             "pass1_decode_ms": sampling_telemetry.decode_ms,
             "pass1_classify_ms": sampling_telemetry.classify_ms,
@@ -750,6 +764,11 @@ def ingest(
             # analytics contract.
             "pass2_ms": elapsed_pass2 * 1000.0,
             "pass1_cache_hit": sampling_telemetry.pass1_cache_hit,
+            # WS1b: run-level Visual-Prefilter Pass-2 selection telemetry.
+            # null when the prefilter was disabled for this run.
+            "prefilter_frames_scanned": _sum_prefilter("prefilter_frames_scanned"),
+            "prefilter_frames_selected": _sum_prefilter("prefilter_frames_selected"),
+            "prefilter_selection_ms": _sum_prefilter("prefilter_selection_ms"),
         }
         timings_filename = (
             f"ingest-run-{run_id}-timings.json"

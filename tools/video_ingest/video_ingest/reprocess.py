@@ -530,6 +530,28 @@ def reprocess(
             "pass1_viterbi_ms": (
                 int(ingest_timings["pass1_viterbi_ms"]) if ingest_timings else None
             ),
+            # WS1b: Visual-Prefilter Pass-2 selection telemetry. Unlike the
+            # Phase-4 keys above, these can be null WITHIN a present sidecar
+            # (prefilter disabled → orchestrator writes null), so guard on the
+            # value, not just sidecar presence, before coercing to int.
+            "prefilter_frames_scanned": (
+                int(ingest_timings["prefilter_frames_scanned"])
+                if ingest_timings
+                and ingest_timings.get("prefilter_frames_scanned") is not None
+                else None
+            ),
+            "prefilter_frames_selected": (
+                int(ingest_timings["prefilter_frames_selected"])
+                if ingest_timings
+                and ingest_timings.get("prefilter_frames_selected") is not None
+                else None
+            ),
+            "prefilter_selection_ms": (
+                int(ingest_timings["prefilter_selection_ms"])
+                if ingest_timings
+                and ingest_timings.get("prefilter_selection_ms") is not None
+                else None
+            ),
         },
         "total_wall_ms": total_wall_ms,
         "captured_at": datetime.now(timezone.utc).isoformat(),

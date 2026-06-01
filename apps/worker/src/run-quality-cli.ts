@@ -114,6 +114,13 @@ interface StageRuntimes {
   pass1_decode_ms: number | null
   pass1_classify_ms: number | null
   pass1_viterbi_ms: number | null
+  // WS1b — Visual-Prefilter Pass-2 selection telemetry, sourced from the
+  // same ingest_timings.json sidecar (run-level aggregate of the per-segment
+  // Pass2Result.prefilter_* fields). null when the prefilter was disabled for
+  // the run. Same number | null contract — timing/count only.
+  prefilter_frames_scanned: number | null
+  prefilter_frames_selected: number | null
+  prefilter_selection_ms: number | null
 }
 
 interface StageRuntimesFile {
@@ -143,6 +150,10 @@ const STAGE_KEYS: ReadonlyArray<keyof StageRuntimes> = [
   'pass1_decode_ms',
   'pass1_classify_ms',
   'pass1_viterbi_ms',
+  // WS1b prefilter keys — same number | null contract.
+  'prefilter_frames_scanned',
+  'prefilter_frames_selected',
+  'prefilter_selection_ms',
 ]
 
 function emptyStages(): StageRuntimes {
@@ -161,6 +172,9 @@ function emptyStages(): StageRuntimes {
     pass1_decode_ms: null,
     pass1_classify_ms: null,
     pass1_viterbi_ms: null,
+    prefilter_frames_scanned: null,
+    prefilter_frames_selected: null,
+    prefilter_selection_ms: null,
   }
 }
 
