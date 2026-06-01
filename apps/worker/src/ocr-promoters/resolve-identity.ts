@@ -244,3 +244,21 @@ export async function resolveActorForMatch(
   }
   return { playerId: null, via: 'roster_mismatch', globalPlayerId: global.playerId }
 }
+
+/**
+ * Infer team_side for an Action-Tracker event from its resolved actor/target
+ * player ids. Actor on the BGM roster → 'for'; else target on the roster (the
+ * opp acted on a BGM player) → 'against'; neither resolves → 'against' (the
+ * arbitrary default the Events-screen promoter later overwrites from the
+ * authoritative team_abbreviation chip).
+ *
+ * Single source of truth for BOTH the live AT promoter and WS4 identity
+ * recovery — the value lands in the clock-independent dedup key, so the two
+ * paths MUST derive it identically or recovered orphans would mis-partition.
+ */
+export function deriveTeamSide(
+  actorPlayerId: number | null,
+  targetPlayerId: number | null,
+): 'for' | 'against' {
+  return actorPlayerId !== null ? 'for' : targetPlayerId !== null ? 'against' : 'against'
+}

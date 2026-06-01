@@ -97,6 +97,15 @@ def field_value(field_obj) -> str | None:
     return None
 
 
+def _field_confidence(field_obj) -> float:
+    """ExtractionField `.confidence` (0.0 when absent / not a dict)."""
+    if isinstance(field_obj, dict):
+        c = field_obj.get("confidence")
+        if isinstance(c, (int, float)):
+            return float(c)
+    return 0.0
+
+
 def clock_to_seconds(clock: str | None) -> int:
     """MM:SS → seconds. Period clocks count DOWN, so higher = earlier."""
     if not clock or ":" not in clock:
@@ -271,6 +280,82 @@ def build_canonical_events(extractions: list[dict]) -> dict[int, list[dict]]:
     for p in by_period:
         by_period[p].sort(key=lambda e: clock_to_seconds(e.get("clock")), reverse=True)
     return by_period
+
+
+# ─── orphan identity recovery (WS4 Stage 2a) ───────────────────────────────
+
+
+def build_orphan_cards(extractions: list[dict]) -> list[dict]:
+    """Recover the identities of garbled-clock AT events the live promoter
+    DROPS (action-tracker.ts:105 `if (!clock) skipped_missing_clock`).
+
+    Emits ONE raw card per distinct identity across all frames, deduped on
+    (period_number, event_type, normalized actor, normalized target). A
+    115-frame orphan would otherwise yield 115 identical cards; we collapse to
+    one and attach the highest-confidence frame's actor string + extraction id.
+
+    Identity-only: NO position, NO team_side, NO player ids — raw AT data has no
+    team signal, so the worker resolves identity + team_side in TS. event_type is
+    restricted to the PLOTTABLE types (shot/hit/goal/penalty) so the existing
+    position-reconcile pass can later place the row; 'faceoff' and 'unknown' are
+    skipped. Missing-actor cards are skipped (no identity anchor).
+
+    Multiplicity (WS4 known limitation): two distinct same-identity garbled
+    events in one frame cannot be separated without position (Stage 2b). We warn
+    on stderr when we detect that (so the dropped event is observable, not
+    silent) and still emit the single representative.
+    """
+    plottable = {"shot", "hit", "goal", "penalty"}
+    best: dict[tuple, dict] = {}          # identity key -> representative card (+ _conf)
+    max_per_frame: dict[tuple, int] = {}  # identity key -> max count in any single frame
+    for row in extractions:
+        raw = row.get("raw_result_json", {}) or {}
+        ext_id = row.get("id", 0)
+        frame_counts: dict[tuple, int] = {}
+        for e in raw.get("events", []) or []:
+            et = e.get("event_type")
+            if et not in plottable:  # skips 'unknown', 'faceoff', None
+                continue
+            clock_field = e.get("clock") or {}
+            if not (isinstance(clock_field, dict) and clock_field.get("status") == "missing"):
+                continue  # only garbled-clock orphans; readable clocks are the promoter's job
+            actor = field_value(e.get("actor_snapshot"))
+            if not actor:
+                continue  # no identity anchor
+            period = e.get("period_number")
+            if not isinstance(period, int) or period < 1:
+                continue
+            target = field_value(e.get("target_snapshot"))
+            key = (period, et, normalize_actor(actor), normalize_actor(target))
+            frame_counts[key] = frame_counts.get(key, 0) + 1
+            conf = _field_confidence(e.get("actor_snapshot"))
+            prev = best.get(key)
+            if prev is None or conf > prev["_conf"]:
+                best[key] = {
+                    "period_number": period,
+                    "period_label": e.get("period_label") or str(period),
+                    "event_type": et,
+                    "actor_snapshot": actor,
+                    "target_snapshot": target,
+                    "event_detail": field_value(e.get("raw_text")),
+                    "ocr_extraction_id": ext_id,
+                    "_conf": conf,
+                }
+        for key, cnt in frame_counts.items():
+            if cnt > max_per_frame.get(key, 0):
+                max_per_frame[key] = cnt
+
+    for key, cnt in max_per_frame.items():
+        if cnt >= 2:
+            period, et, na, _nt = key
+            print(
+                f"[orphan-recovery] multiplicity: {cnt} same-identity garbled '{et}' "
+                f"events for actor '{na}' in period {period} within one frame; "
+                f"recovering 1, dropping {cnt - 1} (Stage 2b separates by position)",
+                file=sys.stderr,
+            )
+
+    return [{k: v for k, v in card.items() if k != "_conf"} for card in best.values()]
 
 
 # ─── completeness anchors ──────────────────────────────────────────────────
@@ -615,7 +700,7 @@ def main() -> int:
     payload_text = sys.stdin.read().strip()
     if not payload_text or payload_text == "null":
         if args.json_out:
-            print(json.dumps({"match_id": args.match_id, "updates": []}))
+            print(json.dumps({"match_id": args.match_id, "updates": [], "orphan_cards": []}))
         else:
             print("-- no input", flush=True)
         return 0
@@ -676,7 +761,12 @@ def main() -> int:
             }
             for u in updates
         ]
-        print(json.dumps({"match_id": args.match_id, "updates": proposals}))
+        orphan_cards = [] if args.dry_run else build_orphan_cards(extractions)
+        print(json.dumps({
+            "match_id": args.match_id,
+            "updates": proposals,
+            "orphan_cards": orphan_cards,
+        }))
         return 0
 
     if args.dry_run:

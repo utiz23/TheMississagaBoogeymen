@@ -34,13 +34,15 @@ import {
   matchGoalEvents,
   matchPenaltyEvents,
   matchPeriodSummaries,
+  matches,
   ocrExtractions,
   type NewMatchEvent,
 } from '@eanhl/db'
 import { liveRunFilter } from '@eanhl/db/queries'
 import { and, eq, inArray, isNull, sql, type SQL } from 'drizzle-orm'
+import type { DbOrTx, PromoterDb } from './ocr-promoters/index.js'
 import { findExistingMatchEventClockless } from './ocr-promoters/match-events-dedup.js'
-import { normalizeSnapshot } from './ocr-promoters/resolve-identity.js'
+import { deriveTeamSide, normalizeSnapshot, resolveActorForMatch } from './ocr-promoters/resolve-identity.js'
 
 const REPO_ROOT = resolve(import.meta.dirname, '..', '..', '..')
 const GAME_OCR_DIR = join(REPO_ROOT, 'tools', 'game_ocr')
@@ -61,15 +63,14 @@ export interface ReconcileProposal {
 }
 
 /**
- * One identity-recovery INSERT proposal (WS4 Stage 1). A null-clock orphan
+ * One identity-recovery INSERT proposal (post-resolution). A null-clock orphan
  * card whose event row was never promoted (the live promoter drops null-clock
  * cards). `clock` is intentionally absent — recovered orphans are clock-null by
  * definition; dedup happens via the clock-independent key. `target_*` and
  * `ocr_extraction_id` are consumed both by the INSERT and by the dedup-hit
- * refresh (which mirrors the live promoter's hit branch).
- *
- * DORMANT in Stage 1: the Python tool never emits `inserts`, so this contract
- * exists only for unit tests + the future Stage 2 producer.
+ * refresh (which mirrors the live promoter's hit branch). Built in TS from a
+ * `RawOrphanCard` via `resolveOrphanCard` (player ids + team_side resolved
+ * here, not in Python — raw AT data carries no team signal).
  */
 export interface IdentityProposal {
   period_number: number
@@ -84,16 +85,35 @@ export interface IdentityProposal {
   ocr_extraction_id: number
 }
 
+/**
+ * One RAW orphan card emitted by `reconcile_action_tracker.py --json`
+ * (WS4 Stage 2a). The live promoter dropped this event because its OCR clock
+ * was garbled/null (action-tracker.ts:105). Identity (player ids) + team_side
+ * are NOT here — raw AT data has no team signal; the worker resolves them via
+ * `resolveOrphanCard`. `event_type` is restricted to the plottable types so the
+ * position-reconcile pass can later place the recovered row.
+ */
+export interface RawOrphanCard {
+  period_number: number
+  period_label: string
+  event_type: 'shot' | 'hit' | 'goal' | 'penalty'
+  actor_snapshot: string
+  target_snapshot: string | null
+  event_detail: string | null
+  ocr_extraction_id: number
+}
+
 /** The `--json` stdout shape of `reconcile_action_tracker.py`. */
 export interface ReconcileToolOutput {
   match_id: number
   updates: ReconcileProposal[]
   /**
-   * Identity-recovery inserts. OPTIONAL and never emitted by the current Python
-   * tool → the INSERT path is a guaranteed live no-op until Stage 2 adds a
-   * producer. See `applyIdentityProposals`.
+   * Raw orphan cards (garbled-clock events the live promoter dropped).
+   * OPTIONAL — absent until the Stage-2a producer ships. Resolved into
+   * IdentityProposals + applied by `reconcilePositions` (see `resolveOrphanCard`
+   * → `applyIdentityProposals`), gated by `OCR_IDENTITY_RECOVERY_ENABLED`.
    */
-  inserts?: IdentityProposal[]
+  orphan_cards?: RawOrphanCard[]
 }
 
 /** The stdin payload the Python tool consumes (one JSON object). */
@@ -172,9 +192,27 @@ export async function reconcilePositions(
 
   const output = await runTool(matchId, payload)
   const applied = await applyProposals(output.updates)
-  // DORMANT in Stage 1: `output.inserts` is undefined for the current Python
-  // tool → applyIdentityProposals([]) is a no-op. Stage 2 supplies the producer.
-  const identity = await applyIdentityProposals(output.inserts ?? [], matchId)
+
+  // WS4 Stage 2a: resolve the producer's raw orphan cards into IdentityProposals
+  // (player ids + team_side resolved here, reusing the live promoter's resolver),
+  // then apply them. Gated by OCR_IDENTITY_RECOVERY_ENABLED (default ON). Reads
+  // run OUTSIDE applyIdentityProposals' transaction.
+  let identity: ApplyIdentityResult = {
+    inserted: 0,
+    dedupRefreshed: 0,
+    ambiguous: 0,
+    skippedInvalid: 0,
+  }
+  const orphanCards = output.orphan_cards ?? []
+  if (orphanCards.length > 0 && process.env.OCR_IDENTITY_RECOVERY_ENABLED !== 'false') {
+    const gameTitleId = await resolveGameTitleId(matchId)
+    const proposals: IdentityProposal[] = []
+    for (const card of orphanCards) {
+      proposals.push(await resolveOrphanCard(card, matchId, gameTitleId, db))
+    }
+    identity = await applyIdentityProposals(proposals, matchId)
+  }
+
   return {
     proposed: output.updates.length,
     applied,
@@ -190,6 +228,60 @@ export interface ApplyIdentityResult {
   dedupRefreshed: number
   ambiguous: number
   skippedInvalid: number
+}
+
+/** Look up a match's game title (one match = one game title). Keeps
+ *  reconcilePositions self-contained rather than threading gameTitleId from the
+ *  ingest caller. */
+async function resolveGameTitleId(matchId: number): Promise<number> {
+  const [row] = await db
+    .select({ gameTitleId: matches.gameTitleId })
+    .from(matches)
+    .where(eq(matches.id, matchId))
+    .limit(1)
+  if (!row) throw new Error(`Match ${String(matchId)} not found for game-title lookup`)
+  return row.gameTitleId
+}
+
+/**
+ * Resolve one raw orphan card into an IdentityProposal: resolve actor + target
+ * against the match roster, derive team_side, carry snapshots/detail/ext id.
+ * Mirrors the live promoter's resolution (action-tracker.ts:124-130) so a
+ * recovered orphan resolves to exactly the identity the live path would have
+ * produced had the clock been legible. An unresolved actor (opponent not on the
+ * BGM roster) yields actor_player_id null — allowed, mirroring the promoter.
+ */
+export async function resolveOrphanCard(
+  card: RawOrphanCard,
+  matchId: number,
+  gameTitleId: number,
+  dbConn: DbOrTx,
+): Promise<IdentityProposal> {
+  // resolveActorForMatch is typed against PromoterDb; the global db is accepted
+  // at runtime (read-only selects) — cast at the boundary, as the resolver's
+  // other non-promoter callers do (ingest-ocr-resolve-cli, the resolver tests).
+  const conn = dbConn as PromoterDb
+  const { playerId: actorPlayerId } = await resolveActorForMatch(
+    card.actor_snapshot,
+    matchId,
+    gameTitleId,
+    conn,
+  )
+  const { playerId: targetPlayerId } = card.target_snapshot
+    ? await resolveActorForMatch(card.target_snapshot, matchId, gameTitleId, conn)
+    : { playerId: null }
+  return {
+    period_number: card.period_number,
+    period_label: card.period_label,
+    event_type: card.event_type,
+    team_side: deriveTeamSide(actorPlayerId, targetPlayerId),
+    actor_snapshot: card.actor_snapshot,
+    actor_player_id: actorPlayerId,
+    target_snapshot: card.target_snapshot,
+    target_player_id: targetPlayerId,
+    event_detail: card.event_detail,
+    ocr_extraction_id: card.ocr_extraction_id,
+  }
 }
 
 /**

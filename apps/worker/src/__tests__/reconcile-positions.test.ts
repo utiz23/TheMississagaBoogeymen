@@ -297,12 +297,12 @@ void test('no AT extractions for the run → no-op, tool not called', async () =
   })
 })
 
-void test('tool output without an `inserts` key is a live identity no-op', async () => {
+void test('tool output without an `orphan_cards` key is a live identity no-op', async () => {
   if (!process.env['DATABASE_URL']) return
 
-  // The current Python tool emits only `updates`; reconcilePositions must treat
-  // a missing `inserts` as [] and leave all identity counters at 0 (Stage 1
-  // dormant wiring). runA has an AT extraction so the tool runs.
+  // A tool output with only `updates` (no `orphan_cards`) must leave all
+  // identity counters at 0 — `output.orphan_cards ?? []` short-circuits the
+  // recovery path. runA has an AT extraction so the tool runs.
   const id = await seedEvent({ tag: 'noop-identity', x: null, positionConfidence: null })
   const fakeTool = (_matchId: number, _payload: ReconcilePayload): Promise<ReconcileToolOutput> =>
     Promise.resolve({
@@ -318,4 +318,115 @@ void test('tool output without an `inserts` key is a live identity no-op', async
   assert.equal(result.identity_dedup_refreshed, 0)
   assert.equal(result.identity_ambiguous, 0)
   assert.equal(result.identity_skipped_invalid, 0)
+})
+
+void test('orphan_cards from the tool → resolved + inserted as a pending_review row', async () => {
+  if (!process.env['DATABASE_URL']) return
+
+  // A garbled-clock orphan card (actor is a sentinel string → resolves to null
+  // player, team_side 'against') in an empty sentinel period → clean insert.
+  const fakeTool = (_matchId: number, _payload: ReconcilePayload): Promise<ReconcileToolOutput> =>
+    Promise.resolve({
+      match_id: TEST_MATCH_ID,
+      updates: [],
+      orphan_cards: [
+        {
+          period_number: 73,
+          period_label: '73',
+          event_type: 'shot',
+          actor_snapshot: `${SENTINEL}orphan-e2e`,
+          target_snapshot: null,
+          event_detail: 'orphan',
+          ocr_extraction_id: runAExtId,
+        },
+      ],
+    })
+
+  const result = await reconcilePositions(TEST_MATCH_ID, runAId, fakeTool)
+  assert.equal(result.identity_inserted, 1)
+  const rows = await db
+    .select({
+      clock: matchEvents.clock,
+      x: matchEvents.x,
+      reviewStatus: matchEvents.reviewStatus,
+      source: matchEvents.source,
+    })
+    .from(matchEvents)
+    .where(like(matchEvents.actorGamertagSnapshot, `${SENTINEL}orphan-e2e`))
+  assert.equal(rows.length, 1)
+  assert.equal(rows[0]?.clock, null)
+  assert.equal(rows[0]?.x, null)
+  assert.equal(rows[0]?.reviewStatus, 'pending_review')
+  assert.equal(rows[0]?.source, 'ocr')
+})
+
+void test('OCR_IDENTITY_RECOVERY_ENABLED=false → orphan cards are a no-op', async () => {
+  if (!process.env['DATABASE_URL']) return
+
+  const prev = process.env.OCR_IDENTITY_RECOVERY_ENABLED
+  process.env.OCR_IDENTITY_RECOVERY_ENABLED = 'false'
+  try {
+    const fakeTool = (_m: number, _p: ReconcilePayload): Promise<ReconcileToolOutput> =>
+      Promise.resolve({
+        match_id: TEST_MATCH_ID,
+        updates: [],
+        orphan_cards: [
+          {
+            period_number: 75,
+            period_label: '75',
+            event_type: 'shot',
+            actor_snapshot: `${SENTINEL}orphan-flagoff`,
+            target_snapshot: null,
+            event_detail: null,
+            ocr_extraction_id: runAExtId,
+          },
+        ],
+      })
+    const result = await reconcilePositions(TEST_MATCH_ID, runAId, fakeTool)
+    assert.equal(result.identity_inserted, 0)
+    const rows = await db
+      .select({ id: matchEvents.id })
+      .from(matchEvents)
+      .where(like(matchEvents.actorGamertagSnapshot, `${SENTINEL}orphan-flagoff`))
+    assert.equal(rows.length, 0, 'no row inserted while the flag is off')
+  } finally {
+    if (prev === undefined) delete process.env.OCR_IDENTITY_RECOVERY_ENABLED
+    else process.env.OCR_IDENTITY_RECOVERY_ENABLED = prev
+  }
+})
+
+void test('orphan card dedups to an existing positioned row → refresh, no insert, position kept', async () => {
+  if (!process.env['DATABASE_URL']) return
+
+  // Pre-seed a positioned row (period 2 / hit / against, the seedEvent shape).
+  // The orphan card resolves to the same bucket + actor → clockless dedup hit →
+  // refresh (no insert), and the manual-ish position must be untouched.
+  const existing = await seedEvent({ tag: 'orphan-dedup', x: '12.00', positionConfidence: 'extrapolated' })
+  const fakeTool = (_m: number, _p: ReconcilePayload): Promise<ReconcileToolOutput> =>
+    Promise.resolve({
+      match_id: TEST_MATCH_ID,
+      updates: [],
+      orphan_cards: [
+        {
+          period_number: 2,
+          period_label: '2',
+          event_type: 'hit',
+          actor_snapshot: `${SENTINEL}orphan-dedup`,
+          target_snapshot: null,
+          event_detail: null,
+          ocr_extraction_id: runAExtId,
+        },
+      ],
+    })
+
+  const result = await reconcilePositions(TEST_MATCH_ID, runAId, fakeTool)
+  assert.equal(result.identity_inserted, 0)
+  assert.equal(result.identity_dedup_refreshed, 1)
+  const rows = await db
+    .select({ id: matchEvents.id, x: matchEvents.x })
+    .from(matchEvents)
+    .where(like(matchEvents.actorGamertagSnapshot, `${SENTINEL}orphan-dedup`))
+  assert.equal(rows.length, 1, 'no duplicate inserted')
+  assert.equal(rows[0]?.id, existing)
+  assert.equal(rows[0]?.x, '12.00', 'existing position preserved')
 })

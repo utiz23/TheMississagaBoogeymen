@@ -24,7 +24,7 @@ import {
 } from '@eanhl/db'
 import { and, eq, sql as drizzleSql } from 'drizzle-orm'
 import type { PromoterContext } from './index.js'
-import { resolveActorForMatch } from './resolve-identity.js'
+import { deriveTeamSide, resolveActorForMatch } from './resolve-identity.js'
 import { findExistingMatchEvent } from './match-events-dedup.js'
 import { resolvePeriod } from './resolve-period.js'
 import type { OcrExtractionField } from '../ocr-cli-runner.js'
@@ -126,8 +126,7 @@ export async function promoteActionTracker(ctx: PromoterContext): Promise<void> 
     const { playerId: targetPlayerId } = target
       ? await resolveActorForMatch(target, matchId, gameTitleId, db)
       : { playerId: null }
-    const teamSide: 'for' | 'against' =
-      actorPlayerId !== null ? 'for' : targetPlayerId !== null ? 'against' : 'against'
+    const teamSide = deriveTeamSide(actorPlayerId, targetPlayerId)
 
     // Both ends unresolved → team_side defaults to 'against' arbitrarily.
     // The Events promoter (when it later runs) will overwrite team_side from

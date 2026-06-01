@@ -40,6 +40,19 @@ def _event(event_type, clock, actor, period, target=None):
     }
 
 
+def _orphan_event(event_type, actor, period, target=None, actor_conf=0.95):
+    """An AT event card whose clock failed OCR (status='missing'). The live
+    promoter drops these; WS4 Stage 2a recovers their identity."""
+    e = _event(event_type, None, actor, period, target)
+    e["clock"] = {"value": None, "raw_text": "", "confidence": 0.0, "status": "missing"}
+    e["actor_snapshot"] = {
+        "value": actor, "raw_text": actor, "confidence": actor_conf,
+        "status": "ok" if actor else "missing",
+    }
+    e["raw_text"] = _ef(f"{event_type} {actor or ''}")
+    return e
+
+
 def _marker(color, shape, hx, hy, px, py, fill="solid", confidence=1.0):
     return {
         "color": color,
@@ -451,7 +464,116 @@ class JsonModeTests(unittest.TestCase):
     def test_json_mode_no_input_emits_empty_updates(self):
         rc, stdout = self._run_main("", ["reconcile", "250", "--json"])
         self.assertEqual(rc, 0)
-        self.assertEqual(json.loads(stdout), {"match_id": 250, "updates": []})
+        self.assertEqual(
+            json.loads(stdout),
+            {"match_id": 250, "updates": [], "orphan_cards": []},
+        )
+
+    def test_json_mode_emits_orphan_cards(self):
+        ext = _frame(7, 2, [_orphan_event("shot", "RANTANEN", 2)], None, [])
+        payload = {"extractions": [ext], "match_events": [], "period_summaries": []}
+        rc, stdout = self._run_main(json.dumps(payload), ["reconcile", "250", "--json"])
+        self.assertEqual(rc, 0)
+        doc = json.loads(stdout)
+        self.assertIn("updates", doc)  # updates still emitted (empty here)
+        self.assertEqual(len(doc["orphan_cards"]), 1)
+        self.assertEqual(doc["orphan_cards"][0]["event_type"], "shot")
+        self.assertEqual(doc["orphan_cards"][0]["actor_snapshot"], "RANTANEN")
+
+    def test_dry_run_json_mode_emits_empty_orphan_cards(self):
+        ext = _frame(7, 2, [_orphan_event("shot", "RANTANEN", 2)], None, [])
+        payload = {"extractions": [ext], "match_events": [], "period_summaries": []}
+        rc, stdout = self._run_main(
+            json.dumps(payload), ["reconcile", "250", "--json", "--dry-run"])
+        self.assertEqual(rc, 0)
+        self.assertEqual(json.loads(stdout)["orphan_cards"], [])
+
+    def test_sql_mode_unchanged_with_orphans(self):
+        # An orphan-bearing payload must NOT leak orphan JSON into SQL mode.
+        ext = _frame(7, 2, [_orphan_event("shot", "RANTANEN", 2)], None, [])
+        payload = {"extractions": [ext], "match_events": [], "period_summaries": []}
+        rc, stdout = self._run_main(json.dumps(payload), ["reconcile", "250"])
+        self.assertEqual(rc, 0)
+        self.assertTrue(stdout.startswith("BEGIN;"))
+        self.assertIn("COMMIT;", stdout)
+        self.assertNotIn("orphan_cards", stdout)
+
+
+class OrphanCardTests(unittest.TestCase):
+    """Pure-function tests for build_orphan_cards (WS4 Stage 2a)."""
+
+    def _cards(self, extractions):
+        with redirect_stderr(io.StringIO()):
+            return rat.build_orphan_cards(extractions)
+
+    def test_missing_clock_card_emitted(self):
+        ext = _frame(7, 2, [_orphan_event("shot", "RANTANEN", 2)], None, [])
+        cards = self._cards([ext])
+        self.assertEqual(len(cards), 1)
+        c = cards[0]
+        self.assertEqual(c["period_number"], 2)
+        self.assertEqual(c["period_label"], "2")
+        self.assertEqual(c["event_type"], "shot")
+        self.assertEqual(c["actor_snapshot"], "RANTANEN")
+        self.assertIsNone(c["target_snapshot"])
+        self.assertEqual(c["ocr_extraction_id"], 7)
+        self.assertIn("event_detail", c)
+
+    def test_cross_frame_dedup_to_one_keeps_highest_confidence_ext(self):
+        frames = [
+            _frame(i, 2, [_orphan_event("shot", "RANTANEN", 2, actor_conf=0.5)], None, [])
+            for i in range(1, 115)
+        ]
+        # The 115th frame has the highest-confidence actor reading.
+        frames.append(
+            _frame(999, 2, [_orphan_event("shot", "RANTANEN", 2, actor_conf=0.99)], None, []))
+        cards = self._cards(frames)
+        self.assertEqual(len(cards), 1)
+        self.assertEqual(cards[0]["ocr_extraction_id"], 999)
+
+    def test_distinct_actors_not_collapsed(self):
+        ext = _frame(7, 2, [
+            _orphan_event("shot", "RANTANEN", 2),
+            _orphan_event("shot", "MAKAR", 2),
+        ], None, [])
+        self.assertEqual(len(self._cards([ext])), 2)
+
+    def test_distinct_targets_not_collapsed(self):
+        ext = _frame(7, 2, [
+            _orphan_event("hit", "RANTANEN", 2, target="SMITH"),
+            _orphan_event("hit", "RANTANEN", 2, target="JONES"),
+        ], None, [])
+        self.assertEqual(len(self._cards([ext])), 2)
+
+    def test_missing_actor_skipped(self):
+        ext = _frame(7, 2, [_orphan_event("shot", None, 2)], None, [])
+        self.assertEqual(self._cards([ext]), [])
+
+    def test_unknown_event_type_skipped(self):
+        ext = _frame(7, 2, [_orphan_event("unknown", "RANTANEN", 2)], None, [])
+        self.assertEqual(self._cards([ext]), [])
+
+    def test_faceoff_skipped(self):
+        ext = _frame(7, 2, [_orphan_event("faceoff", "RANTANEN", 2)], None, [])
+        self.assertEqual(self._cards([ext]), [])
+
+    def test_clock_present_card_not_emitted(self):
+        # A normal (clock readable) card is the live promoter's job, not ours.
+        ext = _frame(7, 2, [_event("shot", "5:00", "RANTANEN", 2)], None, [])
+        self.assertEqual(self._cards([ext]), [])
+
+    def test_within_frame_multiplicity_warns_and_emits_one(self):
+        # Two distinct same-identity garbled shots in ONE frame: 2a can only
+        # recover one, but must surface the drop on stderr (not silent).
+        ext = _frame(7, 2, [
+            _orphan_event("shot", "RANTANEN", 2),
+            _orphan_event("shot", "RANTANEN", 2),
+        ], None, [])
+        err = io.StringIO()
+        with redirect_stderr(err):
+            cards = rat.build_orphan_cards([ext])
+        self.assertEqual(len(cards), 1)
+        self.assertIn("multiplicity", err.getvalue().lower())
 
 
 if __name__ == "__main__":
