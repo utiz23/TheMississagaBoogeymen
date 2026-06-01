@@ -47,7 +47,7 @@
 
 import { matchEvents } from '@eanhl/db'
 import { and, eq, isNotNull } from 'drizzle-orm'
-import type { PromoterDb } from './index.js'
+import type { DbOrTx, PromoterDb } from './index.js'
 import { levenshtein, normalizeSnapshot } from './resolve-identity.js'
 
 export interface DedupKey {
@@ -75,6 +75,96 @@ export function normalizeActorForPrefix(snap: string | null): string {
     .toLowerCase()
     .replace(/[^a-z]/g, '')
     .slice(0, 4)
+}
+
+/**
+ * Clock-independent identity key for WS4 orphan-identity recovery. Unlike
+ * `DedupKey` it carries no `clock` (recovered orphans are clock-null by
+ * definition) and adds `teamSide` — the robust identity key partitions the
+ * bucket by team so two opposite-side events at the same period/type/actor
+ * never merge.
+ */
+export interface ClocklessDedupKey {
+  matchId: number
+  periodNumber: number
+  eventType: 'shot' | 'hit' | 'goal' | 'penalty' | 'faceoff'
+  teamSide: 'for' | 'against'
+  actorPlayerId: number | null
+  actorSnapshot: string
+}
+
+/**
+ * Three-state outcome for the clock-independent lookup:
+ *   - `hit`        → exactly one existing row matches this identity; dedup to it.
+ *   - `insert`     → zero matches; safe to mint a new row.
+ *   - `ambiguous`  → more than one candidate matches; never guess, report only.
+ */
+export type ClocklessDedupResult =
+  | { kind: 'hit'; id: number }
+  | { kind: 'insert' }
+  | { kind: 'ambiguous'; candidateIds: number[] }
+
+/**
+ * Clock-independent sibling of `findExistingMatchEvent` for the WS4 recovery
+ * path. `findExistingMatchEvent`'s signature/behavior is left untouched (the
+ * live promoter depends on its `number|null` contract and never passes a null
+ * clock), so this is an additive second authority living in the same module.
+ *
+ * The bucket is `(matchId, periodNumber, eventType, teamSide, source='ocr')`
+ * with NO clock filter. Within it we match the actor by resolved player id
+ * first, then a normalized + Levenshtein-1 fuzzy compare — exactly the A→B
+ * order of `findExistingMatchEvent`, minus the clock equality and the
+ * insert-time-only Strategy-0 positioned-junk guard.
+ *
+ * The bucket deliberately includes POSITIONED rows (not just unpositioned):
+ * a recovered orphan whose event was already promoted-and-positioned via the
+ * live path must dedup to it, otherwise we'd INSERT a duplicate of a real
+ * event. Searching all rows makes that a `hit`; only a genuinely absent
+ * identity (zero matches anywhere in the bucket) yields `insert`.
+ */
+export async function findExistingMatchEventClockless(
+  db: DbOrTx,
+  key: ClocklessDedupKey,
+): Promise<ClocklessDedupResult> {
+  const bucket = await db
+    .select({ id: matchEvents.id, actorPlayerId: matchEvents.actorPlayerId, snapshot: matchEvents.actorGamertagSnapshot })
+    .from(matchEvents)
+    .where(
+      and(
+        eq(matchEvents.matchId, key.matchId),
+        eq(matchEvents.periodNumber, key.periodNumber),
+        eq(matchEvents.eventType, key.eventType),
+        eq(matchEvents.teamSide, key.teamSide),
+        eq(matchEvents.source, 'ocr'),
+      ),
+    )
+
+  const matched = new Set<number>()
+
+  // ── Strategy A ── Resolved-player path ────────────────────────────────────
+  // Exact match on actor_player_id within the bucket. Falls through to fuzzy
+  // only when it finds nothing (mirrors findExistingMatchEvent's A→B order).
+  if (key.actorPlayerId !== null) {
+    for (const row of bucket) {
+      if (row.actorPlayerId === key.actorPlayerId) matched.add(row.id)
+    }
+  }
+
+  // ── Strategy B ── Unresolved-actor fuzzy fallback ─────────────────────────
+  if (matched.size === 0) {
+    const target = normalizeSnapshot(key.actorSnapshot).toLowerCase()
+    if (target) {
+      for (const row of bucket) {
+        const snap = normalizeSnapshot(row.snapshot ?? '').toLowerCase()
+        if (snap.length === 0) continue
+        if (snap === target || levenshtein(snap, target, 1) <= 1) matched.add(row.id)
+      }
+    }
+  }
+
+  if (matched.size === 0) return { kind: 'insert' }
+  if (matched.size === 1) return { kind: 'hit', id: [...matched][0]! }
+  return { kind: 'ambiguous', candidateIds: [...matched] }
 }
 
 /**

@@ -287,5 +287,35 @@ void test('no AT extractions for the run → no-op, tool not called', async () =
 
   const result = await reconcilePositions(TEST_MATCH_ID, emptyRunId, tool)
   assert.equal(called, false, 'tool should not be spawned when there is no AT evidence')
-  assert.deepEqual(result, { proposed: 0, applied: 0 })
+  assert.deepEqual(result, {
+    proposed: 0,
+    applied: 0,
+    identity_inserted: 0,
+    identity_dedup_refreshed: 0,
+    identity_ambiguous: 0,
+    identity_skipped_invalid: 0,
+  })
+})
+
+void test('tool output without an `inserts` key is a live identity no-op', async () => {
+  if (!process.env['DATABASE_URL']) return
+
+  // The current Python tool emits only `updates`; reconcilePositions must treat
+  // a missing `inserts` as [] and leave all identity counters at 0 (Stage 1
+  // dormant wiring). runA has an AT extraction so the tool runs.
+  const id = await seedEvent({ tag: 'noop-identity', x: null, positionConfidence: null })
+  const fakeTool = (_matchId: number, _payload: ReconcilePayload): Promise<ReconcileToolOutput> =>
+    Promise.resolve({
+      match_id: TEST_MATCH_ID,
+      updates: [
+        { event_id: id, x: 1, y: 2, rink_zone: 'neutral', confidence_label: 'extrapolated', method: 'elimination' },
+      ],
+    })
+
+  const result = await reconcilePositions(TEST_MATCH_ID, runAId, fakeTool)
+  assert.equal(result.applied, 1, 'the position update still applies')
+  assert.equal(result.identity_inserted, 0)
+  assert.equal(result.identity_dedup_refreshed, 0)
+  assert.equal(result.identity_ambiguous, 0)
+  assert.equal(result.identity_skipped_invalid, 0)
 })
