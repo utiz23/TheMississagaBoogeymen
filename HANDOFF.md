@@ -17,7 +17,12 @@
 
 **Validation:** Python 25/25 (22 + 3 new `--json` tests). New TS `apps/worker/src/__tests__/reconcile-positions.test.ts` 5/5 (guard updates NULL-confidence row, skips manual/positioned, run-scope, NULL-run fallback, throws-on-failure, no-AT no-op). Full worker suite: **zero regressions** — verified full-vs-full with changes stashed (baseline 14 fail / 297 pass → with-changes 11 fail / 300 pass; the with-changes failure set is a strict subset of baseline; the residual fails are pre-existing flaky loadout/lobby/decoder-runs/match-250-benchmark tests on the shared live DB, unrelated). Manual SQL mode emits the identical `BEGIN;…COMMIT;` block. db+worker build clean.
 
-**What's next (deferred, no active work):** (1) worker prefilter-telemetry persistence (smallest queued slice); (2) the INSERT-missing-identities path via the TS promoter (lets reconciliation close true row-gaps, not just positions); (3) the real payoff — run reconciliation on a **future non-curated match** (match 250 is hand-curated so it barely exercises recovery; the live hook now does this automatically on the next real ingest).
+**>>> NEXT UP (active — this is what we're doing next): REDEPLOY THE WORKER.** The reconciliation hook is merged to `main` but **inert in production** — the self-hosted Docker `worker` container is still running the OLD image, so the batch-tail reconcile does NOT fire on live ingests until the image is rebuilt. `docker compose up -d` alone reuses the stale image; must rebuild (see the `docker-redeploy` skill): `docker compose build worker` → `docker compose up -d worker` → confirm healthy + tail logs for a clean start.
+- **Verify it's live:** next OCR batch with an Action Tracker screen logs `[ingest-ocr] match <id> reconcile: proposed=… applied=…` (already-positioned matches → `proposed=0 applied=0`).
+- **Kill switch if it misbehaves:** set `OCR_RECONCILE_ENABLED=false` in `.env` and restart — no redeploy needed.
+- **Minor housekeeping (opportunistic, alongside deploy):** untracked drift in the tree — `tools/{game_ocr,video_ingest}/*.egg-info/` (Python build artifacts → should be **gitignored**) and `tools/{game_ocr,video_ingest}/uv.lock` (lockfiles → normally **committed**).
+
+**After deploy (deferred):** (1) worker prefilter-telemetry persistence (smallest queued slice); (2) the INSERT-missing-identities path via the TS promoter (lets reconciliation close true row-gaps, not just positions); (3) the real payoff — the first **non-curated match** ingest, where the live hook actually exercises recovery (match 250 is hand-curated so it barely does).
 
 ---
 
