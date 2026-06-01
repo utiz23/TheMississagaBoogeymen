@@ -30,8 +30,10 @@
 > WS6 acceptance (real non-curated match + operator ground-truth). Optional cleanup: the 8 WS5
 > known-red failures (2 of which — batch-missing-`run_id`, match-968 decoder provenance — may flag real
 > minor prod data drift worth a backfill).
-> **Merge `fix/pipeline-ws0-closeout` (WS0+WS1b+WS3+WS5, tree clean) to main when ready** — those
-> workstreams are independently complete + verified.
+> **✅ MERGED to `main` (2026-06-01):** `fix/pipeline-ws0-closeout` (WS0+WS1b+WS3+WS5) fast-forwarded
+> `origin/main` `8fd07f4..4cfa6cc`. Gated by a local high-effort review + a Codex review; all findings
+> (harness pipefail, scoped+age-gated stale-clone sweep, quoted args, restored `pnpm test <selector>`)
+> fixed before merge. The 8 known-red tests are pre-existing & non-isolation (tracked above).
 >
 > **Env notes for a cold start:** only `.venv-1` has pytest + the GPU stack (onnxruntime-CUDA + PyAV); run
 > Python tests as `cd tools/<pkg> && PYTHONPATH=.:../game_ocr ../../.venv-1/bin/python -m pytest …`
