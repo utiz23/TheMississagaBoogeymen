@@ -15,15 +15,16 @@
 > - **WS3 ✅ evidence-capture** (per-frame OCR text + visual signals on VersionGuess; 3 tests).
 >   **Visual-anchor discriminator DEFERRED** (user) — needs NHL 27 refs / centroid work.
 > - **WS1a ✅ measured → Pass-1 OCR STILL MATERIAL** (classify 82.2%, ocr_of_total 35.7%). **WS2 justified.**
-> - **WS4 → ROBUST long-term path chosen (user). Stage 1 ✅ + Stage 2a ✅ DONE** on branch
->   `feat/ws4-identity-recovery` (`5b688ee`, `6e26e69`, NOT yet merged). Stage 1 = clock-independent
->   dedup + guarded identity INSERT machinery. **Stage 2a = the PRODUCER** that activates it: Python
->   `build_orphan_cards` (extends `reconcile_action_tracker.py --json` with `orphan_cards`) recovers
->   garbled-clock AT events the live promoter drops; TS `resolveOrphanCard` resolves identity +
->   team_side and feeds `applyIdentityProposals` → `pending_review` rows. Gated by
->   `OCR_IDENTITY_RECOVERY_ENABLED` (default ON; inert until branch merged+deployed). Real-data check:
->   5 orphan cards recovered from match 250. **Stage 2b (marker association / multiplicity) + Stage 3
->   (clock re-OCR) remain.** Design spec: `docs/ocr/action-tracker-identity-recovery-design.md`.
+> - **WS4 → ROBUST long-term path chosen (user). Stage 1 ✅ + Stage 2a ✅ + Stage 2b ✅ MERGED to
+>   `main`.** Stage 1 = clock-independent dedup + guarded identity INSERT machinery. **Stage 2a = the
+>   PRODUCER**: Python `build_orphan_cards` (extends `reconcile_action_tracker.py --json` with
+>   `orphan_cards`) recovers garbled-clock AT events the live promoter drops; TS `resolveOrphanCard`
+>   resolves identity + team_side and feeds `applyIdentityProposals` → `pending_review` rows. Gated by
+>   `OCR_IDENTITY_RECOVERY_ENABLED` (default ON). **Stage 2b = MARKER ASSOCIATION**: binds each orphan
+>   card to its rink-marker cluster by cross-frame `capture_id` co-occurrence, so recovered rows land
+>   POSITIONED (`position_confidence='extrapolated'`) and same-identity multiplicities SPLIT into N
+>   rows; position is now part of the effective clockless-dedup identity. **Stage 3 (clock re-OCR)
+>   remains.** Design spec: `docs/ocr/action-tracker-identity-recovery-design.md`.
 > - **WS5 ✅ DONE — worker integration-test suite now isolated, deterministic, hang-free.** Per-run
 >   ephemeral DB clone harness (`apps/worker/scripts/with-test-db.mjs`, wired as `pnpm --filter worker
 >   test` / `test:integration`). The 7 target `spawnSync` CLI files all pass under isolation; prod DB
@@ -33,21 +34,31 @@
 >   restored `pnpm --filter worker test <selector>`) — all fixed pre-merge. **8 remaining failures are
 >   PRE-EXISTING & non-isolation, tracked as known-red** (see the WS5 status entry below).
 >
-> **>>> NEXT UP (active): PLAN WS4 Stage 2b IN A NEW CHAT (user's call).** WS4 Stage 1+2a are merged
-> to `main` + pushed to `origin` + container redeployed (see status below). Stage 2b = marker
-> association via cross-frame consensus + position clustering → recovers exact position alongside
-> identity AND resolves the 2a multiplicity limitation. It is a substantial design — do a full
-> planning pass (Explore → Plan agent → review) as Stages 1/2a did. Then: WS2 (Pass-1 prefilter
-> wiring + classifier retrain) · WS6 acceptance (real non-curated match + operator ground-truth).
-> Optional cleanup: the 8 WS5
-> known-red failures (2 of which — batch-missing-`run_id`, match-968 decoder provenance — may flag real
-> minor prod data drift worth a backfill). The `fix/pipeline-ws0-closeout` branch now equals `main`
-> (safe to delete).
+> **>>> NEXT UP (active): WS4 Stage 2b MERGED to `main` (not yet pushed; host `dist` not yet rebuilt).**
+> Rebuild host `apps/worker/dist` (`pnpm --filter @eanhl/worker build`) so the next operator OCR batch
+> emits positioned orphan rows; push when ready. Then: WS2 (Pass-1 prefilter wiring + classifier
+> retrain) · WS6 acceptance (real non-curated match + operator ground-truth). Optional cleanup: the 8
+> WS5 known-red failures (2 of which — batch-missing-`run_id`, match-968 decoder provenance — may flag
+> real minor prod data drift worth a backfill). The `fix/pipeline-ws0-closeout` branch now equals
+> `main` (safe to delete).
 >
 > **Env notes for a cold start:** only `.venv-1` has pytest + the GPU stack (onnxruntime-CUDA + PyAV); run
 > Python tests as `cd tools/<pkg> && PYTHONPATH=.:../game_ocr ../../.venv-1/bin/python -m pytest …`
 > (`game_ocr` and `video_ingest` live in separate per-tool venvs, so neither alone imports both — PYTHONPATH
 > bridges them). DB on host port **5433**, `DATABASE_URL` in `.env` (`set -a && source .env && set +a`).
+
+**Status (2026-06-01 — WS4 Stage 2b MERGED to `main`, reviewed):** **Marker association via cross-frame consensus + position clustering.** Built via TDD across 3 layers, reviewed, then fast-forward-merged from `feat/ws4-stage2b-marker-association` (commits `a2cac5e` Python bind, `8f041fe` TS persist, `ab359d1` TS dedup). Recovered orphan rows now land POSITIONED, and same-identity multiplicities split into N distinct positioned rows. **Not yet pushed; host `dist` not yet rebuilt.**
+
+**What shipped (3 layers):**
+- **Layer 1 — Python** (`reconcile_action_tracker.py`): `build_orphan_panel_index` (identity → `{capture_id}`, keyed by **event-level** `period_number` — matches the live promoter, immune to the cluster-side `select_capture_period` mismatch) + `bind_orphan_cards` (the **cluster** is the consume-once unit; a **card fans out** to every cluster it wins; eligibility = flattened `res.orphans` across periods; score = frame-exact `capture_id` intersection). Each output card carries `x/y/rink_zone/bind_method/cluster_color_side`; no-cluster cards pass through unpositioned (`bind_method='none'`). `main() --json` chains build → index → bind. **SQL mode byte-unchanged.**
+- **Layer 2 — TS** (`reconcile-positions.ts`): `RawOrphanCard`/`IdentityProposal` carry the position; `resolveOrphanCard` passes it through and **warns but does not act** on a cluster-color-vs-roster team_side disagreement (roster authoritative). INSERT lands positioned rows `position_confidence='extrapolated'`. New counter `identity_inserted_positioned`.
+- **Layer 3 — TS** (`match-events-dedup.ts`): `findExistingMatchEventClockless` gains optional `x/y` — **position is part of the effective identity when present** (for ALL match sizes, not a `>1`-only tie-break; this is what survives the sequential apply loop so two distinct same-identity orphans both insert). Keeps only same-rounded-position matches + unpositioned (backfill) candidates; different-position rows are distinct events. Null position → Stage-1 behavior byte-for-byte. The `hit` branch also backfills position onto an unpositioned matched row behind the no-clobber guard.
+
+**Three planning-review findings folded in BEFORE coding:** (1) sequential-insert collapse → position-as-identity for all sizes, not a tie-break; (2) fan-out contradiction → cluster is consume-once, card fans out; (3) period-authority mismatch → frame-based `capture_id` binding + event-level card period + flattened `res.orphans`.
+
+**Verification:** Python **49** reconcile/orphan/binding/consensus tests green (12 new). TS full worker suite **367 pass / 8 fail / 1 skip** — the 8 are the unchanged pre-existing WS5 known-red set, **no new reds**; typecheck clean. **Real match-250 read-only check (no writes):** same 5 identities recovered as 2a; **1 (P4 shot SILKY) bound + positioned at (31,-10) via `co_occurrence`**, the other 4 safely unpositioned; bound position does NOT collide with the existing positioned P4 against-shots ((-75,-2)/(-71,-19)); **idempotent**; prod DB byte-unchanged. **To verify live:** next operator OCR batch with garbled-clock AT cards → look for new `match_events` rows with `clock=null`, non-null `x/y`, `position_confidence='extrapolated'`, `review_status='pending_review'`. Kill switch `OCR_IDENTITY_RECOVERY_ENABLED=false`.
+
+---
 
 **Status (2026-06-01 — WS4 Stage 1 + 2a MERGED to `main` + PUSHED to `origin` @ `92597fc`; worker container redeployed):** Branch `feat/ws4-identity-recovery` fast-forward-merged to `main` and **pushed — `origin/main` is synced** (through the handoff-correction commit `92597fc`; feature is `6e26e69`). Worker container rebuilt + restarted, healthy (`[members] nhl26: 10/10 upserted`, clean poll cycle).
 
