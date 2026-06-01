@@ -7,7 +7,7 @@
 > Any "status", "next up", or progress reference in this file is in reference to THIS plan until it
 > is explicitly marked complete or the user redirects.
 >
-> **Progress (branch `fix/pipeline-ws0-closeout`, 6 commits):**
+> **Progress (WS0+WS1b+WS3+WS5 ✅ MERGED to `main` @ `b623780`, 2026-06-01):**
 > - **WS0a ✅ worker REDEPLOYED & LIVE** — image was 3+ weeks stale (May-7); reconcile hook now in
 >   the running container (`dist/reconcile-positions.js` present). Verifies fully on next OCR batch.
 > - **WS0b ✅** EXTRACTOR_VERSION test fixed. **WS0c ✅** egg-info gitignored + uv.lock committed.
@@ -21,26 +21,25 @@
 >   ephemeral DB clone harness (`apps/worker/scripts/with-test-db.mjs`, wired as `pnpm --filter worker
 >   test` / `test:integration`). The 7 target `spawnSync` CLI files all pass under isolation; prod DB
 >   byte-unchanged across runs; clone dropped each run. Plus a teardown-hang root-cause fix
->   (`{ timeout: 5 }` on 24 timeout-less pool `.end()` calls). 2 commits on the branch. **8 remaining
->   failures are PRE-EXISTING & non-isolation, tracked as known-red** (see the WS5 status entry below).
+>   (`{ timeout: 5 }` on 24 timeout-less pool `.end()` calls). Gated by a local high-effort review +
+>   a Codex review (findings: harness pipefail, scoped+age-gated stale-clone sweep, quoted dump args,
+>   restored `pnpm --filter worker test <selector>`) — all fixed pre-merge. **8 remaining failures are
+>   PRE-EXISTING & non-isolation, tracked as known-red** (see the WS5 status entry below).
 >
 > **>>> NEXT UP (active — user to steer): WS2, WS4 robust, WS6 (all multi-session).**
 > WS2 (Pass-1 prefilter wiring + classifier retrain — justified by WS1a's still-material result) ·
 > WS4 robust build (Stage 1 first per `docs/ocr/action-tracker-identity-recovery-design.md`, ~10–14d) ·
 > WS6 acceptance (real non-curated match + operator ground-truth). Optional cleanup: the 8 WS5
 > known-red failures (2 of which — batch-missing-`run_id`, match-968 decoder provenance — may flag real
-> minor prod data drift worth a backfill).
-> **✅ MERGED to `main` (2026-06-01):** `fix/pipeline-ws0-closeout` (WS0+WS1b+WS3+WS5) fast-forwarded
-> `origin/main` `8fd07f4..4cfa6cc`. Gated by a local high-effort review + a Codex review; all findings
-> (harness pipefail, scoped+age-gated stale-clone sweep, quoted args, restored `pnpm test <selector>`)
-> fixed before merge. The 8 known-red tests are pre-existing & non-isolation (tracked above).
+> minor prod data drift worth a backfill). The `fix/pipeline-ws0-closeout` branch now equals `main`
+> (safe to delete).
 >
 > **Env notes for a cold start:** only `.venv-1` has pytest + the GPU stack (onnxruntime-CUDA + PyAV); run
 > Python tests as `cd tools/<pkg> && PYTHONPATH=.:../game_ocr ../../.venv-1/bin/python -m pytest …`
 > (`game_ocr` and `video_ingest` live in separate per-tool venvs, so neither alone imports both — PYTHONPATH
 > bridges them). DB on host port **5433**, `DATABASE_URL` in `.env` (`set -a && source .env && set +a`).
 
-**Status (2026-06-01 — WS5 COMPLETE):** **Worker integration-test suite isolated, deterministic, hang-free.** 2 commits on `fix/pipeline-ws0-closeout` (`37ff56d` teardown-timeout fix, `992f8e6` isolation harness).
+**Status (2026-06-01 — WS5 COMPLETE & MERGED to `main`):** **Worker integration-test suite isolated, deterministic, hang-free.** 4 commits, merged via fast-forward (`8fd07f4..4cfa6cc`): `37ff56d` teardown-timeout fix, `992f8e6` isolation harness, `5432950` local-review hardening, `4cfa6cc` Codex-review hardening (age-gated sweep + restored test selectors). Run it with `pnpm --filter worker test` (full) or `pnpm --filter worker test <selector>` (subset, e.g. `decoder-runs-cli`).
 
 **What shipped:**
 - **Per-run ephemeral DB clone harness** — `apps/worker/scripts/with-test-db.mjs`, wired as `pnpm --filter worker test` and `test:integration`. It `pg_dump`-clones the local dev DB into a throwaway `eanhl_test_<pid>`, points `DATABASE_URL` at it, runs the full suite serially **from repo root**, then drops it. Key seam: `@eanhl/db` reads `DATABASE_URL` at import time and the `spawnSync`'d CLIs inherit `process.env`, so **both the in-process `db` singleton and every CLI hit the clone — zero test-file edits for the redirect.** A *clone* (not a blank migrate) is required because ~10 tests anchor on real match 250/463 data migrations don't recreate. Guards: refuses non-local `DATABASE_URL`, checks container reachability, sweeps leaked clones at startup, async `spawn` so SIGINT/SIGTERM drop the clone, `--test-force-exit` backstop. Also fixes the old `test` script's wrong cwd (doubled `REPO_ROOT`, broke the spawnSync CLI tests).
