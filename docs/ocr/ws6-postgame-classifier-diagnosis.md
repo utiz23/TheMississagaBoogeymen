@@ -1,7 +1,16 @@
 # WS6 post-game screen-classification — root-cause diagnosis
 
 Branch: `feat/post-game-classifier-fix`. Companion to
-`docs/ocr/ws6-real-match-validation-findings.md`. **Diagnosis only — no fix applied** (per scope).
+`docs/ocr/ws6-real-match-validation-findings.md`.
+
+> **✅ RESOLVED (Tier B landed).** Fix shipped on this branch: 8 `post_game_*` regex priors restored
+> (`n_priors` 18→26) + v2 head retrained with 63 header-grounded match-2582 post-game frames
+> (`fix(ocr)` `3fba4da`), plus a post-game proving-bench arm with a hard contamination rule
+> (`test(ocr)` `3f29f1d`). **Verification:** per-frame diagnostic now classifies every data-bearing
+> post-game screen; 3-arm proving bench green (pre-game **no regression** + post-game arm passes
+> accuracy + hard rule); and a full-recording `classify-only` rerun on match 2582 turns the post-game
+> window from **0 → 12 post-game segments** (15 dispatching, was 4). The diagnosis below is retained as
+> the root-cause record.
 
 Evidence reproduced from the preserved WS6 bundle
 (`tools/video_ingest/tests/fixtures/ws6-match2582-postgame/`) — the 40-min full-video Pass-1 was **not**

@@ -13,6 +13,15 @@ Plan: `~/.claude/plans/plan-ws6-for-the-hidden-fog.md`. WS6 of the OCR/Video-Ing
 
 ---
 
+> **✅ UPDATE — blocker FIXED (Tier B, branch `feat/post-game-classifier-fix`).** The post-game
+> classification gap diagnosed below was root-caused (`docs/ocr/ws6-postgame-classifier-diagnosis.md`)
+> and fixed: 8 restored `post_game_*` priors + a v2 retrain (`3fba4da`) + a post-game proving-bench arm
+> (`3f29f1d`). A full-recording rerun now yields **12 post-game segments (was 0)** and 15 dispatching
+> (was 4); all data-bearing post-game screens classify and route to promoters. The findings below stand
+> as the original validation record. **Still pending for a clean WS6 acceptance:** the committed
+> `reprocess` ingest of match 2582 (now unblocked) + ground-truth diff, and a *second* match for true
+> generalization (this fix is trained/validated on match 2582 only).
+
 ## 1. Outcome
 
 **FAIL — blocker found (this is the WS6 payoff, not a crash).** The video→OCR pipeline **cannot extract
