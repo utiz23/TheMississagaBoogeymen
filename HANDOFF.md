@@ -40,7 +40,14 @@
 >   restored `pnpm --filter worker test <selector>`) — all fixed pre-merge. **8 remaining failures are
 >   PRE-EXISTING & non-isolation, tracked as known-red** (see the WS5 status entry below).
 >
-> **>>> NEXT UP: WS6** (acceptance: real non-curated match + operator ground-truth). WS2 + the
+> **>>> WS6 ATTEMPTED 2026-06-01 → BLOCKED at the Phase-1 gate (post-game screen-classification gap).
+> Full writeup: `docs/ocr/ws6-real-match-validation-findings.md`.** On real match-2582 footage
+> (`/mnt/k/2026-05-31_16-09-36.mkv`), Pass-1 classifies EVERY post-game screen (action-tracker, box-score,
+> events, net-chart, faceoff-map, end-of-game) as `unknown_or_transition` despite the OCR reading the
+> right text — so only 4/65 segments dispatch (lobby+loadout) and ZERO post-game data is extracted. No
+> prod write was committed (STOP gate). Real next step is a NEW post-game-classifier workstream (diagnose
+> → retrain/anchor-prior fix → ADD a post-game proving-bench arm), then re-run WS6 on the same recording
+> (mapping + GT scaffold already done). WS2 + the
 > proving-bench fix are ✅ MERGED + PUSHED — **`main` = `origin/main` @ `3a995b8`** (WS2 merge `ae3f46d`).
 > WS4 is fully DONE (Stage 1+2a+2b, host `dist` rebuilt). Optional: WS4 Stage 3 (clock re-OCR); measure
 > the WS2 wall saving on real fade/black footage; the 8 WS5 known-red failures. The merged branches
@@ -69,6 +76,24 @@
 > Python tests as `cd tools/<pkg> && PYTHONPATH=.:../game_ocr ../../.venv-1/bin/python -m pytest …`
 > (`game_ocr` and `video_ingest` live in separate per-tool venvs, so neither alone imports both — PYTHONPATH
 > bridges them). DB on host port **5433**, `DATABASE_URL` in `.env` (`set -a && source .env && set +a`).
+>
+> **Small UI follow-up (not delivery-critical): match-detail OCR provenance pass.**
+> Turn the match-250 `/games/[id]` findings into a concrete polish task list:
+> 1. **Lineup X-Factors:** when `canonicalName` exists but `tier` is null, stop degrading to tiny neutral
+>    dots. Render a readable fallback (name chip or tierless icon treatment) so the X-Factor data already
+>    present in `getMatchLineups()` is visibly useful. Current issue: `xFactorIconUrl()` requires both
+>    canonical name + tier, but match 250 has names with `tiered=10%`, so the section looks empty even
+>    though the names exist.
+> 2. **Action Tracker confidence:** always show the current OCR-confidence proxy on the page, even when
+>    it is `>= 0.99`. Hiding the stat when it is "too good" makes the section look like it has no OCR
+>    quality signal at all.
+> 3. **Action Tracker provenance footer:** add the same explicit `Captured / Sources / Confidence`
+>    treatment the lineup section has, instead of only the hidden conditional proxy. At minimum include
+>    capture range, source screen(s), and the confidence metric label so the operator can tell what the
+>    section was built from.
+> 4. **Confidence wording audit:** make it explicit in the UI copy that lineup `Confidence` is a blended
+>    provenance score (`canonical`, `tiered`, `attribute`) while Action Tracker confidence is currently a
+>    proxy (`confirmed positioned / positioned`), not a true OCR posterior.
 
 **Status (2026-06-01 — WS2 ✅ MERGED to `main` via `--no-ff` `ae3f46d`, NOT pushed):** **Conservative Pass-1 pre-OCR gate (Phase A, heuristic).** Frames classified as unambiguously non-text (black/fade/loading) skip the expensive per-frame RapidOCR and are pinned to `unknown_or_transition`. Built via TDD across 5 layers/commits off `main`. Plan: `~/.claude/plans/plan-ws2-elegant-eich.md`.
 
