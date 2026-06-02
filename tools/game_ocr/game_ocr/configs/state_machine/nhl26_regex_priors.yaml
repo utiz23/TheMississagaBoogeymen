@@ -73,6 +73,48 @@ loading_or_intro:
   - { name: now_loading, pattern: '\bnow\s+loading\b' }
   - { name: loading, pattern: '\bloading\b' }
 
+# ─── Post-game screens (WS6: restored from the v1 state-machine anchor_substrings) ──
+# The v1→v2 migration moved anchors from state-machine `anchor_substrings` into
+# this file but never carried the post-game entries over, so post-game screens
+# had NO text signal in v2 and collapsed to unknown_or_transition (see
+# docs/ocr/ws6-postgame-classifier-diagnosis.md). These mirror the stable top-bar
+# headers the OCR reads on every frame of each screen. Patterns use `\s*` so they
+# survive OCR word-concatenation ("allevents", "goalsummary", "netchart").
+# Priors are SOFT inputs (coefficients learned by train_screen_classifier.py) — the
+# retrain disambiguates the deliberate overlaps (faceoff vs faceoff-summary;
+# all-events vs all). Word boundaries keep `\ball\b` from firing inside "allevents".
+
+post_game_action_tracker:
+  - { name: all_events, pattern: '\ball\s*events\b', roi: top_bar }
+
+post_game_events:
+  # Scoring-summary "ALL" filter; bare "all" — `\b` prevents firing inside "allevents".
+  - { name: all_filter, pattern: '\ball\b', roi: top_bar }
+
+post_game_box_score_goals:
+  - { name: goal_summary, pattern: '\bgoals?\s*summary\b', roi: top_bar }
+
+post_game_box_score_shots:
+  - { name: shot_summary, pattern: '\bshots?\s*summary\b', roi: top_bar }
+
+post_game_box_score_faceoffs:
+  - { name: faceoff_summary, pattern: '\bface\s*-?\s*off\s*summary\b', roi: top_bar }
+
+post_game_net_chart:
+  - { name: net_chart, pattern: '\bnet\s*chart\b', roi: top_bar }
+
+post_game_faceoff_map:
+  # The faceoff event-map header is "FACEOFF" (no "summary"). Also matches
+  # "faceoff summary"; the box_score_faceoffs prior fires there too and the
+  # retrained classifier separates the two on visual features.
+  - { name: faceoff_map, pattern: '\bface\s*-?\s*off\b', roi: top_bar }
+
+post_game_player_summary:
+  # The PLAYER SUMMARY tab = per-player gamertag/stat table (see the canonical
+  # ScreenShots fixture). NOT the "END OF GAME" team-aggregate tab, which is a
+  # distinct screen with no dedicated state (it stays unknown_or_transition).
+  - { name: player_summary, pattern: '\bplayer\s*summary\b', roi: top_bar }
+
 unknown_or_transition:
   # Catch-all reject anchors: text that appears on transitional / OOD screens
   # and should *prevent* the classifier from leaking into a real screen class.
