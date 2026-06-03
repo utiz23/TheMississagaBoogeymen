@@ -65,6 +65,23 @@ HARD_ZERO_EXPECTED_STATES = frozenset({
 
 CONTAMINATION_STATE = "pre_game_lobby_state_2"
 
+# WS6 post-game hard rule: the data-bearing post-game screens must NEVER decode
+# to unknown_or_transition (the original WS6 collapse) or player_loadout_view
+# (the scoring-summary misroute). Mirrors the match-968 contamination gate.
+POST_GAME_DATA_STATES = frozenset({
+    "post_game_action_tracker",
+    "post_game_box_score_goals",
+    "post_game_box_score_shots",
+    "post_game_box_score_faceoffs",
+    "post_game_events",
+    "post_game_net_chart",
+    "post_game_faceoff_map",
+})
+POST_GAME_FORBIDDEN_DECODES = frozenset({
+    "unknown_or_transition",
+    "player_loadout_view",
+})
+
 PER_CLIP_ACCURACY_THRESHOLD = 0.90
 
 
@@ -199,6 +216,7 @@ class TestScreenClassifierProvingBench(unittest.TestCase):
                 matches = 0
                 total = 0
                 contamination_violations: list[tuple[int, str]] = []
+                post_game_violations: list[tuple[int, str, str]] = []
                 for t_sec in range(len(predicted)):
                     expected = _expected_at_second(labels, t_sec)
                     if expected is None:
@@ -218,6 +236,11 @@ class TestScreenClassifierProvingBench(unittest.TestCase):
                     if expected in HARD_ZERO_EXPECTED_STATES and pred == CONTAMINATION_STATE:
                         contamination_violations.append((t_sec, expected))
 
+                    # WS6 hard rule: post-game data screens must NEVER collapse to
+                    # unknown_or_transition / player_loadout_view (the WS6 failure).
+                    if expected in POST_GAME_DATA_STATES and pred in POST_GAME_FORBIDDEN_DECODES:
+                        post_game_violations.append((t_sec, expected, pred))
+
                 self.assertGreater(total, 0, f"no labeled frames in clip {clip['name']!r}")
                 accuracy = matches / total
                 self.assertGreaterEqual(
@@ -234,6 +257,15 @@ class TestScreenClassifierProvingBench(unittest.TestCase):
                     f"{CONTAMINATION_STATE} — v1 contamination bug regressed.\n"
                     f"Violations (t_sec, expected_state): {contamination_violations[:10]}"
                     + ("..." if len(contamination_violations) > 10 else ""),
+                )
+
+                self.assertFalse(
+                    post_game_violations,
+                    f"clip {clip['name']!r}: {len(post_game_violations)} frames in post-game "
+                    f"data spans collapsed to {sorted(POST_GAME_FORBIDDEN_DECODES)} — the WS6 "
+                    f"post-game-classification failure regressed.\n"
+                    f"Violations (t_sec, expected, predicted): {post_game_violations[:10]}"
+                    + ("..." if len(post_game_violations) > 10 else ""),
                 )
 
 

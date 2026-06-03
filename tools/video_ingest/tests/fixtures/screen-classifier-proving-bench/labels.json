@@ -113,6 +113,61 @@
           "notes": "Pre-game arena → 'OPENING CLASH' cutscene (in-rink shot then team banners, BM vs mtl) — closest legitimate state for a loading-style intro."
         }
       ]
+    },
+    {
+      "name": "match-2582-postgame",
+      "path": "clip-match2582-postgame.mkv",
+      "description": "WS6 post-game arm (match 2582, BM 3-2 RR, OT). The ORIGINAL WS6 failure: every post-game screen decoded as unknown_or_transition because the v1->v2 migration dropped the post-game text anchors (docs/ocr/ws6-postgame-classifier-diagnosis.md). Source window 1882-1982s. Labels cover the four DATA-bearing screens with stable multi-second dwell — action_tracker (period-filter cycling), faceoff_map, net_chart, events (scoring summary) — plus the END OF GAME team-stats tab (no dedicated state -> unknown). Box-score tabs appear only as sub-second blips at 1fps here (min-dwell), so they are validated per-frame by diagnose_postgame_classification.py, not end-to-end on this clip. Dropdown/category transition frames (header occluded) are left UNCOVERED. Labeled against the canonical-PTS sampler (iter_sampled_frames) per F7.",
+      "labels": [
+        {
+          "t_start_sec": 0,
+          "t_end_sec": 21,
+          "expected": "unknown_or_transition",
+          "notes": "Game->post fade (t0-4) then the END OF GAME team-aggregate tab (BM 3-2 RR + team stats). That tab has no dedicated state and correctly stays unknown; the 'playersummary' token in the nav tab-bar must NOT pull it to post_game_player_summary (the classifier holds on visual)."
+        },
+        {
+          "t_start_sec": 26,
+          "t_end_sec": 36,
+          "expected": "post_game_action_tracker",
+          "notes": "ACTION TRACKER, 1st-period filter (header 'ALL EVENTS ... 1ST PERIOD'). Rink event-marker map + event list."
+        },
+        {
+          "t_start_sec": 38,
+          "t_end_sec": 46,
+          "expected": "post_game_action_tracker",
+          "notes": "ACTION TRACKER, 2nd-period filter."
+        },
+        {
+          "t_start_sec": 48,
+          "t_end_sec": 63,
+          "expected": "post_game_action_tracker",
+          "notes": "ACTION TRACKER, 3rd-period then OT filter."
+        },
+        {
+          "t_start_sec": 68,
+          "t_end_sec": 70,
+          "expected": "post_game_faceoff_map",
+          "notes": "FACEOFF event map (header 'FACEOFF ... PERIOD'); faceoff-percentage side strip + rink dot map."
+        },
+        {
+          "t_start_sec": 74,
+          "t_end_sec": 78,
+          "expected": "post_game_net_chart",
+          "notes": "NET CHART event map (header 'NET CHART ... PERIOD')."
+        },
+        {
+          "t_start_sec": 79,
+          "t_end_sec": 86,
+          "expected": "unknown_or_transition",
+          "notes": "Back on the END OF GAME team-stats tab (no state) before the box-score category."
+        },
+        {
+          "t_start_sec": 93,
+          "t_end_sec": 99,
+          "expected": "post_game_events",
+          "notes": "SCORING SUMMARY 'ALL' filter (goals + penalties list by period). Header 'ALL' (bare) -> post_game_events; the bare 'all' prior must not be eaten by action_tracker's 'all events'."
+        }
+      ]
     }
   ]
 }

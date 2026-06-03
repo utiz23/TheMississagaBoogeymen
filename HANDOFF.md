@@ -40,15 +40,30 @@
 >   restored `pnpm --filter worker test <selector>`) — all fixed pre-merge. **8 remaining failures are
 >   PRE-EXISTING & non-isolation, tracked as known-red** (see the WS5 status entry below).
 >
-> **>>> WS6 ATTEMPTED 2026-06-01 → BLOCKED at the Phase-1 gate (post-game screen-classification gap).
-> Full writeup: `docs/ocr/ws6-real-match-validation-findings.md`.** On real match-2582 footage
-> (`/mnt/k/2026-05-31_16-09-36.mkv`), Pass-1 classifies EVERY post-game screen (action-tracker, box-score,
-> events, net-chart, faceoff-map, end-of-game) as `unknown_or_transition` despite the OCR reading the
-> right text — so only 4/65 segments dispatch (lobby+loadout) and ZERO post-game data is extracted. No
-> prod write was committed (STOP gate). Real next step is a NEW post-game-classifier workstream (diagnose
-> → retrain/anchor-prior fix → ADD a post-game proving-bench arm), then re-run WS6 on the same recording
-> (mapping + GT scaffold already done). WS2 + the
-> proving-bench fix are ✅ MERGED + PUSHED — **`main` = `origin/main` @ `3a995b8`** (WS2 merge `ae3f46d`).
+> **>>> WS6 (2026-06-02): post-game CLASSIFIER blocker RESOLVED + action-tracker extraction VALIDATED on
+> real footage; `feat/post-game-classifier-fix` MERGED to `main` (not pushed). NEW follow-up workstream
+> opened: secondary post-game extractor OCR robustness.** Acceptance `reprocess` of match 2582: dispatch
+> 15/15 ok; **133 positioned `match_events` extracted from video, goals 3-2 + penalties GT-verified** (the
+> WS6 payoff). BUT `validate` exit-2 → NO activation, on 27 errors all in the **box-score/net-chart/faceoff
+> -map extractors** (garbled team-name + period-label OCR — pre-existing latent bugs the fix EXPOSED, a
+> separate subsystem). Match 2582 has 133 `pending_review` events (leave for review); run 1944 inert.
+> Follow-up plan: `docs/ocr/post-game-extractor-robustness-followup.md` (decide validate policy only after
+> scoping the OCR fixes). Below: the original blocker/diagnosis history.
+>
+> **>>> (superseded) WS6 (2026-06-01): blocker found → root-caused → FIXED on branch `feat/post-game-classifier-fix`.** On real match-2582 footage (`/mnt/k/2026-05-31_16-09-36.mkv`) Pass-1 classified EVERY
+> post-game screen as `unknown_or_transition` (only 4/65 dispatch, ZERO post-game extracted) — root cause:
+> the v1→v2 migration dropped the post-game text anchors (`nhl26_regex_priors.yaml` had no `post_game_*`
+> priors). **Tier-B fix landed on the branch:** 8 restored post-game priors (`n_priors` 18→26) + v2 retrain
+> with 63 header-grounded match-2582 frames (`3fba4da`); post-game proving-bench arm + hard rule (`3f29f1d`);
+> diagnosis (`e4b74ec`) + WS6 evidence bundle (`75406db`). **Verified:** per-frame classifies all post-game
+> data screens; 3-arm bench green (pre-game no regression + post-game arm); full rerun **0→12 post-game
+> segments** (15 dispatching). Docs: `docs/ocr/ws6-postgame-classifier-diagnosis.md`,
+> `docs/ocr/ws6-real-match-validation-findings.md`, bundle at
+> `tools/video_ingest/tests/fixtures/ws6-match2582-postgame/`. **Branch not merged/pushed.** Remaining for
+> clean WS6 acceptance: committed `reprocess` ingest of 2582 (now unblocked) + GT diff; a SECOND match for
+> true generalization (fix is trained/validated on 2582 only); box-score tabs are sub-second (validated
+> per-frame, not end-to-end). WS2 + the proving-bench fix are ✅ MERGED + PUSHED — **`main` = `origin/main`
+> @ `3a995b8`** (WS2 merge `ae3f46d`).
 > WS4 is fully DONE (Stage 1+2a+2b, host `dist` rebuilt). Optional: WS4 Stage 3 (clock re-OCR); measure
 > the WS2 wall saving on real fade/black footage; the 8 WS5 known-red failures. The merged branches
 > (`feat/ws2-pass1-prefilter-gate`, `investigate/proving-bench-red`, `fix/pipeline-ws0-closeout`) have
