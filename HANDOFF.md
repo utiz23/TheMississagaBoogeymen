@@ -41,14 +41,26 @@
 >   PRE-EXISTING & non-isolation, tracked as known-red** (see the WS5 status entry below).
 >
 > **>>> WS6 (2026-06-02): post-game CLASSIFIER blocker RESOLVED + action-tracker extraction VALIDATED on
-> real footage; `feat/post-game-classifier-fix` MERGED to `main` (not pushed). NEW follow-up workstream
-> opened: secondary post-game extractor OCR robustness.** Acceptance `reprocess` of match 2582: dispatch
-> 15/15 ok; **133 positioned `match_events` extracted from video, goals 3-2 + penalties GT-verified** (the
-> WS6 payoff). BUT `validate` exit-2 → NO activation, on 27 errors all in the **box-score/net-chart/faceoff
-> -map extractors** (garbled team-name + period-label OCR — pre-existing latent bugs the fix EXPOSED, a
-> separate subsystem). Match 2582 has 133 `pending_review` events (leave for review); run 1944 inert.
-> Follow-up plan: `docs/ocr/post-game-extractor-robustness-followup.md` (decide validate policy only after
-> scoping the OCR fixes). Below: the original blocker/diagnosis history.
+> real footage. ✅ MERGED (`--no-ff` `e86c687`) + PUSHED — `main` = `origin/main` @ `e86c687`; branch
+> `feat/post-game-classifier-fix` deleted. NEW focused follow-up workstream opened (NOT started):
+> secondary post-game extractor OCR robustness.** Acceptance `reprocess` of match 2582: dispatch 15/15 ok;
+> **133 positioned `match_events` extracted from video, goals 3-2 + penalties GT-verified** (the WS6
+> payoff). BUT `validate` exit-2 → NO activation, on 27 errors all in the **box-score/net-chart/faceoff-map
+> extractors** (garbled team-name + period-label OCR — pre-existing latent bugs the classifier fix EXPOSED,
+> a separate subsystem). Match 2582 has 133 `pending_review` events (leave for operator review); run 1944
+> is an inert candidate (not activated).
+>
+> **>>> NEXT (when resumed):** the secondary post-game extractor OCR workstream —
+> `docs/ocr/post-game-extractor-robustness-followup.md` (own branch; tasks = team-side match-metadata
+> fallback + fuzzy period-label parsing; **decide validate policy ONLY after scoping the OCR fixes**).
+> Saved frames + the 27-error evidence + the 133-event snapshot are in
+> `tools/video_ingest/tests/fixtures/ws6-match2582-postgame/`. Other optional Tier-2 leftovers: WS4 Stage 3
+> (clock re-OCR), WS2 wall measurement on fade footage, the 8 WS5 known-red failures, a SECOND match for
+> post-game-classifier generalization. Reprocess footgun: a `--dry-run` first creates a candidate run whose
+> `(match_id,sha,decoder_version,weights_hash)` provenance BLOCKS the real run via
+> `ocr_decoder_runs_provenance_uniq` — delete the inert candidate before the real run.
+>
+> Below: the original blocker/diagnosis history.
 >
 > **>>> (superseded) WS6 (2026-06-01): blocker found → root-caused → FIXED on branch `feat/post-game-classifier-fix`.** On real match-2582 footage (`/mnt/k/2026-05-31_16-09-36.mkv`) Pass-1 classified EVERY
 > post-game screen as `unknown_or_transition` (only 4/65 dispatch, ZERO post-game extracted) — root cause:
@@ -59,11 +71,9 @@
 > data screens; 3-arm bench green (pre-game no regression + post-game arm); full rerun **0→12 post-game
 > segments** (15 dispatching). Docs: `docs/ocr/ws6-postgame-classifier-diagnosis.md`,
 > `docs/ocr/ws6-real-match-validation-findings.md`, bundle at
-> `tools/video_ingest/tests/fixtures/ws6-match2582-postgame/`. **Branch not merged/pushed.** Remaining for
-> clean WS6 acceptance: committed `reprocess` ingest of 2582 (now unblocked) + GT diff; a SECOND match for
-> true generalization (fix is trained/validated on 2582 only); box-score tabs are sub-second (validated
-> per-frame, not end-to-end). WS2 + the proving-bench fix are ✅ MERGED + PUSHED — **`main` = `origin/main`
-> @ `3a995b8`** (WS2 merge `ae3f46d`).
+> `tools/video_ingest/tests/fixtures/ws6-match2582-postgame/`. **(This branch is now MERGED + PUSHED — see
+> the current WS6 block above; the acceptance run is done.)** WS2 + the proving-bench fix are ✅ MERGED +
+> PUSHED (WS2 merge `ae3f46d`).
 > WS4 is fully DONE (Stage 1+2a+2b, host `dist` rebuilt). Optional: WS4 Stage 3 (clock re-OCR); measure
 > the WS2 wall saving on real fade/black footage; the 8 WS5 known-red failures. The merged branches
 > (`feat/ws2-pass1-prefilter-gate`, `investigate/proving-bench-red`, `fix/pipeline-ws0-closeout`) have
