@@ -1,0 +1,69 @@
+  "step": "create-candidate",
+[dispatch] seg 001 (pre_game_lobby_state_2) → ingest-ocr-cli
+  [ingest-ocr] summary: batchId=4085 processed=1 succeeded=1 failed=0
+[dispatch] seg 003 (player_loadout_view) → ingest-ocr-cli
+  [ingest-ocr] summary: batchId=4086 processed=1 succeeded=1 failed=0
+[dispatch] seg 004 (pre_game_lobby_state_2) → ingest-ocr-cli
+  [ingest-ocr] summary: batchId=4087 processed=1 succeeded=1 failed=0
+[dispatch] seg 061 (post_game_net_chart) → ingest-ocr-cli
+  [ingest-ocr] summary: batchId=4088 processed=4 succeeded=4 failed=0
+[dispatch] seg 062 (post_game_action_tracker) → ingest-ocr-cli
+  [ingest-ocr] match 2582 reconcile: proposed=9 applied=9
+  [ingest-ocr] summary: batchId=4089 processed=65 succeeded=65 failed=0
+[dispatch] seg 063 (post_game_net_chart) → ingest-ocr-cli
+  [ingest-ocr] summary: batchId=4090 processed=3 succeeded=3 failed=0
+[dispatch] seg 064 (post_game_action_tracker) → ingest-ocr-cli
+  [ingest-ocr] match 2582 reconcile: proposed=3 applied=3
+  [ingest-ocr] summary: batchId=4091 processed=140 succeeded=140 failed=0
+[dispatch] seg 065 (post_game_net_chart) → ingest-ocr-cli
+  [ingest-ocr] summary: batchId=4092 processed=3 succeeded=3 failed=0
+[dispatch] seg 067 (post_game_faceoff_map) → ingest-ocr-cli
+  [ingest-ocr] summary: batchId=4093 processed=3 succeeded=3 failed=0
+[dispatch] seg 068 (post_game_net_chart) → ingest-ocr-cli
+  [ingest-ocr] summary: batchId=4094 processed=6 succeeded=6 failed=0
+[dispatch] seg 070 (post_game_net_chart) → ingest-ocr-cli
+  [ingest-ocr] summary: batchId=4095 processed=7 succeeded=7 failed=0
+[dispatch] seg 072 (post_game_box_score_goals) → ingest-ocr-cli
+  [ingest-ocr] summary: batchId=4096 processed=3 succeeded=3 failed=0
+[dispatch] seg 073 (post_game_box_score_shots) → ingest-ocr-cli
+  [ingest-ocr] summary: batchId=4097 processed=3 succeeded=3 failed=0
+[dispatch] seg 074 (post_game_box_score_faceoffs) → ingest-ocr-cli
+  [ingest-ocr] summary: batchId=4098 processed=3 succeeded=3 failed=0
+[dispatch] seg 075 (post_game_events) → ingest-ocr-cli
+  [ingest-ocr] summary: batchId=4099 processed=9 succeeded=9 failed=0
+[dispatch] 15 ok, 0 failed in 1144.2s
+dispatch: 15/15 ok, 0 failed (1144.2s)
+  "step": "validate",
+  "ok": false,
+  "failure_reasons": [
+    "extractor errors present (27 total): Cannot resolve BGM side for match 2582: away=\"PEKIUV:\" home=\"Aalf.ara: .l c...a\" opponent_on_file=\"Roc River Rats\". Verify --match-id is correct.=2, Cannot resolve BGM side for match 2582: away=\"PEKIUV:\" home=\"null\" opponent_on_file=\"Roc River Rats\". Verify --match-id is correct.=1, Cannot resolve BGM side for match 2582: away=\"V.\" home=\"H\" opponent_on_file=\"Roc River Rats\". Verify --match-id is correct.=1, Cannot resolve BGM side for match 2582: away=\"null\" home=\"ACEOFF SUMMARY\" opponent_on_file=\"Roc River Rats\". Verify --match-id is correct.=2, Cannot resolve BGM side for match 2582: away=\"v.\" home=\"H\" opponent_on_file=\"Roc River Rats\". Verify --match-id is correct.=1, Cannot resolve BGM side for match 2582: away=\"\u53e3 HIT\" home=\"H\" opponent_on_file=\"Roc River Rats\". Verify --match-id is correct.=1, Faceoff Map period_label OCR unrecognized: '(null)' \u2014 refusing to write into ALL PERIODS slot=1, Faceoff Map period_label OCR unrecognized: 'RT PERIOD' \u2014 refusing to write into ALL PERIODS slot=1, Net Chart period_label OCR unrecognized: '(null)' \u2014 refusing to write into ALL PERIODS slot=8, Net Chart period_label OCR unrecognized: '0.' \u2014 refusing to write into ALL PERIODS slot=1, Net Chart period_label OCR unrecognized: '2ND PERI0D B.43 PERINC' \u2014 refusing to write into ALL PERIODS slot=1, Net Chart period_label OCR unrecognized: 'ERIOD' \u2014 refusing to write into ALL PERIODS slot=1, Net Chart period_label OCR unrecognized: 'OPERIOD' \u2014 refusing to write into ALL PERIODS slot=1, Net Chart period_label OCR unrecognized: 'PERIOD' \u2014 refusing to write into ALL PERIODS slot=5"
+        "kind": "Cannot resolve BGM side for match 2582: away=\"PEKIUV:\" home=\"Aalf.ara: .l c...a\" opponent_on_file=\"Roc River Rats\". Verify --match-id is correct.",
+        "count": 2
+        "kind": "Cannot resolve BGM side for match 2582: away=\"PEKIUV:\" home=\"null\" opponent_on_file=\"Roc River Rats\". Verify --match-id is correct.",
+        "count": 1
+        "kind": "Cannot resolve BGM side for match 2582: away=\"V.\" home=\"H\" opponent_on_file=\"Roc River Rats\". Verify --match-id is correct.",
+        "count": 1
+        "kind": "Cannot resolve BGM side for match 2582: away=\"null\" home=\"ACEOFF SUMMARY\" opponent_on_file=\"Roc River Rats\". Verify --match-id is correct.",
+        "count": 2
+        "kind": "Cannot resolve BGM side for match 2582: away=\"v.\" home=\"H\" opponent_on_file=\"Roc River Rats\". Verify --match-id is correct.",
+        "count": 1
+        "kind": "Cannot resolve BGM side for match 2582: away=\"\u53e3 HIT\" home=\"H\" opponent_on_file=\"Roc River Rats\". Verify --match-id is correct.",
+        "count": 1
+        "kind": "Faceoff Map period_label OCR unrecognized: '(null)' \u2014 refusing to write into ALL PERIODS slot",
+        "count": 1
+        "kind": "Faceoff Map period_label OCR unrecognized: 'RT PERIOD' \u2014 refusing to write into ALL PERIODS slot",
+        "count": 1
+        "kind": "Net Chart period_label OCR unrecognized: '(null)' \u2014 refusing to write into ALL PERIODS slot",
+        "count": 8
+        "kind": "Net Chart period_label OCR unrecognized: '0.' \u2014 refusing to write into ALL PERIODS slot",
+        "count": 1
+        "kind": "Net Chart period_label OCR unrecognized: '2ND PERI0D B.43 PERINC' \u2014 refusing to write into ALL PERIODS slot",
+        "count": 1
+        "kind": "Net Chart period_label OCR unrecognized: 'ERIOD' \u2014 refusing to write into ALL PERIODS slot",
+        "count": 1
+        "kind": "Net Chart period_label OCR unrecognized: 'OPERIOD' \u2014 refusing to write into ALL PERIODS slot",
+        "count": 1
+        "kind": "Net Chart period_label OCR unrecognized: 'PERIOD' \u2014 refusing to write into ALL PERIODS slot",
+        "count": 5
+    "failureReasons": [
+      "extractor errors present (27 total): Cannot resolve BGM side for match 2582: away=\"PEKIUV:\" home=\"Aalf.ara: .l c...a\" opponent_on_file=\"Roc River Rats\". Verify --match-id is correct.=2, Cannot resolve BGM side for match 2582: away=\"PEKIUV:\" home=\"null\" opponent_on_file=\"Roc River Rats\". Verify --match-id is correct.=1, Cannot resolve BGM side for match 2582: away=\"V.\" home=\"H\" opponent_on_file=\"Roc River Rats\". Verify --match-id is correct.=1, Cannot resolve BGM side for match 2582: away=\"null\" home=\"ACEOFF SUMMARY\" opponent_on_file=\"Roc River Rats\". Verify --match-id is correct.=2, Cannot resolve BGM side for match 2582: away=\"v.\" home=\"H\" opponent_on_file=\"Roc River Rats\". Verify --match-id is correct.=1, Cannot resolve BGM side for match 2582: away=\"\u53e3 HIT\" home=\"H\" opponent_on_file=\"Roc River Rats\". Verify --match-id is correct.=1, Faceoff Map period_label OCR unrecognized: '(null)' \u2014 refusing to write into ALL PERIODS slot=1, Faceoff Map period_label OCR unrecognized: 'RT PERIOD' \u2014 refusing to write into ALL PERIODS slot=1, Net Chart period_label OCR unrecognized: '(null)' \u2014 refusing to write into ALL PERIODS slot=8, Net Chart period_label OCR unrecognized: '0.' \u2014 refusing to write into ALL PERIODS slot=1, Net Chart period_label OCR unrecognized: '2ND PERI0D B.43 PERINC' \u2014 refusing to write into ALL PERIODS slot=1, Net Chart period_label OCR unrecognized: 'ERIOD' \u2014 refusing to write into ALL PERIODS slot=1, Net Chart period_label OCR unrecognized: 'OPERIOD' \u2014 refusing to write into ALL PERIODS slot=1, Net Chart period_label OCR unrecognized: 'PERIOD' \u2014 refusing to write into ALL PERIODS slot=5"

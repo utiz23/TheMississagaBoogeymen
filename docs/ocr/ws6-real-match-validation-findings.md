@@ -18,9 +18,26 @@ Plan: `~/.claude/plans/plan-ws6-for-the-hidden-fog.md`. WS6 of the OCR/Video-Ing
 > and fixed: 8 restored `post_game_*` priors + a v2 retrain (`3fba4da`) + a post-game proving-bench arm
 > (`3f29f1d`). A full-recording rerun now yields **12 post-game segments (was 0)** and 15 dispatching
 > (was 4); all data-bearing post-game screens classify and route to promoters. The findings below stand
-> as the original validation record. **Still pending for a clean WS6 acceptance:** the committed
-> `reprocess` ingest of match 2582 (now unblocked) + ground-truth diff, and a *second* match for true
-> generalization (this fix is trained/validated on match 2582 only).
+> as the original validation record.
+>
+> **✅ WS6 ACCEPTANCE RUN (2026-06-02, committed `reprocess` of match 2582 on the fix branch):**
+> - **Dispatch 15/15 ok** — post-game segments routed to promoters for the first time.
+> - **Action-tracker path validated on real footage** — **133 `match_events` with rink positions**
+>   extracted; goals **3–2 correct** (P.Beav, C.Yoseff, H.Jenkins×2, L.Stinkkpit), 6 penalties, identities
+>   (personas) + positions (mostly `interpolated`) + **elapsed** clocks all ground-truth-verified. The plan's
+>   "≥1 scroll-past position recovered" bar is exceeded by ~130. WS4 reconcile/identity-recovery fired
+>   (`applied=12`). Persona map confirmed: H.Jenkins=HenryTheBobJr, P.Beav=Ordinary_Samich, Silky=silkyjoker85.
+> - **`validate` FAILED (exit 2) → NO activation** (fail-closed; match-2582 canonicals untouched). All 27
+>   errors are in the **secondary post-game extractors** (box-score/net-chart/faceoff-map): garbled team-name
+>   OCR (`away="PEKIUV:"`) + period-label OCR (`'OPERIOD'`). **Pre-existing latent bugs the classifier fix
+>   exposed** (those extractors never received a frame before) — a SEPARATE subsystem, tracked in
+>   `docs/ocr/post-game-extractor-robustness-followup.md`.
+> - DB: 133 `pending_review` events written (safely staged for operator review); run 1944 is an inert candidate.
+> - Evidence: `tools/video_ingest/tests/fixtures/ws6-match2582-postgame/{reprocess-acceptance-log.txt,match2582-extracted-events.tsv}`.
+>
+> **Net WS6 verdict:** classifier blocker RESOLVED + action-tracker extraction validated end-to-end on a real
+> match. Full activation is blocked only by the (separate, newly-exposed) secondary-extractor OCR work. A
+> *second* match is still wanted for true generalization (fix trained/validated on 2582 only).
 
 ## 1. Outcome
 
