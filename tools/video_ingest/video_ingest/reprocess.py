@@ -413,6 +413,20 @@ def reprocess(
 
     typer.echo(json.dumps({"step": "validate", "ok": True, **val}, indent=2))
 
+    # Surface non-fatal extractor warnings explicitly on the success path. These
+    # are recorded with transform_status='error' (audit) but classified
+    # non-blocking by the validate gate (e.g. unreadable period labels on
+    # secondary post-game screens). `**val` already carries them inside
+    # `details`, but make them visible so the operator sees what was skipped.
+    warnings = (val.get("details", {}) or {}).get("warningExtractorErrors", []) or []
+    if warnings:
+        total = sum(int(w.get("count", 0)) for w in warnings)
+        summary = ", ".join(f"{w.get('kind')}={w.get('count')}" for w in warnings)
+        typer.echo(
+            f"validate passed with {total} non-fatal extractor warning(s): {summary}",
+            err=True,
+        )
+
     # 7. Activate. Flips is_active, rebuilds canonicals, recomputes
     # match colours — all atomic on the TS side.
     with _StageTimer(stages, "activate_ms"):
