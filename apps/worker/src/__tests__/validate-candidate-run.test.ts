@@ -51,6 +51,9 @@ import {
   PERIOD_LABEL_UNRECOGNIZED,
 } from '../lib/validate-candidate-run.js'
 
+const BOX_SCORE_ZERO_CELLS_MSG =
+  'Box Score faceoffs extraction produced zero period cells — likely an ROI miss or non-box-score screen. Review extraction 16031.'
+
 const GAME_TITLE_ID = 1 // NHL 26
 const SENTINEL_TAG = 'A3-T2-validate-candidate'
 
@@ -313,6 +316,13 @@ void test('classifyExtractorError: period-label miss on secondary post-game scre
   assert.equal(classifyExtractorError('post_game_net_chart', 'Cannot resolve BGM side for match 2582'), 'fatal')
   // Same sentinel on a non-eligible screen stays fatal (screen-type guard).
   assert.equal(classifyExtractorError('player_loadout_view', msg), 'fatal')
+  // Box-score zero-cells on a box-score screen is a warning (matched by phrase).
+  assert.equal(classifyExtractorError('post_game_box_score_shots', BOX_SCORE_ZERO_CELLS_MSG), 'warning')
+  assert.equal(classifyExtractorError('post_game_box_score_faceoffs', BOX_SCORE_ZERO_CELLS_MSG), 'warning')
+  // Other box-score errors stay fatal.
+  assert.equal(classifyExtractorError('post_game_box_score_goals', 'Unexpected stat_kind: junk'), 'fatal')
+  // Zero-cells phrase on a non-box-score screen stays fatal (screen-type guard).
+  assert.equal(classifyExtractorError('player_loadout_view', BOX_SCORE_ZERO_CELLS_MSG), 'fatal')
 })
 
 void test('validateCandidateRun: secondary period-label warnings do NOT block activation', async () => {
@@ -333,6 +343,25 @@ void test('validateCandidateRun: secondary period-label warnings do NOT block ac
   assert.equal(result.details.fatalExtractorErrors.length, 0)
   assert.equal(result.details.warningExtractorErrors.length, 2)
   assert.deepEqual(result.details.failureReasons, [])
+})
+
+void test('validateCandidateRun: box-score zero-cells warnings do NOT block activation', async () => {
+  if (!process.env['DATABASE_URL']) return
+
+  const fx = await setupFixture('boxscore-warn', {
+    loadoutPromotionCount: 5,
+    lobbyPromotionCount: 1,
+    extractorErrors: [
+      { screenType: 'post_game_box_score_shots', transformError: BOX_SCORE_ZERO_CELLS_MSG },
+      { screenType: 'post_game_box_score_faceoffs', transformError: BOX_SCORE_ZERO_CELLS_MSG },
+    ],
+  })
+
+  const result = await validateCandidateRun(fx.runId)
+
+  assert.equal(result.ok, true, `expected ok=true; got reasons: ${result.details.failureReasons.join(', ')}`)
+  assert.equal(result.details.fatalExtractorErrors.length, 0)
+  assert.equal(result.details.warningExtractorErrors.length, 2)
 })
 
 void test('validateCandidateRun: non-period error on a secondary screen IS fatal', async () => {

@@ -76,28 +76,51 @@ export interface ValidationDetails {
  */
 export const PERIOD_LABEL_UNRECOGNIZED = 'PERIOD_LABEL_UNRECOGNIZED:'
 
-/** Secondary post-game screens whose period-label misses are supplementary/lossy. */
-const WARNING_ELIGIBLE_SCREENS = new Set(['post_game_net_chart', 'post_game_faceoff_map'])
+/**
+ * Stable phrase inside the box-score "zero period cells" throw (box-score.ts).
+ * Matched as a substring (rather than a prefix sentinel) so error rows already
+ * persisted by an earlier dispatch reclassify without a re-dispatch — keep in
+ * sync with the throw in box-score.ts.
+ */
+export const BOX_SCORE_ZERO_CELLS_PHRASE = 'produced zero period cells'
+
+/**
+ * Secondary post-game screens whose per-frame extraction misses are
+ * supplementary/lossy: their data (shot-type / faceoff / box-score per-period
+ * breakdowns) is redundant across frames and EA remains authoritative for the
+ * box score, so a miss on a redundant/transition frame must never block
+ * activation of the cleanly-extracted core data (action-tracker events, lineup).
+ */
+const WARNING_ELIGIBLE_SCREENS = new Set([
+  'post_game_net_chart',
+  'post_game_faceoff_map',
+  'post_game_box_score_goals',
+  'post_game_box_score_shots',
+  'post_game_box_score_faceoffs',
+])
 
 /**
  * Classify a single extractor error as fatal (blocks activation) or warning
- * (recorded, non-blocking). A failure is a WARNING iff it is a period-label miss
- * on a secondary post-game screen — those frames are redundant/transition or
- * genuinely digit-less, so losing them must not block the cleanly-extracted core
- * data. Everything else (incl. "Cannot resolve BGM side" and any non-period
- * net-chart/faceoff error) stays FATAL. The screen-type guard bounds the blast
- * radius if another extractor ever emits a similar message.
+ * (recorded, non-blocking). A failure is a WARNING iff it is a known supplementary
+ * miss on a secondary post-game screen:
+ *   - an unreadable period label (net-chart / faceoff), or
+ *   - a box-score frame that yielded zero period cells (redundant/transition frame).
+ * Those frames are redundant/transition or genuinely unreadable, so losing them
+ * must not block the cleanly-extracted core data. Everything else — incl.
+ * "Cannot resolve BGM side", "missing away/home stat blocks", an unexpected
+ * stat_kind, or any error on a non-secondary screen — stays FATAL. The
+ * screen-type guard bounds the blast radius if another extractor emits a
+ * similar message.
  */
 export function classifyExtractorError(
   screenType: string | null | undefined,
   message: string | null | undefined,
 ): 'fatal' | 'warning' {
-  if (
-    screenType !== null &&
-    screenType !== undefined &&
-    WARNING_ELIGIBLE_SCREENS.has(screenType) &&
-    (message ?? '').startsWith(PERIOD_LABEL_UNRECOGNIZED)
-  ) {
+  if (screenType === null || screenType === undefined || !WARNING_ELIGIBLE_SCREENS.has(screenType)) {
+    return 'fatal'
+  }
+  const msg = message ?? ''
+  if (msg.startsWith(PERIOD_LABEL_UNRECOGNIZED) || msg.includes(BOX_SCORE_ZERO_CELLS_PHRASE)) {
     return 'warning'
   }
   return 'fatal'
