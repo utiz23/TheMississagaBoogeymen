@@ -34,8 +34,14 @@ introduced by the robustness fixes.
   score; OCR box-score is **never promoted into `player_match_stats`** (explicit WS6 scope decision).
 - Activation rebuilds only loadout/lobby canonical snapshots + match colors — it does **not** propagate
   these per-period rows into any authoritative table.
-- The frontend match-detail page may surface these `source='ocr'` per-period rows; if so, they will display
-  wrong per-period splits until fixed. Verify whether the UI reads `match_period_summaries source='ocr'`.
+- **UI is NOT affected (verified 2026-06-04).** The match-detail page (`apps/web/src/app/games/[id]/page.tsx`)
+  reads enrichment only via the gated queries in `packages/db/src/queries/match-enrichments.ts`
+  (`getMatchPeriodSummaries`, `getMatchShotTypeSummaries`, `getMatchFaceoffDots`,
+  `getMatchFaceoffZoneSummaries`), each of which surfaces OCR rows only when
+  `source='ocr' AND review_status='reviewed'`. **All of 2582's OCR enrichment rows are `pending_review`**
+  (box-score 4, net-chart 6, faceoff zone 2, faceoff dots 9), so the garbled splits are filtered out and
+  never render. They would only appear if an operator explicitly marks them `reviewed`. → not urgent; this
+  follow-up is about data quality, not a user-facing display bug.
 
 ## Tasks (when picked up)
 
