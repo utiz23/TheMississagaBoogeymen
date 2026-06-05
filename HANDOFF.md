@@ -26,8 +26,28 @@
 > run-quality row (report_id 1696) reads layer-FAIL (L2 56.8%) for the same box-score-quality reason —
 > informational, not the validate gate.
 > **NEXT:** merge/push `fix/secondary-postgame-extractor-robustness` when ready; then WS6 is the definition-
-> of-done for the revamp (optional leftovers: WS4 Stage 3, WS2 wall on fade footage, 8 WS5 known-red,
-> box-score accuracy follow-up).
+> of-done for the revamp (optional leftovers: WS4 Stage 3, 8 WS5 known-red, box-score accuracy follow-up).
+>
+> **>>> DONE (2026-06-05): `fix/secondary-postgame-extractor-robustness` ✅ MERGED + PUSHED** (`--no-ff`
+> `19d0a16`, `main = origin/main`). WS6 is the definition-of-done and is now complete. Branch hygiene:
+> the merged branch + 4 stale merged branches deleted, the `phase-3a` worktree removed — only `main`
+> remains locally.
+>
+> **>>> DONE (2026-06-05): WS2 wall-saving MEASURED on real footage — result is NET-NEGATIVE.** The
+> long-open WS2 item ("gate fires on 0 frames on bench clips → wall saving unmeasured") is now measured.
+> A/B (`classify-only --pass1-gate` vs `--no-pass1-gate`, `--force-pass1`, same clip) on the canonical
+> match-2582 capture (`/mnt/k/2026-05-31_16-09-36.mkv`, 2085 frames, **CPU** OCR — no CUDA provider on
+> host): gate fired **12/2085 (0.58%)** and made Pass-1 **~108 s slower** (OCR loop) / **~116 s** (total),
+> NOT faster. Root cause: `compute_visual_signals` (~70–90 ms/frame, sole Pass-1-hot-loop caller →
+> purely additive) runs on 100% of frames to skip OCR on 0.58%, and gated black frames are the cheapest
+> to OCR anyway. **Break-even fire rate ~3.5% (CPU) / ~18–35% (GPU)** — real game footage never reaches
+> it; the GPU prod path is *worse*. WS2 was accepted on zero-regression (ON≡OFF), so there's no
+> correctness benefit to offset the wall cost. **Recommendation: flip default to OFF** (one-line YAML;
+> `nhl26.yaml: pass1.pre_ocr_gate.enabled`). Full writeup + reproduce + break-even math:
+> `docs/ocr/ws2-wall-saving-measurement.md`. NOT yet acted on (measurement+rec only; no code/threshold
+> change). Optional follow-up: a 2nd black/fade-heavy clip (gate-ON alone suffices) to tighten the n=1
+> envelope. Env fix done in passing: combined `tools/game_ocr/.venv` was missing PyAV → installed
+> `av==13.1.0`.
 >
 > **Progress (WS0+WS1b+WS3+WS5 ✅ MERGED to `main` @ `b623780`, 2026-06-01):**
 > - **WS0a ✅ worker REDEPLOYED & LIVE** — image was 3+ weeks stale (May-7); reconcile hook now in
