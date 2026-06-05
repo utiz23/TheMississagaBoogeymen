@@ -37,6 +37,15 @@ DEFAULT_VIDEO_ROOT = Path("/mnt/k/NHL/NHL26")
 # candidate runs from clobbering each other (see Task 7 + master-plan §1).
 DEFAULT_INGEST_CACHE = Path("/tmp/ingest-cache")
 
+# Decoder-version provenance tag stamped on every candidate run. Bumped when the
+# decode output changes so a re-run mints a DISTINCT candidate rather than
+# colliding with a prior run via ocr_decoder_runs_provenance_uniq
+# (match_id, video_sha256, decoder_version, weights_hash).
+#   v2          → HMM-viterbi screen classifier (v2 head)
+#   v2-pg-robust→ secondary post-game extractor robustness (authoritative
+#                 bgm_was_home team-side + fuzzy period-label parsing)
+DECODER_VERSION = "hmm-viterbi-v2-pg-robust"
+
 # NHL 26 is game_title_id=1 in this repo's seed data; the only title
 # currently flowing through OCR ingest. When NHL 27 ships we'll widen
 # this to either a CLI flag or a lookup based on the match row.
@@ -314,7 +323,7 @@ def reprocess(
             "create-candidate",
             "--match-id", str(match_id),
             "--video-sha256", video_sha256,
-            "--decoder-version", "hmm-viterbi-v2",
+            "--decoder-version", DECODER_VERSION,
             "--weights-hash", weights_hash,
             "--config-hash", config_hash,
         )
@@ -412,6 +421,20 @@ def reprocess(
         raise typer.Exit(code=2)
 
     typer.echo(json.dumps({"step": "validate", "ok": True, **val}, indent=2))
+
+    # Surface non-fatal extractor warnings explicitly on the success path. These
+    # are recorded with transform_status='error' (audit) but classified
+    # non-blocking by the validate gate (e.g. unreadable period labels on
+    # secondary post-game screens). `**val` already carries them inside
+    # `details`, but make them visible so the operator sees what was skipped.
+    warnings = (val.get("details", {}) or {}).get("warningExtractorErrors", []) or []
+    if warnings:
+        total = sum(int(w.get("count", 0)) for w in warnings)
+        summary = ", ".join(f"{w.get('kind')}={w.get('count')}" for w in warnings)
+        typer.echo(
+            f"validate passed with {total} non-fatal extractor warning(s): {summary}",
+            err=True,
+        )
 
     # 7. Activate. Flips is_active, rebuilds canonicals, recomputes
     # match colours — all atomic on the TS side.

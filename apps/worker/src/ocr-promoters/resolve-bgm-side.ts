@@ -4,13 +4,21 @@
  *
  * The schema's _for / _against columns are always BGM-perspective, but post-game
  * screens show team names neutrally as Away (top) and Home (bottom). We need a
- * mapping. Strategy: soft-match each side's team-name OCR string against:
- *   1. Known BGM aliases (BGM, BOOGEYMEN, THE BOOGEYMEN)
- *   2. The opponent name on file in matches.opponentName
+ * mapping. Strategy (in precedence order):
+ *   1. `matches.bgm_was_home` — the AUTHORITATIVE EA-payload orientation flag,
+ *      set at ingest in transform.ts. When present (non-null) it is used
+ *      directly: it is structured EA data, not subject to the garbled team-name
+ *      OCR that defeats the soft-match path below. This is the normal path.
+ *   2. LEGACY fallback only when `bgm_was_home IS NULL` (matches with no EA
+ *      payload orientation): soft-match each side's team-name OCR string against
+ *      known BGM aliases (BGM, BOOGEYMEN, THE BOOGEYMEN), then against the
+ *      opponent name on file in matches.opponentName.
  *
- * If BGM matches one side and opponent matches the other, we know the mapping.
- * If neither side cleanly matches BGM aliases, throw — the operator likely
- * passed the wrong --match-id and should re-run with the right one.
+ * If the flag is null AND neither side cleanly matches, throw — the operator
+ * likely passed the wrong --match-id and should re-run with the right one. (This
+ * "Cannot resolve BGM side" throw is treated as FATAL by the validate gate — see
+ * validate-candidate-run.ts classifyExtractorError — because a wrong side would
+ * silently corrupt for/against on the whole dataset.)
  */
 
 import { matches } from '@eanhl/db'
@@ -34,12 +42,22 @@ export async function resolveBgmSide(
   dbConn: PromoterDb,
 ): Promise<ResolvedSides> {
   const [match] = await dbConn
-    .select({ opponentName: matches.opponentName })
+    .select({ opponentName: matches.opponentName, bgmWasHome: matches.bgmWasHome })
     .from(matches)
     .where(eq(matches.id, matchId))
     .limit(1)
   if (!match) throw new Error(`match_id ${String(matchId)} not found in matches table`)
 
+  // Authoritative path: trust the EA-payload orientation flag when present. It
+  // overrides the OCR soft-match entirely — a garbled-but-coincidentally-
+  // alias-matching header must never flip for/against on the whole dataset.
+  if (match.bgmWasHome !== null && match.bgmWasHome !== undefined) {
+    return match.bgmWasHome
+      ? { awayIs: 'against', homeIs: 'for' }
+      : { awayIs: 'for', homeIs: 'against' }
+  }
+
+  // Legacy fallback (bgm_was_home IS NULL): soft-match the OCR team names.
   const awayBgm = matchesBgm(awayTeamName)
   const homeBgm = matchesBgm(homeTeamName)
 

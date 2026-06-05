@@ -44,6 +44,10 @@ export async function promoteBoxScore(ctx: PromoterContext): Promise<void> {
 
   const periods = Array.isArray(result.periods) ? (result.periods as BoxScorePeriodCell[]) : []
   if (periods.length === 0) {
+    // The "produced zero period cells" phrase is matched by the validate gate
+    // (validate-candidate-run.ts BOX_SCORE_ZERO_CELLS_PHRASE) to treat this
+    // secondary-extractor miss as a NON-blocking warning on a redundant/transition
+    // frame. Keep the phrase in sync.
     throw new Error(
       `Box Score ${statKind} extraction produced zero period cells — ` +
         `likely an ROI miss or non-box-score screen. Review extraction ${extractionId}.`,

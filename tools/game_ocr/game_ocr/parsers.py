@@ -1060,6 +1060,38 @@ _BOX_SCORE_PERIOD_ALIASES = {
 }
 
 
+def _recover_period_token(
+    cleaned: str,
+    tokens: tuple[str, ...],
+    aliases: dict[str, str],
+) -> str | None:
+    """Best-effort recovery of a canonical period token from a noisy, already
+    cleaned (uppercase, alphanumerics-only, controller-glyph/PERIOD-stripped)
+    string. Returns the canonical token or None.
+
+    Fires only as a FALLBACK after the caller's strict lookup misses. Two
+    additive layers, in order:
+      1. digit-confusion alias resolve (e.g. "0T" -> "OT"), then
+      2. an ^-anchored, longest-token-first leading match (e.g.
+         "2NDPERI0DB43" -> "2ND"). Anchored at the start so a token appearing
+         mid-string (e.g. "FOOTOT") can never mis-slot.
+
+    `tokens` MUST be ordered longest-first so e.g. OT2/OT3 win over OT.
+    """
+    if not cleaned:
+        return None
+    if cleaned in aliases:
+        return aliases[cleaned]
+    for token in tokens:
+        if cleaned.startswith(token):
+            return token
+    return None
+
+
+# Canonical box-score period tokens, longest-first for anchored leading-match.
+_BOX_SCORE_PERIOD_TOKENS = ("FINAL", "OT2", "OT3", "1ST", "2ND", "3RD", "TOT", "OT")
+
+
 def _normalize_period_label(text: str) -> str:
     """Map an OCR'd period header to a canonical label (or '' if unrecognized)."""
     cleaned = re.sub(r"[^A-Z0-9]", "", text.upper())
@@ -1067,7 +1099,10 @@ def _normalize_period_label(text: str) -> str:
         return cleaned
     if cleaned in _BOX_SCORE_PERIOD_ALIASES:
         return _BOX_SCORE_PERIOD_ALIASES[cleaned]
-    return ""
+    recovered = _recover_period_token(
+        cleaned, _BOX_SCORE_PERIOD_TOKENS, _BOX_SCORE_PERIOD_ALIASES
+    )
+    return recovered or ""
 
 
 def _split_into_columns(lines: list[OCRLine], min_gap_factor: float = 0.6) -> list[list[OCRLine]]:
@@ -1295,6 +1330,21 @@ _NET_CHART_PERIOD_NUMBER = {
     "ALL": -1,
 }
 
+# Digit-confusion misreads for net-chart period tabs (mirrors the box-score
+# alias table, which net-chart historically lacked).
+_NET_CHART_PERIOD_ALIASES = {
+    "1S": "1ST",
+    "1SI": "1ST",
+    "2N": "2ND",
+    "3R": "3RD",
+    "0T": "OT",
+    "OT1": "OT",
+}
+
+# Canonical net-chart period tokens, longest-first for the anchored leading
+# match (OT2/OT3 must win over OT). No TOT/FINAL — those are box-score-only.
+_NET_CHART_PERIOD_TOKENS = ("ALLPERIODS", "OT2", "OT3", "1ST", "2ND", "3RD", "ALL", "OT")
+
 _NET_CHART_LABEL_KEYS = {
     # canonical_key: list of substring matchers (uppercase, no spaces).
     # Full-word matchers first, then half-word fallbacks for cases where
@@ -1390,7 +1440,18 @@ def _net_chart_period_number(label_text: str) -> int:
             break
     if cleaned.endswith("PERIOD"):
         cleaned = cleaned[: -len("PERIOD")]
-    return _NET_CHART_PERIOD_NUMBER.get(cleaned, 0)
+    strict = _NET_CHART_PERIOD_NUMBER.get(cleaned, 0)
+    if strict != 0:
+        return strict
+    # Fallback: recover a buried/misread leading token (e.g. "2NDPERI0DB43" or
+    # "0T") only when the strict lookup missed. Returns 0 for the genuinely
+    # digit-less residue ("PERIOD", "ERIOD", "0", "") so promoters skip/warn.
+    recovered = _recover_period_token(
+        cleaned, _NET_CHART_PERIOD_TOKENS, _NET_CHART_PERIOD_ALIASES
+    )
+    if recovered is None:
+        return 0
+    return _NET_CHART_PERIOD_NUMBER.get(recovered, 0)
 
 
 # Strips the in-game home/away suffix from a label like "BM(A)" or "4TH(H) n n".
@@ -1808,7 +1869,20 @@ def parse_post_game_faceoff_map(
     period_label_field = field_from_lines(regions.get("period_label", []))
     away_label_field = field_from_lines(regions.get("away_label", []))
     home_label_field = field_from_lines(regions.get("home_label", []))
-    period_number = _net_chart_period_number(period_label_field.raw_text or "")
+    period_text = period_label_field.raw_text or ""
+    period_number = _net_chart_period_number(period_text)
+    # Mirror net-chart: expose the controller-glyph-stripped label as `value` so
+    # promoters store "2ND PERIOD", not the raw "RT 2ND PERIOD".
+    cleaned_period_text = _clean_period_label_text(period_text)
+    cleaned_period_label_field = ExtractionField(
+        raw_text=period_label_field.raw_text,
+        value=cleaned_period_text or None,
+        confidence=period_label_field.confidence,
+        status=(
+            FieldStatus.OK if cleaned_period_text and period_number > 0
+            else period_label_field.status
+        ),
+    )
 
     panel_lines = regions.get("stats_panel", [])
     rows = _group_lines_by_y(panel_lines, threshold=24.0)
@@ -1897,7 +1971,7 @@ def parse_post_game_faceoff_map(
 
     return PostGameFaceoffMapResult(
         meta=meta,
-        period_label=period_label_field,
+        period_label=cleaned_period_label_field,
         period_number=period_number,
         away_label=away_label_field,
         home_label=home_label_field,

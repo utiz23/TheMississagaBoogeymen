@@ -42,9 +42,17 @@ import {
   ocrDecoderRuns,
   ocrExtractions,
   ocrPromotions,
+  type OcrScreenType,
 } from '@eanhl/db'
 import { eq, like } from 'drizzle-orm'
-import { validateCandidateRun } from '../lib/validate-candidate-run.js'
+import {
+  validateCandidateRun,
+  classifyExtractorError,
+  PERIOD_LABEL_UNRECOGNIZED,
+} from '../lib/validate-candidate-run.js'
+
+const BOX_SCORE_ZERO_CELLS_MSG =
+  'Box Score faceoffs extraction produced zero period cells — likely an ROI miss or non-box-score screen. Review extraction 16031.'
 
 const GAME_TITLE_ID = 1 // NHL 26
 const SENTINEL_TAG = 'A3-T2-validate-candidate'
@@ -92,6 +100,9 @@ interface FixtureSetupOptions {
   loadoutPromotionCount: number
   lobbyPromotionCount: number
   extractorErrorCount?: number
+  /** Per-error overrides. When set, one row is inserted per entry instead of
+   *  `extractorErrorCount` identical 'player_loadout_view'/'extractor_blew_up' rows. */
+  extractorErrors?: Array<{ screenType: OcrScreenType; transformError: string }>
 }
 
 interface FixtureSetupResult {
@@ -220,16 +231,24 @@ async function setupFixture(
   }
 
   // Extractor errors — ocr_extractions rows tagged to this run with
-  // transform_status='error' and a transform_error message.
-  for (let i = 0; i < errorCount; i++) {
+  // transform_status='error' and a transform_error message. Explicit
+  // per-row overrides win; otherwise insert `errorCount` identical rows.
+  const errorRows =
+    opts.extractorErrors ??
+    Array.from({ length: errorCount }, () => ({
+      screenType: 'player_loadout_view',
+      transformError: 'extractor_blew_up',
+    }))
+  for (let i = 0; i < errorRows.length; i++) {
+    const e = errorRows[i]!
     await db.insert(ocrExtractions).values({
       batchId,
       matchId,
-      screenType: 'player_loadout_view',
+      screenType: e.screenType,
       sourcePath: `/tmp/${SENTINEL_TAG}/${eaMatchSuffix}/err${i}.png`,
       rawResultJson: {},
       transformStatus: 'error',
-      transformError: 'extractor_blew_up',
+      transformError: e.transformError,
       runId,
     })
   }
@@ -285,6 +304,99 @@ void test('validateCandidateRun returns ok=false when extractor errors are prese
     /extractor errors/i,
     `expected reasons to mention extractor errors; got: ${reasonsJoined}`,
   )
+})
+
+void test('classifyExtractorError: period-label miss on secondary post-game screen is a warning', () => {
+  const msg = `${PERIOD_LABEL_UNRECOGNIZED} Net Chart period_label OCR unrecognized: 'PERIOD'`
+  assert.equal(classifyExtractorError('post_game_net_chart', msg), 'warning')
+  assert.equal(classifyExtractorError('post_game_faceoff_map', msg), 'warning')
+  // Non-period error on the same screen stays fatal.
+  assert.equal(classifyExtractorError('post_game_net_chart', 'Net Chart result missing away/home stat blocks'), 'fatal')
+  // BGM-side error stays fatal everywhere.
+  assert.equal(classifyExtractorError('post_game_net_chart', 'Cannot resolve BGM side for match 2582'), 'fatal')
+  // Same sentinel on a non-eligible screen stays fatal (screen-type guard).
+  assert.equal(classifyExtractorError('player_loadout_view', msg), 'fatal')
+  // Box-score zero-cells on a box-score screen is a warning (matched by phrase).
+  assert.equal(classifyExtractorError('post_game_box_score_shots', BOX_SCORE_ZERO_CELLS_MSG), 'warning')
+  assert.equal(classifyExtractorError('post_game_box_score_faceoffs', BOX_SCORE_ZERO_CELLS_MSG), 'warning')
+  // Other box-score errors stay fatal.
+  assert.equal(classifyExtractorError('post_game_box_score_goals', 'Unexpected stat_kind: junk'), 'fatal')
+  // Zero-cells phrase on a non-box-score screen stays fatal (screen-type guard).
+  assert.equal(classifyExtractorError('player_loadout_view', BOX_SCORE_ZERO_CELLS_MSG), 'fatal')
+})
+
+void test('validateCandidateRun: secondary period-label warnings do NOT block activation', async () => {
+  if (!process.env['DATABASE_URL']) return
+
+  const fx = await setupFixture('warn-nonblocking', {
+    loadoutPromotionCount: 5,
+    lobbyPromotionCount: 1,
+    extractorErrors: [
+      { screenType: 'post_game_net_chart', transformError: `${PERIOD_LABEL_UNRECOGNIZED} Net Chart period_label OCR unrecognized: 'PERIOD'` },
+      { screenType: 'post_game_faceoff_map', transformError: `${PERIOD_LABEL_UNRECOGNIZED} Faceoff Map period_label OCR unrecognized: '(null)'` },
+    ],
+  })
+
+  const result = await validateCandidateRun(fx.runId)
+
+  assert.equal(result.ok, true, `expected ok=true; got reasons: ${result.details.failureReasons.join(', ')}`)
+  assert.equal(result.details.fatalExtractorErrors.length, 0)
+  assert.equal(result.details.warningExtractorErrors.length, 2)
+  assert.deepEqual(result.details.failureReasons, [])
+})
+
+void test('validateCandidateRun: box-score zero-cells warnings do NOT block activation', async () => {
+  if (!process.env['DATABASE_URL']) return
+
+  const fx = await setupFixture('boxscore-warn', {
+    loadoutPromotionCount: 5,
+    lobbyPromotionCount: 1,
+    extractorErrors: [
+      { screenType: 'post_game_box_score_shots', transformError: BOX_SCORE_ZERO_CELLS_MSG },
+      { screenType: 'post_game_box_score_faceoffs', transformError: BOX_SCORE_ZERO_CELLS_MSG },
+    ],
+  })
+
+  const result = await validateCandidateRun(fx.runId)
+
+  assert.equal(result.ok, true, `expected ok=true; got reasons: ${result.details.failureReasons.join(', ')}`)
+  assert.equal(result.details.fatalExtractorErrors.length, 0)
+  assert.equal(result.details.warningExtractorErrors.length, 2)
+})
+
+void test('validateCandidateRun: non-period error on a secondary screen IS fatal', async () => {
+  if (!process.env['DATABASE_URL']) return
+
+  const fx = await setupFixture('warn-fatal-mix', {
+    loadoutPromotionCount: 5,
+    lobbyPromotionCount: 1,
+    extractorErrors: [
+      { screenType: 'post_game_net_chart', transformError: 'Net Chart result missing away/home stat blocks' },
+    ],
+  })
+
+  const result = await validateCandidateRun(fx.runId)
+
+  assert.equal(result.ok, false, 'a non-period secondary-screen error must stay fatal')
+  assert.equal(result.details.fatalExtractorErrors.length, 1)
+})
+
+void test('validateCandidateRun: Cannot-resolve-BGM-side stays fatal', async () => {
+  if (!process.env['DATABASE_URL']) return
+
+  const fx = await setupFixture('bgm-fatal', {
+    loadoutPromotionCount: 5,
+    lobbyPromotionCount: 1,
+    extractorErrors: [
+      { screenType: 'post_game_box_score_goals', transformError: 'Cannot resolve BGM side for match 2582: away="x" home="y"' },
+    ],
+  })
+
+  const result = await validateCandidateRun(fx.runId)
+
+  assert.equal(result.ok, false, 'BGM-side resolution failure must block activation')
+  assert.equal(result.details.fatalExtractorErrors.length, 1)
+  assert.equal(result.details.warningExtractorErrors.length, 0)
 })
 
 void test('validateCandidateRun returns ok=false when loadout promotion count is below floor', async () => {

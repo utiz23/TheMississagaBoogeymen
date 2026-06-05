@@ -1,7 +1,49 @@
 # Follow-up workstream — secondary post-game extractor OCR robustness
 
 **Opened:** 2026-06-02, out of the WS6 acceptance run (`docs/ocr/ws6-real-match-validation-findings.md`).
-**Status:** NOT STARTED. Scoped, evidence captured, no fix attempted yet.
+**Status:** ✅ RESOLVED 2026-06-04 — fixes landed on `fix/secondary-postgame-extractor-robustness`;
+match 2582 reprocessed as **run 1945** → clean `validate` → **activated**. See "Resolution" below.
+
+## Resolution (2026-06-04)
+
+Three fixes (branch `fix/secondary-postgame-extractor-robustness`, commits `94c6c54` + `d09b3b1` + the
+box-score follow-on):
+
+1. **Team-side (Part 1)** — `resolveBgmSide` now treats `matches.bgm_was_home` as **authoritative**
+   (precedence over the garbled team-name OCR soft-match); OCR path kept only for null-flag legacy matches.
+   Eliminated all **8** "Cannot resolve BGM side" errors on 2582.
+2. **Period-label (Part 2)** — additive `_recover_period_token` in `parsers.py` (digit-confusion aliases +
+   `^`-anchored leading-token) recovers buried labels; the existing strip pipeline is unchanged. Genuinely
+   digit-less labels still return the 0 sentinel.
+3. **Validate policy (Part 3)** — `classifyExtractorError` splits fatal vs warning. Supplementary misses on
+   secondary post-game screens are **non-blocking warnings** (still recorded `transform_status='error'` for
+   audit); BGM-side / missing-stat-block / unexpected-stat_kind stay fatal. `reprocess.py` surfaces warnings
+   on the success path.
+
+**SCOPE EXPANSION (explicitly recorded, user-approved 2026-06-04).** The approved Part-3 policy covered
+**period-label** misses only. When the BGM-side fix cleared the 8 team-side errors, it **unmasked** 3
+pre-existing `Box Score … produced zero period cells` errors (box-score threw BGM-side *before* the
+zero-cells check, so they were never reached). These are the **same redundant-frame class** — they were the
+later/transition frames (shots 00003; faceoffs 00002/00003) in each tab's window, and **all 4 periods
+(1ST/2ND/3RD/OT) already landed from the good frames**, so downgrading them loses no recoverable data. The
+warning policy was therefore extended to box-score `zero period cells` (matched by the stable phrase
+`produced zero period cells` + box-score screen-type guard). Activation proceeded under this expanded gate.
+
+**Run 1945 result:** dispatch 15/15 ok; validate `ok=true`, **0 fatal**, **22 non-fatal warnings**
+(3 box-score zero-cell + 19 period-label); activated. Run **1944** (the original pre-fix candidate) left
+**untouched** with its 133 `pending_review` events — re-run used a bumped `decoder_version`
+(`hmm-viterbi-v2-pg-robust`) so it minted a distinct candidate instead of deleting 1944.
+
+**Two follow-ups filed (per the activation conditions):**
+- `docs/ocr/box-score-ocr-accuracy-followup.md` — the landed box-score per-period **numbers are garbled**
+  (goals=shots=faceoffs per period; sums ≠ EA's authoritative 3–2). Pre-existing OCR digit-quality defect,
+  out of scope here, harmless (box-score `source='ocr'` is supplementary; EA stays authoritative; not
+  promoted to `player_match_stats`).
+- Validate-policy expansion is documented in this section + the box-score doc (not tribal knowledge).
+
+---
+
+## Original scoping (2026-06-02)
 
 ## Why this exists
 

@@ -7,6 +7,28 @@
 > Any "status", "next up", or progress reference in this file is in reference to THIS plan until it
 > is explicitly marked complete or the user redirects.
 >
+> **>>> WS6 ACCEPTANCE GATE — PASSED end-to-end (2026-06-04).** The secondary post-game extractor
+> robustness follow-up is ✅ RESOLVED on branch `fix/secondary-postgame-extractor-robustness` (commits
+> `94c6c54` + `d09b3b1` + `c361091`; **NOT yet merged/pushed**). Match 2582 reprocessed as **run 1945** →
+> clean `validate` (ok=true, 0 fatal, 21 non-fatal warnings) → **ACTIVATED**. Run **1944** (original pre-fix
+> candidate) left untouched (re-run used bumped `decoder_version=hmm-viterbi-v2-pg-robust` to mint a distinct
+> candidate instead of deleting 1944). Final state: **135 action-tracker `match_events` (pending_review),
+> goals 3–2 = EA-authoritative**. Three fixes: (1) `resolveBgmSide` uses `matches.bgm_was_home` as
+> authoritative (killed 8 BGM-side errors); (2) additive period-label recovery in `parsers.py`; (3)
+> `classifyExtractorError` splits fatal vs warning — period-label + box-score-zero-cells misses on secondary
+> post-game screens are non-blocking (recorded `transform_status='error'` for audit). **Scope expansion
+> (user-approved):** box-score zero-cells downgrade was added when the BGM fix unmasked it (same redundant-
+> frame class; all 4 periods landed from good frames → no data loss). Full writeup:
+> `docs/ocr/post-game-extractor-robustness-followup.md` (Resolution section).
+> **Open follow-ups filed:** `docs/ocr/box-score-ocr-accuracy-followup.md` — box-score per-period NUMBERS are
+> garbled (goals=shots=faceoffs, sums ≠ EA 3–2); pre-existing OCR digit-quality defect, out of scope,
+> harmless (supplementary `source='ocr'`, EA authoritative, not promoted to player_match_stats). The
+> run-quality row (report_id 1696) reads layer-FAIL (L2 56.8%) for the same box-score-quality reason —
+> informational, not the validate gate.
+> **NEXT:** merge/push `fix/secondary-postgame-extractor-robustness` when ready; then WS6 is the definition-
+> of-done for the revamp (optional leftovers: WS4 Stage 3, WS2 wall on fade footage, 8 WS5 known-red,
+> box-score accuracy follow-up).
+>
 > **Progress (WS0+WS1b+WS3+WS5 ✅ MERGED to `main` @ `b623780`, 2026-06-01):**
 > - **WS0a ✅ worker REDEPLOYED & LIVE** — image was 3+ weeks stale (May-7); reconcile hook now in
 >   the running container (`dist/reconcile-positions.js` present). Verifies fully on next OCR batch.

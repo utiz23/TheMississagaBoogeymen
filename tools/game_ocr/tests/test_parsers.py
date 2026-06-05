@@ -303,6 +303,24 @@ class FaceoffMapParserTests(unittest.TestCase):
         self.assertEqual(away_total, 4)
         self.assertEqual(home_total, 0)
 
+    def test_period_label_cleaned_strips_controller_prefix(self) -> None:
+        # WS6 minor fix: faceoff now exposes the controller-glyph-stripped label
+        # as `value` (mirrors net-chart), so promoters store "2ND PERIOD" not
+        # the raw "RT 2ND PERIOD".
+        meta = ExtractionMeta(
+            screen_type="post_game_faceoff_map", source_path="fake.png", ocr_backend="fake",
+        )
+        regions = {
+            "period_label": [self._line("RT 2ND PERIOD", 300, 80)],
+            "away_label": [self._line("BM(A)", 130, 230)],
+            "home_label": [self._line("4TH(H)", 670, 230)],
+            "stats_panel": [],
+        }
+        result = parse_post_game_faceoff_map(meta, regions)
+        self.assertEqual(result.period_number, 2)
+        self.assertEqual(result.period_label.value, "2ND PERIOD")
+        self.assertEqual(result.period_label.raw_text, "RT 2ND PERIOD")
+
 
 class NetChartParserTests(unittest.TestCase):
     """Tests for parse_post_game_net_chart and its row/period helpers.
@@ -346,6 +364,41 @@ class NetChartParserTests(unittest.TestCase):
         self.assertEqual(_clean_period_label_text("1ST PERIOD RT"), "1ST PERIOD")
         self.assertEqual(_clean_period_label_text("  RT  OT  "), "OT")
         self.assertEqual(_clean_period_label_text(""), "")
+
+    def test_period_number_recovers_buried_token(self) -> None:
+        # WS6 secondary-extractor robustness: a leading period token survives
+        # even when trailing OCR garble would defeat the strict suffix strip.
+        self.assertEqual(_net_chart_period_number("2ND PERI0D B.43 PERINC"), 2)
+        self.assertEqual(_net_chart_period_number("OT2 PERIOD"), 5)
+        self.assertEqual(_net_chart_period_number("1ST PERI0D"), 1)
+
+    def test_period_number_digit_confusion_aliases(self) -> None:
+        # Net Chart now mirrors the box-score alias table for common misreads.
+        self.assertEqual(_net_chart_period_number("0T"), 4)
+        self.assertEqual(_net_chart_period_number("2N PERIOD"), 2)
+        self.assertEqual(_net_chart_period_number("3R"), 3)
+
+    def test_period_number_unrecoverable_residue_stays_zero(self) -> None:
+        # No period digit present in the OCR → must NOT invent one (these are
+        # the genuinely-unreadable WS6 match-2582 frames; they stay sentinel-0
+        # so the promoter skips/​warns rather than mis-slotting).
+        for raw in ("PERIOD", "OPERIOD", "ERIOD", "RT PERIOD", "0.", "(null)", ""):
+            self.assertEqual(_net_chart_period_number(raw), 0, raw)
+
+    def test_period_number_anchored_no_over_recovery(self) -> None:
+        # A period token only counts when it LEADS the cleaned string (anchored
+        # ^), never as an interior substring.
+        self.assertEqual(_net_chart_period_number("FOOTOT"), 0)
+        self.assertEqual(_net_chart_period_number("X1ST"), 0)
+        # Net Chart has no TOT/FINAL slot (box-score-only tokens).
+        self.assertEqual(_net_chart_period_number("TOT"), 0)
+        self.assertEqual(_net_chart_period_number("FINAL"), 0)
+
+    def test_normalize_period_label_recovers_buried_token(self) -> None:
+        # Box-score mirror of the net-chart recovery, incl. its TOT/FINAL tokens.
+        self.assertEqual(_normalize_period_label("2ND PERI0D B.43"), "2ND")
+        self.assertEqual(_normalize_period_label("TOT GARBLE"), "TOT")
+        self.assertEqual(_normalize_period_label("PERIOD"), "")
 
     # ─── Row-key matcher ──────────────────────────────────────────────────
 

@@ -18,6 +18,7 @@ import {
 } from '@eanhl/db'
 import { sql } from 'drizzle-orm'
 import type { PromoterContext } from './index.js'
+import { PERIOD_LABEL_UNRECOGNIZED } from '../lib/validate-candidate-run.js'
 import type { OcrExtractionField } from '../ocr-cli-runner.js'
 
 const DOT_IDS = [
@@ -62,9 +63,12 @@ export async function promoteFaceoffMap(ctx: PromoterContext): Promise<void> {
   // match_faceoff_dots' unique indexes.
   const rawPeriodNumber = result.period_number
   const periodLabelText = stringValue(result.period_label as OcrExtractionField | undefined)
+  // The PERIOD_LABEL_UNRECOGNIZED: prefix is a stable machine token the validate
+  // gate (validate-candidate-run.ts classifyExtractorError) matches to treat this
+  // secondary-extractor miss as a NON-blocking warning. Keep the prefix in sync.
   if (typeof rawPeriodNumber !== 'number' || rawPeriodNumber === 0) {
     throw new Error(
-      `Faceoff Map period_label OCR unrecognized: '${periodLabelText ?? '(null)'}' — refusing to write into ALL PERIODS slot`,
+      `${PERIOD_LABEL_UNRECOGNIZED} Faceoff Map period_label OCR unrecognized: '${periodLabelText ?? '(null)'}' — refusing to write into ALL PERIODS slot`,
     )
   }
   const periodNumber = rawPeriodNumber

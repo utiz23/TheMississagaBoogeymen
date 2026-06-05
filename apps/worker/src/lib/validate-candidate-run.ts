@@ -49,6 +49,8 @@ export interface ValidateCandidateRunOptions {
 export interface ExtractorErrorBucket {
   kind: string
   count: number
+  /** Source screen of the failing extraction (drives fatal-vs-warning). */
+  screenType?: string
 }
 
 export interface ValidationDetails {
@@ -56,9 +58,72 @@ export interface ValidationDetails {
   matchId: number
   loadoutPromotionCount: number
   lobbyPromotionCount: number
+  /** All extractor-error buckets (fatal + warning), bucketed by (screen, message). */
   extractorErrors: ExtractorErrorBucket[]
+  /** Subset that BLOCKS activation. Only these drive `failureReasons` / `ok`. */
+  fatalExtractorErrors: ExtractorErrorBucket[]
+  /** Subset recorded for operator visibility but NON-blocking. */
+  warningExtractorErrors: ExtractorErrorBucket[]
   /** Empty when `ok=true`. */
   failureReasons: string[]
+}
+
+/**
+ * Stable machine token prefixed onto the period-label throw in the secondary
+ * post-game promoters (net-chart.ts / faceoff-map.ts). The validate gate matches
+ * on this PREFIX so the fatal-vs-warning policy is decoupled from human prose —
+ * keep this string in sync with those promoters.
+ */
+export const PERIOD_LABEL_UNRECOGNIZED = 'PERIOD_LABEL_UNRECOGNIZED:'
+
+/**
+ * Stable phrase inside the box-score "zero period cells" throw (box-score.ts).
+ * Matched as a substring (rather than a prefix sentinel) so error rows already
+ * persisted by an earlier dispatch reclassify without a re-dispatch — keep in
+ * sync with the throw in box-score.ts.
+ */
+export const BOX_SCORE_ZERO_CELLS_PHRASE = 'produced zero period cells'
+
+/**
+ * Secondary post-game screens whose per-frame extraction misses are
+ * supplementary/lossy: their data (shot-type / faceoff / box-score per-period
+ * breakdowns) is redundant across frames and EA remains authoritative for the
+ * box score, so a miss on a redundant/transition frame must never block
+ * activation of the cleanly-extracted core data (action-tracker events, lineup).
+ */
+const WARNING_ELIGIBLE_SCREENS = new Set([
+  'post_game_net_chart',
+  'post_game_faceoff_map',
+  'post_game_box_score_goals',
+  'post_game_box_score_shots',
+  'post_game_box_score_faceoffs',
+])
+
+/**
+ * Classify a single extractor error as fatal (blocks activation) or warning
+ * (recorded, non-blocking). A failure is a WARNING iff it is a known supplementary
+ * miss on a secondary post-game screen:
+ *   - an unreadable period label (net-chart / faceoff), or
+ *   - a box-score frame that yielded zero period cells (redundant/transition frame).
+ * Those frames are redundant/transition or genuinely unreadable, so losing them
+ * must not block the cleanly-extracted core data. Everything else — incl.
+ * "Cannot resolve BGM side", "missing away/home stat blocks", an unexpected
+ * stat_kind, or any error on a non-secondary screen — stays FATAL. The
+ * screen-type guard bounds the blast radius if another extractor emits a
+ * similar message.
+ */
+export function classifyExtractorError(
+  screenType: string | null | undefined,
+  message: string | null | undefined,
+): 'fatal' | 'warning' {
+  if (screenType === null || screenType === undefined || !WARNING_ELIGIBLE_SCREENS.has(screenType)) {
+    return 'fatal'
+  }
+  const msg = message ?? ''
+  if (msg.startsWith(PERIOD_LABEL_UNRECOGNIZED) || msg.includes(BOX_SCORE_ZERO_CELLS_PHRASE)) {
+    return 'warning'
+  }
+  return 'fatal'
 }
 
 export interface ValidationResult {
@@ -115,20 +180,30 @@ export async function validateCandidateRun(
     )
   const loadoutPromotionCount = loadoutRow?.count ?? 0
 
-  // Extractor errors — bucket by transform_error text. COALESCE so NULL
-  // error text rolls up under '<no message>' rather than disappearing.
+  // Extractor errors — bucket by (screen_type, transform_error). COALESCE so
+  // NULL error text rolls up under '<no message>' rather than disappearing.
+  // screen_type is NOT NULL, so it always groups cleanly.
   const errorRows = await db
     .select({
+      screenType: ocrExtractions.screenType,
       kind: sql<string>`coalesce(${ocrExtractions.transformError}, '<no message>')`.as('kind'),
       count: sql<number>`count(*)::int`.as('count'),
     })
     .from(ocrExtractions)
     .where(and(eq(ocrExtractions.runId, runId), eq(ocrExtractions.transformStatus, 'error')))
-    .groupBy(sql`coalesce(${ocrExtractions.transformError}, '<no message>')`)
+    .groupBy(ocrExtractions.screenType, sql`coalesce(${ocrExtractions.transformError}, '<no message>')`)
   const extractorErrors: ExtractorErrorBucket[] = errorRows.map((r) => ({
     kind: String(r.kind),
     count: Number(r.count),
+    screenType: String(r.screenType),
   }))
+  // Split fatal (blocks activation) from warning (non-blocking, supplementary).
+  const fatalExtractorErrors = extractorErrors.filter(
+    (e) => classifyExtractorError(e.screenType, e.kind) === 'fatal',
+  )
+  const warningExtractorErrors = extractorErrors.filter(
+    (e) => classifyExtractorError(e.screenType, e.kind) === 'warning',
+  )
 
   const failureReasons: string[] = []
   if (loadoutPromotionCount < minLoadout) {
@@ -137,9 +212,10 @@ export async function validateCandidateRun(
   if (lobbyPromotionCount < minLobby) {
     failureReasons.push(`lobby promotions ${lobbyPromotionCount} < floor ${minLobby}`)
   }
-  if (extractorErrors.length > 0) {
-    const totalErrors = extractorErrors.reduce((acc, e) => acc + e.count, 0)
-    const summary = extractorErrors.map((e) => `${e.kind}=${e.count}`).join(', ')
+  // ONLY fatal errors block activation; warnings are reported but never fail.
+  if (fatalExtractorErrors.length > 0) {
+    const totalErrors = fatalExtractorErrors.reduce((acc, e) => acc + e.count, 0)
+    const summary = fatalExtractorErrors.map((e) => `${e.kind}=${e.count}`).join(', ')
     failureReasons.push(`extractor errors present (${totalErrors} total): ${summary}`)
   }
 
@@ -151,6 +227,8 @@ export async function validateCandidateRun(
       loadoutPromotionCount,
       lobbyPromotionCount,
       extractorErrors,
+      fatalExtractorErrors,
+      warningExtractorErrors,
       failureReasons,
     },
   }
