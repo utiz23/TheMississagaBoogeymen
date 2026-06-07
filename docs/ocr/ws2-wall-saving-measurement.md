@@ -1,7 +1,11 @@
 # WS2 Pass-1 Pre-OCR Gate — Real-Footage Wall-Saving Measurement
 
-**Date:** 2026-06-05
+**Date:** 2026-06-05 (measured) · 2026-06-07 (acted on: gate flipped default-OFF)
 **Status:** ✅ MEASURED — result is **net-negative** on representative game footage.
+**Action taken:** recommendation (1) applied — `nhl26.yaml: pass1.pre_ocr_gate.enabled`
+flipped `true → false`. Machinery, thresholds, CLI `--pass1-gate`, and the env switch
+are retained; the proving-bench `WS2_GATE=on` arm now force-enables the gate so its
+coverage survives the default flip.
 **Scope:** Closes the long-standing WS2 open item ("the gate fires on 0 frames on the
 bench clips … so the wall saving is **unmeasured** — needs a host ingest on footage with
 fades/black frames"). It is now measured.
@@ -102,8 +106,13 @@ cheapest first:
    re-validation — unlikely to clear the GPU break-even line.
 
 Recommendation: **(1)** for the wall win now; revisit (2)+(3) only if a black/fade-heavy
-footage profile is shown to clear break-even. This is a **measurement + recommendation**
-doc; no code/threshold change is made here.
+footage profile is shown to clear break-even.
+
+**Applied (2026-06-07):** option (1) — `nhl26.yaml: pass1.pre_ocr_gate.enabled: false`.
+No threshold change; the gate machinery, CLI `--pass1-gate` override, and the
+`OCR_PASS1_GATE_ENABLED` env switch (now disable-only on an already-off gate) remain.
+The proving-bench `WS2_GATE=on` arm was updated to force-enable the parsed gate config
+so flipping the shipped default does not silently neuter its gate-ON coverage.
 
 ## Reproduce
 

@@ -66,9 +66,18 @@ pass1:
   #   max_brightness — strong fade/blackout co-signal.
   # Launch values gate a black-frame signature only (smallest safe win).
   # Widen max_edge_density against the proving bench to recover more.
-  # ABSENT block ⇒ gate disabled. Env kill switch: OCR_PASS1_GATE_ENABLED=false.
+  # ABSENT block ⇒ gate disabled. Env kill switch (disable-only): OCR_PASS1_GATE_ENABLED=false.
+  #
+  # DEFAULT-OFF as of 2026-06-07: measured net-negative on real footage. On the
+  # match-2582 capture the gate fired 12/2085 frames (0.58%) and made Pass-1
+  # ~116s SLOWER — compute_visual_signals (~70-90ms/frame) runs on 100% of
+  # frames to skip OCR on 0.58%, and gated black frames are the cheapest to OCR
+  # anyway. Break-even fire rate ~3.5% (CPU) / ~18-35% (GPU); real footage never
+  # reaches it. Thresholds retained for the kept machinery; enable per-run with
+  # `classify-only --pass1-gate`. Full writeup:
+  # docs/ocr/ws2-wall-saving-measurement.md
   pre_ocr_gate:
-    enabled: true
+    enabled: false
     require_all: true
     max_brightness: 0.06
     max_edge_density: 0.005

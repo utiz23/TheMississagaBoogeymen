@@ -152,6 +152,15 @@ def _run_v2_pipeline_per_frame(clip_path: Path) -> list[str]:
             ).read_text()
         )
         gate_cfg = parse_gate_config(vcfg["pass1"])
+        # The shipped default is OFF (gate is net-negative on real footage; see
+        # docs/ocr/ws2-wall-saving-measurement.md). WS2_GATE=on explicitly tests
+        # the gate-ON path, so force it enabled regardless of the YAML default —
+        # otherwise this arm silently no-ops and stops covering the gate. The
+        # thresholds still come from the shared YAML, so they can't drift.
+        if gate_cfg is not None and not gate_cfg.enabled:
+            from dataclasses import replace as _replace
+
+            gate_cfg = _replace(gate_cfg, enabled=True)
 
     feats = []
     gated_mask: list[bool] = []

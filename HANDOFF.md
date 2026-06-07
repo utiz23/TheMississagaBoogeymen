@@ -44,10 +44,12 @@
 > it; the GPU prod path is *worse*. WS2 was accepted on zero-regression (ON≡OFF), so there's no
 > correctness benefit to offset the wall cost. **Recommendation: flip default to OFF** (one-line YAML;
 > `nhl26.yaml: pass1.pre_ocr_gate.enabled`). Full writeup + reproduce + break-even math:
-> `docs/ocr/ws2-wall-saving-measurement.md`. NOT yet acted on (measurement+rec only; no code/threshold
-> change). Optional follow-up: a 2nd black/fade-heavy clip (gate-ON alone suffices) to tighten the n=1
-> envelope. Env fix done in passing: combined `tools/game_ocr/.venv` was missing PyAV → installed
-> `av==13.1.0`.
+> `docs/ocr/ws2-wall-saving-measurement.md`. **✅ ACTED ON (2026-06-07): gate flipped default-OFF**
+> (`nhl26.yaml enabled: true→false`; thresholds/machinery/CLI `--pass1-gate`/env switch retained). The
+> proving-bench `WS2_GATE=on` arm was updated to force-enable the parsed gate (else the default flip would
+> silently no-op its gate-ON coverage). 21 gate unit tests green; bench collects clean. User declined the
+> optional 2nd black/fade-heavy clip (break-even math deemed sufficient). Env fix done in passing:
+> combined `tools/game_ocr/.venv` was missing PyAV → installed `av==13.1.0`.
 >
 > **Progress (WS0+WS1b+WS3+WS5 ✅ MERGED to `main` @ `b623780`, 2026-06-01):**
 > - **WS0a ✅ worker REDEPLOYED & LIVE** — image was 3+ weeks stale (May-7); reconcile hook now in
