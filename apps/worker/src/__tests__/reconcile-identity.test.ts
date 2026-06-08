@@ -52,6 +52,7 @@ async function seedEvent(opts: {
   eventType?: 'shot' | 'hit' | 'goal' | 'penalty' | 'faceoff'
   teamSide?: 'for' | 'against'
   actor: string
+  clock?: string | null
   x?: string | null
   positionConfidence?: 'interpolated' | 'extrapolated' | 'manual' | null
   ocrExtractionId?: number | null
@@ -62,7 +63,7 @@ async function seedEvent(opts: {
       matchId: TEST_MATCH_ID,
       periodNumber: opts.period,
       periodLabel: String(opts.period),
-      clock: null,
+      clock: opts.clock ?? null,
       eventType: opts.eventType ?? 'shot',
       teamSide: opts.teamSide ?? 'for',
       actorGamertagSnapshot: `${SENTINEL}${opts.actor}`,
@@ -86,6 +87,8 @@ function proposal(opts: {
   actorPlayerId?: number | null
   targetSnapshot?: string | null
   targetPlayerId?: number | null
+  clock?: string | null
+  clockConfidence?: number
   x?: number | null
   y?: number | null
   rinkZone?: string | null
@@ -101,6 +104,8 @@ function proposal(opts: {
     target_player_id: opts.targetPlayerId ?? null,
     event_detail: null,
     ocr_extraction_id: extractionId,
+    clock: opts.clock ?? null,
+    clock_confidence: opts.clockConfidence ?? 0,
     x: opts.x ?? null,
     y: opts.y ?? null,
     rink_zone: opts.rinkZone ?? null,
@@ -175,7 +180,10 @@ after(async () => {
 
 void test('zero-match shot proposal → inserts a pending_review row, no extension', async () => {
   if (!process.env['DATABASE_URL']) return
-  const res = await applyIdentityProposals([proposal({ period: 81, actor: 'GHOST' })], TEST_MATCH_ID)
+  const res = await applyIdentityProposals(
+    [proposal({ period: 81, actor: 'GHOST' })],
+    TEST_MATCH_ID,
+  )
   assert.equal(res.inserted, 1)
   assert.equal(res.dedupRefreshed, 0)
   const rows = await bucketRows(81)
@@ -221,10 +229,7 @@ void test('two same-identity POSITIONED proposals at distinct positions → two 
   assert.equal(res.insertedPositioned, 2)
   const rows = await bucketRows(76)
   assert.equal(rows.length, 2)
-  assert.deepEqual(
-    rows.map((r) => r.x).sort(),
-    ['-40.00', '36.50'],
-  )
+  assert.deepEqual(rows.map((r) => r.x).sort(), ['-40.00', '36.50'])
 })
 
 void test('re-running positioned proposals inserts nothing new (idempotent)', async () => {
@@ -300,7 +305,10 @@ void test('two candidates → ambiguous, no write', async () => {
   await seedEvent({ period: 85, actor: 'WILDE' })
   await seedEvent({ period: 85, actor: 'WILOE' })
   const before = await bucketRows(85)
-  const res = await applyIdentityProposals([proposal({ period: 85, actor: 'WILDE' })], TEST_MATCH_ID)
+  const res = await applyIdentityProposals(
+    [proposal({ period: 85, actor: 'WILDE' })],
+    TEST_MATCH_ID,
+  )
   assert.equal(res.ambiguous, 1)
   assert.equal(res.inserted, 0)
   assert.equal(res.dedupRefreshed, 0)
@@ -317,7 +325,10 @@ void test('positioned manual row → hit refresh, position preserved (never clob
     positionConfidence: 'manual',
     ocrExtractionId: null,
   })
-  const res = await applyIdentityProposals([proposal({ period: 86, actor: 'MANUAL' })], TEST_MATCH_ID)
+  const res = await applyIdentityProposals(
+    [proposal({ period: 86, actor: 'MANUAL' })],
+    TEST_MATCH_ID,
+  )
   assert.equal(res.inserted, 0)
   assert.equal(res.dedupRefreshed, 1)
   const rows = await bucketRows(86)
@@ -348,6 +359,128 @@ void test('idempotent: same goal proposal twice → one base + one goal-ext row'
   assert.equal(second.dedupRefreshed, 1)
   const rows = await bucketRows(88)
   assert.equal(rows.length, 1, 'exactly one base row after two runs')
-  const goals = await db.select().from(matchGoalEvents).where(eq(matchGoalEvents.eventId, rows[0]!.id))
+  const goals = await db
+    .select()
+    .from(matchGoalEvents)
+    .where(eq(matchGoalEvents.eventId, rows[0]!.id))
   assert.equal(goals.length, 1, 'exactly one goal-ext row after two runs')
+})
+
+// ─── WS4 Stage 3: recovered-clock exact-key dedup ──────────────────────────
+
+void test('confident clock disambiguates: two same-actor rows, exact-key hits the right one (no ambiguous-skip)', async () => {
+  if (!process.env['DATABASE_URL']) return
+  // Mirrors match 250 P. MAGROYNE p3 shots at 0:33 and 16:53. A clock-null
+  // orphan would ambiguous-skip (2 candidates); a recovered 0:33 exact-hits one.
+  await seedEvent({ period: 60, actor: 'MAGROYNE', clock: '0:33' })
+  await seedEvent({ period: 60, actor: 'MAGROYNE', clock: '16:53' })
+  const res = await applyIdentityProposals(
+    [proposal({ period: 60, actor: 'MAGROYNE', clock: '0:33', clockConfidence: 0.8 })],
+    TEST_MATCH_ID,
+  )
+  assert.equal(res.ambiguous, 0, 'recovered clock removes the ambiguity')
+  assert.equal(res.inserted, 0, 'no duplicate inserted')
+  assert.equal(res.dedupRefreshed, 1, 'exact-key hit refreshed the 0:33 row')
+})
+
+void test('confident clock, zero exact match → INSERT with the clock written', async () => {
+  if (!process.env['DATABASE_URL']) return
+  const res = await applyIdentityProposals(
+    [proposal({ period: 61, actor: 'GHOSTCLK', clock: '5:00', clockConfidence: 1.0 })],
+    TEST_MATCH_ID,
+  )
+  assert.equal(res.inserted, 1)
+  const rows = await bucketRows(61)
+  assert.equal(rows.length, 1)
+  assert.equal(rows[0]!.clock, '5:00', 'recovered clock persisted on the new row')
+})
+
+void test('confident clock exact-misses but clockless ambiguous → ambiguous-skip (safety unchanged)', async () => {
+  if (!process.env['DATABASE_URL']) return
+  await seedEvent({ period: 62, actor: 'AMBIG', clock: '1:00' })
+  await seedEvent({ period: 62, actor: 'AMBIG', clock: '2:00' })
+  const res = await applyIdentityProposals(
+    [proposal({ period: 62, actor: 'AMBIG', clock: '7:00', clockConfidence: 0.8 })],
+    TEST_MATCH_ID,
+  )
+  assert.equal(res.inserted, 0)
+  assert.equal(res.ambiguous, 1, 'exact miss falls back to the ambiguous clockless bucket')
+})
+
+void test('confident clockless-hit backfills clock onto a clock-null row (self-heal)', async () => {
+  if (!process.env['DATABASE_URL']) return
+  await seedEvent({ period: 63, actor: 'BACKFILL', clock: null })
+  const res = await applyIdentityProposals(
+    [proposal({ period: 63, actor: 'BACKFILL', clock: '3:30', clockConfidence: 1.0 })],
+    TEST_MATCH_ID,
+  )
+  assert.equal(res.inserted, 0)
+  assert.equal(res.dedupRefreshed, 1)
+  const rows = await bucketRows(63)
+  assert.equal(rows.length, 1)
+  assert.equal(rows[0]!.clock, '3:30', 'clock-null row backfilled with the recovered clock')
+})
+
+void test('confident clock never clobbers an existing clock (no-clobber backfill)', async () => {
+  if (!process.env['DATABASE_URL']) return
+  await seedEvent({ period: 64, actor: 'NOCLOBBER', clock: '4:00' })
+  const res = await applyIdentityProposals(
+    [proposal({ period: 64, actor: 'NOCLOBBER', clock: '5:00', clockConfidence: 1.0 })],
+    TEST_MATCH_ID,
+  )
+  assert.equal(res.inserted, 0, 'clockless-hit on the existing row, no new insert')
+  assert.equal(res.dedupRefreshed, 1)
+  const rows = await bucketRows(64)
+  assert.equal(rows.length, 1)
+  assert.equal(rows[0]!.clock, '4:00', 'existing clock preserved, not overwritten by 5:00')
+})
+
+void test('below-floor clock is never persisted: INSERT lands clock-null', async () => {
+  if (!process.env['DATABASE_URL']) return
+  const res = await applyIdentityProposals(
+    [proposal({ period: 65, actor: 'LOWINS', clock: '9:00', clockConfidence: 0.6 })],
+    TEST_MATCH_ID,
+  )
+  assert.equal(res.inserted, 1)
+  const rows = await bucketRows(65)
+  assert.equal(rows.length, 1)
+  assert.equal(rows[0]!.clock, null, 'below-floor clock not written to the column')
+})
+
+void test('below-floor clock does not take the exact key and does not backfill on hit', async () => {
+  if (!process.env['DATABASE_URL']) return
+  await seedEvent({ period: 66, actor: 'LOWHIT', clock: null })
+  const res = await applyIdentityProposals(
+    [proposal({ period: 66, actor: 'LOWHIT', clock: '9:00', clockConfidence: 0.6 })],
+    TEST_MATCH_ID,
+  )
+  assert.equal(res.dedupRefreshed, 1, 'clockless-hit on the lone null-clock row')
+  const rows = await bucketRows(66)
+  assert.equal(rows[0]!.clock, null, 'below-floor clock not backfilled')
+})
+
+void test('idempotent: confident-clock insert dedup-hits itself on re-run', async () => {
+  if (!process.env['DATABASE_URL']) return
+  const p = proposal({ period: 67, actor: 'IDEMCLK', clock: '6:30', clockConfidence: 1.0 })
+  const first = await applyIdentityProposals([p], TEST_MATCH_ID)
+  assert.equal(first.inserted, 1)
+  const second = await applyIdentityProposals([p], TEST_MATCH_ID)
+  assert.equal(second.inserted, 0, 'exact key finds the self-inserted row')
+  assert.equal(second.dedupRefreshed, 1)
+  const rows = await bucketRows(67)
+  assert.equal(rows.length, 1, 'no duplicate after re-run')
+})
+
+void test('exact-key path reuses Strategy 0: positioned same-clock prefix match dedups when fuzzy would miss', async () => {
+  if (!process.env['DATABASE_URL']) return
+  // A positioned row at 8:00 whose actor is too garbled for Levenshtein-1 but
+  // shares the 4-char prefix. Strategy 0 (positioned-vs-junk) must fire on the
+  // exact-key path so the recovered orphan dedups to it (review Finding 3).
+  await seedEvent({ period: 68, actor: 'STRAT0AAAA', clock: '8:00', x: '10.00' })
+  const res = await applyIdentityProposals(
+    [proposal({ period: 68, actor: 'STRAT0ZZZZ', clock: '8:00', clockConfidence: 1.0 })],
+    TEST_MATCH_ID,
+  )
+  assert.equal(res.inserted, 0, 'Strategy 0 prefix match dedups, no junk duplicate')
+  assert.equal(res.dedupRefreshed, 1)
 })

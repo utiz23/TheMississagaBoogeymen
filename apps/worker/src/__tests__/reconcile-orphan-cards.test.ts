@@ -47,7 +47,9 @@ async function cleanupAllSentinels(): Promise<void> {
   sentinelMatchIds.clear()
 }
 
-async function createSentinelMatch(suffix: string): Promise<{ matchId: number; extractionId: number }> {
+async function createSentinelMatch(
+  suffix: string,
+): Promise<{ matchId: number; extractionId: number }> {
   const [m] = await db
     .insert(matches)
     .values({
@@ -94,7 +96,12 @@ async function createSentinelMatch(suffix: string): Promise<{ matchId: number; e
   return { matchId: m.id, extractionId: x.id }
 }
 
-async function seedLineup(matchId: number, extractionId: number, playerId: number, gamertag: string) {
+async function seedLineup(
+  matchId: number,
+  extractionId: number,
+  playerId: number,
+  gamertag: string,
+) {
   await db.insert(playerLoadoutSnapshots).values({
     matchId,
     ocrExtractionId: extractionId,
@@ -121,6 +128,8 @@ function card(opts: {
   rinkZone?: string | null
   bindMethod?: string
   clusterColorSide?: 'for' | 'against' | 'unknown' | null
+  recoveredClock?: string | null
+  recoveredClockConfidence?: number
 }): RawOrphanCard {
   return {
     period_number: 2,
@@ -133,6 +142,8 @@ function card(opts: {
     x: opts.x ?? null,
     y: opts.y ?? null,
     rink_zone: opts.rinkZone ?? null,
+    recovered_clock: opts.recoveredClock ?? null,
+    recovered_clock_confidence: opts.recoveredClockConfidence ?? 0,
     bind_method: opts.bindMethod ?? 'none',
     cluster_color_side: opts.clusterColorSide ?? null,
   }
@@ -196,6 +207,43 @@ void test('resolveOrphanCard: unresolved actor → null id, team_side=against', 
   assert.equal(proposal.team_side, 'against')
 })
 
+void test('resolveOrphanCard: recovered_clock carries through to proposal.clock + confidence', async () => {
+  if (!process.env['DATABASE_URL']) return
+  const p = await firstPlayer()
+  const m = await createSentinelMatch('clock-carry')
+  await seedLineup(m.matchId, m.extractionId, p.id, p.gamertag)
+
+  const proposal = await resolveOrphanCard(
+    card({
+      actor: p.gamertag,
+      extractionId: m.extractionId,
+      recoveredClock: '0:33',
+      recoveredClockConfidence: 0.8,
+    }),
+    m.matchId,
+    GAME_TITLE_ID,
+    dbForResolver,
+  )
+  assert.equal(proposal.clock, '0:33')
+  assert.equal(proposal.clock_confidence, 0.8)
+})
+
+void test('resolveOrphanCard: absent recovered_clock → proposal.clock null, confidence 0', async () => {
+  if (!process.env['DATABASE_URL']) return
+  const p = await firstPlayer()
+  const m = await createSentinelMatch('clock-absent')
+  await seedLineup(m.matchId, m.extractionId, p.id, p.gamertag)
+
+  const proposal = await resolveOrphanCard(
+    card({ actor: p.gamertag, extractionId: m.extractionId }),
+    m.matchId,
+    GAME_TITLE_ID,
+    dbForResolver,
+  )
+  assert.equal(proposal.clock, null)
+  assert.equal(proposal.clock_confidence, 0)
+})
+
 void test('resolveOrphanCard: positioned card carries x/y/rink_zone through to the proposal', async () => {
   if (!process.env['DATABASE_URL']) return
   const p = await firstPlayer()
@@ -203,7 +251,14 @@ void test('resolveOrphanCard: positioned card carries x/y/rink_zone through to t
   await seedLineup(m.matchId, m.extractionId, p.id, p.gamertag)
 
   const proposal = await resolveOrphanCard(
-    card({ actor: p.gamertag, extractionId: m.extractionId, x: 36.5, y: 36.2, rinkZone: 'offensive', bindMethod: 'co_occurrence' }),
+    card({
+      actor: p.gamertag,
+      extractionId: m.extractionId,
+      x: 36.5,
+      y: 36.2,
+      rinkZone: 'offensive',
+      bindMethod: 'co_occurrence',
+    }),
     m.matchId,
     GAME_TITLE_ID,
     dbForResolver,
@@ -223,7 +278,14 @@ void test('resolveOrphanCard: cluster_color_side disagreeing with roster does NO
   // Rostered actor → roster says 'for'. Cluster color claims 'against'. Roster
   // is authoritative; team_side stays 'for', the position is kept.
   const proposal = await resolveOrphanCard(
-    card({ actor: p.gamertag, extractionId: m.extractionId, x: 10.0, y: -6.0, rinkZone: 'neutral', clusterColorSide: 'against' }),
+    card({
+      actor: p.gamertag,
+      extractionId: m.extractionId,
+      x: 10.0,
+      y: -6.0,
+      rinkZone: 'neutral',
+      clusterColorSide: 'against',
+    }),
     m.matchId,
     GAME_TITLE_ID,
     dbForResolver,
@@ -239,7 +301,12 @@ void test('resolveOrphanCard: actor unresolved + target rostered → against, ta
   await seedLineup(m.matchId, m.extractionId, p.id, p.gamertag)
 
   const proposal = await resolveOrphanCard(
-    card({ actor: 'xyz-garbage-z9q8', target: p.gamertag, extractionId: m.extractionId, eventType: 'hit' }),
+    card({
+      actor: 'xyz-garbage-z9q8',
+      target: p.gamertag,
+      extractionId: m.extractionId,
+      eventType: 'hit',
+    }),
     m.matchId,
     GAME_TITLE_ID,
     dbForResolver,
