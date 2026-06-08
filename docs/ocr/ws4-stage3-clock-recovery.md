@@ -1,12 +1,24 @@
 # WS4 Stage 3 — Clock (+ Period) Recovery for Orphan Action-Tracker Events
 
-**Status:** Scoped (prep only), not implemented. 2026-06-07.
+**Status:** Tier 1 IMPLEMENTED on `feat/ws4-stage3-clock-recovery`. 2026-06-07.
 **Predecessors:** WS4 Stage 1 + 2a + 2b — MERGED to `main`.
 Design root: [`action-tracker-identity-recovery-design.md`](./action-tracker-identity-recovery-design.md) §"Stage 3 — optional (high-ROI polish)".
 
-This doc is the implementation scope. No code has been written. The central design
-decision (which approach) is settled below by **evidence from the live DB**, not by the
-original spec's two-option framing.
+This doc is the implementation scope. The central design decision (which approach) is
+settled below by **evidence from the live DB**, not by the original spec's two-option
+framing.
+
+**Implementation note (2026-06-07).** Tier 1 shipped per the §3/§5/§7 plan (commits:
+producer `recover_clock`/`recover_period`/`_orphan_identity`/per-child clock assignment;
+worker recovered-clock exact-key dedup + guarded backfill, floor `0.66`). Two latent spec
+conflicts were resolved during implementation: (1) confidence is scored by **distinct
+transform kinds** (1.0/0.8/0.6) with a trailing **OT-suffix exemption** so `B:4910T`→`8:49`
+clears the floor while `9:0D1`→`9:00` (glued trailing digit) stays below it; (2) recovered
+clocks are emitted **un-zero-padded** to match the live promoter's stored form. Verified on
+real matches 250/2582: 9/13 orphan identities recovered (~69%, matching §2.4), every value
+matching the §2.1 table; period recovery additionally **admitted a previously-dropped
+orphan** (RANTANEN p3 `D:14`). Tier 2 remains deferred (§8). Pending: end-to-end net-new
+INSERT validation on a fresh un-reviewed match (§2.5 conclusion).
 
 ---
 
