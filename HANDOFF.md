@@ -28,6 +28,30 @@
 > **NEXT:** merge/push `fix/secondary-postgame-extractor-robustness` when ready; then WS6 is the definition-
 > of-done for the revamp (optional leftovers: WS4 Stage 3, 8 WS5 known-red, box-score accuracy follow-up).
 >
+> **>>> IN REVIEW (2026-06-07): WS4 Stage 3 Tier 1 — clock + period recovery — IMPLEMENTED on branch
+> `feat/ws4-stage3-clock-recovery` (NOT merged/pushed; not yet code-reviewed).** Commits: `ff383f2`
+> (Python producer), `a405656` (worker exact-key dedup), `15126d2` (doc status). Spec + resolution notes:
+> `docs/ocr/ws4-stage3-clock-recovery.md` (Status line + §2.5/§2.5b + Implementation note).
+> **Shipped scope:** recover the garbled clock (and period when it too failed OCR) from the `event_detail`
+> already stored on each orphan AT card. `recover_clock` (table-driven char-confusion normalizer scoped to a
+> candidate `MM:SS` token; transform-kind confidence 1.0/0.8/0.6 with a trailing-OT-suffix exemption;
+> un-zero-padded output to match the live promoter's stored form), `recover_period` (admits orphans the
+> `period<1` filter previously dropped), shared `_orphan_identity` helper (keeps the recovered period aligned
+> across all producer loops), and **per-child** clock assignment after the Stage-2b multiplicity split. Worker:
+> recovered clock wired through `RawOrphanCard`→`IdentityProposal`→`resolveOrphanCard`; `applyIdentityProposals`
+> tries the **exact key first** at confidence ≥ floor `0.66` (ambiguous-skip → clean hit), guarded no-clobber
+> clock backfill on a clock-null hit, clock-on-insert only when confident (below-floor never persisted).
+> **Tests passed:** Python 65 (24 new); worker reconcile-identity + reconcile-orphan-cards + dedup = 53; real-
+> data producer run on 250/2582 recovered 9/13 (~69%, matching §2.4), every value matching §2.1, and period
+> recovery admitted a previously-dropped orphan (`D:14`). **Known pre-existing failing tests (NOT mine —
+> verified on baseline with changes stashed):** 8 in the full worker suite — fixture-loader (synthetic_degraded,
+> loadFixture, match-463 fixture) + match-250-benchmark (getMatchLineups, lobby typed_v1 hard/soft accuracy,
+> pre-game BGM fields) + ocr-decoder-runs-backfill (run_id, decoder provenance). Fixture/calibration-dependent,
+> unrelated to clock recovery. **Remaining gap:** no fresh-match end-to-end net-new INSERT proof yet — 250/2582
+> are saturated (show disambiguation, ~0 net-new inserts by design); real inserts only appear on a non-reviewed
+> match with promoter gaps. Tier 2 (re-OCR) remains deferred. **Next decision:** code-review the branch, then
+> decide whether the fresh-un-reviewed-match validation is worth a cycle before merging to `main`.
+>
 > **>>> DONE (2026-06-05): `fix/secondary-postgame-extractor-robustness` ✅ MERGED + PUSHED** (`--no-ff`
 > `19d0a16`, `main = origin/main`). WS6 is the definition-of-done and is now complete. Branch hygiene:
 > the merged branch + 4 stale merged branches deleted, the `phase-3a` worktree removed — only `main`
