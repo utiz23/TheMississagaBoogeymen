@@ -40,16 +40,17 @@ def _event(event_type, clock, actor, period, target=None):
     }
 
 
-def _orphan_event(event_type, actor, period, target=None, actor_conf=0.95):
+def _orphan_event(event_type, actor, period, target=None, actor_conf=0.95, detail=None):
     """An AT event card whose clock failed OCR (status='missing'). The live
-    promoter drops these; WS4 Stage 2a recovers their identity."""
+    promoter drops these; WS4 Stage 2a recovers their identity. `detail` overrides
+    the Row-B line (raw_text) — used to carry a garbled clock/period for Stage 3."""
     e = _event(event_type, None, actor, period, target)
     e["clock"] = {"value": None, "raw_text": "", "confidence": 0.0, "status": "missing"}
     e["actor_snapshot"] = {
         "value": actor, "raw_text": actor, "confidence": actor_conf,
         "status": "ok" if actor else "missing",
     }
-    e["raw_text"] = _ef(f"{event_type} {actor or ''}")
+    e["raw_text"] = _ef(detail if detail is not None else f"{event_type} {actor or ''}")
     return e
 
 
@@ -109,6 +110,103 @@ class NormalizationTests(unittest.TestCase):
         self.assertEqual(rat.normalize_actor("-. Silky"), "silky")
         self.assertEqual(rat.normalize_actor("TOEWS"), "toews")
         self.assertEqual(rat.normalize_actor(None), "")
+
+
+# ─── permissive clock recovery (WS4 Stage 3 Tier 1) ────────────────────────
+
+
+class PermissiveClockRecoveryTests(unittest.TestCase):
+    """recover_clock re-parses the garbled clock digits stored verbatim in an
+    orphan's event_detail. Returns (clock | None, confidence). Clocks are emitted
+    UN-zero-padded to match the live promoter's stored form; confidence counts
+    distinct transform KINDS (1.0 clean, 0.8 one kind, 0.6 two kinds / glued)."""
+
+    def test_recovers_real_garbled_strings_with_confidence(self):
+        cases = {
+            # event_detail -> (recovered_clock, confidence)
+            "P. MAGROYNE ON J. WAGNER S SHOT D:33 | 3rd Period": ("0:33", 0.8),
+            "S. ZUBOV S SHOT D:14": ("0:14", 0.8),
+            "E. WANHG S SHOT DT 18.12": ("18:12", 0.8),
+            "-. TOEWS ON E. WANHG 19·43 1 2nd Perind HIT": ("19:43", 0.8),
+            ". MARTEL ON J. WAGNER S SHOT 8.12 1 2nd Perind": ("8:12", 0.8),
+            "C. YOSEFF ON P. BEAV H 2.59 HIT | 3rd Perind": ("2:59", 0.8),
+            "C. YOSEFF ON V. GREYJOY HT 7.24 I Tet Periar": ("7:24", 0.8),
+            # B->8 (one digit kind), trailing "10T" is an OT suffix, NOT glued noise.
+            ". SILKY ON M. LEHMANN S SHOT B:4910T": ("8:49", 0.8),
+        }
+        for detail, expected in cases.items():
+            with self.subTest(detail=detail):
+                self.assertEqual(rat.recover_clock(detail), expected)
+
+    def test_glued_trailing_digit_degrades_below_floor(self):
+        # "9:0D1": D->0 gives 9:00, but the trailing bare digit "1" (no OT marker)
+        # signals a mis-segmented SS -> forced to 0.6 (below the 0.66 exact-key floor).
+        self.assertEqual(
+            rat.recover_clock("M. RANTANEN ON -. WILDE HIT 9:0D1 2nd Period"),
+            ("9:00", 0.6),
+        )
+
+    def test_unrecoverable_returns_none(self):
+        for detail in [
+            "L. STINKKPIT ON -. SILKY H 69:0 3rd Period HIT",   # MM=69 > 20 (and SS<2)
+            ". MARTEL ON V. GREYJOY H HIT LU·UL 3rd Perind",  # no clock-ish token
+            "U. MAILMAN ON H. JENKINS H 2nd Period HIT",        # no clock token at all
+            "",
+            None,
+        ]:
+            with self.subTest(detail=detail):
+                self.assertEqual(rat.recover_clock(detail), (None, 0.0))
+
+    def test_validation_bounds(self):
+        self.assertEqual(rat.recover_clock("GOAL 20:00")[0], "20:00")   # puck drop is valid
+        self.assertIsNone(rat.recover_clock("GOAL 20:01")[0])           # 20:xx>00 impossible
+        self.assertEqual(rat.recover_clock("GOAL 19:59")[0], "19:59")
+        self.assertIsNone(rat.recover_clock("GOAL 21:00")[0])
+        self.assertIsNone(rat.recover_clock("GOAL 17:71")[0])           # SS>59
+
+    def test_clean_read_is_full_confidence(self):
+        # A legible MM:SS the AT regex only missed due to surrounding noise.
+        self.assertEqual(rat.recover_clock("HIT 5:00 garble"), ("5:00", 1.0))
+
+    def test_actor_initials_not_mistaken_for_clock(self):
+        # A "D." initial is not a clock token; only the real 5:00 is recovered,
+        # and actor text is never mutated (the fn returns only the clock string).
+        self.assertEqual(rat.recover_clock("D. WANGER SHOT 5:00"), ("5:00", 1.0))
+
+
+class PermissivePeriodRecoveryTests(unittest.TestCase):
+    """recover_period is the FALLBACK for orphans whose period parse failed
+    (period < 1) but whose "Nth Period" survives (often garbled) in event_detail.
+    Conservative: needs an ordinal digit + a PERIOD-like token."""
+
+    def test_recovers_regulation_periods(self):
+        cases = {
+            "P. MAGROYNE ON J. WAGNER S SHOT D:33 | 3rd Period": 3,
+            "M. RANTANEN ON -. WILDE HIT 9:0D1 2nd Period": 2,
+            "-. TOEWS ON E. WANHG 19·43 1 2nd Perind HIT": 2,     # garbled PERIND
+            "V. GREYJOY ON -. FELLA 7.52 1ct Perind HIT": 1,      # garbled 1ST + PERIND
+            "S. ZUBOV S SHOT 1st Period": 1,
+            # Period is recoverable even when the clock is not:
+            "U. MAILMAN ON H. JENKINS H 2nd Period HIT": 2,
+        }
+        for detail, expected in cases.items():
+            with self.subTest(detail=detail):
+                self.assertEqual(rat.recover_period(detail), expected)
+
+    def test_recovers_overtime(self):
+        self.assertEqual(rat.recover_period("SILKY S SHOT Overtime"), 4)
+        self.assertEqual(rat.recover_period("SILKY S SHOT Overtime2"), 5)  # OT2
+        self.assertEqual(rat.recover_period("SILKY S SHOT Overtime3"), 6)  # OT3 (no SO)
+
+    def test_unrecoverable_returns_none(self):
+        for detail in [
+            "C. YOSEFF ON V. GREYJOY HT 7.24 I Tet Periar",  # no ordinal digit cue
+            "S. ZUBOV S SHOT 5:00 garble",                   # no period token
+            "",
+            None,
+        ]:
+            with self.subTest(detail=detail):
+                self.assertIsNone(rat.recover_period(detail))
 
 
 # ─── canonical event union ─────────────────────────────────────────────────
@@ -593,6 +691,24 @@ class OrphanCardTests(unittest.TestCase):
         self.assertEqual(len(cards), 1)
         self.assertIn("multiplicity", err.getvalue().lower())
 
+    def test_garbled_period_orphan_now_admitted(self):
+        # WS4 Stage 3: an orphan whose OCR period parse failed (period=-1) but
+        # whose "3rd Period" survives in event_detail is now ADMITTED at period 3
+        # (was silently dropped by the period<1 filter).
+        ext = _frame(7, 3, [_orphan_event(
+            "shot", "MAGROYNE", -1, target="WAGNER",
+            detail="P. MAGROYNE ON J. WAGNER S SHOT D:33 | 3rd Period")], None, [])
+        cards = self._cards([ext])
+        self.assertEqual(len(cards), 1)
+        self.assertEqual(cards[0]["period_number"], 3)
+        self.assertEqual(cards[0]["period_label"], "3")
+
+    def test_garbled_period_unrecoverable_still_skipped(self):
+        # period<1 AND no recoverable period token → still dropped (no anchor).
+        ext = _frame(7, 3, [_orphan_event(
+            "shot", "MAGROYNE", -1, detail="MAGROYNE S SHOT D:33")], None, [])
+        self.assertEqual(self._cards([ext]), [])
+
 
 class OrphanPanelIndexTests(unittest.TestCase):
     """build_orphan_panel_index (WS4 Stage 2b) — actor↔frame co-occurrence."""
@@ -615,6 +731,37 @@ class OrphanPanelIndexTests(unittest.TestCase):
         self.assertIn((2, "shot", "rantanen", ""), idx)
         self.assertNotIn((3, "shot", "rantanen", ""), idx)
 
+    def test_panel_index_uses_recovered_period(self):
+        # WS4 Stage 3: a period<1 orphan whose period recovers from event_detail
+        # must key the index under the RECOVERED period, or it diverges from the
+        # card key and binding silently loses it (review Finding 1 alignment).
+        frame = _frame(7, 3, [_orphan_event(
+            "shot", "MAGROYNE", -1, target="WAGNER",
+            detail="MAGROYNE ON WAGNER S SHOT D:33 | 3rd Period")], None, [])
+        idx = rat.build_orphan_panel_index([frame])
+        self.assertIn((3, "shot", "magroyne", "wagner"), idx)
+
+
+class OrphanClockObsTests(unittest.TestCase):
+    """build_orphan_clock_obs (WS4 Stage 3) — per-frame recovered-clock evidence."""
+
+    def test_collects_recovered_clock_per_frame(self):
+        frames = [
+            _frame(7, 2, [_orphan_event("shot", "MAGROYNE", 3, target="WAGNER",
+                          detail="MAGROYNE ON WAGNER S SHOT D:33 | 3rd Period")], None, []),
+            _frame(9, 2, [_orphan_event("shot", "MAGROYNE", 3, target="WAGNER",
+                          detail="MAGROYNE ON WAGNER S SHOT D:33 | 3rd Period")], None, []),
+        ]
+        obs = rat.build_orphan_clock_obs(frames)
+        key = (3, "shot", "magroyne", "wagner")
+        self.assertEqual(
+            sorted(obs[key]), [(7, "0:33", 0.8), (9, "0:33", 0.8)])
+
+    def test_unrecoverable_clock_absent_from_obs(self):
+        frame = _frame(7, 2, [_orphan_event("hit", "MARTEL", 3,
+                       detail="MARTEL H HIT LU·UL 3rd Perind")], None, [])
+        self.assertEqual(rat.build_orphan_clock_obs([frame]), {})
+
 
 class OrphanBindingTests(unittest.TestCase):
     """bind_orphan_cards (WS4 Stage 2b) — attach positions + split multiplicity."""
@@ -623,10 +770,11 @@ class OrphanBindingTests(unittest.TestCase):
         with redirect_stderr(io.StringIO()):
             cards = rat.build_orphan_cards(frames)
             idx = rat.build_orphan_panel_index(frames)
+            obs = rat.build_orphan_clock_obs(frames)
             clusters = rat.build_period_clusters(frames)
             results = [rat.reconcile_period(p, clusters.get(p, []), [])
                        for p in (periods if periods is not None else clusters)]
-            return rat.bind_orphan_cards(cards, idx, results)
+            return rat.bind_orphan_cards(cards, idx, results, obs)
 
     def test_single_orphan_binds_to_cluster_position(self):
         # The real match-250 case: a 115-frame orphan shot marker at ~(36.5,36.2)
@@ -731,6 +879,63 @@ class OrphanBindingTests(unittest.TestCase):
             for i in range(1, 30)
         ]
         self.assertEqual(self._bind(frames), self._bind(frames))
+
+    def test_unpositioned_card_carries_recovered_clock(self):
+        # WS4 Stage 3: a single-occurrence orphan with one recovered clock across
+        # its frames carries that clock on the emitted (unpositioned) card.
+        frames = [
+            _frame(i, 2, [_orphan_event("shot", "MAGROYNE", 3, target="WAGNER",
+                          detail="MAGROYNE ON WAGNER S SHOT D:33 | 3rd Period")], None, [])
+            for i in range(1, 5)
+        ]
+        bound = self._bind(frames)
+        self.assertEqual(len(bound), 1)
+        self.assertEqual(bound[0]["recovered_clock"], "0:33")
+        self.assertEqual(bound[0]["recovered_clock_confidence"], 0.8)
+
+    def test_unrecoverable_clock_card_is_null(self):
+        frames = [_frame(7, 2, [_orphan_event("hit", "MARTEL", 3,
+                  detail="MARTEL H HIT LU·UL 3rd Perind")], None, [])]
+        bound = self._bind(frames)
+        self.assertEqual(len(bound), 1)
+        self.assertIsNone(bound[0]["recovered_clock"])
+        self.assertEqual(bound[0]["recovered_clock_confidence"], 0.0)
+
+    def test_fanout_splits_clock_per_cluster(self):
+        # One identity, two physical events at distinct positions in distinct
+        # frames, each frame carrying its OWN recovered clock. The split children
+        # must each get the clock from THEIR cluster's frames — not a shared one
+        # (review Finding 1).
+        frames = []
+        for i in range(1, 6):   # cluster A @ (36.5,36.2), clock 5:00
+            frames.append(_frame(i, 2, [_orphan_event(
+                "shot", "RANTANEN", 2, detail="RANTANEN S SHOT 5:00 2nd Period")], None,
+                [_marker("red", "shot", 36.5, 36.2, 1200, 500)]))
+        for i in range(6, 11):  # cluster B @ (-40,-10), clock 7:30
+            frames.append(_frame(i, 2, [_orphan_event(
+                "shot", "RANTANEN", 2, detail="RANTANEN S SHOT 7:30 2nd Period")], None,
+                [_marker("red", "shot", -40.0, -10.0, 400, 300)]))
+        bound = self._bind(frames)
+        self.assertEqual(len(bound), 2)
+        by_clock = {c["recovered_clock"]: c for c in bound}
+        self.assertAlmostEqual(by_clock["5:00"]["x"], 36.5, places=1)
+        self.assertAlmostEqual(by_clock["7:30"]["x"], -40.0, places=1)
+
+    def test_fanout_conflicting_clock_is_null(self):
+        # Two distinct recovered clocks bound to the SAME cluster (same position)
+        # → cannot decide which belongs → clock-null (never guess).
+        frames = [
+            _frame(1, 2, [_orphan_event("shot", "RANTANEN", 2,
+                   detail="RANTANEN S SHOT 5:00 2nd Period")], None,
+                   [_marker("red", "shot", 36.5, 36.2, 1200, 500)]),
+            _frame(2, 2, [_orphan_event("shot", "RANTANEN", 2,
+                   detail="RANTANEN S SHOT 7:30 2nd Period")], None,
+                   [_marker("red", "shot", 36.5, 36.2, 1200, 500)]),
+        ]
+        bound = self._bind(frames)
+        self.assertEqual(len(bound), 1)
+        self.assertEqual(bound[0]["bind_method"], "co_occurrence")
+        self.assertIsNone(bound[0]["recovered_clock"])
 
 
 if __name__ == "__main__":
