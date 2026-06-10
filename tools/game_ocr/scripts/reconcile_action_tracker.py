@@ -143,6 +143,121 @@ def normalize_actor(raw: str | None) -> str:
     return re.sub(r"[^a-z0-9]", "", raw.lower())
 
 
+# ─── permissive clock recovery (WS4 Stage 3 Tier 1) ────────────────────────
+
+# Clock-context character confusions, applied ONLY within a candidate MM:SS
+# token (never globally — must not corrupt actor text). Table-driven so the unit
+# tests pin every rewrite.
+_CLOCK_CHAR_FIX = {"D": "0", "O": "0", "B": "8", "I": "1", "l": "1"}
+# A candidate clock token: 1-2 clock-ish chars, a separator OCR confuses with
+# ':' (colon, period, middle-dot), then EXACTLY 2 clock-ish chars. SS is capped
+# at 2 so a trailing OT suffix ("10T" in "B:4910T") cannot be swallowed into the
+# seconds. No internal whitespace — real garbled clocks have none.
+_RECOVER_CLOCK_RE = re.compile(r"([0-9DOBIl]{1,2})([:.·])([0-9DOBIl]{2})")
+# A trailing overtime marker glued to the clock ("10T", "0T", "OT"): a period
+# suffix, NOT seconds noise — so it must not trigger the glued-digit degrade. The
+# `T` must end the marker (not be followed by another letter), else a glued
+# seconds digit + a T-initial name (e.g. "1Tom") would wrongly skip the degrade.
+_OT_SUFFIX_RE = re.compile(r"^[0-9]{0,2}[Oo]?[Tt](?![A-Za-z])")
+_CLOCK_ISH = set("0123456789DOBIl")
+
+
+def _fix_clock_group(group: str) -> tuple[str, bool]:
+    """Apply clock-char confusions to one MM/SS group → (fixed, substituted?)."""
+    out = []
+    substituted = False
+    for ch in group:
+        repl = _CLOCK_CHAR_FIX.get(ch, ch)
+        if repl != ch:
+            substituted = True
+        out.append(repl)
+    return "".join(out), substituted
+
+
+def recover_clock(event_detail: str | None) -> tuple[str | None, float]:
+    """Re-parse a garbled clock from an orphan's event_detail (WS4 Stage 3 Tier
+    1). Returns (clock | None, confidence).
+
+    The live AT clock regex discards the digits when OCR garbles them, but the
+    full Row-B line survives in event_detail, so we re-extract here. Confidence
+    counts distinct transform KINDS: a clean ':' read the AT regex only missed =
+    1.0; one kind (separator OR digit confusion) = 0.8; two kinds OR a bare
+    clock-ish digit glued to the token (a mis-segmentation signal) = 0.6. Clocks
+    are emitted UN-zero-padded to match the live promoter's verbatim stored form
+    (so the exact-key dedup can hit them). (None, 0.0) when nothing validates.
+    """
+    if not event_detail:
+        return (None, 0.0)
+    for m in _RECOVER_CLOCK_RE.finditer(event_detail):
+        # A token glued to the right of a LETTER is part of a word/gamertag
+        # (e.g. "PLAYER7:30"), not the clock field — skip it so a real clock
+        # later in the line can win instead of persisting a false one (finding #1).
+        # Real AT clocks are preceded by whitespace or a non-letter.
+        if m.start() > 0 and event_detail[m.start() - 1].isalpha():
+            continue
+        mm, mm_sub = _fix_clock_group(m.group(1))
+        ss, ss_sub = _fix_clock_group(m.group(3))
+        if not (mm.isdigit() and ss.isdigit()):
+            continue
+        minutes, seconds = int(mm), int(ss)
+        # A period is exactly 20:00 long, counting down: 20:00 is valid (puck
+        # drop), 20:01-20:59 are impossible. Cannot reuse _CLOCK_PATTERN — it
+        # rejects 20:00.
+        valid = (0 <= minutes <= 19 and 0 <= seconds <= 59) or (
+            minutes == 20 and seconds == 0
+        )
+        if not valid:
+            continue
+        kinds = set()
+        if m.group(2) != ":":
+            kinds.add("sep")
+        if mm_sub or ss_sub:
+            kinds.add("digit")
+        # Bare clock-ish char glued to either edge of the token → mis-segmented
+        # SS/MM, downgrade. A trailing OT suffix ("10T") is a period marker, not
+        # noise, so it is exempt.
+        glued = m.start() > 0 and event_detail[m.start() - 1] in _CLOCK_ISH
+        tail = event_detail[m.end():]
+        if tail and tail[0] in _CLOCK_ISH and not _OT_SUFFIX_RE.match(tail):
+            glued = True
+        if not kinds and not glued:
+            conf = 1.0
+        elif len(kinds) == 1 and not glued:
+            conf = 0.8
+        else:
+            conf = 0.6
+        return (f"{minutes}:{ss}", conf)
+    return (None, 0.0)
+
+
+# An ordinal digit (1/2/3) + a REQUIRED ordinal suffix + a PERIOD-like token. The
+# leading digit IS the period number. Requiring the suffix (ST/ND/RD + garbled
+# variants) rejects a bare digit glued to PERIOD (a jersey/score number, which has
+# no ordinal suffix), and requiring "PERI" (not any "PER*") rejects words like
+# "PERSON" — both review finding #3. Tolerates "PERIND"/"PERIAR" via the tail.
+_RECOVER_PERIOD_RE = re.compile(r"([123])(?:ST|ND|RD|CT|TH|RO|NO|ET)PERI[A-Z0-9]{0,3}")
+# Overtime → 4/5/6 (EASHL has no shootout; period 6 = OT3, never SO).
+_RECOVER_OT_RE = re.compile(r"OVERTIME([23])?")
+
+
+def recover_period(event_detail: str | None) -> int | None:
+    """Recover 1/2/3 (or OT → 4/5/6) from a garbled "Nth Period" token in
+    event_detail (WS4 Stage 3 Tier 1). The FALLBACK for orphans whose period
+    parse failed yet whose period label survives in the detail line. Conservative:
+    requires an ordinal digit + a PERIOD-like token (or the word 'OVERTIME').
+    Returns None when neither is present."""
+    if not event_detail:
+        return None
+    cleaned = re.sub(r"[^A-Za-z0-9]", "", event_detail).upper()
+    ot = _RECOVER_OT_RE.search(cleaned)
+    if ot:
+        return 4 + (int(ot.group(1)) - 1 if ot.group(1) else 0)
+    m = _RECOVER_PERIOD_RE.search(cleaned)
+    if m:
+        return int(m.group(1))
+    return None
+
+
 def _edit_distance_le1(a: str, b: str) -> bool:
     """True if `a` and `b` are within edit distance 1 (sub/insert/delete).
     Used to collapse OCR letter-variant actors (e.g. WILDE vs WILOE), mirroring
@@ -284,6 +399,63 @@ def build_canonical_events(extractions: list[dict]) -> dict[int, list[dict]]:
 
 # ─── orphan identity recovery (WS4 Stage 2a) ───────────────────────────────
 
+_PLOTTABLE = {"shot", "hit", "goal", "penalty"}
+
+
+def _orphan_identity(e: dict) -> dict | None:
+    """Shared per-event orphan extraction for ALL Stage-2a/2b/3 producer loops
+    (build_orphan_cards, build_orphan_panel_index, build_orphan_clock_obs).
+
+    Returns the identity key + recovered period/clock, or None to skip. Funnelling
+    every loop through this one function guarantees they agree byte-for-byte on the
+    key — critically on the WS4-Stage-3 RECOVERED period, since a divergence would
+    desync the card key from the panel index and binding would silently lose the
+    card (review Finding 1 alignment risk).
+    """
+    et = e.get("event_type")
+    if et not in _PLOTTABLE:  # skips 'unknown', 'faceoff', None
+        return None
+    clock_field = e.get("clock") or {}
+    if not (isinstance(clock_field, dict) and clock_field.get("status") == "missing"):
+        return None  # only garbled-clock orphans; readable clocks are the promoter's job
+    actor = field_value(e.get("actor_snapshot"))
+    if not actor:
+        return None  # no identity anchor
+    detail = field_value(e.get("raw_text"))
+    period = e.get("period_number")
+    if isinstance(period, int) and period >= 1:
+        period_label = e.get("period_label") or str(period)
+    else:
+        # WS4 Stage 3: OCR period parse failed; recover it from the detail line
+        # ("Nth Period", often garbled) before admitting the orphan.
+        period = recover_period(detail)
+        if period is None:
+            return None
+        period_label = str(period)
+    target = field_value(e.get("target_snapshot"))
+    rec_clock, rec_conf = recover_clock(detail)
+    return {
+        "key": (period, et, normalize_actor(actor), normalize_actor(target)),
+        "period_number": period,
+        "period_label": period_label,
+        "event_type": et,
+        "actor_snapshot": actor,
+        "target_snapshot": target,
+        "event_detail": detail,
+        "recovered_clock": rec_clock,
+        "recovered_clock_confidence": rec_conf,
+    }
+
+
+def _pick_clock(observations: list[tuple]) -> tuple[str | None, float]:
+    """From [(capture_id, clock, conf), …] pick the single agreed clock, or
+    (None, 0.0) when there is zero or CONFLICTING evidence — never guess. Used to
+    assign a clock to a positioned child from only its own cluster's frames."""
+    distinct = {clk for _cid, clk, _c in observations}
+    if len(distinct) != 1:
+        return (None, 0.0)
+    return (next(iter(distinct)), max(c for _cid, _clk, c in observations))
+
 
 def build_orphan_cards(extractions: list[dict]) -> list[dict]:
     """Recover the identities of garbled-clock AT events the live promoter
@@ -305,7 +477,6 @@ def build_orphan_cards(extractions: list[dict]) -> list[dict]:
     on stderr when we detect that (so the dropped event is observable, not
     silent) and still emit the single representative.
     """
-    plottable = {"shot", "hit", "goal", "penalty"}
     best: dict[tuple, dict] = {}          # identity key -> representative card (+ _conf)
     max_per_frame: dict[tuple, int] = {}  # identity key -> max count in any single frame
     for row in extractions:
@@ -313,31 +484,24 @@ def build_orphan_cards(extractions: list[dict]) -> list[dict]:
         ext_id = row.get("id", 0)
         frame_counts: dict[tuple, int] = {}
         for e in raw.get("events", []) or []:
-            et = e.get("event_type")
-            if et not in plottable:  # skips 'unknown', 'faceoff', None
+            ident = _orphan_identity(e)
+            if ident is None:
                 continue
-            clock_field = e.get("clock") or {}
-            if not (isinstance(clock_field, dict) and clock_field.get("status") == "missing"):
-                continue  # only garbled-clock orphans; readable clocks are the promoter's job
-            actor = field_value(e.get("actor_snapshot"))
-            if not actor:
-                continue  # no identity anchor
-            period = e.get("period_number")
-            if not isinstance(period, int) or period < 1:
-                continue
-            target = field_value(e.get("target_snapshot"))
-            key = (period, et, normalize_actor(actor), normalize_actor(target))
+            key = ident["key"]
             frame_counts[key] = frame_counts.get(key, 0) + 1
+            # Representative is the highest ACTOR-confidence frame (identity quality
+            # must not be traded for a cleaner clock — review Finding 2). The clock
+            # is assigned later, per child, in bind_orphan_cards.
             conf = _field_confidence(e.get("actor_snapshot"))
             prev = best.get(key)
             if prev is None or conf > prev["_conf"]:
                 best[key] = {
-                    "period_number": period,
-                    "period_label": e.get("period_label") or str(period),
-                    "event_type": et,
-                    "actor_snapshot": actor,
-                    "target_snapshot": target,
-                    "event_detail": field_value(e.get("raw_text")),
+                    "period_number": ident["period_number"],
+                    "period_label": ident["period_label"],
+                    "event_type": ident["event_type"],
+                    "actor_snapshot": ident["actor_snapshot"],
+                    "target_snapshot": ident["target_snapshot"],
+                    "event_detail": ident["event_detail"],
                     "ocr_extraction_id": ext_id,
                     "_conf": conf,
                 }
@@ -374,35 +538,55 @@ def build_orphan_panel_index(
     capture_ids — a clock-free, frame-exact analogue of `pair_weight`'s actor
     term, immune to period-bucket mismatch.
     """
-    plottable = {"shot", "hit", "goal", "penalty"}
     index: dict[tuple, set[int]] = {}
     for row in extractions:
         raw = row.get("raw_result_json", {}) or {}
         ext_id = row.get("id", 0)
         for e in raw.get("events", []) or []:
-            et = e.get("event_type")
-            if et not in plottable:
+            ident = _orphan_identity(e)
+            if ident is None:
                 continue
-            clock_field = e.get("clock") or {}
-            if not (isinstance(clock_field, dict) and clock_field.get("status") == "missing"):
-                continue
-            actor = field_value(e.get("actor_snapshot"))
-            if not actor:
-                continue
-            period = e.get("period_number")
-            if not isinstance(period, int) or period < 1:
-                continue
-            target = field_value(e.get("target_snapshot"))
-            key = (period, et, normalize_actor(actor), normalize_actor(target))
-            index.setdefault(key, set()).add(ext_id)
+            index.setdefault(ident["key"], set()).add(ext_id)
     return index
 
 
-def _emit_orphan_card(card: dict, cluster: "Cluster | None") -> dict:
+def build_orphan_clock_obs(extractions: list[dict]) -> dict[tuple, list[tuple]]:
+    """Per-frame recovered-clock evidence per orphan identity (WS4 Stage 3).
+
+    Keyed identically to `build_orphan_panel_index` (via `_orphan_identity`); the
+    value is a list of `(capture_id, recovered_clock, confidence)` for frames where
+    a clock recovered. `bind_orphan_cards` assigns a clock to each positioned child
+    from only the observations whose capture_id falls in that child's cluster — the
+    same frame-exact intersection binding uses — so a multiplicity split gives each
+    child its OWN cluster-frame-local clock, never a shared one (review Finding 1).
+    """
+    obs: dict[tuple, list[tuple]] = {}
+    for row in extractions:
+        raw = row.get("raw_result_json", {}) or {}
+        ext_id = row.get("id", 0)
+        for e in raw.get("events", []) or []:
+            ident = _orphan_identity(e)
+            if ident is None or ident["recovered_clock"] is None:
+                continue
+            obs.setdefault(ident["key"], []).append(
+                (ext_id, ident["recovered_clock"], ident["recovered_clock_confidence"])
+            )
+    return obs
+
+
+def _emit_orphan_card(
+    card: dict,
+    cluster: "Cluster | None",
+    recovered_clock: str | None = None,
+    recovered_clock_confidence: float = 0.0,
+) -> dict:
     """A pre-binding identity card → an output card carrying a position (when a
-    cluster bound) or the unpositioned fallback. The original identity fields
-    are preserved verbatim so the TS resolver sees a uniform shape."""
+    cluster bound) or the unpositioned fallback, plus the per-child recovered clock
+    (WS4 Stage 3). The original identity fields are preserved verbatim so the TS
+    resolver sees a uniform shape."""
     out = {k: v for k, v in card.items()}
+    out["recovered_clock"] = recovered_clock
+    out["recovered_clock_confidence"] = recovered_clock_confidence
     if cluster is None:
         out.update(x=None, y=None, rink_zone=None,
                    bind_method="none", cluster_color_side=None)
@@ -417,6 +601,7 @@ def bind_orphan_cards(
     cards: list[dict],
     panel_index: dict[tuple, set[int]],
     recon_results: list,
+    clock_obs: dict[tuple, list[tuple]] | None = None,
 ) -> list[dict]:
     """Attach rink positions to orphan identity cards by binding each to its
     marker cluster, and split same-identity multiplicities into N positioned
@@ -469,14 +654,28 @@ def bind_orphan_cards(
         consumed.add(kj)
         won.setdefault(ci, []).append(kj)
 
+    clock_obs = clock_obs or {}
     out: list[dict] = []
     for ci, card in enumerate(cards):
+        key = (
+            card["period_number"], card["event_type"],
+            normalize_actor(card["actor_snapshot"]),
+            normalize_actor(card.get("target_snapshot")),
+        )
+        obs = clock_obs.get(key, [])
         clusters_won = won.get(ci, [])
         if not clusters_won:
-            out.append(_emit_orphan_card(card, None))
+            # Unpositioned pass-through: clock from ALL the identity's frames.
+            clk, conf = _pick_clock(obs)
+            out.append(_emit_orphan_card(card, None, clk, conf))
             continue
         for kj in clusters_won:
-            out.append(_emit_orphan_card(card, eligible[kj][0]))
+            # Positioned child: clock from ONLY this cluster's frames, so distinct
+            # same-identity events get distinct clocks (review Finding 1).
+            cap_ids = eligible[kj][2]
+            child_obs = [o for o in obs if o[0] in cap_ids]
+            clk, conf = _pick_clock(child_obs)
+            out.append(_emit_orphan_card(card, eligible[kj][0], clk, conf))
     return out
 
 
@@ -891,6 +1090,7 @@ def main() -> int:
             build_orphan_cards(extractions),
             build_orphan_panel_index(extractions),
             results,
+            build_orphan_clock_obs(extractions),
         )
         print(json.dumps({
             "match_id": args.match_id,

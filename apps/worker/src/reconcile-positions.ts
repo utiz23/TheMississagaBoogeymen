@@ -41,8 +41,15 @@ import {
 import { liveRunFilter } from '@eanhl/db/queries'
 import { and, eq, inArray, isNull, sql, type SQL } from 'drizzle-orm'
 import type { DbOrTx, PromoterDb } from './ocr-promoters/index.js'
-import { findExistingMatchEventClockless } from './ocr-promoters/match-events-dedup.js'
-import { deriveTeamSide, normalizeSnapshot, resolveActorForMatch } from './ocr-promoters/resolve-identity.js'
+import {
+  findExistingMatchEvent,
+  findExistingMatchEventClockless,
+} from './ocr-promoters/match-events-dedup.js'
+import {
+  deriveTeamSide,
+  normalizeSnapshot,
+  resolveActorForMatch,
+} from './ocr-promoters/resolve-identity.js'
 
 const REPO_ROOT = resolve(import.meta.dirname, '..', '..', '..')
 const GAME_OCR_DIR = join(REPO_ROOT, 'tools', 'game_ocr')
@@ -50,6 +57,16 @@ const RECONCILE_SCRIPT = join('scripts', 'reconcile_action_tracker.py')
 
 /** Event types the positioning pass plots (mirrors the Python tool's filter). */
 const PLOTTABLE_EVENT_TYPES = ['shot', 'hit', 'goal', 'penalty'] as const
+
+/**
+ * WS4 Stage 3: a recovered clock is trusted enough to take the EXACT dedup key
+ * (and to be persisted) only at/above this confidence. Below it, the clock is
+ * never written and dedup stays on the clock-independent key — a low-confidence
+ * guess must never enter canonical-adjacent data nor route an exact-key hit.
+ * 0.66 admits the producer's 1.0 (clean) and 0.8 (single-transform) tiers while
+ * excluding 0.6 (two-transform / glued-digit) reads.
+ */
+const OCR_RECOVERED_CLOCK_CONFIDENCE_FLOOR = 0.66
 
 /** One position proposal emitted by the Python tool under `--json`. */
 export interface ReconcileProposal {
@@ -63,13 +80,15 @@ export interface ReconcileProposal {
 }
 
 /**
- * One identity-recovery INSERT proposal (post-resolution). A null-clock orphan
- * card whose event row was never promoted (the live promoter drops null-clock
- * cards). `clock` is intentionally absent — recovered orphans are clock-null by
- * definition; dedup happens via the clock-independent key. `target_*` and
- * `ocr_extraction_id` are consumed both by the INSERT and by the dedup-hit
- * refresh (which mirrors the live promoter's hit branch). Built in TS from a
- * `RawOrphanCard` via `resolveOrphanCard` (player ids + team_side resolved
+ * One identity-recovery INSERT proposal (post-resolution). An orphan card whose
+ * event row was never promoted (the live promoter drops garbled-clock cards).
+ * WS4 Stage 3: `clock` carries the clock RECOVERED from event_detail (or null
+ * when unrecoverable), with `clock_confidence` (0-1). A confident clock
+ * (>= floor) lets `applyIdentityProposals` dedup via the EXACT key first; below
+ * floor or null falls back to the clock-independent key (Stage 1/2 behavior).
+ * `target_*` and `ocr_extraction_id` are consumed both by the INSERT and by the
+ * dedup-hit refresh (which mirrors the live promoter's hit branch). Built in TS
+ * from a `RawOrphanCard` via `resolveOrphanCard` (player ids + team_side resolved
  * here, not in Python — raw AT data carries no team signal).
  */
 export interface IdentityProposal {
@@ -83,6 +102,10 @@ export interface IdentityProposal {
   target_player_id: number | null
   event_detail: string | null
   ocr_extraction_id: number
+  /** Clock recovered from event_detail (WS4 Stage 3), or null when unrecoverable. */
+  clock: string | null
+  /** Confidence (0-1) of `clock`; >= floor admits it to the exact dedup key. */
+  clock_confidence: number
   /**
    * Recovered rink position (WS4 Stage 2b), or null when the producer could not
    * bind the orphan to a marker cluster. When set, the INSERT lands the row
@@ -118,6 +141,15 @@ export interface RawOrphanCard {
   x?: number | null
   y?: number | null
   rink_zone?: string | null
+  /**
+   * Clock recovered from event_detail by the Stage-3 producer (per child, after
+   * the multiplicity split), or null when unrecoverable. OPTIONAL on the wire so
+   * a pre-Stage-3 producer (which omits it) still parses; `resolveOrphanCard`
+   * defaults it to null.
+   */
+  recovered_clock?: string | null
+  /** Confidence (0-1) of `recovered_clock`; defaults to 0 when absent. */
+  recovered_clock_confidence?: number
   /** 'co_occurrence' when a cluster bound, else 'none'. Diagnostic only. */
   bind_method?: string
   /**
@@ -329,6 +361,8 @@ export async function resolveOrphanCard(
     target_player_id: targetPlayerId,
     event_detail: card.event_detail,
     ocr_extraction_id: card.ocr_extraction_id,
+    clock: card.recovered_clock ?? null,
+    clock_confidence: card.recovered_clock_confidence ?? 0,
     x: card.x ?? null,
     y: card.y ?? null,
     rink_zone: card.rink_zone ?? null,
@@ -351,7 +385,13 @@ export async function applyIdentityProposals(
   matchId: number,
 ): Promise<ApplyIdentityResult> {
   if (proposals.length === 0) {
-    return { inserted: 0, insertedPositioned: 0, dedupRefreshed: 0, ambiguous: 0, skippedInvalid: 0 }
+    return {
+      inserted: 0,
+      insertedPositioned: 0,
+      dedupRefreshed: 0,
+      ambiguous: 0,
+      skippedInvalid: 0,
+    }
   }
 
   return db.transaction(async (tx) => {
@@ -374,24 +414,59 @@ export async function applyIdentityProposals(
         continue
       }
 
-      const res = await findExistingMatchEventClockless(tx, {
-        matchId,
-        periodNumber: p.period_number,
-        eventType: p.event_type,
-        teamSide: p.team_side,
-        actorPlayerId: p.actor_player_id,
-        actorSnapshot: p.actor_snapshot,
-        // WS4 Stage 2b: position is part of the effective identity when present,
-        // so two distinct same-identity orphans at different spots both insert.
-        x: p.x,
-        y: p.y,
-      })
+      // WS4 Stage 3: a confidently-recovered clock is the live promoter's own
+      // identity signal, so try the EXACT key first (matchId, period, type, clock,
+      // actor). This turns today's clock-null ambiguous-skips into clean hits when
+      // a same-clock row already exists. A miss falls through to the clock-
+      // independent key (unchanged Stage 1/2 safety); below-floor/null clocks skip
+      // the exact key entirely.
+      // The recovered clock, narrowed to non-null only when it clears the floor;
+      // below-floor/null collapses to null so it is neither keyed nor persisted.
+      const recoveredClock =
+        p.clock !== null && p.clock_confidence >= OCR_RECOVERED_CLOCK_CONFIDENCE_FLOOR
+          ? p.clock
+          : null
+      let hitId: number | null = null
+      if (recoveredClock !== null) {
+        hitId = await findExistingMatchEvent(tx, {
+          matchId,
+          periodNumber: p.period_number,
+          eventType: p.event_type,
+          clock: recoveredClock,
+          actorPlayerId: p.actor_player_id,
+          actorSnapshot: p.actor_snapshot,
+        })
+      }
+
+      if (hitId === null) {
+        const res = await findExistingMatchEventClockless(tx, {
+          matchId,
+          periodNumber: p.period_number,
+          eventType: p.event_type,
+          teamSide: p.team_side,
+          actorPlayerId: p.actor_player_id,
+          actorSnapshot: p.actor_snapshot,
+          // WS4 Stage 2b: position is part of the effective identity when present,
+          // so two distinct same-identity orphans at different spots both insert.
+          x: p.x,
+          y: p.y,
+        })
+        // Ambiguous → never guess. Report only, no write.
+        if (res.kind === 'ambiguous') {
+          console.warn(
+            `[reconcile][identity] ambiguous — ${String(res.candidateIds.length)} candidates, skipping (no write) match=${String(matchId)} period=${String(p.period_number)} type=${p.event_type} side=${p.team_side} actor=${p.actor_snapshot} candidates=[${res.candidateIds.join(',')}]`,
+          )
+          ambiguous++
+          continue
+        }
+        if (res.kind === 'hit') hitId = res.id
+      }
 
       // 2a. Dedup hit → REFRESH, mirroring the promoter's hit branch
       // (action-tracker.ts:161-176): backfill ocr_extraction_id + target_* and
       // nothing else. team_side / spatial / position_confidence are owned by
       // other passes and are never touched here.
-      if (res.kind === 'hit') {
+      if (hitId !== null) {
         await tx
           .update(matchEvents)
           .set({
@@ -399,7 +474,7 @@ export async function applyIdentityProposals(
             ...(p.target_player_id !== null ? { targetPlayerId: p.target_player_id } : {}),
             ...(p.target_snapshot !== null ? { targetGamertagSnapshot: p.target_snapshot } : {}),
           })
-          .where(eq(matchEvents.id, res.id))
+          .where(eq(matchEvents.id, hitId))
         // WS4 Stage 2b: if this positioned card hit an UNPOSITIONED existing row,
         // backfill the recovered position (self-heals a pre-2b orphan recovered
         // without one). Separate guarded UPDATE so a positioned/manual row is
@@ -415,27 +490,30 @@ export async function applyIdentityProposals(
             })
             .where(
               and(
-                eq(matchEvents.id, res.id),
+                eq(matchEvents.id, hitId),
                 isNull(matchEvents.x),
                 sql`${matchEvents.positionConfidence} IS DISTINCT FROM 'manual'`,
               ),
             )
         }
+        // WS4 Stage 3: backfill a confident recovered clock onto a CLOCK-NULL row
+        // (self-heals a prior Stage-1/2 orphan inserted clock-null). No-clobber
+        // guard mirrors the position backfill; on an exact-key hit the row already
+        // has this clock so the guard makes it a no-op. Below-floor clocks never
+        // reach here (confidentClock gate), so no low-confidence guess is written.
+        if (recoveredClock !== null) {
+          await tx
+            .update(matchEvents)
+            .set({ clock: recoveredClock })
+            .where(and(eq(matchEvents.id, hitId), isNull(matchEvents.clock)))
+        }
         dedupRefreshed++
         continue
       }
 
-      // 2b. Ambiguous → never guess. Report only, no write.
-      if (res.kind === 'ambiguous') {
-        console.warn(
-          `[reconcile][identity] ambiguous — ${String(res.candidateIds.length)} candidates, skipping (no write) match=${String(matchId)} period=${String(p.period_number)} type=${p.event_type} side=${p.team_side} actor=${p.actor_snapshot} candidates=[${res.candidateIds.join(',')}]`,
-        )
-        ambiguous++
-        continue
-      }
-
       // 2c. Zero match → mint a pending_review row, mirroring the promoter's
-      // insert (action-tracker.ts:179-234). clock is null (orphan). WS4 Stage 2b:
+      // insert (action-tracker.ts:179-234). clock is the confident recovered clock
+      // or null (WS4 Stage 3 — see below). WS4 Stage 2b:
       // when the producer bound a marker cluster, land the row positioned with
       // position_confidence='extrapolated' (every binding is an inference);
       // otherwise insert unpositioned exactly as Stage 2a did. Goal/penalty
@@ -446,7 +524,10 @@ export async function applyIdentityProposals(
         matchId,
         periodNumber: p.period_number,
         periodLabel: p.period_label || String(p.period_number),
-        clock: null,
+        // WS4 Stage 3: persist the recovered clock only when confident; a
+        // below-floor guess stays clock-null (its garbled value lives in
+        // event_detail for a reviewer).
+        clock: recoveredClock,
         eventType: p.event_type,
         teamSide: p.team_side,
         teamAbbreviation: null,
@@ -499,7 +580,8 @@ export async function applyIdentityProposals(
 async function buildPayload(matchId: number, runId: number | null): Promise<ReconcilePayload> {
   // Run-scope predicate: this run's rows when ingesting under a run, else the
   // legacy/current-state rule. See the @param note above.
-  const runScope: SQL = runId !== null ? eq(ocrExtractions.runId, runId) : liveRunFilter(ocrExtractions.runId)
+  const runScope: SQL =
+    runId !== null ? eq(ocrExtractions.runId, runId) : liveRunFilter(ocrExtractions.runId)
 
   const extractions = await db
     .select({
@@ -646,7 +728,11 @@ async function spawnReconcileTool(
     child.on('error', reject)
     child.on('close', (code) => {
       if (code !== 0) {
-        reject(new Error(`reconcile_action_tracker.py exited ${String(code)} for match ${String(matchId)}`))
+        reject(
+          new Error(
+            `reconcile_action_tracker.py exited ${String(code)} for match ${String(matchId)}`,
+          ),
+        )
         return
       }
       resolveRun({ stdout: out })
