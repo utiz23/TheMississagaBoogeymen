@@ -29,8 +29,19 @@
 > of-done for the revamp (optional leftovers: WS4 Stage 3, 8 WS5 known-red, box-score accuracy follow-up).
 >
 > **>>> IN REVIEW (2026-06-07): WS4 Stage 3 Tier 1 — clock + period recovery — IMPLEMENTED on branch
-> `feat/ws4-stage3-clock-recovery` (NOT merged/pushed; not yet code-reviewed).** Commits: `ff383f2`
-> (Python producer), `a405656` (worker exact-key dedup), `15126d2` (doc status). Spec + resolution notes:
+> `feat/ws4-stage3-clock-recovery`.** **>>> UPDATE (2026-06-09): REVIEWED + FRESH-MATCH-VALIDATED +
+> MERGED to `main` (`--no-ff`). NOT pushed.** High-effort review fixed findings #1-#3 (`0185d6d`:
+> false-clock-from-gamertag guard, `_OT_SUFFIX_RE` tightening, `recover_period` suffix/PERI guard);
+> #4 (exact-key omits team_side) accepted as inherited promoter contract; #5-#7 are follow-ups (doc §10).
+> **Fresh-match E2E proof on un-reviewed match 968** (then restored 968 to pre-run): `reconcilePositions`
+> applied 14 orphan cards → **inserted=0, dedup_refreshed=10, ambiguous=1, 0 wrong writes** — exact-key
+> recovery correctly deduped 10 garbled-FRAME orphans against their clean-frame promoted rows (no
+> duplicates). Net-new inserts ~0 because 968's orphans are re-detections of already-promoted events, not
+> truly-missing ones — so Stage 3's proven dominant value is **duplicate-prevention**, not insert volume.
+> Surfaced **finding #8 (follow-up):** a confident-clock exact-MISS falls to clockless-ambiguous-skip
+> instead of inserting on clock-uniqueness; arguably should INSERT like the live promoter (doc §10.2).
+> Original branch commits: `ff383f2` (Python producer), `a405656` (worker exact-key dedup), `15126d2`
+> (doc status), `108ad46` (handoff), `0185d6d` (review fixes). Spec + resolution + review + validation notes:
 > `docs/ocr/ws4-stage3-clock-recovery.md` (Status line + §2.5/§2.5b + Implementation note).
 > **Shipped scope:** recover the garbled clock (and period when it too failed OCR) from the `event_detail`
 > already stored on each orphan AT card. `recover_clock` (table-driven char-confusion normalizer scoped to a

@@ -1,6 +1,6 @@
 # WS4 Stage 3 — Clock (+ Period) Recovery for Orphan Action-Tracker Events
 
-**Status:** Tier 1 IMPLEMENTED on `feat/ws4-stage3-clock-recovery`. 2026-06-07.
+**Status:** Tier 1 IMPLEMENTED + reviewed + fresh-match-validated; merging to `main`. 2026-06-09.
 **Predecessors:** WS4 Stage 1 + 2a + 2b — MERGED to `main`.
 Design root: [`action-tracker-identity-recovery-design.md`](./action-tracker-identity-recovery-design.md) §"Stage 3 — optional (high-ROI polish)".
 
@@ -291,4 +291,35 @@ Accepted / deferred (not merge-blocking):
 - **#7 single-frame multiplicity** collapses both children's clocks to null (safe, rare); OT
   recovered `period_label` is numeric (`'4'`) not `'OT1'` (cosmetic).
 
-**Remaining gate:** no fresh-match end-to-end net-new INSERT proof yet (§2.5 conclusion).
+### 10.1 Fresh-match end-to-end validation — EXECUTED 2026-06-09 (match 968)
+
+Ran the real `reconcilePositions(968)` tail-hook path against the live dev DB on the **un-reviewed**
+match 968 (0 reviewed / 164 pending; the doc's highest-orphan candidate), then **restored 968 to its
+pre-run state** (the run was a proof, not a sanctioned ingest). Result:
+
+```
+14 orphan cards → 13 recovered clocks ≥ floor (0.8)
+apply: inserted=0  dedup_refreshed=10  ambiguous=1  wrong-writes=0  positions_recovered=13
+```
+
+**Proven:** the exact-key recovery correctly recognized **10 garbled-clock orphans as the same event
+as an already-promoted row** (recovered clock matched the row the promoter captured from a *clean*
+frame) and **refreshed instead of inserting duplicates** — the §2.5b disambiguation value, confirmed
+end-to-end on fresh data, zero wrong writes.
+
+**Reframing (final).** 968's orphans are garbled-*frame* re-detections of events the promoter already
+saw in clean frames, not events it never saw. A net-new INSERT needs an event garbled in *every* frame
+it appears — rarer than §2.4 assumed. So Stage 3's dominant, proven value is **duplicate-prevention via
+exact-key dedup**, not insert volume. The §2.5 "does it emit inserts" gate is effectively answered:
+the path is correct and safe; net-new inserts are simply rare because clean-frame promotion already
+catches most events.
+
+### 10.2 Finding #8 (follow-up) — confident-clock exact-miss should arguably INSERT
+
+The one ambiguous case (`G. VIEUX CRISSE p1 hit`): its recovered clock matched no existing row
+(exact-**miss**), so it fell back to the clockless key, hit 10 same-actor candidates, and
+ambiguous-skipped (plan §5 conservative path). But a confident clock makes the event *unique* — the
+live promoter inserts on the exact key alone. **Candidate change:** when a confident recovered clock
+exact-misses, INSERT directly (clock disambiguates) instead of deferring to clockless ambiguity.
+Currently safe (skips, never wrong) but may suppress genuine inserts. Deferred to a follow-up cycle
+(TDD + re-run the 968 proof to observe real net-new inserts).
