@@ -25,8 +25,13 @@
 > harmless (supplementary `source='ocr'`, EA authoritative, not promoted to player_match_stats). The
 > run-quality row (report_id 1696) reads layer-FAIL (L2 56.8%) for the same box-score-quality reason —
 > informational, not the validate gate.
-> **NEXT:** merge/push `fix/secondary-postgame-extractor-robustness` when ready; then WS6 is the definition-
-> of-done for the revamp (optional leftovers: WS4 Stage 3, 8 WS5 known-red, box-score accuracy follow-up).
+> **>>> REVAMP STATUS (2026-06-09): EFFECTIVELY COMPLETE.** WS0–WS6 all done/merged; WS6 (the
+> definition-of-done) PASSED 2026-06-04; the last optional leftover **WS4 Stage 3 Tier 1 is now merged +
+> pushed** (`main = origin/main @ 4340072`). Remaining items are all optional/explicitly-deferred, none
+> blocking: WS4 Stage 3 follow-ups #5–#8 (doc §10; the 968 proof showed net-new inserts are rare, so
+> Stage 3 **Tier 2 re-OCR is likely unnecessary**), the 8 WS5 known-red pre-existing fixture/calibration
+> tests, box-score per-period number OCR accuracy (separate followup; harmless), and the user-deferred
+> WS3 visual-anchor discriminator + WS2 `max_edge_density` tuning.
 >
 > **>>> IN REVIEW (2026-06-07): WS4 Stage 3 Tier 1 — clock + period recovery — IMPLEMENTED on branch
 > `feat/ws4-stage3-clock-recovery`.** **>>> UPDATE (2026-06-09): REVIEWED + FRESH-MATCH-VALIDATED +
