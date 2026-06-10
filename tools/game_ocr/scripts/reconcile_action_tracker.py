@@ -154,10 +154,11 @@ _CLOCK_CHAR_FIX = {"D": "0", "O": "0", "B": "8", "I": "1", "l": "1"}
 # at 2 so a trailing OT suffix ("10T" in "B:4910T") cannot be swallowed into the
 # seconds. No internal whitespace — real garbled clocks have none.
 _RECOVER_CLOCK_RE = re.compile(r"([0-9DOBIl]{1,2})([:.·])([0-9DOBIl]{2})")
-# A trailing overtime marker glued to the clock ("10T", "0T", "OT", "T"): a
-# period suffix, NOT seconds noise — so it must not trigger the glued-digit
-# degrade.
-_OT_SUFFIX_RE = re.compile(r"^[0-9]{0,2}[Oo]?[Tt]")
+# A trailing overtime marker glued to the clock ("10T", "0T", "OT"): a period
+# suffix, NOT seconds noise — so it must not trigger the glued-digit degrade. The
+# `T` must end the marker (not be followed by another letter), else a glued
+# seconds digit + a T-initial name (e.g. "1Tom") would wrongly skip the degrade.
+_OT_SUFFIX_RE = re.compile(r"^[0-9]{0,2}[Oo]?[Tt](?![A-Za-z])")
 _CLOCK_ISH = set("0123456789DOBIl")
 
 
@@ -188,6 +189,12 @@ def recover_clock(event_detail: str | None) -> tuple[str | None, float]:
     if not event_detail:
         return (None, 0.0)
     for m in _RECOVER_CLOCK_RE.finditer(event_detail):
+        # A token glued to the right of a LETTER is part of a word/gamertag
+        # (e.g. "PLAYER7:30"), not the clock field — skip it so a real clock
+        # later in the line can win instead of persisting a false one (finding #1).
+        # Real AT clocks are preceded by whitespace or a non-letter.
+        if m.start() > 0 and event_detail[m.start() - 1].isalpha():
+            continue
         mm, mm_sub = _fix_clock_group(m.group(1))
         ss, ss_sub = _fix_clock_group(m.group(3))
         if not (mm.isdigit() and ss.isdigit()):
@@ -223,10 +230,12 @@ def recover_clock(event_detail: str | None) -> tuple[str | None, float]:
     return (None, 0.0)
 
 
-# An ordinal digit (1/2/3) + an optional garbled ordinal suffix + a PERIOD-like
-# token. The leading digit IS the period number. Tolerates the garbled "PERIND"
-# / "PERIAR" variants via the loose PER[A-Z0-9]{0,4} tail.
-_RECOVER_PERIOD_RE = re.compile(r"([123])(?:ST|ND|RD|CT|TH|RO|NO|ET)?PER[A-Z0-9]{0,4}")
+# An ordinal digit (1/2/3) + a REQUIRED ordinal suffix + a PERIOD-like token. The
+# leading digit IS the period number. Requiring the suffix (ST/ND/RD + garbled
+# variants) rejects a bare digit glued to PERIOD (a jersey/score number, which has
+# no ordinal suffix), and requiring "PERI" (not any "PER*") rejects words like
+# "PERSON" — both review finding #3. Tolerates "PERIND"/"PERIAR" via the tail.
+_RECOVER_PERIOD_RE = re.compile(r"([123])(?:ST|ND|RD|CT|TH|RO|NO|ET)PERI[A-Z0-9]{0,3}")
 # Overtime → 4/5/6 (EASHL has no shootout; period 6 = OT3, never SO).
 _RECOVER_OT_RE = re.compile(r"OVERTIME([23])?")
 

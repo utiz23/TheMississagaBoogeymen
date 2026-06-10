@@ -173,6 +173,18 @@ class PermissiveClockRecoveryTests(unittest.TestCase):
         # and actor text is never mutated (the fn returns only the clock string).
         self.assertEqual(rat.recover_clock("D. WANGER SHOT 5:00"), ("5:00", 1.0))
 
+    def test_letter_glued_token_skipped_for_real_clock(self):
+        # Review finding #1: a digit token glued to the right of a word/gamertag
+        # (e.g. "PLAYER7:30") is not the clock field — skip it so a real clock
+        # later in the line wins instead of persisting a false high-conf clock.
+        self.assertEqual(rat.recover_clock("PLAYER7:30 1:23"), ("1:23", 1.0))
+
+    def test_glued_digit_before_letter_word_is_not_ot_suffix(self):
+        # Review finding #2: "1Tom" (glued seconds digit + a T-initial name) is
+        # NOT an OT marker, so the glued-digit degrade must still apply (0.6),
+        # unlike a real "10T" overtime suffix (which stays 0.8).
+        self.assertEqual(rat.recover_clock("SHOT B:491Tom"), ("8:49", 0.6))
+
 
 class PermissivePeriodRecoveryTests(unittest.TestCase):
     """recover_period is the FALLBACK for orphans whose period parse failed
@@ -207,6 +219,17 @@ class PermissivePeriodRecoveryTests(unittest.TestCase):
         ]:
             with self.subTest(detail=detail):
                 self.assertIsNone(rat.recover_period(detail))
+
+    def test_jersey_digit_not_mistaken_for_period(self):
+        # Review finding #3: a jersey/score number glued to PERIOD (after the
+        # alnum-strip) must not fabricate a period from its trailing digit.
+        self.assertIsNone(rat.recover_period("PLAYER13 PERIOD"))
+
+    def test_digit_before_non_period_per_word_not_matched(self):
+        # Review finding #3: a count digit glued to a PER* word that is NOT a
+        # period token ("PERSONS") must not match — the token must look like
+        # "PERI…" (PERIOD/PERIND/PERIAR), not any "PER*".
+        self.assertIsNone(rat.recover_period("GOAL 2 PERSONS near the net"))
 
 
 # ─── canonical event union ─────────────────────────────────────────────────

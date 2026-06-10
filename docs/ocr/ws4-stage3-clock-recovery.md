@@ -260,3 +260,35 @@ reviewer context) but **dedup via the clock-independent key**.
 3. TDD Tier 1 (Python producer first, then TS wire/insert/dedup), per §7.
 4. Review (local high-effort + Codex, per repo convention) before any live run.
 5. Defer Tier 2 unless a real run shows a material residual gap.
+
+---
+
+## 10. Code review (2026-06-09) — fixed + follow-ups
+
+High-effort multi-angle review of the branch. Three correctness findings **fixed before merge**
+(each with a TDD test; real-data recoveries on 250/2582 unchanged):
+
+- **#1 `recover_clock` first-match-wins** — a clock-shaped token glued to the right of a
+  word/gamertag (e.g. `PLAYER7:30`) could win and persist a wrong clock at ≥floor. Fix: skip a
+  candidate whose MM is immediately preceded by a letter, so a real clock later in the line wins.
+- **#2 `_OT_SUFFIX_RE` over-match** — `^[0-9]{0,2}[Oo]?[Tt]` exempted any digits-then-T (e.g.
+  `1Tom`) from the glued-digit degrade, wrongly keeping 0.8. Fix: `(?![A-Za-z])` after the `T` so
+  only a genuine OT marker is exempt (`10T` still 0.8; `1Tom` → 0.6, below floor).
+- **#3 `recover_period` false positives** — a bare jersey/score digit glued to PERIOD, or a count
+  digit glued to a `PER*` word (`PERSON`), could fabricate a period. Fix: require an ordinal
+  **suffix** (legit periods have ST/ND/RD…, jerseys don't) and require the `PERI` stem (rejects
+  `PERSON`).
+
+Accepted / deferred (not merge-blocking):
+
+- **#4 exact-key omits `team_side`** (`reconcile-positions.ts`) — real asymmetry vs the clockless
+  key, but inherited from the live promoter's own `findExistingMatchEvent` contract; actor identity
+  disambiguates. Not held; would require changing the promoter contract too.
+- **#5 `_pick_clock` has no majority vote** — one disagreeing frame → clock-null. Recall-only,
+  safe-fail; the garble is pixel-consistent so it's rare. Follow-up: mode/quorum vote.
+- **#6 `_CLOCK_CHAR_FIX` is a subset of `parsers.py` `_DOT_DIGIT_LOOKALIKES`** (misses `S→5`,
+  `Z→2`, `G→6`) — recall gap + drift risk. Follow-up: reuse the canonical table.
+- **#7 single-frame multiplicity** collapses both children's clocks to null (safe, rare); OT
+  recovered `period_label` is numeric (`'4'`) not `'OT1'` (cosmetic).
+
+**Remaining gate:** no fresh-match end-to-end net-new INSERT proof yet (§2.5 conclusion).
