@@ -1,6 +1,6 @@
 # WS4 Stage 3 — Clock (+ Period) Recovery for Orphan Action-Tracker Events
 
-**Status:** Tier 1 IMPLEMENTED + reviewed + fresh-match-validated; merging to `main`. 2026-06-09.
+**Status:** Tier 1 MERGED + PUSHED (`4340072`); reviewed + fresh-match-validated; follow-ups #5–#8 resolved (§10). 2026-06-09.
 **Predecessors:** WS4 Stage 1 + 2a + 2b — MERGED to `main`.
 Design root: [`action-tracker-identity-recovery-design.md`](./action-tracker-identity-recovery-design.md) §"Stage 3 — optional (high-ROI polish)".
 
@@ -17,8 +17,9 @@ clears the floor while `9:0D1`→`9:00` (glued trailing digit) stays below it; (
 clocks are emitted **un-zero-padded** to match the live promoter's stored form. Verified on
 real matches 250/2582: 9/13 orphan identities recovered (~69%, matching §2.4), every value
 matching the §2.1 table; period recovery additionally **admitted a previously-dropped
-orphan** (RANTANEN p3 `D:14`). Tier 2 remains deferred (§8). Pending: end-to-end net-new
-INSERT validation on a fresh un-reviewed match (§2.5 conclusion).
+orphan** (RANTANEN p3 `D:14`). Tier 2 remains deferred (§8). End-to-end net-new INSERT
+validation on the fresh un-reviewed match 968 is **done** — see §10.1 (disambiguation /
+duplicate-prevention proven; net-new inserts rare by data nature).
 
 ---
 
@@ -283,13 +284,22 @@ Accepted / deferred (not merge-blocking):
 
 - **#4 exact-key omits `team_side`** (`reconcile-positions.ts`) — real asymmetry vs the clockless
   key, but inherited from the live promoter's own `findExistingMatchEvent` contract; actor identity
-  disambiguates. Not held; would require changing the promoter contract too.
-- **#5 `_pick_clock` has no majority vote** — one disagreeing frame → clock-null. Recall-only,
-  safe-fail; the garble is pixel-consistent so it's rare. Follow-up: mode/quorum vote.
-- **#6 `_CLOCK_CHAR_FIX` is a subset of `parsers.py` `_DOT_DIGIT_LOOKALIKES`** (misses `S→5`,
-  `Z→2`, `G→6`) — recall gap + drift risk. Follow-up: reuse the canonical table.
-- **#7 single-frame multiplicity** collapses both children's clocks to null (safe, rare); OT
-  recovered `period_label` is numeric (`'4'`) not `'OT1'` (cosmetic).
+  disambiguates. **Accepted** (not held; would require changing the promoter contract too).
+
+Follow-ups #5–#8 — **RESOLVED in a follow-up cycle (2026-06-09, `feat/ws4-stage3-followups`):**
+
+- **#5 `_pick_clock` majority vote** — ✅ **DONE.** Replaced strict single-distinct with a
+  **strict-plurality** vote (exact tie still → null), so one stray misread no longer nukes a
+  strong-consensus clock. Real-data spot-check: inert on 250/2582/968 (pixel-consistent garble → no
+  within-child pluralities), no regression.
+- **#6 `_CLOCK_CHAR_FIX` subset of `_DOT_DIGIT_LOOKALIKES`** — ✅ **DOCUMENTED (won't widen).** Kept
+  the conservative subset; full reuse would require widening the clock-token regex char class and
+  reintroduce finding #1's false-token risk. Added a cross-reference comment; the `S→5`/`Z→2`/`G→6`
+  recall gap is speculative.
+- **#7b OT `period_label`** — ✅ **DONE.** Recovered OT periods now label `"OT"`/`"OT2"`/`"OT3"`
+  (parsers.py convention), not numeric. **#7a single-frame multiplicity** — **WON'T-FIX** (documented
+  known-limitation: hard, rare, safe-fails to clock-null).
+- **#8** — **DECIDED: keep the conservative skip** (no code change). See §10.2.
 
 ### 10.1 Fresh-match end-to-end validation — EXECUTED 2026-06-09 (match 968)
 
@@ -314,12 +324,18 @@ exact-key dedup**, not insert volume. The §2.5 "does it emit inserts" gate is e
 the path is correct and safe; net-new inserts are simply rare because clean-frame promotion already
 catches most events.
 
-### 10.2 Finding #8 (follow-up) — confident-clock exact-miss should arguably INSERT
+### 10.2 Finding #8 — DECIDED (2026-06-09): keep the conservative skip
 
 The one ambiguous case (`G. VIEUX CRISSE p1 hit`): its recovered clock matched no existing row
 (exact-**miss**), so it fell back to the clockless key, hit 10 same-actor candidates, and
-ambiguous-skipped (plan §5 conservative path). But a confident clock makes the event *unique* — the
-live promoter inserts on the exact key alone. **Candidate change:** when a confident recovered clock
-exact-misses, INSERT directly (clock disambiguates) instead of deferring to clockless ambiguity.
-Currently safe (skips, never wrong) but may suppress genuine inserts. Deferred to a follow-up cycle
-(TDD + re-run the 968 proof to observe real net-new inserts).
+ambiguous-skipped (plan §5 conservative path). The candidate change was: when a confident recovered
+clock exact-misses, INSERT directly (the clock makes the event unique, as the live promoter does on
+the exact key alone) instead of deferring to clockless ambiguity.
+
+**Decision: do NOT make this change — keep the skip.** Rationale: the 968 fresh-match proof (§10.1)
+showed orphans are overwhelmingly garbled-*frame* re-detections of already-promoted events, not
+genuine misses, so the upside (capturing a rare genuine miss) is small. The downside is real: a
+confident-but-wrong recovered clock that lands on an unoccupied slot would INSERT a reviewable
+duplicate. Duplicate-safety wins; the current behavior is safe (skips, never wrong). **Re-open only
+if a future real run shows material suppressed-insert loss** (i.e. genuine missing events being
+skipped, not just garbled-frame re-detections).
