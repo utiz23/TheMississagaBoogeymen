@@ -20,22 +20,28 @@
 > (user-approved):** box-score zero-cells downgrade was added when the BGM fix unmasked it (same redundant-
 > frame class; all 4 periods landed from good frames → no data loss). Full writeup:
 > `docs/ocr/post-game-extractor-robustness-followup.md` (Resolution section).
-> **Open follow-ups filed:** `docs/ocr/box-score-ocr-accuracy-followup.md` — **DIAGNOSED 2026-06-09.**
-> The garble (goals=shots=faceoffs, sums ≠ EA 3–2) is **stale run-1945 data, NOT a live parser/ROI
-> defect**: the current parser reads the canonical goals frame **EA-exact 3–2** (the wrong-ROI
-> hypothesis is refuted); the stored rows are old output from before parser/selection hardening.
-> **Recommendation: keep the feature, no parser fix; refresh-or-delete the 4 stale `pending_review`
-> rows** (re-OCR, not transform-only `reprocess`). Still harmless (supplementary `source='ocr'`, EA
-> authoritative, not promoted to player_match_stats, not displayed). See doc §Diagnosis. The
-> run-quality row (report_id 1696) reads layer-FAIL (L2 56.8%) for the same stale-box-score reason —
-> informational, not the validate gate.
+> **Open follow-ups filed:** `docs/ocr/box-score-ocr-accuracy-followup.md` — **DIAGNOSED 2026-06-09
+> (corrected, commit b0430ae).** Root cause is a **Pass-1/Pass-2 frame-segmentation/capture defect**,
+> NOT a parser bug and NOT stale data: a faceoff-tab frame was captured into the goals/shots box-score
+> segments (`goals/00003.png` md5-identical to `faceoffs/00001.png`), so those extractions read
+> faceoff numbers. The current parser reproduces the same garble on the actual captured frames. (An
+> earlier draft wrongly concluded "stale data, parser already correct" — it tested the **curated
+> fixtures**, which are different, cleaner frames the pipeline never captured.) **Re-OCR is
+> ineffective** (same garbage); **re-ingest is currently unavailable** (source video not in the
+> per-match layout `reprocess` expects + unchanged decoder → provenance collision and same frame
+> selection). Accurate per-period box-score for 2582 is **not recoverable** without a segmentation fix
+> + `DECODER_VERSION` bump. **Disposition: keep the feature; 4 `pending_review` rows left untouched**
+> (harmless — supplementary `source='ocr'`, EA authoritative, not promoted to player_match_stats, not
+> displayed; deletion is cosmetic-only with no payoff). See doc §Diagnosis. The run-quality row
+> (report_id 1696) reads layer-FAIL (L2 56.8%) for the same box-score reason — informational, not the
+> validate gate.
 > **>>> REVAMP STATUS (2026-06-09): EFFECTIVELY COMPLETE.** WS0–WS6 all done/merged; WS6 (the
 > definition-of-done) PASSED 2026-06-04; the last optional leftover **WS4 Stage 3 Tier 1 is now merged +
 > pushed** (`main = origin/main @ 4340072`). Remaining items are all optional/explicitly-deferred, none
 > blocking: WS4 Stage 3 follow-ups #5–#8 (doc §10; the 968 proof showed net-new inserts are rare, so
 > Stage 3 **Tier 2 re-OCR is likely unnecessary**), the 8 WS5 known-red pre-existing fixture/calibration
-> tests, box-score per-period number OCR accuracy (separate followup; **DIAGNOSED 2026-06-09** — stale
-> run-1945 data, parser already correct; refresh-or-delete only, harmless), and the user-deferred
+> tests, box-score per-period number OCR accuracy (separate followup; **DIAGNOSED 2026-06-09** —
+> frame-segmentation defect, re-ingest unavailable, rows left untouched & harmless), and the user-deferred
 > WS3 visual-anchor discriminator + WS2 `max_edge_density` tuning.
 >
 > **>>> DONE (2026-06-09): WS4 Stage 3 Tier 1 — clock + period recovery — ✅ IMPLEMENTED + REVIEWED +
