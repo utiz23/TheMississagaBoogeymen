@@ -148,6 +148,17 @@ def normalize_actor(raw: str | None) -> str:
 # Clock-context character confusions, applied ONLY within a candidate MM:SS
 # token (never globally — must not corrupt actor text). Table-driven so the unit
 # tests pin every rewrite.
+#
+# Review #6: this is an INTENTIONAL conservative SUBSET of the canonical OCR
+# digit-confusion table `game_ocr/parsers.py:_DOT_DIGIT_LOOKALIKES` (which also
+# maps S→5, Z→2, G→6, U→0, Q→0, L/|→1). We deliberately do NOT reuse the full
+# table: adopting those extra confusions would require widening the candidate
+# regex's `[0-9DOBIl]` char class (below) to match S/Z/G/etc., which broadens what
+# counts as a clock token and reintroduces the false-token risk guarded by
+# finding #1 (a word/gamertag fragment parsing as a clock). The recall gap (e.g.
+# an "S:00" → 5:00 misread inside a clock) is speculative — not seen in real
+# samples — so the precision trade is not worth it here. Revisit only with a real
+# case + the corresponding regex widening + guard tests.
 _CLOCK_CHAR_FIX = {"D": "0", "O": "0", "B": "8", "I": "1", "l": "1"}
 # A candidate clock token: 1-2 clock-ish chars, a separator OCR confuses with
 # ':' (colon, period, middle-dot), then EXACTLY 2 clock-ish chars. SS is capped
@@ -238,6 +249,11 @@ def recover_clock(event_detail: str | None) -> tuple[str | None, float]:
 _RECOVER_PERIOD_RE = re.compile(r"([123])(?:ST|ND|RD|CT|TH|RO|NO|ET)PERI[A-Z0-9]{0,3}")
 # Overtime → 4/5/6 (EASHL has no shootout; period 6 = OT3, never SO).
 _RECOVER_OT_RE = re.compile(r"OVERTIME([23])?")
+
+# Human period label for a RECOVERED period (WS4 Stage 3 #7b). OT periods get the
+# parsers.py box-score convention ("OT"/"OT2"/"OT3", note period 4 = "OT" not
+# "OT1"); regulation 1/2/3 fall through to str(period).
+_RECOVERED_PERIOD_LABEL = {4: "OT", 5: "OT2", 6: "OT3"}
 
 
 def recover_period(event_detail: str | None) -> int | None:
@@ -431,7 +447,10 @@ def _orphan_identity(e: dict) -> dict | None:
         period = recover_period(detail)
         if period is None:
             return None
-        period_label = str(period)
+        # #7b: a recovered OT period gets a proper label ("OT"/"OT2"/"OT3", the
+        # parsers.py box-score convention), not the meaningless numeric string;
+        # regulation 1/2/3 fall through to str() (the live promoter's own fallback).
+        period_label = _RECOVERED_PERIOD_LABEL.get(period, str(period))
     target = field_value(e.get("target_snapshot"))
     rec_clock, rec_conf = recover_clock(detail)
     return {
@@ -448,13 +467,22 @@ def _orphan_identity(e: dict) -> dict | None:
 
 
 def _pick_clock(observations: list[tuple]) -> tuple[str | None, float]:
-    """From [(capture_id, clock, conf), …] pick the single agreed clock, or
-    (None, 0.0) when there is zero or CONFLICTING evidence — never guess. Used to
-    assign a clock to a positioned child from only its own cluster's frames."""
-    distinct = {clk for _cid, clk, _c in observations}
-    if len(distinct) != 1:
+    """From [(capture_id, clock, conf), …] pick the STRICT-PLURALITY clock, or
+    (None, 0.0) on no evidence or an exact tie — never guess (WS4 Stage 3 #5).
+
+    A child is one cluster = one physical event = one true clock, so within-child
+    disagreement is OCR noise: the majority absorbs a stray misread. Only an exact
+    tie for first place is genuinely unresolvable → null (so a 1-vs-1 conflict
+    still yields null, the conservative behavior). Confidence is the max among the
+    observations carrying the winning clock."""
+    if not observations:
         return (None, 0.0)
-    return (next(iter(distinct)), max(c for _cid, _clk, c in observations))
+    counts = Counter(clk for _cid, clk, _c in observations)
+    ranked = counts.most_common(2)
+    if len(ranked) > 1 and ranked[0][1] == ranked[1][1]:
+        return (None, 0.0)  # exact tie for first → unresolvable
+    winner = ranked[0][0]
+    return (winner, max(c for _cid, clk, c in observations if clk == winner))
 
 
 def build_orphan_cards(extractions: list[dict]) -> list[dict]:

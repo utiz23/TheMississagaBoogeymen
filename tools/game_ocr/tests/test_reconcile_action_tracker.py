@@ -232,6 +232,27 @@ class PermissivePeriodRecoveryTests(unittest.TestCase):
         self.assertIsNone(rat.recover_period("GOAL 2 PERSONS near the net"))
 
 
+class PickClockVoteTests(unittest.TestCase):
+    """_pick_clock (WS4 Stage 3 #5) — strict-plurality vote over a child's frames
+    so one stray misread no longer nukes a strong-consensus clock."""
+
+    def test_strict_plurality_resolves(self):
+        # 2x '5:00' vs 1x '6:00' (a stray misread) → majority wins; confidence is
+        # the max among the winning-clock frames. (Was null under strict-distinct.)
+        obs = [(1, "5:00", 0.8), (2, "5:00", 0.6), (3, "6:00", 0.8)]
+        self.assertEqual(rat._pick_clock(obs), ("5:00", 0.8))
+
+    def test_exact_tie_is_null(self):
+        # 1-vs-1: unresolvable → never guess.
+        self.assertEqual(rat._pick_clock([(1, "5:00", 1.0), (2, "6:00", 1.0)]), (None, 0.0))
+
+    def test_unanimous_unchanged(self):
+        self.assertEqual(rat._pick_clock([(1, "5:00", 0.6), (2, "5:00", 0.8)]), ("5:00", 0.8))
+
+    def test_empty_is_null(self):
+        self.assertEqual(rat._pick_clock([]), (None, 0.0))
+
+
 # ─── canonical event union ─────────────────────────────────────────────────
 
 
@@ -731,6 +752,22 @@ class OrphanCardTests(unittest.TestCase):
         ext = _frame(7, 3, [_orphan_event(
             "shot", "MAGROYNE", -1, detail="MAGROYNE S SHOT D:33")], None, [])
         self.assertEqual(self._cards([ext]), [])
+
+    def test_recovered_ot_period_gets_ot_label(self):
+        # WS4 Stage 3 #7b: a RECOVERED OT period gets a proper label
+        # ("OT"/"OT2"/"OT3", per parsers.py), not the meaningless numeric string.
+        cases = {
+            "SILKY S SHOT 8:49 Overtime": (4, "OT"),
+            "SILKY S SHOT 8:49 Overtime2": (5, "OT2"),
+            "SILKY S SHOT 8:49 Overtime3": (6, "OT3"),
+        }
+        for detail, (pnum, label) in cases.items():
+            with self.subTest(detail=detail):
+                ext = _frame(7, 4, [_orphan_event("shot", "SILKY", -1, detail=detail)], None, [])
+                cards = self._cards([ext])
+                self.assertEqual(len(cards), 1)
+                self.assertEqual(cards[0]["period_number"], pnum)
+                self.assertEqual(cards[0]["period_label"], label)
 
 
 class OrphanPanelIndexTests(unittest.TestCase):
