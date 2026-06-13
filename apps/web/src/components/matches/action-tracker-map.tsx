@@ -411,16 +411,21 @@ function ActionTrackerOcrFooter({
   const readDirectly = positionStats.positioned - positionStats.extrapolated
   const extrapShare =
     positionStats.positioned > 0 ? positionStats.extrapolated / positionStats.positioned : 0
-  const badges: ProvenanceBadge[] = [
-    {
-      label: `Plotted · ${String(readDirectly)}/${String(positionStats.positioned)}`,
-      tone: ocrConfidence !== null && ocrConfidence >= 0.9 ? 'ok' : 'warn',
-    },
-    {
-      label: `Extrapolated · ${formatProvenancePercent(extrapShare)}`,
-      tone: positionStats.extrapolated === 0 ? 'ok' : 'warn',
-    },
-  ]
+  // With no positioned events the headline already reads "No data" — emit no
+  // badges rather than a misleading "Plotted · 0/0" / "Extrapolated · 0%" pair.
+  const badges: ProvenanceBadge[] =
+    positionStats.positioned === 0
+      ? []
+      : [
+          {
+            label: `Plotted · ${String(readDirectly)}/${String(positionStats.positioned)}`,
+            tone: ocrConfidence !== null && ocrConfidence >= 0.9 ? 'ok' : 'warn',
+          },
+          {
+            label: `Extrapolated · ${formatProvenancePercent(extrapShare)}`,
+            tone: positionStats.extrapolated === 0 ? 'ok' : 'warn',
+          },
+        ]
 
   return (
     <OcrProvenanceFooter
