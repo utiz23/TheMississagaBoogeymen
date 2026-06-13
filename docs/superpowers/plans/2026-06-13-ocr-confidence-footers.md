@@ -721,16 +721,9 @@ function LineupOcrFooter({
 }
 ```
 
-- [ ] **Step 5: Update the page's lineup-provenance default**
+- [ ] **Step 5: Page lineup-provenance default — LEAVE UNCHANGED**
 
-In `apps/web/src/app/games/[id]/page.tsx`, the `safe()` call for `getMatchLineupProvenance` currently passes `{ capturedAt: null, sources: [], confidence: { canonical: 0, tiered: 0, attribute: 0 } }`. Change the default to the slimmed shape:
-
-```tsx
-    safe(() => getMatchLineupProvenance(m.id), {
-      capturedAt: null,
-      sources: [],
-    }),
-```
+> **DECISION (Task 3 revision):** `getMatchLineupProvenance().confidence` was NOT slimmed — it is consumed by `apps/worker/src/match-quality-cli.ts` and locked by the match-463 regression baseline. So `MatchLineupProvenance` still has its `confidence` block. **Do NOT change** the existing `safe()` default in `page.tsx` (it must keep `confidence: { canonical: 0, tiered: 0, attribute: 0 }`). The web footer simply ignores `provenance.confidence` and uses `computeLineupConfidence(lineups)` instead. No page edit in this step.
 
 - [ ] **Step 6: Rebuild db, then typecheck web**
 
