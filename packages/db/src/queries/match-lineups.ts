@@ -531,97 +531,39 @@ export type MatchLineups = Awaited<ReturnType<typeof getMatchLineups>>
  *
  * `sources` counts snapshots per `ocr_extractions.screen_type` so the UI
  * can call out "Pre-game lobby + Loadout view" with per-source coverage.
- * `confidence.canonical` / `tiered` are 0..1 fractions used to colour-code
- * the per-source badges (≥0.9 = ok, otherwise warn).
  */
 export interface MatchLineupProvenance {
   capturedAt: { earliest: Date; latest: Date } | null
   sources: Array<{ screenType: string; snapshotCount: number }>
-  confidence: {
-    /** Fraction of reviewed anchors with non-null build_class_canonical. */
-    canonical: number
-    /** Fraction of X-Factor rows attached to reviewed anchors with non-null tier. */
-    tiered: number
-    /** Fraction of attribute rows (across all snapshots for the match) with non-null value. */
-    attribute: number
-  }
 }
 
 export async function getMatchLineupProvenance(matchId: number): Promise<MatchLineupProvenance> {
   const snapshotMeta = await db
     .select({
-      id: playerLoadoutSnapshots.id,
       capturedAt: playerLoadoutSnapshots.capturedAt,
       screenType: ocrExtractions.screenType,
-      reviewStatus: playerLoadoutSnapshots.reviewStatus,
-      buildClassCanonical: playerLoadoutSnapshots.buildClassCanonical,
     })
     .from(playerLoadoutSnapshots)
     .innerJoin(ocrExtractions, eq(ocrExtractions.id, playerLoadoutSnapshots.ocrExtractionId))
     .where(eq(playerLoadoutSnapshots.matchId, matchId))
 
   if (snapshotMeta.length === 0) {
-    return {
-      capturedAt: null,
-      sources: [],
-      confidence: { canonical: 0, tiered: 0, attribute: 0 },
-    }
+    return { capturedAt: null, sources: [] }
   }
 
   let earliest = snapshotMeta[0]!.capturedAt
   let latest = snapshotMeta[0]!.capturedAt
   const screenCounts = new Map<string, number>()
-  const reviewedIds = new Set<number>()
-  let reviewedWithCanonical = 0
   for (const s of snapshotMeta) {
     if (s.capturedAt < earliest) earliest = s.capturedAt
     if (s.capturedAt > latest) latest = s.capturedAt
     screenCounts.set(s.screenType, (screenCounts.get(s.screenType) ?? 0) + 1)
-    if (s.reviewStatus === 'reviewed') {
-      reviewedIds.add(s.id)
-      if (s.buildClassCanonical !== null) reviewedWithCanonical++
-    }
   }
-
-  let tiered = 0
-  let xfactorTotal = 0
-  if (reviewedIds.size > 0) {
-    const xfactorRows = await db
-      .select({ tier: playerLoadoutXFactors.tier })
-      .from(playerLoadoutXFactors)
-      .where(
-        sql`${playerLoadoutXFactors.loadoutSnapshotId} IN (${sql.join(
-          [...reviewedIds].map((id) => sql`${id}`),
-          sql`,`,
-        )})`,
-      )
-    xfactorTotal = xfactorRows.length
-    // Count only GENUINE tier enum values. A non-null-but-invalid string like
-    // the legacy "null" must NOT count as tiered — that was inflating the
-    // lineup footer's "Tiered · N%" badge with garbage (match 250 showed 10%
-    // purely from 3 bogus "null" rows).
-    for (const x of xfactorRows) if (isXFactorTier(x.tier)) tiered++
-  }
-
-  const attributeRows = await db
-    .select({ value: playerLoadoutAttributes.value })
-    .from(playerLoadoutAttributes)
-    .innerJoin(
-      playerLoadoutSnapshots,
-      eq(playerLoadoutSnapshots.id, playerLoadoutAttributes.loadoutSnapshotId),
-    )
-    .where(eq(playerLoadoutSnapshots.matchId, matchId))
-  const attributeWithValue = attributeRows.filter((a) => a.value !== null).length
 
   return {
     capturedAt: { earliest, latest },
     sources: [...screenCounts.entries()]
       .map(([screenType, snapshotCount]) => ({ screenType, snapshotCount }))
       .sort((a, b) => b.snapshotCount - a.snapshotCount),
-    confidence: {
-      canonical: reviewedIds.size > 0 ? reviewedWithCanonical / reviewedIds.size : 0,
-      tiered: xfactorTotal > 0 ? tiered / xfactorTotal : 0,
-      attribute: attributeRows.length > 0 ? attributeWithValue / attributeRows.length : 0,
-    },
   }
 }

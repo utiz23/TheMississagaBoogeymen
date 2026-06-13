@@ -5,6 +5,7 @@ import {
   matchGoalEvents,
   matchPenaltyEvents,
   matches,
+  ocrExtractions,
   players,
 } from '../schema/index.js'
 
@@ -168,3 +169,57 @@ export async function getPlayerCareerShots(playerId: number, limit = 500) {
 }
 
 export type PlayerCareerShotRow = Awaited<ReturnType<typeof getPlayerCareerShots>>[number]
+
+/**
+ * OCR provenance for the Action Tracker section of a match — drives the
+ * `Extracted / Sources / Confidence` footer.
+ *
+ * Joins the visible OCR event rows (source='ocr', reviewed — matching
+ * getMatchEvents' visibility rule) to their source extraction. The only time
+ * signal on event rows is `ocr_extractions.extracted_at` (OCR-run time, NOT a
+ * capture time), so the footer labels this range "Extracted"; it can span
+ * reprocess runs.
+ */
+export interface MatchActionTrackerProvenance {
+  extractedAt: { earliest: Date; latest: Date } | null
+  sources: Array<{ screenType: string; eventCount: number }>
+}
+
+export async function getMatchActionTrackerProvenance(
+  matchId: number,
+): Promise<MatchActionTrackerProvenance> {
+  const rows = await db
+    .select({
+      screenType: ocrExtractions.screenType,
+      extractedAt: ocrExtractions.extractedAt,
+    })
+    .from(matchEvents)
+    .innerJoin(ocrExtractions, eq(ocrExtractions.id, matchEvents.ocrExtractionId))
+    .where(
+      and(
+        eq(matchEvents.matchId, matchId),
+        eq(matchEvents.source, 'ocr'),
+        eq(matchEvents.reviewStatus, 'reviewed'),
+      ),
+    )
+
+  if (rows.length === 0) {
+    return { extractedAt: null, sources: [] }
+  }
+
+  let earliest = rows[0]!.extractedAt
+  let latest = rows[0]!.extractedAt
+  const counts = new Map<string, number>()
+  for (const r of rows) {
+    if (r.extractedAt < earliest) earliest = r.extractedAt
+    if (r.extractedAt > latest) latest = r.extractedAt
+    counts.set(r.screenType, (counts.get(r.screenType) ?? 0) + 1)
+  }
+
+  return {
+    extractedAt: { earliest, latest },
+    sources: [...counts.entries()]
+      .map(([screenType, eventCount]) => ({ screenType, eventCount }))
+      .sort((a, b) => b.eventCount - a.eventCount),
+  }
+}
