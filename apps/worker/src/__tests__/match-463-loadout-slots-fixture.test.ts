@@ -30,6 +30,7 @@ import {
   db,
   sql,
   players,
+  playerMatchStats,
   ocrFieldEvidence,
   ocrPromotions,
   playerLoadoutSnapshots,
@@ -49,8 +50,15 @@ import {
   type SeedResult,
 } from './fixtures/seed-fixture-db.js'
 
-// Sentinel player IDs created by seedMatch463Roster (99021–99025).
-// Must be deleted after the test to avoid polluting the players table.
+// Sentinel player IDs referenced by seedMatch463Roster (99021–99025).
+//
+// NOTE: 99021 carries the gamertag 'HenryTheBobJr', which is also a real club
+// member. seedMatch463Roster inserts with onConflictDoNothing, so on any DB
+// where 99021 already exists (and where gamertag-based ingestion has bound
+// real match stats to it) the seed is a no-op and the row is NOT test-owned.
+// Teardown therefore deletes only the sentinels it exclusively owns — those
+// with no remaining references after the sentinel match is cleaned up — and
+// never a row the FK constraint (correctly) protects.
 const SENTINEL_PLAYER_IDS_463 = [99021, 99022, 99023, 99024, 99025]
 
 // ─── constants ──────────────────────────────────────────────────────────────────
@@ -109,10 +117,31 @@ after(async () => {
   if (!process.env['DATABASE_URL']) return
 
   // cleanupSentinelMatches removes match rows + all FK-dependent rows (including
-  // player_match_stats, opponent_player_match_stats). Then delete the sentinel
-  // players that seedMatch463Roster inserted.
+  // player_match_stats, opponent_player_match_stats) scoped to the sentinel
+  // match. After it runs, a purely test-owned sentinel player has no remaining
+  // references and is safe to delete; a sentinel id that collides with a real
+  // player (99021 / 'HenryTheBobJr') still carries real references and must be
+  // left alone — deleting it would hit the FK constraint and is not ours to do.
   await cleanupSentinelMatches([SENTINEL_MATCH_ID])
-  await db.delete(players).where(inArray(players.id, SENTINEL_PLAYER_IDS_463))
+
+  const referenced = await db
+    .select({ playerId: playerMatchStats.playerId })
+    .from(playerMatchStats)
+    .where(inArray(playerMatchStats.playerId, SENTINEL_PLAYER_IDS_463))
+  const referencedIds = new Set(referenced.map((r) => r.playerId))
+  const deletableIds = SENTINEL_PLAYER_IDS_463.filter((id) => !referencedIds.has(id))
+  if (deletableIds.length > 0) {
+    await db.delete(players).where(inArray(players.id, deletableIds))
+  }
+  if (referencedIds.size > 0) {
+    // Surface (don't silently swallow) any sentinel id left behind because it
+    // shares a row with real data — e.g. the 'HenryTheBobJr' (99021) collision.
+    console.warn(
+      `[match-463 teardown] left ${referencedIds.size} sentinel player id(s) in place ` +
+        `(still referenced by real data): ${[...referencedIds].join(', ')}`,
+    )
+  }
+
   await sql.end({ timeout: 5 })
 })
 
