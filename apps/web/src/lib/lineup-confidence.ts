@@ -53,6 +53,7 @@ export function computeLineupConfidence(lineups: MatchLineups): LineupConfidence
     identitySum += idPresent / 4
 
     const buildPresent =
+      // present when either raw or canonical is populated (renderer falls back to raw)
       (r.buildClass !== null || r.buildClassCanonical !== null ? 1 : 0) +
       (r.heightText !== null ? 1 : 0) +
       (r.weightLbs !== null ? 1 : 0)

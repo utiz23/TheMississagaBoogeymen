@@ -113,3 +113,25 @@ void test('overall excludes empty-denominator buckets', () => {
   const c = computeLineupConfidence(lineups([row({})]))
   assert.equal(c.overall, 1)
 })
+
+void test('empty attributes object counts as absent', () => {
+  const c = computeLineupConfidence(lineups([row({ attributes: {} })]))
+  assert.equal(c.attribute, 0)
+})
+
+void test('overall blends all five buckets when x-factors are present', () => {
+  // identity=1, build=1, attribute=1, xfactor=2/3, tier=1/3 → mean of five
+  const c = computeLineupConfidence(
+    lineups([
+      row({
+        xFactors: [
+          { slotIndex: 0, name: 'a', canonicalName: 'X', tier: 'Elite' },
+          { slotIndex: 1, name: 'b', canonicalName: 'Y', tier: null },
+          { slotIndex: 2, name: 'c', canonicalName: null, tier: null },
+        ],
+      }),
+    ]),
+  )
+  const expected = (1 + 1 + 2 / 3 + 1 / 3 + 1) / 5
+  assert.ok(Math.abs(c.overall - expected) < 1e-9)
+})
