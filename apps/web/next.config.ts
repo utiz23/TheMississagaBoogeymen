@@ -6,6 +6,15 @@ const nextConfig: NextConfig = {
   // in environments (CI, Dockerfiles) where the env var isn't set at build time.
   serverExternalPackages: ['@eanhl/db', 'postgres'],
 
+  // Linting is a separate gate (`pnpm --filter web lint` / `pnpm smoke:quick`),
+  // not part of producing the deployable artifact. `next build` otherwise runs
+  // the repo's strict-type-checked ESLint config as a hard error gate, which
+  // blocks deploys on purely stylistic violations even though `tsc --noEmit`
+  // (the real type-correctness gate) passes. Keep build = compile, lint = lint.
+  eslint: {
+    ignoreDuringBuilds: true,
+  },
+
   images: {
     remotePatterns: [
       {
