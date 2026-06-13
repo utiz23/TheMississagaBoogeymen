@@ -25,6 +25,7 @@ import {
   ShotMarker,
 } from '@/components/branding/event-markers'
 import { PlayerSilhouette } from '@/components/home/player-card'
+import { computeMarkerOffsets, type MarkerOffset } from '@/lib/marker-layout'
 
 /**
  * Action Tracker Map — Boogeymen Design System "Action Tracker Map.html"
@@ -832,6 +833,19 @@ function RinkPanel({
   // pinned event keeps its detail panel visible.
   const focusedId = hoveredId ?? selectedId
   const focused = focusedId === null ? null : (events.find((e) => e.id === focusedId) ?? null)
+
+  // Deconflict markers that land on (nearly) the same rink coordinate. Without
+  // this, co-located events (e.g. match 250's two E. WANHG → M. LEHMANN shots
+  // at 10:20 and 0:42, <1px apart) render on top of each other and one has no
+  // visible marker. Offsets are deterministic + stable across renders.
+  const markerOffsets = useMemo(() => {
+    return computeMarkerOffsets(
+      events.map((e) => {
+        const c = markerCenter(e)
+        return { id: e.id, cx: c.x, cy: c.y }
+      }),
+    )
+  }, [events])
   return (
     <div className="border border-[var(--color-border)] broadcast-panel-strong px-3.5 pb-2 pt-3.5 xl:sticky xl:top-4 xl:self-start">
       <div className="mb-2.5 flex items-center gap-3.5">
@@ -882,6 +896,7 @@ function RinkPanel({
                 hovered={hoveredId === e.id}
                 selected={isSelected}
                 faded={isFaded}
+                offset={markerOffsets.get(e.id)}
                 onEnter={() => onHover(e.id)}
                 onLeave={() => onHover(null)}
                 onClick={() => onSelect(e.id)}
@@ -890,20 +905,35 @@ function RinkPanel({
             )
           })}
         </svg>
-        {focused ? <MarkerTooltip event={focused} bgmIsHome={bgmIsHome} /> : null}
+        {focused ? (
+          <MarkerTooltip
+            event={focused}
+            bgmIsHome={bgmIsHome}
+            offset={markerOffsets.get(focused.id)}
+          />
+        ) : null}
       </div>
     </div>
   )
 }
 
-function MarkerTooltip({ event, bgmIsHome }: { event: MatchEventRow; bgmIsHome: boolean }) {
+function MarkerTooltip({
+  event,
+  bgmIsHome,
+  offset,
+}: {
+  event: MatchEventRow
+  bgmIsHome: boolean
+  offset?: MarkerOffset | undefined
+}) {
   const { HOME_COLOR, AWAY_COLOR } = useTeamPalette()
-  // Position the tooltip at the same clamped center as the rendered marker
-  // — otherwise edge-of-rink events drift since the marker clamp moves the
-  // glyph but the tooltip would stay at the raw coordinate.
+  // Position the tooltip at the same clamped + deconflicted center as the
+  // rendered marker — otherwise edge-of-rink events drift (the marker clamp
+  // moves the glyph) and co-located markers point their tooltip at the wrong
+  // (un-fanned) spot.
   const center = markerCenter(event)
-  const leftPct = (center.x / VIEW_W) * 100
-  const topPct = (center.y / VIEW_H) * 100
+  const leftPct = ((center.x + (offset?.dx ?? 0)) / VIEW_W) * 100
+  const topPct = ((center.y + (offset?.dy ?? 0)) / VIEW_H) * 100
   const isHomeSide = resolveMarkerSide(event.teamSide, bgmIsHome) === 'home'
   const actor = event.actor?.gamertag ?? event.actorGamertagSnapshot ?? '—'
   const target = event.target?.gamertag ?? event.targetGamertagSnapshot ?? null
@@ -1385,6 +1415,7 @@ function Marker({
   hovered,
   selected,
   faded,
+  offset,
   onEnter,
   onLeave,
   onClick,
@@ -1394,6 +1425,7 @@ function Marker({
   hovered: boolean
   selected: boolean
   faded: boolean
+  offset?: MarkerOffset | undefined
   onEnter: () => void
   onLeave: () => void
   onClick: () => void
@@ -1411,6 +1443,8 @@ function Marker({
   const common = {
     x: svgX,
     y: svgY,
+    offsetX: offset?.dx ?? 0,
+    offsetY: offset?.dy ?? 0,
     extrapolated,
     hovered,
     selected,
@@ -1466,6 +1500,8 @@ function resolveMarkerSide(
 function PlacedMarker({
   x,
   y,
+  offsetX = 0,
+  offsetY = 0,
   width,
   height,
   extrapolated,
@@ -1479,6 +1515,10 @@ function PlacedMarker({
 }: {
   x: number
   y: number
+  /** Collision-deconfliction offset (see computeMarkerOffsets). 0 when the
+   *  marker doesn't share its coordinate with another event. */
+  offsetX?: number
+  offsetY?: number
   width: number
   height: number
   extrapolated?: boolean
@@ -1492,8 +1532,10 @@ function PlacedMarker({
 }) {
   const halfW = width / 2
   const halfH = height / 2
-  const cx = Math.max(halfW, Math.min(VIEW_W - halfW, x))
-  const cy = Math.max(halfH, Math.min(VIEW_H - halfH, y))
+  // Apply the deconfliction offset BEFORE clamping so a fanned-out marker still
+  // can't escape the rink bounds.
+  const cx = Math.max(halfW, Math.min(VIEW_W - halfW, x + offsetX))
+  const cy = Math.max(halfH, Math.min(VIEW_H - halfH, y + offsetY))
   // Both halos sit clearly outside the marker bounds. Hover is a visible
   // "soft target" ring; selected adds a stronger filled accent so the
   // pinned event reads as a "you are here" beacon at a glance.

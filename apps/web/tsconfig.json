@@ -18,6 +18,9 @@
     },
     "allowJs": true,
     "noEmit": true,
+    // Permits `import './foo.ts'` in node:test unit specs (e.g.
+    // marker-layout.test.ts) — inert for app code, which uses no .ts imports.
+    "allowImportingTsExtensions": true,
     "resolveJsonModule": true,
     "isolatedModules": true
   },
