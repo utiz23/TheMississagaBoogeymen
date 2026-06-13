@@ -11,6 +11,14 @@ import { LineupExpandPanel } from '@/components/matches/lineup-expand-panel'
 import { ArchetypePillCompact } from '@/components/ui/archetype-pill'
 import type { PlayerArchetype } from '@eanhl/db/schema'
 import { colorForPosition } from '@/lib/position-colors'
+import {
+  OcrProvenanceFooter,
+  type ProvenanceBadge,
+  confidenceTone,
+  confidenceWord,
+  formatProvenancePercent,
+} from '@/components/matches/ocr-provenance-footer'
+import { computeLineupConfidence } from '@/lib/lineup-confidence'
 
 /**
  * Lineup & Loadouts — position-matched ladder mirroring the in-game
@@ -72,99 +80,49 @@ export function LineupSection({
           buildLadderItem(pos, bgmByPos.get(pos) ?? null, oppByPos.get(pos) ?? null),
         )}
       />
-      <OcrProvenanceFooter provenance={provenance} />
+      <LineupOcrFooter lineups={lineups} provenance={provenance} />
     </section>
   )
 }
 
 // ─── OCR provenance footer ──────────────────────────────────────────────────
 
-function OcrProvenanceFooter({ provenance }: { provenance: MatchLineupProvenance }) {
-  if (provenance.capturedAt === null) return null
-  const { capturedAt, sources, confidence } = provenance
-  const earliest = capturedAt.earliest
-  const latest = capturedAt.latest
-  const sameInstant = earliest.getTime() === latest.getTime()
-  const capturedLabel = sameInstant
-    ? formatProvenanceTimestamp(earliest)
-    : `${formatProvenanceTimestamp(earliest)} → ${formatProvenanceTimestamp(latest)}`
-  const sourcesLabel = formatSourcesLabel(sources)
-  const overall = (confidence.canonical + confidence.tiered + confidence.attribute) / 3
-  const overallLabel = `${overallConfidenceWord(overall)} · ${overall.toFixed(2)}`
-  const overallTone =
-    overall >= 0.9
-      ? 'text-[var(--color-win)]'
-      : overall >= 0.6
-        ? 'text-[var(--color-fg-2)]'
-        : 'text-[var(--color-otl)]'
+const LINEUP_CONFIDENCE_TOOLTIP =
+  'Blended completeness score — the share of expected lineup fields the OCR recovered. Not a per-field OCR certainty.'
+
+function LineupOcrFooter({
+  lineups,
+  provenance,
+}: {
+  lineups: MatchLineups
+  provenance: MatchLineupProvenance
+}) {
+  const c = computeLineupConfidence(lineups)
+  const badges: ProvenanceBadge[] = [
+    { key: 'Identity', value: c.identity },
+    { key: 'Build', value: c.build },
+    { key: 'X-Factor', value: c.xfactor },
+    { key: 'Tier', value: c.tier },
+    { key: 'Attributes', value: c.attribute },
+  ].map(({ key, value }) => ({
+    label: `${key} · ${formatProvenancePercent(value)}`,
+    tone: value !== null && value >= 0.9 ? 'ok' : 'warn',
+  }))
 
   return (
-    <div className="mt-3 flex flex-wrap items-center gap-x-6 gap-y-3 border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-3">
-      <FootKV k="Captured" v={capturedLabel} />
-      <FootKV k="Sources" v={sourcesLabel} />
-      <div className="flex flex-col gap-[2px]">
-        <span className="font-condensed text-[9px] font-semibold uppercase tracking-[0.22em] text-[var(--color-fg-6)]">
-          Confidence
-        </span>
-        <span className={`font-condensed text-[11px] font-bold tracking-[0.04em] ${overallTone}`}>
-          {overallLabel}
-        </span>
-      </div>
-      <div className="ml-auto flex flex-wrap items-center gap-1.5">
-        <SrcBadge
-          label={`Canonical · ${formatPercent(confidence.canonical)}`}
-          tone={confidence.canonical >= 0.9 ? 'ok' : 'warn'}
-        />
-        <SrcBadge
-          label={`Tiered · ${formatPercent(confidence.tiered)}`}
-          tone={confidence.tiered >= 0.9 ? 'ok' : 'warn'}
-        />
-        <SrcBadge
-          label={`Attribute · ${formatPercent(confidence.attribute)}`}
-          tone={confidence.attribute >= 0.9 ? 'ok' : 'warn'}
-        />
-      </div>
-    </div>
+    <OcrProvenanceFooter
+      capturedAt={provenance.capturedAt}
+      capturedLabel="Captured"
+      sources={lineupSourceLabels(provenance.sources)}
+      headline={{
+        value: c.overall.toFixed(2),
+        word: confidenceWord(c.overall),
+        tone: confidenceTone(c.overall),
+      }}
+      headlineTooltip={LINEUP_CONFIDENCE_TOOLTIP}
+      badges={badges}
+    />
   )
-}
-
-function FootKV({ k, v }: { k: string; v: string }) {
-  return (
-    <div className="flex flex-col gap-[2px]">
-      <span className="font-condensed text-[9px] font-semibold uppercase tracking-[0.22em] text-[var(--color-fg-6)]">
-        {k}
-      </span>
-      <span className="font-condensed text-[11px] font-bold tracking-[0.04em] text-[var(--color-fg-3)]">
-        {v}
-      </span>
-    </div>
-  )
-}
-
-function SrcBadge({ label, tone }: { label: string; tone: 'ok' | 'warn' }) {
-  const cls =
-    tone === 'ok'
-      ? 'border-[var(--color-win-border)] bg-[var(--color-win-bg)] text-[var(--color-win)]'
-      : 'border-[var(--color-otl-border)] bg-[var(--color-otl-bg)] text-[var(--color-otl)]'
-  return (
-    <span
-      className={`inline-flex items-center gap-1.5 border px-2 py-[2px] font-condensed text-[9.5px] font-bold uppercase tracking-[0.18em] ${cls}`}
-    >
-      {label}
-    </span>
-  )
-}
-
-function formatProvenanceTimestamp(d: Date): string {
-  // Match the mockup's style: "12 Mar 2026 · 21:08 EST"-ish but use the
-  // browser's local zone — the visitor's clock is what they read against.
-  return d.toLocaleString(undefined, {
-    year: 'numeric',
-    month: 'short',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
 }
 
 const SCREEN_TYPE_LABELS: Readonly<Record<string, string>> = {
@@ -173,22 +131,10 @@ const SCREEN_TYPE_LABELS: Readonly<Record<string, string>> = {
   player_loadout_view: 'Loadout view',
 }
 
-function formatSourcesLabel(sources: MatchLineupProvenance['sources']): string {
-  if (sources.length === 0) return '—'
+function lineupSourceLabels(sources: MatchLineupProvenance['sources']): string[] {
   const names = new Set<string>()
   for (const s of sources) names.add(SCREEN_TYPE_LABELS[s.screenType] ?? s.screenType)
-  return [...names].join(' + ')
-}
-
-function overallConfidenceWord(score: number): string {
-  if (score >= 0.9) return 'High'
-  if (score >= 0.7) return 'Solid'
-  if (score >= 0.5) return 'Partial'
-  return 'Low'
-}
-
-function formatPercent(n: number): string {
-  return `${Math.round(n * 100)}%`
+  return [...names]
 }
 
 // ─── Summary band ───────────────────────────────────────────────────────────
