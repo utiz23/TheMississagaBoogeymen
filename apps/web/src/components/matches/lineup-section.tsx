@@ -98,16 +98,22 @@ function LineupOcrFooter({
   provenance: MatchLineupProvenance
 }) {
   const c = computeLineupConfidence(lineups)
-  const badges: ProvenanceBadge[] = [
+  // Drop buckets with no denominator (e.g. Tier/X-Factor when no X-Factors were
+  // detected) instead of rendering a misleading "—" in a warn-red badge — an
+  // inapplicable field is not a low score.
+  const buckets: Array<{ key: string; value: number | null }> = [
     { key: 'Identity', value: c.identity },
     { key: 'Build', value: c.build },
     { key: 'X-Factor', value: c.xfactor },
     { key: 'Tier', value: c.tier },
     { key: 'Attributes', value: c.attribute },
-  ].map(({ key, value }) => ({
-    label: `${key} · ${formatProvenancePercent(value)}`,
-    tone: value !== null && value >= 0.9 ? 'ok' : 'warn',
-  }))
+  ]
+  const badges: ProvenanceBadge[] = buckets
+    .filter((b): b is { key: string; value: number } => b.value !== null)
+    .map(({ key, value }) => ({
+      label: `${key} · ${formatProvenancePercent(value)}`,
+      tone: value >= 0.9 ? 'ok' : 'warn',
+    }))
 
   return (
     <OcrProvenanceFooter
