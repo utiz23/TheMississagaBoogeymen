@@ -23,7 +23,7 @@ function row(overrides: Partial<LineupRow>): LineupRow {
     position: 'C',
     buildClass: 'Sniper',
     buildClassCanonical: null,
-    heightText: "6'0\"",
+    heightText: '6\'0"',
     weightLbs: 190,
     handedness: 'L',
     playerLevelNumber: null,
@@ -101,9 +101,7 @@ void test('attribute bucket = share of rows carrying attributes', () => {
 })
 
 void test('buckets average both sides (bgm + opponent)', () => {
-  const c = computeLineupConfidence(
-    lineups([row({ platform: 'ps5' })], [row({ platform: null })]),
-  )
+  const c = computeLineupConfidence(lineups([row({ platform: 'ps5' })], [row({ platform: null })]))
   // identity = (1 + 0.75) / 2
   assert.equal(c.identity, 0.875)
 })

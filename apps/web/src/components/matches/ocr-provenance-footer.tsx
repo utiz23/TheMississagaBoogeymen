@@ -87,7 +87,15 @@ function FootKV({ k, v }: { k: string; v: string }) {
   )
 }
 
-function SrcBadge({ label, tone, tooltip }: { label: string; tone: 'ok' | 'warn'; tooltip?: string | undefined }) {
+function SrcBadge({
+  label,
+  tone,
+  tooltip,
+}: {
+  label: string
+  tone: 'ok' | 'warn'
+  tooltip?: string | undefined
+}) {
   const cls =
     tone === 'ok'
       ? 'border-[var(--color-win-border)] bg-[var(--color-win-bg)] text-[var(--color-win)]'
