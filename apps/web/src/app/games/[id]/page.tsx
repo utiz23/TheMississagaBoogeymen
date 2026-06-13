@@ -12,6 +12,7 @@ import {
   getMatchPeriodSummaries,
   getMatchShotTypeSummaries,
   getMatchEvents,
+  getMatchActionTrackerProvenance,
   getMatchLineups,
   getMatchLineupProvenance,
   getMatchFaceoffDots,
@@ -93,6 +94,7 @@ export default async function GameDetailPage({ params, searchParams }: Props) {
     periodSummaries,
     shotTypeSummaries,
     matchEventRows,
+    actionTrackerProvenance,
     lineups,
     lineupProvenance,
     faceoffDots,
@@ -110,6 +112,7 @@ export default async function GameDetailPage({ params, searchParams }: Props) {
     safe(() => getMatchPeriodSummaries(m.id), []),
     safe(() => getMatchShotTypeSummaries(m.id), []),
     safe(() => getMatchEvents(m.id), []),
+    safe(() => getMatchActionTrackerProvenance(m.id), { extractedAt: null, sources: [] }),
     safe(() => getMatchLineups(m.id), { bgm: [], opponent: [] }),
     safe(() => getMatchLineupProvenance(m.id), {
       capturedAt: null,
@@ -250,6 +253,7 @@ export default async function GameDetailPage({ params, searchParams }: Props) {
         oppColor={match.oppColorHex}
         faceoffDots={faceoffDots}
         faceoffZones={faceoffZones}
+        provenance={actionTrackerProvenance}
       />
 
       {/* 6. Context footer (lowest priority — first to cut if scope shrinks) */}

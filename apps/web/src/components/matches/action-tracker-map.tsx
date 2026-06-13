@@ -26,6 +26,14 @@ import {
 } from '@/components/branding/event-markers'
 import { PlayerSilhouette } from '@/components/home/player-card'
 import { computeMarkerOffsets, type MarkerOffset } from '@/lib/marker-layout'
+import {
+  OcrProvenanceFooter,
+  type ProvenanceBadge,
+  confidenceTone,
+  confidenceWord,
+  formatProvenancePercent,
+} from '@/components/matches/ocr-provenance-footer'
+import type { MatchActionTrackerProvenance } from '@eanhl/db/queries'
 
 /**
  * Action Tracker Map — Boogeymen Design System "Action Tracker Map.html"
@@ -79,6 +87,8 @@ interface ActionTrackerMapProps {
    */
   faceoffDots?: MatchFaceoffDotRow[]
   faceoffZones?: MatchFaceoffZoneSummaryRow[]
+  /** OCR provenance for the section footer (extracted range + source screens). */
+  provenance?: MatchActionTrackerProvenance
 }
 
 // Per-TEAM defaults (not per-side) so BGM keeps its brand red regardless of
@@ -127,6 +137,7 @@ export function ActionTrackerMap({
   oppColor,
   faceoffDots = [],
   faceoffZones = [],
+  provenance = { extractedAt: null, sources: [] },
 }: ActionTrackerMapProps) {
   void _opponentColor // superseded by bgmColor / oppColor
   // The marker geometry has two design treatments — `home` (solid) and
@@ -265,6 +276,12 @@ export function ActionTrackerMap({
     return confirmed / positioned.length
   }, [tracked])
 
+  const positionStats = useMemo(() => {
+    const positioned = tracked.filter((e) => e.x !== null && e.y !== null)
+    const extrapolated = positioned.filter((e) => e.positionConfidence === 'extrapolated').length
+    return { positioned: positioned.length, extrapolated }
+  }, [tracked])
+
   const goalsOnly = enabledTypes.size === 1 && enabledTypes.has('goal')
   const toggleGoalsOnly = () => {
     setEnabledTypes(goalsOnly ? new Set(ALL_TYPES) : new Set(['goal']))
@@ -323,7 +340,6 @@ export function ActionTrackerMap({
               offRink={offRink}
               totals={matchTotals}
               oppAbbrev={oppAbbrev}
-              ocrConfidence={ocrConfidence}
             />
 
             <div className="grid grid-cols-1 gap-3.5 xl:grid-cols-[380px_1fr]">
@@ -360,8 +376,65 @@ export function ActionTrackerMap({
             opponentLabel={opponentLabel}
           />
         )}
+
+        <ActionTrackerOcrFooter
+          provenance={provenance}
+          ocrConfidence={ocrConfidence}
+          positionStats={positionStats}
+        />
       </section>
     </TeamPaletteContext.Provider>
+  )
+}
+
+const AT_CONFIDENCE_TOOLTIP =
+  'Position proxy — the share of plotted events whose rink position was read directly, not extrapolated. Not an OCR text-confidence.'
+
+const AT_SCREEN_LABELS: Readonly<Record<string, string>> = {
+  post_game_action_tracker: 'Action Tracker',
+  post_game_events: 'Post-game events',
+}
+
+function ActionTrackerOcrFooter({
+  provenance,
+  ocrConfidence,
+  positionStats,
+}: {
+  provenance: MatchActionTrackerProvenance
+  ocrConfidence: number | null
+  positionStats: { positioned: number; extrapolated: number }
+}) {
+  const score = ocrConfidence ?? 0
+  const sources = [
+    ...new Set(provenance.sources.map((s) => AT_SCREEN_LABELS[s.screenType] ?? s.screenType)),
+  ]
+  const readDirectly = positionStats.positioned - positionStats.extrapolated
+  const extrapShare =
+    positionStats.positioned > 0 ? positionStats.extrapolated / positionStats.positioned : 0
+  const badges: ProvenanceBadge[] = [
+    {
+      label: `Plotted · ${String(readDirectly)}/${String(positionStats.positioned)}`,
+      tone: ocrConfidence !== null && ocrConfidence >= 0.9 ? 'ok' : 'warn',
+    },
+    {
+      label: `Extrapolated · ${formatProvenancePercent(extrapShare)}`,
+      tone: positionStats.extrapolated === 0 ? 'ok' : 'warn',
+    },
+  ]
+
+  return (
+    <OcrProvenanceFooter
+      capturedAt={provenance.extractedAt}
+      capturedLabel="Extracted"
+      sources={sources}
+      headline={{
+        value: ocrConfidence === null ? '—' : ocrConfidence.toFixed(2),
+        word: ocrConfidence === null ? 'No data' : confidenceWord(score),
+        tone: ocrConfidence === null ? 'neutral' : confidenceTone(score),
+      }}
+      headlineTooltip={AT_CONFIDENCE_TOOLTIP}
+      badges={badges}
+    />
   )
 }
 
@@ -670,14 +743,12 @@ function SummaryStrip({
   offRink,
   totals,
   oppAbbrev,
-  ocrConfidence,
 }: {
   visible: number
   onRink: number
   offRink: number
   totals: { goalsBgm: number; goalsOpp: number; shots: number; hits: number; penalties: number }
   oppAbbrev: string
-  ocrConfidence: number | null
 }) {
   const [expanded, setExpanded] = useState(false)
   const teaser = `Match totals · BGM ${String(totals.goalsBgm)} – ${oppAbbrev} ${String(totals.goalsOpp)}`
@@ -735,18 +806,6 @@ function SummaryStrip({
                 />
               ) : null}
             </SummaryGroup>
-            <div className="ml-auto flex items-center gap-x-4">
-              {ocrConfidence !== null && ocrConfidence < 0.99 ? (
-                <SummaryKV
-                  k="OCR confidence"
-                  v={ocrConfidence.toFixed(2)}
-                  tone={ocrConfidence >= 0.75 ? 'win' : undefined}
-                  small
-                  title="OCR confidence in this match's extracted events. ≥0.99 hidden as uninformative noise; 0.75-0.98 highlighted as 'good'; below 0.75 plain to draw attention."
-                />
-              ) : null}
-              <SummaryKV k="Source" v="Action Tracker OCR · v2" small />
-            </div>
           </div>
         </>
       ) : null}
