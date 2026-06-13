@@ -201,6 +201,21 @@
 >    provenance score (`canonical`, `tiered`, `attribute`) while Action Tracker confidence is currently a
 >    proxy (`confirmed positioned / positioned`), not a true OCR posterior.
 
+**Status (2026-06-13 — WS5 deferred test-failures triaged & 3 resolved):** Worked the deferred WS5 red list (see 2026-06-01 WS5 entry below). **Resolved 3 of the known-reds; corrected one diagnosis.**
+
+- **`fixture-loader` (FIXED):** stale assertion expected `85` records for `synthetic_degraded`; the fixture's own `PROVENANCE.md` + the on-disk `degraded_evidence.json` both have `79` (post-T8A removed 5 records). Updated the assertion to `79`. Pure test rot, no DB. (`apps/worker/src/__tests__/fixtures/fixture-loader.test.ts`) — file now 9/9 pass.
+- **`test_cache_invalidation` telemetry sidecar (FIXED, video_ingest):** test hard-coded a six-key `ingest_timings.json` shape; orchestrator now emits **nine** keys (six timing + three WS1b `prefilter_*`). Updated the key-set assertion + docstring. (`tools/video_ingest/tests/test_cache_invalidation.py`) — passes.
+- **`ocr-decoder-runs-backfill` (FIXED — split diagnosis; the 2026-06-01 "data-drift (2)" framing was half wrong):**
+  - *Failure 1 = GENUINE data drift (repaired live DB):* one match-linked batch (`3664`, match 250's manual "288 clarifying frame") was inserted **after** migration 0048's one-shot cascade, so it + its segment (`1404`) + its 1 extraction were `run_id IS NULL`. Adopted the whole chain into **run 1** (match 250's synthetic backfill run) via a transactional `UPDATE`. Zero match-linked orphans remain. run 1 stays `legacy-mixed`/sha-NULL (manual add doesn't change provenance). This also clears the run-1+NULL AT-extraction split noted in the reconcile entry below (now all under run 1).
+  - *Failure 2 = TEST BUG, not data drift:* test computed decoder provenance **match-wide** (`GROUP BY match_id`) and expected run 3 (match 968 synthetic backfill) to be `legacy-mixed` because the match now holds `[v1, v2]`. But segments are **run-scoped**: run 3 owns 51 segments, **all v1**; the v2 segments belong to later reprocess runs 556/584. Marking run 3 `legacy-mixed` would record provenance it never had. Migration 0048's match-wide aggregation was only correct at t=0 (one run owned every segment); once reprocessing added run-scoped segments the scopes diverged. **Fix: scope the test's sha + decoder queries by `run_id` (not `match_id`)** + documented why. (`apps/worker/src/__tests__/ocr-decoder-runs-backfill.test.ts`) — file now 5/5 pass.
+- **Stale handoff item corrected:** `test_train_loadout_closed_vocab.py` is no longer red (20 passed).
+
+**Still deferred (intentionally not touched — calibration/loadout reopen, not quick cleanup):** `match-250-benchmark` (lobby hard/soft accuracy gates), `match-463-loadout-slots-fixture` (pre-existing fixture-family contract). Per user direction these stay until the lobby/loadout calibration workstream is explicitly reopened.
+
+**Verification:** `fixture-loader` 9/9; `ocr-decoder-runs-backfill` 5/5; `test_cache_invalidation::OrchestratorCacheTests::test_phase4_sampling_telemetry_fresh_vs_cache_hit` passes; worker `tsc` clean; changed TS files prettier-clean. Note: repo-wide `pnpm format` rewrites ~30 unrelated files (pre-existing format drift) and exits non-zero — do **not** bundle that churn; format only the files you touch.
+
+---
+
 **Status (2026-06-01 — WS2 ✅ MERGED to `main` via `--no-ff` `ae3f46d`, NOT pushed):** **Conservative Pass-1 pre-OCR gate (Phase A, heuristic).** Frames classified as unambiguously non-text (black/fade/loading) skip the expensive per-frame RapidOCR and are pinned to `unknown_or_transition`. Built via TDD across 5 layers/commits off `main`. Plan: `~/.claude/plans/plan-ws2-elegant-eich.md`.
 
 **What shipped (5 commits, `c574515`→`be89a77`):**
