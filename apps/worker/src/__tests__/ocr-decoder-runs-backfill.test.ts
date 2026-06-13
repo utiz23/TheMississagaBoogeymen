@@ -5,12 +5,24 @@
  * `ocr_decoder_runs` row per match with existing OCR data. The provenance
  * rules from the plan:
  *
- *   single-source video (one distinct sha across the match's batches,
+ *   single-source video (one distinct sha across the run's own batches,
  *   no manual mix) → run.video_sha256 = that sha
  *   multi-source / mixed video+manual / manual-only → video_sha256 = NULL
  *
- *   single distinct decoder_version across ocr_segments → use that value
+ *   single distinct decoder_version across the run's own ocr_segments →
+ *   use that value
  *   multiple distinct decoder_versions → 'legacy-mixed' marker
+ *
+ * IMPORTANT: provenance is computed PER RUN (filter by run_id), not
+ * match-wide. Migration 0048's one-shot DO block aggregated match-wide
+ * (GROUP BY match_id) because at backfill time exactly one synthetic run
+ * owned every one of a match's segments/batches, so run-scope == match-scope.
+ * Once reprocessing added later runs (each with its own run_id-scoped
+ * segments), the two scopes diverged: a match can now hold v1 segments owned
+ * by the synthetic run AND v2 segments owned by a reprocess run. The synthetic
+ * run's decoder_version must honestly describe ITS OWN segments — marking it
+ * 'legacy-mixed' just because some other run later produced a different
+ * decoder version would record provenance the run never had.
  *
  * This test verifies the current DB state matches the rules. It does NOT
  * re-run the backfill SQL (that's a one-shot in migration 0048's DO block);
@@ -107,13 +119,14 @@ void test('backfill provenance: single-source matches have non-NULL video_sha256
     .where(sql`${ocrDecoderRuns.notes} LIKE 'synthetic backfill%'`)
 
   for (const run of synthRuns) {
-    // Compute expected provenance from the match's batches.
+    // Compute expected provenance from the run's OWN batches (run_id scope),
+    // not match-wide — later reprocess runs own their own batches.
     const batches = await db
       .select({
         videoSha256: ocrCaptureBatches.videoSha256,
       })
       .from(ocrCaptureBatches)
-      .where(eq(ocrCaptureBatches.matchId, run.matchId))
+      .where(eq(ocrCaptureBatches.runId, run.id))
     const distinctShas = new Set(
       batches.map((b) => b.videoSha256).filter((s): s is string => s !== null),
     )
@@ -141,10 +154,12 @@ void test('backfill decoder provenance: single-decoder matches keep value; multi
     .where(sql`${ocrDecoderRuns.notes} LIKE 'synthetic backfill%'`)
 
   for (const run of synthRuns) {
+    // Run-scoped: a synthetic run's decoder_version describes the segments it
+    // owns (run_id), not every segment the match accumulated across later runs.
     const segDecoders = await db
       .select({ decoderVersion: ocrSegments.decoderVersion })
       .from(ocrSegments)
-      .where(eq(ocrSegments.matchId, run.matchId))
+      .where(eq(ocrSegments.runId, run.id))
       .groupBy(ocrSegments.decoderVersion)
     const distinctDecoders = new Set(segDecoders.map((r) => r.decoderVersion))
     distinctDecoders.delete(null as unknown as string)

@@ -524,7 +524,8 @@ class OrchestratorCacheTests(unittest.TestCase):
         pass1_cache_hit=True (never the stored fresh-run values).
 
         Part B extension: also assert the ingest_timings.json sidecar
-        is emitted with the expected six-field shape on both passes."""
+        is emitted with the expected nine-field shape on both passes
+        (six timing fields + three WS1b prefilter fields)."""
         r1 = self._run()  # fresh
         self.assertIsNotNone(r1.sampling_telemetry)
         self.assertFalse(r1.sampling_telemetry.pass1_cache_hit)
@@ -535,9 +536,10 @@ class OrchestratorCacheTests(unittest.TestCase):
         # measurement in Commit 5.
         self.assertEqual(r1.sampling_telemetry.elapsed_pass1_ms, 0.0)
 
-        # Part B: sidecar present, six expected keys, pass1_cache_hit=False
-        # on the fresh pass. Direct CLI usage (run_id is None in this
-        # test harness) writes the unscoped path.
+        # Part B: sidecar present, nine expected keys (six timing + three
+        # WS1b prefilter), pass1_cache_hit=False on the fresh pass. Direct
+        # CLI usage (run_id is None in this test harness) writes the
+        # unscoped path.
         sidecar = self.output_root / self.fake_sha / "ingest_timings.json"
         self.assertTrue(sidecar.exists(), f"ingest_timings.json missing at {sidecar}")
         payload1 = json.loads(sidecar.read_text())
@@ -550,6 +552,9 @@ class OrchestratorCacheTests(unittest.TestCase):
                 "pass1_ms",
                 "pass2_ms",
                 "pass1_cache_hit",
+                "prefilter_frames_scanned",
+                "prefilter_frames_selected",
+                "prefilter_selection_ms",
             },
         )
         self.assertFalse(payload1["pass1_cache_hit"])

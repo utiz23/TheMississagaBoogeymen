@@ -53,13 +53,13 @@ describe('loadFixture', () => {
     )
   })
 
-  test('loads synthetic_degraded fixture with 1 segment (85 records)', () => {
+  test('loads synthetic_degraded fixture with 1 segment (79 records)', () => {
     const fixture = loadFixture('fixture_synthetic_degraded')
     assert.equal(fixture.segments.length, 1, '1 pseudo-segment')
     assert.equal(
       fixture.segments[0]?.expectedEvidence.length,
-      85,
-      '85 records in degraded_evidence.json',
+      79,
+      '79 records in degraded_evidence.json (post T8A fix: 5 records removed)',
     )
     assert.equal(fixture.sentinelMatchId, 9003, 'sentinel match ID is 9003')
     assert.equal(SENTINEL_MATCH_IDS['fixture_synthetic_degraded'], 9003)
