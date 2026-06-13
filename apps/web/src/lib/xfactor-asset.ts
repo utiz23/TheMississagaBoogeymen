@@ -19,15 +19,30 @@ const TIER_TO_COLOR: Readonly<Record<XFactorTier, 'Red' | 'Blue' | 'Gold'>> = {
 }
 
 /**
+ * Type guard for a genuine tier enum. Guards against bogus values (e.g. the
+ * legacy string "null") that would otherwise index `TIER_TO_COLOR` as
+ * `undefined` and build a broken `__undefined__File.png` URL.
+ */
+export function isXFactorTier(value: unknown): value is XFactorTier {
+  return value === 'Elite' || value === 'All Star' || value === 'Specialist'
+}
+
+/**
  * Build a `/assets/x-factors/...` URL for a given canonical X-Factor name +
- * tier. Returns null when either input is missing — caller decides the
- * fallback (e.g. render a text pill).
+ * tier.
+ *
+ * Returns null when the canonical name is missing OR the tier is absent/invalid.
+ * The tier-colored PNGs are the ONLY X-Factor art that exists (Red/Blue/Gold),
+ * so there is intentionally no icon for a tier-less X-Factor — the caller is
+ * expected to render a neutral, visually-distinct placeholder via
+ * `hasXFactorIcon` so a known-but-untiered X-Factor still reads as present
+ * (rather than vanishing). See lineup-expand-panel.tsx.
  */
 export function xFactorIconUrl(
   canonicalName: string | null | undefined,
   tier: XFactorTier | null | undefined,
 ): string | null {
-  if (!canonicalName || !tier) return null
+  if (!canonicalName || !isXFactorTier(tier)) return null
   const color = TIER_TO_COLOR[tier]
   return `/assets/x-factors/${canonicalName}/NHL_26_${canonicalName}_X-Factor_Image__${color}__File.png`
 }

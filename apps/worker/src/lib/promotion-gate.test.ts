@@ -273,3 +273,43 @@ void test('top candidate selected by calibratedConfidence, not candidateRank', (
   assert.equal(result.status, 'promoted')
   assert.equal(result.winningValue, 'Sniper') // higher calibratedConfidence wins
 })
+
+// ─── same-value duplicates reinforce, never compete ─────────────────────────────
+//
+// Regression for match 250: the loadout evidence writer emits each
+// `x_factor_tier` value TWICE for one segment (two identical "All Star"
+// rows at confidence 1.0). The pre-fix gate treated the duplicate as a
+// competitor → ratio 1.0/1.0 < 1.5 → blocked_consensus → tier written NULL.
+
+void test('two identical-value candidates promote (do not block_consensus)', () => {
+  const candidates = [makeCandidate('All Star', 1.0, 4801), makeCandidate('All Star', 1.0, 4802)]
+  const result = runPromotionGate({ candidates })
+  assert.equal(result.status, 'promoted')
+  assert.equal(result.winningValue, 'All Star')
+  assert.equal(result.conflictCount, 0) // no genuine dissent
+  assert.deepEqual(result.evidenceIds.sort(), [4801, 4802])
+})
+
+void test('genuine disagreement still blocks even with a same-value duplicate present', () => {
+  // top "Elite" reinforced by a duplicate, but "Specialist" is real dissent.
+  const candidates = [
+    makeCandidate('Elite', 0.8, 4901),
+    makeCandidate('Elite', 0.8, 4902),
+    makeCandidate('Specialist', 0.8, 4903),
+  ]
+  const result = runPromotionGate({ candidates })
+  assert.equal(result.status, 'blocked_consensus')
+  assert.equal(result.conflictCount, 1) // only the differing value counts
+})
+
+void test('dominant top over a same-value duplicate + weak dissenter promotes', () => {
+  const candidates = [
+    makeCandidate('Elite', 0.9, 5001),
+    makeCandidate('Elite', 0.9, 5002), // duplicate, reinforces
+    makeCandidate('Specialist', 0.1, 5003), // below threshold, ignored
+  ]
+  const result = runPromotionGate({ candidates })
+  assert.equal(result.status, 'promoted')
+  assert.equal(result.winningValue, 'Elite')
+  assert.equal(result.conflictCount, 0)
+})

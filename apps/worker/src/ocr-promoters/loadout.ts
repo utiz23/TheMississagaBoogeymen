@@ -15,6 +15,7 @@ import {
   playerLoadoutSnapshots,
   playerLoadoutXFactors,
   playerLoadoutAttributes,
+  coerceXFactorTier,
   type NewPlayerLoadoutAttribute,
   type NewPlayerLoadoutXFactor,
 } from '@eanhl/db'
@@ -150,7 +151,9 @@ export async function promoteLoadout(ctx: PromoterContext): Promise<void> {
     const name = stringValue(xf, { preferRaw: true })
     if (!name) return
     const tierField = xFactorTiers[i]
-    const tier = stringValue(tierField) as 'Elite' | 'All Star' | 'Specialist' | null
+    // Only persist a valid tier enum — never a stray OCR string (or the
+    // literal "null"). Anything unrecognised becomes real SQL NULL.
+    const tier = coerceXFactorTier(stringValue(tierField))
     // Canonical-name precedence:
     //   1. icon template match (sub-pixel reliable for the 28 NHL 26 X-Factors)
     //   2. text-OCR + normalizeXFactor fallback (handles unmapped icon matches)
@@ -170,7 +173,7 @@ export async function promoteLoadout(ctx: PromoterContext): Promise<void> {
       slotIndex: i,
       xFactorName: name,
       xFactorNameCanonical: canonical,
-      tier: tier ?? null,
+      tier,
     })
   })
   if (xFactorRows.length > 0) {

@@ -1,6 +1,8 @@
 import { and, asc, desc, eq, sql } from 'drizzle-orm'
 import { db } from '../client.js'
 import {
+  coerceXFactorTier,
+  isXFactorTier,
   ocrExtractions,
   opponentPlayerMatchStats,
   playerLoadoutAttributes,
@@ -222,7 +224,10 @@ export async function getMatchLineups(matchId: number) {
           xBySlot.set(x.slotIndex, x)
           continue
         }
-        if (existing.tier === null && x.tier !== null) {
+        // Prefer a slot reading that carries a GENUINE tier. A bogus value
+        // (e.g. the legacy string "null") is not a real tier and must not win
+        // over — or block promotion of — a sibling reading.
+        if (!isXFactorTier(existing.tier) && isXFactorTier(x.tier)) {
           xBySlot.set(x.slotIndex, x)
         }
       }
@@ -233,7 +238,9 @@ export async function getMatchLineups(matchId: number) {
         slotIndex: x.slotIndex,
         name: x.xFactorName,
         canonicalName: x.xFactorNameCanonical,
-        tier: x.tier,
+        // Surface only a valid tier to the UI; coerce any stray string to null
+        // so the renderer's fallback logic keys off a clean signal.
+        tier: coerceXFactorTier(x.tier),
       }))
   }
 
@@ -589,7 +596,11 @@ export async function getMatchLineupProvenance(matchId: number): Promise<MatchLi
         )})`,
       )
     xfactorTotal = xfactorRows.length
-    for (const x of xfactorRows) if (x.tier !== null) tiered++
+    // Count only GENUINE tier enum values. A non-null-but-invalid string like
+    // the legacy "null" must NOT count as tiered — that was inflating the
+    // lineup footer's "Tiered · N%" badge with garbage (match 250 showed 10%
+    // purely from 3 bogus "null" rows).
+    for (const x of xfactorRows) if (isXFactorTier(x.tier)) tiered++
   }
 
   const attributeRows = await db

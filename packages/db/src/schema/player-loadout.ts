@@ -107,6 +107,26 @@ export const playerLoadoutSnapshots = pgTable(
 )
 
 /**
+ * The closed vocabulary of X-Factor tiers, classified from the icon's HSV
+ * color (red = Elite, blue = All Star, yellow = Specialist). Single source of
+ * truth shared by the worker promoters (write path) and the lineup query
+ * (read/provenance path) so a value like the literal string "null" can never
+ * sneak in as a "tier".
+ */
+export const X_FACTOR_TIERS = ['Elite', 'All Star', 'Specialist'] as const
+export type XFactorTier = (typeof X_FACTOR_TIERS)[number]
+
+/** Type guard: true only for a genuine tier enum value. */
+export function isXFactorTier(value: unknown): value is XFactorTier {
+  return value === 'Elite' || value === 'All Star' || value === 'Specialist'
+}
+
+/** Narrow any candidate to a valid tier, or real `null`. Use on every write. */
+export function coerceXFactorTier(value: unknown): XFactorTier | null {
+  return isXFactorTier(value) ? value : null
+}
+
+/**
  * Up to 3 X-factors per loadout snapshot (slot_index 0, 1, 2).
  * x_factor_name is the verbatim OCR string (e.g. 'Tape-to-Tape', 'Puck on a String').
  * x_factor_name_canonical is the normalized name matching the branding asset
@@ -126,7 +146,7 @@ export const playerLoadoutXFactors = pgTable(
     slotIndex: integer('slot_index').notNull(),
     xFactorName: text('x_factor_name').notNull(),
     xFactorNameCanonical: text('x_factor_name_canonical'),
-    tier: text('tier').$type<'Elite' | 'All Star' | 'Specialist'>(),
+    tier: text('tier').$type<XFactorTier>(),
   },
   (table) => [
     uniqueIndex('player_loadout_x_factors_snapshot_slot_uniq').on(

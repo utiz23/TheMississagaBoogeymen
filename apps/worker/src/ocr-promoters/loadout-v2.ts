@@ -28,6 +28,7 @@ import {
   playerPersonaAliases,
   opponentPlayerMatchStats,
   matches,
+  coerceXFactorTier,
   type NewPlayerLoadoutXFactor,
   type NewPlayerLoadoutAttribute,
 } from '@eanhl/db'
@@ -844,10 +845,14 @@ export async function promoteLoadoutFromEvidence(input: {
             const dec = sd.fieldDecisions.get(fk)!
             const name = String(dec.winningValue ?? '')
             const tierDec = sd.fieldDecisions.get(`x_factor_tier_${i}`)
+            // Only persist a tier when the gate promoted a value that is a
+            // valid enum. A promoted-but-NULL decision (observability marker:
+            // value=null, conf=0) previously became the literal string "null"
+            // via String(null) — bogus data that polluted the column and
+            // inflated the lineup "Tiered" provenance. Coerce anything invalid
+            // to real SQL NULL.
             const tier =
-              tierDec?.status === 'promoted'
-                ? (String(tierDec.winningValue) as 'Elite' | 'All Star' | 'Specialist')
-                : null
+              tierDec?.status === 'promoted' ? coerceXFactorTier(tierDec.winningValue) : null
             return {
               loadoutSnapshotId: snap.id,
               slotIndex: i,

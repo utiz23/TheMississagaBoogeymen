@@ -457,7 +457,7 @@ function XFactorRowHorizontal({ xFactors }: { xFactors: LineupRow['xFactors'] })
                 aria-hidden
               />
             ) : (
-              <span className="h-10 w-10" aria-hidden />
+              <XFactorIconFallback size={40} known={xf.canonicalName !== null} />
             )}
             <span className="text-center font-condensed text-[12.5px] font-bold uppercase tracking-[0.04em] text-[var(--color-fg-1)]">
               {display}
@@ -471,6 +471,31 @@ function XFactorRowHorizontal({ xFactors }: { xFactors: LineupRow['xFactors'] })
         )
       })}
     </div>
+  )
+}
+
+/**
+ * Neutral placeholder shown when an X-Factor is known (has a canonical name)
+ * but its tier wasn't classified — so we can't pick a Red/Blue/Gold PNG.
+ * A hollow diamond reads clearly as "X-Factor present, tier unknown" and is
+ * deliberately distinct from the solid, tier-colored real icons. When even
+ * the canonical name is missing we render nothing (truly unidentified).
+ */
+function XFactorIconFallback({ size, known }: { size: number; known: boolean }) {
+  if (!known) return <span style={{ width: size, height: size }} aria-hidden />
+  return (
+    <svg viewBox="0 0 24 24" width={size} height={size} className="shrink-0" aria-hidden role="img">
+      <rect
+        x={5}
+        y={5}
+        width={14}
+        height={14}
+        transform="rotate(45 12 12)"
+        fill="none"
+        stroke="var(--color-fg-5)"
+        strokeWidth={1.5}
+      />
+    </svg>
   )
 }
 
@@ -497,7 +522,7 @@ function XFactorListRow({
           aria-hidden
         />
       ) : (
-        <span className="h-[22px] w-[22px]" aria-hidden />
+        <XFactorIconFallback size={22} known={canonicalName !== null} />
       )}
       <span className="font-condensed text-[12px] font-bold uppercase tracking-[0.04em] text-[var(--color-fg-2)]">
         {display}

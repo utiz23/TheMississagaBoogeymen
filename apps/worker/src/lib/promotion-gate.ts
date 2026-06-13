@@ -107,6 +107,19 @@ export interface PromotionDecision<TValue = unknown> {
 
 // ─── implementation ────────────────────────────────────────────────────────────
 
+/**
+ * Value equality for consensus competition. Primitives compare with `===`
+ * (so the string "null" stays distinct from a real null). Object/array values
+ * (rare in field evidence) fall back to a structural JSON compare.
+ */
+function sameGateValue(a: unknown, b: unknown): boolean {
+  if (a === b) return true
+  if (typeof a === 'object' && a !== null && typeof b === 'object' && b !== null) {
+    return JSON.stringify(a) === JSON.stringify(b)
+  }
+  return false
+}
+
 export function runPromotionGate<TValue = unknown>(
   input: RunPromotionGateInput<TValue>,
 ): PromotionDecision<TValue> {
@@ -144,8 +157,18 @@ export function runPromotionGate<TValue = unknown>(
   const top = sorted[0]!
   const others = sorted.slice(1)
 
-  // Competitors: candidates OTHER than the top that are above the threshold.
-  const competing = others.filter((c) => c.calibratedConfidence >= consensusThreshold)
+  // Competitors that create genuine ambiguity are candidates OTHER than the
+  // top that are above the threshold AND carry a DIFFERENT value. Candidates
+  // repeating the top value reinforce it — they must not count as competition.
+  //
+  // Without the value check, two identical high-confidence readings (e.g. the
+  // same `x_factor_tier` = "All Star" extracted twice from one loadout
+  // segment) dead-lock at ratio 1.0 < dominanceRatio and wrongly
+  // `blocked_consensus`, even though there is only ONE distinct value. This
+  // was the exact cause of match 250's X-Factor tiers all landing NULL.
+  const competing = others.filter(
+    (c) => c.calibratedConfidence >= consensusThreshold && !sameGateValue(c.value, top.value),
+  )
   const conflictCount = competing.length
 
   // ── Step 4: authority — give resolver a chance to override ────────────────
