@@ -174,11 +174,14 @@ export type PlayerCareerShotRow = Awaited<ReturnType<typeof getPlayerCareerShots
  * OCR provenance for the Action Tracker section of a match — drives the
  * `Extracted / Sources / Confidence` footer.
  *
- * Joins the visible OCR event rows (source='ocr', reviewed — matching
- * getMatchEvents' visibility rule) to their source extraction. The only time
- * signal on event rows is `ocr_extractions.extracted_at` (OCR-run time, NOT a
- * capture time), so the footer labels this range "Extracted"; it can span
- * reprocess runs.
+ * Restricts to reviewed OCR-sourced events (source='ocr') — the subset of
+ * getMatchEvents' visibility rule that actually has OCR provenance. (`ea` rows
+ * carry no extraction; `manual` rows are hand-attributed with a null
+ * ocr_extraction_id, so the inner join below drops them regardless — they are
+ * not OCR-derived and must not contribute to an OCR provenance footer.) The
+ * only time signal on event rows is `ocr_extractions.extracted_at` (OCR-run
+ * time, NOT a capture time), so the footer labels this range "Extracted"; it
+ * can span reprocess runs.
  */
 export interface MatchActionTrackerProvenance {
   extractedAt: { earliest: Date; latest: Date } | null
@@ -194,6 +197,8 @@ export async function getMatchActionTrackerProvenance(
       extractedAt: ocrExtractions.extractedAt,
     })
     .from(matchEvents)
+    // inner join is intentional: ocr_extraction_id is a nullable FK, but
+    // source='ocr' events always have it populated — null-FK rows are dropped.
     .innerJoin(ocrExtractions, eq(ocrExtractions.id, matchEvents.ocrExtractionId))
     .where(
       and(
