@@ -1,0 +1,28 @@
+# systemd --user service: nightly OCR verification (Tier 0 WS0.2).
+#
+# Runs the full verify harness (incl. the heavy reprocess E2E) as the catch-all
+# that exercises the end-to-end path the advisory pre-push hook skips.
+#
+# Install (machine-local, one-time):
+#   mkdir -p ~/.config/systemd/user
+#   ln -sf "$PWD/ops/eanhl-verify.service" ~/.config/systemd/user/eanhl-verify.service
+#   ln -sf "$PWD/ops/eanhl-verify.timer"   ~/.config/systemd/user/eanhl-verify.timer
+#   systemctl --user daemon-reload
+#   systemctl --user enable --now eanhl-verify.timer
+#
+# Edit WorkingDirectory below to the repo's absolute path on this machine.
+# DATABASE_URL is loaded from the repo .env via EnvironmentFile.
+
+[Unit]
+Description=EANHL OCR verification (nightly, full)
+After=docker.service
+
+[Service]
+Type=oneshot
+# --- EDIT THIS to the repo's absolute path on this machine ---
+WorkingDirectory=%h/projects/eanhl-team-website
+EnvironmentFile=%h/projects/eanhl-team-website/.env
+ExecStart=/usr/bin/env bash scripts/verify-ocr.sh --full
+# Keep a bounded log; journal captures stdout/stderr.
+StandardOutput=journal
+StandardError=journal

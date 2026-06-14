@@ -9,8 +9,10 @@
     "typecheck": "turbo typecheck",
     "smoke:quick": "pnpm build && pnpm typecheck && pnpm --filter web lint",
     "test:db-importers": "pnpm --filter @eanhl/db test",
+    "verify:ocr": "bash scripts/verify-ocr.sh",
     "format": "prettier --write \"**/*.{ts,tsx,json,md}\" --ignore-path .gitignore",
-    "format:check": "prettier --check \"**/*.{ts,tsx,json,md}\" --ignore-path .gitignore"
+    "format:check": "prettier --check \"**/*.{ts,tsx,json,md}\" --ignore-path .gitignore",
+    "prepare": "git config core.hooksPath .githooks || true"
   },
   "devDependencies": {
     "@eslint/js": "^9.25.1",

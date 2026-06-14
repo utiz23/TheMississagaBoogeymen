@@ -1,0 +1,38 @@
+#!/usr/bin/env bash
+#
+# Advisory pre-push hook (Tier 0 WS0.2). Runs the OCR verification harness
+# before a push so obviously-broken OCR work doesn't leave the machine.
+#
+# Self-installing: the root package.json `prepare` script points
+# core.hooksPath at .githooks on `pnpm install`, so this hook is active for
+# anyone who sets the repo up the normal way.
+#
+# This hook is ADVISORY and bypassable:  git push --no-verify
+# The authoritative, fail-closed enforcement is the `decoder-runs activate`
+# quality gate (WS0.1A) — bad runs cannot become canonical regardless of the
+# local git config. See docs/ocr + HANDOFF.md.
+#
+# DATABASE_URL must be loaded (the worker integration suite clones the local
+# DB). If it is unset we SKIP rather than block — the hook is best-effort and
+# the activate gate is the real guard.
+
+set -uo pipefail
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+if [ -z "${DATABASE_URL:-}" ]; then
+  if [ -f "$REPO_ROOT/.env" ]; then
+    set -a
+    # shellcheck disable=SC1091
+    . "$REPO_ROOT/.env"
+    set +a
+  fi
+fi
+
+if [ -z "${DATABASE_URL:-}" ]; then
+  echo "[pre-push] DATABASE_URL unset and no .env found — skipping verify-ocr (advisory)." >&2
+  echo "[pre-push] The activate quality gate remains the real enforcement." >&2
+  exit 0
+fi
+
+echo "[pre-push] running scripts/verify-ocr.sh (advisory; bypass with: git push --no-verify)" >&2
+exec bash "$REPO_ROOT/scripts/verify-ocr.sh"
