@@ -2,10 +2,10 @@
 
 ## To-Do
 
-- **🔴 NEXT (execute in fresh session): Tier 0 — OCR shippability.** Plan `~/.claude/plans/snug-drifting-cook.md`; see the ACTIVE PRIORITY block below for ground truth + locked decisions. Order: 0.3 loadout fixture → 0.1 gate+recalibrate → 0.2 verify script/hook/nightly.
+- **🔴 NEXT (execute in fresh session): Tier 0 — OCR shippability.** Plan committed in-repo at `docs/ocr/tier0-shippability-plan.md` (also `~/.claude/plans/snug-drifting-cook.md` on the origin machine); see the ACTIVE PRIORITY block below for ground truth + locked decisions. Order: 0.3 loadout fixture → 0.1 gate+recalibrate → 0.2 verify script/hook/nightly.
 - **OCR labeling follow-up (now Tier 1.6, subordinate to Tier 0):** run a **targeted** labeling round for the sparse/ambiguous WoC and lobby classes instead of another broad doc-style pass. Use proper annotation software (`Label Studio` already exists here), increase extraction density for sub-second screens like `menu_club_management` / `player_loadout_landing`, and validate the resulting taxonomy against the proving bench before treating the labels as trustworthy.
 
-> **🔴 ACTIVE PRIORITY (set 2026-06-13): "Tier 0 — Make OCR Extraction Shippable (Provable Correctness)" — plan `~/.claude/plans/snug-drifting-cook.md`.**
+> **🔴 ACTIVE PRIORITY (set 2026-06-13): "Tier 0 — Make OCR Extraction Shippable (Provable Correctness)" — plan `docs/ocr/tier0-shippability-plan.md` (in-repo; copy of `~/.claude/plans/snug-drifting-cook.md`).**
 > This is THE priority. To be executed in a fresh session (this session only planned + reviewed it). The
 > 2026-06-01 revamp priority below is **SUPERSEDED — EFFECTIVELY COMPLETE** (kept for history).
 >
