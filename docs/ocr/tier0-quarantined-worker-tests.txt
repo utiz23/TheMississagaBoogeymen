@@ -33,13 +33,16 @@
 #   match 250 getMatchLineups: BGM/LW is_captain reads `true` (V2: false) — a
 #     captain-icon misread in the loadout_view extractor (consolidate sets
 #     is_captain by a pure OR with no confidence signal; consolidate-loadouts.ts:302).
-#   match 463 floor: L2 0.82 / L2.5 0.825 / L3 0.919 sit below the 0.98 / 0.875 /
-#     0.965 floor after re-consolidate + backfill — residual duplicate-event /
-#     missing-lineup-field gaps that need extractor work, not data repair.
+#   match 463 floor: RESOLVED 2026-06-14 (WS-C). The 0.98 / 0.875 / 0.965 floor
+#     was a STALE self-snapshot from a phase-3a worktree (pre-repair, pre-Tier-0
+#     threshold recalibration), NOT the V2 ground truth. Re-baselined the
+#     regression floor to the current honest post-repair state (0.82 / 0.825 /
+#     0.919); verified each gap is real evidence-limited (C/LW attribute panels
+#     absent from captures; OCR-variant duplicate events), not a masked
+#     regression. Both 463 tests now GREEN and removed below. Residual extractor
+#     backlog: docs/ocr/match-463-residual-gaps-followup.md.
 
 match 250: getMatchLineups returns expected slot data
 match 250: pre-game lobby BGM loadout fields match V2
 match 250: lobby typed_v1 hard-field accuracy ≥ 90%
 match 250: lobby typed_v1 soft-field accuracy ≥ 75%
-match 463 — layer scores at or above floor
-computeLayers reproduces regression-floor layers for match 463

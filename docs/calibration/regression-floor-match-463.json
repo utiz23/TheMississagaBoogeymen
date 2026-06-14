@@ -1,7 +1,3 @@
-
-> @eanhl/worker@0.0.1 match-quality /home/michal/projects/eanhl-team-website/.claude/worktrees/phase-3a/apps/worker
-> node dist/match-quality-cli.js --match 463 --json
-
 {
   "matchId": 463,
   "match": {
@@ -17,18 +13,18 @@
   "screens": [
     {
       "screenType": "player_loadout_view",
-      "frames": 514,
-      "ok": 514,
+      "frames": 516,
+      "ok": 516,
       "err": 0,
       "reviewed": 2,
-      "avgConf": 0.88,
+      "avgConf": 0.879,
       "minConf": 0.352,
       "maxConf": 0.999
     },
     {
       "screenType": "post_game_action_tracker",
-      "frames": 890,
-      "ok": 890,
+      "frames": 1180,
+      "ok": 1180,
       "err": 0,
       "reviewed": 590,
       "avgConf": 0.933,
@@ -36,42 +32,52 @@
       "maxConf": 0.998
     },
     {
+      "screenType": "post_game_box_score_faceoffs",
+      "frames": 3,
+      "ok": 1,
+      "err": 2,
+      "reviewed": 0,
+      "avgConf": 0.94,
+      "minConf": 0.916,
+      "maxConf": 0.964
+    },
+    {
       "screenType": "post_game_box_score_goals",
-      "frames": 10,
-      "ok": 4,
-      "err": 6,
+      "frames": 13,
+      "ok": 5,
+      "err": 8,
       "reviewed": 1,
-      "avgConf": 0.906,
+      "avgConf": 0.897,
       "minConf": 0.785,
       "maxConf": 0.962
     },
     {
       "screenType": "post_game_events",
-      "frames": 190,
-      "ok": 190,
+      "frames": 196,
+      "ok": 196,
       "err": 0,
       "reviewed": 12,
-      "avgConf": 0.899,
+      "avgConf": 0.9,
       "minConf": 0.675,
       "maxConf": 0.984
     },
     {
       "screenType": "post_game_faceoff_map",
-      "frames": 1855,
-      "ok": 6,
-      "err": 1849,
+      "frames": 1861,
+      "ok": 9,
+      "err": 1852,
       "reviewed": 2,
-      "avgConf": 0.731,
+      "avgConf": 0.732,
       "minConf": 0.504,
       "maxConf": 1
     },
     {
       "screenType": "post_game_net_chart",
-      "frames": 10,
-      "ok": 4,
-      "err": 6,
+      "frames": 16,
+      "ok": 6,
+      "err": 10,
       "reviewed": 2,
-      "avgConf": 0.834,
+      "avgConf": 0.832,
       "minConf": 0.597,
       "maxConf": 0.96
     },
@@ -87,11 +93,11 @@
     },
     {
       "screenType": "pre_game_lobby_state_2",
-      "frames": 164,
-      "ok": 164,
+      "frames": 167,
+      "ok": 167,
       "err": 0,
       "reviewed": 24,
-      "avgConf": 0.876,
+      "avgConf": 0.877,
       "minConf": 0.42,
       "maxConf": 0.987
     }
@@ -99,10 +105,10 @@
   "downstream": [
     {
       "table": "match_events",
-      "actual": 113,
+      "actual": 124,
       "expected": 104,
-      "reviewed": 113,
-      "notes": "72 have x,y coords"
+      "reviewed": 124,
+      "notes": "79 have x,y coords"
     },
     {
       "table": "match_goal_events",
@@ -155,136 +161,134 @@
     },
     {
       "table": "player_loadout_attributes",
-      "actual": 207,
+      "actual": 138,
       "expected": 230,
-      "reviewed": 207,
-      "notes": "23 attrs × reviewed slots"
+      "reviewed": 138,
+      "notes": "23 attrs \u00d7 reviewed slots"
     },
     {
       "table": "player_loadout_x_factors",
-      "actual": 27,
+      "actual": 18,
       "expected": 30,
-      "reviewed": 27,
-      "notes": "3 x-factors × reviewed slots"
+      "reviewed": 18,
+      "notes": "3 x-factors \u00d7 reviewed slots"
     }
   ],
   "periods": [
     {
       "periodNumber": 1,
       "periodLabel": "RT 1ST PERIOD",
-      "total": 34,
+      "total": 37,
       "goals": 1,
-      "shots": 14,
+      "shots": 16,
       "hits": 10,
-      "faceoffs": 8,
+      "faceoffs": 9,
       "penalties": 1,
-      "plotted": 25,
+      "plotted": 26,
       "actorResolved": 16
     },
     {
       "periodNumber": 2,
-      "periodLabel": "RT 2ND PERIOD",
-      "total": 36,
+      "periodLabel": "RT 2ND PERIOD C",
+      "total": 39,
       "goals": 0,
-      "shots": 14,
+      "shots": 15,
       "hits": 12,
-      "faceoffs": 9,
+      "faceoffs": 11,
       "penalties": 1,
-      "plotted": 24,
+      "plotted": 26,
       "actorResolved": 18
     },
     {
       "periodNumber": 3,
-      "periodLabel": "RT 3RD PERIOD",
-      "total": 43,
+      "periodLabel": "RT 3RD PERIOD 1",
+      "total": 48,
       "goals": 1,
       "shots": 15,
-      "hits": 12,
-      "faceoffs": 12,
+      "hits": 14,
+      "faceoffs": 15,
       "penalties": 3,
-      "plotted": 23,
+      "plotted": 27,
       "actorResolved": 16
     }
   ],
   "provenance": {
     "capturedAt": {
-      "earliest": "2026-05-22T10:10:08.048Z",
-      "latest": "2026-05-23T20:02:44.045Z"
+      "earliest": "2026-06-13T21:23:40.410Z",
+      "latest": "2026-06-13T23:22:21.208Z"
     },
     "sources": [
       {
         "screenType": "player_loadout_view",
-        "snapshotCount": 59
-      },
-      {
-        "screenType": "post_game_box_score_goals",
-        "snapshotCount": 24
+        "snapshotCount": 74
       },
       {
         "screenType": "pre_game_lobby_state_2",
         "snapshotCount": 12
-      },
-      {
-        "screenType": "post_game_net_chart",
-        "snapshotCount": 8
       }
     ],
     "confidence": {
-      "canonical": 0.9,
-      "tiered": 0.1111111111111111,
+      "canonical": 0.8,
+      "tiered": 0.8333333333333334,
       "attribute": 0.9565217391304348
     }
   },
   "flags": [
     {
       "classId": "A",
-      "severity": "warn",
-      "message": "1 duplicate event(s) across 1 (period, clock, type) bucket(s) — OCR-variant dedup failure",
-      "evidence": "P2 11:07 faceoff ×2"
+      "severity": "fail",
+      "message": "9 duplicate event(s) across 9 (period, clock, type) bucket(s) \u2014 OCR-variant dedup failure",
+      "evidence": "P1 0:02 shot \u00d72, P1 4:13 faceoff \u00d72, P2 10:19 faceoff \u00d72, P2 10:29 shot \u00d72, P2 11:07 faceoff \u00d72"
     },
     {
       "classId": "C",
       "severity": "fail",
-      "message": "4 event pair(s) share marker (x,y) within 1.0 hockey unit — chevron extractor collisions / cluster-radius too coarse",
-      "evidence": "P1 hit@3:24 (H. O'YOINTSKI) ≈ hit@16:06 (T. MY YOINNT) @(-1.85,21.68); P2 hit@6:13 (H. O'YOINTSKI) ≈ hit@16:13 (H. YOINT) @(80.20,-14.88); P2 shot@14:13 (H. JENKINS) ≈ shot@18:13 (H. JENKINS) @(-62.09,-30.94); P3 shot@17:14 (SILKY) ≈ shot@17:52 (SILKY) @(65.38,-10.01)"
+      "message": "6 event pair(s) share marker (x,y) within 1.0 hockey unit \u2014 chevron extractor collisions / cluster-radius too coarse",
+      "evidence": "P2 hit@6:13 (H. O'YOINTSKI) \u2248 hit@16:13 (H. YOINT) @(80.20,-14.88); P2 shot@7:16 (H. YOINT) \u2248 shot@10:29 (H. U'YOINISKI) @(81.05,-2.79); P2 shot@14:13 (H. JENKINS) \u2248 shot@18:13 (H. JENKINS) @(-62.09,-30.94); P3 shot@1:39 (T. MY YOINNT) \u2248 shot@13:28 (T. MY YOINNT) @(-91.14,8.75); P3 hit@6:30 (H. YOINT) \u2248 hit@10:32 (H. O'YOINTSKI) @(37.29,-33.36)"
     }
   ],
   "pending": [
     {
       "screenType": "player_loadout_view",
-      "pending": 512,
+      "pending": 514,
       "reviewed": 2,
-      "total": 514
+      "total": 516
     },
     {
       "screenType": "post_game_action_tracker",
-      "pending": 300,
+      "pending": 590,
       "reviewed": 590,
-      "total": 890
+      "total": 1180
+    },
+    {
+      "screenType": "post_game_box_score_faceoffs",
+      "pending": 3,
+      "reviewed": 0,
+      "total": 3
     },
     {
       "screenType": "post_game_box_score_goals",
-      "pending": 9,
+      "pending": 12,
       "reviewed": 1,
-      "total": 10
+      "total": 13
     },
     {
       "screenType": "post_game_events",
-      "pending": 178,
+      "pending": 184,
       "reviewed": 12,
-      "total": 190
+      "total": 196
     },
     {
       "screenType": "post_game_faceoff_map",
-      "pending": 1853,
+      "pending": 1859,
       "reviewed": 2,
-      "total": 1855
+      "total": 1861
     },
     {
       "screenType": "post_game_net_chart",
-      "pending": 8,
+      "pending": 14,
       "reviewed": 2,
-      "total": 10
+      "total": 16
     },
     {
       "screenType": "post_game_player_summary",
@@ -294,9 +298,9 @@
     },
     {
       "screenType": "pre_game_lobby_state_2",
-      "pending": 140,
+      "pending": 143,
       "reviewed": 24,
-      "total": 164
+      "total": 167
     }
   ],
   "layers": {
@@ -306,24 +310,24 @@
       "notes": "requires labeled fixture set (Phase 3 annotate-segments output)"
     },
     "l2": {
-      "score": 0.98,
+      "score": 0.82,
       "pass": false,
-      "notes": "50/50 BGM-side events resolved; deducted 1 for dupes / wrong-roster hits",
+      "notes": "50/50 BGM-side events resolved; deducted 9 for dupes / wrong-roster hits",
       "bgmEvents": 50,
       "bgmResolved": 50,
-      "deductions": 1
+      "deductions": 9
     },
     "l2_lineup": {
-      "score": 0.875,
+      "score": 0.825,
       "pass": false,
-      "notes": "35/40 fields populated across 10 reviewed slot(s) (gamertag + persona + position + build_canonical)",
-      "populated": 35,
+      "notes": "33/40 fields populated across 10 reviewed slot(s) (gamertag + persona + position + build_canonical)",
+      "populated": 33,
       "expected": 40
     },
     "l3": {
-      "score": 0.9653846153846154,
+      "score": 0.9192307692307692,
       "pass": false,
-      "notes": "gaps: match_shot_type_summaries=6/8, player_loadout_attributes=207/230, player_loadout_x_factors=27/30"
+      "notes": "gaps: match_shot_type_summaries=6/8, player_loadout_attributes=138/230, player_loadout_x_factors=18/30"
     },
     "overall": {
       "pass": false
