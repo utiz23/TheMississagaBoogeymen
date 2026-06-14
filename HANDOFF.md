@@ -2,9 +2,40 @@
 
 ## To-Do
 
-> **🔴 ACTIVE PRIORITY (set 2026-06-01): "Finish the OCR/Video-Ingestion Pipeline Revamp (Tier 2)" — plan `~/.claude/plans/ok-so-can-you-starry-umbrella.md`.**
-> This plan is THE priority until it is completed. All other plans/roadmaps are subordinate to it.
-> Any "status", "next up", or progress reference in this file is in reference to THIS plan until it
+- **🔴 NEXT (execute in fresh session): Tier 0 — OCR shippability.** Plan `~/.claude/plans/snug-drifting-cook.md`; see the ACTIVE PRIORITY block below for ground truth + locked decisions. Order: 0.3 loadout fixture → 0.1 gate+recalibrate → 0.2 verify script/hook/nightly.
+- **OCR labeling follow-up (now Tier 1.6, subordinate to Tier 0):** run a **targeted** labeling round for the sparse/ambiguous WoC and lobby classes instead of another broad doc-style pass. Use proper annotation software (`Label Studio` already exists here), increase extraction density for sub-second screens like `menu_club_management` / `player_loadout_landing`, and validate the resulting taxonomy against the proving bench before treating the labels as trustworthy.
+
+> **🔴 ACTIVE PRIORITY (set 2026-06-13): "Tier 0 — Make OCR Extraction Shippable (Provable Correctness)" — plan `~/.claude/plans/snug-drifting-cook.md`.**
+> This is THE priority. To be executed in a fresh session (this session only planned + reviewed it). The
+> 2026-06-01 revamp priority below is **SUPERSEDED — EFFECTIVELY COMPLETE** (kept for history).
+>
+> **Why:** two independent reviews this session (`docs/ocr/extraction-system-independent-review-2026-06-13.md`,
+> which also reviews `current-in-game-data-extraction-system-report.md` and `ocr-improvement-report-small-efficient-ml.md`)
+> found the system extracts real data across **4 matches (250, 463, 968, 2582)** — NOT just 250 — but is **not
+> shippable as canonical**: no active decoder run passes its quality gate, nothing enforces it, and a baseline test
+> is red. Goal = "operational, all gates red" → "operational and verified".
+>
+> **Ground truth established (don't rediscover):**
+> - All 4 active runs have `overall_pass = false` because every layer bar is `>= 0.99` (`apps/worker/src/lib/quality-layers.ts:22-24,178`) — unrealistic for OCR, not proof of bad data.
+> - `activate` (`apps/worker/src/decoder-runs-cli.ts:147-227`) checks **no gate** — "activated" ≠ "passing".
+> - `validateCandidateRun` (`validate-candidate-run.ts:208-223`) is **structural only** (promotion floors + fatal extractor errors); it is NOT the quality gate.
+> - `computeLayers` reads **canonical** tables, only populated after `activate` rebuilds them → `overall_pass` is a **post-activation** measurement; the gate must be activate→rebuild→score→rollback inside one tx.
+> - `buildReportBody` is **fail-soft** (`run-quality-cli.ts:440-450,504-566`): `safeCall` swallows errors → `computed:false`/`overall_pass:null`. The gate must require **`computed===true && errors.length===0 && overall_pass===true`** (fail-closed), and pass post-flip `isActive:true` into it.
+> - Loadout parity test red = **fixture drift, not a regression**: extractor correctly emits 9 subjects; golden is stale (25 subjects, `v2`, no `is_cpu`; current `v3`). Regenerate via `tools/game_ocr/calibration/extras/loadout/fixtures/fixture_match250_full_lobby/PROVENANCE.md:154-178`.
+> - **No CI exists.** Python tests run via `.venv-1` + `PYTHONPATH` (see line ~183).
+>
+> **Decisions locked (user):** (1) enforcement = local `scripts/verify-ocr.sh` + self-installing pre-push hook (via `prepare`) + in-repo `ops/` nightly — NO cloud CI; the **authoritative** gate is the activate quality check, the hook is advisory. (2) gate = `overall_pass` blocks activate (fail-closed) AND recalibrate thresholds from **measured** data (don't pin numbers that contradict scores; 250 = trustworthy reference → must pass; 2582 must fail).
+>
+> **Execution order:** 0.3 fixture (→ suite green) → 0.1 gate + recalibrate + re-emit → 0.2 verify script/hook/nightly. Ship as ONE "Trustworthy" milestone, then start Tier 1 against the now-green bench. Full task list (Tier 0–2 + cleanup) is in the session todo / the plan file.
+>
+> **Open user call (before doing 0.2):** commit the trained v2 weights (`tools/game_ocr/game_ocr/weights/nhl26-screen-classifier-v2.json`, currently uncommitted — proving-bench prerequisite) vs document the train step.
+>
+> **Repo state for migration (2026-06-13):** on branch `fix/match250-markers-tiers` @ `b76325d`. Uncommitted: `HANDOFF.md`, `apps/web/src/app/games/page.tsx` (M, pre-existing/unrelated), and 3 new untracked review docs under `docs/ocr/`. **Recommend:** before Tier 0 implementation, start a fresh `feat/ocr-tier0-quality-gate` branch off `main`; commit the 3 review docs + this handoff first; leave/stash the unrelated `games/page.tsx` drift.
+>
+> ---
+>
+> **🔵 SUPERSEDED PRIORITY (set 2026-06-01): "Finish the OCR/Video-Ingestion Pipeline Revamp (Tier 2)" — plan `~/.claude/plans/ok-so-can-you-starry-umbrella.md`. EFFECTIVELY COMPLETE (2026-06-09); retained below for history.**
+> Any "status", "next up", or progress reference in this file (below) is in reference to THIS plan until it
 > is explicitly marked complete or the user redirects.
 >
 > **>>> WS6 ACCEPTANCE GATE — PASSED end-to-end (2026-06-04).** The secondary post-game extractor
@@ -593,6 +624,15 @@ Scope this session won't touch:
   pnpm --filter worker promote-persona-alias --map "TortaaaaaaPounddddder=>TORTAAAAAAPOUNDDDDDER,WizNiewski=>WIZNIEWSKI,H.Koch=>H. KOCH"
   ```
 - **Match 968 opp C row gap**: `Oatmeal15942/H.Koch` has gamertag + persona in lobby but 0 xfactors/attrs (no loadout-view captures). Either operator didn't navigate to this player during recording, or extraction failed. Investigation only; no code change identified.
+- **Lineup & Loadouts footer confidence breakout**: expand the OCR-confidence footer beyond the current `Canonical / Tiered / Attribute` split. Keep `Attribute` confidence and keep `X-Factor tier` confidence, but add separate confidence buckets for:
+  - player info confidence (`player number`, `player name`, `gamertag`, `platform`)
+  - player build info confidence (`build type`, `height`, `weight`)
+  - X-Factor confidence (presence / canonical-name confidence separate from tier confidence)
+  The current footer copy is too coarse (`Partial · 0.65`, `Canonical · 100%`, `Tiered · 0%`, `Attribute · 95%`) and hides which part of the lineup card is actually weak.
+- **Loadout pipeline must not choose blank X-Factor anchors over richer sources**: match 250 / `HenryTheBobJr` proves the source data exists in [`research/OCR-SS/Pre-Game-Loadouts/vlcsnap-2026-05-10-01h49m17s363.png`](/home/michal/projects/eanhl-team-website/research/OCR-SS/Pre-Game-Loadouts/vlcsnap-2026-05-10-01h49m17s363.png), but the current reviewed anchor points at OCR extraction `12349` (`player_loadout_view` from `/tmp/ingest-cache/.../seg-003-player_loadout_view`) whose three `player_loadout_x_factors` child rows are blank. Investigate and fix the pipeline layer that lets a weaker extraction win:
+  - trace whether that exact `vlcsnap-2026-05-10-01h49m17s363.png` capture was ingested and what snapshot/extraction it produced
+  - prefer populated X-Factor names during loadout promote/consolidate anchor ranking when identity/build data is otherwise comparable
+  - stop later video-frame anchors with blank X-Factor names from displacing richer manual/loadout captures
 - **`docs/calibration/regression-floor-match-463.json` pnpm-prefix re-baseline** (~2 min, orthogonal): the file has shell-script header lines (`> @eanhl/worker@0.0.1 match-quality ...`) before the JSON body — leftover from a prior re-baseline that didn't use `pnpm --silent`. The `match-quality` CLI's `--json` flag prints clean JSON to stdout; re-run `pnpm --silent --filter worker match-quality --match 463 --json > docs/calibration/regression-floor-match-463.json` to clean up. Unrelated to Run-Level Quality Reporting.
 - **Three deferred minor nits across Codex rounds 2-3** (~5 min total): round-2 `intersected` dead-counter in (now-deleted) snapshot helpers — already addressed by the round-3 helper removal; round-3 `stagePath` dead branch at `apps/worker/src/run-quality-cli.ts:793-794` (after the argv guard, `stagePath` is guaranteed undefined so the ternary always evaluates to null); round-3 cleanup-vs-concurrent-writer one-line comment at `apps/worker/src/__tests__/run-quality-cli.test.ts:533-540` documenting the implicit single-writer assumption. Cosmetic, non-blocking.
 
