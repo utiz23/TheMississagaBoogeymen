@@ -39,6 +39,7 @@ import {
   playerLoadoutSnapshots,
   playerLoadoutXFactors,
   playerLoadoutAttributes,
+  ocrRunQualityReports,
 } from '@eanhl/db'
 import { eq, inArray, like } from 'drizzle-orm'
 
@@ -85,6 +86,9 @@ async function cleanupMatch(matchId: number): Promise<void> {
   await db.delete(ocrFieldEvidence).where(eq(ocrFieldEvidence.matchId, matchId))
   await db.delete(ocrExtractions).where(eq(ocrExtractions.matchId, matchId))
   await db.delete(ocrCaptureBatches).where(eq(ocrCaptureBatches.matchId, matchId))
+  // Run-quality reports FK to ocr_decoder_runs — delete before the runs.
+  // The Tier 0 activate gate emits a report row per (forced/passed) activation.
+  await db.delete(ocrRunQualityReports).where(eq(ocrRunQualityReports.matchId, matchId))
   await db.delete(ocrDecoderRuns).where(eq(ocrDecoderRuns.matchId, matchId))
   await db.delete(matches).where(eq(matches.id, matchId))
 }
@@ -618,7 +622,18 @@ void test('decoder-runs-cli activate flips activation atomically and rebuilds ca
 
   const fx = await insertActivateFixture('activate-happy', { v1IsActive: true })
 
-  const result = runCli(['activate', '--run-id', String(fx.v2RunId)])
+  // This fixture seeds a single synthetic slot, which cannot clear the real
+  // quality gate (Tier 0 WS0.1A) — so pass --force to exercise the flip +
+  // rebuild + consolidate mechanics this test is actually asserting. The
+  // dedicated gate tests below cover the block/rollback + override behaviour.
+  const result = runCli([
+    'activate',
+    '--run-id',
+    String(fx.v2RunId),
+    '--force',
+    '--reason',
+    'test fixture: synthetic single-slot data, bypass quality gate',
+  ])
   assert.equal(
     result.status,
     0,
@@ -666,7 +681,15 @@ void test('decoder-runs-cli activate succeeds when no prior active run exists', 
     v1IsActive: false,
   })
 
-  const result = runCli(['activate', '--run-id', String(fx.v2RunId)])
+  // --force: synthetic fixture can't clear the quality gate (see note above).
+  const result = runCli([
+    'activate',
+    '--run-id',
+    String(fx.v2RunId),
+    '--force',
+    '--reason',
+    'test fixture: synthetic single-slot data, bypass quality gate',
+  ])
   assert.equal(
     result.status,
     0,
@@ -726,6 +749,103 @@ void test('decoder-runs-cli activate --dry-run does not modify the DB', async ()
     'dry-run must not modify ocr_decoder_runs',
   )
   assert.equal(afterSnaps.length, beforeSnaps.length, 'dry-run must not write canonical snapshots')
+})
+
+// ─── Tier 0 WS0.1A — activate quality gate ────────────────────────────────
+
+void test('decoder-runs-cli activate is BLOCKED (exit 2) + leaves prior run active when a gate fails (no --force)', async () => {
+  if (!process.env['DATABASE_URL']) return
+
+  // Synthetic single-slot fixture: it has 0 lobby promotions + low layer
+  // scores, so it is blocked — by the structural pre-check (lobby floor) for
+  // this minimal fixture, which short-circuits before the tx. Either gate
+  // ('validate' pre-check or 'quality') must leave the prior run untouched and
+  // exit 2. (The in-tx quality gate computation itself is asserted by the
+  // --force test below, which reaches it and reports overall_pass=false.)
+  const fx = await insertActivateFixture('activate-gate-block', { v1IsActive: true })
+
+  const result = runCli(['activate', '--run-id', String(fx.v2RunId)])
+  assert.equal(
+    result.status,
+    2,
+    `expected exit 2 (blocked); stderr: ${result.stderr}; stdout: ${result.stdout}`,
+  )
+  const lastJson = result.stdout
+    .trim()
+    .split('\n')
+    .filter((l) => l.startsWith('{'))
+    .pop()
+  assert.ok(lastJson, `expected JSON stdout; got: ${result.stdout}`)
+  const payload = JSON.parse(lastJson) as {
+    activated: boolean
+    gate: string
+    overall_pass?: boolean
+  }
+  assert.equal(payload.activated, false, 'blocked activation reports activated=false')
+  assert.ok(
+    payload.gate === 'validate' || payload.gate === 'quality',
+    `expected gate 'validate' or 'quality'; got ${payload.gate}`,
+  )
+
+  // No partial state: v1 still active, v2 still inactive, no canonicals.
+  const [v1] = await db.select().from(ocrDecoderRuns).where(eq(ocrDecoderRuns.id, fx.v1RunId))
+  const [v2] = await db.select().from(ocrDecoderRuns).where(eq(ocrDecoderRuns.id, fx.v2RunId))
+  assert.equal(
+    v1?.isActive,
+    true,
+    'prior active run must remain active after a rolled-back gate failure',
+  )
+  assert.equal(v2?.isActive, false, 'gate-failed run must NOT be activated')
+
+  const snaps = await db
+    .select({ id: playerLoadoutSnapshots.id })
+    .from(playerLoadoutSnapshots)
+    .where(eq(playerLoadoutSnapshots.matchId, fx.matchId))
+  assert.equal(snaps.length, 0, 'rolled-back activation must leave no canonical snapshots')
+})
+
+void test('decoder-runs-cli activate --force --reason overrides a failing gate and persists the override audit', async () => {
+  if (!process.env['DATABASE_URL']) return
+
+  const fx = await insertActivateFixture('activate-gate-force', { v1IsActive: true })
+
+  const reason = 'manual override: backfill known-degraded run for analysis'
+  const result = runCli(['activate', '--run-id', String(fx.v2RunId), '--force', '--reason', reason])
+  assert.equal(
+    result.status,
+    0,
+    `expected exit 0 with --force; stderr: ${result.stderr}; stdout: ${result.stdout}`,
+  )
+  const lastJson = result.stdout
+    .trim()
+    .split('\n')
+    .filter((l) => l.startsWith('{'))
+    .pop()
+  assert.ok(lastJson)
+  const payload = JSON.parse(lastJson) as {
+    activated_run_id: number
+    overall_pass: boolean
+    forced_override: boolean
+  }
+  assert.equal(payload.activated_run_id, fx.v2RunId)
+  assert.equal(payload.overall_pass, false, 'gate genuinely failed (forced through)')
+  assert.equal(payload.forced_override, true, 'override flag set when forcing past a failed gate')
+
+  // v2 is now active despite the failed gate.
+  const [v2] = await db.select().from(ocrDecoderRuns).where(eq(ocrDecoderRuns.id, fx.v2RunId))
+  assert.equal(v2?.isActive, true)
+
+  // The override audit block is persisted in the run-quality report jsonb.
+  const [report] = await db
+    .select({ report: ocrRunQualityReports.report })
+    .from(ocrRunQualityReports)
+    .where(eq(ocrRunQualityReports.runId, fx.v2RunId))
+  assert.ok(report, 'expected a run-quality report row for the forced activation')
+  const override = (report.report as { override?: { overridden?: boolean; reason?: string } })
+    .override
+  assert.ok(override, 'expected report.override audit block')
+  assert.equal(override.overridden, true)
+  assert.equal(override.reason, reason)
 })
 
 void test('decoder-runs-cli activate fails when target run is already active', async () => {

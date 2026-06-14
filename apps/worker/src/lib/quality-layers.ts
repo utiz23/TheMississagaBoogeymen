@@ -13,15 +13,40 @@ import { db, matchEvents, playerLoadoutSnapshots } from '@eanhl/db'
 import { and, eq, sql } from 'drizzle-orm'
 
 import { type DownstreamRow, type QualityFlag } from './quality-inputs.js'
+import type { DbOrTx } from '../ocr-promoters/index.js'
 
 /**
- * L1/L2/L3 pass thresholds. L1 is currently unused at runtime (L1 scoring
- * requires labeled-fixture ground truth that doesn't exist yet) but is kept
- * alongside the other thresholds as the conceptual unit they belong to.
+ * L1/L2/L2.5/L3 pass thresholds.
+ *
+ * Tier 0 WS0.1B recalibration (2026-06-13). The original 0.99 bars made every
+ * run red and the gate unusable. Thresholds are now set at/just-below the
+ * scores of the ONE independently-verified reference run — match 250 (run 583),
+ * validated field-by-field against the V2 benchmark — so it passes an honest
+ * bar while every un-verified run still fails ≥1 layer. Measured active-run
+ * scores at calibration time:
+ *
+ *   match  run   L2     L2.5(lineup)  L3      → outcome under the bars below
+ *   250    583   0.854  0.950         1.000   → PASS  (all three clear)   ◀ reference
+ *   463    1946  0.700  0.825         0.919   → FAIL  (all three)
+ *   968    584   0.839  0.825         0.818   → FAIL  (all three)
+ *   2582   1945  0.568  0.925         0.955   → FAIL  (L2)
+ *
+ * Result: exactly one green baseline (250), not everything painted green.
+ *
+ * L1 stays at 0.99 — it is permanently null until labeled-fixture ground truth
+ * exists, and `overall.pass` treats a null L1 as `true`, so the bar is inert.
  */
 export const L1_THRESHOLD = 0.99
-export const L2_THRESHOLD = 0.99
-export const L3_THRESHOLD = 0.99
+/** L2 — BGM-side event actor-resolution rate. Just below 250's 0.854. */
+export const L2_THRESHOLD = 0.85
+/**
+ * L2.5 — lineup-field accuracy on reviewed loadout anchors. A DISTINCT bar from
+ * L2 (previously it reused L2_THRESHOLD): the lineup dimension scores higher
+ * than event resolution, so it earns a higher floor. Below 250's 0.950.
+ */
+export const L2_LINEUP_THRESHOLD = 0.9
+/** L3 — weighted downstream completeness. Just below 250's 1.000. */
+export const L3_THRESHOLD = 0.95
 
 /**
  * `DownstreamRow` and `QualityFlag` are the minimal shapes `computeLayers`
@@ -67,6 +92,7 @@ export async function computeLayers(
   matchId: number,
   downstream: DownstreamRow[],
   flags: QualityFlag[],
+  conn: DbOrTx = db,
 ): Promise<LayerScores> {
   const l1 = {
     score: null as number | null,
@@ -76,7 +102,7 @@ export async function computeLayers(
 
   // L2 — BGM-side actor resolution rate. Opp-side events have no players row
   // by design, so they can't contribute. The denominator is BGM events only.
-  const [bgmCounts] = (await db
+  const [bgmCounts] = (await conn
     .select({
       bgm: sql<string>`COUNT(*) FILTER (WHERE ${matchEvents.teamSide} = 'for')::text`,
       bgmResolved: sql<string>`COUNT(*) FILTER (WHERE ${matchEvents.teamSide} = 'for' AND ${matchEvents.actorPlayerId} IS NOT NULL)::text`,
@@ -106,7 +132,7 @@ export async function computeLayers(
   // count populated as accurate. Expected denominator = 4 × reviewed_slots
   // (caps at 40 for a complete lineup). This is a *separate* L2 dimension
   // from event resolution and surfaces the static lineup-screen quality.
-  const [lineupCounts] = (await db
+  const [lineupCounts] = (await conn
     .select({
       slots: sql<string>`COUNT(*)::text`,
       gt: sql<string>`COUNT(*) FILTER (WHERE ${playerLoadoutSnapshots.gamertagSnapshot} IS NOT NULL AND length(${playerLoadoutSnapshots.gamertagSnapshot}) > 1)::text`,
@@ -131,7 +157,7 @@ export async function computeLayers(
   const l2_lineup_score = lineupExpected > 0 ? lineupPopulated / lineupExpected : 0
   const l2_lineup = {
     score: l2_lineup_score,
-    pass: l2_lineup_score >= L2_THRESHOLD,
+    pass: l2_lineup_score >= L2_LINEUP_THRESHOLD,
     notes: `${lineupPopulated}/${lineupExpected} fields populated across ${reviewedSlots} reviewed slot(s) (gamertag + persona + position + build_canonical)`,
     populated: lineupPopulated,
     expected: lineupExpected,

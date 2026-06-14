@@ -327,7 +327,7 @@
     },
     "l2": {
       "score": 0.9791666666666666,
-      "pass": false,
+      "pass": true,
       "notes": "48/48 BGM-side events resolved; deducted 1 for dupes / wrong-roster hits",
       "bgmEvents": 48,
       "bgmResolved": 48,
@@ -335,7 +335,7 @@
     },
     "l2_lineup": {
       "score": 0.95,
-      "pass": false,
+      "pass": true,
       "notes": "38/40 fields populated across 10 reviewed slot(s) (gamertag + persona + position + build_canonical)",
       "populated": 38,
       "expected": 40
@@ -346,7 +346,7 @@
       "notes": "all gates met"
     },
     "overall": {
-      "pass": false
+      "pass": true
     }
   }
 }

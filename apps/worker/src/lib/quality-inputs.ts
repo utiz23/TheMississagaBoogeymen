@@ -12,7 +12,7 @@
  */
 
 import {
-  db,
+  db as defaultDb,
   matchEvents,
   matchGoalEvents,
   matchPenaltyEvents,
@@ -26,6 +26,8 @@ import {
 } from '@eanhl/db'
 import { getMatchById } from '@eanhl/db/queries'
 import { and, eq, isNotNull, sql } from 'drizzle-orm'
+
+import type { DbOrTx } from '../ocr-promoters/index.js'
 
 export interface DownstreamRow {
   table: string
@@ -52,12 +54,13 @@ interface DupeRow {
 export async function buildDownstreamCounts(
   matchId: number,
   match: NonNullable<Awaited<ReturnType<typeof getMatchById>>>,
+  conn: DbOrTx = defaultDb,
 ): Promise<DownstreamRow[]> {
   const out: DownstreamRow[] = []
 
   const expectedEventsApprox =
     match.shotsFor + match.shotsAgainst + match.hitsFor + match.hitsAgainst + 30
-  const [eventStats] = (await db
+  const [eventStats] = (await conn
     .select({
       n: sql<string>`COUNT(*)::text`,
       plotted: sql<string>`COUNT(*) FILTER (WHERE ${matchEvents.x} IS NOT NULL)::text`,
@@ -73,7 +76,7 @@ export async function buildDownstreamCounts(
   })
 
   const expectedGoals = match.scoreFor + match.scoreAgainst
-  const [goalStats] = (await db
+  const [goalStats] = (await conn
     .select({ n: sql<string>`COUNT(*)::text` })
     .from(matchGoalEvents)
     .innerJoin(matchEvents, eq(matchEvents.id, matchGoalEvents.eventId))
@@ -88,7 +91,7 @@ export async function buildDownstreamCounts(
 
   const expectedPenalty =
     (match.penaltyMinutes ?? 0) > 0 || (match.penaltyMinutesAgainst ?? 0) > 0 ? 1 : 0
-  const [penaltyStats] = (await db
+  const [penaltyStats] = (await conn
     .select({ n: sql<string>`COUNT(*)::text` })
     .from(matchPenaltyEvents)
     .innerJoin(matchEvents, eq(matchEvents.id, matchPenaltyEvents.eventId))
@@ -102,7 +105,7 @@ export async function buildDownstreamCounts(
   })
 
   const expectedPeriods = match.result.startsWith('OT') || match.result === 'OTL' ? 4 : 3
-  const [periodStats] = (await db
+  const [periodStats] = (await conn
     .select({
       n: sql<string>`COUNT(*)::text`,
       reviewedN: sql<string>`COUNT(*) FILTER (WHERE ${matchPeriodSummaries.reviewStatus} = 'reviewed')::text`,
@@ -118,7 +121,7 @@ export async function buildDownstreamCounts(
   })
 
   const expectedShotTypes = 2 * expectedPeriods + 2
-  const [shotTypeStats] = (await db
+  const [shotTypeStats] = (await conn
     .select({
       n: sql<string>`COUNT(*)::text`,
       reviewedN: sql<string>`COUNT(*) FILTER (WHERE ${matchShotTypeSummaries.reviewStatus} = 'reviewed')::text`,
@@ -136,7 +139,7 @@ export async function buildDownstreamCounts(
     notes: 'per-period BGM+opp + match totals',
   })
 
-  const [dotStats] = (await db
+  const [dotStats] = (await conn
     .select({
       n: sql<string>`COUNT(*)::text`,
       reviewedN: sql<string>`COUNT(*) FILTER (WHERE ${matchFaceoffDots.reviewStatus} = 'reviewed')::text`,
@@ -151,7 +154,7 @@ export async function buildDownstreamCounts(
     notes: 'one per zone',
   })
 
-  const [zoneStats] = (await db
+  const [zoneStats] = (await conn
     .select({
       n: sql<string>`COUNT(*)::text`,
       reviewedN: sql<string>`COUNT(*) FILTER (WHERE ${matchFaceoffZoneSummaries.reviewStatus} = 'reviewed')::text`,
@@ -169,7 +172,7 @@ export async function buildDownstreamCounts(
     notes: 'one per neutral/o-zone/d-zone',
   })
 
-  const [anchorStats] = (await db
+  const [anchorStats] = (await conn
     .select({ n: sql<string>`COUNT(*)::text` })
     .from(playerLoadoutSnapshots)
     .where(
@@ -188,7 +191,7 @@ export async function buildDownstreamCounts(
     notes: 'consolidator anchors',
   })
 
-  const [attrStats] = (await db
+  const [attrStats] = (await conn
     .select({ n: sql<string>`COUNT(*)::text` })
     .from(playerLoadoutAttributes)
     .innerJoin(
@@ -210,7 +213,7 @@ export async function buildDownstreamCounts(
     notes: '23 attrs × reviewed slots',
   })
 
-  const [xfStats] = (await db
+  const [xfStats] = (await conn
     .select({ n: sql<string>`COUNT(*)::text` })
     .from(playerLoadoutXFactors)
     .innerJoin(
@@ -238,10 +241,11 @@ export async function buildDownstreamCounts(
 export async function buildQualityFlags(
   matchId: number,
   match: NonNullable<Awaited<ReturnType<typeof getMatchById>>>,
+  conn: DbOrTx = defaultDb,
 ): Promise<QualityFlag[]> {
   const flags: QualityFlag[] = []
 
-  const dupes = (await db.execute(sql`
+  const dupes = (await conn.execute(sql`
     SELECT period_number, clock, event_type, COUNT(*) AS n
     FROM ${matchEvents}
     WHERE match_id = ${matchId} AND clock IS NOT NULL
@@ -262,7 +266,7 @@ export async function buildQualityFlags(
     })
   }
 
-  const [unresolvedRow] = (await db
+  const [unresolvedRow] = (await conn
     .select({ n: sql<string>`COUNT(*)::text` })
     .from(matchEvents)
     .where(
@@ -288,7 +292,7 @@ export async function buildQualityFlags(
   // same cluster (off-by-0.01 instead of off-by-zero). A 1.0-unit gate
   // catches "same chevron" collisions while staying loose enough that two
   // legitimately-distinct close-by events aren't false-flagged.
-  const collisions = (await db.execute(sql`
+  const collisions = (await conn.execute(sql`
     SELECT a.period_number,
            a.id AS a_id, a.clock AS a_clock, a.event_type AS a_type,
            a.actor_gamertag_snapshot AS a_actor, a.x AS a_x, a.y AS a_y,
@@ -334,7 +338,7 @@ export async function buildQualityFlags(
   }
 
   const eaPimTotal = (match.penaltyMinutes ?? 0) + (match.penaltyMinutesAgainst ?? 0)
-  const [penEventsRow] = (await db
+  const [penEventsRow] = (await conn
     .select({ n: sql<string>`COUNT(*)::text` })
     .from(matchEvents)
     .where(and(eq(matchEvents.matchId, matchId), eq(matchEvents.eventType, 'penalty')))) as Array<{
@@ -348,7 +352,7 @@ export async function buildQualityFlags(
     })
   }
 
-  const [noActorRow] = (await db
+  const [noActorRow] = (await conn
     .select({ n: sql<string>`COUNT(*)::text` })
     .from(matchEvents)
     .where(
@@ -371,7 +375,7 @@ export async function buildQualityFlags(
   // Menace") doesn't trigger this because Stick Menace IS in match 463's
   // lineup. But "H. JENKINS" → "JoeyFlopfish" does, because JoeyFlopfish
   // didn't play this match — that's a stale match-250 alias leaking through.
-  const offRosterResolutions = (await db.execute(sql`
+  const offRosterResolutions = (await conn.execute(sql`
     SELECT e.target_gamertag_snapshot AS snap, p.gamertag AS resolved,
            p.id AS player_id, COUNT(*) AS n
     FROM ${matchEvents} e
@@ -402,7 +406,7 @@ export async function buildQualityFlags(
   }
 
   // Same check on actor side
-  const actorOffRoster = (await db.execute(sql`
+  const actorOffRoster = (await conn.execute(sql`
     SELECT e.actor_gamertag_snapshot AS snap, p.gamertag AS resolved,
            p.id AS player_id, COUNT(*) AS n
     FROM ${matchEvents} e
