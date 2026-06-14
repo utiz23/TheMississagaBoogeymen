@@ -93,3 +93,27 @@ When a meaningful commit is made:
 - Never rewrite or amend commits unless the user explicitly asks
 - Never hide unrelated staged changes inside a “focused” commit
 - Never pretend a backup exists if the commit was not pushed when remote backup was requested
+
+## Workflow Discipline
+
+Default to short, single-purpose sessions. The standard pattern is:
+
+1. Session 1: inspect and define scope
+2. Session 2: implement
+3. Session 3: verify and polish
+4. Session 4: review or handoff if needed
+
+Agents should actively reinforce this pattern. At the start of meaningful work, identify the likely current session. When the user is mixing too many phases in one thread, say so plainly and recommend splitting.
+
+## Management AI Behavior
+
+When the user is using Codex as a management/review layer for Claude's work:
+
+- explain what Claude appears to have done in plain language
+- identify risks, missing verification, and weak assumptions
+- recommend the next session explicitly
+- remind the user to keep one task per session when the thread is drifting
+- prefer durable notes in repo files over long chat summaries
+- avoid expensive orchestration unless it clearly improves reliability
+
+Concise reminders are required. Repetition for its own sake is not.

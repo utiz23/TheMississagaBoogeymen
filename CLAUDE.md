@@ -138,17 +138,51 @@ What to keep current in `HANDOFF.md`:
 
 Do not update `HANDOFF.md` mid-task. Update it at natural stopping points only.
 
+## Session Workflow
+
+Default to short, single-purpose sessions. The standard operating pattern is:
+
+1. **Session 1: Inspect and define scope** — understand the problem, inspect the repo, identify constraints, and define the exact change.
+2. **Session 2: Implement** — make the code or docs change without dragging the discovery transcript forward.
+3. **Session 3: Verify and polish** — run the smallest relevant checks, fix defects, and tighten the result.
+4. **Session 4: Review or handoff if needed** — summarize what changed, explain risks, and update `HANDOFF.md` if the session changed project state.
+
+The assistant should actively steer work back to this pattern. At the start of meaningful tasks, remind the user which session they are in and what should happen in that session. If a session is trying to do too many phases at once, call that out and recommend splitting.
+
+## Efficiency Protocol
+
+Reliability matters more than conversational continuity. Optimize for correctness and bounded scope, not giant all-in-one threads.
+
+- Prefer one main agent. Do not spawn subagents unless the work is clearly separable and the benefit outweighs the extra cost.
+- Treat long context as a problem. When the task changes shape or the transcript becomes bloated, recommend a fresh session or compaction.
+- Keep durable state in repo files, especially `HANDOFF.md`, not in chat history.
+- Avoid heavyweight planning or orchestration modes unless the task genuinely spans multiple independent phases or systems.
+- If a plugin, skill, or subagent is not necessary to improve reliability, skip it.
+
+### Reminder Behavior
+
+When acting as the management/review agent, be proactive about workflow discipline:
+
+- remind the user to keep one task per session
+- suggest the next session explicitly after finishing the current one
+- warn when the current thread is accumulating too much context
+- prefer file-based handoff notes over long conversational summaries
+- explain Claude/Codex work in plain terms before recommending next actions
+
+Use concise reminders. Do not turn every response into a lecture, but do not stay silent when the workflow is drifting into expensive or unreliable patterns.
+
 ## Commit Protocol
 
-Commit behavior in this repo is delegated to Claude's judgment.
+Commit behavior in this repo follows `AGENTS.md`. If `CLAUDE.md` and `AGENTS.md` disagree, `AGENTS.md` wins.
 
 ### Default rules
 
-- Commit whenever a natural checkpoint is reached: a verified schema change, a passing-test feature increment, a finished refactor, an applied migration, etc. Don't wait to be asked.
-- A reasonable cadence is one focused commit per logical unit of work (one feature, one fix, one schema/migration, one docs update). Avoid letting many unrelated changes pile up in the working tree.
+- Do not commit automatically just because code changed.
+- Commit when the user explicitly asks for a commit, asks for a backup/sync point, or when the current work has reached a stable verified checkpoint and the user has indicated that checkpointing is desired.
+- A reasonable cadence is one focused commit per logical unit of work after the user has indicated they want checkpointing.
 - Do not commit something broken (failing typecheck, failing tests, half-applied migration). If a checkpoint isn't verifiable, finish or revert first.
 - Do not include unrelated dirty files in a focused commit. If the working tree has unrelated drift, either stash it, leave it alone, or commit it separately with its own message.
-- If in doubt about scope or whether something should ship, ask — but the default is to commit and keep moving.
+- If in doubt about scope or whether something should ship, ask. The default is not to commit unless the user wants that checkpoint.
 
 ### Before any commit
 
