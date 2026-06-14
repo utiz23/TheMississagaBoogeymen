@@ -199,11 +199,17 @@ class TestErrorCases(unittest.TestCase):
         with self.assertRaises(ValueError):
             load_closed_vocab("attribute_keys")
 
-    def test_predict_log_probs_raises_not_implemented(self):
-        """predict_log_probs raises NotImplementedError (Phase 2B stub)."""
-        vocab = load_closed_vocab("build_classes")
-        with self.assertRaises(NotImplementedError):
-            vocab.predict_log_probs(None)
+    # NOTE: the former `test_predict_log_probs_raises_not_implemented` was removed
+    # in Tier 0 (WS0.3). It loaded `build_classes` and asserted
+    # `predict_log_probs(None)` raised NotImplementedError on the premise that the
+    # LR weights file had not been produced yet (Phase 2B stub). The trained
+    # `nhl26-loadout-build_class-classifier.json` weights are now committed, so
+    # that branch is no longer reachable for `build_classes` and the call instead
+    # raises ValueError on the empty crop. The genuine no-weights →
+    # NotImplementedError contract is validly covered by
+    # `tests/test_closed_vocab_lr_head.py::TestPredictLogProbsAbsent::test_raises_not_implemented_when_no_weights`
+    # (which uses a version that has no weights), so this stale assertion was
+    # dropped rather than duplicated.
 
 
 # ---------------------------------------------------------------------------

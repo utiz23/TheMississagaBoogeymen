@@ -6,7 +6,7 @@
 fixture_match250_full_lobby/
 ├── frames/                           # 15 PNGs from real Pass-2 run (T1A gate)
 │   ├── 00001.png … 00015.png
-├── expected_loadout_evidence.json    # Real extractor output, 602 records × 9 subjects
+├── expected_loadout_evidence.json    # Real extractor output, 625 records × 11 subjects (loadout-evidence-v3)
 ├── expected_canonical.sql            # V2-verified canonical rows, sentinel match 9001
 ├── seg_bgm/                          # Hand-authored evidence JSON (T6A/T2A/T8A Node tests)
 │   ├── expected_loadout_evidence.json
@@ -19,6 +19,31 @@ fixture_match250_full_lobby/
 
 The root-level `expected_loadout_evidence.json` and `frames/` are used by the
 **Python T1A gate** (`test_loadout_evidence_fixture_parity.py::test_match250_parity`).
+The Python parity test lives at
+`tools/video_ingest/tests/test_loadout_evidence_fixture_parity.py`.
+
+> **Tier 0 re-baseline (2026-06-13).** The committed golden was regenerated from
+> the current `loadout-evidence-v3` extractor (was a stale `loadout-evidence-v2`
+> capture of **698 records / 25 subjects** with no `is_cpu` records). The fresh
+> golden is **625 records / 11 subjects**, each subject now carrying an `is_cpu`
+> field. Two behavioural deltas vs the old "9 subjects" description below were
+> verified against the V2 benchmark before locking:
+>
+> - **subject09 `JoeyFlopfish` (BGM RD #48) is now captured.** The v2 note "JoeyFlopfish
+>   is absent" is obsolete — the v3 extractor reads this slot (gamertag/position/jersey
+>   all match V2: RD #48, persona "Lane Hutson"). This is a correctness *improvement*.
+> - **subject10 `sikyjoker85` (LW, no jersey) is a known phantom.** This is a
+>   mis-segmented duplicate of subject06 `silkyjoker85` (RW #10) — gamertag is one
+>   character off, jersey/persona unreadable (`low_quality`). It is NOT in the V2
+>   10-slot ground truth. The parity test does an exact key-set diff, so the golden
+>   must include it to stay green; it is locked here as a *documented* raw-extractor
+>   artifact (same treatment as the StickMenace/DuhPope space artifacts below).
+>   The promoter layer (junk-gamertag / hard-field blocks) is what keeps this phantom
+>   out of canonical `player_loadout_snapshots`; suppressing it at the extractor /
+>   frame-segmentation layer is Tier 1+ work, not Tier 0.
+>
+> The golden is regenerated via the canonical pipeline serializer
+> (`json.dump([r.to_dict() for r in records], fp, indent=2)`, `pass2_extract.py:562`).
 
 The `seg_bgm/` and `seg_opp/` hand-authored JSONs are used by the **Node T6A/T2A/T8A
 gates** via `loadFixture('fixture_match250_full_lobby')` in
@@ -50,14 +75,14 @@ Field values cross-checked against V2 benchmark (`apps/worker/src/__tests__/matc
 and production canonical DB rows for the fields V2 asserts. The extractor output
 is the fixture — this test LOCKS the current extractor behavior.
 
-**Total records:** 602 across 9 subjects.
-**Extractor version stamped:** `loadout-evidence-v2`
+**Total records:** 625 across 11 subjects.
+**Extractor version stamped:** `loadout-evidence-v3`
 
-### Subjects extracted (subject00–subject08)
+### Subjects extracted (subject00–subject10)
 
 | subject_slot_key               | gamertag        | position | jersey | V2-match                                        |
 | ------------------------------ | --------------- | -------- | ------ | ----------------------------------------------- |
-| loadout_slot_seg0002_subject00 | MrHomiecide     | —        | —      | V2: C, #11, captain                             |
+| loadout_slot_seg0002_subject00 | MrHomiecide     | C        | 11     | V2: C, #11, captain ✓                           |
 | loadout_slot_seg0002_subject01 | StickMenace     | LW       | 96     | V2: "Stick Menace" (space — known OCR artifact) |
 | loadout_slot_seg0002_subject02 | HenryTheBobJr   | LD       | 7      | V2: LD, #7 ✓                                    |
 | loadout_slot_seg0002_subject03 | XZ4RKY          | C        | 19     | V2: C, #19, captain ✓                           |
@@ -66,20 +91,33 @@ is the fixture — this test LOCKS the current extractor behavior.
 | loadout_slot_seg0002_subject06 | silkyjoker85    | RW       | 10     | V2: RW, #10 ✓                                   |
 | loadout_slot_seg0002_subject07 | Duh Pope        | LW       | 95     | V2: "DuhPope" (no space — known OCR artifact)   |
 | loadout_slot_seg0002_subject08 | MuttButt        | LD       | 23     | V2: LD, #23 ✓                                   |
+| loadout_slot_seg0002_subject09 | JoeyFlopfish    | RD       | 48     | V2: BGM RD, #48 ✓ (v3 now captures this slot)   |
+| loadout_slot_seg0002_subject10 | sikyjoker85     | LW       | —      | PHANTOM — mis-seg dup of subject06 (not in V2)  |
 
-**JoeyFlopfish is absent:** only 9 subjects appear in the 15-frame bundle. JoeyFlopfish
-(BGM RD, #48) was not navigated to in this recording segment.
+**JoeyFlopfish is now captured (subject09):** the v3 extractor reads this BGM RD #48
+slot (the v2 capture missed it). All categorical fields match the V2 benchmark.
+
+**subject10 `sikyjoker85` is a phantom:** a mis-segmented duplicate of subject06
+`silkyjoker85` (RW #10) — the gamertag is one character off and jersey/persona are
+unreadable. It is not part of the V2 10-slot ground truth and is excluded from the
+canonical SQL. It is locked in the golden as a documented raw-extractor artifact
+(the parity test is an exact-key regression lock); the promoter layer keeps it out
+of canonical data. Suppressing it at the segmentation layer is Tier 1+ work.
 
 ### Known extractor artifacts vs V2 ground truth
 
-| Field                         | Subject             | Extractor value        | V2 / DB canonical    | Action                                                         |
-| ----------------------------- | ------------------- | ---------------------- | -------------------- | -------------------------------------------------------------- |
-| gamertag                      | subject01           | `StickMenace`          | `Stick Menace`       | Fixture locks extractor behavior; PROVENANCE notes discrepancy |
-| gamertag                      | subject07           | `Duh Pope`             | `DuhPope`            | Same — OCR added space                                         |
-| is_captain                    | subject00           | `null` (low_quality)   | `true` (V2)          | Extractor cannot read captain icon in this frame set           |
-| is_captain                    | subject03           | `null` (low_quality)   | `true` (XZ4RKY, V2)  | Same                                                           |
-| position, jersey, persona_raw | subject00           | all null (low_quality) | V2: C, #11, E. WANHG | Extractor limitation for subject00 frames                      |
-| persona_raw                   | subject03–05, 07–08 | null                   | V2: various          | Persona not captured for opp subjects                          |
+| Field      | Subject   | Extractor value (v3) | V2 / DB canonical   | Action                                                         |
+| ---------- | --------- | -------------------- | ------------------- | -------------------------------------------------------------- |
+| gamertag   | subject01 | `StickMenace`        | `Stick Menace`      | Fixture locks extractor behavior; PROVENANCE notes discrepancy |
+| gamertag   | subject07 | `Duh Pope`           | `DuhPope`           | Same — OCR added space                                         |
+| gamertag   | subject10 | `sikyjoker85`        | (phantom)           | Mis-seg duplicate of subject06 `silkyjoker85` — locked + documented |
+| is_captain | subject00 | `null` (low_quality) | `true` (V2)         | Extractor still cannot read the captain icon in this frame set |
+| is_captain | subject03 | `null` (low_quality) | `true` (XZ4RKY, V2) | Same                                                           |
+
+> **v3 note:** subject00 `position`/`jersey`/`persona_raw` are now read (`C`, `#11`,
+> `Evgeni Wanhg` — all `observable`), where the v2 capture had them `null`. Persona is
+> likewise now captured for several opp subjects (e.g. subject03 `Toews`). Only the
+> captain icon (`is_captain`) remains unread for subject00/subject03.
 
 ### Per-field provenance
 
@@ -99,7 +137,7 @@ is the fixture — this test LOCKS the current extractor behavior.
 
 ### Attribute row notes
 
-For ALL 9 subjects, `attribute_deking_value` is `null` (low_quality). This appears to be a
+For most subjects, `attribute_deking_value` is `null` (low_quality). This appears to be a
 consistent OCR limitation with this frame set — the deking row is not reliably readable.
 Consequently, `attribute_faceoffs_value`, `attribute_discipline_value`, and
 `attribute_fighting_skill_value` extracted by the extractor reflect what is ACTUALLY at
@@ -132,10 +170,11 @@ These differences are locked in the fixture as extractor-currently-correct for t
   Cross-checked 2026-05-21: queried DB directly, compared each field against
   the benchmark assertions, confirmed exact matches.
 
-  **Note:** The canonical SQL covers 10 slots including JoeyFlopfish (BGM RD),
-  even though JoeyFlopfish does not appear in the T1A fixture. The canonical SQL
-  is used by the T6A Node test, which uses the hand-authored `seg_bgm/` and
-  `seg_opp/` evidence JSONs that DO include all 10 slots.
+  **Note:** The canonical SQL covers 10 slots including JoeyFlopfish (BGM RD).
+  As of the v3 re-baseline the T1A fixture also captures JoeyFlopfish (subject09);
+  the canonical SQL still excludes the subject10 `sikyjoker85` phantom. The canonical
+  SQL is used by the T6A Node test, which uses the hand-authored `seg_bgm/` and
+  `seg_opp/` evidence JSONs that include all 10 real slots.
 
 ---
 
@@ -143,7 +182,7 @@ These differences are locked in the fixture as extractor-currently-correct for t
 
 - **T1A** (Python extractor parity): `test_match250_parity` runs extractor against
   `frames/`; compares output to `expected_loadout_evidence.json` (root level).
-  Gate is ACTIVE when frames/ is populated (602 records, 9 subjects).
+  Gate is ACTIVE when frames/ is populated (625 records, 11 subjects).
 
 - **T6A** (Node promoter parity): `loadout-canonical-row-fixture.test.ts` promotes
   `seg_bgm/expected_loadout_evidence.json` + `seg_opp/expected_loadout_evidence.json`

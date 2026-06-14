@@ -22,7 +22,7 @@ Tolerances
 
 Fixtures covered
 ----------------
-fixture_match250_full_lobby   — 602 records (9 subjects, 15 frames)
+fixture_match250_full_lobby   — 625 records (11 subjects, 15 frames; loadout-evidence-v3)
 fixture_match463_single_slot  — 61 records  (HenryTheBobJr single-slot)
 """
 from __future__ import annotations
@@ -230,7 +230,7 @@ class TestLoadoutEvidenceFixtureParity(unittest.TestCase):
     """
 
     def test_match250_parity(self):
-        """Match-250 full lobby — 602 expected records (9 subjects, 15 frames).
+        """Match-250 full lobby — 625 expected records (11 subjects, 15 frames).
 
         Expected JSON: fixture_match250_full_lobby/expected_loadout_evidence.json
         Frames:        fixture_match250_full_lobby/frames/00001.png … 00015.png
