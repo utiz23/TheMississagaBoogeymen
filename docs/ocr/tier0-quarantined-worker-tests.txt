@@ -25,14 +25,28 @@
 # ground-truth expectations. Re-OCR is ineffective for the frame-segmentation
 # class (same finding as match 2582, see docs/ocr/box-score-ocr-accuracy-followup.md).
 #
-#   match 250 lobby reds: the pre_game_lobby_state_2 frames are SCRAMBLED — wrong
-#     gamertag↔position↔number associations (e.g. lobby reads "LW = DuhPope #10",
-#     "RW = HenryTheBobJr #7", both wrong). The loadout_view-derived reviewed
+#   match 250 lobby reds: the pre_game_lobby_state_2 rows are SCRAMBLED — wrong
+#     gamertag↔position↔number associations. The loadout_view-derived reviewed
 #     lineup IS correct vs V2; only the lobby-source fields are bad. Drives the
 #     gamertag 7/10, player_number 2/10, and height (5'9" vs 6'6") assertions.
-#   match 250 getMatchLineups: BGM/LW is_captain reads `true` (V2: false) — a
-#     captain-icon misread in the loadout_view extractor (consolidate sets
-#     is_captain by a pure OR with no confidence signal; consolidate-loadouts.ts:302).
+#     Tier 1 (2026-06-14) root-caused it: lobby assigns position by anchor OCR text
+#     after a y-sort with NO grid re-lookup (row_grouping.py:299-330), unlike the
+#     CORRECT loadout path which derives position from Y via position_for_row_y
+#     (loadout_extractors/slot_identity.py:391-425). CORRECTION to the original
+#     note: this is NOT a 2582-class dead end — match 250 IS re-ingestable (source
+#     video present in the per-match layout; DECODER_VERSION bump avoids the
+#     provenance collision). Fix = port the grid-based position lookup into the
+#     lobby extractor + re-ingest. See docs/ocr/lobby-slot-scramble-extractor-followup.md.
+#   match 250 getMatchLineups: BGM/LW is_captain reads `true` (V2: false). Tier 1
+#     WS-A pre-flight (2026-06-14) DISPROVED the "consolidate reads confidence"
+#     fix: the stored captain confidence is OCR line-confidence, not a ★-detection
+#     score, and does NOT discriminate — the false positive (for/LW 0.9980) sits
+#     between the real captains (for/C 0.9935, against/C 0.9993). The active run
+#     (583) carries no captain signal at all; the real captain is absent from the
+#     active snapshots, so no consolidate rule can recover it. Captain detection is
+#     systematically unreliable (463 even flags 2-per-side). This is a genuine
+#     EXTRACTOR limit — see docs/ocr/captain-detection-extractor-followup.md. Stays
+#     quarantined; needs a real ★ template/color score + one-per-side invariant.
 #   match 463 floor: RESOLVED 2026-06-14 (WS-C). The 0.98 / 0.875 / 0.965 floor
 #     was a STALE self-snapshot from a phase-3a worktree (pre-repair, pre-Tier-0
 #     threshold recalibration), NOT the V2 ground truth. Re-baselined the
