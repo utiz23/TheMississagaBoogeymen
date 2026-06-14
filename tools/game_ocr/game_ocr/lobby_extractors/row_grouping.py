@@ -186,6 +186,37 @@ def relabel_anchors_to_canonical(detected: list[OCRLine]) -> list[OCRLine]:
     return out
 
 
+def position_for_row_y(
+    row_y: float,
+    *,
+    tolerance_px: float = _LOBBY_ANCHOR_SNAP_TOLERANCE_PX,
+) -> str | None:
+    """Return the canonical lobby position whose y is closest to ``row_y``.
+
+    Ported from the loadout extractor's grid-Y contract
+    (``loadout_extractors/slot_identity.py::position_for_row_y``), specialised
+    to the fixed lobby grid ``LOBBY_CANONICAL_ROW_YS``. Position is treated as a
+    GEOMETRIC property of where the row sits on the panel, not as a function of
+    the OCR-read anchor text. `group_rows_for_panel` uses this so a row's
+    assigned position always agrees with the y-band that selected its data
+    lines — closing the lobby-slot scramble where a misread label (or a
+    synthesized anchor that landed off its canonical y) bound the right values
+    to the wrong slot (docs/ocr/lobby-slot-scramble-extractor-followup.md).
+
+    Returns the closest position label within ``tolerance_px``, or None when
+    ``row_y`` is further than the tolerance from every canonical row (the caller
+    then falls back to the anchor text).
+    """
+    best: str | None = None
+    best_dist = float("inf")
+    for pos, slot_y in LOBBY_CANONICAL_ROW_YS.items():
+        dist = abs(slot_y - row_y)
+        if dist < tolerance_px and dist < best_dist:
+            best_dist = dist
+            best = pos
+    return best
+
+
 def fill_missing_position_anchors(detected: list[OCRLine]) -> list[OCRLine]:
     """Synthesize anchors for rows whose position label RapidOCR failed to read.
 
@@ -312,7 +343,19 @@ def group_rows_for_panel(
 
     rows: list[LobbyRow] = []
     for anchor in anchors:
-        position = anchor.text.strip().upper().replace(" ", "")
+        # Phase C: derive position GEOMETRICALLY from the anchor's y-center
+        # against the canonical row grid, NOT from the OCR-read anchor text.
+        # The same y selects this row's data lines below, so grid-Y lookup
+        # keeps position and data consistent even when a label is misread or a
+        # synthesized anchor lands off its canonical y (the lobby-slot scramble
+        # — docs/ocr/lobby-slot-scramble-extractor-followup.md). Falls back to
+        # the OCR text only when the anchor sits outside every canonical row.
+        geometric = position_for_row_y(anchor.y_center)
+        position = (
+            geometric
+            if geometric is not None
+            else anchor.text.strip().upper().replace(" ", "")
+        )
         row_lines = [
             line for line in all_lines
             if abs(line.y_center - anchor.y_center) < _LOBBY_ROW_BAND_PX

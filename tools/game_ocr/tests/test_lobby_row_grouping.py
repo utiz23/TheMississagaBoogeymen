@@ -22,6 +22,7 @@ from game_ocr.lobby_extractors.row_grouping import (
     detect_panel_state,
     fill_missing_position_anchors,
     group_rows_for_panel,
+    position_for_row_y,
     relabel_anchors_to_canonical,
 )
 from game_ocr.ocr import OCRLine
@@ -237,6 +238,49 @@ class LobbyRowBandTests(unittest.TestCase):
             any(l.text == "StickMenace" for l in lw_row.row_lines),
             "Typical gamertag line within ±12 px of anchor must be in row_lines",
         )
+
+
+class LobbyGeometricPositionTests(unittest.TestCase):
+    """Phase C: position is assigned by canonical grid-Y lookup, not anchor text."""
+
+    def test_position_for_row_y_maps_each_canonical_row(self) -> None:
+        for pos, y in LOBBY_CANONICAL_ROW_YS.items():
+            self.assertEqual(position_for_row_y(y), pos)
+
+    def test_position_for_row_y_nearest_within_tolerance(self) -> None:
+        # Small jitter around a canonical y still resolves to that row.
+        self.assertEqual(position_for_row_y(LOBBY_CANONICAL_ROW_YS["C"] + 8), "C")
+        self.assertEqual(position_for_row_y(LOBBY_CANONICAL_ROW_YS["RW"] - 10), "RW")
+
+    def test_position_for_row_y_none_when_far_from_every_row(self) -> None:
+        # Midway between LW (406) and RW (493): ~43 px from each, beyond the
+        # 35 px tolerance → no confident position (caller falls back to text).
+        midpoint = (LOBBY_CANONICAL_ROW_YS["LW"] + LOBBY_CANONICAL_ROW_YS["RW"]) / 2
+        self.assertIsNone(position_for_row_y(midpoint))
+
+    def test_group_rows_position_follows_geometry(self) -> None:
+        # Every emitted row's position must equal the grid-Y lookup of its
+        # anchor — i.e. group_rows_for_panel derives position from geometry.
+        rows = detect_lobby_rows(_full_state2_frame())
+        for row in rows:
+            self.assertEqual(row.position, position_for_row_y(row.anchor_y))
+
+    def test_misread_label_does_not_scramble_position(self) -> None:
+        # A position label OCR'd with the WRONG text but at the RIGHT y must
+        # still yield the geometrically-correct position. "G" is misread at
+        # LW's canonical y; the row carrying LW's gamertag must be labeled LW.
+        misread = _line("G", 77, LOBBY_CANONICAL_ROW_YS["LW"], conf=0.9)
+        gamertag = _line("StickMenace", 250, LOBBY_CANONICAL_ROW_YS["LW"] - 10, conf=0.95)
+        rows, _, _ = group_rows_for_panel(
+            [misread, gamertag],
+            team_side="our_team",
+            panel_x_range=BGM_PANEL_X_RANGE,
+            anchor_x_max=BGM_ANCHOR_X_MAX,
+        )
+        bearer = next(
+            r for r in rows if any(l.text == "StickMenace" for l in r.row_lines)
+        )
+        self.assertEqual(bearer.position, "LW")
 
 
 if __name__ == "__main__":
