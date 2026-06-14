@@ -18,27 +18,32 @@ import type { DbOrTx } from '../ocr-promoters/index.js'
 /**
  * L1/L2/L2.5/L3 pass thresholds.
  *
- * Tier 0 WS0.1B recalibration (2026-06-13). The original 0.99 bars made every
- * run red and the gate unusable. Thresholds are now set at/just-below the
- * scores of the ONE independently-verified reference run — match 250 (run 583),
- * validated field-by-field against the V2 benchmark — so it passes an honest
- * bar while every un-verified run still fails ≥1 layer. Measured active-run
- * scores at calibration time:
+ * Set at/just-below the scores of the ONE independently-verified reference run
+ * — match 250 (run 583), validated field-by-field against the V2 benchmark — so
+ * it passes an honest bar while every un-verified run still fails ≥1 layer.
  *
- *   match  run   L2     L2.5(lineup)  L3      → outcome under the bars below
- *   250    583   0.854  0.950         1.000   → PASS  (all three clear)   ◀ reference
- *   463    1946  0.700  0.825         0.919   → FAIL  (all three)
- *   968    584   0.839  0.825         0.818   → FAIL  (all three)
- *   2582   1945  0.568  0.925         0.955   → FAIL  (L2)
+ * Tier 0 WS0.1B (2026-06-13) first replaced the unusable 0.99 bars. Tier 1
+ * Item 0 (2026-06-14) then REPAIRED a player-identity contamination (a leaked
+ * test sentinel `players` row, gamertag 'HenryTheBobJr', had accreted real data
+ * and was bound to 250's lineup, firing a class-G off-roster penalty). Merging
+ * it back restored 250's L2 from the degraded 0.854 to its true 0.9792, so L2's
+ * bar is re-anchored 0.85 → 0.90. Measured active-run scores after the repair:
  *
- * Result: exactly one green baseline (250), not everything painted green.
+ *   match  run   L2      L2.5(lineup)  L3      → outcome under the bars below
+ *   250    583   0.9792  0.950         1.000   → PASS  (all three clear)   ◀ reference
+ *   463    1946  0.820   0.825         0.919   → FAIL  (all three)
+ *   968    584   0.839   0.825         0.818   → FAIL  (all three)
+ *   2582   1945  0.568   0.925         0.955   → FAIL  (L2)
+ *
+ * 0.90 sits just under the restored 250 (0.9792) with margin, and cleanly above
+ * the next real match (968 at 0.839) — exactly one green baseline, not all green.
  *
  * L1 stays at 0.99 — it is permanently null until labeled-fixture ground truth
  * exists, and `overall.pass` treats a null L1 as `true`, so the bar is inert.
  */
 export const L1_THRESHOLD = 0.99
-/** L2 — BGM-side event actor-resolution rate. Just below 250's 0.854. */
-export const L2_THRESHOLD = 0.85
+/** L2 — BGM-side event actor-resolution rate. Just below 250's restored 0.9792. */
+export const L2_THRESHOLD = 0.9
 /**
  * L2.5 — lineup-field accuracy on reviewed loadout anchors. A DISTINCT bar from
  * L2 (previously it reused L2_THRESHOLD): the lineup dimension scores higher

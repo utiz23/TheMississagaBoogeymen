@@ -1,38 +1,45 @@
-# Tier 0 — Quarantined worker tests (pre-existing live-data-drift failures)
-#
-# These worker integration tests were ALREADY RED before the Tier 0 quality-gate
-# work (verified by running the suite at commit b17f983 with the 0.1 changes
-# stashed: 7 failures, identical to the set below). They fail because the LIVE
-# database's match-250 / 463 canonical data has drifted away from the values the
-# tests + frozen regression-floor fixtures encode — NOT because of any Tier 0
-# code change.
-#
-# Decision (user, 2026-06-13): ship the activate quality gate now and QUARANTINE
-# these as a Tier 1 data-repair backlog item, rather than (a) pull a live re-OCR
-# / re-consolidate into Tier 0, or (b) lower the V2 ground-truth expectations to
-# match the degraded data (which would be dishonest for a "verified" baseline).
-#
-# Evidence of the drift:
-#   - match 250 L2 (BGM actor resolution) is 85.42% live vs a frozen floor of
-#     97.92% (the "layer scores at or above floor" regression test). The actor
-#     resolution rate regressed at some earlier reprocessing.
-#   - match 250 `bgm/LW: captain` is `true` in the live DB but V2 says `false`
-#     (a stale is_captain OR-vote leak) — the getMatchLineups / lobby-field
-#     benchmark assertions.
-#
-# Tier 1 follow-up: investigate + repair match-250 (and 463) canonical data
-# (re-OCR / re-consolidate / backfill-event-actor-resolution), then re-anchor
-# the L2 threshold on the restored scores and DELETE the matching lines here.
+# Quarantined worker tests — residual OCR extraction-quality reds (post Tier 1 Item 0)
 #
 # verify-ocr.sh treats the worker suite as GREEN iff its set of failing tests is
-# a SUBSET of the names below. Any test name not listed here that fails is a
-# real regression and blocks the gate. Match is by exact subtest name (one per
-# line; blank lines + `#` comments ignored).
+# a SUBSET of the names below (exact subtest name, one per line; blank lines and
+# `#` comments ignored). Any failing test NOT listed here is a real regression
+# and blocks the gate.
+#
+# ── History ────────────────────────────────────────────────────────────────
+# Tier 0 (2026-06-13) quarantined 7 reds believed to be live-data drift.
+# Tier 1 Item 0 (2026-06-14) ROOT-CAUSED them: a leaked test-sentinel `players`
+# row (id 99021, gamertag 'HenryTheBobJr') collided with a real club member and
+# had accreted real data for 23 matches; a consolidate run then bound match
+# 250/463 lineups to it, firing a class-G off-roster penalty. Merging the split
+# identity (99021 → real id 1) across 19 FK tables + cleaning two pure-pollution
+# sentinels (99101/99102) RESTORED match 250's L2 from 0.854 to its true 0.9792
+# and cleared:
+#   - "match 250 — layer scores at or above floor"  (now GREEN; removed below)
+# The recurrence path (test fixtures seeding real-colliding sentinel gamertags +
+# a suite that could run against live) is fixed in Phase 6 (see
+# apps/worker/src/__tests__/fixtures/seed-fixture-db.ts).
+#
+# ── Remaining reds = genuine extractor / frame-segmentation limitations ──────
+# These are NOT data contamination and NOT fixable from stored evidence; they
+# need extractor work (a Tier-1-extractor ticket), NOT a lowering of the V2
+# ground-truth expectations. Re-OCR is ineffective for the frame-segmentation
+# class (same finding as match 2582, see docs/ocr/box-score-ocr-accuracy-followup.md).
+#
+#   match 250 lobby reds: the pre_game_lobby_state_2 frames are SCRAMBLED — wrong
+#     gamertag↔position↔number associations (e.g. lobby reads "LW = DuhPope #10",
+#     "RW = HenryTheBobJr #7", both wrong). The loadout_view-derived reviewed
+#     lineup IS correct vs V2; only the lobby-source fields are bad. Drives the
+#     gamertag 7/10, player_number 2/10, and height (5'9" vs 6'6") assertions.
+#   match 250 getMatchLineups: BGM/LW is_captain reads `true` (V2: false) — a
+#     captain-icon misread in the loadout_view extractor (consolidate sets
+#     is_captain by a pure OR with no confidence signal; consolidate-loadouts.ts:302).
+#   match 463 floor: L2 0.82 / L2.5 0.825 / L3 0.919 sit below the 0.98 / 0.875 /
+#     0.965 floor after re-consolidate + backfill — residual duplicate-event /
+#     missing-lineup-field gaps that need extractor work, not data repair.
 
 match 250: getMatchLineups returns expected slot data
 match 250: pre-game lobby BGM loadout fields match V2
 match 250: lobby typed_v1 hard-field accuracy ≥ 90%
 match 250: lobby typed_v1 soft-field accuracy ≥ 75%
-match 250 — layer scores at or above floor
 match 463 — layer scores at or above floor
 computeLayers reproduces regression-floor layers for match 463

@@ -56,16 +56,57 @@ export interface SeedResult {
   extractionIds: number[]
 }
 
+// ── live-DB guard ───────────────────────────────────────────────────────────
+
+/**
+ * Refuse to seed/clean anything unless DATABASE_URL points at a throwaway
+ * `eanhl_test_*` clone (provisioned by apps/worker/scripts/with-test-db.mjs).
+ *
+ * Tier 1 Item 0 (2026-06-14) root-caused a live-DB contamination to this seeder:
+ * it inserts sentinel `players` rows whose gamertags collide with REAL club
+ * members (e.g. id 99021 'HenryTheBobJr'), and at least one run executed against
+ * the live `eanhl` database (DATABASE_URL=live), leaving the sentinel behind to
+ * accrete real data across 23 matches. This guard makes that impossible: the
+ * suite's only supported entry point is with-test-db.mjs, which always runs
+ * against an `eanhl_test_*` clone, and clones are dropped after each run. (A
+ * follow-up could additionally rename the colliding gamertags, but that requires
+ * coordinated fixture-evidence changes; this guard is the definitive fix.)
+ */
+function assertCloneDb(): void {
+  const url = process.env['DATABASE_URL']
+  if (!url) {
+    throw new Error('seed-fixture-db: DATABASE_URL is unset — cannot verify this is a test clone.')
+  }
+  let dbName: string
+  try {
+    dbName = new URL(url).pathname.replace(/^\//, '')
+  } catch {
+    throw new Error(`seed-fixture-db: DATABASE_URL is not a valid URL: ${url}`)
+  }
+  if (!dbName.startsWith('eanhl_test')) {
+    throw new Error(
+      `seed-fixture-db: refusing to run — DATABASE_URL points at database "${dbName}", not an ` +
+        `"eanhl_test_*" clone. The worker integration suite must run via ` +
+        `apps/worker/scripts/with-test-db.mjs (which provisions a throwaway clone). This guard ` +
+        `prevents test sentinels (e.g. the 'HenryTheBobJr' collision) from polluting the live DB.`,
+    )
+  }
+}
+
 // ── cleanup helper ────────────────────────────────────────────────────────────
 
 /**
  * Delete ALL rows for the given sentinel match IDs in FK-safe order.
  * Safe to call with an empty list (no-op).
+ *
+ * Universal chokepoint: `seedFixtureDb` calls this first, so the clone guard
+ * here protects every seed path too.
  */
 export async function cleanupSentinelMatches(
   matchIds: number[],
   db: Db = defaultDb,
 ): Promise<void> {
+  assertCloneDb()
   if (matchIds.length === 0) return
 
   // FK order: deepest children first.
