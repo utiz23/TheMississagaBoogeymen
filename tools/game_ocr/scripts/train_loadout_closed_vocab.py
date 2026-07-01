@@ -49,6 +49,7 @@ from __future__ import annotations
 import argparse
 import json
 import math
+import re
 import sys
 import warnings
 from pathlib import Path
@@ -142,10 +143,44 @@ def extract_crop_features(image_bgr: np.ndarray) -> np.ndarray:
 # ---------------------------------------------------------------------------
 
 
+# Crop provenance prefix written by label_loadout_crops.py --source-match <ID>,
+# e.g. "m250_00004_title_bar.png".
+_CROP_PROVENANCE_RE = re.compile(r"^m(\d+)_")
+
+
+def _parse_crop_match_id(png_name: str) -> int | None:
+    """Parse the ``m<id>_`` provenance prefix from a crop filename, or None."""
+    m = _CROP_PROVENANCE_RE.match(png_name)
+    return int(m.group(1)) if m else None
+
+
+def _read_held_out_matches(manifest_path: Path) -> set[int]:
+    """Read the held-out match-id set from a benchmark manifest.
+
+    Returns an empty set (and warns) when the manifest is missing or
+    unreadable — the guard then operates in transitional fail-open mode so a
+    label run against a temp/uninitialized corpus is not silently dropped.
+    """
+    try:
+        data = json.loads(manifest_path.read_text())
+    except (OSError, json.JSONDecodeError) as e:
+        print(
+            f"warn: leakage guard could not read manifest {manifest_path} ({e}); "
+            "held-out enforcement disabled for this run.",
+            file=sys.stderr,
+        )
+        return set()
+    held = data.get("splits", {}).get("held_out", []) or []
+    return {int(x) for x in held}
+
+
 def load_corpus(
     family: str,
     corpus_root: Path = CORPUS_ROOT,
     min_examples_per_class: int = MIN_EXAMPLES_PER_CLASS,
+    *,
+    manifest_path: Path | None = None,
+    allow_held_out: bool = False,
 ) -> tuple[list[np.ndarray], list[str]]:
     """Load feature vectors and labels from the labeled crop corpus.
 
@@ -154,11 +189,23 @@ def load_corpus(
         corpus_root: path to the crops root.
         min_examples_per_class: minimum labels required per class
             (default 3). Lower (e.g. 1) for sparse bootstrap corpora.
+        manifest_path: benchmark manifest whose ``splits.held_out`` list drives
+            the leakage guard.  Defaults to
+            ``corpus_root.parent / "benchmark" / "manifest.json"``.
+        allow_held_out: debug override — when True, held-out crops are included
+            instead of skipped.
 
     Returns:
         (features, labels) — parallel lists.
         features: list of 132-d float64 arrays.
         labels: list of canonical-name strings.
+
+    Leakage guard (crop provenance):
+        Each crop filename may carry an ``m<id>_`` prefix naming its source
+        match.  Crops whose match id is in the manifest's ``held_out`` split are
+        skipped with a loud warning (unless ``allow_held_out``).  Unprefixed
+        legacy crops have unknown provenance and are included with a one-time
+        warning — a deliberate transitional fail-open.
 
     Classes with fewer than min_examples_per_class examples are excluded with
     a warning.  If the corpus directory does not exist, returns ([], []).
@@ -167,13 +214,38 @@ def load_corpus(
     if not family_root.exists():
         return [], []
 
+    if manifest_path is None:
+        manifest_path = corpus_root.parent / "benchmark" / "manifest.json"
+    held_out: set[int] = set() if allow_held_out else _read_held_out_matches(manifest_path)
+
     # Gather (feature_vec, canonical_label) pairs
+    warned_unknown = False
     raw_by_class: dict[str, list[np.ndarray]] = {}
     for class_dir in sorted(family_root.iterdir()):
         if not class_dir.is_dir():
             continue
         canonical = class_dir.name
         for png in sorted(class_dir.glob("*.png")):
+            match_id = _parse_crop_match_id(png.name)
+            if match_id is None:
+                # Unknown provenance → transitional fail-open (include + warn once).
+                if not warned_unknown:
+                    print(
+                        f"warn: crop provenance unknown (no m<id>_ prefix), e.g. {png.name} — "
+                        "verify these are not from a held-out match. Re-label with "
+                        "label_loadout_crops.py --source-match <ID> to tag them.",
+                        file=sys.stderr,
+                    )
+                    warned_unknown = True
+            elif match_id in held_out:
+                # Proven held-out → fail-closed (skip + loud warn).
+                print(
+                    f"WARN: LEAKAGE GUARD — skipping held-out crop {png} "
+                    f"(match {match_id} in held_out split). "
+                    "Pass --allow-held-out to override.",
+                    file=sys.stderr,
+                )
+                continue
             img = cv2.imread(str(png))
             if img is None:
                 print(f"warn: cv2.imread failed: {png}", file=sys.stderr)
@@ -208,6 +280,18 @@ def load_corpus(
 # ---------------------------------------------------------------------------
 
 
+def _resolve_cv_report_path(cv_report_path: Path, version: str, family: str) -> Path:
+    """Resolve a ``--cv-report`` argument to a concrete file path.
+
+    If the argument names a JSON file (``.json`` suffix) it is used verbatim;
+    otherwise it is treated as a directory and the canonical filename
+    ``cv-<version>-<family>.json`` is appended.
+    """
+    if cv_report_path.suffix.lower() == ".json":
+        return cv_report_path
+    return cv_report_path / f"cv-{version}-{family}.json"
+
+
 def train_family(
     family: str,
     *,
@@ -216,6 +300,9 @@ def train_family(
     weights_dir: Path = WEIGHTS_DIR,
     evaluate: bool = False,
     min_examples_per_class: int = MIN_EXAMPLES_PER_CLASS,
+    cv_report_path: Path | None = None,
+    manifest_path: Path | None = None,
+    allow_held_out: bool = False,
 ) -> Path | None:
     """Train a LogisticRegression for one family.  Returns the saved weights path, or None on failure.
 
@@ -228,6 +315,14 @@ def train_family(
             top-1 accuracy before fitting the full model.
         min_examples_per_class: minimum labels required per class. Default 3
             for robust training; lower to 1-2 for sparse bootstrap corpora.
+        cv_report_path: when set together with ``evaluate``, persist a CV
+            summary JSON here.  If the path names a directory, the file is
+            written as ``cv-<version>-<family>.json`` inside it.
+        manifest_path: benchmark manifest whose ``splits.held_out`` list drives
+            the crop-provenance leakage guard.  Defaults to a path derived from
+            ``corpus_root`` (see ``load_corpus``).
+        allow_held_out: debug override — include crops from held-out matches
+            instead of skipping them.
 
     Returns:
         Path to the written JSON file, or None when corpus is insufficient.
@@ -239,6 +334,8 @@ def train_family(
         family,
         corpus_root=corpus_root,
         min_examples_per_class=min_examples_per_class,
+        manifest_path=manifest_path,
+        allow_held_out=allow_held_out,
     )
 
     n_total = len(features)
@@ -267,12 +364,16 @@ def train_family(
     y = le.fit_transform(labels)  # integer-encoded, sorted alphabetically
     class_names: list[str] = list(le.classes_)
 
+    if cv_report_path is not None and not evaluate:
+        print("  note: --cv-report is ignored without --evaluate", file=sys.stderr)
+
     # Optional held-out evaluation
     if evaluate:
-        k = min(3, n_classes, min(np.bincount(y)))
+        k = int(min(3, n_classes, int(np.min(np.bincount(y)))))
+        fold_accuracies: list[float] = []
+        mean_acc: float | None = None
         if k >= 2:
             kf = StratifiedKFold(n_splits=k, shuffle=True, random_state=42)
-            fold_accuracies: list[float] = []
             for train_idx, test_idx in kf.split(X, y):
                 X_tr, X_te = X[train_idx], X[test_idx]
                 y_tr, y_te = y[train_idx], y[test_idx]
@@ -282,12 +383,40 @@ def train_family(
                     lr_cv.fit(X_tr, y_tr)
                 fold_accuracies.append(float((lr_cv.predict(X_te) == y_te).mean()))
             mean_acc = float(np.mean(fold_accuracies))
+            cv_note = (
+                f"{k}-fold stratified CV top-1 accuracy over {n_total} examples "
+                f"/ {n_classes} classes (min_class_size={min_examples_per_class})."
+            )
             print(f"  [evaluate] {k}-fold stratified CV top-1 accuracy: {mean_acc:.3f}", file=sys.stderr)
         else:
+            cv_note = (
+                f"CV skipped - smallest class has too few examples for {k}-fold CV."
+            )
             print(
                 f"  [evaluate] skipped — some classes have too few examples for {k}-fold CV",
                 file=sys.stderr,
             )
+
+        # Persist CV metrics next to the benchmark reports (the retrain baseline).
+        if cv_report_path is not None:
+            class_counts = {name: int((y == idx).sum()) for idx, name in enumerate(class_names)}
+            cv_report = {
+                "schema_version": 1,
+                "version": version,
+                "family": family,
+                "n_examples": n_total,
+                "n_classes": n_classes,
+                "min_class_size": min_examples_per_class,
+                "class_counts": class_counts,
+                "k_folds": k,
+                "fold_accuracies": fold_accuracies,
+                "mean_cv_accuracy": mean_acc,
+                "note": cv_note,
+            }
+            cv_out = _resolve_cv_report_path(cv_report_path, version, family)
+            cv_out.parent.mkdir(parents=True, exist_ok=True)
+            cv_out.write_text(json.dumps(cv_report, indent=2))
+            print(f"  [evaluate] wrote CV report: {cv_out}", file=sys.stderr)
 
     # Fit on full corpus
     lr = LogisticRegression(solver="lbfgs", max_iter=1000, C=1.0)
@@ -377,6 +506,29 @@ def main() -> int:
         help=f"Minimum labels per class to include in training (default: {MIN_EXAMPLES_PER_CLASS}). "
              f"Lower (e.g. 1) for sparse bootstrap corpora.",
     )
+    ap.add_argument(
+        "--cv-report",
+        type=Path,
+        default=None,
+        metavar="PATH",
+        help="With --evaluate, persist a CV summary JSON. If PATH is a directory "
+             "(or lacks a .json suffix), the file is written as "
+             "cv-<version>-<family>.json inside it.",
+    )
+    ap.add_argument(
+        "--manifest",
+        type=Path,
+        default=None,
+        metavar="PATH",
+        help="Benchmark manifest for the held-out leakage guard (default: derived "
+             "as <corpus-root>/../benchmark/manifest.json).",
+    )
+    ap.add_argument(
+        "--allow-held-out",
+        action="store_true",
+        help="Debug override: include crops from held-out matches instead of "
+             "skipping them (default off).",
+    )
     args = ap.parse_args()
 
     families = AVAILABLE_FAMILIES if args.all else [args.family]
@@ -389,6 +541,9 @@ def main() -> int:
             weights_dir=args.weights_dir,
             evaluate=args.evaluate,
             min_examples_per_class=args.min_class_size,
+            cv_report_path=args.cv_report,
+            manifest_path=args.manifest,
+            allow_held_out=args.allow_held_out,
         )
         if result is None:
             failures += 1

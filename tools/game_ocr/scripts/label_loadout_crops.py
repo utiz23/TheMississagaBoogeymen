@@ -7,17 +7,21 @@ names from the YAML dictionary, and saves the labeled crop to the corpus
 directory.
 
 Saved corpus path:
-    tools/game_ocr/calibration/extras/loadout/crops/<family>/<canonical>/<stem>_<slot>.png
+    tools/game_ocr/calibration/extras/loadout/crops/<family>/<canonical>/[m<id>_]<stem>_<slot>.png
+
+The optional ``m<id>_`` prefix (from --source-match) tags a crop with its
+source match id so the trainer's held-out leakage guard can prove provenance.
 
 Usage
 -----
 # Label build_class crops from canonical fixtures:
     python tools/game_ocr/scripts/label_loadout_crops.py --family build_class
 
-# Label x_factor_name crops from a match-250 run directory:
+# Label x_factor_name crops from a match-250 run directory (tag provenance):
     python tools/game_ocr/scripts/label_loadout_crops.py \\
         --family x_factor_name \\
-        --source /tmp/typed-v1-match250/.../pass2/seg-002-player_loadout_view
+        --source /tmp/typed-v1-match250/.../pass2/seg-002-player_loadout_view \\
+        --source-match 250
 
 # Dry-run (no saves, prints what would happen):
     python tools/game_ocr/scripts/label_loadout_crops.py --family build_class --dry-run
@@ -171,20 +175,45 @@ def _collect_pngs(*dirs: Path) -> list[Path]:
     return deduped
 
 
+def _crop_filename(source_stem: str, region_label: str, source_match: int | None = None) -> str:
+    """Build a crop filename, optionally carrying an ``m<id>_`` provenance prefix.
+
+    When ``source_match`` is set the crop is tagged with its source match id
+    (e.g. ``m250_00004_title_bar.png``) so the trainer's held-out leakage guard
+    can prove which match a crop came from.  Because raw frame stems (``00004``)
+    recur across matches, the prefix is what makes a crop's provenance unique.
+    """
+    base = f"{source_stem}_{region_label}.png"
+    return f"m{source_match}_{base}" if source_match is not None else base
+
+
 def _corpus_save_path(
     corpus_root: Path,
     family: str,
     canonical: str,
     source_stem: str,
     region_label: str,
+    source_match: int | None = None,
 ) -> Path:
     """Return the target save path for a labeled crop."""
-    return corpus_root / family / canonical / f"{source_stem}_{region_label}.png"
+    return corpus_root / family / canonical / _crop_filename(source_stem, region_label, source_match)
 
 
-def _already_labeled(corpus_root: Path, family: str, source_stem: str, region_label: str) -> bool:
-    """Return True if this (source, region) pair has already been labeled (any canonical)."""
-    suffix = f"{source_stem}_{region_label}.png"
+def _already_labeled(
+    corpus_root: Path,
+    family: str,
+    source_stem: str,
+    region_label: str,
+    source_match: int | None = None,
+) -> bool:
+    """Return True if this (source, region) pair has already been labeled (any canonical).
+
+    The check is provenance-aware: a ``--source-match`` run looks for the
+    ``m<id>_`` prefixed filename only, so a re-run over the same match skips
+    correctly without colliding with an identically-stemmed crop from a
+    different match.
+    """
+    suffix = _crop_filename(source_stem, region_label, source_match)
     family_root = corpus_root / family
     if not family_root.exists():
         return False
@@ -326,8 +355,13 @@ def label_crops(
     extra_sources: list[Path],
     dry_run: bool = False,
     corpus_root: Path = CORPUS_ROOT,
+    source_match: int | None = None,
 ) -> int:
-    """Main labeling loop.  Returns number of crops saved."""
+    """Main labeling loop.  Returns number of crops saved.
+
+    When ``source_match`` is set, every saved crop is prefixed ``m<id>_`` so the
+    trainer's held-out leakage guard can identify its origin match.
+    """
     yaml_family = FAMILY_TO_YAML.get(family, family)
     vocab = load_closed_vocab(yaml_family)
     canonical_names = [e.canonical for e in vocab.entries]
@@ -362,7 +396,7 @@ def label_crops(
         stem = png_path.stem
         for region in regions:
             label_key = region["label"]
-            if not _already_labeled(corpus_root, family, stem, label_key):
+            if not _already_labeled(corpus_root, family, stem, label_key, source_match):
                 queue.append((png_path, region))
 
     total = len(queue)
@@ -428,7 +462,7 @@ def label_crops(
                 skipped += 1
                 continue
 
-            dest = _corpus_save_path(corpus_root, family, canonical, stem, region_label)
+            dest = _corpus_save_path(corpus_root, family, canonical, stem, region_label, source_match)
             if dry_run:
                 print(f"  [dry-run] would save → {dest}")
             else:
@@ -470,6 +504,15 @@ def main() -> int:
         default=CORPUS_ROOT,
         help=f"Corpus output root (default: {CORPUS_ROOT}).",
     )
+    ap.add_argument(
+        "--source-match",
+        type=int,
+        default=None,
+        metavar="ID",
+        help="Tag every saved crop with an m<ID>_ provenance prefix so the "
+             "trainer's held-out leakage guard can identify its source match. "
+             "Use the match id these frames were extracted from.",
+    )
     args = ap.parse_args()
 
     extra_sources = [Path(s) for s in args.sources]
@@ -478,6 +521,7 @@ def main() -> int:
         extra_sources=extra_sources,
         dry_run=args.dry_run,
         corpus_root=args.corpus_root,
+        source_match=args.source_match,
     )
     return 0
 

@@ -15,6 +15,8 @@ Does NOT test against real weights or real corpus images.
 
 from __future__ import annotations
 
+import contextlib
+import io
 import json
 import sys
 import tempfile
@@ -31,6 +33,7 @@ sys.path.insert(0, str(GAME_OCR))
 from scripts.train_loadout_closed_vocab import (  # noqa: E402
     MIN_EXAMPLES_PER_CLASS,
     _N_FEATURES,
+    _parse_crop_match_id,
     extract_crop_features,
     load_corpus,
     train_family,
@@ -56,6 +59,23 @@ def _write_crops(corpus_root: Path, family: str, class_name: str, n: int, color_
     for i in range(n):
         img = _synthetic_crop(color_bgr=color_bgr)
         cv2.imwrite(str(class_dir / f"crop_{i:03d}_title_bar.png"), img)
+
+
+def _write_named_crop(corpus_root: Path, family: str, class_name: str, filename: str,
+                      color_bgr: tuple = (80, 120, 200)) -> None:
+    """Write a single synthetic PNG crop under an explicit filename.
+
+    Used by the leakage-guard tests to control the ``m<id>_`` provenance prefix.
+    """
+    class_dir = corpus_root / family / class_name
+    class_dir.mkdir(parents=True, exist_ok=True)
+    cv2.imwrite(str(class_dir / filename), _synthetic_crop(color_bgr=color_bgr))
+
+
+def _write_manifest(path: Path, held_out: list[int]) -> None:
+    """Write a minimal benchmark manifest with the given held-out split."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps({"schema_version": 1, "splits": {"held_out": held_out}}))
 
 
 # ---------------------------------------------------------------------------
@@ -310,6 +330,151 @@ class TestTrainFamily(unittest.TestCase):
         )
         self.assertIsNotNone(result)
         self.assertEqual(result.name, "nhl26-loadout-build_class-classifier.json")
+
+
+# ---------------------------------------------------------------------------
+# Deliverable 1 — CV report persistence
+# ---------------------------------------------------------------------------
+
+
+class TestCvReport(unittest.TestCase):
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory()
+        self.corpus_root = Path(self._tmp.name) / "crops"
+        self.weights_dir = Path(self._tmp.name) / "weights"
+        self.report_dir = Path(self._tmp.name) / "reports"
+        colors = [(200, 0, 0), (0, 200, 0), (0, 0, 200), (100, 100, 0), (0, 100, 100)]
+        for i, color in enumerate(colors):
+            _write_crops(self.corpus_root, "build_class", f"Class{i}", MIN_EXAMPLES_PER_CLASS, color)
+
+    def tearDown(self) -> None:
+        self._tmp.cleanup()
+
+    def test_cv_report_written_with_schema(self) -> None:
+        train_family(
+            "build_class",
+            corpus_root=self.corpus_root,
+            weights_dir=self.weights_dir,
+            evaluate=True,
+            cv_report_path=self.report_dir,
+        )
+        report_file = self.report_dir / "cv-nhl26-build_class.json"
+        self.assertTrue(report_file.exists(), f"expected CV report at {report_file}")
+        data = json.loads(report_file.read_text())
+
+        for key in (
+            "schema_version", "version", "family", "n_examples", "n_classes",
+            "min_class_size", "class_counts", "k_folds", "fold_accuracies",
+            "mean_cv_accuracy", "note",
+        ):
+            self.assertIn(key, data, f"missing key {key!r}")
+
+        self.assertEqual(data["schema_version"], 1)
+        self.assertEqual(data["version"], "nhl26")
+        self.assertEqual(data["family"], "build_class")
+        self.assertEqual(data["n_examples"], 5 * MIN_EXAMPLES_PER_CLASS)
+        self.assertEqual(data["n_classes"], 5)
+        self.assertEqual(sum(data["class_counts"].values()), data["n_examples"])
+
+    def test_mean_cv_accuracy_in_unit_interval(self) -> None:
+        train_family(
+            "build_class",
+            corpus_root=self.corpus_root,
+            weights_dir=self.weights_dir,
+            evaluate=True,
+            cv_report_path=self.report_dir,
+        )
+        data = json.loads((self.report_dir / "cv-nhl26-build_class.json").read_text())
+        self.assertIsNotNone(data["mean_cv_accuracy"])
+        self.assertGreaterEqual(data["mean_cv_accuracy"], 0.0)
+        self.assertLessEqual(data["mean_cv_accuracy"], 1.0)
+        self.assertEqual(len(data["fold_accuracies"]), data["k_folds"])
+
+    def test_explicit_json_path_is_used_verbatim(self) -> None:
+        target = self.report_dir / "custom-name.json"
+        train_family(
+            "build_class",
+            corpus_root=self.corpus_root,
+            weights_dir=self.weights_dir,
+            evaluate=True,
+            cv_report_path=target,
+        )
+        self.assertTrue(target.exists())
+
+    def test_no_report_written_without_evaluate(self) -> None:
+        train_family(
+            "build_class",
+            corpus_root=self.corpus_root,
+            weights_dir=self.weights_dir,
+            evaluate=False,
+            cv_report_path=self.report_dir,
+        )
+        self.assertFalse(self.report_dir.exists() and any(self.report_dir.iterdir()))
+
+
+# ---------------------------------------------------------------------------
+# Deliverable 2 — held-out leakage guard (crop provenance)
+# ---------------------------------------------------------------------------
+
+
+class TestParseCropMatchId(unittest.TestCase):
+    def test_parses_prefix(self) -> None:
+        self.assertEqual(_parse_crop_match_id("m250_00004_title_bar.png"), 250)
+        self.assertEqual(_parse_crop_match_id("m463_00001_xf_slot0.png"), 463)
+
+    def test_unprefixed_returns_none(self) -> None:
+        self.assertIsNone(_parse_crop_match_id("00004_title_bar.png"))
+
+
+class TestLeakageGuard(unittest.TestCase):
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory()
+        self.corpus_root = Path(self._tmp.name) / "crops"
+        self.manifest = Path(self._tmp.name) / "benchmark" / "manifest.json"
+        _write_manifest(self.manifest, held_out=[463])
+        # One held-out (m463) class and one validation (m250) class.
+        _write_named_crop(self.corpus_root, "build_class", "HeldOut",
+                          "m463_00001_title_bar.png", (0, 0, 200))
+        _write_named_crop(self.corpus_root, "build_class", "Good",
+                          "m250_00001_title_bar.png", (200, 0, 0))
+
+    def tearDown(self) -> None:
+        self._tmp.cleanup()
+
+    def test_held_out_crop_excluded_validation_included(self) -> None:
+        feats, labels = load_corpus(
+            "build_class",
+            corpus_root=self.corpus_root,
+            min_examples_per_class=1,
+            manifest_path=self.manifest,
+        )
+        self.assertIn("Good", labels)
+        self.assertNotIn("HeldOut", labels)
+
+    def test_allow_held_out_includes_both(self) -> None:
+        feats, labels = load_corpus(
+            "build_class",
+            corpus_root=self.corpus_root,
+            min_examples_per_class=1,
+            manifest_path=self.manifest,
+            allow_held_out=True,
+        )
+        self.assertIn("Good", labels)
+        self.assertIn("HeldOut", labels)
+
+    def test_unprefixed_legacy_included_with_warning(self) -> None:
+        _write_named_crop(self.corpus_root, "build_class", "Legacy",
+                          "00007_title_bar.png", (0, 200, 0))
+        stderr = io.StringIO()
+        with contextlib.redirect_stderr(stderr):
+            feats, labels = load_corpus(
+                "build_class",
+                corpus_root=self.corpus_root,
+                min_examples_per_class=1,
+                manifest_path=self.manifest,
+            )
+        self.assertIn("Legacy", labels)  # unknown provenance → fail-open include
+        self.assertIn("provenance unknown", stderr.getvalue())
 
 
 if __name__ == "__main__":

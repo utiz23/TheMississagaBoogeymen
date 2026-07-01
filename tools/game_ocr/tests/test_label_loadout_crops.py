@@ -113,6 +113,11 @@ class TestCorpusSavePath(unittest.TestCase):
         path = _corpus_save_path(root, "x_factor_name", "Wheels", "frame42", "xf_slot2")
         self.assertEqual(path, root / "x_factor_name" / "Wheels" / "frame42_xf_slot2.png")
 
+    def test_source_match_prefix_applied(self) -> None:
+        root = Path("/tmp/corpus")
+        path = _corpus_save_path(root, "build_class", "Sniper", "00004", "title_bar", 250)
+        self.assertEqual(path, root / "build_class" / "Sniper" / "m250_00004_title_bar.png")
+
 
 # ---------------------------------------------------------------------------
 # _already_labeled
@@ -153,6 +158,24 @@ class TestAlreadyLabeled(unittest.TestCase):
         existing.touch()
         result = _already_labeled(self.corpus_root, "build_class", "00001", "title_bar")
         self.assertTrue(result)
+
+    def test_prefix_aware_detects_same_source_match(self) -> None:
+        existing = self.corpus_root / "build_class" / "Sniper" / "m250_00004_title_bar.png"
+        existing.parent.mkdir(parents=True)
+        existing.touch()
+        # Re-run with the same --source-match skips.
+        self.assertTrue(
+            _already_labeled(self.corpus_root, "build_class", "00004", "title_bar", 250)
+        )
+
+    def test_prefix_aware_ignores_different_source_match(self) -> None:
+        # An m250 crop must NOT mask an identically-stemmed crop from match 463.
+        existing = self.corpus_root / "build_class" / "Sniper" / "m250_00004_title_bar.png"
+        existing.parent.mkdir(parents=True)
+        existing.touch()
+        self.assertFalse(
+            _already_labeled(self.corpus_root, "build_class", "00004", "title_bar", 463)
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -287,6 +310,16 @@ class TestLabelCropsSavePath(unittest.TestCase):
         # Second pass: already labeled — nothing in queue → returns 0 immediately
         saved_second = self._run("build_class", stdin_side_effect=[])
         self.assertEqual(saved_second, 0)
+
+    def test_source_match_saves_prefixed_crop(self) -> None:
+        self._write_frame("00004.png")
+        saved = self._run("build_class", stdin_side_effect=["1"], source_match=250)
+        self.assertEqual(saved, 1)
+        crops = list((self.corpus_root / "build_class").rglob("m250_00004_title_bar.png"))
+        self.assertEqual(len(crops), 1, f"expected 1 prefixed crop, got: {crops}")
+        # A second prefixed run over the same source skips (prefix-aware dedup).
+        saved_again = self._run("build_class", stdin_side_effect=[], source_match=250)
+        self.assertEqual(saved_again, 0)
 
 
 if __name__ == "__main__":
