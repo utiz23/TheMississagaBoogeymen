@@ -116,7 +116,35 @@ m2673). Both read as clean centered title bars, not transition artifacts. The ex
 these until the vocab is expanded + the head retrained. Their crops are still on disk in the scratch dump
 (un-applied) if you decide to add the vocab entries at Gate 2. Decision deferred by operator 2026-07-01.
 
-**Still pending: `x_factor_name` labeling** (3 slots/frame, smaller text). Same 12 inboxes; not yet done.
+## Labeling results — x_factor_name DONE (2026-07-01)
+
+**40 x_factor_name crops written; corpus 33 → 73, 11 → 20 classes (18 of 20 now ≥3).**
+Method: for each of the 36 settled `build_class` frames the same frame's 3 X-Factor slot bands
+(`FAMILY_REGIONS` y=[305,365]; slots x=[300,700]/[800,1200]/[1300,1700]) were extracted as native
+60×400 crops → 108 candidates, upscaled 3× with burned-in `IDX N mXXXX cand-tXXXXX sN` headers and
+montaged 9/tile. Claude read the montages directly (text crisp at 3×; all 108 legible) and a balanced
+subset of native crops was copied into `crops/x_factor_name/<class>/` keeping the `m<id>_` provenance
+prefix. Selection favored match diversity (crops pulled from 12 different matches) and capped common
+classes at 5–6 to avoid overfitting one match's rendering. Held-out guard clean: 0 crops from
+463/967/968; all 40 additions from the 12 fresh training clips; existing 33-crop seed is all m250.
+
+Per-class total after (added this session in parens):
+Wheels 6 (+2) · One_T 6 (+0) · Elite_Edges 5 (+3) · Quick_Release 5 (+1) · Tape_to_Tape 5 (+2) ·
+Warrior 5 (+1) · Big_Rig 4 (+0) · Rocket 4 (+2) · Ankle_Breaker 3 (+1) · Backhand_Beauty 3 (+3) ·
+Big_Tipper 3 (+3) · No_Contest 3 (+3) · Quickpick 3 (+2) · Second_Wind 3 (+3) · Send_It 3 (+3) ·
+Stick_Em_Up 3 (+3) · Truculence 3 (+3) · Unstoppable 3 (+3) · PressurePlus 2 (+1) · Born_Leader 1 (+1).
+
+⚠️ **Thin classes / vocab gaps (flag for Gate 2, NOT fixed here):** all 108 reads mapped cleanly to the
+28-name `x_factors.yaml` vocab — **no out-of-vocab reads**. But coverage is uneven:
+- **Born_Leader — 1 crop total** (below the ≥2 hard floor). Only one instance (m2400 t00051 s2) appeared
+  across all 12 clips; cannot reach the floor without new footage.
+- **PressurePlus — 2 crops total** (at hard floor, below the ≥3 target). Only one new instance
+  (m2666 t00018 s2) available; the other is the m250 seed.
+- **8 vocab classes have ZERO crops anywhere** (never appeared in these 12 clips):
+  Dialed_In, Hipster, Post_to_Post, Quick_Draw, Recharge, Show_Stopper, Spark_Plug, Sponge.
+  These stay unclassifiable until footage containing them is captured + labeled.
+
+Both Gate 1 heads (`build_class`, `x_factor_name`) are now grown. Next is Gate 2 retrain (Step 3, separate session).
 
 ## Step 3 — retrain (Gate 2, SEPARATE coding session — do NOT start until crops land)
 
