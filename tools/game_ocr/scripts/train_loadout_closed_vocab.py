@@ -181,6 +181,7 @@ def load_corpus(
     *,
     manifest_path: Path | None = None,
     allow_held_out: bool = False,
+    strict_provenance: bool = False,
 ) -> tuple[list[np.ndarray], list[str]]:
     """Load feature vectors and labels from the labeled crop corpus.
 
@@ -194,6 +195,10 @@ def load_corpus(
             ``corpus_root.parent / "benchmark" / "manifest.json"``.
         allow_held_out: debug override — when True, held-out crops are included
             instead of skipped.
+        strict_provenance: when True, crops with no ``m<id>_`` provenance prefix
+            are refused (skipped + loud-warned) instead of the transitional
+            fail-open include.  Safe to enable once the corpus is uniformly
+            prefixed; guarantees no unknown-provenance crop taints training.
 
     Returns:
         (features, labels) — parallel lists.
@@ -204,8 +209,9 @@ def load_corpus(
         Each crop filename may carry an ``m<id>_`` prefix naming its source
         match.  Crops whose match id is in the manifest's ``held_out`` split are
         skipped with a loud warning (unless ``allow_held_out``).  Unprefixed
-        legacy crops have unknown provenance and are included with a one-time
-        warning — a deliberate transitional fail-open.
+        legacy crops have unknown provenance: included with a one-time warning by
+        default (transitional fail-open), or refused under ``strict_provenance``
+        (fail-closed).
 
     Classes with fewer than min_examples_per_class examples are excluded with
     a warning.  If the corpus directory does not exist, returns ([], []).
@@ -228,6 +234,16 @@ def load_corpus(
         for png in sorted(class_dir.glob("*.png")):
             match_id = _parse_crop_match_id(png.name)
             if match_id is None:
+                if strict_provenance:
+                    # Unknown provenance under strict mode → fail-closed refuse.
+                    print(
+                        f"WARN: STRICT PROVENANCE — refusing unprefixed crop {png} "
+                        "(no m<id>_ prefix; provenance unknown). Re-label with "
+                        "label_loadout_crops.py --source-match <ID>, or drop "
+                        "--strict-provenance to include it.",
+                        file=sys.stderr,
+                    )
+                    continue
                 # Unknown provenance → transitional fail-open (include + warn once).
                 if not warned_unknown:
                     print(
@@ -303,6 +319,7 @@ def train_family(
     cv_report_path: Path | None = None,
     manifest_path: Path | None = None,
     allow_held_out: bool = False,
+    strict_provenance: bool = False,
 ) -> Path | None:
     """Train a LogisticRegression for one family.  Returns the saved weights path, or None on failure.
 
@@ -323,6 +340,8 @@ def train_family(
             ``corpus_root`` (see ``load_corpus``).
         allow_held_out: debug override — include crops from held-out matches
             instead of skipping them.
+        strict_provenance: refuse (skip + loud-warn) crops with no ``m<id>_``
+            provenance prefix instead of the transitional fail-open include.
 
     Returns:
         Path to the written JSON file, or None when corpus is insufficient.
@@ -336,6 +355,7 @@ def train_family(
         min_examples_per_class=min_examples_per_class,
         manifest_path=manifest_path,
         allow_held_out=allow_held_out,
+        strict_provenance=strict_provenance,
     )
 
     n_total = len(features)
@@ -529,6 +549,13 @@ def main() -> int:
         help="Debug override: include crops from held-out matches instead of "
              "skipping them (default off).",
     )
+    ap.add_argument(
+        "--strict-provenance",
+        action="store_true",
+        help="Refuse (skip + loud-warn) crops with no m<id>_ provenance prefix "
+             "instead of the transitional fail-open include. Safe once the "
+             "corpus is uniformly prefixed (default off).",
+    )
     args = ap.parse_args()
 
     families = AVAILABLE_FAMILIES if args.all else [args.family]
@@ -544,6 +571,7 @@ def main() -> int:
             cv_report_path=args.cv_report,
             manifest_path=args.manifest,
             allow_held_out=args.allow_held_out,
+            strict_provenance=args.strict_provenance,
         )
         if result is None:
             failures += 1

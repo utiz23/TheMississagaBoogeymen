@@ -146,10 +146,13 @@ Stick_Em_Up 3 (+3) · Truculence 3 (+3) · Unstoppable 3 (+3) · PressurePlus 2 
 
 Both Gate 1 heads (`build_class`, `x_factor_name`) are now grown. Next is Gate 2 retrain (Step 3, separate session).
 
-## Step 3 — retrain (Gate 2, SEPARATE coding session — do NOT start until crops land)
+## Step 3 — retrain (Gate 2) — retrain + strict-provenance DONE 2026-07-01; benchmark tail DEFERRED
 
-1. `train_loadout_closed_vocab.py --all --evaluate --cv-report benchmark/reports`
-2. benchmark the new validation match(es); confirm build/x-factor F1 up
-3. ratchet the 0.80 `build_class_canonical` / `x_factor_name` floors
-4. implement `--strict-provenance` + a refuse-unprefixed test
-5. add confirmed match_ids to `benchmark/manifest.json` `planned.new_validation`
+1. ✅ **DONE** — `train_loadout_closed_vocab.py --all --evaluate --strict-provenance --cv-report calibration/extras/loadout/benchmark/reports`.
+   `build_class` trains 10 classes (was 6); `x_factor_name` trains 18 (was 9; `Born_Leader`/`PressurePlus` auto-excluded < min_class_size=3). CV baselines written: build mean **0.297**, x-factor **0.143** — LOW (HSV features ignore glyphs; the LR head is a rank-1 fallback behind the text path). Weights overwritten, uncommitted.
+2. ⏸ **DEFERRED** — benchmark the new validation match(es); confirm build/x-factor F1 up. **Blocked:** no fresh NHL26 match is hand-labeled (only 250/463/967/968). Live `--from-extractor` is heavy (match-250 alone > 180s).
+3. ⏸ **DEFERRED** — ratchet the 0.80 `build_class_canonical` / `x_factor_name` floors. **Coupled to golden regeneration:** `tests/test_field_benchmark.py` scores the *static* match-250 golden, which the weights retrain does not touch. Raising floors requires first regenerating that golden from the retrained extractor (a deliberate parity-lock change).
+4. ✅ **DONE** — `--strict-provenance` flag + refuse-unprefixed test. Ran as a clean no-op on the retrain (all 120 crops `m<id>_`-prefixed, 0 refused). +2 tests.
+5. ⏸ **DEFERRED** — add confirmed match_ids to `benchmark/manifest.json` `planned.new_validation` (still `"unselected"`; nothing labeled to select).
+
+**Vocab-gap decisions (settled by operator 2026-07-01):** `Dangler` / `Enforcer Defenseman` → deferred, left out of `build_classes.yaml`. Thin (`Born_Leader`/`PressurePlus`) + 8 zero-coverage x-factor names → kept in vocab (text path), out of the LR head until footage lands.

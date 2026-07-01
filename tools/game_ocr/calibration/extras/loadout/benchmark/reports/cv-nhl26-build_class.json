@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "version": "nhl26",
+  "family": "build_class",
+  "n_examples": 47,
+  "n_classes": 10,
+  "min_class_size": 3,
+  "class_counts": {
+    "Defensive Defenseman": 4,
+    "Enforcer": 3,
+    "Grinder": 4,
+    "Offensive Defenseman": 4,
+    "Playmaker": 6,
+    "Power Forward": 6,
+    "Puck Moving Defenseman": 6,
+    "Sniper": 6,
+    "Two-Way Defenseman": 4,
+    "Two-Way Forward": 4
+  },
+  "k_folds": 3,
+  "fold_accuracies": [
+    0.3125,
+    0.3125,
+    0.26666666666666666
+  ],
+  "mean_cv_accuracy": 0.2972222222222222,
+  "note": "3-fold stratified CV top-1 accuracy over 47 examples / 10 classes (min_class_size=3)."
+}

@@ -476,6 +476,39 @@ class TestLeakageGuard(unittest.TestCase):
         self.assertIn("Legacy", labels)  # unknown provenance → fail-open include
         self.assertIn("provenance unknown", stderr.getvalue())
 
+    def test_strict_provenance_refuses_unprefixed(self) -> None:
+        # Under --strict-provenance the transitional fail-open flips to
+        # fail-closed: an unprefixed (unknown-provenance) crop is refused +
+        # loud-warned, while a proven-validation crop is still included.
+        _write_named_crop(self.corpus_root, "build_class", "Legacy",
+                          "00007_title_bar.png", (0, 200, 0))
+        stderr = io.StringIO()
+        with contextlib.redirect_stderr(stderr):
+            feats, labels = load_corpus(
+                "build_class",
+                corpus_root=self.corpus_root,
+                min_examples_per_class=1,
+                manifest_path=self.manifest,
+                strict_provenance=True,
+            )
+        self.assertNotIn("Legacy", labels)  # unknown provenance → fail-closed refuse
+        self.assertIn("Good", labels)  # proven-validation crop still included
+        self.assertIn("STRICT PROVENANCE", stderr.getvalue())
+
+    def test_strict_provenance_noop_when_all_prefixed(self) -> None:
+        # With every crop carrying an m<id>_ prefix (the post-normalization
+        # corpus), --strict-provenance changes nothing: non-held-out crops are
+        # included, held-out crops still skipped.
+        feats, labels = load_corpus(
+            "build_class",
+            corpus_root=self.corpus_root,
+            min_examples_per_class=1,
+            manifest_path=self.manifest,
+            strict_provenance=True,
+        )
+        self.assertIn("Good", labels)
+        self.assertNotIn("HeldOut", labels)
+
 
 if __name__ == "__main__":
     unittest.main()

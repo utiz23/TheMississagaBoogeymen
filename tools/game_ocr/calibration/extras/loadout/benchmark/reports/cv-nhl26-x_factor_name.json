@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "version": "nhl26",
+  "family": "x_factor_name",
+  "n_examples": 70,
+  "n_classes": 18,
+  "min_class_size": 3,
+  "class_counts": {
+    "Ankle_Breaker": 3,
+    "Backhand_Beauty": 3,
+    "Big_Rig": 4,
+    "Big_Tipper": 3,
+    "Elite_Edges": 5,
+    "No_Contest": 3,
+    "One_T": 6,
+    "Quick_Release": 5,
+    "Quickpick": 3,
+    "Rocket": 4,
+    "Second_Wind": 3,
+    "Send_It": 3,
+    "Stick_Em_Up": 3,
+    "Tape_to_Tape": 5,
+    "Truculence": 3,
+    "Unstoppable": 3,
+    "Warrior": 5,
+    "Wheels": 6
+  },
+  "k_folds": 3,
+  "fold_accuracies": [
+    0.125,
+    0.17391304347826086,
+    0.13043478260869565
+  ],
+  "mean_cv_accuracy": 0.1431159420289855,
+  "note": "3-fold stratified CV top-1 accuracy over 70 examples / 18 classes (min_class_size=3)."
+}
