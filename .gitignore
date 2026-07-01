@@ -81,6 +81,9 @@ cvat/
 # Label Studio (local labeling tool) — per-developer state + raw inbox + export JSON
 .label-studio-data/
 tools/game_ocr/calibration/extras/_inbox/
+# Phase B loadout crop-labeling inbox (name carries the `player_loadout_view`
+# path token the loadout labeler's filter requires; scratch, never committed).
+tools/game_ocr/calibration/extras/_inbox_player_loadout_view/
 label-studio-export-*.json
 # Also ignore the unsuffixed canonical export — labels live in the local
 # Label Studio instance, not in git. The file grows fast (1.5MB+) and its
