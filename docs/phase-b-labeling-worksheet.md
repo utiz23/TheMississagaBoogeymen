@@ -1,0 +1,127 @@
+# Phase B retrain — crop-labeling worksheet
+
+Operator-gated corpus growth for the `build_class` + `x_factor_name` closed-vocab LR heads.
+Goal: every build class ≥3 crops (≥2 hard floor; 1 crop = degenerate). Enforcer accepted thin (2, near-dup).
+Recording clock = **Edmonton / Mountain = MDT (UTC-6)** in summer — confirmed.
+All commands run from `tools/game_ocr/`.
+
+## Status: sourcing DONE · frame extraction DONE — crop labeling NOT started
+
+Match_ids confirmed (opponents verified in the dev view). Clips filed into per-match folders:
+`/mnt/k/NHL/NHL26/match<id>/<original-filename>` (matches the 250/463/967/968 convention).
+The June-12 and June-21 sessions were each split into two clips (`- Trim` / `- Trim2`).
+
+**Frame extraction is already done for all 12 clips** (2026-07-01). Candidate PNGs live in
+`calibration/extras/_inbox_player_loadout_view/<video_stem>/` (120 frames per clip: 3s interval over the
+first 360s pre-game window). The inbox dir name deliberately contains `player_loadout_view` — see the
+⚠️ filter-gap note under Step 1. Spot-checked: the Enforcer clip's first content crop reads a clean
+`ENFORCER` title bar, so the loadout-card carousel is captured and the crop region is aligned.
+**You can skip Step 1 and go straight to Step 2 (crop labeling).**
+
+### stem → match_id → --source-match (use the matching id per clip)
+
+| inbox stem (`calibration/extras/_inbox_player_loadout_view/<stem>/`) | --source-match | target build |
+|---|---|---|
+| `2026-06-12_19-44-56_-_Trim`  | 2667 | Off-D ×2 |
+| `2026-06-12_19-44-56_-_Trim2` | 2666 | 2nd game (top-up) |
+| `2026-05-30_17-07-42_-_Trim`  | 2400 | Grinder |
+| `2026-06-20_16-04-36_-_Trim`  | 2683 | Grinder |
+| `2026-06-21_15-58-18_-_Trim`  | 2687 | Enforcer |
+| `2026-06-21_15-58-18_-_Trim2` | 2688 | Enforcer (near-dup) |
+| `2026-06-16_18-50-44`         | 2670 | TWD + Off-D |
+| `2026-06-16_19-57-14`         | 2673 | Def-D (Chara) |
+| `2026-06-17_17-28-27`         | 2674 | TWD (Dahlin) |
+| `2026-05-31_15-37-45`         | 2577 | 4×TWD + 2×Grinder |
+| `2026-05-31_16-09-36`         | 2582 | TWD |
+| `2026-05-31_16-55-13`         | 2640 | TWD |
+
+| clip (under `match<id>/`) | --source-match | opponent (score) | target build |
+|---|---|---|---|
+| 2026-06-12_19-44-56 - Trim.mp4  | 2667 | Rink Roosters L2-4    | Off-D ×2 |
+| 2026-06-12_19-44-56 - Trim2.mp4 | 2666 | Apparently 67ers L1-3 | 2nd game (optional top-up) |
+| 2026-05-30_17-07-42 - Trim.mp4  | 2400 | Spryfield Shoremen W3-0 | Grinder |
+| 2026-06-20_16-04-36 - Trim.mp4  | 2683 | Trashcans HC W3-2     | Grinder |
+| 2026-06-21_15-58-18 - Trim.mp4  | 2687 | Junior C Allstars W3-0 H (game 1/2) | Enforcer |
+| 2026-06-21_15-58-18 - Trim2.mp4 | 2688 | Junior C Allstars W4-3 A (game 2/2) | Enforcer (near-dup) |
+| 2026-06-16_18-50-44.mkv | 2670 | Golden Goals W5-1     | TWD + Off-D |
+| 2026-06-16_19-57-14.mkv | 2673 | Apparently 67ers W6-3 | Def-D (Chara) |
+| 2026-06-17_17-28-27.mkv | 2674 | Mommys touch L0-1     | TWD (Dahlin) |
+| 2026-05-31_15-37-45.mkv | 2577 | Go Go Henny Guys W6-3 | 4×TWD + 2×Grinder |
+| 2026-05-31_16-09-36.mkv | 2582 | Roc River Rats W3-2   | TWD |
+| 2026-05-31_16-55-13.mkv | 2640 | CATEGORY 4 L2-5       | TWD |
+
+Coverage once labeled: Two-Way-D ~8 · Grinder ~4 · Off-D ~3 · Def-D 2 (m250+Chara) · Enforcer 2 (near-dup pair).
+Parked in dev view, not in the batch: 2697 (Evil Eastons W9-5, 2026-06-25).
+Leftover full un-split session files still in NHL26 root (redundant with the Trims, operator decision pending delete):
+`2026-06-12_19-44-56.mkv` (2.2 GB), `2026-06-21_15-58-18.mkv` (2.2 GB).
+
+## Step 1 — extract candidate frames (ALREADY DONE — re-run only if re-extracting)
+
+```
+python3 scripts/bulk_extract_label_candidates.py \
+  --video /mnt/k/NHL/NHL26/match<id>/<clip> \
+  --inbox calibration/extras/_inbox_player_loadout_view \
+  --interval 3 --end-time 360
+```
+Writes PNGs to `<inbox>/<video_stem>/cand-t<sec>.png`. Loadout/lobby cards are in the **pre-game** portion
+(early in each clip) — `--end-time 360` focuses on the first 6 min; `--interval 3` catches each card as the
+carousel auto-advances. (Note: `--max-seconds` does not exist — the flags are `--start-time` / `--end-time`.)
+
+⚠️ **Filter gap — this is why `--inbox` must end in `player_loadout_view`.** `label_loadout_crops.py`
+(Step 2) only accepts source PNGs whose path contains `player_loadout_view` **or** whose parent dir is named
+`frames`. The extractor's default `_inbox/<stem>/` satisfies neither, so labeling it prints
+`warn: no player_loadout_view PNGs found` and labels nothing. Extracting into an inbox dir whose name contains
+`player_loadout_view` makes every PNG's path pass the filter — no code change. (Verified 2026-07-01, both
+directions.) The extractor's own docstring points at `label_state_machine_corpus.py --from-inbox` instead —
+that is the *screen-type* corpus labeler, a different tool; ignore it for loadout crop labeling.
+
+⚠️ Use the real **no-space** clip paths (`match2687/…`); the script docstring's `match 968` example is the
+outdated space convention (same naming split flagged in the Phase G landmine).
+
+## Step 2 — crop + label (INTERACTIVE — operator only)
+
+Per clip, substitute `<stem>` + `<id>` from the mapping table above:
+
+```
+IN=calibration/extras/_inbox_player_loadout_view/<stem>
+python3 scripts/label_loadout_crops.py --family build_class   --source "$IN" --source-match <id>
+python3 scripts/label_loadout_crops.py --family x_factor_name --source "$IN" --source-match <id>
+```
+
+**How the labeling loop works:** it opens each crop by overwriting a single live-preview file at
+`/mnt/c/Users/micha/labelcrop-current.png` (a Windows path). Open that file **once** in Windows Photos before
+you start — it auto-refreshes as you label. For each crop it prints `label (1-N, s=skip, q=quit)`; type the
+menu number for the class you see, `s` to skip, `q` to stop. Blank/transitional frames auto-skip (no prompt).
+Each clip has ~5–10 non-blank build-class crops; many are the same player across adjacent frames, so label a
+couple of distinct ones per class and `q` out — you only need **≥3 crops per build class** (≥2 hard floor).
+
+`--source-match <id>` writes the `m<id>_` provenance prefix (keeps the held-out guard + future
+`--strict-provenance` clean). Prioritize the 4 previously-missing build classes (Enforcer/Grinder/Off-D/TWD);
+also grab X-Factors. Crops land under `calibration/extras/loadout/crops/<family>/<class>/`.
+
+## Labeling results — build_class DONE (2026-07-01)
+
+**36 build_class crops written; corpus 11 → 47, all 10 classes now ≥3 (balanced 3–6).**
+Method: candidate frames read directly off the title-bar crops (they show the literal class text,
+e.g. `ENFORCER`, or `NAME - ABBREV` like `RASMUS DAHLIN - TWD`) rather than the interactive Photos loop.
+Balanced selection (not all ~92 readable crops) pulled from 11 different matches to avoid overfitting one
+match's rendering; graphic/jersey false-positives and out-of-vocab reads were skipped.
+
+Per-class total after: Enforcer 3 · Grinder 4 · Offensive D 4 · Two-Way D 4 · Two-Way F 4 · Defensive D 4 ·
+Power Forward 6 · Puck Moving D 6 · Playmaker 6 · Sniper 6. **All four previously-missing classes filled.**
+
+⚠️ **Vocab gap found (flag for Gate 2, NOT fixed here):** two build classes appear in-game that are **absent
+from `build_classes.yaml`** — **`Dangler`** (forward, seen in m2670) and **`Enforcer Defenseman`** (seen in
+m2673). Both read as clean centered title bars, not transition artifacts. The extractor can never classify
+these until the vocab is expanded + the head retrained. Their crops are still on disk in the scratch dump
+(un-applied) if you decide to add the vocab entries at Gate 2. Decision deferred by operator 2026-07-01.
+
+**Still pending: `x_factor_name` labeling** (3 slots/frame, smaller text). Same 12 inboxes; not yet done.
+
+## Step 3 — retrain (Gate 2, SEPARATE coding session — do NOT start until crops land)
+
+1. `train_loadout_closed_vocab.py --all --evaluate --cv-report benchmark/reports`
+2. benchmark the new validation match(es); confirm build/x-factor F1 up
+3. ratchet the 0.80 `build_class_canonical` / `x_factor_name` floors
+4. implement `--strict-provenance` + a refuse-unprefixed test
+5. add confirmed match_ids to `benchmark/manifest.json` `planned.new_validation`
