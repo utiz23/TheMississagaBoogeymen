@@ -101,3 +101,12 @@ entries:
       - "(?i)^TWD$"
       - "(?i)^.*[\\-\\s]2WD$"
       - "(?i)^2WD$"
+
+  - canonical: "Enforcer"
+    aliases:
+      - "(?i)^enforcer$"
+      - "(?i)^enforce[r]$"
+      - "(?i)^en[f]orcer$"
+      # Title-bar abbreviation suffix (e.g. "PLAYER-ENF")
+      - "(?i)^.*[\\-\\s]ENF$"
+      - "(?i)^ENF$"

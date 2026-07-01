@@ -1,0 +1,52 @@
+{
+  "schema_version": 1,
+  "decoder_version": "hmm-viterbi-v2",
+  "authored_against_commit": "6512011",
+  "note": "Pre-Phase-G baseline. Per-field floors in reports/ were measured against the parity-locked current-main extractor (golden fixture). HELD-OUT matches are NEVER used to fit calibration (Phase F2) or pick active-learning candidates (Phase F4). Phase G performs a single decoder bump covering C+D+E+F; re-stamp decoder_version then.",
+  "splits": {
+    "train": [],
+    "validation": [250],
+    "held_out": [463, 967, 968]
+  },
+  "matches": {
+    "250": {
+      "split": "validation",
+      "labels": "labels/250.json",
+      "report": "reports/250-baseline.json",
+      "subjects": 10,
+      "source": "research/OCR-SS/Manual OCR benchmark for verification V2.md"
+    },
+    "463": {
+      "split": "held_out",
+      "labels": "labels/463.json",
+      "report": null,
+      "subjects": 10,
+      "source": "research/OCR-SS/Manual OCR benchmark match 463.md"
+    },
+    "967": {
+      "split": "held_out",
+      "labels": "labels/967.json",
+      "report": null,
+      "subjects": 10,
+      "source": "research/OCR-SS/Manual OCR benchmark match 967.md",
+      "labeling_status": "complete",
+      "coverage": "Operator-reviewed. Both sides fully labeled: 10 skaters (5 BGM/for + 5 away/against), each with build class, handedness, 3 X-Factors (loadout-sourced tiers), and all 23 attributes. Goalies are CPU on both sides (no card). X-Factors are read loadout-first; the lobby-table tiers are an unreliable colour-guess backup and are ignored when a loadout card exists."
+    },
+    "968": {
+      "split": "held_out",
+      "labels": "labels/968.json",
+      "report": null,
+      "subjects": 10,
+      "source": "research/OCR-SS/Manual OCR benchmark match 968.md",
+      "labeling_status": "complete",
+      "coverage": "Operator-reviewed. Both sides fully labeled: 10 skaters, each with build class, handedness, 3 X-Factors, and all 23 attributes (deltas on AP-boosted cards). Goalies are CPU. Away-LD build is Enforcer (Grizzer - ENF)."
+    }
+  },
+  "planned": {
+    "new_validation": {
+      "intended_split": "validation",
+      "status": "unselected",
+      "note": "Plan calls for 1-2 fresh NHL26 matches from /mnt/k/NHL/NHL26/*.mkv to join the validation split (Phase B operator pick)."
+    }
+  }
+}

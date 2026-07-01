@@ -1,0 +1,1228 @@
+{
+  "match_id": 967,
+  "schema_version": 1,
+  "split": "held_out",
+  "source": "research/OCR-SS/Manual OCR benchmark match 967.md",
+  "subjects": {
+    "against_C": {
+      "team_side": "against",
+      "position": "C",
+      "gamertag": "Blunt x 51",
+      "persona": "My Forwards Are Bad",
+      "player_number": 51,
+      "player_level": 22,
+      "platform": "PS5",
+      "handedness": "Left",
+      "height": "6'0\"",
+      "weight_lbs": 160,
+      "is_captain": false,
+      "build_class_canonical": "Playmaker",
+      "x_factors": [
+        {
+          "name": "Elite_Edges",
+          "tier": "All Star"
+        },
+        {
+          "name": "Warrior",
+          "tier": "All Star"
+        },
+        {
+          "name": "Quick_Release",
+          "tier": "Specialist"
+        }
+      ],
+      "attributes": {
+        "wrist_shot_accuracy": {
+          "value": 79,
+          "delta": -5
+        },
+        "slap_shot_accuracy": {
+          "value": 80,
+          "delta": -4
+        },
+        "speed": {
+          "value": 96,
+          "delta": 9
+        },
+        "balance": {
+          "value": 87,
+          "delta": 2
+        },
+        "agility": {
+          "value": 96,
+          "delta": 9
+        },
+        "wrist_shot_power": {
+          "value": 80,
+          "delta": -2
+        },
+        "slap_shot_power": {
+          "value": 80,
+          "delta": -2
+        },
+        "acceleration": {
+          "value": 96,
+          "delta": 9
+        },
+        "puck_control": {
+          "value": 92,
+          "delta": 0
+        },
+        "endurance": {
+          "value": 97,
+          "delta": 9
+        },
+        "passing": {
+          "value": 95,
+          "delta": 3
+        },
+        "offensive_awareness": {
+          "value": 90,
+          "delta": 0
+        },
+        "body_checking": {
+          "value": 83,
+          "delta": 2
+        },
+        "stick_checking": {
+          "value": 80,
+          "delta": 0
+        },
+        "defensive_awareness": {
+          "value": 85,
+          "delta": 5
+        },
+        "hand_eye": {
+          "value": 95,
+          "delta": 7
+        },
+        "strength": {
+          "value": 85,
+          "delta": 4
+        },
+        "durability": {
+          "value": 81,
+          "delta": 0
+        },
+        "shot_blocking": {
+          "value": 69,
+          "delta": -9
+        },
+        "deking": {
+          "value": 94,
+          "delta": 9
+        },
+        "faceoffs": {
+          "value": 86,
+          "delta": 1
+        },
+        "discipline": {
+          "value": 92,
+          "delta": 7
+        },
+        "fighting_skill": {
+          "value": 68,
+          "delta": -12
+        }
+      }
+    },
+    "against_LD": {
+      "team_side": "against",
+      "position": "LD",
+      "gamertag": "Sport De Salon",
+      "persona": "Sport Teamplay",
+      "player_number": 17,
+      "player_level": null,
+      "platform": "Xbox",
+      "handedness": "Right",
+      "height": "6'1\"",
+      "weight_lbs": 180,
+      "is_captain": false,
+      "build_class_canonical": "Puck Moving Defenseman",
+      "x_factors": [
+        {
+          "name": "Quickpick",
+          "tier": "Elite"
+        },
+        {
+          "name": "No_Contest",
+          "tier": "Elite"
+        },
+        {
+          "name": "Tape_to_Tape",
+          "tier": "Specialist"
+        }
+      ],
+      "attributes": {
+        "wrist_shot_accuracy": {
+          "value": 75,
+          "delta": -9
+        },
+        "slap_shot_accuracy": {
+          "value": 88,
+          "delta": 4
+        },
+        "speed": {
+          "value": 96,
+          "delta": 9
+        },
+        "balance": {
+          "value": 85,
+          "delta": 0
+        },
+        "agility": {
+          "value": 95,
+          "delta": 8
+        },
+        "wrist_shot_power": {
+          "value": 75,
+          "delta": -7
+        },
+        "slap_shot_power": {
+          "value": 88,
+          "delta": 6
+        },
+        "acceleration": {
+          "value": 96,
+          "delta": 9
+        },
+        "puck_control": {
+          "value": 95,
+          "delta": 5
+        },
+        "endurance": {
+          "value": 90,
+          "delta": 2
+        },
+        "passing": {
+          "value": 90,
+          "delta": -2
+        },
+        "offensive_awareness": {
+          "value": 82,
+          "delta": -9
+        },
+        "body_checking": {
+          "value": 84,
+          "delta": 3
+        },
+        "stick_checking": {
+          "value": 90,
+          "delta": 6
+        },
+        "defensive_awareness": {
+          "value": 90,
+          "delta": 5
+        },
+        "hand_eye": {
+          "value": 90,
+          "delta": 5
+        },
+        "strength": {
+          "value": 85,
+          "delta": 4
+        },
+        "durability": {
+          "value": 84,
+          "delta": 3
+        },
+        "shot_blocking": {
+          "value": 70,
+          "delta": -10
+        },
+        "deking": {
+          "value": 90,
+          "delta": 5
+        },
+        "faceoffs": {
+          "value": 85,
+          "delta": 5
+        },
+        "discipline": {
+          "value": 92,
+          "delta": 7
+        },
+        "fighting_skill": {
+          "value": 75,
+          "delta": -5
+        }
+      }
+    },
+    "against_LW": {
+      "team_side": "against",
+      "position": "LW",
+      "gamertag": "NotoriousNG3",
+      "persona": "Your Girls Favorite player",
+      "player_number": 3,
+      "player_level": 8,
+      "platform": "Xbox",
+      "handedness": "Right",
+      "height": "5'9\"",
+      "weight_lbs": 160,
+      "is_captain": false,
+      "build_class_canonical": "Playmaker",
+      "x_factors": [
+        {
+          "name": "Elite_Edges",
+          "tier": "All Star"
+        },
+        {
+          "name": "Quick_Release",
+          "tier": "Specialist"
+        },
+        {
+          "name": "Warrior",
+          "tier": "All Star"
+        }
+      ],
+      "attributes": {
+        "wrist_shot_accuracy": {
+          "value": 80,
+          "delta": -4
+        },
+        "slap_shot_accuracy": {
+          "value": 80,
+          "delta": -4
+        },
+        "speed": {
+          "value": 97,
+          "delta": 10
+        },
+        "balance": {
+          "value": 85,
+          "delta": 0
+        },
+        "agility": {
+          "value": 96,
+          "delta": 9
+        },
+        "wrist_shot_power": {
+          "value": 80,
+          "delta": -2
+        },
+        "slap_shot_power": {
+          "value": 80,
+          "delta": -2
+        },
+        "acceleration": {
+          "value": 97,
+          "delta": 10
+        },
+        "puck_control": {
+          "value": 93,
+          "delta": 1
+        },
+        "endurance": {
+          "value": 96,
+          "delta": 8
+        },
+        "passing": {
+          "value": 94,
+          "delta": 2
+        },
+        "offensive_awareness": {
+          "value": 99,
+          "delta": 9
+        },
+        "body_checking": {
+          "value": 85,
+          "delta": 4
+        },
+        "stick_checking": {
+          "value": 84,
+          "delta": 4
+        },
+        "defensive_awareness": {
+          "value": 70,
+          "delta": -10
+        },
+        "hand_eye": {
+          "value": 95,
+          "delta": 7
+        },
+        "strength": {
+          "value": 85,
+          "delta": 4
+        },
+        "durability": {
+          "value": 80,
+          "delta": -1
+        },
+        "shot_blocking": {
+          "value": 69,
+          "delta": -9
+        },
+        "deking": {
+          "value": 94,
+          "delta": 9
+        },
+        "faceoffs": {
+          "value": 81,
+          "delta": -4
+        },
+        "discipline": {
+          "value": 92,
+          "delta": 7
+        },
+        "fighting_skill": {
+          "value": 75,
+          "delta": -5
+        }
+      }
+    },
+    "against_RD": {
+      "team_side": "against",
+      "position": "RD",
+      "gamertag": "clewdzii",
+      "persona": "clewdzii",
+      "player_number": 16,
+      "player_level": 8,
+      "platform": "Xbox",
+      "handedness": "Left",
+      "height": "6'1\"",
+      "weight_lbs": 180,
+      "is_captain": true,
+      "build_class_canonical": "Two-Way Defenseman",
+      "x_factors": [
+        {
+          "name": "Wheels",
+          "tier": "Specialist"
+        },
+        {
+          "name": "Truculence",
+          "tier": "All Star"
+        },
+        {
+          "name": "Tape_to_Tape",
+          "tier": "All Star"
+        }
+      ],
+      "attributes": {
+        "wrist_shot_accuracy": {
+          "value": 77,
+          "delta": -7
+        },
+        "slap_shot_accuracy": {
+          "value": 84,
+          "delta": 0
+        },
+        "speed": {
+          "value": 96,
+          "delta": 11
+        },
+        "balance": {
+          "value": 83,
+          "delta": -4
+        },
+        "agility": {
+          "value": 96,
+          "delta": 11
+        },
+        "wrist_shot_power": {
+          "value": 83,
+          "delta": 0
+        },
+        "slap_shot_power": {
+          "value": 86,
+          "delta": 2
+        },
+        "acceleration": {
+          "value": 96,
+          "delta": 11
+        },
+        "puck_control": {
+          "value": 82,
+          "delta": -4
+        },
+        "endurance": {
+          "value": 92,
+          "delta": 6
+        },
+        "passing": {
+          "value": 91,
+          "delta": 4
+        },
+        "offensive_awareness": {
+          "value": 78,
+          "delta": -7
+        },
+        "body_checking": {
+          "value": 80,
+          "delta": -3
+        },
+        "stick_checking": {
+          "value": 93,
+          "delta": 5
+        },
+        "defensive_awareness": {
+          "value": 95,
+          "delta": 7
+        },
+        "hand_eye": {
+          "value": 86,
+          "delta": 2
+        },
+        "strength": {
+          "value": 90,
+          "delta": 7
+        },
+        "durability": {
+          "value": 80,
+          "delta": -3
+        },
+        "shot_blocking": {
+          "value": 87,
+          "delta": -1
+        },
+        "deking": {
+          "value": 85,
+          "delta": 7
+        },
+        "faceoffs": {
+          "value": 76,
+          "delta": -4
+        },
+        "discipline": {
+          "value": 96,
+          "delta": 9
+        },
+        "fighting_skill": {
+          "value": 78,
+          "delta": -4
+        }
+      }
+    },
+    "against_RW": {
+      "team_side": "against",
+      "position": "RW",
+      "gamertag": "Adel Bjorn5293",
+      "persona": "Doan",
+      "player_number": 19,
+      "player_level": null,
+      "platform": "Xbox",
+      "handedness": "Left",
+      "height": "5'10\"",
+      "weight_lbs": 160,
+      "is_captain": false,
+      "build_class_canonical": "Playmaker",
+      "x_factors": [
+        {
+          "name": "Wheels",
+          "tier": "All Star"
+        },
+        {
+          "name": "Quick_Release",
+          "tier": "Specialist"
+        },
+        {
+          "name": "Warrior",
+          "tier": "All Star"
+        }
+      ],
+      "attributes": {
+        "wrist_shot_accuracy": {
+          "value": 90,
+          "delta": 6
+        },
+        "slap_shot_accuracy": {
+          "value": 77,
+          "delta": -7
+        },
+        "speed": {
+          "value": 97,
+          "delta": 10
+        },
+        "balance": {
+          "value": 76,
+          "delta": -9
+        },
+        "agility": {
+          "value": 96,
+          "delta": 9
+        },
+        "wrist_shot_power": {
+          "value": 88,
+          "delta": 6
+        },
+        "slap_shot_power": {
+          "value": 76,
+          "delta": -6
+        },
+        "acceleration": {
+          "value": 97,
+          "delta": 10
+        },
+        "puck_control": {
+          "value": 93,
+          "delta": 1
+        },
+        "endurance": {
+          "value": 90,
+          "delta": 2
+        },
+        "passing": {
+          "value": 99,
+          "delta": 7
+        },
+        "offensive_awareness": {
+          "value": 96,
+          "delta": 6
+        },
+        "body_checking": {
+          "value": 73,
+          "delta": -8
+        },
+        "stick_checking": {
+          "value": 80,
+          "delta": 0
+        },
+        "defensive_awareness": {
+          "value": 86,
+          "delta": 6
+        },
+        "hand_eye": {
+          "value": 95,
+          "delta": 7
+        },
+        "strength": {
+          "value": 85,
+          "delta": 4
+        },
+        "durability": {
+          "value": 79,
+          "delta": -2
+        },
+        "shot_blocking": {
+          "value": 72,
+          "delta": -6
+        },
+        "deking": {
+          "value": 94,
+          "delta": 9
+        },
+        "faceoffs": {
+          "value": 90,
+          "delta": 5
+        },
+        "discipline": {
+          "value": 89,
+          "delta": 4
+        },
+        "fighting_skill": {
+          "value": 67,
+          "delta": -13
+        }
+      }
+    },
+    "for_C": {
+      "team_side": "for",
+      "position": "C",
+      "gamertag": "silkyjoker85",
+      "persona": "Silky",
+      "player_number": 10,
+      "player_level": 47,
+      "platform": "Xbox",
+      "handedness": "Left",
+      "height": "6'2\"",
+      "weight_lbs": 220,
+      "is_captain": false,
+      "build_class_canonical": "Sniper",
+      "x_factors": [
+        {
+          "name": "Quick_Release",
+          "tier": "Elite"
+        },
+        {
+          "name": "One_T",
+          "tier": "All Star"
+        },
+        {
+          "name": "Backhand_Beauty",
+          "tier": "Specialist"
+        }
+      ],
+      "attributes": {
+        "wrist_shot_accuracy": {
+          "value": 99,
+          "delta": 0
+        },
+        "slap_shot_accuracy": {
+          "value": 99,
+          "delta": 0
+        },
+        "speed": {
+          "value": 92,
+          "delta": 0
+        },
+        "balance": {
+          "value": 88,
+          "delta": 0
+        },
+        "agility": {
+          "value": 89,
+          "delta": 0
+        },
+        "wrist_shot_power": {
+          "value": 95,
+          "delta": 0
+        },
+        "slap_shot_power": {
+          "value": 95,
+          "delta": 0
+        },
+        "acceleration": {
+          "value": 94,
+          "delta": 0
+        },
+        "puck_control": {
+          "value": 90,
+          "delta": 0
+        },
+        "endurance": {
+          "value": 88,
+          "delta": 0
+        },
+        "passing": {
+          "value": 82,
+          "delta": 0
+        },
+        "offensive_awareness": {
+          "value": 92,
+          "delta": 0
+        },
+        "body_checking": {
+          "value": 88,
+          "delta": 0
+        },
+        "stick_checking": {
+          "value": 82,
+          "delta": 0
+        },
+        "defensive_awareness": {
+          "value": 78,
+          "delta": 0
+        },
+        "hand_eye": {
+          "value": 90,
+          "delta": 0
+        },
+        "strength": {
+          "value": 90,
+          "delta": 0
+        },
+        "durability": {
+          "value": 80,
+          "delta": 0
+        },
+        "shot_blocking": {
+          "value": 78,
+          "delta": 0
+        },
+        "deking": {
+          "value": 80,
+          "delta": 0
+        },
+        "faceoffs": {
+          "value": 90,
+          "delta": 0
+        },
+        "discipline": {
+          "value": 80,
+          "delta": 0
+        },
+        "fighting_skill": {
+          "value": 80,
+          "delta": 0
+        }
+      }
+    },
+    "for_LD": {
+      "team_side": "for",
+      "position": "LD",
+      "gamertag": "ParkerMcLovin",
+      "persona": "Mack Parker",
+      "player_number": 13,
+      "player_level": 29,
+      "platform": "Xbox",
+      "handedness": "Right",
+      "height": "6'0\"",
+      "weight_lbs": 180,
+      "is_captain": false,
+      "build_class_canonical": "Two-Way Defenseman",
+      "x_factors": [
+        {
+          "name": "Quickpick",
+          "tier": "Specialist"
+        },
+        {
+          "name": "Elite_Edges",
+          "tier": "All Star"
+        },
+        {
+          "name": "Warrior",
+          "tier": "All Star"
+        }
+      ],
+      "attributes": {
+        "wrist_shot_accuracy": {
+          "value": 80,
+          "delta": -4
+        },
+        "slap_shot_accuracy": {
+          "value": 86,
+          "delta": 2
+        },
+        "speed": {
+          "value": 96,
+          "delta": 11
+        },
+        "balance": {
+          "value": 82,
+          "delta": -5
+        },
+        "agility": {
+          "value": 93,
+          "delta": 8
+        },
+        "wrist_shot_power": {
+          "value": 80,
+          "delta": -3
+        },
+        "slap_shot_power": {
+          "value": 88,
+          "delta": 4
+        },
+        "acceleration": {
+          "value": 93,
+          "delta": 8
+        },
+        "puck_control": {
+          "value": 88,
+          "delta": 2
+        },
+        "endurance": {
+          "value": 92,
+          "delta": 6
+        },
+        "passing": {
+          "value": 93,
+          "delta": 6
+        },
+        "offensive_awareness": {
+          "value": 79,
+          "delta": -6
+        },
+        "body_checking": {
+          "value": 80,
+          "delta": -3
+        },
+        "stick_checking": {
+          "value": 90,
+          "delta": 2
+        },
+        "defensive_awareness": {
+          "value": 96,
+          "delta": 8
+        },
+        "hand_eye": {
+          "value": 86,
+          "delta": 2
+        },
+        "strength": {
+          "value": 87,
+          "delta": 4
+        },
+        "durability": {
+          "value": 80,
+          "delta": -3
+        },
+        "shot_blocking": {
+          "value": 91,
+          "delta": 3
+        },
+        "deking": {
+          "value": 85,
+          "delta": 7
+        },
+        "faceoffs": {
+          "value": 75,
+          "delta": -5
+        },
+        "discipline": {
+          "value": 96,
+          "delta": 9
+        },
+        "fighting_skill": {
+          "value": 78,
+          "delta": -4
+        }
+      }
+    },
+    "for_LW": {
+      "team_side": "for",
+      "position": "LW",
+      "gamertag": "Stick Menace",
+      "persona": "Mikko Rantanen",
+      "player_number": 96,
+      "player_level": 38,
+      "platform": "Xbox",
+      "handedness": "Right",
+      "height": "6'6\"",
+      "weight_lbs": 220,
+      "is_captain": false,
+      "build_class_canonical": "Power Forward",
+      "x_factors": [
+        {
+          "name": "Big_Rig",
+          "tier": "Elite"
+        },
+        {
+          "name": "One_T",
+          "tier": "Elite"
+        },
+        {
+          "name": "Ankle_Breaker",
+          "tier": "Elite"
+        }
+      ],
+      "attributes": {
+        "wrist_shot_accuracy": {
+          "value": 93,
+          "delta": 0
+        },
+        "slap_shot_accuracy": {
+          "value": 90,
+          "delta": 0
+        },
+        "speed": {
+          "value": 93,
+          "delta": 0
+        },
+        "balance": {
+          "value": 90,
+          "delta": 0
+        },
+        "agility": {
+          "value": 94,
+          "delta": 0
+        },
+        "wrist_shot_power": {
+          "value": 93,
+          "delta": 0
+        },
+        "slap_shot_power": {
+          "value": 95,
+          "delta": 0
+        },
+        "acceleration": {
+          "value": 93,
+          "delta": 0
+        },
+        "puck_control": {
+          "value": 93,
+          "delta": 0
+        },
+        "endurance": {
+          "value": 90,
+          "delta": 0
+        },
+        "passing": {
+          "value": 90,
+          "delta": 0
+        },
+        "offensive_awareness": {
+          "value": 91,
+          "delta": 0
+        },
+        "body_checking": {
+          "value": 82,
+          "delta": 0
+        },
+        "stick_checking": {
+          "value": 80,
+          "delta": 0
+        },
+        "defensive_awareness": {
+          "value": 84,
+          "delta": 0
+        },
+        "hand_eye": {
+          "value": 93,
+          "delta": 0
+        },
+        "strength": {
+          "value": 91,
+          "delta": 0
+        },
+        "durability": {
+          "value": 87,
+          "delta": 0
+        },
+        "shot_blocking": {
+          "value": 80,
+          "delta": 0
+        },
+        "deking": {
+          "value": 93,
+          "delta": 0
+        },
+        "faceoffs": {
+          "value": 90,
+          "delta": 0
+        },
+        "discipline": {
+          "value": 82,
+          "delta": 0
+        },
+        "fighting_skill": {
+          "value": 75,
+          "delta": 0
+        }
+      }
+    },
+    "for_RD": {
+      "team_side": "for",
+      "position": "RD",
+      "gamertag": "APOLLO11X7",
+      "persona": "Jordan NHL",
+      "player_number": 26,
+      "player_level": 22,
+      "platform": "Xbox",
+      "handedness": "Left",
+      "height": "6'2\"",
+      "weight_lbs": 195,
+      "is_captain": false,
+      "build_class_canonical": "Two-Way Defenseman",
+      "x_factors": [
+        {
+          "name": "Stick_Em_Up",
+          "tier": "Elite"
+        },
+        {
+          "name": "Tape_to_Tape",
+          "tier": "All Star"
+        },
+        {
+          "name": "No_Contest",
+          "tier": "All Star"
+        }
+      ],
+      "attributes": {
+        "wrist_shot_accuracy": {
+          "value": 80,
+          "delta": -4
+        },
+        "slap_shot_accuracy": {
+          "value": 85,
+          "delta": 1
+        },
+        "speed": {
+          "value": 95,
+          "delta": 10
+        },
+        "balance": {
+          "value": 83,
+          "delta": -4
+        },
+        "agility": {
+          "value": 91,
+          "delta": 6
+        },
+        "wrist_shot_power": {
+          "value": 80,
+          "delta": -3
+        },
+        "slap_shot_power": {
+          "value": 85,
+          "delta": 1
+        },
+        "acceleration": {
+          "value": 95,
+          "delta": 10
+        },
+        "puck_control": {
+          "value": 86,
+          "delta": 0
+        },
+        "endurance": {
+          "value": 89,
+          "delta": 3
+        },
+        "passing": {
+          "value": 88,
+          "delta": 1
+        },
+        "offensive_awareness": {
+          "value": 86,
+          "delta": 1
+        },
+        "body_checking": {
+          "value": 83,
+          "delta": 0
+        },
+        "stick_checking": {
+          "value": 90,
+          "delta": 2
+        },
+        "defensive_awareness": {
+          "value": 92,
+          "delta": 4
+        },
+        "hand_eye": {
+          "value": 88,
+          "delta": 4
+        },
+        "strength": {
+          "value": 84,
+          "delta": 1
+        },
+        "durability": {
+          "value": 83,
+          "delta": 0
+        },
+        "shot_blocking": {
+          "value": 90,
+          "delta": 2
+        },
+        "deking": {
+          "value": 85,
+          "delta": 7
+        },
+        "faceoffs": {
+          "value": 75,
+          "delta": -5
+        },
+        "discipline": {
+          "value": 96,
+          "delta": 9
+        },
+        "fighting_skill": {
+          "value": 77,
+          "delta": -5
+        }
+      }
+    },
+    "for_RW": {
+      "team_side": "for",
+      "position": "RW",
+      "gamertag": "JoeyFlopfish",
+      "persona": "Lane Hutson",
+      "player_number": 48,
+      "player_level": 30,
+      "platform": "Xbox",
+      "handedness": "Left",
+      "height": "6'1\"",
+      "weight_lbs": 194,
+      "is_captain": true,
+      "build_class_canonical": "Playmaker",
+      "x_factors": [
+        {
+          "name": "Wheels",
+          "tier": "Elite"
+        },
+        {
+          "name": "Elite_Edges",
+          "tier": "All Star"
+        },
+        {
+          "name": "Ankle_Breaker",
+          "tier": "Specialist"
+        }
+      ],
+      "attributes": {
+        "wrist_shot_accuracy": {
+          "value": 94,
+          "delta": 0
+        },
+        "slap_shot_accuracy": {
+          "value": 89,
+          "delta": 0
+        },
+        "speed": {
+          "value": 98,
+          "delta": 0
+        },
+        "balance": {
+          "value": 88,
+          "delta": 0
+        },
+        "agility": {
+          "value": 95,
+          "delta": 0
+        },
+        "wrist_shot_power": {
+          "value": 92,
+          "delta": 0
+        },
+        "slap_shot_power": {
+          "value": 91,
+          "delta": 0
+        },
+        "acceleration": {
+          "value": 97,
+          "delta": 0
+        },
+        "puck_control": {
+          "value": 97,
+          "delta": 0
+        },
+        "endurance": {
+          "value": 85,
+          "delta": 0
+        },
+        "passing": {
+          "value": 98,
+          "delta": 0
+        },
+        "offensive_awareness": {
+          "value": 98,
+          "delta": 0
+        },
+        "body_checking": {
+          "value": 80,
+          "delta": 0
+        },
+        "stick_checking": {
+          "value": 80,
+          "delta": 0
+        },
+        "defensive_awareness": {
+          "value": 80,
+          "delta": 0
+        },
+        "hand_eye": {
+          "value": 93,
+          "delta": 0
+        },
+        "strength": {
+          "value": 80,
+          "delta": 0
+        },
+        "durability": {
+          "value": 85,
+          "delta": 0
+        },
+        "shot_blocking": {
+          "value": 75,
+          "delta": 0
+        },
+        "deking": {
+          "value": 97,
+          "delta": 0
+        },
+        "faceoffs": {
+          "value": 90,
+          "delta": 0
+        },
+        "discipline": {
+          "value": 79,
+          "delta": 0
+        },
+        "fighting_skill": {
+          "value": 65,
+          "delta": 0
+        }
+      }
+    }
+  }
+}

@@ -372,7 +372,7 @@ class TestImageClassifiersPresent(unittest.TestCase):
         (self.tmp_dir / "nhl26-loadout-build_class-classifier.json").write_text(json.dumps(payload))
         ext = LoadoutClosedVocabExtractor()
         crop = _synthetic_crop()
-        # n_classes is 9 (build_classes.yaml), so max prob ≈ 1/9 ≈ 0.11 < 0.50
+        # n_classes is 10 (build_classes.yaml), so max prob ≈ 1/10 ≈ 0.10 < 0.50
         with patch(
             "game_ocr.loadout_extractors.closed_vocab.WEIGHTS_DIR",
             self.tmp_dir,

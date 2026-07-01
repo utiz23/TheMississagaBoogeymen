@@ -74,6 +74,10 @@ _BUILD_VOCAB = load_closed_vocab("build_classes")
 _XF_VOCAB = load_closed_vocab("x_factors")
 _TIER_VOCAB = load_closed_vocab("x_factor_tiers")
 
+# Attribute-group table headers (col 0). Detection is by group name, not header
+# arity, so both the 2-col (match-250) and 3-col (Δ|R) layouts are recognized.
+ATTR_GROUP_NAMES = {"technique", "power", "playstyle", "tenacity", "tactics"}
+
 
 def _canon(vocab, raw: Optional[str]) -> Optional[str]:
     if not raw:
@@ -143,14 +147,29 @@ def _weight_int(raw: str) -> Optional[int]:
     return int(m.group(1)) if m else None
 
 
+def _delta_int(raw: str) -> Optional[int]:
+    """Parse an attribute delta chip ('+4', '-6', '', '-') → signed int or None."""
+    s = raw.strip()
+    if not s or s == "-":
+        return None
+    m = re.search(r"[+-]?\d+", s)
+    return int(m.group()) if m else None
+
+
 def _xfactor(cell: str) -> Optional[dict]:
-    """Parse a 'Name - Tier' cell into {name, tier} (canonicalized)."""
+    """Parse a 'Name - Tier' cell into {name, tier} (canonicalized).
+
+    Some loadout transcriptions annotate the tier with its diamond colour
+    (e.g. "Elite (Red)", "All Star (Blue)"); the colour is redundant with the
+    tier name, so a trailing parenthetical is stripped before canonicalization.
+    """
     if not cell or "-" not in cell:
         return None
     name_part, tier_part = cell.rsplit("-", 1)
+    tier_clean = re.sub(r"\s*\([^)]*\)\s*$", "", tier_part).strip()
     return {
         "name": _canon(_XF_VOCAB, name_part.strip()),
-        "tier": _canon(_TIER_VOCAB, tier_part.strip()),
+        "tier": _canon(_TIER_VOCAB, tier_clean),
     }
 
 
@@ -243,11 +262,29 @@ def parse_loadouts(lines: list[str]) -> dict[tuple[str, str], dict]:
             ci_hand = _col(headers, "Shot Handness", "Shot Handedness", "Handedness")
             ci_name = _col(headers, "Name")
             ci_pos = _col(headers, "Position")
+            # X-Factors table (one row, cols X-Factor_1..3). Loadout cards show the
+            # ability name + tier clearly, so this is the PREFERRED X-Factor source;
+            # the lobby table is only a fallback (see build_labels). One card = one
+            # row of up to three "Name - Tier" cells.
+            ci_xf1 = _col(headers, "X-Factor_1")
+            if ci_xf1 is not None and rows:
+                xfs = [
+                    _xfactor(rows[0][ci])
+                    for ci in (
+                        _col(headers, "X-Factor_1"),
+                        _col(headers, "X-Factor_2"),
+                        _col(headers, "X-Factor_3"),
+                    )
+                    if ci is not None and ci < len(rows[0])
+                ]
+                fields["x_factors"] = [x for x in xfs if x is not None]
+                continue
             # Player Information table.
             if ci_pos is not None and rows:
                 row = rows[0]
                 if ci_hand is not None:
-                    fields["handedness"] = row[ci_hand].strip() or None
+                    _hand = row[ci_hand].strip()
+                    fields["handedness"] = _hand.title() if _hand else None
                 if ci_name is not None:
                     fields["persona_full"] = row[ci_name].strip() or None
                 ci_build = _col(headers, "Build_Class_Name")
@@ -256,17 +293,30 @@ def parse_loadouts(lines: list[str]) -> dict[tuple[str, str], dict]:
                         _BUILD_VOCAB, row[ci_build].strip().strip('"')
                     )
                 continue
-            # Attribute group table: header[0] is the group name, header[1] '∆ | R'.
-            if len(headers) == 2 and "r" in headers[1].lower():
+            # Attribute group table: header[0] is a group name. Two layouts:
+            #   2-col  | Group | Δ \| R |  → value in col1, no delta (match-250 V2 md)
+            #   3-col  | Group | Δ | R |   → delta in col1, value (R) in the last col
+            if headers and headers[0].strip().lower() in ATTR_GROUP_NAMES:
+                three_col = len(headers) >= 3
                 for row in rows:
                     if len(row) < 2:
                         continue
                     key = ATTR_DISPLAY_TO_KEY.get(row[0].strip().lower())
                     if key is None:
                         continue
-                    val = _number_int(row[1])
+                    if three_col and len(row) >= 3:
+                        val = _number_int(row[-1])
+                        # A 3-col table has a delta column, so a blank delta cell
+                        # means "no boost" → 0 (distinct from the 2-col case, which
+                        # has no delta column at all → None / unknown).
+                        delta = _delta_int(row[1])
+                        if delta is None:
+                            delta = 0
+                    else:
+                        val = _number_int(row[1])
+                        delta = None
                     if val is not None:
-                        fields["attributes"][key] = {"value": val, "delta": None}
+                        fields["attributes"][key] = {"value": val, "delta": delta}
         out[(side, pos)] = fields
     return out
 
@@ -294,7 +344,9 @@ def build_labels(md_path: Path, match_id: int, split: str) -> dict:
             "is_captain": lb.get("is_captain"),
             "build_class_canonical": ld.get("build_class_canonical")
             or lb.get("build_class_canonical"),
-            "x_factors": lb.get("x_factors", []),
+            # Loadout X-Factors are preferred (clearer name + tier on the card);
+            # the lobby table is a fallback for when no loadout screen was recorded.
+            "x_factors": ld.get("x_factors") or lb.get("x_factors", []),
             "attributes": ld.get("attributes", {}),
         }
         subjects[f"{side}_{pos}"] = subject
