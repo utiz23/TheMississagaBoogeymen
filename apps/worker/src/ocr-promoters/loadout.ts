@@ -117,6 +117,11 @@ export async function promoteLoadout(ctx: PromoterContext): Promise<void> {
       // confidence (numeric(5,4) column takes a string).
       isCaptainConfidence:
         isCaptainField?.confidence != null ? isCaptainField.confidence.toFixed(4) : null,
+      // Phase F: the legacy per-extraction promoter has no slot decomposition
+      // and writes no evidence to join against, so subject_slot_key is NULL —
+      // consolidation's confidence-weighting gracefully degrades to the
+      // unweighted vote + recency anchor for these rows.
+      subjectSlotKey: null,
       teamSide,
       gameTitleId,
       matchId,

@@ -347,6 +347,10 @@ async function activate(argv: string[]): Promise<void> {
       // stdout stays a single machine-readable JSON line.
       await consolidateLoadouts(matchId, {
         db: tx,
+        // Phase F: weight the vote / anchor by this run's evidence confidence.
+        // The run was just flipped active above, so its evidence is the source
+        // of the snapshots rebuilt in this same tx.
+        runId,
         log: (m) => process.stderr.write(m + '\n'),
       })
       gate = await computeQualityGate(matchId, tx)

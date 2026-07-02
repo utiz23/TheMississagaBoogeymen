@@ -21,6 +21,11 @@ import assert from 'node:assert/strict'
 import {
   resolveSideCaptains,
   CAPTAIN_MIN_CONFIDENCE,
+  vote,
+  pickAnchor,
+  fieldConfidence,
+  VOTED_COLUMNS,
+  type FieldConfidenceMap,
   type Snapshot,
 } from './consolidate-loadouts.js'
 
@@ -36,6 +41,7 @@ function snap(isCaptain: boolean | null, isCaptainConfidence: string | null): Sn
     playerNumber: null,
     isCaptain,
     isCaptainConfidence,
+    subjectSlotKey: null,
     teamSide: null,
     position: null,
     buildClass: null,
@@ -152,4 +158,172 @@ void test('mixed side: a scored slot activates argmax and suppresses a null-conf
   const out = resolveSideCaptains(groups)
   assert.equal(decisionFor(out, 'for|C').isCaptain, true)
   assert.equal(decisionFor(out, 'for|LW').isCaptain, null)
+})
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Phase F — confidence-weighted consolidation primitives (pure, no DB).
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Richer factory for the weighting tests: lets a test set id / slot key /
+// screen type / voted columns without a DB round-trip.
+function mkSnap(overrides: Partial<Snapshot>): Snapshot {
+  return {
+    id: 1,
+    playerId: null,
+    gamertagSnapshot: 'Tag',
+    playerNameSnapshot: null,
+    playerNamePersona: null,
+    playerNumber: null,
+    isCaptain: null,
+    isCaptainConfidence: null,
+    subjectSlotKey: null,
+    teamSide: 'for',
+    position: 'C',
+    buildClass: null,
+    heightText: null,
+    weightLbs: null,
+    handedness: null,
+    playerLevelRaw: null,
+    playerLevelNumber: null,
+    platform: null,
+    gameTitleId: 1,
+    ocrExtractionId: 1,
+    screenType: 'player_loadout_view',
+    reviewStatus: 'pending_review',
+    isCpu: false,
+    ...overrides,
+  }
+}
+
+// ── weighted vote() ──────────────────────────────────────────────────────────
+
+void test('vote (unweighted): majority wins, anchor wins ties, all-null → null', () => {
+  assert.equal(vote('A', ['B', 'B']), 'B')
+  assert.equal(vote('A', ['B']), 'A', 'tie → anchor (first observation) wins')
+  assert.equal(vote<string>(null, [null]), null)
+})
+
+void test('vote (weighted): a single high-confidence reading beats a low-confidence majority', () => {
+  // "lo" twice at 0.3 (Σ0.6) vs "hi" once at 0.95 → the confident reading wins.
+  assert.equal(vote('lo', ['lo', 'hi'], [0.3, 0.3, 0.95]), 'hi')
+})
+
+void test('vote (weighted): equal weights reduce to count + anchor tiebreak (today’s behavior)', () => {
+  assert.equal(vote('A', ['B', 'B'], [0.5, 0.5, 0.5]), 'B', 'B Σ1.0 > A 0.5')
+  assert.equal(vote('A', ['B'], [0.7, 0.7]), 'A', 'weight tie → anchor wins')
+})
+
+void test('vote (weighted): a missing confidence falls back to weight 1, never a zero-weight drop', () => {
+  // anchor "A" has no evidence (→ weight 1); "B" has 0.4. Weight 1 > 0.4 → A.
+  // If a missing confidence silently dropped to 0, B would wrongly win.
+  assert.equal(vote('A', ['B'], [null, 0.4]), 'A')
+})
+
+// ── confidence-aware pickAnchor() ─────────────────────────────────────────────
+
+void test('pickAnchor: the higher anchor-field-confidence loadout slot wins over recency', () => {
+  // "A" is NEWER (higher id) but low-confidence; "B" is OLDER but reads its
+  // X-Factor/attribute fields far more confidently. Confidence must beat recency.
+  const a = mkSnap({ id: 2, gamertagSnapshot: 'Tag', subjectSlotKey: 'loadout_slot_A' })
+  const b = mkSnap({ id: 1, gamertagSnapshot: 'Tag', subjectSlotKey: 'loadout_slot_B' })
+  const conf: FieldConfidenceMap = new Map([
+    [
+      'loadout_slot_A',
+      new Map([
+        ['x_factor_name_0', 0.4],
+        ['attribute_speed_value', 0.4],
+      ]),
+    ],
+    [
+      'loadout_slot_B',
+      new Map([
+        ['x_factor_name_0', 0.95],
+        ['attribute_speed_value', 0.95],
+      ]),
+    ],
+  ])
+  assert.equal(pickAnchor([a, b], conf).id, 1, 'older but more-confident slot B wins')
+})
+
+void test('pickAnchor: no evidence → recency (byte-identical to pre-Phase-F behavior)', () => {
+  const a = mkSnap({ id: 2, gamertagSnapshot: 'Tag', subjectSlotKey: null })
+  const b = mkSnap({ id: 1, gamertagSnapshot: 'Tag', subjectSlotKey: null })
+  assert.equal(pickAnchor([a, b], new Map()).id, 2, 'newest snapshot wins when no confidence')
+})
+
+// ── field-map coverage (review finding 2) ─────────────────────────────────────
+//
+// Ground-truth RAW evidence field_keys the extractors actually emit, written
+// out INDEPENDENTLY of EVIDENCE_KEY_BY_SOURCE so the test genuinely guards the
+// map: if the map pointed a column at a key the extractor doesn't emit,
+// fieldConfidence() would not find it in this hand-seeded slot map and the
+// assertion would fail. Verified against lobby-v2.ts:473-490 (no alias map, so
+// promoted-decision keys == raw keys) and loadout-v2.ts:659-727 +
+// FIELD_KEY_ALIASES (jersey_number/persona_raw are the raw evidence keys).
+const LOADOUT_RAW_KEYS = [
+  'build_class',
+  'player_name_full',
+  'persona_raw',
+  'jersey_number',
+  'height',
+  'weight',
+  'handedness',
+  'player_level_raw',
+  'player_level_number',
+  'player_platform',
+]
+const LOBBY_RAW_KEYS = [
+  'build_class',
+  'player_name_persona',
+  'player_number',
+  'height_text',
+  'weight_lbs',
+  'handedness',
+  'player_level_raw',
+  'player_level_number',
+  'platform',
+]
+
+function seedSlotMap(rawKeys: string[]): Map<string, number> {
+  const m = new Map<string, number>()
+  for (const k of rawKeys) m.set(k, 0.9)
+  return m
+}
+
+void test('field-map: every voted column resolves confidence for a loadout snapshot', () => {
+  const slotKey = 'loadout_slot_seg0002_subject01'
+  const conf: FieldConfidenceMap = new Map([[slotKey, seedSlotMap(LOADOUT_RAW_KEYS)]])
+  const s = mkSnap({ subjectSlotKey: slotKey, screenType: 'player_loadout_view' })
+  for (const col of VOTED_COLUMNS) {
+    assert.equal(
+      fieldConfidence(s, col, conf),
+      0.9,
+      `loadout column ${col} must map to an emitted evidence key (finding-2 guard)`,
+    )
+  }
+})
+
+void test('field-map: every voted column except playerNameSnapshot resolves for a lobby snapshot', () => {
+  const slotKey = 'lobby_for_C'
+  const conf: FieldConfidenceMap = new Map([[slotKey, seedSlotMap(LOBBY_RAW_KEYS)]])
+  const s = mkSnap({ subjectSlotKey: slotKey, screenType: 'pre_game_lobby_state_2' })
+  for (const col of VOTED_COLUMNS) {
+    const c = fieldConfidence(s, col, conf)
+    if (col === 'playerNameSnapshot') {
+      assert.equal(c, null, 'lobby writes no player_name_snapshot → intentionally unmapped')
+    } else {
+      assert.equal(
+        c,
+        0.9,
+        `lobby column ${col} must map to an emitted evidence key (finding-2 guard)`,
+      )
+    }
+  }
+})
+
+void test('field-map: a bare snapshot (no slot key) yields no confidence → weight-1 fallback', () => {
+  const s = mkSnap({ subjectSlotKey: null })
+  for (const col of VOTED_COLUMNS) {
+    assert.equal(fieldConfidence(s, col, new Map()), null)
+  }
 })

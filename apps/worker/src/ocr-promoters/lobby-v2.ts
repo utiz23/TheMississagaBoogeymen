@@ -303,9 +303,7 @@ export async function promoteLobbyFromEvidence(input: {
     // slot_identity.py — a real gamertag can't appear on both rosters of the
     // same lobby simultaneously.
     const isCpuRows = fieldMap.get('is_cpu') ?? []
-    const isCpu = isCpuRows.some(
-      (r) => r.candidateValue === true || r.candidateValue === 'true',
-    )
+    const isCpu = isCpuRows.some((r) => r.candidateValue === true || r.candidateValue === 'true')
 
     let resolvedPlayerId: number | null = null
     // Skip identity resolution for CPU rows — there's no human to bind to,
@@ -506,6 +504,11 @@ export async function promoteLobbyFromEvidence(input: {
         playerNumber,
         isCaptain,
         isCaptainConfidence,
+        // Phase F: the lobby slot key (lobby_{side}_{POS}) this snapshot was
+        // promoted from, so consolidation can join ocr_field_evidence by
+        // (match_id, run_id, subject_slot_key, field_key) and confidence-weight
+        // the cross-source vote.
+        subjectSlotKey: sd.slotKey,
         teamSide: sd.teamSide,
         gameTitleId,
         matchId,

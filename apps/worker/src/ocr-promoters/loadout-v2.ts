@@ -831,6 +831,11 @@ export async function promoteLoadoutFromEvidence(input: {
             playerNumber,
             isCaptain,
             isCaptainConfidence,
+            // Phase F: the slot key this snapshot was promoted from, so
+            // consolidation can join ocr_field_evidence by
+            // (match_id, run_id, subject_slot_key, field_key) and
+            // confidence-weight the cross-source vote.
+            subjectSlotKey: sd.slotKey,
             teamSide,
             gameTitleId: sd.gameTitleId,
             matchId,

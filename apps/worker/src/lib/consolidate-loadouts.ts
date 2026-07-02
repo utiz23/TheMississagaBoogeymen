@@ -25,7 +25,13 @@
  * match-250 benchmark + consolidate-loadouts-cpu tests are the contract.
  */
 
-import { db as defaultDb, playerLoadoutSnapshots, type OcrReviewStatus } from '@eanhl/db'
+import {
+  db as defaultDb,
+  playerLoadoutSnapshots,
+  type Database,
+  type OcrReviewStatus,
+} from '@eanhl/db'
+import { getActiveRunIdForMatch } from '@eanhl/db/queries'
 import { and, eq, sql } from 'drizzle-orm'
 import { normalizeBuildClass } from './normalize-build-class.js'
 import { resolvePersona } from './normalize-persona.js'
@@ -62,6 +68,16 @@ export interface ConsolidateLoadoutsOptions {
    *  activate gate, whose stdout carries machine-readable JSON) stay quiet
    *  unless they opt in. The standalone CLI passes `console.log`. */
   log?: (msg: string) => void
+  /**
+   * Phase F: the decoder run whose `ocr_field_evidence` supplies the per-field
+   * OCR confidence used to weight the cross-source vote and pick the anchor.
+   * The activate path passes the run being activated (already flipped active in
+   * the outer tx); the standalone CLI passes the active run id. When `undefined`,
+   * the lib resolves the match's active run itself; when explicitly `null`, only
+   * NULL-run (legacy) evidence is considered — matching the promoter run-scope
+   * semantics in `getFieldEvidenceForLoadoutSlot`.
+   */
+  runId?: number | null
 }
 
 export interface Snapshot {
@@ -75,6 +91,11 @@ export interface Snapshot {
   /** Phase D: visual gold-★ score (numeric(5,4) → string from pg). NULL on
    *  snapshots predating Phase D or scored without a frame. */
   isCaptainConfidence: string | null
+  /** Phase F: the extractor slot key this snapshot was promoted from
+   *  (`lobby_{side}_{POS}` or `loadout_slot_seg{NNNN}_subject{NN}`). Keys the
+   *  join to `ocr_field_evidence` for confidence weighting. NULL on snapshots
+   *  predating Phase F or from the legacy per-extraction promoter. */
+  subjectSlotKey: string | null
   teamSide: 'for' | 'against' | null
   position: string | null
   buildClass: string | null
@@ -99,6 +120,7 @@ async function readSnapshots(conn: DbOrTx, matchId: number): Promise<Snapshot[]>
       pls.player_name_persona AS "playerNamePersona",
       pls.player_number AS "playerNumber", pls.is_captain AS "isCaptain",
       pls.is_captain_confidence AS "isCaptainConfidence",
+      pls.subject_slot_key AS "subjectSlotKey",
       pls.team_side AS "teamSide", pls.position,
       pls.build_class AS "buildClass", pls.height_text AS "heightText",
       pls.weight_lbs AS "weightLbs", pls.handedness,
@@ -116,20 +138,211 @@ async function readSnapshots(conn: DbOrTx, matchId: number): Promise<Snapshot[]>
   return rows as unknown as Snapshot[]
 }
 
-/** Pick the most-common non-null value, falling back to the anchor's value. */
-function vote<T>(anchor: T | null, others: (T | null)[]): T | null {
-  const counts = new Map<string, { count: number; value: T }>()
-  const consider = [anchor, ...others].filter((v): v is T => v !== null && v !== undefined)
-  for (const v of consider) {
+/**
+ * Phase F confidence map: `subjectSlotKey → (evidence field_key → calibrated
+ * confidence)`. Built once per consolidation from `ocr_field_evidence`
+ * (candidate_rank = 0, MAX over segments) so the cross-source vote can weight
+ * each observation by how confident the extractor was.
+ */
+export type FieldConfidenceMap = Map<string, Map<string, number>>
+
+/**
+ * Fetch the top-candidate (rank 0) calibrated confidence per (slot, field) for
+ * this run, aggregated by MAX across segments. Keyed by `subject_slot_key`
+ * (lobby and loadout keys are disjoint by prefix, so no collision) and the RAW
+ * evidence `field_key` — which the source-aware map below normalizes back into
+ * the snapshot-column space.
+ *
+ * Run scope mirrors `getFieldEvidenceForLoadoutSlot`: a concrete `runId` scopes
+ * to that run; `null` scopes to NULL-run (legacy) evidence; `undefined` uses the
+ * live filter (NULL-run OR the active run).
+ */
+async function readFieldConfidence(
+  conn: DbOrTx,
+  matchId: number,
+  runId: number | null | undefined,
+): Promise<FieldConfidenceMap> {
+  const runScope =
+    runId === undefined
+      ? sql`(fe.run_id IS NULL OR fe.run_id IN (SELECT id FROM ocr_decoder_runs WHERE is_active = true))`
+      : runId === null
+        ? sql`fe.run_id IS NULL`
+        : sql`fe.run_id = ${runId}`
+  const rows = await conn.execute(sql`
+    SELECT fe.subject_slot_key AS "slotKey", fe.field_key AS "fieldKey",
+           MAX(fe.calibrated_confidence) AS "conf"
+    FROM ocr_field_evidence fe
+    WHERE fe.match_id = ${matchId}
+      AND fe.candidate_rank = 0
+      AND fe.subject_slot_key IS NOT NULL
+      AND ${runScope}
+    GROUP BY fe.subject_slot_key, fe.field_key
+  `)
+  const map: FieldConfidenceMap = new Map()
+  for (const r of rows as unknown as {
+    slotKey: string
+    fieldKey: string
+    conf: string | number | null
+  }[]) {
+    if (r.conf === null) continue
+    const c = Number(r.conf)
+    if (Number.isNaN(c)) continue
+    let slotMap = map.get(r.slotKey)
+    if (!slotMap) {
+      slotMap = new Map()
+      map.set(r.slotKey, slotMap)
+    }
+    slotMap.set(r.fieldKey, c)
+  }
+  return map
+}
+
+/**
+ * The voted scalar snapshot columns that Phase F weights by confidence.
+ * gamertag (dominantGamertag) and is_captain (resolveSideCaptains) are resolved
+ * separately and are intentionally excluded. Exported as a runtime array so the
+ * field-map coverage test can assert every voted column resolves a confidence
+ * (the finding-2 guard against silent weight-misses on height/weight/platform).
+ */
+export const VOTED_COLUMNS = [
+  'buildClass',
+  'playerNameSnapshot',
+  'playerNamePersona',
+  'playerNumber',
+  'heightText',
+  'weightLbs',
+  'handedness',
+  'playerLevelRaw',
+  'playerLevelNumber',
+  'platform',
+] as const
+export type VotedColumn = (typeof VOTED_COLUMNS)[number]
+
+/**
+ * Source-aware map from a snapshot column to its RAW `ocr_field_evidence`
+ * field_key. The SAME column is keyed differently by source — the lobby
+ * extractor emits `player_number`/`height_text`/`weight_lbs`/`platform`, while
+ * the loadout extractor emits `jersey_number`/`height`/`weight`/`player_platform`
+ * (and `persona_raw`/`player_name_full`). Consolidation owns this map explicitly
+ * rather than borrowing the loadout promoter's `FIELD_KEY_ALIASES` (which covers
+ * only jersey_number/persona_raw and would silently drop height/weight/platform).
+ * Verified against lobby-v2.ts:473-490 and loadout-v2.ts:659-727.
+ */
+export const EVIDENCE_KEY_BY_SOURCE: Record<
+  'lobby' | 'loadout',
+  Partial<Record<VotedColumn, string>>
+> = {
+  lobby: {
+    buildClass: 'build_class',
+    playerNamePersona: 'player_name_persona',
+    playerNumber: 'player_number',
+    heightText: 'height_text',
+    weightLbs: 'weight_lbs',
+    handedness: 'handedness',
+    playerLevelRaw: 'player_level_raw',
+    playerLevelNumber: 'player_level_number',
+    platform: 'platform',
+    // playerNameSnapshot: lobby writes null → no evidence key.
+  },
+  loadout: {
+    buildClass: 'build_class',
+    playerNameSnapshot: 'player_name_full',
+    playerNamePersona: 'persona_raw',
+    playerNumber: 'jersey_number',
+    heightText: 'height',
+    weightLbs: 'weight',
+    handedness: 'handedness',
+    playerLevelRaw: 'player_level_raw',
+    playerLevelNumber: 'player_level_number',
+    platform: 'player_platform',
+  },
+}
+
+/** Classify a snapshot's source by its slot-key prefix, falling back to screenType. */
+export function snapshotSource(s: Snapshot): 'lobby' | 'loadout' {
+  const k = s.subjectSlotKey
+  if (k?.startsWith('lobby_')) return 'lobby'
+  if (k?.startsWith('loadout_slot')) return 'loadout'
+  return s.screenType === 'player_loadout_view' ? 'loadout' : 'lobby'
+}
+
+/**
+ * Per-observation confidence for one voted column, or `null` when this slot has
+ * no evidence for it (→ weight-1 fallback, never a silent zero-weight drop).
+ */
+export function fieldConfidence(
+  s: Snapshot,
+  column: VotedColumn,
+  confBySlot: FieldConfidenceMap,
+): number | null {
+  if (!s.subjectSlotKey) return null
+  const slotMap = confBySlot.get(s.subjectSlotKey)
+  if (!slotMap) return null
+  const key = EVIDENCE_KEY_BY_SOURCE[snapshotSource(s)][column]
+  if (!key) return null
+  return slotMap.get(key) ?? null
+}
+
+/**
+ * Aggregate (mean) confidence over a slot's anchor-only evidence — the X-Factor
+ * and attribute fields that ride the chosen anchor and are never voted. These
+ * keys (`x_factor_name_{n}`, `x_factor_tier_{n}`, `attribute_{name}_value`) are
+ * loadout-only, so lobby slots return null and are never confidence-preferred as
+ * the anchor. Returns null when the slot carries none of them.
+ */
+export function anchorFieldConfidence(s: Snapshot, confBySlot: FieldConfidenceMap): number | null {
+  if (!s.subjectSlotKey) return null
+  const slotMap = confBySlot.get(s.subjectSlotKey)
+  if (!slotMap) return null
+  let sum = 0
+  let n = 0
+  for (const [k, c] of slotMap) {
+    if (
+      k.startsWith('x_factor_name_') ||
+      k.startsWith('x_factor_tier_') ||
+      (k.startsWith('attribute_') && k.endsWith('_value'))
+    ) {
+      sum += c
+      n++
+    }
+  }
+  return n > 0 ? sum / n : null
+}
+
+/**
+ * Pick the highest-weight non-null value, falling back to the anchor's value.
+ *
+ * `confidences`, when supplied, is aligned with `[anchor, ...others]` and holds
+ * each observation's per-field OCR confidence; a `null`/`undefined`/`NaN` entry
+ * (no evidence for that slot+field) falls back to weight 1. With no confidences
+ * — or all-equal weights — this reduces EXACTLY to the prior unweighted vote:
+ * weight becomes the plain count and, on a tie, the earliest-inserted value wins
+ * (the anchor is first in `[anchor, ...others]`, preserving "anchor wins ties").
+ */
+export function vote<T>(
+  anchor: T | null,
+  others: (T | null)[],
+  confidences?: (number | null)[],
+): T | null {
+  const values = [anchor, ...others]
+  const counts = new Map<string, { weight: number; value: T }>()
+  for (let i = 0; i < values.length; i++) {
+    const v = values[i]
+    if (v === null || v === undefined) continue
+    const raw = confidences?.[i]
+    const w = raw === null || raw === undefined || Number.isNaN(raw) ? 1 : raw
     const key = JSON.stringify(v)
     const prev = counts.get(key)
-    counts.set(key, { count: (prev?.count ?? 0) + 1, value: v })
+    if (prev) prev.weight += w
+    else counts.set(key, { weight: w, value: v })
   }
   if (counts.size === 0) return null
-  // Sort by descending count; on tie, anchor wins (anchor is first in `consider`).
-  let best: { count: number; value: T } | null = null
+  // Highest accumulated weight; on tie the earliest-inserted value wins (Map
+  // preserves insertion order, and the `>` keeps the first max) — identical to
+  // the prior count-based tiebreak because insertion order = [anchor, ...others].
+  let best: { weight: number; value: T } | null = null
   for (const entry of counts.values()) {
-    if (!best || entry.count > best.count) best = entry
+    if (!best || entry.weight > best.weight) best = entry
   }
   return best?.value ?? null
 }
@@ -198,7 +411,7 @@ function normTag(tag: string | null | undefined): string {
   return (tag ?? '').toLowerCase().replace(/[^a-z0-9]/g, '')
 }
 
-function pickAnchor(group: Snapshot[]): Snapshot {
+export function pickAnchor(group: Snapshot[], confBySlot: FieldConfidenceMap): Snapshot {
   const dominantNorm = normTag(dominantGamertag(group))
   // Prefer loadout_view source (has X-Factors + attributes).
   const loadoutRows = group.filter((s) => s.screenType === 'player_loadout_view')
@@ -213,6 +426,24 @@ function pickAnchor(group: Snapshot[]): Snapshot {
     ? pool.filter((r) => normTag(r.gamertagSnapshot) === dominantNorm)
     : []
   const candidates = matching.length > 0 ? matching : pool
+  // Phase F: when evidence-confidence is present, prefer the candidate whose
+  // anchor-only fields (X-Factor + attribute evidence) read most confidently —
+  // those child rows ride the anchor and are never voted, so anchor choice is
+  // the only lever for them. Gate strictly on confidence presence so no-evidence
+  // groups (bare-snapshot fixtures, pre-Phase-F data) keep today's ordering
+  // byte-for-byte. Recency (highest id) is the tiebreak, matching the legacy
+  // dominant-gamertag branch. With a single loadout candidate per (side,
+  // position) group — the normal case — this picks the same row recency would.
+  const scored = candidates.map((s) => ({ s, conf: anchorFieldConfidence(s, confBySlot) }))
+  if (scored.some((x) => x.conf !== null)) {
+    return scored.reduce((best, x) => {
+      const bc = best.conf ?? -Infinity
+      const xc = x.conf ?? -Infinity
+      // Higher confidence wins; recency (highest id) breaks ties, matching the
+      // legacy dominant-gamertag branch below.
+      return xc > bc || (xc === bc && Number(x.s.id) > Number(best.s.id)) ? x : best
+    }).s
+  }
   // Among candidates matching the dominant gamertag, prefer the most recent
   // extraction (highest snapshot id). Older snapshots accumulate field
   // values written by prior consolidator runs (voted `player_name_persona`,
@@ -275,8 +506,16 @@ function consensus(
   anchor: Snapshot,
   group: Snapshot[],
   captain: { isCaptain: boolean | null; isCaptainConfidence: string | null },
+  confBySlot: FieldConfidenceMap,
 ): ConsensusValues {
   const others = group.filter((s) => s.id !== anchor.id)
+  // Phase F: per-column confidence array aligned with vote's [anchor, ...others]
+  // observation order, so each scalar vote is weighted by how confident the
+  // extractor was on that slot's field. A missing entry → weight-1 fallback.
+  const conf = (col: VotedColumn): (number | null)[] => [
+    fieldConfidence(anchor, col, confBySlot),
+    ...others.map((s) => fieldConfidence(s, col, confBySlot)),
+  ]
   // Gamertag: majority across the group (dominantGamertag also skips junk),
   // so an anchor whose own gamertag is a stale OCR misread doesn't poison
   // the canonical row.
@@ -284,6 +523,7 @@ function consensus(
   const buildClass = vote(
     anchor.buildClass,
     others.map((s) => s.buildClass),
+    conf('buildClass'),
   )
   return {
     gamertagSnapshot,
@@ -292,6 +532,7 @@ function consensus(
     playerNameSnapshot: vote(
       anchor.playerNameSnapshot,
       others.map((s) => s.playerNameSnapshot),
+      conf('playerNameSnapshot'),
     ),
     // Persona is voted raw here; alias-table canonicalization happens inside
     // the per-anchor transaction below (resolvePersona) so the raw vote can
@@ -299,14 +540,17 @@ function consensus(
     playerNamePersona: vote(
       anchor.playerNamePersona,
       others.map((s) => s.playerNamePersona),
+      conf('playerNamePersona'),
     ),
     playerNamePersonaRaw: vote(
       anchor.playerNamePersona,
       others.map((s) => s.playerNamePersona),
+      conf('playerNamePersona'),
     ),
     playerNumber: vote(
       anchor.playerNumber,
       others.map((s) => s.playerNumber),
+      conf('playerNumber'),
     ),
     // is_captain: Phase D — resolved by per-side argmax over the visual ★
     // score (see resolveSideCaptains), NOT an OR-fold. The OR-fold could not
@@ -317,28 +561,36 @@ function consensus(
     heightText: vote(
       anchor.heightText,
       others.map((s) => s.heightText),
+      conf('heightText'),
     ),
     weightLbs: vote(
       anchor.weightLbs,
       others.map((s) => s.weightLbs),
+      conf('weightLbs'),
     ),
     handedness: vote(
       anchor.handedness,
       others.map((s) => s.handedness),
+      conf('handedness'),
     ),
     playerLevelRaw: vote(
       anchor.playerLevelRaw,
       others.map((s) => s.playerLevelRaw),
+      conf('playerLevelRaw'),
     ),
     playerLevelNumber: vote(
       anchor.playerLevelNumber,
       others.map((s) => s.playerLevelNumber),
+      conf('playerLevelNumber'),
     ),
     // Platform: reject anything outside the strict whitelist before voting
-    // so old OCR garbage (gamertags landing in this column) never wins.
+    // so old OCR garbage (gamertags landing in this column) never wins. The
+    // confidence array aligns by index with [anchor, ...others] regardless of
+    // sanitization (null values are skipped inside vote()).
     platform: vote(
       sanitizePlatform(anchor.platform),
       others.map((s) => sanitizePlatform(s.platform)),
+      conf('platform'),
     ),
   }
 }
@@ -439,6 +691,18 @@ export async function consolidateLoadouts(
   const snapshots = await readSnapshots(conn, matchId)
   log(`[consolidate] read ${snapshots.length} raw snapshot(s)`)
 
+  // Phase F: fetch per-(slot, field) OCR confidence for the run whose evidence
+  // built these snapshots. `undefined` → resolve the match's active run (the
+  // standalone CLI / any caller that didn't pass one); the activate path passes
+  // the run it just flipped active. An empty map (no evidence, or bare-snapshot
+  // fixtures) degrades every vote to weight-1 = today's unweighted behavior.
+  const runId =
+    options.runId !== undefined
+      ? options.runId
+      : await getActiveRunIdForMatch(matchId, conn as unknown as Database)
+  const confBySlot = await readFieldConfidence(conn, matchId, runId)
+  log(`[consolidate] loaded field confidence for ${confBySlot.size} slot(s)`)
+
   // Step 2: group by (team_side, position). Junk-gamertag rows and CPU
   // placeholder rows are dropped here so they can't be picked as anchors
   // and can't pollute the gamertag/field votes within a group.
@@ -474,11 +738,12 @@ export async function consolidateLoadouts(
   const unresolvedPersonas: UnresolvedPersona[] = []
   const unresolvedGamertags: UnresolvedGamertag[] = []
   for (const [key, group] of groups) {
-    const anchor = pickAnchor(group)
+    const anchor = pickAnchor(group, confBySlot)
     const merged = consensus(
       anchor,
       group,
       captainDecisions.get(key) ?? { isCaptain: null, isCaptainConfidence: null },
+      confBySlot,
     )
     // Re-resolve player_id from the voted gamertag — old loadout-view rows
     // were sometimes misattributed (e.g. snap 142 had player_id=11 but is

@@ -62,6 +62,18 @@ export const playerLoadoutSnapshots = pgTable(
      * NULL on snapshots predating Phase D (2026-07-01).
      */
     isCaptainConfidence: numeric('is_captain_confidence', { precision: 5, scale: 4 }),
+    /**
+     * Phase F: the extractor slot key this snapshot was promoted from
+     * (lobby `lobby_{for|against}_{POS}`, loadout `loadout_slot_seg{NNNN}_subject{NN}`).
+     * Written by the v2 promoters at promotion time so consolidation can join
+     * `ocr_field_evidence` by `(match_id, run_id, subject_slot_key, field_key)`
+     * and weight the cross-source vote by per-field OCR confidence. Required
+     * because `ocr_extraction_id` is a shared degraded value across all slots
+     * (loadout-v2 sets it to the match's first loadout extraction) and cannot
+     * distinguish slots. NULL on snapshots predating Phase F (2026-07-02) and
+     * on the legacy per-extraction loadout promoter (no slot decomposition).
+     */
+    subjectSlotKey: text('subject_slot_key'),
     teamSide: text('team_side').$type<'for' | 'against'>(),
     gameTitleId: integer('game_title_id')
       .notNull()

@@ -13,6 +13,7 @@
  */
 
 import { sql as postgresSql } from '@eanhl/db'
+import { getActiveRunIdForMatch } from '@eanhl/db/queries'
 import {
   consolidateLoadouts,
   type UnresolvedPersona,
@@ -42,8 +43,13 @@ async function main(): Promise<void> {
   const args = parseArgs()
   console.log(`[consolidate] match=${args.matchId} dryRun=${args.dryRun ? 'yes' : 'no'}`)
 
+  // Phase F: scope the vote/anchor confidence to the match's active run's
+  // evidence. `null` (no active run — e.g. a legacy/never-ingested match)
+  // degrades to NULL-run evidence, i.e. today's unweighted behavior.
+  const runId = await getActiveRunIdForMatch(args.matchId)
   const result = await consolidateLoadouts(args.matchId, {
     dryRun: args.dryRun,
+    runId,
     log: (msg) => console.log(msg),
   })
 
