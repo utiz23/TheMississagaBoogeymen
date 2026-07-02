@@ -45,8 +45,13 @@
   "planned": {
     "new_validation": {
       "intended_split": "validation",
-      "status": "unselected",
-      "note": "Plan calls for 1-2 fresh NHL26 matches from /mnt/k/NHL/NHL26/*.mkv to join the validation split (Phase B operator pick)."
+      "status": "labeled",
+      "selected": [2577],
+      "labels": {
+        "2577": "labels/2577.json"
+      },
+      "note": "2577 hand-labeled + operator-reviewed (10 skater subjects x 23 attrs, builds/X-Factors/tiers; goalies CPU). NHL26 clip 2026-05-31_15-37-45. NOT yet benchmarked or promoted into splits.validation. CAVEAT: the clip's first game was cancelled after partial data collection, then the real game was recorded -- the benchmark frame bundle must target the real (second) game's segment, and labels reflect only that game.",
+      "next": "benchmark 2577 -> regenerate match-250 golden from the retrained extractor -> ratchet the 0.80 build_class_canonical / x_factor_name floors -> promote 2577 from planned.new_validation into splits.validation."
     }
   }
 }
