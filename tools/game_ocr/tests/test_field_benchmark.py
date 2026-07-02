@@ -61,9 +61,12 @@ MATCHES = {
         "labels": BENCH / "labels/2577.json",
         "golden": FIXTURES / "fixture_match2577_loadout/expected_loadout_evidence.json",
         # Baseline measured 2026-07-01 (real-game loadout window t76-116 @3fps).
+        # persona ratcheted 2026-07-01 (Phase E away-side fix): measured 1.000
+        # (10/10, all 5 away recovered) on the persona-advanced golden; floor held
+        # at 0.90 (clean lower bound, one-subject tolerance) per "never a 1.0 floor".
         "floors": {
             "gamertag": 0.90,
-            "persona": 0.50,
+            "persona": 0.90,
             "player_number": 1.00,
             "position": 1.00,
             "build_class_canonical": 0.90,

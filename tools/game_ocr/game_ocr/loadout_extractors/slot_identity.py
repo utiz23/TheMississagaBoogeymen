@@ -688,6 +688,38 @@ def _parse_row_evidence_no_anchor(content_lines: list[OCRLine]) -> dict:
     return evidence
 
 
+def _persona_name_from_summary(text: str) -> str | None:
+    """Extract a persona name from an AWAY-format summary line (``Name-#NN``).
+
+    The AWAY left strip lists the persona name BEFORE the jersey number with no
+    leading dash (e.g. ``"Drew P Hog-#69"``) — a layout neither ``_NAME_RE``
+    (number first) nor ``_NAME_RE_OPP`` (leading dash) matches, which is why
+    away-side personas read as None before Phase E. Returns the cleaned name, or
+    None if the line is not a name+jersey summary or reduces to a non-name token
+    (level / height-weight / HUD label / team-name header).
+    """
+    # Only a persona-summary line that pairs a name with a "#NN" jersey qualifies.
+    if not _PERSONA_SUMMARY_RE.search(text) or not _NUMBER_RE.search(text):
+        return None
+    # Reuse the gamertag-skip guards so a non-name row is never read as a persona
+    # (the persona-summary + jersey gate already excludes most of these).
+    if _LEVEL_RE.search(text) or _BARE_LEVEL_RE.match(text):
+        return None
+    if _HEIGHT_WEIGHT_RE.search(text):
+        return None
+    # Drop the "#NN" jersey token and surrounding separators; keep the name.
+    name = _NUMBER_RE.sub("", text).strip(" -–.")
+    if not name or not any(c.isalpha() for c in name):
+        return None
+    # Team-header / HUD checks run on the cleaned name: a header carrying a
+    # stray "-#N" would pass the digit-bailing header heuristic on raw text.
+    if _looks_like_team_name_header(name):
+        return None
+    if "".join(c for c in name.upper() if c.isalpha()) in _HUD_LABELS_NORMALIZED:
+        return None
+    return name
+
+
 def _parse_content_into_evidence(evidence: dict, content_lines: list[OCRLine]) -> None:
     """Populate evidence dict in-place from content_lines (shared by both parse helpers)."""
     for line in content_lines:
@@ -711,7 +743,10 @@ def _parse_content_into_evidence(evidence: dict, content_lines: list[OCRLine]) -
                 evidence["jersey_number"] = int(m_num.group(1))
                 evidence["jersey_confidence"] = line.confidence
 
-        # Full name from BGM "#N - Name" or Opp "-Name-#N" pattern
+        # Full name — three left-strip layouts:
+        #   HOME "#NN - Name"  -> _NAME_RE (number first)
+        #   OPP  "-Name-#NN"   -> _NAME_RE_OPP (leading dash)
+        #   AWAY "Name-#NN"    -> _persona_name_from_summary (no leading dash; Phase E)
         if evidence["player_name_full"] is None:
             m_name = _NAME_RE.search(text)
             full_name: str | None = None
@@ -721,6 +756,8 @@ def _parse_content_into_evidence(evidence: dict, content_lines: list[OCRLine]) -
                 m_opp = _NAME_RE_OPP.match(text)
                 if m_opp:
                     full_name = m_opp.group(1).strip(". ")
+                else:
+                    full_name = _persona_name_from_summary(text)
             if full_name:
                 evidence["player_name_full"] = full_name
                 evidence["player_name_confidence"] = line.confidence

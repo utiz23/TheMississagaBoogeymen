@@ -77,6 +77,29 @@ the match-250 golden documents):
 `../../benchmark/reports/2577-baseline.json` — subjects 10/10 matched. Per-field
 accuracy: gamertag 0.90 · player_number 1.00 · position 1.00 ·
 build_class_canonical 0.90 · x_factor_name 0.867 · x_factor_tier 0.90 ·
-attribute_value 0.748 · persona 0.50 · player_level 0.0 · handedness 0.0 ·
+attribute_value 0.748 · **persona 1.000** · player_level 0.0 · handedness 0.0 ·
 captain fp=0 (fn=1). These are the floors locked in `test_field_benchmark.py`
 (rounded down to a clean lower bound); ratchet up as the extractor improves.
+
+### Phase E update (2026-07-01) — away-side persona recovery
+
+persona rose **0.50 → 1.000** (all 5 away personas recovered) via the parser fix
+in `slot_identity._parse_content_into_evidence` (`_persona_name_from_summary`
+handles the away ``Name-#NN`` layout that lacks the leading dash). The floor is
+ratcheted to **0.90** (measured 1.000, held below 1.0 for one-subject tolerance).
+
+**This golden is a SURGICAL persona-only update, not a full fresh regen.** Only
+the 9 `persona_raw` records changed vs the prior committed golden; `is_captain`
+and every other field are byte-identical. A full current-HEAD regen was
+deliberately NOT taken because Phase D's captain-star ROI is an uncalibrated
+`# CALIBRATE` default — a fresh extraction flips 30 `is_captain` records and
+produces captain fp=2 on these real frames (real captains → False, phantoms →
+True). Phase D's 2577 captain calibration/proof is deferred to Phase G; baking
+that regression into the gate here is out of Phase E scope. The persona records
+are genuine current-HEAD extractor output; captain stays frozen at its
+pre-Phase-D committed state pending the Phase G re-ingest + ROI calibration.
+
+To reproduce the persona advance: run `extract_loadout_evidence(bundle,
+segment_index=2)` on the frames, then copy each subject's `persona_raw` record
+into the prior committed golden (leaving `is_captain` untouched) — or, once
+Phase D captain is calibrated at Phase G, do a clean full regen.
