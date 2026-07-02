@@ -31,8 +31,9 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, replace
-from typing import Literal, Optional, Sequence
+from typing import Any, Literal, Optional, Sequence
 
+from game_ocr.captain_star_matcher import score_captain_star
 from game_ocr.lobby_extractors.row_grouping import (
     LOBBY_POSITION_TOKENS,
     LOBBY_TEAM_SIDE_LABELS,
@@ -48,6 +49,31 @@ from game_ocr.ocr import OCRLine
 # ─── Constants ──────────────────────────────────────────────────────────────
 
 CAPTAIN_GLYPHS: tuple[str, ...] = ("★", "✯", "✦", "✪", "✩")
+
+# Phase D captain ★ visual detection. When a frame image is available the gold
+# room-leader star is scored directly (see captain_star_matcher) and OVERRIDES
+# the OCR-text-glyph heuristic above, which was proven non-discriminating
+# (docs/ocr/captain-detection-extractor-followup.md). The glyph scan survives
+# only as the frameless fallback (tests, and any call path without pixels).
+#
+# CALIBRATE (Phase G): the ROI geometry below is a principled default, untuned
+# against real frames — no committed fixture renders the captain star. The gold
+# ★ renders near the left edge of the row's gamertag within the team panel.
+_CAPTAIN_STAR_X_INSET = 12   # px right of the panel's left edge
+_CAPTAIN_STAR_RADIUS = 20
+# Minimum per-frame star score to call a row a captain. The authoritative
+# resolution is the cross-frame MAX star score (done in lobby_evidence); this
+# only sets the per-frame boolean.
+CAPTAIN_STAR_THRESHOLD = 0.5
+
+
+def _captain_star_roi(
+    anchor_y: float, panel_x_range: tuple[float, float]
+) -> tuple[int, int, int]:
+    """ROI center + radius for the captain ★, from row y + team panel x-band."""
+    cx = int(panel_x_range[0] + _CAPTAIN_STAR_X_INSET)
+    cy = int(anchor_y)
+    return cx, cy, _CAPTAIN_STAR_RADIUS
 
 # Phase 3c: UI chrome and navigation labels that RapidOCR picks up from the
 # lobby UI (top-bar tabs, brand labels, READY chip, etc.) and that the legacy
@@ -155,6 +181,11 @@ class LobbySubjectIdentity:
     # Quality flags
     is_captain: Optional[bool] = None
     is_captain_confidence: Optional[float] = None
+    # Phase D: raw visual gold-★ score for this row on THIS frame (None when
+    # scored without a frame image). Carried separately from is_captain_confidence
+    # so lobby_evidence can resolve captain by cross-frame MAX star score,
+    # decoupled from the average-confidence best-frame pick.
+    captain_star_score: Optional[float] = None
     is_ready: Optional[bool] = None
     is_ready_confidence: Optional[float] = None
 
@@ -269,6 +300,7 @@ def _demote_cross_team_duplicates(
                 player_level_confidence=None,
                 is_captain=None,
                 is_captain_confidence=None,
+                captain_star_score=None,
                 is_ready=None,
                 is_ready_confidence=None,
                 height_text=None,
@@ -521,6 +553,7 @@ def identify_lobby_subjects(
     *,
     open_text_extractor: Optional[LoadoutOpenTextExtractor] = None,
     panel_x_ranges: Optional[dict[TeamSide, tuple[float, float]]] = None,
+    frame_bgr: Optional[Any] = None,
 ) -> list[LobbySubjectIdentity]:
     """Convert each LobbyRow into a typed LobbySubjectIdentity.
 
@@ -530,6 +563,10 @@ def identify_lobby_subjects(
             defaults to a fresh `LoadoutOpenTextExtractor()`.
         panel_x_ranges: Optional override of per-team panel x-bands;
             defaults to the constants in `row_grouping`.
+        frame_bgr: Optional BGR frame image for this frame. When supplied, the
+            visual gold-★ score (captain_star_matcher) becomes the authoritative
+            captain signal, overriding the OCR-text-glyph heuristic. When None
+            (frameless callers, tests), the legacy glyph scan is used.
 
     Empty/CPU slots get a minimal identity with `is_empty_or_cpu=True` and
     no gamertag — caller is expected to skip them in promotion.
@@ -606,6 +643,20 @@ def identify_lobby_subjects(
             confs = sorted(line.confidence for line in row.row_lines)
             is_captain, is_captain_conf = False, confs[len(confs) // 2]
 
+        # Phase D: when we have both the frame pixels and a real player on this
+        # row, the visual gold-★ score is the authoritative captain signal —
+        # it OVERRIDES the text-glyph result above (which did not discriminate
+        # true from false). Same guard (gt_value is not None) as the confident-
+        # False gate: we only assert captain/not-captain for real-player rows.
+        # The final per-slot decision is the cross-frame MAX of these scores,
+        # resolved in lobby_evidence.
+        captain_star_score: Optional[float] = None
+        if frame_bgr is not None and gt_value is not None:
+            cx, cy, radius = _captain_star_roi(row.anchor_y, panel_x_range)
+            captain_star_score = score_captain_star(frame_bgr, cx, cy, radius)
+            is_captain = captain_star_score >= CAPTAIN_STAR_THRESHOLD
+            is_captain_conf = captain_star_score
+
         # observability: 'observable' if at least one identity field above
         # position is populated; 'low_quality' otherwise.
         has_evidence = any(
@@ -637,6 +688,7 @@ def identify_lobby_subjects(
                 player_level_confidence=level_conf,
                 is_captain=is_captain,
                 is_captain_confidence=is_captain_conf,
+                captain_star_score=captain_star_score,
                 is_ready=is_ready,
                 is_ready_confidence=is_ready_conf,
                 height_text=height_text,

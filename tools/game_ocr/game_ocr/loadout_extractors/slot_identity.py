@@ -72,6 +72,7 @@ import statistics
 from dataclasses import dataclass, field
 from typing import Optional, Sequence
 
+from ..captain_star_matcher import score_captain_star
 from ..ocr import OCRLine
 
 # ---------------------------------------------------------------------------
@@ -131,6 +132,34 @@ _GRID_MIN_DETECTED_LABELS: int = 2  # minimum detected labels to attempt inferen
 
 # Captain glyphs (from parsers.py)
 _CAPTAIN_GLYPHS = {"★", "✯", "✦", "✪", "✩"}
+
+# Phase D captain ★ visual detection. When a frame image is available the gold
+# room-leader star is scored directly (captain_star_matcher) and OVERRIDES the
+# OCR-text-glyph heuristic below, which was proven non-discriminating. The glyph
+# scan survives as the frameless fallback (image_bgr=None → legacy behavior).
+#
+# CALIBRATE (Phase G): the ROI geometry is a principled default, untuned against
+# real frames — no committed fixture renders the captain star. The gold ★
+# renders near the left edge of the left-strip row content.
+_CAPTAIN_STAR_X_INSET: float = 12.0   # px right of the row content's left edge
+_CAPTAIN_STAR_RADIUS: int = 20
+# Minimum star score to call a row a captain. The authoritative cross-frame
+# resolution is the argmax-by-star-score in loadout_bundle._merge_identities;
+# this sets each per-frame boolean.
+CAPTAIN_STAR_THRESHOLD: float = 0.5
+
+
+def _score_row_captain_star(image_bgr, anchor_y: Optional[float]) -> Optional[float]:
+    """Star score for a left-strip row, or None when no frame/anchor is given.
+
+    None signals "not scored visually" so the caller keeps the legacy text
+    result and the cross-frame merge can distinguish frameless observations.
+    """
+    if image_bgr is None or anchor_y is None:
+        return None
+    cx = int(_ROW_CONTENT_X_MIN + _CAPTAIN_STAR_X_INSET)
+    cy = int(anchor_y)
+    return score_captain_star(image_bgr, cx, cy, _CAPTAIN_STAR_RADIUS)
 
 # Jersey-number pattern: matches "#N", "#NN", "#NNN"
 _NUMBER_RE = re.compile(r"#(\d{1,3})")
@@ -464,6 +493,10 @@ class SubjectIdentity:
     player_name_confidence: Optional[float] = None
     is_captain: Optional[bool] = None
     is_captain_confidence: Optional[float] = None
+    # Phase D: raw visual gold-★ score for this row on THIS frame (None when
+    # scored without a frame image). Used by loadout_bundle._merge_identities to
+    # resolve captain by cross-frame argmax, overriding the first-True collapse.
+    captain_star_score: Optional[float] = None
 
     # Build class from the title bar
     build_class_raw: Optional[str] = None   # e.g. "PWF" or "Power Forward"
@@ -870,6 +903,14 @@ def extract_subject_identity(
                 evidence["position"] = subject_inferred_position[0]
                 evidence["position_confidence"] = subject_inferred_position[1]
 
+        # Phase D: when frame pixels are available, the visual gold-★ score is
+        # the authoritative captain signal — it overrides the text-glyph result
+        # harvested above (which did not discriminate true from false).
+        captain_star = _score_row_captain_star(image_bgr, anchor_y_int)
+        if captain_star is not None:
+            evidence["is_captain"] = captain_star >= CAPTAIN_STAR_THRESHOLD
+            evidence["is_captain_confidence"] = captain_star
+
         # Determine observability
         has_useful_evidence = any([
             evidence["position"] is not None and (evidence["position_confidence"] or 0) >= _EVIDENCE_CONFIDENCE_THRESHOLD,
@@ -889,6 +930,7 @@ def extract_subject_identity(
             player_name_confidence=evidence["player_name_confidence"],
             is_captain=evidence["is_captain"],
             is_captain_confidence=evidence["is_captain_confidence"],
+            captain_star_score=captain_star,
             build_class_raw=build_class_raw,
             build_class_confidence=build_class_conf,
             player_level_raw=evidence["player_level_raw"],
@@ -1000,6 +1042,13 @@ def extract_roster_only_identities(
         ])
         observability = "observable" if has_useful_evidence else "low_quality"
 
+        # Phase D: visual gold-★ score overrides the text-glyph captain result
+        # (a captain may be roster-only — never navigated as the subject).
+        captain_star = _score_row_captain_star(image_bgr, anchor_y_int)
+        if captain_star is not None:
+            evidence["is_captain"] = captain_star >= CAPTAIN_STAR_THRESHOLD
+            evidence["is_captain_confidence"] = captain_star
+
         result.append(SubjectIdentity(
             gamertag=gt_text,
             gamertag_confidence=gt_conf,
@@ -1011,6 +1060,7 @@ def extract_roster_only_identities(
             player_name_confidence=evidence["player_name_confidence"],
             is_captain=evidence["is_captain"],
             is_captain_confidence=evidence["is_captain_confidence"],
+            captain_star_score=captain_star,
             build_class_raw=None,       # no right-pane data for non-selected rows
             build_class_confidence=None,
             player_level_raw=evidence["player_level_raw"],
@@ -1050,6 +1100,11 @@ def extract_roster_only_identities(
                 (gt_conf or 0) >= _EVIDENCE_CONFIDENCE_THRESHOLD,
             ])
             observability = "observable" if has_useful_evidence else "low_quality"
+            # Phase D: visual gold-★ score overrides the text-glyph captain result.
+            captain_star = _score_row_captain_star(image_bgr, row_y_int)
+            if captain_star is not None:
+                evidence["is_captain"] = captain_star >= CAPTAIN_STAR_THRESHOLD
+                evidence["is_captain_confidence"] = captain_star
             result.append(SubjectIdentity(
                 gamertag=gt_text,
                 gamertag_confidence=gt_conf,
@@ -1061,6 +1116,7 @@ def extract_roster_only_identities(
                 player_name_confidence=evidence["player_name_confidence"],
                 is_captain=evidence["is_captain"],
                 is_captain_confidence=evidence["is_captain_confidence"],
+                captain_star_score=captain_star,
                 build_class_raw=None,
                 build_class_confidence=None,
                 player_level_raw=evidence["player_level_raw"],

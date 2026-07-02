@@ -64,7 +64,7 @@ export interface ConsolidateLoadoutsOptions {
   log?: (msg: string) => void
 }
 
-interface Snapshot {
+export interface Snapshot {
   id: number
   playerId: number | null
   gamertagSnapshot: string
@@ -72,6 +72,9 @@ interface Snapshot {
   playerNamePersona: string | null
   playerNumber: number | null
   isCaptain: boolean | null
+  /** Phase D: visual gold-★ score (numeric(5,4) → string from pg). NULL on
+   *  snapshots predating Phase D or scored without a frame. */
+  isCaptainConfidence: string | null
   teamSide: 'for' | 'against' | null
   position: string | null
   buildClass: string | null
@@ -95,6 +98,7 @@ async function readSnapshots(conn: DbOrTx, matchId: number): Promise<Snapshot[]>
       pls.player_name_snapshot AS "playerNameSnapshot",
       pls.player_name_persona AS "playerNamePersona",
       pls.player_number AS "playerNumber", pls.is_captain AS "isCaptain",
+      pls.is_captain_confidence AS "isCaptainConfidence",
       pls.team_side AS "teamSide", pls.position,
       pls.build_class AS "buildClass", pls.height_text AS "heightText",
       pls.weight_lbs AS "weightLbs", pls.handedness,
@@ -256,6 +260,7 @@ interface ConsensusValues {
   playerNamePersonaRaw: string | null
   playerNumber: number | null
   isCaptain: boolean | null
+  isCaptainConfidence: string | null
   buildClass: string | null
   buildClassCanonical: string | null
   heightText: string | null
@@ -266,7 +271,11 @@ interface ConsensusValues {
   platform: string | null
 }
 
-function consensus(anchor: Snapshot, group: Snapshot[]): ConsensusValues {
+function consensus(
+  anchor: Snapshot,
+  group: Snapshot[],
+  captain: { isCaptain: boolean | null; isCaptainConfidence: string | null },
+): ConsensusValues {
   const others = group.filter((s) => s.id !== anchor.id)
   // Gamertag: majority across the group (dominantGamertag also skips junk),
   // so an anchor whose own gamertag is a stale OCR misread doesn't poison
@@ -299,8 +308,12 @@ function consensus(anchor: Snapshot, group: Snapshot[]): ConsensusValues {
       anchor.playerNumber,
       others.map((s) => s.playerNumber),
     ),
-    // is_captain: OR across observations.
-    isCaptain: [anchor, ...others].some((s) => s.isCaptain === true) ? true : null,
+    // is_captain: Phase D — resolved by per-side argmax over the visual ★
+    // score (see resolveSideCaptains), NOT an OR-fold. The OR-fold could not
+    // discriminate a real captain from an OCR/glyph false positive and allowed
+    // >1 captain per side; argmax over the discriminating star score fixes both.
+    isCaptain: captain.isCaptain,
+    isCaptainConfidence: captain.isCaptainConfidence,
     heightText: vote(
       anchor.heightText,
       others.map((s) => s.heightText),
@@ -328,6 +341,73 @@ function consensus(anchor: Snapshot, group: Snapshot[]): ConsensusValues {
       others.map((s) => sanitizePlatform(s.platform)),
     ),
   }
+}
+
+/**
+ * CALIBRATE (Phase G): minimum visual ★ score for a slot to count as a captain
+ * candidate. Below this the gold cluster is treated as noise. Principled
+ * default, untuned against real star-bearing frames.
+ */
+export const CAPTAIN_MIN_CONFIDENCE = 0.5
+
+/**
+ * Phase D one-captain-per-side resolution. EASHL has exactly one room-leader
+ * per team_side, so among all slots on a side the one with the highest visual
+ * gold-★ score (captain_star_matcher, persisted as is_captain_confidence) wins;
+ * every other slot on that side resolves to not-captain (null). This replaces
+ * the old OR-fold, which could not discriminate a real captain from an OCR/glyph
+ * false positive and permitted >1 captain per side (e.g. match 463).
+ *
+ * Backward-compat: when a side carries NO visual confidence signal at all
+ * (every is_captain_confidence NULL, e.g. snapshots predating Phase D), the
+ * legacy OR-fold applies for that side so re-consolidating old data is unchanged.
+ *
+ * Keys are `${teamSide}|${position}` — the consolidation groups-map keys.
+ */
+export function resolveSideCaptains(
+  groups: Map<string, Snapshot[]>,
+): Map<string, { isCaptain: boolean | null; isCaptainConfidence: string | null }> {
+  const sideOf = (key: string): string => key.slice(0, key.indexOf('|'))
+  // Per group: best ★ confidence among is_captain=true observations.
+  const groupConf = new Map<string, number>()
+  // Sides that carry ANY visual confidence signal at all.
+  const sideHasSignal = new Set<string>()
+  for (const [key, group] of groups) {
+    let best: number | null = null
+    for (const s of group) {
+      if (s.isCaptainConfidence == null) continue
+      sideHasSignal.add(sideOf(key))
+      if (s.isCaptain === true) {
+        const c = Number(s.isCaptainConfidence)
+        if (!Number.isNaN(c) && (best === null || c > best)) best = c
+      }
+    }
+    if (best !== null) groupConf.set(key, best)
+  }
+  // Per side: the group with the highest confidence above the floor wins.
+  const winnerBySide = new Map<string, string>()
+  for (const [key, conf] of groupConf) {
+    if (conf < CAPTAIN_MIN_CONFIDENCE) continue
+    const side = sideOf(key)
+    const prev = winnerBySide.get(side)
+    if (!prev || conf > (groupConf.get(prev) ?? -Infinity)) winnerBySide.set(side, key)
+  }
+  const out = new Map<string, { isCaptain: boolean | null; isCaptainConfidence: string | null }>()
+  for (const [key, group] of groups) {
+    const side = sideOf(key)
+    const conf = groupConf.get(key)
+    const isCaptainConfidence = conf !== undefined ? conf.toFixed(4) : null
+    let isCaptain: boolean | null
+    if (sideHasSignal.has(side)) {
+      // Phase D visual signal present → argmax winner wins, everyone else null.
+      isCaptain = winnerBySide.get(side) === key ? true : null
+    } else {
+      // Legacy fallback for un-scored (pre-Phase-D) data.
+      isCaptain = group.some((s) => s.isCaptain === true) ? true : null
+    }
+    out.set(key, { isCaptain, isCaptainConfidence })
+  }
+  return out
 }
 
 /**
@@ -384,13 +464,22 @@ export async function consolidateLoadouts(
     `[consolidate] ${groups.size} canonical group(s) detected (skipped ${junkSkipped} junk-gamertag row(s), ${cpuSkipped} CPU row(s))`,
   )
 
+  // Step 2b: Phase D — resolve exactly one captain per team_side by argmax over
+  // the visual ★ score across all groups (cross-group, so it can't live inside
+  // the per-group consensus below).
+  const captainDecisions = resolveSideCaptains(groups)
+
   // Step 3: per-group consensus.
   let canonicalCount = 0
   const unresolvedPersonas: UnresolvedPersona[] = []
   const unresolvedGamertags: UnresolvedGamertag[] = []
   for (const [key, group] of groups) {
     const anchor = pickAnchor(group)
-    const merged = consensus(anchor, group)
+    const merged = consensus(
+      anchor,
+      group,
+      captainDecisions.get(key) ?? { isCaptain: null, isCaptainConfidence: null },
+    )
     // Re-resolve player_id from the voted gamertag — old loadout-view rows
     // were sometimes misattributed (e.g. snap 142 had player_id=11 but is
     // actually Stick Menace), and the voted gamertag is now correct.

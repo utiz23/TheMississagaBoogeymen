@@ -148,6 +148,60 @@ class IdentifyLobbySubjectsTests(unittest.TestCase):
         self.assertIsNone(lw.gamertag)
         self.assertIsNone(lw.is_captain, "no-real-player row must leave is_captain unobserved")
 
+    def test_frame_star_drives_is_captain_true(self) -> None:
+        # Phase D: with the frame pixels available, a real gold ★ at the row's
+        # captain ROI drives is_captain=True and the star score becomes the
+        # confidence. Proves the ROI plumbing (panel x-band + anchor_y).
+        import cv2
+        import numpy as np
+
+        from game_ocr.lobby_extractors.slot_identity import _captain_star_roi
+        lines = [
+            _line("C", 77, 318),
+            _line("MrHomiecide", 250, 308),
+            _line("#11-E.Wanhg", 250, 326),
+        ]
+        rows = [r for r in detect_lobby_rows(lines) if r.team_side == "our_team"]
+        cx, cy, _ = _captain_star_roi(rows[0].anchor_y, (85, 410))
+        frame = np.full((1080, 1920, 3), (20, 20, 20), dtype=np.uint8)
+        cv2.circle(frame, (cx, cy), 12, (0, 200, 255), -1)  # gold disc
+        subjects = identify_lobby_subjects(rows, frame_bgr=frame)
+        c = next(s for s in subjects if s.position == "C")
+        self.assertTrue(c.is_captain)
+        self.assertIsNotNone(c.captain_star_score)
+        self.assertGreaterEqual(c.captain_star_score, 0.5)
+        self.assertEqual(c.is_captain_confidence, c.captain_star_score)
+
+    def test_frame_without_star_drives_is_captain_false(self) -> None:
+        import numpy as np
+        lines = [
+            _line("C", 77, 318),
+            _line("MrHomiecide", 250, 308),
+            _line("#11-E.Wanhg", 250, 326),
+        ]
+        rows = [r for r in detect_lobby_rows(lines) if r.team_side == "our_team"]
+        frame = np.full((1080, 1920, 3), (20, 20, 20), dtype=np.uint8)  # no star
+        subjects = identify_lobby_subjects(rows, frame_bgr=frame)
+        c = next(s for s in subjects if s.position == "C")
+        self.assertEqual(c.is_captain, False)
+        self.assertEqual(c.captain_star_score, 0.0)
+
+    def test_frame_visual_score_overrides_text_glyph_false_positive(self) -> None:
+        # The Phase D thesis: a stray ★ in the OCR text must NOT make a starless
+        # row captain once the visual score is authoritative.
+        import numpy as np
+        lines = [
+            _line("C", 77, 318),
+            _line("MrHomiecide★", 250, 308),
+            _line("#11-E.Wanhg", 250, 326),
+        ]
+        rows = [r for r in detect_lobby_rows(lines) if r.team_side == "our_team"]
+        frame = np.full((1080, 1920, 3), (20, 20, 20), dtype=np.uint8)  # no star
+        subjects = identify_lobby_subjects(rows, frame_bgr=frame)
+        c = next(s for s in subjects if s.position == "C")
+        self.assertEqual(c.gamertag, "MrHomiecide")  # glyph still stripped
+        self.assertEqual(c.is_captain, False, "visual score must override text glyph FP")
+
     def test_level_extraction(self) -> None:
         lines = [
             _line("C", 77, 300),

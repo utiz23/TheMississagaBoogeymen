@@ -113,6 +113,10 @@ export async function promoteLoadout(ctx: PromoterContext): Promise<void> {
       playerNamePersona: stringValue(playerNamePersonaField),
       playerNumber: numericValue(playerNumberField),
       isCaptain: booleanValue(isCaptainField),
+      // Phase D: persist the captain ★ visual score as the per-observation
+      // confidence (numeric(5,4) column takes a string).
+      isCaptainConfidence:
+        isCaptainField?.confidence != null ? isCaptainField.confidence.toFixed(4) : null,
       teamSide,
       gameTitleId,
       matchId,

@@ -258,9 +258,21 @@ def _merge_identities(identities: list[SubjectIdentity]) -> SubjectIdentity:
     else:
         best_name, best_name_conf = None, None
 
-    # Captain: True wins over None
-    captain = next((s.is_captain for s in identities if s.is_captain is True), None)
-    captain_conf = next((s.is_captain_confidence for s in identities if s.is_captain is True), None)
+    # Captain: Phase D — resolve by the highest visual gold-★ score across
+    # frames (argmax), NOT first-True. The old first-True collapse could not
+    # discriminate a real captain from an OCR/glyph false positive; the star
+    # score can. captain_star_score is None on frameless observations, so when
+    # no frame was scored we fall back to the legacy first-True behavior.
+    star_obs = [s for s in identities if s.captain_star_score is not None]
+    if star_obs:
+        best_star = max(star_obs, key=lambda s: s.captain_star_score or 0.0)
+        captain = best_star.is_captain
+        captain_conf = best_star.is_captain_confidence
+        captain_star = best_star.captain_star_score
+    else:
+        captain = next((s.is_captain for s in identities if s.is_captain is True), None)
+        captain_conf = next((s.is_captain_confidence for s in identities if s.is_captain is True), None)
+        captain_star = None
 
     # Build class: highest confidence
     bc_ids = [(s.build_class_raw, s.build_class_confidence) for s in identities if s.build_class_raw is not None]
@@ -300,6 +312,7 @@ def _merge_identities(identities: list[SubjectIdentity]) -> SubjectIdentity:
         player_name_confidence=best_name_conf,
         is_captain=captain,
         is_captain_confidence=captain_conf,
+        captain_star_score=captain_star,
         build_class_raw=best_bc,
         build_class_confidence=best_bc_conf,
         player_level_raw=best_lvl,

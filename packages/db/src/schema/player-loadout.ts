@@ -53,6 +53,15 @@ export const playerLoadoutSnapshots = pgTable(
     playerNamePersonaRaw: text('player_name_persona_raw'),
     playerNumber: integer('player_number'),
     isCaptain: boolean('is_captain'),
+    /**
+     * Per-observation captain confidence — the visual gold-★ score (0..1) from
+     * the Phase D captain_star_matcher, carried through the promoter from the
+     * `is_captain` field decision. This is the authoritative, discriminating
+     * captain signal (the OCR-text-glyph confidence was not); consolidation
+     * uses it for a per-side argmax to enforce one captain per team_side.
+     * NULL on snapshots predating Phase D (2026-07-01).
+     */
+    isCaptainConfidence: numeric('is_captain_confidence', { precision: 5, scale: 4 }),
     teamSide: text('team_side').$type<'for' | 'against'>(),
     gameTitleId: integer('game_title_id')
       .notNull()

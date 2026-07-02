@@ -163,6 +163,18 @@ function promotedBool(decision: PromotionDecision | undefined): boolean | null {
   return typeof v === 'boolean' ? v : null
 }
 
+/**
+ * Phase D: promoted confidence as a numeric(5,4) string (or null). Used to
+ * persist the captain ★ visual score onto the snapshot so consolidation can
+ * argmax it into one captain per team_side.
+ */
+function promotedConfidence(decision: PromotionDecision | undefined): string | null {
+  if (!decision || decision.status !== 'promoted') return null
+  return typeof decision.winningConfidence === 'number'
+    ? decision.winningConfidence.toFixed(4)
+    : null
+}
+
 export async function promoteLobbyFromEvidence(input: {
   matchId: number
   /**
@@ -467,6 +479,7 @@ export async function promoteLobbyFromEvidence(input: {
     const personaCanonical = personaResolved?.canonical ?? personaRaw
     const playerNumber = promotedNumber(sd.fieldDecisions.get('player_number'))
     const isCaptain = promotedBool(sd.fieldDecisions.get('is_captain'))
+    const isCaptainConfidence = promotedConfidence(sd.fieldDecisions.get('is_captain'))
     const buildClass = promotedString(sd.fieldDecisions.get('build_class'))
     const heightText = promotedString(sd.fieldDecisions.get('height_text'))
     const weightLbs = promotedNumber(sd.fieldDecisions.get('weight_lbs'))
@@ -492,6 +505,7 @@ export async function promoteLobbyFromEvidence(input: {
         playerNamePersonaRaw: personaRaw,
         playerNumber,
         isCaptain,
+        isCaptainConfidence,
         teamSide: sd.teamSide,
         gameTitleId,
         matchId,

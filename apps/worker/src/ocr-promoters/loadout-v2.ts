@@ -686,6 +686,14 @@ export async function promoteLoadoutFromEvidence(input: {
       typeof isCaptainDecision.winningValue === 'boolean'
         ? isCaptainDecision.winningValue
         : null
+    // Phase D: persist the promoted captain confidence — the visual gold-★
+    // score from captain_star_matcher — so consolidation can argmax it into a
+    // one-per-side captain. numeric(5,4) column takes a string.
+    const isCaptainConfidence =
+      isCaptainDecision?.status === 'promoted' &&
+      typeof isCaptainDecision.winningConfidence === 'number'
+        ? isCaptainDecision.winningConfidence.toFixed(4)
+        : null
     const buildClassDecision = sd.fieldDecisions.get('build_class')
     const buildClass =
       buildClassDecision?.status === 'promoted'
@@ -822,6 +830,7 @@ export async function promoteLoadoutFromEvidence(input: {
             playerNamePersonaRaw: personaRaw,
             playerNumber,
             isCaptain,
+            isCaptainConfidence,
             teamSide,
             gameTitleId: sd.gameTitleId,
             matchId,

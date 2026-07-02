@@ -18,7 +18,7 @@ Frame naming: same as loadout (`bundle_dir/00001.png` 5-digit padded).
 
 from __future__ import annotations
 
-from dataclasses import asdict
+from dataclasses import asdict, replace
 from pathlib import Path
 from statistics import mean
 from typing import Any, Optional, Sequence
@@ -33,6 +33,7 @@ from .lobby_extractors.row_grouping import (
     detect_lobby_rows,
 )
 from .lobby_extractors.slot_identity import (
+    CAPTAIN_STAR_THRESHOLD,
     LobbySubjectIdentity,
     identify_lobby_subjects,
     slot_key_for,
@@ -122,10 +123,15 @@ def extract_lobby_evidence(
     # 3. Per-frame: detect rows + identify subjects. Cache so we can pick the
     # best frame per slot without re-running.
     per_frame_subjects: list[list[LobbySubjectIdentity]] = []
-    for frame_lines in ocr_lines_per_frame:
+    for frame_idx, frame_lines in enumerate(ocr_lines_per_frame):
         rows = detect_lobby_rows(list(frame_lines))
         subjects = identify_lobby_subjects(
-            rows, open_text_extractor=open_text_extractor,
+            rows,
+            open_text_extractor=open_text_extractor,
+            # Phase D: hand the frame pixels to the identifier so the visual
+            # captain-★ score drives is_captain (None when the frame is absent,
+            # e.g. frameless unit tests → legacy glyph fallback).
+            frame_bgr=frame_images[frame_idx],
         )
         per_frame_subjects.append(subjects)
 
@@ -139,8 +145,30 @@ def extract_lobby_evidence(
             if best is None or score > _subject_quality_score(best[1]):
                 best_per_slot[subject.slot_key] = (frame_idx, subject)
 
+    # 5. Phase D: resolve captain per slot by the cross-frame MAX visual ★ score,
+    #    decoupled from the average-confidence best-frame pick above. A clean
+    #    non-star frame must not discard a star observed in another frame. Only
+    #    populated when frames were available (captain_star_score is not None);
+    #    otherwise the best-frame subject's legacy glyph result stands.
+    captain_star_by_slot: dict[str, float] = {}
+    for subjects in per_frame_subjects:
+        for subject in subjects:
+            if subject.captain_star_score is None:
+                continue
+            prev = captain_star_by_slot.get(subject.slot_key)
+            if prev is None or subject.captain_star_score > prev:
+                captain_star_by_slot[subject.slot_key] = subject.captain_star_score
+
     records: list[FieldEvidenceRecord] = []
     for slot_key, (frame_idx, subject) in best_per_slot.items():
+        star = captain_star_by_slot.get(slot_key)
+        if star is not None:
+            subject = replace(
+                subject,
+                is_captain=star >= CAPTAIN_STAR_THRESHOLD,
+                is_captain_confidence=star,
+                captain_star_score=star,
+            )
         records.extend(
             _records_for_subject(
                 subject,
@@ -162,13 +190,16 @@ def _subject_quality_score(subject: LobbySubjectIdentity) -> float:
     fields contributed confidence values.
     """
     confidences: list[float] = []
+    # Phase D: is_captain is intentionally EXCLUDED — captain is resolved by
+    # cross-frame max ★ score (see extract_lobby_evidence), so its per-frame
+    # confidence (the star score, ~0 for non-captains) must not skew which
+    # frame is picked as "best" for the other identity fields.
     for value, conf in (
         (subject.gamertag, subject.gamertag_confidence),
         (subject.player_number, subject.player_number_confidence),
         (subject.player_name_persona, subject.player_name_persona_confidence),
         (subject.build_class_raw, subject.build_class_confidence),
         (subject.player_level_raw, subject.player_level_confidence),
-        (subject.is_captain, subject.is_captain_confidence),
         (subject.is_ready, subject.is_ready_confidence),
         (subject.height_text, subject.height_confidence),
         (subject.weight_lbs, subject.weight_confidence),
