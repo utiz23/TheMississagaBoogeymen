@@ -1,0 +1,131 @@
+{
+  "match_id": 2577,
+  "split": "validation",
+  "subjects": {
+    "truth": 10,
+    "matched": 10,
+    "unmatched": 0
+  },
+  "fields": {
+    "gamertag": {
+      "precision": 0.9,
+      "recall": 0.9,
+      "f1": 0.9,
+      "accuracy": 0.9,
+      "scored": 10,
+      "correct": 9,
+      "wrong": 1,
+      "missing": 0
+    },
+    "persona": {
+      "precision": 1.0,
+      "recall": 0.5,
+      "f1": 0.6667,
+      "accuracy": 0.5,
+      "scored": 10,
+      "correct": 5,
+      "wrong": 0,
+      "missing": 5
+    },
+    "player_number": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "accuracy": 1.0,
+      "scored": 10,
+      "correct": 10,
+      "wrong": 0,
+      "missing": 0
+    },
+    "player_level": {
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1": 0.0,
+      "accuracy": 0.0,
+      "scored": 10,
+      "correct": 0,
+      "wrong": 1,
+      "missing": 9
+    },
+    "position": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "accuracy": 1.0,
+      "scored": 10,
+      "correct": 10,
+      "wrong": 0,
+      "missing": 0
+    },
+    "build_class_canonical": {
+      "precision": 1.0,
+      "recall": 0.9,
+      "f1": 0.9474,
+      "accuracy": 0.9,
+      "scored": 10,
+      "correct": 9,
+      "wrong": 0,
+      "missing": 1
+    },
+    "handedness": {
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1": 0.0,
+      "accuracy": 0.0,
+      "scored": 10,
+      "correct": 0,
+      "wrong": 0,
+      "missing": 10
+    },
+    "x_factor_name": {
+      "precision": 0.963,
+      "recall": 0.8667,
+      "f1": 0.9123,
+      "accuracy": 0.8667,
+      "scored": 30,
+      "correct": 26,
+      "wrong": 1,
+      "missing": 3
+    },
+    "x_factor_tier": {
+      "precision": 1.0,
+      "recall": 0.9,
+      "f1": 0.9474,
+      "accuracy": 0.9,
+      "scored": 30,
+      "correct": 27,
+      "wrong": 0,
+      "missing": 3
+    },
+    "attribute_value": {
+      "precision": 0.8687,
+      "recall": 0.7478,
+      "f1": 0.8037,
+      "accuracy": 0.7478,
+      "scored": 230,
+      "correct": 172,
+      "wrong": 26,
+      "missing": 32
+    },
+    "attribute_delta_sign": {
+      "precision": 0.8924,
+      "recall": 0.613,
+      "f1": 0.7268,
+      "accuracy": 0.613,
+      "scored": 230,
+      "correct": 141,
+      "wrong": 17,
+      "missing": 72
+    }
+  },
+  "captain": {
+    "tp": 1,
+    "fp": 0,
+    "fn": 1,
+    "tn": 8,
+    "precision": 1.0,
+    "recall": 0.5,
+    "f1": 0.6667
+  },
+  "attribute_delta_mae": 1.3924
+}

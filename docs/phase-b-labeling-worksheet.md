@@ -5,7 +5,7 @@ Goal: every build class ≥3 crops (≥2 hard floor; 1 crop = degenerate). Enfor
 Recording clock = **Edmonton / Mountain = MDT (UTC-6)** in summer — confirmed.
 All commands run from `tools/game_ocr/`.
 
-## Status: sourcing DONE · frame extraction DONE — crop labeling NOT started
+## Status: PHASE B COMPLETE — sourcing · frame extraction · crop labeling · Gate 2 retrain · benchmark (2577) · gate (per-match floors) · manifest promote ALL DONE (2026-07-01)
 
 Match_ids confirmed (opponents verified in the dev view). Clips filed into per-match folders:
 `/mnt/k/NHL/NHL26/match<id>/<original-filename>` (matches the 250/463/967/968 convention).
@@ -146,13 +146,13 @@ Stick_Em_Up 3 (+3) · Truculence 3 (+3) · Unstoppable 3 (+3) · PressurePlus 2 
 
 Both Gate 1 heads (`build_class`, `x_factor_name`) are now grown. Next is Gate 2 retrain (Step 3, separate session).
 
-## Step 3 — retrain (Gate 2) — retrain + strict-provenance DONE 2026-07-01; benchmark tail DEFERRED
+## Step 3 — retrain (Gate 2) — COMPLETE 2026-07-01 (retrain + strict-provenance + benchmark + gate + promote)
 
 1. ✅ **DONE** — `train_loadout_closed_vocab.py --all --evaluate --strict-provenance --cv-report calibration/extras/loadout/benchmark/reports`.
    `build_class` trains 10 classes (was 6); `x_factor_name` trains 18 (was 9; `Born_Leader`/`PressurePlus` auto-excluded < min_class_size=3). CV baselines written: build mean **0.297**, x-factor **0.143** — LOW (HSV features ignore glyphs; the LR head is a rank-1 fallback behind the text path). Weights overwritten, uncommitted.
-2. ⏸ **DEFERRED** — benchmark the new validation match(es); confirm build/x-factor F1 up. **Blocked:** no fresh NHL26 match is hand-labeled (only 250/463/967/968). Live `--from-extractor` is heavy (match-250 alone > 180s).
-3. ⏸ **DEFERRED** — ratchet the 0.80 `build_class_canonical` / `x_factor_name` floors. **Coupled to golden regeneration:** `tests/test_field_benchmark.py` scores the *static* match-250 golden, which the weights retrain does not touch. Raising floors requires first regenerating that golden from the retrained extractor (a deliberate parity-lock change).
+2. ✅ **DONE (match 2577, 2026-07-01)** — first fresh-NHL26 validation match labeled (`benchmark/labels/2577.json` + manifest entry committed `57afcd2`) + benchmarked via a hand-built ffmpeg frame bundle over the real game's settled loadout window (t88–107; the clip has a **cancelled first game** before it). `--from-extractor` + `score_match`: **10/10 subjects**, `build_class_canonical` **0.90**, `x_factor_name` **0.867** / `tier` **0.90**, `attribute_value` **0.748**. **Confirmed the text path generalizes to fresh footage → the image LR head still should NOT be wired in.** Two findings surfaced (both OUT of Phase B scope): away-side persona not read (home 5/5, away 0/5); `against_RW` card blank / subject-split phantom (the sole build miss + captain fn). **Golden now committed** at t76–116 @3fps (`fixtures/fixture_match2577_loadout/`, 905 records; a superset window that reproduced the numbers exactly and lifted `position` to 1.00) + `reports/2577-baseline.json`. Frames off-repo at `/mnt/k/NHL/NHL26/match2577-bench-frames/`.
+3. ✅ **DONE (as a per-match gate, not an m250 ratchet)** — `tests/test_field_benchmark.py` is now parametrized over `MATCHES = {250, 2577}` with per-match floors; 2577 gates at its measured values (build 0.90 / x_factor_name 0.86 / tier 0.90 / attribute_value 0.74 / position 1.00 / gamertag 0.90 / persona 0.50). The **m250 0.80 floors are intentionally unchanged** — the retrain only touched the (unwired) image heads, so the static m250 golden and its floors don't move. "Ratcheting" m250 requires a real extractor improvement + golden regen, which Phase B did not produce.
 4. ✅ **DONE** — `--strict-provenance` flag + refuse-unprefixed test. Ran as a clean no-op on the retrain (all 120 crops `m<id>_`-prefixed, 0 refused). +2 tests.
-5. ⏸ **DEFERRED** — add confirmed match_ids to `benchmark/manifest.json` `planned.new_validation` (still `"unselected"`; nothing labeled to select).
+5. ✅ **DONE** — `2577` promoted into `benchmark/manifest.json` `splits.validation` (now `[250, 2577]`), with a new `matches.2577` entry (golden + report paths, coverage note) and `planned.new_validation.status: promoted`, `next: none`.
 
 **Vocab-gap decisions (settled by operator 2026-07-01):** `Dangler` / `Enforcer Defenseman` → deferred, left out of `build_classes.yaml`. Thin (`Born_Leader`/`PressurePlus`) + 8 zero-coverage x-factor names → kept in vocab (text path), out of the LR head until footage lands.

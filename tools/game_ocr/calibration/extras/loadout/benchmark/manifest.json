@@ -5,7 +5,7 @@
   "note": "Pre-Phase-G baseline. Per-field floors in reports/ were measured against the parity-locked current-main extractor (golden fixture). HELD-OUT matches are NEVER used to fit calibration (Phase F2) or pick active-learning candidates (Phase F4). Phase G performs a single decoder bump covering C+D+E+F; re-stamp decoder_version then.",
   "splits": {
     "train": [],
-    "validation": [250],
+    "validation": [250, 2577],
     "held_out": [463, 967, 968]
   },
   "matches": {
@@ -15,6 +15,16 @@
       "report": "reports/250-baseline.json",
       "subjects": 10,
       "source": "research/OCR-SS/Manual OCR benchmark for verification V2.md"
+    },
+    "2577": {
+      "split": "validation",
+      "labels": "labels/2577.json",
+      "report": "reports/2577-baseline.json",
+      "golden": "fixtures/fixture_match2577_loadout/expected_loadout_evidence.json",
+      "subjects": 10,
+      "source": "NHL26 clip 2026-05-31_15-37-45 (/mnt/k/NHL/NHL26/match2577/)",
+      "labeling_status": "complete",
+      "coverage": "Operator-reviewed. 10 skater subjects (5 for/BGM + 5 against), each with build class, handedness, 3 X-Factors + tiers, and 23 attributes. Goalies CPU. Benchmark golden extracted from the REAL (second) game's loadout window only (t76-116 @3fps) -- the clip's cancelled first game is excluded (see fixtures/fixture_match2577_loadout/PROVENANCE.md). Gated in test_field_benchmark.py at measured floors: gamertag 0.90 / player_number 1.00 / position 1.00 / build_class 0.90 / x_factor_name 0.86 / x_factor_tier 0.90 / attribute_value 0.74 / persona 0.50. 10/10 subjects align; one subject-split phantom shows as captain fn."
     },
     "463": {
       "split": "held_out",
@@ -45,13 +55,13 @@
   "planned": {
     "new_validation": {
       "intended_split": "validation",
-      "status": "labeled",
+      "status": "promoted",
       "selected": [2577],
       "labels": {
         "2577": "labels/2577.json"
       },
-      "note": "2577 hand-labeled + operator-reviewed (10 skater subjects x 23 attrs, builds/X-Factors/tiers; goalies CPU). NHL26 clip 2026-05-31_15-37-45. NOT yet benchmarked or promoted into splits.validation. CAVEAT: the clip's first game was cancelled after partial data collection, then the real game was recorded -- the benchmark frame bundle must target the real (second) game's segment, and labels reflect only that game.",
-      "next": "benchmark 2577 -> regenerate match-250 golden from the retrained extractor -> ratchet the 0.80 build_class_canonical / x_factor_name floors -> promote 2577 from planned.new_validation into splits.validation."
+      "note": "DONE 2026-07-01. 2577 benchmarked, golden committed, gated, and promoted into splits.validation (see matches.2577). Golden generated from the real game's loadout window (t76-116 @3fps) via fixtures/fixture_match2577_loadout/ (PROVENANCE + 905-record golden); reports/2577-baseline.json holds the measured baseline; floors locked in test_field_benchmark.py. Note on the deferred match-250 ratchet: it is a NO-OP -- the Phase B retrain only touched the closed-vocab image heads, which are not wired into the live extraction path, so regenerating the 250 golden yields identical text-path numbers and the 250 floors already sit exactly at measured (build/x_factor 0.80). 250 floors are unchanged by design.",
+      "next": "none -- Gate 2 benchmark tail complete. Next validation match (if any) follows the same recipe: label -> PROVENANCE ffmpeg bundle over the real loadout window -> commit golden + baseline report -> add floors + entry -> promote."
     }
   }
 }
