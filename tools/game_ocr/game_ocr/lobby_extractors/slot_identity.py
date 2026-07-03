@@ -56,11 +56,23 @@ CAPTAIN_GLYPHS: tuple[str, ...] = ("★", "✯", "✦", "✪", "✩")
 # (docs/ocr/captain-detection-extractor-followup.md). The glyph scan survives
 # only as the frameless fallback (tests, and any call path without pixels).
 #
-# CALIBRATE (Phase G): the ROI geometry below is a principled default, untuned
-# against real frames — no committed fixture renders the captain star. The gold
-# ★ renders near the left edge of the row's gamertag within the team panel.
-_CAPTAIN_STAR_X_INSET = 12   # px right of the panel's left edge
-_CAPTAIN_STAR_RADIUS = 20
+# CALIBRATED (Phase G / G1): measured against the committed star-bearing
+# match-250 lobby frames (calibration/extras/pre_game_lobby_state_*). The gold ★
+# renders on the gamertag line — ≈28 px ABOVE the position-anchor row center —
+# just left of the gamertag, NOT at the row center (where the old default landed
+# on the player avatar portrait, a frequent gold/amber false positive). Its x is
+# a fixed per-panel offset; the two team panels are NOT mirror-symmetric, so the
+# inset differs per side:
+#   our_team      (BGM panel left 85):   star x ≈ 204  → inset +119
+#   opponent_team (OPP panel left 1500): star x ≈ 1638 → inset +138
+# A tight radius keeps the ROI off the neighbouring avatar and the READY chip.
+# Verified: real for/C + against/C score 1.000, all 8 non-captain slots score
+# 0.000 on the settled calibration frames (t15/t36/t40). (The lone residual is a
+# transition frame where the roster is mid-scroll — not a settled lobby state.)
+_CAPTAIN_STAR_X_INSET_BY_SIDE: dict[str, int] = {"our_team": 119, "opponent_team": 138}
+_CAPTAIN_STAR_X_INSET = 119   # fallback inset (unknown side) — our_team offset
+_CAPTAIN_STAR_CY_OFFSET = -28  # star sits above the row center, on the gamertag line
+_CAPTAIN_STAR_RADIUS = 14
 # Minimum per-frame star score to call a row a captain. The authoritative
 # resolution is the cross-frame MAX star score (done in lobby_evidence); this
 # only sets the per-frame boolean.
@@ -68,11 +80,17 @@ CAPTAIN_STAR_THRESHOLD = 0.5
 
 
 def _captain_star_roi(
-    anchor_y: float, panel_x_range: tuple[float, float]
+    anchor_y: float, panel_x_range: tuple[float, float], team_side: str
 ) -> tuple[int, int, int]:
-    """ROI center + radius for the captain ★, from row y + team panel x-band."""
-    cx = int(panel_x_range[0] + _CAPTAIN_STAR_X_INSET)
-    cy = int(anchor_y)
+    """ROI center + radius for the captain ★, from row y + team panel x-band.
+
+    The star sits on the gamertag line (``_CAPTAIN_STAR_CY_OFFSET`` above the
+    position-anchor center) at a per-side x inset from the panel's left edge —
+    see the CALIBRATED note above.
+    """
+    inset = _CAPTAIN_STAR_X_INSET_BY_SIDE.get(team_side, _CAPTAIN_STAR_X_INSET)
+    cx = int(panel_x_range[0] + inset)
+    cy = int(anchor_y + _CAPTAIN_STAR_CY_OFFSET)
     return cx, cy, _CAPTAIN_STAR_RADIUS
 
 # Phase 3c: UI chrome and navigation labels that RapidOCR picks up from the
@@ -652,7 +670,7 @@ def identify_lobby_subjects(
         # resolved in lobby_evidence.
         captain_star_score: Optional[float] = None
         if frame_bgr is not None and gt_value is not None:
-            cx, cy, radius = _captain_star_roi(row.anchor_y, panel_x_range)
+            cx, cy, radius = _captain_star_roi(row.anchor_y, panel_x_range, row.team_side)
             captain_star_score = score_captain_star(frame_bgr, cx, cy, radius)
             is_captain = captain_star_score >= CAPTAIN_STAR_THRESHOLD
             is_captain_conf = captain_star_score

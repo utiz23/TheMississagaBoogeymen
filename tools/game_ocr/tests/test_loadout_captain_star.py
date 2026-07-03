@@ -20,6 +20,8 @@ import numpy as np
 
 from game_ocr.loadout_bundle import _merge_identities
 from game_ocr.loadout_extractors.slot_identity import (
+    _CAPTAIN_STAR_CY_OFFSET,
+    _CAPTAIN_STAR_RADIUS,
     _CAPTAIN_STAR_X_INSET,
     _ROW_CONTENT_X_MIN,
     SubjectIdentity,
@@ -91,10 +93,13 @@ class ScoreRowCaptainStarTests(unittest.TestCase):
         self.assertIsNone(_score_row_captain_star(frame, None))
 
     def test_gold_star_at_row_roi_scores_high(self) -> None:
+        # The ROI center is (row content left + inset, anchor_y + cy offset):
+        # the gamertag-line star column, nudged above the content-row anchor.
         anchor_y = 300
         cx = int(_ROW_CONTENT_X_MIN + _CAPTAIN_STAR_X_INSET)
+        cy = int(anchor_y + _CAPTAIN_STAR_CY_OFFSET)
         frame = np.full((1080, 1920, 3), (20, 20, 20), dtype=np.uint8)
-        cv2.circle(frame, (cx, anchor_y), 12, GOLD_BGR, -1)
+        cv2.circle(frame, (cx, cy), 12, GOLD_BGR, -1)
         score = _score_row_captain_star(frame, anchor_y)
         self.assertIsNotNone(score)
         self.assertGreaterEqual(score, 0.5)
@@ -102,6 +107,26 @@ class ScoreRowCaptainStarTests(unittest.TestCase):
     def test_no_star_scores_zero(self) -> None:
         frame = np.full((1080, 1920, 3), (20, 20, 20), dtype=np.uint8)
         self.assertEqual(_score_row_captain_star(frame, 300), 0.0)
+
+    def test_gold_at_old_avatar_column_does_not_fire(self) -> None:
+        # Phase G / G1.2 regression: the pre-calibration ROI (inset≈12, cx≈142)
+        # landed on the player-avatar portrait, which is often gold/warm-toned and
+        # produced captain false positives. The calibrated star column (cx≈240)
+        # must NOT pick up gold at the old avatar location.
+        anchor_y = 300
+        cy = int(anchor_y + _CAPTAIN_STAR_CY_OFFSET)
+        avatar_cx = int(_ROW_CONTENT_X_MIN + 12)  # the old inset
+        frame = np.full((1080, 1920, 3), (20, 20, 20), dtype=np.uint8)
+        cv2.circle(frame, (avatar_cx, cy), 18, GOLD_BGR, -1)
+        # The calibrated ROI is centered ~98px to the right of this blob, well
+        # outside its own radius, so no gold falls inside it.
+        self.assertEqual(_score_row_captain_star(frame, anchor_y), 0.0)
+
+    def test_calibrated_roi_column_clears_the_avatar(self) -> None:
+        # Guard the calibration itself: the star column must sit clear of the
+        # avatar portrait (which ends near x≈200 in the real frames).
+        cx = int(_ROW_CONTENT_X_MIN + _CAPTAIN_STAR_X_INSET)
+        self.assertGreaterEqual(cx - _CAPTAIN_STAR_RADIUS, 205)
 
 
 if __name__ == "__main__":

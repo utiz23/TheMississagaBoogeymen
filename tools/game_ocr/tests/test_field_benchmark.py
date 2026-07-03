@@ -14,15 +14,16 @@ Gated matches (both in `benchmark/manifest.json splits.validation`):
   - 250  — full lobby golden (Phase A baseline, measured 2026-06-14).
   - 2577 — real-game loadout window golden (Phase B Gate 2, measured 2026-07-01
            at t76-116 @3fps). Most fields match or beat 250 (build 0.90, position
-           1.00, x_factor_name 0.86); persona (0.50) is lower — right-pane OCR
-           difficulty on this clip, plus one subject-split phantom (against_RW
-           captain fn), not a regression. See fixture_match2577_loadout/PROVENANCE.md.
+           1.00, x_factor_name 0.86); persona reached 1.000 (Phase E away-side fix)
+           and both captains are detected (Phase G G1 ★ ROI calibration →
+           tp=2/fp=0/fn=0). See fixture_match2577_loadout/PROVENANCE.md.
 
 Per-field floors, per match. Gaps left at 0.0 are KNOWN and tracked by later
 phases:
   - player_level / handedness: not carried in loadout evidence (lobby-evidence
     merge / extractor extension — Phases B/E).
-  - captain: undetected / split by the glyph heuristic (Phase D ★ specialist).
+  - captain: visual gold-★ detection (Phase D), ROI calibrated for the loadout
+    left strip in Phase G (G1.2); 2577 gates fp=0 AND fn=0.
 """
 
 import json
@@ -64,6 +65,9 @@ MATCHES = {
         # persona ratcheted 2026-07-01 (Phase E away-side fix): measured 1.000
         # (10/10, all 5 away recovered) on the persona-advanced golden; floor held
         # at 0.90 (clean lower bound, one-subject tolerance) per "never a 1.0 floor".
+        # captain calibrated 2026-07-02 (Phase G G1.2/G1.3 loadout ★ ROI): both
+        # real captains (for_LW, against_RW) now score 0.756, all 8 non-captains
+        # 0.000 → tp=2/fp=0/fn=0. Golden regenerated surgically (captain-only).
         "floors": {
             "gamertag": 0.90,
             "persona": 0.90,
@@ -77,6 +81,7 @@ MATCHES = {
             "handedness": 0.0,
         },
         "captain_fp_max": 0,  # the FP-LW regression must never reappear
+        "captain_fn_max": 0,  # both real captains detected (Phase G G1 calibration)
     },
 }
 
@@ -117,3 +122,17 @@ def test_field_accuracy_meets_floor(reports, match_id, field, floor):
 @pytest.mark.parametrize("match_id", sorted(MATCHES))
 def test_captain_no_false_positives(reports, match_id):
     assert reports[match_id]["captain"]["fp"] <= MATCHES[match_id]["captain_fp_max"]
+
+
+@pytest.mark.parametrize("match_id", sorted(MATCHES))
+def test_captain_recall_meets_floor(reports, match_id):
+    # Only gated where a recall floor is declared (2577: both captains must be
+    # detected after the Phase G loadout ★ ROI calibration). Matches without the
+    # key are not yet held to a recall bar.
+    fn_max = MATCHES[match_id].get("captain_fn_max")
+    if fn_max is None:
+        pytest.skip(f"match {match_id}: no captain recall gate")
+    assert reports[match_id]["captain"]["fn"] <= fn_max, (
+        f"match {match_id}: captain fn {reports[match_id]['captain']['fn']} "
+        f"exceeds max {fn_max}"
+    )

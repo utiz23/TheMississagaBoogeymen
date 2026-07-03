@@ -103,3 +103,38 @@ To reproduce the persona advance: run `extract_loadout_evidence(bundle,
 segment_index=2)` on the frames, then copy each subject's `persona_raw` record
 into the prior committed golden (leaving `is_captain` untouched) — or, once
 Phase D captain is calibrated at Phase G, do a clean full regen.
+
+### Phase G G1.2/G1.3 update (2026-07-02) — captain ★ ROI calibration + regen
+
+Phase D shipped the visual gold-★ captain detector with a **principled but
+uncalibrated** loadout ROI (`inset=12` → cx≈142). That column lands on the
+player-avatar portrait (which ends at x≈200 and is often gold/warm-toned), so on
+these real frames it produced captain false positives and missed the real stars
+— exactly the regression Phase E's surgical golden avoided baking.
+
+The ROI was calibrated against these committed 2577 bench frames (see
+`loadout_extractors/slot_identity.py`): the gold ★ renders on the **gamertag
+line** just left of the gamertag at **x≈240** (single column for both rosters —
+unlike the lobby's two panels, the loadout stacks both teams in one left strip
+with an identical horizontal layout), ≈15 px above the content-row anchor.
+Calibrated constants: `_CAPTAIN_STAR_X_INSET=110` (cx≈240),
+`_CAPTAIN_STAR_CY_OFFSET=-15`, `_CAPTAIN_STAR_RADIUS=18`. On the 120 committed
+frames both real captains (`for_LW` HenryTheBobJr, `against_RW` MAJORBLAKA958)
+score **0.756** and all 8 non-captains score **0.000** → **tp=2 / fp=0 / fn=0**.
+(This disproves the earlier note that `against_RW`'s star might be absent: its ★
+renders clearly; the miss was purely the avatar-column ROI.)
+
+**Golden update is SURGICAL (captain-only), like the Phase E update.** A fresh
+current-HEAD regen was produced and diffed against the committed golden: exactly
+**30 `is_captain` records** changed (the old text-glyph captains at 0.998/0.999
+→ False; the two real captains → True at star confidence 0.756), and 4
+`x_factor_name` records differed only in the 7th decimal of their confidence
+(candidate_value identical — pure OCR/softmax float non-determinism). To keep the
+golden diff minimal and reviewable, only the 30 `is_captain` records were taken
+from the fresh run; every other record is byte-identical to the committed golden.
+
+Baseline (`2577-baseline.json`) regenerated: captain now **tp=2 / fp=0 / fn=0 /
+recall=1.000**; every non-captain field is unchanged (persona 1.000, gamertag
+0.90, position 1.00, build 0.90, x_factor_name 0.867, x_factor_tier 0.90,
+attribute_value 0.748). `test_field_benchmark.py` now gates `captain_fp_max=0`
+**and** `captain_fn_max=0` for 2577.

@@ -119,13 +119,13 @@
     }
   },
   "captain": {
-    "tp": 1,
+    "tp": 2,
     "fp": 0,
-    "fn": 1,
+    "fn": 0,
     "tn": 8,
     "precision": 1.0,
-    "recall": 0.5,
-    "f1": 0.6667
+    "recall": 1.0,
+    "f1": 1.0
   },
   "attribute_delta_mae": 1.3924
 }

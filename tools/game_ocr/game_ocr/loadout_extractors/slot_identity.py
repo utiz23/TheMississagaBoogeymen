@@ -138,11 +138,21 @@ _CAPTAIN_GLYPHS = {"★", "✯", "✦", "✪", "✩"}
 # OCR-text-glyph heuristic below, which was proven non-discriminating. The glyph
 # scan survives as the frameless fallback (image_bgr=None → legacy behavior).
 #
-# CALIBRATE (Phase G): the ROI geometry is a principled default, untuned against
-# real frames — no committed fixture renders the captain star. The gold ★
-# renders near the left edge of the left-strip row content.
-_CAPTAIN_STAR_X_INSET: float = 12.0   # px right of the row content's left edge
-_CAPTAIN_STAR_RADIUS: int = 20
+# CALIBRATED (Phase G / G1.2): measured against the committed match-2577 loadout
+# bench frames. Unlike the lobby's two separate team panels, BOTH rosters render
+# in the SAME left strip with an identical horizontal layout, so a single star
+# column serves both sides (no per-side inset, cf. lobby_extractors.slot_identity).
+# The gold ★ sits on the gamertag line just left of the gamertag at x≈240 (inset
+# +110 from the row content's left edge). The old inset=12 (cx≈142) landed on the
+# player-avatar portrait — which ends at x≈200 and is often gold/warm-toned — and
+# produced captain false positives; cx≈240 is clear of every avatar. The scored
+# row anchor lands either on the gamertag line (delta 0) or the persona/content
+# line ~30px below it, so the ROI is nudged up ~half a row and sized to span both.
+# Verified on 2577: real for_LW + against_RW both score 0.756, all 8 non-captain
+# rows score 0.000 (tp=2 / fp=0 / fn=0).
+_CAPTAIN_STAR_X_INSET: float = 110.0  # px right of row content's left edge → cx≈240
+_CAPTAIN_STAR_CY_OFFSET: float = -15.0  # star is on the gamertag line, above the content anchor
+_CAPTAIN_STAR_RADIUS: int = 18
 # Minimum star score to call a row a captain. The authoritative cross-frame
 # resolution is the argmax-by-star-score in loadout_bundle._merge_identities;
 # this sets each per-frame boolean.
@@ -158,7 +168,7 @@ def _score_row_captain_star(image_bgr, anchor_y: Optional[float]) -> Optional[fl
     if image_bgr is None or anchor_y is None:
         return None
     cx = int(_ROW_CONTENT_X_MIN + _CAPTAIN_STAR_X_INSET)
-    cy = int(anchor_y)
+    cy = int(anchor_y + _CAPTAIN_STAR_CY_OFFSET)
     return score_captain_star(image_bgr, cx, cy, _CAPTAIN_STAR_RADIUS)
 
 # Jersey-number pattern: matches "#N", "#NN", "#NNN"

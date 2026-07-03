@@ -162,7 +162,7 @@ class IdentifyLobbySubjectsTests(unittest.TestCase):
             _line("#11-E.Wanhg", 250, 326),
         ]
         rows = [r for r in detect_lobby_rows(lines) if r.team_side == "our_team"]
-        cx, cy, _ = _captain_star_roi(rows[0].anchor_y, (85, 410))
+        cx, cy, _ = _captain_star_roi(rows[0].anchor_y, (85, 410), "our_team")
         frame = np.full((1080, 1920, 3), (20, 20, 20), dtype=np.uint8)
         cv2.circle(frame, (cx, cy), 12, (0, 200, 255), -1)  # gold disc
         subjects = identify_lobby_subjects(rows, frame_bgr=frame)
