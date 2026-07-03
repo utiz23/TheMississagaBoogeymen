@@ -143,10 +143,16 @@ def _resolve_video_path(match_id: int) -> tuple[Path, str]:
     """Resolve the source video file + its sha256 for ``match_id``.
 
     Looks up the latest non-null ``video_sha256`` in ``ocr_capture_batches``
-    for the match, then scans ``/mnt/k/NHL/NHL26/match <id>/*.mkv`` for a
-    file whose sha matches. The recorded ``source_directory`` often points
-    at the sha-rooted ingest cache (which doesn't contain the raw video),
-    so we glob the per-match folder instead.
+    for the match, then scans the per-match folder under
+    ``/mnt/k/NHL/NHL26`` for a ``.mkv`` whose sha matches. The recorded
+    ``source_directory`` often points at the sha-rooted ingest cache (which
+    doesn't contain the raw video), so we scan the per-match folder instead.
+
+    On disk the folders use the no-space form ``match<id>`` (e.g.
+    ``match250``); the historical space form ``match <id>`` is accepted as a
+    fallback. Both are resolved by EXACT directory name — never a prefix
+    glob, so sibling dirs like ``match463-label-frames`` or
+    ``match2577-bench-frames`` can't be selected by mistake.
     """
     sha = _psql_query(
         f"SELECT video_sha256 FROM ocr_capture_batches "
@@ -159,11 +165,19 @@ def _resolve_video_path(match_id: int) -> tuple[Path, str]:
             f"ocr_capture_batches — re-ingest at least once before reprocess"
         )
 
-    match_dir = DEFAULT_VIDEO_ROOT / f"match {match_id}"
-    if not match_dir.exists():
+    # Exact directory-name candidates, no-space first (matches disk), then the
+    # historical space form. Exact names only — a prefix glob would wrongly
+    # select `match<id>-label-frames`/`-bench-frames` siblings.
+    dir_candidates = [
+        DEFAULT_VIDEO_ROOT / f"match{match_id}",
+        DEFAULT_VIDEO_ROOT / f"match {match_id}",
+    ]
+    match_dir = next((d for d in dir_candidates if d.is_dir()), None)
+    if match_dir is None:
+        tried = ", ".join(str(d) for d in dir_candidates)
         raise RuntimeError(
-            f"source-video dir not found: {match_dir} "
-            f"(expected layout: {DEFAULT_VIDEO_ROOT}/match <id>/*.mkv)"
+            f"source-video dir not found for match {match_id} "
+            f"(tried exact dir names: {tried})"
         )
 
     candidates = sorted(match_dir.glob("*.mkv"))

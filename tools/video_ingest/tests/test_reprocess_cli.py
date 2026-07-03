@@ -223,6 +223,69 @@ def test_compute_hashes_raises_on_missing_artifact(
         reprocess_mod._compute_hashes("nhltest")
 
 
+# ─── _resolve_video_path dir resolution (G0.1 landmine fix) ──────────────────
+#
+# The sha lookup is stubbed via _psql_query; these assert ONLY the folder
+# resolution: no-space `match<id>` preferred, historical `match <id>` fallback,
+# EXACT dir names (never a prefix glob that would grab `match<id>-label-frames`).
+
+
+def _stub_sha(monkeypatch: pytest.MonkeyPatch, sha: str = "d" * 64) -> None:
+    monkeypatch.setattr(reprocess_mod, "_psql_query", lambda _sql: sha)
+
+
+def test_resolve_video_path_prefers_no_space_dir(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`match250` (no space) is resolved; sibling `match250-label-frames` is
+    NOT selected (exact dir name, not a prefix glob)."""
+    _stub_sha(monkeypatch)
+    monkeypatch.setattr(reprocess_mod, "DEFAULT_VIDEO_ROOT", tmp_path)
+    (tmp_path / "match250").mkdir()
+    (tmp_path / "match250" / "clip.mkv").write_bytes(b"real")
+    # Decoy sibling that a prefix glob would wrongly match.
+    (tmp_path / "match250-label-frames").mkdir()
+    (tmp_path / "match250-label-frames" / "decoy.mkv").write_bytes(b"decoy")
+
+    # sha won't match either file → error names the resolved dir; assert it's the
+    # no-space one and never mentions the label-frames decoy.
+    with pytest.raises(RuntimeError, match=r"none of the \.mkv files") as exc:
+        reprocess_mod._resolve_video_path(250)
+    assert "match250/" in str(exc.value) or str(tmp_path / "match250") in str(exc.value)
+    assert "label-frames" not in str(exc.value)
+    assert "decoy.mkv" not in str(exc.value)
+
+
+def test_resolve_video_path_falls_back_to_space_dir(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """When only the historical `match <id>` (space) form exists, it resolves."""
+    _stub_sha(monkeypatch)
+    monkeypatch.setattr(reprocess_mod, "DEFAULT_VIDEO_ROOT", tmp_path)
+    space_dir = tmp_path / "match 463"
+    space_dir.mkdir()
+    real = space_dir / "clip.mkv"
+    real.write_bytes(b"payload-463")
+    sha = reprocess_mod._file_sha256(real)
+    monkeypatch.setattr(reprocess_mod, "_psql_query", lambda _sql: sha)
+
+    resolved, got_sha = reprocess_mod._resolve_video_path(463)
+    assert resolved == real
+    assert got_sha == sha
+
+
+def test_resolve_video_path_raises_when_no_dir(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Neither `match<id>` nor `match <id>` present → a clear error listing the
+    exact dir names tried."""
+    _stub_sha(monkeypatch)
+    monkeypatch.setattr(reprocess_mod, "DEFAULT_VIDEO_ROOT", tmp_path)
+    with pytest.raises(RuntimeError, match=r"source-video dir not found for match 968") as exc:
+        reprocess_mod._resolve_video_path(968)
+    assert "tried exact dir names" in str(exc.value)
+
+
 # ─── integration: --undo --dry-run smoke test ────────────────────────────────
 
 

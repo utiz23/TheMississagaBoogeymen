@@ -47,6 +47,23 @@
  *     run exists. With --dry-run, the underlying activate dry-run output
  *     is printed.
  *
+ *   validate-consolidated  --run-id N [--active]
+ *     Serialize the REVIEWED consolidated loadout/lobby surface for run N's
+ *     match into the benchmark record shape (`serializeConsolidatedSurface`),
+ *     printing a single JSON array on stdout (logs → stderr). Read-only.
+ *       Default (dry-run, pre-flip): open a tx, replicate the activate() body
+ *         (deactivate prior → activate N → rebuildCanonicalsFromActiveRun →
+ *         consolidateLoadouts(run N)), serialize the resulting surface, then
+ *         force-rollback via a RollbackSignal. Because consolidation is a pure
+ *         function of (evidence + snapshots), the rolled-back surface is
+ *         byte-identical to what an activation would commit — NO state mutation.
+ *         This is the Phase G pre-flip gate input: score it BEFORE activating.
+ *       --active: no tx flip — serialize the already-committed surface of the
+ *         active run. Requires N to BE the active run. This is what the
+ *         post-flip `score_field_benchmark.py --from-db` confirmation reads;
+ *         the shared serializer makes dry-run == active equality hold by
+ *         construction.
+ *
  * Exit codes:
  *   0 — success
  *   1 — argument validation error, unknown subcommand, or DB error
@@ -61,6 +78,10 @@ import { rebuildCanonicalsFromActiveRun } from './lib/rebuild-canonicals-from-ac
 import { validateCandidateRun } from './lib/validate-candidate-run.js'
 import { applyMatchColors } from './lib/match-color-aggregator.js'
 import { consolidateLoadouts } from './lib/consolidate-loadouts.js'
+import {
+  serializeConsolidatedSurface,
+  type ConsolidatedSurfaceRecord,
+} from './lib/serialize-consolidated-surface.js'
 import { buildDownstreamCounts, buildQualityFlags } from './lib/quality-inputs.js'
 import { computeLayers, type LayerScores } from './lib/quality-layers.js'
 import { buildReportBody, emitRow, loadRunRow } from './lib/run-quality-report.js'
@@ -455,6 +476,95 @@ async function undo(argv: string[]): Promise<void> {
   ])
 }
 
+/** Thrown inside the validate-consolidated dry-run tx to force a rollback after
+ *  the surface is serialized — the read is pure, so nothing must persist. */
+class RollbackSignal extends Error {
+  constructor() {
+    super('validate-consolidated: intentional dry-run rollback')
+    this.name = 'RollbackSignal'
+  }
+}
+
+/**
+ * Write to stdout and AWAIT the flush. `main()` ends in `process.exit(0)`, which
+ * discards any un-drained stdout buffer — for a pipe sink (subprocess capture)
+ * a large `process.stdout.write` is async and returns before draining, so the
+ * payload gets truncated at the ~64KB pipe buffer. The other subcommands print
+ * small JSON that fits in one buffer, but the consolidated surface is ~100KB, so
+ * it must wait for the write callback (flush complete) before returning.
+ */
+function writeStdoutFlushed(s: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    process.stdout.write(s, (err) => (err ? reject(err) : resolve()))
+  })
+}
+
+async function validateConsolidated(argv: string[]): Promise<void> {
+  const runIdRaw = getFlag(argv, 'run-id')
+  if (!runIdRaw) {
+    throw new Error('validate-consolidated requires --run-id <positive integer>')
+  }
+  const runId = Number(runIdRaw)
+  if (!Number.isFinite(runId) || !Number.isInteger(runId) || runId <= 0) {
+    throw new Error(`validate-consolidated requires --run-id <positive integer>; got: ${runIdRaw}`)
+  }
+  const activeMode = argv.includes('--active')
+
+  const [target] = await db
+    .select({
+      id: ocrDecoderRuns.id,
+      matchId: ocrDecoderRuns.matchId,
+      isActive: ocrDecoderRuns.isActive,
+    })
+    .from(ocrDecoderRuns)
+    .where(eq(ocrDecoderRuns.id, runId))
+    .limit(1)
+  if (!target) {
+    throw new Error(`validate-consolidated: run ${runId} not found`)
+  }
+  const matchId = target.matchId
+
+  if (activeMode) {
+    // Serialize the already-committed active surface. Require run N to BE the
+    // active run — otherwise the committed surface belongs to a different run
+    // and the dump would silently mislabel it.
+    if (!target.isActive) {
+      throw new Error(
+        `validate-consolidated --active: run ${runId} is not the active run for match ${matchId}; ` +
+          `--active serializes the committed active surface (activate it first, or drop --active for the dry-run)`,
+      )
+    }
+    const records = await serializeConsolidatedSurface(matchId, db)
+    await writeStdoutFlushed(JSON.stringify(records) + '\n')
+    return
+  }
+
+  // Dry-run (pre-flip): replicate the activate() tx body, serialize, force
+  // rollback. `records` is captured inside the closure and read after the tx
+  // rolls back. Logs go to stderr so stdout stays a single JSON payload.
+  let records: ConsolidatedSurfaceRecord[] = []
+  try {
+    await db.transaction(async (tx) => {
+      await tx
+        .update(ocrDecoderRuns)
+        .set({ isActive: false })
+        .where(and(eq(ocrDecoderRuns.matchId, matchId), eq(ocrDecoderRuns.isActive, true)))
+      await tx.update(ocrDecoderRuns).set({ isActive: true }).where(eq(ocrDecoderRuns.id, runId))
+      await rebuildCanonicalsFromActiveRun(matchId, { db: tx })
+      await consolidateLoadouts(matchId, {
+        db: tx,
+        runId,
+        log: (m) => process.stderr.write(m + '\n'),
+      })
+      records = await serializeConsolidatedSurface(matchId, tx)
+      throw new RollbackSignal()
+    })
+  } catch (e) {
+    if (!(e instanceof RollbackSignal)) throw e
+  }
+  await writeStdoutFlushed(JSON.stringify(records) + '\n')
+}
+
 async function main(): Promise<void> {
   const [subcommand, ...rest] = process.argv.slice(2)
   switch (subcommand) {
@@ -464,6 +574,9 @@ async function main(): Promise<void> {
     case 'validate':
       await validate(rest)
       break
+    case 'validate-consolidated':
+      await validateConsolidated(rest)
+      break
     case 'activate':
       await activate(rest)
       break
@@ -472,7 +585,7 @@ async function main(): Promise<void> {
       break
     default:
       throw new Error(
-        `unknown subcommand: ${subcommand ?? '(none)'}; expected create-candidate | validate | activate | undo`,
+        `unknown subcommand: ${subcommand ?? '(none)'}; expected create-candidate | validate | validate-consolidated | activate | undo`,
       )
   }
 }
