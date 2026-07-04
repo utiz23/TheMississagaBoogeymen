@@ -331,6 +331,12 @@ def group_rows_for_panel(
     # Phase 3d: relabel anchors whose detected y disagrees with their OCR-read
     # position label by more than the tolerance. Closes the match-250 BGM
     # one-row-up shift where "LW" was detected at C's row y.
+    # Phase C note: retained deliberately even though `position` is assigned
+    # geometrically below (position_for_row_y). This cleanup is NOT made
+    # redundant by the grid-Y lookup — it still feeds
+    # `fill_missing_position_anchors` (detected_set membership + synthesis_base_y),
+    # so removing it would reintroduce synth-anchor drift. It complements the
+    # geometric assignment rather than duplicating it.
     detected_anchors = relabel_anchors_to_canonical(detected_anchors)
     anchors = fill_missing_position_anchors(detected_anchors)
 
