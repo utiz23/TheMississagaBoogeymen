@@ -26,7 +26,19 @@ const PAGE_SIZE = 20
 const FORM_WINDOW_SIZE = 10
 type ResultFilter = 'all' | 'WIN' | 'LOSS' | 'OTL_DNF'
 type GamesModeFilter = GameMode | 'dev' | null
-const DEV_MATCH_IDS = [250, 463] as const
+const DEV_MATCH_IDS = [
+  // Benchmark / OCR-labeled — source of truth
+  250, 463, 967, 968,
+  // Phase B retrain candidates — recordings to disambiguate (session times CT)
+  2397, 2398, 2399, 2400, // 2026-05-30 Trim — grinder
+  2577, 2582, 2640, 2641, // 2026-05-31 — twd / 4×twd+2×grinder (×3 recordings)
+  2664, 2665, 2666, 2667, // 2026-06-12 — off-D (game 1 of 2)
+  2669, 2670, 2671, 2672, 2673, // 2026-06-16 — twd+offD (18:50) / def-D Chara (19:57)
+  2674, // 2026-06-17 — twd Dahlin (only game that day)
+  2682, 2683, // 2026-06-20 Trim — grinder
+  2686, 2687, 2688, // 2026-06-21 Trim — enforcer
+  2697, // 2026-06-25 — Evil Eastons (W 9-5)
+] as const
 interface GamesFilters {
   titleSlug: string | undefined
   gameMode: GamesModeFilter
