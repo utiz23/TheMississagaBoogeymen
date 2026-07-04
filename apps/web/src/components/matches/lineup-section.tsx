@@ -37,12 +37,22 @@ import { computeLineupConfidence } from '@/lib/lineup-confidence'
  * cards and any future detail-view drill-down.
  */
 
+/**
+ * `ocr` — rich pre-game loadout snapshots (builds, X-Factors, attributes).
+ * `boxScore` — no OCR for this match; the lineup is synthesized from the box
+ * score (who dressed + position, plus jersey #/archetype for BGM). Cards render
+ * lean, rows aren't expandable, and the footer swaps the OCR confidence readout
+ * for an honest "loadouts not captured" note.
+ */
+type LineupVariant = 'ocr' | 'boxScore'
+
 interface LineupSectionProps {
   lineups: MatchLineups
   opponentLabel: string
   matchId: number
   gameMode: GameMode | null
   provenance: MatchLineupProvenance
+  variant?: LineupVariant
 }
 
 const POSITIONS: PositionKey[] = ['C', 'LW', 'RW', 'LD', 'RD', 'G']
@@ -55,6 +65,7 @@ export function LineupSection({
   matchId,
   gameMode,
   provenance,
+  variant = 'ocr',
 }: LineupSectionProps) {
   const bgm = lineups.bgm
   const opp = lineups.opponent
@@ -74,14 +85,37 @@ export function LineupSection({
         opponentAbbrev={opponentAbbrev}
         matchId={matchId}
         modeLabel={modeLabel}
+        variant={variant}
       />
       <LineupLadder
         items={POSITIONS.map((pos) =>
-          buildLadderItem(pos, bgmByPos.get(pos) ?? null, oppByPos.get(pos) ?? null),
+          buildLadderItem(pos, bgmByPos.get(pos) ?? null, oppByPos.get(pos) ?? null, variant),
         )}
       />
-      <LineupOcrFooter lineups={lineups} provenance={provenance} />
+      {variant === 'boxScore' ? (
+        <BoxScoreLineupNote />
+      ) : (
+        <LineupOcrFooter lineups={lineups} provenance={provenance} />
+      )}
     </section>
+  )
+}
+
+/**
+ * Footer note for the box-score fallback — makes clear the section is derived
+ * from the final box score, not from captured pre-game loadouts.
+ */
+function BoxScoreLineupNote() {
+  return (
+    <div className="flex items-center gap-2 border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-2.5">
+      <span
+        className="inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--color-fg-5)]"
+        aria-hidden
+      />
+      <span className="font-condensed text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--color-fg-5)]">
+        Lineup from box score · pre-game loadouts not captured for this match
+      </span>
+    </div>
   )
 }
 
@@ -152,6 +186,7 @@ function SummaryBand({
   opponentAbbrev,
   matchId,
   modeLabel,
+  variant,
 }: {
   bgm: LineupRow[]
   opp: LineupRow[]
@@ -159,6 +194,7 @@ function SummaryBand({
   opponentAbbrev: string
   matchId: number
   modeLabel: string
+  variant: LineupVariant
 }) {
   return (
     <div className="grid grid-cols-1 border border-[var(--color-border)] bg-[var(--color-surface)] md:grid-cols-[1fr_96px_1fr]">
@@ -168,6 +204,7 @@ function SummaryBand({
         sublabel="BGM"
         rows={bgm}
         crestLogo="/images/bgm-logo.png"
+        variant={variant}
       />
       <div className="hidden flex-col items-center justify-center gap-1.5 border-x border-[var(--color-border)] bg-[var(--color-background)] px-1.5 py-3 md:flex">
         <span className="font-condensed text-[9px] font-semibold uppercase tracking-[0.22em] text-[var(--color-fg-6)]">
@@ -189,6 +226,7 @@ function SummaryBand({
         sublabel={opponentAbbrev}
         rows={opp}
         crestLogo={null}
+        variant={variant}
       />
     </div>
   )
@@ -200,19 +238,29 @@ function SummarySide({
   sublabel,
   rows,
   crestLogo,
+  variant,
 }: {
   side: 'bgm' | 'opp'
   name: string
   sublabel: string
   rows: LineupRow[]
   crestLogo: string | null
+  variant: LineupVariant
 }) {
   const skaters = rows.filter((r) => r.position !== 'G')
   const dressed = skaters.length
   const captain = rows.find((r) => r.isCaptain && r.playerNumber !== null)
   const goalieRow = rows.find((r) => r.position === 'G')
-  const goalieLabel =
-    goalieRow && goalieRow.playerNumber !== null ? `#${String(goalieRow.playerNumber)}` : 'CPU'
+  // A goalie row in the box-score variant is always a human who dressed —
+  // show their # (or gamertag when unknown), never "CPU". In OCR mode a
+  // numberless goalie is the usual AI netminder.
+  const goalieLabel = goalieRow
+    ? goalieRow.playerNumber !== null
+      ? `#${String(goalieRow.playerNumber)}`
+      : variant === 'boxScore'
+        ? (goalieRow.gamertagSnapshot ?? 'Dressed')
+        : 'CPU'
+    : 'CPU'
   const buildChips = summarizeBuilds(rows)
   const bgClass = side === 'opp' ? 'bg-[rgba(35,33,34,0.45)]' : ''
   const borderClass = side === 'bgm' ? 'md:border-r md:border-[var(--color-border)]' : ''
@@ -237,7 +285,13 @@ function SummarySide({
           </div>
           <div className="flex h-11 w-11 items-center justify-center rounded-full border border-[var(--color-border)] bg-black/30">
             {crestLogo ? (
-              <Image src={crestLogo} alt={sublabel} width={32} height={32} />
+              <Image
+                src={crestLogo}
+                alt={sublabel}
+                width={32}
+                height={32}
+                className="h-8 w-8 object-contain"
+              />
             ) : (
               <span className="font-condensed text-[14px] font-black tracking-[0.06em] text-[var(--color-fg-3)]">
                 {sublabel}
@@ -249,7 +303,13 @@ function SummarySide({
         <>
           <div className="flex h-11 w-11 items-center justify-center rounded-full border border-[var(--color-border)] bg-black/30">
             {crestLogo ? (
-              <Image src={crestLogo} alt={sublabel} width={32} height={32} />
+              <Image
+                src={crestLogo}
+                alt={sublabel}
+                width={32}
+                height={32}
+                className="h-8 w-8 object-contain"
+              />
             ) : (
               <span className="font-condensed text-[14px] font-black tracking-[0.06em] text-[var(--color-fg-3)]">
                 {sublabel}
@@ -374,10 +434,13 @@ function BuildArchetype({
   label,
   ref_,
   isBgm,
+  lean = false,
 }: {
   label: string
   ref_: string | null
   isBgm: boolean
+  /** Box-score variant: no build was captured, so render nothing rather than an "Unknown build" chip. */
+  lean?: boolean
 }) {
   const archetype = buildToArchetype(label)
   if (archetype) {
@@ -392,7 +455,10 @@ function BuildArchetype({
       </span>
     )
   }
-  // Unknown build — keep the previous bordered chip so we never lose the info.
+  // Box-score cards never fabricate a build — an unknown build means "not
+  // captured", so show nothing instead of an "Unknown build" chip.
+  if (lean) return null
+  // OCR mode: keep the bordered fallback chip so we never lose the info.
   return (
     <span
       className={`inline-flex items-center gap-2 border bg-[var(--color-background)] px-2.5 py-[3px] font-condensed text-[11px] font-bold uppercase tracking-[0.06em] text-[var(--color-fg-2)] ${
@@ -421,32 +487,41 @@ function buildLadderItem(
   position: PositionKey,
   bgm: LineupRow | null,
   opp: LineupRow | null,
+  variant: LineupVariant,
 ): LineupLadderItem {
-  // Defensive guard: even with the DB-layer junk filter, a row with no
-  // build, no jersey, AND no X-Factors is almost certainly OCR noise that
-  // slipped through. Force the CPU placeholder so the section never has
-  // to render a half-empty card.
-  const bgmRow = bgm && isRenderable(bgm) ? bgm : null
-  const oppRow = opp && isRenderable(opp) ? opp : null
-  // Goalie rows are CPU on both sides for every match observed so far —
-  // there's nothing to drill into. Skip the expand wiring entirely.
-  const expandable = position !== 'G' && (bgmRow !== null || oppRow !== null)
+  const isBoxScore = variant === 'boxScore'
+  // Box-score rows are authoritative (they came from the final stats), so they
+  // bypass the OCR-noise guard. In OCR mode a row with no build, no jersey, AND
+  // no X-Factors is almost certainly noise — force the CPU placeholder there.
+  const bgmRow = isBoxScore ? bgm : bgm && isRenderable(bgm) ? bgm : null
+  const oppRow = isBoxScore ? opp : opp && isRenderable(opp) ? opp : null
+  // Nothing to drill into for goalies (usually AI) or box-score rows (no
+  // build / X-Factor / attribute detail exists). Skip the expand wiring.
+  const expandable = !isBoxScore && position !== 'G' && (bgmRow !== null || oppRow !== null)
+
+  // EA doesn't split defence into L/R, so in box-score mode both D slots read
+  // as a neutral "D" rather than asserting a side we can't know.
+  const isDefense = position === 'LD' || position === 'RD'
+  const badgeLabel = isBoxScore && isDefense ? 'D' : position
+  const badgeColor = isBoxScore && isDefense ? colorForPosition('defenseMen') : undefined
 
   const bgmCard = bgmRow ? (
-    <PlayerCard row={bgmRow} side="bgm" />
+    <PlayerCard row={bgmRow} side="bgm" lean={isBoxScore} />
   ) : (
     <CpuPlaceholderCard side="bgm" position={position} />
   )
   const oppCard = oppRow ? (
-    <PlayerCard row={oppRow} side="opp" />
+    <PlayerCard row={oppRow} side="opp" lean={isBoxScore} />
   ) : (
     <CpuPlaceholderCard side="opp" position={position} />
   )
-  const positionBadge = <PositionBadge position={position} />
+  const positionBadge = <PositionBadge position={position} label={badgeLabel} color={badgeColor} />
   // Mobile-only counterpart: the desktop badge is hidden on <md, so the
   // position letter would otherwise disappear on phone widths. This strip
   // keeps it as an anchor above each row.
-  const mobileMatchupStrip = <MobileMatchupStrip position={position} />
+  const mobileMatchupStrip = (
+    <MobileMatchupStrip position={position} label={badgeLabel} color={badgeColor} />
+  )
 
   const expandPanel = (
     <LineupExpandPanel
@@ -480,8 +555,16 @@ function isRenderable(row: LineupRow): boolean {
   return hasBuild || hasNumber || hasXFactors
 }
 
-function MobileMatchupStrip({ position }: { position: PositionKey }) {
-  const color = colorForPosition(position)
+function MobileMatchupStrip({
+  position,
+  label,
+  color: colorOverride,
+}: {
+  position: PositionKey
+  label?: string
+  color?: string | undefined
+}) {
+  const color = colorOverride ?? colorForPosition(position)
   return (
     <div
       className="flex items-center justify-center gap-2 border-y px-3 py-1.5 md:hidden"
@@ -494,14 +577,22 @@ function MobileMatchupStrip({ position }: { position: PositionKey }) {
         className="font-condensed text-[14px] font-black uppercase tracking-[0.08em] tabular-nums"
         style={{ color }}
       >
-        {position}
+        {label ?? position}
       </span>
     </div>
   )
 }
 
-function PositionBadge({ position }: { position: PositionKey }) {
-  const color = colorForPosition(position)
+function PositionBadge({
+  position,
+  label,
+  color: colorOverride,
+}: {
+  position: PositionKey
+  label?: string
+  color?: string | undefined
+}) {
+  const color = colorOverride ?? colorForPosition(position)
   return (
     <div
       className="hidden flex-col items-center justify-center gap-1.5 border-y py-2 md:flex"
@@ -517,7 +608,7 @@ function PositionBadge({ position }: { position: PositionKey }) {
         className="font-condensed text-[24px] font-black uppercase tracking-[0.08em] tabular-nums"
         style={{ color }}
       >
-        {position}
+        {label ?? position}
       </span>
     </div>
   )
@@ -525,7 +616,16 @@ function PositionBadge({ position }: { position: PositionKey }) {
 
 // ─── Player card ────────────────────────────────────────────────────────────
 
-function PlayerCard({ row, side }: { row: LineupRow; side: 'bgm' | 'opp' }) {
+function PlayerCard({
+  row,
+  side,
+  lean = false,
+}: {
+  row: LineupRow
+  side: 'bgm' | 'opp'
+  /** Box-score variant: no OCR loadout detail — collapse to name + position + archetype. */
+  lean?: boolean
+}) {
   const gamertag = row.player?.gamertag ?? row.gamertagSnapshot ?? '?'
   // Persona = the lobby-state-2 in-game name ("M. Rantanen"). We deliberately
   // don't fall back to `playerNameSnapshot` (the loadout-view title bar
@@ -563,6 +663,7 @@ function PlayerCard({ row, side }: { row: LineupRow; side: 'bgm' | 'opp' }) {
           playerPrestigeNumber={row.playerPrestigeNumber}
           align="left"
           isBgm
+          lean={lean}
         />
         <XFactorStack xFactors={row.xFactors} />
       </div>
@@ -585,6 +686,7 @@ function PlayerCard({ row, side }: { row: LineupRow; side: 'bgm' | 'opp' }) {
         playerPrestigeNumber={row.playerPrestigeNumber}
         align="right"
         isBgm={false}
+        lean={lean}
       />
       <Avatar side="opp" />
       <Jersey number={row.playerNumber} isCaptain={row.isCaptain} side="opp" />
@@ -768,6 +870,7 @@ function PlayerInfo({
   playerPrestigeNumber,
   align,
   isBgm,
+  lean = false,
 }: {
   persona: string
   gamertag: string
@@ -780,9 +883,33 @@ function PlayerInfo({
   playerPrestigeNumber: number | null
   align: 'left' | 'right'
   isBgm: boolean
+  /** Box-score variant: show the gamertag once (linked) and drop the persona/tag split. */
+  lean?: boolean
 }) {
   const justify = align === 'right' ? 'justify-end' : ''
   const textAlign = align === 'right' ? 'text-right' : ''
+  // Lean (box-score) header: the OCR persona doesn't exist, so `persona`
+  // already equals the gamertag. Render it once as the (linked) name instead
+  // of duplicating it across the persona + tag lines.
+  if (lean) {
+    const nameClass =
+      'font-condensed text-[19px] font-black uppercase leading-none tracking-[0.04em] text-[var(--color-fg-1)]'
+    const nameNode = playerHref ? (
+      <Link href={playerHref} className={`${nameClass} hover:text-[var(--color-accent)]`}>
+        {gamertag}
+      </Link>
+    ) : (
+      <span className={nameClass}>{gamertag}</span>
+    )
+    return (
+      <div className={`min-w-0 ${textAlign}`}>
+        <div className={`flex flex-wrap items-baseline gap-2 ${justify}`}>{nameNode}</div>
+        <div className={`mt-2 flex flex-wrap items-center gap-2.5 ${justify}`}>
+          <BuildArchetype label={buildLabel} ref_={null} isBgm={isBgm} lean />
+        </div>
+      </div>
+    )
+  }
   const gamertagNode = playerHref ? (
     <Link href={playerHref} className="text-[var(--color-fg-3)] hover:text-[var(--color-accent)]">
       {gamertag}

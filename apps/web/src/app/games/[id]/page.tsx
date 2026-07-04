@@ -24,7 +24,6 @@ import { HeroCard } from '@/components/matches/hero-card'
 import { TopPerformers } from '@/components/matches/top-performers'
 import { PossessionEdgeBar } from '@/components/matches/possession-edge'
 import { TeamStats } from '@/components/matches/team-stats'
-import { GoalieSpotlightSection } from '@/components/matches/goalie-spotlight'
 import { ScoresheetSection } from '@/components/matches/scoresheet'
 import { ContextFooter } from '@/components/matches/context-footer'
 import { BoxScore } from '@/components/matches/box-score'
@@ -37,7 +36,7 @@ import {
   buildAllTeamScores,
   applyLoadoutOverrides,
   buildBoxScore,
-  buildGoalieSpotlight,
+  buildLineupFromStats,
   buildPossessionEdge,
   buildScoresheet,
   buildTopPerformers,
@@ -142,6 +141,18 @@ export default async function GameDetailPage({ params, searchParams }: Props) {
   const playerStatsForStars = applyLoadoutOverrides(playerStats, lineups.bgm)
   const opponentStatsForStars = applyLoadoutOverrides(opponentPlayerStats, lineups.opponent)
 
+  // Lineup & Loadouts source: use the OCR loadout snapshots when present;
+  // otherwise fall back to the box score so we still show who dressed and
+  // where (jersey # + archetype for BGM), rendered in the lean variant.
+  const hasOcrLineups = lineups.bgm.length > 0 || lineups.opponent.length > 0
+  const lineupVariant: 'ocr' | 'boxScore' = hasOcrLineups ? 'ocr' : 'boxScore'
+  const lineupData = hasOcrLineups
+    ? lineups
+    : {
+        bgm: buildLineupFromStats(playerStats, 'bgm', m.playedAt),
+        opponent: buildLineupFromStats(opponentPlayerStats, 'opp', m.playedAt),
+      }
+
   const topPerformers = attachSeasonAvgs(
     buildTopPerformers(match, playerStatsForStars, opponentStatsForStars),
     seasonAvgs,
@@ -149,9 +160,6 @@ export default async function GameDetailPage({ params, searchParams }: Props) {
   const allTeamScores = buildAllTeamScores(match, playerStatsForStars, opponentStatsForStars)
   const possessionEdge = buildPossessionEdge(match, periodSummaries)
   const boxScore = buildBoxScore(match, playerStats, opponentPlayerStats, periodSummaries)
-  // Goalie spotlight stays BGM-only by design — the data shows opponent
-  // goalies are nearly always AI (1 row across 31 matches in the spike).
-  const goalieSpotlight = buildGoalieSpotlight(playerStats)
   const scoresheet = buildScoresheet({
     bgm: playerStats,
     opponent: opponentPlayerStats,
@@ -202,9 +210,11 @@ export default async function GameDetailPage({ params, searchParams }: Props) {
       {/* 3. Team stats */}
       <TeamStats rows={boxScore} opponentName={match.opponentName} />
 
-      {/* 3a. OCR-derived pre-game lineup section with X-Factor PNG icons. */}
+      {/* 3a. Pre-game lineup section. Rich OCR loadout ladder when snapshots
+            exist; otherwise a lean box-score lineup (who dressed + position). */}
       <LineupSection
-        lineups={lineups}
+        lineups={lineupData}
+        variant={lineupVariant}
         opponentLabel={match.opponentName}
         matchId={match.id}
         gameMode={match.gameMode}
@@ -214,9 +224,6 @@ export default async function GameDetailPage({ params, searchParams }: Props) {
       {/* 3b-3c. OCR-derived per-period box score + shot mix (hidden until reviewed). */}
       <BoxScore rows={periodSummaries} opponentLabel={match.opponentName} />
       <ShotMix rows={shotTypeSummaries} />
-
-      {/* 4. Goalie spotlight (omitted entirely if no goalie data) */}
-      <GoalieSpotlightSection goalies={goalieSpotlight} />
 
       {/* 5. Two-team scoresheet (BGM + opponent) */}
       {scoresheetIsEmpty(scoresheet) ? (

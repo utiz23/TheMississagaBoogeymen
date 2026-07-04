@@ -328,6 +328,96 @@ export function applyLoadoutOverrides<
   })
 }
 
+// ─── Box-score lineup fallback (matches with no pre-game loadout OCR) ─────────
+//
+// Only a handful of matches have OCR'd pre-game loadout snapshots. For every
+// other match we still know who dressed and in what position from the box
+// score, plus jersey # + archetype from the manual profile (BGM only). We
+// synthesize LineupRow[] from that so the Lineup & Loadouts section renders a
+// real lineup (in its lean "box score" variant) instead of all-CPU placeholders.
+
+/** Inverse of BUILD_TO_ARCHETYPE — the canonical build label for an archetype. */
+const ARCHETYPE_TO_BUILD_LABEL: Partial<Record<PlayerArchetype, string>> = {
+  playmaker: 'Playmaker',
+  sniper: 'Sniper',
+  grinder: 'Grinder',
+  'two-way-fwd': 'Two-Way Forward',
+  'power-forward': 'Power Forward',
+  puckmover: 'Puck Moving Defenseman',
+  'defensive-d': 'Defensive Defenseman',
+  'offensive-d': 'Offensive Defenseman',
+}
+
+/** EA long-form skater/goalie positions → ladder slot (defense handled separately). */
+const EA_POSITION_TO_LADDER_SLOT: Record<string, 'C' | 'LW' | 'RW' | 'G'> = {
+  center: 'C',
+  leftWing: 'LW',
+  rightWing: 'RW',
+  goalie: 'G',
+}
+
+/** Minimal stat shape both getPlayerMatchStats and getOpponentPlayerMatchStats satisfy. */
+export interface LineupStatSource {
+  playerId?: number | null
+  gamertag: string
+  position: string | null
+  isGoalie: boolean
+  jerseyNumber?: number | null
+  archetype?: PlayerArchetype | null
+}
+
+/**
+ * Build a lineup (LineupRow[]) from box-score player stats. Everything
+ * OCR-specific (build detail, X-Factors, attributes, H/W/H, level, platform)
+ * is null — the section renders these rows in its lean "box score" variant.
+ *
+ * EA reports both defencemen as `defenseMen` with no L/R split, so they fill
+ * the LD then RD ladder slots in stat order; the section labels both slots "D".
+ */
+export function buildLineupFromStats(
+  rows: LineupStatSource[],
+  side: 'bgm' | 'opp',
+  capturedAt: Date,
+): LineupRow[] {
+  let defenseSeen = 0
+  const out: LineupRow[] = []
+  for (const r of rows) {
+    let position: 'C' | 'LW' | 'RW' | 'LD' | 'RD' | 'G' | null
+    if (r.position === 'defenseMen') {
+      position = defenseSeen === 0 ? 'LD' : defenseSeen === 1 ? 'RD' : null
+      defenseSeen++
+    } else {
+      position = EA_POSITION_TO_LADDER_SLOT[r.position ?? ''] ?? null
+    }
+    if (position === null) continue
+    const archetype = r.archetype ?? null
+    out.push({
+      snapshotId: -(out.length + 1),
+      gamertagSnapshot: r.gamertag,
+      playerNameSnapshot: null,
+      playerNamePersona: null,
+      playerNumber: r.jerseyNumber ?? null,
+      isCaptain: null,
+      position,
+      buildClass: null,
+      buildClassCanonical: archetype ? (ARCHETYPE_TO_BUILD_LABEL[archetype] ?? null) : null,
+      heightText: null,
+      weightLbs: null,
+      handedness: null,
+      playerLevelNumber: null,
+      playerLevelRaw: null,
+      playerPrestigeNumber: null,
+      platform: null,
+      capturedAt,
+      player:
+        side === 'bgm' && r.playerId != null ? { id: r.playerId, gamertag: r.gamertag } : null,
+      xFactors: [],
+      attributes: null,
+    })
+  }
+  return out
+}
+
 // ─── Top Performers (BGM-only, for the three star cards) ─────────────────────
 
 export interface TopPerformer {
@@ -761,54 +851,6 @@ function aggregateOcrShots(rows: MatchPeriodSummaryRow[]): {
     if (r.shotsAgainst !== null) totalAgainst = (totalAgainst ?? 0) + r.shotsAgainst
   }
   return { for: totalFor, against: totalAgainst }
-}
-
-// ─── Goalie Spotlight ─────────────────────────────────────────────────────────
-
-export interface GoalieSpotlight {
-  playerId: number
-  gamertag: string
-  saves: number
-  goalsAgainst: number
-  shotsAgainst: number
-  /** Formatted ".917" or "—" when shotsAgainst = 0. */
-  savePctFormatted: string
-  // Optional advanced (any may be null).
-  breakawaySaves: number | null
-  breakawayShots: number | null
-  despSaves: number | null
-  penSaves: number | null
-  penShots: number | null
-  pokechecks: number | null
-}
-
-export function buildGoalieSpotlight(playerStats: PlayerStat[]): GoalieSpotlight[] {
-  return playerStats
-    .filter(
-      (p) =>
-        p.isGoalie &&
-        // require at least one of the core goalie counters to be populated
-        ((p.saves ?? 0) > 0 || (p.goalsAgainst ?? 0) > 0 || (p.shotsAgainst ?? 0) > 0),
-    )
-    .map((p) => {
-      const saves = p.saves ?? 0
-      const ga = p.goalsAgainst ?? 0
-      const sa = p.shotsAgainst ?? 0
-      return {
-        playerId: p.playerId,
-        gamertag: p.gamertag,
-        saves,
-        goalsAgainst: ga,
-        shotsAgainst: sa,
-        savePctFormatted: sa > 0 ? formatSavePct(saves / sa) : '—',
-        breakawaySaves: p.breakawaySaves,
-        breakawayShots: p.breakawayShots,
-        despSaves: p.despSaves,
-        penSaves: p.penSaves,
-        penShots: p.penShots,
-        pokechecks: p.pokechecks,
-      }
-    })
 }
 
 // ─── Scoresheet rows ──────────────────────────────────────────────────────────
