@@ -10,6 +10,14 @@ This is fast + deterministic (no OCR, no DB) — it reads the golden JSON — so
 runs in the normal suite. The heavy `--from-extractor` / `--from-db` paths are
 exercised separately.
 
+Persona floors are surface-agnostic: `report._persona_match` reconciles the
+loadout card's abbreviated rendering ("E. WANHG") with the lobby/label full name
+("Evgeni Wanhg"), so the same floor holds for the full-name golden AND the
+abbreviated `--from-consolidated`/`--from-db` surface that Phase G gates before a
+live flip (run 1954's consolidated persona is 1.000 under this scorer, clearing
+250's 0.80 floor). A different first initial on the same surname is still a
+mismatch, so a wrong-player regression is still caught.
+
 Gated matches (both in `benchmark/manifest.json splits.validation`):
   - 250  — full lobby golden (Phase A baseline, measured 2026-06-14).
   - 2577 — real-game loadout window golden (Phase B Gate 2, measured 2026-07-01
@@ -44,6 +52,10 @@ MATCHES = {
         "labels": BENCH / "labels/250.json",
         "golden": FIXTURES / "fixture_match250_full_lobby/expected_loadout_evidence.json",
         # Baseline measured 2026-06-14 against the v3 golden.
+        # persona 0.80 = 8/10 (the 2 away MISSES are absent in the parity-locked
+        # golden extractor, not abbreviation mismatches). Surface-agnostic: the
+        # post-CDEF consolidated surface reads all 10 and scores persona 1.000
+        # under _persona_match's abbreviation reconciliation, so it clears 0.80.
         "floors": {
             "gamertag": 0.90,
             "persona": 0.80,
