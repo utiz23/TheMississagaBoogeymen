@@ -48,6 +48,7 @@ def test_reprocess_subcommand_help_lists_required_args() -> None:
     assert "--video" in result.stdout
     assert "--dry-run" in result.stdout
     assert "--undo" in result.stdout
+    assert "--halt-before-activate" in result.stdout
 
 
 def test_reprocess_subcommand_is_registered() -> None:
@@ -78,8 +79,8 @@ def test_reprocess_dry_run_includes_consolidate_and_backfill_steps(
         lambda version: ("a" * 64, "b" * 64),
     )
     monkeypatch.setattr(
-        reprocess_mod, "_resolve_video_path",
-        lambda match_id: (Path("/tmp/fake-video.mkv"), "c" * 64),
+        reprocess_mod, "_resolve_video_paths",
+        lambda match_id: [(Path("/tmp/fake-video.mkv"), "c" * 64)],
     )
     monkeypatch.setattr(
         reprocess_mod, "_run_decoder_runs_cli",
@@ -110,6 +111,76 @@ def test_reprocess_dry_run_includes_consolidate_and_backfill_steps(
     dry_run_blob = next(b for b in blobs if b.get("dry_run") is True)
     assert dry_run_blob["would_consolidate_loadouts_for_match"] == fake_match
     assert dry_run_blob["would_backfill_event_actor_resolution_for_match"] == fake_match
+
+
+def test_reprocess_halt_before_activate_stops_after_validate(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """``--halt-before-activate`` (Phase G2) must run steps 1-6
+    (create->ingest->promote->validate) then STOP before activate,
+    printing the candidate run_id so the caller can score the pre-flip
+    field-benchmark gate. It must NOT call ``activate`` (or the
+    post-activate consolidate/backfill steps).
+
+    Pure CLI-surface test: the DB-touching helpers are stubbed. The
+    decoder-runs CLI stub records every subcommand it is asked to run so
+    the test can assert ``activate`` was never reached.
+    """
+    fake_match = 250
+    fake_run_id = 9999
+    cli_calls: list[str] = []
+    streaming_calls: list[str] = []
+
+    monkeypatch.setattr(
+        reprocess_mod, "_compute_hashes",
+        lambda version: ("a" * 64, "b" * 64),
+    )
+    monkeypatch.setattr(
+        reprocess_mod, "_resolve_video_paths",
+        lambda match_id: [(Path("/tmp/fake-video.mkv"), "c" * 64)],
+    )
+
+    def fake_cli(*args: str) -> dict:
+        cli_calls.append(args[0])
+        if args[0] == "create-candidate":
+            return {"run_id": fake_run_id, "is_active": False, "_exit": 0}
+        if args[0] == "validate":
+            return {"_exit": 0, "ok": True, "details": {}}
+        return {"_exit": 0}
+
+    monkeypatch.setattr(reprocess_mod, "_run_decoder_runs_cli", fake_cli)
+    # Steps 4-5 (ingest + repromote) shell out via _run_streaming; no-op them.
+    monkeypatch.setattr(
+        reprocess_mod, "_run_streaming",
+        lambda cmd, *, description: streaming_calls.append(description),
+    )
+
+    runner = CliRunner()
+    result = runner.invoke(
+        app, ["reprocess", "--match-id", str(fake_match), "--halt-before-activate"]
+    )
+    assert result.exit_code == 0, (
+        f"halt exited {result.exit_code}; exception={result.exception!r}\n"
+        f"stdout:\n{result.stdout}"
+    )
+
+    # It reached validate but stopped there — activate never ran.
+    assert "create-candidate" in cli_calls
+    assert "validate" in cli_calls
+    assert "activate" not in cli_calls, (
+        f"activate must not run under --halt-before-activate; cli_calls={cli_calls}"
+    )
+
+    # The halt payload carries the candidate run_id for the pre-flip gate.
+    blobs = [
+        json.loads(blob)
+        for blob in result.stdout.replace("}\n{", "}|||{").split("|||")
+        if blob.strip().startswith("{")
+    ]
+    halt_blob = next(b for b in blobs if b.get("step") == "halt-before-activate")
+    assert halt_blob["halted"] is True
+    assert halt_blob["candidate_run_id"] == fake_run_id
+    assert halt_blob["match_id"] == fake_match
 
 
 # ─── helper unit tests ───────────────────────────────────────────────────────
@@ -284,6 +355,127 @@ def test_resolve_video_path_raises_when_no_dir(
     with pytest.raises(RuntimeError, match=r"source-video dir not found for match 968") as exc:
         reprocess_mod._resolve_video_path(968)
     assert "tried exact dir names" in str(exc.value)
+
+
+# ─── _resolve_video_paths multi-video resolution ─────────────────────────────
+#
+# The plural resolver pairs EVERY recorded video_sha256 with its on-disk file
+# (`.mkv` OR `.mp4`), skipping shas with no file, so a two-video match (463: a
+# main `.mkv` + a separate loadout `.mp4`) re-ingests both sources.
+
+
+def test_resolve_video_paths_pairs_all_recorded_shas_with_ondisk_files(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Two recorded shas → two files (one .mkv, one .mp4). A third recorded sha
+    with no on-disk file is skipped. Sibling `-label-frames` dir is never
+    scanned (exact-dir landmine still holds via _resolve_match_dir)."""
+    monkeypatch.setattr(reprocess_mod, "DEFAULT_VIDEO_ROOT", tmp_path)
+    match_dir = tmp_path / "match463"
+    match_dir.mkdir()
+    mkv = match_dir / "main.mkv"
+    mp4 = match_dir / "loadout.mp4"
+    mkv.write_bytes(b"main-recording-463")
+    mp4.write_bytes(b"loadout-cards-463")
+    sha_mkv = reprocess_mod._file_sha256(mkv)
+    sha_mp4 = reprocess_mod._file_sha256(mp4)
+    # Decoy sibling a prefix glob would wrongly scan.
+    decoy = tmp_path / "match463-label-frames"
+    decoy.mkdir()
+    (decoy / "decoy.mkv").write_bytes(b"decoy")
+
+    # DISTINCT query returns 3 shas (newline-separated); the 3rd is off-disk.
+    recorded = "\n".join([sha_mkv, sha_mp4, "e" * 64])
+    monkeypatch.setattr(reprocess_mod, "_psql_query", lambda _sql: recorded)
+
+    resolved = reprocess_mod._resolve_video_paths(463)
+    assert {p for p, _ in resolved} == {mkv, mp4}
+    assert dict((s, p) for p, s in resolved) == {sha_mkv: mkv, sha_mp4: mp4}
+    # Off-disk sha absent; decoy never selected.
+    assert all(s != "e" * 64 for _, s in resolved)
+    assert all("label-frames" not in str(p) for p, _ in resolved)
+    # Deterministic order: sorted by path.
+    assert resolved == sorted(resolved, key=lambda pv: str(pv[0]))
+
+
+def test_resolve_video_paths_raises_when_no_recorded_sha_on_disk(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Every recorded sha is off-disk → clear error naming what was recorded
+    vs found (mirrors the single-resolver's fail-closed contract)."""
+    monkeypatch.setattr(reprocess_mod, "DEFAULT_VIDEO_ROOT", tmp_path)
+    match_dir = tmp_path / "match463"
+    match_dir.mkdir()
+    (match_dir / "main.mkv").write_bytes(b"present-but-unrecorded")
+    monkeypatch.setattr(reprocess_mod, "_psql_query", lambda _sql: "f" * 64)
+
+    with pytest.raises(RuntimeError, match=r"none of the .* files in .* match a recorded"):
+        reprocess_mod._resolve_video_paths(463)
+
+
+def test_resolve_video_paths_raises_when_no_recorded_sha_at_all(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """No video_sha256 rows for the match → the re-ingest-first error, before
+    any disk scan."""
+    monkeypatch.setattr(reprocess_mod, "DEFAULT_VIDEO_ROOT", tmp_path)
+    monkeypatch.setattr(reprocess_mod, "_psql_query", lambda _sql: "")
+    with pytest.raises(RuntimeError, match=r"no video_sha256 recorded for match 463"):
+        reprocess_mod._resolve_video_paths(463)
+
+
+def test_reprocess_multiple_video_flags_ingest_each(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`--video A --video B` ingests BOTH into ONE candidate run: exactly one
+    create-candidate, one ingest per source (`video 1/2`, `video 2/2`)."""
+    fake_run_id = 4242
+    cli_calls: list[str] = []
+    streaming_descs: list[str] = []
+
+    vid_a = tmp_path / "main.mkv"
+    vid_b = tmp_path / "loadout.mp4"
+    vid_a.write_bytes(b"aaa")
+    vid_b.write_bytes(b"bbb")
+
+    monkeypatch.setattr(
+        reprocess_mod, "_compute_hashes", lambda version: ("a" * 64, "b" * 64)
+    )
+
+    def fake_cli(*args: str) -> dict:
+        cli_calls.append(args[0])
+        if args[0] == "create-candidate":
+            return {"run_id": fake_run_id, "is_active": False, "_exit": 0}
+        if args[0] == "validate":
+            return {"_exit": 0, "ok": True, "details": {}}
+        return {"_exit": 0}
+
+    monkeypatch.setattr(reprocess_mod, "_run_decoder_runs_cli", fake_cli)
+    monkeypatch.setattr(
+        reprocess_mod, "_run_streaming",
+        lambda cmd, *, description: streaming_descs.append(description),
+    )
+
+    runner = CliRunner()
+    result = runner.invoke(
+        app,
+        [
+            "reprocess", "--match-id", "463",
+            "--video", str(vid_a), "--video", str(vid_b),
+            "--halt-before-activate",
+        ],
+    )
+    assert result.exit_code == 0, (
+        f"exit {result.exit_code}; exception={result.exception!r}\n{result.stdout}"
+    )
+    # Exactly one candidate run for both videos; activate never runs (halt).
+    assert cli_calls.count("create-candidate") == 1
+    assert "activate" not in cli_calls
+    # One ingest per source video, correctly enumerated.
+    ingest_descs = [d for d in streaming_descs if d.startswith("ingest match 463 video")]
+    assert len(ingest_descs) == 2, streaming_descs
+    assert any("video 1/2 (main.mkv)" in d for d in ingest_descs)
+    assert any("video 2/2 (loadout.mp4)" in d for d in ingest_descs)
 
 
 # ─── integration: --undo --dry-run smoke test ────────────────────────────────

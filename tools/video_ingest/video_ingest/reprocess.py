@@ -22,6 +22,7 @@ import sys
 import time
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import List, Optional
 
 import typer
 
@@ -41,10 +42,17 @@ DEFAULT_INGEST_CACHE = Path("/tmp/ingest-cache")
 # decode output changes so a re-run mints a DISTINCT candidate rather than
 # colliding with a prior run via ocr_decoder_runs_provenance_uniq
 # (match_id, video_sha256, decoder_version, weights_hash).
-#   v2          → HMM-viterbi screen classifier (v2 head)
-#   v2-pg-robust→ secondary post-game extractor robustness (authoritative
-#                 bgm_was_home team-side + fuzzy period-label parsing)
-DECODER_VERSION = "hmm-viterbi-v2-pg-robust"
+#   v2           → HMM-viterbi screen classifier (v2 head)
+#   v2-pg-robust → secondary post-game extractor robustness (authoritative
+#                  bgm_was_home team-side + fuzzy period-label parsing)
+#   v2-pregame-cdef → pre-game lobby/loadout extraction accuracy program:
+#                  C (lobby grid-Y position fix), D (captain ★ visual detector),
+#                  E (away-side persona parse), F (confidence-weighted
+#                  consolidation). These are extractor/consolidation code
+#                  changes invisible to weights_hash/config_hash (which hash the
+#                  screen-classifier v2 artifacts, untouched), so the version
+#                  string is the ONLY provenance lever for the re-ingest.
+DECODER_VERSION = "hmm-viterbi-v2-pregame-cdef"
 
 # NHL 26 is game_title_id=1 in this repo's seed data; the only title
 # currently flowing through OCR ingest. When NHL 27 ships we'll widen
@@ -139,20 +147,110 @@ def _psql_query(sql: str) -> str:
     return res.stdout.strip()
 
 
+# Source-video containers. The main per-match recording is a ``.mkv``; a
+# separate per-player loadout-card clip is often a ``.mp4`` (e.g. match 463's
+# ``silkyjoker85_*.mp4``, which is the SOLE source of that match's loadout
+# evidence). Both extensions must be discoverable so a multi-video match is
+# re-ingested from every source its active run was built from.
+_VIDEO_GLOBS: tuple[str, ...] = ("*.mkv", "*.mp4")
+
+
+def _resolve_match_dir(match_id: int) -> Path:
+    """Resolve the per-match source-video directory under ``DEFAULT_VIDEO_ROOT``.
+
+    On disk the folders use the no-space form ``match<id>`` (e.g. ``match250``);
+    the historical space form ``match <id>`` is accepted as a fallback. Both are
+    resolved by EXACT directory name — never a prefix glob, so sibling dirs like
+    ``match463-label-frames`` or ``match2577-bench-frames`` can't be selected by
+    mistake (the G0.1 landmine fix). Raises if neither exact name exists.
+    """
+    dir_candidates = [
+        DEFAULT_VIDEO_ROOT / f"match{match_id}",
+        DEFAULT_VIDEO_ROOT / f"match {match_id}",
+    ]
+    match_dir = next((d for d in dir_candidates if d.is_dir()), None)
+    if match_dir is None:
+        tried = ", ".join(str(d) for d in dir_candidates)
+        raise RuntimeError(
+            f"source-video dir not found for match {match_id} "
+            f"(tried exact dir names: {tried})"
+        )
+    return match_dir
+
+
+def _disk_videos_by_sha(match_dir: Path) -> dict[str, Path]:
+    """Map ``sha256 -> path`` for every ``.mkv``/``.mp4`` under ``match_dir``.
+
+    Each file is hashed exactly once. On a byte-identical collision (same
+    content under two names) the lexicographically-first path wins, for
+    determinism.
+    """
+    by_sha: dict[str, Path] = {}
+    files = sorted(f for glob in _VIDEO_GLOBS for f in match_dir.glob(glob))
+    for f in files:
+        by_sha.setdefault(_file_sha256(f), f)
+    return by_sha
+
+
+def _resolve_video_paths(match_id: int) -> list[tuple[Path, str]]:
+    """Resolve EVERY source video the match's recorded evidence references.
+
+    Multi-video matches (e.g. 463: a main ``.mkv`` + a separate loadout-card
+    ``.mp4``) must be re-ingested from ALL of their sources — dropping one loses
+    that source's evidence (for 463, the ``.mp4`` carries all loadout cards).
+
+    Looks up the distinct non-null ``video_sha256``s in ``ocr_capture_batches``,
+    hashes the ``.mkv``/``.mp4`` files in the per-match folder, and pairs each
+    recorded sha with its on-disk file. A recorded sha with no matching file on
+    disk (e.g. an original recording since removed) is skipped with a warning;
+    at least one must resolve. Returns ``(path, sha)`` sorted by path so the
+    first element is a stable "primary" (its sha tags the candidate run).
+    """
+    rows = _psql_query(
+        f"SELECT DISTINCT video_sha256 FROM ocr_capture_batches "
+        f"WHERE match_id = {int(match_id)} AND video_sha256 IS NOT NULL"
+    )
+    recorded = [s.strip() for s in rows.splitlines() if s.strip()]
+    if not recorded:
+        raise RuntimeError(
+            f"no video_sha256 recorded for match {match_id} in "
+            f"ocr_capture_batches — re-ingest at least once before reprocess"
+        )
+
+    match_dir = _resolve_match_dir(match_id)
+    disk_by_sha = _disk_videos_by_sha(match_dir)
+    if not disk_by_sha:
+        raise RuntimeError(
+            f"no {'/'.join(_VIDEO_GLOBS)} files under {match_dir} — "
+            f"cannot resolve source video(s) for reprocess"
+        )
+
+    resolved = [(disk_by_sha[s], s) for s in recorded if s in disk_by_sha]
+    skipped = [s for s in recorded if s not in disk_by_sha]
+    if skipped:
+        print(
+            f"[reprocess] {len(skipped)} recorded video_sha256(s) for match "
+            f"{match_id} have no on-disk file — skipped: "
+            f"{', '.join(s[:12] + '...' for s in skipped)}",
+            file=sys.stderr,
+        )
+    if not resolved:
+        found = ", ".join(f"{p.name}={s[:12]}..." for s, p in disk_by_sha.items())
+        want = ", ".join(s[:12] + "..." for s in recorded)
+        raise RuntimeError(
+            f"none of the {'/'.join(_VIDEO_GLOBS)} files in {match_dir} match a "
+            f"recorded video_sha256 for match {match_id}. "
+            f"Recorded: {want}. Found on disk: {found}"
+        )
+
+    resolved.sort(key=lambda pv: str(pv[0]))
+    return resolved
+
+
 def _resolve_video_path(match_id: int) -> tuple[Path, str]:
-    """Resolve the source video file + its sha256 for ``match_id``.
-
-    Looks up the latest non-null ``video_sha256`` in ``ocr_capture_batches``
-    for the match, then scans the per-match folder under
-    ``/mnt/k/NHL/NHL26`` for a ``.mkv`` whose sha matches. The recorded
-    ``source_directory`` often points at the sha-rooted ingest cache (which
-    doesn't contain the raw video), so we scan the per-match folder instead.
-
-    On disk the folders use the no-space form ``match<id>`` (e.g.
-    ``match250``); the historical space form ``match <id>`` is accepted as a
-    fallback. Both are resolved by EXACT directory name — never a prefix
-    glob, so sibling dirs like ``match463-label-frames`` or
-    ``match2577-bench-frames`` can't be selected by mistake.
+    """Single-video resolver (latest recorded sha), retained for callers/tests
+    that assume exactly one source. Multi-video matches use
+    ``_resolve_video_paths``. Shares the landmine-protected dir resolution.
     """
     sha = _psql_query(
         f"SELECT video_sha256 FROM ocr_capture_batches "
@@ -165,21 +263,7 @@ def _resolve_video_path(match_id: int) -> tuple[Path, str]:
             f"ocr_capture_batches — re-ingest at least once before reprocess"
         )
 
-    # Exact directory-name candidates, no-space first (matches disk), then the
-    # historical space form. Exact names only — a prefix glob would wrongly
-    # select `match<id>-label-frames`/`-bench-frames` siblings.
-    dir_candidates = [
-        DEFAULT_VIDEO_ROOT / f"match{match_id}",
-        DEFAULT_VIDEO_ROOT / f"match {match_id}",
-    ]
-    match_dir = next((d for d in dir_candidates if d.is_dir()), None)
-    if match_dir is None:
-        tried = ", ".join(str(d) for d in dir_candidates)
-        raise RuntimeError(
-            f"source-video dir not found for match {match_id} "
-            f"(tried exact dir names: {tried})"
-        )
-
+    match_dir = _resolve_match_dir(match_id)
     candidates = sorted(match_dir.glob("*.mkv"))
     if not candidates:
         raise RuntimeError(
@@ -272,12 +356,26 @@ class _StageTimer:
 
 def reprocess(
     match_id: int = typer.Option(..., "--match-id", help="Match id to reprocess."),
-    video: Path = typer.Option(
+    video: Optional[List[Path]] = typer.Option(
         None, "--video", exists=True, readable=True, resolve_path=True,
-        help="Override the video path; otherwise resolved via ocr_capture_batches.video_sha256.",
+        help=(
+            "Override the source video(s); repeatable (--video A --video B) for a "
+            "multi-video match. Otherwise every source is resolved via "
+            "ocr_capture_batches.video_sha256."
+        ),
     ),
     dry_run: bool = typer.Option(False, "--dry-run", help="Print what would happen without committing."),
     undo: bool = typer.Option(False, "--undo", help="Reverse the most recent activation for this match."),
+    halt_before_activate: bool = typer.Option(
+        False,
+        "--halt-before-activate",
+        help=(
+            "Run create->ingest->promote->validate (steps 1-6) then STOP before "
+            "activate (step 7), printing the candidate run_id. Inserts the "
+            "field-benchmark pre-flip gate between the structural validate and the "
+            "live flip (Phase G2). Activate the run manually once the gate passes."
+        ),
+    ),
     version: str = typer.Option("nhl26", "--version", help="UI-config version (nhl26, nhl27, ...)."),
 ) -> None:
     """Reprocess a match's video against the current v2 weights.
@@ -285,16 +383,23 @@ def reprocess(
     Default flow (no ``--undo``):
 
       1. Compute ``weights_hash`` + ``config_hash`` from the v2 artifact files.
-      2. Resolve the source video path (``--video`` overrides, else
-         look up via ``ocr_capture_batches.video_sha256``).
+      2. Resolve the source video(s) (``--video`` overrides, repeatable;
+         else EVERY on-disk source is resolved via
+         ``ocr_capture_batches.video_sha256``). A multi-video match (e.g.
+         463: main ``.mkv`` + loadout ``.mp4``) resolves to >1 source.
       3. ``decoder-runs-cli create-candidate`` — insert a new
-         ``ocr_decoder_runs`` row with ``is_active=false``.
+         ``ocr_decoder_runs`` row with ``is_active=false`` (tagged with the
+         primary/first video's sha).
       4. (skipped on ``--dry-run``) Run the Pass-1/Pass-2 ingest against
-         the candidate run, scoped via ``--run-id``.
+         the candidate run, scoped via ``--run-id`` — once PER source video,
+         so all sources land in the same candidate run.
       5. (skipped on ``--dry-run``) Repromote loadout + lobby against
          the candidate run.
       6. (skipped on ``--dry-run``) ``decoder-runs-cli validate``.
-         Exit 2 + ``failureReasons`` on failure.
+         Exit 2 + ``failureReasons`` on failure. With
+         ``--halt-before-activate`` the flow STOPS here after a passing
+         validate, printing the candidate ``run_id`` so the caller can
+         run the Phase-G2 field-benchmark pre-flip gate before flipping.
       7. (skipped on ``--dry-run``) ``decoder-runs-cli activate``.
       8. (skipped on ``--dry-run``) ``consolidate-loadouts`` —
          sets ``review_status='reviewed'`` on the anchor snapshot per
@@ -324,19 +429,22 @@ def reprocess(
     # below; consumed at end-of-pipeline to emit the run-quality row.
     stages: dict[str, float] = {}
 
-    # 2. Resolve the source video path + sha256.
-    if video is not None:
-        video_path = video
-        video_sha256 = _file_sha256(video_path)
+    # 2. Resolve the source video(s) + sha256. `--video` is repeatable; when
+    #    absent, resolve every on-disk source the match's evidence references
+    #    (a multi-video match re-ingests all of them). `videos[0]` is the
+    #    primary — its sha tags the candidate run.
+    if video:
+        videos = [(v, _file_sha256(v)) for v in video]
     else:
-        video_path, video_sha256 = _resolve_video_path(match_id)
+        videos = _resolve_video_paths(match_id)
+    primary_path, primary_sha = videos[0]
 
-    # 3. Create the candidate run.
+    # 3. Create the candidate run (tagged with the primary video's sha).
     with _StageTimer(stages, "create_candidate_ms"):
         create_result = _run_decoder_runs_cli(
             "create-candidate",
             "--match-id", str(match_id),
-            "--video-sha256", video_sha256,
+            "--video-sha256", primary_sha,
             "--decoder-version", DECODER_VERSION,
             "--weights-hash", weights_hash,
             "--config-hash", config_hash,
@@ -348,8 +456,11 @@ def reprocess(
                 "step": "create-candidate",
                 "match_id": match_id,
                 "new_run_id": new_run_id,
-                "video_path": str(video_path),
-                "video_sha256": video_sha256,
+                "video_path": str(primary_path),
+                "video_sha256": primary_sha,
+                "videos": [
+                    {"path": str(p), "video_sha256": s} for p, s in videos
+                ],
                 "weights_hash": weights_hash,
                 "config_hash": config_hash,
             },
@@ -362,7 +473,8 @@ def reprocess(
             json.dumps(
                 {
                     "dry_run": True,
-                    "would_ingest_video": str(video_path),
+                    "would_ingest_video": str(primary_path),
+                    "would_ingest_videos": [str(p) for p, _ in videos],
                     "would_repromote_loadout_for_run_id": new_run_id,
                     "would_repromote_lobby_for_run_id": new_run_id,
                     "would_validate_run_id": new_run_id,
@@ -375,22 +487,28 @@ def reprocess(
         )
         return
 
-    # 4. Ingest into the candidate. Long-running (3-5 min on match 250).
+    # 4. Ingest EACH source into the same candidate run. Long-running
+    #    (~30-45 min for a full-length match .mkv; a short loadout .mp4 is
+    #    ~1-2 min). One timer spans the whole set so `ingest_ms` is total.
     with _StageTimer(stages, "ingest_ms"):
-        _run_streaming(
-            [
-                "python3", "-m", "video_ingest.cli", "ingest",
-                "--video", str(video_path),
-                "--output-root", str(DEFAULT_INGEST_CACHE),
-                "--version", version,
-                "--force-pass1", "--force-pass2",
-                "--dispatch",
-                "--match-id", str(match_id),
-                "--run-id", str(new_run_id),
-                "--game-title-id", str(NHL26_GAME_TITLE_ID),
-            ],
-            description=f"ingest match {match_id} into candidate run {new_run_id}",
-        )
+        for idx, (vpath, _vsha) in enumerate(videos):
+            _run_streaming(
+                [
+                    "python3", "-m", "video_ingest.cli", "ingest",
+                    "--video", str(vpath),
+                    "--output-root", str(DEFAULT_INGEST_CACHE),
+                    "--version", version,
+                    "--force-pass1", "--force-pass2",
+                    "--dispatch",
+                    "--match-id", str(match_id),
+                    "--run-id", str(new_run_id),
+                    "--game-title-id", str(NHL26_GAME_TITLE_ID),
+                ],
+                description=(
+                    f"ingest match {match_id} video {idx + 1}/{len(videos)} "
+                    f"({vpath.name}) into candidate run {new_run_id}"
+                ),
+            )
 
     # 5. Promote loadout + lobby against the candidate run.
     #    Unrolled (was a 2-iter loop) so each stage gets its own timer
@@ -449,6 +567,31 @@ def reprocess(
             f"validate passed with {total} non-fatal extractor warning(s): {summary}",
             err=True,
         )
+
+    # 6b. Phase-G2 pre-flip halt. Stop after a passing structural validate,
+    #     before the atomic activate, so the caller can score the candidate's
+    #     TRUE consolidated surface against the per-field benchmark
+    #     (`validate-consolidated --run-id K` -> `score_field_benchmark.py
+    #     --from-consolidated`). The field-benchmark gate is fail-closed:
+    #     activate only on a pass. The candidate run persists (is_active=false)
+    #     until the operator flips it with `decoder-runs activate --run-id K`.
+    if halt_before_activate:
+        typer.echo(
+            json.dumps(
+                {
+                    "step": "halt-before-activate",
+                    "halted": True,
+                    "match_id": match_id,
+                    "candidate_run_id": new_run_id,
+                    "next": (
+                        "score the pre-flip gate on this candidate run, then "
+                        f"`decoder-runs activate --run-id {new_run_id}` if it passes"
+                    ),
+                },
+                indent=2,
+            )
+        )
+        return
 
     # 7. Activate. Flips is_active, rebuilds canonicals, recomputes
     # match colours — all atomic on the TS side.
