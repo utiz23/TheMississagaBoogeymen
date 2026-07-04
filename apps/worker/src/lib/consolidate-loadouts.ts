@@ -348,6 +348,45 @@ export function vote<T>(
 }
 
 /**
+ * Vote a scalar with LOADOUT-SOURCE PRIORITY.
+ *
+ * The loadout card renders the jersey number large and clear; the lobby table's
+ * small number column is prone to single/double-digit misreads and row-group
+ * bleed. Match 463 for_LD (HenryTheBobJr): the loadout card reads 7 (correct,
+ * ×2 @ ~0.97) but the lobby row reads 77 (wrong, ×2 @ ~0.97), and the two lobby
+ * reads slightly outweigh the two loadout reads in the plain confidence vote
+ * (Σ77 = 1.9536 > Σ7 = 1.9473), so the number regresses to 77.
+ *
+ * When any loadout-source observation in the (already identity-scoped) group
+ * carries a non-null value, vote ONLY among the loadout observations; otherwise
+ * fall back to the full cross-source {@link vote} (lobby-only slots — goalies,
+ * away subjects without a loadout card, legacy snapshots). The anchor is kept
+ * first when it survives the source filter so `vote`'s earliest-wins tiebreak
+ * still favours it. Single-source groups reduce exactly to `vote`.
+ */
+export function voteLoadoutPreferred<T>(
+  anchor: Snapshot,
+  others: Snapshot[],
+  get: (s: Snapshot) => T | null,
+  column: VotedColumn,
+  confBySlot: FieldConfidenceMap,
+): T | null {
+  const all = [anchor, ...others]
+  const loadout = all.filter((s) => snapshotSource(s) === 'loadout' && get(s) != null)
+  const pool = loadout.length > 0 ? loadout : all
+  // Keep the anchor first when it's in the pool (loadout anchor is the common
+  // case, since pickAnchor prefers loadout) so vote()'s tiebreak favours it.
+  const ordered = pool.includes(anchor) ? [anchor, ...pool.filter((s) => s !== anchor)] : pool
+  // `ordered` is always non-empty (its `all` branch always contains the anchor).
+  const [first, ...rest] = ordered
+  return vote(
+    first ? get(first) : null,
+    rest.map((s) => get(s)),
+    ordered.map((s) => fieldConfidence(s, column, confBySlot)),
+  )
+}
+
+/**
  * Junk gamertags from OCR noise. `AWAY`/`HOME` come from section headers
  * the parser sometimes misclassifies as gamertags; single-char strings like
  * `m`/`?` are letter-segmentation failures; `(unknown)` is the sentinel used
@@ -575,10 +614,16 @@ function consensus(
       others.map((s) => s.playerNamePersona),
       conf('playerNamePersona'),
     ),
-    playerNumber: vote(
-      anchor.playerNumber,
-      others.map((s) => s.playerNumber),
-      conf('playerNumber'),
+    // Jersey number: prefer the loadout card (authoritative, large clear render)
+    // over the lobby table's misread-prone number column when both are present
+    // for the same player. Fixes the 463 for_LD regression where two ~0.97 lobby
+    // reads of 77 outweighed the loadout card's correct 7 in the plain vote.
+    playerNumber: voteLoadoutPreferred(
+      anchor,
+      others,
+      (s) => s.playerNumber,
+      'playerNumber',
+      confBySlot,
     ),
     // is_captain: Phase D — resolved by per-side argmax over the visual ★
     // score (see resolveSideCaptains), NOT an OR-fold. The OR-fold could not

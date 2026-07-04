@@ -22,6 +22,7 @@ import {
   resolveSideCaptains,
   CAPTAIN_MIN_CONFIDENCE,
   vote,
+  voteLoadoutPreferred,
   pickAnchor,
   fieldConfidence,
   sameGamertagIdentity,
@@ -218,6 +219,112 @@ void test('vote (weighted): a missing confidence falls back to weight 1, never a
   // anchor "A" has no evidence (→ weight 1); "B" has 0.4. Weight 1 > 0.4 → A.
   // If a missing confidence silently dropped to 0, B would wrongly win.
   assert.equal(vote('A', ['B'], [null, 0.4]), 'A')
+})
+
+// ── loadout-source-preferred vote (jersey number: match 463 for_LD) ──────────
+//
+// The loadout card is the authoritative source for a jersey number; the lobby
+// table's small number column misreads / row-bleeds. Match 463 for_LD
+// (HenryTheBobJr): the loadout card reads 7 (correct, ×2 @ ~0.97) but the lobby
+// row reads 77 (wrong, ×2 @ ~0.97). Two lobby reads slightly outweigh two
+// loadout reads in the plain cross-source vote (→ 77), so the number must prefer
+// the loadout source whenever it carries a value.
+
+void test('voteLoadoutPreferred: loadout source beats a higher-weight lobby misread', () => {
+  const anchor = mkSnap({
+    id: 10,
+    playerNumber: 7,
+    subjectSlotKey: 'loadout_slot_seg0001_subject01',
+    screenType: 'player_loadout_view',
+  })
+  const others = [
+    mkSnap({
+      id: 11,
+      playerNumber: 7,
+      subjectSlotKey: 'loadout_slot_seg0003_subject03',
+      screenType: 'player_loadout_view',
+    }),
+    mkSnap({
+      id: 12,
+      playerNumber: 77,
+      subjectSlotKey: 'lobby_for_LD',
+      screenType: 'pre_game_lobby_state_2',
+    }),
+    mkSnap({
+      id: 13,
+      playerNumber: 77,
+      subjectSlotKey: 'lobby_for_LD',
+      screenType: 'pre_game_lobby_state_2',
+    }),
+  ]
+  const conf: FieldConfidenceMap = new Map([
+    ['loadout_slot_seg0001_subject01', new Map([['jersey_number', 0.9695]])],
+    ['loadout_slot_seg0003_subject03', new Map([['jersey_number', 0.9778]])],
+    ['lobby_for_LD', new Map([['player_number', 0.9768]])],
+  ])
+  // Control — the plain cross-source vote regresses to the higher-weight lobby 77
+  // (Σ77 = 1.9536 > Σ7 = 1.9473). This is the exact 463 regression.
+  assert.equal(
+    vote(
+      anchor.playerNumber,
+      others.map((s) => s.playerNumber),
+      [anchor, ...others].map((s) => fieldConfidence(s, 'playerNumber', conf)),
+    ),
+    77,
+    'plain vote regresses to the lobby misread',
+  )
+  // Fix — loadout-source-preferred picks the correct loadout 7.
+  assert.equal(
+    voteLoadoutPreferred(anchor, others, (s) => s.playerNumber, 'playerNumber', conf),
+    7,
+  )
+})
+
+void test('voteLoadoutPreferred: falls back to the full vote when no loadout snapshot carries the value', () => {
+  // Lobby-only slot (goalie / away-without-loadout) → behaves exactly like vote().
+  const anchor = mkSnap({
+    id: 1,
+    playerNumber: 19,
+    subjectSlotKey: 'lobby_for_C',
+    screenType: 'pre_game_lobby_state_2',
+  })
+  const others = [
+    mkSnap({
+      id: 2,
+      playerNumber: 19,
+      subjectSlotKey: 'lobby_for_C',
+      screenType: 'pre_game_lobby_state_2',
+    }),
+  ]
+  const conf: FieldConfidenceMap = new Map([['lobby_for_C', new Map([['player_number', 0.9]])]])
+  assert.equal(
+    voteLoadoutPreferred(anchor, others, (s) => s.playerNumber, 'playerNumber', conf),
+    19,
+  )
+})
+
+void test('voteLoadoutPreferred: a null-valued loadout snapshot does not suppress the lobby fallback', () => {
+  // A loadout snapshot present but with NO number must not block the lobby value —
+  // the "loadout carries the field" guard is per-value, not per-source-presence.
+  const anchor = mkSnap({
+    id: 1,
+    playerNumber: null,
+    subjectSlotKey: 'loadout_slot_x',
+    screenType: 'player_loadout_view',
+  })
+  const others = [
+    mkSnap({
+      id: 2,
+      playerNumber: 21,
+      subjectSlotKey: 'lobby_for_C',
+      screenType: 'pre_game_lobby_state_2',
+    }),
+  ]
+  const conf: FieldConfidenceMap = new Map([['lobby_for_C', new Map([['player_number', 0.9]])]])
+  assert.equal(
+    voteLoadoutPreferred(anchor, others, (s) => s.playerNumber, 'playerNumber', conf),
+    21,
+  )
 })
 
 // ── confidence-aware pickAnchor() ─────────────────────────────────────────────
