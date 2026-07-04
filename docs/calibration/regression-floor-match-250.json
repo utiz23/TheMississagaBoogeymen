@@ -334,10 +334,10 @@
       "deductions": 1
     },
     "l2_lineup": {
-      "score": 0.95,
+      "score": 1,
       "pass": true,
-      "notes": "38/40 fields populated across 10 reviewed slot(s) (gamertag + persona + position + build_canonical)",
-      "populated": 38,
+      "notes": "40/40 fields populated across 10 reviewed slot(s) (gamertag + persona + position + build_canonical)",
+      "populated": 40,
       "expected": 40
     },
     "l3": {
