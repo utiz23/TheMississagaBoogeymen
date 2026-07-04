@@ -24,6 +24,7 @@ import {
   vote,
   pickAnchor,
   fieldConfidence,
+  sameGamertagIdentity,
   VOTED_COLUMNS,
   type FieldConfidenceMap,
   type Snapshot,
@@ -326,4 +327,36 @@ void test('field-map: a bare snapshot (no slot key) yields no confidence → wei
   for (const col of VOTED_COLUMNS) {
     assert.equal(fieldConfidence(s, col, new Map()), null)
   }
+})
+
+// ── identity gate on the field vote (Phase G — for_RW bleed) ──────────────────
+//
+// A mid-scroll lobby transition frame can bind a neighbouring player's row into
+// the wrong position slot (geometric row-grouping), producing a snapshot whose
+// gamertag — and therefore whole identity (number/persona/build/…) — is a
+// DIFFERENT player. `sameGamertagIdentity` gates such observations out of the
+// per-slot field vote so they can't override the anchor's real values.
+
+void test('identity gate: an observation reading a different player is not the same identity', () => {
+  // match-250 for|RW: the loadout card is silkyjoker85; a transition frame bled
+  // the LD player (HenryTheBobJr) into the RW slot. Different player → excluded.
+  const anchor = mkSnap({ id: 1, gamertagSnapshot: 'silkyjoker85' })
+  const bleed = mkSnap({ id: 2, gamertagSnapshot: 'HenryTheBobJr' })
+  assert.equal(sameGamertagIdentity(bleed, anchor), false)
+})
+
+void test('identity gate: spacing/casing variants of one gamertag are the same identity', () => {
+  // The common case must stay a no-op: `Stick Menace` and `StickMenace` are one
+  // player (normalized), so the vote is unchanged for unbled slots.
+  const anchor = mkSnap({ id: 1, gamertagSnapshot: 'Stick Menace' })
+  const other = mkSnap({ id: 2, gamertagSnapshot: 'StickMenace' })
+  assert.equal(sameGamertagIdentity(other, anchor), true)
+})
+
+void test('identity gate: an empty/unknown gamertag is never dropped (total, no silent zero-vote)', () => {
+  // When identity can't be established on either side, do not gate — keep the
+  // observation so no field is silently starved of votes.
+  const anchor = mkSnap({ id: 1, gamertagSnapshot: '' })
+  const other = mkSnap({ id: 2, gamertagSnapshot: 'silkyjoker85' })
+  assert.equal(sameGamertagIdentity(other, anchor), true)
 })

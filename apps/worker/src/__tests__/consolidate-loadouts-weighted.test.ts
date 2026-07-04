@@ -254,6 +254,8 @@ interface SeedSnapOpts {
   position: string
   teamSide: 'for' | 'against'
   buildClass?: string | null
+  playerNumber?: number | null
+  playerNamePersona?: string | null
 }
 
 async function seedSnap(o: SeedSnapOpts): Promise<number> {
@@ -269,6 +271,8 @@ async function seedSnap(o: SeedSnapOpts): Promise<number> {
       position: o.position,
       teamSide: o.teamSide,
       buildClass: o.buildClass ?? null,
+      playerNumber: o.playerNumber ?? null,
+      playerNamePersona: o.playerNamePersona ?? null,
       isCpu: false,
       reviewStatus: 'pending_review',
     })
@@ -623,5 +627,111 @@ void test('match 250: weighted consolidation equals unweighted (no-regression ex
     weighted,
     unweighted,
     'Phase F weighting changed the consolidated match-250 surface — STOP AND REVIEW (regression, not an understood improvement)',
+  )
+})
+
+// ─────────────────────────────────────────────────────────────────────────────
+// E. identity-consistency filter (Phase G — for_RW bleed)
+//    A scroll-transition lobby frame binds a NEIGHBOUR's entire row into the
+//    for|RW slot (geometric row-grouping: the LD player HenryTheBobJr / #7 in the
+//    RW y-band alongside silkyjoker85's loadout card). The bled lobby evidence
+//    OUT-scores the loadout card (0.9807 > 0.9718), so under Phase F's weighted
+//    vote it would promote #7 / "Hubert Jenkins" into the slot — the exact
+//    run-1954 regression that drops player_number 1.00 → 0.90. The gamertag
+//    mismatch gates the bled row out of the vote so number/persona/gamertag all
+//    read the real player. Non-vacuous: seeding the higher-confidence contaminant
+//    is what makes the weighted vote WANT to flip it — the filter is what stops it.
+// ─────────────────────────────────────────────────────────────────────────────
+void test('identity filter: a mis-slotted different-player lobby row does not bleed into for|RW', async () => {
+  if (!process.env['DATABASE_URL']) return
+
+  const matchId = await createMatch('rw-bleed')
+  const runId = await createActiveRun(matchId, 'rw-bleed')
+  const loadoutX = await createExtraction(matchId, runId, 'player_loadout_view')
+  const lobbyX = await createExtraction(matchId, runId, 'pre_game_lobby_state_2')
+
+  const slotLoadout = 'loadout_slot_seg0003_subject02' // silkyjoker85 — the truth
+  const slotLobby = 'lobby_for_RW' // HenryTheBobJr bled in from the LD row
+
+  // The bled lobby reading out-scores the loadout card on number/persona, so
+  // WITHOUT the identity filter the weighted vote would promote #7 / Hubert
+  // Jenkins. Loadout keys jersey_number/persona_raw; lobby keys
+  // player_number/player_name_persona (EVIDENCE_KEY_BY_SOURCE).
+  await seedEvidence(matchId, runId, slotLoadout, 'jersey_number', 10, '0.9718')
+  await seedEvidence(matchId, runId, slotLoadout, 'persona_raw', 'Silky', '0.9718')
+  await seedEvidence(
+    matchId,
+    runId,
+    slotLobby,
+    'player_number',
+    7,
+    '0.9807',
+    'pre_game_lobby_state_2',
+  )
+  await seedEvidence(
+    matchId,
+    runId,
+    slotLobby,
+    'player_name_persona',
+    'Hubert Jenkins',
+    '0.9807',
+    'pre_game_lobby_state_2',
+  )
+
+  await seedSnap({
+    matchId,
+    extractionId: loadoutX,
+    slotKey: slotLoadout,
+    gamertag: 'silkyjoker85',
+    position: 'RW',
+    teamSide: 'for',
+    playerNumber: 10,
+    playerNamePersona: 'Silky',
+  })
+  await seedSnap({
+    matchId,
+    extractionId: lobbyX,
+    slotKey: slotLobby,
+    gamertag: 'HenryTheBobJr', // the disagreeing gamertag — the trigger
+    position: 'RW',
+    teamSide: 'for',
+    playerNumber: 7,
+    playerNamePersona: 'Hubert Jenkins',
+  })
+
+  await consolidateLoadouts(matchId, { runId })
+
+  const reviewed = await db
+    .select({
+      gamertag: playerLoadoutSnapshots.gamertagSnapshot,
+      number: playerLoadoutSnapshots.playerNumber,
+      persona: playerLoadoutSnapshots.playerNamePersona,
+    })
+    .from(playerLoadoutSnapshots)
+    .where(
+      and(
+        eq(playerLoadoutSnapshots.matchId, matchId),
+        eq(playerLoadoutSnapshots.reviewStatus, 'reviewed'),
+      ),
+    )
+  assert.equal(reviewed.length, 1, 'exactly one (for, RW) anchor')
+  assert.equal(
+    reviewed[0]!.gamertag,
+    'silkyjoker85',
+    'gamertag must be the real player, not the bled HenryTheBobJr',
+  )
+  assert.equal(
+    reviewed[0]!.number,
+    10,
+    'jersey number must be the loadout truth (#10), not the bled #7',
+  )
+  // resolvePersona → normalizeSnapshot uppercases the canonical string
+  // (e.g. `E.Wanhg` → `E. WAHNG`), so the loadout truth `Silky` canonicalizes to
+  // `SILKY`. Had the bled row won it would read `HUBERT JENKINS`; `SILKY` proves
+  // the contaminant was gated out of the vote.
+  assert.equal(
+    reviewed[0]!.persona,
+    'SILKY',
+    'persona must be the loadout truth (SILKY), not the bled Hubert Jenkins',
   )
 })

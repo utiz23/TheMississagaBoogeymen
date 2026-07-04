@@ -411,6 +411,29 @@ function normTag(tag: string | null | undefined): string {
   return (tag ?? '').toLowerCase().replace(/[^a-z0-9]/g, '')
 }
 
+/**
+ * Phase G (for_RW bleed): do two snapshots read the SAME player identity?
+ *
+ * A mid-scroll lobby transition frame can bind a neighbouring player's row into
+ * the wrong position slot (geometric row-grouping in `row_grouping.py`), so the
+ * bled snapshot's gamertag — and its whole identity (number, persona, build, …)
+ * — is a DIFFERENT player (e.g. the LD player `HenryTheBobJr` landing in the RW
+ * slot alongside the real `silkyjoker85` loadout card). Such an observation must
+ * not vote its fields into this slot; `consolidateLoadouts` filters each group's
+ * vote pool through this predicate against the chosen anchor before `consensus`.
+ *
+ * Gamertags are normalized (`normTag`) so spacing/casing variants of one player
+ * (`Stick Menace` vs `StickMenace`) count as the same identity. When either side
+ * has no establishable identity (empty/junk → normalizes to ''), returns true so
+ * no observation is silently dropped — identity can't discriminate there.
+ */
+export function sameGamertagIdentity(a: Snapshot, b: Snapshot): boolean {
+  const na = normTag(a.gamertagSnapshot)
+  const nb = normTag(b.gamertagSnapshot)
+  if (!na || !nb) return true
+  return na === nb
+}
+
 export function pickAnchor(group: Snapshot[], confBySlot: FieldConfidenceMap): Snapshot {
   const dominantNorm = normTag(dominantGamertag(group))
   // Prefer loadout_view source (has X-Factors + attributes).
@@ -508,6 +531,11 @@ function consensus(
   captain: { isCaptain: boolean | null; isCaptainConfidence: string | null },
   confBySlot: FieldConfidenceMap,
 ): ConsensusValues {
+  // `group` is the identity-scoped voting pool the caller built (every member
+  // reads the same player as the anchor — see the for_RW-bleed filter in
+  // consolidateLoadouts). Because that scoping happens at the call site, EVERY
+  // vote below — including the dominantGamertag(group) gamertag vote — is already
+  // confined to same-player observations; consensus does no identity filtering.
   const others = group.filter((s) => s.id !== anchor.id)
   // Phase F: per-column confidence array aligned with vote's [anchor, ...others]
   // observation order, so each scalar vote is weighted by how confident the
@@ -739,9 +767,26 @@ export async function consolidateLoadouts(
   const unresolvedGamertags: UnresolvedGamertag[] = []
   for (const [key, group] of groups) {
     const anchor = pickAnchor(group, confBySlot)
+    // Phase G (for_RW bleed): scope the vote to observations reading the SAME
+    // player as the anchor. A mid-scroll lobby transition frame can bind a
+    // neighbour's ENTIRE row — gamertag + number + persona + build — into this
+    // slot's y-band (geometric row-grouping in row_grouping.py: the LD player
+    // HenryTheBobJr / #7 landing in the RW slot alongside silkyjoker85's card). A
+    // gamertag mismatch is a reliable "different player" tell, so such a row must
+    // not vote ANY field — the gamertag vote included — into this slot. The
+    // anchor is the loadout-preferred, dominant-gamertag row (pickAnchor), so its
+    // identity is the trusted slot identity; drop observations that disagree.
+    // Invariants: when every observation matches (the common case) votingGroup
+    // === group → the vote is byte-for-byte identical to before (goalies,
+    // roster-only, lobby-only away slots included); an empty/junk anchor gamertag
+    // keeps the whole group (sameGamertagIdentity is total) → today's behaviour,
+    // never an empty vote pool; the filter is confidence-independent → applied
+    // identically in the weighted and unweighted paths, preserving the
+    // weighted==unweighted oracle.
+    const votingGroup = group.filter((s) => sameGamertagIdentity(s, anchor))
     const merged = consensus(
       anchor,
-      group,
+      votingGroup,
       captainDecisions.get(key) ?? { isCaptain: null, isCaptainConfidence: null },
       confBySlot,
     )
