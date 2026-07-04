@@ -148,16 +148,36 @@ Default to short, single-purpose sessions. The standard operating pattern is:
 4. **Session 4: Review or handoff if needed** — summarize what changed, explain risks, and update `HANDOFF.md` if the session changed project state.
 
 The assistant should actively steer work back to this pattern. At the start of meaningful tasks, remind the user which session they are in and what should happen in that session. If a session is trying to do too many phases at once, call that out and recommend splitting.
+One task per session is the default rule. Do not quietly let a session expand into multiple unrelated objectives.
 
 ## Efficiency Protocol
 
 Reliability matters more than conversational continuity. Optimize for correctness and bounded scope, not giant all-in-one threads.
 
-- Prefer one main agent. Do not spawn subagents unless the work is clearly separable and the benefit outweighs the extra cost.
-- Treat long context as a problem. When the task changes shape or the transcript becomes bloated, recommend a fresh session or compaction.
+- Prefer one main agent.
+- Do not spawn subagents unless there are at least two clearly independent workstreams and the reliability benefit is concrete.
+- Do not use heavyweight planning skills unless the task is likely to take more than 45 minutes or spans multiple systems.
+- Do not use TDD-heavy skills unless the bug is subtle, the regression risk is high, or the work is safety-critical inside this project.
+- Treat long context as a problem. When the transcript becomes long, scroll-heavy, or mixes completed phases with new work, recommend compaction or a fresh session immediately.
 - Keep durable state in repo files, especially `HANDOFF.md`, not in chat history.
 - Avoid heavyweight planning or orchestration modes unless the task genuinely spans multiple independent phases or systems.
 - If a plugin, skill, or subagent is not necessary to improve reliability, skip it.
+
+### Context Reset Triggers
+
+Recommend a fresh session or compaction when any of these are true:
+
+- the task objective changes
+- the current session is trying to cover more than one major phase
+- the transcript is large enough that important decisions are hard to find
+- the assistant is restating prior context more than advancing the work
+- a handoff note in a repo file would preserve the useful state more cleanly
+
+Default action:
+
+1. summarize the active state briefly
+2. move durable state into `HANDOFF.md` or another relevant repo file if needed
+3. start the next phase in a fresh session
 
 ### Reminder Behavior
 
@@ -168,6 +188,7 @@ When acting as the management/review agent, be proactive about workflow discipli
 - warn when the current thread is accumulating too much context
 - prefer file-based handoff notes over long conversational summaries
 - explain Claude/Codex work in plain terms before recommending next actions
+- state plainly when subagents, plugins, or planning overhead are not justified
 
 Use concise reminders. Do not turn every response into a lecture, but do not stay silent when the workflow is drifting into expensive or unreliable patterns.
 

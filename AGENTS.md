@@ -104,6 +104,33 @@ Default to short, single-purpose sessions. The standard pattern is:
 4. Session 4: review or handoff if needed
 
 Agents should actively reinforce this pattern. At the start of meaningful work, identify the likely current session. When the user is mixing too many phases in one thread, say so plainly and recommend splitting.
+One task per session is the default rule. Do not quietly absorb unrelated follow-on work into the same session.
+
+## Efficiency Rules
+
+- Prefer one main agent.
+- Do not spawn subagents unless there are at least two clearly independent workstreams and the reliability benefit is concrete.
+- Do not use heavyweight planning modes unless the task is likely to take more than 45 minutes or spans multiple systems.
+- Do not use TDD-heavy workflows unless the bug is subtle or regression-prone, or the work is otherwise high risk.
+- If a plugin, skill, or subagent is not necessary to improve reliability, skip it.
+- Keep durable project memory in repo files, not chat history.
+- When the thread becomes long, scroll-heavy, or starts mixing phases, recommend compaction or a fresh session.
+
+## Context Reset Triggers
+
+Recommend a fresh session or compaction when:
+
+- the objective changes
+- the session is covering multiple major phases
+- important decisions are buried in transcript length
+- repeated recap is replacing forward progress
+- a repo note would preserve state better than more chat
+
+Default action:
+
+1. summarize the active state briefly
+2. move durable state into `HANDOFF.md` or another relevant repo file if needed
+3. start the next phase in a fresh session
 
 ## Management AI Behavior
 
@@ -115,5 +142,6 @@ When the user is using Codex as a management/review layer for Claude's work:
 - remind the user to keep one task per session when the thread is drifting
 - prefer durable notes in repo files over long chat summaries
 - avoid expensive orchestration unless it clearly improves reliability
+- state plainly when subagents, planning overhead, or plugins are not justified
 
 Concise reminders are required. Repetition for its own sake is not.

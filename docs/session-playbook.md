@@ -11,9 +11,11 @@ Use short, single-purpose sessions. Default pattern:
 
 - One task per session.
 - Prefer one main agent.
-- Avoid subagents unless the work is clearly separable.
+- Use subagents only when there are at least two clearly independent workstreams and the reliability benefit is concrete.
+- Do not use heavyweight planning unless the task will likely take more than 45 minutes or spans multiple systems.
+- Do not use TDD-heavy workflows unless the bug is subtle, regression-prone, or otherwise high risk.
 - Keep durable state in repo files, not chat history.
-- If the thread is getting bloated, start a fresh session.
+- If the thread is getting bloated, long, or phase-mixed, compact or start a fresh session.
 
 ## Session 1 Prompt
 
@@ -23,7 +25,7 @@ Session 1: inspect and define scope.
 Inspect the relevant area of this repo, explain what is currently happening, identify constraints and risks, and define the exact change needed.
 
 Do not implement yet unless the scope is trivial.
-Avoid subagents unless they are clearly necessary.
+Avoid subagents unless there are at least two clearly independent workstreams.
 Keep this lean and recommend the exact next Session 2 objective at the end.
 ```
 
@@ -34,7 +36,7 @@ Session 2: implement.
 
 Implement the agreed change in the smallest clean way. Stay within the scoped files unless you find a real dependency that requires expansion.
 
-Avoid broad refactors, avoid subagents unless clearly justified, and keep the session focused on shipping the change.
+Avoid broad refactors, avoid subagents unless there are at least two clearly independent workstreams, and keep the session focused on shipping the change.
 At the end, summarize what changed and state the exact Session 3 verification step.
 ```
 
@@ -81,4 +83,14 @@ Summarize only:
 - next 1-3 concrete actions
 
 Do not preserve long transcript history that no longer matters.
+```
+
+## Fresh Session Trigger Prompt
+
+```text
+This thread is now too mixed or too long for reliable work.
+
+State which session we are ending, summarize the active state briefly, note the exact next session objective, and move any durable state into HANDOFF.md or another repo file if needed.
+
+Do not continue implementation in this thread after that summary.
 ```
