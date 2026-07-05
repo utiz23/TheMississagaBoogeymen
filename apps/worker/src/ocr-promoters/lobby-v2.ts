@@ -91,6 +91,24 @@ const HARD_FIELD_KEYS = new Set(['gamertag', 'position'])
 const VALID_POSITIONS = new Set(['C', 'LW', 'RW', 'LD', 'RD', 'G'])
 const SLOT_KEY_RE = /^lobby_(for|against)_(C|LW|RW|LD|RD|G)$/
 
+/**
+ * Skater positions only (goalie excluded). Goalies are frequently CPU /
+ * placeholder and share generic reads (e.g. EA's 'XZ4RKY'), so they are
+ * excluded from the cross-team duplicate detection that classifies a lobby
+ * segment as SETTLED vs mid-roster-slide TRANSITION.
+ */
+const SKATER_POSITIONS = new Set(['C', 'LW', 'RW', 'LD', 'RD'])
+
+/**
+ * Whitespace/case/punctuation-insensitive gamertag key. Used ONLY to compare
+ * the SAME slot's gamertag across lobby segments (e.g. a settled frame's
+ * "Duh Pope" vs a transition frame's "DuhPope") and to detect a gamertag that
+ * appears on both rosters. Never used for the stored snapshot value.
+ */
+function lobbyAgreementKey(value: unknown): string {
+  return typeof value === 'string' ? value.toLowerCase().replace(/[^a-z0-9]/g, '') : ''
+}
+
 const PLATFORM_WHITELIST: ReadonlySet<string> = new Set([
   'xbox',
   'playstation',
@@ -217,6 +235,83 @@ export async function promoteLobbyFromEvidence(input: {
     slotMap.get(row.fieldKey)!.push(row)
   }
 
+  const toGateCandidates = (rows: typeof allEvidence): GateCandidate[] =>
+    rows.map((r) => ({
+      candidateRank: r.candidateRank,
+      value: r.candidateValue,
+      rawConfidence: r.rawConfidence !== null ? Number(r.rawConfidence) : 0,
+      calibratedConfidence: r.calibratedConfidence !== null ? Number(r.calibratedConfidence) : 0,
+      evidenceId: r.id,
+    }))
+
+  // ── Phase-3 lobby-scramble fix: settled-segment preference + per-slot
+  //    gamertag coherence ─────────────────────────────────────────────────────
+  //
+  // A match's lobby is captured across 1+ segments. When 2+ exist, one is the
+  // SETTLED roster and the other(s) are mid-roster-slide TRANSITION frames where
+  // EA animates both teams' rows between the L/R panels. In a transition frame
+  // the SAME gamertag bleeds into a for_* AND an against_* slot, and the sliding
+  // player's number/persona/captain land in whatever slot they pass through.
+  //
+  // The old per-(slot,field) argmax-confidence gate had no notion of segments,
+  // so a transition read could out-score the settled read by hundredths (match
+  // 250: for_LW=DuhPope@0.9571 edged StickMenace@0.9547) and a cross-roster-bled
+  // persona/number could win a slot outright (against_LD → H.Jenkins/#7 instead
+  // of the real Pat Magroyne/#23).
+  //
+  // Fix, in two parts:
+  //   1. Rank segments by how many gamertags appear on BOTH rosters within the
+  //      segment (skaters only). The settled segment has ~0 such collisions;
+  //      transition frames have several. Each slot's gamertag ANCHOR is promoted
+  //      preferring the lowest-collision ("settled") segment(s).
+  //   2. Every other field is accepted for a slot ONLY from a segment whose
+  //      gamertag for that slot AGREES with the anchor — dropping cross-roster-
+  //      bled fields while still keeping a transition frame's OWN coherent read
+  //      where it is the only observation (against_LW's #95/Whoosah).
+  //
+  // Single-segment matches (segment_id all-equal or NULL) are a no-op: one
+  // preferred segment, one anchor, every field coherent — identical to before.
+
+  // segKey (segment_id, NULL→0) → slotKey → agreement-normalised rank-0 gamertag.
+  const segSlotTag = new Map<number, Map<string, string>>()
+  for (const row of allEvidence) {
+    if (row.fieldKey !== 'gamertag' || row.candidateRank !== 0) continue
+    const tag = lobbyAgreementKey(row.candidateValue)
+    if (!tag) continue
+    const slotKey = row.subjectSlotKey ?? '__no_slot__'
+    if (!SLOT_KEY_RE.test(slotKey)) continue
+    const segKey = row.segmentId ?? 0
+    let slotMap = segSlotTag.get(segKey)
+    if (!slotMap) {
+      slotMap = new Map()
+      segSlotTag.set(segKey, slotMap)
+    }
+    slotMap.set(slotKey, tag)
+  }
+
+  // Per-segment cross-team duplicate count (skaters only) = settledness score.
+  const segDupScore = new Map<number, number>()
+  for (const [segKey, slotMap] of segSlotTag.entries()) {
+    const forTags = new Set<string>()
+    const againstTags = new Set<string>()
+    for (const [slotKey, tag] of slotMap.entries()) {
+      const parsed = parseSlotKey(slotKey)
+      if (!parsed || !SKATER_POSITIONS.has(parsed.position)) continue
+      ;(parsed.teamSide === 'for' ? forTags : againstTags).add(tag)
+    }
+    let dup = 0
+    for (const t of forTags) if (againstTags.has(t)) dup++
+    segDupScore.set(segKey, dup)
+  }
+
+  // Preferred (settled) segments = those with the minimum collision count.
+  let minDupScore = Infinity
+  for (const d of segDupScore.values()) if (d < minDupScore) minDupScore = d
+  const preferredSegs = new Set<number>()
+  for (const [segKey, d] of segDupScore.entries()) {
+    if (d === minDupScore) preferredSegs.add(segKey)
+  }
+
   const gameTitleId = await resolveGameTitleIdForMatch(db, matchId)
 
   // Resolve a valid ocr_extractions.id for this match's lobby segments.
@@ -260,25 +355,51 @@ export async function promoteLobbyFromEvidence(input: {
       continue
     }
 
+    // Lobby evidence collects one candidate per (slot, field) per lobby
+    // SEGMENT. When a match has 2+ lobby segments, each contributes its own
+    // candidate with a similar OCR confidence - they're multi-frame
+    // observations of the SAME field, not competing readings. The default 1.5x
+    // dominance ratio interprets two close-confidence rows as
+    // 'blocked_consensus'; for lobby we want the highest-confidence candidate
+    // to win regardless of dominance. Set dominanceRatio: 1.0 so any non-tie
+    // wins. (See the settled-segment/coherence block above for how which
+    // candidates enter each gate is chosen when segments disagree.)
     const fieldDecisions = new Map<string, PromotionDecision>()
+
+    // (1) Anchor gamertag: prefer settled-segment reads. Fall back to all
+    //     gamertag candidates only when the preferred segments carry none for
+    //     this slot (keeps coverage; never worse than the old argmax).
+    const gamertagRows = fieldMap.get('gamertag') ?? []
+    const settledGamertagRows =
+      preferredSegs.size > 0
+        ? gamertagRows.filter((r) => preferredSegs.has(r.segmentId ?? 0))
+        : gamertagRows
+    const gamertagRowsForGate = settledGamertagRows.length > 0 ? settledGamertagRows : gamertagRows
+    const gamertagDecision = runPromotionGate({
+      candidates: toGateCandidates(gamertagRowsForGate),
+      dominanceRatio: 1.0,
+    })
+    fieldDecisions.set('gamertag', gamertagDecision)
+
+    // The gamertag every other field for this slot must be consistent with.
+    // Null when the gamertag didn't promote (e.g. CPU / empty plate) — then no
+    // coherence filter is applied and behaviour matches the old path.
+    const anchorTag =
+      gamertagDecision.status === 'promoted' && typeof gamertagDecision.winningValue === 'string'
+        ? lobbyAgreementKey(gamertagDecision.winningValue)
+        : null
+
+    // (2) Remaining fields: gate over the anchor-consistent candidates only.
     for (const [fieldKey, rows] of fieldMap.entries()) {
-      const candidates: GateCandidate[] = rows.map((r) => ({
-        candidateRank: r.candidateRank,
-        value: r.candidateValue,
-        rawConfidence: r.rawConfidence !== null ? Number(r.rawConfidence) : 0,
-        calibratedConfidence: r.calibratedConfidence !== null ? Number(r.calibratedConfidence) : 0,
-        evidenceId: r.id,
-      }))
-      // Lobby evidence collects one candidate per (slot, field) per lobby
-      // SEGMENT. When a match has 2+ lobby segments (e.g. one before
-      // loadout navigation, one after), each contributes its own candidate
-      // with a similar OCR confidence - they're multi-frame observations
-      // of the SAME field, not competing readings. The default 1.5x
-      // dominance ratio interprets two close-confidence rows as
-      // 'blocked_consensus'; for lobby we want the highest-confidence
-      // candidate to win regardless of dominance. Set dominanceRatio: 1.0
-      // so any non-tie wins.
-      const decision = runPromotionGate({ candidates, dominanceRatio: 1.0 })
+      if (fieldKey === 'gamertag') continue
+      const coherentRows =
+        anchorTag === null
+          ? rows
+          : rows.filter((r) => segSlotTag.get(r.segmentId ?? 0)?.get(slotKey) === anchorTag)
+      const decision = runPromotionGate({
+        candidates: toGateCandidates(coherentRows),
+        dominanceRatio: 1.0,
+      })
       fieldDecisions.set(fieldKey, decision)
     }
 
@@ -336,6 +457,40 @@ export async function promoteLobbyFromEvidence(input: {
       isCpu,
       snapshotBlockReason: null,
     })
+  }
+
+  // Cross-team dedup (defense-in-depth). After settled-segment selection a real
+  // gamertag should never remain on BOTH rosters, but if a lone segment is
+  // itself internally inconsistent we still guard: among promoted, non-CPU
+  // skater slots, a gamertag appearing on a for_* AND an against_* slot keeps
+  // the higher-confidence side and blocks the other (a human can't be on both
+  // teams of one lobby). Goalies are excluded (CPU/placeholder-prone). This is
+  // a no-op once the settled segment is chosen cleanly (e.g. match 250).
+  {
+    const skaterByTag = new Map<string, LobbySlotDecision[]>()
+    for (const sd of slotDecisions) {
+      if (sd.isCpu || sd.snapshotBlockReason) continue
+      if (!SKATER_POSITIONS.has(sd.position)) continue
+      const gtDec = sd.fieldDecisions.get('gamertag')
+      if (!gtDec || gtDec.status !== 'promoted' || typeof gtDec.winningValue !== 'string') continue
+      const tag = lobbyAgreementKey(gtDec.winningValue)
+      if (!tag) continue
+      const list = skaterByTag.get(tag)
+      if (list) list.push(sd)
+      else skaterByTag.set(tag, [sd])
+    }
+    for (const dupSlots of skaterByTag.values()) {
+      if (dupSlots.length < 2) continue
+      const hasFor = dupSlots.some((sd) => sd.teamSide === 'for')
+      const hasAgainst = dupSlots.some((sd) => sd.teamSide === 'against')
+      if (!hasFor || !hasAgainst) continue // same-team dup — leave for review
+      const confOf = (sd: LobbySlotDecision): number =>
+        sd.fieldDecisions.get('gamertag')?.winningConfidence ?? 0
+      const winner = dupSlots.reduce((a, b) => (confOf(b) > confOf(a) ? b : a))
+      for (const sd of dupSlots) {
+        if (sd !== winner) sd.snapshotBlockReason = 'cross_team_duplicate_gamertag'
+      }
+    }
   }
 
   // Idempotency: drop prior lobby-sourced snapshots for this match before insert.
