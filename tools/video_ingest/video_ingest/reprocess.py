@@ -60,7 +60,18 @@ DEFAULT_INGEST_CACHE = Path("/tmp/ingest-cache")
 #                  -cdef, so the version string is again the only provenance
 #                  lever; re-ingesting at -cdef would collide with the active
 #                  candidate (run 1954 for match 250) on the provenance uniq.
-DECODER_VERSION = "hmm-viterbi-v2-pregame-cdef-wsb"
+#   v2-pregame-cdef-wsb-toggle → lobby toggle-phase per-field merge (034c39d):
+#                  _vote_slot_identity now returns a MERGED LobbySubjectIdentity
+#                  instead of a single max-quality representative — each identity
+#                  field (#NN, persona, build_class, level, H/W/H, ready) is
+#                  filled from the highest-confidence obs IN THE WINNING gamertag
+#                  group, reuniting state_2's two toggle phases (one carries
+#                  #NN+persona, the other build-class) into one complete slot.
+#                  Bleed-safe (iterates only the winning group). Same
+#                  weights/config as -wsb, so the version string is again the
+#                  only provenance lever; re-ingesting at -wsb would collide with
+#                  preserved run 1975 (match 250) on the provenance uniq.
+DECODER_VERSION = "hmm-viterbi-v2-pregame-cdef-wsb-toggle"
 
 # NHL 26 is game_title_id=1 in this repo's seed data; the only title
 # currently flowing through OCR ingest. When NHL 27 ships we'll widen
