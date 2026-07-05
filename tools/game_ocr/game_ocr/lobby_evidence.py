@@ -268,16 +268,73 @@ def _frame_is_transition(subjects: Sequence[LobbySubjectIdentity]) -> bool:
     return False
 
 
+# Identity fields merged per-field across the winning gamertag group. Each
+# tuple is (guard_attr, confidence_attr, [attrs_to_copy_together]). state_2
+# toggles the two team panels on opposite phases, so a slot's build-class and
+# its #NN/persona land on DIFFERENT settled frames — a single representative
+# frame can carry only one phase. Merging per-field over the winning group
+# reunites the phases. Coupled fields (level raw+number) copy as a unit from
+# the same observation. slot_key/team_side/position/gamertag/anchor_y stay
+# from the representative and are NOT merged.
+_MERGEABLE_FIELDS: tuple[tuple[str, str, tuple[str, ...]], ...] = (
+    ("player_number", "player_number_confidence",
+     ("player_number", "player_number_confidence")),
+    ("player_name_persona", "player_name_persona_confidence",
+     ("player_name_persona", "player_name_persona_confidence")),
+    ("build_class_raw", "build_class_confidence",
+     ("build_class_raw", "build_class_confidence")),
+    ("player_level_raw", "player_level_confidence",
+     ("player_level_raw", "player_level_number", "player_level_confidence")),
+    ("height_text", "height_confidence", ("height_text", "height_confidence")),
+    ("weight_lbs", "weight_confidence", ("weight_lbs", "weight_confidence")),
+    ("handedness", "handedness_confidence", ("handedness", "handedness_confidence")),
+    ("is_ready", "is_ready_confidence", ("is_ready", "is_ready_confidence")),
+)
+
+
+def _merge_best_field(
+    group: Sequence[LobbySubjectIdentity],
+    guard_attr: str,
+    conf_attr: str,
+    copy_attrs: Sequence[str],
+) -> dict[str, object]:
+    """From the observation whose ``guard_attr`` is non-None with the highest
+    ``conf_attr``, return ``{attr: value}`` for each of ``copy_attrs``.
+
+    Empty when no observation in the group populated the field. A missing
+    confidence sorts below any present confidence, so a confidently-read value
+    always wins over an unscored one.
+    """
+    best: Optional[LobbySubjectIdentity] = None
+    best_conf = float("-inf")
+    for s in group:
+        if getattr(s, guard_attr) is None:
+            continue
+        conf = getattr(s, conf_attr)
+        conf = conf if conf is not None else float("-inf")
+        if best is None or conf > best_conf:
+            best = s
+            best_conf = conf
+    if best is None:
+        return {}
+    return {attr: getattr(best, attr) for attr in copy_attrs}
+
+
 def _vote_slot_identity(
     observations: Sequence[LobbySubjectIdentity],
 ) -> LobbySubjectIdentity:
     """Majority-vote one slot's identity across the (settled) voting frames.
 
     Groups the human observations by normalized gamertag, picks the group with
-    the most votes (ties broken by summed quality score), and returns the
-    highest-quality observation within that group as the representative — so
-    every promoted field (number/persona/…) comes from a single consistent
-    settled read of the winning identity. When no frame read a human in this
+    the most votes (ties broken by summed quality score), then MERGES that
+    group per-field: the representative is the highest-quality observation
+    (source of slot_key/team_side/position/gamertag/anchor_y), and every
+    identity field (number/persona/build/level/measurements) is filled from the
+    highest-confidence observation in the winning group that populated it. This
+    reunites state_2's toggled panel phases (one frame carries #NN+persona, the
+    next carries build-class) into one complete subject. Merging only within
+    the winning gamertag group keeps a cross-panel bled read (grouped under a
+    different gamertag) out of this slot. When no frame read a human in this
     slot, returns the best CPU/empty observation so the slot is still emitted.
     """
     human = [s for s in observations if not s.is_empty_or_cpu and s.gamertag is not None]
@@ -291,7 +348,12 @@ def _vote_slot_identity(
         tally,
         key=lambda k: (len(tally[k]), sum(_subject_quality_score(s) for s in tally[k])),
     )
-    return max(tally[winner], key=_subject_quality_score)
+    group = tally[winner]
+    representative = max(group, key=_subject_quality_score)
+    merged: dict[str, object] = {}
+    for guard_attr, conf_attr, copy_attrs in _MERGEABLE_FIELDS:
+        merged.update(_merge_best_field(group, guard_attr, conf_attr, copy_attrs))
+    return replace(representative, **merged)
 
 
 def _row_roi_bbox(subject: LobbySubjectIdentity) -> dict[str, float]:

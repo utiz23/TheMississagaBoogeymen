@@ -13,9 +13,11 @@ from pathlib import Path
 from game_ocr.lobby_evidence import (
     EXTRACTOR_VERSION,
     SCREEN_STATE,
+    _vote_slot_identity,
     extract_lobby_evidence,
 )
 from game_ocr.lobby_extractors.row_grouping import LOBBY_CANONICAL_ROW_ORDER
+from game_ocr.lobby_extractors.slot_identity import LobbySubjectIdentity
 from game_ocr.ocr import OCRLine
 
 
@@ -393,6 +395,96 @@ class LobbyEvidenceTests(unittest.TestCase):
                 )
         finally:
             bundle.rmdir()
+
+
+def _subject(gamertag: str, **overrides: object) -> LobbySubjectIdentity:
+    """Build a BGM-C human subject observation for _vote_slot_identity tests."""
+    fields: dict[str, object] = dict(
+        slot_key="lobby_for_C",
+        team_side="our_team",
+        position="C",
+        position_confidence=0.9,
+        is_empty_or_cpu=False,
+        gamertag=gamertag,
+        gamertag_confidence=0.95,
+    )
+    fields.update(overrides)
+    return LobbySubjectIdentity(**fields)  # type: ignore[arg-type]
+
+
+class VoteSlotIdentityMergeTests(unittest.TestCase):
+    """Per-field merge of a slot's toggle-phase observations.
+
+    state_2 toggles the two team panels on opposite phases: one settled frame
+    carries a slot's build-class, another carries its #NN + persona — never
+    both on a single frame. The per-slot vote must MERGE the winning
+    gamertag's observations so the slot emits every field, not collapse to a
+    single representative frame that keeps only one phase.
+    """
+
+    def test_merges_toggle_phases_of_same_gamertag(self) -> None:
+        build_phase = _subject(
+            "StickMenace",
+            build_class_raw="Playmaker",
+            build_class_confidence=0.93,
+        )
+        number_phase = _subject(
+            "StickMenace",
+            player_number=11,
+            player_number_confidence=0.97,
+            player_name_persona="E.Wanhg",
+            player_name_persona_confidence=0.91,
+        )
+        merged = _vote_slot_identity([build_phase, number_phase])
+        self.assertEqual(merged.gamertag, "StickMenace")
+        # Both toggle phases survive the merge.
+        self.assertEqual(merged.build_class_raw, "Playmaker")
+        self.assertEqual(merged.player_number, 11)
+        self.assertEqual(merged.player_name_persona, "E.Wanhg")
+        # Each merged value carries its own observation's confidence.
+        self.assertEqual(merged.build_class_confidence, 0.93)
+        self.assertEqual(merged.player_number_confidence, 0.97)
+        self.assertEqual(merged.player_name_persona_confidence, 0.91)
+
+    def test_merge_scoped_to_winning_gamertag_group(self) -> None:
+        # A bled read for a DIFFERENT gamertag (a losing vote grouped
+        # separately) must not contribute any field to the winning subject.
+        winner_a = _subject("StickMenace", player_number=11, player_number_confidence=0.97)
+        winner_b = _subject("StickMenace", player_number=11, player_number_confidence=0.95)
+        bleed = _subject("DuhPope", build_class_raw="Sniper", build_class_confidence=0.99)
+        merged = _vote_slot_identity([winner_a, winner_b, bleed])
+        self.assertEqual(merged.gamertag, "StickMenace")
+        self.assertEqual(merged.player_number, 11)
+        # DuhPope's build_class must NOT leak into StickMenace's slot.
+        self.assertIsNone(merged.build_class_raw)
+
+    def test_merges_coupled_level_fields_as_a_unit(self) -> None:
+        number_phase = _subject(
+            "StickMenace", player_number=11, player_number_confidence=0.97
+        )
+        level_phase = _subject(
+            "StickMenace",
+            player_level_raw="LV 35",
+            player_level_number=35,
+            player_level_confidence=0.88,
+        )
+        merged = _vote_slot_identity([number_phase, level_phase])
+        # raw + number + confidence travel together from the same observation.
+        self.assertEqual(merged.player_level_raw, "LV 35")
+        self.assertEqual(merged.player_level_number, 35)
+        self.assertEqual(merged.player_level_confidence, 0.88)
+
+    def test_highest_confidence_wins_per_field(self) -> None:
+        # Within the winning group, each field takes its highest-confidence
+        # non-None observation.
+        low = _subject(
+            "StickMenace", player_number=99, player_number_confidence=0.60
+        )
+        high = _subject(
+            "StickMenace", player_number=11, player_number_confidence=0.97
+        )
+        merged = _vote_slot_identity([low, high])
+        self.assertEqual(merged.player_number, 11)
 
 
 if __name__ == "__main__":
