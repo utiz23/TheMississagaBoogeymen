@@ -52,7 +52,15 @@ DEFAULT_INGEST_CACHE = Path("/tmp/ingest-cache")
 #                  changes invisible to weights_hash/config_hash (which hash the
 #                  screen-classifier v2 artifacts, untouched), so the version
 #                  string is the ONLY provenance lever for the re-ingest.
-DECODER_VERSION = "hmm-viterbi-v2-pregame-cdef"
+#   v2-pregame-cdef-wsb → WS-B lobby-scramble extractor fix (981e19b):
+#                  extract_lobby_evidence now drops EA roster-slide TRANSITION
+#                  frames (within-panel duplicate-gamertag signature) and does a
+#                  per-slot MAJORITY vote over settled frames, with the captain ★
+#                  MAX restricted to settled frames. Same weights/config as
+#                  -cdef, so the version string is again the only provenance
+#                  lever; re-ingesting at -cdef would collide with the active
+#                  candidate (run 1954 for match 250) on the provenance uniq.
+DECODER_VERSION = "hmm-viterbi-v2-pregame-cdef-wsb"
 
 # NHL 26 is game_title_id=1 in this repo's seed data; the only title
 # currently flowing through OCR ingest. When NHL 27 ships we'll widen
