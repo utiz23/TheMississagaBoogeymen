@@ -44,6 +44,27 @@ def _state2_frame() -> list[OCRLine]:
     return lines
 
 
+def _state2_frame_bgm_c(bgm_c_gt: str, conf: float = 0.95) -> list[OCRLine]:
+    """A state_2 frame identical to ``_state2_frame`` except the BGM C row's
+    gamertag is overridden (and every line uses ``conf``).
+
+    Used to synthesize a mid-scroll transition frame: setting ``bgm_c_gt`` to
+    another BGM slot's gamertag (e.g. ``BgmGT1`` == LW) reproduces the
+    within-panel duplicate that EA's roster-slide animation produces.
+    """
+    lines: list[OCRLine] = []
+    for i, position in enumerate(LOBBY_CANONICAL_ROW_ORDER):
+        y = 300 + i * 88
+        lines.append(_line(position, 77, y, conf))
+        lines.append(_line(position, 1844, y, conf))
+        gt = bgm_c_gt if i == 0 else f"BgmGT{i}"
+        lines.append(_line(gt, 250, y - 12, conf))
+        lines.append(_line(f"#{10 + i}-Persona{i}", 250, y + 10, conf))
+        lines.append(_line(f"OppGT{i}", 1700, y - 12, conf))
+        lines.append(_line(f"#{20 + i}-OppPersona{i}", 1700, y + 10, conf))
+    return lines
+
+
 def _empty_bundle(num_frames: int) -> Path:
     """Create a tempdir with N empty PNG placeholders. Caller is responsible
     for cleanup via TemporaryDirectory context."""
@@ -302,6 +323,64 @@ class LobbyEvidenceTests(unittest.TestCase):
         self.assertEqual(bgm_g_is_cpu.shape_or_icon_class, "cpu")
         self.assertEqual(opp_c_is_cpu.candidate_value, True)
         self.assertEqual(opp_c_is_cpu.shape_or_icon_class, "cpu")
+
+    def test_transition_frame_dropped_in_favor_of_settled_majority(self) -> None:
+        # During EA's roster-slide, a transition frame duplicates a player's
+        # gamertag across adjacent slots (segment-4 of match 250 read
+        # "Stick Menace" into BOTH C and LW). Such a frame OCRs crisply
+        # (~0.99), so the old highest-mean-confidence best-frame pick promoted
+        # its scrambled read over the settled frames. The aggregation must
+        # drop the transition frame and majority-vote the settled reads.
+        settled = _state2_frame_bgm_c("BgmGT0", conf=0.90)  # C reads its own GT
+        transition = _state2_frame_bgm_c("BgmGT1", conf=0.99)  # C == LW (dup)
+        bundle = _empty_bundle(4)
+        try:
+            records, _ = extract_lobby_evidence(
+                bundle,
+                segment_index=5,
+                # 3 settled + 1 higher-confidence transition frame.
+                ocr_lines_per_frame=[settled, settled, settled, transition],
+            )
+        finally:
+            for p in bundle.iterdir():
+                p.unlink()
+            bundle.rmdir()
+
+        bgm_c_gt = next(
+            r for r in records
+            if r.subject_slot_key == "lobby_for_C" and r.field_key == "gamertag"
+        )
+        # Settled majority wins over the higher-confidence transition read.
+        self.assertEqual(bgm_c_gt.candidate_value, "BgmGT0")
+        # The real LW slot is unaffected.
+        bgm_lw_gt = next(
+            r for r in records
+            if r.subject_slot_key == "lobby_for_LW" and r.field_key == "gamertag"
+        )
+        self.assertEqual(bgm_lw_gt.candidate_value, "BgmGT1")
+
+    def test_all_transition_frames_still_emit_slot(self) -> None:
+        # Fallback: if EVERY frame in the segment is a transition frame (a
+        # too-short frame budget), the slot must still be emitted rather than
+        # dropped — grade-degraded data beats no data.
+        transition = _state2_frame_bgm_c("BgmGT1", conf=0.97)  # C == LW (dup)
+        bundle = _empty_bundle(2)
+        try:
+            records, _ = extract_lobby_evidence(
+                bundle,
+                segment_index=5,
+                ocr_lines_per_frame=[transition, transition],
+            )
+        finally:
+            for p in bundle.iterdir():
+                p.unlink()
+            bundle.rmdir()
+
+        bgm_c_gt = [
+            r for r in records
+            if r.subject_slot_key == "lobby_for_C" and r.field_key == "gamertag"
+        ]
+        self.assertEqual(len(bgm_c_gt), 1)
 
     def test_empty_bundle_dir_raises(self) -> None:
         bundle = _empty_bundle(0)

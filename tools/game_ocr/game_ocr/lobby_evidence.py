@@ -18,6 +18,7 @@ Frame naming: same as loadout (`bundle_dir/00001.png` 5-digit padded).
 
 from __future__ import annotations
 
+import re
 from dataclasses import asdict, replace
 from pathlib import Path
 from statistics import mean
@@ -135,24 +136,47 @@ def extract_lobby_evidence(
         )
         per_frame_subjects.append(subjects)
 
-    # 4. Pick best frame per slot: highest mean confidence across the row's
-    # populated identity fields. Ties broken by earliest frame index.
-    best_per_slot: dict[str, tuple[int, LobbySubjectIdentity]] = {}
-    for frame_idx, subjects in enumerate(per_frame_subjects):
-        for subject in subjects:
-            score = _subject_quality_score(subject)
-            best = best_per_slot.get(subject.slot_key)
-            if best is None or score > _subject_quality_score(best[1]):
-                best_per_slot[subject.slot_key] = (frame_idx, subject)
+    # 4. Drop mid-scroll transition frames, then majority-vote each slot across
+    #    the surviving settled frames.
+    #
+    #    During EA's roster-slide animation the rosters slide between the L/R
+    #    panels; a transition frame duplicates a player's gamertag across
+    #    adjacent slots on one panel (match-250 segment 4 read "Stick Menace"
+    #    into both C and LW, "HenryTheBobJr" into both RW and LD). Such frames
+    #    OCR crisply (~0.97), so the old highest-mean-confidence best-frame pick
+    #    could promote a scrambled read over the settled frames. A settled lobby
+    #    panel always lists distinct human gamertags, so a within-panel
+    #    duplicate is the transition signature (cross-panel duplicates are CPU
+    #    placeholders, already demoted upstream by _demote_cross_team_duplicates).
+    settled_frame_indices = [
+        i for i, subjects in enumerate(per_frame_subjects)
+        if not _frame_is_transition(subjects)
+    ]
+    # Fallback: if the frame budget captured only transition frames, vote over
+    # all of them rather than dropping the slot entirely — degraded data beats
+    # no data.
+    voting_frame_indices = settled_frame_indices or list(range(len(per_frame_subjects)))
+
+    observations_by_slot: dict[str, list[LobbySubjectIdentity]] = {}
+    for frame_idx in voting_frame_indices:
+        for subject in per_frame_subjects[frame_idx]:
+            observations_by_slot.setdefault(subject.slot_key, []).append(subject)
+
+    best_per_slot: dict[str, LobbySubjectIdentity] = {
+        slot_key: _vote_slot_identity(observations)
+        for slot_key, observations in observations_by_slot.items()
+    }
 
     # 5. Phase D: resolve captain per slot by the cross-frame MAX visual ★ score,
-    #    decoupled from the average-confidence best-frame pick above. A clean
-    #    non-star frame must not discard a star observed in another frame. Only
-    #    populated when frames were available (captain_star_score is not None);
-    #    otherwise the best-frame subject's legacy glyph result stands.
+    #    decoupled from the majority-vote identity pick above. A clean non-star
+    #    frame must not discard a star observed in another frame. Restricted to
+    #    the settled voting frames so a stray star glyph on a transition frame
+    #    (the G1.1 t10 residual) can't create a false captain. Only populated
+    #    when frames were available (captain_star_score is not None); otherwise
+    #    the voted subject's legacy glyph result stands.
     captain_star_by_slot: dict[str, float] = {}
-    for subjects in per_frame_subjects:
-        for subject in subjects:
+    for frame_idx in voting_frame_indices:
+        for subject in per_frame_subjects[frame_idx]:
             if subject.captain_star_score is None:
                 continue
             prev = captain_star_by_slot.get(subject.slot_key)
@@ -160,7 +184,7 @@ def extract_lobby_evidence(
                 captain_star_by_slot[subject.slot_key] = subject.captain_star_score
 
     records: list[FieldEvidenceRecord] = []
-    for slot_key, (frame_idx, subject) in best_per_slot.items():
+    for slot_key, subject in best_per_slot.items():
         star = captain_star_by_slot.get(slot_key)
         if star is not None:
             subject = replace(
@@ -208,6 +232,66 @@ def _subject_quality_score(subject: LobbySubjectIdentity) -> float:
         if value is not None and conf is not None:
             confidences.append(conf)
     return mean(confidences) if confidences else 0.0
+
+
+def _normalize_gamertag_for_vote(gamertag: Optional[str]) -> Optional[str]:
+    """Alphanumeric-lowercase key for grouping identical gamertag reads.
+
+    Mirrors ``slot_identity._normalize_for_cross_team_dedup``: strips to
+    alphanumerics, lowercases, and treats <3-char results as noise (None) so
+    OCR fragments don't false-positive as duplicates.
+    """
+    if gamertag is None:
+        return None
+    stripped = re.sub(r"[^A-Za-z0-9]", "", gamertag).lower()
+    return stripped if len(stripped) >= 3 else None
+
+
+def _frame_is_transition(subjects: Sequence[LobbySubjectIdentity]) -> bool:
+    """True when either team panel shows the same human gamertag in 2+ slots.
+
+    A settled EASHL lobby panel lists distinct human gamertags; a within-panel
+    duplicate only occurs mid-scroll, when a row is animating between anchor
+    bands. (Cross-panel duplicates are CPU placeholders, demoted upstream.)
+    """
+    for side in ("our_team", "opponent_team"):
+        seen: set[str] = set()
+        for s in subjects:
+            if s.team_side != side or s.is_empty_or_cpu:
+                continue
+            norm = _normalize_gamertag_for_vote(s.gamertag)
+            if norm is None:
+                continue
+            if norm in seen:
+                return True
+            seen.add(norm)
+    return False
+
+
+def _vote_slot_identity(
+    observations: Sequence[LobbySubjectIdentity],
+) -> LobbySubjectIdentity:
+    """Majority-vote one slot's identity across the (settled) voting frames.
+
+    Groups the human observations by normalized gamertag, picks the group with
+    the most votes (ties broken by summed quality score), and returns the
+    highest-quality observation within that group as the representative — so
+    every promoted field (number/persona/…) comes from a single consistent
+    settled read of the winning identity. When no frame read a human in this
+    slot, returns the best CPU/empty observation so the slot is still emitted.
+    """
+    human = [s for s in observations if not s.is_empty_or_cpu and s.gamertag is not None]
+    if not human:
+        return max(observations, key=_subject_quality_score)
+    tally: dict[str, list[LobbySubjectIdentity]] = {}
+    for s in human:
+        key = _normalize_gamertag_for_vote(s.gamertag) or s.gamertag.lower()
+        tally.setdefault(key, []).append(s)
+    winner = max(
+        tally,
+        key=lambda k: (len(tally[k]), sum(_subject_quality_score(s) for s in tally[k])),
+    )
+    return max(tally[winner], key=_subject_quality_score)
 
 
 def _row_roi_bbox(subject: LobbySubjectIdentity) -> dict[str, float]:
