@@ -185,6 +185,11 @@ Next work:
   - shots/goals/hits/penalties by period versus box score/postgame totals;
   - coordinate distribution sanity checks.
 
+Deferred backlog item (scoped 2026-07-04, Session-1 inspect-and-define; not started):
+
+- **Net-chart net-mouth shot placement.** The `post_game_net_chart` screen plots each shot/goal as an `S` / `G` marker *on the goal mouth* (glove/blocker × high/low/five-hole); today only the left-hand shot-type count table is extracted and the marker placement is discarded. Key finding from inspecting a real frame: this is a **distinct coordinate system from the rink** — `spatial.py` maps to rink coords (x ∈ [-100,100], y ∈ [-42.5,42.5]) via rink landmarks, whereas the net diagram needs its own **goal-frame calibration** + a net-relative `(u,v)` model + its **own DB table** (cannot reuse `match_events.x/y`, which are rink-space). The generic marker detector and shape classifier reuse cleanly (`hexagon=goal`, `circle=shot` already implemented). Markers are **anonymous** (no per-shooter identity on-screen, ~5–7/period) → a **team-aggregate net-placement heatmap** only ("where BGM scores from / where our goalie gets beaten"), not per-player. Effort = a full vertical slice: calibration → coordinate model → DB table → promoter → frontend heatmap → benchmark (multi-session, similar shape to the Action Tracker build).
+- **Correction to this phase's faceoff bullets ("Add faceoff coordinate support … from Faceoff Map", "Faceoff dot/location map"):** the Faceoff Map's 9 fixed dots are **already extracted** categorically (`dot_id` + win counts) and the `/games` faceoff-dominance map already renders them. That half is **shipped** — no marker-detection work is needed for faceoffs; only the net-chart item above remains as spatial-extraction work.
+
 Metrics unlocked:
 
 - Team and player shot maps.
