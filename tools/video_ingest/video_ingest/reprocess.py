@@ -71,7 +71,33 @@ DEFAULT_INGEST_CACHE = Path("/tmp/ingest-cache")
 #                  weights/config as -wsb, so the version string is again the
 #                  only provenance lever; re-ingesting at -wsb would collide with
 #                  preserved run 1975 (match 250) on the provenance uniq.
-DECODER_VERSION = "hmm-viterbi-v2-pregame-cdef-wsb-toggle"
+#   v2-pregame-cdef-wsb-toggle-lobby3fps → pre_game_lobby_state_2 Pass-2 sample
+#                  rate 1→3 fps (nhl26.yaml). state_2 rolls each panel between
+#                  build-class and #NN-persona (~1s stable #NN dwell, cascading
+#                  top-to-bottom flip); at 1 fps for_RD (JoeyFlopfish #48) and
+#                  for_RW (silkyjoker85 #10) landed ZERO #NN/persona evidence
+#                  (their winning-group frames were all build-phase), so the
+#                  -wsb-toggle per-field merge had nothing to fill. 3 fps samples
+#                  the #NN roll for every row. Unlike the -cdef/-wsb/-toggle code
+#                  bumps this is a CONFIG change (it invalidates the pass2 cache
+#                  via the full-YAML hash in compute_pass2_cache_key), but the
+#                  provenance uniq keys only on (…, decoder_version, weights_hash)
+#                  — so the version string is again the lever; re-ingesting at
+#                  -wsb-toggle would collide with preserved run 1977 (match 250).
+#   v2-pregame-cdef-wsb-toggle-lobby3fps-fuzzymerge → _vote_slot_identity per-field
+#                  merge now spans the winner's OCR glyph-drift variants, not only
+#                  the exact-normalized winning gamertag group (lobby_evidence.py
+#                  _gamertag_keys_mergeable: Levenshtein ≤2 on the 6-char prefix,
+#                  mirroring loadout_bundle). Even at 3 fps for_RW stayed at ZERO
+#                  #NN: its gamertag reads silkyjoker85→sillkyjoker85/sllkyjokerBn
+#                  across frames, so every legible #NN read landed on a drifted-key
+#                  frame the exact-group merge discarded (measured on run 1992).
+#                  Fuzzy grouping reunites the drift variants while a cross-panel
+#                  bleed (HenryTheBobJr, prefix-dist 5) stays excluded. Code change,
+#                  same config/weights as -lobby3fps, so the version string is the
+#                  only provenance lever; re-ingesting at -lobby3fps would collide
+#                  with preserved run 1992 (match 250).
+DECODER_VERSION = "hmm-viterbi-v2-pregame-cdef-wsb-toggle-lobby3fps-fuzzymerge"
 
 # NHL 26 is game_title_id=1 in this repo's seed data; the only title
 # currently flowing through OCR ingest. When NHL 27 ships we'll widen

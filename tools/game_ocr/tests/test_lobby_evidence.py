@@ -486,6 +486,50 @@ class VoteSlotIdentityMergeTests(unittest.TestCase):
         merged = _vote_slot_identity([low, high])
         self.assertEqual(merged.player_number, 11)
 
+    def test_merges_glyph_drift_variants_into_winner(self) -> None:
+        # Regression: match-250 for_RW. state_2 toggles build-class and
+        # #NN/persona onto different frames; the winning gamertag group's
+        # frames happened to carry ONLY the build phase, while the #NN/persona
+        # reads landed on frames whose gamertag glyph-drifted
+        # (silkyjoker85 -> sillkyjoker85, a 6-char-prefix Levenshtein of 2).
+        # Exact-key grouping dropped those reads, losing #NN entirely. The
+        # merge must reunite the drift variant. A genuine cross-panel bleed
+        # (HenryTheBobJr, edit-distant) must STILL be excluded even though its
+        # #NN read is higher-confidence.
+        build_a = _subject(
+            "silkyjoker85",
+            build_class_raw="Cole Caufield-SNP",
+            build_class_confidence=0.98,
+        )
+        build_b = _subject(
+            "silkyjoker85",
+            build_class_raw="Cole Caufield-SNP",
+            build_class_confidence=0.96,
+        )
+        drift_number = _subject(
+            "sillkyjoker85",  # glyph drift of the SAME player
+            player_number=10,
+            player_number_confidence=0.90,
+            player_name_persona="Silky",
+            player_name_persona_confidence=0.90,
+        )
+        bleed = _subject(
+            "HenryTheBobJr",  # a DIFFERENT player bled in on a transition frame
+            player_number=7,
+            player_number_confidence=0.99,
+            player_name_persona="Hubert Jenkins",
+            player_name_persona_confidence=0.99,
+        )
+        merged = _vote_slot_identity([build_a, build_b, drift_number, bleed])
+        # Representative identity stays the clean winning gamertag + its build.
+        self.assertEqual(merged.gamertag, "silkyjoker85")
+        self.assertEqual(merged.build_class_raw, "Cole Caufield-SNP")
+        # #NN + persona recovered from the glyph-drift variant of the SAME player.
+        self.assertEqual(merged.player_number, 10)
+        self.assertEqual(merged.player_name_persona, "Silky")
+        # The edit-distant bleed (higher confidence!) must NOT win the field.
+        self.assertNotEqual(merged.player_number, 7)
+
 
 if __name__ == "__main__":
     unittest.main()

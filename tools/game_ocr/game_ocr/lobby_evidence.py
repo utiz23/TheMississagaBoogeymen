@@ -42,6 +42,7 @@ from .lobby_extractors.slot_identity import (
 from .loadout_evidence import FieldEvidenceRecord
 from .loadout_extractors.open_text import LoadoutOpenTextExtractor
 from .ocr import OCRLine, RapidOCRBackend
+from .signal_utils import _levenshtein
 
 EXTRACTOR_VERSION = "lobby-evidence-v2"
 SCREEN_STATE = "pre_game_lobby_state_2"
@@ -247,6 +248,35 @@ def _normalize_gamertag_for_vote(gamertag: Optional[str]) -> Optional[str]:
     return stripped if len(stripped) >= 3 else None
 
 
+_FUZZY_MERGE_GAMERTAG_DISTANCE = 2
+"""Max Levenshtein distance (6-char prefix) for two gamertag reads to count as
+the same player when merging a slot's toggle phases. Mirrors
+``loadout_bundle._FUZZY_GAMERTAG_DISTANCE`` so the lobby and loadout paths share
+one fuzzy-identity rule."""
+
+
+def _gamertag_keys_mergeable(a: str, b: str) -> bool:
+    """True when two normalized vote keys are the same player up to OCR glyph
+    drift: exact, or Levenshtein <= 2 on the 6-char prefix.
+
+    RapidOCR reads a gamertag inconsistently across frames (``silkyjoker85`` ->
+    ``sillkyjoker85`` / ``sllkyjokerBn``); those drift variants must merge into
+    one subject. A cross-panel bleed carries a DIFFERENT player's gamertag
+    (edit-distant — ``henrythebobjr`` is 5 prefix-edits from ``silkyjoker85``),
+    so it stays excluded. A short key (<3 chars) requires an exact match to
+    avoid fragment false-positives.
+    """
+    if a == b:
+        return True
+    head = min(6, len(a), len(b))
+    if head < 3:
+        return False
+    return (
+        _levenshtein(a[:head], b[:head], _FUZZY_MERGE_GAMERTAG_DISTANCE)
+        <= _FUZZY_MERGE_GAMERTAG_DISTANCE
+    )
+
+
 def _frame_is_transition(subjects: Sequence[LobbySubjectIdentity]) -> bool:
     """True when either team panel shows the same human gamertag in 2+ slots.
 
@@ -326,33 +356,45 @@ def _vote_slot_identity(
     """Majority-vote one slot's identity across the (settled) voting frames.
 
     Groups the human observations by normalized gamertag, picks the group with
-    the most votes (ties broken by summed quality score), then MERGES that
-    group per-field: the representative is the highest-quality observation
-    (source of slot_key/team_side/position/gamertag/anchor_y), and every
-    identity field (number/persona/build/level/measurements) is filled from the
-    highest-confidence observation in the winning group that populated it. This
-    reunites state_2's toggled panel phases (one frame carries #NN+persona, the
-    next carries build-class) into one complete subject. Merging only within
-    the winning gamertag group keeps a cross-panel bled read (grouped under a
-    different gamertag) out of this slot. When no frame read a human in this
-    slot, returns the best CPU/empty observation so the slot is still emitted.
+    the most votes (ties broken by summed quality score), then MERGES per-field
+    over that group PLUS its glyph-drift variants: the representative is the
+    highest-quality observation in the exact winning group (source of
+    slot_key/team_side/position/gamertag/anchor_y), and every identity field
+    (number/persona/build/level/measurements) is filled from the
+    highest-confidence observation whose gamertag is the same player up to OCR
+    drift. This reunites state_2's toggled panel phases (one frame carries
+    #NN+persona, the next carries build-class) into one complete subject even
+    when the gamertag reads differently across those phases — the match-250
+    for_RW failure, where every #NN read landed on a frame whose gamertag
+    drifted off the exact winning key and was dropped. A cross-panel bleed
+    carries a DIFFERENT player's (edit-distant) gamertag, so
+    ``_gamertag_keys_mergeable`` still keeps it out of this slot. When no frame
+    read a human in this slot, returns the best CPU/empty observation so the
+    slot is still emitted.
     """
     human = [s for s in observations if not s.is_empty_or_cpu and s.gamertag is not None]
     if not human:
         return max(observations, key=_subject_quality_score)
+
+    def vote_key(s: LobbySubjectIdentity) -> str:
+        return _normalize_gamertag_for_vote(s.gamertag) or s.gamertag.lower()
+
     tally: dict[str, list[LobbySubjectIdentity]] = {}
     for s in human:
-        key = _normalize_gamertag_for_vote(s.gamertag) or s.gamertag.lower()
-        tally.setdefault(key, []).append(s)
+        tally.setdefault(vote_key(s), []).append(s)
     winner = max(
         tally,
         key=lambda k: (len(tally[k]), sum(_subject_quality_score(s) for s in tally[k])),
     )
-    group = tally[winner]
-    representative = max(group, key=_subject_quality_score)
+    # Representative (and thus the emitted gamertag) comes from the EXACT
+    # winning key group, so a drift variant never becomes the slot's gamertag.
+    representative = max(tally[winner], key=_subject_quality_score)
+    # But per-field merging spans the winner's glyph-drift variants too, so a
+    # #NN/persona read stranded on a drifted-gamertag frame is still recovered.
+    merge_group = [s for s in human if _gamertag_keys_mergeable(winner, vote_key(s))]
     merged: dict[str, object] = {}
     for guard_attr, conf_attr, copy_attrs in _MERGEABLE_FIELDS:
-        merged.update(_merge_best_field(group, guard_attr, conf_attr, copy_attrs))
+        merged.update(_merge_best_field(merge_group, guard_attr, conf_attr, copy_attrs))
     return replace(representative, **merged)
 
 
