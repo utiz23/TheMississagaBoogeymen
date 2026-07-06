@@ -735,3 +735,87 @@ void test('identity filter: a mis-slotted different-player lobby row does not bl
     'persona must be the loadout truth (SILKY), not the bled Hubert Jenkins',
   )
 })
+
+// ─────────────────────────────────────────────────────────────────────────────
+// F. loadout-preferred persona vote (away D-man: match 250 against|LD)
+//    The toggle-merge lobby extractor surfaces the away D-man's ABBREVIATED
+//    persona at high confidence (`P.Magroyne` → alias canonical `P. MAGROYNE`),
+//    while the authoritative loadout card carries the full name `Pat Magroyne`.
+//    Under the plain cross-source vote the higher-confidence lobby read wins, so
+//    the consolidated persona regresses `Pat Magroyne` → `P. MAGROYNE` — the
+//    exact run-1977 toggle-merge activation regression that fails getMatchLineups
+//    (exact match) for opponent/LD (±RD). Persona must prefer the loadout source
+//    whenever it carries a value, mirroring the jersey-number fix (test E /
+//    voteLoadoutPreferred). Non-vacuous: the lobby read is seeded at HIGHER
+//    confidence than the loadout card, so the plain vote genuinely WANTS to flip
+//    it — the source preference is what stops it.
+// ─────────────────────────────────────────────────────────────────────────────
+void test('loadout-preferred persona: a higher-confidence lobby abbreviation does not beat the loadout full name', async () => {
+  if (!process.env['DATABASE_URL']) return
+
+  const matchId = await createMatch('persona-away-d')
+  const runId = await createActiveRun(matchId, 'persona-away-d')
+  const loadoutX = await createExtraction(matchId, runId, 'player_loadout_view')
+  const lobbyX = await createExtraction(matchId, runId, 'pre_game_lobby_state_2')
+
+  const slotLoadout = 'loadout_slot_seg0003_subject08' // MuttButt — the loadout truth
+  const slotLobby = 'lobby_against_LD' // same player, toggle-merge abbreviation
+
+  // Loadout card reads the full name at 0.90; the toggle-merge lobby surfaces the
+  // abbreviated `P. MAGROYNE` at a HIGHER 0.98 → the plain vote regresses. Loadout
+  // keys persona_raw; lobby keys player_name_persona (EVIDENCE_KEY_BY_SOURCE).
+  await seedEvidence(matchId, runId, slotLoadout, 'persona_raw', 'Pat Magroyne', '0.90')
+  await seedEvidence(
+    matchId,
+    runId,
+    slotLobby,
+    'player_name_persona',
+    'P. MAGROYNE',
+    '0.98',
+    'pre_game_lobby_state_2',
+  )
+
+  await seedSnap({
+    matchId,
+    extractionId: loadoutX,
+    slotKey: slotLoadout,
+    gamertag: 'MuttButt',
+    position: 'LD',
+    teamSide: 'against',
+    playerNamePersona: 'Pat Magroyne',
+  })
+  await seedSnap({
+    matchId,
+    extractionId: lobbyX,
+    slotKey: slotLobby,
+    gamertag: 'MuttButt', // SAME identity → the for_RW-bleed filter keeps both in the vote
+    position: 'LD',
+    teamSide: 'against',
+    playerNamePersona: 'P. MAGROYNE',
+  })
+
+  await consolidateLoadouts(matchId, { runId })
+
+  const reviewed = await db
+    .select({
+      gamertag: playerLoadoutSnapshots.gamertagSnapshot,
+      persona: playerLoadoutSnapshots.playerNamePersona,
+    })
+    .from(playerLoadoutSnapshots)
+    .where(
+      and(
+        eq(playerLoadoutSnapshots.matchId, matchId),
+        eq(playerLoadoutSnapshots.reviewStatus, 'reviewed'),
+      ),
+    )
+  assert.equal(reviewed.length, 1, 'exactly one (against, LD) anchor')
+  // resolvePersona has no alias for `Pat Magroyne` (Levenshtein > 1 from the
+  // `p. magroyne` alias) → raw path preserves it verbatim. Had the higher-
+  // confidence lobby read won, the alias table would canonicalize it to the
+  // abbreviated `P. MAGROYNE` — so `Pat Magroyne` proves the loadout source won.
+  assert.equal(
+    reviewed[0]!.persona,
+    'Pat Magroyne',
+    'persona must be the loadout full name, not the higher-confidence lobby abbreviation',
+  )
+})

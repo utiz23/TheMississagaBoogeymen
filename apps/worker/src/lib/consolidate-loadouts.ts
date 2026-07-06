@@ -350,12 +350,21 @@ export function vote<T>(
 /**
  * Vote a scalar with LOADOUT-SOURCE PRIORITY.
  *
- * The loadout card renders the jersey number large and clear; the lobby table's
+ * Used for the fields the loadout card renders authoritatively but the lobby
+ * table renders in a misread-prone or abbreviated form — the jersey number and
+ * the persona name.
+ *
+ * Jersey number — the loadout card renders it large and clear; the lobby table's
  * small number column is prone to single/double-digit misreads and row-group
  * bleed. Match 463 for_LD (HenryTheBobJr): the loadout card reads 7 (correct,
  * ×2 @ ~0.97) but the lobby row reads 77 (wrong, ×2 @ ~0.97), and the two lobby
  * reads slightly outweigh the two loadout reads in the plain confidence vote
  * (Σ77 = 1.9536 > Σ7 = 1.9473), so the number regresses to 77.
+ *
+ * Persona — the loadout card shows the full name (`Pat Magroyne`) while the
+ * lobby shows an abbreviation (`P.Magroyne` → alias `P. MAGROYNE`). Match 250
+ * against_LD after the toggle-merge: the lobby abbreviation reads at higher
+ * confidence and out-votes the loadout full name, regressing getMatchLineups.
  *
  * When any loadout-source observation in the (already identity-scoped) group
  * carries a non-null value, vote ONLY among the loadout observations; otherwise
@@ -604,15 +613,28 @@ function consensus(
     // Persona is voted raw here; alias-table canonicalization happens inside
     // the per-anchor transaction below (resolvePersona) so the raw vote can
     // be preserved alongside the cleaned value.
-    playerNamePersona: vote(
-      anchor.playerNamePersona,
-      others.map((s) => s.playerNamePersona),
-      conf('playerNamePersona'),
+    //
+    // Prefer the loadout card (authoritative full-name render) over the lobby
+    // table's abbreviated/misread-prone persona when both are present for the
+    // same player — the same source preference the jersey number uses. Fixes the
+    // toggle-merge regression where the lobby's high-confidence abbreviation
+    // (`P.Magroyne` → alias `P. MAGROYNE`) out-voted the loadout full name
+    // `Pat Magroyne` for the away D-men, failing getMatchLineups on opponent/LD.
+    // On single-source (lobby-only goalies / away subjects without a loadout
+    // card) it reduces exactly to `vote`, so no lobby-only slot regresses.
+    playerNamePersona: voteLoadoutPreferred(
+      anchor,
+      others,
+      (s) => s.playerNamePersona,
+      'playerNamePersona',
+      confBySlot,
     ),
-    playerNamePersonaRaw: vote(
-      anchor.playerNamePersona,
-      others.map((s) => s.playerNamePersona),
-      conf('playerNamePersona'),
+    playerNamePersonaRaw: voteLoadoutPreferred(
+      anchor,
+      others,
+      (s) => s.playerNamePersona,
+      'playerNamePersona',
+      confBySlot,
     ),
     // Jersey number: prefer the loadout card (authoritative, large clear render)
     // over the lobby table's misread-prone number column when both are present
