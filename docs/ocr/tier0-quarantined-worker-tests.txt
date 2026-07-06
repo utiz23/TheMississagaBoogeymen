@@ -37,6 +37,21 @@
 #     video present in the per-match layout; DECODER_VERSION bump avoids the
 #     provenance collision). Fix = port the grid-based position lookup into the
 #     lobby extractor + re-ingest. See docs/ocr/lobby-slot-scramble-extractor-followup.md.
+#   match 250 lobby reds — PHASE G CLOSED (2026-07-05): the note above is
+#     SUPERSEDED. The "y-sort / no grid re-lookup" theory was REFUTED (2026-07-04);
+#     the real defect was transition-frame selection + the state_2 panel toggle in
+#     _vote_slot_identity, NOT position assignment — do NOT port the loadout
+#     PositionGrid (it fixes a non-bug). The extractor work is DONE: WS-B majority
+#     vote (981e19b) + per-field toggle merge (034c39d) + 3fps lobby sampling +
+#     fuzzy-gamertag grouping (d43f1ce) lifted raw #NN 4/10 → 10/10, verified on
+#     candidate run 1993 (-fuzzymerge). The 3 lobby gates below stay PERMANENTLY
+#     test.skip by standing decision: getMatchLineups (consolidated) is the real
+#     acceptance and is green on run 1954; lighting the raw gates would need a
+#     candidate-run activation + build_class canonical normalization (abbreviated
+#     persona-prefixed forms "Cole Caufield-SNP"/"Tage Thompson-PWF" → "Sniper"),
+#     deliberately deferred as not worth it for a hobby project. Runs
+#     1975/1977/1992/1993 preserved is_active=f. See match-250-benchmark.test.ts
+#     headers + HANDOFF.md.
 #   match 250 getMatchLineups: BGM/LW is_captain reads `true` (V2: false). Tier 1
 #     WS-A pre-flight (2026-06-14) DISPROVED the "consolidate reads confidence"
 #     fix: the stored captain confidence is OCR line-confidence, not a ★-detection

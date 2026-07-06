@@ -1518,19 +1518,19 @@ const EXPECTED_LOBBY_BGM: readonly ExpectedLobbyFields[] = [
   },
 ]
 
-// QUARANTINED (Phase G, updated 2026-07-05): this gate scores the RAW
-// pre_game_lobby_state_2 snapshots, which live UPSTREAM of consolidation. Same
-// root cause as the typed_v1 lobby gates below (see the soft-field gate header for
-// the committed-frame proof): state_2 toggles the two team panels on opposite
-// phases, so a slot's build/level and its #NN/persona land on DIFFERENT settled
-// frames. Both phases reach OCR, but the per-slot aggregator used to collapse each
-// slot to a single representative frame (BGM/LD level then reads 24 vs V2's 35).
-// FIXED at the source 2026-07-05: _vote_slot_identity now merges the winning
-// gamertag group per-field. The merge takes effect only on freshly extracted
-// evidence, so this stays skipped until the DECODER_VERSION-bumped re-ingest of
-// match 250 is validated and activated. The consolidated read path (getMatchLineups)
-// IS un-quarantined and green — the consolidation vote already resolves these
-// correctly.
+// PHASE G CLOSED (2026-07-05) — PERMANENTLY SKIPPED by standing decision.
+// Scores the RAW pre_game_lobby_state_2 snapshots (UPSTREAM of consolidation).
+// The extractor work is DONE: state_2 toggles the two team panels on opposite
+// phases, and _vote_slot_identity now merges the winning gamertag group per-field
+// (fuzzy-gamertag grouping, commit d43f1ce), proven end-to-end on candidate run
+// 1993 (-fuzzymerge) where raw #NN reached 10/10 (BGM 5/5). This stays skipped by
+// CHOICE, not defect: the gate reads persisted snapshots from the ACTIVE run
+// (1954), so lighting it would require activating a candidate run PLUS the
+// build_class normalization named on the hard-field gate below. The consolidated
+// read path (getMatchLineups) is the real acceptance — un-quarantined and green —
+// so the raw gate is not worth activating for this hobby project. Candidate runs
+// 1975/1977/1992/1993 are preserved (is_active=f) as zero-cost re-gating assets if
+// the raw gates are ever wanted.
 void test.skip('match 250: pre-game lobby BGM loadout fields match V2', async () => {
   if (!process.env['DATABASE_URL']) return
   // Phase 2B cutover note: typed_v1 doesn't yet extract height_text /
@@ -1677,17 +1677,18 @@ function findSlotRow(
   return rows.find((r) => r.teamSide === teamSide && r.position === position)
 }
 
-// QUARANTINED (Phase G, updated 2026-07-05): raw pre_game_lobby_state_2 gate,
-// upstream of consolidation. The HARD fields (gamertag/position/build) are NOT
-// blocked by the panel toggle — on preserved run 1975's SETTLED segment the
-// gamertag reads ~9/10 (≥90%) after the settled-segment promoter fix (014b20c),
-// so this gate is expected to PASS once run 1975's successor is activated. (The
-// pre-014b20c "gamertag ~5/10" note was stale.) It stays skipped only because
-// the gate reads persisted snapshots from the ACTIVE run (1954), which are not
-// refreshed until the DECODER_VERSION-bumped re-ingest of match 250 is validated
-// and activated. The SOFT gate below (number/persona) is the toggle-affected one,
-// fixed by the _vote_slot_identity per-field merge (2026-07-05). getMatchLineups
-// (the consolidated read) is un-quarantined and green.
+// PHASE G CLOSED (2026-07-05) — PERMANENTLY SKIPPED by standing decision.
+// Raw pre_game_lobby_state_2 hard-field gate (gamertag/position/build_class),
+// upstream of consolidation. gamertag/position clear ≥90% on the settled segment
+// (the settled-segment promoter fix 014b20c lifted gamertag ~5/10→9/10). The SOLE
+// remaining hard-gate blocker is build_class: two BGM slots emit the loadout's
+// abbreviated persona-prefixed form (for_RW "Cole Caufield-SNP", for_LW "Tage
+// Thompson-PWF") instead of the canonical class ("Sniper"), confirmed on candidate
+// run 1993. That is a promoter-side normalization (SNP→Sniper, PWF→Power Forward,
+// strip the persona prefix), NOT an extraction gap — deliberately deferred.
+// Un-skipping also requires activating a candidate run (the gate reads the ACTIVE
+// run's snapshots). getMatchLineups (consolidated) is the real acceptance and is
+// green on run 1954.
 void test.skip('match 250: lobby typed_v1 hard-field accuracy ≥ 90%', async () => {
   if (!process.env['DATABASE_URL']) return
   const rows = await loadLobbySnapshotsForMatch(250)
@@ -1752,29 +1753,21 @@ void test.skip('match 250: lobby typed_v1 hard-field accuracy ≥ 90%', async ()
   }
 })
 
-// QUARANTINED (Phase G, 2026-07-04): raw pre_game_lobby_state_2 accuracy gate,
-// upstream of consolidation. Root cause is NOT extraction sparsity — state_2
-// renders "#NN - Persona" for a WHOLE team panel's 5 skaters at once, and the two
-// team panels toggle on opposite phases. Committed frames prove it (under
-// tools/game_ocr/calibration/extras/):
-//   pre_game_lobby_state_2__match250_t40_vs_4thline.png
-//     — opponent panel shows #NN-Persona, BGM panel shows build-class; and the
-//   pre_game_lobby_state_2__match250_t48_vs_4thline.png (reversed)
-//     — BGM panel shows #NN-Persona, opponent panel shows build-class.
-// So all 10 numbers/personas physically exist in state_2 but are split across the
-// two toggle phases — no single frame carries more than one panel's 5. BOTH phases
-// DID reach OCR (2026-07-05: run 1975's for_C carries #11, an #NN-phase read), but
-// the per-slot aggregator collapsed each slot to a SINGLE representative frame, so
-// only one phase survived per slot (raw gate then ~4/10 number, ~3/10 persona).
-// FIXED at the source 2026-07-05: _vote_slot_identity now merges the winning
-// gamertag group per-field, so a slot emits BOTH its build-class and its #NN/
-// persona. A repromote-lobby still CANNOT clear this (it re-runs promotion over
-// the OLD collapsed evidence) and loadout-consolidation CANNOT satisfy the RAW
-// gate (wrong screen_type + full-name persona form → 6/10) — the merge only takes
-// effect on freshly extracted evidence, so the remaining green-gate step is a
-// DECODER_VERSION-bumped RE-INGEST of match 250 (separate GPU session), expected
-// to yield number 10/10, persona 8/10. getMatchLineups (the consolidated read) is
-// un-quarantined and green.
+// PHASE G CLOSED (2026-07-05) — PERMANENTLY SKIPPED by standing decision.
+// Raw pre_game_lobby_state_2 soft-field gate (player_number/persona/is_captain),
+// upstream of consolidation. This was the toggle-affected gate: state_2 renders
+// "#NN - Persona" for a WHOLE team panel's 5 skaters at once and the two panels
+// toggle on opposite phases (committed proof frames under
+// tools/game_ocr/calibration/extras/: ..._t40_vs_4thline.png shows the opponent
+// panel on #NN, ..._t48_vs_4thline.png the BGM panel). The extractor work is DONE
+// across three fixes — per-field toggle merge (034c39d), 3fps lobby sampling
+// (-lobby3fps), and fuzzy-gamertag grouping (-fuzzymerge, d43f1ce): on candidate
+// run 1993 raw player_number is 10/10 and persona ~8/10 (the two away D-men use the
+// loadout full-name form, ~80%, still ≥75%). So this gate WOULD pass on an
+// activated candidate run — it stays skipped only because the hard-field gate above
+// still needs build_class normalization and getMatchLineups (consolidated) is the
+// real acceptance, green on run 1954. Not worth activating for a hobby project.
+// Runs 1975/1977/1992/1993 preserved is_active=f.
 void test.skip('match 250: lobby typed_v1 soft-field accuracy ≥ 75%', async () => {
   if (!process.env['DATABASE_URL']) return
   const rows = await loadLobbySnapshotsForMatch(250)
