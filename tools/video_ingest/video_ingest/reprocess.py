@@ -715,7 +715,7 @@ def reprocess(
     # path) → all new keys land as null in the persisted row; the TS
     # loader accepts null/missing.
     ingest_timings_path = (
-        DEFAULT_INGEST_CACHE / video_sha256 / f"ingest-run-{new_run_id}-timings.json"
+        DEFAULT_INGEST_CACHE / primary_sha / f"ingest-run-{new_run_id}-timings.json"
     )
     ingest_timings: dict | None = None
     if ingest_timings_path.exists():

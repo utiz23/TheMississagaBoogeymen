@@ -95,9 +95,14 @@ def _fake_artifacts(monkeypatch: pytest.MonkeyPatch) -> None:
         reprocess_mod, "_compute_hashes",
         lambda version: ("a" * 64, "b" * 64),
     )
+    # reprocess() resolves sources through the multi-video `_resolve_video_paths`
+    # (plural) — it hits the DB (`ocr_capture_batches`) + hashes on-disk `.mkv`s,
+    # so it MUST be stubbed or the test binds to the operator's `/mnt/k` disk.
+    # `videos[0]` is the primary; its sha (`"c"*64`) tags the run and names the
+    # ingest-timings sidecar the sidecar tests below lay down.
     monkeypatch.setattr(
-        reprocess_mod, "_resolve_video_path",
-        lambda match_id: (Path("/tmp/fake-video.mkv"), "c" * 64),
+        reprocess_mod, "_resolve_video_paths",
+        lambda match_id: [(Path("/tmp/fake-video.mkv"), "c" * 64)],
     )
 
 
