@@ -19,7 +19,9 @@ from game_ocr.loadout_extractors.closed_vocab import (
 ENTRY_FAMILIES = ["x_factors", "build_classes", "positions", "platforms", "x_factor_tiers"]
 EXPECTED_ENTRY_COUNTS = {
     "x_factors": 28,
-    "build_classes": 9,
+    # 10 = the 9 BUILD_CANONICAL_NAMES + "Enforcer" (observed on the loadout
+    # cards of benchmark matches 463/968; added to the closed vocab in 33c44c2).
+    "build_classes": 10,
     "positions": 6,
     "platforms": 6,
     "x_factor_tiers": 3,
