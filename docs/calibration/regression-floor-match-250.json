@@ -345,6 +345,35 @@
       "pass": true,
       "notes": "all gates met"
     },
+    "l4": {
+      "score": 0.5714285714285714,
+      "pass": false,
+      "gradable": true,
+      "notes": "graded 4/7 fields (team + per-player) vs EA-API truth",
+      "mismatches": [
+        {
+          "field": "shotsFor",
+          "scope": "team",
+          "ocrValue": 29,
+          "apiValue": 25,
+          "exactMatch": false
+        },
+        {
+          "field": "shotsAgainst",
+          "scope": "team",
+          "ocrValue": 16,
+          "apiValue": 15,
+          "exactMatch": false
+        },
+        {
+          "field": "goals",
+          "scope": "player:ryTheBobJr",
+          "ocrValue": 2,
+          "apiValue": 0,
+          "exactMatch": false
+        }
+      ]
+    },
     "overall": {
       "pass": true
     }

@@ -10,9 +10,17 @@
  */
 
 import { db, matchEvents, playerLoadoutSnapshots } from '@eanhl/db'
+import {
+  getApiPlayerStats,
+  getApiTeamTotals,
+  getOcrBoxScoreForMatch,
+  getOcrPlayerSummaryFields,
+} from '@eanhl/db/queries'
 import { and, eq, sql } from 'drizzle-orm'
 
 import { type DownstreamRow, type QualityFlag } from './quality-inputs.js'
+import { computeL4, type L4FieldDiff } from './l4-api-truth.js'
+import { resolveGamertagToPlayer } from '../ocr-promoters/resolve-identity.js'
 import type { DbOrTx } from '../ocr-promoters/index.js'
 
 /**
@@ -52,6 +60,12 @@ export const L2_THRESHOLD = 0.9
 export const L2_LINEUP_THRESHOLD = 0.9
 /** L3 — weighted downstream completeness. Just below 250's 1.000. */
 export const L3_THRESHOLD = 0.95
+/**
+ * L4 — API-truth accuracy: exact-match fraction of OCR box-score team totals +
+ * per-player audit lines vs EA-API truth. Mirrors L3's bar. Informational for
+ * now — L4 does NOT feed `overall.pass` (Milestone ④ wires the promotion gate).
+ */
+export const L4_THRESHOLD = 0.95
 
 /**
  * `DownstreamRow` and `QualityFlag` are the minimal shapes `computeLayers`
@@ -84,6 +98,19 @@ export interface LayerScores {
     expected: number
   }
   l3: { score: number; pass: boolean; notes: string }
+  /**
+   * L4 — API-truth accuracy. `gradable=false` (⇒ `score`/`pass` null) when there
+   * is no EA-API truth to grade against (OCR sole source). `pass` is null when
+   * ungradable or when no OCR/API fields overlap. `mismatches` feeds the review
+   * queue. INFORMATIONAL — deliberately excluded from `overall.pass` (see below).
+   */
+  l4: {
+    score: number | null
+    pass: boolean | null
+    gradable: boolean
+    notes: string
+    mismatches: L4FieldDiff[]
+  }
   overall: { pass: boolean }
 }
 
@@ -201,11 +228,45 @@ export async function computeLayers(
     notes: completenessLines.length > 0 ? `gaps: ${completenessLines.join(', ')}` : 'all gates met',
   }
 
+  // L4 — API-truth accuracy. Grades OCR box-score team totals + per-player audit
+  // lines against the EA-API truth in `matches` / `player_match_stats`. All four
+  // inputs are read-only DB queries; the comparator itself is pure. The persona
+  // resolver maps an OCR gamertag → players.id; resolveGamertagToPlayer ignores
+  // its gameTitleId arg (`_gameTitleId`), so 0 is a harmless placeholder.
+  const [ocrTeam, apiTeam, ocrPlayers, apiPlayers] = await Promise.all([
+    getOcrBoxScoreForMatch(matchId),
+    getApiTeamTotals(matchId),
+    getOcrPlayerSummaryFields(matchId),
+    getApiPlayerStats(matchId),
+  ])
+  const l4result = await computeL4({
+    ocrTeam,
+    apiTeam,
+    ocrPlayers,
+    apiPlayers,
+    resolvePersona: async (raw) => ({
+      playerId: (await resolveGamertagToPlayer(raw, 0, conn)).playerId,
+    }),
+  })
+  const l4 = {
+    score: l4result.score,
+    // pass only when there's a real fraction to threshold; null when ungradable
+    // or when no OCR/API fields overlapped (score null in both cases).
+    pass: l4result.gradable && l4result.score !== null ? l4result.score >= L4_THRESHOLD : null,
+    gradable: l4result.gradable,
+    notes: l4result.notes,
+    mismatches: l4result.mismatches,
+  }
+
   return {
     l1,
     l2,
     l2_lineup,
     l3,
+    l4,
+    // NOTE: `overall.pass` intentionally does NOT include L4. L4 is
+    // informational until Milestone ④ wires the promotion gate; adding it here
+    // now would silently change every run's pass/fail verdict.
     overall: { pass: l2.pass && l2_lineup.pass && l3.pass && (l1.pass ?? true) },
   }
 }

@@ -5,9 +5,13 @@
  * cases (added in Task 3.4) build the report body for the 4 already-ingested
  * matches and are gated on DATABASE_URL like match-250-benchmark.test.ts.
  */
-import test from 'node:test'
+import test, { after } from 'node:test'
 import assert from 'node:assert/strict'
 import { computeL4 } from '../lib/l4-api-truth.js'
+// The integration cases lazy-import `@eanhl/db/queries` + `run-quality-report`
+// INSIDE the DATABASE_URL gate. Those pull in the `@eanhl/db` client, which
+// throws at import when DATABASE_URL is unset — so a top-level import would stop
+// the pure `computeL4` unit tests from running standalone (no DB) too.
 
 void test('computeL4 grades team totals exact, flags a shot mismatch', async () => {
   const r = await computeL4({
@@ -49,7 +53,9 @@ void test('computeL4 is ungradable when there is no API truth', async () => {
       faceoffsAgainst: 9,
     },
     apiTeam: null,
-    ocrPlayers: [{ personaRaw: 'silkyjoker85', goals: 2, assists: null, saves: null, savePct: null }],
+    ocrPlayers: [
+      { personaRaw: 'silkyjoker85', goals: 2, assists: null, saves: null, savePct: null },
+    ],
     apiPlayers: [],
     resolvePersona: async () => ({ playerId: 1 }),
   })
@@ -124,3 +130,42 @@ void test('computeL4 grades per-player lines, flagging a persona mismatch', asyn
   assert.equal(r.mismatches[0]!.field, 'goals')
   assert.equal(r.mismatches[0]!.scope, 'player:henry')
 })
+
+// ── Integration: L4 populates through the real report body for the 4 already-
+// ingested matches (250 API-imperfect box score, 463 shots-untab'd, 968 noisy,
+// 2582 no player-summary). Gated on DATABASE_URL like match-250-benchmark.
+const L4_INGESTED_MATCHES = [250, 463, 968, 2582] as const
+
+after(async () => {
+  if (process.env['DATABASE_URL']) {
+    const { sql } = await import('@eanhl/db')
+    await sql.end({ timeout: 1 }).catch(() => undefined)
+  }
+})
+
+for (const matchId of L4_INGESTED_MATCHES) {
+  void test(`L4 report body is populated + gradable for match ${String(matchId)}`, async (t) => {
+    if (!process.env['DATABASE_URL']) {
+      t.skip('DATABASE_URL not set — L4 integration gate requires DB.')
+      return
+    }
+    const { getActiveRunIdForMatch } = await import('@eanhl/db/queries')
+    const { buildReportBody, loadRunRow } = await import('../lib/run-quality-report.js')
+    const runId = await getActiveRunIdForMatch(matchId)
+    assert.ok(runId, `no active run for match ${String(matchId)}`)
+    const run = await loadRunRow(runId)
+    assert.ok(run, `active run ${String(runId)} not loadable for match ${String(matchId)}`)
+
+    const body = await buildReportBody(run, { runtime: null })
+    const l4 = body.layers.l4
+    assert.equal(l4.gradable, true, `match ${String(matchId)}: L4 should be gradable`)
+    assert.ok(
+      typeof l4.score === 'number' && l4.score >= 0 && l4.score <= 1,
+      `match ${String(matchId)}: L4 score should be a number in [0,1]; got ${String(l4.score)}`,
+    )
+    assert.ok(
+      Array.isArray(l4.mismatches),
+      `match ${String(matchId)}: L4 mismatches must be an array`,
+    )
+  })
+}

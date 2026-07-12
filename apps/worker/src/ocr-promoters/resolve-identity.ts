@@ -29,7 +29,7 @@ import {
   playerLoadoutSnapshots,
 } from '@eanhl/db'
 import { and, eq, isNotNull, isNull, sql } from 'drizzle-orm'
-import type { PromoterDb } from './index.js'
+import type { DbOrTx } from './index.js'
 
 export interface ResolvedPlayer {
   playerId: number | null
@@ -97,7 +97,7 @@ export function levenshtein(a: string, b: string, maxDistance: number): number {
 export async function resolveGamertagToPlayer(
   rawSnapshot: string | null | undefined,
   _gameTitleId: number,
-  dbConn: PromoterDb,
+  dbConn: DbOrTx,
 ): Promise<ResolvedPlayer> {
   if (!rawSnapshot) return { playerId: null, via: 'unresolved' }
   const norm = normalizeSnapshot(rawSnapshot)
@@ -212,7 +212,7 @@ export async function resolveActorForMatch(
   rawSnapshot: string | null | undefined,
   matchId: number,
   gameTitleId: number,
-  dbConn: PromoterDb,
+  dbConn: DbOrTx,
 ): Promise<ResolvedActor> {
   const global = await resolveGamertagToPlayer(rawSnapshot, gameTitleId, dbConn)
   if (global.playerId === null) {

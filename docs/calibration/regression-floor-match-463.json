@@ -164,14 +164,14 @@
       "actual": 138,
       "expected": 230,
       "reviewed": 138,
-      "notes": "23 attrs \u00d7 reviewed slots"
+      "notes": "23 attrs × reviewed slots"
     },
     {
       "table": "player_loadout_x_factors",
       "actual": 18,
       "expected": 30,
       "reviewed": 18,
-      "notes": "3 x-factors \u00d7 reviewed slots"
+      "notes": "3 x-factors × reviewed slots"
     }
   ],
   "periods": [
@@ -237,14 +237,14 @@
     {
       "classId": "A",
       "severity": "fail",
-      "message": "9 duplicate event(s) across 9 (period, clock, type) bucket(s) \u2014 OCR-variant dedup failure",
-      "evidence": "P1 0:02 shot \u00d72, P1 4:13 faceoff \u00d72, P2 10:19 faceoff \u00d72, P2 10:29 shot \u00d72, P2 11:07 faceoff \u00d72"
+      "message": "9 duplicate event(s) across 9 (period, clock, type) bucket(s) — OCR-variant dedup failure",
+      "evidence": "P1 0:02 shot ×2, P1 4:13 faceoff ×2, P2 10:19 faceoff ×2, P2 10:29 shot ×2, P2 11:07 faceoff ×2"
     },
     {
       "classId": "C",
       "severity": "fail",
-      "message": "6 event pair(s) share marker (x,y) within 1.0 hockey unit \u2014 chevron extractor collisions / cluster-radius too coarse",
-      "evidence": "P2 hit@6:13 (H. O'YOINTSKI) \u2248 hit@16:13 (H. YOINT) @(80.20,-14.88); P2 shot@7:16 (H. YOINT) \u2248 shot@10:29 (H. U'YOINISKI) @(81.05,-2.79); P2 shot@14:13 (H. JENKINS) \u2248 shot@18:13 (H. JENKINS) @(-62.09,-30.94); P3 shot@1:39 (T. MY YOINNT) \u2248 shot@13:28 (T. MY YOINNT) @(-91.14,8.75); P3 hit@6:30 (H. YOINT) \u2248 hit@10:32 (H. O'YOINTSKI) @(37.29,-33.36)"
+      "message": "6 event pair(s) share marker (x,y) within 1.0 hockey unit — chevron extractor collisions / cluster-radius too coarse",
+      "evidence": "P2 hit@6:13 (H. O'YOINTSKI) ≈ hit@16:13 (H. YOINT) @(80.20,-14.88); P2 shot@7:16 (H. YOINT) ≈ shot@10:29 (H. U'YOINISKI) @(81.05,-2.79); P2 shot@14:13 (H. JENKINS) ≈ shot@18:13 (H. JENKINS) @(-62.09,-30.94); P3 shot@1:39 (T. MY YOINNT) ≈ shot@13:28 (T. MY YOINNT) @(-91.14,8.75); P3 hit@6:30 (H. YOINT) ≈ hit@10:32 (H. O'YOINTSKI) @(37.29,-33.36)"
     }
   ],
   "pending": [
@@ -328,6 +328,13 @@
       "score": 0.9192307692307692,
       "pass": false,
       "notes": "gaps: match_shot_type_summaries=6/8, player_loadout_attributes=138/230, player_loadout_x_factors=18/30"
+    },
+    "l4": {
+      "score": 1,
+      "pass": true,
+      "gradable": true,
+      "notes": "graded 4/4 fields (team + per-player) vs EA-API truth",
+      "mismatches": []
     },
     "overall": {
       "pass": false

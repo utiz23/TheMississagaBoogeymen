@@ -68,16 +68,12 @@ async function cleanupSentinels(): Promise<void> {
   const runIds = runRows.map((r) => r.id)
 
   if (runIds.length > 0) {
-    await db
-      .delete(ocrRunQualityReports)
-      .where(inArray(ocrRunQualityReports.runId, runIds))
+    await db.delete(ocrRunQualityReports).where(inArray(ocrRunQualityReports.runId, runIds))
     await db.delete(ocrPromotions).where(inArray(ocrPromotions.runId, runIds))
     await db.delete(ocrFieldEvidence).where(inArray(ocrFieldEvidence.runId, runIds))
     await db.delete(ocrSegments).where(inArray(ocrSegments.runId, runIds))
   }
-  await db
-    .delete(playerLoadoutSnapshots)
-    .where(inArray(playerLoadoutSnapshots.matchId, matchIds))
+  await db.delete(playerLoadoutSnapshots).where(inArray(playerLoadoutSnapshots.matchId, matchIds))
   await db.delete(matchEvents).where(inArray(matchEvents.matchId, matchIds))
 
   const batchRows = await db
@@ -424,6 +420,7 @@ void test('upsertRunQualityReport: insert, conflict throws, force updates', asyn
     l2Score: 0.98,
     l2LineupScore: 0.97,
     l3Score: 0.99,
+    l4Score: 0.96,
     totalWallMs: 12345,
     totalSegments: 25,
     totalDemoted: 2,
@@ -466,9 +463,7 @@ void test('upsertRunQualityReport: insert, conflict throws, force updates', asyn
   }
   const isUniqueViolation =
     codes.includes('23505') ||
-    messages.some((m) =>
-      /duplicate key value violates unique constraint/i.test(m),
-    )
+    messages.some((m) => /duplicate key value violates unique constraint/i.test(m))
   assert.ok(
     isUniqueViolation,
     `expected unique-violation (code 23505); got codes=${JSON.stringify(codes)} messages=${JSON.stringify(messages)}`,
@@ -477,12 +472,9 @@ void test('upsertRunQualityReport: insert, conflict throws, force updates', asyn
   // Force-update path: same runId, new body + new score.
   await new Promise((resolve) => setTimeout(resolve, 50)) // ensure timestamp moves
   const updatedDerived = { ...derived, l2Score: 0.95 }
-  const id2 = await upsertRunQualityReport(
-    f.runId,
-    { hello: 'world-2' },
-    updatedDerived,
-    { force: true },
-  )
+  const id2 = await upsertRunQualityReport(f.runId, { hello: 'world-2' }, updatedDerived, {
+    force: true,
+  })
   assert.equal(id2, id, 'force path should return the same row id')
 
   const [second] = await db
@@ -681,6 +673,7 @@ void test('upsertRunQualityReport: force-update with null runtime preserves meas
     l2Score: 0.9,
     l2LineupScore: 0.9,
     l3Score: 0.9,
+    l4Score: 0.9,
     totalWallMs: 1234,
     totalSegments: 10,
     totalDemoted: 0,
@@ -732,7 +725,13 @@ void test('upsertRunQualityReport: force-update with null runtime preserves meas
     1234,
     'total_wall_ms must be preserved from the original measurement',
   )
-  const body = row!.report as { runtime: { stages: Record<string, number> | null; total_wall_ms: number | null; captured_from: string } }
+  const body = row!.report as {
+    runtime: {
+      stages: Record<string, number> | null
+      total_wall_ms: number | null
+      captured_from: string
+    }
+  }
   assert.ok(body.runtime, 'runtime sub-object must survive')
   assert.equal(body.runtime.total_wall_ms, 1234, 'runtime.total_wall_ms preserved')
   assert.ok(body.runtime.stages, 'runtime.stages must not be nulled')
@@ -768,6 +767,7 @@ void test('upsertRunQualityReport: force-update with non-null runtime overwrites
     l2Score: 0.9,
     l2LineupScore: 0.9,
     l3Score: 0.9,
+    l4Score: 0.9,
     totalWallMs: 1234,
     totalSegments: 10,
     totalDemoted: 0,

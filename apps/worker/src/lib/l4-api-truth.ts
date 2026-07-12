@@ -53,7 +53,11 @@ const SAVE_PCT_TOLERANCE = 0.01
  * numbers, so goalsFor↔scoreFor / goalsAgainst↔scoreAgainst, and shots/faceoffs
  * map by identical name. Diff `field` is named for the OCR side.
  */
-const TEAM_FIELD_MAP: ReadonlyArray<{ field: string; ocr: keyof OcrTeamTotals; api: keyof ApiTeamTotals }> = [
+const TEAM_FIELD_MAP: ReadonlyArray<{
+  field: string
+  ocr: keyof OcrTeamTotals
+  api: keyof ApiTeamTotals
+}> = [
   { field: 'goalsFor', ocr: 'goalsFor', api: 'scoreFor' },
   { field: 'goalsAgainst', ocr: 'goalsAgainst', api: 'scoreAgainst' },
   { field: 'shotsFor', ocr: 'shotsFor', api: 'shotsFor' },

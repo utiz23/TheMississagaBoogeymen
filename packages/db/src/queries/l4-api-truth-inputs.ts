@@ -261,5 +261,10 @@ export async function getOcrPlayerSummaryFields(matchId: number): Promise<OcrPla
       savePct: vote(bucket.map((r) => toFloatOrNull(r.save_pct))),
     })
   }
+  // Sort by persona for a stable, DB-row-order-independent result (SQL GROUP BY
+  // has no guaranteed order). Codepoint compare, not localeCompare, so the order
+  // is identical across environments — the L4 diff/mismatch arrays are baked into
+  // regression-floor JSONs and must reproduce exactly.
+  lines.sort((a, b) => (a.personaRaw < b.personaRaw ? -1 : a.personaRaw > b.personaRaw ? 1 : 0))
   return lines
 }

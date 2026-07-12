@@ -29,6 +29,7 @@ import {
 } from '@eanhl/db/queries'
 import { eq } from 'drizzle-orm'
 import { computeLayers, type LayerScores } from './quality-layers.js'
+import type { L4FieldDiff } from './l4-api-truth.js'
 import { buildDownstreamCounts, buildQualityFlags } from './quality-inputs.js'
 
 // ── stage-runtimes shape (file produced by reprocess.py; consumed here) ──────
@@ -113,11 +114,24 @@ interface ReportLayersSerialized {
     notes: string
   }
   l3: { score: number | null; pass: boolean | null; notes: string }
+  /**
+   * API-truth accuracy (L4), Milestone ③. `gradable=false` ⇒ no EA-API truth to
+   * grade against; `score`/`pass` null when ungradable or no overlapping fields.
+   * `mismatches` lists each disagreeing field for the review queue.
+   */
+  l4: {
+    score: number | null
+    pass: boolean | null
+    gradable: boolean
+    notes: string
+    mismatches: L4FieldDiff[]
+  }
   overall_pass: boolean | null
 }
 
 export interface ReportBody {
-  schema_version: 1
+  /** Bumped 1→2 in Milestone ③ when `layers.l4` (API-truth accuracy) was added. */
+  schema_version: 2
   run: ReportRun
   runtime: ReportRuntime
   screens: ReportScreens
@@ -162,6 +176,13 @@ function serializeComputedLayers(layers: LayerScores): ReportLayersSerialized {
       pass: layers.l3.pass,
       notes: layers.l3.notes,
     },
+    l4: {
+      score: layers.l4.score,
+      pass: layers.l4.pass,
+      gradable: layers.l4.gradable,
+      notes: layers.l4.notes,
+      mismatches: layers.l4.mismatches,
+    },
     overall_pass: layers.overall.pass,
   }
 }
@@ -195,6 +216,7 @@ function notComputedLayers(matchId: number, l1Note: string): ReportLayersSeriali
       notes: note,
     },
     l3: { score: null, pass: null, notes: note },
+    l4: { score: null, pass: null, gradable: false, notes: note, mismatches: [] },
     overall_pass: null,
   }
 }
@@ -326,6 +348,13 @@ export async function buildReportBody(
           notes: 'not computed: match row not found',
         },
         l3: { score: null, pass: null, notes: 'not computed: match row not found' },
+        l4: {
+          score: null,
+          pass: null,
+          gradable: false,
+          notes: 'not computed: match row not found',
+          mismatches: [],
+        },
         overall_pass: null,
       }
     } else {
@@ -366,6 +395,7 @@ export async function buildReportBody(
             notes: failNote,
           },
           l3: { score: null, pass: null, notes: failNote },
+          l4: { score: null, pass: null, gradable: false, notes: failNote, mismatches: [] },
           overall_pass: null,
         }
       } else {
@@ -410,7 +440,7 @@ export async function buildReportBody(
       }
 
   return {
-    schema_version: 1,
+    schema_version: 2,
     run: {
       run_id: run.id,
       match_id: run.matchId,
@@ -449,6 +479,7 @@ export function deriveColumns(body: ReportBody): {
   l2Score: number | null
   l2LineupScore: number | null
   l3Score: number | null
+  l4Score: number | null
   totalWallMs: number | null
   totalSegments: number
   totalDemoted: number
@@ -471,12 +502,15 @@ export function deriveColumns(body: ReportBody): {
   const layerComputed = body.layers.computed
   return {
     matchId: body.run.match_id,
-    schemaVersion: 1,
+    schemaVersion: 2,
     overallPass: layerComputed ? body.layers.overall_pass : null,
     l1Score: null,
     l2Score: layerComputed ? body.layers.l2.score : null,
     l2LineupScore: layerComputed ? body.layers.l2_lineup.score : null,
     l3Score: layerComputed ? body.layers.l3.score : null,
+    // L4 may still be null even when layers were computed — a gradable run
+    // with no overlapping fields, or an ungradable (OCR-sole-source) run.
+    l4Score: layerComputed ? body.layers.l4.score : null,
     totalWallMs: body.runtime.total_wall_ms,
     // Hot column `total_segments` mirrors the segment layer (ocr_segments
     // count), not the frame layer. See Codex P3. The frame count remains

@@ -480,6 +480,12 @@ export interface RunQualityReportDerivedColumns {
   l2LineupScore: number | null
   /** NULL when layer compute was skipped (run not active for match). Codex P1-2. */
   l3Score: number | null
+  /**
+   * API-truth accuracy (L4). NULL when layer compute was skipped (run not active
+   * for match) OR the run is ungradable (no matches row / no player_match_stats).
+   * Milestone ③.
+   */
+  l4Score: number | null
   totalWallMs: number | null
   totalSegments: number
   totalDemoted: number
@@ -540,6 +546,7 @@ export async function upsertRunQualityReport(
     l2Score: toNumericString(derivedColumns.l2Score),
     l2LineupScore: toNumericString(derivedColumns.l2LineupScore),
     l3Score: toNumericString(derivedColumns.l3Score),
+    l4Score: toNumericString(derivedColumns.l4Score),
     totalWallMs: derivedColumns.totalWallMs,
     totalSegments: derivedColumns.totalSegments,
     totalDemoted: derivedColumns.totalDemoted,
@@ -561,6 +568,7 @@ export async function upsertRunQualityReport(
           l2Score: values.l2Score,
           l2LineupScore: values.l2LineupScore,
           l3Score: values.l3Score,
+          l4Score: values.l4Score,
           // Preserve existing measured runtime when the incoming row is
           // content-only (backfill via --all-runs has totalWallMs=null).
           // EXCLUDED is the proposed-new-row alias; the bare table reference

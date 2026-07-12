@@ -263,7 +263,7 @@ void test('--json single-run shape contract: required top-level keys', async (t)
   ]) {
     assert.ok(key in body, `missing top-level key '${key}' in body`)
   }
-  assert.equal(body['schema_version'] as number, 1)
+  assert.equal(body['schema_version'] as number, 2)
   const runtime = body['runtime'] as Record<string, unknown>
   assert.equal(runtime['total_wall_ms'], null)
   assert.equal(runtime['stages'], null)
@@ -753,24 +753,42 @@ void test('--stage-runtimes accepts pass1_cache_hit=true and pass1_cache_hit=nul
     return
   }
   // Two fixtures: one with cache_hit=true, one with cache_hit explicitly null.
-  for (const [seedOffset, cacheHitValue] of [[9327, true], [9328, null]] as const) {
+  for (const [seedOffset, cacheHitValue] of [
+    [9327, true],
+    [9328, null],
+  ] as const) {
     const f = await seedFixture(seedOffset)
     const tmpDir = mkdtempSync(path.join(tmpdir(), 'run-quality-cli-partb-'))
     const stagePath = path.join(tmpDir, 'stage-runtimes.json')
-    writeFileSync(stagePath, JSON.stringify({
-      stages: {
-        create_candidate_ms: null, ingest_ms: null, repromote_loadout_ms: null,
-        repromote_lobby_ms: null, validate_ms: null, activate_ms: null,
-        consolidate_loadouts_ms: null, backfill_event_actor_resolution_ms: null,
-        run_quality_emit_ms: null,
-      },
-      total_wall_ms: null,
-      captured_at: null,
-      captured_from: 'reprocess.py',
-      pass1_cache_hit: cacheHitValue,
-    }), 'utf8')
+    writeFileSync(
+      stagePath,
+      JSON.stringify({
+        stages: {
+          create_candidate_ms: null,
+          ingest_ms: null,
+          repromote_loadout_ms: null,
+          repromote_lobby_ms: null,
+          validate_ms: null,
+          activate_ms: null,
+          consolidate_loadouts_ms: null,
+          backfill_event_actor_resolution_ms: null,
+          run_quality_emit_ms: null,
+        },
+        total_wall_ms: null,
+        captured_at: null,
+        captured_from: 'reprocess.py',
+        pass1_cache_hit: cacheHitValue,
+      }),
+      'utf8',
+    )
 
-    const result = runCli(['--run-id', String(f.runId), '--emit-row', '--stage-runtimes', stagePath])
+    const result = runCli([
+      '--run-id',
+      String(f.runId),
+      '--emit-row',
+      '--stage-runtimes',
+      stagePath,
+    ])
     assert.equal(result.status, 0, `cache_hit=${cacheHitValue}: ${result.stderr}`)
 
     const [row] = await db
@@ -790,18 +808,27 @@ void test('--stage-runtimes rejects pass1_cache_hit when non-boolean', async (t)
   const f = await seedFixture(9329)
   const tmpDir = mkdtempSync(path.join(tmpdir(), 'run-quality-cli-partb-'))
   const stagePath = path.join(tmpDir, 'stage-runtimes.json')
-  writeFileSync(stagePath, JSON.stringify({
-    stages: {
-      create_candidate_ms: null, ingest_ms: null, repromote_loadout_ms: null,
-      repromote_lobby_ms: null, validate_ms: null, activate_ms: null,
-      consolidate_loadouts_ms: null, backfill_event_actor_resolution_ms: null,
-      run_quality_emit_ms: null,
-    },
-    total_wall_ms: null,
-    captured_at: null,
-    captured_from: 'reprocess.py',
-    pass1_cache_hit: 'not-a-bool',  // String — must be rejected.
-  }), 'utf8')
+  writeFileSync(
+    stagePath,
+    JSON.stringify({
+      stages: {
+        create_candidate_ms: null,
+        ingest_ms: null,
+        repromote_loadout_ms: null,
+        repromote_lobby_ms: null,
+        validate_ms: null,
+        activate_ms: null,
+        consolidate_loadouts_ms: null,
+        backfill_event_actor_resolution_ms: null,
+        run_quality_emit_ms: null,
+      },
+      total_wall_ms: null,
+      captured_at: null,
+      captured_from: 'reprocess.py',
+      pass1_cache_hit: 'not-a-bool', // String — must be rejected.
+    }),
+    'utf8',
+  )
 
   const result = runCli(['--run-id', String(f.runId), '--emit-row', '--stage-runtimes', stagePath])
   assert.notEqual(result.status, 0, 'expected non-zero exit for invalid pass1_cache_hit')
