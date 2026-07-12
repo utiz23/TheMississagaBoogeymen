@@ -86,8 +86,12 @@ def _finalize(
 ) -> Reel:
     """Build a Reel from its (contiguous) segment indices + how it closed.
 
-    Task 1.1 (clean path) emits an empty flag set and full boundary confidence;
-    Task 1.2 replaces the flag/confidence block with the real edge-case rules.
+    Completeness flags (all advisory — the reel is always emitted):
+      missing_lobby          — no lobby screen captured (can't read the roster).
+      partial_no_boxscore    — no box-score screen (nothing to grade / promote).
+      incomplete             — neither an opener nor any post-game (barely a reel).
+      low_confidence_boundary — closed by the next match's opener with only a
+                               single post-game screen: weak game-end evidence.
     """
     indices = sorted(indices)
     screens = [segments[i].screen_type for i in indices]
@@ -98,14 +102,28 @@ def _finalize(
         "has_events": "post_game_events" in screens,
         "has_loadout": LOADOUT_SCREEN in screens,
     }
+    has_opener = any(s in OPENERS for s in screens)
+    postgame_count = sum(1 for s in screens if s in POSTGAME)
+
+    flags: list[str] = []
+    if not inventory["has_lobby"]:
+        flags.append("missing_lobby")
+    if not inventory["has_boxscore"]:
+        flags.append("partial_no_boxscore")
+    if not has_opener and postgame_count == 0:
+        flags.append("incomplete")
+    low_confidence = closed_by == "opener" and postgame_count == 1
+    if low_confidence:
+        flags.append("low_confidence_boundary")
+
     return Reel(
         reel_index=reel_index,
         start_s=segments[indices[0]].start_seconds,
         end_s=segments[indices[-1]].end_seconds,
         segment_indices=indices,
         screen_inventory=inventory,
-        completeness_flags=[],
-        boundary_confidence=1.0,
+        completeness_flags=flags,
+        boundary_confidence=0.5 if low_confidence else 1.0,
     )
 
 
