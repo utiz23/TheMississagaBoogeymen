@@ -16,8 +16,16 @@ Real state-machine vocabulary (tools/game_ocr/.../state_machine/nhl26.yaml):
 
 from __future__ import annotations
 
-from video_ingest.match_split import Reel, group_into_reels
+import json
+
+from video_ingest.match_split import (
+    Reel,
+    dispatch_reels,
+    group_into_reels,
+    write_reels_json,
+)
 from video_ingest.pass1_classify import Segment
+from video_ingest.pass2_extract import Pass2Result
 
 
 def _seg(i: int, screen_type: str, t0: float, t1: float) -> Segment:
@@ -215,3 +223,161 @@ def test_match_463_style_single_reel_burst() -> None:
     assert "missing_lobby" in reels[0].completeness_flags  # no lobby opener
     assert drops == []
     _assert_partition(segs, reels, drops)
+
+
+# ---------------------------------------------------------------------------
+# Task 1.3: write_reels_json + per-reel dispatch decision (milestone boundary)
+# ---------------------------------------------------------------------------
+
+
+def _p2(segment_index: int, screen_type: str) -> Pass2Result:
+    """A minimal Pass2Result whose .segment_index maps it to a reel."""
+    seg = _seg(segment_index, screen_type, segment_index * 5.0, (segment_index + 1) * 5.0)
+    return Pass2Result(
+        segment_index=segment_index,
+        segment=seg,
+        directory=None,  # unused by the dispatch decision
+        frame_count=5,
+        sample_fps=1.0,
+        start_seconds=seg.start_seconds,
+        end_seconds=seg.end_seconds,
+    )
+
+
+class _RecordingDispatch:
+    """Stub for dispatch_segments: records each call's (results, match_id).
+
+    Mirrors the monkeypatch-on-dispatch_segments pattern of
+    test_dispatch_segment_flags.py, injected via dispatch_fn.
+    """
+
+    def __init__(self) -> None:
+        self.calls: list[tuple[list[Pass2Result], int | None]] = []
+
+    def __call__(self, results, *, match_id, **kwargs):  # type: ignore[no-untyped-def]
+        results = list(results)
+        self.calls.append((results, match_id))
+        return []  # no DispatchResult rows needed for these assertions
+
+
+_SINGLE_MATCH = [
+    "loading_or_intro",           # 0
+    "pre_game_lobby_state_1",     # 1
+    "in_game_clock",              # 2
+    "post_game_box_score_goals",  # 3
+    "post_game_box_score_shots",  # 4
+    "end_of_video",               # 5
+]
+
+_TWO_MATCH = [
+    "pre_game_lobby_state_1",     # 0  reel 0
+    "in_game_clock",              # 1
+    "post_game_box_score_goals",  # 2
+    "post_game_box_score_shots",  # 3
+    "pre_game_lobby_state_1",     # 4  reel 1
+    "in_game_clock",              # 5
+    "post_game_box_score_goals",  # 6
+    "end_of_video",               # 7
+]
+
+
+def test_single_reel_dispatches_all_under_match_id(tmp_path) -> None:
+    # Parity: a single-match video still fans every segment out under the one
+    # match_id in exactly one dispatch call (today's behaviour, unchanged).
+    segs = _segs(_SINGLE_MATCH)
+    results = [_p2(i, s) for i, s in enumerate(_SINGLE_MATCH)]
+    stub = _RecordingDispatch()
+
+    out = dispatch_reels(
+        segs,
+        results,
+        sha_root=tmp_path,
+        dispatch_fn=stub,
+        match_id=250,
+        reel_match_ids=None,
+        game_title_id=1,
+        video_sha256="a" * 64,
+    )
+
+    assert len(stub.calls) == 1
+    dispatched_results, mid = stub.calls[0]
+    assert mid == 250
+    assert [r.segment_index for r in dispatched_results] == [0, 1, 2, 3, 4, 5]
+    assert out == []
+
+
+def test_multi_reel_without_ids_skips_dispatch_and_writes_reels_json(tmp_path) -> None:
+    # Safety: a multi-match video with no association map must NOT dispatch
+    # (no overwrite/collapse). It writes reels.json and defers to Milestone ②.
+    segs = _segs(_TWO_MATCH)
+    results = [_p2(i, s) for i, s in enumerate(_TWO_MATCH)]
+    stub = _RecordingDispatch()
+    logs: list[str] = []
+
+    dispatch_reels(
+        segs,
+        results,
+        sha_root=tmp_path,
+        dispatch_fn=stub,
+        match_id=250,
+        reel_match_ids=None,
+        log=logs.append,
+        game_title_id=1,
+        video_sha256="a" * 64,
+    )
+
+    assert stub.calls == []  # zero dispatch calls — deferred to association
+    reels_json = tmp_path / "reels.json"
+    assert reels_json.exists()
+    body = json.loads(reels_json.read_text())
+    assert body["reel_count"] == 2
+    assert [r["segment_indices"] for r in body["reels"]] == [[0, 1, 2, 3], [4, 5, 6, 7]]
+    assert any("2 reels need association" in m for m in logs)
+
+
+def test_multi_reel_with_ids_dispatches_each_subset_under_mapped_id(tmp_path) -> None:
+    # Once ② supplies reel→match_id, each reel's Pass-2 subset dispatches under
+    # its own match_id — one dispatch call per reel.
+    segs = _segs(_TWO_MATCH)
+    results = [_p2(i, s) for i, s in enumerate(_TWO_MATCH)]
+    stub = _RecordingDispatch()
+
+    dispatch_reels(
+        segs,
+        results,
+        sha_root=tmp_path,
+        dispatch_fn=stub,
+        match_id=None,
+        reel_match_ids={0: 400, 1: 401},
+        game_title_id=1,
+        video_sha256="a" * 64,
+    )
+
+    assert len(stub.calls) == 2
+    (r0, m0), (r1, m1) = stub.calls
+    assert m0 == 400 and [r.segment_index for r in r0] == [0, 1, 2, 3]
+    assert m1 == 401 and [r.segment_index for r in r1] == [4, 5, 6, 7]
+
+
+def test_write_reels_json_round_trip(tmp_path) -> None:
+    segs = _segs(_TWO_MATCH)
+    drops: list[tuple[int, str]] = []
+    reels = group_into_reels(segs, dropped=drops)
+
+    path = write_reels_json(tmp_path, reels, dropped=drops)
+    assert path == tmp_path / "reels.json"
+
+    body = json.loads(path.read_text())
+    assert body["reel_count"] == 2
+    assert body["dropped"] == []
+    assert body["reels"][0]["reel_index"] == 0
+    assert body["reels"][0]["segment_indices"] == [0, 1, 2, 3]
+    assert body["reels"][1]["segment_indices"] == [4, 5, 6, 7]
+    assert set(body["reels"][0]["screen_inventory"].keys()) == {
+        "has_lobby",
+        "has_boxscore",
+        "has_action_tracker",
+        "has_events",
+        "has_loadout",
+    }
+    assert body["reels"][0]["boundary_confidence"] == 1.0

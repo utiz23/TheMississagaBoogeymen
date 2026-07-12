@@ -27,9 +27,16 @@ via the optional ``dropped`` out-parameter — never merged into a neighbour.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+import json
+import sys
+from dataclasses import asdict, dataclass
+from pathlib import Path
+from typing import Callable, Iterable
 
 from video_ingest.pass1_classify import Segment
+
+REELS_JSON_FILENAME = "reels.json"
+REELS_JSON_SCHEMA_VERSION = 1
 
 OPENERS = frozenset(
     {
@@ -215,3 +222,101 @@ def group_into_reels(
         _finalize(indices, closed_by, segments, ri)
         for ri, (indices, closed_by) in enumerate(finished)
     ]
+
+
+def write_reels_json(
+    sha_root: Path,
+    reels: list[Reel],
+    *,
+    dropped: list[tuple[int, str]] | None = None,
+) -> Path:
+    """Serialize the reel grouping to ``sha_root/reels.json`` and return its path.
+
+    An additive evidence sidecar: the per-match reel plan (boundaries, screen
+    inventory, completeness flags) plus any dropped-with-reason segments, so the
+    association step (②) and operators can inspect how a video was split.
+    """
+    payload = {
+        "schema_version": REELS_JSON_SCHEMA_VERSION,
+        "reel_count": len(reels),
+        "reels": [asdict(r) for r in reels],
+        "dropped": [[idx, reason] for idx, reason in (dropped or [])],
+    }
+    path = Path(sha_root) / REELS_JSON_FILENAME
+    path.write_text(json.dumps(payload, indent=2))
+    return path
+
+
+def _stderr_log(message: str) -> None:
+    print(message, file=sys.stderr)
+
+
+def dispatch_reels(
+    segments: list[Segment],
+    pass2_results: Iterable,
+    *,
+    sha_root: Path,
+    dispatch_fn: Callable,
+    match_id: int | None,
+    reel_match_ids: dict[int, int] | None = None,
+    log: Callable[[str], None] | None = None,
+    **dispatch_kwargs,
+) -> list:
+    """Group Pass-1 segments into reels, emit reels.json, and dispatch per the
+    Milestone ① boundary contract (② association not built yet):
+
+      * 1 reel (or 0)                     → dispatch ALL results under ``match_id``
+                                            in one call — today's exact behaviour.
+      * >1 reel and ``reel_match_ids`` None → write reels.json, log "N reels need
+                                            association", and SKIP dispatch. This
+                                            keeps multi-match videos safe (no
+                                            collapse/overwrite) until ② maps reels.
+      * >1 reel and ``reel_match_ids`` set  → dispatch each reel's Pass-2 subset
+                                            (by segment_index membership) under its
+                                            mapped match_id — one call per reel.
+
+    ``dispatch_fn`` is injected (the orchestrator passes
+    ``video_ingest.dispatch.dispatch_segments``); it is called
+    ``dispatch_fn(results, match_id=<id>, **dispatch_kwargs)``. Returns the
+    concatenated dispatch results (empty when dispatch is skipped).
+    """
+    emit = log or _stderr_log
+    results = list(pass2_results)
+
+    drops: list[tuple[int, str]] = []
+    reels = group_into_reels(segments, dropped=drops)
+    write_reels_json(sha_root, reels, dropped=drops)
+    for idx, reason in drops:
+        emit(f"[reels] dropped Pass-1 segment {idx}: {reason}")
+
+    # Single-match parity: fan every Pass-2 result out under the one match_id,
+    # exactly as the pre-reel pipeline did (unfiltered, one call).
+    if len(reels) <= 1:
+        return list(dispatch_fn(results, match_id=match_id, **dispatch_kwargs))
+
+    if reel_match_ids is None:
+        emit(
+            f"[reels] {len(reels)} reels need association — reels.json written, "
+            f"dispatch deferred to Milestone ② (no collapse)."
+        )
+        return []
+
+    by_index = {r.segment_index: r for r in results}
+    out: list = []
+    for reel in reels:
+        if reel.reel_index not in reel_match_ids:
+            emit(
+                f"[reels] reel {reel.reel_index} has no mapped match_id — skipped."
+            )
+            continue
+        subset = [
+            by_index[i] for i in reel.segment_indices if i in by_index
+        ]
+        out.extend(
+            dispatch_fn(
+                subset,
+                match_id=reel_match_ids[reel.reel_index],
+                **dispatch_kwargs,
+            )
+        )
+    return out

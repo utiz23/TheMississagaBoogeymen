@@ -24,6 +24,7 @@ import yaml
 
 from video_ingest import gpu_libs
 from video_ingest.dispatch import DispatchResult, dispatch_segments
+from video_ingest.match_split import dispatch_reels
 from video_ingest.pass1_classify import (
     CacheMismatch,
     MissingPass1Cache,
@@ -766,10 +767,19 @@ def ingest(
         if game_title_id is None:
             raise ValueError("dispatch=True requires game_title_id")
         t0 = time.perf_counter()
-        dispatch_results = dispatch_segments(
+        # Milestone ① — group Pass-1 segments into per-match reels, emit
+        # reels.json, and apply the per-reel dispatch decision. A single-match
+        # video keeps today's exact behaviour (all results under one match_id);
+        # a multi-match video with no association map writes reels.json and
+        # skips dispatch (no collapse) until Milestone ② supplies reel_match_ids.
+        dispatch_results = dispatch_reels(
+            segments,
             pass2_results,
-            game_title_id=game_title_id,
+            sha_root=sha_root,
+            dispatch_fn=dispatch_segments,
             match_id=match_id,
+            reel_match_ids=None,  # Milestone ② will supply the reel→match_id map
+            game_title_id=game_title_id,
             video_sha256=probe.sha256,
             ui_version=version,
             decoder_version=decoder_version,
