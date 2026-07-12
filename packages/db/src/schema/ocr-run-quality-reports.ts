@@ -84,6 +84,14 @@ export const ocrRunQualityReports = pgTable(
     l2LineupScore: numeric('l2_lineup_score', { precision: 5, scale: 4 }),
     /** NULL when layer compute was skipped (run not active for match). */
     l3Score: numeric('l3_score', { precision: 5, scale: 4 }),
+    /**
+     * API-truth accuracy (L4): exact-match fraction of promoted box-score team
+     * totals + per-player audit lines vs EA-API truth. NULL when layer compute
+     * was skipped (run not active for match) OR the run is ungradable (no
+     * `matches` row / no `player_match_stats` → OCR is the sole source). Bounded
+     * 0.0-1.0 by the `*_l4_range_chk` CHECK added in migration 0054.
+     */
+    l4Score: numeric('l4_score', { precision: 5, scale: 4 }),
     /** NULL for backfilled / synthetic rescoring rows with no real runtime. */
     totalWallMs: bigint('total_wall_ms', { mode: 'number' }),
     totalSegments: integer('total_segments').notNull(),
