@@ -31,7 +31,17 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable
 
+from video_ingest.match_split import LOBBY_SCREENS
+
 BASENAME_TIME_FORMAT = "%Y-%m-%d_%H-%M-%S"
+
+# Slot keys in lobby_evidence.json are prefixed lobby_for_<POS> for our team and
+# lobby_against_<POS> for the opponent (game_ocr.lobby_extractors.slot_identity
+# .slot_key_for). The association scorer matches personas against OUR club roster
+# (getMatchLineups), so only our-side personas belong in a reel identity.
+_OUR_SIDE_SLOT_PREFIX = "lobby_for_"
+_PERSONA_FIELD_KEY = "player_name_persona"
+LOBBY_EVIDENCE_FILENAME = "lobby_evidence.json"
 
 
 @dataclass
@@ -122,3 +132,71 @@ def write_reel_identities(
         path.write_text(json.dumps(build_identity(reel, basename, reads), indent=2))
         paths.append(path)
     return paths
+
+
+# ── The on-box reader: personas from the Pass-2 lobby evidence ────────────────
+#
+# Milestone ② on-box completion. Personas are already on disk once Pass-2 ran
+# with lobby_engine=typed_v1 (``<seg_dir>/lobby_evidence.json``), so reading them
+# needs no GPU. Score/opponent (a NEW box-score OCR pass + a for/against side
+# resolution with no Python impl today) are DEFERRED — ``ReelOcrReads`` defaults
+# leave them absent, which the scorer treats as unknown (⇒ no_api_match on
+# operator review, the review queue's expected fallback).
+
+
+def read_lobby_personas(seg_dir: Path) -> list[str]:
+    """Our-side personas from one lobby segment's ``lobby_evidence.json``.
+
+    Reads the flat ``FieldEvidenceRecord`` list Pass-2 wrote for a
+    ``pre_game_lobby_state_*`` segment, keeps the ``player_name_persona`` records
+    whose slot is on our team, and returns their persona strings (rank-0, blanks
+    dropped). Missing file (a ``missing_lobby`` reel, or a state_1-only dir with
+    no persona field) ⇒ ``[]``, never raises — the reel still gets an identity.
+    """
+    path = Path(seg_dir) / LOBBY_EVIDENCE_FILENAME
+    if not path.exists():
+        return []
+    try:
+        records = json.loads(path.read_text())
+    except (OSError, json.JSONDecodeError):
+        return []
+    personas: list[str] = []
+    for rec in records if isinstance(records, list) else []:
+        if not isinstance(rec, dict):
+            continue
+        if rec.get("field_key") != _PERSONA_FIELD_KEY:
+            continue
+        if rec.get("candidate_rank", 0) != 0:
+            continue
+        slot = rec.get("subject_slot_key") or ""
+        if not slot.startswith(_OUR_SIDE_SLOT_PREFIX):
+            continue
+        value = rec.get("candidate_value")
+        if isinstance(value, str) and value.strip():
+            personas.append(value)
+    return personas
+
+
+def make_pass2_persona_reader(
+    results_by_index: dict[int, Any],
+) -> Callable[[Any], ReelOcrReads]:
+    """Build the ``read_reads`` the orchestrator injects into
+    :func:`write_reel_identities`.
+
+    ``results_by_index`` maps ``segment_index`` → Pass2Result (duck-typed: only
+    ``.segment.screen_type`` and ``.directory`` are touched). For a reel it reads
+    personas from every lobby seg dir the reel spans; score/opponent stay absent
+    (box-score OCR deferred). Kept as a closure so identity emission composes with
+    the existing dependency-injected reader seam and stays GPU-free at read time.
+    """
+
+    def read(reel: Any) -> ReelOcrReads:
+        personas: list[str] = []
+        for idx in reel.segment_indices:
+            result = results_by_index.get(idx)
+            if result is None or result.segment.screen_type not in LOBBY_SCREENS:
+                continue
+            personas.extend(read_lobby_personas(result.directory))
+        return ReelOcrReads(personas=personas)
+
+    return read

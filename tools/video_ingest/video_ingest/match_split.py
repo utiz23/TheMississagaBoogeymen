@@ -259,6 +259,7 @@ def dispatch_reels(
     dispatch_fn: Callable,
     match_id: int | None,
     reel_match_ids: dict[int, int] | None = None,
+    emit_reel_identities: Callable[[list["Reel"]], None] | None = None,
     log: Callable[[str], None] | None = None,
     **dispatch_kwargs,
 ) -> list:
@@ -267,18 +268,25 @@ def dispatch_reels(
 
       * 1 reel (or 0)                     → dispatch ALL results under ``match_id``
                                             in one call — today's exact behaviour.
-      * >1 reel and ``reel_match_ids`` None → write reels.json, log "N reels need
-                                            association", and SKIP dispatch. This
-                                            keeps multi-match videos safe (no
-                                            collapse/overwrite) until ② maps reels.
+      * >1 reel and ``reel_match_ids`` None → write reels.json + per-reel identity
+                                            files (via ``emit_reel_identities``),
+                                            log "N reels need association", and SKIP
+                                            dispatch. Keeps multi-match videos safe
+                                            (no collapse/overwrite) until ② maps
+                                            reels.
       * >1 reel and ``reel_match_ids`` set  → dispatch each reel's Pass-2 subset
                                             (by segment_index membership) under its
                                             mapped match_id — one call per reel.
 
     ``dispatch_fn`` is injected (the orchestrator passes
     ``video_ingest.dispatch.dispatch_segments``); it is called
-    ``dispatch_fn(results, match_id=<id>, **dispatch_kwargs)``. Returns the
-    concatenated dispatch results (empty when dispatch is skipped).
+    ``dispatch_fn(results, match_id=<id>, **dispatch_kwargs)``.
+    ``emit_reel_identities`` is likewise injected (the orchestrator passes a
+    closure over ``identity_probe.write_reel_identities`` + a Pass-2 persona
+    reader); it fires only in the un-associated multi-reel branch, right beside
+    reels.json, so the Session-A ``resolve-match propose`` CLI has one identity
+    file per reel to score. Returns the concatenated dispatch results (empty when
+    dispatch is skipped).
     """
     emit = log or _stderr_log
     results = list(pass2_results)
@@ -295,6 +303,8 @@ def dispatch_reels(
         return list(dispatch_fn(results, match_id=match_id, **dispatch_kwargs))
 
     if reel_match_ids is None:
+        if emit_reel_identities is not None:
+            emit_reel_identities(reels)
         emit(
             f"[reels] {len(reels)} reels need association — reels.json written, "
             f"dispatch deferred to Milestone ② (no collapse)."

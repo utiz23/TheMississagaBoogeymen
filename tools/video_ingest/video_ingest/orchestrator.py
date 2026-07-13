@@ -24,6 +24,11 @@ import yaml
 
 from video_ingest import gpu_libs
 from video_ingest.dispatch import DispatchResult, dispatch_segments
+from video_ingest.identity_probe import (
+    make_pass2_persona_reader,
+    parse_basename_epoch,
+    write_reel_identities,
+)
 from video_ingest.match_split import dispatch_reels
 from video_ingest.pass1_classify import (
     CacheMismatch,
@@ -767,11 +772,48 @@ def ingest(
         if game_title_id is None:
             raise ValueError("dispatch=True requires game_title_id")
         t0 = time.perf_counter()
+        # Milestone ② — for an un-associated multi-reel video, emit one
+        # reel-<idx>-identity.json (capture epoch + our-side personas) beside
+        # reels.json so `resolve-match propose` can score each reel to a DB
+        # match_id. Best-effort: a bad basename or a single reel's read failure
+        # must never abort the live ingest run. Personas come from the Pass-2
+        # lobby_evidence.json already on disk; score/opponent box-score OCR is a
+        # deferred follow-up (ReelOcrReads leaves them absent).
+        basename = video_path.stem
+        results_by_index = {r.segment_index: r for r in pass2_results}
+        persona_reader = make_pass2_persona_reader(results_by_index)
+
+        def _emit_reel_identities(reels: list) -> None:
+            try:
+                parse_basename_epoch(basename)
+            except ValueError:
+                print(
+                    f"[identity] {basename!r} is not a wall-clock recording stamp; "
+                    f"skipping reel-identity emission (reels still need association).",
+                    file=sys.stderr,
+                )
+                return
+            try:
+                paths = write_reel_identities(
+                    reels,
+                    basename=basename,
+                    sha_root=sha_root,
+                    read_reads=persona_reader,
+                    log=lambda m: print(m, file=sys.stderr),
+                )
+                print(
+                    f"[identity] wrote {len(paths)} reel-identity file(s) for association.",
+                    file=sys.stderr,
+                )
+            except Exception as exc:  # noqa: BLE001 — never abort the run on emit failure
+                print(f"[identity] reel-identity emission failed ({exc}).", file=sys.stderr)
+
         # Milestone ① — group Pass-1 segments into per-match reels, emit
         # reels.json, and apply the per-reel dispatch decision. A single-match
         # video keeps today's exact behaviour (all results under one match_id);
-        # a multi-match video with no association map writes reels.json and
-        # skips dispatch (no collapse) until Milestone ② supplies reel_match_ids.
+        # a multi-match video with no association map writes reels.json +
+        # per-reel identity files and skips dispatch (no collapse) until
+        # Milestone ② supplies reel_match_ids.
         dispatch_results = dispatch_reels(
             segments,
             pass2_results,
@@ -779,6 +821,7 @@ def ingest(
             dispatch_fn=dispatch_segments,
             match_id=match_id,
             reel_match_ids=None,  # Milestone ② will supply the reel→match_id map
+            emit_reel_identities=_emit_reel_identities,
             game_title_id=game_title_id,
             video_sha256=probe.sha256,
             ui_version=version,

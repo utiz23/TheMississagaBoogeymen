@@ -20,10 +20,14 @@ import time
 
 import json
 
+from dataclasses import dataclass
+
 from video_ingest.identity_probe import (
     ReelOcrReads,
     build_identity,
+    make_pass2_persona_reader,
     parse_basename_epoch,
+    read_lobby_personas,
     write_reel_identities,
 )
 from video_ingest.match_split import Reel
@@ -151,3 +155,98 @@ def test_write_reel_identities_is_best_effort_on_read_failure(tmp_path) -> None:
     assert failed["capture_epoch_s"] == parse_basename_epoch(basename) + 798
     assert failed["score_for"] is None and failed["personas"] == []
     assert any("reel 1" in m for m in logs)
+
+
+# ── the on-box reader: personas from lobby_evidence.json ──────────────────────
+#
+# These pin the real ``read_reads`` the orchestrator injects (Milestone ② on-box
+# completion). Score/opponent box-score OCR is deliberately deferred — this reader
+# supplies personas (our side) + timestamp, ~0.5 of the association scorer's
+# weight, with no GPU at read time (lobby_evidence.json is already on disk when
+# lobby_engine=typed_v1). The pure disk-read is testable against a fixture JSON.
+
+
+def _persona_record(persona: str, slot_key: str, rank: int = 0) -> dict:
+    """A minimal lobby_evidence.json record (mirrors FieldEvidenceRecord.to_dict)."""
+    return {
+        "field_key": "player_name_persona",
+        "candidate_value": persona,
+        "candidate_rank": rank,
+        "subject_slot_key": slot_key,
+    }
+
+
+def test_read_lobby_personas_returns_our_side_only(tmp_path) -> None:
+    # Slot keys are prefixed lobby_for_<POS> (our team) / lobby_against_<POS>
+    # (opponent). The scorer matches personas against OUR club roster, so only
+    # our-side personas belong in the identity; opponents are noise.
+    seg_dir = tmp_path / "seg"
+    seg_dir.mkdir()
+    (seg_dir / "lobby_evidence.json").write_text(
+        json.dumps(
+            [
+                _persona_record("Zubov", "lobby_for_C"),
+                _persona_record("Magroyne", "lobby_against_LW"),  # opponent — excluded
+                _persona_record("Kane", "lobby_for_RW"),
+                _persona_record("  ", "lobby_for_LW"),  # blank — dropped
+                # a non-persona record must be ignored entirely
+                {"field_key": "player_number", "candidate_value": 11, "candidate_rank": 0,
+                 "subject_slot_key": "lobby_for_C"},
+            ]
+        )
+    )
+
+    assert read_lobby_personas(seg_dir) == ["Zubov", "Kane"]
+
+
+def test_read_lobby_personas_missing_file_is_empty(tmp_path) -> None:
+    # A missing_lobby reel (or state_1-only seg dir) has no persona evidence file;
+    # the reader returns [] rather than raising, so the reel still gets an identity.
+    assert read_lobby_personas(tmp_path / "seg") == []
+
+
+@dataclass
+class _FakeSegment:
+    screen_type: str
+
+
+@dataclass
+class _FakePass2Result:
+    """Duck-typed Pass2Result: the reader only touches .segment.screen_type and .directory."""
+
+    segment_index: int
+    segment: _FakeSegment
+    directory: object
+
+
+def _write_lobby(seg_dir, personas_for_side: list[str]) -> None:
+    seg_dir.mkdir(parents=True, exist_ok=True)
+    (seg_dir / "lobby_evidence.json").write_text(
+        json.dumps([_persona_record(p, f"lobby_for_{i}") for i, p in enumerate(personas_for_side)])
+    )
+
+
+def test_make_pass2_persona_reader_collects_from_lobby_segdirs_only(tmp_path) -> None:
+    # A reel spans a lobby segment, a box-score segment, and a gameplay segment.
+    # The reader must read personas ONLY from the reel's lobby seg dir(s).
+    lobby_dir = tmp_path / "seg0_lobby"
+    boxscore_dir = tmp_path / "seg1_box"
+    _write_lobby(lobby_dir, ["Zubov", "Kane"])
+    # box-score dir has no lobby_evidence.json — must contribute nothing.
+    boxscore_dir.mkdir()
+
+    results_by_index = {
+        0: _FakePass2Result(0, _FakeSegment("pre_game_lobby_state_2"), lobby_dir),
+        1: _FakePass2Result(1, _FakeSegment("post_game_box_score_goals"), boxscore_dir),
+        2: _FakePass2Result(2, _FakeSegment("in_game_play"), tmp_path / "nope"),
+    }
+    reel = _reel(start_s=0.0)
+    reel.segment_indices = [0, 1, 2]
+
+    reader = make_pass2_persona_reader(results_by_index)
+    reads = reader(reel)
+
+    assert isinstance(reads, ReelOcrReads)
+    assert reads.personas == ["Zubov", "Kane"]
+    # Score/opponent are deliberately absent (box-score OCR deferred).
+    assert reads.score_for is None and reads.score_against is None and reads.opponent_text == ""

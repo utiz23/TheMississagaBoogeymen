@@ -359,6 +359,76 @@ def test_multi_reel_with_ids_dispatches_each_subset_under_mapped_id(tmp_path) ->
     assert m1 == 401 and [r.segment_index for r in r1] == [4, 5, 6, 7]
 
 
+def test_multi_reel_without_ids_emits_reel_identities(tmp_path) -> None:
+    # Milestone ②: the un-associated multi-reel branch also emits per-reel
+    # identity files (so resolve-match propose has one to score), right beside
+    # reels.json — via the injected emit_reel_identities hook.
+    segs = _segs(_TWO_MATCH)
+    results = [_p2(i, s) for i, s in enumerate(_TWO_MATCH)]
+    stub = _RecordingDispatch()
+    emitted: list[list] = []
+
+    dispatch_reels(
+        segs,
+        results,
+        sha_root=tmp_path,
+        dispatch_fn=stub,
+        match_id=250,
+        reel_match_ids=None,
+        emit_reel_identities=emitted.append,
+        game_title_id=1,
+        video_sha256="a" * 64,
+    )
+
+    assert stub.calls == []  # still no dispatch (deferred to association)
+    assert len(emitted) == 1  # hook fired once
+    assert [r.reel_index for r in emitted[0]] == [0, 1]  # with the grouped reels
+
+
+def test_single_reel_does_not_emit_reel_identities(tmp_path) -> None:
+    # A single-match video dispatches directly; there is nothing to associate, so
+    # the identity hook must NOT fire.
+    segs = _segs(_SINGLE_MATCH)
+    results = [_p2(i, s) for i, s in enumerate(_SINGLE_MATCH)]
+    emitted: list[list] = []
+
+    dispatch_reels(
+        segs,
+        results,
+        sha_root=tmp_path,
+        dispatch_fn=_RecordingDispatch(),
+        match_id=250,
+        reel_match_ids=None,
+        emit_reel_identities=emitted.append,
+        game_title_id=1,
+        video_sha256="a" * 64,
+    )
+
+    assert emitted == []
+
+
+def test_multi_reel_with_ids_does_not_emit_reel_identities(tmp_path) -> None:
+    # Once reels are associated (reel_match_ids set), they dispatch per reel and
+    # need no identity files — the hook must NOT fire.
+    segs = _segs(_TWO_MATCH)
+    results = [_p2(i, s) for i, s in enumerate(_TWO_MATCH)]
+    emitted: list[list] = []
+
+    dispatch_reels(
+        segs,
+        results,
+        sha_root=tmp_path,
+        dispatch_fn=_RecordingDispatch(),
+        match_id=None,
+        reel_match_ids={0: 400, 1: 401},
+        emit_reel_identities=emitted.append,
+        game_title_id=1,
+        video_sha256="a" * 64,
+    )
+
+    assert emitted == []
+
+
 def test_write_reels_json_round_trip(tmp_path) -> None:
     segs = _segs(_TWO_MATCH)
     drops: list[tuple[int, str]] = []
