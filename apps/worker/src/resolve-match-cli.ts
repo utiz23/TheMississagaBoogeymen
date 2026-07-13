@@ -10,20 +10,33 @@
  * per-reel dispatch (orchestrator.py currently passes reel_match_ids=None).
  *
  * Subcommands:
- *   propose  --run-id N --identities <path> [--game-title-id G] [--video-sha256 SHA]
+ *   propose  --identities <path> (--run-id N | --video-sha256 SHA --game-title-id G)
  *     Reads per-reel identity JSON (`reel-<idx>-identity.json` under a dir, or a
  *     single file), enumerates candidates for the game title, scores each reel,
  *     and inserts a `pending` proposal per reel. Prints a JSON summary.
+ *       - With --run-id: the reprocess / single-match path (the run row supplies
+ *         video_sha256 / game_title_id; both are overridable via the flags).
+ *       - Without --run-id: a fresh multi-reel video whose reels map to different
+ *         matches has no single run to point at, so pass --video-sha256 AND
+ *         --game-title-id directly; proposals are inserted with run_id = null.
  *
  *   list
- *     Prints the pending review queue (human-readable table on stdout).
+ *     Prints the pending review queue (human-readable table on stdout). Rows
+ *     below the confidence threshold (no_api_match) show a `hint=<match> @<conf>`
+ *     naming the top-ranked candidate for a manual confirm.
  *
  *   confirm  --id N [--match-id M]
- *     Confirms proposal N: flips status→confirmed and stamps the reel's capture
- *     batch match_id. `--match-id` is REQUIRED for a no_api_match proposal.
+ *     Confirms proposal N: flips status→confirmed and records the match_id on the
+ *     association (the source of truth). `--match-id` is REQUIRED for a
+ *     no_api_match proposal.
  *
  *   reject   --id N
  *     Rejects proposal N (no stamp).
+ *
+ *   reel-map --video-sha256 SHA
+ *     Prints the confirmed reel→match map as a JSON object `{"<reelIdx>": M, ...}`
+ *     — the cross-language delivery channel the Python orchestrator reads (via
+ *     `_psql_query`) to dispatch each reel under its own match.
  *
  * Exit codes: 0 success; 1 argument/DB error.
  */
@@ -37,9 +50,11 @@ import {
   listPendingAssociations,
   confirmAssociation,
   rejectAssociation,
+  getConfirmedReelMap,
 } from '@eanhl/db/queries'
 import { eq } from 'drizzle-orm'
 import { scoreCandidates, type ProbeIdentity } from './lib/match-association-score.js'
+import { resolveProposeContext } from './lib/resolve-match-context.js'
 
 function getFlag(argv: string[], name: string): string | undefined {
   const i = argv.indexOf(`--${name}`)
@@ -89,37 +104,44 @@ function loadIdentities(path: string): { reelIndex: number; data: IdentityFile }
 }
 
 async function propose(argv: string[]): Promise<void> {
-  const runId = requirePositiveInt(argv, 'run-id', 'propose')
-  const identitiesPath = getFlag(argv, 'identities')
-  if (!identitiesPath) throw new Error('propose requires --identities <path>')
+  const ctx = resolveProposeContext(argv)
 
-  const [run] = await db
-    .select({ matchId: ocrDecoderRuns.matchId, videoSha256: ocrDecoderRuns.videoSha256 })
-    .from(ocrDecoderRuns)
-    .where(eq(ocrDecoderRuns.id, runId))
-    .limit(1)
-  if (!run) throw new Error(`propose: run ${runId} not found`)
-
-  const videoSha = getFlag(argv, 'video-sha256') ?? run.videoSha256
-  if (!videoSha) {
-    throw new Error(`propose: run ${runId} has no video_sha256; pass --video-sha256 <sha>`)
-  }
-
-  const gameTitleFlag = getFlag(argv, 'game-title-id')
+  // Resolve videoSha / gameTitleId / runId per mode. `run` mode looks up the
+  // decoder run (single-match / reprocess path); `direct` mode associates a
+  // fresh multi-reel video straight from the flags with run_id = null.
+  let videoSha: string
   let gameTitleId: number
-  if (gameTitleFlag !== undefined) {
-    gameTitleId = Number(gameTitleFlag)
-    if (!Number.isInteger(gameTitleId) || gameTitleId <= 0) {
-      throw new Error(`propose: --game-title-id must be a positive integer; got: ${gameTitleFlag}`)
+  let runId: number | null
+  if (ctx.mode === 'run') {
+    const [run] = await db
+      .select({ matchId: ocrDecoderRuns.matchId, videoSha256: ocrDecoderRuns.videoSha256 })
+      .from(ocrDecoderRuns)
+      .where(eq(ocrDecoderRuns.id, ctx.runId))
+      .limit(1)
+    if (!run) throw new Error(`propose: run ${ctx.runId} not found`)
+
+    const sha = ctx.videoSha256Override ?? run.videoSha256
+    if (!sha) {
+      throw new Error(`propose: run ${ctx.runId} has no video_sha256; pass --video-sha256 <sha>`)
     }
+    videoSha = sha
+
+    if (ctx.gameTitleIdOverride !== undefined) {
+      gameTitleId = ctx.gameTitleIdOverride
+    } else {
+      const match = await getMatchById(run.matchId)
+      if (!match) throw new Error(`propose: match ${run.matchId} for run ${ctx.runId} not found`)
+      gameTitleId = match.gameTitleId
+    }
+    runId = ctx.runId
   } else {
-    const match = await getMatchById(run.matchId)
-    if (!match) throw new Error(`propose: match ${run.matchId} for run ${runId} not found`)
-    gameTitleId = match.gameTitleId
+    videoSha = ctx.videoSha256
+    gameTitleId = ctx.gameTitleId
+    runId = null
   }
 
   const candidates = await enumerateApiCandidates(gameTitleId)
-  const identities = loadIdentities(identitiesPath)
+  const identities = loadIdentities(ctx.identitiesPath)
 
   const results: Record<string, unknown>[] = []
   for (const { reelIndex, data } of identities) {
@@ -138,6 +160,9 @@ async function propose(argv: string[]): Promise<void> {
       personas: probe.personas,
       signals: proposal.signals,
       runnerUpGap: proposal.runnerUpGap,
+      // Timestamp-top candidate even when below threshold — the review-queue hint.
+      bestMatchId: proposal.bestMatchId,
+      bestConfidence: Number(proposal.bestConfidence.toFixed(4)),
     }
     try {
       const row = await insertAssociationProposal({
@@ -154,6 +179,7 @@ async function propose(argv: string[]): Promise<void> {
         proposedMatchId: proposal.matchId,
         confidence: Number(proposal.confidence.toFixed(4)),
         runnerUpGap: Number(proposal.runnerUpGap.toFixed(4)),
+        bestMatchId: proposal.bestMatchId,
       })
     } catch (e) {
       results.push({
@@ -177,8 +203,18 @@ async function list(): Promise<void> {
   for (const r of rows) {
     const conf = r.confidence == null ? '—' : Number(r.confidence).toFixed(4)
     const proposed = r.proposedMatchId == null ? 'no_api_match' : String(r.proposedMatchId)
+    // For a no_api_match row, surface the top-ranked candidate from evidence so
+    // the operator can confirm it manually (`confirm --id N --match-id <hint>`).
+    let hint = ''
+    if (r.proposedMatchId == null) {
+      const ev = r.evidence as { bestMatchId?: number | null; bestConfidence?: number } | null
+      if (ev != null && ev.bestMatchId != null) {
+        const bc = typeof ev.bestConfidence === 'number' ? ev.bestConfidence.toFixed(2) : '?'
+        hint = `  hint=${ev.bestMatchId} @${bc}`
+      }
+    }
     process.stdout.write(
-      `  #${r.id}  reel=${r.reelIdentity}  →  match=${proposed}  (conf ${conf})\n`,
+      `  #${r.id}  reel=${r.reelIdentity}  →  match=${proposed}  (conf ${conf})${hint}\n`,
     )
   }
 }
@@ -202,9 +238,13 @@ async function confirm(argv: string[]): Promise<void> {
     }) + '\n',
   )
   if (result.stampedBatchIds.length === 0) {
+    // Under the association-row-as-truth model, zero stamped batches is the
+    // EXPECTED deferred-dispatch case (a fresh multi-reel video has no capture
+    // batches yet) — not an error. The match_id is recorded on the association;
+    // step (3)'s dispatch creates the per-reel batches already carrying it.
     process.stderr.write(
-      `confirm: WARNING — no capture batch matched (video_sha256, run_id) for association ${id}; ` +
-        `status flipped but no match_id stamped.\n`,
+      `confirm: note — no capture batch stamped for association ${id} (deferred dispatch). ` +
+        `match_id recorded on the association; per-reel batches are created at dispatch.\n`,
     )
   }
 }
@@ -213,6 +253,18 @@ async function reject(argv: string[]): Promise<void> {
   const id = requirePositiveInt(argv, 'id', 'reject')
   const row = await rejectAssociation(id)
   process.stdout.write(JSON.stringify({ rejected: row.id, status: row.status }) + '\n')
+}
+
+async function reelMap(argv: string[]): Promise<void> {
+  const videoSha = getFlag(argv, 'video-sha256')
+  if (!videoSha) throw new Error('reel-map requires --video-sha256 <sha>')
+  const rows = await getConfirmedReelMap(videoSha)
+  // Emit `{"<reelIndex>": matchId}` — ready for Python to read as {reel_index: match_id}.
+  const map: Record<string, number> = {}
+  for (const { reelIndex, matchId } of rows) {
+    map[String(reelIndex)] = matchId
+  }
+  process.stdout.write(JSON.stringify(map) + '\n')
 }
 
 async function main(): Promise<void> {
@@ -230,9 +282,13 @@ async function main(): Promise<void> {
     case 'reject':
       await reject(rest)
       break
+    case 'reel-map':
+      await reelMap(rest)
+      break
     default:
       throw new Error(
-        `unknown subcommand: ${subcommand ?? '(none)'}; expected propose | list | confirm | reject`,
+        `unknown subcommand: ${subcommand ?? '(none)'}; ` +
+          `expected propose | list | confirm | reject | reel-map`,
       )
   }
 }

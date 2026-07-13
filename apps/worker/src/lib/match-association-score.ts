@@ -41,6 +41,15 @@ export interface Proposal {
   runnerUpGap: number
   /** Winning candidate's raw per-signal values (0-1), for evidence + calibration. */
   signals: Record<string, number>
+  /**
+   * Argmax candidate id regardless of the confidence threshold — the
+   * review-queue HINT. Equals `matchId` when the threshold is cleared; when it
+   * is not, `matchId` is null but this still names which match ranked top so the
+   * operator can confirm it manually. null only when there are no candidates.
+   */
+  bestMatchId: number | null
+  /** Confidence of `bestMatchId` (identical to `confidence`; explicit for the hint). */
+  bestConfidence: number
 }
 
 /** Below this confidence a proposal is `no_api_match` (matchId=null). */
@@ -145,7 +154,14 @@ function scoreOne(probe: ProbeIdentity, cand: ApiCandidate): Scored {
 
 export function scoreCandidates(probe: ProbeIdentity, candidates: ApiCandidate[]): Proposal {
   if (candidates.length === 0) {
-    return { matchId: null, confidence: 0, runnerUpGap: 0, signals: {} }
+    return {
+      matchId: null,
+      confidence: 0,
+      runnerUpGap: 0,
+      signals: {},
+      bestMatchId: null,
+      bestConfidence: 0,
+    }
   }
   // Deterministic order: confidence desc, then matchId asc as a stable tiebreak.
   const scored = candidates
@@ -160,5 +176,8 @@ export function scoreCandidates(probe: ProbeIdentity, candidates: ApiCandidate[]
     confidence: best.confidence,
     runnerUpGap,
     signals: best.signals,
+    // The argmax candidate is the hint even below threshold (matchId nulls out).
+    bestMatchId: best.candidate.matchId,
+    bestConfidence: best.confidence,
   }
 }

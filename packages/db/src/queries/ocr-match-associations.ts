@@ -137,6 +137,45 @@ export async function confirmAssociation(
   })
 }
 
+/**
+ * The confirmed reel→match map for a video: one `{reelIndex, matchId}` per
+ * confirmed reel. Step (3)'s Python orchestrator reads this (via the worker
+ * `resolve-match reel-map` CLI + `_psql_query`) to replace the hardcoded
+ * `reel_match_ids=None` so each reel dispatches under its own match.
+ *
+ * Only `confirmed` rows count. `confirmAssociation` always sets an effective
+ * `proposed_match_id` on confirm, so a null id is defensively dropped rather
+ * than surfaced. `reelIndex` is parsed from the `${sha}:${idx}` reel_identity
+ * key (sha256 is hex, so the last `:` is the separator). Rows are ordered by
+ * reel_identity for a stable, deterministic map.
+ */
+export async function getConfirmedReelMap(
+  videoSha256: string,
+): Promise<{ reelIndex: number; matchId: number }[]> {
+  const rows = await db
+    .select({
+      reelIdentity: ocrMatchAssociations.reelIdentity,
+      proposedMatchId: ocrMatchAssociations.proposedMatchId,
+    })
+    .from(ocrMatchAssociations)
+    .where(
+      and(
+        eq(ocrMatchAssociations.videoSha256, videoSha256),
+        eq(ocrMatchAssociations.status, 'confirmed'),
+      ),
+    )
+    .orderBy(ocrMatchAssociations.reelIdentity)
+
+  const out: { reelIndex: number; matchId: number }[] = []
+  for (const r of rows) {
+    if (r.proposedMatchId == null) continue
+    const reelIndex = Number(r.reelIdentity.slice(r.reelIdentity.lastIndexOf(':') + 1))
+    if (!Number.isInteger(reelIndex)) continue
+    out.push({ reelIndex, matchId: r.proposedMatchId })
+  }
+  return out
+}
+
 /** Reject a pending proposal: status → 'rejected', decided_at → now(). No stamp. */
 export async function rejectAssociation(id: number): Promise<OcrMatchAssociation> {
   const [updated] = await db

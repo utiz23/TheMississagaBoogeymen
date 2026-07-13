@@ -11,6 +11,7 @@ import assert from 'node:assert/strict'
 
 const SHA = 'assoc-inttest-sha256-deadbeef'
 const DIR = 'assoc-inttest-dir'
+const SHA2 = 'assoc-reelmap-inttest-sha256-cafef00d'
 
 // Close the DB pool so `node --test` can exit (mirror l4-api-truth.test.ts).
 after(async () => {
@@ -113,5 +114,70 @@ void test('association queue: insert → list → confirm stamps batch match_id;
   } finally {
     await db.delete(ocrMatchAssociations).where(eq(ocrMatchAssociations.videoSha256, SHA))
     await db.delete(ocrCaptureBatches).where(eq(ocrCaptureBatches.videoSha256, SHA))
+  }
+})
+
+// Milestone ② step (2), A2: the cross-language reel→match delivery channel.
+void test('getConfirmedReelMap: confirmed reels only, {reelIndex,matchId}, deterministic order', async (t) => {
+  if (!process.env['DATABASE_URL']) {
+    t.skip('DATABASE_URL not set — getConfirmedReelMap integration requires DB.')
+    return
+  }
+
+  const { db, ocrMatchAssociations, matches } = await import('@eanhl/db')
+  const { insertAssociationProposal, confirmAssociation, getConfirmedReelMap } =
+    await import('@eanhl/db/queries')
+  const { eq } = await import('drizzle-orm')
+
+  await db.delete(ocrMatchAssociations).where(eq(ocrMatchAssociations.videoSha256, SHA2))
+
+  try {
+    // Two DISTINCT matches — the whole point of a multi-reel video (its reels
+    // map to different matches, which is why they can't share one decoder run).
+    const ms = await db.select({ id: matches.id }).from(matches).limit(2)
+    assert.ok(ms.length >= 2, 'test DB needs at least two matches')
+    const [m0, m1] = ms
+    assert.ok(m0 && m1)
+
+    // Direct (runId: null) proposals — the fresh multi-reel path, no capture batch.
+    const p0 = await insertAssociationProposal({
+      reelIdentity: `${SHA2}:0`,
+      videoSha256: SHA2,
+      runId: null,
+      proposedMatchId: m0.id,
+      confidence: '0.8000',
+      evidence: {},
+    })
+    const p1 = await insertAssociationProposal({
+      reelIdentity: `${SHA2}:1`,
+      videoSha256: SHA2,
+      runId: null,
+      proposedMatchId: m1.id,
+      confidence: '0.7000',
+      evidence: {},
+    })
+    // A third reel left pending — must NOT appear in the confirmed map.
+    await insertAssociationProposal({
+      reelIdentity: `${SHA2}:2`,
+      videoSha256: SHA2,
+      runId: null,
+      proposedMatchId: m0.id,
+      confidence: '0.6000',
+      evidence: {},
+    })
+
+    // Nothing confirmed yet → empty map.
+    assert.deepEqual(await getConfirmedReelMap(SHA2), [])
+
+    await confirmAssociation(p0.id)
+    await confirmAssociation(p1.id)
+
+    // Confirmed reels only, parsed from `${sha}:${idx}`, ordered by reel_identity.
+    assert.deepEqual(await getConfirmedReelMap(SHA2), [
+      { reelIndex: 0, matchId: m0.id },
+      { reelIndex: 1, matchId: m1.id },
+    ])
+  } finally {
+    await db.delete(ocrMatchAssociations).where(eq(ocrMatchAssociations.videoSha256, SHA2))
   }
 })
