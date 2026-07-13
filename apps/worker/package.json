@@ -29,6 +29,7 @@
     "repromote-loadout": "node dist/repromote-loadout-cli.js",
     "repromote-lobby": "node dist/repromote-lobby-cli.js",
     "decoder-runs": "node dist/decoder-runs-cli.js",
+    "resolve-match": "node dist/resolve-match-cli.js",
     "backfill-event-actor-resolution": "node dist/backfill-event-actor-resolution-cli.js",
     "phase-2b-parallel-diff": "node dist/__scripts__/phase-2b-parallel-diff-2026-05-21.js"
   },
