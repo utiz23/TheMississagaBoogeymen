@@ -14,26 +14,36 @@ that plus the capture epoch into the ``reel-<idx>-identity.json`` shape that
 so it lines up with ``matches.played_at`` (EA's UTC epoch) in the scorer's
 timestamp-proximity signal.
 
-Timezone note: the basename ("2026-05-20_18-15-59") is the recording PC's *local*
-wall-clock. We interpret it in a fixed UTC frame so the epoch is deterministic
-across machines (unit tests, CI, and the GPU box all agree). A constant
-operator-timezone offset is uniform across every candidate, so it preserves the
-relative ranking the scorer cares about within a session; if same-day
-multi-session discrimination ever proves weak it becomes a batch-1 calibration
-knob (spec §12) — thread the operator timezone through here at that point.
+Timezone calibration: the basename ("2026-05-20_18-15-59") is the recording PC's
+*local* wall-clock, but ``matches.played_at`` is a true UTC epoch. Stamping the
+basename as UTC left ``capture_epoch_s`` ~6 h early — ~2σ of the scorer's σ≈3 h
+Gaussian — which pushed the correct match out of the timestamp window and a wrong
+one in (proven on the 2026-05-22_19-07-03 5-reel block: reels 0–4 → matches
+971–975, a constant ~+5.93 h offset). We localize the basename in the operator's
+timezone (:data:`OPERATOR_TZ`) via ``zoneinfo`` so the conversion is DST-correct
+across a multi-month batch — a whole-hour constant would misfire either side of a
+DST boundary. ``America/Edmonton`` (Mountain) lands reel 0 within ~3 min of match
+971's ``played_at``. It is a module-level default + per-call override so a
+different recording PC is a one-line change (spec §12 calibration knob).
 """
 
 from __future__ import annotations
 
 import json
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable
+from zoneinfo import ZoneInfo
 
 from video_ingest.match_split import LOBBY_SCREENS
 
 BASENAME_TIME_FORMAT = "%Y-%m-%d_%H-%M-%S"
+
+# The recording PC's wall-clock timezone. Basenames carry no offset, so we must
+# supply the operator's zone to recover a true UTC epoch. IANA zone (not a fixed
+# hour) so DST is handled per recording date across the whole batch.
+OPERATOR_TZ = ZoneInfo("America/Edmonton")
 
 # Slot keys in lobby_evidence.json are prefixed lobby_for_<POS> for our team and
 # lobby_against_<POS> for the opponent (game_ocr.lobby_extractors.slot_identity
@@ -59,13 +69,16 @@ class ReelOcrReads:
     personas: list[str] = field(default_factory=list)
 
 
-def parse_basename_epoch(basename: str) -> int:
-    """Parse a recording basename ("2026-05-20_18-15-59") to an integer epoch.
+def parse_basename_epoch(basename: str, tz: ZoneInfo = OPERATOR_TZ) -> int:
+    """Parse a recording basename ("2026-05-20_18-15-59") to an integer UTC epoch.
 
-    Interpreted as UTC — see the module docstring for why the reference frame is
-    fixed rather than the local machine's timezone.
+    The basename is the recording PC's *local* wall-clock; localizing it in
+    ``tz`` (default :data:`OPERATOR_TZ`, DST-correct via ``zoneinfo``) yields the
+    true UTC epoch that lines up with ``matches.played_at`` — see the module
+    docstring for the calibration evidence. Raises ``ValueError`` on a basename
+    that is not a wall-clock stamp (the orchestrator guards on this).
     """
-    dt = datetime.strptime(basename, BASENAME_TIME_FORMAT).replace(tzinfo=timezone.utc)
+    dt = datetime.strptime(basename, BASENAME_TIME_FORMAT).replace(tzinfo=tz)
     return int(dt.timestamp())
 
 

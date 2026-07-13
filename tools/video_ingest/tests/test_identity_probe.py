@@ -52,13 +52,30 @@ def _reel(start_s: float, reel_index: int = 0) -> Reel:
     )
 
 
-def test_parse_basename_epoch_reads_walltime_as_utc() -> None:
-    # The recording basename is a naive wall-clock stamp; we interpret it in a
-    # fixed (UTC) reference frame so the result is deterministic across machines.
-    # Cross-checked here via an independent parse path (time.strptime + timegm).
-    expected = calendar.timegm(time.strptime("2026-05-20 18:15:59", "%Y-%m-%d %H:%M:%S"))
+def test_parse_basename_epoch_localizes_operator_wall_clock() -> None:
+    # The basename is the recording PC's LOCAL wall-clock (America/Edmonton =
+    # Mountain); localizing it DST-correctly yields the true UTC epoch that lines
+    # up with matches.played_at. 2026-05-22 19:07:03 MDT (UTC−6) = 2026-05-23
+    # 01:07:03 UTC. Cross-checked via an INDEPENDENT path: the −6 h offset done by
+    # hand, then a UTC-only timegm parse (no zoneinfo), so this pins both the
+    # zone selection and the conversion direction.
+    expected = calendar.timegm(time.strptime("2026-05-23 01:07:03", "%Y-%m-%d %H:%M:%S"))
 
-    assert parse_basename_epoch("2026-05-20_18-15-59") == expected
+    assert parse_basename_epoch("2026-05-22_19-07-03") == expected
+    assert expected == 1779498423  # the on-box base epoch of the proven 5-reel block
+
+
+def test_parse_basename_epoch_lines_up_with_api_played_at() -> None:
+    # Regression anchor to real DB truth: the proven mapping (HANDOFF timestamp
+    # fingerprint) puts reel 0 of 2026-05-22_19-07-03.mkv on match 971, whose
+    # played_at is 1779498237. Reel 0's lobby starts ≈ +2 s into the recording,
+    # so its calibrated capture epoch must sit within the scorer's σ=3h window of
+    # played_at (pre-calibration it was ~5.9 h off — basename-as-UTC — which
+    # ranked the wrong match top). Observed residual ≈ −3 min.
+    reel0_capture = parse_basename_epoch("2026-05-22_19-07-03") + 2
+    match_971_played_at = 1779498237
+
+    assert abs(match_971_played_at - reel0_capture) < 15 * 60
 
 
 def test_build_identity_offsets_epoch_by_reel_start_and_assembles_shape() -> None:
