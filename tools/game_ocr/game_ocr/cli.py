@@ -8,6 +8,7 @@ from pathlib import Path
 import typer
 
 from game_ocr.extractor import Extractor, ScreenRegistry
+from game_ocr.ocr import RapidOCRBackend
 
 
 app = typer.Typer(add_completion=False, no_args_is_help=True)
@@ -18,13 +19,14 @@ def extract(
     screen: str = typer.Option(..., help="Supported screen type."),
     input: Path = typer.Option(..., exists=True, readable=True, resolve_path=True, help="Image file or folder."),
     output: Path = typer.Option(..., resolve_path=True, help="JSON output path."),
+    use_gpu: bool = typer.Option(True, help="Use CUDA EP if available."),
 ) -> None:
     registry = ScreenRegistry()
     if screen not in registry.list_screen_types():
         typer.secho(f"Unsupported screen '{screen}'. Choices: {', '.join(registry.list_screen_types())}", err=True, fg=typer.colors.RED)
         raise typer.Exit(code=2)
 
-    extractor = Extractor(registry=registry)
+    extractor = Extractor(registry=registry, backend=RapidOCRBackend(use_gpu=use_gpu))
     results = extractor.extract_input(screen, input)
     output.parent.mkdir(parents=True, exist_ok=True)
     payload = [result.model_dump(mode="json") for result in results]
