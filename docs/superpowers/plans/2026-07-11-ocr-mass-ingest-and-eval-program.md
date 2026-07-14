@@ -339,12 +339,56 @@ export function scoreCandidates(probe: ProbeIdentity, candidates: ApiCandidate[]
 
 # Milestone ④ — BATCH ORCHESTRATION (unattended mass run)
 
-**Deliverable:** a runner that enumerates the target set, dedups by sha, prioritizes, preflights the GPU venv, runs each video through Pass-1→split→probe→associate→per-reel promotion→L4 eval, and emits the review queue — safe to leave running, resumable, per-video failure-isolated.
+**Deliverable:** a runner that enumerates the target set, dedups by sha, prioritizes, preflights the GPU venv, runs each video through Pass-1→split→probe→associate→per-reel promotion→L4 eval, and emits the review queue — safe to leave running, resumable, per-video failure-isolated. **Two prerequisites resolved in the 2026-07-13 ④ design session precede the run loop:** (4.0) GPU-enable the legacy `game_ocr.cli extract` path so an unattended corpus run is practical (~2.3h/video CPU → ~30 min/video GPU); (4.G) build a **coverage-aware L4 gate** that grades the strongest correctness signal (the TOT-row final) instead of the confound-prone per-period sum, so the batch can auto-classify {clean / hold-for-review} without false-rejecting correct associations.
+
+> **Revised task order (2026-07-13 design):** 4.0 (GPU-enable) → 4.G (coverage-aware L4 gate) → 4.1 (enumerate) → 4.2 (preflight) → 4.3 (run loop, consumes 4.G). 4.0 and 4.G each ship + verify on-box before the loop depends on them; 4.1/4.2 are pure/headless; 4.3 is the on-box end-to-end.
 
 **File Structure:**
 - Create `tools/video_ingest/video_ingest/batch_ingest.py` — enumerate/dedup/prioritize/preflight/run-loop; registered as a Typer command in `cli.py` (`app.command("batch")(run_batch)`, mirror `reprocess` registration at `cli.py:255`).
 - Reuse `reprocess.py` helpers: `_file_sha256`, `_disk_videos_by_sha`, `_resolve_video_paths`, `_psql_query`, `_run_decoder_runs_cli`, the `create-candidate → ingest → validate → activate` lifecycle (`reprocess.py:111-292,462-833`).
+- 4.0 touches `tools/game_ocr/game_ocr/cli.py` (`extract` cmd) + `.env` (`OCR_PYTHON`); 4.G touches `apps/worker/src/lib/l4-api-truth.ts` + `packages/db/src/queries/l4-api-truth-inputs.ts` + `apps/worker/src/lib/quality-layers.ts` (a pure gate-decision fn).
 - Test: `tools/video_ingest/tests/test_batch_ingest.py`.
+
+### Task 4.0: GPU-enable `game_ocr.cli extract` (throughput prerequisite)
+
+**Why:** the batch's per-segment promotion OCR shells out to `python -m game_ocr.cli extract` (`apps/worker/src/ocr-cli-runner.ts:83`), whose `extract` command builds `Extractor()` with **no `use_gpu`** → bare CPU RapidOCR (`tools/game_ocr/game_ocr/cli.py:27` → `ocr.py:156`). Its sibling `classify` subcommand already wires `use_gpu: bool = typer.Option(True)` + the nvidia-cu12 preload (`cli.py:60,68-75`). This is the ~1200%-CPU / ~30-min-per-heavy-segment cost the ② on-box run measured. Both venvs already have `onnxruntime_gpu-1.26.0` installed — GPU is present, just never requested on this path.
+
+**Two required prongs (both, or it silently stays CPU):**
+1. **Request GPU** — add `use_gpu: bool = typer.Option(True, ...)` to `extract` and construct `Extractor(registry=registry, backend=RapidOCRBackend(use_gpu=use_gpu))` (`cli.py:16-27`), mirroring `classify`. `RapidOCRBackend.__init__` already does the WSL2 nvidia-cu12 preload + missing-lib warning.
+2. **GPU-capable interpreter** — set `OCR_PYTHON` → the game_ocr GPU venv in `.env` (currently unset; `ocr-cli-runner.ts:74` falls back to bare `python3`, which would silently CPU-fallback even after prong 1). Env-var precedent: `OCR_USE_CUDA` at `tools/historical_import/extract_review_artifacts.py:77`.
+
+**Silent-fallback guard:** `RapidOCRBackend` logs `[ocr] WARN: use_gpu=True but CUDA runtime libraries unavailable` when the wheels aren't importable — the on-box verify MUST confirm that warning is **absent**.
+
+- [ ] **Step 1** — Add the `use_gpu` option + backend wiring to `extract`; set `OCR_PYTHON` in `.env` (+ `.env.example` doc already present at `:39`).
+- [ ] **Step 2** — Unit/smoke: `python -m game_ocr.cli extract --help` shows `--use-gpu/--no-use-gpu`; a `--no-use-gpu` run still succeeds (parity).
+- [ ] **Step 3 — on-box evidence (required, GPU only exists on the box):** run ONE heavy `post_game_action_tracker` segment through `extract` on CPU vs GPU; record the wall-clock drop and confirm NO `CUDA runtime libraries unavailable` warning. Record in `HANDOFF.md`.
+- [ ] **Step 4** — Commit: `git commit -am "feat(game-ocr): GPU-enable the extract CLI path (④ Task 4.0)"`.
+
+### Task 4.G: Coverage-aware L4 gate (③-addendum; the batch's auto-classify signal)
+
+**Why:** today's L4 grades the **summed per-period** box-score rows (`period_number >= 1`, `l4-api-truth-inputs.ts:102`), which undercounts when a period is missed (973 read `1-1 / [period-2 unread] / 3-1 / 0-0` → 4-2 vs API 7-3 → L4=0) even though the **TOT-row final** that drove association was read *correctly* (7-3). So a naive `L4≥τ` reject would false-reject correct associations. The gate must grade the strongest signal — the TOT final — not the confound-prone per-period sum. `L4_THRESHOLD=0.95` exists but is inert (excluded from `overall.pass`, `quality-layers.ts:270`).
+
+**Key simplification (no schema/promoter change):** the TOT-row final is already in raw `ocr_extraction_fields` (`period_number = -1`); the per-player L4 path already reads raw cells there (`l4-api-truth-inputs.ts:228`). So `finalAccuracy` reads the TOT-row final from raw — **the promoter keeps discarding the `-1` row** (`box-score.ts:57`), no new persisted row, no double-count risk in per-period consumers, no migration.
+
+**Three SEPARATE sub-metrics** added to the L4 layer (kept separate + interpretable, NOT blended into one weighted score — a weighted composite is less robust for gating: a good per-period can mask a wrong final, and threshold-vs-weights is hard to calibrate):
+- **`finalAccuracy`** *(the hard gate)* — TOT-row (`period=-1`) final goals-for/against vs API final on `matches`. `[0,1]` or `null`. (Shots/faceoffs finals may be graded as extra sub-fields but do NOT gate.)
+- **`periodCoverage`** — expected-vs-present per-period rows (soft flag).
+- **`periodAccuracy`** — today's sum-vs-final grade, computed **only when coverage is complete**; incomplete ⇒ `null`, not `0` (removes the 973 confound).
+
+**Pure gate-decision fn** (per match):
+- `finalAccuracy == 1.0` → **PASS**
+- `finalAccuracy` present & `< 1.0` → **HOLD** (genuinely misread final)
+- `finalAccuracy == null` (api-missed — the batch's priority-0 target, no API truth to grade) → **operator-confirm only**; L4 cannot gate — the confirmed ② association is the sole gate there
+- `periodCoverage`/`periodAccuracy` are always **soft** (informational on the scorecard)
+
+**Enforcement = flag, don't purge (design decision):** promotion already sits behind the two-pass operator-confirm flow (Pass-1 defers dispatch; box-score promotes only Pass-2 after confirm). So a HOLD at Pass-2 is a *quality flag on an already-confirmed match*, not corruption-prevention (OCR never touches `matches` API truth — it writes a parallel `source='ocr'` set). The batch emits HOLD matches to the review queue with the reason + raw reads; it does **NOT** auto-purge and adds **no** `review_status` quarantine column. (Non-destructive hard quarantine via a `review_status` column is the deferred alternative if ever wanted.)
+
+- [ ] **Step 1: failing tests** — pure `computeL4` (or a new `computeL4CoverageAware`) + gate-decision fn: fixtures for (a) clean final+coverage → PASS, (b) correct final + missing period → PASS with `periodCoverage<1` flag (the 973/974 case), (c) wrong final → HOLD, (d) `finalAccuracy=null` api-missed → operator-confirm. Extend `apps/worker` L4 tests.
+- [ ] **Step 2** — Run; expect FAIL.
+- [ ] **Step 3** — Implement: add the TOT-row raw read to `getOcrBoxScoreForMatch`/L4 inputs; add the three sub-metrics + gate fn; surface them in the `ReportBody` (`run-quality-report.ts`). Do NOT wire into `overall.pass` unless the batch wants a hard run-level gate — the batch consumes the gate fn directly.
+- [ ] **Step 4** — Run; expect PASS + full worker suite green (`match-250-benchmark.test.ts` anchor).
+- [ ] **Step 5 — on-box evidence:** recompute over matches 972–976 (the ② run) and confirm 973/974 now score PASS via `finalAccuracy=1.0` (final 7-3 / 6-2) with a `periodCoverage<1` soft flag, and 972 stays PASS. Record in `HANDOFF.md`.
+- [ ] **Step 6** — Commit: `git commit -am "feat(worker): coverage-aware L4 gate — TOT-final grade + gate fn (④ Task 4.G)"`.
 
 ### Task 4.1: Enumerate + dedup + prioritize (pure)
 
@@ -388,7 +432,7 @@ def prioritize(targets: list[BatchTarget]) -> list[BatchTarget]: ...
 
 **Files:** Modify `batch_ingest.py`; register `batch` command in `cli.py`; test `tests/test_batch_ingest.py` (loop with stubbed subprocess/DB, mirror `test_reprocess_cli.py` monkeypatch style).
 
-**Interfaces:** `def run_batch(video_root, since, dry_run, limit) -> None`. Per target (in priority order): `preflight()` once up front → `create-candidate` (mint `run_id`) → `video-ingest ingest --dispatch` (Pass-1 → ① split → ② identity probe; multi-reel ⇒ writes `reels.json`+`identity.json`, dispatch deferred) → `resolve-match propose` → **stop at operator confirm gate** (emit proposals + eval scorecards + completeness flags; do NOT auto-promote) → on a later pass, confirmed reels get per-reel Pass-2 + promotion + `run-quality --emit-row` (now with L4). Per-video try/except isolates failures (log + skip the 50 GB `2026-06-08`-style corrupt file, continue). **Promotion gate:** nothing promotes to canonical without passing ③'s L4 threshold AND operator-confirmed ② association.
+**Interfaces:** `def run_batch(video_root, since, dry_run, limit) -> None`. Per target (in priority order): `preflight()` once up front → `create-candidate` (mint `run_id`) → `video-ingest ingest --dispatch` (Pass-1 → ① split → ② identity probe; multi-reel ⇒ writes `reels.json`+`identity.json`, dispatch deferred) → `resolve-match propose` → **stop at operator confirm gate** (emit proposals + eval scorecards + completeness flags; do NOT auto-promote) → on a later pass, confirmed reels get per-reel Pass-2 + promotion + `run-quality --emit-row` (now carrying the **4.G coverage-aware L4**). Per-video try/except isolates failures (log + skip the 50 GB `2026-06-08`-style corrupt file, continue). **Promotion gate (revised 2026-07-13):** the **operator-confirmed ② association is the hard gate** — nothing dispatches/promotes without it. On top of that, the **4.G coverage-aware L4 gate** runs at Pass-2 and auto-classifies each promoted match {PASS / HOLD}: `finalAccuracy<1.0` ⇒ HOLD → review queue (flag, not purge); `finalAccuracy=null` (api-missed) ⇒ association-confirm is the sole gate. L4 is NOT a naive `≥τ` reject (it would false-reject the 973/974-style correct-association-noisy-per-period case).
 
 - [ ] **Step 1: failing test** — a stubbed `run_batch` over 3 fake targets (subprocess + `_psql_query` monkeypatched) records: `preflight` called once; targets processed in priority order; a target that raises is logged + skipped (loop completes over the remaining two); `dry_run=True` makes zero mutating calls.
 - [ ] **Step 2** — Run; expect FAIL.
