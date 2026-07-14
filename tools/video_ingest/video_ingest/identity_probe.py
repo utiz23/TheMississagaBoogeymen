@@ -30,13 +30,20 @@ different recording PC is a one-line change (spec §12 calibration knob).
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable
 from zoneinfo import ZoneInfo
 
-from video_ingest.match_split import LOBBY_SCREENS
+from video_ingest.match_split import BOXSCORE_SCREENS, LOBBY_SCREENS
+
+# Only the goals tab's TOT column carries the final score; the shots/faceoffs
+# tabs OCR'd through the goals parser would read the wrong digits. Keep this
+# consistent with match_split's BOXSCORE_SCREENS set.
+BOXSCORE_GOALS_SCREEN = "post_game_box_score_goals"
+assert BOXSCORE_GOALS_SCREEN in BOXSCORE_SCREENS
 
 BASENAME_TIME_FORMAT = "%Y-%m-%d_%H-%M-%S"
 
@@ -147,14 +154,15 @@ def write_reel_identities(
     return paths
 
 
-# ── The on-box reader: personas from the Pass-2 lobby evidence ────────────────
+# ── The on-box reader: personas (from Pass-2 lobby evidence) + score/opponent ──
 #
-# Milestone ② on-box completion. Personas are already on disk once Pass-2 ran
-# with lobby_engine=typed_v1 (``<seg_dir>/lobby_evidence.json``), so reading them
-# needs no GPU. Score/opponent (a NEW box-score OCR pass + a for/against side
-# resolution with no Python impl today) are DEFERRED — ``ReelOcrReads`` defaults
-# leave them absent, which the scorer treats as unknown (⇒ no_api_match on
-# operator review, the review queue's expected fallback).
+# Personas are already on disk once Pass-2 ran with lobby_engine=typed_v1
+# (``<seg_dir>/lobby_evidence.json``), so reading them needs no GPU. Score and
+# opponent are OCR'd on-box (Milestone ② step 2 Phase B) from the reel's goals
+# box-score frames via :func:`read_box_score_goals` — a real GPU pass, since the
+# box score (unlike personas) is never extracted in Python Pass-2. A reel with no
+# gradable goals frame (``partial_no_boxscore``) leaves them absent and the
+# scorer falls back to timestamp + personas, exactly as before.
 
 
 def read_lobby_personas(seg_dir: Path) -> list[str]:
@@ -190,26 +198,196 @@ def read_lobby_personas(seg_dir: Path) -> list[str]:
     return personas
 
 
+# ── BGM side resolution (ported from resolve-bgm-side.ts) ─────────────────────
+#
+# Post-game box-score screens show team names neutrally as Away (top) / Home
+# (bottom), but the association scorer needs BGM-perspective score_for/against.
+# The authoritative matches.bgm_was_home flag is UNAVAILABLE pre-association
+# (finding the match is the whole point), so only the OCR team-name alias
+# soft-match path ports here. When neither or both sides match a BGM alias the
+# side is unresolved and we leave score/opponent ABSENT (⇒ the scorer's score +
+# opponent signals stay 0, exactly like a partial_no_boxscore reel) rather than
+# guess and risk flipping for/against on the whole reel.
+
+# Lowercased name fragments (after stripping non-alphanumerics) that mark the BGM
+# side. "bm" is the short Net-Chart/Action-Tracker header; "bgm"/"boogeymen" the
+# longer renderings. Mirrors BGM_ALIASES in resolve-bgm-side.ts.
+_BGM_ALIASES = ("bgm", "boogeymen", "the boogeymen", "bm")
+
+
+def _normalize_team_name(name: str) -> str:
+    """Lowercase, collapse any non-alphanumeric run to a single space, trim.
+
+    Mirrors ``normalize`` in resolve-bgm-side.ts so "BM(A)" → "bm a" and
+    substring checks against multi-word aliases behave sensibly.
+    """
+    return re.sub(r"[^a-z0-9]+", " ", name.lower()).strip()
+
+
+def _matches_bgm(name: str | None) -> bool:
+    """True when an OCR'd team name is the BGM (our) side. Mirrors ``matchesBgm``.
+
+    The team identifier is always the first token; later tokens are home/away
+    markers ("a"/"h") or descriptive words. Falls back to an exact alias match
+    against the full normalized string.
+    """
+    if not name:
+        return False
+    tokens = _normalize_team_name(name).split()
+    if not tokens:
+        return False
+    if tokens[0] in _BGM_ALIASES:
+        return True
+    full = " ".join(tokens)
+    return any(alias == full for alias in _BGM_ALIASES)
+
+
+def resolve_bgm_side_scores(
+    away_name: str | None,
+    home_name: str | None,
+    away_total: int | None,
+    home_total: int | None,
+) -> tuple[int | None, int | None, str]:
+    """Map neutral Away/Home box-score totals to BGM-perspective
+    ``(score_for, score_against, opponent_text)`` via the team-name alias match.
+
+    The side whose name matches a BGM alias is "for"; the other is the opponent.
+    Unresolved side (neither or both names alias-match) ⇒ ``(None, None, "")`` so
+    the reel's score/opponent stay absent rather than risk a flipped side — the
+    scorer then leans on timestamp + personas, exactly as today.
+    """
+    away_bgm = _matches_bgm(away_name)
+    home_bgm = _matches_bgm(home_name)
+    if away_bgm and not home_bgm:
+        return away_total, home_total, (home_name or "").strip()
+    if home_bgm and not away_bgm:
+        return home_total, away_total, (away_name or "").strip()
+    return None, None, ""
+
+
+# ── Box-score OCR reader (Milestone ② step 2 Phase B) ─────────────────────────
+#
+# Genuinely new GPU/OCR work: unlike personas (pre-extracted to
+# lobby_evidence.json), the box score is never OCR'd in Python Pass-2. We run
+# game_ocr's post_game_box_score_goals extractor over the reel's goals seg-dir
+# frames, take the highest-confidence read, and resolve its TOT-row goals + team
+# names into BGM-perspective score/opponent. This lifts the scorer's max
+# confidence off the 0.35 timestamp-only ceiling (score 0.30 + opponent 0.20).
+
+
+def _field_text(field_obj: Any) -> str | None:
+    """Best available string from an ExtractionField-like object (value → raw_text)."""
+    value = getattr(field_obj, "value", None)
+    if isinstance(value, str) and value.strip():
+        return value
+    raw = getattr(field_obj, "raw_text", None)
+    if isinstance(raw, str) and raw.strip():
+        return raw
+    return None
+
+
+def _field_int(field_obj: Any) -> int | None:
+    """Integer value of an ExtractionField-like object, else None."""
+    value = getattr(field_obj, "value", None)
+    return value if isinstance(value, int) else None
+
+
+def _tot_cell(result: Any) -> Any | None:
+    """The TOT (``period_number == -1``) cell of a box-score result, or None."""
+    for cell in getattr(result, "periods", None) or []:
+        if getattr(cell, "period_number", None) == -1:
+            return cell
+    return None
+
+
+def read_box_score_goals(
+    seg_dirs: list[Any],
+    extractor: Any,
+) -> tuple[int | None, int | None, str]:
+    """OCR the reel's goals box-score frames → BGM-perspective (for, against, opponent).
+
+    Runs ``extractor.extract_input("post_game_box_score_goals", seg_dir)`` over
+    every goals seg dir the reel spans, keeps the highest-``overall_confidence``
+    result that has a TOT row, reads the away/home final goals + team names, and
+    resolves the BGM side. No gradable goals frame (a ``partial_no_boxscore``
+    reel) ⇒ ``(None, None, "")``.
+    """
+    best: Any | None = None
+    best_conf = -1.0
+    for seg_dir in seg_dirs:
+        for result in extractor.extract_input(BOXSCORE_GOALS_SCREEN, seg_dir):
+            if not getattr(result, "success", False):
+                continue
+            if _tot_cell(result) is None:
+                continue
+            conf = getattr(getattr(result, "meta", None), "overall_confidence", None) or 0.0
+            if conf > best_conf:
+                best_conf = conf
+                best = result
+    if best is None:
+        return None, None, ""
+    tot = _tot_cell(best)
+    return resolve_bgm_side_scores(
+        _field_text(best.away_team),
+        _field_text(best.home_team),
+        _field_int(tot.away_value),
+        _field_int(tot.home_value),
+    )
+
+
 def make_pass2_persona_reader(
     results_by_index: dict[int, Any],
+    extractor: Any | None = None,
 ) -> Callable[[Any], ReelOcrReads]:
     """Build the ``read_reads`` the orchestrator injects into
     :func:`write_reel_identities`.
 
     ``results_by_index`` maps ``segment_index`` → Pass2Result (duck-typed: only
     ``.segment.screen_type`` and ``.directory`` are touched). For a reel it reads
-    personas from every lobby seg dir the reel spans; score/opponent stay absent
-    (box-score OCR deferred). Kept as a closure so identity emission composes with
-    the existing dependency-injected reader seam and stays GPU-free at read time.
+    personas from every lobby seg dir the reel spans (GPU-free — already on disk)
+    and OCRs the score/opponent from the reel's goals box-score seg dir(s) via
+    :func:`read_box_score_goals`.
+
+    ``extractor`` is dependency-injected so tests supply a fake and only the GPU
+    orchestrator constructs the real (RapidOCR-backed) one. Left ``None``, it is
+    lazily constructed the first time a reel actually has a goals seg dir — so the
+    heavy backend never loads during a GPU-free unit test or a reel with no box
+    score. Kept a closure so identity emission composes with the existing
+    dependency-injected reader seam.
     """
+    holder: dict[str, Any] = {"extractor": extractor}
+
+    def _get_extractor() -> Any:
+        if holder["extractor"] is None:
+            # Deferred import: keeps this module (and its unit tests) importable
+            # without game_ocr's RapidOCR backend on the path.
+            from game_ocr.extractor import Extractor
+
+            holder["extractor"] = Extractor()
+        return holder["extractor"]
 
     def read(reel: Any) -> ReelOcrReads:
         personas: list[str] = []
+        goals_dirs: list[Any] = []
         for idx in reel.segment_indices:
             result = results_by_index.get(idx)
-            if result is None or result.segment.screen_type not in LOBBY_SCREENS:
+            if result is None:
                 continue
-            personas.extend(read_lobby_personas(result.directory))
-        return ReelOcrReads(personas=personas)
+            screen_type = result.segment.screen_type
+            if screen_type in LOBBY_SCREENS:
+                personas.extend(read_lobby_personas(result.directory))
+            elif screen_type == BOXSCORE_GOALS_SCREEN:
+                goals_dirs.append(result.directory)
+        score_for, score_against, opponent_text = (None, None, "")
+        if goals_dirs:
+            score_for, score_against, opponent_text = read_box_score_goals(
+                goals_dirs, _get_extractor()
+            )
+        return ReelOcrReads(
+            score_for=score_for,
+            score_against=score_against,
+            opponent_text=opponent_text,
+            personas=personas,
+        )
 
     return read

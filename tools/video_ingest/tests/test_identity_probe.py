@@ -22,12 +22,16 @@ import json
 
 from dataclasses import dataclass
 
+from types import SimpleNamespace
+
 from video_ingest.identity_probe import (
     ReelOcrReads,
     build_identity,
     make_pass2_persona_reader,
     parse_basename_epoch,
+    read_box_score_goals,
     read_lobby_personas,
+    resolve_bgm_side_scores,
     write_reel_identities,
 )
 from video_ingest.match_split import Reel
@@ -260,10 +264,142 @@ def test_make_pass2_persona_reader_collects_from_lobby_segdirs_only(tmp_path) ->
     reel = _reel(start_s=0.0)
     reel.segment_indices = [0, 1, 2]
 
-    reader = make_pass2_persona_reader(results_by_index)
+    # Inject a fake extractor returning no gradable goals frames so the box-score
+    # branch is exercised hermetically (no GPU); score/opponent stay absent.
+    reader = make_pass2_persona_reader(results_by_index, extractor=_FakeExtractor([]))
     reads = reader(reel)
 
     assert isinstance(reads, ReelOcrReads)
     assert reads.personas == ["Zubov", "Kane"]
-    # Score/opponent are deliberately absent (box-score OCR deferred).
+    # No gradable goals frame → score/opponent absent; scorer falls back to timestamp.
     assert reads.score_for is None and reads.score_against is None and reads.opponent_text == ""
+
+
+# ── BGM side resolution + box-score OCR reader (Phase B) ──────────────────────
+
+
+def _field(value=None, raw_text=None) -> SimpleNamespace:
+    return SimpleNamespace(value=value, raw_text=raw_text)
+
+
+def _box_score_result(
+    *,
+    away_name: str,
+    home_name: str,
+    away_goals,
+    home_goals,
+    confidence: float,
+    success: bool = True,
+    with_tot: bool = True,
+) -> SimpleNamespace:
+    """A duck-typed PostGameBoxScoreResult (only the attrs the reader touches)."""
+    periods = [SimpleNamespace(period_number=1, away_value=_field(1), home_value=_field(0))]
+    if with_tot:
+        periods.append(
+            SimpleNamespace(
+                period_number=-1,
+                away_value=_field(away_goals),
+                home_value=_field(home_goals),
+            )
+        )
+    return SimpleNamespace(
+        success=success,
+        meta=SimpleNamespace(overall_confidence=confidence),
+        away_team=_field(value=away_name),
+        home_team=_field(value=home_name),
+        periods=periods,
+    )
+
+
+class _FakeExtractor:
+    """Duck-typed game_ocr Extractor: returns preset results for any seg dir."""
+
+    def __init__(self, results: list) -> None:
+        self._results = results
+        self.calls: list = []
+
+    def extract_input(self, screen_type: str, input_path) -> list:
+        self.calls.append((screen_type, input_path))
+        assert screen_type == "post_game_box_score_goals"  # only the goals tab
+        return list(self._results)
+
+
+def test_resolve_bgm_side_away_is_bgm() -> None:
+    # Away name aliases to BGM → away is "for"; home goals are "against" and the
+    # home name is the opponent.
+    assert resolve_bgm_side_scores("BGM", "Rangers", 4, 1) == (4, 1, "Rangers")
+
+
+def test_resolve_bgm_side_home_is_bgm() -> None:
+    assert resolve_bgm_side_scores("Rangers", "The Boogeymen", 1, 5) == (5, 1, "Rangers")
+
+
+def test_resolve_bgm_side_handles_header_markers() -> None:
+    # Real OCR headers carry an (A)/(H) side marker ("BM(A)" → "bm a"); the first
+    # token still aliases to the short BM header.
+    assert resolve_bgm_side_scores("BM(A)", "Halsey Fan Club", 7, 3) == (7, 3, "Halsey Fan Club")
+
+
+def test_resolve_bgm_side_unresolved_when_neither_matches() -> None:
+    # Neither side aliases (opponent tie-break needs matches.opponentName, which
+    # is unavailable pre-association) → absent; the scorer leans on timestamp.
+    assert resolve_bgm_side_scores("Rangers", "Bruins", 3, 2) == (None, None, "")
+
+
+def test_resolve_bgm_side_unresolved_when_both_match() -> None:
+    assert resolve_bgm_side_scores("BGM", "Boogeymen", 3, 2) == (None, None, "")
+
+
+def test_resolve_bgm_side_preserves_none_totals() -> None:
+    # A missed digit leaves the total None, but the side/opponent still resolve —
+    # the opponent signal (0.20) can fire even when the score (0.30) can't.
+    assert resolve_bgm_side_scores("BGM", "Rangers", None, 1) == (None, 1, "Rangers")
+
+
+def test_read_box_score_goals_picks_highest_confidence_and_resolves_side() -> None:
+    # extract_input returns one result per frame; the reader must take the
+    # highest-overall-confidence read (RapidOCR misreads low-confidence digits).
+    low = _box_score_result(
+        away_name="BGM", home_name="Rangers", away_goals=9, home_goals=9, confidence=0.40
+    )
+    high = _box_score_result(
+        away_name="BGM", home_name="Rangers", away_goals=4, home_goals=1, confidence=0.88
+    )
+    assert read_box_score_goals(["segdir"], _FakeExtractor([low, high])) == (4, 1, "Rangers")
+
+
+def test_read_box_score_goals_skips_results_without_tot() -> None:
+    no_tot = _box_score_result(
+        away_name="BGM", home_name="Rangers", away_goals=4, home_goals=1, confidence=0.9, with_tot=False
+    )
+    assert read_box_score_goals(["segdir"], _FakeExtractor([no_tot])) == (None, None, "")
+
+
+def test_read_box_score_goals_empty_when_no_frames() -> None:
+    assert read_box_score_goals(["segdir"], _FakeExtractor([])) == (None, None, "")
+
+
+def test_make_pass2_persona_reader_fills_score_and_personas(tmp_path) -> None:
+    # The reel spans a lobby seg (personas, GPU-free) and a goals box-score seg
+    # (score/opponent, OCR'd via the injected extractor).
+    lobby_dir = tmp_path / "seg0_lobby"
+    goals_dir = tmp_path / "seg1_goals"
+    _write_lobby(lobby_dir, ["Zubov", "Kane"])
+    goals_dir.mkdir()
+    results_by_index = {
+        0: _FakePass2Result(0, _FakeSegment("pre_game_lobby_state_2"), lobby_dir),
+        1: _FakePass2Result(1, _FakeSegment("post_game_box_score_goals"), goals_dir),
+    }
+    reel = _reel(start_s=0.0)
+    reel.segment_indices = [0, 1]
+    box = _box_score_result(
+        away_name="BGM", home_name="Halsey Fan Club", away_goals=7, home_goals=3, confidence=0.9
+    )
+    extractor = _FakeExtractor([box])
+
+    reads = make_pass2_persona_reader(results_by_index, extractor=extractor)(reel)
+
+    assert reads.personas == ["Zubov", "Kane"]
+    assert (reads.score_for, reads.score_against, reads.opponent_text) == (7, 3, "Halsey Fan Club")
+    # Only the goals seg dir was OCR'd (lobby personas come from disk, not the OCR).
+    assert extractor.calls == [("post_game_box_score_goals", goals_dir)]
