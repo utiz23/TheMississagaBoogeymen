@@ -7,7 +7,7 @@
  */
 import test, { after } from 'node:test'
 import assert from 'node:assert/strict'
-import { computeL4 } from '../lib/l4-api-truth.js'
+import { computeL4, gateFromL4 } from '../lib/l4-api-truth.js'
 // The integration cases lazy-import `@eanhl/db/queries` + `run-quality-report`
 // INSIDE the DATABASE_URL gate. Those pull in the `@eanhl/db` client, which
 // throws at import when DATABASE_URL is unset — so a top-level import would stop
@@ -129,6 +129,152 @@ void test('computeL4 grades per-player lines, flagging a persona mismatch', asyn
   assert.equal(r.mismatches.length, 1)
   assert.equal(r.mismatches[0]!.field, 'goals')
   assert.equal(r.mismatches[0]!.scope, 'player:henry')
+})
+
+// ── Task 4.G — coverage-aware sub-metrics + gate fn ─────────────────────────
+// finalAccuracy grades the TOT-row final (the strongest signal), periodCoverage
+// flags a missed period so periodAccuracy isn't false-scored, and gateFromL4
+// turns finalAccuracy into {PASS / HOLD / OPERATOR_CONFIRM} without the naive
+// `L4>=τ` reject that would false-reject a correct-final-noisy-per-period match.
+
+const API_5_1 = {
+  scoreFor: 5,
+  scoreAgainst: 1,
+  shotsFor: 20,
+  shotsAgainst: 10,
+  faceoffsFor: 10,
+  faceoffsAgainst: 8,
+}
+
+void test('4.G (a) clean final + complete coverage → PASS, periodAccuracy graded', async () => {
+  const r = await computeL4({
+    ocrTeam: null,
+    apiTeam: API_5_1,
+    ocrPlayers: [],
+    apiPlayers: [],
+    resolvePersona: async () => ({ playerId: null }),
+    ocrFinal: { goalsFor: 5, goalsAgainst: 1 },
+    ocrPeriods: [
+      { periodNumber: 1, goalsFor: 5, goalsAgainst: 1 },
+      { periodNumber: 2, goalsFor: 0, goalsAgainst: 0 },
+      { periodNumber: 3, goalsFor: 0, goalsAgainst: 0 },
+      { periodNumber: 4, goalsFor: 0, goalsAgainst: 0 },
+    ],
+  })
+  assert.equal(r.finalAccuracy, 1)
+  assert.equal(r.periodCoverage, 1)
+  assert.equal(r.periodAccuracy, 1)
+  assert.equal(gateFromL4(r).decision, 'PASS')
+})
+
+void test('4.G (b) correct final + missing period → PASS, coverage<1, periodAccuracy null (973 case)', async () => {
+  const r = await computeL4({
+    ocrTeam: null,
+    apiTeam: { ...API_5_1, scoreFor: 7, scoreAgainst: 3 },
+    ocrPlayers: [],
+    apiPlayers: [],
+    resolvePersona: async () => ({ playerId: null }),
+    ocrFinal: { goalsFor: 7, goalsAgainst: 3 },
+    ocrPeriods: [
+      { periodNumber: 1, goalsFor: 1, goalsAgainst: 1 },
+      { periodNumber: 2, goalsFor: null, goalsAgainst: null }, // unread period
+      { periodNumber: 3, goalsFor: 3, goalsAgainst: 1 },
+      { periodNumber: 4, goalsFor: 0, goalsAgainst: 0 },
+    ],
+  })
+  assert.equal(r.finalAccuracy, 1) // TOT final 7-3 == API 7-3
+  assert.equal(r.periodCoverage, 0.75) // 3 of 4 periods have goals
+  assert.equal(r.periodAccuracy, null) // NOT graded — coverage incomplete
+  assert.equal(gateFromL4(r).decision, 'PASS') // the whole point: no false-reject
+})
+
+void test('4.G (c) wrong final → HOLD', async () => {
+  const r = await computeL4({
+    ocrTeam: null,
+    apiTeam: { ...API_5_1, scoreFor: 7, scoreAgainst: 3 },
+    ocrPlayers: [],
+    apiPlayers: [],
+    resolvePersona: async () => ({ playerId: null }),
+    ocrFinal: { goalsFor: 4, goalsAgainst: 2 }, // both sides misread
+    ocrPeriods: [{ periodNumber: 1, goalsFor: 4, goalsAgainst: 2 }],
+  })
+  assert.equal(r.finalAccuracy, 0)
+  assert.equal(gateFromL4(r).decision, 'HOLD')
+})
+
+void test('4.G (c2) half-wrong final → HOLD (finalAccuracy 0.5)', async () => {
+  const r = await computeL4({
+    ocrTeam: null,
+    apiTeam: API_5_1,
+    ocrPlayers: [],
+    apiPlayers: [],
+    resolvePersona: async () => ({ playerId: null }),
+    ocrFinal: { goalsFor: 5, goalsAgainst: 2 }, // for right, against wrong
+  })
+  assert.equal(r.finalAccuracy, 0.5)
+  assert.equal(gateFromL4(r).decision, 'HOLD')
+})
+
+void test('4.G (d) api-missed (no API truth) → finalAccuracy null, OPERATOR_CONFIRM', async () => {
+  const r = await computeL4({
+    ocrTeam: null,
+    apiTeam: null, // priority-0 batch target: no API truth to grade against
+    ocrPlayers: [],
+    apiPlayers: [],
+    resolvePersona: async () => ({ playerId: null }),
+    ocrFinal: { goalsFor: 5, goalsAgainst: 1 },
+    ocrPeriods: [
+      { periodNumber: 1, goalsFor: 5, goalsAgainst: 1 },
+      { periodNumber: 2, goalsFor: 0, goalsAgainst: 0 },
+    ],
+  })
+  assert.equal(r.gradable, false)
+  assert.equal(r.finalAccuracy, null)
+  assert.equal(r.periodCoverage, 1) // coverage computable without API
+  assert.equal(r.periodAccuracy, null) // no API final to grade against
+  assert.equal(gateFromL4(r).decision, 'OPERATOR_CONFIRM')
+})
+
+void test('4.G (e) API truth present but no OCR final read → HOLD', async () => {
+  const r = await computeL4({
+    ocrTeam: null,
+    apiTeam: API_5_1,
+    ocrPlayers: [],
+    apiPlayers: [],
+    resolvePersona: async () => ({ playerId: null }),
+    ocrFinal: null, // no TOT row read
+  })
+  assert.equal(r.finalAccuracy, null)
+  assert.equal(r.gradable, true)
+  assert.equal(gateFromL4(r).decision, 'HOLD')
+})
+
+void test('4.G existing computeL4 callers (no ocrFinal/ocrPeriods) → sub-metrics null', async () => {
+  const r = await computeL4({
+    ocrTeam: {
+      goalsFor: 4,
+      goalsAgainst: 2,
+      shotsFor: null,
+      shotsAgainst: null,
+      faceoffsFor: null,
+      faceoffsAgainst: null,
+    },
+    apiTeam: API_5_1,
+    ocrPlayers: [],
+    apiPlayers: [],
+    resolvePersona: async () => ({ playerId: null }),
+  })
+  assert.equal(r.finalAccuracy, null)
+  assert.equal(r.periodCoverage, null)
+  assert.equal(r.periodAccuracy, null)
+})
+
+void test('gateFromL4 maps each finalAccuracy/gradable combination', () => {
+  assert.equal(gateFromL4({ finalAccuracy: 1, gradable: true }).decision, 'PASS')
+  assert.equal(gateFromL4({ finalAccuracy: 0.5, gradable: true }).decision, 'HOLD')
+  assert.equal(gateFromL4({ finalAccuracy: 0, gradable: true }).decision, 'HOLD')
+  assert.equal(gateFromL4({ finalAccuracy: null, gradable: false }).decision, 'OPERATOR_CONFIRM')
+  assert.equal(gateFromL4({ finalAccuracy: null, gradable: true }).decision, 'HOLD')
 })
 
 // ── Integration: L4 populates through the real report body for the 4 already-

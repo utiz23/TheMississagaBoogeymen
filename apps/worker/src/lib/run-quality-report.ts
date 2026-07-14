@@ -125,6 +125,10 @@ interface ReportLayersSerialized {
     gradable: boolean
     notes: string
     mismatches: L4FieldDiff[]
+    /** Task 4.G — TOT-row final accuracy (hard gate); soft period sub-metrics. */
+    final_accuracy: number | null
+    period_coverage: number | null
+    period_accuracy: number | null
   }
   overall_pass: boolean | null
 }
@@ -182,6 +186,9 @@ function serializeComputedLayers(layers: LayerScores): ReportLayersSerialized {
       gradable: layers.l4.gradable,
       notes: layers.l4.notes,
       mismatches: layers.l4.mismatches,
+      final_accuracy: layers.l4.finalAccuracy,
+      period_coverage: layers.l4.periodCoverage,
+      period_accuracy: layers.l4.periodAccuracy,
     },
     overall_pass: layers.overall.pass,
   }
@@ -216,7 +223,16 @@ function notComputedLayers(matchId: number, l1Note: string): ReportLayersSeriali
       notes: note,
     },
     l3: { score: null, pass: null, notes: note },
-    l4: { score: null, pass: null, gradable: false, notes: note, mismatches: [] },
+    l4: {
+      score: null,
+      pass: null,
+      gradable: false,
+      notes: note,
+      mismatches: [],
+      final_accuracy: null,
+      period_coverage: null,
+      period_accuracy: null,
+    },
     overall_pass: null,
   }
 }
@@ -354,6 +370,9 @@ export async function buildReportBody(
           gradable: false,
           notes: 'not computed: match row not found',
           mismatches: [],
+          final_accuracy: null,
+          period_coverage: null,
+          period_accuracy: null,
         },
         overall_pass: null,
       }
@@ -395,7 +414,16 @@ export async function buildReportBody(
             notes: failNote,
           },
           l3: { score: null, pass: null, notes: failNote },
-          l4: { score: null, pass: null, gradable: false, notes: failNote, mismatches: [] },
+          l4: {
+            score: null,
+            pass: null,
+            gradable: false,
+            notes: failNote,
+            mismatches: [],
+            final_accuracy: null,
+            period_coverage: null,
+            period_accuracy: null,
+          },
           overall_pass: null,
         }
       } else {

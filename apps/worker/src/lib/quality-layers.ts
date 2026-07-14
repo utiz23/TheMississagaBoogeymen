@@ -13,7 +13,10 @@ import { db, matchEvents, playerLoadoutSnapshots } from '@eanhl/db'
 import {
   getApiPlayerStats,
   getApiTeamTotals,
+  getMatchById,
+  getOcrBoxScoreFinalForMatch,
   getOcrBoxScoreForMatch,
+  getOcrBoxScorePeriodsForMatch,
   getOcrPlayerSummaryFields,
 } from '@eanhl/db/queries'
 import { and, eq, sql } from 'drizzle-orm'
@@ -21,6 +24,7 @@ import { and, eq, sql } from 'drizzle-orm'
 import { type DownstreamRow, type QualityFlag } from './quality-inputs.js'
 import { computeL4, type L4FieldDiff } from './l4-api-truth.js'
 import { resolveGamertagToPlayer } from '../ocr-promoters/resolve-identity.js'
+import { resolveSidesFromNames } from '../ocr-promoters/resolve-bgm-side.js'
 import type { DbOrTx } from '../ocr-promoters/index.js'
 
 /**
@@ -110,6 +114,13 @@ export interface LayerScores {
     gradable: boolean
     notes: string
     mismatches: L4FieldDiff[]
+    /** Task 4.G — TOT-row final accuracy (the hard gate signal); null when
+     *  ungradable / no OCR final. See {@link gateFromL4}. */
+    finalAccuracy: number | null
+    /** Task 4.G — per-period coverage (soft flag); < 1 marks an unread period. */
+    periodCoverage: number | null
+    /** Task 4.G — per-period-sum accuracy, graded only at full coverage (soft). */
+    periodAccuracy: number | null
   }
   overall: { pass: boolean }
 }
@@ -233,12 +244,37 @@ export async function computeLayers(
   // inputs are read-only DB queries; the comparator itself is pure. The persona
   // resolver maps an OCR gamertag → players.id; resolveGamertagToPlayer ignores
   // its gameTitleId arg (`_gameTitleId`), so 0 is a harmless placeholder.
-  const [ocrTeam, apiTeam, ocrPlayers, apiPlayers] = await Promise.all([
-    getOcrBoxScoreForMatch(matchId),
-    getApiTeamTotals(matchId),
-    getOcrPlayerSummaryFields(matchId),
-    getApiPlayerStats(matchId),
-  ])
+  const [ocrTeam, apiTeam, ocrPlayers, apiPlayers, ocrFinalRaw, ocrPeriods, match] =
+    await Promise.all([
+      getOcrBoxScoreForMatch(matchId),
+      getApiTeamTotals(matchId),
+      getOcrPlayerSummaryFields(matchId),
+      getApiPlayerStats(matchId),
+      getOcrBoxScoreFinalForMatch(matchId),
+      getOcrBoxScorePeriodsForMatch(matchId),
+      getMatchById(matchId),
+    ])
+
+  // Task 4.G — resolve the raw TOT-row final (away/home) to BGM for/against. The
+  // authoritative `bgm_was_home` flag drives it when present; otherwise the team
+  // names soft-match BGM aliases. Unresolvable ⇒ null ⇒ finalAccuracy null (the
+  // gate then can't PASS on it — HOLD/operator-confirm).
+  let ocrFinal: { goalsFor: number | null; goalsAgainst: number | null } | null = null
+  if (ocrFinalRaw && match) {
+    const sides = resolveSidesFromNames({
+      bgmWasHome: match.bgmWasHome,
+      opponentName: match.opponentName,
+      awayTeamName: ocrFinalRaw.awayTeam,
+      homeTeamName: ocrFinalRaw.homeTeam,
+    })
+    if (sides) {
+      ocrFinal =
+        sides.awayIs === 'for'
+          ? { goalsFor: ocrFinalRaw.awayGoals, goalsAgainst: ocrFinalRaw.homeGoals }
+          : { goalsFor: ocrFinalRaw.homeGoals, goalsAgainst: ocrFinalRaw.awayGoals }
+    }
+  }
+
   const l4result = await computeL4({
     ocrTeam,
     apiTeam,
@@ -247,6 +283,8 @@ export async function computeLayers(
     resolvePersona: async (raw) => ({
       playerId: (await resolveGamertagToPlayer(raw, 0, conn)).playerId,
     }),
+    ocrFinal,
+    ocrPeriods,
   })
   const l4 = {
     score: l4result.score,
@@ -256,6 +294,9 @@ export async function computeLayers(
     gradable: l4result.gradable,
     notes: l4result.notes,
     mismatches: l4result.mismatches,
+    finalAccuracy: l4result.finalAccuracy,
+    periodCoverage: l4result.periodCoverage,
+    periodAccuracy: l4result.periodAccuracy,
   }
 
   return {

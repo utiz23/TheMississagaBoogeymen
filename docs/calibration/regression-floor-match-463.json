@@ -334,7 +334,10 @@
       "pass": true,
       "gradable": true,
       "notes": "graded 4/4 fields (team + per-player) vs EA-API truth",
-      "mismatches": []
+      "mismatches": [],
+      "finalAccuracy": 1,
+      "periodCoverage": 1,
+      "periodAccuracy": 1
     },
     "overall": {
       "pass": false

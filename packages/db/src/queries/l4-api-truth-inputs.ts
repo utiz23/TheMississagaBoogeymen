@@ -50,6 +50,27 @@ export interface ApiTeamTotals {
   faceoffsAgainst: number
 }
 
+/**
+ * Majority-voted TOT-row final from the raw box-score-goals frames, in the
+ * screen's neutral away/home perspective (NOT yet resolved to BGM for/against —
+ * the caller applies {@link resolveSidesFromNames}). Null when no frame yielded
+ * a usable TOT cell. This is the strongest correctness signal (Task 4.G): the
+ * promoter discards the `period.TOT` row, so it is read here straight from raw.
+ */
+export interface OcrBoxScoreFinal {
+  awayGoals: number | null
+  homeGoals: number | null
+  awayTeam: string | null
+  homeTeam: string | null
+}
+
+/** One promoted OCR per-period row (source='ocr', period_number >= 1). */
+export interface OcrBoxScorePeriod {
+  periodNumber: number
+  goalsFor: number | null
+  goalsAgainst: number | null
+}
+
 /** One majority-voted OCR per-player line. Any field may be null (OCR unread). */
 export interface OcrPlayerLine {
   personaRaw: string
@@ -267,4 +288,90 @@ export async function getOcrPlayerSummaryFields(matchId: number): Promise<OcrPla
   // regression-floor JSONs and must reproduce exactly.
   lines.sort((a, b) => (a.personaRaw < b.personaRaw ? -1 : a.personaRaw > b.personaRaw ? 1 : 0))
   return lines
+}
+
+interface RawBoxFinalRow {
+  away_tot: string | null
+  home_tot: string | null
+  away_team: string | null
+  home_team: string | null
+}
+
+/** Blank/whitespace-only strings collapse to null so they never win a vote. */
+function nonBlankOrNull(v: string | null): string | null {
+  if (v == null) return null
+  const t = v.trim()
+  return t.length > 0 ? t : null
+}
+
+/**
+ * Majority-voted TOT-row (`period.TOT`) final goals + team names, from the raw
+ * `ocr_extraction_fields` of a match's `post_game_box_score_goals` extractions.
+ *
+ * The promoter drops the synthetic TOT row (`box-score.ts` skips period < 1), so
+ * the final is read here straight from raw — one frame per extraction, then each
+ * cell majority-voted across frames so a single garbled frame can't skew it
+ * (mirrors {@link getOcrPlayerSummaryFields}). Returns the neutral away/home
+ * values; the caller resolves which side is BGM. Null when NO frame yielded a
+ * TOT goals cell (both sides voted null) — nothing to grade the final against.
+ */
+export async function getOcrBoxScoreFinalForMatch(
+  matchId: number,
+): Promise<OcrBoxScoreFinal | null> {
+  const rows = (await db.execute(sql`
+    SELECT
+      max(f.parsed_value_json->>'value') FILTER (
+        WHERE f.entity_type = 'team' AND f.entity_key = 'away' AND f.field_key = 'period.TOT') AS away_tot,
+      max(f.parsed_value_json->>'value') FILTER (
+        WHERE f.entity_type = 'team' AND f.entity_key = 'home' AND f.field_key = 'period.TOT') AS home_tot,
+      max(f.parsed_value_json->>'value') FILTER (WHERE f.field_key = 'away_team') AS away_team,
+      max(f.parsed_value_json->>'value') FILTER (WHERE f.field_key = 'home_team') AS home_team
+    FROM ocr_extractions e
+    JOIN ocr_extraction_fields f ON f.extraction_id = e.id
+    WHERE e.match_id = ${matchId}
+      AND e.screen_type = 'post_game_box_score_goals'
+    GROUP BY e.id
+  `)) as unknown as RawBoxFinalRow[]
+  if (rows.length === 0) return null
+
+  const awayGoals = vote(rows.map((r) => toIntOrNull(r.away_tot)))
+  const homeGoals = vote(rows.map((r) => toIntOrNull(r.home_tot)))
+  if (awayGoals == null && homeGoals == null) return null
+
+  return {
+    awayGoals,
+    homeGoals,
+    awayTeam: vote(rows.map((r) => nonBlankOrNull(r.away_team))),
+    homeTeam: vote(rows.map((r) => nonBlankOrNull(r.home_team))),
+  }
+}
+
+/**
+ * Promoted OCR per-period rows (source='ocr', period_number >= 1), ordered by
+ * period. For/against are already BGM-resolved at promotion time. Feeds L4's
+ * coverage-aware sub-metrics (Task 4.G): a period row present but with null
+ * goals is an unread period — the coverage denominator counts it, the numerator
+ * does not, so the per-period sum is only graded when coverage is complete.
+ */
+export async function getOcrBoxScorePeriodsForMatch(matchId: number): Promise<OcrBoxScorePeriod[]> {
+  const rows = await db
+    .select({
+      periodNumber: matchPeriodSummaries.periodNumber,
+      goalsFor: matchPeriodSummaries.goalsFor,
+      goalsAgainst: matchPeriodSummaries.goalsAgainst,
+    })
+    .from(matchPeriodSummaries)
+    .where(
+      and(
+        eq(matchPeriodSummaries.matchId, matchId),
+        eq(matchPeriodSummaries.source, 'ocr'),
+        gte(matchPeriodSummaries.periodNumber, 1),
+      ),
+    )
+    .orderBy(matchPeriodSummaries.periodNumber)
+  return rows.map((r) => ({
+    periodNumber: r.periodNumber,
+    goalsFor: r.goalsFor ?? null,
+    goalsAgainst: r.goalsAgainst ?? null,
+  }))
 }

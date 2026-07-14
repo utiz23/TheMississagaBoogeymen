@@ -35,6 +35,49 @@ export interface ResolvedSides {
   homeIs: 'for' | 'against'
 }
 
+/** Inputs the side resolution needs, decoupled from the DB fetch. */
+export interface BgmSideContext {
+  /** EA-payload orientation flag; null for matches with no payload orientation. */
+  bgmWasHome: boolean | null
+  /** Opponent name on file (used as the tie-break when alias detection is ambiguous). */
+  opponentName: string
+  awayTeamName: string | null
+  homeTeamName: string | null
+}
+
+/**
+ * Pure side resolution (no DB): the precedence chain in this module's docblock.
+ * Returns null (instead of throwing) when the flag is absent AND neither side
+ * cleanly matches — callers that must fail hard (the promoter) throw on null;
+ * callers that only grade (Task 4.G's L4 finalAccuracy) treat null as "final
+ * unresolvable, don't score it".
+ */
+export function resolveSidesFromNames(ctx: BgmSideContext): ResolvedSides | null {
+  const { bgmWasHome, opponentName, awayTeamName, homeTeamName } = ctx
+
+  // Authoritative path: trust the EA-payload orientation flag when present. It
+  // overrides the OCR soft-match entirely — a garbled-but-coincidentally-
+  // alias-matching header must never flip for/against on the whole dataset.
+  if (bgmWasHome !== null && bgmWasHome !== undefined) {
+    return bgmWasHome ? { awayIs: 'against', homeIs: 'for' } : { awayIs: 'for', homeIs: 'against' }
+  }
+
+  // Legacy fallback (bgm_was_home IS NULL): soft-match the OCR team names.
+  const awayBgm = matchesBgm(awayTeamName)
+  const homeBgm = matchesBgm(homeTeamName)
+
+  if (awayBgm && !homeBgm) return { awayIs: 'for', homeIs: 'against' }
+  if (!awayBgm && homeBgm) return { awayIs: 'against', homeIs: 'for' }
+
+  // Tie-break by opponent name when BGM detection is ambiguous.
+  const awayOpp = matchesString(awayTeamName, opponentName)
+  const homeOpp = matchesString(homeTeamName, opponentName)
+  if (awayOpp && !homeOpp) return { awayIs: 'against', homeIs: 'for' }
+  if (!awayOpp && homeOpp) return { awayIs: 'for', homeIs: 'against' }
+
+  return null
+}
+
 export async function resolveBgmSide(
   matchId: number,
   awayTeamName: string | null,
@@ -48,31 +91,18 @@ export async function resolveBgmSide(
     .limit(1)
   if (!match) throw new Error(`match_id ${String(matchId)} not found in matches table`)
 
-  // Authoritative path: trust the EA-payload orientation flag when present. It
-  // overrides the OCR soft-match entirely — a garbled-but-coincidentally-
-  // alias-matching header must never flip for/against on the whole dataset.
-  if (match.bgmWasHome !== null && match.bgmWasHome !== undefined) {
-    return match.bgmWasHome
-      ? { awayIs: 'against', homeIs: 'for' }
-      : { awayIs: 'for', homeIs: 'against' }
+  const sides = resolveSidesFromNames({
+    bgmWasHome: match.bgmWasHome,
+    opponentName: match.opponentName,
+    awayTeamName,
+    homeTeamName,
+  })
+  if (!sides) {
+    throw new Error(
+      `Cannot resolve BGM side for match ${String(matchId)}: away="${awayTeamName ?? 'null'}" home="${homeTeamName ?? 'null'}" opponent_on_file="${match.opponentName}". Verify --match-id is correct.`,
+    )
   }
-
-  // Legacy fallback (bgm_was_home IS NULL): soft-match the OCR team names.
-  const awayBgm = matchesBgm(awayTeamName)
-  const homeBgm = matchesBgm(homeTeamName)
-
-  if (awayBgm && !homeBgm) return { awayIs: 'for', homeIs: 'against' }
-  if (!awayBgm && homeBgm) return { awayIs: 'against', homeIs: 'for' }
-
-  // Tie-break by opponent name when BGM detection is ambiguous.
-  const awayOpp = matchesString(awayTeamName, match.opponentName)
-  const homeOpp = matchesString(homeTeamName, match.opponentName)
-  if (awayOpp && !homeOpp) return { awayIs: 'against', homeIs: 'for' }
-  if (!awayOpp && homeOpp) return { awayIs: 'for', homeIs: 'against' }
-
-  throw new Error(
-    `Cannot resolve BGM side for match ${String(matchId)}: away="${awayTeamName ?? 'null'}" home="${homeTeamName ?? 'null'}" opponent_on_file="${match.opponentName}". Verify --match-id is correct.`,
-  )
+  return sides
 }
 
 function matchesBgm(name: string | null): boolean {
