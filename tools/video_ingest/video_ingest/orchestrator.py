@@ -23,7 +23,11 @@ from pathlib import Path
 import yaml
 
 from video_ingest import gpu_libs
-from video_ingest.dispatch import DispatchResult, dispatch_segments
+from video_ingest.dispatch import (
+    DispatchResult,
+    dispatch_segments,
+    load_confirmed_reel_map,
+)
 from video_ingest.identity_probe import (
     make_pass2_persona_reader,
     parse_basename_epoch,
@@ -808,19 +812,30 @@ def ingest(
             except Exception as exc:  # noqa: BLE001 — never abort the run on emit failure
                 print(f"[identity] reel-identity emission failed ({exc}).", file=sys.stderr)
 
+        # Milestone ② step (3) — thread the operator-confirmed reel→match map
+        # into dispatch. `resolve-match reel-map` returns {reel_index: match_id}
+        # for reels CONFIRMED (via resolve-match propose/confirm over the
+        # identity files emitted on a prior pass). Empty ⇒ nothing confirmed yet
+        # ⇒ pass None so dispatch_reels stays in the deferred branch (re-emit
+        # identities, no collapse). This gives the two-pass flow: pass 1 emits
+        # identities + defers → operator confirms → pass 2 (cache-hit) dispatches
+        # each reel under its own match. Best-effort: a lookup failure yields {}
+        # → deferred, never aborting the run.
+        confirmed_reel_map = load_confirmed_reel_map(probe.sha256)
+        reel_match_ids = confirmed_reel_map or None
+
         # Milestone ① — group Pass-1 segments into per-match reels, emit
         # reels.json, and apply the per-reel dispatch decision. A single-match
         # video keeps today's exact behaviour (all results under one match_id);
-        # a multi-match video with no association map writes reels.json +
-        # per-reel identity files and skips dispatch (no collapse) until
-        # Milestone ② supplies reel_match_ids.
+        # a multi-match video with no confirmed map writes reels.json +
+        # per-reel identity files and skips dispatch (no collapse).
         dispatch_results = dispatch_reels(
             segments,
             pass2_results,
             sha_root=sha_root,
             dispatch_fn=dispatch_segments,
             match_id=match_id,
-            reel_match_ids=None,  # Milestone ② will supply the reel→match_id map
+            reel_match_ids=reel_match_ids,
             emit_reel_identities=_emit_reel_identities,
             game_title_id=game_title_id,
             video_sha256=probe.sha256,

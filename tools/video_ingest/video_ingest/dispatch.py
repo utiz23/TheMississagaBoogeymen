@@ -20,6 +20,7 @@ idempotent at the worker side.
 
 from __future__ import annotations
 
+import json
 import shutil
 import subprocess
 import sys
@@ -49,6 +50,82 @@ def find_repo_root(start: Path | None = None) -> Path:
         if (ancestor / "pnpm-workspace.yaml").exists():
             return ancestor
     raise FileNotFoundError("could not locate pnpm-workspace.yaml ancestor")
+
+
+def _parse_reel_map(stdout: str) -> dict[int, int]:
+    """Parse the ``resolve-match reel-map`` stdout into ``{reel_index: match_id}``.
+
+    The CLI prints one JSON object line (``{"0": 972, "1": 973}``); pnpm may
+    prepend banner lines, so scan bottom-up for the last ``{``-line and parse it
+    (mirrors ``reprocess._run_decoder_runs_cli``). Keys arrive as JSON strings →
+    coerced to int. Returns ``{}`` on any parse failure — never raises.
+    """
+    for line in stdout.strip().splitlines()[::-1]:
+        line = line.strip()
+        if not line.startswith("{"):
+            continue
+        try:
+            raw = json.loads(line)
+        except (ValueError, TypeError):
+            return {}
+        out: dict[int, int] = {}
+        for k, v in raw.items():
+            try:
+                out[int(k)] = int(v)
+            except (ValueError, TypeError):
+                continue
+        return out
+    return {}
+
+
+def load_confirmed_reel_map(
+    video_sha256: str,
+    *,
+    repo_root: Path | None = None,
+) -> dict[int, int]:
+    """Read the operator-confirmed reel→match map for a video (Milestone ②
+    step (3)) by shelling out to the worker ``resolve-match reel-map`` CLI — the
+    cross-language delivery channel, the same subprocess-to-worker pattern as
+    ``dispatch_segments`` / ``reprocess._run_decoder_runs_cli``.
+
+    Returns ``{reel_index: match_id}`` for every reel the operator has CONFIRMED
+    (via ``resolve-match propose``/``confirm`` over the identity files emitted on
+    a prior pass). Returns ``{}`` when nothing is confirmed yet OR on ANY lookup
+    failure (pnpm absent, non-zero exit, launch/parse error) — best-effort by
+    contract: a missing or failed map must never abort the live ingest run, it
+    just leaves a multi-reel video in the deferred branch (reels re-emitted, no
+    collapse) so the operator can retry.
+    """
+    root = repo_root or find_repo_root()
+    pnpm = shutil.which("pnpm")
+    if not pnpm:
+        print(
+            "[reels] pnpm not on PATH — cannot read confirmed reel map; "
+            "dispatch stays deferred.",
+            file=sys.stderr,
+        )
+        return {}
+    cmd = [
+        pnpm, "--filter", "worker", "resolve-match", "reel-map",
+        "--video-sha256", video_sha256,
+    ]
+    try:
+        proc = subprocess.run(cmd, cwd=str(root), capture_output=True, text=True)
+    except Exception as exc:  # noqa: BLE001 — best-effort; never abort the run
+        print(
+            f"[reels] reel-map lookup failed to launch ({exc}); "
+            f"dispatch stays deferred.",
+            file=sys.stderr,
+        )
+        return {}
+    if proc.returncode != 0:
+        print(
+            f"[reels] reel-map lookup exited {proc.returncode}; dispatch stays "
+            f"deferred (stderr: {proc.stderr.strip()[:200]}).",
+            file=sys.stderr,
+        )
+        return {}
+    return _parse_reel_map(proc.stdout)
 
 
 def dispatch_segments(

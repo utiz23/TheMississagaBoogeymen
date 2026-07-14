@@ -253,10 +253,12 @@ class _RecordingDispatch:
 
     def __init__(self) -> None:
         self.calls: list[tuple[list[Pass2Result], int | None]] = []
+        self.kwargs: list[dict] = []  # each call's forwarded dispatch_kwargs
 
     def __call__(self, results, *, match_id, **kwargs):  # type: ignore[no-untyped-def]
         results = list(results)
         self.calls.append((results, match_id))
+        self.kwargs.append(kwargs)
         return []  # no DispatchResult rows needed for these assertions
 
 
@@ -357,6 +359,34 @@ def test_multi_reel_with_ids_dispatches_each_subset_under_mapped_id(tmp_path) ->
     (r0, m0), (r1, m1) = stub.calls
     assert m0 == 400 and [r.segment_index for r in r0] == [0, 1, 2, 3]
     assert m1 == 401 and [r.segment_index for r in r1] == [4, 5, 6, 7]
+
+
+def test_multi_reel_with_ids_forces_per_reel_run_id_none(tmp_path) -> None:
+    # Milestone ② step (3): reels of DIFFERENT matches cannot share one
+    # ocr_decoder_runs row (match_id is NOT NULL), so a single shared run_id
+    # must NEVER be forwarded across them. Branch (c) overrides run_id=None
+    # (the fresh-ingest convention) even when the orchestrator passed one.
+    segs = _segs(_TWO_MATCH)
+    results = [_p2(i, s) for i, s in enumerate(_TWO_MATCH)]
+    stub = _RecordingDispatch()
+
+    dispatch_reels(
+        segs,
+        results,
+        sha_root=tmp_path,
+        dispatch_fn=stub,
+        match_id=None,
+        reel_match_ids={0: 400, 1: 401},
+        game_title_id=1,
+        video_sha256="a" * 64,
+        run_id=999,  # a stray shared run_id must not leak onto per-reel dispatch
+    )
+
+    assert len(stub.kwargs) == 2
+    assert all(kw.get("run_id") is None for kw in stub.kwargs), (
+        "per-reel dispatch must force run_id=None (a shared run can't span "
+        "reels of different matches)"
+    )
 
 
 def test_multi_reel_without_ids_emits_reel_identities(tmp_path) -> None:

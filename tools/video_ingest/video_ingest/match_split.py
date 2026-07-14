@@ -311,6 +311,13 @@ def dispatch_reels(
         )
         return []
 
+    # Reels of DIFFERENT matches cannot share one ocr_decoder_runs row
+    # (``match_id`` is NOT NULL), so a single shared ``run_id`` must never be
+    # forwarded across them — each reel dispatches under ``run_id=None`` (the
+    # fresh-ingest convention). Per-reel candidate runs (minted via
+    # ``decoder-runs create-candidate --match-id <reel's match>``) are the
+    # deferred promotion-path follow-up (see the step-2 plan's step-(3) note).
+    per_reel_kwargs = {**dispatch_kwargs, "run_id": None}
     by_index = {r.segment_index: r for r in results}
     out: list = []
     for reel in reels:
@@ -326,7 +333,7 @@ def dispatch_reels(
             dispatch_fn(
                 subset,
                 match_id=reel_match_ids[reel.reel_index],
-                **dispatch_kwargs,
+                **per_reel_kwargs,
             )
         )
     return out
