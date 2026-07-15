@@ -25,6 +25,8 @@ Design notes:
 from __future__ import annotations
 
 import hashlib
+import importlib
+import pkgutil
 import re
 from dataclasses import dataclass
 from datetime import date
@@ -189,3 +191,64 @@ def prioritize(targets: list[BatchTarget]) -> list[BatchTarget]:
     mutated.
     """
     return sorted(targets, key=lambda t: t.priority)
+
+
+# ─── preflight (GPU-venv closure smoke test) ──────────────────────────────────
+
+# Third-party wheels the OCR closure needs at runtime. These are exactly the ones
+# that vanish when an OCR venv is `uv sync`'d ([[reference_gpu_ocr_venv]]): pydantic
+# (the extractor's data models), onnxruntime (the CUDA execution provider), and the
+# rapidocr_onnxruntime backend. Listed before rapidocr so a lost onnxruntime is
+# reported as onnxruntime rather than swallowed by rapidocr's transitive import.
+_PREFLIGHT_THIRD_PARTY: tuple[str, ...] = (
+    "pydantic",
+    "onnxruntime",
+    "rapidocr_onnxruntime",
+)
+
+# First-party packages whose EVERY submodule is walk-imported. Discovered at call
+# time (not hand-listed) so a module added later can't silently escape the smoke —
+# a stale hand-list is precisely the too-narrow-smoke that let a lost pydantic
+# crash a re-ingest 37 min in ([[reference_gpu_ocr_venv]]).
+_PREFLIGHT_PACKAGES: tuple[str, ...] = ("video_ingest", "game_ocr")
+
+
+def _preflight_modules() -> list[str]:
+    """The full import closure the run loop depends on: the critical third-party
+    wheels followed by every ``video_ingest``/``game_ocr`` submodule.
+
+    Submodules are discovered with ``pkgutil.iter_modules`` (a filesystem scan of
+    each package's ``__path__`` — it does NOT import them), so the list stays in
+    lockstep with the tree. Importing the package itself is a cheap ``__init__``
+    (game_ocr's is a docstring; video_ingest's only bootstraps sys.path).
+    """
+    names: list[str] = list(_PREFLIGHT_THIRD_PARTY)
+    for pkg_name in _PREFLIGHT_PACKAGES:
+        pkg = importlib.import_module(pkg_name)
+        names.extend(
+            info.name
+            for info in pkgutil.iter_modules(pkg.__path__, prefix=f"{pkg_name}.")
+        )
+    return names
+
+
+def preflight() -> None:
+    """Walk-import the full OCR closure, raising ``RuntimeError`` on the first gap.
+
+    MANDATORY before the run loop (Task 4.3): an unattended corpus run spends
+    ~30-45 min of GPU time per video, so a wheel missing deep in the closure (the
+    lost-pydantic case above) must fail here — in under a second — rather than
+    tens of minutes into a decode. Importing eagerly forces every lazy import to
+    resolve up front.
+
+    Raises ``RuntimeError`` naming the offending module on any ``ImportError``;
+    the original error is chained as ``__cause__`` for the traceback.
+    """
+    for name in _preflight_modules():
+        try:
+            importlib.import_module(name)
+        except ImportError as exc:
+            raise RuntimeError(
+                f"preflight: cannot import {name!r} — the OCR venv closure is "
+                f"incomplete (see reference_gpu_ocr_venv): {exc}"
+            ) from exc

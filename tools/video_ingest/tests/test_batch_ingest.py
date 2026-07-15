@@ -18,8 +18,12 @@ Task 4.1 scope:
 
 from __future__ import annotations
 
+import importlib
+import os
 from datetime import date
 from pathlib import Path
+
+import pytest
 
 from video_ingest import batch_ingest as bi
 from video_ingest.batch_ingest import BatchTarget
@@ -186,3 +190,68 @@ def test_prioritize_does_not_mutate_input(tmp_path: Path) -> None:
     bi.prioritize(targets)
 
     assert targets == original  # returns a new list, input untouched
+
+
+# ─── preflight (Task 4.2) ────────────────────────────────────────────────────
+
+
+def test_preflight_modules_covers_third_party_and_first_party_closure() -> None:
+    """The closure the run loop imports = the critical third-party wheels plus
+    every ``video_ingest``/``game_ocr`` submodule (discovered, not hand-listed)."""
+    modules = bi._preflight_modules()
+
+    # The wheels that historically vanish on a venv uv-sync must be smoke-tested.
+    for wheel in ("pydantic", "onnxruntime", "rapidocr_onnxruntime"):
+        assert wheel in modules, f"{wheel} missing from preflight closure"
+
+    # Both first-party packages are walk-discovered, incl. heavy leaf modules.
+    assert "video_ingest.orchestrator" in modules
+    assert "video_ingest.batch_ingest" in modules
+    assert "game_ocr.ocr" in modules
+    assert "game_ocr.extractor" in modules
+
+    # No package base names or duplicates leak into the import list.
+    assert "video_ingest" not in modules
+    assert "game_ocr" not in modules
+    assert len(modules) == len(set(modules))
+
+
+def test_preflight_raises_runtimeerror_naming_the_broken_import(monkeypatch) -> None:
+    """A module in the closure that fails to import surfaces as a RuntimeError
+    naming that module, with the ImportError preserved as the cause."""
+    real_import = importlib.import_module
+
+    def broken(name, *args, **kwargs):
+        if name == "pydantic":
+            raise ModuleNotFoundError("No module named 'pydantic'")
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(bi.importlib, "import_module", broken)
+
+    with pytest.raises(RuntimeError) as excinfo:
+        bi.preflight()
+
+    assert "pydantic" in str(excinfo.value)
+    assert isinstance(excinfo.value.__cause__, ImportError)
+
+
+def test_preflight_raises_on_a_genuinely_missing_module(monkeypatch) -> None:
+    """The real importer is exercised: an absent module name in the list makes
+    preflight raise a RuntimeError that names it (no monkeypatched importer)."""
+    missing = "video_ingest._preflight_no_such_module_zzz"
+    monkeypatch.setattr(bi, "_preflight_modules", lambda: ["video_ingest", missing])
+
+    with pytest.raises(RuntimeError) as excinfo:
+        bi.preflight()
+
+    assert missing in str(excinfo.value)
+
+
+@pytest.mark.skipif(
+    os.environ.get("RUN_BATCH_INTEGRATION") != "1",
+    reason="set RUN_BATCH_INTEGRATION=1 to enable (requires the real OCR venv closure)",
+)
+def test_preflight_succeeds_in_the_real_venv() -> None:
+    """In an environment with the full OCR closure installed, preflight is a
+    no-op that returns None (mirrors test_reprocess_cli.py's gated integration)."""
+    assert bi.preflight() is None
