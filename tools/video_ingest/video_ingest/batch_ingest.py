@@ -32,6 +32,16 @@ from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
 
+import typer
+
+from video_ingest.identity_probe import parse_basename_epoch
+from video_ingest.reprocess import (
+    DEFAULT_INGEST_CACHE,
+    NHL26_GAME_TITLE_ID,
+    _psql_query,
+    _run_streaming,
+)
+
 
 # ─── constants ────────────────────────────────────────────────────────────────
 
@@ -252,3 +262,173 @@ def preflight() -> None:
                 f"preflight: cannot import {name!r} — the OCR venv closure is "
                 f"incomplete (see reference_gpu_ocr_venv): {exc}"
             ) from exc
+
+
+# ─── run loop (Task 4.3) ──────────────────────────────────────────────────────
+#
+# ``run_batch`` is the unattended first pass over the corpus: preflight once,
+# then per target (in priority order) fresh-ingest → propose associations →
+# STOP at the operator-confirm gate. It never confirms or promotes — the
+# operator-confirmed ② association is the hard promotion gate, and promotion of
+# confirmed reels (per-reel Pass-2 + ``run-quality --emit-row`` carrying 4.G's
+# coverage-aware L4) is a SEPARATE later pass, out of this first-pass loop.
+#
+# KEY DIVERGENCE from the plan's "create-candidate (mint run_id) → ingest" line:
+# that predates ②'s on-box finding that a fresh multi-reel video ingests with
+# ``run_id=NULL``. ``ocr_decoder_runs.match_id`` is NOT NULL, so no candidate run
+# can be minted before the reel→match association is known — which is precisely
+# what this batch is trying to discover. ``create-candidate`` is a
+# reprocess-of-a-KNOWN-match operation; the fresh mass-ingest path is run_id=NULL
+# (see HANDOFF ② learnings). Per-video try/except isolates a corrupt/oversized
+# file (log + skip, keep going) so one bad recording can't abort the run.
+
+# Leading recording stamp ("2026-05-22_19-07-03" or the older space form),
+# normalized to the underscore form ``parse_basename_epoch`` (strict strptime)
+# expects. A basename without one cannot be windowed against the API.
+_STAMP_RE = re.compile(r"^(\d{4}-\d{2}-\d{2})[ _](\d{2}-\d{2}-\d{2})")
+
+# ±window around a recording's stamp within which an EA-API ``matches`` row counts
+# as covering it — the ② association scorer's σ≈3h timestamp Gaussian.
+_MATCH_WINDOW_S = 3 * 60 * 60
+
+
+def _basename_stamp(path: Path) -> str | None:
+    """The leading wall-clock stamp of ``path`` normalized to underscore form
+    (``2026-05-22_19-07-03``), or ``None`` if the basename has no stamp."""
+    m = _STAMP_RE.match(path.name)
+    if m is None:
+        return None
+    return f"{m.group(1)}_{m.group(2)}"
+
+
+def _known_shas() -> set[str]:
+    """The distinct ``ocr_capture_batches.video_sha256`` set — videos already
+    ingested at least once, so the batch can flag/skip them."""
+    out = _psql_query(
+        "SELECT DISTINCT video_sha256 FROM ocr_capture_batches "
+        "WHERE video_sha256 IS NOT NULL"
+    )
+    return {line.strip() for line in out.splitlines() if line.strip()}
+
+
+def _refine_target(target: BatchTarget) -> BatchTarget:
+    """Stamp ``api_missed`` / ``priority`` from the DB (mutates + returns
+    ``target``).
+
+    ``api_missed`` is the batch's reason to exist: no EA-API ``matches`` row
+    within ±:data:`_MATCH_WINDOW_S` of the recording stamp ⇒ the game was never
+    captured by the API poller and OCR is the only source ⇒ run it first
+    (priority 0). A covered recording is verifiable and lower urgency (1).
+    A basename without a parseable stamp cannot be windowed, so it keeps the
+    neutral band and never hits the DB.
+    """
+    stamp = _basename_stamp(target.path)
+    if stamp is None:
+        return target
+    epoch = parse_basename_epoch(stamp)
+    out = _psql_query(
+        f"SELECT count(*) FROM matches "
+        f"WHERE game_title_id = {NHL26_GAME_TITLE_ID} "
+        f"AND abs(extract(epoch FROM played_at) - {epoch}) <= {_MATCH_WINDOW_S}"
+    )
+    covered = out.strip().isdigit() and int(out.strip()) > 0
+    target.api_missed = not covered
+    target.priority = PRIORITY_API_COVERED if covered else PRIORITY_API_MISSED
+    return target
+
+
+def _collect_targets(video_root: Path, since: date) -> list[BatchTarget]:
+    """Enumerate → dedup → DB-refine the corpus into an (unordered) target list.
+
+    Encapsulates every DB read of the planning phase; the run loop prioritizes
+    the result. Split out so the loop is unit-testable by stubbing this one seam.
+    """
+    known = _known_shas()
+    paths = enumerate_targets(video_root, since)
+    return [_refine_target(t) for t in dedup_by_sha(paths, known)]
+
+
+def _echo_plan(targets: list[BatchTarget], *, dry_run: bool) -> None:
+    """Print the enumerated/deduped/prioritized work queue to stderr."""
+    mode = "DRY-RUN plan" if dry_run else "run plan"
+    typer.echo(f"\n[batch] {mode}: {len(targets)} target(s)", err=True)
+    for i, t in enumerate(targets, 1):
+        flag = " [already-ingested]" if t.already_ingested else ""
+        typer.echo(
+            f"  {i}. p{t.priority} {t.kind:12s} {t.path.name} "
+            f"(sha {t.sha256[:12]}){flag}",
+            err=True,
+        )
+
+
+def _process_target(target: BatchTarget, *, dry_run: bool) -> None:
+    """Fresh-ingest one target then propose its associations, stopping at the
+    operator-confirm gate. Raises propagate to :func:`run_batch`'s per-video
+    isolation; nothing here confirms or promotes."""
+    name = target.path.name
+    if target.already_ingested:
+        typer.echo(f"[batch] already ingested — skip: {name}", err=True)
+        return
+    if dry_run:
+        typer.echo(
+            f"[batch] DRY-RUN would ingest+propose: {name} "
+            f"(sha {target.sha256[:12]}, priority {target.priority})",
+            err=True,
+        )
+        return
+
+    # Fresh ingest (run_id=NULL): Pass-1 → ① split → ② identity probe. A
+    # multi-reel video writes reels.json + reel-<idx>-identity.json and DEFERS
+    # dispatch; a single-match video dispatches inline.
+    _run_streaming(
+        [
+            "python3", "-m", "video_ingest.cli", "ingest",
+            "--video", str(target.path),
+            "--output-root", str(DEFAULT_INGEST_CACHE),
+            "--dispatch",
+            "--game-title-id", str(NHL26_GAME_TITLE_ID),
+        ],
+        description=f"batch ingest (fresh, run_id=NULL): {name}",
+    )
+
+    # Propose reel→match associations off the emitted identity files (Phase-A
+    # path: --video-sha256 + --game-title-id, no run row). This is the review
+    # queue — the operator confirms with `resolve-match confirm`; nothing
+    # auto-promotes. Tolerant of a video that emitted no reels (nothing proposed).
+    identities_dir = DEFAULT_INGEST_CACHE / target.sha256
+    _run_streaming(
+        [
+            "pnpm", "--filter", "@eanhl/worker", "resolve-match", "propose",
+            "--identities", str(identities_dir),
+            "--video-sha256", target.sha256,
+            "--game-title-id", str(NHL26_GAME_TITLE_ID),
+        ],
+        description=f"batch propose associations: {name}",
+    )
+
+
+def run_batch(
+    video_root: Path,
+    since: date,
+    dry_run: bool = False,
+    limit: int | None = None,
+) -> None:
+    """Unattended first-pass mass-ingest over the corpus under ``video_root``.
+
+    Preflights the GPU-venv closure ONCE up front (a lost wheel must fail in <1s,
+    not tens of minutes into a decode), plans the work queue (enumerate → dedup →
+    DB-refine → prioritize → ``limit``), then processes each target in priority
+    order behind per-video try/except isolation. ``dry_run`` prints the plan and
+    makes zero mutating calls. Stops every target at the operator-confirm gate.
+    """
+    preflight()
+    targets = prioritize(_collect_targets(video_root, since))
+    if limit is not None:
+        targets = targets[:limit]
+    _echo_plan(targets, dry_run=dry_run)
+    for target in targets:
+        try:
+            _process_target(target, dry_run=dry_run)
+        except Exception as exc:  # noqa: BLE001 — per-video isolation, keep going
+            typer.echo(f"[batch] SKIP {target.path.name}: {exc}", err=True)
+            continue

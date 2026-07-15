@@ -13,12 +13,15 @@ the same video is idempotent.
 from __future__ import annotations
 
 import sys
+from datetime import date
 from functools import wraps
 from pathlib import Path
+from typing import Optional
 
 import typer
 
 from video_ingest.annotate import annotate as run_annotate
+from video_ingest.batch_ingest import run_batch
 from video_ingest.orchestrator import ingest as run_ingest
 from video_ingest.pass1_classify import CacheMismatch, MissingPass1Cache
 from video_ingest.reprocess import reprocess as run_reprocess
@@ -253,6 +256,40 @@ def annotate(
 
 
 app.command(name="reprocess")(run_reprocess)
+
+
+@app.command("batch")
+def batch(
+    video_root: Path = typer.Option(
+        ...,
+        "--video-root",
+        exists=True,
+        file_okay=False,
+        dir_okay=True,
+        readable=True,
+        help="Corpus root holding loose recordings + match<id>/ folders.",
+    ),
+    since: str = typer.Option(
+        "2026-05-08",
+        "--since",
+        help="ISO date (YYYY-MM-DD); only recordings on/after this are ingested.",
+    ),
+    dry_run: bool = typer.Option(
+        False,
+        "--dry-run",
+        help="Print the enumerated/deduped/prioritized plan without mutating.",
+    ),
+    limit: Optional[int] = typer.Option(
+        None, "--limit", help="Process at most N targets (after prioritize)."
+    ),
+) -> None:
+    """Unattended mass-ingest run loop over the video corpus.
+
+    Preflights the GPU-venv closure once, then per target (priority order)
+    fresh-ingests → proposes reel→match associations → STOPS at the
+    operator-confirm gate. Nothing auto-promotes. See ``batch_ingest.run_batch``.
+    """
+    run_batch(video_root, date.fromisoformat(since), dry_run=dry_run, limit=limit)
 
 
 if __name__ == "__main__":
