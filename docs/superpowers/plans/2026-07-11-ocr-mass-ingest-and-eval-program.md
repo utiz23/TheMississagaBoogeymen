@@ -422,11 +422,11 @@ def prioritize(targets: list[BatchTarget]) -> list[BatchTarget]: ...
 
 **Interfaces:** `def preflight() -> None` — walk-imports the full closure (`video_ingest.*` + `game_ocr.*` incl. `pydantic`, `rapidocr_onnxruntime`) and raises with a clear message on any `ImportError`. **Mandatory before the run loop** (prior 37-min crash from a lost pydantic closure).
 
-- [ ] **Step 1: failing test** — `preflight()` succeeds in the real venv (integration, gated by `RUN_BATCH_INTEGRATION` env like `test_reprocess_cli.py`); a monkeypatched broken import makes it raise `RuntimeError` with the missing-module name.
-- [ ] **Step 2** — Run; expect FAIL.
-- [ ] **Step 3** — Implement `preflight` (explicit `importlib.import_module` over a module list; catch + re-raise with the offending name).
-- [ ] **Step 4** — Run; expect PASS.
-- [ ] **Step 5** — Commit: `git commit -am "feat(video-ingest): mandatory GPU-venv preflight smoke test"`.
+- [x] **Step 1: failing test** — `preflight()` succeeds in the real venv (integration, gated by `RUN_BATCH_INTEGRATION` env like `test_reprocess_cli.py`); a monkeypatched broken import makes it raise `RuntimeError` with the missing-module name.
+- [x] **Step 2** — Run; expect FAIL.
+- [x] **Step 3** — Implement `preflight` (explicit `importlib.import_module` over a module list; catch + re-raise with the offending name).
+- [x] **Step 4** — Run; expect PASS.
+- [x] **Step 5** — Commit: `git commit -am "feat(video-ingest): mandatory GPU-venv preflight smoke test"`.
 
 ### Task 4.3: Run loop + review-queue emission + promotion gate
 
