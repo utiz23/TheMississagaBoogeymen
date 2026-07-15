@@ -410,11 +410,11 @@ def prioritize(targets: list[BatchTarget]) -> list[BatchTarget]: ...
 ```
 - Enumerate `matchNNN/` folders + loose top-level recordings with basename date `>= since` (2026-05-08). Dedup collapses `.mkv/.mp4/.remuxed/- Trim` copies via sha (reuse `_disk_videos_by_sha` `setdefault` first-wins). Known shas from `SELECT DISTINCT video_sha256 FROM ocr_capture_batches` via `_psql_query`.
 
-- [ ] **Step 1: failing test** — `dedup_by_sha` collapses two byte-identical paths to one target + marks a sha already in `known_shas` as `already_ingested=True`; `prioritize` orders api-missed(0) < covered(1) < partial(2). Use `tmp_path` fixtures (mirror `test_reprocess_cli.py`).
-- [ ] **Step 2** — Run `.venv/bin/python -m pytest tests/test_batch_ingest.py -q`; expect FAIL.
-- [ ] **Step 3** — Implement the three pure functions.
-- [ ] **Step 4** — Run; expect PASS.
-- [ ] **Step 5** — Commit: `git commit -am "feat(video-ingest): batch enumerate/dedup/prioritize"`.
+- [x] **Step 1: failing test** — `test_batch_ingest.py` (13 tests): dedup byte-identical collapse (first path wins) + `already_ingested` from `known_shas` + kind classification; `prioritize` order/stability/no-mutate; enumerate window + landmine-dir + non-video exclusion. `tmp_path` fixtures (mirror `test_reprocess_cli.py`).
+- [x] **Step 2** — Ran via the `.venv-1` runner (`.venv` has no pytest, [[reference_gpu_ocr_venv]]); RED — `ImportError: cannot import name 'batch_ingest'`.
+- [x] **Step 3** — Implemented `BatchTarget` + `enumerate_targets`/`dedup_by_sha`/`prioritize` in `batch_ingest.py`. **Divergence:** streaming chunked `_file_sha256` (NOT `reprocess._file_sha256`'s `read_bytes()`) — the corpus holds ~22 GB `.mkv` files that would OOM a full read. `api_missed`/`priority` left at neutral defaults (DB-derived; the 4.3 run loop refines them).
+- [x] **Step 4** — Ran; 13/13 PASS. Full `tools/video_ingest` suite **587 pass / 4 skip / 0 fail** (574 baseline + 13, zero regression).
+- [x] **Step 5** — Committed `192d0da`: `feat(video-ingest): batch enumerate/dedup/prioritize (④ Task 4.1)`.
 
 ### Task 4.2: Preflight GPU-venv smoke test
 
