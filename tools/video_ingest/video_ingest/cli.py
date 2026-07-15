@@ -21,7 +21,7 @@ from typing import Optional
 import typer
 
 from video_ingest.annotate import annotate as run_annotate
-from video_ingest.batch_ingest import run_batch
+from video_ingest.batch_ingest import run_batch, run_promote
 from video_ingest.orchestrator import ingest as run_ingest
 from video_ingest.pass1_classify import CacheMismatch, MissingPass1Cache
 from video_ingest.reprocess import reprocess as run_reprocess
@@ -290,6 +290,49 @@ def batch(
     operator-confirm gate. Nothing auto-promotes. See ``batch_ingest.run_batch``.
     """
     run_batch(video_root, date.fromisoformat(since), dry_run=dry_run, limit=limit)
+
+
+@app.command("batch-promote")
+def batch_promote(
+    video_root: Path = typer.Option(
+        ...,
+        "--video-root",
+        exists=True,
+        file_okay=False,
+        dir_okay=True,
+        readable=True,
+        help="Corpus root holding loose recordings + match<id>/ folders (same as `batch`).",
+    ),
+    since: str = typer.Option(
+        "2026-05-08",
+        "--since",
+        help="ISO date (YYYY-MM-DD); only recordings on/after this are considered.",
+    ),
+    dry_run: bool = typer.Option(
+        False,
+        "--dry-run",
+        help="Print the promote plan without re-ingesting, promoting, or grading.",
+    ),
+    limit: Optional[int] = typer.Option(
+        None, "--limit", help="Promote at most N videos (after planning)."
+    ),
+) -> None:
+    """Drain the operator-confirmed association backlog — `batch`'s second pass.
+
+    `batch` stops every video at the operator-confirm gate and `resolve-match
+    confirm` decides; nothing drains the result. This does. It finds each video
+    with reels the operator CONFIRMED but never dispatched, re-ingests it
+    (Pass-1/Pass-2 decode cache hit, then ~2.3h of worker OCR per video) so every
+    confirmed reel dispatches under its own match_id — which auto-promotes that
+    reel's box score inside the ingest transaction — then grades each promoted
+    match with the 4.G L4 verdict and reports PASS / HOLD / OPERATOR_CONFIRM.
+
+    The verdict is POST-promotion: it routes matches to the review queue, it does
+    not prevent promotion. Confirm ALL of a video's reels before promoting it —
+    the skip granularity is per-video, so a partially-confirmed video re-OCRs its
+    already-drained reels. See ``batch_ingest.run_promote``.
+    """
+    run_promote(video_root, date.fromisoformat(since), dry_run=dry_run, limit=limit)
 
 
 if __name__ == "__main__":

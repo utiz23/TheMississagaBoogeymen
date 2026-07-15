@@ -19,7 +19,9 @@ Task 4.1 scope:
 from __future__ import annotations
 
 import importlib
+import json
 import os
+import sys
 from datetime import date
 from pathlib import Path
 
@@ -646,3 +648,473 @@ def test_collect_targets_saves_the_cache_so_a_replan_skips_hashing(
     second = bi._collect_targets(root, SINCE)
 
     assert [t.sha256 for t in second] == [t.sha256 for t in first]
+
+
+# ─── _parse_json_object (Task 4.4) ───────────────────────────────────────────
+#
+# `match-quality --json` prints PRETTY (JSON.stringify(out, null, 2)), so the
+# payload spans many lines and pnpm prepends a banner ON STDOUT (verified
+# on-box). The bottom-up single-`{`-line scan used by dispatch._parse_reel_map
+# cannot work here — hence a parser of its own.
+
+_PNPM_BANNER = (
+    "\n> @eanhl/worker@0.0.1 match-quality /home/michal/projects/x/apps/worker\n"
+    "> node dist/match-quality-cli.js --match 463 --json\n\n"
+)
+
+
+def test_parse_json_object_reads_pretty_json_after_a_pnpm_banner() -> None:
+    out = _PNPM_BANNER + '{\n  "matchId": 463,\n  "gate": {\n    "decision": "PASS"\n  }\n}\n'
+
+    assert bi._parse_json_object(out) == {"matchId": 463, "gate": {"decision": "PASS"}}
+
+
+def test_parse_json_object_is_not_fooled_by_a_brace_inside_a_banner_line() -> None:
+    # A banner mentioning `{` mid-line must not anchor the parse; only a line
+    # that OPENS an object at column 0 counts.
+    out = (
+        "> node dist/cli.js --filter {worker} --json\n"
+        + '{\n  "gate": {"decision": "HOLD"}\n}\n'
+    )
+
+    assert bi._parse_json_object(out) == {"gate": {"decision": "HOLD"}}
+
+
+def test_parse_json_object_ignores_trailing_noise_after_the_object() -> None:
+    out = '{\n  "a": 1\n}\nDone in 1.2s\n'
+
+    assert bi._parse_json_object(out) == {"a": 1}
+
+
+def test_parse_json_object_raises_when_there_is_no_object() -> None:
+    with pytest.raises(RuntimeError, match="no JSON object"):
+        bi._parse_json_object("> banner only\nDone in 0.3s\n")
+
+
+# ─── _run_captured (Task 4.4) ────────────────────────────────────────────────
+
+
+def test_run_captured_returns_stdout() -> None:
+    out = bi._run_captured(
+        [sys.executable, "-c", "print('hello-stdout')"], description="smoke"
+    )
+
+    assert "hello-stdout" in out
+
+
+def test_run_captured_raises_naming_the_exit_code() -> None:
+    with pytest.raises(RuntimeError, match="exit 3"):
+        bi._run_captured([sys.executable, "-c", "raise SystemExit(3)"], description="boom")
+
+
+# ─── _confirmed_associations (Task 4.4) ──────────────────────────────────────
+
+
+def test_confirmed_associations_parses_the_pending_ledger() -> None:
+    rows = "aaa|11|t\naaa|12|f\nbbb|13|t\n"
+
+    got = bi._parse_confirmed_rows(rows)
+
+    assert got == {"aaa": {11: True, 12: False}, "bbb": {13: True}}
+
+
+def test_confirmed_associations_is_empty_when_nothing_is_confirmed() -> None:
+    assert bi._parse_confirmed_rows("") == {}
+
+
+def test_confirmed_associations_skips_a_malformed_line() -> None:
+    got = bi._parse_confirmed_rows("aaa|11|t\ngarbage\nccc|x|t\nbbb|13|f\n")
+
+    assert got == {"aaa": {11: True}, "bbb": {13: False}}
+
+
+def test_confirmed_associations_query_uses_extractions_not_capture_batches(
+    monkeypatch,
+) -> None:
+    """The stamp-bug guard.
+
+    ``confirmAssociation`` stamps ocr_capture_batches by (video_sha256, run_id)
+    with NO reel scoping, so confirming a second reel re-stamps the FIRST reel's
+    batches. A predicate on that column would false-skip a pending reel — the
+    worst failure available. ``ocr_extractions.match_id`` is write-once.
+    """
+    seen: list[str] = []
+    monkeypatch.setattr(bi, "_psql_query", lambda sql: seen.append(sql) or "")
+
+    bi._confirmed_associations()
+
+    sql = seen[0]
+    assert "ocr_extractions" in sql
+    assert "status = 'confirmed'" in sql
+    assert "b.match_id" not in sql, "must not read the re-stamped capture-batch column"
+
+
+# ─── _promote_plan (Task 4.4) ────────────────────────────────────────────────
+
+
+def _plan_root(tmp_path: Path) -> Path:
+    root = tmp_path / "vids"
+    _touch(root / "2026-05-22_19-07-03.mkv", content=b"aaa-bytes")
+    _touch(root / "2026-05-23_20-01-01.mkv", content=b"bbb-bytes")
+    return root
+
+
+def _sha_of(root: Path, name: str) -> str:
+    return bi._file_sha256(root / name)
+
+
+def _patch_plan(monkeypatch, tmp_path: Path, confirmed: dict) -> None:
+    monkeypatch.setattr(bi, "_sha_cache_path", lambda: tmp_path / "sha-cache.json")
+    monkeypatch.setattr(bi, "_confirmed_associations", lambda: confirmed)
+    monkeypatch.setattr(
+        bi, "_known_shas", lambda: pytest.fail("promote must not use already_ingested")
+    )
+
+
+def test_promote_plan_selects_only_videos_with_a_pending_confirmed_reel(
+    tmp_path: Path, monkeypatch
+) -> None:
+    root = _plan_root(tmp_path)
+    a, b = _sha_of(root, "2026-05-22_19-07-03.mkv"), _sha_of(root, "2026-05-23_20-01-01.mkv")
+    # a has one drained + one pending reel; b is fully drained.
+    _patch_plan(monkeypatch, tmp_path, {a: {11: False, 12: True}, b: {13: False}})
+
+    plan = bi._promote_plan(root, SINCE)
+
+    assert [t.sha256 for t in plan] == [a]
+    assert plan[0].confirmed_match_ids == [11, 12]  # the GRADE set: every confirmed reel
+    assert plan[0].pending_match_ids == [12]  # the reason to run
+
+
+def test_promote_plan_is_empty_when_every_confirmed_reel_is_drained(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """Convergence: the drain must not loop forever on already-promoted videos.
+
+    And it must reach that answer WITHOUT hashing the corpus — "nothing left to
+    drain" is this pass's steady state, so the re-run that confirms it cannot
+    cost a ~20-min 82 GB re-hash.
+    """
+    root = _plan_root(tmp_path)
+    a = _sha_of(root, "2026-05-22_19-07-03.mkv")
+    _patch_plan(monkeypatch, tmp_path, {a: {11: False}})
+    monkeypatch.setattr(bi, "_file_sha256", lambda _p: pytest.fail("hashed a drained corpus"))
+
+    assert bi._promote_plan(root, SINCE) == []
+
+
+def test_promote_plan_is_empty_and_hits_no_disk_when_nothing_is_confirmed(
+    tmp_path: Path, monkeypatch
+) -> None:
+    root = _plan_root(tmp_path)
+    _patch_plan(monkeypatch, tmp_path, {})
+    monkeypatch.setattr(bi, "_file_sha256", lambda _p: pytest.fail("hashed with no backlog"))
+
+    assert bi._promote_plan(root, SINCE) == []
+
+
+def test_promote_plan_skips_a_confirmed_sha_with_no_on_disk_video(
+    tmp_path: Path, monkeypatch, capsys
+) -> None:
+    root = _plan_root(tmp_path)
+    _patch_plan(monkeypatch, tmp_path, {"sha-not-on-disk": {11: True}})
+
+    plan = bi._promote_plan(root, SINCE)
+
+    assert plan == []
+    err = capsys.readouterr().err
+    assert "SKIP" in err and "sha-not-on-disk"[:12] in err
+
+
+def test_promote_plan_orders_chronologically_by_basename(
+    tmp_path: Path, monkeypatch
+) -> None:
+    root = _plan_root(tmp_path)
+    a, b = _sha_of(root, "2026-05-22_19-07-03.mkv"), _sha_of(root, "2026-05-23_20-01-01.mkv")
+    _patch_plan(monkeypatch, tmp_path, {b: {13: True}, a: {11: True}})
+
+    plan = bi._promote_plan(root, SINCE)
+
+    assert [t.path.name for t in plan] == [
+        "2026-05-22_19-07-03.mkv",
+        "2026-05-23_20-01-01.mkv",
+    ]
+
+
+# ─── _grade_match (Task 4.4) ─────────────────────────────────────────────────
+
+
+def _grade_stdout(decision: str = "PASS", *, with_gate: bool = True) -> str:
+    payload = {
+        "matchId": 463,
+        "layers": {
+            "l4": {
+                "score": 0.98,
+                "gradable": True,
+                "finalAccuracy": 1,
+                "periodCoverage": 1.0,
+                "periodAccuracy": 1.0,
+            }
+        },
+    }
+    if with_gate:
+        payload["gate"] = {"decision": decision, "reason": "TOT-row final matches API truth"}
+    return _PNPM_BANNER + json.dumps(payload, indent=2) + "\n"
+
+
+def test_grade_match_reads_the_gate_verdict(monkeypatch) -> None:
+    monkeypatch.setattr(bi, "_run_captured", lambda cmd, *, description: _grade_stdout("HOLD"))
+
+    got = bi._grade_match(463)
+
+    assert got["match_id"] == 463
+    assert got["decision"] == "HOLD"
+    assert got["finalAccuracy"] == 1
+    assert got["gradable"] is True
+
+
+def test_grade_match_reports_error_when_the_payload_has_no_gate(monkeypatch) -> None:
+    """A stale apps/worker/dist/ predates the gate field — say so, don't KeyError."""
+    monkeypatch.setattr(
+        bi, "_run_captured", lambda cmd, *, description: _grade_stdout(with_gate=False)
+    )
+
+    got = bi._grade_match(463)
+
+    assert got["decision"] == "ERROR"
+    assert "gate" in got["reason"]
+
+
+def test_grade_match_shells_out_to_the_match_quality_cli(monkeypatch) -> None:
+    seen: list[list[str]] = []
+
+    def _cap(cmd, *, description):
+        seen.append(cmd)
+        return _grade_stdout()
+
+    monkeypatch.setattr(bi, "_run_captured", _cap)
+
+    bi._grade_match(972)
+
+    assert seen[0] == [
+        "pnpm", "--filter", "@eanhl/worker", "match-quality",
+        "--match", "972", "--json",
+    ]
+
+
+# ─── run_promote loop (Task 4.4) ─────────────────────────────────────────────
+
+
+def _ptarget(name: str, confirmed: list[int], pending: list[int] | None = None):
+    """A fake promote target — path/sha keyed on ``name`` (mirrors ``_btarget``)."""
+    return bi.PromoteTarget(
+        path=Path(f"/vids/{name}.mkv"),
+        sha256=name,
+        confirmed_match_ids=confirmed,
+        pending_match_ids=pending if pending is not None else confirmed,
+    )
+
+
+def _patch_promote(monkeypatch, tmp_path: Path, targets, recorder, *, grade_raises=()):
+    """Wire run_promote's seams, mirroring ``_patch_loop``."""
+    counters = {"preflight": 0}
+
+    def _count_preflight() -> None:
+        counters["preflight"] += 1
+
+    def _cap(cmd, *, description):
+        match_id = int(cmd[cmd.index("--match") + 1])
+        if match_id in grade_raises:
+            raise RuntimeError(f"grade boom: {match_id}")
+        return _grade_stdout()
+
+    monkeypatch.setattr(bi, "preflight", _count_preflight)
+    monkeypatch.setattr(bi, "_promote_plan", lambda _root, _since: list(targets))
+    monkeypatch.setattr(bi, "_run_streaming", recorder)
+    monkeypatch.setattr(bi, "_run_captured", _cap)
+    monkeypatch.setattr(bi, "_promote_summary_path", lambda _started: tmp_path / "summary.json")
+    return counters
+
+
+def test_run_promote_preflights_once_and_reingests_each_confirmed_video(
+    tmp_path: Path, monkeypatch
+) -> None:
+    targets = [_ptarget("a", [11]), _ptarget("b", [12])]
+    rec = _StreamRecorder()
+    counters = _patch_promote(monkeypatch, tmp_path, targets, rec)
+
+    bi.run_promote(Path("/vids"), SINCE)
+
+    assert counters["preflight"] == 1
+    assert rec.ingest_videos == ["a", "b"]
+
+
+def test_run_promote_passes_the_same_cache_key_flags_as_the_first_pass_and_no_run_id(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """The CacheMismatch guard.
+
+    Pass 2 MUST re-issue Pass 1's flag set byte-identically: --version /
+    --pass2-artifacts / --prefilter / --pass1-gate feed the cache keys and any
+    drift is a hard CacheMismatch exit-1, not a silent re-decode. --run-id would
+    additionally move the Pass-2 cache dir (pass2 → pass2-run-<id>).
+    """
+    rec = _StreamRecorder()
+    _patch_promote(monkeypatch, tmp_path, [_ptarget("a", [11])], rec)
+
+    bi.run_promote(Path("/vids"), SINCE)
+
+    ingest = [c for c in rec.cmds if "ingest" in c][0]
+    assert "--run-id" not in ingest
+    assert ingest == [
+        "python3", "-m", "video_ingest.cli", "ingest",
+        "--video", "/vids/a.mkv",
+        "--output-root", str(bi.DEFAULT_INGEST_CACHE),
+        "--dispatch",
+        "--game-title-id", "1",
+    ]
+
+
+def test_run_promote_grades_every_confirmed_match_not_just_the_pending_ones(
+    tmp_path: Path, monkeypatch, capsys
+) -> None:
+    # Re-dispatch re-promotes every confirmed reel, so every one gets re-graded.
+    targets = [_ptarget("a", [11, 12], pending=[12])]
+    _patch_promote(monkeypatch, tmp_path, targets, _StreamRecorder())
+
+    bi.run_promote(Path("/vids"), SINCE)
+
+    summary = json.loads((tmp_path / "summary.json").read_text())
+    assert [g["match_id"] for g in summary["videos"][0]["grades"]] == [11, 12]
+
+
+def test_run_promote_isolates_a_failing_video_and_continues(
+    tmp_path: Path, monkeypatch, capsys
+) -> None:
+    targets = [_ptarget("a", [11]), _ptarget("b", [12]), _ptarget("c", [13])]
+    rec = _StreamRecorder(raise_on="/vids/b.mkv")
+    _patch_promote(monkeypatch, tmp_path, targets, rec)
+
+    bi.run_promote(Path("/vids"), SINCE)
+
+    assert rec.ingest_videos == ["a", "b", "c"]
+    err = capsys.readouterr().err
+    assert "SKIP" in err and "b" in err
+    summary = json.loads((tmp_path / "summary.json").read_text())
+    assert [v["status"] for v in summary["videos"]] == ["promoted", "failed", "promoted"]
+    assert summary["totals"]["failed"] == 1
+
+
+def test_run_promote_records_a_failed_grade_without_losing_the_promotion(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """The promotion already happened inside the ingest tx — a grade that blows
+    up must not erase it from the record."""
+    targets = [_ptarget("a", [11, 12])]
+    _patch_promote(monkeypatch, tmp_path, targets, _StreamRecorder(), grade_raises=(11,))
+
+    bi.run_promote(Path("/vids"), SINCE)
+
+    summary = json.loads((tmp_path / "summary.json").read_text())
+    video = summary["videos"][0]
+    assert video["status"] == "promoted"
+    decisions = {g["match_id"]: g["decision"] for g in video["grades"]}
+    assert decisions == {11: "ERROR", 12: "PASS"}
+
+
+def test_run_promote_dry_run_makes_zero_mutating_calls_and_writes_no_summary(
+    tmp_path: Path, monkeypatch, capsys
+) -> None:
+    rec = _StreamRecorder()
+    _patch_promote(monkeypatch, tmp_path, [_ptarget("a", [11])], rec)
+
+    bi.run_promote(Path("/vids"), SINCE, dry_run=True)
+
+    assert rec.cmds == []
+    assert not (tmp_path / "summary.json").exists()
+    assert "DRY-RUN" in capsys.readouterr().err
+
+
+def test_run_promote_limit_slices_the_plan(tmp_path: Path, monkeypatch) -> None:
+    targets = [_ptarget("a", [11]), _ptarget("b", [12])]
+    rec = _StreamRecorder()
+    _patch_promote(monkeypatch, tmp_path, targets, rec)
+
+    bi.run_promote(Path("/vids"), SINCE, limit=1)
+
+    assert rec.ingest_videos == ["a"]
+
+
+# ─── promote run-summary (Task 4.4) ──────────────────────────────────────────
+
+
+def test_promote_summary_survives_a_crash_mid_run(tmp_path: Path, monkeypatch) -> None:
+    """A 40h run must not lose the videos it already finished.
+
+    KeyboardInterrupt (Ctrl-C / an OOM kill) is a BaseException, so it escapes
+    run_promote's `except Exception` isolation entirely — the realistic hard-stop.
+    """
+    targets = [_ptarget("a", [11]), _ptarget("b", [12])]
+
+    class _KillOnSecond(_StreamRecorder):
+        def __call__(self, cmd, *, description):
+            if "/vids/b.mkv" in cmd:
+                raise KeyboardInterrupt
+            return super().__call__(cmd, description=description)
+
+    _patch_promote(monkeypatch, tmp_path, targets, _KillOnSecond())
+
+    with pytest.raises(KeyboardInterrupt):
+        bi.run_promote(Path("/vids"), SINCE)
+
+    summary = json.loads((tmp_path / "summary.json").read_text())
+    assert summary["completed"] is False
+    assert [v["sha256"] for v in summary["videos"]] == ["a"]
+    assert summary["totals"]["promoted"] == 1
+
+
+def test_promote_summary_marks_completed_on_a_clean_run(
+    tmp_path: Path, monkeypatch
+) -> None:
+    _patch_promote(monkeypatch, tmp_path, [_ptarget("a", [11])], _StreamRecorder())
+
+    bi.run_promote(Path("/vids"), SINCE)
+
+    summary = json.loads((tmp_path / "summary.json").read_text())
+    assert summary["completed"] is True
+    assert summary["schema"] == "promote-summary/v1"
+    assert summary["totals"] == {
+        "videos": 1, "promoted": 1, "failed": 0,
+        "PASS": 1, "HOLD": 0, "OPERATOR_CONFIRM": 0, "ERROR": 0,
+    }
+
+
+def test_promote_summary_never_raises_on_an_unwritable_path(
+    tmp_path: Path, monkeypatch, capsys
+) -> None:
+    """Mirrors save_sha_cache: a summary records the work, it must not destroy it."""
+    unwritable = tmp_path / "nope" / "summary.json"
+    unwritable.parent.mkdir()
+    unwritable.parent.chmod(0o500)
+    try:
+        _patch_promote(monkeypatch, tmp_path, [_ptarget("a", [11])], _StreamRecorder())
+        monkeypatch.setattr(bi, "_promote_summary_path", lambda _started: unwritable)
+
+        bi.run_promote(Path("/vids"), SINCE)
+
+        assert "WARN" in capsys.readouterr().err
+    finally:
+        unwritable.parent.chmod(0o700)
+
+
+def test_promote_totals_counts_decisions_across_videos() -> None:
+    videos = [
+        {"status": "promoted", "grades": [{"decision": "PASS"}, {"decision": "HOLD"}]},
+        {"status": "failed", "grades": []},
+        {"status": "promoted", "grades": [{"decision": "OPERATOR_CONFIRM"}]},
+    ]
+
+    assert bi._promote_totals(videos) == {
+        "videos": 3, "promoted": 2, "failed": 1,
+        "PASS": 1, "HOLD": 1, "OPERATOR_CONFIRM": 1, "ERROR": 0,
+    }

@@ -33,8 +33,11 @@ import json
 import os
 import pkgutil
 import re
-from dataclasses import dataclass
-from datetime import date
+import shlex
+import subprocess
+import time
+from dataclasses import dataclass, field
+from datetime import date, datetime, timezone
 from pathlib import Path
 
 import typer
@@ -43,6 +46,7 @@ from video_ingest.identity_probe import parse_basename_epoch
 from video_ingest.reprocess import (
     DEFAULT_INGEST_CACHE,
     NHL26_GAME_TITLE_ID,
+    REPO_ROOT,
     _psql_query,
     _run_streaming,
 )
@@ -391,8 +395,8 @@ def preflight() -> None:
 # then per target (in priority order) fresh-ingest → propose associations →
 # STOP at the operator-confirm gate. It never confirms or promotes — the
 # operator-confirmed ② association is the hard promotion gate, and promotion of
-# confirmed reels (per-reel Pass-2 + ``run-quality --emit-row`` carrying 4.G's
-# coverage-aware L4) is a SEPARATE later pass, out of this first-pass loop.
+# confirmed reels is a SEPARATE later pass, out of this first-pass loop: see
+# ``run_promote`` (Task 4.4) at the bottom of this module.
 #
 # KEY DIVERGENCE from the plan's "create-candidate (mint run_id) → ingest" line:
 # that predates ②'s on-box finding that a fresh multi-reel video ingests with
@@ -559,3 +563,479 @@ def run_batch(
         except Exception as exc:  # noqa: BLE001 — per-video isolation, keep going
             typer.echo(f"[batch] SKIP {target.path.name}: {exc}", err=True)
             continue
+
+
+# ─── promote pass (Task 4.4) ──────────────────────────────────────────────────
+#
+# ``run_promote`` is the SECOND pass — the drain for what ``run_batch`` leaves
+# behind. run_batch stops every video at the operator-confirm gate; the operator
+# decides with ``resolve-match confirm``; this pass turns those confirmations
+# into promoted box scores and grades the result.
+#
+# Per video: re-ingest with a flag set byte-identical to Pass 1 ⇒ Pass-1/Pass-2
+# decode CACHE HIT ⇒ ``orchestrator`` calls ``load_confirmed_reel_map`` (it does
+# so unconditionally under --dispatch), now gets a NON-empty map, and takes
+# ``dispatch_reels`` branch (c): each reel dispatches under its own confirmed
+# match_id with run_id forced to None. No orchestrator change is needed.
+#
+# THE VERDICT IS ADVISORY AND NECESSARILY POST-PROMOTION. ``promoteBoxScore``
+# runs inside the ``ingest-ocr`` transaction the instant a reel dispatches with
+# --match-id, so match_period_summaries rows exist before anything is graded.
+# PASS/HOLD/OPERATOR_CONFIRM route a match to the review queue; they cannot
+# withhold a promotion. The only gate that actually withholds is the operator
+# confirm that precedes dispatch. Nothing here confirms.
+#
+# KEY DIVERGENCE from the plan's "run-quality --emit-row carrying the L4 gate":
+# that is structurally unreachable for these matches. ``ocr_run_quality_reports``
+# .run_id is NOT NULL REFERENCES ocr_decoder_runs(id), and a fresh multi-reel
+# ingest never mints a run row (``ocr_decoder_runs.match_id`` is NOT NULL, so no
+# run can exist before the association this batch discovers) ⇒ run-quality's
+# --match-id path throws "no active run found". Minting one via create-candidate
+# does not help either: it inserts is_active=false, and buildReportBody
+# short-circuits inactive runs to all-null layers ⇒ gateFromL4 would return
+# OPERATOR_CONFIRM for EVERY match regardless of OCR quality. So the verdict is
+# read from ``match-quality --match N --json`` instead, which is match-keyed and
+# needs no run row, plus a crash-safe JSON run summary. No schema change.
+
+
+def _run_captured(cmd: list[str], *, description: str) -> str:
+    """Run ``cmd`` to completion CAPTURING stdout, which is returned.
+
+    The captured twin of :func:`_run_streaming`, which inherits stdout and so
+    cannot hand a payload back — ``match-quality --json``'s verdict has to be
+    READ, not watched. A module-level function (rather than an inline
+    ``subprocess.run``) so tests can stub this one seam exactly as they stub
+    ``_run_streaming``. Mirrors ``reprocess._run_decoder_runs_cli``'s shape.
+    """
+    typer.echo(f"\n>>> {description}", err=True)
+    typer.echo(f"    $ {shlex.join(cmd)}", err=True)
+    res = subprocess.run(cmd, cwd=REPO_ROOT, capture_output=True, text=True)
+    if res.returncode != 0:
+        raise RuntimeError(
+            f"{description} failed (exit {res.returncode}): {shlex.join(cmd)}\n"
+            f"  stderr: {res.stderr.strip()[:500]}"
+        )
+    return res.stdout
+
+
+def _parse_json_object(stdout: str) -> dict:
+    """The first top-level JSON object in ``stdout``, tolerating a pnpm banner
+    before it and any noise after it.
+
+    ``match-quality --json`` prints PRETTY (``JSON.stringify(out, null, 2)``), so
+    the payload spans many lines — the bottom-up single-line ``startswith('{')``
+    scan that ``dispatch._parse_reel_map`` uses CANNOT work here. Anchor instead
+    on a line that OPENS an object at column 0 (pnpm's banner, which lands on
+    STDOUT, never does) and let ``raw_decode`` consume exactly one value, which
+    makes trailing output ("Done in 1.2s") harmless.
+    """
+    decoder = json.JSONDecoder()
+    for m in re.finditer(r"^\{", stdout, re.MULTILINE):
+        try:
+            obj, _end = decoder.raw_decode(stdout[m.start() :])
+        except ValueError:
+            continue
+        if isinstance(obj, dict):
+            return obj
+    raise RuntimeError(f"no JSON object found in output:\n{stdout[-2000:]}")
+
+
+@dataclass
+class PromoteTarget:
+    """One video whose operator-confirmed reels still need draining."""
+
+    path: Path
+    sha256: str
+    # Every confirmed reel's match. Re-dispatch re-promotes ALL of them, so this
+    # is the set to GRADE (not just the pending ones).
+    confirmed_match_ids: list[int] = field(default_factory=list)
+    # Confirmed but never dispatched — the reason this video is in the plan.
+    pending_match_ids: list[int] = field(default_factory=list)
+
+
+# The dispatch ledger is ``ocr_extractions.match_id``, NOT
+# ``ocr_capture_batches.match_id``. ``confirmAssociation`` stamps capture batches
+# by (video_sha256, run_id) with NO reel scoping, so confirming a SECOND reel
+# re-stamps the FIRST reel's batches to the second reel's match — a predicate on
+# that column would false-skip a still-pending reel, the worst failure available.
+# ``ocr_extractions.match_id`` is write-once (persistOneResult sets it; every
+# later UPDATE touches only transform_status / review_status), so it is an honest
+# record of "a frame of this video actually landed under this match".
+_CONFIRMED_SQL = (
+    "SELECT DISTINCT a.video_sha256, a.proposed_match_id, "
+    "NOT EXISTS ("
+    "  SELECT 1 FROM ocr_extractions e"
+    "  JOIN ocr_capture_batches b ON b.id = e.batch_id"
+    "  WHERE b.video_sha256 = a.video_sha256 AND e.match_id = a.proposed_match_id"
+    ") AS pending "
+    "FROM ocr_match_associations a "
+    "WHERE a.status = 'confirmed' AND a.proposed_match_id IS NOT NULL "
+    "ORDER BY a.video_sha256, a.proposed_match_id"
+)
+
+
+def _parse_confirmed_rows(out: str) -> dict[str, dict[int, bool]]:
+    """Parse ``sha|match_id|pending`` psql rows into ``{sha: {match_id: pending}}``.
+
+    A malformed row is skipped rather than fatal — the same defensive spirit as
+    the sha cache's ``_entry_is_current``.
+    """
+    rows: dict[str, dict[int, bool]] = {}
+    for line in out.splitlines():
+        parts = line.strip().split("|")
+        if len(parts) != 3:
+            continue
+        sha, raw_match, raw_pending = parts
+        try:
+            match_id = int(raw_match)
+        except ValueError:
+            continue
+        rows.setdefault(sha, {})[match_id] = raw_pending.strip() == "t"
+    return rows
+
+
+def _confirmed_associations() -> dict[str, dict[int, bool]]:
+    """``{video_sha256: {match_id: pending}}`` over every CONFIRMED association.
+
+    ``pending`` is "no ``ocr_extractions`` row of this video has ever carried this
+    match_id" — i.e. this confirmed reel has never actually been dispatched.
+    """
+    return _parse_confirmed_rows(_psql_query(_CONFIRMED_SQL))
+
+
+def _promote_plan(video_root: Path, since: date) -> list[PromoteTarget]:
+    """Intersect the confirmed-association backlog with the on-disk corpus.
+
+    A video is planned iff at least ONE of its confirmed reels is pending. The
+    skip granularity is necessarily video-level: ``dispatch_reels`` dispatches
+    every mapped reel, and a per-reel skip would need an orchestrator change. So
+    an already-drained reel of a partially-confirmed video re-dispatches — which
+    is idempotent (batch/extraction upserts, promoter update-first) but costs
+    real OCR time. Confirm all of a video's reels before promoting it.
+
+    ``dedup_by_sha`` is called with an EMPTY ``known_shas`` deliberately: this
+    pass must never consult ``already_ingested``, whose meaning is INVERTED here.
+    A multi-reel video has no capture batches before promotion (branch (b)
+    dispatches nothing) and has them after — so the flag would skip exactly the
+    videos that still need draining. An empty set makes that mistake structurally
+    impossible and drops a ``_known_shas()`` round-trip.
+    """
+    confirmed = _confirmed_associations()
+    # Resolve the backlog BEFORE touching the disk: enumeration streams every
+    # byte of the corpus through sha256 (~20 min at 82 GB), and the steady state
+    # of this pass is "nothing left to drain" — a re-run that answers "did I miss
+    # anything?" must not pay a full re-hash to print an empty plan.
+    pending_by_sha = {
+        sha: sorted(m for m, is_pending in reels.items() if is_pending)
+        for sha, reels in confirmed.items()
+    }
+    pending_by_sha = {sha: pend for sha, pend in pending_by_sha.items() if pend}
+    if not pending_by_sha:
+        typer.echo(
+            f"[promote] nothing to drain: {len(confirmed)} video(s) confirmed, "
+            f"every confirmed reel already dispatched.",
+            err=True,
+        )
+        return []
+
+    paths = enumerate_targets(video_root, since)
+    cache = load_sha_cache()
+    targets = dedup_by_sha(paths, set(), cache=cache)
+    save_sha_cache(cache)
+    by_sha = {t.sha256: t.path for t in targets}
+
+    out: list[PromoteTarget] = []
+    for sha in sorted(pending_by_sha):
+        reels = confirmed[sha]
+        pending = pending_by_sha[sha]
+        path = by_sha.get(sha)
+        if path is None:
+            typer.echo(
+                f"[promote] SKIP sha {sha[:12]}: no on-disk video under {video_root} "
+                f"dated on/after {since} — cannot re-ingest (widen --since?)",
+                err=True,
+            )
+            continue
+        out.append(
+            PromoteTarget(
+                path=path,
+                sha256=sha,
+                confirmed_match_ids=sorted(reels),
+                pending_match_ids=pending,
+            )
+        )
+    # Chronological: basenames lead with an ISO stamp. No `prioritize` — the
+    # priority bands rank DISCOVERY urgency (api_missed), and every promote
+    # target is already discovered and confirmed.
+    out.sort(key=lambda t: (t.path.name, t.sha256))
+    return out
+
+
+def _grade_match(match_id: int) -> dict:
+    """The 4.G L4 verdict for one promoted match, via ``match-quality --json``.
+
+    ADVISORY, POST-PROMOTION — see this section's header. ``match-quality`` is
+    match-keyed (``computeLayers(matchId, …)``) and needs no ``ocr_decoder_runs``
+    row, which is exactly why it can serve a run_id=NULL multi-reel match when
+    ``run-quality`` cannot.
+    """
+    out = _run_captured(
+        [
+            "pnpm", "--filter", "@eanhl/worker", "match-quality",
+            "--match", str(match_id), "--json",
+        ],
+        description=f"grade match {match_id} (L4 API-truth verdict)",
+    )
+    payload = _parse_json_object(out)
+    l4 = (payload.get("layers") or {}).get("l4") or {}
+    gate = payload.get("gate")
+    if not isinstance(gate, dict) or "decision" not in gate:
+        return {
+            "match_id": match_id,
+            "decision": "ERROR",
+            "reason": (
+                "match-quality --json carried no `gate` field — apps/worker/dist/ "
+                "is probably stale (run: pnpm --filter @eanhl/worker build)"
+            ),
+            "finalAccuracy": None,
+            "gradable": None,
+            "periodCoverage": None,
+            "periodAccuracy": None,
+            "l4Score": None,
+        }
+    return {
+        "match_id": match_id,
+        "decision": gate["decision"],
+        "reason": gate.get("reason", ""),
+        "finalAccuracy": l4.get("finalAccuracy"),
+        "gradable": l4.get("gradable"),
+        "periodCoverage": l4.get("periodCoverage"),
+        "periodAccuracy": l4.get("periodAccuracy"),
+        "l4Score": l4.get("score"),
+    }
+
+
+def _now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+def _promote_summary_path(started: datetime) -> Path:
+    """A fresh run-scoped summary per invocation, so a re-run never clobbers the
+    forensic record of a crashed one. With no run row to key on, the start stamp
+    is the natural key (mirrors reprocess's ``run-<id>-stage-runtimes.json``)."""
+    return DEFAULT_INGEST_CACHE / f"promote-summary-{started:%Y%m%dT%H%M%SZ}.json"
+
+
+def _promote_totals(videos: list[dict]) -> dict:
+    """Recomputed on every write, so a crashed run's file still carries correct
+    partial totals."""
+    totals = {
+        "videos": len(videos),
+        "promoted": 0,
+        "failed": 0,
+        "PASS": 0,
+        "HOLD": 0,
+        "OPERATOR_CONFIRM": 0,
+        "ERROR": 0,
+    }
+    for v in videos:
+        status = v.get("status")
+        if status == "promoted":
+            totals["promoted"] += 1
+        elif status == "failed":
+            totals["failed"] += 1
+        for grade in v.get("grades") or []:
+            decision = grade.get("decision")
+            if decision in totals:
+                totals[decision] += 1
+    return totals
+
+
+def _write_promote_summary(payload: dict, path: Path) -> None:
+    """Persist the run summary atomically. NEVER raises — a summary is a record
+    of the work; it must not be able to destroy the work. Structural clone of
+    :func:`save_sha_cache`: tmp-file + ``replace`` means the live file is always
+    complete, parseable JSON, never a truncated half-write."""
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        tmp = path.with_name(f"{path.name}.tmp")
+        tmp.write_text(json.dumps(payload, indent=2) + "\n")
+        tmp.replace(path)
+    except OSError as exc:
+        typer.echo(
+            f"[promote] WARN: could not write the run summary {path}: {exc}", err=True
+        )
+
+
+def _failed_entry(target: PromoteTarget, exc: Exception) -> dict:
+    return {
+        "sha256": target.sha256,
+        "path": str(target.path),
+        "confirmed_match_ids": list(target.confirmed_match_ids),
+        "pending_match_ids": list(target.pending_match_ids),
+        "status": "failed",
+        "error": str(exc),
+        "dispatch_wall_s": None,
+        "started_at": _now_iso(),
+        "finished_at": _now_iso(),
+        "grades": [],
+    }
+
+
+def _echo_promote_plan(targets: list[PromoteTarget], *, dry_run: bool) -> None:
+    mode = "DRY-RUN promote plan" if dry_run else "promote plan"
+    typer.echo(
+        f"\n[promote] {mode}: {len(targets)} video(s) with confirmed, "
+        f"un-dispatched reels",
+        err=True,
+    )
+    for i, t in enumerate(targets, 1):
+        typer.echo(
+            f"  {i}. {t.path.name} (sha {t.sha256[:12]}) "
+            f"confirmed={t.confirmed_match_ids} pending={t.pending_match_ids}",
+            err=True,
+        )
+
+
+def _promote_target(target: PromoteTarget) -> dict:
+    """Re-ingest one confirmed video (Pass 2), then grade each of its confirmed
+    matches. Dispatch failures propagate to :func:`run_promote`'s per-video
+    isolation; a failed GRADE does not — the promotion already happened inside
+    the ingest transaction and must not be lost from the record."""
+    name = target.path.name
+    started = _now_iso()
+    t0 = time.perf_counter()
+
+    # Pass 2. This flag set MUST stay byte-identical to _process_target's Pass-1
+    # invocation: --version / --pass2-artifacts / --prefilter / --pass1-gate all
+    # feed the Pass-1/Pass-2 cache keys, and drift is a hard CacheMismatch
+    # exit-1, not a silent re-decode. --run-id is deliberately omitted for the
+    # same reason — it would move the Pass-2 cache dir (pass2 → pass2-run-<id>)
+    # and cost a full ~30-45 min re-extract per video.
+    _run_streaming(
+        [
+            "python3", "-m", "video_ingest.cli", "ingest",
+            "--video", str(target.path),
+            "--output-root", str(DEFAULT_INGEST_CACHE),
+            "--dispatch",
+            "--game-title-id", str(NHL26_GAME_TITLE_ID),
+        ],
+        description=f"promote re-ingest (Pass 2, decode cache hit): {name}",
+    )
+    wall = time.perf_counter() - t0
+
+    grades: list[dict] = []
+    for match_id in target.confirmed_match_ids:
+        try:
+            grade = _grade_match(match_id)
+        except Exception as exc:  # noqa: BLE001 — never lose the promotion record
+            grade = {
+                "match_id": match_id,
+                "decision": "ERROR",
+                "reason": f"grade failed: {exc}",
+                "finalAccuracy": None,
+                "gradable": None,
+                "periodCoverage": None,
+                "periodAccuracy": None,
+                "l4Score": None,
+            }
+        grades.append(grade)
+        typer.echo(
+            f"[promote] match {match_id}: {grade['decision']} — {grade['reason']}",
+            err=True,
+        )
+
+    return {
+        "sha256": target.sha256,
+        "path": str(target.path),
+        "confirmed_match_ids": list(target.confirmed_match_ids),
+        "pending_match_ids": list(target.pending_match_ids),
+        "status": "promoted",
+        "error": None,
+        "dispatch_wall_s": round(wall, 1),
+        "started_at": started,
+        "finished_at": _now_iso(),
+        "grades": grades,
+    }
+
+
+def _echo_promote_tally(videos: list[dict], summary_path: Path) -> None:
+    t = _promote_totals(videos)
+    typer.echo(
+        f"\n[promote] done: {t['promoted']} promoted, {t['failed']} failed — "
+        f"PASS={t['PASS']} HOLD={t['HOLD']} "
+        f"OPERATOR_CONFIRM={t['OPERATOR_CONFIRM']} ERROR={t['ERROR']}",
+        err=True,
+    )
+    if t["HOLD"] or t["OPERATOR_CONFIRM"] or t["ERROR"]:
+        typer.echo(
+            "[promote] NOTE: HOLD/OPERATOR_CONFIRM/ERROR matches are PROMOTED "
+            "already — the verdict routes them to review, it does not undo them.",
+            err=True,
+        )
+    typer.echo(f"[promote] run summary → {summary_path}", err=True)
+
+
+def run_promote(
+    video_root: Path,
+    since: date,
+    dry_run: bool = False,
+    limit: int | None = None,
+) -> None:
+    """Drain the operator-confirmed association backlog — ``run_batch``'s second
+    pass.
+
+    Preflights the GPU-venv closure ONCE (the dispatch subprocess still imports
+    the full closure even on a decode cache hit, and a lost wheel must fail in
+    <1s rather than hours into the run), plans the backlog, then per video
+    re-ingests (⇒ per-reel dispatch under each confirmed match_id ⇒ box-score
+    promotion inside the ingest transaction) and grades each confirmed match.
+
+    Per-video try/except isolation keeps one bad video from killing the run. The
+    run summary is persisted after EVERY video, so a crash 9 videos into a 40h
+    run still leaves 1-8 fully recorded. ``dry_run`` prints the plan and makes
+    zero mutating calls.
+    """
+    preflight()
+    targets = _promote_plan(video_root, since)
+    if limit is not None:
+        targets = targets[:limit]
+    _echo_promote_plan(targets, dry_run=dry_run)
+    if dry_run:
+        return
+
+    started = datetime.now(timezone.utc)
+    summary_path = _promote_summary_path(started)
+    videos: list[dict] = []
+    payload: dict = {
+        "schema": "promote-summary/v1",
+        "started_at": started.isoformat(),
+        "updated_at": started.isoformat(),
+        "completed": False,
+        "video_root": str(video_root),
+        "since": since.isoformat(),
+        "dry_run": False,
+        "totals": _promote_totals(videos),
+        "videos": videos,
+    }
+
+    def _persist(*, completed: bool = False) -> None:
+        payload["updated_at"] = _now_iso()
+        payload["completed"] = completed
+        payload["totals"] = _promote_totals(videos)
+        _write_promote_summary(payload, summary_path)
+
+    # Write once BEFORE the first video so a crash in video 1 still leaves the
+    # plan on disk, then after every video (the `finally` also covers a hard
+    # KeyboardInterrupt/SIGTERM, which escapes the `except Exception` below).
+    _persist()
+    for target in targets:
+        try:
+            videos.append(_promote_target(target))
+        except Exception as exc:  # noqa: BLE001 — per-video isolation, keep going
+            typer.echo(f"[promote] SKIP {target.path.name}: {exc}", err=True)
+            videos.append(_failed_entry(target, exc))
+        finally:
+            _persist()
+    _persist(completed=True)
+    _echo_promote_tally(videos, summary_path)

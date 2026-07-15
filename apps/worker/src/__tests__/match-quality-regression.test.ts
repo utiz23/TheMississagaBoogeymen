@@ -20,6 +20,7 @@ import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import { spawnSync } from 'node:child_process'
 import path from 'node:path'
+import { gateFromL4 } from '../lib/l4-api-truth.js'
 
 const MATCHES_TO_GATE = [250, 463] as const
 const REPO_ROOT = path.resolve(import.meta.dirname ?? '.', '../../../..')
@@ -29,13 +30,22 @@ interface LayerScore {
   pass: boolean | null
 }
 
+/** The 4.G sub-metrics `gateFromL4` reads. Only the two it Picks are required. */
+interface L4LayerScore extends LayerScore {
+  gradable: boolean
+  finalAccuracy: number | null
+}
+
 interface QualitySnapshot {
   layers: {
     l1: LayerScore
     l2: LayerScore
     l2_lineup?: LayerScore
     l3: LayerScore
+    l4?: L4LayerScore
   }
+  /** Task 4.4 — the L4 verdict the ④ batch-promote pass parses out of `--json`. */
+  gate?: { decision: string; reason: string }
 }
 
 after(async () => {
@@ -114,5 +124,34 @@ for (const matchId of MATCHES_TO_GATE) {
       floor.layers.l2_lineup,
     )
     compareLayer(`match ${String(matchId)} L3 downstream`, current.layers.l3, floor.layers.l3)
+  })
+}
+
+// ── Task 4.4 — the `gate` verdict the batch-promote pass consumes ────────────
+// `batch-promote` shells out to this exact CLI and reads `gate.decision` to
+// classify each promoted match. If `--json` ever stops carrying `gate`, the
+// Python side degrades every match to ERROR — so pin the contract here, at the
+// CLI boundary the consumer actually uses (not at gateFromL4's unit level,
+// which l4-api-truth.test.ts already covers).
+for (const matchId of MATCHES_TO_GATE) {
+  void test(`match ${String(matchId)} — --json carries the L4 gate verdict`, async (t) => {
+    if (skipIfNoDb(t)) return
+    const current = runQualityCli(matchId)
+
+    assert.ok(current.gate, `match ${String(matchId)}: --json must carry a gate object`)
+    assert.ok(
+      ['PASS', 'HOLD', 'OPERATOR_CONFIRM'].includes(current.gate.decision),
+      `match ${String(matchId)}: unexpected gate decision ${current.gate.decision}`,
+    )
+    assert.ok(current.gate.reason.length > 0, `match ${String(matchId)}: gate needs a reason`)
+
+    // The CLI must not invent its own verdict: it has to be exactly what
+    // gateFromL4 derives from the l4 layer it also emitted.
+    assert.ok(current.layers.l4, `match ${String(matchId)}: --json must carry layers.l4`)
+    assert.equal(
+      current.gate.decision,
+      gateFromL4(current.layers.l4).decision,
+      `match ${String(matchId)}: gate disagrees with gateFromL4(layers.l4)`,
+    )
   })
 }

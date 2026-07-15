@@ -24,6 +24,7 @@ import {
   type DownstreamRow,
   type QualityFlag,
 } from './lib/quality-inputs.js'
+import { gateFromL4, type L4Gate } from './lib/l4-api-truth.js'
 
 function getFlag(name: string): string | undefined {
   const idx = process.argv.indexOf(`--${name}`)
@@ -182,6 +183,7 @@ function renderHuman(
   flags: QualityFlag[],
   pending: PendingReview[],
   layers: LayerScores,
+  gate: L4Gate,
 ): string {
   const lines: string[] = []
   lines.push('')
@@ -270,6 +272,13 @@ function renderHuman(
   lines.push('')
   lines.push(`   Overall  ${layers.overall.pass ? '[ PASS ]' : '[ FAIL ]'}`)
   lines.push('')
+  // L4 is deliberately absent from `Overall` (see quality-layers.ts) — report it
+  // as its own verdict so a hand-run report shows what batch-promote would say.
+  lines.push(
+    `   L4 API-truth verdict  [ ${gate.decision} ]  ${gate.reason}`,
+    `      final=${fmtPct(layers.l4.finalAccuracy)}  period_cov=${fmtPct(layers.l4.periodCoverage)}  period_acc=${fmtPct(layers.l4.periodAccuracy)}`,
+  )
+  lines.push('')
   return lines.join('\n')
 }
 
@@ -308,6 +317,19 @@ async function main(): Promise<void> {
   const flags = await buildQualityFlags(matchId, match)
   const layers = await computeLayers(matchId, downstream, flags)
 
+  // Task 4.G's L4 verdict, surfaced for ④'s `video-ingest batch-promote` pass,
+  // which shells out to this CLI and reads `gate.decision` per promoted match.
+  // `layers.l4` structurally satisfies gateFromL4's
+  // Pick<L4Result, 'finalAccuracy' | 'gradable'>, so no extra plumbing is needed.
+  //
+  // ADVISORY, AND NECESSARILY POST-PROMOTION: promoteBoxScore already ran inside
+  // the ingest-ocr transaction the moment the reel dispatched under this
+  // match_id, so match_period_summaries rows exist before this is ever computed.
+  // HOLD / OPERATOR_CONFIRM route a match to the review queue; they cannot undo
+  // a promotion. The only gate that actually withholds anything is the operator
+  // confirm that precedes dispatch.
+  const gate = gateFromL4(layers.l4)
+
   if (asJson) {
     const out = {
       matchId,
@@ -328,11 +350,23 @@ async function main(): Promise<void> {
       flags,
       pending,
       layers,
+      gate,
     }
     console.log(JSON.stringify(out, null, 2))
   } else {
     console.log(
-      renderHuman(matchId, match, screens, downstream, periods, provenance, flags, pending, layers),
+      renderHuman(
+        matchId,
+        match,
+        screens,
+        downstream,
+        periods,
+        provenance,
+        flags,
+        pending,
+        layers,
+        gate,
+      ),
     )
   }
 }
