@@ -20,12 +20,17 @@ Design notes:
   them at neutral defaults (``api_missed=False``, ``priority=PRIORITY_API_COVERED``)
   so the pure layer stays DB-free and unit-testable. ``prioritize`` sorts on
   whatever ``priority`` the run loop has stamped.
+
+- **Cached digests.** Planning hashes the whole corpus on every pass, so the
+  digests are memoized on ``(path, size, mtime_ns)`` — see the sha-cache section.
 """
 
 from __future__ import annotations
 
 import hashlib
 import importlib
+import json
+import os
 import pkgutil
 import re
 from dataclasses import dataclass
@@ -101,6 +106,104 @@ def _file_sha256(path: Path) -> str:
     return h.hexdigest()
 
 
+# ─── sha cache ────────────────────────────────────────────────────────────────
+#
+# Planning streams every byte of the corpus through sha256 on EVERY pass — ~82 GB
+# ⇒ ~20 min (this drive measures 59-79 MB/s) — and ``--limit`` does not bound it:
+# the limit slices the plan AFTER dedup. Chunked runs are the normal mode
+# (``already_ingested`` skipping, plus a full run measured in tens of hours that
+# cannot happen in one sitting), so the plan is re-run many times and pays that
+# cost each time. Keying each digest to ``(path, size, mtime_ns)`` makes a
+# re-plan over an unchanged corpus near-instant.
+#
+# Every operation here is BEST-EFFORT by contract: a missing, corrupt, or
+# unwritable cache costs a re-hash, never the run. The cache sits beside the
+# Pass-2 frames in ``DEFAULT_INGEST_CACHE``, which the pipeline already treats as
+# durable across runs — anything that wipes it loses the far more expensive
+# decode cache first, next to which a re-hash is noise.
+
+_SHA_CACHE_NAME = "sha-cache.json"
+
+
+def _sha_cache_path() -> Path:
+    return DEFAULT_INGEST_CACHE / _SHA_CACHE_NAME
+
+
+def load_sha_cache(path: Path | None = None) -> dict[str, dict]:
+    """The persisted ``{path: {size, mtime_ns, sha256}}`` map, or ``{}``.
+
+    Absent (first run), unreadable, corrupt (a crash mid-write), or not a JSON
+    object all degrade to an empty cache — i.e. a full re-hash, which is exactly
+    the pre-cache behavior.
+    """
+    p = _sha_cache_path() if path is None else path
+    try:
+        payload = json.loads(p.read_text())
+    except (OSError, ValueError):
+        return {}
+    return payload if isinstance(payload, dict) else {}
+
+
+def save_sha_cache(cache: dict[str, dict], path: Path | None = None) -> None:
+    """Persist ``cache``, warning (never raising) if it cannot be written.
+
+    Written to a sibling temp file and ``replace``d in, so a crash part-way
+    through cannot leave a truncated cache behind: the live file is either the
+    old complete one or the new complete one.
+
+    Entries for files no longer on disk are NOT pruned. The file is tiny (the
+    corpus is <100 recordings ⇒ ~10 KB) and a narrower ``--since`` window on one
+    run must not evict digests a wider window still wants on the next.
+    """
+    p = _sha_cache_path() if path is None else path
+    try:
+        p.parent.mkdir(parents=True, exist_ok=True)
+        tmp = p.with_name(f"{p.name}.tmp")
+        tmp.write_text(json.dumps(cache, indent=2, sort_keys=True))
+        tmp.replace(p)
+    except OSError as exc:
+        typer.echo(f"[batch] WARN: could not write the sha cache {p}: {exc}", err=True)
+
+
+def _entry_is_current(entry: object, st: os.stat_result) -> bool:
+    """Whether a cache entry still describes the file ``st`` was taken from.
+
+    Defensive about shape as well as freshness: the cache is JSON on disk and may
+    have been hand-edited or half-written, so a malformed entry reads as a miss
+    rather than crashing the plan.
+    """
+    return (
+        isinstance(entry, dict)
+        and entry.get("size") == st.st_size
+        and entry.get("mtime_ns") == st.st_mtime_ns
+        and isinstance(entry.get("sha256"), str)
+    )
+
+
+def _cached_file_sha256(path: Path, cache: dict[str, dict] | None) -> str:
+    """:func:`_file_sha256` memoized on ``(path, size, mtime_ns)``.
+
+    ``cache=None`` bypasses memoization entirely (hash every call). On a miss the
+    freshly computed digest is recorded into ``cache`` in place; the caller owns
+    persisting it.
+
+    Size AND mtime must both match: mtime alone would serve a stale digest for a
+    still-growing recording, and size alone for an edit that preserved length.
+    """
+    if cache is None:
+        return _file_sha256(path)
+
+    st = path.stat()
+    key = str(path)
+    entry = cache.get(key)
+    if _entry_is_current(entry, st):
+        return entry["sha256"]  # type: ignore[index]
+
+    sha = _file_sha256(path)
+    cache[key] = {"size": st.st_size, "mtime_ns": st.st_mtime_ns, "sha256": sha}
+    return sha
+
+
 # ─── enumerate ────────────────────────────────────────────────────────────────
 
 
@@ -162,7 +265,12 @@ def _classify_kind(path: Path) -> str:
     return "match_folder" if _MATCH_DIR_RE.match(path.parent.name) else "loose"
 
 
-def dedup_by_sha(paths: list[Path], known_shas: set[str]) -> list[BatchTarget]:
+def dedup_by_sha(
+    paths: list[Path],
+    known_shas: set[str],
+    *,
+    cache: dict[str, dict] | None = None,
+) -> list[BatchTarget]:
     """Collapse byte-identical copies to one :class:`BatchTarget` per sha.
 
     A recording often exists as several containers with identical bytes (``.mkv``
@@ -173,10 +281,23 @@ def dedup_by_sha(paths: list[Path], known_shas: set[str]) -> list[BatchTarget]:
     ``already_ingested`` is ``True`` when the sha is in ``known_shas`` (the
     distinct ``ocr_capture_batches.video_sha256`` set). Result order follows the
     first-seen (sorted) path.
+
+    ``cache`` (optional) memoizes the digests — see :func:`_cached_file_sha256`;
+    misses are recorded into it in place for the caller to persist.
+
+    A file whose hash RAISES (an unreadable block on a crashed recording, a path
+    that vanished mid-plan) is logged and dropped from the queue. Hashing needs
+    the same per-file isolation :func:`run_batch` gives the ingest phase:
+    unguarded, one bad file aborts the entire plan before any target runs.
     """
     by_sha: dict[str, Path] = {}
     for p in sorted(paths, key=str):
-        by_sha.setdefault(_file_sha256(p), p)
+        try:
+            sha = _cached_file_sha256(p, cache)
+        except Exception as exc:  # noqa: BLE001 — per-file isolation, keep planning
+            typer.echo(f"[batch] SKIP (hash failed) {p.name}: {exc}", err=True)
+            continue
+        by_sha.setdefault(sha, p)
 
     return [
         BatchTarget(
@@ -342,10 +463,16 @@ def _collect_targets(video_root: Path, since: date) -> list[BatchTarget]:
 
     Encapsulates every DB read of the planning phase; the run loop prioritizes
     the result. Split out so the loop is unit-testable by stubbing this one seam.
+
+    The sha cache is loaded here and saved right after the dedup that fills it,
+    so the digests survive even if a later phase throws.
     """
     known = _known_shas()
     paths = enumerate_targets(video_root, since)
-    return [_refine_target(t) for t in dedup_by_sha(paths, known)]
+    cache = load_sha_cache()
+    targets = dedup_by_sha(paths, known, cache=cache)
+    save_sha_cache(cache)
+    return [_refine_target(t) for t in targets]
 
 
 def _echo_plan(targets: list[BatchTarget], *, dry_run: bool) -> None:

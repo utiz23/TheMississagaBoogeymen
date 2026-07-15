@@ -474,3 +474,175 @@ def test_refine_target_stays_neutral_when_basename_has_no_stamp(monkeypatch) -> 
 
     assert refined.api_missed is False
     assert refined.priority == bi.PRIORITY_API_COVERED  # unchanged neutral band
+
+
+# ─── sha cache load/save ─────────────────────────────────────────────────────
+#
+# Planning re-hashes the WHOLE corpus every pass (~82 GB / ~17 min at the
+# measured ~79 MB/s), and chunked runs are the normal mode — so the cache is
+# what makes a re-plan near-instant. Every failure mode here degrades to a
+# re-hash, never to an abort.
+
+
+def test_load_sha_cache_returns_empty_when_file_absent(tmp_path: Path) -> None:
+    assert bi.load_sha_cache(tmp_path / "never-written.json") == {}
+
+
+def test_load_sha_cache_returns_empty_on_corrupt_json(tmp_path: Path) -> None:
+    # A crash mid-write (or a hand-edit) must cost a re-hash, not the run.
+    p = _touch(tmp_path / "sha-cache.json", content=b"{not valid json")
+
+    assert bi.load_sha_cache(p) == {}
+
+
+def test_load_sha_cache_returns_empty_when_payload_is_not_a_mapping(
+    tmp_path: Path,
+) -> None:
+    p = _touch(tmp_path / "sha-cache.json", content=b'["a", "b"]')
+
+    assert bi.load_sha_cache(p) == {}
+
+
+def test_save_then_load_sha_cache_roundtrips(tmp_path: Path) -> None:
+    p = tmp_path / "made" / "up" / "sha-cache.json"  # parents created by save
+    cache = {"/vids/a.mkv": {"size": 5, "mtime_ns": 7, "sha256": "abc"}}
+
+    bi.save_sha_cache(cache, p)
+
+    assert bi.load_sha_cache(p) == cache
+
+
+def test_save_sha_cache_never_raises_on_an_unwritable_path(
+    tmp_path: Path, capsys
+) -> None:
+    # Parent is a FILE ⇒ mkdir/write raise OSError. A cache we cannot persist is
+    # a lost optimization, not a failed plan.
+    blocker = _touch(tmp_path / "blocker")
+
+    bi.save_sha_cache({"x": {"size": 1, "mtime_ns": 1, "sha256": "y"}}, blocker / "c.json")
+
+    assert "sha cache" in capsys.readouterr().err
+
+
+# ─── _cached_file_sha256 (the (path, size, mtime) → sha key) ─────────────────
+
+
+def test_cached_file_sha256_serves_a_hit_without_rehashing(
+    tmp_path: Path, monkeypatch
+) -> None:
+    p = _touch(tmp_path / "2026-05-22_19-07-03.mkv", content=b"payload")
+    st = p.stat()
+    cache = {
+        str(p): {"size": st.st_size, "mtime_ns": st.st_mtime_ns, "sha256": "cached-sha"}
+    }
+    monkeypatch.setattr(bi, "_file_sha256", lambda _p: pytest.fail("must not re-hash"))
+
+    assert bi._cached_file_sha256(p, cache) == "cached-sha"
+
+
+def test_cached_file_sha256_records_a_miss(tmp_path: Path) -> None:
+    p = _touch(tmp_path / "2026-05-22_19-07-03.mkv", content=b"payload")
+    cache: dict = {}
+
+    sha = bi._cached_file_sha256(p, cache)
+
+    st = p.stat()
+    assert sha == bi._file_sha256(p)
+    assert cache[str(p)] == {
+        "size": st.st_size,
+        "mtime_ns": st.st_mtime_ns,
+        "sha256": sha,
+    }
+
+
+def test_cached_file_sha256_rehashes_when_the_size_moved(tmp_path: Path) -> None:
+    p = _touch(tmp_path / "2026-05-22_19-07-03.mkv", content=b"one")
+    st = p.stat()
+    cache = {str(p): {"size": st.st_size, "mtime_ns": st.st_mtime_ns, "sha256": "stale"}}
+
+    p.write_bytes(b"different bytes entirely")  # e.g. a re-trimmed recording
+
+    assert bi._cached_file_sha256(p, cache) == bi._file_sha256(p)
+    assert cache[str(p)]["sha256"] != "stale"
+
+
+def test_cached_file_sha256_rehashes_when_only_the_mtime_moved(tmp_path: Path) -> None:
+    # Same size, touched mtime — the digest must not be trusted on mtime alone.
+    p = _touch(tmp_path / "2026-05-22_19-07-03.mkv", content=b"one")
+    st = p.stat()
+    cache = {str(p): {"size": st.st_size, "mtime_ns": st.st_mtime_ns, "sha256": "stale"}}
+    os.utime(p, ns=(st.st_atime_ns, st.st_mtime_ns + 10**9))
+
+    assert bi._cached_file_sha256(p, cache) == bi._file_sha256(p)
+
+
+def test_cached_file_sha256_ignores_a_malformed_entry(tmp_path: Path) -> None:
+    p = _touch(tmp_path / "2026-05-22_19-07-03.mkv", content=b"payload")
+    cache = {str(p): "not-a-dict"}
+
+    assert bi._cached_file_sha256(p, cache) == bi._file_sha256(p)
+
+
+def test_cached_file_sha256_without_a_cache_hashes_directly(tmp_path: Path) -> None:
+    p = _touch(tmp_path / "2026-05-22_19-07-03.mkv", content=b"payload")
+
+    assert bi._cached_file_sha256(p, None) == bi._file_sha256(p)
+
+
+# ─── dedup_by_sha hash isolation + cache wiring ──────────────────────────────
+
+
+def test_dedup_isolates_an_unreadable_file_and_keeps_going(
+    tmp_path: Path, monkeypatch, capsys
+) -> None:
+    # The class of bug the deleted 54.5 GB crashed recording exposed: an OSError
+    # while HASHING must not take down the whole plan before any target runs
+    # (_process_target's per-video isolation only covers the ingest phase).
+    good_a = _touch(tmp_path / "2026-05-22_18-00-00.mkv", content=b"aaa")
+    bad = _touch(tmp_path / "2026-05-22_19-00-00.mkv", content=b"bbb")
+    good_b = _touch(tmp_path / "2026-05-22_20-00-00.mkv", content=b"ccc")
+    real_sha = bi._file_sha256
+
+    def flaky(path: Path) -> str:
+        if path == bad:
+            raise OSError("Input/output error")
+        return real_sha(path)
+
+    monkeypatch.setattr(bi, "_file_sha256", flaky)
+
+    targets = bi.dedup_by_sha([good_a, bad, good_b], known_shas=set())
+
+    assert [t.path for t in targets] == [good_a, good_b]
+    err = capsys.readouterr().err
+    assert "SKIP" in err and bad.name in err
+
+
+def test_dedup_uses_the_cache_and_fills_it(tmp_path: Path) -> None:
+    p = _touch(tmp_path / "2026-05-22_19-07-03.mkv", content=b"payload")
+    cache: dict = {}
+
+    targets = bi.dedup_by_sha([p], known_shas=set(), cache=cache)
+
+    assert targets[0].sha256 == bi._file_sha256(p)
+    assert cache[str(p)]["sha256"] == targets[0].sha256
+
+
+def test_collect_targets_saves_the_cache_so_a_replan_skips_hashing(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """The whole point: the SECOND plan over an unchanged corpus re-hashes nothing."""
+    root = tmp_path / "vids"
+    p = _touch(root / "2026-05-22_19-07-03.mkv", content=b"payload")
+    cache_path = tmp_path / "sha-cache.json"
+    monkeypatch.setattr(bi, "_sha_cache_path", lambda: cache_path)
+    monkeypatch.setattr(bi, "_known_shas", set)
+    monkeypatch.setattr(bi, "_refine_target", lambda t: t)
+
+    first = bi._collect_targets(root, SINCE)
+
+    assert bi.load_sha_cache(cache_path)[str(p)]["sha256"] == first[0].sha256
+
+    monkeypatch.setattr(bi, "_file_sha256", lambda _p: pytest.fail("re-hashed a replan"))
+    second = bi._collect_targets(root, SINCE)
+
+    assert [t.sha256 for t in second] == [t.sha256 for t in first]
