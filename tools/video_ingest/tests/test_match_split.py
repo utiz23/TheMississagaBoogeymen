@@ -437,6 +437,129 @@ def test_single_reel_does_not_emit_reel_identities(tmp_path) -> None:
     assert emitted == []
 
 
+def test_single_reel_without_match_id_emits_identities_and_defers(tmp_path) -> None:
+    # ④ Task 4.5 — the batch path (batch_ingest builds its Pass-1 `ingest` command
+    # with NO --match-id) leaves match_id=None. Dispatching a single reel under a
+    # null match makes promoteBoxScore throw ("requires --match-id"), so the video
+    # promotes by no path at all. The discriminator is match_id, NOT the reel
+    # count: with no match to dispatch under, a single reel takes the SAME ②
+    # association path as a multi-reel video — emit the identity file and defer.
+    segs = _segs(_SINGLE_MATCH)
+    results = [_p2(i, s) for i, s in enumerate(_SINGLE_MATCH)]
+    stub = _RecordingDispatch()
+    emitted: list[list] = []
+    logs: list[str] = []
+
+    out = dispatch_reels(
+        segs,
+        results,
+        sha_root=tmp_path,
+        dispatch_fn=stub,
+        match_id=None,
+        reel_match_ids=None,
+        emit_reel_identities=emitted.append,
+        log=logs.append,
+        game_title_id=1,
+        video_sha256="a" * 64,
+    )
+
+    assert stub.calls == []  # never dispatch under a null match_id
+    assert len(emitted) == 1  # identity hook fires...
+    assert [r.reel_index for r in emitted[0]] == [0]  # ...with the one reel
+    assert out == []
+
+    body = json.loads((tmp_path / "reels.json").read_text())
+    assert body["reel_count"] == 1
+    assert any("1 reel" in m and "association" in m for m in logs)
+
+
+def test_single_reel_with_confirmed_id_dispatches_under_mapped_id(tmp_path) -> None:
+    # ④ Task 4.5 — pass 2 of the two-pass flow: once ② confirms the single reel's
+    # match, `load_confirmed_reel_map` yields {0: N} while match_id stays None.
+    # Today's `len(reels) <= 1` early return SHADOWS reel_match_ids and would
+    # dispatch under match_id=None (throwing again), so gating on match_id is what
+    # lets an associated single reel actually reach its mapped match.
+    segs = _segs(_SINGLE_MATCH)
+    results = [_p2(i, s) for i, s in enumerate(_SINGLE_MATCH)]
+    stub = _RecordingDispatch()
+    emitted: list[list] = []
+
+    dispatch_reels(
+        segs,
+        results,
+        sha_root=tmp_path,
+        dispatch_fn=stub,
+        match_id=None,
+        reel_match_ids={0: 972},
+        emit_reel_identities=emitted.append,
+        game_title_id=1,
+        video_sha256="a" * 64,
+        run_id=999,  # a stray shared run_id must not leak onto per-reel dispatch
+    )
+
+    assert len(stub.calls) == 1
+    dispatched_results, mid = stub.calls[0]
+    assert mid == 972
+    assert [r.segment_index for r in dispatched_results] == [0, 1, 2, 3, 4, 5]
+    assert stub.kwargs[0].get("run_id") is None  # fresh-ingest convention
+    assert emitted == []  # already associated — nothing to propose
+
+
+def test_zero_reels_without_match_id_skips_dispatch_and_emits_nothing(tmp_path) -> None:
+    # ④ Task 4.5 — `len(reels) == 0` shared the `<= 1` branch, so decide it
+    # explicitly. Pure noise with no match to dispatch under: there is nothing to
+    # promote and nothing for ② to score, so emit no identity file (an empty
+    # proposal set is not a review-queue item) and dispatch nothing.
+    seq = ["unknown_or_transition", "unknown_or_transition"]
+    segs = _segs(seq)
+    results = [_p2(i, s) for i, s in enumerate(seq)]
+    stub = _RecordingDispatch()
+    emitted: list[list] = []
+
+    out = dispatch_reels(
+        segs,
+        results,
+        sha_root=tmp_path,
+        dispatch_fn=stub,
+        match_id=None,
+        reel_match_ids=None,
+        emit_reel_identities=emitted.append,
+        game_title_id=1,
+        video_sha256="a" * 64,
+    )
+
+    assert stub.calls == []
+    assert emitted == []
+    assert out == []
+    assert json.loads((tmp_path / "reels.json").read_text())["reel_count"] == 0
+
+
+def test_zero_reels_with_match_id_keeps_parity_dispatch(tmp_path) -> None:
+    # ④ Task 4.5 — the manual path must NOT regress: when the operator names the
+    # match explicitly, a reel-grouping quirk that yields 0 reels must still fan
+    # every result out under that match_id, exactly as today.
+    seq = ["unknown_or_transition", "unknown_or_transition"]
+    segs = _segs(seq)
+    results = [_p2(i, s) for i, s in enumerate(seq)]
+    stub = _RecordingDispatch()
+
+    dispatch_reels(
+        segs,
+        results,
+        sha_root=tmp_path,
+        dispatch_fn=stub,
+        match_id=250,
+        reel_match_ids=None,
+        game_title_id=1,
+        video_sha256="a" * 64,
+    )
+
+    assert len(stub.calls) == 1
+    dispatched_results, mid = stub.calls[0]
+    assert mid == 250
+    assert [r.segment_index for r in dispatched_results] == [0, 1]
+
+
 def test_multi_reel_with_ids_does_not_emit_reel_identities(tmp_path) -> None:
     # Once reels are associated (reel_match_ids set), they dispatch per reel and
     # need no identity files — the hook must NOT fire.

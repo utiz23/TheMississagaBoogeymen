@@ -2,8 +2,10 @@
 
 A *reel* is one game's worth of contiguous Pass-1 segments. A multi-match
 recording (~47 of our trapped games live inside 16 such files) produces one reel
-per game; a single-match recording produces exactly one reel and keeps today's
-behaviour. The grouping is pure — no I/O, no decode — so it is cheap to test
+per game; a single-match recording produces exactly one reel — and is NOT a
+special case for dispatch (single-match is 45% of the corpus, not an edge case;
+see :func:`dispatch_reels`, whose branch keys off ``match_id``, not the reel
+count). The grouping is pure — no I/O, no decode — so it is cheap to test
 against synthetic Segment sequences (see tests/test_match_split.py).
 
 Real state-machine vocabulary (tools/game_ocr/game_ocr/configs/state_machine/
@@ -264,19 +266,38 @@ def dispatch_reels(
     **dispatch_kwargs,
 ) -> list:
     """Group Pass-1 segments into reels, emit reels.json, and dispatch per the
-    Milestone ① boundary contract (② association not built yet):
+    Milestone ①/② boundary contract.
 
-      * 1 reel (or 0)                     → dispatch ALL results under ``match_id``
-                                            in one call — today's exact behaviour.
-      * >1 reel and ``reel_match_ids`` None → write reels.json + per-reel identity
-                                            files (via ``emit_reel_identities``),
-                                            log "N reels need association", and SKIP
-                                            dispatch. Keeps multi-match videos safe
-                                            (no collapse/overwrite) until ② maps
-                                            reels.
-      * >1 reel and ``reel_match_ids`` set  → dispatch each reel's Pass-2 subset
+    The discriminator is ``match_id``, NOT the reel count — a reel count of 1 is
+    not itself a dispatch decision (④ Task 4.5):
+
+      * ``match_id`` set, <=1 reel        → dispatch ALL results under ``match_id``
+                                            in one call. The MANUAL ``--match-id``
+                                            path's single-match parity contract —
+                                            unchanged, incl. the 0-reel case (the
+                                            operator named the match; a grouping
+                                            quirk must not silently drop data).
+      * ``match_id`` None, 0 reels        → no match content and no match to fall
+                                            back on: emit nothing, dispatch
+                                            nothing.
+      * ``reel_match_ids`` None (any reel  → write reels.json + per-reel identity
+        count >=1, ``match_id`` None)       files (via ``emit_reel_identities``),
+                                            log "N reel(s) need association", and
+                                            SKIP dispatch. Defers to ②.
+      * ``reel_match_ids`` set             → dispatch each reel's Pass-2 subset
                                             (by segment_index membership) under its
                                             mapped match_id — one call per reel.
+
+    Why ``match_id`` and not the reel count: ``batch_ingest`` builds its Pass-1
+    ``ingest`` command with no ``--match-id``, so the batch path always arrives
+    here with ``match_id=None``. Dispatching under a null match makes the
+    box-score promoter throw ("requires --match-id"), and a reel-count gate ALSO
+    shadowed ``reel_match_ids`` for 1 reel — so a single-match video promoted by
+    no path at all: pass 1 emitted no identity file (⇒ ``resolve-match propose``
+    found nothing ⇒ invisible to ``batch-promote``) and pass 2 could not dispatch
+    under a confirmed association even once one existed. Gating on ``match_id``
+    routes an un-associated single reel through the SAME ② path as a multi-reel
+    video, while leaving the manual path's parity fan-out untouched.
 
     ``dispatch_fn`` is injected (the orchestrator passes
     ``video_ingest.dispatch.dispatch_segments``); it is called
@@ -297,16 +318,28 @@ def dispatch_reels(
     for idx, reason in drops:
         emit(f"[reels] dropped Pass-1 segment {idx}: {reason}")
 
-    # Single-match parity: fan every Pass-2 result out under the one match_id,
-    # exactly as the pre-reel pipeline did (unfiltered, one call).
-    if len(reels) <= 1:
+    # Single-match parity (MANUAL path): the operator named the match, so fan
+    # every Pass-2 result out under it in one unfiltered call, exactly as the
+    # pre-reel pipeline did. Gated on ``match_id``, NOT the reel count: the batch
+    # path dispatches with match_id=None, and a null match has nothing to fan out
+    # under (see the reel-count note in this function's docstring).
+    if match_id is not None and len(reels) <= 1:
         return list(dispatch_fn(results, match_id=match_id, **dispatch_kwargs))
+
+    if not reels:
+        # No reel grouped and no match_id to fall back on: nothing to promote and
+        # nothing for ② to score (an empty proposal set is not a review-queue
+        # item). Distinct from the "needs association" log below — this video has
+        # no match content at all.
+        emit("[reels] 0 reels grouped and no match_id — nothing to dispatch.")
+        return []
 
     if reel_match_ids is None:
         if emit_reel_identities is not None:
             emit_reel_identities(reels)
+        noun = "reel" if len(reels) == 1 else "reels"
         emit(
-            f"[reels] {len(reels)} reels need association — reels.json written, "
+            f"[reels] {len(reels)} {noun} need association — reels.json written, "
             f"dispatch deferred to Milestone ② (no collapse)."
         )
         return []

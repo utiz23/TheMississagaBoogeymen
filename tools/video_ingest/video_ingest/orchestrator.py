@@ -825,10 +825,11 @@ def ingest(
         reel_match_ids = confirmed_reel_map or None
 
         # Milestone ① — group Pass-1 segments into per-match reels, emit
-        # reels.json, and apply the per-reel dispatch decision. A single-match
-        # video keeps today's exact behaviour (all results under one match_id);
-        # a multi-match video with no confirmed map writes reels.json +
-        # per-reel identity files and skips dispatch (no collapse).
+        # reels.json, and apply the per-reel dispatch decision. The decision keys
+        # off match_id, not the reel count: a manual --match-id run keeps today's
+        # exact behaviour (all results under that match_id), while any video with
+        # no match_id and no confirmed map writes reels.json + per-reel identity
+        # files and skips dispatch (no collapse) — single-match videos included.
         dispatch_results = dispatch_reels(
             segments,
             pass2_results,

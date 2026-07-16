@@ -508,9 +508,13 @@ def _process_target(target: BatchTarget, *, dry_run: bool) -> None:
         )
         return
 
-    # Fresh ingest (run_id=NULL): Pass-1 → ① split → ② identity probe. A
-    # multi-reel video writes reels.json + reel-<idx>-identity.json and DEFERS
-    # dispatch; a single-match video dispatches inline.
+    # Fresh ingest (run_id=NULL): Pass-1 → ① split → ② identity probe. This
+    # command passes NO --match-id (there is nothing to pass — the reel→match map
+    # is what `propose` below is about to build), so EVERY video here writes
+    # reels.json + reel-<idx>-identity.json and DEFERS dispatch, single-match ones
+    # included (④ Task 4.5 — dispatching under a null match_id made the box-score
+    # promoter throw). Dispatch happens on the pass-2 re-ingest, once an
+    # association is confirmed.
     _run_streaming(
         [
             "python3", "-m", "video_ingest.cli", "ingest",
