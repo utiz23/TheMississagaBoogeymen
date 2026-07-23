@@ -2,6 +2,88 @@
 
 ## Active State
 
+### ⏭️ IMMEDIATE TASK (next session) — de-confound `periodSumVacuous` with a TOI-derived `periodsPlayed`
+
+**Everything through `d46aa04` is committed; working tree is clean. Branch `feat/ocr-mass-ingest`.**
+This is a **behaviour change to the promotion gate** ⇒ TDD it, keep it to one session.
+
+**Why:** CORRECTION 3 (below) proved match 972's per-period rows are CORRECT — the game ended after
+period 1, so `P1 5-1 · P2/P3/OT 0-0` is a faithful read. `periodSumVacuous` currently blocks it
+anyway, because from box-score data alone a TOT-cell leak and an early-ended game are identical.
+**`player_match_stats.toi_seconds` is EA API truth already in the DB and separates them.** When TOI
+shows only N periods were played, zeros in periods > N are the _only_ correct answer, so the sum
+agreeing is no longer "by construction".
+
+**DECIDE THESE TWO BEFORE WRITING CODE** (they are the whole design):
+
+1. **The TOI → `periodsPlayed` rule, including tolerance.** 972 reads **1197**, not a clean 1200 —
+   an exact-multiple test fails. Full regulation reads exactly 3600; OT games overshoot
+   (2582 = 3742, 250 = 4643), so `> 3600` must mean "OT played", not "4 periods". Pick the rule
+   deliberately and write the boundary cases as tests first.
+2. **Where the signal lives:** does `periodSumVacuous` itself become `false` when TOI vindicates the
+   shape, or does a separate signal feed `reconcilePeriods` and leave `periodSumVacuous` describing
+   the raw shape? The second keeps the existing field honest and is probably the better factoring —
+   but decide, don't drift.
+
+**Exact seams (verified 2026-07-23, line numbers as of `d46aa04`):**
+
+| step                                        | where                                                                                                                                                                |
+| ------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| new query (e.g. `getMaxToiSecondsForMatch`) | [l4-api-truth-inputs.ts](packages/db/src/queries/l4-api-truth-inputs.ts) — alongside `getApiTeamTotals` (:144) and `getOcrBoxScorePeriodsForMatch` (:356)            |
+| add to the input fan-out                    | [quality-layers.ts:262-271](apps/worker/src/lib/quality-layers.ts#L262-L271) `Promise.all`, then pass at [:293-303](apps/worker/src/lib/quality-layers.ts#L293-L303) |
+| new optional field on `L4Inputs`            | [l4-api-truth.ts:96](apps/worker/src/lib/l4-api-truth.ts#L96) (next to `ocrPeriods?`)                                                                                |
+| the vacuity computation                     | [l4-api-truth.ts:417-424](apps/worker/src/lib/l4-api-truth.ts#L417-L424) — the `scoring.length === 1` check                                                          |
+| the promotion verdict                       | `reconcilePeriods` at [l4-api-truth.ts:245+](apps/worker/src/lib/l4-api-truth.ts#L245)                                                                               |
+| tests                                       | [l4-api-truth.test.ts](apps/worker/src/__tests__/l4-api-truth.test.ts)                                                                                               |
+
+**🔑 The `reconcile-periods` CLI needs NO separate wiring** — it calls `computeLayers`
+([reconcile-periods-cli.ts:96](apps/worker/src/reconcile-periods-cli.ts#L96)), so wiring
+`computeLayers` covers the CLI, the run-quality report, and `match-quality` in one move.
+
+**Corpus TOI reference (so it need not be re-derived):**
+
+```
+match  API final  max toi_seconds  periods  current period-status
+  250      4-3          4643        3.87    reconciled (already reviewed)
+  463      2-0          3600        3.00    reconciled (already reviewed)
+  968     10-2          3600        3.00    review (coverage 0.75)
+  972      5-1          1197        1.00    review (VACUOUS)  ← the target: should flip to promotable
+  973      7-3          3600        3.00    review (coverage 0.75)
+  974      6-2          1665        1.39    review (coverage 0.75) ← stays blocked, coverage not vacuity
+ 2582      3-2          3742        3.12    review (accuracy 0.00)
+ 2675      2-5          3600        3.00    review (coverage 0.75)
+```
+
+Re-derive with:
+
+```bash
+docker exec eanhl-team-website-db-1 psql -U eanhl -d eanhl -c "
+SELECT m.id, m.score_for||'-'||m.score_against AS api_final, max(p.toi_seconds) bgm_toi
+FROM matches m JOIN player_match_stats p ON p.match_id=m.id
+WHERE m.id IN (250,463,968,972,973,974,2582,2675)
+GROUP BY m.id, m.score_for, m.score_against ORDER BY m.id;"
+```
+
+**Expected outcome:** **972 becomes auto-promotable; NO other match moves.** 974 stays blocked on
+`periodCoverage = 0.75` (a different signal — do not conflate). If anything besides 972 moves,
+the rule is wrong.
+
+**Verification gates (unchanged from last session):**
+
+- `pnpm --filter @eanhl/db build` **before** any consumer typecheck (new query exports are invisible otherwise).
+- `pnpm --filter @eanhl/worker typecheck` must be clean.
+- `pnpm --filter @eanhl/worker test` → **470/476 is GREEN**. The 2 failures are PRE-EXISTING and
+  unrelated: `not ok 117` / `not ok 118` in
+  [ocr-decoder-runs-backfill.test.ts](apps/worker/src/__tests__/ocr-decoder-runs-backfill.test.ts)
+  (the `ocr_capture_batches.match_id` stamp-bug area, gap 3). Confirm by NAME, not count.
+- ⚠️ **Do NOT run `pnpm format`** — it rewrites ~55 unrelated files repo-wide. Run
+  `npx prettier --write` on touched files only. Do not gate on `pnpm lint` ([[project_lint_state]]).
+- **If a new field is added to the run-quality report body,** rebaseline
+  `docs/calibration/regression-floor-match-{250,463}.json` and verify the ONLY delta is that field
+  (every score byte-identical). `schema_version` stays 2 for purely additive fields.
+
+---
+
 - **🟩 NEWEST (2026-07-22, IMPLEMENT session — built the deferred `period_reconciliation` flag from the 2026-07-16 decision. CODE + DOCS. Addendum: [docs/calibration/l4-per-period-review-gating-2026-07-16.md](docs/calibration/l4-per-period-review-gating-2026-07-16.md).**
   - **SHIPPED:** pure `reconcilePeriods()` in [l4-api-truth.ts](apps/worker/src/lib/l4-api-truth.ts) → wired into `computeLayers` → surfaced in the run-quality report body (additive, `schema_version` stays 2) + the `match-quality` human report → enforced by a new **`pnpm --filter worker reconcile-periods [--match N | --all] [--promote] [--json]`** CLI ([reconcile-periods-cli.ts](apps/worker/src/reconcile-periods-cli.ts)). Invariant guard-comments at the two tempting violation sites ([box-score.ts](apps/worker/src/ocr-promoters/box-score.ts) promoter, [match-enrichments.ts](packages/db/src/queries/match-enrichments.ts) `markOcrPeriodSummariesReviewed`). **`overall.pass` and `gateFromL4` are UNCHANGED — no match's verdict moved.**
   - **🚩 CORRECTION 1 — the 2026-07-16 spec's fire condition was WRONG.** It says fire on `overall.pass = PASS`; **2675 is `overall.pass = FAIL`** (L2 0%, L2.5 0%, L3 79.5%). `overall.pass` is `l2 && l2_lineup && l3` and never inspects the final. Every "2675 is PASS" claim (incl. `batch-promote`'s `PASS=1`) is the **`gateFromL4`** decision. Implemented literally, the flag would never have fired on its own archetype. The flag now keys on `gateFromL4(...).decision === 'PASS'`.
