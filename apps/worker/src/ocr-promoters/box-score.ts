@@ -12,6 +12,15 @@
  * a different stat_kind merges into the same row, preserving prior columns.
  *
  * Skips the synthetic TOT/FINAL row (period_number = -1).
+ *
+ * ⚠️ Rows are written WITHOUT a `review_status`, so they take the schema default
+ * `pending_review` — invisible to the frontend until reviewed. That quarantine is
+ * load-bearing and MUST NOT be short-circuited here: EA publishes no per-period
+ * truth, so per-period reads are auto-unverifiable, and a match's PASS verdict
+ * grades only its box-score FINAL (match 2675 is a correct PASS whose P3
+ * goals-against reads 7 in a 5-goal game). Promotion to `reviewed` happens only
+ * via `reconcile-periods` (full self-consistency against the API final) or manual
+ * review. See docs/calibration/l4-per-period-review-gating-2026-07-16.md.
  */
 
 import { matchPeriodSummaries, type NewMatchPeriodSummary } from '@eanhl/db'

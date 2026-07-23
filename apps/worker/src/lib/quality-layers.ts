@@ -22,7 +22,13 @@ import {
 import { and, eq, sql } from 'drizzle-orm'
 
 import { type DownstreamRow, type QualityFlag } from './quality-inputs.js'
-import { computeL4, type L4FieldDiff } from './l4-api-truth.js'
+import {
+  computeL4,
+  gateFromL4,
+  reconcilePeriods,
+  type L4FieldDiff,
+  type PeriodReconciliation,
+} from './l4-api-truth.js'
 import { resolveGamertagToPlayer } from '../ocr-promoters/resolve-identity.js'
 import { resolveSidesFromNames } from '../ocr-promoters/resolve-bgm-side.js'
 import type { DbOrTx } from '../ocr-promoters/index.js'
@@ -121,6 +127,15 @@ export interface LayerScores {
     periodCoverage: number | null
     /** Task 4.G — per-period-sum accuracy, graded only at full coverage (soft). */
     periodAccuracy: number | null
+    /** true ⇒ the sum test is vacuous (one period carries the whole final);
+     *  blocks auto-promotion. See {@link L4Result.periodSumVacuous}. */
+    periodSumVacuous: boolean | null
+    /**
+     * 2026-07-16 calibration decision — routes the two soft period signals into
+     * a review task (`flag`) and the per-period promotion guard (`promotable`).
+     * Does NOT feed `overall.pass` or `gateFromL4`; a `flag` never fails a match.
+     */
+    periodReconciliation: PeriodReconciliation
   }
   overall: { pass: boolean }
 }
@@ -286,6 +301,19 @@ export async function computeLayers(
     ocrFinal,
     ocrPeriods,
   })
+  const overallPass = l2.pass && l2_lineup.pass && l3.pass && (l1.pass ?? true)
+
+  // The `period_reconciliation` fire condition keys on the ROUTING verdict —
+  // `gateFromL4`, which is what `video-ingest batch-promote` consumes to decide
+  // PASS/HOLD/OPERATOR_CONFIRM — NOT on `overall.pass`.
+  //
+  // The 2026-07-16 calibration doc's spec says "overall.pass = PASS"; that is a
+  // slip. `overall.pass` is L2 && L2.5 && L3 and never looks at the final, so
+  // match 2675 — the case this feature exists for — is `overall.pass = FAIL`
+  // (L2 0%, L2.5 0%, L3 79.5%) while being a gate PASS on finalAccuracy=1.
+  // Gating on overall.pass would silently never fire on the archetype.
+  const l4Gate = gateFromL4({ finalAccuracy: l4result.finalAccuracy, gradable: l4result.gradable })
+
   const l4 = {
     score: l4result.score,
     // pass only when there's a real fraction to threshold; null when ungradable
@@ -297,6 +325,16 @@ export async function computeLayers(
     finalAccuracy: l4result.finalAccuracy,
     periodCoverage: l4result.periodCoverage,
     periodAccuracy: l4result.periodAccuracy,
+    periodSumVacuous: l4result.periodSumVacuous,
+    // Flag-not-gate: `flag` raises a review task on an otherwise-passing match;
+    // `promotable` is the sole automatic authorization to mark period rows
+    // `reviewed`. Neither can change `overallPass` or the gate decision.
+    periodReconciliation: reconcilePeriods({
+      pass: l4Gate.decision === 'PASS',
+      periodCoverage: l4result.periodCoverage,
+      periodAccuracy: l4result.periodAccuracy,
+      periodSumVacuous: l4result.periodSumVacuous,
+    }),
   }
 
   return {
@@ -308,6 +346,6 @@ export async function computeLayers(
     // NOTE: `overall.pass` intentionally does NOT include L4. L4 is
     // informational until Milestone ④ wires the promotion gate; adding it here
     // now would silently change every run's pass/fail verdict.
-    overall: { pass: l2.pass && l2_lineup.pass && l3.pass && (l1.pass ?? true) },
+    overall: { pass: overallPass },
   }
 }

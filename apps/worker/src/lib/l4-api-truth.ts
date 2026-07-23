@@ -55,6 +55,29 @@ export interface L4Result {
   /** Summed-per-period goals vs API final — graded ONLY when coverage is complete
    *  (else `null`, not `0`, which removes the missed-period confound). Soft flag. */
   periodAccuracy: number | null
+  /**
+   * true ⇒ `periodAccuracy` is VACUOUS: a single period carries the entire final
+   * and every other period is 0-0, so the per-period goals sum to the final *by
+   * construction* and the sum test proves nothing.
+   *
+   * The shape has two indistinguishable causes, and box-score data alone cannot
+   * tell them apart:
+   *   1. a TOT/FINAL cell leaking into the first period row (breakdown fabricated), or
+   *   2. a game that really ended early, so the unplayed periods really are 0-0.
+   *
+   * Either way `periodAccuracy` scores 1 without evidence, so reconciliation must
+   * NOT authorize promotion — it routes to review and a human decides. `null` when
+   * there is nothing to evaluate (no rows, incomplete coverage, or no API truth).
+   *
+   * ⚠️ Match 972 is NOT an example of cause 1 — it is cause 2, and its rows are
+   * CORRECT. Every skater on both teams has `toi_seconds = 1197` (≈ one 20-minute
+   * period), i.e. the opponent quit after P1 and the game really was 5-1 / 0-0 /
+   * 0-0 / 0-0. `player_match_stats.toi_seconds` is API truth that would
+   * de-confound this shape; wiring it in is deferred, so 972 stays in the review
+   * queue as a correct-but-unproven read. See
+   * docs/calibration/l4-per-period-review-gating-2026-07-16.md.
+   */
+  periodSumVacuous: boolean | null
 }
 
 export interface L4Inputs {
@@ -163,6 +186,131 @@ export function gateFromL4(r: Pick<L4Result, 'finalAccuracy' | 'gradable'>): L4G
   return { decision: 'HOLD', reason: 'API truth present but no OCR final read — needs review' }
 }
 
+// ── period_reconciliation ────────────────────────────────────────────────────
+
+export type PeriodReconciliationStatus = 'reconciled' | 'review' | 'not_applicable'
+
+export interface PeriodReconciliation {
+  /**
+   * Reconciliation verdict over the per-period rows ALONE (independent of the
+   * match's pass/fail):
+   *   - `reconciled`     — every period read AND the per-period goals sum to the
+   *                        API-verified final. The only state that permits
+   *                        automatic promotion.
+   *   - `review`         — rows exist but are incomplete or don't sum. Needs a human.
+   *   - `not_applicable` — nothing to reconcile (no rows) or nothing to
+   *                        reconcile AGAINST (no API truth ⇒ periodAccuracy null).
+   */
+  status: PeriodReconciliationStatus
+  /**
+   * true ⇒ raise a `period_reconciliation` review task for this match.
+   *
+   * Gated on the match otherwise passing, per spec: a non-passing match is
+   * already in the review queue on its own verdict, so a second task would be
+   * noise. NEVER fails the match, withholds its final, or blocks aggregates.
+   */
+  flag: boolean
+  /**
+   * true ⇒ this match's per-period rows MAY be flipped to
+   * `review_status = 'reviewed'` (⇒ eligible for the frontend).
+   *
+   * THE INVARIANT: this is the ONLY automatic path to `reviewed`. It requires
+   * `periodCoverage === 1 && periodAccuracy === 1` — i.e. self-consistency
+   * against the API-verified final, the sole automatic check EA data can
+   * support (EA publishes no per-period breakdown). `overall.pass` and
+   * `gateFromL4` grade the FINAL only and say nothing about per-period
+   * correctness — they must never be used as a proxy for it. Wiring
+   * "PASS ⇒ promote periods" would turn the pending_review quarantine into a
+   * silent-corruption pipe.
+   */
+  promotable: boolean
+  reason: string
+}
+
+/**
+ * Pure `period_reconciliation` decision — the deferred half of the 2026-07-16
+ * calibration decision (docs/calibration/l4-per-period-review-gating-2026-07-16.md).
+ *
+ * Consumes the two soft signals `computeL4` already produces but nothing used.
+ * Routes them to a review task and to the per-period promotion guard, WITHOUT
+ * touching `overall.pass` or `gateFromL4` — the gate stays calibrated as-is
+ * (match 2675 is a correct PASS: its final is right, only its periods are not).
+ *
+ * @param pass the ROUTING verdict — `gateFromL4(...).decision === 'PASS'`, the
+ *             signal `batch-promote` uses to route a match away from review.
+ *             NOT `overall.pass` (which is L2 && L2.5 && L3 and never inspects
+ *             the final: match 2675 is `overall.pass = FAIL` yet a gate PASS).
+ *             Gates `flag` only — never `promotable`.
+ */
+export function reconcilePeriods(input: {
+  pass: boolean
+  periodCoverage: number | null
+  periodAccuracy: number | null
+  periodSumVacuous?: boolean | null
+}): PeriodReconciliation {
+  const { pass, periodCoverage, periodAccuracy } = input
+  const periodSumVacuous = input.periodSumVacuous ?? null
+
+  if (periodCoverage === null) {
+    return {
+      status: 'not_applicable',
+      flag: false,
+      promotable: false,
+      reason: 'no promoted per-period rows — nothing to reconcile',
+    }
+  }
+
+  if (periodCoverage === 1 && periodAccuracy === null) {
+    // Ungradable (api-missed): coverage is a property of the OCR reads alone and
+    // is computed even without API truth, but there is no final to sum against.
+    // Not promotable — an unverifiable read must stay quarantined.
+    return {
+      status: 'not_applicable',
+      flag: false,
+      promotable: false,
+      reason: 'all periods read but no API truth to reconcile against (ungradable)',
+    }
+  }
+
+  if (periodCoverage === 1 && periodAccuracy === 1) {
+    // A vacuous sum is NOT reconciliation — see `L4Result.periodSumVacuous`.
+    // One period holding the entire final sums correctly by construction whether
+    // the breakdown is a TOT-cell leak or an early-ended game, so this must route
+    // to review, not promote.
+    if (periodSumVacuous === true) {
+      return {
+        status: 'review',
+        flag: pass,
+        promotable: false,
+        reason:
+          'per-period sum matches the API final VACUOUSLY — one period carries the ' +
+          'entire final and the rest are scoreless (a TOT-cell leak and an ' +
+          'early-ended game look identical here); the sum test proves nothing, so a ' +
+          'human must confirm the breakdown',
+      }
+    }
+    return {
+      status: 'reconciled',
+      flag: false,
+      promotable: true,
+      reason: 'all periods read and per-period goals sum to the API final',
+    }
+  }
+
+  const why =
+    periodCoverage < 1
+      ? `periodCoverage=${String(periodCoverage)} (a period's goals were not read)`
+      : `periodAccuracy=${String(periodAccuracy)} (per-period goals do not sum to the API final)`
+  return {
+    status: 'review',
+    flag: pass,
+    promotable: false,
+    reason: pass
+      ? `PASS match with unreconciled per-period rows — ${why}`
+      : `unreconciled per-period rows — ${why} (match already under review on its own verdict)`,
+  }
+}
+
 export async function computeL4(inputs: L4Inputs): Promise<L4Result> {
   const { ocrTeam, apiTeam, ocrPlayers, apiPlayers, resolvePersona } = inputs
   const ocrFinal = inputs.ocrFinal ?? null
@@ -186,6 +334,7 @@ export async function computeL4(inputs: L4Inputs): Promise<L4Result> {
       finalAccuracy: null,
       periodCoverage,
       periodAccuracy: null,
+      periodSumVacuous: null,
     }
   }
 
@@ -255,6 +404,7 @@ export async function computeL4(inputs: L4Inputs): Promise<L4Result> {
   // (coverage complete). Incomplete ⇒ null (not 0), so a missed period doesn't
   // masquerade as a wrong read. Soft flag; never gates.
   let periodAccuracy: number | null = null
+  let periodSumVacuous: boolean | null = null
   if (periodCoverage === 1) {
     let sumFor = 0
     let sumAgainst = 0
@@ -263,6 +413,16 @@ export async function computeL4(inputs: L4Inputs): Promise<L4Result> {
       sumAgainst += p.goalsAgainst ?? 0
     }
     periodAccuracy = accuracyOfPair(sumFor, sumAgainst, apiTeam.scoreFor, apiTeam.scoreAgainst)
+
+    // Vacuity check — see `periodSumVacuous`. One period holding the whole final
+    // with the rest scoreless has two indistinguishable causes (TOT-cell leak vs
+    // early-ended game), so the sum agreeing carries no information about the
+    // breakdown's correctness.
+    const scoring = ocrPeriods.filter((p) => (p.goalsFor ?? 0) !== 0 || (p.goalsAgainst ?? 0) !== 0)
+    periodSumVacuous =
+      scoring.length === 1 &&
+      scoring[0]!.goalsFor === apiTeam.scoreFor &&
+      scoring[0]!.goalsAgainst === apiTeam.scoreAgainst
   }
 
   return {
@@ -276,5 +436,6 @@ export async function computeL4(inputs: L4Inputs): Promise<L4Result> {
     finalAccuracy,
     periodCoverage,
     periodAccuracy,
+    periodSumVacuous,
   }
 }

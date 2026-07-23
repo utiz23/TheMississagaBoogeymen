@@ -337,7 +337,14 @@
       "mismatches": [],
       "finalAccuracy": 1,
       "periodCoverage": 1,
-      "periodAccuracy": 1
+      "periodAccuracy": 1,
+      "periodSumVacuous": false,
+      "periodReconciliation": {
+        "status": "reconciled",
+        "flag": false,
+        "promotable": true,
+        "reason": "all periods read and per-period goals sum to the API final"
+      }
     },
     "overall": {
       "pass": false

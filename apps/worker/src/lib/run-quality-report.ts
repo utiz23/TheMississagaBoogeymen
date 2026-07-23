@@ -29,7 +29,7 @@ import {
 } from '@eanhl/db/queries'
 import { eq } from 'drizzle-orm'
 import { computeLayers, type LayerScores } from './quality-layers.js'
-import type { L4FieldDiff } from './l4-api-truth.js'
+import type { L4FieldDiff, PeriodReconciliation } from './l4-api-truth.js'
 import { buildDownstreamCounts, buildQualityFlags } from './quality-inputs.js'
 
 // ── stage-runtimes shape (file produced by reprocess.py; consumed here) ──────
@@ -129,6 +129,15 @@ interface ReportLayersSerialized {
     final_accuracy: number | null
     period_coverage: number | null
     period_accuracy: number | null
+    /** true ⇒ the per-period sum matches the final only by construction. */
+    period_sum_vacuous: boolean | null
+    /**
+     * 2026-07-16 calibration decision. Additive within `schema_version: 2` —
+     * consumers that predate it see `undefined`, and no hot column derives from
+     * it, so no bump is warranted (the 1→2 bump added a whole layer).
+     * `null` on not-computed rows, mirroring every sibling field.
+     */
+    period_reconciliation: PeriodReconciliation | null
   }
   overall_pass: boolean | null
 }
@@ -189,6 +198,8 @@ function serializeComputedLayers(layers: LayerScores): ReportLayersSerialized {
       final_accuracy: layers.l4.finalAccuracy,
       period_coverage: layers.l4.periodCoverage,
       period_accuracy: layers.l4.periodAccuracy,
+      period_sum_vacuous: layers.l4.periodSumVacuous,
+      period_reconciliation: layers.l4.periodReconciliation,
     },
     overall_pass: layers.overall.pass,
   }
@@ -232,6 +243,8 @@ function notComputedLayers(matchId: number, l1Note: string): ReportLayersSeriali
       final_accuracy: null,
       period_coverage: null,
       period_accuracy: null,
+      period_sum_vacuous: null,
+      period_reconciliation: null,
     },
     overall_pass: null,
   }
@@ -373,6 +386,8 @@ export async function buildReportBody(
           final_accuracy: null,
           period_coverage: null,
           period_accuracy: null,
+          period_sum_vacuous: null,
+          period_reconciliation: null,
         },
         overall_pass: null,
       }
@@ -423,6 +438,8 @@ export async function buildReportBody(
             final_accuracy: null,
             period_coverage: null,
             period_accuracy: null,
+            period_sum_vacuous: null,
+            period_reconciliation: null,
           },
           overall_pass: null,
         }

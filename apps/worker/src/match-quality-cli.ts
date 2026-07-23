@@ -278,6 +278,17 @@ function renderHuman(
     `   L4 API-truth verdict  [ ${gate.decision} ]  ${gate.reason}`,
     `      final=${fmtPct(layers.l4.finalAccuracy)}  period_cov=${fmtPct(layers.l4.periodCoverage)}  period_acc=${fmtPct(layers.l4.periodAccuracy)}`,
   )
+  // The per-period verdict is separate from the L4 verdict on purpose: L4 grades
+  // the FINAL (which is what publishes), this grades the per-period rows (which
+  // stay quarantined until reconciled). A REVIEW here never demotes the PASS.
+  const recon = layers.l4.periodReconciliation
+  lines.push(
+    `   Per-period reconciliation  [ ${recon.status.toUpperCase()} ]  ${recon.reason}`,
+    `      review_task=${recon.flag ? 'period_reconciliation' : 'none'}  auto-promote periods to reviewed=${recon.promotable ? 'YES' : 'no'}`,
+  )
+  if (recon.flag) {
+    lines.push(`      → run: pnpm --filter worker reconcile-periods --match ${String(matchId)}`)
+  }
   lines.push('')
   return lines.join('\n')
 }

@@ -7,7 +7,7 @@
  */
 import test, { after } from 'node:test'
 import assert from 'node:assert/strict'
-import { computeL4, gateFromL4 } from '../lib/l4-api-truth.js'
+import { computeL4, gateFromL4, reconcilePeriods } from '../lib/l4-api-truth.js'
 // The integration cases lazy-import `@eanhl/db/queries` + `run-quality-report`
 // INSIDE the DATABASE_URL gate. Those pull in the `@eanhl/db` client, which
 // throws at import when DATABASE_URL is unset — so a top-level import would stop
@@ -275,6 +275,141 @@ void test('gateFromL4 maps each finalAccuracy/gradable combination', () => {
   assert.equal(gateFromL4({ finalAccuracy: 0, gradable: true }).decision, 'HOLD')
   assert.equal(gateFromL4({ finalAccuracy: null, gradable: false }).decision, 'OPERATOR_CONFIRM')
   assert.equal(gateFromL4({ finalAccuracy: null, gradable: true }).decision, 'HOLD')
+})
+
+// ── period_reconciliation (2026-07-16 calibration decision) ─────────────────
+// Routes the two computed-but-unrouted soft signals into (a) a review task and
+// (b) the ONLY automatic path to review_status='reviewed'. The gate itself is
+// untouched: a PASS match with bad periods stays PASS and keeps publishing its
+// correct final — it just also raises a task and never auto-promotes.
+
+void test('reconcilePeriods: complete + summing → reconciled, promotable, no task', () => {
+  const r = reconcilePeriods({ pass: true, periodCoverage: 1, periodAccuracy: 1 })
+  assert.equal(r.status, 'reconciled')
+  assert.equal(r.promotable, true)
+  assert.equal(r.flag, false)
+})
+
+void test('reconcilePeriods: match 2675 (PASS, coverage 0.75) fires the task, never promotes', () => {
+  // The trigger case: overall.pass=PASS on a correct final (2-5 == API truth),
+  // but P2 goals-against unread and P3 read 7 in a 5-goal game.
+  const r = reconcilePeriods({ pass: true, periodCoverage: 0.75, periodAccuracy: null })
+  assert.equal(r.status, 'review')
+  assert.equal(r.flag, true, '2675 must raise a period_reconciliation task')
+  assert.equal(r.promotable, false, 'a PASS verdict must NEVER promote period rows')
+  assert.match(r.reason, /periodCoverage=0\.75/)
+})
+
+void test('reconcilePeriods: complete coverage but sum disagrees → review, not promotable', () => {
+  const r = reconcilePeriods({ pass: true, periodCoverage: 1, periodAccuracy: 0.5 })
+  assert.equal(r.status, 'review')
+  assert.equal(r.flag, true)
+  assert.equal(r.promotable, false)
+  assert.match(r.reason, /do not sum/)
+})
+
+void test('reconcilePeriods: single-scoring-period shape — vacuous sum blocks promotion', () => {
+  // P1 = 5-1 (the whole final), P2/P3/OT = 0-0. periodAccuracy scores 1 because
+  // the sum matches BY CONSTRUCTION. A TOT-cell leak and a game that ended after
+  // P1 produce identical rows, so promoting on the sum alone is unsound either way.
+  const r = reconcilePeriods({
+    pass: true,
+    periodCoverage: 1,
+    periodAccuracy: 1,
+    periodSumVacuous: true,
+  })
+  assert.equal(r.status, 'review')
+  assert.equal(r.promotable, false, 'a vacuous sum must NEVER authorize promotion')
+  assert.equal(r.flag, true)
+  assert.match(r.reason, /VACUOUSLY/)
+})
+
+// The 972 shape. NOTE: 972's real rows are CORRECT (it was a one-period game —
+// every skater reads toi_seconds = 1197); this asserts only that the shape is
+// FLAGGED, not that the breakdown is wrong.
+void test('computeL4: flags the single-scoring-period shape as periodSumVacuous', async () => {
+  const r = await computeL4({
+    ocrTeam: null,
+    apiTeam: API_5_1,
+    ocrPlayers: [],
+    apiPlayers: [],
+    resolvePersona: async () => ({ playerId: null }),
+    ocrPeriods: [
+      { periodNumber: 1, goalsFor: 5, goalsAgainst: 1 },
+      { periodNumber: 2, goalsFor: 0, goalsAgainst: 0 },
+      { periodNumber: 3, goalsFor: 0, goalsAgainst: 0 },
+      { periodNumber: 4, goalsFor: 0, goalsAgainst: 0 },
+    ],
+  })
+  assert.equal(r.periodCoverage, 1)
+  assert.equal(r.periodAccuracy, 1, 'the sum does match — that is exactly the trap')
+  assert.equal(r.periodSumVacuous, true)
+})
+
+void test('computeL4: a genuinely distributed breakdown is NOT vacuous (match 250 shape)', async () => {
+  const r = await computeL4({
+    ocrTeam: null,
+    apiTeam: { ...API_5_1, scoreFor: 4, scoreAgainst: 3 },
+    ocrPlayers: [],
+    apiPlayers: [],
+    resolvePersona: async () => ({ playerId: null }),
+    ocrPeriods: [
+      { periodNumber: 1, goalsFor: 0, goalsAgainst: 0 },
+      { periodNumber: 2, goalsFor: 2, goalsAgainst: 0 },
+      { periodNumber: 3, goalsFor: 1, goalsAgainst: 3 },
+      { periodNumber: 4, goalsFor: 1, goalsAgainst: 0 },
+    ],
+  })
+  assert.equal(r.periodAccuracy, 1)
+  assert.equal(r.periodSumVacuous, false)
+  const recon = reconcilePeriods({
+    pass: true,
+    periodCoverage: r.periodCoverage,
+    periodAccuracy: r.periodAccuracy,
+    periodSumVacuous: r.periodSumVacuous,
+  })
+  assert.equal(recon.status, 'reconciled')
+  assert.equal(recon.promotable, true)
+})
+
+void test('reconcilePeriods: no per-period rows → not_applicable, nothing to promote', () => {
+  const r = reconcilePeriods({ pass: true, periodCoverage: null, periodAccuracy: null })
+  assert.equal(r.status, 'not_applicable')
+  assert.equal(r.flag, false)
+  assert.equal(r.promotable, false)
+})
+
+void test('reconcilePeriods: api-missed (coverage 1, no truth) is NOT promotable', () => {
+  // Ungradable — coverage is computable from OCR alone, but with no API final
+  // there is no self-consistency check, so the rows must stay quarantined.
+  const r = reconcilePeriods({ pass: true, periodCoverage: 1, periodAccuracy: null })
+  assert.equal(r.status, 'not_applicable')
+  assert.equal(r.promotable, false)
+  assert.equal(r.flag, false)
+})
+
+void test('reconcilePeriods: non-passing match does not raise a second task', () => {
+  const r = reconcilePeriods({ pass: false, periodCoverage: 0.5, periodAccuracy: null })
+  assert.equal(r.status, 'review')
+  assert.equal(r.flag, false, 'already in the queue on its own verdict')
+  assert.equal(r.promotable, false)
+})
+
+void test('INVARIANT: no input combination promotes without full, non-vacuous reconciliation', () => {
+  for (const pass of [true, false]) {
+    for (const periodCoverage of [null, 0, 0.25, 0.5, 0.75, 1]) {
+      for (const periodAccuracy of [null, 0, 0.5, 1]) {
+        for (const periodSumVacuous of [null, true, false]) {
+          const r = reconcilePeriods({ pass, periodCoverage, periodAccuracy, periodSumVacuous })
+          if (r.promotable) {
+            assert.equal(periodCoverage, 1, 'promotable requires periodCoverage === 1')
+            assert.equal(periodAccuracy, 1, 'promotable requires periodAccuracy === 1')
+            assert.notEqual(periodSumVacuous, true, 'promotable requires a non-vacuous sum')
+          }
+        }
+      }
+    }
+  }
 })
 
 // ── Integration: L4 populates through the real report body for the 4 already-
