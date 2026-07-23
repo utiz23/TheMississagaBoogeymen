@@ -2,7 +2,62 @@
 
 ## Active State
 
-### ⏭️ IMMEDIATE TASK (next session) — de-confound `periodSumVacuous` with a TOI-derived `periodsPlayed`
+### ⏭️ IMMEDIATE TASK (next session) — decide whether to run `reconcile-periods --match 972 --promote`
+
+**The TOI de-confounder below is DONE (2026-07-23).** 972 is now auto-promotable and the only
+match awaiting promotion. **Nothing has been written to the live DB** — its 4 period rows are
+still `pending_review`. Promoting them is a one-command operator decision:
+
+```bash
+set -a && source .env && set +a
+pnpm --filter worker reconcile-periods --match 972 --promote
+```
+
+Then the corpus-run gaps are unchanged and unblocked: (2) `load_confirmed_reel_map`
+silent-no-op hardening; (3) latent `ocr_capture_batches.match_id` stamp bug (has 2 failing
+tests attached — `not ok 125/126` in `ocr-decoder-runs-backfill.test.ts`); (4) the 8
+zero-match recordings.
+
+<details>
+<summary>✅ COMPLETED 2026-07-23 — de-confound <code>periodSumVacuous</code> with a TOI-derived <code>periodsPlayed</code></summary>
+
+**Committed this session on branch `feat/ocr-mass-ingest`** (9 files: 4 worker src + 1 test +
+1 db query + 2 regression floors + the calibration doc; this HANDOFF edit rides the same
+commit). NOT pushed (no backup/sync requested).
+
+- **Decision 1 — the rule:** `periodsPlayed = ceil(max(player_match_stats.toi_seconds) / 1200)`.
+  No tolerance: `ceil` handles 972's `1197` (an exact-multiple test would have failed on it).
+  `1665`→2, `3600`→3, `3742`/`4643`→4. Rounding UP is the safe direction — it only makes
+  vindication harder, never easier, so OT needs no special case.
+- **Decision 2 — where it lives:** `periodSumVacuous` still describes the raw SHAPE (stays
+  `true` for 972 — it would be a lie otherwise). New sibling **`periodZerosForced`** carries
+  the vindication. Promotion = `coverage=1 ∧ accuracy=1 ∧ (¬vacuous ∨ zerosForced)`.
+- **`periodZerosForced` is NOT `periodsPlayed === 1`.** Every scoreless row must lie strictly
+  AFTER the last period played, and every scoring row within one. So a full game whose entire
+  final landed in P3 stays blocked (P1/P2 were really played — their 0-0 is a claim, not an
+  arithmetic necessity), and goals recorded in a never-played period are never vindicated.
+- **VERIFIED on the live DB — the predicted outcome exactly.** `reconcile-periods --all`:
+  review queue **4 → 3** (972 dropped; 973/974/2675 stay on `periodCoverage=0.75`),
+  auto-promotable **0 → 1** (972 only). 968/2582 unchanged. **974 stayed blocked** — coverage
+  and vacuity are different signals, as required.
+- **Gates:** db+worker+web typecheck clean; worker suite **478 pass / 2 pre-existing fail**
+  (`not ok 125/126`, confirmed by name). Invariant sweep extended over `periodZerosForced`.
+  Prettier on touched files only.
+- **Floors:** `periods_played` + `period_zeros_forced` are additive in the report body
+  (`schema_version` stays 2). `quality-layers.test.ts` deep-equals the floor `layers` block, so
+  250/463 were patched with **exactly those two keys** — every score byte-identical. ⚠️ The
+  floors carry PRE-EXISTING unrelated drift in `pending`/`screens`/`provenance` (frame counts
+  moved since capture, and a `gate` block is missing) — a full rebaseline would have swept that
+  into this change, so it was deliberately NOT done. **Whoever rebaselines next: that drift is
+  not from this work.**
+- Full record: the new "Addendum: the TOI de-confounder, IMPLEMENTED 2026-07-23" in
+  [docs/calibration/l4-per-period-review-gating-2026-07-16.md](docs/calibration/l4-per-period-review-gating-2026-07-16.md).
+
+</details>
+
+### 📕 ORIGINAL TASK SPEC (kept for reference — now implemented)
+
+#### de-confound `periodSumVacuous` with a TOI-derived `periodsPlayed`
 
 **Everything through `d46aa04` is committed; working tree is clean. Branch `feat/ocr-mass-ingest`.**
 This is a **behaviour change to the promotion gate** ⇒ TDD it, keep it to one session.

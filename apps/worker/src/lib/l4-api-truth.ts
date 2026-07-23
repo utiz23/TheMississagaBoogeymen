@@ -72,12 +72,28 @@ export interface L4Result {
    * ⚠️ Match 972 is NOT an example of cause 1 — it is cause 2, and its rows are
    * CORRECT. Every skater on both teams has `toi_seconds = 1197` (≈ one 20-minute
    * period), i.e. the opponent quit after P1 and the game really was 5-1 / 0-0 /
-   * 0-0 / 0-0. `player_match_stats.toi_seconds` is API truth that would
-   * de-confound this shape; wiring it in is deferred, so 972 stays in the review
-   * queue as a correct-but-unproven read. See
-   * docs/calibration/l4-per-period-review-gating-2026-07-16.md.
+   * 0-0 / 0-0. That de-confounding now happens — see `periodZerosForced`. This
+   * field deliberately keeps describing the raw SHAPE, so it stays true for 972.
+   * See docs/calibration/l4-per-period-review-gating-2026-07-16.md.
    */
   periodSumVacuous: boolean | null
+  /**
+   * How many periods the game actually reached, derived from EA-API truth
+   * (`max(player_match_stats.toi_seconds)`). `null` when no TOI is available.
+   * See `periodsPlayedFromToi` for the rule.
+   */
+  periodsPlayed: number | null
+  /**
+   * true ⇒ TOI proves every scoreless per-period row lies strictly AFTER the last
+   * period the game reached, so 0-0 is the only value those rows could hold, and
+   * every scoring row lies within a played period. This is what de-confounds
+   * `periodSumVacuous`: the sum agreeing is no longer "by construction" once the
+   * zeros are forced, so a vacuous-shaped early-ended game (match 972) becomes
+   * promotable while a TOT-cell leak (which would put the whole final in P1 of a
+   * game that played all three) does not. `null` when there is nothing to
+   * evaluate (no TOI, or incomplete coverage).
+   */
+  periodZerosForced: boolean | null
 }
 
 export interface L4Inputs {
@@ -94,6 +110,12 @@ export interface L4Inputs {
   ocrFinal?: { goalsFor: number | null; goalsAgainst: number | null } | null
   /** Task 4.G — promoted OCR per-period rows for coverage/periodAccuracy. */
   ocrPeriods?: OcrBoxScorePeriod[]
+  /**
+   * EA-API truth: `max(player_match_stats.toi_seconds)` for the match. Max, not
+   * avg — the longest-playing skater measures the game's real duration, while a
+   * player who joined late would understate it. Feeds `periodsPlayed`.
+   */
+  maxToiSeconds?: number | null
 }
 
 /** Save-% comparison tolerance (percentage points), per the L4 spec. */
@@ -134,6 +156,60 @@ function computePeriodCoverage(periods: OcrBoxScorePeriod[]): number | null {
     if (row && row.goalsFor != null && row.goalsAgainst != null) covered++
   }
   return covered / maxPeriod
+}
+
+/** A regulation period in seconds. EASHL periods are 20:00; OT is shorter, but
+ *  no rule below needs to know OT's length — see `periodsPlayedFromToi`. */
+const PERIOD_SECONDS = 1200
+
+/**
+ * How many periods the game reached, from `max(player_match_stats.toi_seconds)`.
+ *
+ * Round UP: any time played inside period N means period N was reached. That
+ * needs no tolerance — match 972 reads 1197s (a period that ended 3s early, not
+ * a clean 1200) and still rounds to 1, while 1665s (match 974: P1 + 7:45 of P2)
+ * rounds to 2. Full regulation reads exactly 3600 ⇒ 3.
+ *
+ * Rounding up is also the SAFE direction. This value only ever makes
+ * `periodZerosForced` harder to satisfy (a scoreless row must sit strictly after
+ * it), so over-counting can block a correct read but can never vindicate a bad
+ * one. That is why OT needs no special case: 3742 (match 2582) and 4643 (match
+ * 250) both read as ≥4, which is all "OT was reached" has to mean here.
+ */
+function periodsPlayedFromToi(maxToiSeconds: number | null | undefined): number | null {
+  if (maxToiSeconds == null || maxToiSeconds <= 0) return null
+  return Math.ceil(maxToiSeconds / PERIOD_SECONDS)
+}
+
+/**
+ * The TOI de-confounder for `periodSumVacuous` (2026-07-23).
+ *
+ * true ⇒ every scoreless row lies strictly after the last period played (so 0-0
+ * is the ONLY value it could hold) AND every scoring row lies within a played
+ * period. Under those two conditions the per-period sum matching the final is
+ * real evidence, not an artifact of the shape.
+ *
+ * Note the second condition is not decoration: a row claiming goals in a period
+ * TOI says never happened is a contradiction, and TOI must not vindicate it.
+ *
+ * Deliberately NOT satisfied by a full game whose whole final landed in P3 —
+ * P1/P2 were really played, so their 0-0 is a claim about the game that the sum
+ * cannot check. Only rows for periods that never happened are forced.
+ */
+function computePeriodZerosForced(
+  periods: OcrBoxScorePeriod[],
+  periodsPlayed: number | null,
+): boolean | null {
+  if (periodsPlayed === null) return null
+  for (const p of periods) {
+    const scoreless = (p.goalsFor ?? 0) === 0 && (p.goalsAgainst ?? 0) === 0
+    if (scoreless) {
+      if (p.periodNumber <= periodsPlayed) return false
+    } else if (p.periodNumber > periodsPlayed) {
+      return false
+    }
+  }
+  return true
 }
 
 /** Fraction of {for, against} matching, over 2 sub-fields; `null` if either side
@@ -247,9 +323,11 @@ export function reconcilePeriods(input: {
   periodCoverage: number | null
   periodAccuracy: number | null
   periodSumVacuous?: boolean | null
+  periodZerosForced?: boolean | null
 }): PeriodReconciliation {
   const { pass, periodCoverage, periodAccuracy } = input
   const periodSumVacuous = input.periodSumVacuous ?? null
+  const periodZerosForced = input.periodZerosForced ?? null
 
   if (periodCoverage === null) {
     return {
@@ -277,7 +355,7 @@ export function reconcilePeriods(input: {
     // One period holding the entire final sums correctly by construction whether
     // the breakdown is a TOT-cell leak or an early-ended game, so this must route
     // to review, not promote.
-    if (periodSumVacuous === true) {
+    if (periodSumVacuous === true && periodZerosForced !== true) {
       return {
         status: 'review',
         flag: pass,
@@ -287,6 +365,21 @@ export function reconcilePeriods(input: {
           'entire final and the rest are scoreless (a TOT-cell leak and an ' +
           'early-ended game look identical here); the sum test proves nothing, so a ' +
           'human must confirm the breakdown',
+      }
+    }
+    if (periodSumVacuous === true) {
+      // Vacuous SHAPE, but TOI de-confounds it: the scoreless rows are for
+      // periods the game never reached, so 0-0 is the only value they could
+      // hold and the sum agreeing is no longer "by construction". This is the
+      // match-972 case (one-period game, every skater at toi_seconds=1197).
+      return {
+        status: 'reconciled',
+        flag: false,
+        promotable: true,
+        reason:
+          'per-period sum matches the API final and TOI proves the scoreless ' +
+          'periods were never played, so their 0-0 is forced — the shape is ' +
+          'vacuous but the read is not unverified (early-ended game)',
       }
     }
     return {
@@ -316,6 +409,11 @@ export async function computeL4(inputs: L4Inputs): Promise<L4Result> {
   const ocrFinal = inputs.ocrFinal ?? null
   const ocrPeriods = inputs.ocrPeriods ?? []
 
+  // EA-API truth about the game's real duration — the de-confounder for the
+  // vacuous-sum shape. Computed unconditionally (it is a property of the API
+  // side alone), so it reports even on ungradable rows.
+  const periodsPlayed = periodsPlayedFromToi(inputs.maxToiSeconds)
+
   // Task 4.G — coverage is a property of the OCR reads alone, so it is computed
   // even without API truth (informational on the scorecard for api-missed rows).
   const periodCoverage = computePeriodCoverage(ocrPeriods)
@@ -335,6 +433,8 @@ export async function computeL4(inputs: L4Inputs): Promise<L4Result> {
       periodCoverage,
       periodAccuracy: null,
       periodSumVacuous: null,
+      periodsPlayed,
+      periodZerosForced: null,
     }
   }
 
@@ -405,6 +505,7 @@ export async function computeL4(inputs: L4Inputs): Promise<L4Result> {
   // masquerade as a wrong read. Soft flag; never gates.
   let periodAccuracy: number | null = null
   let periodSumVacuous: boolean | null = null
+  let periodZerosForced: boolean | null = null
   if (periodCoverage === 1) {
     let sumFor = 0
     let sumAgainst = 0
@@ -423,6 +524,9 @@ export async function computeL4(inputs: L4Inputs): Promise<L4Result> {
       scoring.length === 1 &&
       scoring[0]!.goalsFor === apiTeam.scoreFor &&
       scoring[0]!.goalsAgainst === apiTeam.scoreAgainst
+
+    // …and the de-confounder: TOI can prove the scoreless rows were forced.
+    periodZerosForced = computePeriodZerosForced(ocrPeriods, periodsPlayed)
   }
 
   return {
@@ -437,5 +541,7 @@ export async function computeL4(inputs: L4Inputs): Promise<L4Result> {
     periodCoverage,
     periodAccuracy,
     periodSumVacuous,
+    periodsPlayed,
+    periodZerosForced,
   }
 }

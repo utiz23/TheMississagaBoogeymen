@@ -132,6 +132,14 @@ interface ReportLayersSerialized {
     /** true ⇒ the per-period sum matches the final only by construction. */
     period_sum_vacuous: boolean | null
     /**
+     * 2026-07-23 TOI de-confounder. `periods_played` is EA-API truth about the
+     * game's real duration; `period_zeros_forced` true ⇒ the scoreless period
+     * rows are for periods that never happened, which turns a vacuous-looking
+     * sum into real evidence. Both additive within `schema_version: 2`.
+     */
+    periods_played: number | null
+    period_zeros_forced: boolean | null
+    /**
      * 2026-07-16 calibration decision. Additive within `schema_version: 2` —
      * consumers that predate it see `undefined`, and no hot column derives from
      * it, so no bump is warranted (the 1→2 bump added a whole layer).
@@ -199,6 +207,8 @@ function serializeComputedLayers(layers: LayerScores): ReportLayersSerialized {
       period_coverage: layers.l4.periodCoverage,
       period_accuracy: layers.l4.periodAccuracy,
       period_sum_vacuous: layers.l4.periodSumVacuous,
+      periods_played: layers.l4.periodsPlayed,
+      period_zeros_forced: layers.l4.periodZerosForced,
       period_reconciliation: layers.l4.periodReconciliation,
     },
     overall_pass: layers.overall.pass,
@@ -244,6 +254,8 @@ function notComputedLayers(matchId: number, l1Note: string): ReportLayersSeriali
       period_coverage: null,
       period_accuracy: null,
       period_sum_vacuous: null,
+      periods_played: null,
+      period_zeros_forced: null,
       period_reconciliation: null,
     },
     overall_pass: null,
@@ -387,6 +399,8 @@ export async function buildReportBody(
           period_coverage: null,
           period_accuracy: null,
           period_sum_vacuous: null,
+          periods_played: null,
+          period_zeros_forced: null,
           period_reconciliation: null,
         },
         overall_pass: null,
@@ -439,6 +453,8 @@ export async function buildReportBody(
             period_coverage: null,
             period_accuracy: null,
             period_sum_vacuous: null,
+            periods_played: null,
+            period_zeros_forced: null,
             period_reconciliation: null,
           },
           overall_pass: null,

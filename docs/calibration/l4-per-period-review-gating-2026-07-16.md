@@ -246,3 +246,56 @@ with P3 unread. 972 is also the _only_ vacuous-shaped match in the corpus and th
   answer, and the sum agreeing is no longer "by construction". Wiring a TOI-derived
   `periodsPlayed` into the vacuity test would make short games auto-promotable — a behaviour
   change to the promotion gate, deferred to its own session with tests.
+
+---
+
+## Addendum: the TOI de-confounder, IMPLEMENTED 2026-07-23
+
+The deferred de-confounder above is built. **Match 972 is now auto-promotable; no other match
+moved.** This is a behaviour change to the promotion gate, TDD'd in its own session.
+
+### The two design decisions
+
+**1. `periodsPlayed = ceil(max(player_match_stats.toi_seconds) / 1200)`.** Any time played
+inside period N means period N was reached, so rounding up needs no tolerance — 972's `1197`
+(a period that ended 3s early, not a clean 1200) rounds to 1, and an exact-multiple test would
+have failed on it. `1665` (974) → 2, `3600` → 3, `3742` (2582) and `4643` (250) → 4. OT needs
+no special case: `≥ 4` is all "OT was reached" has to mean here. **MAX, not AVG** — the
+longest-playing skater measures the game's duration; a player who joined late understates it.
+
+Rounding up is also the **safe** direction. `periodsPlayed` only ever makes vindication
+_harder_ (a scoreless row must lie strictly after it), so over-counting can block a correct
+read but can never vindicate a bad one.
+
+**2. `periodSumVacuous` keeps describing the raw SHAPE; a new sibling `periodZerosForced`
+carries the vindication.** The alternative — flipping `periodSumVacuous` to false when TOI
+vindicates — would make the field lie about 972, whose sum genuinely _is_ vacuous in shape.
+Promotion is now `coverage = 1 ∧ accuracy = 1 ∧ (¬vacuous ∨ zerosForced)`.
+
+### `periodZerosForced` is not "periodsPlayed == 1"
+
+It requires **every scoreless row to lie strictly after the last period played**, and every
+scoring row to lie within a played period. Both halves matter:
+
+- A full 3-period game whose entire final landed in P3 is vacuous by the same shape test, but
+  P1/P2 were really played — their 0-0 is a _claim about the game_, not an arithmetic
+  necessity. It stays blocked.
+- A row claiming goals in a period TOI says never happened is a contradiction. TOI must not
+  vindicate it.
+
+### Verified
+
+`reconcile-periods --all` on the live DB: review queue **4 → 3** (972 dropped; 973/974/2675
+remain on `periodCoverage = 0.75`), auto-promotable **0 → 1** (972 only). 968 and 2582 are
+unchanged and still gate-HOLD. **974 stays blocked — coverage and vacuity are different
+signals and the de-confounder addresses vacuity only.**
+
+Worker suite 478 pass / 2 pre-existing failures (`ocr-decoder-runs-backfill`, gap 3, confirmed
+by name). The invariant sweep now ranges over `periodZerosForced` too and asserts that a
+vacuous sum promotes **only** when TOI forces the zeros. `periods_played` and
+`period_zeros_forced` are additive in the run-quality report body (`schema_version` stays 2);
+the 250/463 regression floors were patched with exactly those two keys — every score
+byte-identical.
+
+**Nothing was written to the live DB.** `--promote` was not run; 972's four period rows are
+still `pending_review`, now awaiting an operator's `reconcile-periods --match 972 --promote`.

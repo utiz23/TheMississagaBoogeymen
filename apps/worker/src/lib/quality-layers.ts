@@ -17,6 +17,7 @@ import {
   getOcrBoxScoreFinalForMatch,
   getOcrBoxScoreForMatch,
   getOcrBoxScorePeriodsForMatch,
+  getMaxToiSecondsForMatch,
   getOcrPlayerSummaryFields,
 } from '@eanhl/db/queries'
 import { and, eq, sql } from 'drizzle-orm'
@@ -128,8 +129,15 @@ export interface LayerScores {
     /** Task 4.G — per-period-sum accuracy, graded only at full coverage (soft). */
     periodAccuracy: number | null
     /** true ⇒ the sum test is vacuous (one period carries the whole final);
-     *  blocks auto-promotion. See {@link L4Result.periodSumVacuous}. */
+     *  blocks auto-promotion unless `periodZerosForced` de-confounds it.
+     *  See {@link L4Result.periodSumVacuous}. */
     periodSumVacuous: boolean | null
+    /** Periods the game actually reached, from EA-API TOI.
+     *  See {@link L4Result.periodsPlayed}. */
+    periodsPlayed: number | null
+    /** true ⇒ TOI proves the scoreless per-period rows were never played, so a
+     *  vacuous-looking sum is real evidence. See {@link L4Result.periodZerosForced}. */
+    periodZerosForced: boolean | null
     /**
      * 2026-07-16 calibration decision — routes the two soft period signals into
      * a review task (`flag`) and the per-period promotion guard (`promotable`).
@@ -259,7 +267,7 @@ export async function computeLayers(
   // inputs are read-only DB queries; the comparator itself is pure. The persona
   // resolver maps an OCR gamertag → players.id; resolveGamertagToPlayer ignores
   // its gameTitleId arg (`_gameTitleId`), so 0 is a harmless placeholder.
-  const [ocrTeam, apiTeam, ocrPlayers, apiPlayers, ocrFinalRaw, ocrPeriods, match] =
+  const [ocrTeam, apiTeam, ocrPlayers, apiPlayers, ocrFinalRaw, ocrPeriods, maxToiSeconds, match] =
     await Promise.all([
       getOcrBoxScoreForMatch(matchId),
       getApiTeamTotals(matchId),
@@ -267,6 +275,7 @@ export async function computeLayers(
       getApiPlayerStats(matchId),
       getOcrBoxScoreFinalForMatch(matchId),
       getOcrBoxScorePeriodsForMatch(matchId),
+      getMaxToiSecondsForMatch(matchId),
       getMatchById(matchId),
     ])
 
@@ -300,6 +309,7 @@ export async function computeLayers(
     }),
     ocrFinal,
     ocrPeriods,
+    maxToiSeconds,
   })
   const overallPass = l2.pass && l2_lineup.pass && l3.pass && (l1.pass ?? true)
 
@@ -326,6 +336,8 @@ export async function computeLayers(
     periodCoverage: l4result.periodCoverage,
     periodAccuracy: l4result.periodAccuracy,
     periodSumVacuous: l4result.periodSumVacuous,
+    periodsPlayed: l4result.periodsPlayed,
+    periodZerosForced: l4result.periodZerosForced,
     // Flag-not-gate: `flag` raises a review task on an otherwise-passing match;
     // `promotable` is the sole automatic authorization to mark period rows
     // `reviewed`. Neither can change `overallPass` or the gate decision.
@@ -334,6 +346,7 @@ export async function computeLayers(
       periodCoverage: l4result.periodCoverage,
       periodAccuracy: l4result.periodAccuracy,
       periodSumVacuous: l4result.periodSumVacuous,
+      periodZerosForced: l4result.periodZerosForced,
     }),
   }
 

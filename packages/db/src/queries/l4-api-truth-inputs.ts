@@ -156,6 +156,26 @@ export async function getApiTeamTotals(matchId: number): Promise<ApiTeamTotals |
 }
 
 /**
+ * Longest `player_match_stats.toi_seconds` for a match — EA-API truth about how
+ * long the game actually ran. L4 turns it into `periodsPlayed`, which
+ * de-confounds the vacuous per-period-sum shape (a game that ended after P1
+ * looks identical to a TOT-cell leak until you know only one period was played).
+ *
+ * MAX, not AVG: the longest-playing skater measures the game's duration, while
+ * a player who joined late or left early would understate it. BGM rows only —
+ * both teams skate the same clock, so the opponent table adds nothing.
+ *
+ * `null` when the match has no player rows, or every row's TOI is null.
+ */
+export async function getMaxToiSecondsForMatch(matchId: number): Promise<number | null> {
+  const [row] = await db
+    .select({ maxToi: sql<number | null>`max(${playerMatchStats.toiSeconds})` })
+    .from(playerMatchStats)
+    .where(eq(playerMatchStats.matchId, matchId))
+  return row?.maxToi == null ? null : Number(row.maxToi)
+}
+
+/**
  * EA-API per-player stat lines for a match (BGM roster only), joined to the
  * canonical gamertag. `savePct` is derived for goalies as
  * saves / (saves + goalsAgainst) × 100; null for skaters or when goalie fields

@@ -276,7 +276,8 @@ function renderHuman(
   // as its own verdict so a hand-run report shows what batch-promote would say.
   lines.push(
     `   L4 API-truth verdict  [ ${gate.decision} ]  ${gate.reason}`,
-    `      final=${fmtPct(layers.l4.finalAccuracy)}  period_cov=${fmtPct(layers.l4.periodCoverage)}  period_acc=${fmtPct(layers.l4.periodAccuracy)}`,
+    `      final=${fmtPct(layers.l4.finalAccuracy)}  period_cov=${fmtPct(layers.l4.periodCoverage)}  period_acc=${fmtPct(layers.l4.periodAccuracy)}` +
+      `  periods_played=${layers.l4.periodsPlayed === null ? '\u2014' : String(layers.l4.periodsPlayed)}`,
   )
   // The per-period verdict is separate from the L4 verdict on purpose: L4 grades
   // the FINAL (which is what publishes), this grades the per-period rows (which

@@ -377,6 +377,8 @@
       "periodCoverage": 1,
       "periodAccuracy": 1,
       "periodSumVacuous": false,
+      "periodsPlayed": 4,
+      "periodZerosForced": false,
       "periodReconciliation": {
         "status": "reconciled",
         "flag": false,

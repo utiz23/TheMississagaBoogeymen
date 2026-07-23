@@ -400,16 +400,186 @@ void test('INVARIANT: no input combination promotes without full, non-vacuous re
     for (const periodCoverage of [null, 0, 0.25, 0.5, 0.75, 1]) {
       for (const periodAccuracy of [null, 0, 0.5, 1]) {
         for (const periodSumVacuous of [null, true, false]) {
-          const r = reconcilePeriods({ pass, periodCoverage, periodAccuracy, periodSumVacuous })
-          if (r.promotable) {
-            assert.equal(periodCoverage, 1, 'promotable requires periodCoverage === 1')
-            assert.equal(periodAccuracy, 1, 'promotable requires periodAccuracy === 1')
-            assert.notEqual(periodSumVacuous, true, 'promotable requires a non-vacuous sum')
+          for (const periodZerosForced of [null, true, false]) {
+            const r = reconcilePeriods({
+              pass,
+              periodCoverage,
+              periodAccuracy,
+              periodSumVacuous,
+              periodZerosForced,
+            })
+            if (r.promotable) {
+              assert.equal(periodCoverage, 1, 'promotable requires periodCoverage === 1')
+              assert.equal(periodAccuracy, 1, 'promotable requires periodAccuracy === 1')
+              if (periodSumVacuous === true) {
+                assert.equal(
+                  periodZerosForced,
+                  true,
+                  'a vacuous sum promotes ONLY when TOI forces the scoreless rows',
+                )
+              }
+            }
           }
         }
       }
     }
   }
+})
+
+// ── TOI de-confounder (2026-07-23) ──────────────────────────────────────────
+// `periodSumVacuous` alone conflates a TOT-cell leak with a game that ended
+// early. `player_match_stats.toi_seconds` is EA-API truth already in the DB and
+// separates them: when TOI shows the game only reached period N, every scoreless
+// row after N is the ONLY correct value, so the sum agreeing is no longer "by
+// construction". `periodSumVacuous` keeps describing the raw SHAPE; the new
+// `periodZerosForced` carries the vindication.
+
+void test('computeL4: periodsPlayed rounds TOI up to the period the game reached', async () => {
+  // Real corpus TOI (see HANDOFF): 972=1197 (one period, NOT a clean 1200),
+  // 974=1665 (P1 + 7:45 of P2), full regulation=3600, 2582=3742 and 250=4643
+  // (OT reached). Rounding UP is the safe direction — over-counting periods only
+  // makes vindication harder, never easier.
+  const cases: Array<[number, number]> = [
+    [1197, 1],
+    [1200, 1],
+    [1201, 2],
+    [1665, 2],
+    [3600, 3],
+    [3742, 4],
+    [4643, 4],
+  ]
+  for (const [toi, expected] of cases) {
+    const r = await computeL4({
+      ocrTeam: null,
+      apiTeam: API_5_1,
+      ocrPlayers: [],
+      apiPlayers: [],
+      resolvePersona: async () => ({ playerId: null }),
+      maxToiSeconds: toi,
+    })
+    assert.equal(r.periodsPlayed, expected, `toi ${toi}s should read as ${expected} period(s)`)
+  }
+})
+
+void test('computeL4: no TOI ⇒ periodsPlayed and periodZerosForced are null', async () => {
+  const r = await computeL4({
+    ocrTeam: null,
+    apiTeam: API_5_1,
+    ocrPlayers: [],
+    apiPlayers: [],
+    resolvePersona: async () => ({ playerId: null }),
+    ocrPeriods: [
+      { periodNumber: 1, goalsFor: 5, goalsAgainst: 1 },
+      { periodNumber: 2, goalsFor: 0, goalsAgainst: 0 },
+      { periodNumber: 3, goalsFor: 0, goalsAgainst: 0 },
+      { periodNumber: 4, goalsFor: 0, goalsAgainst: 0 },
+    ],
+  })
+  assert.equal(r.periodsPlayed, null)
+  assert.equal(r.periodZerosForced, null, 'no TOI ⇒ nothing is vindicated')
+  assert.equal(r.periodSumVacuous, true, 'the raw shape is unchanged by the absence of TOI')
+})
+
+void test('computeL4: match 972 — TOI of one period forces the scoreless rows', async () => {
+  const r = await computeL4({
+    ocrTeam: null,
+    apiTeam: API_5_1,
+    ocrPlayers: [],
+    apiPlayers: [],
+    resolvePersona: async () => ({ playerId: null }),
+    maxToiSeconds: 1197,
+    ocrPeriods: [
+      { periodNumber: 1, goalsFor: 5, goalsAgainst: 1 },
+      { periodNumber: 2, goalsFor: 0, goalsAgainst: 0 },
+      { periodNumber: 3, goalsFor: 0, goalsAgainst: 0 },
+      { periodNumber: 4, goalsFor: 0, goalsAgainst: 0 },
+    ],
+  })
+  assert.equal(r.periodsPlayed, 1)
+  assert.equal(r.periodSumVacuous, true, 'the SHAPE is still vacuous — that field stays honest')
+  assert.equal(r.periodZerosForced, true, 'P2/P3/OT were never played, so 0-0 is forced')
+})
+
+void test('computeL4: scoreless rows INSIDE the played periods are not forced', async () => {
+  // A full 3-period game whose entire final landed in P3. The sum is vacuous by
+  // the same shape test, but P1/P2 were really played — their 0-0 is a claim
+  // about the game, not an arithmetic necessity. TOI must NOT vindicate this.
+  const r = await computeL4({
+    ocrTeam: null,
+    apiTeam: { ...API_5_1, scoreFor: 2, scoreAgainst: 0 },
+    ocrPlayers: [],
+    apiPlayers: [],
+    resolvePersona: async () => ({ playerId: null }),
+    maxToiSeconds: 3600,
+    ocrPeriods: [
+      { periodNumber: 1, goalsFor: 0, goalsAgainst: 0 },
+      { periodNumber: 2, goalsFor: 0, goalsAgainst: 0 },
+      { periodNumber: 3, goalsFor: 2, goalsAgainst: 0 },
+    ],
+  })
+  assert.equal(r.periodsPlayed, 3)
+  assert.equal(r.periodSumVacuous, true)
+  assert.equal(r.periodZerosForced, false, 'P1/P2 were played — their zeros are a real claim')
+})
+
+void test('computeL4: goals in a period TOI says was never played are not forced', async () => {
+  // Contradiction: the scoring row sits beyond the last period reached. Whatever
+  // is wrong here, TOI cannot vindicate it.
+  const r = await computeL4({
+    ocrTeam: null,
+    apiTeam: API_5_1,
+    ocrPlayers: [],
+    apiPlayers: [],
+    resolvePersona: async () => ({ playerId: null }),
+    maxToiSeconds: 1197,
+    ocrPeriods: [
+      { periodNumber: 1, goalsFor: 0, goalsAgainst: 0 },
+      { periodNumber: 2, goalsFor: 5, goalsAgainst: 1 },
+    ],
+  })
+  assert.equal(r.periodsPlayed, 1)
+  assert.equal(r.periodZerosForced, false, 'goals recorded in an unplayed period')
+})
+
+void test('reconcilePeriods: match 972 — vacuous but TOI-forced ⇒ promotable', () => {
+  const r = reconcilePeriods({
+    pass: true,
+    periodCoverage: 1,
+    periodAccuracy: 1,
+    periodSumVacuous: true,
+    periodZerosForced: true,
+  })
+  assert.equal(r.status, 'reconciled')
+  assert.equal(r.promotable, true, '972 is an early-ended game — its breakdown is provably correct')
+  assert.equal(r.flag, false)
+  assert.match(r.reason, /TOI/)
+})
+
+void test('reconcilePeriods: vacuous with unforced zeros stays blocked', () => {
+  const r = reconcilePeriods({
+    pass: true,
+    periodCoverage: 1,
+    periodAccuracy: 1,
+    periodSumVacuous: true,
+    periodZerosForced: false,
+  })
+  assert.equal(r.status, 'review')
+  assert.equal(r.promotable, false)
+  assert.equal(r.flag, true)
+})
+
+void test('reconcilePeriods: TOI-forced zeros do not rescue incomplete coverage', () => {
+  // Match 974 (coverage 0.75) must NOT move. Coverage and vacuity are different
+  // signals — the de-confounder addresses vacuity only.
+  const r = reconcilePeriods({
+    pass: true,
+    periodCoverage: 0.75,
+    periodAccuracy: null,
+    periodSumVacuous: null,
+    periodZerosForced: true,
+  })
+  assert.equal(r.status, 'review')
+  assert.equal(r.promotable, false)
 })
 
 // ── Integration: L4 populates through the real report body for the 4 already-
