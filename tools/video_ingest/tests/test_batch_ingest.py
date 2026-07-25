@@ -952,12 +952,17 @@ def test_run_promote_preflights_once_and_reingests_each_confirmed_video(
 def test_run_promote_passes_the_same_cache_key_flags_as_the_first_pass_and_no_run_id(
     tmp_path: Path, monkeypatch
 ) -> None:
-    """The CacheMismatch guard.
+    """The CacheMismatch guard, plus the GAP (2) strict-gate flag.
 
-    Pass 2 MUST re-issue Pass 1's flag set byte-identically: --version /
+    Pass 2 MUST re-issue Pass 1's CACHE-KEY flags byte-identically: --version /
     --pass2-artifacts / --prefilter / --pass1-gate feed the cache keys and any
     drift is a hard CacheMismatch exit-1, not a silent re-decode. --run-id would
     additionally move the Pass-2 cache dir (pass2 → pass2-run-<id>).
+
+    --require-reel-map IS added here (and is NOT on the Pass-1 command): it feeds
+    no cache key, only the post-decode dispatch decision, so it makes a failed OR
+    empty reel-map lookup exit 1 rather than silently deferring the confirmed
+    video.
     """
     rec = _StreamRecorder()
     _patch_promote(monkeypatch, tmp_path, [_ptarget("a", [11])], rec)
@@ -971,6 +976,7 @@ def test_run_promote_passes_the_same_cache_key_flags_as_the_first_pass_and_no_ru
         "--video", "/vids/a.mkv",
         "--output-root", str(bi.DEFAULT_INGEST_CACHE),
         "--dispatch",
+        "--require-reel-map",
         "--game-title-id", "1",
     ]
 

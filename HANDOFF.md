@@ -2,7 +2,7 @@
 
 ## Active State
 
-### ⏭️ IMMEDIATE TASK (next session) — corpus-run gaps (972 promotion + GAP (3) DONE)
+### ⏭️ IMMEDIATE TASK (next session) — corpus-run gaps (972 promotion + GAP (3) + GAP (2) DONE)
 
 **✅ 972 PROMOTED to the live DB (2026-07-23).** Ran `reconcile-periods --match 972 --promote`:
 its 4 period rows (`P1 5-1 · P2/P3/OT 0-0` — the TOI-vindicated early-ended read) flipped
@@ -12,20 +12,78 @@ rows); **no other match moved** — `--promote` wrote 0 rows elsewhere; the revi
 250/463/972 as `promotable:true`, all with `pendingRows=0` (nothing left to promote). No code
 change; working tree clean.
 
-**The corpus-run gaps remain the open work — GAP (3) is now DONE; NEXT SESSION IS GAP (2)**:
+**The corpus-run gaps remain the open work — GAP (3) and GAP (2) are now DONE; NEXT SESSION IS (4)**:
 
 - ✅ **(3) — the `ocr_capture_batches` run-linkage bug — DONE 2026-07-24.** Completed record below.
-- **(2) `load_confirmed_reel_map` silent-no-op hardening ← DO THIS NEXT.** The reel-map swallow
-  drains silently (no-op) on failure. Pre-run robustness; scope it briefly first.
-- (4) the 8 zero-match recordings (api-missed, OCR-only — highest value; still on disk, not yet
-  in the DB). NOT a single session — GPU-heavy (~30-45 min/match), full pipeline, unknown reel
-  count. Needs its own planning + multi-session run, after (2) hardens the plumbing.
+- ✅ **(2) `load_confirmed_reel_map` silent-no-op hardening — DONE 2026-07-25.** Completed record below.
+- **(4) the 8 zero-match recordings (api-missed, OCR-only — highest value; still on disk, not yet
+  in the DB) ← DO THIS NEXT.** NOT a single session — GPU-heavy (~30-45 min/match), full pipeline,
+  unknown reel count. Needs its own planning + multi-session run. **Fold in the dispatch-path
+  run-creation follow-up below** — (4) is the next flow to dispatch reels, so run
+  `decoder-runs backfill-run-linkage --all-unlinked` after any corpus dispatch until that path
+  creates+attaches the run at ingest time.
 - ⚠️ **NEW follow-up surfaced by (3): dispatch-path run creation.** The (3) confirm-path fix only
   creates a run when the match already has ≥1 capture batch at confirm time. The **deferred-dispatch
   flow** (reels dispatched AFTER confirm → batches born at dispatch) still writes run-less rows —
   that is exactly how the 6 got broken. Until the dispatch/ingest path creates+attaches the run at
   ingest time, **re-run `decoder-runs backfill-run-linkage --all-unlinked` after any corpus dispatch**
   to sweep. Fold this into (4)'s planning (that is the next flow to dispatch reels).
+
+<details>
+<summary>✅ COMPLETED 2026-07-25 — GAP (2): reel-map silent-no-op drain hardened (fail-loud on the promote pass)</summary>
+
+**DONE this session (branch `feat/ocr-mass-ingest`; NOT committed, NOT pushed).** All-Python change in
+`tools/video_ingest` — no TS, no schema, no DB. Full video_ingest suite green (see gates).
+
+**The gap (verified by reading the code):** `load_confirmed_reel_map`
+([tools/video_ingest/video_ingest/dispatch.py](tools/video_ingest/video_ingest/dispatch.py)) returned
+`{}` for TWO indistinguishable cases — (a) "operator confirmed nothing yet" and (b) ANY lookup failure
+(pnpm absent, non-zero exit, launch exception, or banner-only/garbage stdout that `_parse_reel_map`
+swallowed). Harmless on the fresh Pass-1 / manual path (defers either way), but on the **promote pass**
+(`_promote_target`, [batch_ingest.py](tools/video_ingest/video_ingest/batch_ingest.py)) the map is
+*expected non-empty*: a transient failure there silently drained the confirmed video into the deferred
+branch — reels re-OCR'd (~2.3h each) for nothing, **nothing promoted, and the run summary still recorded
+`status="promoted"`** (the subprocess exits 0 because deferral isn't an error, then the loop grades
+stale/absent box scores). The one caller that *knows* a non-empty map is expected (the promote pass, via
+`_confirmed_associations`) never asserted it.
+
+**What was built (design = "root-cause distinction + honest promote gate"):**
+- **`dispatch.py`** — new typed `ReelMapLookupError(RuntimeError)`. `load_confirmed_reel_map` now returns
+  `{}` **only** on a clean lookup with a valid (possibly-empty) object, and **raises** on any genuine
+  failure (was: swallow to `{}`). `_parse_reel_map` raises when a `{`-line is unparseable OR no JSON
+  object line exists (per-key coercion stays lenient). New policy helper
+  `resolve_confirmed_reel_match_ids(sha, *, require_reel_map)` → `dict|None`: default (Pass-1/manual)
+  logs loudly + defers on failure/empty; `require_reel_map=True` **raises** on failure AND on empty
+  (an empty map for a confirmed video means the association ledger and `resolve-match reel-map` disagree).
+- **`orchestrator.py`** — new `require_reel_map: bool = False` param; the reel-map call site routes through
+  the helper instead of `... or None`.
+- **`cli.py`** — new `--require-reel-map/--no-require-reel-map` flag threaded into `run_ingest`;
+  `_with_cache_mismatch_exit` also catches `ReelMapLookupError` → clean **exit 1** (no traceback).
+- **`batch_ingest.py`** — `_promote_target`'s re-ingest command adds `--require-reel-map`. A failed/empty
+  lookup now → orchestrator raises → CLI exit 1 → `_run_streaming` RuntimeError → `run_promote` per-video
+  isolation records **`status="failed"` with the reason, never a false `"promoted"`**. Pass-1
+  (`_process_target`) deliberately does NOT set the flag (unconfirmed video legitimately has no map).
+  `--require-reel-map` is **not** a cache-key flag — it does not invalidate the Pass-1/Pass-2 decode cache.
+
+**Failure matrix:** clean-empty `{}` → defer (no flag) / **raise→SKIP** (flag); lookup-failed → loud
+log+defer (no flag) / **raise→SKIP** (flag); valid non-empty → dispatch (both).
+
+**Deliberately deferred (YAGNI, noted not built):** asserting the loaded map *equals* the expected
+`confirmed_match_ids` set (would also catch a *partial* map). A boolean "expect non-empty" closes the
+silent drain; the per-match grade loop already covers each expected match afterward.
+
+**Gates (all green):** changed-file tests first — `test_dispatch_reel_map.py` (8 lookup cases: failures now
+assert `ReelMapLookupError`, clean-empty still `{}`; + 6 helper policy cases) + `test_batch_ingest.py`
+(command-arg assertion now includes `--require-reel-map`) → **82 passed / 1 skipped**. Full video_ingest
+suite → **653 passed, 5 skipped, 38 subtests passed** (0 regressions). Extra one-off runtime checks:
+`ingest --help` shows the flag; a `ReelMapLookupError` from `run_ingest` exits the CLI **1** (msg kept, no
+traceback). No Python formatter is configured for this subtree (pytest is the gate); zero TS touched so
+prettier/typecheck N/A ([[project_lint_state]]).
+
+**Files:** `dispatch.py`, `orchestrator.py`, `cli.py`, `batch_ingest.py`;
+`tests/test_dispatch_reel_map.py`, `tests/test_batch_ingest.py` (6 files, +270/-77).
+
+</details>
 
 <details>
 <summary>✅ COMPLETED 2026-07-24 — GAP (3): confirm-association run-linkage fixed + 6 matches backfilled</summary>

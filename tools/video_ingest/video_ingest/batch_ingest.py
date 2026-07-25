@@ -576,11 +576,16 @@ def run_batch(
 # decides with ``resolve-match confirm``; this pass turns those confirmations
 # into promoted box scores and grades the result.
 #
-# Per video: re-ingest with a flag set byte-identical to Pass 1 ⇒ Pass-1/Pass-2
-# decode CACHE HIT ⇒ ``orchestrator`` calls ``load_confirmed_reel_map`` (it does
-# so unconditionally under --dispatch), now gets a NON-empty map, and takes
-# ``dispatch_reels`` branch (c): each reel dispatches under its own confirmed
-# match_id with run_id forced to None. No orchestrator change is needed.
+# Per video: re-ingest with the cache-key flags byte-identical to Pass 1 ⇒
+# Pass-1/Pass-2 decode CACHE HIT ⇒ ``orchestrator`` resolves the confirmed
+# reel→match map (it does so unconditionally under --dispatch), now gets a
+# NON-empty map, and takes ``dispatch_reels`` branch (c): each reel dispatches
+# under its own confirmed match_id with run_id forced to None. The one flag that
+# is NOT shared with Pass 1 is ``--require-reel-map`` (GAP (2)): it does not feed
+# any cache key, only the post-decode dispatch decision, and makes a failed OR
+# empty reel-map lookup exit 1 here rather than silently deferring — so a lookup
+# fault surfaces as an honest per-video status="failed", never a no-op drain
+# falsely recorded as "promoted". See ``_promote_target``.
 #
 # THE VERDICT IS ADVISORY AND NECESSARILY POST-PROMOTION. ``promoteBoxScore``
 # runs inside the ``ingest-ocr`` transaction the instant a reel dispatches with
@@ -910,18 +915,29 @@ def _promote_target(target: PromoteTarget) -> dict:
     started = _now_iso()
     t0 = time.perf_counter()
 
-    # Pass 2. This flag set MUST stay byte-identical to _process_target's Pass-1
-    # invocation: --version / --pass2-artifacts / --prefilter / --pass1-gate all
-    # feed the Pass-1/Pass-2 cache keys, and drift is a hard CacheMismatch
-    # exit-1, not a silent re-decode. --run-id is deliberately omitted for the
-    # same reason — it would move the Pass-2 cache dir (pass2 → pass2-run-<id>)
-    # and cost a full ~30-45 min re-extract per video.
+    # Pass 2. The cache-key flags (--version / --pass2-artifacts / --prefilter /
+    # --pass1-gate) MUST stay byte-identical to _process_target's Pass-1
+    # invocation, or drift is a hard CacheMismatch exit-1, not a silent
+    # re-decode. --run-id is deliberately omitted for the same reason — it would
+    # move the Pass-2 cache dir (pass2 → pass2-run-<id>) and cost a full
+    # ~30-45 min re-extract per video. (--require-reel-map is NOT a cache-key
+    # flag — it only gates the post-decode dispatch decision, so it does not
+    # invalidate either cache.)
+    #
+    # --require-reel-map: this video's reels are CONFIRMED (that is why it is in
+    # the plan — see _promote_plan). If the orchestrator's `resolve-match
+    # reel-map` lookup fails OR returns empty, it must NOT silently fall into the
+    # deferred branch (which would re-OCR every reel for nothing, promote none,
+    # and still record status="promoted"). The flag makes that case exit 1 →
+    # _run_streaming raises → run_promote's per-video isolation records an honest
+    # status="failed" with the reason.
     _run_streaming(
         [
             "python3", "-m", "video_ingest.cli", "ingest",
             "--video", str(target.path),
             "--output-root", str(DEFAULT_INGEST_CACHE),
             "--dispatch",
+            "--require-reel-map",
             "--game-title-id", str(NHL26_GAME_TITLE_ID),
         ],
         description=f"promote re-ingest (Pass 2, decode cache hit): {name}",

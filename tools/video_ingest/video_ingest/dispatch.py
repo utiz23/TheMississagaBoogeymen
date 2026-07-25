@@ -31,6 +31,21 @@ from typing import Iterable
 from video_ingest.pass2_extract import Pass2Result
 
 
+class ReelMapLookupError(RuntimeError):
+    """The confirmed reel→match map could NOT be read — a lookup FAILURE, which
+    is distinct from a clean empty result.
+
+    Raised on any failure to obtain the map: pnpm absent, ``resolve-match
+    reel-map`` non-zero exit, a launch exception, or stdout that carries no
+    parseable JSON object. A *genuine* empty map (clean exit, valid empty
+    object) is ``{}`` — NOT this error. Callers use the distinction to tell
+    "the operator has confirmed nothing yet" (``{}`` → defer) from "I could not
+    read the map" (raise → the caller decides whether that is fatal). See
+    :func:`resolve_confirmed_reel_match_ids` for the best-effort-vs-strict policy
+    layered on top.
+    """
+
+
 @dataclass
 class DispatchResult:
     segment_index: int
@@ -58,7 +73,12 @@ def _parse_reel_map(stdout: str) -> dict[int, int]:
     The CLI prints one JSON object line (``{"0": 972, "1": 973}``); pnpm may
     prepend banner lines, so scan bottom-up for the last ``{``-line and parse it
     (mirrors ``reprocess._run_decoder_runs_cli``). Keys arrive as JSON strings →
-    coerced to int. Returns ``{}`` on any parse failure — never raises.
+    coerced to int. A clean, valid object (including an empty ``{}``) returns the
+    parsed map. Raises :class:`ReelMapLookupError` when the payload could NOT be
+    read as a map — a ``{``-line that is not valid JSON, or no JSON object line
+    at all — so a garbled/banner-only stdout is never silently mistaken for "no
+    confirmations yet". Per-key coercion stays lenient: one un-int-able entry is
+    skipped, not fatal.
     """
     for line in stdout.strip().splitlines()[::-1]:
         line = line.strip()
@@ -66,8 +86,11 @@ def _parse_reel_map(stdout: str) -> dict[int, int]:
             continue
         try:
             raw = json.loads(line)
-        except (ValueError, TypeError):
-            return {}
+        except (ValueError, TypeError) as exc:
+            raise ReelMapLookupError(
+                f"reel-map stdout had a '{{'-line that is not valid JSON: "
+                f"{line[:120]!r}"
+            ) from exc
         out: dict[int, int] = {}
         for k, v in raw.items():
             try:
@@ -75,7 +98,9 @@ def _parse_reel_map(stdout: str) -> dict[int, int]:
             except (ValueError, TypeError):
                 continue
         return out
-    return {}
+    raise ReelMapLookupError(
+        f"reel-map stdout carried no JSON object line (got {stdout.strip()[:200]!r})"
+    )
 
 
 def load_confirmed_reel_map(
@@ -90,42 +115,80 @@ def load_confirmed_reel_map(
 
     Returns ``{reel_index: match_id}`` for every reel the operator has CONFIRMED
     (via ``resolve-match propose``/``confirm`` over the identity files emitted on
-    a prior pass). Returns ``{}`` when nothing is confirmed yet OR on ANY lookup
-    failure (pnpm absent, non-zero exit, launch/parse error) — best-effort by
-    contract: a missing or failed map must never abort the live ingest run, it
-    just leaves a multi-reel video in the deferred branch (reels re-emitted, no
-    collapse) so the operator can retry.
+    a prior pass). Returns ``{}`` ONLY on a clean lookup that found nothing
+    confirmed yet. Raises :class:`ReelMapLookupError` on ANY lookup FAILURE (pnpm
+    absent, non-zero exit, launch error, or unparseable stdout) — the failure is
+    no longer swallowed as an empty map. The best-effort-vs-abort decision is the
+    caller's: :func:`resolve_confirmed_reel_match_ids` defers on failure by
+    default but can be told to treat a failure as fatal (the promote pass, which
+    KNOWS a confirmed map is expected).
     """
     root = repo_root or find_repo_root()
     pnpm = shutil.which("pnpm")
     if not pnpm:
-        print(
-            "[reels] pnpm not on PATH — cannot read confirmed reel map; "
-            "dispatch stays deferred.",
-            file=sys.stderr,
-        )
-        return {}
+        raise ReelMapLookupError("pnpm not on PATH — cannot read confirmed reel map")
     cmd = [
         pnpm, "--filter", "worker", "resolve-match", "reel-map",
         "--video-sha256", video_sha256,
     ]
     try:
         proc = subprocess.run(cmd, cwd=str(root), capture_output=True, text=True)
-    except Exception as exc:  # noqa: BLE001 — best-effort; never abort the run
-        print(
-            f"[reels] reel-map lookup failed to launch ({exc}); "
-            f"dispatch stays deferred.",
-            file=sys.stderr,
-        )
-        return {}
+    except Exception as exc:  # noqa: BLE001 — reshaped into a typed lookup error
+        raise ReelMapLookupError(f"reel-map lookup failed to launch: {exc}") from exc
     if proc.returncode != 0:
+        raise ReelMapLookupError(
+            f"reel-map lookup exited {proc.returncode} "
+            f"(stderr: {proc.stderr.strip()[:200]})"
+        )
+    return _parse_reel_map(proc.stdout)
+
+
+def resolve_confirmed_reel_match_ids(
+    video_sha256: str,
+    *,
+    require_reel_map: bool = False,
+    repo_root: Path | None = None,
+) -> dict[int, int] | None:
+    """The dispatch-facing reel→match map, with the best-effort-vs-strict policy
+    that :func:`load_confirmed_reel_map` deliberately does not decide.
+
+    Returns the confirmed ``{reel_index: match_id}`` map, or ``None`` when the
+    caller should stay in the deferred branch (nothing to collapse).
+
+    ``require_reel_map`` selects the policy for the two "no usable map" cases —
+    a lookup FAILURE and a genuinely EMPTY map:
+
+      * ``False`` (default — the fresh Pass-1 / manual ``--match-id`` paths, where
+        an unconfirmed video legitimately has no map): a lookup failure is logged
+        LOUDLY and folded into "defer" (``None``); an empty map is ``None`` too.
+        A missing or failed map never aborts the run.
+      * ``True`` (the promote pass, which has already read the confirmed
+        associations from the DB and so EXPECTS a non-empty map): BOTH a lookup
+        failure AND an empty map raise :class:`ReelMapLookupError`. An empty map
+        under this flag means the association ledger and ``resolve-match
+        reel-map`` disagree — a real fault, not "nothing confirmed". Raising turns
+        what used to be a silent no-op drain (reels re-OCR'd for hours, nothing
+        promoted, run summary falsely "promoted") into a loud, honest failure.
+    """
+    try:
+        confirmed = load_confirmed_reel_map(video_sha256, repo_root=repo_root)
+    except ReelMapLookupError as exc:
+        if require_reel_map:
+            raise
         print(
-            f"[reels] reel-map lookup exited {proc.returncode}; dispatch stays "
-            f"deferred (stderr: {proc.stderr.strip()[:200]}).",
+            f"[reels] confirmed reel-map lookup FAILED ({exc}) — deferring. "
+            f"Harmless before association; a promote-pass drain if a confirmed "
+            f"video reaches here.",
             file=sys.stderr,
         )
-        return {}
-    return _parse_reel_map(proc.stdout)
+        return None
+    if require_reel_map and not confirmed:
+        raise ReelMapLookupError(
+            f"--require-reel-map set but the confirmed reel-map for "
+            f"{video_sha256[:12]} is EMPTY — the association ledger and "
+            f"`resolve-match reel-map` disagree."
+        )
+    return confirmed or None
 
 
 def dispatch_segments(

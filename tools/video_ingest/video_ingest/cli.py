@@ -22,6 +22,7 @@ import typer
 
 from video_ingest.annotate import annotate as run_annotate
 from video_ingest.batch_ingest import run_batch, run_promote
+from video_ingest.dispatch import ReelMapLookupError
 from video_ingest.orchestrator import ingest as run_ingest
 from video_ingest.pass1_classify import CacheMismatch, MissingPass1Cache
 from video_ingest.reprocess import reprocess as run_reprocess
@@ -33,13 +34,16 @@ app = typer.Typer(add_completion=False, no_args_is_help=True)
 def _with_cache_mismatch_exit(fn):
     """Catch user-fixable orchestrator errors at the CLI boundary and exit
     non-zero with the structured message — avoids printing a Python traceback
-    for config drift (`CacheMismatch`) or missing-Pass-1-cache states
-    (`MissingPass1Cache`)."""
+    for config drift (`CacheMismatch`), missing-Pass-1-cache states
+    (`MissingPass1Cache`), or a required-but-unreadable confirmed reel map
+    (`ReelMapLookupError`, only raised under --require-reel-map). The clean
+    exit-1 is what the batch-promote subprocess wrapper turns into a loud
+    per-video SKIP instead of a silent no-op drain."""
     @wraps(fn)
     def wrapper(*args, **kwargs):
         try:
             return fn(*args, **kwargs)
-        except (CacheMismatch, MissingPass1Cache) as exc:
+        except (CacheMismatch, MissingPass1Cache, ReelMapLookupError) as exc:
             typer.echo(str(exc), err=True)
             raise typer.Exit(code=1)
     return wrapper
@@ -57,6 +61,19 @@ def ingest(
     dispatch: bool = typer.Option(False, help="Fan out to ingest-ocr-cli per segment dir."),
     game_title_id: int = typer.Option(None, help="Required when --dispatch is set."),
     match_id: int = typer.Option(None, help="Optional match_id to pass to ingest-ocr-cli."),
+    require_reel_map: bool = typer.Option(
+        False,
+        "--require-reel-map/--no-require-reel-map",
+        help=(
+            "Fail (exit 1) instead of silently deferring when the operator-"
+            "confirmed reel→match map cannot be read OR comes back empty. Set by "
+            "the batch-promote pass, which KNOWS the video is confirmed, so a "
+            "failed/empty lookup surfaces as a loud per-video SKIP rather than a "
+            "silent no-op drain (reels re-OCR'd, nothing promoted). Leave off for "
+            "fresh Pass-1 / manual runs, where an unconfirmed video legitimately "
+            "has no map."
+        ),
+    ),
     dispatch_dry_run: bool = typer.Option(False, help="Pass --dry-run to each ingest-ocr-cli subprocess."),
     run_id: int = typer.Option(
         None,
@@ -119,6 +136,7 @@ def ingest(
         match_id=match_id,
         dispatch_dry_run=dispatch_dry_run,
         run_id=run_id,
+        require_reel_map=require_reel_map,
         artifact_mode=pass2_artifacts,
         prefilter_enabled=prefilter,
         pass1_gate_enabled=pass1_gate,

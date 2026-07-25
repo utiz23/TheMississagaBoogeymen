@@ -26,7 +26,7 @@ from video_ingest import gpu_libs
 from video_ingest.dispatch import (
     DispatchResult,
     dispatch_segments,
-    load_confirmed_reel_map,
+    resolve_confirmed_reel_match_ids,
 )
 from video_ingest.identity_probe import (
     make_pass2_persona_reader,
@@ -397,6 +397,7 @@ def ingest(
     match_id: int | None = None,
     dispatch_dry_run: bool = False,
     run_id: int | None = None,
+    require_reel_map: bool = False,
     artifact_mode: bool | None = None,
     prefilter_enabled: bool | None = None,
     pass1_gate_enabled: bool | None = None,
@@ -815,14 +816,17 @@ def ingest(
         # Milestone ② step (3) — thread the operator-confirmed reel→match map
         # into dispatch. `resolve-match reel-map` returns {reel_index: match_id}
         # for reels CONFIRMED (via resolve-match propose/confirm over the
-        # identity files emitted on a prior pass). Empty ⇒ nothing confirmed yet
-        # ⇒ pass None so dispatch_reels stays in the deferred branch (re-emit
-        # identities, no collapse). This gives the two-pass flow: pass 1 emits
-        # identities + defers → operator confirms → pass 2 (cache-hit) dispatches
-        # each reel under its own match. Best-effort: a lookup failure yields {}
-        # → deferred, never aborting the run.
-        confirmed_reel_map = load_confirmed_reel_map(probe.sha256)
-        reel_match_ids = confirmed_reel_map or None
+        # identity files emitted on a prior pass). None ⇒ nothing to collapse ⇒
+        # dispatch_reels stays in the deferred branch (re-emit identities). This
+        # gives the two-pass flow: pass 1 emits identities + defers → operator
+        # confirms → pass 2 (cache-hit) dispatches each reel under its own match.
+        # `require_reel_map` (set by the promote pass, which KNOWS the video is
+        # confirmed) makes a failed OR empty lookup raise instead of silently
+        # deferring — see resolve_confirmed_reel_match_ids. Default (pass 1 /
+        # manual --match-id) stays best-effort: a failure logs loudly and defers.
+        reel_match_ids = resolve_confirmed_reel_match_ids(
+            probe.sha256, require_reel_map=require_reel_map
+        )
 
         # Milestone ① — group Pass-1 segments into per-match reels, emit
         # reels.json, and apply the per-reel dispatch decision. The decision keys
