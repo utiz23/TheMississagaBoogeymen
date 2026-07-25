@@ -2,6 +2,27 @@
 
 ## Active State
 
+### 🔄 IN PROGRESS 2026-07-25 — 1-video multi-reel PILOT (validates `dc0a111` in production before the corpus)
+
+**Why:** first live multi-reel dispatch since the reel-scoping confirm fix (`dc0a111`, on `main @ 15bfa8d`). The pilot must prove, on real dispatch, that confirming reel A does not clobber reel B's `match_id` and each reel ends with its own `match_id` + its own decoder run — the go/no-go before committing ~40–58 GPU-h to the corpus. Read-mostly on `main`; **git tree clean, no code changes this session** (DB + `/tmp/ingest-cache` mutated, not the repo).
+
+**Target:** `2026-05-22_18-11-00.mkv` (sha `94ac3dd8bb5b6039…`), 56 min, **split into 3 reels**. Fresh (0 prior batches). Its games are EA matches 970/971 (the 972–976 already-ingested set belongs to the later `19-07-03` recording).
+
+**Method finding (matters for the corpus):** `batch --limit N` has **no per-video selector** — it takes the *first* N by priority, and the queue leads with a single-reel p0 (`2026-05-09_02-07-51.mkv`, 17 min). To pilot ONE hand-picked multi-reel video I replicated the batch's own per-target commands: `ingest --video … --output-root /tmp/ingest-cache --dispatch --game-title-id 1` (fresh, run_id=NULL, deferred dispatch) then `resolve-match propose`. **`batch-promote` needs no such workaround** — it is driven by the confirmed-association backlog, so once only the target has pending confirmed reels, `batch-promote --limit 1` promotes it cleanly (dry-run verified plan = 1 video). For the corpus, `batch` (drain-everything) is the right tool; the hand-pick issue was pilot-only.
+
+**Operator decisions (confirmed):** reel 0 → **970** (matcher 0.85, 6-0 vs BAD BOYZ, full boxscore); reel 1 → **971** (manual `--match-id`; matcher returned no_api_match — inferred from the 18:53–19:07 MDT window, the only unclaimed match there); reel 2 → **rejected** (5-sec lobby-only fragment, no personas). `reel-map = {0:970, 1:971}`, 0 pending.
+
+**Timing anchors (real, this box):** Pass-1 = **~1 h 57 m** for the 56-min video (classify 3363 frames @ ~1 fps in **77.7 min ≈ 1.4 s/frame** — single-threaded + drvfs-seek-bound, GPU mostly idle; Pass-2 extract 37.4 min). Promote **cache-hits** both passes (`extracted in 0.0s`) → dispatch-OCR only. ⚠️ **Corpus-estimate caveat:** the classify bottleneck is CPU/drvfs-seek, NOT GPU — the 40–58 GPU-h figure should be re-sanity-checked against ~2 h/56-min-video, and it's worth asking whether classify can be sped up before committing the full run.
+
+**State:** Pass-1 DONE (3 reels, dispatch deferred → 0 batches). Confirm/reject DONE. **Promote RUNNING** (`batch-promote --limit 1`, cache-hit, per-reel dispatch — reel 0 batches 4375–4378 stamped 970; reel 1/971 pending).
+
+**NEXT (the gate — do before ANY corpus dispatch):**
+1. Let promote finish + auto-grade 970/971 (L4 PASS/HOLD/OPERATOR_CONFIRM).
+2. **VERIFY per-reel mapping** — `SELECT match_id, run_id, count(*) FROM ocr_capture_batches WHERE video_sha256='94ac3dd8…' GROUP BY 1,2;` → each reel its own `match_id` + distinct `run_id`, **no cross-reel bleed**. This is the `dc0a111` production proof.
+3. `decoder-runs backfill-run-linkage --all-unlinked` (GAP-3 sweep — deferred dispatch leaves run-less batches).
+4. `match-quality --match 970 --json` / `--match 971 --json` per reel.
+5. Only if all green → the full corpus run (chunked; re-run the backfill sweep after each chunk).
+
 ### ⏭️ IMMEDIATE TASK (next session) — the full corpus run (multi-reel `ocr_capture_batches.match_id` stamp bug FIXED 2026-07-25; completed record below)
 
 **✅ 972 PROMOTED to the live DB (2026-07-23).** Ran `reconcile-periods --match 972 --promote`:
