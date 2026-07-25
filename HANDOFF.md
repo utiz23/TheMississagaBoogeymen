@@ -2,7 +2,7 @@
 
 ## Active State
 
-### ⏭️ IMMEDIATE TASK (next session) — corpus-run gaps (972 promotion + GAP (3) + GAP (2) DONE)
+### ⏭️ IMMEDIATE TASK (next session) — FIX the multi-reel `ocr_capture_batches.match_id` stamp bug (operator-chosen 2026-07-25), THEN the full corpus run
 
 **✅ 972 PROMOTED to the live DB (2026-07-23).** Ran `reconcile-periods --match 972 --promote`:
 its 4 period rows (`P1 5-1 · P2/P3/OT 0-0` — the TOI-vindicated early-ended read) flipped
@@ -12,22 +12,109 @@ rows); **no other match moved** — `--promote` wrote 0 rows elsewhere; the revi
 250/463/972 as `promotable:true`, all with `pendingRows=0` (nothing left to promote). No code
 change; working tree clean.
 
-**The corpus-run gaps remain the open work — GAP (3) and GAP (2) are now DONE; NEXT SESSION IS (4)**:
+**All corpus-run GATES are cleared:** gaps (2)+(3)+(4) DONE, and the PASS-calibration question is **decided (2026-07-16, gate is correct) AND implemented** (`period_reconciliation` flag `d46aa04` + TOI de-confounder `3d6d44b`). **The ONE remaining known code gap is the multi-reel reel-scoping stamp bug — the operator chose (2026-07-25) to FIX it before committing the run.** Cold-start block for that fix is directly below the gaps list. Then the full corpus run (~40-58 h GPU, chunked/multi-session).
 
 - ✅ **(3) — the `ocr_capture_batches` run-linkage bug — DONE 2026-07-24.** Completed record below.
 - ✅ **(2) `load_confirmed_reel_map` silent-no-op hardening — DONE 2026-07-25.** Completed record below.
-- **(4) the 8 zero-match recordings (api-missed, OCR-only — highest value; still on disk, not yet
-  in the DB) ← DO THIS NEXT.** NOT a single session — GPU-heavy (~30-45 min/match), full pipeline,
-  unknown reel count. Needs its own planning + multi-session run. **Fold in the dispatch-path
-  run-creation follow-up below** — (4) is the next flow to dispatch reels, so run
-  `decoder-runs backfill-run-linkage --all-unlinked` after any corpus dispatch until that path
-  creates+attaches the run at ingest time.
-- ⚠️ **NEW follow-up surfaced by (3): dispatch-path run creation.** The (3) confirm-path fix only
+- ✅ **(4) the 8 zero-match recordings — CLOSED 2026-07-25 as "no rescue targets exist" (read-only SCOPE session).**
+  Frame-triaged all 8: every one is offline play (vs-CPU / USA-CAN exhibition), non-NHL content (Black Ops II),
+  an EASHL matchmaking-lobby wait, or a trim of an already-known match (2666/2667/2687). **Zero poller-missed
+  ONLINE matches** — they are api-missed *because* EA's online API correctly never recorded offline/CPU games.
+  The premise ("highest-value OCR-only online games on disk") is empty; the OCR-only match-creation capability
+  it would have needed is **YAGNI (not built, confirmed empirically)**. Dropped from the blocker list. Completed
+  record below.
+- ⚠️ **STILL-OPEN follow-up (from (3)): dispatch-path run creation.** The (3) confirm-path fix only
   creates a run when the match already has ≥1 capture batch at confirm time. The **deferred-dispatch
   flow** (reels dispatched AFTER confirm → batches born at dispatch) still writes run-less rows —
   that is exactly how the 6 got broken. Until the dispatch/ingest path creates+attaches the run at
   ingest time, **re-run `decoder-runs backfill-run-linkage --all-unlinked` after any corpus dispatch**
-  to sweep. Fold this into (4)'s planning (that is the next flow to dispatch reels).
+  to sweep. **Re-homed from (4) (now closed) to the full corpus run** — that is the next flow to dispatch reels.
+
+#### 🔧 NEXT SESSION (cold-start) — fix the multi-reel `ocr_capture_batches.match_id` reel-scoping stamp bug
+
+**Why now:** the last known code gap before the ~40-58 h corpus run; operator chose fix-first (2026-07-25). Affects
+**multi-reel videos ONLY** (~35 of 78 corpus targets: the `2→22 · 3→9 · 4→1 · 5→2 · 6→1` rows). Single-reel (45%)
+cannot trigger it (one association, nothing to re-stamp).
+
+**The bug:** [`confirmAssociation`](packages/db/src/queries/ocr-match-associations.ts#L131-L135) stamps
+`ocr_capture_batches.match_id` by `(video_sha256, run_id)` with **NO reel scoping**. Confirming one reel re-touches
+EVERY batch of that video's `(sha, run_id)` group, not just the reel being confirmed. In a multi-reel video (all
+associations born `run_id=NULL`) each confirm re-stamps the whole video.
+
+**Blast radius:** promoted box-score stats are **CORRECT regardless** — promotion and the `batch-promote` predicate
+key on the write-once, per-reel `ocr_extractions.match_id` (grep-confirmed in the 2026-07-15 Task 4.4 entry). Damage
+is confined to the **ledger**: `capture_batches.match_id` + decoder-run linkage. It is a data-integrity/bookkeeping
+bug, not a user-facing-stats bug.
+
+**⚠️ VERIFY BEHAVIOUR BEFORE FIXING — the failure mode may have shifted under GAP (3).** GAP (3)'s
+`ensureSyntheticActiveRunForMatch` now runs inside the same confirm tx and cascades `run_id` onto the match's
+NULL-`run_id` batches. So after confirm #1 the video's batches get a non-NULL `run_id` ⇒ confirm #2's
+`(sha, run_id IS NULL)` predicate may now match ZERO batches ⇒ the mode likely shifted from "last-confirm-wins-all"
+to "**first-confirm-wins-all + later matches get no batches/run**". Reproduce the real multi-reel partial-confirm
+sequence (confirm reel A, then reel B) on a scratch/test DB before trusting either theory. **The 2 pre-existing reds
+in [ocr-decoder-runs-backfill.test.ts](apps/worker/src/__tests__/ocr-decoder-runs-backfill.test.ts) live in this
+exact area** — check whether the fix flips them green.
+
+**Fix direction (from the 2026-07-14 entry):** scope the `UPDATE` to the reel — by the reel's `source_directory`,
+which `confirmAssociation` does NOT currently know (must be derived from the association's `reel_identity` / segments
+or threaded in). The stamp must touch only the batch(es) of the reel being confirmed.
+
+**Approach:** TDD — the interaction is subtle and regression risk is real (multi-table, touches the GAP (3) cascade).
+Likely a query-scoping fix, NO migration (invoke `schema-change` only if a column turns out to be needed). Failing-test
+anchor: a 2-reel video, confirm reel A then reel B, assert each reel's batches carry ITS OWN `match_id` (today they do
+not). Gates: `pnpm --filter @eanhl/db build` → `pnpm --filter @eanhl/worker test` (incl. `confirm-association-run-linkage.test.ts`,
+`match-association-queries.test.ts`, and the 2 backfill reds), prettier on touched files. Optional live-DB spot-check of
+the 972-976 batch→match mapping. **START THIS IN A FRESH SESSION** (this one carried the GAP (4) scope + handoff work).
+
+<details>
+<summary>✅ CLOSED 2026-07-25 — GAP (4): the 8 zero-match recordings — "no rescue targets exist" (read-only SCOPE session)</summary>
+
+**SCOPE/INSPECT session (branch `feat/ocr-mass-ingest`; NO code/DB/repo change — read-only + throwaway scratchpad). Verdict: GAP (4) is CLOSED, not deferred — its premise was empty.**
+
+**The reframe (why the prior "run the GPU pipeline on 8 files, ~30-45 min/match" framing was wrong):** the 8
+zero-match recordings are zero-match *because they were never online EASHL club matches* — EA's online match API
+correctly has no row for offline / vs-CPU / exhibition play. There are **zero poller-missed ONLINE matches** in
+the corpus, so there is nothing to rescue.
+
+**Method (re-runnable; `scratchpad/triage_gap4.py`, NOT committed):** reproduced the corpus zero-match histogram
+from the 2026-07-15 sizing entry — `enumerate_targets(/mnt/k/NHL/NHL26, since=2026-05-08)` → 78 targets → ffprobe
+duration → count `matches` (game_title_id=1) with `played_at` in `[stamp-2m, stamp+dur+5m]`. **KEY GOTCHA: the
+basename is recording-PC LOCAL wall-clock = UTC-6; convert to UTC by ADDING 6h** (empirically calibrated on anchors
+250 & 972-976 — parsing the basename as UTC directly gives a false 75-of-78-zero result). With +6h the histogram
+matches the prior session EXACTLY: `0→8, 1→35, 2→22, 3→9, 4→1, 5→2, 6→1`. Then extracted 1-2 identifying frames
+per zero-match recording via ffmpeg and read them.
+
+**The 8 decompose (all non-rescue):**
+- **3 trims inside `match<id>/` folders** — `match2666/…-Trim2.mp4`, `match2667/…-Trim.mp4`, `match2687/…-Trim.mp4`
+  → belong to already-known matches 2666/2667/2687 (verified present in DB). Zero-match only because the trim
+  captured a later portion than the original basename timestamp implies. Not candidates.
+- **1 confirmed offline junk** — `2026-05-09_02-07-51.mkv` (sha `b8ef172c`) — the operator's prior FINDING-1
+  offline non-NHL26 clip.
+- **4 loose candidates — ALL confirmed offline/non-gameplay by frame:**
+  - `2026-05-23_17-57-40.mkv` (137m) — **Call of Duty: Black Ops II** menu at ~75m + NHL "**CPU** 2 / BM 5"
+    (offline vs computer) at ~130m. Mixed non-NHL + offline session.
+  - `2026-05-23_17-27-27.mkv` (30m) — NHL "**USA** 1 / **CAN** 1" (offline national-team exhibition).
+  - `2026-06-07_14-54-34.mkv` (20m) — NHL "**CPU** 6 / BM 4" (offline vs computer).
+  - `2026-06-07_15-18-45.mkv` (4m) — EASHL 6v6 "**FINDING TEAMMATES**" lobby (a matchmaking wait, never a match).
+
+**The architectural blocker (confirmed, now moot):** there is **no OCR-only match-creation path**, so even a genuine
+poller-missed online game could not enter the DB today — `matches.ea_match_id` is `text NOT NULL` (plus
+`played_at`/`result`/`score_*`/`opponent_club_id`/`opponent_name` all NOT NULL, and `opponent_club_id` is
+EA-internal, unavailable from OCR); every OCR table FKs to `matches(id)`; the sole production inserter is the EA
+poller ([ingest.ts:243](apps/worker/src/ingest.ts#L243)). The `no_api_match` association path exists but its confirm
+REQUIRES a pre-existing `overrideMatchId` ([ocr-match-associations.ts:96-116](packages/db/src/queries/ocr-match-associations.ts#L96))
+— there is nothing to point it at for a truly-missing game. **Building OCR-only match creation is YAGNI** — the
+empirical triage shows no game in this corpus would ever use it.
+
+**Consequence for the full corpus run:** these 8 will each correctly hit `no_api_match` → operator-reject in seconds
+(vindicating the operator's no-classifier FINDING-1 decision). The only cost is wasted GPU if the run OCRs them
+first. **Optional, OFFERED-AND-DECLINED (2026-07-25):** an 8-sha denylist in enumerate/dedup to skip them up front
+(~4-6 GPU-h saved on the full run) — a light sha-list, NOT the classifier the operator already rejected. Re-derive
+the 8 shas by running `scratchpad/triage_gap4.py` if that optimization is ever wanted.
+
+**Gates:** none needed — read-only, no code/schema/DB/repo change.
+
+</details>
 
 <details>
 <summary>✅ COMPLETED 2026-07-25 — GAP (2): reel-map silent-no-op drain hardened (fail-loud on the promote pass)</summary>
@@ -704,7 +791,7 @@ the rule is wrong.
 
 **Milestone ④ is COMPLETE and PROVEN ON-BOX** (4.4 Step 8 + 4.5 Step 3, this session — see the top 🟩 Active State bullet). `batch` → `propose` → `confirm` → `batch-promote` works end-to-end on real GPU against a live DB, and the drain converges. **The full-corpus run (~78 targets, ~40-58 h GPU) is now UNBLOCKED.**
 
-**Recommended next task — ONE of these, one per session, in this order:**
+**Recommended next task — ONE of these, one per session, in this order.** _(STATUS AS OF 2026-07-25: items **2** and **4** are now resolved — **2** = GAP (2) reel-map hardening (2026-07-25); **4** = GAP (4) CLOSED as "no rescue targets exist" (2026-07-25, no online matches to rescue). Items **1** and **3** remain open; **1** is the recommended next. The top 🟩 Active State is the authoritative list.)_
 
 1. **🔴 DECIDE: is `PASS` calibrated correctly?** This gates whether the review queue is trustworthy at corpus scale, so it should come before committing 40-58 h of GPU. Concrete evidence to reason from: match **2675** graded **PASS** (`finalAccuracy=1` — TOT final 2-5 == API truth) while its L4 `score=0.167` (**1/6 fields**), `periodCoverage=0.75`, per-period goals-against read **7** in a 5-goal game, and team totals were off on shots (18/16, 22/17) and faceoffs (18/7). This is **per spec** (4.G grades the TOT final; the verdict routes, never withholds), but it means a PASS match is routed AWAY from review while carrying badly misread per-period rows (`review_status=pending_review`). Decide: accept (the per-period rows are review-queue material anyway), or add a soft flag so a low-`score` PASS still surfaces. **Do not "fix" `gateFromL4` by making it a naive `score>=τ` reject** — that re-introduces the 973/974 false-reject 4.G exists to retire.
 2. **Harden the `load_confirmed_reel_map` silent no-op.** It returns `{}` on ANY failure and `orchestrator.py:825` maps `{}→None` ⇒ deferred branch. In `batch-promote` that = a drain that promotes **nothing** while exiting 0. Distinguish "nothing confirmed" from "lookup failed". See the traps in the top Active State bullet + [[project_batch_onbox_traps]].
