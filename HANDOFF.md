@@ -2,7 +2,7 @@
 
 ## Active State
 
-### ⏭️ IMMEDIATE TASK (next session) — FIX the multi-reel `ocr_capture_batches.match_id` stamp bug (operator-chosen 2026-07-25), THEN the full corpus run
+### ⏭️ IMMEDIATE TASK (next session) — the full corpus run (multi-reel `ocr_capture_batches.match_id` stamp bug FIXED 2026-07-25; completed record below)
 
 **✅ 972 PROMOTED to the live DB (2026-07-23).** Ran `reconcile-periods --match 972 --promote`:
 its 4 period rows (`P1 5-1 · P2/P3/OT 0-0` — the TOI-vindicated early-ended read) flipped
@@ -12,7 +12,7 @@ rows); **no other match moved** — `--promote` wrote 0 rows elsewhere; the revi
 250/463/972 as `promotable:true`, all with `pendingRows=0` (nothing left to promote). No code
 change; working tree clean.
 
-**All corpus-run GATES are cleared:** gaps (2)+(3)+(4) DONE, and the PASS-calibration question is **decided (2026-07-16, gate is correct) AND implemented** (`period_reconciliation` flag `d46aa04` + TOI de-confounder `3d6d44b`). **The ONE remaining known code gap is the multi-reel reel-scoping stamp bug — the operator chose (2026-07-25) to FIX it before committing the run.** Cold-start block for that fix is directly below the gaps list. Then the full corpus run (~40-58 h GPU, chunked/multi-session).
+**All corpus-run GATES are cleared:** gaps (2)+(3)+(4) DONE, the PASS-calibration question is **decided (2026-07-16, gate is correct) AND implemented** (`period_reconciliation` flag `d46aa04` + TOI de-confounder `3d6d44b`), and the **multi-reel reel-scoping stamp bug is FIXED (2026-07-25, completed record below)**. **No known code gaps remain before the full corpus run** (~40-58 h GPU, chunked/multi-session). NOT committed/pushed yet.
 
 - ✅ **(3) — the `ocr_capture_batches` run-linkage bug — DONE 2026-07-24.** Completed record below.
 - ✅ **(2) `load_confirmed_reel_map` silent-no-op hardening — DONE 2026-07-25.** Completed record below.
@@ -30,41 +30,58 @@ change; working tree clean.
   ingest time, **re-run `decoder-runs backfill-run-linkage --all-unlinked` after any corpus dispatch**
   to sweep. **Re-homed from (4) (now closed) to the full corpus run** — that is the next flow to dispatch reels.
 
-#### 🔧 NEXT SESSION (cold-start) — fix the multi-reel `ocr_capture_batches.match_id` reel-scoping stamp bug
+<details>
+<summary>✅ COMPLETED 2026-07-25 — multi-reel `ocr_capture_batches.match_id` reel-scoping stamp bug FIXED (right-scoped the confirm-time stamp)</summary>
 
-**Why now:** the last known code gap before the ~40-58 h corpus run; operator chose fix-first (2026-07-25). Affects
-**multi-reel videos ONLY** (~35 of 78 corpus targets: the `2→22 · 3→9 · 4→1 · 5→2 · 6→1` rows). Single-reel (45%)
-cannot trigger it (one association, nothing to re-stamp).
+**DONE this session (branch `feat/ocr-mass-ingest`; NOT committed, NOT pushed).** TDD. The fix is a query-scoping
+guard in `confirmAssociation` — **NO migration, NO Python, NO schema change.**
 
-**The bug:** [`confirmAssociation`](packages/db/src/queries/ocr-match-associations.ts#L131-L135) stamps
-`ocr_capture_batches.match_id` by `(video_sha256, run_id)` with **NO reel scoping**. Confirming one reel re-touches
-EVERY batch of that video's `(sha, run_id)` group, not just the reel being confirmed. In a multi-reel video (all
-associations born `run_id=NULL`) each confirm re-stamps the whole video.
+**The bug (reproduced):** `confirmAssociation`
+([ocr-match-associations.ts](packages/db/src/queries/ocr-match-associations.ts)) stamped
+`ocr_capture_batches.match_id` by `(video_sha256, run_id)` with NO reel scoping. A multi-reel video's reels all
+share one `(sha, run_id=NULL)` group, so confirming one reel re-stamped EVERY batch of the video. Under GAP (3)'s
+cascade the mode was **first-confirm-wins-all** (confirmed, not guessed): confirm #1 stamped all batches to match X
+and cascaded a run onto them, so confirm #2's `run_id IS NULL` predicate matched zero batches and match Y got no
+batches and no run. The reproduction test showed `confirm reel 0` stamping BOTH batches `[4375, 4376]` pre-fix.
 
-**Blast radius:** promoted box-score stats are **CORRECT regardless** — promotion and the `batch-promote` predicate
-key on the write-once, per-reel `ocr_extractions.match_id` (grep-confirmed in the 2026-07-15 Task 4.4 entry). Damage
-is confined to the **ledger**: `capture_batches.match_id` + decoder-run linkage. It is a data-integrity/bookkeeping
-bug, not a user-facing-stats bug.
+**Why "scope by `source_directory`" (the prior fix direction) was NOT viable as a pure query change:**
+`ocr_capture_batches.source_directory` is **per-segment** (dispatch runs ingest once per segment), a reel owns many
+segments, and the association row stores only `reel_identity` (`sha:reel_index`). The `reel_index → segment_indices
+→ source_directories` mapping lives only in `reels.json` on disk / the reel-grouping logic — **never persisted to
+the DB**, and not present at propose time. So no DB-only query can scope the stamp to a reel.
 
-**⚠️ VERIFY BEHAVIOUR BEFORE FIXING — the failure mode may have shifted under GAP (3).** GAP (3)'s
-`ensureSyntheticActiveRunForMatch` now runs inside the same confirm tx and cascades `run_id` onto the match's
-NULL-`run_id` batches. So after confirm #1 the video's batches get a non-NULL `run_id` ⇒ confirm #2's
-`(sha, run_id IS NULL)` predicate may now match ZERO batches ⇒ the mode likely shifted from "last-confirm-wins-all"
-to "**first-confirm-wins-all + later matches get no batches/run**". Reproduce the real multi-reel partial-confirm
-sequence (confirm reel A, then reel B) on a scratch/test DB before trusting either theory. **The 2 pre-existing reds
-in [ocr-decoder-runs-backfill.test.ts](apps/worker/src/__tests__/ocr-decoder-runs-backfill.test.ts) live in this
-exact area** — check whether the fix flips them green.
+**The fix (operator-chosen 2026-07-25 — "right-scope the stamp"):** the confirm-time sha-scoped stamp now fires
+**ONLY on the `run_id` NON-NULL path** — re-associating an already-dispatched single run, where `(sha, run_id)`
+already scopes to exactly one match's batches. On the fresh reel flow (`run_id NULL`) confirm stamps nothing:
+deferred dispatch assigns each reel's `match_id` at batch creation, and the confirmed association row is the source
+of truth (DECISION 1, 2026-07-13). `ensureSyntheticActiveRunForMatch` stays **unconditional and match-scoped** (not
+sha-scoped), so each reel's own batches link to its own run without crossing reels — GAP (3)'s guarantee is
+preserved, just decoupled from the (removed-for-fresh-path) stamp.
 
-**Fix direction (from the 2026-07-14 entry):** scope the `UPDATE` to the reel — by the reel's `source_directory`,
-which `confirmAssociation` does NOT currently know (must be derived from the association's `reel_identity` / segments
-or threaded in). The stamp must touch only the batch(es) of the reel being confirmed.
+**Blast radius:** ledger/bookkeeping only — promoted box-score stats were CORRECT regardless (they key on the
+write-once per-reel `ocr_extractions.match_id`). No live-data repair needed; the fix is forward-looking.
 
-**Approach:** TDD — the interaction is subtle and regression risk is real (multi-table, touches the GAP (3) cascade).
-Likely a query-scoping fix, NO migration (invoke `schema-change` only if a column turns out to be needed). Failing-test
-anchor: a 2-reel video, confirm reel A then reel B, assert each reel's batches carry ITS OWN `match_id` (today they do
-not). Gates: `pnpm --filter @eanhl/db build` → `pnpm --filter @eanhl/worker test` (incl. `confirm-association-run-linkage.test.ts`,
-`match-association-queries.test.ts`, and the 2 backfill reds), prettier on touched files. Optional live-DB spot-check of
-the 972-976 batch→match mapping. **START THIS IN A FRESH SESSION** (this one carried the GAP (4) scope + handoff work).
+**Files (+73/-41; 3 modified + 1 new test):**
+- `packages/db/src/queries/ocr-match-associations.ts` — the `run_id`-non-null stamp guard + updated doc.
+- `apps/worker/src/__tests__/confirm-association-reel-scope.test.ts` — **NEW.** Test 1: a 2-reel partial-confirm
+  does not cross-contaminate (each reel keeps its own `match_id` + gets its own run). Test 2: the `run_id`-non-null
+  re-association path still stamps.
+- `apps/worker/src/__tests__/match-association-queries.test.ts` + `confirm-association-run-linkage.test.ts` — updated
+  to the new semantics (a `run_id`-NULL confirm no longer stamps; GAP 3 run-linkage now asserted with the batch
+  pre-carrying `match_id`, i.e. the dispatch-assigned state).
+
+**Gates (all green):** `pnpm --filter worker test` → **483 pass / 0 fail / 4 skip** (harness builds `@eanhl/db` +
+worker first). Reproduction test RED before the fix, GREEN after. **The 2 previously-red backfill tests in
+[ocr-decoder-runs-backfill.test.ts](apps/worker/src/__tests__/ocr-decoder-runs-backfill.test.ts) are now GREEN** —
+flipped by GAP (3)'s 2026-07-24 live backfill (they inspect live data; this fix touches no existing rows, so it
+neither caused nor regressed them). Prettier clean on touched files; did not gate on `pnpm lint`
+([[project_lint_state]]).
+
+**Still-open follow-up (unchanged, inherited from GAP 3, see the bullet above):** the deferred-dispatch flow still
+creates run-less batches (`run_id=NULL` born at dispatch) — re-run `decoder-runs backfill-run-linkage
+--all-unlinked` after any corpus dispatch to sweep. This fix does not change that.
+
+</details>
 
 <details>
 <summary>✅ CLOSED 2026-07-25 — GAP (4): the 8 zero-match recordings — "no rescue targets exist" (read-only SCOPE session)</summary>
