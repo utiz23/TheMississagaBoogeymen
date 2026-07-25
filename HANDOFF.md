@@ -20,7 +20,17 @@
 - **Run linkage (Step 5):** `backfill-run-linkage --all-unlinked` gave each reel its own ACTIVE run — **970 → run 2057, 971 → run 2058** (distinct match_id + distinct run per reel). (The only remaining `run_id IS NULL` rows are 2 pre-2026-05-10 `manual_screenshots` test batches with `match_id=NULL` — un-linkable, benign, unrelated.)
 - **L4 grades (match-keyed, run-less-safe; stable after backfill):** 970 = **PASS** (finalAccuracy=1, periodCoverage=1); 971 = **HOLD** (no OCR final — expected, reel 1 had `partial_no_boxscore`; HOLD routes to review, does not undo the promotion). 0 ERROR (worker `dist/` rebuild held).
 
-**NEXT — the full corpus run (technically unblocked; needs an explicit operator go-ahead, multi-session).** Use `batch` / `batch-promote` (drain-everything — no per-video hand-pick needed), chunked, re-running `backfill-run-linkage --all-unlinked` after EACH dispatch chunk. ⚠️ **Before committing, revisit the timing caveat above:** Pass-1 classify is CPU/drvfs-seek-bound & single-threaded (~2 h per 56-min video, GPU idle) — the 40–58 GPU-h estimate should be re-checked, and it's worth deciding whether to speed up classify first. Also note match 971 sits in the review queue (HOLD) — a real game with no OCR box score; nothing to fix, just unverifiable from video.
+**CORPUS CALIBRATION (measured 2026-07-25, supersedes the "~40–58 GPU-h" figure in the section below):** 70 fresh videos, **50.6 h total footage** (avg 43 min). At the pilot's rate (~2.06× video time for Pass-1, single-threaded), the full run is **~104 h Pass-1 + ~7 h promote ≈ 112 h ≈ 4.6 DAYS continuous** — ~2× the old budget, and it mis-modeled a CPU-bound bottleneck as GPU work.
+
+**DECISION (operator, 2026-07-25): OPTIMIZE (parallelize) BEFORE the corpus — do NOT run it single-threaded.** The box has **12 cores**; classify uses **1**. `/mnt/k` is 9p/drvfs (slow seeks, `msize=65536`); native ext4 `/` has **899 GB free** and the fresh corpus is only ~76 GB, so local staging is cheap.
+
+**NEXT SESSION (fresh — this is a NEW task; the pilot above is DONE):** build a parallel Pass-1 path.
+1. **Confirm the bottleneck** — controlled test: same video Pass-1 from `/mnt/k` (drvfs) vs staged on ext4, and whether classify actually uses the CUDA EP (GPU was 9–53% util during the pilot). Decides staging-vs-parallelism-vs-GPU-enable weighting.
+2. **Parallelize** — `batch` is a sequential for-loop; needs a wrapper that drives N concurrent `ingest --dispatch` Pass-1 passes (N≈6–10 of 12 cores). Even 5–6× → ~18–20 h. Watch: shared `sha-cache.json` write, concurrent DB writes (per-video isolation should hold — distinct shas/matches).
+3. Optionally stage the ~76 GB fresh set on ext4 first.
+4. Validate on 2–3 videos, then run the full corpus **chunked**, re-running `backfill-run-linkage --all-unlinked` after EACH dispatch chunk.
+
+Also note: match 971 sits in the review queue (HOLD) — a real game with no OCR box score; nothing to fix, just unverifiable from video.
 
 ### ⏭️ IMMEDIATE TASK (next session) — the full corpus run (multi-reel `ocr_capture_batches.match_id` stamp bug FIXED 2026-07-25; completed record below)
 
