@@ -2,9 +2,9 @@
 
 ## Active State
 
-### 🔄 IN PROGRESS 2026-07-25 — 1-video multi-reel PILOT (validates `dc0a111` in production before the corpus)
+### ✅ PILOT PASSED 2026-07-25 — 1-video multi-reel run validated `dc0a111` in production (corpus is technically green-lit)
 
-**Why:** first live multi-reel dispatch since the reel-scoping confirm fix (`dc0a111`, on `main @ 15bfa8d`). The pilot must prove, on real dispatch, that confirming reel A does not clobber reel B's `match_id` and each reel ends with its own `match_id` + its own decoder run — the go/no-go before committing ~40–58 GPU-h to the corpus. Read-mostly on `main`; **git tree clean, no code changes this session** (DB + `/tmp/ingest-cache` mutated, not the repo).
+**Why:** first live multi-reel dispatch since the reel-scoping confirm fix (`dc0a111`, on `main @ 15bfa8d`). The pilot proved, on real dispatch, that confirming reel A does not clobber reel B's `match_id` and each reel ends with its own `match_id` + its own decoder run — the go/no-go before committing ~40–58 GPU-h to the corpus. Read-mostly on `main`; **git tree clean, no code changes this session** (DB + `/tmp/ingest-cache` mutated, not the repo).
 
 **Target:** `2026-05-22_18-11-00.mkv` (sha `94ac3dd8bb5b6039…`), 56 min, **split into 3 reels**. Fresh (0 prior batches). Its games are EA matches 970/971 (the 972–976 already-ingested set belongs to the later `19-07-03` recording).
 
@@ -14,14 +14,13 @@
 
 **Timing anchors (real, this box):** Pass-1 = **~1 h 57 m** for the 56-min video (classify 3363 frames @ ~1 fps in **77.7 min ≈ 1.4 s/frame** — single-threaded + drvfs-seek-bound, GPU mostly idle; Pass-2 extract 37.4 min). Promote **cache-hits** both passes (`extracted in 0.0s`) → dispatch-OCR only. ⚠️ **Corpus-estimate caveat:** the classify bottleneck is CPU/drvfs-seek, NOT GPU — the 40–58 GPU-h figure should be re-sanity-checked against ~2 h/56-min-video, and it's worth asking whether classify can be sped up before committing the full run.
 
-**State:** Pass-1 DONE (3 reels, dispatch deferred → 0 batches). Confirm/reject DONE. **Promote RUNNING** (`batch-promote --limit 1`, cache-hit, per-reel dispatch — reel 0 batches 4375–4378 stamped 970; reel 1/971 pending).
+**RESULT — all gates green:**
+- **Promote:** 18/18 segments dispatched, 0 failed, ~6.3 min (decode cache HIT → dispatch-only). Reel 2 (rejected) correctly `skipped`.
+- **`dc0a111` PROOF (the point of the pilot):** per-reel `ocr_capture_batches` mapping is clean — **970 → 12 batches (reel-0 segs 001–058), 971 → 6 batches (reel-1 segs 060–088), NO cross-reel bleed.** Pre-fix, confirming one reel would have re-stamped all 18 to one match.
+- **Run linkage (Step 5):** `backfill-run-linkage --all-unlinked` gave each reel its own ACTIVE run — **970 → run 2057, 971 → run 2058** (distinct match_id + distinct run per reel). (The only remaining `run_id IS NULL` rows are 2 pre-2026-05-10 `manual_screenshots` test batches with `match_id=NULL` — un-linkable, benign, unrelated.)
+- **L4 grades (match-keyed, run-less-safe; stable after backfill):** 970 = **PASS** (finalAccuracy=1, periodCoverage=1); 971 = **HOLD** (no OCR final — expected, reel 1 had `partial_no_boxscore`; HOLD routes to review, does not undo the promotion). 0 ERROR (worker `dist/` rebuild held).
 
-**NEXT (the gate — do before ANY corpus dispatch):**
-1. Let promote finish + auto-grade 970/971 (L4 PASS/HOLD/OPERATOR_CONFIRM).
-2. **VERIFY per-reel mapping** — `SELECT match_id, run_id, count(*) FROM ocr_capture_batches WHERE video_sha256='94ac3dd8…' GROUP BY 1,2;` → each reel its own `match_id` + distinct `run_id`, **no cross-reel bleed**. This is the `dc0a111` production proof.
-3. `decoder-runs backfill-run-linkage --all-unlinked` (GAP-3 sweep — deferred dispatch leaves run-less batches).
-4. `match-quality --match 970 --json` / `--match 971 --json` per reel.
-5. Only if all green → the full corpus run (chunked; re-run the backfill sweep after each chunk).
+**NEXT — the full corpus run (technically unblocked; needs an explicit operator go-ahead, multi-session).** Use `batch` / `batch-promote` (drain-everything — no per-video hand-pick needed), chunked, re-running `backfill-run-linkage --all-unlinked` after EACH dispatch chunk. ⚠️ **Before committing, revisit the timing caveat above:** Pass-1 classify is CPU/drvfs-seek-bound & single-threaded (~2 h per 56-min video, GPU idle) — the 40–58 GPU-h estimate should be re-checked, and it's worth deciding whether to speed up classify first. Also note match 971 sits in the review queue (HOLD) — a real game with no OCR box score; nothing to fix, just unverifiable from video.
 
 ### ⏭️ IMMEDIATE TASK (next session) — the full corpus run (multi-reel `ocr_capture_batches.match_id` stamp bug FIXED 2026-07-25; completed record below)
 
