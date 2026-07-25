@@ -1,16 +1,19 @@
 /**
  * GAP (3): confirmAssociation must leave the decoder-run ledger consistent.
  *
- * The bug: confirmAssociation stamped ocr_capture_batches.match_id but never
- * ensured a synthetic active ocr_decoder_run nor cascaded run_id onto the
- * match-linked rows. Result: association-flow matches ended up with run-less
- * batches/segments and ZERO active runs — violating the invariants migration
- * 0048_phase_a_decoder_runs.sql established.
+ * The bug: confirmAssociation never ensured a synthetic active ocr_decoder_run
+ * nor cascaded run_id onto the match-linked rows. Result: association-flow
+ * matches ended up with run-less batches/segments and ZERO active runs —
+ * violating the invariants migration 0048_phase_a_decoder_runs.sql established.
  *
  * This test pins the fixed behaviour against a throwaway fixture (a "clean"
  * real match that has no run and no OCR data yet) so it exercises the CREATE
- * path (not the reuse path). Gated on DATABASE_URL; runs against the isolated
- * clone via `with-test-db.mjs`. All rows are cleaned up in `finally`.
+ * path (not the reuse path). Its batch already carries match_id (the state
+ * deferred dispatch produces) because the reel-scoping fix means a run_id-NULL
+ * confirm no longer STAMPS match_id — but it must STILL ensure the run and
+ * cascade run_id onto that match's batches/segments (match-scoped, GAP 3). Gated
+ * on DATABASE_URL; runs against the isolated clone via `with-test-db.mjs`. All
+ * rows are cleaned up in `finally`.
  */
 import test, { after } from 'node:test'
 import assert from 'node:assert/strict'
@@ -28,7 +31,7 @@ after(async () => {
   }
 })
 
-void test('confirmAssociation ensures a synthetic active run and cascades run_id to batch + segment', async (t) => {
+void test('confirmAssociation ensures a synthetic active run and cascades run_id to match’s batch + segment', async (t) => {
   if (!process.env['DATABASE_URL']) {
     t.skip('DATABASE_URL not set — run-linkage integration requires DB.')
     return
@@ -82,7 +85,9 @@ void test('confirmAssociation ensures a synthetic active run and cascades run_id
       .limit(1)
     assert.ok(match, 'match row loads')
 
-    // Unassociated batch (match_id null, run_id null) — the confirm stamps it.
+    // Batch already carrying match_id (the dispatch-assigned state), run_id null.
+    // The run_id-NULL confirm no longer STAMPS match_id (reel-scoping fix); GAP 3
+    // must still find this match's batch by match_id and cascade run_id onto it.
     const [batch] = await db
       .insert(ocrCaptureBatches)
       .values({
@@ -90,7 +95,7 @@ void test('confirmAssociation ensures a synthetic active run and cascades run_id
         captureKind: 'video_frames',
         videoSha256: SHA,
         sourceDirectory: DIR,
-        matchId: null,
+        matchId: M,
         runId: null,
       })
       .returning({ id: ocrCaptureBatches.id })
@@ -119,7 +124,9 @@ void test('confirmAssociation ensures a synthetic active run and cascades run_id
     // ── The behaviour under test ──────────────────────────────────────────
     const res = await confirmAssociation(proposal.id)
     assert.equal(res.association.status, 'confirmed')
-    assert.deepEqual(res.stampedBatchIds, [batch.id])
+    // Reel-scoping fix: the run_id-NULL fresh path stamps NO batch. Run linkage
+    // below is what GAP 3 guarantees, decoupled from the (removed) stamp.
+    assert.deepEqual(res.stampedBatchIds, [], 'run_id-NULL confirm stamps no batch')
 
     // 1. Exactly one active synthetic run now exists for the match.
     const activeRuns = await db

@@ -1,4 +1,4 @@
-import { and, desc, eq, isNull } from 'drizzle-orm'
+import { and, desc, eq } from 'drizzle-orm'
 import { db, type Database } from '../client.js'
 import {
   ocrCaptureBatches,
@@ -85,9 +85,13 @@ export interface ConfirmAssociationResult {
  *   1. status → 'confirmed', decided_at → now(), proposed_match_id → the
  *      effective match id (the operator override when supplied, else the
  *      scorer's proposal).
- *   2. stamp `ocr_capture_batches.match_id = <effective match id>` for the
- *      batch(es) matching this association's (video_sha256, run_id) — the step
- *      that unlocks per-reel dispatch.
+ *   2. ON THE run_id NON-NULL PATH ONLY, stamp `ocr_capture_batches.match_id`
+ *      for the batch(es) matching this association's (video_sha256, run_id) —
+ *      re-associating an already-dispatched single run. The run_id NULL (fresh
+ *      reel) path does NOT stamp: `(sha, run_id=NULL)` is not reel-scoped, so a
+ *      stamp there would clobber the other reels' batches. Those get their
+ *      match_id from deferred dispatch instead (see the guard below).
+ *   3. ensure the decoder-run ledger is consistent for the match (GAP 3).
  *
  * `overrideMatchId` is REQUIRED for a `no_api_match` proposal (proposed_match_id
  * IS NULL): the scorer found no candidate, so the operator supplies the id.
@@ -122,22 +126,35 @@ export async function confirmAssociation(
       .returning()
     if (!updated) throw new Error(`confirmAssociation: update returned no row for ${id}`)
 
-    // Stamp the reel's capture batch(es). run_id is nullable on both sides;
-    // match NULL≡NULL explicitly (eq() would never match a NULL run_id).
-    const runIdPredicate =
-      assoc.runId == null
-        ? isNull(ocrCaptureBatches.runId)
-        : eq(ocrCaptureBatches.runId, assoc.runId)
-    const stamped = await tx
-      .update(ocrCaptureBatches)
-      .set({ matchId })
-      .where(and(eq(ocrCaptureBatches.videoSha256, assoc.videoSha256), runIdPredicate))
-      .returning({ id: ocrCaptureBatches.id })
+    // Reel-scoping guard for the confirm-time stamp. `(video_sha256, run_id)`
+    // has NO reel scoping: a multi-reel video's reels all share one
+    // `(sha, run_id=NULL)` group, so a NULL-run_id stamp would touch EVERY reel's
+    // batches — confirming reel A would clobber reel B's match_id. We therefore
+    // stamp ONLY on the run_id NON-NULL path (re-associating an already-dispatched
+    // single run, where `(sha, run_id)` scopes to exactly that one match's
+    // batches). On the fresh reel flow (run_id NULL) deferred dispatch assigns
+    // each reel's match_id at batch creation — the confirmed association row is
+    // the source of truth (DECISION 1, 2026-07-13), not this stamp.
+    let stamped: { id: number }[] = []
+    if (assoc.runId != null) {
+      stamped = await tx
+        .update(ocrCaptureBatches)
+        .set({ matchId })
+        .where(
+          and(
+            eq(ocrCaptureBatches.videoSha256, assoc.videoSha256),
+            eq(ocrCaptureBatches.runId, assoc.runId),
+          ),
+        )
+        .returning({ id: ocrCaptureBatches.id })
+    }
 
     // GAP (3): keep the decoder-run ledger consistent. Ensure a synthetic active
-    // run exists for the match and cascade run_id onto the just-stamped batches
-    // (and any other match-linked rows). No-op when the match has no capture
-    // batches yet (deferred dispatch) — dispatch/ingest owns run creation there.
+    // run exists for the match and cascade run_id onto that MATCH's batches (and
+    // other match-linked rows) that still have run_id NULL. This is match-scoped,
+    // not sha-scoped, so each reel's own batches link to its own run without
+    // crossing reels. No-op when the match has no capture batches yet (deferred
+    // dispatch) — dispatch/ingest owns run creation there.
     await ensureSyntheticActiveRunForMatch(matchId, tx as unknown as Database)
 
     return { association: updated, stampedBatchIds: stamped.map((s) => s.id) }

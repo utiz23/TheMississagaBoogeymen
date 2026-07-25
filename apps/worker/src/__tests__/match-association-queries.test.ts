@@ -3,8 +3,9 @@
  *
  * Gated on DATABASE_URL like match-250-benchmark.test.ts. Exercises the review
  * queue end-to-end against throwaway rows keyed on a synthetic video sha:
- * insert → list → confirm (flips status + stamps the capture batch's match_id)
- * → reject. All rows are cleaned up in `finally` regardless of outcome.
+ * insert → list → confirm (flips status; the run_id-NULL fresh reel path does
+ * NOT stamp the capture batch — deferred dispatch owns match_id) → reject. All
+ * rows are cleaned up in `finally` regardless of outcome.
  */
 import test, { after } from 'node:test'
 import assert from 'node:assert/strict'
@@ -21,7 +22,7 @@ after(async () => {
   }
 })
 
-void test('association queue: insert → list → confirm stamps batch match_id; reject flips status', async (t) => {
+void test('association queue: insert → list → confirm flips status (fresh path, no stamp); reject flips status', async (t) => {
   if (!process.env['DATABASE_URL']) {
     t.skip('DATABASE_URL not set — association-queries integration requires DB.')
     return
@@ -39,9 +40,9 @@ void test('association queue: insert → list → confirm stamps batch match_id;
 
   // Defensive pre-clean in case a prior run died mid-test. Order matters:
   // batches carry run_id (FK → ocr_decoder_runs), so drop them before the run.
-  // confirmAssociation now creates a synthetic decoder run for the confirmed
-  // match (GAP 3); it is keyed on this test's unique SHA, so deleting runs by
-  // that sha targets only the test's own run, never a real one.
+  // On this fresh path confirmAssociation stamps nothing and the batch stays
+  // match-less, so GAP 3 creates no run here — the run delete is a no-op keyed
+  // on this test's unique SHA, and can never target a real run.
   await db.delete(ocrMatchAssociations).where(eq(ocrMatchAssociations.videoSha256, SHA))
   await db.delete(ocrCaptureBatches).where(eq(ocrCaptureBatches.videoSha256, SHA))
   await db.delete(ocrDecoderRuns).where(eq(ocrDecoderRuns.videoSha256, SHA))
@@ -52,7 +53,9 @@ void test('association queue: insert → list → confirm stamps batch match_id;
     assert.ok(gt, 'test DB needs at least one game title')
     assert.ok(m, 'test DB needs at least one match')
 
-    // Capture batch to be stamped: unassociated (match_id null), run_id null.
+    // Capture batch on the fresh reel path: unassociated (match_id null),
+    // run_id null. A run_id-NULL confirm must NOT stamp it (that would clobber
+    // sibling reels of the same video); dispatch owns its match_id.
     const [batch] = await db
       .insert(ocrCaptureBatches)
       .values({
@@ -85,17 +88,22 @@ void test('association queue: insert → list → confirm stamps batch match_id;
       'listPendingAssociations includes the new proposal',
     )
 
-    // confirm flips status + stamps the batch's match_id.
+    // confirm flips status. On the run_id-NULL fresh path it stamps NO batch
+    // (reel-scoping guard) — the batch keeps match_id null; dispatch assigns it.
     const res = await confirmAssociation(proposal.id)
     assert.equal(res.association.status, 'confirmed')
     assert.ok(res.association.decidedAt instanceof Date, 'decided_at set on confirm')
-    assert.deepEqual(res.stampedBatchIds, [batch.id])
+    assert.deepEqual(res.stampedBatchIds, [], 'run_id-NULL confirm stamps no batch')
 
     const [afterBatch] = await db
       .select({ matchId: ocrCaptureBatches.matchId })
       .from(ocrCaptureBatches)
       .where(eq(ocrCaptureBatches.id, batch.id))
-    assert.equal(afterBatch?.matchId, m.id, 'capture batch match_id stamped to the confirmed match')
+    assert.equal(
+      afterBatch?.matchId,
+      null,
+      'fresh-path batch left unstamped (dispatch owns match_id)',
+    )
 
     // A confirmed proposal no longer appears in the pending list.
     const pendingAfter = await listPendingAssociations()
@@ -119,8 +127,8 @@ void test('association queue: insert → list → confirm stamps batch match_id;
   } finally {
     await db.delete(ocrMatchAssociations).where(eq(ocrMatchAssociations.videoSha256, SHA))
     await db.delete(ocrCaptureBatches).where(eq(ocrCaptureBatches.videoSha256, SHA))
-    // Drop the synthetic run confirmAssociation created (GAP 3); after the batch
-    // delete above it owns no rows, so the FK is clear. Keyed on the test's sha.
+    // Defensive no-op: the fresh path creates no run (see pre-clean note). Keyed
+    // on the test's sha so it can never touch a real run.
     await db.delete(ocrDecoderRuns).where(eq(ocrDecoderRuns.videoSha256, SHA))
   }
 })
