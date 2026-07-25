@@ -2,21 +2,101 @@
 
 ## Active State
 
-### ⏭️ IMMEDIATE TASK (next session) — decide whether to run `reconcile-periods --match 972 --promote`
+### ⏭️ IMMEDIATE TASK (next session) — corpus-run gaps (972 promotion + GAP (3) DONE)
 
-**The TOI de-confounder below is DONE (2026-07-23).** 972 is now auto-promotable and the only
-match awaiting promotion. **Nothing has been written to the live DB** — its 4 period rows are
-still `pending_review`. Promoting them is a one-command operator decision:
+**✅ 972 PROMOTED to the live DB (2026-07-23).** Ran `reconcile-periods --match 972 --promote`:
+its 4 period rows (`P1 5-1 · P2/P3/OT 0-0` — the TOI-vindicated early-ended read) flipped
+`pending_review → reviewed`. Corpus per-period split moved **24/8 → 20/12** (exactly 972's 4
+rows); **no other match moved** — `--promote` wrote 0 rows elsewhere; the review queue
+(968/973/974/2582/2675) is untouched. Verified: `reconcile-periods --all` now shows only
+250/463/972 as `promotable:true`, all with `pendingRows=0` (nothing left to promote). No code
+change; working tree clean.
+
+**The corpus-run gaps remain the open work — GAP (3) is now DONE; NEXT SESSION IS GAP (2)**:
+
+- ✅ **(3) — the `ocr_capture_batches` run-linkage bug — DONE 2026-07-24.** Completed record below.
+- **(2) `load_confirmed_reel_map` silent-no-op hardening ← DO THIS NEXT.** The reel-map swallow
+  drains silently (no-op) on failure. Pre-run robustness; scope it briefly first.
+- (4) the 8 zero-match recordings (api-missed, OCR-only — highest value; still on disk, not yet
+  in the DB). NOT a single session — GPU-heavy (~30-45 min/match), full pipeline, unknown reel
+  count. Needs its own planning + multi-session run, after (2) hardens the plumbing.
+- ⚠️ **NEW follow-up surfaced by (3): dispatch-path run creation.** The (3) confirm-path fix only
+  creates a run when the match already has ≥1 capture batch at confirm time. The **deferred-dispatch
+  flow** (reels dispatched AFTER confirm → batches born at dispatch) still writes run-less rows —
+  that is exactly how the 6 got broken. Until the dispatch/ingest path creates+attaches the run at
+  ingest time, **re-run `decoder-runs backfill-run-linkage --all-unlinked` after any corpus dispatch**
+  to sweep. Fold this into (4)'s planning (that is the next flow to dispatch reels).
+
+<details>
+<summary>✅ COMPLETED 2026-07-24 — GAP (3): confirm-association run-linkage fixed + 6 matches backfilled</summary>
+
+**DONE this session (branch `feat/ocr-mass-ingest`; NOT committed, NOT pushed).** Fix chosen:
+a shared db helper called inside `confirmAssociation`'s transaction (atomic stamp+create+cascade),
+reused by a one-time backfill CLI. All gates green — see the bottom of this block.
+
+**The original bug (verified 2026-07-23):** `confirmAssociation`
+([packages/db/src/queries/ocr-match-associations.ts:95](packages/db/src/queries/ocr-match-associations.ts#L95))
+stamps `ocr_capture_batches.match_id` at **:131-133** (`.update(ocrCaptureBatches).set({ matchId })`)
+but **never sets `run_id` and never creates/links a synthetic active `ocr_decoder_run`**. So every
+operator-confirmed match ends up with match-linked batches whose `run_id` is NULL and zero active
+decoder runs — violating the ledger invariants the `0048_phase_a_decoder_runs.sql` backfill
+established.
+
+**Exact failing tests** (names, not the drifting `not ok N` — they renumber as tests are added).
+Run in isolation: `node --test apps/worker/dist/__tests__/ocr-decoder-runs-backfill.test.js` (needs
+`DATABASE_URL`; build worker first):
+
+- `every match-linked batch has run_id; unmatched batches keep run_id NULL`
+  → **`expected 0 match-linked batches without run_id; got 49`**
+- `every match with batches has exactly one active synthetic run`
+  → **`match 975 should have exactly 1 active run, got 0`**
+
+**Blast radius (live DB, 2026-07-23) — 6 confirmed matches, 49 batches:** the 2026-05-22 cohort
+**972(6) 973(8) 974(7) 975(9) 976(9)** plus **2675(10)** — each has match-linked batches with
+`run_id IS NULL`, and 972–976 have **0 active synthetic runs**. Re-derive:
 
 ```bash
-set -a && source .env && set +a
-pnpm --filter worker reconcile-periods --match 972 --promote
+docker exec eanhl-team-website-db-1 psql -U eanhl -d eanhl -c "
+SELECT match_id, count(*) FROM ocr_capture_batches
+WHERE match_id IS NOT NULL AND run_id IS NULL GROUP BY match_id ORDER BY match_id;"
 ```
 
-Then the corpus-run gaps are unchanged and unblocked: (2) `load_confirmed_reel_map`
-silent-no-op hardening; (3) latent `ocr_capture_batches.match_id` stamp bug (has 2 failing
-tests attached — `not ok 125/126` in `ocr-decoder-runs-backfill.test.ts`); (4) the 8
-zero-match recordings.
+**What was built:**
+- New helper `ensureSyntheticActiveRunForMatch(matchId, conn)` in
+  [packages/db/src/queries/ocr-decoder-runs.ts](packages/db/src/queries/ocr-decoder-runs.ts). It
+  reuses an existing active run or creates one, then cascades `run_id` onto NULL-`run_id`
+  match-linked rows across all **5** tables (batches, segments, field_evidence, extractions,
+  promotions). Provenance mirrors 0048 exactly: single-source sha (no manual) → that sha, else NULL;
+  single distinct segment decoder → it, multiple → `legacy-mixed`, none → `unknown`; notes start
+  `synthetic backfill (association-confirm): videos=[…] decoders=[…]` so provenance tests #3-5 also
+  validate these runs. **No-op guard:** a match with 0 capture batches gets no run (avoids an orphan
+  active run — 0048's 6d invariant).
+- Wired into [confirmAssociation](packages/db/src/queries/ocr-match-associations.ts#L95) inside its
+  existing tx (atomic). `backfillRunLinkageForMatch(matchId)` + `findMatchesNeedingRunLinkage()`
+  back a new CLI: `pnpm --filter worker decoder-runs backfill-run-linkage (--match-id N | --all-unlinked) [--dry-run]`.
+
+**Live backfill (2026-07-24) — 6 matches 972/973/974/975/976/2675 → runs 2051-2056.** Cleared
+NULL `run_id` across all 5 tables: batches **49→0**, segments **49→0**, field_evidence **3396→0**,
+extractions **1093→0**, promotions **3057→0**; active runs **0→6**. Global invariants re-verified:
+0 match-linked batches without `run_id`, 0 unmatched batches with `run_id`, every match-with-batches
+has exactly 1 active run. 972-976 share one video sha (5 reels of one 2026-05-22 video), 2675 its own.
+
+**Gates (all green):** db + worker + web typecheck clean. Full worker suite **481 pass / 0 fail /
+4 skipped** (was 478/2) — the 2 backfill tests flipped GREEN, provenance #3-5 stayed GREEN, new
+`confirm-association-run-linkage.test.ts` GREEN. Prettier touched files only ([[project_lint_state]]).
+
+**Test-cleanup fix (necessary side effect):** `confirmAssociation` now creates a synthetic run, so
+`match-association-queries.test.ts` was leaking a run keyed on its test sha (broke provenance #3 in
+the same clone). Added run cleanup (keyed on the test sha → never touches a real run).
+
+**Files:** `packages/db/src/queries/ocr-decoder-runs.ts` (new), `…/ocr-match-associations.ts`,
+`…/queries/index.ts`; `apps/worker/src/decoder-runs-cli.ts`;
+`apps/worker/src/__tests__/confirm-association-run-linkage.test.ts` (new), `…/match-association-queries.test.ts`.
+
+**⚠️ Follow-up (deferred-dispatch path):** the confirm-path fix only creates a run when the match
+already has ≥1 batch at confirm time — see the dispatch-path bullet in the task list above.
+
+</details>
 
 <details>
 <summary>✅ COMPLETED 2026-07-23 — de-confound <code>periodSumVacuous</code> with a TOI-derived <code>periodsPlayed</code></summary>

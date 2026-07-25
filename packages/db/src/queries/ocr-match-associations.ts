@@ -1,5 +1,5 @@
 import { and, desc, eq, isNull } from 'drizzle-orm'
-import { db } from '../client.js'
+import { db, type Database } from '../client.js'
 import {
   ocrCaptureBatches,
   ocrMatchAssociations,
@@ -7,6 +7,7 @@ import {
   type OcrMatchAssociation,
 } from '../schema/index.js'
 import { getMatchesWithLineup } from './matches.js'
+import { ensureSyntheticActiveRunForMatch } from './ocr-decoder-runs.js'
 
 /**
  * Reel→match association review-queue queries (Milestone ② Task 2.3).
@@ -132,6 +133,12 @@ export async function confirmAssociation(
       .set({ matchId })
       .where(and(eq(ocrCaptureBatches.videoSha256, assoc.videoSha256), runIdPredicate))
       .returning({ id: ocrCaptureBatches.id })
+
+    // GAP (3): keep the decoder-run ledger consistent. Ensure a synthetic active
+    // run exists for the match and cascade run_id onto the just-stamped batches
+    // (and any other match-linked rows). No-op when the match has no capture
+    // batches yet (deferred dispatch) — dispatch/ingest owns run creation there.
+    await ensureSyntheticActiveRunForMatch(matchId, tx as unknown as Database)
 
     return { association: updated, stampedBatchIds: stamped.map((s) => s.id) }
   })

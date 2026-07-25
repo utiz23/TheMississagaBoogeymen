@@ -71,7 +71,11 @@
  *       the structural pre-check / quality gate and rolled back (no --force)
  */
 import { db, sql as sqlTag, ocrDecoderRuns } from '@eanhl/db'
-import { getMatchById } from '@eanhl/db/queries'
+import {
+  getMatchById,
+  backfillRunLinkageForMatch,
+  findMatchesNeedingRunLinkage,
+} from '@eanhl/db/queries'
 import { and, desc, eq, sql } from 'drizzle-orm'
 
 import { rebuildCanonicalsFromActiveRun } from './lib/rebuild-canonicals-from-active-run.js'
@@ -565,11 +569,65 @@ async function validateConsolidated(argv: string[]): Promise<void> {
   await writeStdoutFlushed(JSON.stringify(records) + '\n')
 }
 
+/**
+ * backfill-run-linkage  (--match-id N | --all-unlinked) [--dry-run]
+ *
+ * GAP (3): repair the decoder-run ledger for association-flow matches that were
+ * confirmed before `confirmAssociation` learned to create runs. For each target
+ * match, `backfillRunLinkageForMatch` ensures a synthetic active run exists and
+ * cascades run_id across the five run_id tables (idempotent — a no-op once
+ * linked). `--all-unlinked` discovers every match with a match-linked batch
+ * whose run_id is NULL; `--dry-run` prints the target set without writing.
+ */
+async function backfillRunLinkage(argv: string[]): Promise<void> {
+  const dryRun = argv.includes('--dry-run')
+  const all = argv.includes('--all-unlinked')
+  const matchFlag = getFlag(argv, 'match-id')
+
+  let matchIds: number[]
+  if (all) {
+    if (matchFlag) {
+      throw new Error('backfill-run-linkage: pass either --match-id or --all-unlinked, not both')
+    }
+    matchIds = await findMatchesNeedingRunLinkage()
+  } else {
+    if (!matchFlag) {
+      throw new Error('backfill-run-linkage requires --match-id <N> or --all-unlinked')
+    }
+    const n = Number(matchFlag)
+    if (!Number.isInteger(n) || n <= 0) {
+      throw new Error(
+        `backfill-run-linkage: --match-id must be a positive integer; got: ${matchFlag}`,
+      )
+    }
+    matchIds = [n]
+  }
+
+  if (dryRun) {
+    process.stdout.write(JSON.stringify({ dryRun: true, matches: matchIds }) + '\n')
+    return
+  }
+
+  const results: Record<string, unknown>[] = []
+  for (const matchId of matchIds) {
+    const r = await backfillRunLinkageForMatch(matchId)
+    results.push({ matchId, ...r })
+    process.stderr.write(
+      `backfill-run-linkage: match ${matchId} → run ${r.runId ?? 'none'} ` +
+        `(created=${r.created}) cascaded=${JSON.stringify(r.cascaded)}\n`,
+    )
+  }
+  process.stdout.write(JSON.stringify({ dryRun: false, count: results.length, results }) + '\n')
+}
+
 async function main(): Promise<void> {
   const [subcommand, ...rest] = process.argv.slice(2)
   switch (subcommand) {
     case 'create-candidate':
       await createCandidate(rest)
+      break
+    case 'backfill-run-linkage':
+      await backfillRunLinkage(rest)
       break
     case 'validate':
       await validate(rest)
@@ -585,7 +643,7 @@ async function main(): Promise<void> {
       break
     default:
       throw new Error(
-        `unknown subcommand: ${subcommand ?? '(none)'}; expected create-candidate | validate | validate-consolidated | activate | undo`,
+        `unknown subcommand: ${subcommand ?? '(none)'}; expected create-candidate | backfill-run-linkage | validate | validate-consolidated | activate | undo`,
       )
   }
 }

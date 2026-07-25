@@ -27,7 +27,7 @@ void test('association queue: insert → list → confirm stamps batch match_id;
     return
   }
 
-  const { db, ocrCaptureBatches, ocrMatchAssociations, gameTitles, matches } =
+  const { db, ocrCaptureBatches, ocrMatchAssociations, ocrDecoderRuns, gameTitles, matches } =
     await import('@eanhl/db')
   const {
     insertAssociationProposal,
@@ -37,9 +37,14 @@ void test('association queue: insert → list → confirm stamps batch match_id;
   } = await import('@eanhl/db/queries')
   const { eq } = await import('drizzle-orm')
 
-  // Defensive pre-clean in case a prior run died mid-test.
+  // Defensive pre-clean in case a prior run died mid-test. Order matters:
+  // batches carry run_id (FK → ocr_decoder_runs), so drop them before the run.
+  // confirmAssociation now creates a synthetic decoder run for the confirmed
+  // match (GAP 3); it is keyed on this test's unique SHA, so deleting runs by
+  // that sha targets only the test's own run, never a real one.
   await db.delete(ocrMatchAssociations).where(eq(ocrMatchAssociations.videoSha256, SHA))
   await db.delete(ocrCaptureBatches).where(eq(ocrCaptureBatches.videoSha256, SHA))
+  await db.delete(ocrDecoderRuns).where(eq(ocrDecoderRuns.videoSha256, SHA))
 
   try {
     const [gt] = await db.select({ id: gameTitles.id }).from(gameTitles).limit(1)
@@ -114,6 +119,9 @@ void test('association queue: insert → list → confirm stamps batch match_id;
   } finally {
     await db.delete(ocrMatchAssociations).where(eq(ocrMatchAssociations.videoSha256, SHA))
     await db.delete(ocrCaptureBatches).where(eq(ocrCaptureBatches.videoSha256, SHA))
+    // Drop the synthetic run confirmAssociation created (GAP 3); after the batch
+    // delete above it owns no rows, so the FK is clear. Keyed on the test's sha.
+    await db.delete(ocrDecoderRuns).where(eq(ocrDecoderRuns.videoSha256, SHA))
   }
 })
 
@@ -124,12 +132,15 @@ void test('getConfirmedReelMap: confirmed reels only, {reelIndex,matchId}, deter
     return
   }
 
-  const { db, ocrMatchAssociations, matches } = await import('@eanhl/db')
+  const { db, ocrMatchAssociations, ocrDecoderRuns, matches } = await import('@eanhl/db')
   const { insertAssociationProposal, confirmAssociation, getConfirmedReelMap } =
     await import('@eanhl/db/queries')
   const { eq } = await import('drizzle-orm')
 
   await db.delete(ocrMatchAssociations).where(eq(ocrMatchAssociations.videoSha256, SHA2))
+  // These proposals are batch-less (direct path), so confirmAssociation's run
+  // guard creates no run — this delete is a defensive no-op keyed on SHA2.
+  await db.delete(ocrDecoderRuns).where(eq(ocrDecoderRuns.videoSha256, SHA2))
 
   try {
     // Two DISTINCT matches — the whole point of a multi-reel video (its reels
@@ -179,5 +190,6 @@ void test('getConfirmedReelMap: confirmed reels only, {reelIndex,matchId}, deter
     ])
   } finally {
     await db.delete(ocrMatchAssociations).where(eq(ocrMatchAssociations.videoSha256, SHA2))
+    await db.delete(ocrDecoderRuns).where(eq(ocrDecoderRuns.videoSha256, SHA2))
   }
 })
