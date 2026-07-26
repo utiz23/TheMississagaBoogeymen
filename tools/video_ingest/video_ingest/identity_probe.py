@@ -10,9 +10,14 @@ that plus the capture epoch into the ``reel-<idx>-identity.json`` shape that
 
     { capture_epoch_s, score_for, score_against, opponent_text, personas[] }
 
-``capture_epoch_s`` = the recording file's basename wall-clock + ``reel.start_s``,
+``capture_epoch_s`` = the recording file's basename wall-clock + ``reel.end_s``,
 so it lines up with ``matches.played_at`` (EA's UTC epoch) in the scorer's
-timestamp-proximity signal.
+timestamp-proximity signal. Reel END, not start: ``played_at`` is the game's
+END (verified against pilot reel geometry — match 970's played_at sits 97 s
+before its reel's end, inside the boxscore-viewing tail), and a reel STARTS in
+the lobby/queue right after the PREVIOUS game's end. Start-semantics made every
+timestamp-only proposal (no boxscore signals) rank the previous match top —
+frame-verified off-by-ones on proposals 28→253, 29→252, 30→464 (2026-07-25).
 
 Timezone calibration: the basename ("2026-05-20_18-15-59") is the recording PC's
 *local* wall-clock, but ``matches.played_at`` is a true UTC epoch. Stamping the
@@ -106,12 +111,13 @@ def _dedupe_preserving_order(personas: list[str]) -> list[str]:
 def build_identity(reel: Any, basename: str, ocr_reads: ReelOcrReads) -> dict:
     """Assemble the ``reel-<idx>-identity.json`` dict for one reel.
 
-    ``reel`` only needs a ``start_s`` (a :class:`~video_ingest.match_split.Reel`);
-    sub-second slop is truncated since it is irrelevant against the scorer's
-    σ≈3h timestamp Gaussian.
+    ``reel`` only needs an ``end_s`` (a :class:`~video_ingest.match_split.Reel`);
+    the reel END approximates the game's END, which is what ``matches.played_at``
+    records (see the module docstring). Sub-second slop is truncated since it is
+    irrelevant against the scorer's σ≈3h timestamp Gaussian.
     """
     return {
-        "capture_epoch_s": parse_basename_epoch(basename) + int(reel.start_s),
+        "capture_epoch_s": parse_basename_epoch(basename) + int(reel.end_s),
         "score_for": ocr_reads.score_for,
         "score_against": ocr_reads.score_against,
         "opponent_text": ocr_reads.opponent_text,

@@ -10,7 +10,11 @@ we pin the two pure surfaces the association step depends on:
     epoch) that the Session-A scorer compares against.
   * ``build_identity`` — assembles the ``reel-<idx>-identity.json`` shape the
     ``resolve-match propose`` CLI reads: capture_epoch_s offset by the reel's
-    start, plus score / opponent / de-duplicated personas.
+    END (``matches.played_at`` is the game's END; a reel ends shortly after its
+    game ends, while a reel STARTS near the PREVIOUS game's end — using start_s
+    systematically ranked the previous match top on timestamp-only proposals;
+    frame-verified 2026-07-25 on proposals 28/29/30), plus score / opponent /
+    de-duplicated personas.
 """
 
 from __future__ import annotations
@@ -38,7 +42,7 @@ from video_ingest.match_split import Reel
 
 
 def _reel(start_s: float, reel_index: int = 0) -> Reel:
-    """A minimal-but-real Reel; only ``start_s`` matters to build_identity."""
+    """A minimal-but-real Reel; build_identity reads ``end_s`` (= start_s + 600)."""
     return Reel(
         reel_index=reel_index,
         start_s=start_s,
@@ -70,19 +74,26 @@ def test_parse_basename_epoch_localizes_operator_wall_clock() -> None:
 
 
 def test_parse_basename_epoch_lines_up_with_api_played_at() -> None:
-    # Regression anchor to real DB truth: the proven mapping (HANDOFF timestamp
-    # fingerprint) puts reel 0 of 2026-05-22_19-07-03.mkv on match 971, whose
-    # played_at is 1779498237. Reel 0's lobby starts ≈ +2 s into the recording,
-    # so its calibrated capture epoch must sit within the scorer's σ=3h window of
-    # played_at (pre-calibration it was ~5.9 h off — basename-as-UTC — which
-    # ranked the wrong match top). Observed residual ≈ −3 min.
+    # Regression anchor to real DB truth. played_at is the game's END: match 971
+    # (played_at 1779498237 = 19:03:57 MDT) ended ~3 min BEFORE this recording
+    # started (19:07:03) — its reels belong to matches 972–976, NOT 971–975.
+    # The recording's start must still sit within the scorer's σ=3h window of
+    # 971's played_at (pre-tz-calibration it was ~5.9 h off — basename-as-UTC —
+    # which ranked wrong matches top). That same "previous game's end is nearest
+    # the recording start" adjacency is why capture_epoch_s uses reel END, not
+    # start (see test_build_identity_offsets_epoch_by_reel_end below).
     reel0_capture = parse_basename_epoch("2026-05-22_19-07-03") + 2
     match_971_played_at = 1779498237
 
     assert abs(match_971_played_at - reel0_capture) < 15 * 60
 
 
-def test_build_identity_offsets_epoch_by_reel_start_and_assembles_shape() -> None:
+def test_build_identity_offsets_epoch_by_reel_end_and_assembles_shape() -> None:
+    # capture_epoch_s = basename epoch + reel END (798 + 600), NOT reel start:
+    # matches.played_at is the game's END and a reel ends shortly after its game
+    # ends, while a reel STARTS near the previous game's end. Start-semantics
+    # made timestamp-only proposals systematically rank the PREVIOUS match top
+    # (frame-verified 2026-07-25: proposals 28→253, 29→252, 30→464).
     basename = "2026-05-20_18-15-59"
     reel = _reel(start_s=798.0, reel_index=1)
     reads = ReelOcrReads(
@@ -95,7 +106,7 @@ def test_build_identity_offsets_epoch_by_reel_start_and_assembles_shape() -> Non
     identity = build_identity(reel, basename, reads)
 
     assert identity == {
-        "capture_epoch_s": parse_basename_epoch(basename) + 798,
+        "capture_epoch_s": parse_basename_epoch(basename) + 1398,
         "score_for": 4,
         "score_against": 2,
         "opponent_text": "Rangers",
@@ -130,8 +141,8 @@ def test_build_identity_tolerates_missing_boxscore_and_lobby() -> None:
     assert identity["score_against"] is None
     assert identity["opponent_text"] == ""
     assert identity["personas"] == []
-    # start_s truncates to whole seconds (sub-second slop is irrelevant vs σ≈3h).
-    assert identity["capture_epoch_s"] == parse_basename_epoch("2026-05-20_18-15-59") + 120
+    # end_s truncates to whole seconds (sub-second slop is irrelevant vs σ≈3h).
+    assert identity["capture_epoch_s"] == parse_basename_epoch("2026-05-20_18-15-59") + 720
 
 
 def test_write_reel_identities_writes_one_file_per_reel(tmp_path) -> None:
@@ -173,7 +184,7 @@ def test_write_reel_identities_is_best_effort_on_read_failure(tmp_path) -> None:
 
     assert [p.name for p in paths] == ["reel-0-identity.json", "reel-1-identity.json"]
     failed = json.loads((tmp_path / "reel-1-identity.json").read_text())
-    assert failed["capture_epoch_s"] == parse_basename_epoch(basename) + 798
+    assert failed["capture_epoch_s"] == parse_basename_epoch(basename) + 1398
     assert failed["score_for"] is None and failed["personas"] == []
     assert any("reel 1" in m for m in logs)
 
