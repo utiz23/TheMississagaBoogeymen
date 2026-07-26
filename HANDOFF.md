@@ -26,11 +26,21 @@
 
 **NEXT SESSION (fresh — this is a NEW task; the pilot above is DONE):** build a parallel Pass-1 path.
 1. **Confirm the bottleneck** — controlled test: same video Pass-1 from `/mnt/k` (drvfs) vs staged on ext4, and whether classify actually uses the CUDA EP (GPU was 9–53% util during the pilot). Decides staging-vs-parallelism-vs-GPU-enable weighting.
-2. **Parallelize** — `batch` is a sequential for-loop; needs a wrapper that drives N concurrent `ingest --dispatch` Pass-1 passes (N≈6–10 of 12 cores). Even 5–6× → ~18–20 h. Watch: shared `sha-cache.json` write, concurrent DB writes (per-video isolation should hold — distinct shas/matches).
+2. ✅ **Parallelize — DONE 2026-07-25 (`9685804`), completed record below.** The `batch` command now takes `--jobs N`.
 3. Optionally stage the ~76 GB fresh set on ext4 first.
 4. Validate on 2–3 videos, then run the full corpus **chunked**, re-running `backfill-run-linkage --all-unlinked` after EACH dispatch chunk.
 
 Also note: match 971 sits in the review queue (HOLD) — a real game with no OCR box score; nothing to fix, just unverifiable from video.
+
+### ✅ PARALLEL PASS-1 WRAPPER BUILT 2026-07-25 — `batch --jobs N` (`9685804`, on `main`)
+
+**What:** the step-2 "parallelize" work above. `batch` gained a `--jobs N`/`-j N` flag ([cli.py](tools/video_ingest/video_ingest/cli.py)). `--jobs 1` (default) is the pre-existing sequential loop **verbatim** — live terminal output, every prior test unchanged. `--jobs N>1` fans the unchanged per-video unit (`_process_target`: ingest → propose) across N worker **threads** in [batch_ingest.py](tools/video_ingest/video_ingest/batch_ingest.py) (`run_batch` branches; new `_run_targets_parallel` / `_process_in_worker` / `_run_to_log`; `_process_target` gained a `run` runner seam). Threads (not processes) because each unit blocks on a `subprocess.run` that releases the GIL. **Pass-1 only** — `batch-promote` (Pass-2) is untouched.
+
+**Hazards handled (the three the calibration section flagged):** (a) stdout interleaving → each worker captures its subprocess output to a PRIVATE `<DEFAULT_INGEST_CACHE>/batch-logs-<ts>/<sha>.log`; only serialized START/DONE/SKIP lifecycle lines hit the terminal (one lock). `tail -f` a log for live per-video progress. (b) shared `sha-cache.json` write → non-issue: only the sequential planning phase writes it, before any fan-out. (c) concurrent DB/decode-cache writes → per-video isolated by distinct sha (distinct `<sha>/` dir + distinct `ocr_capture_batches`/`ocr_extractions` rows + `propose` keyed by its own `video_sha256`).
+
+**The one UNVERIFIED risk — GPU memory:** if classify actually uses the CUDA EP, N workers each load OCR models onto the same GPU and can OOM it. So `--jobs` defaults to 1 and the fan-out prints a validate-at-low-N warning. **This is exactly step 1 (does classify use the CUDA EP?) + step 4 (validate on 2–3 videos) — and this wrapper is now the tool to run them:** start with `batch --jobs 2 --limit 2`, watch `nvidia-smi`, tune N up (target N≈6–10 of 12 cores) only if GPU memory holds.
+
+**Verify:** Python-only (no `@eanhl/db`/worker rebuild, no schema/migration). `test_batch_ingest.py` 81 passed (+13 new), `test_cli_contracts.py` 10 passed, full `video_ingest` suite **666 passed / 5 skipped / exit 0**. Committed to `main` (`9685804`); **NOT pushed** (no push requested). This handoff update is the separate docs commit.
 
 ### ⏭️ IMMEDIATE TASK (next session) — the full corpus run (multi-reel `ocr_capture_batches.match_id` stamp bug FIXED 2026-07-25; completed record below)
 
