@@ -2,6 +2,19 @@
 
 ## Active State
 
+### ✅ BOTTLENECK RE-CHARACTERIZED 2026-07-25 (telemetry) — Pass-1 is CPU-COMPUTE-bound, NOT drvfs-seek / I/O bound; ext4 staging ≈ 0.5%, DROPPED
+
+**Corrects the "drvfs-seek-bound" / "CPU/drvfs-seek" framing in the pilot + N=2/N=3 knee entries below, and RETRACTS the "ext4 staging is high-value, test it before the run" recommendation (§CORRECTED DECIDE N).** No code/DB change — read-only analysis of the pilot's `segments.json` telemetry + the classify code path.
+
+**Measured split (pilot `94ac3dd8`, 56-min / 1.40 GB / 3.3 Mbps — `segments.json` → `pass1_sampling_telemetry`):** Pass-1 = 77.7 min = **decode 15.1 min (19%)** + **classify 62.6 min (81%)** (viterbi ~0). `decoded_frame_count=201,766` = the FULL 60 fps stream ⇒ Pass-1 does a **whole-video SEQUENTIAL decode** (`iter_sampled_frames(video, None, None)` — [pass1_classify.py:247](tools/video_ingest/video_ingest/pass1_classify.py#L247)), picking 1 frame/sec and dropping the rest. It **never seeks** — `-ss` seeking is a **Pass-2** thing.
+
+**Therefore Pass-1 is:** (a) NOT seek-bound (no seeks); (b) NOT I/O-bound — at 3.3 Mbps the whole file streams in **~24 s on drvfs (~1 s on ext4)** ⇒ staging saves **~23 s / 4663 s = 0.49% of Pass-1**; (c) **CPU-compute-bound** — the 19% is CPU H.264 decode, and since the knee-tests clocked the **GPU at only ~30% util**, most of the 81% "classify" is CPU-side frame preprocessing between GPU inference bursts. The N=3 knee is **CPU-core contention** (≈3 workers × internal decode/onnxruntime threads ≈ 12 cores), not I/O-channel contention.
+
+**Consequences:**
+- **DROP ext4 staging** — it targets a ~0.5% cost. The §CORRECTED DECIDE N line calling it "arguably higher-value than tuning N further" is WRONG.
+- **N=3–4 sweet spot STANDS** (the CPU-core ceiling was identified correctly) — just for the right reason.
+- **The only real Pass-1 speed lever left is the idle GPU:** NVDEC hardware decode (removes the 19% CPU decode) + larger classify batches (raises GPU util, cuts into the 81%). A code project, OPTIONAL — N=3–4 (~35–40 h) is already acceptable.
+
 ### ✅ PILOT PASSED 2026-07-25 — 1-video multi-reel run validated `dc0a111` in production (corpus is technically green-lit)
 
 **Why:** first live multi-reel dispatch since the reel-scoping confirm fix (`dc0a111`, on `main @ 15bfa8d`). The pilot proved, on real dispatch, that confirming reel A does not clobber reel B's `match_id` and each reel ends with its own `match_id` + its own decoder run — the go/no-go before committing ~40–58 GPU-h to the corpus. Read-mostly on `main`; **git tree clean, no code changes this session** (DB + `/tmp/ingest-cache` mutated, not the repo).
@@ -12,7 +25,7 @@
 
 **Operator decisions (confirmed):** reel 0 → **970** (matcher 0.85, 6-0 vs BAD BOYZ, full boxscore); reel 1 → **971** (manual `--match-id`; matcher returned no_api_match — inferred from the 18:53–19:07 MDT window, the only unclaimed match there); reel 2 → **rejected** (5-sec lobby-only fragment, no personas). `reel-map = {0:970, 1:971}`, 0 pending.
 
-**Timing anchors (real, this box):** Pass-1 = **~1 h 57 m** for the 56-min video (classify 3363 frames @ ~1 fps in **77.7 min ≈ 1.4 s/frame** — single-threaded + drvfs-seek-bound, GPU mostly idle; Pass-2 extract 37.4 min). Promote **cache-hits** both passes (`extracted in 0.0s`) → dispatch-OCR only. ⚠️ **Corpus-estimate caveat:** the classify bottleneck is CPU/drvfs-seek, NOT GPU — the 40–58 GPU-h figure should be re-sanity-checked against ~2 h/56-min-video, and it's worth asking whether classify can be sped up before committing the full run.
+**Timing anchors (real, this box):** Pass-1 = **~1 h 57 m** for the 56-min video (classify 3363 frames @ ~1 fps in **77.7 min ≈ 1.4 s/frame** — single-threaded, CPU-compute-bound (decode 19% + classify 81%; GPU idle ~30%), **NOT drvfs-seek-bound** — see the top BOTTLENECK RE-CHARACTERIZED entry; Pass-2 extract 37.4 min). Promote **cache-hits** both passes (`extracted in 0.0s`) → dispatch-OCR only. ⚠️ **Corpus-estimate caveat:** the classify bottleneck is CPU compute, NOT GPU or I/O — the 40–58 GPU-h figure should be re-sanity-checked against ~2 h/56-min-video, and it's worth asking whether classify can be sped up before committing the full run.
 
 **RESULT — all gates green:**
 - **Promote:** 18/18 segments dispatched, 0 failed, ~6.3 min (decode cache HIT → dispatch-only). Reel 2 (rejected) correctly `skipped`.
@@ -59,13 +72,13 @@ Also note: match 971 sits in the review queue (HOLD) — a real game with no OCR
 - **Peak mem 4368 MiB (35.6 %)**, mean-active 3662 MiB → **~1063 MiB/worker**. Memory held with huge headroom; **no OOM**, clean teardown to idle.
 - **CUDA EP CONFIRMED:** SM-util > 0 in **100 %** of active samples, mean **30.3 %**, max 91 %, only 1.1 % ≥ 70 %. Classify IS genuine GPU compute — but the GPU is **NOT saturated at N=2** (bursty, mean 30 %).
 
-**Mechanistic conclusion (why parallelism works):** per-worker throughput is **CPU/decode/drvfs-seek-bound, not GPU-bound** (2 workers each still hit ~1.3× realtime while the shared GPU coasted at 30 % and only 2/12 cores were busy). So workers scale ~linearly until the shared GPU compute saturates. This corrects the pilot's "GPU mostly idle → CPU-bound" read: it's BOTH — classify uses the GPU, just not enough to be the per-worker bottleneck at low N.
+**Mechanistic conclusion (why parallelism works):** per-worker throughput is **CPU/decode-bound, not GPU-bound** (2 workers each still hit ~1.3× realtime while the shared GPU coasted at 30 % and only 2/12 cores were busy). So workers scale ~linearly until the CPU cores saturate (~N=3–4). *(NOTE 2026-07-25: an earlier draft of this line said "drvfs-seek-bound" — disproven by telemetry; Pass-1 is a sequential decode, file I/O ~0.5% of wall. See the top BOTTLENECK RE-CHARACTERIZED entry.)* This refines the pilot's "GPU mostly idle → CPU-bound" read: classify uses the GPU, just not enough to be the per-worker bottleneck at low N.
 
 **Speedup (step 4c):** **1.30× measured on this pair** (seq-at-observed 5365.1 s / parallel 4131 s; adding p0 cost only 131 s of wall-clock). 1.57× vs the 2.06× single-thread baseline (which these lighter videos beat — p0 had zero pass2 — so it overstates). The modest pair number is a **test-design artifact** of a 17-vs-35-min imbalance under `--limit 2` (p0 done at 22.7 min, then a core idled ~44 min). At higher `--limit` with mixed lengths the scheduler stays full and realized speedup approaches N until a ceiling bites.
 
-**DECIDE N → recommend N≈6 next.** ⚠️ *SUPERSEDED — the `--jobs 6 --limit 6` run below CORRECTED this to N≈3–4; the binding constraint is CPU/drvfs-seek, NOT GPU.* Three ceilings converge at 6–8: **GPU compute** ~15 % util/worker → soft knee ~N6-7 (binding); **GPU memory** ~1.06 GB/worker → ~8 with 10 % margin (hard cap); **cores** ~1/worker of 12 → ~10. Next step per the runbook branch ("GPU mem held + util>0 → step N up"): **`batch --jobs 6 --limit 4`**, re-measure the knee (does classify hold ~1.3× at N=6? peak mem stay < ~9 GB? does GPU compute saturate?). Raw trace: `scratchpad/gpu-samples.csv`, per-video logs in `/tmp/ingest-cache/batch-logs-20260726T010857Z`.
+**DECIDE N → recommend N≈6 next.** ⚠️ *SUPERSEDED — the `--jobs 6 --limit 6` run below CORRECTED this to N≈3–4; the binding constraint is CPU compute, NOT GPU (and NOT drvfs-seek — see the top BOTTLENECK RE-CHARACTERIZED entry).* Three ceilings converge at 6–8: **GPU compute** ~15 % util/worker → soft knee ~N6-7 (binding); **GPU memory** ~1.06 GB/worker → ~8 with 10 % margin (hard cap); **cores** ~1/worker of 12 → ~10. Next step per the runbook branch ("GPU mem held + util>0 → step N up"): **`batch --jobs 6 --limit 4`**, re-measure the knee (does classify hold ~1.3× at N=6? peak mem stay < ~9 GB? does GPU compute saturate?). Raw trace: `scratchpad/gpu-samples.csv`, per-video logs in `/tmp/ingest-cache/batch-logs-20260726T010857Z`.
 
-### ✅ N=3 (real) KNEE-TEST 2026-07-25 — `batch --jobs 6 --limit 6`: GPU is NOT the bottleneck, CPU/drvfs-seek is (CORRECTS the "N≈6" estimate above)
+### ✅ N=3 (real) KNEE-TEST 2026-07-25 — `batch --jobs 6 --limit 6`: GPU is NOT the bottleneck, CPU compute is (CORRECTS the "N≈6" estimate above; the "drvfs-seek" half was itself later disproven — see the top BOTTLENECK RE-CHARACTERIZED entry)
 
 **What:** the runbook step-5 knee re-measure. **The ledger re-listed the two N=2 videos (unconfirmed proposals ⇒ still "loose"); both CACHE-HIT** (`[pass1] cache hit … segments.json`, `pass1 0.0s`, propose `"skipped": true` → **no duplicate proposals**). p0/p1 finished in 10.4 s / 15.3 s, so the run was **effectively 3-way real work, not 5-way.** **5 processed, 1 already-ingested (0593bec auto-skipped), 0 failed, wall 4182 s (69.7 min).** Git tree clean.
 
@@ -77,11 +90,11 @@ Also note: match 971 sits in the review queue (HOLD) — a real game with no OCR
 - 3-way (this run): f54be0 1.571, b9834d 1.526, 255c99f 1.947 → **~1.65 s/frame — ~18–24 % per-worker penalty.**
 - Aggregate classify rate: 1-way ~0.71 fps → 2-way ~1.50 fps → 3-way ~1.82 fps. **Diminishing returns; the contention knee is right around N=3.**
 
-**GPU at 3-way concurrency: NOT the ceiling.** Peak **5947 MiB (48 %)** ≈ 1235 MiB/worker → memory alone would allow ~8 workers. Mean util **28.6 %** (100 % only in brief bursts). Both GPU memory and compute have large headroom while per-worker throughput is already degrading → **the binding constraint is CPU / decode / `/mnt/k` drvfs-seek**, exactly the pilot's original read. **The earlier "N≈6–7 GPU-compute knee" (N=2 section) was WRONG** — it mis-assumed GPU compute was binding.
+**GPU at 3-way concurrency: NOT the ceiling.** Peak **5947 MiB (48 %)** ≈ 1235 MiB/worker → memory alone would allow ~8 workers. Mean util **28.6 %** (100 % only in brief bursts). Both GPU memory and compute have large headroom while per-worker throughput is already degrading → **the binding constraint is CPU compute (H.264 decode + classify preprocessing)**. *(NOTE 2026-07-25: the "`/mnt/k` drvfs-seek" part of this read was later disproven by telemetry — Pass-1 does a whole-video sequential decode and file I/O is ~0.5% of wall; see the top BOTTLENECK RE-CHARACTERIZED entry. The CPU-bound conclusion stands.)* **The earlier "N≈6–7 GPU-compute knee" (N=2 section) was WRONG** — it mis-assumed GPU compute was binding.
 
 **CORRECTED DECIDE N:**
-- **Corpus sweet spot on `/mnt/k` as-is ≈ N=3–4.** N=2 is free (perfect scaling); N=3 buys ~2.6× aggregate at mild per-worker cost; beyond ~4–5 CPU/IO contention flattens it (GPU never bites). **Do NOT chase N=6–10.**
-- **The bigger lever is ext4 staging (HANDOFF-flagged, still UNTESTED):** copy the ~76 GB fresh corpus off `/mnt/k` 9p onto native ext4 (899 GB free) to cut seek cost — likely raises both per-worker rate AND the contention ceiling. Worth a controlled A/B (same video, drvfs vs ext4, single-thread) BEFORE the full run — arguably higher-value than tuning N further.
+- **Corpus sweet spot ≈ N=3–4 (CPU-core-bound).** N=2 is free (perfect scaling); N=3 buys ~2.6× aggregate at mild per-worker cost; beyond ~4–5 CPU contention flattens it (GPU never bites). **Do NOT chase N=6–10.**
+- **~~ext4 staging — RETRACTED 2026-07-25.~~** Telemetry disproved the premise: Pass-1 does a whole-video **sequential** decode (no seeks) of a 3.3 Mbps file, so file I/O is **~23 s/video = ~0.5% of Pass-1** — staging is noise, NOT "higher-value than tuning N." See the top BOTTLENECK RE-CHARACTERIZED entry. The only real Pass-1 lever left is offloading decode/classify to the idle GPU (NVDEC + bigger batches) — optional.
 - **Corpus Pass-1 estimate:** at N=3–4 (~2.6–3× single-thread), 50.6 h footage ⇒ ~**35–40 h Pass-1** (vs ~104 h single-thread / the old 112 h figure), chunked across sessions; ext4 staging could cut more.
 - Raw trace: `scratchpad/gpu-samples-n6.csv`, per-video logs `/tmp/ingest-cache/batch-logs-20260726T032448Z`.
 
