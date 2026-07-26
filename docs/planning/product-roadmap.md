@@ -67,6 +67,8 @@ Both are now presented honestly in the merged `/stats` and `/roster` routes. The
 
 - Discord alerting — cron checks `localhost:3001/health`, notifies when stale >30 min
 - `pg_dump` backup cron — daily dump to external drive
+- **Backup restore drill** — periodically restore a `pg_dump` into a throwaway DB and verify row counts. An untested backup is not a verified backup.
+- **Ingestion-health & data-gap visibility** — the health-staleness alert catches "worker dead" and `pg_dump` catches "disk gone", but neither catches "worker alive but silently not capturing." Add: (a) alert when `raw_match_payloads.transform_status='error'` rows accumulate (reprocess backlog), (b) surface `ingestion_log` / gap logging as a simple health view so silent capture gaps are visible before data is lost. Directly serves the correctness-first priority.
 - ~~Verify `clubs/seasonRank` + `settings` field shapes~~ ✅ Done — live DB row confirmed, all widget fields correct
 
 ### 4. Third historical source review/import
@@ -75,6 +77,50 @@ Both are now presented honestly in the merged `/stats` and `/roster` routes. The
 - Promote corrected review artifacts into import-ready JSON
 - Import `historical_club_team_stats` title-by-title
 - Only after enough rows exist, decide where club/team screenshot totals belong in legacy UI
+
+---
+
+## New Feature Requests (added 2026-07-25)
+
+> Captured from operator request. Each still needs its own inspect-and-define session before build. Scope notes below are orientation, not commitments.
+
+### 5. Build history view — "locker"
+
+- A view of a player's build/loadout history over time (X-Factors, build class, gear), NHL-style "locker" framing.
+- Draws on the OCR loadout pipeline already extracting `build_class` / `x_factor_name` / per-slot loadout data (`player_loadout` schema, loadout extractors).
+- Open questions: per-player timeline vs per-match snapshot; which titles have loadout coverage; how much of the corpus loadout data is reviewed/trustworthy enough to surface.
+
+### 6. Login + request-access
+
+- Introduce authentication where there is currently **none** (site is open on the LAN/self-host; audience is a handful of team members).
+- Two parts: (a) member login, (b) a "request access" flow for non-members.
+- Open questions: auth mechanism (Discord OAuth fits the audience, vs. simple credential), what becomes gated vs. public, session/role model, and whether this changes the "internal dashboard" security posture in `docs/`.
+
+### 7. NHL 27 preparation (beta access live now)
+
+- Operator has NHL 27 beta access; menus and data screens look virtually identical to NHL 26 at first glance. Begin tuning data collection ahead of launch.
+- Architecture already supports this: `game_titles` is the primary axis (`is_active`, `launched_at`), match uniqueness is `(game_title_id, ea_match_id)`, and OCR is title-tagged.
+- Prep work: (a) confirm EA Pro Clubs API endpoint family / platform for NHL 27; (b) add the NHL 27 `game_titles` row when it launches; (c) validate OCR screen parsers against beta capture (verify the "screens are the same" assumption per-parser before trusting it — small UI shifts break ROI/segmentation); (d) capture a small labeled beta benchmark set so day-1 ingest is calibrated, not discovered live.
+
+### 8. Footer + final website prep (launch readiness)
+
+- Site footer plus webmaster / data-legal protection requirements.
+- Scope: footer content (branding, links, credits), plus legal/compliance surface — privacy notice, data-use/attribution, and any EA/third-party content disclaimers appropriate to a fan-operated club site.
+- Open questions: what jurisdiction's data-protection reqs apply, whether any personal data (gamertags) needs a handling notice, and EA API/asset usage attribution.
+
+### 9. Game sheet page revamp
+
+- Revamp of the game/match detail page (the scoresheet surface — `apps/web/src/app/games/[id]`, hero + scoresheet + top performers + lineup band).
+- A **new frontend is being built externally** by the operator and will be brought in — the work here is integration, not a from-scratch design.
+- Timing: **after the OCR corpus run begins** (per operator). Sequencing note — much of the POLISH_BACKLOG game-detail bug list (conflicting "GAME" numbers, home/away hardcode, tie-as-win possession edge) may be **superseded or reshuffled** by the new frontend; reconcile that backlog against the incoming design before spending effort on the old surface.
+- Open questions: how the new frontend maps onto the existing view-model builders (`lib/match-recap.ts`) and data sources (EA vs OCR-reviewed period summaries), and whether it changes the NHL-26-only scope of `/games/[id]`.
+
+### 10. NHL 27 title cutover (operational milestone)
+
+- Distinct from item 7 (which is data-collection *prep*). This is the **title flip itself**: add the NHL 27 `game_titles` row, set it `is_active`, and demote NHL 26 to archive.
+- Likely runs **both titles active during the beta/transition window** — needs a plan for that dual-active period (which title the worker polls, how the UI presents "current" during overlap).
+- This is the **first real production exercise of cross-game career stats** — the roadmap's stated core feature — so verify the career-stat stitching across the NHL 26 → 27 boundary is correct at cutover, not after.
+- `/`, `/games`, `/games/[id]` are currently NHL-26-only by design (see `title-resolver.ts`); decide whether "active title" for those surfaces follows the flip automatically or needs an explicit change.
 
 ---
 
