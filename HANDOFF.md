@@ -42,6 +42,49 @@ Also note: match 971 sits in the review queue (HOLD) — a real game with no OCR
 
 **Verify:** Python-only (no `@eanhl/db`/worker rebuild, no schema/migration). `test_batch_ingest.py` 81 passed (+13 new), `test_cli_contracts.py` 10 passed, full `video_ingest` suite **666 passed / 5 skipped / exit 0**. Committed to `main` (`9685804`); **NOT pushed** (no push requested). This handoff update is the separate docs commit.
 
+### ✅ N=2 PARALLEL PASS-1 VALIDATED 2026-07-25 — `batch --jobs 2 --limit 2` on the RTX 3060 box (GPU mem holds, CUDA EP confirmed)
+
+**What:** ran the step-1/step-4 validation the wrapper section above called for. `batch --jobs 2 --limit 2` from `/mnt/k/NHL/NHL26`, with `nvidia-smi` sampled ~1 Hz throughout (4056 rows). Read-mostly on `main`; **git tree clean** (DB + `/tmp/ingest-cache` mutated, not the repo).
+
+**Targets (both fresh/loose, priority order):** p0 `b8ef172cc9a6` (`2026-05-09_02-07-51.mkv`, 1035 s / 17.3 min), p1 `7fa72bc80ac6` (`2026-05-08_17-50-32.mkv`, 2107.7 s / 35.1 min). **2 processed, 0 failed.**
+
+**Proposals landed (ingest half OK) — BOTH pending manual confirm (low conf, proposedMatchId=null):**
+- p0 → proposal **id 24**, conf 0.0535, bestMatchId 253, runnerUpGap 0.0132.
+- p1 → proposal **id 25**, conf 0.3484, bestMatchId 249, runnerUpGap 0.0165.
+- Next operator step for these: `resolve-match confirm` (or reject) — they will NOT auto-promote.
+
+**Timing:** wall **4131 s (68.85 min)**. p0 = 1364.9 s (pass1 classify 1350.8 s @ 1035 fr; pass2 0.1 s — this video had NO boxscore/loadout segments). p1 = 4000.2 s (pass1 classify 2848.8 s @ 2108 fr; pass2 extract 1133.5 s → 252 fr / 5 segs). **Classify ran ~1.3× realtime PER WORKER under 2-way load** (p0 1.305×, p1 1.351×) — no measurable per-worker slowdown.
+
+**GPU (RTX 3060 12 GB; idle baseline ~2242 MiB):**
+- **Peak mem 4368 MiB (35.6 %)**, mean-active 3662 MiB → **~1063 MiB/worker**. Memory held with huge headroom; **no OOM**, clean teardown to idle.
+- **CUDA EP CONFIRMED:** SM-util > 0 in **100 %** of active samples, mean **30.3 %**, max 91 %, only 1.1 % ≥ 70 %. Classify IS genuine GPU compute — but the GPU is **NOT saturated at N=2** (bursty, mean 30 %).
+
+**Mechanistic conclusion (why parallelism works):** per-worker throughput is **CPU/decode/drvfs-seek-bound, not GPU-bound** (2 workers each still hit ~1.3× realtime while the shared GPU coasted at 30 % and only 2/12 cores were busy). So workers scale ~linearly until the shared GPU compute saturates. This corrects the pilot's "GPU mostly idle → CPU-bound" read: it's BOTH — classify uses the GPU, just not enough to be the per-worker bottleneck at low N.
+
+**Speedup (step 4c):** **1.30× measured on this pair** (seq-at-observed 5365.1 s / parallel 4131 s; adding p0 cost only 131 s of wall-clock). 1.57× vs the 2.06× single-thread baseline (which these lighter videos beat — p0 had zero pass2 — so it overstates). The modest pair number is a **test-design artifact** of a 17-vs-35-min imbalance under `--limit 2` (p0 done at 22.7 min, then a core idled ~44 min). At higher `--limit` with mixed lengths the scheduler stays full and realized speedup approaches N until a ceiling bites.
+
+**DECIDE N → recommend N≈6 next.** ⚠️ *SUPERSEDED — the `--jobs 6 --limit 6` run below CORRECTED this to N≈3–4; the binding constraint is CPU/drvfs-seek, NOT GPU.* Three ceilings converge at 6–8: **GPU compute** ~15 % util/worker → soft knee ~N6-7 (binding); **GPU memory** ~1.06 GB/worker → ~8 with 10 % margin (hard cap); **cores** ~1/worker of 12 → ~10. Next step per the runbook branch ("GPU mem held + util>0 → step N up"): **`batch --jobs 6 --limit 4`**, re-measure the knee (does classify hold ~1.3× at N=6? peak mem stay < ~9 GB? does GPU compute saturate?). Raw trace: `scratchpad/gpu-samples.csv`, per-video logs in `/tmp/ingest-cache/batch-logs-20260726T010857Z`.
+
+### ✅ N=3 (real) KNEE-TEST 2026-07-25 — `batch --jobs 6 --limit 6`: GPU is NOT the bottleneck, CPU/drvfs-seek is (CORRECTS the "N≈6" estimate above)
+
+**What:** the runbook step-5 knee re-measure. **The ledger re-listed the two N=2 videos (unconfirmed proposals ⇒ still "loose"); both CACHE-HIT** (`[pass1] cache hit … segments.json`, `pass1 0.0s`, propose `"skipped": true` → **no duplicate proposals**). p0/p1 finished in 10.4 s / 15.3 s, so the run was **effectively 3-way real work, not 5-way.** **5 processed, 1 already-ingested (0593bec auto-skipped), 0 failed, wall 4182 s (69.7 min).** Git tree clean.
+
+**Proposals landed (all low-conf, proposedMatchId=null → need manual `resolve-match confirm`):** f54be0 → **id 28** (0.35, best 252); b9834d → **id 29** (0.35, best 251); 255c99f is **multi-reel** → **id 30** (0.35, best 463) + **id 31** (0.348, best 464). Review queue now holds **24, 25, 28, 29, 30, 31 = 6 pending.**
+
+**Per-frame classify (the contention signal):**
+- 1-way (pilot, cross-video): ~1.4 s/frame.
+- 2-way (N=2 run): p0 1.305, p1 1.351 → **~1.33 s/frame — NO penalty** (≈ 1-way).
+- 3-way (this run): f54be0 1.571, b9834d 1.526, 255c99f 1.947 → **~1.65 s/frame — ~18–24 % per-worker penalty.**
+- Aggregate classify rate: 1-way ~0.71 fps → 2-way ~1.50 fps → 3-way ~1.82 fps. **Diminishing returns; the contention knee is right around N=3.**
+
+**GPU at 3-way concurrency: NOT the ceiling.** Peak **5947 MiB (48 %)** ≈ 1235 MiB/worker → memory alone would allow ~8 workers. Mean util **28.6 %** (100 % only in brief bursts). Both GPU memory and compute have large headroom while per-worker throughput is already degrading → **the binding constraint is CPU / decode / `/mnt/k` drvfs-seek**, exactly the pilot's original read. **The earlier "N≈6–7 GPU-compute knee" (N=2 section) was WRONG** — it mis-assumed GPU compute was binding.
+
+**CORRECTED DECIDE N:**
+- **Corpus sweet spot on `/mnt/k` as-is ≈ N=3–4.** N=2 is free (perfect scaling); N=3 buys ~2.6× aggregate at mild per-worker cost; beyond ~4–5 CPU/IO contention flattens it (GPU never bites). **Do NOT chase N=6–10.**
+- **The bigger lever is ext4 staging (HANDOFF-flagged, still UNTESTED):** copy the ~76 GB fresh corpus off `/mnt/k` 9p onto native ext4 (899 GB free) to cut seek cost — likely raises both per-worker rate AND the contention ceiling. Worth a controlled A/B (same video, drvfs vs ext4, single-thread) BEFORE the full run — arguably higher-value than tuning N further.
+- **Corpus Pass-1 estimate:** at N=3–4 (~2.6–3× single-thread), 50.6 h footage ⇒ ~**35–40 h Pass-1** (vs ~104 h single-thread / the old 112 h figure), chunked across sessions; ext4 staging could cut more.
+- Raw trace: `scratchpad/gpu-samples-n6.csv`, per-video logs `/tmp/ingest-cache/batch-logs-20260726T032448Z`.
+
 ### ⏭️ IMMEDIATE TASK (next session) — the full corpus run (multi-reel `ocr_capture_batches.match_id` stamp bug FIXED 2026-07-25; completed record below)
 
 **✅ 972 PROMOTED to the live DB (2026-07-23).** Ran `reconcile-periods --match 972 --promote`:
