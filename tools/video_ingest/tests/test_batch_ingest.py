@@ -22,6 +22,8 @@ import importlib
 import json
 import os
 import sys
+import threading
+import time
 from datetime import date
 from pathlib import Path
 
@@ -1124,3 +1126,264 @@ def test_promote_totals_counts_decisions_across_videos() -> None:
         "videos": 3, "promoted": 2, "failed": 1,
         "PASS": 1, "HOLD": 1, "OPERATOR_CONFIRM": 1, "ERROR": 0,
     }
+
+
+# ─── parallel Pass-1 fan-out (run_batch --jobs) ──────────────────────────────
+
+
+class _WorkerRecorder:
+    """Stand-in for ``_process_in_worker`` — records which targets ran, tracks the
+    peak concurrency the pool actually reached, and can raise for one sha to
+    exercise per-video isolation. Thread-safe (the pool calls it from N threads)."""
+
+    def __init__(self, raise_on: str | None = None, sleep: float = 0.0) -> None:
+        self.seen: list[str] = []
+        self.raise_on = raise_on
+        self.sleep = sleep
+        self._lock = threading.Lock()
+        self._live = 0
+        self.max_live = 0
+
+    def __call__(self, target: BatchTarget, *, log_dir: Path, echo) -> str:
+        with self._lock:
+            self.seen.append(target.sha256)
+            self._live += 1
+            self.max_live = max(self.max_live, self._live)
+        try:
+            if self.sleep:
+                time.sleep(self.sleep)
+            if self.raise_on is not None and self.raise_on == target.sha256:
+                raise RuntimeError(f"boom: {target.sha256}")
+            return "skipped" if target.already_ingested else "processed"
+        finally:
+            with self._lock:
+                self._live -= 1
+
+
+def _patch_parallel(monkeypatch, targets, worker, tmp_path) -> dict[str, int]:
+    """``_patch_loop`` plus the parallel seams: the worker recorder in place of
+    ``_process_in_worker`` and the ingest cache pointed at ``tmp_path`` so the
+    per-video log dir lands under the test's tmp, not the real cache."""
+    counters = _patch_loop(monkeypatch, targets, _StreamRecorder())
+    monkeypatch.setattr(bi, "_process_in_worker", worker)
+    monkeypatch.setattr(bi, "DEFAULT_INGEST_CACHE", tmp_path)
+    return counters
+
+
+def test_run_batch_parallel_processes_every_target_once(
+    monkeypatch, tmp_path, capsys
+) -> None:
+    targets = [_btarget(n, bi.PRIORITY_API_MISSED) for n in ("a", "b", "c", "d", "e")]
+    rec = _WorkerRecorder(sleep=0.01)
+    counters = _patch_parallel(monkeypatch, targets, rec, tmp_path)
+
+    bi.run_batch(Path("/vids"), SINCE, jobs=3)
+
+    assert counters["preflight"] == 1
+    # Every target processed exactly once (completion order is unordered).
+    assert sorted(rec.seen) == ["a", "b", "c", "d", "e"]
+    assert "parallel Pass-1 done: 5 processed" in capsys.readouterr().err
+
+
+def test_run_batch_parallel_never_exceeds_jobs_workers(
+    monkeypatch, tmp_path
+) -> None:
+    targets = [_btarget(str(i), bi.PRIORITY_API_MISSED) for i in range(8)]
+    rec = _WorkerRecorder(sleep=0.02)
+    _patch_parallel(monkeypatch, targets, rec, tmp_path)
+
+    bi.run_batch(Path("/vids"), SINCE, jobs=2)
+
+    # The pool must never run more than `jobs` workers at once.
+    assert rec.max_live <= 2
+    assert len(rec.seen) == 8
+
+
+def test_run_batch_parallel_actually_overlaps_work(
+    monkeypatch, tmp_path
+) -> None:
+    """A Barrier that only releases when two workers arrive together — it trips
+    iff the pool truly ran them concurrently (deterministic, no sleep race)."""
+    barrier = threading.Barrier(2, timeout=5)
+    overlapped: list[str] = []
+    lock = threading.Lock()
+
+    def worker(target: BatchTarget, *, log_dir: Path, echo) -> str:
+        barrier.wait()  # BrokenBarrierError (→ isolation SKIP) if run serially
+        with lock:
+            overlapped.append(target.sha256)
+        return "processed"
+
+    targets = [_btarget("x", bi.PRIORITY_API_MISSED), _btarget("y", bi.PRIORITY_API_MISSED)]
+    _patch_parallel(monkeypatch, targets, worker, tmp_path)
+
+    bi.run_batch(Path("/vids"), SINCE, jobs=2)
+
+    assert sorted(overlapped) == ["x", "y"]  # both cleared the 2-party barrier
+
+
+def test_run_batch_parallel_isolates_a_failing_target(
+    monkeypatch, tmp_path, capsys
+) -> None:
+    targets = [_btarget(n, bi.PRIORITY_API_MISSED) for n in ("a", "b", "c")]
+    rec = _WorkerRecorder(raise_on="b", sleep=0.01)
+    _patch_parallel(monkeypatch, targets, rec, tmp_path)
+
+    bi.run_batch(Path("/vids"), SINCE, jobs=3)
+
+    err = capsys.readouterr().err
+    # b raised but a and c still completed; the failure is a SKIP line + tally.
+    assert sorted(rec.seen) == ["a", "b", "c"]
+    assert "SKIP" in err and "b.mkv" in err
+    assert "2 processed" in err and "1 failed" in err
+
+
+def test_run_batch_parallel_counts_already_ingested_as_skipped(
+    monkeypatch, tmp_path, capsys
+) -> None:
+    targets = [
+        _btarget("a", bi.PRIORITY_API_MISSED),
+        _btarget("b", bi.PRIORITY_API_MISSED, already_ingested=True),
+    ]
+    rec = _WorkerRecorder()
+    _patch_parallel(monkeypatch, targets, rec, tmp_path)
+
+    bi.run_batch(Path("/vids"), SINCE, jobs=2)
+
+    assert "1 processed, 1 already-ingested, 0 failed" in capsys.readouterr().err
+
+
+def test_run_batch_jobs_one_uses_the_sequential_path(
+    monkeypatch, tmp_path, capsys
+) -> None:
+    """jobs=1 must behave EXACTLY like the pre-parallel loop: sequential
+    _process_target via _run_streaming, never the pool worker."""
+    targets = [_btarget("m", bi.PRIORITY_API_MISSED), _btarget("c", bi.PRIORITY_API_COVERED)]
+    rec = _StreamRecorder()
+    _patch_loop(monkeypatch, targets, rec)
+    sentinel = {"called": False}
+    monkeypatch.setattr(
+        bi, "_process_in_worker", lambda *a, **k: sentinel.__setitem__("called", True)
+    )
+
+    bi.run_batch(Path("/vids"), SINCE, jobs=1)
+
+    assert sentinel["called"] is False  # pool never touched
+    assert rec.ingest_videos == ["m", "c"]
+    assert "parallel" not in capsys.readouterr().err
+
+
+def test_run_batch_dry_run_stays_sequential_even_with_high_jobs(
+    monkeypatch, tmp_path, capsys
+) -> None:
+    """A dry-run has no work to parallelize — it must print the plan on the
+    sequential path and never spin up the pool, whatever --jobs says."""
+    targets = [_btarget("m", bi.PRIORITY_API_MISSED)]
+    rec = _StreamRecorder()
+    counters = _patch_loop(monkeypatch, targets, rec)
+    sentinel = {"called": False}
+    monkeypatch.setattr(
+        bi, "_process_in_worker", lambda *a, **k: sentinel.__setitem__("called", True)
+    )
+
+    bi.run_batch(Path("/vids"), SINCE, dry_run=True, jobs=8)
+
+    assert sentinel["called"] is False
+    assert rec.cmds == []  # zero mutating calls
+    assert counters["preflight"] == 1
+    assert "DRY-RUN" in capsys.readouterr().err
+
+
+def test_run_targets_parallel_empty_is_a_noop(monkeypatch, tmp_path) -> None:
+    """No targets ⇒ no log dir, no pool (ThreadPoolExecutor(max_workers=0) would
+    otherwise raise)."""
+    monkeypatch.setattr(bi, "DEFAULT_INGEST_CACHE", tmp_path)
+    bi._run_targets_parallel([], jobs=4)
+    assert list(tmp_path.iterdir()) == []
+
+
+# ─── _process_in_worker + _run_to_log (log capture) ──────────────────────────
+
+
+def test_process_in_worker_writes_a_per_video_log_and_returns_processed(
+    monkeypatch, tmp_path
+) -> None:
+    calls: list[str] = []
+
+    def fake_run_to_log(cmd, *, description, log_fh) -> None:
+        calls.append(description)
+        log_fh.write(f"{description}\n".encode())
+
+    monkeypatch.setattr(bi, "_run_to_log", fake_run_to_log)
+    log_dir = tmp_path / "logs"
+    log_dir.mkdir()
+    target = _btarget("deadbeefcafe", bi.PRIORITY_API_MISSED)
+
+    outcome = bi._process_in_worker(target, log_dir=log_dir, echo=lambda _m: None)
+
+    assert outcome == "processed"
+    log_file = log_dir / "deadbeefcafe.log"  # sha[:12]
+    assert log_file.exists()
+    body = log_file.read_text()
+    # Both subprocess phases (ingest then propose) captured into the one log.
+    assert "batch ingest" in body and "batch propose" in body
+    assert len(calls) == 2
+
+
+def test_process_in_worker_skips_already_ingested_without_a_log(
+    tmp_path,
+) -> None:
+    log_dir = tmp_path / "logs"
+    log_dir.mkdir()
+    target = _btarget("aaa", bi.PRIORITY_API_MISSED, already_ingested=True)
+    msgs: list[str] = []
+
+    outcome = bi._process_in_worker(target, log_dir=log_dir, echo=msgs.append)
+
+    assert outcome == "skipped"
+    assert list(log_dir.iterdir()) == []  # no log file for a skip
+    assert any("already ingested" in m for m in msgs)
+
+
+def test_run_to_log_captures_stdout_into_the_log_file(tmp_path) -> None:
+    log_file = tmp_path / "cap.log"
+    with log_file.open("wb") as fh:
+        bi._run_to_log(
+            [sys.executable, "-c", "print('hello-from-child')"],
+            description="capture test",
+            log_fh=fh,
+        )
+    body = log_file.read_text()
+    assert "capture test" in body  # header
+    assert "hello-from-child" in body  # child stdout
+
+
+def test_run_to_log_raises_on_nonzero_exit(tmp_path) -> None:
+    log_file = tmp_path / "fail.log"
+    with log_file.open("wb") as fh:
+        with pytest.raises(RuntimeError, match="exit 1"):
+            bi._run_to_log(
+                [sys.executable, "-c", "import sys; sys.exit(1)"],
+                description="failing child",
+                log_fh=fh,
+            )
+
+
+def test_process_target_uses_the_injected_run_seam(monkeypatch) -> None:
+    """The run seam must route through the injected runner, not the module-global
+    _run_streaming (which would inherit the shared terminal in parallel mode)."""
+    injected: list[list[str]] = []
+    monkeypatch.setattr(
+        bi, "_run_streaming", lambda *a, **k: (_ for _ in ()).throw(AssertionError("used _run_streaming"))
+    )
+    target = _btarget("z", bi.PRIORITY_API_MISSED)
+
+    bi._process_target(
+        target,
+        dry_run=False,
+        run=lambda cmd, *, description: injected.append(cmd),
+    )
+
+    # ingest then propose, both via the injected runner.
+    assert len(injected) == 2
+    assert "ingest" in injected[0] and "propose" in injected[1]

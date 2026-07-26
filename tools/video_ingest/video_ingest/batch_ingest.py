@@ -35,10 +35,13 @@ import pkgutil
 import re
 import shlex
 import subprocess
+import threading
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from datetime import date, datetime, timezone
 from pathlib import Path
+from typing import BinaryIO, Callable
 
 import typer
 
@@ -492,10 +495,21 @@ def _echo_plan(targets: list[BatchTarget], *, dry_run: bool) -> None:
         )
 
 
-def _process_target(target: BatchTarget, *, dry_run: bool) -> None:
+def _process_target(
+    target: BatchTarget, *, dry_run: bool, run: _Runner | None = None
+) -> None:
     """Fresh-ingest one target then propose its associations, stopping at the
     operator-confirm gate. Raises propagate to :func:`run_batch`'s per-video
-    isolation; nothing here confirms or promotes."""
+    isolation; nothing here confirms or promotes.
+
+    ``run`` is the subprocess runner seam. ``None`` (the sequential path) uses
+    :func:`_run_streaming`, which inherits the terminal for live progress. The
+    parallel path injects a per-video log-capturing runner (:func:`_run_to_log`)
+    so N concurrent passes can't interleave into unreadable stdout — see
+    :func:`_process_in_worker`. Resolved at call time (not a def-time default) so
+    a monkeypatched ``_run_streaming`` still takes effect in the default path.
+    """
+    run = run or _run_streaming
     name = target.path.name
     if target.already_ingested:
         typer.echo(f"[batch] already ingested — skip: {name}", err=True)
@@ -515,7 +529,7 @@ def _process_target(target: BatchTarget, *, dry_run: bool) -> None:
     # included (④ Task 4.5 — dispatching under a null match_id made the box-score
     # promoter throw). Dispatch happens on the pass-2 re-ingest, once an
     # association is confirmed.
-    _run_streaming(
+    run(
         [
             "python3", "-m", "video_ingest.cli", "ingest",
             "--video", str(target.path),
@@ -531,7 +545,7 @@ def _process_target(target: BatchTarget, *, dry_run: bool) -> None:
     # queue — the operator confirms with `resolve-match confirm`; nothing
     # auto-promotes. Tolerant of a video that emitted no reels (nothing proposed).
     identities_dir = DEFAULT_INGEST_CACHE / target.sha256
-    _run_streaming(
+    run(
         [
             "pnpm", "--filter", "@eanhl/worker", "resolve-match", "propose",
             "--identities", str(identities_dir),
@@ -547,6 +561,7 @@ def run_batch(
     since: date,
     dry_run: bool = False,
     limit: int | None = None,
+    jobs: int = 1,
 ) -> None:
     """Unattended first-pass mass-ingest over the corpus under ``video_root``.
 
@@ -555,18 +570,179 @@ def run_batch(
     DB-refine → prioritize → ``limit``), then processes each target in priority
     order behind per-video try/except isolation. ``dry_run`` prints the plan and
     makes zero mutating calls. Stops every target at the operator-confirm gate.
+
+    ``jobs`` (default 1) sets the Pass-1 concurrency. ``jobs<=1`` keeps the
+    single-threaded loop verbatim — output inherits the terminal, live. ``jobs>1``
+    fans the SAME per-video work (ingest → propose) across ``jobs`` worker threads,
+    each driving one ``ingest`` subprocess (the classify bottleneck is CPU/decode
+    bound and single-threaded, so N passes ≈ N× on a 12-core box); see
+    :func:`_run_targets_parallel`. A ``dry_run`` always takes the sequential path —
+    there is no work to parallelize, only a plan to print. The planning phase
+    (which is the only writer of ``sha-cache.json``) is unconditionally sequential
+    and completes before any fan-out, so concurrent workers never race that file.
     """
     preflight()
     targets = prioritize(_collect_targets(video_root, since))
     if limit is not None:
         targets = targets[:limit]
     _echo_plan(targets, dry_run=dry_run)
-    for target in targets:
-        try:
-            _process_target(target, dry_run=dry_run)
-        except Exception as exc:  # noqa: BLE001 — per-video isolation, keep going
-            typer.echo(f"[batch] SKIP {target.path.name}: {exc}", err=True)
-            continue
+    if dry_run or jobs <= 1:
+        for target in targets:
+            try:
+                _process_target(target, dry_run=dry_run)
+            except Exception as exc:  # noqa: BLE001 — per-video isolation, keep going
+                typer.echo(f"[batch] SKIP {target.path.name}: {exc}", err=True)
+                continue
+        return
+    _run_targets_parallel(targets, jobs=jobs)
+
+
+# ─── parallel Pass-1 fan-out ──────────────────────────────────────────────────
+#
+# The classify bottleneck is single-threaded + decode/seek bound (the pilot
+# measured ~2× video time for Pass-1 with the GPU mostly idle), and the box has
+# 12 cores where the batch uses 1 — so the corpus (~50 h of footage ⇒ ~104 h
+# single-threaded) is the case parallelism was built for. ``run_batch`` fans the
+# unchanged per-video unit (:func:`_process_target`: ingest → propose) across N
+# worker threads. Threads (not processes) are correct here: each unit BLOCKS on a
+# ``subprocess.run`` that releases the GIL, so N threads drive N concurrent
+# ``ingest`` children with no pickling and no shared mutable state after planning.
+#
+# Three concurrency hazards, and why each is contained:
+#   1. stdout interleaving — ``_run_streaming`` inherits the terminal, so N live
+#      passes would garble it. Each worker instead captures its subprocess output
+#      to a PRIVATE per-video log (:func:`_run_to_log`); only terse START/DONE/SKIP
+#      lifecycle lines reach the terminal, serialized through one lock.
+#   2. shared ``sha-cache.json`` write — a non-issue by construction: only the
+#      planning phase (``_collect_targets``) writes it, and planning finishes
+#      before the pool is created. No worker touches it.
+#   3. concurrent DB / decode-cache writes — per-video isolated: each video owns a
+#      distinct sha ⇒ distinct ``<sha>/`` decode-cache dir, distinct
+#      ``ocr_capture_batches``/``ocr_extractions`` rows, and a ``propose`` keyed by
+#      its own ``video_sha256``. Distinct shas ⇒ distinct rows ⇒ no write conflict.
+#
+# The remaining UNVERIFIED risk is GPU memory: if classify actually uses the CUDA
+# EP, N concurrent workers each load OCR models onto the same GPU and can OOM it.
+# That is why ``--jobs`` defaults to 1 and the fan-out prints a validate-at-low-N
+# warning — the operator tunes N up after a 2-3 video trial (HANDOFF step 4).
+
+# A subprocess runner: ``(cmd, *, description) -> None``. ``_run_streaming`` (the
+# sequential default, live terminal) and ``_run_to_log`` (parallel, per-video log)
+# are the two implementations ``_process_target`` accepts through its ``run`` seam.
+_Runner = Callable[..., None]
+
+
+def _run_to_log(
+    cmd: list[str], *, description: str, log_fh: BinaryIO
+) -> None:
+    """Run ``cmd`` with stdout+stderr captured into ``log_fh``, raising on non-zero
+    exit. The parallel twin of :func:`_run_streaming`: where that inherits the
+    shared terminal (fine for one live pass, garbage for N), this routes every
+    child byte into a private per-video log so concurrent passes never interleave.
+
+    ``log_fh`` is a BINARY file handle — the header is encoded and the subprocess
+    writes raw bytes to the same fd, so there is no text/binary buffering split to
+    interleave. The header is flushed before the child starts so it always precedes
+    the child's output in the file.
+    """
+    header = f"\n>>> {description}\n    $ {shlex.join(cmd)}\n"
+    log_fh.write(header.encode("utf-8"))
+    log_fh.flush()
+    res = subprocess.run(cmd, cwd=REPO_ROOT, stdout=log_fh, stderr=subprocess.STDOUT)
+    if res.returncode != 0:
+        raise RuntimeError(
+            f"{description} failed (exit {res.returncode}): {shlex.join(cmd)} "
+            f"(see log)"
+        )
+
+
+def _process_in_worker(
+    target: BatchTarget,
+    *,
+    log_dir: Path,
+    echo: Callable[[str], None],
+) -> str:
+    """Process one target inside a pool worker, capturing its subprocess output to
+    ``log_dir/<sha>.log``. Returns ``"skipped"`` (already ingested) or
+    ``"processed"``; a failure propagates to :func:`_run_targets_parallel`'s
+    per-video isolation. ``echo`` is the caller's lock-guarded terminal printer, so
+    the only lines that reach the shared terminal are serialized lifecycle lines.
+    """
+    name = target.path.name
+    if target.already_ingested:
+        echo(f"[batch] already ingested — skip: {name}")
+        return "skipped"
+
+    log_path = log_dir / f"{target.sha256[:12]}.log"
+    echo(f"[batch] START {name} (sha {target.sha256[:12]}) → {log_path.name}")
+    t0 = time.perf_counter()
+    with log_path.open("wb") as fh:
+
+        def _runner(cmd: list[str], *, description: str) -> None:
+            _run_to_log(cmd, description=description, log_fh=fh)
+
+        _process_target(target, dry_run=False, run=_runner)
+    echo(f"[batch] DONE  {name} in {time.perf_counter() - t0:.1f}s")
+    return "processed"
+
+
+def _run_targets_parallel(targets: list[BatchTarget], *, jobs: int) -> None:
+    """Drive ``_process_target`` for each target across ``jobs`` worker threads.
+
+    Targets are submitted in the (already prioritized) input order, so api-missed
+    videos are picked up first as slots free; completion order then varies with
+    per-video runtime, which is fine — the review queue is order-insensitive.
+    Per-video isolation mirrors the sequential loop: a raised worker becomes a
+    SKIP line, never aborts the pool. Terminal writes are serialized through one
+    lock so the lifecycle lines stay legible.
+    """
+    if not targets:
+        return
+    started = datetime.now(timezone.utc)
+    log_dir = DEFAULT_INGEST_CACHE / f"batch-logs-{started:%Y%m%dT%H%M%SZ}"
+    log_dir.mkdir(parents=True, exist_ok=True)
+    workers = min(jobs, len(targets))
+
+    print_lock = threading.Lock()
+
+    def echo(msg: str) -> None:
+        with print_lock:
+            typer.echo(msg, err=True)
+
+    echo(
+        f"[batch] parallel Pass-1: {workers} worker(s) over {len(targets)} "
+        f"target(s); per-video logs → {log_dir}"
+    )
+    echo(
+        "[batch] NOTE: each worker runs a full classify+extract pass that also "
+        "drives the GPU OCR closure. If classify uses the CUDA EP, N workers share "
+        "GPU memory — validate at low --jobs before scaling. `tail -f` a log for "
+        "live per-video progress."
+    )
+
+    processed = skipped = failed = 0
+    with ThreadPoolExecutor(max_workers=workers, thread_name_prefix="batch") as ex:
+        fut_to_target = {
+            ex.submit(_process_in_worker, t, log_dir=log_dir, echo=echo): t
+            for t in targets
+        }
+        for fut in as_completed(fut_to_target):
+            target = fut_to_target[fut]
+            try:
+                outcome = fut.result()
+            except Exception as exc:  # noqa: BLE001 — per-video isolation, keep going
+                failed += 1
+                echo(f"[batch] SKIP {target.path.name}: {exc}")
+                continue
+            if outcome == "skipped":
+                skipped += 1
+            else:
+                processed += 1
+
+    echo(
+        f"[batch] parallel Pass-1 done: {processed} processed, {skipped} "
+        f"already-ingested, {failed} failed"
+    )
 
 
 # ─── promote pass (Task 4.4) ──────────────────────────────────────────────────

@@ -300,14 +300,37 @@ def batch(
     limit: Optional[int] = typer.Option(
         None, "--limit", help="Process at most N targets (after prioritize)."
     ),
+    jobs: int = typer.Option(
+        1,
+        "--jobs",
+        "-j",
+        min=1,
+        help=(
+            "Pass-1 concurrency. 1 (default) runs single-threaded with live "
+            "terminal output. N>1 fans out N concurrent ingest passes on this "
+            "12-core box, each logging to its own per-video file. WARNING: N "
+            "workers share the GPU OCR closure — validate at low N (e.g. 2-3) "
+            "before scaling, in case classify uses the CUDA EP and contends for "
+            "GPU memory."
+        ),
+    ),
 ) -> None:
     """Unattended mass-ingest run loop over the video corpus.
 
     Preflights the GPU-venv closure once, then per target (priority order)
     fresh-ingests → proposes reel→match associations → STOPS at the
     operator-confirm gate. Nothing auto-promotes. See ``batch_ingest.run_batch``.
+
+    ``--jobs N`` parallelizes Pass-1 across N worker threads (default 1 =
+    sequential, unchanged). A ``--dry-run`` always prints the plan single-threaded.
     """
-    run_batch(video_root, date.fromisoformat(since), dry_run=dry_run, limit=limit)
+    run_batch(
+        video_root,
+        date.fromisoformat(since),
+        dry_run=dry_run,
+        limit=limit,
+        jobs=jobs,
+    )
 
 
 @app.command("batch-promote")
