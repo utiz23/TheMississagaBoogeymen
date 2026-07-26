@@ -2,6 +2,52 @@
 
 ## Active State
 
+### ✅ CORPUS PREP COMPLETE 2026-07-25 — queue drained, matcher off-by-one root-caused + FIXED, 4 videos promoted, runbook written. NOTHING BLOCKS THE FULL RUN.
+
+**One session, four workstreams, all verified. The next session starts the corpus itself: follow
+[docs/runbook/ocr-corpus-mass-ingest.md](docs/runbook/ocr-corpus-mass-ingest.md) — preflight §0, then `batch --jobs 3`.**
+
+1. **`matches.played_at` = the game's END, and the matcher was systematically off-by-one on it.**
+   Pinned against pilot reel geometry (970's played_at sits 97 s before its reel's end, inside the
+   boxscore-viewing tail; every 2026-05-08/05-11 recording fits end-semantics exactly). But
+   `identity_probe.py` stamped `capture_epoch_s` at the reel START — which sits in the lobby right
+   after the PREVIOUS game's end — so every timestamp-only (boxscore-less) proposal ranked the
+   previous match top. **All three N=2/N=3 hints that could be off-by-one were** (28: 252→really 253;
+   29: 251→really 252; 30: 463→really 464), each proven by HUD frames (e.g. "BM 0 – 716 1, 2ND" can't
+   be a 4-0 shutout win). **FIX `c92156e`:** `build_identity` now uses `reel.end_s` (+docstrings,
+   +tests, TDD red→green). `test_identity_probe` 20 passed; full video_ingest suite **666 passed /
+   5 skipped**. Corpus proposals should now be mostly right; the review rules in the runbook §2 say
+   how to verify (played_at ∈ reel window; frame spot-check).
+
+2. **Review queue DRAINED (was 6 pending → 0).** Frame-verified decisions: **25 → 249** (matcher
+   agreed), **29 → 252**, **28 → 253**, **30 → 464** (all three corrected off-by-ones), **24 REJECTED**
+   (the GAP-4 offline junk `2026-05-09_02-07-51`), **31 REJECTED** (lobby-only tail reel, pilot-reel-2
+   precedent). `reel-map` for the multi-reel `255c99f9` = `{0:464}` ✓.
+
+3. **The 4 confirmed videos PROMOTED — the confirm→promote path re-validated end-to-end.**
+   `batch-promote`: **4 promoted, 0 failed** (19/19 segment dispatches ok). Grades: **HOLD ×4** — all
+   four reels lack a readable OCR final (249/252 no-boxscore like 971; 253's boxscore segs didn't
+   yield a TOT read; 464 is a DNF quit) — expected routing, NOT failure; box-score stats key on EA
+   API truth. Post-dispatch sweep minted **runs 2059–2062**, cascaded all 5 tables; invariants both
+   zero (0 match-linked batches without run, 0 unmatched with run). `batch-promote --dry-run` now
+   plans **0 videos**; `resolve-match list` → **no pending**.
+
+4. **Runbook + preflight.** New [docs/runbook/ocr-corpus-mass-ingest.md](docs/runbook/ocr-corpus-mass-ingest.md):
+   per-session preflight (incl. the venv walk-import that catches the uv-sync wheel-strip trap —
+   ran GREEN this session: full closure imports, CUDA EP present), the chunk cycle
+   (batch → confirm → batch-promote → linkage sweep → grades), review rules (played_at-in-reel-window,
+   frame spot-check, the 8 junk recordings to reject on sight), and the consolidated trap table.
+   `batch --dry-run` verified: **78 targets enumerate**; rejected-association videos re-list but
+   propose skips gracefully (unique-violation → `skipped:true`). Note `batch` takes `--video-root`
+   only (no `--output-root`; cache goes to the default ingest cache).
+
+**Commits (on `main`, NOT pushed):** `6cc9548` (bottleneck docs), `3b96674` (roadmap items 5–10),
+`c92156e` (the identity-probe fix), `e270a21` (runbook), plus this handoff update. Memory updated
+(`project_played_at_semantics`, reel-association-gaps refresh).
+
+**Review-queue debt for the operator (non-blocking):** matches 249/252/253/464 now sit in HOLD
+alongside 971 — real games, unverifiable-from-video finals. Nothing to fix.
+
 ### ✅ BOTTLENECK RE-CHARACTERIZED 2026-07-25 (telemetry) — Pass-1 is CPU-COMPUTE-bound, NOT drvfs-seek / I/O bound; ext4 staging ≈ 0.5%, DROPPED
 
 **Corrects the "drvfs-seek-bound" / "CPU/drvfs-seek" framing in the pilot + N=2/N=3 knee entries below, and RETRACTS the "ext4 staging is high-value, test it before the run" recommendation (§CORRECTED DECIDE N).** No code/DB change — read-only analysis of the pilot's `segments.json` telemetry + the classify code path.
@@ -11,6 +57,7 @@
 **Therefore Pass-1 is:** (a) NOT seek-bound (no seeks); (b) NOT I/O-bound — at 3.3 Mbps the whole file streams in **~24 s on drvfs (~1 s on ext4)** ⇒ staging saves **~23 s / 4663 s = 0.49% of Pass-1**; (c) **CPU-compute-bound** — the 19% is CPU H.264 decode, and since the knee-tests clocked the **GPU at only ~30% util**, most of the 81% "classify" is CPU-side frame preprocessing between GPU inference bursts. The N=3 knee is **CPU-core contention** (≈3 workers × internal decode/onnxruntime threads ≈ 12 cores), not I/O-channel contention.
 
 **Consequences:**
+
 - **DROP ext4 staging** — it targets a ~0.5% cost. The §CORRECTED DECIDE N line calling it "arguably higher-value than tuning N further" is WRONG.
 - **N=3–4 sweet spot STANDS** (the CPU-core ceiling was identified correctly) — just for the right reason.
 - **The only real Pass-1 speed lever left is the idle GPU:** NVDEC hardware decode (removes the 19% CPU decode) + larger classify batches (raises GPU util, cuts into the 81%). A code project, OPTIONAL — N=3–4 (~35–40 h) is already acceptable.
@@ -21,13 +68,14 @@
 
 **Target:** `2026-05-22_18-11-00.mkv` (sha `94ac3dd8bb5b6039…`), 56 min, **split into 3 reels**. Fresh (0 prior batches). Its games are EA matches 970/971 (the 972–976 already-ingested set belongs to the later `19-07-03` recording).
 
-**Method finding (matters for the corpus):** `batch --limit N` has **no per-video selector** — it takes the *first* N by priority, and the queue leads with a single-reel p0 (`2026-05-09_02-07-51.mkv`, 17 min). To pilot ONE hand-picked multi-reel video I replicated the batch's own per-target commands: `ingest --video … --output-root /tmp/ingest-cache --dispatch --game-title-id 1` (fresh, run_id=NULL, deferred dispatch) then `resolve-match propose`. **`batch-promote` needs no such workaround** — it is driven by the confirmed-association backlog, so once only the target has pending confirmed reels, `batch-promote --limit 1` promotes it cleanly (dry-run verified plan = 1 video). For the corpus, `batch` (drain-everything) is the right tool; the hand-pick issue was pilot-only.
+**Method finding (matters for the corpus):** `batch --limit N` has **no per-video selector** — it takes the _first_ N by priority, and the queue leads with a single-reel p0 (`2026-05-09_02-07-51.mkv`, 17 min). To pilot ONE hand-picked multi-reel video I replicated the batch's own per-target commands: `ingest --video … --output-root /tmp/ingest-cache --dispatch --game-title-id 1` (fresh, run_id=NULL, deferred dispatch) then `resolve-match propose`. **`batch-promote` needs no such workaround** — it is driven by the confirmed-association backlog, so once only the target has pending confirmed reels, `batch-promote --limit 1` promotes it cleanly (dry-run verified plan = 1 video). For the corpus, `batch` (drain-everything) is the right tool; the hand-pick issue was pilot-only.
 
 **Operator decisions (confirmed):** reel 0 → **970** (matcher 0.85, 6-0 vs BAD BOYZ, full boxscore); reel 1 → **971** (manual `--match-id`; matcher returned no_api_match — inferred from the 18:53–19:07 MDT window, the only unclaimed match there); reel 2 → **rejected** (5-sec lobby-only fragment, no personas). `reel-map = {0:970, 1:971}`, 0 pending.
 
 **Timing anchors (real, this box):** Pass-1 = **~1 h 57 m** for the 56-min video (classify 3363 frames @ ~1 fps in **77.7 min ≈ 1.4 s/frame** — single-threaded, CPU-compute-bound (decode 19% + classify 81%; GPU idle ~30%), **NOT drvfs-seek-bound** — see the top BOTTLENECK RE-CHARACTERIZED entry; Pass-2 extract 37.4 min). Promote **cache-hits** both passes (`extracted in 0.0s`) → dispatch-OCR only. ⚠️ **Corpus-estimate caveat:** the classify bottleneck is CPU compute, NOT GPU or I/O — the 40–58 GPU-h figure should be re-sanity-checked against ~2 h/56-min-video, and it's worth asking whether classify can be sped up before committing the full run.
 
 **RESULT — all gates green:**
+
 - **Promote:** 18/18 segments dispatched, 0 failed, ~6.3 min (decode cache HIT → dispatch-only). Reel 2 (rejected) correctly `skipped`.
 - **`dc0a111` PROOF (the point of the pilot):** per-reel `ocr_capture_batches` mapping is clean — **970 → 12 batches (reel-0 segs 001–058), 971 → 6 batches (reel-1 segs 060–088), NO cross-reel bleed.** Pre-fix, confirming one reel would have re-stamped all 18 to one match.
 - **Run linkage (Step 5):** `backfill-run-linkage --all-unlinked` gave each reel its own ACTIVE run — **970 → run 2057, 971 → run 2058** (distinct match_id + distinct run per reel). (The only remaining `run_id IS NULL` rows are 2 pre-2026-05-10 `manual_screenshots` test batches with `match_id=NULL` — un-linkable, benign, unrelated.)
@@ -38,6 +86,7 @@
 **DECISION (operator, 2026-07-25): OPTIMIZE (parallelize) BEFORE the corpus — do NOT run it single-threaded.** The box has **12 cores**; classify uses **1**. `/mnt/k` is 9p/drvfs (slow seeks, `msize=65536`); native ext4 `/` has **899 GB free** and the fresh corpus is only ~76 GB, so local staging is cheap.
 
 **NEXT SESSION (fresh — this is a NEW task; the pilot above is DONE):** build a parallel Pass-1 path.
+
 1. **Confirm the bottleneck** — controlled test: same video Pass-1 from `/mnt/k` (drvfs) vs staged on ext4, and whether classify actually uses the CUDA EP (GPU was 9–53% util during the pilot). Decides staging-vs-parallelism-vs-GPU-enable weighting.
 2. ✅ **Parallelize — DONE 2026-07-25 (`9685804`), completed record below.** The `batch` command now takes `--jobs N`.
 3. Optionally stage the ~76 GB fresh set on ext4 first.
@@ -62,6 +111,7 @@ Also note: match 971 sits in the review queue (HOLD) — a real game with no OCR
 **Targets (both fresh/loose, priority order):** p0 `b8ef172cc9a6` (`2026-05-09_02-07-51.mkv`, 1035 s / 17.3 min), p1 `7fa72bc80ac6` (`2026-05-08_17-50-32.mkv`, 2107.7 s / 35.1 min). **2 processed, 0 failed.**
 
 **Proposals landed (ingest half OK) — BOTH pending manual confirm (low conf, proposedMatchId=null):**
+
 - p0 → proposal **id 24**, conf 0.0535, bestMatchId 253, runnerUpGap 0.0132.
 - p1 → proposal **id 25**, conf 0.3484, bestMatchId 249, runnerUpGap 0.0165.
 - Next operator step for these: `resolve-match confirm` (or reject) — they will NOT auto-promote.
@@ -69,14 +119,15 @@ Also note: match 971 sits in the review queue (HOLD) — a real game with no OCR
 **Timing:** wall **4131 s (68.85 min)**. p0 = 1364.9 s (pass1 classify 1350.8 s @ 1035 fr; pass2 0.1 s — this video had NO boxscore/loadout segments). p1 = 4000.2 s (pass1 classify 2848.8 s @ 2108 fr; pass2 extract 1133.5 s → 252 fr / 5 segs). **Classify ran ~1.3× realtime PER WORKER under 2-way load** (p0 1.305×, p1 1.351×) — no measurable per-worker slowdown.
 
 **GPU (RTX 3060 12 GB; idle baseline ~2242 MiB):**
+
 - **Peak mem 4368 MiB (35.6 %)**, mean-active 3662 MiB → **~1063 MiB/worker**. Memory held with huge headroom; **no OOM**, clean teardown to idle.
 - **CUDA EP CONFIRMED:** SM-util > 0 in **100 %** of active samples, mean **30.3 %**, max 91 %, only 1.1 % ≥ 70 %. Classify IS genuine GPU compute — but the GPU is **NOT saturated at N=2** (bursty, mean 30 %).
 
-**Mechanistic conclusion (why parallelism works):** per-worker throughput is **CPU/decode-bound, not GPU-bound** (2 workers each still hit ~1.3× realtime while the shared GPU coasted at 30 % and only 2/12 cores were busy). So workers scale ~linearly until the CPU cores saturate (~N=3–4). *(NOTE 2026-07-25: an earlier draft of this line said "drvfs-seek-bound" — disproven by telemetry; Pass-1 is a sequential decode, file I/O ~0.5% of wall. See the top BOTTLENECK RE-CHARACTERIZED entry.)* This refines the pilot's "GPU mostly idle → CPU-bound" read: classify uses the GPU, just not enough to be the per-worker bottleneck at low N.
+**Mechanistic conclusion (why parallelism works):** per-worker throughput is **CPU/decode-bound, not GPU-bound** (2 workers each still hit ~1.3× realtime while the shared GPU coasted at 30 % and only 2/12 cores were busy). So workers scale ~linearly until the CPU cores saturate (~N=3–4). _(NOTE 2026-07-25: an earlier draft of this line said "drvfs-seek-bound" — disproven by telemetry; Pass-1 is a sequential decode, file I/O ~0.5% of wall. See the top BOTTLENECK RE-CHARACTERIZED entry.)_ This refines the pilot's "GPU mostly idle → CPU-bound" read: classify uses the GPU, just not enough to be the per-worker bottleneck at low N.
 
 **Speedup (step 4c):** **1.30× measured on this pair** (seq-at-observed 5365.1 s / parallel 4131 s; adding p0 cost only 131 s of wall-clock). 1.57× vs the 2.06× single-thread baseline (which these lighter videos beat — p0 had zero pass2 — so it overstates). The modest pair number is a **test-design artifact** of a 17-vs-35-min imbalance under `--limit 2` (p0 done at 22.7 min, then a core idled ~44 min). At higher `--limit` with mixed lengths the scheduler stays full and realized speedup approaches N until a ceiling bites.
 
-**DECIDE N → recommend N≈6 next.** ⚠️ *SUPERSEDED — the `--jobs 6 --limit 6` run below CORRECTED this to N≈3–4; the binding constraint is CPU compute, NOT GPU (and NOT drvfs-seek — see the top BOTTLENECK RE-CHARACTERIZED entry).* Three ceilings converge at 6–8: **GPU compute** ~15 % util/worker → soft knee ~N6-7 (binding); **GPU memory** ~1.06 GB/worker → ~8 with 10 % margin (hard cap); **cores** ~1/worker of 12 → ~10. Next step per the runbook branch ("GPU mem held + util>0 → step N up"): **`batch --jobs 6 --limit 4`**, re-measure the knee (does classify hold ~1.3× at N=6? peak mem stay < ~9 GB? does GPU compute saturate?). Raw trace: `scratchpad/gpu-samples.csv`, per-video logs in `/tmp/ingest-cache/batch-logs-20260726T010857Z`.
+**DECIDE N → recommend N≈6 next.** ⚠️ _SUPERSEDED — the `--jobs 6 --limit 6` run below CORRECTED this to N≈3–4; the binding constraint is CPU compute, NOT GPU (and NOT drvfs-seek — see the top BOTTLENECK RE-CHARACTERIZED entry)._ Three ceilings converge at 6–8: **GPU compute** ~15 % util/worker → soft knee ~N6-7 (binding); **GPU memory** ~1.06 GB/worker → ~8 with 10 % margin (hard cap); **cores** ~1/worker of 12 → ~10. Next step per the runbook branch ("GPU mem held + util>0 → step N up"): **`batch --jobs 6 --limit 4`**, re-measure the knee (does classify hold ~1.3× at N=6? peak mem stay < ~9 GB? does GPU compute saturate?). Raw trace: `scratchpad/gpu-samples.csv`, per-video logs in `/tmp/ingest-cache/batch-logs-20260726T010857Z`.
 
 ### ✅ N=3 (real) KNEE-TEST 2026-07-25 — `batch --jobs 6 --limit 6`: GPU is NOT the bottleneck, CPU compute is (CORRECTS the "N≈6" estimate above; the "drvfs-seek" half was itself later disproven — see the top BOTTLENECK RE-CHARACTERIZED entry)
 
@@ -85,14 +136,16 @@ Also note: match 971 sits in the review queue (HOLD) — a real game with no OCR
 **Proposals landed (all low-conf, proposedMatchId=null → need manual `resolve-match confirm`):** f54be0 → **id 28** (0.35, best 252); b9834d → **id 29** (0.35, best 251); 255c99f is **multi-reel** → **id 30** (0.35, best 463) + **id 31** (0.348, best 464). Review queue now holds **24, 25, 28, 29, 30, 31 = 6 pending.**
 
 **Per-frame classify (the contention signal):**
+
 - 1-way (pilot, cross-video): ~1.4 s/frame.
 - 2-way (N=2 run): p0 1.305, p1 1.351 → **~1.33 s/frame — NO penalty** (≈ 1-way).
 - 3-way (this run): f54be0 1.571, b9834d 1.526, 255c99f 1.947 → **~1.65 s/frame — ~18–24 % per-worker penalty.**
 - Aggregate classify rate: 1-way ~0.71 fps → 2-way ~1.50 fps → 3-way ~1.82 fps. **Diminishing returns; the contention knee is right around N=3.**
 
-**GPU at 3-way concurrency: NOT the ceiling.** Peak **5947 MiB (48 %)** ≈ 1235 MiB/worker → memory alone would allow ~8 workers. Mean util **28.6 %** (100 % only in brief bursts). Both GPU memory and compute have large headroom while per-worker throughput is already degrading → **the binding constraint is CPU compute (H.264 decode + classify preprocessing)**. *(NOTE 2026-07-25: the "`/mnt/k` drvfs-seek" part of this read was later disproven by telemetry — Pass-1 does a whole-video sequential decode and file I/O is ~0.5% of wall; see the top BOTTLENECK RE-CHARACTERIZED entry. The CPU-bound conclusion stands.)* **The earlier "N≈6–7 GPU-compute knee" (N=2 section) was WRONG** — it mis-assumed GPU compute was binding.
+**GPU at 3-way concurrency: NOT the ceiling.** Peak **5947 MiB (48 %)** ≈ 1235 MiB/worker → memory alone would allow ~8 workers. Mean util **28.6 %** (100 % only in brief bursts). Both GPU memory and compute have large headroom while per-worker throughput is already degrading → **the binding constraint is CPU compute (H.264 decode + classify preprocessing)**. _(NOTE 2026-07-25: the "`/mnt/k` drvfs-seek" part of this read was later disproven by telemetry — Pass-1 does a whole-video sequential decode and file I/O is ~0.5% of wall; see the top BOTTLENECK RE-CHARACTERIZED entry. The CPU-bound conclusion stands.)_ **The earlier "N≈6–7 GPU-compute knee" (N=2 section) was WRONG** — it mis-assumed GPU compute was binding.
 
 **CORRECTED DECIDE N:**
+
 - **Corpus sweet spot ≈ N=3–4 (CPU-core-bound).** N=2 is free (perfect scaling); N=3 buys ~2.6× aggregate at mild per-worker cost; beyond ~4–5 CPU contention flattens it (GPU never bites). **Do NOT chase N=6–10.**
 - **~~ext4 staging — RETRACTED 2026-07-25.~~** Telemetry disproved the premise: Pass-1 does a whole-video **sequential** decode (no seeks) of a 3.3 Mbps file, so file I/O is **~23 s/video = ~0.5% of Pass-1** — staging is noise, NOT "higher-value than tuning N." See the top BOTTLENECK RE-CHARACTERIZED entry. The only real Pass-1 lever left is offloading decode/classify to the idle GPU (NVDEC + bigger batches) — optional.
 - **Corpus Pass-1 estimate:** at N=3–4 (~2.6–3× single-thread), 50.6 h footage ⇒ ~**35–40 h Pass-1** (vs ~104 h single-thread / the old 112 h figure), chunked across sessions; ext4 staging could cut more.
@@ -115,7 +168,7 @@ change; working tree clean.
 - ✅ **(4) the 8 zero-match recordings — CLOSED 2026-07-25 as "no rescue targets exist" (read-only SCOPE session).**
   Frame-triaged all 8: every one is offline play (vs-CPU / USA-CAN exhibition), non-NHL content (Black Ops II),
   an EASHL matchmaking-lobby wait, or a trim of an already-known match (2666/2667/2687). **Zero poller-missed
-  ONLINE matches** — they are api-missed *because* EA's online API correctly never recorded offline/CPU games.
+  ONLINE matches** — they are api-missed _because_ EA's online API correctly never recorded offline/CPU games.
   The premise ("highest-value OCR-only online games on disk") is empty; the OCR-only match-creation capability
   it would have needed is **YAGNI (not built, confirmed empirically)**. Dropped from the blocker list. Completed
   record below.
@@ -158,6 +211,7 @@ preserved, just decoupled from the (removed-for-fresh-path) stamp.
 write-once per-reel `ocr_extractions.match_id`). No live-data repair needed; the fix is forward-looking.
 
 **Files (+73/-41; 3 modified + 1 new test):**
+
 - `packages/db/src/queries/ocr-match-associations.ts` — the `run_id`-non-null stamp guard + updated doc.
 - `apps/worker/src/__tests__/confirm-association-reel-scope.test.ts` — **NEW.** Test 1: a 2-reel partial-confirm
   does not cross-contaminate (each reel keeps its own `match_id` + gets its own run). Test 2: the `run_id`-non-null
@@ -185,7 +239,7 @@ creates run-less batches (`run_id=NULL` born at dispatch) — re-run `decoder-ru
 **SCOPE/INSPECT session (branch `feat/ocr-mass-ingest`; NO code/DB/repo change — read-only + throwaway scratchpad). Verdict: GAP (4) is CLOSED, not deferred — its premise was empty.**
 
 **The reframe (why the prior "run the GPU pipeline on 8 files, ~30-45 min/match" framing was wrong):** the 8
-zero-match recordings are zero-match *because they were never online EASHL club matches* — EA's online match API
+zero-match recordings are zero-match _because they were never online EASHL club matches_ — EA's online match API
 correctly has no row for offline / vs-CPU / exhibition play. There are **zero poller-missed ONLINE matches** in
 the corpus, so there is nothing to rescue.
 
@@ -198,6 +252,7 @@ matches the prior session EXACTLY: `0→8, 1→35, 2→22, 3→9, 4→1, 5→2, 
 per zero-match recording via ffmpeg and read them.
 
 **The 8 decompose (all non-rescue):**
+
 - **3 trims inside `match<id>/` folders** — `match2666/…-Trim2.mp4`, `match2667/…-Trim.mp4`, `match2687/…-Trim.mp4`
   → belong to already-known matches 2666/2667/2687 (verified present in DB). Zero-match only because the trim
   captured a later portion than the original basename timestamp implies. Not candidates.
@@ -241,13 +296,14 @@ the 8 shas by running `scratchpad/triage_gap4.py` if that optimization is ever w
 (pnpm absent, non-zero exit, launch exception, or banner-only/garbage stdout that `_parse_reel_map`
 swallowed). Harmless on the fresh Pass-1 / manual path (defers either way), but on the **promote pass**
 (`_promote_target`, [batch_ingest.py](tools/video_ingest/video_ingest/batch_ingest.py)) the map is
-*expected non-empty*: a transient failure there silently drained the confirmed video into the deferred
+_expected non-empty_: a transient failure there silently drained the confirmed video into the deferred
 branch — reels re-OCR'd (~2.3h each) for nothing, **nothing promoted, and the run summary still recorded
 `status="promoted"`** (the subprocess exits 0 because deferral isn't an error, then the loop grades
-stale/absent box scores). The one caller that *knows* a non-empty map is expected (the promote pass, via
+stale/absent box scores). The one caller that _knows_ a non-empty map is expected (the promote pass, via
 `_confirmed_associations`) never asserted it.
 
 **What was built (design = "root-cause distinction + honest promote gate"):**
+
 - **`dispatch.py`** — new typed `ReelMapLookupError(RuntimeError)`. `load_confirmed_reel_map` now returns
   `{}` **only** on a clean lookup with a valid (possibly-empty) object, and **raises** on any genuine
   failure (was: swallow to `{}`). `_parse_reel_map` raises when a `{`-line is unparseable OR no JSON
@@ -268,8 +324,8 @@ stale/absent box scores). The one caller that *knows* a non-empty map is expecte
 **Failure matrix:** clean-empty `{}` → defer (no flag) / **raise→SKIP** (flag); lookup-failed → loud
 log+defer (no flag) / **raise→SKIP** (flag); valid non-empty → dispatch (both).
 
-**Deliberately deferred (YAGNI, noted not built):** asserting the loaded map *equals* the expected
-`confirmed_match_ids` set (would also catch a *partial* map). A boolean "expect non-empty" closes the
+**Deliberately deferred (YAGNI, noted not built):** asserting the loaded map _equals_ the expected
+`confirmed_match_ids` set (would also catch a _partial_ map). A boolean "expect non-empty" closes the
 silent drain; the per-match grade loop already covers each expected match afterward.
 
 **Gates (all green):** changed-file tests first — `test_dispatch_reel_map.py` (8 lookup cases: failures now
@@ -320,6 +376,7 @@ WHERE match_id IS NOT NULL AND run_id IS NULL GROUP BY match_id ORDER BY match_i
 ```
 
 **What was built:**
+
 - New helper `ensureSyntheticActiveRunForMatch(matchId, conn)` in
   [packages/db/src/queries/ocr-decoder-runs.ts](packages/db/src/queries/ocr-decoder-runs.ts). It
   reuses an existing active run or creates one, then cascades `run_id` onto NULL-`run_id`
