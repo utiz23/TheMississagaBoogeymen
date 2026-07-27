@@ -5,9 +5,11 @@ import Image from 'next/image'
 import type { LineupRow, MatchLineups } from '@eanhl/db/queries'
 import type { PlayerArchetype } from '@eanhl/db/schema'
 import { useGameSheetMode } from '@/components/matches/game-sheet-mode'
-import { LineupExpandPanel } from '@/components/matches/lineup-expand-panel'
 import { OpponentCrest } from '@/components/ui/opponent-crest'
+import { splitBuild, type HeadToHeadStatLine } from '@/lib/head-to-head'
 import type { PlayerScoreEntry } from '@/lib/match-recap'
+import { DrawerLoadout } from './drawer-loadout'
+import { DrawerStats } from './drawer-stats'
 import {
   LineupModuleRow,
   type LineupPositionKey,
@@ -18,27 +20,23 @@ import {
 // Lineup · Scouting — the prototype's one-roster-at-a-time lineup module.
 // A BGM|OPP segmented control picks which team's six rows are browsed; the
 // LOADOUTS|STATS page mode (context) decides what each row trails with.
-// Interim drawer: opening a row renders the previous design's two-sided
-// expand panel (head-to-head compare) until the Phase 5 drawers land.
+// Opening a row renders the position head-to-head drawer: the build compare
+// in LOADOUTS mode (falling back to the EA-backed stats drawer when no
+// loadout snapshot exists — never a dead-end card), match stats in STATS.
 
 const POSITIONS: LineupPositionKey[] = ['C', 'LW', 'RW', 'LD', 'RD', 'G']
 
 type TeamKey = 'bgm' | 'opp'
 
 /**
- * Minimal stat shape both getPlayerMatchStats and getOpponentPlayerMatchStats
- * rows satisfy — everything the row tiles need, nothing more.
+ * Stat shape both getPlayerMatchStats and getOpponentPlayerMatchStats rows
+ * satisfy — the row tiles' fields plus the deep line the stats drawer's
+ * category tables derive from (`HeadToHeadStatLine`).
  */
-export interface LineupModuleStatRow {
+export interface LineupModuleStatRow extends HeadToHeadStatLine {
   playerId?: number | null
   gamertag: string
   isGoalie: boolean
-  goals: number
-  assists: number
-  plusMinus: number
-  shots: number
-  hits: number
-  blockedShots: number
   saves: number | null
   goalsAgainst: number | null
   shotsAgainst: number | null
@@ -142,9 +140,11 @@ export function LineupModule({
                 <HeaderKV k="Goalie" v={goalieLabel} dim={goalieLabel === 'CPU'} />
               </span>
             </div>
-            {variant === 'ocr' ? (
+            {slots.some((s) => s.expandable) ? (
               <p className="font-condensed text-[10px] font-semibold uppercase tracking-[0.1em] text-fg-4">
-                Tap a skater for full loadout and match stats
+                {variant === 'ocr'
+                  ? 'Tap a skater for full loadout and match stats'
+                  : 'Tap a skater for full match stats'}
               </p>
             ) : null}
           </div>
@@ -191,6 +191,8 @@ export function LineupModule({
           {slots.map((slot) => {
             const isOpen = openPos === slot.position && slot.expandable
             const panelId = `${idBase}-${slot.position}`
+            const bgmRow = bgmByPos.get(slot.position) ?? null
+            const oppRow = oppByPos.get(slot.position) ?? null
             return (
               <div key={slot.position}>
                 <LineupModuleRow
@@ -204,11 +206,25 @@ export function LineupModule({
                 />
                 {isOpen ? (
                   <div id={panelId}>
-                    <InterimDrawer
-                      position={slot.position}
-                      bgm={bgmByPos.get(slot.position) ?? null}
-                      opp={oppByPos.get(slot.position) ?? null}
-                    />
+                    {mode === 'loadouts' && slot.hasLoadout ? (
+                      <DrawerLoadout
+                        posLabel={slot.posLabel}
+                        bgmRow={bgmRow}
+                        oppRow={oppRow}
+                        oppAbbrev={opponentAbbrev}
+                      />
+                    ) : (
+                      <DrawerStats
+                        posLabel={slot.posLabel}
+                        bgmRow={bgmRow}
+                        oppRow={oppRow}
+                        bgmStat={bgmRow ? findStat(bgmStats, 'bgm', bgmRow) : null}
+                        oppStat={oppRow ? findStat(oppStats, 'opp', oppRow) : null}
+                        tappedSide={team}
+                        loadoutFallback={mode === 'loadouts'}
+                        oppAbbrev={opponentAbbrev}
+                      />
+                    )}
                   </div>
                 ) : null}
               </div>
@@ -263,32 +279,6 @@ function HeaderKV({ k, v, dim = false }: { k: string; v: string; dim?: boolean }
   )
 }
 
-/**
- * Interim drill-down: the previous design's two-sided compare panel, lifted
- * verbatim so nothing regresses while the Phase 5 drawers are built. It shows
- * BOTH teams for the position regardless of which roster is being browsed —
- * which is the head-to-head the drawer is ultimately specced to deliver.
- */
-function InterimDrawer({
-  position,
-  bgm,
-  opp,
-}: {
-  position: LineupPositionKey
-  bgm: LineupRow | null
-  opp: LineupRow | null
-}) {
-  return (
-    <LineupExpandPanel
-      bgm={bgm}
-      opp={opp}
-      position={position}
-      bgmRef={bgm ? splitBuild(bgm).ref : null}
-      oppRef={opp ? splitBuild(opp).ref : null}
-    />
-  )
-}
-
 // ─── Slot view-model ─────────────────────────────────────────────────────────
 
 function buildSlotVM(args: {
@@ -318,6 +308,7 @@ function buildSlotVM(args: {
       xFactors: [],
       gs: null,
       statTiles: skaterTiles(null),
+      hasLoadout: false,
       expandable: false,
     }
   }
@@ -344,6 +335,7 @@ function buildSlotVM(args: {
       ? `${row.playerPrestigeNumber !== null ? `P${row.playerPrestigeNumber.toString()}·` : ''}L${row.playerLevelNumber.toString()}`
       : null
   const physLine = [hwh, levelPart].filter(Boolean).join(' · ') || null
+  const hasLoadout = row.attributes !== null && Object.keys(row.attributes).length > 0
 
   return {
     position,
@@ -359,7 +351,10 @@ function buildSlotVM(args: {
     xFactors: row.xFactors,
     gs,
     statTiles: position === 'G' ? goalieTiles(stat) : skaterTiles(stat),
-    expandable: variant === 'ocr' && position !== 'G',
+    hasLoadout,
+    // The stats drawer is EA-backed, so box-score-variant rows expand too —
+    // any human skater with a stat row or a loadout snapshot drills down.
+    expandable: position !== 'G' && (stat !== null || hasLoadout),
   }
 }
 
@@ -483,21 +478,6 @@ function bucketByPosition(
     if (POSITIONS.includes(pos) && !map.has(pos)) map.set(pos, r)
   }
   return map
-}
-
-/** Split a row's build into `{ build, ref }` — "Cole Caufield - Sniper" → { Sniper, C. Caufield }. */
-function splitBuild(row: LineupRow): { build: string; ref: string | null } {
-  const source = row.buildClassCanonical ?? row.buildClass
-  if (!source) return { build: 'Unknown build', ref: null }
-  const dashIdx = source.indexOf(' - ')
-  if (dashIdx === -1) return { build: source.trim(), ref: null }
-  const refPart = source.slice(0, dashIdx).trim()
-  const buildPart = source.slice(dashIdx + 3).trim()
-  if (!refPart || !buildPart) return { build: source.trim(), ref: null }
-  const parts = refPart.split(/\s+/)
-  const refDisplay =
-    parts.length >= 2 ? `${parts[0]?.charAt(0) ?? ''}. ${parts.slice(1).join(' ')}` : refPart
-  return { build: buildPart, ref: refDisplay }
 }
 
 function buildToArchetype(build: string): PlayerArchetype | null {

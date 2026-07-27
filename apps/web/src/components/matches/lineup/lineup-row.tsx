@@ -46,6 +46,8 @@ export interface LineupSlotVM {
   /** Composite game score — null when no score entry exists for this player. */
   gs: number | null
   statTiles: LineupStatTile[]
+  /** True when a reviewed loadout snapshot (attributes) exists for this row. */
+  hasLoadout: boolean
   expandable: boolean
 }
 
