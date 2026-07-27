@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import type { CSSProperties } from 'react'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import {
@@ -10,7 +11,6 @@ import {
   getMatchSeriesContext,
   getAdjacentMatches,
   getMatchPeriodSummaries,
-  getMatchShotTypeSummaries,
   getMatchEvents,
   getMatchActionTrackerProvenance,
   getMatchLineups,
@@ -24,10 +24,8 @@ import { HeroCard } from '@/components/matches/hero-card'
 import { TopPerformers } from '@/components/matches/top-performers'
 import { PossessionEdgeBar } from '@/components/matches/possession-edge'
 import { TeamStats } from '@/components/matches/team-stats'
-import { ScoresheetSection } from '@/components/matches/scoresheet'
 import { ContextFooter } from '@/components/matches/context-footer'
 import { BoxScore } from '@/components/matches/box-score'
-import { ShotMix } from '@/components/matches/shot-mix'
 import { EventTimeline } from '@/components/matches/event-timeline'
 import { ActionTrackerMap } from '@/components/matches/action-tracker-map'
 import { LineupSection } from '@/components/matches/lineup-section'
@@ -38,11 +36,12 @@ import {
   buildBoxScore,
   buildLineupFromStats,
   buildPossessionEdge,
-  buildScoresheet,
   buildTopPerformers,
   computeSeasonAvgs,
   attachSeasonAvgs,
 } from '@/lib/match-recap'
+import { resolveOpponentColors } from '@/lib/opponent-colors'
+import { abbreviateTeamName } from '@/lib/format'
 
 // Match data never changes once written — cache indefinitely
 export const revalidate = false
@@ -91,7 +90,6 @@ export default async function GameDetailPage({ params, searchParams }: Props) {
     seriesContext,
     adjacent,
     periodSummaries,
-    shotTypeSummaries,
     matchEventRows,
     actionTrackerProvenance,
     lineups,
@@ -109,7 +107,6 @@ export default async function GameDetailPage({ params, searchParams }: Props) {
       next: null,
     }),
     safe(() => getMatchPeriodSummaries(m.id), []),
-    safe(() => getMatchShotTypeSummaries(m.id), []),
     safe(() => getMatchEvents(m.id), []),
     safe(() => getMatchActionTrackerProvenance(m.id), { extractedAt: null, sources: [] }),
     safe(() => getMatchLineups(m.id), { bgm: [], opponent: [] }),
@@ -125,6 +122,20 @@ export default async function GameDetailPage({ params, searchParams }: Props) {
   const opponentCrestAssetId = opponentClub?.crestAssetId ?? null
   const opponentCrestUseBaseAsset = opponentClub?.useBaseAsset ?? null
   const opponentPrimaryColor = opponentClub?.primaryColor ?? null
+
+  // Opponent colour — resolved once server-side through the clash ladder
+  // (BGM red is reserved; a raw brand hex never reaches a surface). Published
+  // as the `--opp*` custom properties on the page root; see globals.css.
+  const opponentColors = resolveOpponentColors({
+    abbrev: abbreviateTeamName(m.opponentName),
+    brandHex: m.oppColorHex ?? opponentClub?.primaryColor ?? null,
+  })
+  const opponentColorVars = {
+    '--opp': opponentColors.base,
+    '--opp-2': opponentColors.strong,
+    '--opp-line': opponentColors.line,
+    '--opp-soft': opponentColors.soft,
+  } as CSSProperties
 
   // Season-to-date player history for the "vs season avg" delta on the
   // Three Stars cards. BGM-only — opponents have no profile / history.
@@ -160,11 +171,6 @@ export default async function GameDetailPage({ params, searchParams }: Props) {
   const allTeamScores = buildAllTeamScores(match, playerStatsForStars, opponentStatsForStars)
   const possessionEdge = buildPossessionEdge(match, periodSummaries)
   const boxScore = buildBoxScore(match, playerStats, opponentPlayerStats, periodSummaries)
-  const scoresheet = buildScoresheet({
-    bgm: playerStats,
-    opponent: opponentPlayerStats,
-    opponentLabel: match.opponentName,
-  })
 
   const heroMeta = {
     seasonNumber,
@@ -175,10 +181,11 @@ export default async function GameDetailPage({ params, searchParams }: Props) {
   const gamesHref = `/games${listQuery ? `?${listQuery}` : ''}`
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-8" style={opponentColorVars}>
+      {/* 1. Top bar */}
       <GameDetailNav gamesHref={gamesHref} adjacent={adjacent} listQuery={listQuery} />
 
-      {/* 1. Hero */}
+      {/* 2. Scoreboard hero */}
       <HeroCard
         match={match}
         opponentCrestAssetId={opponentCrestAssetId}
@@ -186,16 +193,42 @@ export default async function GameDetailPage({ params, searchParams }: Props) {
         meta={heroMeta}
       />
 
-      {/* 2. Story strip — Top Performers + Possession Edge */}
-      {(topPerformers.length > 0 || possessionEdge !== null) && (
-        <div className="space-y-6">
-          {topPerformers.length > 0 ? (
-            <TopPerformers
-              performers={topPerformers}
-              allTeamScores={allTeamScores}
-              opponentLabel={match.opponentName}
-            />
-          ) : null}
+      {/* 3. Sub-nav slot — the LOADOUTS | STATS segmented control lands here (Phase 3). */}
+
+      {/* 4. Main grid — main column (3/4) + rail (1/4); the rail stacks after
+            the main column below lg. */}
+      <div className="grid items-start gap-4 lg:grid-cols-4">
+        <div className="min-w-0 space-y-4 lg:col-span-3">
+          {/* Pre-game lineup section. Rich OCR loadout ladder when snapshots
+              exist; otherwise a lean box-score lineup (who dressed + position). */}
+          <LineupSection
+            lineups={lineupData}
+            variant={lineupVariant}
+            opponentLabel={match.opponentName}
+            matchId={match.id}
+            gameMode={match.gameMode}
+            provenance={lineupProvenance}
+          />
+
+          {/* OCR-derived event timeline — story-mode scoresheet with running
+              score, lead-change banners, and GWG highlight. */}
+          <EventTimeline
+            events={matchEventRows}
+            opponentLabel={match.opponentName}
+            bgmWasHome={match.bgmWasHome}
+            bgmColor={match.bgmColorHex}
+            oppColor={match.oppColorHex}
+          />
+        </div>
+
+        <div className="min-w-0 space-y-4">
+          <TopPerformers
+            performers={topPerformers}
+            allTeamScores={allTeamScores}
+            opponentLabel={match.opponentName}
+          />
+
+          {/* Deserve-to-win — the DtW gauge replaces this bar in Phase 7. */}
           {possessionEdge !== null ? (
             <PossessionEdgeBar
               edge={possessionEdge}
@@ -204,53 +237,17 @@ export default async function GameDetailPage({ params, searchParams }: Props) {
               scoreAgainst={match.scoreAgainst}
             />
           ) : null}
+
+          {/* OCR-derived per-period box score (hidden until reviewed). */}
+          <BoxScore rows={periodSummaries} opponentLabel={match.opponentName} />
+
+          <TeamStats rows={boxScore} opponentName={match.opponentName} />
         </div>
-      )}
+      </div>
 
-      {/* 3. Team stats */}
-      <TeamStats rows={boxScore} opponentName={match.opponentName} />
-
-      {/* 3a. Pre-game lineup section. Rich OCR loadout ladder when snapshots
-            exist; otherwise a lean box-score lineup (who dressed + position). */}
-      <LineupSection
-        lineups={lineupData}
-        variant={lineupVariant}
-        opponentLabel={match.opponentName}
-        matchId={match.id}
-        gameMode={match.gameMode}
-        provenance={lineupProvenance}
-      />
-
-      {/* 3b-3c. OCR-derived per-period box score + shot mix (hidden until reviewed). */}
-      <BoxScore rows={periodSummaries} opponentLabel={match.opponentName} />
-      <ShotMix rows={shotTypeSummaries} />
-
-      {/* 5. Two-team scoresheet (BGM + opponent) */}
-      {scoresheetIsEmpty(scoresheet) ? (
-        <EmptyScoresheet />
-      ) : (
-        <ScoresheetSection
-          scoresheet={scoresheet}
-          opponentCrestAssetId={opponentCrestAssetId}
-          opponentCrestUseBaseAsset={opponentCrestUseBaseAsset}
-          opponentName={match.opponentName}
-        />
-      )}
-
-      {/* 5a. OCR-derived event timeline — story-mode scoresheet with running
-            score, lead-change banners, and GWG highlight. */}
-      <EventTimeline
-        events={matchEventRows}
-        opponentLabel={match.opponentName}
-        bgmWasHome={match.bgmWasHome}
-        bgmColor={match.bgmColorHex}
-        oppColor={match.oppColorHex}
-      />
-
-      {/* 5b. OCR-derived Action Tracker (Phase 5 — rink-coordinate spatial extraction +
-            all-type event card list mirroring the in-game post-game Action Tracker).
-            As of 2026-05-18 it also hosts the Faceoff Map as a separate view-mode
-            inside the same section header (toggle between "Events" / "Faceoffs"). */}
+      {/* 5. Full-width action tracker (rink-coordinate spatial extraction +
+            all-type event card list mirroring the in-game post-game Action
+            Tracker; hosts the Faceoff Map as a separate view-mode). */}
       <ActionTrackerMap
         events={matchEventRows}
         opponentLabel={match.opponentName}
@@ -344,11 +341,6 @@ async function safe<T>(fn: () => Promise<T>, fallback: T): Promise<T> {
   }
 }
 
-function scoresheetIsEmpty(s: ReturnType<typeof buildScoresheet>): boolean {
-  const sideEmpty = (side: typeof s.bgm) => side.skaters.length === 0 && side.goalies.length === 0
-  return sideEmpty(s.bgm) && sideEmpty(s.opponent)
-}
-
 function formatSeriesSummary(
   ctx: {
     meetingNumber: number
@@ -383,16 +375,6 @@ function ErrorState({ message }: { message: string }) {
   return (
     <Panel className="flex min-h-[12rem] items-center justify-center">
       <p className="font-condensed text-sm uppercase tracking-wider text-zinc-500">{message}</p>
-    </Panel>
-  )
-}
-
-function EmptyScoresheet() {
-  return (
-    <Panel className="flex min-h-[6rem] items-center justify-center">
-      <p className="font-condensed text-sm uppercase tracking-wider text-zinc-500">
-        No player stats recorded for this game.
-      </p>
     </Panel>
   )
 }

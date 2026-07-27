@@ -16,6 +16,16 @@
   --color-accent: #e84131; /* OFFICIAL — Boogeymen red (warm) */
   --color-accent-strong: #c2321f; /* pressed/dark */
 
+  /* Opponent colour vars (game sheet) — NOT defined here. Set per match as
+     inline style on the /games/[id] page root by resolveOpponentColors()
+     (src/lib/opponent-colors.ts), which runs every brand hex through the
+     clash ladder from the design spec (`Game sheet prototype layout (1)/
+     Opponent Colour Rules.dc.html`) so BGM red always means us:
+       --opp       resolved opponent colour — never the raw brand hex
+       --opp-2     74% alpha — secondary numerals
+       --opp-line  40% alpha — borders, crest ring
+       --opp-soft  12% alpha — row tints */
+
   /* Result badge fills (aligned to design system) */
   --color-win: #10b981; /* emerald */
   --color-loss: #ef6a5e; /* lighter accent — readable on dark */

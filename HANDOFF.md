@@ -2,10 +2,44 @@
 
 ## Active State
 
+### 📋 GAME SHEET REVAMP IN PROGRESS — Phases 1–2 ✅ DONE 2026-07-26 (resolver + page skeleton/grid, uncommitted); Phase 3 (top bar + hero + mode sub-nav) starts in a fresh session (frontend workstream, independent of the OCR corpus run)
+
+**Plan of record:** `/home/michal/.claude/plans/game-sheet-page-revamp-rustling-creek.md` (machine-local, not in repo).
+**Design of record:** the prototype bundle at repo root `Game sheet prototype layout (1)/` (`Game Sheet.dc.html` + motion recs + `Opponent Colour Rules.dc.html` + `final-review.md` + `lineup-review-todo.md`). It supersedes `docs/specs/match-detail-page.md` (V1; banner added in Phase 11).
+
+**Scope:** redesign `/games/[id]` to the prototype — top bar → scoreboard hero → LOADOUTS|STATS sub-nav → main(3/4: lineup module w/ expandable drawers, event timeline) + rail(1/4: top performers, DtW gauge, box score, team stats bars) → full-width action tracker. Redesign of the existing page, not greenfield: the data seam (`apps/web/src/lib/match-recap.ts` + the 15-query `Promise.all` in `page.tsx`) is kept as-is.
+
+**Operator decisions (locked, don't re-ask):**
+
+1. Static first; motion (8-cue specs per module) is the final phase, CSS/WAAPI only, no motion deps.
+2. Opponent colour resolver is web-only (`lib/opponent-colors.ts`, no schema/worker change); abbrev-keyed alternate set is the PRIMARY path (brand hex exists for 1/191 clubs).
+3. Prototype is canonical: Shot Mix, two-team Scoresheet, faceoff-dots view DROPPED.
+4. Reviewed-only OCR gate KEPT (no query changes; ~2/199 matches pass today).
+5. LOADOUTS drawer falls back to the EA-backed STATS drawer when no loadout snapshot (never a dead-end card).
+6. Real X-factor icons via `lib/xfactor-asset.ts` (prototype has placeholders).
+7. Action tracker = prototype frame (filters/axis/synced event list) + PRODUCTION rink map ported from `action-tracker-map.tsx` (its map beats the prototype's).
+
+**Phases (one per session; page shippable after each):** 1 opponent-colour resolver → 2 page skeleton/grid → 3 top bar + hero + mode sub-nav → 4 lineup rows + team control → 5 lineup drawers + head-to-head (lift compare logic from old `lineup-expand-panel.tsx`) → 6 rail: performers + team stats → 7 rail: DtW gauge + box score → 8 event timeline → 9 action tracker → 10 a11y/responsive/contrast → 11 dead-code cleanup + docs → 12 motion.
+
+**Verification convention:** per phase `pnpm --filter web typecheck` + `pnpm format` + new-file eslint in isolation (repo lint is pre-existing-red) + screenshots at 1280/390 (768 from Phase 10) on TWO matches: 250 (OCR-reviewed pilot) and any EA-only match. Edge cases before done: OTL game, 1-period game (972), DNF, repeat opponent.
+
+**Phase 1 ✅ (2026-07-26, UNCOMMITTED):** `apps/web/src/lib/opponent-colors.ts` — pure resolver porting the spec's ladder verbatim (OKLCH maths; red wedge ±30° around hue 29 at C ≥ .05; floor L .55; ceil L .93; cool alternates STEEL/ICE/VIOLET/COBALT keyed on an abbrev hash; achromatic darks lift to gunmetal `#81878D`, chromatic darks lift keeping their hue, near-whites drop with a cool cast). Returns `{base, strong, line, soft, fg, provenance}`; exports `OPPONENT_ALTERNATES` + `clashFailures` (the every-output-clears-the-clash-zones invariant is a test). Wired in `games/[id]/page.tsx` as `--opp` / `--opp-2` (74%) / `--opp-line` (40%) / `--opp-soft` (12%) inline vars on the page root — input `matches.opp_color_hex ?? opponent_clubs.primary_color`, abbrev via `abbreviateTeamName(opponentName)`; vars documented in `globals.css`. 14-test `node:test` suite (null-hex/abbrev-determinism path tested hardest, per plan). Verified: tests 14/14 · web typecheck · prettier · isolated eslint all clean. No visual change (nothing consumes the vars until Phase 2+).
+
+**Phase 2 ✅ (2026-07-26, UNCOMMITTED):** `games/[id]/page.tsx` only — render restructured to the prototype skeleton: top bar → hero → sub-nav slot (comment placeholder; the LOADOUTS|STATS control is Phase 3) → `grid items-start gap-4 lg:grid-cols-4` with main `lg:col-span-3 min-w-0` (LineupSection → EventTimeline) + rail `min-w-0` (TopPerformers → PossessionEdgeBar → BoxScore → TeamStats, matching the prototype's rail order; each self-collapses on empty data) → full-width ActionTrackerMap → ContextFooter. Below `lg` the rail stacks after main (natural DOM order). **Removed from render + plumbing:** ShotMix + ScoresheetSection (files stay until Phase 11), `getMatchShotTypeSummaries` query, `buildScoresheet` derivation, `scoresheetIsEmpty`/`EmptyScoresheet` helpers. Verified: web typecheck · prettier · isolated eslint all clean; screenshots at 1280/390 on match 250 (OCR pilot) + 2698 (EA-only) — grid correct, rail stacks on mobile, BoxScore correctly absent on the EA-only match. **Known interim artifacts (NOT defects, fixed by later phases):** old full-width TopPerformers star cards + PossessionEdge readout overflow the narrow rail at 1280 into the empty right margin (compact rail redesigns land in Phases 6–7); EventTimeline's zero-event state reads "FINAL · TIED 0–0" on EA-only matches (pre-existing; honest empty state is Phase 8).
+
+**Next:** fresh session, Phase 3 — top bar + scoreboard hero + LOADOUTS|STATS sub-nav shell (extract `game-top-bar.tsx`, redesign `hero-card.tsx` in place, `wentToOvertime()` helper in `match-recap.ts`, new `game-sheet-mode.tsx` client segmented control w/ context + `?view=` deep link via `history.replaceState`).
+
 ### ✅ CORPUS PREP COMPLETE 2026-07-25 — queue drained, matcher off-by-one root-caused + FIXED, 4 videos promoted, runbook written. NOTHING BLOCKS THE FULL RUN.
 
 **One session, four workstreams, all verified. The next session starts the corpus itself: follow
 [docs/runbook/ocr-corpus-mass-ingest.md](docs/runbook/ocr-corpus-mass-ingest.md) — preflight §0, then `batch --jobs 3`.**
+
+**SCHEDULE (operator decision 2026-07-26): mass ingest starts MONDAY MORNING 2026-07-27 and runs
+chunked through that week.** ~70 fresh videos / ~50.6 h footage ≈ 35–40 h wall at `--jobs 3`, so the
+week has slack — but the chunk cycle (batch → confirm → batch-promote → linkage sweep → grades) needs
+operator/agent attention between chunks; it is NOT fire-and-forget. Monday-morning notes: run preflight
+§0 fresh that morning (venvs lose wheels on any uv sync — do not trust today's green), run chunks inside
+tmux so SSH drops don't kill them, and keep the box awake all week (no Windows sleep/update reboots).
 
 1. **`matches.played_at` = the game's END, and the matcher was systematically off-by-one on it.**
    Pinned against pilot reel geometry (970's played_at sits 97 s before its reel's end, inside the
@@ -957,7 +991,20 @@ the rule is wrong.
 
 > **⚠️ READ THIS FIRST — everything below the horizontal rule in this section is HISTORICAL (Phase B–G, 2026-07-01→07-04) and was superseded by the OCR mass-ingest program (Milestone ①②③④). It is kept as provenance. Do NOT start a session from it — "G3 is next" has been false since 2026-07-11.**
 
-### 🟢 THE ACTUAL NEXT SESSION (as of 2026-07-15)
+### 🟢 FRONTEND WORKSTREAM — NEXT SESSION (as of 2026-07-26): Game Sheet Revamp **Phase 3** (Phases 1–2 ✅ done 2026-07-26, uncommitted)
+
+Approved plan: `/home/michal/.claude/plans/game-sheet-page-revamp-rustling-creek.md` · full context in the top 📋 Active State entry (locked decisions 1–7, phase list, verification convention — do not re-ask). Phases 1 (opponent colour resolver) + 2 (page skeleton/grid) are DONE and verified — see the top 📋 entry.
+
+**Phase 3 — top bar, scoreboard hero, sub-nav shell:**
+
+1. Extract `GameDetailNav` (currently a local component in `page.tsx`) → `components/matches/game-top-bar.tsx` with ALL GAMES + PREV/NEXT opponent-abbrev chips; preserve the `gamesListQuery` searchParams pass-through.
+2. Redesign `components/matches/hero-card.tsx` in place to the full prototype hero incl. FINAL/OT badge + series line (`getMatchSeriesContext` already wired). Create `wentToOvertime(...)` in `match-recap.ts` (derive: `result==='OTL'` ∨ `period_number>=4` ∨ `max(toi_seconds)>3600`).
+3. Create `components/matches/game-sheet-mode.tsx` (client): LOADOUTS|STATS segmented control + React context — client state, NOT URL navigation; initial value from `?view=`, mirrored via `history.replaceState`; role=tab semantics reusing the roving-focus template from `box-score.tsx:79-155`. It replaces the Phase-2 sub-nav placeholder comment in `page.tsx`.
+4. Verify: typecheck + format + new-file eslint in isolation + screenshots at 1280/390 on match 250 and one EA-only match (2698 used in Phase 2); check an OTL/OT match for the OT badge.
+
+This workstream is independent of (and must not block) the OCR corpus run below — separate sessions, one phase per session.
+
+### 🟢 OCR WORKSTREAM — THE ACTUAL NEXT SESSION (as of 2026-07-15; corpus run scheduled MONDAY 2026-07-27, see top Active State)
 
 **Milestone ④ is COMPLETE and PROVEN ON-BOX** (4.4 Step 8 + 4.5 Step 3, this session — see the top 🟩 Active State bullet). `batch` → `propose` → `confirm` → `batch-promote` works end-to-end on real GPU against a live DB, and the drain converges. **The full-corpus run (~78 targets, ~40-58 h GPU) is now UNBLOCKED.**
 
@@ -1010,7 +1057,11 @@ Other tracks (unchanged, one task per session):
 
 ## Repo State
 
-> **CURRENT (2026-07-15, end of the ④ Step 8 on-box verify session):** branch `feat/ocr-mass-ingest`. Working tree carries **only** the long-standing untracked `docs/design/roster-player-page/` drift (left out of every commit, as always) plus this session's **uncommitted** `HANDOFF.md` + `docs/superpowers/plans/2026-07-11-ocr-mass-ingest-and-eval-program.md` doc edits. **No code changed this session** (verify-only). Both edited docs were **already prettier-dirty at HEAD** — pre-existing repo-wide red, don't chase it ([[project_lint_state]]).
+> **CURRENT (2026-07-26, end of the game-sheet Phase 2 session):** branch `main`. UNCOMMITTED (Phases 1+2 combined): NEW `apps/web/src/lib/opponent-colors.ts` + `apps/web/src/lib/opponent-colors.test.ts`; EDITED `apps/web/src/app/games/[id]/page.tsx` (Phase 1 resolver vars + Phase 2 grid skeleton; ShotMix/Scoresheet/shot-type-query/buildScoresheet removed from this page), `apps/web/src/app/globals.css` (vars doc comment inside `@theme`), `HANDOFF.md`. All verified (typecheck, prettier, isolated eslint, 4 screenshots 1280+390 × matches 250/2698). Phase-2 screenshot note: dev server must run on a free port (docker web holds 3000 with the OLD image) — `PORT=3100 pnpm --filter web dev` after sourcing `.env` (the `pnpm --filter web dev -- -p 3100` form breaks: the `--` is forwarded literally to next). **Known trap:** `pnpm format` exits 2 on `docs/calibration/baseline-match-{250,463}.json` — pre-existing at HEAD (pnpm banner text baked into committed JSON); it still formats every other file first, so the write-mode run works — verify touched files with `prettier --check`, don't chase the JSONs. The prototype bundle `Game sheet prototype layout (1)/` sits untracked at repo root — it is the design of record for the game-sheet revamp; leave it out of unrelated commits.
+>
+> **PREVIOUS (2026-07-26, end of the game-sheet planning session):** branch `main`. That session changed ONLY `HANDOFF.md` (planning entry + Next Session pointer). The prototype bundle arrived untracked at repo root.
+>
+> **PREVIOUS (2026-07-15, end of the ④ Step 8 on-box verify session):** branch `feat/ocr-mass-ingest`. Working tree carries **only** the long-standing untracked `docs/design/roster-player-page/` drift (left out of every commit, as always) plus this session's **uncommitted** `HANDOFF.md` + `docs/superpowers/plans/2026-07-11-ocr-mass-ingest-and-eval-program.md` doc edits. **No code changed this session** (verify-only). Both edited docs were **already prettier-dirty at HEAD** — pre-existing repo-wide red, don't chase it ([[project_lint_state]]).
 >
 > **Live-DB state added this session (real mutation — know this before re-running anything):** match **2675** is now OCR-ingested and promoted — 4 `match_period_summaries` rows (`source=ocr`, `review_status=pending_review`), 239 `ocr_extractions`, 10 `ocr_capture_batches` under sha `fe0e7bf6ac15…`, **0 `ocr_decoder_runs`** (the fresh-ingest `run_id=NULL` convention). `ocr_match_associations` **#20** = `fe0e7bf6…:0 → 2675`, status `confirmed`. Known shas in `ocr_capture_batches` are now **8** (was 7). The `/tmp/ingest-cache` sha cache was **COLD** at session start and is now **warm** (`sha-cache.json`), plus a full decode cache for `fe0e7bf6…` — a re-ingest of that video is a cache hit (0.0s), not a 44.7-min decode.
 >
