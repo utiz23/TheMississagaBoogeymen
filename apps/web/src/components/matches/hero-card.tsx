@@ -1,180 +1,224 @@
 import Image from 'next/image'
 import type { Match } from '@eanhl/db'
 import { OpponentCrest } from '@/components/ui/opponent-crest'
-import { ResultPill } from '@/components/ui/result-pill'
 import { abbreviateTeamName, formatMatchDate, formatMatchTime } from '@/lib/format'
 
 const OUR_ABBREV = 'BGM'
+const OUR_NAME = 'Boogeymen'
+
+// Scoreboard hero — prototype scorebug layout: meta strip (game # · date ·
+// mode | FINAL/OT) → crest-flanked score row with per-side WIN/LOSS tags →
+// series footer. BGM is always the left side (colour-rules invariant); the
+// opponent side draws from the resolved --opp* vars set on the page root.
+// Result state is carried by the side tags and the winner's glow, never by
+// which colour is brighter.
 
 interface HeroCardProps {
   match: Match
   opponentCrestAssetId: string | null
   opponentCrestUseBaseAsset: string | null
-  /** Optional context line bits — rendered as middots if any are present. */
+  /** Derived via wentToOvertime() — the schema has no OT column. */
+  overtime: boolean
   meta: {
     seasonNumber: number | null
     meetingNumber: number | null
-    seriesSummary: string | null
+    /** Prior-meetings record vs this opponent; null (or total ≤ 1) hides the footer. */
+    series: { wins: number; losses: number; otl: number; total: number } | null
   }
-}
-
-// Result-themed surfaces — restored from pre-renovation visual after user
-// feedback. Typography, sizing, and the design-system <ResultPill> primitive
-// stay from the renovation; the surface decoration goes back to per-result
-// gradient + solid-color top bar.
-const CARD_BG: Record<Match['result'], string> = {
-  WIN: 'bg-[radial-gradient(circle_at_top,rgba(232,65,49,0.22),transparent_55%),linear-gradient(180deg,rgba(26,20,20,0.99),rgba(10,10,10,1))]',
-  LOSS: 'bg-[linear-gradient(180deg,rgba(15,15,18,0.99),rgba(9,9,11,1))]',
-  OTL: 'bg-[radial-gradient(circle_at_top,rgba(245,158,11,0.10),transparent_50%),linear-gradient(180deg,rgba(20,18,14,0.99),rgba(10,10,10,1))]',
-  DNF: 'bg-[linear-gradient(180deg,rgba(13,13,15,0.99),rgba(9,9,11,1))]',
-}
-
-const TOP_BAR: Record<Match['result'], string> = {
-  WIN: 'bg-accent',
-  LOSS: 'bg-zinc-700',
-  OTL: 'bg-amber-500/80',
-  DNF: 'bg-zinc-800',
 }
 
 export function HeroCard({
   match,
   opponentCrestAssetId,
   opponentCrestUseBaseAsset,
+  overtime,
   meta,
 }: HeroCardProps) {
   const opponentAbbrev = abbreviateTeamName(match.opponentName)
+  const ourWin = match.result === 'WIN'
+  const oppWin = match.result === 'LOSS' || match.result === 'OTL'
+  const dnf = match.result === 'DNF'
 
-  const ourScoreColor =
-    match.result === 'WIN'
-      ? 'text-zinc-50'
-      : match.result === 'OTL'
-        ? 'text-zinc-400'
-        : match.result === 'DNF'
-          ? 'text-zinc-700'
-          : 'text-zinc-500'
-  const opponentScoreColor =
-    match.result === 'WIN'
-      ? 'text-zinc-600'
-      : match.result === 'OTL'
-        ? 'text-zinc-200'
-        : match.result === 'DNF'
-          ? 'text-zinc-700'
-          : 'text-zinc-50'
-
-  const metaParts: string[] = [formatMatchDate(match.playedAt), formatMatchTime(match.playedAt)]
-  if (match.gameMode) metaParts.push(match.gameMode)
-  if (meta.seasonNumber !== null) metaParts.push(`Game ${meta.seasonNumber.toString()}`)
-
-  const meetingLine = meta.seriesSummary
+  const ourScoreCls = ourWin
+    ? 'text-accent [text-shadow:0_0_14px_rgba(232,65,49,0.28)]'
+    : dnf
+      ? 'text-fg-5'
+      : 'text-fg-4'
+  const oppScoreCls = oppWin
+    ? '[color:var(--opp)] [text-shadow:0_0_14px_var(--opp-soft)]'
+    : dnf
+      ? 'text-fg-5'
+      : 'text-fg-4'
 
   return (
-    <div className={`overflow-hidden border border-zinc-800 ${CARD_BG[match.result]}`}>
-      <div className={`h-1 w-full ${TOP_BAR[match.result]}`} />
+    <section className="broadcast-panel-strong overflow-hidden font-condensed uppercase">
+      <div className="ticker-strip" />
 
-      <div className="px-4 py-6 sm:px-8 sm:py-8">
-        {/* Top row — date / mode / game-number meta strip */}
-        <div className="mb-6 flex flex-wrap items-center gap-x-3 gap-y-1 font-condensed text-[11px] font-bold uppercase tracking-[0.2em] text-zinc-500">
-          {metaParts.map((part, i) => (
-            <span key={part} className="flex items-center gap-3">
-              {i > 0 ? (
-                <span aria-hidden className="text-zinc-700">
-                  ·
-                </span>
-              ) : null}
-              <span className={i === 2 ? 'text-zinc-300' : ''}>{part}</span>
+      {/* Scorebug header — meta left · game state right */}
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-b border-border-subtle px-4 py-2.5 sm:px-5">
+        <span className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] font-bold tracking-[0.18em] text-fg-4">
+          {meta.seasonNumber !== null ? (
+            <>
+              <span className="text-fg-2">Game {meta.seasonNumber.toString()}</span>
+              <MetaDivider />
+            </>
+          ) : null}
+          <span>
+            {formatMatchDate(match.playedAt)} · {formatMatchTime(match.playedAt)}
+          </span>
+          {match.gameMode ? (
+            <>
+              <MetaDivider />
+              <span>{match.gameMode}</span>
+            </>
+          ) : null}
+        </span>
+        <span className="flex flex-none items-center gap-2.5">
+          <span
+            className={`text-xs font-black tracking-[0.2em] ${dnf ? 'text-fg-3' : 'text-fg-1'}`}
+          >
+            {dnf ? 'DNF' : 'Final'}
+          </span>
+          {overtime ? (
+            <span className="border border-otl/40 bg-otl/10 px-2 py-0.5 text-[10px] font-extrabold tracking-[0.12em] text-otl">
+              OT
             </span>
-          ))}
-        </div>
-
-        {/* Scoreboard row — BGM | score | opponent */}
-        <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3 sm:gap-6">
-          {/* BGM side */}
-          <TeamSide
-            crest={
-              <Image
-                src="/images/bgm-logo.png"
-                alt="BGM"
-                width={64}
-                height={64}
-                className="h-14 w-14 sm:h-16 sm:w-16 object-contain"
-              />
-            }
-            abbrev={OUR_ABBREV}
-            name="Boogeymen"
-          />
-
-          {/* Score */}
-          <div className="flex flex-col items-center gap-3">
-            <div className="flex items-baseline gap-2 font-condensed font-black tabular-nums leading-none">
-              <span className={`text-5xl sm:text-7xl ${ourScoreColor}`}>
-                {match.scoreFor.toString()}
-              </span>
-              <span className="pb-1 text-2xl text-zinc-700">–</span>
-              <span className={`text-5xl sm:text-7xl ${opponentScoreColor}`}>
-                {match.scoreAgainst.toString()}
-              </span>
-            </div>
-            <ResultPill result={match.result} size="md" />
-          </div>
-
-          {/* Opponent side */}
-          <TeamSide
-            crest={
-              <div className="flex h-14 w-14 sm:h-16 sm:w-16 items-center justify-center overflow-hidden rounded-full border border-zinc-800 bg-zinc-950/60">
-                <OpponentCrest
-                  crestAssetId={opponentCrestAssetId}
-                  useBaseAsset={opponentCrestUseBaseAsset}
-                  alt={match.opponentName}
-                  width={56}
-                  height={56}
-                  className="h-12 w-12 sm:h-14 sm:w-14 object-contain"
-                  fallback={
-                    <span
-                      aria-hidden
-                      className="font-condensed text-base font-black uppercase tracking-tight text-zinc-400"
-                    >
-                      {opponentAbbrev.slice(0, 2)}
-                    </span>
-                  }
-                />
-              </div>
-            }
-            abbrev={opponentAbbrev}
-            name={match.opponentName}
-          />
-        </div>
-
-        {/* Meeting / series context */}
-        {meetingLine !== null && meta.meetingNumber !== null ? (
-          <div className="mt-6 flex items-center justify-center font-condensed text-xs font-semibold uppercase tracking-[0.22em] text-zinc-500">
-            <span>{meetingLine}</span>
-          </div>
-        ) : null}
+          ) : null}
+        </span>
       </div>
-    </div>
+
+      {/* Score row — BGM | score | opponent */}
+      <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3 px-4 py-6 sm:gap-5 sm:px-8 sm:py-7">
+        {/* BGM side (always left) */}
+        <div className="flex min-w-0 items-center gap-3 sm:gap-4">
+          <Image
+            src="/images/bgm-logo.png"
+            alt={OUR_NAME}
+            width={66}
+            height={66}
+            priority
+            className="h-12 w-12 flex-none object-contain [filter:drop-shadow(0_0_16px_rgba(232,65,49,0.28))] sm:h-[66px] sm:w-[66px]"
+          />
+          <div className="flex min-w-0 flex-col gap-1">
+            <span className="text-xs font-bold tracking-[0.24em] text-fg-4">{OUR_ABBREV}</span>
+            <span className="hidden truncate text-[30px] font-black leading-[0.95] tracking-[0.03em] text-fg-1 sm:block">
+              {OUR_NAME}
+            </span>
+            <ResultTag side="bgm" result={match.result} />
+          </div>
+        </div>
+
+        {/* Score */}
+        <div className="flex flex-none items-baseline gap-2 sm:gap-5">
+          <span
+            className={`text-6xl font-black leading-[0.82] tabular-nums sm:text-[88px] ${ourScoreCls}`}
+          >
+            {match.scoreFor.toString()}
+          </span>
+          <span aria-hidden className="text-2xl font-normal leading-none text-fg-6 sm:text-[34px]">
+            –
+          </span>
+          <span
+            className={`text-6xl font-black leading-[0.82] tabular-nums sm:text-[88px] ${oppScoreCls}`}
+          >
+            {match.scoreAgainst.toString()}
+          </span>
+        </div>
+
+        {/* Opponent side (always right) */}
+        <div className="flex min-w-0 items-center justify-end gap-3 text-right sm:gap-4">
+          <div className="flex min-w-0 flex-col items-end gap-1">
+            <span className="text-xs font-bold tracking-[0.24em] text-fg-4">{opponentAbbrev}</span>
+            <span className="hidden max-w-full truncate text-[30px] font-black leading-[0.95] tracking-[0.03em] text-fg-3 sm:block">
+              {match.opponentName}
+            </span>
+            <ResultTag side="opp" result={match.result} />
+          </div>
+          <div className="flex h-12 w-12 flex-none items-center justify-center overflow-hidden rounded-full border bg-charcoal [border-color:var(--opp-line)] sm:h-[66px] sm:w-[66px]">
+            <OpponentCrest
+              crestAssetId={opponentCrestAssetId}
+              useBaseAsset={opponentCrestUseBaseAsset}
+              alt={match.opponentName}
+              width={56}
+              height={56}
+              className="h-10 w-10 object-contain sm:h-14 sm:w-14"
+              fallback={
+                <span aria-hidden className="text-base font-black tracking-tight text-fg-3">
+                  {opponentAbbrev.slice(0, 2)}
+                </span>
+              }
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Series footer — prior meetings vs this opponent */}
+      {meta.series !== null && meta.series.total > 1 && meta.meetingNumber !== null ? (
+        <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 border-t border-border-subtle px-6 py-2 text-[11px]">
+          <span className="font-semibold tracking-[0.18em] text-fg-4">
+            {ordinal(meta.meetingNumber)} meeting vs {match.opponentName}
+          </span>
+          <span aria-hidden className="h-[3px] w-[3px] rounded-full bg-fg-6" />
+          <span className="font-bold tracking-[0.16em] text-fg-4">
+            Season series{' '}
+            <span className="tabular-nums text-accent">{meta.series.wins.toString()}</span>–
+            <span className="tabular-nums text-fg-3">{meta.series.losses.toString()}</span>–
+            <span className="tabular-nums text-otl">{meta.series.otl.toString()}</span>
+          </span>
+        </div>
+      ) : null}
+    </section>
   )
 }
 
-function TeamSide({
-  crest,
-  abbrev,
-  name,
-}: {
-  crest: React.ReactNode
-  abbrev: string
-  name: string
-}) {
+// Per-side result tag: the winner carries a coloured underline bar + coloured
+// label (accent for BGM, --opp for the opponent); the loser reads as muted
+// text. OTL keeps the amber convention; DNF renders no tags — the scorebug
+// header already says DNF.
+function ResultTag({ side, result }: { side: 'bgm' | 'opp'; result: Match['result'] }) {
+  if (result === 'DNF') return null
+
+  const won = side === 'bgm' ? result === 'WIN' : result !== 'WIN'
+  if (won) {
+    const bar =
+      side === 'bgm'
+        ? 'bg-accent [box-shadow:0_0_14px_rgba(232,65,49,0.2)]'
+        : '[background:var(--opp)] [box-shadow:0_0_14px_var(--opp-soft)]'
+    const label = side === 'bgm' ? 'text-accent' : '[color:var(--opp)]'
+    return (
+      <span className="flex items-center gap-2">
+        <span aria-hidden className={`h-[3px] w-[26px] ${bar}`} />
+        <span className={`text-[11px] font-black tracking-[0.22em] ${label}`}>Win</span>
+      </span>
+    )
+  }
+
+  const lostInOt = side === 'bgm' && result === 'OTL'
   return (
-    <div className="flex flex-col items-center gap-2 text-center">
-      {crest}
-      <div className="flex flex-col items-center gap-0.5">
-        <span className="font-condensed text-base sm:text-lg font-black uppercase tracking-[0.1em] text-zinc-100">
-          {abbrev}
-        </span>
-        <span className="hidden sm:block max-w-[10rem] truncate font-condensed text-xs font-semibold uppercase tracking-wider text-zinc-500">
-          {name}
-        </span>
-      </div>
-    </div>
+    <span
+      className={`text-[11px] font-extrabold tracking-[0.22em] ${lostInOt ? 'text-otl' : 'text-fg-4'}`}
+    >
+      {lostInOt ? 'OTL' : 'Loss'}
+    </span>
   )
+}
+
+function MetaDivider() {
+  return <span aria-hidden className="h-[11px] w-px bg-border" />
+}
+
+function ordinal(n: number): string {
+  const s = n.toString()
+  const lastTwo = n % 100
+  if (lastTwo >= 11 && lastTwo <= 13) return `${s}th`
+  switch (n % 10) {
+    case 1:
+      return `${s}st`
+    case 2:
+      return `${s}nd`
+    case 3:
+      return `${s}rd`
+    default:
+      return `${s}th`
+  }
 }

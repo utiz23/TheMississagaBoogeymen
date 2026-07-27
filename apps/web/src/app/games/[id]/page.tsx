@@ -1,6 +1,5 @@
 import type { Metadata } from 'next'
 import type { CSSProperties } from 'react'
-import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import {
   getMatchById,
@@ -21,6 +20,13 @@ import {
 } from '@eanhl/db/queries'
 import type { Match } from '@eanhl/db'
 import { HeroCard } from '@/components/matches/hero-card'
+import { GameTopBar } from '@/components/matches/game-top-bar'
+import {
+  GAME_SHEET_PANEL_ID,
+  GameSheetModeProvider,
+  GameSheetModeTabs,
+  type GameSheetMode,
+} from '@/components/matches/game-sheet-mode'
 import { TopPerformers } from '@/components/matches/top-performers'
 import { PossessionEdgeBar } from '@/components/matches/possession-edge'
 import { TeamStats } from '@/components/matches/team-stats'
@@ -39,6 +45,7 @@ import {
   buildTopPerformers,
   computeSeasonAvgs,
   attachSeasonAvgs,
+  wentToOvertime,
 } from '@/lib/match-recap'
 import { resolveOpponentColors } from '@/lib/opponent-colors'
 import { abbreviateTeamName } from '@/lib/format'
@@ -172,78 +179,95 @@ export default async function GameDetailPage({ params, searchParams }: Props) {
   const possessionEdge = buildPossessionEdge(match, periodSummaries)
   const boxScore = buildBoxScore(match, playerStats, opponentPlayerStats, periodSummaries)
 
+  // OT is derived — no schema column. OCR period rows past regulation cover
+  // reviewed matches; player TOI beyond 3600s covers the EA-only path.
+  const overtime = wentToOvertime(
+    match,
+    periodSummaries,
+    [...playerStats, ...opponentPlayerStats].map((p) => p.toiSeconds),
+  )
+
   const heroMeta = {
     seasonNumber,
     meetingNumber: seriesContext?.meetingNumber ?? null,
-    seriesSummary: seriesContext ? formatSeriesSummary(seriesContext, match.opponentName) : null,
+    series: seriesContext?.series ?? null,
   }
   const listQuery = gamesListQuery(queryParams)
   const gamesHref = `/games${listQuery ? `?${listQuery}` : ''}`
 
+  // LOADOUTS | STATS mode — seeded from the optional ?view= deep link; the
+  // client control mirrors changes back via history.replaceState.
+  const initialMode: GameSheetMode = queryParams.view === 'stats' ? 'stats' : 'loadouts'
+
   return (
-    <div className="space-y-8" style={opponentColorVars}>
+    <div className="space-y-4" style={opponentColorVars}>
       {/* 1. Top bar */}
-      <GameDetailNav gamesHref={gamesHref} adjacent={adjacent} listQuery={listQuery} />
+      <GameTopBar gamesHref={gamesHref} adjacent={adjacent} listQuery={listQuery} />
 
       {/* 2. Scoreboard hero */}
       <HeroCard
         match={match}
         opponentCrestAssetId={opponentCrestAssetId}
         opponentCrestUseBaseAsset={opponentCrestUseBaseAsset}
+        overtime={overtime}
         meta={heroMeta}
       />
 
-      {/* 3. Sub-nav slot — the LOADOUTS | STATS segmented control lands here (Phase 3). */}
+      <GameSheetModeProvider initialMode={initialMode}>
+        {/* 3. LOADOUTS | STATS sub-nav — client mode context; the lineup
+              module consumes it from Phase 4. */}
+        <GameSheetModeTabs />
 
-      {/* 4. Main grid — main column (3/4) + rail (1/4); the rail stacks after
-            the main column below lg. */}
-      <div className="grid items-start gap-4 lg:grid-cols-4">
-        <div className="min-w-0 space-y-4 lg:col-span-3">
-          {/* Pre-game lineup section. Rich OCR loadout ladder when snapshots
+        {/* 4. Main grid — main column (3/4) + rail (1/4); the rail stacks after
+              the main column below lg. */}
+        <div className="grid items-start gap-4 lg:grid-cols-4">
+          <div id={GAME_SHEET_PANEL_ID} className="min-w-0 space-y-4 lg:col-span-3">
+            {/* Pre-game lineup section. Rich OCR loadout ladder when snapshots
               exist; otherwise a lean box-score lineup (who dressed + position). */}
-          <LineupSection
-            lineups={lineupData}
-            variant={lineupVariant}
-            opponentLabel={match.opponentName}
-            matchId={match.id}
-            gameMode={match.gameMode}
-            provenance={lineupProvenance}
-          />
-
-          {/* OCR-derived event timeline — story-mode scoresheet with running
-              score, lead-change banners, and GWG highlight. */}
-          <EventTimeline
-            events={matchEventRows}
-            opponentLabel={match.opponentName}
-            bgmWasHome={match.bgmWasHome}
-            bgmColor={match.bgmColorHex}
-            oppColor={match.oppColorHex}
-          />
-        </div>
-
-        <div className="min-w-0 space-y-4">
-          <TopPerformers
-            performers={topPerformers}
-            allTeamScores={allTeamScores}
-            opponentLabel={match.opponentName}
-          />
-
-          {/* Deserve-to-win — the DtW gauge replaces this bar in Phase 7. */}
-          {possessionEdge !== null ? (
-            <PossessionEdgeBar
-              edge={possessionEdge}
-              opponentName={match.opponentName}
-              scoreFor={match.scoreFor}
-              scoreAgainst={match.scoreAgainst}
+            <LineupSection
+              lineups={lineupData}
+              variant={lineupVariant}
+              opponentLabel={match.opponentName}
+              matchId={match.id}
+              gameMode={match.gameMode}
+              provenance={lineupProvenance}
             />
-          ) : null}
 
-          {/* OCR-derived per-period box score (hidden until reviewed). */}
-          <BoxScore rows={periodSummaries} opponentLabel={match.opponentName} />
+            {/* OCR-derived event timeline — story-mode scoresheet with running
+              score, lead-change banners, and GWG highlight. */}
+            <EventTimeline
+              events={matchEventRows}
+              opponentLabel={match.opponentName}
+              bgmWasHome={match.bgmWasHome}
+              bgmColor={match.bgmColorHex}
+              oppColor={match.oppColorHex}
+            />
+          </div>
 
-          <TeamStats rows={boxScore} opponentName={match.opponentName} />
+          <div className="min-w-0 space-y-4">
+            <TopPerformers
+              performers={topPerformers}
+              allTeamScores={allTeamScores}
+              opponentLabel={match.opponentName}
+            />
+
+            {/* Deserve-to-win — the DtW gauge replaces this bar in Phase 7. */}
+            {possessionEdge !== null ? (
+              <PossessionEdgeBar
+                edge={possessionEdge}
+                opponentName={match.opponentName}
+                scoreFor={match.scoreFor}
+                scoreAgainst={match.scoreAgainst}
+              />
+            ) : null}
+
+            {/* OCR-derived per-period box score (hidden until reviewed). */}
+            <BoxScore rows={periodSummaries} opponentLabel={match.opponentName} />
+
+            <TeamStats rows={boxScore} opponentName={match.opponentName} />
+          </div>
         </div>
-      </div>
+      </GameSheetModeProvider>
 
       {/* 5. Full-width action tracker (rink-coordinate spatial extraction +
             all-type event card list mirroring the in-game post-game Action
@@ -277,97 +301,11 @@ function gamesListQuery(params: Record<string, string | string[] | undefined>): 
   return qs.toString()
 }
 
-function gameHref(id: number, listQuery: string): string {
-  return `/games/${id.toString()}${listQuery ? `?${listQuery}` : ''}`
-}
-
-function GameDetailNav({
-  gamesHref,
-  adjacent,
-  listQuery,
-}: {
-  gamesHref: string
-  adjacent: {
-    previous: Awaited<ReturnType<typeof getAdjacentMatches>>['previous']
-    next: Awaited<ReturnType<typeof getAdjacentMatches>>['next']
-  }
-  listQuery: string
-}) {
-  return (
-    <nav className="flex flex-wrap items-center justify-between gap-3 border-b border-zinc-800 pb-4">
-      <Link
-        href={gamesHref}
-        className="inline-flex items-center gap-1.5 font-condensed text-xs font-semibold uppercase tracking-wider text-zinc-500 transition-colors hover:text-zinc-300"
-      >
-        <span aria-hidden>←</span> All Games
-      </Link>
-
-      <div className="flex items-center gap-2">
-        {adjacent.previous ? (
-          <Link
-            href={gameHref(adjacent.previous.id, listQuery)}
-            className="border border-zinc-800 bg-zinc-950 px-3 py-1.5 font-condensed text-xs font-semibold uppercase tracking-wider text-zinc-400 transition-colors hover:border-zinc-600 hover:text-zinc-100"
-          >
-            ← Previous
-          </Link>
-        ) : (
-          <span className="select-none border border-zinc-900 px-3 py-1.5 font-condensed text-xs font-semibold uppercase tracking-wider text-zinc-700">
-            ← Previous
-          </span>
-        )}
-
-        {adjacent.next ? (
-          <Link
-            href={gameHref(adjacent.next.id, listQuery)}
-            className="border border-zinc-800 bg-zinc-950 px-3 py-1.5 font-condensed text-xs font-semibold uppercase tracking-wider text-zinc-400 transition-colors hover:border-zinc-600 hover:text-zinc-100"
-          >
-            Next →
-          </Link>
-        ) : (
-          <span className="select-none border border-zinc-900 px-3 py-1.5 font-condensed text-xs font-semibold uppercase tracking-wider text-zinc-700">
-            Next →
-          </span>
-        )}
-      </div>
-    </nav>
-  )
-}
-
 async function safe<T>(fn: () => Promise<T>, fallback: T): Promise<T> {
   try {
     return await fn()
   } catch {
     return fallback
-  }
-}
-
-function formatSeriesSummary(
-  ctx: {
-    meetingNumber: number
-    series: { wins: number; losses: number; otl: number; total: number }
-  },
-  opponentName: string,
-): string | null {
-  const { meetingNumber, series } = ctx
-  if (series.total <= 1) return null // first meeting — nothing prior to summarize
-  const ord = ordinal(meetingNumber)
-  const record = `${series.wins.toString()}-${series.losses.toString()}-${series.otl.toString()}`
-  return `${ord} meeting vs ${opponentName} · series ${record}`
-}
-
-function ordinal(n: number): string {
-  const s = n.toString()
-  const lastTwo = n % 100
-  if (lastTwo >= 11 && lastTwo <= 13) return `${s}th`
-  switch (n % 10) {
-    case 1:
-      return `${s}st`
-    case 2:
-      return `${s}nd`
-    case 3:
-      return `${s}rd`
-    default:
-      return `${s}th`
   }
 }
 

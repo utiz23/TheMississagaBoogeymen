@@ -595,6 +595,50 @@ export function buildAllTeamScores(
   return [...bgmEntries, ...oppEntries].sort((a, b) => b.score - a.score)
 }
 
+// ─── Overtime derivation ──────────────────────────────────────────────────────
+//
+// No OT column exists in the schema; the hero's OT badge derives it from
+// whichever signal is present. Any one of:
+//   - result OTL — an overtime loss by definition,
+//   - an OCR period summary past regulation (period 4+ = OT1..OT3; EASHL has
+//     no shootout — a tied OT3 ends as a tie, never SO) — but only when the
+//     row recorded actual play: the in-game box score always shows an OT
+//     column, so OCR stores a zero/NULL placeholder period-4 row even for
+//     games that never left regulation (match 972, a one-period game, has
+//     one). A played OT always leaves a trace — its opening faceoff, a shot,
+//     or the sudden-death goal.
+//   - any player's TOI beyond regulation (EA-only path: toi_seconds counts
+//     periods actually played, 3600 = a full three-period game).
+
+export function wentToOvertime(
+  match: Pick<Match, 'result'>,
+  periodSummaries: Pick<
+    MatchPeriodSummaryRow,
+    | 'periodNumber'
+    | 'goalsFor'
+    | 'goalsAgainst'
+    | 'shotsFor'
+    | 'shotsAgainst'
+    | 'faceoffsFor'
+    | 'faceoffsAgainst'
+  >[],
+  playerToiSeconds: (number | null)[],
+): boolean {
+  if (match.result === 'OTL') return true
+  const otPlayed = periodSummaries.some(
+    (r) =>
+      r.periodNumber >= 4 &&
+      ((r.goalsFor ?? 0) > 0 ||
+        (r.goalsAgainst ?? 0) > 0 ||
+        (r.shotsFor ?? 0) > 0 ||
+        (r.shotsAgainst ?? 0) > 0 ||
+        (r.faceoffsFor ?? 0) > 0 ||
+        (r.faceoffsAgainst ?? 0) > 0),
+  )
+  if (otPlayed) return true
+  return playerToiSeconds.some((t) => t !== null && t > 3600)
+}
+
 // ─── Possession & Pressure Edge (computed) ────────────────────────────────────
 //
 // One comparison bar between BGM and opponent computed from team totals.
