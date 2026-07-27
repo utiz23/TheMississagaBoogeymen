@@ -34,7 +34,8 @@ import { ContextFooter } from '@/components/matches/context-footer'
 import { BoxScore } from '@/components/matches/box-score'
 import { EventTimeline } from '@/components/matches/event-timeline'
 import { ActionTrackerMap } from '@/components/matches/action-tracker-map'
-import { LineupSection } from '@/components/matches/lineup-section'
+import { LineupModule } from '@/components/matches/lineup/lineup-module'
+import { LineupModuleFooter } from '@/components/matches/lineup/lineup-footer'
 import { Panel } from '@/components/ui/panel'
 import {
   buildAllTeamScores,
@@ -222,16 +223,26 @@ export default async function GameDetailPage({ params, searchParams }: Props) {
               the main column below lg. */}
         <div className="grid items-start gap-4 lg:grid-cols-4">
           <div id={GAME_SHEET_PANEL_ID} className="min-w-0 space-y-4 lg:col-span-3">
-            {/* Pre-game lineup section. Rich OCR loadout ladder when snapshots
-              exist; otherwise a lean box-score lineup (who dressed + position). */}
-            <LineupSection
+            {/* Lineup · Scouting — one roster at a time (BGM|OPP switch), rows
+              trail X-Factors or stat columns per the LOADOUTS|STATS mode. Rich
+              when OCR snapshots exist; lean box-score fallback otherwise. */}
+            <LineupModule
               lineups={lineupData}
               variant={lineupVariant}
-              opponentLabel={match.opponentName}
-              matchId={match.id}
-              gameMode={match.gameMode}
-              provenance={lineupProvenance}
-            />
+              bgmStats={playerStats}
+              oppStats={opponentPlayerStats}
+              scores={allTeamScores}
+              opponentName={match.opponentName}
+              opponentAbbrev={abbreviateTeamName(match.opponentName)}
+              opponentCrestAssetId={opponentCrestAssetId}
+              opponentCrestUseBaseAsset={opponentCrestUseBaseAsset}
+            >
+              <LineupModuleFooter
+                lineups={lineupData}
+                variant={lineupVariant}
+                provenance={lineupProvenance}
+              />
+            </LineupModule>
 
             {/* OCR-derived event timeline — story-mode scoresheet with running
               score, lead-change banners, and GWG highlight. */}
