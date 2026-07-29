@@ -1,255 +1,159 @@
+'use client'
+
 import Link from 'next/link'
-import type { TopPerformerWithDelta } from '@/lib/match-recap'
-import { formatSeconds } from '@/lib/match-recap'
+import type { PlayerScoreEntry, ScoreFactor } from '@/lib/match-recap'
+import { formatSeconds, formatSavePct } from '@/lib/match-recap'
 import { formatPosition } from '@/lib/format'
-import { PlayerSilhouette } from '@/components/home/player-card'
 import { PositionPill } from './position-pill'
-import { ArchetypePillCompact } from '@/components/ui/archetype-pill'
 
-interface StarCardProps {
-  rank: 1 | 2 | 3
-  performer: TopPerformerWithDelta
+// One performer row for the rail list. This file used to render the 360px-tall
+// three-star cards in a 3-up grid — which is what overflowed the 1/4 rail after
+// the Phase 2 regrid. The prototype replaces them with a compact ranked row that
+// expands into the score breakdown, so the same information survives at rail
+// width. Top-3 rows keep the star glyphs and the accent tint; the rest of the
+// list uses the identical template, which is why rows 1–10 read as one ladder.
+
+interface PerformerRowProps {
+  entry: PlayerScoreEntry
+  rank: number
   opponentLabel: string
+  /** Signed delta vs season-to-date average. Top 3 / BGM only; null otherwise. */
+  vsSeasonAvg: number | null
+  expanded: boolean
+  panelId: string
+  onToggle: () => void
 }
 
-const RANK_NAME = { 1: 'First Star', 2: 'Second Star', 3: 'Third Star' } as const
-const RANK_STARS = {
-  1: { on: '★★★', off: '' },
-  2: { on: '★★', off: '' },
-  3: { on: '★', off: '' },
-} as const
+const RANK_STARS = ['★★★', '★★', '★']
 
-export function StarCard({ rank, performer, opponentLabel }: StarCardProps) {
-  const isBgm = performer.side === 'bgm'
-  const teamLabel = isBgm ? 'BGM' : opponentLabel
-  const posLabel = performer.position
-    ? formatPosition(performer.position)
-    : performer.isGoalie
-      ? 'G'
-      : null
+export function PerformerRow({
+  entry,
+  rank,
+  opponentLabel,
+  vsSeasonAvg,
+  expanded,
+  panelId,
+  onToggle,
+}: PerformerRowProps) {
+  const isBgm = entry.side === 'bgm'
+  const isTop3 = rank <= 3
+  const posLabel = entry.position ? formatPosition(entry.position) : entry.isGoalie ? 'G' : null
 
-  const rankCls = rank === 1 ? 'r1' : rank === 2 ? 'r2' : 'r3'
-  const wrapperCls = [
-    'group relative flex min-h-[360px] flex-col border bg-surface transition-[border-color,transform] hover:-translate-y-0.5 hover:border-zinc-700',
+  const tint =
     rank === 1
-      ? 'border-accent/40 [background:linear-gradient(180deg,rgba(232,65,49,0.06),var(--color-surface)_40%)]'
+      ? 'bg-accent/[0.06]'
       : rank === 2
-        ? 'border-zinc-800 [background:linear-gradient(180deg,rgba(235,235,235,0.04),var(--color-surface)_40%)]'
-        : 'border-zinc-800',
+        ? 'bg-accent/[0.03]'
+        : rank === 3
+          ? 'bg-accent/[0.015]'
+          : ''
+
+  const rowClass = [
+    'grid w-full grid-cols-[18px_minmax(0,1fr)_auto] items-center gap-x-2.5 border-t border-border-subtle px-3.5 py-2 text-left outline-none transition-colors',
+    'cursor-pointer hover:bg-surface-raised focus-visible:ring-1 focus-visible:ring-accent',
+    expanded ? 'bg-surface-raised [box-shadow:inset_2px_0_0_var(--color-accent)]' : tint,
   ].join(' ')
 
-  const aria = `${RANK_NAME[rank]}: ${performer.gamertag}, score ${performer.score.toFixed(2)}, ${performer.statLine}`
+  const scoreClass = isTop3 ? 'text-accent' : entry.score < 0 ? 'text-fg-5' : 'text-fg-2'
 
-  const body = (
-    <article aria-label={aria} className={wrapperCls} data-rank={rankCls}>
-      {rank === 1 ? (
+  return (
+    <div>
+      <button
+        type="button"
+        aria-expanded={expanded}
+        aria-controls={panelId}
+        onClick={onToggle}
+        className={rowClass}
+      >
         <span
-          aria-hidden
-          className="ticker-strip ticker-strip-thin absolute inset-x-0 top-0 z-[1]"
-        />
-      ) : null}
-
-      <Header rank={rank} />
-      <Identity performer={performer} rank={rank} />
-      <MetaChips
-        teamLabel={teamLabel}
-        isBgm={isBgm}
-        posLabel={posLabel}
-        position={performer.position}
-        isGoalie={performer.isGoalie}
-        archetype={performer.archetype}
-      />
-      <ScoreBlock rank={rank} performer={performer} />
-      <StatLine performer={performer} />
-      <BreakdownBar performer={performer} />
-    </article>
-  )
-
-  if (isBgm && performer.playerId !== null) {
-    return (
-      <Link href={`/roster/${performer.playerId.toString()}`} className="block">
-        {body}
-      </Link>
-    )
-  }
-  return body
-}
-
-// ─── Header (rank label + stars) ──────────────────────────────────────────────
-
-function Header({ rank }: { rank: 1 | 2 | 3 }) {
-  const labelCls = rank === 1 ? 'text-accent' : rank === 2 ? 'text-fg-2' : 'text-fg-4'
-  const onCls =
-    rank === 1
-      ? 'text-accent [text-shadow:0_0_8px_rgba(232,65,49,0.5)]'
-      : rank === 2
-        ? 'text-fg-1 [text-shadow:0_0_6px_rgba(235,235,235,0.18)]'
-        : 'text-fg-2'
-
-  return (
-    <div className="flex items-center gap-2 border-b border-zinc-800 px-4 pb-2 pt-3">
-      <span
-        className={`font-condensed text-[10.5px] font-black uppercase tracking-[0.24em] ${labelCls}`}
-      >
-        {RANK_NAME[rank]}
-      </span>
-      <span className="ml-auto font-condensed text-[14px] leading-none tracking-[0.18em] text-fg-5">
-        <span className={onCls}>{RANK_STARS[rank].on}</span>
-        {RANK_STARS[rank].off}
-      </span>
-    </div>
-  )
-}
-
-// ─── Identity row (portrait + name + jersey) ──────────────────────────────────
-
-function Identity({ performer, rank }: { performer: TopPerformerWithDelta; rank: 1 | 2 | 3 }) {
-  const portraitCls = [
-    'flex h-16 w-16 items-end justify-center overflow-hidden rounded-full border',
-    rank === 1
-      ? 'border-accent shadow-[0_0_12px_rgba(232,65,49,0.18)] [background:radial-gradient(circle_at_top,rgba(232,65,49,0.16),transparent_55%),linear-gradient(180deg,rgba(50,48,49,0.9),rgba(26,24,25,1))]'
-      : performer.side === 'opp'
-        ? 'border-fg-3/40 [background:radial-gradient(circle_at_top,rgba(255,255,255,0.04),transparent_55%),linear-gradient(180deg,rgba(50,48,49,0.9),rgba(26,24,25,1))]'
-        : 'border-accent/30 [background:radial-gradient(circle_at_top,rgba(232,65,49,0.16),transparent_55%),linear-gradient(180deg,rgba(50,48,49,0.9),rgba(26,24,25,1))]',
-  ].join(' ')
-
-  return (
-    <div className="grid grid-cols-[64px_1fr_auto] items-center gap-3 px-4 pb-2 pt-4">
-      <div className={portraitCls}>
-        <PlayerSilhouette sizeClass="h-14 w-14" className="text-fg-6" />
-      </div>
-      <div className="min-w-0">
-        <div className="truncate font-condensed text-[15px] font-black uppercase leading-tight tracking-[0.04em] text-fg-1">
-          {performer.gamertag}
-        </div>
-      </div>
-      <Jersey rank={rank} jersey={performer.jerseyNumber} />
-    </div>
-  )
-}
-
-function Jersey({ rank, jersey }: { rank: 1 | 2 | 3; jersey: number | null }) {
-  // Jersey number comes from playerProfiles (manually-owned). Opponent
-  // entries and BGM players without a profile fall back to "—".
-  const numCls =
-    rank === 1 ? 'text-accent [text-shadow:0_0_14px_rgba(232,65,49,0.30)]' : 'text-fg-1'
-  return (
-    <div className="flex min-w-[44px] flex-col items-center leading-none">
-      <span className="font-condensed text-[9px] font-bold tracking-[0.12em] text-fg-6">#</span>
-      <span className={`font-condensed text-[28px] font-black tabular-nums leading-none ${numCls}`}>
-        {jersey ?? '—'}
-      </span>
-    </div>
-  )
-}
-
-// ─── Meta chips (team + position) ─────────────────────────────────────────────
-
-function MetaChips({
-  teamLabel,
-  isBgm,
-  posLabel,
-  position,
-  isGoalie,
-  archetype,
-}: {
-  teamLabel: string
-  isBgm: boolean
-  posLabel: string | null
-  position: string | null
-  isGoalie: boolean
-  archetype: TopPerformerWithDelta['archetype']
-}) {
-  return (
-    <div className="flex flex-wrap items-center gap-1.5 px-4 pb-3">
-      <span
-        className={`border px-1.5 py-0.5 font-condensed text-[10px] font-extrabold uppercase tracking-[0.18em] ${
-          isBgm
-            ? 'border-accent/50 bg-accent/10 text-accent'
-            : 'border-fg-3/50 bg-fg-1/[0.04] text-fg-1'
-        }`}
-      >
-        {teamLabel}
-      </span>
-      {posLabel !== null ? (
-        <PositionPill
-          label={posLabel}
-          position={position}
-          isGoalie={isGoalie}
-          side={isBgm ? 'bgm' : 'opp'}
-        />
-      ) : null}
-      {archetype !== null ? <ArchetypePillCompact archetype={archetype} /> : null}
-    </div>
-  )
-}
-
-// ─── Score block (hero score + "vs season avg" delta) ─────────────────────────
-
-function ScoreBlock({ rank, performer }: { rank: 1 | 2 | 3; performer: TopPerformerWithDelta }) {
-  const scoreCls =
-    rank === 1
-      ? 'text-accent [text-shadow:0_0_14px_rgba(232,65,49,0.22)]'
-      : rank === 2
-        ? 'text-fg-1'
-        : 'text-fg-1'
-  return (
-    <div className="flex items-baseline gap-3 border-t border-zinc-800/60 px-4 pb-3 pt-2">
-      <span
-        className={`font-condensed text-[56px] font-black tabular-nums leading-none tracking-tight ${scoreCls}`}
-      >
-        {performer.score.toFixed(2)}
-      </span>
-      <div className="flex flex-col gap-[1px] pb-1.5">
-        <span className="font-condensed text-[9px] font-extrabold uppercase tracking-[0.24em] text-fg-5">
-          Game score
+          className={`text-center font-condensed text-[13px] font-black leading-none tabular-nums ${
+            isTop3 ? 'text-accent' : 'text-fg-4'
+          }`}
+        >
+          {rank}
         </span>
-        {performer.vsSeasonAvg !== null ? (
-          <span className="font-condensed text-[10px] font-bold tabular-nums tracking-[0.12em] text-fg-4">
+
+        <span className="flex min-w-0 flex-col gap-[3px]">
+          <span className="truncate font-condensed text-[12.5px] font-extrabold uppercase tracking-[0.02em] text-fg-1">
+            {entry.gamertag}
+          </span>
+          <span className="flex items-center gap-1.5">
             <span
-              className={
-                performer.vsSeasonAvg >= 0
-                  ? 'font-extrabold text-emerald-400'
-                  : 'font-extrabold text-rose-400'
-              }
+              className={`border px-1.5 py-[1px] font-condensed text-[9.5px] font-extrabold uppercase tracking-[0.16em] ${
+                isBgm
+                  ? 'border-accent/50 bg-accent/10 text-accent'
+                  : '[background:var(--opp-soft)] [border-color:var(--opp-line)] [color:var(--opp)]'
+              }`}
             >
-              {performer.vsSeasonAvg >= 0 ? '+' : ''}
-              {performer.vsSeasonAvg.toFixed(1)}
-            </span>{' '}
-            vs season avg
+              {isBgm ? 'BGM' : opponentLabel}
+            </span>
+            {posLabel !== null ? (
+              <PositionPill label={posLabel} position={entry.position} isGoalie={entry.isGoalie} />
+            ) : null}
+            {isTop3 ? (
+              <span
+                aria-hidden
+                className={`font-condensed text-[10px] leading-none tracking-[-0.05em] text-accent ${
+                  rank === 1 ? '[text-shadow:0_0_8px_rgba(232,65,49,0.5)]' : ''
+                }`}
+              >
+                {RANK_STARS[rank - 1]}
+              </span>
+            ) : null}
           </span>
-        ) : (
-          <span className="font-condensed text-[10px] font-bold tracking-[0.12em] text-fg-6 italic">
-            — no season data
-          </span>
-        )}
-      </div>
+        </span>
+
+        <span
+          className={`text-right font-condensed text-[18px] font-black leading-none tabular-nums ${scoreClass} ${
+            rank === 1 ? '[text-shadow:0_0_12px_rgba(232,65,49,0.28)]' : ''
+          }`}
+        >
+          {entry.score.toFixed(2)}
+        </span>
+      </button>
+
+      {expanded ? (
+        <div
+          id={panelId}
+          className="flex flex-col gap-2 border-t border-border-subtle bg-background px-3.5 pb-3 pt-2.5 [box-shadow:inset_2px_0_0_var(--color-accent)]"
+        >
+          <BreakdownBar breakdown={entry.breakdown} score={entry.score} />
+          <StatLine entry={entry} />
+          <SeasonDelta vsSeasonAvg={vsSeasonAvg} isBgm={isBgm} />
+          {isBgm && entry.playerId !== null ? (
+            <Link
+              href={`/roster/${entry.playerId.toString()}`}
+              className="self-start font-condensed text-[10px] font-bold uppercase tracking-[0.12em] text-accent hover:underline"
+            >
+              Full player page →
+            </Link>
+          ) : null}
+        </div>
+      ) : null}
     </div>
   )
 }
 
-// ─── Stat line ────────────────────────────────────────────────────────────────
+// ─── Expanded panel blocks ────────────────────────────────────────────────────
 
-function StatLine({ performer }: { performer: TopPerformerWithDelta }) {
-  const s = performer.stats
-  const isCenter = performer.position === 'center'
+function StatLine({ entry }: { entry: PlayerScoreEntry }) {
+  const s = entry.stats
 
-  if (performer.isGoalie) {
+  if (entry.isGoalie) {
     const sa = s.shotsAgainst ?? 0
     const saves = s.saves ?? 0
-    const svPct = sa > 0 ? (saves / sa) * 100 : null
     return (
-      <div className="flex flex-wrap gap-x-3.5 gap-y-1 px-4 pb-3 pt-1">
+      <div className="flex flex-wrap gap-x-3 gap-y-1">
         <Stat label="SV" value={saves.toString()} />
         <Stat label="SA" value={sa.toString()} />
-        <Stat label="SV%" value={svPct !== null ? svPct.toFixed(1) : '—'} />
-        <Stat label="GA" value={(s.shotsAgainst === null ? 0 : sa - saves).toString()} />
+        <Stat label="SV%" value={sa > 0 ? formatSavePct(saves / sa) : '—'} />
+        <Stat label="GA" value={(s.shotsAgainst === null ? 0 : sa - saves).toString()} dim />
       </div>
     )
   }
 
   return (
-    <div className="flex flex-wrap gap-x-3.5 gap-y-1 px-4 pb-3 pt-1">
+    <div className="flex flex-wrap gap-x-3 gap-y-1">
       <Stat label="G" value={s.goals.toString()} />
       <Stat label="A" value={s.assists.toString()} />
       <Stat
@@ -262,11 +166,7 @@ function StatLine({ performer }: { performer: TopPerformerWithDelta }) {
             : {})}
       />
       <Stat label="SOG" value={s.shots.toString()} dim />
-      {isCenter && s.faceoffPct !== null ? (
-        <Stat label="FO%" value={s.faceoffPct.toFixed(0)} dim />
-      ) : (
-        <Stat label="Hits" value={s.hits.toString()} dim />
-      )}
+      <Stat label="Hits" value={s.hits.toString()} dim />
       <Stat label="TOI" value={s.toiSeconds !== null ? formatSeconds(s.toiSeconds) : '—'} dim />
     </div>
   )
@@ -284,43 +184,57 @@ function Stat({
   tone?: 'pos' | 'neg'
 }) {
   const valueCls =
-    tone === 'pos'
-      ? 'text-emerald-400'
-      : tone === 'neg'
-        ? 'text-rose-400'
-        : dim
-          ? 'text-fg-3'
-          : 'text-fg-1'
+    tone === 'pos' ? 'text-win' : tone === 'neg' ? 'text-loss' : dim ? 'text-fg-3' : 'text-fg-1'
   return (
-    <div className="flex flex-col gap-[1px]">
-      <span className="font-condensed text-[9px] font-extrabold uppercase tracking-[0.2em] text-fg-5">
+    <span className="flex flex-col gap-[1px]">
+      <span className="font-condensed text-[9px] font-extrabold uppercase tracking-[0.18em] text-fg-5">
         {label}
       </span>
       <span
-        className={`font-condensed text-[14px] font-extrabold leading-none tabular-nums ${valueCls}`}
+        className={`font-condensed text-[13px] font-extrabold leading-none tabular-nums ${valueCls}`}
       >
         {value}
       </span>
-    </div>
+    </span>
   )
 }
 
-// ─── Breakdown bar + legend ───────────────────────────────────────────────────
+function SeasonDelta({ vsSeasonAvg, isBgm }: { vsSeasonAvg: number | null; isBgm: boolean }) {
+  // Opponents have no profile history, so "no season data" would be noise on
+  // their rows — say nothing at all instead.
+  if (vsSeasonAvg === null) {
+    if (!isBgm) return null
+    return (
+      <span className="font-condensed text-[10px] font-bold uppercase tracking-[0.12em] text-fg-5">
+        — no season data
+      </span>
+    )
+  }
+  return (
+    <span className="font-condensed text-[10px] font-bold uppercase tracking-[0.12em] text-fg-4">
+      <span className={vsSeasonAvg >= 0 ? 'font-extrabold text-win' : 'font-extrabold text-loss'}>
+        {vsSeasonAvg >= 0 ? '+' : ''}
+        {vsSeasonAvg.toFixed(1)}
+      </span>{' '}
+      vs season avg
+    </span>
+  )
+}
 
-function BreakdownBar({ performer }: { performer: TopPerformerWithDelta }) {
-  // Only positive contributions build width; negatives are surfaced in the
-  // legend with a `−` prefix but don't get a bar segment (the bar shows
-  // where the score CAME FROM, not where it was docked).
-  const positives = performer.breakdown.filter((f) => f.contribution > 0)
-  const positiveTotal = positives.reduce((s, f) => s + f.contribution, 0)
+/**
+ * "Where the 7.65 came from" — segmented bar + legend. Only positive factors
+ * build width (the bar shows where the score CAME FROM, not where it was
+ * docked); the two largest negatives ride along in the legend with a `−`.
+ */
+function BreakdownBar({ breakdown, score }: { breakdown: ScoreFactor[]; score: number }) {
+  const positives = breakdown.filter((f) => f.contribution > 0)
+  const positiveTotal = positives.reduce((sum, f) => sum + f.contribution, 0)
   const segments = positives.map((f) => ({
     label: f.label,
-    contribution: f.contribution,
     pct: positiveTotal > 0 ? (f.contribution / positiveTotal) * 100 : 0,
     color: factorColor(f.label, true),
   }))
-  // Top 6 contributing legend entries (positive + the 2 largest negatives if any).
-  const negatives = performer.breakdown
+  const negatives = breakdown
     .filter((f) => f.contribution < 0)
     .sort((a, b) => a.contribution - b.contribution)
     .slice(0, 2)
@@ -330,16 +244,11 @@ function BreakdownBar({ performer }: { performer: TopPerformerWithDelta }) {
   ]
 
   return (
-    <div className="mt-auto border-t border-zinc-800 bg-surface/50 px-4 pb-3 pt-2.5">
-      <div className="mb-1.5 flex items-center gap-2">
-        <span className="font-condensed text-[9px] font-extrabold uppercase tracking-[0.22em] text-fg-5">
-          Where the {performer.score.toFixed(2)} came from
-        </span>
-        <span className="ml-auto font-condensed text-[10.5px] font-black tabular-nums tracking-[0.04em] text-fg-2">
-          = {performer.score.toFixed(2)}
-        </span>
-      </div>
-      <div className="flex h-1.5 overflow-hidden border border-zinc-800 bg-charcoal">
+    <div className="flex flex-col gap-1.5">
+      <span className="font-condensed text-[10px] font-extrabold uppercase tracking-[0.14em] text-fg-4">
+        Where the {score.toFixed(2)} came from
+      </span>
+      <div className="flex h-1.5 overflow-hidden border border-border bg-charcoal">
         {segments.map((seg) => (
           <span
             key={seg.label}
@@ -348,21 +257,21 @@ function BreakdownBar({ performer }: { performer: TopPerformerWithDelta }) {
           />
         ))}
       </div>
-      <div className="mt-1.5 flex flex-wrap gap-x-2.5 gap-y-1">
+      <div className="flex flex-wrap gap-x-2.5 gap-y-1">
         {legend.map((f) => {
           const isNeg = f.contribution < 0
           return (
             <span
               key={f.label}
-              className="inline-flex items-center gap-1 font-condensed text-[9px] font-bold uppercase tracking-[0.1em] text-fg-4"
+              className="inline-flex items-center gap-1 font-condensed text-[10px] font-bold uppercase tracking-[0.1em] text-fg-4"
             >
               <span
                 aria-hidden
-                className="inline-block h-2 w-2"
+                className="inline-block h-[7px] w-[7px] flex-none"
                 style={{ background: factorColor(f.label, !isNeg) }}
               />
               {shortLabel(f.label)}{' '}
-              <b className={`tabular-nums ${isNeg ? 'text-rose-400' : 'text-fg-2'}`}>
+              <b className={`tabular-nums ${isNeg ? 'text-loss' : 'text-fg-2'}`}>
                 {isNeg ? '' : '+'}
                 {f.contribution.toFixed(1)}
               </b>

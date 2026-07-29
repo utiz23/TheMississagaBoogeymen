@@ -1,8 +1,13 @@
 import type { PlayerScoreEntry, TopPerformerWithDelta } from '@/lib/match-recap'
-import { SectionHeader } from '@/components/ui/section-header'
+import { performerKey } from '@/lib/match-recap'
 import { abbreviateTeamName } from '@/lib/format'
-import { StarCard } from './star-card'
-import { ShowAllPlayerScores } from './show-all-player-scores'
+import { PerformerScoreList } from './show-all-player-scores'
+
+// Rail module — the performer ladder. The section owns nothing but its chrome:
+// the ranked list (and its show-all / expand state) lives in the client child.
+// `performers` is `allTeamScores.slice(0, 3)` with season deltas attached, so
+// the only thing this component takes from it is those deltas, keyed by player
+// identity rather than by list position.
 
 interface TopPerformersProps {
   performers: TopPerformerWithDelta[]
@@ -11,28 +16,34 @@ interface TopPerformersProps {
 }
 
 export function TopPerformers({ performers, allTeamScores, opponentLabel }: TopPerformersProps) {
-  if (performers.length === 0 && allTeamScores.length === 0) return null
+  if (allTeamScores.length === 0) return null
 
-  const opponentAbbrev = abbreviateTeamName(opponentLabel)
+  const deltas: Record<string, number> = {}
+  for (const p of performers) {
+    if (p.vsSeasonAvg !== null) deltas[performerKey(p)] = p.vsSeasonAvg
+  }
 
   return (
-    <section className="space-y-3">
-      <SectionHeader label="Top Performers" subtitle="Computed from player stats" />
-
-      {performers.length > 0 ? (
-        <div className="grid gap-4 sm:grid-cols-3">
-          {performers.map((p, i) => {
-            const rank = (i + 1) as 1 | 2 | 3
-            const key =
-              p.side === 'bgm'
-                ? `bgm:${p.playerId?.toString() ?? i.toString()}`
-                : `opp:${p.eaPlayerId ?? p.gamertag}`
-            return <StarCard key={key} rank={rank} performer={p} opponentLabel={opponentAbbrev} />
-          })}
+    <section>
+      <div className="border border-border bg-surface">
+        <div className="flex flex-col gap-0.5 px-3.5 pb-2.5 pt-3">
+          <h2 className="font-condensed text-[11px] font-extrabold uppercase tracking-[0.18em] text-fg-4">
+            <span aria-hidden className="pr-1 text-accent">
+              ▰
+            </span>
+            Top Performers
+          </h2>
+          <p className="font-condensed text-[10px] uppercase tracking-[0.12em] text-fg-5">
+            Game-score model · tap a row
+          </p>
         </div>
-      ) : null}
 
-      <ShowAllPlayerScores entries={allTeamScores} opponentLabel={opponentAbbrev} />
+        <PerformerScoreList
+          entries={allTeamScores}
+          deltas={deltas}
+          opponentLabel={abbreviateTeamName(opponentLabel)}
+        />
+      </div>
     </section>
   )
 }

@@ -580,6 +580,20 @@ function toEntry(
   }
 }
 
+/**
+ * Stable identity for a scored player, independent of list position. BGM rows
+ * key on the DB player id; opponents have no profile, so they key on the EA
+ * persona id and fall back to the gamertag (the production identity anchor —
+ * blazeId is absent from EA match payloads).
+ */
+export function performerKey(
+  entry: Pick<PlayerScoreEntry, 'side' | 'playerId' | 'eaPlayerId' | 'gamertag'>,
+): string {
+  return entry.side === 'bgm'
+    ? `bgm:${entry.playerId?.toString() ?? entry.gamertag}`
+    : `opp:${entry.eaPlayerId ?? entry.gamertag}`
+}
+
 export function buildAllTeamScores(
   match: Pick<Match, 'result' | 'scoreFor' | 'scoreAgainst'>,
   bgm: PlayerStat[],
