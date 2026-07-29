@@ -103,7 +103,7 @@ export function LineupModule({
         {/* Header: identity · team switch */}
         <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-3 px-3.5 pb-3 pt-3">
           <div className="flex min-w-0 flex-col gap-2">
-            <h2 className="font-condensed text-[11px] font-extrabold uppercase tracking-[0.18em] text-fg-4">
+            <h2 className="font-condensed text-[11px] font-extrabold uppercase tracking-[0.18em] text-fg-3">
               Lineup · Scouting
             </h2>
             <div className="flex min-w-0 flex-wrap items-center gap-x-2.5 gap-y-1.5">
@@ -141,7 +141,7 @@ export function LineupModule({
               </span>
             </div>
             {slots.some((s) => s.expandable) ? (
-              <p className="font-condensed text-[10px] font-semibold uppercase tracking-[0.1em] text-fg-4">
+              <p className="font-condensed text-[10px] font-semibold uppercase tracking-[0.1em] text-fg-3">
                 {variant === 'ocr'
                   ? 'Tap a skater for full loadout and match stats'
                   : 'Tap a skater for full match stats'}
@@ -254,7 +254,7 @@ function TeamButton({
       aria-pressed={active}
       onClick={onClick}
       className={`relative z-[1] flex-1 truncate px-1 font-condensed text-[13px] font-extrabold uppercase tracking-[0.14em] transition-colors ${
-        active ? activeClass : 'text-fg-4 hover:text-fg-2'
+        active ? activeClass : 'text-fg-3 hover:text-fg-2'
       }`}
     >
       {children}
@@ -265,12 +265,12 @@ function TeamButton({
 function HeaderKV({ k, v, dim = false }: { k: string; v: string; dim?: boolean }) {
   return (
     <span className="flex flex-col gap-px">
-      <span className="font-condensed text-[9px] font-semibold uppercase tracking-[0.14em] text-fg-4">
+      <span className="font-condensed text-[9px] font-semibold uppercase tracking-[0.14em] text-fg-3">
         {k}
       </span>
       <span
         className={`truncate font-condensed text-[13px] font-extrabold uppercase tabular-nums ${
-          dim ? 'text-fg-4' : 'text-fg-2'
+          dim ? 'text-fg-3' : 'text-fg-2'
         }`}
       >
         {v}
@@ -396,17 +396,22 @@ function goalieTiles(stat: LineupModuleStatRow | null): LineupStatTile[] {
       { label: 'SV%', value: '—', tone: 'muted' },
     ]
   }
-  const saves = stat.saves ?? 0
-  const shotsAgainst = stat.shotsAgainst ?? 0
-  const goalsAgainst = stat.goalsAgainst ?? 0
+  // Per-field, not per-row: a partially captured goalie line used to coerce its
+  // missing fields to 0, which reads as "faced nothing" instead of "not
+  // captured". — = no data, 0 = a real zero (the page-wide glyph rule).
+  const { saves, shotsAgainst, goalsAgainst } = stat
+  const savePct =
+    saves !== null && shotsAgainst !== null && shotsAgainst > 0
+      ? ((saves / shotsAgainst) * 100).toFixed(1)
+      : null
   return [
-    { label: 'SV', value: saves.toString(), tone: 'base' },
-    { label: 'GA', value: goalsAgainst.toString(), tone: 'dim' },
+    { label: 'SV', value: saves?.toString() ?? '—', tone: saves === null ? 'muted' : 'base' },
     {
-      label: 'SV%',
-      value: shotsAgainst > 0 ? ((saves / shotsAgainst) * 100).toFixed(1) : '—',
-      tone: shotsAgainst > 0 ? 'lead' : 'muted',
+      label: 'GA',
+      value: goalsAgainst?.toString() ?? '—',
+      tone: goalsAgainst === null ? 'muted' : 'dim',
     },
+    { label: 'SV%', value: savePct ?? '—', tone: savePct === null ? 'muted' : 'lead' },
   ]
 }
 

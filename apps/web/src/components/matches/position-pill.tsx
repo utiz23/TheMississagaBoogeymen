@@ -20,9 +20,22 @@ interface PositionPillProps {
    */
   defenseSide?: 'left' | 'right' | null
   onLight?: boolean
+  /**
+   * 'muted' keeps the position colour on the border + tint but sets the LABEL
+   * in fg-1. Used on the game sheet (Phase 10): the raw palette runs 2.5–2.6:1
+   * on dark (#c0061c C, #2659cf RW), and six saturated pills in one lineup read
+   * as a rainbow. Elsewhere the pill keeps its documented coloured label.
+   */
+  tone?: 'color' | 'muted'
 }
 
-export function PositionPill({ label, position, isGoalie, onLight = false }: PositionPillProps) {
+export function PositionPill({
+  label,
+  position,
+  isGoalie,
+  onLight = false,
+  tone = 'color',
+}: PositionPillProps) {
   const colorKey = isGoalie ? 'goalie' : position
   const color = colorForPosition(colorKey)
 
@@ -34,7 +47,7 @@ export function PositionPill({ label, position, isGoalie, onLight = false }: Pos
         backgroundColor: onLight
           ? 'rgba(8,8,10,0.84)'
           : `color-mix(in srgb, ${color} 10%, transparent)`,
-        color,
+        color: tone === 'muted' ? 'var(--color-fg-1)' : color,
       }}
     >
       {label}

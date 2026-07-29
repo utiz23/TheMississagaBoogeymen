@@ -28,6 +28,9 @@ import {
  * target line, the matching marker glyph, and the NO MARKER / APPROX honesty
  * tags the prototype's cards had no concept of.
  */
+/** Stable option id, so the listbox can point aria-activedescendant at a row. */
+const optionId = (id: number) => `event-option-${String(id)}`
+
 export function EventList({
   events,
   sortMode,
@@ -95,11 +98,11 @@ export function EventList({
     // would push the row to its own content height — 95 cards tall.
     <div className="flex h-[420px] min-w-0 flex-col border border-border bg-surface xl:absolute xl:inset-0 xl:h-auto">
       <div className="flex items-center gap-2.5 border-b border-border px-3.5 py-2.5">
-        <span className="font-condensed text-[11px] font-bold tracking-[0.18em] uppercase text-fg-4">
+        <span className="font-condensed text-[11px] font-bold tracking-[0.18em] uppercase text-fg-3">
           Events
         </span>
         <SortSelect value={sortMode} onChange={setSortMode} />
-        <span className="ml-auto font-condensed text-[10px] font-bold tracking-[0.14em] text-fg-5">
+        <span className="ml-auto font-condensed text-[10px] font-bold tracking-[0.14em] text-fg-3">
           <b className="font-black tabular-nums text-accent">{events.length}</b> shown
         </span>
       </div>
@@ -109,7 +112,7 @@ export function EventList({
           <div className="font-condensed text-[13px] font-extrabold tracking-[0.18em] uppercase text-fg-3">
             No events match
           </div>
-          <div className="max-w-[240px] font-condensed text-[11px] leading-relaxed font-semibold text-fg-5">
+          <div className="max-w-[240px] font-condensed text-[11px] leading-relaxed font-semibold text-fg-3">
             Adjust the period, team or type filters above.
           </div>
         </div>
@@ -119,10 +122,16 @@ export function EventList({
           // overflow-x-hidden: the list owns its own width. Long gamertags
           // truncate inside the card rather than pushing an inner horizontal
           // scrollbar onto the pane (a prototype-review defect).
-          className="min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto focus:outline-none"
+          className="min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto"
           tabIndex={0}
           role="listbox"
-          aria-label="Event list — use arrow keys to navigate, Enter to select, Escape to clear"
+          // The cards are role=option (a listbox may only own options), so the
+          // container keeps the focus and points at the active row instead —
+          // the canonical single-tab-stop listbox pattern.
+          aria-activedescendant={selectedId === null ? undefined : optionId(selectedId)}
+          // Arrow keys select as they move (that IS the pin), so there is no
+          // separate Enter step to advertise.
+          aria-label="Event list — arrow keys move through the events and pin the one you land on, Escape clears the pin"
           onKeyDown={(e) => {
             if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
               e.preventDefault()
@@ -146,7 +155,7 @@ export function EventList({
         >
           {showPeriodDividers
             ? byPeriod.map((g) => (
-                <div key={g.period}>
+                <div key={g.period} role="group" aria-label={g.label}>
                   <PeriodDivider label={g.label} count={g.rows.length} />
                   {g.rows.map((e) => (
                     <EventCard
@@ -191,7 +200,7 @@ function SortSelect({ value, onChange }: { value: SortMode; onChange: (m: SortMo
         onChange={(e) => {
           onChange(e.target.value as SortMode)
         }}
-        className="border border-border bg-background px-1.5 py-[3px] font-condensed text-[10px] font-bold tracking-[0.14em] uppercase text-fg-2 focus:outline-none"
+        className="border border-border bg-background px-1.5 py-[3px] font-condensed text-[10px] font-bold tracking-[0.14em] uppercase text-fg-2"
       >
         <option value="period">By period</option>
         <option value="chrono">Chronological</option>
@@ -201,14 +210,19 @@ function SortSelect({ value, onChange }: { value: SortMode; onChange: (m: SortMo
   )
 }
 
+// aria-hidden: the same label is the enclosing role=group's accessible name,
+// and a bare div is not a legal child of a listbox.
 function PeriodDivider({ label, count }: { label: string; count: number }) {
   return (
-    <div className="sticky top-0 z-10 flex items-center gap-2 border-y border-border bg-background px-3.5 py-2">
+    <div
+      aria-hidden
+      className="sticky top-0 z-10 flex items-center gap-2 border-y border-border bg-background px-3.5 py-2"
+    >
       <span className="font-condensed text-[9.5px] font-extrabold tracking-[0.22em] uppercase text-accent">
         {label}
       </span>
       <span className="h-px flex-1 bg-border" aria-hidden />
-      <span className="font-condensed text-[9.5px] font-bold tracking-[0.18em] tabular-nums text-fg-5">
+      <span className="font-condensed text-[9.5px] font-bold tracking-[0.18em] tabular-nums text-fg-3">
         {String(count)} events
       </span>
     </div>
@@ -252,8 +266,10 @@ function EventCard({
       : event.eventType.toUpperCase()
 
   return (
-    <button
-      type="button"
+    <div
+      id={optionId(event.id)}
+      role="option"
+      aria-selected={selected}
       onClick={onSelect}
       onMouseEnter={() => {
         onHover(event.id)
@@ -262,8 +278,7 @@ function EventCard({
         onHover(null)
       }}
       data-event-id={String(event.id)}
-      aria-pressed={selected}
-      className="relative grid w-full min-w-0 grid-cols-[3px_32px_minmax(0,1fr)_auto] items-center gap-2.5 border-b border-[color:rgba(58,56,57,0.5)] py-3 pr-3 pl-0 text-left transition-colors"
+      className="relative grid w-full min-w-0 cursor-pointer grid-cols-[3px_32px_minmax(0,1fr)_auto] items-center gap-2.5 border-b border-[color:rgba(58,56,57,0.5)] py-3 pr-3 pl-0 text-left transition-colors"
       style={{
         backgroundColor: selected
           ? withAlpha(teamColor, 0.16)
@@ -289,7 +304,7 @@ function EventCard({
           {actor}
           {target ? (
             <>
-              <span className="mx-1.5 text-fg-5">›</span>
+              <span className="mx-1.5 text-fg-3">›</span>
               <span className="text-fg-2">{target}</span>
             </>
           ) : null}
@@ -307,7 +322,7 @@ function EventCard({
       <div className="flex flex-col items-end gap-1.5">
         <CardEventMark eventType={event.eventType} side={side} teamColor={teamColor} />
         {noMarker ? (
-          <span className="inline-flex items-center border border-dashed border-border px-1.5 py-[2px] font-condensed text-[9px] font-bold tracking-[0.16em] uppercase text-fg-5">
+          <span className="inline-flex items-center border border-dashed border-border px-1.5 py-[2px] font-condensed text-[9px] font-bold tracking-[0.16em] uppercase text-fg-3">
             No marker
           </span>
         ) : null}
@@ -317,7 +332,7 @@ function EventCard({
           </span>
         ) : null}
       </div>
-    </button>
+    </div>
   )
 }
 

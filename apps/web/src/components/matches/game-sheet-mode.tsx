@@ -22,6 +22,9 @@ export type GameSheetMode = 'loadouts' | 'stats'
 /** id of the region the tabs control — the page's main column adopts it. */
 export const GAME_SHEET_PANEL_ID = 'game-sheet-panel'
 
+/** Per-tab id, so the panel can point `aria-labelledby` at the ACTIVE tab. */
+const tabId = (mode: GameSheetMode) => `game-sheet-tab-${mode}`
+
 const MODES: GameSheetMode[] = ['loadouts', 'stats']
 const MODE_LABEL: Record<GameSheetMode, string> = {
   loadouts: 'Loadouts',
@@ -107,6 +110,7 @@ export function GameSheetModeTabs() {
         return (
           <button
             key={m}
+            id={tabId(m)}
             type="button"
             role="tab"
             aria-selected={active}
@@ -116,7 +120,7 @@ export function GameSheetModeTabs() {
               setMode(m)
             }}
             className={`relative px-0.5 py-1.5 font-condensed text-[13px] font-extrabold uppercase tracking-[0.14em] transition-colors ${
-              active ? 'text-fg-1' : 'text-fg-4 hover:text-fg-2'
+              active ? 'text-fg-1' : 'text-fg-3 hover:text-fg-2'
             }`}
           >
             {MODE_LABEL[m]}
@@ -126,6 +130,31 @@ export function GameSheetModeTabs() {
           </button>
         )
       })}
+    </div>
+  )
+}
+
+/**
+ * The region the tabs control. Client-side because `aria-labelledby` has to
+ * name the ACTIVE tab, which only the mode context knows; the children are
+ * still server-rendered and pass straight through.
+ */
+export function GameSheetPanel({
+  children,
+  className,
+}: {
+  children: ReactNode
+  className?: string
+}) {
+  const { mode } = useGameSheetMode()
+  return (
+    <div
+      id={GAME_SHEET_PANEL_ID}
+      role="tabpanel"
+      aria-labelledby={tabId(mode)}
+      className={className}
+    >
+      {children}
     </div>
   )
 }

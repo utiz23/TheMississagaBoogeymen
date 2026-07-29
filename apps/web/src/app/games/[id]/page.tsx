@@ -20,9 +20,9 @@ import type { Match } from '@eanhl/db'
 import { HeroCard } from '@/components/matches/hero-card'
 import { GameTopBar } from '@/components/matches/game-top-bar'
 import {
-  GAME_SHEET_PANEL_ID,
   GameSheetModeProvider,
   GameSheetModeTabs,
+  GameSheetPanel,
   type GameSheetMode,
 } from '@/components/matches/game-sheet-mode'
 import { TopPerformers } from '@/components/matches/top-performers'
@@ -194,7 +194,8 @@ export default async function GameDetailPage({ params, searchParams }: Props) {
   const initialMode: GameSheetMode = queryParams.view === 'stats' ? 'stats' : 'loadouts'
 
   return (
-    <div className="space-y-4" style={opponentColorVars}>
+    // `game-sheet` scopes the page's a11y rules (focus ring) — see globals.css.
+    <div className="game-sheet space-y-4" style={opponentColorVars}>
       {/* 1. Top bar */}
       <GameTopBar gamesHref={gamesHref} adjacent={adjacent} listQuery={listQuery} />
 
@@ -215,7 +216,7 @@ export default async function GameDetailPage({ params, searchParams }: Props) {
         {/* 4. Main grid — main column (3/4) + rail (1/4); the rail stacks after
               the main column below lg. */}
         <div className="grid items-start gap-4 lg:grid-cols-4">
-          <div id={GAME_SHEET_PANEL_ID} className="min-w-0 space-y-4 lg:col-span-3">
+          <GameSheetPanel className="min-w-0 space-y-4 lg:col-span-3">
             {/* Lineup · Scouting — one roster at a time (BGM|OPP switch), rows
               trail X-Factors or stat columns per the LOADOUTS|STATS mode. Rich
               when OCR snapshots exist; lean box-score fallback otherwise. */}
@@ -247,7 +248,7 @@ export default async function GameDetailPage({ params, searchParams }: Props) {
               scoreFor={match.scoreFor}
               scoreAgainst={match.scoreAgainst}
             />
-          </div>
+          </GameSheetPanel>
 
           <div className="min-w-0 space-y-4">
             <TopPerformers

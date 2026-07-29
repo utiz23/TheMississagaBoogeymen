@@ -157,3 +157,20 @@ body {
 .ticker-strip-thin {
   height: 2px;
 }
+
+/* Game sheet (/games/[id]) — page-scoped a11y rules (Phase 10).
+
+   Focus: ONE rule gives every interactive element on the page a visible ring,
+   so a control can never ship without one. Unlayered, so it beats Tailwind's
+   layered `outline-none` utilities regardless of source order.
+
+   Contrast rule for this page (WCAG AA on small text): neutral TEXT bottoms
+   out at --color-fg-3 (#9a9798), which clears 4.5:1 on all four surfaces the
+   page uses — background 6.10, surface 5.53, surface-raised 5.06, charcoal
+   4.53. fg-4/fg-5/fg-6 stay in use for non-text only (borders, rules, dots,
+   hatch fills, bars) and for genuinely disabled controls, which WCAG exempts.
+   The ramp itself is NOT mutated — other pages keep their existing usage. */
+.game-sheet :focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}

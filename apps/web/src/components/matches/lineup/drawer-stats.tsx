@@ -50,12 +50,12 @@ export function DrawerStats({
       />
 
       {loadoutFallback ? (
-        <p className="font-condensed text-[10px] font-semibold uppercase tracking-[0.12em] text-fg-4">
+        <p className="font-condensed text-[10px] font-semibold uppercase tracking-[0.12em] text-fg-3">
           No loadout captured · showing match stats
         </p>
       ) : null}
       {tappedStat === null ? (
-        <p className="font-condensed text-[10px] font-semibold uppercase tracking-[0.12em] text-fg-4">
+        <p className="font-condensed text-[10px] font-semibold uppercase tracking-[0.12em] text-fg-3">
           No match stats recorded for this player
         </p>
       ) : null}
@@ -67,12 +67,12 @@ export function DrawerStats({
             key={tile.label}
             className="flex min-w-[88px] flex-1 flex-col items-start gap-1 border border-border bg-surface px-3 py-2"
           >
-            <span className="font-condensed text-[9.5px] font-bold uppercase tracking-[0.14em] text-fg-4">
+            <span className="font-condensed text-[9.5px] font-bold uppercase tracking-[0.14em] text-fg-3">
               {tile.label}
             </span>
             <span
               className={`font-condensed text-[20px] font-black leading-none tabular-nums ${
-                tile.muted ? 'text-fg-6' : 'text-fg-1'
+                tile.muted ? 'text-fg-3' : 'text-fg-1'
               }`}
             >
               {tile.value}
@@ -92,14 +92,14 @@ export function DrawerStats({
                 </span>
                 <span
                   className={`min-w-[30px] text-right font-condensed text-[12px] font-extrabold tabular-nums ${
-                    r.bgm === '—' ? 'text-fg-6' : 'text-fg-1'
+                    r.bgm === '—' ? 'text-fg-3' : 'text-fg-1'
                   }`}
                 >
                   {r.bgm}
                 </span>
                 <span
                   className={`min-w-[30px] text-right font-condensed text-[12px] font-extrabold tabular-nums ${
-                    r.opp === '—' ? 'text-fg-6' : 'text-fg-1'
+                    r.opp === '—' ? 'text-fg-3' : 'text-fg-1'
                   }`}
                 >
                   {r.opp}

@@ -110,7 +110,7 @@ export function RinkPanel({
   return (
     <div className="broadcast-panel-strong min-w-0 border border-border px-3.5 pb-3 pt-3">
       <div className="mb-2 flex flex-wrap items-center gap-x-3.5 gap-y-1">
-        <span className="font-condensed text-[11px] font-bold uppercase tracking-[0.18em] text-fg-4">
+        <span className="font-condensed text-[11px] font-bold uppercase tracking-[0.18em] text-fg-3">
           Event map · 5-on-5 ice
         </span>
         {/* Direction of play. Contrast fixed from the prototype's fg-6 (1.52:1)
@@ -122,58 +122,68 @@ export function RinkPanel({
         </div>
       </div>
 
-      <div
-        className="relative w-full"
-        style={{ aspectRatio: `${String(VIEW_W)} / ${String(VIEW_H)}` }}
-        onMouseLeave={() => {
-          onHover(null)
-        }}
-        onClick={onClearSelected}
-      >
-        <RinkSvg className="block h-full w-full" />
-        <svg
-          viewBox={`0 0 ${String(VIEW_W)} ${String(VIEW_H)}`}
-          preserveAspectRatio="xMidYMid meet"
-          className="absolute inset-0 block h-auto w-full"
-          aria-hidden
+      {/* Below sm the rink would shrink to ~292×124 — 73 markers inside 124px of
+          ice, which is a smear, not a map. It keeps a 520px floor and scrolls
+          sideways instead; the event list underneath is the non-scrolling way
+          to read the same events. */}
+      <div className="overflow-x-auto sm:overflow-x-visible">
+        <div
+          className="relative w-full min-w-[520px] sm:min-w-0"
+          style={{ aspectRatio: `${String(VIEW_W)} / ${String(VIEW_H)}` }}
+          onMouseLeave={() => {
+            onHover(null)
+          }}
+          onClick={onClearSelected}
         >
-          {events.map((e) => {
-            const isSelected = selectedId === e.id
-            const isFaded = selectedId !== null && !isSelected
-            return (
-              <Marker
-                key={e.id}
-                event={e}
-                hovered={hoveredId === e.id}
-                selected={isSelected}
-                faded={isFaded}
-                offset={markerOffsets.get(e.id)}
-                onEnter={() => {
-                  onHover(e.id)
-                }}
-                onLeave={() => {
-                  onHover(null)
-                }}
-                onClick={() => {
-                  onSelect(e.id)
-                }}
-                bgmIsHome={bgmIsHome}
-              />
-            )
-          })}
-        </svg>
-        {events.length === 0 ? <EmptyRinkNote /> : null}
-        {focused ? (
-          <MarkerTooltip
-            event={focused}
-            bgmIsHome={bgmIsHome}
-            offset={markerOffsets.get(focused.id)}
-          />
-        ) : null}
+          <RinkSvg className="block h-full w-full" />
+          {/* aria-hidden by design: the markers are a pointer-only affordance and
+            73 focusable SVG nodes would be a tab-stop swamp. The event list next
+            to it is the keyboard/AT equivalent — it carries the same rows, is a
+            single tab stop, and selecting there pins the marker here. */}
+          <svg
+            viewBox={`0 0 ${String(VIEW_W)} ${String(VIEW_H)}`}
+            preserveAspectRatio="xMidYMid meet"
+            className="absolute inset-0 block h-auto w-full"
+            aria-hidden
+          >
+            {events.map((e) => {
+              const isSelected = selectedId === e.id
+              const isFaded = selectedId !== null && !isSelected
+              return (
+                <Marker
+                  key={e.id}
+                  event={e}
+                  hovered={hoveredId === e.id}
+                  selected={isSelected}
+                  faded={isFaded}
+                  offset={markerOffsets.get(e.id)}
+                  onEnter={() => {
+                    onHover(e.id)
+                  }}
+                  onLeave={() => {
+                    onHover(null)
+                  }}
+                  onClick={() => {
+                    onSelect(e.id)
+                  }}
+                  bgmIsHome={bgmIsHome}
+                />
+              )
+            })}
+          </svg>
+          {events.length === 0 ? <EmptyRinkNote /> : null}
+          {focused ? (
+            <MarkerTooltip
+              event={focused}
+              bgmIsHome={bgmIsHome}
+              offset={markerOffsets.get(focused.id)}
+            />
+          ) : null}
+        </div>
       </div>
 
-      <div className="mt-2 flex flex-wrap items-center gap-x-3.5 gap-y-1 font-condensed text-[9.5px] font-bold uppercase tracking-[0.16em] text-fg-4">
-        <span className="text-fg-5">Legend</span>
+      <div className="mt-2 flex flex-wrap items-center gap-x-3.5 gap-y-1 font-condensed text-[9.5px] font-bold uppercase tracking-[0.16em] text-fg-3">
+        <span className="text-fg-3">Legend</span>
         <LegendItem label="Goal">
           <GoalMarker side="home" size={13} homeColor="var(--color-accent)" />
         </LegendItem>
@@ -187,7 +197,7 @@ export function RinkPanel({
           <PenaltyMarker side="home" size={13} homeColor="var(--color-accent)" />
         </LegendItem>
         {offRink > 0 ? (
-          <span className="text-fg-5">
+          <span className="text-fg-3">
             <b className="font-black tabular-nums text-fg-3">{offRink}</b> not plotted
           </span>
         ) : null}
@@ -468,7 +478,7 @@ function MarkerTooltip({
             </span>
           ) : (
             <>
-              <span className="mx-1.5 text-fg-5">→</span>
+              <span className="mx-1.5 text-fg-3">→</span>
               {targetLine}
             </>
           )}

@@ -35,7 +35,7 @@ export function LineupModuleFooter({
     return (
       <div className="flex items-center gap-2 border border-border bg-surface px-4 py-2.5">
         <span className="inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-fg-5" aria-hidden />
-        <span className="font-condensed text-[11px] font-semibold uppercase tracking-[0.14em] text-fg-5">
+        <span className="font-condensed text-[11px] font-semibold uppercase tracking-[0.14em] text-fg-3">
           Lineup from box score · pre-game loadouts not captured for this match
         </span>
       </div>

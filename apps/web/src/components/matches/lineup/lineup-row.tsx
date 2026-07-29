@@ -65,21 +65,17 @@ const CPU_HATCH =
 export function LineupModuleRow({ slot, mode, isOpen, panelId, onToggle }: LineupModuleRowProps) {
   const posColor = colorForPosition(slot.position)
 
-  const rowClass = `grid w-full min-h-[58px] grid-cols-[34px_36px_40px_minmax(0,1fr)_auto_14px] items-center gap-x-2.5 border-b border-border-subtle border-l-2 py-[7px] pl-3 pr-3.5 text-left transition-colors ${
+  const rowClass = `grid w-full min-h-[58px] grid-cols-[30px_30px_minmax(0,1fr)_auto_14px] items-center gap-x-2 border-b border-border-subtle border-l-2 py-[7px] pr-3 pl-2.5 text-left transition-colors sm:grid-cols-[34px_36px_40px_minmax(0,1fr)_auto_14px] sm:gap-x-2.5 sm:pr-3.5 sm:pl-3 ${
     isOpen
       ? 'border-l-accent bg-surface-raised [box-shadow:inset_2px_0_0_var(--color-accent)]'
       : 'border-l-transparent'
-  } ${
-    slot.expandable
-      ? 'cursor-pointer outline-none hover:border-l-accent hover:bg-surface-raised focus-visible:ring-1 focus-visible:ring-accent'
-      : ''
-  }`
+  } ${slot.expandable ? 'cursor-pointer hover:border-l-accent hover:bg-surface-raised' : ''}`
 
   const cells = (
     <>
       {/* POS — coloured cell bleeding to the row edges */}
       <span
-        className="-my-[7px] -ml-3 flex flex-col items-center justify-center gap-px self-stretch border"
+        className="-my-[7px] -ml-2.5 flex flex-col items-center justify-center gap-px self-stretch border sm:-ml-3"
         style={
           slot.human
             ? {
@@ -89,12 +85,15 @@ export function LineupModuleRow({ slot, mode, isOpen, panelId, onToggle }: Lineu
             : { borderColor: 'var(--color-border)' }
         }
       >
-        <span className="font-condensed text-[9px] font-bold uppercase tracking-[0.14em] text-fg-4">
+        <span className="font-condensed text-[9px] font-bold uppercase tracking-[0.14em] text-fg-3">
           Pos
         </span>
+        {/* Label in fg-1, position colour carried by the cell's border + tint
+            (Phase 10 de-rainbow): the raw palette is 2.5–2.6:1 on dark, and six
+            saturated glyphs down one lineup fought the row content. */}
         <span
           className="font-condensed text-[19px] font-black uppercase leading-none tracking-[0.04em] tabular-nums"
-          style={{ color: slot.human ? posColor : 'var(--color-fg-4)' }}
+          style={{ color: slot.human ? 'var(--color-fg-1)' : 'var(--color-fg-3)' }}
         >
           {slot.posLabel}
         </span>
@@ -102,12 +101,12 @@ export function LineupModuleRow({ slot, mode, isOpen, panelId, onToggle }: Lineu
 
       {/* Jersey number */}
       <span className="flex flex-col items-center">
-        <span className="font-condensed text-[9px] font-bold uppercase tracking-[0.1em] text-fg-4">
+        <span className="font-condensed text-[9px] font-bold uppercase tracking-[0.1em] text-fg-3">
           #
         </span>
         <span
           className={`font-condensed text-[22px] font-black leading-[0.9] tracking-[-0.02em] tabular-nums ${
-            slot.human && slot.jersey !== null ? 'text-fg-1' : 'text-fg-5'
+            slot.human && slot.jersey !== null ? 'text-fg-1' : 'text-fg-3'
           }`}
         >
           {slot.jersey !== null ? slot.jersey.toString() : '—'}
@@ -116,7 +115,7 @@ export function LineupModuleRow({ slot, mode, isOpen, panelId, onToggle }: Lineu
 
       {/* Avatar */}
       <span
-        className={`flex h-10 w-10 items-end justify-center overflow-hidden rounded-full border ${
+        className={`hidden h-10 w-10 items-end justify-center overflow-hidden rounded-full border sm:flex ${
           slot.human
             ? 'border-border [background:radial-gradient(circle_at_top,rgba(232,65,49,0.14),transparent_55%),linear-gradient(180deg,rgba(50,48,49,0.9),rgba(26,24,25,1))]'
             : 'border-border bg-[rgba(35,33,34,0.55)] opacity-80'
@@ -131,7 +130,7 @@ export function LineupModuleRow({ slot, mode, isOpen, panelId, onToggle }: Lineu
         <span className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0.5">
           <span
             className={`whitespace-nowrap font-condensed text-[15px] font-black uppercase leading-none tracking-[0.03em] ${
-              slot.human ? 'text-fg-1' : 'text-fg-4'
+              slot.human ? 'text-fg-1' : 'text-fg-3'
             }`}
           >
             {slot.persona ?? (slot.position === 'G' ? 'CPU Goalie' : 'CPU')}
@@ -151,7 +150,7 @@ export function LineupModuleRow({ slot, mode, isOpen, panelId, onToggle }: Lineu
             </span>
           ) : null}
           {!slot.human ? (
-            <span className="flex-none border border-dashed border-border px-1.5 py-0.5 font-condensed text-[9px] font-bold uppercase tracking-[0.14em] text-fg-4">
+            <span className="flex-none border border-dashed border-border px-1.5 py-0.5 font-condensed text-[9px] font-bold uppercase tracking-[0.14em] text-fg-3">
               No human dressed
             </span>
           ) : null}
@@ -165,20 +164,20 @@ export function LineupModuleRow({ slot, mode, isOpen, panelId, onToggle }: Lineu
             </span>
           ) : null}
           {mode === 'loadouts' && slot.physLine !== null ? (
-            <span className="whitespace-nowrap font-condensed text-[10px] font-semibold uppercase tracking-[0.08em] tabular-nums text-fg-5">
+            <span className="whitespace-nowrap font-condensed text-[10px] font-semibold uppercase tracking-[0.08em] tabular-nums text-fg-3">
               {slot.physLine}
             </span>
           ) : null}
           {mode === 'stats' && slot.human && slot.gs !== null ? (
             <span
-              className="whitespace-nowrap border border-border px-1.5 py-[2px] font-condensed text-[10px] font-extrabold uppercase tracking-[0.06em] tabular-nums text-fg-4"
+              className="whitespace-nowrap border border-border px-1.5 py-[2px] font-condensed text-[10px] font-extrabold uppercase tracking-[0.06em] tabular-nums text-fg-3"
               title="Composite game score"
             >
               GS {slot.gs.toFixed(2)}
             </span>
           ) : null}
           {!slot.human ? (
-            <span className="font-condensed text-[10px] font-semibold uppercase tracking-[0.1em] text-fg-5">
+            <span className="font-condensed text-[10px] font-semibold uppercase tracking-[0.1em] text-fg-3">
               EA AI · no tracked data
             </span>
           ) : null}
@@ -201,8 +200,8 @@ export function LineupModuleRow({ slot, mode, isOpen, panelId, onToggle }: Lineu
       {/* Chevron — persistent expand affordance */}
       <span
         aria-hidden
-        className={`text-center font-condensed text-[11px] font-bold leading-none transition-transform ${
-          slot.expandable ? (isOpen ? 'rotate-90 text-accent' : 'text-fg-5') : 'invisible'
+        className={`text-center font-condensed text-[13px] font-black leading-none transition-transform ${
+          slot.expandable ? (isOpen ? 'rotate-90 text-accent' : 'text-fg-2') : 'invisible'
         }`}
       >
         ▸
@@ -238,7 +237,9 @@ const TILE_TONE_CLASS: Record<LineupStatTile['tone'], string> = {
   dim: 'text-[15px] font-semibold text-fg-3',
   win: 'text-[15px] font-bold text-win',
   loss: 'text-[15px] font-bold text-loss',
-  muted: 'text-[15px] font-semibold text-fg-6',
+  // 'muted' is the no-data tile: the — glyph already says "nothing here",
+  // so it reads lighter by WEIGHT, not by dropping under the contrast floor.
+  muted: 'text-[15px] font-normal text-fg-3',
 }
 
 function StatTileView({ tile }: { tile: LineupStatTile }) {
@@ -249,7 +250,7 @@ function StatTileView({ tile }: { tile: LineupStatTile }) {
       <span className={`font-condensed leading-[0.9] tabular-nums ${TILE_TONE_CLASS[tile.tone]}`}>
         {tile.value}
       </span>
-      <span className="font-condensed text-[9px] font-bold uppercase tracking-[0.1em] text-fg-4">
+      <span className="font-condensed text-[9px] font-bold uppercase tracking-[0.1em] text-fg-3">
         {tile.label}
       </span>
     </span>
@@ -307,8 +308,8 @@ function xfFallbackTone(tier: LineupRow['xFactors'][number]['tier']): string {
     case 'All Star':
       return 'border-[rgba(235,235,235,0.30)] bg-[rgba(235,235,235,0.04)] text-fg-2'
     case 'Specialist':
-      return 'border-[rgba(110,107,108,0.40)] bg-[rgba(235,235,235,0.02)] text-fg-4'
+      return 'border-[rgba(110,107,108,0.40)] bg-[rgba(235,235,235,0.02)] text-fg-3'
     default:
-      return 'border-border bg-background text-fg-5'
+      return 'border-border bg-background text-fg-3'
   }
 }

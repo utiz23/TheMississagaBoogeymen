@@ -43,14 +43,18 @@ export function DrawerKicker({
 }) {
   return (
     <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
-      <span className="font-condensed text-[10px] font-extrabold uppercase tracking-[0.2em] text-fg-4">
-        {posLabel} head-to-head
-      </span>
-      <span className="flex min-w-0 flex-wrap items-center gap-x-2 font-condensed text-[12px] font-black uppercase tracking-[0.05em]">
-        <span className="text-accent">{personaOf(bgmRow)}</span>
-        <span className="text-[10px] font-bold text-fg-5">vs</span>
-        <span className={oppRow ? '[color:var(--opp)]' : 'text-fg-5'}>{personaOf(oppRow)}</span>
-      </span>
+      {/* h3 under the module's h2 — an open drawer is a section of its own, and
+          without it the compare tables hang off the page outline. */}
+      <h3 className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+        <span className="font-condensed text-[10px] font-extrabold uppercase tracking-[0.2em] text-fg-3">
+          {posLabel} head-to-head
+        </span>
+        <span className="flex min-w-0 flex-wrap items-center gap-x-2 font-condensed text-[12px] font-black uppercase tracking-[0.05em]">
+          <span className="text-accent">{personaOf(bgmRow)}</span>
+          <span className="text-[10px] font-bold text-fg-3">vs</span>
+          <span className={oppRow ? '[color:var(--opp)]' : 'text-fg-3'}>{personaOf(oppRow)}</span>
+        </span>
+      </h3>
       {trailing}
     </div>
   )
@@ -86,7 +90,7 @@ export function CompareTable({
   return (
     <div className="flex flex-col gap-1.5 border border-border bg-surface px-2.5 py-2">
       <div className="flex items-baseline justify-between gap-2 border-b border-border-subtle pb-1.5">
-        <span className="font-condensed text-[10px] font-bold uppercase tracking-[0.18em] text-fg-4">
+        <span className="font-condensed text-[10px] font-bold uppercase tracking-[0.18em] text-fg-3">
           {title}
         </span>
         <span className="flex gap-2 font-condensed text-[9px] font-extrabold uppercase tracking-[0.08em]">

@@ -25,7 +25,7 @@ export function GameTopBar({ gamesHref, listQuery, adjacent }: GameTopBarProps) 
       aria-label="Game navigation"
       className="flex flex-wrap items-center gap-x-5 gap-y-2 font-condensed text-[11px] font-bold uppercase tracking-[0.16em]"
     >
-      <Link href={gamesHref} className="text-fg-4 transition-colors hover:text-fg-2">
+      <Link href={gamesHref} className="text-fg-3 transition-colors hover:text-fg-2">
         <span aria-hidden>←</span> All Games
       </Link>
 
@@ -47,7 +47,15 @@ function AdjacentChip({
   listQuery: string
 }) {
   if (!game) {
-    return <span className="select-none text-fg-6">{dir === 'prev' ? '← Prev' : 'Next →'}</span>
+    // Season-edge placeholder: purely visual, holding the bar's shape. It is
+    // hidden from AT (there is no destination to announce) and therefore stays
+    // below the page's text-contrast floor on purpose — the absence of a link
+    // is what tells a screen-reader user there is no game that way.
+    return (
+      <span aria-hidden className="select-none text-fg-4">
+        {dir === 'prev' ? '← Prev' : 'Next →'}
+      </span>
+    )
   }
 
   const abbrev = abbreviateTeamName(game.opponentName)
@@ -55,7 +63,7 @@ function AdjacentChip({
     <Link
       href={gameHref(game.id, listQuery)}
       aria-label={`${dir === 'prev' ? 'Previous' : 'Next'} game — vs ${game.opponentName}`}
-      className="group text-fg-4 transition-colors hover:text-fg-2"
+      className="group text-fg-3 transition-colors hover:text-fg-2"
     >
       {dir === 'prev' ? (
         <>

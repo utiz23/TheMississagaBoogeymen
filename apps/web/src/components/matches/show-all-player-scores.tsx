@@ -69,7 +69,7 @@ export function PerformerScoreList({ entries, deltas, opponentLabel }: Performer
             onClick={() => {
               setShowAll((v) => !v)
             }}
-            className="flex w-full items-center justify-center gap-2 border-t border-border px-3.5 py-2.5 outline-none transition-colors hover:bg-surface-raised focus-visible:ring-1 focus-visible:ring-accent"
+            className="flex w-full items-center justify-center gap-2 border-t border-border px-3.5 py-2.5 transition-colors hover:bg-surface-raised"
           >
             <span className="font-condensed text-[10px] font-extrabold uppercase tracking-[0.16em] text-accent">
               {showAll ? 'Show top 3 only' : `Show all ${entries.length.toString()} players`}

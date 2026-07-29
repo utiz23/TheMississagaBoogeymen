@@ -39,24 +39,31 @@ export function HeroCard({
   const oppWin = match.result === 'LOSS' || match.result === 'OTL'
   const dnf = match.result === 'DNF'
 
+  // Losing/DNF scores stay muted but at fg-4, which clears the 3:1 large-text
+  // bar these 60–88px numerals sit under (fg-5 was 1.95:1 — the Phase 10 sweep).
   const ourScoreCls = ourWin
     ? 'text-accent [text-shadow:0_0_14px_rgba(232,65,49,0.28)]'
-    : dnf
-      ? 'text-fg-5'
-      : 'text-fg-4'
+    : 'text-fg-4'
   const oppScoreCls = oppWin
     ? '[color:var(--opp)] [text-shadow:0_0_14px_var(--opp-soft)]'
-    : dnf
-      ? 'text-fg-5'
-      : 'text-fg-4'
+    : 'text-fg-4'
 
   return (
     <section className="broadcast-panel-strong overflow-hidden font-condensed uppercase">
       <div className="ticker-strip" />
 
+      {/* The page's h1. The scorebug below says all of this visually, but it
+          says it across a dozen spans (two of which are hidden < sm), so the
+          document heading is one plain sentence instead. */}
+      <h1 className="sr-only">
+        {OUR_NAME} {match.scoreFor.toString()}–{match.scoreAgainst.toString()} {match.opponentName}{' '}
+        · {dnf ? 'Did not finish' : 'Final'}
+        {overtime ? ' in overtime' : ''} · {formatMatchDate(match.playedAt)}
+      </h1>
+
       {/* Scorebug header — meta left · game state right */}
       <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-b border-border-subtle px-4 py-2.5 sm:px-5">
-        <span className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] font-bold tracking-[0.18em] text-fg-4">
+        <span className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] font-bold tracking-[0.18em] text-fg-3">
           {meta.seasonNumber !== null ? (
             <>
               <span className="text-fg-2">Game {meta.seasonNumber.toString()}</span>
@@ -100,8 +107,8 @@ export function HeroCard({
             className="h-12 w-12 flex-none object-contain [filter:drop-shadow(0_0_16px_rgba(232,65,49,0.28))] sm:h-[66px] sm:w-[66px]"
           />
           <div className="flex min-w-0 flex-col gap-1">
-            <span className="text-xs font-bold tracking-[0.24em] text-fg-4">{OUR_ABBREV}</span>
-            <span className="hidden truncate text-[30px] font-black leading-[0.95] tracking-[0.03em] text-fg-1 sm:block">
+            <span className="text-xs font-bold tracking-[0.24em] text-fg-3">{OUR_ABBREV}</span>
+            <span className="hidden truncate text-[22px] font-black leading-[0.95] tracking-[0.03em] text-fg-1 sm:block lg:text-[30px]">
               {OUR_NAME}
             </span>
             <ResultTag side="bgm" result={match.result} />
@@ -115,7 +122,7 @@ export function HeroCard({
           >
             {match.scoreFor.toString()}
           </span>
-          <span aria-hidden className="text-2xl font-normal leading-none text-fg-6 sm:text-[34px]">
+          <span aria-hidden className="text-2xl font-normal leading-none text-fg-4 sm:text-[34px]">
             –
           </span>
           <span
@@ -128,8 +135,8 @@ export function HeroCard({
         {/* Opponent side (always right) */}
         <div className="flex min-w-0 items-center justify-end gap-3 text-right sm:gap-4">
           <div className="flex min-w-0 flex-col items-end gap-1">
-            <span className="text-xs font-bold tracking-[0.24em] text-fg-4">{opponentAbbrev}</span>
-            <span className="hidden max-w-full truncate text-[30px] font-black leading-[0.95] tracking-[0.03em] text-fg-3 sm:block">
+            <span className="text-xs font-bold tracking-[0.24em] text-fg-3">{opponentAbbrev}</span>
+            <span className="hidden max-w-full truncate text-[22px] font-black leading-[0.95] tracking-[0.03em] text-fg-3 sm:block lg:text-[30px]">
               {match.opponentName}
             </span>
             <ResultTag side="opp" result={match.result} />
@@ -155,11 +162,11 @@ export function HeroCard({
       {/* Series footer — prior meetings vs this opponent */}
       {meta.series !== null && meta.series.total > 1 && meta.meetingNumber !== null ? (
         <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 border-t border-border-subtle px-6 py-2 text-[11px]">
-          <span className="font-semibold tracking-[0.18em] text-fg-4">
+          <span className="font-semibold tracking-[0.18em] text-fg-3">
             {ordinal(meta.meetingNumber)} meeting vs {match.opponentName}
           </span>
           <span aria-hidden className="h-[3px] w-[3px] rounded-full bg-fg-6" />
-          <span className="font-bold tracking-[0.16em] text-fg-4">
+          <span className="font-bold tracking-[0.16em] text-fg-3">
             Season series{' '}
             <span className="tabular-nums text-accent">{meta.series.wins.toString()}</span>–
             <span className="tabular-nums text-fg-3">{meta.series.losses.toString()}</span>–
@@ -196,7 +203,7 @@ function ResultTag({ side, result }: { side: 'bgm' | 'opp'; result: Match['resul
   const lostInOt = side === 'bgm' && result === 'OTL'
   return (
     <span
-      className={`text-[11px] font-extrabold tracking-[0.22em] ${lostInOt ? 'text-otl' : 'text-fg-4'}`}
+      className={`text-[11px] font-extrabold tracking-[0.22em] ${lostInOt ? 'text-otl' : 'text-fg-3'}`}
     >
       {lostInOt ? 'OTL' : 'Loss'}
     </span>

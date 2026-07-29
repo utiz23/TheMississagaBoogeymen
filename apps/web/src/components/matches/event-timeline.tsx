@@ -69,17 +69,17 @@ export function EventTimeline({
       <div className="border border-border bg-surface">
         <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 px-3.5 pb-2 pt-3">
           <div className="flex flex-col gap-0.5">
-            <h2 className="font-condensed text-[11px] font-extrabold uppercase tracking-[0.18em] text-fg-4">
+            <h2 className="font-condensed text-[11px] font-extrabold uppercase tracking-[0.18em] text-fg-3">
               Event Timeline
             </h2>
-            <span className="font-condensed text-[10px] font-semibold uppercase tracking-[0.14em] text-fg-4">
+            <span className="font-condensed text-[10px] font-semibold uppercase tracking-[0.14em] text-fg-3">
               {model.isEmpty
                 ? 'Goals + penalties'
                 : `Game flow · ${BGM_LABEL} left / ${oppAbbrev} right`}
             </span>
           </div>
           {model.isEmpty ? null : (
-            <span className="font-condensed text-[10px] font-bold uppercase tracking-[0.14em] text-fg-4">
+            <span className="font-condensed text-[10px] font-bold uppercase tracking-[0.14em] text-fg-3">
               {expanded ? 'Full game' : 'Condensed'}
             </span>
           )}
@@ -111,7 +111,7 @@ export function EventTimeline({
             />
 
             {model.final.complete ? null : (
-              <p className="px-3.5 pb-1 text-center font-condensed text-[10px] font-semibold uppercase tracking-[0.12em] text-fg-5">
+              <p className="px-3.5 pb-1 text-center font-condensed text-[10px] font-semibold uppercase tracking-[0.12em] text-fg-3">
                 Timeline has {String(model.final.countedBgm + model.final.countedOpp)} of{' '}
                 {String(model.final.bgm + model.final.opp)} goals — the rest were not captured
               </p>
@@ -161,7 +161,7 @@ function EmptyTimeline() {
       <span className="font-condensed text-[13px] font-extrabold uppercase tracking-[0.14em] text-fg-3">
         No play-by-play captured
       </span>
-      <p className="max-w-[62ch] font-condensed text-[11px] font-semibold leading-relaxed tracking-[0.04em] text-fg-5">
+      <p className="max-w-[62ch] font-condensed text-[11px] font-semibold leading-relaxed tracking-[0.04em] text-fg-3">
         Goal and penalty events are read from game recordings, and only after that read is reviewed.
         This match has EA API stats only — the score, box score and player numbers on this page are
         unaffected.
@@ -186,7 +186,7 @@ function Rail() {
 function Anchor({ label }: { label: string }) {
   return (
     <div className="relative flex justify-center pb-2 pt-1.5">
-      <span className="relative z-10 inline-flex items-center gap-2.5 border border-border bg-charcoal px-4 py-1.5 font-condensed text-[10px] font-extrabold uppercase tracking-[0.24em] text-fg-4">
+      <span className="relative z-10 inline-flex items-center gap-2.5 border border-border bg-charcoal px-4 py-1.5 font-condensed text-[10px] font-extrabold uppercase tracking-[0.24em] text-fg-3">
         <span aria-hidden className="block h-[7px] w-[7px] rounded-full bg-[var(--color-fg-5)]" />
         {label}
       </span>
@@ -217,8 +217,10 @@ function FinalLine({
         className="inline-flex items-baseline gap-1.5 border bg-background px-3.5 py-1.5 font-condensed text-[11px] font-extrabold uppercase tabular-nums tracking-[0.14em]"
         style={{ borderColor: tone.border, color: tone.color }}
       >
-        <span className="text-fg-4">Final</span>
-        <span className="text-fg-6">·</span>
+        <span className="text-fg-3">Final</span>
+        <span aria-hidden className="text-fg-4">
+          ·
+        </span>
         {BGM_LABEL} {bgm} – {opp} {oppAbbrev}
       </span>
     </div>
@@ -285,7 +287,7 @@ function PeriodDivider({
       >
         <span
           className={`font-condensed text-[15px] font-black uppercase tracking-[0.2em] ${
-            scoreless ? 'text-fg-4' : 'text-accent'
+            scoreless ? 'text-fg-3' : 'text-accent'
           }`}
         >
           {label}
@@ -293,7 +295,7 @@ function PeriodDivider({
         <span aria-hidden className="h-[15px] w-px bg-border" />
         <span
           className={`font-condensed text-[10px] font-bold uppercase tracking-[0.16em] ${
-            scoreless ? 'text-fg-5' : 'text-fg-2'
+            scoreless ? 'text-fg-3' : 'text-fg-2'
           }`}
         >
           {countLabel}
@@ -349,7 +351,7 @@ function ClockPill({ clock, period }: { clock: string | null; period: string }) 
       <span className="font-condensed text-[11px] font-extrabold leading-none tabular-nums tracking-[0.06em] text-fg-1">
         {clock ?? '—'}
       </span>
-      <span className="font-condensed text-[10px] font-bold uppercase leading-none tracking-[0.1em] text-fg-4">
+      <span className="font-condensed text-[10px] font-bold uppercase leading-none tracking-[0.1em] text-fg-3">
         {period}
       </span>
     </span>
@@ -453,7 +455,7 @@ function GoalCard({
               louder than the lead it was losing to. */}
           <span className="font-condensed text-[13px] font-black tabular-nums tracking-[0.02em]">
             <span style={{ color: runningScoreColor(ctx, 'bgm') }}>{String(ctx.bgmAfter)}</span>
-            <span className="px-[3px] text-fg-6">–</span>
+            <span className="px-[3px] text-fg-3">–</span>
             <span style={{ color: runningScoreColor(ctx, 'opp') }}>{String(ctx.oppAfter)}</span>
           </span>
           <span
@@ -563,17 +565,21 @@ function AssistLine({ event, align }: { event: MatchEventRow; align: string }) {
   const secondary = pickAssist(event, 'secondary')
   return (
     <div className={`flex items-center gap-1.5 ${align}`}>
-      <span className="font-condensed text-[10px] font-extrabold uppercase tracking-[0.16em] text-fg-4">
+      <span className="font-condensed text-[10px] font-extrabold uppercase tracking-[0.16em] text-fg-3">
         A
       </span>
       {!primary && !secondary ? (
-        <span className="font-condensed text-[11px] font-semibold italic tracking-[0.02em] text-fg-5">
+        <span className="font-condensed text-[11px] font-semibold italic tracking-[0.02em] text-fg-3">
           Unassisted
         </span>
       ) : (
         <span className="font-condensed text-[11px] font-semibold tracking-[0.02em] text-fg-3">
           {primary ? <AssistName name={primary.text} id={primary.id} /> : null}
-          {primary && secondary ? <span className="px-1 text-fg-6">·</span> : null}
+          {primary && secondary ? (
+            <span aria-hidden className="px-1 text-fg-4">
+              ·
+            </span>
+          ) : null}
           {secondary ? <AssistName name={secondary.text} id={secondary.id} /> : null}
         </span>
       )}

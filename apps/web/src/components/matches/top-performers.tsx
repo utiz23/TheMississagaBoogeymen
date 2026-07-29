@@ -27,13 +27,13 @@ export function TopPerformers({ performers, allTeamScores, opponentLabel }: TopP
     <section>
       <div className="border border-border bg-surface">
         <div className="flex flex-col gap-0.5 px-3.5 pb-2.5 pt-3">
-          <h2 className="font-condensed text-[11px] font-extrabold uppercase tracking-[0.18em] text-fg-4">
+          <h2 className="font-condensed text-[11px] font-extrabold uppercase tracking-[0.18em] text-fg-3">
             <span aria-hidden className="pr-1 text-accent">
               ▰
             </span>
             Top Performers
           </h2>
-          <p className="font-condensed text-[10px] uppercase tracking-[0.12em] text-fg-5">
+          <p className="font-condensed text-[10px] uppercase tracking-[0.12em] text-fg-3">
             Game-score model · tap a row
           </p>
         </div>

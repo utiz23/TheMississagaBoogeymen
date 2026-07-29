@@ -203,15 +203,15 @@ export function ActionTracker({
         <div className="border border-border bg-surface">
           <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 px-3.5 pt-3 pb-2">
             <div className="flex flex-col gap-0.5">
-              <h2 className="font-condensed text-[11px] font-extrabold tracking-[0.18em] uppercase text-fg-4">
+              <h2 className="font-condensed text-[11px] font-extrabold tracking-[0.18em] uppercase text-fg-3">
                 Action Tracker Map
               </h2>
-              <span className="font-condensed text-[10px] font-semibold tracking-[0.14em] uppercase text-fg-4">
+              <span className="font-condensed text-[10px] font-semibold tracking-[0.14em] uppercase text-fg-3">
                 {isEmpty ? 'Post-game OCR' : 'Post-game OCR · event positions on the rink'}
               </span>
             </div>
             {isEmpty ? null : (
-              <span className="font-condensed text-[10px] font-bold tracking-[0.14em] uppercase text-fg-4">
+              <span className="font-condensed text-[10px] font-bold tracking-[0.14em] uppercase text-fg-3">
                 Click a marker or card to pin it
               </span>
             )}
@@ -290,7 +290,7 @@ function EmptyActionTracker() {
       <div className="font-condensed text-[13px] font-extrabold tracking-[0.18em] uppercase text-fg-3">
         No tracked events
       </div>
-      <div className="max-w-[420px] font-condensed text-[11px] leading-relaxed font-semibold text-fg-5">
+      <div className="max-w-[420px] font-condensed text-[11px] leading-relaxed font-semibold text-fg-3">
         Rink positions come from reviewed post-game Action Tracker capture. This match has none, so
         there is nothing to plot — the box score and team stats above are EA-sourced and unaffected.
       </div>

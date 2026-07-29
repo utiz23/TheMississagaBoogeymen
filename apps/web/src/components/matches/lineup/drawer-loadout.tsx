@@ -63,7 +63,7 @@ function hasAttributes(row: LineupRow): boolean {
 
 function MissingChip({ label }: { label: string }) {
   return (
-    <span className="border border-dashed border-border px-1.5 py-0.5 font-condensed text-[9px] font-bold uppercase tracking-[0.12em] text-fg-4">
+    <span className="border border-dashed border-border px-1.5 py-0.5 font-condensed text-[9px] font-bold uppercase tracking-[0.12em] text-fg-3">
       {label}
     </span>
   )
@@ -100,7 +100,7 @@ function BioCompareStrip({
 }) {
   const bgm = bioCells(bgmRow)
   const opp = bioCells(oppRow)
-  const label = 'font-condensed text-[9px] font-bold uppercase tracking-[0.16em] text-fg-4'
+  const label = 'font-condensed text-[9px] font-bold uppercase tracking-[0.16em] text-fg-3'
   const sideTag =
     'min-w-[30px] font-condensed text-[9px] font-extrabold uppercase tracking-[0.08em]'
   const cell =
@@ -114,7 +114,7 @@ function BioCompareStrip({
       <span className={label}>Level</span>
 
       <span className={`${sideTag} text-accent`}>BGM</span>
-      <span className={`${cell} ${bgm.build === '—' ? 'text-fg-6' : 'text-fg-1'}`}>
+      <span className={`${cell} ${bgm.build === '—' ? 'text-fg-3' : 'text-fg-1'}`}>
         {bgm.build}
       </span>
       <span className={`${cell} text-fg-2`}>{bgm.hw}</span>
@@ -122,7 +122,7 @@ function BioCompareStrip({
       <span className={`${cell} text-fg-2`}>{bgm.lvl}</span>
 
       <span className={`${sideTag} [color:var(--opp)]`}>{oppAbbrev}</span>
-      <span className={`${cell} ${opp.build === '—' ? 'text-fg-6' : 'text-fg-1'}`}>
+      <span className={`${cell} ${opp.build === '—' ? 'text-fg-3' : 'text-fg-1'}`}>
         {opp.build}
       </span>
       <span className={`${cell} text-fg-2`}>{opp.hw}</span>
@@ -135,7 +135,7 @@ function BioCompareStrip({
 // ─── Attribute rows ──────────────────────────────────────────────────────────
 
 function attrValueTone(v: AttributeValue | null): string {
-  if (v === null) return 'text-fg-6'
+  if (v === null) return 'text-fg-3'
   const delta = v.delta ?? 0
   if (delta > 0) return 'text-win'
   if (delta < 0) return 'text-loss'

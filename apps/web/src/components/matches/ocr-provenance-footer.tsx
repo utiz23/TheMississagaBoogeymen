@@ -57,7 +57,7 @@ export function OcrProvenanceFooter({
       <FootKV k="Sources" v={sourcesValue} />
       <div className="flex flex-col gap-[2px]">
         <span
-          className="cursor-help font-condensed text-[9px] font-semibold uppercase tracking-[0.22em] text-[var(--color-fg-6)]"
+          className="cursor-help font-condensed text-[9px] font-semibold uppercase tracking-[0.22em] text-fg-3"
           title={headlineTooltip}
         >
           Confidence
@@ -80,7 +80,7 @@ export function OcrProvenanceFooter({
 function FootKV({ k, v }: { k: string; v: string }) {
   return (
     <div className="flex flex-col gap-[2px]">
-      <span className="font-condensed text-[9px] font-semibold uppercase tracking-[0.22em] text-[var(--color-fg-6)]">
+      <span className="font-condensed text-[9px] font-semibold uppercase tracking-[0.22em] text-fg-3">
         {k}
       </span>
       <span className="font-condensed text-[11px] font-bold tracking-[0.04em] text-[var(--color-fg-3)]">

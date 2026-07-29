@@ -86,7 +86,7 @@ export function DtwGauge({ edge, opponentName, scoreFor, scoreAgainst }: DtwGaug
         <div className="flex flex-col gap-2.5 px-3.5 pb-3.5 pt-3">
           <div className="flex flex-col gap-0.5">
             <div className="flex items-baseline gap-2">
-              <h2 className="font-condensed text-[11px] font-extrabold uppercase tracking-[0.18em] text-fg-4">
+              <h2 className="font-condensed text-[11px] font-extrabold uppercase tracking-[0.18em] text-fg-3">
                 <span aria-hidden className="pr-1 text-accent">
                   ▰
                 </span>
@@ -94,7 +94,7 @@ export function DtwGauge({ edge, opponentName, scoreFor, scoreAgainst }: DtwGaug
               </h2>
               <ConfidenceChip coverage={coverage} contributors={contributors} />
             </div>
-            <p className="font-condensed text-[10px] uppercase tracking-[0.12em] text-fg-5">
+            <p className="font-condensed text-[10px] uppercase tracking-[0.12em] text-fg-3">
               Weighted team totals · {edge.inputs.shots.source === 'ocr' ? 'OCR shots' : 'EA shots'}
             </p>
           </div>
@@ -143,7 +143,7 @@ function SidePct({
   verdict: Verdict
 }) {
   const leads = verdict === side
-  const labelColor = leads ? sideColorClass(side) : 'text-fg-4'
+  const labelColor = leads ? sideColorClass(side) : 'text-fg-3'
   const valueColor = leads ? sideColorClass(side) : 'text-fg-3'
   const align = side === 'bgm' ? 'items-start' : 'items-end'
 
@@ -161,7 +161,7 @@ function SidePct({
         }
       >
         {pct.toFixed(1)}
-        <span className="font-condensed text-[18px] text-fg-4">%</span>
+        <span className="font-condensed text-[18px] text-fg-3">%</span>
       </span>
     </div>
   )
@@ -194,7 +194,7 @@ function ResultLine({
   return (
     <span
       className={`text-balance text-center font-condensed text-[10px] font-bold uppercase tracking-[0.12em] tabular-nums ${
-        aligned ? 'text-fg-4' : 'text-[var(--color-otl)]'
+        aligned ? 'text-fg-3' : 'text-[var(--color-otl)]'
       }`}
     >
       Edge{' '}
@@ -335,7 +335,7 @@ function Disclosure({
 
   return (
     <details className="group border-t border-border-subtle pt-2.5">
-      <summary className="flex cursor-pointer list-none items-center gap-1.5 font-condensed text-[10px] font-bold uppercase tracking-[0.14em] text-fg-4 [&::-webkit-details-marker]:hidden">
+      <summary className="flex cursor-pointer list-none items-center gap-1.5 font-condensed text-[10px] font-bold uppercase tracking-[0.14em] text-fg-3 [&::-webkit-details-marker]:hidden">
         Where the edge came from
         <svg
           aria-hidden
@@ -361,7 +361,7 @@ function Disclosure({
           <ExcludedRow key={c.id} contributor={c} />
         ))}
         <div className="flex flex-wrap items-center gap-1.5 border-t border-border-subtle pt-2.5">
-          <span className="font-condensed text-[10px] font-bold uppercase tracking-[0.14em] text-fg-4">
+          <span className="font-condensed text-[10px] font-bold uppercase tracking-[0.14em] text-fg-3">
             Formula
           </span>
           {weighted.map((c) => (
@@ -422,7 +422,7 @@ function ContributorBlock({
         </div>
       )}
 
-      <span className="font-condensed text-[10px] font-bold uppercase tracking-[0.1em] tabular-nums text-fg-4">
+      <span className="font-condensed text-[10px] font-bold uppercase tracking-[0.1em] tabular-nums text-fg-3">
         {delta === null || share === null ? (
           <>Not captured · model treats as even</>
         ) : (
@@ -445,13 +445,13 @@ function ContributorBlock({
 function ExcludedRow({ contributor }: { contributor: Contributor }) {
   return (
     <div className="flex items-center gap-1.5">
-      <span className="font-condensed text-[11px] font-black uppercase tracking-[0.06em] text-fg-4">
+      <span className="font-condensed text-[11px] font-black uppercase tracking-[0.06em] text-fg-3">
         {contributor.label}
       </span>
-      <span className="border border-dashed border-border px-1.5 py-[1px] font-condensed text-[10px] font-extrabold uppercase text-fg-4">
+      <span className="border border-dashed border-border px-1.5 py-[1px] font-condensed text-[10px] font-extrabold uppercase text-fg-3">
         — info
       </span>
-      <span className="ml-auto font-condensed text-[10px] font-bold uppercase tracking-[0.1em] text-fg-4">
+      <span className="ml-auto font-condensed text-[10px] font-bold uppercase tracking-[0.1em] text-fg-3">
         Not captured · excluded
       </span>
     </div>

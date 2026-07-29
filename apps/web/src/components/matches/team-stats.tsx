@@ -27,13 +27,13 @@ export function TeamStats({ rows, opponentName }: TeamStatsProps) {
       <div className="border border-border bg-surface">
         <div className="flex flex-col gap-2 px-3.5 pb-2.5 pt-3">
           <div className="flex flex-col gap-0.5">
-            <h2 className="font-condensed text-[11px] font-extrabold uppercase tracking-[0.18em] text-fg-4">
+            <h2 className="font-condensed text-[11px] font-extrabold uppercase tracking-[0.18em] text-fg-3">
               <span aria-hidden className="pr-1 text-accent">
                 ▰
               </span>
               Team Stats
             </h2>
-            <p className="font-condensed text-[10px] uppercase tracking-[0.12em] text-fg-5">
+            <p className="font-condensed text-[10px] uppercase tracking-[0.12em] text-fg-3">
               Head to head · bar = share of total
             </p>
           </div>
@@ -60,7 +60,7 @@ function Group({ group }: { group: BoxScoreGroup }) {
     <div className="flex flex-col gap-2">
       <div className="flex items-center gap-2.5">
         <div className="h-px flex-1 bg-border-subtle" />
-        <h3 className="font-condensed text-[10px] font-bold uppercase tracking-[0.18em] text-fg-4">
+        <h3 className="font-condensed text-[10px] font-bold uppercase tracking-[0.18em] text-fg-3">
           {group.title}
         </h3>
         <div className="h-px flex-1 bg-border-subtle" />
@@ -71,7 +71,7 @@ function Group({ group }: { group: BoxScoreGroup }) {
         ))}
       </div>
       {group.footnote ? (
-        <p className="text-[10px] leading-snug text-fg-5">{group.footnote}</p>
+        <p className="text-[10px] leading-snug text-fg-3">{group.footnote}</p>
       ) : null}
     </div>
   )
@@ -86,16 +86,16 @@ function Row({ row }: { row: BoxScoreRow }) {
       <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2">
         <span
           className={`min-w-[38px] font-condensed text-[13px] font-extrabold tabular-nums ${
-            winner === 'bgm' ? 'text-accent' : 'text-fg-4'
+            winner === 'bgm' ? 'text-accent' : 'text-fg-3'
           }`}
         >
           {row.us}
         </span>
-        <span className="text-center font-condensed text-[10px] font-semibold uppercase leading-tight tracking-[0.08em] text-fg-4">
+        <span className="text-center font-condensed text-[10px] font-semibold uppercase leading-tight tracking-[0.08em] text-fg-3">
           {row.label}
           {unit !== null ? (
             <span
-              className="ml-1 align-middle font-condensed text-[9px] font-bold tracking-[0.12em] text-fg-6"
+              className="ml-1 align-middle font-condensed text-[9px] font-bold tracking-[0.12em] text-fg-3"
               title="Minutes and seconds"
             >
               {unit}
@@ -103,7 +103,7 @@ function Row({ row }: { row: BoxScoreRow }) {
           ) : null}
           {row.polarity === 'lower-better' ? (
             <span
-              className="ml-1 align-middle font-condensed text-[9px] font-bold tracking-[0.12em] text-fg-6"
+              className="ml-1 align-middle font-condensed text-[9px] font-bold tracking-[0.12em] text-fg-3"
               title="Lower is better"
             >
               ↓ BETTER
@@ -112,7 +112,7 @@ function Row({ row }: { row: BoxScoreRow }) {
         </span>
         <span
           className={`min-w-[38px] text-right font-condensed text-[13px] font-extrabold tabular-nums ${
-            winner === 'opp' ? '[color:var(--opp)]' : 'text-fg-4'
+            winner === 'opp' ? '[color:var(--opp)]' : 'text-fg-3'
           }`}
         >
           {row.them ?? '—'}

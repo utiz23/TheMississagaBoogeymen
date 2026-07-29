@@ -50,11 +50,11 @@ export function PerformerRow({
 
   const rowClass = [
     'grid w-full grid-cols-[18px_minmax(0,1fr)_auto] items-center gap-x-2.5 border-t border-border-subtle px-3.5 py-2 text-left outline-none transition-colors',
-    'cursor-pointer hover:bg-surface-raised focus-visible:ring-1 focus-visible:ring-accent',
+    'cursor-pointer hover:bg-surface-raised',
     expanded ? 'bg-surface-raised [box-shadow:inset_2px_0_0_var(--color-accent)]' : tint,
   ].join(' ')
 
-  const scoreClass = isTop3 ? 'text-accent' : entry.score < 0 ? 'text-fg-5' : 'text-fg-2'
+  const scoreClass = isTop3 ? 'text-accent' : entry.score < 0 ? 'text-fg-3' : 'text-fg-2'
 
   return (
     <div>
@@ -67,7 +67,7 @@ export function PerformerRow({
       >
         <span
           className={`text-center font-condensed text-[13px] font-black leading-none tabular-nums ${
-            isTop3 ? 'text-accent' : 'text-fg-4'
+            isTop3 ? 'text-accent' : 'text-fg-3'
           }`}
         >
           {rank}
@@ -88,7 +88,12 @@ export function PerformerRow({
               {isBgm ? 'BGM' : opponentLabel}
             </span>
             {posLabel !== null ? (
-              <PositionPill label={posLabel} position={entry.position} isGoalie={entry.isGoalie} />
+              <PositionPill
+                label={posLabel}
+                position={entry.position}
+                isGoalie={entry.isGoalie}
+                tone="muted"
+              />
             ) : null}
             {isTop3 ? (
               <span
@@ -140,14 +145,16 @@ function StatLine({ entry }: { entry: PlayerScoreEntry }) {
   const s = entry.stats
 
   if (entry.isGoalie) {
-    const sa = s.shotsAgainst ?? 0
-    const saves = s.saves ?? 0
+    // — = not captured, 0 = a real zero. GA is derived, so it needs BOTH inputs.
+    const sa = s.shotsAgainst
+    const saves = s.saves
+    const both = sa !== null && saves !== null
     return (
       <div className="flex flex-wrap gap-x-3 gap-y-1">
-        <Stat label="SV" value={saves.toString()} />
-        <Stat label="SA" value={sa.toString()} />
-        <Stat label="SV%" value={sa > 0 ? formatSavePct(saves / sa) : '—'} />
-        <Stat label="GA" value={(s.shotsAgainst === null ? 0 : sa - saves).toString()} dim />
+        <Stat label="SV" value={saves?.toString() ?? '—'} />
+        <Stat label="SA" value={sa?.toString() ?? '—'} />
+        <Stat label="SV%" value={both && sa > 0 ? formatSavePct(saves / sa) : '—'} />
+        <Stat label="GA" value={both ? (sa - saves).toString() : '—'} dim />
       </div>
     )
   }
@@ -187,7 +194,7 @@ function Stat({
     tone === 'pos' ? 'text-win' : tone === 'neg' ? 'text-loss' : dim ? 'text-fg-3' : 'text-fg-1'
   return (
     <span className="flex flex-col gap-[1px]">
-      <span className="font-condensed text-[9px] font-extrabold uppercase tracking-[0.18em] text-fg-5">
+      <span className="font-condensed text-[9px] font-extrabold uppercase tracking-[0.18em] text-fg-3">
         {label}
       </span>
       <span
@@ -205,13 +212,13 @@ function SeasonDelta({ vsSeasonAvg, isBgm }: { vsSeasonAvg: number | null; isBgm
   if (vsSeasonAvg === null) {
     if (!isBgm) return null
     return (
-      <span className="font-condensed text-[10px] font-bold uppercase tracking-[0.12em] text-fg-5">
+      <span className="font-condensed text-[10px] font-bold uppercase tracking-[0.12em] text-fg-3">
         — no season data
       </span>
     )
   }
   return (
-    <span className="font-condensed text-[10px] font-bold uppercase tracking-[0.12em] text-fg-4">
+    <span className="font-condensed text-[10px] font-bold uppercase tracking-[0.12em] text-fg-3">
       <span className={vsSeasonAvg >= 0 ? 'font-extrabold text-win' : 'font-extrabold text-loss'}>
         {vsSeasonAvg >= 0 ? '+' : ''}
         {vsSeasonAvg.toFixed(1)}
@@ -245,7 +252,7 @@ function BreakdownBar({ breakdown, score }: { breakdown: ScoreFactor[]; score: n
 
   return (
     <div className="flex flex-col gap-1.5">
-      <span className="font-condensed text-[10px] font-extrabold uppercase tracking-[0.14em] text-fg-4">
+      <span className="font-condensed text-[10px] font-extrabold uppercase tracking-[0.14em] text-fg-3">
         Where the {score.toFixed(2)} came from
       </span>
       <div className="flex h-1.5 overflow-hidden border border-border bg-charcoal">
@@ -263,7 +270,7 @@ function BreakdownBar({ breakdown, score }: { breakdown: ScoreFactor[]; score: n
           return (
             <span
               key={f.label}
-              className="inline-flex items-center gap-1 font-condensed text-[10px] font-bold uppercase tracking-[0.1em] text-fg-4"
+              className="inline-flex items-center gap-1 font-condensed text-[10px] font-bold uppercase tracking-[0.1em] text-fg-3"
             >
               <span
                 aria-hidden

@@ -46,13 +46,13 @@ export function BoxScore({ rows, opponentLabel }: BoxScoreProps) {
       <div className="border border-border bg-surface">
         <div className="flex flex-col gap-2.5 px-3.5 pb-3.5 pt-3">
           <div className="flex flex-col gap-0.5">
-            <h2 className="font-condensed text-[11px] font-extrabold uppercase tracking-[0.18em] text-fg-4">
+            <h2 className="font-condensed text-[11px] font-extrabold uppercase tracking-[0.18em] text-fg-3">
               <span aria-hidden className="pr-1 text-accent">
                 ▰
               </span>
               Box Score
             </h2>
-            <p className="font-condensed text-[10px] uppercase tracking-[0.12em] text-fg-5">
+            <p className="font-condensed text-[10px] uppercase tracking-[0.12em] text-fg-3">
               Period-by-period · {sourceKind === 'ocr' ? 'OCR-reviewed' : 'EA totals'}
             </p>
           </div>
@@ -137,7 +137,7 @@ function ModeTabs({
             className={`border px-2.5 py-1 font-condensed text-[10px] font-bold uppercase tracking-[0.06em] transition-colors ${
               active
                 ? 'border-accent/50 bg-accent/10 text-accent'
-                : 'border-border text-fg-4 hover:bg-surface-raised/50 hover:text-fg-3'
+                : 'border-border text-fg-3 hover:bg-surface-raised/50 hover:text-fg-3'
             }`}
           >
             {MODE_LABEL[m]}
@@ -181,7 +181,7 @@ function BoxScoreTable({
           <tr className="bg-charcoal">
             <th
               scope="col"
-              className="px-1.5 py-1 text-left font-condensed text-[10px] font-bold uppercase tracking-[0.06em] text-fg-4"
+              className="px-1.5 py-1 text-left font-condensed text-[10px] font-bold uppercase tracking-[0.06em] text-fg-3"
             >
               Team
             </th>
@@ -189,7 +189,7 @@ function BoxScoreTable({
               <th
                 key={r.id}
                 scope="col"
-                className="px-0.5 py-1 text-center font-condensed text-[10px] font-bold uppercase tracking-[0.04em] tabular-nums text-fg-4"
+                className="px-0.5 py-1 text-center font-condensed text-[10px] font-bold uppercase tracking-[0.04em] tabular-nums text-fg-3"
               >
                 {formatPeriodLabel(r.periodNumber)}
               </th>
@@ -270,7 +270,7 @@ function TeamRow({
           <td
             key={r.id}
             className={`px-0.5 py-1.5 text-center font-condensed text-[12px] tabular-nums ${edge} ${
-              mine === null ? 'text-fg-5' : wins ? `font-bold ${winColor} ${winTint}` : 'text-fg-3'
+              mine === null ? 'text-fg-3' : wins ? `font-bold ${winColor} ${winTint}` : 'text-fg-2'
             }`}
           >
             {mine ?? '—'}
@@ -279,7 +279,7 @@ function TeamRow({
       })}
       <td
         className={`border-l border-accent/40 bg-accent/[0.06] px-0.5 py-1.5 text-center font-condensed text-[14px] font-black tabular-nums ${edge} ${
-          total === null ? 'text-fg-5' : isWinner ? winColor : 'text-fg-2'
+          total === null ? 'text-fg-3' : isWinner ? winColor : 'text-fg-2'
         }`}
         style={isWinner && isBgm ? { textShadow: '0 0 10px rgba(232,65,49,0.30)' } : undefined}
       >
@@ -316,7 +316,7 @@ function FaceoffPctRow({
             key={r.id}
             aria-hidden
             className={`px-0.5 pb-1.5 pt-0 text-center font-condensed text-[9.5px] font-bold tabular-nums ${
-              pct === null ? 'text-fg-5' : isBgmWin ? 'text-accent' : 'text-fg-4'
+              pct === null ? 'text-fg-3' : isBgmWin ? 'text-accent' : 'text-fg-2'
             }`}
           >
             {pct !== null ? `${pct.toFixed(0)}%` : '—'}
@@ -326,7 +326,7 @@ function FaceoffPctRow({
       <td
         aria-hidden
         className={`border-l border-accent/40 bg-accent/[0.06] px-0.5 pb-1.5 pt-0 text-center font-condensed text-[9.5px] font-bold tabular-nums ${
-          totalPct === null ? 'text-fg-5' : bgmWinsTotal ? 'text-accent' : 'text-fg-4'
+          totalPct === null ? 'text-fg-3' : bgmWinsTotal ? 'text-accent' : 'text-fg-2'
         }`}
       >
         {totalPct !== null ? `${totalPct.toFixed(0)}%` : '—'}
@@ -350,7 +350,7 @@ function Footnotes({
   return (
     <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
       {missingPeriods.length > 0 ? (
-        <span className="font-condensed text-[10px] font-semibold uppercase tracking-[0.1em] text-fg-4">
+        <span className="font-condensed text-[10px] font-semibold uppercase tracking-[0.1em] text-fg-3">
           {missingPeriods.join(', ')} unread — excluded from totals
         </span>
       ) : null}

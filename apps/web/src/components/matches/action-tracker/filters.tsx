@@ -150,7 +150,7 @@ export function FilterBar({
 function FilterLabel({ children, className }: { children: React.ReactNode; className?: string }) {
   return (
     <span
-      className={`font-condensed text-[9px] font-bold tracking-[0.22em] uppercase text-fg-5 ${className ?? ''}`}
+      className={`font-condensed text-[9px] font-bold tracking-[0.22em] uppercase text-fg-3 ${className ?? ''}`}
     >
       {children}
     </span>
@@ -185,12 +185,12 @@ function SegButton({
   const base =
     'inline-flex items-center gap-1.5 whitespace-nowrap px-2.5 py-1.5 font-condensed text-[10.5px] font-bold uppercase tracking-[0.14em] transition-colors'
   const tone = disabled
-    ? 'cursor-not-allowed text-fg-6 opacity-50'
+    ? 'cursor-not-allowed text-fg-4'
     : active
       ? ''
       : tint !== undefined
         ? 'hover:brightness-125'
-        : 'text-fg-4 hover:text-fg-2'
+        : 'text-fg-3 hover:text-fg-2'
   const style: React.CSSProperties = disabled
     ? {}
     : active
@@ -214,7 +214,7 @@ function SegButton({
           style={
             active
               ? { borderColor: withAlpha(color, 0.4), color }
-              : { borderColor: 'var(--color-border)', color: 'var(--color-fg-5)' }
+              : { borderColor: 'var(--color-border)', color: 'var(--color-fg-3)' }
           }
         >
           {count}
@@ -259,7 +259,7 @@ function TypeToggle({
         className={`min-w-[16px] border px-1 py-[1px] text-center font-condensed text-[9.5px] font-bold tabular-nums ${
           active
             ? 'border-[color-mix(in_srgb,var(--color-accent)_40%,transparent)] text-accent'
-            : 'border-border text-fg-5'
+            : 'border-border text-fg-3'
         }`}
       >
         {count}
