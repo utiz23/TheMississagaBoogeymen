@@ -28,7 +28,7 @@ import {
   type GameSheetMode,
 } from '@/components/matches/game-sheet-mode'
 import { TopPerformers } from '@/components/matches/top-performers'
-import { PossessionEdgeBar } from '@/components/matches/possession-edge'
+import { DtwGauge } from '@/components/matches/dtw-gauge'
 import { TeamStats } from '@/components/matches/team-stats'
 import { ContextFooter } from '@/components/matches/context-footer'
 import { BoxScore } from '@/components/matches/box-score'
@@ -262,9 +262,10 @@ export default async function GameDetailPage({ params, searchParams }: Props) {
               opponentLabel={match.opponentName}
             />
 
-            {/* Deserve-to-win — the DtW gauge replaces this bar in Phase 7. */}
+            {/* Deserve-to-win — arc gauge over the weighted possession model;
+                self-collapses when the match has neither shots nor hits. */}
             {possessionEdge !== null ? (
-              <PossessionEdgeBar
+              <DtwGauge
                 edge={possessionEdge}
                 opponentName={match.opponentName}
                 scoreFor={match.scoreFor}

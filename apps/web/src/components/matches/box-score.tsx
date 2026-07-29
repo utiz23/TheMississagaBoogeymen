@@ -4,7 +4,17 @@ import { useId, useRef, useState, type KeyboardEvent } from 'react'
 import type { MatchPeriodSummaryRow } from '@eanhl/db/queries'
 import { abbreviateTeamName } from '@/lib/format'
 import { formatPeriodLabel } from '@/lib/period-label'
-import { SectionHeader } from '@/components/ui/section-header'
+import { ProvenanceChip } from './ocr-provenance-footer'
+
+// Rail module — period-by-period box score. Restyled to the prototype's
+// compact grid (TEAM · periods · TOT) at ~299px rail width; the pre-regrid
+// layout carried a headline total inside every tab, which no longer fits and
+// is redundant with the TOT column.
+//
+// The roving-tabindex tablist is kept verbatim — it is the a11y template the
+// rest of the game sheet copies.
+//
+// Rail collapse rule: no period rows (every EA-only match) → render nothing.
 
 interface BoxScoreProps {
   rows: MatchPeriodSummaryRow[]
@@ -28,32 +38,38 @@ export function BoxScore({ rows, opponentLabel }: BoxScoreProps) {
   if (rows.length === 0) return null
 
   const sortedRows = sortPeriods(rows)
-  const bgmAbbrev = 'BGM'
   const oppAbbrev = abbreviateTeamName(opponentLabel)
   const sourceKind = detectSource(rows)
 
   return (
-    <section className="space-y-3">
-      <SectionHeader label="Box Score" subtitle="Period-by-period · OCR-reviewed" />
+    <section>
+      <div className="border border-border bg-surface">
+        <div className="flex flex-col gap-2.5 px-3.5 pb-3.5 pt-3">
+          <div className="flex flex-col gap-0.5">
+            <h2 className="font-condensed text-[11px] font-extrabold uppercase tracking-[0.18em] text-fg-4">
+              <span aria-hidden className="pr-1 text-accent">
+                ▰
+              </span>
+              Box Score
+            </h2>
+            <p className="font-condensed text-[10px] uppercase tracking-[0.12em] text-fg-5">
+              Period-by-period · {sourceKind === 'ocr' ? 'OCR-reviewed' : 'EA totals'}
+            </p>
+          </div>
 
-      <ModeTabs
-        mode={mode}
-        onChange={setMode}
-        rows={sortedRows}
-        tablistId={tablistId}
-        tableId={tableId}
-      />
+          <ModeTabs mode={mode} onChange={setMode} tablistId={tablistId} tableId={tableId} />
 
-      <BoxScoreTable
-        mode={mode}
-        rows={sortedRows}
-        bgmAbbrev={bgmAbbrev}
-        oppAbbrev={oppAbbrev}
-        tableId={tableId}
-        tablistId={tablistId}
-      />
+          <BoxScoreTable
+            mode={mode}
+            rows={sortedRows}
+            oppAbbrev={oppAbbrev}
+            tableId={tableId}
+            tablistId={tablistId}
+          />
 
-      <Footnotes mode={mode} rows={sortedRows} sourceKind={sourceKind} />
+          <Footnotes mode={mode} rows={sortedRows} sourceKind={sourceKind} />
+        </div>
+      </div>
     </section>
   )
 }
@@ -63,13 +79,11 @@ export function BoxScore({ rows, opponentLabel }: BoxScoreProps) {
 function ModeTabs({
   mode,
   onChange,
-  rows,
   tablistId,
   tableId,
 }: {
   mode: BoxScoreMode
   onChange: (m: BoxScoreMode) => void
-  rows: MatchPeriodSummaryRow[]
   tablistId: string
   tableId: string
 }) {
@@ -105,129 +119,32 @@ function ModeTabs({
       role="tablist"
       aria-label="Box score mode"
       onKeyDown={handleKey}
-      className="grid grid-cols-3 border border-zinc-800 bg-surface"
+      className="flex flex-wrap gap-1.5"
     >
-      {MODES.map((m, i) => (
-        <ModeTab
-          key={m}
-          mode={m}
-          active={mode === m}
-          onActivate={() => {
-            onChange(m)
-          }}
-          tableId={tableId}
-          rows={rows}
-          last={i === MODES.length - 1}
-        />
-      ))}
+      {MODES.map((m) => {
+        const active = mode === m
+        return (
+          <button
+            key={m}
+            type="button"
+            role="tab"
+            aria-selected={active}
+            aria-controls={tableId}
+            tabIndex={active ? 0 : -1}
+            onClick={() => {
+              onChange(m)
+            }}
+            className={`border px-2.5 py-1 font-condensed text-[10px] font-bold uppercase tracking-[0.06em] transition-colors ${
+              active
+                ? 'border-accent/50 bg-accent/10 text-accent'
+                : 'border-border text-fg-4 hover:bg-surface-raised/50 hover:text-fg-3'
+            }`}
+          >
+            {MODE_LABEL[m]}
+          </button>
+        )
+      })}
     </div>
-  )
-}
-
-function ModeTab({
-  mode,
-  active,
-  onActivate,
-  tableId,
-  rows,
-  last,
-}: {
-  mode: BoxScoreMode
-  active: boolean
-  onActivate: () => void
-  tableId: string
-  rows: MatchPeriodSummaryRow[]
-  last: boolean
-}) {
-  const totals = computeTotals(rows, mode)
-  const wrapperCls = [
-    'relative flex flex-col items-start gap-1 px-3 py-3 text-left transition-colors sm:px-4',
-    last ? '' : 'border-r border-zinc-800',
-    active
-      ? '[background:linear-gradient(180deg,rgba(232,65,49,0.10),rgba(232,65,49,0.02))]'
-      : 'hover:bg-surface-raised/50',
-  ].join(' ')
-
-  return (
-    <button
-      type="button"
-      role="tab"
-      aria-selected={active}
-      aria-controls={tableId}
-      tabIndex={active ? 0 : -1}
-      onClick={onActivate}
-      className={wrapperCls}
-    >
-      {active ? (
-        <span aria-hidden className="ticker-strip ticker-strip-thin absolute inset-x-0 top-0" />
-      ) : null}
-      <span
-        className={`font-condensed text-[11px] font-bold uppercase tracking-[0.22em] ${
-          active ? 'text-fg-1' : 'text-fg-5'
-        }`}
-      >
-        {MODE_LABEL[mode]}
-      </span>
-      <ModeTabSummary mode={mode} totals={totals} active={active} />
-    </button>
-  )
-}
-
-function ModeTabSummary({
-  mode,
-  totals,
-  active,
-}: {
-  mode: BoxScoreMode
-  totals: { forVal: number | null; againstVal: number | null }
-  active: boolean
-}) {
-  if (totals.forVal === null || totals.againstVal === null) {
-    return <span className="font-condensed text-[18px] font-black tabular-nums text-fg-5">—</span>
-  }
-  const bgmAhead = totals.forVal > totals.againstVal
-  const oppAhead = totals.againstVal > totals.forVal
-  const dim = active ? 'text-accent' : 'text-fg-3'
-  const win = active ? 'text-accent' : 'text-fg-1'
-
-  if (mode === 'faceoffs') {
-    const pct = computeFaceoffPct(totals.forVal, totals.againstVal)
-    const totalAttempts = totals.forVal + totals.againstVal
-    return (
-      <span className="flex items-baseline gap-2 font-condensed tabular-nums">
-        <span className={`text-[18px] font-black ${active ? 'text-accent' : 'text-fg-3'}`}>
-          {pct !== null ? `${pct.toFixed(1)}%` : '—'}
-        </span>
-        <span className="text-[11px] font-bold text-fg-5">
-          {totalAttempts > 0
-            ? `${totals.forVal.toString()}W · ${totalAttempts.toString()} total`
-            : '—'}
-        </span>
-      </span>
-    )
-  }
-
-  const delta = totals.forVal - totals.againstVal
-  return (
-    <span className="flex items-baseline gap-2 font-condensed tabular-nums">
-      <span
-        className={`text-[18px] font-black ${
-          bgmAhead ? win : oppAhead ? (active ? 'text-fg-1' : 'text-fg-3') : dim
-        }`}
-      >
-        {totals.forVal} – {totals.againstVal}
-      </span>
-      {(mode === 'shots' && delta !== 0) || mode === 'goals' ? (
-        <span
-          className={`text-[11px] font-extrabold tracking-[0.06em] ${
-            delta > 0 ? 'text-emerald-400' : delta < 0 ? 'text-rose-400' : 'text-fg-3'
-          }`}
-        >
-          {delta > 0 ? '+' : delta === 0 ? '±' : ''}
-          {delta}
-        </span>
-      ) : null}
-    </span>
   )
 }
 
@@ -236,14 +153,12 @@ function ModeTabSummary({
 function BoxScoreTable({
   mode,
   rows,
-  bgmAbbrev,
   oppAbbrev,
   tableId,
   tablistId,
 }: {
   mode: BoxScoreMode
   rows: MatchPeriodSummaryRow[]
-  bgmAbbrev: string
   oppAbbrev: string
   tableId: string
   tablistId: string
@@ -259,14 +174,14 @@ function BoxScoreTable({
       id={tableId}
       role="tabpanel"
       aria-labelledby={tablistId}
-      className="overflow-x-auto border border-zinc-800 bg-surface"
+      className="overflow-x-auto border border-border-subtle"
     >
       <table className="w-full border-collapse">
         <thead>
-          <tr>
+          <tr className="bg-charcoal">
             <th
               scope="col"
-              className="border-b border-zinc-800 bg-surface-raised px-3 py-2 text-left font-condensed text-[10px] font-bold uppercase tracking-[0.20em] text-fg-5"
+              className="px-1.5 py-1 text-left font-condensed text-[10px] font-bold uppercase tracking-[0.06em] text-fg-4"
             >
               Team
             </th>
@@ -274,36 +189,39 @@ function BoxScoreTable({
               <th
                 key={r.id}
                 scope="col"
-                className="border-b border-zinc-800 bg-surface-raised px-3 py-2 text-center font-condensed text-[10px] font-bold uppercase tracking-[0.20em] text-fg-5"
+                className="px-0.5 py-1 text-center font-condensed text-[10px] font-bold uppercase tracking-[0.04em] tabular-nums text-fg-4"
               >
-                <PeriodHeading number={r.periodNumber} />
+                {formatPeriodLabel(r.periodNumber)}
               </th>
             ))}
             <th
               scope="col"
-              className="border-b border-zinc-800 border-l border-accent/40 bg-[linear-gradient(180deg,rgba(232,65,49,0.10),rgba(232,65,49,0.02))] px-3 py-2 text-center font-condensed text-[10px] font-bold uppercase tracking-[0.20em] text-accent"
+              className="border-l border-accent/40 px-0.5 py-1 text-center font-condensed text-[10px] font-bold uppercase tracking-[0.04em] text-accent"
             >
-              Total
+              Tot
             </th>
           </tr>
         </thead>
         <tbody>
-          <BgmRow
+          <TeamRow
             mode={mode}
             rows={rows}
-            bgmAbbrev={bgmAbbrev}
+            side="bgm"
+            label="BGM"
             totals={totals}
             isWinner={bgmWinsTotal}
           />
           {mode === 'faceoffs' ? (
             <FaceoffPctRow rows={rows} totals={totals} bgmWinsTotal={bgmWinsTotal} />
           ) : null}
-          <OppRow
+          <TeamRow
             mode={mode}
             rows={rows}
-            oppAbbrev={oppAbbrev}
+            side="opp"
+            label={oppAbbrev}
             totals={totals}
             isWinner={oppWinsTotal}
+            topBorder
           />
         </tbody>
       </table>
@@ -311,110 +229,61 @@ function BoxScoreTable({
   )
 }
 
-function PeriodHeading({ number }: { number: number }) {
-  const isOt = number >= 4
-  return <span className={isOt ? 'font-black text-fg-1' : ''}>{formatPeriodLabel(number)}</span>
-}
-
-function BgmRow({
+function TeamRow({
   mode,
   rows,
-  bgmAbbrev,
+  side,
+  label,
   totals,
   isWinner,
+  topBorder = false,
 }: {
   mode: BoxScoreMode
   rows: MatchPeriodSummaryRow[]
-  bgmAbbrev: string
-  totals: { forVal: number | null; againstVal: number | null }
+  side: 'bgm' | 'opp'
+  label: string
+  totals: Totals
   isWinner: boolean
+  topBorder?: boolean
 }) {
+  const isBgm = side === 'bgm'
+  const edge = topBorder ? 'border-t border-border-subtle' : ''
+  const teamColor = isBgm ? 'text-accent' : '[color:var(--opp)]'
+  const winColor = isBgm ? 'text-accent' : '[color:var(--opp)]'
+  const winTint = isBgm ? 'bg-accent/[0.08]' : 'bg-[color:var(--opp-soft)]'
+  const total = isBgm ? totals.forVal : totals.againstVal
+
   return (
     <tr>
       <th
         scope="row"
-        className="px-3 py-3 text-left font-condensed text-[11px] font-black uppercase tracking-[0.16em] text-accent"
+        className={`px-1.5 py-1.5 text-left font-condensed text-[11px] font-black uppercase tracking-[0.06em] ${teamColor} ${edge}`}
       >
-        {bgmAbbrev}
+        {label}
       </th>
       {rows.map((r) => {
         const { forVal, againstVal } = getModeValues(r, mode)
-        const isPeriodWinner = forVal !== null && againstVal !== null && forVal > againstVal
+        const mine = isBgm ? forVal : againstVal
+        const other = isBgm ? againstVal : forVal
+        const wins = mine !== null && other !== null && mine > other
         return (
           <td
             key={r.id}
-            className={`border-b border-zinc-800/40 px-3 py-3 text-center font-condensed text-[17px] tabular-nums ${
-              forVal === null
-                ? 'font-bold text-fg-5'
-                : isPeriodWinner
-                  ? 'font-black text-accent'
-                  : 'font-bold text-fg-2'
-            } ${isPeriodWinner ? 'bg-accent/[0.04]' : ''}`}
+            className={`px-0.5 py-1.5 text-center font-condensed text-[12px] tabular-nums ${edge} ${
+              mine === null ? 'text-fg-5' : wins ? `font-bold ${winColor} ${winTint}` : 'text-fg-3'
+            }`}
           >
-            {forVal ?? '—'}
+            {mine ?? '—'}
           </td>
         )
       })}
       <td
-        className={`border-l border-accent/40 bg-accent/[0.04] px-3 py-3 text-center font-condensed text-[24px] font-black tabular-nums ${
-          totals.forVal === null
-            ? 'text-fg-5'
-            : isWinner
-              ? 'text-accent [text-shadow:0_0_10px_rgba(232,65,49,0.30)]'
-              : 'text-fg-1'
+        className={`border-l border-accent/40 bg-accent/[0.06] px-0.5 py-1.5 text-center font-condensed text-[14px] font-black tabular-nums ${edge} ${
+          total === null ? 'text-fg-5' : isWinner ? winColor : 'text-fg-2'
         }`}
+        style={isWinner && isBgm ? { textShadow: '0 0 10px rgba(232,65,49,0.30)' } : undefined}
       >
-        {totals.forVal ?? '—'}
-      </td>
-    </tr>
-  )
-}
-
-function OppRow({
-  mode,
-  rows,
-  oppAbbrev,
-  totals,
-  isWinner,
-}: {
-  mode: BoxScoreMode
-  rows: MatchPeriodSummaryRow[]
-  oppAbbrev: string
-  totals: { forVal: number | null; againstVal: number | null }
-  isWinner: boolean
-}) {
-  return (
-    <tr>
-      <th
-        scope="row"
-        className="px-3 py-3 text-left font-condensed text-[11px] font-black uppercase tracking-[0.16em] text-fg-3"
-      >
-        {oppAbbrev}
-      </th>
-      {rows.map((r) => {
-        const { forVal, againstVal } = getModeValues(r, mode)
-        const isPeriodWinner = forVal !== null && againstVal !== null && againstVal > forVal
-        return (
-          <td
-            key={r.id}
-            className={`border-b border-zinc-800/40 px-3 py-3 text-center font-condensed text-[17px] tabular-nums ${
-              againstVal === null
-                ? 'font-bold text-fg-5'
-                : isPeriodWinner
-                  ? 'font-black text-fg-1'
-                  : 'font-bold text-fg-3'
-            } ${isPeriodWinner ? 'bg-fg-4/[0.04]' : ''}`}
-          >
-            {againstVal ?? '—'}
-          </td>
-        )
-      })}
-      <td
-        className={`border-l border-accent/40 bg-accent/[0.04] px-3 py-3 text-center font-condensed text-[24px] font-black tabular-nums ${
-          totals.againstVal === null ? 'text-fg-5' : isWinner ? 'text-fg-1' : 'text-fg-3'
-        }`}
-      >
-        {totals.againstVal ?? '—'}
+        {total ?? '—'}
       </td>
     </tr>
   )
@@ -426,7 +295,7 @@ function FaceoffPctRow({
   bgmWinsTotal,
 }: {
   rows: MatchPeriodSummaryRow[]
-  totals: { forVal: number | null; againstVal: number | null }
+  totals: Totals
   bgmWinsTotal: boolean
 }) {
   const totalPct = computeFaceoffPct(totals.forVal, totals.againstVal)
@@ -446,21 +315,21 @@ function FaceoffPctRow({
           <td
             key={r.id}
             aria-hidden
-            className={`border-b border-zinc-800/40 px-3 pb-3 pt-0 text-center font-condensed text-[10px] font-bold tabular-nums tracking-[0.06em] ${
-              pct === null ? 'text-fg-5' : isBgmWin ? 'text-accent' : 'text-fg-3'
+            className={`px-0.5 pb-1.5 pt-0 text-center font-condensed text-[9.5px] font-bold tabular-nums ${
+              pct === null ? 'text-fg-5' : isBgmWin ? 'text-accent' : 'text-fg-4'
             }`}
           >
-            {pct !== null ? `${pct.toFixed(1)}%` : '—'}
+            {pct !== null ? `${pct.toFixed(0)}%` : '—'}
           </td>
         )
       })}
       <td
         aria-hidden
-        className={`border-l border-accent/40 bg-accent/[0.04] px-3 pb-3 pt-0 text-center font-condensed text-[10px] font-bold tabular-nums ${
-          totalPct === null ? 'text-fg-5' : bgmWinsTotal ? 'text-accent' : 'text-fg-3'
+        className={`border-l border-accent/40 bg-accent/[0.06] px-0.5 pb-1.5 pt-0 text-center font-condensed text-[9.5px] font-bold tabular-nums ${
+          totalPct === null ? 'text-fg-5' : bgmWinsTotal ? 'text-accent' : 'text-fg-4'
         }`}
       >
-        {totalPct !== null ? `${totalPct.toFixed(1)}%` : '—'}
+        {totalPct !== null ? `${totalPct.toFixed(0)}%` : '—'}
       </td>
     </tr>
   )
@@ -479,28 +348,34 @@ function Footnotes({
 }) {
   const { missingPeriods } = computeTotals(rows, mode)
   return (
-    <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 px-1 pt-1">
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
       {missingPeriods.length > 0 ? (
-        <span className="inline-flex items-center gap-2 font-condensed text-[10px] font-semibold uppercase tracking-[0.18em] text-fg-5">
-          <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-accent" />
-          {missingPeriods.join(', ')} OCR unavailable — excluded from totals
+        <span className="font-condensed text-[10px] font-semibold uppercase tracking-[0.1em] text-fg-4">
+          {missingPeriods.join(', ')} unread — excluded from totals
         </span>
       ) : null}
-      <span className="ml-auto inline-flex items-center gap-2 font-condensed text-[10px] font-bold uppercase tracking-[0.18em] text-fg-5">
-        <span
-          aria-hidden
-          className={`h-1.5 w-1.5 rounded-full ${
-            sourceKind === 'ocr' ? 'bg-emerald-400' : 'bg-fg-3'
-          }`}
-          style={sourceKind === 'ocr' ? { boxShadow: '0 0 6px rgba(16,185,129,0.6)' } : undefined}
+      <span className="ml-auto">
+        <ProvenanceChip
+          label={sourceKind === 'ocr' ? 'OCR · post-game' : 'EA · official'}
+          tone={sourceKind === 'ocr' ? 'ok' : 'neutral'}
+          tooltip={
+            sourceKind === 'ocr'
+              ? 'Period rows read from the in-game post-game screens and operator-reviewed.'
+              : 'Period rows derived from the EA Pro Clubs API.'
+          }
         />
-        {sourceKind === 'ocr' ? 'OCR-reviewed · post-game' : 'EA · official'}
       </span>
     </div>
   )
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
+
+interface Totals {
+  forVal: number | null
+  againstVal: number | null
+  missingPeriods: string[]
+}
 
 function sortPeriods(rows: MatchPeriodSummaryRow[]): MatchPeriodSummaryRow[] {
   return [...rows].sort((a, b) => a.periodNumber - b.periodNumber)
@@ -515,10 +390,7 @@ function getModeValues(
   return { forVal: row.faceoffsFor, againstVal: row.faceoffsAgainst }
 }
 
-function computeTotals(
-  rows: MatchPeriodSummaryRow[],
-  mode: BoxScoreMode,
-): { forVal: number | null; againstVal: number | null; missingPeriods: string[] } {
+function computeTotals(rows: MatchPeriodSummaryRow[], mode: BoxScoreMode): Totals {
   let forSum = 0
   let againstSum = 0
   let contributed = 0

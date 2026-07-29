@@ -10,9 +10,12 @@
 
 export interface ProvenanceBadge {
   label: string
-  tone: 'ok' | 'warn'
+  tone: ProvenanceTone
   tooltip?: string
 }
+
+/** `neutral` is the "present but unremarkable" tone (e.g. EA-official data). */
+export type ProvenanceTone = 'ok' | 'warn' | 'neutral'
 
 export interface OcrProvenanceFooterProps {
   capturedAt: { earliest: Date; latest: Date } | null
@@ -66,7 +69,7 @@ export function OcrProvenanceFooter({
       {badges.length > 0 ? (
         <div className="ml-auto flex flex-wrap items-center gap-1.5">
           {badges.map((b) => (
-            <SrcBadge key={b.label} label={b.label} tone={b.tone} tooltip={b.tooltip} />
+            <ProvenanceChip key={b.label} label={b.label} tone={b.tone} tooltip={b.tooltip} />
           ))}
         </div>
       ) : null}
@@ -87,19 +90,26 @@ function FootKV({ k, v }: { k: string; v: string }) {
   )
 }
 
-function SrcBadge({
+/**
+ * The small bordered provenance pill. Shared so every "where did this number
+ * come from" marker on the game sheet reads as the same object — the footer's
+ * source badges, and the Box Score's OCR/EA source chip.
+ */
+export function ProvenanceChip({
   label,
   tone,
   tooltip,
 }: {
   label: string
-  tone: 'ok' | 'warn'
+  tone: ProvenanceTone
   tooltip?: string | undefined
 }) {
   const cls =
     tone === 'ok'
       ? 'border-[var(--color-win-border)] bg-[var(--color-win-bg)] text-[var(--color-win)]'
-      : 'border-[var(--color-otl-border)] bg-[var(--color-otl-bg)] text-[var(--color-otl)]'
+      : tone === 'warn'
+        ? 'border-[var(--color-otl-border)] bg-[var(--color-otl-bg)] text-[var(--color-otl)]'
+        : 'border-[var(--color-border)] bg-[var(--color-charcoal)] text-[var(--color-fg-3)]'
   return (
     <span
       title={tooltip}
