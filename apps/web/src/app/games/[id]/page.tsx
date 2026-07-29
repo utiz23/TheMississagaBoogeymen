@@ -245,13 +245,14 @@ export default async function GameDetailPage({ params, searchParams }: Props) {
             </LineupModule>
 
             {/* OCR-derived event timeline — story-mode scoresheet with running
-              score, lead-change banners, and GWG highlight. */}
+              score, lead-change banners, and GWG highlight. The real score is
+              passed in so a partial event set can never present itself as the
+              final. */}
             <EventTimeline
               events={matchEventRows}
               opponentLabel={match.opponentName}
-              bgmWasHome={match.bgmWasHome}
-              bgmColor={match.bgmColorHex}
-              oppColor={match.oppColorHex}
+              scoreFor={match.scoreFor}
+              scoreAgainst={match.scoreAgainst}
             />
           </div>
 
