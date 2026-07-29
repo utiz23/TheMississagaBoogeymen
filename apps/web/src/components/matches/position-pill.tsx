@@ -1,5 +1,10 @@
-// Color-coded position pill used on the scoresheet, Top Performer cards, and
-// goalie spotlight. Single source of color truth: lib/position-colors.ts.
+// Color-coded position pill used on the game-sheet lineup rows, Top Performers
+// rail, and goalie spotlight. Single source of color truth:
+// lib/position-colors.ts.
+//
+// `tone="muted"` keeps the border + tint but takes the label to fg-1 — the
+// page-scoped de-rainbow variant (six saturated letters down one lineup read
+// as a rainbow, and the colours ran 2.5:1 as text).
 // Palette documented in docs/specs/position-colors.md.
 
 import { colorForPosition } from '@/lib/position-colors'

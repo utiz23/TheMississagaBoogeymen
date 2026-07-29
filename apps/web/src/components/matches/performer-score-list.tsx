@@ -3,11 +3,12 @@
 import { useId, useState } from 'react'
 import type { PlayerScoreEntry } from '@/lib/match-recap'
 import { performerKey } from '@/lib/match-recap'
-import { PerformerRow } from './star-card'
+import { PerformerRow } from './performer-row'
 
-// The ranked performer ladder for the rail. This file used to be a wide
-// 10-column table hidden behind a disclosure; the prototype folds that table
-// and the three star cards into ONE list — ranks 1-3 always visible, the rest
+// The ranked performer ladder for the rail. This replaced a wide 10-column
+// table hidden behind a disclosure (the old `show-all-player-scores.tsx`); the
+// prototype folds that table and the three star cards into ONE list — ranks 1-3
+// always visible, the rest
 // behind SHOW ALL, every row on the same template. It owns both pieces of
 // interaction state (which rows are visible, which one is expanded) because the
 // prototype allows only one open breakdown at a time across the whole ladder.

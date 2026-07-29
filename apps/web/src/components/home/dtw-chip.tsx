@@ -3,8 +3,9 @@
 import { useState } from 'react'
 
 /**
- * Compact reskin of the match-detail-page <PossessionEdgeBar> gauge,
- * sized for the latest-result scoreboard.
+ * Compact reskin of the game-sheet <DtwGauge> (matches/dtw-gauge.tsx),
+ * sized for the latest-result scoreboard. Both read the same
+ * `buildPossessionEdge` model, so the bands below stay in sync.
  *
  * Adds a `?` help button that toggles a legend describing the four DtW bands:
  *  0–34  Bad        (red)

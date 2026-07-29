@@ -1,7 +1,7 @@
 import type { PlayerScoreEntry, TopPerformerWithDelta } from '@/lib/match-recap'
 import { performerKey } from '@/lib/match-recap'
 import { abbreviateTeamName } from '@/lib/format'
-import { PerformerScoreList } from './show-all-player-scores'
+import { PerformerScoreList } from './performer-score-list'
 
 // Rail module — the performer ladder. The section owns nothing but its chrome:
 // the ranked list (and its show-all / expand state) lives in the client child.

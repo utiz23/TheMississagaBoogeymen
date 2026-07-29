@@ -6,18 +6,45 @@
 >
 > This is a Session-1 (inspect & scope) artifact. Implement in focused follow-up sessions, one surface per session.
 
+> ### ⚠️ Game-detail items are stale (2026-07-29)
+>
+> `/games/[id]` was rebuilt in the 12-phase game-sheet revamp. Every `file:line`
+> below that cites `scoresheet.tsx`, `shot-mix.tsx`, `lineup-section.tsx`,
+> `lineup-expand-panel.tsx`, `lineup-ladder.tsx`, `lineup-card.tsx`,
+> `possession-edge.tsx`, or `action-tracker-map.tsx` points at a **file deleted in
+> Phase 11**; `star-card.tsx` → `performer-row.tsx` and
+> `show-all-player-scores.tsx` → `performer-score-list.tsx` were renamed.
+>
+> **Verified fixed by the revamp** (re-checked while writing this banner, not assumed):
+>
+> - §0 #2 / §2 position-pill contrast — Phase 10 added `PositionPill tone="muted"` (colour keeps border + tint, label goes fg-1).
+> - §0 #6 / §1 two conflicting "GAME" numbers — the lineup band that printed `Game {matchId}` is gone; the hero is now the only "GAME n".
+> - §1 hero meta highlight on the wrong token — the hardcoded `i === 2` no longer exists (hero rewritten in Phase 3).
+> - §1 lineup band hardcodes Home/Away — that band is gone; the new module prints neither.
+> - §1 Possession Edge scores a tie as a BGM win — `dtw-gauge.tsx` has a real `'tie'` branch and renders `Tied 3–3`, never "BGM won 3–3".
+> - §2 divergent BGM/OPP colour conventions — the whole page now rides `accent` (BGM) / `--opp*` (opponent) from `lib/opponent-colors.ts`; raw per-match OCR hexes are no longer drawn anywhere.
+> - §2 possession gauge tick-label inconsistency — that gauge was replaced.
+> - §2 `role="button"` wrapping a `<Link>` — in `performer-row.tsx` the link is a **sibling** of the row button, inside the expanded panel.
+>
+> **Still open and NOT part of the revamp:** §1 "Games-list loading skeleton is
+> the retired list layout" (`games/loading.tsx`) — that is the games **list**
+> skeleton. Phase 11 refreshed only `games/[id]/loading.tsx`; the list one is
+> still the stale `MatchRow` layout against a card grid.
+>
+> Items for every other surface (home, games list, roster, stats, nav) are untouched by this and remain valid.
+
 ---
 
 ## 0. Seed items from the request — verified status
 
-| # | Seed item | Status | Where |
-|---|-----------|--------|-------|
-| 1 | `/games` match-card pills (result + mode + one derived quality stat) | **Partially present** — result pill exists but is detached; mode pill only renders when `gameMode !== null`; quality pill ("Dominated"/"Outshot") only fires at shot-share extremes, so most games show none. Promote a derived stat (DtW/shot-share) to an always-on pill. | `score-card.tsx:161-190`, `140-145`, `221` |
-| 2 | Top Performers position-pill contrast | **Confirmed** — C/G/RW hues (dark red/purple/blue) as text on a near-transparent tint of themselves fall below WCAG AA on the dark card. The `onLight` opaque variant exists but is never enabled at these call sites. | `position-pill.tsx:25-42`; `star-card.tsx:174-181`; `show-all-player-scores.tsx:206-213` |
-| 3 | Verify "Show all player scores" includes all opponents | **Verified complete** — `getOpponentPlayerMatchStats` has no LIMIT; only players with an entirely empty stat line (`hasRecordedActivity` false) are dropped. No top-N truncation. Optional: show zero-activity players greyed or add an "N hidden" note. | `opponent-match.ts:16-26`; `match-recap.ts:583-596`; `show-all-player-scores.tsx:43` |
-| 4 | Navbar: drop "EASHL · #19224" subtitle | **Already done** — nav brand renders only the crest + "Boogeymen" wordmark; `grep 19224` across `apps/web/src` returns zero hits. No action beyond confirming intent. | `top-nav.tsx:24-42` |
-| 5 | Player profile EA season TOI totals (skater/goalie split, `17d 22h 47m`) | **Needs work** — TOI totals exist but are buried one-at-a-time in sub-tabs, never shown as a skater-vs-goalie split, and `formatHrsMin` never rolls hours into days (a 17d total renders "430h 47m"). Data (`toiSeconds`, `goalieToiSeconds`) is available. | `club-stats-tabs.tsx:836-841`, `1258-1264`, `1555-1561`; `players.ts:530,542` |
-| 6 | Bug: two conflicting "GAME" numbers on `/games/[id]` | **Confirmed BUG** — hero prints `Game {seasonNumber}` (chronological game-of-title, meaningful) while the lineup band prints `Game {matchId}` (surrogate bigserial PK, meaningless). | `hero-card.tsx:66` vs `lineup-section.tsx:210-215` (`page.tsx:219`) |
+| #   | Seed item                                                                | Status                                                                                                                                                                                                                                                                      | Where                                                                                    |
+| --- | ------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| 1   | `/games` match-card pills (result + mode + one derived quality stat)     | **Partially present** — result pill exists but is detached; mode pill only renders when `gameMode !== null`; quality pill ("Dominated"/"Outshot") only fires at shot-share extremes, so most games show none. Promote a derived stat (DtW/shot-share) to an always-on pill. | `score-card.tsx:161-190`, `140-145`, `221`                                               |
+| 2   | Top Performers position-pill contrast                                    | **Confirmed** — C/G/RW hues (dark red/purple/blue) as text on a near-transparent tint of themselves fall below WCAG AA on the dark card. The `onLight` opaque variant exists but is never enabled at these call sites.                                                      | `position-pill.tsx:25-42`; `star-card.tsx:174-181`; `show-all-player-scores.tsx:206-213` |
+| 3   | Verify "Show all player scores" includes all opponents                   | **Verified complete** — `getOpponentPlayerMatchStats` has no LIMIT; only players with an entirely empty stat line (`hasRecordedActivity` false) are dropped. No top-N truncation. Optional: show zero-activity players greyed or add an "N hidden" note.                    | `opponent-match.ts:16-26`; `match-recap.ts:583-596`; `show-all-player-scores.tsx:43`     |
+| 4   | Navbar: drop "EASHL · #19224" subtitle                                   | **Already done** — nav brand renders only the crest + "Boogeymen" wordmark; `grep 19224` across `apps/web/src` returns zero hits. No action beyond confirming intent.                                                                                                       | `top-nav.tsx:24-42`                                                                      |
+| 5   | Player profile EA season TOI totals (skater/goalie split, `17d 22h 47m`) | **Needs work** — TOI totals exist but are buried one-at-a-time in sub-tabs, never shown as a skater-vs-goalie split, and `formatHrsMin` never rolls hours into days (a 17d total renders "430h 47m"). Data (`toiSeconds`, `goalieToiSeconds`) is available.                 | `club-stats-tabs.tsx:836-841`, `1258-1264`, `1555-1561`; `players.ts:530,542`            |
+| 6   | Bug: two conflicting "GAME" numbers on `/games/[id]`                     | **Confirmed BUG** — hero prints `Game {seasonNumber}` (chronological game-of-title, meaningful) while the lineup band prints `Game {matchId}` (surrogate bigserial PK, meaningless).                                                                                        | `hero-card.tsx:66` vs `lineup-section.tsx:210-215` (`page.tsx:219`)                      |
 
 ---
 
@@ -67,7 +94,7 @@
 ### Games list (`/games`)
 
 - **Promote an always-on quality pill + always-render mode pill** — seed item #1; `score-card.tsx:161-190`. `[QUICK-WIN]`
-- **DNF card looks identical to a LOSS** — `score-card.tsx:32-36,43` reuse the rose palette; the DNF *pill* is grey-with-red-border, so cards disagree with pills. Give DNF a neutral card surface. `[NICE]`
+- **DNF card looks identical to a LOSS** — `score-card.tsx:32-36,43` reuse the rose palette; the DNF _pill_ is grey-with-red-border, so cards disagree with pills. Give DNF a neutral card surface. `[NICE]`
 - **Low-contrast stat labels & timestamp** — `score-card.tsx:64,85,99` (`text-zinc-600` at 10px), `:189` timestamp. Lift contrast. `[NICE]`
 - **Card DtW uses EA shots; detail page uses OCR-reviewed shots** — `score-card.tsx:133` calls `buildPossessionEdge(match)` without period summaries, so the card can disagree with `/games/[id]`. `[NICE]`
 - **DNF folded into losses in the form record** — `page.tsx:596,611`; confirm this semantic choice. `[NICE]`
@@ -81,7 +108,7 @@
 
 ### Game detail (`/games/[id]`)
 
-*(bugs listed in §1: double GAME number, hero highlight index, lineup Home/Away, possession-edge tie)*
+_(bugs listed in §1: double GAME number, hero highlight index, lineup Home/Away, possession-edge tie)_
 
 - **Top Performers pill contrast** — seed item #2; brighten C/G/RW on-dark. `[QUICK-WIN]`
 - **Team Stats Save% comparison bars near-invisible** — `team-stats.tsx:103-124`; `.917` parsed as `0.917` → both bars ~18% width. Scale save% specially. `[QUICK-WIN]`
@@ -99,7 +126,7 @@
 
 ### Roster list + Player profile (`/roster`, `/roster/[id]`)
 
-*(bugs in §1: goalie marquee "skaters" noun, TOI day-rollover)*
+_(bugs in §1: goalie marquee "skaters" noun, TOI day-rollover)_
 
 - **Add shared `formatDuration(seconds)` → "Nd Nh Nm" + surface skater/goalie TOI split** — seed item #5; new helper in `lib/format.ts`, render both `toiSeconds` & `goalieToiSeconds` regardless of selected role. `[QUICK-WIN]`
 - **Hero goalie SV% in non-hockey format** — `profile-hero.tsx:698-700,716,630` shows "92.30" while ledger + `formatSavePct` use ".923". Use the shared helper. `[QUICK-WIN]`
@@ -120,12 +147,12 @@
 
 ### Stats (`/stats`)
 
-*(bugs in §1: transparent sticky Player column, hardcoded `nhl26` shot map)*
+_(bugs in §1: transparent sticky Player column, hardcoded `nhl26` shot map)_
 
 - **Goalie SV% shown as raw percent** — `goalie-stats-table.tsx:102` ("67.00%") vs app-wide `formatSavePct` (".670"). Use the shared helper, keep numeric sort. `[QUICK-WIN]`
 - **`ArchiveClubTeamSection` table has no `min-w`** — `page.tsx:511`; its twin `TeamHistoryTable` uses `min-w-[760px]`. Cramps on mobile instead of scrolling. `[QUICK-WIN]`
 - **Sortable `<th>` not keyboard-operable / no `aria-sort`/`scope`** — `skater-stats-table.tsx:519-537`, `goalie-stats-table.tsx:371-388`; wrap label in a `<button>`, add `scope="col"` + `aria-sort`. `[QUICK-WIN]`
-- **"Leader" accent band tracks sort position, not merit** — `skater-stats-table.tsx:578-602`; ascending sort paints the *worst* rows with the winner accent. Only apply on default higher-is-better sort. `[NICE]`
+- **"Leader" accent band tracks sort position, not merit** — `skater-stats-table.tsx:578-602`; ascending sort paints the _worst_ rows with the winner accent. Only apply on default higher-is-better sort. `[NICE]`
 - **Matrix `t3` tier: white text on mid-yellow** — `pair-win-matrix.css:399-403`; use dark text like `t4`. `[NICE]`
 - **No sticky `<thead>` on any table; pair-matrix row label not sticky** — all tables; `pair-win-matrix.css:308`. Add `position: sticky`. `[NICE]`
 - **Shot map + chemistry render on 0-game titles** — `page.tsx:264,315`; stack empty modules under the EmptyState. Gate on `gamesPlayed > 0`. `[NICE]`
@@ -141,7 +168,7 @@
 ### Nav / shared UI / auth
 
 - **Auth/account unreachable from the chrome** — nav has no link to `/login`, `/account`, `/me`, `/admin`; only URL-typing reaches them. Add an auth slot (sign-in / account menu). `[QUICK-WIN]`
-- **Page-title separator drift + unbranded tab** — public pages use `—`, all auth pages use ` - ` (13 strings); home title is generic "Club Stats". Add a `title.template` (`%s — Club Stats`) in `layout.tsx`. `[QUICK-WIN]`
+- **Page-title separator drift + unbranded tab** — public pages use `—`, all auth pages use `-` (13 strings); home title is generic "Club Stats". Add a `title.template` (`%s — Club Stats`) in `layout.tsx`. `[QUICK-WIN]`
 - **No `aria-current` on nav links; two unlabeled `<nav>` landmarks; no `focus-visible`; no skip link** — `nav-links.tsx:27,34-38,62-68`, `top-nav.tsx:58`, `layout.tsx:32-34`. `[QUICK-WIN]`
 - **Placeholder-only inputs on bootstrap-admin & create-invite forms** — `login/page.tsx:70-102`, `admin/accounts/page.tsx:52-86` (contrast the properly-labeled Sign-In form). Add `<label>`/`sr-only`. `[QUICK-WIN]`
 - **No pending/disabled state on server-action buttons** — `login/page.tsx:103,149,183`, `account/page.tsx:21`, `admin/accounts/page.tsx:87`; add `useFormStatus`. `[NICE]`

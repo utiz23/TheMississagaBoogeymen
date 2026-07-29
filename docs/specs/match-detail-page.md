@@ -1,5 +1,34 @@
 # Match Detail Page
 
+> ## ⚠️ SUPERSEDED (2026-07-29) — V1, kept for rationale only
+>
+> This spec described the **first** `/games/[id]` design. The page was rebuilt in
+> the 12-phase game-sheet revamp (Phases 1–11 shipped 2026-07-26 → 07-29) and
+> the **design of record is now the prototype bundle** at repo root
+> `Game sheet prototype layout (1)/` — `Game Sheet.dc.html` plus
+> `Opponent Colour Rules.dc.html`, `final-review.md`, `lineup-review-todo.md`,
+> and the per-module motion recs. Where the two disagree, **the prototype wins**.
+>
+> **What this spec still gets right:** the product role (§Product Role) — a dense
+> internal game sheet, not a GameCenter clone, never faking untracked data. The
+> revamp kept that framing and the honest-degraded-state rule throughout.
+>
+> **What is now wrong here:** the component inventory and layout. Specifically,
+> the following were **dropped or replaced**, and their files no longer exist:
+>
+> | V1 in this spec                        | Reality after the revamp                                            |
+> | -------------------------------------- | ------------------------------------------------------------------- |
+> | Two-team `Scoresheet` table            | One-team-at-a-time lineup module w/ expandable head-to-head drawers |
+> | `ShotMix` shot-type breakdown          | Dropped (not in the prototype)                                      |
+> | Faceoff-dots rink view                 | Dropped (not in the prototype)                                      |
+> | Full-width `PossessionEdgeBar`         | Rail `DtwGauge` (arc gauge + verdict + disclosure)                  |
+> | 3-up 360px star cards + SHOW ALL table | One ranked performer ladder in the rail                             |
+> | `action-tracker-map.tsx` (monolith)    | `matches/action-tracker/` — prototype frame, production rink        |
+>
+> For the current component map, colour rules, and per-phase verification
+> convention, see **`HANDOFF.md`** (§Game Sheet — Component Map) and
+> `apps/web/src/app/globals.css` (the `--opp*` opponent-colour token contract).
+
 ## Summary
 
 The `/games/[id]` page is the club's **single-game recap and archive** page.

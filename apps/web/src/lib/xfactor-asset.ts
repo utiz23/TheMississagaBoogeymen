@@ -36,7 +36,8 @@ export function isXFactorTier(value: unknown): value is XFactorTier {
  * so there is intentionally no icon for a tier-less X-Factor — the caller is
  * expected to render a neutral, visually-distinct placeholder via
  * `hasXFactorIcon` so a known-but-untiered X-Factor still reads as present
- * (rather than vanishing). See lineup-expand-panel.tsx.
+ * (rather than vanishing). See `matches/lineup/lineup-row.tsx` (icon tiles) and
+ * `matches/lineup/drawer-loadout.tsx` (build compare).
  */
 export function xFactorIconUrl(
   canonicalName: string | null | undefined,

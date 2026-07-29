@@ -6,9 +6,9 @@ import { formatSeconds, formatSavePct } from '@/lib/match-recap'
 import { formatPosition } from '@/lib/format'
 import { PositionPill } from './position-pill'
 
-// One performer row for the rail list. This file used to render the 360px-tall
-// three-star cards in a 3-up grid — which is what overflowed the 1/4 rail after
-// the Phase 2 regrid. The prototype replaces them with a compact ranked row that
+// One performer row for the rail list. This replaced the 360px-tall three-star
+// cards in a 3-up grid (the old `star-card.tsx`) — which is what overflowed the
+// 1/4 rail after the Phase 2 regrid. The prototype uses a compact ranked row that
 // expands into the score breakdown, so the same information survives at rail
 // width. Top-3 rows keep the star glyphs and the accent tint; the rest of the
 // list uses the identical template, which is why rows 1–10 read as one ladder.
