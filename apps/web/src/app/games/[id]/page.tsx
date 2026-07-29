@@ -14,8 +14,6 @@ import {
   getMatchActionTrackerProvenance,
   getMatchLineups,
   getMatchLineupProvenance,
-  getMatchFaceoffDots,
-  getMatchFaceoffZoneSummaries,
   getSeasonPlayerMatchStats,
 } from '@eanhl/db/queries'
 import type { Match } from '@eanhl/db'
@@ -33,7 +31,7 @@ import { TeamStats } from '@/components/matches/team-stats'
 import { ContextFooter } from '@/components/matches/context-footer'
 import { BoxScore } from '@/components/matches/box-score'
 import { EventTimeline } from '@/components/matches/event-timeline'
-import { ActionTrackerMap } from '@/components/matches/action-tracker-map'
+import { ActionTracker } from '@/components/matches/action-tracker'
 import { LineupModule } from '@/components/matches/lineup/lineup-module'
 import { LineupModuleFooter } from '@/components/matches/lineup/lineup-footer'
 import { Panel } from '@/components/ui/panel'
@@ -102,8 +100,6 @@ export default async function GameDetailPage({ params, searchParams }: Props) {
     actionTrackerProvenance,
     lineups,
     lineupProvenance,
-    faceoffDots,
-    faceoffZones,
   ] = await Promise.all([
     safe(() => getPlayerMatchStats(m.id), []),
     safe(() => getOpponentPlayerMatchStats(m.id), []),
@@ -123,13 +119,10 @@ export default async function GameDetailPage({ params, searchParams }: Props) {
       sources: [],
       confidence: { canonical: 0, tiered: 0, attribute: 0 },
     }),
-    safe(() => getMatchFaceoffDots(m.id), []),
-    safe(() => getMatchFaceoffZoneSummaries(m.id), []),
   ])
 
   const opponentCrestAssetId = opponentClub?.crestAssetId ?? null
   const opponentCrestUseBaseAsset = opponentClub?.useBaseAsset ?? null
-  const opponentPrimaryColor = opponentClub?.primaryColor ?? null
 
   // Opponent colour — resolved once server-side through the clash ladder
   // (BGM red is reserved; a raw brand hex never reaches a surface). Published
@@ -282,18 +275,13 @@ export default async function GameDetailPage({ params, searchParams }: Props) {
         </div>
       </GameSheetModeProvider>
 
-      {/* 5. Full-width action tracker (rink-coordinate spatial extraction +
-            all-type event card list mirroring the in-game post-game Action
-            Tracker; hosts the Faceoff Map as a separate view-mode). */}
-      <ActionTrackerMap
+      {/* 5. Full-width action tracker — rink-coordinate spatial extraction +
+            the synced event list. Team colour comes from the page-root --opp /
+            accent vars, so no per-match hexes are passed. */}
+      <ActionTracker
         events={matchEventRows}
         opponentLabel={match.opponentName}
-        opponentColor={opponentPrimaryColor}
         bgmWasHome={match.bgmWasHome}
-        bgmColor={match.bgmColorHex}
-        oppColor={match.oppColorHex}
-        faceoffDots={faceoffDots}
-        faceoffZones={faceoffZones}
         provenance={actionTrackerProvenance}
       />
 
