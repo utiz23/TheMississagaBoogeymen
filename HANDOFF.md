@@ -2,7 +2,30 @@
 
 ## Active State
 
-### ✅ GAME SHEET REVAMP COMPLETE — all 12 phases done (1–2 `83b5761`, 3 `ab4917b`, 4 `fc7877e`, 5 `e76f36a`, 6 `0b80a3d`, 7 `4d4eeea`, 8 `da73087`, 9 `4e0c3e2`, 10 `f8f504b`, 11 `bb476de`; **12 UNCOMMITTED**)
+### ✅ UNIVERSAL NAVBAR PORTED 2026-07-30 (`b989480`) — the game-sheet prototype's nav is now the site-wide nav
+
+**Design of record:** `Game sheet prototype layout (1)/Game Sheet copy.dc.html` (the _copy_ file — its nav is the revised one, with a burger/drawer and a centred pill row; plain `Game Sheet.dc.html` has the older underline-tab nav. Don't port from the wrong file).
+
+**Files:** `components/nav/top-nav.tsx` (bar) · `nav-links.tsx` (desktop pills + `NAV_LINKS`/`isActive`/`buildHref`, shared with the drawer) · **NEW** `nav-drawer.tsx` (burger + overlay) · `game-title-switcher.tsx` (restyled, now drawer-only) · `globals.css` (+`--breakpoint-nav: 60rem`). Rendered once by the root layout — all 12 routes inherit it, nothing per-page.
+
+**What it looks like now:** 2px accent gradient rail above a 64px bar · `border-accent/40` bottom border (was `/15`) · brand left (38px crest + always-visible wordmark) · links absolutely centred as pills, active = filled accent block (was an underline) · one `LOGIN` CTA right · burger + right-side slide-in drawer under 960px, replacing the old always-visible mobile tab strip.
+
+**Three durable traps found the hard way:**
+
+1. **`backdrop-filter` breaks `position: fixed` children.** The bar carries `backdrop-blur-sm`, which makes it a containing block for fixed descendants — a `fixed inset-0` overlay rendered inside it resolves against the 64px bar, not the viewport (measured 390x66 at x=-104: a sliver of panel, no scrim, every CSS value individually correct). The drawer overlay is therefore **portalled to `document.body`**. Anything else fixed-positioned inside the bar will hit this too.
+2. **Tailwind 4 renamed the radius scale.** `rounded-sm` is **4px** in v4; the prototype's 2px is `rounded-xs`. The first pass used `rounded-sm` throughout and was silently 2x off.
+3. **`transition-transform` does cover v4's `translate`.** v4 sets the `translate` property, not `transform`, so `getComputedStyle().transform` reads `none` on a translated element — verified `transition-property` resolves to `transform, translate, scale, rotate`, so the slide does animate. Don't "fix" it.
+
+**Deliberate deviations from the prototype (don't re-litigate without deciding the auth question first):**
+
+- **No SIGN IN / initials-avatar swap; the bar is session-agnostic.** `LOGIN` is a **placeholder label** pointing at `/login`. Auth is server-side only (better-auth + server actions, no `better-auth/react` client), so a session-aware bar needs either a new client-session dependency or `getCurrentUser()` — hence `headers()` — in the root layout. **This is the natural next piece of work.** Note nothing linked to `/login`, `/account` or `/me` before this commit; the CTA is the app's first entry point to them.
+- **No game-title switcher in the bar** (matches the prototype); it lives in the drawer footer, i.e. under 960px only. Costs nothing today because **`listGameTitles()` filters on `is_active` and NHL 26 is the only active title** — the switcher renders as a static one-title label either way. ⚠️ **If a second title is ever activated, wide viewports lose any in-nav way to change title** and the bar needs a switcher again. The switcher's multi-title branch was rebuilt as a wrapping pill group (the old divided segmented bar would clip under its own `overflow-hidden` in the drawer's ~280px).
+
+**Verified:** production build 13/13 pages with the route table **byte-identical to baseline** (measured against a stashed build — the pages were already `ƒ` dynamic via `searchParams`, so no rendering-mode change) · typecheck · eslint + prettier clean on `components/nav/`. In-browser at 320/390/959/960/1440: breakpoint flips exactly at 960 with 133px/110px clearance either side of the centred links; header fits 320px (314=314, no overflow — the 320px page overflow on `/games` is its filter-chip row, pre-existing); drawer open/scrim/Escape/scroll-lock/focus-in-and-back-to-burger all confirmed; `/preview/carousel`'s `body > header {display:none}` hack still works and the portalled overlay stays inert there. Every box measured against the prototype: nav pill 8px/16px, CTA 9px/20px, drawer CTA 13px, drawer link 14px/12px, switcher 10px/12px, burger 44px, close 40px, all 2px radius.
+
+**Session traps (cost real time):** the operator's dev server runs on **3002** (`pnpm --filter web dev`; docker holds 3000/3001). Starting a _second_ dev server against the same `apps/web/.next` desyncs the chunk manifests — the page loads but never hydrates, which reads exactly like a React bug. `next build` and `next dev` also share `.next`, so stop the dev server before building and restart it after. Do not delete `.next` while a server is running (wedges it into 500s).
+
+### ✅ GAME SHEET REVAMP COMPLETE — all 12 phases done (1–2 `83b5761`, 3 `ab4917b`, 4 `fc7877e`, 5 `e76f36a`, 6 `0b80a3d`, 7 `4d4eeea`, 8 `da73087`, 9 `4e0c3e2`, 10 `f8f504b`, 11 `bb476de`, 12 `43325ac`)
 
 **Plan of record:** `/home/michal/.claude/plans/game-sheet-page-revamp-rustling-creek.md` (machine-local, not in repo).
 **Design of record:** the prototype bundle at repo root `Game sheet prototype layout (1)/` (`Game Sheet.dc.html` + motion recs + `Opponent Colour Rules.dc.html` + `final-review.md` + `lineup-review-todo.md`). It supersedes `docs/specs/match-detail-page.md` (V1; banner added in Phase 11).
@@ -1156,16 +1179,17 @@ the rule is wrong.
 
 > **⚠️ READ THIS FIRST — everything below the horizontal rule in this section is HISTORICAL (Phase B–G, 2026-07-01→07-04) and was superseded by the OCR mass-ingest program (Milestone ①②③④). It is kept as provenance. Do NOT start a session from it — "G3 is next" has been false since 2026-07-11.**
 
-### 🟢 FRONTEND WORKSTREAM — NEXT SESSION (as of 2026-07-26): Game Sheet Revamp **Phase 3** (Phases 1–2 ✅ done 2026-07-26, uncommitted)
+### 🟢 FRONTEND WORKSTREAM — NEXT SESSION (as of 2026-07-30): auth-aware nav CTA, or nothing
 
-Approved plan: `/home/michal/.claude/plans/game-sheet-page-revamp-rustling-creek.md` · full context in the top 📋 Active State entry (locked decisions 1–7, phase list, verification convention — do not re-ask). Phases 1 (opponent colour resolver) + 2 (page skeleton/grid) are DONE and verified — see the top 📋 entry.
+The game-sheet revamp is **complete** (all 12 phases committed) and the prototype's nav is now **site-wide** (`b989480`). Both top Active State entries carry the full context. There is no queued frontend phase.
 
-**Phase 3 — top bar, scoreboard hero, sub-nav shell:**
+**The one open thread — the `LOGIN` CTA is a placeholder.** Decide before touching it:
 
-1. Extract `GameDetailNav` (currently a local component in `page.tsx`) → `components/matches/game-top-bar.tsx` with ALL GAMES + PREV/NEXT opponent-abbrev chips; preserve the `gamesListQuery` searchParams pass-through.
-2. Redesign `components/matches/hero-card.tsx` in place to the full prototype hero incl. FINAL/OT badge + series line (`getMatchSeriesContext` already wired). Create `wentToOvertime(...)` in `match-recap.ts` (derive: `result==='OTL'` ∨ `period_number>=4` ∨ `max(toi_seconds)>3600`).
-3. Create `components/matches/game-sheet-mode.tsx` (client): LOADOUTS|STATS segmented control + React context — client state, NOT URL navigation; initial value from `?view=`, mirrored via `history.replaceState`; role=tab semantics reusing the roving-focus template from `box-score.tsx:79-155`. It replaces the Phase-2 sub-nav placeholder comment in `page.tsx`.
-4. Verify: typecheck + format + new-file eslint in isolation + screenshots at 1280/390 on match 250 and one EA-only match (2698 used in Phase 2); check an OTL/OT match for the OT badge.
+1. Does the bar need to know who is signed in at all? Today it does not, which is why every route kept its existing rendering mode. Making it session-aware means either adding a client session (`better-auth/react` + a per-page session fetch, with a signed-out flash) or `getCurrentUser()` in the root layout (pulls in `headers()`).
+2. If yes, the prototype's treatment is the target: accent circle with initials → `/account` when signed in, `SIGN IN` CTA when not (`Game Sheet copy.dc.html`, the `signedIn`/`signedOut` branches). Its sign-in **modal** should NOT be ported — `/login` is a real page with invite/bootstrap flows the modal doesn't model.
+3. If no, rename the CTA to something honest for both states and leave it pointing at `/account` (that route already redirects signed-out visitors to `/login`).
+
+**Also parked:** if a second `game_titles.is_active` row is ever flipped on, the bar needs a title switcher again — see the navbar Active State entry.
 
 This workstream is independent of (and must not block) the OCR corpus run below — separate sessions, one phase per session.
 
@@ -1222,7 +1246,9 @@ Other tracks (unchanged, one task per session):
 
 ## Repo State
 
-> **CURRENT (2026-07-26, end of the game-sheet Phase 2 session):** branch `main`. UNCOMMITTED (Phases 1+2 combined): NEW `apps/web/src/lib/opponent-colors.ts` + `apps/web/src/lib/opponent-colors.test.ts`; EDITED `apps/web/src/app/games/[id]/page.tsx` (Phase 1 resolver vars + Phase 2 grid skeleton; ShotMix/Scoresheet/shot-type-query/buildScoresheet removed from this page), `apps/web/src/app/globals.css` (vars doc comment inside `@theme`), `HANDOFF.md`. All verified (typecheck, prettier, isolated eslint, 4 screenshots 1280+390 × matches 250/2698). Phase-2 screenshot note: dev server must run on a free port (docker web holds 3000 with the OLD image) — `PORT=3100 pnpm --filter web dev` after sourcing `.env` (the `pnpm --filter web dev -- -p 3100` form breaks: the `--` is forwarded literally to next). **Known trap:** `pnpm format` exits 2 on `docs/calibration/baseline-match-{250,463}.json` — pre-existing at HEAD (pnpm banner text baked into committed JSON); it still formats every other file first, so the write-mode run works — verify touched files with `prettier --check`, don't chase the JSONs. The prototype bundle `Game sheet prototype layout (1)/` sits untracked at repo root — it is the design of record for the game-sheet revamp; leave it out of unrelated commits.
+> **CURRENT (2026-07-30, end of the universal-navbar session):** branch `main`, clean apart from the untracked prototype bundle. Navbar committed `b989480` (5 files: `components/nav/{top-nav,nav-links,nav-drawer,game-title-switcher}.tsx` + `globals.css`); this `HANDOFF.md` entry commits separately. `Game sheet prototype layout (1)/` remains **untracked at repo root** and has never been tracked — it is the design of record for both the game sheet and the nav; keep it out of focused commits (the established pattern). **`pnpm format` is repo-wide and unusable as a gate:** it reformats ~50 committed files (prettier drift) and exits 2 on malformed JSON under `docs/calibration/` — format only touched files (`npx prettier --write <files>`) and verify with `--check`; see [[project_lint_state]]. **Dev/build share `apps/web/.next`:** operator's dev server is on **3002**, docker holds 3000/3001; a second dev server against the same `.next` desyncs chunk manifests into a silent no-hydration state, and `next build` needs the dev server stopped first. Never `rm -rf .next` while a server is running.
+>
+> **PREVIOUS (2026-07-26, end of the game-sheet Phase 2 session):** branch `main`. UNCOMMITTED at the time (Phases 1+2 combined; all since committed): NEW `apps/web/src/lib/opponent-colors.ts` + `apps/web/src/lib/opponent-colors.test.ts`; EDITED `apps/web/src/app/games/[id]/page.tsx` (Phase 1 resolver vars + Phase 2 grid skeleton; ShotMix/Scoresheet/shot-type-query/buildScoresheet removed from this page), `apps/web/src/app/globals.css` (vars doc comment inside `@theme`), `HANDOFF.md`. All verified (typecheck, prettier, isolated eslint, 4 screenshots 1280+390 × matches 250/2698). Phase-2 screenshot note: dev server must run on a free port (docker web holds 3000 with the OLD image) — `PORT=3100 pnpm --filter web dev` after sourcing `.env` (the `pnpm --filter web dev -- -p 3100` form breaks: the `--` is forwarded literally to next). **Known trap:** `pnpm format` exits 2 on `docs/calibration/baseline-match-{250,463}.json` — pre-existing at HEAD (pnpm banner text baked into committed JSON); it still formats every other file first, so the write-mode run works — verify touched files with `prettier --check`, don't chase the JSONs. The prototype bundle `Game sheet prototype layout (1)/` sits untracked at repo root — it is the design of record for the game-sheet revamp; leave it out of unrelated commits.
 >
 > **PREVIOUS (2026-07-26, end of the game-sheet planning session):** branch `main`. That session changed ONLY `HANDOFF.md` (planning entry + Next Session pointer). The prototype bundle arrived untracked at repo root.
 >
