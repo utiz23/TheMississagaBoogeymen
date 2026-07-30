@@ -1,6 +1,12 @@
 @import 'tailwindcss';
 
 @theme {
+  /* Top-nav breakpoint (960px) — the width at which the centred link row stops
+     clearing the wordmark and the right-hand controls, and the burger + drawer
+     takes over. Not one of Tailwind's defaults (md 768 / lg 1024), so it is
+     declared here to generate the `nav:` / `max-nav:` variants. */
+  --breakpoint-nav: 60rem;
+
   /* Fonts */
   --font-sans: var(--font-barlow), sans-serif;
   --font-condensed: var(--font-barlow-sc), sans-serif;

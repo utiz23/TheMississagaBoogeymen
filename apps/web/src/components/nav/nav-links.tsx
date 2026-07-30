@@ -3,80 +3,85 @@
 import Link from 'next/link'
 import { usePathname, useSearchParams } from 'next/navigation'
 
-const LINKS = [
+/**
+ * The site's four destinations. Shared with the mobile drawer (`nav-drawer`)
+ * so the two renderings of the nav can never drift out of sync.
+ */
+export const NAV_LINKS = [
   { href: '/', label: 'Home' },
   { href: '/games', label: 'Games' },
   { href: '/roster', label: 'Roster' },
   { href: '/stats', label: 'Stats' },
 ] as const
 
-function isActive(pathname: string, href: string): boolean {
+export function isActive(pathname: string, href: string): boolean {
   return href === '/' ? pathname === '/' : pathname === href || pathname.startsWith(href + '/')
 }
 
-function buildHref(_pathname: string, href: string, title: string | null): string {
+/**
+ * Carries the active `?title=` across a nav hop, so moving between sections
+ * keeps the game title the user is looking at instead of snapping back to the
+ * newest one.
+ */
+export function buildHref(href: string, title: string | null): string {
   return title ? `${href}?title=${encodeURIComponent(title)}` : href
 }
 
-export function NavLinks({ variant }: { variant: 'desktop' | 'mobile' }) {
+/**
+ * Desktop links, centred in the bar (`nav` breakpoint and up — below that the
+ * burger + drawer takes over). Absolute centring rather than flex ordering:
+ * the row has to sit on the bar's midpoint, not on the midpoint of whatever
+ * space the brand and the right-hand controls happen to leave.
+ */
+export function NavLinks() {
   const pathname = usePathname()
   const title = useSearchParams().get('title')
 
-  if (variant === 'desktop') {
-    return (
-      <nav className="hidden sm:flex self-stretch items-center gap-5">
-        {LINKS.map(({ href, label }) => {
-          const active = isActive(pathname, href)
-          return (
-            <Link
-              key={href}
-              href={buildHref(pathname, href, title)}
-              className={[
-                'relative flex self-stretch items-center px-1',
-                'font-condensed text-sm font-bold uppercase tracking-[0.15em] transition-colors',
-                active ? 'text-zinc-50' : 'text-zinc-400 hover:text-zinc-100',
-              ].join(' ')}
-            >
-              <span>{label}</span>
-              {active && (
-                <span
-                  aria-hidden
-                  className="pointer-events-none absolute inset-x-0 bottom-0 h-0.5 bg-accent"
-                />
-              )}
-            </Link>
-          )
-        })}
-      </nav>
-    )
-  }
-
   return (
-    <div className="flex divide-x divide-zinc-800/60">
-      {LINKS.map(({ href, label }) => {
+    <nav
+      aria-label="Main"
+      className="absolute left-1/2 hidden -translate-x-1/2 items-center gap-1 nav:flex"
+    >
+      {NAV_LINKS.map(({ href, label }) => {
         const active = isActive(pathname, href)
         return (
           <Link
             key={href}
-            href={buildHref(pathname, href, title)}
+            href={buildHref(href, title)}
+            aria-current={active ? 'page' : undefined}
             className={[
-              'relative flex-1 py-2 text-center transition-colors',
-              'font-condensed text-xs font-semibold uppercase tracking-wider',
-              active
-                ? 'bg-surface-raised text-zinc-200'
-                : 'text-zinc-400 hover:bg-surface-raised hover:text-zinc-200',
+              'flex items-center rounded-xs px-4 py-2 transition-colors',
+              'font-condensed text-[13px] font-bold uppercase tracking-[0.15em]',
+              active ? 'bg-accent text-white' : 'text-fg-3 hover:bg-surface-raised hover:text-fg-1',
             ].join(' ')}
           >
-            <span>{label}</span>
-            {active && (
-              <span
-                aria-hidden
-                className="pointer-events-none absolute inset-x-0 top-0 h-0.5 bg-accent"
-              />
-            )}
+            {label}
           </Link>
         )
       })}
+    </nav>
+  )
+}
+
+/**
+ * Suspense fallback for the above (`useSearchParams` suspends on a statically
+ * rendered route). Mirrors the real row's box exactly so the bar does not
+ * reflow when the links land.
+ */
+export function NavLinksFallback() {
+  return (
+    <div
+      aria-hidden
+      className="absolute left-1/2 hidden -translate-x-1/2 items-center gap-1 nav:flex"
+    >
+      {NAV_LINKS.map(({ label }) => (
+        <span
+          key={label}
+          className="flex items-center rounded-xs px-4 py-2 font-condensed text-[13px] font-bold uppercase tracking-[0.15em] text-fg-3"
+        >
+          {label}
+        </span>
+      ))}
     </div>
   )
 }
