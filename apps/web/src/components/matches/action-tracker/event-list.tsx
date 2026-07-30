@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { MatchEventRow } from '@eanhl/db/queries'
 import {
   GoalMarker,
@@ -9,6 +9,8 @@ import {
   ShotMarker,
 } from '@/components/branding/event-markers'
 import { PlayerSilhouette } from '@/components/home/player-card'
+import { delayVar, staggerDelay } from '@/lib/motion'
+import { useReducedMotion } from '../motion'
 import {
   cleanPeriodLabel,
   clockToSeconds,
@@ -30,6 +32,32 @@ import {
  */
 /** Stable option id, so the listbox can point aria-activedescendant at a row. */
 const optionId = (id: number) => `event-option-${String(id)}`
+
+/* --- list mirror (Phase 12 motion) --------------------------------------
+   Cards slide in from the right as their markers land on the ice, so map and
+   list read as one event. Deliberately bounded:
+
+     - Only the opening CARD_DEAL_LIMIT cards are scheduled, matching the
+       rink's plot-in limit. Match 250 lists 95 events; dealing all of them
+       would run for nine seconds.
+     - It runs ONCE. Changing the sort or a filter re-renders this list, and
+       without the gate every visible card would replay its entrance on every
+       control press — the panel would never sit still.
+
+   The delays mirror the rink's schedule rather than sharing state with it:
+   coupling two panes through a lifted timer buys nothing when both are
+   deriving from the same constants. */
+const CARD_DEAL_START_MS = 560
+const CARD_DEAL_STEP_MS = 95
+const CARD_DEAL_LIMIT = 24
+const CARD_DEAL_TOTAL_MS = CARD_DEAL_START_MS + CARD_DEAL_LIMIT * CARD_DEAL_STEP_MS + 450
+
+function cardDelay(index: number, dealtIn: boolean): number | null {
+  if (dealtIn || index < 0 || index >= CARD_DEAL_LIMIT) return null
+  return (
+    CARD_DEAL_START_MS + staggerDelay(index, CARD_DEAL_STEP_MS, CARD_DEAL_LIMIT * CARD_DEAL_STEP_MS)
+  )
+}
 
 export function EventList({
   events,
@@ -53,6 +81,25 @@ export function EventList({
   bgmIsHome: boolean
 }) {
   const scrollRef = useRef<HTMLDivElement | null>(null)
+
+  // One-shot: after the opening deal, cards render with no entrance at all, so
+  // re-sorting or re-filtering never replays it. See cardDelay.
+  const reduced = useReducedMotion()
+  const [dealtIn, setDealtIn] = useState(false)
+
+  useEffect(() => {
+    if (reduced) {
+      setDealtIn(true)
+      return
+    }
+    const timer = window.setTimeout(() => {
+      setDealtIn(true)
+    }, CARD_DEAL_TOTAL_MS)
+    return () => {
+      window.clearTimeout(timer)
+    }
+  }, [reduced])
+
   // When a card becomes selected (by either click or marker click), scroll it
   // into view inside the list — block:'nearest' is a no-op if already visible.
   useEffect(() => {
@@ -168,11 +215,12 @@ export function EventList({
                       }}
                       onHover={onHover}
                       bgmIsHome={bgmIsHome}
+                      slideDelayMs={cardDelay(sorted.indexOf(e), dealtIn)}
                     />
                   ))}
                 </div>
               ))
-            : sorted.map((e) => (
+            : sorted.map((e, index) => (
                 <EventCard
                   key={e.id}
                   event={e}
@@ -183,6 +231,7 @@ export function EventList({
                   }}
                   onHover={onHover}
                   bgmIsHome={bgmIsHome}
+                  slideDelayMs={cardDelay(index, dealtIn)}
                 />
               ))}
         </div>
@@ -236,6 +285,7 @@ function EventCard({
   onSelect,
   onHover,
   bgmIsHome,
+  slideDelayMs,
 }: {
   event: MatchEventRow
   selected: boolean
@@ -243,6 +293,8 @@ function EventCard({
   onSelect: () => void
   onHover: (id: number | null) => void
   bgmIsHome: boolean
+  /** Mirror delay for the plot-in, or null to appear instantly. */
+  slideDelayMs: number | null
 }) {
   const isFaceoff = event.eventType === 'faceoff'
   const noMarker = !isFaceoff && (event.x === null || event.y === null)
@@ -278,8 +330,11 @@ function EventCard({
         onHover(null)
       }}
       data-event-id={String(event.id)}
-      className="relative grid w-full min-w-0 cursor-pointer grid-cols-[3px_32px_minmax(0,1fr)_auto] items-center gap-2.5 border-b border-[color:rgba(58,56,57,0.5)] py-3 pr-3 pl-0 text-left transition-colors"
+      className={`relative grid w-full min-w-0 cursor-pointer grid-cols-[3px_32px_minmax(0,1fr)_auto] items-center gap-2.5 border-b border-[color:rgba(58,56,57,0.5)] py-3 pr-3 pl-0 text-left transition-colors ${
+        slideDelayMs === null ? '' : 'gs-slide-right'
+      }`}
       style={{
+        ...(slideDelayMs === null ? null : delayVar(slideDelayMs)),
         backgroundColor: selected
           ? withAlpha(teamColor, 0.16)
           : hovered

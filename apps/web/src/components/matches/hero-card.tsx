@@ -2,6 +2,7 @@ import Image from 'next/image'
 import type { Match } from '@eanhl/db'
 import { OpponentCrest } from '@/components/ui/opponent-crest'
 import { abbreviateTeamName, formatMatchDate, formatMatchTime } from '@/lib/format'
+import { delayVar } from '@/lib/motion'
 
 const OUR_ABBREV = 'BGM'
 const OUR_NAME = 'Boogeymen'
@@ -27,6 +28,9 @@ interface HeroCardProps {
   }
 }
 
+/** The scorebug settles first; the winner's number blooms after it. */
+const SCORE_BLOOM_MS = 650
+
 export function HeroCard({
   match,
   opponentCrestAssetId,
@@ -48,8 +52,13 @@ export function HeroCard({
     ? '[color:var(--opp)] [text-shadow:0_0_14px_var(--opp-soft)]'
     : 'text-fg-4'
 
+  // Motion (Phase 12): only the winning score blooms, once, after the hero has
+  // settled. A DNF blooms nothing — there is no result to announce.
+  const ourBloom = ourWin && !dnf ? 'gs-bloom-accent' : ''
+  const oppBloom = oppWin && !dnf ? 'gs-bloom-opp' : ''
+
   return (
-    <section className="broadcast-panel-strong overflow-hidden font-condensed uppercase">
+    <section className="gs-rise broadcast-panel-strong overflow-hidden font-condensed uppercase">
       <div className="ticker-strip" />
 
       {/* The page's h1. The scorebug below says all of this visually, but it
@@ -118,7 +127,8 @@ export function HeroCard({
         {/* Score */}
         <div className="flex flex-none items-baseline gap-2 sm:gap-5">
           <span
-            className={`text-6xl font-black leading-[0.82] tabular-nums sm:text-[88px] ${ourScoreCls}`}
+            className={`${ourBloom} text-6xl font-black leading-[0.82] tabular-nums sm:text-[88px] ${ourScoreCls}`}
+            style={ourBloom ? delayVar(SCORE_BLOOM_MS) : undefined}
           >
             {match.scoreFor.toString()}
           </span>
@@ -126,7 +136,8 @@ export function HeroCard({
             –
           </span>
           <span
-            className={`text-6xl font-black leading-[0.82] tabular-nums sm:text-[88px] ${oppScoreCls}`}
+            className={`${oppBloom} text-6xl font-black leading-[0.82] tabular-nums sm:text-[88px] ${oppScoreCls}`}
+            style={oppBloom ? delayVar(SCORE_BLOOM_MS) : undefined}
           >
             {match.scoreAgainst.toString()}
           </span>

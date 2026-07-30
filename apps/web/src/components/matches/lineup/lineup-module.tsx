@@ -7,6 +7,7 @@ import type { PlayerArchetype } from '@eanhl/db/schema'
 import { useGameSheetMode } from '@/components/matches/game-sheet-mode'
 import { OpponentCrest } from '@/components/ui/opponent-crest'
 import { splitBuild, type HeadToHeadStatLine } from '@/lib/head-to-head'
+import { delayVar } from '@/lib/motion'
 import type { PlayerScoreEntry } from '@/lib/match-recap'
 import { DrawerLoadout } from './drawer-loadout'
 import { DrawerStats } from './drawer-stats'
@@ -106,17 +107,21 @@ export function LineupModule({
             <h2 className="font-condensed text-[11px] font-extrabold uppercase tracking-[0.18em] text-fg-3">
               Lineup · Scouting
             </h2>
-            <div className="flex min-w-0 flex-wrap items-center gap-x-2.5 gap-y-1.5">
+            {/* `key={team}` remounts the crest + name on every swap, which is
+                what replays their entrance — a CSS animation only runs when the
+                element is created, so re-rendering the same node in place would
+                change the content silently. */}
+            <div key={team} className="flex min-w-0 flex-wrap items-center gap-x-2.5 gap-y-1.5">
               {team === 'bgm' ? (
                 <Image
                   src="/images/bgm-logo.png"
                   alt=""
                   width={24}
                   height={24}
-                  className="h-6 w-6 flex-none object-contain"
+                  className="gs-pop h-6 w-6 flex-none object-contain"
                 />
               ) : (
-                <span className="flex h-6 w-6 flex-none items-center justify-center overflow-hidden rounded-full border bg-charcoal [border-color:var(--opp-line)]">
+                <span className="gs-pop flex h-6 w-6 flex-none items-center justify-center overflow-hidden rounded-full border bg-charcoal [border-color:var(--opp-line)]">
                   <OpponentCrest
                     crestAssetId={opponentCrestAssetId}
                     useBaseAsset={opponentCrestUseBaseAsset}
@@ -132,7 +137,10 @@ export function LineupModule({
                   />
                 </span>
               )}
-              <span className="truncate font-condensed text-[16px] font-black uppercase tracking-[0.07em] text-fg-1">
+              <span
+                className="gs-fade-in truncate font-condensed text-[16px] font-black uppercase tracking-[0.07em] text-fg-1"
+                style={delayVar(40)}
+              >
                 {activeName}
               </span>
               <span className="flex items-center gap-3.5 border-l border-border pl-3.5">
@@ -157,7 +165,7 @@ export function LineupModule({
           >
             <span
               aria-hidden
-              className={`absolute bottom-[3px] left-[3px] top-[3px] w-[calc(50%-3px)] transition-transform duration-200 ${
+              className={`gs-thumb absolute bottom-[3px] left-[3px] top-[3px] w-[calc(50%-3px)] ${
                 team === 'bgm'
                   ? 'translate-x-0 bg-accent [box-shadow:0_0_14px_rgba(232,65,49,0.25)]'
                   : 'translate-x-full border [background:var(--opp-soft)] [border-color:var(--opp-line)]'
@@ -186,15 +194,20 @@ export function LineupModule({
           </div>
         </div>
 
-        {/* Rows */}
-        <div className="border-t border-border-subtle">
-          {slots.map((slot) => {
+        {/* Rows.
+            `key={team}` again: the six rows deal back in on every swap, which
+            is the cue that actually carries the state change — the thumb only
+            says a control was pressed, the restagger says the roster under it
+            is different. Remounting keeps `openPos`, so an open drawer stays
+            open and simply replays its own entrance alongside them. */}
+        <div key={team} className="border-t border-border-subtle">
+          {slots.map((slot, slotIndex) => {
             const isOpen = openPos === slot.position && slot.expandable
             const panelId = `${idBase}-${slot.position}`
             const bgmRow = bgmByPos.get(slot.position) ?? null
             const oppRow = oppByPos.get(slot.position) ?? null
             return (
-              <div key={slot.position}>
+              <div key={slot.position} className="gs-row-in" style={delayVar(slotIndex * 45)}>
                 <LineupModuleRow
                   slot={slot}
                   mode={mode}

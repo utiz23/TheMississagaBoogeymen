@@ -4,6 +4,7 @@ import { useId, useMemo, useState } from 'react'
 import Link from 'next/link'
 import type { MatchEventRow } from '@eanhl/db/queries'
 import { abbreviateTeamName } from '@/lib/format'
+import { delayVar, durationVar } from '@/lib/motion'
 import {
   buildTimeline,
   leadChangeLabel,
@@ -11,6 +12,7 @@ import {
   sideOf,
   toElapsedClock,
   type GoalContext,
+  type TimelineModel,
   type TimelinePeriod,
   type TimelineSide,
 } from '@/lib/event-timeline'
@@ -24,7 +26,10 @@ import {
  * the rail and every kicker names its team ("GOAL · 4L #2").
  *
  * Every derivation lives in `lib/event-timeline.ts` — this file only renders.
- * Static by design; the row-by-row reveal is Phase 12 motion.
+ *
+ * Motion (Phase 12): the game replays. The rail lays the spine, the opening
+ * face-off drops in, then dividers and goals cascade top to bottom with each
+ * card gliding in from its own side, and FINAL lands last. See buildCascade.
  *
  * Events are OCR-only and gated on review, so most matches have none. Two
  * degraded paths matter here and both are honest rather than empty-looking:
@@ -63,6 +68,7 @@ export function EventTimeline({
 
   const hasPenalties = model.penaltyCount > 0
   const expanded = !hasPenalties || showPenalties
+  const cascade = buildCascade(model)
 
   return (
     <section>
@@ -99,6 +105,7 @@ export function EventTimeline({
                   goalContext={model.goalContext}
                   oppAbbrev={oppAbbrev}
                   showPenalties={expanded}
+                  slotBase={cascade.slotOf(period.periodNumber)}
                 />
               ))}
             </div>
@@ -108,6 +115,7 @@ export function EventTimeline({
               opp={model.final.opp}
               winner={model.final.winner}
               oppAbbrev={oppAbbrev}
+              delayMs={cascade.finalDelayMs}
             />
 
             {model.final.complete ? null : (
@@ -153,6 +161,58 @@ export function EventTimeline({
   )
 }
 
+// ─── Cascade schedule (Phase 12 motion) ─────────────────────────────────────
+
+/**
+ * When each part of the timeline reveals, so the match appears to replay in
+ * order: rail → opening face-off → period dividers and goals, top to bottom →
+ * FINAL last.
+ *
+ * Two rules keep this honest on real data rather than the prototype's four
+ * hand-placed events:
+ *
+ *   1. The stagger is CAPPED. Row count is data-driven (match 463 has seven),
+ *      and an uncapped `index * step` would push the FINAL chip past the
+ *      spec's 2.4s ceiling on any busy game.
+ *   2. Penalties are NOT in the cascade. They start hidden behind the
+ *      condensed toggle, so they can only ever appear on expand — and the
+ *      guardrail is explicit that the remainder appears instantly rather than
+ *      replaying a stale entrance delay.
+ */
+const CASCADE_START_MS = 750
+const CASCADE_STEP_MS = 160
+const CASCADE_CAP_MS = 1500
+const FINAL_GAP_MS = 260
+
+interface CascadeSchedule {
+  /**
+   * Slot INDEX of a period's divider — not its delay. The delay is capped, so
+   * several late slots share one value and an index cannot be recovered from
+   * it; children get the index and convert it themselves.
+   */
+  slotOf: (periodNumber: number) => number
+  finalDelayMs: number
+}
+
+function buildCascade(model: TimelineModel<MatchEventRow>): CascadeSchedule {
+  const slots = new Map<number, number>()
+  let slot = 0
+
+  for (const period of model.periods) {
+    slots.set(period.periodNumber, slot)
+    slot += 1 + period.rows.filter((row) => row.eventType !== 'penalty').length
+  }
+
+  return {
+    slotOf: (periodNumber) => slots.get(periodNumber) ?? 0,
+    finalDelayMs: slotDelay(slot) + FINAL_GAP_MS,
+  }
+}
+
+function slotDelay(slot: number): number {
+  return CASCADE_START_MS + Math.min(slot * CASCADE_STEP_MS, CASCADE_CAP_MS)
+}
+
 // ─── Degraded state ─────────────────────────────────────────────────────────
 
 function EmptyTimeline() {
@@ -175,9 +235,21 @@ function EmptyTimeline() {
 function Rail() {
   return (
     <div className="pointer-events-none absolute inset-y-0 left-1/2 hidden -translate-x-1/2 sm:block">
-      <div className="relative h-full w-[2px]" style={{ background: ACCENT_LINE }}>
-        <span className="absolute -left-[3px] -top-[3px] block h-2 w-2 rounded-full bg-accent" />
-        <span className="absolute -bottom-[3px] -left-[3px] block h-2 w-2 rounded-full bg-accent" />
+      {/* The spine is laid before any event: it grows top-down, then both
+          end-caps settle into the slow ambient breathe. These caps and the GWG
+          card are the only looping cues on the page. */}
+      <div
+        className="gs-grow-y relative h-full w-[2px]"
+        style={{ background: ACCENT_LINE, ...durationVar(620) }}
+      >
+        <span
+          className="gs-cap-breathe absolute -left-[3px] -top-[3px] block h-2 w-2 rounded-full bg-accent"
+          style={delayVar(560)}
+        />
+        <span
+          className="gs-cap-breathe absolute -bottom-[3px] -left-[3px] block h-2 w-2 rounded-full bg-accent"
+          style={delayVar(560)}
+        />
       </div>
     </div>
   )
@@ -185,7 +257,7 @@ function Rail() {
 
 function Anchor({ label }: { label: string }) {
   return (
-    <div className="relative flex justify-center pb-2 pt-1.5">
+    <div className="gs-fade-in relative flex justify-center pb-2 pt-1.5" style={delayVar(350)}>
       <span className="relative z-10 inline-flex items-center gap-2.5 border border-border bg-charcoal px-4 py-1.5 font-condensed text-[10px] font-extrabold uppercase tracking-[0.24em] text-fg-3">
         <span aria-hidden className="block h-[7px] w-[7px] rounded-full bg-[var(--color-fg-5)]" />
         {label}
@@ -199,11 +271,13 @@ function FinalLine({
   opp,
   winner,
   oppAbbrev,
+  delayMs,
 }: {
   bgm: number
   opp: number
   winner: TimelineSide | null
   oppAbbrev: string
+  delayMs: number
 }) {
   const tone =
     winner === null
@@ -211,11 +285,15 @@ function FinalLine({
       : winner === 'bgm'
         ? { border: ACCENT_LINE, color: 'var(--color-accent)' }
         : { border: 'var(--opp-line)', color: 'var(--opp)' }
+  // The result, arriving at the end — after every event has landed. The flare
+  // follows the winner; a timeline with no winner rises in without one.
+  const flare = winner === null ? '' : winner === 'bgm' ? 'gs-flare-accent' : 'gs-flare-opp'
+
   return (
     <div className="px-3.5 pt-2 text-center">
       <span
-        className="inline-flex items-baseline gap-1.5 border bg-background px-3.5 py-1.5 font-condensed text-[11px] font-extrabold uppercase tabular-nums tracking-[0.14em]"
-        style={{ borderColor: tone.border, color: tone.color }}
+        className={`gs-block-rise ${flare} inline-flex items-baseline gap-1.5 border bg-background px-3.5 py-1.5 font-condensed text-[11px] font-extrabold uppercase tabular-nums tracking-[0.14em]`}
+        style={{ borderColor: tone.border, color: tone.color, ...delayVar(delayMs) }}
       >
         <span className="text-fg-3">Final</span>
         <span aria-hidden className="text-fg-4">
@@ -234,22 +312,32 @@ function PeriodBlock({
   goalContext,
   oppAbbrev,
   showPenalties,
+  slotBase,
 }: {
   period: TimelinePeriod<MatchEventRow>
   goalContext: Map<number, GoalContext>
   oppAbbrev: string
   showPenalties: boolean
+  /** Cascade slot index of this period's divider — see buildCascade. */
+  slotBase: number
 }) {
+  // Only goals advance the cascade. A penalty row can never be part of the
+  // opening reveal (it starts hidden), so it appears immediately when the
+  // toggle reveals it rather than replaying a delay from a run it missed.
+  let goalSlot = 0
+
   return (
     <div>
       <PeriodDivider
         label={period.label}
         countLabel={periodCountLabel(period.goals, period.penalties)}
         scoreless={period.goals === 0}
+        delayMs={slotDelay(slotBase)}
       />
       <ol>
         {period.rows.map((event) => {
           const isPenalty = event.eventType === 'penalty'
+          if (!isPenalty) goalSlot += 1
           return (
             <li key={event.id} className={isPenalty && !showPenalties ? 'hidden' : undefined}>
               <EventRow
@@ -257,6 +345,7 @@ function PeriodBlock({
                 shortLabel={period.shortLabel}
                 ctx={goalContext.get(event.id) ?? null}
                 oppAbbrev={oppAbbrev}
+                delayMs={isPenalty ? 0 : slotDelay(slotBase + goalSlot)}
               />
             </li>
           )
@@ -270,13 +359,18 @@ function PeriodDivider({
   label,
   countLabel,
   scoreless,
+  delayMs,
 }: {
   label: string
   countLabel: string
   scoreless: boolean
+  delayMs: number
 }) {
   return (
-    <div className="relative flex items-center justify-center pb-2.5 pt-3.5">
+    <div
+      className="gs-fade-in relative flex items-center justify-center pb-2.5 pt-3.5"
+      style={delayVar(delayMs)}
+    >
       <span
         aria-hidden
         className="absolute inset-x-0 top-1/2 h-px bg-[linear-gradient(to_right,transparent,var(--color-border)_28%,var(--color-border)_72%,transparent)]"
@@ -318,23 +412,29 @@ function EventRow({
   shortLabel,
   ctx,
   oppAbbrev,
+  delayMs,
 }: {
   event: MatchEventRow
   shortLabel: string
   ctx: GoalContext | null
   oppAbbrev: string
+  delayMs: number
 }) {
   const side = sideOf(event.teamSide)
   const isBgm = side === 'bgm'
+  // Cards glide in from their own side, mirroring the layout: the direction
+  // itself says whose goal it was, before any label is read.
+  const slide = isBgm ? 'gs-slide-left' : 'gs-slide-right'
   return (
     <div className="relative z-10 my-1.5 grid grid-cols-1 items-center gap-1.5 sm:grid-cols-[1fr_76px_1fr]">
       <div className="flex justify-start sm:col-start-2 sm:row-start-1 sm:justify-center">
-        <ClockPill clock={toElapsedClock(event.clock)} period={shortLabel} />
+        <ClockPill clock={toElapsedClock(event.clock)} period={shortLabel} delayMs={delayMs} />
       </div>
       <div
-        className={`flex min-w-0 justify-start sm:row-start-1 ${
+        className={`${slide} flex min-w-0 justify-start sm:row-start-1 ${
           isBgm ? 'sm:col-start-1 sm:justify-end' : 'sm:col-start-3'
         }`}
+        style={delayVar(delayMs)}
       >
         <EventCard event={event} side={side} ctx={ctx} oppAbbrev={oppAbbrev} />
       </div>
@@ -342,11 +442,19 @@ function EventRow({
   )
 }
 
-function ClockPill({ clock, period }: { clock: string | null; period: string }) {
+function ClockPill({
+  clock,
+  period,
+  delayMs,
+}: {
+  clock: string | null
+  period: string
+  delayMs: number
+}) {
   return (
     <span
-      className="inline-flex flex-col items-center gap-px border bg-background px-2 py-1"
-      style={{ borderColor: ACCENT_LINE }}
+      className="gs-pop inline-flex flex-col items-center gap-px border bg-background px-2 py-1"
+      style={{ borderColor: ACCENT_LINE, ...delayVar(delayMs) }}
     >
       <span className="font-condensed text-[11px] font-extrabold leading-none tabular-nums tracking-[0.06em] text-fg-1">
         {clock ?? '—'}
@@ -419,8 +527,12 @@ function GoalCard({
       }
   const kickerColor = isGwg || isBgm ? 'var(--color-accent)' : 'var(--opp)'
 
+  // The decisive moment, marked exactly once. The prototype looped this glow,
+  // but its own guardrail says only the rail end-caps breathe — so it is a
+  // single flare. `--gs-delay` is inherited from the row wrapper, so the flare
+  // and the scorer's bloom land with the card rather than on their own clock.
   return (
-    <div className={layout.box} style={frame}>
+    <div className={`${layout.box} ${isGwg ? 'gs-flare-accent' : ''}`} style={frame}>
       <div className={`flex items-center gap-2 ${layout.row}`}>
         <span
           aria-hidden
@@ -440,7 +552,7 @@ function GoalCard({
         name={scorer.text}
         id={scorer.id}
         className={`text-[17px] font-black leading-[1.05] tracking-[0.03em] ${
-          isGwg ? 'text-accent' : 'text-fg-1'
+          isGwg ? 'gs-bloom-accent text-accent' : 'text-fg-1'
         }`}
       />
 

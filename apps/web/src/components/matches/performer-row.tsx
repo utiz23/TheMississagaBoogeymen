@@ -4,6 +4,7 @@ import Link from 'next/link'
 import type { PlayerScoreEntry, ScoreFactor } from '@/lib/match-recap'
 import { formatSeconds, formatSavePct } from '@/lib/match-recap'
 import { formatPosition } from '@/lib/format'
+import { delayVar, staggerDelay } from '@/lib/motion'
 import { PositionPill } from './position-pill'
 
 // One performer row for the rail list. This replaced the 360px-tall three-star
@@ -25,6 +26,15 @@ interface PerformerRowProps {
 }
 
 const RANK_STARS = ['★★★', '★★', '★']
+
+/**
+ * Ladder deal-in. Ranks are 1-based and the list can show 11+ rows, so the
+ * stagger is capped — the rail should be settled well inside the page's
+ * overall entrance budget.
+ */
+function rowDelay(rank: number): number {
+  return 200 + staggerDelay(rank - 1, 55, 550)
+}
 
 export function PerformerRow({
   entry,
@@ -57,7 +67,7 @@ export function PerformerRow({
   const scoreClass = isTop3 ? 'text-accent' : entry.score < 0 ? 'text-fg-3' : 'text-fg-2'
 
   return (
-    <div>
+    <div className="gs-row-in" style={delayVar(rowDelay(rank))}>
       <button
         type="button"
         aria-expanded={expanded}
@@ -99,7 +109,7 @@ export function PerformerRow({
               <span
                 aria-hidden
                 className={`font-condensed text-[10px] leading-none tracking-[-0.05em] text-accent ${
-                  rank === 1 ? '[text-shadow:0_0_8px_rgba(232,65,49,0.5)]' : ''
+                  rank === 1 ? 'gs-star-breathe [text-shadow:0_0_8px_rgba(232,65,49,0.5)]' : ''
                 }`}
               >
                 {RANK_STARS[rank - 1]}
@@ -255,12 +265,18 @@ function BreakdownBar({ breakdown, score }: { breakdown: ScoreFactor[]; score: n
       <span className="font-condensed text-[10px] font-extrabold uppercase tracking-[0.14em] text-fg-3">
         Where the {score.toFixed(2)} came from
       </span>
+      {/* The breakdown only renders while the row is open, so these run on
+          expand without needing a [open]-style gate — mounting IS the trigger. */}
       <div className="flex h-1.5 overflow-hidden border border-border bg-charcoal">
-        {segments.map((seg) => (
+        {segments.map((seg, index) => (
           <span
             key={seg.label}
-            className="block h-full"
-            style={{ width: `${seg.pct.toFixed(2)}%`, background: seg.color }}
+            className="gs-grow-x block h-full"
+            style={{
+              width: `${seg.pct.toFixed(2)}%`,
+              background: seg.color,
+              ...delayVar(index * 60),
+            }}
           />
         ))}
       </div>

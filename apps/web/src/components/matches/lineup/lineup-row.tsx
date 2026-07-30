@@ -200,7 +200,7 @@ export function LineupModuleRow({ slot, mode, isOpen, panelId, onToggle }: Lineu
       {/* Chevron — persistent expand affordance */}
       <span
         aria-hidden
-        className={`text-center font-condensed text-[13px] font-black leading-none transition-transform ${
+        className={`gs-chevron text-center font-condensed text-[13px] font-black leading-none ${
           slot.expandable ? (isOpen ? 'rotate-90 text-accent' : 'text-fg-2') : 'invisible'
         }`}
       >

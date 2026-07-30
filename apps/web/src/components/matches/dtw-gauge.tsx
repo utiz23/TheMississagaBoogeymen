@@ -1,6 +1,9 @@
 import type { PossessionEdge } from '@/lib/match-recap'
 import { formatSeconds } from '@/lib/match-recap'
 import { abbreviateTeamName } from '@/lib/format'
+import { delayVar, DTW_LANDS_MS, DTW_SWEEP_DELAY_MS, DTW_SWEEP_MS } from '@/lib/motion'
+import { DtwGaugeArc } from './dtw-gauge-arc'
+import { CountUp } from './motion'
 import { confidenceTone, confidenceWord } from './ocr-provenance-footer'
 
 // Rail module — Deserve to Win. Replaces the full-width `possession-edge.tsx`
@@ -13,9 +16,14 @@ import { confidenceTone, confidenceWord } from './ocr-provenance-footer'
 // the disclosure, where an input the match never captured is shown as an
 // excluded row rather than quietly dropped.
 //
-// Static by design — the needle sweep / count-up is Phase 12 motion. The
-// disclosure is a native `<details>`, so the caret flips without client JS
-// (the prototype's `＋` never flipped; the review flagged it).
+// The disclosure is a native `<details>`, so the caret flips without client JS
+// (the prototype's `+` never flipped; the review flagged it).
+//
+// Motion (Phase 12): the gauge computes a verdict rather than celebrating one.
+// A single front sweeps the arc while both percentages count up and the needle
+// rides it; the winning number blooms once as it lands, then the verdict badge
+// arrives last. The arc lives in `dtw-gauge-arc.tsx` (client, for the needle);
+// everything here stays a server component.
 
 interface DtwGaugeProps {
   edge: PossessionEdge
@@ -80,8 +88,9 @@ export function DtwGauge({ edge, opponentName, scoreFor, scoreAgainst }: DtwGaug
 
   return (
     <section>
-      <div className="broadcast-panel-soft relative overflow-hidden">
+      <div className="gs-rise broadcast-panel-soft relative overflow-hidden">
         <span aria-hidden className="ticker-strip ticker-strip-thin absolute inset-x-0 top-0" />
+        <span aria-hidden className="gs-wipe" />
 
         <div className="flex flex-col gap-2.5 px-3.5 pb-3.5 pt-3">
           <div className="flex flex-col gap-0.5">
@@ -104,11 +113,16 @@ export function DtwGauge({ edge, opponentName, scoreFor, scoreAgainst }: DtwGaug
             <SidePct side="opp" label={oppAbbrev} pct={oppPct} verdict={verdict} />
           </div>
 
-          <Gauge bgmPct={bgmPct} verdict={verdict} />
+          <DtwGaugeArc bgmPct={bgmPct} verdict={verdict} />
 
           <div className="flex flex-col items-center gap-1.5">
+            {/* The conclusion, arriving last: it rises in just after the
+                needle rests, with a single border flare. A coin flip gets the
+                entrance but no flare — "too close to call" is not a verdict to
+                mark. */}
             <span
-              className={`border px-3 py-[5px] text-center font-condensed text-[10px] font-black uppercase tracking-[0.2em] ${verdictBadgeClass(verdict)}`}
+              className={`gs-block-rise ${verdict === 'coin' ? '' : verdict === 'bgm' ? 'gs-flare-accent' : 'gs-flare-opp'} border px-3 py-[5px] text-center font-condensed text-[10px] font-black uppercase tracking-[0.2em] ${verdictBadgeClass(verdict)}`}
+              style={delayVar(DTW_LANDS_MS + 50)}
             >
               {verdictText}
             </span>
@@ -147,6 +161,14 @@ function SidePct({
   const valueColor = leads ? sideColorClass(side) : 'text-fg-3'
   const align = side === 'bgm' ? 'items-start' : 'items-end'
 
+  // The opponent number counts DOWN from 100 while BGM counts up from 0, so the
+  // pair reads as one quantity being divided rather than two tallies racing.
+  const countFrom = side === 'bgm' ? 0 : 100
+
+  // Only the winning side blooms, and only once. A coin-flip verdict blooms
+  // nothing — there is no conclusion to mark.
+  const bloomClass = leads ? (side === 'bgm' ? 'gs-bloom-accent' : 'gs-bloom-opp') : ''
+
   return (
     <div className={`flex min-w-0 flex-col ${align}`}>
       <span
@@ -155,12 +177,28 @@ function SidePct({
         {label}
       </span>
       <span
-        className={`font-condensed text-[38px] font-black leading-[0.9] tabular-nums ${valueColor}`}
+        className={`${bloomClass} font-condensed text-[38px] font-black leading-[0.9] tabular-nums ${valueColor}`}
         style={
-          leads && side === 'bgm' ? { textShadow: '0 0 22px rgba(232,65,49,0.30)' } : undefined
+          // The resting red shadow stays BGM-only, as before. The bloom
+          // keyframe's `both` fill supersedes it while running and settles on
+          // its own resting glow; under reduced motion the animation is gone
+          // and this inline value is what paints.
+          leads && side === 'bgm'
+            ? { ...delayVar(DTW_LANDS_MS), textShadow: '0 0 22px rgba(232,65,49,0.30)' }
+            : leads
+              ? delayVar(DTW_LANDS_MS)
+              : undefined
         }
       >
-        {pct.toFixed(1)}
+        <CountUp
+          value={pct}
+          from={countFrom}
+          decimals={1}
+          durationMs={DTW_SWEEP_MS}
+          delayMs={DTW_SWEEP_DELAY_MS}
+        >
+          {pct.toFixed(1)}
+        </CountUp>
         <span className="font-condensed text-[18px] text-fg-3">%</span>
       </span>
     </div>
@@ -233,91 +271,11 @@ function ConfidenceChip({
       title={tooltip}
       className={`ml-auto cursor-help font-condensed text-[10px] font-bold uppercase tracking-[0.14em] tabular-nums ${toneClass}`}
     >
-      <span aria-hidden className="pr-1">
+      <span aria-hidden className="gs-dot-breathe pr-1">
         ●
       </span>
       {confidenceWord(coverage)} {coverage.toFixed(2)}
     </span>
-  )
-}
-
-// ─── Gauge ────────────────────────────────────────────────────────────────────
-
-function Gauge({ bgmPct, verdict }: { bgmPct: number; verdict: Verdict }) {
-  const cx = 120
-  const cy = 120
-  const r = 96
-  const needleLen = 86
-  // bgmPct=100 → 0° (right), bgmPct=0 → 180° (left)
-  const angDeg = 180 - 1.8 * Math.max(0, Math.min(100, bgmPct))
-  const ang = (angDeg * Math.PI) / 180
-  const splitX = (cx + r * Math.cos(ang)).toFixed(2)
-  const splitY = (cy - r * Math.sin(ang)).toFixed(2)
-  const tipX = (cx + needleLen * Math.cos(ang)).toFixed(2)
-  const tipY = (cy - needleLen * Math.sin(ang)).toFixed(2)
-
-  // Same rule as the Team Stats bars: the leading side takes its saturated
-  // team colour, the trailing side stays present but faded.
-  const bgmSeg = verdict === 'bgm' ? 'var(--color-accent)' : 'rgba(232,65,49,0.30)'
-  const oppSeg = verdict === 'opp' ? 'var(--opp)' : 'var(--opp-line)'
-
-  return (
-    <svg viewBox="0 0 240 152" className="mx-auto block w-full max-w-[230px]" aria-hidden>
-      <path
-        d="M 24 120 A 96 96 0 0 1 216 120"
-        fill="none"
-        stroke="var(--color-charcoal)"
-        strokeWidth={30}
-      />
-      <path
-        d={`M 24 120 A 96 96 0 0 1 ${splitX} ${splitY}`}
-        fill="none"
-        stroke={bgmSeg}
-        strokeWidth={22}
-      />
-      <path
-        d={`M ${splitX} ${splitY} A 96 96 0 0 1 216 120`}
-        fill="none"
-        stroke={oppSeg}
-        strokeWidth={22}
-      />
-      <line x1={24} y1={120} x2={24} y2={130} stroke="var(--color-fg-4)" strokeWidth={1.2} />
-      <line x1={120} y1={24} x2={120} y2={14} stroke="var(--color-fg-4)" strokeWidth={1.2} />
-      <line x1={216} y1={120} x2={216} y2={130} stroke="var(--color-fg-4)" strokeWidth={1.2} />
-      <TickLabel x={24} y={144} text="0%" />
-      <TickLabel x={120} y={11} text="50" />
-      <TickLabel x={216} y={144} text="100%" />
-      <line
-        x1={cx}
-        y1={cy}
-        x2={tipX}
-        y2={tipY}
-        stroke="var(--color-fg-1)"
-        strokeWidth={3.5}
-        strokeLinecap="round"
-      />
-      <circle cx={cx} cy={cy} r={8} fill="var(--color-fg-1)" />
-      <circle cx={cx} cy={cy} r={4} fill="var(--color-background)" />
-    </svg>
-  )
-}
-
-function TickLabel({ x, y, text }: { x: number; y: number; text: string }) {
-  return (
-    <text
-      x={x}
-      y={y}
-      textAnchor="middle"
-      className="font-condensed"
-      style={{
-        fontSize: 10,
-        fontWeight: 800,
-        letterSpacing: '0.1em',
-        fill: 'var(--color-fg-4)',
-      }}
-    >
-      {text}
-    </text>
   )
 }
 
@@ -340,7 +298,7 @@ function Disclosure({
         <svg
           aria-hidden
           viewBox="0 0 12 12"
-          className="ml-auto h-3 w-3 shrink-0 transition-transform duration-200 group-open:rotate-180"
+          className="gs-chevron ml-auto h-3 w-3 shrink-0 group-open:rotate-180"
         >
           <path
             d="M2 4l4 4 4-4"
@@ -410,13 +368,16 @@ function ContributorBlock({
           className="h-2 border border-border bg-[repeating-linear-gradient(135deg,var(--color-charcoal)_0_4px,var(--color-background)_4px_6px)]"
         />
       ) : (
+        // Each side grows from its own outer edge, so the pair duels toward the
+        // split rather than both sliding the same way. Widths are untouched —
+        // only scaleX animates, so nothing reflows.
         <div aria-hidden className="flex h-2 border border-border bg-charcoal">
           <span
-            className="block h-full"
+            className={`gs-bar-on-open block h-full ${bgmLeads ? 'gs-flare-on-open-accent' : ''}`}
             style={{ width: `${(share * 100).toFixed(2)}%`, background: 'var(--color-accent)' }}
           />
           <span
-            className="block h-full"
+            className={`gs-bar-on-open gs-bar-on-open-right block h-full ${oppLeads ? 'gs-flare-on-open-opp' : ''}`}
             style={{ width: `${(100 - share * 100).toFixed(2)}%`, background: 'var(--opp)' }}
           />
         </div>

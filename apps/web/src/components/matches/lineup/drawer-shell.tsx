@@ -3,19 +3,27 @@ import type { ReactNode } from 'react'
 import type { LineupRow } from '@eanhl/db/queries'
 
 // Shared chrome for the two lineup drawers: the prototype's drawer frame
-// (background well under the open row, static accent left edge — the edge
-// wipe animates in Phase 12), the head-to-head kicker line, and the FULL
-// PLAYER PAGE footer link. Columns are fixed BGM-left / opponent-right
-// regardless of which roster is being browsed, matching the scorebug.
+// (background well under the open row, accent left edge that wipes top-down as
+// the drawer lands), the head-to-head kicker line, and the FULL PLAYER PAGE
+// footer link. Columns are fixed BGM-left / opponent-right regardless of which
+// roster is being browsed, matching the scorebug.
+//
+// Motion (Phase 12): the panel reveals by clip-path rather than height, so the
+// rows below it never animate their position — the drawer wipes down over its
+// own already-laid-out box. Inner blocks then assemble in a short stagger.
 
 export function DrawerShell({ children }: { children: ReactNode }) {
   return (
-    <div className="relative border-b border-border-subtle bg-background">
+    <div className="gs-drawer-in relative border-b border-border-subtle bg-background">
       <span
         aria-hidden
-        className="absolute bottom-0 left-0 top-0 w-[2px] bg-accent [box-shadow:0_0_8px_rgba(232,65,49,0.35)]"
+        className="gs-grow-y gs-drawer-edge absolute bottom-0 left-0 top-0 w-[2px] bg-accent [box-shadow:0_0_8px_rgba(232,65,49,0.35)]"
       />
-      <div className="flex flex-col gap-3.5 px-4 pb-4 pt-3.5">{children}</div>
+      {/* gs-drawer-blocks staggers its DIRECT children in CSS. Wrapping each
+          child in a per-item element would have been the obvious way to carry
+          a delay, but it would also re-parent them out of this flex column and
+          break any child that sizes itself against it. */}
+      <div className="gs-drawer-blocks flex flex-col gap-3.5 px-4 pb-4 pt-3.5">{children}</div>
     </div>
   )
 }

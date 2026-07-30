@@ -1,5 +1,7 @@
 import type { BoxScoreGroup, BoxScoreRow } from '@/lib/match-recap'
 import { abbreviateTeamName } from '@/lib/format'
+import { delayVar, staggerDelay } from '@/lib/motion'
+import { CountUp } from './motion'
 
 // Rail module — team head-to-head. Restyled to the prototype: one bordered
 // section, a flat row rhythm inside grouped dividers, and a center-divider
@@ -10,7 +12,14 @@ import { abbreviateTeamName } from '@/lib/format'
 //
 // No FULL HEAD-TO-HEAD link: the prototype links one, but this app has no
 // per-opponent route to land on (`/games`, `/roster`, `/stats` only). The plan
-// says link only if a destination exists — so it is omitted, not stubbed.
+// says link only if a destination exists — so it is omitted, not stubbed. Its
+// hover arrow-nudge cue goes with it.
+//
+// Motion (Phase 12): the rows deal in top to bottom and each pair of share
+// bars grows OUTWARD from the centre divider — a tug-of-war, not two fills
+// travelling the same way. Only the winning side flares, once. Counting stats
+// tick up; rates and clocks fade in, because counting a percentage up from
+// zero would be inventing intermediate readings that never happened.
 
 interface TeamStatsProps {
   rows: BoxScoreGroup[]
@@ -24,7 +33,8 @@ export function TeamStats({ rows, opponentName }: TeamStatsProps) {
 
   return (
     <section>
-      <div className="border border-border bg-surface">
+      <div className="gs-rise relative overflow-hidden border border-border bg-surface">
+        <span aria-hidden className="gs-wipe" />
         <div className="flex flex-col gap-2 px-3.5 pb-2.5 pt-3">
           <div className="flex flex-col gap-0.5">
             <h2 className="font-condensed text-[11px] font-extrabold uppercase tracking-[0.18em] text-fg-3">
@@ -46,8 +56,14 @@ export function TeamStats({ rows, opponentName }: TeamStatsProps) {
         </div>
 
         <div className="flex flex-col gap-3.5 px-3.5 pb-3.5">
-          {rows.map((group) => (
-            <Group key={group.title} group={group} />
+          {/* Row index runs across ALL groups, so the deal-in reads as one
+              sheet filling rather than each group restarting its own count. */}
+          {rows.map((group, groupIndex) => (
+            <Group
+              key={group.title}
+              group={group}
+              rowOffset={rows.slice(0, groupIndex).reduce((n, g) => n + g.rows.length, 0)}
+            />
           ))}
         </div>
       </div>
@@ -55,7 +71,7 @@ export function TeamStats({ rows, opponentName }: TeamStatsProps) {
   )
 }
 
-function Group({ group }: { group: BoxScoreGroup }) {
+function Group({ group, rowOffset }: { group: BoxScoreGroup; rowOffset: number }) {
   return (
     <div className="flex flex-col gap-2">
       <div className="flex items-center gap-2.5">
@@ -66,8 +82,8 @@ function Group({ group }: { group: BoxScoreGroup }) {
         <div className="h-px flex-1 bg-border-subtle" />
       </div>
       <div className="flex flex-col gap-2.5">
-        {group.rows.map((row) => (
-          <Row key={row.label} row={row} />
+        {group.rows.map((row, index) => (
+          <Row key={row.label} row={row} delayMs={rowDelay(rowOffset + index)} />
         ))}
       </div>
       {group.footnote ? (
@@ -77,19 +93,30 @@ function Group({ group }: { group: BoxScoreGroup }) {
   )
 }
 
-function Row({ row }: { row: BoxScoreRow }) {
+function Row({ row, delayMs }: { row: BoxScoreRow; delayMs: number }) {
   const { winner, bgmPct, oppPct, comparable } = rowGeometry(row)
   const unit = timeUnit(row)
+  const bgmCount = countableValue(row.us)
+  const oppCount = countableValue(row.them)
 
   return (
-    <div className="flex flex-col gap-1">
+    <div
+      className="gs-row-in gs-hover-row -mx-1.5 flex flex-col gap-1 px-1.5 py-0.5 hover:bg-surface-raised"
+      style={delayVar(delayMs)}
+    >
       <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2">
         <span
           className={`min-w-[38px] font-condensed text-[13px] font-extrabold tabular-nums ${
             winner === 'bgm' ? 'text-accent' : 'text-fg-3'
           }`}
         >
-          {row.us}
+          {bgmCount === null ? (
+            row.us
+          ) : (
+            <CountUp value={bgmCount} durationMs={480} delayMs={delayMs}>
+              {row.us}
+            </CountUp>
+          )}
         </span>
         <span className="text-center font-condensed text-[10px] font-semibold uppercase leading-tight tracking-[0.08em] text-fg-3">
           {row.label}
@@ -115,7 +142,13 @@ function Row({ row }: { row: BoxScoreRow }) {
             winner === 'opp' ? '[color:var(--opp)]' : 'text-fg-3'
           }`}
         >
-          {row.them ?? '—'}
+          {oppCount === null || row.them === null ? (
+            (row.them ?? '—')
+          ) : (
+            <CountUp value={oppCount} durationMs={480} delayMs={delayMs}>
+              {row.them}
+            </CountUp>
+          )}
         </span>
       </div>
 
@@ -123,14 +156,21 @@ function Row({ row }: { row: BoxScoreRow }) {
         <div aria-hidden className="flex h-[5px] overflow-hidden bg-background">
           {/* The two shares sum to 100%, so each gives up 1px to the divider —
               otherwise the track overflows by 2px and clips the opponent tail. */}
+          {/* Only the inner fill scales; the outer span keeps its computed
+              width, so the divider never moves and no row reflows. BGM's fill
+              is anchored at its RIGHT edge and the opponent's at its LEFT, so
+              both grow away from the divider between them. */}
           <span
             className="flex flex-none justify-end overflow-hidden"
             style={{ width: `calc(${bgmPct.toFixed(1)}% - 1px)` }}
           >
             <span
-              className="h-full w-full"
+              className={`gs-grow-from-right h-full w-full ${
+                winner === 'bgm' ? 'gs-flare-accent' : ''
+              }`}
               style={{
                 background: winner === 'bgm' ? 'var(--color-accent)' : 'rgba(232,65,49,0.30)',
+                ...delayVar(delayMs),
               }}
             />
           </span>
@@ -140,14 +180,40 @@ function Row({ row }: { row: BoxScoreRow }) {
             style={{ width: `calc(${oppPct.toFixed(1)}% - 1px)` }}
           >
             <span
-              className="h-full w-full"
-              style={{ background: winner === 'opp' ? 'var(--opp)' : 'var(--opp-line)' }}
+              className={`gs-grow-x h-full w-full ${winner === 'opp' ? 'gs-flare-opp' : ''}`}
+              style={{
+                background: winner === 'opp' ? 'var(--opp)' : 'var(--opp-line)',
+                ...delayVar(delayMs),
+              }}
             />
           </span>
         </div>
       ) : null}
     </div>
   )
+}
+
+// ─── Motion helpers ───────────────────────────────────────────────────────────
+
+/**
+ * Deal-in delay for a row. Capped so a five-group / ~20-row match still fits
+ * the spec's "full entrance <= 1.2s" guardrail — the prototype only ever had
+ * ten flat rows to schedule.
+ */
+function rowDelay(index: number): number {
+  return 300 + staggerDelay(index, 105, 720)
+}
+
+/**
+ * The number a value can honestly count up to, or null if it must simply fade
+ * in. Rates, clocks and made/attempted pairs are excluded: ticking "62.5%" up
+ * from zero would render a run of percentages the game never had.
+ */
+function countableValue(value: string | null): number | null {
+  if (value === null) return null
+  if (/[%:/]/.test(value)) return null
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : null
 }
 
 // ─── Share geometry ───────────────────────────────────────────────────────────

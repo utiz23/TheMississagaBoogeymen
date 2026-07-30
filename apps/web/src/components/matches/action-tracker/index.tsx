@@ -13,6 +13,7 @@ import {
 } from '@/components/matches/ocr-provenance-footer'
 import { FilterBar } from './filters'
 import { EventList } from './event-list'
+import { MotionReveal } from '../motion'
 import { RinkPanel } from './rink'
 import {
   ALL_TYPES,
@@ -200,7 +201,12 @@ export function ActionTracker({
   return (
     <TeamPaletteContext.Provider value={{ HOME_COLOR, AWAY_COLOR }}>
       <section>
-        <div className="border border-border bg-surface">
+        {/* The stage, before any play: the whole panel lifts in as one
+            surface, then a single red wipe brings the ice online. Wrapped in
+            MotionReveal because this module sits at the foot of a long page —
+            without a scroll trigger the plot-in would replay to an empty room. */}
+        <MotionReveal className="gs-rise relative overflow-hidden border border-border bg-surface">
+          <span aria-hidden className="gs-wipe" />
           <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 px-3.5 pt-3 pb-2">
             <div className="flex flex-col gap-0.5">
               <h2 className="font-condensed text-[11px] font-extrabold tracking-[0.18em] uppercase text-fg-3">
@@ -273,7 +279,7 @@ export function ActionTracker({
             ocrConfidence={ocrConfidence}
             positionStats={positionStats}
           />
-        </div>
+        </MotionReveal>
       </section>
     </TeamPaletteContext.Provider>
   )

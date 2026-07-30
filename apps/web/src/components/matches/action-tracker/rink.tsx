@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { MatchEventRow } from '@eanhl/db/queries'
 import { RinkSvg } from '@/components/branding/rink'
 import {
@@ -10,6 +10,8 @@ import {
   ShotMarker,
 } from '@/components/branding/event-markers'
 import { computeMarkerOffsets, type MarkerOffset } from '@/lib/marker-layout'
+import { delayVar, staggerDelay } from '@/lib/motion'
+import { useReducedMotion } from '../motion'
 import { cleanPeriodLabel, resolveMarkerSide, useTeamPalette, withAlpha } from './shared'
 
 /**
@@ -67,6 +69,21 @@ export function markerCenter(event: MatchEventRow): { x: number; y: number } {
   }
 }
 
+/* --- plot-in schedule (Phase 12 motion) ---------------------------------
+   Events drop onto the ice in order. Only the first PLOT_IN_LIMIT are
+   scheduled: match 250 plots 73 markers, and staggering all of them would run
+   for seven seconds against a ~2s guardrail. The remainder appear instantly,
+   which is exactly what the spec asks for on a dense game. */
+const PLOT_START_MS = 520
+const PLOT_STEP_MS = 95
+const PLOT_IN_LIMIT = 24
+const PLOT_TOTAL_MS = PLOT_START_MS + PLOT_IN_LIMIT * PLOT_STEP_MS + 450
+
+function plotDelay(index: number, plotDone: boolean): number | null {
+  if (plotDone || index >= PLOT_IN_LIMIT) return null
+  return PLOT_START_MS + staggerDelay(index, PLOT_STEP_MS, PLOT_IN_LIMIT * PLOT_STEP_MS)
+}
+
 export function RinkPanel({
   events,
   oppAbbrev,
@@ -89,6 +106,27 @@ export function RinkPanel({
   /** Events passing the filters that carry no rink position (faceoffs, NULL x/y). */
   offRink: number
 }) {
+  // Plot-in runs ONCE. After it finishes, markers render with no drop class at
+  // all, so re-widening a filter fades the returning markers in on the existing
+  // opacity transition instead of re-plotting them — the spec's guardrail is
+  // that markers never move on filter, because the reader's spatial map of the
+  // ice depends on it.
+  const reduced = useReducedMotion()
+  const [plotDone, setPlotDone] = useState(false)
+
+  useEffect(() => {
+    if (reduced) {
+      setPlotDone(true)
+      return
+    }
+    const timer = window.setTimeout(() => {
+      setPlotDone(true)
+    }, PLOT_TOTAL_MS)
+    return () => {
+      window.clearTimeout(timer)
+    }
+  }, [reduced])
+
   // Tooltip prefers explicit hover; falls back to the selected marker so the
   // pinned event keeps its detail panel visible.
   const focusedId = hoveredId ?? selectedId
@@ -146,7 +184,7 @@ export function RinkPanel({
             className="absolute inset-0 block h-auto w-full"
             aria-hidden
           >
-            {events.map((e) => {
+            {events.map((e, index) => {
               const isSelected = selectedId === e.id
               const isFaded = selectedId !== null && !isSelected
               return (
@@ -156,6 +194,7 @@ export function RinkPanel({
                   hovered={hoveredId === e.id}
                   selected={isSelected}
                   faded={isFaded}
+                  dropDelayMs={plotDelay(index, plotDone)}
                   offset={markerOffsets.get(e.id)}
                   onEnter={() => {
                     onHover(e.id)
@@ -236,6 +275,7 @@ function Marker({
   selected,
   faded,
   offset,
+  dropDelayMs,
   onEnter,
   onLeave,
   onClick,
@@ -246,6 +286,7 @@ function Marker({
   selected: boolean
   faded: boolean
   offset?: MarkerOffset | undefined
+  dropDelayMs: number | null
   onEnter: () => void
   onLeave: () => void
   onClick: () => void
@@ -268,6 +309,8 @@ function Marker({
     hovered,
     selected,
     faded,
+    dropDelayMs,
+    flareOnLand: event.eventType === 'goal',
     onEnter,
     onLeave,
     onClick,
@@ -317,6 +360,8 @@ function PlacedMarker({
   hovered,
   selected,
   faded,
+  dropDelayMs,
+  flareOnLand,
   onEnter,
   onLeave,
   onClick,
@@ -337,6 +382,10 @@ function PlacedMarker({
   hovered: boolean
   selected: boolean
   faded: boolean
+  /** Plot-in delay in ms, or null to appear instantly (see PLOT_IN_LIMIT). */
+  dropDelayMs: number | null
+  /** Goals flare once as they land. */
+  flareOnLand: boolean
   onEnter: () => void
   onLeave: () => void
   onClick: () => void
@@ -374,22 +423,38 @@ function PlacedMarker({
       }}
       style={groupStyle}
     >
-      {selected ? (
-        <circle
-          r={selectedHaloR}
-          fill="rgba(232,65,49,0.16)"
-          stroke="var(--color-accent)"
-          strokeWidth={3}
-        />
-      ) : hovered ? (
-        <circle
-          r={hoverHaloR}
-          fill="rgba(232,65,49,0.05)"
-          stroke="rgba(232,65,49,0.50)"
-          strokeWidth={2}
-        />
-      ) : null}
-      <g transform={`translate(${String(-halfW)}, ${String(-halfH)})`}>{children}</g>
+      {/* The drop lives on its OWN group. The positioned <g> above carries a
+          `transform` ATTRIBUTE, and a CSS transform on the same element
+          replaces it outright — animating there would fling every marker to
+          the rink's origin. This inner group has no transform attribute, so
+          the two compose. */}
+      <g
+        className={dropDelayMs === null ? undefined : 'gs-marker-drop'}
+        style={dropDelayMs === null ? undefined : delayVar(dropDelayMs)}
+      >
+        {selected ? (
+          <circle
+            r={selectedHaloR}
+            fill="rgba(232,65,49,0.16)"
+            stroke="var(--color-accent)"
+            strokeWidth={3}
+          />
+        ) : hovered ? (
+          <circle
+            r={hoverHaloR}
+            fill="rgba(232,65,49,0.05)"
+            stroke="rgba(232,65,49,0.50)"
+            strokeWidth={2}
+          />
+        ) : null}
+        <g
+          className={flareOnLand && dropDelayMs !== null ? 'gs-goal-land' : undefined}
+          style={flareOnLand && dropDelayMs !== null ? delayVar(dropDelayMs) : undefined}
+          transform={`translate(${String(-halfW)}, ${String(-halfH)})`}
+        >
+          {children}
+        </g>
+      </g>
     </g>
   )
 }

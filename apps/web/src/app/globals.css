@@ -174,3 +174,675 @@ body {
   outline: 2px solid var(--color-accent);
   outline-offset: 2px;
 }
+
+/* ==========================================================================
+   Game sheet — motion layer (Phase 12)
+
+   Ported from the design of record: the prototype bundle's `* Motion Recs`
+   files and the keyframe set in `Game Sheet.dc.html`. Rules of the phase:
+
+     - No motion dependency. CSS keyframes/transitions here; WAAPI only for
+       the DtW needle sweep and the count-ups (see lib/motion.ts).
+     - Transform / opacity / shadow only. Nothing here may change layout —
+       bars scale, they don't grow a width; cards translate, they don't
+       margin.
+     - Entrance cues use `both` fill so the pre-animation frame is the
+       animation's own 0% and never a flash of the final state.
+     - EVERY cue is killed by the single reduced-motion block at the bottom.
+       Because entrance keyframes all end at the resting state, killing the
+       animation leaves the element exactly where it belongs — no separate
+       "final state" styles to keep in sync.
+
+   Class names match the prototype's so the two can be diffed. Scoped under
+   .game-sheet: these are page rules, not a site-wide motion system. */
+
+/* --- entrance primitives ------------------------------------------------ */
+
+@keyframes gs-rise {
+  from {
+    opacity: 0;
+    transform: translateY(26px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes gs-block-rise {
+  from {
+    opacity: 0;
+    transform: translateY(9px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes gs-row-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes gs-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Cards slide from their own side — BGM left, opponent right. Distance is
+   capped at 22px by the timeline spec's guardrail. */
+@keyframes gs-slide-left {
+  from {
+    opacity: 0;
+    transform: translateX(-22px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes gs-slide-right {
+  from {
+    opacity: 0;
+    transform: translateX(22px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes gs-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* --- wipes and growth --------------------------------------------------- */
+
+/* The lower-third hairline: a bright band crossing the panel's top edge once. */
+@keyframes gs-panel-wipe {
+  0% {
+    transform: translateX(-120%);
+    opacity: 0;
+  }
+  18% {
+    opacity: 1;
+  }
+  80% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateX(340%);
+    opacity: 0;
+  }
+}
+
+/* Ambient ticker sweep — the page's only continuous motion besides the
+   timeline end-caps. */
+@keyframes gs-ticker-sweep {
+  0% {
+    transform: translateX(-140%);
+  }
+  55%,
+  100% {
+    transform: translateX(320%);
+  }
+}
+
+@keyframes gs-grow-x {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+@keyframes gs-grow-y {
+  from {
+    transform: scaleY(0);
+  }
+  to {
+    transform: scaleY(1);
+  }
+}
+
+/* Drawer reveal — clip-path, so the content underneath never reflows. */
+@keyframes gs-drawer-open {
+  from {
+    opacity: 0;
+    clip-path: inset(0 0 100% 0);
+  }
+  to {
+    opacity: 1;
+    clip-path: inset(0 0 0 0);
+  }
+}
+
+/* --- single-event flares ------------------------------------------------
+   Every one of these ends at a RESTING value, not at zero, so the element
+   settles rather than snapping dark. One event each; never `infinite`. */
+
+@keyframes gs-bloom-accent {
+  0% {
+    text-shadow: 0 0 0 rgba(232, 65, 49, 0);
+  }
+  45% {
+    text-shadow:
+      0 0 34px rgba(232, 65, 49, 0.9),
+      0 0 12px rgba(232, 65, 49, 0.7);
+  }
+  100% {
+    text-shadow: 0 0 18px rgba(232, 65, 49, 0.35);
+  }
+}
+
+/* Opponent-side bloom. Neutral white rather than --opp: the resolver
+   guarantees --opp clears the red clash zone but not that it glows legibly,
+   and the prototype's opponent flare is a cool white. */
+@keyframes gs-bloom-opp {
+  0% {
+    text-shadow: 0 0 0 rgba(235, 235, 235, 0);
+  }
+  45% {
+    text-shadow:
+      0 0 26px rgba(235, 235, 235, 0.6),
+      0 0 10px rgba(235, 235, 235, 0.45);
+  }
+  100% {
+    text-shadow: 0 0 14px rgba(235, 235, 235, 0.22);
+  }
+}
+
+@keyframes gs-flare-accent {
+  0% {
+    box-shadow: 0 0 0 rgba(232, 65, 49, 0);
+  }
+  50% {
+    box-shadow: 0 0 12px rgba(232, 65, 49, 0.8);
+  }
+  100% {
+    box-shadow: 0 0 3px rgba(232, 65, 49, 0.35);
+  }
+}
+
+@keyframes gs-flare-opp {
+  0% {
+    box-shadow: 0 0 0 rgba(235, 235, 235, 0);
+  }
+  50% {
+    box-shadow: 0 0 9px rgba(235, 235, 235, 0.55);
+  }
+  100% {
+    box-shadow: 0 0 2px rgba(235, 235, 235, 0.22);
+  }
+}
+
+/* drop-shadow rather than box-shadow, so it can flare an element that already
+   carries a resting box-shadow without fighting it. Returns to nothing. */
+@keyframes gs-flare-drop {
+  0% {
+    filter: drop-shadow(0 0 0 rgba(232, 65, 49, 0));
+  }
+  40% {
+    filter: drop-shadow(0 0 15px rgba(232, 65, 49, 0.8));
+  }
+  100% {
+    filter: drop-shadow(0 0 0 rgba(232, 65, 49, 0));
+  }
+}
+
+/* Marker landing on the ice: falls in, one squash, no bounce. */
+@keyframes gs-marker-drop {
+  0% {
+    opacity: 0;
+    transform: translateY(-120px) scale(0.9);
+  }
+  70% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  84% {
+    transform: translateY(0) scale(1.14, 0.86);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* Arc draw. The paths carry pathLength="1", so one dasharray works for every
+   arc regardless of its real length and the two segments can be timed as
+   shares of a single continuous front. */
+@keyframes gs-draw-arc {
+  from {
+    stroke-dashoffset: 1;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+/* A goal landing on the ice. drop-shadow rather than box-shadow because the
+   target is an SVG group with no box — and it returns to nothing, so the ice
+   holds still once the plot-in is done. */
+@keyframes gs-goal-land {
+  0%,
+  55% {
+    filter: drop-shadow(0 0 0 rgba(232, 65, 49, 0));
+  }
+  72% {
+    filter: drop-shadow(0 0 14px rgba(232, 65, 49, 0.85));
+  }
+  100% {
+    filter: drop-shadow(0 0 0 rgba(232, 65, 49, 0));
+  }
+}
+
+/* --- the two sanctioned ambient loops ----------------------------------- */
+
+@keyframes gs-cap-breathe {
+  0%,
+  100% {
+    box-shadow: 0 0 5px rgba(232, 65, 49, 0.35);
+  }
+  50% {
+    box-shadow: 0 0 11px rgba(232, 65, 49, 0.72);
+  }
+}
+
+@keyframes gs-star-breathe {
+  0%,
+  100% {
+    text-shadow: 0 0 4px rgba(232, 65, 49, 0.35);
+  }
+  50% {
+    text-shadow: 0 0 11px rgba(232, 65, 49, 0.7);
+  }
+}
+
+/* Opacity rather than a glow, so one rule serves the confidence dot in all
+   three of its tones (green / amber / neutral) without a variant per colour. */
+@keyframes gs-dot-breathe {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.4;
+  }
+}
+
+/* --- utilities ----------------------------------------------------------
+   `--gs-delay` is the stagger hook: components set it inline per row/column
+   so the cascade order lives with the data, not in nth-child chains that
+   break the moment a row is filtered out. */
+
+.game-sheet .gs-rise {
+  animation: gs-rise 0.62s cubic-bezier(0.16, 0.84, 0.3, 1) var(--gs-delay, 0s) both;
+}
+
+.game-sheet .gs-block-rise {
+  animation: gs-block-rise 0.38s cubic-bezier(0.16, 0.84, 0.3, 1) var(--gs-delay, 0s) both;
+}
+
+.game-sheet .gs-row-in {
+  animation: gs-row-in 0.34s cubic-bezier(0.16, 0.84, 0.3, 1) var(--gs-delay, 0s) both;
+}
+
+.game-sheet .gs-fade-in {
+  animation: gs-fade-in 0.4s ease-out var(--gs-delay, 0s) both;
+}
+
+.game-sheet .gs-slide-left {
+  animation: gs-slide-left 0.42s cubic-bezier(0.16, 0.84, 0.3, 1) var(--gs-delay, 0s) both;
+}
+
+.game-sheet .gs-slide-right {
+  animation: gs-slide-right 0.42s cubic-bezier(0.16, 0.84, 0.3, 1) var(--gs-delay, 0s) both;
+}
+
+.game-sheet .gs-pop {
+  animation: gs-pop 0.3s cubic-bezier(0.16, 0.84, 0.3, 1) var(--gs-delay, 0s) both;
+}
+
+.game-sheet .gs-grow-x {
+  transform-origin: left center;
+  animation: gs-grow-x 0.55s cubic-bezier(0.2, 0.7, 0.2, 1) var(--gs-delay, 0s) both;
+}
+
+/* Team-stats bars duel outward from the centre divider, so each side grows
+   from the edge that touches it. */
+.game-sheet .gs-grow-from-right {
+  transform-origin: right center;
+  animation: gs-grow-x 0.5s cubic-bezier(0.2, 0.7, 0.2, 1) var(--gs-delay, 0s) both;
+}
+
+/* Duration is overridable because this serves both a 2px drawer edge and the
+   timeline's full-height rail, which the spec gives very different beats. */
+.game-sheet .gs-grow-y {
+  transform-origin: top center;
+  animation: gs-grow-y var(--gs-duration, 0.32s) cubic-bezier(0.16, 0.84, 0.3, 1)
+    var(--gs-delay, 0s) both;
+}
+
+.game-sheet .gs-drawer-in {
+  animation: gs-drawer-open 0.34s cubic-bezier(0.16, 0.84, 0.3, 1) both;
+}
+
+.game-sheet .gs-drawer-edge {
+  animation-delay: 0.04s;
+}
+
+/* The drawer's inner blocks assemble in a short stagger. Delays live here
+   rather than on a per-child wrapper element, which would re-parent them out
+   of the flex column they size against. */
+.game-sheet .gs-drawer-blocks > * {
+  animation: gs-block-rise 0.38s cubic-bezier(0.16, 0.84, 0.3, 1) both;
+}
+.game-sheet .gs-drawer-blocks > *:nth-child(1) {
+  animation-delay: 0.06s;
+}
+.game-sheet .gs-drawer-blocks > *:nth-child(2) {
+  animation-delay: 0.12s;
+}
+.game-sheet .gs-drawer-blocks > *:nth-child(3) {
+  animation-delay: 0.18s;
+}
+.game-sheet .gs-drawer-blocks > *:nth-child(n + 4) {
+  animation-delay: 0.24s;
+}
+
+/* transform-box/origin are required for a CSS transform on an SVG group to
+   scale about its own centre rather than the viewBox origin. */
+.game-sheet .gs-marker-drop {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: gs-marker-drop 0.44s cubic-bezier(0.3, 0.7, 0.3, 1) var(--gs-delay, 0s) both;
+}
+
+.game-sheet .gs-goal-land {
+  animation: gs-goal-land 0.8s ease-out var(--gs-delay, 0s) both;
+}
+
+.game-sheet .gs-bloom-accent {
+  animation: gs-bloom-accent 0.9s ease-out var(--gs-delay, 0s) both;
+}
+
+.game-sheet .gs-bloom-opp {
+  animation: gs-bloom-opp 0.9s ease-out var(--gs-delay, 0s) both;
+}
+
+/* Flares ride an ::after overlay, NOT the element.
+   `animation` is a single property: two utility classes on one element do not
+   compose — the later rule's shorthand replaces the earlier one outright, so
+   an element with an entrance AND a flare would silently lose its entrance.
+   Putting the flare on a pseudo-element gives it its own animation slot, so
+   any entrance can be combined with any flare. The overlay inherits the host's
+   shape and is inert to pointers.
+   (`gs-bloom-*` and `gs-flare-drop` still animate the element itself — they
+   colour the text/whole node, which a pseudo cannot do. Those stay
+   single-cue: don't pair them with an entrance class.) */
+.game-sheet .gs-flare-accent,
+.game-sheet .gs-flare-opp {
+  position: relative;
+}
+
+.game-sheet .gs-flare-accent::after,
+.game-sheet .gs-flare-opp::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+}
+
+.game-sheet .gs-flare-accent::after {
+  animation: gs-flare-accent 0.6s ease-out var(--gs-delay, 0s) both;
+}
+
+.game-sheet .gs-flare-opp::after {
+  animation: gs-flare-opp 0.6s ease-out var(--gs-delay, 0s) both;
+}
+
+.game-sheet .gs-flare-drop {
+  animation: gs-flare-drop 0.9s ease-out var(--gs-delay, 0s) both;
+}
+
+/* Delay lets the caps wait for the rail to finish drawing before they start
+   breathing, so the spine lands first and the caps then ignite. */
+.game-sheet .gs-cap-breathe {
+  animation: gs-cap-breathe 2.8s ease-in-out var(--gs-delay, 0s) infinite;
+}
+
+.game-sheet .gs-star-breathe {
+  animation: gs-star-breathe 2.6s ease-in-out infinite;
+}
+
+.game-sheet .gs-dot-breathe {
+  animation: gs-dot-breathe 3.2s ease-in-out infinite;
+}
+
+.game-sheet .gs-draw-arc {
+  stroke-dasharray: 1;
+  animation: gs-draw-arc var(--gs-duration, 0.5s) linear var(--gs-delay, 0s) both;
+}
+
+/* Bars inside a <details> must animate when it OPENS, not at mount — the
+   summary's content is in the DOM from the first render, just undisplayed.
+   Gating on [open] restarts the animation each time the disclosure is
+   revealed, which is exactly the cue the spec asks for. */
+.game-sheet details[open] .gs-bar-on-open {
+  transform-origin: left center;
+  animation: gs-grow-x 0.55s cubic-bezier(0.2, 0.7, 0.2, 1) var(--gs-delay, 0s) both;
+}
+
+/* The opponent half of a dueling pair grows from the far edge, so the two
+   sides meet at the split instead of both travelling the same way. A Tailwind
+   arbitrary utility cannot do this — utilities are layered and would lose to
+   the unlayered rule above no matter how specific they are. */
+.game-sheet details[open] .gs-bar-on-open-right {
+  transform-origin: right center;
+}
+
+/* Same pseudo-element rule as the flares above: these sit on bars that are
+   already running gs-bar-on-open, so they cannot use the element's own
+   animation slot. */
+.game-sheet .gs-flare-on-open-accent,
+.game-sheet .gs-flare-on-open-opp {
+  position: relative;
+}
+
+.game-sheet details[open] .gs-flare-on-open-accent::after,
+.game-sheet details[open] .gs-flare-on-open-opp::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.game-sheet details[open] .gs-flare-on-open-accent::after {
+  animation: gs-flare-accent 0.55s ease-out 0.5s both;
+}
+
+.game-sheet details[open] .gs-flare-on-open-opp::after {
+  animation: gs-flare-opp 0.55s ease-out 0.5s both;
+}
+
+/* Panel top-edge wipe. The host needs `relative` + `overflow-hidden`; the
+   band is a child so it can translate past the panel's own bounds. */
+.game-sheet .gs-wipe {
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline-start: 0;
+  height: 2px;
+  width: 28%;
+  background: linear-gradient(90deg, transparent, var(--color-accent), transparent);
+  animation: gs-panel-wipe 0.85s cubic-bezier(0.55, 0, 0.45, 1) var(--gs-delay, 0.15s) both;
+  pointer-events: none;
+}
+
+/* Ambient sweep over the existing 4px ticker strip. */
+.game-sheet .ticker-strip {
+  position: relative;
+  overflow: hidden;
+}
+
+.game-sheet .ticker-strip::after {
+  content: '';
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: 0;
+  width: 22%;
+  background: linear-gradient(90deg, transparent, rgba(255, 190, 180, 0.75), transparent);
+  animation: gs-ticker-sweep 3s cubic-bezier(0.55, 0, 0.45, 1) 0.8s infinite;
+  pointer-events: none;
+}
+
+/* --- scroll-triggered staging ------------------------------------------
+   A <MotionReveal> wrapper holds its subtree's entrance animations at their
+   first frame until the module nears the viewport. Because every entrance
+   here uses `both` fill, pausing is enough — no separate hidden state.
+
+   The `html.gs-js` gate is what makes this fail open: the class is set by the
+   motion client chunk, so if JS never runs, nothing is ever paused and every
+   entrance simply plays at mount. Content visibility must not depend on an
+   animation succeeding. (MotionReveal also arms on a timeout, for the case
+   where the observer exists but never fires.) */
+.gs-js .game-sheet [data-gs-stage]:not([data-gs-armed]) * {
+  animation-play-state: paused !important;
+}
+
+/* --- interaction transitions -------------------------------------------
+   Transitions, not animations, so they run in both directions and can be
+   interrupted mid-flight. */
+
+.game-sheet .gs-chevron {
+  transition:
+    rotate 0.28s cubic-bezier(0.16, 0.84, 0.3, 1),
+    color 0.28s ease;
+}
+
+/* All four movement properties, not just `transform`. Tailwind 4 compiles
+   `translate-x-full` / `rotate-90` / `scale-*` to the INDIVIDUAL `translate`,
+   `rotate` and `scale` properties — transitioning `transform` alone leaves
+   those utilities snapping instantly. */
+.game-sheet .gs-thumb {
+  transition:
+    transform 0.3s cubic-bezier(0.16, 0.84, 0.3, 1),
+    translate 0.3s cubic-bezier(0.16, 0.84, 0.3, 1),
+    scale 0.3s cubic-bezier(0.16, 0.84, 0.3, 1);
+}
+
+.game-sheet .gs-hover-row {
+  transition:
+    background-color 0.15s ease,
+    border-color 0.18s ease,
+    color 0.15s ease;
+}
+
+.game-sheet .gs-nudge {
+  transition: transform 0.18s cubic-bezier(0.16, 0.84, 0.3, 1);
+}
+
+.game-sheet .gs-nudge-host:hover .gs-nudge {
+  transform: translateX(3px);
+}
+
+/* Filter toggles fade markers in place — position must never change, so the
+   eye keeps its spatial map of the ice. */
+.game-sheet .gs-fade-marker {
+  transition:
+    opacity 0.22s ease,
+    filter 0.22s ease;
+}
+
+/* Hover/select on the rink resolve inside .15s per the tracker spec. */
+.game-sheet .gs-halo {
+  transition:
+    opacity 0.13s ease,
+    r 0.13s ease;
+}
+
+/* --- reduced motion -----------------------------------------------------
+   One block, everything off. `animation: none` is sufficient on its own: a
+   property declared only inside a keyframe stops applying entirely once the
+   animation is gone, so each element falls back to its resting style. That is
+   why no cue here declares its start state in the rule — and why this block
+   must NOT force `transform: none`, which would clobber the real positioning
+   transforms that the rink's marker groups carry. Count-ups and the needle
+   sweep check the same media query in JS (lib/motion.ts) and paint their
+   final value immediately. */
+@media (prefers-reduced-motion: reduce) {
+  .game-sheet .gs-rise,
+  .game-sheet .gs-block-rise,
+  .game-sheet .gs-row-in,
+  .game-sheet .gs-fade-in,
+  .game-sheet .gs-slide-left,
+  .game-sheet .gs-slide-right,
+  .game-sheet .gs-pop,
+  .game-sheet .gs-grow-x,
+  .game-sheet .gs-grow-from-right,
+  .game-sheet .gs-grow-y,
+  .game-sheet .gs-drawer-in,
+  .game-sheet .gs-marker-drop,
+  .game-sheet .gs-goal-land,
+  .game-sheet .gs-bloom-accent,
+  .game-sheet .gs-bloom-opp,
+  .game-sheet .gs-flare-accent::after,
+  .game-sheet .gs-flare-opp::after,
+  .game-sheet .gs-flare-drop,
+  .game-sheet .gs-cap-breathe,
+  .game-sheet .gs-star-breathe,
+  .game-sheet .gs-dot-breathe,
+  .game-sheet .gs-draw-arc,
+  .game-sheet .gs-drawer-blocks > *,
+  .game-sheet details[open] .gs-bar-on-open,
+  .game-sheet details[open] .gs-flare-on-open-accent::after,
+  .game-sheet details[open] .gs-flare-on-open-opp::after,
+  .game-sheet .ticker-strip::after {
+    animation: none !important;
+  }
+
+  /* gs-draw-arc is the one cue whose start state lives in the RULE rather than
+     the keyframe, so killing the animation is not enough — the dasharray would
+     stay and leave every arc stroked as a 1-unit dash. */
+  .game-sheet .gs-draw-arc {
+    stroke-dasharray: none !important;
+  }
+
+  .game-sheet .gs-wipe {
+    display: none !important;
+  }
+
+  .game-sheet .gs-chevron,
+  .game-sheet .gs-thumb,
+  .game-sheet .gs-hover-row,
+  .game-sheet .gs-nudge,
+  .game-sheet .gs-fade-marker,
+  .game-sheet .gs-halo {
+    transition: none !important;
+  }
+
+  .game-sheet .gs-nudge-host:hover .gs-nudge {
+    transform: none !important;
+  }
+}

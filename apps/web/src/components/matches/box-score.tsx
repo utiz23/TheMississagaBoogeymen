@@ -4,6 +4,8 @@ import { useId, useRef, useState, type KeyboardEvent } from 'react'
 import type { MatchPeriodSummaryRow } from '@eanhl/db/queries'
 import { abbreviateTeamName } from '@/lib/format'
 import { formatPeriodLabel } from '@/lib/period-label'
+import { delayVar, staggerDelay } from '@/lib/motion'
+import { CountUp } from './motion'
 import { ProvenanceChip } from './ocr-provenance-footer'
 
 // Rail module — period-by-period box score. Restyled to the prototype's
@@ -43,7 +45,8 @@ export function BoxScore({ rows, opponentLabel }: BoxScoreProps) {
 
   return (
     <section>
-      <div className="border border-border bg-surface">
+      <div className="gs-rise relative overflow-hidden border border-border bg-surface">
+        <span aria-hidden className="gs-wipe" />
         <div className="flex flex-col gap-2.5 px-3.5 pb-3.5 pt-3">
           <div className="flex flex-col gap-0.5">
             <h2 className="font-condensed text-[11px] font-extrabold uppercase tracking-[0.18em] text-fg-3">
@@ -59,7 +62,12 @@ export function BoxScore({ rows, opponentLabel }: BoxScoreProps) {
 
           <ModeTabs mode={mode} onChange={setMode} tablistId={tablistId} tableId={tableId} />
 
+          {/* `key={mode}` is the tab-refill cue: switching GOALS/SHOTS/FO
+              remounts the table so the columns fill again with the new stat,
+              while the panel itself does NOT replay — the spec asks for a
+              refill, not a second entrance. */}
           <BoxScoreTable
+            key={mode}
             mode={mode}
             rows={sortedRows}
             oppAbbrev={oppAbbrev}
@@ -67,7 +75,11 @@ export function BoxScore({ rows, opponentLabel }: BoxScoreProps) {
             tablistId={tablistId}
           />
 
-          <Footnotes mode={mode} rows={sortedRows} sourceKind={sourceKind} />
+          {/* The caption to a settled graphic — it fades up once the table has
+              resolved. */}
+          <div className="gs-fade-in" style={delayVar(1200)}>
+            <Footnotes mode={mode} rows={sortedRows} sourceKind={sourceKind} />
+          </div>
         </div>
       </div>
     </section>
@@ -261,32 +273,62 @@ function TeamRow({
       >
         {label}
       </th>
-      {rows.map((r) => {
+      {rows.map((r, index) => {
         const { forVal, againstVal } = getModeValues(r, mode)
         const mine = isBgm ? forVal : againstVal
         const other = isBgm ? againstVal : forVal
         const wins = mine !== null && other !== null && mine > other
+        const delayMs = columnDelay(index)
         return (
           <td
             key={r.id}
-            className={`px-0.5 py-1.5 text-center font-condensed text-[12px] tabular-nums ${edge} ${
+            className={`gs-fade-in px-0.5 py-1.5 text-center font-condensed text-[12px] tabular-nums ${edge} ${
               mine === null ? 'text-fg-3' : wins ? `font-bold ${winColor} ${winTint}` : 'text-fg-2'
             }`}
+            style={delayVar(delayMs)}
           >
-            {mine ?? '—'}
+            {mine === null ? (
+              '—'
+            ) : (
+              <CountUp value={mine} durationMs={320} delayMs={delayMs}>
+                {String(mine)}
+              </CountUp>
+            )}
           </td>
         )
       })}
+      {/* The conclusion, arriving last: the TOT column lands after every
+          period column, and only the winning total blooms — one event. */}
       <td
-        className={`border-l border-accent/40 bg-accent/[0.06] px-0.5 py-1.5 text-center font-condensed text-[14px] font-black tabular-nums ${edge} ${
+        className={`gs-fade-in ${
+          isWinner ? (isBgm ? 'gs-bloom-accent' : 'gs-bloom-opp') : ''
+        } border-l border-accent/40 bg-accent/[0.06] px-0.5 py-1.5 text-center font-condensed text-[14px] font-black tabular-nums ${edge} ${
           total === null ? 'text-fg-3' : isWinner ? winColor : 'text-fg-2'
         }`}
-        style={isWinner && isBgm ? { textShadow: '0 0 10px rgba(232,65,49,0.30)' } : undefined}
+        style={{
+          ...delayVar(totalDelay(rows.length)),
+          ...(isWinner && isBgm ? { textShadow: '0 0 10px rgba(232,65,49,0.30)' } : null),
+        }}
       >
         {total ?? '—'}
       </td>
     </tr>
   )
+}
+
+/* --- column fill schedule (Phase 12 motion) ------------------------------
+   Periods reveal left to right so the game appears to play out, then TOT lands
+   after all of them. Both team cells in a column share a delay, so a column
+   arrives as a pair rather than one row racing the other. */
+const COLUMN_START_MS = 140
+const COLUMN_STEP_MS = 150
+
+function columnDelay(index: number): number {
+  return COLUMN_START_MS + staggerDelay(index, COLUMN_STEP_MS, 750)
+}
+
+function totalDelay(periodCount: number): number {
+  return columnDelay(periodCount) + 60
 }
 
 function FaceoffPctRow({
