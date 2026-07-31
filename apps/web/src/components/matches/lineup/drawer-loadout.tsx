@@ -7,6 +7,7 @@ import {
   type AttributeValue,
 } from '@/lib/head-to-head'
 import { delayVar } from '@/lib/motion'
+import { CountUp } from '@/components/matches/motion'
 import { DrawerKicker, DrawerShell, DrawerTable, FullPlayerPageLink } from './drawer-shell'
 
 // LOADOUTS drawer — one player's build card, matching the prototype: a bio
@@ -150,10 +151,20 @@ function AttributeRowView({ label, v }: { label: string; v: AttributeValue | nul
       >
         {label}
       </span>
+      {/* R-value spin-up — the numbers climb as the bars grow, so the pair
+          lands as one event. Prototype timing: 700ms, ease-out cubic (which is
+          what CountUp already uses). CountUp renders the resting text as its
+          initial HTML, so no-JS and reduced-motion both show the final value. */}
       <span
         className={`min-w-[26px] text-right font-condensed text-[12px] font-extrabold tabular-nums ${attrValueTone(v)}`}
       >
-        {v !== null ? v.value : '—'}
+        {v !== null ? (
+          <CountUp value={v.value} durationMs={700}>
+            {v.value.toString()}
+          </CountUp>
+        ) : (
+          '—'
+        )}
       </span>
       {/* Δ blank at zero rather than "0" — the prototype used a `·` glyph here
           and its own review called that cryptic. Nothing = no change. */}

@@ -729,6 +729,16 @@ body {
   pointer-events: none;
 }
 
+/* Lineup auto-walk dwell bar. Linear, so the bar reads as elapsed time rather
+   than as an entrance. This is the walk's ONLY clock: the advance fires on
+   this animation's `animationend`, so `animation-play-state: paused` pauses
+   the walk itself and the bar can never desync from the timer. Duration comes
+   from `--gs-duration`. */
+.game-sheet .gs-dwell {
+  transform-origin: left center;
+  animation: gs-grow-x var(--gs-duration, 9s) linear both;
+}
+
 /* Ambient sweep over the existing 4px ticker strip. Prototype values, and
    like the prototype's `.ticker-strip--hero` it is opt-in per element rather
    than applied to every strip on the page: this is the ONE persistent loop on
@@ -866,6 +876,10 @@ body {
   .game-sheet details[open] .gs-flare-on-open-accent::after,
   .game-sheet details[open] .gs-flare-on-open-opp::after,
   .game-sheet .gs-wipe,
+  /* The auto-walk is disabled outright under reduce (it advances the drawer
+     on its own, which is motion by any reading), so its dwell bar has nothing
+     left to indicate. */
+  .game-sheet .gs-dwell,
   .ticker-strip-hero::after {
     animation: none !important;
     display: none !important;

@@ -1,15 +1,16 @@
 'use client'
 
-import { useId, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import Image from 'next/image'
 import type { LineupRow, MatchLineups } from '@eanhl/db/queries'
 import type { PlayerArchetype } from '@eanhl/db/schema'
 import { useGameSheetMode } from '@/components/matches/game-sheet-mode'
+import { useReducedMotion } from '@/components/matches/motion'
 import { OpponentCrest } from '@/components/ui/opponent-crest'
 import { ArchetypePillCompact } from '@/components/ui/archetype-pill'
 import { resolvePlatform } from '@/components/ui/platform-badge'
 import { splitBuild, type HeadToHeadStatLine } from '@/lib/head-to-head'
-import { delayVar } from '@/lib/motion'
+import { delayVar, durationVar } from '@/lib/motion'
 import type { PlayerScoreEntry } from '@/lib/match-recap'
 import { DrawerLoadout } from './drawer-loadout'
 import { DrawerStats } from './drawer-stats'
@@ -95,6 +96,21 @@ export function LineupModule({
     })
   })
 
+  // Walk order per team — expandable slots only, canonical position order.
+  const bgmOrder = expandableOrder(bgmByPos, bgmStats, 'bgm', variant)
+  const oppOrder = expandableOrder(oppByPos, oppStats, 'opp', variant)
+  const onWalkAdvance = useCallback((nextTeam: TeamKey, nextPos: LineupPositionKey) => {
+    setTeam(nextTeam)
+    setOpenPos(nextPos)
+  }, [])
+  const walk = useLineupAutoWalk({
+    team,
+    openPos,
+    bgmOrder,
+    oppOrder,
+    onAdvance: onWalkAdvance,
+  })
+
   const dressed = slots.filter((s) => s.human).length
   const goalieSlot = slots.find((s) => s.position === 'G')
   const goalieLabel = goalieSlot?.human ? (goalieSlot.persona ?? goalieSlot.handle ?? 'CPU') : 'CPU'
@@ -106,8 +122,39 @@ export function LineupModule({
       {/* Panel settles in on load and a red hairline sweeps its top edge once —
           the prototype's `bcast-in` + `panel-wipe` pair, same treatment the
           box-score and team-stats panels already carry. */}
-      <div className="gs-rise relative overflow-hidden border border-border bg-surface">
+      {/* Hover/focus pause the auto-walk; `onFocusCapture` is what makes it
+          reachable by keyboard, where the prototype only had mouseenter. */}
+      <div
+        ref={walk.panelRef}
+        onMouseEnter={() => {
+          walk.setHovered(true)
+        }}
+        onMouseLeave={() => {
+          walk.setHovered(false)
+        }}
+        onFocusCapture={() => {
+          walk.setHovered(true)
+        }}
+        onBlurCapture={() => {
+          walk.setHovered(false)
+        }}
+        className="gs-rise relative overflow-hidden border border-border bg-surface"
+      >
         <span aria-hidden className="gs-wipe" />
+        {/* Dwell bar — the walk's clock and its only visible indicator.
+            `key` restarts the animation on each advance. */}
+        {walk.on ? (
+          <span
+            key={walk.step}
+            aria-hidden
+            onAnimationEnd={walk.advance}
+            style={{
+              ...durationVar(WALK_DWELL_MS),
+              animationPlayState: walk.paused ? 'paused' : 'running',
+            }}
+            className="gs-dwell absolute left-0 top-0 z-[4] h-[2px] w-full [background:linear-gradient(90deg,rgba(232,65,49,0.2),var(--color-accent))]"
+          />
+        ) : null}
         {/* Header: identity · team switch */}
         <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-3 px-3.5 pb-3 pt-3">
           <div className="flex min-w-0 flex-col gap-[9px]">
@@ -204,6 +251,7 @@ export function LineupModule({
                 active={team === 'bgm'}
                 activeClass="text-accent"
                 onClick={() => {
+                  walk.stop()
                   setTeam('bgm')
                 }}
               >
@@ -213,6 +261,7 @@ export function LineupModule({
                 active={team === 'opp'}
                 activeClass="text-fg-1"
                 onClick={() => {
+                  walk.stop()
                   setTeam('opp')
                 }}
               >
@@ -244,6 +293,8 @@ export function LineupModule({
                   isOpen={isOpen}
                   panelId={panelId}
                   onToggle={() => {
+                    // Any deliberate click ends the walk for good.
+                    walk.stop()
                     setOpenPos((prev) => (prev === slot.position ? null : slot.position))
                   }}
                 />
@@ -270,6 +321,159 @@ export function LineupModule({
       {children}
     </section>
   )
+}
+
+// ─── Auto-walk ───────────────────────────────────────────────────────────────
+
+/** Prototype default (`lineupRotateSeconds`). */
+const WALK_DWELL_MS = 9000
+
+interface AutoWalk {
+  /** False once the walk is off for good — nothing renders the dwell bar then. */
+  on: boolean
+  paused: boolean
+  /** Bumped per advance; keys the dwell bar so its animation restarts. */
+  step: number
+  /** Advance one slot. Bound to the dwell bar's `animationend`. */
+  advance: () => void
+  /** Any deliberate interaction hands the panel back to the user, for good. */
+  stop: () => void
+  setHovered: (v: boolean) => void
+  panelRef: (el: HTMLDivElement | null) => void
+}
+
+/**
+ * The prototype's lineup auto-walk: open each skater in turn, then hand over to
+ * the other roster and keep going. Pauses on hover/focus, when scrolled out of
+ * view, and when the tab is hidden; any deliberate click ends it permanently
+ * (`luOff` — "any deliberate click hands the panel back to the user").
+ *
+ * There is no JS timer. The dwell bar's CSS animation IS the clock: `advance`
+ * fires on its `animationend` and pausing is `animation-play-state: paused`,
+ * which preserves elapsed time for free. A `setTimeout` alongside a CSS bar
+ * would be two clocks that drift apart on every pause.
+ *
+ * Disabled outright under reduced motion, matching the prototype's
+ * `luAutoOn() { return on && !this._reduceMotion }` — content that advances on
+ * its own is motion regardless of how it is drawn.
+ */
+function useLineupAutoWalk({
+  team,
+  openPos,
+  bgmOrder,
+  oppOrder,
+  onAdvance,
+}: {
+  team: TeamKey
+  openPos: LineupPositionKey | null
+  bgmOrder: LineupPositionKey[]
+  oppOrder: LineupPositionKey[]
+  onAdvance: (team: TeamKey, pos: LineupPositionKey) => void
+}): AutoWalk {
+  const reduced = useReducedMotion()
+  const [stopped, setStopped] = useState(false)
+  const [hovered, setHovered] = useState(false)
+  const [offscreen, setOffscreen] = useState(false)
+  const [hidden, setHidden] = useState(false)
+  const [step, setStep] = useState(0)
+  const panelEl = useRef<HTMLDivElement | null>(null)
+
+  // Pause while the panel is off screen — a walk nobody is looking at only
+  // burns frames, and it would otherwise be several slots along by the time it
+  // scrolls back in.
+  useEffect(() => {
+    const el = panelEl.current
+    if (el === null || typeof IntersectionObserver === 'undefined') return
+    const io = new IntersectionObserver(
+      (entries) => {
+        for (const e of entries) setOffscreen(!e.isIntersecting)
+      },
+      { threshold: 0.05 },
+    )
+    io.observe(el)
+    return () => {
+      io.disconnect()
+    }
+  }, [])
+
+  useEffect(() => {
+    const sync = () => {
+      setHidden(document.hidden)
+    }
+    sync()
+    document.addEventListener('visibilitychange', sync)
+    return () => {
+      document.removeEventListener('visibilitychange', sync)
+    }
+  }, [])
+
+  const on = !stopped && !reduced && bgmOrder.length + oppOrder.length > 1
+  const paused = hovered || offscreen || hidden
+
+  const stop = useCallback(() => {
+    setStopped(true)
+  }, [])
+
+  const advance = useCallback(() => {
+    const order = team === 'bgm' ? bgmOrder : oppOrder
+    const other: TeamKey = team === 'bgm' ? 'opp' : 'bgm'
+    const otherOrder = other === 'bgm' ? bgmOrder : oppOrder
+    const i = openPos === null ? -1 : order.indexOf(openPos)
+
+    const next = i < 0 ? order[0] : order[i + 1]
+    if (next !== undefined) {
+      onAdvance(team, next)
+    } else {
+      // End of this roster — hand over to the other side and start again.
+      // Scope stops here: the prototype's widest scope also flips the
+      // LOADOUTS/STATS view, but that is page-level context backed by the URL,
+      // so auto-flipping it would rewrite history and change content well
+      // outside this panel.
+      const handover = otherOrder[0] ?? order[0]
+      if (handover !== undefined) {
+        onAdvance(otherOrder.length > 0 ? other : team, handover)
+      }
+    }
+    setStep((s) => s + 1)
+  }, [team, openPos, bgmOrder, oppOrder, onAdvance])
+
+  // Open the first slot so the walk has somewhere to start. The ref makes this
+  // fire exactly once — the orders and `onAdvance` are fresh values every
+  // render, and re-running would fight the user's own selection.
+  const kicked = useRef(false)
+  useEffect(() => {
+    if (!on || kicked.current) return
+    kicked.current = true
+    const first = (team === 'bgm' ? bgmOrder : oppOrder)[0]
+    if (first !== undefined) onAdvance(team, first)
+  }, [on, team, bgmOrder, oppOrder, onAdvance])
+
+  return {
+    on,
+    paused,
+    step,
+    advance,
+    stop,
+    setHovered,
+    panelRef: (el) => {
+      panelEl.current = el
+    },
+  }
+}
+
+/** Expandable slots for a team, in canonical position order — the walk order. */
+function expandableOrder(
+  byPos: Map<LineupPositionKey, LineupRow>,
+  stats: LineupModuleStatRow[],
+  team: TeamKey,
+  variant: 'ocr' | 'boxScore',
+): LineupPositionKey[] {
+  return POSITIONS.filter((position) => {
+    const row = byPos.get(position) ?? null
+    if (row === null) return false
+    const stat = findStat(stats, team, row)
+    return buildSlotVM({ position, row, variant, stat, gs: null }).expandable
+  })
 }
 
 function TeamButton({
