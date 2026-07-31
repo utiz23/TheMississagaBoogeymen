@@ -2,6 +2,7 @@ import type { PlayerScoreEntry, TopPerformerWithDelta } from '@/lib/match-recap'
 import { performerKey } from '@/lib/match-recap'
 import { abbreviateTeamName } from '@/lib/format'
 import { PerformerScoreList } from './performer-score-list'
+import { MotionReveal } from './motion'
 
 // Rail module — the performer ladder. The section owns nothing but its chrome:
 // the ranked list (and its show-all / expand state) lives in the client child.
@@ -25,17 +26,14 @@ export function TopPerformers({ performers, allTeamScores, opponentLabel }: TopP
 
   return (
     <section>
-      <div className="border border-border bg-surface">
+      <MotionReveal className="border border-border bg-surface">
         <div className="flex flex-col gap-0.5 px-3.5 pb-2.5 pt-3">
-          <h2 className="font-condensed text-[11px] font-extrabold uppercase tracking-[0.18em] text-fg-3">
-            <span aria-hidden className="pr-1 text-accent">
+          <h2 className="font-condensed text-[12px] font-semibold uppercase tracking-[0.16em] text-fg-4">
+            <span aria-hidden className="pr-1 text-fg-5">
               ▰
             </span>
             Top Performers
           </h2>
-          <p className="font-condensed text-[10px] uppercase tracking-[0.12em] text-fg-3">
-            Game-score model · tap a row
-          </p>
         </div>
 
         <PerformerScoreList
@@ -43,7 +41,7 @@ export function TopPerformers({ performers, allTeamScores, opponentLabel }: TopP
           deltas={deltas}
           opponentLabel={abbreviateTeamName(opponentLabel)}
         />
-      </div>
+      </MotionReveal>
     </section>
   )
 }

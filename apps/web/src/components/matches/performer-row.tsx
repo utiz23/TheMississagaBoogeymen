@@ -2,7 +2,6 @@
 
 import Link from 'next/link'
 import type { PlayerScoreEntry, ScoreFactor } from '@/lib/match-recap'
-import { formatSeconds, formatSavePct } from '@/lib/match-recap'
 import { formatPosition } from '@/lib/format'
 import { delayVar, staggerDelay } from '@/lib/motion'
 import { PositionPill } from './position-pill'
@@ -59,12 +58,12 @@ export function PerformerRow({
           : ''
 
   const rowClass = [
-    'grid w-full grid-cols-[18px_minmax(0,1fr)_auto] items-center gap-x-2.5 border-t border-border-subtle px-3.5 py-2 text-left outline-none transition-colors',
+    'grid w-full grid-cols-[18px_minmax(0,1fr)_auto] items-center gap-x-[9px] border-t border-border-subtle px-[13px] py-2 text-left outline-none transition-colors',
     'cursor-pointer hover:bg-surface-raised',
     expanded ? 'bg-surface-raised [box-shadow:inset_2px_0_0_var(--color-accent)]' : tint,
   ].join(' ')
 
-  const scoreClass = isTop3 ? 'text-accent' : entry.score < 0 ? 'text-fg-3' : 'text-fg-2'
+  const scoreClass = isTop3 ? 'text-accent' : entry.score < 0 ? 'text-fg-5' : 'text-fg-2'
 
   return (
     <div className="gs-row-in" style={delayVar(rowDelay(rank))}>
@@ -89,7 +88,7 @@ export function PerformerRow({
           </span>
           <span className="flex items-center gap-1.5">
             <span
-              className={`border px-1.5 py-[1px] font-condensed text-[9.5px] font-extrabold uppercase tracking-[0.16em] ${
+              className={`border px-[7px] py-0.5 font-condensed text-[12px] font-extrabold uppercase tracking-[0.16em] ${
                 isBgm
                   ? 'border-accent/50 bg-accent/10 text-accent'
                   : '[background:var(--opp-soft)] [border-color:var(--opp-line)] [color:var(--opp)]'
@@ -105,10 +104,14 @@ export function PerformerRow({
                 tone="muted"
               />
             ) : null}
+            {/* Star size is set by eye, NOT to the prototype's literal 12px: `★`
+                falls back out of Barlow to a symbol font that sits small and thin
+                in its em box, so it needs ~1.33× its neighbours to read as their
+                equal. See HANDOFF "Symbol glyphs need ~1.33× the text size". */}
             {isTop3 ? (
               <span
                 aria-hidden
-                className={`font-condensed text-[10px] leading-none tracking-[-0.05em] text-accent ${
+                className={`font-condensed text-[15px] leading-none tracking-[-1px] text-accent ${
                   rank === 1 ? 'gs-star-breathe [text-shadow:0_0_8px_rgba(232,65,49,0.5)]' : ''
                 }`}
               >
@@ -130,15 +133,14 @@ export function PerformerRow({
       {expanded ? (
         <div
           id={panelId}
-          className="flex flex-col gap-2 border-t border-border-subtle bg-background px-3.5 pb-3 pt-2.5 [box-shadow:inset_2px_0_0_var(--color-accent)]"
+          className="flex flex-col gap-[7px] border-t border-border-subtle bg-background px-[13px] pb-[11px] pt-[9px] [box-shadow:inset_2px_0_0_var(--color-accent)]"
         >
           <BreakdownBar breakdown={entry.breakdown} score={entry.score} />
-          <StatLine entry={entry} />
           <SeasonDelta vsSeasonAvg={vsSeasonAvg} isBgm={isBgm} />
           {isBgm && entry.playerId !== null ? (
             <Link
               href={`/roster/${entry.playerId.toString()}`}
-              className="self-start font-condensed text-[10px] font-bold uppercase tracking-[0.12em] text-accent hover:underline"
+              className="self-start font-condensed text-[12px] font-bold uppercase tracking-[0.12em] text-accent hover:underline"
             >
               Full player page →
             </Link>
@@ -151,84 +153,28 @@ export function PerformerRow({
 
 // ─── Expanded panel blocks ────────────────────────────────────────────────────
 
-function StatLine({ entry }: { entry: PlayerScoreEntry }) {
-  const s = entry.stats
-
-  if (entry.isGoalie) {
-    // — = not captured, 0 = a real zero. GA is derived, so it needs BOTH inputs.
-    const sa = s.shotsAgainst
-    const saves = s.saves
-    const both = sa !== null && saves !== null
-    return (
-      <div className="flex flex-wrap gap-x-3 gap-y-1">
-        <Stat label="SV" value={saves?.toString() ?? '—'} />
-        <Stat label="SA" value={sa?.toString() ?? '—'} />
-        <Stat label="SV%" value={both && sa > 0 ? formatSavePct(saves / sa) : '—'} />
-        <Stat label="GA" value={both ? (sa - saves).toString() : '—'} dim />
-      </div>
-    )
-  }
-
-  return (
-    <div className="flex flex-wrap gap-x-3 gap-y-1">
-      <Stat label="G" value={s.goals.toString()} />
-      <Stat label="A" value={s.assists.toString()} />
-      <Stat
-        label="+/−"
-        value={s.plusMinus >= 0 ? `+${s.plusMinus.toString()}` : s.plusMinus.toString()}
-        {...(s.plusMinus > 0
-          ? { tone: 'pos' as const }
-          : s.plusMinus < 0
-            ? { tone: 'neg' as const }
-            : {})}
-      />
-      <Stat label="SOG" value={s.shots.toString()} dim />
-      <Stat label="Hits" value={s.hits.toString()} dim />
-      <Stat label="TOI" value={s.toiSeconds !== null ? formatSeconds(s.toiSeconds) : '—'} dim />
-    </div>
-  )
-}
-
-function Stat({
-  label,
-  value,
-  dim,
-  tone,
-}: {
-  label: string
-  value: string
-  dim?: boolean
-  tone?: 'pos' | 'neg'
-}) {
-  const valueCls =
-    tone === 'pos' ? 'text-win' : tone === 'neg' ? 'text-loss' : dim ? 'text-fg-3' : 'text-fg-1'
-  return (
-    <span className="flex flex-col gap-[1px]">
-      <span className="font-condensed text-[9px] font-extrabold uppercase tracking-[0.18em] text-fg-3">
-        {label}
-      </span>
-      <span
-        className={`font-condensed text-[13px] font-extrabold leading-none tabular-nums ${valueCls}`}
-      >
-        {value}
-      </span>
-    </span>
-  )
-}
+// The prototype's panel is exactly three things: the "where the N came from"
+// caption, the segmented bar, and its legend. The per-stat grid that used to sit
+// under the bar (G · A · +/− · SOG · Hits · TOI, and the goalie SV/SA/SV%/GA
+// variant) is gone — the box score and the lineup drawers already carry those
+// numbers, and the panel is about where the SCORE came from.
 
 function SeasonDelta({ vsSeasonAvg, isBgm }: { vsSeasonAvg: number | null; isBgm: boolean }) {
+  // The one thing kept that the prototype has no equivalent for. Styled to the
+  // panel's own idiom rather than left at its old 10px.
+  //
   // Opponents have no profile history, so "no season data" would be noise on
   // their rows — say nothing at all instead.
   if (vsSeasonAvg === null) {
     if (!isBgm) return null
     return (
-      <span className="font-condensed text-[10px] font-bold uppercase tracking-[0.12em] text-fg-3">
+      <span className="font-condensed text-[12px] font-bold uppercase tracking-[0.12em] text-fg-4">
         — no season data
       </span>
     )
   }
   return (
-    <span className="font-condensed text-[10px] font-bold uppercase tracking-[0.12em] text-fg-3">
+    <span className="font-condensed text-[12px] font-bold uppercase tracking-[0.12em] text-fg-4">
       <span className={vsSeasonAvg >= 0 ? 'font-extrabold text-win' : 'font-extrabold text-loss'}>
         {vsSeasonAvg >= 0 ? '+' : ''}
         {vsSeasonAvg.toFixed(1)}
@@ -262,7 +208,7 @@ function BreakdownBar({ breakdown, score }: { breakdown: ScoreFactor[]; score: n
 
   return (
     <div className="flex flex-col gap-1.5">
-      <span className="font-condensed text-[10px] font-extrabold uppercase tracking-[0.14em] text-fg-3">
+      <span className="font-condensed text-[12px] font-extrabold uppercase tracking-[0.14em] text-fg-4">
         Where the {score.toFixed(2)} came from
       </span>
       {/* The breakdown only renders while the row is open, so these run on
@@ -286,7 +232,7 @@ function BreakdownBar({ breakdown, score }: { breakdown: ScoreFactor[]; score: n
           return (
             <span
               key={f.label}
-              className="inline-flex items-center gap-1 font-condensed text-[10px] font-bold uppercase tracking-[0.1em] text-fg-3"
+              className="inline-flex items-center gap-[5px] font-condensed text-[12px] font-bold uppercase tracking-[0.1em] text-fg-4"
             >
               <span
                 aria-hidden
