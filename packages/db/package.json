@@ -6,7 +6,8 @@
   "exports": {
     ".": "./dist/index.js",
     "./queries": "./dist/queries/index.js",
-    "./schema": "./dist/schema/index.js"
+    "./schema": "./dist/schema/index.js",
+    "./lib/normalize-build-class": "./dist/lib/normalize-build-class.js"
   },
   "scripts": {
     "build": "tsc",

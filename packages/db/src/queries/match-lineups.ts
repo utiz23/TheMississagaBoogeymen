@@ -1,5 +1,15 @@
 import { and, asc, desc, eq, sql } from 'drizzle-orm'
 import { db } from '../client.js'
+import { normalizeBuildClass } from '../lib/normalize-build-class.js'
+import {
+  blank,
+  parseHandedness,
+  parseHeightText,
+  parseWeightLbs,
+  pluralityWinner,
+  preferReferenceBuild,
+  type RecoveredBio,
+} from '../lib/loadout-bio-recovery.js'
 import {
   coerceXFactorTier,
   isXFactorTier,
@@ -64,6 +74,69 @@ function isJunkGamertag(tag: string | null | undefined): boolean {
   const trimmed = tag.trim()
   if (trimmed.length <= 1) return true
   return JUNK_GAMERTAGS.has(trimmed.toLowerCase())
+}
+
+/**
+ * Vote the bio fields out of every `player_loadout_view` payload for a match,
+ * keyed by normalized gamertag. See `RecoveredBio` for why this is necessary.
+ */
+async function recoverBioFromLoadoutViews(matchId: number): Promise<Map<string, RecoveredBio>> {
+  // Pull only the five leaf values, not the whole payload — these rows number
+  // in the hundreds per match and `raw_result_json` is a large JSONB.
+  const rows = await db
+    .select({
+      gamertag: sql<string | null>`${ocrExtractions.rawResultJson}->'gamertag'->>'value'`,
+      height: sql<string | null>`${ocrExtractions.rawResultJson}->'height'->>'value'`,
+      weight: sql<string | null>`${ocrExtractions.rawResultJson}->'weight'->>'value'`,
+      handedness: sql<string | null>`${ocrExtractions.rawResultJson}->'handedness'->>'value'`,
+      // raw_text carries the full "P2LVL41"; `value` is only the bare level.
+      levelRaw: sql<string | null>`${ocrExtractions.rawResultJson}->'player_level'->>'raw_text'`,
+      buildClass: sql<string | null>`${ocrExtractions.rawResultJson}->'build_class'->>'value'`,
+    })
+    .from(ocrExtractions)
+    .where(
+      and(
+        eq(ocrExtractions.matchId, matchId),
+        eq(ocrExtractions.screenType, 'player_loadout_view'),
+      ),
+    )
+
+  const pools = new Map<
+    string,
+    {
+      height: (string | null)[]
+      weight: (number | null)[]
+      hand: (string | null)[]
+      level: (string | null)[]
+      build: (string | null)[]
+    }
+  >()
+  for (const r of rows) {
+    const tag = (r.gamertag ?? '').toLowerCase().replace(/[^a-z0-9]/g, '')
+    if (!tag) continue
+    let pool = pools.get(tag)
+    if (!pool) {
+      pool = { height: [], weight: [], hand: [], level: [], build: [] }
+      pools.set(tag, pool)
+    }
+    pool.height.push(parseHeightText(r.height))
+    pool.weight.push(parseWeightLbs(r.weight))
+    pool.hand.push(parseHandedness(r.handedness))
+    pool.level.push(PRESTIGE_LEVEL_RE.test(r.levelRaw ?? '') ? r.levelRaw : null)
+    pool.build.push(normalizeBuildClass(r.buildClass))
+  }
+
+  const out = new Map<string, RecoveredBio>()
+  for (const [tag, pool] of pools) {
+    out.set(tag, {
+      heightText: pluralityWinner(pool.height),
+      weightLbs: pluralityWinner(pool.weight),
+      handedness: pluralityWinner(pool.hand),
+      playerLevelRaw: pluralityWinner(pool.level),
+      buildClassCanonical: pluralityWinner(pool.build),
+    })
+  }
+  return out
 }
 
 export async function getMatchLineups(matchId: number) {
@@ -131,8 +204,11 @@ export async function getMatchLineups(matchId: number) {
     return { bgm: [], opponent: [] }
   }
 
-  // X-Factors (with tier) + attributes for all snapshot ids in one shot.
+  // X-Factors (with tier) + attributes for all snapshot ids in one shot, plus
+  // the loadout-view bio vote (independent of the snapshot set — it reads the
+  // payloads directly, including the many captures no snapshot points at).
   const snapshotIds = rawSnapshots.map((s) => s.snapshotId)
+  const bioByTag = await recoverBioFromLoadoutViews(matchId)
   const [xFactorRows, attributeRows] = await Promise.all([
     db
       .select()
@@ -280,7 +356,19 @@ export async function getMatchLineups(matchId: number) {
   }
 
   const buildRow = (anchor: RawSnapshot, xFactors: LineupRow['xFactors']): LineupRow => {
-    const { prestige, level } = parsePlayerLevel(anchor.playerLevelRaw)
+    // Snapshot values win when the consolidator actually captured them; the
+    // recovered vote only fills the gaps its extractor can't reach.
+    //
+    // `blank()` rather than `??`: the promoter writes `String(value ?? '')`,
+    // so an unpromoted text field lands as an EMPTY STRING, not NULL. Three of
+    // match 250's ten anchors carry `player_level_raw = ''` — a plain `??`
+    // chain treats those as present and never reaches the recovered value.
+    const bio = bioByTag.get(normalizeTag(anchor.gamertagSnapshot)) ?? null
+    const heightText = blank(anchor.heightText) ?? bio?.heightText ?? null
+    const weightLbs = anchor.weightLbs ?? bio?.weightLbs ?? null
+    const handedness = blank(anchor.handedness) ?? bio?.handedness ?? null
+    const playerLevelRaw = blank(anchor.playerLevelRaw) ?? bio?.playerLevelRaw ?? null
+    const { prestige, level } = parsePlayerLevel(playerLevelRaw)
     return {
       snapshotId: anchor.snapshotId,
       gamertagSnapshot: anchor.gamertagSnapshot,
@@ -290,12 +378,15 @@ export async function getMatchLineups(matchId: number) {
       isCaptain: anchor.isCaptain,
       position: anchor.position,
       buildClass: anchor.buildClass,
-      buildClassCanonical: anchor.buildClassCanonical,
-      heightText: anchor.heightText,
-      weightLbs: anchor.weightLbs,
-      handedness: anchor.handedness,
+      buildClassCanonical: preferReferenceBuild(
+        blank(anchor.buildClassCanonical),
+        bio?.buildClassCanonical ?? null,
+      ),
+      heightText,
+      weightLbs,
+      handedness,
       playerLevelNumber: level,
-      playerLevelRaw: anchor.playerLevelRaw,
+      playerLevelRaw,
       playerPrestigeNumber: prestige,
       platform: anchor.platform,
       capturedAt: anchor.capturedAt,
