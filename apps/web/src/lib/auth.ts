@@ -78,3 +78,16 @@ export async function requireAdmin() {
   if (user.role !== 'admin') redirect('/account')
   return user
 }
+
+/**
+ * Non-redirecting admin check, for CONDITIONAL RENDERING rather than access
+ * control. `requireAdmin` navigates away, which is right for an admin route
+ * and wrong for "show this panel only to admins".
+ *
+ * Returns false for signed-out visitors, which is every visitor today — no
+ * accounts exist yet.
+ */
+export async function isCurrentUserAdmin(): Promise<boolean> {
+  const user = await getCurrentUser()
+  return user?.role === 'admin'
+}

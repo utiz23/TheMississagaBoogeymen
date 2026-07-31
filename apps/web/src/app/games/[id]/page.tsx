@@ -48,6 +48,7 @@ import {
 } from '@/lib/match-recap'
 import { resolveOpponentColors } from '@/lib/opponent-colors'
 import { abbreviateTeamName } from '@/lib/format'
+import { showOcrDiagnostics } from '@/lib/ocr-diagnostics'
 
 // Match data never changes once written — cache indefinitely
 export const revalidate = false
@@ -191,6 +192,10 @@ export default async function GameDetailPage({ params, searchParams }: Props) {
 
   // LOADOUTS | STATS mode — seeded from the optional ?view= deep link; the
   // client control mirrors changes back via history.replaceState.
+  // OCR provenance/confidence footers are operator diagnostics — admins only,
+  // which today means nobody (no accounts exist yet).
+  const showDiagnostics = await showOcrDiagnostics()
+
   // No OCR loadouts => LOADOUTS has nothing to show, so the page opens on
   // STATS and the tab is disabled (the ?view= deep link can't override that).
   const initialMode: GameSheetMode = !hasOcrLineups
@@ -242,11 +247,13 @@ export default async function GameDetailPage({ params, searchParams }: Props) {
               opponentCrestAssetId={opponentCrestAssetId}
               opponentCrestUseBaseAsset={opponentCrestUseBaseAsset}
             >
-              <LineupModuleFooter
-                lineups={lineupData}
-                variant={lineupVariant}
-                provenance={lineupProvenance}
-              />
+              {showDiagnostics ? (
+                <LineupModuleFooter
+                  lineups={lineupData}
+                  variant={lineupVariant}
+                  provenance={lineupProvenance}
+                />
+              ) : null}
             </LineupModule>
 
             {/* OCR-derived event timeline — story-mode scoresheet with running
@@ -295,6 +302,7 @@ export default async function GameDetailPage({ params, searchParams }: Props) {
         opponentLabel={match.opponentName}
         bgmWasHome={match.bgmWasHome}
         provenance={actionTrackerProvenance}
+        showProvenance={showDiagnostics}
       />
 
       {/* 6. Context footer (lowest priority — first to cut if scope shrinks) */}

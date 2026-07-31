@@ -56,6 +56,13 @@ interface ActionTrackerProps {
   bgmWasHome?: boolean | null
   /** OCR provenance for the section footer (extracted range + source screens). */
   provenance?: MatchActionTrackerProvenance
+  /**
+   * Render the provenance footer. It is an operator diagnostic (how well the
+   * OCR read this match), so the page gates it on admin — see
+   * `lib/ocr-diagnostics`. Defaults to false: a caller that hasn't thought
+   * about the gate should not be leaking it.
+   */
+  showProvenance?: boolean
 }
 
 export function ActionTracker({
@@ -63,6 +70,7 @@ export function ActionTracker({
   opponentLabel,
   bgmWasHome,
   provenance = { extractedAt: null, sources: [] },
+  showProvenance = false,
 }: ActionTrackerProps) {
   const bgmIsHome = bgmWasHome !== false
   // Colour follows the CLUB, the treatment follows home ice: BGM always paints
@@ -274,11 +282,13 @@ export function ActionTracker({
             </>
           )}
 
-          <ActionTrackerOcrFooter
-            provenance={provenance}
-            ocrConfidence={ocrConfidence}
-            positionStats={positionStats}
-          />
+          {showProvenance ? (
+            <ActionTrackerOcrFooter
+              provenance={provenance}
+              ocrConfidence={ocrConfidence}
+              positionStats={positionStats}
+            />
+          ) : null}
         </MotionReveal>
       </section>
     </TeamPaletteContext.Provider>
