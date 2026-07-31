@@ -5,7 +5,7 @@ import type { MatchPeriodSummaryRow } from '@eanhl/db/queries'
 import { abbreviateTeamName } from '@/lib/format'
 import { formatPeriodLabel } from '@/lib/period-label'
 import { delayVar, staggerDelay } from '@/lib/motion'
-import { CountUp } from './motion'
+import { CountUp, MotionReveal } from './motion'
 import { ProvenanceChip } from './ocr-provenance-footer'
 
 // Rail module — period-by-period box score. Restyled to the prototype's
@@ -45,7 +45,7 @@ export function BoxScore({ rows, opponentLabel }: BoxScoreProps) {
 
   return (
     <section>
-      <div className="gs-rise relative overflow-hidden border border-border bg-surface">
+      <MotionReveal className="gs-rise relative overflow-hidden border border-border bg-surface">
         <span aria-hidden className="gs-wipe" />
         <div className="flex flex-col gap-2.5 px-3.5 pb-3.5 pt-3">
           <div className="flex flex-col gap-0.5">
@@ -81,7 +81,7 @@ export function BoxScore({ rows, opponentLabel }: BoxScoreProps) {
             <Footnotes mode={mode} rows={sortedRows} sourceKind={sourceKind} />
           </div>
         </div>
-      </div>
+      </MotionReveal>
     </section>
   )
 }

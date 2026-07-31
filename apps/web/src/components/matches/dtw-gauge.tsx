@@ -3,7 +3,7 @@ import { formatSeconds } from '@/lib/match-recap'
 import { abbreviateTeamName } from '@/lib/format'
 import { delayVar, DTW_LANDS_MS, DTW_SWEEP_DELAY_MS, DTW_SWEEP_MS } from '@/lib/motion'
 import { DtwGaugeArc } from './dtw-gauge-arc'
-import { CountUp } from './motion'
+import { CountUp, MotionReveal } from './motion'
 import { confidenceTone } from './ocr-provenance-footer'
 
 // Rail module — Deserve to Win. Replaces the full-width `possession-edge.tsx`
@@ -35,6 +35,14 @@ interface DtwGaugeProps {
   opponentName: string
   scoreFor: number
   scoreAgainst: number
+  /**
+   * Render the model-coverage chip. It reports how much of the DtW model this
+   * match could feed — a question about our ingest, not about the game — so it
+   * rides the same operator-diagnostic gate as the OCR provenance footers
+   * (`lib/ocr-diagnostics`). Defaults to false: a caller that hasn't thought
+   * about it should not leak diagnostics to visitors.
+   */
+  showCoverage?: boolean
 }
 
 const BGM_LABEL = 'BGM'
@@ -65,7 +73,13 @@ interface Contributor {
   delta: number | null
 }
 
-export function DtwGauge({ edge, opponentName, scoreFor, scoreAgainst }: DtwGaugeProps) {
+export function DtwGauge({
+  edge,
+  opponentName,
+  scoreFor,
+  scoreAgainst,
+  showCoverage = false,
+}: DtwGaugeProps) {
   const oppAbbrev = abbreviateTeamName(opponentName)
   const bgmPct = edge.bgmRaw
   const oppPct = edge.oppRaw
@@ -104,7 +118,7 @@ export function DtwGauge({ edge, opponentName, scoreFor, scoreAgainst }: DtwGaug
 
   return (
     <section>
-      <div className="gs-rise broadcast-panel-soft relative overflow-hidden">
+      <MotionReveal className="gs-rise broadcast-panel-soft relative overflow-hidden">
         <span aria-hidden className="gs-wipe" />
 
         <div className="flex flex-col gap-[11px] px-3.5 pb-3.5 pt-3">
@@ -115,7 +129,9 @@ export function DtwGauge({ edge, opponentName, scoreFor, scoreAgainst }: DtwGaug
               </span>
               Deserve to Win
             </h2>
-            <ConfidenceChip coverage={coverage} contributors={contributors} />
+            {showCoverage ? (
+              <ConfidenceChip coverage={coverage} contributors={contributors} />
+            ) : null}
           </div>
 
           <div className="flex items-end justify-between gap-2">
@@ -139,7 +155,7 @@ export function DtwGauge({ edge, opponentName, scoreFor, scoreAgainst }: DtwGaug
 
           <Disclosure contributors={contributors} />
         </div>
-      </div>
+      </MotionReveal>
     </section>
   )
 }

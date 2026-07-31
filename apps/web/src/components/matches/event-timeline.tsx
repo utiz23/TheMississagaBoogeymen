@@ -5,6 +5,7 @@ import Link from 'next/link'
 import type { MatchEventRow } from '@eanhl/db/queries'
 import { abbreviateTeamName } from '@/lib/format'
 import { delayVar, durationVar } from '@/lib/motion'
+import { MotionReveal } from './motion'
 import {
   buildTimeline,
   leadChangeLabel,
@@ -72,7 +73,7 @@ export function EventTimeline({
 
   return (
     <section>
-      <div className="border border-border bg-surface">
+      <MotionReveal className="border border-border bg-surface">
         <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 px-3.5 pb-2 pt-3">
           <div className="flex flex-col gap-0.5">
             <h2 className="font-condensed text-[11px] font-extrabold uppercase tracking-[0.18em] text-fg-3">
@@ -156,7 +157,7 @@ export function EventTimeline({
             )}
           </>
         )}
-      </div>
+      </MotionReveal>
     </section>
   )
 }

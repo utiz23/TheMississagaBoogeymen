@@ -282,6 +282,7 @@ export default async function GameDetailPage({ params, searchParams }: Props) {
                 opponentName={match.opponentName}
                 scoreFor={match.scoreFor}
                 scoreAgainst={match.scoreAgainst}
+                showCoverage={showDiagnostics}
               />
             ) : null}
 

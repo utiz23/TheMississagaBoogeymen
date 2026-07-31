@@ -1,7 +1,7 @@
 import type { BoxScoreGroup, BoxScoreRow } from '@/lib/match-recap'
 import { abbreviateTeamName } from '@/lib/format'
 import { delayVar, staggerDelay } from '@/lib/motion'
-import { CountUp } from './motion'
+import { CountUp, MotionReveal } from './motion'
 
 // Rail module — team head-to-head. Restyled to the prototype: one bordered
 // section, a flat row rhythm inside grouped dividers, and a center-divider
@@ -33,7 +33,7 @@ export function TeamStats({ rows, opponentName }: TeamStatsProps) {
 
   return (
     <section>
-      <div className="gs-rise relative overflow-hidden border border-border bg-surface">
+      <MotionReveal className="gs-rise relative overflow-hidden border border-border bg-surface">
         <span aria-hidden className="gs-wipe" />
         <div className="flex flex-col gap-2 px-3.5 pb-2.5 pt-3">
           <div className="flex flex-col gap-0.5">
@@ -66,7 +66,7 @@ export function TeamStats({ rows, opponentName }: TeamStatsProps) {
             />
           ))}
         </div>
-      </div>
+      </MotionReveal>
     </section>
   )
 }
