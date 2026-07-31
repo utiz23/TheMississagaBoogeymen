@@ -241,7 +241,6 @@ export default async function GameDetailPage({ params, searchParams }: Props) {
               variant={lineupVariant}
               bgmStats={playerStats}
               oppStats={opponentPlayerStats}
-              scores={allTeamScores}
               opponentName={match.opponentName}
               opponentAbbrev={abbreviateTeamName(match.opponentName)}
               opponentCrestAssetId={opponentCrestAssetId}

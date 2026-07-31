@@ -58,8 +58,6 @@ export interface LineupSlotVM {
   /** EA-authoritative console for this match. NULL when EA has no row. */
   platform: PlatformInfo | null
   xFactors: LineupRow['xFactors']
-  /** Composite game score — null when no score entry exists for this player. */
-  gs: number | null
   statTiles: LineupStatTile[]
   /** True when a reviewed loadout snapshot (attributes) exists for this row. */
   hasLoadout: boolean
@@ -83,7 +81,12 @@ export function LineupModuleRow({ slot, mode, isOpen, panelId, onToggle }: Lineu
   // colour transition so hover resolves rather than snaps. Focus ring is
   // inset — a row spans the panel's full width, so an outset ring would be
   // clipped by the panel's own `overflow-hidden`.
-  const rowClass = `group gs-hover-row grid w-full min-h-[58px] grid-cols-[30px_34px_minmax(0,1fr)_auto_19px] items-center gap-x-[9px] border-b border-border-subtle border-l-2 py-[7px] pr-3 pl-2.5 text-left focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent sm:grid-cols-[34px_40px_40px_minmax(0,1fr)_auto_19px] sm:gap-x-[11px] sm:pr-3.5 sm:pl-3 ${
+  //
+  // `select-text` because this is a <button>, and browsers suppress text
+  // selection inside buttons whatever `user-select` computes to — a drag
+  // across a row selected nothing, so gamertags and builds couldn't be
+  // copied. Clicking still toggles; only dragging now selects.
+  const rowClass = `group gs-hover-row select-text grid w-full min-h-[58px] grid-cols-[30px_34px_minmax(0,1fr)_auto_19px] items-center gap-x-[9px] border-b border-border-subtle border-l-2 py-[7px] pr-3 pl-2.5 text-left focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent sm:grid-cols-[34px_40px_40px_minmax(0,1fr)_auto_19px] sm:gap-x-[11px] sm:pr-3.5 sm:pl-3 ${
     isOpen
       ? 'border-l-accent bg-surface-raised [box-shadow:inset_2px_0_0_var(--color-accent)]'
       : 'border-l-transparent'
@@ -197,14 +200,6 @@ export function LineupModuleRow({ slot, mode, isOpen, panelId, onToggle }: Lineu
               {slot.physLine}
             </span>
           ) : null}
-          {mode === 'stats' && slot.human && slot.gs !== null ? (
-            <span
-              className="whitespace-nowrap border border-border px-[7px] py-[2px] font-condensed text-[12px] font-extrabold uppercase leading-none tracking-[0.06em] tabular-nums text-fg-4"
-              title="Composite game score"
-            >
-              GS {slot.gs.toFixed(2)}
-            </span>
-          ) : null}
           {!slot.human ? (
             <span className="font-condensed text-[12px] font-semibold uppercase tracking-[0.1em] text-fg-5">
               EA AI · no tracked data
@@ -257,7 +252,18 @@ export function LineupModuleRow({ slot, mode, isOpen, panelId, onToggle }: Lineu
       type="button"
       aria-expanded={isOpen}
       aria-controls={panelId}
-      onClick={onToggle}
+      onClick={() => {
+        // A drag that ends inside the button still fires a click, so selecting
+        // a gamertag would also toggle the drawer under it. A plain click has
+        // already collapsed any selection by the time click fires (mousedown
+        // does that), so a LIVE selection here means the pointer was dragging,
+        // not clicking. Keyboard activation never sets one.
+        const selection = window.getSelection()
+        if (selection !== null && !selection.isCollapsed && selection.toString().trim() !== '') {
+          return
+        }
+        onToggle()
+      }}
       className={rowClass}
     >
       {cells}

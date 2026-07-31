@@ -11,7 +11,6 @@ import { ArchetypePillCompact } from '@/components/ui/archetype-pill'
 import { resolvePlatform } from '@/components/ui/platform-badge'
 import { splitBuild, type HeadToHeadStatLine } from '@/lib/head-to-head'
 import { delayVar, durationVar } from '@/lib/motion'
-import type { PlayerScoreEntry } from '@/lib/match-recap'
 import { DrawerLoadout } from './drawer-loadout'
 import { DrawerStats } from './drawer-stats'
 import {
@@ -52,8 +51,6 @@ interface LineupModuleProps {
   variant: 'ocr' | 'boxScore'
   bgmStats: LineupModuleStatRow[]
   oppStats: LineupModuleStatRow[]
-  /** Composite game scores for both teams (buildAllTeamScores output). */
-  scores: PlayerScoreEntry[]
   opponentName: string
   opponentAbbrev: string
   opponentCrestAssetId: string | null
@@ -67,7 +64,6 @@ export function LineupModule({
   variant,
   bgmStats,
   oppStats,
-  scores,
   opponentName,
   opponentAbbrev,
   opponentCrestAssetId,
@@ -92,7 +88,6 @@ export function LineupModule({
       row,
       variant,
       stat,
-      gs: row ? findScore(scores, team, row) : null,
     })
   })
 
@@ -509,8 +504,7 @@ function expandableOrder(
   return POSITIONS.filter((position) => {
     const row = byPos.get(position) ?? null
     if (row === null) return false
-    return buildSlotVM({ position, row, variant, stat: findStat(stats, team, row), gs: null })
-      .expandable
+    return buildSlotVM({ position, row, variant, stat: findStat(stats, team, row) }).expandable
   })
 }
 
@@ -617,9 +611,8 @@ function buildSlotVM(args: {
   row: LineupRow | null
   variant: 'ocr' | 'boxScore'
   stat: LineupModuleStatRow | null
-  gs: number | null
 }): LineupSlotVM {
-  const { position, row, variant, stat, gs } = args
+  const { position, row, variant, stat } = args
   const isDefense = position === 'LD' || position === 'RD'
   // EA doesn't split defence into L/R, so box-score slots read a neutral "D".
   const posLabel = variant === 'boxScore' && isDefense ? 'D' : position
@@ -639,7 +632,6 @@ function buildSlotVM(args: {
       physLine: null,
       platform: null,
       xFactors: [],
-      gs: null,
       statTiles: skaterTiles(null),
       hasLoadout: false,
       expandable: false,
@@ -685,7 +677,6 @@ function buildSlotVM(args: {
     physLine,
     platform: resolvePlatform(row.platform),
     xFactors: row.xFactors,
-    gs,
     statTiles: position === 'G' ? goalieTiles(stat) : skaterTiles(stat),
     hasLoadout,
     // The stats drawer is EA-backed, so box-score-variant rows expand too —
@@ -774,17 +765,6 @@ function findStat(
   const tag = normalizeTag(row.gamertagSnapshot ?? row.player?.gamertag ?? '')
   if (!tag) return null
   return stats.find((s) => normalizeTag(s.gamertag) === tag) ?? null
-}
-
-function findScore(scores: PlayerScoreEntry[], team: TeamKey, row: LineupRow): number | null {
-  const side = team
-  if (team === 'bgm' && row.player) {
-    const byId = scores.find((s) => s.side === 'bgm' && s.playerId === row.player?.id)
-    if (byId) return byId.score
-  }
-  const tag = normalizeTag(row.gamertagSnapshot ?? row.player?.gamertag ?? '')
-  if (!tag) return null
-  return scores.find((s) => s.side === side && normalizeTag(s.gamertag) === tag)?.score ?? null
 }
 
 // ─── Helpers lifted from the donor lineup-section (deleted in Phase 11) ──────
