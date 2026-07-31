@@ -6,9 +6,9 @@
 
 **Design of record:** `Game sheet prototype layout (1)/Game Sheet copy.dc.html` (the _copy_ file again — its lineup section is the revised one).
 
-**Commits:** `fix(web)` reduced-motion · `feat(db)` bio recovery · `feat(web)` lineup port.
+**Commits:** `0adc420` reduced-motion fix · `c0ef69d` bio recovery · `0003bcd` lineup port · `e2bcba8` auto-walk + count-up · `43fd27e` walk both views / OCR gate / kicker removal · `5c5f0f9` team switching restored · `af73a18` diagnostics gate.
 
-**Files:** `components/matches/lineup/*` (all 6) · **NEW** `components/ui/platform-badge.tsx` · `lib/head-to-head.ts` + test · `lib/lineup-confidence.ts` + test · `globals.css` (reduced-motion block only) · `packages/db/src/queries/match-lineups.ts` · **NEW** `packages/db/src/lib/loadout-bio-recovery.ts` + test · `packages/db/src/lib/normalize-build-class.ts` (moved from worker).
+**Files:** `components/matches/lineup/*` (all 6) · `components/matches/game-sheet-mode.tsx` · `components/matches/action-tracker/index.tsx` · **NEW** `components/ui/platform-badge.tsx` · `lib/head-to-head.ts` + test · `lib/lineup-confidence.ts` + test · `lib/auth.ts` · **NEW** `lib/ocr-diagnostics.ts` · `globals.css` · `app/games/[id]/page.tsx` · `.env.example` · `packages/db/src/queries/match-lineups.ts` · **NEW** `packages/db/src/lib/loadout-bio-recovery.ts` + test · `packages/db/src/lib/normalize-build-class.ts` (moved from worker).
 
 **What the module looks like now:** 12px type floor throughout (the row ran 9–10.5px, the single biggest reason it didn't read like the prototype) · de-rainbowed POS cell (`--pos-neutral #8b93a7`, one neutral for all six slots) · build-mix pills back in the header (`PLY · PWF · SNP · 2× PMD`, first-appearance in canonical roster order) · platform badge restored next to each gamertag · reference build as the dimmed `· C. CAUFIELD` suffix · 46px unframed X-Factor icons · team switch as a TINT thumb with an accent-coloured label (not a solid accent fill with white text) · stat tiles at the prototype's exact `buildStatTiles()` spec (PTS 27px/900, G/A 20px/700, SOG/HIT/BLK 20px/600).
 
@@ -85,6 +85,20 @@ Pauses on hover, **focus** (`onFocusCapture` — the prototype only had mouseent
 
 The `POS · PERSONA` line at the head of each drawer was removed — the open row sits directly above the panel and already names the player. `DrawerKicker`, `personaOf` and the `posLabel` prop went with it.
 
+#### 🔒 The OCR provenance footers are ADMIN-ONLY now — they are not gone
+
+The "Captured / Sources / Confidence High · 1.00" panels and the row of Identity/Build/Bio/X-Factor/Tier/Attributes percentages are operator diagnostics — they describe how well our OCR read a match, not anything about the game — and were rendering to every visitor. **Both instances are now gated**: the lineup footer and the action tracker's own copy of the same component.
+
+Gate is `showOcrDiagnostics()` in `lib/ocr-diagnostics.ts`, over a new `isCurrentUserAdmin()` in `lib/auth.ts` — a non-redirecting sibling of `requireAdmin`, which navigates away and is therefore wrong for conditional rendering. **The check is real, not a placeholder:** `users.role` already carries `'user' | 'admin'`, so the panels light up on their own once an admin account exists. Today no accounts exist, so it is false on every request — which is the "off by default" the operator asked for.
+
+**To see them: `OCR_DIAGNOSTICS=1`** (documented in `.env.example`). Deliberately NOT `NEXT_PUBLIC_` — server-only, so it can never be read or set from the browser. Verified both ways by restarting dev with and without it.
+
+`ActionTracker` takes a `showProvenance` prop **defaulting to `false`** — a caller that hasn't thought about the gate should not be the one leaking it.
+
+⬜ **The visible toggle is NOT built.** With zero accounts nobody can see a control to click, so only the gate exists. When accounts land, the shape is an admin preference feeding `showOcrDiagnostics()` — that function is the single seam.
+
+⚠️ **Lint trap if you ever swap the env var for a constant:** `no-unnecessary-condition` and `no-inferrable-types` directly conflict on `const FORCE_ON = false`. TS narrows the literal so the override branch is provably dead (first rule fails); annotating `: boolean` to widen it trips the second. The env var is opaque to TS and sidesteps both.
+
 **Also:** the lineup footer's `Build` badge was reporting `(build + height + weight) / 3` — it read **63%** on a match where every row HAD a build and only the bio fields were patchy, which reads as "the OCR missed builds". Split into `Build` (build-class coverage) + `Bio` (height/weight), both with tooltips.
 
 **Verified:** web + worker + db typecheck · 48/48 db tests (17 new, pinning the vote incl. the single-frame case; DB-free by keeping helpers in `lib/loadout-bio-recovery.ts`) · 29/29 web lib tests · prettier clean · in-browser at 1280 on match 250 across LOADOUTS/STATS × BGM/4L, reading computed styles back from the DOM, plus a reduced-motion pass before and after.
@@ -93,9 +107,12 @@ The `POS · PERSONA` line at the head of each drawer was removed — the open ro
 
 **What's next:**
 
-- ⬜ **The `loadout_evidence.py` ROI repair** (above) — the one real fix, affects all matches.
+- ⬜ **The `loadout_evidence.py` ROI repair** (above) — the one real fix, affects all matches. Every match other than 250 still has the bio hole; the read-time vote is carrying all of them.
+- ⬜ **A goalie drawer (SV / GA / SV%)** — `expandable` hardcodes `position !== 'G'` because the stats drawer is skater-shaped, so goalie rows can't open and **G is skipped in the auto-walk** even though the operator's sequence lists it. Unblocks that.
+- ⬜ The admin toggle UI for the OCR diagnostics (above) — needs accounts to exist first.
 - ⬜ Global 12px font floor still outstanding (see the header entry below); the lineup module is now at 12px, the rest of the site is not.
 - ⬜ `docs/calibration/*.json` are malformed (shell output prepended) and break `pnpm format`.
+- ⚠️ The prototype bundle `Game sheet prototype layout (1)/` is still **untracked** despite being the design of record cited throughout this file. Decide whether it belongs in the repo.
 
 ### ✅ GAME SHEET HEADER PORTED 2026-07-30 (`8be5247`) — sub-nav rebuilt + scorebug polished to the prototype
 
