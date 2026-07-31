@@ -11,8 +11,10 @@ const OUR_NAME = 'Boogeymen'
 // mode | FINAL/OT) → crest-flanked score row with per-side WIN/LOSS tags →
 // series footer. BGM is always the left side (colour-rules invariant); the
 // opponent side draws from the resolved --opp* vars set on the page root.
-// Result state is carried by the side tags and the winner's glow, never by
-// which colour is brighter.
+// Result state is carried by the side tags — semantic emerald/amber, see
+// ResultTag — and the winner's glow, never by which colour is brighter.
+//
+// Type floor is 12px throughout, matching the prototype's a11y pass.
 
 interface HeroCardProps {
   match: Match
@@ -43,10 +45,11 @@ export function HeroCard({
   const oppWin = match.result === 'LOSS' || match.result === 'OTL'
   const dnf = match.result === 'DNF'
 
-  // Losing/DNF scores stay muted but at fg-4, which clears the 3:1 large-text
-  // bar these 60–88px numerals sit under (fg-5 was 1.95:1 — the Phase 10 sweep).
+  // Losing/DNF scores stay muted at fg-4, which is what the prototype uses for
+  // them and now clears 4.5:1 outright, never mind the 3:1 large-text bar these
+  // 60–88px numerals actually sit under.
   const ourScoreCls = ourWin
-    ? 'text-accent [text-shadow:0_0_14px_rgba(232,65,49,0.28)]'
+    ? 'text-accent [text-shadow:0_0_14px_rgba(232,65,49,0.2)]' // --glow-accent-soft
     : 'text-fg-4'
   const oppScoreCls = oppWin
     ? '[color:var(--opp)] [text-shadow:0_0_14px_var(--opp-soft)]'
@@ -59,7 +62,7 @@ export function HeroCard({
 
   return (
     <section className="gs-rise broadcast-panel-strong overflow-hidden font-condensed uppercase">
-      <div className="ticker-strip" />
+      <div className="ticker-strip ticker-strip-hero" />
 
       {/* The page's h1. The scorebug below says all of this visually, but it
           says it across a dozen spans (two of which are hidden < sm), so the
@@ -72,7 +75,7 @@ export function HeroCard({
 
       {/* Scorebug header — meta left · game state right */}
       <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-b border-border-subtle px-4 py-2.5 sm:px-5">
-        <span className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] font-bold tracking-[0.18em] text-fg-3">
+        <span className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs font-bold tracking-[0.18em] text-fg-4">
           {meta.seasonNumber !== null ? (
             <>
               <span className="text-fg-2">Game {meta.seasonNumber.toString()}</span>
@@ -96,7 +99,7 @@ export function HeroCard({
             {dnf ? 'DNF' : 'Final'}
           </span>
           {overtime ? (
-            <span className="border border-otl/40 bg-otl/10 px-2 py-0.5 text-[10px] font-extrabold tracking-[0.12em] text-otl">
+            <span className="border border-otl/40 bg-otl/10 px-2 py-0.5 text-xs font-extrabold tracking-[0.12em] text-otl">
               OT
             </span>
           ) : null}
@@ -116,11 +119,11 @@ export function HeroCard({
             className="h-12 w-12 flex-none object-contain [filter:drop-shadow(0_0_16px_rgba(232,65,49,0.28))] sm:h-[66px] sm:w-[66px]"
           />
           <div className="flex min-w-0 flex-col gap-1">
-            <span className="text-xs font-bold tracking-[0.24em] text-fg-3">{OUR_ABBREV}</span>
+            <span className="text-xs font-bold tracking-[0.24em] text-fg-4">{OUR_ABBREV}</span>
             <span className="hidden truncate text-[22px] font-black leading-[0.95] tracking-[0.03em] text-fg-1 sm:block lg:text-[30px]">
               {OUR_NAME}
             </span>
-            <ResultTag side="bgm" result={match.result} />
+            <ResultTag side="bgm" result={match.result} overtime={overtime} />
           </div>
         </div>
 
@@ -132,7 +135,7 @@ export function HeroCard({
           >
             {match.scoreFor.toString()}
           </span>
-          <span aria-hidden className="text-2xl font-normal leading-none text-fg-4 sm:text-[34px]">
+          <span aria-hidden className="text-2xl font-normal leading-none text-fg-6 sm:text-[34px]">
             –
           </span>
           <span
@@ -146,11 +149,11 @@ export function HeroCard({
         {/* Opponent side (always right) */}
         <div className="flex min-w-0 items-center justify-end gap-3 text-right sm:gap-4">
           <div className="flex min-w-0 flex-col items-end gap-1">
-            <span className="text-xs font-bold tracking-[0.24em] text-fg-3">{opponentAbbrev}</span>
+            <span className="text-xs font-bold tracking-[0.24em] text-fg-4">{opponentAbbrev}</span>
             <span className="hidden max-w-full truncate text-[22px] font-black leading-[0.95] tracking-[0.03em] text-fg-3 sm:block lg:text-[30px]">
               {match.opponentName}
             </span>
-            <ResultTag side="opp" result={match.result} />
+            <ResultTag side="opp" result={match.result} overtime={overtime} />
           </div>
           <div className="flex h-12 w-12 flex-none items-center justify-center overflow-hidden rounded-full border bg-charcoal [border-color:var(--opp-line)] sm:h-[66px] sm:w-[66px]">
             <OpponentCrest
@@ -172,12 +175,12 @@ export function HeroCard({
 
       {/* Series footer — prior meetings vs this opponent */}
       {meta.series !== null && meta.series.total > 1 && meta.meetingNumber !== null ? (
-        <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 border-t border-border-subtle px-6 py-2 text-[11px]">
-          <span className="font-semibold tracking-[0.18em] text-fg-3">
+        <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 border-t border-border-subtle px-6 py-2 text-xs">
+          <span className="font-semibold tracking-[0.18em] text-fg-5">
             {ordinal(meta.meetingNumber)} meeting vs {match.opponentName}
           </span>
           <span aria-hidden className="h-[3px] w-[3px] rounded-full bg-fg-6" />
-          <span className="font-bold tracking-[0.16em] text-fg-3">
+          <span className="font-bold tracking-[0.16em] text-fg-4">
             Season series{' '}
             <span className="tabular-nums text-accent">{meta.series.wins.toString()}</span>–
             <span className="tabular-nums text-fg-3">{meta.series.losses.toString()}</span>–
@@ -189,36 +192,73 @@ export function HeroCard({
   )
 }
 
-// Per-side result tag: the winner carries a coloured underline bar + coloured
-// label (accent for BGM, --opp for the opponent); the loser reads as muted
-// text. OTL keeps the amber convention; DNF renders no tags — the scorebug
-// header already says DNF.
-function ResultTag({ side, result }: { side: 'bgm' | 'opp'; result: Match['result'] }) {
+// Per-side result tag. The colours are SEMANTIC, not per-team: emerald means a
+// win happened and amber means it went to OT, whichever side is reading. That
+// is the prototype's rule, stated in `Opponent Colour Rules.dc.html` — "result
+// state is read from the WIN / LOSS / OTL pill, never from which colour is
+// brighter", and the opponent palette is chosen so nothing in it can be
+// mistaken for BGM red, WIN emerald or OTL amber.
+//
+// A marked state (WIN, OTL) carries a 26px bar, mirrored to the outside edge on
+// the opponent side; a plain loss is muted text with no bar. The bars are flat
+// colour — the winning SCORE is the only thing on the hero that glows. DNF
+// renders no tags at all; the scorebug header already says DNF.
+function ResultTag({
+  side,
+  result,
+  overtime,
+}: {
+  side: 'bgm' | 'opp'
+  result: Match['result']
+  overtime: boolean
+}) {
   if (result === 'DNF') return null
 
-  const won = side === 'bgm' ? result === 'WIN' : result !== 'WIN'
-  if (won) {
-    const bar =
-      side === 'bgm'
-        ? 'bg-accent [box-shadow:0_0_14px_rgba(232,65,49,0.2)]'
-        : '[background:var(--opp)] [box-shadow:0_0_14px_var(--opp-soft)]'
-    const label = side === 'bgm' ? 'text-accent' : '[color:var(--opp)]'
-    return (
-      <span className="flex items-center gap-2">
-        <span aria-hidden className={`h-[3px] w-[26px] ${bar}`} />
-        <span className={`text-[11px] font-black tracking-[0.22em] ${label}`}>Win</span>
-      </span>
-    )
+  const state = resultState(side, result, overtime)
+  const label = state.tone === 'win' ? 'text-win' : 'text-otl'
+
+  if (state.tone === 'loss') {
+    return <span className="text-xs font-extrabold tracking-[0.22em] text-fg-5">Loss</span>
   }
 
-  const lostInOt = side === 'bgm' && result === 'OTL'
-  return (
+  // The bar is desktop-only: below sm the three hero columns are tight enough
+  // that a right-aligned 26px bar + gap overflows its column and collides with
+  // the score (measured 9px of overlap at 390). The coloured label alone still
+  // carries the state.
+  const bar = (
     <span
-      className={`text-[11px] font-extrabold tracking-[0.22em] ${lostInOt ? 'text-otl' : 'text-fg-3'}`}
-    >
-      {lostInOt ? 'OTL' : 'Loss'}
+      aria-hidden
+      className={`hidden h-[3px] w-[26px] sm:block ${state.tone === 'win' ? 'bg-win' : 'bg-otl'}`}
+    />
+  )
+
+  return (
+    <span className="flex items-center gap-2">
+      {side === 'opp' ? null : bar}
+      <span className={`text-xs font-black tracking-[0.22em] ${label}`}>{state.text}</span>
+      {side === 'opp' ? bar : null}
     </span>
   )
+}
+
+/** WIN / OTL / LOSS from one side's point of view. */
+function resultState(
+  side: 'bgm' | 'opp',
+  result: Match['result'],
+  overtime: boolean,
+): { tone: 'win' | 'otl' | 'loss'; text: string } {
+  if (side === 'bgm') {
+    if (result === 'WIN') return { tone: 'win', text: 'Win' }
+    if (result === 'OTL') return { tone: 'otl', text: 'OTL' }
+    return { tone: 'loss', text: 'Loss' }
+  }
+  // Mirrored: whoever lost in overtime is the one wearing OTL. `result` is
+  // BGM-relative and only encodes OUR overtime loss, so the opponent's OTL has
+  // to be derived from the win plus the match-level overtime flag.
+  if (result === 'WIN') {
+    return overtime ? { tone: 'otl', text: 'OTL' } : { tone: 'loss', text: 'Loss' }
+  }
+  return { tone: 'win', text: 'Win' }
 }
 
 function MetaDivider() {

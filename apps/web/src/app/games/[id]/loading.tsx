@@ -11,13 +11,11 @@
 export default function GameDetailLoading() {
   return (
     <div className="space-y-4" aria-busy="true" aria-label="Loading game sheet">
-      {/* 1. Top bar — ALL GAMES + PREV/NEXT chips */}
-      <div className="flex items-center justify-between gap-4">
-        <Pulse className="h-3 w-24" />
-        <div className="flex gap-3">
-          <Pulse className="h-3 w-20" />
-          <Pulse className="h-3 w-20" />
-        </div>
+      {/* 1. Sub-nav — ALL GAMES chip + the segmented PREV|NEXT box. Boxed at
+             the real 44px so the bar does not resize when the data lands. */}
+      <div className="flex items-center justify-between gap-3">
+        <Pulse className="h-11 w-[132px]" />
+        <Pulse className="h-11 w-[320px] max-sm:w-full" />
       </div>
 
       {/* 2. Scoreboard hero — header strip, score row, series footer */}

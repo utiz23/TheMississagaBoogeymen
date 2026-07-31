@@ -197,7 +197,12 @@ export default async function GameDetailPage({ params, searchParams }: Props) {
     // `game-sheet` scopes the page's a11y rules (focus ring) — see globals.css.
     <div className="game-sheet space-y-4" style={opponentColorVars}>
       {/* 1. Top bar */}
-      <GameTopBar gamesHref={gamesHref} adjacent={adjacent} listQuery={listQuery} />
+      <GameTopBar
+        gamesHref={gamesHref}
+        adjacent={adjacent}
+        listQuery={listQuery}
+        seasonNumber={seasonNumber}
+      />
 
       {/* 2. Scoreboard hero */}
       <HeroCard
