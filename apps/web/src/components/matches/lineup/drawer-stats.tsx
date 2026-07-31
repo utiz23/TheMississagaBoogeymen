@@ -1,6 +1,6 @@
 import type { LineupRow } from '@eanhl/db/queries'
 import { buildStatSummary, buildStatTables, type HeadToHeadStatLine } from '@/lib/head-to-head'
-import { DrawerKicker, DrawerShell, DrawerTable, FullPlayerPageLink } from './drawer-shell'
+import { DrawerShell, DrawerTable, FullPlayerPageLink } from './drawer-shell'
 
 // STATS drawer — EA-backed, so it works for every match (LOADOUTS mode falls
 // back here when no loadout snapshot exists). One player: their derived-rate
@@ -8,7 +8,6 @@ import { DrawerKicker, DrawerShell, DrawerTable, FullPlayerPageLink } from './dr
 // already shows it and the prototype review flagged the duplicate.
 
 interface DrawerStatsProps {
-  posLabel: string
   row: LineupRow | null
   stat: HeadToHeadStatLine | null
   side: 'bgm' | 'opp'
@@ -16,23 +15,16 @@ interface DrawerStatsProps {
   loadoutFallback: boolean
 }
 
-export function DrawerStats({ posLabel, row, stat, side, loadoutFallback }: DrawerStatsProps) {
+export function DrawerStats({ row, stat, side, loadoutFallback }: DrawerStatsProps) {
   const summary = buildStatSummary(stat)
   const categories = buildStatTables(stat)
   return (
     <DrawerShell>
-      <DrawerKicker
-        posLabel={posLabel}
-        row={row}
-        side={side}
-        trailing={
-          stat?.playerDnf ? (
-            <span className="border border-loss px-[7px] py-0.5 font-condensed text-[12px] font-bold uppercase leading-none tracking-[0.12em] text-loss">
-              Left early · DNF
-            </span>
-          ) : null
-        }
-      />
+      {stat?.playerDnf ? (
+        <span className="self-start border border-loss px-[7px] py-0.5 font-condensed text-[12px] font-bold uppercase leading-none tracking-[0.12em] text-loss">
+          Left early · DNF
+        </span>
+      ) : null}
 
       {loadoutFallback ? (
         <p className="font-condensed text-[12px] font-semibold uppercase tracking-[0.12em] text-fg-4">

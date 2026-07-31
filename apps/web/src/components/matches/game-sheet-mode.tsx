@@ -34,30 +34,45 @@ const MODE_LABEL: Record<GameSheetMode, string> = {
 interface GameSheetModeValue {
   mode: GameSheetMode
   setMode: (mode: GameSheetMode) => void
+  /**
+   * False when no OCR loadout snapshots exist for the match. LOADOUTS then has
+   * nothing to show, so the tab is disabled and `setMode('loadouts')` is a
+   * no-op — the page is STATS-only.
+   */
+  loadoutsAvailable: boolean
 }
 
 const GameSheetModeContext = createContext<GameSheetModeValue | null>(null)
 
 export function GameSheetModeProvider({
   initialMode,
+  loadoutsAvailable = true,
   children,
 }: {
   initialMode: GameSheetMode
+  loadoutsAvailable?: boolean
   children: ReactNode
 }) {
-  const [mode, setModeState] = useState<GameSheetMode>(initialMode)
+  const [mode, setModeState] = useState<GameSheetMode>(loadoutsAvailable ? initialMode : 'stats')
 
-  const setMode = useCallback((next: GameSheetMode) => {
-    setModeState(next)
-    // Mirror into ?view= for deep links; drop the param at the default so
-    // copied URLs stay clean. Other params (list query) are preserved.
-    const url = new URL(window.location.href)
-    if (next === 'stats') url.searchParams.set('view', 'stats')
-    else url.searchParams.delete('view')
-    window.history.replaceState(null, '', url.toString())
-  }, [])
+  const setMode = useCallback(
+    (next: GameSheetMode) => {
+      if (next === 'loadouts' && !loadoutsAvailable) return
+      setModeState(next)
+      // Mirror into ?view= for deep links; drop the param at the default so
+      // copied URLs stay clean. Other params (list query) are preserved.
+      const url = new URL(window.location.href)
+      if (next === 'stats') url.searchParams.set('view', 'stats')
+      else url.searchParams.delete('view')
+      window.history.replaceState(null, '', url.toString())
+    },
+    [loadoutsAvailable],
+  )
 
-  const value = useMemo(() => ({ mode, setMode }), [mode, setMode])
+  const value = useMemo(
+    () => ({ mode, setMode, loadoutsAvailable }),
+    [mode, setMode, loadoutsAvailable],
+  )
   return <GameSheetModeContext.Provider value={value}>{children}</GameSheetModeContext.Provider>
 }
 
@@ -72,11 +87,16 @@ export function useGameSheetMode(): GameSheetModeValue {
 // Underline segmented control per the prototype sub-nav. role=tab semantics
 // with the canonical roving-tabindex pattern (same template as box-score.tsx).
 export function GameSheetModeTabs() {
-  const { mode, setMode } = useGameSheetMode()
+  const { mode, setMode, loadoutsAvailable } = useGameSheetMode()
   const tablistRef = useRef<HTMLDivElement>(null)
+  const enabled = (m: GameSheetMode) => m !== 'loadouts' || loadoutsAvailable
 
   const handleKey = (e: KeyboardEvent<HTMLDivElement>) => {
-    const buttons = tablistRef.current?.querySelectorAll<HTMLButtonElement>('[role="tab"]')
+    // Only the enabled tabs take part in the roving pattern — arrowing onto a
+    // disabled LOADOUTS would trap focus on a control that does nothing.
+    const buttons = tablistRef.current?.querySelectorAll<HTMLButtonElement>(
+      '[role="tab"]:not([aria-disabled="true"])',
+    )
     if (!buttons || buttons.length === 0) return
     const focused = Array.from(buttons).findIndex((b) => b === document.activeElement)
     if (focused < 0) return
@@ -89,7 +109,9 @@ export function GameSheetModeTabs() {
 
     if (nextIdx === null) return
     e.preventDefault()
-    setMode(MODES[nextIdx] ?? 'loadouts')
+    const nextMode = MODES.filter(enabled)[nextIdx]
+    if (nextMode === undefined) return
+    setMode(nextMode)
     // After React re-renders with the new tabIndex layout, move focus to the
     // now-active tab (canonical roving-tabindex pattern).
     requestAnimationFrame(() => {
@@ -107,6 +129,7 @@ export function GameSheetModeTabs() {
     >
       {MODES.map((m) => {
         const active = mode === m
+        const isEnabled = enabled(m)
         return (
           <button
             key={m}
@@ -115,12 +138,18 @@ export function GameSheetModeTabs() {
             role="tab"
             aria-selected={active}
             aria-controls={GAME_SHEET_PANEL_ID}
+            aria-disabled={!isEnabled}
+            title={isEnabled ? undefined : 'No pre-game loadouts were captured for this match'}
             tabIndex={active ? 0 : -1}
             onClick={() => {
               setMode(m)
             }}
             className={`relative px-0.5 py-1.5 font-condensed text-[13px] font-extrabold uppercase tracking-[0.14em] transition-colors ${
-              active ? 'text-fg-1' : 'text-fg-3 hover:text-fg-2'
+              !isEnabled
+                ? 'cursor-not-allowed text-fg-5'
+                : active
+                  ? 'text-fg-1'
+                  : 'text-fg-3 hover:text-fg-2'
             }`}
           >
             {MODE_LABEL[m]}

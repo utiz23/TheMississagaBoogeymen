@@ -8,7 +8,7 @@ import {
 } from '@/lib/head-to-head'
 import { delayVar } from '@/lib/motion'
 import { CountUp } from '@/components/matches/motion'
-import { DrawerKicker, DrawerShell, DrawerTable, FullPlayerPageLink } from './drawer-shell'
+import { DrawerShell, DrawerTable, FullPlayerPageLink } from './drawer-shell'
 
 // LOADOUTS drawer — one player's build card, matching the prototype: a bio
 // strip (Height / Weight · Hand · Level │ Build) over the 5 attribute groups.
@@ -19,7 +19,6 @@ import { DrawerKicker, DrawerShell, DrawerTable, FullPlayerPageLink } from './dr
 // 168px floor so the drawer sits 5-up at full width and reflows below that.
 
 interface DrawerLoadoutProps {
-  posLabel: string
   row: LineupRow | null
   side: 'bgm' | 'opp'
 }
@@ -29,18 +28,11 @@ const ATTR_COLUMNS = [
   { label: 'Δ', title: 'Change — points gained or lost versus the base archetype rating' },
 ]
 
-export function DrawerLoadout({ posLabel, row, side }: DrawerLoadoutProps) {
+export function DrawerLoadout({ row, side }: DrawerLoadoutProps) {
   const groups = buildAttributeTables(row?.attributes ?? null)
   return (
     <DrawerShell>
-      <DrawerKicker
-        posLabel={posLabel}
-        row={row}
-        side={side}
-        trailing={
-          row !== null && !hasAttributes(row) ? <MissingChip label="No loadout captured" /> : null
-        }
-      />
+      {row !== null && !hasAttributes(row) ? <MissingChip label="No loadout captured" /> : null}
 
       <BioStrip row={row} />
 

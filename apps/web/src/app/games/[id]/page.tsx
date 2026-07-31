@@ -191,7 +191,13 @@ export default async function GameDetailPage({ params, searchParams }: Props) {
 
   // LOADOUTS | STATS mode — seeded from the optional ?view= deep link; the
   // client control mirrors changes back via history.replaceState.
-  const initialMode: GameSheetMode = queryParams.view === 'stats' ? 'stats' : 'loadouts'
+  // No OCR loadouts => LOADOUTS has nothing to show, so the page opens on
+  // STATS and the tab is disabled (the ?view= deep link can't override that).
+  const initialMode: GameSheetMode = !hasOcrLineups
+    ? 'stats'
+    : queryParams.view === 'stats'
+      ? 'stats'
+      : 'loadouts'
 
   return (
     // `game-sheet` scopes the page's a11y rules (focus ring) — see globals.css.
@@ -213,7 +219,7 @@ export default async function GameDetailPage({ params, searchParams }: Props) {
         meta={heroMeta}
       />
 
-      <GameSheetModeProvider initialMode={initialMode}>
+      <GameSheetModeProvider initialMode={initialMode} loadoutsAvailable={hasOcrLineups}>
         {/* 3. LOADOUTS | STATS sub-nav — client mode context; the lineup
               module consumes it from Phase 4. */}
         <GameSheetModeTabs />
