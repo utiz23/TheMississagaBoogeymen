@@ -825,6 +825,14 @@ body {
    sweep check the same media query in JS (lib/motion.ts) and paint their
    final value immediately. */
 @media (prefers-reduced-motion: reduce) {
+  /* CONTENT cues: stop the animation, keep the element.
+     These classes sit on real content — the scorebug, every lineup row, the
+     drawer, timeline markers, gauge arcs. They must only lose their MOTION.
+     (This list previously also carried `display: none`, which hid all of it:
+     with reduce set, the game sheet rendered as a stack of empty panels —
+     no scorebug, no lineup rows, no timeline. Entrances use `both` fill, so
+     dropping the animation is already enough to leave every element at its
+     resting style.) */
   .game-sheet .gs-rise,
   .game-sheet .gs-block-rise,
   .game-sheet .gs-row-in,
@@ -840,20 +848,27 @@ body {
   .game-sheet .gs-goal-land,
   .game-sheet .gs-bloom-accent,
   .game-sheet .gs-bloom-opp,
-  .game-sheet .gs-flare-accent::after,
-  .game-sheet .gs-flare-opp::after,
   .game-sheet .gs-flare-drop,
   .game-sheet .gs-cap-breathe,
   .game-sheet .gs-star-breathe,
   .game-sheet .gs-dot-breathe,
   .game-sheet .gs-draw-arc,
   .game-sheet .gs-drawer-blocks > *,
-  .game-sheet details[open] .gs-bar-on-open,
+  .game-sheet details[open] .gs-bar-on-open {
+    animation: none !important;
+  }
+
+  /* DECORATIVE overlays: purely ornamental, so they can go entirely. Every
+     selector here is a pseudo-element or a standalone ornament span — nothing
+     in this list carries content. */
+  .game-sheet .gs-flare-accent::after,
+  .game-sheet .gs-flare-opp::after,
   .game-sheet details[open] .gs-flare-on-open-accent::after,
   .game-sheet details[open] .gs-flare-on-open-opp::after,
+  .game-sheet .gs-wipe,
   .ticker-strip-hero::after {
     animation: none !important;
-    display: none;
+    display: none !important;
   }
 
   /* gs-draw-arc is the one cue whose start state lives in the RULE rather than
@@ -861,10 +876,6 @@ body {
      stay and leave every arc stroked as a 1-unit dash. */
   .game-sheet .gs-draw-arc {
     stroke-dasharray: none !important;
-  }
-
-  .game-sheet .gs-wipe {
-    display: none !important;
   }
 
   .game-sheet .gs-chevron,
