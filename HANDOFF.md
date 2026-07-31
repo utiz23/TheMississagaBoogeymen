@@ -58,15 +58,32 @@ Split into two rules: content cues get `animation: none` only; `display: none` i
 
 #### The lineup auto-walk (`useLineupAutoWalk`)
 
-The prototype's `luAuto` loop, ported. Opens each expandable skater in turn on a **9s dwell** (`lineupRotateSeconds` default), then hands over to the other roster and keeps going. Verified end-to-end: `BGM C → LW → RW → LD → RD → OPP C`, handover at 50s.
+The prototype's `luAuto` loop, ported and then re-specced by the operator. One flat sequence, **9s per step**, team nested inside view, with an overview step every time the roster on screen changes:
+
+```
+LOADOUTS  BGM (nothing open) → C → LW → RW → LD → RD → G
+          OPP (nothing open) → C → LW → RW → LD → RD → G
+STATS     BGM (nothing open) → C → …
+          OPP (nothing open) → C → …  → repeat
+```
+
+Verified end-to-end in-browser on match 250 (full cycle) and 2697 (no-OCR).
+
+Slots that can't expand are dropped rather than held as dead stops — that is what skips CPU rows. **G is skipped in practice**: goalie rows are never expandable (`expandable: position !== 'G' && …`), because the stats drawer is skater-shaped. Making G a real stop needs a goalie drawer (SV / GA / SV%) and is unbuilt. A roster with no expandable slot contributes no leg at all, not a lone overview nobody can drill into.
 
 **There is no JS timer.** The dwell bar's CSS animation IS the clock — `advance` fires on its `animationend`, and pausing is `animation-play-state: paused`, which preserves elapsed time for free. The prototype ran a `setTimeout` alongside the bar and had to hand-track `_luRemain` on every pause to keep them together; one clock can't drift from itself. `key={step}` on the bar restarts it per advance (the prototype alternated `lu-dwell-a`/`-b` keyframe names for the same reason).
 
-Pauses on hover, **focus** (`onFocusCapture` — the prototype only had mouseenter, so the walk was unpausable by keyboard), offscreen (IntersectionObserver, threshold 0.05) and `document.hidden`. **Any deliberate click ends it permanently** (`luOff` — "any deliberate click hands the panel back to the user"). Disabled outright under reduced motion, matching `luAutoOn() { return on && !this._reduceMotion }` — content that advances on its own is motion however it's drawn.
+Pauses on hover, **focus** (`onFocusCapture` — the prototype only had mouseenter, so the walk was unpausable by keyboard), offscreen (IntersectionObserver, threshold 0.05) and `document.hidden`. **Any deliberate click ends it permanently** (`luOff` — "any deliberate click hands the panel back to the user"). Disabled outright under reduced motion, matching `luAutoOn() { return on && !this._reduceMotion }`.
 
-⚠️ **Scope deviation, deliberate.** The prototype's default scope is `Players + teams + views`, whose last step also auto-flips the LOADOUTS/STATS toggle. That toggle is page-level context backed by the URL (`?view=stats`), so auto-flipping it would rewrite browser history on a timer and change content well outside this panel. Implemented at the middle scope, `Players + teams`. Revisit only if the mode toggle stops being URL-backed.
+**Driving the view from the walk is safe.** `setMode` uses `history.replaceState`, not push — it mirrors `?view=` without adding history entries. An earlier revision of this file claimed the opposite and used it to justify a narrower scope; that was wrong.
 
----
+#### No OCR loadouts ⇒ the page is STATS-only
+
+`hasOcrLineups === false` now means: `initialMode` is forced to `stats` (the `?view=` deep link cannot override it), `GameSheetModeProvider` gets `loadoutsAvailable={false}`, the LOADOUTS tab renders `aria-disabled` with a reason in its `title`, `setMode('loadouts')` is a no-op, arrow-key tab nav skips it rather than trapping focus on a dead control, and the walk omits the whole LOADOUTS half.
+
+#### The drawer kicker is gone
+
+The `POS · PERSONA` line at the head of each drawer was removed — the open row sits directly above the panel and already names the player. `DrawerKicker`, `personaOf` and the `posLabel` prop went with it.
 
 **Also:** the lineup footer's `Build` badge was reporting `(build + height + weight) / 3` — it read **63%** on a match where every row HAD a build and only the bio fields were patchy, which reads as "the OCR missed builds". Split into `Build` (build-class coverage) + `Bio` (height/weight), both with tooltips.
 
