@@ -166,9 +166,15 @@ export function LineupModuleRow({ slot, mode, isOpen, panelId, onToggle }: Lineu
             // Static accent mark, deliberately not a loop — the prototype's
             // `.leader-star` is a resting glow, and a pulsing star next to a
             // name would be the one thing moving on a settled page.
+            //
+            // 16px against 12px neighbouring text on purpose. ★ isn't in
+            // Barlow, so it falls back to a symbol font whose glyph sits small
+            // and thin inside its em box: at a matched 12px it measures TALLER
+            // than the gamertag by ink (10px vs 8px) and still reads smaller.
+            // ~1.33× is where it optically matches the text beside it.
             <span
               title="Room leader"
-              className="flex-none text-[12px] leading-none text-accent [text-shadow:0_0_5px_rgba(232,65,49,0.16)]"
+              className="flex-none text-[16px] leading-none text-accent [text-shadow:0_0_5px_rgba(232,65,49,0.16)]"
               aria-label="Room leader"
             >
               ★
