@@ -14,8 +14,17 @@ import type { LineupRow, MatchLineups } from '@eanhl/db/queries'
 export interface LineupConfidence {
   /** Mean coverage of {number, persona, gamertag, platform} across rows. */
   identity: number | null
-  /** Mean coverage of {build type, height, weight} across rows. */
+  /**
+   * Share of rows carrying a build type (raw or canonical).
+   *
+   * Split out from the bio fields in the game-sheet revamp: the old combined
+   * bucket averaged {build, height, weight} and so reported e.g. 63% on a
+   * match where every single row HAD a build and only height/weight were
+   * patchy. "Build 63%" read as "the OCR missed builds", which was never true.
+   */
   build: number | null
+  /** Mean coverage of {height, weight} across rows — the loadout bio fields. */
+  bio: number | null
   /** Canonical-name resolution rate among detected X-Factor entries. */
   xfactor: number | null
   /** Valid-tier rate among detected X-Factor entries. */
@@ -34,11 +43,20 @@ function gamertagPresent(r: LineupRow): boolean {
 export function computeLineupConfidence(lineups: MatchLineups): LineupConfidence {
   const rows: LineupRow[] = [...lineups.bgm, ...lineups.opponent]
   if (rows.length === 0) {
-    return { identity: null, build: null, xfactor: null, tier: null, attribute: null, overall: 0 }
+    return {
+      identity: null,
+      build: null,
+      bio: null,
+      xfactor: null,
+      tier: null,
+      attribute: null,
+      overall: 0,
+    }
   }
 
   let identitySum = 0
   let buildSum = 0
+  let bioSum = 0
   let rowsWithAttrs = 0
   let xfTotal = 0
   let xfCanon = 0
@@ -52,12 +70,9 @@ export function computeLineupConfidence(lineups: MatchLineups): LineupConfidence
       (r.platform !== null ? 1 : 0)
     identitySum += idPresent / 4
 
-    const buildPresent =
-      // present when either raw or canonical is populated (renderer falls back to raw)
-      (r.buildClass !== null || r.buildClassCanonical !== null ? 1 : 0) +
-      (r.heightText !== null ? 1 : 0) +
-      (r.weightLbs !== null ? 1 : 0)
-    buildSum += buildPresent / 3
+    // present when either raw or canonical is populated (renderer falls back to raw)
+    buildSum += r.buildClass !== null || r.buildClassCanonical !== null ? 1 : 0
+    bioSum += ((r.heightText !== null ? 1 : 0) + (r.weightLbs !== null ? 1 : 0)) / 2
 
     if (r.attributes !== null && Object.keys(r.attributes).length > 0) rowsWithAttrs++
 
@@ -70,15 +85,16 @@ export function computeLineupConfidence(lineups: MatchLineups): LineupConfidence
 
   const identity = identitySum / rows.length
   const build = buildSum / rows.length
+  const bio = bioSum / rows.length
   const attribute = rowsWithAttrs / rows.length
   const xfactor = xfTotal > 0 ? xfCanon / xfTotal : null
   const tier = xfTotal > 0 ? xfTier / xfTotal : null
 
-  const denominated = [identity, build, xfactor, tier, attribute].filter(
+  const denominated = [identity, build, bio, xfactor, tier, attribute].filter(
     (b): b is number => b !== null,
   )
   const overall =
     denominated.length > 0 ? denominated.reduce((a, b) => a + b, 0) / denominated.length : 0
 
-  return { identity, build, xfactor, tier, attribute, overall }
+  return { identity, build, bio, xfactor, tier, attribute, overall }
 }

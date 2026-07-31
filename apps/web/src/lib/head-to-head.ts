@@ -1,7 +1,9 @@
 /**
- * Head-to-head compare logic for the lineup drawers — the opposite-position
- * pairing the prototype review demanded ("the drawer still isn't a
- * head-to-head"). Pure functions, no React/DOM.
+ * Table logic for the lineup drawers. Pure functions, no React/DOM.
+ *
+ * These briefly backed a two-column BGM-vs-opponent compare; the drawer is
+ * single-subject again, so the builders take one side. The two-valued
+ * `buildAttributeCompare` / `buildStatCategories` pair was removed with it.
  *
  * The attribute taxonomy, hand formatting, and boost/nerf bar geometry are
  * lifted from the previous design's `lineup-expand-panel.tsx` (the logic
@@ -79,33 +81,28 @@ export const ATTRIBUTE_LABELS: Readonly<Record<string, string>> = {
   fighting_skill: 'Fighting Skill',
 }
 
-export interface AttributeCompareRow {
+export interface AttributeRow {
   key: string
   label: string
-  bgm: AttributeValue | null
-  opp: AttributeValue | null
+  value: AttributeValue | null
 }
 
-export interface AttributeCompareGroup {
+export interface AttributeGroup {
   title: string
-  rows: AttributeCompareRow[]
+  rows: AttributeRow[]
 }
 
 /**
- * Zip both sides' attribute snapshots into the 5-group compare structure.
- * A side with no snapshot yields `null` on every row (rendered as `—`).
+ * One player's attribute snapshot in the 5-group structure — the prototype's
+ * single-subject loadout drawer (R / Δ columns), not a two-side compare.
  */
-export function buildAttributeCompare(
-  bgm: AttributeMap,
-  opp: AttributeMap,
-): AttributeCompareGroup[] {
+export function buildAttributeTables(map: AttributeMap): AttributeGroup[] {
   return ATTRIBUTE_GROUPS.map((g) => ({
     title: g.title,
     rows: g.keys.map((key) => ({
       key,
       label: ATTRIBUTE_LABELS[key] ?? key,
-      bgm: bgm?.[key] ?? null,
-      opp: opp?.[key] ?? null,
+      value: map?.[key] ?? null,
     })),
   }))
 }
@@ -252,17 +249,6 @@ export function buildStatSummary(stat: HeadToHeadStatLine | null): StatSummaryTi
   ]
 }
 
-export interface StatCompareRow {
-  label: string
-  bgm: string
-  opp: string
-}
-
-export interface StatCompareGroup {
-  title: string
-  rows: StatCompareRow[]
-}
-
 function signed(n: number): string {
   return n > 0 ? `+${n.toString()}` : n.toString()
 }
@@ -313,24 +299,26 @@ const STAT_CATEGORIES: readonly { title: string; labels: readonly string[] }[] =
   { title: 'Workload', labels: ['TOI', '+/−'] },
 ]
 
+export interface StatRow {
+  label: string
+  value: string
+}
+
+export interface StatGroup {
+  title: string
+  rows: StatRow[]
+}
+
 /**
- * The 8 grouped category tables, two-valued: every row carries both sides so
- * the drawer delivers the scouting comparison. A side with no stat row (no
- * opposite number dressed, or an OCR lineup player who never matched a stat
- * row) renders `—` down its column.
+ * The 8 grouped category tables for ONE player — the prototype's `deepCats`.
+ * Groups whose every row is `—` are dropped rather than rendered as an empty
+ * frame (a skater with no special-teams goals shouldn't get a SPECIAL TEAMS
+ * card that says nothing).
  */
-export function buildStatCategories(
-  bgm: HeadToHeadStatLine | null,
-  opp: HeadToHeadStatLine | null,
-): StatCompareGroup[] {
-  const bgmValues = statLineValues(bgm)
-  const oppValues = statLineValues(opp)
+export function buildStatTables(stat: HeadToHeadStatLine | null): StatGroup[] {
+  const values = statLineValues(stat)
   return STAT_CATEGORIES.map((cat) => ({
     title: cat.title,
-    rows: cat.labels.map((label) => ({
-      label,
-      bgm: bgmValues[label] ?? '—',
-      opp: oppValues[label] ?? '—',
-    })),
-  }))
+    rows: cat.labels.map((label) => ({ label, value: values[label] ?? '—' })),
+  })).filter((g) => g.rows.some((r) => r.value !== '—'))
 }

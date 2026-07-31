@@ -4,9 +4,12 @@ import type { LineupRow } from '@eanhl/db/queries'
 
 // Shared chrome for the two lineup drawers: the prototype's drawer frame
 // (background well under the open row, accent left edge that wipes top-down as
-// the drawer lands), the head-to-head kicker line, and the FULL PLAYER PAGE
-// footer link. Columns are fixed BGM-left / opponent-right regardless of which
-// roster is being browsed, matching the scorebug.
+// the drawer lands), the subject kicker line, and the FULL PLAYER PAGE footer
+// link.
+//
+// The drawer shows ONE player — the row you tapped. It briefly carried a
+// two-column BGM-vs-opponent compare; that's been retired, so the team switch
+// is the only thing that decides whose numbers you're reading.
 //
 // Motion (Phase 12): the panel reveals by clip-path rather than height, so the
 // rows below it never animate their position — the drawer wipes down over its
@@ -35,32 +38,35 @@ export function personaOf(row: LineupRow | null): string {
 }
 
 /**
- * "C HEAD-TO-HEAD · E. WANHG vs WHOOSAH" — names the matchup the tables
- * below compare, since the row above only identifies the tapped player.
+ * "RW · SILKY" — names the subject of the tables below. The row above scrolls
+ * out from under a long drawer, so the panel still has to say whose it is.
  */
 export function DrawerKicker({
   posLabel,
-  bgmRow,
-  oppRow,
+  row,
+  side,
   trailing,
 }: {
   posLabel: string
-  bgmRow: LineupRow | null
-  oppRow: LineupRow | null
+  row: LineupRow | null
+  /** Tints the name to match the team switch. */
+  side: 'bgm' | 'opp'
   trailing?: ReactNode
 }) {
   return (
     <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
       {/* h3 under the module's h2 — an open drawer is a section of its own, and
-          without it the compare tables hang off the page outline. */}
+          without it the tables hang off the page outline. */}
       <h3 className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
-        <span className="font-condensed text-[10px] font-extrabold uppercase tracking-[0.2em] text-fg-3">
-          {posLabel} head-to-head
+        <span className="font-condensed text-[12px] font-extrabold uppercase tracking-[0.2em] text-fg-4">
+          {posLabel}
         </span>
-        <span className="flex min-w-0 flex-wrap items-center gap-x-2 font-condensed text-[12px] font-black uppercase tracking-[0.05em]">
-          <span className="text-accent">{personaOf(bgmRow)}</span>
-          <span className="text-[10px] font-bold text-fg-3">vs</span>
-          <span className={oppRow ? '[color:var(--opp)]' : 'text-fg-3'}>{personaOf(oppRow)}</span>
+        <span
+          className={`min-w-0 font-condensed text-[13px] font-black uppercase tracking-[0.05em] ${
+            side === 'bgm' ? 'text-accent' : '[color:var(--opp)]'
+          }`}
+        >
+          {personaOf(row)}
         </span>
       </h3>
       {trailing}
@@ -78,33 +84,46 @@ export function FullPlayerPageLink({ bgmRow }: { bgmRow: LineupRow | null }) {
   return (
     <Link
       href={`/roster/${player.id.toString()}`}
-      className="self-start font-condensed text-[10px] font-bold uppercase tracking-[0.12em] text-accent hover:underline"
+      className="inline-flex min-h-[44px] items-center self-start font-condensed text-[12px] font-bold uppercase tracking-[0.12em] text-accent hover:underline"
     >
       Full player page · {player.gamertag} →
     </Link>
   )
 }
 
-/** Bordered mini-table used by both drawers for grouped compare rows. */
-export function CompareTable({
+/**
+ * Bordered mini-table used by both drawers. `columns` are the optional column
+ * heads the loadout tables carry (the prototype's R / Δ pair); the stats
+ * tables are plain key/value and pass none.
+ */
+export function DrawerTable({
   title,
-  oppAbbrev,
+  columns,
   children,
 }: {
   title: string
-  oppAbbrev: string
+  columns?: { label: string; title: string }[]
   children: ReactNode
 }) {
   return (
-    <div className="flex flex-col gap-1.5 border border-border bg-surface px-2.5 py-2">
-      <div className="flex items-baseline justify-between gap-2 border-b border-border-subtle pb-1.5">
-        <span className="font-condensed text-[10px] font-bold uppercase tracking-[0.18em] text-fg-3">
+    <div className="flex flex-col gap-1.5 border border-border bg-surface px-2.5 py-[9px]">
+      <div className="flex items-baseline justify-between gap-2 border-b border-border-subtle pb-[5px]">
+        <span className="font-condensed text-[12px] font-semibold uppercase tracking-[0.18em] text-fg-4">
           {title}
         </span>
-        <span className="flex gap-2 font-condensed text-[9px] font-extrabold uppercase tracking-[0.08em]">
-          <span className="min-w-[30px] text-right text-accent">BGM</span>
-          <span className="min-w-[30px] text-right [color:var(--opp)]">{oppAbbrev}</span>
-        </span>
+        {columns ? (
+          <span className="flex gap-2 font-condensed text-[12px] font-extrabold uppercase tracking-[0.06em] text-fg-4">
+            {columns.map((c) => (
+              <span
+                key={c.label}
+                title={c.title}
+                className="min-w-[26px] cursor-help text-right last:min-w-[20px]"
+              >
+                {c.label}
+              </span>
+            ))}
+          </span>
+        ) : null}
       </div>
       {children}
     </div>

@@ -46,16 +46,18 @@ void test('empty lineups → all buckets null, overall 0', () => {
   const c = computeLineupConfidence(lineups([], []))
   assert.equal(c.identity, null)
   assert.equal(c.build, null)
+  assert.equal(c.bio, null)
   assert.equal(c.xfactor, null)
   assert.equal(c.tier, null)
   assert.equal(c.attribute, null)
   assert.equal(c.overall, 0)
 })
 
-void test('fully populated row → identity/build/attribute = 1', () => {
+void test('fully populated row → identity/build/bio/attribute = 1', () => {
   const c = computeLineupConfidence(lineups([row({})]))
   assert.equal(c.identity, 1)
   assert.equal(c.build, 1)
+  assert.equal(c.bio, 1)
   assert.equal(c.attribute, 1)
   // no x-factors detected → xfactor/tier are empty-denominator
   assert.equal(c.xfactor, null)
@@ -67,9 +69,18 @@ void test('missing platform drops identity to 3/4', () => {
   assert.equal(c.identity, 0.75)
 })
 
-void test('missing height + weight drops build to 1/3', () => {
+// The bio fields live in their own bucket: a row with a build but no
+// height/weight is 100% build, 0% bio — NOT "63% build", which is how the
+// old combined bucket reported match 250 and read as a missing-build defect.
+void test('missing height + weight zeroes bio and leaves build at 1', () => {
   const c = computeLineupConfidence(lineups([row({ heightText: null, weightLbs: null })]))
-  assert.ok(Math.abs((c.build ?? 0) - 1 / 3) < 1e-9)
+  assert.equal(c.build, 1)
+  assert.equal(c.bio, 0)
+})
+
+void test('height without weight is half a bio row', () => {
+  const c = computeLineupConfidence(lineups([row({ weightLbs: null })]))
+  assert.equal(c.bio, 0.5)
 })
 
 void test('gamertag present via resolved player counts even when snapshot is null', () => {
@@ -107,7 +118,7 @@ void test('buckets average both sides (bgm + opponent)', () => {
 })
 
 void test('overall excludes empty-denominator buckets', () => {
-  // No x-factors anywhere → overall = mean(identity, build, attribute) = 1
+  // No x-factors anywhere → overall = mean(identity, build, bio, attribute) = 1
   const c = computeLineupConfidence(lineups([row({})]))
   assert.equal(c.overall, 1)
 })
@@ -117,8 +128,8 @@ void test('empty attributes object counts as absent', () => {
   assert.equal(c.attribute, 0)
 })
 
-void test('overall blends all five buckets when x-factors are present', () => {
-  // identity=1, build=1, attribute=1, xfactor=2/3, tier=1/3 → mean of five
+void test('overall blends all six buckets when x-factors are present', () => {
+  // identity=1, build=1, bio=1, attribute=1, xfactor=2/3, tier=1/3 → mean of six
   const c = computeLineupConfidence(
     lineups([
       row({
@@ -130,6 +141,6 @@ void test('overall blends all five buckets when x-factors are present', () => {
       }),
     ]),
   )
-  const expected = (1 + 1 + 2 / 3 + 1 / 3 + 1) / 5
+  const expected = (1 + 1 + 1 + 2 / 3 + 1 / 3 + 1) / 6
   assert.ok(Math.abs(c.overall - expected) < 1e-9)
 })

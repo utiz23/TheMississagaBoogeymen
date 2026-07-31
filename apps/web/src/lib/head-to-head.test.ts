@@ -15,8 +15,8 @@ import {
   ATTRIBUTE_GROUPS,
   ATTRIBUTE_LABELS,
   attributeBarGeometry,
-  buildAttributeCompare,
-  buildStatCategories,
+  buildAttributeTables,
+  buildStatTables,
   buildStatSummary,
   formatClock,
   formatHand,
@@ -146,12 +146,12 @@ void test('shot-on-net rate: EA attempts < shots (match 250 quirk) renders —',
   assert.equal(formatShotOnNetPct(0, 0), '—')
   const tiles = buildStatSummary(statLine({ shots: 7, shotAttempts: 6 }))
   assert.equal(tiles.find((t) => t.label === 'Shot on Net')?.value, '—')
-  const cats = buildStatCategories(statLine({ shots: 7, shotAttempts: 6 }), null)
+  const cats = buildStatTables(statLine({ shots: 7, shotAttempts: 6 }))
   const shooting = cats.find((c) => c.title === 'Shooting')
   assert.ok(shooting)
-  assert.equal(shooting.rows.find((r) => r.label === 'Shot on Net %')?.bgm, '—')
+  assert.equal(shooting.rows.find((r) => r.label === 'Shot on Net %')?.value, '—')
   // The raw counts stay visible — only the impossible rate is suppressed.
-  assert.equal(shooting.rows.find((r) => r.label === 'Shots / Att')?.bgm, '7/6')
+  assert.equal(shooting.rows.find((r) => r.label === 'Shots / Att')?.value, '7/6')
 })
 
 void test('summary strip: no stat row gives 5 muted — tiles and no SCORE tile', () => {
@@ -174,21 +174,20 @@ void test('summary strip: winger with no faceoffs shows FO % as —, real rates 
   assert.equal(byLabel.get('Possession')?.value, '0:00')
 })
 
-void test('categories: both sides populated, counting zeros stay 0, no-attempt rates are —', () => {
-  const bgm = statLine({
-    goals: 2,
-    shots: 5,
-    shotAttempts: 8,
-    hits: 3,
-    faceoffWins: 9,
-    faceoffLosses: 4,
-    possession: 150,
-    toiSeconds: 3600,
-    plusMinus: 2,
-  })
-  const opp = statLine({ shots: 0, shotAttempts: 0, plusMinus: -1, toiSeconds: 3600 })
-  const cats = buildStatCategories(bgm, opp)
-  assert.equal(cats.length, 8)
+void test('categories: counting zeros stay 0, no-attempt rates are —', () => {
+  const cats = buildStatTables(
+    statLine({
+      goals: 2,
+      shots: 5,
+      shotAttempts: 8,
+      hits: 3,
+      faceoffWins: 9,
+      faceoffLosses: 4,
+      possession: 150,
+      toiSeconds: 3600,
+      plusMinus: 2,
+    }),
+  )
 
   const row = (title: string, label: string) => {
     const cat = cats.find((c) => c.title === title)
@@ -198,36 +197,40 @@ void test('categories: both sides populated, counting zeros stay 0, no-attempt r
     return r
   }
 
-  assert.deepEqual(row('Shooting', 'Shots / Att'), { label: 'Shots / Att', bgm: '5/8', opp: '—' })
-  assert.equal(row('Shooting', 'Shooting %').bgm, '40.0%')
-  assert.equal(row('Shooting', 'Shooting %').opp, '—')
+  assert.deepEqual(row('Shooting', 'Shots / Att'), { label: 'Shots / Att', value: '5/8' })
+  assert.equal(row('Shooting', 'Shooting %').value, '40.0%')
   // Genuine zero stays 0 (deflections were counted, none happened).
-  assert.equal(row('Shooting', 'Deflections').opp, '0')
-  assert.deepEqual(row('Faceoffs', 'FO W–L'), { label: 'FO W–L', bgm: '9–4', opp: '—' })
-  assert.equal(row('Faceoffs', 'FO %').bgm, '69.2%')
-  assert.equal(row('Passing & Poss', 'Possession').bgm, '2:30')
-  assert.equal(row('Workload', 'TOI').bgm, '60:00')
-  assert.equal(row('Workload', '+/−').bgm, '+2')
-  assert.equal(row('Workload', '+/−').opp, '-1')
+  assert.equal(row('Shooting', 'Deflections').value, '0')
+  assert.deepEqual(row('Faceoffs', 'FO W-L'.replace('-', '\u2013')), {
+    label: 'FO W\u2013L',
+    value: '9\u20134',
+  })
+  assert.equal(row('Faceoffs', 'FO %').value, '69.2%')
+  assert.equal(row('Passing & Poss', 'Possession').value, '2:30')
+  assert.equal(row('Workload', 'TOI').value, '60:00')
+  assert.equal(row('Workload', '+/\u2212').value, '+2')
 })
 
-void test('categories: a missing side renders — down its whole column', () => {
-  const cats = buildStatCategories(statLine({ hits: 1 }), null)
-  for (const cat of cats) {
-    for (const r of cat.rows) {
-      assert.equal(r.opp, '—')
-    }
-  }
+// A group with nothing to say is dropped rather than rendered as an empty
+// frame — a skater with no PP/SH goals gets no SPECIAL TEAMS card.
+void test('categories: no stat row yields no tables at all', () => {
+  assert.deepEqual(buildStatTables(null), [])
 })
 
-void test('attribute compare: zips both sides and nulls missing ones', () => {
-  const groups = buildAttributeCompare({ speed: { value: 90, delta: 2 } }, null)
+void test('attribute tables: 5 groups, missing keys null out', () => {
+  const groups = buildAttributeTables({ speed: { value: 90, delta: 2 } })
   assert.equal(groups.length, 5)
   const technique = groups[0]
   assert.ok(technique)
   const speed = technique.rows.find((r) => r.key === 'speed')
   assert.ok(speed)
-  assert.deepEqual(speed.bgm, { value: 90, delta: 2 })
-  assert.equal(speed.opp, null)
+  assert.deepEqual(speed.value, { value: 90, delta: 2 })
   assert.equal(speed.label, 'Speed')
+  assert.equal(technique.rows.find((r) => r.key === 'agility')?.value, null)
+})
+
+void test('attribute tables: no snapshot still yields the full taxonomy', () => {
+  const groups = buildAttributeTables(null)
+  assert.equal(groups.length, 5)
+  assert.ok(groups.every((g) => g.rows.every((r) => r.value === null)))
 })

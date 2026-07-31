@@ -45,18 +45,32 @@ export function LineupModuleFooter({
   const c = computeLineupConfidence(lineups)
   // Drop buckets with no denominator (e.g. Tier/X-Factor when no X-Factors
   // were detected) — an inapplicable field is not a low score.
-  const buckets: { key: string; value: number | null }[] = [
-    { key: 'Identity', value: c.identity },
-    { key: 'Build', value: c.build },
-    { key: 'X-Factor', value: c.xfactor },
-    { key: 'Tier', value: c.tier },
-    { key: 'Attributes', value: c.attribute },
+  const buckets: { key: string; value: number | null; tooltip: string }[] = [
+    { key: 'Identity', value: c.identity, tooltip: 'Jersey #, persona, gamertag, platform' },
+    { key: 'Build', value: c.build, tooltip: 'Rows carrying a build type' },
+    {
+      key: 'Bio',
+      value: c.bio,
+      tooltip: 'Height and weight — captured on the loadout screen only',
+    },
+    {
+      key: 'X-Factor',
+      value: c.xfactor,
+      tooltip: 'Detected X-Factors resolved to a canonical name',
+    },
+    {
+      key: 'Tier',
+      value: c.tier,
+      tooltip: 'Detected X-Factors with an Elite/All Star/Specialist tier',
+    },
+    { key: 'Attributes', value: c.attribute, tooltip: 'Rows with an attribute set' },
   ]
   const badges: ProvenanceBadge[] = buckets
-    .filter((b): b is { key: string; value: number } => b.value !== null)
-    .map(({ key, value }) => ({
+    .filter((b): b is { key: string; value: number; tooltip: string } => b.value !== null)
+    .map(({ key, value, tooltip }) => ({
       label: `${key} · ${formatProvenancePercent(value)}`,
       tone: value >= 0.9 ? 'ok' : 'warn',
+      tooltip,
     }))
 
   return (

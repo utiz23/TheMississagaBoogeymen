@@ -6,6 +6,8 @@ import type { LineupRow, MatchLineups } from '@eanhl/db/queries'
 import type { PlayerArchetype } from '@eanhl/db/schema'
 import { useGameSheetMode } from '@/components/matches/game-sheet-mode'
 import { OpponentCrest } from '@/components/ui/opponent-crest'
+import { ArchetypePillCompact } from '@/components/ui/archetype-pill'
+import { resolvePlatform } from '@/components/ui/platform-badge'
 import { splitBuild, type HeadToHeadStatLine } from '@/lib/head-to-head'
 import { delayVar } from '@/lib/motion'
 import type { PlayerScoreEntry } from '@/lib/match-recap'
@@ -18,12 +20,12 @@ import {
   type LineupStatTile,
 } from './lineup-row'
 
-// Lineup · Scouting — the prototype's one-roster-at-a-time lineup module.
-// A BGM|OPP segmented control picks which team's six rows are browsed; the
-// LOADOUTS|STATS page mode (context) decides what each row trails with.
-// Opening a row renders the position head-to-head drawer: the build compare
-// in LOADOUTS mode (falling back to the EA-backed stats drawer when no
-// loadout snapshot exists — never a dead-end card), match stats in STATS.
+// Lineup — the prototype's one-roster-at-a-time module. A BGM|OPP segmented
+// control picks which team's six rows are browsed; the LOADOUTS|STATS page
+// mode (context) decides what each row trails with. Opening a row drills into
+// that one player: their build in LOADOUTS mode (falling back to the EA-backed
+// stats drawer when no loadout snapshot exists — never a dead-end card), their
+// match stats in STATS.
 
 const POSITIONS: LineupPositionKey[] = ['C', 'LW', 'RW', 'LD', 'RD', 'G']
 
@@ -97,15 +99,25 @@ export function LineupModule({
   const goalieSlot = slots.find((s) => s.position === 'G')
   const goalieLabel = goalieSlot?.human ? (goalieSlot.persona ?? goalieSlot.handle ?? 'CPU') : 'CPU'
   const activeName = team === 'bgm' ? 'Boogeymen' : opponentName
+  const buildChips = summarizeBuilds(team === 'bgm' ? lineups.bgm : lineups.opponent)
 
   return (
     <section className="space-y-2">
-      <div className="border border-border bg-surface">
+      {/* Panel settles in on load and a red hairline sweeps its top edge once —
+          the prototype's `bcast-in` + `panel-wipe` pair, same treatment the
+          box-score and team-stats panels already carry. */}
+      <div className="gs-rise relative overflow-hidden border border-border bg-surface">
+        <span aria-hidden className="gs-wipe" />
         {/* Header: identity · team switch */}
         <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-3 px-3.5 pb-3 pt-3">
-          <div className="flex min-w-0 flex-col gap-2">
-            <h2 className="font-condensed text-[11px] font-extrabold uppercase tracking-[0.18em] text-fg-3">
-              Lineup · Scouting
+          <div className="flex min-w-0 flex-col gap-[9px]">
+            {/* ds-section-label + the prototype's ▰ ornament (decorative, so it
+                stays out of the accessible name). */}
+            <h2 className="font-condensed text-[12px] font-semibold uppercase tracking-[0.16em] text-fg-4">
+              <span aria-hidden className="pr-1 text-fg-5">
+                ▰
+              </span>
+              Lineup
             </h2>
             {/* `key={team}` remounts the crest + name on every swap, which is
                 what replays their entrance — a CSS animation only runs when the
@@ -148,8 +160,21 @@ export function LineupModule({
                 <HeaderKV k="Goalie" v={goalieLabel} dim={goalieLabel === 'CPU'} />
               </span>
             </div>
+            {/* Build mix for the roster on screen — "2× PMD · SNP · PLY" in
+                canonical position order. Restored from the pre-revamp summary
+                band; it's the only at-a-glance read of what the team dressed. */}
+            {buildChips.length > 0 ? (
+              <div
+                key={`${team}-builds`}
+                className="flex min-w-0 flex-wrap items-center gap-x-2.5 gap-y-1.5"
+              >
+                {buildChips.map((chip) => (
+                  <BuildMixChip key={chip.key} chip={chip} />
+                ))}
+              </div>
+            ) : null}
             {slots.some((s) => s.expandable) ? (
-              <p className="font-condensed text-[10px] font-semibold uppercase tracking-[0.1em] text-fg-3">
+              <p className="font-condensed text-[12px] font-semibold uppercase tracking-[0.1em] text-fg-4">
                 {variant === 'ocr'
                   ? 'Tap a skater for full loadout and match stats'
                   : 'Tap a skater for full match stats'}
@@ -157,24 +182,27 @@ export function LineupModule({
             ) : null}
           </div>
 
-          {/* BGM | OPP sliding-thumb team switch — opponent side rides --opp */}
+          {/* BGM | OPP sliding-thumb team switch. The prototype's thumb is a
+              TINT with a coloured label (accent-soft + accent-line + glow on
+              BGM, surface-raised + --opp-line on the opponent) — not a solid
+              accent fill with white text. */}
           <div
             role="group"
             aria-label="Roster shown"
-            className="relative h-10 w-[210px] flex-none border border-border bg-charcoal p-[3px]"
+            className="relative h-10 w-[250px] max-w-full flex-none border border-border bg-charcoal p-[3px]"
           >
             <span
               aria-hidden
-              className={`gs-thumb absolute bottom-[3px] left-[3px] top-[3px] w-[calc(50%-3px)] ${
+              className={`gs-thumb absolute bottom-[3px] left-[3px] top-[3px] w-[calc(50%-3px)] border ${
                 team === 'bgm'
-                  ? 'translate-x-0 bg-accent [box-shadow:0_0_14px_rgba(232,65,49,0.25)]'
-                  : 'translate-x-full border [background:var(--opp-soft)] [border-color:var(--opp-line)]'
+                  ? 'translate-x-0 [background:var(--color-accent-soft)] [border-color:var(--color-accent-line)] [box-shadow:0_0_14px_rgba(232,65,49,0.2)]'
+                  : 'translate-x-full bg-surface-raised [border-color:var(--opp-line)]'
               }`}
             />
             <div className="relative flex h-full">
               <TeamButton
                 active={team === 'bgm'}
-                activeClass="text-white"
+                activeClass="text-accent"
                 onClick={() => {
                   setTeam('bgm')
                 }}
@@ -183,7 +211,7 @@ export function LineupModule({
               </TeamButton>
               <TeamButton
                 active={team === 'opp'}
-                activeClass="[color:var(--opp)]"
+                activeClass="text-fg-1"
                 onClick={() => {
                   setTeam('opp')
                 }}
@@ -204,8 +232,10 @@ export function LineupModule({
           {slots.map((slot, slotIndex) => {
             const isOpen = openPos === slot.position && slot.expandable
             const panelId = `${idBase}-${slot.position}`
-            const bgmRow = bgmByPos.get(slot.position) ?? null
-            const oppRow = oppByPos.get(slot.position) ?? null
+            // The drawer is the tapped player only — whichever roster the team
+            // switch is showing.
+            const row = activeByPos.get(slot.position) ?? null
+            const stat = row ? findStat(activeStats, team, row) : null
             return (
               <div key={slot.position} className="gs-row-in" style={delayVar(slotIndex * 45)}>
                 <LineupModuleRow
@@ -220,22 +250,14 @@ export function LineupModule({
                 {isOpen ? (
                   <div id={panelId}>
                     {mode === 'loadouts' && slot.hasLoadout ? (
-                      <DrawerLoadout
-                        posLabel={slot.posLabel}
-                        bgmRow={bgmRow}
-                        oppRow={oppRow}
-                        oppAbbrev={opponentAbbrev}
-                      />
+                      <DrawerLoadout posLabel={slot.posLabel} row={row} side={team} />
                     ) : (
                       <DrawerStats
                         posLabel={slot.posLabel}
-                        bgmRow={bgmRow}
-                        oppRow={oppRow}
-                        bgmStat={bgmRow ? findStat(bgmStats, 'bgm', bgmRow) : null}
-                        oppStat={oppRow ? findStat(oppStats, 'opp', oppRow) : null}
-                        tappedSide={team}
+                        row={row}
+                        stat={stat}
+                        side={team}
                         loadoutFallback={mode === 'loadouts'}
-                        oppAbbrev={opponentAbbrev}
                       />
                     )}
                   </div>
@@ -267,7 +289,7 @@ function TeamButton({
       aria-pressed={active}
       onClick={onClick}
       className={`relative z-[1] flex-1 truncate px-1 font-condensed text-[13px] font-extrabold uppercase tracking-[0.14em] transition-colors ${
-        active ? activeClass : 'text-fg-3 hover:text-fg-2'
+        active ? activeClass : 'text-fg-4 hover:text-fg-2'
       }`}
     >
       {children}
@@ -278,16 +300,70 @@ function TeamButton({
 function HeaderKV({ k, v, dim = false }: { k: string; v: string; dim?: boolean }) {
   return (
     <span className="flex flex-col gap-px">
-      <span className="font-condensed text-[9px] font-semibold uppercase tracking-[0.14em] text-fg-3">
+      <span className="font-condensed text-[12px] font-semibold uppercase leading-none tracking-[0.14em] text-fg-4">
         {k}
       </span>
       <span
         className={`truncate font-condensed text-[13px] font-extrabold uppercase tabular-nums ${
-          dim ? 'text-fg-3' : 'text-fg-2'
+          dim ? 'text-fg-4' : 'text-fg-2'
         }`}
       >
         {v}
       </span>
+    </span>
+  )
+}
+
+// ─── Build mix ───────────────────────────────────────────────────────────────
+
+interface BuildMixChip {
+  key: string
+  /** Canonical build (e.g. "Sniper"). */
+  build: string
+  /** Reference player when the build is a "Cole Caufield - Sniper" style pick. */
+  ref: string | null
+  /** How many skaters share this exact build+ref. */
+  count: number
+}
+
+/**
+ * Collapse a roster's builds into ordered chips: `2× PMD`, `SNP`, `PLY`.
+ *
+ * Order is first-appearance in the canonical C→LW→RW→LD→RD→G sequence the
+ * rows already arrive in. (The pre-revamp version claimed that order in a
+ * comment but emitted every reference build ahead of every bare one, which
+ * scrambled it — that split is gone.) Reference builds key on build+ref so
+ * two different Snipers don't merge into one chip.
+ */
+function summarizeBuilds(rows: LineupRow[]): BuildMixChip[] {
+  const byKey = new Map<string, BuildMixChip>()
+  for (const r of rows) {
+    const { build, ref } = splitBuild(r)
+    if (!build || build === 'Unknown build') continue
+    const key = ref ? `ref:${ref}:${build}` : `bare:${build}`
+    const existing = byKey.get(key)
+    if (existing) existing.count++
+    else byKey.set(key, { key, build, ref, count: 1 })
+  }
+  return [...byKey.values()]
+}
+
+function BuildMixChip({ chip }: { chip: BuildMixChip }) {
+  const archetype = buildToArchetype(chip.build)
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      {chip.count > 1 ? (
+        <span className="font-condensed text-[12px] font-bold tabular-nums text-fg-4">
+          {chip.count}×
+        </span>
+      ) : null}
+      {archetype !== null ? (
+        <ArchetypePillCompact archetype={archetype} />
+      ) : (
+        <span className="border border-border bg-background px-2 py-[3px] font-condensed text-[12px] font-bold uppercase leading-none tracking-[0.08em] text-fg-2">
+          {chip.build}
+        </span>
+      )}
     </span>
   )
 }
@@ -317,7 +393,9 @@ function buildSlotVM(args: {
       jersey: null,
       archetype: null,
       buildLabel: null,
+      buildRef: null,
       physLine: null,
+      platform: null,
       xFactors: [],
       gs: null,
       statTiles: skaterTiles(null),
@@ -335,7 +413,7 @@ function buildSlotVM(args: {
       ? gamertag
       : null
 
-  const { build } = splitBuild(row)
+  const { build, ref } = splitBuild(row)
   const archetype = buildToArchetype(build)
   // OCR mode keeps junk-but-present builds visible as a text chip; box-score
   // mode never fabricates one (an unknown build there means "not captured").
@@ -360,7 +438,10 @@ function buildSlotVM(args: {
     jersey: row.playerNumber,
     archetype,
     buildLabel,
+    // Reference builds only exist in OCR mode; box-score rows never carry one.
+    buildRef: variant === 'ocr' ? ref : null,
     physLine,
+    platform: resolvePlatform(row.platform),
     xFactors: row.xFactors,
     gs,
     statTiles: position === 'G' ? goalieTiles(stat) : skaterTiles(stat),
@@ -392,7 +473,7 @@ function skaterTiles(stat: LineupModuleStatRow | null): LineupStatTile[] {
     {
       label: '±',
       value: pm > 0 ? `+${pm.toString()}` : pm.toString(),
-      tone: pm > 0 ? 'win' : pm < 0 ? 'loss' : 'dim',
+      tone: pm > 0 ? 'win' : pm < 0 ? 'loss' : 'zero',
       collapsible: true,
     },
     { label: 'SOG', value: stat.shots.toString(), tone: 'dim', collapsible: true },
