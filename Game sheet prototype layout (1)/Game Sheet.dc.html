@@ -1,0 +1,1828 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="_ds/boogeymen-design-system-019df013-7ada-79ec-ac26-22b50894a2b1/colors_and_type.css">
+  <link rel="stylesheet" href="_ds/boogeymen-design-system-019df013-7ada-79ec-ac26-22b50894a2b1/preview/_base.css">
+  <script src="_ds/boogeymen-design-system-019df013-7ada-79ec-ac26-22b50894a2b1/_ds_bundle.js"></script>
+  <style>
+    body{margin:0;background:var(--color-background);color:var(--fg-1);font-family:var(--font-sans)}
+    .cap{font-family:var(--font-condensed);text-transform:uppercase}
+    /* broadcast ticker sweep — a faint bright band travels the red strip */
+    .ticker-strip{position:relative;overflow:hidden}
+    .ticker-strip::after{content:"";position:absolute;top:0;bottom:0;left:0;width:40%;background:linear-gradient(90deg,transparent,rgba(255,255,255,.75),transparent);transform:translateX(-140%);animation:bcast-sweep 3s cubic-bezier(.55,0,.45,1) .8s infinite}
+    @keyframes bcast-sweep{0%{transform:translateX(-140%)}55%,100%{transform:translateX(320%)}}
+    /* broadcast panel reveal — sections settle into place on load */
+    @keyframes bcast-rise{from{opacity:0;transform:translateY(26px) scale(.985)}to{opacity:1;transform:translateY(0) scale(1)}}
+    .bcast-in{animation:bcast-rise .62s cubic-bezier(.16,.84,.3,1) both}
+    /* lineup load-in — a red hairline sweeps the panel top once, like a lower-third settling */
+    @keyframes panel-wipe{0%{transform:translateX(-120%);opacity:0}18%{opacity:1}80%{opacity:1}100%{transform:translateX(340%);opacity:0}}
+    .panel-wipe{position:absolute;top:0;left:0;z-index:3;height:2px;width:45%;pointer-events:none;background:linear-gradient(90deg,transparent,var(--color-accent),transparent);animation:panel-wipe .85s cubic-bezier(.55,0,.45,1) .55s both}
+    /* stat bars grow whenever they appear (tab open / row expand) */
+    @keyframes bcast-grow{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+    .bcast-bar{transform-origin:left center;animation:bcast-grow .7s cubic-bezier(.2,.7,.2,1) both}
+    /* team stats head-to-head — winning share bar flares once as it lands */
+    @keyframes ts-bloom-acc{0%{box-shadow:0 0 0 rgba(232,65,49,0)}50%{box-shadow:0 0 10px rgba(232,65,49,.8)}100%{box-shadow:0 0 3px rgba(232,65,49,.35)}}
+    .ts-bloom-acc{animation:ts-bloom-acc .6s ease-out both}
+    @keyframes ts-bloom-opp{0%{box-shadow:0 0 0 rgba(235,235,235,0)}50%{box-shadow:0 0 8px rgba(235,235,235,.55)}100%{box-shadow:0 0 2px rgba(235,235,235,.22)}}
+    .ts-bloom-opp{animation:ts-bloom-opp .6s ease-out both}
+    /* boosted attribute bar flares once as it lands — broadcast "gain" cue */
+    @keyframes boost-flash{0%{box-shadow:0 0 0 rgba(232,65,49,0)}60%{box-shadow:0 0 13px rgba(232,65,49,.6)}100%{box-shadow:0 0 6px rgba(232,65,49,.4)}}
+    .bar-boost{transform-origin:left center;animation:bcast-grow .7s cubic-bezier(.2,.7,.2,1) both,boost-flash .55s ease-out .62s both}
+    /* row-expand set — drawer opens like a lower-third plugging in */
+    @keyframes drawer-open{from{opacity:0;clip-path:inset(0 0 100% 0)}to{opacity:1;clip-path:inset(0 0 0 0)}}
+    .drawer-in{animation:drawer-open .34s cubic-bezier(.16,.84,.3,1) both}
+    /* accent left edge wipes top-down as the drawer lands */
+    @keyframes edge-wipe{from{transform:scaleY(0)}to{transform:scaleY(1)}}
+    .drawer-edge{position:absolute;left:0;top:0;bottom:0;width:2px;background:var(--color-accent);transform-origin:top center;animation:edge-wipe .32s cubic-bezier(.16,.84,.3,1) .04s both;box-shadow:0 0 8px rgba(232,65,49,.35)}
+    /* drawer inner blocks assemble in a short stagger */
+    @keyframes block-rise{from{opacity:0;transform:translateY(9px)}to{opacity:1;transform:translateY(0)}}
+    .drawer-in > *{animation:block-rise .38s cubic-bezier(.16,.84,.3,1) both}
+    .drawer-in > *:nth-child(2){animation-delay:.06s}
+    .drawer-in > *:nth-child(3){animation-delay:.12s}
+    .drawer-in > *:nth-child(4){animation-delay:.18s}
+    .drawer-in > *:nth-child(5){animation-delay:.24s}
+    /* chevron rotates between collapsed / open */
+    .chev-rot{display:inline-block;transition:transform .28s cubic-bezier(.16,.84,.3,1),color .28s ease}
+    /* team switch — header crest crossfades in on swap (sc-if remount) */
+    @keyframes crest-in{from{opacity:0;transform:translateX(-5px) scale(.9)}to{opacity:1;transform:translateX(0) scale(1)}}
+    .crest-in{animation:crest-in .22s cubic-bezier(.16,.84,.3,1) both}
+    /* leader star — slow breathing red glow (capped, no gamer bloom) */
+    @keyframes star-breathe{0%,100%{text-shadow:0 0 4px rgba(232,65,49,.35)}50%{text-shadow:0 0 11px rgba(232,65,49,.7)}}
+    .leader-star{animation:star-breathe 2.6s ease-in-out infinite}
+    /* event timeline — card hover: elevate + step to the raised surface */
+    .tl-card{transition:box-shadow .2s ease,background-color .2s ease,border-color .2s ease}
+    .tl-card:hover{background:var(--color-surface-raised,#1f1f22)!important;box-shadow:0 10px 26px rgba(0,0,0,.45)!important;border-color:var(--color-accent-line)!important}
+    /* game-winning goal — broadcast ticker strip across the top + breathing red glow */
+    .tl-gwg{position:relative!important;animation:tl-gwg-glow 2.6s ease-in-out infinite}
+    .tl-gwg::before{content:"";position:absolute;left:0;right:0;top:0;height:2px;z-index:2;background:linear-gradient(90deg,#6d0f1c,var(--color-accent),#fff,var(--color-accent),#6d0f1c);background-size:250% 100%;animation:tl-gwg-strip 3s linear infinite}
+    @keyframes tl-gwg-strip{0%{background-position:0% 0}100%{background-position:250% 0}}
+    @keyframes tl-gwg-glow{0%,100%{box-shadow:0 0 8px rgba(232,65,49,.35)}50%{box-shadow:0 0 20px rgba(232,65,49,.62)}}
+    .tl-gwg:hover{animation:none;background:var(--color-surface-raised,#1f1f22)!important;box-shadow:0 0 28px rgba(232,65,49,.8)!important;border-color:var(--color-accent)!important}
+    @media (prefers-reduced-motion:reduce){ .tl-gwg,.tl-gwg::before{animation:none} .tl-gwg{box-shadow:0 0 10px rgba(232,65,49,.4)} }
+    /* event timeline — rail end-caps glow with a slow ambient breathe */
+    @keyframes tl-cap-breathe{0%,100%{box-shadow:0 0 5px rgba(232,65,49,.35)}50%{box-shadow:0 0 11px rgba(232,65,49,.72)}}
+    .tl-cap{animation:tl-cap-breathe 2.8s ease-in-out infinite}
+    @media (prefers-reduced-motion:reduce){ .tl-cap{animation:none;box-shadow:0 0 6px rgba(232,65,49,.4)} }
+    /* deserve-to-win — winning % flares once as the gauge fill lands, then settles */
+    @keyframes dtw-bloom{0%{text-shadow:0 0 0 rgba(232,65,49,0)}42%{text-shadow:0 0 30px rgba(232,65,49,.85),0 0 12px rgba(232,65,49,.6)}100%{text-shadow:0 0 22px rgba(232,65,49,.3)}}
+    .dtw-bloom{animation:dtw-bloom .9s ease-out both}
+    /* WIN bloom — winning score flares once as it lands */
+    @keyframes bcast-bloom{0%{text-shadow:0 0 0 rgba(232,65,49,0)}45%{text-shadow:0 0 34px rgba(232,65,49,.9),0 0 12px rgba(232,65,49,.7)}100%{text-shadow:var(--glow-accent-soft)}}
+    .bcast-bloom{animation:bcast-bloom 1s ease-out 1.35s both}
+    /* top performers — #1 score flares once as the count-up lands (filter, so it won't fight the inline resting glow) */
+    @keyframes perf-bloom{0%{filter:drop-shadow(0 0 0 rgba(232,65,49,0))}40%{filter:drop-shadow(0 0 15px rgba(232,65,49,.8))}100%{filter:drop-shadow(0 0 0 rgba(232,65,49,0))}}
+    .perf-bloom{animation:perf-bloom .9s ease-out .7s both}
+    /* breakdown bars grow left-to-right when a row expands */
+    @keyframes perf-bar-grow{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+    .perf-bar-row > span{transform-origin:left center;animation:perf-bar-grow .45s cubic-bezier(.16,.84,.3,1) both}
+    .perf-bar-row > span:nth-child(2){animation-delay:.06s}
+    .perf-bar-row > span:nth-child(3){animation-delay:.12s}
+    .perf-bar-row > span:nth-child(4){animation-delay:.18s}
+    .perf-bar-row > span:nth-child(5){animation-delay:.24s}
+    /* rail row entrance — fade + slide, staggered; backwards fill releases transform so :hover lift works after */
+    @keyframes perf-row-in{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+    .perf-row-in{animation:perf-row-in .22s cubic-bezier(.16,.84,.3,1) backwards;transition:transform .18s ease,background-color .15s ease,border-top-color .18s ease}
+    .perf-row-in:hover{transform:translateY(-1px);background:var(--color-surface-raised) !important;border-top-color:var(--color-border) !important}
+    @media (prefers-reduced-motion:reduce){
+      .perf-bloom{animation:none}
+      .perf-bar-row > span{animation:none}
+      .perf-row-in{animation:none}
+      .perf-row-in:hover{transform:none}
+      .ticker-strip::after{animation:none;display:none}
+      .bcast-in{animation:none}
+      .panel-wipe{animation:none;display:none}
+      .bcast-bloom{animation:none}
+      .bcast-bar{animation:none}
+      .ts-bloom-acc,.ts-bloom-opp{animation:none}
+      .bar-boost{animation:none}
+      .drawer-in,.drawer-edge,.drawer-in > *{animation:none}
+      .chev-rot{transition:none}
+      .crest-in{animation:none}
+      .leader-star{animation:none}
+      .dtw-bloom{animation:none}
+    }
+  </style>
+</helmet>
+
+<div style="background:var(--color-background);min-height:100vh">
+
+  <!-- TOP NAV -->
+  <header style="position:sticky;top:0;z-index:50;border-bottom:1px solid var(--color-accent-line);background:rgba(35,33,34,.95);backdrop-filter:blur(6px)">
+    <div style="max-width:1280px;margin:0 auto;display:flex;align-items:center;gap:26px;height:56px;padding:0 20px">
+      <div style="display:flex;align-items:center;gap:10px">
+        <div style="width:30px;height:30px;border-radius:50%;background:var(--color-accent);display:flex;align-items:center;justify-content:center;font:900 11px var(--font-condensed);color:#fff">BM</div>
+        <span class="cap" style="font-weight:900;font-size:17px;letter-spacing:.14em">BOOGEYMEN</span>
+      </div>
+      <nav style="display:flex;gap:22px;align-self:stretch;align-items:center">
+        <span class="cap" style="font-size:13px;font-weight:700;letter-spacing:.14em;color:var(--fg-3)">HOME</span>
+        <span class="cap" style="font-size:13px;font-weight:700;letter-spacing:.14em;color:var(--fg-1);position:relative;align-self:stretch;display:flex;align-items:center">GAMES<span style="position:absolute;left:0;right:0;bottom:0;height:2px;background:var(--color-accent)"></span></span>
+        <span class="cap" style="font-size:13px;font-weight:700;letter-spacing:.14em;color:var(--fg-3)">ROSTER</span>
+        <span class="cap" style="font-size:13px;font-weight:700;letter-spacing:.14em;color:var(--fg-3)">STATS</span>
+      </nav>
+      <span class="cap" style="margin-left:auto;font-size:11px;font-weight:700;letter-spacing:.16em;color:var(--fg-4);border:1px solid var(--color-border);padding:5px 10px">NHL 26</span>
+    </div>
+  </header>
+
+  <div style="max-width:1280px;margin:0 auto;padding:18px 20px 60px;display:flex;flex-direction:column;gap:16px">
+
+    <!-- SUB NAV -->
+    <div class="bcast-in" style="display:flex;align-items:center;gap:16px;font:700 11px var(--font-condensed);text-transform:uppercase;letter-spacing:.16em;color:var(--fg-4);animation-delay:0s">
+      <span>← ALL GAMES</span>
+      <span style="margin-left:auto">← PREVIOUS</span>
+      <span>NEXT →</span>
+    </div>
+
+    <!-- ============ HERO / RESULT ============ -->
+    <div class="bcast-in" style="position:relative;border:1px solid var(--color-border);background:var(--bg-broadcast-strong);overflow:hidden;animation-delay:.12s">
+      <div class="ticker-strip"></div>
+      <!-- SCOREBUG HEADER: meta left · game state right -->
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;padding:10px 20px 10px 22px;border-bottom:1px solid var(--color-border-subtle)">
+        <span class="cap" style="display:flex;align-items:center;gap:11px;font-size:11px;font-weight:700;letter-spacing:.18em;color:var(--fg-4)">
+          <span style="color:var(--fg-2)">GAME 64</span>
+          <span style="width:1px;height:11px;background:var(--color-border)"></span>
+          <span>MAY 8, 2026 · 6:56 PM</span>
+          <span style="width:1px;height:11px;background:var(--color-border)"></span>
+          <span>6S</span>
+        </span>
+        <span class="cap" style="display:flex;align-items:center;gap:9px;flex:none">
+          <span style="font-size:12px;font-weight:900;letter-spacing:.2em;color:var(--fg-1)">FINAL</span>
+          <span style="font-size:10px;font-weight:800;letter-spacing:.12em;color:var(--color-otl);border:1px solid var(--color-otl-border);background:var(--color-otl-bg);padding:2px 8px">OT</span>
+        </span>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:20px;padding:30px 34px 28px">
+        <!-- BGM (winner) -->
+        <div style="display:flex;align-items:center;gap:18px;min-width:0">
+          <img src="assets/bgm-logo.png" alt="Boogeymen" style="width:66px;height:66px;object-fit:contain;flex:none;filter:drop-shadow(0 0 16px rgba(232,65,49,.28))">
+          <div style="display:flex;flex-direction:column;gap:5px;min-width:0">
+            <span class="cap" style="font-size:12px;font-weight:700;letter-spacing:.24em;color:var(--fg-4)">BGM</span>
+            <span class="cap" style="font-size:30px;font-weight:900;letter-spacing:.03em;line-height:.95;color:var(--fg-1)">BOOGEYMEN</span>
+            <span style="display:flex;align-items:center;gap:8px">
+              <span style="width:26px;height:3px;background:var(--color-accent);box-shadow:var(--glow-accent-soft)"></span>
+              <span class="cap" style="font-size:11px;font-weight:900;letter-spacing:.22em;color:var(--color-accent)">WIN</span>
+            </span>
+          </div>
+        </div>
+        <!-- SCORE -->
+        <div style="display:flex;align-items:center;gap:22px;flex:none">
+          <span class="cap tabular bcast-bloom" style="font-size:88px;font-weight:900;line-height:.82;color:var(--color-accent);text-shadow:var(--glow-accent-soft)">{{ homeScore }}</span>
+          <span class="cap" style="font-size:34px;font-weight:400;line-height:1;color:var(--fg-6);margin-top:-6px">–</span>
+          <span class="cap tabular" style="font-size:88px;font-weight:900;line-height:.82;color:var(--fg-4)">{{ awayScore }}</span>
+        </div>
+        <!-- 4L (loss) -->
+        <div style="display:flex;align-items:center;gap:18px;justify-content:flex-end;text-align:right;min-width:0">
+          <div style="display:flex;flex-direction:column;gap:5px;align-items:flex-end;min-width:0">
+            <span class="cap" style="font-size:12px;font-weight:700;letter-spacing:.24em;color:var(--fg-4)">4L</span>
+            <span class="cap" style="font-size:30px;font-weight:900;letter-spacing:.03em;line-height:.95;color:var(--fg-3)">4TH LINE</span>
+            <span class="cap" style="font-size:11px;font-weight:800;letter-spacing:.22em;color:var(--fg-5)">LOSS</span>
+          </div>
+          <div style="width:66px;height:66px;border-radius:50%;background:var(--color-charcoal);border:1px solid var(--color-border);display:flex;align-items:center;justify-content:center;font:900 22px var(--font-condensed);color:var(--fg-4);flex:none">4L</div>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;justify-content:center;gap:14px;border-top:1px solid var(--color-border-subtle);padding:9px 32px">
+        <span class="cap" style="font-size:11px;font-weight:600;letter-spacing:.18em;color:var(--fg-5)">2ND MEETING VS 4TH LINE</span>
+        <span style="width:3px;height:3px;border-radius:50%;background:var(--fg-6)"></span>
+        <span class="cap" style="font-size:11px;font-weight:700;letter-spacing:.16em;color:var(--fg-4)">SEASON SERIES <span class="tabular" style="color:var(--color-accent)">1</span>–<span class="tabular" style="color:var(--fg-3)">0</span>–<span class="tabular" style="color:var(--color-otl)">1</span></span>
+      </div>
+    </div>
+
+    <!-- LOADOUTS / STATS sub-nav (full-width, above the main grid) -->
+    <div class="bcast-in" style="display:flex;gap:22px;border-bottom:1px solid var(--color-border-subtle);animation-delay:.26s">
+      <button type="button" onClick="{{ setLoadout }}" style="{{ loadTabStyle }}">LOADOUTS<span style="{{ loadTabBar }}"></span></button>
+      <button type="button" onClick="{{ setStats }}" style="{{ statTabStyle }}">STATS<span style="{{ statTabBar }}"></span></button>
+    </div>
+
+    <!-- ============ MAIN GRID ============ -->
+    <div class="bcast-in" style="display:grid;grid-template-columns:3fr 1fr;gap:16px;align-items:start;animation-delay:.4s">
+
+      <!-- ===== MAJOR 3/4 ===== -->
+      <div style="display:flex;flex-direction:column;gap:16px;min-width:0">
+
+        <!-- LINEUP + LOADOUTS -->
+        <section ref="{{ setLineupEl }}" style="position:relative;overflow:hidden;border:1px solid var(--color-border);background:var(--color-surface)">
+          <span class="panel-wipe"></span>
+          <!-- HEADER: team switch · identity · mode toggle -->
+          <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;padding:12px 14px 11px">
+            <div style="display:flex;flex-direction:column;gap:9px;min-width:0">
+              <span class="ds-section-label">Lineup · Scouting</span>
+              <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+                <sc-if value="{{ activeCrestBGM }}" hint-placeholder-val="{{ true }}"><img src="assets/bgm-logo.png" alt="BGM" class="crest-in" style="width:24px;height:24px;object-fit:contain;flex:none"></sc-if>
+                <sc-if value="{{ activeCrest4L }}" hint-placeholder-val="{{ false }}"><span class="crest-in" style="width:24px;height:24px;border-radius:50%;background:var(--color-charcoal);border:1px solid var(--color-border);display:flex;align-items:center;justify-content:center;font:900 10px var(--font-condensed);color:var(--fg-3);flex:none">4L</span></sc-if>
+                <span class="cap" style="font-size:16px;font-weight:900;letter-spacing:.07em;color:var(--fg-1)">{{ activeName }}</span>
+                <span style="display:flex;align-items:center;gap:14px;padding-left:14px;border-left:1px solid var(--color-border)">
+                  <span style="display:flex;flex-direction:column;gap:1px"><span class="cap" style="font-size:10px;font-weight:600;letter-spacing:.14em;color:var(--fg-4)">DRESSED</span><span class="cap tabular" style="font-size:13px;font-weight:800;color:var(--fg-2)">{{ activeDressed }}</span></span>
+                  <span style="display:flex;flex-direction:column;gap:1px"><span class="cap" style="font-size:10px;font-weight:600;letter-spacing:.14em;color:var(--fg-4)">GOALIE</span><span class="cap tabular" style="font-size:13px;font-weight:800;color:var(--fg-4)">{{ activeGoalie }}</span></span>
+                </span>
+              </div>
+              <span class="cap" style="font-size:10px;font-weight:600;letter-spacing:.1em;color:var(--fg-4)">Tap a skater for full loadout and match stats</span>
+            </div>
+            <div style="display:flex;flex-direction:column;align-items:flex-end;gap:7px;flex:none">
+              <div style="position:relative;width:250px;height:40px;border:1px solid var(--color-border);background:var(--color-charcoal);padding:3px;box-sizing:border-box">
+                <span style="{{ teamThumb }}"></span>
+                <div style="position:relative;display:flex;height:100%">
+                  <button type="button" onClick="{{ setTeamBgm }}" style="{{ teamBtnBgm }}">BGM</button>
+                  <button type="button" onClick="{{ setTeam4l }}" style="{{ teamBtn4l }}">4L</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- STAGE: two team panels slide across, spine pins the inactive team -->
+          <div ref="{{ setStageEl }}" style="position:relative;border-top:1px solid var(--color-border-subtle)">
+            <div>
+              <sc-for list="{{ players }}" as="p" hint-placeholder-count="6">
+                <!-- unified row shell -->
+                <div onClick="{{ p.onToggle }}" onMouseEnter="{{ p.onEnter }}" onMouseLeave="{{ p.onLeave }}" class="lu-row" style="{{ p.rowStyleLoad }}">
+                  <!-- POS -->
+                  <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;align-self:stretch;margin:-7px 0 -7px -12px;border:1px solid {{ p.posCellBorder }};background:{{ p.posCellBg }}">
+                    <span class="cap" style="font-size:10px;font-weight:700;letter-spacing:.14em;color:var(--fg-4)">POS</span>
+                    <span class="cap tabular" style="font-size:19px;font-weight:900;letter-spacing:.04em;color:{{ p.posLetterColor }}">{{ p.pos }}</span>
+                  </div>
+                  <!-- number -->
+                  <div style="display:flex;flex-direction:column;align-items:center;gap:0">
+                    <span class="cap" style="font-size:10px;font-weight:700;letter-spacing:.1em;color:var(--fg-4)">#</span>
+                    <span class="cap tabular" style="font-size:26px;font-weight:900;line-height:.85;letter-spacing:-.02em;color:{{ p.numBig }}">{{ p.num }}</span>
+                  </div>
+                  <!-- avatar -->
+                  <div style="{{ p.avatarBig }}"><svg viewBox="0 0 100 110" width="26" height="28" style="color:var(--fg-6)"><circle cx="50" cy="32" r="21" fill="currentColor"></circle><path d="M 8 110 Q 8 66 50 66 Q 92 66 92 110 Z" fill="currentColor"></path></svg></div>
+                  <!-- identity -->
+                  <div style="min-width:0;display:flex;flex-direction:column;gap:5px">
+                    <div style="display:flex;flex-wrap:wrap;align-items:baseline;gap:8px;min-width:0">
+                      <span class="cap" style="font-size:16px;font-weight:900;letter-spacing:.03em;line-height:1;color:{{ p.nameColor }};white-space:nowrap">{{ p.persona }}</span>
+                      <span class="cap" style="font-size:11px;font-weight:600;letter-spacing:.02em;color:var(--fg-3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ p.handle }}</span>
+                      <sc-if value="{{ p.isLeader }}" hint-placeholder-val="{{ false }}"><span title="Room leader" class="leader-star" style="flex:none;font-size:12px;line-height:1;color:var(--color-accent)">★</span></sc-if>
+                      <sc-if value="{{ p.noLoadout }}" hint-placeholder-val="{{ false }}"><span class="cap" style="flex:none;font-size:10px;font-weight:700;letter-spacing:.14em;color:var(--fg-4);border:1px dashed var(--color-border);padding:2px 7px">NO HUMAN DRESSED</span></sc-if>
+                    </div>
+                    <div style="display:flex;align-items:center;gap:9px;flex-wrap:wrap">
+                      <sc-if value="{{ p.hasLoadout }}" hint-placeholder-val="{{ true }}"><span style="{{ p.archChipStyle }}">{{ p.archIcon }}{{ p.archCode }}</span></sc-if>
+                      <sc-if value="{{ isLoadout }}" hint-placeholder-val="{{ true }}"><sc-if value="{{ p.hasLoadout }}" hint-placeholder-val="{{ true }}"><span class="cap tabular" style="font-size:10px;font-weight:600;letter-spacing:.08em;color:var(--fg-5);white-space:nowrap">{{ p.physLine }}</span></sc-if></sc-if>
+                      <sc-if value="{{ isStats }}" hint-placeholder-val="{{ false }}"><sc-if value="{{ p.hasLoadout }}" hint-placeholder-val="{{ true }}"><span class="cap tabular" style="font-size:10px;font-weight:800;letter-spacing:.06em;color:var(--fg-4);border:1px solid var(--color-border);padding:2px 7px">GS {{ p.gsShort }}</span></sc-if></sc-if>
+                      <sc-if value="{{ p.noLoadout }}" hint-placeholder-val="{{ false }}"><span class="cap" style="font-size:10px;font-weight:600;letter-spacing:.1em;color:var(--fg-5)">EA AI · NO TRACKED DATA</span></sc-if>
+                    </div>
+                  </div>
+                  <!-- trailing: x-factors (loadout) or scoreline (stats) -->
+                  <div style="display:flex;align-items:center;justify-content:flex-end;gap:8px">
+                    <sc-if value="{{ isLoadout }}" hint-placeholder-val="{{ true }}"><sc-if value="{{ p.hasLoadout }}" hint-placeholder-val="{{ true }}"><sc-for list="{{ p.xTiles }}" as="x" hint-placeholder-count="3"><span style="{{ x.style }}" title="{{ x.title }}">{{ x.icon }}</span></sc-for></sc-if></sc-if>
+                    <sc-if value="{{ isStats }}" hint-placeholder-val="{{ false }}"><div style="display:flex;align-items:flex-end;justify-content:flex-end;gap:15px"><sc-for list="{{ p.statTiles }}" as="s" hint-placeholder-count="7"><div style="display:flex;flex-direction:column;align-items:center;gap:2px;min-width:24px"><span class="cap tabular" style="font-size:{{ s.size }};font-weight:{{ s.weight }};line-height:.9;color:{{ s.color }}">{{ s.val }}</span><span class="cap" style="font-size:10px;font-weight:700;letter-spacing:.1em;color:var(--fg-4)">{{ s.label }}</span></div></sc-for></div></sc-if>
+                  </div>
+                  <!-- chevron -->
+                  <span class="cap chev-rot" style="font-size:12px;font-weight:700;line-height:1;text-align:center;color:{{ p.chevColor }};transform:{{ p.chevTransform }}">{{ p.chev }}</span>
+                </div>
+                <!-- EXPAND DRAWER — full loadout / stats for this skater -->
+                <sc-if value="{{ p.expanded }}" hint-placeholder-val="{{ false }}">
+                  <div style="position:relative;border-bottom:1px solid var(--color-border-subtle);background:var(--color-background)">
+                    <span class="drawer-edge"></span>
+                    <div class="drawer-in" style="padding:14px 16px 16px;display:flex;flex-direction:column;gap:13px">
+                    <!-- LOADOUT: bio strip -->
+                    <sc-if value="{{ isLoadout }}" hint-placeholder-val="{{ true }}">
+                      <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap">
+                        <div style="display:flex;flex-direction:column;gap:4px"><span class="ds-stat-label">Height / Weight</span><span class="cap tabular" style="font-size:13px;font-weight:600;color:var(--fg-2)">{{ p.hw }}</span></div>
+                        <div style="display:flex;flex-direction:column;gap:4px"><span class="ds-stat-label">Hand</span><span class="cap" style="font-size:13px;font-weight:600;color:var(--fg-2)">{{ p.hand }}</span></div>
+                        <div style="display:flex;flex-direction:column;gap:4px"><span class="ds-stat-label">Level</span><span class="cap tabular" style="font-size:13px;font-weight:600;color:var(--fg-2)">{{ p.level }}</span></div>
+                        <div style="display:flex;flex-direction:column;gap:4px;padding-left:16px;border-left:1px solid var(--color-border)"><span class="ds-stat-label">Build</span><span class="cap" style="font-size:13px;font-weight:700;color:var(--fg-2)">{{ p.ldArch }}<sc-if value="{{ p.buildRef }}" hint-placeholder-val="{{ false }}"><span class="cap" style="font-size:9px;font-weight:600;letter-spacing:.14em;color:var(--fg-5);padding-left:7px">· {{ p.buildRef }}</span></sc-if></span></div>
+                      </div>
+                    </sc-if>
+                    <!-- STATS: per-match summary strip -->
+                    <sc-if value="{{ isStats }}" hint-placeholder-val="{{ false }}">
+                      <div style="display:flex;gap:8px;flex-wrap:wrap">
+                        <sc-for list="{{ p.deepSummary }}" as="s" hint-placeholder-count="6">
+                          <div style="flex:1;min-width:96px;display:flex;flex-direction:column;align-items:flex-start;gap:4px;border:1px solid var(--color-border);background:var(--color-surface);padding:9px 13px">
+                            <span class="cap" style="font-size:10px;font-weight:700;letter-spacing:.14em;color:var(--fg-4)">{{ s.label }}</span>
+                            <span class="cap tabular" style="font-size:22px;font-weight:900;line-height:1;color:{{ s.color }}">{{ s.val }}</span>
+                          </div>
+                        </sc-for>
+                      </div>
+                    </sc-if>
+                    <!-- STATS: advanced category tables -->
+                    <sc-if value="{{ isStats }}" hint-placeholder-val="{{ false }}">
+                      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px">
+                        <sc-for list="{{ p.deepCats }}" as="t" hint-placeholder-count="8">
+                          <div style="border:1px solid var(--color-border);background:var(--color-surface);padding:9px 10px;display:flex;flex-direction:column;gap:6px">
+                            <span class="ds-stat-label" style="color:var(--fg-4);border-bottom:1px solid var(--color-border-subtle);padding-bottom:5px">{{ t.title }}</span>
+                            <sc-for list="{{ t.rows }}" as="r" hint-placeholder-count="3">
+                              <div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px">
+                                <span class="cap" style="font-size:10px;letter-spacing:.03em;color:var(--fg-4);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ r.k }}</span>
+                                <span class="cap tabular" style="font-size:12px;font-weight:800;color:var(--fg-1);text-align:right;white-space:nowrap">{{ r.v }}</span>
+                              </div>
+                            </sc-for>
+                          </div>
+                        </sc-for>
+                      </div>
+                    </sc-if>
+                    <!-- LOADOUT: 5 attribute tables -->
+                    <sc-if value="{{ isLoadout }}" hint-placeholder-val="{{ true }}">
+                      <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:10px">
+                        <sc-for list="{{ p.attrTables }}" as="t" hint-placeholder-count="5">
+                          <div style="border:1px solid var(--color-border);background:var(--color-surface);padding:9px 10px;display:flex;flex-direction:column;gap:6px">
+                            <span class="ds-stat-label" style="color:var(--fg-4);border-bottom:1px solid var(--color-border-subtle);padding-bottom:5px">{{ t.title }}</span>
+                            <div style="display:grid;grid-template-columns:1fr auto auto;gap:5px;align-items:center">
+                              <span></span>
+                              <span class="cap" style="font-size:10px;font-weight:800;letter-spacing:.06em;color:var(--fg-4);text-align:right;min-width:22px">R</span>
+                              <span class="cap" style="font-size:10px;font-weight:800;letter-spacing:.06em;color:var(--fg-4);text-align:right;min-width:16px">Δ</span>
+                            </div>
+                            <sc-for list="{{ t.rows }}" as="r" hint-placeholder-count="4">
+                              <div style="display:grid;grid-template-columns:1fr auto auto;gap:5px;align-items:center">
+                                <span class="cap" style="font-size:10px;letter-spacing:.03em;color:{{ r.nameColor }};overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ r.label }}</span>
+                                <span class="cap tabular" style="font-size:12px;font-weight:800;color:{{ r.valColor }};text-align:right;min-width:22px">{{ r.valShown }}</span>
+                                <span class="cap tabular" style="font-size:10px;font-weight:700;text-align:right;min-width:16px;color:{{ r.deltaColor }}">{{ r.deltaShown }}</span>
+                                <span style="grid-column:1/-1;height:3px;background:var(--color-border-subtle);margin-top:1px"><span class="{{ r.barClass }}" style="display:block;height:100%;width:{{ r.barW }};background:{{ r.barColor }};box-shadow:{{ r.barGlow }}"></span></span>
+                              </div>
+                            </sc-for>
+                          </div>
+                        </sc-for>
+                      </div>
+                    </sc-if>
+                    <a href="#" style="text-decoration:none"><span class="cap" style="font-size:10px;font-weight:700;letter-spacing:.12em;color:var(--color-accent)">FULL PLAYER PAGE →</span></a>
+                    </div>
+                  </div>
+                </sc-if>
+              </sc-for>
+            </div>
+          </div>
+        </section>
+
+        <!-- EVENT TIMELINE (dual-rail, height-synced to rail) -->
+        <section ref="{{ setSectionEl }}" style="border:1px solid var(--color-border);background:var(--color-surface);padding:12px 14px 14px;display:flex;flex-direction:column">
+          <div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin-bottom:4px">
+            <div style="display:flex;flex-direction:column;gap:2px">
+              <span class="ds-section-label">Event Timeline</span>
+              <span class="cap" style="font-size:10px;letter-spacing:.14em;color:var(--fg-4)">Game flow · goals + penalties · BGM left / 4L right</span>
+            </div>
+            <span class="cap" style="font-size:10px;font-weight:700;letter-spacing:.14em;color:var(--fg-4)">{{ tlMeta }}</span>
+          </div>
+          <div ref="{{ setClipEl }}" style="{{ tlClipStyle }}">
+            <div ref="{{ setListEl }}" style="{{ tlListStyle }}">
+              <div data-tl-line="1" style="{{ tlRailStyle }}"></div>
+              <span class="tl-cap" style="{{ tlCapTopStyle }}"></span>
+              <span class="tl-cap" style="{{ tlCapBotStyle }}"></span>
+              <sc-for list="{{ timeline }}" as="e" hint-placeholder-count="9">
+                <sc-if value="{{ e.isOpening }}" hint-placeholder-val="{{ false }}">
+                  <div style="{{ e.wrap }}">
+                    <span class="cap" style="display:inline-flex;align-items:center;gap:9px;border:1px solid var(--color-border);background:var(--color-charcoal);padding:6px 16px;font-size:10px;font-weight:800;letter-spacing:.24em;color:var(--fg-4)"><span style="width:7px;height:7px;border-radius:50%;background:var(--fg-5)"></span>OPENING FACE-OFF</span>
+                  </div>
+                </sc-if>
+                <sc-if value="{{ e.isDivider }}" hint-placeholder-val="{{ false }}">
+                  <div style="{{ e.wrap }}">
+                    <span style="position:absolute;left:0;right:0;top:50%;height:1px;background:linear-gradient(to right,transparent,var(--color-border) 28%,var(--color-border) 72%,transparent)"></span>
+                    <span style="position:relative;display:inline-flex;align-items:center;gap:12px;border:1px solid {{ e.divBorder }};background:var(--color-charcoal);padding:5px 15px">
+                      <span class="cap" style="font-size:15px;font-weight:900;letter-spacing:.2em;color:{{ e.divColor }}">{{ e.period }}</span>
+                      <span style="width:1px;height:15px;background:var(--color-border)"></span>
+                      <span class="cap" style="font-size:10px;font-weight:700;letter-spacing:.16em;color:{{ e.countColor }}">{{ e.countLabel }}</span>
+                    </span>
+                  </div>
+                </sc-if>
+                <sc-if value="{{ e.isEvent }}" hint-placeholder-val="{{ true }}">
+                  <div style="{{ e.wrap }}">
+                    <div style="display:flex;justify-content:flex-end;min-width:0">
+                      <sc-if value="{{ e.isLeft }}" hint-placeholder-val="{{ false }}">
+                        <div class="{{ e.cardClass }}" style="{{ e.cardStyle }}">
+                          <div style="{{ e.kickerRowStyle }}"><span style="width:6px;height:6px;border-radius:50%;flex:none;background:{{ e.kickerColor }}"></span><span class="cap" style="font-size:10px;font-weight:800;letter-spacing:.2em;color:{{ e.kickerColor }}">{{ e.kicker }}</span></div>
+                          <span class="cap" style="{{ e.scorerStyle }}">{{ e.scorer }}</span>
+                          <div style="{{ e.assistRowStyle }}"><span class="cap" style="font-size:10px;font-weight:800;letter-spacing:.16em;color:var(--fg-4)">A</span><span class="cap" style="font-size:11px;font-weight:600;letter-spacing:.02em;color:var(--fg-3)">{{ e.assist }}</span></div>
+                          <div style="{{ e.scoreRowStyle }}"><span class="cap tabular" style="font-size:13px;font-weight:900;letter-spacing:.02em"><span style="color:var(--color-accent)">{{ e.bgmG }}</span><span style="color:var(--fg-6);padding:0 3px">–</span><span style="color:var(--fg-1)">{{ e.oppG }}</span></span><span class="cap" style="font-size:10px;font-weight:700;letter-spacing:.14em;color:{{ e.bannerColor }}">{{ e.banner }}</span></div>
+                        </div>
+                      </sc-if>
+                    </div>
+                    <div style="display:flex;justify-content:center">
+                      <span style="{{ e.pillStyle }}">
+                        <span class="cap tabular" style="font-size:11px;font-weight:800;letter-spacing:.06em;line-height:1;color:var(--fg-1)">{{ e.time }}</span>
+                        <span class="cap" style="font-size:10px;font-weight:700;letter-spacing:.1em;line-height:1;color:var(--fg-4)">{{ e.periodShort }}</span>
+                      </span>
+                    </div>
+                    <div style="display:flex;justify-content:flex-start;min-width:0">
+                      <sc-if value="{{ e.isRight }}" hint-placeholder-val="{{ false }}">
+                        <div class="{{ e.cardClass }}" style="{{ e.cardStyle }}">
+                          <div style="{{ e.kickerRowStyle }}"><span style="width:6px;height:6px;border-radius:50%;flex:none;background:{{ e.kickerColor }}"></span><span class="cap" style="font-size:10px;font-weight:800;letter-spacing:.2em;color:{{ e.kickerColor }}">{{ e.kicker }}</span></div>
+                          <span class="cap" style="{{ e.scorerStyle }}">{{ e.scorer }}</span>
+                          <div style="{{ e.assistRowStyle }}"><span class="cap" style="font-size:10px;font-weight:800;letter-spacing:.16em;color:var(--fg-4)">A</span><span class="cap" style="font-size:11px;font-weight:600;letter-spacing:.02em;color:var(--fg-3)">{{ e.assist }}</span></div>
+                          <div style="{{ e.scoreRowStyle }}"><span class="cap tabular" style="font-size:13px;font-weight:900;letter-spacing:.02em"><span style="color:var(--color-accent)">{{ e.bgmG }}</span><span style="color:var(--fg-6);padding:0 3px">–</span><span style="color:var(--fg-1)">{{ e.oppG }}</span></span><span class="cap" style="font-size:10px;font-weight:700;letter-spacing:.14em;color:{{ e.bannerColor }}">{{ e.banner }}</span></div>
+                        </div>
+                      </sc-if>
+                    </div>
+                  </div>
+                </sc-if>
+              </sc-for>
+            </div>
+            <sc-if value="{{ tlShowFade }}" hint-placeholder-val="{{ false }}">
+              <div style="position:absolute;left:0;right:0;bottom:0;height:130px;background:linear-gradient(to top,var(--color-surface) 6%,transparent);pointer-events:none;z-index:2"></div>
+            </sc-if>
+          </div>
+          <sc-if value="{{ tlShowFinal }}" hint-placeholder-val="{{ true }}">
+          <div style="position:relative;text-align:center;margin-top:12px">
+            <span class="cap tabular" style="{{ tlFinalStyle }}">FINAL · BGM 4 – 3</span>
+          </div>
+          </sc-if>
+          <sc-if value="{{ tlShowBtn }}" hint-placeholder-val="{{ false }}">
+            <button type="button" onClick="{{ toggleTl }}" style="display:flex; width:100%; align-items:center; justify-content:center; gap:7px; padding:9px; margin-top:10px; background:transparent; border:1px solid var(--color-border); cursor:pointer">
+              <span class="cap" style="font-size:10px;font-weight:800;letter-spacing:.16em;color:var(--color-accent)">{{ tlBtnLabel }}</span>
+              <span class="cap" style="font-size:10px;color:var(--color-accent);{{ tlCaret }}">⌄</span>
+            </button>
+          </sc-if>
+        </section>
+
+      </div>
+
+      <!-- ===== RAIL 1/4 ===== -->
+      <div ref="{{ setRightEl }}" style="display:flex;flex-direction:column;gap:16px;min-width:0">
+
+        <!-- TOP PERFORMERS (compact rail) -->
+        <section style="border:1px solid var(--color-border);background:var(--color-surface)">
+          <div style="display:flex;flex-direction:column;gap:2px;padding:12px 14px 10px">
+            <span class="ds-section-label"><span style="color:var(--color-accent);padding-right:4px">▰</span>Top Performers</span>
+            <span class="cap" style="font-size:10px;letter-spacing:.12em;color:var(--fg-4)">Game-score model · tap a row</span>
+          </div>
+          <sc-for list="{{ perfTop }}" as="r" hint-placeholder-count="3">
+            <div class="perf-row-in" onClick="{{ r.onToggle }}" style="{{ r.railRowStyle }}">
+              <span class="cap tabular" style="font-size:13px;font-weight:900;line-height:1;color:{{ r.rankColor }};text-align:center">{{ r.rank }}</span>
+              <span style="min-width:0;display:flex;flex-direction:column;gap:3px">
+                <span class="cap" style="font-size:12.5px;font-weight:800;letter-spacing:.02em;color:var(--fg-1);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ r.name }}</span>
+                <span style="display:flex;align-items:center;gap:5px">
+                  <span style="{{ r.teamChip }}">{{ r.team }}</span>
+                  <span style="{{ r.posChip }}">{{ r.pos }}</span>
+                  <sc-if value="{{ r.hasStar }}" hint-placeholder-val="{{ false }}"><span class="cap" style="font-size:10px;letter-spacing:-1px;color:var(--color-accent);text-shadow:{{ r.starGlow }}">{{ r.rankGlyph }}</span></sc-if>
+                </span>
+              </span>
+              <span class="{{ r.scoreCls }}" style="font-size:18px;font-weight:900;line-height:1;text-align:right;color:{{ r.scoreColor }};text-shadow:{{ r.scoreGlow }}">{{ r.scoreDisplay }}</span>
+            </div>
+            <sc-if value="{{ r.expanded }}" hint-placeholder-val="{{ false }}">
+              <div style="border-top:1px solid var(--color-border-subtle);background:var(--color-background);box-shadow:inset 2px 0 0 var(--color-accent);padding:9px 13px 11px;display:flex;flex-direction:column;gap:7px">
+                <span class="cap" style="font-size:10px;font-weight:800;letter-spacing:.14em;color:var(--fg-4)">Where the {{ r.score }} came from</span>
+                <div class="perf-bar-row" style="display:flex;height:6px;overflow:hidden;border:1px solid var(--color-border);background:var(--color-charcoal)">
+                  <sc-for list="{{ r.bars }}" as="b" hint-placeholder-count="4"><span style="display:block;height:100%;width:{{ b.w }};background:{{ b.color }}"></span></sc-for>
+                </div>
+                <div style="display:flex;flex-wrap:wrap;gap:4px 10px">
+                  <sc-for list="{{ r.legend }}" as="l" hint-placeholder-count="4"><span class="cap" style="display:inline-flex;align-items:center;gap:5px;font-size:10px;font-weight:700;letter-spacing:.1em;color:var(--fg-4)"><span style="display:inline-block;width:7px;height:7px;flex:none;background:{{ l.color }}"></span>{{ l.k }} <b class="tabular" style="color:{{ l.valColor }}">{{ l.v }}</b></span></sc-for>
+                </div>
+              </div>
+            </sc-if>
+          </sc-for>
+          <sc-if value="{{ showAll }}" hint-placeholder-val="{{ false }}">
+            <sc-for list="{{ perfRest }}" as="r" hint-placeholder-count="7">
+              <div class="perf-row-in" onClick="{{ r.onToggle }}" style="{{ r.railRowStyle }}">
+                <span class="cap tabular" style="font-size:13px;font-weight:900;line-height:1;color:{{ r.rankColor }};text-align:center">{{ r.rank }}</span>
+                <span style="min-width:0;display:flex;flex-direction:column;gap:3px">
+                  <span class="cap" style="font-size:12.5px;font-weight:800;letter-spacing:.02em;color:var(--fg-1);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ r.name }}</span>
+                  <span style="display:flex;align-items:center;gap:5px">
+                    <span style="{{ r.teamChip }}">{{ r.team }}</span>
+                    <span style="{{ r.posChip }}">{{ r.pos }}</span>
+                    <sc-if value="{{ r.hasStar }}" hint-placeholder-val="{{ false }}"><span class="cap" style="font-size:10px;letter-spacing:-1px;color:var(--color-accent);text-shadow:{{ r.starGlow }}">{{ r.rankGlyph }}</span></sc-if>
+                  </span>
+                </span>
+                <span class="{{ r.scoreCls }}" style="font-size:18px;font-weight:900;line-height:1;text-align:right;color:{{ r.scoreColor }};text-shadow:{{ r.scoreGlow }}">{{ r.scoreDisplay }}</span>
+              </div>
+              <sc-if value="{{ r.expanded }}" hint-placeholder-val="{{ false }}">
+                <div style="border-top:1px solid var(--color-border-subtle);background:var(--color-background);box-shadow:inset 2px 0 0 var(--color-accent);padding:9px 13px 11px;display:flex;flex-direction:column;gap:7px">
+                  <span class="cap" style="font-size:10px;font-weight:800;letter-spacing:.14em;color:var(--fg-4)">Where the {{ r.score }} came from</span>
+                  <div class="perf-bar-row" style="display:flex;height:6px;overflow:hidden;border:1px solid var(--color-border);background:var(--color-charcoal)">
+                    <sc-for list="{{ r.bars }}" as="b" hint-placeholder-count="4"><span style="display:block;height:100%;width:{{ b.w }};background:{{ b.color }}"></span></sc-for>
+                  </div>
+                  <div style="display:flex;flex-wrap:wrap;gap:4px 10px">
+                    <sc-for list="{{ r.legend }}" as="l" hint-placeholder-count="4"><span class="cap" style="display:inline-flex;align-items:center;gap:5px;font-size:10px;font-weight:700;letter-spacing:.1em;color:var(--fg-4)"><span style="display:inline-block;width:7px;height:7px;flex:none;background:{{ l.color }}"></span>{{ l.k }} <b class="tabular" style="color:{{ l.valColor }}">{{ l.v }}</b></span></sc-for>
+                  </div>
+                </div>
+              </sc-if>
+            </sc-for>
+          </sc-if>
+          <button type="button" onClick="{{ toggleAll }}" style="display:flex;width:100%;align-items:center;justify-content:center;gap:7px;padding:10px 13px;background:transparent;border:none;border-top:1px solid var(--color-border);cursor:pointer">
+            <span class="cap" style="font-size:10px;font-weight:800;letter-spacing:.16em;color:var(--color-accent)">{{ toggleLabel }}</span>
+            <span class="cap" style="font-size:10px;color:var(--color-accent);transition:transform .28s cubic-bezier(.16,.84,.3,1);{{ caretRot }}">⌄</span>
+          </button>
+        </section>
+
+        <!-- DESERVE TO WIN -->
+        <section style="position:relative;border:1px solid var(--color-border);background:var(--bg-broadcast);overflow:hidden">
+          <div class="ticker-strip ticker-strip-thin"></div>
+          <div style="padding:12px 14px 14px;display:flex;flex-direction:column;gap:11px">
+            <div style="display:flex;align-items:baseline;gap:8px">
+              <span class="ds-section-label"><span style="color:var(--color-accent);padding-right:4px">▰</span>Deserve to Win</span>
+              <span class="cap" style="margin-left:auto;font-size:10px;font-weight:700;letter-spacing:.14em;color:var(--color-win)">● 0.95</span>
+            </div>
+            <div style="display:flex;align-items:flex-end;justify-content:space-between">
+              <div style="display:flex;flex-direction:column"><span class="cap" style="font-size:10px;font-weight:800;letter-spacing:.2em;color:var(--color-accent)">BGM</span><span ref="{{ setDtwBig }}" class="cap tabular" style="font-size:38px;font-weight:900;line-height:.9;color:var(--color-accent);text-shadow:0 0 22px rgba(232,65,49,.3)">{{ dtwBgmStr }}<span style="font-size:18px;color:var(--fg-5)">%</span></span></div>
+              <div style="display:flex;flex-direction:column;align-items:flex-end"><span class="cap" style="font-size:10px;font-weight:800;letter-spacing:.2em;color:var(--fg-4)">4L</span><span class="cap tabular" style="font-size:38px;font-weight:900;line-height:.9;color:var(--fg-3)">{{ dtwOppStr }}<span style="font-size:18px;color:var(--fg-5)">%</span></span></div>
+            </div>
+            <div style="display:flex;justify-content:center">
+              <svg viewBox="0 0 240 152" style="width:100%;max-width:230px;display:block" aria-hidden="true">
+                <path d="M 24 120 A 96 96 0 0 1 216 120" fill="none" stroke="var(--color-charcoal)" stroke-width="30"></path>
+                <path ref="{{ setDtwArcRed }}" d="M 24 120 A 96 96 0 0 1 148.79 28.42" fill="none" stroke="var(--color-accent)" stroke-width="22"></path>
+                <path ref="{{ setDtwArcGrey }}" d="M 148.79 28.42 A 96 96 0 0 1 216 120" fill="none" stroke="var(--fg-4)" stroke-width="22"></path>
+                <line x1="24" y1="120" x2="24" y2="130" stroke="var(--fg-5)" stroke-width="1.2"></line>
+                <line x1="120" y1="24" x2="120" y2="14" stroke="var(--fg-5)" stroke-width="1.2"></line>
+                <line x1="216" y1="120" x2="216" y2="130" stroke="var(--fg-5)" stroke-width="1.2"></line>
+                <text x="24" y="144" text-anchor="middle" style="font:800 10px var(--font-condensed);fill:var(--fg-4);letter-spacing:.1em">0%</text>
+                <text x="120" y="11" text-anchor="middle" style="font:800 10px var(--font-condensed);fill:var(--fg-4);letter-spacing:.1em">50</text>
+                <text x="216" y="144" text-anchor="middle" style="font:800 10px var(--font-condensed);fill:var(--fg-4);letter-spacing:.1em">100%</text>
+                <g ref="{{ setDtwNeedle }}" style="transform-box:view-box;transform-origin:120px 120px">
+                  <line x1="120" y1="120" x2="145.79" y2="37.96" stroke="var(--fg-1)" stroke-width="3.5" stroke-linecap="round"></line>
+                  <circle cx="120" cy="120" r="8" fill="var(--fg-1)"></circle>
+                  <circle cx="120" cy="120" r="4" fill="var(--color-background)"></circle>
+                </g>
+              </svg>
+            </div>
+            <div style="display:flex;flex-direction:column;align-items:center;gap:5px">
+              <span class="cap" style="font-size:10px;font-weight:900;letter-spacing:.2em;color:var(--color-accent);border:1px solid var(--color-accent-line);background:var(--color-accent-soft);padding:5px 12px">BGM EARNED THIS WIN</span>
+            </div>
+            <details style="border-top:1px solid var(--color-border-subtle);padding-top:10px">
+              <summary class="cap" style="cursor:pointer;list-style:none;font-size:10px;font-weight:700;letter-spacing:.14em;color:var(--fg-4);display:flex;align-items:center;gap:6px">WHERE THE EDGE CAME FROM<span style="margin-left:auto;color:var(--fg-4)">＋</span></summary>
+              <div style="display:flex;flex-direction:column;gap:10px;padding-top:10px">
+                <div style="display:flex;flex-direction:column;gap:4px">
+                  <div style="display:flex;align-items:center;gap:6px">
+                    <span class="cap" style="font-size:11px;font-weight:900;letter-spacing:.06em;color:var(--fg-2)">SHOTS</span>
+                    <span class="cap tabular" style="font-size:10px;font-weight:800;color:var(--fg-3);border:1px solid var(--color-border);padding:1px 5px">50%</span>
+                    <span class="cap tabular" style="margin-left:auto;font-size:11px;font-weight:800;color:var(--fg-3)"><b style="color:var(--color-accent)">29</b> – 16</span>
+                  </div>
+                  <div style="display:flex;height:8px;background:var(--color-charcoal);border:1px solid var(--color-border)"><span style="width:64%;background:var(--color-accent)"></span><span style="width:36%;background:var(--fg-4)"></span></div>
+                  <span class="cap tabular" style="font-size:10px;font-weight:700;letter-spacing:.1em;color:var(--fg-4)"><b style="color:var(--color-accent);font-weight:900">+7.2</b> TO DTW · BGM 64%</span>
+                </div>
+                <div style="display:flex;flex-direction:column;gap:4px">
+                  <div style="display:flex;align-items:center;gap:6px">
+                    <span class="cap" style="font-size:11px;font-weight:900;letter-spacing:.06em;color:var(--fg-2)">TOA</span>
+                    <span class="cap tabular" style="font-size:10px;font-weight:800;color:var(--fg-3);border:1px solid var(--color-border);padding:1px 5px">35%</span>
+                    <span class="cap tabular" style="margin-left:auto;font-size:11px;font-weight:800;color:var(--fg-3)"><b style="color:var(--color-accent)">12:42</b> – 6:11</span>
+                  </div>
+                  <div style="display:flex;height:8px;background:var(--color-charcoal);border:1px solid var(--color-border)"><span style="width:67%;background:var(--color-accent)"></span><span style="width:33%;background:var(--fg-4)"></span></div>
+                  <span class="cap tabular" style="font-size:10px;font-weight:700;letter-spacing:.1em;color:var(--fg-4)"><b style="color:var(--color-accent);font-weight:900">+6.0</b> TO DTW · BGM 67%</span>
+                </div>
+                <div style="display:flex;flex-direction:column;gap:4px">
+                  <div style="display:flex;align-items:center;gap:6px">
+                    <span class="cap" style="font-size:11px;font-weight:900;letter-spacing:.06em;color:var(--fg-2)">HITS</span>
+                    <span class="cap tabular" style="font-size:10px;font-weight:800;color:var(--fg-3);border:1px solid var(--color-border);padding:1px 5px">15%</span>
+                    <span class="cap tabular" style="margin-left:auto;font-size:11px;font-weight:800;color:var(--fg-3)">14 – <b style="color:var(--color-accent)">39</b></span>
+                  </div>
+                  <div style="display:flex;height:8px;background:var(--color-charcoal);border:1px solid var(--color-border)"><span style="width:26%;background:var(--fg-4)"></span><span style="width:74%;background:var(--color-accent)"></span></div>
+                  <span class="cap tabular" style="font-size:10px;font-weight:700;letter-spacing:.1em;color:var(--fg-4)"><b style="color:var(--color-accent);font-weight:900">−3.5</b> FROM DTW · BGM 26%</span>
+                </div>
+                <div style="display:flex;gap:5px;align-items:center;border-top:1px solid var(--color-border-subtle);padding-top:9px">
+                  <span class="cap" style="font-size:10px;font-weight:700;letter-spacing:.14em;color:var(--fg-4)">FORMULA</span>
+                  <span class="cap tabular" style="font-size:10px;font-weight:800;color:var(--fg-3);border:1px solid var(--color-border);padding:2px 6px">SHOTS 50</span>
+                  <span class="cap tabular" style="font-size:10px;font-weight:800;color:var(--fg-3);border:1px solid var(--color-border);padding:2px 6px">TOA 35</span>
+                  <span class="cap tabular" style="font-size:10px;font-weight:800;color:var(--fg-3);border:1px solid var(--color-border);padding:2px 6px">HITS 15</span>
+                </div>
+              </div>
+            </details>
+          </div>
+        </section>
+
+        <!-- BOX SCORE -->
+        <section ref="{{ setBoxEl }}" style="border:1px solid var(--color-border);background:var(--color-surface);padding:12px 14px 14px;display:flex;flex-direction:column;gap:10px">
+          <div style="display:flex;flex-direction:column;gap:2px">
+            <span class="ds-section-label">Box Score</span>
+            <span class="cap" style="font-size:10px;letter-spacing:.12em;color:var(--fg-4)">Period-by-period · OCR-reviewed</span>
+          </div>
+          <div style="display:flex;gap:5px">
+            <sc-for list="{{ boxTabs }}" as="t" hint-placeholder-count="3">
+              <button type="button" onClick="{{ t.onSelect }}" style="{{ t.style }}">{{ t.label }}</button>
+            </sc-for>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr repeat(4,1fr) 1.2fr;gap:0;border:1px solid var(--color-border-subtle)">
+            <span class="cap" style="font-size:10px;letter-spacing:.06em;color:var(--fg-4);padding:5px 4px;background:var(--color-charcoal)">TEAM</span>
+            <sc-for list="{{ boxPeriods }}" as="p" hint-placeholder-count="4">
+              <span class="cap tabular" style="font-size:10px;color:var(--fg-4);padding:5px 0;text-align:center;background:var(--color-charcoal)">{{ p }}</span>
+            </sc-for>
+            <span class="cap tabular" style="font-size:10px;color:var(--color-accent);padding:5px 0;text-align:center;background:var(--color-charcoal);border-left:1px solid var(--color-accent-line)">TOT</span>
+            <sc-for list="{{ boxRows }}" as="r" hint-placeholder-count="2">
+              <span class="cap" style="{{ r.teamStyle }}">{{ r.team }}</span>
+              <sc-for list="{{ r.cells }}" as="c" hint-placeholder-count="4">
+                <span class="cap tabular" style="{{ c.style }}">{{ c.val }}</span>
+              </sc-for>
+              <span class="{{ r.totCls }}" style="{{ r.totStyle }}">{{ r.tot }}</span>
+            </sc-for>
+          </div>
+          <span class="cap" style="{{ boxNoteStyle }}">{{ boxNote }}</span>
+        </section>
+
+        <!-- TEAM STATS — HEAD TO HEAD -->
+        <section ref="{{ setTeamEl }}" style="border:1px solid var(--color-border);background:var(--color-surface);padding:12px 14px 14px;display:flex;flex-direction:column;gap:12px">
+          <div style="display:flex;flex-direction:column;gap:2px">
+            <span class="ds-section-label"><span style="color:var(--color-accent);padding-right:4px">▰</span>Team Stats</span>
+            <span class="cap" style="font-size:10px;letter-spacing:.12em;color:var(--fg-4)">Head to head · bar = share of total</span>
+          </div>
+
+          <!-- FLAT list · dueling share bars -->
+          <div style="display:flex;flex-direction:column;gap:9px">
+            <sc-for list="{{ teamRows }}" as="r" hint-placeholder-count="10">
+              <div style="display:flex;flex-direction:column;gap:3px;{{ r.rowMotion }}">
+                <div style="display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:8px">
+                  <span class="cap tabular" style="font-size:13px;font-weight:800;color:{{ r.bgmValColor }};min-width:40px">{{ r.bgmDisp }}</span>
+                  <span class="cap" style="font-size:10px;font-weight:600;letter-spacing:.06em;color:var(--fg-4);text-align:center">{{ r.label }}</span>
+                  <span class="cap tabular" style="font-size:13px;font-weight:800;color:{{ r.oppValColor }};text-align:right;min-width:40px">{{ r.oppDisp }}</span>
+                </div>
+                <div style="display:flex;height:5px;background:var(--color-background);overflow:hidden">
+                  <span style="flex:none;width:{{ r.bgmW }};display:flex;justify-content:flex-end;overflow:hidden"><span class="{{ r.bgmBarCls }}" style="width:{{ r.grow }};height:100%;background:{{ r.bgmBar }}"></span></span>
+                  <span style="flex:none;width:2px;background:var(--color-surface)"></span>
+                  <span style="flex:none;width:{{ r.oppW }};overflow:hidden"><span class="{{ r.oppBarCls }}" style="width:{{ r.grow }};height:100%;background:{{ r.oppBar }}"></span></span>
+                </div>
+              </div>
+            </sc-for>
+          </div>
+          <a href="#" style="text-decoration:none"><span class="cap" style="font-size:10px;font-weight:700;letter-spacing:.12em;color:var(--color-accent)">FULL HEAD-TO-HEAD →</span></a>
+        </section>
+      </div>
+    </div>
+
+    <!-- ============ ACTION TRACKER MAP (full width) ============ -->
+    <section style="border:1px solid var(--color-border);background:var(--bg-broadcast-soft);padding:16px;margin-top:16px">
+      <x-import component-from-global-scope="action-tracker-map" from="./action-tracker.js" hint-size="100%,620px"></x-import>
+    </section>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  state = { team: 'BGM', mode: 'LOADOUT', open: null, stageW: 0,
+            showAll: false, openRow: null, box: 'GOALS',
+            boxProg: (window.matchMedia && window.matchMedia('(prefers-reduced-motion:reduce)').matches) ? 1 : 0, boxGlow: false,
+            teamProg: (window.matchMedia && window.matchMedia('(prefers-reduced-motion:reduce)').matches) ? 1 : 0, teamGlow: (window.matchMedia && window.matchMedia('(prefers-reduced-motion:reduce)').matches) ? true : false,
+            revealed: false, cHome: 0, cAway: 0,
+            dtwK: (window.matchMedia && window.matchMedia('(prefers-reduced-motion:reduce)').matches) ? 1 : 0,
+            tlMode: 'auto', tlAvail: 0, tlClip: 0, tlExpanded: false, tlAnimating: false, tlToggleH: null, attrProg: 1,
+            tlProg: (window.matchMedia && window.matchMedia('(prefers-reduced-motion:reduce)').matches) ? 1 : 0,
+            perfProg: (window.matchMedia && window.matchMedia('(prefers-reduced-motion:reduce)').matches) ? null : {} };
+
+  FINAL_HOME = 4; FINAL_AWAY = 3;
+
+  LEADERS = { BGM: 11, '4L': 19 };
+
+  setRightEl   = (el) => { this.rightEl = el; };
+  setLineupEl  = (el) => { this.lineupEl = el; };
+  setSectionEl = (el) => { this.sectionEl = el; if (el) this.observeTimeline(); };
+  setClipEl    = (el) => { this.clipEl = el; };
+  setListEl    = (el) => { this.listEl = el; };
+  setStageEl   = (el) => { this.stageEl = el; this.measureStage(); };
+
+  setDtwNeedle  = (el) => { this.dtwNeedle = el; };
+  setDtwArcRed  = (el) => { this.dtwArcRed = el; if (el) { const l = el.getTotalLength(); el.dataset.len = l; el.style.strokeDasharray = l; if (this.state.dtwK < 1) el.style.strokeDashoffset = l; } };
+  setDtwArcGrey = (el) => { this.dtwArcGrey = el; if (el) { const l = el.getTotalLength(); el.dataset.len = l; el.style.strokeDasharray = l; if (this.state.dtwK < 1) el.style.strokeDashoffset = l; } };
+  setDtwBig     = (el) => { this.dtwBig = el; };
+
+  // deserve-to-win gauge: needle + red fill + BGM count all rise from 0 in lockstep,
+  // then the grey remainder carries the front on to 100 (matches the approved motion rec)
+  playDtw(){
+    if (this._dtwPlayed) return;
+    this._dtwPlayed = true;
+    const needle = this.dtwNeedle, red = this.dtwArcRed, grey = this.dtwArcGrey;
+    // pose everything at 0% (needle rests at 59.7 = rotate(0), so 0% = -107.46deg)
+    if (needle){ needle.style.transition = 'none'; needle.style.transform = 'rotate(-107.46deg)'; }
+    if (red){ red.style.transition = 'none'; red.style.strokeDashoffset = red.dataset.len; }
+    if (grey){ grey.style.transition = 'none'; grey.style.strokeDashoffset = grey.dataset.len; }
+    if (red) void red.offsetHeight;
+    const redDur = 900, greyDur = 610, delay = 350;
+    setTimeout(() => {
+      if (needle){ needle.style.transition = 'transform ' + redDur + 'ms linear'; needle.style.transform = 'rotate(0deg)'; }
+      if (red){ red.style.transition = 'stroke-dashoffset ' + redDur + 'ms linear'; red.style.strokeDashoffset = 0; }
+      if (grey){ grey.style.transition = 'stroke-dashoffset ' + greyDur + 'ms linear ' + redDur + 'ms'; grey.style.strokeDashoffset = 0; }
+      // BGM % counts 0 -> 59.7 in sync with the red fill
+      const t0 = performance.now();
+      const ease = t => 1 - Math.pow(1 - t, 3);
+      const tick = (now) => {
+        const t = Math.max(0, Math.min((now - t0) / redDur, 1));
+        this.setState({ dtwK: ease(t) });
+        if (t < 1) this._dtwRaf = requestAnimationFrame(tick);
+        else if (this.dtwBig){ this.dtwBig.classList.remove('dtw-bloom'); void this.dtwBig.offsetHeight; this.dtwBig.classList.add('dtw-bloom'); }
+      };
+      this._dtwRaf = requestAnimationFrame(tick);
+    }, delay);
+  }
+
+  measureStage(){
+    if (!this.stageEl) return;
+    const w = this.stageEl.clientWidth;
+    if (Math.abs((this.state.stageW || 0) - w) > 0.6) this.setState({ stageW: w });
+  }
+  toggleTeam = () => this.setState(s => ({ team: s.team === 'BGM' ? '4L' : 'BGM' }));
+
+  // score roll-up — digits climb to the final tally like a settling replay graphic
+  runCountUp(){
+    const dur = 1150, delay = 350, start = performance.now() + delay;
+    const ease = t => 1 - Math.pow(1 - t, 3);
+    const tick = (now) => {
+      const t = Math.max(0, Math.min((now - start) / dur, 1)), k = ease(t);
+      this.setState({ cHome: Math.round(this.FINAL_HOME * k), cAway: Math.round(this.FINAL_AWAY * k) });
+      if (t < 1) this._countRaf = requestAnimationFrame(tick);
+    };
+    this._countRaf = requestAnimationFrame(tick);
+  }
+
+  // top performers roll-up — each row's score climbs to its tally, staggered top-to-bottom
+  runPerfCountUp(){
+    const ranks = this.PERF.map(p => p.rank);
+    const dur = 600, base = 150, step = 80, t0 = performance.now();
+    const ease = t => 1 - Math.pow(1 - t, 3);
+    const tick = (now) => {
+      const map = {}; let done = true;
+      ranks.forEach((r, i) => {
+        const t = Math.max(0, Math.min((now - t0 - base - i * step) / dur, 1));
+        map[r] = ease(t);
+        if (t < 1) done = false;
+      });
+      this.setState({ perfProg: map });
+      if (!done) this._perfRaf = requestAnimationFrame(tick);
+    };
+    this._perfRaf = requestAnimationFrame(tick);
+  }
+
+  componentDidMount(){
+    this._prevTeam = this.state.team;
+    this._prevBox = this.state.box;
+    // broadcast reveal: flip on the transition-driven bar growth, then roll the score up
+    const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion:reduce)').matches;
+    this._reduceMotion = reduce;
+    if (reduce){
+      this.setState({ revealed: true, cHome: this.FINAL_HOME, cAway: this.FINAL_AWAY, boxProg: 1, boxGlow: true });
+    } else {
+      requestAnimationFrame(() => this.setState({ revealed: true }));
+      this.runCountUp();
+      this.runPerfCountUp();
+      // fill the deserve-to-win gauge once the rail has settled in
+      this._dtwTimer = setTimeout(() => this.playDtw(), 500);
+      // deal the lineup rows in once the grid has risen + the panel wipe has passed
+      this._dealTimer = setTimeout(() => this.restackRows(), 950);
+      // box score fills period-by-period the first time it scrolls into view (see observeBox)
+    }
+    this._schedule = () => {
+      if (this._raf) cancelAnimationFrame(this._raf);
+      this._raf = requestAnimationFrame(() => requestAnimationFrame(() => { this.measureStage(); this.measureTimeline(); }));
+      clearTimeout(this._settle);
+      this._settle = setTimeout(() => { this.measureStage(); this.measureTimeline(); }, 90);
+    };
+    this._ro = new ResizeObserver(this._schedule);
+    if (this.rightEl)  this._ro.observe(this.rightEl);
+    if (this.lineupEl) this._ro.observe(this.lineupEl);
+    if (this.stageEl)  this._ro.observe(this.stageEl);
+    window.addEventListener('resize', this._schedule);
+    // native <details> toggles (e.g. Deserve-to-Win) don't fire a React update
+    this._dets = this.rightEl ? [].slice.call(this.rightEl.querySelectorAll('details')) : [];
+    this._dets.forEach(d => d.addEventListener('toggle', this._schedule));
+    // settle passes for late layout (fonts, async imports)
+    this._timers = [80, 300, 800, 1600].map(t => setTimeout(this._schedule, t));
+    this._schedule();
+  }
+  componentDidUpdate(){
+    if (this._tlToggled){ this._tlToggled = false; this.animateTimelineToggle(); }
+    if (this._schedule) this._schedule();
+    if (this._prevTeam !== this.state.team){ this._prevTeam = this.state.team; this.restackRows(); }
+    if (this._prevBox !== this.state.box){ this._prevBox = this.state.box; this.animBox(); }
+  }
+  // team switch: deal the new roster's rows in top-to-bottom, like a lineup card
+  restackRows(){
+    const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion:reduce)').matches;
+    if (reduce || !this.stageEl) return;
+    const rows = [].slice.call(this.stageEl.querySelectorAll('.lu-row'));
+    rows.forEach((row, i) => {
+      if (row.animate) row.animate(
+        [{ opacity: 0, transform: 'translateY(12px)' }, { opacity: 1, transform: 'translateY(0)' }],
+        { duration: 300, delay: i * 45, easing: 'cubic-bezier(.16,.84,.3,1)', fill: 'both' }
+      );
+    });
+  }
+  componentWillUnmount(){
+    if (this._countRaf) cancelAnimationFrame(this._countRaf);
+    if (this._attrRaf) cancelAnimationFrame(this._attrRaf);
+    if (this._dealTimer) clearTimeout(this._dealTimer);
+    if (this._teamRaf) cancelAnimationFrame(this._teamRaf);
+    if (this._teamIO) this._teamIO.disconnect();
+    if (this._ro) this._ro.disconnect();
+    if (this._schedule) window.removeEventListener('resize', this._schedule);
+    if (this._dets) this._dets.forEach(d => d.removeEventListener('toggle', this._schedule));
+    if (this._timers) this._timers.forEach(clearTimeout);
+    if (this._settle) clearTimeout(this._settle);
+    if (this._raf) cancelAnimationFrame(this._raf);
+    if (this._tlRaf) cancelAnimationFrame(this._tlRaf);
+    if (this._tlIO) this._tlIO.disconnect();
+    if (this._tlToggleAnim) this._tlToggleAnim.cancel();
+    if (this._tlEnd && this.clipEl) this.clipEl.removeEventListener('transitionend', this._tlEnd);
+    if (this._tlEndT) clearTimeout(this._tlEndT);
+  }
+
+  measureTimeline(){
+    if (this.state.tlAnimating) return;
+    const right = this.rightEl, section = this.sectionEl, clip = this.clipEl, list = this.listEl;
+    if (!right || !section || !clip || !list) return;
+    // neutralise any applied sizing so we read the natural layout
+    const pMin = list.style.minHeight, pJ = list.style.justifyContent, pH = clip.style.height, pO = clip.style.overflow;
+    list.style.minHeight = '0px'; list.style.justifyContent = 'flex-start';
+    clip.style.height = 'auto'; clip.style.overflow = 'visible';
+    void list.offsetHeight;
+    // target: make the timeline section bottom land exactly on the rail's bottom edge.
+    const rightBottom = right.getBoundingClientRect().bottom;
+    const secTop = section.getBoundingClientRect().top;
+    const targetH = rightBottom - secTop;
+    const chrome  = section.getBoundingClientRect().height - clip.getBoundingClientRect().height; // header + final pill + button + padding
+    const avail   = Math.max(targetH - chrome, 140);
+    const natural = list.getBoundingClientRect().height;
+    const mode = natural > avail + 4 ? 'clip' : 'fill';
+    // restore
+    list.style.minHeight = pMin; list.style.justifyContent = pJ; clip.style.height = pH; clip.style.overflow = pO;
+    const s = this.state;
+    if (s.tlMode !== mode || Math.abs((s.tlAvail || 0) - avail) > 0.6){
+      this.setState({ tlMode: mode, tlAvail: avail });
+    }
+  }
+
+  toggleTl = () => {
+    if (this._reduceMotion || !this.clipEl){
+      this.setState(s => ({ tlExpanded: !s.tlExpanded }));
+      return;
+    }
+    const fromH = this.clipEl.getBoundingClientRect().height;
+    this._tlToggled = true;
+    this.setState(s => ({ tlExpanded: !s.tlExpanded, tlAnimating: true, tlToggleH: fromH }));
+  };
+
+  // dynamic expand / collapse: height is React-state-driven with a CSS transition (no WAAPI
+  // frozen box), while the rows crossing the fold cascade in (expand) or peel out (collapse).
+  animateTimelineToggle(){
+    const clip = this.clipEl, list = this.listEl;
+    if (!clip || !list){ this.setState({ tlAnimating: false, tlToggleH: null }); return; }
+    const expanding = this.state.tlExpanded;
+    // true natural height, read with the clip forced open
+    const prevH = clip.style.height;
+    clip.style.height = 'auto';
+    const natural = clip.getBoundingClientRect().height;
+    clip.style.height = prevH;
+    const to = expanding ? natural : (this.state.tlAvail || natural);
+    const from = this.state.tlToggleH || clip.getBoundingClientRect().height;
+    // rows crossing the fold
+    const fold = Math.min(from, to);
+    const rows = [].slice.call(list.children).filter(c => c.getAttribute && c.getAttribute('data-tl-line') == null && !c.classList.contains('tl-cap'));
+    if (clip.animate){
+      rows.forEach(r => { if (r.getAnimations) r.getAnimations().forEach(a => a.cancel()); });
+      const moving = rows.filter(r => (r.offsetTop + r.offsetHeight) > fold - 6);
+      if (!expanding) moving.reverse(); // collapse folds bottom-up: the last row tucks away first
+      moving.forEach((r, i) => {
+        const kf = expanding
+          ? [{ transform: 'translateY(16px)' }, { transform: 'translateY(0)' }]
+          : [{ transform: 'translateY(0)' }, { transform: 'translateY(-9px)' }];
+        r.animate(kf, { duration: expanding ? 300 : 200, delay: (expanding ? 90 : 10) + i * (expanding ? 55 : 24), easing: expanding ? 'cubic-bezier(.16,.84,.3,1)' : 'cubic-bezier(.4,0,.6,1)', fill: expanding ? 'both' : 'none' });
+      });
+    }
+    const finish = () => {
+      if (!this._tlEnd) return;
+      clip.removeEventListener('transitionend', this._tlEnd);
+      this._tlEnd = null; clearTimeout(this._tlEndT);
+      this.setState({ tlAnimating: false, tlToggleH: null });
+    };
+    const onEnd = (e) => { if (e.propertyName === 'height') finish(); };
+    this._tlEnd = onEnd;
+    clip.addEventListener('transitionend', onEnd);
+    clearTimeout(this._tlEndT);
+    this._tlEndT = setTimeout(finish, (expanding ? 520 : 480) + 200);
+    // commit the start height, then flip to target so the CSS transition runs
+    requestAnimationFrame(() => requestAnimationFrame(() => { this.setState({ tlToggleH: to }); }));
+  }
+
+  buildTimelineLayout(){
+    const { tlMode, tlAvail, tlExpanded, tlAnimating, tlToggleH } = this.state;
+    const P = (this.state.tlProg == null ? 1 : this.state.tlProg);
+    const ease = t => 1 - Math.pow(1 - t, 3);
+    const cl = x => x < 0 ? 0 : x > 1 ? 1 : x;
+    const railScale = ease(cl(P / 0.16)).toFixed(3);
+    const capOp = cl(P / 0.16).toFixed(3);
+    const fE = ease(cl((P - 0.86) / 0.14));
+    const fPulse = Math.sin(cl(fE) * Math.PI);
+    const tlRailStyle = 'position:absolute;left:50%;top:0;bottom:0;width:2px;background:var(--color-accent-line);transform-origin:top center;transform:translateX(-1px) scaleY(' + railScale + ');';
+    const tlCapTopStyle = 'position:absolute;left:50%;top:0;width:8px;height:8px;border-radius:50%;background:var(--color-accent);transform:translate(-50%,-3px);z-index:2;opacity:' + capOp + ';';
+    const tlCapBotStyle = 'position:absolute;left:50%;bottom:0;width:8px;height:8px;border-radius:50%;background:var(--color-accent);transform:translate(-50%,3px);z-index:2;opacity:' + capOp + ';';
+    const tlFinalStyle = 'display:inline-block;font-size:11px;font-weight:800;letter-spacing:.1em;color:var(--color-accent);background:var(--color-surface);border:1px solid var(--color-accent-line);padding:5px 14px;opacity:' + fE.toFixed(3) + ';transform:translateY(' + ((1 - fE) * 9).toFixed(2) + 'px);box-shadow:0 0 ' + (fPulse * 15 + fE * 5).toFixed(1) + 'px rgba(232,65,49,' + (fPulse * 0.55 + fE * 0.25).toFixed(3) + ');';
+    const h = tlAvail.toFixed(2) + 'px';
+    const listBase = 'position:relative;display:flex;flex-direction:column;padding:6px 0;';
+    let tlClipStyle = 'position:relative;overflow:visible', tlListStyle = listBase, tlShowBtn = false, tlShowFade = false, tlBtnLabel = '';
+    if (tlMode === 'fill') {
+      tlClipStyle = 'position:relative;overflow:hidden;height:' + h + ';';
+      tlListStyle = listBase + 'justify-content:space-between;min-height:' + h + ';';
+    } else { // clip
+      tlShowBtn = true;
+      tlBtnLabel = tlExpanded ? 'COLLAPSE TIMELINE' : 'SHOW FULL TIMELINE';
+      if (tlAnimating) {
+        // React-owned height + CSS transition; WAAPI never touches the clip box
+        const dur = tlExpanded ? '0.5s cubic-bezier(.16,.84,.3,1)' : '0.46s cubic-bezier(.4,0,.2,1)';
+        const hh = (tlToggleH != null ? tlToggleH : tlAvail).toFixed(2);
+        tlClipStyle = 'position:relative;overflow:hidden;height:' + hh + 'px;transition:height ' + dur + ';';
+      } else if (tlExpanded) {
+        tlClipStyle = 'position:relative;overflow:visible';
+      } else {
+        tlClipStyle = 'position:relative;overflow:hidden;height:' + h + ';';
+        tlShowFade = true;
+      }
+    }
+    return {
+      tlClipStyle, tlListStyle, tlShowBtn, tlShowFade, tlShowFinal: !tlShowFade, tlBtnLabel,
+      tlRailStyle, tlCapTopStyle, tlCapBotStyle, tlFinalStyle,
+      tlCaret: tlExpanded ? 'display:inline-block;transform:rotate(180deg)' : 'display:inline-block',
+      tlMeta: tlMode === 'clip' ? (tlExpanded ? 'FULL GAME' : 'CONDENSED') : 'FULL GAME',
+    };
+  }
+
+  BOX = {
+    GOALS: { periods:[[0,2,1,1],[0,0,3,0]], note:'GOALS 4–3 (+1) · GWG in OT' },
+    SHOTS: { periods:[[8,11,7,3],[4,6,5,1]], note:'SOG 29–16 (+13) · ON-NET 90.6%' },
+    FO:    { periods:[[6,8,5,2],[3,4,1,1]], note:'FACEOFFS 21–9 · WON 70.0%' },
+  };
+  BOX_TABS = ['GOALS','SHOTS','FO'];
+
+  boxTabStyle(active){
+    return 'font-family:var(--font-condensed);text-transform:uppercase;font-size:10px;font-weight:700;letter-spacing:.06em;padding:4px 10px;cursor:pointer;border:1px solid '
+      + (active ? 'var(--color-accent-line)' : 'var(--color-border)')
+      + ';background:' + (active ? 'var(--color-accent-soft)' : 'transparent')
+      + ';color:' + (active ? 'var(--color-accent)' : 'var(--fg-4)') + ';';
+  }
+
+  // box score entrance is driven off state.boxProg (0→1) so the frequent load-time
+  // re-renders reflect the animation instead of wiping an imperative count.
+  // periods fill left→right, cells count up, winners settle into a faint tint,
+  // the total reads last and the winning total blooms once (state.boxGlow).
+  BOX_STEP = 140; BOX_CD = 300;
+
+  setBoxEl = (el) => { this.boxEl = el; if (el) this.observeBox(); };
+  // hold the box entrance until the section first scrolls into view
+  observeBox(){
+    if (this._boxObserved || !this.boxEl) return;
+    this._boxObserved = true;
+    if (this._reduceMotion || typeof IntersectionObserver === 'undefined'){ this.animBox(); return; }
+    this._boxIO = new IntersectionObserver((entries) => {
+      entries.forEach(e => {
+        if (e.isIntersecting){ this._boxIO.disconnect(); this._boxIO = null; this.animBox(); }
+      });
+    }, { threshold: 0.35 });
+    this._boxIO.observe(this.boxEl);
+  }
+
+  animBox(){
+    if (this._boxRaf) cancelAnimationFrame(this._boxRaf);
+    if (this._reduceMotion || document.hidden){
+      this.setState({ boxProg: 1, boxGlow: true });
+      if (!this._reduceMotion && document.hidden) this.armBoxVisible();
+      return;
+    }
+    const DUR = 4 * this.BOX_STEP + this.BOX_CD;
+    const t0 = performance.now();
+    this.setState({ boxProg: 0, boxGlow: false });
+    const tick = (now) => {
+      const p = Math.max(0, Math.min(1, (now - t0) / DUR));
+      this.setState({ boxProg: p });
+      if (p < 1) this._boxRaf = requestAnimationFrame(tick);
+      else this.setState({ boxGlow: true });
+    };
+    this._boxRaf = requestAnimationFrame(tick);
+  }
+  armBoxVisible(){
+    if (this._boxArmed) return; this._boxArmed = true;
+    const on = () => { if (!document.hidden){ document.removeEventListener('visibilitychange', on); this._boxArmed = false; this.animBox(); } };
+    document.addEventListener('visibilitychange', on);
+  }
+
+  // EVENT TIMELINE — the game replays top-to-bottom the first time the section scrolls into
+  // view: the rail spine draws down, end-caps ignite, then events cascade in chronologically
+  // (BGM cards from the left, opponent from the right), the GWG blooms, and FINAL lands last.
+  observeTimeline(){
+    if (this._tlObserved || !this.sectionEl) return;
+    this._tlObserved = true;
+    if (this._reduceMotion || typeof IntersectionObserver === 'undefined'){ this.setState({ tlProg: 1 }); return; }
+    this._tlIO = new IntersectionObserver((entries) => {
+      entries.forEach(e => { if (e.isIntersecting){ this._tlIO.disconnect(); this._tlIO = null; this.animTimeline(); } });
+    }, { threshold: 0.28 });
+    this._tlIO.observe(this.sectionEl);
+  }
+  animTimeline(){
+    if (this._tlRaf) cancelAnimationFrame(this._tlRaf);
+    if (this._reduceMotion || document.hidden){ this.setState({ tlProg: 1 }); return; }
+    const DUR = 2300;
+    const t0 = performance.now();
+    this.setState({ tlProg: 0 });
+    const tick = (now) => {
+      const p = Math.max(0, Math.min(1, (now - t0) / DUR));
+      this.setState({ tlProg: p });
+      if (p < 1) this._tlRaf = requestAnimationFrame(tick);
+    };
+    this._tlRaf = requestAnimationFrame(tick);
+  }
+
+  // TEAM STATS — head-to-head: rows deal in top-to-bottom, share bars grow outward from the
+  // center divider, integers count up, and the winning side flares once as it lands.
+  TS_STEP = 70; TS_CD = 360;
+  setTeamEl = (el) => { this.teamEl = el; if (el) this.observeTeam(); };
+  observeTeam(){
+    if (this._teamObserved || !this.teamEl) return;
+    this._teamObserved = true;
+    if (this._reduceMotion || typeof IntersectionObserver === 'undefined'){ this.animTeam(); return; }
+    this._teamIO = new IntersectionObserver((entries) => {
+      entries.forEach(e => { if (e.isIntersecting){ this._teamIO.disconnect(); this._teamIO = null; this.animTeam(); } });
+    }, { threshold: 0.3 });
+    this._teamIO.observe(this.teamEl);
+  }
+  animTeam(){
+    if (this._teamRaf) cancelAnimationFrame(this._teamRaf);
+    if (this._reduceMotion || document.hidden){
+      this.setState({ teamProg: 1, teamGlow: true });
+      if (!this._reduceMotion && document.hidden) this.armTeamVisible();
+      return;
+    }
+    const n = this._teamN || 14;
+    const DUR = (n - 1) * this.TS_STEP + this.TS_CD;
+    const t0 = performance.now();
+    this.setState({ teamProg: 0, teamGlow: false });
+    const tick = (now) => {
+      const p = Math.max(0, Math.min(1, (now - t0) / DUR));
+      this.setState({ teamProg: p });
+      if (p < 1) this._teamRaf = requestAnimationFrame(tick);
+      else this.setState({ teamGlow: true });
+    };
+    this._teamRaf = requestAnimationFrame(tick);
+  }
+  armTeamVisible(){
+    if (this._teamArmed) return; this._teamArmed = true;
+    const on = () => { if (!document.hidden){ document.removeEventListener('visibilitychange', on); this._teamArmed = false; this.animTeam(); } };
+    document.addEventListener('visibilitychange', on);
+  }
+
+  buildBox(){
+    const key = this.state.box;
+    const [bgm, opp] = this.BOX[key].periods;
+    const sum = a => a.reduce((x,y) => x + y, 0);
+    const STEP = this.BOX_STEP, CD = this.BOX_CD, DUR = 4 * STEP + CD;
+    const elapsed = this.state.boxProg * DUR;
+    const glow = this.state.boxGlow;
+    const ease = p => 1 - Math.pow(1 - p, 3);
+    const local = startMs => Math.max(0, Math.min(1, (elapsed - startMs) / CD));
+    const cells = (mine, other, isBgm, top) => mine.map((v, i) => {
+      const win = v > other[i];
+      const color = win ? (isBgm ? 'var(--color-accent)' : 'var(--fg-1)') : 'var(--fg-3)';
+      const tint = win ? (isBgm ? 'var(--color-accent-soft)' : 'var(--color-charcoal)') : 'transparent';
+      const lp = local(i * STEP);
+      const op = Math.min(1, lp * 2.6).toFixed(3);
+      const ty = ((1 - Math.min(1, lp * 2)) * 6).toFixed(1);
+      return {
+        val: Math.round(v * ease(lp)),
+        style: 'font-size:12px;padding:6px 0;text-align:center;color:' + color + ';'
+          + 'background:' + (lp > 0.12 ? tint : 'transparent') + ';'
+          + 'opacity:' + op + ';transform:translateY(' + ty + 'px);'
+          + (win ? 'font-weight:700;' : '') + (top ? 'border-top:1px solid var(--color-border-subtle);' : ''),
+      };
+    });
+    const row = (team, teamColor, mine, other, isBgm, totColor, top) => {
+      const tlp = local(4 * STEP);
+      const totWin = sum(mine) > sum(other);
+      const top2 = top ? 'border-top:1px solid var(--color-border-subtle);' : '';
+      const tOp = Math.min(1, tlp * 2.6).toFixed(3);
+      const tTy = ((1 - Math.min(1, tlp * 2)) * 6).toFixed(1);
+      return {
+        team, tot: Math.round(sum(mine) * ease(tlp)),
+        cells: cells(mine, other, isBgm, top),
+        totCls: 'cap tabular' + (glow && totWin ? ' dtw-bloom' : ''),
+        teamStyle: 'font-size:12px;font-weight:700;color:' + teamColor + ';padding:6px 4px;' + top2,
+        totStyle: 'font-size:14px;font-weight:900;color:' + totColor + ';padding:6px 0;text-align:center;'
+          + 'background:var(--color-accent-soft);border-left:1px solid var(--color-accent-line);'
+          + 'opacity:' + tOp + ';transform:translateY(' + tTy + 'px);' + top2,
+      };
+    };
+    const noteOp = Math.min(1, Math.max(0, (elapsed - (DUR - 200)) / 200)).toFixed(3);
+    return {
+      boxPeriods: ['1','2','3','OT'],
+      boxTabs: this.BOX_TABS.map(t => ({ label:t, style:this.boxTabStyle(t === key), onSelect: () => this.setState({ box: t }) })),
+      boxRows: [
+        row('BGM', 'var(--color-accent)', bgm, opp, true,  'var(--color-accent)', false),
+        row('4L',  'var(--fg-3)',          opp, bgm, false, 'var(--fg-2)',          true),
+      ],
+      boxNote: this.BOX[key].note,
+      boxNoteStyle: 'font-size:10px;letter-spacing:.1em;color:var(--fg-4);opacity:' + noteOp + ';',
+    };
+  }
+
+  PERF = [
+    { rank:1, stars:3, num:'11', team:'BGM', pos:'C',  arch:'PLY', name:'MrHomiecide',    g:1, a:2, pm:'+1', sog:7, hits:6,  fo:'70', toi:'77:23', score:'14.28', delta:'+9.1',
+      bd:[['A','+6.5'],['G','+4.0'],['TKA','+1.7'],['WIN','+1.0'],['GIVEAWAYS','-2.3']] },
+    { rank:2, stars:2, num:'10', team:'BGM', pos:'RW', arch:'SNP', name:'silkyjoker85',   g:2, a:1, pm:'+1', sog:8, hits:1,  fo:null, toi:'77:23', score:'12.34', delta:'+2.0',
+      bd:[['G','+8.0'],['A','+3.3'],['TKA','+1.1'],['WIN','+1.0'],['GIVEAWAYS','-3.1']] },
+    { rank:3, stars:1, num:'56', team:'4L',  pos:'RD', arch:'PMD', name:'shadowassault20', g:1, a:1, pm:'-1', sog:2, hits:9,  fo:null, toi:'77:23', score:'9.06',  delta:null,
+      bd:[['G','+4.0'],['TKA','+3.3'],['A','+3.3'],['INT','+1.4'],['GIVEAWAYS','-4.5'],['+/−','-0.2']] },
+    { rank:4,  stars:0, team:'BGM', pos:'LD', arch:'PMD', name:'HenryTheBobJr', g:0, a:2, pm:'+1', sog:3, hits:0,  toi:'77:23', score:'9.01' },
+    { rank:5,  stars:0, team:'BGM', pos:'LW', arch:'PWF', name:'Stick Menace',  g:1, a:1, pm:'+1', sog:5, hits:5,  toi:'77:23', score:'7.50' },
+    { rank:6,  stars:0, team:'4L',  pos:'C',  arch:'TWF', name:'XZ4RKY',        g:2, a:0, pm:'-1', sog:7, hits:12, fo:'—', toi:'77:23', score:'6.24' },
+    { rank:7,  stars:0, team:'4L',  pos:'RW', arch:'SNP', name:'Raiders G7',    g:0, a:2, pm:'-1', sog:2, hits:4,  toi:'77:23', score:'6.16' },
+    { rank:8,  stars:0, team:'4L',  pos:'LW', arch:'SNP', name:'Duh Pope',      g:0, a:2, pm:'-1', sog:2, hits:3,  toi:'77:23', score:'4.58' },
+    { rank:9,  stars:0, team:'4L',  pos:'LD', arch:'DFD', name:'MuttButt',      g:0, a:0, pm:'-1', sog:2, hits:11, toi:'77:23', score:'3.92' },
+    { rank:10, stars:0, team:'BGM', pos:'RD', arch:'PMD', name:'JoeyFlopfish',  g:0, a:0, pm:'+1', sog:2, hits:2,  toi:'77:23', score:'-2.50' },
+  ];
+
+  ARCH = { PLY:['#3AB7FF','Playmaker'], SNP:['#FF5A4F','Sniper'], PMD:['#6A5CFF','Puck-Moving D'], PWF:['#FF9D3A','Power Forward'], TWF:['#3AD6A0','Two-Way'], DFD:['#8892A6','Defensive D'] };
+  POSC = { C:'#8B93A7', LW:'#8B93A7', RW:'#8B93A7', LD:'#8B93A7', RD:'#8B93A7', D:'#8B93A7', G:'#8B93A7' };
+  CAT  = { G:'var(--color-accent)', A:'var(--fg-1)', TKA:'var(--fg-3)', INT:'var(--fg-4)', SOG:'var(--fg-3)', HITS:'var(--fg-4)', WIN:'var(--color-win)', GIVEAWAYS:'var(--color-loss)', '+/−':'var(--color-loss)' };
+  TROW = 'display:grid;grid-template-columns:50px 78px minmax(0,1fr) 28px 28px 40px 40px 40px 60px 58px 22px;align-items:center;gap:0 8px;';
+
+  rosters = {
+    BGM: [
+      { num:10,pos:'RW',name:'silkyjoker85',xf:'SNP',g:2,a:1,pts:3,plus:'+1',sog:8,hit:1,blk:1,gs:'12.34',delta:'+2.0',
+        loadout:{tier:'ELITE',arch:'Sniper',ref:'C. Caufield',persona:'SILKY',hw:'5\'8" · 175 lb',hand:'Left',level:'P4·L52',abilities:[['Quick Release','elite'],['One T','allstar'],['Pressure +','specialist']]} },
+      { num:11,pos:'C',name:'MrHomiecide',xf:'PLY',g:1,a:2,pts:3,plus:'+1',sog:7,hit:6,blk:1,gs:'14.28',delta:'+9.1',
+        loadout:{tier:'ELITE',arch:'Playmaker',ref:'',persona:'E. WANHG',hw:'6\'0" · 160 lb',hand:'Right',level:'P5·L60',abilities:[['Wheels','elite'],['One T','elite'],['Tape to Tape','allstar']]} },
+      { num:96,pos:'LW',name:'Stick Menace',xf:'PWF',g:1,a:1,pts:2,plus:'+1',sog:5,hit:5,blk:0,gs:null,delta:null,
+        loadout:{tier:'ALL-STAR',arch:'Power Forward',ref:'T. Thompson',persona:'M. RANTANEN',hw:'6\'6" · 220 lb',hand:'Right',level:'P4·L38',abilities:[['Big Rig','elite'],['One T','allstar'],['Ankle Breaker','specialist']]} },
+      { num:7,pos:'LD',name:'HenryTheBobJr',xf:'PMD',g:0,a:2,pts:2,plus:'+1',sog:3,hit:0,blk:1,gs:null,delta:null,
+        loadout:{tier:'ALL-STAR',arch:'Playmaking D',ref:'',persona:'H. JENKINS',hw:'6\'0" · 160 lb',hand:'Right',level:'P2·L24',abilities:[['Warrior','elite'],['Wheels','allstar'],['Quick Release','specialist']]} },
+      { num:23,pos:'RD',name:'JoeyFlopfish',xf:'PMD',g:0,a:0,pts:0,plus:'+1',sog:2,hit:2,blk:2,gs:null,delta:null,
+        loadout:{tier:'SPECIALIST',arch:'Playmaking D',ref:'',persona:'L. HUTSON',hw:'5\'10" · 160 lb',hand:'Left',level:'P2·L24',abilities:[['Elite Edges','elite'],['Tape to Tape','allstar'],['Stick Em Up','specialist']]} },
+      { num:'—',pos:'G',name:'CPU Goalie',xf:'—',g:'',a:'',pts:'',plus:'',sog:'',hit:'',blk:'',gs:null,delta:null,cpu:true,loadout:null },
+    ],
+    '4L': [
+      { num:19,pos:'C',name:'XZ4RKY',xf:'TWF',g:2,a:0,pts:2,plus:'-1',sog:7,hit:12,blk:0,gs:null,delta:null,
+        loadout:{tier:'ELITE',arch:'Two-Way Forward',ref:'',persona:'TOEWS',hw:'6\'1" · 195 lb',hand:'Left',level:'P5·L55',abilities:[['Truculence','allstar'],['Tape to Tape','specialist'],['Vacuum','specialist']]} },
+      { num:48,pos:'RD',name:'shadowassault20',xf:'PMD',g:1,a:1,pts:2,plus:'-1',sog:2,hit:9,blk:2,gs:'9.06',delta:'—',
+        loadout:{tier:'ALL-STAR',arch:'Playmaking D',ref:'',persona:'SERGEIZUBOV',hw:'6\'1" · 190 lb',hand:'Right',level:'P5·L42',abilities:[['Tape to Tape','allstar'],['Stick Em Up','allstar'],['Wheels','specialist']]} },
+      { num:95,pos:'LW',name:'Duh Pope',xf:'SNP',g:0,a:2,pts:2,plus:'-1',sog:2,hit:3,blk:0,gs:null,delta:null,
+        loadout:{tier:'ALL-STAR',arch:'Sniper',ref:'',persona:'WHOOSAH',hw:'5\'10" · 180 lb',hand:'Left',level:'P4·L47',abilities:[['Quick Release','elite'],['Magnetic','allstar'],['Slot Snipe','specialist']]} },
+      { num:7,pos:'RW',name:'Raiders G7',xf:'SNP',g:0,a:2,pts:2,plus:'-1',sog:2,hit:4,blk:0,gs:null,delta:null,
+        loadout:{tier:'SPECIALIST',arch:'Sniper',ref:'',persona:'WILDE',hw:'6\'0" · 185 lb',hand:'Left',level:'P4·L14',abilities:[['Quick Release','allstar'],['Top Shelf','allstar'],['Magnetic','specialist']]} },
+      { num:23,pos:'LD',name:'MuttButt',xf:'DFD',g:0,a:0,pts:0,plus:'-1',sog:2,hit:11,blk:2,gs:null,delta:null,
+        loadout:{tier:'ALL-STAR',arch:'Defensive D',ref:'',persona:'PAT MAGROYNE',hw:'6\'4" · 225 lb',hand:'Left',level:'P5·L3',abilities:[['Big Rig','elite'],['Truculence','allstar'],['Block Specialist','specialist']]} },
+      { num:'—',pos:'G',name:'CPU Goalie',xf:'—',g:'',a:'',pts:'',plus:'',sog:'',hit:'',blk:'',gs:null,delta:null,cpu:true,loadout:null },
+    ],
+  };
+
+  GRID_STATS = 'display:grid;grid-template-columns:26px 24px 34px minmax(0,1fr) 46px 30px 30px 40px 36px 40px 40px 40px 20px;align-items:center;gap:0 6px;';
+  GRID_LOAD  = 'display:grid;grid-template-columns:34px 40px 40px minmax(0,1fr) auto 14px;align-items:center;gap:0 11px;';
+
+  tabStyle(active){
+    return 'font-family:var(--font-condensed);text-transform:uppercase;font-size:13px;font-weight:800;letter-spacing:.14em;padding:9px 22px;flex:1;white-space:nowrap;cursor:pointer;border:none;transition:background-color .15s,color .15s;'
+      + 'background:' + (active ? 'var(--color-accent)' : 'var(--color-surface)')
+      + ';color:' + (active ? '#fff' : 'var(--fg-3)') + ';'
+      + (active ? 'box-shadow:var(--glow-accent-soft);' : '');
+  }
+
+  // sliding-thumb team switch: one accent pill glides across the track
+  teamBtn(active){
+    return 'flex:1;position:relative;z-index:1;border:none;background:transparent;cursor:pointer;'
+      + 'font-family:var(--font-condensed);text-transform:uppercase;font-size:13px;font-weight:800;letter-spacing:.14em;'
+      + 'transition:color .2s;color:' + (active ? '#fff' : 'var(--fg-4)') + ';';
+  }
+  teamThumbStyle(bgm){
+    return 'position:absolute;top:3px;left:3px;bottom:3px;width:calc(50% - 3px);'
+      + 'background:' + (bgm ? 'var(--color-accent)' : 'var(--color-surface-raised)') + ';'
+      + (bgm ? 'box-shadow:var(--glow-accent-soft);' : 'border:1px solid var(--color-border);')
+      + 'transform:translateX(' + (bgm ? '0' : '100%') + ');'
+      + 'transition:transform .28s cubic-bezier(.4,.9,.3,1),background-color .2s;';
+  }
+
+  // outlined segmented control matching the lineup page (POSITION MATCH | BY LINE | ...)
+  lineupTabStyle(active){
+    return 'font-family:var(--font-condensed);text-transform:uppercase;font-size:11px;font-weight:800;letter-spacing:.14em;padding:7px 16px;white-space:nowrap;cursor:pointer;transition:border-color .15s,color .15s,background-color .15s;border:1px solid '
+      + (active ? 'var(--color-accent)' : 'var(--color-border)')
+      + ';background:' + (active ? 'var(--color-accent-soft)' : 'transparent')
+      + ';color:' + (active ? 'var(--color-accent)' : 'var(--fg-4)') + ';';
+  }
+
+  // underline nav tab matching the page sub-nav (SUMMARY · BOXSCORE · LINEUP · ...)
+  underlineTabStyle(active){
+    return 'position:relative;font-family:var(--font-condensed);text-transform:uppercase;font-size:13px;font-weight:800;letter-spacing:.14em;padding:6px 2px;white-space:nowrap;cursor:pointer;border:none;background:transparent;transition:color .15s;'
+      + 'color:' + (active ? 'var(--fg-1)' : 'var(--fg-4)') + ';';
+  }
+  underlineTabBar(active){
+    return 'position:absolute;left:0;right:0;bottom:-1px;height:2px;background:' + (active ? 'var(--color-accent)' : 'transparent') + ';';
+  }
+
+  XF_ICON = {
+    zap:   [['path',{d:'M13 2 5 13h6l-1 9 9-12h-6z'}]],
+    target:[['circle',{cx:12,cy:12,r:9}],['circle',{cx:12,cy:12,r:3.5}]],
+    shield:[['path',{d:'M12 3 5 6v5c0 5 3.2 8 7 9.7C15.8 19 19 16 19 11V6z'}]],
+    flame: [['path',{d:'M12 3c2 3 5 4 5 8a5 5 0 0 1-10 0c0-2 1-3.5 2-4.5 0 2 1 3 3 3-1.5-2-1.5-4 0-6.5z'}]],
+    arrow: [['path',{d:'M12 20V5'}],['path',{d:'M6 11l6-6 6 6'}]],
+    hex:   [['path',{d:'M12 2 21 7v10l-9 5-9-5V7z'}]],
+  };
+  iconKeyFor(name){
+    const n = (name || '').toLowerCase();
+    if (/release|snipe|shelf|one t|quick/.test(n)) return 'zap';
+    if (/magnet|vacuum|pressure|top|slot/.test(n)) return 'target';
+    if (/rig|block|warrior|truc|edges|big/.test(n)) return 'shield';
+    if (/ankle|dek|stick em/.test(n)) return 'flame';
+    if (/wheel|tape/.test(n)) return 'arrow';
+    return 'hex';
+  }
+  abilityIcon(name, color, size){
+    const s = size || 12;
+    const shapes = this.XF_ICON[this.iconKeyFor(name)] || this.XF_ICON.hex;
+    const kids = shapes.map((sh, i) => React.createElement(sh[0], { ...sh[1], key: i }));
+    return React.createElement('svg', { width: s, height: s, viewBox: '0 0 24 24', fill: 'none', stroke: color, strokeWidth: 2.2, strokeLinecap: 'round', strokeLinejoin: 'round', style: { flex: 'none' } }, kids);
+  }
+  xTile(name, tier){
+    const T = { elite:'var(--color-accent)', allstar:'#3AB7FF', specialist:'#E0A150' };
+    const L = { elite:'Elite', allstar:'All Star', specialist:'Specialist' };
+    const c = T[tier] || '#9a9798';
+    return {
+      title: name + ' — ' + (L[tier] || tier),
+      style: 'display:inline-flex;align-items:center;justify-content:center;width:38px;height:38px;border-radius:3px;flex:none;border:1px solid color-mix(in srgb,'+c+' 48%,transparent);background:color-mix(in srgb,'+c+' 15%,transparent)',
+      icon: this.abilityIcon(name, c, 19),
+    };
+  }
+
+  ARCH_ICON = {
+    PLY: [['circle',{cx:6,cy:12,r:2.4}],['circle',{cx:18,cy:6,r:2.4}],['circle',{cx:18,cy:18,r:2.4}],['path',{d:'M8.2 10.9 15.8 7.1'}],['path',{d:'M8.2 13.1 15.8 16.9'}]],
+    SNP: [['circle',{cx:12,cy:12,r:8}],['circle',{cx:12,cy:12,r:3}]],
+    PMD: [['path',{d:'M12 4v16'}],['path',{d:'M4 12h16'}],['path',{d:'M8 8 4 12l4 4'}],['path',{d:'M16 8l4 4-4 4'}]],
+    PWF: [['path',{d:'M12 3 5 6v5c0 5 3.2 8 7 9.7C15.8 19 19 16 19 11V6z'}],['path',{d:'M12 8v5'}],['path',{d:'M9.5 10.5h5'}]],
+    TWF: [['path',{d:'M4 9a8 8 0 0 1 14-3'}],['path',{d:'M20 15a8 8 0 0 1-14 3'}],['path',{d:'M18 3v3h-3'}],['path',{d:'M6 21v-3h3'}]],
+    DFD: [['path',{d:'M12 3 5 6v5c0 5 3.2 8 7 9.7C15.8 19 19 16 19 11V6z'}],['path',{d:'M9 11.6l2 2 4-4'}]],
+  };
+  archIcon(code, color){
+    const shapes = this.ARCH_ICON[code] || [['path',{d:'M12 2 21 7v10l-9 5-9-5V7z'}]];
+    const kids = shapes.map((s, i) => React.createElement(s[0], { ...s[1], key: i }));
+    return React.createElement('svg', { width: 12, height: 12, viewBox: '0 0 24 24', fill: 'none', stroke: color, strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round', style: { flex: 'none' } }, kids);
+  }
+  archChip(code){
+    const m = this.ARCH[code] || ['#9a9798', code];
+    const c = m[0];
+    return {
+      code, name: m[1],
+      style: 'display:inline-flex;align-items:center;gap:5px;padding:3px 8px 3px 6px;font-family:var(--font-condensed);font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;border:1px solid color-mix(in srgb,'+c+' 42%,transparent);background:color-mix(in srgb,'+c+' 12%,transparent);color:'+c,
+      icon: this.archIcon(code, c),
+    };
+  }
+
+  xChip(name, tier){
+    const c = {
+      elite:{bg:'rgba(232,65,49,0.10)',bd:'var(--color-accent-line)',fg:'var(--fg-1)',dot:'var(--color-accent)'},
+      allstar:{bg:'rgba(235,235,235,0.04)',bd:'rgba(235,235,235,0.30)',fg:'var(--fg-2)',dot:'var(--fg-2)'},
+      specialist:{bg:'rgba(235,235,235,0.02)',bd:'rgba(110,107,108,0.40)',fg:'var(--fg-4)',dot:'var(--fg-4)'},
+    }[tier] || {bg:'transparent',bd:'var(--color-border)',fg:'var(--fg-4)',dot:'var(--fg-5)'};
+    return {
+      name,
+      style: 'display:inline-flex;align-items:center;gap:5px;padding:3px 9px 3px 7px;font-family:var(--font-condensed);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;border:1px solid '+c.bd+';background:'+c.bg+';color:'+c.fg,
+      icon: this.abilityIcon(name, c.dot),
+    };
+  }
+
+  buildArchSummary(teamKey){
+    const skaters = this.rosters[teamKey].filter(p => !p.cpu);
+    const order = [], counts = {};
+    skaters.forEach(p => { if (counts[p.xf] == null) { counts[p.xf] = 0; order.push(p.xf); } counts[p.xf]++; });
+    return order.map(code => {
+      const m = this.ARCH[code] || ['#9a9798', code];
+      const c = m[0], n = counts[code];
+      return {
+        code, count: n, showCount: n > 1, countText: n + '\u00d7 ',
+        icon: this.archIcon(code, c),
+        style: 'display:inline-flex;align-items:center;gap:5px;padding:3px 8px 3px 6px;font-family:var(--font-condensed);font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.1em;border:1px solid color-mix(in srgb,' + c + ' 40%,transparent);background:color-mix(in srgb,' + c + ' 11%,transparent);color:' + c,
+      };
+    });
+  }
+
+  segStyle(active){
+    return 'font-family:var(--font-condensed);text-transform:uppercase;font-size:12px;font-weight:800;letter-spacing:.12em;padding:7px 16px;cursor:pointer;border:none;transition:background-color .15s,color .15s;'
+      + 'background:' + (active ? 'var(--color-accent)' : 'var(--color-surface)')
+      + ';color:' + (active ? '#fff' : 'var(--fg-3)') + ';'
+      + (active ? 'box-shadow:var(--glow-accent-soft);' : '');
+  }
+
+  buildAttrs(xf, prog){
+    const pr = prog == null ? 1 : prog;
+    const BASE = {
+      'Wrist Shot Acc':84,'Slap Shot Acc':82,'Speed':86,'Balance':83,'Agility':85,
+      'Wrist Shot Pwr':83,'Slap Shot Pwr':82,'Acceleration':86,'Puck Control':85,'Endurance':86,
+      'Passing':85,'Off. Awareness':84,'Body Checking':80,'Stick Checking':82,'Def. Awareness':82,
+      'Hand-Eye':85,'Strength':82,'Durability':85,'Shot Blocking':80,
+      'Deking':84,'Faceoffs':74,'Discipline':84,'Fighting Skill':78,
+    };
+    const LAYOUT = [
+      ['Technique',['Wrist Shot Acc','Slap Shot Acc','Speed','Balance','Agility']],
+      ['Power',['Wrist Shot Pwr','Slap Shot Pwr','Acceleration','Puck Control','Endurance']],
+      ['Playstyle',['Passing','Off. Awareness','Body Checking','Stick Checking','Def. Awareness']],
+      ['Tenacity',['Hand-Eye','Strength','Durability','Shot Blocking']],
+      ['Tactics',['Deking','Faceoffs','Discipline','Fighting Skill']],
+    ];
+    const OVERRIDES = {
+      SNP:{'Wrist Shot Acc':95,'Slap Shot Acc':94,'Speed':94,'Agility':94,'Wrist Shot Pwr':93,'Slap Shot Pwr':93,'Acceleration':93,'Puck Control':89,'Endurance':90,'Off. Awareness':93,'Hand-Eye':93,'Faceoffs':89,'Discipline':90,'Fighting Skill':86,'Balance':82,'Passing':89,'Body Checking':83,'Stick Checking':82,'Def. Awareness':84,'Strength':80,'Durability':88,'Shot Blocking':79,'Deking':88},
+      PLY:{'Passing':96,'Off. Awareness':95,'Deking':94,'Puck Control':93,'Hand-Eye':95,'Faceoffs':90,'Agility':92,'Slap Shot Pwr':80,'Body Checking':74,'Fighting Skill':70,'Shot Blocking':74},
+      PWF:{'Body Checking':93,'Strength':92,'Slap Shot Pwr':90,'Fighting Skill':90,'Balance':90,'Durability':90,'Agility':80,'Deking':80,'Speed':84},
+      PMD:{'Def. Awareness':93,'Stick Checking':92,'Passing':90,'Shot Blocking':90,'Hand-Eye':88,'Wrist Shot Acc':78,'Slap Shot Acc':80,'Off. Awareness':82,'Body Checking':84,'Strength':86},
+      TWF:{'Def. Awareness':92,'Off. Awareness':91,'Faceoffs':92,'Stick Checking':90,'Body Checking':88,'Puck Control':88,'Discipline':88,'Strength':85},
+      DFD:{'Shot Blocking':94,'Body Checking':93,'Strength':92,'Def. Awareness':93,'Durability':92,'Stick Checking':90,'Wrist Shot Acc':72,'Slap Shot Acc':74,'Agility':78,'Off. Awareness':80},
+    };
+    const BOOST = {
+      SNP:{'Wrist Shot Acc':'+3','Wrist Shot Pwr':'+2','Off. Awareness':'+1','Hand-Eye':'+3'},
+      PLY:{'Passing':'+3','Off. Awareness':'+2','Hand-Eye':'+2','Deking':'+2'},
+      PWF:{'Body Checking':'+3','Strength':'+2','Slap Shot Pwr':'+2'},
+      PMD:{'Def. Awareness':'+2','Stick Checking':'+2','Passing':'+1'},
+      TWF:{'Def. Awareness':'+2','Faceoffs':'+2','Off. Awareness':'+1'},
+      DFD:{'Shot Blocking':'+3','Body Checking':'+2','Strength':'+2'},
+    };
+    const ov = OVERRIDES[xf] || {};
+    const bo = BOOST[xf] || {};
+    return LAYOUT.map(([title, attrs]) => ({
+      title,
+      rows: attrs.map(name => {
+        const base = BASE[name];
+        const val = ov[name] != null ? ov[name] : base;
+        const boosted = !!bo[name];
+        const hi = !boosted && val >= 88;
+        const diff = val - base;
+        return {
+          label:name, val, valShown: Math.round(val * pr),
+          deltaShown: diff > 0 ? '+' + diff : (diff < 0 ? String(diff) : ''),
+          deltaColor: diff > 0 ? 'var(--color-win)' : (diff < 0 ? 'var(--color-loss)' : 'var(--fg-6)'),
+          nameColor: boosted ? 'var(--color-accent)' : (hi ? 'var(--fg-1)' : 'var(--fg-3)'),
+          valColor: boosted ? 'var(--color-accent)' : (hi ? 'var(--fg-1)' : 'var(--fg-2)'),
+          barColor: boosted ? 'var(--color-accent)' : (hi ? 'var(--fg-1)' : 'var(--fg-4)'),
+          barW: val + '%',
+          barClass: boosted ? 'bar-boost' : 'bcast-bar',
+          barGlow: boosted ? '0 0 6px rgba(232,65,49,0.4)' : 'none',
+        };
+      }),
+    }));
+  }
+
+  buildStatTiles(p){
+    if (p.cpu) return ['G','A','PTS','±','SOG','HIT','BLK'].map(l => ({ label:l, val:'—', size:'20px', weight:'600', color:'var(--fg-6)' }));
+    const plusColor = String(p.plus).startsWith('-') ? 'var(--color-loss)' : (p.plus ? 'var(--color-win)' : 'var(--fg-5)');
+    return [
+      { label:'G',   val:p.g,    size:'20px', weight:'700', color:'var(--fg-2)' },
+      { label:'A',   val:p.a,    size:'20px', weight:'700', color:'var(--fg-2)' },
+      { label:'PTS', val:p.pts,  size:'27px', weight:'900', color:'var(--fg-1)' },
+      { label:'±',   val:p.plus, size:'20px', weight:'700', color:plusColor },
+      { label:'SOG', val:p.sog,  size:'20px', weight:'600', color:'var(--fg-3)' },
+      { label:'HIT', val:p.hit,  size:'20px', weight:'600', color:'var(--fg-3)' },
+      { label:'BLK', val:p.blk,  size:'20px', weight:'600', color:'var(--fg-3)' },
+    ];
+  }
+
+  deepStats(p){
+    const seed = parseInt(p.num, 10) || 7;
+    const rnd = (min, max, off) => min + ((seed * 7 + off * 13) % (max - min + 1));
+    const sog = p.sog || 0, g = p.g || 0, a = p.a || 0, hit = p.hit || 0, blk = p.blk || 0;
+    const att = sog + rnd(1, 4, 1);
+    const sonPct = att ? (sog / att * 100) : 0;
+    const shPct  = sog ? (g / sog * 100) : 0;
+    const passAtt = rnd(9, 22, 2), passMade = Math.round(passAtt * (rnd(58, 76, 3) / 100));
+    const passPct = passAtt ? passMade / passAtt * 100 : 0;
+    const poss = rnd(120, 280, 4);
+    const isC = p.pos === 'C';
+    const foW = isC ? rnd(9, 22, 5) : 0, foL = isC ? rnd(3, 11, 6) : 0;
+    const foPct = (foW + foL) ? foW / (foW + foL) * 100 : 0;
+    const tka = rnd(1, 6, 7), gva = rnd(2, 7, 8), intc = rnd(0, 4, 9), saucer = rnd(0, 3, 10), defl = rnd(0, 2, 11);
+    const gs = p.gs || (g * 4 + a * 3.3 + sog * 0.3 + hit * 0.15).toFixed(2);
+    const pct = x => x.toFixed(1) + '%';
+    return {
+      summary: [
+        { label:'SCORE',       val:gs,               color:'var(--color-accent)' },
+        { label:'SHOT ON NET', val:pct(sonPct),      color:'var(--fg-1)' },
+        { label:'SHOOTING %',  val:pct(shPct),       color:'var(--fg-1)' },
+        { label:'PASS %',      val:pct(passPct),     color:'var(--fg-1)' },
+        { label:'FO %',        val:isC ? pct(foPct) : '—', color:isC ? 'var(--fg-1)' : 'var(--fg-5)' },
+        { label:'POSSESSION',  val:poss,             color:'var(--fg-1)' },
+      ],
+      cats: [
+        { title:'Shooting',        rows:[{k:'Shots / Att',v:sog+'/'+att},{k:'Shot on Net %',v:pct(sonPct)},{k:'Shooting %',v:pct(shPct)},{k:'Deflections',v:defl}] },
+        { title:'Passing & Poss',  rows:[{k:'Passes / Att',v:passMade+'/'+passAtt},{k:'Pass %',v:pct(passPct)},{k:'Saucer',v:saucer},{k:'Possession',v:poss}] },
+        { title:'Faceoffs',        rows:isC ? [{k:'FO W/L',v:foW+'-'+foL},{k:'FO %',v:pct(foPct)}] : [{k:'FO W/L',v:'—'},{k:'FO %',v:'—'}] },
+        { title:'Special Teams',   rows:[{k:'PPG',v:0},{k:'SHG',v:0}] },
+        { title:'Discipline',      rows:[{k:'PIM',v:0},{k:'Pen. Drawn',v:rnd(0,2,12)}] },
+        { title:'Defense',         rows:[{k:'Hits',v:hit},{k:'Blocks',v:blk}] },
+        { title:'Turnovers',       rows:[{k:'Takeaways',v:tka},{k:'Giveaways',v:gva},{k:'Interceptions',v:intc}] },
+        { title:'Workload',        rows:[{k:'TOI',v:'77:23'},{k:'+/−',v:p.plus||'—'}] },
+      ],
+    };
+  }
+
+  // R-value spin-up: numbers climb to final as the attribute bars grow
+  startAttrCount(){
+    const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion:reduce)').matches;
+    if (this._attrRaf) cancelAnimationFrame(this._attrRaf);
+    if (reduce){ this.setState({ attrProg: 1 }); return; }
+    const dur = 700, start = performance.now();
+    const ease = t => 1 - Math.pow(1 - t, 3);
+    const tick = (now) => {
+      const t = Math.max(0, Math.min((now - start) / dur, 1));
+      this.setState({ attrProg: ease(t) });
+      if (t < 1) this._attrRaf = requestAnimationFrame(tick);
+    };
+    this.setState({ attrProg: 0 });
+    this._attrRaf = requestAnimationFrame(tick);
+  }
+
+  buildTeamRows(teamKey){
+    const openPos = this.state.open;
+    const leaderNum = this.LEADERS[teamKey];
+    const rowChrome = (expanded, cpu, pad) => pad + ';border-bottom:1px solid var(--color-border-subtle);'
+      + (cpu ? 'cursor:default;opacity:.85;' : 'cursor:pointer;')
+      + 'background:' + (expanded ? 'var(--color-surface-raised)' : 'transparent') + ';'
+      + (expanded ? 'box-shadow:inset 2px 0 0 var(--color-accent);' : '');
+    const POS_ORDER = { C:0, LW:1, RW:2, LD:3, RD:4, D:3, G:5 };
+    return this.rosters[teamKey].slice().sort((a,b) => (POS_ORDER[a.pos] ?? 9) - (POS_ORDER[b.pos] ?? 9)).map(p => {
+      const expanded = !p.cpu && openPos === p.pos;
+      const ld = p.loadout;
+      const isLeader = !p.cpu && p.num === leaderNum;
+      const physBits = ld ? [ld.hand, ld.level].filter(Boolean).join(' · ') : '';
+      const am = ld ? this.archChip(p.xf) : null;
+      const pc = this.POSC[p.pos] || '#9a9798';
+      const deep = (expanded && !p.cpu) ? this.deepStats(p) : null;
+      const hatch = 'repeating-linear-gradient(135deg,var(--color-surface) 0,var(--color-surface) 8px,var(--color-background) 8px,var(--color-background) 10px)';
+      const hovered = !p.cpu && this.state.hoverPos === p.pos;
+      const active = expanded || hovered;
+      const rowLoad = this.GRID_LOAD + 'min-height:58px;padding:7px 14px 7px 12px;border-bottom:1px solid var(--color-border-subtle);transition:border-left-color .18s ease,background-color .15s ease;border-left:2px solid ' + (active ? 'var(--color-accent)' : 'transparent') + ';'
+        + (p.cpu ? 'cursor:default;background:' + hatch + ';' : 'cursor:pointer;background:' + (active ? 'var(--color-surface-raised)' : (isLeader ? 'rgba(232,65,49,0.04)' : 'transparent')) + ';')
+        + (expanded ? 'box-shadow:inset 2px 0 0 var(--color-accent);' : '');
+      return {
+        ...p,
+        expanded,
+        isLeader,
+        chev: p.cpu ? '' : '▸',
+        chevTransform: expanded ? 'rotate(90deg)' : 'rotate(0deg)',
+        plusColor: (p.plus + '').startsWith('-') ? 'var(--color-loss)' : (p.plus ? 'var(--color-win)' : 'var(--fg-5)'),
+        numColor: p.cpu ? 'var(--fg-5)' : 'var(--fg-2)',
+        nameColor: p.cpu ? 'var(--fg-4)' : 'var(--fg-1)',
+        avatarSmall: 'display:flex;align-items:center;justify-content:center;overflow:hidden;width:22px;height:22px;border-radius:50%;background:var(--color-charcoal);border:1px solid ' + (isLeader ? 'var(--color-accent)' : 'var(--color-border)') + ';',
+        avatarStyle: 'display:flex;align-items:center;justify-content:center;overflow:hidden;width:32px;height:32px;border-radius:50%;background:var(--color-charcoal);border:1px solid ' + (isLeader ? 'var(--color-accent)' : 'var(--color-border)') + ';' + (isLeader ? 'box-shadow:0 0 9px rgba(232,65,49,.35);' : ''),
+        rowStyleStats: this.GRID_STATS + rowChrome(expanded, p.cpu, 'padding:8px 12px'),
+        rowStyleLoad:  rowLoad,
+        numBig: p.cpu ? 'var(--fg-5)' : 'var(--fg-1)',
+        posCellBg: p.cpu ? 'transparent' : 'color-mix(in srgb,' + pc + ' 10%,transparent)',
+        posCellBorder: p.cpu ? 'var(--color-border)' : 'color-mix(in srgb,' + pc + ' 40%,transparent)',
+        posLetterColor: p.cpu ? 'var(--fg-4)' : pc,
+        avatarBig: p.cpu
+          ? 'display:flex;align-items:flex-end;justify-content:center;overflow:hidden;width:40px;height:40px;border-radius:9999px;border:1px solid var(--color-border);background:rgba(35,33,34,0.55);opacity:.82;'
+          : 'display:flex;align-items:flex-end;justify-content:center;overflow:hidden;width:40px;height:40px;border-radius:9999px;border:1px solid ' + (isLeader ? 'rgba(232,65,49,0.25)' : 'var(--color-border)') + ';background:radial-gradient(circle at top,rgba(232,65,49,0.14),transparent 55%),linear-gradient(180deg,rgba(50,48,49,0.9),rgba(26,24,25,1));' + (isLeader ? 'box-shadow:0 0 10px rgba(232,65,49,.18);' : ''),
+        physLine: ld ? [ld.hw, ld.hand, ld.level].filter(Boolean).join(' · ') : '',
+        xTiles: ld ? ld.abilities.map(a => this.xTile(a[0], a[1])) : [],
+        onToggle: p.cpu ? (() => {}) : (() => this.setState(s => { const opening = s.open !== p.pos; if (opening) requestAnimationFrame(() => this.startAttrCount()); return { open: opening ? p.pos : null }; })),
+        onEnter: p.cpu ? null : (() => this.setState({ hoverPos: p.pos })),
+        onLeave: p.cpu ? null : (() => this.setState(s => (s.hoverPos === p.pos ? { hoverPos: null } : null))),
+        chevColor: expanded ? 'var(--color-accent)' : 'var(--fg-5)',
+        hasLoadout: !!ld && !p.cpu,
+        noLoadout: p.cpu || !ld,
+        ldTier: ld ? ld.tier : '',
+        ldArch: ld ? ld.arch : '',
+        archCode: p.xf,
+        archChipStyle: am ? am.style : '',
+        archIcon: am ? am.icon : null,
+        persona: p.cpu ? 'CPU GOALIE' : (ld ? ld.persona : ''),
+        handle: p.cpu ? '' : p.name,
+        hw: p.cpu ? '—' : (ld ? ld.hw : '—'),
+        physSub: p.cpu ? 'EA AI · DEFAULT' : physBits,
+        hand: ld ? ld.hand : '',
+        level: ld ? ld.level : '',
+        buildRef: ld && ld.ref ? ld.ref : '',
+        tierColor: ld ? ({ 'ELITE':'var(--color-accent)','ALL-STAR':'var(--fg-2)','SPECIALIST':'var(--fg-4)' }[ld.tier] || 'var(--fg-3)') : 'var(--fg-3)',
+        xChips: ld ? ld.abilities.map(a => this.xChip(a[0], a[1])) : [],
+        attrTables: (expanded && ld) ? this.buildAttrs(p.xf, this.state.attrProg) : [],
+        statTiles: this.buildStatTiles(p),
+        gsShort: p.cpu ? '—' : (p.gs || (p.g * 4 + p.a * 3.3 + p.sog * 0.3 + p.hit * 0.15).toFixed(2)),
+        deepSummary: deep ? deep.summary : [],
+        deepCats: deep ? deep.cats : [],
+      };
+    });
+  }
+
+  buildLineup(){
+    const team = this.state.team;
+    const mode = this.state.mode;
+    const activeBGM = team === 'BGM';
+    return {
+      players: this.buildTeamRows(team),
+      teamThumb: this.teamThumbStyle(activeBGM),
+      teamBtnBgm: this.teamBtn(activeBGM),
+      teamBtn4l: this.teamBtn(!activeBGM),
+      setTeamBgm: () => this.setState({ team:'BGM' }),
+      setTeam4l: () => this.setState({ team:'4L' }),
+      oppName: activeBGM ? '4th Line' : 'Boogeymen',
+      isLoadout: mode === 'LOADOUT',
+      isStats: mode === 'STATS',
+      setLoadout: () => this.setState({ mode: 'LOADOUT' }),
+      setStats: () => this.setState({ mode: 'STATS' }),
+      loadTabStyle: this.underlineTabStyle(mode === 'LOADOUT'),
+      statTabStyle: this.underlineTabStyle(mode === 'STATS'),
+      loadTabBar: this.underlineTabBar(mode === 'LOADOUT'),
+      statTabBar: this.underlineTabBar(mode === 'STATS'),
+      activeCrestBGM: activeBGM,
+      activeCrest4L: !activeBGM,
+      activeName: activeBGM ? 'Boogeymen' : '4th Line',
+      activeDressed: '5/6',
+      activeGoalie: 'CPU',
+      setStageEl: this.setStageEl,
+    };
+  }
+
+  renderVals(){
+    return {
+      homeScore: this.state.cHome, awayScore: this.state.cAway,
+      ...this.buildLineup(),
+
+      ...this.buildPerformers(),
+      ...this.buildBox(),
+
+      ...this.buildTeamStats(),
+
+      timeline: this.buildTimeline(),
+      setRightEl: this.setRightEl, setLineupEl: this.setLineupEl, setSectionEl: this.setSectionEl,
+      setBoxEl: this.setBoxEl,
+      setClipEl: this.setClipEl, setListEl: this.setListEl, toggleTl: this.toggleTl,
+      setDtwNeedle: this.setDtwNeedle, setDtwArcRed: this.setDtwArcRed,
+      setDtwArcGrey: this.setDtwArcGrey, setDtwBig: this.setDtwBig,
+      dtwBgmStr: (59.7 * this.state.dtwK).toFixed(1),
+      dtwOppStr: (100 - 59.7 * this.state.dtwK).toFixed(1),
+      ...this.buildTimelineLayout(),
+    };
+  }
+
+  buildTimeline(){
+    const opening = () => ({ isOpening:true, isDivider:false, isEvent:false });
+    const div = (period, count) => ({
+      isOpening:false, isDivider:true, isEvent:false, period,
+      countLabel: count === 0 ? 'NO GOALS' : (count + (count === 1 ? ' GOAL' : ' GOALS')),
+      countColor: count === 0 ? 'var(--fg-5)' : 'var(--fg-2)',
+      divColor:   count === 0 ? 'var(--fg-4)' : 'var(--color-accent)',
+      divBorder:  count === 0 ? 'var(--color-border)' : 'rgba(232,65,49,0.4)',
+    });
+    let bgmGoals = 0, oppGoals = 0;
+    const cardBase = 'background:var(--color-surface);padding:9px 13px;display:flex;flex-direction:column;gap:6px;min-width:240px;max-width:340px;';
+    const ev = (periodShort, time, scorer, assist, side, banner, kind) => {
+      const gwg = kind === 'gwg', tie = kind === 'tie', bgm = side === 'bgm';
+      if (bgm) bgmGoals++; else oppGoals++;
+      const teamLabel = bgm ? 'BGM' : '4L';
+      const goalNum = bgm ? bgmGoals : oppGoals;
+      const dir = bgm ? 'row-reverse' : 'row';
+      const border = gwg
+        ? 'border:1px solid var(--color-accent);box-shadow:var(--glow-accent-soft);'
+        : 'border:1px solid var(--color-border);' + (bgm ? 'border-left:3px solid var(--color-accent);' : 'border-right:3px solid var(--fg-4);');
+      return {
+        isOpening:false, isDivider:false, isEvent:true, isLeft:bgm, isRight:!bgm, isGwg:gwg,
+        periodShort, time, scorer, assist, banner,
+        bgmG: bgmGoals, oppG: oppGoals,
+        kicker: 'GOAL · ' + teamLabel + ' #' + goalNum + (gwg ? ' · GWG' : ''),
+        kickerColor: (bgm || gwg) ? 'var(--color-accent)' : 'var(--fg-4)',
+        scorerColor: gwg ? 'var(--color-accent)' : 'var(--fg-1)',
+        bannerColor: tie ? 'var(--color-otl)' : ((bgm || gwg) ? 'var(--color-accent)' : 'var(--fg-4)'),
+        cardStyle: cardBase + 'align-items:' + (bgm ? 'flex-end' : 'flex-start') + ';text-align:' + (bgm ? 'right' : 'left') + ';' + border,
+        kickerRowStyle: 'display:flex;align-items:center;gap:7px;flex-direction:' + dir + ';',
+        assistRowStyle: 'display:flex;align-items:center;gap:5px;flex-direction:' + dir + ';',
+        scoreRowStyle: 'display:flex;align-items:center;gap:9px;flex-direction:' + dir + ';border-top:1px solid var(--color-border-subtle);padding-top:7px;margin-top:1px;width:100%;justify-content:' + (bgm ? 'flex-end' : 'flex-start') + ';',
+      };
+    };
+    const rows = [
+      opening(),
+      div('1ST PERIOD', 0),
+      div('2ND PERIOD', 2),
+      ev('2ND','06:19','silkyjoker85','MrHomiecide','bgm','↑ BGM TAKES LEAD','goal'),
+      ev('2ND','14:53','Stick Menace','Homiecide, silky','bgm','↑ BGM +2 LEAD','goal'),
+      div('3RD PERIOD', 4),
+      ev('3RD','08:35','TOEWS','Zubov, Wilde','opp','4L CLOSES','goal'),
+      ev('3RD','13:58','silkyjoker85','HenryTheBobJr','bgm','↑ BGM +2 LEAD','goal'),
+      ev('3RD','18:51','TOEWS','Whoosah, Wilde','opp','4L CLOSES','goal'),
+      ev('3RD','19:08','S. ZUBOV','Whoosah','opp','— TIED','tie'),
+      div('OT', 1),
+      ev('OT','17:23','MrHomiecide','Henry, Menace','bgm','↑ BGM WINS','gwg'),
+    ];
+    // reveal pass — cascade each row from tlProg (0→1); transforms/opacity only, so
+    // measureTimeline still reads the natural height correctly.
+    const P = (this.state.tlProg == null ? 1 : this.state.tlProg);
+    const ease = t => 1 - Math.pow(1 - t, 3);
+    const cl = x => x < 0 ? 0 : x > 1 ? 1 : x;
+    const RS = 0.18, SPAN = 0.60, WIN = 0.16, n = rows.length;
+    const openBase = 'position:relative;z-index:1;display:flex;justify-content:center;padding:2px 0 8px;';
+    const divBase  = 'position:relative;z-index:1;display:flex;align-items:center;justify-content:center;padding:14px 0 10px;';
+    const rowBase  = 'position:relative;z-index:1;display:grid;grid-template-columns:1fr 76px 1fr;align-items:center;gap:6px;margin:7px 0;';
+    const pillBase = 'display:inline-flex;flex-direction:column;align-items:center;gap:1px;border:1px solid var(--color-accent-line);background:var(--color-background);padding:4px 8px;';
+    const nameBase = 'font-size:17px;font-weight:900;letter-spacing:.03em;line-height:1.05;';
+    rows.forEach((r, i) => {
+      const start = RS + (n > 1 ? SPAN * (i / (n - 1)) : 0);
+      const E = ease(cl((P - start) / WIN));
+      const ty = ((1 - E) * 8).toFixed(2);
+      if (r.isOpening) { r.wrap = openBase + 'opacity:' + E.toFixed(3) + ';transform:translateY(' + ty + 'px);'; }
+      else if (r.isDivider) { r.wrap = divBase + 'opacity:' + E.toFixed(3) + ';transform:translateY(' + ty + 'px);'; }
+      else if (r.isEvent) {
+        r.wrap = rowBase + 'opacity:' + E.toFixed(3) + ';';
+        const dx = ((1 - E) * (r.isLeft ? -22 : 22)).toFixed(2);
+        let glow = '';
+        if (r.isGwg) {
+          const pulse = Math.sin(cl(E) * Math.PI);
+          glow = 'box-shadow:0 0 ' + (pulse * 17 + E * 6).toFixed(1) + 'px rgba(232,65,49,' + (pulse * 0.5 + E * 0.28).toFixed(3) + ');';
+          r.scorerStyle = nameBase + 'color:' + r.scorerColor + ';text-shadow:0 0 ' + (pulse * 20 + E * 8).toFixed(1) + 'px rgba(232,65,49,' + (pulse * 0.7 + E * 0.3).toFixed(3) + ');';
+        } else {
+          r.scorerStyle = nameBase + 'color:' + r.scorerColor + ';';
+        }
+        r.cardStyle = r.cardStyle + 'opacity:' + E.toFixed(3) + ';transform:translateX(' + dx + 'px);' + glow;
+        r.cardClass = 'tl-card' + (r.isGwg ? ' tl-gwg' : '');
+        r.pillStyle = pillBase + 'transform:scale(' + (0.8 + 0.2 * E).toFixed(3) + ');';
+      }
+    });
+    return rows;
+  }
+
+  teamChip(team){
+    const on = team === 'BGM';
+    return 'font-family:var(--font-condensed);text-transform:uppercase;padding:2px 7px;font-size:10px;font-weight:800;letter-spacing:.16em;border:1px solid '
+      + (on ? 'var(--color-accent-line)' : 'var(--color-border)') + ';background:' + (on ? 'var(--color-accent-soft)' : 'transparent')
+      + ';color:' + (on ? 'var(--color-accent)' : 'var(--fg-3)');
+  }
+  posChip(pos){
+    const c = this.POSC[pos] || '#9a9798';
+    return 'font-family:var(--font-condensed);text-transform:uppercase;padding:2px 7px;font-size:10px;font-weight:700;letter-spacing:.14em;border-radius:2px;border:1px solid color-mix(in srgb,'+c+' 42%,transparent);background:color-mix(in srgb,'+c+' 12%,transparent);color:'+c;
+  }
+  archMeta(arch){
+    const m = this.ARCH[arch] || ['#9a9798', arch];
+    const c = m[0];
+    return {
+      chip:'display:inline-flex;align-items:center;gap:6px;font-family:var(--font-condensed);text-transform:uppercase;padding:2px 8px;font-size:10px;font-weight:800;letter-spacing:.1em;border:1px solid color-mix(in srgb,'+c+' 35%,transparent);background:color-mix(in srgb,'+c+' 10%,transparent);color:'+c,
+      dot:'display:inline-block;width:6px;height:6px;border-radius:9999px;flex:none;background:'+c,
+    };
+  }
+  makeBars(bd){
+    const sum = bd.reduce((t, x) => t + Math.abs(parseFloat(x[1])), 0) || 1;
+    return bd.map(x => ({ w:(Math.abs(parseFloat(x[1]))/sum*100).toFixed(1)+'%', color:this.CAT[x[0]] || 'var(--fg-3)' }));
+  }
+  makeLegend(bd){
+    return bd.map(x => ({ k:x[0], v:x[1], color:this.CAT[x[0]] || 'var(--fg-3)', valColor: parseFloat(x[1]) < 0 ? 'var(--color-loss)' : 'var(--fg-2)' }));
+  }
+  computeBreakdown(p){
+    const bd = [];
+    if (p.g)    bd.push(['G', '+'+(p.g*4.0).toFixed(1)]);
+    if (p.a)    bd.push(['A', '+'+(p.a*3.3).toFixed(1)]);
+    if (p.sog)  bd.push(['SOG', '+'+(p.sog*0.3).toFixed(1)]);
+    if (p.hits) bd.push(['HITS', '+'+(p.hits*0.15).toFixed(1)]);
+    const pm = parseFloat(p.pm);
+    if (pm)     bd.push(['+/−', (pm>0?'+':'')+(pm*0.4).toFixed(1)]);
+    return bd.length ? bd : [['SOG','+0.0']];
+  }
+  statCells(p){
+    const sixth = p.pos === 'C' ? { label:'FO%', val: p.fo != null ? p.fo : '—' } : { label:'Hits', val:p.hits };
+    const pmPos = !String(p.pm).startsWith('-');
+    return [
+      { label:'G',   val:p.g,   color:'var(--fg-1)' },
+      { label:'A',   val:p.a,   color:'var(--fg-1)' },
+      { label:'+/−', val:p.pm,  color: pmPos ? 'var(--color-win)' : 'var(--color-loss)' },
+      { label:'SOG', val:p.sog, color:'var(--fg-3)' },
+      { label:sixth.label, val:sixth.val, color:'var(--fg-3)' },
+      { label:'TOI', val:p.toi, color:'var(--fg-3)' },
+    ];
+  }
+  buildPerformers(){
+    const RANK = ['', 'First Star', 'Second Star', 'Third Star'];
+    const cards = this.PERF.slice(0, 3).map((p, i) => {
+      const first = i === 0;
+      const am = this.archMeta(p.arch);
+      const bd = p.bd || this.computeBreakdown(p);
+      return {
+        isFirst: first,
+        rankLabel: RANK[p.rank],
+        rankColor: first ? 'var(--color-accent)' : 'var(--fg-2)',
+        starGlyph: '★'.repeat(p.stars),
+        starColor: first ? 'var(--color-accent)' : 'var(--fg-1)',
+        starGlow: first ? '0 0 8px rgba(232,65,49,0.5)' : 'none',
+        name: p.name, num: p.num,
+        numColor: first ? 'var(--color-accent)' : 'var(--fg-1)',
+        numGlow: first ? '0 0 14px rgba(232,65,49,0.30)' : 'none',
+        team: p.team, pos: p.pos, arch: p.arch,
+        teamChip: this.teamChip(p.team), posChip: this.posChip(p.pos), archChip: am.chip, archDot: am.dot,
+        score: p.score,
+        scoreColor: first ? 'var(--color-accent)' : 'var(--fg-1)',
+        scoreGlow: first ? '0 0 14px rgba(232,65,49,0.22)' : 'none',
+        delta: p.delta || '—',
+        deltaNote: p.delta ? 'vs season avg' : 'no season data',
+        deltaColor: p.delta ? 'var(--color-win)' : 'var(--fg-4)',
+        artStyle: 'position:relative;display:flex;flex-direction:column;min-height:342px;overflow:hidden;border:1px solid '
+          + (first ? 'var(--color-accent-line)' : 'var(--color-border)') + ';background:'
+          + (first ? 'linear-gradient(180deg,rgba(232,65,49,0.06),var(--color-surface) 42%)' : 'linear-gradient(180deg,rgba(235,235,235,0.03),var(--color-surface) 42%)'),
+        portraitStyle: 'display:flex;align-items:flex-end;justify-content:center;width:56px;height:56px;border-radius:9999px;overflow:hidden;border:1px solid '
+          + (first ? 'var(--color-accent)' : 'var(--color-accent-line)')
+          + ';background:radial-gradient(circle at top,rgba(232,65,49,0.16),transparent 55%),linear-gradient(180deg,rgba(50,48,49,0.9),rgba(26,24,25,1));'
+          + (first ? 'box-shadow:0 0 12px rgba(232,65,49,0.18)' : ''),
+        statCells: this.statCells(p),
+        bars: this.makeBars(bd),
+        legend: this.makeLegend(bd),
+      };
+    });
+
+    const rows = this.PERF.map(p => {
+      const top3 = p.rank <= 3;
+      const expanded = this.state.openRow === p.rank;
+      const bd = p.bd || this.computeBreakdown(p);
+      const pmPos = !String(p.pm).startsWith('-');
+      const pp = this.state.perfProg;
+      const prog = pp ? (pp[p.rank] ?? 0) : 1;
+      const tnum = parseFloat(p.score);
+      const scoreDisplay = isNaN(tnum) ? p.score : (tnum * prog).toFixed(2);
+      return {
+        rank: p.rank,
+        rankGlyph: '★'.repeat(p.stars),
+        rankColor: top3 ? 'var(--color-accent)' : 'var(--fg-4)',
+        hasStar: p.stars > 0,
+        starGlow: p.rank === 1 ? '0 0 8px rgba(232,65,49,0.5)' : 'none',
+        team: p.team, pos: p.pos, name: p.name,
+        teamChip: this.teamChip(p.team), posChip: this.posChip(p.pos),
+        g: p.g, a: p.a, pm: p.pm, pmColor: pmPos ? 'var(--color-win)' : 'var(--color-loss)',
+        sog: p.sog, hits: p.hits, toi: p.toi, score: p.score,
+        scoreColor: top3 ? 'var(--color-accent)' : (parseFloat(p.score) < 0 ? 'var(--fg-5)' : 'var(--fg-2)'),
+        scoreGlow: p.rank === 1 ? '0 0 12px rgba(232,65,49,0.28)' : 'none',
+        scoreDisplay,
+        scoreCls: p.rank === 1 ? 'cap tabular perf-bloom' : 'cap tabular',
+        expanded, chev: expanded ? '▾' : '▸',
+        onToggle: () => this.setState(s => ({ openRow: s.openRow === p.rank ? null : p.rank })),
+        rowStyle: this.TROW + 'padding:7px 12px;cursor:pointer;border-bottom:1px solid var(--color-border-subtle);background:'
+          + (expanded ? 'var(--color-surface-raised)' : (p.rank === 1 ? 'rgba(232,65,49,0.06)' : (top3 ? 'rgba(232,65,49,0.03)' : 'transparent'))) + ';'
+          + (expanded ? 'box-shadow:inset 2px 0 0 var(--color-accent);' : ''),
+        railRowStyle: 'display:grid;grid-template-columns:18px minmax(0,1fr) auto;align-items:center;gap:0 9px;padding:8px 13px;cursor:pointer;border-top:1px solid var(--color-border-subtle);background:'
+          + (expanded ? 'var(--color-surface-raised)' : (p.rank === 1 ? 'rgba(232,65,49,0.06)' : (top3 ? 'rgba(232,65,49,0.03)' : 'transparent'))) + ';'
+          + (expanded ? 'box-shadow:inset 2px 0 0 var(--color-accent);' : '')
+          + 'animation-delay:' + (Math.max(0, (top3 ? p.rank - 1 : p.rank - 4)) * 0.055).toFixed(3) + 's;',
+        bars: this.makeBars(bd),
+        legend: this.makeLegend(bd),
+      };
+    });
+
+    return {
+      perfCards: cards,
+      perfTable: rows,
+      perfTop: rows.slice(0, 3),
+      perfRest: rows.slice(3),
+      showAll: this.state.showAll,
+      toggleAll: () => this.setState(s => ({ showAll: !s.showAll })),
+      toggleLabel: this.state.showAll ? 'Show top 3 only' : 'Show all 10 players',
+      caretRot: this.state.showAll ? 'display:inline-block;transform:rotate(180deg)' : 'display:inline-block',
+      tHeadStyle: this.TROW + 'padding:8px 12px;background:var(--color-surface-raised);border-bottom:1px solid var(--color-border);',
+    };
+  }
+
+  stat(label, bgm, opp, bgmN, oppN, lowerBetter){
+    const a = bgmN != null ? bgmN : (typeof bgm === 'number' ? bgm : parseFloat(bgm));
+    const b = oppN != null ? oppN : (typeof opp === 'number' ? opp : parseFloat(opp));
+    const denom = Math.max(a + b, 0.0001);
+    let winner = 'tie';
+    if (a !== b) winner = ((a > b) !== !!lowerBetter) ? 'bgm' : 'opp';
+    const bgmWin = winner === 'bgm', oppWin = winner === 'opp';
+    const intCount = (typeof bgm === 'number') && (typeof opp === 'number') && Number.isInteger(bgm) && Number.isInteger(opp);
+    return {
+      label, bgm, opp, winner, bgmNum: a, oppNum: b, intCount,
+      bgmW: (a/denom*100).toFixed(1) + '%',
+      oppW: (b/denom*100).toFixed(1) + '%',
+      bgmBar: bgmWin ? 'var(--color-accent)' : 'rgba(232,65,49,0.30)',
+      oppBar: oppWin ? 'var(--fg-2)' : 'var(--fg-5)',
+      bgmValColor: bgmWin ? 'var(--color-accent)' : 'var(--fg-4)',
+      oppValColor: oppWin ? 'var(--fg-1)' : 'var(--fg-4)',
+    };
+  }
+
+  buildTeamStats(){
+    const groups = [
+      { title:'Offense', rows:[
+        this.stat('Goals',4,3), this.stat('Shots',29,16),
+        this.stat('Shooting %','13.8%','18.8%',13.8,18.8), this.stat('On Net %','90.6%','66.7%',90.6,66.7) ] },
+      { title:'Possession', rows:[
+        this.stat('Pass %','66.7%','68.2%',66.7,68.2), this.stat('Possession','24:31','19:22',1471,1162),
+        this.stat('Time on Attack','12:42','6:11',762,371) ] },
+      { title:'Defense', rows:[
+        this.stat('Hits',14,39), this.stat('Blocks',5,4), this.stat('Takeaways',17,19), this.stat('Interceptions',5,8) ] },
+      { title:'Discipline', rows:[
+        this.stat('Giveaways',44,38,null,null,true), this.stat('Deflections',1,0), this.stat('Assists',6,5) ] },
+    ];
+    let bgm = 0, opp = 0, tie = 0, total = 0;
+    groups.forEach(g => g.rows.forEach(r => {
+      total++;
+      if (r.winner === 'bgm') bgm++; else if (r.winner === 'opp') opp++; else tie++;
+    }));
+    const pct = n => (n / Math.max(total,1) * 100).toFixed(2) + '%';
+    const lead = bgm > opp, even = bgm === opp;
+    const rows = groups.flatMap(g => g.rows);
+    const STEP = this.TS_STEP, CD = this.TS_CD, n2 = rows.length;
+    this._teamN = n2;
+    const DUR = (n2 - 1) * STEP + CD;
+    const elapsed = this.state.teamProg * DUR;
+    const glow = this.state.teamGlow;
+    const easeT = p => 1 - Math.pow(1 - p, 3);
+    rows.forEach((r, i) => {
+      const lp = Math.max(0, Math.min(1, (elapsed - i * STEP) / CD));
+      const e = easeT(lp);
+      const op = Math.min(1, lp * 2.6).toFixed(3);
+      const ty = ((1 - Math.min(1, lp * 2)) * 8).toFixed(1);
+      r.rowMotion = 'opacity:' + op + ';transform:translateY(' + ty + 'px)';
+      r.grow = (e * 100).toFixed(1) + '%';
+      r.bgmDisp = r.intCount ? String(Math.round(r.bgmNum * e)) : r.bgm;
+      r.oppDisp = r.intCount ? String(Math.round(r.oppNum * e)) : r.opp;
+      r.bgmBarCls = (glow && r.winner === 'bgm') ? 'ts-bloom-acc' : '';
+      r.oppBarCls = (glow && r.winner === 'opp') ? 'ts-bloom-opp' : '';
+    });
+    return {
+      teamGroups: groups,
+      teamRows: rows,
+      setTeamEl: this.setTeamEl,
+      aggBgm: bgm, aggOpp: opp,
+      aggBgmW: pct(bgm), aggTieW: pct(tie), aggOppW: pct(opp),
+      aggVerdict: even ? 'EVEN STAT SHEET' : (lead ? 'BGM WINS THE STAT SHEET' : '4L LEADS THE STAT SHEET'),
+      aggColor: lead ? 'var(--color-accent)' : 'var(--fg-3)',
+    };
+  }
+
+  ev(scorer, detail, score, time, kind){
+    const map = {
+      bgm: { dot:'var(--color-accent)', nameColor:'var(--fg-1)', scoreColor:'var(--color-accent)' },
+      opp: { dot:'var(--fg-4)', nameColor:'var(--fg-2)', scoreColor:'var(--fg-3)' },
+      tie: { dot:'var(--color-otl)', nameColor:'var(--fg-2)', scoreColor:'var(--color-otl)' },
+      gwg: { dot:'var(--color-accent)', nameColor:'var(--color-accent)', scoreColor:'var(--color-accent)' },
+    };
+    return { scorer, detail, score, time, ...map[kind] };
+  }
+}
+</script>
+</body>
+</html>

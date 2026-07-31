@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="_ds/boogeymen-design-system-019df013-7ada-79ec-ac26-22b50894a2b1/colors_and_type.css">
+  <link rel="stylesheet" href="_ds/boogeymen-design-system-019df013-7ada-79ec-ac26-22b50894a2b1/preview/_base.css">
+  <style>
+    body{margin:0;background:var(--color-background);color:var(--fg-1);font-family:var(--font-sans)}
+    a{color:var(--color-accent);text-decoration:none}a:hover{color:var(--color-accent-strong)}
+    .cap{font-family:var(--font-condensed);text-transform:uppercase}
+    /* ① rink panel rises in */
+    @keyframes bcast-rise{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
+    .panel-in{animation:bcast-rise .5s cubic-bezier(.16,.84,.3,1) both}
+    /* ② ice lines settle + red ticker wipe */
+    .rink-svg{opacity:0;transition:opacity .5s ease}
+    .rink-svg.go{opacity:1}
+    @keyframes rink-wipe{0%{transform:translateX(-140%);opacity:0}18%{opacity:1}82%{opacity:1}100%{transform:translateX(560%);opacity:0}}
+    .rink-wipe{position:absolute;top:14px;bottom:8px;left:14px;width:16%;z-index:5;pointer-events:none;background:linear-gradient(90deg,transparent,rgba(232,65,49,.42),transparent)}
+    .rink-wipe.go{animation:rink-wipe .9s cubic-bezier(.55,0,.45,1) both}
+    /* ③ markers drop onto the ice */
+    .mk{cursor:pointer}
+    .mk .pop{transform-box:fill-box;transform-origin:center;opacity:0}
+    @keyframes mk-drop{0%{opacity:0;transform:translateY(-120px) scale(1.05);animation-timing-function:cubic-bezier(.5,0,.85,.4)}50%{opacity:1}62%{opacity:1;transform:translateY(0) scale(1);animation-timing-function:cubic-bezier(.3,0,.25,1)}76%{opacity:1;transform:translateY(0) scale(1.07,.9)}100%{opacity:1;transform:translateY(0) scale(1)}}
+    .mk.go .pop{animation:mk-drop .68s both}
+    .mk .halo{fill:transparent;stroke:transparent;stroke-width:4;transition:stroke .15s,fill .15s}
+    .mk.home{color:var(--color-accent)}
+    .mk.away{color:var(--fg-1)}
+    .mk:hover .halo{stroke:rgba(232,65,49,.42);fill:rgba(232,65,49,.06)}
+    .mk.away:hover .halo{stroke:rgba(235,235,235,.4)}
+    .mk:hover{filter:drop-shadow(0 0 5px rgba(232,65,49,.45))}
+    /* ④ goals flare on landing */
+    @keyframes goal-land{0%{filter:drop-shadow(0 0 0 rgba(232,65,49,0))}55%{filter:drop-shadow(0 0 15px rgba(232,65,49,.9))}100%{filter:drop-shadow(0 0 7px rgba(232,65,49,.32))}}
+    @keyframes goal-land-away{0%{filter:drop-shadow(0 0 0 rgba(235,235,235,0))}55%{filter:drop-shadow(0 0 13px rgba(235,235,235,.7))}100%{filter:drop-shadow(0 0 6px rgba(235,235,235,.28))}}
+    .mk.goal.home.flare{animation:goal-land .8s ease-out both}
+    .mk.goal.away.flare{animation:goal-land-away .8s ease-out both}
+    /* ⑦ select locks the pair */
+    .mk.sel .halo{stroke:var(--color-accent);stroke-width:6;fill:rgba(232,65,49,.22)}
+    .mk.sel{filter:drop-shadow(0 0 12px rgba(232,65,49,.85))}
+    .mk.away.sel .halo{stroke:var(--fg-1)}
+    .mk.away.sel{filter:drop-shadow(0 0 12px rgba(235,235,235,.6))}
+    /* ⑧ filter fades in place */
+    .mk.faded{opacity:.16;pointer-events:none}
+    /* ⑤ event list mirrors */
+    .lc{transform:translateX(16px);opacity:0;transition:transform .45s cubic-bezier(.16,.84,.3,1),opacity .45s ease}
+    .lc.go{transform:translateX(0);opacity:1}
+    .lc.sel{background:rgba(232,65,49,.10)}
+    .lc.away.sel{background:rgba(235,235,235,.05)}
+    /* tooltip */
+    .tooltip{position:absolute;z-index:20;min-width:150px;max-width:230px;padding:9px 11px;background:var(--color-charcoal);border:1px solid var(--color-accent-line);pointer-events:none;transform:translate(-50%,calc(-100% - 12px));opacity:0;transition:opacity .12s;box-shadow:0 6px 20px rgba(0,0,0,.5)}
+    .tooltip::after{content:"";position:absolute;bottom:-7px;left:50%;transform:translateX(-50%) rotate(45deg);width:12px;height:12px;background:var(--color-charcoal);border-right:1px solid var(--color-accent-line);border-bottom:1px solid var(--color-accent-line)}
+    .tooltip.away{border-color:var(--fg-3)}.tooltip.away::after{border-color:var(--fg-3)}
+    .tooltip.vis{opacity:1}
+    /* rink line styling (scoped) */
+    .rink-svg .ice-fill{fill:rgba(235,235,235,0.03)}
+    .rink-svg .board{fill:var(--color-charcoal);stroke:var(--fg-4);stroke-width:4}
+    .rink-svg .line-red{stroke:var(--color-accent);stroke-width:4;fill:none}
+    .rink-svg .line-blue{stroke:rgba(140,170,235,0.55);stroke-width:6;fill:none}
+    .rink-svg .center-circle{fill:rgba(140,170,235,0.07);stroke:rgba(140,170,235,0.55);stroke-width:3}
+    .rink-svg .faceoff-circle{stroke:var(--color-accent);stroke-width:3;fill:rgba(232,65,49,0.04)}
+    .rink-svg .faceoff-tick{stroke:var(--color-accent);stroke-width:3}
+    .rink-svg .faceoff-dot,.rink-svg .center-dot{fill:var(--color-accent)}
+    .rink-svg .crease{stroke:var(--color-accent);stroke-width:3;fill:rgba(232,65,49,0.05)}
+    .rink-svg .net{stroke:var(--fg-4);stroke-width:2.5;fill:rgba(35,33,34,0.6)}
+    .rink-svg .zonelabel{font-family:var(--font-condensed);font-weight:800;font-size:26px;fill:var(--fg-6);letter-spacing:.4em;text-transform:uppercase;text-anchor:middle}
+    /* filter toggles + legend */
+    .ftog{display:inline-flex;align-items:center;gap:6px;padding:5px 9px;font:800 10px/1 var(--font-condensed);text-transform:uppercase;letter-spacing:.12em;color:var(--fg-3);border:1px solid var(--color-border);background:var(--color-charcoal);cursor:pointer}
+    .ftog .sw{width:15px;height:15px;display:inline-flex;color:var(--color-accent)}
+    .ftog.away-sw .sw{color:var(--fg-1)}
+    .ftog.off{opacity:.4}
+    .ftog .ct{font-size:9px;font-weight:700;color:var(--fg-5);font-variant-numeric:tabular-nums;padding:1px 5px;border:1px solid var(--color-border)}
+    .cue-row{display:flex;gap:10px;padding:9px 11px;border:1px solid var(--color-border);background:var(--color-surface);transition:background-color .25s ease,border-color .25s ease}
+    .cue-row.lit{background:var(--color-accent-soft);border-color:var(--color-accent-line)}
+    .cue-n{flex:none;width:20px;height:20px;display:grid;place-items:center;border:1px solid var(--color-border);font:800 10px var(--font-condensed);color:var(--fg-4);background:var(--color-charcoal)}
+    .cue-row.lit .cue-n{color:var(--color-accent);border-color:var(--color-accent-line);background:transparent}
+    .btnr{display:flex;align-items:center;gap:6px;cursor:pointer;border:1px solid var(--color-border);background:var(--color-surface);color:var(--fg-2);font:800 11px var(--font-condensed);text-transform:uppercase;letter-spacing:.12em;padding:8px 14px;transition:border-color .2s ease,color .2s ease,background-color .2s ease}
+    .btnr:hover{border-color:var(--color-accent-line);color:var(--color-accent);background:var(--color-accent-soft)}
+    .btnr.on{border-color:var(--color-accent-line);color:var(--color-accent);background:var(--color-accent-soft)}
+    @media (prefers-reduced-motion:reduce){
+      .panel-in,.rink-wipe.go,.mk.goal.flare{animation:none}
+      .rink-svg{opacity:1}
+      .mk .pop,.mk.go .pop{animation:none;opacity:1;transform:none}
+      .lc{opacity:1;transform:none;transition:none}
+    }
+  </style>
+</helmet>
+
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+    <symbol id="m-goal-home" viewBox="0 0 39.78 34.45"><polygon fill="currentColor" points="39.78 17.22 29.83 34.45 9.94 34.45 0 17.22 9.94 0 29.83 0 39.78 17.22"/><polygon fill="currentColor" points="36.34 17.22 28.11 31.47 11.66 31.47 3.44 17.22 11.66 2.98 28.11 2.98 36.34 17.22"/><path fill="#ebebeb" d="M21.45,19.4h-1.67l.64-3.28h5.19l-1.39,7.18c-.13,.67-.5,1.24-1.11,1.72-.6,.47-1.25,.7-1.96,.7h-5.18c-.71,0-1.27-.23-1.69-.7-.43-.47-.57-1.05-.44-1.72l2.5-12.89c.13-.67,.5-1.24,1.11-1.72,.6-.47,1.25-.7,1.96-.7h5.18c.71,0,1.27,.23,1.69,.7,.43,.48,.57,1.05,.44,1.72l-.69,3.56h-3.52l.52-2.7h-3.33l-2.17,11.17h3.33l.59-3.04Z"/></symbol>
+    <symbol id="m-goal-away" viewBox="0 0 39.78 34.45"><polygon fill="currentColor" points="39.78 17.22 29.84 34.45 9.95 34.45 0 17.22 9.95 0 29.84 0 39.78 17.22"/><polygon fill="#323031" points="36.34 17.22 28.12 31.47 11.67 31.47 3.44 17.22 11.67 2.98 28.12 2.98 36.34 17.22"/><path fill="#ebebeb" d="M21.06,19.77h-1.67l.64-3.28h5.19l-1.39,7.18c-.13,.67-.5,1.24-1.11,1.72-.6,.47-1.25,.7-1.96,.7h-5.18c-.71,0-1.27-.23-1.69-.7-.43-.47-.57-1.05-.44-1.72l2.5-12.89c.13-.67,.5-1.24,1.11-1.72,.6-.47,1.25-.7,1.96-.7h5.18c.71,0,1.27,.23,1.69,.7,.43,.48,.57,1.05,.44,1.72l-.69,3.56h-3.52l.52-2.7h-3.33l-2.17,11.17h3.33l.59-3.04Z"/></symbol>
+    <symbol id="m-shot-home" viewBox="0 0 36.56 36.56"><circle fill="currentColor" cx="18.28" cy="18.28" r="16.87"/><path fill="currentColor" d="M18.28,36.56C8.2,36.56,0,28.36,0,18.28S8.2,0,18.28,0s18.28,8.2,18.28,18.28-8.2,18.28-18.28,18.28Zm0-33.75C9.75,2.81,2.81,9.75,2.81,18.28s6.94,15.47,15.47,15.47,15.47-6.94,15.47-15.47S26.81,2.81,18.28,2.81Z"/><path fill="#ebebeb" d="M20.89,12.97h-3.17l-.52,2.66c-.14,.72,.32,1.08,1.37,1.08,1.38,0,2.47,.37,3.25,1.11,.83,.78,1.12,1.82,.87,3.1l-.67,3.48c-.13,.64-.48,1.18-1.07,1.62-.57,.45-1.18,.67-1.85,.67h-4.92c-.67,0-1.21-.22-1.61-.67s-.53-.99-.41-1.62l.66-3.4h3.34l-.5,2.58h3.17l.51-2.66c.14-.73-.32-1.09-1.37-1.09-1.38,0-2.45-.37-3.23-1.1-.84-.78-1.13-1.82-.88-3.1l.68-3.48c.12-.64,.47-1.18,1.05-1.64,.57-.44,1.19-.66,1.87-.66h4.92c.67,0,1.21,.22,1.6,.66,.4,.46,.55,1,.43,1.64l-.66,3.38h-3.35l.5-2.57Z"/></symbol>
+    <symbol id="m-shot-away" viewBox="0 0 36.56 36.56"><circle fill="currentColor" cx="18.28" cy="18.28" r="16.87"/><path fill="#323031" d="M18.28,36.56C8.2,36.56,0,28.36,0,18.28S8.2,0,18.28,0s18.28,8.2,18.28,18.28-8.2,18.28-18.28,18.28Zm0-33.75C9.75,2.81,2.81,9.75,2.81,18.28s6.94,15.47,15.47,15.47,15.47-6.94,15.47-15.47S26.81,2.81,18.28,2.81Z"/><path fill="#323031" d="M20.9,12.97h-3.17l-.52,2.66c-.14,.72,.32,1.08,1.37,1.08,1.38,0,2.47,.37,3.25,1.11,.83,.78,1.12,1.82,.87,3.1l-.67,3.48c-.13,.64-.48,1.18-1.07,1.62-.57,.45-1.18,.67-1.85,.67h-4.92c-.67,0-1.21-.22-1.61-.67s-.53-.99-.41-1.62l.66-3.4h3.34l-.5,2.58h3.17l.51-2.66c.14-.73-.32-1.09-1.37-1.09-1.38,0-2.45-.37-3.23-1.1-.84-.78-1.13-1.82-.88-3.1l.68-3.48c.12-.64,.47-1.18,1.05-1.64,.57-.44,1.19-.66,1.87-.66h4.92c.67,0,1.21,.22,1.6,.66,.4,.46,.55,1,.43,1.64l-.66,3.38h-3.35l.5-2.57Z"/></symbol>
+    <symbol id="m-hit-home" viewBox="0 0 34.45 34.45"><rect fill="currentColor" width="34.45" height="34.45"/><rect fill="currentColor" x="3.1" y="3.11" width="28.23" height="28.23"/><path fill="#ebebeb" d="M15.24,18.87l-1.4,7.22h-3.52l3.45-17.73h3.52l-1.4,7.22h3.33l1.4-7.22h3.52l-3.45,17.73h-3.52l1.4-7.22h-3.33Z"/></symbol>
+    <symbol id="m-hit-away" viewBox="0 0 34.45 34.45"><rect fill="currentColor" width="34.45" height="34.45"/><rect fill="#323031" x="3.11" y="3.11" width="28.23" height="28.23"/><path fill="#ebebeb" d="M15.24,18.87l-1.4,7.22h-3.52l3.45-17.73h3.52l-1.4,7.22h3.33l1.4-7.22h3.52l-3.45,17.73h-3.52l1.4-7.22h-3.33Z"/></symbol>
+    <symbol id="m-pen-home" viewBox="0 0 48.72 48.72"><rect fill="currentColor" x="7.13" y="7.13" width="34.45" height="34.45" transform="translate(-10.09 24.36) rotate(-45)"/><rect fill="currentColor" x="10.5" y="10.51" width="27.7" height="27.7" transform="translate(-10.09 24.35) rotate(-45)"/><path fill="#ebebeb" d="M21.11,15.49h7.78c.71,0,1.27,.23,1.69,.7,.43,.48,.57,1.05,.44,1.72l-.89,4.57c-.26,1.35-.99,2.44-2.18,3.26-1.12,.78-2.41,1.16-3.87,1.16h-1.67l-1.23,6.32h-3.52l3.45-17.73Zm2.88,3.28l-.94,4.85h1.67c1.11,0,1.74-.38,1.89-1.14l.72-3.71h-3.34Z"/></symbol>
+    <symbol id="m-pen-away" viewBox="0 0 48.72 48.72"><rect fill="currentColor" x="7.13" y="7.13" width="34.45" height="34.45" transform="translate(-10.09 24.36) rotate(-45)"/><rect fill="#323031" x="10.51" y="10.5" width="27.7" height="27.7" transform="translate(-10.09 24.36) rotate(-45)"/><path fill="#ebebeb" d="M21.12,15.49h7.78c.71,0,1.27,.23,1.69,.7,.43,.48,.57,1.05,.44,1.72l-.89,4.57c-.26,1.35-.99,2.44-2.18,3.26-1.12,.78-2.41,1.16-3.87,1.16h-1.67l-1.23,6.32h-3.52l3.45-17.73Zm2.88,3.28l-.94,4.85h1.67c1.11,0,1.74-.38,1.89-1.14l.72-3.71h-3.34Z"/></symbol>
+  </defs></svg>
+
+<div style="min-height:100vh;padding:36px 34px;display:flex;gap:34px;align-items:flex-start;flex-wrap:wrap">
+
+  <!-- ============ LIVE COMPONENT ============ -->
+  <div style="display:flex;flex-direction:column;gap:16px;width:600px;flex:none">
+    <div style="display:flex;flex-direction:column;gap:2px">
+      <span class="cap" style="font-size:10px;font-weight:700;letter-spacing:.24em;color:var(--fg-5)">Live component</span>
+      <span class="cap" style="font-size:15px;font-weight:900;letter-spacing:.04em;color:var(--fg-1)">Action Tracker Map — motion</span>
+    </div>
+
+    <section ref="{{ rRoot }}" class="panel-in" style="position:relative;border:1px solid var(--color-border);background:var(--color-surface);padding:12px 14px 14px;display:flex;flex-direction:column;gap:10px">
+
+      <!-- filter toggles -->
+      <div style="display:flex;align-items:center;gap:7px;flex-wrap:wrap">
+        <span class="cap" style="font-size:9px;font-weight:700;letter-spacing:.22em;color:var(--fg-5);margin-right:2px">Show</span>
+        <button class="ftog" data-ftype="goal"><span class="sw"><svg viewBox="0 0 39.78 34.45"><use href="#m-goal-home"></use></svg></span>Goals <span class="ct">3</span></button>
+        <button class="ftog" data-ftype="shot"><span class="sw"><svg viewBox="0 0 36.56 36.56"><use href="#m-shot-home"></use></svg></span>Shots <span class="ct">5</span></button>
+        <button class="ftog" data-ftype="hit"><span class="sw"><svg viewBox="0 0 34.45 34.45"><use href="#m-hit-home"></use></svg></span>Hits <span class="ct">4</span></button>
+        <button class="ftog" data-ftype="penalty"><span class="sw"><svg viewBox="0 0 48.72 48.72"><use href="#m-pen-home"></use></svg></span>Pen <span class="ct">1</span></button>
+      </div>
+
+      <!-- rink -->
+      <div ref="{{ rWrap }}" style="position:relative">
+        <div class="rink-wrap" style="border:1px solid var(--color-border);background:var(--bg-broadcast-strong);padding:14px 14px 8px;position:relative;overflow:hidden">
+          <div ref="{{ rWipe }}" class="rink-wipe"></div>
+          <div style="display:flex;align-items:center;gap:14px;margin-bottom:8px">
+            <span class="cap" style="font-size:10px;font-weight:700;letter-spacing:.22em;color:var(--fg-4)">Event map · 5-on-5 ice</span>
+            <div style="display:flex;gap:10px;margin-left:auto;font-size:10px;font-weight:700;letter-spacing:.16em;text-transform:uppercase" class="cap"><span style="color:var(--fg-3)">4L ←</span><span style="color:var(--fg-6)">attacks</span><span style="color:var(--color-accent)">→ BGM</span></div>
+          </div>
+          <svg ref="{{ rSvg }}" class="rink-svg" viewBox="0 0 2405 1025" style="width:100%;height:auto;display:block;aspect-ratio:2405 / 1025">
+            <rect class="ice-fill" x="2.5" y="2.5" width="2400" height="1020" rx="336" ry="336"></rect>
+            <rect class="board" x="2.5" y="2.5" width="2400" height="1020" rx="336" ry="336" fill-opacity="0"></rect>
+            <line class="line-red" x1="2270.5" y1="71.49" x2="2270.5" y2="953.5"></line>
+            <line class="line-red" x1="134.5" y1="71.49" x2="134.5" y2="953.5"></line>
+            <line class="line-red" x1="1202.5" y1="2.5" x2="1202.5" y2="1022.5"></line>
+            <line class="line-blue" x1="902.5" y1="2.5" x2="902.5" y2="1022.5"></line>
+            <line class="line-blue" x1="1502.5" y1="2.5" x2="1502.5" y2="1022.5"></line>
+            <text class="zonelabel" x="518" y="58">4L zone</text>
+            <text class="zonelabel" x="1202" y="58">Neutral</text>
+            <text class="zonelabel" x="1887" y="58">BGM zone</text>
+            <circle class="center-circle" cx="1202.5" cy="512.5" r="180"></circle>
+            <circle class="center-dot" cx="1202.5" cy="512.5" r="8"></circle>
+            <circle class="faceoff-dot" cx="962.5" cy="248.5" r="12"></circle>
+            <circle class="faceoff-dot" cx="962.5" cy="770.15" r="12"></circle>
+            <circle class="faceoff-dot" cx="1444.89" cy="248.5" r="12"></circle>
+            <circle class="faceoff-dot" cx="1444.89" cy="770.15" r="12"></circle>
+            <g><circle class="faceoff-circle" cx="2030.5" cy="248.5" r="180" fill-opacity="0"></circle><circle class="faceoff-dot" cx="2030.5" cy="248.5" r="12"></circle></g>
+            <g><circle class="faceoff-circle" cx="2030.5" cy="785.17" r="180" fill-opacity="0"></circle><circle class="faceoff-dot" cx="2030.5" cy="785.17" r="12"></circle></g>
+            <g><circle class="faceoff-circle" cx="374.5" cy="248.42" r="180" fill-opacity="0"></circle><circle class="faceoff-dot" cx="374.5" cy="248.42" r="12"></circle></g>
+            <g><circle class="faceoff-circle" cx="374.5" cy="776.42" r="180" fill-opacity="0"></circle><circle class="faceoff-dot" cx="374.5" cy="776.42" r="12"></circle></g>
+            <g><polygon class="net" points="134.5 644.5 134.5 380.5 2.5 344.5 2.5 680.5 134.5 644.5"></polygon><path class="crease" d="M206.5,512.5c0,18.44-6.93,35.26-18.34,48h-53.66v-96h53.66c11.41,12.74,18.34,29.56,18.34,48Z"></path></g>
+            <g><polygon class="net" points="2270.5 644.5 2270.5 380.5 2402.5 344.5 2402.5 680.5 2270.5 644.5"></polygon><path class="crease" d="M2198.5,512.5c0,18.44,6.93,35.26,18.34,48h53.66v-96h-53.66c-11.41,12.74-18.34,29.56-18.34,48Z"></path></g>
+
+            <g ref="{{ rMarkers }}">
+              <g class="mk away hit"     data-type="hit"     data-team="away" data-id="101" data-seq="1"  data-x="950"  data-y="160" data-actor="TOEWS"          data-num="19" data-time="19:43" data-period="2ND" transform="translate(950 160) scale(1.35)"><g class="pop"><circle class="halo" r="22"></circle><g transform="translate(-17.22 -17.22)"><use href="#m-hit-away" width="34.45" height="34.45"></use></g></g></g>
+              <g class="mk away hit"     data-type="hit"     data-team="away" data-id="102" data-seq="2"  data-x="1350" data-y="880" data-actor="P. MAGROYNE"    data-num="23" data-time="18:06" data-period="2ND" transform="translate(1350 880) scale(1.35)"><g class="pop"><circle class="halo" r="22"></circle><g transform="translate(-17.22 -17.22)"><use href="#m-hit-away" width="34.45" height="34.45"></use></g></g></g>
+              <g class="mk home goal"    data-type="goal"    data-team="home" data-id="3"   data-seq="3"  data-x="2050" data-y="470" data-actor="silkyjoker85"   data-num="10" data-time="13:41" data-period="2ND" transform="translate(2050 470) scale(1.35)"><g class="pop"><circle class="halo" r="22"></circle><g transform="translate(-19.89 -17.22)"><use href="#m-goal-home" width="39.78" height="34.45"></use></g></g></g>
+              <g class="mk home shot"    data-type="shot"    data-team="home" data-id="104" data-seq="4"  data-x="1880" data-y="400" data-actor="silkyjoker85"   data-num="10" data-time="13:04" data-period="2ND" transform="translate(1880 400) scale(1.35)"><g class="pop"><circle class="halo" r="22"></circle><g transform="translate(-18.28 -18.28)"><use href="#m-shot-home" width="36.56" height="36.56"></use></g></g></g>
+              <g class="mk home shot"    data-type="shot"    data-team="home" data-id="105" data-seq="5"  data-x="1760" data-y="610" data-actor="JoeyFlopfish"   data-num="23" data-time="11:23" data-period="2ND" transform="translate(1760 610) scale(1.35)"><g class="pop"><circle class="halo" r="22"></circle><g transform="translate(-18.28 -18.28)"><use href="#m-shot-home" width="36.56" height="36.56"></use></g></g></g>
+              <g class="mk home hit"     data-type="hit"     data-team="home" data-id="106" data-seq="6"  data-x="1150" data-y="150" data-actor="Stick Menace"   data-num="96" data-time="10:34" data-period="2ND" transform="translate(1150 150) scale(1.35)"><g class="pop"><circle class="halo" r="22"></circle><g transform="translate(-17.22 -17.22)"><use href="#m-hit-home" width="34.45" height="34.45"></use></g></g></g>
+              <g class="mk home shot"    data-type="shot"    data-team="home" data-id="107" data-seq="7"  data-x="1650" data-y="500" data-actor="Stick Menace"   data-num="96" data-time="8:01"  data-period="2ND" transform="translate(1650 500) scale(1.35)"><g class="pop"><circle class="halo" r="22"></circle><g transform="translate(-18.28 -18.28)"><use href="#m-shot-home" width="36.56" height="36.56"></use></g></g></g>
+              <g class="mk home penalty" data-type="penalty" data-team="home" data-id="108" data-seq="8"  data-x="1680" data-y="740" data-actor="MrHomiecide"    data-num="11" data-time="7:12"  data-period="2ND" transform="translate(1680 740) scale(1.35)"><g class="pop"><circle class="halo" r="28"></circle><g transform="translate(-24.36 -24.36)"><use href="#m-pen-home" width="48.72" height="48.72"></use></g></g></g>
+              <g class="mk away shot"    data-type="shot"    data-team="away" data-id="109" data-seq="9"  data-x="520"  data-y="440" data-actor="WILDE"          data-num="7"  data-time="6:27"  data-period="2ND" transform="translate(520 440) scale(1.35)"><g class="pop"><circle class="halo" r="22"></circle><g transform="translate(-18.28 -18.28)"><use href="#m-shot-away" width="36.56" height="36.56"></use></g></g></g>
+              <g class="mk away shot"    data-type="shot"    data-team="away" data-id="110" data-seq="10" data-x="640"  data-y="590" data-actor="WILDE"          data-num="7"  data-time="1:46"  data-period="2ND" transform="translate(640 590) scale(1.35)"><g class="pop"><circle class="halo" r="22"></circle><g transform="translate(-18.28 -18.28)"><use href="#m-shot-away" width="36.56" height="36.56"></use></g></g></g>
+              <g class="mk away goal"    data-type="goal"    data-team="away" data-id="11"  data-seq="11" data-x="355"  data-y="560" data-actor="S. ZUBOV"       data-num="48" data-time="19:08" data-period="3RD" transform="translate(355 560) scale(1.35)"><g class="pop"><circle class="halo" r="22"></circle><g transform="translate(-19.89 -17.22)"><use href="#m-goal-away" width="39.78" height="34.45"></use></g></g></g>
+              <g class="mk home hit"     data-type="hit"     data-team="home" data-id="112" data-seq="12" data-x="1550" data-y="150" data-actor="HenryTheBobJr"  data-num="7"  data-time="12:30" data-period="3RD" transform="translate(1550 150) scale(1.35)"><g class="pop"><circle class="halo" r="22"></circle><g transform="translate(-17.22 -17.22)"><use href="#m-hit-home" width="34.45" height="34.45"></use></g></g></g>
+              <g class="mk home shot"    data-type="shot"    data-team="home" data-id="113" data-seq="13" data-x="1930" data-y="560" data-actor="MrHomiecide"    data-num="11" data-time="18:40" data-period="OT"  transform="translate(1930 560) scale(1.35)"><g class="pop"><circle class="halo" r="22"></circle><g transform="translate(-18.28 -18.28)"><use href="#m-shot-home" width="36.56" height="36.56"></use></g></g></g>
+              <g class="mk home goal"    data-type="goal"    data-team="home" data-id="14"  data-seq="14" data-x="2010" data-y="540" data-actor="MrHomiecide"    data-num="11" data-time="17:23" data-period="OT" data-gwg="1" transform="translate(2010 540) scale(1.35)"><g class="pop"><circle class="halo" r="22"></circle><g transform="translate(-19.89 -17.22)"><use href="#m-goal-home" width="39.78" height="34.45"></use></g></g></g>
+            </g>
+          </svg>
+        </div>
+        <div ref="{{ rTip }}" class="tooltip"></div>
+      </div>
+
+      <!-- synced goal list -->
+      <div style="border:1px solid var(--color-border);background:var(--color-charcoal)">
+        <div style="display:flex;align-items:center;gap:10px;padding:8px 11px;border-bottom:1px solid var(--color-border)">
+          <span class="cap" style="font-size:10px;font-weight:700;letter-spacing:.22em;color:var(--fg-3)">Goals</span>
+          <span class="cap" style="margin-left:auto;font-size:9px;font-weight:700;letter-spacing:.14em;color:var(--fg-5)">click a marker or a row — the pair lights</span>
+        </div>
+        <div ref="{{ rList }}">
+          <button class="lc home" data-id="3" style="width:100%;text-align:left;position:relative;display:grid;grid-template-columns:3px 1fr auto;gap:11px;align-items:center;padding:9px 11px 9px 0;border:0;border-bottom:1px solid rgba(58,56,57,.5);background:none;cursor:pointer">
+            <span style="position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--color-accent)"></span><span></span>
+            <span style="min-width:0"><span class="cap" style="font-size:14px;font-weight:800;letter-spacing:.03em;color:var(--fg-1)">silkyjoker85</span><span class="cap" style="display:block;font-size:9px;font-weight:700;letter-spacing:.18em;color:var(--color-accent);margin-top:2px">Goal · BGM</span></span>
+            <span style="text-align:right"><span class="cap tabular" style="display:block;font-size:12px;font-weight:800;color:var(--fg-1)">13:41</span><span class="cap" style="font-size:9px;font-weight:800;letter-spacing:.16em;color:var(--fg-3)">2ND</span></span>
+          </button>
+          <button class="lc away" data-id="11" style="width:100%;text-align:left;position:relative;display:grid;grid-template-columns:3px 1fr auto;gap:11px;align-items:center;padding:9px 11px 9px 0;border:0;border-bottom:1px solid rgba(58,56,57,.5);background:none;cursor:pointer">
+            <span style="position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--fg-3)"></span><span></span>
+            <span style="min-width:0"><span class="cap" style="font-size:14px;font-weight:800;letter-spacing:.03em;color:var(--fg-1)">S. ZUBOV</span><span class="cap" style="display:block;font-size:9px;font-weight:700;letter-spacing:.18em;color:var(--fg-4);margin-top:2px">Goal · 4L</span></span>
+            <span style="text-align:right"><span class="cap tabular" style="display:block;font-size:12px;font-weight:800;color:var(--fg-1)">19:08</span><span class="cap" style="font-size:9px;font-weight:800;letter-spacing:.16em;color:var(--fg-3)">3RD</span></span>
+          </button>
+          <button class="lc home" data-id="14" style="width:100%;text-align:left;position:relative;display:grid;grid-template-columns:3px 1fr auto;gap:11px;align-items:center;padding:9px 11px 9px 0;border:0;background:none;cursor:pointer">
+            <span style="position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--color-accent)"></span><span></span>
+            <span style="min-width:0"><span class="cap" style="font-size:14px;font-weight:800;letter-spacing:.03em;color:var(--fg-1)">MrHomiecide</span><span class="cap" style="display:block;font-size:9px;font-weight:700;letter-spacing:.18em;color:var(--color-accent);margin-top:2px">Goal · BGM · GWG</span></span>
+            <span style="text-align:right"><span class="cap tabular" style="display:block;font-size:12px;font-weight:800;color:var(--color-accent)">17:23</span><span class="cap" style="font-size:9px;font-weight:800;letter-spacing:.16em;color:var(--fg-3)">OT</span></span>
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btnr" onClick="{{ replay }}">▶ Replay plot-in</button>
+      <button ref="{{ rSlow }}" class="btnr" onClick="{{ toggleSlow }}">Slow-mo</button>
+    </div>
+    <span class="cap" style="font-size:9px;font-weight:600;letter-spacing:.1em;color:var(--fg-5);line-height:1.5">Events plot onto the ice in chronological order · hover / click / filter are live · respects prefers-reduced-motion</span>
+  </div>
+
+  <!-- ============ ANNOTATED RECOMMENDATIONS ============ -->
+  <div style="flex:1;min-width:340px;max-width:520px;display:flex;flex-direction:column;gap:14px">
+    <div style="display:flex;flex-direction:column;gap:3px">
+      <span class="cap" style="font-size:10px;font-weight:700;letter-spacing:.24em;color:var(--fg-5)">Recommended motion</span>
+      <span class="cap" style="font-size:20px;font-weight:900;letter-spacing:.02em;color:var(--fg-1)">Eight cues — the game plotting itself</span>
+      <span style="font-size:12px;color:var(--fg-4);line-height:1.55">The map should feel like the match <b style="color:var(--fg-2)">replotting onto the ice</b>: the rink lays down, then each event drops onto its exact spot in chronological order. Goals flare as they land. Hover, select, and filter are broadcast-crisp — no shimmer, no bounce, one measured beat per event.</span>
+    </div>
+
+    <div ref="{{ rLegend }}" style="display:flex;flex-direction:column;gap:7px">
+      <div class="cue-row" data-cue="1"><span class="cue-n">1</span><div><span class="cap" style="font-size:12px;font-weight:800;letter-spacing:.06em;color:var(--fg-2)">Rink panel rises in</span><div style="font-size:11px;color:var(--fg-4);line-height:1.5">The whole broadcast panel — hairline border, ice, filters — lifts and fades in as one surface. The stage, before any play. <span class="tabular" style="color:var(--fg-5)">t=0 · .5s</span></div></div></div>
+      <div class="cue-row" data-cue="2"><span class="cue-n">2</span><div><span class="cap" style="font-size:12px;font-weight:800;letter-spacing:.06em;color:var(--fg-2)">Ice settles, red ticker wipe</span><div style="font-size:11px;color:var(--fg-4);line-height:1.5">Lines, circles and creases fade up together while a single thin red wipe sweeps left→right across the rink — a TV lower-third bringing the ice online. <span class="tabular" style="color:var(--fg-5)">t≈.15s</span></div></div></div>
+      <div class="cue-row" data-cue="3"><span class="cue-n">3</span><div><span class="cap" style="font-size:12px;font-weight:800;letter-spacing:.06em;color:var(--fg-2)">Markers drop onto the ice</span><div style="font-size:11px;color:var(--fg-4);line-height:1.5">Each event falls from above onto its exact coordinate with a short landing squash, staggered ~95ms in strict chronological order — the game replaying itself spatially. <span class="tabular" style="color:var(--fg-5)">t≈.52s+</span></div></div></div>
+      <div class="cue-row" data-cue="4"><span class="cue-n">4</span><div><span class="cap" style="font-size:12px;font-weight:800;letter-spacing:.06em;color:var(--fg-2)">Goals flare as they land</span><div style="font-size:11px;color:var(--fg-4);line-height:1.5">A goal marker lands with one red glow that settles — BGM goals in accent red, 4L goals in white. Stronger than a shot or hit, marked exactly once. <span class="tabular" style="color:var(--fg-5)">on goal</span></div></div></div>
+      <div class="cue-row" data-cue="5"><span class="cue-n">5</span><div><span class="cap" style="font-size:12px;font-weight:800;letter-spacing:.06em;color:var(--fg-2)">Event list mirrors the map</span><div style="font-size:11px;color:var(--fg-4);line-height:1.5">As each goal lands on the ice, its row slides in from the right in the synced list — map and list stay in lockstep. <span class="tabular" style="color:var(--fg-5)">per goal</span></div></div></div>
+      <div class="cue-row" data-cue="6"><span class="cue-n">6</span><div><span class="cap" style="font-size:12px;font-weight:800;letter-spacing:.06em;color:var(--fg-2)">Hover raises a halo + tooltip</span><div style="font-size:11px;color:var(--fg-4);line-height:1.5">Hovering a marker rings it with a soft halo and lifts a broadcast tooltip — actor, side, period, time — above the puck. Instant, ≤.15s. <span class="tabular" style="color:var(--fg-5)">on hover</span></div></div></div>
+      <div class="cue-row" data-cue="7"><span class="cue-n">7</span><div><span class="cap" style="font-size:12px;font-weight:800;letter-spacing:.06em;color:var(--fg-2)">Select locks the pair</span><div style="font-size:11px;color:var(--fg-4);line-height:1.5">Clicking a marker (or its list row) locks a strong red halo on the ice and highlights the matching row at once — one settle, no pulse. The pair reads as one. <span class="tabular" style="color:var(--fg-5)">on click</span></div></div></div>
+      <div class="cue-row" data-cue="8"><span class="cue-n">8</span><div><span class="cap" style="font-size:12px;font-weight:800;letter-spacing:.06em;color:var(--fg-2)">Filter fades in place</span><div style="font-size:11px;color:var(--fg-4);line-height:1.5">Toggling a type off dims those markers to 16% ghosts where they sit — never removed, never reflowed. Spatial memory is preserved so the eye keeps its map. <span class="tabular" style="color:var(--fg-5)">on toggle</span></div></div></div>
+    </div>
+
+    <div style="border:1px solid var(--color-border);background:var(--color-surface);padding:12px 14px;display:flex;flex-direction:column;gap:6px">
+      <span class="cap" style="font-size:10px;font-weight:700;letter-spacing:.18em;color:var(--fg-5)">Guardrails</span>
+      <span style="font-size:11px;color:var(--fg-4);line-height:1.6">Total plot-in ≤ ~2s and caps · markers fall ~120 units with one landing squash, never a bounce · one glow per goal, never a looping pulse (nothing on the ice breathes) · markers never change position on filter — they fade in place · hover/select resolve in ≤.15s · a dense game plots the first ~24 events on load, the rest appear instantly on scroll/filter · under reduced-motion everything is plotted, wipe and flares off.</span>
+    </div>
+  </div>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1180,&quot;height&quot;:760}}">
+class Component extends DCLogic {
+  refs = {};
+  slow = false;
+  types = new Set(['goal','shot','hit','penalty']);
+  selectedId = null;
+  hoveredId = null;
+
+  rRoot    = (el)=>{ if(el) this.refs.root=el; };
+  rWrap    = (el)=>{ if(el) this.refs.wrap=el; };
+  rWipe    = (el)=>{ if(el) this.refs.wipe=el; };
+  rSvg     = (el)=>{ if(el) this.refs.svg=el; };
+  rMarkers = (el)=>{ if(el) this.refs.markers=el; };
+  rTip     = (el)=>{ if(el) this.refs.tip=el; };
+  rList    = (el)=>{ if(el) this.refs.list=el; };
+  rLegend  = (el)=>{ if(el) this.refs.legend=el; };
+  rSlow    = (el)=>{ if(el) this.refs.slow=el; };
+
+  replay     = ()=> this.play();
+  toggleSlow = ()=>{ this.slow=!this.slow; if(this.refs.slow) this.refs.slow.classList.toggle('on', this.slow); };
+
+  renderVals(){
+    return {
+      rRoot:this.rRoot, rWrap:this.rWrap, rWipe:this.rWipe, rSvg:this.rSvg,
+      rMarkers:this.rMarkers, rTip:this.rTip, rList:this.rList,
+      rLegend:this.rLegend, rSlow:this.rSlow,
+      replay:this.replay, toggleSlow:this.toggleSlow
+    };
+  }
+
+  componentDidMount(){
+    this.reduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion:reduce)').matches;
+    this.wire();
+    setTimeout(()=> this.play(), 240);
+  }
+
+  s(ms){ return this.slow ? ms * 2.2 : ms; }
+
+  markerEls(){ return this.refs.markers ? Array.from(this.refs.markers.querySelectorAll('.mk')) : []; }
+  cardEls(){ return this.refs.list ? Array.from(this.refs.list.querySelectorAll('.lc')) : []; }
+  markerById(id){ return this.markerEls().find(m => m.dataset.id === String(id)); }
+  cardById(id){ return this.cardEls().find(c => c.dataset.id === String(id)); }
+
+  lit(n, on){
+    if(!this.refs.legend) return;
+    const r = this.refs.legend.querySelector('[data-cue="'+n+'"]');
+    if(r) r.classList.toggle('lit', on);
+  }
+
+  /* ---- interaction wiring (live at all times) ---- */
+  wire(){
+    this.markerEls().forEach(m => {
+      m.addEventListener('mouseenter', ()=> this.onHover(m));
+      m.addEventListener('mouseleave', ()=> this.onLeave());
+      m.addEventListener('click', (ev)=>{ ev.stopPropagation(); this.onSelect(m.dataset.id); });
+    });
+    this.cardEls().forEach(c => {
+      c.addEventListener('mouseenter', ()=>{ const m=this.markerById(c.dataset.id); if(m) this.onHover(m); });
+      c.addEventListener('mouseleave', ()=> this.onLeave());
+      c.addEventListener('click', ()=> this.onSelect(c.dataset.id));
+    });
+    if(this.refs.svg) this.refs.svg.addEventListener('click', (ev)=>{ if(ev.target.closest('.mk')) return; this.clearSelect(); });
+    if(this.refs.root){
+      this.refs.root.querySelectorAll('.ftog').forEach(b => {
+        b.addEventListener('click', ()=> this.toggleFilter(b));
+      });
+    }
+  }
+
+  onHover(m){
+    this.hoveredId = m.dataset.id;
+    this.showTip(m);
+    this.lit(6, true);
+  }
+  onLeave(){
+    this.hoveredId = null;
+    this.lit(6, false);
+    if(this.selectedId != null){ const m=this.markerById(this.selectedId); if(m) this.showTip(m); }
+    else this.hideTip();
+  }
+
+  onSelect(id){
+    if(this.selectedId === String(id)){ this.clearSelect(); return; }
+    this.clearSelect(true);
+    this.selectedId = String(id);
+    const m = this.markerById(id), c = this.cardById(id);
+    if(m){ m.classList.add('sel'); this.showTip(m); }
+    if(c) c.classList.add('sel');
+    this.lit(7, true);
+  }
+  clearSelect(keepTip){
+    this.markerEls().forEach(m => m.classList.remove('sel'));
+    this.cardEls().forEach(c => c.classList.remove('sel'));
+    this.selectedId = null;
+    this.lit(7, false);
+    if(!keepTip && this.hoveredId == null) this.hideTip();
+  }
+
+  showTip(m){
+    const tip = this.refs.tip, svg = this.refs.svg, wrap = this.refs.wrap;
+    if(!tip || !svg || !wrap) return;
+    const home = m.classList.contains('home');
+    const TYPE = { goal:'Goal', shot:'Shot', hit:'Hit', penalty:'Penalty' };
+    const d = m.dataset;
+    tip.classList.toggle('away', !home);
+    tip.innerHTML =
+      '<div style="display:flex;align-items:center;gap:8px;margin-bottom:5px">' +
+        '<span class="cap" style="font-size:10px;font-weight:900;letter-spacing:.18em;color:'+(home?'var(--color-accent)':'var(--fg-1)')+'">'+TYPE[d.type]+' · '+(home?'BGM':'4L')+'</span>' +
+        '<span class="cap tabular" style="margin-left:auto;font-size:10px;font-weight:700;letter-spacing:.06em;color:var(--fg-3)">'+d.period+' · '+d.time+'</span>' +
+      '</div>' +
+      '<div class="cap" style="font-size:13px;font-weight:800;letter-spacing:.03em;color:var(--fg-1)">'+(d.num?('#'+d.num+' · '):'')+d.actor+'</div>';
+    const r = svg.getBoundingClientRect(), wr = wrap.getBoundingClientRect();
+    tip.style.left = ((r.left - wr.left) + (+d.x) * r.width/2405) + 'px';
+    tip.style.top  = ((r.top - wr.top) + (+d.y) * r.height/1025) + 'px';
+    tip.classList.add('vis');
+  }
+  hideTip(){ if(this.refs.tip) this.refs.tip.classList.remove('vis'); }
+
+  toggleFilter(btn){
+    const t = btn.dataset.ftype;
+    if(this.types.has(t)) this.types.delete(t); else this.types.add(t);
+    btn.classList.toggle('off', !this.types.has(t));
+    this.markerEls().forEach(m => m.classList.toggle('faded', !this.types.has(m.dataset.type)));
+    this.lit(8, this.types.size < 4);
+  }
+
+  /* ---- entrance sequence ---- */
+  reset(){
+    const R = this.refs;
+    [1,2,3,4,5].forEach(n => this.lit(n,false));
+    if(R.svg) R.svg.classList.remove('go');
+    if(R.wipe){ R.wipe.classList.remove('go'); void R.wipe.offsetWidth; }
+    this.markerEls().forEach(m => m.classList.remove('go','flare'));
+    this.cardEls().forEach(c => c.classList.remove('go'));
+    if(R.root){ R.root.classList.remove('panel-in'); void R.root.offsetWidth; }
+  }
+
+  play(){
+    if(this.reduced){ this.snapAll(); return; }
+    const R = this.refs;
+    (this._timers||[]).forEach(clearTimeout);
+    this._timers = [];
+    const at = (ms, fn)=> this._timers.push(setTimeout(fn, ms));
+    this.reset();
+
+    // ① panel rises in
+    this.lit(1, true);
+    if(R.root) R.root.classList.add('panel-in');
+
+    // ② ice settles + red ticker wipe
+    at(this.s(150), ()=>{
+      this.lit(2, true);
+      if(R.svg) R.svg.classList.add('go');
+      if(R.wipe){ void R.wipe.offsetWidth; R.wipe.classList.add('go'); }
+    });
+
+    // ③④⑤ markers drop onto the ice in chronological order
+    const seq = this.markerEls().sort((a,b)=> (+a.dataset.seq) - (+b.dataset.seq));
+    const base = this.s(520), step = this.s(150);
+    seq.forEach((m, i)=>{
+      at(base + i*step, ()=>{
+        this.lit(3, true);
+        m.classList.add('go');
+        if(m.dataset.type === 'goal'){
+          this.lit(4, true);
+          m.classList.add('flare');
+          const c = this.cardById(m.dataset.id);
+          if(c){ this.lit(5, true); c.classList.add('go'); }
+        }
+      });
+    });
+  }
+
+  snapAll(){
+    const R = this.refs;
+    if(R.root) R.root.classList.add('panel-in');
+    if(R.svg) R.svg.classList.add('go');
+    this.markerEls().forEach(m => m.classList.add('go'));
+    this.cardEls().forEach(c => c.classList.add('go'));
+    [1,2,3,4,5].forEach(n => this.lit(n,false));
+  }
+}
+</script>
+</body>
+</html>

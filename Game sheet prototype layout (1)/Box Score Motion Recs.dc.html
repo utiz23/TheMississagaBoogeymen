@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="_ds/boogeymen-design-system-019df013-7ada-79ec-ac26-22b50894a2b1/colors_and_type.css">
+  <link rel="stylesheet" href="_ds/boogeymen-design-system-019df013-7ada-79ec-ac26-22b50894a2b1/preview/_base.css">
+  <style>
+    body{margin:0;background:var(--color-background);color:var(--fg-1);font-family:var(--font-sans)}
+    a{color:var(--color-accent);text-decoration:none}a:hover{color:var(--color-accent-strong)}
+    .cap{font-family:var(--font-condensed);text-transform:uppercase}
+    /* broadcast ticker sweep — faint bright band travels the red strip (ambient) */
+    .ticker-strip{position:relative;overflow:hidden;height:2px;background:linear-gradient(90deg,#6d0f1c,var(--color-accent),#6d0f1c)}
+    .ticker-strip::after{content:"";position:absolute;top:0;bottom:0;left:0;width:40%;background:linear-gradient(90deg,transparent,rgba(255,255,255,.75),transparent);transform:translateX(-140%);animation:bcast-sweep 3s cubic-bezier(.55,0,.45,1) .8s infinite}
+    @keyframes bcast-sweep{0%{transform:translateX(-140%)}55%,100%{transform:translateX(320%)}}
+    /* panel reveal + red hairline wipe */
+    @keyframes bcast-rise{from{opacity:0;transform:translateY(20px) scale(.99)}to{opacity:1;transform:translateY(0) scale(1)}}
+    .panel-in{animation:bcast-rise .55s cubic-bezier(.16,.84,.3,1) both}
+    @keyframes panel-wipe{0%{transform:translateX(-120%);opacity:0}18%{opacity:1}80%{opacity:1}100%{transform:translateX(340%);opacity:0}}
+    .panel-wipe{position:absolute;top:0;left:0;z-index:4;height:2px;width:45%;pointer-events:none;background:linear-gradient(90deg,transparent,var(--color-accent),transparent)}
+    .panel-wipe.go{animation:panel-wipe .8s cubic-bezier(.55,0,.45,1) both}
+    /* winning total — single glow bloom then settle */
+    @keyframes tot-glow{0%{box-shadow:inset 0 0 0 rgba(232,65,49,0)}45%{box-shadow:0 0 16px rgba(232,65,49,.5),inset 0 0 0 rgba(232,65,49,0)}100%{box-shadow:0 0 5px rgba(232,65,49,.22)}}
+    .tot-glow{animation:tot-glow .8s ease-out both}
+    /* mode tabs */
+    .tab{font-family:var(--font-condensed);text-transform:uppercase;font-size:10px;font-weight:700;letter-spacing:.06em;padding:4px 11px;cursor:pointer;border:1px solid var(--color-border);background:transparent;color:var(--fg-4);transition:border-color .22s ease,background-color .22s ease,color .22s ease}
+    .tab:hover{color:var(--fg-2);border-color:var(--fg-5)}
+    .tab.on{border-color:var(--color-accent-line);background:var(--color-accent-soft);color:var(--color-accent)}
+    /* annotation legend */
+    .cue-row{display:flex;gap:10px;padding:9px 11px;border:1px solid var(--color-border);background:var(--color-surface);transition:background-color .25s ease,border-color .25s ease}
+    .cue-row.lit{background:var(--color-accent-soft);border-color:var(--color-accent-line)}
+    .cue-n{flex:none;width:20px;height:20px;display:grid;place-items:center;border:1px solid var(--color-border);font:800 10px var(--font-condensed);color:var(--fg-4);background:var(--color-charcoal)}
+    .cue-row.lit .cue-n{color:var(--color-accent);border-color:var(--color-accent-line);background:transparent}
+    .btnr{display:flex;align-items:center;gap:6px;cursor:pointer;border:1px solid var(--color-border);background:var(--color-surface);color:var(--fg-2);font:800 11px var(--font-condensed);text-transform:uppercase;letter-spacing:.12em;padding:8px 14px;transition:border-color .2s ease,color .2s ease,background-color .2s ease}
+    .btnr:hover{border-color:var(--color-accent-line);color:var(--color-accent);background:var(--color-accent-soft)}
+    .btnr.on{border-color:var(--color-accent-line);color:var(--color-accent);background:var(--color-accent-soft)}
+    @media (prefers-reduced-motion:reduce){
+      .ticker-strip::after,.panel-in,.panel-wipe.go,.tot-glow{animation:none}
+      .bcell{opacity:1 !important;transform:none !important}
+    }
+  </style>
+</helmet>
+
+<div style="min-height:100vh;padding:36px 34px;display:flex;gap:34px;align-items:flex-start;flex-wrap:wrap">
+
+  <!-- ============ LIVE COMPONENT ============ -->
+  <div style="display:flex;flex-direction:column;gap:16px;width:392px;flex:none">
+    <div style="display:flex;flex-direction:column;gap:2px">
+      <span class="cap" style="font-size:10px;font-weight:700;letter-spacing:.24em;color:var(--fg-5)">Live component</span>
+      <span class="cap" style="font-size:15px;font-weight:900;letter-spacing:.04em;color:var(--fg-1)">Box Score — motion</span>
+    </div>
+
+    <section ref="{{ rPanel }}" class="panel-in" style="position:relative;border:1px solid var(--color-border);background:var(--color-surface);overflow:hidden">
+      <div class="ticker-strip"></div>
+      <div ref="{{ rWipe }}" class="panel-wipe"></div>
+      <div style="padding:13px 15px 15px;display:flex;flex-direction:column;gap:11px">
+        <div style="display:flex;flex-direction:column;gap:2px">
+          <span class="cap" style="font-size:12px;font-weight:800;letter-spacing:.16em;color:var(--fg-2)">Box Score</span>
+          <span class="cap" style="font-size:10px;letter-spacing:.12em;color:var(--fg-4)">Period-by-period · OCR-reviewed</span>
+        </div>
+
+        <div style="display:flex;gap:5px">
+          <button ref="{{ rTabGoals }}" type="button" class="tab on" onClick="{{ selGoals }}">GOALS</button>
+          <button ref="{{ rTabShots }}" type="button" class="tab" onClick="{{ selShots }}">SHOTS</button>
+          <button ref="{{ rTabFo }}" type="button" class="tab" onClick="{{ selFo }}">FO</button>
+        </div>
+
+        <div ref="{{ rGrid }}" style="display:grid;grid-template-columns:1.1fr repeat(4,1fr) 1.2fr;gap:0;border:1px solid var(--color-border-subtle)">
+          <!-- header -->
+          <span class="cap" style="font-size:10px;letter-spacing:.06em;color:var(--fg-4);padding:5px 6px;background:var(--color-charcoal)">TEAM</span>
+          <span class="cap tabular" style="font-size:10px;color:var(--fg-4);padding:5px 0;text-align:center;background:var(--color-charcoal)">1</span>
+          <span class="cap tabular" style="font-size:10px;color:var(--fg-4);padding:5px 0;text-align:center;background:var(--color-charcoal)">2</span>
+          <span class="cap tabular" style="font-size:10px;color:var(--fg-4);padding:5px 0;text-align:center;background:var(--color-charcoal)">3</span>
+          <span class="cap tabular" style="font-size:10px;color:var(--fg-4);padding:5px 0;text-align:center;background:var(--color-charcoal)">OT</span>
+          <span class="cap tabular" style="font-size:10px;color:var(--color-accent);padding:5px 0;text-align:center;background:var(--color-charcoal);border-left:1px solid var(--color-accent-line)">TOT</span>
+
+          <!-- BGM row -->
+          <span class="cap" style="font-size:12px;font-weight:700;color:var(--color-accent);padding:6px 6px">BGM</span>
+          <span class="cap tabular bcell" data-row="bgm" data-col="0" style="font-size:12px;padding:6px 0;text-align:center;color:var(--fg-3)">0</span>
+          <span class="cap tabular bcell" data-row="bgm" data-col="1" style="font-size:12px;padding:6px 0;text-align:center;color:var(--color-accent);font-weight:700">2</span>
+          <span class="cap tabular bcell" data-row="bgm" data-col="2" style="font-size:12px;padding:6px 0;text-align:center;color:var(--fg-3)">1</span>
+          <span class="cap tabular bcell" data-row="bgm" data-col="3" style="font-size:12px;padding:6px 0;text-align:center;color:var(--color-accent);font-weight:700">1</span>
+          <span class="cap tabular bcell" data-row="bgm" data-col="tot" style="font-size:14px;font-weight:900;padding:6px 0;text-align:center;color:var(--color-accent);background:var(--color-accent-soft);border-left:1px solid var(--color-accent-line)">4</span>
+
+          <!-- 4L row -->
+          <span class="cap" style="font-size:12px;font-weight:700;color:var(--fg-3);padding:6px 6px;border-top:1px solid var(--color-border-subtle)">4L</span>
+          <span class="cap tabular bcell" data-row="opp" data-col="0" style="font-size:12px;padding:6px 0;text-align:center;color:var(--fg-3);border-top:1px solid var(--color-border-subtle)">0</span>
+          <span class="cap tabular bcell" data-row="opp" data-col="1" style="font-size:12px;padding:6px 0;text-align:center;color:var(--fg-3);border-top:1px solid var(--color-border-subtle)">0</span>
+          <span class="cap tabular bcell" data-row="opp" data-col="2" style="font-size:12px;padding:6px 0;text-align:center;color:var(--fg-1);font-weight:700;border-top:1px solid var(--color-border-subtle)">3</span>
+          <span class="cap tabular bcell" data-row="opp" data-col="3" style="font-size:12px;padding:6px 0;text-align:center;color:var(--fg-3);border-top:1px solid var(--color-border-subtle)">0</span>
+          <span class="cap tabular bcell" data-row="opp" data-col="tot" style="font-size:14px;font-weight:900;padding:6px 0;text-align:center;color:var(--fg-2);background:var(--color-accent-soft);border-left:1px solid var(--color-accent-line);border-top:1px solid var(--color-border-subtle)">3</span>
+        </div>
+
+        <span ref="{{ rNote }}" class="cap" style="font-size:10px;letter-spacing:.1em;color:var(--fg-4)">GOALS 4–3 (+1) · GWG in OT</span>
+      </div>
+    </section>
+
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btnr" onClick="{{ replay }}">▶ Replay sequence</button>
+      <button ref="{{ rSlow }}" class="btnr" onClick="{{ toggleSlow }}">Slow-mo</button>
+    </div>
+    <span class="cap" style="font-size:9px;font-weight:600;letter-spacing:.1em;color:var(--fg-5);line-height:1.5">Switch tabs to watch the table re-fill with each stat · respects prefers-reduced-motion</span>
+  </div>
+
+  <!-- ============ ANNOTATED RECOMMENDATIONS ============ -->
+  <div style="flex:1;min-width:340px;max-width:520px;display:flex;flex-direction:column;gap:14px">
+    <div style="display:flex;flex-direction:column;gap:3px">
+      <span class="cap" style="font-size:10px;font-weight:700;letter-spacing:.24em;color:var(--fg-5)">Recommended motion</span>
+      <span class="cap" style="font-size:20px;font-weight:900;letter-spacing:.02em;color:var(--fg-1)">Eight cues — the game, replayed period by period</span>
+      <span style="font-size:12px;color:var(--fg-4);line-height:1.55">The box score should read like a broadcast lower-third <b style="color:var(--fg-2)">populating left to right</b> — periods fill in order, numbers tick up, winners settle into a faint tint, and only the winning <b style="color:var(--fg-2)">total</b> earns the single glow. No bounce, no shimmer beyond the existing ticker.</span>
+    </div>
+
+    <div ref="{{ rLegend }}" style="display:flex;flex-direction:column;gap:7px">
+      <div class="cue-row" data-cue="1"><span class="cue-n">1</span><div><span class="cap" style="font-size:12px;font-weight:800;letter-spacing:.06em;color:var(--fg-2)">Panel reveal + hairline wipe</span><div style="font-size:11px;color:var(--fg-4);line-height:1.5">Rise 20px + fade, .55s ease-out; a red 2px hairline wipes across the top edge once as the panel plugs in. <span class="tabular" style="color:var(--fg-5)">t=0</span></div></div></div>
+      <div class="cue-row" data-cue="2"><span class="cue-n">2</span><div><span class="cap" style="font-size:12px;font-weight:800;letter-spacing:.06em;color:var(--fg-2)">Periods fill left → right</span><div style="font-size:11px;color:var(--fg-4);line-height:1.5">P1 · P2 · P3 · OT reveal in sequence, ~150ms apart — both team cells in a column rise + fade together, so the game appears to play out. <span class="tabular" style="color:var(--fg-5)">t=.14s</span></div></div></div>
+      <div class="cue-row" data-cue="3"><span class="cue-n">3</span><div><span class="cap" style="font-size:12px;font-weight:800;letter-spacing:.06em;color:var(--fg-2)">Cells count up</span><div style="font-size:11px;color:var(--fg-4);line-height:1.5">As each column lands its numbers tick 0 → value (.32s, cubic ease-out). Tabular-nums so nothing reflows mid-count. <span class="tabular" style="color:var(--fg-5)">per column</span></div></div></div>
+      <div class="cue-row" data-cue="4"><span class="cue-n">4</span><div><span class="cap" style="font-size:12px;font-weight:800;letter-spacing:.06em;color:var(--fg-2)">Period winner settles into tint</span><div style="font-size:11px;color:var(--fg-4);line-height:1.5">The cell that won each period fades to a faint fill as it lands — BGM red-soft, opponent neutral-raised. A tint, never a glow. <span class="tabular" style="color:var(--fg-5)">with column</span></div></div></div>
+      <div class="cue-row" data-cue="5"><span class="cue-n">5</span><div><span class="cap" style="font-size:12px;font-weight:800;letter-spacing:.06em;color:var(--fg-2)">Total reads last, winner glows once</span><div style="font-size:11px;color:var(--fg-4);line-height:1.5">The TOT column arrives after every period; the winning total blooms a single red glow then settles — the conclusion, arriving last. <span class="tabular" style="color:var(--fg-5)">t≈1.05s</span></div></div></div>
+      <div class="cue-row" data-cue="6"><span class="cue-n">6</span><div><span class="cap" style="font-size:12px;font-weight:800;letter-spacing:.06em;color:var(--fg-2)">Tab switch — refill</span><div style="font-size:11px;color:var(--fg-4);line-height:1.5">Changing GOALS / SHOTS / FO transitions the active pill (border + soft-fill), then re-runs the column fill with the new stat — no panel replay. <span class="tabular" style="color:var(--fg-5)">on tab</span></div></div></div>
+      <div class="cue-row" data-cue="7"><span class="cue-n">7</span><div><span class="cap" style="font-size:12px;font-weight:800;letter-spacing:.06em;color:var(--fg-2)">Ambient: ticker sweep</span><div style="font-size:11px;color:var(--fg-4);line-height:1.5">The top red strip's bright band sweeps every 3s — the only continuous motion. Life, not noise. <span class="tabular" style="color:var(--fg-5)">loop</span></div></div></div>
+      <div class="cue-row" data-cue="8"><span class="cue-n">8</span><div><span class="cap" style="font-size:12px;font-weight:800;letter-spacing:.06em;color:var(--fg-2)">Footnote fades in</span><div style="font-size:11px;color:var(--fg-4);line-height:1.5">The provenance / summary line fades up last, once the table has resolved — the caption to a settled graphic. <span class="tabular" style="color:var(--fg-5)">t≈1.2s</span></div></div></div>
+    </div>
+
+    <div style="border:1px solid var(--color-border);background:var(--color-surface);padding:12px 14px;display:flex;flex-direction:column;gap:6px">
+      <span class="cap" style="font-size:10px;font-weight:700;letter-spacing:.18em;color:var(--fg-5)">Guardrails</span>
+      <span style="font-size:11px;color:var(--fg-4);line-height:1.6">Total entrance ≤ 1.3s · columns stagger, never all at once · one glow event, on the winning total only · winner cells tint, they don't pulse · all motion off under reduced-motion (numbers snap to final).</span>
+    </div>
+  </div>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:940,&quot;height&quot;:660}}">
+class Component extends DCLogic {
+  refs = {};
+  slow = false;
+  tab = 'GOALS';
+  _timers = [];
+  _rafs = [];
+
+  BOX = {
+    GOALS: { periods:[[0,2,1,1],[0,0,3,0]], note:'GOALS 4–3 (+1) · GWG in OT' },
+    SHOTS: { periods:[[8,11,7,3],[4,6,5,1]], note:'SOG 29–16 (+13) · ON-NET 90.6%' },
+    FO:    { periods:[[6,8,5,2],[3,4,1,1]], note:'FACEOFFS 21–9 · WON 70.0%' },
+  };
+
+  rPanel    = (el)=>{ if(el) this.refs.panel=el; };
+  rWipe     = (el)=>{ if(el) this.refs.wipe=el; };
+  rGrid     = (el)=>{ if(el) this.refs.grid=el; };
+  rNote     = (el)=>{ if(el) this.refs.note=el; };
+  rLegend   = (el)=>{ if(el) this.refs.legend=el; };
+  rSlow     = (el)=>{ if(el) this.refs.slow=el; };
+  rTabGoals = (el)=>{ if(el) this.refs.tGoals=el; };
+  rTabShots = (el)=>{ if(el) this.refs.tShots=el; };
+  rTabFo    = (el)=>{ if(el) this.refs.tFo=el; };
+
+  replay     = ()=> this.play(false);
+  toggleSlow = ()=>{ this.slow=!this.slow; if(this.refs.slow) this.refs.slow.classList.toggle('on', this.slow); };
+  selGoals   = ()=> this.selectTab('GOALS');
+  selShots   = ()=> this.selectTab('SHOTS');
+  selFo      = ()=> this.selectTab('FO');
+
+  renderVals(){
+    return {
+      rPanel:this.rPanel, rWipe:this.rWipe, rGrid:this.rGrid, rNote:this.rNote,
+      rLegend:this.rLegend, rSlow:this.rSlow,
+      rTabGoals:this.rTabGoals, rTabShots:this.rTabShots, rTabFo:this.rTabFo,
+      replay:this.replay, toggleSlow:this.toggleSlow,
+      selGoals:this.selGoals, selShots:this.selShots, selFo:this.selFo,
+    };
+  }
+
+  componentDidMount(){
+    this.reduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion:reduce)').matches;
+    this.fill();
+    setTimeout(()=> this.play(false), 260);
+  }
+  componentWillUnmount(){ this.clearAll(); }
+
+  clearAll(){ this._timers.forEach(clearTimeout); this._timers=[]; this._rafs.forEach(clearInterval); this._rafs=[]; }
+  later(fn, ms){ const id=setTimeout(fn, ms); this._timers.push(id); return id; }
+  s(ms){ return this.slow ? ms*2.6 : ms; }
+
+  lit(n,on){ if(!this.refs.legend) return; const r=this.refs.legend.querySelector('[data-cue="'+n+'"]'); if(r) r.classList.toggle('lit', on); }
+
+  cell(row,col){ return this.refs.grid && this.refs.grid.querySelector('.bcell[data-row="'+row+'"][data-col="'+col+'"]'); }
+  colCells(col){ return this.refs.grid ? [...this.refs.grid.querySelectorAll('.bcell[data-col="'+col+'"]')] : []; }
+
+  // compute resting values / colors / winner tint for the active tab
+  buildCells(tab){
+    const [bgm,opp] = this.BOX[tab].periods;
+    const d = { bgm:[], opp:[] };
+    for(let i=0;i<4;i++){
+      const bWin = bgm[i]>opp[i], oWin = opp[i]>bgm[i];
+      d.bgm[i] = { v:bgm[i], color:bWin?'var(--color-accent)':'var(--fg-3)', weight:bWin?700:400, tint:bWin?'var(--color-accent-soft)':'transparent' };
+      d.opp[i] = { v:opp[i], color:oWin?'var(--fg-1)':'var(--fg-3)',        weight:oWin?700:400, tint:oWin?'var(--color-charcoal)':'transparent' };
+    }
+    const bS = bgm.reduce((a,b)=>a+b,0), oS = opp.reduce((a,b)=>a+b,0);
+    d.bgmTot = { v:bS, color:'var(--color-accent)', win:bS>oS };
+    d.oppTot = { v:oS, color:'var(--fg-2)',        win:oS>bS };
+    return d;
+  }
+
+  // set a cell's resting target (color/weight/final value) without revealing it
+  setResting(el, spec, isTot){
+    if(!el) return;
+    el.dataset.final = spec.v;
+    el.style.color = spec.color;
+    el.style.fontWeight = isTot ? 900 : spec.weight;
+    if(isTot){ el.dataset.win = spec.win ? '1' : ''; }
+    else { el.dataset.tint = spec.tint; }
+  }
+
+  fill(){
+    const d = this.buildCells(this.tab);
+    for(let i=0;i<4;i++){ this.setResting(this.cell('bgm',i), d.bgm[i], false); this.setResting(this.cell('opp',i), d.opp[i], false); }
+    this.setResting(this.cell('bgm','tot'), d.bgmTot, true);
+    this.setResting(this.cell('opp','tot'), d.oppTot, true);
+    if(this.refs.note) this.refs.note.textContent = this.BOX[this.tab].note;
+  }
+
+  hideCell(el){
+    if(!el) return;
+    el.style.transition='none';
+    el.style.opacity='0';
+    el.style.transform='translateY(6px)';
+    if(el.dataset.col!=='tot' && el.dataset.tint!==undefined) el.style.backgroundColor='transparent';
+    if(el.dataset.col==='tot') el.classList.remove('tot-glow');
+    el.textContent = '0';
+  }
+  revealCell(el){
+    if(!el) return;
+    el.style.transition='opacity .34s cubic-bezier(.16,.84,.3,1),transform .34s cubic-bezier(.16,.84,.3,1),background-color .34s ease';
+    el.style.opacity='1';
+    el.style.transform='none';
+    if(el.dataset.col!=='tot' && el.dataset.tint!==undefined) el.style.backgroundColor = el.dataset.tint;
+  }
+  countUp(cells, dur){
+    // interval-based (not rAF) so counting still completes when the tab is backgrounded
+    const t0 = Date.now();
+    const ease = p => 1 - Math.pow(1-p, 3);
+    const iv = setInterval(()=>{
+      const p = Math.min(1, (Date.now()-t0)/dur);
+      const k = ease(p);
+      cells.forEach(c=>{ if(c) c.textContent = Math.round((+c.dataset.final||0)*k); });
+      if(p>=1){ cells.forEach(c=>{ if(c) c.textContent = c.dataset.final; }); clearInterval(iv); }
+    }, 16);
+    this._rafs.push(iv);
+  }
+
+  reset(){
+    [1,2,3,4,5,6,8].forEach(n=>this.lit(n,false));
+    this.lit(7,true); // ambient always on
+    ['0','1','2','3','tot'].forEach(col=> this.colCells(col).forEach(c=>this.hideCell(c)) );
+    void (this.refs.grid && this.refs.grid.offsetHeight);
+  }
+
+  snapFinal(){
+    this.fill();
+    ['0','1','2','3','tot'].forEach(col=> this.colCells(col).forEach(c=>{
+      c.style.transition='none'; c.style.opacity='1'; c.style.transform='none';
+      c.textContent = c.dataset.final;
+      if(c.dataset.col!=='tot' && c.dataset.tint!==undefined) c.style.backgroundColor = c.dataset.tint;
+    }));
+    if(this.refs.note){ this.refs.note.style.transition='none'; this.refs.note.style.opacity='1'; }
+    [1,2,3,4,5,6,8].forEach(n=>this.lit(n,false));
+    this.lit(7,true);
+  }
+
+  // run the entrance only when visible; otherwise show finals and defer until the tab is shown
+  armWhenVisible(){
+    if(this._armed) return;
+    this._armed = true;
+    const on = ()=>{ if(!document.hidden){ document.removeEventListener('visibilitychange', on); this._armed=false; this.play(false); } };
+    document.addEventListener('visibilitychange', on);
+  }
+
+  play(isTab){
+    this.clearAll();
+    this.fill();
+    if(this.reduced || document.hidden){ this.snapFinal(); if(!this.reduced && document.hidden) this.armWhenVisible(); return; }
+    this.reset();
+
+    // ① panel reveal (skip on tab switch — the panel stays put)
+    if(!isTab){
+      this.lit(1,true);
+      const {panel,wipe} = this.refs;
+      if(panel){ panel.classList.remove('panel-in'); void panel.offsetHeight; panel.classList.add('panel-in'); }
+      if(wipe){ wipe.classList.remove('go'); void wipe.offsetHeight; wipe.classList.add('go'); }
+    } else {
+      this.lit(6,true);
+      this.later(()=>this.lit(6,false), this.s(900));
+    }
+
+    const colStart = isTab ? this.s(40) : this.s(140);
+    const step = this.s(150);
+    const countDur = this.s(320);
+
+    // ②③④ periods fill left → right, count up, winner tint settles
+    ['0','1','2','3'].forEach((col,i)=>{
+      this.later(()=>{
+        if(i===0){ this.lit(2,true); this.lit(3,true); this.lit(4,true); }
+        const cells = this.colCells(col);
+        cells.forEach(c=>this.revealCell(c));
+        this.countUp(cells, countDur);
+      }, colStart + i*step);
+    });
+
+    // ⑤ total reads last; winning total glows once
+    const totAt = colStart + 4*step;
+    this.later(()=>{
+      this.lit(5,true);
+      const cells = this.colCells('tot');
+      cells.forEach(c=>this.revealCell(c));
+      this.countUp(cells, countDur);
+      this.later(()=>{
+        cells.forEach(c=>{ if(c.dataset.win==='1'){ c.classList.remove('tot-glow'); void c.offsetHeight; c.classList.add('tot-glow'); } });
+      }, countDur);
+    }, totAt);
+
+    // ⑧ footnote fades in last
+    if(this.refs.note){
+      this.refs.note.style.transition='none';
+      this.refs.note.style.opacity='0';
+      void this.refs.note.offsetHeight;
+      this.later(()=>{
+        this.lit(8,true);
+        this.refs.note.style.transition='opacity .4s ease';
+        this.refs.note.style.opacity='1';
+      }, totAt + countDur + this.s(60));
+    }
+  }
+
+  selectTab(tab){
+    if(tab===this.tab) return;
+    this.tab = tab;
+    const map = { GOALS:this.refs.tGoals, SHOTS:this.refs.tShots, FO:this.refs.tFo };
+    Object.entries(map).forEach(([k,el])=>{ if(el) el.classList.toggle('on', k===tab); });
+    this.play(true);
+  }
+}
+</script>
+</body>
+</html>

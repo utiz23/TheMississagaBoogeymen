@@ -1,0 +1,17 @@
+# Only the design-of-record SOURCE is tracked here: the .dc.html prototypes,
+# the _ds design-system CSS, and the review markdown. HANDOFF.md and several
+# component headers cite these by filename and line number, so they have to
+# exist in a fresh clone.
+#
+# Everything below is deliberately local-only — ~6.5 MB of the bundle's 7.2 MB,
+# almost all of it duplicated (bgm-logo.png ships 3x, _ds_bundle.js 2x) and all
+# of it regenerable by re-exporting from the design tool. It is viewing
+# convenience, not the record.
+uploads/
+screenshots/
+assets/
+*.png
+*.json
+*.js
+*.jsx
+*.thumbnail

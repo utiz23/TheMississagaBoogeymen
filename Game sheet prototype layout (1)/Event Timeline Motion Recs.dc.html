@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="_ds/boogeymen-design-system-019df013-7ada-79ec-ac26-22b50894a2b1/colors_and_type.css">
+  <link rel="stylesheet" href="_ds/boogeymen-design-system-019df013-7ada-79ec-ac26-22b50894a2b1/preview/_base.css">
+  <style>
+    body{margin:0;background:var(--color-background);color:var(--fg-1);font-family:var(--font-sans)}
+    a{color:var(--color-accent);text-decoration:none}a:hover{color:var(--color-accent-strong)}
+    .cap{font-family:var(--font-condensed);text-transform:uppercase}
+    /* ① central rail draws down from the top */
+    .rail-line{transform-origin:top center;transform:scaleY(0);transition:transform .62s cubic-bezier(.55,0,.45,1)}
+    .rail-line.go{transform:scaleY(1)}
+    /* ② rail end-caps ignite once, then breathe (ambient) */
+    @keyframes cap-ignite{0%{box-shadow:0 0 0 rgba(232,65,49,0)}45%{box-shadow:0 0 15px 3px rgba(232,65,49,.7)}100%{box-shadow:0 0 6px rgba(232,65,49,.4)}}
+    .cap.ignite{animation:cap-ignite .7s ease-out both}
+    @keyframes cap-breathe{0%,100%{box-shadow:0 0 5px rgba(232,65,49,.32)}50%{box-shadow:0 0 12px rgba(232,65,49,.7)}}
+    .cap.breathe{animation:cap-breathe 2.8s ease-in-out infinite}
+    /* ③–⑥ each timeline row reveals; cards slide in from their own side, pill pops */
+    .tl-row{opacity:0}
+    .tl-row.go{opacity:1;transition:opacity .42s ease}
+    .tl-card{transition:transform .5s cubic-bezier(.16,.84,.3,1)}
+    .tl-card.l{transform:translateX(-22px)}
+    .tl-card.r{transform:translateX(22px)}
+    .tl-row.go .tl-card{transform:translateX(0)}
+    .tl-pill{transform:scale(.8);transition:transform .44s cubic-bezier(.2,.7,.2,1)}
+    .tl-row.go .tl-pill{transform:scale(1)}
+    /* ⑦ game-winner flare — single capped glow + name bloom */
+    @keyframes gwg-flare{0%{box-shadow:0 0 0 rgba(232,65,49,0)}55%{box-shadow:0 0 17px rgba(232,65,49,.55)}100%{box-shadow:0 0 6px rgba(232,65,49,.3)}}
+    .gwg-card.flare{animation:gwg-flare .85s ease-out both}
+    @keyframes name-bloom{0%{text-shadow:0 0 0 rgba(232,65,49,0)}45%{text-shadow:0 0 22px rgba(232,65,49,.85)}100%{text-shadow:0 0 12px rgba(232,65,49,.3)}}
+    .gwg-name.flare{animation:name-bloom .85s ease-out both}
+    /* ⑧ FINAL banner lands last — rise + fade + one border flare */
+    .tl-final{opacity:0;transform:translateY(9px)}
+    .tl-final.go{opacity:1;transform:translateY(0);transition:opacity .38s cubic-bezier(.16,.84,.3,1),transform .38s cubic-bezier(.16,.84,.3,1);animation:final-flare .6s ease-out both}
+    @keyframes final-flare{0%{box-shadow:0 0 0 rgba(232,65,49,0)}55%{box-shadow:0 0 15px rgba(232,65,49,.6)}100%{box-shadow:0 0 5px rgba(232,65,49,.28)}}
+    /* legend */
+    .cue-row{display:flex;gap:10px;padding:9px 11px;border:1px solid var(--color-border);background:var(--color-surface);transition:background-color .25s ease,border-color .25s ease}
+    .cue-row.lit{background:var(--color-accent-soft);border-color:var(--color-accent-line)}
+    .cue-n{flex:none;width:20px;height:20px;display:grid;place-items:center;border:1px solid var(--color-border);font:800 10px var(--font-condensed);color:var(--fg-4);background:var(--color-charcoal)}
+    .cue-row.lit .cue-n{color:var(--color-accent);border-color:var(--color-accent-line);background:transparent}
+    .btnr{display:flex;align-items:center;gap:6px;cursor:pointer;border:1px solid var(--color-border);background:var(--color-surface);color:var(--fg-2);font:800 11px var(--font-condensed);text-transform:uppercase;letter-spacing:.12em;padding:8px 14px;transition:border-color .2s ease,color .2s ease,background-color .2s ease}
+    .btnr:hover{border-color:var(--color-accent-line);color:var(--color-accent);background:var(--color-accent-soft)}
+    .btnr.on{border-color:var(--color-accent-line);color:var(--color-accent);background:var(--color-accent-soft)}
+    @media (prefers-reduced-motion:reduce){
+      .rail-line,.cap.ignite,.cap.breathe,.tl-row.go,.tl-card,.tl-pill,.gwg-card.flare,.gwg-name.flare,.tl-final.go{animation:none;transition:none}
+      .rail-line{transform:scaleY(1)}
+      .tl-row{opacity:1}
+      .tl-card{transform:none}
+      .tl-pill{transform:none}
+      .tl-final{opacity:1;transform:none}
+    }
+  </style>
+</helmet>
+
+<div style="min-height:100vh;padding:36px 34px;display:flex;gap:34px;align-items:flex-start;flex-wrap:wrap">
+
+  <!-- ============ LIVE COMPONENT ============ -->
+  <div style="display:flex;flex-direction:column;gap:16px;width:500px;flex:none">
+    <div style="display:flex;flex-direction:column;gap:2px">
+      <span class="cap" style="font-size:10px;font-weight:700;letter-spacing:.24em;color:var(--fg-5)">Live component</span>
+      <span class="cap" style="font-size:15px;font-weight:900;letter-spacing:.04em;color:var(--fg-1)">Event Timeline — motion</span>
+    </div>
+
+    <section style="border:1px solid var(--color-border);background:var(--color-surface);padding:12px 14px 14px;display:flex;flex-direction:column">
+      <div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin-bottom:8px">
+        <div style="display:flex;flex-direction:column;gap:2px">
+          <span class="ds-section-label">Event Timeline</span>
+          <span class="cap" style="font-size:10px;letter-spacing:.14em;color:var(--fg-4)">Game flow · goals + penalties · BGM left / 4L right</span>
+        </div>
+        <span class="cap" style="font-size:10px;font-weight:700;letter-spacing:.14em;color:var(--fg-4)">4 EVENTS</span>
+      </div>
+
+      <div ref="{{ rList }}" style="position:relative">
+        <!-- central rail -->
+        <div ref="{{ rRail }}" class="rail-line" style="position:absolute;left:50%;top:6px;bottom:6px;width:2px;background:var(--color-accent-line);transform:translateX(-1px)"></div>
+        <span ref="{{ rCapTop }}" class="cap" style="position:absolute;left:50%;top:0;width:8px;height:8px;border-radius:50%;background:var(--color-accent);transform:translate(-50%,-2px);z-index:3"></span>
+        <span ref="{{ rCapBot }}" class="cap" style="position:absolute;left:50%;bottom:0;width:8px;height:8px;border-radius:50%;background:var(--color-accent);transform:translate(-50%,2px);z-index:3"></span>
+
+        <!-- opening face-off -->
+        <div class="tl-row" data-row="0" style="position:relative;z-index:1;display:flex;justify-content:center;padding:2px 0 8px">
+          <span class="cap" style="display:inline-flex;align-items:center;gap:9px;border:1px solid var(--color-border);background:var(--color-charcoal);padding:6px 16px;font-size:10px;font-weight:800;letter-spacing:.24em;color:var(--fg-4)"><span style="width:7px;height:7px;border-radius:50%;background:var(--fg-5)"></span>OPENING FACE-OFF</span>
+        </div>
+
+        <!-- 2ND PERIOD divider -->
+        <div class="tl-row" data-row="1" style="position:relative;z-index:1;display:flex;align-items:center;justify-content:center;padding:12px 0 10px">
+          <span style="position:absolute;left:0;right:0;top:50%;height:1px;background:linear-gradient(to right,transparent,var(--color-border) 28%,var(--color-border) 72%,transparent)"></span>
+          <span style="position:relative;display:inline-flex;align-items:center;gap:12px;border:1px solid var(--color-border);background:var(--color-charcoal);padding:5px 15px">
+            <span class="cap" style="font-size:15px;font-weight:900;letter-spacing:.2em;color:var(--fg-2)">2ND PERIOD</span>
+            <span style="width:1px;height:15px;background:var(--color-border)"></span>
+            <span class="cap" style="font-size:10px;font-weight:700;letter-spacing:.16em;color:var(--fg-2)">1 GOAL</span>
+          </span>
+        </div>
+
+        <!-- BGM goal (left) -->
+        <div class="tl-row" data-row="2" style="position:relative;z-index:1;display:grid;grid-template-columns:1fr 76px 1fr;align-items:center;gap:6px;margin:7px 0">
+          <div style="display:flex;justify-content:flex-end;min-width:0">
+            <div class="tl-card l" style="background:var(--color-surface);padding:9px 13px;display:flex;flex-direction:column;gap:6px;min-width:170px;max-width:210px;align-items:flex-end;text-align:right;border:1px solid var(--color-border);border-left:3px solid var(--color-accent)">
+              <div style="display:flex;align-items:center;gap:7px;flex-direction:row-reverse"><span style="width:6px;height:6px;border-radius:50%;flex:none;background:var(--color-accent)"></span><span class="cap" style="font-size:10px;font-weight:800;letter-spacing:.2em;color:var(--color-accent)">GOAL · BGM #1</span></div>
+              <span class="cap" style="font-size:17px;font-weight:900;letter-spacing:.03em;line-height:1.05;color:var(--fg-1)">silkyjoker85</span>
+              <div style="display:flex;align-items:center;gap:5px;flex-direction:row-reverse"><span class="cap" style="font-size:10px;font-weight:800;letter-spacing:.16em;color:var(--fg-4)">A</span><span class="cap" style="font-size:11px;font-weight:600;letter-spacing:.02em;color:var(--fg-3)">MrHomiecide</span></div>
+              <div style="display:flex;align-items:center;gap:9px;flex-direction:row-reverse;border-top:1px solid var(--color-border-subtle);padding-top:7px;margin-top:1px;width:100%;justify-content:flex-start"><span class="cap tabular" style="font-size:13px;font-weight:900;letter-spacing:.02em"><span style="color:var(--color-accent)">1</span><span style="color:var(--fg-6);padding:0 3px">–</span><span style="color:var(--fg-1)">0</span></span><span class="cap" style="font-size:10px;font-weight:700;letter-spacing:.14em;color:var(--color-accent)">↑ BGM TAKES LEAD</span></div>
+            </div>
+          </div>
+          <div style="display:flex;justify-content:center">
+            <span class="tl-pill" style="display:inline-flex;flex-direction:column;align-items:center;gap:1px;border:1px solid var(--color-accent-line);background:var(--color-background);padding:4px 8px">
+              <span class="cap tabular" style="font-size:11px;font-weight:800;letter-spacing:.06em;line-height:1;color:var(--fg-1)">06:19</span>
+              <span class="cap" style="font-size:10px;font-weight:700;letter-spacing:.1em;line-height:1;color:var(--fg-4)">2ND</span>
+            </span>
+          </div>
+          <div></div>
+        </div>
+
+        <!-- OPP tie goal (right) -->
+        <div class="tl-row" data-row="3" style="position:relative;z-index:1;display:grid;grid-template-columns:1fr 76px 1fr;align-items:center;gap:6px;margin:7px 0">
+          <div></div>
+          <div style="display:flex;justify-content:center">
+            <span class="tl-pill" style="display:inline-flex;flex-direction:column;align-items:center;gap:1px;border:1px solid var(--color-accent-line);background:var(--color-background);padding:4px 8px">
+              <span class="cap tabular" style="font-size:11px;font-weight:800;letter-spacing:.06em;line-height:1;color:var(--fg-1)">19:08</span>
+              <span class="cap" style="font-size:10px;font-weight:700;letter-spacing:.1em;line-height:1;color:var(--fg-4)">3RD</span>
+            </span>
+          </div>
+          <div style="display:flex;justify-content:flex-start;min-width:0">
+            <div class="tl-card r" style="background:var(--color-surface);padding:9px 13px;display:flex;flex-direction:column;gap:6px;min-width:170px;max-width:210px;align-items:flex-start;text-align:left;border:1px solid var(--color-border);border-right:3px solid var(--fg-4)">
+              <div style="display:flex;align-items:center;gap:7px"><span style="width:6px;height:6px;border-radius:50%;flex:none;background:var(--fg-4)"></span><span class="cap" style="font-size:10px;font-weight:800;letter-spacing:.2em;color:var(--fg-4)">GOAL · 4L #3</span></div>
+              <span class="cap" style="font-size:17px;font-weight:900;letter-spacing:.03em;line-height:1.05;color:var(--fg-1)">S. ZUBOV</span>
+              <div style="display:flex;align-items:center;gap:5px"><span class="cap" style="font-size:10px;font-weight:800;letter-spacing:.16em;color:var(--fg-4)">A</span><span class="cap" style="font-size:11px;font-weight:600;letter-spacing:.02em;color:var(--fg-3)">Whoosah</span></div>
+              <div style="display:flex;align-items:center;gap:9px;border-top:1px solid var(--color-border-subtle);padding-top:7px;margin-top:1px;width:100%;justify-content:flex-start"><span class="cap tabular" style="font-size:13px;font-weight:900;letter-spacing:.02em"><span style="color:var(--color-accent)">3</span><span style="color:var(--fg-6);padding:0 3px">–</span><span style="color:var(--fg-1)">3</span></span><span class="cap" style="font-size:10px;font-weight:700;letter-spacing:.14em;color:var(--color-otl)">— TIED</span></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- OT divider -->
+        <div class="tl-row" data-row="4" style="position:relative;z-index:1;display:flex;align-items:center;justify-content:center;padding:12px 0 10px">
+          <span style="position:absolute;left:0;right:0;top:50%;height:1px;background:linear-gradient(to right,transparent,var(--color-border) 28%,var(--color-border) 72%,transparent)"></span>
+          <span style="position:relative;display:inline-flex;align-items:center;gap:12px;border:1px solid var(--color-accent-line);background:var(--color-charcoal);padding:5px 15px">
+            <span class="cap" style="font-size:15px;font-weight:900;letter-spacing:.2em;color:var(--color-accent)">OT</span>
+            <span style="width:1px;height:15px;background:var(--color-border)"></span>
+            <span class="cap" style="font-size:10px;font-weight:700;letter-spacing:.16em;color:var(--fg-2)">1 GOAL</span>
+          </span>
+        </div>
+
+        <!-- GWG BGM (left) -->
+        <div class="tl-row" data-row="5" style="position:relative;z-index:1;display:grid;grid-template-columns:1fr 76px 1fr;align-items:center;gap:6px;margin:7px 0">
+          <div style="display:flex;justify-content:flex-end;min-width:0">
+            <div ref="{{ rGwg }}" class="tl-card gwg-card l" style="background:var(--color-surface);padding:9px 13px;display:flex;flex-direction:column;gap:6px;min-width:170px;max-width:210px;align-items:flex-end;text-align:right;border:1px solid var(--color-accent-line);border-left:3px solid var(--color-accent)">
+              <div style="display:flex;align-items:center;gap:7px;flex-direction:row-reverse"><span style="width:6px;height:6px;border-radius:50%;flex:none;background:var(--color-accent)"></span><span class="cap" style="font-size:10px;font-weight:800;letter-spacing:.2em;color:var(--color-accent)">GOAL · BGM #4 · GWG</span></div>
+              <span ref="{{ rGwgName }}" class="cap gwg-name" style="font-size:17px;font-weight:900;letter-spacing:.03em;line-height:1.05;color:var(--color-accent)">MrHomiecide</span>
+              <div style="display:flex;align-items:center;gap:5px;flex-direction:row-reverse"><span class="cap" style="font-size:10px;font-weight:800;letter-spacing:.16em;color:var(--fg-4)">A</span><span class="cap" style="font-size:11px;font-weight:600;letter-spacing:.02em;color:var(--fg-3)">Henry, Menace</span></div>
+              <div style="display:flex;align-items:center;gap:9px;flex-direction:row-reverse;border-top:1px solid var(--color-border-subtle);padding-top:7px;margin-top:1px;width:100%;justify-content:flex-start"><span class="cap tabular" style="font-size:13px;font-weight:900;letter-spacing:.02em"><span style="color:var(--color-accent)">4</span><span style="color:var(--fg-6);padding:0 3px">–</span><span style="color:var(--fg-1)">3</span></span><span class="cap" style="font-size:10px;font-weight:700;letter-spacing:.14em;color:var(--color-accent)">↑ BGM WINS</span></div>
+            </div>
+          </div>
+          <div style="display:flex;justify-content:center">
+            <span class="tl-pill" style="display:inline-flex;flex-direction:column;align-items:center;gap:1px;border:1px solid var(--color-accent-line);background:var(--color-background);padding:4px 8px">
+              <span class="cap tabular" style="font-size:11px;font-weight:800;letter-spacing:.06em;line-height:1;color:var(--fg-1)">17:23</span>
+              <span class="cap" style="font-size:10px;font-weight:700;letter-spacing:.1em;line-height:1;color:var(--fg-4)">OT</span>
+            </span>
+          </div>
+          <div></div>
+        </div>
+      </div>
+
+      <div style="position:relative;text-align:center;margin-top:12px">
+        <span ref="{{ rFinal }}" class="cap tabular tl-final" style="display:inline-block;font-size:11px;font-weight:800;letter-spacing:.1em;color:var(--color-accent);background:var(--color-surface);border:1px solid var(--color-accent-line);padding:5px 14px">FINAL · BGM 4 – 3</span>
+      </div>
+    </section>
+
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btnr" onClick="{{ replay }}">▶ Replay sequence</button>
+      <button ref="{{ rSlow }}" class="btnr" onClick="{{ toggleSlow }}">Slow-mo</button>
+    </div>
+    <span class="cap" style="font-size:9px;font-weight:600;letter-spacing:.1em;color:var(--fg-5);line-height:1.5">The game replays top→bottom in chronological order · respects prefers-reduced-motion</span>
+  </div>
+
+  <!-- ============ ANNOTATED RECOMMENDATIONS ============ -->
+  <div style="flex:1;min-width:340px;max-width:520px;display:flex;flex-direction:column;gap:14px">
+    <div style="display:flex;flex-direction:column;gap:3px">
+      <span class="cap" style="font-size:10px;font-weight:700;letter-spacing:.24em;color:var(--fg-5)">Recommended motion</span>
+      <span class="cap" style="font-size:20px;font-weight:900;letter-spacing:.02em;color:var(--fg-1)">Eight cues — the game replaying</span>
+      <span style="font-size:12px;color:var(--fg-4);line-height:1.55">The timeline should feel like the match <b style="color:var(--fg-2)">playing back in order</b>: the rail lays the spine, then events land one after another top to bottom, each sliding in from its own side. The winner arrives last, then the FINAL settles. No shimmer, no bounce — one measured beat per event.</span>
+    </div>
+
+    <div ref="{{ rLegend }}" style="display:flex;flex-direction:column;gap:7px">
+      <div class="cue-row" data-cue="1"><span class="cue-n">1</span><div><span class="cap" style="font-size:12px;font-weight:800;letter-spacing:.06em;color:var(--fg-2)">Rail spine draws down</span><div style="font-size:11px;color:var(--fg-4);line-height:1.5">The central red rail grows from the top cap to the bottom in one sweep (.62s) — the game's spine, laid before any event. <span class="tabular" style="color:var(--fg-5)">t=0</span></div></div></div>
+      <div class="cue-row" data-cue="2"><span class="cue-n">2</span><div><span class="cap" style="font-size:12px;font-weight:800;letter-spacing:.06em;color:var(--fg-2)">End-caps ignite, then breathe</span><div style="font-size:11px;color:var(--fg-4);line-height:1.5">As the rail lands, both red end-caps flare once, then settle into a slow ambient breathe. Life, not noise. <span class="tabular" style="color:var(--fg-5)">t≈.56s · loop</span></div></div></div>
+      <div class="cue-row" data-cue="3"><span class="cue-n">3</span><div><span class="cap" style="font-size:12px;font-weight:800;letter-spacing:.06em;color:var(--fg-2)">Opening face-off drops in</span><div style="font-size:11px;color:var(--fg-4);line-height:1.5">The OPENING FACE-OFF pill fades in at the top of the rail — the puck drops, the story starts. <span class="tabular" style="color:var(--fg-5)">t≈.35s</span></div></div></div>
+      <div class="cue-row" data-cue="4"><span class="cue-n">4</span><div><span class="cap" style="font-size:12px;font-weight:800;letter-spacing:.06em;color:var(--fg-2)">Events cascade chronologically</span><div style="font-size:11px;color:var(--fg-4);line-height:1.5">Period dividers and goal rows reveal in sequence, top→bottom, staggered ~260ms — the match unfolding in real order. <span class="tabular" style="color:var(--fg-5)">t≈.75s+</span></div></div></div>
+      <div class="cue-row" data-cue="5"><span class="cue-n">5</span><div><span class="cap" style="font-size:12px;font-weight:800;letter-spacing:.06em;color:var(--fg-2)">Clock pill pops at center</span><div style="font-size:11px;color:var(--fg-4);line-height:1.5">Each row's time pill scales up from .8 as it arrives, snapping onto the rail — the timestamp locking in. <span class="tabular" style="color:var(--fg-5)">per row</span></div></div></div>
+      <div class="cue-row" data-cue="6"><span class="cue-n">6</span><div><span class="cap" style="font-size:12px;font-weight:800;letter-spacing:.06em;color:var(--fg-2)">Cards slide from their side</span><div style="font-size:11px;color:var(--fg-4);line-height:1.5">Mirroring the whole product: BGM cards glide in from the left, opponent cards from the right, landing at rest. <span class="tabular" style="color:var(--fg-5)">per row</span></div></div></div>
+      <div class="cue-row" data-cue="7"><span class="cue-n">7</span><div><span class="cap" style="font-size:12px;font-weight:800;letter-spacing:.06em;color:var(--fg-2)">Game-winner flare</span><div style="font-size:11px;color:var(--fg-4);line-height:1.5">The GWG card lands with one red border-glow and its scorer name blooms — the decisive moment, marked once. <span class="tabular" style="color:var(--fg-5)">on GWG</span></div></div></div>
+      <div class="cue-row" data-cue="8"><span class="cue-n">8</span><div><span class="cap" style="font-size:12px;font-weight:800;letter-spacing:.06em;color:var(--fg-2)">FINAL banner lands last</span><div style="font-size:11px;color:var(--fg-4);line-height:1.5">After the last event, FINAL · BGM 4 – 3 rises + fades in with a single border flare — the result, arriving at the end. <span class="tabular" style="color:var(--fg-5)">t≈2.1s</span></div></div></div>
+    </div>
+
+    <div style="border:1px solid var(--color-border);background:var(--color-surface);padding:12px 14px;display:flex;flex-direction:column;gap:6px">
+      <span class="cap" style="font-size:10px;font-weight:700;letter-spacing:.18em;color:var(--fg-5)">Guardrails</span>
+      <span style="font-size:11px;color:var(--fg-4);line-height:1.6">Total entrance ≤ 2.4s and caps at the FINAL · slide distance ≤ 22px, no overshoot · one glow event per element, never a looping bloom (only the end-caps breathe) · a long timeline plays only the rows in view, remainder appear instantly on expand · all motion off under reduced-motion (rail full, rows visible, FINAL shown).</span>
+    </div>
+  </div>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1040,&quot;height&quot;:760}}">
+class Component extends DCLogic {
+  refs = {};
+  slow = false;
+
+  rList    = (el)=>{ if(el) this.refs.list=el; };
+  rRail    = (el)=>{ if(el) this.refs.rail=el; };
+  rCapTop  = (el)=>{ if(el) this.refs.capTop=el; };
+  rCapBot  = (el)=>{ if(el) this.refs.capBot=el; };
+  rGwg     = (el)=>{ if(el) this.refs.gwg=el; };
+  rGwgName = (el)=>{ if(el) this.refs.gwgName=el; };
+  rFinal   = (el)=>{ if(el) this.refs.final=el; };
+  rLegend  = (el)=>{ if(el) this.refs.legend=el; };
+  rSlow    = (el)=>{ if(el) this.refs.slow=el; };
+
+  replay     = ()=> this.play();
+  toggleSlow = ()=>{ this.slow=!this.slow; if(this.refs.slow) this.refs.slow.classList.toggle('on', this.slow); };
+
+  renderVals(){
+    return {
+      rList:this.rList, rRail:this.rRail, rCapTop:this.rCapTop, rCapBot:this.rCapBot,
+      rGwg:this.rGwg, rGwgName:this.rGwgName, rFinal:this.rFinal,
+      rLegend:this.rLegend, rSlow:this.rSlow,
+      replay:this.replay, toggleSlow:this.toggleSlow
+    };
+  }
+
+  componentDidMount(){
+    this.reduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion:reduce)').matches;
+    setTimeout(() => this.play(), 260);
+  }
+
+  s(ms){ return this.slow ? ms * 2.2 : ms; }
+
+  lit(n, on){
+    if(!this.refs.legend) return;
+    const r = this.refs.legend.querySelector('[data-cue="'+n+'"]');
+    if(r) r.classList.toggle('lit', on);
+  }
+
+  rows(){ return this.refs.list ? Array.from(this.refs.list.querySelectorAll('[data-row]')) : []; }
+
+  reset(){
+    const R = this.refs;
+    [1,2,3,4,5,6,7,8].forEach(n => this.lit(n,false));
+    if(R.rail){ R.rail.style.transition='none'; R.rail.classList.remove('go'); void R.rail.offsetHeight; }
+    [R.capTop,R.capBot].forEach(c=>{ if(c){ c.classList.remove('ignite','breathe'); } });
+    this.rows().forEach(r=> r.classList.remove('go'));
+    if(R.gwg) R.gwg.classList.remove('flare');
+    if(R.gwgName) R.gwgName.classList.remove('flare');
+    if(R.final) R.final.classList.remove('go');
+    void (R.list && R.list.offsetHeight);
+  }
+
+  play(){
+    if(this.reduced){ this.snapFinal(); return; }
+    const R = this.refs;
+    (this._timers||[]).forEach(clearTimeout);
+    this._timers = [];
+    const at = (ms, fn)=> this._timers.push(setTimeout(fn, ms));
+    this.reset();
+
+    this._timers.push(setTimeout(()=>{
+      // ① rail spine draws down
+      this.lit(1,true);
+      if(R.rail){ R.rail.style.transition=''; void R.rail.offsetHeight; R.rail.classList.add('go'); }
+
+      // ② end-caps ignite then breathe
+      at(this.s(560), ()=>{
+        this.lit(2,true);
+        [R.capTop,R.capBot].forEach(c=>{ if(c){ c.classList.add('ignite'); } });
+        at(this.s(720), ()=>{ [R.capTop,R.capBot].forEach(c=>{ if(c){ c.classList.remove('ignite'); c.classList.add('breathe'); } }); });
+      });
+
+      // ③ opening face-off
+      at(this.s(350), ()=>{ this.lit(3,true); const r0=this.rows()[0]; if(r0) r0.classList.add('go'); });
+
+      // ④⑤⑥⑦ events cascade chronologically
+      const seq = this.rows().slice(1); // rows 1..5
+      const base = this.s(760), step = this.s(260);
+      seq.forEach((row, i)=>{
+        at(base + i*step, ()=>{
+          this.lit(4,true); this.lit(5,true); this.lit(6,true);
+          row.classList.add('go');
+          // ⑦ GWG flare when the winner row lands
+          if(row === (R.gwg && R.gwg.closest('[data-row]'))){
+            this.lit(7,true);
+            R.gwg.classList.add('flare');
+            if(R.gwgName) R.gwgName.classList.add('flare');
+          }
+        });
+      });
+
+      // ⑧ FINAL lands last
+      at(base + seq.length*step + this.s(120), ()=>{
+        this.lit(8,true);
+        if(R.final) R.final.classList.add('go');
+      });
+    }, 30));
+  }
+
+  snapFinal(){
+    const R=this.refs;
+    if(R.rail){ R.rail.style.transition='none'; R.rail.classList.add('go'); }
+    [R.capTop,R.capBot].forEach(c=>{ if(c){ c.classList.remove('ignite'); c.classList.add('breathe'); } });
+    this.rows().forEach(r=> r.classList.add('go'));
+    if(R.final) R.final.classList.add('go');
+    [1,2,3,4,5,6,7,8].forEach(n=>this.lit(n,false));
+  }
+}
+</script>
+</body>
+</html>

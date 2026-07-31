@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="_ds/boogeymen-design-system-019df013-7ada-79ec-ac26-22b50894a2b1/colors_and_type.css">
+  <link rel="stylesheet" href="_ds/boogeymen-design-system-019df013-7ada-79ec-ac26-22b50894a2b1/preview/_base.css">
+  <style>
+    body{margin:0;background:var(--color-background);color:var(--fg-1);font-family:var(--font-sans)}
+    .cap{font-family:var(--font-condensed);text-transform:uppercase}
+    /* ① broadcast ticker sweep — faint bright band travels the red strip (ambient) */
+    .ticker-strip{position:relative;overflow:hidden;height:2px;background:linear-gradient(90deg,var(--color-accent-deep,#6d0f1c),var(--color-accent),var(--color-accent-deep,#6d0f1c))}
+    .ticker-strip::after{content:"";position:absolute;top:0;bottom:0;left:0;width:40%;background:linear-gradient(90deg,transparent,rgba(255,255,255,.75),transparent);transform:translateX(-140%);animation:bcast-sweep 3s cubic-bezier(.55,0,.45,1) .8s infinite}
+    @keyframes bcast-sweep{0%{transform:translateX(-140%)}55%,100%{transform:translateX(320%)}}
+    /* ① panel reveal + red hairline wipe */
+    @keyframes bcast-rise{from{opacity:0;transform:translateY(22px) scale(.985)}to{opacity:1;transform:translateY(0) scale(1)}}
+    .panel-in{animation:bcast-rise .6s cubic-bezier(.16,.84,.3,1) both}
+    @keyframes panel-wipe{0%{transform:translateX(-120%);opacity:0}18%{opacity:1}80%{opacity:1}100%{transform:translateX(340%);opacity:0}}
+    .panel-wipe{position:absolute;top:0;left:0;z-index:4;height:2px;width:45%;pointer-events:none;background:linear-gradient(90deg,transparent,var(--color-accent),transparent)}
+    .panel-wipe.go{animation:panel-wipe .8s cubic-bezier(.55,0,.45,1) both}
+    /* ⑤ winning % one-time bloom then settle */
+    @keyframes big-bloom{0%{text-shadow:0 0 0 rgba(232,65,49,0)}42%{text-shadow:0 0 30px rgba(232,65,49,.85),0 0 12px rgba(232,65,49,.6)}100%{text-shadow:0 0 22px rgba(232,65,49,.3)}}
+    .big-bloom.go{animation:big-bloom .95s ease-out both}
+    /* ⑥ verdict badge — rises + single accent flare as it lands */
+    .verdict{opacity:0;transform:translateY(7px)}
+    .verdict.go{opacity:1;transform:translateY(0);transition:opacity .34s cubic-bezier(.16,.84,.3,1),transform .34s cubic-bezier(.16,.84,.3,1);animation:verdict-flare .6s ease-out both}
+    @keyframes verdict-flare{0%{box-shadow:0 0 0 rgba(232,65,49,0)}55%{box-shadow:0 0 15px rgba(232,65,49,.6)}100%{box-shadow:0 0 5px rgba(232,65,49,.28)}}
+    /* ⑦ confidence dot — slow capped breathing (ambient) */
+    @keyframes dot-breathe{0%,100%{text-shadow:0 0 3px rgba(52,199,120,.4)}50%{text-shadow:0 0 10px rgba(52,199,120,.8)}}
+    .conf-dot{animation:dot-breathe 2.6s ease-in-out infinite}
+    /* ⑧ contributor dueling bar — grows from its own edge; boosted side flares once */
+    .cbar{transform-origin:left center;transform:scaleX(0)}
+    .cbar.right{transform-origin:right center}
+    .cbar.go{transform:scaleX(1);transition:transform .55s cubic-bezier(.2,.7,.2,1)}
+    .cbar.boost.go{animation:bar-boost .55s ease-out .3s both}
+    @keyframes bar-boost{0%{box-shadow:0 0 0 rgba(232,65,49,0)}60%{box-shadow:0 0 12px rgba(232,65,49,.6)}100%{box-shadow:0 0 5px rgba(232,65,49,.35)}}
+    /* needle + arcs animate via inline transition set in JS */
+    #needle{transform-box:view-box;transform-origin:120px 120px}
+    /* legend */
+    .cue-row{display:flex;gap:10px;padding:9px 11px;border:1px solid var(--color-border);background:var(--color-surface);transition:background-color .25s ease,border-color .25s ease}
+    .cue-row.lit{background:var(--color-accent-soft);border-color:var(--color-accent-line)}
+    .cue-n{flex:none;width:20px;height:20px;display:grid;place-items:center;border:1px solid var(--color-border);font:800 10px var(--font-condensed);color:var(--fg-4);background:var(--color-charcoal)}
+    .cue-row.lit .cue-n{color:var(--color-accent);border-color:var(--color-accent-line);background:transparent}
+    .btnr{display:flex;align-items:center;gap:6px;cursor:pointer;border:1px solid var(--color-border);background:var(--color-surface);color:var(--fg-2);font:800 11px var(--font-condensed);text-transform:uppercase;letter-spacing:.12em;padding:8px 14px;transition:border-color .2s ease,color .2s ease,background-color .2s ease}
+    .btnr:hover{border-color:var(--color-accent-line);color:var(--color-accent);background:var(--color-accent-soft)}
+    .btnr.on{border-color:var(--color-accent-line);color:var(--color-accent);background:var(--color-accent-soft)}
+    @media (prefers-reduced-motion:reduce){
+      .ticker-strip::after,.panel-in,.panel-wipe.go,.big-bloom.go,.verdict.go,.conf-dot,.cbar.go,.cbar.boost.go{animation:none;transition:none}
+      .verdict{opacity:1;transform:none}
+      .cbar{transform:none}
+    }
+  </style>
+</helmet>
+
+<div style="min-height:100vh;padding:36px 34px;display:flex;gap:34px;align-items:flex-start;flex-wrap:wrap">
+
+  <!-- ============ LIVE COMPONENT ============ -->
+  <div style="display:flex;flex-direction:column;gap:16px;width:300px;flex:none">
+    <div style="display:flex;flex-direction:column;gap:2px">
+      <span class="cap" style="font-size:10px;font-weight:700;letter-spacing:.24em;color:var(--fg-5)">Live component</span>
+      <span class="cap" style="font-size:15px;font-weight:900;letter-spacing:.04em;color:var(--fg-1)">Deserve to Win — motion</span>
+    </div>
+
+    <section ref="{{ rPanel }}" class="panel-in" style="position:relative;border:1px solid var(--color-border);background:var(--bg-broadcast);overflow:hidden">
+      <div class="ticker-strip"></div>
+      <div ref="{{ rWipe }}" class="panel-wipe"></div>
+      <div style="padding:12px 14px 14px;display:flex;flex-direction:column;gap:11px">
+        <div style="display:flex;align-items:baseline;gap:8px">
+          <span class="cap" style="font-size:11px;font-weight:700;letter-spacing:.18em;color:var(--fg-4)"><span style="color:var(--color-accent);padding-right:4px">▰</span>Deserve to Win</span>
+          <span class="cap" style="margin-left:auto;font-size:10px;font-weight:700;letter-spacing:.14em;color:var(--color-win,#34c778)"><span class="conf-dot">●</span> 0.95</span>
+        </div>
+        <div style="display:flex;align-items:flex-end;justify-content:space-between">
+          <div style="display:flex;flex-direction:column">
+            <span class="cap" style="font-size:10px;font-weight:800;letter-spacing:.2em;color:var(--color-accent)">BGM</span>
+            <span ref="{{ rBig }}" class="cap tabular big-bloom" style="font-size:38px;font-weight:900;line-height:.9;color:var(--color-accent);text-shadow:0 0 22px rgba(232,65,49,.3)"><span ref="{{ rBgm }}">0.0</span><span style="font-size:18px;color:var(--fg-5)">%</span></span>
+          </div>
+          <div style="display:flex;flex-direction:column;align-items:flex-end">
+            <span class="cap" style="font-size:10px;font-weight:800;letter-spacing:.2em;color:var(--fg-4)">4L</span>
+            <span class="cap tabular" style="font-size:38px;font-weight:900;line-height:.9;color:var(--fg-3)"><span ref="{{ rOpp }}">100.0</span><span style="font-size:18px;color:var(--fg-5)">%</span></span>
+          </div>
+        </div>
+        <div style="display:flex;justify-content:center">
+          <svg viewBox="0 0 240 152" style="width:100%;max-width:230px;display:block" aria-hidden="true">
+            <path d="M 24 120 A 96 96 0 0 1 216 120" fill="none" stroke="var(--color-charcoal)" stroke-width="30"></path>
+            <path ref="{{ rArcRed }}" d="M 24 120 A 96 96 0 0 1 148.79 28.42" fill="none" stroke="var(--color-accent)" stroke-width="22"></path>
+            <path ref="{{ rArcGrey }}" d="M 148.79 28.42 A 96 96 0 0 1 216 120" fill="none" stroke="var(--fg-4)" stroke-width="22"></path>
+            <line x1="24" y1="120" x2="24" y2="130" stroke="var(--fg-5)" stroke-width="1.2"></line>
+            <line x1="120" y1="24" x2="120" y2="14" stroke="var(--fg-5)" stroke-width="1.2"></line>
+            <line x1="216" y1="120" x2="216" y2="130" stroke="var(--fg-5)" stroke-width="1.2"></line>
+            <text x="24" y="144" text-anchor="middle" style="font:800 10px var(--font-condensed);fill:var(--fg-4);letter-spacing:.1em">0%</text>
+            <text x="120" y="11" text-anchor="middle" style="font:800 10px var(--font-condensed);fill:var(--fg-4);letter-spacing:.1em">50</text>
+            <text x="216" y="144" text-anchor="middle" style="font:800 10px var(--font-condensed);fill:var(--fg-4);letter-spacing:.1em">100%</text>
+            <g ref="{{ rNeedle }}" id="needle">
+              <line x1="120" y1="120" x2="120" y2="34" stroke="var(--fg-1)" stroke-width="3.5" stroke-linecap="round"></line>
+              <circle cx="120" cy="120" r="8" fill="var(--fg-1)"></circle>
+              <circle cx="120" cy="120" r="4" fill="var(--color-background)"></circle>
+            </g>
+          </svg>
+        </div>
+        <div style="display:flex;flex-direction:column;align-items:center;gap:5px">
+          <span ref="{{ rVerdict }}" class="cap verdict" style="font-size:10px;font-weight:900;letter-spacing:.2em;color:var(--color-accent);border:1px solid var(--color-accent-line);background:var(--color-accent-soft);padding:5px 12px">BGM EARNED THIS WIN</span>
+        </div>
+        <details ref="{{ rDetails }}" style="border-top:1px solid var(--color-border-subtle);padding-top:10px">
+          <summary class="cap" style="cursor:pointer;list-style:none;font-size:10px;font-weight:700;letter-spacing:.14em;color:var(--fg-4);display:flex;align-items:center;gap:6px">WHERE THE EDGE CAME FROM<span style="margin-left:auto;color:var(--fg-4)">＋</span></summary>
+          <div style="display:flex;flex-direction:column;gap:10px;padding-top:10px">
+            <div style="display:flex;flex-direction:column;gap:4px">
+              <div style="display:flex;align-items:center;gap:6px">
+                <span class="cap" style="font-size:11px;font-weight:900;letter-spacing:.06em;color:var(--fg-2)">SHOTS</span>
+                <span class="cap tabular" style="font-size:10px;font-weight:800;color:var(--fg-3);border:1px solid var(--color-border);padding:1px 5px">50%</span>
+                <span class="cap tabular" style="margin-left:auto;font-size:11px;font-weight:800;color:var(--fg-3)"><b style="color:var(--color-accent)">29</b> – 16</span>
+              </div>
+              <div style="display:flex;height:8px;background:var(--color-charcoal);border:1px solid var(--color-border);overflow:hidden"><span ref="{{ rBar0 }}" class="cbar boost" style="width:64%;background:var(--color-accent)"></span><span class="cbar right" style="width:36%;background:var(--fg-4)"></span></div>
+              <span class="cap tabular" style="font-size:10px;font-weight:700;letter-spacing:.1em;color:var(--fg-4)"><b style="color:var(--color-accent);font-weight:900">+7.2</b> TO DTW · BGM 64%</span>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:4px">
+              <div style="display:flex;align-items:center;gap:6px">
+                <span class="cap" style="font-size:11px;font-weight:900;letter-spacing:.06em;color:var(--fg-2)">TOA</span>
+                <span class="cap tabular" style="font-size:10px;font-weight:800;color:var(--fg-3);border:1px solid var(--color-border);padding:1px 5px">35%</span>
+                <span class="cap tabular" style="margin-left:auto;font-size:11px;font-weight:800;color:var(--fg-3)"><b style="color:var(--color-accent)">12:42</b> – 6:11</span>
+              </div>
+              <div style="display:flex;height:8px;background:var(--color-charcoal);border:1px solid var(--color-border);overflow:hidden"><span ref="{{ rBar1 }}" class="cbar boost" style="width:67%;background:var(--color-accent)"></span><span class="cbar right" style="width:33%;background:var(--fg-4)"></span></div>
+              <span class="cap tabular" style="font-size:10px;font-weight:700;letter-spacing:.1em;color:var(--fg-4)"><b style="color:var(--color-accent);font-weight:900">+6.0</b> TO DTW · BGM 67%</span>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:4px">
+              <div style="display:flex;align-items:center;gap:6px">
+                <span class="cap" style="font-size:11px;font-weight:900;letter-spacing:.06em;color:var(--fg-2)">HITS</span>
+                <span class="cap tabular" style="font-size:10px;font-weight:800;color:var(--fg-3);border:1px solid var(--color-border);padding:1px 5px">15%</span>
+                <span class="cap tabular" style="margin-left:auto;font-size:11px;font-weight:800;color:var(--fg-3)">14 – <b style="color:var(--color-accent)">39</b></span>
+              </div>
+              <div style="display:flex;height:8px;background:var(--color-charcoal);border:1px solid var(--color-border);overflow:hidden"><span class="cbar" style="width:26%;background:var(--fg-4)"></span><span ref="{{ rBar2 }}" class="cbar right boost" style="width:74%;background:var(--color-accent)"></span></div>
+              <span class="cap tabular" style="font-size:10px;font-weight:700;letter-spacing:.1em;color:var(--fg-4)"><b style="color:var(--color-accent);font-weight:900">−3.5</b> FROM DTW · BGM 26%</span>
+            </div>
+          </div>
+        </details>
+      </div>
+    </section>
+
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btnr" onClick="{{ replay }}">▶ Replay sequence</button>
+      <button ref="{{ rSlow }}" class="btnr" onClick="{{ toggleSlow }}">Slow-mo</button>
+    </div>
+    <span class="cap" style="font-size:9px;font-weight:600;letter-spacing:.1em;color:var(--fg-5);line-height:1.5">Open “where the edge came from” to watch the contributor bars grow · respects prefers-reduced-motion</span>
+  </div>
+
+  <!-- ============ ANNOTATED RECOMMENDATIONS ============ -->
+  <div style="flex:1;min-width:340px;max-width:520px;display:flex;flex-direction:column;gap:14px">
+    <div style="display:flex;flex-direction:column;gap:3px">
+      <span class="cap" style="font-size:10px;font-weight:700;letter-spacing:.24em;color:var(--fg-5)">Recommended motion</span>
+      <span class="cap" style="font-size:20px;font-weight:900;letter-spacing:.02em;color:var(--fg-1)">Eight cues, broadcast-restrained</span>
+      <span style="font-size:12px;color:var(--fg-4);line-height:1.55">The gauge should <b style="color:var(--fg-2)">compute a verdict</b>, not celebrate. Everything settles from an even coin-flip to the true reading in one measured beat — no bounce, no spring, no shimmer beyond the existing ticker.</span>
+    </div>
+
+    <div ref="{{ rLegend }}" style="display:flex;flex-direction:column;gap:7px">
+      <div class="cue-row" data-cue="1"><span class="cue-n">1</span><div><span class="cap" style="font-size:12px;font-weight:800;letter-spacing:.06em;color:var(--fg-2)">Panel reveal + hairline wipe</span><div style="font-size:11px;color:var(--fg-4);line-height:1.5">Rise 22px + fade, .6s ease-out; a red 2px hairline wipes across the top edge once, like a lower-third plugging in. <span class="tabular" style="color:var(--fg-5)">t=0</span></div></div></div>
+      <div class="cue-row" data-cue="2"><span class="cue-n">2</span><div><span class="cap" style="font-size:12px;font-weight:800;letter-spacing:.06em;color:var(--fg-2)">Gauge arcs draw in</span><div style="font-size:11px;color:var(--fg-4);line-height:1.5">One continuous front sweeps left→right: red fills 0→59.7, then grey carries on to 100. The needle rides the front. Reads as one clean “fill.” <span class="tabular" style="color:var(--fg-5)">t=.15s</span></div></div></div>
+      <div class="cue-row" data-cue="3"><span class="cue-n">3</span><div><span class="cap" style="font-size:12px;font-weight:800;letter-spacing:.06em;color:var(--fg-2)">Needle sweep from 0</span><div style="font-size:11px;color:var(--fg-4);line-height:1.5">Starts pinned at 0%, sweeps up locked in sync with the red fill and the BGM count, landing at 59.7 — no overshoot. <span class="tabular" style="color:var(--fg-5)">t=.15s</span></div></div></div>
+      <div class="cue-row" data-cue="4"><span class="cue-n">4</span><div><span class="cap" style="font-size:12px;font-weight:800;letter-spacing:.06em;color:var(--fg-2)">Percentages count up</span><div style="font-size:11px;color:var(--fg-4);line-height:1.5">BGM ticks 0 → 59.7 as the needle rises; 4L mirrors 100 → 40.3. Tabular-nums so nothing shifts. <span class="tabular" style="color:var(--fg-5)">t=.15s</span></div></div></div>
+      <div class="cue-row" data-cue="5"><span class="cue-n">5</span><div><span class="cap" style="font-size:12px;font-weight:800;letter-spacing:.06em;color:var(--fg-2)">Winning % blooms once</span><div style="font-size:11px;color:var(--fg-4);line-height:1.5">As the count lands, the BGM number flares a red glow then settles to its resting shadow. Single event, capped. <span class="tabular" style="color:var(--fg-5)">t≈1.1s</span></div></div></div>
+      <div class="cue-row" data-cue="6"><span class="cue-n">6</span><div><span class="cap" style="font-size:12px;font-weight:800;letter-spacing:.06em;color:var(--fg-2)">Verdict badge lands</span><div style="font-size:11px;color:var(--fg-4);line-height:1.5">“BGM EARNED THIS WIN” rises 7px + fades in with one border-glow flare — the conclusion, arriving last. <span class="tabular" style="color:var(--fg-5)">t≈1.15s</span></div></div></div>
+      <div class="cue-row" data-cue="7"><span class="cue-n">7</span><div><span class="cap" style="font-size:12px;font-weight:800;letter-spacing:.06em;color:var(--fg-2)">Ambient: ticker + confidence dot</span><div style="font-size:11px;color:var(--fg-4);line-height:1.5">Ongoing: the top strip’s bright band sweeps every 3s; the green confidence dot breathes slowly. Life, not noise. <span class="tabular" style="color:var(--fg-5)">loop</span></div></div></div>
+      <div class="cue-row" data-cue="8"><span class="cue-n">8</span><div><span class="cap" style="font-size:12px;font-weight:800;letter-spacing:.06em;color:var(--fg-2)">Contributor bars (on expand)</span><div style="font-size:11px;color:var(--fg-4);line-height:1.5">When the breakdown opens, each dueling bar grows from its own edge (.55s), and the boosted accent side flares once. <span class="tabular" style="color:var(--fg-5)">on toggle</span></div></div></div>
+    </div>
+
+    <div style="border:1px solid var(--color-border);background:var(--color-surface);padding:12px 14px;display:flex;flex-direction:column;gap:6px">
+      <span class="cap" style="font-size:10px;font-weight:700;letter-spacing:.18em;color:var(--fg-5)">Guardrails</span>
+      <span style="font-size:11px;color:var(--fg-4);line-height:1.6">Total entrance ≤ 1.3s · one glow event per element, never looping bloom · needle decelerates, no elastic settle · all motion off under reduced-motion (numbers snap to final, gauge shown filled).</span>
+    </div>
+  </div>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:900,&quot;height&quot;:640}}">
+class Component extends DCLogic {
+  refs = {};
+  slow = false;
+
+  rPanel   = (el)=>{ if(el) this.refs.panel=el; };
+  rWipe    = (el)=>{ if(el) this.refs.wipe=el; };
+  rBig     = (el)=>{ if(el) this.refs.big=el; };
+  rBgm     = (el)=>{ if(el) this.refs.bgm=el; };
+  rOpp     = (el)=>{ if(el) this.refs.opp=el; };
+  rArcRed  = (el)=>{ if(el) this.refs.arcRed=el; };
+  rArcGrey = (el)=>{ if(el) this.refs.arcGrey=el; };
+  rNeedle  = (el)=>{ if(el) this.refs.needle=el; };
+  rVerdict = (el)=>{ if(el) this.refs.verdict=el; };
+  rDetails = (el)=>{ if(el) this.refs.details=el; };
+  rLegend  = (el)=>{ if(el) this.refs.legend=el; };
+  rSlow    = (el)=>{ if(el) this.refs.slow=el; };
+  rBar0    = (el)=>{ if(el) this.refs.bar0=el; };
+  rBar1    = (el)=>{ if(el) this.refs.bar1=el; };
+  rBar2    = (el)=>{ if(el) this.refs.bar2=el; };
+  replay     = ()=> this.play();
+  toggleSlow = ()=>{ this.slow=!this.slow; if(this.refs.slow) this.refs.slow.classList.toggle('on', this.slow); };
+
+  renderVals(){
+    return {
+      rPanel:this.rPanel, rWipe:this.rWipe, rBig:this.rBig, rBgm:this.rBgm,
+      rOpp:this.rOpp, rArcRed:this.rArcRed, rArcGrey:this.rArcGrey,
+      rNeedle:this.rNeedle, rVerdict:this.rVerdict, rDetails:this.rDetails,
+      rLegend:this.rLegend, rSlow:this.rSlow,
+      rBar0:this.rBar0, rBar1:this.rBar1, rBar2:this.rBar2,
+      replay:this.replay, toggleSlow:this.toggleSlow
+    };
+  }
+
+  componentDidMount(){
+    // prep arc dash metrics once
+    [this.refs.arcRed, this.refs.arcGrey].forEach(a => {
+      if(!a) return;
+      const len = a.getTotalLength();
+      a.dataset.len = len;
+      a.style.strokeDasharray = len;
+      a.style.strokeDashoffset = len;
+    });
+    // contributor bars grow when the breakdown opens
+    if(this.refs.details){
+      this.refs.details.addEventListener('toggle', () => {
+        if(this.refs.details.open) this.growBars();
+        else this.resetBars();
+      });
+    }
+    this.reduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion:reduce)').matches;
+    setTimeout(() => this.play(), 260);
+  }
+
+  s(ms){ return this.slow ? ms * 2.6 : ms; }
+
+  lit(n, on){
+    if(!this.refs.legend) return;
+    const r = this.refs.legend.querySelector('[data-cue="'+n+'"]');
+    if(r) r.classList.toggle('lit', on);
+  }
+
+  reset(){
+    const R = this.refs;
+    [1,2,3,4,5,6].forEach(n => this.lit(n,false));
+    this.lit(7,true); // ambient always on
+    if(R.needle){ R.needle.style.transition='none'; R.needle.style.transform='rotate(-90deg)'; }
+    [R.arcRed,R.arcGrey].forEach(a=>{ if(a){ a.style.transition='none'; a.style.strokeDashoffset=a.dataset.len; }});
+    if(R.bgm) R.bgm.textContent='0.0';
+    if(R.opp) R.opp.textContent='100.0';
+    if(R.big) R.big.classList.remove('go');
+    if(R.verdict) R.verdict.classList.remove('go');
+    if(R.panel){ R.panel.classList.remove('panel-in'); }
+    if(R.wipe){ R.wipe.classList.remove('go'); }
+    // force reflow so removed animation classes re-trigger
+    void (R.panel && R.panel.offsetHeight);
+  }
+
+  play(){
+    if(this.reduced){ this.snapFinal(); return; }
+    const R = this.refs;
+    clearTimeout(this._t5); clearTimeout(this._t6); clearTimeout(this._tGo); clearInterval(this._iv);
+    this.reset();
+    // small delay lets the reset styles commit (reflow) before we transition
+    this._tGo = setTimeout(() => {
+      // ① panel + wipe
+      this.lit(1,true);
+      if(R.panel){ R.panel.classList.remove('panel-in'); void R.panel.offsetHeight; R.panel.classList.add('panel-in'); }
+      if(R.wipe){ R.wipe.classList.remove('go'); void R.wipe.offsetHeight; R.wipe.classList.add('go'); }
+      // ②③④ after a short beat
+      setTimeout(() => {
+        this.lit(2,true); this.lit(3,true); this.lit(4,true);
+        const dur = this.s(1050);
+        // ONE continuous fill left->right: red covers 0->59.7, grey continues 59.7->100.
+        // split the duration by each arc's share of the sweep so a single front travels the track.
+        const redDur = dur*0.597, greyDur = dur*0.403;
+        if(R.arcRed){ R.arcRed.style.transition='stroke-dashoffset '+redDur+'ms linear'; R.arcRed.style.strokeDashoffset=0; }
+        if(R.arcGrey){ R.arcGrey.style.transition='stroke-dashoffset '+greyDur+'ms linear '+redDur+'ms'; R.arcGrey.style.strokeDashoffset=0; }
+        // needle rides the front up to the 59.7 junction, arriving as red completes, then eases to rest
+        if(R.needle){ R.needle.style.transition='transform '+redDur+'ms linear'; R.needle.style.transform='rotate(17.46deg)'; }
+        // count up finishes with the needle at the junction
+        this.countUp(59.7, redDur);
+        // ⑤⑥ land after the full sweep completes
+        this._t5 = setTimeout(() => { this.lit(5,true); if(R.big){ R.big.classList.remove('go'); void R.big.offsetHeight; R.big.classList.add('go'); } }, this.s(1050)-150);
+        this._t6 = setTimeout(() => { this.lit(6,true); if(R.verdict) R.verdict.classList.add('go'); }, this.s(1120)-150);
+      }, this.s(150));
+    }, 30);
+  }
+
+  countUp(target, dur){
+    const R = this.refs; const t0 = Date.now();
+    const ease = p => 1 - Math.pow(1-p, 3);
+    clearInterval(this._iv);
+    this._iv = setInterval(() => {
+      let p = Math.min(1,(Date.now()-t0)/dur);
+      let v = target*ease(p);
+      if(R.bgm) R.bgm.textContent = v.toFixed(1);
+      if(R.opp) R.opp.textContent = (100-v).toFixed(1);
+      if(p>=1) clearInterval(this._iv);
+    }, 16);
+  }
+
+  growBars(){
+    this.lit(8,true);
+    ['bar0','bar1','bar2'].forEach((k,i)=>{
+      const b=this.refs[k]; if(!b) return;
+      // reset + retrigger for consistent playback
+      b.classList.remove('go'); void b.offsetHeight;
+      // also grow the sibling non-boost bar
+      const grow=(el)=>{ el.classList.remove('go'); void el.offsetHeight; el.classList.add('go'); };
+      grow(b);
+    });
+    // grow every cbar in the drawer
+    if(this.refs.details){
+      this.refs.details.querySelectorAll('.cbar').forEach(el=>{ el.classList.remove('go'); void el.offsetHeight; el.classList.add('go'); });
+    }
+  }
+  resetBars(){
+    this.lit(8,false);
+    if(this.refs.details) this.refs.details.querySelectorAll('.cbar').forEach(el=>el.classList.remove('go'));
+  }
+
+  snapFinal(){
+    const R=this.refs;
+    if(R.needle){ R.needle.style.transition='none'; R.needle.style.transform='rotate(17.46deg)'; }
+    [R.arcRed,R.arcGrey].forEach(a=>{ if(a){ a.style.transition='none'; a.style.strokeDashoffset=0; }});
+    if(R.bgm) R.bgm.textContent='59.7';
+    if(R.opp) R.opp.textContent='40.3';
+    if(R.verdict) R.verdict.style.opacity=1, R.verdict.style.transform='none';
+    if(this.refs.details) this.refs.details.querySelectorAll('.cbar').forEach(el=>{ el.style.transition='none'; el.style.transform='scaleX(1)'; });
+    [1,2,3,4,5,6,7,8].forEach(n=>this.lit(n,false));
+  }
+}
+</script>
+</body>
+</html>

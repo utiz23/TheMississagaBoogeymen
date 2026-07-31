@@ -1,0 +1,548 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<link rel="stylesheet" href="_ds/boogeymen-design-system-019df013-7ada-79ec-ac26-22b50894a2b1/colors_and_type.css">
+<script src="_ds/boogeymen-design-system-019df013-7ada-79ec-ac26-22b50894a2b1/_ds_bundle.js"></script>
+<style>
+  body{margin:0;background:var(--color-background)}
+  a{color:var(--color-accent);text-decoration:none}
+  a:hover{color:#f2695a}
+  .cap{font-family:var(--font-condensed);text-transform:uppercase}
+  .tab{font-variant-numeric:tabular-nums}
+  input[type=text]{font-family:var(--font-condensed)}
+  .chip{transition:border-color .15s,background-color .15s,color .15s;cursor:pointer}
+  .chip:hover{border-color:var(--color-accent-line)!important;background:var(--color-surface-raised)!important}
+</style>
+</helmet>
+
+<div style="min-height:100vh;background:var(--color-background);color:var(--fg-1);font-family:var(--font-sans);padding:0 0 96px">
+
+  <div style="height:2px;background:var(--bg-ticker-red)"></div>
+
+  <!-- MASTHEAD -->
+  <div style="max-width:1160px;margin:0 auto;padding:44px 24px 0">
+    <div class="cap" style="font-size:11px;font-weight:600;letter-spacing:.28em;color:var(--fg-5)">BOOGEYMEN · GAME SHEET · COLOUR SPEC</div>
+    <h1 class="cap" style="margin:12px 0 0;font-size:44px;font-weight:900;letter-spacing:.03em;line-height:1;color:var(--fg-1)">OPPONENT COLOUR — CLASH CONTINGENCIES</h1>
+    <p class="ds-body" style="max-width:660px;margin:16px 0 0;text-wrap:pretty">BGM is red on every sheet, in every mode, regardless of jersey worn. That fixed point creates two failure cases — opponents whose brand colour is red, and opponents whose brand colour is black. This spec resolves both.</p>
+  </div>
+
+  <!-- 01 — THE FIXED POINT -->
+  <div style="max-width:1160px;margin:0 auto;padding:56px 24px 0">
+    <div style="display:flex;align-items:baseline;gap:14px;margin-bottom:14px">
+      <span class="cap tab" style="font-size:12px;font-weight:700;letter-spacing:.2em;color:var(--color-accent)">01</span>
+      <span class="cap" style="font-size:13px;font-weight:600;letter-spacing:.2em;color:var(--fg-4)">THE FIXED POINT</span>
+      <span style="flex:1;height:1px;background:linear-gradient(to right,var(--color-border),transparent)"></span>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--color-border);border:1px solid var(--color-border)">
+      <div style="background:var(--color-surface);padding:28px 30px">
+        <div class="cap" style="font-size:11px;font-weight:600;letter-spacing:.2em;color:var(--fg-5)">RESERVED</div>
+        <div style="display:flex;align-items:center;gap:16px;margin-top:14px">
+          <span style="width:56px;height:56px;background:var(--color-accent);flex:none"></span>
+          <div>
+            <div class="cap" style="font-size:26px;font-weight:900;letter-spacing:.05em;line-height:1">BGM RED</div>
+            <div class="cap tab" style="font-size:12px;font-weight:600;letter-spacing:.16em;color:var(--fg-4);margin-top:5px">#E84131 · OKLCH 62 / .20 / 29°</div>
+          </div>
+        </div>
+        <p class="ds-body" style="margin:18px 0 0;text-wrap:pretty">Red means <span style="color:var(--fg-2)">us</span>. It is never issued to an opponent, never softened, never swapped for the white or black jersey. An opponent may share the colour in real life; they do not share it on the sheet.</p>
+      </div>
+      <div style="background:var(--color-surface);padding:28px 30px">
+        <div class="cap" style="font-size:11px;font-weight:600;letter-spacing:.2em;color:var(--fg-5)">ISSUED</div>
+        <div style="display:flex;align-items:center;gap:16px;margin-top:14px">
+          <span style="width:56px;height:56px;background:#8FA6C4;flex:none"></span>
+          <div>
+            <div class="cap" style="font-size:26px;font-weight:900;letter-spacing:.05em;line-height:1;color:var(--fg-2)">OPPONENT</div>
+            <div class="cap tab" style="font-size:12px;font-weight:600;letter-spacing:.16em;color:var(--fg-4);margin-top:5px">RESOLVED, NOT RAW</div>
+          </div>
+        </div>
+        <p class="ds-body" style="margin:18px 0 0;text-wrap:pretty">The opponent's brand hex is an <span style="color:var(--fg-2)">input</span>, not the output. Every opponent colour passes the resolver before it reaches a score, a bar, or a crest ring.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- 02 — CLASH ZONES -->
+  <div style="max-width:1160px;margin:0 auto;padding:56px 24px 0">
+    <div style="display:flex;align-items:baseline;gap:14px;margin-bottom:14px">
+      <span class="cap tab" style="font-size:12px;font-weight:700;letter-spacing:.2em;color:var(--color-accent)">02</span>
+      <span class="cap" style="font-size:13px;font-weight:600;letter-spacing:.2em;color:var(--fg-4)">THREE CLASH ZONES</span>
+      <span style="flex:1;height:1px;background:linear-gradient(to right,var(--color-border),transparent)"></span>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--color-border);border:1px solid var(--color-border)">
+      <sc-for list="{{ zones }}" as="z" hint-placeholder-count="3">
+        <div style="background:var(--color-surface);padding:26px 26px 28px;position:relative">
+          <div style="position:absolute;top:0;left:0;right:0;height:2px;background:{{ z.tint }}"></div>
+          <div class="cap" style="font-size:15px;font-weight:900;letter-spacing:.14em;color:var(--fg-1)">{{ z.name }}</div>
+          <div class="cap tab" style="font-size:11px;font-weight:600;letter-spacing:.16em;color:var(--fg-5);margin-top:6px">{{ z.test }}</div>
+          <p class="ds-body" style="margin:14px 0 18px;min-height:66px;text-wrap:pretty">{{ z.why }}</p>
+          <div style="display:flex;gap:8px">
+            <sc-for list="{{ z.swatches }}" as="s" hint-placeholder-count="4">
+              <span style="flex:1;height:30px;border:1px solid rgba(255,255,255,.09);background:{{ s }}"></span>
+            </sc-for>
+          </div>
+          <div class="cap" style="font-size:10px;font-weight:600;letter-spacing:.2em;color:var(--fg-5);margin-top:9px">{{ z.egLabel }}</div>
+        </div>
+      </sc-for>
+    </div>
+  </div>
+
+  <!-- 03 — THE LADDER -->
+  <div style="max-width:1160px;margin:0 auto;padding:56px 24px 0">
+    <div style="display:flex;align-items:baseline;gap:14px;margin-bottom:14px">
+      <span class="cap tab" style="font-size:12px;font-weight:700;letter-spacing:.2em;color:var(--color-accent)">03</span>
+      <span class="cap" style="font-size:13px;font-weight:600;letter-spacing:.2em;color:var(--fg-4)">THE LADDER — THE OPPONENT CHANGES JERSEYS</span>
+      <span style="flex:1;height:1px;background:linear-gradient(to right,var(--color-border),transparent)"></span>
+    </div>
+    <p class="ds-body" style="max-width:660px;margin:0 0 20px;text-wrap:pretty">On the ice, a clash is settled by one side changing sweaters. The resolver does the same thing, in the same order, and stops at the first rung that clears.</p>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--color-border);border:1px solid var(--color-border)">
+      <sc-for list="{{ rungs }}" as="r" hint-placeholder-count="3">
+        <div style="background:var(--color-surface);padding:26px 26px 28px">
+          <div style="display:flex;align-items:center;gap:10px">
+            <span class="cap tab" style="display:grid;place-items:center;width:26px;height:26px;border:1px solid var(--color-border);font-size:12px;font-weight:700;color:var(--fg-3)">{{ r.n }}</span>
+            <span class="cap" style="font-size:16px;font-weight:900;letter-spacing:.14em">{{ r.name }}</span>
+          </div>
+          <div class="cap" style="font-size:11px;font-weight:600;letter-spacing:.18em;color:var(--fg-5);margin-top:12px">{{ r.src }}</div>
+          <p class="ds-body" style="margin:10px 0 0;text-wrap:pretty">{{ r.body }}</p>
+        </div>
+      </sc-for>
+    </div>
+    <div style="border:1px solid var(--color-border);border-top:none;background:var(--color-surface-raised);padding:18px 26px">
+      <div class="cap" style="font-size:11px;font-weight:600;letter-spacing:.2em;color:var(--fg-5)">RUNG 3 — THE ISSUED ALTERNATE SET</div>
+      <div style="display:flex;flex-wrap:wrap;gap:22px;margin-top:14px">
+        <sc-for list="{{ altSet }}" as="a" hint-placeholder-count="4">
+          <div style="display:flex;align-items:center;gap:10px">
+            <span style="width:34px;height:34px;background:{{ a.hex }};border:1px solid rgba(255,255,255,.1)"></span>
+            <div>
+              <div class="cap" style="font-size:13px;font-weight:700;letter-spacing:.12em;color:var(--fg-2)">{{ a.name }}</div>
+              <div class="cap tab" style="font-size:11px;font-weight:600;letter-spacing:.1em;color:var(--fg-5)">{{ a.hex }}</div>
+            </div>
+          </div>
+        </sc-for>
+      </div>
+      <p class="ds-body" style="margin:16px 0 0;max-width:720px;text-wrap:pretty">All four are cool-side. Nothing in the set can be mistaken for BGM red, for WIN emerald, or for OTL amber. Assignment is deterministic on the club abbreviation, so a given opponent always draws the same alternate — and two red clubs in one view never land on the same colour.</p>
+      <p class="ds-body" style="margin:10px 0 0;max-width:720px;text-wrap:pretty"><span style="color:var(--fg-2)">Black clubs do not draw from the set.</span> A neutral has no hue worth preserving, so it lifts straight up the neutral axis to gunmetal — honest to the kit, and never a colour the club never wore.</p>
+    </div>
+  </div>
+
+  <!-- 04 — RESOLVER -->
+  <div style="max-width:1160px;margin:0 auto;padding:56px 24px 0">
+    <div style="display:flex;align-items:baseline;gap:14px;margin-bottom:14px">
+      <span class="cap tab" style="font-size:12px;font-weight:700;letter-spacing:.2em;color:var(--color-accent)">04</span>
+      <span class="cap" style="font-size:13px;font-weight:600;letter-spacing:.2em;color:var(--fg-4)">RESOLVER — TRY ANY CLUB</span>
+      <span style="flex:1;height:1px;background:linear-gradient(to right,var(--color-border),transparent)"></span>
+    </div>
+
+    <div style="border:1px solid var(--color-border);background:var(--color-surface)">
+      <div style="height:2px;background:var(--bg-ticker-red)"></div>
+
+      <!-- input row -->
+      <div style="display:flex;flex-wrap:wrap;align-items:flex-end;gap:26px;padding:24px 26px;border-bottom:1px solid var(--color-border-subtle)">
+        <label style="display:flex;flex-direction:column;gap:7px">
+          <span class="cap" style="font-size:10px;font-weight:600;letter-spacing:.2em;color:var(--fg-5)">ABBREV</span>
+          <input type="text" value="{{ abbr }}" onChange="{{ setAbbr }}" maxlength="4" style="width:86px;background:var(--color-background);border:1px solid var(--color-border);color:var(--fg-1);padding:9px 11px;font-size:15px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;border-radius:0">
+        </label>
+        <label style="display:flex;flex-direction:column;gap:7px">
+          <span class="cap" style="font-size:10px;font-weight:600;letter-spacing:.2em;color:var(--fg-5)">PRIMARY (HOME)</span>
+          <div style="display:flex;align-items:center;gap:0">
+            <input type="color" value="{{ primary }}" onChange="{{ setPrimary }}" style="width:42px;height:38px;padding:0;border:1px solid var(--color-border);background:var(--color-background);cursor:pointer">
+            <input type="text" value="{{ primary }}" onChange="{{ setPrimary }}" style="width:104px;background:var(--color-background);border:1px solid var(--color-border);border-left:none;color:var(--fg-2);padding:9px 11px;font-size:14px;font-weight:600;letter-spacing:.08em;border-radius:0">
+          </div>
+        </label>
+        <label style="display:flex;flex-direction:column;gap:7px">
+          <span class="cap" style="font-size:10px;font-weight:600;letter-spacing:.2em;color:var(--fg-5)">SECONDARY (AWAY)</span>
+          <div style="display:flex;align-items:center;gap:0">
+            <input type="color" value="{{ secondary }}" onChange="{{ setSecondary }}" style="width:42px;height:38px;padding:0;border:1px solid var(--color-border);background:var(--color-background);cursor:pointer">
+            <input type="text" value="{{ secondary }}" onChange="{{ setSecondary }}" style="width:104px;background:var(--color-background);border:1px solid var(--color-border);border-left:none;color:var(--fg-2);padding:9px 11px;font-size:14px;font-weight:600;letter-spacing:.08em;border-radius:0">
+          </div>
+        </label>
+        <button type="button" class="cap chip" onClick="{{ toggleSecondary }}" style="height:38px;padding:0 16px;border:1px solid var(--color-border);background:var(--color-background);color:var(--fg-3);font-size:11px;font-weight:700;letter-spacing:.16em;border-radius:0">{{ secLabel }}</button>
+      </div>
+
+      <!-- presets -->
+      <div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:16px 26px;border-bottom:1px solid var(--color-border-subtle)">
+        <span class="cap" style="font-size:10px;font-weight:600;letter-spacing:.2em;color:var(--fg-5);margin-right:6px">HARD CASES</span>
+        <sc-for list="{{ presets }}" as="p" hint-placeholder-count="6">
+          <button type="button" class="cap chip" onClick="{{ p.pick }}" style="display:flex;align-items:center;gap:8px;padding:7px 12px;border:1px solid var(--color-border);background:var(--color-background);color:var(--fg-3);font-size:11px;font-weight:700;letter-spacing:.14em;border-radius:0">
+            <span style="width:11px;height:11px;background:{{ p.primary }};border:1px solid rgba(255,255,255,.14)"></span>{{ p.label }}
+          </button>
+        </sc-for>
+      </div>
+
+      <!-- verdict -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--color-border-subtle)">
+        <div style="background:var(--color-surface);padding:26px">
+          <div class="cap" style="font-size:10px;font-weight:600;letter-spacing:.2em;color:var(--fg-5)">DIAGNOSIS</div>
+          <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:14px">
+            <sc-for list="{{ flags }}" as="f" hint-placeholder-count="1">
+              <span class="cap" style="padding:6px 12px;border:1px solid {{ f.border }};background:{{ f.bg }};color:{{ f.fg }};font-size:11px;font-weight:700;letter-spacing:.16em">{{ f.label }}</span>
+            </sc-for>
+          </div>
+          <p class="ds-body" style="margin:16px 0 0;text-wrap:pretty">{{ verdictNote }}</p>
+          <div style="display:flex;align-items:center;gap:16px;margin-top:22px">
+            <div style="text-align:center">
+              <span style="display:block;width:64px;height:64px;background:{{ primary }};border:1px solid rgba(255,255,255,.1)"></span>
+              <span class="cap" style="display:block;font-size:10px;font-weight:600;letter-spacing:.18em;color:var(--fg-5);margin-top:7px">IN</span>
+            </div>
+            <span class="cap" style="font-size:20px;color:var(--fg-5)">→</span>
+            <div style="text-align:center">
+              <span style="display:block;width:64px;height:64px;background:{{ resolved }};border:1px solid rgba(255,255,255,.1)"></span>
+              <span class="cap tab" style="display:block;font-size:10px;font-weight:600;letter-spacing:.18em;color:var(--fg-3);margin-top:7px">{{ resolved }}</span>
+            </div>
+            <div style="margin-left:8px;padding-left:18px;border-left:1px solid var(--color-border)">
+              <div class="cap" style="font-size:10px;font-weight:600;letter-spacing:.2em;color:var(--fg-5)">RUNG</div>
+              <div class="cap" style="font-size:22px;font-weight:900;letter-spacing:.1em;color:var(--fg-1);margin-top:3px">{{ rungName }}</div>
+              <div class="cap" style="font-size:11px;font-weight:600;letter-spacing:.14em;color:var(--fg-4);margin-top:2px">{{ rungSrc }}</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- live scoreboard preview -->
+        <div style="background:var(--color-surface);padding:26px">
+          <div class="cap" style="font-size:10px;font-weight:600;letter-spacing:.2em;color:var(--fg-5)">ON THE SHEET</div>
+          <div style="margin-top:14px;border:1px solid var(--color-border);background:var(--bg-broadcast-soft);padding:22px 24px">
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:18px">
+              <div style="display:flex;align-items:center;gap:12px">
+                <span style="width:4px;height:38px;background:var(--color-accent)"></span>
+                <span class="cap" style="font-size:22px;font-weight:900;letter-spacing:.12em;color:var(--fg-1)">BGM</span>
+              </div>
+              <div style="display:flex;align-items:center;gap:16px">
+                <span class="cap tab" style="font-size:52px;font-weight:900;line-height:.82;color:var(--color-accent);text-shadow:var(--glow-accent-soft)">4</span>
+                <span class="cap" style="font-size:22px;color:var(--fg-6);margin-top:-4px">–</span>
+                <span class="cap tab" style="font-size:52px;font-weight:900;line-height:.82;color:{{ resolved }}">2</span>
+              </div>
+              <div style="display:flex;align-items:center;gap:12px">
+                <span class="cap" style="font-size:22px;font-weight:900;letter-spacing:.12em;color:var(--fg-2)">{{ abbrOut }}</span>
+                <span style="width:4px;height:38px;background:{{ resolved }}"></span>
+              </div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:11px;margin-top:22px">
+              <sc-for list="{{ bars }}" as="b" hint-placeholder-count="3">
+                <div>
+                  <div style="display:flex;justify-content:space-between;align-items:baseline">
+                    <span class="cap tab" style="font-size:12px;font-weight:700;letter-spacing:.1em;color:var(--color-accent)">{{ b.us }}</span>
+                    <span class="cap" style="font-size:10px;font-weight:600;letter-spacing:.2em;color:var(--fg-5)">{{ b.key }}</span>
+                    <span class="cap tab" style="font-size:12px;font-weight:700;letter-spacing:.1em;color:{{ resolved }}">{{ b.them }}</span>
+                  </div>
+                  <div style="display:flex;gap:3px;margin-top:5px;height:5px">
+                    <span style="flex:{{ b.a }};background:var(--color-accent)"></span>
+                    <span style="flex:{{ b.b }};background:{{ resolved }}"></span>
+                  </div>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+          <div class="cap" style="font-size:10px;font-weight:600;letter-spacing:.18em;color:var(--fg-5);margin-top:12px">RAW HEX PREVIEW · <span style="color:{{ rawWarnColor }}">{{ rawWarn }}</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 05 — WORKED CASES -->
+  <div style="max-width:1160px;margin:0 auto;padding:56px 24px 0">
+    <div style="display:flex;align-items:baseline;gap:14px;margin-bottom:14px">
+      <span class="cap tab" style="font-size:12px;font-weight:700;letter-spacing:.2em;color:var(--color-accent)">05</span>
+      <span class="cap" style="font-size:13px;font-weight:600;letter-spacing:.2em;color:var(--fg-4)">WORKED CASES</span>
+      <span style="flex:1;height:1px;background:linear-gradient(to right,var(--color-border),transparent)"></span>
+    </div>
+    <div style="border:1px solid var(--color-border);background:var(--color-surface)">
+      <div style="display:grid;grid-template-columns:96px 1fr 1fr 130px 1fr;gap:0;padding:12px 20px;border-bottom:1px solid var(--color-border);background:var(--color-surface-raised)">
+        <span class="cap" style="font-size:10px;font-weight:600;letter-spacing:.2em;color:var(--fg-5)">CLUB</span>
+        <span class="cap" style="font-size:10px;font-weight:600;letter-spacing:.2em;color:var(--fg-5)">BRAND IN</span>
+        <span class="cap" style="font-size:10px;font-weight:600;letter-spacing:.2em;color:var(--fg-5)">FAILS</span>
+        <span class="cap" style="font-size:10px;font-weight:600;letter-spacing:.2em;color:var(--fg-5)">RUNG</span>
+        <span class="cap" style="font-size:10px;font-weight:600;letter-spacing:.2em;color:var(--fg-5)">DISPLAY OUT</span>
+      </div>
+      <sc-for list="{{ cases }}" as="c" hint-placeholder-count="6">
+        <div style="display:grid;grid-template-columns:96px 1fr 1fr 130px 1fr;align-items:center;gap:0;padding:14px 20px;border-bottom:1px solid var(--color-border-subtle)">
+          <span class="cap" style="font-size:15px;font-weight:900;letter-spacing:.1em;color:var(--fg-2)">{{ c.abbr }}</span>
+          <span style="display:flex;align-items:center;gap:10px">
+            <span style="width:26px;height:26px;background:{{ c.inHex }};border:1px solid rgba(255,255,255,.12)"></span>
+            <span class="cap tab" style="font-size:12px;font-weight:600;letter-spacing:.08em;color:var(--fg-4)">{{ c.inHex }}</span>
+          </span>
+          <span class="cap" style="font-size:11px;font-weight:700;letter-spacing:.14em;color:{{ c.failColor }}">{{ c.fails }}</span>
+          <span class="cap" style="font-size:11px;font-weight:700;letter-spacing:.14em;color:var(--fg-3)">{{ c.rung }}</span>
+          <span style="display:flex;align-items:center;gap:10px">
+            <span style="width:26px;height:26px;background:{{ c.outHex }};border:1px solid rgba(255,255,255,.12)"></span>
+            <span class="cap tab" style="font-size:12px;font-weight:600;letter-spacing:.08em;color:var(--fg-3)">{{ c.outHex }}</span>
+            <span class="cap tab" style="font-size:20px;font-weight:900;color:{{ c.outHex }};margin-left:6px">2</span>
+          </span>
+        </div>
+      </sc-for>
+    </div>
+  </div>
+
+  <!-- 06 — REDUNDANCY -->
+  <div style="max-width:1160px;margin:0 auto;padding:56px 24px 0">
+    <div style="display:flex;align-items:baseline;gap:14px;margin-bottom:14px">
+      <span class="cap tab" style="font-size:12px;font-weight:700;letter-spacing:.2em;color:var(--color-accent)">06</span>
+      <span class="cap" style="font-size:13px;font-weight:600;letter-spacing:.2em;color:var(--fg-4)">COLOUR NEVER CARRIES THE SIDE ALONE</span>
+      <span style="flex:1;height:1px;background:linear-gradient(to right,var(--color-border),transparent)"></span>
+    </div>
+    <p class="ds-body" style="max-width:660px;margin:0 0 20px;text-wrap:pretty">The resolver is the second line of defence, not the first. Even a perfect clash still has to be readable in greyscale, so every side is established three times before colour is applied.</p>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--color-border);border:1px solid var(--color-border)">
+      <sc-for list="{{ redundancy }}" as="d" hint-placeholder-count="4">
+        <div style="background:var(--color-surface);padding:24px">
+          <div class="cap" style="font-size:14px;font-weight:900;letter-spacing:.14em;color:var(--fg-1)">{{ d.name }}</div>
+          <p class="ds-body" style="margin:10px 0 0;font-size:13px;text-wrap:pretty">{{ d.body }}</p>
+        </div>
+      </sc-for>
+    </div>
+    <div style="margin-top:26px;border:1px solid var(--color-border);background:var(--color-surface);padding:24px 26px">
+      <div class="cap" style="font-size:10px;font-weight:600;letter-spacing:.2em;color:var(--fg-5);margin-bottom:16px">GREYSCALE PROOF — SIDE STILL READS WITH ALL COLOUR REMOVED</div>
+      <div style="filter:grayscale(1);display:flex;align-items:center;justify-content:space-between;gap:18px;border:1px solid var(--color-border);background:var(--bg-broadcast-soft);padding:20px 24px">
+        <div style="display:flex;align-items:center;gap:12px">
+          <span style="width:4px;height:34px;background:var(--color-accent)"></span>
+          <span class="cap" style="font-size:20px;font-weight:900;letter-spacing:.12em;color:var(--fg-1)">BGM</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:14px">
+          <span class="cap tab" style="font-size:44px;font-weight:900;line-height:.82;color:var(--color-accent)">4</span>
+          <span class="cap" style="font-size:20px;color:var(--fg-6);margin-top:-4px">–</span>
+          <span class="cap tab" style="font-size:44px;font-weight:900;line-height:.82;color:{{ resolved }}">2</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:12px">
+          <span class="cap" style="font-size:20px;font-weight:900;letter-spacing:.12em;color:var(--fg-2)">{{ abbrOut }}</span>
+          <span style="width:4px;height:34px;background:{{ resolved }}"></span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- IMPLEMENTATION NOTE -->
+  <div style="max-width:1160px;margin:0 auto;padding:56px 24px 0">
+    <div style="border:1px solid var(--color-border);border-left:2px solid var(--color-accent);background:var(--color-surface);padding:24px 26px">
+      <div class="cap" style="font-size:10px;font-weight:600;letter-spacing:.2em;color:var(--fg-5)">IMPLEMENTATION</div>
+      <p class="ds-body" style="margin:12px 0 0;max-width:760px;text-wrap:pretty">The game sheet already drives every opponent surface from one custom property. The resolver runs once at ingest and writes the cleared value — nothing downstream changes.</p>
+      <div class="cap tab" style="margin-top:16px;display:flex;flex-direction:column;gap:5px;font-size:13px;font-weight:600;letter-spacing:.06em;color:var(--fg-3)">
+        <span><span style="color:var(--fg-5)">--opp</span> &nbsp;{{ resolved }}<span style="color:var(--fg-5)"> &nbsp;← resolved, never the raw brand hex</span></span>
+        <span><span style="color:var(--fg-5)">--opp-2</span> &nbsp;74% alpha<span style="color:var(--fg-5)"> &nbsp;← secondary numerals</span></span>
+        <span><span style="color:var(--fg-5)">--opp-line</span> &nbsp;40% alpha<span style="color:var(--fg-5)"> &nbsp;← borders, crest ring</span></span>
+        <span><span style="color:var(--fg-5)">--opp-soft</span> &nbsp;12% alpha<span style="color:var(--fg-5)"> &nbsp;← row tints</span></span>
+      </div>
+    </div>
+  </div>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1240},&quot;wedgeWidth&quot;:{&quot;editor&quot;:&quot;range&quot;,&quot;default&quot;:30,&quot;min&quot;:10,&quot;max&quot;:60,&quot;step&quot;:5,&quot;unit&quot;:&quot;°&quot;,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;Resolver thresholds&quot;},&quot;lightFloor&quot;:{&quot;editor&quot;:&quot;range&quot;,&quot;default&quot;:55,&quot;min&quot;:35,&quot;max&quot;:75,&quot;step&quot;:5,&quot;unit&quot;:&quot;L&quot;,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;Resolver thresholds&quot;},&quot;wedgeStrategy&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;default&quot;:&quot;Issue a cool alternate&quot;,&quot;options&quot;:[&quot;Issue a cool alternate&quot;,&quot;Rotate out of the wedge&quot;],&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Resolver thresholds&quot;}}">
+class Component extends DCLogic {
+  state = { primary: '#C8102E', secondary: '#FFFFFF', abbr: 'RED', useSec: true };
+
+  // ── colour maths ────────────────────────────────────────────────────────
+  hexToRgb(h){
+    let s = String(h || '').trim().replace('#','');
+    if (s.length === 3) s = s.split('').map(c => c + c).join('');
+    if (!/^[0-9a-f]{6}$/i.test(s)) return null;
+    return [parseInt(s.slice(0,2),16), parseInt(s.slice(2,4),16), parseInt(s.slice(4,6),16)];
+  }
+  rgbToHex(r,g,b){
+    const c = v => Math.max(0,Math.min(255,Math.round(v))).toString(16).padStart(2,'0');
+    return ('#' + c(r) + c(g) + c(b)).toUpperCase();
+  }
+  lin(c){ c/=255; return c <= 0.04045 ? c/12.92 : Math.pow((c+0.055)/1.055, 2.4); }
+  unlin(c){ return 255 * (c <= 0.0031308 ? c*12.92 : 1.055*Math.pow(c, 1/2.4) - 0.055); }
+  toOklch(hex){
+    const rgb = this.hexToRgb(hex); if (!rgb) return null;
+    const r = this.lin(rgb[0]), g = this.lin(rgb[1]), b = this.lin(rgb[2]);
+    const l = Math.cbrt(0.4122214708*r + 0.5363325363*g + 0.0514459929*b);
+    const m = Math.cbrt(0.2119034982*r + 0.6806995451*g + 0.1073969566*b);
+    const s = Math.cbrt(0.0883024619*r + 0.2817188376*g + 0.6299787005*b);
+    const L = 0.2104542553*l + 0.7936177850*m - 0.0040720468*s;
+    const A = 1.9779984951*l - 2.4285922050*m + 0.4505937099*s;
+    const B = 0.0259040371*l + 0.7827717662*m - 0.8086757660*s;
+    let h = Math.atan2(B, A) * 180 / Math.PI; if (h < 0) h += 360;
+    return { L: L, C: Math.sqrt(A*A + B*B), h: h };
+  }
+  fromOklch(o){
+    let C = o.C;
+    for (let i = 0; i < 40; i++){
+      const rgb = this._lchToRgb(o.L, C, o.h);
+      if (rgb.every(v => v >= -0.5 && v <= 255.5)) return this.rgbToHex(rgb[0], rgb[1], rgb[2]);
+      C *= 0.94;
+    }
+    const rgb = this._lchToRgb(o.L, 0, o.h);
+    return this.rgbToHex(rgb[0], rgb[1], rgb[2]);
+  }
+  _lchToRgb(L, C, h){
+    const A = C * Math.cos(h * Math.PI / 180), B = C * Math.sin(h * Math.PI / 180);
+    const l = Math.pow(L + 0.3963377774*A + 0.2158037573*B, 3);
+    const m = Math.pow(L - 0.1055613458*A - 0.0638541728*B, 3);
+    const s = Math.pow(L - 0.0894841775*A - 1.2914855480*B, 3);
+    return [
+      this.unlin( 4.0767416621*l - 3.3077115913*m + 0.2309699292*s),
+      this.unlin(-1.2684380046*l + 2.6097574011*m - 0.3413193965*s),
+      this.unlin(-0.0041960863*l - 0.7034186147*m + 1.7076147010*s)
+    ];
+  }
+
+  // ── thresholds ──────────────────────────────────────────────────────────
+  BGM_H = 29;          // OKLCH hue of #E84131
+  get wedge(){ return this.props.wedgeWidth != null ? Number(this.props.wedgeWidth) : 30; }
+  get floorL(){ return (this.props.lightFloor != null ? Number(this.props.lightFloor) : 55) / 100; }
+  CEIL_L = 0.93;
+
+  test(hex){
+    const o = this.toOklch(hex);
+    if (!o) return { ok: false, fails: ['INVALID'], o: null };
+    const fails = [];
+    const dh = Math.min(Math.abs(o.h - this.BGM_H), 360 - Math.abs(o.h - this.BGM_H));
+    if (dh <= this.wedge && o.C >= 0.05) fails.push('RED WEDGE');
+    if (o.L < this.floorL) fails.push('TOO DARK');
+    if (o.L > this.CEIL_L && o.C < 0.045) fails.push('TOO PALE');
+    return { ok: fails.length === 0, fails: fails, o: o };
+  }
+
+  ALTS = [
+    { name: 'STEEL',  hex: '#8FA6C4' },
+    { name: 'ICE',    hex: '#6FB7D8' },
+    { name: 'VIOLET', hex: '#9B8CE8' },
+    { name: 'COBALT', hex: '#6E8FE8' }
+  ];
+
+  alternate(hex, abbr, fails){
+    const o = this.toOklch(hex);
+    const inWedge = fails.indexOf('RED WEDGE') >= 0;
+    if (!o || inWedge){
+      if (this.props.wedgeStrategy === 'Rotate out of the wedge' && o){
+        const lo = (this.BGM_H - this.wedge - 8 + 360) % 360;
+        const hi = (this.BGM_H + this.wedge + 8) % 360;
+        const dLo = Math.min(Math.abs(o.h - lo), 360 - Math.abs(o.h - lo));
+        const dHi = Math.min(Math.abs(o.h - hi), 360 - Math.abs(o.h - hi));
+        return this.fromOklch({ L: Math.max(o.L, this.floorL), C: Math.max(o.C, 0.08), h: dLo < dHi ? lo : hi });
+      }
+      let n = 0; const s = String(abbr || 'OPP').toUpperCase();
+      for (let i = 0; i < s.length; i++) n = (n * 31 + s.charCodeAt(i)) >>> 0;
+      return this.ALTS[n % this.ALTS.length].hex;
+    }
+    if (fails.indexOf('TOO PALE') >= 0)
+      return this.fromOklch({ L: 0.86, C: Math.max(o.C, 0.035), h: o.C < 0.02 ? 250 : o.h });
+    // achromatic input (black, charcoal, grey): there is no hue to keep — atan2 on
+    // float dust is meaningless, so never synthesise chroma. Lift to gunmetal.
+    if (o.C < 0.03) return this.fromOklch({ L: this.floorL + 0.07, C: 0.012, h: 250 });
+    // too dark but genuinely chromatic — lift it out of the field, keep the identity
+    return this.fromOklch({ L: this.floorL + 0.07, C: Math.max(Math.min(o.C, 0.14), 0.06), h: o.h });
+  }
+
+  resolve(primary, secondary, abbr){
+    const p = this.test(primary);
+    if (p.ok) return { out: primary, rung: 'HOME', src: 'BRAND PRIMARY', fails: [] };
+    if (secondary){
+      const s = this.test(secondary);
+      if (s.ok) return { out: secondary, rung: 'AWAY', src: 'BRAND SECONDARY', fails: p.fails };
+    }
+    return { out: this.alternate(primary, abbr, p.fails), rung: 'ALTERNATE', src: 'ISSUED BY SYSTEM', fails: p.fails };
+  }
+
+  // ── data ────────────────────────────────────────────────────────────────
+  PRESETS = [
+    { label: 'PURE RED',   abbr: 'RED', primary: '#C8102E', secondary: '#FFFFFF' },
+    { label: 'BLACK',      abbr: 'BLK', primary: '#111111', secondary: '#B9975B' },
+    { label: 'BLACK+RED',  abbr: 'DVL', primary: '#0B0B0B', secondary: '#CE1126' },
+    { label: 'MAROON',     abbr: 'MAR', primary: '#7A0019', secondary: '#4B4B4B' },
+    { label: 'WHITE',      abbr: 'WHT', primary: '#F7F7F7', secondary: '#9E9E9E' },
+    { label: 'CLEAN BLUE', abbr: 'BLU', primary: '#3D7DD8', secondary: '#F1C40F' }
+  ];
+
+  set = (k) => (e) => {
+    const v = e && e.target ? e.target.value : e;
+    this.setState(k === 'abbr' ? { abbr: String(v).toUpperCase().slice(0,4) } : { [k]: v });
+  };
+
+  renderVals(){
+    const st = this.state;
+    const sec = st.useSec ? st.secondary : '';
+    const r = this.resolve(st.primary, sec, st.abbr);
+    const rawFails = this.test(st.primary).fails;
+
+    const flagStyle = (label) => label === 'CLEARS'
+      ? { label: 'CLEARS', bg: 'var(--color-win-bg)', border: 'var(--color-win-border)', fg: 'var(--color-win)' }
+      : { label: label, bg: 'var(--color-accent-soft)', border: 'var(--color-accent-line)', fg: 'var(--color-loss)' };
+
+    const notes = {
+      'RED WEDGE': 'The brand hue sits inside the reserved BGM wedge. No lightness change can save it — the club is issued a cool alternate so red keeps meaning us.',
+      'TOO DARK': 'The brand colour sinks into the panel field. A chromatic hue is kept and lifted until the numerals clear the surface; a true black or grey has no hue to keep, so it lifts to gunmetal rather than inventing one.',
+      'TOO PALE': 'The brand colour is indistinguishable from primary text. Lightness is dropped and a faint cool cast is added so it reads as a team, not a label.'
+    };
+    const note = r.fails.length === 0
+      ? 'Brand primary clears all three zones. It ships unchanged — the club keeps its own colour.'
+      : (r.rung === 'AWAY'
+          ? 'Primary fails, but the secondary clears. The opponent changes sweaters and keeps a real brand colour.'
+          : (notes[r.fails[0]] || 'Resolved to a system alternate.'));
+
+    return {
+      primary: st.primary, secondary: st.secondary, abbr: st.abbr,
+      abbrOut: st.abbr || 'OPP',
+      resolved: r.out,
+      rungName: r.rung, rungSrc: r.src,
+      verdictNote: note,
+      secLabel: st.useSec ? 'SECONDARY: ON' : 'SECONDARY: NONE',
+      flags: (r.fails.length ? r.fails : ['CLEARS']).map(flagStyle),
+      rawWarn: rawFails.length ? 'RAW BRAND HEX WOULD FAIL — ' + rawFails.join(' + ') : 'RAW BRAND HEX WOULD ALSO PASS',
+      rawWarnColor: rawFails.length ? 'var(--color-loss)' : 'var(--color-win)',
+
+      setPrimary: this.set('primary'),
+      setSecondary: this.set('secondary'),
+      setAbbr: this.set('abbr'),
+      toggleSecondary: () => this.setState(s => ({ useSec: !s.useSec })),
+
+      presets: this.PRESETS.map(p => Object.assign({}, p, {
+        pick: () => this.setState({ primary: p.primary, secondary: p.secondary, abbr: p.abbr, useSec: true })
+      })),
+
+      bars: [
+        { key: 'SHOTS', us: '34', them: '21', a: 34, b: 21 },
+        { key: 'HITS',  us: '12', them: '19', a: 12, b: 19 },
+        { key: 'FO%',   us: '58', them: '42', a: 58, b: 42 }
+      ],
+
+      zones: [
+        { name: 'RED WEDGE', tint: 'var(--color-accent)', test: 'HUE WITHIN ±' + this.wedge + '° OF 29° · C ≥ .05',
+          why: 'Any saturated red, crimson, scarlet or hot orange. Sharing this band with BGM breaks the one rule the sheet depends on.',
+          swatches: ['#C8102E','#E03A3E','#A6192E','#FF4B00'], egLabel: 'CRIMSON · SCARLET · BRICK · BLAZE' },
+        { name: 'TOO DARK', tint: '#55565A', test: 'OKLCH L < ' + Math.round(this.floorL * 100),
+          why: 'Blacks, navies and deep maroons. On the #1A1819 field the numerals disappear and the split bars read as one bar.',
+          swatches: ['#111111','#0B1C3A','#2B2B2B','#3A1220'], egLabel: 'BLACK · MIDNIGHT · GRAPHITE · OXBLOOD' },
+        { name: 'TOO PALE', tint: '#D8D8D8', test: 'L > 93 · C < .045',
+          why: 'White and near-white. It clears the field easily but is identical to primary text, so the score stops reading as a side.',
+          swatches: ['#FFFFFF','#F4F4F4','#EBEBEB','#E2E2E2'], egLabel: 'WHITE · BONE · PAPER · SILVER' }
+      ],
+
+      rungs: [
+        { n: '1', name: 'HOME', src: 'BRAND PRIMARY',
+          body: 'Use the club\u2019s real colour. Most opponents stop here — the resolver is a filter, not a repaint.' },
+        { n: '2', name: 'AWAY', src: 'BRAND SECONDARY',
+          body: 'Primary failed. Fall to the club\u2019s second colour if it clears. A red club with gold or white in its kit still shows something of its own.' },
+        { n: '3', name: 'ALTERNATE', src: 'ISSUED BY SYSTEM',
+          body: 'Both brand colours failed. A red-wedge club draws a cool alternate. A dark club keeps its hue and gets lifted — or, if it is a true black, lifts to gunmetal.' }
+      ],
+
+      altSet: this.ALTS,
+
+      cases: this.PRESETS.map(p => {
+        const f = this.test(p.primary).fails;
+        const res = this.resolve(p.primary, p.secondary, p.abbr);
+        return {
+          abbr: p.abbr, inHex: p.primary.toUpperCase(), outHex: res.out.toUpperCase(),
+          fails: f.length ? f.join(' + ') : '—',
+          failColor: f.length ? 'var(--color-loss)' : 'var(--fg-5)',
+          rung: res.rung
+        };
+      }),
+
+      redundancy: [
+        { name: 'POSITION', body: 'BGM is always the left side of a score and the top half of a split. The opponent is always right and bottom. This never varies with home or away.' },
+        { name: 'LABEL', body: 'BGM reads BGM. The opponent reads its own three-letter abbreviation. The abbreviation is never dropped to save space.' },
+        { name: 'CREST', body: 'Both crests are present at every score. A crest identifies a club faster than a fill colour and survives every clash.' },
+        { name: 'WEIGHT', body: 'The winning score is the only one carrying a glow. Result state is read from the WIN / LOSS / OTL pill, never from which colour is brighter.' }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

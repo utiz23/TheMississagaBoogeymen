@@ -134,7 +134,7 @@ Gate is `showOcrDiagnostics()` in `lib/ocr-diagnostics.ts`, over a new `isCurren
 - ⬜ The admin toggle UI for the OCR diagnostics (above) — needs accounts to exist first.
 - ⬜ Global 12px font floor still outstanding (see the header entry below); the lineup module is now at 12px, the rest of the site is not.
 - ⬜ `docs/calibration/*.json` are malformed (shell output prepended) and break `pnpm format`.
-- ⚠️ The prototype bundle `Game sheet prototype layout (1)/` is still **untracked** despite being the design of record cited throughout this file. Decide whether it belongs in the repo.
+- ✅ **RESOLVED 2026-07-31 — the prototype bundle is now TRACKED, but only its text half.** `Game sheet prototype layout (1)/` was untracked while being cited by filename _and line number_ from HANDOFF and several component headers, so a fresh clone could not resolve the design of record. Committed: the 10 `.dc.html` prototypes, the 5 `_ds` design-system CSS/README files, `final-review.md`, `lineup-review-todo.md` — **18 files, 639 KB**. Excluded via a bundle-local `.gitignore`: `uploads/`, `screenshots/`, `assets/`, and all `*.png|json|js|jsx` — **~6.5 MB of the 7.2 MB**, almost entirely duplicated (`bgm-logo.png` ×3, `_ds_bundle.js` ×2) and re-exportable from the design tool. **Consequence to know:** the tracked `.dc.html` files will NOT render correctly in a browser from a clean clone (their JS bundle and images are ignored). They are tracked as _source to read_, which is how they are actually used — every citation in this file is a line-number reference. If you need them to render, the local bundle still has the assets.
 
 ### ✅ GAME SHEET HEADER PORTED 2026-07-30 (`8be5247`) — sub-nav rebuilt + scorebug polished to the prototype
 

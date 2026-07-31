@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="_ds/boogeymen-design-system-019df013-7ada-79ec-ac26-22b50894a2b1/colors_and_type.css">
+  <link rel="stylesheet" href="_ds/boogeymen-design-system-019df013-7ada-79ec-ac26-22b50894a2b1/preview/_base.css">
+  <style>
+    body{margin:0;background:var(--color-background);color:var(--fg-1);font-family:var(--font-sans)}
+    a{color:var(--color-accent);text-decoration:none}a:hover{color:var(--color-accent-strong)}
+    .cap{font-family:var(--font-condensed);text-transform:uppercase}
+    /* ① panel reveal + red hairline wipe */
+    @keyframes bcast-rise{from{opacity:0;transform:translateY(20px) scale(.99)}to{opacity:1;transform:translateY(0) scale(1)}}
+    .panel-in{animation:bcast-rise .55s cubic-bezier(.16,.84,.3,1) both}
+    @keyframes panel-wipe{0%{transform:translateX(-120%);opacity:0}18%{opacity:1}80%{opacity:1}100%{transform:translateX(340%);opacity:0}}
+    .panel-wipe{position:absolute;top:0;left:0;z-index:4;height:2px;width:45%;pointer-events:none;background:linear-gradient(90deg,transparent,var(--color-accent),transparent)}
+    .panel-wipe.go{animation:panel-wipe .8s cubic-bezier(.55,0,.45,1) both}
+    /* ⑤ winning bar flare — single settle, no pulse */
+    @keyframes bar-acc{0%{box-shadow:0 0 0 rgba(232,65,49,0)}50%{box-shadow:0 0 10px rgba(232,65,49,.8)}100%{box-shadow:0 0 3px rgba(232,65,49,.35)}}
+    .bar-acc{animation:bar-acc .6s ease-out both}
+    @keyframes bar-opp{0%{box-shadow:0 0 0 rgba(235,235,235,0)}50%{box-shadow:0 0 8px rgba(235,235,235,.55)}100%{box-shadow:0 0 2px rgba(235,235,235,.22)}}
+    .bar-opp{animation:bar-opp .6s ease-out both}
+    /* ⑥⑦ interaction — row raise + label brighten; CTA arrow nudge */
+    .h2h-row{padding:2px 6px;margin:0 -6px;transition:background-color .2s ease}
+    .h2h-row:hover{background:var(--color-surface-raised)}
+    .h2h-row:hover .h2h-label{color:var(--fg-2)}
+    .cta .arrow{display:inline-block;transition:transform .2s ease}
+    .cta:hover .arrow{transform:translateX(3px)}
+    /* legend */
+    .cue-row{display:flex;gap:10px;padding:9px 11px;border:1px solid var(--color-border);background:var(--color-surface);transition:background-color .25s ease,border-color .25s ease}
+    .cue-row.lit{background:var(--color-accent-soft);border-color:var(--color-accent-line)}
+    .cue-n{flex:none;width:20px;height:20px;display:grid;place-items:center;border:1px solid var(--color-border);font:800 10px var(--font-condensed);color:var(--fg-4);background:var(--color-charcoal)}
+    .cue-row.lit .cue-n{color:var(--color-accent);border-color:var(--color-accent-line);background:transparent}
+    .btnr{display:flex;align-items:center;gap:6px;cursor:pointer;border:1px solid var(--color-border);background:var(--color-surface);color:var(--fg-2);font:800 11px var(--font-condensed);text-transform:uppercase;letter-spacing:.12em;padding:8px 14px;transition:border-color .2s ease,color .2s ease,background-color .2s ease}
+    .btnr:hover{border-color:var(--color-accent-line);color:var(--color-accent);background:var(--color-accent-soft)}
+    .btnr.on{border-color:var(--color-accent-line);color:var(--color-accent);background:var(--color-accent-soft)}
+    @media (prefers-reduced-motion:reduce){
+      .panel-in,.panel-wipe.go,.bar-acc,.bar-opp{animation:none}
+    }
+  </style>
+</helmet>
+
+<div style="min-height:100vh;padding:36px 34px;display:flex;gap:34px;align-items:flex-start;flex-wrap:wrap">
+
+  <!-- ============ LIVE COMPONENT ============ -->
+  <div style="display:flex;flex-direction:column;gap:16px;width:404px;flex:none">
+    <div style="display:flex;flex-direction:column;gap:2px">
+      <span class="cap" style="font-size:10px;font-weight:700;letter-spacing:.24em;color:var(--fg-5)">Live component</span>
+      <span class="cap" style="font-size:15px;font-weight:900;letter-spacing:.04em;color:var(--fg-1)">Team Stats · Head to Head — motion</span>
+    </div>
+
+    <section ref="{{ rRoot }}" class="panel-in" style="position:relative;border:1px solid var(--color-border);background:var(--color-surface);padding:12px 14px 14px;display:flex;flex-direction:column;gap:12px;overflow:hidden">
+      <div ref="{{ rWipe }}" class="panel-wipe"></div>
+
+      <div style="display:flex;flex-direction:column;gap:2px">
+        <span class="ds-section-label"><span style="color:var(--color-accent);padding-right:4px">▰</span>Team Stats</span>
+        <span class="cap" style="font-size:10px;letter-spacing:.12em;color:var(--fg-4)">Head to head · bar = share of total</span>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:9px">
+
+        <!-- GOALS · BGM wins -->
+        <div data-row class="h2h-row" style="display:flex;flex-direction:column;gap:3px">
+          <div style="display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:8px">
+            <span data-count data-final="4" class="cap tabular" style="font-size:13px;font-weight:800;color:var(--color-accent);min-width:40px">4</span>
+            <span class="cap h2h-label" style="font-size:10px;font-weight:600;letter-spacing:.06em;color:var(--fg-4);text-align:center">Goals</span>
+            <span data-count data-final="3" class="cap tabular" style="font-size:13px;font-weight:800;color:var(--fg-4);text-align:right;min-width:40px">3</span>
+          </div>
+          <div style="display:flex;height:5px;background:var(--color-background);overflow:hidden">
+            <span style="flex:none;width:57.1%;display:flex;justify-content:flex-end;overflow:hidden"><span data-bar data-win="acc" style="width:0;height:100%;background:var(--color-accent);transition:width .5s cubic-bezier(.2,.7,.2,1)"></span></span>
+            <span style="flex:none;width:2px;background:var(--color-surface)"></span>
+            <span style="flex:none;width:42.9%;overflow:hidden"><span data-bar style="width:0;height:100%;background:var(--fg-5);transition:width .5s cubic-bezier(.2,.7,.2,1)"></span></span>
+          </div>
+        </div>
+
+        <!-- SHOTS · BGM wins -->
+        <div data-row class="h2h-row" style="display:flex;flex-direction:column;gap:3px">
+          <div style="display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:8px">
+            <span data-count data-final="29" class="cap tabular" style="font-size:13px;font-weight:800;color:var(--color-accent);min-width:40px">29</span>
+            <span class="cap h2h-label" style="font-size:10px;font-weight:600;letter-spacing:.06em;color:var(--fg-4);text-align:center">Shots</span>
+            <span data-count data-final="16" class="cap tabular" style="font-size:13px;font-weight:800;color:var(--fg-4);text-align:right;min-width:40px">16</span>
+          </div>
+          <div style="display:flex;height:5px;background:var(--color-background);overflow:hidden">
+            <span style="flex:none;width:64.4%;display:flex;justify-content:flex-end;overflow:hidden"><span data-bar data-win="acc" style="width:0;height:100%;background:var(--color-accent);transition:width .5s cubic-bezier(.2,.7,.2,1)"></span></span>
+            <span style="flex:none;width:2px;background:var(--color-surface)"></span>
+            <span style="flex:none;width:35.6%;overflow:hidden"><span data-bar style="width:0;height:100%;background:var(--fg-5);transition:width .5s cubic-bezier(.2,.7,.2,1)"></span></span>
+          </div>
+        </div>
+
+        <!-- ON NET % · BGM wins · rate stat (fades, no count) -->
+        <div data-row class="h2h-row" style="display:flex;flex-direction:column;gap:3px">
+          <div style="display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:8px">
+            <span class="cap tabular" style="font-size:13px;font-weight:800;color:var(--color-accent);min-width:40px">90.6%</span>
+            <span class="cap h2h-label" style="font-size:10px;font-weight:600;letter-spacing:.06em;color:var(--fg-4);text-align:center">On Net %</span>
+            <span class="cap tabular" style="font-size:13px;font-weight:800;color:var(--fg-4);text-align:right;min-width:40px">66.7%</span>
+          </div>
+          <div style="display:flex;height:5px;background:var(--color-background);overflow:hidden">
+            <span style="flex:none;width:57.6%;display:flex;justify-content:flex-end;overflow:hidden"><span data-bar data-win="acc" style="width:0;height:100%;background:var(--color-accent);transition:width .5s cubic-bezier(.2,.7,.2,1)"></span></span>
+            <span style="flex:none;width:2px;background:var(--color-surface)"></span>
+            <span style="flex:none;width:42.4%;overflow:hidden"><span data-bar style="width:0;height:100%;background:var(--fg-5);transition:width .5s cubic-bezier(.2,.7,.2,1)"></span></span>
+          </div>
+        </div>
+
+        <!-- POSSESSION · BGM wins · clock stat (fades, no count) -->
+        <div data-row class="h2h-row" style="display:flex;flex-direction:column;gap:3px">
+          <div style="display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:8px">
+            <span class="cap tabular" style="font-size:13px;font-weight:800;color:var(--color-accent);min-width:40px">24:31</span>
+            <span class="cap h2h-label" style="font-size:10px;font-weight:600;letter-spacing:.06em;color:var(--fg-4);text-align:center">Possession</span>
+            <span class="cap tabular" style="font-size:13px;font-weight:800;color:var(--fg-4);text-align:right;min-width:40px">19:22</span>
+          </div>
+          <div style="display:flex;height:5px;background:var(--color-background);overflow:hidden">
+            <span style="flex:none;width:55.9%;display:flex;justify-content:flex-end;overflow:hidden"><span data-bar data-win="acc" style="width:0;height:100%;background:var(--color-accent);transition:width .5s cubic-bezier(.2,.7,.2,1)"></span></span>
+            <span style="flex:none;width:2px;background:var(--color-surface)"></span>
+            <span style="flex:none;width:44.1%;overflow:hidden"><span data-bar style="width:0;height:100%;background:var(--fg-5);transition:width .5s cubic-bezier(.2,.7,.2,1)"></span></span>
+          </div>
+        </div>
+
+        <!-- HITS · 4L wins -->
+        <div data-row class="h2h-row" style="display:flex;flex-direction:column;gap:3px">
+          <div style="display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:8px">
+            <span data-count data-final="14" class="cap tabular" style="font-size:13px;font-weight:800;color:var(--fg-4);min-width:40px">14</span>
+            <span class="cap h2h-label" style="font-size:10px;font-weight:600;letter-spacing:.06em;color:var(--fg-4);text-align:center">Hits</span>
+            <span data-count data-final="39" class="cap tabular" style="font-size:13px;font-weight:800;color:var(--fg-1);text-align:right;min-width:40px">39</span>
+          </div>
+          <div style="display:flex;height:5px;background:var(--color-background);overflow:hidden">
+            <span style="flex:none;width:26.4%;display:flex;justify-content:flex-end;overflow:hidden"><span data-bar style="width:0;height:100%;background:rgba(232,65,49,0.30);transition:width .5s cubic-bezier(.2,.7,.2,1)"></span></span>
+            <span style="flex:none;width:2px;background:var(--color-surface)"></span>
+            <span style="flex:none;width:73.6%;overflow:hidden"><span data-bar data-win="opp" style="width:0;height:100%;background:var(--fg-2);transition:width .5s cubic-bezier(.2,.7,.2,1)"></span></span>
+          </div>
+        </div>
+
+        <!-- TAKEAWAYS · 4L wins -->
+        <div data-row class="h2h-row" style="display:flex;flex-direction:column;gap:3px">
+          <div style="display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:8px">
+            <span data-count data-final="17" class="cap tabular" style="font-size:13px;font-weight:800;color:var(--fg-4);min-width:40px">17</span>
+            <span class="cap h2h-label" style="font-size:10px;font-weight:600;letter-spacing:.06em;color:var(--fg-4);text-align:center">Takeaways</span>
+            <span data-count data-final="19" class="cap tabular" style="font-size:13px;font-weight:800;color:var(--fg-1);text-align:right;min-width:40px">19</span>
+          </div>
+          <div style="display:flex;height:5px;background:var(--color-background);overflow:hidden">
+            <span style="flex:none;width:47.2%;display:flex;justify-content:flex-end;overflow:hidden"><span data-bar style="width:0;height:100%;background:rgba(232,65,49,0.30);transition:width .5s cubic-bezier(.2,.7,.2,1)"></span></span>
+            <span style="flex:none;width:2px;background:var(--color-surface)"></span>
+            <span style="flex:none;width:52.8%;overflow:hidden"><span data-bar data-win="opp" style="width:0;height:100%;background:var(--fg-2);transition:width .5s cubic-bezier(.2,.7,.2,1)"></span></span>
+          </div>
+        </div>
+
+      </div>
+
+      <a data-el="cta" href="#" class="cta" style="text-decoration:none"><span class="cap" style="font-size:10px;font-weight:700;letter-spacing:.12em;color:var(--color-accent)">FULL HEAD-TO-HEAD <span class="arrow">→</span></span></a>
+    </section>
+
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btnr" onClick="{{ replay }}">▶ Replay sequence</button>
+      <button ref="{{ rSlow }}" class="btnr" onClick="{{ toggleSlow }}">Slow-mo</button>
+    </div>
+    <span class="cap" style="font-size:9px;font-weight:600;letter-spacing:.1em;color:var(--fg-5);line-height:1.5">Bars grow outward from the divider · winner side flares once · hover a row · respects prefers-reduced-motion</span>
+  </div>
+
+  <!-- ============ ANNOTATED RECOMMENDATIONS ============ -->
+  <div style="flex:1;min-width:340px;max-width:520px;display:flex;flex-direction:column;gap:14px">
+    <div style="display:flex;flex-direction:column;gap:3px">
+      <span class="cap" style="font-size:10px;font-weight:700;letter-spacing:.24em;color:var(--fg-5)">Recommended motion</span>
+      <span class="cap" style="font-size:20px;font-weight:900;letter-spacing:.02em;color:var(--fg-1)">Eight cues — the stat sheet, dueling out from the middle</span>
+      <span style="font-size:12px;color:var(--fg-4);line-height:1.55">The head-to-head reads like a broadcast comparison graphic. Rows <b style="color:var(--fg-2)">deal in top to bottom</b>; each stat's two share bars <b style="color:var(--fg-2)">grow outward from the center divider</b> as the numbers tick up, and only the <b style="color:var(--fg-2)">winning side</b> earns a single flare. Losers stay dim. Nothing loops at rest.</span>
+    </div>
+
+    <div ref="{{ rLegend }}" style="display:flex;flex-direction:column;gap:7px">
+      <div class="cue-row" data-cue="1"><span class="cue-n">1</span><div><span class="cap" style="font-size:12px;font-weight:800;letter-spacing:.06em;color:var(--fg-2)">Panel reveal + hairline wipe</span><div style="font-size:11px;color:var(--fg-4);line-height:1.5">Rise 20px + fade, .55s ease-out; a red 2px hairline wipes across the top edge once as the panel plugs in. <span class="tabular" style="color:var(--fg-5)">t=0</span></div></div></div>
+      <div class="cue-row" data-cue="2"><span class="cue-n">2</span><div><span class="cap" style="font-size:12px;font-weight:800;letter-spacing:.06em;color:var(--fg-2)">Rows deal in top → bottom</span><div style="font-size:11px;color:var(--fg-4);line-height:1.5">Each stat row (label + both values + bar) rises and fades in sequence, ~105ms apart — the sheet fills like a comparison card being read out. <span class="tabular" style="color:var(--fg-5)">t=.30s</span></div></div></div>
+      <div class="cue-row" data-cue="3"><span class="cue-n">3</span><div><span class="cap" style="font-size:12px;font-weight:800;letter-spacing:.06em;color:var(--fg-2)">Bars grow outward from center</span><div style="font-size:11px;color:var(--fg-4);line-height:1.5">As each row lands, its two share bars grow from the 2px center divider toward their edges — BGM leftward, opponent rightward. A tug-of-war, not two separate fills. <span class="tabular" style="color:var(--fg-5)">.5s / row</span></div></div></div>
+      <div class="cue-row" data-cue="4"><span class="cue-n">4</span><div><span class="cap" style="font-size:12px;font-weight:800;letter-spacing:.06em;color:var(--fg-2)">Integer values count up</span><div style="font-size:11px;color:var(--fg-4);line-height:1.5">Counting stats (goals, shots, hits) tick 0 → value in sync with the bar; rate and clock stats (On Net %, Possession) simply fade in — no fake counting. <span class="tabular" style="color:var(--fg-5)">with bar</span></div></div></div>
+      <div class="cue-row" data-cue="5"><span class="cue-n">5</span><div><span class="cap" style="font-size:12px;font-weight:800;letter-spacing:.06em;color:var(--fg-2)">Winning side flares once</span><div style="font-size:11px;color:var(--fg-4);line-height:1.5">The side that won each stat gets a single settle-flare as it lands — red glow for BGM, a cool white glow for the opponent. The losing bar stays dim. One event, never a pulse. <span class="tabular" style="color:var(--fg-5)">on land</span></div></div></div>
+      <div class="cue-row" data-cue="6"><span class="cue-n">6</span><div><span class="cap" style="font-size:12px;font-weight:800;letter-spacing:.06em;color:var(--fg-2)">Hover a row — read affordance</span><div style="font-size:11px;color:var(--fg-4);line-height:1.5">Hovering a stat steps its background to surface-raised and brightens the label, so a reader can isolate one comparison. Border-only, no lift. <span class="tabular" style="color:var(--fg-5)">hover</span></div></div></div>
+      <div class="cue-row" data-cue="7"><span class="cue-n">7</span><div><span class="cap" style="font-size:12px;font-weight:800;letter-spacing:.06em;color:var(--fg-2)">CTA arrow nudges</span><div style="font-size:11px;color:var(--fg-4);line-height:1.5">"FULL HEAD-TO-HEAD →" slides its arrow 3px right on hover — the only motion invited after the sheet settles. <span class="tabular" style="color:var(--fg-5)">hover</span></div></div></div>
+      <div class="cue-row" data-cue="8"><span class="cue-n">8</span><div><span class="cap" style="font-size:12px;font-weight:800;letter-spacing:.06em;color:var(--fg-2)">At rest, it holds still</span><div style="font-size:11px;color:var(--fg-4);line-height:1.5">No ambient loop, no shimmer, no ticker. Once resolved, the sheet is a static reference — motion earns its place, then gets out of the way. <span class="tabular" style="color:var(--fg-5)">rest</span></div></div></div>
+    </div>
+
+    <div style="border:1px solid var(--color-border);background:var(--color-surface);padding:12px 14px;display:flex;flex-direction:column;gap:6px">
+      <span class="cap" style="font-size:10px;font-weight:700;letter-spacing:.18em;color:var(--fg-5)">Guardrails</span>
+      <span style="font-size:11px;color:var(--fg-4);line-height:1.6">Full entrance ≤ 1.2s · rows stagger, never all at once · bars grow from the divider outward, they don't slide in from the sides · one flare per row, on the winner only · rate / clock stats never fake-count · no idle animation once settled · all motion off under reduced-motion (bars and numbers snap to final).</span>
+    </div>
+  </div>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  refs = {};
+  slow = false;
+  _timers = [];
+  _ivs = [];
+
+  rRoot   = (el)=>{ if(el) this.refs.root=el; };
+  rWipe   = (el)=>{ if(el) this.refs.wipe=el; };
+  rLegend = (el)=>{ if(el) this.refs.legend=el; };
+  rSlow   = (el)=>{ if(el) this.refs.slow=el; };
+
+  replay     = ()=> this.play();
+  toggleSlow = ()=>{ this.slow=!this.slow; if(this.refs.slow) this.refs.slow.classList.toggle('on', this.slow); };
+
+  renderVals(){
+    return { rRoot:this.rRoot, rWipe:this.rWipe, rLegend:this.rLegend, rSlow:this.rSlow,
+             replay:this.replay, toggleSlow:this.toggleSlow };
+  }
+
+  componentDidMount(){
+    this.reduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion:reduce)').matches;
+    setTimeout(()=> this.play(), 260);
+  }
+  componentWillUnmount(){ this.clearAll(); }
+
+  clearAll(){ this._timers.forEach(clearTimeout); this._timers=[]; this._ivs.forEach(clearInterval); this._ivs=[]; }
+  later(fn, ms){ const id=setTimeout(fn, ms); this._timers.push(id); return id; }
+  s(ms){ return this.slow ? ms*2.6 : ms; }
+
+  qa(sel){ return this.refs.root ? [...this.refs.root.querySelectorAll(sel)] : []; }
+  lit(n,on){ if(!this.refs.legend) return; const r=this.refs.legend.querySelector('[data-cue="'+n+'"]'); if(r) r.classList.toggle('lit', on); }
+
+  hide(el){ if(!el) return; el.style.transition='none'; el.style.opacity='0'; el.style.transform='translateY(7px)'; }
+  reveal(el){ if(!el) return; el.style.transition='opacity .38s cubic-bezier(.16,.84,.3,1),transform .38s cubic-bezier(.16,.84,.3,1)'; el.style.opacity='1'; el.style.transform='none'; }
+
+  countUp(els, dur){
+    if(!els.length) return;
+    const t0=Date.now(); const ease=p=>1-Math.pow(1-p,3);
+    const iv=setInterval(()=>{
+      const p=Math.min(1,(Date.now()-t0)/dur); const k=ease(p);
+      els.forEach(c=>{ if(c) c.textContent=Math.round((+c.dataset.final||0)*k); });
+      if(p>=1){ els.forEach(c=>{ if(c) c.textContent=c.dataset.final; }); clearInterval(iv); }
+    },16);
+    this._ivs.push(iv);
+  }
+
+  reset(){
+    [1,2,3,4,5,6,7,8].forEach(n=>this.lit(n,false));
+    this.qa('[data-row]').forEach(r=>this.hide(r));
+    const cta=this.qa('[data-el="cta"]')[0]; this.hide(cta);
+    this.qa('[data-bar]').forEach(b=>{ b.style.transition='none'; b.style.width='0'; b.classList.remove('bar-acc','bar-opp'); });
+    this.qa('[data-count]').forEach(c=>{ c.textContent='0'; });
+    void (this.refs.root && this.refs.root.offsetHeight);
+  }
+
+  snapFinal(){
+    this.qa('[data-row]').forEach(r=>{ r.style.transition='none'; r.style.opacity='1'; r.style.transform='none'; });
+    const cta=this.qa('[data-el="cta"]')[0]; if(cta){ cta.style.transition='none'; cta.style.opacity='1'; cta.style.transform='none'; }
+    this.qa('[data-bar]').forEach(b=>{ b.style.transition='none'; b.style.width='100%'; });
+    this.qa('[data-count]').forEach(c=>{ c.textContent=c.dataset.final; });
+    [1,2,3,4,5,6,7,8].forEach(n=>this.lit(n,false)); this.lit(8,true);
+  }
+
+  armWhenVisible(){
+    if(this._armed) return; this._armed=true;
+    const on=()=>{ if(!document.hidden){ document.removeEventListener('visibilitychange',on); this._armed=false; this.play(); } };
+    document.addEventListener('visibilitychange', on);
+  }
+
+  play(){
+    this.clearAll();
+    if(this.reduced || document.hidden){ this.snapFinal(); if(!this.reduced && document.hidden) this.armWhenVisible(); return; }
+    this.reset();
+    const B = this.s.bind(this);
+
+    // ① panel reveal + wipe
+    this.lit(1,true);
+    const {root,wipe}=this.refs;
+    if(root){ root.classList.remove('panel-in'); void root.offsetHeight; root.classList.add('panel-in'); }
+    if(wipe){ wipe.classList.remove('go'); void wipe.offsetHeight; wipe.classList.add('go'); }
+
+    const rows = this.qa('[data-row]');
+    const rowStart = B(300), step = B(105), cdur = B(360);
+
+    rows.forEach((row,i)=>{
+      this.later(()=>{
+        if(i===0){ this.lit(2,true); this.lit(3,true); this.lit(4,true); this.lit(5,true); }
+        this.reveal(row);
+        // ③ grow bars outward from the divider
+        row.querySelectorAll('[data-bar]').forEach(b=>{ b.style.transition='width .5s cubic-bezier(.2,.7,.2,1)'; b.style.width='100%'; });
+        // ④ count integer values
+        this.countUp([...row.querySelectorAll('[data-count]')], cdur);
+        // ⑤ winner flare as it lands
+        this.later(()=>{
+          row.querySelectorAll('[data-win]').forEach(b=>{
+            const t=b.dataset.win==='opp' ? 'bar-opp' : 'bar-acc';
+            b.classList.remove('bar-acc','bar-opp'); void b.offsetWidth; b.classList.add(t);
+          });
+        }, cdur);
+      }, rowStart + i*step);
+    });
+
+    // CTA settles last; interaction + rest cues become available
+    const endAt = rowStart + rows.length*step;
+    this.later(()=>{
+      this.reveal(this.qa('[data-el="cta"]')[0]);
+      this.lit(6,true); this.lit(7,true); this.lit(8,true);
+    }, endAt + B(140));
+  }
+}
+</script>
+</body>
+</html>

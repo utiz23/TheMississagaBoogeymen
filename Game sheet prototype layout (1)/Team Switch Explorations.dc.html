@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <meta name="design_doc_mode" content="canvas">
+  <link rel="stylesheet" href="_ds/boogeymen-design-system-019df013-7ada-79ec-ac26-22b50894a2b1/colors_and_type.css">
+  <link rel="stylesheet" href="_ds/boogeymen-design-system-019df013-7ada-79ec-ac26-22b50894a2b1/preview/_base.css">
+  <script src="_ds/boogeymen-design-system-019df013-7ada-79ec-ac26-22b50894a2b1/_ds_bundle.js"></script>
+  <style>
+    body{margin:0;background:var(--color-background);color:var(--fg-1);font-family:var(--font-sans)}
+    .cap{font-family:var(--font-condensed);text-transform:uppercase}
+    a{color:var(--color-accent)}
+    a:hover{color:var(--color-accent-strong)}
+  </style>
+</helmet>
+
+<div style="min-height:100vh;background:var(--color-background);padding:52px 48px 80px">
+
+  <div style="max-width:1200px;margin:0 auto 36px">
+    <span class="ds-section-label">Prototype · Lineup team switcher</span>
+    <h1 class="cap" style="margin:8px 0 6px;font-size:30px;font-weight:900;letter-spacing:.06em;color:var(--fg-1)">Switching between BGM &amp; 4L</h1>
+    <p style="margin:0;max-width:640px;font-size:14px;line-height:1.55;color:var(--fg-3)">Four subtler takes on the hard <span class="cap" style="color:var(--fg-2)">BGM / 4L</span> segmented button. Each is live — click to feel the interaction. Reference an option by its id in chat and I'll wire it into the sheet.</p>
+  </div>
+
+  <!-- ============ TURN 1 ============ -->
+  <section style="max-width:1200px;margin:0 auto">
+    <div style="display:flex;flex-wrap:wrap;gap:26px">
+
+      <!-- ---------- 1a · SLIDING THUMB ---------- -->
+      <div id="1a" style="flex:1 1 340px;min-width:320px;border:1px solid var(--color-border);background:var(--color-surface)">
+        <div style="display:flex;align-items:center;gap:10px;padding:11px 14px;border-bottom:1px solid var(--color-border-subtle)">
+          <span class="cap" style="font-size:10px;font-weight:800;letter-spacing:.18em;color:var(--color-accent);border:1px solid var(--color-accent-line);background:var(--color-accent-soft);padding:2px 7px">1a</span>
+          <span class="cap" style="font-size:11px;font-weight:700;letter-spacing:.16em;color:var(--fg-3)">Sliding thumb</span>
+        </div>
+        <div style="padding:26px 22px 24px;display:flex;flex-direction:column;gap:20px">
+          <!-- context row -->
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:14px">
+            <div style="display:flex;align-items:center;gap:9px;min-width:0">
+              <sc-if value="{{ aBgm }}" hint-placeholder-val="{{ true }}"><img src="assets/bgm-logo.png" alt="" style="width:26px;height:26px;object-fit:contain;flex:none"></sc-if>
+              <sc-if value="{{ aNot }}" hint-placeholder-val="{{ false }}"><span style="width:26px;height:26px;border-radius:50%;background:var(--color-charcoal);border:1px solid var(--color-border);display:flex;align-items:center;justify-content:center;font:900 9px var(--font-condensed);color:var(--fg-3);flex:none">4L</span></sc-if>
+              <span class="cap" style="font-size:15px;font-weight:900;letter-spacing:.07em;color:var(--fg-1)">{{ aName }}</span>
+            </div>
+            <div style="position:relative;width:212px;height:40px;flex:none;border:1px solid var(--color-border);background:var(--color-charcoal);padding:3px;box-sizing:border-box">
+              <span style="{{ aThumb }}"></span>
+              <div style="position:relative;display:flex;height:100%">
+                <button type="button" onClick="{{ aSetBgm }}" style="{{ aBtnBgm }}">BGM</button>
+                <button type="button" onClick="{{ aSet4l }}" style="{{ aBtn4l }}">4L</button>
+              </div>
+            </div>
+          </div>
+          <p style="margin:0;font-size:12px;line-height:1.5;color:var(--fg-4)">A single accent pill glides across the track — the motion carries the state change instead of two competing filled buttons.</p>
+        </div>
+      </div>
+
+      <!-- ---------- 1b · CREST TOGGLE ---------- -->
+      <div id="1b" style="flex:1 1 340px;min-width:320px;border:1px solid var(--color-border);background:var(--color-surface)">
+        <div style="display:flex;align-items:center;gap:10px;padding:11px 14px;border-bottom:1px solid var(--color-border-subtle)">
+          <span class="cap" style="font-size:10px;font-weight:800;letter-spacing:.18em;color:var(--color-accent);border:1px solid var(--color-accent-line);background:var(--color-accent-soft);padding:2px 7px">1b</span>
+          <span class="cap" style="font-size:11px;font-weight:700;letter-spacing:.16em;color:var(--fg-3)">Crest toggle</span>
+        </div>
+        <div style="padding:26px 22px 24px;display:flex;flex-direction:column;gap:20px">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:14px">
+            <div style="display:flex;flex-direction:column;gap:2px">
+              <span class="cap" style="font-size:10px;font-weight:700;letter-spacing:.18em;color:var(--fg-4)">Viewing</span>
+              <span class="cap" style="font-size:15px;font-weight:900;letter-spacing:.07em;color:var(--fg-1)">{{ bName }}</span>
+            </div>
+            <div style="display:flex;gap:6px;flex:none">
+              <button type="button" onClick="{{ bSetBgm }}" style="{{ bCrestBgm }}" style-hover="opacity:1">
+                <img src="assets/bgm-logo.png" alt="BGM" style="width:30px;height:30px;object-fit:contain">
+                <span style="{{ bBarBgm }}"></span>
+              </button>
+              <button type="button" onClick="{{ bSet4l }}" style="{{ bCrest4l }}" style-hover="opacity:1">
+                <span style="width:30px;height:30px;border-radius:50%;background:var(--color-charcoal);border:1px solid var(--color-border);display:flex;align-items:center;justify-content:center;font:900 11px var(--font-condensed);color:var(--fg-2)">4L</span>
+                <span style="{{ bBar4l }}"></span>
+              </button>
+            </div>
+          </div>
+          <p style="margin:0;font-size:12px;line-height:1.5;color:var(--fg-4)">Both crests always sit in view; the inactive one is dimmed and desaturated, the active one lit with a thin accent underline. Quiet, icon-led.</p>
+        </div>
+      </div>
+
+      <!-- ---------- 1c · SWAP CONTEXT ---------- -->
+      <div id="1c" style="flex:1 1 340px;min-width:320px;border:1px solid var(--color-border);background:var(--color-surface)">
+        <div style="display:flex;align-items:center;gap:10px;padding:11px 14px;border-bottom:1px solid var(--color-border-subtle)">
+          <span class="cap" style="font-size:10px;font-weight:800;letter-spacing:.18em;color:var(--color-accent);border:1px solid var(--color-accent-line);background:var(--color-accent-soft);padding:2px 7px">1c</span>
+          <span class="cap" style="font-size:11px;font-weight:700;letter-spacing:.16em;color:var(--fg-3)">Swap context</span>
+        </div>
+        <div style="padding:26px 22px 24px;display:flex;flex-direction:column;gap:20px">
+          <button type="button" onClick="{{ cSwap }}" style="display:flex;align-items:center;gap:0;width:100%;padding:0;border:1px solid var(--color-border);background:var(--color-charcoal);cursor:pointer;text-align:left" style-hover="border-color:var(--color-accent-line)">
+            <span style="display:flex;align-items:center;gap:10px;padding:10px 14px;flex:1;min-width:0">
+              <sc-if value="{{ cBgm }}" hint-placeholder-val="{{ true }}"><img src="assets/bgm-logo.png" alt="" style="width:30px;height:30px;object-fit:contain;flex:none"></sc-if>
+              <sc-if value="{{ cNot }}" hint-placeholder-val="{{ false }}"><span style="width:30px;height:30px;border-radius:50%;background:var(--color-surface);border:1px solid var(--color-border);display:flex;align-items:center;justify-content:center;font:900 10px var(--font-condensed);color:var(--fg-2);flex:none">4L</span></sc-if>
+              <span style="display:flex;flex-direction:column;gap:1px;min-width:0">
+                <span class="cap" style="font-size:9px;font-weight:700;letter-spacing:.2em;color:var(--fg-4)">Viewing</span>
+                <span class="cap" style="font-size:15px;font-weight:900;letter-spacing:.06em;color:var(--fg-1)">{{ cName }}</span>
+              </span>
+            </span>
+            <span style="display:flex;align-items:center;gap:9px;padding:10px 14px;border-left:1px solid var(--color-border);flex:none;align-self:stretch">
+              <span style="display:flex;flex-direction:column;gap:1px;text-align:right">
+                <span class="cap" style="font-size:9px;font-weight:700;letter-spacing:.2em;color:var(--fg-4)">Switch to</span>
+                <span class="cap" style="font-size:13px;font-weight:800;letter-spacing:.1em;color:var(--fg-3)">{{ cOther }}</span>
+              </span>
+              <span class="cap" style="font-size:17px;font-weight:900;color:var(--color-accent);line-height:1">⇄</span>
+            </span>
+          </button>
+          <p style="margin:0;font-size:12px;line-height:1.5;color:var(--fg-4)">Only the active team is shown, full-size. A quiet swap affordance names the other team — one tap flips the view. Best when screen space is tight.</p>
+        </div>
+      </div>
+
+      <!-- ---------- 1d · UNDERLINE TABS ---------- -->
+      <div id="1d" style="flex:1 1 340px;min-width:320px;border:1px solid var(--color-border);background:var(--color-surface)">
+        <div style="display:flex;align-items:center;gap:10px;padding:11px 14px;border-bottom:1px solid var(--color-border-subtle)">
+          <span class="cap" style="font-size:10px;font-weight:800;letter-spacing:.18em;color:var(--color-accent);border:1px solid var(--color-accent-line);background:var(--color-accent-soft);padding:2px 7px">1d</span>
+          <span class="cap" style="font-size:11px;font-weight:700;letter-spacing:.16em;color:var(--fg-3)">Underline tabs</span>
+        </div>
+        <div style="padding:26px 22px 24px;display:flex;flex-direction:column;gap:20px">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:14px">
+            <div style="display:flex;align-items:center;gap:9px;min-width:0">
+              <sc-if value="{{ dBgm }}" hint-placeholder-val="{{ true }}"><img src="assets/bgm-logo.png" alt="" style="width:26px;height:26px;object-fit:contain;flex:none"></sc-if>
+              <sc-if value="{{ dNot }}" hint-placeholder-val="{{ false }}"><span style="width:26px;height:26px;border-radius:50%;background:var(--color-charcoal);border:1px solid var(--color-border);display:flex;align-items:center;justify-content:center;font:900 9px var(--font-condensed);color:var(--fg-3);flex:none">4L</span></sc-if>
+              <span class="cap" style="font-size:15px;font-weight:900;letter-spacing:.07em;color:var(--fg-1)">{{ dName }}</span>
+            </div>
+            <div style="display:flex;gap:20px;flex:none;border-bottom:1px solid var(--color-border-subtle)">
+              <button type="button" onClick="{{ dSetBgm }}" style="{{ dTabBgm }}">BGM<span style="{{ dBarBgm }}"></span></button>
+              <button type="button" onClick="{{ dSet4l }}" style="{{ dTab4l }}">4TH LINE<span style="{{ dBar4l }}"></span></button>
+            </div>
+          </div>
+          <p style="margin:0;font-size:12px;line-height:1.5;color:var(--fg-4)">Reuses the page's existing sub-nav idiom — an accent underline marks the live team. Zero new visual vocabulary; the most system-consistent option.</p>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  state = { a:'BGM', b:'BGM', c:'BGM', d:'BGM' };
+
+  nm(t){ return t === 'BGM' ? 'BOOGEYMEN' : '4TH LINE'; }
+  set(k, v){ this.setState({ [k]: v }); }
+
+  // 1a — sliding thumb
+  aBtn(active){
+    return 'flex:1;position:relative;z-index:1;border:none;background:transparent;cursor:pointer;'
+      + 'font-family:var(--font-condensed);text-transform:uppercase;font-size:12px;font-weight:800;letter-spacing:.14em;'
+      + 'transition:color .2s;color:' + (active ? '#fff' : 'var(--fg-4)') + ';';
+  }
+  aThumbStyle(bgm){
+    return 'position:absolute;top:3px;left:3px;bottom:3px;width:calc(50% - 3px);'
+      + 'background:' + (bgm ? 'var(--color-accent)' : 'var(--color-surface-raised)') + ';'
+      + (bgm ? 'box-shadow:var(--glow-accent-soft);' : 'border:1px solid var(--color-border);')
+      + 'transform:translateX(' + (bgm ? '0' : '100%') + ');'
+      + 'transition:transform .28s cubic-bezier(.4,.9,.3,1),background-color .2s;';
+  }
+
+  // 1b — crest toggle
+  bCrest(active){
+    return 'position:relative;display:flex;align-items:center;justify-content:center;padding:5px 5px 9px;border:none;background:transparent;cursor:pointer;'
+      + 'transition:opacity .2s,filter .2s;'
+      + (active ? 'opacity:1;filter:none;' : 'opacity:.34;filter:grayscale(1);');
+  }
+  bBar(active){
+    return 'position:absolute;left:4px;right:4px;bottom:0;height:2px;transition:background-color .2s;background:' + (active ? 'var(--color-accent)' : 'transparent') + ';';
+  }
+
+  // 1d — underline tabs
+  dTab(active){
+    return 'position:relative;font-family:var(--font-condensed);text-transform:uppercase;font-size:13px;font-weight:800;letter-spacing:.14em;'
+      + 'padding:6px 2px 8px;white-space:nowrap;cursor:pointer;border:none;background:transparent;transition:color .18s;'
+      + 'color:' + (active ? 'var(--fg-1)' : 'var(--fg-4)') + ';';
+  }
+  dBar(active){
+    return 'position:absolute;left:0;right:0;bottom:-1px;height:2px;transition:background-color .18s;background:' + (active ? 'var(--color-accent)' : 'transparent') + ';';
+  }
+
+  renderVals(){
+    const s = this.state;
+    const aB = s.a === 'BGM', bB = s.b === 'BGM', cB = s.c === 'BGM', dB = s.d === 'BGM';
+    return {
+      // 1a
+      aBgm: aB, aNot: !aB, aName: this.nm(s.a),
+      aThumb: this.aThumbStyle(aB),
+      aBtnBgm: this.aBtn(aB), aBtn4l: this.aBtn(!aB),
+      aSetBgm: () => this.set('a','BGM'), aSet4l: () => this.set('a','4L'),
+      // 1b
+      bName: this.nm(s.b),
+      bCrestBgm: this.bCrest(bB), bCrest4l: this.bCrest(!bB),
+      bBarBgm: this.bBar(bB), bBar4l: this.bBar(!bB),
+      bSetBgm: () => this.set('b','BGM'), bSet4l: () => this.set('b','4L'),
+      // 1c
+      cBgm: cB, cNot: !cB, cName: this.nm(s.c), cOther: cB ? '4TH LINE' : 'BOOGEYMEN',
+      cSwap: () => this.set('c', cB ? '4L' : 'BGM'),
+      // 1d
+      dBgm: dB, dNot: !dB, dName: this.nm(s.d),
+      dTabBgm: this.dTab(dB), dTab4l: this.dTab(!dB),
+      dBarBgm: this.dBar(dB), dBar4l: this.dBar(!dB),
+      dSetBgm: () => this.set('d','BGM'), dSet4l: () => this.set('d','4L'),
+    };
+  }
+}
+</script>
+</body>
+</html>

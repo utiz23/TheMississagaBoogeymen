@@ -1,0 +1,2304 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="_ds/boogeymen-design-system-019df013-7ada-79ec-ac26-22b50894a2b1/colors_and_type.css">
+  <link rel="stylesheet" href="_ds/boogeymen-design-system-019df013-7ada-79ec-ac26-22b50894a2b1/preview/_base.css">
+  <script src="_ds/boogeymen-design-system-019df013-7ada-79ec-ac26-22b50894a2b1/_ds_bundle.js"></script>
+  <style>
+    body{margin:0;background:var(--color-background);color:var(--fg-1);font-family:var(--font-sans)}
+    .cap{font-family:var(--font-condensed);text-transform:uppercase}
+    /* a11y: lower text ramp re-tuned for contrast on --color-surface (#232122).
+       Everything that carries text now clears AA 4.5:1 at 12px —
+       fg-4 ≈5.6:1 (labels) · fg-5 ≈4.6:1 (metadata, values) · fg-6 ≈4.6:1 (separators). */
+    :root{--fg-4:#8e8b8c;--fg-5:#7f7c7d;--fg-6:#6e6b6c}
+    /* keyboard focus — every control shows it */
+    :focus-visible{outline:2px solid var(--color-accent);outline-offset:2px}
+    .lu-row:focus-visible,.perf-row-in:focus-visible{outline:2px solid var(--color-accent);outline-offset:-2px}
+    .navlink,.nav-drawer-link,.subnav-btn{background:none;border:none;cursor:pointer;-webkit-tap-highlight-color:transparent}
+    .nav-drawer-link{width:100%;text-align:left}
+    .subnav-btn{box-sizing:border-box;min-height:45px}
+    /* 12px floor for design-system + embedded action-tracker label classes */
+    .ds-stat-label{font-size:12px;color:var(--fg-4)}
+    .atk .fb-label,.atk .sub,.atk .seg button,.atk .seg button .ct,.atk .type-toggle,.atk .type-toggle .ct,
+    .atk .quick-mode,.atk .summary-strip .kv .k,.atk .rink-head .l,.atk .rink-head .sides,
+    .atk .tt-type,.atk .tt-time,.atk .tt-target,.atk .tt-meta,.atk .list-head .l,.atk .list-head .ct,
+    .atk .list-head select,.atk .period-divider .pn,.atk .period-divider .ct,.atk .ec .type-pill,
+    .atk .ec .ev-period,.atk .list-empty .l2,.atk .list-empty button,.atk .foot .kv .k,.atk .foot .kv .v,
+    .atk .foot .chip{font-size:12px}
+    /* opponent identity colour — driven by the "Opponent colour" tweak; defaults to a cool
+       chromatic slate so an opponent-won bar reads as the opponent, not as neutral text */
+    :root{--opp:#8FA6C4;
+      --opp-2:color-mix(in srgb,var(--opp) 74%,transparent);
+      --opp-3:color-mix(in srgb,var(--opp) 78%,var(--color-charcoal));
+      --opp-line:color-mix(in srgb,var(--opp) 40%,transparent);
+      --opp-soft:color-mix(in srgb,var(--opp) 12%,transparent)}
+    /* broadcast ticker sweep — the ONE persistent loop, on the hero strip only (transform-only, composited) */
+    .ticker-strip{position:relative;overflow:hidden}
+    .ticker-strip--hero::after{content:"";position:absolute;top:0;bottom:0;left:0;width:40%;background:linear-gradient(90deg,transparent,rgba(255,255,255,.34),transparent);transform:translateX(-140%);animation:bcast-sweep 4.5s cubic-bezier(.55,0,.45,1) .8s infinite;will-change:transform}
+    @keyframes bcast-sweep{0%{transform:translateX(-140%)}55%,100%{transform:translateX(320%)}}
+    /* broadcast panel reveal — sections settle into place on load */
+    @keyframes bcast-rise{from{opacity:0;transform:translateY(26px) scale(.985)}to{opacity:1;transform:translateY(0) scale(1)}}
+    .bcast-in{animation:bcast-rise .62s cubic-bezier(.16,.84,.3,1) both}
+    /* lineup load-in — a red hairline sweeps the panel top once, like a lower-third settling */
+    /* lineup auto-rotate dwell — two identical names so re-assigning restarts the run */
+    @keyframes lu-dwell-a{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+    @keyframes lu-dwell-b{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+    @keyframes panel-wipe{0%{transform:translateX(-120%);opacity:0}18%{opacity:1}80%{opacity:1}100%{transform:translateX(340%);opacity:0}}
+    .panel-wipe{position:absolute;top:0;left:0;z-index:3;height:2px;width:45%;pointer-events:none;background:linear-gradient(90deg,transparent,var(--color-accent),transparent);animation:panel-wipe .85s cubic-bezier(.55,0,.45,1) .55s both}
+    /* stat bars grow whenever they appear (tab open / row expand) */
+    @keyframes bcast-grow{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+    .bcast-bar{transform-origin:left center;animation:bcast-grow .7s cubic-bezier(.2,.7,.2,1) both}
+    /* team stats head-to-head — winning share bar flares once as it lands */
+    @keyframes ts-bloom-acc{0%{box-shadow:0 0 0 rgba(232,65,49,0)}50%{box-shadow:0 0 8px rgba(232,65,49,.3)}100%{box-shadow:0 0 3px rgba(232,65,49,.14)}}
+    .ts-bloom-acc{animation:ts-bloom-acc .6s ease-out both}
+    @keyframes ts-bloom-opp{0%{box-shadow:0 0 0 transparent}50%{box-shadow:0 0 8px color-mix(in srgb,var(--opp) 28%,transparent)}100%{box-shadow:0 0 2px color-mix(in srgb,var(--opp) 14%,transparent)}}
+    .ts-bloom-opp{animation:ts-bloom-opp .6s ease-out both}
+    /* boosted attribute bar flares once as it lands — broadcast "gain" cue */
+    @keyframes boost-flash{0%{box-shadow:0 0 0 rgba(232,65,49,0)}60%{box-shadow:0 0 10px rgba(232,65,49,.28)}100%{box-shadow:0 0 5px rgba(232,65,49,.16)}}
+    .bar-boost{transform-origin:left center;animation:bcast-grow .7s cubic-bezier(.2,.7,.2,1) both,boost-flash .55s ease-out .62s both}
+    /* row-expand set — drawer opens like a lower-third plugging in */
+    @keyframes drawer-open{from{opacity:0;clip-path:inset(0 0 100% 0)}to{opacity:1;clip-path:inset(0 0 0 0)}}
+    .drawer-in{animation:drawer-open .34s cubic-bezier(.16,.84,.3,1) both}
+    /* accent left edge wipes top-down as the drawer lands */
+    @keyframes edge-wipe{from{transform:scaleY(0)}to{transform:scaleY(1)}}
+    .drawer-edge{position:absolute;left:0;top:0;bottom:0;width:2px;background:var(--color-accent);transform-origin:top center;animation:edge-wipe .32s cubic-bezier(.16,.84,.3,1) .04s both}
+    /* drawer inner blocks assemble in a short stagger */
+    @keyframes block-rise{from{opacity:0;transform:translateY(9px)}to{opacity:1;transform:translateY(0)}}
+    .drawer-in > *{animation:block-rise .38s cubic-bezier(.16,.84,.3,1) both}
+    .drawer-in > *:nth-child(2){animation-delay:.06s}
+    .drawer-in > *:nth-child(3){animation-delay:.12s}
+    .drawer-in > *:nth-child(4){animation-delay:.18s}
+    .drawer-in > *:nth-child(5){animation-delay:.24s}
+    /* chevron rotates between collapsed / open */
+    .chev-rot{display:inline-block;transition:transform .28s cubic-bezier(.16,.84,.3,1),color .28s ease}
+    /* team switch — header crest crossfades in on swap (sc-if remount) */
+    @keyframes crest-in{from{opacity:0;transform:translateX(-5px) scale(.9)}to{opacity:1;transform:translateX(0) scale(1)}}
+    .crest-in{animation:crest-in .22s cubic-bezier(.16,.84,.3,1) both}
+    /* leader star — static accent mark; no loop */
+    .leader-star{text-shadow:0 0 5px rgba(232,65,49,.16)}
+    /* event timeline — card hover: elevate + step to the raised surface */
+    .tl-card{transition:box-shadow .2s ease,background-color .2s ease,border-color .2s ease}
+    .tl-card:hover{background:var(--color-surface-raised,#1f1f22)!important;box-shadow:0 10px 26px rgba(0,0,0,.45)!important;border-color:var(--color-accent-line)!important}
+    /* game-winning goal — marked by a static accent strip + accent border, not by motion */
+    .tl-gwg{position:relative!important;border-color:var(--color-accent-line)!important;box-shadow:0 0 8px rgba(232,65,49,.14)}
+    .tl-gwg::before{content:"";position:absolute;left:0;right:0;top:0;height:2px;z-index:2;background:linear-gradient(90deg,#6d0f1c,var(--color-accent),#6d0f1c)}
+    .tl-gwg:hover{background:var(--color-surface-raised,#1f1f22)!important;box-shadow:0 0 16px rgba(232,65,49,.22)!important;border-color:var(--color-accent)!important}
+    /* event timeline — rail end-caps: static accent dots */
+    .tl-cap{box-shadow:0 0 5px rgba(232,65,49,.16)}
+    /* deserve-to-win — winning % flares once as the gauge fill lands, then settles */
+    @keyframes dtw-bloom{0%{text-shadow:0 0 0 rgba(232,65,49,0)}42%{text-shadow:0 0 26px rgba(232,65,49,.4),0 0 10px rgba(232,65,49,.28)}100%{text-shadow:0 0 18px rgba(232,65,49,.16)}}
+    .dtw-bloom{animation:dtw-bloom .9s ease-out both}
+    /* box score auto-rotate — dwell tick under the active tab + a red wipe on each swap */
+    @keyframes box-tick{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+    @keyframes box-wipe-a{0%{transform:translateX(-120%);opacity:0}18%{opacity:1}80%{opacity:1}100%{transform:translateX(340%);opacity:0}}
+    @keyframes box-wipe-b{0%{transform:translateX(-120%);opacity:0}18%{opacity:1}80%{opacity:1}100%{transform:translateX(340%);opacity:0}}
+    /* WIN bloom — winning score flares once as it lands */
+    @keyframes bcast-bloom{0%{text-shadow:0 0 0 rgba(232,65,49,0)}45%{text-shadow:0 0 30px rgba(232,65,49,.45),0 0 10px rgba(232,65,49,.3)}100%{text-shadow:var(--glow-accent-soft)}}
+    .bcast-bloom{animation:bcast-bloom 1s ease-out 1.35s both}
+    /* top performers — #1 score flares once as the count-up lands (filter, so it won't fight the inline resting glow) */
+    @keyframes perf-bloom{0%{filter:drop-shadow(0 0 0 rgba(232,65,49,0))}40%{filter:drop-shadow(0 0 12px rgba(232,65,49,.35))}100%{filter:drop-shadow(0 0 0 rgba(232,65,49,0))}}
+    .perf-bloom{animation:perf-bloom .9s ease-out .7s both}
+    /* breakdown bars grow left-to-right when a row expands (shares bcast-grow) */
+    .perf-bar-row > span{transform-origin:left center;animation:bcast-grow .45s cubic-bezier(.16,.84,.3,1) both}
+    .perf-bar-row > span:nth-child(2){animation-delay:.06s}
+    .perf-bar-row > span:nth-child(3){animation-delay:.12s}
+    .perf-bar-row > span:nth-child(4){animation-delay:.18s}
+    .perf-bar-row > span:nth-child(5){animation-delay:.24s}
+    /* rail row entrance — fade + slide, staggered; backwards fill releases transform so :hover lift works after */
+    @keyframes perf-row-in{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+    .perf-row-in{animation:perf-row-in .22s cubic-bezier(.16,.84,.3,1) backwards;transition:transform .18s ease,background-color .15s ease,border-top-color .18s ease}
+    .perf-row-in:hover{transform:translateY(-1px);background:var(--color-surface-raised) !important;border-top-color:var(--color-border) !important}
+    /* AFFORDANCES — controls read as controls at rest (contrast + border); accent is reserved for hover / on-state */
+    .tab-cta{color:var(--fg-2);transition:color .18s ease}
+    .tab-cta > span{background:var(--color-accent)!important;opacity:.32;transition:opacity .18s ease}
+    .tab-cta:hover{color:var(--fg-1)!important}
+    .tab-cta:hover > span{opacity:1}
+    /* segmented pill tabs (box score) */
+    .pill-cta{transition:background-color .18s ease,border-color .18s ease,color .18s ease}
+    .pill-cta:not(.is-on){color:var(--fg-2);border-color:var(--color-border)}
+    .pill-cta:not(.is-on):hover{border-color:var(--color-accent)!important;background:var(--color-accent-soft)!important;color:var(--color-accent)!important}
+    /* drill-through chevron chip on lineup rows */
+    .chev-cta{transition:transform .28s cubic-bezier(.16,.84,.3,1),color .18s ease,border-color .18s ease,background-color .18s ease}
+    .lu-row:hover .chev-cta{color:var(--color-accent)!important;border-color:var(--color-accent)!important;background:var(--color-accent-soft)!important}
+    /* disclosure buttons — one shared treatment (timeline / show-all / where-the-edge) */
+    .wire-cta{transition:background-color .18s ease,border-color .18s ease;border-color:var(--color-border)!important}
+    .wire-cta:hover{background:var(--color-accent-soft)!important;border-color:var(--color-accent)!important}
+    .wire-cta span{color:var(--fg-2)!important}
+    .wire-cta:hover span{color:var(--color-accent)!important}
+    /* ── TOP NAV ─────────────────────────────────────────────────────────── */
+    .navlink{color:var(--fg-3);transition:color .15s,background-color .15s}
+    .navlink:hover{color:var(--fg-1);background-color:var(--color-surface-raised)}
+    .nav-burger{display:none;place-items:center;width:44px;height:44px;background:transparent;border:none;cursor:pointer;padding:0;-webkit-tap-highlight-color:transparent}
+    .nav-drawer-link{color:var(--fg-3);transition:color .15s,border-color .15s}
+    .nav-drawer-link:hover{color:var(--fg-1)}
+    .nav-switch{transition:border-color .15s,background-color .15s,color .15s}
+    .nav-switch:hover{border-color:var(--color-accent-line);background:var(--color-surface-raised);color:var(--fg-1)}
+    .nav-cta{transition:filter .15s}
+    .nav-cta:hover{filter:brightness(1.12)}
+    @media (max-width:960px){.nav-desktop{display:none!important}.nav-burger{display:grid}}
+    summary::-webkit-details-marker{display:none}
+    .disc-caret{display:inline-block;transition:transform .28s cubic-bezier(.16,.84,.3,1)}
+    details[open] .disc-caret{transform:rotate(180deg)}
+    @media (prefers-reduced-motion:reduce){
+      /* nothing moves on its own: also neutralises the JS-driven inline animations
+         (box-wipe-a/b, box-tick, lu-dwell-a/b) and the auto-rotate reveal transitions */
+      *,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important}
+      .panel-wipe{display:none}
+      .perf-bloom{animation:none}
+      .perf-bar-row > span{animation:none}
+      .perf-row-in{animation:none}
+      .perf-row-in:hover{transform:none}
+      .ticker-strip--hero::after{animation:none;display:none}
+      .bcast-in{animation:none}
+      .bcast-bloom{animation:none}
+      .bcast-bar{animation:none}
+      .ts-bloom-acc,.ts-bloom-opp{animation:none}
+      .bar-boost{animation:none}
+      .drawer-in,.drawer-edge,.drawer-in > *{animation:none}
+      .chev-rot{transition:none}
+      .crest-in{animation:none}
+      .leader-star{animation:none}
+      .dtw-bloom{animation:none}
+    }
+  </style>
+</helmet>
+
+<div ref="{{ setOppRoot }}" style="--opp:{{ oppC }};--opp-2:color-mix(in srgb,var(--opp) 74%,transparent);--opp-3:color-mix(in srgb,var(--opp) 78%,var(--color-charcoal));--opp-line:color-mix(in srgb,var(--opp) 40%,transparent);--opp-soft:color-mix(in srgb,var(--opp) 12%,transparent);background:var(--color-background);min-height:100vh">
+
+  <!-- TOP NAV -->
+  <header style="position:sticky;top:0;z-index:50;border-bottom:1px solid var(--color-accent-line);background:rgba(35,33,34,.95);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)">
+    <div style="height:2px;background:linear-gradient(90deg,#6d0f1c,var(--color-accent),#6d0f1c)"></div>
+    <div style="position:relative;max-width:1280px;margin:0 auto;display:flex;align-items:center;gap:24px;height:64px;padding:0 20px">
+      <button type="button" aria-label="Boogeymen — home" onClick="{{ goHome }}" style="display:flex;align-items:center;gap:12px;flex-shrink:0;background:none;border:none;padding:0;cursor:pointer;color:inherit" style-hover="opacity:.88">
+        <img src="assets/bgm-logo.png" alt="" style="height:38px;width:38px;object-fit:contain">
+        <span class="cap" style="font-weight:900;font-size:18px;letter-spacing:.15em;line-height:1">BOOGEYMEN</span>
+      </button>
+
+      <nav class="nav-desktop" style="position:absolute;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:4px">
+        <button type="button" class="cap navlink" onClick="{{ goHome }}" aria-current="{{ curHome }}" style="display:flex;align-items:center;padding:8px 16px;border-radius:var(--radius-sm);font-size:13px;font-weight:700;letter-spacing:.15em;text-decoration:none;cursor:pointer;{{ navHome }}">HOME</button>
+        <button type="button" class="cap navlink" onClick="{{ goGames }}" aria-current="{{ curGames }}" style="display:flex;align-items:center;padding:8px 16px;border-radius:var(--radius-sm);font-size:13px;font-weight:700;letter-spacing:.15em;text-decoration:none;cursor:pointer;{{ navGames }}">GAMES</button>
+        <button type="button" class="cap navlink" onClick="{{ goRoster }}" aria-current="{{ curRoster }}" style="display:flex;align-items:center;padding:8px 16px;border-radius:var(--radius-sm);font-size:13px;font-weight:700;letter-spacing:.15em;text-decoration:none;cursor:pointer;{{ navRoster }}">ROSTER</button>
+        <button type="button" class="cap navlink" onClick="{{ goStats }}" aria-current="{{ curStats }}" style="display:flex;align-items:center;padding:8px 16px;border-radius:var(--radius-sm);font-size:13px;font-weight:700;letter-spacing:.15em;text-decoration:none;cursor:pointer;{{ navStats }}">STATS</button>
+      </nav>
+
+      <div style="margin-left:auto;display:flex;align-items:center;gap:16px;flex-shrink:0">
+        <sc-if value="{{ signedIn }}" hint-placeholder-val="{{ false }}">
+          <button type="button" class="cap" aria-label="Account" onClick="{{ openSignIn }}" style="display:grid;place-items:center;width:34px;height:34px;border:none;border-radius:var(--radius-pill);background:var(--color-accent);color:#fff;font-family:var(--font-condensed);font-size:13px;font-weight:800;letter-spacing:.05em;cursor:pointer">{{ initials }}</button>
+        </sc-if>
+        <sc-if value="{{ signedOut }}" hint-placeholder-val="{{ true }}">
+          <button type="button" class="cap nav-cta nav-desktop" onClick="{{ openSignIn }}" style="display:inline-flex;align-items:center;padding:9px 20px;border:none;border-radius:var(--radius-sm);background:var(--color-accent);color:#fff;font-family:var(--font-condensed);font-size:13px;font-weight:800;letter-spacing:.15em;white-space:nowrap;cursor:pointer">SIGN IN</button>
+        </sc-if>
+
+        <button type="button" class="nav-burger" aria-label="Menu" onClick="{{ openMenu }}">
+          <span style="display:flex;flex-direction:column;gap:5px;width:22px">
+            <span style="height:2px;background:var(--fg-1);border-radius:2px"></span>
+            <span style="height:2px;background:var(--fg-1);border-radius:2px"></span>
+            <span style="height:2px;background:var(--fg-1);border-radius:2px"></span>
+          </span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- MOBILE DRAWER -->
+  <div style="position:fixed;inset:0;z-index:60;{{ drawerWrap }}">
+    <div onClick="{{ closeMenu }}" style="position:absolute;inset:0;background:rgba(0,0,0,.62);transition:opacity .25s;{{ drawerScrim }}"></div>
+    <div style="position:absolute;top:0;right:0;bottom:0;width:min(84vw,320px);background:var(--color-background);border-left:1px solid var(--color-border);display:flex;flex-direction:column;padding:18px 20px;transition:transform .3s cubic-bezier(.22,.61,.36,1);{{ drawerPanel }}">
+      <div style="display:flex;align-items:center;justify-content:space-between;height:40px">
+        <div style="display:flex;align-items:center;gap:10px">
+          <img src="assets/bgm-logo.png" alt="" style="height:32px;width:32px;object-fit:contain">
+          <span class="cap" style="font-weight:900;font-size:15px;letter-spacing:.15em">BOOGEYMEN</span>
+        </div>
+        <button type="button" aria-label="Close menu" onClick="{{ closeMenu }}" style="width:40px;height:40px;background:transparent;border:none;color:var(--fg-3);font-size:24px;line-height:1;cursor:pointer">×</button>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:2px;margin-top:28px">
+        <button type="button" class="cap nav-drawer-link" onClick="{{ goHomeClose }}" aria-current="{{ curHome }}" style="display:flex;align-items:center;gap:14px;padding:14px 12px;text-decoration:none;font-size:22px;font-weight:800;letter-spacing:.1em;{{ mHome }}"><span style="font-size:12px;font-weight:800;letter-spacing:0;color:var(--fg-5)">01</span>HOME</button>
+        <button type="button" class="cap nav-drawer-link" onClick="{{ goGamesClose }}" aria-current="{{ curGames }}" style="display:flex;align-items:center;gap:14px;padding:14px 12px;text-decoration:none;font-size:22px;font-weight:800;letter-spacing:.1em;{{ mGames }}"><span style="font-size:12px;font-weight:800;letter-spacing:0;color:var(--fg-5)">02</span>GAMES</button>
+        <button type="button" class="cap nav-drawer-link" onClick="{{ goRosterClose }}" aria-current="{{ curRoster }}" style="display:flex;align-items:center;gap:14px;padding:14px 12px;text-decoration:none;font-size:22px;font-weight:800;letter-spacing:.1em;{{ mRoster }}"><span style="font-size:12px;font-weight:800;letter-spacing:0;color:var(--fg-5)">03</span>ROSTER</button>
+        <button type="button" class="cap nav-drawer-link" onClick="{{ goStatsClose }}" aria-current="{{ curStats }}" style="display:flex;align-items:center;gap:14px;padding:14px 12px;text-decoration:none;font-size:22px;font-weight:800;letter-spacing:.1em;{{ mStats }}"><span style="font-size:12px;font-weight:800;letter-spacing:0;color:var(--fg-5)">04</span>STATS</button>
+      </div>
+      <div style="margin-top:auto;display:flex;flex-direction:column;gap:14px">
+        <button type="button" class="cap nav-switch" style="display:inline-flex;align-items:center;justify-content:space-between;border:1px solid var(--color-border);background:var(--color-surface);padding:10px 12px;border-radius:var(--radius-sm);font-family:var(--font-condensed);font-size:12px;font-weight:700;letter-spacing:.2em;color:var(--fg-3);cursor:pointer">NHL 26<span aria-hidden="true" style="font-size:9px;line-height:1;color:var(--fg-5)">▼</span></button>
+        <button type="button" class="cap nav-cta" onClick="{{ openSignInFromMenu }}" style="padding:13px;border:none;border-radius:var(--radius-sm);background:var(--color-accent);color:#fff;font-family:var(--font-condensed);font-size:14px;font-weight:800;letter-spacing:.15em;cursor:pointer">{{ accountLabel }}</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- SIGN IN -->
+  <sc-if value="{{ signInOpen }}" hint-placeholder-val="{{ false }}">
+    <div style="position:fixed;inset:0;z-index:80;display:grid;place-items:center;padding:20px">
+      <div onClick="{{ closeSignIn }}" style="position:absolute;inset:0;background:rgba(0,0,0,.72);backdrop-filter:blur(2px)"></div>
+      <div style="position:relative;width:min(94vw,400px);background:var(--color-surface);border:1px solid var(--color-border);border-top:3px solid var(--color-accent);padding:32px 30px">
+        <div style="display:flex;align-items:center;gap:12px">
+          <img src="assets/bgm-logo.png" alt="" style="height:38px;width:38px;object-fit:contain">
+          <div class="cap" style="font-size:21px;font-weight:900;letter-spacing:.12em">{{ modalTitle }}</div>
+        </div>
+        <sc-if value="{{ signedIn }}" hint-placeholder-val="{{ false }}">
+          <div style="margin-top:18px;display:flex;flex-direction:column;gap:20px">
+            <p style="margin:0;color:var(--fg-3);font-size:15px;line-height:1.5">Signed in as <strong style="color:var(--fg-1)">{{ userName }}</strong><br><span style="font-size:13px;color:var(--fg-4)">{{ userEmail }}</span></p>
+            <button type="button" class="cap" onClick="{{ signOut }}" style="padding:13px;border:1px solid var(--color-border);border-radius:var(--radius-sm);background:transparent;color:var(--fg-1);font-family:var(--font-condensed);font-size:14px;font-weight:800;letter-spacing:.15em;cursor:pointer">SIGN OUT</button>
+          </div>
+        </sc-if>
+        <sc-if value="{{ signedOut }}" hint-placeholder-val="{{ true }}">
+          <form onSubmit="{{ submitSignIn }}" style="display:flex;flex-direction:column;gap:16px;margin-top:20px">
+            <label style="display:flex;flex-direction:column;gap:7px">
+              <span class="cap" style="font-size:12px;font-weight:700;letter-spacing:.15em;color:var(--fg-4)">EMAIL</span>
+              <input type="email" value="{{ siEmail }}" onChange="{{ setSiEmail }}" placeholder="you@boogeymen.gg" style="background:var(--color-background);color:var(--fg-1);padding:12px 14px;font-size:15px;outline:none;font-family:var(--font-sans);border-radius:var(--radius-sm);border:1px solid var(--color-border);{{ emailBorder }}">
+              <sc-if value="{{ emailErr }}" hint-placeholder-val="{{ false }}"><span style="color:var(--color-accent);font-size:12px">Enter a valid email</span></sc-if>
+            </label>
+            <label style="display:flex;flex-direction:column;gap:7px">
+              <span class="cap" style="font-size:12px;font-weight:700;letter-spacing:.15em;color:var(--fg-4)">PASSWORD</span>
+              <input type="password" value="{{ siPw }}" onChange="{{ setSiPw }}" placeholder="••••••••" style="background:var(--color-background);color:var(--fg-1);padding:12px 14px;font-size:15px;outline:none;font-family:var(--font-sans);border-radius:var(--radius-sm);border:1px solid var(--color-border);{{ pwBorder }}">
+              <sc-if value="{{ pwErr }}" hint-placeholder-val="{{ false }}"><span style="color:var(--color-accent);font-size:12px">At least 6 characters</span></sc-if>
+            </label>
+            <button type="submit" class="cap nav-cta" style="margin-top:4px;padding:14px;border:none;border-radius:var(--radius-sm);background:var(--color-accent);color:#fff;font-family:var(--font-condensed);font-size:14px;font-weight:800;letter-spacing:.15em;cursor:pointer;{{ busyStyle }}">{{ submitLabel }}</button>
+            <p style="text-align:center;font-size:13px;margin:0;color:var(--fg-5)">No account? <button type="button" style="background:none;border:none;padding:0;font:inherit;color:var(--color-accent);text-decoration:underline;cursor:pointer">Request access</button></p>
+          </form>
+        </sc-if>
+        <button type="button" aria-label="Close" onClick="{{ closeSignIn }}" style="position:absolute;top:12px;right:12px;width:32px;height:32px;background:transparent;border:none;color:var(--fg-5);font-size:22px;line-height:1;cursor:pointer">×</button>
+      </div>
+    </div>
+  </sc-if>
+
+  <div style="max-width:1280px;margin:0 auto;padding:18px 20px 60px;display:flex;flex-direction:column;gap:16px">
+
+    <!-- SUB NAV -->
+    <div class="bcast-in" style="display:flex;align-items:center;gap:12px;animation-delay:0s">
+      <button type="button" class="subnav-btn" style="display:flex;align-items:center;gap:8px;min-height:44px;padding:0 14px;border:1px solid var(--color-border);background:var(--color-surface);font:800 12px var(--font-condensed);text-transform:uppercase;letter-spacing:.2em;color:var(--fg-3);text-decoration:none;transition:border-color .15s,color .15s,background-color .15s" style-hover="border-color:var(--color-accent);color:var(--fg-1);background:var(--color-surface-raised)">
+        <span style="font-size:13px;line-height:1;color:var(--color-accent)">←</span>ALL GAMES
+      </button>
+      <div style="flex:1;height:1px;background:linear-gradient(to right,var(--color-border),transparent)"></div>
+      <div style="display:flex;align-items:stretch;border:1px solid var(--color-border);background:var(--color-surface)">
+        <button type="button" class="subnav-btn" aria-label="Previous game — game 63 versus SNP" style="display:flex;align-items:center;gap:11px;min-height:44px;padding:0 13px 0 11px;transition:background-color .15s" style-hover="background:var(--color-surface-raised)">
+          <span style="font:900 15px var(--font-condensed);line-height:1;color:var(--fg-4);transition:color .15s">←</span>
+          <span style="display:flex;flex-direction:column;gap:2px;align-items:flex-start">
+            <span style="font:700 12px var(--font-condensed);text-transform:uppercase;letter-spacing:.16em;color:var(--fg-4)">PREV</span>
+            <span style="font:800 12px var(--font-condensed);text-transform:uppercase;letter-spacing:.1em;color:var(--fg-2)">GAME 63 · VS SNP</span>
+          </span>
+        </button>
+        <div style="width:1px;background:var(--color-border)"></div>
+        <button type="button" class="subnav-btn" aria-label="Next game — game 65 versus RVR" style="display:flex;align-items:center;gap:11px;min-height:44px;padding:0 11px 0 13px;transition:background-color .15s" style-hover="background:var(--color-surface-raised)">
+          <span style="display:flex;flex-direction:column;gap:2px;align-items:flex-end">
+            <span style="font:700 12px var(--font-condensed);text-transform:uppercase;letter-spacing:.16em;color:var(--fg-4)">NEXT</span>
+            <span style="font:800 12px var(--font-condensed);text-transform:uppercase;letter-spacing:.1em;color:var(--fg-2)">GAME 65 · VS RVR</span>
+          </span>
+          <span style="font:900 15px var(--font-condensed);line-height:1;color:var(--fg-4);transition:color .15s">→</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- ============ HERO / RESULT ============ -->
+    <div class="bcast-in" style="position:relative;border:1px solid var(--color-border);background:var(--bg-broadcast-strong);overflow:hidden;animation-delay:.12s">
+      <div class="ticker-strip ticker-strip--hero"></div>
+      <!-- SCOREBUG HEADER: meta left · game state right -->
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;padding:10px 20px 10px 22px;border-bottom:1px solid var(--color-border-subtle)">
+        <span class="cap" style="display:flex;align-items:center;gap:11px;font-size:12px;font-weight:700;letter-spacing:.18em;color:var(--fg-4)">
+          <span style="color:var(--fg-2)">GAME 64</span>
+          <span style="width:1px;height:11px;background:var(--color-border)"></span>
+          <span>MAY 8, 2026 · 6:56 PM</span>
+          <span style="width:1px;height:11px;background:var(--color-border)"></span>
+          <span>6S</span>
+        </span>
+        <span class="cap" style="display:flex;align-items:center;gap:9px;flex:none">
+          <span style="font-size:12px;font-weight:900;letter-spacing:.2em;color:var(--fg-1)">FINAL</span>
+          <span style="font-size:12px;font-weight:800;letter-spacing:.12em;color:var(--color-otl);border:1px solid var(--color-otl-border);background:var(--color-otl-bg);padding:2px 8px">OT</span>
+        </span>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:20px;padding:30px 34px 28px">
+        <!-- BGM (winner) -->
+        <div style="display:flex;align-items:center;gap:18px;min-width:0">
+          <img src="assets/bgm-logo.png" alt="Boogeymen" style="width:66px;height:66px;object-fit:contain;flex:none;filter:drop-shadow(0 0 16px rgba(232,65,49,.28))">
+          <div style="display:flex;flex-direction:column;gap:5px;min-width:0">
+            <span class="cap" style="font-size:12px;font-weight:700;letter-spacing:.24em;color:var(--fg-4)">BGM</span>
+            <span class="cap" style="font-size:30px;font-weight:900;letter-spacing:.03em;line-height:.95;color:var(--fg-1)">BOOGEYMEN</span>
+            <span style="display:flex;align-items:center;gap:8px">
+              <span style="width:26px;height:3px;background:var(--color-win)"></span>
+              <span class="cap" style="font-size:12px;font-weight:900;letter-spacing:.22em;color:var(--color-win)">WIN</span>
+            </span>
+          </div>
+        </div>
+        <!-- SCORE -->
+        <div style="display:flex;align-items:center;gap:22px;flex:none">
+          <span class="cap tabular bcast-bloom" style="font-size:88px;font-weight:900;line-height:.82;color:var(--color-accent);text-shadow:var(--glow-accent-soft)">{{ homeScore }}</span>
+          <span class="cap" style="font-size:34px;font-weight:400;line-height:1;color:var(--fg-6);margin-top:-6px">–</span>
+          <span class="cap tabular" style="font-size:88px;font-weight:900;line-height:.82;color:var(--fg-4)">{{ awayScore }}</span>
+        </div>
+        <!-- 4L (overtime loss) -->
+        <div style="display:flex;align-items:center;gap:18px;justify-content:flex-end;text-align:right;min-width:0">
+          <div style="display:flex;flex-direction:column;gap:5px;align-items:flex-end;min-width:0">
+            <span class="cap" style="font-size:12px;font-weight:700;letter-spacing:.24em;color:var(--fg-4)">4L</span>
+            <span class="cap" style="font-size:30px;font-weight:900;letter-spacing:.03em;line-height:.95;color:var(--fg-3)">4TH LINE</span>
+            <span style="display:flex;align-items:center;gap:8px">
+              <span class="cap" style="font-size:12px;font-weight:900;letter-spacing:.22em;color:var(--color-otl)">OTL</span>
+              <span style="width:26px;height:3px;background:var(--color-otl)"></span>
+            </span>
+          </div>
+          <div style="width:66px;height:66px;border-radius:50%;background:var(--color-charcoal);border:1px solid var(--color-border);display:flex;align-items:center;justify-content:center;font:900 22px var(--font-condensed);color:var(--fg-4);flex:none">4L</div>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;justify-content:center;gap:14px;border-top:1px solid var(--color-border-subtle);padding:9px 32px">
+        <span class="cap" style="font-size:12px;font-weight:600;letter-spacing:.18em;color:var(--fg-5)">2ND MEETING VS 4TH LINE</span>
+        <span style="width:3px;height:3px;border-radius:50%;background:var(--fg-6)"></span>
+        <span class="cap" style="font-size:12px;font-weight:700;letter-spacing:.16em;color:var(--fg-4)">SEASON SERIES <span class="tabular" style="color:var(--color-accent)">1</span>–<span class="tabular" style="color:var(--fg-3)">0</span>–<span class="tabular" style="color:var(--color-otl)">1</span></span>
+      </div>
+    </div>
+
+    <!-- LOADOUTS / STATS sub-nav (full-width, above the main grid) -->
+    <div class="bcast-in" style="display:flex;gap:22px;border-bottom:1px solid var(--color-border-subtle);animation-delay:.26s">
+      <button type="button" class="{{ loadTabClass }}" onClick="{{ setLoadout }}" style="{{ loadTabStyle }}">LOADOUTS<span style="{{ loadTabBar }}"></span></button>
+      <button type="button" class="{{ statTabClass }}" onClick="{{ setStats }}" style="{{ statTabStyle }}">STATS<span style="{{ statTabBar }}"></span></button>
+    </div>
+
+    <!-- ============ MAIN GRID ============ -->
+    <div class="bcast-in" style="display:grid;grid-template-columns:3fr 1fr;gap:16px;align-items:start;animation-delay:.4s">
+
+      <!-- ===== MAJOR 3/4 ===== -->
+      <div style="display:flex;flex-direction:column;gap:16px;min-width:0">
+
+        <!-- LINEUP + LOADOUTS -->
+        <section ref="{{ setLineupEl }}" onMouseEnter="{{ luEnter }}" onMouseLeave="{{ luLeave }}" style="position:relative;overflow:hidden;border:1px solid var(--color-border);background:var(--color-surface)">
+          <span class="panel-wipe"></span>
+          <!-- HEADER: team switch · identity · mode toggle -->
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;padding:12px 14px 11px">
+            <div style="display:flex;flex-direction:column;gap:9px;min-width:0">
+              <div style="display:flex;flex-direction:column;gap:2px">
+                <span class="ds-section-label"><span style="color:var(--fg-5);padding-right:4px">▰</span>Lineup</span>
+              </div>
+              <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+                <sc-if value="{{ activeCrestBGM }}" hint-placeholder-val="{{ true }}"><img src="assets/bgm-logo.png" alt="BGM" class="crest-in" style="width:24px;height:24px;object-fit:contain;flex:none"></sc-if>
+                <sc-if value="{{ activeCrest4L }}" hint-placeholder-val="{{ false }}"><span class="crest-in" style="width:24px;height:24px;border-radius:50%;background:var(--color-charcoal);border:1px solid var(--color-border);display:flex;align-items:center;justify-content:center;font:900 12px var(--font-condensed);color:var(--fg-3);flex:none">4L</span></sc-if>
+                <span class="cap" style="font-size:16px;font-weight:900;letter-spacing:.07em;color:var(--fg-1)">{{ activeName }}</span>
+                <span style="display:flex;align-items:center;gap:14px;padding-left:14px;border-left:1px solid var(--color-border)">
+                  <span style="display:flex;flex-direction:column;gap:1px"><span class="cap" style="font-size:12px;font-weight:600;letter-spacing:.14em;color:var(--fg-4)">DRESSED</span><span class="cap tabular" style="font-size:13px;font-weight:800;color:var(--fg-2)">{{ activeDressed }}</span></span>
+                  <span style="display:flex;flex-direction:column;gap:1px"><span class="cap" style="font-size:12px;font-weight:600;letter-spacing:.14em;color:var(--fg-4)">GOALIE</span><span class="cap tabular" style="font-size:13px;font-weight:800;color:var(--fg-4)">{{ activeGoalie }}</span></span>
+                </span>
+              </div>
+              <span class="cap" style="font-size:12px;font-weight:600;letter-spacing:.1em;color:var(--fg-4)">Select a skater for full loadout and match stats</span>
+            </div>
+            <div style="display:flex;align-items:center;flex:none">
+              <div style="position:relative;width:250px;height:40px;border:1px solid var(--color-border);background:var(--color-charcoal);padding:3px;box-sizing:border-box">
+                <span style="{{ teamThumb }}"></span>
+                <div style="position:relative;display:flex;height:100%">
+                  <button type="button" onClick="{{ setTeamBgm }}" style="{{ teamBtnBgm }}">BGM</button>
+                  <button type="button" onClick="{{ setTeam4l }}" style="{{ teamBtn4l }}">4L</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- STAGE: two team panels slide across, spine pins the inactive team -->
+          <div ref="{{ setStageEl }}" style="position:relative;border-top:1px solid var(--color-border-subtle)">
+            <span style="{{ luProgStyle }}"></span>
+            <div>
+              <sc-for list="{{ players }}" as="p" hint-placeholder-count="6">
+                <!-- unified row shell -->
+                <div role="{{ p.rowRole }}" tabIndex="{{ p.rowTab }}" aria-expanded="{{ p.ariaExpanded }}" aria-label="{{ p.rowLabel }}" onKeyDown="{{ p.onKey }}" onClick="{{ p.onToggle }}" onMouseEnter="{{ p.onEnter }}" onMouseLeave="{{ p.onLeave }}" class="lu-row" style="{{ p.rowStyleLoad }}">
+                  <!-- POS -->
+                  <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;align-self:stretch;margin:-7px 0 -7px -12px;border:1px solid {{ p.posCellBorder }};background:{{ p.posCellBg }}">
+                    <span class="cap" style="font-size:12px;font-weight:700;letter-spacing:.14em;color:var(--fg-4)">POS</span>
+                    <span class="cap tabular" style="font-size:19px;font-weight:900;letter-spacing:.04em;color:{{ p.posLetterColor }}">{{ p.pos }}</span>
+                  </div>
+                  <!-- number -->
+                  <div style="display:flex;flex-direction:column;align-items:center;gap:0">
+                    <span class="cap" style="font-size:12px;font-weight:700;letter-spacing:.1em;color:var(--fg-4)">#</span>
+                    <span class="cap tabular" style="font-size:26px;font-weight:900;line-height:.85;letter-spacing:-.02em;color:{{ p.numBig }}">{{ p.num }}</span>
+                  </div>
+                  <!-- avatar -->
+                  <div style="{{ p.avatarBig }}"><svg viewBox="0 0 100 110" width="26" height="28" style="color:var(--fg-6)"><circle cx="50" cy="32" r="21" fill="currentColor"></circle><path d="M 8 110 Q 8 66 50 66 Q 92 66 92 110 Z" fill="currentColor"></path></svg></div>
+                  <!-- identity -->
+                  <div style="min-width:0;display:flex;flex-direction:column;gap:5px">
+                    <div style="display:flex;flex-wrap:wrap;align-items:baseline;gap:8px;min-width:0">
+                      <span class="cap" style="font-size:16px;font-weight:900;letter-spacing:.03em;line-height:1;color:{{ p.nameColor }};white-space:nowrap">{{ p.persona }}</span>
+                      <span class="cap" style="font-size:12px;font-weight:600;letter-spacing:.02em;color:var(--fg-3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ p.handle }}</span>
+                      <sc-if value="{{ p.isLeader }}" hint-placeholder-val="{{ false }}"><span title="Room leader" class="leader-star" style="flex:none;font-size:12px;line-height:1;color:var(--color-accent)">★</span></sc-if>
+                      <sc-if value="{{ p.noLoadout }}" hint-placeholder-val="{{ false }}"><span class="cap" style="flex:none;font-size:12px;font-weight:700;letter-spacing:.14em;color:var(--fg-4);border:1px dashed var(--color-border);padding:2px 7px">NO HUMAN DRESSED</span></sc-if>
+                    </div>
+                    <div style="display:flex;align-items:center;gap:9px;flex-wrap:wrap">
+                      <sc-if value="{{ p.hasLoadout }}" hint-placeholder-val="{{ true }}"><span style="{{ p.archChipStyle }}">{{ p.archIcon }}{{ p.archCode }}</span></sc-if>
+                      <sc-if value="{{ isLoadout }}" hint-placeholder-val="{{ true }}"><sc-if value="{{ p.hasLoadout }}" hint-placeholder-val="{{ true }}"><span class="cap tabular" style="font-size:12px;font-weight:600;letter-spacing:.08em;color:var(--fg-5);white-space:nowrap">{{ p.physLine }}</span></sc-if></sc-if>
+                      <sc-if value="{{ isStats }}" hint-placeholder-val="{{ false }}"><sc-if value="{{ p.hasLoadout }}" hint-placeholder-val="{{ true }}"><span class="cap tabular" style="font-size:12px;font-weight:800;letter-spacing:.06em;color:var(--fg-4);border:1px solid var(--color-border);padding:2px 7px">GS {{ p.gsShort }}</span></sc-if></sc-if>
+                      <sc-if value="{{ p.noLoadout }}" hint-placeholder-val="{{ false }}"><span class="cap" style="font-size:12px;font-weight:600;letter-spacing:.1em;color:var(--fg-5)">EA AI · NO TRACKED DATA</span></sc-if>
+                    </div>
+                  </div>
+                  <!-- trailing: x-factors (loadout) or scoreline (stats) -->
+                  <div style="display:flex;align-items:center;justify-content:flex-end;gap:8px">
+                    <sc-if value="{{ isLoadout }}" hint-placeholder-val="{{ true }}"><sc-if value="{{ p.hasLoadout }}" hint-placeholder-val="{{ true }}"><sc-for list="{{ p.xTiles }}" as="x" hint-placeholder-count="3"><span style="{{ x.style }}" title="{{ x.title }}">{{ x.icon }}</span></sc-for></sc-if></sc-if>
+                    <sc-if value="{{ isStats }}" hint-placeholder-val="{{ false }}"><div style="display:flex;align-items:flex-end;justify-content:flex-end;gap:15px"><sc-for list="{{ p.statTiles }}" as="s" hint-placeholder-count="7"><div style="display:flex;flex-direction:column;align-items:center;gap:2px;min-width:24px"><span class="cap tabular" style="font-size:{{ s.size }};font-weight:{{ s.weight }};line-height:.9;color:{{ s.color }}">{{ s.val }}</span><span class="cap" style="font-size:12px;font-weight:700;letter-spacing:.1em;color:var(--fg-4)">{{ s.label }}</span></div></sc-for></div></sc-if>
+                  </div>
+                  <!-- chevron -->
+                  <span class="{{ p.chevCls }}" style="display:inline-flex;align-items:center;justify-content:center;width:19px;height:19px;flex:none;font-size:12px;font-weight:800;line-height:1;border:1px solid {{ p.chevBorder }};background:{{ p.chevBg }};color:{{ p.chevColor }};transform:{{ p.chevTransform }}">{{ p.chev }}</span>
+                </div>
+                <!-- EXPAND DRAWER — full loadout / stats for this skater -->
+                <sc-if value="{{ p.expanded }}" hint-placeholder-val="{{ false }}">
+                  <div style="position:relative;border-bottom:1px solid var(--color-border-subtle);background:var(--color-background)">
+                    <span class="drawer-edge"></span>
+                    <div class="drawer-in" style="padding:14px 16px 16px;display:flex;flex-direction:column;gap:13px">
+                    <!-- LOADOUT: bio strip -->
+                    <sc-if value="{{ isLoadout }}" hint-placeholder-val="{{ true }}">
+                      <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap">
+                        <div style="display:flex;flex-direction:column;gap:4px"><span class="ds-stat-label">Height / Weight</span><span class="cap tabular" style="font-size:13px;font-weight:600;color:var(--fg-2)">{{ p.hw }}</span></div>
+                        <div style="display:flex;flex-direction:column;gap:4px"><span class="ds-stat-label">Hand</span><span class="cap" style="font-size:13px;font-weight:600;color:var(--fg-2)">{{ p.hand }}</span></div>
+                        <div style="display:flex;flex-direction:column;gap:4px"><span class="ds-stat-label">Level</span><span class="cap tabular" style="font-size:13px;font-weight:600;color:var(--fg-2)">{{ p.level }}</span></div>
+                        <div style="display:flex;flex-direction:column;gap:4px;padding-left:16px;border-left:1px solid var(--color-border)"><span class="ds-stat-label">Build</span><span class="cap" style="font-size:13px;font-weight:700;color:var(--fg-2)">{{ p.ldArch }}<sc-if value="{{ p.buildRef }}" hint-placeholder-val="{{ false }}"><span class="cap" style="font-size:12px;font-weight:600;letter-spacing:.14em;color:var(--fg-5);padding-left:7px">· {{ p.buildRef }}</span></sc-if></span></div>
+                      </div>
+                    </sc-if>
+                    <!-- STATS: per-match summary strip -->
+                    <sc-if value="{{ isStats }}" hint-placeholder-val="{{ false }}">
+                      <div style="display:flex;gap:8px;flex-wrap:wrap">
+                        <sc-for list="{{ p.deepSummary }}" as="s" hint-placeholder-count="6">
+                          <div style="flex:1;min-width:96px;display:flex;flex-direction:column;align-items:flex-start;gap:4px;border:1px solid var(--color-border);background:var(--color-surface);padding:9px 13px">
+                            <span class="cap" style="font-size:12px;font-weight:700;letter-spacing:.14em;color:var(--fg-4)">{{ s.label }}</span>
+                            <span class="cap tabular" style="font-size:22px;font-weight:900;line-height:1;color:{{ s.color }}">{{ s.val }}</span>
+                          </div>
+                        </sc-for>
+                      </div>
+                    </sc-if>
+                    <!-- STATS: advanced category tables -->
+                    <sc-if value="{{ isStats }}" hint-placeholder-val="{{ false }}">
+                      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px">
+                        <sc-for list="{{ p.deepCats }}" as="t" hint-placeholder-count="8">
+                          <div style="border:1px solid var(--color-border);background:var(--color-surface);padding:9px 10px;display:flex;flex-direction:column;gap:6px">
+                            <span class="ds-stat-label" style="color:var(--fg-4);border-bottom:1px solid var(--color-border-subtle);padding-bottom:5px">{{ t.title }}</span>
+                            <sc-for list="{{ t.rows }}" as="r" hint-placeholder-count="3">
+                              <div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px">
+                                <span class="cap" style="font-size:12px;letter-spacing:.03em;color:var(--fg-4);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ r.k }}</span>
+                                <span class="cap tabular" style="font-size:12px;font-weight:800;color:var(--fg-1);text-align:right;white-space:nowrap">{{ r.v }}</span>
+                              </div>
+                            </sc-for>
+                          </div>
+                        </sc-for>
+                      </div>
+                    </sc-if>
+                    <!-- LOADOUT: 5 attribute tables -->
+                    <sc-if value="{{ isLoadout }}" hint-placeholder-val="{{ true }}">
+                      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px">
+                        <sc-for list="{{ p.attrTables }}" as="t" hint-placeholder-count="5">
+                          <div style="border:1px solid var(--color-border);background:var(--color-surface);padding:9px 10px;display:flex;flex-direction:column;gap:6px">
+                            <span class="ds-stat-label" style="color:var(--fg-4);border-bottom:1px solid var(--color-border-subtle);padding-bottom:5px">{{ t.title }}</span>
+                            <div style="display:grid;grid-template-columns:1fr auto auto;gap:10px;align-items:center">
+                              <span></span>
+                              <span class="cap" title="Rating — this player's attribute value with their X-Factor build applied" style="font-size:12px;font-weight:800;letter-spacing:.06em;color:var(--fg-4);text-align:right;min-width:20px;cursor:help">R</span>
+                              <span class="cap" title="Change — points gained or lost versus the base archetype rating" style="font-size:12px;font-weight:800;letter-spacing:.06em;color:var(--fg-4);text-align:right;min-width:14px;cursor:help">Δ</span>
+                            </div>
+                            <sc-for list="{{ t.rows }}" as="r" hint-placeholder-count="4">
+                              <div style="display:grid;grid-template-columns:1fr auto auto;gap:10px;align-items:center">
+                                <span class="cap" title="{{ r.labelFull }}" style="font-size:12px;letter-spacing:0;color:{{ r.nameColor }};overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ r.label }}</span>
+                                <span class="cap tabular" title="{{ r.valTip }}" style="font-size:12px;font-weight:800;color:{{ r.valColor }};text-align:right;min-width:20px;cursor:help">{{ r.valShown }}</span>
+                                <span class="cap tabular" title="{{ r.deltaTip }}" style="font-size:12px;font-weight:700;text-align:right;min-width:14px;color:{{ r.deltaColor }};cursor:help">{{ r.deltaShown }}</span>
+                                <span style="grid-column:1/-1;height:3px;background:var(--color-border-subtle);margin-top:1px"><span class="{{ r.barClass }}" style="display:block;height:100%;width:{{ r.barW }};background:{{ r.barColor }};box-shadow:{{ r.barGlow }}"></span></span>
+                              </div>
+                            </sc-for>
+                          </div>
+                        </sc-for>
+                      </div>
+                    </sc-if>
+                    <button type="button" class="subnav-btn" style="display:inline-flex;align-items:center;min-height:44px;padding:0"><span class="cap" style="font-size:12px;font-weight:700;letter-spacing:.12em;color:var(--color-accent)">FULL PLAYER PAGE →</span></button>
+                    </div>
+                  </div>
+                </sc-if>
+              </sc-for>
+            </div>
+          </div>
+        </section>
+
+        <!-- EVENT TIMELINE (dual-rail, height-synced to rail) -->
+        <section ref="{{ setSectionEl }}" style="border:1px solid var(--color-border);background:var(--color-surface);padding:12px 14px 14px;display:flex;flex-direction:column">
+          <div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin-bottom:4px">
+            <div style="display:flex;flex-direction:column;gap:2px">
+              <span class="ds-section-label"><span style="color:var(--fg-5);padding-right:4px">▰</span>Event Timeline</span>
+            </div>
+            <span class="cap" style="font-size:12px;font-weight:700;letter-spacing:.14em;color:var(--fg-4)">{{ tlMeta }}</span>
+          </div>
+          <div ref="{{ setClipEl }}" style="{{ tlClipStyle }}">
+            <div ref="{{ setListEl }}" style="{{ tlListStyle }}">
+              <div data-tl-line="1" style="{{ tlRailStyle }}"></div>
+              <span class="tl-cap" style="{{ tlCapTopStyle }}"></span>
+              <span class="tl-cap" style="{{ tlCapBotStyle }}"></span>
+              <sc-for list="{{ timeline }}" as="e" hint-placeholder-count="9">
+                <sc-if value="{{ e.isOpening }}" hint-placeholder-val="{{ false }}">
+                  <div style="{{ e.wrap }}">
+                    <span class="cap" style="display:inline-flex;align-items:center;gap:9px;border:1px solid var(--color-border);background:var(--color-charcoal);padding:6px 16px;font-size:12px;font-weight:800;letter-spacing:.24em;color:var(--fg-4)"><span style="width:7px;height:7px;border-radius:50%;background:var(--fg-5)"></span>OPENING FACE-OFF</span>
+                  </div>
+                </sc-if>
+                <sc-if value="{{ e.isDivider }}" hint-placeholder-val="{{ false }}">
+                  <div style="{{ e.wrap }}">
+                    <span style="position:absolute;left:0;right:0;top:50%;height:1px;background:linear-gradient(to right,transparent,var(--color-border) 28%,var(--color-border) 72%,transparent)"></span>
+                    <span style="position:relative;display:inline-flex;align-items:center;gap:12px;border:1px solid {{ e.divBorder }};background:var(--color-charcoal);padding:5px 15px">
+                      <span class="cap" style="font-size:15px;font-weight:900;letter-spacing:.2em;color:{{ e.divColor }}">{{ e.period }}</span>
+                      <span style="width:1px;height:15px;background:var(--color-border)"></span>
+                      <span class="cap" style="font-size:12px;font-weight:700;letter-spacing:.16em;color:{{ e.countColor }}">{{ e.countLabel }}</span>
+                    </span>
+                  </div>
+                </sc-if>
+                <sc-if value="{{ e.isEvent }}" hint-placeholder-val="{{ true }}">
+                  <div style="{{ e.wrap }}">
+                    <div style="display:flex;justify-content:flex-end;min-width:0">
+                      <sc-if value="{{ e.isLeft }}" hint-placeholder-val="{{ false }}">
+                        <div class="{{ e.cardClass }}" style="{{ e.cardStyle }}">
+                          <div style="{{ e.kickerRowStyle }}"><span style="width:6px;height:6px;border-radius:50%;flex:none;background:{{ e.kickerColor }}"></span><span class="cap" style="font-size:12px;font-weight:800;letter-spacing:.2em;color:{{ e.kickerColor }}">{{ e.kicker }}</span></div>
+                          <span class="cap" style="{{ e.scorerStyle }}">{{ e.scorer }}</span>
+                          <div style="{{ e.assistRowStyle }}"><span class="cap" style="font-size:12px;font-weight:800;letter-spacing:.16em;color:var(--fg-4)">A</span><span class="cap" style="font-size:12px;font-weight:600;letter-spacing:.02em;color:var(--fg-3)">{{ e.assist }}</span></div>
+                          <div style="{{ e.scoreRowStyle }}"><span class="cap tabular" style="font-size:13px;font-weight:900;letter-spacing:.02em"><span style="color:var(--color-accent)">{{ e.bgmG }}</span><span style="color:var(--fg-6);padding:0 3px">–</span><span style="color:var(--opp)">{{ e.oppG }}</span></span><span class="cap" style="font-size:12px;font-weight:700;letter-spacing:.14em;color:{{ e.bannerColor }}">{{ e.banner }}</span></div>
+                        </div>
+                      </sc-if>
+                    </div>
+                    <div style="display:flex;justify-content:center">
+                      <span style="{{ e.pillStyle }}">
+                        <span class="cap tabular" style="font-size:12px;font-weight:800;letter-spacing:.06em;line-height:1;color:var(--fg-1)">{{ e.time }}</span>
+                        <span class="cap" style="font-size:12px;font-weight:700;letter-spacing:.1em;line-height:1;color:var(--fg-4)">{{ e.periodShort }}</span>
+                      </span>
+                    </div>
+                    <div style="display:flex;justify-content:flex-start;min-width:0">
+                      <sc-if value="{{ e.isRight }}" hint-placeholder-val="{{ false }}">
+                        <div class="{{ e.cardClass }}" style="{{ e.cardStyle }}">
+                          <div style="{{ e.kickerRowStyle }}"><span style="width:6px;height:6px;border-radius:50%;flex:none;background:{{ e.kickerColor }}"></span><span class="cap" style="font-size:12px;font-weight:800;letter-spacing:.2em;color:{{ e.kickerColor }}">{{ e.kicker }}</span></div>
+                          <span class="cap" style="{{ e.scorerStyle }}">{{ e.scorer }}</span>
+                          <div style="{{ e.assistRowStyle }}"><span class="cap" style="font-size:12px;font-weight:800;letter-spacing:.16em;color:var(--fg-4)">A</span><span class="cap" style="font-size:12px;font-weight:600;letter-spacing:.02em;color:var(--fg-3)">{{ e.assist }}</span></div>
+                          <div style="{{ e.scoreRowStyle }}"><span class="cap tabular" style="font-size:13px;font-weight:900;letter-spacing:.02em"><span style="color:var(--color-accent)">{{ e.bgmG }}</span><span style="color:var(--fg-6);padding:0 3px">–</span><span style="color:var(--opp)">{{ e.oppG }}</span></span><span class="cap" style="font-size:12px;font-weight:700;letter-spacing:.14em;color:{{ e.bannerColor }}">{{ e.banner }}</span></div>
+                        </div>
+                      </sc-if>
+                    </div>
+                  </div>
+                </sc-if>
+              </sc-for>
+            </div>
+            <sc-if value="{{ tlShowFade }}" hint-placeholder-val="{{ false }}">
+              <div style="position:absolute;left:0;right:0;bottom:0;height:130px;background:linear-gradient(to top,var(--color-surface) 6%,transparent);pointer-events:none;z-index:2"></div>
+            </sc-if>
+          </div>
+          <sc-if value="{{ tlShowFinal }}" hint-placeholder-val="{{ true }}">
+          <div style="position:relative;text-align:center;margin-top:12px">
+            <span class="cap tabular" style="{{ tlFinalStyle }}">FINAL · BGM 4 – 3</span>
+          </div>
+          </sc-if>
+          <sc-if value="{{ tlShowBtn }}" hint-placeholder-val="{{ false }}">
+            <button type="button" class="wire-cta" onClick="{{ toggleTl }}" style="position:relative;display:flex;width:100%;box-sizing:border-box;align-items:center;justify-content:center;gap:7px;padding:10px 12px;margin-top:10px;background:var(--color-charcoal);border:1px solid var(--color-accent-line);cursor:pointer">
+              <span class="cap" style="font-size:12px;font-weight:800;letter-spacing:.16em;color:var(--color-accent)">{{ tlBtnLabel }}</span>
+              <span class="cap" style="font-size:12px;color:var(--color-accent);{{ tlCaret }}">⌄</span>
+            </button>
+          </sc-if>
+        </section>
+
+      </div>
+
+      <!-- ===== RAIL 1/4 ===== -->
+      <div ref="{{ setRightEl }}" style="display:flex;flex-direction:column;gap:16px;min-width:0">
+
+        <!-- TOP PERFORMERS (compact rail) -->
+        <section style="border:1px solid var(--color-border);background:var(--color-surface)">
+          <div style="display:flex;flex-direction:column;gap:2px;padding:12px 14px 10px">
+            <span class="ds-section-label"><span style="color:var(--fg-5);padding-right:4px">▰</span>Top Performers</span>
+          </div>
+          <sc-for list="{{ perfTop }}" as="r" hint-placeholder-count="3">
+            <div class="perf-row-in" role="button" tabIndex="0" aria-expanded="{{ r.ariaExpanded }}" aria-label="{{ r.rowLabel }}" onKeyDown="{{ r.onKey }}" onClick="{{ r.onToggle }}" style="{{ r.railRowStyle }}">
+              <span class="cap tabular" style="font-size:13px;font-weight:900;line-height:1;color:{{ r.rankColor }};text-align:center">{{ r.rank }}</span>
+              <span style="min-width:0;display:flex;flex-direction:column;gap:3px">
+                <span class="cap" style="font-size:12.5px;font-weight:800;letter-spacing:.02em;color:var(--fg-1);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ r.name }}</span>
+                <span style="display:flex;align-items:center;gap:5px">
+                  <span style="{{ r.teamChip }}">{{ r.team }}</span>
+                  <span style="{{ r.posChip }}">{{ r.pos }}</span>
+                  <sc-if value="{{ r.hasStar }}" hint-placeholder-val="{{ false }}"><span class="cap" style="font-size:12px;letter-spacing:-1px;color:var(--color-accent);text-shadow:{{ r.starGlow }}">{{ r.rankGlyph }}</span></sc-if>
+                </span>
+              </span>
+              <span class="{{ r.scoreCls }}" style="font-size:18px;font-weight:900;line-height:1;text-align:right;color:{{ r.scoreColor }};text-shadow:{{ r.scoreGlow }}">{{ r.scoreDisplay }}</span>
+            </div>
+            <sc-if value="{{ r.expanded }}" hint-placeholder-val="{{ false }}">
+              <div style="border-top:1px solid var(--color-border-subtle);background:var(--color-background);box-shadow:inset 2px 0 0 var(--color-accent);padding:9px 13px 11px;display:flex;flex-direction:column;gap:7px">
+                <span class="cap" style="font-size:12px;font-weight:800;letter-spacing:.14em;color:var(--fg-4)">Where the {{ r.score }} came from</span>
+                <div class="perf-bar-row" style="display:flex;height:6px;overflow:hidden;border:1px solid var(--color-border);background:var(--color-charcoal)">
+                  <sc-for list="{{ r.bars }}" as="b" hint-placeholder-count="4"><span style="display:block;height:100%;width:{{ b.w }};background:{{ b.color }}"></span></sc-for>
+                </div>
+                <div style="display:flex;flex-wrap:wrap;gap:4px 10px">
+                  <sc-for list="{{ r.legend }}" as="l" hint-placeholder-count="4"><span class="cap" style="display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:700;letter-spacing:.1em;color:var(--fg-4)"><span style="display:inline-block;width:7px;height:7px;flex:none;background:{{ l.color }}"></span>{{ l.k }} <b class="tabular" style="color:{{ l.valColor }}">{{ l.v }}</b></span></sc-for>
+                </div>
+              </div>
+            </sc-if>
+          </sc-for>
+          <sc-if value="{{ showAll }}" hint-placeholder-val="{{ false }}">
+            <sc-for list="{{ perfRest }}" as="r" hint-placeholder-count="7">
+              <div class="perf-row-in" role="button" tabIndex="0" aria-expanded="{{ r.ariaExpanded }}" aria-label="{{ r.rowLabel }}" onKeyDown="{{ r.onKey }}" onClick="{{ r.onToggle }}" style="{{ r.railRowStyle }}">
+                <span class="cap tabular" style="font-size:13px;font-weight:900;line-height:1;color:{{ r.rankColor }};text-align:center">{{ r.rank }}</span>
+                <span style="min-width:0;display:flex;flex-direction:column;gap:3px">
+                  <span class="cap" style="font-size:12.5px;font-weight:800;letter-spacing:.02em;color:var(--fg-1);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ r.name }}</span>
+                  <span style="display:flex;align-items:center;gap:5px">
+                    <span style="{{ r.teamChip }}">{{ r.team }}</span>
+                    <span style="{{ r.posChip }}">{{ r.pos }}</span>
+                    <sc-if value="{{ r.hasStar }}" hint-placeholder-val="{{ false }}"><span class="cap" style="font-size:12px;letter-spacing:-1px;color:var(--color-accent);text-shadow:{{ r.starGlow }}">{{ r.rankGlyph }}</span></sc-if>
+                  </span>
+                </span>
+                <span class="{{ r.scoreCls }}" style="font-size:18px;font-weight:900;line-height:1;text-align:right;color:{{ r.scoreColor }};text-shadow:{{ r.scoreGlow }}">{{ r.scoreDisplay }}</span>
+              </div>
+              <sc-if value="{{ r.expanded }}" hint-placeholder-val="{{ false }}">
+                <div style="border-top:1px solid var(--color-border-subtle);background:var(--color-background);box-shadow:inset 2px 0 0 var(--color-accent);padding:9px 13px 11px;display:flex;flex-direction:column;gap:7px">
+                  <span class="cap" style="font-size:12px;font-weight:800;letter-spacing:.14em;color:var(--fg-4)">Where the {{ r.score }} came from</span>
+                  <div class="perf-bar-row" style="display:flex;height:6px;overflow:hidden;border:1px solid var(--color-border);background:var(--color-charcoal)">
+                    <sc-for list="{{ r.bars }}" as="b" hint-placeholder-count="4"><span style="display:block;height:100%;width:{{ b.w }};background:{{ b.color }}"></span></sc-for>
+                  </div>
+                  <div style="display:flex;flex-wrap:wrap;gap:4px 10px">
+                    <sc-for list="{{ r.legend }}" as="l" hint-placeholder-count="4"><span class="cap" style="display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:700;letter-spacing:.1em;color:var(--fg-4)"><span style="display:inline-block;width:7px;height:7px;flex:none;background:{{ l.color }}"></span>{{ l.k }} <b class="tabular" style="color:{{ l.valColor }}">{{ l.v }}</b></span></sc-for>
+                  </div>
+                </div>
+              </sc-if>
+            </sc-for>
+          </sc-if>
+          <button type="button" class="wire-cta" onClick="{{ toggleAll }}" style="position:relative;display:flex;width:calc(100% - 28px);box-sizing:border-box;align-items:center;justify-content:center;gap:7px;padding:10px 12px;margin:10px 14px 14px;background:var(--color-charcoal);border:1px solid var(--color-accent-line);cursor:pointer">
+            <span class="cap" style="font-size:12px;font-weight:800;letter-spacing:.16em;color:var(--color-accent)">{{ toggleLabel }}</span>
+            <span class="cap" style="font-size:12px;color:var(--color-accent);transition:transform .28s cubic-bezier(.16,.84,.3,1);{{ caretRot }}">⌄</span>
+          </button>
+        </section>
+
+        <!-- DESERVE TO WIN -->
+        <section style="position:relative;border:1px solid var(--color-border);background:var(--bg-broadcast);overflow:hidden">
+          <div style="padding:12px 14px 14px;display:flex;flex-direction:column;gap:11px">
+            <div style="display:flex;flex-direction:column;gap:2px">
+              <div style="display:flex;align-items:baseline;gap:8px">
+                <span class="ds-section-label"><span style="color:var(--fg-5);padding-right:4px">▰</span>Deserve to Win</span>
+                <span class="cap" style="margin-left:auto;font-size:12px;font-weight:700;letter-spacing:.14em;color:var(--color-win)">● 0.95</span>
+              </div>
+            </div>
+            <div style="display:flex;align-items:flex-end;justify-content:space-between">
+              <div style="display:flex;flex-direction:column"><span class="cap" style="font-size:12px;font-weight:800;letter-spacing:.2em;color:var(--color-accent)">BGM</span><span ref="{{ setDtwBig }}" class="cap tabular" style="font-size:38px;font-weight:900;line-height:.9;color:var(--color-accent);text-shadow:0 0 22px rgba(232,65,49,.3)">{{ dtwBgmStr }}<span style="font-size:18px;color:var(--fg-5)">%</span></span></div>
+              <div style="display:flex;flex-direction:column;align-items:flex-end"><span class="cap" style="font-size:12px;font-weight:800;letter-spacing:.2em;color:var(--opp-2)">4L</span><span class="cap tabular" style="font-size:38px;font-weight:900;line-height:.9;color:var(--opp)">{{ dtwOppStr }}<span style="font-size:18px;color:var(--fg-5)">%</span></span></div>
+            </div>
+            <div style="display:flex;justify-content:center">
+              <svg viewBox="0 0 240 152" style="width:100%;max-width:230px;display:block" aria-hidden="true">
+                <path d="M 24 120 A 96 96 0 0 1 216 120" fill="none" stroke="var(--color-charcoal)" stroke-width="30"></path>
+                <path ref="{{ setDtwArcRed }}" d="M 24 120 A 96 96 0 0 1 148.79 28.42" fill="none" stroke="var(--color-accent)" stroke-width="22"></path>
+                <path ref="{{ setDtwArcGrey }}" d="M 148.79 28.42 A 96 96 0 0 1 216 120" fill="none" stroke="var(--opp-2)" stroke-width="22"></path>
+                <line x1="24" y1="120" x2="24" y2="130" stroke="var(--fg-5)" stroke-width="1.2"></line>
+                <line x1="120" y1="24" x2="120" y2="14" stroke="var(--fg-5)" stroke-width="1.2"></line>
+                <line x1="216" y1="120" x2="216" y2="130" stroke="var(--fg-5)" stroke-width="1.2"></line>
+                <text x="24" y="144" text-anchor="middle" style="font:800 12px var(--font-condensed);fill:var(--fg-4);letter-spacing:.1em">0%</text>
+                <text x="120" y="11" text-anchor="middle" style="font:800 12px var(--font-condensed);fill:var(--fg-4);letter-spacing:.1em">50</text>
+                <text x="216" y="144" text-anchor="middle" style="font:800 12px var(--font-condensed);fill:var(--fg-4);letter-spacing:.1em">100%</text>
+                <g ref="{{ setDtwNeedle }}" style="transform-box:view-box;transform-origin:120px 120px">
+                  <line x1="120" y1="120" x2="145.79" y2="37.96" stroke="var(--fg-1)" stroke-width="3.5" stroke-linecap="round"></line>
+                  <circle cx="120" cy="120" r="8" fill="var(--fg-1)"></circle>
+                  <circle cx="120" cy="120" r="4" fill="var(--color-background)"></circle>
+                </g>
+              </svg>
+            </div>
+            <div style="display:flex;flex-direction:column;align-items:center;gap:5px">
+              <span class="cap" style="font-size:12px;font-weight:900;letter-spacing:.2em;color:var(--color-win);padding:2px 0">BGM EARNED THIS WIN</span>
+            </div>
+            <details style="border-top:1px solid var(--color-border-subtle);padding-top:10px">
+              <summary class="cap wire-cta" style="position:relative;display:flex;width:100%;box-sizing:border-box;align-items:center;justify-content:center;gap:7px;padding:10px 12px;background:var(--color-charcoal);border:1px solid var(--color-accent-line);cursor:pointer;list-style:none"><span class="cap" style="font-size:12px;font-weight:800;letter-spacing:.08em;white-space:nowrap;color:var(--color-accent)">WHERE THE EDGE CAME FROM</span><span class="cap disc-caret" style="font-size:12px;color:var(--color-accent)">⌄</span></summary>
+              <div style="display:flex;flex-direction:column;gap:10px;padding-top:10px">
+                <div style="display:flex;flex-direction:column;gap:4px">
+                  <div style="display:flex;align-items:center;gap:6px">
+                    <span class="cap" style="font-size:12px;font-weight:900;letter-spacing:.06em;color:var(--fg-2)">SHOTS</span>
+                    <span class="cap tabular" style="font-size:12px;font-weight:800;color:var(--fg-3);border:1px solid var(--color-border);padding:1px 5px">50%</span>
+                    <span class="cap tabular" style="margin-left:auto;font-size:12px;font-weight:800;color:var(--fg-3)"><b style="color:var(--color-accent)">29</b> – 16</span>
+                  </div>
+                  <div style="display:flex;height:8px;background:var(--color-charcoal);border:1px solid var(--color-border)"><span style="width:64%;background:var(--color-accent)"></span><span style="width:36%;background:var(--opp-2)"></span></div>
+                  <span class="cap tabular" style="font-size:12px;font-weight:700;letter-spacing:.1em;color:var(--fg-4)"><b style="color:var(--color-accent);font-weight:900">+7.2</b> TO DTW · BGM 64%</span>
+                </div>
+                <div style="display:flex;flex-direction:column;gap:4px">
+                  <div style="display:flex;align-items:center;gap:6px">
+                    <span class="cap" style="font-size:12px;font-weight:900;letter-spacing:.06em;color:var(--fg-2)">TOA</span>
+                    <span class="cap tabular" style="font-size:12px;font-weight:800;color:var(--fg-3);border:1px solid var(--color-border);padding:1px 5px">35%</span>
+                    <span class="cap tabular" style="margin-left:auto;font-size:12px;font-weight:800;color:var(--fg-3)"><b style="color:var(--color-accent)">12:42</b> – 6:11</span>
+                  </div>
+                  <div style="display:flex;height:8px;background:var(--color-charcoal);border:1px solid var(--color-border)"><span style="width:67%;background:var(--color-accent)"></span><span style="width:33%;background:var(--opp-2)"></span></div>
+                  <span class="cap tabular" style="font-size:12px;font-weight:700;letter-spacing:.1em;color:var(--fg-4)"><b style="color:var(--color-accent);font-weight:900">+6.0</b> TO DTW · BGM 67%</span>
+                </div>
+                <div style="display:flex;flex-direction:column;gap:4px">
+                  <div style="display:flex;align-items:center;gap:6px">
+                    <span class="cap" style="font-size:12px;font-weight:900;letter-spacing:.06em;color:var(--fg-2)">HITS</span>
+                    <span class="cap tabular" style="font-size:12px;font-weight:800;color:var(--fg-3);border:1px solid var(--color-border);padding:1px 5px">15%</span>
+                    <span class="cap tabular" style="margin-left:auto;font-size:12px;font-weight:800;color:var(--fg-3)">14 – <b style="color:var(--color-accent)">39</b></span>
+                  </div>
+                  <div style="display:flex;height:8px;background:var(--color-charcoal);border:1px solid var(--color-border)"><span style="width:26%;background:var(--opp-2)"></span><span style="width:74%;background:var(--color-accent)"></span></div>
+                  <span class="cap tabular" style="font-size:12px;font-weight:700;letter-spacing:.1em;color:var(--fg-4)"><b style="color:var(--color-accent);font-weight:900">−3.5</b> FROM DTW · BGM 26%</span>
+                </div>
+                <div style="display:flex;gap:5px;align-items:center;border-top:1px solid var(--color-border-subtle);padding-top:9px">
+                  <span class="cap" style="font-size:12px;font-weight:700;letter-spacing:.14em;color:var(--fg-4)">FORMULA</span>
+                  <span class="cap tabular" style="font-size:12px;font-weight:800;color:var(--fg-3);border:1px solid var(--color-border);padding:2px 6px">SHOTS 50</span>
+                  <span class="cap tabular" style="font-size:12px;font-weight:800;color:var(--fg-3);border:1px solid var(--color-border);padding:2px 6px">TOA 35</span>
+                  <span class="cap tabular" style="font-size:12px;font-weight:800;color:var(--fg-3);border:1px solid var(--color-border);padding:2px 6px">HITS 15</span>
+                </div>
+              </div>
+            </details>
+          </div>
+        </section>
+
+        <!-- BOX SCORE -->
+        <section ref="{{ setBoxEl }}" onMouseEnter="{{ boxPause }}" onMouseLeave="{{ boxResume }}" style="border:1px solid var(--color-border);background:var(--color-surface);padding:12px 14px 14px;display:flex;flex-direction:column;gap:10px">
+          <div style="display:flex;flex-direction:column;gap:2px">
+            <span class="ds-section-label"><span style="color:var(--fg-5);padding-right:4px">▰</span>Box Score</span>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:5px;align-items:stretch">
+            <sc-for list="{{ boxTabs }}" as="t" hint-placeholder-count="3">
+              <button type="button" class="{{ t.cls }}" onClick="{{ t.onSelect }}" style="{{ t.style }}"><span style="{{ t.tickStyle }}"></span><span>{{ t.label }}</span></button>
+            </sc-for>
+          </div>
+          <div style="position:relative;display:grid;grid-template-columns:1fr repeat(4,1fr) 1.2fr;gap:0;border:1px solid var(--color-border-subtle);overflow:hidden">
+            <span style="{{ boxWipeStyle }}"></span>
+            <span class="cap" style="font-size:12px;letter-spacing:.06em;color:var(--fg-4);padding:5px 4px;background:var(--color-charcoal)">TEAM</span>
+            <sc-for list="{{ boxPeriods }}" as="p" hint-placeholder-count="4">
+              <span class="cap tabular" style="font-size:12px;color:var(--fg-4);padding:5px 0;text-align:center;background:var(--color-charcoal)">{{ p }}</span>
+            </sc-for>
+            <span class="cap tabular" style="font-size:12px;color:var(--fg-4);padding:5px 0;text-align:center;background:var(--color-charcoal);border-left:1px solid var(--color-border)">TOT</span>
+            <sc-for list="{{ boxRows }}" as="r" hint-placeholder-count="2">
+              <span class="cap" style="{{ r.teamStyle }}">{{ r.team }}</span>
+              <sc-for list="{{ r.cells }}" as="c" hint-placeholder-count="4">
+                <span class="cap tabular" style="{{ c.style }}">{{ c.val }}</span>
+              </sc-for>
+              <span class="{{ r.totCls }}" style="{{ r.totStyle }}">{{ r.tot }}</span>
+            </sc-for>
+          </div>
+          <span class="cap" style="{{ boxNoteStyle }}">{{ boxNote }}</span>
+        </section>
+
+        <!-- TEAM STATS — HEAD TO HEAD -->
+        <section ref="{{ setTeamEl }}" style="border:1px solid var(--color-border);background:var(--color-surface);padding:12px 14px 14px;display:flex;flex-direction:column;gap:12px">
+          <div style="display:flex;flex-direction:column;gap:2px">
+            <span class="ds-section-label"><span style="color:var(--fg-5);padding-right:4px">▰</span>Team Stats</span>
+          </div>
+
+          <!-- FLAT list · dueling share bars -->
+          <div style="display:flex;flex-direction:column;gap:9px">
+            <sc-for list="{{ teamRows }}" as="r" hint-placeholder-count="10">
+              <div style="display:flex;flex-direction:column;gap:3px;{{ r.rowMotion }}">
+                <div style="display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:8px">
+                  <span class="cap tabular" style="font-size:13px;font-weight:800;color:{{ r.bgmValColor }};min-width:40px">{{ r.bgmDisp }}</span>
+                  <span class="cap" style="font-size:12px;font-weight:600;letter-spacing:.06em;color:var(--fg-4);text-align:center">{{ r.label }}</span>
+                  <span class="cap tabular" style="font-size:13px;font-weight:800;color:{{ r.oppValColor }};text-align:right;min-width:40px">{{ r.oppDisp }}</span>
+                </div>
+                <div style="display:flex;height:5px;background:var(--color-background);overflow:hidden">
+                  <span style="flex:none;width:{{ r.bgmW }};display:flex;justify-content:flex-end;overflow:hidden"><span class="{{ r.bgmBarCls }}" style="width:{{ r.grow }};height:100%;background:{{ r.bgmBar }}"></span></span>
+                  <span style="flex:none;width:2px;background:var(--color-surface)"></span>
+                  <span style="flex:none;width:{{ r.oppW }};display:flex;overflow:hidden"><span class="{{ r.oppBarCls }}" style="width:{{ r.grow }};height:100%;background:{{ r.oppBar }}"></span></span>
+                </div>
+              </div>
+            </sc-for>
+          </div>
+        </section>
+      </div>
+    </div>
+
+    <!-- ============ ACTION TRACKER MAP (full width) ============ -->
+    <section style="border:1px solid var(--color-border);background:var(--bg-broadcast-soft);padding:16px;margin-top:16px">
+      <x-import component-from-global-scope="action-tracker-map" from="./action-tracker-v2.js" hint-size="100%,620px"></x-import>
+    </section>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;oppColor&quot;:{&quot;editor&quot;:&quot;color&quot;,&quot;default&quot;:&quot;#111111&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Opponent&quot;,&quot;label&quot;:&quot;Opponent colour&quot;,&quot;options&quot;:[&quot;#8FA6C4&quot;,&quot;#3AB7FF&quot;,&quot;#6A5CFF&quot;,&quot;#C8102E&quot;,&quot;#111111&quot;]},&quot;oppSecondary&quot;:{&quot;editor&quot;:&quot;color&quot;,&quot;default&quot;:&quot;&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Opponent&quot;,&quot;label&quot;:&quot;Opponent secondary (fallback)&quot;,&quot;options&quot;:[&quot;&quot;,&quot;#F1C40F&quot;,&quot;#B9975B&quot;,&quot;#3D7DD8&quot;]},&quot;lineupAutoRotate&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Lineup rotation&quot;,&quot;label&quot;:&quot;Auto-walk the lineup&quot;},&quot;lineupRotateScope&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;Players&quot;,&quot;Players + teams&quot;,&quot;Players + teams + views&quot;],&quot;default&quot;:&quot;Players + teams + views&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Lineup rotation&quot;,&quot;label&quot;:&quot;Scope&quot;},&quot;lineupRotateSeconds&quot;:{&quot;editor&quot;:&quot;range&quot;,&quot;default&quot;:9,&quot;min&quot;:2,&quot;max&quot;:12,&quot;step&quot;:1,&quot;unit&quot;:&quot;s&quot;,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;Lineup rotation&quot;,&quot;label&quot;:&quot;Seconds per skater&quot;},&quot;lineupPauseOnHover&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Lineup rotation&quot;,&quot;label&quot;:&quot;Pause on hover&quot;},&quot;boxAutoRotate&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Box score rotation&quot;,&quot;label&quot;:&quot;Auto-rotate views&quot;},&quot;boxRotateSeconds&quot;:{&quot;editor&quot;:&quot;range&quot;,&quot;default&quot;:9,&quot;min&quot;:2,&quot;max&quot;:15,&quot;step&quot;:1,&quot;unit&quot;:&quot;s&quot;,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;Box score rotation&quot;,&quot;label&quot;:&quot;Seconds per view&quot;}}">
+class Component extends DCLogic {
+  RM = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion:reduce)').matches);
+  _reduceMotion = this.RM;
+  state = { team: 'BGM', mode: 'LOADOUT', open: null,
+            luAuto: null, luPaused: false, luStep: 0,
+            showAll: false, openRow: null, box: 'GOALS', boxAuto: null, boxArmed: false, boxPaused: false, boxSwitch: 0,
+            boxProg: this.RM ? 1 : 0, boxGlow: false,
+            teamProg: this.RM ? 1 : 0, teamGlow: this.RM,
+            revealed: false, cHome: 0, cAway: 0,
+            dtwK: this.RM ? 1 : 0,
+            tlMode: 'auto', tlAvail: 0, tlExpanded: false, tlAnimating: false, tlToggleH: null, attrProg: 1,
+            tlProg: this.RM ? 1 : 0,
+            perfProg: this.RM ? null : {} };
+
+  /* one-slot memo per builder. renderVals() runs on every frame of up to five
+     concurrent rAF animations; without this every tick of the hero count-up also
+     rebuilt the timeline, the box score, the team stats and all 12 lineup rows. */
+  _memo(slot, keys, fn){
+    const c = this._mc || (this._mc = {});
+    const e = c[slot];
+    if (e && e.k.length === keys.length && e.k.every((v, i) => v === keys[i])) return e.v;
+    const v = fn();
+    c[slot] = { k: keys, v: v };
+    return v;
+  }
+
+  /* ── top nav ─────────────────────────────────────────────────────────── */
+  nav = { active: 'GAMES', menu: false, signIn: false, user: null, email: '', pw: '', errE: false, errP: false, busy: false };
+  setNav = (patch) => { this.nav = { ...this.nav, ...patch }; this.forceUpdate(); };
+  navGo = (name, close) => (e) => { e.preventDefault(); this.setNav(close ? { active: name, menu: false } : { active: name }); };
+  navActiveStyle = (name) => this.nav.active === name ? 'background:var(--color-accent);color:#fff' : '';
+  navDrawerStyle = (name) => this.nav.active === name
+    ? 'border-left:3px solid var(--color-accent);color:var(--fg-1)'
+    : 'border-left:3px solid transparent';
+  navSubmit = (e) => {
+    e.preventDefault();
+    const okE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(this.nav.email);
+    const okP = this.nav.pw.length >= 6;
+    this.setNav({ errE: !okE, errP: !okP });
+    if (!okE || !okP) return;
+    this.setNav({ busy: true });
+    setTimeout(() => {
+      const name = this.nav.email.split('@')[0].replace(/[._-]+/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+      this.setNav({ user: { name, email: this.nav.email }, busy: false, signIn: false, email: '', pw: '' });
+    }, 700);
+  };
+  navVals(){
+    const n = this.nav, u = n.user;
+    return {
+      navHome: this.navActiveStyle('HOME'), navGames: this.navActiveStyle('GAMES'),
+      navRoster: this.navActiveStyle('ROSTER'), navStats: this.navActiveStyle('STATS'),
+      curHome: n.active === 'HOME' ? 'page' : 'false', curGames: n.active === 'GAMES' ? 'page' : 'false',
+      curRoster: n.active === 'ROSTER' ? 'page' : 'false', curStats: n.active === 'STATS' ? 'page' : 'false',
+      mHome: this.navDrawerStyle('HOME'), mGames: this.navDrawerStyle('GAMES'),
+      mRoster: this.navDrawerStyle('ROSTER'), mStats: this.navDrawerStyle('STATS'),
+      goHome: this.navGo('HOME'), goGames: this.navGo('GAMES'),
+      goRoster: this.navGo('ROSTER'), goStats: this.navGo('STATS'),
+      goHomeClose: this.navGo('HOME', true), goGamesClose: this.navGo('GAMES', true),
+      goRosterClose: this.navGo('ROSTER', true), goStatsClose: this.navGo('STATS', true),
+      openMenu: () => this.setNav({ menu: true }),
+      closeMenu: () => this.setNav({ menu: false }),
+      drawerWrap: n.menu ? 'pointer-events:auto' : 'pointer-events:none;visibility:hidden',
+      drawerScrim: n.menu ? 'opacity:1' : 'opacity:0',
+      drawerPanel: n.menu ? 'transform:translateX(0)' : 'transform:translateX(100%)',
+      signedIn: !!u, signedOut: !u,
+      initials: u ? u.name.split(' ').map(s => s[0]).join('').slice(0, 2).toUpperCase() : '',
+      userName: u ? u.name : '', userEmail: u ? u.email : '',
+      accountLabel: u ? 'ACCOUNT' : 'SIGN IN',
+      modalTitle: u ? 'ACCOUNT' : 'MEMBER SIGN IN',
+      openSignIn: () => this.setNav({ signIn: true }),
+      openSignInFromMenu: () => this.setNav({ signIn: true, menu: false }),
+      closeSignIn: () => this.setNav({ signIn: false, errE: false, errP: false }),
+      signOut: () => this.setNav({ user: null, signIn: false }),
+      signInOpen: n.signIn,
+      siEmail: n.email, siPw: n.pw, emailErr: n.errE, pwErr: n.errP,
+      setSiEmail: (e) => this.setNav({ email: e.target.value, errE: false }),
+      setSiPw: (e) => this.setNav({ pw: e.target.value, errP: false }),
+      emailBorder: n.errE ? 'border-color:var(--color-accent)' : '',
+      pwBorder: n.errP ? 'border-color:var(--color-accent)' : '',
+      submitSignIn: this.navSubmit,
+      submitLabel: n.busy ? 'SIGNING IN…' : 'SIGN IN',
+      busyStyle: n.busy ? 'opacity:.7;cursor:default' : '',
+    };
+  }
+
+  FINAL_HOME = 4; FINAL_AWAY = 3;
+
+  LEADERS = { BGM: 11, '4L': 19 };
+
+  setRightEl   = (el) => { this.rightEl = el; };
+  setLineupEl  = (el) => { this.lineupEl = el; };
+  setSectionEl = (el) => { this.sectionEl = el; if (el) this.observeTimeline(); };
+  setClipEl    = (el) => { this.clipEl = el; };
+  setListEl    = (el) => { this.listEl = el; };
+  setStageEl   = (el) => { this.stageEl = el; };
+
+  setDtwNeedle  = (el) => { this.dtwNeedle = el; };
+  setDtwArcRed  = (el) => { this.dtwArcRed = el; if (el) { const l = el.getTotalLength(); el.dataset.len = l; el.style.strokeDasharray = l; if (this.state.dtwK < 1) el.style.strokeDashoffset = l; } };
+  setDtwArcGrey = (el) => { this.dtwArcGrey = el; if (el) { const l = el.getTotalLength(); el.dataset.len = l; el.style.strokeDasharray = l; if (this.state.dtwK < 1) el.style.strokeDashoffset = l; } };
+  setDtwBig     = (el) => { this.dtwBig = el; };
+  setOppRoot    = (el) => { this.oppRoot = el; if (el) this.applyOppColor(); };
+
+  // deserve-to-win gauge: needle + red fill + BGM count all rise from 0 in lockstep,
+  // then the grey remainder carries the front on to 100 (matches the approved motion rec)
+  playDtw(){
+    if (this._dtwPlayed) return;
+    this._dtwPlayed = true;
+    const needle = this.dtwNeedle, red = this.dtwArcRed, grey = this.dtwArcGrey;
+    // pose everything at 0% (needle rests at 59.7 = rotate(0), so 0% = -107.46deg)
+    if (needle){ needle.style.transition = 'none'; needle.style.transform = 'rotate(-107.46deg)'; }
+    if (red){ red.style.transition = 'none'; red.style.strokeDashoffset = red.dataset.len; }
+    if (grey){ grey.style.transition = 'none'; grey.style.strokeDashoffset = grey.dataset.len; }
+    if (red) void red.offsetHeight;
+    const redDur = 900, greyDur = 610, delay = 350;
+    setTimeout(() => {
+      if (needle){ needle.style.transition = 'transform ' + redDur + 'ms linear'; needle.style.transform = 'rotate(0deg)'; }
+      if (red){ red.style.transition = 'stroke-dashoffset ' + redDur + 'ms linear'; red.style.strokeDashoffset = 0; }
+      if (grey){ grey.style.transition = 'stroke-dashoffset ' + greyDur + 'ms linear ' + redDur + 'ms'; grey.style.strokeDashoffset = 0; }
+      // BGM % counts 0 -> 59.7 in sync with the red fill
+      const t0 = performance.now();
+      const ease = t => 1 - Math.pow(1 - t, 3);
+      const tick = (now) => {
+        const t = Math.max(0, Math.min((now - t0) / redDur, 1));
+        this.setState({ dtwK: ease(t) });
+        if (t < 1) this._dtwRaf = requestAnimationFrame(tick);
+        else if (this.dtwBig){ this.dtwBig.classList.remove('dtw-bloom'); void this.dtwBig.offsetHeight; this.dtwBig.classList.add('dtw-bloom'); }
+      };
+      this._dtwRaf = requestAnimationFrame(tick);
+    }, delay);
+  }
+
+  // score roll-up — digits climb to the final tally like a settling replay graphic
+  runCountUp(){
+    const dur = 1150, delay = 350, start = performance.now() + delay;
+    const ease = t => 1 - Math.pow(1 - t, 3);
+    const tick = (now) => {
+      const t = Math.max(0, Math.min((now - start) / dur, 1)), k = ease(t);
+      this.setState({ cHome: Math.round(this.FINAL_HOME * k), cAway: Math.round(this.FINAL_AWAY * k) });
+      if (t < 1) this._countRaf = requestAnimationFrame(tick);
+    };
+    this._countRaf = requestAnimationFrame(tick);
+  }
+
+  // top performers roll-up — each row's score climbs to its tally, staggered top-to-bottom
+  runPerfCountUp(){
+    const ranks = this.PERF.map(p => p.rank);
+    const dur = 600, base = 150, step = 80, t0 = performance.now();
+    const ease = t => 1 - Math.pow(1 - t, 3);
+    const tick = (now) => {
+      const map = {}; let done = true;
+      ranks.forEach((r, i) => {
+        const t = Math.max(0, Math.min((now - t0 - base - i * step) / dur, 1));
+        map[r] = ease(t);
+        if (t < 1) done = false;
+      });
+      this.setState({ perfProg: map });
+      if (!done) this._perfRaf = requestAnimationFrame(tick);
+    };
+    this._perfRaf = requestAnimationFrame(tick);
+  }
+
+  // opponent colour lives on the component's own root element: the tweak survives
+  // any host-side rewrite of documentElement's inline style. All derived vars are
+  // re-declared here too — color-mix() resolves against the element it is declared on.
+  oppRaw(){
+    const v = (this.state.oppLive != null) ? this.state.oppLive : this.props.oppColor;
+    if (typeof v === 'string' && v) return v;
+    if (Array.isArray(v) && v.length) return v[0];
+    return '#8FA6C4';
+  }
+  // ── OPPONENT COLOUR RESOLVER ──────────────────────────────────────────
+  // BGM red is reserved. Any opponent hex that lands in the reserved wedge,
+  // sinks into the field, or reads as body text is swapped before it ships.
+  // Ladder: HOME (primary) → AWAY (secondary) → ALTERNATE (issued).
+  // Full spec: Opponent Colour Rules.dc.html
+  _hexRgb(h){
+    let s = String(h||'').trim().replace('#','');
+    if (s.length === 3) s = s.split('').map(c=>c+c).join('');
+    if (!/^[0-9a-f]{6}$/i.test(s)) return null;
+    return [parseInt(s.slice(0,2),16),parseInt(s.slice(2,4),16),parseInt(s.slice(4,6),16)];
+  }
+  _lin(c){ c/=255; return c<=0.04045 ? c/12.92 : Math.pow((c+0.055)/1.055,2.4); }
+  _unlin(c){ return 255*(c<=0.0031308 ? c*12.92 : 1.055*Math.pow(c,1/2.4)-0.055); }
+  _oklch(hex){
+    const p = this._hexRgb(hex); if (!p) return null;
+    const r=this._lin(p[0]), g=this._lin(p[1]), b=this._lin(p[2]);
+    const l=Math.cbrt(0.4122214708*r+0.5363325363*g+0.0514459929*b);
+    const m=Math.cbrt(0.2119034982*r+0.6806995451*g+0.1073969566*b);
+    const s=Math.cbrt(0.0883024619*r+0.2817188376*g+0.6299787005*b);
+    const L=0.2104542553*l+0.7936177850*m-0.0040720468*s;
+    const A=1.9779984951*l-2.4285922050*m+0.4505937099*s;
+    const B=0.0259040371*l+0.7827717662*m-0.8086757660*s;
+    let h=Math.atan2(B,A)*180/Math.PI; if (h<0) h+=360;
+    return { L:L, C:Math.sqrt(A*A+B*B), h:h };
+  }
+  _toHex(o){
+    const conv = (L,C,h) => {
+      const A=C*Math.cos(h*Math.PI/180), B=C*Math.sin(h*Math.PI/180);
+      const l=Math.pow(L+0.3963377774*A+0.2158037573*B,3);
+      const m=Math.pow(L-0.1055613458*A-0.0638541728*B,3);
+      const s=Math.pow(L-0.0894841775*A-1.2914855480*B,3);
+      return [this._unlin(4.0767416621*l-3.3077115913*m+0.2309699292*s),
+              this._unlin(-1.2684380046*l+2.6097574011*m-0.3413193965*s),
+              this._unlin(-0.0041960863*l-0.7034186147*m+1.7076147010*s)];
+    };
+    const px = v => Math.max(0,Math.min(255,Math.round(v))).toString(16).padStart(2,'0');
+    let C = o.C;
+    for (let i=0;i<40;i++){
+      const c = conv(o.L,C,o.h);
+      if (c.every(v => v>=-0.5 && v<=255.5)) return ('#'+px(c[0])+px(c[1])+px(c[2])).toUpperCase();
+      C *= 0.94;
+    }
+    const c = conv(o.L,0,o.h);
+    return ('#'+px(c[0])+px(c[1])+px(c[2])).toUpperCase();
+  }
+  _oppTest(hex){
+    const o = this._oklch(hex);
+    if (!o) return { ok:false, fails:['INVALID'], o:null };
+    const fails = [];
+    const dh = Math.min(Math.abs(o.h-29), 360-Math.abs(o.h-29));
+    if (dh <= 30 && o.C >= 0.05) fails.push('RED WEDGE');
+    if (o.L < 0.55) fails.push('TOO DARK');
+    if (o.L > 0.93 && o.C < 0.045) fails.push('TOO PALE');
+    return { ok: fails.length === 0, fails: fails, o: o };
+  }
+  _oppAlt(hex, abbr, fails){
+    const ALTS = ['#8FA6C4','#6FB7D8','#9B8CE8','#6E8FE8'];
+    const o = this._oklch(hex);
+    if (!o || fails.indexOf('RED WEDGE') >= 0){
+      let n = 0; const s = String(abbr||'OPP').toUpperCase();
+      for (let i=0;i<s.length;i++) n = (n*31 + s.charCodeAt(i)) >>> 0;
+      return ALTS[n % ALTS.length];
+    }
+    if (fails.indexOf('TOO PALE') >= 0)
+      return this._toHex({ L:0.86, C:Math.max(o.C,0.035), h: o.C < 0.02 ? 250 : o.h });
+    // achromatic: no hue to keep — lift the neutral axis to gunmetal, never invent one
+    if (o.C < 0.03) return this._toHex({ L:0.62, C:0.012, h:250 });
+    return this._toHex({ L:0.62, C:Math.max(Math.min(o.C,0.14),0.06), h:o.h });
+  }
+  // called on every render and every update; the oklch ladder is pure, so cache it
+  oppHex(){
+    const primary = this.oppRaw(), sec = this.props.oppSecondary, ab = this.props.oppAbbr;
+    const k = this._ohK;
+    if (k && k[0] === primary && k[1] === sec && k[2] === ab) return this._ohV;
+    const t = this._oppTest(primary);
+    let out;
+    if (t.ok) out = primary;
+    else if (typeof sec === 'string' && sec && this._oppTest(sec).ok) out = sec;
+    else out = this._oppAlt(primary, ab || '4L', t.fails);
+    this._ohK = [primary, sec, ab]; this._ohV = out;
+    return out;
+  }
+  // Live tweak pickup: the host's prop-override call does not always reach this
+  // instance (name mismatch), so mirror any oppColor it broadcasts into state.
+  watchOppTweak(){
+    const w = window;
+    if (!w.__gsPropTap && typeof w.__dcSetProps === 'function'){
+      const orig = w.__dcSetProps;
+      w.__dcSetProps = function(name, ov){
+        try { orig(name, ov); } catch(e){ console.error(e); }
+        try { w.dispatchEvent(new CustomEvent('gs-prop-tap', { detail: ov })); } catch(e){}
+      };
+      w.__gsPropTap = true;
+    }
+    this._oppTap = (e) => {
+      const ov = e && e.detail;
+      if (ov && typeof ov === 'object' && ov.oppColor != null && ov.oppColor !== this.state.oppLive){
+        this.setState({ oppLive: ov.oppColor });
+      }
+    };
+    w.addEventListener('gs-prop-tap', this._oppTap);
+    this._oppMsg = (e) => {
+      const d = e && e.data;
+      if (!d || typeof d !== 'object') return;
+      const ov = d.props || d.overrides || d.propOverrides || (d.type && /prop/i.test(String(d.type)) ? d.value : null);
+      if (ov && typeof ov === 'object' && ov.oppColor != null && ov.oppColor !== this.state.oppLive){
+        this.setState({ oppLive: ov.oppColor });
+      }
+    };
+    w.addEventListener('message', this._oppMsg);
+    // Last resort: poll the runtime registry. Whatever channel the host uses to
+    // deliver a tweak (prop override or a re-pushed props default), it lands there.
+    let tries = 0;
+    this._oppPoll = setInterval(() => {
+      if (++tries > 50){ clearInterval(this._oppPoll); this._oppPoll = null; return; }
+      const reg = w.__dcRegistry;
+      if (!reg) return;
+      let found = null;
+      for (const k in reg){
+        const e = reg[k]; if (!e) continue;
+        const ov = e.propOverrides && e.propOverrides.oppColor;
+        const def = e.propsMeta && e.propsMeta.oppColor && e.propsMeta.oppColor.default;
+        const v = ov != null ? ov : def;
+        if (v != null) { found = v; if (ov != null) break; }
+      }
+      if (found != null){ clearInterval(this._oppPoll); this._oppPoll = null;
+        if (found !== this.state.oppLive) this.setState({ oppLive: found }); }
+    }, 200);
+  }
+  applyOppColor(){
+    const c = this.oppHex();
+    // custom props on the root invalidate style for the whole subtree — only write on change
+    if (c === this._oppWritten && this.oppRoot === this._oppWrittenEl) return;
+    this._oppWritten = c; this._oppWrittenEl = this.oppRoot;
+    // documentElement too: the embedded action-tracker styles read --opp from wherever
+    // its container lands. Guarded above, so this runs only when the colour changes.
+    const targets = [this.oppRoot, document.documentElement].filter(Boolean);
+    targets.forEach(el => {
+      el.style.setProperty('--opp', c);
+      el.style.setProperty('--opp-2', 'color-mix(in srgb,' + c + ' 74%,transparent)');
+      el.style.setProperty('--opp-3', 'color-mix(in srgb,' + c + ' 78%,var(--color-charcoal))');
+      el.style.setProperty('--opp-line', 'color-mix(in srgb,' + c + ' 40%,transparent)');
+      el.style.setProperty('--opp-soft', 'color-mix(in srgb,' + c + ' 12%,transparent)');
+    });
+  }
+  componentDidMount(){
+    this.watchOppTweak();
+    this.applyOppColor();
+    this._prevTeam = this.state.team;
+    this._prevBox = this.state.box;
+    this._prevLuAuto = this.props.lineupAutoRotate !== false;
+    this._prevLuDwell = this.luDwellMs();
+    this._boxVis = () => { this.syncBoxPause(); this.luSyncPause(); };
+    document.addEventListener('visibilitychange', this._boxVis);
+    document.addEventListener('click', this.onUserAct, true);
+    // broadcast reveal: flip on the transition-driven bar growth, then roll the score up
+    const reduce = this.RM;
+    if (reduce){
+      this.setState({ revealed: true, cHome: this.FINAL_HOME, cAway: this.FINAL_AWAY, boxProg: 1, boxGlow: true });
+    } else {
+      requestAnimationFrame(() => this.setState({ revealed: true }));
+      this.runCountUp();
+      this.runPerfCountUp();
+      // fill the deserve-to-win gauge once the rail has settled in
+      this._dtwTimer = setTimeout(() => this.playDtw(), 500);
+      // deal the lineup rows in once the grid has risen + the panel wipe has passed
+      this._dealTimer = setTimeout(() => this.restackRows(), 950);
+      // the roster walk starts once the rows have finished dealing in
+      this._luKick = setTimeout(() => this.luKick(), 2400);
+      // box score fills period-by-period the first time it scrolls into view (see observeBox)
+    }
+    // trailing debounce: measuring forces a full synchronous layout, so a burst of
+    // renders (count-ups run one per frame) collapses into a single measure pass
+    this._schedule = () => {
+      clearTimeout(this._settle);
+      this._settle = setTimeout(() => {
+        if (this._raf) cancelAnimationFrame(this._raf);
+        this._raf = requestAnimationFrame(() => this.measureTimeline());
+      }, 90);
+    };
+    this._ro = new ResizeObserver(this._schedule);
+    if (this.rightEl)  this._ro.observe(this.rightEl);
+    if (this.lineupEl) this._ro.observe(this.lineupEl);
+    window.addEventListener('resize', this._schedule);
+    // native <details> toggles (e.g. Deserve-to-Win) don't fire a React update
+    this._dets = this.rightEl ? [].slice.call(this.rightEl.querySelectorAll('details')) : [];
+    this._dets.forEach(d => d.addEventListener('toggle', this._schedule));
+    // settle passes for late layout (fonts, async imports)
+    this._timers = [80, 300, 800, 1600].map(t => setTimeout(this._schedule, t));
+    this._schedule();
+  }
+  componentDidUpdate(){
+    this.applyOppColor();
+    if (this._tlToggled){ this._tlToggled = false; this.animateTimelineToggle(); }
+    if (this._schedule) this._schedule();
+    if (this._prevTeam !== this.state.team){ this._prevTeam = this.state.team; this.restackRows(); }
+    if (this._prevBox !== this.state.box){ this._prevBox = this.state.box; this.animBox(); }
+    const luNow = this.luAutoOn(), luDwellNow = this.luDwellMs();
+    if (this._prevLuAuto !== luNow || this._prevLuDwell !== luDwellNow){
+      this._prevLuAuto = luNow; this._prevLuDwell = luDwellNow;
+      if (luNow && !this._luTimer) this.luKick(); else if (!luNow) this.luClearTimer();
+    }
+    const autoNow = this.boxAutoOn(), dwellNow = this.boxDwellMs();
+    if (this._prevAuto !== autoNow || this._prevDwell !== dwellNow){
+      this._prevAuto = autoNow; this._prevDwell = dwellNow;
+      if (autoNow && this.state.boxArmed && !this._boxFilling) this.startBoxDwell(); else this.stopBoxDwell();
+    }
+  }
+  // team switch: deal the new roster's rows in top-to-bottom, like a lineup card
+  restackRows(){
+    if (this.RM || !this.stageEl) return;
+    const rows = [].slice.call(this.stageEl.querySelectorAll('.lu-row'));
+    rows.forEach((row, i) => {
+      if (row.animate) row.animate(
+        [{ opacity: 0, transform: 'translateY(12px)' }, { opacity: 1, transform: 'translateY(0)' }],
+        { duration: 300, delay: i * 45, easing: 'cubic-bezier(.16,.84,.3,1)', fill: 'both' }
+      );
+    });
+  }
+  componentWillUnmount(){
+    if (this._oppPoll) clearInterval(this._oppPoll);
+    if (this._oppTap) window.removeEventListener('gs-prop-tap', this._oppTap);
+    if (this._oppMsg) window.removeEventListener('message', this._oppMsg);
+    if (this._countRaf) cancelAnimationFrame(this._countRaf);
+    if (this._attrRaf) cancelAnimationFrame(this._attrRaf);
+    if (this._dealTimer) clearTimeout(this._dealTimer);
+    if (this._teamRaf) cancelAnimationFrame(this._teamRaf);
+    if (this._teamIO) this._teamIO.disconnect();
+    if (this._dwellTimer) clearTimeout(this._dwellTimer);
+    if (this._luTimer) clearTimeout(this._luTimer);
+    if (this._luKick) clearTimeout(this._luKick);
+    document.removeEventListener('click', this.onUserAct, true);
+    if (this._luIO) this._luIO.disconnect();
+    if (this._boxVisIO) this._boxVisIO.disconnect();
+    if (this._boxVis) document.removeEventListener('visibilitychange', this._boxVis);
+    if (this._ro) this._ro.disconnect();
+    if (this._schedule) window.removeEventListener('resize', this._schedule);
+    if (this._dets) this._dets.forEach(d => d.removeEventListener('toggle', this._schedule));
+    if (this._timers) this._timers.forEach(clearTimeout);
+    if (this._settle) clearTimeout(this._settle);
+    if (this._raf) cancelAnimationFrame(this._raf);
+    if (this._tlRaf) cancelAnimationFrame(this._tlRaf);
+    if (this._tlIO) this._tlIO.disconnect();
+    if (this._tlToggleAnim) this._tlToggleAnim.cancel();
+    if (this._tlEnd && this.clipEl) this.clipEl.removeEventListener('transitionend', this._tlEnd);
+    if (this._tlEndT) clearTimeout(this._tlEndT);
+  }
+
+  measureTimeline(){
+    if (this.state.tlAnimating) return;
+    const right = this.rightEl, section = this.sectionEl, clip = this.clipEl, list = this.listEl;
+    if (!right || !section || !clip || !list) return;
+    // neutralise any applied sizing so we read the natural layout
+    const pMin = list.style.minHeight, pJ = list.style.justifyContent, pH = clip.style.height, pO = clip.style.overflow;
+    list.style.minHeight = '0px'; list.style.justifyContent = 'flex-start';
+    clip.style.height = 'auto'; clip.style.overflow = 'visible';
+    void list.offsetHeight;
+    // target: make the timeline section bottom land exactly on the rail's bottom edge.
+    const rightBottom = right.getBoundingClientRect().bottom;
+    const secTop = section.getBoundingClientRect().top;
+    const targetH = rightBottom - secTop;
+    const chrome  = section.getBoundingClientRect().height - clip.getBoundingClientRect().height; // header + final pill + button + padding
+    const avail   = Math.max(targetH - chrome, 140);
+    const natural = list.getBoundingClientRect().height;
+    const mode = natural > avail + 4 ? 'clip' : 'fill';
+    // restore
+    list.style.minHeight = pMin; list.style.justifyContent = pJ; clip.style.height = pH; clip.style.overflow = pO;
+    const s = this.state;
+    if (s.tlMode !== mode || Math.abs((s.tlAvail || 0) - avail) > 0.6){
+      this.setState({ tlMode: mode, tlAvail: avail });
+    }
+  }
+
+  toggleTl = () => {
+    if (this._reduceMotion || !this.clipEl){
+      this.setState(s => ({ tlExpanded: !s.tlExpanded }));
+      return;
+    }
+    const fromH = this.clipEl.getBoundingClientRect().height;
+    this._tlToggled = true;
+    this.setState(s => ({ tlExpanded: !s.tlExpanded, tlAnimating: true, tlToggleH: fromH }));
+  };
+
+  // dynamic expand / collapse: height is React-state-driven with a CSS transition (no WAAPI
+  // frozen box), while the rows crossing the fold cascade in (expand) or peel out (collapse).
+  animateTimelineToggle(){
+    const clip = this.clipEl, list = this.listEl;
+    if (!clip || !list){ this.setState({ tlAnimating: false, tlToggleH: null }); return; }
+    const expanding = this.state.tlExpanded;
+    // true natural height, read with the clip forced open
+    const prevH = clip.style.height;
+    clip.style.height = 'auto';
+    const natural = clip.getBoundingClientRect().height;
+    clip.style.height = prevH;
+    const to = expanding ? natural : (this.state.tlAvail || natural);
+    const from = this.state.tlToggleH || clip.getBoundingClientRect().height;
+    // rows crossing the fold
+    const fold = Math.min(from, to);
+    const rows = [].slice.call(list.children).filter(c => c.getAttribute && c.getAttribute('data-tl-line') == null && !c.classList.contains('tl-cap'));
+    if (clip.animate){
+      rows.forEach(r => { if (r.getAnimations) r.getAnimations().forEach(a => a.cancel()); });
+      const moving = rows.filter(r => (r.offsetTop + r.offsetHeight) > fold - 6);
+      if (!expanding) moving.reverse(); // collapse folds bottom-up: the last row tucks away first
+      moving.forEach((r, i) => {
+        const kf = expanding
+          ? [{ transform: 'translateY(16px)' }, { transform: 'translateY(0)' }]
+          : [{ transform: 'translateY(0)' }, { transform: 'translateY(-9px)' }];
+        r.animate(kf, { duration: expanding ? 300 : 200, delay: (expanding ? 90 : 10) + i * (expanding ? 55 : 24), easing: expanding ? 'cubic-bezier(.16,.84,.3,1)' : 'cubic-bezier(.4,0,.6,1)', fill: expanding ? 'both' : 'none' });
+      });
+    }
+    const finish = () => {
+      if (!this._tlEnd) return;
+      clip.removeEventListener('transitionend', this._tlEnd);
+      this._tlEnd = null; clearTimeout(this._tlEndT);
+      this.setState({ tlAnimating: false, tlToggleH: null });
+    };
+    const onEnd = (e) => { if (e.propertyName === 'height') finish(); };
+    this._tlEnd = onEnd;
+    clip.addEventListener('transitionend', onEnd);
+    clearTimeout(this._tlEndT);
+    this._tlEndT = setTimeout(finish, (expanding ? 520 : 480) + 200);
+    // commit the start height, then flip to target so the CSS transition runs
+    requestAnimationFrame(() => requestAnimationFrame(() => { this.setState({ tlToggleH: to }); }));
+  }
+
+  buildTimelineLayout(){
+    const { tlMode, tlAvail, tlExpanded, tlAnimating, tlToggleH } = this.state;
+    const P = (this.state.tlProg == null ? 1 : this.state.tlProg);
+    const ease = t => 1 - Math.pow(1 - t, 3);
+    const cl = x => x < 0 ? 0 : x > 1 ? 1 : x;
+    const railScale = ease(cl(P / 0.16)).toFixed(3);
+    const capOp = cl(P / 0.16).toFixed(3);
+    const fE = ease(cl((P - 0.86) / 0.14));
+    const fPulse = Math.sin(cl(fE) * Math.PI);
+    const tlRailStyle = 'position:absolute;left:50%;top:0;bottom:0;width:2px;background:var(--color-accent-line);transform-origin:top center;transform:translateX(-1px) scaleY(' + railScale + ');';
+    const tlCapTopStyle = 'position:absolute;left:50%;top:0;width:8px;height:8px;border-radius:50%;background:var(--color-accent);transform:translate(-50%,-3px);z-index:2;opacity:' + capOp + ';';
+    const tlCapBotStyle = 'position:absolute;left:50%;bottom:0;width:8px;height:8px;border-radius:50%;background:var(--color-accent);transform:translate(-50%,3px);z-index:2;opacity:' + capOp + ';';
+    const tlFinalStyle = 'display:inline-block;font-size:12px;font-weight:800;letter-spacing:.1em;color:var(--color-accent);background:var(--color-surface);border:1px solid var(--color-accent-line);padding:5px 14px;opacity:' + fE.toFixed(3) + ';transform:translateY(' + ((1 - fE) * 9).toFixed(2) + 'px);box-shadow:0 0 ' + (fPulse * 15 + fE * 5).toFixed(1) + 'px rgba(232,65,49,' + (fPulse * 0.55 + fE * 0.25).toFixed(3) + ');';
+    const h = tlAvail.toFixed(2) + 'px';
+    const listBase = 'position:relative;display:flex;flex-direction:column;padding:6px 0;';
+    let tlClipStyle = 'position:relative;overflow:visible', tlListStyle = listBase, tlShowBtn = false, tlShowFade = false, tlBtnLabel = '';
+    if (tlMode === 'fill') {
+      tlClipStyle = 'position:relative;overflow:hidden;height:' + h + ';';
+      tlListStyle = listBase + 'justify-content:space-between;min-height:' + h + ';';
+    } else { // clip
+      tlShowBtn = true;
+      tlBtnLabel = tlExpanded ? 'COLLAPSE TIMELINE' : 'SHOW FULL TIMELINE';
+      if (tlAnimating) {
+        // React-owned height + CSS transition; WAAPI never touches the clip box
+        const dur = tlExpanded ? '0.5s cubic-bezier(.16,.84,.3,1)' : '0.46s cubic-bezier(.4,0,.2,1)';
+        const hh = (tlToggleH != null ? tlToggleH : tlAvail).toFixed(2);
+        tlClipStyle = 'position:relative;overflow:hidden;height:' + hh + 'px;transition:height ' + dur + ';';
+      } else if (tlExpanded) {
+        tlClipStyle = 'position:relative;overflow:visible';
+      } else {
+        tlClipStyle = 'position:relative;overflow:hidden;height:' + h + ';';
+        tlShowFade = true;
+      }
+    }
+    return {
+      tlClipStyle, tlListStyle, tlShowBtn, tlShowFade, tlShowFinal: !tlShowFade, tlBtnLabel,
+      tlRailStyle, tlCapTopStyle, tlCapBotStyle, tlFinalStyle,
+      tlCaret: tlExpanded ? 'display:inline-block;transform:rotate(180deg)' : 'display:inline-block',
+      tlMeta: tlMode === 'clip' ? (tlExpanded ? 'FULL GAME' : 'CONDENSED') : 'FULL GAME',
+    };
+  }
+
+  BOX = {
+    GOALS: { periods:[[0,2,1,1],[0,0,3,0]], note:'GOALS 4–3 (+1) · GWG in OT' },
+    SHOTS: { periods:[[8,11,7,3],[4,6,5,1]], note:'SOG 29–16 (+13) · ON-NET 90.6%' },
+    FO:    { periods:[[6,8,5,2],[3,4,1,1]], note:'FACEOFFS 21–9 · WON 70.0%' },
+  };
+  BOX_TABS = ['GOALS','SHOTS','FO'];
+
+  boxTabStyle(active){
+    return 'position:relative;overflow:hidden;flex:none;white-space:nowrap;font-family:var(--font-condensed);text-transform:uppercase;font-size:12px;font-weight:700;letter-spacing:.06em;padding:6px 9px;cursor:pointer;transition:background-color .25s ease,border-color .25s ease,color .25s ease;border:1px solid '
+      + (active ? 'var(--color-accent-line)' : 'var(--color-border)')
+      + ';background:' + (active ? 'var(--color-accent-soft)' : 'transparent')
+      + ';color:' + (active ? 'var(--color-accent)' : 'var(--fg-3)') + ';';
+  }
+
+  // box score entrance is driven off state.boxProg (0→1) so the frequent load-time
+  // re-renders reflect the animation instead of wiping an imperative count.
+  // periods fill left→right, cells count up, winners settle into a faint tint,
+  // the total reads last and the winning total blooms once (state.boxGlow).
+  BOX_STEP = 140; BOX_CD = 300;
+
+  setBoxEl = (el) => { this.boxEl = el; if (el){ this.observeBox(); this.watchBoxVisible(); } };
+  // hold the box entrance until the section first scrolls into view
+  observeBox(){
+    if (this._boxObserved || !this.boxEl) return;
+    this._boxObserved = true;
+    if (this._reduceMotion || typeof IntersectionObserver === 'undefined'){ this.animBox(); return; }
+    this._boxIO = new IntersectionObserver((entries) => {
+      entries.forEach(e => {
+        if (e.isIntersecting){ this._boxIO.disconnect(); this._boxIO = null; this.animBox(); }
+      });
+    }, { threshold: 0.35 });
+    this._boxIO.observe(this.boxEl);
+  }
+
+  animBox(){
+    if (this._boxRaf) cancelAnimationFrame(this._boxRaf);
+    if (this._reduceMotion || document.hidden){
+      this._boxFilling = false;
+      this.setState({ boxProg: 1, boxGlow: true, boxArmed: true });
+      if (!this._reduceMotion && document.hidden) this.armBoxVisible();
+      this.startBoxDwell();
+      return;
+    }
+    const DUR = 4 * this.BOX_STEP + this.BOX_CD;
+    const t0 = performance.now();
+    this._boxFilling = true;
+    this.setState(s => ({ boxProg: 0, boxGlow: false, boxArmed: true, boxSwitch: s.boxSwitch + 1 }));
+    const tick = (now) => {
+      const p = Math.max(0, Math.min(1, (now - t0) / DUR));
+      this.setState({ boxProg: p });
+      if (p < 1) this._boxRaf = requestAnimationFrame(tick);
+      else { this._boxFilling = false; this.setState({ boxGlow: true }); this.startBoxDwell(); }
+    };
+    this._boxRaf = requestAnimationFrame(tick);
+  }
+  armBoxVisible(){
+    if (this._boxArmed) return; this._boxArmed = true;
+    const on = () => { if (!document.hidden){ document.removeEventListener('visibilitychange', on); this._boxArmed = false; this.animBox(); } };
+    document.addEventListener('visibilitychange', on);
+  }
+
+  // AUTO-ROTATE — the selected view cycles GOALS → SHOTS → FO on a dwell timer. Each swap
+  // replays the period fill (cells count up left→right) behind a single red wipe across the
+  // grid, and a hairline tick under the active tab tracks the dwell. Hover, scrolling the
+  // section off-screen and backgrounding the tab all hold the count where it is.
+  boxAutoOn(){
+    const s = this.state.boxAuto;
+    const on = (s == null) ? (this.props.boxAutoRotate !== false) : !!s;
+    return on && !this._reduceMotion;
+  }
+  boxOff(){
+    this.stopBoxDwell();
+    this._dwellRemain = null;
+    if (this.state.boxAuto !== false) this.setState({ boxAuto: false });
+  }
+  // A click inside a panel is a takeover: that panel's rotation stops while the user works
+  // in it. Clicking anywhere off the panel hands it back to auto — the rotation resumes.
+  // Scoped per panel: clicking a lineup row must not stop the Box Score, and vice versa.
+  onUserAct = (e) => {
+    const t = e && e.target;
+    if (!t || !t.nodeType) return;
+    const inBox = this.boxEl && this.boxEl.contains(t);
+    const inLu = this.lineupEl && this.lineupEl.contains(t);
+    if (inBox) this.boxOff(); else this.boxOn();
+    if (inLu) this.luOff(); else this.luOn();
+  };
+  boxOn(){ if (this.state.boxAuto === false) this.setState({ boxAuto: true }); }
+  luOn(){ if (this.state.luAuto === false) this.setState({ luAuto: true }); }
+  boxDwellMs(){ const s = Number(this.props.boxRotateSeconds); return (isFinite(s) && s > 0 ? s : 6) * 1000; }
+  watchBoxVisible(){
+    if (this._boxVisIO || !this.boxEl || typeof IntersectionObserver === 'undefined') return;
+    this._boxVisIO = new IntersectionObserver((entries) => {
+      entries.forEach(e => { this._boxOffscreen = !e.isIntersecting; this.syncBoxPause(); });
+    }, { threshold: 0.05 });
+    this._boxVisIO.observe(this.boxEl);
+  }
+  stopBoxDwell(){ if (this._dwellTimer){ clearTimeout(this._dwellTimer); this._dwellTimer = null; } }
+  armDwellTimer(){
+    this.stopBoxDwell();
+    if (!this.boxAutoOn() || this._paused || this._boxFilling || document.hidden || this._dwellRemain == null) return;
+    this._dwellT0 = performance.now();
+    this._dwellTimer = setTimeout(() => { this._dwellTimer = null; this.rotateBox(); }, this._dwellRemain);
+  }
+  startBoxDwell(){
+    if (!this.boxAutoOn()){ this.stopBoxDwell(); return; }
+    this._dwellRemain = this.boxDwellMs();
+    this.armDwellTimer();
+  }
+  syncBoxPause(){
+    const p = !!(this._hoverPause || this._boxOffscreen || document.hidden);
+    if (p === !!this._paused) return;
+    this._paused = p;
+    if (p){
+      if (this._dwellTimer){
+        clearTimeout(this._dwellTimer); this._dwellTimer = null;
+        this._dwellRemain = Math.max(0, this._dwellRemain - (performance.now() - this._dwellT0));
+      }
+      this.setState({ boxPaused: true });
+    } else {
+      this.setState({ boxPaused: false });
+      this.armDwellTimer();
+    }
+  }
+  boxPause  = () => { this._hoverPause = true;  this.syncBoxPause(); };
+  boxResume = () => { this._hoverPause = false; this.syncBoxPause(); };
+  rotateBox(){
+    const i = this.BOX_TABS.indexOf(this.state.box);
+    this.setState({ box: this.BOX_TABS[(i + 1) % this.BOX_TABS.length] });
+  }
+  selectBox(t){
+    this.boxOff();
+    if (t !== this.state.box) this.setState({ box: t });
+  }
+
+  // LINEUP AUTO-ROTATE — the drill-down does the walking: each dressed skater's drawer opens
+  // in turn, top of the sheet down (CPU goalie skipped). When a roster is exhausted the team
+  // toggle flips and the other side walks; with the widest scope, LOADOUTS/STATS alternates
+  // once both rosters have been shown. Hover, off-screen and background-tab hold the dwell;
+  // any manual click hands control back to the user and switches AUTO off.
+  luAutoOn(){
+    const s = this.state.luAuto;
+    const on = (s == null) ? (this.props.lineupAutoRotate !== false) : !!s;
+    return on && !this._reduceMotion;
+  }
+  luDwellMs(){ const s = Number(this.props.lineupRotateSeconds); return (isFinite(s) && s > 0 ? s : 5) * 1000; }
+  luScope(){ return this.props.lineupRotateScope || 'Players + teams'; }
+  POS_ORDER = { C:0, LW:1, RW:2, LD:3, RD:4, D:3, G:5 };
+  luOrder(teamKey){
+    const O = this.POS_ORDER;
+    return (this.rosters[teamKey] || []).slice()
+      .sort((a,b) => (O[a.pos] ?? 9) - (O[b.pos] ?? 9))
+      .filter(p => !p.cpu).map(p => p.pos);
+  }
+  watchLuVisible(){
+    if (this._luIO || !this.lineupEl || typeof IntersectionObserver === 'undefined') return;
+    this._luIO = new IntersectionObserver((entries) => {
+      entries.forEach(e => { this._luOffscreen = !e.isIntersecting; this.luSyncPause(); });
+    }, { threshold: 0.05 });
+    this._luIO.observe(this.lineupEl);
+  }
+  luClearTimer(){ if (this._luTimer){ clearTimeout(this._luTimer); this._luTimer = null; } }
+  luArm(){
+    this.luClearTimer();
+    if (!this.luAutoOn() || this._luPaused || document.hidden || this._luRemain == null) return;
+    this._luT0 = performance.now();
+    this._luTimer = setTimeout(() => { this._luTimer = null; this.luAdvance(); }, this._luRemain);
+  }
+  luStartDwell(){ if (!this.luAutoOn()) return; this._luRemain = this.luDwellMs(); this.luArm(); }
+  luSyncPause(){
+    const p = !!(this._luHover || this._luOffscreen || document.hidden);
+    if (p === !!this._luPaused) return;
+    this._luPaused = p;
+    if (p){
+      if (this._luTimer){
+        clearTimeout(this._luTimer); this._luTimer = null;
+        this._luRemain = Math.max(0, (this._luRemain || 0) - (performance.now() - this._luT0));
+      }
+      this.setState({ luPaused: true });
+    } else {
+      this.setState({ luPaused: false });
+      this.luArm();
+    }
+  }
+  luEnter = () => { this._luHover = this.props.lineupPauseOnHover !== false; this.luSyncPause(); };
+  luLeave = () => { this._luHover = false; this.luSyncPause(); };
+  luStep(next){
+    this.setState(s => ({ ...next, luStep: (s.luStep || 0) + 1 }), () => {
+      requestAnimationFrame(() => this.startAttrCount());
+      this.luStartDwell();
+    });
+  }
+  luKick(){
+    if (!this.luAutoOn()) return;
+    this.watchLuVisible();
+    this.luStep({ open: this.state.open || this.luOrder(this.state.team)[0] });
+  }
+  luAdvance(){
+    if (!this.luAutoOn()) return;
+    const scope = this.luScope();
+    const team  = this.state.team;
+    const order = this.luOrder(team);
+    const i = order.indexOf(this.state.open);
+    if (i < 0 || i < order.length - 1){
+      this.luStep({ open: order[i < 0 ? 0 : i + 1] });
+      return;
+    }
+    if (scope === 'Players'){ this.luStep({ open: order[0] }); return; }
+    const nextTeam = team === 'BGM' ? '4L' : 'BGM';
+    const next = { team: nextTeam, open: this.luOrder(nextTeam)[0] };
+    if (scope === 'Players + teams + views' && nextTeam === 'BGM'){
+      next.mode = this.state.mode === 'LOADOUT' ? 'STATS' : 'LOADOUT';
+    }
+    this.luStep(next);
+  }
+  // any deliberate click hands the panel back to the user
+  luOff(){
+    this.luClearTimer();
+    this._luRemain = null;
+    if (this.state.luAuto !== false) this.setState({ luAuto: false });
+  }
+  luChrome(){
+    const on = this.luAutoOn();
+    return {
+      luProgStyle: 'position:absolute;top:0;left:0;z-index:4;height:2px;width:100%;pointer-events:none;transform-origin:left center;transform:scaleX(0);background:linear-gradient(90deg,rgba(232,65,49,.2),var(--color-accent));'
+        + (on ? 'animation:lu-dwell-' + (((this.state.luStep || 0) % 2) ? 'b' : 'a') + ' ' + this.luDwellMs() + 'ms linear forwards;animation-play-state:' + (this.state.luPaused ? 'paused' : 'running') + ';' : 'display:none;'),
+      luEnter: this.luEnter, luLeave: this.luLeave,
+    };
+  }
+
+  // EVENT TIMELINE — the game replays top-to-bottom the first time the section scrolls into
+  // view: the rail spine draws down, end-caps ignite, then events cascade in chronologically
+  // (BGM cards from the left, opponent from the right), the GWG blooms, and FINAL lands last.
+  observeTimeline(){
+    if (this._tlObserved || !this.sectionEl) return;
+    this._tlObserved = true;
+    if (this._reduceMotion || typeof IntersectionObserver === 'undefined'){ this.setState({ tlProg: 1 }); return; }
+    this._tlIO = new IntersectionObserver((entries) => {
+      entries.forEach(e => { if (e.isIntersecting){ this._tlIO.disconnect(); this._tlIO = null; this.animTimeline(); } });
+    }, { threshold: 0.25 });
+    this._tlIO.observe(this.sectionEl);
+  }
+  animTimeline(){
+    if (this._tlRaf) cancelAnimationFrame(this._tlRaf);
+    if (this._reduceMotion || document.hidden){ this.setState({ tlProg: 1 }); return; }
+    const DUR = 1300;
+    const t0 = performance.now();
+    this.setState({ tlProg: 0 });
+    const tick = (now) => {
+      const p = Math.max(0, Math.min(1, (now - t0) / DUR));
+      this.setState({ tlProg: p });
+      if (p < 1) this._tlRaf = requestAnimationFrame(tick);
+    };
+    this._tlRaf = requestAnimationFrame(tick);
+  }
+
+  // TEAM STATS — head-to-head: rows deal in top-to-bottom, share bars grow outward from the
+  // center divider, integers count up, and the winning side flares once as it lands.
+  TS_STEP = 70; TS_CD = 360;
+  setTeamEl = (el) => { this.teamEl = el; if (el) this.observeTeam(); };
+  observeTeam(){
+    if (this._teamObserved || !this.teamEl) return;
+    this._teamObserved = true;
+    if (this._reduceMotion || typeof IntersectionObserver === 'undefined'){ this.animTeam(); return; }
+    this._teamIO = new IntersectionObserver((entries) => {
+      entries.forEach(e => { if (e.isIntersecting){ this._teamIO.disconnect(); this._teamIO = null; this.animTeam(); } });
+    }, { threshold: 0.3 });
+    this._teamIO.observe(this.teamEl);
+  }
+  animTeam(){
+    if (this._teamRaf) cancelAnimationFrame(this._teamRaf);
+    if (this._reduceMotion || document.hidden){
+      this.setState({ teamProg: 1, teamGlow: true });
+      if (!this._reduceMotion && document.hidden) this.armTeamVisible();
+      return;
+    }
+    const n = this._teamN || 14;
+    const DUR = (n - 1) * this.TS_STEP + this.TS_CD;
+    const t0 = performance.now();
+    this.setState({ teamProg: 0, teamGlow: false });
+    const tick = (now) => {
+      const p = Math.max(0, Math.min(1, (now - t0) / DUR));
+      this.setState({ teamProg: p });
+      if (p < 1) this._teamRaf = requestAnimationFrame(tick);
+      else this.setState({ teamGlow: true });
+    };
+    this._teamRaf = requestAnimationFrame(tick);
+  }
+  armTeamVisible(){
+    if (this._teamArmed) return; this._teamArmed = true;
+    const on = () => { if (!document.hidden){ document.removeEventListener('visibilitychange', on); this._teamArmed = false; this.animTeam(); } };
+    document.addEventListener('visibilitychange', on);
+  }
+
+  buildBox(){
+    const key = this.state.box;
+    const [bgm, opp] = this.BOX[key].periods;
+    const sum = a => a.reduce((x,y) => x + y, 0);
+    const STEP = this.BOX_STEP, CD = this.BOX_CD, DUR = 4 * STEP + CD;
+    const elapsed = this.state.boxProg * DUR;
+    const glow = this.state.boxGlow;
+    const ease = p => 1 - Math.pow(1 - p, 3);
+    const local = startMs => Math.max(0, Math.min(1, (elapsed - startMs) / CD));
+    const cells = (mine, other, isBgm, top) => mine.map((v, i) => {
+      const win = v > other[i];
+      const color = win ? (isBgm ? 'var(--color-accent)' : 'var(--opp)') : 'var(--fg-3)';
+      const tint = win ? (isBgm ? 'var(--color-accent-soft)' : 'var(--opp-soft)') : 'transparent';
+      const lp = local(i * STEP);
+      const op = Math.min(1, lp * 2.6).toFixed(3);
+      const ty = ((1 - Math.min(1, lp * 2)) * 6).toFixed(1);
+      return {
+        val: Math.round(v * ease(lp)),
+        style: 'font-size:12px;padding:6px 0;text-align:center;color:' + color + ';'
+          + 'background:' + (lp > 0.12 ? tint : 'transparent') + ';'
+          + 'opacity:' + op + ';transform:translateY(' + ty + 'px);'
+          + (win ? 'font-weight:700;' : '') + (top ? 'border-top:1px solid var(--color-border-subtle);' : ''),
+      };
+    });
+    const row = (team, teamColor, mine, other, isBgm, totColor, top) => {
+      const tlp = local(4 * STEP);
+      const totWin = sum(mine) > sum(other);
+      const top2 = top ? 'border-top:1px solid var(--color-border-subtle);' : '';
+      const tOp = Math.min(1, tlp * 2.6).toFixed(3);
+      const tTy = ((1 - Math.min(1, tlp * 2)) * 6).toFixed(1);
+      return {
+        team, tot: Math.round(sum(mine) * ease(tlp)),
+        cells: cells(mine, other, isBgm, top),
+        totCls: 'cap tabular' + (glow && totWin ? ' dtw-bloom' : ''),
+        teamStyle: 'font-size:12px;font-weight:700;color:' + teamColor + ';padding:6px 4px;' + top2,
+        // TOT is a structural column, not an accent event — neutral field, team colour on the number
+        totStyle: 'font-size:14px;font-weight:900;color:' + totColor + ';padding:6px 0;text-align:center;'
+          + 'background:var(--color-charcoal);border-left:1px solid var(--color-border);'
+          + 'opacity:' + tOp + ';transform:translateY(' + tTy + 'px);' + top2,
+      };
+    };
+    const noteOp = Math.min(1, Math.max(0, (elapsed - (DUR - 200)) / 200)).toFixed(3);
+    const dwell = this.boxDwellMs(), autoOn = this.boxAutoOn(), armed = autoOn && this.state.boxArmed;
+    const tickStyle = (active) => (active && armed)
+      ? 'position:absolute;left:0;bottom:0;width:100%;height:2px;pointer-events:none;transform-origin:left center;'
+        + 'background:linear-gradient(90deg,#6d0f1c,var(--color-accent),#6d0f1c);'
+        + 'animation:box-tick ' + dwell + 'ms linear ' + DUR + 'ms both;'
+        + 'animation-play-state:' + (this.state.boxPaused ? 'paused' : 'running') + ';'
+      : 'display:none';
+    return {
+      boxPeriods: ['1','2','3','OT'],
+      boxPause: this.boxPause,
+      boxResume: this.boxResume,
+      boxWipeStyle: this._reduceMotion ? 'display:none' : 'position:absolute;top:0;left:0;z-index:3;height:2px;width:45%;pointer-events:none;'
+        + 'background:linear-gradient(90deg,transparent,var(--color-accent),transparent);'
+        + 'animation:box-wipe-' + (this.state.boxSwitch % 2 ? 'b' : 'a') + ' .85s cubic-bezier(.22,.7,.25,1) both;',
+      boxTabs: this.BOX_TABS.map(t => ({ label:t, cls: t === key ? 'pill-cta is-on' : 'pill-cta', style:this.boxTabStyle(t === key), tickStyle: tickStyle(t === key), onSelect: () => this.selectBox(t) })),
+      boxRows: [
+        row('BGM', 'var(--color-accent)', bgm, opp, true,  'var(--color-accent)', false),
+        row('4L',  'var(--opp)',           opp, bgm, false, 'var(--opp)',           true),
+      ],
+      boxNote: this.BOX[key].note,
+      boxNoteStyle: 'font-size:12px;letter-spacing:.1em;color:var(--fg-4);opacity:' + noteOp + ';',
+    };
+  }
+
+  PERF = [
+    { rank:1, stars:3, num:'11', team:'BGM', pos:'C',  arch:'PLY', name:'MrHomiecide',    g:1, a:2, pm:'+1', sog:7, hits:6,  fo:'70', toi:'77:23', score:'14.28', delta:'+9.1',
+      bd:[['A','+6.5'],['G','+4.0'],['TKA','+1.7'],['WIN','+1.0'],['GIVEAWAYS','-2.3']] },
+    { rank:2, stars:2, num:'10', team:'BGM', pos:'RW', arch:'SNP', name:'silkyjoker85',   g:2, a:1, pm:'+1', sog:8, hits:1,  fo:null, toi:'77:23', score:'12.34', delta:'+2.0',
+      bd:[['G','+8.0'],['A','+3.3'],['TKA','+1.1'],['WIN','+1.0'],['GIVEAWAYS','-3.1']] },
+    { rank:3, stars:1, num:'56', team:'4L',  pos:'RD', arch:'PMD', name:'shadowassault20', g:1, a:1, pm:'-1', sog:2, hits:9,  fo:null, toi:'77:23', score:'9.06',  delta:null,
+      bd:[['G','+4.0'],['TKA','+3.3'],['A','+3.3'],['INT','+1.4'],['GIVEAWAYS','-4.5'],['+/−','-0.2']] },
+    { rank:4,  stars:0, team:'BGM', pos:'LD', arch:'PMD', name:'HenryTheBobJr', g:0, a:2, pm:'+1', sog:3, hits:0,  toi:'77:23', score:'9.01' },
+    { rank:5,  stars:0, team:'BGM', pos:'LW', arch:'PWF', name:'Stick Menace',  g:1, a:1, pm:'+1', sog:5, hits:5,  toi:'77:23', score:'7.50' },
+    { rank:6,  stars:0, team:'4L',  pos:'C',  arch:'TWF', name:'XZ4RKY',        g:2, a:0, pm:'-1', sog:7, hits:12, fo:'—', toi:'77:23', score:'6.24' },
+    { rank:7,  stars:0, team:'4L',  pos:'RW', arch:'SNP', name:'Raiders G7',    g:0, a:2, pm:'-1', sog:2, hits:4,  toi:'77:23', score:'6.16' },
+    { rank:8,  stars:0, team:'4L',  pos:'LW', arch:'SNP', name:'Duh Pope',      g:0, a:2, pm:'-1', sog:2, hits:3,  toi:'77:23', score:'4.58' },
+    { rank:9,  stars:0, team:'4L',  pos:'LD', arch:'DFD', name:'MuttButt',      g:0, a:0, pm:'-1', sog:2, hits:11, toi:'77:23', score:'3.92' },
+    { rank:10, stars:0, team:'BGM', pos:'RD', arch:'PMD', name:'JoeyFlopfish',  g:0, a:0, pm:'+1', sog:2, hits:2,  toi:'77:23', score:'-2.50' },
+  ];
+
+  ARCH = { PLY:['#3AB7FF','Playmaker'], SNP:['#FF5A4F','Sniper'], PMD:['#6A5CFF','Puck-Moving D'], PWF:['#FF9D3A','Power Forward'], TWF:['#3AD6A0','Two-Way'], DFD:['#8892A6','Defensive D'] };
+  POS_COLOR = '#8B93A7';
+  CAT  = { G:'var(--color-accent)', A:'var(--fg-1)', TKA:'var(--fg-3)', INT:'var(--fg-4)', SOG:'var(--fg-3)', HITS:'var(--fg-4)', WIN:'var(--color-win)', GIVEAWAYS:'var(--color-loss)', '+/−':'var(--color-loss)' };
+
+  rosters = {
+    BGM: [
+      { num:10,pos:'RW',name:'silkyjoker85',xf:'SNP',g:2,a:1,pts:3,plus:'+1',sog:8,hit:1,blk:1,gs:'12.34',delta:'+2.0',
+        loadout:{tier:'ELITE',arch:'Sniper',ref:'C. Caufield',persona:'SILKY',hw:'5\'8" · 175 lb',hand:'Left',level:'P4·L52',abilities:[['Quick Release','elite'],['One T','allstar'],['Pressure +','specialist']]} },
+      { num:11,pos:'C',name:'MrHomiecide',xf:'PLY',g:1,a:2,pts:3,plus:'+1',sog:7,hit:6,blk:1,gs:'14.28',delta:'+9.1',
+        loadout:{tier:'ELITE',arch:'Playmaker',ref:'',persona:'E. WANHG',hw:'6\'0" · 160 lb',hand:'Right',level:'P5·L60',abilities:[['Wheels','elite'],['One T','elite'],['Tape to Tape','allstar']]} },
+      { num:96,pos:'LW',name:'Stick Menace',xf:'PWF',g:1,a:1,pts:2,plus:'+1',sog:5,hit:5,blk:0,gs:null,delta:null,
+        loadout:{tier:'ALL-STAR',arch:'Power Forward',ref:'T. Thompson',persona:'M. RANTANEN',hw:'6\'6" · 220 lb',hand:'Right',level:'P4·L38',abilities:[['Big Rig','elite'],['One T','allstar'],['Ankle Breaker','specialist']]} },
+      { num:7,pos:'LD',name:'HenryTheBobJr',xf:'PMD',g:0,a:2,pts:2,plus:'+1',sog:3,hit:0,blk:1,gs:null,delta:null,
+        loadout:{tier:'ALL-STAR',arch:'Playmaking D',ref:'',persona:'H. JENKINS',hw:'6\'0" · 160 lb',hand:'Right',level:'P2·L24',abilities:[['Warrior','elite'],['Wheels','allstar'],['Quick Release','specialist']]} },
+      { num:23,pos:'RD',name:'JoeyFlopfish',xf:'PMD',g:0,a:0,pts:0,plus:'+1',sog:2,hit:2,blk:2,gs:null,delta:null,
+        loadout:{tier:'SPECIALIST',arch:'Playmaking D',ref:'',persona:'L. HUTSON',hw:'5\'10" · 160 lb',hand:'Left',level:'P2·L24',abilities:[['Elite Edges','elite'],['Tape to Tape','allstar'],['Stick Em Up','specialist']]} },
+      { num:'—',pos:'G',name:'CPU Goalie',xf:'—',g:'',a:'',pts:'',plus:'',sog:'',hit:'',blk:'',gs:null,delta:null,cpu:true,loadout:null },
+    ],
+    '4L': [
+      { num:19,pos:'C',name:'XZ4RKY',xf:'TWF',g:2,a:0,pts:2,plus:'-1',sog:7,hit:12,blk:0,gs:null,delta:null,
+        loadout:{tier:'ELITE',arch:'Two-Way Forward',ref:'',persona:'TOEWS',hw:'6\'1" · 195 lb',hand:'Left',level:'P5·L55',abilities:[['Truculence','allstar'],['Tape to Tape','specialist'],['Vacuum','specialist']]} },
+      { num:48,pos:'RD',name:'shadowassault20',xf:'PMD',g:1,a:1,pts:2,plus:'-1',sog:2,hit:9,blk:2,gs:'9.06',delta:'—',
+        loadout:{tier:'ALL-STAR',arch:'Playmaking D',ref:'',persona:'SERGEIZUBOV',hw:'6\'1" · 190 lb',hand:'Right',level:'P5·L42',abilities:[['Tape to Tape','allstar'],['Stick Em Up','allstar'],['Wheels','specialist']]} },
+      { num:95,pos:'LW',name:'Duh Pope',xf:'SNP',g:0,a:2,pts:2,plus:'-1',sog:2,hit:3,blk:0,gs:null,delta:null,
+        loadout:{tier:'ALL-STAR',arch:'Sniper',ref:'',persona:'WHOOSAH',hw:'5\'10" · 180 lb',hand:'Left',level:'P4·L47',abilities:[['Quick Release','elite'],['Magnetic','allstar'],['Slot Snipe','specialist']]} },
+      { num:7,pos:'RW',name:'Raiders G7',xf:'SNP',g:0,a:2,pts:2,plus:'-1',sog:2,hit:4,blk:0,gs:null,delta:null,
+        loadout:{tier:'SPECIALIST',arch:'Sniper',ref:'',persona:'WILDE',hw:'6\'0" · 185 lb',hand:'Left',level:'P4·L14',abilities:[['Quick Release','allstar'],['Top Shelf','allstar'],['Magnetic','specialist']]} },
+      { num:23,pos:'LD',name:'MuttButt',xf:'DFD',g:0,a:0,pts:0,plus:'-1',sog:2,hit:11,blk:2,gs:null,delta:null,
+        loadout:{tier:'ALL-STAR',arch:'Defensive D',ref:'',persona:'PAT MAGROYNE',hw:'6\'4" · 225 lb',hand:'Left',level:'P5·L3',abilities:[['Big Rig','elite'],['Truculence','allstar'],['Block Specialist','specialist']]} },
+      { num:'—',pos:'G',name:'CPU Goalie',xf:'—',g:'',a:'',pts:'',plus:'',sog:'',hit:'',blk:'',gs:null,delta:null,cpu:true,loadout:null },
+    ],
+  };
+
+  GRID_LOAD  = 'display:grid;grid-template-columns:34px 40px 40px minmax(0,1fr) auto 14px;align-items:center;gap:0 11px;';
+
+  // sliding-thumb team switch: one accent pill glides across the track
+  teamBtn(active, isBgm){
+    return 'flex:1;position:relative;z-index:1;border:none;background:transparent;cursor:pointer;'
+      + 'font-family:var(--font-condensed);text-transform:uppercase;font-size:13px;font-weight:800;letter-spacing:.14em;'
+      + 'transition:color .2s;color:' + (active ? (isBgm ? 'var(--color-accent)' : 'var(--fg-1)') : 'var(--fg-4)') + ';';
+  }
+  teamThumbStyle(bgm){
+    return 'position:absolute;top:3px;left:3px;bottom:3px;width:calc(50% - 3px);'
+      + 'background:' + (bgm ? 'var(--color-accent-soft)' : 'var(--color-surface-raised)') + ';'
+      + 'border:1px solid ' + (bgm ? 'var(--color-accent-line)' : 'var(--color-border)') + ';box-sizing:border-box;'
+      + (bgm ? 'box-shadow:var(--glow-accent-soft);' : 'border:1px solid var(--opp-line);')
+      + 'transform:translateX(' + (bgm ? '0' : '100%') + ');'
+      + 'transition:transform .28s cubic-bezier(.4,.9,.3,1),background-color .2s;';
+  }
+
+  // underline nav tab matching the page sub-nav (SUMMARY · BOXSCORE · LINEUP · ...)
+  underlineTabStyle(active){
+    return 'position:relative;font-family:var(--font-condensed);text-transform:uppercase;font-size:13px;font-weight:800;letter-spacing:.14em;padding:6px 2px;white-space:nowrap;cursor:pointer;border:none;background:transparent;transition:color .15s;'
+      + 'color:' + (active ? 'var(--fg-1)' : 'var(--fg-3)') + ';';
+  }
+  underlineTabBar(active){
+    return 'position:absolute;left:0;right:0;bottom:-1px;height:2px;background:' + (active ? 'var(--color-accent)' : 'transparent') + ';';
+  }
+
+  XF_ICON = {
+    zap:   [['path',{d:'M13 2 5 13h6l-1 9 9-12h-6z'}]],
+    target:[['circle',{cx:12,cy:12,r:9}],['circle',{cx:12,cy:12,r:3.5}]],
+    shield:[['path',{d:'M12 3 5 6v5c0 5 3.2 8 7 9.7C15.8 19 19 16 19 11V6z'}]],
+    flame: [['path',{d:'M12 3c2 3 5 4 5 8a5 5 0 0 1-10 0c0-2 1-3.5 2-4.5 0 2 1 3 3 3-1.5-2-1.5-4 0-6.5z'}]],
+    arrow: [['path',{d:'M12 20V5'}],['path',{d:'M6 11l6-6 6 6'}]],
+    hex:   [['path',{d:'M12 2 21 7v10l-9 5-9-5V7z'}]],
+  };
+  iconKeyFor(name){
+    const n = (name || '').toLowerCase();
+    if (/release|snipe|shelf|one t|quick/.test(n)) return 'zap';
+    if (/magnet|vacuum|pressure|top|slot/.test(n)) return 'target';
+    if (/rig|block|warrior|truc|edges|big/.test(n)) return 'shield';
+    if (/ankle|dek|stick em/.test(n)) return 'flame';
+    if (/wheel|tape/.test(n)) return 'arrow';
+    return 'hex';
+  }
+  abilityIcon(name, color, size){
+    const s = size || 12;
+    const shapes = this.XF_ICON[this.iconKeyFor(name)] || this.XF_ICON.hex;
+    const kids = shapes.map((sh, i) => React.createElement(sh[0], { ...sh[1], key: i }));
+    return React.createElement('svg', { width: s, height: s, viewBox: '0 0 24 24', fill: 'none', stroke: color, strokeWidth: 2.2, strokeLinecap: 'round', strokeLinejoin: 'round', style: { flex: 'none' } }, kids);
+  }
+  xTile(name, tier){
+    const T = { elite:'var(--color-accent)', allstar:'#3AB7FF', specialist:'#E0A150' };
+    const L = { elite:'Elite', allstar:'All Star', specialist:'Specialist' };
+    const c = T[tier] || '#9a9798';
+    return {
+      title: name + ' — ' + (L[tier] || tier),
+      style: 'display:inline-flex;align-items:center;justify-content:center;width:38px;height:38px;border-radius:3px;flex:none;border:1px solid color-mix(in srgb,'+c+' 48%,transparent);background:color-mix(in srgb,'+c+' 15%,transparent)',
+      icon: this.abilityIcon(name, c, 19),
+    };
+  }
+
+  ARCH_ICON = {
+    PLY: [['circle',{cx:6,cy:12,r:2.4}],['circle',{cx:18,cy:6,r:2.4}],['circle',{cx:18,cy:18,r:2.4}],['path',{d:'M8.2 10.9 15.8 7.1'}],['path',{d:'M8.2 13.1 15.8 16.9'}]],
+    SNP: [['circle',{cx:12,cy:12,r:8}],['circle',{cx:12,cy:12,r:3}]],
+    PMD: [['path',{d:'M12 4v16'}],['path',{d:'M4 12h16'}],['path',{d:'M8 8 4 12l4 4'}],['path',{d:'M16 8l4 4-4 4'}]],
+    PWF: [['path',{d:'M12 3 5 6v5c0 5 3.2 8 7 9.7C15.8 19 19 16 19 11V6z'}],['path',{d:'M12 8v5'}],['path',{d:'M9.5 10.5h5'}]],
+    TWF: [['path',{d:'M4 9a8 8 0 0 1 14-3'}],['path',{d:'M20 15a8 8 0 0 1-14 3'}],['path',{d:'M18 3v3h-3'}],['path',{d:'M6 21v-3h3'}]],
+    DFD: [['path',{d:'M12 3 5 6v5c0 5 3.2 8 7 9.7C15.8 19 19 16 19 11V6z'}],['path',{d:'M9 11.6l2 2 4-4'}]],
+  };
+  archIcon(code, color){
+    const shapes = this.ARCH_ICON[code] || [['path',{d:'M12 2 21 7v10l-9 5-9-5V7z'}]];
+    const kids = shapes.map((s, i) => React.createElement(s[0], { ...s[1], key: i }));
+    return React.createElement('svg', { width: 12, height: 12, viewBox: '0 0 24 24', fill: 'none', stroke: color, strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round', style: { flex: 'none' } }, kids);
+  }
+  archChip(code){
+    const m = this.ARCH[code] || ['#9a9798', code];
+    const c = m[0];
+    return {
+      code, name: m[1],
+      style: 'display:inline-flex;align-items:center;gap:5px;padding:3px 8px 3px 6px;font-family:var(--font-condensed);font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;border:1px solid color-mix(in srgb,'+c+' 42%,transparent);background:color-mix(in srgb,'+c+' 12%,transparent);color:'+c,
+      icon: this.archIcon(code, c),
+    };
+  }
+
+  buildAttrs(xf, prog){
+    const pr = prog == null ? 1 : prog;
+    const BASE = {
+      'Wrist Shot Acc':84,'Slap Shot Acc':82,'Speed':86,'Balance':83,'Agility':85,
+      'Wrist Shot Pwr':83,'Slap Shot Pwr':82,'Acceleration':86,'Puck Control':85,'Endurance':86,
+      'Passing':85,'Off. Awareness':84,'Body Checking':80,'Stick Checking':82,'Def. Awareness':82,
+      'Hand-Eye':85,'Strength':82,'Durability':85,'Shot Blocking':80,
+      'Deking':84,'Faceoffs':74,'Discipline':84,'Fighting Skill':78,
+    };
+    const LAYOUT = [
+      ['Technique',['Wrist Shot Acc','Slap Shot Acc','Speed','Balance','Agility']],
+      ['Power',['Wrist Shot Pwr','Slap Shot Pwr','Acceleration','Puck Control','Endurance']],
+      ['Playstyle',['Passing','Off. Awareness','Body Checking','Stick Checking','Def. Awareness']],
+      ['Tenacity',['Hand-Eye','Strength','Durability','Shot Blocking']],
+      ['Tactics',['Deking','Faceoffs','Discipline','Fighting Skill']],
+    ];
+    const OVERRIDES = {
+      SNP:{'Wrist Shot Acc':95,'Slap Shot Acc':94,'Speed':94,'Agility':94,'Wrist Shot Pwr':93,'Slap Shot Pwr':93,'Acceleration':93,'Puck Control':89,'Endurance':90,'Off. Awareness':93,'Hand-Eye':93,'Faceoffs':89,'Discipline':90,'Fighting Skill':86,'Balance':82,'Passing':89,'Body Checking':83,'Stick Checking':82,'Def. Awareness':84,'Strength':80,'Durability':88,'Shot Blocking':79,'Deking':88},
+      PLY:{'Passing':96,'Off. Awareness':95,'Deking':94,'Puck Control':93,'Hand-Eye':95,'Faceoffs':90,'Agility':92,'Slap Shot Pwr':80,'Body Checking':74,'Fighting Skill':70,'Shot Blocking':74},
+      PWF:{'Body Checking':93,'Strength':92,'Slap Shot Pwr':90,'Fighting Skill':90,'Balance':90,'Durability':90,'Agility':80,'Deking':80,'Speed':84},
+      PMD:{'Def. Awareness':93,'Stick Checking':92,'Passing':90,'Shot Blocking':90,'Hand-Eye':88,'Wrist Shot Acc':78,'Slap Shot Acc':80,'Off. Awareness':82,'Body Checking':84,'Strength':86},
+      TWF:{'Def. Awareness':92,'Off. Awareness':91,'Faceoffs':92,'Stick Checking':90,'Body Checking':88,'Puck Control':88,'Discipline':88,'Strength':85},
+      DFD:{'Shot Blocking':94,'Body Checking':93,'Strength':92,'Def. Awareness':93,'Durability':92,'Stick Checking':90,'Wrist Shot Acc':72,'Slap Shot Acc':74,'Agility':78,'Off. Awareness':80},
+    };
+    const BOOST = {
+      SNP:{'Wrist Shot Acc':'+3','Wrist Shot Pwr':'+2','Off. Awareness':'+1','Hand-Eye':'+3'},
+      PLY:{'Passing':'+3','Off. Awareness':'+2','Hand-Eye':'+2','Deking':'+2'},
+      PWF:{'Body Checking':'+3','Strength':'+2','Slap Shot Pwr':'+2'},
+      PMD:{'Def. Awareness':'+2','Stick Checking':'+2','Passing':'+1'},
+      TWF:{'Def. Awareness':'+2','Faceoffs':'+2','Off. Awareness':'+1'},
+      DFD:{'Shot Blocking':'+3','Body Checking':'+2','Strength':'+2'},
+    };
+    // full words read faster than clipped abbreviations; the column is wide enough for 14 chars
+    const SHORT = {
+      'Wrist Shot Acc':'Wrist Shot Acc','Slap Shot Acc':'Slap Shot Acc','Wrist Shot Pwr':'Wrist Shot Pwr','Slap Shot Pwr':'Slap Shot Pwr',
+      'Off. Awareness':'Off Awareness','Def. Awareness':'Def Awareness','Fighting Skill':'Fighting',
+    };
+    const ov = OVERRIDES[xf] || {};
+    const bo = BOOST[xf] || {};
+    return LAYOUT.map(([title, attrs]) => ({
+      title,
+      rows: attrs.map(name => {
+        const base = BASE[name];
+        const val = ov[name] != null ? ov[name] : base;
+        const boosted = !!bo[name];
+        const hi = !boosted && val >= 88;
+        const diff = val - base;
+        return {
+          label: SHORT[name] || name, labelFull: name, val, valShown: Math.round(val * pr),
+          valTip: name + ' — rating ' + val + (boosted ? ' (X-Factor boosted)' : ''),
+          deltaTip: diff === 0
+            ? name + ' — no change from the ' + xf + ' base of ' + base
+            : name + ' — ' + (diff > 0 ? '+' + diff : diff) + ' vs the ' + xf + ' base of ' + base,
+          deltaShown: diff > 0 ? '+' + diff : (diff < 0 ? String(diff) : ''),
+          deltaColor: diff > 0 ? 'var(--color-win)' : (diff < 0 ? 'var(--color-loss)' : 'var(--fg-6)'),
+          nameColor: (boosted || hi) ? 'var(--fg-1)' : 'var(--fg-3)',
+          valColor: boosted ? 'var(--color-accent)' : (hi ? 'var(--fg-1)' : 'var(--fg-2)'),
+          barColor: boosted ? 'var(--color-accent)' : (hi ? 'var(--fg-1)' : 'var(--fg-4)'),
+          barW: val + '%',
+          barClass: boosted ? 'bar-boost' : 'bcast-bar',
+          barGlow: 'none',
+        };
+      }),
+    }));
+  }
+
+  buildStatTiles(p){
+    if (p.cpu) return ['G','A','PTS','±','SOG','HIT','BLK'].map(l => ({ label:l, val:'—', size:'20px', weight:'600', color:'var(--fg-6)' }));
+    const plusColor = String(p.plus).startsWith('-') ? 'var(--color-loss)' : (p.plus ? 'var(--color-win)' : 'var(--fg-5)');
+    return [
+      { label:'G',   val:p.g,    size:'20px', weight:'700', color:'var(--fg-2)' },
+      { label:'A',   val:p.a,    size:'20px', weight:'700', color:'var(--fg-2)' },
+      { label:'PTS', val:p.pts,  size:'27px', weight:'900', color:'var(--fg-1)' },
+      { label:'±',   val:p.plus, size:'20px', weight:'700', color:plusColor },
+      { label:'SOG', val:p.sog,  size:'20px', weight:'600', color:'var(--fg-3)' },
+      { label:'HIT', val:p.hit,  size:'20px', weight:'600', color:'var(--fg-3)' },
+      { label:'BLK', val:p.blk,  size:'20px', weight:'600', color:'var(--fg-3)' },
+    ];
+  }
+
+  deepStats(p){
+    const seed = parseInt(p.num, 10) || 7;
+    const rnd = (min, max, off) => min + ((seed * 7 + off * 13) % (max - min + 1));
+    const sog = p.sog || 0, g = p.g || 0, a = p.a || 0, hit = p.hit || 0, blk = p.blk || 0;
+    const att = sog + rnd(1, 4, 1);
+    const sonPct = att ? (sog / att * 100) : 0;
+    const shPct  = sog ? (g / sog * 100) : 0;
+    const passAtt = rnd(9, 22, 2), passMade = Math.round(passAtt * (rnd(58, 76, 3) / 100));
+    const passPct = passAtt ? passMade / passAtt * 100 : 0;
+    const poss = rnd(120, 280, 4);
+    const isC = p.pos === 'C';
+    const foW = isC ? rnd(9, 22, 5) : 0, foL = isC ? rnd(3, 11, 6) : 0;
+    const foPct = (foW + foL) ? foW / (foW + foL) * 100 : 0;
+    const tka = rnd(1, 6, 7), gva = rnd(2, 7, 8), intc = rnd(0, 4, 9), saucer = rnd(0, 3, 10), defl = rnd(0, 2, 11);
+    const gs = p.gs || (g * 4 + a * 3.3 + sog * 0.3 + hit * 0.15).toFixed(2);
+    const pct = x => x.toFixed(1) + '%';
+    return {
+      summary: [
+        { label:'SCORE',       val:gs,               color:'var(--color-accent)' },
+        { label:'SHOT ON NET', val:pct(sonPct),      color:'var(--fg-1)' },
+        { label:'SHOOTING %',  val:pct(shPct),       color:'var(--fg-1)' },
+        { label:'PASS %',      val:pct(passPct),     color:'var(--fg-1)' },
+        { label:'FO %',        val:isC ? pct(foPct) : '—', color:isC ? 'var(--fg-1)' : 'var(--fg-5)' },
+        { label:'POSSESSION',  val:poss,             color:'var(--fg-1)' },
+      ],
+      cats: [
+        { title:'Shooting',        rows:[{k:'Shots / Att',v:sog+'/'+att},{k:'Shot on Net %',v:pct(sonPct)},{k:'Shooting %',v:pct(shPct)},{k:'Deflections',v:defl}] },
+        { title:'Passing & Poss',  rows:[{k:'Passes / Att',v:passMade+'/'+passAtt},{k:'Pass %',v:pct(passPct)},{k:'Saucer',v:saucer},{k:'Possession',v:poss}] },
+        { title:'Faceoffs',        rows:isC ? [{k:'FO W/L',v:foW+'-'+foL},{k:'FO %',v:pct(foPct)}] : [{k:'FO W/L',v:'—'},{k:'FO %',v:'—'}] },
+        { title:'Special Teams',   rows:[{k:'PPG',v:0},{k:'SHG',v:0}] },
+        { title:'Discipline',      rows:[{k:'PIM',v:0},{k:'Pen. Drawn',v:rnd(0,2,12)}] },
+        { title:'Defense',         rows:[{k:'Hits',v:hit},{k:'Blocks',v:blk}] },
+        { title:'Turnovers',       rows:[{k:'Takeaways',v:tka},{k:'Giveaways',v:gva},{k:'Interceptions',v:intc}] },
+        { title:'Workload',        rows:[{k:'TOI',v:'77:23'},{k:'+/−',v:p.plus||'—'}] },
+      ],
+    };
+  }
+
+  // R-value spin-up: numbers climb to final as the attribute bars grow
+  startAttrCount(){
+    if (this._attrRaf) cancelAnimationFrame(this._attrRaf);
+    if (this.RM){ this.setState({ attrProg: 1 }); return; }
+    const dur = 700, start = performance.now();
+    const ease = t => 1 - Math.pow(1 - t, 3);
+    const tick = (now) => {
+      const t = Math.max(0, Math.min((now - start) / dur, 1));
+      this.setState({ attrProg: ease(t) });
+      if (t < 1) this._attrRaf = requestAnimationFrame(tick);
+    };
+    this.setState({ attrProg: 0 });
+    this._attrRaf = requestAnimationFrame(tick);
+  }
+
+  buildTeamRows(teamKey){
+    const openPos = this.state.open, mode = this.state.mode;
+    const isLoad = mode === 'LOADOUT', isStat = mode === 'STATS';
+    const leaderNum = this.LEADERS[teamKey];
+    const O = this.POS_ORDER;
+    const HATCH = 'repeating-linear-gradient(135deg,var(--color-surface) 0,var(--color-surface) 8px,var(--color-background) 8px,var(--color-background) 10px)';
+    return this.rosters[teamKey].slice().sort((a,b) => (O[a.pos] ?? 9) - (O[b.pos] ?? 9)).map(p => {
+      const expanded = !p.cpu && openPos === p.pos;
+      const ld = p.loadout;
+      const isLeader = !p.cpu && p.num === leaderNum;
+      const am = ld ? this.archChip(p.xf) : null;
+      const pc = this.POS_COLOR;
+      const deep = (expanded && !p.cpu && isStat) ? this.deepStats(p) : null;
+      const hatch = HATCH;
+      const hovered = !p.cpu && this.state.hoverPos === p.pos;
+      const active = expanded || hovered;
+      const rowLoad = this.GRID_LOAD + 'min-height:58px;padding:7px 14px 7px 12px;border-bottom:1px solid var(--color-border-subtle);transition:border-left-color .18s ease,background-color .15s ease;border-left:2px solid ' + (active ? 'var(--color-accent)' : 'transparent') + ';'
+        + (p.cpu ? 'cursor:default;background:' + hatch + ';' : 'cursor:pointer;background:' + (active ? 'var(--color-surface-raised)' : (isLeader ? 'rgba(232,65,49,0.04)' : 'transparent')) + ';')
+        + (expanded ? 'box-shadow:inset 2px 0 0 var(--color-accent);' : '');
+      return {
+        ...p,
+        expanded,
+        isLeader,
+        rowRole: p.cpu ? 'group' : 'button',
+        rowTab: p.cpu ? -1 : 0,
+        ariaExpanded: expanded ? 'true' : 'false',
+        rowLabel: p.cpu
+          ? 'Open CPU slot at ' + p.pos
+          : ((ld && ld.persona) || p.name) + ', ' + p.pos + ', number ' + p.num + (expanded ? ' — collapse details' : ' — expand loadout and match stats'),
+        onKey: p.cpu ? null : ((e) => {
+          if (e.key !== 'Enter' && e.key !== ' ' && e.key !== 'Spacebar') return;
+          e.preventDefault();
+          this.luOff();
+          this.setState(s => { const opening = s.open !== p.pos; if (opening) requestAnimationFrame(() => this.startAttrCount()); return { open: opening ? p.pos : null }; });
+        }),
+        chev: p.cpu ? '' : '▸',
+        chevTransform: expanded ? 'rotate(90deg)' : 'rotate(0deg)',
+        nameColor: p.cpu ? 'var(--fg-4)' : 'var(--fg-1)',
+        rowStyleLoad: rowLoad,
+        numBig: p.cpu ? 'var(--fg-5)' : 'var(--fg-1)',
+        posCellBg: p.cpu ? 'transparent' : 'color-mix(in srgb,' + pc + ' 10%,transparent)',
+        posCellBorder: p.cpu ? 'var(--color-border)' : 'color-mix(in srgb,' + pc + ' 40%,transparent)',
+        posLetterColor: p.cpu ? 'var(--fg-4)' : pc,
+        avatarBig: p.cpu
+          ? 'display:flex;align-items:flex-end;justify-content:center;overflow:hidden;width:40px;height:40px;border-radius:9999px;border:1px solid var(--color-border);background:rgba(35,33,34,0.55);opacity:.82;'
+          : 'display:flex;align-items:flex-end;justify-content:center;overflow:hidden;width:40px;height:40px;border-radius:9999px;border:1px solid ' + (isLeader ? 'rgba(232,65,49,0.25)' : 'var(--color-border)') + ';background:radial-gradient(circle at top,rgba(232,65,49,0.14),transparent 55%),linear-gradient(180deg,rgba(50,48,49,0.9),rgba(26,24,25,1));' + (isLeader ? 'box-shadow:0 0 10px rgba(232,65,49,.18);' : ''),
+        physLine: ld ? [ld.hw, ld.hand, ld.level].filter(Boolean).join(' · ') : '',
+        xTiles: (ld && isLoad) ? ld.abilities.map(a => this.xTile(a[0], a[1])) : [],
+        onToggle: p.cpu ? (() => {}) : (() => { this.luOff(); return this.setState(s => { const opening = s.open !== p.pos; if (opening) requestAnimationFrame(() => this.startAttrCount()); return { open: opening ? p.pos : null }; }); }),
+        onEnter: p.cpu ? null : (() => this.setState({ hoverPos: p.pos })),
+        onLeave: p.cpu ? null : (() => this.setState(s => (s.hoverPos === p.pos ? { hoverPos: null } : null))),
+        chevColor: expanded ? 'var(--color-accent)' : (p.cpu ? 'transparent' : 'var(--fg-2)'),
+        chevCls: p.cpu ? 'cap chev-rot' : 'cap chev-rot chev-cta',
+        chevBorder: p.cpu ? 'transparent' : (expanded ? 'var(--color-accent)' : 'var(--color-border)'),
+        chevBg: p.cpu ? 'transparent' : (expanded ? 'var(--color-accent-soft)' : 'var(--color-charcoal)'),
+        hasLoadout: !!ld && !p.cpu,
+        noLoadout: p.cpu || !ld,
+        ldArch: ld ? ld.arch : '',
+        archCode: p.xf,
+        archChipStyle: am ? am.style : '',
+        archIcon: am ? am.icon : null,
+        persona: p.cpu ? 'CPU GOALIE' : (ld ? ld.persona : ''),
+        handle: p.cpu ? '' : p.name,
+        hw: p.cpu ? '—' : (ld ? ld.hw : '—'),
+        hand: ld ? ld.hand : '',
+        level: ld ? ld.level : '',
+        buildRef: ld && ld.ref ? ld.ref : '',
+        attrTables: (expanded && ld && isLoad) ? this.buildAttrs(p.xf, this.state.attrProg) : [],
+        statTiles: isStat ? this.buildStatTiles(p) : [],
+        gsShort: p.cpu ? '—' : (p.gs || (p.g * 4 + p.a * 3.3 + p.sog * 0.3 + p.hit * 0.15).toFixed(2)),
+        deepSummary: deep ? deep.summary : [],
+        deepCats: deep ? deep.cats : [],
+      };
+    });
+  }
+
+  buildLineup(){
+    const team = this.state.team;
+    const mode = this.state.mode;
+    const activeBGM = team === 'BGM';
+    return {
+      players: this.buildTeamRows(team),
+      teamThumb: this.teamThumbStyle(activeBGM),
+      teamBtnBgm: this.teamBtn(activeBGM, true),
+      teamBtn4l: this.teamBtn(!activeBGM, false),
+      setTeamBgm: () => { this.luOff(); this.setState({ team:'BGM' }); },
+      setTeam4l: () => { this.luOff(); this.setState({ team:'4L' }); },
+      isLoadout: mode === 'LOADOUT',
+      isStats: mode === 'STATS',
+      setLoadout: () => { this.luOff(); this.setState({ mode: 'LOADOUT' }); },
+      setStats: () => { this.luOff(); this.setState({ mode: 'STATS' }); },
+      loadTabClass: mode === 'LOADOUT' ? '' : 'tab-cta',
+      statTabClass: mode === 'STATS' ? '' : 'tab-cta',
+      loadTabStyle: this.underlineTabStyle(mode === 'LOADOUT'),
+      statTabStyle: this.underlineTabStyle(mode === 'STATS'),
+      loadTabBar: this.underlineTabBar(mode === 'LOADOUT'),
+      statTabBar: this.underlineTabBar(mode === 'STATS'),
+      activeCrestBGM: activeBGM,
+      activeCrest4L: !activeBGM,
+      activeName: activeBGM ? 'Boogeymen' : '4th Line',
+      activeDressed: '5/6',
+      activeGoalie: 'CPU',
+      setStageEl: this.setStageEl,
+      ...this.luChrome(),
+    };
+  }
+
+  renderVals(){
+    const s = this.state, pr = this.props;
+    return {
+      ...this._memo('nav', [this.nav], () => this.navVals()),
+      homeScore: s.cHome, awayScore: s.cAway,
+      ...this._memo('lineup', [s.team, s.mode, s.open, s.hoverPos, s.attrProg, s.luAuto, s.luPaused, s.luStep, pr.lineupAutoRotate, pr.lineupRotateSeconds], () => this.buildLineup()),
+      ...this._memo('perf', [s.openRow, s.showAll, s.perfProg], () => this.buildPerformers()),
+      ...this._memo('box', [s.box, s.boxProg, s.boxGlow, s.boxPaused, s.boxSwitch, s.boxArmed, s.boxAuto, pr.boxAutoRotate, pr.boxRotateSeconds], () => this.buildBox()),
+      ...this._memo('team', [s.teamProg, s.teamGlow], () => this.buildTeamStats()),
+      timeline: this._memo('tl', [s.tlProg], () => this.buildTimeline()),
+      setRightEl: this.setRightEl, setLineupEl: this.setLineupEl, setSectionEl: this.setSectionEl,
+      setBoxEl: this.setBoxEl,
+      setClipEl: this.setClipEl, setListEl: this.setListEl, toggleTl: this.toggleTl,
+      setDtwNeedle: this.setDtwNeedle, setDtwArcRed: this.setDtwArcRed,
+      setDtwArcGrey: this.setDtwArcGrey, setDtwBig: this.setDtwBig, setOppRoot: this.setOppRoot,
+      oppC: this.oppHex(),
+      dtwBgmStr: (59.7 * s.dtwK).toFixed(1),
+      dtwOppStr: (100 - 59.7 * s.dtwK).toFixed(1),
+      ...this._memo('tlLayout', [s.tlMode, s.tlAvail, s.tlExpanded, s.tlAnimating, s.tlToggleH, s.tlProg], () => this.buildTimelineLayout()),
+    };
+  }
+
+  buildTimeline(){
+    const opening = () => ({ isOpening:true, isDivider:false, isEvent:false });
+    const div = (period, count) => ({
+      isOpening:false, isDivider:true, isEvent:false, period,
+      countLabel: count === 0 ? 'NO GOALS' : (count + (count === 1 ? ' GOAL' : ' GOALS')),
+      countColor: count === 0 ? 'var(--fg-5)' : 'var(--fg-2)',
+      divColor:   count === 0 ? 'var(--fg-4)' : 'var(--color-accent)',
+      divBorder:  count === 0 ? 'var(--color-border)' : 'rgba(232,65,49,0.4)',
+    });
+    let bgmGoals = 0, oppGoals = 0;
+    const cardBase = 'background:var(--color-surface);padding:9px 13px;display:flex;flex-direction:column;gap:6px;min-width:240px;max-width:340px;';
+    const ev = (periodShort, time, scorer, assist, side, banner, kind) => {
+      const gwg = kind === 'gwg', tie = kind === 'tie', bgm = side === 'bgm';
+      if (bgm) bgmGoals++; else oppGoals++;
+      const teamLabel = bgm ? 'BGM' : '4L';
+      const goalNum = bgm ? bgmGoals : oppGoals;
+      const dir = bgm ? 'row-reverse' : 'row';
+      const border = gwg
+        ? 'border:1px solid var(--color-accent);box-shadow:var(--glow-accent-soft);'
+        : 'border:1px solid var(--color-border);' + (bgm ? 'border-left:3px solid var(--color-accent);' : 'border-right:3px solid var(--opp);');
+      return {
+        isOpening:false, isDivider:false, isEvent:true, isLeft:bgm, isRight:!bgm, isGwg:gwg,
+        periodShort, time, scorer, assist, banner,
+        bgmG: bgmGoals, oppG: oppGoals,
+        kicker: 'GOAL · ' + teamLabel + ' #' + goalNum + (gwg ? ' · GWG' : ''),
+        kickerColor: (bgm || gwg) ? 'var(--color-accent)' : 'var(--opp)',
+        scorerColor: gwg ? 'var(--color-accent)' : 'var(--fg-1)',
+        bannerColor: tie ? 'var(--color-otl)' : ((bgm || gwg) ? 'var(--color-accent)' : 'var(--opp-2)'),
+        cardStyle: cardBase + 'align-items:' + (bgm ? 'flex-end' : 'flex-start') + ';text-align:' + (bgm ? 'right' : 'left') + ';' + border,
+        kickerRowStyle: 'display:flex;align-items:center;gap:7px;flex-direction:' + dir + ';',
+        assistRowStyle: 'display:flex;align-items:center;gap:5px;flex-direction:' + dir + ';',
+        scoreRowStyle: 'display:flex;align-items:center;gap:9px;flex-direction:' + dir + ';border-top:1px solid var(--color-border-subtle);padding-top:7px;margin-top:1px;width:100%;justify-content:' + (bgm ? 'flex-end' : 'flex-start') + ';',
+      };
+    };
+    const rows = [
+      opening(),
+      div('1ST PERIOD', 0),
+      div('2ND PERIOD', 2),
+      ev('2ND','06:19','silkyjoker85','MrHomiecide','bgm','↑ BGM TAKES LEAD','goal'),
+      ev('2ND','14:53','Stick Menace','Homiecide, silky','bgm','↑ BGM +2 LEAD','goal'),
+      div('3RD PERIOD', 4),
+      ev('3RD','08:35','TOEWS','Zubov, Wilde','opp','4L CLOSES','goal'),
+      ev('3RD','13:58','silkyjoker85','HenryTheBobJr','bgm','↑ BGM +2 LEAD','goal'),
+      ev('3RD','18:51','TOEWS','Whoosah, Wilde','opp','4L CLOSES','goal'),
+      ev('3RD','19:08','S. ZUBOV','Whoosah','opp','— TIED','tie'),
+      div('OT', 1),
+      ev('OT','17:23','MrHomiecide','Henry, Menace','bgm','↑ BGM WINS','gwg'),
+    ];
+    // reveal pass — cascade each row from tlProg (0→1); transforms/opacity only, so
+    // measureTimeline still reads the natural height correctly.
+    const P = (this.state.tlProg == null ? 1 : this.state.tlProg);
+    const ease = t => 1 - Math.pow(1 - t, 3);
+    const cl = x => x < 0 ? 0 : x > 1 ? 1 : x;
+    const RS = 0.10, SPAN = 0.62, WIN = 0.18, n = rows.length;
+    const openBase = 'position:relative;z-index:1;display:flex;justify-content:center;padding:2px 0 8px;';
+    const divBase  = 'position:relative;z-index:1;display:flex;align-items:center;justify-content:center;padding:14px 0 10px;';
+    const rowBase  = 'position:relative;z-index:1;display:grid;grid-template-columns:1fr 76px 1fr;align-items:center;gap:6px;margin:7px 0;';
+    const pillBase = 'display:inline-flex;flex-direction:column;align-items:center;gap:1px;border:1px solid var(--color-accent-line);background:var(--color-background);padding:4px 8px;';
+    const nameBase = 'font-size:17px;font-weight:900;letter-spacing:.03em;line-height:1.05;';
+    rows.forEach((r, i) => {
+      const start = RS + (n > 1 ? SPAN * (i / (n - 1)) : 0);
+      const E = ease(cl((P - start) / WIN));
+      const ty = ((1 - E) * 8).toFixed(2);
+      if (r.isOpening) { r.wrap = openBase + 'opacity:' + E.toFixed(3) + ';transform:translateY(' + ty + 'px);'; }
+      else if (r.isDivider) { r.wrap = divBase + 'opacity:' + E.toFixed(3) + ';transform:translateY(' + ty + 'px);'; }
+      else if (r.isEvent) {
+        r.wrap = rowBase + 'opacity:' + E.toFixed(3) + ';';
+        const dx = ((1 - E) * (r.isLeft ? -22 : 22)).toFixed(2);
+        let glow = '';
+        if (r.isGwg) {
+          const pulse = Math.sin(cl(E) * Math.PI);
+          glow = 'box-shadow:0 0 ' + (pulse * 10 + E * 6).toFixed(1) + 'px rgba(232,65,49,' + (pulse * 0.22 + E * 0.15).toFixed(3) + ');';
+          r.scorerStyle = nameBase + 'color:' + r.scorerColor + ';text-shadow:0 0 ' + (pulse * 20 + E * 8).toFixed(1) + 'px rgba(232,65,49,' + (pulse * 0.7 + E * 0.3).toFixed(3) + ');';
+        } else {
+          r.scorerStyle = nameBase + 'color:' + r.scorerColor + ';';
+        }
+        r.cardStyle = r.cardStyle + 'opacity:' + E.toFixed(3) + ';transform:translateX(' + dx + 'px);' + glow;
+        r.cardClass = 'tl-card' + (r.isGwg ? ' tl-gwg' : '');
+        r.pillStyle = pillBase + 'transform:scale(' + (0.8 + 0.2 * E).toFixed(3) + ');';
+      }
+    });
+    return rows;
+  }
+
+  teamChip(team){
+    const on = team === 'BGM';
+    return 'font-family:var(--font-condensed);text-transform:uppercase;padding:2px 7px;font-size:12px;font-weight:800;letter-spacing:.16em;border:1px solid '
+      + (on ? 'var(--color-accent-line)' : 'var(--opp-line)') + ';background:' + (on ? 'var(--color-accent-soft)' : 'var(--opp-soft)')
+      + ';color:' + (on ? 'var(--color-accent)' : 'var(--opp)');
+  }
+  posChip(pos){
+    const c = this.POS_COLOR;
+    return 'font-family:var(--font-condensed);text-transform:uppercase;padding:2px 7px;font-size:12px;font-weight:700;letter-spacing:.14em;border-radius:2px;border:1px solid color-mix(in srgb,'+c+' 42%,transparent);background:color-mix(in srgb,'+c+' 12%,transparent);color:'+c;
+  }
+  makeBars(bd){
+    const sum = bd.reduce((t, x) => t + Math.abs(parseFloat(x[1])), 0) || 1;
+    return bd.map(x => ({ w:(Math.abs(parseFloat(x[1]))/sum*100).toFixed(1)+'%', color:this.CAT[x[0]] || 'var(--fg-3)' }));
+  }
+  makeLegend(bd){
+    return bd.map(x => ({ k:x[0], v:x[1], color:this.CAT[x[0]] || 'var(--fg-3)', valColor: parseFloat(x[1]) < 0 ? 'var(--color-loss)' : 'var(--fg-2)' }));
+  }
+  computeBreakdown(p){
+    const bd = [];
+    if (p.g)    bd.push(['G', '+'+(p.g*4.0).toFixed(1)]);
+    if (p.a)    bd.push(['A', '+'+(p.a*3.3).toFixed(1)]);
+    if (p.sog)  bd.push(['SOG', '+'+(p.sog*0.3).toFixed(1)]);
+    if (p.hits) bd.push(['HITS', '+'+(p.hits*0.15).toFixed(1)]);
+    const pm = parseFloat(p.pm);
+    if (pm)     bd.push(['+/−', (pm>0?'+':'')+(pm*0.4).toFixed(1)]);
+    return bd.length ? bd : [['SOG','+0.0']];
+  }
+  buildPerformers(){
+    const rows = this.PERF.map(p => {
+      const top3 = p.rank <= 3;
+      const expanded = this.state.openRow === p.rank;
+      const bd = p.bd || this.computeBreakdown(p);
+      const pp = this.state.perfProg;
+      const prog = pp ? (pp[p.rank] ?? 0) : 1;
+      const tnum = parseFloat(p.score);
+      const scoreDisplay = isNaN(tnum) ? p.score : (tnum * prog).toFixed(2);
+      return {
+        rank: p.rank,
+        rankGlyph: '★'.repeat(p.stars),
+        rankColor: top3 ? 'var(--color-accent)' : 'var(--fg-4)',
+        hasStar: p.stars > 0,
+        starGlow: p.rank === 1 ? '0 0 8px rgba(232,65,49,0.5)' : 'none',
+        team: p.team, pos: p.pos, name: p.name,
+        teamChip: this.teamChip(p.team), posChip: this.posChip(p.pos),
+        score: p.score,
+        scoreColor: top3 ? 'var(--color-accent)' : (parseFloat(p.score) < 0 ? 'var(--fg-5)' : 'var(--fg-2)'),
+        scoreGlow: p.rank === 1 ? '0 0 12px rgba(232,65,49,0.28)' : 'none',
+        scoreDisplay,
+        scoreCls: p.rank === 1 ? 'cap tabular perf-bloom' : 'cap tabular',
+        expanded,
+        ariaExpanded: expanded ? 'true' : 'false',
+        rowLabel: p.name + ', rank ' + p.rank + ', game score ' + p.score + (expanded ? ' — collapse breakdown' : ' — expand score breakdown'),
+        onKey: (e) => {
+          if (e.key !== 'Enter' && e.key !== ' ' && e.key !== 'Spacebar') return;
+          e.preventDefault();
+          this.setState(s => ({ openRow: s.openRow === p.rank ? null : p.rank }));
+        },
+        onToggle: () => this.setState(s => ({ openRow: s.openRow === p.rank ? null : p.rank })),
+        railRowStyle: 'display:grid;grid-template-columns:18px minmax(0,1fr) auto;align-items:center;gap:0 9px;padding:8px 13px;cursor:pointer;border-top:1px solid var(--color-border-subtle);background:'
+          + (expanded ? 'var(--color-surface-raised)' : (p.rank === 1 ? 'rgba(232,65,49,0.06)' : (top3 ? 'rgba(232,65,49,0.03)' : 'transparent'))) + ';'
+          + (expanded ? 'box-shadow:inset 2px 0 0 var(--color-accent);' : '')
+          + 'animation-delay:' + (Math.max(0, (top3 ? p.rank - 1 : p.rank - 4)) * 0.055).toFixed(3) + 's;',
+        bars: this.makeBars(bd),
+        legend: this.makeLegend(bd),
+      };
+    });
+
+    return {
+      perfTop: rows.slice(0, 3),
+      perfRest: rows.slice(3),
+      showAll: this.state.showAll,
+      toggleAll: () => this.setState(s => ({ showAll: !s.showAll })),
+      toggleLabel: this.state.showAll ? 'Show top 3 only' : 'Show all 10 players',
+      caretRot: this.state.showAll ? 'display:inline-block;transform:rotate(180deg)' : 'display:inline-block',
+    };
+  }
+
+  stat(label, bgm, opp, bgmN, oppN, lowerBetter){
+    const a = bgmN != null ? bgmN : (typeof bgm === 'number' ? bgm : parseFloat(bgm));
+    const b = oppN != null ? oppN : (typeof opp === 'number' ? opp : parseFloat(opp));
+    const denom = Math.max(a + b, 0.0001);
+    let winner = 'tie';
+    if (a !== b) winner = ((a > b) !== !!lowerBetter) ? 'bgm' : 'opp';
+    const bgmWin = winner === 'bgm', oppWin = winner === 'opp';
+    const intCount = (typeof bgm === 'number') && (typeof opp === 'number') && Number.isInteger(bgm) && Number.isInteger(opp);
+    return {
+      label, bgm, opp, winner, bgmNum: a, oppNum: b, intCount,
+      bgmW: (a/denom*100).toFixed(1) + '%',
+      oppW: (b/denom*100).toFixed(1) + '%',
+      // one meaning per panel: full team colour = won this stat, zinc = lost it.
+      // (A dim-red losing bar read as "BGM" and fought the winner encoding.)
+      bgmBar: bgmWin ? 'var(--color-accent)' : 'var(--color-border)',
+      oppBar: oppWin ? 'var(--opp)' : 'var(--color-border)',
+      bgmValColor: bgmWin ? 'var(--color-accent)' : 'var(--fg-4)',
+      oppValColor: oppWin ? 'var(--opp)' : 'var(--opp-2)',
+    };
+  }
+
+  buildTeamStats(){
+    const groups = [
+      { title:'Offense', rows:[
+        this.stat('Goals',4,3), this.stat('Shots',29,16),
+        this.stat('Shooting %','13.8%','18.8%',13.8,18.8), this.stat('On Net %','90.6%','66.7%',90.6,66.7) ] },
+      { title:'Possession', rows:[
+        this.stat('Pass %','66.7%','68.2%',66.7,68.2), this.stat('Possession','24:31','19:22',1471,1162),
+        this.stat('Time on Attack','12:42','6:11',762,371) ] },
+      { title:'Defense', rows:[
+        this.stat('Hits',14,39), this.stat('Blocks',5,4), this.stat('Takeaways',17,19), this.stat('Interceptions',5,8) ] },
+      { title:'Discipline', rows:[
+        this.stat('Giveaways',44,38,null,null,true), this.stat('Deflections',1,0), this.stat('Assists',6,5) ] },
+    ];
+    const rows = groups.flatMap(g => g.rows);
+    const STEP = this.TS_STEP, CD = this.TS_CD, n2 = rows.length;
+    this._teamN = n2;
+    const DUR = (n2 - 1) * STEP + CD;
+    const elapsed = this.state.teamProg * DUR;
+    const glow = this.state.teamGlow;
+    const easeT = p => 1 - Math.pow(1 - p, 3);
+    rows.forEach((r, i) => {
+      const lp = Math.max(0, Math.min(1, (elapsed - i * STEP) / CD));
+      const e = easeT(lp);
+      const op = Math.min(1, lp * 2.6).toFixed(3);
+      const ty = ((1 - Math.min(1, lp * 2)) * 8).toFixed(1);
+      r.rowMotion = 'opacity:' + op + ';transform:translateY(' + ty + 'px)';
+      r.grow = (e * 100).toFixed(1) + '%';
+      r.bgmDisp = r.intCount ? String(Math.round(r.bgmNum * e)) : r.bgm;
+      r.oppDisp = r.intCount ? String(Math.round(r.oppNum * e)) : r.opp;
+      r.bgmBarCls = (glow && r.winner === 'bgm') ? 'ts-bloom-acc' : '';
+      r.oppBarCls = (glow && r.winner === 'opp') ? 'ts-bloom-opp' : '';
+    });
+    return { teamRows: rows, setTeamEl: this.setTeamEl };
+  }
+}
+</script>
+</body>
+</html>

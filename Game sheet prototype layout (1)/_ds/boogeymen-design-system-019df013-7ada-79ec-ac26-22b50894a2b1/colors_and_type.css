@@ -1,0 +1,234 @@
+/* ============================================================================
+   Boogeymen Design System — colors_and_type.css
+   Drop into any HTML file:  <link rel="stylesheet" href="colors_and_type.css">
+   Mirrors apps/web/src/app/globals.css 1:1, plus higher-level semantic tokens.
+   ============================================================================ */
+
+@import url('https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Semi+Condensed:wght@400;500;600;700;900&display=swap');
+
+:root {
+  /* ── FONTS ─────────────────────────────────────────────────────────────── */
+  --font-sans: 'Barlow', system-ui, sans-serif;
+  --font-condensed: 'Barlow Semi Condensed', 'Barlow', system-ui, sans-serif;
+
+  /* ── BASE COLORS — Broadcast Strip palette ─────────────────────────────── */
+  /* Official BoogeyMen charcoal (#323031) anchors the surface family.       */
+  /* The page goes a touch deeper to seat panels above it.                   */
+  --color-charcoal: #323031;          /* OFFICIAL — Boogeymen charcoal */
+  --color-paper: #ebebeb;             /* OFFICIAL — Boogeymen light */
+  --color-background: #1a1819;        /* page bg — derived from charcoal */
+  --color-surface: #232122;           /* default panel — between bg and charcoal */
+  --color-surface-raised: #2a2829;    /* hover/raised state */
+  --color-border: #3a3839;            /* hairline border (default) */
+  --color-border-subtle: #2a2829;     /* inner dividers */
+
+  /* ── ACCENT — the only chromatic event ─────────────────────────────────── */
+  --color-accent: #e84131;            /* OFFICIAL — Boogeymen red */
+  --color-accent-strong: #c2321f;     /* pressed/dark */
+  --color-accent-soft: rgba(232, 65, 49, 0.10);
+  --color-accent-line: rgba(232, 65, 49, 0.40);
+
+  /* ── RESULT STATES ─────────────────────────────────────────────────────── */
+  --color-win: #10b981;               /* emerald (text) */
+  --color-win-bg: rgba(16, 185, 129, 0.10);
+  --color-win-border: rgba(16, 185, 129, 0.40);
+  --color-loss: #ef6a5e;              /* lighter tint of accent — readable on dark */
+  --color-loss-bg: rgba(232, 65, 49, 0.10);
+  --color-loss-border: rgba(232, 65, 49, 0.45);
+  --color-otl: #f59e0b;               /* amber */
+  --color-otl-bg: rgba(245, 158, 11, 0.10);
+  --color-otl-border: rgba(245, 158, 11, 0.40);
+  --color-dnf: #71717a;
+  --color-dnf-bg: rgba(39, 39, 42, 0.40);
+  --color-dnf-border: rgba(82, 82, 91, 0.40);
+
+  /* ── TEXT (warm-neutral scale, anchored on official paper #EBEBEB) ─────── */
+  --fg-1: #ebebeb;        /* OFFICIAL — Boogeymen light. Headlines, scores. */
+  --fg-2: #d4d2d3;        /* secondary — identity */
+  --fg-3: #9a9798;        /* supporting — win%, abbreviations */
+  --fg-4: #6e6b6c;        /* labels — uppercase section headers */
+  --fg-5: #514e4f;        /* metadata — provenance, timestamps */
+  --fg-6: #3a3839;        /* faint — separator chars */
+
+  /* ── SPACING (Tailwind 4px scale; 5/8 do the heavy lifting) ────────────── */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+
+  /* ── RADII (sharp rules!) ──────────────────────────────────────────────── */
+  --radius-none: 0;
+  --radius-sm: 2px;
+  --radius-md: 4px;
+  --radius-pill: 9999px;
+
+  /* ── BORDERS ───────────────────────────────────────────────────────────── */
+  --border-hairline: 1px solid var(--color-border);
+  --border-subtle: 1px solid var(--color-border-subtle);
+  --border-accent-rim: 1px solid var(--color-accent-line);
+
+  /* ── SHADOWS / GLOWS (used SPARINGLY) ──────────────────────────────────── */
+  --glow-accent-soft: 0 0 14px rgba(232, 65, 49, 0.20);
+  --inset-leader-rail: inset 2px 0 0 var(--color-accent),
+                       inset 0 1px 0 rgba(255, 255, 255, 0.02);
+
+  /* ── BROADCAST PANEL FILL (the brand's signature surface) ──────────────── */
+  --bg-broadcast:
+    radial-gradient(circle at top, rgba(232, 65, 49, 0.12), transparent 42%),
+    linear-gradient(180deg, rgba(50, 48, 49, 0.96), rgba(26, 24, 25, 0.98));
+  --bg-broadcast-soft:
+    radial-gradient(circle at top, rgba(232, 65, 49, 0.07), transparent 42%),
+    linear-gradient(180deg, rgba(50, 48, 49, 0.92), rgba(26, 24, 25, 0.98));
+  --bg-broadcast-strong:
+    radial-gradient(circle at top, rgba(232, 65, 49, 0.18), transparent 42%),
+    linear-gradient(180deg, rgba(50, 48, 49, 0.96), rgba(26, 24, 25, 0.98));
+
+  /* The 1px red ticker laid on top of hero panels */
+  --bg-ticker-red: linear-gradient(90deg,
+    rgba(120, 30, 22, 1) 0%,
+    rgba(232, 65, 49, 0.95) 50%,
+    rgba(120, 30, 22, 1) 100%);
+}
+
+/* ============================================================================
+   SEMANTIC TYPOGRAPHY
+   ============================================================================ */
+
+html {
+  background-color: var(--color-background);
+  color: var(--fg-1);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+/* Page header */
+.ds-h1 {
+  font-family: var(--font-condensed);
+  font-size: 1.5rem;        /* 24px */
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--fg-1);
+  line-height: 1.1;
+}
+
+/* Section header — the wide-tracking dim uppercase that sits over modules */
+.ds-section-label {
+  font-family: var(--font-condensed);
+  font-size: 0.75rem;       /* 12px */
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  color: var(--fg-4);
+}
+
+/* Stat key — even smaller, even wider */
+.ds-stat-label {
+  font-family: var(--font-condensed);
+  font-size: 0.625rem;      /* 10px */
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  color: var(--fg-5);
+}
+
+/* Stat value */
+.ds-stat-value {
+  font-family: var(--font-condensed);
+  font-size: 0.875rem;      /* 14px */
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--fg-2);
+}
+
+/* Hero score (latest-result) */
+.ds-score-hero {
+  font-family: var(--font-condensed);
+  font-size: 5.75rem;       /* 92px */
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+  line-height: 0.9;
+  color: var(--fg-1);
+}
+
+/* Score in score-card (lists) */
+.ds-score {
+  font-family: var(--font-condensed);
+  font-size: 3rem;          /* 48px */
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+  line-height: 0.9;
+}
+
+/* Marquee stat (leader hero number) */
+.ds-marquee-number {
+  font-family: var(--font-condensed);
+  font-size: 3rem;          /* 48px */
+  font-weight: 900;
+  line-height: 0.9;
+  color: var(--fg-1);
+  text-shadow: var(--glow-accent-soft);
+}
+
+/* Player name in hero / featured contexts */
+.ds-player-name {
+  font-family: var(--font-condensed);
+  font-size: 1.875rem;      /* 30px */
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--fg-1);
+}
+
+/* Body / paragraph (rare in this product) */
+.ds-body {
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+  font-weight: 400;
+  color: var(--fg-3);
+  line-height: 1.5;
+}
+
+/* Tabular helper */
+.tabular {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum';
+}
+
+/* ============================================================================
+   PANEL UTILITIES
+   ============================================================================ */
+.broadcast-panel {
+  border: 1px solid rgba(63, 63, 70, 0.9);
+  background: var(--bg-broadcast);
+}
+.broadcast-panel-soft {
+  border: 1px solid rgba(63, 63, 70, 0.85);
+  background: var(--bg-broadcast-soft);
+}
+.broadcast-panel-strong {
+  border: 1px solid var(--color-border);
+  background: var(--bg-broadcast-strong);
+}
+.ticker-strip {
+  height: 4px;
+  width: 100%;
+  background: var(--bg-ticker-red);
+}
+.ticker-strip-thin { height: 2px; }
+
+/* ============================================================================
+   SCROLLBAR — thin, dark, on-brand
+   ============================================================================ */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: var(--color-background); }
+::-webkit-scrollbar-thumb { background: var(--color-border); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #514e4f; }
