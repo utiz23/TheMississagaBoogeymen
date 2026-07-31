@@ -96,21 +96,26 @@ export function LineupModule({
     })
   })
 
-  // Walk order for the roster on screen — expandable slots only, canonical
-  // position order. The walk cycles modes, not teams: the team switch stays
-  // the user's.
-  const walkOrder = slots.filter((s) => s.expandable).map((s) => s.position)
+  // Walk legs — expandable slots per team, canonical position order. Both are
+  // needed up front: the walk crosses rosters, so it has to know the other
+  // side's order before it gets there.
+  const walkOrders = {
+    bgm: expandableOrder(bgmByPos, bgmStats, 'bgm', variant),
+    opp: expandableOrder(oppByPos, oppStats, 'opp', variant),
+  }
   const onWalkAdvance = useCallback(
-    (nextMode: GameSheetMode, nextPos: LineupPositionKey | null) => {
+    (nextMode: GameSheetMode, nextTeam: TeamKey, nextPos: LineupPositionKey | null) => {
       setMode(nextMode)
+      setTeam(nextTeam)
       setOpenPos(nextPos)
     },
     [setMode],
   )
   const walk = useLineupAutoWalk({
     mode,
+    team,
     openPos,
-    order: walkOrder,
+    orders: walkOrders,
     loadoutsAvailable,
     onAdvance: onWalkAdvance,
   })
@@ -347,17 +352,23 @@ interface AutoWalk {
 
 /**
  * The lineup auto-walk. One flat sequence of steps, each held for the same
- * dwell:
+ * dwell — team nested inside view, with an overview step whenever the roster
+ * on screen changes:
  *
- *   LOADOUTS (nothing open) -> C -> LW -> RW -> LD -> RD -> G
- *   STATS    (nothing open) -> C -> LW -> RW -> LD -> RD -> G -> repeat
+ *   LOADOUTS  BGM (nothing open) -> C -> LW -> RW -> LD -> RD -> G
+ *             OPP (nothing open) -> C -> LW -> RW -> LD -> RD -> G
+ *   STATS     BGM (nothing open) -> C -> ...
+ *             OPP (nothing open) -> C -> ...  -> repeat
  *
- * The overview step at the head of each leg is what makes the walk readable —
- * you see the whole roster before it starts drilling into it. Positions that
- * cannot expand are dropped from the sequence rather than held as dead stops;
- * goalie rows are never expandable today, so G is skipped in practice.
+ * The overview step at the head of each roster is what makes the walk
+ * readable — you see the team whole before it starts drilling into it.
  *
- * When the match has no OCR loadouts the LOADOUTS leg is omitted entirely and
+ * Slots that cannot expand are dropped rather than held as dead stops, which
+ * is what skips CPU rows. Goalie rows are never expandable today, so G is
+ * skipped in practice; a roster with no expandable slot at all contributes no
+ * leg, not a lone overview nobody can drill into.
+ *
+ * When the match has no OCR loadouts the whole LOADOUTS half is omitted and
  * the walk only cycles STATS — there is nothing on the other tab to show.
  *
  * There is no JS timer. The dwell bar's CSS animation IS the clock: `advance`
@@ -373,27 +384,41 @@ interface AutoWalk {
  */
 interface WalkStep {
   mode: GameSheetMode
-  /** null = the leg's overview step, with no drawer open. */
+  team: TeamKey
+  /** null = the roster's overview step, with no drawer open. */
   pos: LineupPositionKey | null
 }
 
-function buildWalkSequence(order: LineupPositionKey[], loadoutsAvailable: boolean): WalkStep[] {
+const WALK_TEAMS: TeamKey[] = ['bgm', 'opp']
+
+function buildWalkSequence(
+  orders: Record<TeamKey, LineupPositionKey[]>,
+  loadoutsAvailable: boolean,
+): WalkStep[] {
   const modes: GameSheetMode[] = loadoutsAvailable ? ['loadouts', 'stats'] : ['stats']
-  return modes.flatMap((mode) => [{ mode, pos: null }, ...order.map((pos) => ({ mode, pos }))])
+  return modes.flatMap((mode) =>
+    WALK_TEAMS.flatMap((team) => {
+      const order = orders[team]
+      if (order.length === 0) return []
+      return [{ mode, team, pos: null }, ...order.map((pos) => ({ mode, team, pos }))]
+    }),
+  )
 }
 
 function useLineupAutoWalk({
   mode,
+  team,
   openPos,
-  order,
+  orders,
   loadoutsAvailable,
   onAdvance,
 }: {
   mode: GameSheetMode
+  team: TeamKey
   openPos: LineupPositionKey | null
-  order: LineupPositionKey[]
+  orders: Record<TeamKey, LineupPositionKey[]>
   loadoutsAvailable: boolean
-  onAdvance: (mode: GameSheetMode, pos: LineupPositionKey | null) => void
+  onAdvance: (mode: GameSheetMode, team: TeamKey, pos: LineupPositionKey | null) => void
 }): AutoWalk {
   const reduced = useReducedMotion()
   const [stopped, setStopped] = useState(false)
@@ -432,8 +457,7 @@ function useLineupAutoWalk({
     }
   }, [])
 
-  const sequence = buildWalkSequence(order, loadoutsAvailable)
-  const on = !stopped && !reduced && sequence.length > 1
+  const on = !stopped && !reduced && buildWalkSequence(orders, loadoutsAvailable).length > 1
   const paused = hovered || offscreen || hidden
 
   const stop = useCallback(() => {
@@ -441,26 +465,26 @@ function useLineupAutoWalk({
   }, [])
 
   const advance = useCallback(() => {
-    const steps = buildWalkSequence(order, loadoutsAvailable)
+    const steps = buildWalkSequence(orders, loadoutsAvailable)
     if (steps.length === 0) return
-    const i = steps.findIndex((st) => st.mode === mode && st.pos === openPos)
+    const i = steps.findIndex((st) => st.mode === mode && st.team === team && st.pos === openPos)
     // Not found means the user moved things before we stopped; restart cleanly
     // from the top rather than guessing where we were.
     const next = steps[(i + 1) % steps.length]
-    if (next !== undefined) onAdvance(next.mode, next.pos)
+    if (next !== undefined) onAdvance(next.mode, next.team, next.pos)
     setStep((s) => s + 1)
-  }, [mode, openPos, order, loadoutsAvailable, onAdvance])
+  }, [mode, team, openPos, orders, loadoutsAvailable, onAdvance])
 
   // Kick the walk off at its first step. The ref makes this fire exactly once —
-  // `order` and `onAdvance` are fresh values every render, and re-running would
-  // fight the user's own selection.
+  // `orders` and `onAdvance` are fresh values every render, and re-running
+  // would fight the user's own selection.
   const kicked = useRef(false)
   useEffect(() => {
     if (!on || kicked.current) return
     kicked.current = true
-    const first = buildWalkSequence(order, loadoutsAvailable)[0]
-    if (first !== undefined) onAdvance(first.mode, first.pos)
-  }, [on, order, loadoutsAvailable, onAdvance])
+    const first = buildWalkSequence(orders, loadoutsAvailable)[0]
+    if (first !== undefined) onAdvance(first.mode, first.team, first.pos)
+  }, [on, orders, loadoutsAvailable, onAdvance])
 
   return {
     on,
@@ -473,6 +497,21 @@ function useLineupAutoWalk({
       panelEl.current = el
     },
   }
+}
+
+/** Expandable slots for one team, canonical order — that team's walk leg. */
+function expandableOrder(
+  byPos: Map<LineupPositionKey, LineupRow>,
+  stats: LineupModuleStatRow[],
+  team: TeamKey,
+  variant: 'ocr' | 'boxScore',
+): LineupPositionKey[] {
+  return POSITIONS.filter((position) => {
+    const row = byPos.get(position) ?? null
+    if (row === null) return false
+    return buildSlotVM({ position, row, variant, stat: findStat(stats, team, row), gs: null })
+      .expandable
+  })
 }
 
 function TeamButton({
