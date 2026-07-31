@@ -6,7 +6,7 @@
 
 **Design of record:** `Game sheet prototype layout (1)/Game Sheet copy.dc.html` (the _copy_ file again — its lineup section is the revised one).
 
-**Commits:** `0adc420` reduced-motion fix · `c0ef69d` bio recovery · `0003bcd` lineup port · `e2bcba8` auto-walk + count-up · `43fd27e` walk both views / OCR gate / kicker removal · `5c5f0f9` team switching restored · `af73a18` diagnostics gate · `ed9dfdd` row selection + GS chip removal.
+**Commits:** `0adc420` reduced-motion fix · `c0ef69d` bio recovery · `0003bcd` lineup port · `e2bcba8` auto-walk + count-up · `43fd27e` walk both views / OCR gate / kicker removal · `5c5f0f9` team switching restored · `af73a18` diagnostics gate · `ed9dfdd` row selection + GS chip removal · `7a3d584` room-leader star sizing.
 
 **Files:** `components/matches/lineup/*` (all 6) · `components/matches/game-sheet-mode.tsx` · `components/matches/action-tracker/index.tsx` · **NEW** `components/ui/platform-badge.tsx` · `lib/head-to-head.ts` + test · `lib/lineup-confidence.ts` + test · `lib/auth.ts` · **NEW** `lib/ocr-diagnostics.ts` · `globals.css` · `app/games/[id]/page.tsx` · `.env.example` · `packages/db/src/queries/match-lineups.ts` · **NEW** `packages/db/src/lib/loadout-bio-recovery.ts` + test · `packages/db/src/lib/normalize-build-class.ts` (moved from worker).
 
@@ -94,6 +94,14 @@ That alone trades one bug for another: **a drag that ends inside a button still 
 Both halves are needed; either alone is broken. Any other clickable-row surface on the site has the same latent problem — the roster table and the event list are `<button>`-based too.
 
 Verified all five paths: drag selects without toggling · click opens · click closes · Enter opens · hover highlight unaffected.
+
+#### ⚠️ Symbol glyphs need ~1.33× the text size to optically match — ink parity is the wrong target
+
+The room-leader ★ read as a speck beside a 12px gamertag. **`★` is not in Barlow**, so it falls back to a symbol font whose glyph sits small and thin inside its em box. Measured at a matched 12px it was already **taller by ink than the gamertag — 10px vs 8px — and still read smaller**, because a thin star's optical weight is nothing like a run of letters. Sized to 16px (~1.33×), which is where it optically lands. `leading-none` keeps the taller glyph from growing the line box (rows stayed 61px).
+
+Applies to every bare glyph on the page — the `▰` section ornament, the `▸` chevron, the sub-nav arrows. **Don't "fix" any of them to match their neighbour's font-size**; match them by eye against a rendered crop.
+
+Measuring trap: `ctx.measureText` only models the fallback if you pass the **full** `font-family` stack. Truncating it to the first family silently measures a font that doesn't contain the glyph, and the number looks plausible.
 
 #### The game-score chip is off the STATS rows
 
