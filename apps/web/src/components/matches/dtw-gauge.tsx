@@ -4,7 +4,7 @@ import { abbreviateTeamName } from '@/lib/format'
 import { delayVar, DTW_LANDS_MS, DTW_SWEEP_DELAY_MS, DTW_SWEEP_MS } from '@/lib/motion'
 import { DtwGaugeArc } from './dtw-gauge-arc'
 import { CountUp } from './motion'
-import { confidenceTone, confidenceWord } from './ocr-provenance-footer'
+import { confidenceTone } from './ocr-provenance-footer'
 
 // Rail module — Deserve to Win. Replaces the full-width `possession-edge.tsx`
 // readout, which was built before the Phase 2 regrid and overflowed the 299px
@@ -16,14 +16,19 @@ import { confidenceTone, confidenceWord } from './ocr-provenance-footer'
 // the disclosure, where an input the match never captured is shown as an
 // excluded row rather than quietly dropped.
 //
-// The disclosure is a native `<details>`, so the caret flips without client JS
-// (the prototype's `+` never flipped; the review flagged it).
+// DESIGN OF RECORD: `Game sheet prototype layout (1)/Game Sheet copy.dc.html`
+// lines 657-730 — the REVISED file, not the plain `Game Sheet.dc.html` this
+// module was first built from. The copy file's DtW is an a11y/legibility pass:
+// a 12px type floor (no 10/11px anywhere), the opponent drawn in `--opp` /
+// `--opp-2` rather than neutral grey, a borderless verdict line, and the
+// disclosure promoted to a full-width `wire-cta` box. Two of its details are
+// deliberately NOT ported — see the notes at `ContributorBlock`.
 //
-// Motion (Phase 12): the gauge computes a verdict rather than celebrating one.
-// A single front sweeps the arc while both percentages count up and the needle
-// rides it; the winning number blooms once as it lands, then the verdict badge
-// arrives last. The arc lives in `dtw-gauge-arc.tsx` (client, for the needle);
-// everything here stays a server component.
+// Motion (Phase 12) is preserved on top of the new skin: a single front sweeps
+// the arc while both percentages count up and the needle rides it; the winning
+// number blooms once as it lands, then the verdict arrives last. The arc lives
+// in `dtw-gauge-arc.tsx` (client, for the needle); this stays a server
+// component.
 
 interface DtwGaugeProps {
   edge: PossessionEdge
@@ -83,60 +88,56 @@ export function DtwGauge({ edge, opponentName, scoreFor, scoreAgainst }: DtwGaug
           ? `${sideLabel(verdict)} deserved the win`
           : `${sideLabel(verdict)} should have won`
 
+  // The prototype only mocks the aligned state (green). Generalised: the model
+  // agreeing with the scoreboard is a win-coloured statement, disagreeing with
+  // it is the same amber the rest of the page uses for "look closer", and a
+  // coin flip asserts nothing so it stays neutral.
+  const verdictColor =
+    verdict === 'coin'
+      ? 'text-fg-4'
+      : aligned
+        ? 'text-[var(--color-win)]'
+        : 'text-[var(--color-otl)]'
+
   const contributors = buildContributors(edge)
   const coverage = modelCoverage(contributors)
 
   return (
     <section>
       <div className="gs-rise broadcast-panel-soft relative overflow-hidden">
-        <span aria-hidden className="ticker-strip ticker-strip-thin absolute inset-x-0 top-0" />
         <span aria-hidden className="gs-wipe" />
 
-        <div className="flex flex-col gap-2.5 px-3.5 pb-3.5 pt-3">
-          <div className="flex flex-col gap-0.5">
-            <div className="flex items-baseline gap-2">
-              <h2 className="font-condensed text-[11px] font-extrabold uppercase tracking-[0.18em] text-fg-3">
-                <span aria-hidden className="pr-1 text-accent">
-                  ▰
-                </span>
-                Deserve to Win
-              </h2>
-              <ConfidenceChip coverage={coverage} contributors={contributors} />
-            </div>
-            <p className="font-condensed text-[10px] uppercase tracking-[0.12em] text-fg-3">
-              Weighted team totals · {edge.inputs.shots.source === 'ocr' ? 'OCR shots' : 'EA shots'}
-            </p>
+        <div className="flex flex-col gap-[11px] px-3.5 pb-3.5 pt-3">
+          <div className="flex items-baseline gap-2">
+            <h2 className="font-condensed text-[12px] font-semibold uppercase tracking-[0.16em] text-fg-4">
+              <span aria-hidden className="pr-1 text-fg-5">
+                ▰
+              </span>
+              Deserve to Win
+            </h2>
+            <ConfidenceChip coverage={coverage} contributors={contributors} />
           </div>
 
-          <div className="flex items-end justify-between gap-2 pt-0.5">
+          <div className="flex items-end justify-between gap-2">
             <SidePct side="bgm" label={BGM_LABEL} pct={bgmPct} verdict={verdict} />
             <SidePct side="opp" label={oppAbbrev} pct={oppPct} verdict={verdict} />
           </div>
 
-          <DtwGaugeArc bgmPct={bgmPct} verdict={verdict} />
+          <DtwGaugeArc bgmPct={bgmPct} />
 
           <div className="flex flex-col items-center gap-1.5">
-            {/* The conclusion, arriving last: it rises in just after the
-                needle rests, with a single border flare. A coin flip gets the
-                entrance but no flare — "too close to call" is not a verdict to
-                mark. */}
+            {/* The conclusion, arriving last: it rises in just after the needle
+                rests. The prototype's border-glow flare went with the border —
+                a box-shadow on a borderless line reads as a floating halo. */}
             <span
-              className={`gs-block-rise ${verdict === 'coin' ? '' : verdict === 'bgm' ? 'gs-flare-accent' : 'gs-flare-opp'} border px-3 py-[5px] text-center font-condensed text-[10px] font-black uppercase tracking-[0.2em] ${verdictBadgeClass(verdict)}`}
+              className={`gs-block-rise text-balance py-0.5 text-center font-condensed text-[12px] font-black uppercase tracking-[0.2em] ${verdictColor}`}
               style={delayVar(DTW_LANDS_MS + 50)}
             >
               {verdictText}
             </span>
-            <ResultLine
-              edgeDelta={edgeDelta}
-              actual={actual}
-              actualLabel={actual === 'bgm' ? BGM_LABEL : oppAbbrev}
-              scoreFor={scoreFor}
-              scoreAgainst={scoreAgainst}
-              aligned={aligned}
-            />
           </div>
 
-          <Disclosure contributors={contributors} oppAbbrev={oppAbbrev} />
+          <Disclosure contributors={contributors} />
         </div>
       </div>
     </section>
@@ -156,9 +157,12 @@ function SidePct({
   pct: number
   verdict: Verdict
 }) {
-  const leads = verdict === side
-  const labelColor = leads ? sideColorClass(side) : 'text-fg-3'
-  const valueColor = leads ? sideColorClass(side) : 'text-fg-3'
+  // Colour is now fixed per side, not per verdict: this pair is one quantity
+  // split in two, so BGM is always the accent and the opponent is always their
+  // resolved colour. Which side is ahead is carried by the numbers, the arc
+  // split and the verdict line.
+  const labelColor = side === 'bgm' ? 'text-accent' : '[color:var(--opp-2)]'
+  const valueColor = side === 'bgm' ? 'text-accent' : '[color:var(--opp)]'
   const align = side === 'bgm' ? 'items-start' : 'items-end'
 
   // The opponent number counts DOWN from 100 while BGM counts up from 0, so the
@@ -167,23 +171,24 @@ function SidePct({
 
   // Only the winning side blooms, and only once. A coin-flip verdict blooms
   // nothing — there is no conclusion to mark.
+  const leads = verdict === side
   const bloomClass = leads ? (side === 'bgm' ? 'gs-bloom-accent' : 'gs-bloom-opp') : ''
 
   return (
     <div className={`flex min-w-0 flex-col ${align}`}>
       <span
-        className={`font-condensed text-[10px] font-extrabold uppercase tracking-[0.2em] ${labelColor}`}
+        className={`font-condensed text-[12px] font-extrabold uppercase tracking-[0.2em] ${labelColor}`}
       >
         {label}
       </span>
       <span
         className={`${bloomClass} font-condensed text-[38px] font-black leading-[0.9] tabular-nums ${valueColor}`}
         style={
-          // The resting red shadow stays BGM-only, as before. The bloom
-          // keyframe's `both` fill supersedes it while running and settles on
-          // its own resting glow; under reduced motion the animation is gone
-          // and this inline value is what paints.
-          leads && side === 'bgm'
+          // The resting red shadow is BGM-only and unconditional, as the
+          // prototype draws it. The bloom keyframe's `both` fill supersedes it
+          // while running and settles on its own resting glow; under reduced
+          // motion the animation is gone and this inline value is what paints.
+          side === 'bgm'
             ? { ...delayVar(DTW_LANDS_MS), textShadow: '0 0 22px rgba(232,65,49,0.30)' }
             : leads
               ? delayVar(DTW_LANDS_MS)
@@ -199,50 +204,9 @@ function SidePct({
         >
           {pct.toFixed(1)}
         </CountUp>
-        <span className="font-condensed text-[18px] text-fg-3">%</span>
+        <span className="font-condensed text-[18px] text-fg-5">%</span>
       </span>
     </div>
-  )
-}
-
-function ResultLine({
-  edgeDelta,
-  actual,
-  actualLabel,
-  scoreFor,
-  scoreAgainst,
-  aligned,
-}: {
-  edgeDelta: number
-  actual: Side | 'tie'
-  actualLabel: string
-  scoreFor: number
-  scoreAgainst: number
-  aligned: boolean
-}) {
-  // Winner-first, unlike the BGM-left hero scorebug: this line names the team
-  // out loud, so "NA won 4–5" (BGM-first) would read as NA winning with four.
-  const hi = Math.max(scoreFor, scoreAgainst)
-  const lo = Math.min(scoreFor, scoreAgainst)
-  const outcome =
-    actual === 'tie'
-      ? `Tied ${String(scoreFor)}–${String(scoreAgainst)}`
-      : `${actualLabel} won ${String(hi)}–${String(lo)}`
-
-  return (
-    <span
-      className={`text-balance text-center font-condensed text-[10px] font-bold uppercase tracking-[0.12em] tabular-nums ${
-        aligned ? 'text-fg-3' : 'text-[var(--color-otl)]'
-      }`}
-    >
-      Edge{' '}
-      <b className="font-black text-fg-2">
-        {edgeDelta >= 0 ? '+' : '−'}
-        {Math.abs(edgeDelta).toFixed(1)}
-      </b>{' '}
-      · {outcome}
-      {aligned ? null : ' — DtW disagrees'}
-    </span>
   )
 }
 
@@ -260,7 +224,7 @@ function ConfidenceChip({
       ? 'text-[var(--color-win)]'
       : tone === 'warn'
         ? 'text-[var(--color-otl)]'
-        : 'text-fg-3'
+        : 'text-fg-4'
   const tooltip =
     missing.length > 0
       ? `Share of the full Deserve-to-Win model this match supplied. Missing: ${missing.join(', ')}.`
@@ -269,63 +233,56 @@ function ConfidenceChip({
   return (
     <span
       title={tooltip}
-      className={`ml-auto cursor-help font-condensed text-[10px] font-bold uppercase tracking-[0.14em] tabular-nums ${toneClass}`}
+      className={`ml-auto cursor-help font-condensed text-[12px] font-bold uppercase tracking-[0.14em] tabular-nums ${toneClass}`}
     >
       <span aria-hidden className="gs-dot-breathe pr-1">
         ●
       </span>
-      {confidenceWord(coverage)} {coverage.toFixed(2)}
+      {coverage.toFixed(2)}
     </span>
   )
 }
 
 // ─── Where the edge came from ─────────────────────────────────────────────────
 
-function Disclosure({
-  contributors,
-  oppAbbrev,
-}: {
-  contributors: Contributor[]
-  oppAbbrev: string
-}) {
+function Disclosure({ contributors }: { contributors: Contributor[] }) {
   const weighted = contributors.filter((c) => c.weight > 0)
   const excluded = contributors.filter((c) => c.weight === 0)
 
   return (
     <details className="group border-t border-border-subtle pt-2.5">
-      <summary className="flex cursor-pointer list-none items-center gap-1.5 font-condensed text-[10px] font-bold uppercase tracking-[0.14em] text-fg-3 [&::-webkit-details-marker]:hidden">
-        Where the edge came from
-        <svg
+      {/* `wire-cta` from the prototype: charcoal box with a neutral resting
+          border and fg-2 label, going accent on hover. The named `group/cta`
+          keeps the hover scoped to the summary — the default `group` is the
+          <details>, whose open state drives the caret, and hovering the opened
+          panel must not light the button up. */}
+      <summary className="group/cta flex w-full cursor-pointer list-none items-center justify-center gap-[7px] border border-border bg-charcoal px-3 py-2.5 transition-colors hover:border-accent hover:bg-[var(--color-accent-soft)] [&::-webkit-details-marker]:hidden">
+        <span className="whitespace-nowrap font-condensed text-[12px] font-extrabold uppercase tracking-[0.08em] text-fg-2 transition-colors group-hover/cta:text-accent">
+          Where the edge came from
+        </span>
+        <span
           aria-hidden
-          viewBox="0 0 12 12"
-          className="gs-chevron ml-auto h-3 w-3 shrink-0 group-open:rotate-180"
+          className="gs-chevron font-condensed text-[12px] leading-none text-fg-2 group-open:rotate-180 group-hover/cta:text-accent"
         >
-          <path
-            d="M2 4l4 4 4-4"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.8"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-        </svg>
+          ⌄
+        </span>
       </summary>
 
       <div className="flex flex-col gap-2.5 pt-2.5">
         {weighted.map((c) => (
-          <ContributorBlock key={c.id} contributor={c} oppAbbrev={oppAbbrev} />
+          <ContributorBlock key={c.id} contributor={c} />
         ))}
         {excluded.map((c) => (
           <ExcludedRow key={c.id} contributor={c} />
         ))}
-        <div className="flex flex-wrap items-center gap-1.5 border-t border-border-subtle pt-2.5">
-          <span className="font-condensed text-[10px] font-bold uppercase tracking-[0.14em] text-fg-3">
+        <div className="flex flex-wrap items-center gap-[5px] border-t border-border-subtle pt-[9px]">
+          <span className="font-condensed text-[12px] font-bold uppercase tracking-[0.14em] text-fg-4">
             Formula
           </span>
           {weighted.map((c) => (
             <span
               key={c.id}
-              className="border border-border px-1.5 py-[1px] font-condensed text-[10px] font-extrabold uppercase tabular-nums text-fg-3"
+              className="border border-border px-1.5 py-0.5 font-condensed text-[12px] font-extrabold uppercase tabular-nums text-fg-3"
             >
               {c.label} {Math.round(c.weight * 100)}
             </span>
@@ -336,27 +293,30 @@ function Disclosure({
   )
 }
 
-function ContributorBlock({
-  contributor,
-  oppAbbrev,
-}: {
-  contributor: Contributor
-  oppAbbrev: string
-}) {
+function ContributorBlock({ contributor }: { contributor: Contributor }) {
   const { share, delta } = contributor
   const bgmLeads = share !== null && share > 0.5
   const oppLeads = share !== null && share < 0.5
 
+  // NOT ported from the prototype, both traceable to its mechanical
+  // `--fg-4` → `--opp-2` recolour rather than to intent:
+  //
+  //   1. Its bars paint the LEADING side accent whichever team that is — the
+  //      hits row (BGM 14, opponent 39) draws the opponent's 74% in BGM red and
+  //      BGM's 26% in the opponent colour. Two rows above, red is BGM. Here the
+  //      accent stays with BGM on every row.
+  //   2. Its delta number is accent even when negative. Kept signed-coloured,
+  //      so a category BGM lost is not printed in BGM's colour.
   return (
     <div className="flex flex-col gap-1">
       <div className="flex items-center gap-1.5">
-        <span className="font-condensed text-[11px] font-black uppercase tracking-[0.06em] text-fg-2">
+        <span className="font-condensed text-[12px] font-black uppercase tracking-[0.06em] text-fg-2">
           {contributor.label}
         </span>
-        <span className="border border-border px-1.5 py-[1px] font-condensed text-[10px] font-extrabold tabular-nums text-fg-3">
+        <span className="border border-border px-[5px] py-px font-condensed text-[12px] font-extrabold tabular-nums text-fg-3">
           {Math.round(contributor.weight * 100)}%
         </span>
-        <span className="ml-auto font-condensed text-[11px] font-extrabold tabular-nums text-fg-3">
+        <span className="ml-auto font-condensed text-[12px] font-extrabold tabular-nums text-fg-3">
           <b className={bgmLeads ? 'text-accent' : ''}>{contributor.bgmDisplay}</b> –{' '}
           <b className={oppLeads ? '[color:var(--opp)]' : ''}>{contributor.oppDisplay}</b>
         </span>
@@ -378,12 +338,12 @@ function ContributorBlock({
           />
           <span
             className={`gs-bar-on-open gs-bar-on-open-right block h-full ${oppLeads ? 'gs-flare-on-open-opp' : ''}`}
-            style={{ width: `${(100 - share * 100).toFixed(2)}%`, background: 'var(--opp)' }}
+            style={{ width: `${(100 - share * 100).toFixed(2)}%`, background: 'var(--opp-2)' }}
           />
         </div>
       )}
 
-      <span className="font-condensed text-[10px] font-bold uppercase tracking-[0.1em] tabular-nums text-fg-3">
+      <span className="font-condensed text-[12px] font-bold uppercase tracking-[0.1em] tabular-nums text-fg-4">
         {delta === null || share === null ? (
           <>Not captured · model treats as even</>
         ) : (
@@ -394,8 +354,7 @@ function ContributorBlock({
               {delta >= 0 ? '+' : '−'}
               {Math.abs(delta).toFixed(1)}
             </b>{' '}
-            {delta >= 0 ? 'to' : 'from'} DtW · BGM {(share * 100).toFixed(0)}% ·{' '}
-            {oppAbbrev.toUpperCase()} {(100 - share * 100).toFixed(0)}%
+            {delta >= 0 ? 'to' : 'from'} DtW · BGM {(share * 100).toFixed(0)}%
           </>
         )}
       </span>
@@ -404,15 +363,21 @@ function ContributorBlock({
 }
 
 function ExcludedRow({ contributor }: { contributor: Contributor }) {
+  // The prototype has no excluded row to copy — it mocks a match where every
+  // input landed. Built to the contributor rhythm instead (label row, then
+  // caption row) rather than as one line: at the 12px floor a single row of
+  // "FACEOFF % · — INFO · NOT CAPTURED · EXCLUDED" wraps twice in a 299px rail.
   return (
-    <div className="flex items-center gap-1.5">
-      <span className="font-condensed text-[11px] font-black uppercase tracking-[0.06em] text-fg-3">
-        {contributor.label}
-      </span>
-      <span className="border border-dashed border-border px-1.5 py-[1px] font-condensed text-[10px] font-extrabold uppercase text-fg-3">
-        — info
-      </span>
-      <span className="ml-auto font-condensed text-[10px] font-bold uppercase tracking-[0.1em] text-fg-3">
+    <div className="flex flex-col gap-1">
+      <div className="flex items-center gap-1.5">
+        <span className="font-condensed text-[12px] font-black uppercase tracking-[0.06em] text-fg-4">
+          {contributor.label}
+        </span>
+        <span className="border border-dashed border-border px-[5px] py-px font-condensed text-[12px] font-extrabold uppercase text-fg-4">
+          — info
+        </span>
+      </div>
+      <span className="font-condensed text-[12px] font-bold uppercase tracking-[0.1em] text-fg-4">
         Not captured · excluded
       </span>
     </div>
@@ -420,19 +385,6 @@ function ExcludedRow({ contributor }: { contributor: Contributor }) {
 }
 
 // ─── Derivations ──────────────────────────────────────────────────────────────
-
-function sideColorClass(side: Side): string {
-  return side === 'bgm' ? 'text-accent' : '[color:var(--opp)]'
-}
-
-function verdictBadgeClass(verdict: Verdict): string {
-  if (verdict === 'coin') {
-    return 'border-[var(--color-otl-border)] bg-[var(--color-otl-bg)] text-[var(--color-otl)]'
-  }
-  return verdict === 'bgm'
-    ? 'border-accent/50 bg-accent/10 text-accent'
-    : 'border-[color:var(--opp-line)] bg-[color:var(--opp-soft)] [color:var(--opp)]'
-}
 
 /**
  * Share of the full model (`CANONICAL_WEIGHTS`) this match could actually feed.

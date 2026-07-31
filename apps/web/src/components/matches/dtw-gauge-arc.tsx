@@ -22,10 +22,7 @@ const CY = 120
 const R = 96
 const NEEDLE_LEN = 86
 
-type Side = 'bgm' | 'opp'
-type Verdict = Side | 'coin'
-
-export function DtwGaugeArc({ bgmPct, verdict }: { bgmPct: number; verdict: Verdict }) {
+export function DtwGaugeArc({ bgmPct }: { bgmPct: number }) {
   const clamped = Math.max(0, Math.min(100, bgmPct))
   // bgmPct=100 → 0° (right), bgmPct=0 → 180° (left)
   const angDeg = 180 - 1.8 * clamped
@@ -35,10 +32,11 @@ export function DtwGaugeArc({ bgmPct, verdict }: { bgmPct: number; verdict: Verd
   const tipX = (CX + NEEDLE_LEN * Math.cos(ang)).toFixed(2)
   const tipY = (CY - NEEDLE_LEN * Math.sin(ang)).toFixed(2)
 
-  // Same rule as the Team Stats bars: the leading side takes its saturated
-  // team colour, the trailing side stays present but faded.
-  const bgmSeg = verdict === 'bgm' ? 'var(--color-accent)' : 'rgba(232,65,49,0.30)'
-  const oppSeg = verdict === 'opp' ? 'var(--opp)' : 'var(--opp-line)'
+  // Fixed per side, as the prototype draws it. This is one quantity split in
+  // two, not two competing bars: the accent segment IS BGM's share, so muting
+  // it when BGM trails would make a small red arc mean two different things.
+  const bgmSeg = 'var(--color-accent)'
+  const oppSeg = 'var(--opp-2)'
 
   // Segment durations are shares of one front, so the hand-off at the split
   // point is seamless rather than two fills that happen to abut.
@@ -87,9 +85,9 @@ export function DtwGaugeArc({ bgmPct, verdict }: { bgmPct: number; verdict: Verd
         stroke={oppSeg}
         strokeWidth={22}
       />
-      <line x1={24} y1={120} x2={24} y2={130} stroke="var(--color-fg-4)" strokeWidth={1.2} />
-      <line x1={120} y1={24} x2={120} y2={14} stroke="var(--color-fg-4)" strokeWidth={1.2} />
-      <line x1={216} y1={120} x2={216} y2={130} stroke="var(--color-fg-4)" strokeWidth={1.2} />
+      <line x1={24} y1={120} x2={24} y2={130} stroke="var(--color-fg-5)" strokeWidth={1.2} />
+      <line x1={120} y1={24} x2={120} y2={14} stroke="var(--color-fg-5)" strokeWidth={1.2} />
+      <line x1={216} y1={120} x2={216} y2={130} stroke="var(--color-fg-5)" strokeWidth={1.2} />
       <TickLabel x={24} y={144} text="0%" />
       <TickLabel x={120} y={11} text="50" />
       <TickLabel x={216} y={144} text="100%" />
@@ -118,7 +116,7 @@ function TickLabel({ x, y, text }: { x: number; y: number; text: string }) {
       textAnchor="middle"
       className="font-condensed"
       style={{
-        fontSize: 10,
+        fontSize: 12,
         fontWeight: 800,
         letterSpacing: '0.1em',
         fill: 'var(--color-fg-4)',
