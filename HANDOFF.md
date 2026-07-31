@@ -54,7 +54,17 @@ The `prefers-reduced-motion` block in `globals.css` applied `animation: none !im
 
 Split into two rules: content cues get `animation: none` only; `display: none` is reserved for genuinely decorative overlays (`gs-wipe`, the `::after` flares, the ticker sweep). Every entrance uses `both` fill, so dropping the animation alone leaves elements at their resting style. **Anything added to that block from now on must be sorted into the right half** — the failure mode is invisible unless you actually emulate the media query.
 
-**Motion ported to the lineup:** `gs-rise` + `gs-wipe` on the panel (it was the only module missing the pair box-score/team-stats already had) · attribute bars grow on drawer open (`gs-grow-x`) · boosted segments flare via **`gs-flare-drop`, not `gs-flare-accent`** — the latter forces `position: relative`, which would break the absolutely-positioned boost span · chevron lights accent on row hover · leader star is a STATIC glow (the prototype comments it "no loop") · inset focus ring (outset would clip against the panel's new `overflow-hidden`).
+**Motion ported to the lineup:** `gs-rise` + `gs-wipe` on the panel (it was the only module missing the pair box-score/team-stats already had) · attribute bars grow on drawer open (`gs-grow-x`) · boosted segments flare via **`gs-flare-drop`, not `gs-flare-accent`** — the latter forces `position: relative`, which would break the absolutely-positioned boost span · chevron lights accent on row hover · leader star is a STATIC glow (the prototype comments it "no loop") · inset focus ring (outset would clip against the panel's new `overflow-hidden`) · **R values spin up 0→value over 700ms** as the bars grow, via the existing `CountUp` (which already uses the prototype's ease-out cubic).
+
+#### The lineup auto-walk (`useLineupAutoWalk`)
+
+The prototype's `luAuto` loop, ported. Opens each expandable skater in turn on a **9s dwell** (`lineupRotateSeconds` default), then hands over to the other roster and keeps going. Verified end-to-end: `BGM C → LW → RW → LD → RD → OPP C`, handover at 50s.
+
+**There is no JS timer.** The dwell bar's CSS animation IS the clock — `advance` fires on its `animationend`, and pausing is `animation-play-state: paused`, which preserves elapsed time for free. The prototype ran a `setTimeout` alongside the bar and had to hand-track `_luRemain` on every pause to keep them together; one clock can't drift from itself. `key={step}` on the bar restarts it per advance (the prototype alternated `lu-dwell-a`/`-b` keyframe names for the same reason).
+
+Pauses on hover, **focus** (`onFocusCapture` — the prototype only had mouseenter, so the walk was unpausable by keyboard), offscreen (IntersectionObserver, threshold 0.05) and `document.hidden`. **Any deliberate click ends it permanently** (`luOff` — "any deliberate click hands the panel back to the user"). Disabled outright under reduced motion, matching `luAutoOn() { return on && !this._reduceMotion }` — content that advances on its own is motion however it's drawn.
+
+⚠️ **Scope deviation, deliberate.** The prototype's default scope is `Players + teams + views`, whose last step also auto-flips the LOADOUTS/STATS toggle. That toggle is page-level context backed by the URL (`?view=stats`), so auto-flipping it would rewrite browser history on a timer and change content well outside this panel. Implemented at the middle scope, `Players + teams`. Revisit only if the mode toggle stops being URL-backed.
 
 ---
 
