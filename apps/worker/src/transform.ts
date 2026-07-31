@@ -164,6 +164,46 @@ function extractAggInt(data: Record<string, unknown>, ...keys: string[]): number
 }
 
 /**
+ * Team faceoff % for BGM, derived from the per-player faceoff counters on both
+ * sides. EA's `aggregate.faceofftotal` is never present in production payloads,
+ * so the club-level field this used to read was always absent and
+ * `matches.faceoff_pct` was null for every row.
+ *
+ * `ourWins` and `oppLosses` are two independent measurements of the same
+ * quantity (faceoffs BGM won); likewise `ourLosses` / `oppWins`. They agree on
+ * 167/199 archived matches. Where they disagree it is because a side is missing
+ * player rows — most starkly match 12, where our side has no center row at all,
+ * so summing only our own rows yields 0-3 (winger scraps) against the
+ * opponent centre's 29-20. Missing rows can only ever UNDERCOUNT a side, and
+ * the tables hold no duplicate (match, player) rows that could overcount, so
+ * taking the larger of the two views recovers the true split: 20/49 = 40.82%.
+ *
+ * No minimum-sample floor: low faceoff totals track short games (average max
+ * TOI rises monotonically with faceoff count across the corpus — a 1-faceoff
+ * match averages 154 s of TOI), so they are legitimate, not artefacts.
+ *
+ * Returns null only when neither side recorded a single faceoff.
+ */
+type FaceoffCounters = {
+  faceoffWins?: number | null | undefined
+  faceoffLosses?: number | null | undefined
+}
+
+export function deriveTeamFaceoffPct(
+  ourPlayers: readonly FaceoffCounters[],
+  opponentPlayers: readonly FaceoffCounters[],
+): string | null {
+  const sum = (rows: readonly FaceoffCounters[], key: 'faceoffWins' | 'faceoffLosses') =>
+    rows.reduce((acc, r) => acc + (r[key] ?? 0), 0)
+
+  const wins = Math.max(sum(ourPlayers, 'faceoffWins'), sum(opponentPlayers, 'faceoffLosses'))
+  const losses = Math.max(sum(ourPlayers, 'faceoffLosses'), sum(opponentPlayers, 'faceoffWins'))
+
+  const total = wins + losses
+  return total > 0 ? ((wins / total) * 100).toFixed(2) : null
+}
+
+/**
  * Transform a single player's EA stats into DB-ready form.
  *
  * CONFIRMED:
@@ -448,11 +488,6 @@ export function transformMatch(
   const hitsFor = extractAggInt(ourAgg, 'hits', 'skhits')
   const hitsAgainst = extractAggInt(oppAgg, 'hits', 'skhits')
 
-  const faceoffWins = extractAggInt(ourAgg, 'faceoffwins', 'skfow')
-  const faceoffTotal = extractAggInt(ourAgg, 'faceofftotal')
-  const faceoffPct: string | null =
-    faceoffTotal > 0 ? ((faceoffWins / faceoffTotal) * 100).toFixed(2) : null
-
   // CONFIRMED: 'toa' lives on clubs[clubId], NOT in the aggregate block.
   // (This was a latent bug in the original transform — both ours and opponent
   // returned 0 because they were read from `aggregate[clubId]`.)
@@ -494,6 +529,13 @@ export function transformMatch(
 
   const opponentPlayers: OpponentPlayerStatsPayload[] = Object.entries(opponentPlayersRaw).map(
     ([key, raw]) => transformOpponentPlayer(key, opponentClubId, raw),
+  )
+
+  // Derived here rather than from the club aggregate block: EA omits
+  // `faceofftotal`, so the team rate only exists in the per-player counters.
+  const faceoffPct = deriveTeamFaceoffPct(
+    players.map((p) => p.stats),
+    opponentPlayers,
   )
 
   // EA convention on clubs[clubId].teamSide: "0" = home, "1" = away. Falls back
