@@ -358,11 +358,63 @@ Gate is `showOcrDiagnostics()` in `lib/ocr-diagnostics.ts`, over a new `isCurren
 
 **Open for the operator (not blockers):** (1) the prototype review's **"four disclosures in the rail" (P2)** is still unaddressed — thinning it is a Phase 6–7 redesign decision. (2) `player_match_stats.toi_seconds` is **not per-player ice time** (250 stores 4643 for all four players → "TOI 77:23"); it is rendered by the performer rows AND the Phase 5 drawers, so the fix is one global lib/domain decision, not a per-component patch. (3) Accent `#e84131` (4.40:1) and resolver `--opp` (3.76–4.41) are AA-large-pass / AA-small-miss by the operator's "neutrals only" contrast call — revisiting means a small-text accent ≈ `#f2705e` and/or an `--opp` L floor of ~.62. (4) The 3 now-dead `match-enrichments` queries described above.
 
-### ✅✅ FULL CORPUS OCR PIPELINE COMPLETE 2026-07-31 — Pass-1 → confirm → promote → linkage all drained. Runbook §1–§3 DONE; only §4 (`reconcile-periods`) and HOLD triage remain.
+### ✅✅ FULL CORPUS OCR PIPELINE COMPLETE 2026-07-31 — Pass-1 → confirm → promote → linkage → §4 reconcile → HOLD triage ALL drained. Runbook §1–§4 DONE; triage DIAGNOSED (fix not yet written).
 
-**End state, all verified:** confirm queue `101 confirmed / 29 rejected / 0 pending` · promote drain **exited rc=0 at 04:55:57 after 5 h 05 m**, 55/55 videos, **85 matches graded, 0 failures** · linkage sweep applied (**85 matches → runs 2063–2147**) · **both §3 invariants = 0**.
+**End state, all verified:** confirm queue `101 confirmed / 29 rejected / 0 pending` · promote drain **exited rc=0 at 04:55:57 after 5 h 05 m**, 55/55 videos, **85 matches graded, 0 failures** · linkage sweep applied (**85 matches → runs 2063–2147**) · **both §3 invariants = 0** · **§4 promote applied: 76 per-period rows across 19 matches** (below) · **HOLD triage complete — classes 2 and 3 root-caused to ONE defect** (below).
 
-▶️ **NEXT SESSION START HERE:** (1) §4 wrap — `reconcile-periods --all` to see what became promotable, then `--match N --promote` per operator decision. (2) Triage the HOLD queue **by reason string, not by count** (see the three classes below). Nothing is blocked; nothing is in flight.
+▶️ **NEXT SESSION START HERE:** implement the column-segmentation repair described in the HOLD-triage entry immediately below. It is a bounded Python change in `parsers.py` with the disambiguator already in-tree. Nothing is blocked; nothing is in flight.
+
+#### ✅ HOLD TRIAGE COMPLETE 2026-07-31 — classes 2 + 3 are ONE defect: box-score COLUMN SEGMENTATION, not digit OCR
+
+**Class 1 (50 × `no OCR final read`, timestamp-only): CLOSED, no action, do not revisit.** Benign by construction as previously recorded.
+
+**Classes 2 and 3 were hypothesized as two different failures. They are the same one.** The defect is in box-score **table header detection / column alignment** — `header_columns` drives every cell's placement ([parsers.py:1239-1241](tools/game_ocr/game_ocr/parsers.py#L1239-L1241)), so a bad header row misaligns the whole table. Four independent pieces of evidence from `ocr_extraction_fields`:
+
+1. **Garbage header labels prove header detection fails:** alongside good `1ST/2ND/3RD/OT/TOT` the corpus emits `period.1.`, `period.L01`, `period.S0` (vs `period.SO`), `period..`, and on 618 a phantom `period.LT RT` whose value is literally `"1 0 TOTAL SHOTS"`.
+2. **Whole rows collapse into one cell.** Match 1040 `period.1.` reads away `"1 1 0 0 0"` (=2) and home `"0 1 0 0 0"` (=1) — **the correct 2–1 final is present in the raw OCR**, merely never split into columns.
+3. **The TOT column locks onto the adjacent TOTAL SHOTS table.** Exact hits on the correct side, against `matches.shots_*`: 1040 away `"2 2"`=22=`shots_for` · 1092 home `"2 5"`=25=`shots_for` · 2682 home `"2 0"`=20=opponent's shots. This is what every two-digit "score" actually is.
+4. **Genuine two-digit scores are emitted space-separated and nulled by `parse_int`.** Match 618 home `"1 0"` = 10 = the true score (per-period 3+3+4 = 10 ✓). Corpus-wide the pattern is large: **129 `period.TOT` fields across 33 matches** are `uncertain` matching `^[0-9]( [0-9])+$`, vs 304 clean `ok`.
+
+**⚠️ Both previously-recorded leads are DEAD — do not re-run them.**
+
+- **"OT winners ⇒ acc=0.5" is wrong.** Match 1092's correct values (4 and 5) were **both read correctly**, one frame each, and lost the vote to garbage. Not an OT/period-selection bug.
+- **"Early-ended games ⇒ legitimately partial box score" is wrong.** Match 1091 (the 8-min game) reads away 1,7 / home 0,1 against a true 3–0 — no truncation story fits. Just bad reads.
+- **Real aggravating factor: no vote quorum.** Cells carry only **1–3 frames**, so majority-vote cannot outvote a single garbage read. Compare the clean PASS control 1039 (away `4`×4, home `0`×4).
+
+**🔧 THE FIX SEAM — the disambiguator is already in-tree and currently wasted.** [parsers.py:1276-1306](tools/game_ocr/game_ocr/parsers.py#L1276-L1306) already computes periods-sum vs TOT, but only appends a **warning string**, and it `continue`s when TOT is `None` ([parsers.py:1286](tools/game_ocr/game_ocr/parsers.py#L1286)) — which is exactly the 618 no-read case. Promote it from warning to repair: when periods 1..6 all read and TOT is null-or-disagreeing, adopt the period sum.
+**🚨 Do NOT "fix" this by blindly joining spaced digits** — `"2 2"` would become 22, a shot count, converting a null into a confidently-wrong final. Any join MUST be gated on the period sum corroborating.
+
+**Verified yield (queried live, not estimated) — 3 rescuable now with no re-OCR:** per-period rows already sum to exactly the API final: **618** = 10–1 ✓ · **1040** = 2–1 ✓ · **2657** = 3–2 ✓ (all already `reviewed`).
+**The other 6 need re-OCR, not a parser fix** — their whole period table locked onto the shots region, so there is no correct value to recover: `1038` periods 7–2 vs API 3–0 · `1091` 1–1 vs 3–0 · `1092` 15–14 vs 4–5 · `2666` 13–7 vs 1–3 · `2671` 8–9 vs 3–4 · `2682` 7–8 vs 1–4.
+
+**✅ No live data corruption — the review gate holds.** All 6 bad matches' rows are `pending_review`, and [match-enrichments.ts:27](packages/db/src/queries/match-enrichments.ts#L27) admits OCR rows only at `reviewStatus='reviewed'`. Wrong data is written but **not published**, exactly as "flag-don't-purge" intends.
+
+#### ✅ §4 `reconcile-periods` WRAP COMPLETE 2026-07-31 — 76 rows / 19 matches promoted, rc=0
+
+`reconcile-periods --all --promote` on the live DB. **52 matches carry OCR per-period rows** (was 4 pre-corpus):
+**22 auto-promotable** · **15 flagged** (passed the gate, periods don't reconcile → real review queue) ·
+**15 review-but-not-flagged** (already queued on their own gate verdict — deliberately no duplicate task).
+
+`match_period_summaries` verified before → after: `pending_review` **192 rows / 49 matches → 116 / 30**;
+`reviewed` **12 rows / 3 matches → 88 / 22**. Exactly the +76 / +19 the CLI reported. The 3 that were
+already promoted (250/463/972) were untouched. **No match's verdict moved** — `--promote` only flips
+`pending_review → reviewed`, and only where `periodCoverage=1 && periodAccuracy=1` non-vacuously.
+
+- **Promoted (22 total, incl. the 3 prior):** 250, 463, 473, 474, 606, 608, 618, 970, 972, 979, 1039,
+  1040, 1042, 1089, 1090, 1093, 2402, 2655, 2657, 2669, 2677, 2688.
+- **Flagged review queue (15) — needs a human or a clean re-OCR:** 563, 564, 617, 973, 974, 1092, 2397,
+  2656, 2659, 2661, 2665, 2670, 2674, 2675, 2682. Reasons split into `periodAccuracy=0/0.5` (periods
+  don't sum to the API final) and `coverage 0.5–0.75` (a period's goals unread). **2674 is a second
+  VACUOUS case like 972** — one period carries the entire final, the rest scoreless; the sum test proves
+  nothing there. These matches still publish their (correct) final; only the breakdown is withheld.
+- **🔑 FREE CROSS-CHECK FOR THE HOLD TRIAGE — §4 already narrows class 2.** Two of the six
+  `TOT-row final disagrees` HOLDs, **1040 (acc=0) and 2657 (acc=0.5)**, have **fully reconciling
+  per-period rows** — their periods sum exactly to the API final while their TOT-row read does not.
+  That points the defect at the **TOT-row read/selection, not the periods**, and is consistent with the
+  recorded OT-winner lead. **618**, one of the three class-3 `no final read despite boxscore-backed`
+  cases, is likewise promotable — its periods read fine, only the final extraction produced nothing.
+  Start triage there; the remaining class-2 matches (1038, 1091, 2682) all show `periodAccuracy=0`,
+  i.e. periods AND final disagree, which is a different (probably genuine-misread) failure.
 
 Preflight §0 first (post-reboot: check `/tmp/ingest-cache` symlink → `~/ingest-cache`). Optional: `.wslconfig` memory raise (**3 OOM crashes this week**; operator decides RAM trade-off vs NHL26).
 
