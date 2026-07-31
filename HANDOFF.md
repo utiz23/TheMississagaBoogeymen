@@ -6,7 +6,7 @@
 
 **Design of record:** `Game sheet prototype layout (1)/Game Sheet copy.dc.html` (the _copy_ file again — its lineup section is the revised one).
 
-**Commits:** `0adc420` reduced-motion fix · `c0ef69d` bio recovery · `0003bcd` lineup port · `e2bcba8` auto-walk + count-up · `43fd27e` walk both views / OCR gate / kicker removal · `5c5f0f9` team switching restored · `af73a18` diagnostics gate.
+**Commits:** `0adc420` reduced-motion fix · `c0ef69d` bio recovery · `0003bcd` lineup port · `e2bcba8` auto-walk + count-up · `43fd27e` walk both views / OCR gate / kicker removal · `5c5f0f9` team switching restored · `af73a18` diagnostics gate · `ed9dfdd` row selection + GS chip removal.
 
 **Files:** `components/matches/lineup/*` (all 6) · `components/matches/game-sheet-mode.tsx` · `components/matches/action-tracker/index.tsx` · **NEW** `components/ui/platform-badge.tsx` · `lib/head-to-head.ts` + test · `lib/lineup-confidence.ts` + test · `lib/auth.ts` · **NEW** `lib/ocr-diagnostics.ts` · `globals.css` · `app/games/[id]/page.tsx` · `.env.example` · `packages/db/src/queries/match-lineups.ts` · **NEW** `packages/db/src/lib/loadout-bio-recovery.ts` + test · `packages/db/src/lib/normalize-build-class.ts` (moved from worker).
 
@@ -84,6 +84,20 @@ Pauses on hover, **focus** (`onFocusCapture` — the prototype only had mouseent
 #### The drawer kicker is gone
 
 The `POS · PERSONA` line at the head of each drawer was removed — the open row sits directly above the panel and already names the player. `DrawerKicker`, `personaOf` and the `posLabel` prop went with it.
+
+#### ⚠️ A `<button>` row can't be text-selected — and fixing that re-fires the click
+
+Dragging across a lineup row selected nothing, so gamertags/builds/bio lines couldn't be copied. **Browsers suppress text selection inside `<button>` regardless of what `user-select` computes to** — it was already `auto`. `select-text` on the row opts back in.
+
+That alone trades one bug for another: **a drag that ends inside a button still fires a `click`**, so highlighting a gamertag toggled the drawer under it. The row's click handler now bails when a live selection exists. That test is safe because a plain click has already collapsed any selection by the time `click` fires (mousedown does it), and keyboard activation never creates one.
+
+Both halves are needed; either alone is broken. Any other clickable-row surface on the site has the same latent problem — the roster table and the event list are `<button>`-based too.
+
+Verified all five paths: drag selects without toggling · click opens · click closes · Enter opens · hover highlight unaffected.
+
+#### The game-score chip is off the STATS rows
+
+`GS 14.28` removed. That made `slot.gs`, the `scores` prop and `findScore()` dead, so they went too — `allTeamScores` stays in `page.tsx` because Top Performers still uses it, which is where the game-score model belongs anyway.
 
 #### 🔒 The OCR provenance footers are ADMIN-ONLY now — they are not gone
 
