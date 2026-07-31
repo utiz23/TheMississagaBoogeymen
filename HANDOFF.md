@@ -2,6 +2,30 @@
 
 ## Active State
 
+### ✅ GAME SHEET HEADER PORTED 2026-07-30 (`8be5247`) — sub-nav rebuilt + scorebug polished to the prototype
+
+**Design of record:** `Game sheet prototype layout (1)/Game Sheet copy.dc.html` — the same _copy_ file the navbar came from. The old sub-nav had been built from the earlier `Game Sheet.dc.html`, which is why it was plain text links; **always check which of the two files a game-sheet element came from before "polishing" it.**
+
+**Files:** `components/matches/game-top-bar.tsx` (rebuilt) · `hero-card.tsx` (polished) · `games/[id]/page.tsx` (passes `seasonNumber`) · `games/[id]/loading.tsx` (skeleton re-boxed to the real 44px) · `globals.css` (ramp + ticker scope + bloom).
+
+**Sub-nav now:** bordered `← ALL GAMES` chip (accent arrow; hover → accent border + fg-1 + surface-raised) · gradient hairline · one segmented `PREV | NEXT` box with a 1px internal divider, each side a two-line stack naming the game (`GAME 63 · VS SNP`). Metrics measured against the prototype: chip 12px/800 at .2em, 44px min-height, 14px padding; labels .16em, values .1em at fg-2, arrows 15px/900. **The adjacent game numbers need no query** — `seasonNumber` is this match's chronological position, so prev/next are `seasonNumber ∓ 1`.
+
+**Hero now:** 12px type floor throughout, and **result tags are SEMANTIC, not per-team** — emerald WIN, amber OTL, muted LOSS, 26×3 bar mirrored to the outside edge on the opponent side. That is the rule in `Opponent Colour Rules.dc.html` ("result state is read from the WIN / LOSS / OTL pill, never from which colour is brighter"), which the previous accent/`--opp` bars contradicted. Bars are flat; the winning score stays the only element that glows, now at the design system's exact `--glow-accent-soft`.
+
+**Three durable things:**
+
+1. **The neutral ramp changed globally** (operator decision, "new global standard"): `fg-4 #8e8b8c` · `fg-5 #7f7c7d` · `fg-6 #6e6b6c`, the prototype's re-tuned values. Everything carrying text now clears AA 4.5:1 at 12px, so **fg-4/fg-5 are legitimate text colours** — this retires the Phase 10 "neutral text bottoms out at fg-3" rule the whole game sheet was written against (comment in `globals.css` updated). ⚠️ **The new fg-6 is the old fg-4**, so decorative hairlines/dots stepped up one stop (3 usages, all decorative — checked).
+2. **`matches.result` is BGM-relative** and only encodes OUR overtime loss. The opponent's OTL has to be derived from the win **plus** the match-level `overtime` flag — without that every win printed "OTL" on the other side. Any future mirrored-result UI hits this.
+3. **The ticker sweep is now opt-in per element** (`.ticker-strip-hero`, prototype values: white 34%, 40% wide, 4.5s) instead of hitting every `.ticker-strip` inside `.game-sheet`. The DtW gauge's thin strip therefore no longer sweeps — intentional, the prototype runs this loop on the scorebug only.
+
+**Verified:** in-browser at 1280 and 390 across all three result states (2697 win · 2664 OTL · 2692 loss), reading computed styles back from the DOM rather than by eye; `/roster` checked for ramp fallout; typecheck + eslint + prettier clean. **One real defect caught that way:** at 390 the 26px bar overflowed the opponent column and overlapped the score by 9px → bars are `sm:`-only now (25px clearance).
+
+**What's next / open:**
+
+- ⬜ **Global 12px font floor is NOT done.** The operator asked for it; only the header got there. Census at commit time: **201 occurrences across 50 files** — 132× `text-[10px]`, 43× `text-[11px]`, 24× `text-[9px]`, 2× `text-[8px]`; 21 of the 50 files are game-sheet components, the rest is every other route. The game sheet's own computed floor is still 9px. Mechanical, but it grows pills/table headers/tracker labels everywhere, so it wants its own session and its own visual pass.
+- ⬜ **`formatMatchDate` drops the year** ("JUN 25 · 6:45 PM"); the prototype shows "MAY 8, 2026 · 6:56 PM". Shared formatter, so it is a site-wide decision, not header markup. Undecided.
+- ⚠️ **Working-tree drift at commit time.** The tree held ~70 modified files (worker, docs, tools, research, lineup components) plus an untracked `components/ui/platform-badge.tsx` — none of it from this session, and none of it committed. `globals.css` is the one shared file: the commit carries three additive tokens from that in-flight lineup work (`--color-accent-soft`, `--color-accent-line`, `--pos-neutral`) because they could not be split out without an interactive stage. **Whoever owns that work still has it uncommitted.**
+
 ### ✅ UNIVERSAL NAVBAR PORTED 2026-07-30 (`b989480`) — the game-sheet prototype's nav is now the site-wide nav
 
 **Design of record:** `Game sheet prototype layout (1)/Game Sheet copy.dc.html` (the _copy_ file — its nav is the revised one, with a burger/drawer and a centred pill row; plain `Game Sheet.dc.html` has the older underline-tab nav. Don't port from the wrong file).
