@@ -2,6 +2,74 @@
 
 ## Active State
 
+### ✅ LINEUP MODULE PORTED 2026-07-30 — prototype visuals + single-subject drawer + motion, and the loadout bio data recovered
+
+**Design of record:** `Game sheet prototype layout (1)/Game Sheet copy.dc.html` (the _copy_ file again — its lineup section is the revised one).
+
+**Commits:** `fix(web)` reduced-motion · `feat(db)` bio recovery · `feat(web)` lineup port.
+
+**Files:** `components/matches/lineup/*` (all 6) · **NEW** `components/ui/platform-badge.tsx` · `lib/head-to-head.ts` + test · `lib/lineup-confidence.ts` + test · `globals.css` (reduced-motion block only) · `packages/db/src/queries/match-lineups.ts` · **NEW** `packages/db/src/lib/loadout-bio-recovery.ts` + test · `packages/db/src/lib/normalize-build-class.ts` (moved from worker).
+
+**What the module looks like now:** 12px type floor throughout (the row ran 9–10.5px, the single biggest reason it didn't read like the prototype) · de-rainbowed POS cell (`--pos-neutral #8b93a7`, one neutral for all six slots) · build-mix pills back in the header (`PLY · PWF · SNP · 2× PMD`, first-appearance in canonical roster order) · platform badge restored next to each gamertag · reference build as the dimmed `· C. CAUFIELD` suffix · 46px unframed X-Factor icons · team switch as a TINT thumb with an accent-coloured label (not a solid accent fill with white text) · stat tiles at the prototype's exact `buildStatTiles()` spec (PTS 27px/900, G/A 20px/700, SOG/HIT/BLK 20px/600).
+
+---
+
+#### ⚠️ THE HEAD-TO-HEAD DRAWER WAS DELIBERATELY RETIRED — do not "re-fix" it
+
+The drawer is **single-subject**: it shows the row you tapped, whichever roster the team switch is on. `buildAttributeCompare` / `buildStatCategories` and the `*Compare*` types are **deleted**; `buildAttributeTables` / `buildStatTables` replace them, and `CompareTable` → `DrawerTable`.
+
+This directly reverses **P0 #1 of `final-review.md`** ("the drawer still isn't a head-to-head… the module's reason to exist"), which Phase 5 had implemented. **Operator decision, 2026-07-30, explicit.** The `· Scouting` half of the title went with it — the module is now just `Lineup`, i.e. the review's other option ("retire the framing… call it what it is — a roster inspector"). Anyone reading the review cold will think this is a regression. It isn't.
+
+---
+
+#### 🔴 THE LOADOUT BIO DATA WAS NEVER MISSING — the extractor has no ROIs for it
+
+**Root cause.** `tools/game_ocr/game_ocr/loadout_evidence.py` emits exactly three open-text fields from the loadout screen — `gamertag`, `persona_raw`, `player_level_raw`. **No ROI for height, weight or handedness.** So the evidence → promotion path that writes `player_loadout_snapshots` has no channel for them:
+
+- **handedness** — NULL on 100% of rows, every match. `lobby_evidence.py` _does_ emit a `handedness` field_key, but the pre-game lobby doesn't display handedness, so `subject.handedness` is always None there. No screen feeds it.
+- **height/weight** — arrive only from `pre_game_lobby_state_2`, whose coverage is partial (4 of match 250's 10 anchors had a height).
+- **reference builds** — the consolidator normalizes `COLECAUFIELD-SNP` to a bare `Sniper` and drops the reference player.
+
+Meanwhile `ocr_extractions.raw_result_json` had it the whole time: **handedness on 157 of match 250's 190 loadout captures**, height on 151, weight on 157, and `player_level.raw_text` carrying the full `P2LVL41`.
+
+**Stopgap (shipped).** `getMatchLineups` votes these out of the stored payloads at read time — plurality over normalized gamertag, the same pooling it already does for X-Factors/attributes. Snapshot values still win where the consolidator captured them; recovery only fills gaps. No OCR data mutated. Match 250: height 4/10 → **10/10**, weight 5/10 → **10/10**, handedness **0/10 → 10/10**, level 7/10 → 9/10, both reference builds back. Bio badge 45% → 100%, confidence 0.91 → **1.00**.
+
+**⬜ THE REAL REPAIR IS STILL OPEN, and it affects every match, not just 250.** Add height/weight/handedness ROIs to `loadout_evidence.py`, bump the extractor version, re-run the evidence pass over the stored frames, then `repromote-loadout`. Decode-bound (~30–45 min/match) and it mutates OCR data, so it wants its own session. Until then the read-time vote is carrying every match.
+
+**Three traps this cost real time on:**
+
+1. **The promoter writes `String(value ?? '')`, so "absent" is an EMPTY STRING, not NULL.** Three of match 250's ten anchors carry `player_level_raw = ''`. A `??` chain treats those as present and never reaches the fallback — the fix needs `blank()`. psql renders `''` and NULL identically, so this is invisible in a query result; check `length(col)`.
+2. **Nulls don't vote, so a single noisy frame wins a plurality by default.** MrHomiecide's level reads blank on 36 captures and `P1LVL17` on exactly one — a naive plurality publishes `P1·L17` as fact off one frame. Hence `MIN_BIO_VOTE_SUPPORT = 2`. His level is still blank on the page and that is CORRECT.
+3. **Garbled gamertags self-isolate.** Normalizing to alphanumeric-lowercase puts `MrHomiecide Evoeni Wan` in its own bucket instead of polluting `mrhomiecide` — noise handling for free, don't "fix" the normalization.
+
+`normalize-build-class.ts` **moved to `@eanhl/db`** (`packages/db/src/lib/`, new `./lib/normalize-build-class` subpath export) so the read path can normalize raw OCR build strings. `apps/worker/src/lib/normalize-build-class.ts` is now a re-export shim; worker call sites are unchanged.
+
+**Not a bug, verified:** silkyjoker85 and StickMenace have **0/23** attribute deltas stored (everyone else 19–22) — the same two players with reference builds. Their Δ column renders blank because it genuinely is.
+
+---
+
+#### 🔴 REDUCED MOTION WAS HIDING THE ENTIRE GAME SHEET (site-wide, pre-existing)
+
+The `prefers-reduced-motion` block in `globals.css` applied `animation: none !important; display: none` to a list that included **content wrappers** — `gs-rise`, `gs-row-in`, `gs-fade-in`, `gs-pop`, `gs-drawer-in`, the bars, the arcs. globals.css is unlayered, so it beat Tailwind's utilities. Measured with `emulateMedia({reducedMotion:'reduce'})`: **body height 3187 → 1400**, no scorebug, all six lineup rows gone, empty timeline, no DtW / box score / team stats. A stack of empty panels.
+
+Split into two rules: content cues get `animation: none` only; `display: none` is reserved for genuinely decorative overlays (`gs-wipe`, the `::after` flares, the ticker sweep). Every entrance uses `both` fill, so dropping the animation alone leaves elements at their resting style. **Anything added to that block from now on must be sorted into the right half** — the failure mode is invisible unless you actually emulate the media query.
+
+**Motion ported to the lineup:** `gs-rise` + `gs-wipe` on the panel (it was the only module missing the pair box-score/team-stats already had) · attribute bars grow on drawer open (`gs-grow-x`) · boosted segments flare via **`gs-flare-drop`, not `gs-flare-accent`** — the latter forces `position: relative`, which would break the absolutely-positioned boost span · chevron lights accent on row hover · leader star is a STATIC glow (the prototype comments it "no loop") · inset focus ring (outset would clip against the panel's new `overflow-hidden`).
+
+---
+
+**Also:** the lineup footer's `Build` badge was reporting `(build + height + weight) / 3` — it read **63%** on a match where every row HAD a build and only the bio fields were patchy, which reads as "the OCR missed builds". Split into `Build` (build-class coverage) + `Bio` (height/weight), both with tooltips.
+
+**Verified:** web + worker + db typecheck · 48/48 db tests (17 new, pinning the vote incl. the single-frame case; DB-free by keeping helpers in `lib/loadout-bio-recovery.ts`) · 29/29 web lib tests · prettier clean · in-browser at 1280 on match 250 across LOADOUTS/STATS × BGM/4L, reading computed styles back from the DOM, plus a reduced-motion pass before and after.
+
+**⚠️ `pnpm format` is repo-destructive here.** It runs prettier over the whole repo and reformatted **52 unrelated files** (classifier weights, OCR fixtures, docs) — 5.5k insertions / 21.9k deletions — which had to be reverted by hand. It also exits non-zero on pre-existing malformed JSON in `docs/calibration/` (shell output prepended to `.json` files). Use `npx prettier --write <paths>` on touched files instead, or narrow the glob.
+
+**What's next:**
+
+- ⬜ **The `loadout_evidence.py` ROI repair** (above) — the one real fix, affects all matches.
+- ⬜ Global 12px font floor still outstanding (see the header entry below); the lineup module is now at 12px, the rest of the site is not.
+- ⬜ `docs/calibration/*.json` are malformed (shell output prepended) and break `pnpm format`.
+
 ### ✅ GAME SHEET HEADER PORTED 2026-07-30 (`8be5247`) — sub-nav rebuilt + scorebug polished to the prototype
 
 **Design of record:** `Game sheet prototype layout (1)/Game Sheet copy.dc.html` — the same _copy_ file the navbar came from. The old sub-nav had been built from the earlier `Game Sheet.dc.html`, which is why it was plain text links; **always check which of the two files a game-sheet element came from before "polishing" it.**
