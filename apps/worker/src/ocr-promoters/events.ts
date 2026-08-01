@@ -38,7 +38,7 @@ import { and, eq, sql as drizzleSql } from 'drizzle-orm'
 import type { PromoterContext } from './index.js'
 import { resolveActorForMatch } from './resolve-identity.js'
 import { findExistingMatchEvent } from './match-events-dedup.js'
-import { resolvePeriod } from './resolve-period.js'
+import { canonicalPeriodLabel, firstLabeledPeriod, resolveEventPeriod } from './resolve-period.js'
 import type { OcrExtractionField } from '../ocr-cli-runner.js'
 
 interface EventRowJson {
@@ -99,7 +99,19 @@ export async function promoteEvents(ctx: PromoterContext): Promise<void> {
     skipped_missing_actor: 0,
     skipped_bad_period: 0,
     skipped_bad_clock_format: 0,
+    /** Rows whose period came from the frame's first header (see resolve-period). */
+    period_from_preceding_header: 0,
+    /** Rows whose period came from the legacy per-period folder name. */
+    period_from_path: 0,
   }
+
+  // The Events screen scrolls, so rows rendered above the frame's first visible
+  // period header arrive unlabelled (period_number 0 / period_label '?'). The
+  // first labelled row bounds them — computed once per frame, used per row.
+  const firstLabeled = firstLabeledPeriod(events)
+
+  /** Rows dropped for an unresolvable period, kept for the warning below. */
+  const unresolvedPeriodRows: string[] = []
 
   for (const ev of events) {
     if (ev.event_type === 'unknown') {
@@ -117,11 +129,17 @@ export async function promoteEvents(ctx: PromoterContext): Promise<void> {
       stats.skipped_missing_actor++
       continue
     }
-    const periodNumber = resolvePeriod(ev.period_number, sourcePath)
+    const resolved = resolveEventPeriod(ev.period_number, sourcePath, firstLabeled)
+    const periodNumber = resolved.period
     if (periodNumber < 1) {
+      // Nothing in the frame or the path could justify a period. Skip, but keep
+      // the row visible: a silent drop here is what hid match 2661's penalty.
       stats.skipped_bad_period++
+      unresolvedPeriodRows.push(stringValue(ev.raw_text) ?? `(${ev.event_type}, no raw text)`)
       continue
     }
+    if (resolved.basis === 'preceding-header') stats.period_from_preceding_header++
+    if (resolved.basis === 'path') stats.period_from_path++
 
     // Convert Events-screen "remaining" clock to canonical "elapsed" before
     // dedup so rows from Events screen and Action Tracker for the same goal
@@ -177,7 +195,13 @@ export async function promoteEvents(ctx: PromoterContext): Promise<void> {
       const newEvent: NewMatchEvent = {
         matchId,
         periodNumber,
-        periodLabel: ev.period_label || String(periodNumber),
+        // A recovered row's own label is the parser's '?' placeholder, which
+        // would be misleading next to a real period number — store the
+        // canonical screen label instead.
+        periodLabel:
+          resolved.basis === 'payload'
+            ? ev.period_label || String(periodNumber)
+            : (canonicalPeriodLabel(periodNumber) ?? (ev.period_label || String(periodNumber))),
         clock,
         eventType: ev.event_type,
         teamSide,
@@ -273,6 +297,14 @@ export async function promoteEvents(ctx: PromoterContext): Promise<void> {
   }
 
   console.log('[events] stats:', JSON.stringify(stats))
+  if (unresolvedPeriodRows.length > 0) {
+    console.warn(
+      `[events] WARN extraction ${String(extractionId)}: dropped ${String(
+        unresolvedPeriodRows.length,
+      )} row(s) with an unresolvable period (no labelled row in the frame to bound them): ` +
+        unresolvedPeriodRows.map((r) => JSON.stringify(r)).join(', '),
+    )
+  }
 }
 
 async function resolveGameTitleIdFromExtraction(
