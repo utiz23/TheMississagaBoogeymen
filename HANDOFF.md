@@ -265,11 +265,19 @@ Action-tracker events are the worst hit: **72 matches hold OCR events, 2 are pro
 
 ---
 
-### ✅ EVENT TIMELINE PORTED 2026-08-01 — 12px floor, card hover, static GWG strip, ranked assists (UNCOMMITTED)
+### ✅ EVENT TIMELINE PORTED + COMPLETE 2026-08-01 (committed `93d626b`, `fa80f14`, `8615884`)
 
-**Design of record:** `Game sheet prototype layout (1)/Game Sheet copy.dc.html`, the EVENT TIMELINE section; motion guardrails from `Event Timeline Motion Recs.dc.html`. **This was the last unported game-sheet module.**
+**Design of record:** `Game sheet prototype layout (1)/Game Sheet copy.dc.html`, the EVENT TIMELINE section; motion guardrails from `Event Timeline Motion Recs.dc.html`. **This was the last unported game-sheet module — the game-sheet port is now finished end to end.**
 
-**Files:** `components/matches/event-timeline.tsx` (render layer only — `lib/event-timeline.ts` is untouched, its 21 tests still pass) · `app/globals.css` (`.gs-tl-card` + `.gs-tl-gwg`, and `gs-cap-breathe` removed).
+Three commits, in the order the work landed:
+
+| commit    | what                                                                           |
+| --------- | ------------------------------------------------------------------------------ |
+| `93d626b` | the port — 12px floor, card geometry + hover, static GWG strip and caps, A1/A2 |
+| `fa80f14` | the penalty disclosure animation (per-row tracks, staggered both ways)         |
+| `8615884` | the rail height-sync (fill / clip) and the drift rule that keeps it calm       |
+
+**Files:** `components/matches/event-timeline.tsx` (render layer only — `lib/event-timeline.ts` is untouched, its 21 tests still pass) · `components/matches/use-rail-sync.ts` (new) · `app/globals.css` (`.gs-tl-card`, `.gs-tl-gwg`, `.gs-tl-disclosure`; `gs-cap-breathe` removed) · `app/games/[id]/page.tsx` (`data-gs-rail` anchor only).
 
 **What changed**
 
