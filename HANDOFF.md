@@ -2,6 +2,173 @@
 
 ## Active State
 
+### 🔴 THE "STALE ALIAS LEAK" NEVER EXISTED — class G was measuring the review backlog with itself 2026-08-01
+
+**Read this before acting on the entry below it.** The graded-promotion session ran, and the headline finding is that the signal we were going to grade with was broken. **Nothing was promoted; no `review_status` changed.**
+
+**Root cause.** `buildQualityFlags`' class-G check ("resolved to a player NOT in this match's lineup — stale alias leak") defined the lineup as `player_loadout_snapshots WHERE review_status='reviewed'`. Those rows are themselves quarantined — only **40 exist DB-wide**, across 4 matches. For **97 of 101** matches the subquery returned nothing, so every resolution was trivially off-roster and class G fired on **68 matches / 133 flags**. The check was circular: it graded the review backlog while being one of the signals used to decide whether to drain that backlog.
+
+**Ground truth (measured, not inferred): all 4,462 resolved actor/target refs in the DB point at a player who IS in that match's EA-API lineup. Zero genuine off-roster resolutions. Every one of the 68 firings was a false positive.**
+
+Perfect correlation confirms it: of the 4 matches that DO have reviewed loadout anchors (250, 463, 968, 2582), class G fired on **none**; all 68 firings sat among the 97 with zero anchors.
+
+**Fix.** Lineup authority is now EA truth — `player_match_stats` ∪ reviewed loadout snapshots (union, so the reviewed set can only ever _remove_ a false positive). `apps/worker/src/lib/quality-inputs.ts`.
+
+|                           | before   | after                        |
+| ------------------------- | -------- | ---------------------------- |
+| class-G flags / matches   | 133 / 68 | **0 / 0**                    |
+| L2 mean across the 101    | 0.0314   | **0.6283**                   |
+| matches with L2 == 0      | 97       | **29**                       |
+| `overall.pass`, `gate`    | —        | **unchanged on every match** |
+| floors 250 / 463 `layers` | —        | **byte-identical**           |
+
+L2 deducts for "wrong-roster hits", so the phantom was also crushing L2 to zero corpus-wide. Only L2 moved; no layer got worse.
+
+**⚠️ This overturns a documented decision** — `resolve-identity.ts` (~line 205) calls the reviewed-only subset a deliberate "distinct gate, distinct question". The gate was intentional; what it didn't anticipate is the subset going empty corpus-wide, at which point the question stopped being answerable. Don't "restore" it. The resolver's own gate (ALL snapshots + `empty_lineup_passthrough`) was always correct and is untouched — and `backfill-event-actor-resolution` is therefore **safe**, despite nulling out "not in roster" players; it never used the reviewed-only set.
+
+**Second fix, same file.** `buildDownstreamCounts` reported `reviewed = actual` unconditionally for `match_events` / `match_goal_events` / `match_penalty_events`, so **every** match's report claimed its events were 100% reviewed even when all were quarantined. Now filtered (the two detail tables have no `review_status`; they inherit the parent event's). Display-only — L3 scores `actual/expected` and never reads `reviewed` — verified by the floors' `layers` being byte-identical. Floors re-stamped for the two changed values only (250: 96→95, 463: 124→111) rather than regenerated, so unrelated live drift in `screens`/`provenance`/`pending` didn't silently move the bar.
+
+**Verified:** worker suite **496 tests / 492 pass / 0 fail / 4 skipped** (was 494/490 — two new tests in `__tests__/quality-flag-class-g-lineup-authority.test.ts`, which assert the general invariant, not a golden number). `tsc` + Prettier clean. Proof the test bites: on the 8 matches it selects, the old predicate reports 95–124 off-roster refs each; the corrected authority reports 0 on all 8.
+
+#### What this changes about the drain
+
+**Q1 from the entry below is answered — and coverage was never the obstacle.** Verdicts are thin (13 reports over 4 matches vs 101 pending), but grading is _cheap_: `match-quality --match N --json` is match-keyed, needs no run row, and runs in **~2.5 s** — the whole corpus grades in ~4 min. **The memory's `run-quality` blocker is GONE**: all 101 pending matches now have an active decoder run, so [[project_reel_association_gaps]] trap #1 no longer applies.
+
+**Periods are already drained to the policy limit** — this is NOT an un-run promotion step. `reconcile-periods --all`: 52 matches with box scores, **22 reconciled and already at 0 pending rows**; the other 30 sit at `review` (116 rows) and require a human _by design_.
+
+**Post-fix drain sizing for events** (the real backlog — 77 matches with pending event extractions):
+
+|                                                            | matches | event rows |
+| ---------------------------------------------------------- | ------- | ---------- |
+| gate PASS                                                  | 34      | 3,382      |
+| gate PASS **and** zero fail-flags — before the class-G fix | 1       | 96         |
+| gate PASS **and** zero fail-flags — after                  | **6**   | **514**    |
+
+Zero-fail matches overall went 12 → **25**. Remaining _real_ fail classes among gate-PASS: **C** (chevron collisions, 21), **A** (dedup failure, 7), **D** (EA reports PIM but no penalty rows, 7).
+
+**⬜ NEXT SESSION — the drain decision, re-asked on clean numbers.** The operator chose "fix class-G first"; that is done, and it turned out to be a detector bug rather than a data defect, so no event data needed repair. The open call is now whether to (a) promote the 6 gate-PASS + flag-clean matches as a first tranche, (b) work classes C/A/D down first, or (c) build an events-specific reconciliation verdict mirroring `reconcile-periods`. **Still unanswered from below: whether the coverage pill gains a distinct "captured but unreviewed" state** — untouched here deliberately, because a concurrent session is editing `apps/web`.
+
+---
+
+### 🔴 THE MASS-OCR DATA WAS NEVER MISSING — it is quarantined at `pending_review` 2026-07-31 (diagnosis only, NOTHING changed)
+
+**The operator's read was right.** The collection effort worked; the review-promotion step is what never ran. Do not go looking for a capture gap, and do not re-OCR anything on the strength of the games list looking empty.
+
+**Root cause.** Every OCR promoter writes its rows at `review_status = 'pending_review'` by design — `ocr-promoters/box-score.ts:17` calls it a quarantine, `events.ts:195` and `action-tracker.ts:196` do the same. Every UI query filters to `review_status = 'reviewed'` before surfacing. The **only** promotion path for post-game data is the **manual** `ingest-ocr-review-cli.ts`, and it has been run on a handful of matches.
+
+```
+ocr_extractions:  pending_review  25,221
+                  reviewed             694   (2.7%)
+```
+
+**Captured vs. what the site will show** (199 matches, measured 2026-07-31):
+
+| streams | actually captured | displayed after the review gate |
+| ------- | ----------------- | ------------------------------- |
+| 3 of 3  | **50**            | **2**                           |
+| 2 of 3  | 21                | 20                              |
+| 1 of 3  | 30                | 76                              |
+| none    | 98                | 101                             |
+
+Action-tracker events are the worst hit: **72 matches hold OCR events, 2 are promoted** (250 and 463, the pilots). Period box scores: **52 captured, 22 promoted**. Reviewed match ids span 250→2688 for periods, 250→463 for events.
+
+**Why it looked specifically like the POST-GAME data was missing.** Loadouts have an automatic promotion path — `lib/consolidate-loadouts.ts:919` sets `reviewStatus: 'reviewed'` on anchors — and the new coverage query applies **no review gate to loadouts at all** (`queries/ocr-coverage.ts:31-35`, deliberate: `getMatchLineups` treats `reviewed` as row precedence, not admission). Periods and events have neither. So the one stream the operator thought he'd sometimes skipped is the one that self-promotes, and the streams he knows he collected are the ones with no automatic path off the launchpad. The asymmetry is the tell, not a capture pattern.
+
+**⬜ THE FIX IS A SEPARATE SESSION and needs an operator decision first.** A blanket `--auto-approve` over 25k extractions publishes unvetted OCR wholesale — and [[feedback_stale_ocr_data_remedy]] (match 2582) is the standing warning that captured frames can be garbage even when a fixture reads clean. **Recommended: graded promotion** — drive `ingest-ocr-review --batch N --auto-approve --confidence-threshold` off the existing run-quality / match-quality verdicts, batch by batch, leaving failures quarantined for triage.
+
+**Two things to establish before that session:**
+
+1. Do the verdicts already in `ocr_run_quality_reports` cover enough of those 72 event matches to drive promotion, or must the grading be backfilled first (`run-quality --all-runs --emit-row`)?
+2. Should the coverage pill keep mirroring the publication gate (current behaviour — honest about what the page shows) or gain a distinct **"captured but unreviewed"** state, so this backlog is legible instead of indistinguishable from a capture miss?
+
+**This interacts with the open `PASS` calibration question** in the OCR workstream below (item 1): 2675 graded PASS while carrying badly misread per-period rows. If run-quality verdicts become the promotion driver, that calibration stops being academic — it decides what gets published.
+
+**Repo state:** diagnosis was read-only. The uncommitted coverage-pill work (`lib/ocr-coverage.ts`, `queries/ocr-coverage.ts`, `components/ui/ocr-pill.tsx`, `games/page.tsx`) is unrelated to the backlog and unaffected by it.
+
+---
+
+### ✅ EVENT TIMELINE PORTED 2026-08-01 — 12px floor, card hover, static GWG strip, ranked assists (UNCOMMITTED)
+
+**Design of record:** `Game sheet prototype layout (1)/Game Sheet copy.dc.html`, the EVENT TIMELINE section; motion guardrails from `Event Timeline Motion Recs.dc.html`. **This was the last unported game-sheet module.**
+
+**Files:** `components/matches/event-timeline.tsx` (render layer only — `lib/event-timeline.ts` is untouched, its 21 tests still pass) · `app/globals.css` (`.gs-tl-card` + `.gs-tl-gwg`, and `gs-cap-breathe` removed).
+
+**What changed**
+
+|              | before                                     | now                                                               |
+| ------------ | ------------------------------------------ | ----------------------------------------------------------------- |
+| micro-type   | 10-11px throughout                         | **12px floor** — kicker, assists, period count, clock pill, FINAL |
+| panel        | per-child padding                          | one box, `12px 14px 14px`                                         |
+| subtitle     | visible "Game flow · BGM left / OPP right" | `sr-only` (prototype drops it; position/colour don't read aloud)  |
+| card         | `14px/10px`, 340px max, no min width       | `9px 13px`, `min-w 240` / **`max-w 300`** at `sm`                 |
+| card hover   | **none**                                   | → surface-raised + `0 10px 26px` + accent-line frame              |
+| GWG          | 1px accent + `18px/.35` glow               | **that, kept**, + static top strip; hover lifts to `26px/.5`      |
+| rail caps    | `gs-cap-breathe` loop                      | **static** dots, ignite with the rail                             |
+| assists      | `A  Name · Name`                           | **`A1 Name` `A2 Name`**                                           |
+| toggle CTA   | bespoke accent-text button                 | house wire-cta (fg-2 → accent on hover), full-bleed               |
+| divider tone | fg-3 when scoreless                        | fg-4 label / fg-5 count                                           |
+
+**Three things worth knowing before touching this again**
+
+1. **Card frames ride `--tl-*` custom properties, not inline `style`.** Each card has a different resting frame (team edge / GWG / penalty amber) and an inline `border` beats any `:hover` rule a utility class can produce. The team edge is declared **after** the `:hover` rule at equal specificity so source order keeps it — which side scored never changes on hover. No `!important` anywhere.
+2. **Rail end-caps are now SIBLINGS of the spine, not children.** `gs-grow-y` is a `scaleY`; anything inside it was being squashed flat for the length of the draw. This was a live (if subtle) defect before the port.
+3. **The cascade now fits a span instead of clipping to a cap.** The old `min(i * 160, 1500)` made a busy game's tail share one delay and arrive as a clump, and put FINAL at **2.51s** — past the spec's own 2.4s ceiling. Now the step shrinks to fit: `step = min(150, 1050 / gaps)`. Measured on match 250 (11 slots): rows 0.86s→1.70s at a 105ms step, FINAL at 1.95s, landing **2.33s**.
+
+**Assist ranking is a deliberate step past the prototype.** It prints one `A` over a comma-joined list; the DB has `primary_assist_*` and `secondary_assist_*` as separate columns and a secondary **never** appears without a primary (157 both / 126 primary-only / 161 unassisted, measured 2026-08-01), so the ranking is real data the prototype was discarding. Both slots keep natural label→name order on both sides of the rail — mirroring would put A2 ahead of A1 on BGM cards. Same precedent as the penalty card's `TRIPPING 2 PIM`.
+
+**Card width is 300px, not the prototype's 340.** The widest thing a card ever holds is the two-assist line, measured at ~230px — the remaining 40px was slack that made the cards read heavy against the rail. The corpus's longest pair (`A. Bristol RlI Pred` + `F. ThatsMyLastLie`, 36 chars) was injected into a live card at 300px: it wraps A2 to a second line and does **not** overflow. Don't narrow past ~280 without re-running that check.
+
+#### Verified in-browser (:3002, 1440×1000)
+
+**Match 250** — panel `12px 14px 14px` · card `9px 13px` / min 240 / **max 300, no assist row wrapped** · BGM edge 3px accent, opponent edge 3px `--opp` (`#81878D`) · GWG solid accent frame + `0 0 18px rgba(232,65,49,.35)` + 2px strip, hover → `0 0 26px rgba(232,65,49,.5)` · A1 12px/`#7f7c7d`/0.16em · pill accent-line `4px 8px` · goal-card hover → `#2a2829`, frame accent-line, shadow `0 10px 26px rgba(0,0,0,.45)`, **left edge stays full accent**. **Match 463** (5 penalties, expanded) — amber `.32` frame, amber tint gradient, opponent edge `#00f090`. **Match 470** (no events) — degraded copy renders, no meta chip, no orphan legend. **390px** — no horizontal overflow, rail hidden, `min-w` correctly inert. Console clean apart from two pre-existing EA crest 404s. Typecheck, ESLint, Prettier, `event-timeline.test.ts` (21/21) all green.
+
+---
+
+### ✅ TEAM STATS PORTED 2026-07-31 — prototype panel, and `Face Off %` swapped for `Faceoffs Won` (UNCOMMITTED)
+
+**Design of record:** `Game sheet prototype layout (1)/Game Sheet copy.dc.html`, the TEAM STATS section; motion cues from `Team Stats Motion Recs.dc.html`.
+
+**Files:** `components/matches/team-stats.tsx` (rewritten) · `lib/match-recap.ts` (`buildBoxScore` — faceoff row + both aggregates). No CSS added; every animation class it uses was already in `globals.css`, so the reduced-motion contract is untouched.
+
+**What the module looks like now**
+
+|            | before                                            | now                                                             |
+| ---------- | ------------------------------------------------- | --------------------------------------------------------------- |
+| panel box  | split header/body padding                         | one column, `12px 14px 14px`, `gap:12px`                        |
+| header     | 11px extrabold accent ▰ + subtitle + BGM/OPP rule | `.ds-section-label` alone (12px/600/0.16em/fg-4, fg-5 ornament) |
+| list       | grouped, divider titles, `gap-3.5`/`gap-2.5`      | **flat**, one 9px rhythm across all 15 rows                     |
+| row gap    | 4px                                               | 3px                                                             |
+| stat label | 10px / 0.08em / fg-3                              | 12px / 600 / 0.06em / fg-4                                      |
+| values     | min-w 38px, loser fg-3 both sides                 | min-w 40px, BGM loser fg-4, opponent loser `--opp-2`            |
+| losing bar | dim red / `--opp-line`                            | `--color-border` **both sides**                                 |
+| hover      | row tint only                                     | row tint **+ label brightens to fg-2** (prototype cue ⑥)        |
+
+The prototype builds its rows in groups and then `flatMap`s them away — **the group titles are an authoring device, not a visual.** They survive as `sr-only` headings (absolutely positioned, so they add no gap to the flat rhythm). The losing-bar change is the prototype's own note: _"one meaning per panel: full team colour = won this stat, zinc = lost it — a dim-red losing bar read as 'BGM' and fought the winner encoding."_
+
+**Three deliberate deviations from the prototype**, all pre-existing behaviour that would have lost information:
+
+1. **`M:SS` and `↓ BETTER` markers kept** (restyled 10px/fg-5 under the bigger label). Without `↓ BETTER`, Giveaways reads 44–38 with the opponent coloured as winner and no explanation.
+2. **Group footnotes kept**, collected at the foot of the panel in the slot the prototype gave its CTA. They disclose the OCR shot override, so they could not leave with the headers they hung under.
+3. **`sr-only` legend** stating BGM-left / opponent-right, replacing the visible side labels the prototype does not have. Colour and position do not survive being read aloud.
+
+No FULL HEAD-TO-HEAD link — this app still has no per-opponent route to land on.
+
+#### 🔵 `Face Off %` → `Faceoffs Won`, and BOTH numbers come from OUR counters
+
+Two counts duel honestly on a share bar; two percentages that always sum to 100 only restated the bar's own geometry. Side effect worth having: counts are countable, so the row now **counts up with the bar** instead of fading in.
+
+**The non-obvious part — do not "fix" this by reading the opponent's own counters.** Every draw BGM lost is one the opponent won, so `bgm.faceoffLosses` **is** the opponent's win count. EA's two per-player counter sets disagree on **25 of 199** stored matches — usually by a draw or two, occasionally wildly (**match 12 records 3 BGM draws against the opponent roster's 49**). Mixing them yields a pair whose sum is neither side's real number of draws, and drifts from the FO% shown elsewhere, which `matches.faceoff_pct` derives the same way. There is a mirrored fallback to the opponent's counters for the 3 matches where our side recorded no draws at all.
+
+Visibility footprint is unchanged: only 2 matches have a null `faceoff_pct`, and neither has draws.
+
+#### Verified in-browser (match 250, :3002, 1440×1000)
+
+Panel padding `12px 14px 14px` / gap 12px · 15 rows at exactly 9px · label 12px/600/0.72px/`#8e8b8c` · Goals → accent + `--opp-2`, bars accent/`#3a3839` · Hits → fg-4 + `--opp` · Giveaways correctly resolving to the opponent · hover → `#2a2829` with label `#d4d2d3` · `21 · FACEOFFS WON · 9` at 188px/80px = 70.1/29.9, matching the canonical 70.0% and the box score's `FACEOFFS 21–9`. Edge cases spot-checked over SSR: **968** (counters disagree) → `16/16` not `16/9` · **12** → `0/3` · **110** (opponent rows all zero) → `12/1` not `12/0` · **471** → `1/0` via the fallback. Zero console errors. Typecheck, ESLint, Prettier clean.
+
+#### ✅ Done — see the EVENT TIMELINE entry above. That was the last unported game-sheet module.
+
+---
+
 ### ✅ BOX SCORE PORTED 2026-07-31 — prototype visuals + auto-rotation, and OCR moved behind the diagnostics gate
 
 **Design of record:** `Game sheet prototype layout (1)/Game Sheet copy.dc.html` (the _copy_ file, again) for the panel and the auto-rotate; `Box Score Motion Recs.dc.html` for the eight motion cues.
@@ -34,7 +201,7 @@ Rotation cycles at 10.6s/10.1s with the tick growing 31.8px → 60.1px → reset
 
 #### ⬜ Next, if wanted
 
-The table header row (`TEAM · 1ST · 2ND · 3RD · OT · TOT`) is still **10px** where the prototype has 12px — the same type-floor issue that HANDOFF calls the single biggest reason the lineup didn't read like the prototype. Deliberately left alone; not requested. `team-stats.tsx` and `event-timeline.tsx` also still carry the pre-port 11px/extrabold/accent header style that Box Score just left behind.
+The table header row (`TEAM · 1ST · 2ND · 3RD · OT · TOT`) is still **10px** where the prototype has 12px — the same type-floor issue that HANDOFF calls the single biggest reason the lineup didn't read like the prototype. Deliberately left alone; not requested. ~~`team-stats.tsx` and~~ `event-timeline.tsx` also still carries the pre-port 11px/extrabold/accent header style that Box Score just left behind (team stats was ported later the same day — see the entry above).
 
 ---
 
@@ -1486,7 +1653,13 @@ The game-sheet revamp is **complete** (all 12 phases committed) and the prototyp
 
 This workstream is independent of (and must not block) the OCR corpus run below — separate sessions, one phase per session.
 
-### 🟢 OCR WORKSTREAM — THE ACTUAL NEXT SESSION (as of 2026-07-15; corpus run scheduled MONDAY 2026-07-27, see top Active State)
+### 🔴 OCR WORKSTREAM — THE ACTUAL NEXT SESSION (as of 2026-07-31): drain the review-promotion backlog
+
+**Supersedes the 2026-07-15 list below for "what to do next".** The corpus run is done; the data is in the DB. What is NOT done is promoting it out of `pending_review`, which is why the site shows 2 full-coverage matches against 50 captured. Full diagnosis + numbers in the top 🔴 Active State entry.
+
+**Session scope (one task):** decide the promotion policy, then drain it graded — not blanket. Answer the two questions in that entry first (run-quality coverage over the 72 event matches; whether the pill gains a "captured but unreviewed" state). Expect the `PASS`-calibration question in item 1 immediately below to become load-bearing, because it decides what a graded drain publishes.
+
+### 🟢 OCR WORKSTREAM — PRIOR LIST (as of 2026-07-15; corpus run scheduled MONDAY 2026-07-27, see top Active State)
 
 **Milestone ④ is COMPLETE and PROVEN ON-BOX** (4.4 Step 8 + 4.5 Step 3, this session — see the top 🟩 Active State bullet). `batch` → `propose` → `confirm` → `batch-promote` works end-to-end on real GPU against a live DB, and the drain converges. **The full-corpus run (~78 targets, ~40-58 h GPU) is now UNBLOCKED.**
 
