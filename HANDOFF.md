@@ -2,6 +2,42 @@
 
 ## Active State
 
+### ✅ BOX SCORE PORTED 2026-07-31 — prototype visuals + auto-rotation, and OCR moved behind the diagnostics gate
+
+**Design of record:** `Game sheet prototype layout (1)/Game Sheet copy.dc.html` (the _copy_ file, again) for the panel and the auto-rotate; `Box Score Motion Recs.dc.html` for the eight motion cues.
+
+**Files:** `components/matches/box-score.tsx` (substantially rewritten) · `app/globals.css` (new `.gs-tick`) · `app/games/[id]/page.tsx` (one prop).
+
+**What the module looks like now:** house `.ds-section-label` header (12px/600/0.16em/`fg-4`, `fg-5` ornament) with **no subtitle** · three equal-width tabs on the prototype's `repeat(3,1fr)` grid, `gap:5px`, `padding:6px 9px`, labelled `GOALS · SHOTS · FO` · TOT de-accented to a neutral charcoal field with a plain rule, team colour carried by the number only · opponent period-winner tint is charcoal, not `--opp-soft` · **no per-period FO% sub-row** (faceoff share survives as `WON 70.0%` in the footnote) · derived footnote summary per mode (`GOALS 4–3 (+1)` / `SOG 29–16 (+13)` / `FACEOFFS 21–9 · WON 70.0%`), computed from `computeTotals` alone so it can never disagree with the table above it.
+
+**OCR is gated.** `BoxScore` takes `showDiagnostics` from the existing `showOcrDiagnostics()` call in `page.tsx`. The provenance chip renders only for admins; the `· OCR-reviewed` / `· EA totals` source line went away entirely with the subtitle. The unread-periods warning stays visible to everyone — it describes the numbers on screen, not our ingest.
+
+#### The auto-rotation (`useBoxScoreRotation`)
+
+`GOALS → SHOTS → FO` on a **9s dwell**, each swap replaying the column fill behind the panel's hairline wipe. Measured cycle ≈ 10.1s per view (9s dwell + 1.12s fill arm).
+
+**There is no JS timer** — the dwell tick's CSS animation IS the clock, exactly as in `useLineupAutoWalk`: `advance` fires on its `animationend`, and pausing is `animation-play-state: paused`, which preserves elapsed time for free. The prototype ran a `setTimeout` beside the bar and hand-tracked remaining ms on every pause; one clock cannot drift from itself.
+
+Pauses on hover, **focus** (`onFocusCapture`), offscreen (IntersectionObserver, threshold 0.05) and `document.hidden`. **Any deliberate click or arrow-key takeover stops it permanently** — matching the lineup's `luOff`, and deliberately _not_ the prototype's "click outside hands it back", so the two auto-driven modules on the page behave alike. Disabled outright under reduced motion.
+
+**A mode with no readable cell anywhere is dropped from the rotation cycle** but stays clickable — auto-swapping into a table of em-dashes is worse than skipping it.
+
+`.gs-tick` was sorted into the **decorative** half of the reduced-motion block (`display: none`), beside `.gs-dwell`. Anything added there must still be sorted by hand — that mis-sort is what once hid the whole game sheet.
+
+#### 🔴 A Tailwind border-colour collision, fixed here but live elsewhere
+
+`border-t border-border-subtle` sets **all four** border colours, not just the top. On a cell that also sets `border-l border-border`, that is a same-specificity collision decided by Tailwind's output order — and it was silently repainting the bottom row's TOT rule a different grey from the top row's. Fixed with `border-t-border-subtle` (top colour only). It predates this work: the old `border-accent/40` left rule was being overridden the same way, just less visibly between two reds. **Worth grepping for `border-t border-border-subtle` elsewhere.**
+
+#### Verified in-browser (match 250, :3002, 1440×1000)
+
+Rotation cycles at 10.6s/10.1s with the tick growing 31.8px → 60.1px → reset · click on FO stops it dead (still FO 13s later, tick removed) · reduced motion: no tick, no rotation after 12s, all 10 cells opaque with the correct values, panel 233px, body 3035px · 0 console errors · summary lines match match 250's canonical `4–3` / `29–16` / `21–9 (70.0%)`. Typecheck, ESLint, Prettier clean.
+
+#### ⬜ Next, if wanted
+
+The table header row (`TEAM · 1ST · 2ND · 3RD · OT · TOT`) is still **10px** where the prototype has 12px — the same type-floor issue that HANDOFF calls the single biggest reason the lineup didn't read like the prototype. Deliberately left alone; not requested. `team-stats.tsx` and `event-timeline.tsx` also still carry the pre-port 11px/extrabold/accent header style that Box Score just left behind.
+
+---
+
 ### ✅ LINEUP MODULE PORTED 2026-07-30 — prototype visuals + single-subject drawer + motion, and the loadout bio data recovered
 
 **Design of record:** `Game sheet prototype layout (1)/Game Sheet copy.dc.html` (the _copy_ file again — its lineup section is the revised one).
