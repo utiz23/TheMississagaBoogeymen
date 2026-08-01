@@ -2,6 +2,78 @@
 
 ## Active State
 
+### ✅ PERIOD FALLBACK FIXED — 2661's penalty recovered, and `period_label` exposed as the #1 corpus blocker 2026-08-01
+
+**The fix landed and class D cleared on 2661 only, as predicted.** But the more important outcome is what the blast-radius measurement turned up: **period resolution is the single largest failure mode in the entire OCR corpus**, and the events screen was its smallest instance.
+
+#### The bug, confirmed
+
+`periodFromPath` matched **0 of 1193** `post_game_events` captures. 1185 are `pass2/seg-NNN-<screen>/`, 8 are other, **zero** use the retired `…/1st-Period-Events/` scheme it was written for. The fallback was not degraded — it was entirely dead, and had been since the capture layout changed.
+
+#### What `'?'` actually means (the key insight, do not re-derive)
+
+The Events screen **scrolls**. [parsers.py:2314-2325](tools/game_ocr/game_ocr/parsers.py#L2314-L2325) seeds `current_period_label = '?'` and only updates it when it passes a "NTH PERIOD" header line. So an unlabelled row is not OCR noise — it is the positional fact _"this row rendered above the frame's first visible header"_. Its period is therefore the one **before** that header: its own header scrolled off the top.
+
+**Validated against ground truth before shipping:** 160 unlabelled rows whose true period is independently known (a sibling frame of the same segment scrolled differently and _did_ capture their header) → **159 correct**. The lone miss has self-contradictory truth (read `1ST` in one frame, `2ND` in another). Per [[feedback_phantom_quality_detectors]], the rule was not trusted until measured.
+
+#### Blast radius — neither 4 rows nor 339
+
+| measure                                   | count                                |
+| ----------------------------------------- | ------------------------------------ |
+| typed rows hitting `skipped_bad_period`   | 339 (214 goal, 125 penalty)          |
+| distinct events behind them               | 186                                  |
+| **already recovered** via a sibling frame | **158**                              |
+| **never reached `match_events`**          | **28, across 10 matches**            |
+| of those, recoverable by the new rule     | 8 (rest have no labelled row at all) |
+
+Sibling frames were silently doing most of the recovery already. That is why only penalties — which appear in far fewer frames than goals — went missing.
+
+#### Code
+
+- [resolve-period.ts](apps/worker/src/ocr-promoters/resolve-period.ts) — new `resolveEventPeriod` → `{period, basis}`, plus `firstLabeledPeriod` / `canonicalPeriodLabel`. Precedence **payload → frame header → path**. Never defaults: unresolvable stays `< 1`. `resolvePeriod` left byte-identical for the action-tracker (different screen shape — one label per frame, no scrolling list).
+- [events.ts](apps/worker/src/ocr-promoters/events.ts) — computes the frame bound once; adds `period_from_preceding_header` / `period_from_path` stats and a `console.warn` printing the **raw text** of every still-dropped row. The silent drop is gone.
+- [resolve-period.test.ts](apps/worker/src/ocr-promoters/__tests__/resolve-period.test.ts) — 15 tests on 2661's real frame; the biting pair asserts old `resolvePeriod` → `0` (dropped) vs `resolveEventPeriod` → `2` (promoted). Red before, green after.
+
+#### 2661
+
+Re-promoted 8 extractions → **1 inserted**, `skipped_bad_period: 0`, 116 → 117 events, no duplicates. Event **7194**: P2 `2ND` `0:56` `Tripping / Minor / 2 min`, `j. struble`, `team_side='for'`. Flipped to reviewed via `--extractions 27193`.
+
+**`team_side='for'` is correct — `j. struble` is BGM, not the opponent.** Three independent signals agree: the Events chip reads `BM`; `j. struble` assists a `BM` goal in the same payload; EA gives the only 2 PIM to BGM's `ManNoname7964` with all five opponents at 0. `pim_for=2` reconciles exactly. **Loose end:** a pre-existing Action-Tracker shot row for `J. STRUBLE` sits at `team_side='against'` — a different side-derivation path that now looks wrong.
+
+Re-graded all 7 class-D matches: **only 2661 moved**. 564, 608, 617, 973, 974, 2659 still fire. (Reminder: "gate-PASS" in these entries means the **L4 API-truth** verdict. 2661 still `[ PASS ]`; its `Overall [ FAIL ]` is pre-existing L2-lineup / L3-downstream and unrelated.)
+
+Gates: build ✓ · suite **511 / 507 pass / 0 fail / 4 skipped** (baseline 496/492/0/4 + exactly the 15 new) ✓ · prettier ✓.
+Rollback: `~/ingest-cache/drains/2026-08-01-period-fix-2661-rollback.txt` — **read it before rolling back**; the naive extraction flip would wrongly un-review 6 goals, so it documents targeted SQL instead.
+
+#### 🔴 THE REAL FINDING — `period_label` blocks the corpus, not just events
+
+| screen                  | extractions | transform errors | dead  |
+| ----------------------- | ----------- | ---------------- | ----- |
+| `post_game_faceoff_map` | 6753        | **6588**         | 97.6% |
+| `post_game_net_chart`   | 689         | 431              | 62.6% |
+| `post_game_box_score_*` | 515         | 215              | 41.7% |
+
+**6992 of 7234 total transform errors (96.7%) are `period_label OCR unrecognized — refusing to write into ALL PERIODS slot`.** Another 174 are `zero period cells`.
+
+**The faceoff-map case is an ROI defect, not OCR noise.** 4803 of them report `'(null)'`, and the payload field is `{"value": null, "status": "missing", "raw_text": null}` — the period-label region captured **no text at all**. The events-screen fix does not transfer: only **212 of 6588** failed frames have a successful sibling in the same segment, so cross-frame consensus cannot rescue them either. The region itself has to be found.
+
+This is what starves L3: 2661's downstream gaps are `match_faceoff_dots=0/9, match_faceoff_zone_summaries=0/3` — both fed exclusively by the faceoff map.
+
+#### Corpus status (measured 2026-08-01)
+
+| measure                                 | value                           |
+| --------------------------------------- | ------------------------------- |
+| matches total / with OCR / with events  | 199 / 101 / 72                  |
+| **matches with events VISIBLE on site** | **25** (24 full + 1 partial)    |
+| matches captured but fully invisible    | 47                              |
+| `match_events` reviewed / pending       | 2391 / 4298 (**36% published**) |
+
+The pipeline is not blocked on capture — 101 matches have data. It is blocked on **review throughput** (4298 rows quarantined) and on the **faceoff-map/net-chart period ROI** (7234 rows that never transformed at all).
+
+**⬜ NEXT.** (1) **Find the faceoff-map period-label ROI** — 6588 dead extractions, the single biggest recovery left in the project, and it gates every faceoff dot/zone row and therefore L3. Start at the region definition, not the OCR backend; `status: "missing"` means nothing was handed to OCR. (2) **Same check for `post_game_net_chart`** (431 dead) — likely the same ROI family. (3) **Promote the remaining 7 recoverable events rows** in 606, 976, 2398, 2577 (`repromote-ocr --match <id> --screen post_game_events`); deliberately NOT run this session because those matches sit behind the class-A hold-backs and the promote decision is a policy call. 20 further rows in 968, 1039, 1089, 1093, 2656 have no labelled row in any frame and are unrecoverable from the current payloads — they now warn instead of vanishing. (4) The class A/D re-weighting items below are still open and unchanged.
+
+---
+
 ### ✅ CLASSES A AND D ARE BOTH REAL — the phantom streak ends; 4 more matches DRAINED 2026-08-01
 
 **Do not pattern-match off C and G.** Two detectors in a row turned out to be phantoms, and the natural next guess was that A and D would follow. They do not. Both fire on genuine defects. A is mis-_specified_ in two narrow ways; D is correct but mis-_attributed_. Neither should be deleted.
@@ -61,7 +133,7 @@ Cascade verified event-only before applying (`events=277`, all five sibling tabl
 
 Note 2670 is held even though its class-A fail is a confirmed false positive — it independently carries a phantom `against` goal at P1 12:49 (`HUTSON` mirroring `L. HUTSON`).
 
-**⬜ NEXT.** (1) **Fix `periodFromPath` for the `seg-NNN-post_game_events` layout** — this is the one concrete data-recovery win; it unblocks 2661's penalty and any other period-less events row. (2) **Re-weight class A severity by event type** (duplicate goal ≫ duplicate faceoff) and **exclude penalty buckets** from it. (3) **Promote the goal-vs-EA-score check into the gate** — it is cheap, EA-anchored, and caught three matches class A rated only `warn`. (4) The `against`-side mirror duplicate is the single highest-value dedup bug left: the same event re-read with a garbled actor lands on the opposite team. (5) Class C still needs the fix-or-retire decision from the entry below.
+**⬜ NEXT.** (1) ~~**Fix `periodFromPath` for the `seg-NNN-post_game_events` layout**~~ — ✅ **DONE**, see the top entry; 2661's penalty is recovered and the drop path is now observable. (2) **Re-weight class A severity by event type** (duplicate goal ≫ duplicate faceoff) and **exclude penalty buckets** from it. (3) **Promote the goal-vs-EA-score check into the gate** — it is cheap, EA-anchored, and caught three matches class A rated only `warn`. (4) The `against`-side mirror duplicate is the single highest-value dedup bug left: the same event re-read with a garbled actor lands on the opposite team. (5) Class C still needs the fix-or-retire decision from the entry below.
 
 ---
 
