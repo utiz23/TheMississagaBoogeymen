@@ -486,17 +486,11 @@ body {
   }
 }
 
-/* --- the two sanctioned ambient loops ----------------------------------- */
-
-@keyframes gs-cap-breathe {
-  0%,
-  100% {
-    box-shadow: 0 0 5px rgba(232, 65, 49, 0.35);
-  }
-  50% {
-    box-shadow: 0 0 11px rgba(232, 65, 49, 0.72);
-  }
-}
+/* --- the two sanctioned ambient loops -----------------------------------
+   The timeline's rail end-caps used to be a third. The design of record
+   (`Game Sheet copy.dc.html`) demotes them to static accent dots — its own
+   rule is one persistent loop per page, on the scorebug ticker — so the caps
+   now ignite with the rail and hold. */
 
 @keyframes gs-star-breathe {
   0%,
@@ -656,12 +650,6 @@ body {
   animation: gs-flare-drop 0.9s ease-out var(--gs-delay, 0s) both;
 }
 
-/* Delay lets the caps wait for the rail to finish drawing before they start
-   breathing, so the spine lands first and the caps then ignite. */
-.game-sheet .gs-cap-breathe {
-  animation: gs-cap-breathe 2.8s ease-in-out var(--gs-delay, 0s) infinite;
-}
-
 .game-sheet .gs-star-breathe {
   animation: gs-star-breathe 2.6s ease-in-out infinite;
 }
@@ -813,6 +801,57 @@ body {
     color 0.15s ease;
 }
 
+/* Event-timeline cards — hover elevates the card to the raised surface and
+   steps its frame to the accent line.
+
+   Every frame value is a CUSTOM PROPERTY rather than an inline style, because
+   each card carries a different resting frame (team edge, game-winner, penalty
+   amber) and an inline `border`/`background` would beat any `:hover` rule a
+   utility class can produce. Call sites set only what differs from these
+   defaults. */
+.game-sheet .gs-tl-card {
+  position: relative;
+  background-color: var(--tl-bg, var(--color-surface));
+  background-image: var(--tl-tint, none);
+  border: 1px solid var(--tl-border, var(--color-border));
+  box-shadow: var(--tl-glow, none);
+  transition:
+    background-color 0.2s ease,
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.game-sheet .gs-tl-card:hover {
+  background-color: var(--tl-bg-hover, var(--color-surface-raised));
+  border-color: var(--tl-border-hover, var(--color-accent-line));
+  box-shadow: var(--tl-glow-hover, 0 10px 26px rgba(0, 0, 0, 0.45));
+}
+
+/* The team edge is the one part of the frame that does NOT move on hover —
+   which side scored cannot change. Declared after the hover rule at equal
+   specificity so source order keeps it, rather than reaching for !important. */
+.game-sheet .gs-tl-card[data-side='bgm'] {
+  border-left: 3px solid var(--tl-edge);
+}
+
+.game-sheet .gs-tl-card[data-side='opp'] {
+  border-right: 3px solid var(--tl-edge);
+}
+
+/* Game-winner: a static accent strip across the card's top edge. The prototype
+   marks the decisive goal by standing treatment, not by a loop — the one-shot
+   flare it gets on arrival is the only motion involved. */
+.game-sheet .gs-tl-gwg::before {
+  content: '';
+  position: absolute;
+  inset-inline: 0;
+  inset-block-start: 0;
+  height: 2px;
+  z-index: 2;
+  background: linear-gradient(90deg, #6d0f1c, var(--color-accent), #6d0f1c);
+  pointer-events: none;
+}
+
 .game-sheet .gs-nudge {
   transition: transform 0.18s cubic-bezier(0.16, 0.84, 0.3, 1);
 }
@@ -870,7 +909,6 @@ body {
   .game-sheet .gs-bloom-accent,
   .game-sheet .gs-bloom-opp,
   .game-sheet .gs-flare-drop,
-  .game-sheet .gs-cap-breathe,
   .game-sheet .gs-star-breathe,
   .game-sheet .gs-dot-breathe,
   .game-sheet .gs-draw-arc,
@@ -908,6 +946,7 @@ body {
   .game-sheet .gs-chevron,
   .game-sheet .gs-thumb,
   .game-sheet .gs-hover-row,
+  .game-sheet .gs-tl-card,
   .game-sheet .gs-nudge,
   .game-sheet .gs-fade-marker,
   .game-sheet .gs-halo {
