@@ -214,6 +214,7 @@ Action-tracker events are the worst hit: **72 matches hold OCR events, 2 are pro
 | toggle CTA   | bespoke accent-text button                 | house wire-cta (fg-2 → accent on hover), full-bleed               |
 | divider tone | fg-3 when scoreless                        | fg-4 label / fg-5 count                                           |
 | disclosure   | instant `hidden` flip                      | **per-row open/close**, staggered both ways                       |
+| height       | natural, columns ended ragged              | **synced to the rail's bottom** — fill or clip                    |
 
 **Four things worth knowing before touching this again**
 
@@ -237,6 +238,26 @@ Three things that are load-bearing and look optional:
 **Assist ranking is a deliberate step past the prototype.** It prints one `A` over a comma-joined list; the DB has `primary_assist_*` and `secondary_assist_*` as separate columns and a secondary **never** appears without a primary (157 both / 126 primary-only / 161 unassisted, measured 2026-08-01), so the ranking is real data the prototype was discarding. Both slots keep natural label→name order on both sides of the rail — mirroring would put A2 ahead of A1 on BGM cards. Same precedent as the penalty card's `TRIPPING 2 PIM`.
 
 **Card width is 300px, not the prototype's 340.** The widest thing a card ever holds is the two-assist line, measured at ~230px — the remaining 40px was slack that made the cards read heavy against the rail. The corpus's longest pair (`A. Bristol RlI Pred` + `F. ThatsMyLastLie`, 36 chars) was injected into a live card at 300px: it wraps A2 to a second line and does **not** overflow. Don't narrow past ~280 without re-running that check.
+
+#### Rail height-sync (`components/matches/use-rail-sync.ts`) — and the drift rule that makes it safe
+
+The prototype's `measureTimeline`: the timeline is the last module in the 3/4 column, so it sizes itself to land its bottom edge on the 1/4 rail's, and the two columns end flush. `data-gs-rail` on the rail column in `games/[id]/page.tsx` is the anchor — **rename it and the sync silently turns off** (the timeline just runs to natural height). Inert below `lg`, where the rail stacks underneath and there is no shared bottom edge.
+
+- `natural <= available` → **fill**: `min-height` + `justify-content: space-between`, rows breathe apart.
+- `natural > available` → **clip**: cut to the rail, bottom fade, FINAL hidden (its derived score is not the whole story when goals sit below the fold), `SHOW FULL TIMELINE`.
+
+The penalties toggle folded into this control per the prototype: **condensed = penalties hidden AND clipped**; expanded = everything at natural height. Two disclosures on one module read as two unrelated questions about the same list. The label still says `Show N penalties` when clipping isn't in play, because then that IS the whole story.
+
+**⚠️ The non-obvious part — measurements are graded by SOURCE, and this is not optional.** Both of this module's neighbours change height on their own, forever, with no reader involved: the lineup's auto-walk opens a row drawer roughly every 9s (moving this section's top by up to **~460px** — measured 921 → 1380 → 1356 → 1293), and the rail's box score auto-rotates GOALS/SHOTS/FO between tables of differing height. Honouring either in the clip regime re-cuts the fold every few seconds, so **goals would appear and vanish under a reader who never touched anything**. So:
+
+- `authoritative` (mount, viewport resize, reader toggle) → sets the fold outright.
+- `drift` (either neighbour resizing) → **may relax a stretch, may never tighten a clip.** One line: `if (source === 'drift' && availPx < naturalPx) return`.
+
+Net effect, measured over 30s of live auto-walk: **fill stays flush permanently** (`offBy: 0` at 0/9/18/27s, `contentCutPx: 0` — only whitespace redistributes), **clip holds its fold** and lets the bottom edge drift instead (250: flush at rest, `offBy: 371` once the lineup opens). That asymmetry is the deliberate trade: alignment is worth chasing only while it costs nothing but whitespace.
+
+Also load-bearing: the list is **not** observed — measuring mutates its inline styles, which the observer would report as a resize, forever. Measuring is idempotent w.r.t. this section's own height (last module in its column ⇒ resizing it cannot move its own top), which is what makes observing its parent column safe at all.
+
+The clip toggle animates with WAAPI on `fill: 'backwards'` — 500ms open / 460ms close on the prototype's curves. `backwards` is the trick: the animation supplies frames on the way in but surrenders the resting style to React at the end, so there is no frozen box to release and no `transitionend` to miss. (The prototype kept WAAPI off its clip for exactly the freeze a `forwards` fill causes.)
 
 #### Verified in-browser (:3002, 1440×1000)
 

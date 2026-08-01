@@ -267,7 +267,11 @@ export default async function GameDetailPage({ params, searchParams }: Props) {
             />
           </GameSheetPanel>
 
-          <div className="min-w-0 space-y-4">
+          {/* `data-gs-rail` is the height-sync anchor: the event timeline
+              measures this column's bottom edge and sizes itself to land on
+              it, so the two columns end flush. Renaming it silently turns the
+              sync off (the timeline then just runs to its natural height). */}
+          <div data-gs-rail className="min-w-0 space-y-4">
             <TopPerformers
               performers={topPerformers}
               allTeamScores={allTeamScores}

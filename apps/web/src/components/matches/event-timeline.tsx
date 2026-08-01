@@ -1,11 +1,20 @@
 'use client'
 
-import { useId, useMemo, useState, type CSSProperties } from 'react'
+import {
+  useId,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type RefObject,
+} from 'react'
 import Link from 'next/link'
 import type { MatchEventRow } from '@eanhl/db/queries'
 import { abbreviateTeamName } from '@/lib/format'
-import { cssVars, delayVar, durationVar } from '@/lib/motion'
+import { cssVars, delayVar, durationVar, prefersReducedMotion } from '@/lib/motion'
 import { MotionReveal } from './motion'
+import { useRailSync } from './use-rail-sync'
 import {
   buildTimeline,
   leadChangeLabel,
@@ -65,18 +74,32 @@ export function EventTimeline({
     () => buildTimeline(events, { for: scoreFor, against: scoreAgainst }),
     [events, scoreFor, scoreAgainst],
   )
-  // Condensed hides penalties, never goals — the arc of the game (and the
-  // game-winner) always stays on screen. The prototype clipped by height
-  // instead, which buried its own ending.
-  const [showPenalties, setShowPenalties] = useState(false)
-  const listId = useId()
+  const [expanded, setExpanded] = useState(false)
+  const [animating, setAnimating] = useState(false)
+  const clipId = useId()
 
   const hasPenalties = model.penaltyCount > 0
-  const expanded = !hasPenalties || showPenalties
   const cascade = buildCascade(model)
 
+  // Height sync: the section's bottom lands on the rail column's. See
+  // useRailSync — `fill` stretches a short timeline, `clip` cuts a long one
+  // down to the disclosure.
+  const { sectionRef, clipRef, listRef, box } = useRailSync({
+    enabled: !model.isEmpty,
+    expanded,
+  })
+  const mode: 'off' | 'fill' | 'clip' =
+    box === null ? 'off' : box.naturalPx > box.availPx + 4 ? 'clip' : 'fill'
+
+  // One control for both dimensions of "condensed": penalties are hidden AND a
+  // long timeline is cut to the rail. Two separate disclosures on one module
+  // read as two unrelated questions about the same list.
+  const clipped = mode === 'clip' && !expanded
+  const canExpand = hasPenalties || mode === 'clip'
+  const toggle = useClipToggle({ clipRef, expanded, setExpanded, setAnimating })
+
   return (
-    <section>
+    <section ref={sectionRef}>
       <MotionReveal className="flex flex-col border border-border bg-surface px-3.5 pb-3.5 pt-3">
         <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 pb-1">
           {/* House module header — the same 12px / semibold / 0.16em / fg-4
@@ -90,7 +113,7 @@ export function EventTimeline({
           </h2>
           {model.isEmpty ? null : (
             <span className="font-condensed text-[12px] font-bold uppercase tracking-[0.14em] text-fg-4">
-              {expanded ? 'Full game' : 'Condensed'}
+              {canExpand && !expanded ? 'Condensed' : 'Full game'}
             </span>
           )}
         </div>
@@ -108,31 +131,65 @@ export function EventTimeline({
               {oppAbbrev} events on the right.
             </p>
 
-            <div className="relative" id={listId}>
-              <Rail />
-              <Anchor label="Opening face-off" />
-              {model.periods.map((period) => (
-                <PeriodBlock
-                  key={period.periodNumber}
-                  period={period}
-                  goalContext={model.goalContext}
-                  oppAbbrev={oppAbbrev}
-                  showPenalties={expanded}
-                  slotBase={cascade.slotOf(period.periodNumber)}
-                  stepMs={cascade.stepMs}
-                  penaltyBase={cascade.penaltyBaseOf(period.periodNumber)}
-                  penaltyCount={model.penaltyCount}
+            {/* Clip box and list are separate elements: the clip carries the
+                synced height, the list keeps its natural one so it can be
+                measured while clipped. */}
+            <div
+              ref={clipRef}
+              id={clipId}
+              className="relative"
+              style={{
+                overflow: clipped || animating || mode === 'fill' ? 'hidden' : 'visible',
+                ...(expanded || box === null ? null : { height: `${box.availPx.toFixed(2)}px` }),
+              }}
+            >
+              <div
+                ref={listRef}
+                className="relative flex flex-col"
+                style={
+                  mode === 'fill' && box !== null
+                    ? { justifyContent: 'space-between', minHeight: `${box.availPx.toFixed(2)}px` }
+                    : undefined
+                }
+              >
+                <Rail />
+                <Anchor label="Opening face-off" />
+                {model.periods.map((period) => (
+                  <PeriodBlock
+                    key={period.periodNumber}
+                    period={period}
+                    goalContext={model.goalContext}
+                    oppAbbrev={oppAbbrev}
+                    showPenalties={expanded}
+                    slotBase={cascade.slotOf(period.periodNumber)}
+                    stepMs={cascade.stepMs}
+                    penaltyBase={cascade.penaltyBaseOf(period.periodNumber)}
+                    penaltyCount={model.penaltyCount}
+                  />
+                ))}
+              </div>
+
+              {/* Clipped content must not end on a hard edge mid-card. */}
+              {clipped ? (
+                <div
+                  aria-hidden
+                  className="pointer-events-none absolute inset-x-0 bottom-0 z-[2] h-[130px] bg-[linear-gradient(to_top,var(--color-surface)_6%,transparent)]"
                 />
-              ))}
+              ) : null}
             </div>
 
-            <FinalLine
-              bgm={model.final.bgm}
-              opp={model.final.opp}
-              winner={model.final.winner}
-              oppAbbrev={oppAbbrev}
-              delayMs={cascade.finalDelayMs}
-            />
+            {/* A clipped timeline has goals below the fold, so its derived
+                score is not the whole story — the prototype hides FINAL for
+                exactly this reason. */}
+            {clipped ? null : (
+              <FinalLine
+                bgm={model.final.bgm}
+                opp={model.final.opp}
+                winner={model.final.winner}
+                oppAbbrev={oppAbbrev}
+                delayMs={cascade.finalDelayMs}
+              />
+            )}
 
             {model.final.complete ? null : (
               <p className="pt-1.5 text-center font-condensed text-[12px] font-semibold uppercase tracking-[0.12em] text-fg-3">
@@ -141,28 +198,22 @@ export function EventTimeline({
               </p>
             )}
 
-            {hasPenalties ? (
+            {canExpand ? (
               <button
                 type="button"
-                onClick={() => {
-                  setShowPenalties((v) => !v)
-                }}
-                aria-expanded={showPenalties}
-                aria-controls={listId}
+                onClick={toggle}
+                aria-expanded={expanded}
+                aria-controls={clipId}
                 className="group/cta mt-2.5 flex w-full items-center justify-center gap-[7px] border border-border bg-charcoal px-3 py-2.5 transition-colors hover:border-accent hover:bg-[var(--color-accent-soft)]"
               >
                 <span className="font-condensed text-[12px] font-extrabold uppercase tracking-[0.16em] text-fg-2 transition-colors group-hover/cta:text-accent">
-                  {showPenalties
-                    ? 'Hide penalties'
-                    : `Show ${String(model.penaltyCount)} ${
-                        model.penaltyCount === 1 ? 'penalty' : 'penalties'
-                      }`}
+                  {toggleLabel(expanded, mode === 'clip', model.penaltyCount)}
                 </span>
                 {/* Glyph, so sized by eye rather than to the 12px label beside it. */}
                 <span
                   aria-hidden
                   className={`gs-chevron inline-block font-condensed text-[14px] leading-none text-fg-2 group-hover/cta:text-accent ${
-                    showPenalties ? 'rotate-180' : ''
+                    expanded ? 'rotate-180' : ''
                   }`}
                 >
                   ⌄
@@ -174,6 +225,93 @@ export function EventTimeline({
       </MotionReveal>
     </section>
   )
+}
+
+// ─── Disclosure ─────────────────────────────────────────────────────────────
+
+/**
+ * Whichever dimension of "condensed" is in play, in the caller's words.
+ *
+ * A clipped timeline is hiding goals, so it can't advertise itself as merely
+ * hiding penalties — "show full timeline" covers both. Only when everything
+ * fits and penalties are the sole thing held back does the label get to be
+ * specific about what and how many.
+ */
+function toggleLabel(expanded: boolean, clipMode: boolean, penalties: number): string {
+  if (clipMode) return expanded ? 'Collapse timeline' : 'Show full timeline'
+  if (expanded) return 'Hide penalties'
+  return `Show ${String(penalties)} ${penalties === 1 ? 'penalty' : 'penalties'}`
+}
+
+const CLIP_OPEN_MS = 500
+const CLIP_CLOSE_MS = 460
+const CLIP_OPEN_EASE = 'cubic-bezier(0.16, 0.84, 0.3, 1)'
+const CLIP_CLOSE_EASE = 'cubic-bezier(0.4, 0, 0.2, 1)'
+
+/**
+ * Animate the clip box between the synced height and the natural one.
+ *
+ * The height is React's: this measures the box before the state change and
+ * again after it commits, then plays that gap. `fill: 'backwards'` is the
+ * whole trick — the animation supplies frames on the way in but surrenders the
+ * resting style to React at the end, so there is no frozen box to release and
+ * no `transitionend` handoff to miss. (The prototype kept WAAPI off its clip
+ * for exactly the freeze that a 'forwards' fill would cause.)
+ */
+function useClipToggle({
+  clipRef,
+  expanded,
+  setExpanded,
+  setAnimating,
+}: {
+  clipRef: RefObject<HTMLDivElement | null>
+  expanded: boolean
+  setExpanded: (update: (value: boolean) => boolean) => void
+  setAnimating: (value: boolean) => void
+}): () => void {
+  const fromRef = useRef<number | null>(null)
+  const runningRef = useRef<Animation | null>(null)
+
+  useLayoutEffect(() => {
+    const clip = clipRef.current
+    const from = fromRef.current
+    fromRef.current = null
+    if (!clip || from === null) return
+
+    const to = clip.getBoundingClientRect().height
+    if (Math.abs(to - from) < 1) {
+      setAnimating(false)
+      return
+    }
+
+    runningRef.current?.cancel()
+    const animation = clip.animate(
+      [{ height: `${from.toFixed(2)}px` }, { height: `${to.toFixed(2)}px` }],
+      {
+        duration: expanded ? CLIP_OPEN_MS : CLIP_CLOSE_MS,
+        easing: expanded ? CLIP_OPEN_EASE : CLIP_CLOSE_EASE,
+        fill: 'backwards',
+      },
+    )
+    runningRef.current = animation
+
+    const settle = () => {
+      if (runningRef.current === animation) {
+        runningRef.current = null
+        setAnimating(false)
+      }
+    }
+    animation.finished.then(settle, settle)
+  }, [expanded, clipRef, setAnimating])
+
+  return () => {
+    const clip = clipRef.current
+    if (clip && !prefersReducedMotion() && typeof clip.animate === 'function') {
+      fromRef.current = clip.getBoundingClientRect().height
+      setAnimating(true)
+    }
+    setExpanded((value) => !value)
+  }
 }
 
 // ─── Cascade schedule ───────────────────────────────────────────────────────
