@@ -286,8 +286,14 @@ export default async function GameDetailPage({ params, searchParams }: Props) {
               />
             ) : null}
 
-            {/* OCR-derived per-period box score (hidden until reviewed). */}
-            <BoxScore rows={periodSummaries} opponentLabel={match.opponentName} />
+            {/* OCR-derived per-period box score (hidden until reviewed). The
+                provenance chip and the source half of the subtitle are operator
+                diagnostics, so they ride the same admin gate as the rest. */}
+            <BoxScore
+              rows={periodSummaries}
+              opponentLabel={match.opponentName}
+              showDiagnostics={showDiagnostics}
+            />
 
             <TeamStats rows={boxScore} opponentName={match.opponentName} />
           </div>

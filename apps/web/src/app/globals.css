@@ -739,6 +739,17 @@ body {
   animation: gs-grow-x var(--gs-duration, 9s) linear both;
 }
 
+/* Box-score auto-rotate dwell tick — the same clock-is-the-animation contract
+   as `gs-dwell`, under the active mode tab rather than across the panel top.
+   The extra `--gs-delay` holds the tick off until the column fill has
+   resolved, so the first view on screen gets a full turn instead of a turn
+   minus its own entrance. Both custom properties are always set by the call
+   site; the fallbacks are only here so the rule is legible on its own. */
+.game-sheet .gs-tick {
+  transform-origin: left center;
+  animation: gs-grow-x var(--gs-duration, 9s) linear var(--gs-delay, 0s) both;
+}
+
 /* Ambient sweep over the existing 4px ticker strip. Prototype values, and
    like the prototype's `.ticker-strip--hero` it is opt-in per element rather
    than applied to every strip on the page: this is the ONE persistent loop on
@@ -876,10 +887,12 @@ body {
   .game-sheet details[open] .gs-flare-on-open-accent::after,
   .game-sheet details[open] .gs-flare-on-open-opp::after,
   .game-sheet .gs-wipe,
-  /* The auto-walk is disabled outright under reduce (it advances the drawer
-     on its own, which is motion by any reading), so its dwell bar has nothing
-     left to indicate. */
+  /* The auto-walk and the box-score auto-rotate are both disabled outright
+     under reduce (they advance the drawer / swap the stat on their own, which
+     is motion by any reading), so their dwell indicators have nothing left to
+     indicate. */
   .game-sheet .gs-dwell,
+  .game-sheet .gs-tick,
   .ticker-strip-hero::after {
     animation: none !important;
     display: none !important;
