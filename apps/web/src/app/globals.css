@@ -302,6 +302,21 @@ body {
   }
 }
 
+/* Opening a disclosure row. This is an ANIMATION rather than the reverse of
+   the closing transition because the two paths differ: a row rises into place
+   from 16px BELOW, but tucks up 9px ABOVE as it leaves. A pair of transitioned
+   states can only ever retrace one path. */
+@keyframes gs-tl-row-open {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 /* --- wipes and growth --------------------------------------------------- */
 
 /* The lower-third hairline: a bright band crossing the panel's top edge once. */
@@ -838,6 +853,69 @@ body {
   border-right: 3px solid var(--tl-edge);
 }
 
+/* Event-timeline penalty disclosure — each row opens its OWN height.
+
+   The prototype animates one clip box, because what it hides is a contiguous
+   fold at the bottom of the list. What this timeline hides is penalties
+   scattered THROUGH the list, so a single clip box would leave every goal card
+   below an inserted penalty jumping to its new position while only the bottom
+   edge animated. Per-row `grid-template-rows: 0fr → 1fr` reflows every
+   insertion point smoothly instead — and unlike an animated pixel height it
+   needs no measuring, so it survives a resize or a font swap mid-flight.
+
+   The row's vertical rhythm rides on the <li> (and collapses to 0 with it)
+   rather than on the row inside, because the wrapper below is a scroll
+   container: margins set inside it would be contained rather than collapsing
+   with the neighbouring rows, and every gap next to a penalty would double.
+
+   Closing is the RESTING state, so these declarations are the close cue:
+   a flatter, faster curve than the open, because closing shouldn't feel as
+   considered as opening. */
+.game-sheet .gs-tl-disclosure {
+  display: grid;
+  grid-template-rows: 0fr;
+  margin-top: 0;
+  margin-bottom: 0;
+  transition:
+    grid-template-rows 0.2s cubic-bezier(0.4, 0, 0.6, 1) var(--gs-delay-out, 0s),
+    margin-top 0.2s cubic-bezier(0.4, 0, 0.6, 1) var(--gs-delay-out, 0s),
+    margin-bottom 0.2s cubic-bezier(0.4, 0, 0.6, 1) var(--gs-delay-out, 0s);
+}
+
+.game-sheet .gs-tl-disclosure[data-open] {
+  grid-template-rows: 1fr;
+  margin-top: 7px;
+  margin-bottom: 7px;
+  transition:
+    grid-template-rows 0.3s cubic-bezier(0.16, 0.84, 0.3, 1) var(--gs-delay, 0s),
+    margin-top 0.3s cubic-bezier(0.16, 0.84, 0.3, 1) var(--gs-delay, 0s),
+    margin-bottom 0.3s cubic-bezier(0.16, 0.84, 0.3, 1) var(--gs-delay, 0s);
+}
+
+/* `overflow: hidden` is load-bearing twice over: it clips the row as its track
+   closes, and it is what lets a grid item shrink past its content at all —
+   `min-height: auto` would otherwise hold the track open. `visibility` takes
+   the closed row out of the tab order and the a11y tree, stepped after the
+   fade so it does not cut it short. */
+.game-sheet .gs-tl-disclosure > * {
+  overflow: hidden;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(-9px);
+  transition:
+    opacity 0.2s cubic-bezier(0.4, 0, 0.6, 1) var(--gs-delay-out, 0s),
+    transform 0.2s cubic-bezier(0.4, 0, 0.6, 1) var(--gs-delay-out, 0s),
+    visibility 0s linear calc(var(--gs-delay-out, 0s) + 0.2s);
+}
+
+.game-sheet .gs-tl-disclosure[data-open] > * {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+  animation: gs-tl-row-open 0.3s cubic-bezier(0.16, 0.84, 0.3, 1) var(--gs-delay, 0s) both;
+  transition: visibility 0s;
+}
+
 /* Game-winner: a static accent strip across the card's top edge. The prototype
    marks the decisive goal by standing treatment, not by a loop — the one-shot
    flare it gets on arrival is the only motion involved. */
@@ -913,6 +991,7 @@ body {
   .game-sheet .gs-dot-breathe,
   .game-sheet .gs-draw-arc,
   .game-sheet .gs-drawer-blocks > *,
+  .game-sheet .gs-tl-disclosure[data-open] > *,
   .game-sheet details[open] .gs-bar-on-open {
     animation: none !important;
   }
@@ -947,6 +1026,11 @@ body {
   .game-sheet .gs-thumb,
   .game-sheet .gs-hover-row,
   .game-sheet .gs-tl-card,
+  /* The row still opens and closes — it just arrives at each state at once.
+     Both states are fully declared, so dropping the transition leaves the
+     open row visible and the closed row hidden, never a half-open track. */
+  .game-sheet .gs-tl-disclosure,
+  .game-sheet .gs-tl-disclosure > *,
   .game-sheet .gs-nudge,
   .game-sheet .gs-fade-marker,
   .game-sheet .gs-halo {

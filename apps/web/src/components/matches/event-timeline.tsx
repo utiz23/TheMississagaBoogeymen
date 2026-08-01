@@ -120,6 +120,8 @@ export function EventTimeline({
                   showPenalties={expanded}
                   slotBase={cascade.slotOf(period.periodNumber)}
                   stepMs={cascade.stepMs}
+                  penaltyBase={cascade.penaltyBaseOf(period.periodNumber)}
+                  penaltyCount={model.penaltyCount}
                 />
               ))}
             </div>
@@ -211,15 +213,26 @@ interface CascadeSchedule {
   /** Gap between consecutive slots, compressed to fit the span. */
   stepMs: number
   finalDelayMs: number
+  /**
+   * Index of a period's first penalty among ALL penalties in the match — the
+   * disclosure staggers across the whole list, not per period, so a period
+   * cannot count its own.
+   */
+  penaltyBaseOf: (periodNumber: number) => number
 }
 
 function buildCascade(model: TimelineModel<MatchEventRow>): CascadeSchedule {
   const slots = new Map<number, number>()
+  const penaltyBases = new Map<number, number>()
   let slot = 0
+  let penalties = 0
 
   for (const period of model.periods) {
     slots.set(period.periodNumber, slot)
-    slot += 1 + period.rows.filter((row) => row.eventType !== 'penalty').length
+    penaltyBases.set(period.periodNumber, penalties)
+    const periodPenalties = period.rows.filter((row) => row.eventType === 'penalty').length
+    slot += 1 + (period.rows.length - periodPenalties)
+    penalties += periodPenalties
   }
 
   const gaps = Math.max(slot - 1, 1)
@@ -229,6 +242,7 @@ function buildCascade(model: TimelineModel<MatchEventRow>): CascadeSchedule {
     slotOf: (periodNumber) => slots.get(periodNumber) ?? 0,
     stepMs,
     finalDelayMs: slotDelay(Math.max(slot - 1, 0), stepMs) + FINAL_GAP_MS,
+    penaltyBaseOf: (periodNumber) => penaltyBases.get(periodNumber) ?? 0,
   }
 }
 
@@ -344,6 +358,8 @@ function PeriodBlock({
   showPenalties,
   slotBase,
   stepMs,
+  penaltyBase,
+  penaltyCount,
 }: {
   period: TimelinePeriod<MatchEventRow>
   goalContext: Map<number, GoalContext>
@@ -352,11 +368,15 @@ function PeriodBlock({
   /** Cascade slot index of this period's divider — see buildCascade. */
   slotBase: number
   stepMs: number
+  /** Index of this period's first penalty among ALL penalties in the match. */
+  penaltyBase: number
+  penaltyCount: number
 }) {
   // Only goals advance the cascade. A penalty row can never be part of the
-  // opening reveal (it starts hidden), so it appears immediately when the
-  // toggle reveals it rather than replaying a delay from a run it missed.
+  // opening reveal (it starts closed), so it takes its entrance from the
+  // disclosure instead rather than replaying a delay from a run it missed.
   let goalSlot = 0
+  let penaltySlot = 0
 
   return (
     <div>
@@ -370,21 +390,62 @@ function PeriodBlock({
         {period.rows.map((event) => {
           const isPenalty = event.eventType === 'penalty'
           if (!isPenalty) goalSlot += 1
+
+          const row = (
+            <EventRow
+              event={event}
+              shortLabel={period.shortLabel}
+              ctx={goalContext.get(event.id) ?? null}
+              oppAbbrev={oppAbbrev}
+              delayMs={isPenalty ? 0 : slotDelay(slotBase + goalSlot, stepMs)}
+            />
+          )
+
+          if (!isPenalty) {
+            return (
+              <li key={event.id} className="my-[7px]">
+                {row}
+              </li>
+            )
+          }
+
+          const index = penaltyBase + penaltySlot
+          penaltySlot += 1
           return (
-            <li key={event.id} className={isPenalty && !showPenalties ? 'hidden' : undefined}>
-              <EventRow
-                event={event}
-                shortLabel={period.shortLabel}
-                ctx={goalContext.get(event.id) ?? null}
-                oppAbbrev={oppAbbrev}
-                delayMs={isPenalty ? 0 : slotDelay(slotBase + goalSlot, stepMs)}
-              />
+            <li
+              key={event.id}
+              className="gs-tl-disclosure"
+              data-open={showPenalties ? '' : undefined}
+              style={disclosureDelays(index, penaltyCount)}
+            >
+              {/* The scroll container the disclosure clips against — see the
+                  `.gs-tl-disclosure > *` rule. */}
+              <div>{row}</div>
             </li>
           )
         })}
       </ol>
     </div>
   )
+}
+
+/**
+ * Per-row stagger for the penalty disclosure, in both directions.
+ *
+ * Opening runs top to bottom; closing runs bottom to top, so the last penalty
+ * is the first to tuck away — a list folds from its far end.
+ */
+const DISCLOSURE_OPEN_DELAY_MS = 90
+const DISCLOSURE_OPEN_STEP_MS = 55
+const DISCLOSURE_CLOSE_DELAY_MS = 10
+const DISCLOSURE_CLOSE_STEP_MS = 24
+
+function disclosureDelays(index: number, total: number): CSSProperties {
+  const closeIndex = total - 1 - index
+  return cssVars({
+    '--gs-delay': `${((DISCLOSURE_OPEN_DELAY_MS + index * DISCLOSURE_OPEN_STEP_MS) / 1000).toFixed(3)}s`,
+    '--gs-delay-out': `${((DISCLOSURE_CLOSE_DELAY_MS + closeIndex * DISCLOSURE_CLOSE_STEP_MS) / 1000).toFixed(3)}s`,
+  })
 }
 
 function PeriodDivider({
@@ -459,8 +520,10 @@ function EventRow({
   // Cards glide in from their own side, mirroring the layout: the direction
   // itself says whose goal it was, before any label is read.
   const slide = isBgm ? 'gs-slide-left' : 'gs-slide-right'
+  // The 7px rhythm lives on the <li>, not here — the penalty disclosure has to
+  // collapse that margin along with the row's height.
   return (
-    <div className="relative z-10 my-[7px] grid grid-cols-1 items-center gap-1.5 sm:grid-cols-[1fr_76px_1fr]">
+    <div className="relative z-10 grid grid-cols-1 items-center gap-1.5 sm:grid-cols-[1fr_76px_1fr]">
       <div className="flex justify-start sm:col-start-2 sm:row-start-1 sm:justify-center">
         <ClockPill clock={toElapsedClock(event.clock)} period={shortLabel} delayMs={delayMs} />
       </div>

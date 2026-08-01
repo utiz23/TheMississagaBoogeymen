@@ -107,12 +107,26 @@ Action-tracker events are the worst hit: **72 matches hold OCR events, 2 are pro
 | assists      | `A  Name · Name`                           | **`A1 Name` `A2 Name`**                                           |
 | toggle CTA   | bespoke accent-text button                 | house wire-cta (fg-2 → accent on hover), full-bleed               |
 | divider tone | fg-3 when scoreless                        | fg-4 label / fg-5 count                                           |
+| disclosure   | instant `hidden` flip                      | **per-row open/close**, staggered both ways                       |
 
-**Three things worth knowing before touching this again**
+**Four things worth knowing before touching this again**
 
 1. **Card frames ride `--tl-*` custom properties, not inline `style`.** Each card has a different resting frame (team edge / GWG / penalty amber) and an inline `border` beats any `:hover` rule a utility class can produce. The team edge is declared **after** the `:hover` rule at equal specificity so source order keeps it — which side scored never changes on hover. No `!important` anywhere.
 2. **Rail end-caps are now SIBLINGS of the spine, not children.** `gs-grow-y` is a `scaleY`; anything inside it was being squashed flat for the length of the draw. This was a live (if subtle) defect before the port.
 3. **The cascade now fits a span instead of clipping to a cap.** The old `min(i * 160, 1500)` made a busy game's tail share one delay and arrive as a clump, and put FINAL at **2.51s** — past the spec's own 2.4s ceiling. Now the step shrinks to fit: `step = min(150, 1050 / gaps)`. Measured on match 250 (11 slots): rows 0.86s→1.70s at a 105ms step, FINAL at 1.95s, landing **2.33s**.
+4. **The disclosure animates PER ROW, not one clip box.** See below — this is the one place the mechanism deliberately departs from the prototype's.
+
+#### The expand / collapse, and why it is not the prototype's clip box
+
+The prototype animates a single clip box because what it hides is a contiguous fold at the **bottom** of the list. What this timeline hides is penalties scattered **through** the list, so one clip box would animate only the bottom edge and leave every goal card below an inserted penalty jumping to its new position. Each penalty `<li>` therefore opens its own track — `grid-template-rows: 0fr → 1fr` — which reflows every insertion point smoothly and, unlike an animated pixel height, needs no measuring, so it survives a resize or a font swap mid-flight. It is pure CSS: no refs, no WAAPI, no `transitionend` handoff, and interruptible mid-flight for free.
+
+Timings and curves are the spec's: open 300ms `cubic-bezier(.16,.84,.3,1)` staggered 55ms from a 90ms lead, close 200ms `cubic-bezier(.4,0,.6,1)` staggered 24ms from 10ms, **reversed** so the last penalty tucks away first. Opening is a keyframe animation rather than the reverse of the close transition, because the two paths differ — a row rises from 16px **below** but tucks 9px **above** — and a pair of transitioned states can only retrace one path.
+
+Three things that are load-bearing and look optional:
+
+- **`overflow: hidden` on the inner wrapper.** It clips the row as the track closes, and it is what lets a grid item shrink past its content at all — `min-height: auto` would otherwise hold the track open at full height.
+- **The 7px rhythm moved from the row onto the `<li>`,** where it collapses to 0 with the track. Left inside the wrapper it would be _contained_ by that scroll container instead of collapsing with the neighbouring rows, and every gap next to a penalty would double. Verified layout-neutral: all gaps still 7px, match 250's panel still 1280px to the pixel.
+- **`visibility` on the closed row,** stepped after the fade via `calc(var(--gs-delay-out) + .2s)`. Without it a collapsed penalty keeps its two profile links in the tab order and the a11y tree. Confirmed unfocusable when closed.
 
 **Assist ranking is a deliberate step past the prototype.** It prints one `A` over a comma-joined list; the DB has `primary_assist_*` and `secondary_assist_*` as separate columns and a secondary **never** appears without a primary (157 both / 126 primary-only / 161 unassisted, measured 2026-08-01), so the ranking is real data the prototype was discarding. Both slots keep natural label→name order on both sides of the rail — mirroring would put A2 ahead of A1 on BGM cards. Same precedent as the penalty card's `TRIPPING 2 PIM`.
 
@@ -120,7 +134,7 @@ Action-tracker events are the worst hit: **72 matches hold OCR events, 2 are pro
 
 #### Verified in-browser (:3002, 1440×1000)
 
-**Match 250** — panel `12px 14px 14px` · card `9px 13px` / min 240 / **max 300, no assist row wrapped** · BGM edge 3px accent, opponent edge 3px `--opp` (`#81878D`) · GWG solid accent frame + `0 0 18px rgba(232,65,49,.35)` + 2px strip, hover → `0 0 26px rgba(232,65,49,.5)` · A1 12px/`#7f7c7d`/0.16em · pill accent-line `4px 8px` · goal-card hover → `#2a2829`, frame accent-line, shadow `0 10px 26px rgba(0,0,0,.45)`, **left edge stays full accent**. **Match 463** (5 penalties, expanded) — amber `.32` frame, amber tint gradient, opponent edge `#00f090`. **Match 470** (no events) — degraded copy renders, no meta chip, no orphan legend. **390px** — no horizontal overflow, rail hidden, `min-w` correctly inert. Console clean apart from two pre-existing EA crest 404s. Typecheck, ESLint, Prettier, `event-timeline.test.ts` (21/21) all green.
+**Match 250** — panel `12px 14px 14px` · card `9px 13px` / min 240 / **max 300, no assist row wrapped** · BGM edge 3px accent, opponent edge 3px `--opp` (`#81878D`) · GWG solid accent frame + `0 0 18px rgba(232,65,49,.35)` + 2px strip, hover → `0 0 26px rgba(232,65,49,.5)` · A1 12px/`#7f7c7d`/0.16em · pill accent-line `4px 8px` · goal-card hover → `#2a2829`, frame accent-line, shadow `0 10px 26px rgba(0,0,0,.45)`, **left edge stays full accent**. **Match 463** (5 penalties) — amber `.32` frame, amber tint gradient, opponent edge `#00f090`. Disclosure sampled per frame: closed rows exactly 0px and unfocusable; **open** cascades top-to-bottom, first row moving at 190ms and the last settling at ~645ms; **close** folds bottom-up, last row already shrinking at 51ms while the first is untouched, all closed by ~306ms. Under `prefers-reduced-motion: reduce` every row reaches full height within one frame — no half-open track, nothing hidden behind a stalled transition. **Match 470** (no events) — degraded copy renders, no meta chip, no orphan legend. **390px** — no horizontal overflow, rail hidden, `min-w` correctly inert. Console clean apart from two pre-existing EA crest 404s. Typecheck, ESLint, Prettier, `event-timeline.test.ts` (21/21) all green.
 
 ---
 
