@@ -2,6 +2,112 @@
 
 ## Active State
 
+### ✅ CLASSES A AND D ARE BOTH REAL — the phantom streak ends; 4 more matches DRAINED 2026-08-01
+
+**Do not pattern-match off C and G.** Two detectors in a row turned out to be phantoms, and the natural next guess was that A and D would follow. They do not. Both fire on genuine defects. A is mis-_specified_ in two narrow ways; D is correct but mis-_attributed_. Neither should be deleted.
+
+#### Class A — real duplicate detector, wrong severity axis
+
+Measured over all 258 buckets / 278 excess events / 57 matches:
+
+| measure                                           | result                |
+| ------------------------------------------------- | --------------------- |
+| buckets with same actor AND same team_side        | **0**                 |
+| buckets whose rows are OCR-variants of one actor  | large majority        |
+| penalty-type buckets (the one systematic FP mode) | 16 buckets, 18 excess |
+
+All 133 rows across the 7 gate-PASS A-fail matches were inspected by hand. The overwhelming majority are unmistakable OCR-variant duplicates — `L. IM DIAMOND`/`IM OIAMOND`/`IAMUND`, `L. HUTSON`/`HUTSON`, `[HOAGE`/`HOAGE`, `H. O'YOINTSKI`/`CEOPFOINTSKI`. Read-time does **no** dedup (`getMatchEvents` just filters and sorts), so promoting these publishes visible duplicates.
+
+**FP mode #1 — coincidental penalties.** Penalties arrive in pairs or quads at one clock _by rule_, so a penalty bucket is expected, not defective. Confirmed against EA truth on **2670**: OCR shows 4 fighting majors at 3rd 17:23 (Silky, T. Snipes, J. Wisers, G. Jeffries) — a line brawl — and EA's per-player `skpim` corroborates exactly (BGM silkyjoker85=7, Wisers1857=15; opp 5/15/2 → 22 vs 22). Excluding penalty buckets flips **only 2670** from fail to warn; the other six still fail on their own merits.
+
+**Mis-specification #2 — severity counts events, not consequence.** `total > 5` treats a duplicate faceoff and a duplicate goal alike. **2675 fails with 19 duplicate faceoffs/shots; 608 only warns with 2 duplicate _goals_.** The 608 case is far worse: the duplicate read flips `team_side` to `against`, so promoting it would publish **2 phantom opponent goals**. Re-weight by event type before trusting this severity.
+
+#### Class D — 7/7 true positives, but the message names the wrong cause
+
+- **EA's PIM is real.** It is not a club-level field; the transform sums `aggregate.skpim`, and the raw payload attributes it per player (e.g. 617: one BGM player 2, one opp player 2).
+- **The rows are genuinely absent.** Unlike class G, this predicate has **no `review_status` filter**, so quarantine can't fake it, and `match_penalty_events` is FK-bound to `match_events` so there is no alternate storage.
+- **Not a general capture gap.** Of the 20 matches drained earlier, 15 had EA PIM and **15/15 have penalty rows**. The pipeline produces them reliably when the data exists.
+
+Three distinct mechanisms hide under one message:
+
+| matches            | actual cause                                                                                                                                   |
+| ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| 608, 2659          | `post_game_events` screen **never captured** — nothing to parse                                                                                |
+| 564, 617, 973, 974 | screen captured, **0 penalty events in the payload** (the `unknown` rows are UI chrome; 564's own STATS panel OCR reads `00:00 PENALTY MINUT`) |
+| **2661**           | 4 penalty rows **in the payload, 0 promoted** — the only literal parser failure                                                                |
+
+**2661's root cause is found and fixable.** The rows carry `period_number: 0` / `period_label: '?'`, so `events.ts:120` calls `resolvePeriod`, which falls back to `periodFromPath`. That helper looks for `…/1st-Period-Events/` folders, but the current capture layout is `pass2/seg-084-post_game_events/` — no match → returns 0 → `skipped_bad_period`. **Any events-screen row whose period OCR fails is silently dropped under the current layout.** The docstring still describes the older folder scheme.
+
+#### The drain — a new EA-truth check decided it
+
+Class D reports **missing** data; class A reports **wrong** data. Only A can make a published fact false, so D was excluded from the gate on the same reasoning that excluded C — but the D matches were then held to a new, sharper check.
+
+**Check: promoted goal rows must equal EA's score on both sides.** `goal_for == score_for` held on all 14 gate-PASS candidates; every excess landed on `against` (the duplicate read flips the side). This is EA-anchored, like the class-G fix.
+
+**Applied:** 188 extractions → **277 events promoted** across **4 matches — 564, 974, 2659, 2661**. `match_events` reviewed **2,113 → 2,390**; 25 matches now have visible events; 48 still pending. All four match EA's per-player goal distribution _exactly_ (e.g. 974 OCR `{L.HUTSON×3, M.RANTANEN×2, SILKY×1}` vs EA `{JoeyFlopfish:3, Stick Menace:2, silkyjoker85:1}`).
+
+Cascade verified event-only before applying (`events=277`, all five sibling tables 0), pre-state uniformly `pending_review`. Re-graded after: **0 gate/flag changes** on all four. Worker suite **496 / 492 pass / 0 fail / 4 skipped** (baseline unchanged).
+
+**Rollback is exact:**
+`ingest-ocr-review --extractions @~/ingest-cache/drains/2026-08-01-classD-drain-extractions.txt --status pending_review`
+
+**Held back deliberately:**
+
+| matches                                | why                                                   |
+| -------------------------------------- | ----------------------------------------------------- |
+| 608, 973                               | would publish **2 phantom opponent goals** each       |
+| 617                                    | would publish **1 phantom opponent goal**             |
+| 463, 979, 1042, 2655, 2670, 2674, 2675 | class-A duplicates are real; promoting publishes them |
+
+Note 2670 is held even though its class-A fail is a confirmed false positive — it independently carries a phantom `against` goal at P1 12:49 (`HUTSON` mirroring `L. HUTSON`).
+
+**⬜ NEXT.** (1) **Fix `periodFromPath` for the `seg-NNN-post_game_events` layout** — this is the one concrete data-recovery win; it unblocks 2661's penalty and any other period-less events row. (2) **Re-weight class A severity by event type** (duplicate goal ≫ duplicate faceoff) and **exclude penalty buckets** from it. (3) **Promote the goal-vs-EA-score check into the gate** — it is cheap, EA-anchored, and caught three matches class A rated only `warn`. (4) The `against`-side mirror duplicate is the single highest-value dedup bug left: the same event re-read with a garbled actor lands on the opposite team. (5) Class C still needs the fix-or-retire decision from the entry below.
+
+---
+
+### ✅ CLASS C IS PRESENTATION-ONLY — audited, excluded from the gate, 20 matches DRAINED 2026-08-01
+
+**Second phantom detector in two sessions.** Class C ("chevron extractor collisions") flags any two events in the same period within 1.0 hockey unit of each other. It is **not** a duplicate detector and never was — it has no temporal or identity component, so it fires on genuinely distinct events that merely reuse a rink location.
+
+**Evidence (all 2,585 colliding pairs corpus-wide):**
+
+| measure                                           | result                  |
+| ------------------------------------------------- | ----------------------- |
+| pairs that are true duplicates (type+clock+actor) | **0**                   |
+| pairs >10 s apart                                 | **2,476 / 2,555 (97%)** |
+| mean clock gap between "colliding" events         | **410 s (~7 min)**      |
+| pairs with different event types                  | 1,494                   |
+
+Two events 7 minutes apart at the same spot are hockey, not an OCR defect. **The faceoff-dot theory is wrong** and shouldn't be re-litigated — faceoffs mostly carry NULL coordinates (82 of 1,509).
+
+**Why it can't touch correctness.** `x`/`y` has **no** consumer in any stat, aggregate, or box score — only the Action Tracker rink, `match-rink-diff-cli`, and a `plotted` count. [apps/web/src/lib/marker-layout.ts](apps/web/src/lib/marker-layout.ts) already treats co-located markers as an expected, frequent OCR output and de-conflicts them deterministically, citing match 250's two E. WANHG shots as the worked example. In `match-events-dedup.ts` position only ever **narrows** an already identity-matched set, so degenerate coordinates cannot cause over-merging.
+
+**The one real signal buried inside it:** 3 matches have genuinely collapsed coordinate fields — **2657** (146 events / 56 cells), **2582** (120/50), **606** (37/11). Everything else is normal (68 matches). That is a marker-position defect, not a data-correctness one. 2582's appearance corroborates the known frame-segmentation defect in [[feedback_stale_ocr_data_remedy]].
+
+#### The drain — correctness-only criterion
+
+**Criterion: gate `PASS` AND zero fail-severity flags in classes A / B / D / G. Class C ignored entirely.** Rationale: A = duplicates (inflates counts), B = unattributed events, D = EA reports PIM but no penalty rows (missing data), G = wrong player. Those bear on whether a published fact is true. C bears only on where a dot is drawn.
+
+| tranche among the 34 gate-PASS matches | matches |
+| -------------------------------------- | ------- |
+| zero fail flags (old criterion)        | 6       |
+| **zero correctness fails (C ignored)** | **20**  |
+| delta — matches whose ONLY fail was C  | +14     |
+
+**Applied:** 1,346 extractions → **1,907 events promoted** across **20 matches** (250, 473, 474, 563, 606, 970, 972, 1039, 1089, 1090, 1092, 1093, 2397, 2402, 2656, 2665, 2669, 2677, 2682, 2688). `match_events` reviewed **206 → 2,113**; 21 matches now have visible events. 52 matches remain pending.
+
+**Safety check that made this safe to run:** event-bearing extractions carry **only** event rows — 0 period summaries, 0 loadouts, 0 shot types, 0 faceoff dots — so the cascade could not disturb the 30 matches `reconcile-periods` deliberately holds at `review`. Cascade output confirmed `period_summaries=0`. Verified afterward: re-graded all 20, **0 gate/flag changes**; worker suite **496 / 492 pass / 0 fail / 4 skipped** (baseline unchanged).
+
+**Rollback is exact** (pre-state was uniformly `pending_review`, 0 mixed rows):
+`ingest-ocr-review --extractions @~/ingest-cache/drains/2026-08-01-classC-drain-extractions.txt --status pending_review`
+(match list alongside it as `…-drain-matches.txt`).
+
+**Code:** added `--extractions <csv|@file> [--dry-run]` to [apps/worker/src/ingest-ocr-review-cli.ts](apps/worker/src/ingest-ocr-review-cli.ts) — a dumb bulk applicator that reuses the audited 6-table cascade. Selection policy stays outside the CLI on purpose. This was the missing bulk path; hand-rolled `UPDATE match_events` would have silently skipped five sibling tables.
+
+**⬜ NEXT.** (1) **Fix or retire class C** — as written it is a mis-specified restatement of class A minus the discriminating dimensions. Either re-scope it to per-match coordinate degeneracy (events-per-distinct-cell ratio, which finds exactly the 3 real matches) or drop it; do not leave a detector with a ~94% false-positive rate feeding the gate. (2) **Match 606 drained with collapsed coordinates** — facts are right, rink will show stacked markers; consider nulling degenerate `x`/`y` so the de-conflictor doesn't imply 7 events at one spot. (3) The remaining 52 pending matches are blocked on real classes A (7) and D (7) among gate-PASS, plus 38 gate-HOLD. (4) Still unanswered: whether the coverage pill gains a "captured but unreviewed" state.
+
+---
+
 ### 🔴 THE "STALE ALIAS LEAK" NEVER EXISTED — class G was measuring the review backlog with itself 2026-08-01
 
 **Read this before acting on the entry below it.** The graded-promotion session ran, and the headline finding is that the signal we were going to grade with was broken. **Nothing was promoted; no `review_status` changed.**
