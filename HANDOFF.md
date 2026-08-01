@@ -2,6 +2,49 @@
 
 ## Active State
 
+### 🟢 FACEOFF-MAP ROI HUNT CLOSED — the ROI is NOT defective; the "6588 dead" figure is ~23 recoverable frames 2026-08-01
+
+**Investigation only — no code changed.** The entry below directs the next session to "find the faceoff-map period-label ROI". That premise is wrong and this entry supersedes it. Do not spend a session moving that region.
+
+#### The ROI is correctly placed — verified visually at full resolution
+
+`period_label` is byte-identical in all three ROI configs (faceoff map / net chart / action tracker): `x 0.150, y 0.140, w 0.180, h 0.060`. Overlaid on a settled faceoff-map frame it lands **squarely on the `RT 2ND PERIOD` pill**, and every sibling region (`away_label`, `home_label`, `stats_panel`, all 9 dots) lands correctly too. The same ROI reads **86% ok on the action tracker** (12668/14675). A region that works on one screen and is visually confirmed on-target on another is not a geometry defect.
+
+#### What `status: "missing"` actually means (the key insight, do not re-derive)
+
+It does **not** mean "the region captured no text". It means **the frame is not a usable faceoff-map screen**. Bucketing all 6753 extractions by whether the ROI text contains a period ordinal, against whether the frame has readable faceoff stats (`overall_win_pct` ok):
+
+| ROI text                 | readable stats | frames   | verdict                             |
+| ------------------------ | -------------- | -------- | ----------------------------------- |
+| no text at all           | no             | **4968** | correctly refused — no data         |
+| garbage                  | no             | **1586** | correctly refused — no data         |
+| has ordinal              | yes            | 130      | promotes today ✓                    |
+| has ordinal              | no             | 37       | —                                   |
+| **`PERIOD`, NO ordinal** | **yes**        | **23**   | **the only recoverable population** |
+
+The 6554 dead-and-dataless frames are dropdown-open dimmed overlays, cross-fades, and mis-segmented other screens (net chart / action tracker frames land inside `*-post_game_faceoff_map` segments; the ROI reads player names — `RANTANEN`, `X ZUBOV`, `BENSON` — off them). Promoting any of them would publish nothing, because the faceoff table isn't legible in them either.
+
+#### The one real defect — the focused pill hides its own value
+
+When the period control has controller **focus** it renders as a **white pill reading only `RT PERIOD`** — the ordinal is not drawn. Unfocused, it is a grey pill reading `RT 2ND PERIOD`. So on those frames the period is **absent from the entire frame**, not merely outside the region. Confirmed at full resolution on match 2665 frames 2–3 and match 1093 `seg-072/00004`. This is why no ROI move can fix it. 23 frames across 16 matches carry complete, crisp faceoff data with an unlabelled period; **19 of the 23 have a labelled sibling in the same segment**, so recovery is temporal (mirror the events-screen fix), not geometric.
+
+#### ⚠️ The trap that would corrupt data — validated, do not walk into it
+
+The obvious recovery for the 4968 is "read the highlighted entry in the open dropdown". **It is wrong.** When the dropdown is open the stats panel behind it still shows the **previously-committed** period. Ground truth, match 1093 (P1 22/78, P2 58/42, P3 33/67): frame `seg-075/00006` highlights **2ND PERIOD** while the panel behind reads **78.0% / 0/0 / 4/4 — period 1's row**. Pairing highlight with visible panel mis-attributes every such frame by one selection step. Per [[feedback_phantom_quality_detectors]], this was measured before being trusted.
+
+#### Corrected impact
+
+Downstream is far healthier than the entry below implies: **44 of 49** matches with faceoff captures already have dot and zone rows. The real gap is **period coverage within** matches — 72 of ~132 (match, period) slots, 25 matches at one period only. Best case the 23 frames add ~20 slots and take matches **2665** and **980** off zero. Worth doing; not "the single biggest recovery left in the project".
+
+#### Also corrected
+
+- **Sibling recovery was measured backwards.** The entry below says "only 212 of 6588 failed frames have a successful sibling". Measured per segment: **5622 of 5792 do** (97%). But segment-level consensus is still unsafe on its own — only 33 of 159 segments are period-homogeneous; most span the user cycling periods (up to 32 distinct values).
+- **`ok` status in `ocr_extraction_fields` is stale.** Rows read `ok` with values like `RANTANEN` and `GAME STATS CO`; today's `_net_chart_period_number` returns 0 for all of them. Do not diagnose from that column — re-run the parser ([[feedback_stale_ocr_data_remedy]]).
+
+**⬜ NEXT.** (1) **Recover the 23 unlabelled-but-complete frames temporally** — infer the ordinal from labelled settled siblings in the same segment (settled frames appear in period order; validate against the 130 labelled frames and the `match_faceoff_zone_summaries` ground truth). Never from an open dropdown's highlight. (2) **Re-check `post_game_net_chart` (431 dead) with this same bucketing before assuming an ROI cause** — it shares the identical region and very likely the identical focused-pill behaviour. (3) The upstream question worth more than either: **why does the corpus hold 6753 faceoff extractions for ~154 genuinely usable screens?** Segment/dedup emits ~40 frames per usable screen and mis-files other screens into faceoff segments — that inflation, not the ROI, is what makes the corpus look catastrophic.
+
+---
+
 ### ✅ PERIOD FALLBACK FIXED — 2661's penalty recovered, and `period_label` exposed as the #1 corpus blocker 2026-08-01
 
 **The fix landed and class D cleared on 2661 only, as predicted.** But the more important outcome is what the blast-radius measurement turned up: **period resolution is the single largest failure mode in the entire OCR corpus**, and the events screen was its smallest instance.
@@ -70,7 +113,7 @@ This is what starves L3: 2661's downstream gaps are `match_faceoff_dots=0/9, mat
 
 The pipeline is not blocked on capture — 101 matches have data. It is blocked on **review throughput** (4298 rows quarantined) and on the **faceoff-map/net-chart period ROI** (7234 rows that never transformed at all).
 
-**⬜ NEXT.** (1) **Find the faceoff-map period-label ROI** — 6588 dead extractions, the single biggest recovery left in the project, and it gates every faceoff dot/zone row and therefore L3. Start at the region definition, not the OCR backend; `status: "missing"` means nothing was handed to OCR. (2) **Same check for `post_game_net_chart`** (431 dead) — likely the same ROI family. (3) **Promote the remaining 7 recoverable events rows** in 606, 976, 2398, 2577 (`repromote-ocr --match <id> --screen post_game_events`); deliberately NOT run this session because those matches sit behind the class-A hold-backs and the promote decision is a policy call. 20 further rows in 968, 1039, 1089, 1093, 2656 have no labelled row in any frame and are unrecoverable from the current payloads — they now warn instead of vanishing. (4) The class A/D re-weighting items below are still open and unchanged.
+**⬜ NEXT.** (1) ~~**Find the faceoff-map period-label ROI**~~ — ❌ **SUPERSEDED by the top entry (2026-08-01).** The ROI is correctly placed and visually verified on target; `status: "missing"` means _the frame is not a usable faceoff screen_, not that nothing was handed to OCR. The recoverable population is ~23 frames, not 6588, and the cause is a focused pill that hides its own value — not geometry. (2) ~~**Same check for `post_game_net_chart`**~~ — re-scoped in the top entry: bucket it the same way before assuming an ROI cause. (3) **Promote the remaining 7 recoverable events rows** in 606, 976, 2398, 2577 (`repromote-ocr --match <id> --screen post_game_events`); deliberately NOT run this session because those matches sit behind the class-A hold-backs and the promote decision is a policy call. 20 further rows in 968, 1039, 1089, 1093, 2656 have no labelled row in any frame and are unrecoverable from the current payloads — they now warn instead of vanishing. (4) The class A/D re-weighting items below are still open and unchanged.
 
 ---
 
