@@ -3,12 +3,20 @@
  * use with run-quality-cli (Phase 3 of the Run-Level Quality Reporting
  * workstream, plan `/home/michal/.claude/plans/ok-plan-this-run-level-nifty-comet.md`).
  *
- * NO behavior change vs the prior inline implementation in
+ * Extracted with NO behavior change from the prior inline implementation in
  * `match-quality-cli.ts`. The regression-floor JSONs at
  * `docs/calibration/regression-floor-match-*.json` are the byte-identical
  * contract — `quality-layers.test.ts` deep-equals the resulting `layers` and
  * a manual `match-quality --json` diff against those fixtures catches any
  * drift in the downstream / flags inputs.
+ *
+ * 2026-07-31 — the ONE deliberate departure from that extraction: the three
+ * event tables reported `reviewed = actual` unconditionally, so every match's
+ * report claimed its events were fully reviewed even when all of them sat at
+ * `pending_review`. Corrected to a real filter. This is display-only —
+ * `computeLayers` scores L3 on `actual / expected` and never reads `reviewed`
+ * (and weights `match_events` at 0), so no score, `overall.pass`, or L4 gate
+ * moves. The 250/463 floors were re-stamped for the corrected counts only.
  */
 
 import {
@@ -20,6 +28,7 @@ import {
   matchShotTypeSummaries,
   matchFaceoffDots,
   matchFaceoffZoneSummaries,
+  playerMatchStats,
   playerLoadoutSnapshots,
   playerLoadoutAttributes,
   playerLoadoutXFactors,
@@ -63,44 +72,58 @@ export async function buildDownstreamCounts(
   const [eventStats] = (await conn
     .select({
       n: sql<string>`COUNT(*)::text`,
+      reviewedN: sql<string>`COUNT(*) FILTER (WHERE ${matchEvents.reviewStatus} = 'reviewed')::text`,
       plotted: sql<string>`COUNT(*) FILTER (WHERE ${matchEvents.x} IS NOT NULL)::text`,
     })
     .from(matchEvents)
-    .where(eq(matchEvents.matchId, matchId))) as Array<{ n: string; plotted: string }>
+    .where(eq(matchEvents.matchId, matchId))) as Array<{
+    n: string
+    reviewedN: string
+    plotted: string
+  }>
   out.push({
     table: 'match_events',
     actual: Number(eventStats!.n),
     expected: expectedEventsApprox,
-    reviewed: Number(eventStats!.n),
+    reviewed: Number(eventStats!.reviewedN),
     notes: `${eventStats!.plotted} have x,y coords`,
   })
 
   const expectedGoals = match.scoreFor + match.scoreAgainst
+  // `match_goal_events` / `match_penalty_events` carry no `review_status` of
+  // their own — they are detail rows hanging off `match_events`, so their
+  // review state IS the parent event's. Filter on the joined parent.
   const [goalStats] = (await conn
-    .select({ n: sql<string>`COUNT(*)::text` })
+    .select({
+      n: sql<string>`COUNT(*)::text`,
+      reviewedN: sql<string>`COUNT(*) FILTER (WHERE ${matchEvents.reviewStatus} = 'reviewed')::text`,
+    })
     .from(matchGoalEvents)
     .innerJoin(matchEvents, eq(matchEvents.id, matchGoalEvents.eventId))
-    .where(eq(matchEvents.matchId, matchId))) as Array<{ n: string }>
+    .where(eq(matchEvents.matchId, matchId))) as Array<{ n: string; reviewedN: string }>
   out.push({
     table: 'match_goal_events',
     actual: Number(goalStats!.n),
     expected: expectedGoals,
-    reviewed: Number(goalStats!.n),
+    reviewed: Number(goalStats!.reviewedN),
     notes: `EA score ${match.scoreFor}-${match.scoreAgainst}`,
   })
 
   const expectedPenalty =
     (match.penaltyMinutes ?? 0) > 0 || (match.penaltyMinutesAgainst ?? 0) > 0 ? 1 : 0
   const [penaltyStats] = (await conn
-    .select({ n: sql<string>`COUNT(*)::text` })
+    .select({
+      n: sql<string>`COUNT(*)::text`,
+      reviewedN: sql<string>`COUNT(*) FILTER (WHERE ${matchEvents.reviewStatus} = 'reviewed')::text`,
+    })
     .from(matchPenaltyEvents)
     .innerJoin(matchEvents, eq(matchEvents.id, matchPenaltyEvents.eventId))
-    .where(eq(matchEvents.matchId, matchId))) as Array<{ n: string }>
+    .where(eq(matchEvents.matchId, matchId))) as Array<{ n: string; reviewedN: string }>
   out.push({
     table: 'match_penalty_events',
     actual: Number(penaltyStats!.n),
     expected: expectedPenalty,
-    reviewed: Number(penaltyStats!.n),
+    reviewed: Number(penaltyStats!.reviewedN),
     notes: `EA PIM for=${match.penaltyMinutes ?? 0} against=${match.penaltyMinutesAgainst ?? 0}`,
   })
 
@@ -373,21 +396,51 @@ export async function buildQualityFlags(
   // Class G — actor/target resolved to a player NOT in this match's lineup.
   // The legitimate persona→gamertag mapping (e.g. "M. RANTANEN" → "Stick
   // Menace") doesn't trigger this because Stick Menace IS in match 463's
-  // lineup. But "H. JENKINS" → "JoeyFlopfish" does, because JoeyFlopfish
+  // lineup. But "H. JENKINS" → "JoeyFlopfish" would, because JoeyFlopfish
   // didn't play this match — that's a stale match-250 alias leaking through.
+  //
+  // ⚠️ THE LINEUP AUTHORITY IS THE EA API (`player_match_stats`), NOT reviewed
+  // loadout snapshots. Keying solely on `player_loadout_snapshots WHERE
+  // review_status='reviewed'` made this check circular: those rows are
+  // themselves quarantined at `pending_review`, so the subquery was EMPTY for
+  // 97 of 101 matches, every resolution was trivially "not in the lineup", and
+  // class G fired on 68 of them. Measured 2026-07-31: all 4,462 resolved
+  // actor/target refs DB-wide ARE in their match's EA-API lineup — every one of
+  // those 68 firings was a false positive, and the reported "stale alias leak"
+  // did not exist. `player_match_stats` is always populated and is EA truth.
+  //
+  // The reviewed-loadout set stays UNIONed in, never as the sole source: it can
+  // only ever accept a player the API omitted (dressed but recorded no stats),
+  // so it removes false positives and can never introduce one.
+  //
+  // This DOES overturn a documented decision. `resolve-identity.ts` (~line 205)
+  // notes that its own lineup gate is ALL snapshots while "the match-quality
+  // CLI's class-G check uses the reviewed-only subset … Distinct gates, distinct
+  // questions." The gate was deliberate; what it did not anticipate is that the
+  // reviewed-only subset would go empty corpus-wide, at which point class G's
+  // question stopped being answerable and it just re-measured the backlog.
+  // Anchoring on EA truth keeps the question meaningful and independent of OCR:
+  // a resolver slip to someone who genuinely did not play still fires. Note the
+  // resolver's `empty_lineup_passthrough` cases are now validated against the
+  // API rather than waved through, so coverage there is strictly better.
+  const lineupAuthority = sql`
+    SELECT pms.player_id
+    FROM ${playerMatchStats} pms
+    WHERE pms.match_id = ${matchId} AND pms.player_id IS NOT NULL
+    UNION
+    SELECT pls.player_id
+    FROM ${playerLoadoutSnapshots} pls
+    WHERE pls.match_id = ${matchId}
+      AND pls.review_status = 'reviewed'
+      AND pls.player_id IS NOT NULL
+  `
   const offRosterResolutions = (await conn.execute(sql`
     SELECT e.target_gamertag_snapshot AS snap, p.gamertag AS resolved,
            p.id AS player_id, COUNT(*) AS n
     FROM ${matchEvents} e
     JOIN players p ON p.id = e.target_player_id
     WHERE e.match_id = ${matchId}
-      AND p.id NOT IN (
-        SELECT DISTINCT player_id
-        FROM ${playerLoadoutSnapshots}
-        WHERE match_id = ${matchId}
-          AND review_status = 'reviewed'
-          AND player_id IS NOT NULL
-      )
+      AND p.id NOT IN (${lineupAuthority})
     GROUP BY e.target_gamertag_snapshot, p.gamertag, p.id
     ORDER BY n DESC
     LIMIT 10
@@ -412,13 +465,7 @@ export async function buildQualityFlags(
     FROM ${matchEvents} e
     JOIN players p ON p.id = e.actor_player_id
     WHERE e.match_id = ${matchId}
-      AND p.id NOT IN (
-        SELECT DISTINCT player_id
-        FROM ${playerLoadoutSnapshots}
-        WHERE match_id = ${matchId}
-          AND review_status = 'reviewed'
-          AND player_id IS NOT NULL
-      )
+      AND p.id NOT IN (${lineupAuthority})
     GROUP BY e.actor_gamertag_snapshot, p.gamertag, p.id
     ORDER BY n DESC
     LIMIT 10

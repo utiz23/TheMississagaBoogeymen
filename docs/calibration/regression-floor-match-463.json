@@ -107,7 +107,7 @@
       "table": "match_events",
       "actual": 124,
       "expected": 104,
-      "reviewed": 124,
+      "reviewed": 111,
       "notes": "79 have x,y coords"
     },
     {
