@@ -2,6 +2,43 @@
 
 ## Active State
 
+### 🟡 AUTO-DRAIN PLAN APPROVED — implement in a fresh session 2026-08-01
+
+**Investigation only — no code changed.** Full mass-OCR accounting done (what extracted vs what displays, per screen type) and the user approved a plan to automate the drain criterion. **Plan file: `~/.claude/plans/ok-we-need-to-indexed-knuth.md` — read it first; it is the implementation spec.**
+
+Key measured facts (live DB, 2026-08-01):
+
+- 101/199 matches have OCR; `match_events` 2391 reviewed (25 matches visible) vs 4298 pending (48 matches promoted-but-quarantined). Loadouts display ungated (98 matches). Periods 22/30 reviewed/pending. Shot-type (1/50) and faceoff (2/43) canonicals have **no web UI at all** (zero references in apps/web — verified).
+- Capture co-occurrence: action tracker is a strict anchor (0 matches have events/box score without it), but only 39/77 AT matches have the full 5-screen set; the gaps are genuine recording gaps (segment layer confirms pass-1 never saw those screens — nothing to re-mine).
+- All 101 matches have an active decoder run but only the 4 pilots have quality reports — batch ingest activates without the grade path; `consolidate-loadouts` reviewed-anchors exist for 4 matches only.
+
+**User decisions (recorded via plan approval):** (1) class D downgrades fail→warn when the match has zero `post_game_events` segments (releases ≥ 608, 2659 — publish action tracker, penalties become a coverage gap); (2) scope = wire auto-drain only; class-A re-weighting stays a separate follow-up session.
+
+**⬜ NEXT (fresh session, Session-2 implement):** execute the plan file — (1) class-D conditional severity in `lib/quality-inputs.ts`; (2) extract the review cascade from `ingest-ocr-review-cli.ts:89-137` into `lib/review-cascade.ts`; (3) new `auto-drain-cli.ts` (criterion: gate PASS + zero fail A/B/D/G; `--dry-run`/`--match`/`--json`); verify per the plan (dry-run first, then `--match 608`, then full).
+
+---
+
+### 🟢 ACTION TRACKER + LINEUP POLISH SHIPPED — game sheet aligned to the prototype 2026-08-01
+
+**Web-only, no data or schema touched.** Session-3 verify-and-polish pass on the game sheet. All changes in `apps/web/src/components/matches/`.
+
+Action Tracker (`action-tracker/index.tsx`, `action-tracker/filters.tsx`):
+
+- **Header** now uses the house module style (12px / semibold / 0.16em / `fg-4` + `▰` `fg-5` ornament) that Box Score, Team Stats, Event Timeline and Lineup already carried — it was the only section off-pattern. Subtitle ("Post-game OCR · event positions on the rink") removed; the provenance footer states the same thing with real numbers.
+- **"Goals only" toggle deleted** (not in the prototype; duplicated the type toggles in one extra click). `goalsOnly`/`toggleGoalsOnly` state removed, not left dangling.
+- **Filter bar is one row**: `Period · Team · Events`, types seated right via `xl:ml-auto`. The auto margin is gated to `xl` on purpose — unconditional, it also applies to the *wrapped* row and shoves the lone type group against an empty gutter.
+- **Container structure rebuilt to the prototype's "cards on a field"**: outer section is now `broadcast-panel-soft` + `p-4` instead of a flat `border/bg-surface` monolith. This was the real fix — the rink (`broadcast-panel-strong`), event list and provenance footer were *already* bordered cards, but `bg-surface` cards on a `bg-surface` field have nothing to separate from. Filter bar became a self-contained card (was a full-bleed `border-t` band); empty state likewise. Spacing matches the prototype: 8px filter→stage, 12px between stage columns, uniform 17px card inset.
+
+Lineup (`lineup/lineup-module.tsx`): removed the "Tap a skater for full loadout / match stats" hint (both `ocr` and `boxScore` variants) and the `slots.some(expandable)` guard that existed only to gate it. `variant` and `expandable` are still used elsewhere — no dead code left.
+
+**Filter-row sizing is measured, not eyeballed.** Type scale went 9–10.5px → 12px, then back to **11px** on request. Measured widths against 1188px available at the container's `max-w-screen-xl` cap: 3-period match needs **1060px** (128px slack), OT match needs **1107px** (81px slack). One line holds to a **~1150px viewport** normally, **~1210px** for OT. Below that it wraps to two rows with the Events label carrying its chips down. The OT case is the binding constraint and was verified on **match 250** (the only OT match with reviewed tracked events) — the 12px version would *not* have fitted it (~1208px needed vs 1188px). Width was bought back by dropping the Period/Team divider (redundant now that all three groups are labelled; the prototype has none), cutting type-toggle tracking to 0.04em, and trimming horizontal padding — never vertical, which is what reads as button size.
+
+Verified: `tsc --noEmit` exit 0, `eslint` exit 0 on both directories, prettier clean, no console errors. Rendered and measured in a live dev server at 1440 / 1250 / 1220 / 1200 / 1150 / 1120px on matches 1093 (3-period), 250 (OT) and 976 (empty state).
+
+**⬜ Nothing outstanding.** Optional follow-up if the section now reads too heavy next to its siblings: it is the only game-sheet module on a broadcast field rather than flat `bg-surface`. That is faithful to the prototype (Team Stats et al. use `--color-surface` there too), but swapping `broadcast-panel-soft` → `border border-border bg-surface` on the outer keeps the new card structure and drops the depth.
+
+---
+
 ### 🟢 FACEOFF-MAP ROI HUNT CLOSED — the ROI is NOT defective; the "6588 dead" figure is ~23 recoverable frames 2026-08-01
 
 **Investigation only — no code changed.** The entry below directs the next session to "find the faceoff-map period-label ROI". That premise is wrong and this entry supersedes it. Do not spend a session moving that region.
