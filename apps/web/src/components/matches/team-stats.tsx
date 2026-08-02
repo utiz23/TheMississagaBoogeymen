@@ -194,8 +194,14 @@ function Row({ row, delayMs }: { row: BoxScoreRow; delayMs: number }) {
             />
           </span>
           <span className="w-[2px] flex-none bg-surface" />
+          {/* `flex` is load-bearing, not cosmetic: the fill inside is a <span>,
+              and width/height do not apply to an inline box. BGM's wrapper is a
+              flex container (it needs `justify-end` to anchor its fill at the
+              divider), which blockifies its fill as a side effect. Without it
+              here the opponent's fill stayed inline and collapsed to 0×0 — the
+              colour was correct all along, there was just no box to paint. */}
           <span
-            className="flex-none overflow-hidden"
+            className="flex flex-none overflow-hidden"
             style={{ width: `calc(${oppPct.toFixed(1)}% - 1px)` }}
           >
             <span
