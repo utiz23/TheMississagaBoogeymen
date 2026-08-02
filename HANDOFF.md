@@ -2,19 +2,54 @@
 
 ## Active State
 
-### 🟡 AUTO-DRAIN PLAN APPROVED — implement in a fresh session 2026-08-01
+### 🟢 AUTO-DRAIN SHIPPED AND RUN — backlog is NOT a wiring gap; it is 4,247 events behind real blockers 2026-08-01
 
-**Investigation only — no code changed.** Full mass-OCR accounting done (what extracted vs what displays, per screen type) and the user approved a plan to automate the drain criterion. **Plan file: `~/.claude/plans/ok-we-need-to-indexed-knuth.md` — read it first; it is the implementation spec.**
+Implements the (now-executed) plan `~/.claude/plans/ok-we-need-to-indexed-knuth.md`. The "grade a match ⇒ flip its rows to reviewed" link is wired and the full corpus drain has been run. **Nothing outstanding on the tooling.**
 
-Key measured facts (live DB, 2026-08-01):
+#### ⚠️ THE PLAN'S CENTRAL PREMISE WAS WRONG — read this before planning the next drain
 
-- 101/199 matches have OCR; `match_events` 2391 reviewed (25 matches visible) vs 4298 pending (48 matches promoted-but-quarantined). Loadouts display ungated (98 matches). Periods 22/30 reviewed/pending. Shot-type (1/50) and faceoff (2/43) canonicals have **no web UI at all** (zero references in apps/web — verified).
-- Capture co-occurrence: action tracker is a strict anchor (0 matches have events/box score without it), but only 39/77 AT matches have the full 5-screen set; the gaps are genuine recording gaps (segment layer confirms pass-1 never saw those screens — nothing to re-mine).
-- All 101 matches have an active decoder run but only the 4 pilots have quality reports — batch ingest activates without the grade path; `consolidate-loadouts` reviewed-anchors exist for 4 matches only.
+The plan (and the investigation behind it) held that 4,298 event rows were invisible **because the grade⇒flip link was never wired**. That is not what was happening. The full drain flipped **2,500 extractions across 22 matches and moved exactly 2 event rows**, and the corpus counts did not move: `match_events` sat at **2,442 reviewed / 4,247 pending / 26 visible matches** before and after.
 
-**User decisions (recorded via plan approval):** (1) class D downgrades fail→warn when the match has zero `post_game_events` segments (releases ≥ 608, 2659 — publish action tracker, penalties become a coverage gap); (2) scope = wire auto-drain only; class-A re-weighting stays a separate follow-up session.
+The reason: the PASS-criterion matches had **already had their events drained by hand** in earlier sessions. What was still pending for them was only the `ocr_extractions` bookkeeping row, not the data. All 23 drained matches now read **100% reviewed events, zero pending** — the drain was correct, it just had almost nothing left to release.
 
-**⬜ NEXT (fresh session, Session-2 implement):** execute the plan file — (1) class-D conditional severity in `lib/quality-inputs.ts`; (2) extract the review cascade from `ingest-ocr-review-cli.ts:89-137` into `lib/review-cascade.ts`; (3) new `auto-drain-cli.ts` (criterion: gate PASS + zero fail A/B/D/G; `--dry-run`/`--match`/`--json`); verify per the plan (dry-run first, then `--match 608`, then full).
+**Every one of the 4,247 still-pending events sits behind a genuine blocker**, not a missing link:
+
+| blocker                                     | matches | pending events |
+| ------------------------------------------- | ------: | -------------: |
+| gate HOLD (mostly "no OCR final read")      |      38 |      **3,306** |
+| PASS blocked: class A (duplicate events)    |       7 |            756 |
+| PASS blocked: class D (real parser failure) |       2 |            185 |
+
+**This re-orders the follow-ups.** The plan queued class-A re-weighting next, but that is 756 events across 7 matches. **Gate HOLD is 3,306 events across 38 matches — 4× larger**, and its dominant reason is `API truth present but no OCR final read`, i.e. the box-score TOT row was never read for those matches. That box-score final-read defect, not class A, is the highest-value next target. Auto-drain will release those matches automatically once their finals read — no further drain tooling is needed.
+
+#### What was built
+
+- `lib/quality-inputs.ts` — class D is now **conditional severity**. It probes `ocr_segments` for a `post_game_events` segment: none ⇒ `warn` (the screen was never recorded, so missing penalties are a coverage gap); present ⇒ `fail` (real parser defect). Measured: **27 matches are the recording-gap shape, 6 are genuine failures** (564, 617, 618, 964, 973, 974).
+- `lib/review-cascade.ts` — **NEW**, the transactional 7-table cascade extracted verbatim from `ingest-ocr-review-cli.ts`. Both the hand-driven review CLI and auto-drain call it; the logic exists once.
+- `lib/auto-drain.ts` — **NEW**, the selection policy (`decideDrain` + the two candidate queries). Split out of the CLI **because importing a CLI executes its `main()`** — that is why the policy is not in `auto-drain-cli.ts`.
+- `auto-drain-cli.ts` + `pnpm --filter worker auto-drain` — **NEW**. `--match <id>` / `--all` / `--dry-run` / `--json`.
+- Tests: `__tests__/quality-flag-class-d-events-screen.test.ts` and `__tests__/auto-drain-selection.test.ts` (**NEW**, 12 tests).
+
+#### Decisions made this session (do not silently reverse)
+
+- **The class-D segment probe is deliberately NOT live-run-filtered.** The claim the downgrade asserts is "this screen was never recorded", and a segment from _any_ run — active or superseded — refutes it. Scoping to the active run would make the downgrade _easier_ to satisfy, which is the wrong direction for a check that weakens a gate.
+- **`auto-drain` requires an explicit scope** (`--match` or `--all`). A bare invocation prints usage; it never drains the corpus implicitly.
+- **The blocking flag set is explicit: A/B/D/G.** Class C is excluded (retired, ~94% FP); E/F are never emitted. A test pins that class C at `fail` still does not block, so re-adding it has to be deliberate.
+- **Class-D tests live in their own file, not `match-quality-regression.test.ts`** — that file spawns the built CLI against matches 250/463 as a score-floor gate and can express neither D branch (250's PIM is NULL, 463 has penalty rows).
+
+#### Verification results
+
+- `@eanhl/db` + `@eanhl/worker` builds clean; worker suite **523 tests / 519 pass / 0 fail / 4 skipped** (baseline was 511 pass). The 12 new tests were re-run in isolation: **12 pass, 0 skipped** — none silently skipped for a missing DB.
+- Prettier clean on every touched file. ⚠️ `pnpm format` exits 2 repo-wide on **pre-existing** breakage: several `docs/calibration/*.json` carry a pnpm preamble above the JSON (the regression test strips it deliberately). Not caused here — don't chase it.
+- `--all --dry-run`: **23 drainable / 54 held / 0 errored**. 608 and 2659 released by the D downgrade exactly as predicted; **7 class-A** holds as predicted; the 4 class-D holds are precisely the segments-present shape; **no OPERATOR_CONFIRM match was selected**.
+- `--match 608` applied: 85 extractions + 51 events flipped, no duplicates introduced — the only match whose events the drain actually released (25→**26 visible**).
+- `--all` applied: **22 matches / 2,500 extractions / 0 errored**, 2 event rows moved. See the premise correction above for why that number is right rather than a bug.
+
+#### ⚠️ Do not verify rendering by scraping the live site
+
+The running `web` container is a **stale image** (43h at time of writing) that predates the current uncommitted action-tracker component, so its HTML lacks the `EmptyActionTracker` copy entirely — scraping it produces a false "renders fine" for _every_ match. Verify visibility through the real query instead: `getMatchEvents(id)` returned 51 for drained 608 and **0** for still-held 249. That query gates `source='ocr'`/`'manual'` on `reviewed` but lets `source='ea'` through ungated.
+
+**Follow-ups, re-ordered by measured impact:** (1) **box-score final-read defect** — unblocks 38 gate-HOLD matches / 3,306 events, and auto-drain then releases them with no new tooling; (2) class-A re-weighting (7 matches / 756 events); (3) net-chart + faceoff-map UI modules; (4) mirror-duplicate dedup bug.
 
 ---
 
@@ -26,12 +61,12 @@ Action Tracker (`action-tracker/index.tsx`, `action-tracker/filters.tsx`):
 
 - **Header** now uses the house module style (12px / semibold / 0.16em / `fg-4` + `▰` `fg-5` ornament) that Box Score, Team Stats, Event Timeline and Lineup already carried — it was the only section off-pattern. Subtitle ("Post-game OCR · event positions on the rink") removed; the provenance footer states the same thing with real numbers.
 - **"Goals only" toggle deleted** (not in the prototype; duplicated the type toggles in one extra click). `goalsOnly`/`toggleGoalsOnly` state removed, not left dangling.
-- **Filter bar is one row**: `Period · Team · Events`, types seated right via `xl:ml-auto`. The auto margin is gated to `xl` on purpose — unconditional, it also applies to the *wrapped* row and shoves the lone type group against an empty gutter.
-- **Container structure rebuilt to the prototype's "cards on a field"**: outer section is now `broadcast-panel-soft` + `p-4` instead of a flat `border/bg-surface` monolith. This was the real fix — the rink (`broadcast-panel-strong`), event list and provenance footer were *already* bordered cards, but `bg-surface` cards on a `bg-surface` field have nothing to separate from. Filter bar became a self-contained card (was a full-bleed `border-t` band); empty state likewise. Spacing matches the prototype: 8px filter→stage, 12px between stage columns, uniform 17px card inset.
+- **Filter bar is one row**: `Period · Team · Events`, types seated right via `xl:ml-auto`. The auto margin is gated to `xl` on purpose — unconditional, it also applies to the _wrapped_ row and shoves the lone type group against an empty gutter.
+- **Container structure rebuilt to the prototype's "cards on a field"**: outer section is now `broadcast-panel-soft` + `p-4` instead of a flat `border/bg-surface` monolith. This was the real fix — the rink (`broadcast-panel-strong`), event list and provenance footer were _already_ bordered cards, but `bg-surface` cards on a `bg-surface` field have nothing to separate from. Filter bar became a self-contained card (was a full-bleed `border-t` band); empty state likewise. Spacing matches the prototype: 8px filter→stage, 12px between stage columns, uniform 17px card inset.
 
 Lineup (`lineup/lineup-module.tsx`): removed the "Tap a skater for full loadout / match stats" hint (both `ocr` and `boxScore` variants) and the `slots.some(expandable)` guard that existed only to gate it. `variant` and `expandable` are still used elsewhere — no dead code left.
 
-**Filter-row sizing is measured, not eyeballed.** Type scale went 9–10.5px → 12px, then back to **11px** on request. Measured widths against 1188px available at the container's `max-w-screen-xl` cap: 3-period match needs **1060px** (128px slack), OT match needs **1107px** (81px slack). One line holds to a **~1150px viewport** normally, **~1210px** for OT. Below that it wraps to two rows with the Events label carrying its chips down. The OT case is the binding constraint and was verified on **match 250** (the only OT match with reviewed tracked events) — the 12px version would *not* have fitted it (~1208px needed vs 1188px). Width was bought back by dropping the Period/Team divider (redundant now that all three groups are labelled; the prototype has none), cutting type-toggle tracking to 0.04em, and trimming horizontal padding — never vertical, which is what reads as button size.
+**Filter-row sizing is measured, not eyeballed.** Type scale went 9–10.5px → 12px, then back to **11px** on request. Measured widths against 1188px available at the container's `max-w-screen-xl` cap: 3-period match needs **1060px** (128px slack), OT match needs **1107px** (81px slack). One line holds to a **~1150px viewport** normally, **~1210px** for OT. Below that it wraps to two rows with the Events label carrying its chips down. The OT case is the binding constraint and was verified on **match 250** (the only OT match with reviewed tracked events) — the 12px version would _not_ have fitted it (~1208px needed vs 1188px). Width was bought back by dropping the Period/Team divider (redundant now that all three groups are labelled; the prototype has none), cutting type-toggle tracking to 0.04em, and trimming horizontal padding — never vertical, which is what reads as button size.
 
 Verified: `tsc --noEmit` exit 0, `eslint` exit 0 on both directories, prettier clean, no console errors. Rendered and measured in a live dev server at 1440 / 1250 / 1220 / 1200 / 1150 / 1120px on matches 1093 (3-period), 250 (OT) and 976 (empty state).
 
