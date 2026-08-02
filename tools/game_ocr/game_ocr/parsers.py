@@ -1212,6 +1212,43 @@ def _align_row_to_headers(
     return bins
 
 
+# The token each Box Score tab label must contain for a frame to count as
+# showing that tab. Production labels read "LT GOAL SUMMARY" / "LT SHOT SUMMARY"
+# / "LT FACEOFF SUMMARY"; a frame caught mid-tab-transition reads
+# "LT SUMMARY CATEGORY", which names no tab and therefore corroborates nothing.
+_BOX_SCORE_TAB_TOKEN = {"goals": "GOAL", "shots": "SHOT", "faceoffs": "FACEOFF"}
+
+
+def _tab_label_confirms_stat_kind(tab_label: ExtractionField, stat_kind: str) -> bool:
+    """True when the frame's tab label positively names the tab we're parsing.
+
+    The screen classifier assigns a screen_type per frame, but a frame captured
+    during a tab transition can be labelled `..._goals` while the grid on screen
+    is the SHOTS or FACEOFFS table. The table itself cannot reveal this — a
+    shots grid is internally consistent as a shots grid — so the tab label,
+    which comes from a different region entirely, is the only independent
+    witness. Absent or unrecognized ⇒ False: repair requires positive evidence.
+    """
+    token = _BOX_SCORE_TAB_TOKEN.get(stat_kind)
+    if token is None or not tab_label.raw_text:
+        return False
+    return token in tab_label.raw_text.upper()
+
+
+def _joined_digit_value(raw: str | None) -> int | None:
+    """Join a space-separated run of single digits ("1 0") back into one int.
+
+    Mirrors the corpus pattern that column mis-segmentation produces. Used ONLY
+    to corroborate a TOT repair — never to produce a value, because the same
+    shape is what the adjacent TOTAL SHOTS column leaks in as.
+    """
+    if not raw:
+        return None
+    if not re.fullmatch(r"[0-9](?: [0-9])+", raw.strip()):
+        return None
+    return int(raw.replace(" ", ""))
+
+
 def parse_post_game_box_score(
     meta,
     regions: dict[str, list[OCRLine]],
@@ -1273,18 +1310,40 @@ def parse_post_game_box_score(
             )
         )
 
-    # TOT-sum sanity check: periods 1..6 (1ST/2ND/3RD/OT/OT2/OT3) should add
-    # up to the TOT column. RapidOCR misreads digits in this font (most often
-    # '9'→'6' or '9'→'g'), so when the column sum disagrees with TOT we surface
-    # a warning so the operator can pinpoint the bad cell during review.
+    # TOT-sum disambiguation: periods 1..6 (1ST/2ND/3RD/OT/OT2/OT3) should add
+    # up to the TOT column. A complete period row is a second, independent
+    # reading of the same final, so it can both repair and check the total —
+    # but the two outcomes are deliberately asymmetric:
+    #
+    #   TOT unread            → REPAIR with the period sum. Column segmentation
+    #     (or _explode_digit_token re-binning a two-digit token back into its own
+    #     column) leaves raw text like "1 0", which parse_int nulls. Adopting the
+    #     sum turns a null into a value and destroys nothing.
+    #   TOT read but disagreeing → WARN ONLY, never overwrite. RapidOCR misreads
+    #     digits in this font (most often '9'→'6' or '9'→'g'), so the bad cell is
+    #     as likely to be a period as the total, and l4-api-truth grades the
+    #     TOT-row final independently of the period sum precisely so that a
+    #     correct final with a noisy breakdown still passes (match 2675).
+    #
+    # The repaired value is ALWAYS the period sum, never the digits of the TOT
+    # raw text joined back together: "2 2" is the adjacent TOTAL SHOTS column
+    # leaking in, and joining it would turn a null into a confidently-wrong 22.
+    # The join is used only as corroboration — when it equals the sum, that
+    # number really was on screen and was merely mis-segmented, which is the one
+    # case the repair can call OK rather than UNCERTAIN.
+    #
+    # Repair additionally requires the tab label to confirm the stat kind. When
+    # the whole grid has locked onto the wrong table, the period row and the TOT
+    # cell are BOTH shot counts and corroborate each other (match 1040 frame
+    # 23926: 5+8+9+0 = 22 and "2 2" = 22), so in-table agreement proves nothing.
+    # See _tab_label_confirms_stat_kind.
+    repairable = _tab_label_confirms_stat_kind(tab_label, stat_kind)
     warnings: list[str] = []
     tot_cell = next((c for c in periods if c.period_number == -1), None)
     if tot_cell is not None:
         for side in ("away", "home"):
             tot_field = tot_cell.away_value if side == "away" else tot_cell.home_value
             tot_val = tot_field.value if isinstance(tot_field.value, int) else None
-            if tot_val is None:
-                continue
             period_vals: list[int] = []
             missing = False
             for c in periods:
@@ -1299,11 +1358,33 @@ def parse_post_game_box_score(
             if missing or not period_vals:
                 continue
             summed = sum(period_vals)
-            if summed != tot_val:
+            if tot_val == summed:
+                continue
+            if tot_val is not None:
                 warnings.append(
                     f"{stat_kind} {side} TOT mismatch: periods sum to {summed} "
                     f"but TOT reads {tot_val} (delta {tot_val - summed})"
                 )
+                continue
+            if not repairable:
+                continue
+
+            corroborated = _joined_digit_value(tot_field.raw_text) == summed
+            repaired = ExtractionField(
+                raw_text=tot_field.raw_text,
+                value=summed,
+                confidence=tot_field.confidence,
+                status=FieldStatus.OK if corroborated else FieldStatus.UNCERTAIN,
+            )
+            if side == "away":
+                tot_cell.away_value = repaired
+            else:
+                tot_cell.home_value = repaired
+            warnings.append(
+                f"{stat_kind} {side} TOT repaired from period sum: TOT unread "
+                f"(raw {tot_field.raw_text!r}), periods sum to {summed}"
+                + ("" if corroborated else " — digit join does not corroborate, left uncertain")
+            )
 
     return PostGameBoxScoreResult(
         meta=meta,

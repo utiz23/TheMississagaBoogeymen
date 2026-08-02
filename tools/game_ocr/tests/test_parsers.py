@@ -879,6 +879,149 @@ class BoxScoreParserTests(unittest.TestCase):
             result.warnings,
         )
 
+    def test_unread_tot_is_repaired_from_the_period_sum(self) -> None:
+        # A genuine two-digit final ("10") is exploded by _align_row_to_headers
+        # into two synthetic digits that re-bin into the SAME column, so the
+        # field's raw text comes back "1 0" and parse_int nulls it. The periods
+        # (3+3+4) corroborate the join exactly, so the cell is repaired to 10.
+        regions: dict[str, list[OCRLine]] = {
+            "tab_label": [self._line("GOALS", 50, 110, 80)],
+            "period_header_row": self._header_lines(["1ST", "2ND", "3RD", "TOT"]),
+            "away_team_name": [self._line("BM", 50, 110, 250)],
+            "home_team_name": [self._line("4TH", 50, 110, 350)],
+            "away_stats_row": [
+                *self._stats_lines([3, 3, 4], y=250),
+                self._line("10", 385, 415, 250),
+            ],
+            "home_stats_row": self._stats_lines([0, 0, 1, 1], y=350),
+        }
+        result = parse_post_game_box_score(self._meta(), regions, stat_kind="goals")
+
+        tot = next(c for c in result.periods if c.period_number == -1)
+        self.assertEqual(tot.away_value.value, 10)
+        self.assertEqual(tot.away_value.raw_text, "1 0")
+        self.assertEqual(tot.away_value.status, FieldStatus.OK)
+        self.assertTrue(
+            any("TOT repaired" in w and "away" in w for w in result.warnings),
+            result.warnings,
+        )
+        # The clean home side is untouched and contributes no warning.
+        self.assertEqual(tot.home_value.value, 1)
+        self.assertFalse([w for w in result.warnings if "home" in w], result.warnings)
+
+    def test_repair_adopts_the_period_sum_never_the_digit_join(self) -> None:
+        # The TOT column locked onto the adjacent TOTAL SHOTS table: "2 2" joins
+        # to 22, a shot count. The periods sum to 2, so the join is NOT
+        # corroborated — the sum is adopted and the cell stays UNCERTAIN.
+        regions: dict[str, list[OCRLine]] = {
+            "tab_label": [self._line("GOALS", 50, 110, 80)],
+            "period_header_row": self._header_lines(["1ST", "2ND", "3RD", "TOT"]),
+            "away_team_name": [self._line("BM", 50, 110, 250)],
+            "home_team_name": [self._line("4TH", 50, 110, 350)],
+            "away_stats_row": [
+                *self._stats_lines([1, 1, 0], y=250),
+                self._line("22", 385, 415, 250),
+            ],
+            "home_stats_row": self._stats_lines([0, 1, 0, 1], y=350),
+        }
+        result = parse_post_game_box_score(self._meta(), regions, stat_kind="goals")
+
+        tot = next(c for c in result.periods if c.period_number == -1)
+        self.assertEqual(tot.away_value.value, 2)
+        self.assertEqual(tot.away_value.status, FieldStatus.UNCERTAIN)
+
+    def test_no_repair_when_a_period_cell_is_unread(self) -> None:
+        # 2ND never read, so the period sum is not a complete final — an unread
+        # TOT must stay unread rather than adopt a partial sum.
+        regions: dict[str, list[OCRLine]] = {
+            "tab_label": [self._line("GOALS", 50, 110, 80)],
+            "period_header_row": self._header_lines(["1ST", "2ND", "3RD", "TOT"]),
+            "away_team_name": [self._line("BM", 50, 110, 250)],
+            "home_team_name": [self._line("4TH", 50, 110, 350)],
+            "away_stats_row": [
+                self._line("1", 85, 115, 250),
+                self._line("2", 285, 315, 250),
+                self._line("10", 385, 415, 250),
+            ],
+            "home_stats_row": self._stats_lines([0, 0, 1, 1], y=350),
+        }
+        result = parse_post_game_box_score(self._meta(), regions, stat_kind="goals")
+
+        tot = next(c for c in result.periods if c.period_number == -1)
+        self.assertIsNone(tot.away_value.value)
+        self.assertFalse([w for w in result.warnings if "repaired" in w], result.warnings)
+
+    def _shots_locked_regions(self, tab_text: str) -> dict[str, list[OCRLine]]:
+        # Match 1040 frame 23926's shape: the whole grid locked onto the
+        # adjacent TOTAL SHOTS table, so the period row AND the TOT cell are
+        # both shot counts and corroborate each other (5+8+9+0 = 22, "2 2" = 22).
+        # Only the tab label betrays which table is actually on screen.
+        return {
+            "tab_label": [self._line(tab_text, 40, 260, 80)],
+            "period_header_row": self._header_lines(["1ST", "2ND", "3RD", "TOT"]),
+            "away_team_name": [self._line("BM", 50, 110, 250)],
+            "home_team_name": [self._line("4TH", 50, 110, 350)],
+            "away_stats_row": [
+                *self._stats_lines([5, 8, 9], y=250),
+                self._line("22", 385, 415, 250),
+            ],
+            "home_stats_row": self._stats_lines([4, 1, 4, 9], y=350),
+        }
+
+    def test_no_repair_when_the_tab_label_contradicts_the_stat_kind(self) -> None:
+        result = parse_post_game_box_score(
+            self._meta(), self._shots_locked_regions("LT SHOT SUMMARY"), stat_kind="goals"
+        )
+
+        tot = next(c for c in result.periods if c.period_number == -1)
+        self.assertIsNone(tot.away_value.value)
+        self.assertFalse([w for w in result.warnings if "repaired" in w], result.warnings)
+
+    def test_no_repair_when_the_tab_label_does_not_name_a_tab(self) -> None:
+        # "LT SUMMARY CATEGORY" is the mid-transition read — it corroborates
+        # nothing, so the repair must stay conservative and leave the null.
+        result = parse_post_game_box_score(
+            self._meta(), self._shots_locked_regions("LT SUMMARY CATEGORY"), stat_kind="goals"
+        )
+
+        tot = next(c for c in result.periods if c.period_number == -1)
+        self.assertIsNone(tot.away_value.value)
+
+    def test_repair_fires_on_the_real_goal_summary_tab_label(self) -> None:
+        # The production label is "LT GOAL SUMMARY", not the bare "GOALS" the
+        # other tests use — the gate must accept the real string.
+        regions = self._shots_locked_regions("LT GOAL SUMMARY")
+        regions["away_stats_row"] = [
+            *self._stats_lines([3, 3, 4], y=250),
+            self._line("10", 385, 415, 250),
+        ]
+        result = parse_post_game_box_score(self._meta(), regions, stat_kind="goals")
+
+        tot = next(c for c in result.periods if c.period_number == -1)
+        self.assertEqual(tot.away_value.value, 10)
+
+    def test_a_clean_tot_is_never_overwritten_by_a_disagreeing_period_sum(self) -> None:
+        # Match 2675's shape: the final is read correctly, the periods are not.
+        # l4-api-truth grades the TOT final independently of the period sum
+        # precisely so this stays a PASS — the repair must not touch it.
+        regions: dict[str, list[OCRLine]] = {
+            "tab_label": [self._line("GOALS", 50, 110, 80)],
+            "period_header_row": self._header_lines(["1ST", "2ND", "3RD", "TOT"]),
+            "away_team_name": [self._line("BM", 50, 110, 250)],
+            "home_team_name": [self._line("4TH", 50, 110, 350)],
+            "away_stats_row": self._stats_lines([1, 1, 2, 5], y=250),  # sum=4, TOT=5
+            "home_stats_row": self._stats_lines([0, 0, 0, 0], y=350),
+        }
+        result = parse_post_game_box_score(self._meta(), regions, stat_kind="goals")
+
+        tot = next(c for c in result.periods if c.period_number == -1)
+        self.assertEqual(tot.away_value.value, 5)
+        self.assertEqual(tot.away_value.status, FieldStatus.OK)
+        self.assertTrue(
+            any("TOT mismatch" in w for w in result.warnings),
+            result.warnings,
+        )
+
     def test_period_label_alias_normalization(self) -> None:
         # Direct _normalize_period_label calls covering the alias table and
         # canonical labels.
