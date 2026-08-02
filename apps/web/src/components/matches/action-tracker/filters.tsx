@@ -280,9 +280,11 @@ function TypeToggle({
  * filter and the glyph on the ice are provably the same object.
  */
 function TypeSwatch({ type }: { type: FilterableType }) {
-  const { HOME_COLOR } = useTeamPalette()
+  const { HOME_COLOR, HOME_INK } = useTeamPalette()
   const size = 14
-  const colorProps = { homeColor: HOME_COLOR }
+  // Swatches draw the home treatment, so they need the home ink for the same
+  // reason the ice does — the legend is the same object as the glyph.
+  const colorProps = { homeColor: HOME_COLOR, ink: HOME_INK }
   if (type === 'goal') return <GoalMarker side="home" size={size} {...colorProps} />
   if (type === 'shot') return <ShotMarker side="home" size={size} {...colorProps} />
   if (type === 'hit') return <HitMarker side="home" size={size} {...colorProps} />

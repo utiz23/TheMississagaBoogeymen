@@ -345,8 +345,8 @@ function Marker({
   const svgY = rinkY(Number(event.y))
   const side: 'home' | 'away' = resolveMarkerSide(event.teamSide, bgmIsHome)
   const extrapolated = event.positionConfidence === 'extrapolated'
-  const { HOME_COLOR, AWAY_COLOR } = useTeamPalette()
-  const markerColors = { homeColor: HOME_COLOR, awayColor: AWAY_COLOR }
+  const { HOME_COLOR, AWAY_COLOR, HOME_INK } = useTeamPalette()
+  const markerColors = { homeColor: HOME_COLOR, awayColor: AWAY_COLOR, ink: HOME_INK }
 
   const common = {
     eventId: event.id,

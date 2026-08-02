@@ -18,7 +18,9 @@ import { RinkPanel } from './rink'
 import {
   ALL_TYPES,
   BGM_COLOR,
+  BGM_INK,
   OPP_COLOR,
+  OPP_INK,
   TRACKED_TYPES,
   TeamPaletteContext,
   type FilterableType,
@@ -81,6 +83,9 @@ export function ActionTracker({
   // hexes are no longer used here.
   const HOME_COLOR = bgmIsHome ? BGM_COLOR : OPP_COLOR
   const AWAY_COLOR = bgmIsHome ? OPP_COLOR : BGM_COLOR
+  // Only the home club's glyph sits on its own fill, so only that ink varies.
+  // The away treatment's letter is black on a white interior either way.
+  const HOME_INK = bgmIsHome ? BGM_INK : OPP_INK
 
   const tracked = useMemo(() => events.filter((e) => TRACKED_TYPES.has(e.eventType)), [events])
 
@@ -232,7 +237,7 @@ export function ActionTracker({
   const isEmpty = tracked.length === 0
 
   return (
-    <TeamPaletteContext.Provider value={{ HOME_COLOR, AWAY_COLOR }}>
+    <TeamPaletteContext.Provider value={{ HOME_COLOR, AWAY_COLOR, HOME_INK }}>
       <section>
         {/* The stage, before any play: the whole panel lifts in as one
             surface, then a single red wipe brings the ice online. Wrapped in

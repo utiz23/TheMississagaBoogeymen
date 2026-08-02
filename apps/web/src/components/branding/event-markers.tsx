@@ -17,6 +17,18 @@ interface MarkerProps {
    * `side === 'home'`.
    */
   homeColor?: string | null
+  /**
+   * Letter colour for the SOLID (home) treatment, where the glyph sits directly
+   * on the team fill. Defaults to white, which is correct for BGM red (4.0:1)
+   * but not for the opponent: the clash ladder enforces a lightness FLOOR on
+   * `--opp` so it reads on the dark rink, which means an opponent fill is
+   * usually LIGHT — a white letter on it measured 1.4:1 on a near-white kit.
+   * Pass `var(--opp-fg)` for opponent-coloured markers.
+   *
+   * The away treatment ignores this: its letter is black on a white interior,
+   * which is legible whatever the team colour is.
+   */
+  ink?: string | null
 }
 
 const HOME_DEFAULT = '#ce202f'
@@ -33,26 +45,35 @@ function pickColor(side: Side, homeColor?: string | null, awayColor?: string | n
 
 // Per-side palette for the three-layer marker (outer / inner / letter):
 //
-//   Home → WHITE outer · TEAM colour inner · WHITE letter
+//   Home → WHITE outer · TEAM colour inner · INK letter
 //   Away → TEAM colour outer · WHITE inner · BLACK letter
 //
 // Same three SVG paths, just different fills per side. Gives strong
 // visual differentiation between the two teams while keeping the
 // markers legible on the dark broadcast rink in either treatment.
+//
+// The home letter takes `ink` rather than a hardcoded white because the two
+// treatments have opposite lightness needs and only the away one is safe by
+// construction: its black letter sits on a white interior. The home letter sits
+// on the TEAM fill, and the opponent's fill is guaranteed light (the ladder's
+// L >= .55 floor keeps it readable on the dark rink), so white-on-fill is the
+// one combination the colour system cannot rule out. White stays the default —
+// it is right for BGM red and for the legend swatches.
 function markerPalette(
   side: Side,
   homeColor?: string | null,
   awayColor?: string | null,
+  ink?: string | null,
 ): { outer: string; inner: string; letter: string } {
   const team = pickColor(side, homeColor, awayColor)
   if (side === 'home') {
-    return { outer: '#fff', inner: team, letter: '#fff' }
+    return { outer: '#fff', inner: team, letter: ink && ink.length > 0 ? ink : '#fff' }
   }
   return { outer: team, inner: '#fff', letter: '#000' }
 }
 
-export function GoalMarker({ side, size = 18, className, awayColor, homeColor }: MarkerProps) {
-  const { outer, inner, letter } = markerPalette(side, homeColor, awayColor)
+export function GoalMarker({ side, size = 18, className, awayColor, homeColor, ink }: MarkerProps) {
+  const { outer, inner, letter } = markerPalette(side, homeColor, awayColor, ink)
   return (
     <svg
       viewBox="0 0 39.78 34.45"
@@ -77,8 +98,8 @@ export function GoalMarker({ side, size = 18, className, awayColor, homeColor }:
   )
 }
 
-export function ShotMarker({ side, size = 18, className, awayColor, homeColor }: MarkerProps) {
-  const { outer, inner, letter } = markerPalette(side, homeColor, awayColor)
+export function ShotMarker({ side, size = 18, className, awayColor, homeColor, ink }: MarkerProps) {
+  const { outer, inner, letter } = markerPalette(side, homeColor, awayColor, ink)
   return (
     <svg
       viewBox="0 0 36.56 36.56"
@@ -100,8 +121,8 @@ export function ShotMarker({ side, size = 18, className, awayColor, homeColor }:
   )
 }
 
-export function HitMarker({ side, size = 18, className, awayColor, homeColor }: MarkerProps) {
-  const { outer, inner, letter } = markerPalette(side, homeColor, awayColor)
+export function HitMarker({ side, size = 18, className, awayColor, homeColor, ink }: MarkerProps) {
+  const { outer, inner, letter } = markerPalette(side, homeColor, awayColor, ink)
   return (
     <svg
       viewBox="0 0 34.45 34.45"
@@ -120,8 +141,15 @@ export function HitMarker({ side, size = 18, className, awayColor, homeColor }: 
   )
 }
 
-export function PenaltyMarker({ side, size = 18, className, awayColor, homeColor }: MarkerProps) {
-  const { outer, inner, letter } = markerPalette(side, homeColor, awayColor)
+export function PenaltyMarker({
+  side,
+  size = 18,
+  className,
+  awayColor,
+  homeColor,
+  ink,
+}: MarkerProps) {
+  const { outer, inner, letter } = markerPalette(side, homeColor, awayColor, ink)
   return (
     <svg
       viewBox="0 0 48.72 48.72"

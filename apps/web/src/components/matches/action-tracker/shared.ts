@@ -24,11 +24,27 @@ import { createContext, useContext } from 'react'
 export const BGM_COLOR = 'var(--color-accent)'
 export const OPP_COLOR = 'var(--opp, #81878D)'
 
+/**
+ * Ink for a glyph drawn ON TOP of each club's fill, used by the solid
+ * (home-ice) marker treatment.
+ *
+ * BGM red carries white at 4.0:1, so it keeps it. `--opp` cannot: the ladder
+ * enforces a lightness FLOOR so the opponent reads on the dark rink, which
+ * makes the fill LIGHT — a white letter on a near-white kit measured 1.4:1,
+ * and all four issued alternates sit under 3:1 too. `--opp-fg` is the
+ * resolver's own contrast-aware pick for exactly this (charcoal on light
+ * fills, paper on dark); the fallback matches gunmetal's.
+ */
+export const BGM_INK = '#fff'
+export const OPP_INK = 'var(--opp-fg, #1A1819)'
+
 export interface TeamPalette {
   /** Colour of the club that had home ice — the solid-glyph treatment. */
   HOME_COLOR: string
   /** Colour of the visiting club — the outlined-glyph treatment. */
   AWAY_COLOR: string
+  /** Letter colour for the home club's solid glyph — must contrast HOME_COLOR. */
+  HOME_INK: string
 }
 
 /**
@@ -38,6 +54,7 @@ export interface TeamPalette {
 export const TeamPaletteContext = createContext<TeamPalette>({
   HOME_COLOR: BGM_COLOR,
   AWAY_COLOR: OPP_COLOR,
+  HOME_INK: BGM_INK,
 })
 
 export function useTeamPalette(): TeamPalette {

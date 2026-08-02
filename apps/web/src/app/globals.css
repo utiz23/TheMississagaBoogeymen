@@ -35,7 +35,11 @@
        --opp       resolved opponent colour — never the raw brand hex
        --opp-2     74% alpha — secondary numerals
        --opp-line  40% alpha — borders, crest ring
-       --opp-soft  12% alpha — row tints */
+       --opp-soft  12% alpha — row tints
+       --opp-fg    ink for content drawn ON TOP of an --opp fill (the solid
+                   event marker's letter). Charcoal on light fills, paper on
+                   dark. Never assume white: the ladder enforces a lightness
+                   FLOOR on --opp, so an opponent fill is usually light. */
 
   /* Result badge fills (aligned to design system) */
   --color-win: #10b981; /* emerald */

@@ -141,6 +141,11 @@ export default async function GameDetailPage({ params, searchParams }: Props) {
     '--opp-2': opponentColors.strong,
     '--opp-line': opponentColors.line,
     '--opp-soft': opponentColors.soft,
+    // Ink for anything drawn ON TOP of an `--opp` fill (the solid marker's
+    // letter). The ladder guarantees `--opp` is LIGHT enough to read on the
+    // dark rink, which is exactly what makes a hardcoded white glyph fail on
+    // it — so the glyph colour has to follow the fill, not be assumed.
+    '--opp-fg': opponentColors.fg,
   } as CSSProperties
 
   // Season-to-date player history for the "vs season avg" delta on the

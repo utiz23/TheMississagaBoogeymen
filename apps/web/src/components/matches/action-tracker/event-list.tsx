@@ -300,7 +300,7 @@ function EventCard({
   const noMarker = !isFaceoff && (event.x === null || event.y === null)
   const lowConf = event.positionConfidence === 'extrapolated'
 
-  const { HOME_COLOR, AWAY_COLOR } = useTeamPalette()
+  const { HOME_COLOR, AWAY_COLOR, HOME_INK } = useTeamPalette()
   // Card paint follows the rink-marker side, so a card always reads the same
   // colour as its glyph. Faceoffs use the WINNING team's colour — `teamSide`
   // already encodes 'for' (BGM won) vs 'against' (opp won).
@@ -375,7 +375,12 @@ function EventCard({
         </div>
       </div>
       <div className="flex flex-col items-end gap-1.5">
-        <CardEventMark eventType={event.eventType} side={side} teamColor={teamColor} />
+        <CardEventMark
+          eventType={event.eventType}
+          side={side}
+          teamColor={teamColor}
+          ink={HOME_INK}
+        />
         {noMarker ? (
           <span className="inline-flex items-center border border-dashed border-border px-1.5 py-[2px] font-condensed text-[9px] font-bold tracking-[0.16em] uppercase text-fg-3">
             No marker
@@ -399,14 +404,16 @@ function CardEventMark({
   eventType,
   side,
   teamColor,
+  ink,
   size = 24,
 }: {
   eventType: string
   side: 'home' | 'away'
   teamColor: string
+  ink: string
   size?: number
 }) {
-  const colorProps = side === 'home' ? { homeColor: teamColor } : { awayColor: teamColor }
+  const colorProps = side === 'home' ? { homeColor: teamColor, ink } : { awayColor: teamColor }
   if (eventType === 'goal') return <GoalMarker side={side} size={size} {...colorProps} />
   if (eventType === 'shot') return <ShotMarker side={side} size={size} {...colorProps} />
   if (eventType === 'hit') return <HitMarker side={side} size={size} {...colorProps} />
