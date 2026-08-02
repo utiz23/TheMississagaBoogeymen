@@ -2,6 +2,74 @@
 
 ## Active State
 
+### 🟢 TOT REPAIR SHIPPED — 618 flipped HOLD → PASS. 2666 did NOT, and the reason is a different defect 2026-08-02
+
+**Commit `3508d40` (`tools/game_ocr/game_ocr/parsers.py` + `tests/test_parsers.py` only — the web/db pill workstream in the same tree was left dirty and untouched). Plus a live-DB re-OCR of two box-score segments.** Executes step (1) of the recommended next order in the BOX-SCORE FINAL-READ DEFECT entry below.
+
+#### What shipped
+
+The 88-line TOT-sum disambiguation was adopted as-is, not rewritten. Full game_ocr suite: **517 passed, 2 skipped**.
+
+#### Re-OCR method — no video decode, no candidate run
+
+Both matches' active runs are `legacy-passthrough-v0-video` (618 → run 2080, 2666 → run 2122) and their `ocr_capture_batches.source_directory` points straight at the cached seg dirs. So the re-OCR was a direct `pnpm --filter worker ingest-ocr` against the existing batch, **not** `video-ingest reprocess`:
+
+```bash
+set -a && source .env && set +a
+pnpm --filter worker ingest-ocr -- \
+  --batch-dir /home/michal/ingest-cache/<sha>/pass2/seg-<NNN>-post_game_box_score_goals \
+  --screen post_game_box_score_goals --game-title-id 1 --match-id <id> \
+  --capture-kind video_frames --video-sha256 <sha> \
+  --video-segment-index <NNN> --video-segment-start-sec <t0> --video-segment-end-sec <t1> \
+  --ui-version nhl26 --decoder-version legacy-passthrough-v0-video --run-id <run>
+```
+
+618 = sha `392a991e…`, seg 250, 6527–6532 s, run 2080 · 2666 = sha `1fb12c1f…`, seg 106, 5168–5174 s, run 2122. Idempotent — `ocr_extractions` upserts on `(batch_id, source_path)`, so this **updates rows in place inside the active run** and re-uses batch 4544 / 4865. Seconds, not the ~30–45 min a decode costs.
+
+⚠️ **`video-ingest reprocess` is NOT the cheap path.** It passes `--force-pass1 --force-pass2` and scopes Pass-2 to `pass2-run-<N>` (`compute_pass2_cache_dir`), so a candidate run can never hit the unscoped `pass2/` cache — it always re-decodes. `/tmp/ingest-cache` is a symlink to `/home/michal/ingest-cache`, so `DEFAULT_INGEST_CACHE` already resolves to the surviving frames; the run-scoped subdir is what defeats reuse, not the path.
+
+#### 618 — fixed, exactly as designed
+
+Frames 00002/00003 both read tab label `LT GOAL SUMMARY`; home periods 3+3+4, away 0+0+1; home TOT raw `"1 0"` → repaired to **10**, status `ok` (the digit join corroborates the sum). Verified in `ocr_extraction_fields`. API final is 10–1.
+
+|                  | before                     | after                                        |
+| ---------------- | -------------------------- | -------------------------------------------- |
+| gate             | HOLD — "no OCR final read" | **PASS — "TOT-row final matches API truth"** |
+| `finalAccuracy`  | null                       | **1**                                        |
+| frames succeeded | 2/5                        | **5/5**                                      |
+
+158 events remain pending on 618 (145 action-tracker + 5 events + 5 box-score + 2 lobby + 1 loadout) — **the gate is open, but nothing was drained. No auto-drain was run.**
+
+#### ⚠️ 2666 — unchanged, still HOLD. The bucket table below is wrong about it
+
+The re-OCR ran (6/6 frames succeeded) and produced **no repair**. The guard declined, correctly. Per-frame tab labels in that segment:
+
+| frame                 | tab label                | what it is                                                               |
+| --------------------- | ------------------------ | ------------------------------------------------------------------------ |
+| 00002                 | `LT SUMMARY CATEGORY`    | the only correct goals grid — away 3+0+0+0=3, home 0+1+0+0=1 = API 3–1 ✓ |
+| 00003                 | `LT SHOT SUMMARY`        | the shots table, explicitly                                              |
+| 00004                 | `LT SUMMARY CATEGORY`    | **wrong table** — home 5+4+4=13, away 3+4=7                              |
+| 00001 / 00005 / 00006 | absent / `中` / `LT ALL` | unusable                                                                 |
+
+`LT SUMMARY CATEGORY` is the mid-tab-transition read that names no tab, so `_tab_label_confirms_stat_kind` returns False and frame 00002 gets no repair. That is the guard working: this segment demonstrably contains wrong-table frames, so in-table agreement really does prove nothing here.
+
+**The bucket table in the entry below lists 2666 under "TOT blank but periods complete + correct" alongside 618. That is only true of frame 00002, and only if you ignore its tab label.** The older claim further down — "2666 13–7 vs API 1–3, whole period table locked onto the shots region" — is the one that matches what is actually promoted. Treat the 216-events-cheap figure as **85 (618 only)**, not 216.
+
+#### ⬜ 2666's real defect is frame selection, not the TOT read
+
+Promoted `goalsFor=13 / goalsAgainst=7` comes from summing **frame 00004's periods** (its TOT is null on both sides). Meanwhile frame 00002's away TOT already reads `3` at status `ok` and is ignored. So the consolidator prefers a wrong-table frame over a right-table one, and **a TOT repair on 00002 would not by itself flip 2666** — the selection would still have to change.
+
+The obvious lever is the same one the parser now uses: refuse a `post_game_box_score_goals` frame whose tab label does not contain `GOAL`. On 2666 that drops 00003 and 00004 — which would stop the wrong 13–7 being promoted — but it also drops 00002, so 2666 would go to "no final read" rather than to a correct final. **Untested, and it would need checking against every other box-score-backed match before it goes anywhere near a gate.**
+
+#### Revised next order
+
+1. ~~commit the parser diff + re-OCR 618/2666~~ **done** — 618 only, 85 events.
+2. diagnose the viterbi_v2 box-score miss, then re-ingest the 9 (757 events) — now the largest remaining win.
+3. 2666 frame selection (above), and 968 only if a re-decode is being run anyway.
+4. class-A re-weighting (7 matches / 756 events).
+
+---
+
 ### 🟢 GAME SHEET HERO — loss tag now styled like win and OTL, image redeployed 2026-08-02
 
 **Web-only, one file: `apps/web/src/components/matches/hero-card.tsx`. The OCR workstream dirty in the same tree was deliberately left untouched.**
