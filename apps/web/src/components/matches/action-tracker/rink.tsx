@@ -434,7 +434,8 @@ function PlacedMarker({
   hovered: boolean
   selected: boolean
   faded: boolean
-  /** Plot-in delay in ms, or null to appear instantly (see PLOT_IN_LIMIT). */
+  /** Plot-in delay in ms, or null to render with no drop animation at all —
+   *  which now means only "the cascade is already over" (see plot-schedule.ts). */
   dropDelayMs: number | null
   /** Goals flare once as they land — accent for BGM, white for the opponent. */
   goalFlare: GoalFlare
