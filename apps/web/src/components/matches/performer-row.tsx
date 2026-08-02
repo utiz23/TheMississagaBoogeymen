@@ -4,6 +4,7 @@ import Link from 'next/link'
 import type { PlayerScoreEntry, ScoreFactor } from '@/lib/match-recap'
 import { formatPosition } from '@/lib/format'
 import { delayVar, staggerDelay } from '@/lib/motion'
+import { CountUp } from './motion'
 import { PositionPill } from './position-pill'
 
 // One performer row for the rail list. This replaced the 360px-tall three-star
@@ -34,6 +35,15 @@ const RANK_STARS = ['★★★', '★★', '★']
 function rowDelay(rank: number): number {
   return 200 + staggerDelay(rank - 1, 55, 550)
 }
+
+/** Each score counts up as its own row arrives, so the ladder reads in order. */
+const SCORE_COUNT_MS = 520
+/**
+ * #1 flares as its count lands. `gs-flare-drop` is a `filter` cue rather than a
+ * text-shadow one specifically so it doesn't fight the resting glow the top
+ * score already carries inline.
+ */
+const TOP_FLARE_MS = 700
 
 export function PerformerRow({
   entry,
@@ -123,10 +133,18 @@ export function PerformerRow({
 
         <span
           className={`text-right font-condensed text-[18px] font-black leading-none tabular-nums ${scoreClass} ${
-            rank === 1 ? '[text-shadow:0_0_12px_rgba(232,65,49,0.28)]' : ''
+            rank === 1 ? 'gs-flare-drop [text-shadow:0_0_12px_rgba(232,65,49,0.28)]' : ''
           }`}
+          style={rank === 1 ? delayVar(TOP_FLARE_MS) : undefined}
         >
-          {entry.score.toFixed(2)}
+          <CountUp
+            value={entry.score}
+            decimals={2}
+            durationMs={SCORE_COUNT_MS}
+            delayMs={rowDelay(rank)}
+          >
+            {entry.score.toFixed(2)}
+          </CountUp>
         </span>
       </button>
 
@@ -140,9 +158,14 @@ export function PerformerRow({
           {isBgm && entry.playerId !== null ? (
             <Link
               href={`/roster/${entry.playerId.toString()}`}
-              className="self-start font-condensed text-[12px] font-bold uppercase tracking-[0.12em] text-accent hover:underline"
+              className="gs-nudge-host self-start font-condensed text-[12px] font-bold uppercase tracking-[0.12em] text-accent hover:underline"
             >
-              Full player page →
+              Full player page{' '}
+              {/* inline-block is load-bearing: `transform` does not apply to a
+                  non-replaced inline box, so the nudge would silently no-op. */}
+              <span aria-hidden className="gs-nudge inline-block">
+                →
+              </span>
             </Link>
           ) : null}
         </div>

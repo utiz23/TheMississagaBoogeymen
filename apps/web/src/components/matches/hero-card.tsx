@@ -3,6 +3,7 @@ import type { Match } from '@eanhl/db'
 import { OpponentCrest } from '@/components/ui/opponent-crest'
 import { abbreviateTeamName, formatMatchDate, formatMatchTime } from '@/lib/format'
 import { delayVar } from '@/lib/motion'
+import { CountUp } from './motion'
 
 const OUR_ABBREV = 'BGM'
 const OUR_NAME = 'Boogeymen'
@@ -30,8 +31,13 @@ interface HeroCardProps {
   }
 }
 
-/** The scorebug settles first; the winner's number blooms after it. */
-const SCORE_BLOOM_MS = 650
+// Scorebug beat, from the motion inventory's §2: the panel rises, both scores
+// roll up from zero, and only as they land does the winner's number bloom.
+/** Score roll — starts after the panel has risen, runs 1.15s. */
+const SCORE_COUNT_DELAY_MS = 350
+const SCORE_COUNT_MS = 1150
+/** The winner's number blooms as the count lands, never during it. */
+const SCORE_BLOOM_MS = 1350
 
 export function HeroCard({
   match,
@@ -133,7 +139,16 @@ export function HeroCard({
             className={`${ourBloom} text-6xl font-black leading-[0.82] tabular-nums sm:text-[88px] ${ourScoreCls}`}
             style={ourBloom ? delayVar(SCORE_BLOOM_MS) : undefined}
           >
-            {match.scoreFor.toString()}
+            {/* The bloom animates this span's text-shadow; text-shadow is
+                inherited, so the counting child picks it up without needing an
+                animation slot of its own. */}
+            <CountUp
+              value={match.scoreFor}
+              durationMs={SCORE_COUNT_MS}
+              delayMs={SCORE_COUNT_DELAY_MS}
+            >
+              {match.scoreFor.toString()}
+            </CountUp>
           </span>
           <span aria-hidden className="text-2xl font-normal leading-none text-fg-6 sm:text-[34px]">
             –
@@ -142,7 +157,13 @@ export function HeroCard({
             className={`${oppBloom} text-6xl font-black leading-[0.82] tabular-nums sm:text-[88px] ${oppScoreCls}`}
             style={oppBloom ? delayVar(SCORE_BLOOM_MS) : undefined}
           >
-            {match.scoreAgainst.toString()}
+            <CountUp
+              value={match.scoreAgainst}
+              durationMs={SCORE_COUNT_MS}
+              delayMs={SCORE_COUNT_DELAY_MS}
+            >
+              {match.scoreAgainst.toString()}
+            </CountUp>
           </span>
         </div>
 

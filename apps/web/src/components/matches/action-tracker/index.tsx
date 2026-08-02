@@ -157,6 +157,34 @@ export function ActionTracker({
   )
   const offRink = visibleCards.length - visibleMarkers.length
 
+  // The rink is handed EVERY plottable event and told separately what to draw
+  // and what to solid-fill. Three sets, because the two tiers of filter mean
+  // different things:
+  //
+  //   rinkMarkers  — everything. Only ever used to compute de-confliction
+  //                  offsets, so a marker's position is a constant: no filter
+  //                  change can nudge its neighbours to new coordinates.
+  //   scopedIds    — passes PERIOD + TEAM. These are context switches ("show me
+  //                  the 2nd period"), so what falls outside is not part of the
+  //                  picture at all and is removed outright.
+  //   visibleIds   — also passes the TYPE toggles. A type toggle is a subset of
+  //                  the same picture, so what it excludes stays on the ice as
+  //                  a ghost and the reader's spatial map survives.
+  const rinkMarkers = useMemo(
+    () => tracked.filter((e) => e.eventType !== 'faceoff' && e.x !== null && e.y !== null),
+    [tracked],
+  )
+  const scopedMarkerIds = useMemo(
+    () =>
+      new Set(
+        periodScoped
+          .filter((e) => e.eventType !== 'faceoff' && e.x !== null && e.y !== null)
+          .map((e) => e.id),
+      ),
+    [periodScoped],
+  )
+  const visibleMarkerIds = useMemo(() => new Set(visibleMarkers.map((e) => e.id)), [visibleMarkers])
+
   // A pinned event that the filters then hide must stop counting as selected:
   // selection fades every OTHER marker, so a stale pin leaves the whole rink
   // dimmed with nothing on screen explaining why. Derived rather than cleared
@@ -260,7 +288,9 @@ export function ActionTracker({
 
               <div className="grid grid-cols-1 gap-3 xl:grid-cols-[minmax(0,1fr)_360px]">
                 <RinkPanel
-                  events={visibleMarkers}
+                  events={rinkMarkers}
+                  scopedIds={scopedMarkerIds}
+                  visibleIds={visibleMarkerIds}
                   oppAbbrev={oppAbbrev}
                   hoveredId={hoveredId}
                   onHover={setHoveredId}

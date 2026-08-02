@@ -501,6 +501,22 @@ body {
   }
 }
 
+/* The opponent's goal, same shape in white. Neutral white rather than `--opp`
+   for the same reason `gs-bloom-opp` is: the opponent resolver guarantees the
+   identity colour clears red, not that it glows legibly against dark ice. */
+@keyframes gs-goal-land-opp {
+  0%,
+  55% {
+    filter: drop-shadow(0 0 0 rgba(235, 235, 235, 0));
+  }
+  72% {
+    filter: drop-shadow(0 0 14px rgba(235, 235, 235, 0.8));
+  }
+  100% {
+    filter: drop-shadow(0 0 0 rgba(235, 235, 235, 0));
+  }
+}
+
 /* --- the two sanctioned ambient loops -----------------------------------
    The timeline's rail end-caps used to be a third. The design of record
    (`Game Sheet copy.dc.html`) demotes them to static accent dots — its own
@@ -619,6 +635,10 @@ body {
 
 .game-sheet .gs-goal-land {
   animation: gs-goal-land 0.8s ease-out var(--gs-delay, 0s) both;
+}
+
+.game-sheet .gs-goal-land-opp {
+  animation: gs-goal-land-opp 0.8s ease-out var(--gs-delay, 0s) both;
 }
 
 .game-sheet .gs-bloom-accent {
@@ -939,11 +959,13 @@ body {
 }
 
 /* Filter toggles fade markers in place — position must never change, so the
-   eye keeps its spatial map of the ice. */
+   eye keeps its spatial map of the ice. Opacity carries the spec's .5s filter
+   fade; `filter` (the pinned marker's drop-shadow) stays inside the ≤.15s the
+   tracker spec gives hover and select, since the two share this element. */
 .game-sheet .gs-fade-marker {
   transition:
-    opacity 0.22s ease,
-    filter 0.22s ease;
+    opacity 0.5s ease,
+    filter 0.13s ease;
 }
 
 /* Hover/select on the rink resolve inside .15s per the tracker spec. */
@@ -984,6 +1006,7 @@ body {
   .game-sheet .gs-drawer-in,
   .game-sheet .gs-marker-drop,
   .game-sheet .gs-goal-land,
+  .game-sheet .gs-goal-land-opp,
   .game-sheet .gs-bloom-accent,
   .game-sheet .gs-bloom-opp,
   .game-sheet .gs-flare-drop,

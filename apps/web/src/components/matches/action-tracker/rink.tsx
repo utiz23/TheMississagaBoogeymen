@@ -10,8 +10,9 @@ import {
   ShotMarker,
 } from '@/components/branding/event-markers'
 import { computeMarkerOffsets, type MarkerOffset } from '@/lib/marker-layout'
-import { delayVar, staggerDelay } from '@/lib/motion'
-import { useReducedMotion } from '../motion'
+import { delayVar } from '@/lib/motion'
+import { PLOT_TOTAL_MS, plotDelay, plotStep } from '@/lib/plot-schedule'
+import { useGsArmed } from '../motion'
 import { cleanPeriodLabel, resolveMarkerSide, useTeamPalette, withAlpha } from './shared'
 
 /**
@@ -70,22 +71,16 @@ export function markerCenter(event: MatchEventRow): { x: number; y: number } {
 }
 
 /* --- plot-in schedule (Phase 12 motion) ---------------------------------
-   Events drop onto the ice in order. Only the first PLOT_IN_LIMIT are
-   scheduled: match 250 plots 73 markers, and staggering all of them would run
-   for seven seconds against a ~2s guardrail. The remainder appear instantly,
-   which is exactly what the spec asks for on a dense game. */
-const PLOT_START_MS = 520
-const PLOT_STEP_MS = 95
-const PLOT_IN_LIMIT = 24
-const PLOT_TOTAL_MS = PLOT_START_MS + PLOT_IN_LIMIT * PLOT_STEP_MS + 450
-
-function plotDelay(index: number, plotDone: boolean): number | null {
-  if (plotDone || index >= PLOT_IN_LIMIT) return null
-  return PLOT_START_MS + staggerDelay(index, PLOT_STEP_MS, PLOT_IN_LIMIT * PLOT_STEP_MS)
-}
+   Events drop onto the ice in order, and EVERY marker is part of the cascade.
+   A dense match compresses the gap between landings rather than dropping its
+   later markers out of the schedule — see `lib/plot-schedule.ts` for why that
+   distinction is load-bearing (an unscheduled marker renders with no drop
+   class, i.e. sitting on the ice before the cascade even starts). */
 
 export function RinkPanel({
   events,
+  scopedIds,
+  visibleIds,
   oppAbbrev,
   hoveredId,
   onHover,
@@ -95,7 +90,12 @@ export function RinkPanel({
   bgmIsHome,
   offRink,
 }: {
+  /** EVERY plottable event. Drives de-confliction, so offsets never shift. */
   events: MatchEventRow[]
+  /** Passes period + team. Anything outside this is not drawn at all. */
+  scopedIds: ReadonlySet<number>
+  /** Also passes the type toggles. Drawn-but-not-visible renders as a ghost. */
+  visibleIds: ReadonlySet<number>
   oppAbbrev: string
   hoveredId: number | null
   onHover: (id: number | null) => void
@@ -107,25 +107,36 @@ export function RinkPanel({
   offRink: number
 }) {
   // Plot-in runs ONCE. After it finishes, markers render with no drop class at
-  // all, so re-widening a filter fades the returning markers in on the existing
+  // all, so re-widening a filter fades the returning markers back up on the
   // opacity transition instead of re-plotting them — the spec's guardrail is
   // that markers never move on filter, because the reader's spatial map of the
   // ice depends on it.
-  const reduced = useReducedMotion()
+  //
+  // Reduced motion is handled ENTIRELY by the CSS layer, which sets
+  // `animation: none` on gs-marker-drop and both goal flares — the keyframes
+  // end at the resting state, so the markers simply sit where they belong.
+  // There is deliberately no `useReducedMotion()` check here: that hook reports
+  // `true` until its first effect (the SSR-safe default), which is
+  // indistinguishable from a genuine preference at the moment this effect first
+  // runs — it used to set `plotDone` on the spot, so the cascade was torn down
+  // during hydration and NEVER played for anyone.
+  // The plot-in is PAUSED by the CSS layer until this module is armed, so its
+  // teardown clock starts from the same moment. Anchored to mount it ran while
+  // the panel was still held at its first frame off-screen, deleted the drop
+  // classes ~3.2s later, and the cascade was gone before the reader ever
+  // reached the ice — the markers just existed, having never landed.
+  const armed = useGsArmed()
   const [plotDone, setPlotDone] = useState(false)
 
   useEffect(() => {
-    if (reduced) {
-      setPlotDone(true)
-      return
-    }
+    if (!armed) return
     const timer = window.setTimeout(() => {
       setPlotDone(true)
     }, PLOT_TOTAL_MS)
     return () => {
       window.clearTimeout(timer)
     }
-  }, [reduced])
+  }, [armed])
 
   // Tooltip prefers explicit hover; falls back to the selected marker so the
   // pinned event keeps its detail panel visible.
@@ -135,7 +146,9 @@ export function RinkPanel({
   // De-conflict markers that land on (nearly) the same rink coordinate. Without
   // this, co-located events (e.g. match 250's two E. WANHG → M. LEHMANN shots
   // at 10:20 and 0:42, <1px apart) render on top of each other and one has no
-  // visible marker. Offsets are deterministic + stable across renders.
+  // visible marker. Offsets are deterministic + stable across renders — and
+  // because `events` is the UNFILTERED set, they are stable across filter
+  // changes too, so ghosting a marker never shifts its neighbours.
   const markerOffsets = useMemo(() => {
     return computeMarkerOffsets(
       events.map((e) => {
@@ -144,6 +157,24 @@ export function RinkPanel({
       }),
     )
   }, [events])
+
+  // Plot-in position, counted over the VISIBLE markers only, so the drop
+  // sequence stays a contiguous chronological cascade instead of leaving gaps
+  // where a ghost sits. (At mount nothing is filtered, so this is the identity;
+  // it matters only if a filter is applied before the plot-in has finished.)
+  const plotOrder = useMemo(() => {
+    const order = new Map<number, number>()
+    let i = 0
+    for (const e of events) {
+      if (scopedIds.has(e.id) && visibleIds.has(e.id)) order.set(e.id, i++)
+    }
+    return order
+  }, [events, scopedIds, visibleIds])
+
+  // Gap between landings, compressed to fit the whole cascade in its budget.
+  // Derived from the VISIBLE count for the same reason `plotOrder` is: a
+  // filtered-out marker holds no slot in the sequence.
+  const plotStepMs = useMemo(() => plotStep(plotOrder.size), [plotOrder])
 
   return (
     <div className="broadcast-panel-strong min-w-0 border border-border px-3.5 pb-3 pt-3">
@@ -184,9 +215,15 @@ export function RinkPanel({
             className="absolute inset-0 block h-auto w-full"
             aria-hidden
           >
-            {events.map((e, index) => {
+            {events.map((e) => {
+              // Outside the period/team scope: not part of this picture at all.
+              if (!scopedIds.has(e.id)) return null
+              const isGhost = !visibleIds.has(e.id)
               const isSelected = selectedId === e.id
-              const isFaded = selectedId !== null && !isSelected
+              // Two separate reasons to dim, one opacity: excluded by a filter,
+              // or dimmed because some OTHER marker is pinned. Either way the
+              // marker stays exactly where it is and stops taking pointers.
+              const isFaded = isGhost || (selectedId !== null && !isSelected)
               return (
                 <Marker
                   key={e.id}
@@ -194,7 +231,9 @@ export function RinkPanel({
                   hovered={hoveredId === e.id}
                   selected={isSelected}
                   faded={isFaded}
-                  dropDelayMs={plotDelay(index, plotDone)}
+                  dropDelayMs={
+                    isGhost ? null : plotDelay(plotOrder.get(e.id) ?? 0, plotDone, plotStepMs)
+                  }
                   offset={markerOffsets.get(e.id)}
                   onEnter={() => {
                     onHover(e.id)
@@ -210,7 +249,9 @@ export function RinkPanel({
               )
             })}
           </svg>
-          {events.length === 0 ? <EmptyRinkNote /> : null}
+          {/* Ghosts still render, so "nothing plotted" is about what PASSES the
+              filters, not about how many <g> elements exist. */}
+          {visibleIds.size === 0 ? <EmptyRinkNote /> : null}
           {focused ? (
             <MarkerTooltip
               event={focused}
@@ -269,6 +310,14 @@ function EmptyRinkNote() {
   )
 }
 
+/** Which one-shot flare a marker earns on landing; null for everything but goals. */
+type GoalFlare = 'accent' | 'opp' | null
+
+function goalFlareFor(event: MatchEventRow): GoalFlare {
+  if (event.eventType !== 'goal') return null
+  return event.teamSide === 'for' ? 'accent' : 'opp'
+}
+
 function Marker({
   event,
   hovered,
@@ -310,7 +359,10 @@ function Marker({
     selected,
     faded,
     dropDelayMs,
-    flareOnLand: event.eventType === 'goal',
+    // Goals flare once as they land, in the colour of the club that scored —
+    // accent for BGM, neutral white for the opponent. Colour follows the CLUB
+    // here, not home ice, matching the rest of the tracker's palette rule.
+    goalFlare: goalFlareFor(event),
     onEnter,
     onLeave,
     onClick,
@@ -361,7 +413,7 @@ function PlacedMarker({
   selected,
   faded,
   dropDelayMs,
-  flareOnLand,
+  goalFlare,
   onEnter,
   onLeave,
   onClick,
@@ -384,8 +436,8 @@ function PlacedMarker({
   faded: boolean
   /** Plot-in delay in ms, or null to appear instantly (see PLOT_IN_LIMIT). */
   dropDelayMs: number | null
-  /** Goals flare once as they land. */
-  flareOnLand: boolean
+  /** Goals flare once as they land — accent for BGM, white for the opponent. */
+  goalFlare: GoalFlare
   onEnter: () => void
   onLeave: () => void
   onClick: () => void
@@ -404,14 +456,23 @@ function PlacedMarker({
   const hoverHaloR = Math.max(width, height) * 0.85
   const selectedHaloR = Math.max(width, height) * 1.0
   const baseOpacity = faded ? 0.18 : extrapolated === true ? 0.5 : 1
+  // The flare rides the drop, so it only exists for markers that are actually
+  // being plotted in — a goal that appears instantly (past the plot-in limit,
+  // or on a filter re-widen) has no landing to mark.
+  const flareClass =
+    goalFlare === null || dropDelayMs === null
+      ? null
+      : goalFlare === 'accent'
+        ? 'gs-goal-land'
+        : 'gs-goal-land-opp'
   const groupStyle: React.CSSProperties = {
     cursor: faded ? 'default' : 'pointer',
     pointerEvents: faded ? 'none' : 'auto',
     filter: selected ? 'drop-shadow(0 0 12px rgba(232,65,49,0.85))' : undefined,
-    transition: 'opacity 0.12s, filter 0.12s',
   }
   return (
     <g
+      className="gs-fade-marker"
       data-event-id={String(eventId)}
       transform={`translate(${String(cx)}, ${String(cy)})`}
       opacity={baseOpacity}
@@ -448,8 +509,8 @@ function PlacedMarker({
           />
         ) : null}
         <g
-          className={flareOnLand && dropDelayMs !== null ? 'gs-goal-land' : undefined}
-          style={flareOnLand && dropDelayMs !== null ? delayVar(dropDelayMs) : undefined}
+          className={flareClass ?? undefined}
+          style={flareClass === null ? undefined : delayVar(dropDelayMs ?? 0)}
           transform={`translate(${String(-halfW)}, ${String(-halfH)})`}
         >
           {children}

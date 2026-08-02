@@ -2,6 +2,43 @@
 
 ## Active State
 
+### 🟢 GAME-SHEET MOTION INVENTORY RECONCILED — six missing cues wired, four latent bugs killed 2026-08-02
+
+**Web-only. Committed as one focused commit; the OCR workstream in the same dirty tree was deliberately left untouched.**
+
+Audited the "Game Sheet — Motion Inventory" doc (12 sections) against production. The `gs-*` motion layer in `app/globals.css` already covered most of it. Six items were genuinely unimplemented, and four bugs meant some cues had **never** played for anyone.
+
+#### Cues wired (were missing)
+
+- **§2 hero score count-up** — scores were static; now roll 0→final (1150ms / 350ms delay). WIN bloom moved 650ms → **1350ms** so it fires as the count lands, not mid-count.
+- **§9 performer score count-up** + **§9 #1 flare** (`gs-flare-drop`, 0.9s @ 0.7s — `filter`, not `text-shadow`, so it doesn't fight the inline resting glow).
+- **§10 away goal flare** — every goal flared accent-red; opponent goals now use a new white `gs-goal-land-opp`. Colour follows the CLUB, not home ice.
+- **§10 filter fade** — markers were **deleted from the DOM**; type toggles now ghost in place at 0.18 / `.5s` / `pointer-events:none`.
+- **§6/§11 CTA arrow nudge** — `gs-nudge` was orphaned CSS; wired to "Full player page →" (needs `inline-block`, transform is a no-op on an inline box).
+
+#### Bugs found and fixed (none were in the inventory — all pre-existing)
+
+1. **Hydration mismatch on every rink with 3+ co-located events.** `Math.sin`/`Math.cos` differ by 1 ULP between Node and Chrome (measured: `sin(2/3·2π)`, `cos(3/5·2π)`). Offsets land in an SVG `transform`, so React flagged the subtree and never patched it. `marker-layout.ts` now quantizes offsets to 1e-4 viewBox units.
+2. **The plot-in cascade never played, for anyone.** `RinkPanel` shortcut on `useReducedMotion()`, which returns `true` on its first render by design (SSR-safe default). Indistinguishable from a real preference at that moment, so it set `plotDone` during hydration and stripped every drop class. Removed outright — reduced motion is already fully handled by the CSS block, which ends each keyframe at the resting state.
+3. **Two clocks that didn't talk.** `plotDone`'s teardown timer was anchored to *mount*; the animation is gated on *arming*. Measured: classes deleted at 4350ms, module armed at 5863ms. `MotionReveal` now publishes `armed` via context (`useGsArmed`) and the rink starts its clock from that.
+4. **The arm fallback fired blind.** The 3s timeout couldn't tell "observer broken" from "observer works, module off-screen", so the foot-of-page tracker armed itself while invisible. First observer callback of any kind now cancels it; it survives as a genuine fail-safe.
+
+#### Then, from user testing on the live dev server
+
+- **Cascade resumed mid-timeline.** The `gs-js` gate was set by a client component, i.e. after first paint — measured `running` at 1145ms, `paused` only at 1500ms, so ~355ms burned before the freeze. Now set by a **synchronous inline `<script>` in `<head>`** (`app/layout.tsx`), so the pause is in force for frame one. Still fail-open: no JS → no class → no pause (verified with `javaScriptEnabled:false`).
+- **Period/team must remove, not dim.** The rink now takes three sets: `events` (everything, offsets only — so positions are a constant), `scopedIds` (period+team → removed outright, a context switch), `visibleIds` (type toggles → ghosted, a subset of the same picture).
+- **`lib/plot-schedule.ts` (new, unit-tested).** The old schedule returned `null` past a fixed 24-marker cap, and a null-delay marker renders with **no drop class** — and that keyframe's 0% frame is the only thing holding it invisible. So on match 1093, 92 of 116 markers sat on the ice at full opacity while 24 dropped in. The cap now compresses the STEP instead; every marker animates and the last still lands inside `PLOT_BUDGET_MS`.
+
+#### Verified (dev server :3002, match 1093)
+
+Held at top: 116/116 markers carry the drop class, **0 pre-painted**, `play: paused`, `armed: false`. On scroll into view: `0 → 4 → 25 → 45 → 65 → 86 → 106 → 116` — start to finish. Filters: type → 116 in DOM / 91 ghosts; period (2ND) → 31 in DOM / 0 ghosts; team (BGM) → 44 in DOM / 0 ghosts; **positions unchanged in all three**. Reduced motion: 0 running animations, 0 invisible markers. 0 hydration errors. Typecheck + ESLint + Prettier clean; 47 web lib tests pass (incl. 8 new `plot-schedule`).
+
+**⬜ OPEN DECISION (not actioned — needs a call).** Two ambient loops contradict §0's "one persistent loop on the page — the hero ticker sweep": `gs-star-breathe` on the #1 performer's star and `gs-dot-breathe` on the DtW confidence dot. §9 and §14 both record star-breathe as **retired**, and `Game Sheet copy.dc.html` (the design of record) contains zero occurrences of either. Left in place because removing motion is a design call. Say the word to make both static.
+
+**⬜ ALSO NOTE.** Docker image on **:3000 is stale** — none of this ships until it is rebuilt (see `docker-redeploy` skill). The `:3002` dev server was relaunched mid-session (`next dev --turbopack -p 3002` from `apps/web`) after a `pnpm --filter web build` clobbered its `.next`.
+
+---
+
 ### 🟢 AUTO-DRAIN SHIPPED AND RUN — backlog is NOT a wiring gap; it is 4,247 events behind real blockers 2026-08-01
 
 Implements the (now-executed) plan `~/.claude/plans/ok-we-need-to-indexed-knuth.md`. The "grade a match ⇒ flip its rows to reviewed" link is wired and the full corpus drain has been run. **Nothing outstanding on the tooling.**

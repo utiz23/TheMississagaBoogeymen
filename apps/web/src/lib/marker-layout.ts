@@ -47,6 +47,24 @@ export const MARKER_FAN_SPREAD = 48
 const TWO_PI = Math.PI * 2
 
 /**
+ * Round an offset to a fixed grid so the value is IDENTICAL on the server and
+ * in the browser.
+ *
+ * `Math.cos`/`Math.sin` are not required to be bit-identical across engines,
+ * and Node and Chrome genuinely disagree in the last ULP for some of the exact
+ * angles this fan-out produces (measured: `sin(2/3 · 2π)`, `cos(3/5 · 2π)`).
+ * These offsets land in an SVG `transform` attribute, so a one-ULP difference
+ * is a React hydration mismatch on every rink with three or more co-located
+ * events — the whole subtree gets flagged and is not patched up.
+ *
+ * 1e-4 of a viewBox unit is roughly a thousandth of a rendered pixel, so this
+ * is invisible; the point is only that both runtimes print the same string.
+ */
+function quantize(value: number): number {
+  return Math.round(value * 1e4) / 1e4
+}
+
+/**
  * Compute a per-marker render offset that separates co-located markers.
  *
  * Returns a Map keyed by `MarkerPoint.id`. Markers that don't collide map to
@@ -104,7 +122,7 @@ export function computeMarkerOffsets(
       const angle = (i / n) * TWO_PI
       const targetX = cxAvg + ringRadius * Math.cos(angle)
       const targetY = cyAvg + ringRadius * Math.sin(angle)
-      result.set(p.id, { dx: targetX - p.cx, dy: targetY - p.cy })
+      result.set(p.id, { dx: quantize(targetX - p.cx), dy: quantize(targetY - p.cy) })
     })
   }
 

@@ -1,6 +1,14 @@
 'use client'
 
-import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type ReactNode,
+} from 'react'
 
 import { delayVar, prefersReducedMotion, REDUCED_MOTION_QUERY, runCountUp } from '@/lib/motion'
 
@@ -35,6 +43,28 @@ import { delayVar, prefersReducedMotion, REDUCED_MOTION_QUERY, runCountUp } from
 
 const ARM_FALLBACK_MS = 3000
 
+/* -------------------------------------------------------------------------
+ * Armed state, for cues that run on a JS clock rather than a CSS animation.
+ *
+ * The CSS layer holds an unarmed subtree at its first frame with
+ * `animation-play-state: paused`. A cue driven by a `setTimeout` gets no such
+ * treatment — its clock keeps running while the module is paused, so anything
+ * that TEARS DOWN a cue on a timer (the rink's plot-in, which drops its drop
+ * classes once the cascade "should" be over) can finish before the module is
+ * ever allowed to start. Consumers gate their timers on this instead of on
+ * mount, so the two clocks agree.
+ *
+ * Defaults to `true` so a consumer rendered outside any MotionReveal behaves
+ * as armed — the same fail-open rule as the rest of this module.
+ * ---------------------------------------------------------------------- */
+
+const GsArmedContext = createContext(true)
+
+/** Whether the enclosing MotionReveal has released its subtree's entrance. */
+export function useGsArmed(): boolean {
+  return useContext(GsArmedContext)
+}
+
 // Marks that the pause rule is safe to apply. Runs when the client chunk
 // evaluates; guarded because 'use client' modules are also evaluated on the
 // server during SSR.
@@ -66,12 +96,19 @@ export function MotionReveal({
       return
     }
 
+    // The fallback covers case 3 only: an observer that never reports at all.
+    // It must NOT fire merely because the module is off-screen — a module at
+    // the foot of the page would then arm itself while invisible, spend its
+    // entrance in an empty room, and be finished before the reader ever
+    // scrolls to it. The first callback of ANY kind, intersecting or not,
+    // proves the observer works, so the blind timer is cancelled there.
     const timer = window.setTimeout(() => {
       setArmed(true)
     }, ARM_FALLBACK_MS)
 
     const observer = new IntersectionObserver(
       (entries) => {
+        window.clearTimeout(timer)
         if (entries.some((entry) => entry.isIntersecting)) setArmed(true)
       },
       { rootMargin },
@@ -92,7 +129,7 @@ export function MotionReveal({
       className={className}
       style={style}
     >
-      {children}
+      <GsArmedContext.Provider value={armed}>{children}</GsArmedContext.Provider>
     </div>
   )
 }
