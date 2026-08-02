@@ -11,26 +11,39 @@
  *   TOO DARK  — OKLCH L < .55 (sinks into the #1a1819 panel field)
  *   TOO PALE  — OKLCH L > .93 at C < .045 (indistinguishable from text)
  *
- * The ladder stops at the first rung that clears:
- *   1. brand hex passes          → ship it unchanged            ('brand')
- *   2. too dark / too pale       → lift or drop, keep the hue   ('adjusted')
- *      …unless achromatic       → lift to gunmetal             ('gunmetal')
- *   3. red wedge / missing hex   → deterministic cool alternate ('alternate')
+ * The ladder is the spec's HOME → AWAY → ALTERNATE, and stops at the first
+ * rung that clears — on the ice a clash is settled by one side changing
+ * sweaters, so the resolver does the same thing in the same order:
+ *   1. HOME      — brand hex passes        → ship it unchanged      ('brand')
+ *   2. AWAY      — primary failed, but the club's second colour
+ *                  clears                  → ship that              ('secondary')
+ *   3. ALTERNATE — both brand colours failed. Derived from the PRIMARY's
+ *      failure, never the secondary's:
+ *        too dark / too pale    → lift or drop, keep the hue        ('adjusted')
+ *        …unless achromatic    → lift to gunmetal                  ('gunmetal')
+ *        red wedge / no hex     → deterministic cool alternate      ('alternate')
  *
  * Pure module — no React, no DB. The page resolves once server-side and
  * publishes the result as the `--opp*` CSS custom properties (see the
  * comment in `app/globals.css`).
  */
 
-export type OpponentColorProvenance = 'brand' | 'adjusted' | 'alternate' | 'gunmetal'
+export type OpponentColorProvenance = 'brand' | 'secondary' | 'adjusted' | 'alternate' | 'gunmetal'
 
 export type ClashFailure = 'RED WEDGE' | 'TOO DARK' | 'TOO PALE' | 'INVALID'
 
 export interface OpponentColorInput {
   /** Club abbreviation (e.g. from `abbreviateTeamName`) — keys the alternate set. */
   abbrev: string
-  /** Brand hex if known (`matches.opp_color_hex` ?? `opponent_clubs.primary_color`). */
+  /** Rung 1 (HOME) — the club's brand hex if known (`matches.opp_color_hex`). */
   brandHex: string | null
+  /**
+   * Rung 2 (AWAY) — the club's second colour (`opponent_clubs.primary_color`),
+   * tried only when `brandHex` fails a clash zone. A red club with gold or
+   * white in its kit still shows something of its own instead of dropping
+   * straight to a system alternate.
+   */
+  secondaryHex?: string | null | undefined
 }
 
 export interface OpponentColors {
@@ -83,13 +96,35 @@ export function clashFailures(hex: string | null | undefined): ClashFailure[] {
   return fails
 }
 
-export function resolveOpponentColors({ abbrev, brandHex }: OpponentColorInput): OpponentColors {
+export function resolveOpponentColors({
+  abbrev,
+  brandHex,
+  secondaryHex,
+}: OpponentColorInput): OpponentColors {
+  // No usable primary at all (the common case — the jersey colour is only OCR'd
+  // for some matches): the secondary IS the club's colour, so promote it and run
+  // the whole ladder on it. Otherwise a dark-but-liftable brand hex would skip
+  // rung 3's hue-preserving lift and fall to a generic alternate.
+  if (!hexToRgb(brandHex) && hexToRgb(secondaryHex)) {
+    return resolveOpponentColors({ abbrev, brandHex: secondaryHex ?? null })
+  }
+
   const rgb = hexToRgb(brandHex)
   const o = rgb ? rgbToOklch(rgb) : null
   const fails = clashFailures(brandHex)
 
+  // Rung 1 — HOME. Most opponents stop here: the resolver is a filter, not a repaint.
   if (rgb && o && fails.length === 0) return finish(rgbToHex(rgb), 'brand')
 
+  // Rung 2 — AWAY. The primary failed; the opponent changes sweaters and keeps
+  // a real brand colour if the second one clears all three zones.
+  const secondaryRgb = hexToRgb(secondaryHex)
+  if (secondaryRgb && clashFailures(secondaryHex).length === 0) {
+    return finish(rgbToHex(secondaryRgb), 'secondary')
+  }
+
+  // Rung 3 — ALTERNATE. Both brand colours failed, so the issued colour is
+  // derived from the PRIMARY's failure (the secondary is out of the picture).
   // Invalid/missing hex, or a red-wedge club: no lightness change can save it —
   // issue a cool alternate so red keeps meaning us.
   if (!o || fails.includes('RED WEDGE')) {

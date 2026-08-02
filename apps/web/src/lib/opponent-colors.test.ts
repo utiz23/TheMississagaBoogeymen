@@ -77,6 +77,63 @@ void test('brand hex is normalized to uppercase 6-digit form', () => {
   assert.equal(resolveOpponentColors({ abbrev: 'BLU', brandHex: '3d7dd8' }).base, '#3D7DD8')
 })
 
+// ── Rung 2: the AWAY fallback (brand secondary) ───────────────────────────────
+
+void test('a failing primary falls to a clearing secondary — the club changes sweaters', () => {
+  // Spec worked case: a red club with gold in its kit keeps the gold.
+  const r = resolveOpponentColors({ abbrev: 'RED', brandHex: '#C8102E', secondaryHex: '#F1C40F' })
+  assert.equal(r.provenance, 'secondary')
+  assert.equal(r.base, '#F1C40F')
+})
+
+void test('the secondary is only consulted when the primary fails', () => {
+  const r = resolveOpponentColors({ abbrev: 'BLU', brandHex: '#3D7DD8', secondaryHex: '#F1C40F' })
+  assert.equal(r.provenance, 'brand')
+  assert.equal(r.base, '#3D7DD8')
+})
+
+void test('a secondary that also fails is skipped — rung 3 reads the PRIMARY', () => {
+  // Black primary + red secondary: the gunmetal lift belongs to the black,
+  // and the red must not leak through as the issued colour.
+  const r = resolveOpponentColors({ abbrev: 'DVL', brandHex: '#0B0B0B', secondaryHex: '#CE1126' })
+  assert.equal(r.provenance, 'gunmetal')
+  assert.equal(r.base, '#81878D')
+  assert.deepEqual(clashFailures(r.base), [])
+})
+
+void test('a missing primary promotes the secondary — it IS the club colour', () => {
+  // No jersey hex was OCR'd for the match, so the club's stored brand accent is
+  // the only real colour there is. It runs the full ladder as the primary.
+  for (const missing of [null, '', 'garbage']) {
+    const r = resolveOpponentColors({ abbrev: 'BLU', brandHex: missing, secondaryHex: '#3D7DD8' })
+    assert.equal(r.provenance, 'brand', `primary "${String(missing)}" should promote the secondary`)
+    assert.equal(r.base, '#3D7DD8')
+  }
+})
+
+void test('a promoted secondary still gets rung 3 lifted, hue intact', () => {
+  // Regression guard: promotion (not the AWAY rung) is what keeps a dark brand
+  // colour from collapsing to a generic alternate when no jersey was read.
+  const promoted = resolveOpponentColors({ abbrev: 'NAV', brandHex: null, secondaryHex: '#0B1C3A' })
+  assert.equal(promoted.provenance, 'adjusted')
+  assert.equal(promoted.base, resolveOpponentColors({ abbrev: 'NAV', brandHex: '#0B1C3A' }).base)
+})
+
+void test('an absent or unusable secondary leaves the old two-rung behaviour intact', () => {
+  const bare = resolveOpponentColors({ abbrev: 'RED', brandHex: '#C8102E' })
+  for (const bad of [null, undefined, '', '#12345', '#111111']) {
+    const r = resolveOpponentColors({ abbrev: 'RED', brandHex: '#C8102E', secondaryHex: bad })
+    assert.deepEqual(r, bare, `secondary "${String(bad)}" must not change the outcome`)
+  }
+})
+
+void test('the secondary is normalized like the primary', () => {
+  assert.equal(
+    resolveOpponentColors({ abbrev: 'RED', brandHex: '#C8102E', secondaryHex: '3d7dd8' }).base,
+    '#3D7DD8',
+  )
+})
+
 // ── Red wedge: no lightness change can save it ────────────────────────────────
 
 void test('red-wedge clubs are issued a cool alternate, never a red', () => {
@@ -127,14 +184,24 @@ void test('resolved base always clears the clash zones, whatever the input', () 
     null,
     'nonsense',
   ]
+  const secondaries: (string | null | undefined)[] = [
+    undefined,
+    null,
+    '#F1C40F',
+    '#C8102E',
+    '#000000',
+    'nonsense',
+  ]
   for (const brandHex of inputs) {
     for (const abbrev of ['BB', '716', 'OPP', 'ZZZZ']) {
-      const r = resolveOpponentColors({ abbrev, brandHex })
-      assert.deepEqual(
-        clashFailures(r.base),
-        [],
-        `${String(brandHex)} (${abbrev}) resolved to ${r.base}, which must be clash-free`,
-      )
+      for (const secondaryHex of secondaries) {
+        const r = resolveOpponentColors({ abbrev, brandHex, secondaryHex })
+        assert.deepEqual(
+          clashFailures(r.base),
+          [],
+          `${String(brandHex)} / ${String(secondaryHex)} (${abbrev}) resolved to ${r.base}, which must be clash-free`,
+        )
+      }
     }
   }
 })

@@ -128,9 +128,13 @@ export default async function GameDetailPage({ params, searchParams }: Props) {
   // Opponent colour — resolved once server-side through the clash ladder
   // (BGM red is reserved; a raw brand hex never reaches a surface). Published
   // as the `--opp*` custom properties on the page root; see globals.css.
+  // The two candidates feed the ladder's two brand rungs rather than being
+  // collapsed with `??`: the jersey worn in THIS match is HOME, and the club's
+  // stored brand accent is the AWAY fallback when that jersey fails a zone.
   const opponentColors = resolveOpponentColors({
     abbrev: abbreviateTeamName(m.opponentName),
-    brandHex: m.oppColorHex ?? opponentClub?.primaryColor ?? null,
+    brandHex: m.oppColorHex ?? null,
+    secondaryHex: opponentClub?.primaryColor ?? null,
   })
   const opponentColorVars = {
     '--opp': opponentColors.base,
