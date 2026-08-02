@@ -28,6 +28,7 @@ import {
   matchShotTypeSummaries,
   matchFaceoffDots,
   matchFaceoffZoneSummaries,
+  ocrSegments,
   playerMatchStats,
   playerLoadoutSnapshots,
   playerLoadoutAttributes,
@@ -368,10 +369,35 @@ export async function buildQualityFlags(
     n: string
   }>
   if (eaPimTotal > 0 && Number(penEventsRow!.n) === 0) {
+    // Class D asks "did the penalty parser fail?" — but it can only be a parser
+    // failure if there was something to parse. Penalties are read off the
+    // post_game_events screen, so a match whose recording never captured that
+    // screen has NO penalty source at all: the missing rows are a coverage gap
+    // in the capture, not a correctness defect in the pipeline, and blocking
+    // promotion on them withholds the match's (correct) action-tracker data
+    // forever. Measured 2026-08-01: 27 matches in the corpus have EA PIM > 0,
+    // zero penalty rows, and zero post_game_events segments — genuine recording
+    // gaps. 6 others DO have segments and really did lose their penalties;
+    // those keep `fail`.
+    //
+    // The probe is deliberately NOT live-run-filtered. The claim the downgrade
+    // makes is "this screen was never recorded", and a segment decoded by ANY
+    // run — active or superseded — refutes that claim outright. Scoping to the
+    // active run would make the downgrade EASIER to satisfy (fewer segments
+    // visible), which is the wrong direction for a check that weakens a gate.
+    const [evSegRow] = (await conn
+      .select({ n: sql<string>`COUNT(*)::text` })
+      .from(ocrSegments)
+      .where(
+        and(eq(ocrSegments.matchId, matchId), eq(ocrSegments.state, 'post_game_events')),
+      )) as Array<{ n: string }>
+    const eventsScreenRecorded = Number(evSegRow!.n) > 0
     flags.push({
       classId: 'D',
-      severity: 'fail',
-      message: `EA payload reports ${eaPimTotal} total PIM but match_events has 0 penalty rows — post_game_events penalty parser failed`,
+      severity: eventsScreenRecorded ? 'fail' : 'warn',
+      message: eventsScreenRecorded
+        ? `EA payload reports ${eaPimTotal} total PIM but match_events has 0 penalty rows — post_game_events penalty parser failed`
+        : `EA payload reports ${eaPimTotal} total PIM but the post_game_events screen was never recorded — penalties unavailable for this match (coverage gap, not a correctness defect)`,
     })
   }
 

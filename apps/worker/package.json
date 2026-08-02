@@ -22,6 +22,7 @@
     "create-player": "node dist/create-player-cli.js",
     "promote-persona-alias": "node dist/promote-persona-alias-cli.js",
     "match-quality": "node dist/match-quality-cli.js",
+    "auto-drain": "node dist/auto-drain-cli.js",
     "reconcile-periods": "node dist/reconcile-periods-cli.js",
     "run-quality": "node dist/run-quality-cli.js",
     "match-rink-diff": "node dist/match-rink-diff-cli.js",
