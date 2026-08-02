@@ -224,13 +224,6 @@ export function LineupModule({
                 ))}
               </div>
             ) : null}
-            {slots.some((s) => s.expandable) ? (
-              <p className="font-condensed text-[12px] font-semibold uppercase tracking-[0.1em] text-fg-4">
-                {variant === 'ocr'
-                  ? 'Tap a skater for full loadout and match stats'
-                  : 'Tap a skater for full match stats'}
-              </p>
-            ) : null}
           </div>
 
           {/* BGM | OPP sliding-thumb team switch. The prototype's thumb is a
