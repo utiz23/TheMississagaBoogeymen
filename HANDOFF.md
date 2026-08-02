@@ -2,6 +2,60 @@
 
 ## Active State
 
+### 🔴 BOX-SCORE FINAL-READ DEFECT SCOPED — root cause found, but it is worth 383 events, NOT 3,306 2026-08-02
+
+**Investigation only — no code changed, nothing drained.** Session-1 scoping pass on the follow-up the auto-drain entry below ranks #1. **That entry's impact figure is wrong and this supersedes it** (second premise correction in this workstream — see the ⚠️ note under AUTO-DRAIN for the first).
+
+#### Root cause
+
+`gateFromL4` grades `finalAccuracy` from the **box-score TOT row alone**. That column blanks far more often than any other, measured across every `post_game_box_score_goals` team cell in the corpus:
+
+| column       | cells | blank | blank rate |
+| ------------ | ----: | ----: | ---------: |
+| `period.TOT` |   334 |    74 | **22.2 %** |
+| `period.2ND` |   338 |    22 |      6.5 % |
+| `period.3RD` |   318 |    12 |      3.8 % |
+| `period.1ST` |   332 |     4 |      1.2 % |
+| `period.OT`  |   326 |     2 |      0.6 % |
+
+18× the 1ST column — a column-specific defect, not general OCR noise. Match **618** is the clean case: API 10–1, per-period cells read perfectly (home 3+3+4=10, away 0+0+1=1), home TOT blank ⇒ `finalAccuracy` null ⇒ HOLD on a correctly-read box score.
+
+**A tempting second hypothesis was tested and REFUTED.** `field_key` embeds the OCR'd column header verbatim, so garbled headers (`period.10T`, `period.1HD`, `period.P`, `period.r`, `period.LT`) look like they might be hiding good digits under an unmatched key. They are not — the values under those keys are blank too. Those frames read nothing. Do not spend a session on header normalization.
+
+#### The impact correction — 383 events, not 3,306
+
+All 38 held matches classified by _why_ the final is unreadable (buckets sum to the full 4,247 pending, so the split is exhaustive):
+
+| shape                                         | matches | pending events | recoverable?               |
+| --------------------------------------------- | ------: | -------------: | -------------------------- |
+| No box-score extraction **or segment** at all |      22 |          1,399 | ✗ no data exists in the DB |
+| Extraction exists, reads blank/garbage        |      11 |            897 | ✗ frames unreadable        |
+| TOT blank but periods complete + correct      |   **3** |        **383** | ✓ **618, 968, 2666**       |
+| Both TOT sides read (a different problem)     |      16 |          1,329 | n/a — not this defect      |
+
+Only 3 matches carry a frame whose complete period row sums to the API final: **618 (85 events), 968 (167), 2666 (131)**. The other 35 have no usable box-score data at all, so **no parser change can reach them**.
+
+#### The fix already exists, uncommitted
+
+`tools/game_ocr/game_ocr/parsers.py` carries an **88-line "TOT-sum disambiguation"** change (+143 lines of tests) that implements exactly this repair: TOT unread ⇒ repair from the period sum; TOT read but disagreeing ⇒ **warn only, never overwrite**; repair gated on `_tab_label_confirms_stat_kind` so a grid locked onto the wrong table cannot self-corroborate (match 1040 frame 23926 is the counter-example it defends against). **81 parser tests pass.** It is well-guarded — adopt it, don't rewrite it.
+
+⚠️ **The entry below mis-files this diff under the "OCR coverage pill" workstream.** It belongs to this one and should be committed separately from the web/db pill files.
+
+#### Cost to apply
+
+`raw_result_json` stores the parser's **output**, not the OCR lines — so stored payloads **cannot** be re-parsed. Applying the fix needs re-OCR. Cached frames decide the price:
+
+- **618** (5 frames) and **2666** (6 frames) — present under `/home/michal/ingest-cache/…/pass2/`, so re-OCR needs no video decode. **216 events, cheap.**
+- **968** — its frames were under `/tmp/ingest-cache/…/pass2-run-1974/` and are **gone**. Full re-decode (~30–45 min) for 167 events.
+
+#### ⬜ OPEN — the larger, cheaper question (not investigated)
+
+For the 22 no-box-score matches I established only that **no box-score segment was ever created**. I did **not** determine whether the screen was never recorded or the classifier missed it — that distinction decides whether they are permanently unreachable or a segmentation bug. Note they are structurally identical to the class-D case already approved for downgrade ("screen never recorded ⇒ coverage gap, not a correctness block"). Extending that principle — or routing them to `OPERATOR_CONFIRM` rather than `HOLD` — would reach **~1,399 events with zero OCR work**. That is a gate-policy call, not a defect fix, and it is 3.7× larger than the parser fix.
+
+**Recommended next order:** (1) settle the 22-match gate-policy question (largest, no OCR cost); (2) commit the parser diff + re-OCR 618/2666 (216 events, cheap); (3) 968 only if a re-decode is being run anyway; (4) class-A re-weighting (7 matches / 756 events).
+
+---
+
 ### 🟢 TEAM STATS POLISH — opponent losing bar recoloured, deal-in cascade fixed, and the 07-31 port finally committed 2026-08-02
 
 **Web-only, two files (`components/matches/team-stats.tsx` · `lib/match-recap.ts`), one focused commit.** That commit also carries the **previously-uncommitted 2026-07-31 Team Stats port** (see the `TEAM STATS PORTED` entry below) — it lives in the same two files and could not be separated from the polish sitting on top of it.
@@ -129,7 +183,7 @@ The reason: the PASS-criterion matches had **already had their events drained by
 
 The running `web` container is a **stale image** (43h at time of writing) that predates the current uncommitted action-tracker component, so its HTML lacks the `EmptyActionTracker` copy entirely — scraping it produces a false "renders fine" for _every_ match. Verify visibility through the real query instead: `getMatchEvents(id)` returned 51 for drained 608 and **0** for still-held 249. That query gates `source='ocr'`/`'manual'` on `reviewed` but lets `source='ea'` through ungated.
 
-**Follow-ups, re-ordered by measured impact:** (1) **box-score final-read defect** — unblocks 38 gate-HOLD matches / 3,306 events, and auto-drain then releases them with no new tooling; (2) class-A re-weighting (7 matches / 756 events); (3) net-chart + faceoff-map UI modules; (4) mirror-duplicate dedup bug.
+**Follow-ups, re-ordered by measured impact:** (1) ~~**box-score final-read defect** — unblocks 38 gate-HOLD matches / 3,306 events~~ **⚠️ SUPERSEDED 2026-08-02 — see the BOX-SCORE FINAL-READ DEFECT SCOPED entry at the top.** The defect is real and the root cause is found, but it is worth **383 events across 3 matches**, not 3,306: 33 of the 38 gate-HOLD matches have no usable box-score data in the DB at all, so no parser change reaches them. Use the ordering in that entry instead; (2) class-A re-weighting (7 matches / 756 events); (3) net-chart + faceoff-map UI modules; (4) mirror-duplicate dedup bug.
 
 ---
 
