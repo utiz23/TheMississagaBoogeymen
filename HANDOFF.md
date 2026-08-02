@@ -2,6 +2,49 @@
 
 ## Active State
 
+### 🟢 TEAM STATS POLISH — opponent losing bar recoloured, deal-in cascade fixed, and the 07-31 port finally committed 2026-08-02
+
+**Web-only, two files (`components/matches/team-stats.tsx` · `lib/match-recap.ts`), one focused commit.** That commit also carries the **previously-uncommitted 2026-07-31 Team Stats port** (see the `TEAM STATS PORTED` entry below) — it lives in the same two files and could not be separated from the polish sitting on top of it.
+
+#### 1. The opponent's losing bar is team-coloured again, not neutral grey
+
+The 07-31 port set **both** losing bars to `--color-border`. Reverted on the opponent side only:
+
+|          | opponent wins the row | BGM wins the row              |
+| -------- | --------------------- | ----------------------------- |
+| numeral  | `--opp`               | `--opp-2` (74%)               |
+| bar      | `--opp`               | **`--opp-line` (40%)** ← grey |
+| BGM side | accent / —            | — / `--color-border` (kept)   |
+
+**The asymmetry is deliberate and mirrors what the numerals already do.** Accent is the page's emphasis colour everywhere, so a dim red reads as "muted emphasis", not "BGM, quieter" — that is the original complaint the port was fixing, and it still stands. The opponent hue is a _resolved neutral_, so a faded version reads correctly as "the opponent, quieter".
+
+**Why `--opp-line` (40%) and not the numeral's `--opp-2` (74%):** on a `lower-better` row the LOSER holds the wider bar (BGM 2 PIM vs 10 → an 83%-wide losing bar). At 74% alpha that slab out-shouts the winner's 17% sliver and re-breaks the winner encoding. 40% stays recessive at any width.
+
+#### 2. The deal-in cascade stopped halfway down the panel
+
+User-reported, and exactly as described. `rowDelay` was `300 + staggerDelay(index, 105, 720)` — a **fixed 105ms step against a 720ms cap**, so only rows 0–6 had distinct delays and **every row from the eighth on shared 720ms exactly**. A full five-group match runs to **21 rows**, so 14 of them arrived in one slab after a cascade that visibly gave up.
+
+Fixed with the same shape as the rink's `plotStep` (`lib/plot-schedule.ts`) — **compress the step, never drop rows out of the cascade**:
+
+```
+rowStep(count) = min(105ms, 720ms / (count - 1))
+```
+
+21 rows → 36ms apart, last row lands at 1020ms. ≤7 rows → unchanged 105ms, finishes early. The "full entrance ≤ 1.2s" guardrail now holds at **any** row count, because `ROW_START_MS + ROW_BUDGET_MS` is a hard ceiling.
+
+**⬜ The same fixed-step-vs-cap shape survives in two other modules** — `performer-row.tsx:36` (`staggerDelay(rank - 1, 55, 550)`, saturates at rank 11) and `box-score.tsx:536` (`COLUMN_STEP_MS` vs a 750ms cap, saturates on skater count). Performer rows are capped at ~11 so they only just avoid it. **Not converted** — say the word.
+
+#### Verification
+
+Typecheck, ESLint and Prettier clean on both files. **Not verified in-browser** — `:3000` is the stale Docker image and no dev server was running this session. There are no unit tests for `match-recap` or `team-stats`, and `vitest` is not currently installed in the workspace (`node_modules/.bin` has no binary, and no `package.json` declares it), so the 8 web lib test files could not be run either.
+
+**⬜ LEFT DIRTY ON PURPOSE — two unrelated workstreams still uncommitted:**
+
+1. **OCR coverage pill** — `ui/ocr-pill.tsx`, `lib/ocr-coverage.ts` + test, `packages/db/src/queries/ocr-coverage.ts` + `index.ts`, `score-card.tsx`, `games/page.tsx`, plus `tools/game_ocr/parsers.py` + tests.
+2. **Two loose panel tweaks** — `box-score.tsx` (header 10px/fg-3 → 12px/fg-4) and `lineup-row.tsx` (`border-b-border-subtle` fix for a same-specificity collision with the row's own `border-l`).
+
+---
+
 ### 🟢 GAME-SHEET MOTION INVENTORY RECONCILED — six missing cues wired, four latent bugs killed 2026-08-02
 
 **Web-only. Committed as one focused commit; the OCR workstream in the same dirty tree was deliberately left untouched.**
@@ -20,7 +63,7 @@ Audited the "Game Sheet — Motion Inventory" doc (12 sections) against producti
 
 1. **Hydration mismatch on every rink with 3+ co-located events.** `Math.sin`/`Math.cos` differ by 1 ULP between Node and Chrome (measured: `sin(2/3·2π)`, `cos(3/5·2π)`). Offsets land in an SVG `transform`, so React flagged the subtree and never patched it. `marker-layout.ts` now quantizes offsets to 1e-4 viewBox units.
 2. **The plot-in cascade never played, for anyone.** `RinkPanel` shortcut on `useReducedMotion()`, which returns `true` on its first render by design (SSR-safe default). Indistinguishable from a real preference at that moment, so it set `plotDone` during hydration and stripped every drop class. Removed outright — reduced motion is already fully handled by the CSS block, which ends each keyframe at the resting state.
-3. **Two clocks that didn't talk.** `plotDone`'s teardown timer was anchored to *mount*; the animation is gated on *arming*. Measured: classes deleted at 4350ms, module armed at 5863ms. `MotionReveal` now publishes `armed` via context (`useGsArmed`) and the rink starts its clock from that.
+3. **Two clocks that didn't talk.** `plotDone`'s teardown timer was anchored to _mount_; the animation is gated on _arming_. Measured: classes deleted at 4350ms, module armed at 5863ms. `MotionReveal` now publishes `armed` via context (`useGsArmed`) and the rink starts its clock from that.
 4. **The arm fallback fired blind.** The 3s timeout couldn't tell "observer broken" from "observer works, module off-screen", so the foot-of-page tracker armed itself while invisible. First observer callback of any kind now cancels it; it survives as a genuine fail-safe.
 
 #### Then, from user testing on the live dev server
@@ -497,7 +540,7 @@ The clip toggle animates with WAAPI on `fill: 'backwards'` — 500ms open / 460m
 
 ---
 
-### ✅ TEAM STATS PORTED 2026-07-31 — prototype panel, and `Face Off %` swapped for `Faceoffs Won` (UNCOMMITTED)
+### ✅ TEAM STATS PORTED 2026-07-31 — prototype panel, and `Face Off %` swapped for `Faceoffs Won` (committed 2026-08-02, with the polish entry at the top)
 
 **Design of record:** `Game sheet prototype layout (1)/Game Sheet copy.dc.html`, the TEAM STATS section; motion cues from `Team Stats Motion Recs.dc.html`.
 
@@ -505,16 +548,16 @@ The clip toggle animates with WAAPI on `fill: 'backwards'` — 500ms open / 460m
 
 **What the module looks like now**
 
-|            | before                                            | now                                                             |
-| ---------- | ------------------------------------------------- | --------------------------------------------------------------- |
-| panel box  | split header/body padding                         | one column, `12px 14px 14px`, `gap:12px`                        |
-| header     | 11px extrabold accent ▰ + subtitle + BGM/OPP rule | `.ds-section-label` alone (12px/600/0.16em/fg-4, fg-5 ornament) |
-| list       | grouped, divider titles, `gap-3.5`/`gap-2.5`      | **flat**, one 9px rhythm across all 15 rows                     |
-| row gap    | 4px                                               | 3px                                                             |
-| stat label | 10px / 0.08em / fg-3                              | 12px / 600 / 0.06em / fg-4                                      |
-| values     | min-w 38px, loser fg-3 both sides                 | min-w 40px, BGM loser fg-4, opponent loser `--opp-2`            |
-| losing bar | dim red / `--opp-line`                            | `--color-border` **both sides**                                 |
-| hover      | row tint only                                     | row tint **+ label brightens to fg-2** (prototype cue ⑥)        |
+|            | before                                            | now                                                                                                          |
+| ---------- | ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| panel box  | split header/body padding                         | one column, `12px 14px 14px`, `gap:12px`                                                                     |
+| header     | 11px extrabold accent ▰ + subtitle + BGM/OPP rule | `.ds-section-label` alone (12px/600/0.16em/fg-4, fg-5 ornament)                                              |
+| list       | grouped, divider titles, `gap-3.5`/`gap-2.5`      | **flat**, one 9px rhythm across all 15 rows                                                                  |
+| row gap    | 4px                                               | 3px                                                                                                          |
+| stat label | 10px / 0.08em / fg-3                              | 12px / 600 / 0.06em / fg-4                                                                                   |
+| values     | min-w 38px, loser fg-3 both sides                 | min-w 40px, BGM loser fg-4, opponent loser `--opp-2`                                                         |
+| losing bar | dim red / `--opp-line`                            | `--color-border` both sides — ⚠️ **opponent side reverted to `--opp-line` on 2026-08-02, see the top entry** |
+| hover      | row tint only                                     | row tint **+ label brightens to fg-2** (prototype cue ⑥)                                                     |
 
 The prototype builds its rows in groups and then `flatMap`s them away — **the group titles are an authoring device, not a visual.** They survive as `sr-only` headings (absolutely positioned, so they add no gap to the flat rhythm). The losing-bar change is the prototype's own note: _"one meaning per panel: full team colour = won this stat, zinc = lost it — a dim-red losing bar read as 'BGM' and fought the winner encoding."_
 
