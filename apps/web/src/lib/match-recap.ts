@@ -823,13 +823,7 @@ export function buildBoxScore(
     .filter(nonEmptyRow)
 
   const possessionRows: BoxScoreRow[] = [
-    match.faceoffPct !== null
-      ? {
-          label: 'Face Off %',
-          us: `${parseFloat(match.faceoffPct).toFixed(1)}%`,
-          them: `${(100 - parseFloat(match.faceoffPct)).toFixed(1)}%`,
-        }
-      : null,
+    faceoffRow(bgmAgg, oppAgg),
     passPctRow(
       'Pass %',
       bgmAgg.passCompletions,
@@ -940,6 +934,8 @@ function aggregatePlayerSide(rows: PlayerStat[]) {
       acc.saves += p.saves ?? 0
       acc.goalsAgainst += p.goalsAgainst ?? 0
       acc.shotsAgainst += p.shotsAgainst ?? 0
+      acc.faceoffWins += p.faceoffWins
+      acc.faceoffLosses += p.faceoffLosses
       return acc
     },
     {
@@ -957,6 +953,8 @@ function aggregatePlayerSide(rows: PlayerStat[]) {
       saves: 0,
       goalsAgainst: 0,
       shotsAgainst: 0,
+      faceoffWins: 0,
+      faceoffLosses: 0,
     },
   )
 }
@@ -978,6 +976,8 @@ function aggregateOpponentSide(rows: OpponentPlayerStat[]) {
       acc.saves += p.saves ?? 0
       acc.goalsAgainst += p.goalsAgainst ?? 0
       acc.shotsAgainst += p.shotsAgainst ?? 0
+      acc.faceoffWins += p.faceoffWins
+      acc.faceoffLosses += p.faceoffLosses
       return acc
     },
     {
@@ -995,8 +995,37 @@ function aggregateOpponentSide(rows: OpponentPlayerStat[]) {
       saves: 0,
       goalsAgainst: 0,
       shotsAgainst: 0,
+      faceoffWins: 0,
+      faceoffLosses: 0,
     },
   )
+}
+
+/**
+ * Faceoffs won by each side, replacing the old `Face Off %` row — two counts
+ * duel honestly on a share bar, where two percentages that always sum to 100
+ * only restated the bar's own geometry.
+ *
+ * BOTH numbers come from ONE side's counters: every draw BGM lost is a draw
+ * the opponent won, so `bgm.faceoffLosses` IS the opponent's win count. EA's
+ * two per-player counter sets disagree on 25 of 199 stored matches — usually
+ * by a draw or two, occasionally wildly (match 12 records 3 BGM draws against
+ * the opponent roster's 49) — and mixing them would produce a pair whose sum
+ * is neither side's actual number of draws. Deriving both from ours also keeps
+ * this row an exact decomposition of the FO% shown elsewhere on the site,
+ * which `matches.faceoff_pct` computes the same way.
+ *
+ * Falls back to the opponent's counters, mirrored, on the handful of matches
+ * where our side recorded no draws at all.
+ */
+function faceoffRow(
+  bgm: { faceoffWins: number; faceoffLosses: number },
+  opp: { faceoffWins: number; faceoffLosses: number },
+): BoxScoreRow | null {
+  const label = 'Faceoffs Won'
+  if (bgm.faceoffWins + bgm.faceoffLosses > 0) return row(label, bgm.faceoffWins, bgm.faceoffLosses)
+  if (opp.faceoffWins + opp.faceoffLosses > 0) return row(label, opp.faceoffLosses, opp.faceoffWins)
+  return null
 }
 
 function row(label: string, us: number, them: number): BoxScoreRow {

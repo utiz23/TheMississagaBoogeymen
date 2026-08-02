@@ -1,14 +1,30 @@
+import { Fragment } from 'react'
 import type { BoxScoreGroup, BoxScoreRow } from '@/lib/match-recap'
-import { abbreviateTeamName } from '@/lib/format'
 import { delayVar, staggerDelay } from '@/lib/motion'
 import { CountUp, MotionReveal } from './motion'
 
-// Rail module — team head-to-head. Restyled to the prototype: one bordered
-// section, a flat row rhythm inside grouped dividers, and a center-divider
-// share bar per row (BGM grows leftward from the divider, opponent rightward,
-// divider position = share of the pair's total). Winner takes the saturated
-// tone on its side; the loser's bar stays present but faded, so the row is
-// readable as a duel rather than two independent bars.
+// Rail module — team head-to-head, ported to the prototype's revised panel
+// (`Game sheet prototype layout (1)/Game Sheet copy.dc.html`, the TEAM STATS
+// section; motion cues from `Team Stats Motion Recs.dc.html`).
+//
+// The panel is a FLAT list of duelling rows: one `.ds-section-label` header,
+// then every stat at a single 9px rhythm, each with a centre-divider share bar
+// (BGM grows leftward from the divider, opponent rightward, divider position =
+// share of the pair's total). The prototype builds its rows in groups and then
+// `flatMap`s them away — the group titles are an authoring device, not a
+// visual. They survive here as sr-only headings so the structure stays in the
+// accessibility tree without putting a divider every three rows.
+//
+// One meaning per panel: full team colour = won this stat, recessive = lost it.
+// The two sides express "recessive" differently, and asymmetrically on purpose —
+// it mirrors what the NUMERALS above the bar already do. BGM's losing bar takes
+// neutral `--color-border` (a dim accent reads as "muted emphasis", not "BGM
+// quieter", because accent is the page's emphasis colour everywhere), while the
+// opponent's takes `--opp-line` — the opponent hue is a resolved neutral, so a
+// faded version still reads as "the opponent, quieter" without competing with
+// the winner. `--opp-line` (40%) rather than the numeral's `--opp-2` (74%):
+// on a lower-better row the LOSER holds the wider bar (BGM 2 PIM vs 10), and at
+// 74% an 83%-wide losing bar out-shouts the winner's sliver.
 //
 // No FULL HEAD-TO-HEAD link: the prototype links one, but this app has no
 // per-opponent route to land on (`/games`, `/roster`, `/stats` only). The plan
@@ -29,67 +45,67 @@ interface TeamStatsProps {
 export function TeamStats({ rows, opponentName }: TeamStatsProps) {
   if (rows.length === 0) return null
 
-  const oppAbbrev = abbreviateTeamName(opponentName)
+  // Group footnotes collect at the foot of the panel — the slot the prototype
+  // gave its CTA. They disclose overridden sources, so they cannot be dropped
+  // along with the group headers they used to hang under.
+  const footnotes = Array.from(
+    new Set(rows.map((group) => group.footnote).filter((note): note is string => Boolean(note))),
+  )
+
+  // Step is derived from the row count across ALL groups, so the cascade is one
+  // continuous sweep down the panel rather than one that runs out partway.
+  const totalRows = rows.reduce((count, group) => count + group.rows.length, 0)
+  const stepMs = rowStep(totalRows)
 
   return (
     <section>
       <MotionReveal className="gs-rise relative overflow-hidden border border-border bg-surface">
         <span aria-hidden className="gs-wipe" />
-        <div className="flex flex-col gap-2 px-3.5 pb-2.5 pt-3">
-          <div className="flex flex-col gap-0.5">
-            <h2 className="font-condensed text-[11px] font-extrabold uppercase tracking-[0.18em] text-fg-3">
-              <span aria-hidden className="pr-1 text-accent">
-                ▰
-              </span>
-              Team Stats
-            </h2>
-            <p className="font-condensed text-[10px] uppercase tracking-[0.12em] text-fg-3">
-              Head to head · bar = share of total
-            </p>
-          </div>
-          {/* Side labels — the bars are colour-coded, but colour alone must
-              not carry the BGM/opponent split. */}
-          <div className="flex items-baseline justify-between border-t border-border-subtle pt-2 font-condensed text-[10px] font-extrabold uppercase tracking-[0.16em]">
-            <span className="text-accent">BGM</span>
-            <span className="[color:var(--opp)]">{oppAbbrev}</span>
-          </div>
-        </div>
+        <div className="flex flex-col gap-3 px-3.5 pb-3.5 pt-3">
+          {/* House module header — the same 12px / semibold / 0.16em / fg-4
+              with an fg-5 ornament that Box Score, Top Performers, DtW and
+              Lineup carry. The accent belongs to the data, not to the label. */}
+          <h2 className="font-condensed text-[12px] font-semibold uppercase tracking-[0.16em] text-fg-4">
+            <span aria-hidden className="pr-1 text-fg-5">
+              ▰
+            </span>
+            Team Stats
+          </h2>
 
-        <div className="flex flex-col gap-3.5 px-3.5 pb-3.5">
-          {/* Row index runs across ALL groups, so the deal-in reads as one
-              sheet filling rather than each group restarting its own count. */}
-          {rows.map((group, groupIndex) => (
-            <Group
-              key={group.title}
-              group={group}
-              rowOffset={rows.slice(0, groupIndex).reduce((n, g) => n + g.rows.length, 0)}
-            />
-          ))}
+          {/* The bars are colour-coded and the sides are positional, neither of
+              which survives being read aloud — so the split is stated once,
+              for screen readers, where the prototype relies on layout. */}
+          <p className="sr-only">
+            Each row compares BGM on the left with {opponentName} on the right. The bar under a row
+            is each side&apos;s share of the pair&apos;s total.
+          </p>
+
+          <div className="flex flex-col gap-[9px]">
+            {/* Row index runs across ALL groups, so the deal-in reads as one
+                sheet filling rather than each group restarting its own count. */}
+            {rows.map((group, groupIndex) => {
+              const rowOffset = rows
+                .slice(0, groupIndex)
+                .reduce((count, previous) => count + previous.rows.length, 0)
+              return (
+                <Fragment key={group.title}>
+                  {/* Absolutely positioned by `sr-only`, so it is out of flow
+                      and adds no gap to the flat rhythm. */}
+                  <h3 className="sr-only">{group.title}</h3>
+                  {group.rows.map((row, index) => (
+                    <Row key={row.label} row={row} delayMs={rowDelay(rowOffset + index, stepMs)} />
+                  ))}
+                </Fragment>
+              )
+            })}
+          </div>
+
+          {footnotes.length > 0 ? (
+            <p className="text-[10px] leading-snug text-fg-5">{footnotes.join(' ')}</p>
+          ) : null}
         </div>
       </MotionReveal>
     </section>
-  )
-}
-
-function Group({ group, rowOffset }: { group: BoxScoreGroup; rowOffset: number }) {
-  return (
-    <div className="flex flex-col gap-2">
-      <div className="flex items-center gap-2.5">
-        <div className="h-px flex-1 bg-border-subtle" />
-        <h3 className="font-condensed text-[10px] font-bold uppercase tracking-[0.18em] text-fg-3">
-          {group.title}
-        </h3>
-        <div className="h-px flex-1 bg-border-subtle" />
-      </div>
-      <div className="flex flex-col gap-2.5">
-        {group.rows.map((row, index) => (
-          <Row key={row.label} row={row} delayMs={rowDelay(rowOffset + index)} />
-        ))}
-      </div>
-      {group.footnote ? (
-        <p className="text-[10px] leading-snug text-fg-3">{group.footnote}</p>
-      ) : null}
-    </div>
   )
 }
 
@@ -101,13 +117,13 @@ function Row({ row, delayMs }: { row: BoxScoreRow; delayMs: number }) {
 
   return (
     <div
-      className="gs-row-in gs-hover-row -mx-1.5 flex flex-col gap-1 px-1.5 py-0.5 hover:bg-surface-raised"
+      className="gs-row-in gs-hover-row group -mx-1.5 flex flex-col gap-[3px] px-1.5 py-0.5 hover:bg-surface-raised"
       style={delayVar(delayMs)}
     >
       <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2">
         <span
-          className={`min-w-[38px] font-condensed text-[13px] font-extrabold tabular-nums ${
-            winner === 'bgm' ? 'text-accent' : 'text-fg-3'
+          className={`min-w-[40px] font-condensed text-[13px] font-extrabold tabular-nums ${
+            winner === 'bgm' ? 'text-accent' : 'text-fg-4'
           }`}
         >
           {bgmCount === null ? (
@@ -118,11 +134,14 @@ function Row({ row, delayMs }: { row: BoxScoreRow; delayMs: number }) {
             </CountUp>
           )}
         </span>
-        <span className="text-center font-condensed text-[10px] font-semibold uppercase leading-tight tracking-[0.08em] text-fg-3">
+        {/* Hovering a stat brightens its label so a reader can isolate one
+            comparison (prototype cue ⑥). `gs-hover-row` carries the transition
+            because colour does not inherit one from the row. */}
+        <span className="gs-hover-row text-center font-condensed text-[12px] font-semibold uppercase leading-tight tracking-[0.06em] text-fg-4 group-hover:text-fg-2">
           {row.label}
           {unit !== null ? (
             <span
-              className="ml-1 align-middle font-condensed text-[9px] font-bold tracking-[0.12em] text-fg-3"
+              className="ml-1 align-middle font-condensed text-[10px] font-bold tracking-[0.12em] text-fg-5"
               title="Minutes and seconds"
             >
               {unit}
@@ -130,7 +149,7 @@ function Row({ row, delayMs }: { row: BoxScoreRow; delayMs: number }) {
           ) : null}
           {row.polarity === 'lower-better' ? (
             <span
-              className="ml-1 align-middle font-condensed text-[9px] font-bold tracking-[0.12em] text-fg-3"
+              className="ml-1 align-middle font-condensed text-[10px] font-bold tracking-[0.12em] text-fg-5"
               title="Lower is better"
             >
               ↓ BETTER
@@ -138,8 +157,8 @@ function Row({ row, delayMs }: { row: BoxScoreRow; delayMs: number }) {
           ) : null}
         </span>
         <span
-          className={`min-w-[38px] text-right font-condensed text-[13px] font-extrabold tabular-nums ${
-            winner === 'opp' ? '[color:var(--opp)]' : 'text-fg-3'
+          className={`min-w-[40px] text-right font-condensed text-[13px] font-extrabold tabular-nums ${
+            winner === 'opp' ? '[color:var(--opp)]' : '[color:var(--opp-2)]'
           }`}
         >
           {oppCount === null || row.them === null ? (
@@ -169,7 +188,7 @@ function Row({ row, delayMs }: { row: BoxScoreRow; delayMs: number }) {
                 winner === 'bgm' ? 'gs-flare-accent' : ''
               }`}
               style={{
-                background: winner === 'bgm' ? 'var(--color-accent)' : 'rgba(232,65,49,0.30)',
+                background: winner === 'bgm' ? 'var(--color-accent)' : 'var(--color-border)',
                 ...delayVar(delayMs),
               }}
             />
@@ -195,13 +214,39 @@ function Row({ row, delayMs }: { row: BoxScoreRow; delayMs: number }) {
 
 // ─── Motion helpers ───────────────────────────────────────────────────────────
 
+/** Beat before the first row deals in. */
+const ROW_START_MS = 300
+/** Widest gap between two rows — used until the row count forces compression. */
+const ROW_MAX_STEP_MS = 105
+/** Total time the deal-in may occupy, whatever the row count. */
+const ROW_BUDGET_MS = 720
+
 /**
- * Deal-in delay for a row. Capped so a five-group / ~20-row match still fits
- * the spec's "full entrance <= 1.2s" guardrail — the prototype only ever had
- * ten flat rows to schedule.
+ * Gap between consecutive rows, compressed so the LAST row still deals in
+ * inside the budget.
+ *
+ * THE BUG THIS SHAPE EXISTS TO PREVENT. The step was a fixed 105ms against a
+ * 720ms cap, so only the first seven rows had distinct delays and every row
+ * from the eighth on shared 720ms exactly. A full five-group match runs to 21
+ * rows — two thirds of the panel arrived in one slab after a cascade that
+ * visibly stopped halfway down. Same fix, and same reasoning, as the rink's
+ * `plotStep` (see `lib/plot-schedule.ts`): compress the step, never drop rows
+ * out of the cascade.
+ *
+ * Denominator is `count - 1` because the gaps sit *between* rows: row 0 deals
+ * at delay 0, so N rows have N-1 gaps and the last lands at exactly
+ * `ROW_BUDGET_MS`. Short panels never compress — they keep the full 105ms and
+ * simply finish early. The spec's "full entrance <= 1.2s" guardrail holds at
+ * any row count, because `ROW_START_MS + ROW_BUDGET_MS` is the ceiling.
  */
-function rowDelay(index: number): number {
-  return 300 + staggerDelay(index, 105, 720)
+function rowStep(count: number): number {
+  if (count <= 1) return ROW_MAX_STEP_MS
+  return Math.min(ROW_MAX_STEP_MS, ROW_BUDGET_MS / (count - 1))
+}
+
+/** Deal-in delay for the row at `index`. */
+function rowDelay(index: number, stepMs: number): number {
+  return ROW_START_MS + staggerDelay(index, stepMs, ROW_BUDGET_MS)
 }
 
 /**
