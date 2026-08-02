@@ -2,6 +2,98 @@
 
 ## Active State
 
+### 🟢 OPPONENT COLOURING — spec gap closed, two rendering defects killed, image redeployed 2026-08-02
+
+**Web-only, three focused commits (`215a5c5`, `3507e33`, `5864957`). The OCR workstream dirty in the same tree was deliberately left untouched.**
+
+Audited the game sheet against `Game sheet prototype layout (1)/Opponent Colour Rules.dc.html` and the resolver embedded in `Game Sheet copy.dc.html`. The port was already faithful — clash zones, OKLCH maths, the four alternates and their `n*31` hash, the gunmetal lift, `--opp/-2/-line/-soft` — and every sheet module already paints from those vars. Three real gaps:
+
+1. **`215a5c5` — the AWAY rung was missing.** Spec ladder is HOME → AWAY → ALTERNATE; the page collapsed its two candidates with `??`, so the club's brand accent was consulted only when the jersey hex was ABSENT, never when it FAILED. Now `matches.opp_color_hex` is HOME and `opponent_clubs.primary_color` is AWAY. A missing primary **promotes** the secondary rather than treating it as rung 2, so a dark brand colour still gets rung 3's hue-preserving lift. **Inert on current data** — 1 of 191 clubs has a brand colour and both of its colours fail — so no match changes colour today.
+2. **`3507e33` — opponent team-stats bars never rendered.** Measured `0x0` (BGM's was `657x5`). The fill is a `<span>`; width/height do not apply to an inline box. BGM's wrapper is `display:flex` (it needs `justify-end`), which blockifies its fill as a side effect; the opponent's had no `flex`. Colour was correct all along. Page-wide scan for collapsed painted elements: **17 → 1** (survivor unrelated).
+3. **`5864957` — the solid marker's white letter is wrong for opponents.** The ladder enforces a lightness FLOOR so `--opp` reads on the dark rink, which makes a white glyph on it the one combination the colour system cannot rule out. On match 2688 (near-white kit `#D8D8D8`) the letter measured **1.43:1**. Not club-specific: **all four alternates fall under 3:1** (STEEL 2.49 · ICE 2.22 · VIOLET 2.87 · COBALT 3.11); only BGM red (4.01) and gunmetal (3.63) clear. The resolver's `fg` — computed since day one, never published — now ships as `--opp-fg` and reaches markers via `TeamPalette.HOME_INK`. White stays the default, so BGM and legend swatches are untouched.
+
+#### Verified
+
+Runtime probes on the dev server across three matches spanning all three `--opp` provenances — 2665 `#18D818` (brand ships), 1093 `#6FB7D8` (issued alternate), 2688 `#D8D8D8` (near-white brand) — at 1440px and 390px. Bars now measure real widths at 5px height; **0 of 174** markers on 2688 pair a white letter with the opponent fill (previously all 107), letter contrast **12.4:1**; on 1093 (BGM home ice) BGM keeps white-on-red at **4.01:1**. Typecheck, ESLint, Prettier clean; 98 web lib tests pass.
+
+#### ⬜ Deployment state — READ THIS
+
+The Docker web image was **7 weeks old** and predated the entire opponent-colour system: no `--opp` on the page root at all, no team-stats panel, no timeline cards, and rink markers painting the **raw OCR hex** (`#d81818`), exactly what the resolver exists to prevent. It has been rebuilt and is live. **But the rebuild happened before commit `5864957`** — the running image has the AWAY rung and the bar fix, NOT the marker ink. Rebuild again to ship it (`docker-redeploy` skill).
+
+#### ⬜ Open
+
+- **Near-white opponents are legible but still pale.** Ink-only was the chosen fix, so `#D8D8D8` remains the team colour. The follow-up option is tightening the TOO PALE zone: the spec's own §02 swatch list names `#E2E2E2` "SILVER", but its numeric test `L > .93` does not catch it (L = .913) — the zone under-fires relative to its own stated intent. Would affect exactly 1 of 199 matches.
+- **Unreproduced report: "the accents on the event cards for the opps".** Checked timeline card edges and action-tracker list card edges on 2665/1093/2688 at both widths — all carry the resolved opponent colour at full 3px. Needs a match ID and which element before it can be chased.
+
+---
+
+### 🔴 GATE-POLICY QUESTION SETTLED — DO NOT DOWNGRADE. The screen WAS recorded; the classifier missed it 2026-08-02
+
+**Investigation only — no code changed, nothing drained.** Resolves the ⬜ OPEN block in the entry below. The answer is the opposite of what that entry expected, and its bucket numbers were wrong.
+
+#### Verdict
+
+**Keep these matches on `HOLD`. The class-D precedent does not extend to them.** The premise behind the proposed downgrade — "screen never recorded ⇒ coverage gap, not a correctness block" — is false for most of this set. The box-score screen **was** recorded, is **fully legible**, and reads the API final **exactly**. Routing it to `OPERATOR_CONFIRM` would mark machine-verifiable data as human-confirm-only and would bury a classifier defect that is still live on new ingests.
+
+#### The set is 15 matches / 1,201 events, not 22 / 1,399
+
+Measured against the live DB. Identical whether scoped to active runs or all runs:
+
+```sql
+-- matches with pending match_events and zero post_game_box_score% extractions AND zero such segments
+```
+
+The earlier 22/1,399 could not be reproduced and should be treated as stale. Everything below re-derives from the 15.
+
+#### How it was settled
+
+`~/ingest-cache/<sha>/segments.json` retains pass1's **per-frame classification with `anchor_text`** — surviving for 11 of the 15 (the rest were under `/tmp` and are gone). A box-score screen prints the summary tab strip: `goalsummary` / `shotsummary` / `faceoffsummary` / `summarycategory`. Grepping that across pass1 finds frames the classifier labeled `unknown_or_transition` — i.e. the screen was on-screen and OCR'd, but no segment was cut and no extraction was ever created.
+
+Then confirmed at the source. All 10 videos still exist on `/mnt/k`; `ffmpeg -ss <t>` at 2-3 fps over the suspect window costs seconds (no re-decode):
+
+| match | window | what the frame actually shows                    | vs API  |
+| ----- | ------ | ------------------------------------------------ | ------- |
+| 465   | 1633 s | goal summary, both teams, per-period **and** TOT | 4–1 ✓   |
+| 2577  | 1875 s | goal summary, both teams, per-period **and** TOT | 6–3 ✓   |
+| 2676  | 2161 s | full summary tab group, legible                  | (3–2) ✓ |
+
+#### The smoking gun: same video, same anchor text, both outcomes
+
+Video `ed827491…` holds three games. Match **2402**'s box score at t=1721 (`anchor_text = "lt goalsummary"`) was labeled `post_game_box_score_goals`. The **identical** anchor text at t=2584 (match 2403) and t=4267 (match 2404) was labeled `unknown_or_transition`. Same file, same UI, same string. Also reproduced within matches 472 and 977. This is a per-frame classifier miss — not a recording gap, a UI-version issue, or a resolution issue.
+
+Pass1 runs `engine: viterbi_v2` (v2 LR head + regex priors), **not** game*ocr's anchor+color `Classifier` — every frame record has `color_score = 0.000` and an empty `color_class`. Verified that the anchor path \_would* have caught these: `fuzzy_contains("lt goalsummary", "goal summary", 1) → True`, and likewise `"lt faceoffsummary"` → `"faceoff summary"`. **The mechanism inside the LR head was not diagnosed** — only that its output is wrong where the anchor rule is right.
+
+#### The 15, split three ways
+
+| bucket                                                        | matches | pending | disposition                     |
+| ------------------------------------------------------------- | ------: | ------: | ------------------------------- |
+| **Classifier miss** — screen recorded, frames labeled unknown |   **9** | **757** | stay `HOLD`; recoverable        |
+| **Genuine coverage gap** — no summary tabs anywhere in pass1  |       2 |     109 | class-D downgrade is legitimate |
+| **Undetermined** — pass1 cache lost to `/tmp`, video survives |       4 |     335 | cheap to resolve, see below     |
+
+- **Classifier miss (9):** 465, 472, 476, 977, 2403, 2404, 2577, 2672, 2676
+- **Coverage gap (2):** 565, 2680 — post-game flow runs net chart / action tracker → club progression → main menu. The operator backed out before the summary tabs. These two genuinely fit the class-D principle.
+- **Undetermined (4):** 249, 252, 464, 976
+
+#### ⚠️ Two of the nine also need the reel boundary fixed
+
+A classifier fix alone will not reach **472** (box score at t=1331; reel 0 closed at t=1318) or **977** (t=774; reel 1 closed at t=755). Those frames landed in an **inter-reel gap** and belong to no reel. The boundary closes before the post-game menu flow finishes.
+
+Related: `reels.json` already stamps `has_boxscore: false` and a `partial_no_boxscore` completeness flag on these reels. That inventory is wrong for the same reason — a second consumer of the same defect.
+
+#### Cost
+
+Recovery needs a **re-decode**, not a re-parse — `raw_result_json` stores parser output, and the pass1 frames themselves are not retained (only `pass2/` seg-dirs are). ~30-45 min/match, 9 matches. **Fix the classifier first**; re-ingesting under the same head reproduces the same miss.
+
+#### ⬜ Next
+
+1. **Resolve the 4 undetermined** — cheapest open item. Their `ocr_segments` rows carry `t_start_sec`/`t_end_sec` for the surviving `post_game_events` / `post_game_net_chart` segments (e.g. 976's events segment ends at 6404 s, 252's net chart at 1288 s). Identify the video by sha, `ffmpeg -ss` the ~30 s after that, look. Minutes, not a decode.
+2. **Diagnose the viterbi_v2 miss** — why the LR head drops a frame whose anchor text unambiguously matches. An anchor-based rescue pass over `unknown_or_transition` frames is the obvious candidate fix, but it is untested.
+3. **Fix the reel-boundary close** for the 472/977 shape, or the classifier fix strands them anyway.
+4. Only then re-ingest the 9.
+
+---
+
 ### 🔴 BOX-SCORE FINAL-READ DEFECT SCOPED — root cause found, but it is worth 383 events, NOT 3,306 2026-08-02
 
 **Investigation only — no code changed, nothing drained.** Session-1 scoping pass on the follow-up the auto-drain entry below ranks #1. **That entry's impact figure is wrong and this supersedes it** (second premise correction in this workstream — see the ⚠️ note under AUTO-DRAIN for the first).
@@ -26,12 +118,12 @@
 
 All 38 held matches classified by _why_ the final is unreadable (buckets sum to the full 4,247 pending, so the split is exhaustive):
 
-| shape                                         | matches | pending events | recoverable?               |
-| --------------------------------------------- | ------: | -------------: | -------------------------- |
-| No box-score extraction **or segment** at all |      22 |          1,399 | ✗ no data exists in the DB |
-| Extraction exists, reads blank/garbage        |      11 |            897 | ✗ frames unreadable        |
-| TOT blank but periods complete + correct      |   **3** |        **383** | ✓ **618, 968, 2666**       |
-| Both TOT sides read (a different problem)     |      16 |          1,329 | n/a — not this defect      |
+| shape                                         | matches | pending events | recoverable?                                                                                                                                                       |
+| --------------------------------------------- | ------: | -------------: | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| No box-score extraction **or segment** at all |      22 |          1,399 | ⚠️ **WRONG — see the entry above.** Re-measured as 15 matches / 1,201 events, and "no data exists" is false: for 9 of them the screen was recorded and is legible. |
+| Extraction exists, reads blank/garbage        |      11 |            897 | ✗ frames unreadable                                                                                                                                                |
+| TOT blank but periods complete + correct      |   **3** |        **383** | ✓ **618, 968, 2666**                                                                                                                                               |
+| Both TOT sides read (a different problem)     |      16 |          1,329 | n/a — not this defect                                                                                                                                              |
 
 Only 3 matches carry a frame whose complete period row sums to the API final: **618 (85 events), 968 (167), 2666 (131)**. The other 35 have no usable box-score data at all, so **no parser change can reach them**.
 
@@ -48,11 +140,11 @@ Only 3 matches carry a frame whose complete period row sums to the API final: **
 - **618** (5 frames) and **2666** (6 frames) — present under `/home/michal/ingest-cache/…/pass2/`, so re-OCR needs no video decode. **216 events, cheap.**
 - **968** — its frames were under `/tmp/ingest-cache/…/pass2-run-1974/` and are **gone**. Full re-decode (~30–45 min) for 167 events.
 
-#### ⬜ OPEN — the larger, cheaper question (not investigated)
+#### ✅ RESOLVED — the "larger, cheaper question" was neither larger nor cheaper
 
-For the 22 no-box-score matches I established only that **no box-score segment was ever created**. I did **not** determine whether the screen was never recorded or the classifier missed it — that distinction decides whether they are permanently unreachable or a segmentation bug. Note they are structurally identical to the class-D case already approved for downgrade ("screen never recorded ⇒ coverage gap, not a correctness block"). Extending that principle — or routing them to `OPERATOR_CONFIRM` rather than `HOLD` — would reach **~1,399 events with zero OCR work**. That is a gate-policy call, not a defect fix, and it is 3.7× larger than the parser fix.
+This block asked whether the no-box-score matches were "screen never recorded" (⇒ downgrade) or a segmentation bug (⇒ fix). **Settled 2026-08-02: it is a segmentation bug for 9 of 15, and the downgrade is refused.** See the entry at the top. The "~1,399 events with zero OCR work" framing does not survive — the real set is 1,201 events, only 109 of which are a genuine coverage gap, and the recoverable 757 need a re-decode plus a classifier fix first.
 
-**Recommended next order:** (1) settle the 22-match gate-policy question (largest, no OCR cost); (2) commit the parser diff + re-OCR 618/2666 (216 events, cheap); (3) 968 only if a re-decode is being run anyway; (4) class-A re-weighting (7 matches / 756 events).
+**Recommended next order (revised):** (1) commit the parser diff + re-OCR 618/2666 (216 events, cheap) — now the cheapest real win; (2) diagnose the viterbi_v2 box-score miss, then re-ingest the 9 (757 events); (3) 968 only if a re-decode is being run anyway; (4) class-A re-weighting (7 matches / 756 events).
 
 ---
 
