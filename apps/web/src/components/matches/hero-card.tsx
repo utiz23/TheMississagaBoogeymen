@@ -203,8 +203,8 @@ export function HeroCard({
           <span aria-hidden className="h-[3px] w-[3px] rounded-full bg-fg-6" />
           <span className="font-bold tracking-[0.16em] text-fg-4">
             Season series{' '}
-            <span className="tabular-nums text-accent">{meta.series.wins.toString()}</span>–
-            <span className="tabular-nums text-fg-3">{meta.series.losses.toString()}</span>–
+            <span className="tabular-nums text-win">{meta.series.wins.toString()}</span>–
+            <span className="tabular-nums text-loss">{meta.series.losses.toString()}</span>–
             <span className="tabular-nums text-otl">{meta.series.otl.toString()}</span>
           </span>
         </div>
@@ -220,10 +220,18 @@ export function HeroCard({
 // brighter", and the opponent palette is chosen so nothing in it can be
 // mistaken for BGM red, WIN emerald or OTL amber.
 //
-// A marked state (WIN, OTL) carries a 26px bar, mirrored to the outside edge on
-// the opponent side; a plain loss is muted text with no bar. The bars are flat
-// colour — the winning SCORE is the only thing on the hero that glows. DNF
-// renders no tags at all; the scorebug header already says DNF.
+// Every result state carries the same treatment — coloured label plus a 26px
+// bar, mirrored to the outside edge on the opponent side — so a loss reads as
+// deliberately as a win instead of looking unstyled: win emerald, OTL amber,
+// loss red. The bars are flat colour — the winning SCORE is the only thing on
+// the hero that glows. DNF renders no tags at all; the scorebug header already
+// says DNF.
+const TAG_TONE: Record<'win' | 'otl' | 'loss', { text: string; bar: string }> = {
+  win: { text: 'text-win', bar: 'bg-win' },
+  otl: { text: 'text-otl', bar: 'bg-otl' },
+  loss: { text: 'text-loss', bar: 'bg-loss' },
+}
+
 function ResultTag({
   side,
   result,
@@ -236,27 +244,18 @@ function ResultTag({
   if (result === 'DNF') return null
 
   const state = resultState(side, result, overtime)
-  const label = state.tone === 'win' ? 'text-win' : 'text-otl'
-
-  if (state.tone === 'loss') {
-    return <span className="text-xs font-extrabold tracking-[0.22em] text-fg-5">Loss</span>
-  }
+  const tone = TAG_TONE[state.tone]
 
   // The bar is desktop-only: below sm the three hero columns are tight enough
   // that a right-aligned 26px bar + gap overflows its column and collides with
   // the score (measured 9px of overlap at 390). The coloured label alone still
   // carries the state.
-  const bar = (
-    <span
-      aria-hidden
-      className={`hidden h-[3px] w-[26px] sm:block ${state.tone === 'win' ? 'bg-win' : 'bg-otl'}`}
-    />
-  )
+  const bar = <span aria-hidden className={`hidden h-[3px] w-[26px] sm:block ${tone.bar}`} />
 
   return (
     <span className="flex items-center gap-2">
       {side === 'opp' ? null : bar}
-      <span className={`text-xs font-black tracking-[0.22em] ${label}`}>{state.text}</span>
+      <span className={`text-xs font-black tracking-[0.22em] ${tone.text}`}>{state.text}</span>
       {side === 'opp' ? bar : null}
     </span>
   )
