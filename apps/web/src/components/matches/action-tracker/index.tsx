@@ -42,6 +42,8 @@ import {
  *   - the player-name search box
  *   - the "match totals" summary strip (the hero, box score and team-stats
  *     rail already carry every number it repeated)
+ *   - the "Goals only" shortcut (not in the prototype, and it duplicated what
+ *     the type toggles already do in one extra click)
  */
 
 interface ActionTrackerProps {
@@ -183,11 +185,6 @@ export function ActionTracker({
       ? null
       : (positionStats.positioned - positionStats.extrapolated) / positionStats.positioned
 
-  const goalsOnly = enabledTypes.size === 1 && enabledTypes.has('goal')
-  const toggleGoalsOnly = () => {
-    setEnabledTypes(goalsOnly ? new Set(ALL_TYPES) : new Set(['goal']))
-  }
-
   const toggleSelected = (id: number) => {
     setSelectedId((prev) => (prev === id ? null : id))
   }
@@ -213,19 +210,29 @@ export function ActionTracker({
             surface, then a single red wipe brings the ice online. Wrapped in
             MotionReveal because this module sits at the foot of a long page —
             without a scroll trigger the plot-in would replay to an empty room. */}
-        <MotionReveal className="gs-rise relative overflow-hidden border border-border bg-surface">
+        {/* The prototype composes this section as a padded broadcast FIELD with
+            the module's parts sitting on it as separate cards — not as one flat
+            surface with internal dividers. That is load-bearing here: the rink
+            (broadcast-strong), the event list and the provenance footer are
+            already bordered cards, so on a bg-surface field the list and footer
+            read as flush panels with no depth. On the soft field they separate. */}
+        <MotionReveal className="gs-rise broadcast-panel-soft relative overflow-hidden p-4">
           <span aria-hidden className="gs-wipe" />
-          <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 px-3.5 pt-3 pb-2">
-            <div className="flex flex-col gap-0.5">
-              <h2 className="font-condensed text-[11px] font-extrabold tracking-[0.18em] uppercase text-fg-3">
-                Action Tracker Map
-              </h2>
-              <span className="font-condensed text-[10px] font-semibold tracking-[0.14em] uppercase text-fg-3">
-                {isEmpty ? 'Post-game OCR' : 'Post-game OCR · event positions on the rink'}
+          {/* Title floats bare on the field, above the cards — the prototype's
+              `.page-head`, which carries no chrome of its own. */}
+          <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 pb-3">
+            {/* House module header — the same 12px / semibold / 0.16em / fg-4
+                with an fg-5 ornament that Box Score, Team Stats, Event Timeline
+                and Lineup carry. The provenance the subtitle used to spell out
+                lives in the footer, which states it with actual numbers. */}
+            <h2 className="font-condensed text-[12px] font-semibold tracking-[0.16em] uppercase text-fg-4">
+              <span aria-hidden className="pr-1 text-fg-5">
+                ▰
               </span>
-            </div>
+              Action Tracker Map
+            </h2>
             {isEmpty ? null : (
-              <span className="font-condensed text-[10px] font-bold tracking-[0.14em] uppercase text-fg-3">
+              <span className="font-condensed text-[12px] font-bold tracking-[0.14em] uppercase text-fg-4">
                 Click a marker or card to pin it
               </span>
             )}
@@ -234,7 +241,9 @@ export function ActionTracker({
           {isEmpty ? (
             <EmptyActionTracker />
           ) : (
-            <>
+            /* Filter card → stage, 8px apart (prototype's `.filter-bar`
+               margin-bottom); the stage's own columns sit 12px apart. */
+            <div className="flex flex-col gap-2">
               <FilterBar
                 periodList={periodList}
                 periodHasData={periodHasData}
@@ -247,11 +256,9 @@ export function ActionTracker({
                 typeCounts={typeCounts}
                 enabledTypes={enabledTypes}
                 toggleType={toggleType}
-                goalsOnly={goalsOnly}
-                toggleGoalsOnly={toggleGoalsOnly}
               />
 
-              <div className="grid grid-cols-1 gap-3.5 p-3.5 xl:grid-cols-[minmax(0,1fr)_360px]">
+              <div className="grid grid-cols-1 gap-3 xl:grid-cols-[minmax(0,1fr)_360px]">
                 <RinkPanel
                   events={visibleMarkers}
                   oppAbbrev={oppAbbrev}
@@ -279,7 +286,7 @@ export function ActionTracker({
                   />
                 </div>
               </div>
-            </>
+            </div>
           )}
 
           {showProvenance ? (
@@ -302,7 +309,7 @@ export function ActionTracker({
  */
 function EmptyActionTracker() {
   return (
-    <div className="flex flex-col items-center justify-center gap-2 border-t border-border px-4 py-10 text-center">
+    <div className="flex flex-col items-center justify-center gap-2 border border-border bg-surface px-4 py-10 text-center">
       <div className="font-condensed text-[13px] font-extrabold tracking-[0.18em] uppercase text-fg-3">
         No tracked events
       </div>
