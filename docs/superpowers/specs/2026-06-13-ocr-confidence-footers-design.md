@@ -9,17 +9,17 @@
 Two queued TODOs in `HANDOFF.md`:
 
 1. **Lineup & Loadouts footer breakout** (HANDOFF ~596–600): the current footer shows three
-   coarse badges — `Canonical · X%`, `Tiered · X%`, `Attribute · X%`. This hides *which part* of
+   coarse badges — `Canonical · X%`, `Tiered · X%`, `Attribute · X%`. This hides _which part_ of
    the lineup card is actually weak. We want granular buckets: player-info (number/name/gamertag/
    platform), build-info (build type/height/weight), X-Factor presence/canonical (separate from
    tier), tier, and attributes.
 
 2. **Action Tracker provenance footer** (HANDOFF ~193–201): the Action Tracker section only has a
-   *hidden conditional* OCR-confidence proxy (suppressed when `≥ 0.99`) in its top summary strip,
+   _hidden conditional_ OCR-confidence proxy (suppressed when `≥ 0.99`) in its top summary strip,
    plus a bare `Source` label. It has no `Captured / Sources / Confidence` footer like the lineup
    section. TODO asks to (2) always show the proxy, (3) add the explicit footer treatment, and
-   (4) audit the wording so it is clear the lineup `Confidence` is a *blended provenance/completeness*
-   score while the Action Tracker `Confidence` is a *position-extrapolation proxy*.
+   (4) audit the wording so it is clear the lineup `Confidence` is a _blended provenance/completeness_
+   score while the Action Tracker `Confidence` is a _position-extrapolation proxy_.
 
 ## Key constraint: no trustworthy per-field OCR confidence
 
@@ -72,12 +72,12 @@ platform bucket reflects the EA overlay, not the (always-null) snapshot column.
 
 ```ts
 interface LineupConfidence {
-  identity: number     // mean coverage of {number, persona, gamertag, platform}
-  build: number        // mean coverage of {build type, height, weight}
-  xfactor: number      // canonical-name resolution rate among detected X-Factors
-  tier: number         // valid-tier rate among detected X-Factors
-  attribute: number    // share of rows carrying a non-null attribute set
-  overall: number      // mean of the five buckets (only buckets with a denominator)
+  identity: number // mean coverage of {number, persona, gamertag, platform}
+  build: number // mean coverage of {build type, height, weight}
+  xfactor: number // canonical-name resolution rate among detected X-Factors
+  tier: number // valid-tier rate among detected X-Factors
+  attribute: number // share of rows carrying a non-null attribute set
+  overall: number // mean of the five buckets (only buckets with a denominator)
 }
 export function computeLineupConfidence(lineups: MatchLineups): LineupConfidence
 ```
@@ -99,6 +99,7 @@ Definitions (denominator = rendered human rows; CPU placeholder slots are not in
 Empty-denominator buckets render as `—` (not `0%`) in the badge.
 
 The lineup section builds the footer props from this:
+
 - headline value = `overall.toFixed(2)`, word via existing thresholds, tone by threshold.
 - headlineTooltip = `"Blended completeness score — the share of expected lineup fields the OCR recovered. Not a per-field OCR certainty."`
 - badges (in order): `Identity`, `Build`, `X-Factor`, `Tier`, `Attributes`, each
@@ -121,7 +122,7 @@ Join `match_events` (filtered to `source = 'ocr' AND review_status = 'reviewed'`
 
 ```ts
 interface MatchActionTrackerProvenance {
-  extractedAt: { earliest: Date; latest: Date } | null   // min/max ocr_extractions.extracted_at
+  extractedAt: { earliest: Date; latest: Date } | null // min/max ocr_extractions.extracted_at
   sources: Array<{ screenType: string; eventCount: number }>
 }
 ```
@@ -174,10 +175,10 @@ page.tsx
   empty lineups → all zeros; mixed canonical/tier counts produce expected fractions.
 - Provenance query: a shape/smoke assertion for `getMatchActionTrackerProvenance` following the
   existing query-test conventions (extractedAt null on a match with no OCR events; populated range
-  + per-screen counts on match 250).
+  - per-screen counts on match 250).
 - Manual visual check on `/games/250`: lineup footer shows 5 badges; AT footer shows headline
   `Confidence 1.00` (now visible), `Extracted 2026-05-11 → 2026-05-31`, sources `Action Tracker +
-  Post-game events`, `Plotted 74/74`, `Extrapolated 0%`.
+Post-game events`, `Plotted 74/74`, `Extrapolated 0%`.
 
 ## Decisions / non-goals
 

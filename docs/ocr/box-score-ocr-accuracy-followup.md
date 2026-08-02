@@ -9,8 +9,9 @@ numbers. **Not** a parser/ROI bug and **not** stale data: the current parser rep
 garble on the actual captured frames. **Re-OCR is ineffective; re-ingest is currently infeasible**
 (video not in the per-match layout `reprocess` expects + unchanged decoder → provenance collision &
 same frames). Accurate per-period box-score for 2582 is **not recoverable** without a segmentation fix
-+ decoder bump. **Disposition: keep the feature; leave or delete the 4 harmless `pending_review`
-rows.** Low priority — never promoted, never displayed.
+
+- decoder bump. **Disposition: keep the feature; leave or delete the 4 harmless `pending_review`
+  rows.** Low priority — never promoted, never displayed.
 
 ## The defect
 
@@ -26,9 +27,10 @@ OT        1 / 0      1 / 0        1 / 0
 ```
 
 Two clear tells:
+
 1. **All three stat tabs (goals / shots / faceoffs) read identical per-period numbers.** Independent tabs
    producing identical values across all 4 periods is implausible — the three `post_game_box_score_{goals,
-   shots,faceoffs}` parses are reading the same cells (likely a shared per-period column ROI that doesn't
+shots,faceoffs}` parses are reading the same cells (likely a shared per-period column ROI that doesn't
    shift per tab, or the tabs share a layout the parser doesn't disambiguate).
 2. **Totals contradict EA.** `goals_for` sums to 10; EA's authoritative score is **3–2**, shots **16–17**.
 
@@ -53,10 +55,10 @@ introduced by the robustness fixes.
 ## Tasks (when picked up)
 
 1. Diagnose on the saved good box-score frames (`tools/video_ingest/tests/fixtures/ws6-match2582-postgame/
-   frames/canonical/t1969_box_score_goalsummary.png`, `t1971_box_score_faceoffsummary.png`) whether the
+frames/canonical/t1969_box_score_goalsummary.png`, `t1971_box_score_faceoffsummary.png`) whether the
    per-period column ROIs in `tools/game_ocr/game_ocr/configs/roi/post_game_box_score_*.yaml` are correct
    per tab, or whether the parser (`parse_post_game_box_score` in `parsers.py`) reads the wrong columns.
-2. Confirm whether the three tabs genuinely share a column layout (so the same digits *should* differ by
+2. Confirm whether the three tabs genuinely share a column layout (so the same digits _should_ differ by
    tab) — i.e. is goals=shots=faceoffs a parse bug or a legitimate read of a shared region.
 3. Cross-check corrected per-period sums against EA's 3–2 / 16–17 totals as ground truth.
 4. Decide whether the OCR per-period box-score is worth keeping at all, given EA is authoritative — it may
@@ -67,13 +69,13 @@ introduced by the robustness fixes.
 - Run **1945** is the active run for match 2582 (activated 2026-06-04). The garbled rows are
   `match_period_summaries WHERE match_id=2582 AND source='ocr'`.
 - Zero-cell warning frames (redundant transition frames, no recoverable data): extractions 16029
-  (shots 00003), 16031/16032 (faceoffs 00002/00003) — these are NOT the cause of the garble; the *good*
+  (shots 00003), 16031/16032 (faceoffs 00002/00003) — these are NOT the cause of the garble; the _good_
   frames (16024-26 goals, 16027-28 shots, 16030 faceoffs) carry the garbled values.
 
 ## Diagnosis (2026-06-09)
 
 > **Correction:** an earlier draft of this section concluded "current parser correct, garble is stale
-> data from an old parser." That was **wrong** — it tested the hand-curated *fixtures*, not the frames
+> data from an old parser." That was **wrong** — it tested the hand-curated _fixtures_, not the frames
 > the pipeline actually captured. Re-checking against the real captured frames overturns it (below).
 
 Method: ran the current `Extractor.extract_path` on **both** the curated fixtures
@@ -84,20 +86,20 @@ plus the stored `raw_result_json` of extractions 16024–16032, all cross-checke
 ### Finding 1 — root cause is FRAME SEGMENTATION, not the parser and not stale data
 
 The current parser on the **actual captured frames** still produces the garble — behaviour is
-*unchanged* old-run → now:
+_unchanged_ old-run → now:
 
-| captured frame | current parser reads | note |
-|---|---|---|
-| goals 00001 | `5/7 1/5 3/5 1/0` | faceoff-shaped — WRONG for goals |
-| goals 00002 | *(empty)* | real goals frame, headers unreadable → no cells |
-| goals 00003 | `5/7 1/5 3/5 1/0` | faceoff-shaped — WRONG |
-| shots 00002 | `5/7 1/5 3/5 1/0` | faceoff-shaped — WRONG |
-| faceoffs 00001 | `5/7 1/5 3/5 1/0` | legit faceoff data |
+| captured frame | current parser reads | note                                            |
+| -------------- | -------------------- | ----------------------------------------------- |
+| goals 00001    | `5/7 1/5 3/5 1/0`    | faceoff-shaped — WRONG for goals                |
+| goals 00002    | _(empty)_            | real goals frame, headers unreadable → no cells |
+| goals 00003    | `5/7 1/5 3/5 1/0`    | faceoff-shaped — WRONG                          |
+| shots 00002    | `5/7 1/5 3/5 1/0`    | faceoff-shaped — WRONG                          |
+| faceoffs 00001 | `5/7 1/5 3/5 1/0`    | legit faceoff data                              |
 
 The smoking gun is in the md5s: **`seg-072-goals/00003.png` is byte-identical to
 `seg-074-faceoffs/00001.png`** (`bcc70f6e…`). A **faceoff-tab frame was captured into the goals
 segment** (and the shots segment behaves the same way). So the goals/shots box-score extractions read
-*faceoff numbers* because the frames they were given show the *faceoff tab*. The one true-goals frame
+_faceoff numbers_ because the frames they were given show the _faceoff tab_. The one true-goals frame
 (00002) carries headers the parser can't normalise, so it yields nothing. This is a **Pass-1/Pass-2
 frame segmentation/selection defect** (cross-tab frame bleed), upstream of OCR.
 
@@ -110,8 +112,8 @@ away_stats_row : 1 1 0 1 0 3  → away total 3 ;  home_stats_row : 1 0 1 0 0 2  
 ```
 
 But the fixture (`md5 2d8ca39…`) matches **none** of the captured goals frames — it is a separate,
-hand-picked clean frame. So "the parser reads goals correctly" is true *only on a frame the pipeline
-did not select*. It does **not** mean the live data is recoverable from what was captured.
+hand-picked clean frame. So "the parser reads goals correctly" is true _only on a frame the pipeline
+did not select_. It does **not** mean the live data is recoverable from what was captured.
 
 ### Finding 3 — the promoter is sound
 
@@ -145,12 +147,12 @@ rows carry `ocr_extraction_id = 16030`, the last writer; the values are the face
 **Keep the feature; the rows stay harmless.** Accurate per-period box-score for 2582 is **not
 recoverable** without the segmentation fix + decoder bump above. The 4 stale `pending_review` rows
 never reach `player_match_stats`, aggregates, or the UI, so they are safe to **leave as-is** or
-**delete**; either is fine. Resolved this cycle as a *diagnosis*, not a data fix. Re-open the
+**delete**; either is fine. Resolved this cycle as a _diagnosis_, not a data fix. Re-open the
 segmentation angle only if per-period box-score accuracy is ever promoted to a real requirement.
 
 ### Resolution of the original tasks
 
-1. **ROI per tab correct?** — ROI is fine; the *frames* are wrong (faceoff frame in the goals segment).
+1. **ROI per tab correct?** — ROI is fine; the _frames_ are wrong (faceoff frame in the goals segment).
 2. **goals=shots=faceoffs a parse bug or shared region?** — Neither. Cross-tab **frame bleed** at
    capture time (Finding 1).
 3. **Corrected sums vs EA?** — Recoverable only from curated clean frames (fixture goals → 3–2), not

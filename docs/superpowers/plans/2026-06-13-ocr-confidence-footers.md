@@ -31,6 +31,7 @@
 ## Task 1: Shared `OcrProvenanceFooter` component
 
 **Files:**
+
 - Create: `apps/web/src/components/matches/ocr-provenance-footer.tsx`
 
 - [ ] **Step 1: Write the component file**
@@ -191,6 +192,7 @@ git commit -m "feat(matches): add shared OcrProvenanceFooter component"
 ## Task 2: `computeLineupConfidence` pure function (TDD)
 
 **Files:**
+
 - Create: `apps/web/src/lib/lineup-confidence.ts`
 - Test: `apps/web/src/lib/lineup-confidence.test.ts`
 
@@ -224,7 +226,7 @@ function row(overrides: Partial<LineupRow>): LineupRow {
     position: 'C',
     buildClass: 'Sniper',
     buildClassCanonical: null,
-    heightText: "6'0\"",
+    heightText: '6\'0"',
     weightLbs: 190,
     handedness: 'L',
     playerLevelNumber: null,
@@ -302,9 +304,7 @@ void test('attribute bucket = share of rows carrying attributes', () => {
 })
 
 void test('buckets average both sides (bgm + opponent)', () => {
-  const c = computeLineupConfidence(
-    lineups([row({ platform: 'ps5' })], [row({ platform: null })]),
-  )
+  const c = computeLineupConfidence(lineups([row({ platform: 'ps5' })], [row({ platform: null })]))
   // identity = (1 + 0.75) / 2
   assert.equal(c.identity, 0.875)
 })
@@ -433,6 +433,7 @@ git commit -m "feat(matches): add computeLineupConfidence field-completeness buc
 ## Task 3: DB query changes (slim lineup provenance + add action-tracker provenance)
 
 **Files:**
+
 - Modify: `packages/db/src/queries/match-lineups.ts`
 - Modify: `packages/db/src/queries/match-events.ts`
 - Test: `packages/db/src/queries/__tests__/action-tracker-provenance.test.ts`
@@ -609,10 +610,12 @@ Expected: PASS (TypeScript compiles; new export emitted to `dist`).
 - [ ] **Step 6: Run the provenance test against the live DB**
 
 Run:
+
 ```bash
 set -a && source .env && set +a
 node --test packages/db/dist/queries/__tests__/action-tracker-provenance.test.js
 ```
+
 Expected: PASS — 2 tests. (Requires the local Postgres container running on port 5433.)
 
 - [ ] **Step 7: Commit**
@@ -627,6 +630,7 @@ git commit -m "feat(db): slim lineup provenance; add action-tracker provenance q
 ## Task 4: Wire the Lineup footer to the shared component
 
 **Files:**
+
 - Modify: `apps/web/src/components/matches/lineup-section.tsx`
 - Modify: `apps/web/src/app/games/[id]/page.tsx`
 
@@ -650,12 +654,13 @@ import { computeLineupConfidence } from '@/lib/lineup-confidence'
 In `LineupSection`, change the render line (currently `<OcrProvenanceFooter provenance={provenance} />`) to pass the full lineups:
 
 ```tsx
-      <LineupOcrFooter lineups={lineups} provenance={provenance} />
+<LineupOcrFooter lineups={lineups} provenance={provenance} />
 ```
 
 - [ ] **Step 3: Delete the old local footer + its now-shared helpers**
 
 Delete these definitions from `lineup-section.tsx` (the entire `// ─── OCR provenance footer ───` block down to `formatPercent`):
+
 - `function OcrProvenanceFooter(...)`
 - `function FootKV(...)`
 - `function SrcBadge(...)`
@@ -730,10 +735,12 @@ function LineupOcrFooter({
 The web typecheck needs the rebuilt `@eanhl/db` types from Task 3 (already built in Task 3 Step 5, but rebuild to be safe):
 
 Run:
+
 ```bash
 pnpm --filter @eanhl/db build
 pnpm --filter web typecheck
 ```
+
 Expected: PASS. (If you see "Module has no exported member 'confidence'" it means the db rebuild was skipped — rerun the build.)
 
 - [ ] **Step 7: Re-run the lineup-confidence unit test (regression)**
@@ -753,6 +760,7 @@ git commit -m "feat(matches): granular lineup confidence footer via shared compo
 ## Task 5: Wire the Action Tracker footer
 
 **Files:**
+
 - Modify: `apps/web/src/components/matches/action-tracker-map.tsx`
 - Modify: `apps/web/src/app/games/[id]/page.tsx`
 
@@ -795,11 +803,11 @@ Then in the `ActionTrackerMap({ ... })` destructure (line ~121), add a default:
 The proxy `ocrConfidence` is computed at line ~261. Right after that `useMemo`, add a sibling memo for the badge counts:
 
 ```tsx
-  const positionStats = useMemo(() => {
-    const positioned = tracked.filter((e) => e.x !== null && e.y !== null)
-    const extrapolated = positioned.filter((e) => e.positionConfidence === 'extrapolated').length
-    return { positioned: positioned.length, extrapolated }
-  }, [tracked])
+const positionStats = useMemo(() => {
+  const positioned = tracked.filter((e) => e.x !== null && e.y !== null)
+  const extrapolated = positioned.filter((e) => e.positionConfidence === 'extrapolated').length
+  return { positioned: positioned.length, extrapolated }
+}, [tracked])
 ```
 
 - [ ] **Step 4: Remove the gated OCR-confidence + Source KVs from the SummaryStrip**
@@ -809,21 +817,21 @@ In the `SummaryStrip`'s secondary row (the `<div className="ml-auto flex items-c
 After deletion, that secondary row is just:
 
 ```tsx
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 border-t border-[var(--color-border)] px-3.5 py-1.5">
-            <SummaryGroup>
-              <SummaryKV k="Visible" v={String(visible)} small />
-              <SummaryKV k="On rink" v={String(onRink)} dim small />
-              {offRink > 0 ? (
-                <SummaryKV
-                  k="Off rink"
-                  v={String(offRink)}
-                  dim
-                  small
-                  title="Events that occurred but couldn't be plotted on the rink (typically faceoffs, which are shown in the Faceoff Map below)."
-                />
-              ) : null}
-            </SummaryGroup>
-          </div>
+<div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 border-t border-[var(--color-border)] px-3.5 py-1.5">
+  <SummaryGroup>
+    <SummaryKV k="Visible" v={String(visible)} small />
+    <SummaryKV k="On rink" v={String(onRink)} dim small />
+    {offRink > 0 ? (
+      <SummaryKV
+        k="Off rink"
+        v={String(offRink)}
+        dim
+        small
+        title="Events that occurred but couldn't be plotted on the rink (typically faceoffs, which are shown in the Faceoff Map below)."
+      />
+    ) : null}
+  </SummaryGroup>
+</div>
 ```
 
 Then remove the now-unused `ocrConfidence` prop from the `SummaryStrip` component signature and from its call site (line ~326 `ocrConfidence={ocrConfidence}`). Leave the top-level `ocrConfidence` memo in place — it now feeds the footer instead.
@@ -866,7 +874,9 @@ function ActionTrackerOcrFooter({
   positionStats: { positioned: number; extrapolated: number }
 }) {
   const score = ocrConfidence ?? 0
-  const sources = [...new Set(provenance.sources.map((s) => AT_SCREEN_LABELS[s.screenType] ?? s.screenType))]
+  const sources = [
+    ...new Set(provenance.sources.map((s) => AT_SCREEN_LABELS[s.screenType] ?? s.screenType)),
+  ]
   const readDirectly = positionStats.positioned - positionStats.extrapolated
   const extrapShare =
     positionStats.positioned > 0 ? positionStats.extrapolated / positionStats.positioned : 0
@@ -920,17 +930,17 @@ and add a matching binding name (e.g. `actionTrackerProvenance`) to the destruct
 (c) Pass it to the component (line ~244):
 
 ```tsx
-      <ActionTrackerMap
-        events={matchEventRows}
-        opponentLabel={match.opponentName}
-        opponentColor={opponentPrimaryColor}
-        bgmWasHome={match.bgmWasHome}
-        bgmColor={match.bgmColorHex}
-        oppColor={match.oppColorHex}
-        faceoffDots={faceoffDots}
-        faceoffZones={faceoffZones}
-        provenance={actionTrackerProvenance}
-      />
+<ActionTrackerMap
+  events={matchEventRows}
+  opponentLabel={match.opponentName}
+  opponentColor={opponentPrimaryColor}
+  bgmWasHome={match.bgmWasHome}
+  bgmColor={match.bgmColorHex}
+  oppColor={match.oppColorHex}
+  faceoffDots={faceoffDots}
+  faceoffZones={faceoffZones}
+  provenance={actionTrackerProvenance}
+/>
 ```
 
 > NOTE on ordering: the `Promise.all` result array is positional — the binding name you add in step (b) must sit at the exact index where you inserted the `safe()` call. Insert the `safe()` call and its binding name at the same position (recommended: immediately after the `getMatchEvents` entry, which is `matchEventRows`).
@@ -938,10 +948,12 @@ and add a matching binding name (e.g. `actionTrackerProvenance`) to the destruct
 - [ ] **Step 8: Rebuild db (for the new export), typecheck web**
 
 Run:
+
 ```bash
 pnpm --filter @eanhl/db build
 pnpm --filter web typecheck
 ```
+
 Expected: PASS.
 
 - [ ] **Step 9: Commit**
@@ -965,25 +977,30 @@ Expected: PASS (format may rewrite whitespace — that's fine).
 - [ ] **Step 2: Full web typecheck + db build**
 
 Run:
+
 ```bash
 pnpm --filter @eanhl/db build
 pnpm --filter web typecheck
 ```
+
 Expected: PASS.
 
 - [ ] **Step 3: Re-run all touched unit tests**
 
 Run:
+
 ```bash
 node --test apps/web/src/lib/lineup-confidence.test.ts
 set -a && source .env && set +a
 node --test packages/db/dist/queries/__tests__/action-tracker-provenance.test.js
 ```
+
 Expected: PASS for both.
 
 - [ ] **Step 4: Visual check on match 250**
 
 Start the web dev server (`pnpm --filter web dev`) and open `/games/250`. Confirm:
+
 - **Lineup footer:** `Captured` range, `Sources` = `Pre-game lobby + Loadout view`, headline `Confidence <word> · <0.xx>`, and five badges: `Identity · X%`, `Build · X%`, `X-Factor · X%`, `Tier · X%`, `Attributes · X%`.
 - **Action Tracker footer (section bottom):** `Extracted 2026-05-11 → 2026-05-31`, `Sources Action Tracker + Post-game events`, headline `Confidence High · 1.00` (now visible — previously hidden), badges `Plotted · 74/74` and `Extrapolated · 0%`.
 - The Action Tracker top summary strip no longer shows an `OCR confidence` or `Source` KV in its secondary row.

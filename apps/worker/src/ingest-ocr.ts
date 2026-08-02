@@ -213,12 +213,7 @@ export async function ingestOcrBatch(input: IngestOcrBatchInput): Promise<Ingest
   // observational, replaced here by one stub `ocr_extractions` row whose
   // `overall_confidence` gets back-filled from the typed_v1 evidence
   // after `writeFieldEvidenceForBatch` runs.
-  const carveOut = isTypedV1CarveOut(
-    input.screen,
-    loadoutEngine,
-    lobbyEngine,
-    input.frameCount,
-  )
+  const carveOut = isTypedV1CarveOut(input.screen, loadoutEngine, lobbyEngine, input.frameCount)
 
   let cli: { results: OcrResult[] }
   if (carveOut) {

@@ -324,7 +324,7 @@ void test('CPU-only slot produces zero anchors', async () => {
 })
 
 // ── 3. cpu-row-unchanged ─────────────────────────────────────────────────
-void test('CPU row\'s fields unchanged after consolidate (no spurious UPDATE)', async () => {
+void test("CPU row's fields unchanged after consolidate (no spurious UPDATE)", async () => {
   if (!process.env['DATABASE_URL']) return
   const fx = await createSentinelMatch('unchanged')
 

@@ -37,8 +37,9 @@ regression, not a classifier or label-content bug.
 
 ### Per-second corroboration (OCR content at the failing seconds)
 
-match-968 (7 mismatches; 6 land on divergent frames, OCR shows the *adjacent* screen):
-- t=6  exp lobby   → OCR is the club-menu nav (`play loadouts clubs customize…`) = prior screen
+match-968 (7 mismatches; 6 land on divergent frames, OCR shows the _adjacent_ screen):
+
+- t=6 exp lobby → OCR is the club-menu nav (`play loadouts clubs customize…`) = prior screen
 - t=14 exp loadout_view → OCR is the `playerloadouts` hub, not the player-detail view (shifted later)
 - t=46 exp world_of_chel → OCR is `eashl 6v6` lobby (WoC window moved off t=46)
 - t=47 exp world_of_chel → sparse transition frame
@@ -47,6 +48,7 @@ match-968 (7 mismatches; 6 land on divergent frames, OCR shows the *adjacent* sc
   "genuinely ambiguous… not testable"; decode flipped from scaler/Viterbi-context drift.
 
 match-250 (5 mismatches, identical signature):
+
 - t=16,17,18 exp loadout_view → OCR `playerloadouts` hub (detail span starts ~3 frames later)
 - t=29 exp lobby → OCR still loadout detail (`playmaker home`) — span tail spilled past boundary
 - t=51 exp world_of_chel → OCR `eashl 9^9` lobby (1-frame WoC window moved)
@@ -80,6 +82,7 @@ Reproduce / dump tool: `tools/game_ocr/scripts/diag_bench_current.py` (uses the 
 ## RESOLVED (2026-06-01)
 
 Applied on this branch:
+
 - **Re-anchored `labels.json`** to the canonical-PTS sampler (boundary shifts only, verified by
   eye against dumped frames; no model/threshold change). match-968 **88.3% → 95.0%**;
   match-250 **91.7% (+1 contamination) → 96.7% (0 contamination)**. Both clips PASS; full

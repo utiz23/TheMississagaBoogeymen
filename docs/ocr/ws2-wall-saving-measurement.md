@@ -16,7 +16,7 @@ On a real 35-minute full-game capture, the conservative black-frame gate fired o
 **12 / 2085 sampled frames (0.58%)** and made Pass-1 **~108 s slower** (OCR loop) /
 **~116 s slower** (total Pass-1), not faster. The gate computes a per-frame visual
 signal on **100%** of frames to skip OCR on **0.58%** of them, and the gated frames
-(black/empty) are the *cheapest* frames to OCR anyway — so the per-frame overhead
+(black/empty) are the _cheapest_ frames to OCR anyway — so the per-frame overhead
 swamps the saving. **The break-even fire rate is ~3.5% on this CPU host and ~18–35%
 on the production GPU path** — far above what real game footage produces. Recommend
 reconsidering the default-ON posture (see Recommendation).
@@ -38,14 +38,14 @@ reconsidering the default-ON posture (see Recommendation).
 
 ## Results
 
-| Metric (2085 frames, identical clip) | Gate ON | Gate OFF | Δ (ON − OFF) |
-|---|---:|---:|---:|
-| `frames_gated` | 12 (0.58%) | 0 | — |
-| `classify_ms` (OCR loop) | 3,763,422 | 3,655,846 | **+107,576 (+2.94%)** |
-| `decode_ms` | 510,968 | 502,601 | +8,367 (noise floor) |
-| `viterbi_ms` | 84 | 88 | −4 (negligible) |
-| `elapsed_pass1_ms` | 4,274,877 | 4,158,847 | **+116,030 (+2.79%)** |
-| `/usr/bin/time` wall | 1:13:08 | 1:11:27 | **+101 s** |
+| Metric (2085 frames, identical clip) |    Gate ON |  Gate OFF |          Δ (ON − OFF) |
+| ------------------------------------ | ---------: | --------: | --------------------: |
+| `frames_gated`                       | 12 (0.58%) |         0 |                     — |
+| `classify_ms` (OCR loop)             |  3,763,422 | 3,655,846 | **+107,576 (+2.94%)** |
+| `decode_ms`                          |    510,968 |   502,601 |  +8,367 (noise floor) |
+| `viterbi_ms`                         |         84 |        88 |       −4 (negligible) |
+| `elapsed_pass1_ms`                   |  4,274,877 | 4,158,847 | **+116,030 (+2.79%)** |
+| `/usr/bin/time` wall                 |    1:13:08 |   1:11:27 |            **+101 s** |
 
 The classify-loop delta (+108 s) is **>10× the decode noise floor** (~8 s, same video
 re-read), so the net-loss is real and outside measurement noise. All three independent
@@ -54,7 +54,7 @@ clocks (telemetry classify, telemetry pass1, OS wall) agree on direction and mag
 ## Why it loses
 
 The gate's input, `compute_visual_signals`, is computed in the Pass-1 hot loop
-(`orchestrator.py:296`) **only when the gate is enabled**, and it is the *sole* caller
+(`orchestrator.py:296`) **only when the gate is enabled**, and it is the _sole_ caller
 on that path — i.e. it is **purely additive** overhead, paid on every frame:
 
 - Microbenchmark (1080p): `compute_visual_signals` ≈ **70–90 ms/frame** (≈70 ms even on
@@ -67,17 +67,18 @@ on that path — i.e. it is **purely additive** overhead, paid on every frame:
   **not** use (the gate needs only brightness, edge-density, log-blur).
 
 **Break-even fire rate** `f > s/c`:
+
 - CPU (this run): `62 ms / 1753 ms ≈ **3.5%**`. Observed: 0.58%.
 - GPU (prod path, OCR ~5–10× faster, signal cost unchanged on CPU):
   `62 ms / (175–350 ms) ≈ **18–35%**`.
 
-So on the production GPU path the gate would need ~a *quarter* of the video to be
+So on the production GPU path the gate would need ~a _quarter_ of the video to be
 black/fade to break even — it is structurally net-negative there, **more** so than on
 CPU. The deferred `max_edge_density` tuning could raise the fire rate but cannot
 plausibly reach 18–35% on normal gameplay footage.
 
 Note also: WS2 was accepted on a **zero-regression (ON ≡ OFF)** classification criterion
-— the gate produces no *correctness* benefit to offset the wall cost; it is a pure
+— the gate produces no _correctness_ benefit to offset the wall cost; it is a pure
 wall-time optimization that, as measured, costs wall time.
 
 ## Caveats
@@ -87,7 +88,7 @@ wall-time optimization that, as measured, costs wall time.
   needs ≥3.5% (CPU) / ≥18% (GPU), which a tight single-game capture does not approach.
   A second clip with more transitions would tighten the envelope (gate-ON alone
   suffices — `frames_gated/2085` vs the break-even line); not yet run.
-- CPU OCR path. The GPU path makes the gate *worse*, not better (signal overhead is
+- CPU OCR path. The GPU path makes the gate _worse_, not better (signal overhead is
   CPU/cv2 regardless of OCR device while OCR — the only thing saved — gets cheaper).
 
 ## Recommendation
@@ -98,7 +99,7 @@ cheapest first:
 
 1. **Flip default to OFF** (keep the machinery + kill switch inverted). Zero-risk wall
    win on realistic footage; one-line YAML change.
-2. **Make the gate signal cheap** — a gate-only signal computing *only* brightness +
+2. **Make the gate signal cheap** — a gate-only signal computing _only_ brightness +
    edge-density + log-blur from a single `BGR2GRAY` (drop the HSV convert, histogram,
    and dHash). Could roughly halve the 62 ms; break-even still ~1.8% CPU / ~9–18% GPU,
    so this alone probably does **not** make it net-positive on normal footage.

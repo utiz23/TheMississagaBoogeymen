@@ -8,10 +8,10 @@
 
 There are two `players` rows with gamertag `HenryTheBobJr`:
 
-| id      | role                              | notes                                  |
-| ------- | --------------------------------- | -------------------------------------- |
-| `1`     | canonical / real club member      | 77 `player_match_stats` rows           |
-| `99021` | duplicate (test-seeded, leaked)   | accumulated real refs via gamertag bind |
+| id      | role                            | notes                                   |
+| ------- | ------------------------------- | --------------------------------------- |
+| `1`     | canonical / real club member    | 77 `player_match_stats` rows            |
+| `99021` | duplicate (test-seeded, leaked) | accumulated real refs via gamertag bind |
 
 `99021` originated as a test sentinel in
 `apps/worker/src/__tests__/match-463-loadout-slots-fixture.test.ts`
@@ -27,13 +27,13 @@ referenced player), so this row is stable — but the split data remains.
 
 Captured from the live DB (`eanhl-team-website-db-1`) at proposal time:
 
-| Table                         | Rows | Class      | Re-point to id 1?                              |
-| ----------------------------- | ---- | ---------- | ---------------------------------------------- |
-| `player_match_stats`          | 23   | raw fact   | **Yes** — 0 match overlap with id 1            |
-| `player_loadout_snapshots`    | 2    | raw fact   | **Yes** — 0 match overlap with id 1            |
-| `player_profiles`             | 1    | derived    | **No** — PK is `player_id`; id 1 already has one |
-| `player_game_title_stats`     | 2    | aggregate  | **No** — unique `(player_id, game_title_id, coalesce(game_mode,''))`; 1 game_title collides with id 1 |
-| `ea_member_season_stats`      | 1    | derived    | **No** — delete + recompute (treat as derived) |
+| Table                      | Rows | Class     | Re-point to id 1?                                                                                     |
+| -------------------------- | ---- | --------- | ----------------------------------------------------------------------------------------------------- |
+| `player_match_stats`       | 23   | raw fact  | **Yes** — 0 match overlap with id 1                                                                   |
+| `player_loadout_snapshots` | 2    | raw fact  | **Yes** — 0 match overlap with id 1                                                                   |
+| `player_profiles`          | 1    | derived   | **No** — PK is `player_id`; id 1 already has one                                                      |
+| `player_game_title_stats`  | 2    | aggregate | **No** — unique `(player_id, game_title_id, coalesce(game_mode,''))`; 1 game_title collides with id 1 |
+| `ea_member_season_stats`   | 1    | derived   | **No** — delete + recompute (treat as derived)                                                        |
 
 All other FK-referencing tables (`match_events`, `match_goal_events`,
 `match_penalty_events`, `player_gamertag_history`, `user_player_claims`,
@@ -100,7 +100,7 @@ pnpm --filter worker reprocess --all   # or the targeted aggregate-recompute pat
 
 ## Recommended form: **one-off SQL runbook, run manually in a transaction**
 
-Not a Drizzle migration: this is environment-specific *data* pollution on the
+Not a Drizzle migration: this is environment-specific _data_ pollution on the
 live DB, not a schema change. Migrations run everywhere and must be structural;
 this repair is a one-time, reviewed, operator-run correction. A one-off script
 or this SQL runbook (wrapped in `BEGIN/COMMIT` with verification gates) is the

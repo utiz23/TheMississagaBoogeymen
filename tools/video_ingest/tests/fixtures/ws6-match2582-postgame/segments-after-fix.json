@@ -37,7 +37,7 @@
       "end_seconds": 73.0,
       "screen_type": "unknown_or_transition",
       "frame_count": 73,
-      "mean_color_score": 5.602796406145941e-09
+      "mean_color_score": 5.602796406145941e-9
     },
     {
       "start_index": 73,
@@ -739,7 +739,7 @@
       "end_seconds": 2085.0,
       "screen_type": "unknown_or_transition",
       "frame_count": 6,
-      "mean_color_score": 1.2992972569441522e-07
+      "mean_color_score": 1.2992972569441522e-7
     }
   ],
   "frame_classifications": [

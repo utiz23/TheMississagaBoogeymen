@@ -1,8 +1,8 @@
 # Game Page — Design Reference
 
 > **Audience:** a design-focused Claude session polishing/redesigning the game detail page.
-> **Goal:** understand *what the page is, what every section shows, where its data comes from,
-> and how it's currently styled* — without having to read ~200 KB of component code first.
+> **Goal:** understand _what the page is, what every section shows, where its data comes from,
+> and how it's currently styled_ — without having to read ~200 KB of component code first.
 >
 > **Canonical example:** `http://localhost:3002/games/250?mode=dev&page=2`
 > Match **250** = **Boogeymen (BGM) 4 – 3 4th Line (4L)**, WIN, May 8 · 6s · Game 64, 2nd meeting (series 1-0-1).
@@ -17,13 +17,13 @@ Full-page render of the example:
 
 ## 0. About the `?mode=dev&page=2` in the URL
 
-These two query params **do not change what the detail page renders.** They are *games-list* filter
+These two query params **do not change what the detail page renders.** They are _games-list_ filter
 state that the detail page only reads to rebuild its navigation links:
 
-| Param | Meaning (on the `/games` **list**) | Effect on the **detail** page |
-|-------|-----------------------------------|-------------------------------|
+| Param      | Meaning (on the `/games` **list**)                                                                                                                          | Effect on the **detail** page                                                                                           |
+| ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
 | `mode=dev` | Filters the list to a hardcoded curated set of match IDs (`DEV_MATCH_IDS` — OCR benchmark + retrain candidates). Other values: `6s`, `3s`, or absent = all. | None visually. Preserved in the "← All Games" and Prev/Next links so back-navigation returns to the same filtered list. |
-| `page=2` | List pagination (20 per page). | None visually. Preserved in nav links so back-nav returns to the right page. |
+| `page=2`   | List pagination (20 per page).                                                                                                                              | None visually. Preserved in nav links so back-nav returns to the right page.                                            |
 
 Handled by `gamesListQuery()` in [`page.tsx`](../../../apps/web/src/app/games/%5Bid%5D/page.tsx) (lines ~274–285).
 The list-page source of `mode=dev` / `DEV_MATCH_IDS` is [`games/page.tsx`](../../../apps/web/src/app/games/page.tsx) (lines ~28–41).
@@ -52,26 +52,26 @@ The list-page source of `mode=dev` / `DEV_MATCH_IDS` is [`games/page.tsx`](../..
 
 Defined in `apps/web/src/app/globals.css`. Always-dark, red-accent, sharp esports aesthetic.
 
-| Token | Value | Role |
-|-------|-------|------|
-| `--color-accent` | `#e84131` | **Boogeymen red** (warm). BGM identity, winners, rank-1, active tabs. |
-| `--color-accent-strong` | `#c2321f` | Pressed/darker red. |
-| `--color-background` | `#1a1819` | Page background. |
-| `--color-surface` | `#232122` | Default panel surface. |
-| `--color-surface-raised` | `#2a2829` | Hover/raised. |
-| `--color-charcoal` | `#323031` | Official Boogeymen charcoal (bar/track fills). |
-| `--color-border` | `#3a3839` | Hairline border (1px, everywhere). |
-| `--color-win` | `#10b981` | Emerald — wins, positive deltas, boosts. |
-| `--color-loss` | `#ef6a5e` | Light red — losses, negative deltas. |
-| `--color-otl` | `#f59e0b` | Amber — OTL, ties, penalties, "too close to call". |
-| `--color-fg-1 … fg-6` | `#ebebeb → #3a3839` | Foreground ramp: fg-1 headlines/scores → fg-4 uppercase labels → fg-6 faint separators. |
+| Token                    | Value               | Role                                                                                    |
+| ------------------------ | ------------------- | --------------------------------------------------------------------------------------- |
+| `--color-accent`         | `#e84131`           | **Boogeymen red** (warm). BGM identity, winners, rank-1, active tabs.                   |
+| `--color-accent-strong`  | `#c2321f`           | Pressed/darker red.                                                                     |
+| `--color-background`     | `#1a1819`           | Page background.                                                                        |
+| `--color-surface`        | `#232122`           | Default panel surface.                                                                  |
+| `--color-surface-raised` | `#2a2829`           | Hover/raised.                                                                           |
+| `--color-charcoal`       | `#323031`           | Official Boogeymen charcoal (bar/track fills).                                          |
+| `--color-border`         | `#3a3839`           | Hairline border (1px, everywhere).                                                      |
+| `--color-win`            | `#10b981`           | Emerald — wins, positive deltas, boosts.                                                |
+| `--color-loss`           | `#ef6a5e`           | Light red — losses, negative deltas.                                                    |
+| `--color-otl`            | `#f59e0b`           | Amber — OTL, ties, penalties, "too close to call".                                      |
+| `--color-fg-1 … fg-6`    | `#ebebeb → #3a3839` | Foreground ramp: fg-1 headlines/scores → fg-4 uppercase labels → fg-6 faint separators. |
 
 - **Type:** `--font-sans` = Barlow; `--font-condensed` = Barlow Semi Condensed. The UI is overwhelmingly
   **condensed, UPPERCASE, wide letter-spacing (~0.2em), `tabular-nums`** for every stat.
 - **Shape language:** **square corners everywhere** (no border-radius) except circular avatars/crests and the
   archetype pills. 1px `--color-border` hairlines. No shadows except intentional red glows.
 - **Signature motif — the "ticker strip":** a thin (1–3px) red gradient bar (`from-rose-900 via-accent
-  to-rose-900`) across the top edge of "broadcast" panels (Deserve-to-Win, active Box Score tab, star rank-1).
+to-rose-900`) across the top edge of "broadcast" panels (Deserve-to-Win, active Box Score tab, star rank-1).
 - **Mirroring motif:** BGM content is left-aligned / red; opponent content is right-aligned / grey. This
   left-vs-right mirroring recurs in the hero, lineup ladder, event timeline, and box score.
 - **BGM = red, opponent = grey** is the universal "who's who" convention across numbers, bars, and rails.
@@ -82,20 +82,20 @@ Defined in `apps/web/src/app/globals.css`. Always-dark, red-accent, sharp esport
 
 Top → bottom, exactly as `page.tsx` renders them:
 
-| # | Section | Component | Header text | Data source | Hides when… |
-|---|---------|-----------|-------------|-------------|-------------|
-| — | Sub-nav | `GameDetailNav` (in page.tsx) | "← All Games" / Prev / Next | adjacency query | never (shows disabled arrows) |
-| 1 | Hero scoreboard | `HeroCard` | *(none)* | EA match | never (it's the hero) |
-| 2 | Top Performers | `TopPerformers` → `StarCard` ×3 + `ShowAllPlayerScores` | "Top Performers" | player stats (game-score model) | no players at all |
-| 3 | Deserve to Win | `PossessionEdgeBar` | "Deserve to Win" | OCR-preferred shots/TOA/FO/hits | shots **and** hits both 0 |
-| 4 | Team Stats | `TeamStats` | "Team Stats" | EA + OCR shots | no groups/rows |
-| 5 | Lineup & Loadouts | `LineupSection` | "Lineup & Loadouts" | OCR loadouts *or* box-score fallback | never (always 6 rows) |
-| 6 | Box Score | `BoxScore` | "Box Score" | OCR per-period | no period rows |
-| 7 | Shot Mix | `ShotMix` | "Shot Mix" | OCR shot types | no usable shot-type data *(hidden on match 250)* |
-| 8 | Scoresheet | `ScoresheetSection` | "Scoresheet" | EA player stats | both teams empty → `EmptyScoresheet` |
-| 9 | Event Timeline | `EventTimeline` | "Event Timeline" | OCR goal/penalty events | (header always shows; body empty if no events) |
-| 10 | Action Tracker Map | `ActionTrackerMap` | "Action Tracker Map" | OCR event coords + faceoff dots | (Faceoffs view hidden without faceoff data) |
-| 11 | Prev/Next footer | `ContextFooter` | *(none)* | adjacency query | both neighbors absent |
+| #   | Section            | Component                                               | Header text                 | Data source                          | Hides when…                                      |
+| --- | ------------------ | ------------------------------------------------------- | --------------------------- | ------------------------------------ | ------------------------------------------------ |
+| —   | Sub-nav            | `GameDetailNav` (in page.tsx)                           | "← All Games" / Prev / Next | adjacency query                      | never (shows disabled arrows)                    |
+| 1   | Hero scoreboard    | `HeroCard`                                              | _(none)_                    | EA match                             | never (it's the hero)                            |
+| 2   | Top Performers     | `TopPerformers` → `StarCard` ×3 + `ShowAllPlayerScores` | "Top Performers"            | player stats (game-score model)      | no players at all                                |
+| 3   | Deserve to Win     | `PossessionEdgeBar`                                     | "Deserve to Win"            | OCR-preferred shots/TOA/FO/hits      | shots **and** hits both 0                        |
+| 4   | Team Stats         | `TeamStats`                                             | "Team Stats"                | EA + OCR shots                       | no groups/rows                                   |
+| 5   | Lineup & Loadouts  | `LineupSection`                                         | "Lineup & Loadouts"         | OCR loadouts _or_ box-score fallback | never (always 6 rows)                            |
+| 6   | Box Score          | `BoxScore`                                              | "Box Score"                 | OCR per-period                       | no period rows                                   |
+| 7   | Shot Mix           | `ShotMix`                                               | "Shot Mix"                  | OCR shot types                       | no usable shot-type data _(hidden on match 250)_ |
+| 8   | Scoresheet         | `ScoresheetSection`                                     | "Scoresheet"                | EA player stats                      | both teams empty → `EmptyScoresheet`             |
+| 9   | Event Timeline     | `EventTimeline`                                         | "Event Timeline"            | OCR goal/penalty events              | (header always shows; body empty if no events)   |
+| 10  | Action Tracker Map | `ActionTrackerMap`                                      | "Action Tracker Map"        | OCR event coords + faceoff dots      | (Faceoffs view hidden without faceoff data)      |
+| 11  | Prev/Next footer   | `ContextFooter`                                         | _(none)_                    | adjacency query                      | both neighbors absent                            |
 
 > **Note:** on match 250, **Shot Mix (7) is not present** — no usable shot-type breakdown existed, so the
 > component returned `null`. This is the normal "section self-hides" behavior; don't design around it always
@@ -109,6 +109,7 @@ before it hits the components) live in `apps/web/src/lib/match-recap.ts`.
 ## 4. Section-by-section
 
 ### 1 · HeroCard — `hero-card.tsx`
+
 Broadcast-style final-score banner. **Server component.**
 
 ![Hero + Top Performers](shots/sec-hero-stars.png)
@@ -123,6 +124,7 @@ Broadcast-style final-score banner. **Server component.**
   and opponent grey; a LOSS flips it. So the winning number visually "wins" at a glance.
 
 ### 2 · Top Performers — `top-performers.tsx` + `star-card.tsx` + `show-all-player-scores.tsx`
+
 The three-star podium plus a collapsible full-roster score table.
 
 - **Header:** "Top Performers" / "Computed from player stats" (`SectionHeader`).
@@ -135,13 +137,14 @@ The three-star podium plus a collapsible full-roster score table.
   border, red ticker strip, glowing jersey/score, red portrait ring). Whole card links to `/roster/{id}` for
   BGM players; opponent cards are non-linked.
 - **ShowAllPlayerScores** (**client**): collapsed button "▰ Show all player scores · {N} players ⌄". Opens a
-  ranked table of *every* player (both teams): #, team/pos chip, player, G/A/+-/SOG/Hits/TOI·SV%, Score.
+  ranked table of _every_ player (both teams): #, team/pos chip, player, G/A/+-/SOG/Hits/TOI·SV%, Score.
   **Each row expands (accordion) into a Factor / Stat / Weight / Points breakdown table.** Top-3 rows get
   descending accent washes + star badges.
 - **Score model:** `buildAllTeamScores` / `buildTopPerformers` / `computeSeasonAvgs` / `attachSeasonAvgs`
   in `match-recap.ts`. Opponents have `playerId=null` (never linkable), and `vsSeasonAvg=null`.
 
 ### 3 · Deserve to Win (Possession Edge) — `possession-edge.tsx`
+
 A "who deserved to win" analytics gauge. **Not a React client component** — uses native `<details>` + CSS.
 
 ![Deserve to Win + Team Stats](shots/sec-dtw-teamstats.png)
@@ -159,10 +162,11 @@ A "who deserved to win" analytics gauge. **Not a React client component** — us
 - **Builder:** `buildPossessionEdge` — **returns null (hides section) when shots and hits are both 0.**
 
 ### 4 · Team Stats — `team-stats.tsx`
+
 Head-to-head team totals as dueling bars. **Server component, static.**
 
 - **Header:** "Team Stats / Team totals and aggregate stats"; columns **BGM (red)** vs opponent abbrev (grey).
-- **Groups** (empty rows/groups dropped): **Offense** (Goals, Assists, Shots*, Shooting %, Shot On Net %,
+- **Groups** (empty rows/groups dropped): **Offense** (Goals, Assists, Shots\*, Shooting %, Shot On Net %,
   Deflections, Power Play), **Possession** (Face Off %, Pass %, Possession, Time on Attack), **Defense** (Hits,
   Blocked Shots, Takeaways, Interceptions, SH Goals), **Discipline** (Giveaways, Penalties — both tagged
   **"↓ BETTER"**), **Goalie** (Saves, GA, Save %).
@@ -173,6 +177,7 @@ Head-to-head team totals as dueling bars. **Server component, static.**
   `buildBoxScore`.
 
 ### 5 · Lineup & Loadouts — `lineup-section.tsx` (+ ladder/row/card/expand-panel)
+
 A position-matched **pre-game scouting sheet**, BGM vs opponent, one row per position (C/LW/RW/LD/RD/G).
 This is the largest, most feature-rich section. **Server-rendered shell; client interactivity via the ladder.**
 
@@ -200,6 +205,7 @@ This is the largest, most feature-rich section. **Server-rendered shell; client 
   archetype onto stat rows used by Stars/Scoresheet).
 
 ### 6 · Box Score — `box-score.tsx`
+
 Period-by-period comparison. **Client component** (tabbed).
 
 - **Header:** "Box Score / Period-by-period · OCR-reviewed".
@@ -212,7 +218,8 @@ Period-by-period comparison. **Client component** (tabbed).
 - **Footer:** left = periods where "OCR unavailable — excluded from totals"; right = source pill
   (green "OCR-reviewed · post-game" vs grey "EA · official"). Returns `null` with no period rows.
 
-### 7 · Shot Mix — `shot-mix.tsx`  *(self-hidden on match 250)*
+### 7 · Shot Mix — `shot-mix.tsx` _(self-hidden on match 250)_
+
 Per-side shot-type breakdown. **Server component, static.**
 
 - **Header:** "Shot Mix" + dynamic subtitle ("Most BGM shots: Wrist · Most OPP shots: Slap") or fallback.
@@ -221,6 +228,7 @@ Per-side shot-type breakdown. **Server component, static.**
   why it's absent from the match-250 render.
 
 ### 8 · Scoresheet — `scoresheet.tsx`
+
 Two-team box score with expandable per-skater drilldowns. **Client component.**
 
 - **Header:** "Scoresheet". Per-team heading: crest + label + red "BGM" home pill.
@@ -235,6 +243,7 @@ Two-team box score with expandable per-skater drilldowns. **Client component.**
   `EmptyScoresheet` ("No player stats recorded for this game."). Builder: `buildScoresheet`.
 
 ### 9 · Event Timeline — `event-timeline.tsx`
+
 A dual-sided, story-mode chronological scoresheet. **Client component, mostly non-interactive.**
 
 ![Event Timeline](shots/sec-timeline.png)
@@ -252,6 +261,7 @@ A dual-sided, story-mode chronological scoresheet. **Client component, mostly no
   left-aligned column on mobile. Only `goal` + `penalty` events are shown (intentionally unfiltered narrative).
 
 ### 10 · Action Tracker Map — `action-tracker-map.tsx`
+
 Spatial rink map of OCR-extracted events, with a second Faceoff view. **Client component — the most interactive
 section.**
 
@@ -278,6 +288,7 @@ section.**
   pills, and pins via React context. Footer = `OcrProvenanceFooter` (confidence, "Plotted N/N", extracted-at).
 
 ### 11 · Context Footer — `context-footer.tsx`
+
 Prev/next game navigation. **Server component.**
 
 - Two mirrored `Panel` cards ("← Previous game" left / "Next game →" right, right-aligned), each with
@@ -318,28 +329,29 @@ Prev/next game navigation. **Server component.**
 
 ## 7. File map
 
-| Concern | Path |
-|---------|------|
-| Page route / section order / data fetch | `apps/web/src/app/games/[id]/page.tsx` |
-| Games **list** (source of `mode`/`page`/`DEV_MATCH_IDS`) | `apps/web/src/app/games/page.tsx` |
-| View-model builders (scores, box score, lineup, DtW, scoresheet) | `apps/web/src/lib/match-recap.ts` |
-| Section components | `apps/web/src/components/matches/*` |
-| Shared UI (SectionHeader, Panel, ResultPill, crest, pills, BroadcastPanel) | `apps/web/src/components/ui/*` |
-| Design tokens | `apps/web/src/app/globals.css` |
-| Position colors (single source of truth) | `apps/web/src/lib/position-colors.ts` |
-| Archetype catalog (11 archetypes: color/icon/name) | `apps/web/src/components/ui/archetype-pill.tsx` + `archetype-icons.tsx` |
+| Concern                                                                    | Path                                                                    |
+| -------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| Page route / section order / data fetch                                    | `apps/web/src/app/games/[id]/page.tsx`                                  |
+| Games **list** (source of `mode`/`page`/`DEV_MATCH_IDS`)                   | `apps/web/src/app/games/page.tsx`                                       |
+| View-model builders (scores, box score, lineup, DtW, scoresheet)           | `apps/web/src/lib/match-recap.ts`                                       |
+| Section components                                                         | `apps/web/src/components/matches/*`                                     |
+| Shared UI (SectionHeader, Panel, ResultPill, crest, pills, BroadcastPanel) | `apps/web/src/components/ui/*`                                          |
+| Design tokens                                                              | `apps/web/src/app/globals.css`                                          |
+| Position colors (single source of truth)                                   | `apps/web/src/lib/position-colors.ts`                                   |
+| Archetype catalog (11 archetypes: color/icon/name)                         | `apps/web/src/components/ui/archetype-pill.tsx` + `archetype-icons.tsx` |
 
 ## 8. Screenshots
 
 All captured live from `/games/250?mode=dev&page=2` at 1440px width (dark theme).
 
-| File | What |
-|------|------|
-| `shots/full-page.png` | Entire page, top to bottom |
-| `shots/sec-hero-stars.png` | Hero scoreboard + Top Performers podium |
-| `shots/sec-dtw-teamstats.png` | Deserve to Win gauge + Team Stats bars |
-| `shots/sec-lineup.png` | Lineup & Loadouts ladder |
-| `shots/sec-timeline.png` | Event Timeline (dual-rail) |
-| `shots/sec-action-tracker.png` | Action Tracker Map (rink + event list) |
+| File                           | What                                    |
+| ------------------------------ | --------------------------------------- |
+| `shots/full-page.png`          | Entire page, top to bottom              |
+| `shots/sec-hero-stars.png`     | Hero scoreboard + Top Performers podium |
+| `shots/sec-dtw-teamstats.png`  | Deserve to Win gauge + Team Stats bars  |
+| `shots/sec-lineup.png`         | Lineup & Loadouts ladder                |
+| `shots/sec-timeline.png`       | Event Timeline (dual-rail)              |
+| `shots/sec-action-tracker.png` | Action Tracker Map (rink + event list)  |
+
 </content>
 </invoke>

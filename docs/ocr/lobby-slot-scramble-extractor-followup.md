@@ -28,16 +28,16 @@ from `run 392`** (a stale run — active is 1954).
 
 The lobby segment is decoded to many frames. The first ~7 frames are a **mid-scroll transition** —
 EA animates the two team rosters sliding between the left/right panels, so during those frames a
-panel shows `CPU` placeholders and/or the *other* team's players. The extractor reads these frames
+panel shows `CPU` placeholders and/or the _other_ team's players. The extractor reads these frames
 faithfully (crisp glyphs, ~0.97 confidence) — the frame content itself is transient garbage.
 
 Direct proof, dumping `raw_result_json->'our_team'->'roster'` for every run-392 lobby extraction
 (BGM = our_team; ground truth C/LW/RW/LD/RD = MrHomiecide / Stick Menace / silkyjoker85 /
 HenryTheBobJr / JoeyFlopfish):
 
-| Frames | Extraction ids | our_team slots read | Verdict |
-|--------|----------------|---------------------|---------|
-| 00001–00007 | 12338–12344 | `C:CPU · LW:Duh Pope · RW:CPU · LD:CPU · RD:CPU` | **transition (scrambled)** |
+| Frames         | Extraction ids     | our_team slots read                                                                      | Verdict                          |
+| -------------- | ------------------ | ---------------------------------------------------------------------------------------- | -------------------------------- |
+| 00001–00007    | 12338–12344        | `C:CPU · LW:Duh Pope · RW:CPU · LD:CPU · RD:CPU`                                         | **transition (scrambled)**       |
 | 00008+, 00003+ | 12345, 12390–12410 | `C:MrHomiecide · LW:Stick Menace · RW:silkyjoker85 · LD:HenryTheBobJr · RD:JoeyFlopfish` | **settled — every slot correct** |
 
 Because settled frames slot every player correctly, the extractor's position assignment
@@ -94,10 +94,10 @@ promoter over existing evidence) **cannot** fix it. The vote must live in the Py
 > ([loadout_extractors/slot_identity.py:391-425](../../tools/game_ocr/game_ocr/loadout_extractors/slot_identity.py)),
 > so the fix is to port that grid contract into the lobby extractor.
 
-**Refuted.** That analysis was read-only code inspection of a scrambled *transition* frame; it never
-checked the extractor's output on a *settled* frame. Settled frames slot correctly (table above), so
+**Refuted.** That analysis was read-only code inspection of a scrambled _transition_ frame; it never
+checked the extractor's output on a _settled_ frame. Settled frames slot correctly (table above), so
 there is no y-sort/grid bug to fix. Do not port `PositionGrid` — it would add complexity for a
-non-bug. (The 2026-06-14 note's *other* correction — that match 250 is re-ingestable, unlike 2582 —
+non-bug. (The 2026-06-14 note's _other_ correction — that match 250 is re-ingestable, unlike 2582 —
 still stands.)
 
 ## Fix path (approved approach: majority vote + transition pre-filter)
@@ -107,7 +107,7 @@ still stands.)
    duplicate gamertag** is the transition signature (match-250 segment 4 read "Stick Menace" into both
    C and LW, "HenryTheBobJr" into both RW and LD, from EA's roster-slide); cross-panel duplicates were
    already demoted to CPU upstream by `_demote_cross_team_duplicates`; (b) drops transition frames
-   (falling back to all frames only if a segment captured *no* settled frame); (c) takes a **per-slot
+   (falling back to all frames only if a segment captured _no_ settled frame); (c) takes a **per-slot
    majority vote** across the surviving frames, returning the highest-quality read of the winning
    identity as the representative so every field comes from one consistent frame; (d) restricts the
    captain cross-frame MAX ★ to the settled voting frames (closes the G1.1 t10 stray-star residual).
@@ -119,7 +119,7 @@ still stands.)
 2. **Data refresh for match 250 — REQUIRES a re-ingest; re-promote CANNOT do it.** `repromote-lobby`
    re-runs only the TS promoter over existing `ocr_field_evidence`, which is already collapsed to 2
    poisoned segment candidates — the settled per-frame reads the vote needs were never written there
-   (they live only in the frames / the *old* `ocr_extractions.raw_result_json`, not in the typed
+   (they live only in the frames / the _old_ `ocr_extractions.raw_result_json`, not in the typed
    evidence path). So the refresh is a `DECODER_VERSION`-bumped GPU re-ingest: reprocess
    (`--halt-before-activate`) → validate → field-benchmark gate → activate → re-consolidate. This is
    the DB-mutating step; back up first, and confirm `CUDAExecutionProvider` (the GPU venv reverts to

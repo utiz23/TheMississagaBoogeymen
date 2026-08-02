@@ -1,7 +1,9 @@
-I have gone over all the data to be ingested and manually inputted them into tables so there is a canonical reference for the OCR work. 
+I have gone over all the data to be ingested and manually inputted them into tables so there is a canonical reference for the OCR work.
 
 ## Pre-Game-Lobby
-- Pre Game Lobby has player cards alternate between showcasing player class and player name and number every few seconds. The two teams are not sync'd in switching between these two states. 
+
+- Pre Game Lobby has player cards alternate between showcasing player class and player name and number every few seconds. The two teams are not sync'd in switching between these two states.
+
 ### 1
 
 | Gamemode   | 6v6           |
@@ -29,7 +31,6 @@ I have gone over all the data to be ingested and manually inputted them into tab
 
 ### 2
 
-
 | Gamemode   | 6v6           |
 | ---------- | ------------- |
 | Left team  | The Boogeymen |
@@ -53,9 +54,6 @@ I have gone over all the data to be ingested and manually inputted them into tab
 | Right Defense | P5 \| Level 44 | shadowassault20 | Xbox     | 5'8"   | 160lbs | #56           | S. Zubov    | No      | Wheels - Specialist      | Warrior - Elite          | Big Rig - Elite           |
 | Goalie        | CPU            | -               | -        | -      | -      | -             |             | -       | -                        | -                        | -                         |
 
-
-
-
 ## Pre-Game-Loadouts
 
 ### Home-Center
@@ -65,6 +63,7 @@ Player Information
 | Position | Player_Level | Platform | Name         | Number | GamerTag   | Build_Class_Name | Height | Weight | Shot Handness |
 | -------- | ------------ | -------- | ------------ | ------ | ---------- | ---------------- | ------ | ------ | ------------- |
 | Center   | P1 Level 17  | Xbox     | Evgeni Wanhg | #11    | MrHomicide | Playmaker        | 6'0"   | 160lbs | Right         |
+
 X-Factors
 
 | X-Factor_1        | X-Factor_2<br>   | X-Factor_3                |
@@ -104,13 +103,13 @@ Attributes
 | Durability    | 80     |
 | Shot Blocking | 68     |
 
-
 | Tactics        | Δ \| R |
 | -------------- | ------ |
 | Deking         | 94     |
 | Faceoffs       | 90     |
 | Discipline     | 80     |
 | Fighting Skill | 68     |
+
 ### Home-Left Wing
 
 Player Information
@@ -124,7 +123,6 @@ X-Factors
 | X-Factor_1      | X-Factor_2<br> | X-Factor_3            |
 | --------------- | -------------- | --------------------- |
 | Big Rig - Elite | One T - Elite  | Ankle Breaker - Elite |
-
 
 Attributes
 
@@ -159,13 +157,13 @@ Attributes
 | Durability    | 97     |
 | Shot Blocking | 80     |
 
-
 | Tactics        | Δ \| R |
 | -------------- | ------ |
 | Deking         | 93     |
 | Faceoffs       | 90     |
 | Discipline     | 82     |
 | Fighting Skill | 75     |
+
 ### Home-Right Wing
 
 Player Information
@@ -179,7 +177,6 @@ X-Factors
 | X-Factor_1            | X-Factor_2<br>   | X-Factor_3           |
 | --------------------- | ---------------- | -------------------- |
 | Quick Release - Elite | One T - All Star | Pressure+ - All Star |
-
 
 Attributes
 
@@ -214,14 +211,12 @@ Attributes
 | Durability    | 88     |
 | Shot Blocking | 79     |
 
-
 | Tactics        | Δ \| R |
 | -------------- | ------ |
 | Deking         | 89     |
 | Faceoffs       | 90     |
 | Discipline     | 86     |
 | Fighting Skill | 60     |
-
 
 ### Home-Left Defense
 
@@ -236,7 +231,6 @@ X-Factors
 | X-Factor_1         | X-Factor_2<br>    | X-Factor_3                 |
 | ------------------ | ----------------- | -------------------------- |
 | Warrior - All Star | Wheels - All Star | Quick Release - Specialist |
-
 
 Attributes
 
@@ -271,7 +265,6 @@ Attributes
 | Durability    | 79     |
 | Shot Blocking | 72     |
 
-
 | Tactics        | Δ \| R |
 | -------------- | ------ |
 | Deking         | 92     |
@@ -292,7 +285,6 @@ X-Factors
 | X-Factor_1          | X-Factor_2<br>            | X-Factor_3               |
 | ------------------- | ------------------------- | ------------------------ |
 | Elite Edges - Elite | Tape to Tape - Specialist | Stick Em Up - Specialist |
-
 
 Attributes
 
@@ -327,7 +319,6 @@ Attributes
 | Durability    | 83     |
 | Shot Blocking | 73     |
 
-
 | Tactics        | Δ \| R |
 | -------------- | ------ |
 | Deking         | 92     |
@@ -348,7 +339,6 @@ X-Factors
 | X-Factor_1      | X-Factor_2<br>     | X-Factor_3        |
 | --------------- | ------------------ | ----------------- |
 | Warrior - Elite | Big Rig - All Star | Rocket - All Star |
-
 
 Attributes
 
@@ -383,13 +373,13 @@ Attributes
 | Durability    | 75     |
 | Shot Blocking | 83     |
 
-
 | Tactics        | Δ \| R |
 | -------------- | ------ |
 | Deking         | 88     |
 | Faceoffs       | 90     |
 | Discipline     | 91     |
 | Fighting Skill | 70     |
+
 ### Away-Left Wing
 
 Player Information
@@ -403,7 +393,6 @@ X-Factors
 | X-Factor_1               | X-Factor_2<br>           | X-Factor_3         |
 | ------------------------ | ------------------------ | ------------------ |
 | Quick Release - All Star | Elite Edges - Specialist | Warrior - All Star |
-
 
 Attributes
 
@@ -438,13 +427,13 @@ Attributes
 | Durability    | 79     |
 | Shot Blocking | 73     |
 
-
 | Tactics        | Δ \| R |
 | -------------- | ------ |
 | Deking         | 90     |
 | Faceoffs       | 82     |
 | Discipline     | 90     |
 | Fighting Skill | 68     |
+
 ### Away-Right Wing
 
 Player Information
@@ -458,7 +447,6 @@ X-Factors
 | X-Factor_1               | X-Factor_2<br>   | X-Factor_3                |
 | ------------------------ | ---------------- | ------------------------- |
 | Quick Release - All Star | One T - All Star | Tape to Tape - Specialist |
-
 
 Attributes
 
@@ -493,14 +481,12 @@ Attributes
 | Durability    | 85     |
 | Shot Blocking | 66     |
 
-
 | Tactics        | Δ \| R |
 | -------------- | ------ |
 | Deking         | 86     |
 | Faceoffs       | 90     |
 | Discipline     | 90     |
 | Fighting Skill | 67     |
-
 
 ### Away-Left Defense
 
@@ -515,7 +501,6 @@ X-Factors
 | X-Factor_1            | X-Factor_2<br>           | X-Factor_3        |
 | --------------------- | ------------------------ | ----------------- |
 | Quick Pick - All Star | Elite Edges - Specialist | Rocket - All Star |
-
 
 Attributes
 
@@ -550,7 +535,6 @@ Attributes
 | Durability    | 83     |
 | Shot Blocking | 99     |
 
-
 | Tactics        | Δ \| R |
 | -------------- | ------ |
 | Deking         | 80     |
@@ -571,7 +555,6 @@ X-Factors
 | X-Factor_1          | X-Factor_2<br>  | X-Factor_3      |
 | ------------------- | --------------- | --------------- |
 | Wheels - Specialist | Warrior - Elite | Big Rig - Elite |
-
 
 Attributes
 
@@ -606,7 +589,6 @@ Attributes
 | Durability    | 80     |
 | Shot Blocking | 76     |
 
-
 | Tactics        | Δ \| R |
 | -------------- | ------ |
 | Deking         | 92     |
@@ -615,7 +597,6 @@ Attributes
 | Fighting Skill | 79     |
 
 ## Post-Game-Player-Summary
-
 
 | Away Abbv. | Away Final Score |     | Home Abbv. | Home Final Score |
 | ---------- | ---------------- | --- | ---------- | ---------------- |
@@ -636,16 +617,18 @@ Attributes
 | Xbox     | MuttButt        | "Defensive Defenseman"   | -    | Left Defense  | -      | 1   | 1   |
 | Xbox     | shadowassault20 | "Puck Moving Defenseman" | -    | Right Defense | -      | 0   | 0   |
 | Xbox     | Raiders G7      | "Sniper"                 | -    | Right Wing    | -      | 0   | 2   |
+
 ## Action-Tracker
 
 ### 1st Period
-No data collected. 
-### 2nd Period 
+
+No data collected.
+
+### 2nd Period
 
 | Categry    | Period |
 | ---------- | ------ |
 | All events | 2nd    |
-
 
 | Team | Final Score | Shots |
 | ---- | ----------- | ----- |
@@ -654,6 +637,7 @@ No data collected.
 | Team | Final Score | Shots |
 | ---- | ----------- | ----- |
 | 4th  | 3           | 16    |
+
 - The colour of the headshot and event type corresponds with the team colours
 - The home team has solid filled in event icons, while the away team has white icons with an outline which matches their colour
 - Faceoff events: The winner of the draw is listed as the imitator, the loser is listed as the receiver
@@ -698,7 +682,6 @@ No data collected.
 
 ### 3rd Period
 
-
 | Categry    | Period |
 | ---------- | ------ |
 | All events | 3rd    |
@@ -710,6 +693,7 @@ No data collected.
 | Team | Final Score | Shots |
 | ---- | ----------- | ----- |
 | 4th  | 3           | 16    |
+
 - The colour of the headshot and event type corresponds with the team colours
 - The home team has solid filled in event icons, while the away team has white icons with an outline which matches their colour
 - Faceoff events: The winner of the draw is listed as the imitator, the loser is listed as the receiver
@@ -755,7 +739,6 @@ No data collected.
 
 ### Overtime
 
-
 | Categry    | Period |
 | ---------- | ------ |
 | All events | OT     |
@@ -767,6 +750,7 @@ No data collected.
 | Team | Final Score | Shots |
 | ---- | ----------- | ----- |
 | 4th  | 3           | 16    |
+
 - The colour of the headshot and event type corresponds with the team colours
 - The home team has solid filled in event icons, while the away team has white icons with an outline which matches their colour
 - Faceoff events: The winner of the draw is listed as the imitator, the loser is listed as the receiver
@@ -799,17 +783,13 @@ No data collected.
 | Hit        | 1942                                 | OT           | P. Magroyne                        | -, Silky                         |                              |
 | Faceoff    | 1959                                 | OT           | E. Wanhg                           | -, Toews                         |                              |
 
-
-
 ### Faceoff map
 
 #### 1st Period
 
-
 | Categry | Period |
 | ------- | ------ |
 | Faceoff | 1st    |
-
 
 | Team     |       | Metric         |       | Team      |
 | -------- | ----- | -------------- | ----- | --------- |
@@ -832,14 +812,11 @@ No data collected.
 | Offensive Zone Left Side  | 2    | 0    |
 | Offensive Zone Right Side | 2    | 0    |
 
-
 #### 2nd Period
-
 
 | Categry | Period |
 | ------- | ------ |
 | Faceoff | 2nd    |
-
 
 | Team     |       | Metric         |       | Team      |
 | -------- | ----- | -------------- | ----- | --------- |
@@ -862,14 +839,11 @@ No data collected.
 | Offensive Zone Left Side  | 0    | 0    |
 | Offensive Zone Right Side | 0    | 1    |
 
-
 #### 3rd Period
-
 
 | Categry | Period |
 | ------- | ------ |
 | Faceoff | 3rd    |
-
 
 | Team     |       | Metric         |       | Team      |
 | -------- | ----- | -------------- | ----- | --------- |
@@ -892,14 +866,11 @@ No data collected.
 | Offensive Zone Left Side  | 1    | 0    |
 | Offensive Zone Right Side | 0    | 0    |
 
-
 #### OT Period
-
 
 | Categry | Period |
 | ------- | ------ |
 | Faceoff | 3rd    |
-
 
 | Team     |       | Metric         |       | Team      |
 | -------- | ----- | -------------- | ----- | --------- |
@@ -924,14 +895,13 @@ No data collected.
 
 ### Net Chart
 
-- I am fairly confident that the shots are stacked in order from oldest at the bottom and newest on top. Whenever there are multiple events in the sane place, they stack with the newest ones on top. 
-#### 1st Period
+- I am fairly confident that the shots are stacked in order from oldest at the bottom and newest on top. Whenever there are multiple events in the sane place, they stack with the newest ones on top.
 
+#### 1st Period
 
 | Categry   | Period |
 | --------- | ------ |
 | Net Chart | 1st    |
-
 
 | Team     |     | Metric         |     | Team      |
 | -------- | --- | -------------- | --- | --------- |
@@ -954,11 +924,9 @@ Net Chart
 
 #### 2nd Period
 
-
 | Categry   | Period |
 | --------- | ------ |
 | Net Chart | 2nd    |
-
 
 | Team     |     | Metric         |     | Team      |
 | -------- | --- | -------------- | --- | --------- |
@@ -979,14 +947,11 @@ Net Chart
 |      |       |     |     |
 |      |       |     |     |
 
-
 #### 3rd Period
-
 
 | Categry   | Period |
 | --------- | ------ |
 | Net Chart | 1st    |
-
 
 | Team     |     | Metric         |     | Team      |
 | -------- | --- | -------------- | --- | --------- |
@@ -1007,13 +972,11 @@ Net Chart
 |      |       |     |     |
 |      |       |     |     |
 
-
 #### OT Period
 
 | Categry   | Period |
 | --------- | ------ |
 | Net Chart | 1st    |
-
 
 | Team     |     | Metric         |     | Team      |
 | -------- | --- | -------------- | --- | --------- |
@@ -1036,9 +999,9 @@ Net Chart
 
 ## Box-Score
 
-- Note, there is always an erroneous "SO" Colum between OT and TOT that reads 0/0, There are no SO in EASHL. 
-### Goal Summary
+- Note, there is always an erroneous "SO" Colum between OT and TOT that reads 0/0, There are no SO in EASHL.
 
+### Goal Summary
 
 | Team          |     | 1st | 2nd | 3rd | OT  | TOT |       |
 | ------------- | --- | --- | --- | --- | --- | --- | ----- |
@@ -1051,6 +1014,7 @@ Net Chart
 | ------------- | --- | --- | --- | --- | --- | --- | ----- |
 | The Boogeymen |     | 5   | 9   | 6   | 9   | 29  |       |
 | 4th Line      |     | 2   | 3   | 9   | 2   | 16  | Final |
+
 ### Faceoff Summary
 
 | Team          |     | 1st | 2nd | 3rd | OT  | TOT |       |
@@ -1062,7 +1026,6 @@ Net Chart
      - 3rd OPP was 1, corrected to 3 (manual under-counted; matches faceoff dot table)
      - OT was blank for both teams; filled in BGM=5, OPP=1 from OCR (manual skipped)
      -->
-
 
 ## Events
 

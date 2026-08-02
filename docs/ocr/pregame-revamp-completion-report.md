@@ -18,14 +18,14 @@ diagnostics, not product surface.
 
 ## 2. Phase arc — what each phase delivered
 
-| Phase | Delivered |
-|---|---|
-| **A** | Pre-game field benchmark harness + per-field scorer (the measurement backbone for everything after). |
-| **B** | Retrained the `build_class` / `x_factor_name` classifiers — hand-labeled corpus expansion (build 6→10 classes, x-factor 9→18), Gate-2 retrain with strict provenance. |
-| **C** | Anchor canonicalization (`relabel_anchors_to_canonical`) so slot geometry maps to canonical positions. |
-| **D** | Captain **★** visual detection + one-per-side consolidation. |
-| **E** | Away-side persona extraction fix. |
-| **F** | Confidence-weighted consolidation (votes weighted by per-field confidence). |
+| Phase | Delivered                                                                                                                                                                                                                        |
+| ----- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **A** | Pre-game field benchmark harness + per-field scorer (the measurement backbone for everything after).                                                                                                                             |
+| **B** | Retrained the `build_class` / `x_factor_name` classifiers — hand-labeled corpus expansion (build 6→10 classes, x-factor 9→18), Gate-2 retrain with strict provenance.                                                            |
+| **C** | Anchor canonicalization (`relabel_anchors_to_canonical`) so slot geometry maps to canonical positions.                                                                                                                           |
+| **D** | Captain **★** visual detection + one-per-side consolidation.                                                                                                                                                                     |
+| **E** | Away-side persona extraction fix.                                                                                                                                                                                                |
+| **F** | Confidence-weighted consolidation (votes weighted by per-field confidence).                                                                                                                                                      |
 | **G** | Pre-game **lobby** extraction accuracy — the deepest phase. Fixed the lobby slot-scramble (transition-frame contamination), the toggle-phase field split, and the `#NN` capture gap; drove multiple GPU re-ingests of match 250. |
 
 ### Phase G technical core (the hard part)
@@ -33,7 +33,7 @@ diagnostics, not product surface.
 - **Slot scramble** → transition frames (EA's roster-slide animation) were being promoted.
   Fix: `_frame_is_transition` detection + drop transition frames + per-slot majority vote
   (`981e19b`), plus settled-segment preference in the promoter (`014b20c`).
-- **Toggle split** → the lobby panel *alternates* between showing `#NN + persona` and
+- **Toggle split** → the lobby panel _alternates_ between showing `#NN + persona` and
   `build-class`; no single frame carries both. Fix: per-field merge in `_vote_slot_identity` so
   both toggle phases reunite into one complete slot (`034c39d`).
 - **`#NN` capture gap** → jersey numbers only appeared on ~1s dwell frames. Fix: raised lobby
@@ -45,12 +45,12 @@ diagnostics, not product surface.
 
 ## 3. Final live state (as of close-out)
 
-| Match | Active run | overall_pass | Content (L2) | Lineup (L2) | L3 |
-|---|---|:--:|:--:|:--:|:--:|
-| **250** (gold benchmark) | 1954 | ✅ **pass** | 0.979 | **1.000** | **1.000** |
-| 463 | 1972 | ⚠️ partial | 0.820 | 0.925 | 0.919 |
-| 968 | 1974 | ⚠️ partial | 0.807 | 0.950 | 0.985 |
-| 2582 | 1945 | ⚠️ partial | 0.568 | 0.925 | 0.955 |
+| Match                    | Active run | overall_pass | Content (L2) | Lineup (L2) |    L3     |
+| ------------------------ | ---------- | :----------: | :----------: | :---------: | :-------: |
+| **250** (gold benchmark) | 1954       | ✅ **pass**  |    0.979     |  **1.000**  | **1.000** |
+| 463                      | 1972       |  ⚠️ partial  |    0.820     |    0.925    |   0.919   |
+| 968                      | 1974       |  ⚠️ partial  |    0.807     |    0.950    |   0.985   |
+| 2582                     | 1945       |  ⚠️ partial  |    0.568     |    0.925    |   0.955   |
 
 - **Match 250 is fully green** — lineup and L3 are perfect, content 0.979. The
   `match-250-benchmark` suite is **17 pass / 0 fail / 3 skip**, and `getMatchLineups` (the frontend
@@ -70,7 +70,7 @@ Phase G closed on a **standing recommendation**, not by forcing every gate green
   diagnostic at the cost of real extractor work, not worth it for a hobby project.
 - **One deferred, non-blocking item:** the raw hard gate's `build_class` reads two BGM slots as
   abbreviated persona-prefixed forms (`Cole Caufield-SNP` vs canonical `Sniper`). That's a
-  *promoter-side normalization* (SNP→Sniper, strip persona prefix), not extraction — only needed if
+  _promoter-side normalization_ (SNP→Sniper, strip persona prefix), not extraction — only needed if
   the raw gates are ever wanted.
 - **Candidate runs 1975 / 1977 / 1992 / 1993 are preserved** (`is_active=f`) as zero-cost
   re-gating assets. Match 250 stays on run **1954**. **Do not delete these runs**, and **keep the
@@ -81,7 +81,7 @@ Phase G closed on a **standing recommendation**, not by forcing every gate green
 
 - **A net-negative activation was correctly caught and undone.** The toggle-merge run 1977 was
   activated, measured (regressed opponent/LD persona + failed build gate), and reverted to 1954 —
-  the lenient benchmark scorer had *hidden* the regression, so live gate measurement was what
+  the lenient benchmark scorer had _hidden_ the regression, so live gate measurement was what
   surfaced it.
 - **Root causes were measured, not guessed** — the `#NN` fix came from re-decoding the segment
   per-frame and proving the merge-scope defect on real OCR, after an earlier "it's the sampler"

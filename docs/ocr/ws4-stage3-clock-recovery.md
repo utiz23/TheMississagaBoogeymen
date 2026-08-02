@@ -32,10 +32,11 @@ decision, the **period** when it too was garbled), so recovered rows carry a rea
 `clock`/`period_number` instead of a clock-independent placeholder.
 
 The original spec offered two approaches:
+
 - **(a)** targeted clock **re-OCR** on the detail row (like the yellow-marker spatial extractor), or
 - **(b)** **cross-frame clock consensus** (same event/period → same clock).
 
-Empirical evidence (below) supersedes both as the *primary* path and adds a cheaper one.
+Empirical evidence (below) supersedes both as the _primary_ path and adds a cheaper one.
 
 ---
 
@@ -46,24 +47,24 @@ Empirical evidence (below) supersedes both as the *primary* path and adds a chea
 When the AT clock regex (`_CLOCK_PATTERN = r"[01]?\d:[0-5]\d"`,
 [`parsers.py:2009`](../../tools/game_ocr/game_ocr/parsers.py#L2009)) fails, the parser sets
 `clock = None`, so the **clock field's `raw_text` is `None`** — the garbled string is
-discarded *there*. **But** the event's `raw_text` / `event_detail` (the full joined Row-B
+discarded _there_. **But** the event's `raw_text` / `event_detail` (the full joined Row-B
 line) preserves the digits, and `build_orphan_cards` already carries it forward as
 `event_detail`.
 
 Actual garbled `event_detail` strings for real orphans (matches 250 + 2582):
 
-| `event_detail` (garbled) | true clock | recoverable by | failure cause |
-|---|---|---|---|
-| `...SHOT D:14...` | `0:14` | char-normalize | `D`→`0` |
-| `...SHOT DT 18.12` | `18:12` | char-normalize | `.`→`:` |
-| `...19·43 1 2nd Perind HIT` | `19:43` | char-normalize | `·`→`:` |
-| `...S SHOT 8.12 1 2nd Perind` | `8:12` | char-normalize | `.`→`:` |
-| `...H 2.59 HIT...` | `2:59` | char-normalize | `.`→`:` |
-| `...SHOT B:4910T` | `8:49` (OT) | char-normalize | `B`→`8`, `10T`→OT |
-| `...HIT 9:0D1 2nd Period` | `9:01`? | low-confidence | `D`→`0`, trailing noise |
-| `...H 69:0 3rd Period HIT` | — | unrecoverable | invalid (69 > 20) |
-| `...H HIT LU·UL 3rd Perind` | — | unrecoverable | fully garbled |
-| `...H 2nd Period HIT` (U. MAILMAN) | — | unrecoverable | no clock token at all |
+| `event_detail` (garbled)           | true clock  | recoverable by | failure cause           |
+| ---------------------------------- | ----------- | -------------- | ----------------------- |
+| `...SHOT D:14...`                  | `0:14`      | char-normalize | `D`→`0`                 |
+| `...SHOT DT 18.12`                 | `18:12`     | char-normalize | `.`→`:`                 |
+| `...19·43 1 2nd Perind HIT`        | `19:43`     | char-normalize | `·`→`:`                 |
+| `...S SHOT 8.12 1 2nd Perind`      | `8:12`      | char-normalize | `.`→`:`                 |
+| `...H 2.59 HIT...`                 | `2:59`      | char-normalize | `.`→`:`                 |
+| `...SHOT B:4910T`                  | `8:49` (OT) | char-normalize | `B`→`8`, `10T`→OT       |
+| `...HIT 9:0D1 2nd Period`          | `9:01`?     | low-confidence | `D`→`0`, trailing noise |
+| `...H 69:0 3rd Period HIT`         | —           | unrecoverable  | invalid (69 > 20)       |
+| `...H HIT LU·UL 3rd Perind`        | —           | unrecoverable  | fully garbled           |
+| `...H 2nd Period HIT` (U. MAILMAN) | —           | unrecoverable  | no clock token at all   |
 
 Estimate: **~60–70% of orphans recover from `event_detail` alone**, with zero re-OCR and
 zero image access (pure host-side data transform; no new Python deps).
@@ -71,7 +72,7 @@ zero image access (pure host-side data transform; no new Python deps).
 ### 2.2 Cross-frame consensus (spec option b) is weaker than assumed
 
 The garble is **pixel-consistent across frames**: e.g. `P. MAGROYNE ... D:33` is identical
-across all 11 frames it appears in. Voting across frames mostly returns the *same* garbled
+across all 11 frames it appears in. Voting across frames mostly returns the _same_ garbled
 string, not a clean read. Consensus helps only the minority of orphans with frame-to-frame
 variance. → **Deprioritize to a tie-breaker.**
 
@@ -95,7 +96,7 @@ more latent in 968/463. Frame-level garbled-orphan event counts: 968:46, 250:23,
 
 The live DB has **no clock-null OCR `match_events`** and **zero orphan rows**
 (`clock IS NULL AND review_status='pending_review'` → 0 of 508 OCR events). The 4
-`position_confidence='extrapolated'` rows are *not* orphan recoveries — they carry real
+`position_confidence='extrapolated'` rows are _not_ orphan recoveries — they carry real
 clocks (`extrapolated` is a shared position tier, not the orphan fingerprint).
 
 The §2.5 gate ("confirm Stage 2a/2b emits orphan inserts on a real run") was run host-side
@@ -112,16 +113,16 @@ tail-hook, so the post-merge apply has simply never run on these matches). Findi
   bucket has no `review_status` filter, `effective.size > 1 → ambiguous`):
 
   | match | orphan cards | dedup-hit/refresh | ambiguous-skip | net-new insert |
-  |---|---|---|---|---|
-  | 250 | 5 | 2 | 3 | **0** |
-  | 2582 | 7 | 1 | 6 | **0** |
+  | ----- | ------------ | ----------------- | -------------- | -------------- |
+  | 250   | 5            | 2                 | 3              | **0**          |
+  | 2582  | 7            | 1                 | 6              | **0**          |
 
   Cause is structural: 250/2582 are **saturated** (fully reviewed / all-pending dense). Every
   orphan identity already has ≥1 row in its bucket, and a clock-null orphan can't disambiguate
   among multiple same-actor rows → **ambiguous-skip dominates**.
 
 **Gate conclusion.** The path is alive (producer + dedup both proven). "Does Stage 2 emit
-orphan *inserts*" can only be answered on a match with genuine un-backfilled gaps (live
+orphan _inserts_" can only be answered on a match with genuine un-backfilled gaps (live
 promoter dropped an event **and** no manual review filled it) — the two reference matches
 have no such gaps left, so 0 inserts there is expected, not a failure. Stage 3 is cleared to
 proceed; net-new insert volume should be validated separately on a fresh un-reviewed match.
@@ -182,16 +183,16 @@ the highest-confidence / most-frequent. Not a standalone tier.
 
 ## 4. Seams (where the code changes land)
 
-| Concern | File:line | Change |
-|---|---|---|
-| Loss point (context) | [`action-tracker.ts:105`](../../apps/worker/src/ocr-promoters/action-tracker.ts#L105) | none — read-only reference |
-| Clock pattern | [`parsers.py:2009`](../../tools/game_ocr/game_ocr/parsers.py#L2009) | reuse for validation; new permissive layer is separate |
-| **Producer (Tier 1 core)** | `reconcile_action_tracker.py` `build_orphan_cards` / `_emit_orphan_card` | add clock+period recovery; emit `recovered_clock`(+conf) |
-| Wire shape | [`reconcile-positions.ts:105`](../../apps/worker/src/reconcile-positions.ts#L105) `RawOrphanCard` | add optional `recovered_clock?`, `recovered_clock_confidence?` |
-| Proposal shape | [`reconcile-positions.ts:75`](../../apps/worker/src/reconcile-positions.ts#L75) `IdentityProposal` | add `clock: string \| null` (currently intentionally absent) |
-| Resolve | `reconcile-positions.ts` `resolveOrphanCard` (~279) | carry `recovered_clock` → proposal |
-| INSERT + dedup | `resolveOrphanCard`→`applyIdentityProposals` INSERT | write recovered `clock`; pick dedup key (see §5) |
-| Dedup owner | [`match-events-dedup.ts:84`](../../apps/worker/src/ocr-promoters/match-events-dedup.ts#L84) | when clock recovered, prefer the **exact** key; else clock-independent (existing) |
+| Concern                    | File:line                                                                                          | Change                                                                            |
+| -------------------------- | -------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| Loss point (context)       | [`action-tracker.ts:105`](../../apps/worker/src/ocr-promoters/action-tracker.ts#L105)              | none — read-only reference                                                        |
+| Clock pattern              | [`parsers.py:2009`](../../tools/game_ocr/game_ocr/parsers.py#L2009)                                | reuse for validation; new permissive layer is separate                            |
+| **Producer (Tier 1 core)** | `reconcile_action_tracker.py` `build_orphan_cards` / `_emit_orphan_card`                           | add clock+period recovery; emit `recovered_clock`(+conf)                          |
+| Wire shape                 | [`reconcile-positions.ts:105`](../../apps/worker/src/reconcile-positions.ts#L105) `RawOrphanCard`  | add optional `recovered_clock?`, `recovered_clock_confidence?`                    |
+| Proposal shape             | [`reconcile-positions.ts:75`](../../apps/worker/src/reconcile-positions.ts#L75) `IdentityProposal` | add `clock: string \| null` (currently intentionally absent)                      |
+| Resolve                    | `reconcile-positions.ts` `resolveOrphanCard` (~279)                                                | carry `recovered_clock` → proposal                                                |
+| INSERT + dedup             | `resolveOrphanCard`→`applyIdentityProposals` INSERT                                                | write recovered `clock`; pick dedup key (see §5)                                  |
+| Dedup owner                | [`match-events-dedup.ts:84`](../../apps/worker/src/ocr-promoters/match-events-dedup.ts#L84)        | when clock recovered, prefer the **exact** key; else clock-independent (existing) |
 
 Existing tests to extend (do not rewrite):
 `apps/worker/src/__tests__/reconcile-orphan-cards.test.ts`,
@@ -207,7 +208,7 @@ Today recovered orphans dedup via the **clock-independent** key (`match-events-d
 Once a clock is recovered:
 
 - **Clock recovered** → try the **exact** key `(matchId, period, event_type, clock,
-  actor_player_id)` first (the live promoter's path). This lets a recovered orphan dedup
+actor_player_id)` first (the live promoter's path). This lets a recovered orphan dedup
   against a normally-promoted row of the same event if one exists, preventing duplicates.
 - **Fall back** to the clock-independent key when exact misses (still safe-INSERT on zero,
   ambiguous-skip on >1) — unchanged Stage-1 semantics.
@@ -313,12 +314,12 @@ apply: inserted=0  dedup_refreshed=10  ambiguous=1  wrong-writes=0  positions_re
 ```
 
 **Proven:** the exact-key recovery correctly recognized **10 garbled-clock orphans as the same event
-as an already-promoted row** (recovered clock matched the row the promoter captured from a *clean*
+as an already-promoted row** (recovered clock matched the row the promoter captured from a _clean_
 frame) and **refreshed instead of inserting duplicates** — the §2.5b disambiguation value, confirmed
 end-to-end on fresh data, zero wrong writes.
 
-**Reframing (final).** 968's orphans are garbled-*frame* re-detections of events the promoter already
-saw in clean frames, not events it never saw. A net-new INSERT needs an event garbled in *every* frame
+**Reframing (final).** 968's orphans are garbled-_frame_ re-detections of events the promoter already
+saw in clean frames, not events it never saw. A net-new INSERT needs an event garbled in _every_ frame
 it appears — rarer than §2.4 assumed. So Stage 3's dominant, proven value is **duplicate-prevention via
 exact-key dedup**, not insert volume. The §2.5 "does it emit inserts" gate is effectively answered:
 the path is correct and safe; net-new inserts are simply rare because clean-frame promotion already
@@ -333,7 +334,7 @@ clock exact-misses, INSERT directly (the clock makes the event unique, as the li
 the exact key alone) instead of deferring to clockless ambiguity.
 
 **Decision: do NOT make this change — keep the skip.** Rationale: the 968 fresh-match proof (§10.1)
-showed orphans are overwhelmingly garbled-*frame* re-detections of already-promoted events, not
+showed orphans are overwhelmingly garbled-_frame_ re-detections of already-promoted events, not
 genuine misses, so the upside (capturing a rare genuine miss) is small. The downside is real: a
 confident-but-wrong recovered clock that lands on an unoccupied slot would INSERT a reviewable
 duplicate. Duplicate-safety wins; the current behavior is safe (skips, never wrong). **Re-open only

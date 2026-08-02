@@ -25,14 +25,14 @@
 
 ## Context
 
-The operator is about to mass-ingest ~100 NHL26 recordings (since match 250, 2026-05-08) and wants to improve the OCR system *before* the run. Today the pipeline is hard-wired one-video→one-match: `orchestrator.ingest()` forwards a single `match_id` to `dispatch_segments`, which fans every screen-segment out under it — so a multi-match session (~47 games are trapped inside 16 multi-match files) collapses into one match's overwritten data. Ingest is also *blind*: nothing grades box-score OCR against the EA-API truth already in `player_match_stats`/`matches`. This program makes ingest multi-match-aware, associated, measured, and unattended.
+The operator is about to mass-ingest ~100 NHL26 recordings (since match 250, 2026-05-08) and wants to improve the OCR system _before_ the run. Today the pipeline is hard-wired one-video→one-match: `orchestrator.ingest()` forwards a single `match_id` to `dispatch_segments`, which fans every screen-segment out under it — so a multi-match session (~47 games are trapped inside 16 multi-match files) collapses into one match's overwritten data. Ingest is also _blind_: nothing grades box-score OCR against the EA-API truth already in `player_match_stats`/`matches`. This program makes ingest multi-match-aware, associated, measured, and unattended.
 
 ### Grounding corrections (reality vs spec)
 
 These were confirmed by reading the code and MUST override the spec's simplified descriptions:
 
 1. **Per-player OCR is not promoted.** `apps/worker/src/ocr-promoters/post-game-player-summary.ts:16-19` is a no-op. Per the approved decision, L4 grades per-player from the **raw `ocr_extraction_fields` audit rows**, not a promoted table. No new promoter is written (respects spec non-goal #3).
-2. **Box-score OCR lands in `match_period_summaries`** (per-period, `source='ocr'`), **not** `ocr_promotions`. It has **no `run_id` column** — it links via `ocr_extraction_id → ocr_extractions.run_id`, and that extraction run often differs from the *active* decoder run. L4 must resolve the OCR rows through the extraction join, not by assuming active-run scoping.
+2. **Box-score OCR lands in `match_period_summaries`** (per-period, `source='ocr'`), **not** `ocr_promotions`. It has **no `run_id` column** — it links via `ocr_extraction_id → ocr_extractions.run_id`, and that extraction run often differs from the _active_ decoder run. L4 must resolve the OCR rows through the extraction join, not by assuming active-run scoping.
 3. **Team-total truth = `matches.scoreFor/scoreAgainst/shotsFor/shotsAgainst`** (the box-score screen shows API team totals). NOT summed per-player SOG from `player_match_stats` (match 250: period-summary shots 29 ≠ summed player shots 25). Faceoff truth via `getMatchFaceoffTotals(matchId)` (`queries/matches.ts:274`).
 4. **Real state-machine vocabulary** (from `tools/game_ocr/game_ocr/configs/state_machine/nhl26.yaml:34-52`) uses `pre_game_lobby_state_1`, `pre_game_lobby_state_2`, `player_loadout_view`, plus `loading_or_intro` and `end_of_video` — NOT the spec's `pre_game_lobby`/`loadout_view`. Grouping keys off the real names.
 5. **`match_id` never partitions segments today** — `orchestrator.ingest()` forwards it verbatim to `dispatch_segments` (`orchestrator.py:771`); the fan-out loop applies one id to all segments (`dispatch.py:81,107-108`). This is the exact collapse point ① breaks.
@@ -48,6 +48,7 @@ This is a four-milestone program. Each milestone is independently shippable and 
 **Deliverable:** an L4 accuracy section on `ocr_run_quality_reports` that diffs promoted box-score team totals and audit-row per-player lines against EA-API truth, verified against the 4 already-ingested matches (250, 463, 968, 2582). Build first — smallest, immediately testable, and it becomes ②'s association safety-check and ④'s promotion gate.
 
 **File Structure:**
+
 - Create `packages/db/src/queries/l4-api-truth-inputs.ts` — read OCR box-score (`match_period_summaries` source='ocr'), API truth (`matches` + `getMatchFaceoffTotals`), per-player OCR audit rows (`ocr_extraction_fields`), per-player API truth (`player_match_stats`).
 - Create `apps/worker/src/lib/l4-api-truth.ts` — the pure comparator (OCR values + API values → per-field diffs + score).
 - Modify `apps/worker/src/lib/quality-layers.ts` — add `l4` to `LayerScores` + compute it.
@@ -59,17 +60,22 @@ This is a four-milestone program. Each milestone is independently shippable and 
 ### Task 3.1: Schema — add `l4Score` column
 
 **Files:**
+
 - Modify: `packages/db/src/schema/ocr-run-quality-reports.ts:60-105`
 - Generate: `packages/db/migrations/0054_ocr_run_quality_reports_l4.sql`
 
 **Interfaces:**
+
 - Produces: `ocrRunQualityReports.l4Score` (`numeric(5,4)`, nullable, 0–1 range check).
 
 - [ ] **Step 1** — Add the column after `l3Score` (mirror `l3Score` exactly), with a range check mirroring the `0050` pattern:
+
 ```ts
 l4Score: numeric('l4_score', { precision: 5, scale: 4 }),
 ```
+
 Add its CHECK to the table's constraints array (mirror `*_range_chk`): `check('ocr_run_quality_reports_l4_range_chk', sql\`${table.l4Score} IS NULL OR (${table.l4Score} >= 0 AND ${table.l4Score} <= 1)\`)`.
+
 - [ ] **Step 2** — Generate + inspect: `pnpm --filter db generate`; read `packages/db/migrations/0054_*.sql` to confirm it only adds the column + constraint (no destructive DDL). Hand-edit if drizzle mis-orders (see `ocr-pipeline.ts:81-90` precedent for hand-edits).
 - [ ] **Step 3** — Apply: `set -a && source .env && set +a && pnpm --filter db migrate`. Verify: `docker exec eanhl-team-website-db-1 psql -U eanhl -d eanhl -c "\d ocr_run_quality_reports"` shows `l4_score`.
 - [ ] **Step 4** — Rebuild: `pnpm --filter @eanhl/db build`.
@@ -78,11 +84,13 @@ Add its CHECK to the table's constraints array (mirror `*_range_chk`): `check('o
 ### Task 3.2: L4 input queries
 
 **Files:**
+
 - Create: `packages/db/src/queries/l4-api-truth-inputs.ts`
 - Modify: `packages/db/src/queries/index.ts` (add `export * from './l4-api-truth-inputs.js'`)
 - Test: `packages/db/` has no test harness; validate via the worker integration test in 3.4.
 
 **Interfaces:**
+
 - Produces:
   - `getOcrBoxScoreForMatch(matchId): Promise<{ goalsFor, goalsAgainst, shotsFor, shotsAgainst, faceoffsFor, faceoffsAgainst } | null>` — SUM over `match_period_summaries WHERE match_id=$1 AND source='ocr' AND period_number >= 1`.
   - `getApiTeamTotals(matchId): Promise<{ scoreFor, scoreAgainst, shotsFor, shotsAgainst, faceoffsFor, faceoffsAgainst } | null>` — from `getMatchById` + `getMatchFaceoffTotals`.
@@ -98,45 +106,74 @@ Add its CHECK to the table's constraints array (mirror `*_range_chk`): `check('o
 ### Task 3.3: L4 comparator (pure)
 
 **Files:**
+
 - Create: `apps/worker/src/lib/l4-api-truth.ts`
 - Test: `apps/worker/src/__tests__/l4-api-truth.test.ts`
 
 **Interfaces:**
+
 - Consumes: the four query results from Task 3.2; persona→player resolver `resolvePersona` (`apps/worker/src/lib/normalize-persona.ts:46`) and `resolveGamertagToPlayer` (`ocr-promoters/resolve-identity.ts:97`).
 - Produces:
+
 ```ts
-export interface L4FieldDiff { field: string; scope: 'team'|`player:${string}`; ocrValue: number|null; apiValue: number|null; exactMatch: boolean }
+export interface L4FieldDiff {
+  field: string
+  scope: 'team' | `player:${string}`
+  ocrValue: number | null
+  apiValue: number | null
+  exactMatch: boolean
+}
 export interface L4Result {
-  gradable: boolean            // false ⇒ "ungradable — OCR sole source" (no matches row / no player_match_stats)
-  score: number|null           // exact-match fraction over gradable fields, null when !gradable
+  gradable: boolean // false ⇒ "ungradable — OCR sole source" (no matches row / no player_match_stats)
+  score: number | null // exact-match fraction over gradable fields, null when !gradable
   fieldsTotal: number
   fieldsMatched: number
   diffs: L4FieldDiff[]
-  mismatches: L4FieldDiff[]    // diffs where !exactMatch, for the review queue
+  mismatches: L4FieldDiff[] // diffs where !exactMatch, for the review queue
   notes: string
 }
 export function computeL4(inputs: {
-  ocrTeam: OcrTeamTotals|null; apiTeam: ApiTeamTotals|null;
-  ocrPlayers: OcrPlayerLine[]; apiPlayers: ApiPlayerLine[];
-  resolvePersona: (raw: string) => Promise<{ playerId: number|null }>;
+  ocrTeam: OcrTeamTotals | null
+  apiTeam: ApiTeamTotals | null
+  ocrPlayers: OcrPlayerLine[]
+  apiPlayers: ApiPlayerLine[]
+  resolvePersona: (raw: string) => Promise<{ playerId: number | null }>
 }): Promise<L4Result>
 ```
 
 - [ ] **Step 1: failing test** — team totals exact + one mismatch:
+
 ```ts
 test('computeL4 grades team totals exact, flags a shot mismatch', async () => {
   const r = await computeL4({
-    ocrTeam: { goalsFor: 4, goalsAgainst: 2, shotsFor: 29, shotsAgainst: 20, faceoffsFor: 11, faceoffsAgainst: 9 },
-    apiTeam: { scoreFor: 4, scoreAgainst: 2, shotsFor: 28, shotsAgainst: 20, faceoffsFor: 11, faceoffsAgainst: 9 },
-    ocrPlayers: [], apiPlayers: [], resolvePersona: async () => ({ playerId: null }),
+    ocrTeam: {
+      goalsFor: 4,
+      goalsAgainst: 2,
+      shotsFor: 29,
+      shotsAgainst: 20,
+      faceoffsFor: 11,
+      faceoffsAgainst: 9,
+    },
+    apiTeam: {
+      scoreFor: 4,
+      scoreAgainst: 2,
+      shotsFor: 28,
+      shotsAgainst: 20,
+      faceoffsFor: 11,
+      faceoffsAgainst: 9,
+    },
+    ocrPlayers: [],
+    apiPlayers: [],
+    resolvePersona: async () => ({ playerId: null }),
   })
   assert.equal(r.gradable, true)
   assert.equal(r.fieldsTotal, 6)
-  assert.equal(r.fieldsMatched, 5)                 // shotsFor 29≠28
+  assert.equal(r.fieldsMatched, 5) // shotsFor 29≠28
   assert.equal(r.mismatches.length, 1)
   assert.equal(r.mismatches[0]!.field, 'shotsFor')
 })
 ```
+
 - [ ] **Step 2** — Run `pnpm --filter @eanhl/worker build && node --test apps/worker/dist/__tests__/l4-api-truth.test.js`; expect FAIL (module not found).
 - [ ] **Step 3** — Implement: map OCR team fields → API team fields (goalsFor↔scoreFor, etc.), exact-compare counting stats; for per-player, resolve each `ocrPlayers[i].personaRaw` via `resolvePersona` to a `playerId`, join to `apiPlayers`, exact-compare goals/assists/saves and compare savePct within `numeric(5,2)` tolerance (±0.01). `gradable=false` when `apiTeam===null`. `score = fieldsMatched/fieldsTotal`.
 - [ ] **Step 4** — Add a `gradable:false` test (apiTeam null → score null, notes "ungradable — OCR sole source") and a per-player match/mismatch test. Run; expect PASS.
@@ -145,12 +182,14 @@ test('computeL4 grades team totals exact, flags a shot mismatch', async () => {
 ### Task 3.4: Wire L4 into computeLayers + report body + integration test
 
 **Files:**
+
 - Modify: `apps/worker/src/lib/quality-layers.ts:65-88` (add `l4` to `LayerScores`), `:96-101,:209` (compute + `overall`)
 - Modify: `apps/worker/src/lib/run-quality-report.ts:97-117,119-135,137-167,177-200,308-330,348-370,444-488`
 - Modify: `packages/db/src/queries/run-quality.ts:471-487,521-604`
 - Test: `apps/worker/src/__tests__/l4-api-truth.test.ts` (add integration cases)
 
 **Interfaces:**
+
 - Consumes: `computeL4` (3.3), input queries (3.2).
 - Produces: `LayerScores.l4: { score: number|null; pass: boolean|null; gradable: boolean; notes: string; mismatches: L4FieldDiff[] }`; serialized `report.layers.l4`; derived column `l4Score`.
 
@@ -169,6 +208,7 @@ test('computeL4 grades team totals exact, flags a shot mismatch', async () => {
 **Deliverable:** a pure `match_split` module that groups Pass-1 segments into per-match reels + emits `reels.json`, and an orchestrator dispatch loop that runs once per reel. Unlocks the ~47 trapped multi-match games. Single-match videos keep today's exact behavior.
 
 **File Structure:**
+
 - Create `tools/video_ingest/video_ingest/match_split.py` — `Reel` dataclass + `group_into_reels(segments)` + `write_reels_json(...)`.
 - Modify `tools/video_ingest/video_ingest/orchestrator.py` — group after segments are available (`:604`/`:660`), loop `dispatch_segments` per reel (`:765-780`).
 - Modify `tools/video_ingest/video_ingest/dispatch.py` — no signature change; called once per reel bucket.
@@ -177,12 +217,15 @@ test('computeL4 grades team totals exact, flags a shot mismatch', async () => {
 ### Task 1.1: `Reel` dataclass + `group_into_reels` (pure)
 
 **Files:**
+
 - Create: `tools/video_ingest/video_ingest/match_split.py`
 - Test: `tools/video_ingest/tests/test_match_split.py`
 
 **Interfaces:**
+
 - Consumes: `Segment` (`pass1_classify.py:167-181`: `start_index,end_index,start_seconds,end_seconds,screen_type,frame_count,mean_color_score`).
 - Produces:
+
 ```python
 @dataclass
 class Reel:
@@ -196,7 +239,8 @@ class Reel:
 
 def group_into_reels(segments: list[Segment]) -> list[Reel]: ...
 ```
-- **Grouping rule (real vocab):** OPENERS = `{pre_game_lobby_state_1, pre_game_lobby_state_2, loading_or_intro}`. POSTGAME = `{post_game_player_summary, post_game_box_score_goals, post_game_box_score_shots, post_game_box_score_faceoffs, post_game_events, post_game_action_tracker, post_game_faceoff_map, post_game_net_chart}`. TERMINAL = `end_of_video`. A reel opens at the first OPENER after the previous reel closed (or at video start); it closes at the last contiguous POSTGAME segment before the *next* OPENER, or at `end_of_video`/end-of-list. `unknown_or_transition`, `in_game_*`, `player_loadout_view`, `menu_world_of_chel` belong to whichever open reel contains them.
+
+- **Grouping rule (real vocab):** OPENERS = `{pre_game_lobby_state_1, pre_game_lobby_state_2, loading_or_intro}`. POSTGAME = `{post_game_player_summary, post_game_box_score_goals, post_game_box_score_shots, post_game_box_score_faceoffs, post_game_events, post_game_action_tracker, post_game_faceoff_map, post_game_net_chart}`. TERMINAL = `end_of_video`. A reel opens at the first OPENER after the previous reel closed (or at video start); it closes at the last contiguous POSTGAME segment before the _next_ OPENER, or at `end_of_video`/end-of-list. `unknown_or_transition`, `in_game_*`, `player_loadout_view`, `menu_world_of_chel` belong to whichever open reel contains them.
 
 - [ ] **Step 1: failing test** — clean two-match sequence groups into 2 reels. Build a `_seg(i, screen_type, t0, t1)` helper and a screen-type sequence: `[loading_or_intro, pre_game_lobby_state_1, in_game_clock, post_game_box_score_goals, post_game_box_score_shots, pre_game_lobby_state_1, in_game_clock, post_game_box_score_goals, end_of_video]`. Assert `len(reels)==2`, reel0 covers segments 0–4, reel1 covers 5–8, both `screen_inventory['has_boxscore']` true.
 - [ ] **Step 2** — Run `cd tools/video_ingest && .venv/bin/python -m pytest tests/test_match_split.py -q`; expect FAIL (no module).
@@ -221,11 +265,13 @@ def group_into_reels(segments: list[Segment]) -> list[Reel]: ...
 ### Task 1.3: `write_reels_json` + orchestrator dispatch loop
 
 **Files:**
+
 - Modify: `tools/video_ingest/video_ingest/match_split.py` (add `write_reels_json(sha_root, reels)`)
 - Modify: `tools/video_ingest/video_ingest/orchestrator.py:604,660,765-780`
 - Test: `tools/video_ingest/tests/test_match_split.py` (json round-trip); `tests/test_dispatch_segment_flags.py` pattern for the loop.
 
 **Interfaces:**
+
 - Consumes: `Pass2Result` (`pass2_extract.py:174-188`, carries `.segment.screen_type`/`.start_seconds`) and the reels from 1.1.
 - Produces: `sha_root/reels.json`; the orchestrator dispatches once per reel.
 - **Per-reel `match_id` (milestone-boundary contract):** add an optional `reel_match_ids: dict[int,int] | None` param to the dispatch code path. Behavior for THIS milestone (② not built yet):
@@ -247,6 +293,7 @@ def group_into_reels(segments: list[Segment]) -> list[Reel]: ...
 **Deliverable:** `ocr_match_associations` table + a fuzzy scorer that proposes a `match_id` per reel from an identity probe, surfaced through a new `resolve-match-cli` review queue; operator confirm stamps `match_id` onto the reel's capture batch and unlocks per-reel dispatch.
 
 **File Structure:**
+
 - Create `packages/db/src/schema/ocr-match-associations.ts` (mirror `ocr_capture_batches` style).
 - Create `packages/db/src/queries/ocr-match-associations.ts` — insert/list/confirm/reject + candidate enumeration.
 - Modify `packages/db/src/schema/index.ts` + `packages/db/src/queries/index.ts` barrels.
@@ -261,20 +308,25 @@ def group_into_reels(segments: list[Segment]) -> list[Reel]: ...
 **Files:** Create `packages/db/src/schema/ocr-match-associations.ts`; modify `schema/index.ts`; generate `0055_*.sql`.
 
 **Interfaces (produces):**
+
 ```ts
 export type OcrAssociationStatus = 'pending' | 'confirmed' | 'rejected'
-export const ocrMatchAssociations = pgTable('ocr_match_associations', {
-  id: bigserial('id', { mode: 'number' }).primaryKey(),
-  reelIdentity: text('reel_identity').notNull(),                 // `${video_sha256}:${reel_index}`
-  videoSha256: text('video_sha256').notNull(),
-  runId: bigint('run_id', { mode: 'number' }).references(() => ocrDecoderRuns.id),
-  proposedMatchId: bigint('proposed_match_id', { mode: 'number' }).references(() => matches.id),
-  confidence: numeric('confidence', { precision: 5, scale: 4 }),
-  evidence: jsonb('evidence').notNull(),                         // { score, opponent, personas, signals{...}, runnerUpGap }
-  status: text('status').notNull().$type<OcrAssociationStatus>().default('pending'),
-  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-  decidedAt: timestamp('decided_at', { withTimezone: true }),
-}, (t) => [ uniqueIndex('ocr_match_associations_reel_uniq').on(t.reelIdentity) ])
+export const ocrMatchAssociations = pgTable(
+  'ocr_match_associations',
+  {
+    id: bigserial('id', { mode: 'number' }).primaryKey(),
+    reelIdentity: text('reel_identity').notNull(), // `${video_sha256}:${reel_index}`
+    videoSha256: text('video_sha256').notNull(),
+    runId: bigint('run_id', { mode: 'number' }).references(() => ocrDecoderRuns.id),
+    proposedMatchId: bigint('proposed_match_id', { mode: 'number' }).references(() => matches.id),
+    confidence: numeric('confidence', { precision: 5, scale: 4 }),
+    evidence: jsonb('evidence').notNull(), // { score, opponent, personas, signals{...}, runnerUpGap }
+    status: text('status').notNull().$type<OcrAssociationStatus>().default('pending'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    decidedAt: timestamp('decided_at', { withTimezone: true }),
+  },
+  (t) => [uniqueIndex('ocr_match_associations_reel_uniq').on(t.reelIdentity)],
+)
 export type OcrMatchAssociation = typeof ocrMatchAssociations.$inferSelect
 export type NewOcrMatchAssociation = typeof ocrMatchAssociations.$inferInsert
 ```
@@ -290,14 +342,35 @@ export type NewOcrMatchAssociation = typeof ocrMatchAssociations.$inferInsert
 **Files:** Create `apps/worker/src/lib/match-association-score.ts`; test `apps/worker/src/__tests__/match-association-score.test.ts`.
 
 **Interfaces:**
+
 - Consumes: `levenshtein` + `normalizeSnapshot` (`ocr-promoters/resolve-identity.ts:57,70`), `resolvePersona` (`lib/normalize-persona.ts:46`).
 - Produces:
+
 ```ts
-export interface ProbeIdentity { captureEpochS: number; scoreFor: number; scoreAgainst: number; opponentText: string; personas: string[] }
-export interface ApiCandidate { matchId: number; playedAtEpochS: number; scoreFor: number; scoreAgainst: number; opponentName: string; roster: string[] }
-export interface Proposal { matchId: number|null; confidence: number; runnerUpGap: number; signals: Record<string, number> }
+export interface ProbeIdentity {
+  captureEpochS: number
+  scoreFor: number
+  scoreAgainst: number
+  opponentText: string
+  personas: string[]
+}
+export interface ApiCandidate {
+  matchId: number
+  playedAtEpochS: number
+  scoreFor: number
+  scoreAgainst: number
+  opponentName: string
+  roster: string[]
+}
+export interface Proposal {
+  matchId: number | null
+  confidence: number
+  runnerUpGap: number
+  signals: Record<string, number>
+}
 export function scoreCandidates(probe: ProbeIdentity, candidates: ApiCandidate[]): Proposal
 ```
+
 - **Weights (initial, calibrated later per spec §12):** timestamp proximity (Gaussian on |captureEpochS − playedAtEpochS|, σ≈3h) ×0.35; exact score match ×0.30; opponent fuzzy (1 − normalizedLevenshtein) ×0.20; roster/persona overlap (Jaccard of resolved personas vs roster) ×0.15. `confidence` = best weighted sum in [0,1]; `runnerUpGap` = best − second. `matchId=null` when `confidence < 0.5` (⇒ `no_api_match`).
 
 - [ ] **Step 1: failing test** — a probe (score 4-2, opp "Rangers", evening ts) against 3 candidates where one matches date+score+opp ⇒ `proposal.matchId === thatId`, `confidence > 0.8`, `runnerUpGap > 0.2`. A second test: no candidate within threshold ⇒ `matchId === null`.
@@ -311,6 +384,7 @@ export function scoreCandidates(probe: ProbeIdentity, candidates: ApiCandidate[]
 **Files:** Create `packages/db/src/queries/ocr-match-associations.ts` (+ barrel); create `apps/worker/src/resolve-match-cli.ts`; modify `apps/worker/package.json`.
 
 **Interfaces:**
+
 - Consumes: `getMatchesWithLineup` (`queries/matches.ts:214`, returns `{id,playedAt,opponentName,result,scoreFor,scoreAgainst}` — the ready-made candidate enumerator), `getMatchLineups` (`queries/match-lineups.ts:69`) for roster, `scoreCandidates` (2.2), `ocrCaptureBatches` (stamp target).
 - Produces queries: `insertAssociationProposal(row)`, `listPendingAssociations()`, `confirmAssociation(id)`, `rejectAssociation(id)`. CLI subcommands: `propose --run-id N --identities <path>` (reads per-reel `identity.json`, enumerates candidates, scores, writes proposals), `list`, `confirm --id N`, `reject --id N`.
 - **Confirm semantics (mirror `ingest-ocr-review-cli.ts` review_status flow):** `confirmAssociation` in a `db.transaction`: set `status='confirmed'`, `decidedAt=now()`, and stamp `ocr_capture_batches.matchId = proposedMatchId` for the batch matching `(videoSha256, runId)`. `no_api_match` proposals confirm as operator-supplied new/OCR-only match id via `confirm --id N --match-id M`.
@@ -326,6 +400,7 @@ export function scoreCandidates(probe: ProbeIdentity, candidates: ApiCandidate[]
 **Files:** Create `tools/video_ingest/video_ingest/identity_probe.py`; test `tools/video_ingest/tests/test_identity_probe.py`; modify `orchestrator.py` to emit per-reel `identity.json` when `>1 reel`.
 
 **Interfaces:**
+
 - Produces: for each reel, `sha_root/reel-<idx>-identity.json` = `{ capture_epoch_s, score_for, score_against, opponent_text, personas[] }`. `capture_epoch_s` = file-basename wall-clock (`2026-05-20_18-15-59`) + `reel.start_s`.
 - Reuses the existing box-score/lobby OCR read path (the probe OCRs only a handful of the reel's box-score/lobby frames for score/opponent/personas — a thin wrapper over the frames Pass-2 already extracts; do NOT run full promotion).
 
@@ -344,6 +419,7 @@ export function scoreCandidates(probe: ProbeIdentity, candidates: ApiCandidate[]
 > **Revised task order (2026-07-13 design):** 4.0 (GPU-enable) → 4.G (coverage-aware L4 gate) → 4.1 (enumerate) → 4.2 (preflight) → 4.3 (run loop, consumes 4.G). 4.0 and 4.G each ship + verify on-box before the loop depends on them; 4.1/4.2 are pure/headless; 4.3 is the on-box end-to-end.
 
 **File Structure:**
+
 - Create `tools/video_ingest/video_ingest/batch_ingest.py` — enumerate/dedup/prioritize/preflight/run-loop; registered as a Typer command in `cli.py` (`app.command("batch")(run_batch)`, mirror `reprocess` registration at `cli.py:255`).
 - Reuse `reprocess.py` helpers: `_file_sha256`, `_disk_videos_by_sha`, `_resolve_video_paths`, `_psql_query`, `_run_decoder_runs_cli`, the `create-candidate → ingest → validate → activate` lifecycle (`reprocess.py:111-292,462-833`).
 - 4.0 touches `tools/game_ocr/game_ocr/cli.py` (`extract` cmd) + `.env` (`OCR_PYTHON`); 4.G touches `apps/worker/src/lib/l4-api-truth.ts` + `packages/db/src/queries/l4-api-truth-inputs.ts` + `apps/worker/src/lib/quality-layers.ts` (a pure gate-decision fn).
@@ -354,6 +430,7 @@ export function scoreCandidates(probe: ProbeIdentity, candidates: ApiCandidate[]
 **Why:** the batch's per-segment promotion OCR shells out to `python -m game_ocr.cli extract` (`apps/worker/src/ocr-cli-runner.ts:83`), whose `extract` command builds `Extractor()` with **no `use_gpu`** → bare CPU RapidOCR (`tools/game_ocr/game_ocr/cli.py:27` → `ocr.py:156`). Its sibling `classify` subcommand already wires `use_gpu: bool = typer.Option(True)` + the nvidia-cu12 preload (`cli.py:60,68-75`). This is the ~1200%-CPU / ~30-min-per-heavy-segment cost the ② on-box run measured. Both venvs already have `onnxruntime_gpu-1.26.0` installed — GPU is present, just never requested on this path.
 
 **Two required prongs (both, or it silently stays CPU):**
+
 1. **Request GPU** — add `use_gpu: bool = typer.Option(True, ...)` to `extract` and construct `Extractor(registry=registry, backend=RapidOCRBackend(use_gpu=use_gpu))` (`cli.py:16-27`), mirroring `classify`. `RapidOCRBackend.__init__` already does the WSL2 nvidia-cu12 preload + missing-lib warning.
 2. **GPU-capable interpreter** — set `OCR_PYTHON` → the game_ocr GPU venv in `.env` (currently unset; `ocr-cli-runner.ts:74` falls back to bare `python3`, which would silently CPU-fallback even after prong 1). Env-var precedent: `OCR_USE_CUDA` at `tools/historical_import/extract_review_artifacts.py:77`.
 
@@ -366,22 +443,24 @@ export function scoreCandidates(probe: ProbeIdentity, candidates: ApiCandidate[]
 
 ### Task 4.G: Coverage-aware L4 gate (③-addendum; the batch's auto-classify signal)
 
-**Why:** today's L4 grades the **summed per-period** box-score rows (`period_number >= 1`, `l4-api-truth-inputs.ts:102`), which undercounts when a period is missed (973 read `1-1 / [period-2 unread] / 3-1 / 0-0` → 4-2 vs API 7-3 → L4=0) even though the **TOT-row final** that drove association was read *correctly* (7-3). So a naive `L4≥τ` reject would false-reject correct associations. The gate must grade the strongest signal — the TOT final — not the confound-prone per-period sum. `L4_THRESHOLD=0.95` exists but is inert (excluded from `overall.pass`, `quality-layers.ts:270`).
+**Why:** today's L4 grades the **summed per-period** box-score rows (`period_number >= 1`, `l4-api-truth-inputs.ts:102`), which undercounts when a period is missed (973 read `1-1 / [period-2 unread] / 3-1 / 0-0` → 4-2 vs API 7-3 → L4=0) even though the **TOT-row final** that drove association was read _correctly_ (7-3). So a naive `L4≥τ` reject would false-reject correct associations. The gate must grade the strongest signal — the TOT final — not the confound-prone per-period sum. `L4_THRESHOLD=0.95` exists but is inert (excluded from `overall.pass`, `quality-layers.ts:270`).
 
 **Key simplification (no schema/promoter change):** the TOT-row final is already in raw `ocr_extraction_fields` (`period_number = -1`); the per-player L4 path already reads raw cells there (`l4-api-truth-inputs.ts:228`). So `finalAccuracy` reads the TOT-row final from raw — **the promoter keeps discarding the `-1` row** (`box-score.ts:57`), no new persisted row, no double-count risk in per-period consumers, no migration.
 
 **Three SEPARATE sub-metrics** added to the L4 layer (kept separate + interpretable, NOT blended into one weighted score — a weighted composite is less robust for gating: a good per-period can mask a wrong final, and threshold-vs-weights is hard to calibrate):
-- **`finalAccuracy`** *(the hard gate)* — TOT-row (`period=-1`) final goals-for/against vs API final on `matches`. `[0,1]` or `null`. (Shots/faceoffs finals may be graded as extra sub-fields but do NOT gate.)
+
+- **`finalAccuracy`** _(the hard gate)_ — TOT-row (`period=-1`) final goals-for/against vs API final on `matches`. `[0,1]` or `null`. (Shots/faceoffs finals may be graded as extra sub-fields but do NOT gate.)
 - **`periodCoverage`** — expected-vs-present per-period rows (soft flag).
 - **`periodAccuracy`** — today's sum-vs-final grade, computed **only when coverage is complete**; incomplete ⇒ `null`, not `0` (removes the 973 confound).
 
 **Pure gate-decision fn** (per match):
+
 - `finalAccuracy == 1.0` → **PASS**
 - `finalAccuracy` present & `< 1.0` → **HOLD** (genuinely misread final)
 - `finalAccuracy == null` (api-missed — the batch's priority-0 target, no API truth to grade) → **operator-confirm only**; L4 cannot gate — the confirmed ② association is the sole gate there
 - `periodCoverage`/`periodAccuracy` are always **soft** (informational on the scorecard)
 
-**Enforcement = flag, don't purge (design decision):** promotion already sits behind the two-pass operator-confirm flow (Pass-1 defers dispatch; box-score promotes only Pass-2 after confirm). So a HOLD at Pass-2 is a *quality flag on an already-confirmed match*, not corruption-prevention (OCR never touches `matches` API truth — it writes a parallel `source='ocr'` set). The batch emits HOLD matches to the review queue with the reason + raw reads; it does **NOT** auto-purge and adds **no** `review_status` quarantine column. (Non-destructive hard quarantine via a `review_status` column is the deferred alternative if ever wanted.)
+**Enforcement = flag, don't purge (design decision):** promotion already sits behind the two-pass operator-confirm flow (Pass-1 defers dispatch; box-score promotes only Pass-2 after confirm). So a HOLD at Pass-2 is a _quality flag on an already-confirmed match_, not corruption-prevention (OCR never touches `matches` API truth — it writes a parallel `source='ocr'` set). The batch emits HOLD matches to the review queue with the reason + raw reads; it does **NOT** auto-purge and adds **no** `review_status` quarantine column. (Non-destructive hard quarantine via a `review_status` column is the deferred alternative if ever wanted.)
 
 - [x] **Step 1: failing tests** — added 8 fixtures to `l4-api-truth.test.ts`: (a) clean final+coverage → PASS, (b) correct final + missing period → PASS with `periodCoverage=0.75` (973/974 case), (c) wrong final → HOLD, (c2) half-wrong → HOLD, (d) api-missed → OPERATOR_CONFIRM, (e) API-present-no-OCR-final → HOLD, back-compat (no ocrFinal → sub-metrics null), + a `gateFromL4` truth-table test.
 - [x] **Step 2** — Ran; typecheck RED (`gateFromL4` unexported, `ocrFinal`/`finalAccuracy` absent).
@@ -395,7 +474,9 @@ export function scoreCandidates(probe: ProbeIdentity, candidates: ApiCandidate[]
 **Files:** Create `tools/video_ingest/video_ingest/batch_ingest.py`; test `tools/video_ingest/tests/test_batch_ingest.py`.
 
 **Interfaces:**
+
 - Produces:
+
 ```python
 @dataclass
 class BatchTarget:
@@ -408,6 +489,7 @@ def enumerate_targets(video_root: Path, since: date) -> list[Path]: ...
 def dedup_by_sha(paths: list[Path], known_shas: set[str]) -> list[BatchTarget]: ...
 def prioritize(targets: list[BatchTarget]) -> list[BatchTarget]: ...
 ```
+
 - Enumerate `matchNNN/` folders + loose top-level recordings with basename date `>= since` (2026-05-08). Dedup collapses `.mkv/.mp4/.remuxed/- Trim` copies via sha (reuse `_disk_videos_by_sha` `setdefault` first-wins). Known shas from `SELECT DISTINCT video_sha256 FROM ocr_capture_batches` via `_psql_query`.
 
 - [x] **Step 1: failing test** — `test_batch_ingest.py` (13 tests): dedup byte-identical collapse (first path wins) + `already_ingested` from `known_shas` + kind classification; `prioritize` order/stability/no-mutate; enumerate window + landmine-dir + non-video exclusion. `tmp_path` fixtures (mirror `test_reprocess_cli.py`).
@@ -481,7 +563,7 @@ def prioritize(targets: list[BatchTarget]) -> list[BatchTarget]: ...
 
 ### Task 4.5: Un-strand single-reel videos (**✅ COMPLETE** — Steps 0–2 done + Step 3 PROVEN ON-BOX inside 4.4 Step 8)
 
-**🚩 The gap:** `dispatch_reels` returns at `len(reels) <= 1` ([match_split.py:302-303](tools/video_ingest/video_ingest/match_split.py#L302-L303)) **BEFORE** `emit_reel_identities`, so a single-match recording emits **no** `reel-<idx>-identity.json` ⇒ `resolve-match propose` finds nothing ⇒ no `ocr_match_associations` row ⇒ **invisible to `batch-promote`**. Meanwhile `run_batch`'s Pass-1 dispatched it with `match_id=None` (it passes no `--match-id`), so `promoteBoxScore` throws *"Box Score promoter requires --match-id at batch ingest time"* and those extractions sit at `transform_status='error'`. **Net: single-match videos promote by NO path at all.** This is an ①/② design gap that ④ inherited — not a 4.4 bug.
+**🚩 The gap:** `dispatch_reels` returns at `len(reels) <= 1` ([match_split.py:302-303](tools/video_ingest/video_ingest/match_split.py#L302-L303)) **BEFORE** `emit_reel_identities`, so a single-match recording emits **no** `reel-<idx>-identity.json` ⇒ `resolve-match propose` finds nothing ⇒ no `ocr_match_associations` row ⇒ **invisible to `batch-promote`**. Meanwhile `run_batch`'s Pass-1 dispatched it with `match_id=None` (it passes no `--match-id`), so `promoteBoxScore` throws _"Box Score promoter requires --match-id at batch ingest time"_ and those extractions sit at `transform_status='error'`. **Net: single-match videos promote by NO path at all.** This is an ①/② design gap that ④ inherited — not a 4.4 bug.
 
 **Why it matters now:** every ④ task is done, so this is the last correctness gap before committing 40-58 h of GPU. An unknown share of the 78-target corpus is single-match; a full run today would silently produce nothing for them.
 
@@ -491,8 +573,8 @@ def prioritize(targets: list[BatchTarget]) -> list[BatchTarget]: ...
   - **Distribution (EA matches per recording):** 1→**35**, 2→22, 3→9, 4→1, 5→2, 6→1, 0→8. **Single-match = 35/78 = 45%, the largest single group.** Of ~126 OCR-able matches in the corpus, **~35 (28%) are stranded today.**
   - **The 8 zero-match recordings are unresolved and may raise the share to ~55%:** a tight window finds no EA row (incl. a 137m recording), so they are either poller-missed (**exactly the api-missed case where OCR is the only source — highest value**) or non-gameplay. Reel count unknown; do not assume they are empty. Note ①'s reels can be short (the pilot's reel 0 is 8.8m, reel 2 is 11.2m), so **duration alone does not bound reel count** — a 31.2m recording holds 3 matches.
 - [x] **Step 1: shape CONFIRMED (2026-07-15) — branch (a), gated on `match_id is None`, NOT the reel count.** Verified against `group_into_reels`' 1-reel semantics and the parity contract before writing code, as required.
-  - **🔑 Step-0 finding that reshapes (a) — the discriminator is `match_id is None`, NOT the reel count.** [match_split.py:300-303](tools/video_ingest/video_ingest/match_split.py#L300-L303)'s `len(reels) <= 1` early return is a *deliberate* "single-match parity" contract for the **manual** path, where the operator passes `--match-id` and it works **correctly** — that path must not regress. The break is only that [batch_ingest.py:516-521](tools/video_ingest/video_ingest/batch_ingest.py#L516-L521) builds its Pass-1 `ingest` command with **no `--match-id`** ⇒ `match_id=None` ⇒ dispatch under a null match ⇒ `promoteBoxScore` throws. So (a) narrows to: **when `match_id is None` and `len(reels) == 1`, emit the identity file + defer (the ② path); when `match_id` is provided, keep today's parity fan-out.** Decide `len(reels) == 0` explicitly too (no match content ⇒ nothing to emit; today it also falls into the `<= 1` branch).
-  - **🚩 THE PLAN'S OWN GAP STATEMENT WAS HALF THE BUG — `len(reels) <= 1` ALSO SHADOWED `reel_match_ids`.** The gap above describes only pass 1 (no identity file emitted). But the early return fires *before the `reel_match_ids` branch too*, so even **after** ② confirms a single-reel association, pass 2 (`match_id=None` + `reel_match_ids={0: N}` from `load_confirmed_reel_map`) would **still** early-return and dispatch under the null match — throwing again. **Emitting the identity file alone would have fixed pass 1 and left single-match videos broken at pass 2.** Gating on `match_id` fixes both passes at once: an associated single reel now reaches the existing per-reel branch (c) unchanged, inheriting its forced `run_id=None` — which is why `batch-promote` needs **no** change to drain these.
+  - **🔑 Step-0 finding that reshapes (a) — the discriminator is `match_id is None`, NOT the reel count.** [match_split.py:300-303](tools/video_ingest/video_ingest/match_split.py#L300-L303)'s `len(reels) <= 1` early return is a _deliberate_ "single-match parity" contract for the **manual** path, where the operator passes `--match-id` and it works **correctly** — that path must not regress. The break is only that [batch_ingest.py:516-521](tools/video_ingest/video_ingest/batch_ingest.py#L516-L521) builds its Pass-1 `ingest` command with **no `--match-id`** ⇒ `match_id=None` ⇒ dispatch under a null match ⇒ `promoteBoxScore` throws. So (a) narrows to: **when `match_id is None` and `len(reels) == 1`, emit the identity file + defer (the ② path); when `match_id` is provided, keep today's parity fan-out.** Decide `len(reels) == 0` explicitly too (no match content ⇒ nothing to emit; today it also falls into the `<= 1` branch).
+  - **🚩 THE PLAN'S OWN GAP STATEMENT WAS HALF THE BUG — `len(reels) <= 1` ALSO SHADOWED `reel_match_ids`.** The gap above describes only pass 1 (no identity file emitted). But the early return fires _before the `reel_match_ids` branch too_, so even **after** ② confirms a single-reel association, pass 2 (`match_id=None` + `reel_match_ids={0: N}` from `load_confirmed_reel_map`) would **still** early-return and dispatch under the null match — throwing again. **Emitting the identity file alone would have fixed pass 1 and left single-match videos broken at pass 2.** Gating on `match_id` fixes both passes at once: an associated single reel now reaches the existing per-reel branch (c) unchanged, inheriting its forced `run_id=None` — which is why `batch-promote` needs **no** change to drain these.
   - **Parity is preserved for a structural reason, not by luck:** every pre-existing single-reel dispatch test passes `match_id=250`, so they all encode the **manual** path and stayed green untouched. The test suite independently corroborates that the real contract seam is `match_id`.
   - **`len(reels) == 0` decided explicitly:** `match_id` **set** ⇒ keep today's fan-out (the operator named the match; a grouping quirk must not silently drop their data). `match_id` **None** ⇒ nothing to dispatch and nothing for ② to score ⇒ emit no identity file, log a distinct "0 reels grouped and no match_id" line (an empty proposal set is not a review-queue item).
 - [x] **Step 2+: TDD — DONE. 4 new tests in `tests/test_match_split.py`; full suite 646 pass / 5 skip / 38 subtests / 0 fail (613→642 at 4.4, +4 here).** RED first, for the right reason: the failure printed `([...], None)` — the production bug (dispatch under a **null match_id**) reproduced as a unit test. New coverage: single-reel-without-match_id emits + defers; single-reel-with-confirmed-id dispatches under the mapped id with `run_id` forced None; 0-reels-without-match_id emits/dispatches nothing; 0-reels-**with**-match_id keeps the parity fan-out (this one passed pre-change — it pins what must NOT move).
@@ -503,7 +585,7 @@ def prioritize(targets: list[BatchTarget]) -> list[BatchTarget]: ...
   - **✅ PROOF POINT 1 — Pass 1 emits + defers, does NOT dispatch:** `[identity] wrote 1 reel-identity file(s) for association.` → `[reels] 1 reel need association — reels.json written, dispatch deferred to Milestone ② (no collapse).` → `[dispatch] 0 ok, 0 failed`. `reel-0-identity.json` written with real content (`score_for=2, score_against=5`, `opponent_text="LUNCH PAIL HC"`, 5 personas, `capture_epoch_s=1781825426`). **Pre-4.5 this early-returned at `len(reels) <= 1` and dispatched under a null `match_id` ⇒ `promoteBoxScore` throws.**
   - **✅ PROOF POINT 2 — `resolve-match propose` finds it (pre-4.5 it found nothing):** association **#20**, `reel_identity=fe0e7bf6…:0`, `proposed_match_id=2675`, `confidence=0.8445`, `run_id=NULL` (fresh-ingest convention), `status=pending`.
   - **The proposal was verified against DB truth before confirming, not confirmed blindly:** OCR 2-5 vs "LUNCH PAIL HC" == `matches` 2675 `score_for=2, score_against=5, opponent_name="Lunch Pail HC"` (LOSS). Signals `score=1, opponent=1, timestamp=0.984`, `runnerUpGap=0.461`. **`roster=0` is a NAMESPACE MISMATCH, not counter-evidence** — OCR reads in-game personas (`E.Wanhg, M.Rantanen, Silky, H.Jenkins, C.Benson`) while `players` stores gamertags (`HenryTheBobJr, MrHomiecide, Pratt2016, Stick Menace, silkyjoker85`); "Silky"↔"silkyjoker85" is the visible correspondence and both sides have exactly 5 skaters. Expect `roster=0` on every batch proposal until persona↔gamertag resolution lands ([[feedback_persona_lookup]]).
-  - **✅ The confirmed single reel then drained through `batch-promote` UNCHANGED**, exactly as Step 1 predicted (it inherits per-reel branch (c)'s forced `run_id=None`): `confirm --id 20` → `{"confirmed":20,"matchId":2675,"stampedBatchIds":[]}` + the expected *"no capture batch stamped … (deferred dispatch)"* note (no batches exist until dispatch) → `batch-promote` → `[dispatch] 10 ok, 0 failed` → 4 period rows. **4.4 needed no change to drain these — confirmed on-box.**
+  - **✅ The confirmed single reel then drained through `batch-promote` UNCHANGED**, exactly as Step 1 predicted (it inherits per-reel branch (c)'s forced `run_id=None`): `confirm --id 20` → `{"confirmed":20,"matchId":2675,"stampedBatchIds":[]}` + the expected _"no capture batch stamped … (deferred dispatch)"_ note (no batches exist until dispatch) → `batch-promote` → `[dispatch] 10 ok, 0 failed` → 4 period rows. **4.4 needed no change to drain these — confirmed on-box.**
   - **Note — a deferred video stays re-runnable:** `already_ingested` keys on `ocr_capture_batches`, which only exist AFTER dispatch, so a Pass-1'd-but-unconfirmed single-reel video is NOT skipped on a re-run (it cache-hits instead). This is what let the `DATABASE_URL` failure above be retried for free.
 
 ---

@@ -22,7 +22,7 @@ box-score follow-on):
 
 **SCOPE EXPANSION (explicitly recorded, user-approved 2026-06-04).** The approved Part-3 policy covered
 **period-label** misses only. When the BGM-side fix cleared the 8 team-side errors, it **unmasked** 3
-pre-existing `Box Score … produced zero period cells` errors (box-score threw BGM-side *before* the
+pre-existing `Box Score … produced zero period cells` errors (box-score threw BGM-side _before_ the
 zero-cells check, so they were never reached). These are the **same redundant-frame class** — they were the
 later/transition frames (shots 00003; faceoffs 00002/00003) in each tab's window, and **all 4 periods
 (1ST/2ND/3RD/OT) already landed from the good frames**, so downgrading them loses no recoverable data. The
@@ -35,6 +35,7 @@ warning policy was therefore extended to box-score `zero period cells` (matched 
 (`hmm-viterbi-v2-pg-robust`) so it minted a distinct candidate instead of deleting 1944.
 
 **Two follow-ups filed (per the activation conditions):**
+
 - `docs/ocr/box-score-ocr-accuracy-followup.md` — the landed box-score per-period **numbers are garbled**
   (goals=shots=faceoffs per period; sums ≠ EA's authoritative 3–2). Pre-existing OCR digit-quality defect,
   out of scope here, harmless (box-score `source='ocr'` is supplementary; EA stays authoritative; not
@@ -54,7 +55,7 @@ classify + dispatch for the first time. The committed `reprocess` of match 2582 
   penalties correct, identities + positions + elapsed clocks all ground-truth-verified.
 - **`reprocess validate` FAILS (exit 2) → no activation**, on **27 extractor errors** that are **all in the
   secondary post-game extractors** (box-score, net-chart, faceoff-map). These are **pre-existing latent
-  bugs** the classifier fix merely *exposed* — those extractors had never received a frame before (post-game
+  bugs** the classifier fix merely _exposed_ — those extractors had never received a frame before (post-game
   always classified as `unknown`). The classifier fix did not break them.
 
 Evidence: `tools/video_ingest/tests/fixtures/ws6-match2582-postgame/reprocess-acceptance-log.txt`
@@ -87,7 +88,7 @@ Evidence: `tools/video_ingest/tests/fixtures/ws6-match2582-postgame/reprocess-ac
    garbled header doesn't abort.
 3. **Period-label robustness:** fuzzy-normalize the period label.
 4. **Validate policy — DECIDE ONLY AFTER (1)–(3).** If the OCR fixes are quick, no policy change is needed.
-   If not, consider whether a *secondary* post-game extractor that "refuses to write garbled OCR" should be
+   If not, consider whether a _secondary_ post-game extractor that "refuses to write garbled OCR" should be
    a **non-blocking warning** rather than a run-aborting validate error — today its failure also blocks the
    cleanly-extracted action-tracker events + loadout/lineup from activating (collateral). Do not change
    validate semantics until the fix effort is known.
@@ -107,6 +108,6 @@ Evidence: `tools/video_ingest/tests/fixtures/ws6-match2582-postgame/reprocess-ac
 - Extracted-events snapshot: `fixtures/ws6-match2582-postgame/match2582-extracted-events.tsv`.
 - Host reprocess invocation (env): activate `.venv-1`, `set -a && source .env`, `OCR_PYTHON=.venv-1/bin/python3`,
   `PYTHONPATH=tools/video_ingest:tools/game_ocr`, then `python3 -m video_ingest.cli reprocess --match-id 2582
-  --video /mnt/k/2026-05-31_16-09-36.mkv --version nhl26`. **Footgun:** a prior `--dry-run` creates a candidate
+--video /mnt/k/2026-05-31_16-09-36.mkv --version nhl26`. **Footgun:** a prior `--dry-run` creates a candidate
   run with the same `(match_id, sha, decoder_version, weights_hash)` provenance that BLOCKS the real run via
   `ocr_decoder_runs_provenance_uniq` — delete the inert candidate first.

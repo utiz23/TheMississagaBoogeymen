@@ -44,25 +44,25 @@ I have gone over the dumped 968 pre-game frames and transcribed them into tables
 
 <!-- BGM / Home / "for" side — FIRST table in document order. -->
 
-| Position      | Level        | Gamertag      | Platform | Height | Weight | Player Number | Player Name             | Leader? | X-Factor_1            | X-Factor_2             | X-Factor_3                 |
-| ------------- | ------------ | ------------- | -------- | ------ | ------ | ------------- | ----------------------- | ------- | --------------------- | ---------------------- | -------------------------- |
-| Center        | P2-Level 47  | silkyjoker85  | Xbox     | 6'2"   | 202lbs | #10           | Silky                   | No      | Big Tipper - Elite    | Born Leader - Elite    | Spark Plug - Elite         |
-| Left Wing     | P2-Level 38  | Stick Menace  | Xbox     | 6'6"   | 220lbs | #96           | Mikko Rantanen          | No      | Big Rig - All Star    | One T - Elite          | Ankle Breaker - Elite      |
-| Right Wing    | P2-Level 31  | JoeyFlopfish  | Xbox     | 6'1"   | 194lbs | #48           | Lane Hutson             | Yes     | Wheels - Elite        | Elite Edges - All Star | Ankle Breaker - Specialist |
-| Left Defense  | P0-Level 46  | THEBEAST31054 | Xbox     | 6'0"   | 170lbs | #1            | Tortaaaaaa Pounddddder  | No      | Rocket - Elite        | Spark Plug - All Star  | Big Rig - Specialist       |
-| Right Defense | P3-Level 43  | Wisdy8136     | Xbox     | 6'2"   | 195lbs | #36           | Wiz Niewski             | No      | Truculence - Elite    | Tape to Tape - Elite   | Wheels - Specialist        |
-| Goalie        | cpu          | cpu           | cpu      | cpu    | cpu    | cpu           | cpu                     | cpu     | cpu                   | cpu                    | cpu                        |
+| Position      | Level       | Gamertag      | Platform | Height | Weight | Player Number | Player Name            | Leader? | X-Factor_1         | X-Factor_2             | X-Factor_3                 |
+| ------------- | ----------- | ------------- | -------- | ------ | ------ | ------------- | ---------------------- | ------- | ------------------ | ---------------------- | -------------------------- |
+| Center        | P2-Level 47 | silkyjoker85  | Xbox     | 6'2"   | 202lbs | #10           | Silky                  | No      | Big Tipper - Elite | Born Leader - Elite    | Spark Plug - Elite         |
+| Left Wing     | P2-Level 38 | Stick Menace  | Xbox     | 6'6"   | 220lbs | #96           | Mikko Rantanen         | No      | Big Rig - All Star | One T - Elite          | Ankle Breaker - Elite      |
+| Right Wing    | P2-Level 31 | JoeyFlopfish  | Xbox     | 6'1"   | 194lbs | #48           | Lane Hutson            | Yes     | Wheels - Elite     | Elite Edges - All Star | Ankle Breaker - Specialist |
+| Left Defense  | P0-Level 46 | THEBEAST31054 | Xbox     | 6'0"   | 170lbs | #1            | Tortaaaaaa Pounddddder | No      | Rocket - Elite     | Spark Plug - All Star  | Big Rig - Specialist       |
+| Right Defense | P3-Level 43 | Wisdy8136     | Xbox     | 6'2"   | 195lbs | #36           | Wiz Niewski            | No      | Truculence - Elite | Tape to Tape - Elite   | Wheels - Specialist        |
+| Goalie        | cpu         | cpu           | cpu      | cpu    | cpu    | cpu           | cpu                    | cpu     | cpu                | cpu                    | cpu                        |
 
 <!-- Opponent / Away / "against" side — SECOND table in document order. -->
 
-| Position      | Level        | Gamertag        | Platform | Height | Weight | Player Number | Player Name      | Leader? | X-Factor_1            | X-Factor_2             | X-Factor_3                 |
-| ------------- | ------------ | --------------- | -------- | ------ | ------ | ------------- | ---------------- | ------- | --------------------- | ---------------------- | -------------------------- |
-| Center        | P1-Level 36  | Oatmeal15942    | Xbox     | 5'9"   | 160lbs | #84           | H. Koch          | No      | Hipster - All Star    | Backhand Beauty - Elite| Ankle Breaker - All Star   |
-| Left Wing     | P1-Level 9   | d_YZFR6         | PS5      | 6'1"   | 194lbs | #88           | Y. YZFRSIX       | No      | Wheels - Elite        | Elite Edges - All Star | Ankle Breaker - Specialist |
-| Right Wing    | P1-Level 36  | VIEUXGAMER1965  | Xbox     | 6'2"   | 195lbs | #90           | g. vieux crisse  | Yes     | Truculence - Elite    | One T - Specialist     | Backhand Beauty - Specialist |
-| Left Defense  | P0-Level 36  | JBT20148730     | Xbox     | 6'9"   | 270lbs | #49           | J. DONKE BACK    | No      | Quick Pick - Elite    | Truculence - Elite     | Unstoppable - All Star     |
-| Right Defense | P1-Level 11  | SamuraiGeist    | PS5      | 6'0"   | 195lbs | #32           | G. Slasher       | No      | Big Rig - Elite       | Tape to Tape - Elite   | Hipster - All Star         |
-| Goalie        | cpu          | cpu             | cpu      | cpu    | cpu    | cpu           | cpu              | cpu     | cpu                   | cpu                    | cpu                        |
+| Position      | Level       | Gamertag       | Platform | Height | Weight | Player Number | Player Name     | Leader? | X-Factor_1         | X-Factor_2              | X-Factor_3                   |
+| ------------- | ----------- | -------------- | -------- | ------ | ------ | ------------- | --------------- | ------- | ------------------ | ----------------------- | ---------------------------- |
+| Center        | P1-Level 36 | Oatmeal15942   | Xbox     | 5'9"   | 160lbs | #84           | H. Koch         | No      | Hipster - All Star | Backhand Beauty - Elite | Ankle Breaker - All Star     |
+| Left Wing     | P1-Level 9  | d_YZFR6        | PS5      | 6'1"   | 194lbs | #88           | Y. YZFRSIX      | No      | Wheels - Elite     | Elite Edges - All Star  | Ankle Breaker - Specialist   |
+| Right Wing    | P1-Level 36 | VIEUXGAMER1965 | Xbox     | 6'2"   | 195lbs | #90           | g. vieux crisse | Yes     | Truculence - Elite | One T - Specialist      | Backhand Beauty - Specialist |
+| Left Defense  | P0-Level 36 | JBT20148730    | Xbox     | 6'9"   | 270lbs | #49           | J. DONKE BACK   | No      | Quick Pick - Elite | Truculence - Elite      | Unstoppable - All Star       |
+| Right Defense | P1-Level 11 | SamuraiGeist   | PS5      | 6'0"   | 195lbs | #32           | G. Slasher      | No      | Big Rig - Elite    | Tape to Tape - Elite    | Hipster - All Star           |
+| Goalie        | cpu         | cpu            | cpu      | cpu    | cpu    | cpu           | cpu             | cpu     | cpu                | cpu                     | cpu                          |
 
 ## Pre-Game-Loadouts
 
@@ -84,43 +84,43 @@ X-Factors
 
 Attributes
 
-| Technique           | Δ | R  |
-| ------------------- | - | -- |
-| Wrist Shot Accuracy |   | 93 |
-| Slap Shot Accuracy  |   | 90 |
-| Speed               |   | 92 |
-| Balance             |   | 92 |
-| Agility             |   | 90 |
+| Technique           | Δ   | R   |
+| ------------------- | --- | --- |
+| Wrist Shot Accuracy |     | 93  |
+| Slap Shot Accuracy  |     | 90  |
+| Speed               |     | 92  |
+| Balance             |     | 92  |
+| Agility             |     | 90  |
 
-| Power            | Δ | R  |
-| ---------------- | - | -- |
-| Wrist Shot Power |   | 91 |
-| Slap Shot Power  |   | 91 |
-| Acceleration     |   | 92 |
-| Puck Control     |   | 92 |
-| Endurance        |   | 88 |
+| Power            | Δ   | R   |
+| ---------------- | --- | --- |
+| Wrist Shot Power |     | 91  |
+| Slap Shot Power  |     | 91  |
+| Acceleration     |     | 92  |
+| Puck Control     |     | 92  |
+| Endurance        |     | 88  |
 
-| Playstyle           | Δ | R  |
-| ------------------- | - | -- |
-| Passing             |   | 94 |
-| Offensive Awareness |   | 96 |
-| Body Checking       |   | 88 |
-| Stick Checking      |   | 85 |
-| Defensive Awareness |   | 88 |
+| Playstyle           | Δ   | R   |
+| ------------------- | --- | --- |
+| Passing             |     | 94  |
+| Offensive Awareness |     | 96  |
+| Body Checking       |     | 88  |
+| Stick Checking      |     | 85  |
+| Defensive Awareness |     | 88  |
 
-| Tenacity      | Δ | R  |
-| ------------- | - | -- |
-| Hand-Eye      |   | 95 |
-| Strength      |   | 92 |
-| Durability    |   | 80 |
-| Shot Blocking |   | 80 |
+| Tenacity      | Δ   | R   |
+| ------------- | --- | --- |
+| Hand-Eye      |     | 95  |
+| Strength      |     | 92  |
+| Durability    |     | 80  |
+| Shot Blocking |     | 80  |
 
-| Tactics        | Δ | R  |
-| -------------- | - | -- |
-| Deking         |   | 93 |
-| Faceoffs       |   | 90 |
-| Discipline     |   | 75 |
-| Fighting Skill |   | 84 |
+| Tactics        | Δ   | R   |
+| -------------- | --- | --- |
+| Deking         |     | 93  |
+| Faceoffs       |     | 90  |
+| Discipline     |     | 75  |
+| Fighting Skill |     | 84  |
 
 ### Home-Left Wing
 
@@ -138,51 +138,51 @@ X-Factors
 
 Attributes
 
-| Technique           | Δ | R  |
-| ------------------- | - | -- |
-| Wrist Shot Accuracy |   | 92 |
-| Slap Shot Accuracy  |   | 90 |
-| Speed               |   | 93 |
-| Balance             |   | 90 |
-| Agility             |   | 94 |
+| Technique           | Δ   | R   |
+| ------------------- | --- | --- |
+| Wrist Shot Accuracy |     | 92  |
+| Slap Shot Accuracy  |     | 90  |
+| Speed               |     | 93  |
+| Balance             |     | 90  |
+| Agility             |     | 94  |
 
-| Power            | Δ | R  |
-| ---------------- | - | -- |
-| Wrist Shot Power |   | 93 |
-| Slap Shot Power  |   | 95 |
-| Acceleration     |   | 93 |
-| Puck Control     |   | 93 |
-| Endurance        |   | 90 |
+| Power            | Δ   | R   |
+| ---------------- | --- | --- |
+| Wrist Shot Power |     | 93  |
+| Slap Shot Power  |     | 95  |
+| Acceleration     |     | 93  |
+| Puck Control     |     | 93  |
+| Endurance        |     | 90  |
 
-| Playstyle           | Δ | R  |
-| ------------------- | - | -- |
-| Passing             |   | 90 |
-| Offensive Awareness |   | 91 |
-| Body Checking       |   | 82 |
-| Stick Checking      |   | 80 |
-| Defensive Awareness |   | 84 |
+| Playstyle           | Δ   | R   |
+| ------------------- | --- | --- |
+| Passing             |     | 90  |
+| Offensive Awareness |     | 91  |
+| Body Checking       |     | 82  |
+| Stick Checking      |     | 80  |
+| Defensive Awareness |     | 84  |
 
-| Tenacity      | Δ | R  |
-| ------------- | - | -- |
-| Hand-Eye      |   | 93 |
-| Strength      |   | 91 |
-| Durability    |   | 87 |
-| Shot Blocking |   | 80 |
+| Tenacity      | Δ   | R   |
+| ------------- | --- | --- |
+| Hand-Eye      |     | 93  |
+| Strength      |     | 91  |
+| Durability    |     | 87  |
+| Shot Blocking |     | 80  |
 
-| Tactics        | Δ | R  |
-| -------------- | - | -- |
-| Deking         |   | 93 |
-| Faceoffs       |   | 90 |
-| Discipline     |   | 82 |
-| Fighting Skill |   | 75 |
+| Tactics        | Δ   | R   |
+| -------------- | --- | --- |
+| Deking         |     | 93  |
+| Faceoffs       |     | 90  |
+| Discipline     |     | 82  |
+| Fighting Skill |     | 75  |
 
 ### Home-Right Wing
 
 Player Information
 
-| Position   | Player_Level | Platform | Name        | Number | GamerTag     | Build_Class_Name    | Height | Weight | Shot Handness |
-| ---------- | ------------ | -------- | ----------- | ------ | ------------ | ------------------- | ------ | ------ | ------------- |
-| Right Wing | P2-Level 31  | Xbox     | Lane Hutson | #48    | JoeyFlopfish | Connor McDavid - PLY | 6'1"  | 194lbs | Left          |
+| Position   | Player_Level | Platform | Name        | Number | GamerTag     | Build_Class_Name     | Height | Weight | Shot Handness |
+| ---------- | ------------ | -------- | ----------- | ------ | ------------ | -------------------- | ------ | ------ | ------------- |
+| Right Wing | P2-Level 31  | Xbox     | Lane Hutson | #48    | JoeyFlopfish | Connor McDavid - PLY | 6'1"   | 194lbs | Left          |
 
 X-Factors
 
@@ -192,51 +192,51 @@ X-Factors
 
 Attributes
 
-| Technique           | Δ | R  |
-| ------------------- | - | -- |
-| Wrist Shot Accuracy |   | 94 |
-| Slap Shot Accuracy  |   | 89 |
-| Speed               |   | 98 |
-| Balance             |   | 88 |
-| Agility             |   | 95 |
+| Technique           | Δ   | R   |
+| ------------------- | --- | --- |
+| Wrist Shot Accuracy |     | 94  |
+| Slap Shot Accuracy  |     | 89  |
+| Speed               |     | 98  |
+| Balance             |     | 88  |
+| Agility             |     | 95  |
 
-| Power            | Δ | R  |
-| ---------------- | - | -- |
-| Wrist Shot Power |   | 92 |
-| Slap Shot Power  |   | 91 |
-| Acceleration     |   | 97 |
-| Puck Control     |   | 97 |
-| Endurance        |   | 85 |
+| Power            | Δ   | R   |
+| ---------------- | --- | --- |
+| Wrist Shot Power |     | 92  |
+| Slap Shot Power  |     | 91  |
+| Acceleration     |     | 97  |
+| Puck Control     |     | 97  |
+| Endurance        |     | 85  |
 
-| Playstyle           | Δ | R  |
-| ------------------- | - | -- |
-| Passing             |   | 98 |
-| Offensive Awareness |   | 98 |
-| Body Checking       |   | 80 |
-| Stick Checking      |   | 80 |
-| Defensive Awareness |   | 80 |
+| Playstyle           | Δ   | R   |
+| ------------------- | --- | --- |
+| Passing             |     | 98  |
+| Offensive Awareness |     | 98  |
+| Body Checking       |     | 80  |
+| Stick Checking      |     | 80  |
+| Defensive Awareness |     | 80  |
 
-| Tenacity      | Δ | R  |
-| ------------- | - | -- |
-| Hand-Eye      |   | 93 |
-| Strength      |   | 80 |
-| Durability    |   | 85 |
-| Shot Blocking |   | 75 |
+| Tenacity      | Δ   | R   |
+| ------------- | --- | --- |
+| Hand-Eye      |     | 93  |
+| Strength      |     | 80  |
+| Durability    |     | 85  |
+| Shot Blocking |     | 75  |
 
-| Tactics        | Δ | R  |
-| -------------- | - | -- |
-| Deking         |   | 97 |
-| Faceoffs       |   | 90 |
-| Discipline     |   | 79 |
-| Fighting Skill |   | 65 |
+| Tactics        | Δ   | R   |
+| -------------- | --- | --- |
+| Deking         |     | 97  |
+| Faceoffs       |     | 90  |
+| Discipline     |     | 79  |
+| Fighting Skill |     | 65  |
 
 ### Home-Left Defense
 
 Player Information
 
-| Position     | Player_Level | Platform | Name                   | Number | GamerTag      | Build_Class_Name        | Height | Weight | Shot Handness |
-| ------------ | ------------ | -------- | ---------------------- | ------ | ------------- | ----------------------- | ------ | ------ | ------------- |
-| Left Defense | P0-Level 46  | Xbox     | Tortaaaaaa Pounddddder | #1     | THEBEAST31054 | Puck Moving Defenseman  | 6'0"   | 170lbs | Right         |
+| Position     | Player_Level | Platform | Name                   | Number | GamerTag      | Build_Class_Name       | Height | Weight | Shot Handness |
+| ------------ | ------------ | -------- | ---------------------- | ------ | ------------- | ---------------------- | ------ | ------ | ------------- |
+| Left Defense | P0-Level 46  | Xbox     | Tortaaaaaa Pounddddder | #1     | THEBEAST31054 | Puck Moving Defenseman | 6'0"   | 170lbs | Right         |
 
 X-Factors
 
@@ -288,9 +288,9 @@ Attributes
 
 Player Information
 
-| Position      | Player_Level | Platform | Name        | Number | GamerTag  | Build_Class_Name      | Height | Weight | Shot Handness |
-| ------------- | ------------ | -------- | ----------- | ------ | --------- | --------------------- | ------ | ------ | ------------- |
-| Right Defense | P3-Level 43  | Xbox     | Wiz Niewski | #36    | Wisdy8136 | Defensive Defenseman  | 6'2"   | 195lbs | Left          |
+| Position      | Player_Level | Platform | Name        | Number | GamerTag  | Build_Class_Name     | Height | Weight | Shot Handness |
+| ------------- | ------------ | -------- | ----------- | ------ | --------- | -------------------- | ------ | ------ | ------------- |
+| Right Defense | P3-Level 43  | Xbox     | Wiz Niewski | #36    | Wisdy8136 | Defensive Defenseman | 6'2"   | 195lbs | Left          |
 
 X-Factors
 
@@ -352,7 +352,7 @@ Player Information
 X-Factors
 
 | X-Factor_1         | X-Factor_2              | X-Factor_3               |
-| ------------------ | ---------------------- | ------------------------ |
+| ------------------ | ----------------------- | ------------------------ |
 | Hipster - All Star | Backhand Beauty - Elite | Ankle Breaker - All Star |
 
 Attributes
@@ -411,43 +411,43 @@ X-Factors
 
 Attributes
 
-| Technique           | Δ | R  |
-| ------------------- | - | -- |
-| Wrist Shot Accuracy |   | 94 |
-| Slap Shot Accuracy  |   | 89 |
-| Speed               |   | 98 |
-| Balance             |   | 88 |
-| Agility             |   | 95 |
+| Technique           | Δ   | R   |
+| ------------------- | --- | --- |
+| Wrist Shot Accuracy |     | 94  |
+| Slap Shot Accuracy  |     | 89  |
+| Speed               |     | 98  |
+| Balance             |     | 88  |
+| Agility             |     | 95  |
 
-| Power            | Δ | R  |
-| ---------------- | - | -- |
-| Wrist Shot Power |   | 92 |
-| Slap Shot Power  |   | 91 |
-| Acceleration     |   | 97 |
-| Puck Control     |   | 97 |
-| Endurance        |   | 85 |
+| Power            | Δ   | R   |
+| ---------------- | --- | --- |
+| Wrist Shot Power |     | 92  |
+| Slap Shot Power  |     | 91  |
+| Acceleration     |     | 97  |
+| Puck Control     |     | 97  |
+| Endurance        |     | 85  |
 
-| Playstyle           | Δ | R  |
-| ------------------- | - | -- |
-| Passing             |   | 98 |
-| Offensive Awareness |   | 98 |
-| Body Checking       |   | 80 |
-| Stick Checking      |   | 80 |
-| Defensive Awareness |   | 80 |
+| Playstyle           | Δ   | R   |
+| ------------------- | --- | --- |
+| Passing             |     | 98  |
+| Offensive Awareness |     | 98  |
+| Body Checking       |     | 80  |
+| Stick Checking      |     | 80  |
+| Defensive Awareness |     | 80  |
 
-| Tenacity      | Δ | R  |
-| ------------- | - | -- |
-| Hand-Eye      |   | 93 |
-| Strength      |   | 80 |
-| Durability    |   | 85 |
-| Shot Blocking |   | 75 |
+| Tenacity      | Δ   | R   |
+| ------------- | --- | --- |
+| Hand-Eye      |     | 93  |
+| Strength      |     | 80  |
+| Durability    |     | 85  |
+| Shot Blocking |     | 75  |
 
-| Tactics        | Δ | R  |
-| -------------- | - | -- |
-| Deking         |   | 97 |
-| Faceoffs       |   | 90 |
-| Discipline     |   | 79 |
-| Fighting Skill |   | 65 |
+| Tactics        | Δ   | R   |
+| -------------- | --- | --- |
+| Deking         |     | 97  |
+| Faceoffs       |     | 90  |
+| Discipline     |     | 79  |
+| Fighting Skill |     | 65  |
 
 ### Away-Right Wing
 
@@ -519,51 +519,51 @@ X-Factors
 
 Attributes
 
-| Technique           | Δ | R  |
-| ------------------- | - | -- |
-| Wrist Shot Accuracy |   | 78 |
-| Slap Shot Accuracy  |   | 82 |
-| Speed               |   | 90 |
-| Balance             |   | 99 |
-| Agility             |   | 88 |
+| Technique           | Δ   | R   |
+| ------------------- | --- | --- |
+| Wrist Shot Accuracy |     | 78  |
+| Slap Shot Accuracy  |     | 82  |
+| Speed               |     | 90  |
+| Balance             |     | 99  |
+| Agility             |     | 88  |
 
-| Power            | Δ | R  |
-| ---------------- | - | -- |
-| Wrist Shot Power |   | 85 |
-| Slap Shot Power  |   | 95 |
-| Acceleration     |   | 90 |
-| Puck Control     |   | 99 |
-| Endurance        |   | 83 |
+| Power            | Δ   | R   |
+| ---------------- | --- | --- |
+| Wrist Shot Power |     | 85  |
+| Slap Shot Power  |     | 95  |
+| Acceleration     |     | 90  |
+| Puck Control     |     | 99  |
+| Endurance        |     | 83  |
 
-| Playstyle           | Δ | R  |
-| ------------------- | - | -- |
-| Passing             |   | 80 |
-| Offensive Awareness |   | 78 |
-| Body Checking       |   | 95 |
-| Stick Checking      |   | 85 |
-| Defensive Awareness |   | 88 |
+| Playstyle           | Δ   | R   |
+| ------------------- | --- | --- |
+| Passing             |     | 80  |
+| Offensive Awareness |     | 78  |
+| Body Checking       |     | 95  |
+| Stick Checking      |     | 85  |
+| Defensive Awareness |     | 88  |
 
-| Tenacity      | Δ | R  |
-| ------------- | - | -- |
-| Hand-Eye      |   | 80 |
-| Strength      |   | 95 |
-| Durability    |   | 82 |
-| Shot Blocking |   | 80 |
+| Tenacity      | Δ   | R   |
+| ------------- | --- | --- |
+| Hand-Eye      |     | 80  |
+| Strength      |     | 95  |
+| Durability    |     | 82  |
+| Shot Blocking |     | 80  |
 
-| Tactics        | Δ | R  |
-| -------------- | - | -- |
-| Deking         |   | 65 |
-| Faceoffs       |   | 85 |
-| Discipline     |   | 75 |
-| Fighting Skill |   | 95 |
+| Tactics        | Δ   | R   |
+| -------------- | --- | --- |
+| Deking         |     | 65  |
+| Faceoffs       |     | 85  |
+| Discipline     |     | 75  |
+| Fighting Skill |     | 95  |
 
 ### Away-Right Defense
 
 Player Information
 
-| Position      | Player_Level | Platform | Name       | Number | GamerTag     | Build_Class_Name     | Height | Weight | Shot Handness |
-| ------------- | ------------ | -------- | ---------- | ------ | ------------ | -------------------- | ------ | ------ | ------------- |
-| Right Defense | P1-Level 11  | PS5      | G. Slasher | #32    | SamuraiGeist | Two-Way Defenseman   | 6'0"   | 195lbs | Left          |
+| Position      | Player_Level | Platform | Name       | Number | GamerTag     | Build_Class_Name   | Height | Weight | Shot Handness |
+| ------------- | ------------ | -------- | ---------- | ------ | ------------ | ------------------ | ------ | ------ | ------------- |
+| Right Defense | P1-Level 11  | PS5      | G. Slasher | #32    | SamuraiGeist | Two-Way Defenseman | 6'0"   | 195lbs | Left          |
 
 X-Factors
 

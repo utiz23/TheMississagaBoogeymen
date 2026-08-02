@@ -64,7 +64,9 @@ async function cleanupSentinels(): Promise<void> {
   }
 
   // Also catch the player-scoped snapshot rows from test 4 (matchId may be null).
-  await db.delete(playerLoadoutSnapshots).where(eq(playerLoadoutSnapshots.playerId, SENTINEL_PLAYER_ID))
+  await db
+    .delete(playerLoadoutSnapshots)
+    .where(eq(playerLoadoutSnapshots.playerId, SENTINEL_PLAYER_ID))
 
   const batchRows = await db
     .select({ id: ocrCaptureBatches.id })
@@ -149,7 +151,11 @@ interface SnapshotSeed {
    * (which drops rows with no build, no jersey, AND no x-factors).
    */
   playerNumber?: number | null
-  xFactors?: Array<{ slotIndex: number; name: string; tier: 'Elite' | 'All Star' | 'Specialist' | null }>
+  xFactors?: Array<{
+    slotIndex: number
+    name: string
+    tier: 'Elite' | 'All Star' | 'Specialist' | null
+  }>
   attributes?: Array<{ key: string; value: number }>
 }
 
@@ -259,7 +265,11 @@ void test('cpu-goalie-no-row: 11 humans + 1 CPU goalie yields no G row in either
   assert.equal(bgmGoalies[0]!.gamertagSnapshot, 'bgm_goalie')
 
   // The CPU placeholder on the opp side must NOT surface.
-  assert.equal(oppGoalies.length, 0, `expected 0 opp goalie rows (CPU placeholder filtered), got ${oppGoalies.length}`)
+  assert.equal(
+    oppGoalies.length,
+    0,
+    `expected 0 opp goalie rows (CPU placeholder filtered), got ${oppGoalies.length}`,
+  )
 })
 
 void test('cross-team-xf-isolation: same gamertag on both sides does not leak x-factors', async () => {

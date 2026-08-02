@@ -14,13 +14,13 @@ pre-flight against the live DB **disproved that premise**. No code/DB change was
 
 1. **The stored captain confidence does not discriminate right from wrong.** `ocr_field_evidence`/
    `ocr_promotions` `raw_confidence`/`winning_confidence` for `field_key='is_captain'` is the OCR
-   *line* confidence where the ★ glyph was (or wasn't) read — not a star-detection score. For
+   _line_ confidence where the ★ glyph was (or wasn't) read — not a star-detection score. For
    match 250:
    - for/LW Stick Menace — captain=**true** @ **0.9980** ← the false positive (V2: not captain)
    - for/C MrHomiecide — captain=true @ 0.9935 ← real captain (only in inactive run 1)
    - against/C XZ4RKY — captain=true @ 0.9993 ← real captain
 
-   The false positive's confidence sits *between* the two real captains. No threshold separates
+   The false positive's confidence sits _between_ the two real captains. No threshold separates
    them.
 
 2. **The active run carries no usable captain signal.** Match 250's active decoder run is 583
@@ -31,7 +31,7 @@ pre-flight against the live DB **disproved that premise**. No code/DB change was
 
 3. **Captain detection is systematically unreliable across matches** (reviewed snapshots, what
    `getMatchLineups` shows):
-   - 250: for-side flags only the *wrong* slot true; real captains are null.
+   - 250: for-side flags only the _wrong_ slot true; real captains are null.
    - 463: for-side flags **2** captains true — impossible (one room-leader per side).
    - 968: 1 true; 2582: 0.
    - There are **zero** `is_captain=false` values anywhere — `consensus()` only ever yields `true`
@@ -40,7 +40,7 @@ pre-flight against the live DB **disproved that premise**. No code/DB change was
      ≥2 trues collide on a side (e.g. 463), and cannot fix a lone wrong flag (250).
 
 Because the true captain (for/C) is simply absent from match 250's active snapshots, no
-consolidate-layer rule can *recover* the correct answer — only choose between asserting a wrong
+consolidate-layer rule can _recover_ the correct answer — only choose between asserting a wrong
 captain or asserting none. The benchmark already tolerates `null` (captain is a documented Phase 3
 gap), so the test's only real failure is the wrong `true` on for/LW.
 

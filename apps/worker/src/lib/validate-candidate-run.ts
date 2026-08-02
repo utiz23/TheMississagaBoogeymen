@@ -116,7 +116,11 @@ export function classifyExtractorError(
   screenType: string | null | undefined,
   message: string | null | undefined,
 ): 'fatal' | 'warning' {
-  if (screenType === null || screenType === undefined || !WARNING_ELIGIBLE_SCREENS.has(screenType)) {
+  if (
+    screenType === null ||
+    screenType === undefined ||
+    !WARNING_ELIGIBLE_SCREENS.has(screenType)
+  ) {
     return 'fatal'
   }
   const msg = message ?? ''
@@ -191,7 +195,10 @@ export async function validateCandidateRun(
     })
     .from(ocrExtractions)
     .where(and(eq(ocrExtractions.runId, runId), eq(ocrExtractions.transformStatus, 'error')))
-    .groupBy(ocrExtractions.screenType, sql`coalesce(${ocrExtractions.transformError}, '<no message>')`)
+    .groupBy(
+      ocrExtractions.screenType,
+      sql`coalesce(${ocrExtractions.transformError}, '<no message>')`,
+    )
   const extractorErrors: ExtractorErrorBucket[] = errorRows.map((r) => ({
     kind: String(r.kind),
     count: Number(r.count),

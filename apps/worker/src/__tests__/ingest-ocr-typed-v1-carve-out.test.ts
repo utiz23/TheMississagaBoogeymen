@@ -42,17 +42,11 @@ describe('isTypedV1CarveOut', () => {
     // type and engine match the same modality. A post_game_box_score_goals
     // segment with loadoutEngine=typed_v1 (a no-op flag for that screen)
     // must still run the legacy CLI.
-    assert.equal(
-      isTypedV1CarveOut('post_game_box_score_goals', 'typed_v1', 'legacy', 15),
-      false,
-    )
+    assert.equal(isTypedV1CarveOut('post_game_box_score_goals', 'typed_v1', 'legacy', 15), false)
   })
 
   test('typed_v1 lobby engine on a non-lobby screen type → false', () => {
-    assert.equal(
-      isTypedV1CarveOut('post_game_action_tracker', 'legacy', 'typed_v1', 15),
-      false,
-    )
+    assert.equal(isTypedV1CarveOut('post_game_action_tracker', 'legacy', 'typed_v1', 15), false)
   })
 
   test('frameCount=0 still triggers carve-out (zero is a valid count, not "missing")', () => {

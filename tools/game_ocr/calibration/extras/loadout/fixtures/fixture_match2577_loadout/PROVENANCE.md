@@ -85,7 +85,7 @@ captain fp=0 (fn=1). These are the floors locked in `test_field_benchmark.py`
 
 persona rose **0.50 → 1.000** (all 5 away personas recovered) via the parser fix
 in `slot_identity._parse_content_into_evidence` (`_persona_name_from_summary`
-handles the away ``Name-#NN`` layout that lacks the leading dash). The floor is
+handles the away `Name-#NN` layout that lacks the leading dash). The floor is
 ratcheted to **0.90** (measured 1.000, held below 1.0 for one-subject tolerance).
 
 **This golden is a SURGICAL persona-only update, not a full fresh regen.** Only

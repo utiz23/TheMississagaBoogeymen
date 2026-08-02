@@ -13,10 +13,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject00",
-    "support_frame_ids": [
-      3,
-      13
-    ],
+    "support_frame_ids": [3, 13],
     "roi_bbox": null,
     "template_version": null,
     "row_key": null,
@@ -39,10 +36,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject00",
-    "support_frame_ids": [
-      3,
-      13
-    ],
+    "support_frame_ids": [3, 13],
     "roi_bbox": null,
     "template_version": null,
     "row_key": null,
@@ -65,10 +59,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject00",
-    "support_frame_ids": [
-      3,
-      13
-    ],
+    "support_frame_ids": [3, 13],
     "roi_bbox": null,
     "template_version": null,
     "row_key": null,
@@ -91,10 +82,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject00",
-    "support_frame_ids": [
-      3,
-      13
-    ],
+    "support_frame_ids": [3, 13],
     "roi_bbox": null,
     "template_version": null,
     "row_key": null,
@@ -117,10 +105,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject00",
-    "support_frame_ids": [
-      3,
-      13
-    ],
+    "support_frame_ids": [3, 13],
     "roi_bbox": null,
     "template_version": null,
     "row_key": null,
@@ -143,10 +128,7 @@
     "normalization_status": "unnormalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject00",
-    "support_frame_ids": [
-      3,
-      13
-    ],
+    "support_frame_ids": [3, 13],
     "roi_bbox": null,
     "template_version": null,
     "row_key": null,
@@ -169,10 +151,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject00",
-    "support_frame_ids": [
-      3,
-      13
-    ],
+    "support_frame_ids": [3, 13],
     "roi_bbox": null,
     "template_version": null,
     "row_key": null,
@@ -195,10 +174,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject00",
-    "support_frame_ids": [
-      3,
-      13
-    ],
+    "support_frame_ids": [3, 13],
     "roi_bbox": null,
     "template_version": null,
     "row_key": null,
@@ -221,10 +197,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject00",
-    "support_frame_ids": [
-      3,
-      13
-    ],
+    "support_frame_ids": [3, 13],
     "roi_bbox": null,
     "template_version": null,
     "row_key": null,
@@ -247,10 +220,7 @@
     "normalization_status": "failed",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject00",
-    "support_frame_ids": [
-      3,
-      13
-    ],
+    "support_frame_ids": [3, 13],
     "roi_bbox": null,
     "template_version": null,
     "row_key": null,
@@ -273,10 +243,7 @@
     "normalization_status": "failed",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject00",
-    "support_frame_ids": [
-      3,
-      13
-    ],
+    "support_frame_ids": [3, 13],
     "roi_bbox": null,
     "template_version": null,
     "row_key": null,
@@ -299,10 +266,7 @@
     "normalization_status": "failed",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject00",
-    "support_frame_ids": [
-      3,
-      13
-    ],
+    "support_frame_ids": [3, 13],
     "roi_bbox": null,
     "template_version": null,
     "row_key": null,
@@ -325,10 +289,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject00",
-    "support_frame_ids": [
-      3,
-      13
-    ],
+    "support_frame_ids": [3, 13],
     "roi_bbox": {
       "x": 0.2421875,
       "y": 0.2824074074074074,
@@ -356,10 +317,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject00",
-    "support_frame_ids": [
-      3,
-      13
-    ],
+    "support_frame_ids": [3, 13],
     "roi_bbox": {
       "x": 0.5026041666666666,
       "y": 0.2824074074074074,
@@ -387,10 +345,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject00",
-    "support_frame_ids": [
-      3,
-      13
-    ],
+    "support_frame_ids": [3, 13],
     "roi_bbox": {
       "x": 0.7630208333333334,
       "y": 0.2824074074074074,
@@ -418,10 +373,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject00",
-    "support_frame_ids": [
-      3,
-      13
-    ],
+    "support_frame_ids": [3, 13],
     "roi_bbox": {
       "x": 661.0,
       "y": 573,
@@ -449,10 +401,7 @@
     "normalization_status": "failed",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject00",
-    "support_frame_ids": [
-      3,
-      13
-    ],
+    "support_frame_ids": [3, 13],
     "roi_bbox": {
       "x": 581.0,
       "y": 573,
@@ -480,10 +429,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject00",
-    "support_frame_ids": [
-      3,
-      13
-    ],
+    "support_frame_ids": [3, 13],
     "roi_bbox": {
       "x": 661.0,
       "y": 631,
@@ -511,10 +457,7 @@
     "normalization_status": "failed",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject00",
-    "support_frame_ids": [
-      3,
-      13
-    ],
+    "support_frame_ids": [3, 13],
     "roi_bbox": {
       "x": 581.0,
       "y": 631,
@@ -542,10 +485,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject00",
-    "support_frame_ids": [
-      3,
-      13
-    ],
+    "support_frame_ids": [3, 13],
     "roi_bbox": {
       "x": 581.0,
       "y": 631,
@@ -573,10 +513,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject00",
-    "support_frame_ids": [
-      3,
-      13
-    ],
+    "support_frame_ids": [3, 13],
     "roi_bbox": {
       "x": 661.0,
       "y": 689,
@@ -604,10 +541,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject00",
-    "support_frame_ids": [
-      3,
-      13
-    ],
+    "support_frame_ids": [3, 13],
     "roi_bbox": {
       "x": 581.0,
       "y": 689,
@@ -635,10 +569,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject00",
-    "support_frame_ids": [
-      3,
-      13
-    ],
+    "support_frame_ids": [3, 13],
     "roi_bbox": {
       "x": 661.0,
       "y": 746,
@@ -666,10 +597,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject00",
-    "support_frame_ids": [
-      3,
-      13
-    ],
+    "support_frame_ids": [3, 13],
     "roi_bbox": {
       "x": 581.0,
       "y": 746,
@@ -697,10 +625,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject00",
-    "support_frame_ids": [
-      3,
-      13
-    ],
+    "support_frame_ids": [3, 13],
     "roi_bbox": {
       "x": 661.0,
       "y": 805,
@@ -728,10 +653,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject00",
-    "support_frame_ids": [
-      3,
-      13
-    ],
+    "support_frame_ids": [3, 13],
     "roi_bbox": {
       "x": 581.0,
       "y": 805,
@@ -759,10 +681,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject00",
-    "support_frame_ids": [
-      3,
-      13
-    ],
+    "support_frame_ids": [3, 13],
     "roi_bbox": {
       "x": 939.0,
       "y": 573,
@@ -790,10 +709,7 @@
     "normalization_status": "failed",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject00",
-    "support_frame_ids": [
-      3,
-      13
-    ],
+    "support_frame_ids": [3, 13],
     "roi_bbox": {
       "x": 859.0,
       "y": 573,
@@ -821,10 +737,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject00",
-    "support_frame_ids": [
-      3,
-      13
-    ],
+    "support_frame_ids": [3, 13],
     "roi_bbox": {
       "x": 859.0,
       "y": 573,
@@ -852,10 +765,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject00",
-    "support_frame_ids": [
-      3,
-      13
-    ],
+    "support_frame_ids": [3, 13],
     "roi_bbox": {
       "x": 939.0,
       "y": 631,
@@ -883,10 +793,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject00",
-    "support_frame_ids": [
-      3,
-      13
-    ],
+    "support_frame_ids": [3, 13],
     "roi_bbox": {
       "x": 859.0,
       "y": 631,
@@ -914,10 +821,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject00",
-    "support_frame_ids": [
-      3,
-      13
-    ],
+    "support_frame_ids": [3, 13],
     "roi_bbox": {
       "x": 939.0,
       "y": 689,
@@ -945,10 +849,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject00",
-    "support_frame_ids": [
-      3,
-      13
-    ],
+    "support_frame_ids": [3, 13],
     "roi_bbox": {
       "x": 859.0,
       "y": 689,
@@ -976,10 +877,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject00",
-    "support_frame_ids": [
-      3,
-      13
-    ],
+    "support_frame_ids": [3, 13],
     "roi_bbox": {
       "x": 939.0,
       "y": 746,
@@ -1007,10 +905,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject00",
-    "support_frame_ids": [
-      3,
-      13
-    ],
+    "support_frame_ids": [3, 13],
     "roi_bbox": {
       "x": 859.0,
       "y": 746,
@@ -1038,10 +933,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject00",
-    "support_frame_ids": [
-      3,
-      13
-    ],
+    "support_frame_ids": [3, 13],
     "roi_bbox": {
       "x": 939.0,
       "y": 805,
@@ -1069,10 +961,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject00",
-    "support_frame_ids": [
-      3,
-      13
-    ],
+    "support_frame_ids": [3, 13],
     "roi_bbox": {
       "x": 859.0,
       "y": 805,
@@ -1100,10 +989,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject00",
-    "support_frame_ids": [
-      3,
-      13
-    ],
+    "support_frame_ids": [3, 13],
     "roi_bbox": {
       "x": 1246.0,
       "y": 573,
@@ -1131,10 +1017,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject00",
-    "support_frame_ids": [
-      3,
-      13
-    ],
+    "support_frame_ids": [3, 13],
     "roi_bbox": {
       "x": 1166.0,
       "y": 573,
@@ -1162,10 +1045,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject00",
-    "support_frame_ids": [
-      3,
-      13
-    ],
+    "support_frame_ids": [3, 13],
     "roi_bbox": {
       "x": 1246.0,
       "y": 631,
@@ -1193,10 +1073,7 @@
     "normalization_status": "failed",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject00",
-    "support_frame_ids": [
-      3,
-      13
-    ],
+    "support_frame_ids": [3, 13],
     "roi_bbox": {
       "x": 1166.0,
       "y": 631,
@@ -1224,10 +1101,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject00",
-    "support_frame_ids": [
-      3,
-      13
-    ],
+    "support_frame_ids": [3, 13],
     "roi_bbox": {
       "x": 1246.0,
       "y": 689,
@@ -1255,10 +1129,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject00",
-    "support_frame_ids": [
-      3,
-      13
-    ],
+    "support_frame_ids": [3, 13],
     "roi_bbox": {
       "x": 1166.0,
       "y": 689,
@@ -1286,10 +1157,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject00",
-    "support_frame_ids": [
-      3,
-      13
-    ],
+    "support_frame_ids": [3, 13],
     "roi_bbox": {
       "x": 1246.0,
       "y": 746,
@@ -1317,10 +1185,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject00",
-    "support_frame_ids": [
-      3,
-      13
-    ],
+    "support_frame_ids": [3, 13],
     "roi_bbox": {
       "x": 1166.0,
       "y": 746,
@@ -1348,10 +1213,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject00",
-    "support_frame_ids": [
-      3,
-      13
-    ],
+    "support_frame_ids": [3, 13],
     "roi_bbox": {
       "x": 1246.0,
       "y": 805,
@@ -1379,10 +1241,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject00",
-    "support_frame_ids": [
-      3,
-      13
-    ],
+    "support_frame_ids": [3, 13],
     "roi_bbox": {
       "x": 1166.0,
       "y": 805,
@@ -1410,10 +1269,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject00",
-    "support_frame_ids": [
-      3,
-      13
-    ],
+    "support_frame_ids": [3, 13],
     "roi_bbox": {
       "x": 1533.0,
       "y": 573,
@@ -1441,10 +1297,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject00",
-    "support_frame_ids": [
-      3,
-      13
-    ],
+    "support_frame_ids": [3, 13],
     "roi_bbox": {
       "x": 1453.0,
       "y": 573,
@@ -1472,10 +1325,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject00",
-    "support_frame_ids": [
-      3,
-      13
-    ],
+    "support_frame_ids": [3, 13],
     "roi_bbox": {
       "x": 1533.0,
       "y": 631,
@@ -1503,10 +1353,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject00",
-    "support_frame_ids": [
-      3,
-      13
-    ],
+    "support_frame_ids": [3, 13],
     "roi_bbox": {
       "x": 1453.0,
       "y": 631,
@@ -1534,10 +1381,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject00",
-    "support_frame_ids": [
-      3,
-      13
-    ],
+    "support_frame_ids": [3, 13],
     "roi_bbox": {
       "x": 1533.0,
       "y": 689,
@@ -1565,10 +1409,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject00",
-    "support_frame_ids": [
-      3,
-      13
-    ],
+    "support_frame_ids": [3, 13],
     "roi_bbox": {
       "x": 1453.0,
       "y": 689,
@@ -1596,10 +1437,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject00",
-    "support_frame_ids": [
-      3,
-      13
-    ],
+    "support_frame_ids": [3, 13],
     "roi_bbox": {
       "x": 1533.0,
       "y": 746,
@@ -1627,10 +1465,7 @@
     "normalization_status": "failed",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject00",
-    "support_frame_ids": [
-      3,
-      13
-    ],
+    "support_frame_ids": [3, 13],
     "roi_bbox": {
       "x": 1453.0,
       "y": 746,
@@ -1658,10 +1493,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject00",
-    "support_frame_ids": [
-      3,
-      13
-    ],
+    "support_frame_ids": [3, 13],
     "roi_bbox": {
       "x": 1453.0,
       "y": 746,
@@ -1689,10 +1521,7 @@
     "normalization_status": "failed",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject00",
-    "support_frame_ids": [
-      3,
-      13
-    ],
+    "support_frame_ids": [3, 13],
     "roi_bbox": {
       "x": 1822.0,
       "y": 805,
@@ -1720,10 +1549,7 @@
     "normalization_status": "failed",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject00",
-    "support_frame_ids": [
-      3,
-      13
-    ],
+    "support_frame_ids": [3, 13],
     "roi_bbox": {
       "x": 1742.0,
       "y": 805,
@@ -1751,10 +1577,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject00",
-    "support_frame_ids": [
-      3,
-      13
-    ],
+    "support_frame_ids": [3, 13],
     "roi_bbox": {
       "x": 1822.0,
       "y": 573,
@@ -1782,10 +1605,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject00",
-    "support_frame_ids": [
-      3,
-      13
-    ],
+    "support_frame_ids": [3, 13],
     "roi_bbox": {
       "x": 1742.0,
       "y": 573,
@@ -1813,10 +1633,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject00",
-    "support_frame_ids": [
-      3,
-      13
-    ],
+    "support_frame_ids": [3, 13],
     "roi_bbox": {
       "x": 1822.0,
       "y": 631,
@@ -1844,10 +1661,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject00",
-    "support_frame_ids": [
-      3,
-      13
-    ],
+    "support_frame_ids": [3, 13],
     "roi_bbox": {
       "x": 1742.0,
       "y": 631,
@@ -1875,10 +1689,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject00",
-    "support_frame_ids": [
-      3,
-      13
-    ],
+    "support_frame_ids": [3, 13],
     "roi_bbox": {
       "x": 1822.0,
       "y": 689,
@@ -1906,10 +1717,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject00",
-    "support_frame_ids": [
-      3,
-      13
-    ],
+    "support_frame_ids": [3, 13],
     "roi_bbox": {
       "x": 1742.0,
       "y": 689,
@@ -1937,10 +1745,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject00",
-    "support_frame_ids": [
-      3,
-      13
-    ],
+    "support_frame_ids": [3, 13],
     "roi_bbox": {
       "x": 0.23958333333333334,
       "y": 0.2777777777777778,
@@ -1968,10 +1773,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject00",
-    "support_frame_ids": [
-      3,
-      13
-    ],
+    "support_frame_ids": [3, 13],
     "roi_bbox": {
       "x": 0.2421875,
       "y": 0.2824074074074074,
@@ -1999,10 +1801,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject00",
-    "support_frame_ids": [
-      3,
-      13
-    ],
+    "support_frame_ids": [3, 13],
     "roi_bbox": {
       "x": 0.5,
       "y": 0.2777777777777778,
@@ -2030,10 +1829,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject00",
-    "support_frame_ids": [
-      3,
-      13
-    ],
+    "support_frame_ids": [3, 13],
     "roi_bbox": {
       "x": 0.5026041666666666,
       "y": 0.2824074074074074,
@@ -2061,10 +1857,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject00",
-    "support_frame_ids": [
-      3,
-      13
-    ],
+    "support_frame_ids": [3, 13],
     "roi_bbox": {
       "x": 0.7604166666666666,
       "y": 0.2777777777777778,
@@ -2092,10 +1885,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject00",
-    "support_frame_ids": [
-      3,
-      13
-    ],
+    "support_frame_ids": [3, 13],
     "roi_bbox": {
       "x": 0.7630208333333334,
       "y": 0.2824074074074074,
@@ -2123,10 +1913,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject01",
-    "support_frame_ids": [
-      4,
-      9
-    ],
+    "support_frame_ids": [4, 9],
     "roi_bbox": null,
     "template_version": null,
     "row_key": null,
@@ -2149,10 +1936,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject01",
-    "support_frame_ids": [
-      4,
-      9
-    ],
+    "support_frame_ids": [4, 9],
     "roi_bbox": null,
     "template_version": null,
     "row_key": null,
@@ -2175,10 +1959,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject01",
-    "support_frame_ids": [
-      4,
-      9
-    ],
+    "support_frame_ids": [4, 9],
     "roi_bbox": null,
     "template_version": null,
     "row_key": null,
@@ -2201,10 +1982,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject01",
-    "support_frame_ids": [
-      4,
-      9
-    ],
+    "support_frame_ids": [4, 9],
     "roi_bbox": null,
     "template_version": null,
     "row_key": null,
@@ -2227,10 +2005,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject01",
-    "support_frame_ids": [
-      4,
-      9
-    ],
+    "support_frame_ids": [4, 9],
     "roi_bbox": null,
     "template_version": null,
     "row_key": null,
@@ -2253,10 +2028,7 @@
     "normalization_status": "unnormalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject01",
-    "support_frame_ids": [
-      4,
-      9
-    ],
+    "support_frame_ids": [4, 9],
     "roi_bbox": null,
     "template_version": null,
     "row_key": null,
@@ -2279,10 +2051,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject01",
-    "support_frame_ids": [
-      4,
-      9
-    ],
+    "support_frame_ids": [4, 9],
     "roi_bbox": null,
     "template_version": null,
     "row_key": null,
@@ -2305,10 +2074,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject01",
-    "support_frame_ids": [
-      4,
-      9
-    ],
+    "support_frame_ids": [4, 9],
     "roi_bbox": null,
     "template_version": null,
     "row_key": null,
@@ -2331,10 +2097,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject01",
-    "support_frame_ids": [
-      4,
-      9
-    ],
+    "support_frame_ids": [4, 9],
     "roi_bbox": null,
     "template_version": null,
     "row_key": null,
@@ -2357,10 +2120,7 @@
     "normalization_status": "failed",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject01",
-    "support_frame_ids": [
-      4,
-      9
-    ],
+    "support_frame_ids": [4, 9],
     "roi_bbox": null,
     "template_version": null,
     "row_key": null,
@@ -2383,10 +2143,7 @@
     "normalization_status": "failed",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject01",
-    "support_frame_ids": [
-      4,
-      9
-    ],
+    "support_frame_ids": [4, 9],
     "roi_bbox": null,
     "template_version": null,
     "row_key": null,
@@ -2409,10 +2166,7 @@
     "normalization_status": "failed",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject01",
-    "support_frame_ids": [
-      4,
-      9
-    ],
+    "support_frame_ids": [4, 9],
     "roi_bbox": null,
     "template_version": null,
     "row_key": null,
@@ -2435,10 +2189,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject01",
-    "support_frame_ids": [
-      4,
-      9
-    ],
+    "support_frame_ids": [4, 9],
     "roi_bbox": {
       "x": 0.2421875,
       "y": 0.2824074074074074,
@@ -2466,10 +2217,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject01",
-    "support_frame_ids": [
-      4,
-      9
-    ],
+    "support_frame_ids": [4, 9],
     "roi_bbox": {
       "x": 0.5026041666666666,
       "y": 0.2824074074074074,
@@ -2497,10 +2245,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject01",
-    "support_frame_ids": [
-      4,
-      9
-    ],
+    "support_frame_ids": [4, 9],
     "roi_bbox": {
       "x": 0.7630208333333334,
       "y": 0.2824074074074074,
@@ -2528,10 +2273,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject01",
-    "support_frame_ids": [
-      4,
-      9
-    ],
+    "support_frame_ids": [4, 9],
     "roi_bbox": {
       "x": 661.0,
       "y": 573,
@@ -2559,10 +2301,7 @@
     "normalization_status": "failed",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject01",
-    "support_frame_ids": [
-      4,
-      9
-    ],
+    "support_frame_ids": [4, 9],
     "roi_bbox": {
       "x": 581.0,
       "y": 573,
@@ -2590,10 +2329,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject01",
-    "support_frame_ids": [
-      4,
-      9
-    ],
+    "support_frame_ids": [4, 9],
     "roi_bbox": {
       "x": 661.0,
       "y": 631,
@@ -2621,10 +2357,7 @@
     "normalization_status": "failed",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject01",
-    "support_frame_ids": [
-      4,
-      9
-    ],
+    "support_frame_ids": [4, 9],
     "roi_bbox": {
       "x": 581.0,
       "y": 631,
@@ -2652,10 +2385,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject01",
-    "support_frame_ids": [
-      4,
-      9
-    ],
+    "support_frame_ids": [4, 9],
     "roi_bbox": {
       "x": 661.0,
       "y": 689,
@@ -2683,10 +2413,7 @@
     "normalization_status": "failed",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject01",
-    "support_frame_ids": [
-      4,
-      9
-    ],
+    "support_frame_ids": [4, 9],
     "roi_bbox": {
       "x": 581.0,
       "y": 689,
@@ -2714,10 +2441,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject01",
-    "support_frame_ids": [
-      4,
-      9
-    ],
+    "support_frame_ids": [4, 9],
     "roi_bbox": {
       "x": 661.0,
       "y": 746,
@@ -2745,10 +2469,7 @@
     "normalization_status": "failed",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject01",
-    "support_frame_ids": [
-      4,
-      9
-    ],
+    "support_frame_ids": [4, 9],
     "roi_bbox": {
       "x": 581.0,
       "y": 746,
@@ -2776,10 +2497,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject01",
-    "support_frame_ids": [
-      4,
-      9
-    ],
+    "support_frame_ids": [4, 9],
     "roi_bbox": {
       "x": 661.0,
       "y": 805,
@@ -2807,10 +2525,7 @@
     "normalization_status": "failed",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject01",
-    "support_frame_ids": [
-      4,
-      9
-    ],
+    "support_frame_ids": [4, 9],
     "roi_bbox": {
       "x": 581.0,
       "y": 805,
@@ -2838,10 +2553,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject01",
-    "support_frame_ids": [
-      4,
-      9
-    ],
+    "support_frame_ids": [4, 9],
     "roi_bbox": {
       "x": 939.0,
       "y": 573,
@@ -2869,10 +2581,7 @@
     "normalization_status": "failed",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject01",
-    "support_frame_ids": [
-      4,
-      9
-    ],
+    "support_frame_ids": [4, 9],
     "roi_bbox": {
       "x": 859.0,
       "y": 573,
@@ -2900,10 +2609,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject01",
-    "support_frame_ids": [
-      4,
-      9
-    ],
+    "support_frame_ids": [4, 9],
     "roi_bbox": {
       "x": 939.0,
       "y": 631,
@@ -2931,10 +2637,7 @@
     "normalization_status": "failed",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject01",
-    "support_frame_ids": [
-      4,
-      9
-    ],
+    "support_frame_ids": [4, 9],
     "roi_bbox": {
       "x": 859.0,
       "y": 631,
@@ -2962,10 +2665,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject01",
-    "support_frame_ids": [
-      4,
-      9
-    ],
+    "support_frame_ids": [4, 9],
     "roi_bbox": {
       "x": 939.0,
       "y": 689,
@@ -2993,10 +2693,7 @@
     "normalization_status": "failed",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject01",
-    "support_frame_ids": [
-      4,
-      9
-    ],
+    "support_frame_ids": [4, 9],
     "roi_bbox": {
       "x": 859.0,
       "y": 689,
@@ -3024,10 +2721,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject01",
-    "support_frame_ids": [
-      4,
-      9
-    ],
+    "support_frame_ids": [4, 9],
     "roi_bbox": {
       "x": 939.0,
       "y": 746,
@@ -3055,10 +2749,7 @@
     "normalization_status": "failed",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject01",
-    "support_frame_ids": [
-      4,
-      9
-    ],
+    "support_frame_ids": [4, 9],
     "roi_bbox": {
       "x": 859.0,
       "y": 746,
@@ -3086,10 +2777,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject01",
-    "support_frame_ids": [
-      4,
-      9
-    ],
+    "support_frame_ids": [4, 9],
     "roi_bbox": {
       "x": 939.0,
       "y": 805,
@@ -3117,10 +2805,7 @@
     "normalization_status": "failed",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject01",
-    "support_frame_ids": [
-      4,
-      9
-    ],
+    "support_frame_ids": [4, 9],
     "roi_bbox": {
       "x": 859.0,
       "y": 805,
@@ -3148,10 +2833,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject01",
-    "support_frame_ids": [
-      4,
-      9
-    ],
+    "support_frame_ids": [4, 9],
     "roi_bbox": {
       "x": 1246.0,
       "y": 573,
@@ -3179,10 +2861,7 @@
     "normalization_status": "failed",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject01",
-    "support_frame_ids": [
-      4,
-      9
-    ],
+    "support_frame_ids": [4, 9],
     "roi_bbox": {
       "x": 1166.0,
       "y": 573,
@@ -3210,10 +2889,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject01",
-    "support_frame_ids": [
-      4,
-      9
-    ],
+    "support_frame_ids": [4, 9],
     "roi_bbox": {
       "x": 1246.0,
       "y": 631,
@@ -3241,10 +2917,7 @@
     "normalization_status": "failed",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject01",
-    "support_frame_ids": [
-      4,
-      9
-    ],
+    "support_frame_ids": [4, 9],
     "roi_bbox": {
       "x": 1166.0,
       "y": 631,
@@ -3272,10 +2945,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject01",
-    "support_frame_ids": [
-      4,
-      9
-    ],
+    "support_frame_ids": [4, 9],
     "roi_bbox": {
       "x": 1246.0,
       "y": 689,
@@ -3303,10 +2973,7 @@
     "normalization_status": "failed",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject01",
-    "support_frame_ids": [
-      4,
-      9
-    ],
+    "support_frame_ids": [4, 9],
     "roi_bbox": {
       "x": 1166.0,
       "y": 689,
@@ -3334,10 +3001,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject01",
-    "support_frame_ids": [
-      4,
-      9
-    ],
+    "support_frame_ids": [4, 9],
     "roi_bbox": {
       "x": 1246.0,
       "y": 746,
@@ -3365,10 +3029,7 @@
     "normalization_status": "failed",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject01",
-    "support_frame_ids": [
-      4,
-      9
-    ],
+    "support_frame_ids": [4, 9],
     "roi_bbox": {
       "x": 1166.0,
       "y": 746,
@@ -3396,10 +3057,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject01",
-    "support_frame_ids": [
-      4,
-      9
-    ],
+    "support_frame_ids": [4, 9],
     "roi_bbox": {
       "x": 1246.0,
       "y": 805,
@@ -3427,10 +3085,7 @@
     "normalization_status": "failed",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject01",
-    "support_frame_ids": [
-      4,
-      9
-    ],
+    "support_frame_ids": [4, 9],
     "roi_bbox": {
       "x": 1166.0,
       "y": 805,
@@ -3458,10 +3113,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject01",
-    "support_frame_ids": [
-      4,
-      9
-    ],
+    "support_frame_ids": [4, 9],
     "roi_bbox": {
       "x": 1533.0,
       "y": 573,
@@ -3489,10 +3141,7 @@
     "normalization_status": "failed",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject01",
-    "support_frame_ids": [
-      4,
-      9
-    ],
+    "support_frame_ids": [4, 9],
     "roi_bbox": {
       "x": 1453.0,
       "y": 573,
@@ -3520,10 +3169,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject01",
-    "support_frame_ids": [
-      4,
-      9
-    ],
+    "support_frame_ids": [4, 9],
     "roi_bbox": {
       "x": 1533.0,
       "y": 631,
@@ -3551,10 +3197,7 @@
     "normalization_status": "failed",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject01",
-    "support_frame_ids": [
-      4,
-      9
-    ],
+    "support_frame_ids": [4, 9],
     "roi_bbox": {
       "x": 1453.0,
       "y": 631,
@@ -3582,10 +3225,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject01",
-    "support_frame_ids": [
-      4,
-      9
-    ],
+    "support_frame_ids": [4, 9],
     "roi_bbox": {
       "x": 1533.0,
       "y": 689,
@@ -3613,10 +3253,7 @@
     "normalization_status": "failed",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject01",
-    "support_frame_ids": [
-      4,
-      9
-    ],
+    "support_frame_ids": [4, 9],
     "roi_bbox": {
       "x": 1453.0,
       "y": 689,
@@ -3644,10 +3281,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject01",
-    "support_frame_ids": [
-      4,
-      9
-    ],
+    "support_frame_ids": [4, 9],
     "roi_bbox": {
       "x": 1533.0,
       "y": 746,
@@ -3675,10 +3309,7 @@
     "normalization_status": "failed",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject01",
-    "support_frame_ids": [
-      4,
-      9
-    ],
+    "support_frame_ids": [4, 9],
     "roi_bbox": {
       "x": 1453.0,
       "y": 746,
@@ -3706,10 +3337,7 @@
     "normalization_status": "failed",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject01",
-    "support_frame_ids": [
-      4,
-      9
-    ],
+    "support_frame_ids": [4, 9],
     "roi_bbox": {
       "x": 1822.0,
       "y": 805,
@@ -3737,10 +3365,7 @@
     "normalization_status": "failed",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject01",
-    "support_frame_ids": [
-      4,
-      9
-    ],
+    "support_frame_ids": [4, 9],
     "roi_bbox": {
       "x": 1742.0,
       "y": 805,
@@ -3768,10 +3393,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject01",
-    "support_frame_ids": [
-      4,
-      9
-    ],
+    "support_frame_ids": [4, 9],
     "roi_bbox": {
       "x": 1822.0,
       "y": 573,
@@ -3799,10 +3421,7 @@
     "normalization_status": "failed",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject01",
-    "support_frame_ids": [
-      4,
-      9
-    ],
+    "support_frame_ids": [4, 9],
     "roi_bbox": {
       "x": 1742.0,
       "y": 573,
@@ -3830,10 +3449,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject01",
-    "support_frame_ids": [
-      4,
-      9
-    ],
+    "support_frame_ids": [4, 9],
     "roi_bbox": {
       "x": 1822.0,
       "y": 631,
@@ -3861,10 +3477,7 @@
     "normalization_status": "failed",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject01",
-    "support_frame_ids": [
-      4,
-      9
-    ],
+    "support_frame_ids": [4, 9],
     "roi_bbox": {
       "x": 1742.0,
       "y": 631,
@@ -3892,10 +3505,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject01",
-    "support_frame_ids": [
-      4,
-      9
-    ],
+    "support_frame_ids": [4, 9],
     "roi_bbox": {
       "x": 1822.0,
       "y": 689,
@@ -3923,10 +3533,7 @@
     "normalization_status": "failed",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject01",
-    "support_frame_ids": [
-      4,
-      9
-    ],
+    "support_frame_ids": [4, 9],
     "roi_bbox": {
       "x": 1742.0,
       "y": 689,
@@ -3954,10 +3561,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject01",
-    "support_frame_ids": [
-      4,
-      9
-    ],
+    "support_frame_ids": [4, 9],
     "roi_bbox": {
       "x": 0.23958333333333334,
       "y": 0.2777777777777778,
@@ -3985,10 +3589,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject01",
-    "support_frame_ids": [
-      4,
-      9
-    ],
+    "support_frame_ids": [4, 9],
     "roi_bbox": {
       "x": 0.2421875,
       "y": 0.2824074074074074,
@@ -4016,10 +3617,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject01",
-    "support_frame_ids": [
-      4,
-      9
-    ],
+    "support_frame_ids": [4, 9],
     "roi_bbox": {
       "x": 0.5,
       "y": 0.2777777777777778,
@@ -4047,10 +3645,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject01",
-    "support_frame_ids": [
-      4,
-      9
-    ],
+    "support_frame_ids": [4, 9],
     "roi_bbox": {
       "x": 0.5026041666666666,
       "y": 0.2824074074074074,
@@ -4078,10 +3673,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject01",
-    "support_frame_ids": [
-      4,
-      9
-    ],
+    "support_frame_ids": [4, 9],
     "roi_bbox": {
       "x": 0.7604166666666666,
       "y": 0.2777777777777778,
@@ -4109,10 +3701,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject01",
-    "support_frame_ids": [
-      4,
-      9
-    ],
+    "support_frame_ids": [4, 9],
     "roi_bbox": {
       "x": 0.7630208333333334,
       "y": 0.2824074074074074,
@@ -4140,9 +3729,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject02",
-    "support_frame_ids": [
-      5
-    ],
+    "support_frame_ids": [5],
     "roi_bbox": null,
     "template_version": null,
     "row_key": null,
@@ -4165,9 +3752,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject02",
-    "support_frame_ids": [
-      5
-    ],
+    "support_frame_ids": [5],
     "roi_bbox": null,
     "template_version": null,
     "row_key": null,
@@ -4190,9 +3775,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject02",
-    "support_frame_ids": [
-      5
-    ],
+    "support_frame_ids": [5],
     "roi_bbox": null,
     "template_version": null,
     "row_key": null,
@@ -4215,9 +3798,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject02",
-    "support_frame_ids": [
-      5
-    ],
+    "support_frame_ids": [5],
     "roi_bbox": null,
     "template_version": null,
     "row_key": null,
@@ -4240,9 +3821,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject02",
-    "support_frame_ids": [
-      5
-    ],
+    "support_frame_ids": [5],
     "roi_bbox": null,
     "template_version": null,
     "row_key": null,
@@ -4265,9 +3844,7 @@
     "normalization_status": "unnormalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject02",
-    "support_frame_ids": [
-      5
-    ],
+    "support_frame_ids": [5],
     "roi_bbox": null,
     "template_version": null,
     "row_key": null,
@@ -4290,9 +3867,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject02",
-    "support_frame_ids": [
-      5
-    ],
+    "support_frame_ids": [5],
     "roi_bbox": null,
     "template_version": null,
     "row_key": null,
@@ -4315,9 +3890,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject02",
-    "support_frame_ids": [
-      5
-    ],
+    "support_frame_ids": [5],
     "roi_bbox": null,
     "template_version": null,
     "row_key": null,
@@ -4340,9 +3913,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject02",
-    "support_frame_ids": [
-      5
-    ],
+    "support_frame_ids": [5],
     "roi_bbox": null,
     "template_version": null,
     "row_key": null,
@@ -4365,9 +3936,7 @@
     "normalization_status": "failed",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject02",
-    "support_frame_ids": [
-      5
-    ],
+    "support_frame_ids": [5],
     "roi_bbox": null,
     "template_version": null,
     "row_key": null,
@@ -4390,9 +3959,7 @@
     "normalization_status": "failed",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject02",
-    "support_frame_ids": [
-      5
-    ],
+    "support_frame_ids": [5],
     "roi_bbox": null,
     "template_version": null,
     "row_key": null,
@@ -4415,9 +3982,7 @@
     "normalization_status": "failed",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject02",
-    "support_frame_ids": [
-      5
-    ],
+    "support_frame_ids": [5],
     "roi_bbox": null,
     "template_version": null,
     "row_key": null,
@@ -4440,9 +4005,7 @@
     "normalization_status": "failed",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject02",
-    "support_frame_ids": [
-      5
-    ],
+    "support_frame_ids": [5],
     "roi_bbox": null,
     "template_version": null,
     "row_key": null,
@@ -4465,9 +4028,7 @@
     "normalization_status": "failed",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject02",
-    "support_frame_ids": [
-      5
-    ],
+    "support_frame_ids": [5],
     "roi_bbox": null,
     "template_version": null,
     "row_key": null,
@@ -4490,9 +4051,7 @@
     "normalization_status": "failed",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject02",
-    "support_frame_ids": [
-      5
-    ],
+    "support_frame_ids": [5],
     "roi_bbox": null,
     "template_version": null,
     "row_key": null,
@@ -4515,9 +4074,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject02",
-    "support_frame_ids": [
-      5
-    ],
+    "support_frame_ids": [5],
     "roi_bbox": {
       "x": 661.0,
       "y": 573,
@@ -4545,9 +4102,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject02",
-    "support_frame_ids": [
-      5
-    ],
+    "support_frame_ids": [5],
     "roi_bbox": {
       "x": 581.0,
       "y": 573,
@@ -4575,9 +4130,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject02",
-    "support_frame_ids": [
-      5
-    ],
+    "support_frame_ids": [5],
     "roi_bbox": {
       "x": 661.0,
       "y": 631,
@@ -4605,9 +4158,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject02",
-    "support_frame_ids": [
-      5
-    ],
+    "support_frame_ids": [5],
     "roi_bbox": {
       "x": 581.0,
       "y": 631,
@@ -4635,9 +4186,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject02",
-    "support_frame_ids": [
-      5
-    ],
+    "support_frame_ids": [5],
     "roi_bbox": {
       "x": 661.0,
       "y": 689,
@@ -4665,9 +4214,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject02",
-    "support_frame_ids": [
-      5
-    ],
+    "support_frame_ids": [5],
     "roi_bbox": {
       "x": 581.0,
       "y": 689,
@@ -4695,9 +4242,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject02",
-    "support_frame_ids": [
-      5
-    ],
+    "support_frame_ids": [5],
     "roi_bbox": {
       "x": 661.0,
       "y": 746,
@@ -4725,9 +4270,7 @@
     "normalization_status": "failed",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject02",
-    "support_frame_ids": [
-      5
-    ],
+    "support_frame_ids": [5],
     "roi_bbox": {
       "x": 581.0,
       "y": 746,
@@ -4755,9 +4298,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject02",
-    "support_frame_ids": [
-      5
-    ],
+    "support_frame_ids": [5],
     "roi_bbox": {
       "x": 581.0,
       "y": 746,
@@ -4785,9 +4326,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject02",
-    "support_frame_ids": [
-      5
-    ],
+    "support_frame_ids": [5],
     "roi_bbox": {
       "x": 661.0,
       "y": 805,
@@ -4815,9 +4354,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject02",
-    "support_frame_ids": [
-      5
-    ],
+    "support_frame_ids": [5],
     "roi_bbox": {
       "x": 581.0,
       "y": 805,
@@ -4845,9 +4382,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject02",
-    "support_frame_ids": [
-      5
-    ],
+    "support_frame_ids": [5],
     "roi_bbox": {
       "x": 939.0,
       "y": 573,
@@ -4875,9 +4410,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject02",
-    "support_frame_ids": [
-      5
-    ],
+    "support_frame_ids": [5],
     "roi_bbox": {
       "x": 859.0,
       "y": 573,
@@ -4905,9 +4438,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject02",
-    "support_frame_ids": [
-      5
-    ],
+    "support_frame_ids": [5],
     "roi_bbox": {
       "x": 939.0,
       "y": 631,
@@ -4935,9 +4466,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject02",
-    "support_frame_ids": [
-      5
-    ],
+    "support_frame_ids": [5],
     "roi_bbox": {
       "x": 859.0,
       "y": 631,
@@ -4965,9 +4494,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject02",
-    "support_frame_ids": [
-      5
-    ],
+    "support_frame_ids": [5],
     "roi_bbox": {
       "x": 939.0,
       "y": 689,
@@ -4995,9 +4522,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject02",
-    "support_frame_ids": [
-      5
-    ],
+    "support_frame_ids": [5],
     "roi_bbox": {
       "x": 859.0,
       "y": 689,
@@ -5025,9 +4550,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject02",
-    "support_frame_ids": [
-      5
-    ],
+    "support_frame_ids": [5],
     "roi_bbox": {
       "x": 939.0,
       "y": 746,
@@ -5055,9 +4578,7 @@
     "normalization_status": "failed",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject02",
-    "support_frame_ids": [
-      5
-    ],
+    "support_frame_ids": [5],
     "roi_bbox": {
       "x": 859.0,
       "y": 746,
@@ -5085,9 +4606,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject02",
-    "support_frame_ids": [
-      5
-    ],
+    "support_frame_ids": [5],
     "roi_bbox": {
       "x": 939.0,
       "y": 805,
@@ -5115,9 +4634,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject02",
-    "support_frame_ids": [
-      5
-    ],
+    "support_frame_ids": [5],
     "roi_bbox": {
       "x": 859.0,
       "y": 805,
@@ -5145,9 +4662,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject02",
-    "support_frame_ids": [
-      5
-    ],
+    "support_frame_ids": [5],
     "roi_bbox": {
       "x": 1246.0,
       "y": 573,
@@ -5175,9 +4690,7 @@
     "normalization_status": "failed",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject02",
-    "support_frame_ids": [
-      5
-    ],
+    "support_frame_ids": [5],
     "roi_bbox": {
       "x": 1166.0,
       "y": 573,
@@ -5205,9 +4718,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject02",
-    "support_frame_ids": [
-      5
-    ],
+    "support_frame_ids": [5],
     "roi_bbox": {
       "x": 1246.0,
       "y": 631,
@@ -5235,9 +4746,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject02",
-    "support_frame_ids": [
-      5
-    ],
+    "support_frame_ids": [5],
     "roi_bbox": {
       "x": 1166.0,
       "y": 631,
@@ -5265,9 +4774,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject02",
-    "support_frame_ids": [
-      5
-    ],
+    "support_frame_ids": [5],
     "roi_bbox": {
       "x": 1246.0,
       "y": 689,
@@ -5295,9 +4802,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject02",
-    "support_frame_ids": [
-      5
-    ],
+    "support_frame_ids": [5],
     "roi_bbox": {
       "x": 1166.0,
       "y": 689,
@@ -5325,9 +4830,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject02",
-    "support_frame_ids": [
-      5
-    ],
+    "support_frame_ids": [5],
     "roi_bbox": {
       "x": 1246.0,
       "y": 746,
@@ -5355,9 +4858,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject02",
-    "support_frame_ids": [
-      5
-    ],
+    "support_frame_ids": [5],
     "roi_bbox": {
       "x": 1166.0,
       "y": 746,
@@ -5385,9 +4886,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject02",
-    "support_frame_ids": [
-      5
-    ],
+    "support_frame_ids": [5],
     "roi_bbox": {
       "x": 1246.0,
       "y": 805,
@@ -5415,9 +4914,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject02",
-    "support_frame_ids": [
-      5
-    ],
+    "support_frame_ids": [5],
     "roi_bbox": {
       "x": 1166.0,
       "y": 805,
@@ -5445,9 +4942,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject02",
-    "support_frame_ids": [
-      5
-    ],
+    "support_frame_ids": [5],
     "roi_bbox": {
       "x": 1533.0,
       "y": 573,
@@ -5475,9 +4970,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject02",
-    "support_frame_ids": [
-      5
-    ],
+    "support_frame_ids": [5],
     "roi_bbox": {
       "x": 1453.0,
       "y": 573,
@@ -5505,9 +4998,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject02",
-    "support_frame_ids": [
-      5
-    ],
+    "support_frame_ids": [5],
     "roi_bbox": {
       "x": 1533.0,
       "y": 631,
@@ -5535,9 +5026,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject02",
-    "support_frame_ids": [
-      5
-    ],
+    "support_frame_ids": [5],
     "roi_bbox": {
       "x": 1453.0,
       "y": 631,
@@ -5565,9 +5054,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject02",
-    "support_frame_ids": [
-      5
-    ],
+    "support_frame_ids": [5],
     "roi_bbox": {
       "x": 1533.0,
       "y": 689,
@@ -5595,9 +5082,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject02",
-    "support_frame_ids": [
-      5
-    ],
+    "support_frame_ids": [5],
     "roi_bbox": {
       "x": 1453.0,
       "y": 689,
@@ -5625,9 +5110,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject02",
-    "support_frame_ids": [
-      5
-    ],
+    "support_frame_ids": [5],
     "roi_bbox": {
       "x": 1533.0,
       "y": 746,
@@ -5655,9 +5138,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject02",
-    "support_frame_ids": [
-      5
-    ],
+    "support_frame_ids": [5],
     "roi_bbox": {
       "x": 1453.0,
       "y": 746,
@@ -5685,9 +5166,7 @@
     "normalization_status": "failed",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject02",
-    "support_frame_ids": [
-      5
-    ],
+    "support_frame_ids": [5],
     "roi_bbox": {
       "x": 1822.0,
       "y": 805,
@@ -5715,9 +5194,7 @@
     "normalization_status": "failed",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject02",
-    "support_frame_ids": [
-      5
-    ],
+    "support_frame_ids": [5],
     "roi_bbox": {
       "x": 1742.0,
       "y": 805,
@@ -5745,9 +5222,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject02",
-    "support_frame_ids": [
-      5
-    ],
+    "support_frame_ids": [5],
     "roi_bbox": {
       "x": 1822.0,
       "y": 573,
@@ -5775,9 +5250,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject02",
-    "support_frame_ids": [
-      5
-    ],
+    "support_frame_ids": [5],
     "roi_bbox": {
       "x": 1742.0,
       "y": 573,
@@ -5805,9 +5278,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject02",
-    "support_frame_ids": [
-      5
-    ],
+    "support_frame_ids": [5],
     "roi_bbox": {
       "x": 1822.0,
       "y": 631,
@@ -5835,9 +5306,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject02",
-    "support_frame_ids": [
-      5
-    ],
+    "support_frame_ids": [5],
     "roi_bbox": {
       "x": 1742.0,
       "y": 631,
@@ -5865,9 +5334,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject02",
-    "support_frame_ids": [
-      5
-    ],
+    "support_frame_ids": [5],
     "roi_bbox": {
       "x": 1822.0,
       "y": 689,
@@ -5895,9 +5362,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject02",
-    "support_frame_ids": [
-      5
-    ],
+    "support_frame_ids": [5],
     "roi_bbox": {
       "x": 1742.0,
       "y": 689,
@@ -5925,9 +5390,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject02",
-    "support_frame_ids": [
-      5
-    ],
+    "support_frame_ids": [5],
     "roi_bbox": {
       "x": 0.23958333333333334,
       "y": 0.2777777777777778,
@@ -5955,9 +5418,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject02",
-    "support_frame_ids": [
-      5
-    ],
+    "support_frame_ids": [5],
     "roi_bbox": {
       "x": 0.5,
       "y": 0.2777777777777778,
@@ -5985,9 +5446,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject02",
-    "support_frame_ids": [
-      5
-    ],
+    "support_frame_ids": [5],
     "roi_bbox": {
       "x": 0.7604166666666666,
       "y": 0.2777777777777778,
@@ -6015,9 +5474,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject03",
-    "support_frame_ids": [
-      6
-    ],
+    "support_frame_ids": [6],
     "roi_bbox": null,
     "template_version": null,
     "row_key": null,
@@ -6040,9 +5497,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject03",
-    "support_frame_ids": [
-      6
-    ],
+    "support_frame_ids": [6],
     "roi_bbox": null,
     "template_version": null,
     "row_key": null,
@@ -6065,9 +5520,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject03",
-    "support_frame_ids": [
-      6
-    ],
+    "support_frame_ids": [6],
     "roi_bbox": null,
     "template_version": null,
     "row_key": null,
@@ -6090,9 +5543,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject03",
-    "support_frame_ids": [
-      6
-    ],
+    "support_frame_ids": [6],
     "roi_bbox": null,
     "template_version": null,
     "row_key": null,
@@ -6115,9 +5566,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject03",
-    "support_frame_ids": [
-      6
-    ],
+    "support_frame_ids": [6],
     "roi_bbox": null,
     "template_version": null,
     "row_key": null,
@@ -6140,9 +5589,7 @@
     "normalization_status": "unnormalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject03",
-    "support_frame_ids": [
-      6
-    ],
+    "support_frame_ids": [6],
     "roi_bbox": null,
     "template_version": null,
     "row_key": null,
@@ -6165,9 +5612,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject03",
-    "support_frame_ids": [
-      6
-    ],
+    "support_frame_ids": [6],
     "roi_bbox": null,
     "template_version": null,
     "row_key": null,
@@ -6190,9 +5635,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject03",
-    "support_frame_ids": [
-      6
-    ],
+    "support_frame_ids": [6],
     "roi_bbox": null,
     "template_version": null,
     "row_key": null,
@@ -6215,9 +5658,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject03",
-    "support_frame_ids": [
-      6
-    ],
+    "support_frame_ids": [6],
     "roi_bbox": null,
     "template_version": null,
     "row_key": null,
@@ -6240,9 +5681,7 @@
     "normalization_status": "failed",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject03",
-    "support_frame_ids": [
-      6
-    ],
+    "support_frame_ids": [6],
     "roi_bbox": null,
     "template_version": null,
     "row_key": null,
@@ -6265,9 +5704,7 @@
     "normalization_status": "failed",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject03",
-    "support_frame_ids": [
-      6
-    ],
+    "support_frame_ids": [6],
     "roi_bbox": null,
     "template_version": null,
     "row_key": null,
@@ -6290,9 +5727,7 @@
     "normalization_status": "failed",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject03",
-    "support_frame_ids": [
-      6
-    ],
+    "support_frame_ids": [6],
     "roi_bbox": null,
     "template_version": null,
     "row_key": null,
@@ -6315,9 +5750,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject03",
-    "support_frame_ids": [
-      6
-    ],
+    "support_frame_ids": [6],
     "roi_bbox": {
       "x": 0.2421875,
       "y": 0.2824074074074074,
@@ -6345,9 +5778,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject03",
-    "support_frame_ids": [
-      6
-    ],
+    "support_frame_ids": [6],
     "roi_bbox": {
       "x": 0.5026041666666666,
       "y": 0.2824074074074074,
@@ -6375,9 +5806,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject03",
-    "support_frame_ids": [
-      6
-    ],
+    "support_frame_ids": [6],
     "roi_bbox": {
       "x": 0.7630208333333334,
       "y": 0.2824074074074074,
@@ -6405,9 +5834,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject03",
-    "support_frame_ids": [
-      6
-    ],
+    "support_frame_ids": [6],
     "roi_bbox": {
       "x": 661.0,
       "y": 573,
@@ -6435,9 +5862,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject03",
-    "support_frame_ids": [
-      6
-    ],
+    "support_frame_ids": [6],
     "roi_bbox": {
       "x": 581.0,
       "y": 573,
@@ -6465,9 +5890,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject03",
-    "support_frame_ids": [
-      6
-    ],
+    "support_frame_ids": [6],
     "roi_bbox": {
       "x": 661.0,
       "y": 631,
@@ -6495,9 +5918,7 @@
     "normalization_status": "failed",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject03",
-    "support_frame_ids": [
-      6
-    ],
+    "support_frame_ids": [6],
     "roi_bbox": {
       "x": 581.0,
       "y": 631,
@@ -6525,9 +5946,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject03",
-    "support_frame_ids": [
-      6
-    ],
+    "support_frame_ids": [6],
     "roi_bbox": {
       "x": 661.0,
       "y": 689,
@@ -6555,9 +5974,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject03",
-    "support_frame_ids": [
-      6
-    ],
+    "support_frame_ids": [6],
     "roi_bbox": {
       "x": 581.0,
       "y": 689,
@@ -6585,9 +6002,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject03",
-    "support_frame_ids": [
-      6
-    ],
+    "support_frame_ids": [6],
     "roi_bbox": {
       "x": 661.0,
       "y": 746,
@@ -6615,9 +6030,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject03",
-    "support_frame_ids": [
-      6
-    ],
+    "support_frame_ids": [6],
     "roi_bbox": {
       "x": 581.0,
       "y": 746,
@@ -6645,9 +6058,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject03",
-    "support_frame_ids": [
-      6
-    ],
+    "support_frame_ids": [6],
     "roi_bbox": {
       "x": 661.0,
       "y": 805,
@@ -6675,9 +6086,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject03",
-    "support_frame_ids": [
-      6
-    ],
+    "support_frame_ids": [6],
     "roi_bbox": {
       "x": 581.0,
       "y": 805,
@@ -6705,9 +6114,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject03",
-    "support_frame_ids": [
-      6
-    ],
+    "support_frame_ids": [6],
     "roi_bbox": {
       "x": 939.0,
       "y": 573,
@@ -6735,9 +6142,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject03",
-    "support_frame_ids": [
-      6
-    ],
+    "support_frame_ids": [6],
     "roi_bbox": {
       "x": 859.0,
       "y": 573,
@@ -6765,9 +6170,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject03",
-    "support_frame_ids": [
-      6
-    ],
+    "support_frame_ids": [6],
     "roi_bbox": {
       "x": 939.0,
       "y": 631,
@@ -6795,9 +6198,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject03",
-    "support_frame_ids": [
-      6
-    ],
+    "support_frame_ids": [6],
     "roi_bbox": {
       "x": 859.0,
       "y": 631,
@@ -6825,9 +6226,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject03",
-    "support_frame_ids": [
-      6
-    ],
+    "support_frame_ids": [6],
     "roi_bbox": {
       "x": 939.0,
       "y": 689,
@@ -6855,9 +6254,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject03",
-    "support_frame_ids": [
-      6
-    ],
+    "support_frame_ids": [6],
     "roi_bbox": {
       "x": 859.0,
       "y": 689,
@@ -6885,9 +6282,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject03",
-    "support_frame_ids": [
-      6
-    ],
+    "support_frame_ids": [6],
     "roi_bbox": {
       "x": 939.0,
       "y": 746,
@@ -6915,9 +6310,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject03",
-    "support_frame_ids": [
-      6
-    ],
+    "support_frame_ids": [6],
     "roi_bbox": {
       "x": 859.0,
       "y": 746,
@@ -6945,9 +6338,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject03",
-    "support_frame_ids": [
-      6
-    ],
+    "support_frame_ids": [6],
     "roi_bbox": {
       "x": 939.0,
       "y": 805,
@@ -6975,9 +6366,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject03",
-    "support_frame_ids": [
-      6
-    ],
+    "support_frame_ids": [6],
     "roi_bbox": {
       "x": 859.0,
       "y": 805,
@@ -7005,9 +6394,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject03",
-    "support_frame_ids": [
-      6
-    ],
+    "support_frame_ids": [6],
     "roi_bbox": {
       "x": 1246.0,
       "y": 573,
@@ -7035,9 +6422,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject03",
-    "support_frame_ids": [
-      6
-    ],
+    "support_frame_ids": [6],
     "roi_bbox": {
       "x": 1166.0,
       "y": 573,
@@ -7065,9 +6450,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject03",
-    "support_frame_ids": [
-      6
-    ],
+    "support_frame_ids": [6],
     "roi_bbox": {
       "x": 1246.0,
       "y": 631,
@@ -7095,9 +6478,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject03",
-    "support_frame_ids": [
-      6
-    ],
+    "support_frame_ids": [6],
     "roi_bbox": {
       "x": 1166.0,
       "y": 631,
@@ -7125,9 +6506,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject03",
-    "support_frame_ids": [
-      6
-    ],
+    "support_frame_ids": [6],
     "roi_bbox": {
       "x": 1246.0,
       "y": 689,
@@ -7155,9 +6534,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject03",
-    "support_frame_ids": [
-      6
-    ],
+    "support_frame_ids": [6],
     "roi_bbox": {
       "x": 1166.0,
       "y": 689,
@@ -7185,9 +6562,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject03",
-    "support_frame_ids": [
-      6
-    ],
+    "support_frame_ids": [6],
     "roi_bbox": {
       "x": 1246.0,
       "y": 746,
@@ -7215,9 +6590,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject03",
-    "support_frame_ids": [
-      6
-    ],
+    "support_frame_ids": [6],
     "roi_bbox": {
       "x": 1166.0,
       "y": 746,
@@ -7245,9 +6618,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject03",
-    "support_frame_ids": [
-      6
-    ],
+    "support_frame_ids": [6],
     "roi_bbox": {
       "x": 1246.0,
       "y": 805,
@@ -7275,9 +6646,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject03",
-    "support_frame_ids": [
-      6
-    ],
+    "support_frame_ids": [6],
     "roi_bbox": {
       "x": 1166.0,
       "y": 805,
@@ -7305,9 +6674,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject03",
-    "support_frame_ids": [
-      6
-    ],
+    "support_frame_ids": [6],
     "roi_bbox": {
       "x": 1533.0,
       "y": 573,
@@ -7335,9 +6702,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject03",
-    "support_frame_ids": [
-      6
-    ],
+    "support_frame_ids": [6],
     "roi_bbox": {
       "x": 1453.0,
       "y": 573,
@@ -7365,9 +6730,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject03",
-    "support_frame_ids": [
-      6
-    ],
+    "support_frame_ids": [6],
     "roi_bbox": {
       "x": 1533.0,
       "y": 631,
@@ -7395,9 +6758,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject03",
-    "support_frame_ids": [
-      6
-    ],
+    "support_frame_ids": [6],
     "roi_bbox": {
       "x": 1453.0,
       "y": 631,
@@ -7425,9 +6786,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject03",
-    "support_frame_ids": [
-      6
-    ],
+    "support_frame_ids": [6],
     "roi_bbox": {
       "x": 1533.0,
       "y": 689,
@@ -7455,9 +6814,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject03",
-    "support_frame_ids": [
-      6
-    ],
+    "support_frame_ids": [6],
     "roi_bbox": {
       "x": 1453.0,
       "y": 689,
@@ -7485,9 +6842,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject03",
-    "support_frame_ids": [
-      6
-    ],
+    "support_frame_ids": [6],
     "roi_bbox": {
       "x": 1533.0,
       "y": 746,
@@ -7515,9 +6870,7 @@
     "normalization_status": "failed",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject03",
-    "support_frame_ids": [
-      6
-    ],
+    "support_frame_ids": [6],
     "roi_bbox": {
       "x": 1453.0,
       "y": 746,
@@ -7545,9 +6898,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject03",
-    "support_frame_ids": [
-      6
-    ],
+    "support_frame_ids": [6],
     "roi_bbox": {
       "x": 1453.0,
       "y": 746,
@@ -7575,9 +6926,7 @@
     "normalization_status": "failed",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject03",
-    "support_frame_ids": [
-      6
-    ],
+    "support_frame_ids": [6],
     "roi_bbox": {
       "x": 1822.0,
       "y": 805,
@@ -7605,9 +6954,7 @@
     "normalization_status": "failed",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject03",
-    "support_frame_ids": [
-      6
-    ],
+    "support_frame_ids": [6],
     "roi_bbox": {
       "x": 1742.0,
       "y": 805,
@@ -7635,9 +6982,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject03",
-    "support_frame_ids": [
-      6
-    ],
+    "support_frame_ids": [6],
     "roi_bbox": {
       "x": 1822.0,
       "y": 573,
@@ -7665,9 +7010,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject03",
-    "support_frame_ids": [
-      6
-    ],
+    "support_frame_ids": [6],
     "roi_bbox": {
       "x": 1742.0,
       "y": 573,
@@ -7695,9 +7038,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject03",
-    "support_frame_ids": [
-      6
-    ],
+    "support_frame_ids": [6],
     "roi_bbox": {
       "x": 1822.0,
       "y": 631,
@@ -7725,9 +7066,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject03",
-    "support_frame_ids": [
-      6
-    ],
+    "support_frame_ids": [6],
     "roi_bbox": {
       "x": 1742.0,
       "y": 631,
@@ -7755,9 +7094,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject03",
-    "support_frame_ids": [
-      6
-    ],
+    "support_frame_ids": [6],
     "roi_bbox": {
       "x": 1822.0,
       "y": 689,
@@ -7785,9 +7122,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject03",
-    "support_frame_ids": [
-      6
-    ],
+    "support_frame_ids": [6],
     "roi_bbox": {
       "x": 1742.0,
       "y": 689,
@@ -7815,9 +7150,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject03",
-    "support_frame_ids": [
-      6
-    ],
+    "support_frame_ids": [6],
     "roi_bbox": {
       "x": 0.23958333333333334,
       "y": 0.2777777777777778,
@@ -7845,9 +7178,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject03",
-    "support_frame_ids": [
-      6
-    ],
+    "support_frame_ids": [6],
     "roi_bbox": {
       "x": 0.2421875,
       "y": 0.2824074074074074,
@@ -7875,9 +7206,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject03",
-    "support_frame_ids": [
-      6
-    ],
+    "support_frame_ids": [6],
     "roi_bbox": {
       "x": 0.5,
       "y": 0.2777777777777778,
@@ -7905,9 +7234,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject03",
-    "support_frame_ids": [
-      6
-    ],
+    "support_frame_ids": [6],
     "roi_bbox": {
       "x": 0.5026041666666666,
       "y": 0.2824074074074074,
@@ -7935,9 +7262,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject03",
-    "support_frame_ids": [
-      6
-    ],
+    "support_frame_ids": [6],
     "roi_bbox": {
       "x": 0.7604166666666666,
       "y": 0.2777777777777778,
@@ -7965,9 +7290,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject03",
-    "support_frame_ids": [
-      6
-    ],
+    "support_frame_ids": [6],
     "roi_bbox": {
       "x": 0.7630208333333334,
       "y": 0.2824074074074074,
@@ -7995,9 +7318,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject04",
-    "support_frame_ids": [
-      7
-    ],
+    "support_frame_ids": [7],
     "roi_bbox": null,
     "template_version": null,
     "row_key": null,
@@ -8020,9 +7341,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject04",
-    "support_frame_ids": [
-      7
-    ],
+    "support_frame_ids": [7],
     "roi_bbox": null,
     "template_version": null,
     "row_key": null,
@@ -8045,9 +7364,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject04",
-    "support_frame_ids": [
-      7
-    ],
+    "support_frame_ids": [7],
     "roi_bbox": null,
     "template_version": null,
     "row_key": null,
@@ -8070,9 +7387,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject04",
-    "support_frame_ids": [
-      7
-    ],
+    "support_frame_ids": [7],
     "roi_bbox": null,
     "template_version": null,
     "row_key": null,
@@ -8095,9 +7410,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject04",
-    "support_frame_ids": [
-      7
-    ],
+    "support_frame_ids": [7],
     "roi_bbox": null,
     "template_version": null,
     "row_key": null,
@@ -8120,9 +7433,7 @@
     "normalization_status": "unnormalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject04",
-    "support_frame_ids": [
-      7
-    ],
+    "support_frame_ids": [7],
     "roi_bbox": null,
     "template_version": null,
     "row_key": null,
@@ -8145,9 +7456,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject04",
-    "support_frame_ids": [
-      7
-    ],
+    "support_frame_ids": [7],
     "roi_bbox": null,
     "template_version": null,
     "row_key": null,
@@ -8170,9 +7479,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject04",
-    "support_frame_ids": [
-      7
-    ],
+    "support_frame_ids": [7],
     "roi_bbox": null,
     "template_version": null,
     "row_key": null,
@@ -8195,9 +7502,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject04",
-    "support_frame_ids": [
-      7
-    ],
+    "support_frame_ids": [7],
     "roi_bbox": null,
     "template_version": null,
     "row_key": null,
@@ -8220,9 +7525,7 @@
     "normalization_status": "failed",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject04",
-    "support_frame_ids": [
-      7
-    ],
+    "support_frame_ids": [7],
     "roi_bbox": null,
     "template_version": null,
     "row_key": null,
@@ -8245,9 +7548,7 @@
     "normalization_status": "failed",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject04",
-    "support_frame_ids": [
-      7
-    ],
+    "support_frame_ids": [7],
     "roi_bbox": null,
     "template_version": null,
     "row_key": null,
@@ -8270,9 +7571,7 @@
     "normalization_status": "failed",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject04",
-    "support_frame_ids": [
-      7
-    ],
+    "support_frame_ids": [7],
     "roi_bbox": null,
     "template_version": null,
     "row_key": null,
@@ -8295,9 +7594,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject04",
-    "support_frame_ids": [
-      7
-    ],
+    "support_frame_ids": [7],
     "roi_bbox": {
       "x": 0.2421875,
       "y": 0.2824074074074074,
@@ -8325,9 +7622,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject04",
-    "support_frame_ids": [
-      7
-    ],
+    "support_frame_ids": [7],
     "roi_bbox": {
       "x": 0.5026041666666666,
       "y": 0.2824074074074074,
@@ -8355,9 +7650,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject04",
-    "support_frame_ids": [
-      7
-    ],
+    "support_frame_ids": [7],
     "roi_bbox": {
       "x": 0.7630208333333334,
       "y": 0.2824074074074074,
@@ -8385,9 +7678,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject04",
-    "support_frame_ids": [
-      7
-    ],
+    "support_frame_ids": [7],
     "roi_bbox": {
       "x": 661.0,
       "y": 573,
@@ -8415,9 +7706,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject04",
-    "support_frame_ids": [
-      7
-    ],
+    "support_frame_ids": [7],
     "roi_bbox": {
       "x": 581.0,
       "y": 573,
@@ -8445,9 +7734,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject04",
-    "support_frame_ids": [
-      7
-    ],
+    "support_frame_ids": [7],
     "roi_bbox": {
       "x": 661.0,
       "y": 631,
@@ -8475,9 +7762,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject04",
-    "support_frame_ids": [
-      7
-    ],
+    "support_frame_ids": [7],
     "roi_bbox": {
       "x": 581.0,
       "y": 631,
@@ -8505,9 +7790,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject04",
-    "support_frame_ids": [
-      7
-    ],
+    "support_frame_ids": [7],
     "roi_bbox": {
       "x": 661.0,
       "y": 689,
@@ -8535,9 +7818,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject04",
-    "support_frame_ids": [
-      7
-    ],
+    "support_frame_ids": [7],
     "roi_bbox": {
       "x": 581.0,
       "y": 689,
@@ -8565,9 +7846,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject04",
-    "support_frame_ids": [
-      7
-    ],
+    "support_frame_ids": [7],
     "roi_bbox": {
       "x": 661.0,
       "y": 746,
@@ -8595,9 +7874,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject04",
-    "support_frame_ids": [
-      7
-    ],
+    "support_frame_ids": [7],
     "roi_bbox": {
       "x": 581.0,
       "y": 746,
@@ -8625,9 +7902,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject04",
-    "support_frame_ids": [
-      7
-    ],
+    "support_frame_ids": [7],
     "roi_bbox": {
       "x": 661.0,
       "y": 805,
@@ -8655,9 +7930,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject04",
-    "support_frame_ids": [
-      7
-    ],
+    "support_frame_ids": [7],
     "roi_bbox": {
       "x": 581.0,
       "y": 805,
@@ -8685,9 +7958,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject04",
-    "support_frame_ids": [
-      7
-    ],
+    "support_frame_ids": [7],
     "roi_bbox": {
       "x": 939.0,
       "y": 573,
@@ -8715,9 +7986,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject04",
-    "support_frame_ids": [
-      7
-    ],
+    "support_frame_ids": [7],
     "roi_bbox": {
       "x": 859.0,
       "y": 573,
@@ -8745,9 +8014,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject04",
-    "support_frame_ids": [
-      7
-    ],
+    "support_frame_ids": [7],
     "roi_bbox": {
       "x": 939.0,
       "y": 631,
@@ -8775,9 +8042,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject04",
-    "support_frame_ids": [
-      7
-    ],
+    "support_frame_ids": [7],
     "roi_bbox": {
       "x": 859.0,
       "y": 631,
@@ -8805,9 +8070,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject04",
-    "support_frame_ids": [
-      7
-    ],
+    "support_frame_ids": [7],
     "roi_bbox": {
       "x": 939.0,
       "y": 689,
@@ -8835,9 +8098,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject04",
-    "support_frame_ids": [
-      7
-    ],
+    "support_frame_ids": [7],
     "roi_bbox": {
       "x": 859.0,
       "y": 689,
@@ -8865,9 +8126,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject04",
-    "support_frame_ids": [
-      7
-    ],
+    "support_frame_ids": [7],
     "roi_bbox": {
       "x": 939.0,
       "y": 746,
@@ -8895,9 +8154,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject04",
-    "support_frame_ids": [
-      7
-    ],
+    "support_frame_ids": [7],
     "roi_bbox": {
       "x": 859.0,
       "y": 746,
@@ -8925,9 +8182,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject04",
-    "support_frame_ids": [
-      7
-    ],
+    "support_frame_ids": [7],
     "roi_bbox": {
       "x": 939.0,
       "y": 805,
@@ -8955,9 +8210,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject04",
-    "support_frame_ids": [
-      7
-    ],
+    "support_frame_ids": [7],
     "roi_bbox": {
       "x": 859.0,
       "y": 805,
@@ -8985,9 +8238,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject04",
-    "support_frame_ids": [
-      7
-    ],
+    "support_frame_ids": [7],
     "roi_bbox": {
       "x": 1246.0,
       "y": 573,
@@ -9015,9 +8266,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject04",
-    "support_frame_ids": [
-      7
-    ],
+    "support_frame_ids": [7],
     "roi_bbox": {
       "x": 1166.0,
       "y": 573,
@@ -9045,9 +8294,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject04",
-    "support_frame_ids": [
-      7
-    ],
+    "support_frame_ids": [7],
     "roi_bbox": {
       "x": 1246.0,
       "y": 631,
@@ -9075,9 +8322,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject04",
-    "support_frame_ids": [
-      7
-    ],
+    "support_frame_ids": [7],
     "roi_bbox": {
       "x": 1166.0,
       "y": 631,
@@ -9105,9 +8350,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject04",
-    "support_frame_ids": [
-      7
-    ],
+    "support_frame_ids": [7],
     "roi_bbox": {
       "x": 1246.0,
       "y": 689,
@@ -9135,9 +8378,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject04",
-    "support_frame_ids": [
-      7
-    ],
+    "support_frame_ids": [7],
     "roi_bbox": {
       "x": 1166.0,
       "y": 689,
@@ -9165,9 +8406,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject04",
-    "support_frame_ids": [
-      7
-    ],
+    "support_frame_ids": [7],
     "roi_bbox": {
       "x": 1246.0,
       "y": 746,
@@ -9195,9 +8434,7 @@
     "normalization_status": "failed",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject04",
-    "support_frame_ids": [
-      7
-    ],
+    "support_frame_ids": [7],
     "roi_bbox": {
       "x": 1166.0,
       "y": 746,
@@ -9225,9 +8462,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject04",
-    "support_frame_ids": [
-      7
-    ],
+    "support_frame_ids": [7],
     "roi_bbox": {
       "x": 1246.0,
       "y": 805,
@@ -9255,9 +8490,7 @@
     "normalization_status": "failed",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject04",
-    "support_frame_ids": [
-      7
-    ],
+    "support_frame_ids": [7],
     "roi_bbox": {
       "x": 1166.0,
       "y": 805,
@@ -9285,9 +8518,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject04",
-    "support_frame_ids": [
-      7
-    ],
+    "support_frame_ids": [7],
     "roi_bbox": {
       "x": 1166.0,
       "y": 805,
@@ -9315,9 +8546,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject04",
-    "support_frame_ids": [
-      7
-    ],
+    "support_frame_ids": [7],
     "roi_bbox": {
       "x": 1533.0,
       "y": 573,
@@ -9345,9 +8574,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject04",
-    "support_frame_ids": [
-      7
-    ],
+    "support_frame_ids": [7],
     "roi_bbox": {
       "x": 1453.0,
       "y": 573,
@@ -9375,9 +8602,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject04",
-    "support_frame_ids": [
-      7
-    ],
+    "support_frame_ids": [7],
     "roi_bbox": {
       "x": 1533.0,
       "y": 631,
@@ -9405,9 +8630,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject04",
-    "support_frame_ids": [
-      7
-    ],
+    "support_frame_ids": [7],
     "roi_bbox": {
       "x": 1453.0,
       "y": 631,
@@ -9435,9 +8658,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject04",
-    "support_frame_ids": [
-      7
-    ],
+    "support_frame_ids": [7],
     "roi_bbox": {
       "x": 1533.0,
       "y": 689,
@@ -9465,9 +8686,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject04",
-    "support_frame_ids": [
-      7
-    ],
+    "support_frame_ids": [7],
     "roi_bbox": {
       "x": 1453.0,
       "y": 689,
@@ -9495,9 +8714,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject04",
-    "support_frame_ids": [
-      7
-    ],
+    "support_frame_ids": [7],
     "roi_bbox": {
       "x": 1533.0,
       "y": 746,
@@ -9525,9 +8742,7 @@
     "normalization_status": "failed",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject04",
-    "support_frame_ids": [
-      7
-    ],
+    "support_frame_ids": [7],
     "roi_bbox": {
       "x": 1453.0,
       "y": 746,
@@ -9555,9 +8770,7 @@
     "normalization_status": "failed",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject04",
-    "support_frame_ids": [
-      7
-    ],
+    "support_frame_ids": [7],
     "roi_bbox": {
       "x": 1822.0,
       "y": 805,
@@ -9585,9 +8798,7 @@
     "normalization_status": "failed",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject04",
-    "support_frame_ids": [
-      7
-    ],
+    "support_frame_ids": [7],
     "roi_bbox": {
       "x": 1742.0,
       "y": 805,
@@ -9615,9 +8826,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject04",
-    "support_frame_ids": [
-      7
-    ],
+    "support_frame_ids": [7],
     "roi_bbox": {
       "x": 1822.0,
       "y": 573,
@@ -9645,9 +8854,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject04",
-    "support_frame_ids": [
-      7
-    ],
+    "support_frame_ids": [7],
     "roi_bbox": {
       "x": 1742.0,
       "y": 573,
@@ -9675,9 +8882,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject04",
-    "support_frame_ids": [
-      7
-    ],
+    "support_frame_ids": [7],
     "roi_bbox": {
       "x": 1822.0,
       "y": 631,
@@ -9705,9 +8910,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject04",
-    "support_frame_ids": [
-      7
-    ],
+    "support_frame_ids": [7],
     "roi_bbox": {
       "x": 1742.0,
       "y": 631,
@@ -9735,9 +8938,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject04",
-    "support_frame_ids": [
-      7
-    ],
+    "support_frame_ids": [7],
     "roi_bbox": {
       "x": 1822.0,
       "y": 689,
@@ -9765,9 +8966,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject04",
-    "support_frame_ids": [
-      7
-    ],
+    "support_frame_ids": [7],
     "roi_bbox": {
       "x": 1742.0,
       "y": 689,
@@ -9795,9 +8994,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject04",
-    "support_frame_ids": [
-      7
-    ],
+    "support_frame_ids": [7],
     "roi_bbox": {
       "x": 0.23958333333333334,
       "y": 0.2777777777777778,
@@ -9825,9 +9022,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject04",
-    "support_frame_ids": [
-      7
-    ],
+    "support_frame_ids": [7],
     "roi_bbox": {
       "x": 0.2421875,
       "y": 0.2824074074074074,
@@ -9855,9 +9050,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject04",
-    "support_frame_ids": [
-      7
-    ],
+    "support_frame_ids": [7],
     "roi_bbox": {
       "x": 0.5,
       "y": 0.2777777777777778,
@@ -9885,9 +9078,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject04",
-    "support_frame_ids": [
-      7
-    ],
+    "support_frame_ids": [7],
     "roi_bbox": {
       "x": 0.5026041666666666,
       "y": 0.2824074074074074,
@@ -9915,9 +9106,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject04",
-    "support_frame_ids": [
-      7
-    ],
+    "support_frame_ids": [7],
     "roi_bbox": {
       "x": 0.7604166666666666,
       "y": 0.2777777777777778,
@@ -9945,9 +9134,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject04",
-    "support_frame_ids": [
-      7
-    ],
+    "support_frame_ids": [7],
     "roi_bbox": {
       "x": 0.7630208333333334,
       "y": 0.2824074074074074,
@@ -9975,9 +9162,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject05",
-    "support_frame_ids": [
-      8
-    ],
+    "support_frame_ids": [8],
     "roi_bbox": null,
     "template_version": null,
     "row_key": null,
@@ -10000,9 +9185,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject05",
-    "support_frame_ids": [
-      8
-    ],
+    "support_frame_ids": [8],
     "roi_bbox": null,
     "template_version": null,
     "row_key": null,
@@ -10025,9 +9208,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject05",
-    "support_frame_ids": [
-      8
-    ],
+    "support_frame_ids": [8],
     "roi_bbox": null,
     "template_version": null,
     "row_key": null,
@@ -10050,9 +9231,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject05",
-    "support_frame_ids": [
-      8
-    ],
+    "support_frame_ids": [8],
     "roi_bbox": null,
     "template_version": null,
     "row_key": null,
@@ -10075,9 +9254,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject05",
-    "support_frame_ids": [
-      8
-    ],
+    "support_frame_ids": [8],
     "roi_bbox": null,
     "template_version": null,
     "row_key": null,
@@ -10100,9 +9277,7 @@
     "normalization_status": "unnormalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject05",
-    "support_frame_ids": [
-      8
-    ],
+    "support_frame_ids": [8],
     "roi_bbox": null,
     "template_version": null,
     "row_key": null,
@@ -10125,9 +9300,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject05",
-    "support_frame_ids": [
-      8
-    ],
+    "support_frame_ids": [8],
     "roi_bbox": null,
     "template_version": null,
     "row_key": null,
@@ -10150,9 +9323,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject05",
-    "support_frame_ids": [
-      8
-    ],
+    "support_frame_ids": [8],
     "roi_bbox": null,
     "template_version": null,
     "row_key": null,
@@ -10175,9 +9346,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject05",
-    "support_frame_ids": [
-      8
-    ],
+    "support_frame_ids": [8],
     "roi_bbox": null,
     "template_version": null,
     "row_key": null,
@@ -10200,9 +9369,7 @@
     "normalization_status": "failed",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject05",
-    "support_frame_ids": [
-      8
-    ],
+    "support_frame_ids": [8],
     "roi_bbox": null,
     "template_version": null,
     "row_key": null,
@@ -10225,9 +9392,7 @@
     "normalization_status": "failed",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject05",
-    "support_frame_ids": [
-      8
-    ],
+    "support_frame_ids": [8],
     "roi_bbox": null,
     "template_version": null,
     "row_key": null,
@@ -10250,9 +9415,7 @@
     "normalization_status": "failed",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject05",
-    "support_frame_ids": [
-      8
-    ],
+    "support_frame_ids": [8],
     "roi_bbox": null,
     "template_version": null,
     "row_key": null,
@@ -10275,9 +9438,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject05",
-    "support_frame_ids": [
-      8
-    ],
+    "support_frame_ids": [8],
     "roi_bbox": {
       "x": 0.2421875,
       "y": 0.2824074074074074,
@@ -10305,9 +9466,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject05",
-    "support_frame_ids": [
-      8
-    ],
+    "support_frame_ids": [8],
     "roi_bbox": {
       "x": 0.5026041666666666,
       "y": 0.2824074074074074,
@@ -10335,9 +9494,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject05",
-    "support_frame_ids": [
-      8
-    ],
+    "support_frame_ids": [8],
     "roi_bbox": {
       "x": 0.7630208333333334,
       "y": 0.2824074074074074,
@@ -10365,9 +9522,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject05",
-    "support_frame_ids": [
-      8
-    ],
+    "support_frame_ids": [8],
     "roi_bbox": {
       "x": 661.0,
       "y": 573,
@@ -10395,9 +9550,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject05",
-    "support_frame_ids": [
-      8
-    ],
+    "support_frame_ids": [8],
     "roi_bbox": {
       "x": 581.0,
       "y": 573,
@@ -10425,9 +9578,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject05",
-    "support_frame_ids": [
-      8
-    ],
+    "support_frame_ids": [8],
     "roi_bbox": {
       "x": 661.0,
       "y": 631,
@@ -10455,9 +9606,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject05",
-    "support_frame_ids": [
-      8
-    ],
+    "support_frame_ids": [8],
     "roi_bbox": {
       "x": 581.0,
       "y": 631,
@@ -10485,9 +9634,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject05",
-    "support_frame_ids": [
-      8
-    ],
+    "support_frame_ids": [8],
     "roi_bbox": {
       "x": 661.0,
       "y": 689,
@@ -10515,9 +9662,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject05",
-    "support_frame_ids": [
-      8
-    ],
+    "support_frame_ids": [8],
     "roi_bbox": {
       "x": 581.0,
       "y": 689,
@@ -10545,9 +9690,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject05",
-    "support_frame_ids": [
-      8
-    ],
+    "support_frame_ids": [8],
     "roi_bbox": {
       "x": 661.0,
       "y": 746,
@@ -10575,9 +9718,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject05",
-    "support_frame_ids": [
-      8
-    ],
+    "support_frame_ids": [8],
     "roi_bbox": {
       "x": 581.0,
       "y": 746,
@@ -10605,9 +9746,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject05",
-    "support_frame_ids": [
-      8
-    ],
+    "support_frame_ids": [8],
     "roi_bbox": {
       "x": 661.0,
       "y": 805,
@@ -10635,9 +9774,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject05",
-    "support_frame_ids": [
-      8
-    ],
+    "support_frame_ids": [8],
     "roi_bbox": {
       "x": 581.0,
       "y": 805,
@@ -10665,9 +9802,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject05",
-    "support_frame_ids": [
-      8
-    ],
+    "support_frame_ids": [8],
     "roi_bbox": {
       "x": 939.0,
       "y": 573,
@@ -10695,9 +9830,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject05",
-    "support_frame_ids": [
-      8
-    ],
+    "support_frame_ids": [8],
     "roi_bbox": {
       "x": 859.0,
       "y": 573,
@@ -10725,9 +9858,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject05",
-    "support_frame_ids": [
-      8
-    ],
+    "support_frame_ids": [8],
     "roi_bbox": {
       "x": 939.0,
       "y": 631,
@@ -10755,9 +9886,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject05",
-    "support_frame_ids": [
-      8
-    ],
+    "support_frame_ids": [8],
     "roi_bbox": {
       "x": 859.0,
       "y": 631,
@@ -10785,9 +9914,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject05",
-    "support_frame_ids": [
-      8
-    ],
+    "support_frame_ids": [8],
     "roi_bbox": {
       "x": 939.0,
       "y": 689,
@@ -10815,9 +9942,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject05",
-    "support_frame_ids": [
-      8
-    ],
+    "support_frame_ids": [8],
     "roi_bbox": {
       "x": 859.0,
       "y": 689,
@@ -10845,9 +9970,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject05",
-    "support_frame_ids": [
-      8
-    ],
+    "support_frame_ids": [8],
     "roi_bbox": {
       "x": 939.0,
       "y": 746,
@@ -10875,9 +9998,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject05",
-    "support_frame_ids": [
-      8
-    ],
+    "support_frame_ids": [8],
     "roi_bbox": {
       "x": 859.0,
       "y": 746,
@@ -10905,9 +10026,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject05",
-    "support_frame_ids": [
-      8
-    ],
+    "support_frame_ids": [8],
     "roi_bbox": {
       "x": 939.0,
       "y": 805,
@@ -10935,9 +10054,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject05",
-    "support_frame_ids": [
-      8
-    ],
+    "support_frame_ids": [8],
     "roi_bbox": {
       "x": 859.0,
       "y": 805,
@@ -10965,9 +10082,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject05",
-    "support_frame_ids": [
-      8
-    ],
+    "support_frame_ids": [8],
     "roi_bbox": {
       "x": 1246.0,
       "y": 573,
@@ -10995,9 +10110,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject05",
-    "support_frame_ids": [
-      8
-    ],
+    "support_frame_ids": [8],
     "roi_bbox": {
       "x": 1166.0,
       "y": 573,
@@ -11025,9 +10138,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject05",
-    "support_frame_ids": [
-      8
-    ],
+    "support_frame_ids": [8],
     "roi_bbox": {
       "x": 1246.0,
       "y": 631,
@@ -11055,9 +10166,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject05",
-    "support_frame_ids": [
-      8
-    ],
+    "support_frame_ids": [8],
     "roi_bbox": {
       "x": 1166.0,
       "y": 631,
@@ -11085,9 +10194,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject05",
-    "support_frame_ids": [
-      8
-    ],
+    "support_frame_ids": [8],
     "roi_bbox": {
       "x": 1246.0,
       "y": 689,
@@ -11115,9 +10222,7 @@
     "normalization_status": "failed",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject05",
-    "support_frame_ids": [
-      8
-    ],
+    "support_frame_ids": [8],
     "roi_bbox": {
       "x": 1166.0,
       "y": 689,
@@ -11145,9 +10250,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject05",
-    "support_frame_ids": [
-      8
-    ],
+    "support_frame_ids": [8],
     "roi_bbox": {
       "x": 1246.0,
       "y": 746,
@@ -11175,9 +10278,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject05",
-    "support_frame_ids": [
-      8
-    ],
+    "support_frame_ids": [8],
     "roi_bbox": {
       "x": 1166.0,
       "y": 746,
@@ -11205,9 +10306,7 @@
     "normalization_status": "failed",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject05",
-    "support_frame_ids": [
-      8
-    ],
+    "support_frame_ids": [8],
     "roi_bbox": {
       "x": 1246.0,
       "y": 805,
@@ -11235,9 +10334,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject05",
-    "support_frame_ids": [
-      8
-    ],
+    "support_frame_ids": [8],
     "roi_bbox": {
       "x": 1166.0,
       "y": 805,
@@ -11265,9 +10362,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject05",
-    "support_frame_ids": [
-      8
-    ],
+    "support_frame_ids": [8],
     "roi_bbox": {
       "x": 1533.0,
       "y": 573,
@@ -11295,9 +10390,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject05",
-    "support_frame_ids": [
-      8
-    ],
+    "support_frame_ids": [8],
     "roi_bbox": {
       "x": 1453.0,
       "y": 573,
@@ -11325,9 +10418,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject05",
-    "support_frame_ids": [
-      8
-    ],
+    "support_frame_ids": [8],
     "roi_bbox": {
       "x": 1533.0,
       "y": 631,
@@ -11355,9 +10446,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject05",
-    "support_frame_ids": [
-      8
-    ],
+    "support_frame_ids": [8],
     "roi_bbox": {
       "x": 1453.0,
       "y": 631,
@@ -11385,9 +10474,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject05",
-    "support_frame_ids": [
-      8
-    ],
+    "support_frame_ids": [8],
     "roi_bbox": {
       "x": 1533.0,
       "y": 689,
@@ -11415,9 +10502,7 @@
     "normalization_status": "failed",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject05",
-    "support_frame_ids": [
-      8
-    ],
+    "support_frame_ids": [8],
     "roi_bbox": {
       "x": 1453.0,
       "y": 689,
@@ -11445,9 +10530,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject05",
-    "support_frame_ids": [
-      8
-    ],
+    "support_frame_ids": [8],
     "roi_bbox": {
       "x": 1453.0,
       "y": 689,
@@ -11475,9 +10558,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject05",
-    "support_frame_ids": [
-      8
-    ],
+    "support_frame_ids": [8],
     "roi_bbox": {
       "x": 1533.0,
       "y": 746,
@@ -11505,9 +10586,7 @@
     "normalization_status": "failed",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject05",
-    "support_frame_ids": [
-      8
-    ],
+    "support_frame_ids": [8],
     "roi_bbox": {
       "x": 1453.0,
       "y": 746,
@@ -11535,9 +10614,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject05",
-    "support_frame_ids": [
-      8
-    ],
+    "support_frame_ids": [8],
     "roi_bbox": {
       "x": 1453.0,
       "y": 746,
@@ -11565,9 +10642,7 @@
     "normalization_status": "failed",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject05",
-    "support_frame_ids": [
-      8
-    ],
+    "support_frame_ids": [8],
     "roi_bbox": {
       "x": 1822.0,
       "y": 805,
@@ -11595,9 +10670,7 @@
     "normalization_status": "failed",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject05",
-    "support_frame_ids": [
-      8
-    ],
+    "support_frame_ids": [8],
     "roi_bbox": {
       "x": 1742.0,
       "y": 805,
@@ -11625,9 +10698,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject05",
-    "support_frame_ids": [
-      8
-    ],
+    "support_frame_ids": [8],
     "roi_bbox": {
       "x": 1822.0,
       "y": 573,
@@ -11655,9 +10726,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject05",
-    "support_frame_ids": [
-      8
-    ],
+    "support_frame_ids": [8],
     "roi_bbox": {
       "x": 1742.0,
       "y": 573,
@@ -11685,9 +10754,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject05",
-    "support_frame_ids": [
-      8
-    ],
+    "support_frame_ids": [8],
     "roi_bbox": {
       "x": 1822.0,
       "y": 631,
@@ -11715,9 +10782,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject05",
-    "support_frame_ids": [
-      8
-    ],
+    "support_frame_ids": [8],
     "roi_bbox": {
       "x": 1742.0,
       "y": 631,
@@ -11745,9 +10810,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject05",
-    "support_frame_ids": [
-      8
-    ],
+    "support_frame_ids": [8],
     "roi_bbox": {
       "x": 1822.0,
       "y": 689,
@@ -11775,9 +10838,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject05",
-    "support_frame_ids": [
-      8
-    ],
+    "support_frame_ids": [8],
     "roi_bbox": {
       "x": 1742.0,
       "y": 689,
@@ -11805,9 +10866,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject05",
-    "support_frame_ids": [
-      8
-    ],
+    "support_frame_ids": [8],
     "roi_bbox": {
       "x": 0.23958333333333334,
       "y": 0.2777777777777778,
@@ -11835,9 +10894,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject05",
-    "support_frame_ids": [
-      8
-    ],
+    "support_frame_ids": [8],
     "roi_bbox": {
       "x": 0.2421875,
       "y": 0.2824074074074074,
@@ -11865,9 +10922,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject05",
-    "support_frame_ids": [
-      8
-    ],
+    "support_frame_ids": [8],
     "roi_bbox": {
       "x": 0.5,
       "y": 0.2777777777777778,
@@ -11895,9 +10950,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject05",
-    "support_frame_ids": [
-      8
-    ],
+    "support_frame_ids": [8],
     "roi_bbox": {
       "x": 0.5026041666666666,
       "y": 0.2824074074074074,
@@ -11925,9 +10978,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject05",
-    "support_frame_ids": [
-      8
-    ],
+    "support_frame_ids": [8],
     "roi_bbox": {
       "x": 0.7604166666666666,
       "y": 0.2777777777777778,
@@ -11955,9 +11006,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject05",
-    "support_frame_ids": [
-      8
-    ],
+    "support_frame_ids": [8],
     "roi_bbox": {
       "x": 0.7630208333333334,
       "y": 0.2824074074074074,
@@ -11985,9 +11034,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject06",
-    "support_frame_ids": [
-      10
-    ],
+    "support_frame_ids": [10],
     "roi_bbox": null,
     "template_version": null,
     "row_key": null,
@@ -12010,9 +11057,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject06",
-    "support_frame_ids": [
-      10
-    ],
+    "support_frame_ids": [10],
     "roi_bbox": null,
     "template_version": null,
     "row_key": null,
@@ -12035,9 +11080,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject06",
-    "support_frame_ids": [
-      10
-    ],
+    "support_frame_ids": [10],
     "roi_bbox": null,
     "template_version": null,
     "row_key": null,
@@ -12060,9 +11103,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject06",
-    "support_frame_ids": [
-      10
-    ],
+    "support_frame_ids": [10],
     "roi_bbox": null,
     "template_version": null,
     "row_key": null,
@@ -12085,9 +11126,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject06",
-    "support_frame_ids": [
-      10
-    ],
+    "support_frame_ids": [10],
     "roi_bbox": null,
     "template_version": null,
     "row_key": null,
@@ -12110,9 +11149,7 @@
     "normalization_status": "unnormalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject06",
-    "support_frame_ids": [
-      10
-    ],
+    "support_frame_ids": [10],
     "roi_bbox": null,
     "template_version": null,
     "row_key": null,
@@ -12135,9 +11172,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject06",
-    "support_frame_ids": [
-      10
-    ],
+    "support_frame_ids": [10],
     "roi_bbox": null,
     "template_version": null,
     "row_key": null,
@@ -12160,9 +11195,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject06",
-    "support_frame_ids": [
-      10
-    ],
+    "support_frame_ids": [10],
     "roi_bbox": null,
     "template_version": null,
     "row_key": null,
@@ -12185,9 +11218,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject06",
-    "support_frame_ids": [
-      10
-    ],
+    "support_frame_ids": [10],
     "roi_bbox": null,
     "template_version": null,
     "row_key": null,
@@ -12210,9 +11241,7 @@
     "normalization_status": "failed",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject06",
-    "support_frame_ids": [
-      10
-    ],
+    "support_frame_ids": [10],
     "roi_bbox": null,
     "template_version": null,
     "row_key": null,
@@ -12235,9 +11264,7 @@
     "normalization_status": "failed",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject06",
-    "support_frame_ids": [
-      10
-    ],
+    "support_frame_ids": [10],
     "roi_bbox": null,
     "template_version": null,
     "row_key": null,
@@ -12260,9 +11287,7 @@
     "normalization_status": "failed",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject06",
-    "support_frame_ids": [
-      10
-    ],
+    "support_frame_ids": [10],
     "roi_bbox": null,
     "template_version": null,
     "row_key": null,
@@ -12285,9 +11310,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject06",
-    "support_frame_ids": [
-      10
-    ],
+    "support_frame_ids": [10],
     "roi_bbox": {
       "x": 0.2421875,
       "y": 0.2824074074074074,
@@ -12315,9 +11338,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject06",
-    "support_frame_ids": [
-      10
-    ],
+    "support_frame_ids": [10],
     "roi_bbox": {
       "x": 0.5026041666666666,
       "y": 0.2824074074074074,
@@ -12345,9 +11366,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject06",
-    "support_frame_ids": [
-      10
-    ],
+    "support_frame_ids": [10],
     "roi_bbox": {
       "x": 0.7630208333333334,
       "y": 0.2824074074074074,
@@ -12375,9 +11394,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject06",
-    "support_frame_ids": [
-      10
-    ],
+    "support_frame_ids": [10],
     "roi_bbox": {
       "x": 661.0,
       "y": 573,
@@ -12405,9 +11422,7 @@
     "normalization_status": "failed",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject06",
-    "support_frame_ids": [
-      10
-    ],
+    "support_frame_ids": [10],
     "roi_bbox": {
       "x": 581.0,
       "y": 573,
@@ -12435,9 +11450,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject06",
-    "support_frame_ids": [
-      10
-    ],
+    "support_frame_ids": [10],
     "roi_bbox": {
       "x": 661.0,
       "y": 631,
@@ -12465,9 +11478,7 @@
     "normalization_status": "failed",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject06",
-    "support_frame_ids": [
-      10
-    ],
+    "support_frame_ids": [10],
     "roi_bbox": {
       "x": 581.0,
       "y": 631,
@@ -12495,9 +11506,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject06",
-    "support_frame_ids": [
-      10
-    ],
+    "support_frame_ids": [10],
     "roi_bbox": {
       "x": 661.0,
       "y": 689,
@@ -12525,9 +11534,7 @@
     "normalization_status": "failed",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject06",
-    "support_frame_ids": [
-      10
-    ],
+    "support_frame_ids": [10],
     "roi_bbox": {
       "x": 581.0,
       "y": 689,
@@ -12555,9 +11562,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject06",
-    "support_frame_ids": [
-      10
-    ],
+    "support_frame_ids": [10],
     "roi_bbox": {
       "x": 661.0,
       "y": 746,
@@ -12585,9 +11590,7 @@
     "normalization_status": "failed",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject06",
-    "support_frame_ids": [
-      10
-    ],
+    "support_frame_ids": [10],
     "roi_bbox": {
       "x": 581.0,
       "y": 746,
@@ -12615,9 +11618,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject06",
-    "support_frame_ids": [
-      10
-    ],
+    "support_frame_ids": [10],
     "roi_bbox": {
       "x": 661.0,
       "y": 805,
@@ -12645,9 +11646,7 @@
     "normalization_status": "failed",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject06",
-    "support_frame_ids": [
-      10
-    ],
+    "support_frame_ids": [10],
     "roi_bbox": {
       "x": 581.0,
       "y": 805,
@@ -12675,9 +11674,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject06",
-    "support_frame_ids": [
-      10
-    ],
+    "support_frame_ids": [10],
     "roi_bbox": {
       "x": 939.0,
       "y": 573,
@@ -12705,9 +11702,7 @@
     "normalization_status": "failed",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject06",
-    "support_frame_ids": [
-      10
-    ],
+    "support_frame_ids": [10],
     "roi_bbox": {
       "x": 859.0,
       "y": 573,
@@ -12735,9 +11730,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject06",
-    "support_frame_ids": [
-      10
-    ],
+    "support_frame_ids": [10],
     "roi_bbox": {
       "x": 939.0,
       "y": 631,
@@ -12765,9 +11758,7 @@
     "normalization_status": "failed",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject06",
-    "support_frame_ids": [
-      10
-    ],
+    "support_frame_ids": [10],
     "roi_bbox": {
       "x": 859.0,
       "y": 631,
@@ -12795,9 +11786,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject06",
-    "support_frame_ids": [
-      10
-    ],
+    "support_frame_ids": [10],
     "roi_bbox": {
       "x": 939.0,
       "y": 689,
@@ -12825,9 +11814,7 @@
     "normalization_status": "failed",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject06",
-    "support_frame_ids": [
-      10
-    ],
+    "support_frame_ids": [10],
     "roi_bbox": {
       "x": 859.0,
       "y": 689,
@@ -12855,9 +11842,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject06",
-    "support_frame_ids": [
-      10
-    ],
+    "support_frame_ids": [10],
     "roi_bbox": {
       "x": 939.0,
       "y": 746,
@@ -12885,9 +11870,7 @@
     "normalization_status": "failed",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject06",
-    "support_frame_ids": [
-      10
-    ],
+    "support_frame_ids": [10],
     "roi_bbox": {
       "x": 859.0,
       "y": 746,
@@ -12915,9 +11898,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject06",
-    "support_frame_ids": [
-      10
-    ],
+    "support_frame_ids": [10],
     "roi_bbox": {
       "x": 939.0,
       "y": 805,
@@ -12945,9 +11926,7 @@
     "normalization_status": "failed",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject06",
-    "support_frame_ids": [
-      10
-    ],
+    "support_frame_ids": [10],
     "roi_bbox": {
       "x": 859.0,
       "y": 805,
@@ -12975,9 +11954,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject06",
-    "support_frame_ids": [
-      10
-    ],
+    "support_frame_ids": [10],
     "roi_bbox": {
       "x": 1246.0,
       "y": 573,
@@ -13005,9 +11982,7 @@
     "normalization_status": "failed",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject06",
-    "support_frame_ids": [
-      10
-    ],
+    "support_frame_ids": [10],
     "roi_bbox": {
       "x": 1166.0,
       "y": 573,
@@ -13035,9 +12010,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject06",
-    "support_frame_ids": [
-      10
-    ],
+    "support_frame_ids": [10],
     "roi_bbox": {
       "x": 1246.0,
       "y": 631,
@@ -13065,9 +12038,7 @@
     "normalization_status": "failed",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject06",
-    "support_frame_ids": [
-      10
-    ],
+    "support_frame_ids": [10],
     "roi_bbox": {
       "x": 1166.0,
       "y": 631,
@@ -13095,9 +12066,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject06",
-    "support_frame_ids": [
-      10
-    ],
+    "support_frame_ids": [10],
     "roi_bbox": {
       "x": 1246.0,
       "y": 689,
@@ -13125,9 +12094,7 @@
     "normalization_status": "failed",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject06",
-    "support_frame_ids": [
-      10
-    ],
+    "support_frame_ids": [10],
     "roi_bbox": {
       "x": 1166.0,
       "y": 689,
@@ -13155,9 +12122,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject06",
-    "support_frame_ids": [
-      10
-    ],
+    "support_frame_ids": [10],
     "roi_bbox": {
       "x": 1246.0,
       "y": 746,
@@ -13185,9 +12150,7 @@
     "normalization_status": "failed",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject06",
-    "support_frame_ids": [
-      10
-    ],
+    "support_frame_ids": [10],
     "roi_bbox": {
       "x": 1166.0,
       "y": 746,
@@ -13215,9 +12178,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject06",
-    "support_frame_ids": [
-      10
-    ],
+    "support_frame_ids": [10],
     "roi_bbox": {
       "x": 1246.0,
       "y": 805,
@@ -13245,9 +12206,7 @@
     "normalization_status": "failed",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject06",
-    "support_frame_ids": [
-      10
-    ],
+    "support_frame_ids": [10],
     "roi_bbox": {
       "x": 1166.0,
       "y": 805,
@@ -13275,9 +12234,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject06",
-    "support_frame_ids": [
-      10
-    ],
+    "support_frame_ids": [10],
     "roi_bbox": {
       "x": 1533.0,
       "y": 573,
@@ -13305,9 +12262,7 @@
     "normalization_status": "failed",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject06",
-    "support_frame_ids": [
-      10
-    ],
+    "support_frame_ids": [10],
     "roi_bbox": {
       "x": 1453.0,
       "y": 573,
@@ -13335,9 +12290,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject06",
-    "support_frame_ids": [
-      10
-    ],
+    "support_frame_ids": [10],
     "roi_bbox": {
       "x": 1533.0,
       "y": 631,
@@ -13365,9 +12318,7 @@
     "normalization_status": "failed",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject06",
-    "support_frame_ids": [
-      10
-    ],
+    "support_frame_ids": [10],
     "roi_bbox": {
       "x": 1453.0,
       "y": 631,
@@ -13395,9 +12346,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject06",
-    "support_frame_ids": [
-      10
-    ],
+    "support_frame_ids": [10],
     "roi_bbox": {
       "x": 1533.0,
       "y": 689,
@@ -13425,9 +12374,7 @@
     "normalization_status": "failed",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject06",
-    "support_frame_ids": [
-      10
-    ],
+    "support_frame_ids": [10],
     "roi_bbox": {
       "x": 1453.0,
       "y": 689,
@@ -13455,9 +12402,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject06",
-    "support_frame_ids": [
-      10
-    ],
+    "support_frame_ids": [10],
     "roi_bbox": {
       "x": 1533.0,
       "y": 746,
@@ -13485,9 +12430,7 @@
     "normalization_status": "failed",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject06",
-    "support_frame_ids": [
-      10
-    ],
+    "support_frame_ids": [10],
     "roi_bbox": {
       "x": 1453.0,
       "y": 746,
@@ -13515,9 +12458,7 @@
     "normalization_status": "failed",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject06",
-    "support_frame_ids": [
-      10
-    ],
+    "support_frame_ids": [10],
     "roi_bbox": {
       "x": 1822.0,
       "y": 805,
@@ -13545,9 +12486,7 @@
     "normalization_status": "failed",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject06",
-    "support_frame_ids": [
-      10
-    ],
+    "support_frame_ids": [10],
     "roi_bbox": {
       "x": 1742.0,
       "y": 805,
@@ -13575,9 +12514,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject06",
-    "support_frame_ids": [
-      10
-    ],
+    "support_frame_ids": [10],
     "roi_bbox": {
       "x": 1822.0,
       "y": 573,
@@ -13605,9 +12542,7 @@
     "normalization_status": "failed",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject06",
-    "support_frame_ids": [
-      10
-    ],
+    "support_frame_ids": [10],
     "roi_bbox": {
       "x": 1742.0,
       "y": 573,
@@ -13635,9 +12570,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject06",
-    "support_frame_ids": [
-      10
-    ],
+    "support_frame_ids": [10],
     "roi_bbox": {
       "x": 1822.0,
       "y": 631,
@@ -13665,9 +12598,7 @@
     "normalization_status": "failed",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject06",
-    "support_frame_ids": [
-      10
-    ],
+    "support_frame_ids": [10],
     "roi_bbox": {
       "x": 1742.0,
       "y": 631,
@@ -13695,9 +12626,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject06",
-    "support_frame_ids": [
-      10
-    ],
+    "support_frame_ids": [10],
     "roi_bbox": {
       "x": 1822.0,
       "y": 689,
@@ -13725,9 +12654,7 @@
     "normalization_status": "failed",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject06",
-    "support_frame_ids": [
-      10
-    ],
+    "support_frame_ids": [10],
     "roi_bbox": {
       "x": 1742.0,
       "y": 689,
@@ -13755,9 +12682,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject06",
-    "support_frame_ids": [
-      10
-    ],
+    "support_frame_ids": [10],
     "roi_bbox": {
       "x": 0.23958333333333334,
       "y": 0.2777777777777778,
@@ -13785,9 +12710,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject06",
-    "support_frame_ids": [
-      10
-    ],
+    "support_frame_ids": [10],
     "roi_bbox": {
       "x": 0.2421875,
       "y": 0.2824074074074074,
@@ -13815,9 +12738,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject06",
-    "support_frame_ids": [
-      10
-    ],
+    "support_frame_ids": [10],
     "roi_bbox": {
       "x": 0.5,
       "y": 0.2777777777777778,
@@ -13845,9 +12766,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject06",
-    "support_frame_ids": [
-      10
-    ],
+    "support_frame_ids": [10],
     "roi_bbox": {
       "x": 0.5026041666666666,
       "y": 0.2824074074074074,
@@ -13875,9 +12794,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject06",
-    "support_frame_ids": [
-      10
-    ],
+    "support_frame_ids": [10],
     "roi_bbox": {
       "x": 0.7604166666666666,
       "y": 0.2777777777777778,
@@ -13905,9 +12822,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject06",
-    "support_frame_ids": [
-      10
-    ],
+    "support_frame_ids": [10],
     "roi_bbox": {
       "x": 0.7630208333333334,
       "y": 0.2824074074074074,
@@ -13935,9 +12850,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject07",
-    "support_frame_ids": [
-      11
-    ],
+    "support_frame_ids": [11],
     "roi_bbox": null,
     "template_version": null,
     "row_key": null,
@@ -13960,9 +12873,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject07",
-    "support_frame_ids": [
-      11
-    ],
+    "support_frame_ids": [11],
     "roi_bbox": null,
     "template_version": null,
     "row_key": null,
@@ -13985,9 +12896,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject07",
-    "support_frame_ids": [
-      11
-    ],
+    "support_frame_ids": [11],
     "roi_bbox": null,
     "template_version": null,
     "row_key": null,
@@ -14010,9 +12919,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject07",
-    "support_frame_ids": [
-      11
-    ],
+    "support_frame_ids": [11],
     "roi_bbox": null,
     "template_version": null,
     "row_key": null,
@@ -14035,9 +12942,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject07",
-    "support_frame_ids": [
-      11
-    ],
+    "support_frame_ids": [11],
     "roi_bbox": null,
     "template_version": null,
     "row_key": null,
@@ -14060,9 +12965,7 @@
     "normalization_status": "unnormalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject07",
-    "support_frame_ids": [
-      11
-    ],
+    "support_frame_ids": [11],
     "roi_bbox": null,
     "template_version": null,
     "row_key": null,
@@ -14085,9 +12988,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject07",
-    "support_frame_ids": [
-      11
-    ],
+    "support_frame_ids": [11],
     "roi_bbox": null,
     "template_version": null,
     "row_key": null,
@@ -14110,9 +13011,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject07",
-    "support_frame_ids": [
-      11
-    ],
+    "support_frame_ids": [11],
     "roi_bbox": null,
     "template_version": null,
     "row_key": null,
@@ -14135,9 +13034,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject07",
-    "support_frame_ids": [
-      11
-    ],
+    "support_frame_ids": [11],
     "roi_bbox": null,
     "template_version": null,
     "row_key": null,
@@ -14160,9 +13057,7 @@
     "normalization_status": "failed",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject07",
-    "support_frame_ids": [
-      11
-    ],
+    "support_frame_ids": [11],
     "roi_bbox": null,
     "template_version": null,
     "row_key": null,
@@ -14185,9 +13080,7 @@
     "normalization_status": "failed",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject07",
-    "support_frame_ids": [
-      11
-    ],
+    "support_frame_ids": [11],
     "roi_bbox": null,
     "template_version": null,
     "row_key": null,
@@ -14210,9 +13103,7 @@
     "normalization_status": "failed",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject07",
-    "support_frame_ids": [
-      11
-    ],
+    "support_frame_ids": [11],
     "roi_bbox": null,
     "template_version": null,
     "row_key": null,
@@ -14235,9 +13126,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject07",
-    "support_frame_ids": [
-      11
-    ],
+    "support_frame_ids": [11],
     "roi_bbox": {
       "x": 0.2421875,
       "y": 0.2824074074074074,
@@ -14265,9 +13154,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject07",
-    "support_frame_ids": [
-      11
-    ],
+    "support_frame_ids": [11],
     "roi_bbox": {
       "x": 0.5026041666666666,
       "y": 0.2824074074074074,
@@ -14295,9 +13182,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject07",
-    "support_frame_ids": [
-      11
-    ],
+    "support_frame_ids": [11],
     "roi_bbox": {
       "x": 0.7630208333333334,
       "y": 0.2824074074074074,
@@ -14325,9 +13210,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject07",
-    "support_frame_ids": [
-      11
-    ],
+    "support_frame_ids": [11],
     "roi_bbox": {
       "x": 661.0,
       "y": 573,
@@ -14355,9 +13238,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject07",
-    "support_frame_ids": [
-      11
-    ],
+    "support_frame_ids": [11],
     "roi_bbox": {
       "x": 581.0,
       "y": 573,
@@ -14385,9 +13266,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject07",
-    "support_frame_ids": [
-      11
-    ],
+    "support_frame_ids": [11],
     "roi_bbox": {
       "x": 661.0,
       "y": 631,
@@ -14415,9 +13294,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject07",
-    "support_frame_ids": [
-      11
-    ],
+    "support_frame_ids": [11],
     "roi_bbox": {
       "x": 581.0,
       "y": 631,
@@ -14445,9 +13322,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject07",
-    "support_frame_ids": [
-      11
-    ],
+    "support_frame_ids": [11],
     "roi_bbox": {
       "x": 581.0,
       "y": 631,
@@ -14475,9 +13350,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject07",
-    "support_frame_ids": [
-      11
-    ],
+    "support_frame_ids": [11],
     "roi_bbox": {
       "x": 661.0,
       "y": 689,
@@ -14505,9 +13378,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject07",
-    "support_frame_ids": [
-      11
-    ],
+    "support_frame_ids": [11],
     "roi_bbox": {
       "x": 581.0,
       "y": 689,
@@ -14535,9 +13406,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject07",
-    "support_frame_ids": [
-      11
-    ],
+    "support_frame_ids": [11],
     "roi_bbox": {
       "x": 661.0,
       "y": 746,
@@ -14565,9 +13434,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject07",
-    "support_frame_ids": [
-      11
-    ],
+    "support_frame_ids": [11],
     "roi_bbox": {
       "x": 581.0,
       "y": 746,
@@ -14595,9 +13462,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject07",
-    "support_frame_ids": [
-      11
-    ],
+    "support_frame_ids": [11],
     "roi_bbox": {
       "x": 661.0,
       "y": 805,
@@ -14625,9 +13490,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject07",
-    "support_frame_ids": [
-      11
-    ],
+    "support_frame_ids": [11],
     "roi_bbox": {
       "x": 581.0,
       "y": 805,
@@ -14655,9 +13518,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject07",
-    "support_frame_ids": [
-      11
-    ],
+    "support_frame_ids": [11],
     "roi_bbox": {
       "x": 939.0,
       "y": 573,
@@ -14685,9 +13546,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject07",
-    "support_frame_ids": [
-      11
-    ],
+    "support_frame_ids": [11],
     "roi_bbox": {
       "x": 859.0,
       "y": 573,
@@ -14715,9 +13574,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject07",
-    "support_frame_ids": [
-      11
-    ],
+    "support_frame_ids": [11],
     "roi_bbox": {
       "x": 939.0,
       "y": 631,
@@ -14745,9 +13602,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject07",
-    "support_frame_ids": [
-      11
-    ],
+    "support_frame_ids": [11],
     "roi_bbox": {
       "x": 859.0,
       "y": 631,
@@ -14775,9 +13630,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject07",
-    "support_frame_ids": [
-      11
-    ],
+    "support_frame_ids": [11],
     "roi_bbox": {
       "x": 939.0,
       "y": 689,
@@ -14805,9 +13658,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject07",
-    "support_frame_ids": [
-      11
-    ],
+    "support_frame_ids": [11],
     "roi_bbox": {
       "x": 859.0,
       "y": 689,
@@ -14835,9 +13686,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject07",
-    "support_frame_ids": [
-      11
-    ],
+    "support_frame_ids": [11],
     "roi_bbox": {
       "x": 939.0,
       "y": 746,
@@ -14865,9 +13714,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject07",
-    "support_frame_ids": [
-      11
-    ],
+    "support_frame_ids": [11],
     "roi_bbox": {
       "x": 859.0,
       "y": 746,
@@ -14895,9 +13742,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject07",
-    "support_frame_ids": [
-      11
-    ],
+    "support_frame_ids": [11],
     "roi_bbox": {
       "x": 939.0,
       "y": 805,
@@ -14925,9 +13770,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject07",
-    "support_frame_ids": [
-      11
-    ],
+    "support_frame_ids": [11],
     "roi_bbox": {
       "x": 859.0,
       "y": 805,
@@ -14955,9 +13798,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject07",
-    "support_frame_ids": [
-      11
-    ],
+    "support_frame_ids": [11],
     "roi_bbox": {
       "x": 1246.0,
       "y": 573,
@@ -14985,9 +13826,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject07",
-    "support_frame_ids": [
-      11
-    ],
+    "support_frame_ids": [11],
     "roi_bbox": {
       "x": 1166.0,
       "y": 573,
@@ -15015,9 +13854,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject07",
-    "support_frame_ids": [
-      11
-    ],
+    "support_frame_ids": [11],
     "roi_bbox": {
       "x": 1246.0,
       "y": 631,
@@ -15045,9 +13882,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject07",
-    "support_frame_ids": [
-      11
-    ],
+    "support_frame_ids": [11],
     "roi_bbox": {
       "x": 1166.0,
       "y": 631,
@@ -15075,9 +13910,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject07",
-    "support_frame_ids": [
-      11
-    ],
+    "support_frame_ids": [11],
     "roi_bbox": {
       "x": 1246.0,
       "y": 689,
@@ -15105,9 +13938,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject07",
-    "support_frame_ids": [
-      11
-    ],
+    "support_frame_ids": [11],
     "roi_bbox": {
       "x": 1166.0,
       "y": 689,
@@ -15135,9 +13966,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject07",
-    "support_frame_ids": [
-      11
-    ],
+    "support_frame_ids": [11],
     "roi_bbox": {
       "x": 1246.0,
       "y": 746,
@@ -15165,9 +13994,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject07",
-    "support_frame_ids": [
-      11
-    ],
+    "support_frame_ids": [11],
     "roi_bbox": {
       "x": 1166.0,
       "y": 746,
@@ -15195,9 +14022,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject07",
-    "support_frame_ids": [
-      11
-    ],
+    "support_frame_ids": [11],
     "roi_bbox": {
       "x": 1246.0,
       "y": 805,
@@ -15225,9 +14050,7 @@
     "normalization_status": "failed",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject07",
-    "support_frame_ids": [
-      11
-    ],
+    "support_frame_ids": [11],
     "roi_bbox": {
       "x": 1166.0,
       "y": 805,
@@ -15255,9 +14078,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject07",
-    "support_frame_ids": [
-      11
-    ],
+    "support_frame_ids": [11],
     "roi_bbox": {
       "x": 1166.0,
       "y": 805,
@@ -15285,9 +14106,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject07",
-    "support_frame_ids": [
-      11
-    ],
+    "support_frame_ids": [11],
     "roi_bbox": {
       "x": 1533.0,
       "y": 573,
@@ -15315,9 +14134,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject07",
-    "support_frame_ids": [
-      11
-    ],
+    "support_frame_ids": [11],
     "roi_bbox": {
       "x": 1453.0,
       "y": 573,
@@ -15345,9 +14162,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject07",
-    "support_frame_ids": [
-      11
-    ],
+    "support_frame_ids": [11],
     "roi_bbox": {
       "x": 1533.0,
       "y": 631,
@@ -15375,9 +14190,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject07",
-    "support_frame_ids": [
-      11
-    ],
+    "support_frame_ids": [11],
     "roi_bbox": {
       "x": 1453.0,
       "y": 631,
@@ -15405,9 +14218,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject07",
-    "support_frame_ids": [
-      11
-    ],
+    "support_frame_ids": [11],
     "roi_bbox": {
       "x": 1533.0,
       "y": 689,
@@ -15435,9 +14246,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject07",
-    "support_frame_ids": [
-      11
-    ],
+    "support_frame_ids": [11],
     "roi_bbox": {
       "x": 1453.0,
       "y": 689,
@@ -15465,9 +14274,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject07",
-    "support_frame_ids": [
-      11
-    ],
+    "support_frame_ids": [11],
     "roi_bbox": {
       "x": 1533.0,
       "y": 746,
@@ -15495,9 +14302,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject07",
-    "support_frame_ids": [
-      11
-    ],
+    "support_frame_ids": [11],
     "roi_bbox": {
       "x": 1453.0,
       "y": 746,
@@ -15525,9 +14330,7 @@
     "normalization_status": "failed",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject07",
-    "support_frame_ids": [
-      11
-    ],
+    "support_frame_ids": [11],
     "roi_bbox": {
       "x": 1822.0,
       "y": 805,
@@ -15555,9 +14358,7 @@
     "normalization_status": "failed",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject07",
-    "support_frame_ids": [
-      11
-    ],
+    "support_frame_ids": [11],
     "roi_bbox": {
       "x": 1742.0,
       "y": 805,
@@ -15585,9 +14386,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject07",
-    "support_frame_ids": [
-      11
-    ],
+    "support_frame_ids": [11],
     "roi_bbox": {
       "x": 1822.0,
       "y": 573,
@@ -15615,9 +14414,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject07",
-    "support_frame_ids": [
-      11
-    ],
+    "support_frame_ids": [11],
     "roi_bbox": {
       "x": 1742.0,
       "y": 573,
@@ -15645,9 +14442,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject07",
-    "support_frame_ids": [
-      11
-    ],
+    "support_frame_ids": [11],
     "roi_bbox": {
       "x": 1822.0,
       "y": 631,
@@ -15675,9 +14470,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject07",
-    "support_frame_ids": [
-      11
-    ],
+    "support_frame_ids": [11],
     "roi_bbox": {
       "x": 1742.0,
       "y": 631,
@@ -15705,9 +14498,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject07",
-    "support_frame_ids": [
-      11
-    ],
+    "support_frame_ids": [11],
     "roi_bbox": {
       "x": 1822.0,
       "y": 689,
@@ -15735,9 +14526,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject07",
-    "support_frame_ids": [
-      11
-    ],
+    "support_frame_ids": [11],
     "roi_bbox": {
       "x": 1742.0,
       "y": 689,
@@ -15765,9 +14554,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject07",
-    "support_frame_ids": [
-      11
-    ],
+    "support_frame_ids": [11],
     "roi_bbox": {
       "x": 0.23958333333333334,
       "y": 0.2777777777777778,
@@ -15795,9 +14582,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject07",
-    "support_frame_ids": [
-      11
-    ],
+    "support_frame_ids": [11],
     "roi_bbox": {
       "x": 0.2421875,
       "y": 0.2824074074074074,
@@ -15825,9 +14610,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject07",
-    "support_frame_ids": [
-      11
-    ],
+    "support_frame_ids": [11],
     "roi_bbox": {
       "x": 0.5,
       "y": 0.2777777777777778,
@@ -15855,9 +14638,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject07",
-    "support_frame_ids": [
-      11
-    ],
+    "support_frame_ids": [11],
     "roi_bbox": {
       "x": 0.5026041666666666,
       "y": 0.2824074074074074,
@@ -15885,9 +14666,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject07",
-    "support_frame_ids": [
-      11
-    ],
+    "support_frame_ids": [11],
     "roi_bbox": {
       "x": 0.7604166666666666,
       "y": 0.2777777777777778,
@@ -15915,9 +14694,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject07",
-    "support_frame_ids": [
-      11
-    ],
+    "support_frame_ids": [11],
     "roi_bbox": {
       "x": 0.7630208333333334,
       "y": 0.2824074074074074,
@@ -15945,9 +14722,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject08",
-    "support_frame_ids": [
-      12
-    ],
+    "support_frame_ids": [12],
     "roi_bbox": null,
     "template_version": null,
     "row_key": null,
@@ -15970,9 +14745,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject08",
-    "support_frame_ids": [
-      12
-    ],
+    "support_frame_ids": [12],
     "roi_bbox": null,
     "template_version": null,
     "row_key": null,
@@ -15995,9 +14768,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject08",
-    "support_frame_ids": [
-      12
-    ],
+    "support_frame_ids": [12],
     "roi_bbox": null,
     "template_version": null,
     "row_key": null,
@@ -16020,9 +14791,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject08",
-    "support_frame_ids": [
-      12
-    ],
+    "support_frame_ids": [12],
     "roi_bbox": null,
     "template_version": null,
     "row_key": null,
@@ -16045,9 +14814,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject08",
-    "support_frame_ids": [
-      12
-    ],
+    "support_frame_ids": [12],
     "roi_bbox": null,
     "template_version": null,
     "row_key": null,
@@ -16070,9 +14837,7 @@
     "normalization_status": "unnormalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject08",
-    "support_frame_ids": [
-      12
-    ],
+    "support_frame_ids": [12],
     "roi_bbox": null,
     "template_version": null,
     "row_key": null,
@@ -16095,9 +14860,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject08",
-    "support_frame_ids": [
-      12
-    ],
+    "support_frame_ids": [12],
     "roi_bbox": null,
     "template_version": null,
     "row_key": null,
@@ -16120,9 +14883,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject08",
-    "support_frame_ids": [
-      12
-    ],
+    "support_frame_ids": [12],
     "roi_bbox": null,
     "template_version": null,
     "row_key": null,
@@ -16145,9 +14906,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject08",
-    "support_frame_ids": [
-      12
-    ],
+    "support_frame_ids": [12],
     "roi_bbox": null,
     "template_version": null,
     "row_key": null,
@@ -16170,9 +14929,7 @@
     "normalization_status": "failed",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject08",
-    "support_frame_ids": [
-      12
-    ],
+    "support_frame_ids": [12],
     "roi_bbox": null,
     "template_version": null,
     "row_key": null,
@@ -16195,9 +14952,7 @@
     "normalization_status": "failed",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject08",
-    "support_frame_ids": [
-      12
-    ],
+    "support_frame_ids": [12],
     "roi_bbox": null,
     "template_version": null,
     "row_key": null,
@@ -16220,9 +14975,7 @@
     "normalization_status": "failed",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject08",
-    "support_frame_ids": [
-      12
-    ],
+    "support_frame_ids": [12],
     "roi_bbox": null,
     "template_version": null,
     "row_key": null,
@@ -16245,9 +14998,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject08",
-    "support_frame_ids": [
-      12
-    ],
+    "support_frame_ids": [12],
     "roi_bbox": {
       "x": 0.2421875,
       "y": 0.2824074074074074,
@@ -16275,9 +15026,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject08",
-    "support_frame_ids": [
-      12
-    ],
+    "support_frame_ids": [12],
     "roi_bbox": {
       "x": 0.5026041666666666,
       "y": 0.2824074074074074,
@@ -16305,9 +15054,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject08",
-    "support_frame_ids": [
-      12
-    ],
+    "support_frame_ids": [12],
     "roi_bbox": {
       "x": 0.7630208333333334,
       "y": 0.2824074074074074,
@@ -16335,9 +15082,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject08",
-    "support_frame_ids": [
-      12
-    ],
+    "support_frame_ids": [12],
     "roi_bbox": {
       "x": 661.0,
       "y": 573,
@@ -16365,9 +15110,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject08",
-    "support_frame_ids": [
-      12
-    ],
+    "support_frame_ids": [12],
     "roi_bbox": {
       "x": 581.0,
       "y": 573,
@@ -16395,9 +15138,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject08",
-    "support_frame_ids": [
-      12
-    ],
+    "support_frame_ids": [12],
     "roi_bbox": {
       "x": 661.0,
       "y": 631,
@@ -16425,9 +15166,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject08",
-    "support_frame_ids": [
-      12
-    ],
+    "support_frame_ids": [12],
     "roi_bbox": {
       "x": 581.0,
       "y": 631,
@@ -16455,9 +15194,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject08",
-    "support_frame_ids": [
-      12
-    ],
+    "support_frame_ids": [12],
     "roi_bbox": {
       "x": 661.0,
       "y": 689,
@@ -16485,9 +15222,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject08",
-    "support_frame_ids": [
-      12
-    ],
+    "support_frame_ids": [12],
     "roi_bbox": {
       "x": 581.0,
       "y": 689,
@@ -16515,9 +15250,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject08",
-    "support_frame_ids": [
-      12
-    ],
+    "support_frame_ids": [12],
     "roi_bbox": {
       "x": 661.0,
       "y": 746,
@@ -16545,9 +15278,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject08",
-    "support_frame_ids": [
-      12
-    ],
+    "support_frame_ids": [12],
     "roi_bbox": {
       "x": 581.0,
       "y": 746,
@@ -16575,9 +15306,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject08",
-    "support_frame_ids": [
-      12
-    ],
+    "support_frame_ids": [12],
     "roi_bbox": {
       "x": 661.0,
       "y": 805,
@@ -16605,9 +15334,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject08",
-    "support_frame_ids": [
-      12
-    ],
+    "support_frame_ids": [12],
     "roi_bbox": {
       "x": 581.0,
       "y": 805,
@@ -16635,9 +15362,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject08",
-    "support_frame_ids": [
-      12
-    ],
+    "support_frame_ids": [12],
     "roi_bbox": {
       "x": 939.0,
       "y": 573,
@@ -16665,9 +15390,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject08",
-    "support_frame_ids": [
-      12
-    ],
+    "support_frame_ids": [12],
     "roi_bbox": {
       "x": 859.0,
       "y": 573,
@@ -16695,9 +15418,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject08",
-    "support_frame_ids": [
-      12
-    ],
+    "support_frame_ids": [12],
     "roi_bbox": {
       "x": 939.0,
       "y": 631,
@@ -16725,9 +15446,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject08",
-    "support_frame_ids": [
-      12
-    ],
+    "support_frame_ids": [12],
     "roi_bbox": {
       "x": 859.0,
       "y": 631,
@@ -16755,9 +15474,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject08",
-    "support_frame_ids": [
-      12
-    ],
+    "support_frame_ids": [12],
     "roi_bbox": {
       "x": 939.0,
       "y": 689,
@@ -16785,9 +15502,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject08",
-    "support_frame_ids": [
-      12
-    ],
+    "support_frame_ids": [12],
     "roi_bbox": {
       "x": 859.0,
       "y": 689,
@@ -16815,9 +15530,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject08",
-    "support_frame_ids": [
-      12
-    ],
+    "support_frame_ids": [12],
     "roi_bbox": {
       "x": 939.0,
       "y": 746,
@@ -16845,9 +15558,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject08",
-    "support_frame_ids": [
-      12
-    ],
+    "support_frame_ids": [12],
     "roi_bbox": {
       "x": 859.0,
       "y": 746,
@@ -16875,9 +15586,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject08",
-    "support_frame_ids": [
-      12
-    ],
+    "support_frame_ids": [12],
     "roi_bbox": {
       "x": 939.0,
       "y": 805,
@@ -16905,9 +15614,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject08",
-    "support_frame_ids": [
-      12
-    ],
+    "support_frame_ids": [12],
     "roi_bbox": {
       "x": 859.0,
       "y": 805,
@@ -16935,9 +15642,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject08",
-    "support_frame_ids": [
-      12
-    ],
+    "support_frame_ids": [12],
     "roi_bbox": {
       "x": 1246.0,
       "y": 573,
@@ -16965,9 +15670,7 @@
     "normalization_status": "failed",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject08",
-    "support_frame_ids": [
-      12
-    ],
+    "support_frame_ids": [12],
     "roi_bbox": {
       "x": 1166.0,
       "y": 573,
@@ -16995,9 +15698,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject08",
-    "support_frame_ids": [
-      12
-    ],
+    "support_frame_ids": [12],
     "roi_bbox": {
       "x": 1246.0,
       "y": 631,
@@ -17025,9 +15726,7 @@
     "normalization_status": "failed",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject08",
-    "support_frame_ids": [
-      12
-    ],
+    "support_frame_ids": [12],
     "roi_bbox": {
       "x": 1166.0,
       "y": 631,
@@ -17055,9 +15754,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject08",
-    "support_frame_ids": [
-      12
-    ],
+    "support_frame_ids": [12],
     "roi_bbox": {
       "x": 1166.0,
       "y": 631,
@@ -17085,9 +15782,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject08",
-    "support_frame_ids": [
-      12
-    ],
+    "support_frame_ids": [12],
     "roi_bbox": {
       "x": 1246.0,
       "y": 689,
@@ -17115,9 +15810,7 @@
     "normalization_status": "failed",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject08",
-    "support_frame_ids": [
-      12
-    ],
+    "support_frame_ids": [12],
     "roi_bbox": {
       "x": 1166.0,
       "y": 689,
@@ -17145,9 +15838,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject08",
-    "support_frame_ids": [
-      12
-    ],
+    "support_frame_ids": [12],
     "roi_bbox": {
       "x": 1246.0,
       "y": 746,
@@ -17175,9 +15866,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject08",
-    "support_frame_ids": [
-      12
-    ],
+    "support_frame_ids": [12],
     "roi_bbox": {
       "x": 1166.0,
       "y": 746,
@@ -17205,9 +15894,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject08",
-    "support_frame_ids": [
-      12
-    ],
+    "support_frame_ids": [12],
     "roi_bbox": {
       "x": 1246.0,
       "y": 805,
@@ -17235,9 +15922,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject08",
-    "support_frame_ids": [
-      12
-    ],
+    "support_frame_ids": [12],
     "roi_bbox": {
       "x": 1166.0,
       "y": 805,
@@ -17265,9 +15950,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject08",
-    "support_frame_ids": [
-      12
-    ],
+    "support_frame_ids": [12],
     "roi_bbox": {
       "x": 1533.0,
       "y": 573,
@@ -17295,9 +15978,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject08",
-    "support_frame_ids": [
-      12
-    ],
+    "support_frame_ids": [12],
     "roi_bbox": {
       "x": 1453.0,
       "y": 573,
@@ -17325,9 +16006,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject08",
-    "support_frame_ids": [
-      12
-    ],
+    "support_frame_ids": [12],
     "roi_bbox": {
       "x": 1533.0,
       "y": 631,
@@ -17355,9 +16034,7 @@
     "normalization_status": "failed",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject08",
-    "support_frame_ids": [
-      12
-    ],
+    "support_frame_ids": [12],
     "roi_bbox": {
       "x": 1453.0,
       "y": 631,
@@ -17385,9 +16062,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject08",
-    "support_frame_ids": [
-      12
-    ],
+    "support_frame_ids": [12],
     "roi_bbox": {
       "x": 1533.0,
       "y": 689,
@@ -17415,9 +16090,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject08",
-    "support_frame_ids": [
-      12
-    ],
+    "support_frame_ids": [12],
     "roi_bbox": {
       "x": 1453.0,
       "y": 689,
@@ -17445,9 +16118,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject08",
-    "support_frame_ids": [
-      12
-    ],
+    "support_frame_ids": [12],
     "roi_bbox": {
       "x": 1533.0,
       "y": 746,
@@ -17475,9 +16146,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject08",
-    "support_frame_ids": [
-      12
-    ],
+    "support_frame_ids": [12],
     "roi_bbox": {
       "x": 1453.0,
       "y": 746,
@@ -17505,9 +16174,7 @@
     "normalization_status": "failed",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject08",
-    "support_frame_ids": [
-      12
-    ],
+    "support_frame_ids": [12],
     "roi_bbox": {
       "x": 1822.0,
       "y": 805,
@@ -17535,9 +16202,7 @@
     "normalization_status": "failed",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject08",
-    "support_frame_ids": [
-      12
-    ],
+    "support_frame_ids": [12],
     "roi_bbox": {
       "x": 1742.0,
       "y": 805,
@@ -17565,9 +16230,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject08",
-    "support_frame_ids": [
-      12
-    ],
+    "support_frame_ids": [12],
     "roi_bbox": {
       "x": 1822.0,
       "y": 573,
@@ -17595,9 +16258,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject08",
-    "support_frame_ids": [
-      12
-    ],
+    "support_frame_ids": [12],
     "roi_bbox": {
       "x": 1742.0,
       "y": 573,
@@ -17625,9 +16286,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject08",
-    "support_frame_ids": [
-      12
-    ],
+    "support_frame_ids": [12],
     "roi_bbox": {
       "x": 1822.0,
       "y": 631,
@@ -17655,9 +16314,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject08",
-    "support_frame_ids": [
-      12
-    ],
+    "support_frame_ids": [12],
     "roi_bbox": {
       "x": 1742.0,
       "y": 631,
@@ -17685,9 +16342,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject08",
-    "support_frame_ids": [
-      12
-    ],
+    "support_frame_ids": [12],
     "roi_bbox": {
       "x": 1822.0,
       "y": 689,
@@ -17715,9 +16370,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject08",
-    "support_frame_ids": [
-      12
-    ],
+    "support_frame_ids": [12],
     "roi_bbox": {
       "x": 1742.0,
       "y": 689,
@@ -17745,9 +16398,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject08",
-    "support_frame_ids": [
-      12
-    ],
+    "support_frame_ids": [12],
     "roi_bbox": {
       "x": 0.23958333333333334,
       "y": 0.2777777777777778,
@@ -17775,9 +16426,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject08",
-    "support_frame_ids": [
-      12
-    ],
+    "support_frame_ids": [12],
     "roi_bbox": {
       "x": 0.2421875,
       "y": 0.2824074074074074,
@@ -17805,9 +16454,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject08",
-    "support_frame_ids": [
-      12
-    ],
+    "support_frame_ids": [12],
     "roi_bbox": {
       "x": 0.5,
       "y": 0.2777777777777778,
@@ -17835,9 +16482,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject08",
-    "support_frame_ids": [
-      12
-    ],
+    "support_frame_ids": [12],
     "roi_bbox": {
       "x": 0.5026041666666666,
       "y": 0.2824074074074074,
@@ -17865,9 +16510,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject08",
-    "support_frame_ids": [
-      12
-    ],
+    "support_frame_ids": [12],
     "roi_bbox": {
       "x": 0.7604166666666666,
       "y": 0.2777777777777778,
@@ -17895,9 +16538,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject08",
-    "support_frame_ids": [
-      12
-    ],
+    "support_frame_ids": [12],
     "roi_bbox": {
       "x": 0.7630208333333334,
       "y": 0.2824074074074074,
@@ -17926,29 +16567,7 @@
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject09",
     "support_frame_ids": [
-      0,
-      0,
-      0,
-      3,
-      3,
-      4,
-      5,
-      5,
-      6,
-      6,
-      7,
-      8,
-      8,
-      9,
-      9,
-      10,
-      10,
-      11,
-      11,
-      12,
-      12,
-      13,
-      13
+      0, 0, 0, 3, 3, 4, 5, 5, 6, 6, 7, 8, 8, 9, 9, 10, 10, 11, 11, 12, 12, 13, 13
     ],
     "roi_bbox": null,
     "template_version": null,
@@ -17973,29 +16592,7 @@
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject09",
     "support_frame_ids": [
-      0,
-      0,
-      0,
-      3,
-      3,
-      4,
-      5,
-      5,
-      6,
-      6,
-      7,
-      8,
-      8,
-      9,
-      9,
-      10,
-      10,
-      11,
-      11,
-      12,
-      12,
-      13,
-      13
+      0, 0, 0, 3, 3, 4, 5, 5, 6, 6, 7, 8, 8, 9, 9, 10, 10, 11, 11, 12, 12, 13, 13
     ],
     "roi_bbox": null,
     "template_version": null,
@@ -18020,29 +16617,7 @@
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject09",
     "support_frame_ids": [
-      0,
-      0,
-      0,
-      3,
-      3,
-      4,
-      5,
-      5,
-      6,
-      6,
-      7,
-      8,
-      8,
-      9,
-      9,
-      10,
-      10,
-      11,
-      11,
-      12,
-      12,
-      13,
-      13
+      0, 0, 0, 3, 3, 4, 5, 5, 6, 6, 7, 8, 8, 9, 9, 10, 10, 11, 11, 12, 12, 13, 13
     ],
     "roi_bbox": null,
     "template_version": null,
@@ -18067,29 +16642,7 @@
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject09",
     "support_frame_ids": [
-      0,
-      0,
-      0,
-      3,
-      3,
-      4,
-      5,
-      5,
-      6,
-      6,
-      7,
-      8,
-      8,
-      9,
-      9,
-      10,
-      10,
-      11,
-      11,
-      12,
-      12,
-      13,
-      13
+      0, 0, 0, 3, 3, 4, 5, 5, 6, 6, 7, 8, 8, 9, 9, 10, 10, 11, 11, 12, 12, 13, 13
     ],
     "roi_bbox": null,
     "template_version": null,
@@ -18114,29 +16667,7 @@
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject09",
     "support_frame_ids": [
-      0,
-      0,
-      0,
-      3,
-      3,
-      4,
-      5,
-      5,
-      6,
-      6,
-      7,
-      8,
-      8,
-      9,
-      9,
-      10,
-      10,
-      11,
-      11,
-      12,
-      12,
-      13,
-      13
+      0, 0, 0, 3, 3, 4, 5, 5, 6, 6, 7, 8, 8, 9, 9, 10, 10, 11, 11, 12, 12, 13, 13
     ],
     "roi_bbox": null,
     "template_version": null,
@@ -18161,29 +16692,7 @@
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject09",
     "support_frame_ids": [
-      0,
-      0,
-      0,
-      3,
-      3,
-      4,
-      5,
-      5,
-      6,
-      6,
-      7,
-      8,
-      8,
-      9,
-      9,
-      10,
-      10,
-      11,
-      11,
-      12,
-      12,
-      13,
-      13
+      0, 0, 0, 3, 3, 4, 5, 5, 6, 6, 7, 8, 8, 9, 9, 10, 10, 11, 11, 12, 12, 13, 13
     ],
     "roi_bbox": null,
     "template_version": null,
@@ -18208,29 +16717,7 @@
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject09",
     "support_frame_ids": [
-      0,
-      0,
-      0,
-      3,
-      3,
-      4,
-      5,
-      5,
-      6,
-      6,
-      7,
-      8,
-      8,
-      9,
-      9,
-      10,
-      10,
-      11,
-      11,
-      12,
-      12,
-      13,
-      13
+      0, 0, 0, 3, 3, 4, 5, 5, 6, 6, 7, 8, 8, 9, 9, 10, 10, 11, 11, 12, 12, 13, 13
     ],
     "roi_bbox": null,
     "template_version": null,
@@ -18254,12 +16741,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject10",
-    "support_frame_ids": [
-      3,
-      5,
-      6,
-      9
-    ],
+    "support_frame_ids": [3, 5, 6, 9],
     "roi_bbox": null,
     "template_version": null,
     "row_key": null,
@@ -18282,12 +16764,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject10",
-    "support_frame_ids": [
-      3,
-      5,
-      6,
-      9
-    ],
+    "support_frame_ids": [3, 5, 6, 9],
     "roi_bbox": null,
     "template_version": null,
     "row_key": null,
@@ -18310,12 +16787,7 @@
     "normalization_status": "unnormalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject10",
-    "support_frame_ids": [
-      3,
-      5,
-      6,
-      9
-    ],
+    "support_frame_ids": [3, 5, 6, 9],
     "roi_bbox": null,
     "template_version": null,
     "row_key": null,
@@ -18338,12 +16810,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject10",
-    "support_frame_ids": [
-      3,
-      5,
-      6,
-      9
-    ],
+    "support_frame_ids": [3, 5, 6, 9],
     "roi_bbox": null,
     "template_version": null,
     "row_key": null,
@@ -18366,12 +16833,7 @@
     "normalization_status": "unnormalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject10",
-    "support_frame_ids": [
-      3,
-      5,
-      6,
-      9
-    ],
+    "support_frame_ids": [3, 5, 6, 9],
     "roi_bbox": null,
     "template_version": null,
     "row_key": null,
@@ -18394,12 +16856,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject10",
-    "support_frame_ids": [
-      3,
-      5,
-      6,
-      9
-    ],
+    "support_frame_ids": [3, 5, 6, 9],
     "roi_bbox": null,
     "template_version": null,
     "row_key": null,
@@ -18422,12 +16879,7 @@
     "normalization_status": "normalized",
     "screen_instance_key": null,
     "subject_slot_key": "loadout_slot_seg0002_subject10",
-    "support_frame_ids": [
-      3,
-      5,
-      6,
-      9
-    ],
+    "support_frame_ids": [3, 5, 6, 9],
     "roi_bbox": null,
     "template_version": null,
     "row_key": null,

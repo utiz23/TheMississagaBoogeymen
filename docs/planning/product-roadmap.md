@@ -117,7 +117,7 @@ Both are now presented honestly in the merged `/stats` and `/roster` routes. The
 
 ### 10. NHL 27 title cutover (operational milestone)
 
-- Distinct from item 7 (which is data-collection *prep*). This is the **title flip itself**: add the NHL 27 `game_titles` row, set it `is_active`, and demote NHL 26 to archive.
+- Distinct from item 7 (which is data-collection _prep_). This is the **title flip itself**: add the NHL 27 `game_titles` row, set it `is_active`, and demote NHL 26 to archive.
 - Likely runs **both titles active during the beta/transition window** — needs a plan for that dual-active period (which title the worker polls, how the UI presents "current" during overlap).
 - This is the **first real production exercise of cross-game career stats** — the roadmap's stated core feature — so verify the career-stat stitching across the NHL 26 → 27 boundary is correct at cutover, not after.
 - `/`, `/games`, `/games/[id]` are currently NHL-26-only by design (see `title-resolver.ts`); decide whether "active title" for those surfaces follows the flip automatically or needs an explicit change.

@@ -158,7 +158,11 @@ void test('guard updates NULL-confidence unpositioned row, skips manual + positi
   if (!process.env['DATABASE_URL']) return
 
   const nullConfId = await seedEvent({ tag: 'apply-null', x: null, positionConfidence: null })
-  const manualId = await seedEvent({ tag: 'apply-manual', x: '30.00', positionConfidence: 'manual' })
+  const manualId = await seedEvent({
+    tag: 'apply-manual',
+    x: '30.00',
+    positionConfidence: 'manual',
+  })
   const positionedId = await seedEvent({
     tag: 'apply-positioned',
     x: '12.00',
@@ -170,9 +174,30 @@ void test('guard updates NULL-confidence unpositioned row, skips manual + positi
     Promise.resolve({
       match_id: TEST_MATCH_ID,
       updates: [
-        { event_id: nullConfId, x: 10.08, y: -6.81, rink_zone: 'neutral', confidence_label: 'extrapolated', method: 'yellow_salvage' },
-        { event_id: manualId, x: 99, y: 99, rink_zone: 'neutral', confidence_label: 'extrapolated', method: 'elimination' },
-        { event_id: positionedId, x: 99, y: 99, rink_zone: 'neutral', confidence_label: 'extrapolated', method: 'elimination' },
+        {
+          event_id: nullConfId,
+          x: 10.08,
+          y: -6.81,
+          rink_zone: 'neutral',
+          confidence_label: 'extrapolated',
+          method: 'yellow_salvage',
+        },
+        {
+          event_id: manualId,
+          x: 99,
+          y: 99,
+          rink_zone: 'neutral',
+          confidence_label: 'extrapolated',
+          method: 'elimination',
+        },
+        {
+          event_id: positionedId,
+          x: 99,
+          y: 99,
+          rink_zone: 'neutral',
+          confidence_label: 'extrapolated',
+          method: 'elimination',
+        },
       ],
     })
 
@@ -210,8 +235,22 @@ void test('proposal with unexpected confidence_label is skipped, not applied (no
     Promise.resolve({
       match_id: TEST_MATCH_ID,
       updates: [
-        { event_id: goodId, x: 1.5, y: 2.5, rink_zone: 'neutral', confidence_label: 'extrapolated', method: 'elimination' },
-        { event_id: badId, x: 3.5, y: 4.5, rink_zone: 'neutral', confidence_label: 'bogus', method: 'elimination' },
+        {
+          event_id: goodId,
+          x: 1.5,
+          y: 2.5,
+          rink_zone: 'neutral',
+          confidence_label: 'extrapolated',
+          method: 'elimination',
+        },
+        {
+          event_id: badId,
+          x: 3.5,
+          y: 4.5,
+          rink_zone: 'neutral',
+          confidence_label: 'bogus',
+          method: 'elimination',
+        },
       ],
     })
 
@@ -309,7 +348,14 @@ void test('tool output without an `orphan_cards` key is a live identity no-op', 
     Promise.resolve({
       match_id: TEST_MATCH_ID,
       updates: [
-        { event_id: id, x: 1, y: 2, rink_zone: 'neutral', confidence_label: 'extrapolated', method: 'elimination' },
+        {
+          event_id: id,
+          x: 1,
+          y: 2,
+          rink_zone: 'neutral',
+          confidence_label: 'extrapolated',
+          method: 'elimination',
+        },
       ],
     })
 
@@ -446,7 +492,11 @@ void test('orphan card dedups to an existing positioned row → refresh, no inse
   // Pre-seed a positioned row (period 2 / hit / against, the seedEvent shape).
   // The orphan card resolves to the same bucket + actor → clockless dedup hit →
   // refresh (no insert), and the manual-ish position must be untouched.
-  const existing = await seedEvent({ tag: 'orphan-dedup', x: '12.00', positionConfidence: 'extrapolated' })
+  const existing = await seedEvent({
+    tag: 'orphan-dedup',
+    x: '12.00',
+    positionConfidence: 'extrapolated',
+  })
   const fakeTool = (_m: number, _p: ReconcilePayload): Promise<ReconcileToolOutput> =>
     Promise.resolve({
       match_id: TEST_MATCH_ID,

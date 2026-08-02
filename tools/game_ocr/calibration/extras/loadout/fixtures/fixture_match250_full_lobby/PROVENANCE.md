@@ -31,12 +31,12 @@ The Python parity test lives at
 >
 > - **subject09 `JoeyFlopfish` (BGM RD #48) is now captured.** The v2 note "JoeyFlopfish
 >   is absent" is obsolete — the v3 extractor reads this slot (gamertag/position/jersey
->   all match V2: RD #48, persona "Lane Hutson"). This is a correctness *improvement*.
+>   all match V2: RD #48, persona "Lane Hutson"). This is a correctness _improvement_.
 > - **subject10 `sikyjoker85` (LW, no jersey) is a known phantom.** This is a
 >   mis-segmented duplicate of subject06 `silkyjoker85` (RW #10) — gamertag is one
 >   character off, jersey/persona unreadable (`low_quality`). It is NOT in the V2
 >   10-slot ground truth. The parity test does an exact key-set diff, so the golden
->   must include it to stay green; it is locked here as a *documented* raw-extractor
+>   must include it to stay green; it is locked here as a _documented_ raw-extractor
 >   artifact (same treatment as the StickMenace/DuhPope space artifacts below).
 >   The promoter layer (junk-gamertag / hard-field blocks) is what keeps this phantom
 >   out of canonical `player_loadout_snapshots`; suppressing it at the extractor /
@@ -106,13 +106,13 @@ of canonical data. Suppressing it at the segmentation layer is Tier 1+ work.
 
 ### Known extractor artifacts vs V2 ground truth
 
-| Field      | Subject   | Extractor value (v3) | V2 / DB canonical   | Action                                                         |
-| ---------- | --------- | -------------------- | ------------------- | -------------------------------------------------------------- |
-| gamertag   | subject01 | `StickMenace`        | `Stick Menace`      | Fixture locks extractor behavior; PROVENANCE notes discrepancy |
-| gamertag   | subject07 | `Duh Pope`           | `DuhPope`           | Same — OCR added space                                         |
+| Field      | Subject   | Extractor value (v3) | V2 / DB canonical   | Action                                                              |
+| ---------- | --------- | -------------------- | ------------------- | ------------------------------------------------------------------- |
+| gamertag   | subject01 | `StickMenace`        | `Stick Menace`      | Fixture locks extractor behavior; PROVENANCE notes discrepancy      |
+| gamertag   | subject07 | `Duh Pope`           | `DuhPope`           | Same — OCR added space                                              |
 | gamertag   | subject10 | `sikyjoker85`        | (phantom)           | Mis-seg duplicate of subject06 `silkyjoker85` — locked + documented |
-| is_captain | subject00 | `null` (low_quality) | `true` (V2)         | Extractor still cannot read the captain icon in this frame set |
-| is_captain | subject03 | `null` (low_quality) | `true` (XZ4RKY, V2) | Same                                                           |
+| is_captain | subject00 | `null` (low_quality) | `true` (V2)         | Extractor still cannot read the captain icon in this frame set      |
+| is_captain | subject03 | `null` (low_quality) | `true` (XZ4RKY, V2) | Same                                                                |
 
 > **v3 note:** subject00 `position`/`jersey`/`persona_raw` are now read (`C`, `#11`,
 > `Evgeni Wanhg` — all `observable`), where the v2 capture had them `null`. Persona is

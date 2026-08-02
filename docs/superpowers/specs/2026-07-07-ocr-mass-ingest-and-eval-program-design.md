@@ -31,7 +31,7 @@ use it as an opportunity to improve the OCR system, doing the improvement work
 **Two OCR value regimes (inversely easy to grade):**
 
 - **Box-score fields** — the EA API already has these for the ~199 NHL26 matches
-  in the DB, so they are free to auto-grade. OCR adds *unique* value here only for
+  in the DB, so they are free to auto-grade. OCR adds _unique_ value here only for
   matches the API **missed** (the 5-recent-match API window ⇒ permanent data loss).
 - **Unique fields** — action-tracker events, shot/goal coordinates, faceoff maps,
   loadouts/X-factors. The API never provides these; this is the real reason OCR
@@ -40,7 +40,7 @@ use it as an opportunity to improve the OCR system, doing the improvement work
 
 **Pipeline reality (the structural gap):** the video-ingest pipeline is hard-wired
 **one video → one match**. `orchestrator.py::ingest()` takes a single `match_id`;
-Pass-1 "segments" are *screen types* (decoded by a Viterbi state machine), **not
+Pass-1 "segments" are _screen types_ (decoded by a Viterbi state machine), **not
 match boundaries**; `dispatch_segments` fans every screen-segment out under that one
 `match_id`. A multi-match file today collapses into one match's worth of
 overwritten data. Multi-game extraction is therefore a **prerequisite**, not an
@@ -54,26 +54,26 @@ extra.
 
 1. Split one video into N per-match "reels" so multi-match sessions ingest correctly.
 2. Tie each reel to the right DB `match_id` with a low-effort, safe workflow.
-3. Auto-grade box-score OCR against EA-API truth so ingest is *measured*, not blind.
+3. Auto-grade box-score OCR against EA-API truth so ingest is _measured_, not blind.
 4. Run ~100 matches unattended (overnight / while away), resumably and safely.
 
 **Non-Goals (this program)**
 
 - Older games (NHL22–25) and pre-250 footage.
 - Hand-labeled benchmarks for unique fields (events/coords/loadouts) beyond
-  confidence flagging. Unique-field accuracy is a *later* program.
+  confidence flagging. Unique-field accuracy is a _later_ program.
 - Rewriting the existing Pass-2 or promotion pipeline. Those stay largely untouched.
 
 ---
 
 ## 3. Locked Decisions
 
-| # | Decision | Choice |
-|---|----------|--------|
-| 1 | Program scope | Design all three components together, one shared spec + sequencing |
-| 2 | Match → `match_id` association | **Hybrid**: auto-propose (OCR score/teams/date → fuzzy-match to API) + operator confirm |
-| 3 | Accuracy investment focus | **Box-score first** (API-gradable); unique fields ride along with confidence flags |
-| 4 | Match-boundary detection | **State-machine grouping** (group existing Pass-1 screen-segments), with operator confirm/override fallback |
+| #   | Decision                       | Choice                                                                                                      |
+| --- | ------------------------------ | ----------------------------------------------------------------------------------------------------------- |
+| 1   | Program scope                  | Design all three components together, one shared spec + sequencing                                          |
+| 2   | Match → `match_id` association | **Hybrid**: auto-propose (OCR score/teams/date → fuzzy-match to API) + operator confirm                     |
+| 3   | Accuracy investment focus      | **Box-score first** (API-gradable); unique fields ride along with confidence flags                          |
+| 4   | Match-boundary detection       | **State-machine grouping** (group existing Pass-1 screen-segments), with operator confirm/override fallback |
 
 ---
 
@@ -102,7 +102,7 @@ Components ②③④ are new or generalized; Pass-2 + promotion already exist.
 ## 5. Component ① — MATCH-SPLIT
 
 **Location:** new module `tools/video_ingest/video_ingest/match_split.py`, running
-*after* Pass-1, *before* Pass-2/dispatch. Consumes the screen-typed segments Pass-1
+_after_ Pass-1, _before_ Pass-2/dispatch. Consumes the screen-typed segments Pass-1
 already emits; groups them into per-match reels. Pass-2 and dispatch then run **once
 per reel** (each windowed to its reel time range, each dispatched under its own
 `match_id`) — a modest change to the existing dispatch loop, which today fires once
@@ -118,11 +118,11 @@ for the whole video.
 
 - A reel **opens** at a `pre_game_lobby` segment (the match-start marker).
 - It **closes** at the post-game cluster (`post_game_box_score_*` /
-  `post_game_action_tracker` / etc.) when followed by the *next* `pre_game_lobby`,
+  `post_game_action_tracker` / etc.) when followed by the _next_ `pre_game_lobby`,
   or at end-of-video.
 - Everything between belongs to that reel.
 
-**Edge cases — handled by *flagging, never dropping* (these are the operator's
+**Edge cases — handled by _flagging, never dropping_ (these are the operator's
 real recording issues):**
 
 - **Late start (no lobby):** a post-game box score with no preceding lobby still
@@ -144,7 +144,7 @@ boundary_confidence}`. Feeds the operator confirm step (merge/split/nudge) and �
 
 ## 6. Component ② — ASSOCIATE (reel → DB `match_id`)
 
-**Ordering (critical):** association runs on a cheap **identity probe** *before*
+**Ordering (critical):** association runs on a cheap **identity probe** _before_
 full Pass-2/promotion, so we never dispatch under a placeholder ID. The probe OCRs
 only the identifying fields from a handful of the reel's box-score/lobby frames:
 **final score, opponent name, a few player personas.** Once a `match_id` is
@@ -202,7 +202,7 @@ reconciliation when EA payloads disagree."
 
 > The exact gradable field set = (fields `box-score.ts` + `post_game_player_summary`
 > extract) ∩ `player_match_stats` columns. Pin the precise list during
-> implementation — the per-player OCR surface is a *subset* (goals/assists/saves/
+> implementation — the per-player OCR surface is a _subset_ (goals/assists/saves/
 > save%), not the full stat line.
 
 **Output:** per-field diff (`ocr_value`, `api_value`, `exact_match` bool), a
@@ -212,7 +212,7 @@ threshold feeds ④'s review queue.
 
 **Dual role:** (1) grades OCR reading accuracy where API truth exists, and directly
 **fills API-missed matches**; (2) **doubles as ②'s association safety-check** — if
-OCR-read score/roster matches the *proposed* API match, that is strong evidence the
+OCR-read score/roster matches the _proposed_ API match, that is strong evidence the
 association is correct. API-missed matches (no `player_match_stats`) are marked
 "ungradable — OCR sole source," not failed.
 
@@ -227,7 +227,7 @@ A runner (extends `reprocess.py`'s run lifecycle) that is safe to leave running:
    collapse `.mkv`/`.mp4`/`.remuxed`/`- Trim` copies.
 3. **Prioritize** — API-missed matches first (unique value), then API-covered
    (eval), partials last.
-4. **Preflight** — GPU-venv walk-import smoke test *before* committing hours (known
+4. **Preflight** — GPU-venv walk-import smoke test _before_ committing hours (known
    venv-fragility trap: `video-ingest reprocess` runs in `tools/video_ingest/.venv`
    and can lose the full closure incl. pydantic on any `uv sync`).
 5. **Run per video** — `run_id` → Pass-1 → ① split → ② identity-probe + association

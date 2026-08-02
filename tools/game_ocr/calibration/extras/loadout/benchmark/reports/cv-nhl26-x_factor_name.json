@@ -26,11 +26,7 @@
     "Wheels": 6
   },
   "k_folds": 3,
-  "fold_accuracies": [
-    0.125,
-    0.17391304347826086,
-    0.13043478260869565
-  ],
+  "fold_accuracies": [0.125, 0.17391304347826086, 0.13043478260869565],
   "mean_cv_accuracy": 0.1431159420289855,
   "note": "3-fold stratified CV top-1 accuracy over 70 examples / 18 classes (min_class_size=3)."
 }

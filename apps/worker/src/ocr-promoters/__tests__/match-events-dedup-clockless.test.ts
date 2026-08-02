@@ -17,10 +17,7 @@ import test, { after, before } from 'node:test'
 import assert from 'node:assert/strict'
 import { db, matchEvents, players } from '@eanhl/db'
 import { like } from 'drizzle-orm'
-import {
-  findExistingMatchEventClockless,
-  type ClocklessDedupKey,
-} from '../match-events-dedup.js'
+import { findExistingMatchEventClockless, type ClocklessDedupKey } from '../match-events-dedup.js'
 
 const TEST_MATCH_ID = 250
 const SENTINEL = 'ws4-identity-test-'
@@ -118,7 +115,10 @@ void test('two Lev1 matches → ambiguous listing both candidateIds', async () =
   const res = await findExistingMatchEventClockless(db, key({ period: 93, actor: 'WILDE' }))
   assert.equal(res.kind, 'ambiguous')
   if (res.kind !== 'ambiguous') return
-  assert.deepEqual([...res.candidateIds].sort((a, b) => a - b), [id1, id2].sort((a, b) => a - b))
+  assert.deepEqual(
+    [...res.candidateIds].sort((a, b) => a - b),
+    [id1, id2].sort((a, b) => a - b),
+  )
 })
 
 void test('resolved-player exact id, single → hit', async () => {
@@ -142,7 +142,10 @@ void test('resolved-player exact id, duplicated → ambiguous', async () => {
   )
   assert.equal(res.kind, 'ambiguous')
   if (res.kind !== 'ambiguous') return
-  assert.deepEqual([...res.candidateIds].sort((a, b) => a - b), [id1, id2].sort((a, b) => a - b))
+  assert.deepEqual(
+    [...res.candidateIds].sort((a, b) => a - b),
+    [id1, id2].sort((a, b) => a - b),
+  )
 })
 
 void test('positioned row in bucket is still a hit (duplicate-safety)', async () => {
@@ -205,7 +208,10 @@ void test('two identity matches at the SAME rounded position → still ambiguous
   )
   assert.equal(res.kind, 'ambiguous')
   if (res.kind !== 'ambiguous') return
-  assert.deepEqual([...res.candidateIds].sort((a, b) => a - b), [id1, id2].sort((a, b) => a - b))
+  assert.deepEqual(
+    [...res.candidateIds].sort((a, b) => a - b),
+    [id1, id2].sort((a, b) => a - b),
+  )
 })
 
 void test('null incoming position + two identity matches → ambiguous (Stage-1 behavior unchanged)', async () => {

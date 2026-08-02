@@ -9,19 +9,19 @@ quick position-only hack.
 Action Tracker (AT) reconciliation (`tools/game_ocr/scripts/reconcile_action_tracker.py`,
 shipped PR #4 / wired live PR #5) can only **UPDATE positions** of already-promoted
 `match_events`. It cannot close **true row-gaps**: orphan rink markers that have a
-position (x, y) but whose event *card* (clock / actor / event_type) was never promoted.
+position (x, y) but whose event _card_ (clock / actor / event_type) was never promoted.
 
 Match-250 confirmed ≥1 real case: a 115-frame orphan shot marker at hockey ~(36.5, 36.2)
 with no captured event row, because the card's clock was blank/garbled.
 
 ## Where identity is captured and lost
 
-| Stage | File:line | Behavior |
-|---|---|---|
-| OCR clock parse | `game_ocr/parsers.py:2376` | regex `([01]?\d:[0-5]\d)`; on garbled text → `clock=None`, `status='missing'` |
-| Python parse | `parsers.py:2303–2548` | card still emitted into `events[]` **with null clock**; full data (actor, event_type, period, markers) persisted to `ocr_extractions.raw_result_json` |
-| **TS promoter (loss point)** | `apps/worker/src/ocr-promoters/action-tracker.ts:105` | `if (!clock) { stats.skipped_missing_clock++; continue }` — **the null-clock card is dropped; no `match_events` row inserted** |
-| Dedup key | `ocr-promoters/match-events-dedup.ts:84` | `DedupKey` requires non-null `clock` |
+| Stage                        | File:line                                             | Behavior                                                                                                                                              |
+| ---------------------------- | ----------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| OCR clock parse              | `game_ocr/parsers.py:2376`                            | regex `([01]?\d:[0-5]\d)`; on garbled text → `clock=None`, `status='missing'`                                                                         |
+| Python parse                 | `parsers.py:2303–2548`                                | card still emitted into `events[]` **with null clock**; full data (actor, event_type, period, markers) persisted to `ocr_extractions.raw_result_json` |
+| **TS promoter (loss point)** | `apps/worker/src/ocr-promoters/action-tracker.ts:105` | `if (!clock) { stats.skipped_missing_clock++; continue }` — **the null-clock card is dropped; no `match_events` row inserted**                        |
+| Dedup key                    | `ocr-promoters/match-events-dedup.ts:84`              | `DedupKey` requires non-null `clock`                                                                                                                  |
 
 So the identity data **exists in `raw_result_json`** — recovery does **not** require new
 extraction, only a recovery pass that re-reads stored extractions + a clock-independent
@@ -35,6 +35,7 @@ identity key.
 ```
 
 Dedup strategy:
+
 1. Try exact `(matchId, period, eventType, clock, actorPlayerId)` (existing path).
 2. If `clock` is null, fall through to the clock-independent key: search unpositioned
    `match_events` with matching `(matchId, period, eventType, teamSide)` + actor within

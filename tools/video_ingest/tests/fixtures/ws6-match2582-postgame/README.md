@@ -20,18 +20,18 @@ the evidence (especially the 40-minute Pass-1 classification).
 OCR reads the disambiguating text correctly on every post-game frame, but the classifier assigns the
 wrong class. (`anchor_text` + assigned class are from `segments-gate-off.json`.)
 
-| Source time | Screen (observed) | OCR `anchor_text` (read correctly) | Pass-1 assigned | Correct class |
-|---|---|---|---|---|
-| 1832–1883 s | game→post transition / black | (sparse) | unknown_or_transition | (transition) — ok |
-| 1884–1900 s | End-of-Game team summary | `…playersummary endofgame` | unknown_or_transition | post_game_player_summary / end |
-| 1902–1945 s | **Action Tracker** (1st→OT filters) | `rm rr allevents rt {1st/2nd/3rd/ot} period 3-2` | unknown_or_transition | **post_game_action_tracker** |
-| 1947 s | Faceoff map | `rm rr faceoff rt 1st period 3-2` | unknown_or_transition | post_game_faceoff_map |
-| 1953–1957 s | Net chart | `rm rr netchart rt … period 3-2` | unknown_or_transition | post_game_net_chart |
-| 1959–1965 s | Player summary / end-of-game | `…playersummary endofgame` | unknown_or_transition | post_game_player_summary |
-| 1967–1971 s | **Box Score** (goal/shot/faceoff tabs) | `lt goalsummary / shotsummary / faceoffsummary` | unknown_or_transition | **post_game_box_score_{goals,shots,faceoffs}** |
-| 1972–1978 s | **Scoring Summary** ("ALL") | `lt all` | **player_loadout_view** ❌ (misroute) | post_game_events |
-| ~1985 s | black fade transition | (none) | unknown_or_transition | (fade — WS2 gate candidate) |
-| 2001–2079 s | WoC lobby return | — | loading_or_intro | ~ok |
+| Source time | Screen (observed)                      | OCR `anchor_text` (read correctly)               | Pass-1 assigned                       | Correct class                                  |
+| ----------- | -------------------------------------- | ------------------------------------------------ | ------------------------------------- | ---------------------------------------------- |
+| 1832–1883 s | game→post transition / black           | (sparse)                                         | unknown_or_transition                 | (transition) — ok                              |
+| 1884–1900 s | End-of-Game team summary               | `…playersummary endofgame`                       | unknown_or_transition                 | post_game_player_summary / end                 |
+| 1902–1945 s | **Action Tracker** (1st→OT filters)    | `rm rr allevents rt {1st/2nd/3rd/ot} period 3-2` | unknown_or_transition                 | **post_game_action_tracker**                   |
+| 1947 s      | Faceoff map                            | `rm rr faceoff rt 1st period 3-2`                | unknown_or_transition                 | post_game_faceoff_map                          |
+| 1953–1957 s | Net chart                              | `rm rr netchart rt … period 3-2`                 | unknown_or_transition                 | post_game_net_chart                            |
+| 1959–1965 s | Player summary / end-of-game           | `…playersummary endofgame`                       | unknown_or_transition                 | post_game_player_summary                       |
+| 1967–1971 s | **Box Score** (goal/shot/faceoff tabs) | `lt goalsummary / shotsummary / faceoffsummary`  | unknown_or_transition                 | **post*game_box_score*{goals,shots,faceoffs}** |
+| 1972–1978 s | **Scoring Summary** ("ALL")            | `lt all`                                         | **player_loadout_view** ❌ (misroute) | post_game_events                               |
+| ~1985 s     | black fade transition                  | (none)                                           | unknown_or_transition                 | (fade — WS2 gate candidate)                    |
+| 2001–2079 s | WoC lobby return                       | —                                                | loading_or_intro                      | ~ok                                            |
 
 Pre-game lobby (73–121 s) + loadout (86–108 s) and in-game (160–1832 s) classify **correctly**. Only the
 post-game screens fail. `color_score = 0.0` across the dark post-game UI is the suspected trigger (color

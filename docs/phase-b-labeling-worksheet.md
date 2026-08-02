@@ -20,35 +20,35 @@ first 360s pre-game window). The inbox dir name deliberately contains `player_lo
 
 ### stem → match_id → --source-match (use the matching id per clip)
 
-| inbox stem (`calibration/extras/_inbox_player_loadout_view/<stem>/`) | --source-match | target build |
-|---|---|---|
-| `2026-06-12_19-44-56_-_Trim`  | 2667 | Off-D ×2 |
-| `2026-06-12_19-44-56_-_Trim2` | 2666 | 2nd game (top-up) |
-| `2026-05-30_17-07-42_-_Trim`  | 2400 | Grinder |
-| `2026-06-20_16-04-36_-_Trim`  | 2683 | Grinder |
-| `2026-06-21_15-58-18_-_Trim`  | 2687 | Enforcer |
-| `2026-06-21_15-58-18_-_Trim2` | 2688 | Enforcer (near-dup) |
-| `2026-06-16_18-50-44`         | 2670 | TWD + Off-D |
-| `2026-06-16_19-57-14`         | 2673 | Def-D (Chara) |
-| `2026-06-17_17-28-27`         | 2674 | TWD (Dahlin) |
-| `2026-05-31_15-37-45`         | 2577 | 4×TWD + 2×Grinder |
-| `2026-05-31_16-09-36`         | 2582 | TWD |
-| `2026-05-31_16-55-13`         | 2640 | TWD |
+| inbox stem (`calibration/extras/_inbox_player_loadout_view/<stem>/`) | --source-match | target build        |
+| -------------------------------------------------------------------- | -------------- | ------------------- |
+| `2026-06-12_19-44-56_-_Trim`                                         | 2667           | Off-D ×2            |
+| `2026-06-12_19-44-56_-_Trim2`                                        | 2666           | 2nd game (top-up)   |
+| `2026-05-30_17-07-42_-_Trim`                                         | 2400           | Grinder             |
+| `2026-06-20_16-04-36_-_Trim`                                         | 2683           | Grinder             |
+| `2026-06-21_15-58-18_-_Trim`                                         | 2687           | Enforcer            |
+| `2026-06-21_15-58-18_-_Trim2`                                        | 2688           | Enforcer (near-dup) |
+| `2026-06-16_18-50-44`                                                | 2670           | TWD + Off-D         |
+| `2026-06-16_19-57-14`                                                | 2673           | Def-D (Chara)       |
+| `2026-06-17_17-28-27`                                                | 2674           | TWD (Dahlin)        |
+| `2026-05-31_15-37-45`                                                | 2577           | 4×TWD + 2×Grinder   |
+| `2026-05-31_16-09-36`                                                | 2582           | TWD                 |
+| `2026-05-31_16-55-13`                                                | 2640           | TWD                 |
 
-| clip (under `match<id>/`) | --source-match | opponent (score) | target build |
-|---|---|---|---|
-| 2026-06-12_19-44-56 - Trim.mp4  | 2667 | Rink Roosters L2-4    | Off-D ×2 |
-| 2026-06-12_19-44-56 - Trim2.mp4 | 2666 | Apparently 67ers L1-3 | 2nd game (optional top-up) |
-| 2026-05-30_17-07-42 - Trim.mp4  | 2400 | Spryfield Shoremen W3-0 | Grinder |
-| 2026-06-20_16-04-36 - Trim.mp4  | 2683 | Trashcans HC W3-2     | Grinder |
-| 2026-06-21_15-58-18 - Trim.mp4  | 2687 | Junior C Allstars W3-0 H (game 1/2) | Enforcer |
-| 2026-06-21_15-58-18 - Trim2.mp4 | 2688 | Junior C Allstars W4-3 A (game 2/2) | Enforcer (near-dup) |
-| 2026-06-16_18-50-44.mkv | 2670 | Golden Goals W5-1     | TWD + Off-D |
-| 2026-06-16_19-57-14.mkv | 2673 | Apparently 67ers W6-3 | Def-D (Chara) |
-| 2026-06-17_17-28-27.mkv | 2674 | Mommys touch L0-1     | TWD (Dahlin) |
-| 2026-05-31_15-37-45.mkv | 2577 | Go Go Henny Guys W6-3 | 4×TWD + 2×Grinder |
-| 2026-05-31_16-09-36.mkv | 2582 | Roc River Rats W3-2   | TWD |
-| 2026-05-31_16-55-13.mkv | 2640 | CATEGORY 4 L2-5       | TWD |
+| clip (under `match<id>/`)       | --source-match | opponent (score)                    | target build               |
+| ------------------------------- | -------------- | ----------------------------------- | -------------------------- |
+| 2026-06-12_19-44-56 - Trim.mp4  | 2667           | Rink Roosters L2-4                  | Off-D ×2                   |
+| 2026-06-12_19-44-56 - Trim2.mp4 | 2666           | Apparently 67ers L1-3               | 2nd game (optional top-up) |
+| 2026-05-30_17-07-42 - Trim.mp4  | 2400           | Spryfield Shoremen W3-0             | Grinder                    |
+| 2026-06-20_16-04-36 - Trim.mp4  | 2683           | Trashcans HC W3-2                   | Grinder                    |
+| 2026-06-21_15-58-18 - Trim.mp4  | 2687           | Junior C Allstars W3-0 H (game 1/2) | Enforcer                   |
+| 2026-06-21_15-58-18 - Trim2.mp4 | 2688           | Junior C Allstars W4-3 A (game 2/2) | Enforcer (near-dup)        |
+| 2026-06-16_18-50-44.mkv         | 2670           | Golden Goals W5-1                   | TWD + Off-D                |
+| 2026-06-16_19-57-14.mkv         | 2673           | Apparently 67ers W6-3               | Def-D (Chara)              |
+| 2026-06-17_17-28-27.mkv         | 2674           | Mommys touch L0-1                   | TWD (Dahlin)               |
+| 2026-05-31_15-37-45.mkv         | 2577           | Go Go Henny Guys W6-3               | 4×TWD + 2×Grinder          |
+| 2026-05-31_16-09-36.mkv         | 2582           | Roc River Rats W3-2                 | TWD                        |
+| 2026-05-31_16-55-13.mkv         | 2640           | CATEGORY 4 L2-5                     | TWD                        |
 
 Coverage once labeled: Two-Way-D ~8 · Grinder ~4 · Off-D ~3 · Def-D 2 (m250+Chara) · Enforcer 2 (near-dup pair).
 Parked in dev view, not in the batch: 2697 (Evil Eastons W9-5, 2026-06-25).
@@ -63,6 +63,7 @@ python3 scripts/bulk_extract_label_candidates.py \
   --inbox calibration/extras/_inbox_player_loadout_view \
   --interval 3 --end-time 360
 ```
+
 Writes PNGs to `<inbox>/<video_stem>/cand-t<sec>.png`. Loadout/lobby cards are in the **pre-game** portion
 (early in each clip) — `--end-time 360` focuses on the first 6 min; `--interval 3` catches each card as the
 carousel auto-advances. (Note: `--max-seconds` does not exist — the flags are `--start-time` / `--end-time`.)
@@ -73,7 +74,7 @@ carousel auto-advances. (Note: `--max-seconds` does not exist — the flags are 
 `warn: no player_loadout_view PNGs found` and labels nothing. Extracting into an inbox dir whose name contains
 `player_loadout_view` makes every PNG's path pass the filter — no code change. (Verified 2026-07-01, both
 directions.) The extractor's own docstring points at `label_state_machine_corpus.py --from-inbox` instead —
-that is the *screen-type* corpus labeler, a different tool; ignore it for loadout crop labeling.
+that is the _screen-type_ corpus labeler, a different tool; ignore it for loadout crop labeling.
 
 ⚠️ Use the real **no-space** clip paths (`match2687/…`); the script docstring's `match 968` example is the
 outdated space convention (same naming split flagged in the Phase G landmine).
@@ -136,6 +137,7 @@ Stick_Em_Up 3 (+3) · Truculence 3 (+3) · Unstoppable 3 (+3) · PressurePlus 2 
 
 ⚠️ **Thin classes / vocab gaps (flag for Gate 2, NOT fixed here):** all 108 reads mapped cleanly to the
 28-name `x_factors.yaml` vocab — **no out-of-vocab reads**. But coverage is uneven:
+
 - **Born_Leader — 1 crop total** (below the ≥2 hard floor). Only one instance (m2400 t00051 s2) appeared
   across all 12 clips; cannot reach the floor without new footage.
 - **PressurePlus — 2 crops total** (at hard floor, below the ≥3 target). Only one new instance
