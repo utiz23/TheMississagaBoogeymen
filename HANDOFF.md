@@ -2,6 +2,24 @@
 
 ## Active State
 
+### 🟢 GAME SHEET HERO — loss tag now styled like win and OTL, image redeployed 2026-08-02
+
+**Web-only, one file: `apps/web/src/components/matches/hero-card.tsx`. The OCR workstream dirty in the same tree was deliberately left untouched.**
+
+`ResultTag` gave WIN and OTL a coloured label plus a 26px bar, but short-circuited LOSS to muted `text-fg-5` with no bar — so a loss read as unstyled rather than as a third deliberate state. All three now resolve through one `TAG_TONE` map: win `text-win`/`bg-win` (emerald `#10b981`), OTL `text-otl`/`bg-otl` (amber `#f59e0b`), loss `text-loss`/`bg-loss` (red `#ef6a5e`). `--color-loss` already existed in the theme block and `text-loss`/`bg-loss` were already in use elsewhere, so no CSS changed. Bar mirroring (outside edge on the opponent side) and the `sm:`-and-up bar visibility rule are unchanged; DNF still renders no tag.
+
+Also aligned the series footer's W–L–OTL triplet, which had wins in `text-accent` (BGM red) and losses in grey — that would have collided with the new red loss tag directly above it. Now `text-win` / `text-loss` / `text-otl`.
+
+#### Verified
+
+Typecheck and Prettier clean. Confirmed live against the redeployed container on match 252 (BGM won 4–0, so the opponent side carries the loss tag): the hero emits `text-win`+`bg-win` on the BGM side and `text-loss`+`bg-loss` on the opponent side, each with the 26px bar; no `text-fg-5` loss label remains. The two surviving grey `0.22em` labels on that page are the context footer's "← Previous game" / "Next game →", which are unrelated.
+
+#### ⬜ Deployment state — READ THIS
+
+The image was rebuilt and recreated at **16:50 on 2026-08-02**, which supersedes the deployment note in the entry below: the running image now **does** include commit `5864957` (marker ink). Note that `docker compose build` copies the **working tree**, not `HEAD` — so this image also contains the still-uncommitted OCR workstream WIP (`ocr-pill.tsx`, `ocr-coverage.ts`, `ocr-coverage.ts` query, and the `score-card.tsx` / `games/page.tsx` / `box-score.tsx` / `lineup-row.tsx` edits). That code is live on `localhost:3000` but not in git. Committing or reverting it will not change what is deployed until the next rebuild.
+
+---
+
 ### 🟢 OPPONENT COLOURING — spec gap closed, two rendering defects killed, image redeployed 2026-08-02
 
 **Web-only, three focused commits (`215a5c5`, `3507e33`, `5864957`). The OCR workstream dirty in the same tree was deliberately left untouched.**
@@ -18,7 +36,7 @@ Runtime probes on the dev server across three matches spanning all three `--opp`
 
 #### ⬜ Deployment state — READ THIS
 
-The Docker web image was **7 weeks old** and predated the entire opponent-colour system: no `--opp` on the page root at all, no team-stats panel, no timeline cards, and rink markers painting the **raw OCR hex** (`#d81818`), exactly what the resolver exists to prevent. It has been rebuilt and is live. **But the rebuild happened before commit `5864957`** — the running image has the AWAY rung and the bar fix, NOT the marker ink. Rebuild again to ship it (`docker-redeploy` skill).
+The Docker web image was **7 weeks old** and predated the entire opponent-colour system: no `--opp` on the page root at all, no team-stats panel, no timeline cards, and rink markers painting the **raw OCR hex** (`#d81818`), exactly what the resolver exists to prevent. It has been rebuilt and is live. ~~**But the rebuild happened before commit `5864957`** — the running image has the AWAY rung and the bar fix, NOT the marker ink. Rebuild again to ship it (`docker-redeploy` skill).~~ **Resolved 2026-08-02 16:50** — the rebuild for the hero loss-tag change (entry above) shipped `5864957` as well.
 
 #### ⬜ Open
 
