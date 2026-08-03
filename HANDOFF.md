@@ -2,6 +2,210 @@
 
 ## Active State
 
+### ✅ STAGE A PASSES · manifest v2 APPROVED as Stage B's input — Stage B still blocked on the pipeline cache preflight (2026-08-03)
+
+**Gate ruling by the user, 2026-08-03.** Stage A passes; the revised manifest is approved as the input to Stage B. Cited: resolution-failure review fell to **3.4 %**, below the 10 % gate; lookbacks were proven individually while the global safety rule stayed intact; ledger keys fail closed on drift; duplicate recordings cannot execute accidentally; all 41 changed decisions reconcile with **zero lost auto windows**; final verification 740 / 5 skipped / 38 subtests / 0 failures.
+
+**Stage B execution remains BLOCKED by one prerequisite: the cache-root behaviour must be fixed and proven fail-closed in the actual `video-ingest` pipeline. The rescue script's local fix is explicitly NOT sufficient.**
+
+Approved sequence:
+
+1. ✅ Focused checkpoint of the three rescue files — `9314e8d` (code only; no unrelated files).
+2. ✅ HANDOFF.md committed separately as docs.
+3. ⬜ **Next session: fix and test the pipeline-wide cache preflight.**
+4. ⬜ Following session: implement / verify Stage B.
+5. ⬜ Only then execute the 97 approved auto windows.
+
+The 126 expected-ambiguity windows, the five match-2400 windows and the one unresolved window **remain non-executable, and that is correct.**
+
+The PAUSE → GAME STATS contamination is filed as a **separate high-priority Stage C issue** (see its own entry below). It does not invalidate this manifest and must not expand the rescue sessions.
+
+---
+
+### 🟢 IDENTITY RESOLVED · manifest v2 regenerated — review is now 3.4 % resolution-failure, 1 blocker left (2026-08-03)
+
+**Remediation of Phase 1's inputs, not a numbered phase. Nothing executed: no ffmpeg, no DB writes, no Stage B.** The read-only proof still reads 0 rescue batches / 0 rescue runs. Manifest regenerated at `~/ingest-cache/rescue-manifest.json` (**schema_version 2**), 303 windows — the same 303 keys as v1, with identical `t0/t1/target_screen/match_id/run_id` everywhere. Only decisions moved.
+
+#### Revised gate table
+
+| decision | v1 | **v2** | Δ |
+| ---------- | -: | -----: | -: |
+| **auto**   | 84 | **97** | +13 |
+| review     | 166 | **132** | −34 |
+| skip       | 53 | **74** | +21 |
+
+**Review broken down by reason class** — the thing the gate asked for:
+
+| class | windows | % of 303 | what it is |
+| ----- | ------: | -------: | ---------- |
+| `expected_ambiguity` | 126 | 41.6 % | SUMMARY-CATEGORY dropdown. Legitimate review work; no identity fix touches it. |
+| `not_ingested` | 5 | 1.7 % | Match 2400 only. Deferred by decision (below), not blocked. |
+| `unresolved_identity` | **1** | 0.3 % | `8f43caac:1` — correctly `rejected`, left alone as ruled. |
+
+**Resolution-failure review rate: 6 / 177 resolvable windows = 3.4 %** (was 42 / 179 = 23.5 %). The denominator moved by 2 because match 2400's two summary-category windows now keep their own reason instead of being relabelled by the identity failure.
+
+New coverage if auto executes: shots **+30 win / 27 matches** (was 28/25) · faceoffs **+21/19** (19/17) · goals **+17/9** (14/8) · events **+12/12** (9/9) · net_chart **+9/9** (7/7) · faceoff_map **+8/8** (7/7) · action_tracker +0.
+
+#### The 18 lookback windows — all 18 individually confirmed, 13 → auto, 5 → skip
+
+Not a global relaxation: the lookback rule is unchanged and still routes to review by default. A new ledger `CONFIRMED_LOOKBACK_FRAMES` (19 frames / 18 windows) enumerates the exceptions, keyed on `(sha, reel_index, target_screen, exact second)` so any drift falls back to review. Each entry passed five checks:
+
+- **C1** no `pre_game_lobby` / `loading_or_intro` / `in_game_clock` / `player_loadout` segment between the reel's end and the frame — no game restarts in the gap. 18/18.
+- **C2** the post-game progression nav bar is read within ±60 s (n=8..30 per window) — the post-game menu system is demonstrably on screen. 18/18.
+- **C3** no `pause` token in the anchor (see the defect below). 18/18.
+- **C4** the next reel starts ≥ 83 s after the window. 18/18.
+- **C5 — an oracle independent of the OCR pipeline.** EA's `matches.played_at` (game END) minus the recording's wall-clock basename gives the expected video time of the final whistle. **Calibrated on the 84 contained auto windows** (identity never in question): the post-game browse lands at Δ = **+10..+213 s, median +66**. All 19 frames fall in that band for their assigned match (**+24..+169**), and **every competing match on the same video is refuted by 519..6085 s** — the nearest rival (2402 vs 2403) is 4.5× outside the calibrated maximum.
+
+**Match 977's reel-boundary defect is real but is not a mis-attribution.** Reel 1 ends at its own last segment (755 s) and its post-game tail at 759..780 s falls outside it. The tail belongs to 977 — the reel bound is short, it is not another match's footage. C5 puts 977 at +24..+45 s and the next match (978) at −519..−540 s.
+
+Of the 18: **13 become auto** (472 ×5, 977 ×5, 563 ×2, 2403 ×1 — all genuinely uncovered screens) and **5 become `skip/already_covered`** (563 goals, 606 goals, 2402 goals, 2403 events, 2682 goals) — the coverage precheck had been shadowed by the lookback branch, so these were never new coverage in the first place.
+
+#### The 4 duplicate recordings — NOT associated, and that costs nothing
+
+Each `- Trim*.mp4` is a cut of the **same source recording** as the match's confirmed primary reel. Proven, not assumed: aligning each duplicate's cache to its primary on verbatim anchor strings yields one constant offset per pair — `02664c7d`→`6f010c2e9c1a` +1538 s (2683), `2d13e419`→`1fb12c1f638e` +3447 s (2666), `bc4990a0`→`f3c8a6e6102a` +2391 s (2688), `f5693db3`→`f3c8a6e6102a` +1557 s (2687).
+
+Every one of their 16 windows maps to a primary moment that is already produced natively in the match's active run, or already recovered by the primary's own rescue window. The only screen a duplicate could have added — 2687 `box_score_shots` at t=790 — is the **same frame** the primary already rescues as auto at t=2347. So: **all 16 → `skip/duplicate_recording_superseded_by_primary`**, decided rather than blocked. The generator re-verifies this every run and falls back to `review/duplicate_recording_adds_uncovered_screen` if a duplicate would ever add a screen; their command fingerprints are nulled so an unassociated `--match-id` can never be executed by accident.
+
+#### Match 2400 — do NOT ingest as part of this rescue
+
+Identity is not in doubt: the folder names it, C5 puts the final whistle at t≈1527 s (post-game browse starts 1538 s, Δ +11 s), and the anchor at t=1539 reads `3-0`, which is the recorded result. The problem is that it has **zero runs, zero batches, zero associations** — a rescue attaches to an existing run and there is none.
+
+**Recommendation, applied to the manifest: defer it.** Reasons: (1) it is a normal ingest, not a rescue; (2) it is blocked on the fail-closed cache preflight, which is Stage-B pipeline work; (3) ingesting it now under the *current* decoder reproduces exactly the defects Stage C exists to fix, so it would need its own rescue afterwards — ingesting after Stage C gets full native coverage for one decode instead of decode + rescue + re-ingest; (4) the whole prize is ≤5 auto windows for one match that Stage D's corpus campaign covers anyway. Its 7 windows are now `review/match_never_ocr_ingested` (5) + `summary_category` (2), and **2400 is listed in the unrecoverable report with that honest reason** — it was previously invisible there, because the report's universe is built from active-run coverage and 2400 has no run. Unrecoverable list is now **20**.
+
+#### ⚠️ Found here, tracked separately: PAUSE → GAME STATS contamination
+
+Discovered while confirming the lookback windows. Filed as its own high-priority **Stage C** issue — see the dedicated entry below. It does not invalidate this manifest: exactly one candidate frame in the whole manifest reads a pause menu, and it is the already-`rejected` `8f43caac:1` window.
+
+#### Cache preflight — fixed for this script, still open for the pipeline
+
+`DEFAULT_INGEST_CACHE` is still `/tmp/ingest-cache`, which is still gone. The rescue script now (a) chooses its root by **content, not existence**, and (b) **fails closed** — `preflight_cache_root()` exits with a diagnostic rather than emitting an empty manifest, and runs before the DB is touched. The dangerous case was never the missing symlink; it was a recreated *empty* `/tmp/ingest-cache`, where every check passes and the run reports "nothing to do". **The `video-ingest` pipeline itself is unchanged and still carries the reboot trap** — gate decision (5) stays open for Stage B.
+
+#### Verification
+
+- video_ingest suite **740 passed, 5 skipped, 38 subtests, 0 failed** (baseline 729 + 11 new tests covering reason classes, ledger exactness/drift, duplicate supersession and ledger disjointness).
+- Generator exit 0. Read-only proof: rescue batches **0**, rescue runs **0**, round-trip **True**, validation problems **0**, confirmed-lookback ledger **19/19 matched, 0 stale**.
+- v1→v2 diff is exactly 41 windows, all accounted for: 16 duplicate→skip, 13 lookback→auto, 5 lookback→skip, 5 →`match_never_ocr_ingested`, 2 →`summary_category`. **Auto lost: 0.** No window's geometry, target, match or run changed.
+
+#### ⬜ NEXT SESSION
+
+Per the gate ruling above: the pipeline-wide cache preflight fix, in its own session. Stage B follows it; execution of the 97 auto windows follows that.
+
+---
+
+### 🟠 STAGE C ISSUE (high priority, NOT part of the rescue): the mid-game PAUSE → GAME STATS screen wears the post-game tab bar (2026-08-03)
+
+**Five promoted segments already rest on it, so this is not theoretical.** Found while confirming the rescue's lookback windows; recorded here so it is worked separately and does not expand a rescue session.
+
+The in-game pause menu's stats view reads e.g. `00:18 youhavenopausesleft ... pauseactiontracker rm scr allevents rt 2nd period` — the **same tab-bar shape** as the post-game action tracker, but showing **partial, mid-game numbers**. Pass-1 labels those frames `post_game_*`.
+
+Measured over the 66 cached `segments.json`:
+
+- **672 frames across 7 videos** carry a `pause` token yet are labelled `post_game_*` (668 `action_tracker`, 4 `faceoff_map`).
+- **5 active-run segments are built on them** and are therefore mid-game reads published as post-game data:
+
+| match | segment | window | pause frames |
+| ----: | ------- | ------ | -----------: |
+| 472 | `vsha-b12833771211:seg0036` | 1246–1263 s | 15 |
+| 603 | `vsha-612dff4093d7:seg0020` | 498–505 s | 2 |
+| 1042 | `vsha-f84af43aecab:seg0023` (faceoff_map) | 580–584 s | 4 |
+| 1042 | `vsha-f84af43aecab:seg0024` | 582–588 s | 5 |
+| 475 | `vsha-7cad01ec7909:seg0114` | 3184–3191 s | 5 |
+
+Match 472's case is fully traced: the pause menu at t=1240 reads `07:16 / 2nd period`, the stats browse runs 1247–1262, play resumes at 1265, and the **real** post-game only begins at ~1285 (progression nav bar). The promoted segment is the mid-game one.
+
+**Why it belongs in Stage C:** the fix is a decoder/prior change — the `pause`/`nopausesleft` token is a clean, high-precision negative discriminator, and Stage C is already touching priors and pins. Pair it with a bench negative label, exactly as END OF GAME is handled. Retiring or re-reading the 5 promoted segments is a separate data-repair step.
+
+**Not a rescue concern:** the rescue's own guard already excludes the only pause-menu candidate frame in the manifest.
+
+---
+
+### 🟢 STAGE A APPROVED · 🔴 STAGE B NO-GO — manifest built, identity work required before execution (2026-08-02) — *identity items resolved by the 2026-08-03 entry above*
+
+**Phase 0 shipped as `47c1ecd`. Phase 1 is now done: a read-only manifest exists and nothing was executed.** New files (uncommitted): `tools/video_ingest/video_ingest/rescue_manifest.py` (all decision logic, pure), `tools/video_ingest/scripts/rescue_postgame_from_cache.py` (IO shell), `tools/video_ingest/tests/test_rescue_manifest.py` (58 tests). Manifest at `~/ingest-cache/rescue-manifest.json` (444 KB, 303 windows).
+
+**Deviation from the plan, deliberate: the logic lives in a `video_ingest` module, not only in the script.** `tools/video_ingest/tests/` imports the `video_ingest` package and cannot import from `scripts/`, so the plan's mandated unit test would have been unwritable otherwise. The script remains the entry point.
+
+#### Manifest summary — the Stage A exit gate
+
+| decision   | windows | frames | note                                                              |
+| ---------- | ------: | -----: | ----------------------------------------------------------------- |
+| **auto**   |  **84** | **85** | 37 matches, 31 videos — all have run_id, commands, existing video |
+| review     |     166 |    254 | 124 pre-declared summary-category + 24 unassociated + 18 lookback |
+| skip       |      53 |     54 | `already_covered` — target screen already in the active run       |
+
+New coverage if auto executes: shots +28 win/25 matches · faceoffs +19/17 · goals +14/8 · events +9/9 · faceoff_map +7/7 · net_chart +7/7 · action_tracker +0 (all 77 already covered).
+
+#### ⚠️ THE DIAGNOSIS'S "~190 RECOVERABLE FRAMES" WAS ~26 % FALSE POSITIVES
+
+Running the plan's anchor rules ungated reproduces the diagnosis figure exactly (188 frames). **49 of them are not post-game tab reads at all.** The single largest confounder is the **Club Seasons Progression nav bar**, which reads
+
+`CLUB SEASONS PROGRESSION | PLAYER RANK | PLAYER PROGRESSION | CLUB PROGRESSION | PLAYER SUMMARY | END OF GAME`
+
+— it accounts for **1959 frames** and contains BOTH strings the plan flagged as ambiguous. Also caught: rink-board ads (`ALL CCM OUT.`), console chat overlay (`mark all as read`), the `waiting for ALL users to resume` reject anchor, in-game scoreboard frames, the in-game `LOST FACEOFF` banner, and the box-score sort selector (`LT ALL SKATERS <COLUMN>`).
+
+**Guard added (evidence-driven):** the four rules whose string also occurs away from the tab bar (`all_filter`, `faceoff_map`, `player_summary`, `summary_category`) now require the LT/RT bumper cycler. Measured over all 175 499 cached frames, every distinctive tab read carries it — shot summary 44/44, net chart 127/127, all events 1719/1720, goal summary 160/169 — so distinctive rules are exempt (that 9-frame goal-summary tail is real and kept). Also: `all\s*events?` now tolerates the dropped plural, so `lt all event rt 2nd period` is the action tracker instead of falling through to bare-`all` events. Every discarded frame is tallied in the report by rule + reason; nothing vanishes silently.
+
+**Consequence — `post_game_player_summary` has ZERO rescue candidates corpus-wide.** All 1961 hits of the pattern are that nav bar and not one carries a bumper. This independently corroborates the DB (0 player_summary segments across 101 matches) and strengthens, rather than contradicts, the plan's review-only call: there is nothing to disambiguate because the tab was never captured.
+
+#### ⚠️ REVIEW-RATE TRIPWIRE FIRED — 23.5 % vs the plan's 10 %
+
+Excluding the pre-declared review-only class, resolution-failure review is **42 / 179 resolvable windows**:
+
+- **24 `reel_has_no_confirmed_match`** — only 6 distinct reels. Five videos (`02664c7d`, `2d13e419`, `a05d5364`, `bc4990a0`, `f5693db3`) have **no `ocr_match_associations` row at all** (the backfill-run-linkage sweep gap); `8f43caac:1` is explicitly `rejected` and correctly excluded. Confirming those five associations would convert most of this bucket.
+- **18 `frame_attached_to_reel_by_lookback`** across 7 matches — all genuine reads (`lt goalsummary` ×7, `lt all` ×5, …). **This is me being stricter than the plan**, which authorises lookback attachment as a valid resolution. I routed them to review because match 977's two goal windows are lookback and the diagnosis independently says 977 "still additionally needs the reel-boundary fix". Relaxing this to auto is a one-line change and would drop the tripwire to 13 %.
+
+#### Verification
+
+- video_ingest suite **729 passed, 5 skipped, 38 subtests, 0 failed** (Phase-0 baseline 671 + 58 new).
+- Read-only proof: `ocr_capture_batches` with `source_directory LIKE '%/rescue/%'` = **0**; `ocr_decoder_runs` with `decoder_version='rescue-b2-anchor-v1'` = **0**; validation problems **0**; manifest round-trips (load → parse → identical re-emit) **True**.
+- Reconciles with the diagnosis: all 7 named goal-summary defect matches (476, 977, 2403, 2404, 2577, 2672, 2676) appear with `lt goalsummary` evidence; 977 lands in review for exactly the reel-boundary reason the diagnosis flagged. All 8 named unrecoverable matches reproduce with matching reasons (249/252/464/976 `no_pass1_cache`; 969/978/981/2694 `no_candidate_frames_in_cache`).
+- Sharpest case `0ece002a` handled correctly: t=1657 `lt goalsummary` → **skip/already_covered** (its t=1660 twin already produced the segment); t=1659 `lt faceoffsummary` → auto, a genuine new rescue for match 2398.
+
+#### ✅ GATE DECISION (2026-08-02) — Stage A APPROVED, Stage B NO-GO
+
+Ruled by the user at the Stage A exit gate:
+
+1. **Stage A implementation: approved.** Keep the corroboration guard — the original "~190 recoverable" estimate was materially wrong and the guard is evidence-based. Moving pure logic into `video_ingest` was the correct deviation: it made the mandated tests possible without weakening architecture.
+2. **Do NOT relax lookback globally.** Match 977 proves lookback can cross a real reel boundary; a one-line relaxation would improve the metric by redefining risk away, not resolving it. All 18 lookback windows stay in review unless **each is independently confirmed**.
+3. **The 24 unassociated windows are a data-readiness problem**, not manual-approval candidates. Resolve identity first, regenerate, reassess. Never hand-approve a window under unresolved identity.
+4. **Do not chase the 10 % threshold blindly.** It correctly stopped execution. Judge the residual review rate *by reason*: expected ambiguity (summary-category) is legitimate review work; unresolved match identity is a blocker; lookback stays review-only.
+5. **Fix the cache preflight before any ingest.** A `/tmp` symlink is temporary by definition — recreating it leaves the same reboot trap armed. Stage B must either use `~/ingest-cache` explicitly **or** the pipeline must **fail closed** when the configured cache is unexpectedly empty.
+6. **Current 84-window auto set: provisionally credible. Stage B execution: NO-GO.**
+
+#### 🔬 The 24 unassociated windows are THREE different problems, not one backfill
+
+Investigated after the gate ruling. The video paths encode match numbers (`match2683/`, `match2666/`…), which makes the identity question answerable — and the answer is not "backfill five associations":
+
+| # windows | video sha (12) | source dir | what it actually is |
+| --------: | -------------- | ---------- | ------------------- |
+| **7** | `a05d53649924` | `match2400/…Trim.mp4` | **Match 2400 was NEVER OCR-ingested.** It exists in `matches` (ea_match_id 20492862980009, played 2026-05-30) but has **zero** `ocr_decoder_runs`, **zero** `ocr_capture_batches`, **zero** associations. This is a missing ingest, not a missing association — rescue cannot attach until a real run exists. |
+| **4** | `02664c7d061e` | `match2683/…Trim.mp4` | Duplicate recording. Match 2683's primary reel is already confirmed on a **different** sha (`6f010c2e9c1a:1`). |
+| **3** | `2d13e4197a3b` | `match2666/…Trim2.mp4` | Duplicate. 2666 confirmed on `1fb12c1f638e:1`. |
+| **3** | `bc4990a008c7` | `match2688/…Trim2.mp4` | Duplicate. 2688 confirmed on `f3c8a6e6102a:2`. |
+| **6** | `f5693db3e6fe` | `match2687/…Trim.mp4` | Duplicate. 2687 confirmed on `f3c8a6e6102a:1`. |
+| **1** | `8f43caacc531` | reel **1** | **Correctly excluded — leave it.** Status is `rejected`; match 2397 is confirmed on reels **0 and 2 of the same video**, so reel 1 is a middle reel that is not 2397. |
+
+So: 1 un-ingested match (7 windows), 4 duplicate/Trim second recordings of already-confirmed matches (16 windows), 1 correct rejection (1 window). Associating the duplicates is an **identity decision**, not a backfill — though note the coverage precheck already turns anything the primary reel covers into `skip/already_covered`, so the incremental value of each duplicate is only the screens its primary reel missed.
+
+#### ⬜ NEXT SESSION (one task): resolve identity, reclassify, regenerate
+
+Do NOT build Stage B. Deliverable is a revised gate table.
+
+1. **Match 2400** — decide whether to ingest it at all (it is a full missing ingest, ~30–45 min decode, and the cache preflight must be fixed first). If not ingested, its 7 windows stay review and 2400 joins the unrecoverable list with an honest reason.
+2. **The 4 duplicates** — per-video identity call. For each, compare what its reel covers against the primary reel's existing coverage; associate only if it adds screens.
+3. **The 18 lookback windows** — classify **individually** (they are listed with match/reel/run/t0..t1/screen/anchor in the manifest under `reason: frame_attached_to_reel_by_lookback`). Concentrations: match 977 ×5 (reel 1, the known reel-boundary defect), 472 ×5, 563 ×3, 2403 ×2, and 606/2402/2682 ×1 each.
+4. **Regenerate** the manifest and present the revised gate numbers, with the review rate broken down by reason class per decision (4) above.
+
+Only after that: a separate Stage B implementation/execution session.
+
+#### Still open / not yet actioned
+
+- **Unrecoverable list is 19, not 8** — my gap universe is "active run has ≥1 post-game segment but is missing ≥1 auto-eligible screen", broader than the diagnosis's 77-vs-55 framing. The extra 11 (250, 253, 463, 603, 968, 970, 972, 973, 974, 975, 2680) are real video-ingested matches with real gaps; 603/2680 left the rescue set only because the guard removed their junk-only candidates.
+- **⚠️ `/tmp/ingest-cache` symlink is GONE** (reboot cleared /tmp) and `DEFAULT_INGEST_CACHE` still points there, so any `video-ingest` run would create an empty dir and re-decode all 66 cached videos (~30–45 min each). Per gate decision (5) this needs a **fail-closed preflight**, not just a recreated symlink. The rescue script already falls back to `~/ingest-cache`; the pipeline does not.
+- **Commit hygiene:** the three rescue files sit in a worktree also carrying unrelated web/db work (ocr-pill, lineup-shape, ocr-coverage). Any Stage A checkpoint must commit **only** `tools/video_ingest/video_ingest/rescue_manifest.py`, `tools/video_ingest/scripts/rescue_postgame_from_cache.py`, `tools/video_ingest/tests/test_rescue_manifest.py` — with this `HANDOFF.md` update as its own separate docs commit. Nothing is committed yet.
+
+---
+
 ### 🔴 POST-GAME COVERAGE GAP — root-caused end-to-end; 9-phase plan APPROVED, Phase 0 next (2026-08-02)
 
 **The 77-vs-55 screen-coverage gap (action tracker 77 matches; box_score_goals 55, shots 10, faceoffs 24, events 55, net_chart 56, faceoff_map 48, player_summary 0) is NOT a capture gap.** The 55 are a strict subset of the 77; the per-frame Pass-1 classifications retained in `/home/michal/ingest-cache/<sha>/segments.json` prove OCR read every screen correctly (`goalsummary`/`shotsummary`/`faceoffsummary`/`netchart`/`lt all`) while the `viterbi_v2` segmenter dropped or absorbed the frames. ~190 selected-tab frames across 41/66 cached videos are directly recoverable; 8 matches are genuinely unrecoverable (249/252/464/976 no cache; 969/978/981/2694 no candidate frames).
