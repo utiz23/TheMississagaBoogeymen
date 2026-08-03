@@ -2,6 +2,72 @@
 
 ## Active State
 
+### 🔴 POST-GAME COVERAGE GAP — root-caused end-to-end; 9-phase plan APPROVED, Phase 0 next (2026-08-02)
+
+**The 77-vs-55 screen-coverage gap (action tracker 77 matches; box_score_goals 55, shots 10, faceoffs 24, events 55, net_chart 56, faceoff_map 48, player_summary 0) is NOT a capture gap.** The 55 are a strict subset of the 77; the per-frame Pass-1 classifications retained in `/home/michal/ingest-cache/<sha>/segments.json` prove OCR read every screen correctly (`goalsummary`/`shotsummary`/`faceoffsummary`/`netchart`/`lt all`) while the `viterbi_v2` segmenter dropped or absorbed the frames. ~190 selected-tab frames across 41/66 cached videos are directly recoverable; 8 matches are genuinely unrecoverable (249/252/464/976 no cache; 969/978/981/2694 no candidate frames).
+
+**Root cause (three compounding defects):** (1) the ingest-YAML per-screen min-duration overrides are dead under viterbi_v2 (legacy-engine-only — the match-463 fix never applied); (2) `_enforce_min_duration` reads the state-machine YAML where events/action_tracker/player_summary = 1.5 s, killing 1-sample (~1.0 s) views; (3) a single-frame Viterbi excursion costs 5.9 nats and the flat +3.0 anchor bonus can't clear it when the LR head is weak on the dark post-game UI. Also found: commit `8c2f40b` (prettier, 2026-08-02) reformatted `weights/nhl26-screen-classifier-v2.json` and **broke the Pass-1 cache key for all 66 cached videos** (stored `a6ffc7c6…` vs computed `5e257477…`); and the `legacy-passthrough-v0-video` tag on all 97 mass-ingest runs is a cache-hit mis-stamping bug at `orchestrator.py:623-627`, not the real engine.
+
+**The plan (v2, externally reviewed twice, all findings verified against source and incorporated) lives at `/home/michal/.claude/plans/make-a-plan-for-unified-tower.md`.** It is structured as **four approval stages — only Stage A is approved**:
+
+- **Stage A (APPROVED):** Phase 0 substrate repair (restore pre-prettier weights bytes; fix BOTH format scripts to add `--ignore-path .prettierignore` — a bare `.prettierignore` is dead config because `package.json` overrides Prettier's ignore list with `--ignore-path .gitignore`; fix the `orchestrator.py:623-627` decoder_version cache-hit mis-stamp) + Phase 1 **read-only** rescue manifest (reel-scoped-before-padding grouping, coverage precheck → `skip/already_covered`, player_summary and SUMMARY-CATEGORY review-only — the cache never stored side_strip_text and END OF GAME shares the top-bar read, run_id pinned per window, 3-column batch-key semantics). Exit gate: manifest summary presented before any execution is built.
+- **Stage B (needs own approval):** rollback tooling proven on pilot #1 → pilots → full rescue + honest report (8 unrecoverable matches named).
+- **Stage C (needs own approval):** sim sweep + bench labels v0.3 with **mandatory END OF GAME negative labels** → ONE atomic pipeline-fix commit (min_durations 0.9; `distinctive_anchor_pin` on FIVE priors — player_summary excluded, its pin would force the END OF GAME confounder into the state; versioned `cache_fingerprint()` salt, not repr; DECODER_VERSION `-pgpin`) → guardrails.
+- **Stage D (NOT approved):** reprocess safety (candidate-reels gate derived from fresh segments — on-disk reels.json only regenerates inside the dispatch branch, so comparing it is inert; mandatory negative live smoke) → chunked corpus re-ingest, cohort/runtime from the driver's dry-run, `--jobs 1` start on the single 3060.
+
+Key review-verified traps recorded for implementers: reels.json regeneration is dispatch-branch-only (`orchestrator.py:776,837` → `match_split.py:316-317`); only `top_bar_text` is persisted per frame (`orchestrator.py:315-326`); batch uniq is `(video_sha256, source_directory, run_id)` NULLS NOT DISTINCT; Pass-2 is run-scoped (`pass2-run-<id>`) so sibling-match reprocess cost must be measured, never assumed.
+
+**NEXT SESSION: Stage A / Phase 0.** Small, no decode-behavior change. Verify: recomputed cache key equals the FULL `sha256:a6ffc7c63ab7dccb59ea1359e545bba51a8ddc10f1ea7e3a6938eaa5991e5c63`; `pnpm exec prettier --file-info <weights> --ignore-path .gitignore --ignore-path .prettierignore` → `"ignored": true`; scoped `pnpm exec prettier --check <changed-files>` only (NO repo-wide format — tree is dirty); video_ingest pytest green; `classify-only` cache-hits. Then Phase 1 (manifest) in its own session.
+
+---
+
+### 🔴 THE viterbi_v2 BOX-SCORE MISS IS POSITIONAL, NOT LR-HEAD WEAKNESS — and the 757 is really 527 2026-08-02
+
+**Investigation only — no code changed, nothing drained.** Refines **defect (3)** of the entry above ("a single-frame Viterbi excursion costs 5.9 nats and the flat +3.0 anchor bonus can't clear it **when the LR head is weak**"). The measured cause is not LR-head weakness. It is the frame's **position in the decoded path**, and it is deterministic.
+
+#### Root cause: the bonus is per-frame, the penalty is per-run
+
+There are **two** barriers, and +3.00 sits between them:
+
+| position of the goal-summary frame               | marginal cost | max bonus | outcome             |
+| ------------------------------------------------ | ------------: | --------: | ------------------- |
+| isolated inside an `unknown_or_transition` block |     **−5.90** |     +3.00 | collapses, −2.90    |
+| adjacent to a state change the path made anyway  |     **−2.95** |     +3.00 | survives, **+0.05** |
+
+A solo visit pays two −3.0 transitions and forgoes two −0.05 self-loops; a visit next to a real state change pays only the extra entry. `post_game_box_score_goals` has exactly **one** regex prior (`nhl26_regex_priors.yaml:94`) and the bonus sums fired priors (`emissions.py:143-150`), so its ceiling is +3.00. **An unambiguous `lt goalsummary` read sitting alone in an unknown block can never be labelled, however clean the OCR is.**
+
+The +3.0 was tuned against the one-sided barrier only — `emissions.py:39-43` reasons about "the −3.0 transition penalty out of `unknown_or_transition`", singular. It clears that by **0.05** and misses the round trip by 2.90. The 2.0 → 3.0 bump bought exactly the case it was tested on.
+
+#### Evidence
+
+- **Path scoring** against the real state machine + real `EmissionWeights`: isolated **−2.90**, adjacent **+0.05**. At bonus 6.0 both become positive (+0.10 / +3.05).
+- **Corpus-wide** across 66 cached `segments.json`, 125 isolated goal-summary frames: predicting _hit ⟺ NOT(both neighbours unknown)_ is **97.6 % accurate with ZERO false positives** — 64/64 predicted hits hit, 58/61 predicted misses missed. The 3 stragglers won the round trip on visual confidence alone, which is the residual the model predicts.
+- **Sharpest case** — sha `0ece002a`: t=1657 `lt goalsummary` → MISS, t=1660 `lt goal summary` → HIT. Same video, 3 s apart, both isolated single frames. Only the surrounding path differs. This supersedes the cross-match `ed827491` example, which conflated run length with position.
+
+#### ⚠️ The 757 splits — this defect is worth 527
+
+| failure mode                                        | matches                                |  events |
+| --------------------------------------------------- | -------------------------------------- | ------: |
+| Transition-cost defect (goal prior fires, isolated) | 476, 977, 2403, 2404, 2577, 2672, 2676 | **527** |
+| **Different defect — no prior fires at all**        | 465 (147), 472 (83)                    | **230** |
+
+On **465** (t=1633) and **472** (t=1331) the box-score frame's top bar reads `lt summarycategory`, which matches **no prior**. There is no bonus to outweigh, so a decoder-cost fix does nothing for them. Per-match counts sum to 757 exactly, so the split is exhaustive. 472 and 977 still additionally need the reel-boundary fix.
+
+This supports the Stage-A decision to keep SUMMARY-CATEGORY **review-only**: of 94 such frames corpus-wide, 69 are unknown but 17 already resolve to goals, **7 to net_chart**, 1 to shots. The string is genuinely ambiguous — do not map it to goals.
+
+#### Two candidates refuted
+
+- **Not the reject-pin path** (`emissions.py:128`) — no `unknown_or_transition` prior fires on these texts.
+- **Not `_enforce_min_duration`** for box-score-goals: its min is 1.0 s, PTS gaps are exactly 1.000 s, and a **1-frame `post_game_faceoff_map` segment survives** at t=1703 in `ed827491`. No conflict with defect (2) above — that one bites `events`/`action_tracker`/`player_summary` at 1.5 s, which box_score_goals is not subject to.
+
+⚠️ **Trap for implementers:** `orchestrator.py:341-355` relabels frames only from **surviving** segments, so a min-duration drop leaves frames reading `unknown_or_transition` — byte-identical to a classifier miss. "Frames labelled unknown" is NOT by itself evidence of a classifier miss.
+
+#### ⬜ Next
+
+Raising `anchor_bonus` 3.0 → 6.0 is one line and verified to flip both positions, **but it scales every state's bonus** — including `post_game_events`'s very loose `\ball\b` and `pre_game_lobby_state_2`'s three priors (→ +18). It needs the proving bench before it goes near a gate; Stage C's `distinctive_anchor_pin` is the more targeted lever. Either way the corpus supplies a ready-made regression set: **64 frames that must keep hitting, 58 that should flip.** Re-ingest still costs a ~30–45 min decode per match, and the fix must land first.
+
+---
+
 ### 🟢 TOT REPAIR SHIPPED — 618 flipped HOLD → PASS. 2666 did NOT, and the reason is a different defect 2026-08-02
 
 **Commit `3508d40` (`tools/game_ocr/game_ocr/parsers.py` + `tests/test_parsers.py` only — the web/db pill workstream in the same tree was left dirty and untouched). Plus a live-DB re-OCR of two box-score segments.** Executes step (1) of the recommended next order in the BOX-SCORE FINAL-READ DEFECT entry below.
