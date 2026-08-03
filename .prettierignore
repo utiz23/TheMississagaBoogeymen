@@ -3,3 +3,15 @@ dist
 .next
 build
 pnpm-lock.yaml
+
+# Hash-identified artifacts: their exact bytes are an input to the Pass-1 cache
+# key (video_ingest.pass1_classify.compute_pass1_cache_key) and to
+# reprocess._compute_hashes provenance. Reformatting them is data-equivalent
+# but silently invalidates every cached segments.json under ~/ingest-cache.
+# Commit 8c2f40b did exactly that. Never format these.
+#
+# NOTE: this file is only consulted because package.json's format scripts pass
+# BOTH --ignore-path .gitignore and --ignore-path .prettierignore. A single
+# --ignore-path REPLACES Prettier's default ignore-file list, so dropping the
+# second flag makes this file dead config again.
+tools/game_ocr/game_ocr/weights/

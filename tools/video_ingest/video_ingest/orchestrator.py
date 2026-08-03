@@ -118,6 +118,31 @@ def _build_classifier(version: str, use_gpu: bool):
     return Classifier(cfg, use_gpu=use_gpu)
 
 
+def _decoder_version_for_cache_hit(engine: str, version: str) -> str:
+    """The ``decoder_version`` tag a Pass-1 *cache hit* must stamp.
+
+    A cache hit skips :func:`_run_pass1`, so the tag has to be re-derived from
+    the engine config instead of being returned by the decode. This mirrors
+    what each `_run_pass1` branch actually loads:
+
+    - ``viterbi``    → the ``<version>-v1`` state machine (NOT ``<version>``;
+      the unversioned YAML is v2's)
+    - ``viterbi_v2`` → the ``<version>`` state machine
+    - anything else (``run_length``) ships no state machine → legacy tag
+
+    Before this helper, the ``viterbi_v2`` cache hit fell into the else-branch
+    and stamped the legacy passthrough tag, which is how all 97 mass-ingest
+    runs came to be labelled ``legacy-passthrough-v0-video`` despite running
+    the v2 decoder. The ``viterbi`` branch loaded the wrong state machine.
+    """
+    if engine in ("viterbi", "viterbi_v2"):
+        from game_ocr.state_machine import load_state_machine
+
+        sm_name = f"{version}-v1" if engine == "viterbi" else version
+        return load_state_machine(sm_name).decoder_version
+    return "legacy-passthrough-v0-video"
+
+
 def _run_pass1(
     video_path: Path,
     classifier_legacy,
@@ -617,14 +642,10 @@ def ingest(
             # Phase 4 cache-hit telemetry: signal "didn't run this time"
             # via the flag; all *_ms fields stay at 0.0.
             sampling_telemetry = SamplingTelemetry(pass1_cache_hit=True)
-            # Cache hit: derive decoder_version from current engine config.
-            # The legacy run_length engine doesn't ship a state machine YAML,
-            # so we default to its tag; the viterbi engine loads sm for the tag.
-            if p1cfg.engine == "viterbi":
-                from game_ocr.state_machine import load_state_machine
-                decoder_version = load_state_machine(version).decoder_version
-            else:
-                decoder_version = "legacy-passthrough-v0-video"
+            # Cache hit: derive decoder_version from the current engine config
+            # exactly as `_run_pass1` would have. See
+            # `_decoder_version_for_cache_hit`.
+            decoder_version = _decoder_version_for_cache_hit(p1cfg.engine, version)
 
     if not cache_hit_pass1 and skip_pass1:
         raise MissingPass1Cache(
