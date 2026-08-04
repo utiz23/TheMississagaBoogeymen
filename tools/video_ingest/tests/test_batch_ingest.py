@@ -318,15 +318,22 @@ def _patch_loop(
     targets: list[BatchTarget],
     recorder: _StreamRecorder,
 ) -> dict[str, int]:
-    """Wire run_batch's seams: a preflight counter, injected (unordered) targets
+    """Wire run_batch's seams: preflight counters, injected (unordered) targets
     via ``_collect_targets`` (so the real ``prioritize`` still runs), and the
     stream recorder in place of every mutating subprocess."""
-    counters = {"preflight": 0}
+    counters = {"preflight": 0, "cache_preflight": 0}
 
     def _count_preflight() -> None:
         counters["preflight"] += 1
 
+    def _count_cache_preflight(_allow_empty: bool) -> None:
+        counters["cache_preflight"] += 1
+
     monkeypatch.setattr(bi, "preflight", _count_preflight)
+    # The decode-cache preflight is its own seam here for the same reason the
+    # venv one is: these tests are about the loop, and the guard itself is
+    # proven in test_cache_root_preflight.py.
+    monkeypatch.setattr(bi, "_preflight_cache", _count_cache_preflight)
     monkeypatch.setattr(bi, "_collect_targets", lambda _root, _since: list(targets))
     monkeypatch.setattr(bi, "_run_streaming", recorder)
     return counters
@@ -919,10 +926,13 @@ def _ptarget(name: str, confirmed: list[int], pending: list[int] | None = None):
 
 def _patch_promote(monkeypatch, tmp_path: Path, targets, recorder, *, grade_raises=()):
     """Wire run_promote's seams, mirroring ``_patch_loop``."""
-    counters = {"preflight": 0}
+    counters = {"preflight": 0, "cache_preflight": 0}
 
     def _count_preflight() -> None:
         counters["preflight"] += 1
+
+    def _count_cache_preflight(_allow_empty: bool) -> None:
+        counters["cache_preflight"] += 1
 
     def _cap(cmd, *, description):
         match_id = int(cmd[cmd.index("--match") + 1])
@@ -931,6 +941,7 @@ def _patch_promote(monkeypatch, tmp_path: Path, targets, recorder, *, grade_rais
         return _grade_stdout()
 
     monkeypatch.setattr(bi, "preflight", _count_preflight)
+    monkeypatch.setattr(bi, "_preflight_cache", _count_cache_preflight)
     monkeypatch.setattr(bi, "_promote_plan", lambda _root, _since: list(targets))
     monkeypatch.setattr(bi, "_run_streaming", recorder)
     monkeypatch.setattr(bi, "_run_captured", _cap)

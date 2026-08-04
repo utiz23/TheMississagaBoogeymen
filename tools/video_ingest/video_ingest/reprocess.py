@@ -26,6 +26,8 @@ from typing import List, Optional
 
 import typer
 
+from video_ingest.cache_root import preflight_cache_root
+
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 
@@ -422,6 +424,15 @@ def reprocess(
         ),
     ),
     version: str = typer.Option("nhl26", "--version", help="UI-config version (nhl26, nhl27, ...)."),
+    allow_empty_cache: bool = typer.Option(
+        False,
+        "--allow-empty-cache",
+        help=(
+            "Proceed even though the decode cache root holds no cached video. "
+            "Only correct on a genuinely fresh machine — see "
+            "video_ingest.cache_root."
+        ),
+    ),
 ) -> None:
     """Reprocess a match's video against the current v2 weights.
 
@@ -466,6 +477,14 @@ def reprocess(
         result = _run_decoder_runs_cli(*flags)
         typer.echo(json.dumps(result, indent=2))
         return
+
+    # 0. Cache-root preflight, before the DB is touched. This path always passes
+    #    --force-pass1/--force-pass2 (step 4), so it loses no cache HIT — but it
+    #    WRITES the Pass-2 frames and the run-quality sidecars (steps 8-10) into
+    #    DEFAULT_INGEST_CACHE. Against a phantom root that output lands where the
+    #    corpus cache will never see it, and the next batch pass re-decodes this
+    #    video from scratch. Same loss, one pass later. See cache_root.
+    preflight_cache_root(DEFAULT_INGEST_CACHE, allow_empty=allow_empty_cache)
 
     # 1. Hashes from the on-disk v2 artifacts.
     weights_hash, config_hash = _compute_hashes(version)

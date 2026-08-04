@@ -106,6 +106,22 @@ def _fake_artifacts(monkeypatch: pytest.MonkeyPatch) -> None:
     )
 
 
+def _seeded_cache_root(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Path:
+    """Redirect the decode cache root into ``tmp_path``, holding one cached video.
+
+    Redirected so the test doesn't write to the real ``/tmp/ingest-cache`` shared
+    with the operator's workstation; POPULATED because reprocess preflights the
+    root and fails closed on one that holds no Pass-1 cache
+    (:mod:`video_ingest.cache_root`) — these tests exercise the healthy path.
+    """
+    cache_dir = tmp_path / "ingest-cache"
+    cached = cache_dir / ("e" * 64)
+    cached.mkdir(parents=True)
+    (cached / "segments.json").write_text("{}")
+    monkeypatch.setattr(reprocess_mod, "DEFAULT_INGEST_CACHE", cache_dir)
+    return cache_dir
+
+
 def _make_decoder_runs_stub(fake_run_id: int):
     """Return a stub for ``_run_decoder_runs_cli`` whose return value
     differs by subcommand:
@@ -148,10 +164,7 @@ def test_full_pipeline_writes_stage_runtimes_file_and_invokes_emit(
     """
     fake_run_id = 4242
 
-    # Redirect the cache dir into tmp_path so the test doesn't write to
-    # the real /tmp/ingest-cache shared with the operator's workstation.
-    cache_dir = tmp_path / "ingest-cache"
-    monkeypatch.setattr(reprocess_mod, "DEFAULT_INGEST_CACHE", cache_dir)
+    cache_dir = _seeded_cache_root(monkeypatch, tmp_path)
 
     monkeypatch.setattr(
         reprocess_mod, "_run_decoder_runs_cli",
@@ -280,8 +293,7 @@ def test_emit_subprocess_failure_does_not_propagate(
     must still return cleanly — the upstream activate + consolidate +
     backfill steps already succeeded. The error gets logged to stderr."""
     fake_run_id = 8001
-    cache_dir = tmp_path / "ingest-cache"
-    monkeypatch.setattr(reprocess_mod, "DEFAULT_INGEST_CACHE", cache_dir)
+    cache_dir = _seeded_cache_root(monkeypatch, tmp_path)
     monkeypatch.setattr(
         reprocess_mod, "_run_decoder_runs_cli",
         _make_decoder_runs_stub(fake_run_id),
@@ -322,8 +334,7 @@ def test_emit_nonzero_exit_does_not_propagate(
     """Mirror of the raising-subprocess test but with a returncode != 0.
     Reprocess must still return cleanly."""
     fake_run_id = 8002
-    cache_dir = tmp_path / "ingest-cache"
-    monkeypatch.setattr(reprocess_mod, "DEFAULT_INGEST_CACHE", cache_dir)
+    cache_dir = _seeded_cache_root(monkeypatch, tmp_path)
     monkeypatch.setattr(
         reprocess_mod, "_run_decoder_runs_cli",
         _make_decoder_runs_stub(fake_run_id),
@@ -357,8 +368,7 @@ def test_dry_run_skips_stage_runtimes_file_and_emit(
     """--dry-run must NOT write the stage-runtimes file and must NOT
     invoke the run-quality emit."""
     fake_run_id = 9999
-    cache_dir = tmp_path / "ingest-cache"
-    monkeypatch.setattr(reprocess_mod, "DEFAULT_INGEST_CACHE", cache_dir)
+    cache_dir = _seeded_cache_root(monkeypatch, tmp_path)
     monkeypatch.setattr(
         reprocess_mod, "_run_decoder_runs_cli",
         _make_decoder_runs_stub(fake_run_id),
@@ -420,8 +430,7 @@ def test_ingest_timings_sidecar_projects_pass1_keys_into_payload(
     `_fake_artifacts` makes `_resolve_video_path` return `"c" * 64` as
     the video sha; the sidecar path matches that."""
     fake_run_id = 5151
-    cache_dir = tmp_path / "ingest-cache"
-    monkeypatch.setattr(reprocess_mod, "DEFAULT_INGEST_CACHE", cache_dir)
+    cache_dir = _seeded_cache_root(monkeypatch, tmp_path)
 
     # Lay down the sidecar BEFORE the CLI invocation. The stubbed
     # `_run_streaming` below doesn't actually invoke the orchestrator,
@@ -493,8 +502,7 @@ def test_ingest_timings_null_prefilter_projects_null_into_stages(
     land as null in `stages` — proving reprocess guards on the value, not just
     sidecar presence (a bare int(None) would crash)."""
     fake_run_id = 5252
-    cache_dir = tmp_path / "ingest-cache"
-    monkeypatch.setattr(reprocess_mod, "DEFAULT_INGEST_CACHE", cache_dir)
+    cache_dir = _seeded_cache_root(monkeypatch, tmp_path)
 
     fake_sha = "c" * 64
     sidecar_path = cache_dir / fake_sha / f"ingest-run-{fake_run_id}-timings.json"
@@ -555,8 +563,7 @@ def test_ingest_timings_missing_sidecar_is_silent(
     so downstream analytics can distinguish 'didn't measure' from
     'measured zero.'"""
     fake_run_id = 6262
-    cache_dir = tmp_path / "ingest-cache"
-    monkeypatch.setattr(reprocess_mod, "DEFAULT_INGEST_CACHE", cache_dir)
+    cache_dir = _seeded_cache_root(monkeypatch, tmp_path)
     # NO sidecar laid down.
 
     monkeypatch.setattr(
@@ -600,8 +607,7 @@ def test_undo_skips_stage_runtimes_file_and_emit(
     """--undo returns early from the very top of reprocess() — none of
     the Phase-4 wiring should execute."""
     fake_run_id = 7777
-    cache_dir = tmp_path / "ingest-cache"
-    monkeypatch.setattr(reprocess_mod, "DEFAULT_INGEST_CACHE", cache_dir)
+    cache_dir = _seeded_cache_root(monkeypatch, tmp_path)
 
     # The undo branch calls _run_decoder_runs_cli once and returns.
     monkeypatch.setattr(

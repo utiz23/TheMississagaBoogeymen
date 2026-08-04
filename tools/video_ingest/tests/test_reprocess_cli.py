@@ -37,6 +37,22 @@ from video_ingest import reprocess as reprocess_mod
 from video_ingest.cli import app
 
 
+def _seeded_cache_root(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Path:
+    """Redirect the decode cache root into ``tmp_path``, holding one cached video.
+
+    Redirected so the test doesn't write to the real ``/tmp/ingest-cache`` shared
+    with the operator's workstation; POPULATED because reprocess preflights the
+    root and fails closed on one that holds no Pass-1 cache
+    (:mod:`video_ingest.cache_root`) — these tests exercise the healthy path.
+    """
+    cache_dir = tmp_path / "ingest-cache"
+    cached = cache_dir / ("e" * 64)
+    cached.mkdir(parents=True)
+    (cached / "segments.json").write_text("{}")
+    monkeypatch.setattr(reprocess_mod, "DEFAULT_INGEST_CACHE", cache_dir)
+    return cache_dir
+
+
 # ─── CLI-surface tests (Task 8 carry-over) ───────────────────────────────────
 
 
@@ -59,7 +75,7 @@ def test_reprocess_subcommand_is_registered() -> None:
 
 
 def test_reprocess_dry_run_includes_consolidate_and_backfill_steps(
-    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """The dry-run payload must include the consolidate + backfill steps
     so operators can audit the full plan before committing to a real
@@ -74,6 +90,7 @@ def test_reprocess_dry_run_includes_consolidate_and_backfill_steps(
     fake_match = 250
     fake_run_id = 9999
 
+    _seeded_cache_root(monkeypatch, tmp_path)
     monkeypatch.setattr(
         reprocess_mod, "_compute_hashes",
         lambda version: ("a" * 64, "b" * 64),
@@ -114,7 +131,7 @@ def test_reprocess_dry_run_includes_consolidate_and_backfill_steps(
 
 
 def test_reprocess_halt_before_activate_stops_after_validate(
-    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """``--halt-before-activate`` (Phase G2) must run steps 1-6
     (create->ingest->promote->validate) then STOP before activate,
@@ -131,6 +148,7 @@ def test_reprocess_halt_before_activate_stops_after_validate(
     cli_calls: list[str] = []
     streaming_calls: list[str] = []
 
+    _seeded_cache_root(monkeypatch, tmp_path)
     monkeypatch.setattr(
         reprocess_mod, "_compute_hashes",
         lambda version: ("a" * 64, "b" * 64),
@@ -438,6 +456,7 @@ def test_reprocess_multiple_video_flags_ingest_each(
     vid_a.write_bytes(b"aaa")
     vid_b.write_bytes(b"bbb")
 
+    _seeded_cache_root(monkeypatch, tmp_path)
     monkeypatch.setattr(
         reprocess_mod, "_compute_hashes", lambda version: ("a" * 64, "b" * 64)
     )

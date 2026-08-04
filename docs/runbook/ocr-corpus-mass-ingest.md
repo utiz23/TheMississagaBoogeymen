@@ -57,13 +57,26 @@ pnpm --filter @eanhl/db build && pnpm --filter @eanhl/worker build
 # 6. Headroom: GPU near-idle, / has room for the ingest cache
 nvidia-smi --query-gpu=memory.used --format=csv,noheader   # ~2 GB idle baseline
 df -h /
+
+# 7. Decode cache root present and POPULATED (see the trap below). /tmp is wiped
+#    on reboot; the durable store is ~/ingest-cache and /tmp/ingest-cache is a
+#    symlink to it. Expect one dir per cached video.
+ls -d /tmp/ingest-cache/*/segments.json 2>/dev/null | wc -l   # expect: >0
+[ -e /tmp/ingest-cache ] || ln -sfn ~/ingest-cache /tmp/ingest-cache
 ```
+
+`batch`, `batch-promote` and `reprocess` now preflight this themselves and refuse
+to start against a root that holds no cached video, printing the symlink command.
+The check keys on CONTENT (`<root>/<sha>/segments.json`), not existence, because
+an existing-but-empty `/tmp/ingest-cache` is the failure mode — see the trap
+table. `--allow-empty-cache` overrides it and is only correct on a genuinely
+fresh machine with no cache yet.
 
 ## 1. Pass-1 chunk (parallel)
 
 ```bash
 cd tools/video_ingest && source .venv/bin/activate
-video-ingest batch --video-root /mnt/k/NHL/NHL26 --output-root /tmp/ingest-cache --jobs 3 --limit <N>
+video-ingest batch --video-root /mnt/k/NHL/NHL26 --jobs 3 --limit <N>
 ```
 
 - **`--jobs 3`** is the measured sweet spot (N=2 scales perfectly, N=3 costs
@@ -77,9 +90,11 @@ video-ingest batch --video-root /mnt/k/NHL/NHL26 --output-root /tmp/ingest-cache
   `/tmp/ingest-cache/batch-logs-<ts>/<sha>.log` (`tail -f`).
 - ETA: ~1.3–1.65 s/frame per worker ≈ 1.5–2 h wall per hour-of-footage per
   worker slot at N=3.
-- ⚠️ `/tmp/ingest-cache` does not survive a reboot; a lost cache only costs
-  re-decode time (DB state is unaffected). Move the output root onto a
-  persistent ext4 path if the machine is likely to restart mid-corpus.
+- ⚠️ `/tmp/ingest-cache` does not survive a reboot. "Only costs re-decode time"
+  understates it: at ~30–45 min per video over the corpus that is tens of hours,
+  and before the preflight existed it was spent SILENTLY — the run completed and
+  reported success. DB state is genuinely unaffected. The durable store is
+  `~/ingest-cache`; keep `/tmp/ingest-cache` a symlink to it.
 
 ## 2. Operator confirm pass (after each chunk)
 
@@ -161,6 +176,7 @@ SELECT count(*) AS unmatched_with_run  FROM ocr_capture_batches WHERE match_id I
 | DATABASE_URL missing             | Planning succeeds, dispatch dies mid-run. Preflight step 2.                                                                                    |
 | venv path-invoked, not activated | Imports resolve differently. Always `source .venv/bin/activate`.                                                                               |
 | uv sync strips wheels            | Walk-import (preflight step 4) before every session.                                                                                           |
+| Empty `/tmp/ingest-cache`        | Worse than a missing one: every existence check passes and the whole corpus re-decodes silently. Preflight step 7; the CLIs now fail closed.   |
 | `--limit` pre-skip slicing       | Chunks shrink as the corpus completes; size limits generously.                                                                                 |
 | played_at semantics              | Game END, not start. The pre-fix matcher ranked the previous match top on timestamp-only reels (frame-proven off-by-ones: proposals 28/29/30). |
 | Foreground timeouts              | `batch`/`batch-promote` runs are hours long — background them; never under a 2-min foreground timeout.                                         |

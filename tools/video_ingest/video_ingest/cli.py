@@ -22,6 +22,7 @@ import typer
 
 from video_ingest.annotate import annotate as run_annotate
 from video_ingest.batch_ingest import run_batch, run_promote
+from video_ingest.cache_root import CacheRootUnusable
 from video_ingest.dispatch import ReelMapLookupError
 from video_ingest.orchestrator import ingest as run_ingest
 from video_ingest.pass1_classify import CacheMismatch, MissingPass1Cache
@@ -35,15 +36,21 @@ def _with_cache_mismatch_exit(fn):
     """Catch user-fixable orchestrator errors at the CLI boundary and exit
     non-zero with the structured message — avoids printing a Python traceback
     for config drift (`CacheMismatch`), missing-Pass-1-cache states
-    (`MissingPass1Cache`), or a required-but-unreadable confirmed reel map
-    (`ReelMapLookupError`, only raised under --require-reel-map). The clean
-    exit-1 is what the batch-promote subprocess wrapper turns into a loud
-    per-video SKIP instead of a silent no-op drain."""
+    (`MissingPass1Cache`), a required-but-unreadable confirmed reel map
+    (`ReelMapLookupError`, only raised under --require-reel-map), or a decode
+    cache root that holds no cache (`CacheRootUnusable`). The clean exit-1 is
+    what the batch-promote subprocess wrapper turns into a loud per-video SKIP
+    instead of a silent no-op drain."""
     @wraps(fn)
     def wrapper(*args, **kwargs):
         try:
             return fn(*args, **kwargs)
-        except (CacheMismatch, MissingPass1Cache, ReelMapLookupError) as exc:
+        except (
+            CacheMismatch,
+            MissingPass1Cache,
+            ReelMapLookupError,
+            CacheRootUnusable,
+        ) as exc:
             typer.echo(str(exc), err=True)
             raise typer.Exit(code=1)
     return wrapper
@@ -273,10 +280,11 @@ def annotate(
     )
 
 
-app.command(name="reprocess")(run_reprocess)
+app.command(name="reprocess")(_with_cache_mismatch_exit(run_reprocess))
 
 
 @app.command("batch")
+@_with_cache_mismatch_exit
 def batch(
     video_root: Path = typer.Option(
         ...,
@@ -314,6 +322,15 @@ def batch(
             "GPU memory."
         ),
     ),
+    allow_empty_cache: bool = typer.Option(
+        False,
+        "--allow-empty-cache",
+        help=(
+            "Proceed even though the decode cache root holds no cached video. "
+            "Only correct on a genuinely fresh machine — see "
+            "video_ingest.cache_root."
+        ),
+    ),
 ) -> None:
     """Unattended mass-ingest run loop over the video corpus.
 
@@ -330,10 +347,12 @@ def batch(
         dry_run=dry_run,
         limit=limit,
         jobs=jobs,
+        allow_empty_cache=allow_empty_cache,
     )
 
 
 @app.command("batch-promote")
+@_with_cache_mismatch_exit
 def batch_promote(
     video_root: Path = typer.Option(
         ...,
@@ -357,6 +376,15 @@ def batch_promote(
     limit: Optional[int] = typer.Option(
         None, "--limit", help="Promote at most N videos (after planning)."
     ),
+    allow_empty_cache: bool = typer.Option(
+        False,
+        "--allow-empty-cache",
+        help=(
+            "Proceed even though the decode cache root holds no cached video. "
+            "Near-nonsensical here (a confirmed backlog implies a populated "
+            "cache) but kept uniform across the entry points."
+        ),
+    ),
 ) -> None:
     """Drain the operator-confirmed association backlog — `batch`'s second pass.
 
@@ -373,7 +401,13 @@ def batch_promote(
     the skip granularity is per-video, so a partially-confirmed video re-OCRs its
     already-drained reels. See ``batch_ingest.run_promote``.
     """
-    run_promote(video_root, date.fromisoformat(since), dry_run=dry_run, limit=limit)
+    run_promote(
+        video_root,
+        date.fromisoformat(since),
+        dry_run=dry_run,
+        limit=limit,
+        allow_empty_cache=allow_empty_cache,
+    )
 
 
 if __name__ == "__main__":

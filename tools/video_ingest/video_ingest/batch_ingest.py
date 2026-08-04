@@ -45,6 +45,7 @@ from typing import BinaryIO, Callable
 
 import typer
 
+from video_ingest.cache_root import preflight_cache_root
 from video_ingest.identity_probe import parse_basename_epoch
 from video_ingest.reprocess import (
     DEFAULT_INGEST_CACHE,
@@ -392,6 +393,25 @@ def preflight() -> None:
             ) from exc
 
 
+def _preflight_cache(allow_empty: bool) -> None:
+    """Fail closed before any planning when the decode cache root is unusable.
+
+    Same contract as :func:`preflight` and for the same reason — a lost cache
+    root is worth exactly as much GPU time as a lost wheel, and it is quieter:
+    the run completes, reports success, and re-decodes the whole corpus. Runs
+    FIRST because it is the cheaper check and (unlike the import walk) its
+    failure mode is silent. ``DEFAULT_INGEST_CACHE`` is read at call time so a
+    test — or a future override — can point it elsewhere.
+    """
+    entries = preflight_cache_root(DEFAULT_INGEST_CACHE, allow_empty=allow_empty)
+    typer.echo(
+        f"[preflight] decode cache {DEFAULT_INGEST_CACHE}: "
+        f"{len(entries)} cached video(s)"
+        + ("  [--allow-empty-cache]" if allow_empty and not entries else ""),
+        err=True,
+    )
+
+
 # ─── run loop (Task 4.3) ──────────────────────────────────────────────────────
 #
 # ``run_batch`` is the unattended first pass over the corpus: preflight once,
@@ -562,14 +582,16 @@ def run_batch(
     dry_run: bool = False,
     limit: int | None = None,
     jobs: int = 1,
+    allow_empty_cache: bool = False,
 ) -> None:
     """Unattended first-pass mass-ingest over the corpus under ``video_root``.
 
-    Preflights the GPU-venv closure ONCE up front (a lost wheel must fail in <1s,
-    not tens of minutes into a decode), plans the work queue (enumerate → dedup →
-    DB-refine → prioritize → ``limit``), then processes each target in priority
-    order behind per-video try/except isolation. ``dry_run`` prints the plan and
-    makes zero mutating calls. Stops every target at the operator-confirm gate.
+    Preflights the decode cache root and the GPU-venv closure ONCE up front (a
+    lost wheel — or a lost cache — must fail in <1s, not tens of minutes into a
+    decode), plans the work queue (enumerate → dedup → DB-refine → prioritize →
+    ``limit``), then processes each target in priority order behind per-video
+    try/except isolation. ``dry_run`` prints the plan and makes zero mutating
+    calls. Stops every target at the operator-confirm gate.
 
     ``jobs`` (default 1) sets the Pass-1 concurrency. ``jobs<=1`` keeps the
     single-threaded loop verbatim — output inherits the terminal, live. ``jobs>1``
@@ -580,7 +602,12 @@ def run_batch(
     there is no work to parallelize, only a plan to print. The planning phase
     (which is the only writer of ``sha-cache.json``) is unconditionally sequential
     and completes before any fan-out, so concurrent workers never race that file.
+
+    ``allow_empty_cache`` is the first-run opt-in for the cache preflight; see
+    :mod:`video_ingest.cache_root`. It is checked before the plan so a phantom
+    root cannot even produce a misleading ``--dry-run`` listing.
     """
+    _preflight_cache(allow_empty_cache)
     preflight()
     targets = prioritize(_collect_targets(video_root, since))
     if limit is not None:
@@ -1177,13 +1204,17 @@ def run_promote(
     since: date,
     dry_run: bool = False,
     limit: int | None = None,
+    allow_empty_cache: bool = False,
 ) -> None:
     """Drain the operator-confirmed association backlog — ``run_batch``'s second
     pass.
 
-    Preflights the GPU-venv closure ONCE (the dispatch subprocess still imports
-    the full closure even on a decode cache hit, and a lost wheel must fail in
-    <1s rather than hours into the run), plans the backlog, then per video
+    Preflights the decode cache root and the GPU-venv closure ONCE (this pass
+    re-ingests WITHOUT ``--force-pass1`` — the decode is supposed to be a cache
+    HIT, so an unusable root turns every video in the backlog into a full
+    ~30-45 min re-decode; and the dispatch subprocess still imports the full
+    closure even on a cache hit, so a lost wheel must fail in <1s rather than
+    hours into the run), plans the backlog, then per video
     re-ingests (⇒ per-reel dispatch under each confirmed match_id ⇒ box-score
     promotion inside the ingest transaction) and grades each confirmed match.
 
@@ -1191,7 +1222,13 @@ def run_promote(
     run summary is persisted after EVERY video, so a crash 9 videos into a 40h
     run still leaves 1-8 fully recorded. ``dry_run`` prints the plan and makes
     zero mutating calls.
+
+    ``allow_empty_cache`` is the first-run opt-in for the cache preflight; see
+    :mod:`video_ingest.cache_root`. Note it is a near-nonsensical thing to pass
+    HERE — a backlog of confirmed associations implies a populated cache — but
+    the flag stays uniform across the entry points rather than special-casing.
     """
+    _preflight_cache(allow_empty_cache)
     preflight()
     targets = _promote_plan(video_root, since)
     if limit is not None:
