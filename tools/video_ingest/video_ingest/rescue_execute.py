@@ -1,0 +1,1122 @@
+"""Stage-B post-game rescue executor — consumes the Stage-A manifest verbatim.
+
+Stage A (``rescue_manifest`` + ``scripts/rescue_postgame_from_cache.py``) did all
+the thinking: it classified every cached anchor read, resolved each frame to a
+reel → match → active run, adjudicated the identity ledgers, and pinned the exact
+``ffmpeg`` + ``ingest-ocr`` argv for every window it was willing to approve.
+
+Stage B does **none** of that again. It re-derives no classification, no
+identity, no window geometry and no decision. Its entire job is to be a careful
+gate in front of argv that already exists:
+
+  1. validate the COMPLETE manifest — every window, not just the ones it wants;
+  2. take only ``decision == "auto"`` windows whose pinned commands are
+     self-consistent;
+  3. preflight the exact cache and video artifacts that set depends on;
+  4. abort the whole run if anything is missing — never skip a window, never
+     fall back to decoding;
+  5. drop windows whose output the database *verifiably* already holds, so a
+     rerun cannot duplicate real rescue data — and, just as importantly, cannot
+     mistake a half-written batch for a finished one;
+  6. re-check that same predicate after every window it runs, so a subprocess
+     that exits 0 without producing the output is a failure and not a promotion;
+  7. and do all of the above without executing anything unless the operator
+     passed the explicit opt-in.
+
+Everything here is a pure function over plain data plus three injected IO seams
+(``completion_facts``, ``run_command``, ``receipt_sink``), so the whole policy is
+unit-testable with no cache, no video, no ffmpeg and no database.
+
+The rollback story is inherited from Stage A and must not drift:
+
+  * a rescue capture batch is identifiable by ``source_directory LIKE
+    '%/rescue/%'`` — enforced by :func:`command_problems`;
+  * a rescue segment is identifiable by ``decoder_version =
+    'rescue-b2-anchor-v1'`` — enforced by :func:`command_problems`.
+
+**Why the capture-batch row is not the completion signal.** ``ocr_capture_batches``
+is unique on ``(video_sha256, source_directory, run_id)`` and ``ingest-ocr``
+upserts that row *before* it processes a single result
+(``apps/worker/src/ingest-ocr.ts``, the ``db.insert(ocrCaptureBatches)`` block
+that runs ahead of the ``for (const result of cli.results)`` loop). Everything
+after that point is failure-tolerant:
+
+  * each result is persisted inside ``try { … } catch { failed++ }`` — a
+    rolled-back result leaves no ``ocr_extractions`` row and does not throw;
+  * ``writeSegmentForBatch`` is wrapped in its own ``try/catch`` that only
+    ``console.warn``s, so the batch row can exist with **no** ``ocr_segments``
+    row at all;
+  * when the OCR CLI returns zero results the segment is still written, with
+    ``frame_count = 0`` and ``observability_status='not_observable_from_source'``;
+  * ``ingest-ocr-cli.ts`` never inspects ``summary.failed`` — ``process.exitCode``
+    is set only from the top-level ``.catch``, so every case above exits **0**.
+
+So "the key exists" proves only that the process started. Keying idempotency on
+it means a retry classifies a half-written batch as done and skips it forever —
+permanent, silent data loss. :func:`completion_problems` is the corrected
+predicate; see it for the exact columns and for why an ``ocr_segments`` row on
+its own is still not enough.
+
+The manifest's own ``cache_root`` is authoritative and there is deliberately no
+override: the pinned ``batch_dir`` in every command was built against it, so
+substituting a different root would split a run between the path Stage B checks
+and the path ``ingest-ocr`` writes. If the cache moved, regenerate the manifest.
+This module VALIDATES; like :mod:`video_ingest.cache_root`, it never RESOLVES.
+"""
+
+from __future__ import annotations
+
+import hashlib
+import json
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Any, Callable, Iterable, Sequence
+
+from video_ingest.cache_root import PASS1_ARTIFACT
+from video_ingest.rescue_manifest import (
+    AUTO_ELIGIBLE_SCREENS,
+    DECISION_AUTO,
+    RESCUE_DECODER_VERSION,
+    SCHEMA_VERSION,
+    SEGMENT_INDEX_BASE,
+    Window,
+    parse_windows,
+    rescue_batch_dir,
+    validate_manifest,
+)
+
+#: The opt-in that turns planning into promotion. Named once so the guard, the
+#: CLI and the dry-run banner cannot drift apart.
+EXECUTE_FLAG = "--execute"
+
+#: The path component that makes a capture batch identifiable as a rescue in
+#: `ocr_capture_batches.source_directory`. Rollback keys on it, so a window
+#: whose batch dir lost it is not executable.
+RESCUE_DIR_MARKER = "/rescue/"
+
+#: The two commands each window runs, in order.
+STEP_FFMPEG = "ffmpeg"
+STEP_INGEST_OCR = "ingest_ocr"
+STEP_ORDER: tuple[str, ...] = (STEP_FFMPEG, STEP_INGEST_OCR)
+
+OUTCOME_PROMOTED = "promoted"
+OUTCOME_FAILED = "failed"
+OUTCOME_NOT_ATTEMPTED = "not_attempted"
+
+
+class RescueAborted(RuntimeError):
+    """Stage B refused to run. Carries an operator-facing message.
+
+    The CLI turns this into a clean exit 1. Every expected rejection — an
+    unreadable manifest, a schema mismatch, a tampered command, a missing cache
+    artifact — arrives as one of these rather than as a traceback.
+    """
+
+
+# ─── Manifest loading ────────────────────────────────────────────────────────
+
+
+def file_digest(path: Path) -> str:
+    """SHA-256 of the manifest bytes, recorded on every receipt.
+
+    Provenance: it ties a promoted row back to the exact manifest revision that
+    authorised it, which a regenerated manifest cannot forge.
+    """
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def load_manifest(path: Path) -> dict[str, Any]:
+    """Read and JSON-parse the manifest, or abort with a clean message."""
+    try:
+        raw = path.read_bytes()
+    except OSError as exc:
+        raise RescueAborted(f"manifest unreadable: {path}\n  {exc}") from exc
+    try:
+        doc = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise RescueAborted(f"manifest is not valid JSON: {path}\n  {exc}") from exc
+    if not isinstance(doc, dict):
+        raise RescueAborted(
+            f"manifest root must be a JSON object, got {type(doc).__name__}: {path}"
+        )
+    return doc
+
+
+# ─── Validation ──────────────────────────────────────────────────────────────
+
+
+def policy_problems(doc: dict[str, Any]) -> list[str]:
+    """Whether the manifest was produced by the Stage A this executor pairs with.
+
+    A manifest from a different schema, decoder tag, segment base or
+    auto-eligible screen set is not merely older — its windows encode a policy
+    this executor's rollback and idempotency keys do not describe.
+    """
+    problems: list[str] = []
+
+    if doc.get("schema_version") != SCHEMA_VERSION:
+        problems.append(
+            f"schema_version: expected {SCHEMA_VERSION}, got {doc.get('schema_version')!r}"
+        )
+
+    cache_root = doc.get("cache_root")
+    if not isinstance(cache_root, str) or not cache_root.strip():
+        problems.append("cache_root: missing or empty")
+
+    policy = doc.get("policy")
+    if not isinstance(policy, dict):
+        problems.append("policy: missing or not an object")
+        return problems
+
+    if policy.get("decoder_version") != RESCUE_DECODER_VERSION:
+        problems.append(
+            f"policy.decoder_version: expected {RESCUE_DECODER_VERSION!r}, "
+            f"got {policy.get('decoder_version')!r}"
+        )
+    if policy.get("segment_index_base") != SEGMENT_INDEX_BASE:
+        problems.append(
+            f"policy.segment_index_base: expected {SEGMENT_INDEX_BASE}, "
+            f"got {policy.get('segment_index_base')!r}"
+        )
+    screens = policy.get("auto_eligible_screens")
+    if list(screens or []) != list(AUTO_ELIGIBLE_SCREENS):
+        problems.append(
+            "policy.auto_eligible_screens: does not match this executor's "
+            f"{list(AUTO_ELIGIBLE_SCREENS)}"
+        )
+    return problems
+
+
+def flag_value(argv: Sequence[str], flag: str) -> str | None:
+    """The token after ``flag``, or ``None`` if absent or trailing."""
+    for i, token in enumerate(argv):
+        if token == flag:
+            return argv[i + 1] if i + 1 < len(argv) else None
+    return None
+
+
+def _argv_problems(value: Any, label: str) -> list[str]:
+    if not isinstance(value, list) or not value:
+        return [f"commands.{label}: missing or empty"]
+    if not all(isinstance(tok, str) for tok in value):
+        return [f"commands.{label}: contains a non-string token"]
+    return []
+
+
+def command_problems(window: Window, *, cache_root: str) -> list[str]:
+    """Whether an auto window's pinned commands are self-consistent.
+
+    This VERIFIES the fingerprint Stage A wrote; it does not recompute it. Every
+    check compares the manifest's own window fields against the manifest's own
+    argv, so a hand-edited, half-regenerated or cross-manifest command set
+    cannot execute — while a faithful Stage A manifest passes untouched.
+
+    The batch dir is checked for exact equality against Stage A's own
+    :func:`rescue_batch_dir` because that path is the rollback handle: it is
+    what lands in ``ocr_capture_batches.source_directory`` and what the
+    ``'%/rescue/%'`` sweep finds.
+    """
+    commands = window.commands
+    if not isinstance(commands, dict):
+        return ["commands: null (nothing pinned to execute)"]
+
+    problems: list[str] = []
+
+    batch_dir = commands.get("batch_dir")
+    if not isinstance(batch_dir, str) or not batch_dir:
+        problems.append("commands.batch_dir: missing or empty")
+        batch_dir = ""
+    else:
+        expected_dir = rescue_batch_dir(cache_root, window)
+        if batch_dir != expected_dir:
+            problems.append(
+                f"commands.batch_dir: {batch_dir!r} does not match this window's "
+                f"pinned location {expected_dir!r}"
+            )
+        if RESCUE_DIR_MARKER not in batch_dir:
+            problems.append(
+                f"commands.batch_dir: {batch_dir!r} lacks the {RESCUE_DIR_MARKER!r} "
+                "marker that rollback keys on"
+            )
+
+    ffmpeg = commands.get("ffmpeg")
+    ffmpeg_problems = _argv_problems(ffmpeg, STEP_FFMPEG)
+    problems += ffmpeg_problems
+    if not ffmpeg_problems:
+        assert isinstance(ffmpeg, list)  # narrowed by _argv_problems
+        if ffmpeg[0] != "ffmpeg":
+            problems.append(f"commands.ffmpeg: argv[0] is {ffmpeg[0]!r}, not 'ffmpeg'")
+        for flag, expected in (
+            ("-ss", f"{window.t0:.3f}"),
+            ("-to", f"{window.t1:.3f}"),
+            ("-i", window.video_path),
+        ):
+            got = flag_value(ffmpeg, flag)
+            if got != expected:
+                problems.append(
+                    f"commands.ffmpeg {flag}: {got!r} does not match the window's {expected!r}"
+                )
+        if batch_dir and not ffmpeg[-1].startswith(batch_dir):
+            problems.append(
+                f"commands.ffmpeg: output {ffmpeg[-1]!r} is not inside the batch dir"
+            )
+
+    ingest = commands.get("ingest_ocr")
+    ingest_problems = _argv_problems(ingest, STEP_INGEST_OCR)
+    problems += ingest_problems
+    if not ingest_problems:
+        assert isinstance(ingest, list)  # narrowed by _argv_problems
+        expectations: list[tuple[str, str | None]] = [
+            ("--batch-dir", batch_dir or None),
+            ("--screen", window.target_screen),
+            ("--match-id", str(window.match_id) if window.match_id is not None else None),
+            ("--video-sha256", window.video_sha256),
+            ("--video-segment-index", str(window.segment_index)),
+            ("--video-segment-start-sec", f"{window.t0:.3f}"),
+            ("--video-segment-end-sec", f"{window.t1:.3f}"),
+            ("--capture-kind", "video_frames"),
+            # The rescue tag is the segment-layer rollback handle. Losing it
+            # would publish rescued rows indistinguishable from native ones.
+            ("--decoder-version", RESCUE_DECODER_VERSION),
+            # An auto window always resolved to an active run (Stage A routes a
+            # runless match to review), and the run is half of the promotion
+            # key — an untagged rescue batch would be a second, unkeyed row.
+            ("--run-id", str(window.run_id) if window.run_id is not None else None),
+        ]
+        for flag, expected in expectations:
+            got = flag_value(ingest, flag)
+            if expected is None:
+                problems.append(f"commands.ingest_ocr {flag}: window has no value to pin")
+            elif got != expected:
+                problems.append(
+                    f"commands.ingest_ocr {flag}: {got!r} does not match the window's "
+                    f"{expected!r}"
+                )
+
+    return problems
+
+
+def validate_for_execution(doc: dict[str, Any]) -> list[str]:
+    """Every problem that must be zero before Stage B may run anything.
+
+    Deliberately whole-manifest: Stage A's structural pass runs over EVERY
+    window, auto or not. A manifest that is malformed anywhere is a manifest
+    whose auto windows cannot be trusted either, so a broken review window
+    aborts the run rather than being quietly stepped over.
+    """
+    problems = list(validate_manifest(doc))
+    problems += policy_problems(doc)
+
+    cache_root = doc.get("cache_root")
+    cache_root_str = cache_root if isinstance(cache_root, str) else ""
+
+    for i, raw in enumerate(doc.get("windows") or []):
+        if not isinstance(raw, dict):
+            continue  # already reported by validate_manifest
+        try:
+            window = Window(**raw)
+        except TypeError:
+            continue  # already reported by validate_manifest
+        if window.decision != DECISION_AUTO:
+            continue
+        where = f"window[{i}] {window.video_sha256[:12]}/seg{window.segment_index}"
+        problems += [f"{where}: {p}" for p in command_problems(window, cache_root=cache_root_str)]
+
+    return problems
+
+
+def _render_problems(problems: Sequence[str], *, source: Path, limit: int = 40) -> str:
+    lines = [
+        f"manifest REJECTED: {source}",
+        f"  {len(problems)} problem(s); Stage B will not execute a partially valid manifest.",
+    ]
+    lines += [f"    - {p}" for p in problems[:limit]]
+    if len(problems) > limit:
+        lines.append(f"    ... and {len(problems) - limit} more")
+    return "\n".join(lines)
+
+
+def require_valid_manifest(doc: dict[str, Any], *, source: Path) -> None:
+    problems = validate_for_execution(doc)
+    if problems:
+        raise RescueAborted(_render_problems(problems, source=source))
+
+
+# ─── Decision filtering ──────────────────────────────────────────────────────
+
+
+def executable_windows(windows: Iterable[Window]) -> list[Window]:
+    """Only ``auto``.
+
+    ``review`` means a human has not resolved it and ``skip`` means there is
+    provably nothing to gain; neither is executable, and neither becomes
+    executable because it happens to carry a command fingerprint (most skips
+    keep theirs — only the unassociated duplicates have theirs nulled).
+    """
+    return [w for w in windows if w.decision == DECISION_AUTO]
+
+
+def assert_executable(window: Window) -> None:
+    """Last-line guard, re-checked at the moment of execution.
+
+    :func:`executable_windows` already filtered, so reaching this with a
+    non-auto window means a caller hand-built a plan. Fail closed rather than
+    trust the earlier filter.
+    """
+    if window.decision != DECISION_AUTO:
+        raise RescueAborted(
+            f"refusing to execute a {window.decision!r} window "
+            f"({window.video_sha256[:12]}/seg{window.segment_index}, "
+            f"reason={window.reason!r}) — only {DECISION_AUTO!r} windows are executable"
+        )
+    if not isinstance(window.commands, dict):
+        raise RescueAborted(
+            f"refusing to execute {window.video_sha256[:12]}/seg{window.segment_index}: "
+            "no pinned commands"
+        )
+
+
+# ─── Artifact preflight ──────────────────────────────────────────────────────
+
+
+@dataclass(frozen=True)
+class ArtifactCheck:
+    """One manifest-referenced path the auto set cannot run without."""
+
+    kind: str
+    path: Path
+    windows: int
+
+
+def required_artifacts(windows: Sequence[Window], cache_root: Path) -> list[ArtifactCheck]:
+    """Exactly the artifacts the AUTO set depends on — nothing wider.
+
+    Two kinds, both referenced by the manifest itself:
+
+    * ``pass1_cache`` — ``<cache-root>/<sha>/segments.json``, one per distinct
+      sha in the auto set. This is the evidence the manifest's decisions rest
+      on; if it is gone, the manifest is describing a cache that no longer
+      exists and its geometry cannot be trusted.
+    * ``video`` — the source file each ffmpeg invocation reads.
+
+    Windows the manifest routed to review or skip contribute nothing: their
+    shas are not in the auto set, so a missing cache entry for a review-only
+    video is not this run's problem and must not abort it.
+    """
+    cache_counts: dict[Path, int] = {}
+    video_counts: dict[Path, int] = {}
+    for window in windows:
+        cache_path = cache_root / window.video_sha256 / PASS1_ARTIFACT
+        cache_counts[cache_path] = cache_counts.get(cache_path, 0) + 1
+        if window.video_path:
+            video_path = Path(window.video_path)
+            video_counts[video_path] = video_counts.get(video_path, 0) + 1
+
+    checks = [ArtifactCheck("pass1_cache", p, n) for p, n in sorted(cache_counts.items())]
+    checks += [ArtifactCheck("video", p, n) for p, n in sorted(video_counts.items())]
+    return checks
+
+
+def missing_artifacts(checks: Iterable[ArtifactCheck]) -> list[ArtifactCheck]:
+    return [c for c in checks if not c.path.is_file()]
+
+
+def _render_missing(missing: Sequence[ArtifactCheck], total: int) -> str:
+    lines = [
+        "artifact preflight FAILED: "
+        f"{len(missing)} of {total} manifest-referenced artifact(s) are missing.",
+        "  Stage B is all-or-nothing: it will NOT skip the affected windows and it",
+        "  will NOT fall back to decoding. Nothing was executed and no row was written.",
+    ]
+    for check in missing:
+        lines.append(f"    - [{check.kind}] {check.path}  ({check.windows} auto window(s))")
+    lines.append(
+        "  Restore the artifacts, or regenerate the manifest against the cache that "
+        "actually exists."
+    )
+    return "\n".join(lines)
+
+
+# ─── Completion ──────────────────────────────────────────────────────────────
+
+#: ``(video_sha256, source_directory, run_id)`` — a verbatim mirror of the
+#: ``ocr_capture_batches_video_sha_dir_run_uniq`` index. This identifies the
+#: capture batch a window's output must hang off. It is the JOIN key, **not**
+#: the completion test: see the module docstring for why its mere existence
+#: proves nothing.
+PromotionKey = tuple[str, str, int | None]
+
+#: How ``ingest-ocr`` builds ``ocr_segments.segment_key`` for a video-backed
+#: batch: ``vsha-<first 12 of sha>:seg<index padded to 4>``. Mirrored here so a
+#: window can name the exact row it must have produced.
+SEGMENT_KEY_SHA_CHARS = 12
+SEGMENT_KEY_INDEX_WIDTH = 4
+
+#: ``ocr_segments.observability_status`` for a segment that actually saw frames.
+#: ``ingest-ocr`` writes ``'not_observable_from_source'`` instead whenever
+#: ``frame_count == 0``, which is exactly the exits-0-with-no-output case.
+SEGMENT_OBSERVABLE = "observable"
+
+#: ``ocr_extractions.transform_status`` after a promoter ran without throwing.
+#: Every screen Stage B may execute has a registered promoter, so this is the
+#: pipeline's own signal that downstream promotion committed for that frame.
+EXTRACTION_SUCCESS = "success"
+
+
+def promotion_key(window: Window) -> PromotionKey:
+    batch_dir = ""
+    if isinstance(window.commands, dict):
+        batch_dir = str(window.commands.get("batch_dir") or "")
+    return (window.video_sha256, batch_dir, window.run_id)
+
+
+def expected_segment_key(window: Window) -> str:
+    """The ``ocr_segments.segment_key`` this window's ingest must have written."""
+    return (
+        f"vsha-{window.video_sha256[:SEGMENT_KEY_SHA_CHARS]}"
+        f":seg{window.segment_index:0{SEGMENT_KEY_INDEX_WIDTH}d}"
+    )
+
+
+@dataclass(frozen=True)
+class CompletionFact:
+    """One rescue capture batch as the database actually holds it.
+
+    A LEFT JOIN of ``ocr_capture_batches`` onto ``ocr_segments`` plus the two
+    ``ocr_extractions`` counts for the batch. The join is left, deliberately: a
+    batch that produced no segment must still surface as a *fact*, because
+    "started and produced nothing" is the failure this module exists to catch,
+    and reporting it is more useful than its absence.
+    """
+
+    video_sha256: str
+    source_directory: str
+    run_id: int | None
+    batch_match_id: int | None
+    #: Segment columns are ``None`` when the batch has no ``ocr_segments`` row.
+    segment_key: str | None = None
+    segment_match_id: int | None = None
+    segment_run_id: int | None = None
+    state: str | None = None
+    t_start_sec: Any = None
+    t_end_sec: Any = None
+    decoder_version: str | None = None
+    frame_count: int | None = None
+    observability_status: str | None = None
+    #: Rows in ``ocr_extractions`` for this batch, and how many reached
+    #: ``transform_status='success'``.
+    extraction_count: int = 0
+    extraction_success_count: int = 0
+
+    @property
+    def key(self) -> PromotionKey:
+        return (self.video_sha256, self.source_directory, self.run_id)
+
+    @property
+    def has_segment(self) -> bool:
+        return self.segment_key is not None
+
+
+#: ``completion_facts() -> Sequence[CompletionFact]``. One read-only query over
+#: every rescue capture batch. Injected so the predicate below is unit-testable
+#: with no database, and so plan-time and post-execution verification are
+#: provably the same code path against the same shape of data.
+CompletionProbe = Callable[[], Sequence[CompletionFact]]
+
+
+def _fixed3(value: Any) -> str | None:
+    """A ``numeric(10,3)`` rendered the way the manifest pins its bounds.
+
+    Accepts whatever the probe hands over — ``Decimal``, ``float`` or the
+    ``::text`` form — so the comparison is on value, not on representation. An
+    unparseable value is returned verbatim so it is *reported* as a mismatch
+    rather than silently collapsing to "absent".
+    """
+    if value is None:
+        return None
+    try:
+        return f"{float(value):.3f}"
+    except (TypeError, ValueError):
+        return str(value)
+
+
+def _fact_problems(window: Window, fact: CompletionFact) -> list[str]:
+    """Every way this batch row falls short of being the window's output."""
+    problems: list[str] = []
+
+    # The batch's sha, directory and run id matched by construction (they are
+    # the join key). Its match id did not.
+    if fact.batch_match_id != window.match_id:
+        problems.append(
+            f"ocr_capture_batches.match_id {fact.batch_match_id!r} != window's {window.match_id!r}"
+        )
+
+    if not fact.has_segment:
+        problems.append(
+            "capture batch exists but carries NO ocr_segments row — ingest-ocr's "
+            "writeSegmentForBatch failure is caught and only warned about, so this "
+            "batch exited 0 without producing its segment"
+        )
+    else:
+        expected_key = expected_segment_key(window)
+        for label, got, expected in (
+            ("segment_key", fact.segment_key, expected_key),
+            ("state", fact.state, window.target_screen),
+            ("match_id", fact.segment_match_id, window.match_id),
+            ("run_id", fact.segment_run_id, window.run_id),
+            ("t_start_sec", _fixed3(fact.t_start_sec), f"{window.t0:.3f}"),
+            ("t_end_sec", _fixed3(fact.t_end_sec), f"{window.t1:.3f}"),
+            ("decoder_version", fact.decoder_version, RESCUE_DECODER_VERSION),
+        ):
+            if got != expected:
+                problems.append(
+                    f"ocr_segments.{label} {got!r} != window's {expected!r}"
+                )
+        if not fact.frame_count:
+            problems.append(
+                f"ocr_segments.frame_count is {fact.frame_count!r} — the ingest "
+                "recorded a segment that saw no frames"
+            )
+        if fact.observability_status != SEGMENT_OBSERVABLE:
+            problems.append(
+                f"ocr_segments.observability_status {fact.observability_status!r} != "
+                f"{SEGMENT_OBSERVABLE!r}"
+            )
+
+    # The segment row is written whatever the results loop did, so it cannot
+    # speak for the extractions. These two counts can.
+    if fact.extraction_count == 0:
+        problems.append(
+            "0 ocr_extractions rows for this batch — every result's persistence "
+            "transaction was rolled back, or the OCR CLI returned nothing"
+        )
+    elif fact.has_segment and fact.frame_count and fact.extraction_count != fact.frame_count:
+        # EXACT equality, in both directions. `frame_count` is what the ingest
+        # said it processed and each processed result upserts exactly one
+        # extraction row, so the counts match iff this window's batch holds
+        # exactly its own output.
+        #
+        # A SHORTFALL means a per-result transaction rolled back and `failed++`
+        # swallowed it.
+        #
+        # A SURPLUS is not benign and is deliberately NOT tolerated. The extra
+        # rows come from an earlier, wider extraction into the same batch dir,
+        # and they carry that older run's `transform_status` — including
+        # 'success'. Tolerating the surplus would let stale success from a
+        # superseded extraction satisfy `extraction_success_count >= 1` and
+        # authorise completion while the CURRENT window's frames failed. A
+        # surplus is operator-repair state: clear the stale rows (or the batch
+        # dir) and re-run. Stage B fails closed on it rather than deciding
+        # automatically which rows were this window's.
+        if fact.extraction_count < fact.frame_count:
+            why = "a per-result persistence failure was swallowed"
+        else:
+            why = (
+                "surplus rows — stale output from an earlier, wider extraction into "
+                "the same batch dir, whose successes must not authorise this window; "
+                "clear them and re-run"
+            )
+        problems.append(
+            f"ocr_extractions rows {fact.extraction_count} != ocr_segments.frame_count "
+            f"{fact.frame_count} — {why}"
+        )
+    if fact.extraction_success_count == 0:
+        problems.append(
+            f"no ocr_extractions row reached transform_status={EXTRACTION_SUCCESS!r} — "
+            "no promoter committed anything for this window"
+        )
+
+    return problems
+
+
+def completion_problems(window: Window, facts: Sequence[CompletionFact]) -> list[str]:
+    """Empty ⇔ this window's rescue output is verifiably present and correct.
+
+    This is THE predicate: it gates the plan's partition *and* the
+    post-execution postcondition, so a window can never be skipped on evidence
+    weaker than the evidence required to call it promoted in the first place.
+
+    An ``ocr_segments`` row alone is deliberately not sufficient. In
+    ``apps/worker/src/ingest-ocr.ts`` that row is written after the results
+    loop and outside it, gated on nothing — not on ``succeeded``, not on
+    ``failed``. A batch whose every result rolled back still gets one, and a
+    batch whose OCR CLI returned nothing gets one with ``frame_count = 0``. So
+    completion additionally requires that the extractions the segment claims
+    are actually there (``extraction_count == frame_count``) and that at least
+    one of them cleared its promoter (``transform_status='success'``).
+
+    That count comparison is EXACT, not a lower bound. A surplus of extraction
+    rows means the batch dir also holds output from an earlier, wider
+    extraction, whose ``transform_status='success'`` rows would otherwise
+    satisfy the promoter check on behalf of a current window that actually
+    failed. Stale success must not authorise completion, so a surplus fails
+    closed and is left for an operator to clear.
+
+    Promoter *output* is checked through that status rather than by reading the
+    per-screen domain tables: ``persistOneResult`` swallows a throwing promoter
+    and records it as ``transform_status='error'`` on the extraction row, which
+    makes the status the pipeline's own promotion verdict — and keeps Stage B
+    from having to know the output table of all seven auto-eligible screens.
+
+    When several batch rows share the key (a LEFT JOIN can fan out over
+    segments) the closest match wins, so the report names the real discrepancy
+    rather than an unrelated sibling row.
+    """
+    key = promotion_key(window)
+    mine = [f for f in facts if f.key == key]
+    if not mine:
+        return [
+            "no ocr_capture_batches row for this window's "
+            f"(video_sha256, source_directory, run_id) = {list(key)!r}"
+        ]
+
+    best: list[str] | None = None
+    for fact in mine:
+        problems = _fact_problems(window, fact)
+        if not problems:
+            return []
+        if best is None or len(problems) < len(best):
+            best = problems
+    return best or []
+
+
+@dataclass(frozen=True)
+class WindowCompletion:
+    """One window's verdict against the database, with the reasons."""
+
+    window: Window
+    problems: tuple[str, ...]
+    #: A capture batch row exists for this window's key. With ``complete``
+    #: false this is the dangerous case the old predicate silently skipped.
+    attempted: bool
+
+    @property
+    def complete(self) -> bool:
+        return not self.problems
+
+
+def assess_completion(
+    windows: Sequence[Window], facts: Sequence[CompletionFact]
+) -> list[WindowCompletion]:
+    keys = {f.key for f in facts}
+    return [
+        WindowCompletion(
+            window=w,
+            problems=tuple(completion_problems(w, facts)),
+            attempted=promotion_key(w) in keys,
+        )
+        for w in windows
+    ]
+
+
+def partition_complete(
+    windows: Sequence[Window], facts: Sequence[CompletionFact]
+) -> tuple[list[WindowCompletion], list[WindowCompletion]]:
+    """(still pending, verified complete).
+
+    A window with a capture batch but unverified output lands in *pending* —
+    that is the whole point of the corrected predicate. It is carried as a
+    :class:`WindowCompletion` so the plan can say why it is being re-run.
+    """
+    assessed = assess_completion(windows, facts)
+    pending = [a for a in assessed if not a.complete]
+    complete = [a for a in assessed if a.complete]
+    return pending, complete
+
+
+# ─── Plan ────────────────────────────────────────────────────────────────────
+
+
+@dataclass(frozen=True)
+class ExecutionPlan:
+    manifest_path: Path
+    manifest_digest: str
+    cache_root: Path
+    total_windows: int
+    decision_counts: dict[str, int]
+    pending: tuple[Window, ...]
+    verified_complete: tuple[Window, ...]
+    artifacts: tuple[ArtifactCheck, ...]
+    #: Pending windows that already have a capture batch row whose output did
+    #: not verify. Under the old existence predicate these were skipped as
+    #: "promoted"; they are now re-run, and named here with the reasons.
+    retrying: tuple[WindowCompletion, ...] = ()
+
+    @property
+    def auto_total(self) -> int:
+        return len(self.pending) + len(self.verified_complete)
+
+
+def plan_rescue(
+    *,
+    manifest_path: Path,
+    completion_facts: CompletionProbe,
+) -> ExecutionPlan:
+    """Everything that must succeed before a single subprocess may start.
+
+    The order is load-bearing:
+
+      1. parse the manifest,
+      2. validate it COMPLETELY,
+      3. filter to ``auto``,
+      4. preflight that set's exact artifacts and abort the whole run if any is
+         missing — this happens BEFORE ``completion_facts`` is called, so a
+         broken manifest never reaches the database at all,
+      5. only then read the database, to drop windows whose output is verifiably
+         already there.
+    """
+    doc = load_manifest(manifest_path)
+    digest = file_digest(manifest_path)
+    require_valid_manifest(doc, source=manifest_path)
+
+    windows = parse_windows(doc)
+    decision_counts: dict[str, int] = {}
+    for window in windows:
+        decision_counts[window.decision] = decision_counts.get(window.decision, 0) + 1
+
+    auto = executable_windows(windows)
+    if not auto:
+        # "Nothing to do" is the exact shape the cache-root reboot trap took, so
+        # it is never reported as success. A manifest with zero auto windows is
+        # not something Stage B can act on — the operator pointed at the wrong
+        # file, or at a manifest whose whole auto set needs regenerating.
+        raise RescueAborted(
+            f"manifest holds no {DECISION_AUTO!r} windows: {manifest_path}\n"
+            f"  {len(windows)} window(s) total "
+            f"({', '.join(f'{k}={v}' for k, v in sorted(decision_counts.items())) or 'none'}).\n"
+            "  There is nothing Stage B is permitted to execute. Refusing to report "
+            "an empty run as success."
+        )
+
+    cache_root = Path(str(doc["cache_root"]))
+    artifacts = required_artifacts(auto, cache_root)
+    missing = missing_artifacts(artifacts)
+    if missing:
+        raise RescueAborted(_render_missing(missing, len(artifacts)))
+
+    pending, complete = partition_complete(auto, list(completion_facts()))
+
+    return ExecutionPlan(
+        manifest_path=manifest_path,
+        manifest_digest=digest,
+        cache_root=cache_root,
+        total_windows=len(windows),
+        decision_counts=decision_counts,
+        pending=tuple(a.window for a in pending),
+        verified_complete=tuple(a.window for a in complete),
+        artifacts=tuple(artifacts),
+        retrying=tuple(a for a in pending if a.attempted),
+    )
+
+
+# ─── Execution ───────────────────────────────────────────────────────────────
+
+
+@dataclass(frozen=True)
+class CommandResult:
+    returncode: int
+    stderr: str = ""
+
+
+#: ``run_command(argv) -> CommandResult``. Injected so every test in this
+#: module's suite runs the real gate against a recorder rather than ffmpeg.
+RunCommand = Callable[[Sequence[str]], CommandResult]
+
+
+@dataclass
+class WindowOutcome:
+    window: Window
+    status: str
+    steps: list[dict[str, Any]] = field(default_factory=list)
+    error: str | None = None
+    #: True only once :func:`completion_problems` came back empty *after* the
+    #: commands ran. A window is never reported promoted without this.
+    verified: bool = False
+    #: Why verification failed, when it did.
+    completion_problems: list[str] = field(default_factory=list)
+
+
+@dataclass
+class ExecutionReport:
+    executed: bool
+    rescue_run_id: str
+    promoted: list[WindowOutcome] = field(default_factory=list)
+    failed: list[WindowOutcome] = field(default_factory=list)
+    not_attempted: list[Window] = field(default_factory=list)
+
+    @property
+    def ok(self) -> bool:
+        return not self.failed and not self.not_attempted
+
+
+def argv_fingerprint(argv: Sequence[str]) -> str:
+    """SHA-256 over the argv exactly as the manifest pinned it.
+
+    Recorded per step so a receipt proves *which* command produced a row, not
+    merely that some rescue ran.
+    """
+    return hashlib.sha256(
+        json.dumps(list(argv), ensure_ascii=False, separators=(",", ":")).encode()
+    ).hexdigest()
+
+
+def build_receipt(
+    plan: ExecutionPlan,
+    outcome: WindowOutcome,
+    *,
+    rescue_run_id: str,
+    executed_at: str,
+) -> dict[str, Any]:
+    """The durable provenance row for one executed window.
+
+    Carries every handle the rollback design depends on: the schema and decoder
+    versions, the rescue batch dir and run id that together form the promotion
+    key, the manifest digest that authorised it, and a fingerprint per command.
+    """
+    window = outcome.window
+    commands = window.commands or {}
+    return {
+        "schema_version": SCHEMA_VERSION,
+        "decoder_version": RESCUE_DECODER_VERSION,
+        "rescue_run_id": rescue_run_id,
+        "executed_at": executed_at,
+        "manifest_path": str(plan.manifest_path),
+        "manifest_sha256": plan.manifest_digest,
+        "cache_root": str(plan.cache_root),
+        "video_sha256": window.video_sha256,
+        "segment_index": window.segment_index,
+        "target_screen": window.target_screen,
+        "match_id": window.match_id,
+        "run_id": window.run_id,
+        "batch_dir": commands.get("batch_dir"),
+        "t0": window.t0,
+        "t1": window.t1,
+        "promotion_key": list(promotion_key(window)),
+        "segment_key": expected_segment_key(window),
+        "status": outcome.status,
+        # A receipt asserts nothing it did not check: this is the verdict of
+        # `completion_problems` re-run against the database after the commands.
+        "completion_verified": outcome.verified,
+        "completion_problems": outcome.completion_problems,
+        "steps": outcome.steps,
+    }
+
+
+def execute_plan(
+    plan: ExecutionPlan,
+    *,
+    run_command: RunCommand,
+    completion_facts: CompletionProbe,
+    rescue_run_id: str,
+    executed_at: str,
+    receipt_sink: Callable[[dict[str, Any]], None] | None = None,
+    make_batch_dir: Callable[[Path], None] | None = None,
+) -> ExecutionReport:
+    """Run the pending windows' pinned argv, in order, failing fast.
+
+    Every window is verified against the database *after* its commands return,
+    with the same :func:`completion_problems` predicate that decided it was
+    pending. A zero exit is treated as a claim, not as proof: ``ingest-ocr``
+    exits 0 whether it wrote everything, some of it or none of it, so the
+    postcondition — not the return code — is what promotes a window.
+
+    Fail-fast rather than best-effort: a window that dies mid-way leaves a
+    partially populated batch dir, and continuing would pile more of those up
+    before anyone reads the error. Stopping keeps the blast radius at one
+    window, and the run is resumable precisely because every window that DID
+    complete now satisfies the predicate and will be filtered out of the next
+    plan by :func:`partition_complete` — while one that merely *started* will
+    not be, and gets re-run.
+    """
+    report = ExecutionReport(executed=True, rescue_run_id=rescue_run_id)
+    pending = list(plan.pending)
+
+    for i, window in enumerate(pending):
+        assert_executable(window)
+        commands = window.commands or {}
+        outcome = WindowOutcome(window=window, status=OUTCOME_PROMOTED)
+
+        batch_dir = Path(str(commands["batch_dir"]))
+        if make_batch_dir is not None:
+            make_batch_dir(batch_dir)
+
+        for step in STEP_ORDER:
+            argv = list(commands[step])
+            result = run_command(argv)
+            outcome.steps.append(
+                {
+                    "step": step,
+                    "argv": argv,
+                    "fingerprint": argv_fingerprint(argv),
+                    "returncode": result.returncode,
+                }
+            )
+            if result.returncode != 0:
+                outcome.status = OUTCOME_FAILED
+                outcome.error = (
+                    f"{step} exited {result.returncode}"
+                    + (f": {result.stderr.strip()}" if result.stderr.strip() else "")
+                )
+                break
+
+        # The postcondition. Runs before the window is called promoted, before
+        # a receipt is written and before the next window is touched — because
+        # every one of those would otherwise record a success nobody checked.
+        if outcome.status != OUTCOME_FAILED:
+            problems = completion_problems(window, list(completion_facts()))
+            outcome.completion_problems = problems
+            outcome.verified = not problems
+            if problems:
+                outcome.status = OUTCOME_FAILED
+                outcome.error = (
+                    "both commands exited 0 but the window's output is NOT in the "
+                    "database — postcondition unsatisfied: " + "; ".join(problems)
+                )
+
+        if receipt_sink is not None:
+            receipt_sink(
+                build_receipt(
+                    plan, outcome, rescue_run_id=rescue_run_id, executed_at=executed_at
+                )
+            )
+
+        if outcome.status == OUTCOME_FAILED:
+            report.failed.append(outcome)
+            report.not_attempted = pending[i + 1 :]
+            return report
+        report.promoted.append(outcome)
+
+    return report
+
+
+# ─── Rendering ───────────────────────────────────────────────────────────────
+
+DRY_RUN_BANNER = (
+    "\n"
+    "╔══════════════════════════════════════════════════════════════════════════╗\n"
+    "║  DRY RUN — NOTHING WAS EXECUTED AND NO DATABASE ROW WAS WRITTEN.         ║\n"
+    "║  0 ffmpeg invocations · 0 ingest-ocr invocations · 0 rows.               ║\n"
+    f"║  Pass {EXECUTE_FLAG} to promote the window(s) listed above.                    ║\n"
+    "╚══════════════════════════════════════════════════════════════════════════╝"
+)
+
+
+def render_plan(plan: ExecutionPlan, *, out: Callable[[str], None]) -> None:
+    out("")
+    out("═══ RESCUE EXECUTION PLAN (Stage B) ═══")
+    out(f"manifest    : {plan.manifest_path}")
+    out(f"sha256      : {plan.manifest_digest}")
+    out(f"cache root  : {plan.cache_root}")
+    out(f"decoder tag : {RESCUE_DECODER_VERSION}")
+    out("")
+    out(f"manifest windows : {plan.total_windows}")
+    for decision, n in sorted(plan.decision_counts.items()):
+        marker = "  <- executable" if decision == DECISION_AUTO else "  (never executed)"
+        out(f"  {decision:8s} {n:5d}{marker}")
+    out("")
+    out(
+        f"artifact preflight : {len(plan.artifacts)} path(s) present "
+        "(all-or-nothing — one missing aborts the whole run)"
+    )
+    out(f"verified complete  : {len(plan.verified_complete)} auto window(s) — skipped")
+    for window in plan.verified_complete:
+        out(
+            f"    · {window.video_sha256[:12]}/seg{window.segment_index} "
+            f"match {window.match_id} run {window.run_id} {window.target_screen}"
+        )
+    if plan.retrying:
+        out(
+            f"incomplete, RE-RUN : {len(plan.retrying)} auto window(s) have a capture "
+            "batch whose output does not verify"
+        )
+        for assessed in plan.retrying:
+            window = assessed.window
+            out(
+                f"    · {window.video_sha256[:12]}/seg{window.segment_index} "
+                f"match {window.match_id} run {window.run_id} {window.target_screen}"
+            )
+            for problem in assessed.problems:
+                out(f"        - {problem}")
+    out(f"to execute         : {len(plan.pending)} auto window(s)")
+    for window in plan.pending:
+        out(
+            f"    · {window.video_sha256[:12]}/seg{window.segment_index} "
+            f"match {window.match_id} run {window.run_id} {window.target_screen} "
+            f"[{window.t0:.3f}..{window.t1:.3f}]s"
+        )
+
+
+def render_report(report: ExecutionReport, *, out: Callable[[str], None]) -> None:
+    out("")
+    out("═══ RESCUE EXECUTION REPORT ═══")
+    out(f"rescue run id : {report.rescue_run_id}")
+    out(f"promoted      : {len(report.promoted)} (each verified in the database, not assumed)")
+    out(f"failed        : {len(report.failed)}")
+    out(f"not attempted : {len(report.not_attempted)} (run stopped at the first failure)")
+    for outcome in report.failed:
+        window = outcome.window
+        out(
+            f"  FAILED {window.video_sha256[:12]}/seg{window.segment_index} "
+            f"match {window.match_id}: {outcome.error}"
+        )
+    if not report.ok:
+        out("")
+        out(
+            "  Execution is fail-fast, NOT all-or-nothing: the "
+            f"{len(report.promoted)} window(s) listed as promoted above ran before the "
+            "failure and their rows are in the database. They are verified complete, so "
+            "re-running this manifest will skip them and resume at the failure."
+        )
+    out("")
+    out(
+        f"Rollback handles: ocr_capture_batches.source_directory LIKE '%{RESCUE_DIR_MARKER}%' "
+        f"· ocr_segments.decoder_version = '{RESCUE_DECODER_VERSION}'"
+    )
+
+
+def run_rescue(
+    *,
+    manifest_path: Path,
+    execute: bool,
+    completion_facts: CompletionProbe,
+    run_command: RunCommand,
+    rescue_run_id: str,
+    executed_at: str,
+    receipt_sink: Callable[[dict[str, Any]], None] | None = None,
+    make_batch_dir: Callable[[Path], None] | None = None,
+    out: Callable[[str], None] = print,
+) -> int:
+    """Plan always; execute only under the explicit opt-in. Returns an exit code.
+
+    ``execute=False`` is the default everywhere it is exposed, and on that path
+    ``run_command`` is never called — not for a probe, not for a dry ffmpeg, not
+    for anything. ``completion_facts`` IS called: it is a read-only SELECT, and
+    without it the dry run could not tell a finished window from a half-written
+    one, which is the entire point of reading the plan before opting in.
+    """
+    plan = plan_rescue(manifest_path=manifest_path, completion_facts=completion_facts)
+    render_plan(plan, out=out)
+
+    if not execute:
+        out(DRY_RUN_BANNER)
+        return 0
+
+    if not plan.pending:
+        out("")
+        out(
+            f"NOTHING TO EXECUTE: all {plan.auto_total} auto window(s) are already "
+            "VERIFIED COMPLETE in the database. No command was run."
+        )
+        return 0
+
+    report = execute_plan(
+        plan,
+        run_command=run_command,
+        completion_facts=completion_facts,
+        rescue_run_id=rescue_run_id,
+        executed_at=executed_at,
+        receipt_sink=receipt_sink,
+        make_batch_dir=make_batch_dir,
+    )
+    render_report(report, out=out)
+    return 0 if report.ok else 1
