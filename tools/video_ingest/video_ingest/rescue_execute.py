@@ -15,12 +15,14 @@ gate in front of argv that already exists:
   3. preflight the exact cache and video artifacts that set depends on;
   4. abort the whole run if anything is missing — never skip a window, never
      fall back to decoding;
-  5. drop windows whose output the database *verifiably* already holds, so a
+  5. refuse to start if the *environment* those pinned commands will inherit
+     cannot support them — the argv is not self-contained;
+  6. drop windows whose output the database *verifiably* already holds, so a
      rerun cannot duplicate real rescue data — and, just as importantly, cannot
      mistake a half-written batch for a finished one;
-  6. re-check that same predicate after every window it runs, so a subprocess
+  7. re-check that same predicate after every window it runs, so a subprocess
      that exits 0 without producing the output is a failure and not a promotion;
-  7. and do all of the above without executing anything unless the operator
+  8. and do all of the above without executing anything unless the operator
      passed the explicit opt-in.
 
 Everything here is a pure function over plain data plus three injected IO seams
@@ -68,9 +70,10 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable, Iterable, Sequence
+from typing import Any, Callable, Iterable, Mapping, Sequence
 
 from video_ingest.cache_root import PASS1_ARTIFACT
 from video_ingest.rescue_manifest import (
@@ -809,6 +812,110 @@ def plan_rescue(
     )
 
 
+# ─── Execution-environment preflight ─────────────────────────────────────────
+
+#: The variables the pinned commands cannot run CORRECTLY without, each paired
+#: with the reason it is required.
+#:
+#: The manifest pins argv, not an environment. ``subprocess.run`` in the CLI's
+#: ``make_runner`` passes no ``env``, so ``pnpm --filter worker ingest-ocr``
+#: inherits whatever shell Stage B was launched from — which makes that shell a
+#: precondition exactly as real as the source video, and, until this gate, the
+#: one precondition nothing checked.
+#:
+#: This list is deliberately SHORT. It is not "the keys in ``.env``"; it is the
+#: keys this rescue's two subprocesses actually read. ``EA_CLUB_ID``,
+#: ``POSTGRES_PASSWORD``, ``BETTER_AUTH_SECRET``, ``POLL_INTERVAL_MS`` and the
+#: rest are never consulted on the ingest-ocr path, and requiring them would
+#: turn this gate into superstition that refuses runs Stage B can finish.
+#:
+#: The two entries fail in opposite ways, which is why both are here:
+#:
+#: * ``DATABASE_URL`` fails LOUDLY. ``packages/db/src/client.ts`` throws at
+#:   module import, so ingest-ocr dies before it connects and the window is
+#:   correctly recorded as failed. The cost is wasted work and a spurious
+#:   receipt — this is the defect that rescue-b2-20260805T031634Z demonstrated.
+#: * ``OCR_PYTHON`` fails SILENTLY, which is worse. ``ocr-cli-runner.ts``
+#:   resolves ``process.env.OCR_PYTHON ?? 'python3'``, and on the ingest box
+#:   that bare fallback imports ``game_ocr`` and runs. Because ``runOcrCli``
+#:   executes BEFORE the ``ocr_capture_batches`` insert, an unset value does not
+#:   abort anything: it writes a complete batch — segment, extractions, the
+#:   ``rescue-b2-anchor-v1`` tag and all — produced by an interpreter nobody
+#:   chose. :func:`completion_problems` would then find that batch faultless and
+#:   skip the window forever. A rescue whose entire premise is provenance cannot
+#:   let the interpreter be decided by a fallback.
+REQUIRED_EXECUTION_ENV: tuple[tuple[str, str], ...] = (
+    (
+        "DATABASE_URL",
+        "packages/db/src/client.ts throws 'DATABASE_URL environment variable is "
+        "required' at import, so ingest-ocr dies before it connects — after ffmpeg "
+        "has already decoded the window",
+    ),
+    (
+        "OCR_PYTHON",
+        "apps/worker/src/ocr-cli-runner.ts falls back to bare 'python3' SILENTLY, and "
+        "that fallback runs BEFORE the ocr_capture_batches insert — so an unset value "
+        f"does not fail the run, it writes a {RESCUE_DECODER_VERSION!r} batch from an "
+        "interpreter nobody chose",
+    ),
+)
+
+
+def environment_problems(environ: Mapping[str, str]) -> list[str]:
+    """Every required variable that is absent or blank. **Names only.**
+
+    A value is never echoed, never logged and never compared against anything
+    but emptiness. ``DATABASE_URL`` carries the database password, and a
+    diagnostic that gets printed to a terminal, piped into a log or pasted into
+    a handoff note must not carry it too.
+
+    Presence and non-emptiness are the whole claim. This gate does not connect,
+    does not stat the interpreter and does not resolve anything — consistent
+    with :mod:`video_ingest.cache_root`, this module VALIDATES, it never
+    RESOLVES. Blank is treated as absent because set-but-whitespace is a
+    misconfiguration, not a configuration: ``packages/db`` would read a
+    whitespace URL as truthy and fail later, deeper and far less legibly.
+    """
+    problems: list[str] = []
+    for name, why in REQUIRED_EXECUTION_ENV:
+        value = environ.get(name)
+        if value is None:
+            problems.append(f"{name}: not set — {why}")
+        elif not value.strip():
+            problems.append(f"{name}: set but empty — {why}")
+    return problems
+
+
+def _render_env_problems(problems: Sequence[str]) -> str:
+    lines = [
+        f"execution environment UNUSABLE: {len(problems)} required variable(s) "
+        "missing or empty.",
+        "  Stage B aborted BEFORE it created a batch directory, BEFORE ffmpeg, BEFORE",
+        "  ingest-ocr and BEFORE any receipt was written. Nothing ran, nothing was",
+        "  written, and the run remains fully resumable.",
+    ]
+    lines += [f"    - {p}" for p in problems]
+    lines += [
+        "  Load the repository environment into the shell, then re-run:",
+        "      set -a && source /path/to/eanhl-team-website/.env && set +a",
+        "  (Only variable NAMES appear above — no value is read into this message.)",
+    ]
+    return "\n".join(lines)
+
+
+def require_execution_env(environ: Mapping[str, str] | None = None) -> None:
+    """Abort unless the subprocesses about to be spawned can actually work.
+
+    ``None`` means :data:`os.environ` — the real environment the children will
+    inherit, so the gate checks exactly what they get rather than a copy of it.
+    A mapping is injected in tests, keeping this as unit-testable as every other
+    policy function here.
+    """
+    problems = environment_problems(os.environ if environ is None else environ)
+    if problems:
+        raise RescueAborted(_render_env_problems(problems))
+
+
 # ─── Execution ───────────────────────────────────────────────────────────────
 
 
@@ -911,8 +1018,16 @@ def execute_plan(
     executed_at: str,
     receipt_sink: Callable[[dict[str, Any]], None] | None = None,
     make_batch_dir: Callable[[Path], None] | None = None,
+    environ: Mapping[str, str] | None = None,
 ) -> ExecutionReport:
     """Run the pending windows' pinned argv, in order, failing fast.
+
+    The environment preflight is the FIRST statement, ahead of the loop and
+    therefore ahead of every mutation this module is capable of: the batch
+    directory, ffmpeg, ingest-ocr and the receipt sink are all reached from
+    inside that loop. Placing it here rather than in :func:`run_rescue` means no
+    caller can route around it — the guard lives at the mutation boundary, in
+    the same spirit as :func:`assert_executable`.
 
     Every window is verified against the database *after* its commands return,
     with the same :func:`completion_problems` predicate that decided it was
@@ -928,6 +1043,8 @@ def execute_plan(
     plan by :func:`partition_complete` — while one that merely *started* will
     not be, and gets re-run.
     """
+    require_execution_env(environ)
+
     report = ExecutionReport(executed=True, rescue_run_id=rescue_run_id)
     pending = list(plan.pending)
 
@@ -1084,6 +1201,7 @@ def run_rescue(
     executed_at: str,
     receipt_sink: Callable[[dict[str, Any]], None] | None = None,
     make_batch_dir: Callable[[Path], None] | None = None,
+    environ: Mapping[str, str] | None = None,
     out: Callable[[str], None] = print,
 ) -> int:
     """Plan always; execute only under the explicit opt-in. Returns an exit code.
@@ -1093,6 +1211,13 @@ def run_rescue(
     for anything. ``completion_facts`` IS called: it is a read-only SELECT, and
     without it the dry run could not tell a finished window from a half-written
     one, which is the entire point of reading the plan before opting in.
+
+    A dry run therefore needs no execution environment and is never gated on
+    one. It spawns nothing, and refusing it would confiscate the very command an
+    operator reaches for when the environment is what is broken. The gate lives
+    in :func:`execute_plan`, which a dry run does not reach — and neither does a
+    run whose windows are all verified complete, since it will execute nothing
+    either. The scope is actual execution, not the ``--execute`` flag.
     """
     plan = plan_rescue(manifest_path=manifest_path, completion_facts=completion_facts)
     render_plan(plan, out=out)
@@ -1117,6 +1242,7 @@ def run_rescue(
         executed_at=executed_at,
         receipt_sink=receipt_sink,
         make_batch_dir=make_batch_dir,
+        environ=environ,
     )
     render_report(report, out=out)
     return 0 if report.ok else 1

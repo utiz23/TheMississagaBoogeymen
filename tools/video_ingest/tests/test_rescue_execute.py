@@ -30,6 +30,7 @@ from video_ingest.rescue_execute import (
     EXECUTE_FLAG,
     OUTCOME_FAILED,
     OUTCOME_PROMOTED,
+    REQUIRED_EXECUTION_ENV,
     RESCUE_DIR_MARKER,
     STEP_FFMPEG,
     STEP_INGEST_OCR,
@@ -40,6 +41,7 @@ from video_ingest.rescue_execute import (
     assert_executable,
     command_problems,
     completion_problems,
+    environment_problems,
     executable_windows,
     execute_plan,
     expected_segment_key,
@@ -256,6 +258,28 @@ def _write(doc: dict, tmp_path: Path, name: str = "rescue-manifest.json") -> Pat
     path = tmp_path / name
     path.write_text(json.dumps(doc, indent=1) + "\n")
     return path
+
+
+#: A syntactically valid execution environment. The values are placeholders on
+#: purpose: the gate checks presence and non-emptiness only — it never connects,
+#: never stats and never resolves, so no value here needs to be real.
+VALID_ENVIRON: dict[str, str] = {
+    "DATABASE_URL": "postgres://eanhl@localhost:5433/eanhl",
+    "OCR_PYTHON": "/opt/venv/bin/python",
+}
+
+
+@pytest.fixture(autouse=True)
+def _operator_sourced_the_dotenv(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Every OTHER test runs as if the operator had sourced the repo `.env`.
+
+    The environment preflight defaults to the real `os.environ`, which in a test
+    process holds neither variable. Without this the whole suite would be
+    re-asserting the gate instead of the behaviour each test is actually about.
+    Section (5b) overrides it explicitly — that is where the gate is proven.
+    """
+    for name, value in VALID_ENVIRON.items():
+        monkeypatch.setenv(name, value)
 
 
 @pytest.fixture()
@@ -799,6 +823,290 @@ def test_the_explicit_opt_in_runs_the_pinned_argv_verbatim(env) -> None:
 def test_the_opt_in_flag_name_is_the_one_the_banner_advertises() -> None:
     assert EXECUTE_FLAG == "--execute"
     assert EXECUTE_FLAG in DRY_RUN_BANNER
+
+
+# ─── (5b) Execution-environment preflight ───────────────────────────────────
+#
+# Regression cover for rescue-b2-20260805T031634Z. That run passed every gate
+# Stage B had — faithful manifest, artifacts present, window genuinely pending —
+# created the batch dir, ran ffmpeg to completion, and only THEN discovered that
+# `pnpm --filter worker ingest-ocr` could not start, because `DATABASE_URL` was
+# unset in the shell Stage B inherited. It left a failed receipt behind.
+#
+# The pinned argv is not self-contained. `make_runner` passes no `env` to
+# `subprocess.run`, so the child inherits Stage B's environment, and two
+# variables in it decide whether the child can work:
+#
+#   * DATABASE_URL — packages/db/src/client.ts throws at import when unset, so
+#     ingest-ocr dies before it connects. LOUD, and the demonstrated failure.
+#   * OCR_PYTHON — apps/worker/src/ocr-cli-runner.ts:74 falls back to bare
+#     `python3` SILENTLY. That is the dangerous one: the fallback imports fine
+#     on the ingest box, and `runOcrCli` runs BEFORE the ocr_capture_batches
+#     insert, so an unset OCR_PYTHON does not fail the run — it writes a whole
+#     batch under the rescue decoder tag from an interpreter nobody chose, which
+#     `completion_problems` would then bless and skip forever.
+#
+# Nothing else in .env is read anywhere on this path, so nothing else is
+# required: over-requiring would make Stage B refuse runs it can complete.
+
+
+def _execute_env(env, *, environ, **kwargs):
+    """Drive the real execution path with an injected environment."""
+    return run_rescue(
+        manifest_path=env["manifest"],
+        execute=True,
+        rescue_run_id=RUN_ID,
+        executed_at=EXECUTED_AT,
+        environ=environ,
+        out=lambda _: None,
+        **kwargs,
+    )
+
+
+def test_a_missing_database_url_aborts_before_any_mutation(env) -> None:
+    """The demonstrated defect: no batch dir, no ffmpeg, no receipt."""
+    recorder, made, receipts = Recorder(), [], []
+
+    with pytest.raises(RescueAborted) as excinfo:
+        _execute_env(
+            env,
+            environ={"OCR_PYTHON": "/opt/venv/bin/python"},
+            completion_facts=FactProbe.completing(env["window"]),
+            run_command=recorder,
+            make_batch_dir=made.append,
+            receipt_sink=receipts.append,
+        )
+
+    assert "DATABASE_URL" in str(excinfo.value)
+    assert made == []  # (1) not even a directory
+    assert recorder.calls == []  # (2) no ffmpeg, no ingest-ocr
+    assert receipts == []  # (3) no receipt
+
+
+def test_a_missing_ocr_python_aborts_before_any_mutation(env) -> None:
+    """The silent one. An unset OCR_PYTHON does not crash ingest-ocr — it makes
+    it write the rescue batch from the wrong interpreter."""
+    recorder, made, receipts = Recorder(), [], []
+
+    with pytest.raises(RescueAborted) as excinfo:
+        _execute_env(
+            env,
+            environ={"DATABASE_URL": "postgres://eanhl@localhost:5433/eanhl"},
+            completion_facts=FactProbe.completing(env["window"]),
+            run_command=recorder,
+            make_batch_dir=made.append,
+            receipt_sink=receipts.append,
+        )
+
+    assert "OCR_PYTHON" in str(excinfo.value)
+    assert made == []
+    assert recorder.calls == []
+    assert receipts == []
+
+
+@pytest.mark.parametrize("blank", ["", "   ", "\t", "\n"])
+@pytest.mark.parametrize("name", ["DATABASE_URL", "OCR_PYTHON"])
+def test_a_present_but_empty_value_is_rejected(env, name, blank) -> None:
+    """Set-but-blank is a misconfiguration, not a configuration. `packages/db`
+    would take a whitespace URL as truthy and fail later, deeper and dirtier."""
+    recorder, made, receipts = Recorder(), [], []
+    environ = dict(VALID_ENVIRON, **{name: blank})
+
+    with pytest.raises(RescueAborted) as excinfo:
+        _execute_env(
+            env,
+            environ=environ,
+            completion_facts=FactProbe.completing(env["window"]),
+            run_command=recorder,
+            make_batch_dir=made.append,
+            receipt_sink=receipts.append,
+        )
+
+    message = str(excinfo.value)
+    assert f"{name}: set but empty" in message
+    assert made == [] and recorder.calls == [] and receipts == []
+
+
+def test_a_valid_execution_environment_reaches_the_execution_path(env) -> None:
+    """The gate must not become a new way to refuse a good run."""
+    recorder, made, receipts = Recorder(), [], []
+
+    code = _execute_env(
+        env,
+        environ=dict(VALID_ENVIRON),
+        completion_facts=FactProbe.completing(env["window"]),
+        run_command=recorder,
+        make_batch_dir=made.append,
+        receipt_sink=receipts.append,
+    )
+
+    assert code == 0
+    assert recorder.calls == [
+        env["window"].commands["ffmpeg"],
+        env["window"].commands["ingest_ocr"],
+    ]
+    assert made == [Path(env["window"].commands["batch_dir"])]
+    assert len(receipts) == 1 and receipts[0]["status"] == OUTCOME_PROMOTED
+
+
+def test_the_dry_run_is_permitted_with_no_execution_environment_at_all(env) -> None:
+    """Requirement: a dry run still works without DATABASE_URL. It spawns
+    nothing, so it needs nothing — and refusing it would take away the very
+    command an operator runs to diagnose a broken environment."""
+    recorder, made, receipts = Recorder(), [], []
+    lines: list[str] = []
+
+    code = run_rescue(
+        manifest_path=env["manifest"],
+        execute=False,
+        completion_facts=FactProbe(),
+        run_command=recorder,
+        rescue_run_id=RUN_ID,
+        executed_at=EXECUTED_AT,
+        receipt_sink=receipts.append,
+        make_batch_dir=made.append,
+        environ={},
+        out=lines.append,
+    )
+
+    assert code == 0
+    assert DRY_RUN_BANNER in "\n".join(lines)
+    assert recorder.calls == [] and made == [] and receipts == []
+
+
+def test_the_diagnostic_names_the_missing_keys_but_never_a_value(env) -> None:
+    """DATABASE_URL carries the database password. A message that names it must
+    not also carry it — not for the missing key, and not for the present one."""
+    secret = "postgres://eanhl:sup3r-s3cret-pw@localhost:5433/eanhl"
+
+    with pytest.raises(RescueAborted) as excinfo:
+        _execute_env(
+            env,
+            environ={"DATABASE_URL": secret},  # present; OCR_PYTHON is not
+            completion_facts=FactProbe.completing(env["window"]),
+            run_command=Recorder(),
+        )
+
+    message = str(excinfo.value)
+    assert "OCR_PYTHON" in message  # the missing key is named ...
+    assert secret not in message  # ... and no value is echoed
+    assert "sup3r-s3cret-pw" not in message
+    assert "localhost:5433" not in message
+
+
+def test_only_the_two_justified_variables_are_required(env) -> None:
+    """`.env` also holds EA_CLUB_ID, POSTGRES_PASSWORD, BETTER_AUTH_SECRET and
+    the rest. None is read on the ingest-ocr path, so requiring them would be
+    superstition that blocks runs Stage B can complete."""
+    assert [name for name, _ in REQUIRED_EXECUTION_ENV] == ["DATABASE_URL", "OCR_PYTHON"]
+    assert environment_problems(VALID_ENVIRON) == []
+
+    code = _execute_env(
+        env,
+        environ=dict(VALID_ENVIRON),  # and nothing else whatsoever
+        completion_facts=FactProbe.completing(env["window"]),
+        run_command=Recorder(),
+    )
+    assert code == 0
+
+
+def test_the_gate_defaults_to_the_real_process_environment(
+    env, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`environ=None` must mean os.environ — the environment the child actually
+    inherits. A gate that defaulted to "assume fine" would not have caught this."""
+    monkeypatch.delenv("DATABASE_URL", raising=False)
+    recorder, made = Recorder(), []
+
+    with pytest.raises(RescueAborted) as excinfo:
+        run_rescue(
+            manifest_path=env["manifest"],
+            execute=True,
+            completion_facts=FactProbe.completing(env["window"]),
+            run_command=recorder,
+            rescue_run_id=RUN_ID,
+            executed_at=EXECUTED_AT,
+            make_batch_dir=made.append,
+            out=lambda _: None,
+        )
+
+    assert "DATABASE_URL" in str(excinfo.value)
+    assert recorder.calls == [] and made == []
+
+
+def test_the_gate_creates_no_rescue_directory_on_the_real_filesystem(env) -> None:
+    """`make_batch_dir` recorded nothing above; here the real mkdir is wired in,
+    so "before make_batch_dir" is checked against the disk, not against a list."""
+    with pytest.raises(RescueAborted):
+        _execute_env(
+            env,
+            environ={},
+            completion_facts=FactProbe.completing(env["window"]),
+            run_command=Recorder(),
+            make_batch_dir=lambda p: p.mkdir(parents=True, exist_ok=True),
+        )
+
+    assert not (env["cache_root"] / SHA_A / "rescue").exists()
+
+
+def test_the_gate_sits_on_execute_plan_itself_not_only_on_the_cli(env) -> None:
+    """Placement matters: the guard is the first statement of the ONLY function
+    that mutates anything, so no caller can route around it."""
+    plan = plan_rescue(manifest_path=env["manifest"], completion_facts=FactProbe())
+    recorder, made, receipts = Recorder(), [], []
+
+    with pytest.raises(RescueAborted):
+        execute_plan(
+            plan,
+            run_command=recorder,
+            completion_facts=FactProbe.completing(env["window"]),
+            rescue_run_id=RUN_ID,
+            executed_at=EXECUTED_AT,
+            receipt_sink=receipts.append,
+            make_batch_dir=made.append,
+            environ={},
+        )
+
+    assert recorder.calls == [] and made == [] and receipts == []
+
+
+def test_a_run_with_nothing_pending_does_not_require_the_environment(env) -> None:
+    """No window will be executed, so no subprocess environment is needed. The
+    gate is scoped to actual execution, not to the `--execute` flag."""
+    code = _execute_env(
+        env,
+        environ={},
+        completion_facts=FactProbe([_complete_fact(env["window"])]),
+        run_command=Recorder(),
+    )
+    assert code == 0
+
+
+def test_manifest_and_artifact_validation_are_unchanged_by_the_new_gate(
+    tmp_path: Path,
+) -> None:
+    """The artifact preflight must still be what aborts a manifest whose video
+    is gone — the environment gate runs later and must not displace it."""
+    cache_root = tmp_path / "ingest-cache"
+    _seed_cache(cache_root, SHA_A)
+    window = _make_window(cache_root=cache_root, video_path=tmp_path / "gone.mkv")
+    manifest = _write(_manifest_doc([window], cache_root=cache_root), tmp_path)
+
+    with pytest.raises(RescueAborted) as excinfo:
+        run_rescue(
+            manifest_path=manifest,
+            execute=True,
+            completion_facts=FactProbe(),
+            run_command=Recorder(),
+            rescue_run_id=RUN_ID,
+            executed_at=EXECUTED_AT,
+            environ={},  # also unusable — but not what should be reported
+            out=lambda _: None,
+        )
+
+    message = str(excinfo.value)
+    assert "artifact preflight FAILED" in message
+    assert "DATABASE_URL" not in message
 
 
 # ─── (6) Idempotency ────────────────────────────────────────────────────────

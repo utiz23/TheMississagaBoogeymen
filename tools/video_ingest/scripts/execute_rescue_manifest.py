@@ -7,11 +7,15 @@ run nothing.
 
 Promotion requires the explicit ``--execute`` opt-in.
 
-Two guarantees, stated exactly:
+Three guarantees, stated exactly:
 
 * **The artifact preflight is all-or-nothing.** One missing cache entry or
   source video aborts before any subprocess and before the database is read.
   Nothing runs and nothing is written.
+* **The environment preflight runs before the first mutation.** ``--execute``
+  aborts before creating a batch directory, before ffmpeg, before ingest-ocr and
+  before any receipt if the environment those subprocesses will inherit is
+  unusable. See ``REQUIRED_EXECUTION_ENV``.
 * **Execution is fail-fast, not atomic.** Windows run in order and the run stops
   at the first failure — including a window whose commands exited 0 but whose
   output does not verify. Windows that completed *before* that point have really
@@ -28,12 +32,27 @@ verbatim.
 Run (the repo-root .venv-1 is the pytest/python runner; the GPU
 tools/video_ingest/.venv has no pytest -- see [[reference_gpu_ocr_venv]]):
 
+    # 1. Dry run. Needs no .env: it spawns nothing, and it is the right command
+    #    to reach for when the environment itself is what you are diagnosing.
     cd tools/video_ingest && PYTHONPATH=.:../game_ocr \\
       ../../.venv-1/bin/python scripts/execute_rescue_manifest.py \\
       --manifest ~/ingest-cache/rescue-manifest.json
 
-    # ... and only after reading that plan:
-    ... scripts/execute_rescue_manifest.py --manifest <path> --execute
+    # 2. Only after reading that plan. `--execute` spawns `pnpm --filter worker
+    #    ingest-ocr`, which INHERITS this shell -- it needs DATABASE_URL (else
+    #    @eanhl/db throws at import) and OCR_PYTHON (else ocr-cli-runner.ts
+    #    silently falls back to a bare `python3` and writes the rescue batch
+    #    from an interpreter nobody chose). Load the repository .env first:
+    set -a && source /path/to/eanhl-team-website/.env && set +a
+    cd tools/video_ingest && PYTHONPATH=.:../game_ocr \\
+      ../../.venv-1/bin/python scripts/execute_rescue_manifest.py \\
+      --manifest ~/ingest-cache/rescue-manifest.json --execute
+
+The ``.env`` is sourced by the OPERATOR, never by this script. Stage B validates
+its inputs; it does not resolve them -- the same rule the manifest's
+``cache_root`` and ``video_ingest.cache_root`` already follow. A run that
+silently repaired its own environment would be a run whose provenance depended
+on a file nobody named.
 """
 
 from __future__ import annotations
@@ -188,7 +207,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         action="store_true",
         help=(
             "REQUIRED to run anything. Without it this is a dry run: no ffmpeg, "
-            "no ingest-ocr, no database write."
+            "no ingest-ocr, no database write. With it, source the repository "
+            ".env first — the spawned ingest-ocr inherits this shell and needs "
+            "DATABASE_URL and OCR_PYTHON."
         ),
     )
     ap.add_argument("--container", default=DEFAULT_CONTAINER)
