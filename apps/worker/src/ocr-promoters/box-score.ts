@@ -24,7 +24,7 @@
  */
 
 import { matchPeriodSummaries, type NewMatchPeriodSummary } from '@eanhl/db'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, sql, type SQL } from 'drizzle-orm'
 import type { PromoterContext } from './index.js'
 import { resolveBgmSide } from './resolve-bgm-side.js'
 import type { OcrExtractionField } from '../ocr-cli-runner.js'
@@ -71,16 +71,25 @@ export async function promoteBoxScore(ctx: PromoterContext): Promise<void> {
     const forValue = sides.awayIs === 'for' ? awayValue : homeValue
     const againstValue = sides.awayIs === 'for' ? homeValue : awayValue
 
-    const updates: Partial<NewMatchPeriodSummary> = { ocrExtractionId: extractionId }
+    // Preserve-non-null merge: a later frame only fills columns still null on
+    // the existing row. `ocrExtractionId` deliberately keeps the FIRST
+    // contributor, mirroring net-chart.ts/faceoff-map.ts's onConflictDoUpdate
+    // COALESCE pattern — this promoter can't use onConflictDoUpdate itself
+    // since a genuinely new period row still needs the plain-insert fallback
+    // below, but the same "existing wins, incoming only fills null" semantics
+    // apply here via the update's `.set()`.
+    const updates: Partial<Record<keyof NewMatchPeriodSummary, SQL>> = {
+      ocrExtractionId: sql`COALESCE(${matchPeriodSummaries.ocrExtractionId}, ${extractionId})`,
+    }
     if (statKind === 'goals') {
-      updates.goalsFor = forValue
-      updates.goalsAgainst = againstValue
+      updates.goalsFor = sql`COALESCE(${matchPeriodSummaries.goalsFor}, ${forValue})`
+      updates.goalsAgainst = sql`COALESCE(${matchPeriodSummaries.goalsAgainst}, ${againstValue})`
     } else if (statKind === 'shots') {
-      updates.shotsFor = forValue
-      updates.shotsAgainst = againstValue
+      updates.shotsFor = sql`COALESCE(${matchPeriodSummaries.shotsFor}, ${forValue})`
+      updates.shotsAgainst = sql`COALESCE(${matchPeriodSummaries.shotsAgainst}, ${againstValue})`
     } else {
-      updates.faceoffsFor = forValue
-      updates.faceoffsAgainst = againstValue
+      updates.faceoffsFor = sql`COALESCE(${matchPeriodSummaries.faceoffsFor}, ${forValue})`
+      updates.faceoffsAgainst = sql`COALESCE(${matchPeriodSummaries.faceoffsAgainst}, ${againstValue})`
     }
 
     // Try update-first to avoid clobbering columns set by other tabs. If no row
