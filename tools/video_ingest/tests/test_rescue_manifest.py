@@ -35,6 +35,7 @@ from video_ingest.rescue_manifest import (
     REEL_LOOKBACK,
     REEL_UNRESOLVED,
     RESCUE_DECODER_VERSION,
+    SCHEMA_VERSION,
     R_ALREADY_COVERED,
     R_DUPLICATE_SUPERSEDED,
     R_DUPLICATE_UNCOVERED,
@@ -56,13 +57,28 @@ from video_ingest.rescue_manifest import (
     load_reels,
     manifest_to_dict,
     normalize_anchor,
+    AutoWindowUnpinnable,
+    expected_output_names,
     parse_windows,
+    pin_or_drop,
     reason_class,
+    rescue_output_pattern,
+    rescue_staging_dir,
     resolve_reel,
     select_candidates,
     tally_dropped_anchors,
     validate_manifest,
 )
+from video_ingest.rescue_sampling import (
+    SAMPLING_MODE,
+    SamplingImpossible,
+    SourceFrameRate,
+    UnsupportedFrameRate,
+    canonical_ffmpeg_argv,
+    sampling_from_dict,
+)
+
+from rescue_sampling_helpers import GRID60, GRID60_OFFSET, IDEAL_PROBE, ideal_probe
 
 
 # ─── Anchor classification ──────────────────────────────────────────────────
@@ -470,13 +486,20 @@ def test_segment_indices_are_9000_plus_in_time_order():
 
 def test_commands_carry_the_rescue_fingerprint():
     (win,) = _build([_resolved(1000.0, reel=REELS[0], match_id=101, run_id=77)])
-    cmd = build_commands(win, cache_root="/home/michal/ingest-cache", game_title_id=1, sample_fps=1.0)
+    cmd = build_commands(
+        win, cache_root="/home/michal/ingest-cache", game_title_id=1, source_grid=GRID60, probe_frames=IDEAL_PROBE
+    )
 
     assert cmd["batch_dir"].endswith("/rescue/seg-9000-post_game_box_score_goals")
     assert "/rescue/" in cmd["batch_dir"]
     assert cmd["notes"] == "rescue-b2:aaaaaaaaaaaa:seg9000:[999.250..1000.750]s"
     assert cmd["ffmpeg"][:4] == ["ffmpeg", "-v", "error", "-y"]
-    assert cmd["ffmpeg"][-1].endswith("/%05d.png")
+    # ffmpeg writes into staging, INSIDE the batch dir but never the batch dir
+    # itself — that is what lets Stage B prove which files one invocation made.
+    assert cmd["ffmpeg"][-1] == f"{cmd['batch_dir']}/.staging/%05d.png"
+    # …while ingest-ocr still reads the batch dir, which is half the promotion key.
+    ingest_batch = cmd["ingest_ocr"][cmd["ingest_ocr"].index("--batch-dir") + 1]
+    assert ingest_batch == cmd["batch_dir"]
 
     ingest = cmd["ingest_ocr"]
     assert ingest[:6] == ["pnpm", "--filter", "worker", "ingest-ocr", "--", "--batch-dir"]
@@ -496,15 +519,180 @@ def test_no_commands_without_a_resolved_match():
         [_resolved(1000.0, reel=REELS[0], match_id=None, run_id=None,
                    decision=DECISION_REVIEW, reason="reel_has_no_confirmed_match")]
     )
-    assert build_commands(win, cache_root="/c", game_title_id=1, sample_fps=1.0) is None
+    assert build_commands(win, cache_root="/c", game_title_id=1, source_grid=GRID60, probe_frames=IDEAL_PROBE) is None
+
+
+# ─── Exact-evidence sampling is what the commands pin ───────────────────────
+
+
+def test_commands_pin_source_pts_selection_and_never_an_fps_filter():
+    """The schema-2 defect, closed at the source: no auto command may resample."""
+    (win,) = _build([_resolved(1000.0, reel=REELS[0], match_id=101, run_id=77)])
+    cmd = build_commands(win, cache_root="/c", game_title_id=1, source_grid=GRID60, probe_frames=IDEAL_PROBE)
+
+    assert "sample_fps" not in cmd
+    assert not any(tok.startswith("fps=") for tok in cmd["ffmpeg"])
+    assert "-copyts" in cmd["ffmpeg"]
+    assert "-frames:v" in cmd["ffmpeg"]
+    assert "-t" in cmd["ffmpeg"] and "-to" not in cmd["ffmpeg"]
+
+    sampling = cmd["sampling"]
+    assert sampling["mode"] == SAMPLING_MODE
+    assert sampling["source_frame_rate"] == "60/1"
+    assert sampling["evidence_timestamps"] == [1000.0]
+    assert sampling["expected_frame_count"] == 3
+
+
+def test_commands_are_the_canonical_argv_for_their_own_sampling_metadata():
+    (win,) = _build([_resolved(1000.0, reel=REELS[0], match_id=101, run_id=77)])
+    cmd = build_commands(win, cache_root="/c", game_title_id=1, source_grid=GRID60, probe_frames=IDEAL_PROBE)
+    assert cmd["ffmpeg"] == canonical_ffmpeg_argv(
+        video_path=win.video_path,
+        output_pattern=rescue_output_pattern(cmd["batch_dir"]),
+        plan=sampling_from_dict(cmd["sampling"]),
+    )
+
+
+@pytest.mark.parametrize("rate", [None, "60/1", 60.0, SourceFrameRate(60, 1)])
+def test_generator_refuses_anything_that_is_not_a_measured_grid(rate):
+    """No default, no guess — and a bare RATE is not a grid.
+
+    ``SourceFrameRate(60, 1)`` is in this list on purpose: it is exactly what the
+    previous version accepted, and accepting it is what let a source's PTS origin
+    go unmeasured and be assumed to be zero.
+    """
+    (win,) = _build([_resolved(1000.0, reel=REELS[0], match_id=101, run_id=77)])
+    with pytest.raises(UnsupportedFrameRate):
+        build_commands(win, cache_root="/c", game_title_id=1, source_grid=rate, probe_frames=IDEAL_PROBE)
+
+
+def test_commands_pin_the_measured_origin_of_an_offset_source():
+    (win,) = _build([_resolved(1000.0, reel=REELS[0], match_id=101, run_id=77)])
+    cmd = build_commands(
+        win,
+        cache_root="/c",
+        game_title_id=1,
+        source_grid=GRID60_OFFSET,
+        probe_frames=ideal_probe(GRID60_OFFSET),
+    )
+    assert cmd["sampling"]["source_pts_origin_s"] == 5.008
+    # The seek is relative to that origin; the bands stay absolute.
+    assert cmd["sampling"]["decode_seek_s"] == pytest.approx(
+        cmd["sampling"]["decode_start_s"] - 5.008, abs=1e-6
+    )
+
+
+def test_a_command_is_never_pinned_without_measuring_its_own_source():
+    """The probe is not optional and its refusal is not swallowed."""
+    (win,) = _build([_resolved(1000.0, reel=REELS[0], match_id=101, run_id=77)])
+    with pytest.raises(SamplingImpossible):
+        build_commands(
+            win,
+            cache_root="/c",
+            game_title_id=1,
+            source_grid=GRID60,
+            probe_frames=ideal_probe(GRID60_OFFSET),  # the file is NOT on GRID60
+        )
+
+
+# ─── The staged output contract ─────────────────────────────────────────────
+
+
+def test_the_output_names_are_exactly_what_the_pattern_produces():
+    assert expected_output_names(3) == ("00001.png", "00002.png", "00003.png")
+    assert expected_output_names(1) == ("00001.png",)
+    assert expected_output_names(0) == ()
+
+
+def test_staging_is_a_subdirectory_of_the_batch_dir():
+    """Subdirectory, not sibling: `game_ocr.cli` enumerates a batch with
+    `iterdir()` filtered on `is_file()`, so a directory is invisible to it —
+    while a sibling *file* tree would not be covered by the batch dir's own
+    rollback handle."""
+    assert rescue_staging_dir("/c/sha/rescue/seg-9000-x") == "/c/sha/rescue/seg-9000-x/.staging"
+    assert rescue_output_pattern("/c/sha/rescue/seg-9000-x").startswith(
+        "/c/sha/rescue/seg-9000-x/"
+    )
+
+
+# ─── The pin-or-drop asymmetry (shared with the transform tool) ─────────────
+
+
+def _pin(decision, build):
+    return pin_or_drop(
+        build=build,
+        decision=decision,
+        video_sha256="a" * 64,
+        segment_index=9000,
+        video_path="/v.mkv",
+        reason="summary_category_dropdown_occludes_tab",
+        where="aaaaaaaaaaaa/seg9000",
+    )
+
+
+def _unpinnable():
+    raise UnsupportedFrameRate("variable frame rate: 60/1 != 839640000/13993843")
+
+
+def test_an_unpinnable_auto_window_refuses_everything():
+    with pytest.raises(AutoWindowUnpinnable) as exc:
+        _pin(DECISION_AUTO, _unpinnable)
+    assert "aaaaaaaaaaaa/seg9000" in str(exc.value)
+    assert "839640000/13993843" in str(exc.value)
+
+
+@pytest.mark.parametrize("decision", [DECISION_REVIEW, DECISION_SKIP])
+def test_an_unpinnable_non_auto_window_is_dropped_and_enumerated(decision):
+    """The match-2400 shape: not executable, so one bad source must not cost the
+    whole corpus — but the drop is a recorded fact, never a silent absence."""
+    commands, entry = _pin(decision, _unpinnable)
+    assert commands is None
+    assert entry["video_sha256"] == "a" * 64
+    assert entry["segment_index"] == 9000
+    assert entry["decision"] == decision
+    assert entry["reason"] == "summary_category_dropdown_occludes_tab"
+    assert "variable frame rate" in entry["detail"]
+
+
+def test_a_window_whose_own_geometry_is_unsamplable_is_dropped_the_same_way():
+    """`SamplingImpossible` is handled identically to `UnsupportedFrameRate`:
+    both mean "no executable command exists for this window"."""
+
+    def build():
+        raise SamplingImpossible("evidence t=1.0 lies outside its own window")
+
+    commands, entry = _pin(DECISION_SKIP, build)
+    assert commands is None and "outside its own window" in entry["detail"]
+    with pytest.raises(AutoWindowUnpinnable):
+        _pin(DECISION_AUTO, build)
+
+
+def test_a_pinnable_window_yields_commands_and_no_ledger_entry():
+    commands, entry = _pin(DECISION_AUTO, lambda: {"batch_dir": "/b"})
+    assert commands == {"batch_dir": "/b"} and entry is None
+
+
+def test_a_window_with_nothing_to_build_is_not_a_drop():
+    """`build_commands` returns None for a window with no target screen. That is
+    a decision, not a failure, and must not appear in the unpinnable ledger."""
+    commands, entry = _pin(DECISION_REVIEW, lambda: None)
+    assert commands is None and entry is None
 
 
 # ─── Manifest ───────────────────────────────────────────────────────────────
 
 
+def test_schema_version_is_three():
+    """The command object changed shape, so a schema-2 consumer must not read
+    a schema-3 manifest as if it understood it."""
+    assert SCHEMA_VERSION == 3
+
+
 def _manifest(windows):
     for win in windows:
-        win.commands = build_commands(win, cache_root="/c", game_title_id=1, sample_fps=1.0)
+        win.commands = build_commands(
+            win, cache_root="/c", game_title_id=1, source_grid=GRID60, probe_frames=IDEAL_PROBE
+        )
     return manifest_to_dict(
         windows,
         policy={"decoder_version": RESCUE_DECODER_VERSION},

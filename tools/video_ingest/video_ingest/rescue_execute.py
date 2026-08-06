@@ -20,14 +20,31 @@ gate in front of argv that already exists:
   6. drop windows whose output the database *verifiably* already holds, so a
      rerun cannot duplicate real rescue data — and, just as importantly, cannot
      mistake a half-written batch for a finished one;
-  7. re-check that same predicate after every window it runs, so a subprocess
+  7. prove, per invocation, that the frames ``ingest-ocr`` is about to read were
+     produced by THIS ffmpeg call — by staging them in a directory verified
+     empty a moment earlier, never by counting what happens to be on disk;
+  8. re-check that same predicate after every window it runs, so a subprocess
      that exits 0 without producing the output is a failure and not a promotion;
-  8. and do all of the above without executing anything unless the operator
+  9. and do all of the above without executing anything unless the operator
      passed the explicit opt-in.
 
-Everything here is a pure function over plain data plus three injected IO seams
-(``completion_facts``, ``run_command``, ``receipt_sink``), so the whole policy is
-unit-testable with no cache, no video, no ffmpeg and no database.
+Everything here is a pure function over plain data plus injected IO seams
+(``completion_facts``, ``run_command``, ``receipt_sink``, ``list_files``,
+``publish_outputs``), so the whole policy is unit-testable with no cache, no
+video, no ffmpeg and no database.
+
+**Why ffmpeg does not write into the batch directory.** Counting the PNGs in the
+batch directory after ffmpeg returns cannot distinguish this invocation's output
+from a previous one's. A batch directory already holding a complete stale set
+keeps its count when the current command writes nothing, and the count-based
+gate passed — handing ``ingest-ocr`` frames the manifest's current command never
+produced. Every window therefore runs as a small transaction: ffmpeg writes into
+``<batch_dir>/.staging``, which is proven EMPTY immediately beforehand; the exact
+expected ``%05d.png`` set (no shortfall, no surplus, no foreign name) is proven
+there afterwards; and only then are those files moved into the batch directory,
+which is itself proven to hold nothing this run did not produce. See
+:func:`execute_plan` and the ``prove_*`` functions. Nothing in that chain relies
+on a total count, a content hash or a filesystem mtime.
 
 The rollback story is inherited from Stage A and must not drift:
 
@@ -82,10 +99,23 @@ from video_ingest.rescue_manifest import (
     RESCUE_DECODER_VERSION,
     SCHEMA_VERSION,
     SEGMENT_INDEX_BASE,
+    STAGING_DIRNAME,
+    UNPINNABLE_LEDGER_KEY,
     Window,
+    expected_output_names,
     parse_windows,
     rescue_batch_dir,
+    rescue_output_pattern,
+    rescue_staging_dir,
     validate_manifest,
+    window_evidence_timestamps,
+)
+from video_ingest.rescue_sampling import (
+    SAMPLING_MODE,
+    SamplingImpossible,
+    canonical_ffmpeg_argv,
+    sampling_from_dict,
+    sampling_problems,
 )
 
 #: The opt-in that turns planning into promotion. Named once so the guard, the
@@ -187,6 +217,40 @@ def policy_problems(doc: dict[str, Any]) -> list[str]:
             "policy.auto_eligible_screens: does not match this executor's "
             f"{list(AUTO_ELIGIBLE_SCREENS)}"
         )
+    # Schema 3's substance. A manifest can carry the version number without
+    # carrying the contract — a hand-edited `schema_version` is one keystroke —
+    # so the sampling mode is checked as its own claim.
+    if policy.get("sampling_mode") != SAMPLING_MODE:
+        problems.append(
+            f"policy.sampling_mode: expected {SAMPLING_MODE!r}, got "
+            f"{policy.get('sampling_mode')!r} — this executor only runs commands "
+            "pinned to deterministic source-PTS selection, never fps resampling"
+        )
+
+    # The unpinnable ledger. A window may lose its command only if the manifest
+    # SAYS SO, and only if it was never executable. Requiring the key even when
+    # nothing was dropped is the point: an absent ledger would make "no window
+    # was dropped" and "the producer does not record drops" the same document.
+    ledger = policy.get(UNPINNABLE_LEDGER_KEY)
+    if not isinstance(ledger, list):
+        problems.append(
+            f"policy.{UNPINNABLE_LEDGER_KEY}: missing or not a list — a schema-3 "
+            "manifest must state, even as an empty list, which windows could not be "
+            "pinned to a source grid"
+        )
+    else:
+        for i, entry in enumerate(ledger):
+            if not isinstance(entry, dict):
+                problems.append(f"policy.{UNPINNABLE_LEDGER_KEY}[{i}]: not an object")
+                continue
+            if entry.get("decision") == DECISION_AUTO:
+                problems.append(
+                    f"policy.{UNPINNABLE_LEDGER_KEY}[{i}]: names an AUTO window "
+                    f"({str(entry.get('video_sha256') or '')[:12]}/"
+                    f"seg{entry.get('segment_index')}) — an executable window may never "
+                    "have its command dropped; it must be pinned or the whole manifest "
+                    "must be refused"
+                )
     return problems
 
 
@@ -242,6 +306,31 @@ def command_problems(window: Window, *, cache_root: str) -> list[str]:
                 "marker that rollback keys on"
             )
 
+    # Schema 2's `sample_fps` described an `-vf fps=N` filter that sampled on the
+    # OUTPUT timeline and provably never captured its own evidence timestamp.
+    # Its presence is named explicitly rather than left to the argv comparison,
+    # because "your command is from the superseded contract" is the useful
+    # diagnosis and a 15-token argv diff is not.
+    if "sample_fps" in commands:
+        problems.append(
+            "commands.sample_fps: this is a schema-2 fps-resampled command. That "
+            "sampling captured whatever frame the seek landed near, not the "
+            "evidence frame, and is not executable — regenerate or transform the "
+            "manifest to the source-PTS contract"
+        )
+
+    # The sampling metadata is recomputed from the window's own evidence and
+    # bounds, so this covers evidence representation, window/video clamping,
+    # deduplication and the expected count in one place.
+    sampling = commands.get("sampling")
+    sampling_faults = sampling_problems(
+        sampling,
+        evidence_timestamps=window_evidence_timestamps(window),
+        t0=window.t0,
+        t1=window.t1,
+    )
+    problems += sampling_faults
+
     ffmpeg = commands.get("ffmpeg")
     ffmpeg_problems = _argv_problems(ffmpeg, STEP_FFMPEG)
     problems += ffmpeg_problems
@@ -249,20 +338,39 @@ def command_problems(window: Window, *, cache_root: str) -> list[str]:
         assert isinstance(ffmpeg, list)  # narrowed by _argv_problems
         if ffmpeg[0] != "ffmpeg":
             problems.append(f"commands.ffmpeg: argv[0] is {ffmpeg[0]!r}, not 'ffmpeg'")
-        for flag, expected in (
-            ("-ss", f"{window.t0:.3f}"),
-            ("-to", f"{window.t1:.3f}"),
-            ("-i", window.video_path),
-        ):
-            got = flag_value(ffmpeg, flag)
-            if got != expected:
-                problems.append(
-                    f"commands.ffmpeg {flag}: {got!r} does not match the window's {expected!r}"
-                )
-        if batch_dir and not ffmpeg[-1].startswith(batch_dir):
+        # ffmpeg must write into the window's STAGING directory, never straight
+        # into the batch dir: that is what lets the executor prove which files
+        # the current invocation produced. A command aimed at the batch dir is
+        # not merely unconventional, it is unverifiable.
+        if batch_dir and ffmpeg[-1] != rescue_output_pattern(batch_dir):
             problems.append(
-                f"commands.ffmpeg: output {ffmpeg[-1]!r} is not inside the batch dir"
+                f"commands.ffmpeg: output {ffmpeg[-1]!r} is not this window's staging "
+                f"pattern {rescue_output_pattern(batch_dir)!r} — outputs must land in "
+                f"{STAGING_DIRNAME!r} so the executor can prove they are this "
+                "invocation's"
             )
+        # Exact equality against the argv rebuilt from the metadata — NOT a
+        # scan for expected flags, and emphatically not a parse of the filter
+        # expression. Nothing here interprets `select=...`; it is regenerated
+        # and compared as a string, so an argv that is merely plausible, or a
+        # filter that is merely valid, still fails.
+        if not sampling_faults and batch_dir:
+            try:
+                plan = sampling_from_dict(sampling)
+            except (SamplingImpossible, ValueError) as exc:  # pragma: no cover
+                problems.append(f"commands.sampling: unreadable ({exc})")
+            else:
+                canonical = canonical_ffmpeg_argv(
+                    video_path=window.video_path,
+                    output_pattern=rescue_output_pattern(batch_dir),
+                    plan=plan,
+                )
+                if list(ffmpeg) != canonical:
+                    problems.append(
+                        "commands.ffmpeg: argv does not match the canonical command "
+                        f"derived from commands.sampling.\n      pinned    : {ffmpeg}\n"
+                        f"      canonical : {canonical}"
+                    )
 
     ingest = commands.get("ingest_ocr")
     ingest_problems = _argv_problems(ingest, STEP_INGEST_OCR)
@@ -744,6 +852,16 @@ class ExecutionPlan:
     #: not verify. Under the old existence predicate these were skipped as
     #: "promoted"; they are now re-run, and named here with the reasons.
     retrying: tuple[WindowCompletion, ...] = ()
+    #: The schema the manifest ACTUALLY declared, read from the document rather
+    #: than assumed from this module's constant. Receipts record it, so a
+    #: receipt names the contract that authorised it instead of the contract the
+    #: binary happened to be compiled with.
+    manifest_schema_version: int | None = SCHEMA_VERSION
+    #: `policy.sampling_unpinnable`, verbatim: the non-auto windows the producer
+    #: recorded as carrying no command because their source has no measurable
+    #: grid. Surfaced in the plan so a `commands: null` an operator meets in the
+    #: file is a stated refusal rather than an unexplained gap.
+    unpinnable: tuple[dict[str, Any], ...] = ()
 
     @property
     def auto_total(self) -> int:
@@ -809,6 +927,8 @@ def plan_rescue(
         verified_complete=tuple(a.window for a in complete),
         artifacts=tuple(artifacts),
         retrying=tuple(a for a in pending if a.attempted),
+        manifest_schema_version=doc.get("schema_version"),
+        unpinnable=tuple((doc.get("policy") or {}).get(UNPINNABLE_LEDGER_KEY) or ()),
     )
 
 
@@ -929,6 +1049,199 @@ class CommandResult:
 #: module's suite runs the real gate against a recorder rather than ffmpeg.
 RunCommand = Callable[[Sequence[str]], CommandResult]
 
+#: ``list_files(directory) -> tuple[str, ...]``. The names of the FILES in a
+#: directory, sorted; subdirectories are excluded (the staging directory lives
+#: inside the batch directory and is not an output). Injected for the same
+#: reason as ``run_command``; the default is the real filesystem.
+DirLister = Callable[[Path], "tuple[str, ...]"]
+
+#: ``publish(staging, batch_dir, names) -> None``. Moves the verified outputs of
+#: one ffmpeg invocation out of staging and into the batch directory the pinned
+#: ``ingest-ocr`` will read.
+OutputPublisher = Callable[[Path, Path, Sequence[str]], None]
+
+
+def list_output_files(directory: Path) -> tuple[str, ...]:
+    """The file names in a directory, sorted. A missing directory is empty.
+
+    A missing directory is ``()`` rather than an error: "ffmpeg produced
+    nothing" and "ffmpeg produced nothing and did not even create the tree" are
+    the same failure and are both caught by comparing against the expected set.
+    """
+    try:
+        return tuple(sorted(p.name for p in directory.iterdir() if p.is_file()))
+    except OSError:
+        return ()
+
+
+def publish_staged_outputs(staging: Path, batch_dir: Path, names: Sequence[str]) -> None:
+    """Move this invocation's verified outputs into the batch directory.
+
+    ``os.replace`` per file: staging is a subdirectory of the batch dir, so this
+    is always a same-filesystem rename and never a copy. The set is not published
+    atomically — nothing on a POSIX filesystem makes a multi-file publish atomic —
+    but it does not need to be, because the caller re-lists the batch directory
+    afterwards and requires the exact expected set. A publish interrupted halfway
+    therefore fails the window rather than feeding ``ingest-ocr`` a partial batch.
+    """
+    batch_dir.mkdir(parents=True, exist_ok=True)
+    for name in names:
+        os.replace(staging / name, batch_dir / name)
+
+
+def expected_output_frames(window: Window) -> int | None:
+    """How many frames this window's pinned selection must produce.
+
+    ``None`` only when the metadata is absent or malformed — which
+    :func:`command_problems` has already refused, so a window that reaches
+    execution always has a number.
+    """
+    commands = window.commands if isinstance(window.commands, dict) else {}
+    sampling = commands.get("sampling")
+    if not isinstance(sampling, dict):
+        return None
+    try:
+        return int(sampling["expected_frame_count"])
+    except (KeyError, TypeError, ValueError):
+        return None
+
+
+def _render_set(names: Sequence[str], limit: int = 8) -> str:
+    shown = ", ".join(names[:limit])
+    if len(names) > limit:
+        shown += f", … (+{len(names) - limit})"
+    return shown or "<empty>"
+
+
+@dataclass(frozen=True)
+class OutputProof:
+    """The verdict of proving one ffmpeg invocation's outputs, and why.
+
+    ``ok`` means: the staging directory was EMPTY immediately before ffmpeg ran,
+    and immediately afterwards it held exactly the expected numbered files and
+    nothing else. Under those two facts every published frame is provably a
+    product of this invocation — which a count of the batch directory can never
+    establish, because a complete stale set keeps its count when the current
+    command writes nothing.
+    """
+
+    ok: bool
+    staged: tuple[str, ...] = ()
+    error: str | None = None
+
+
+def prove_staging_empty(staging: Path, *, list_files: DirLister) -> OutputProof:
+    """Precondition: nothing may be in staging before ffmpeg runs.
+
+    A non-empty staging directory is residue from an interrupted run. It is
+    reported, never cleaned: this executor does not delete rescue artefacts, and
+    a directory it silently emptied would be one whose previous contents nobody
+    got to look at.
+    """
+    present = list_files(staging)
+    if present:
+        return OutputProof(
+            ok=False,
+            error=(
+                f"the staging directory {staging} is not empty before ffmpeg runs — it "
+                f"holds {len(present)} file(s) [{_render_set(present)}] left by an "
+                "interrupted run. Outputs of the CURRENT invocation cannot be told "
+                "apart from those, so nothing was executed for this window. Inspect "
+                "and remove that directory, then re-run."
+            ),
+        )
+    return OutputProof(ok=True)
+
+
+def prove_current_outputs(
+    staging: Path, *, expected: Sequence[str], list_files: DirLister
+) -> OutputProof:
+    """Postcondition: staging holds EXACTLY the expected files and nothing else.
+
+    Set equality, not a count, and not a hash or an mtime:
+
+    * **missing** — ``-frames:v N`` is a CEILING, not a floor. When a selected
+      source timestamp matches nothing (a moved cache, a re-encoded video, a
+      window planned against the wrong grid) the bounded decode simply ends and
+      ffmpeg exits 0 having written fewer files;
+    * **surplus** — an extra file means the invocation produced something the
+      pinned selection does not name, and ``ingest-ocr`` would OCR it as if the
+      manifest had authorised it;
+    * **misnamed** — a file that is neither missing nor surplus by count but not
+      one of ``%05d.png``'s outputs did not come from this pattern at all.
+    """
+    produced = list_files(staging)
+    want = tuple(expected)
+    if produced == want:
+        return OutputProof(ok=True, staged=produced)
+
+    missing = [n for n in want if n not in set(produced)]
+    surplus = [n for n in produced if n not in set(want)]
+    return OutputProof(
+        ok=False,
+        staged=produced,
+        error=(
+            f"ffmpeg exited 0 but the frames it wrote into {staging} are not the "
+            f"{len(want)} its pinned selection names.\n"
+            f"      expected : {_render_set(want)}\n"
+            f"      produced : {_render_set(produced)}\n"
+            f"      missing  : {_render_set(missing)}\n"
+            f"      surplus  : {_render_set(surplus)}\n"
+            "      Staging was verified empty immediately before this invocation, so "
+            "this is what the CURRENT command produced — not what an earlier run left "
+            "behind. Nothing was published and nothing was ingested."
+        ),
+    )
+
+
+def prove_publishable(
+    batch_dir: Path, *, expected: Sequence[str], list_files: DirLister
+) -> OutputProof:
+    """Precondition for publishing: the batch dir holds nothing foreign.
+
+    Every file already in the batch directory must be one of the names this
+    invocation is about to publish over. Those are replaced — their prior content
+    is irrelevant, because the frames replacing them were just proven to be this
+    invocation's — which is what keeps a retry of an incomplete window working
+    without any deletion.
+
+    Anything else (a stray file, a leftover from a differently-sized selection)
+    would survive the publish and end up in the batch that ``ingest-ocr`` reads,
+    so it fails closed and names the files.
+    """
+    present = list_files(batch_dir)
+    foreign = [n for n in present if n not in set(expected)]
+    if foreign:
+        return OutputProof(
+            ok=False,
+            error=(
+                f"the batch directory {batch_dir} holds {len(foreign)} file(s) this run "
+                f"did not produce [{_render_set(foreign)}]. Publishing over them would "
+                "hand ingest-ocr a batch mixing this invocation's frames with an earlier "
+                "one's. Nothing was published. Inspect that directory and remove the "
+                "stale files, then re-run."
+            ),
+        )
+    return OutputProof(ok=True)
+
+
+def prove_published(
+    batch_dir: Path, *, expected: Sequence[str], list_files: DirLister
+) -> OutputProof:
+    """Postcondition for publishing: the batch dir is exactly the expected set."""
+    present = list_files(batch_dir)
+    if present == tuple(expected):
+        return OutputProof(ok=True, staged=present)
+    return OutputProof(
+        ok=False,
+        staged=present,
+        error=(
+            f"after publishing, {batch_dir} holds {_render_set(present)} rather than "
+            f"the expected {_render_set(tuple(expected))}. The batch ingest-ocr would "
+            "read is not the one the manifest authorised. Nothing was ingested."
+        ),
+    )
+
 
 @dataclass
 class WindowOutcome:
@@ -979,11 +1292,18 @@ def build_receipt(
     Carries every handle the rollback design depends on: the schema and decoder
     versions, the rescue batch dir and run id that together form the promotion
     key, the manifest digest that authorised it, and a fingerprint per command.
+
+    ``schema_version`` is the MANIFEST's, not this module's constant. The ledger
+    is append-only and already holds schema-2 receipts from runs authorised by
+    the schema-2 manifest; those stay exactly as written and stay valid. What a
+    new receipt must not do is stamp a version it did not read — so the value
+    comes from the document the plan was built from, and a reader can tell which
+    sampling contract produced any given row.
     """
     window = outcome.window
     commands = window.commands or {}
     return {
-        "schema_version": SCHEMA_VERSION,
+        "schema_version": plan.manifest_schema_version,
         "decoder_version": RESCUE_DECODER_VERSION,
         "rescue_run_id": rescue_run_id,
         "executed_at": executed_at,
@@ -1001,6 +1321,11 @@ def build_receipt(
         "promotion_key": list(promotion_key(window)),
         "segment_key": expected_segment_key(window),
         "status": outcome.status,
+        # Why it failed, durably. A window can fail before the database is ever
+        # consulted — an unprovable output set stops the run between ffmpeg and
+        # ingest-ocr — and `completion_problems` is empty in exactly that case,
+        # so without this the ledger would record a failure with no reason.
+        "error": outcome.error,
         # A receipt asserts nothing it did not check: this is the verdict of
         # `completion_problems` re-run against the database after the commands.
         "completion_verified": outcome.verified,
@@ -1019,6 +1344,8 @@ def execute_plan(
     receipt_sink: Callable[[dict[str, Any]], None] | None = None,
     make_batch_dir: Callable[[Path], None] | None = None,
     environ: Mapping[str, str] | None = None,
+    list_files: DirLister = list_output_files,
+    publish_outputs: OutputPublisher = publish_staged_outputs,
 ) -> ExecutionReport:
     """Run the pending windows' pinned argv, in order, failing fast.
 
@@ -1028,6 +1355,23 @@ def execute_plan(
     inside that loop. Placing it here rather than in :func:`run_rescue` means no
     caller can route around it — the guard lives at the mutation boundary, in
     the same spirit as :func:`assert_executable`.
+
+    Between ffmpeg and ingest-ocr sits a TRANSACTION, and it is the reason
+    ffmpeg never writes into the batch directory itself:
+
+      a. staging (``<batch_dir>/.staging``) is proven EMPTY;
+      b. ffmpeg runs, writing only there;
+      c. staging is proven to hold exactly the expected ``%05d.png`` set;
+      d. the batch directory is proven to hold nothing foreign;
+      e. the files are moved across and the batch directory is re-proven;
+      f. only then does ``ingest-ocr`` see anything.
+
+    (a) plus (c) is the per-invocation proof. A count of the batch directory
+    cannot make that claim: a directory already holding a complete stale set
+    keeps its count when the current ffmpeg writes nothing, and the old gate
+    passed on exactly that. Nothing here depends on mtimes, inode reuse or file
+    content — only on the fact that a directory verified empty and then written
+    to by one process contains that process's output and nothing else.
 
     Every window is verified against the database *after* its commands return,
     with the same :func:`completion_problems` predicate that decided it was
@@ -1054,26 +1398,89 @@ def execute_plan(
         outcome = WindowOutcome(window=window, status=OUTCOME_PROMOTED)
 
         batch_dir = Path(str(commands["batch_dir"]))
-        if make_batch_dir is not None:
+        staging = Path(rescue_staging_dir(str(commands["batch_dir"])))
+        frame_count = expected_output_frames(window)
+        expected_names = (
+            expected_output_names(frame_count) if frame_count is not None else ()
+        )
+
+        # (a) Staging must be empty BEFORE ffmpeg, and it is proven so before
+        #     the directory is even created — a directory this run creates is
+        #     empty by construction, and one that already existed is the case
+        #     that has to be caught.
+        proof = prove_staging_empty(staging, list_files=list_files)
+        if not proof.ok:
+            outcome.status = OUTCOME_FAILED
+            outcome.error = proof.error
+        elif frame_count is None or frame_count < 1:
+            # Zero is refused as loudly as absent: an empty expected set would
+            # make the produced-set proof vacuously true against an empty staging
+            # directory, which is the one way this gate could pass without
+            # proving anything. `plan_sampling` cannot produce it and
+            # `command_problems` recomputes it, so reaching here means the
+            # metadata was hand-edited.
+            outcome.status = OUTCOME_FAILED
+            outcome.error = (
+                f"the pinned commands declare expected_frame_count={frame_count!r}, so "
+                "the outputs of this invocation cannot be proven. Nothing was executed."
+            )
+
+        if outcome.status != OUTCOME_FAILED and make_batch_dir is not None:
             make_batch_dir(batch_dir)
+            make_batch_dir(staging)
 
         for step in STEP_ORDER:
+            if outcome.status == OUTCOME_FAILED:
+                break
             argv = list(commands[step])
             result = run_command(argv)
-            outcome.steps.append(
-                {
-                    "step": step,
-                    "argv": argv,
-                    "fingerprint": argv_fingerprint(argv),
-                    "returncode": result.returncode,
-                }
-            )
+            entry: dict[str, Any] = {
+                "step": step,
+                "argv": argv,
+                "fingerprint": argv_fingerprint(argv),
+                "returncode": result.returncode,
+            }
+            outcome.steps.append(entry)
             if result.returncode != 0:
                 outcome.status = OUTCOME_FAILED
                 outcome.error = (
                     f"{step} exited {result.returncode}"
                     + (f": {result.stderr.strip()}" if result.stderr.strip() else "")
                 )
+                break
+
+            if step != STEP_FFMPEG:
+                continue
+
+            # (c) What THIS invocation produced, proven against an empty start.
+            produced = prove_current_outputs(
+                staging, expected=expected_names, list_files=list_files
+            )
+            entry["expected_frames"] = frame_count
+            entry["expected_output_names"] = list(expected_names)
+            entry["staged_output_names"] = list(produced.staged)
+            entry["output_frames"] = len(produced.staged)
+            if not produced.ok:
+                outcome.status = OUTCOME_FAILED
+                outcome.error = produced.error
+                break
+
+            # (d) and (e): publish, with the batch dir proven clean either side.
+            publishable = prove_publishable(
+                batch_dir, expected=expected_names, list_files=list_files
+            )
+            if not publishable.ok:
+                outcome.status = OUTCOME_FAILED
+                outcome.error = publishable.error
+                break
+            publish_outputs(staging, batch_dir, expected_names)
+            published = prove_published(
+                batch_dir, expected=expected_names, list_files=list_files
+            )
+            entry["published_output_names"] = list(published.staged)
+            if not published.ok:
+                outcome.status = OUTCOME_FAILED
+                outcome.error = published.error
                 break
 
         # The postcondition. Runs before the window is called promoted, before
@@ -1130,6 +1537,23 @@ def render_plan(plan: ExecutionPlan, *, out: Callable[[str], None]) -> None:
     for decision, n in sorted(plan.decision_counts.items()):
         marker = "  <- executable" if decision == DECISION_AUTO else "  (never executed)"
         out(f"  {decision:8s} {n:5d}{marker}")
+    if plan.unpinnable:
+        # Never silent: these windows carry no command because their source has
+        # no measurable grid. They are all non-auto (the validator refuses a
+        # ledger that names an auto window), so they were never executable — but
+        # an operator reading `commands: null` deserves to know it is a recorded
+        # refusal rather than a window nobody ever pinned.
+        out("")
+        out(
+            f"unpinnable sources : {len(plan.unpinnable)} non-auto window(s) carry no "
+            "command (policy.sampling_unpinnable)"
+        )
+        for entry in plan.unpinnable:
+            out(
+                f"    · {str(entry.get('video_sha256') or '')[:12]}/"
+                f"seg{entry.get('segment_index')} {entry.get('decision')} "
+                f"{entry.get('reason')}"
+            )
     out("")
     out(
         f"artifact preflight : {len(plan.artifacts)} path(s) present "
@@ -1202,6 +1626,8 @@ def run_rescue(
     receipt_sink: Callable[[dict[str, Any]], None] | None = None,
     make_batch_dir: Callable[[Path], None] | None = None,
     environ: Mapping[str, str] | None = None,
+    list_files: DirLister = list_output_files,
+    publish_outputs: OutputPublisher = publish_staged_outputs,
     out: Callable[[str], None] = print,
 ) -> int:
     """Plan always; execute only under the explicit opt-in. Returns an exit code.
@@ -1243,6 +1669,8 @@ def run_rescue(
         receipt_sink=receipt_sink,
         make_batch_dir=make_batch_dir,
         environ=environ,
+        list_files=list_files,
+        publish_outputs=publish_outputs,
     )
     render_report(report, out=out)
     return 0 if report.ok else 1

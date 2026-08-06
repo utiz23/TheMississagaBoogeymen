@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -44,6 +45,9 @@ from video_ingest.rescue_execute import (
     environment_problems,
     executable_windows,
     execute_plan,
+    list_output_files,
+    prove_current_outputs,
+    prove_staging_empty,
     expected_segment_key,
     load_manifest,
     plan_rescue,
@@ -55,6 +59,10 @@ from video_ingest.rescue_execute import (
 )
 from video_ingest.rescue_manifest import (
     AUTO_ELIGIBLE_SCREENS,
+    STAGING_DIRNAME,
+    expected_output_names,
+    rescue_output_pattern,
+    rescue_staging_dir,
     DECISION_AUTO,
     DECISION_REVIEW,
     DECISION_SKIP,
@@ -71,7 +79,14 @@ from video_ingest.rescue_manifest import (
     Window,
     build_commands,
     manifest_to_dict,
+    sampling_policy,
 )
+from video_ingest.rescue_sampling import (
+    canonical_ffmpeg_argv,
+    sampling_from_dict,
+)
+
+from rescue_sampling_helpers import GRID60, IDEAL_PROBE
 
 SHA_A = "a" * 64
 SHA_B = "b" * 64
@@ -159,18 +174,41 @@ class FactProbe:
 
 
 class Recorder:
-    """The subprocess seam. Records argv; optionally fails a named step."""
+    """The subprocess seam. Records argv; optionally fails a named step.
 
-    def __init__(self, fail_on: str | None = None, returncode: int = 1) -> None:
+    A successful ``ffmpeg`` call MATERIALISES the frames the pinned argv asked
+    for, because the executor now counts them: a double that recorded the call
+    but produced nothing would model an ffmpeg that silently found no matching
+    source frame, which is a different (and separately tested) scenario.
+    ``frames`` overrides the count to model exactly that shortfall.
+    """
+
+    def __init__(
+        self,
+        fail_on: str | None = None,
+        returncode: int = 1,
+        frames: int | None = None,
+    ) -> None:
         self.calls: list[list[str]] = []
         self.fail_on = fail_on
         self.returncode = returncode
+        self.frames = frames
 
     def __call__(self, argv: Sequence[str]) -> CommandResult:
         self.calls.append(list(argv))
         if self.fail_on is not None and argv[0] == self.fail_on:
             return CommandResult(returncode=self.returncode, stderr="boom")
+        if argv[0] == "ffmpeg":
+            self._write_frames(list(argv))
         return CommandResult(returncode=0)
+
+    def _write_frames(self, argv: list[str]) -> None:
+        asked = int(argv[argv.index("-frames:v") + 1])
+        produced = asked if self.frames is None else self.frames
+        out_dir = Path(argv[-1]).parent
+        out_dir.mkdir(parents=True, exist_ok=True)
+        for i in range(1, produced + 1):
+            (out_dir / f"{i:05d}.png").write_bytes(b"\x89PNG\r\n\x1a\n")
 
 
 def _make_window(
@@ -214,7 +252,11 @@ def _make_window(
     )
     if with_commands:
         window.commands = build_commands(
-            window, cache_root=str(cache_root), game_title_id=1, sample_fps=1.0
+            window,
+            cache_root=str(cache_root),
+            game_title_id=1,
+            source_grid=GRID60,
+            probe_frames=IDEAL_PROBE,
         )
     return window
 
@@ -229,6 +271,10 @@ def _manifest_doc(windows: Sequence[Window], *, cache_root: Path, **policy_overr
         "auto_eligible_screens": list(AUTO_ELIGIBLE_SCREENS),
         "game_title_id": 1,
         "ui_version": "nhl26",
+        **sampling_policy(
+            source_grids={SHA_A: GRID60.rate.text},
+            source_pts_origins={SHA_A: GRID60.origin_s},
+        ),
     }
     policy.update(policy_overrides)
     return manifest_to_dict(
@@ -442,21 +488,160 @@ def test_ffmpeg_geometry_must_match_the_window(env) -> None:
     disagrees with the geometry the manifest itself published."""
     window = env["window"]
     argv = list(window.commands["ffmpeg"])
-    argv[argv.index("-to") + 1] = "999.000"
+    argv[argv.index("-ss") + 1] = "999.000"
     window.commands["ffmpeg"] = argv
 
-    assert any("commands.ffmpeg -to" in p for p in command_problems(
+    assert any("commands.ffmpeg" in p for p in command_problems(
         window, cache_root=str(env["cache_root"])
     ))
 
 
-def test_ffmpeg_output_outside_the_batch_dir_is_rejected(env) -> None:
+# ─── The exact-evidence sampling contract ───────────────────────────────────
+
+
+def test_a_faithful_sampling_command_passes_untouched(env) -> None:
+    assert command_problems(env["window"], cache_root=str(env["cache_root"])) == []
+
+
+def test_the_old_fps_based_auto_command_is_rejected(env) -> None:
+    """The schema-2 shape, verbatim: an `fps=N` filter and a `sample_fps` key.
+
+    This is the command that produced two dropdown frames and never the
+    evidence frame. It must not be executable under any circumstances.
+    """
+    window = env["window"]
+    window.commands["sample_fps"] = 1.0
+    window.commands["ffmpeg"] = [
+        "ffmpeg", "-v", "error", "-y",
+        "-ss", f"{window.t0:.3f}",
+        "-to", f"{window.t1:.3f}",
+        "-i", window.video_path,
+        "-vf", "fps=1",
+        "-fps_mode", "passthrough",
+        f"{window.commands['batch_dir']}/%05d.png",
+    ]
+
+    problems = command_problems(window, cache_root=str(env["cache_root"]))
+    assert any("sample_fps" in p for p in problems)
+    assert any("commands.ffmpeg" in p for p in problems)
+
+
+def test_an_auto_command_without_sampling_metadata_is_rejected(env) -> None:
+    window = env["window"]
+    del window.commands["sampling"]
+    assert any(
+        "sampling" in p
+        for p in command_problems(window, cache_root=str(env["cache_root"]))
+    )
+
+
+def test_sampling_metadata_that_omits_an_evidence_timestamp_is_rejected(env) -> None:
+    """The whole point of the repair: every evidence timestamp is represented."""
+    window = env["window"]
+    window.evidence.append(
+        {
+            "t": window.t0 + 0.25,
+            "anchor_text": "lt goalsummary",
+            "assigned_screen_type": UNKNOWN_STATE,
+            "rule": "goal_summary",
+        }
+    )
+    problems = command_problems(window, cache_root=str(env["cache_root"]))
+    assert any("evidence_timestamps" in p for p in problems)
+
+
+def test_argv_that_disagrees_with_its_own_sampling_metadata_is_rejected(env) -> None:
+    """Metadata and argv are checked against each other by RECONSTRUCTION, so a
+    plausible hand-edit of either one cannot pass."""
     window = env["window"]
     argv = list(window.commands["ffmpeg"])
-    argv[-1] = "/tmp/elsewhere/%05d.png"
+    argv[argv.index("-frames:v") + 1] = "9"
     window.commands["ffmpeg"] = argv
 
-    assert any("not inside the batch dir" in p for p in command_problems(
+    assert any(
+        "does not match the canonical" in p
+        for p in command_problems(window, cache_root=str(env["cache_root"]))
+    )
+
+
+def test_a_rewritten_select_expression_is_rejected_without_being_parsed(env) -> None:
+    window = env["window"]
+    argv = list(window.commands["ffmpeg"])
+    argv[argv.index("-vf") + 1] = "select=between(t\\,0\\,999999)"
+    window.commands["ffmpeg"] = argv
+
+    assert command_problems(window, cache_root=str(env["cache_root"]))
+
+
+def test_a_tampered_source_frame_rate_is_rejected(env) -> None:
+    window = env["window"]
+    window.commands["sampling"]["source_frame_rate"] = "0/0"
+    assert any(
+        "source grid" in p
+        for p in command_problems(window, cache_root=str(env["cache_root"]))
+    )
+
+
+def test_a_tampered_source_pts_origin_is_rejected(env) -> None:
+    """The origin is half the grid, so tampering with it must be as fatal as
+    tampering with the rate: every derived band moves with it."""
+    window = env["window"]
+    window.commands["sampling"]["source_pts_origin_s"] = 0.004
+    assert command_problems(window, cache_root=str(env["cache_root"]))
+
+
+def test_pinned_observations_that_contradict_the_pinned_grid_are_rejected(env) -> None:
+    window = env["window"]
+    observed = list(window.commands["sampling"]["observed_frame_pts"])
+    observed[0] += 0.05
+    window.commands["sampling"]["observed_frame_pts"] = observed
+    assert any(
+        "observed_frame_pts" in p
+        for p in command_problems(window, cache_root=str(env["cache_root"]))
+    )
+
+
+def test_the_pinned_argv_is_exactly_the_canonical_one(env) -> None:
+    window = env["window"]
+    assert window.commands["ffmpeg"] == canonical_ffmpeg_argv(
+        video_path=window.video_path,
+        output_pattern=rescue_output_pattern(window.commands["batch_dir"]),
+        plan=sampling_from_dict(window.commands["sampling"]),
+    )
+
+
+def test_the_policy_must_declare_the_sampling_mode(env) -> None:
+    doc = _manifest_doc([env["window"]], cache_root=env["cache_root"])
+    doc["policy"].pop("sampling_mode")
+    assert any("sampling_mode" in p for p in policy_problems(doc))
+
+    doc["policy"]["sampling_mode"] = "fps"
+    assert any("sampling_mode" in p for p in policy_problems(doc))
+
+
+def test_a_schema_two_manifest_is_refused(env) -> None:
+    doc = _manifest_doc([env["window"]], cache_root=env["cache_root"])
+    doc["schema_version"] = 2
+    assert any("schema_version" in p for p in policy_problems(doc))
+
+
+@pytest.mark.parametrize(
+    "output",
+    [
+        "/tmp/elsewhere/%05d.png",
+        # The batch dir ITSELF is not acceptable: writing there is exactly what
+        # makes "which files did this invocation produce" unanswerable.
+        "{batch_dir}/%05d.png",
+        "{batch_dir}/.staging/frame-%05d.png",
+    ],
+)
+def test_an_ffmpeg_output_outside_the_staging_directory_is_rejected(env, output) -> None:
+    window = env["window"]
+    argv = list(window.commands["ffmpeg"])
+    argv[-1] = output.format(batch_dir=window.commands["batch_dir"])
+    window.commands["ffmpeg"] = argv
+
+    assert any("staging" in p for p in command_problems(
         window, cache_root=str(env["cache_root"])
     ))
 
@@ -945,7 +1130,8 @@ def test_a_valid_execution_environment_reaches_the_execution_path(env) -> None:
         env["window"].commands["ffmpeg"],
         env["window"].commands["ingest_ocr"],
     ]
-    assert made == [Path(env["window"].commands["batch_dir"])]
+    batch_dir = Path(env["window"].commands["batch_dir"])
+    assert made == [batch_dir, batch_dir / STAGING_DIRNAME]
     assert len(receipts) == 1 and receipts[0]["status"] == OUTCOME_PROMOTED
 
 
@@ -1652,6 +1838,288 @@ def test_the_receipt_pins_the_manifest_digest(env) -> None:
     assert receipts[0]["manifest_sha256"] == hashlib.sha256(
         env["manifest"].read_bytes()
     ).hexdigest()
+
+
+def test_the_receipt_records_the_schema_that_actually_authorised_it(env) -> None:
+    """Not the executor's own constant: the manifest's. A receipt is provenance,
+    and provenance that reports a version it did not read is a fabrication.
+    Historical schema-2 receipts stay in the ledger untouched and stay valid;
+    what a NEW receipt must never do is claim a schema the run did not consume.
+    """
+    receipts: list[dict] = []
+    run_rescue(
+        manifest_path=env["manifest"],
+        execute=True,
+        completion_facts=FactProbe.completing(env["window"]),
+        run_command=Recorder(),
+        rescue_run_id=RUN_ID,
+        executed_at=EXECUTED_AT,
+        receipt_sink=receipts.append,
+        out=lambda _: None,
+    )
+    doc = load_manifest(env["manifest"])
+    assert receipts[0]["schema_version"] == doc["schema_version"] == SCHEMA_VERSION
+
+
+# ─── Proving which files THIS ffmpeg invocation produced ────────────────────
+#
+# The defect this section exists for: the executor used to count the PNGs in the
+# batch directory after ffmpeg returned. A batch directory already holding a
+# complete stale set keeps its count when the current command writes NOTHING, so
+# the gate passed and ingest-ocr consumed frames the current command never made.
+#
+# The replacement is a transaction — staging proven empty, then proven to hold
+# exactly the expected set, then published — so every fixture below can seed a
+# complete stale set in the batch directory and the proof still holds.
+
+
+def _seed_stale_batch(window: Window, count: int = 3) -> Path:
+    """A COMPLETE, correctly-named, plausible set of outputs from an EARLIER run.
+
+    Same filenames the current selection expects, same count, already on disk.
+    This is precisely the state that counterfeited success before.
+    """
+    batch_dir = Path(window.commands["batch_dir"])
+    batch_dir.mkdir(parents=True, exist_ok=True)
+    for name in expected_output_names(count):
+        (batch_dir / name).write_bytes(b"\x89PNG\r\n\x1a\nSTALE")
+    return batch_dir
+
+
+def _run_window(env, recorder, receipts) -> int:
+    return _execute_env(
+        env,
+        environ=VALID_ENVIRON,
+        completion_facts=FactProbe.completing(env["window"]),
+        run_command=recorder,
+        make_batch_dir=lambda p: p.mkdir(parents=True, exist_ok=True),
+        receipt_sink=receipts.append,
+    )
+
+
+def test_a_complete_stale_set_cannot_stand_in_for_a_zero_frame_ffmpeg(env) -> None:
+    """THE regression. Three stale files, a selection expecting three, and an
+    ffmpeg that writes nothing. The old count-based gate passed this."""
+    stale = _seed_stale_batch(env["window"])
+    recorder, receipts = Recorder(frames=0), []
+
+    code = _run_window(env, recorder, receipts)
+
+    assert code == 1
+    assert receipts[0]["status"] == OUTCOME_FAILED
+    assert [c[0] for c in recorder.calls] == ["ffmpeg"]  # never reached ingest-ocr
+    assert receipts[0]["steps"][0]["staged_output_names"] == []
+    assert "not the 3 its pinned selection names" in receipts[0]["error"]
+    assert "Staging was verified empty" in receipts[0]["error"]
+    # The database was never consulted for this window's postcondition, so the
+    # reason has to live on the receipt itself.
+    assert receipts[0]["completion_problems"] == []
+    # The stale files are still there, untouched: this executor never deletes.
+    assert sorted(p.name for p in stale.iterdir() if p.is_file()) == list(
+        expected_output_names(3)
+    )
+    assert (stale / "00001.png").read_bytes().endswith(b"STALE")
+
+
+def test_a_complete_stale_set_cannot_stand_in_for_a_partial_ffmpeg(env) -> None:
+    """Same shape, one frame short. The count would have read 3 either way."""
+    _seed_stale_batch(env["window"])
+    recorder, receipts = Recorder(frames=1), []
+
+    code = _run_window(env, recorder, receipts)
+
+    assert code == 1
+    assert [c[0] for c in recorder.calls] == ["ffmpeg"]
+    step = receipts[0]["steps"][0]
+    assert step["returncode"] == 0  # ffmpeg claimed success
+    assert step["expected_frames"] == 3
+    assert step["staged_output_names"] == ["00001.png"]
+    assert "missing" in (receipts[0]["error"] or "")
+
+
+def test_the_exact_current_output_set_proceeds(env) -> None:
+    recorder, receipts = Recorder(), []
+    code = _run_window(env, recorder, receipts)
+
+    assert code == 0
+    assert receipts[0]["status"] == OUTCOME_PROMOTED
+    step = receipts[0]["steps"][0]
+    assert step["staged_output_names"] == list(expected_output_names(3))
+    assert step["published_output_names"] == list(expected_output_names(3))
+    assert [c[0] for c in recorder.calls] == ["ffmpeg", "pnpm"]
+
+    # Published: the batch dir ingest-ocr reads holds exactly the expected set,
+    # and staging is empty again.
+    batch_dir = Path(env["window"].commands["batch_dir"])
+    assert sorted(p.name for p in batch_dir.iterdir() if p.is_file()) == list(
+        expected_output_names(3)
+    )
+    assert list(Path(rescue_staging_dir(str(batch_dir))).iterdir()) == []
+
+
+def test_a_surplus_output_fails_the_window(env) -> None:
+    """An extra file is a frame the pinned selection does not name; ingest-ocr
+    would OCR it as if the manifest had authorised it."""
+
+    class Surplus(Recorder):
+        def _write_frames(self, argv):
+            super()._write_frames(argv)
+            Path(argv[-1]).parent.joinpath("00004.png").write_bytes(b"\x89PNG\r\n\x1a\n")
+
+    recorder, receipts = Surplus(), []
+    code = _run_window(env, recorder, receipts)
+
+    assert code == 1
+    assert [c[0] for c in recorder.calls] == ["ffmpeg"]
+    assert receipts[0]["steps"][0]["staged_output_names"] == [
+        *expected_output_names(3),
+        "00004.png",
+    ]
+    assert "surplus" in (receipts[0]["error"] or "")
+
+
+def test_a_misnamed_output_fails_the_window(env) -> None:
+    """Right count, wrong names: not what `%05d.png` produces, so not this
+    invocation's authorised output."""
+
+    class Misnamed(Recorder):
+        def _write_frames(self, argv):
+            out = Path(argv[-1]).parent
+            out.mkdir(parents=True, exist_ok=True)
+            for i in range(3):
+                (out / f"frame{i}.png").write_bytes(b"\x89PNG\r\n\x1a\n")
+
+    receipts: list = []
+    assert _run_window(env, Misnamed(), receipts) == 1
+    assert "surplus" in (receipts[0]["error"] or "")
+
+
+def test_residue_in_staging_refuses_the_window_before_ffmpeg_runs(env) -> None:
+    """A non-empty staging directory means an earlier run was interrupted. The
+    executor cannot tell that residue from its own output, and it does not delete
+    rescue artefacts — so it stops and says so."""
+    staging = Path(rescue_staging_dir(env["window"].commands["batch_dir"]))
+    staging.mkdir(parents=True, exist_ok=True)
+    (staging / "00001.png").write_bytes(b"\x89PNG\r\n\x1a\nRESIDUE")
+
+    recorder, receipts = Recorder(), []
+    code = _run_window(env, recorder, receipts)
+
+    assert code == 1
+    assert recorder.calls == []  # ffmpeg never ran
+    assert "not empty before ffmpeg runs" in (receipts[0]["error"] or "")
+    assert (staging / "00001.png").read_bytes().endswith(b"RESIDUE")
+
+
+def test_a_foreign_file_in_the_batch_dir_refuses_the_publish(env) -> None:
+    """Publishing over it would hand ingest-ocr a mixed batch."""
+    batch_dir = Path(env["window"].commands["batch_dir"])
+    batch_dir.mkdir(parents=True, exist_ok=True)
+    (batch_dir / "00009.png").write_bytes(b"\x89PNG\r\n\x1a\nFOREIGN")
+
+    recorder, receipts = Recorder(), []
+    code = _run_window(env, recorder, receipts)
+
+    assert code == 1
+    assert [c[0] for c in recorder.calls] == ["ffmpeg"]  # never reached ingest-ocr
+    assert "did not produce" in (receipts[0]["error"] or "")
+
+
+def test_a_retry_publishes_over_its_own_previous_output(env) -> None:
+    """The one incomplete window in the live plan must stay re-runnable without
+    anybody deleting anything: the stale files carry the SAME names this run is
+    about to publish, and they are replaced by frames just proven to be this
+    invocation's."""
+    stale = _seed_stale_batch(env["window"])
+    recorder, receipts = Recorder(), []
+
+    code = _run_window(env, recorder, receipts)
+
+    assert code == 0
+    assert receipts[0]["status"] == OUTCOME_PROMOTED
+    assert not (stale / "00001.png").read_bytes().endswith(b"STALE")
+
+
+def test_the_proof_never_consults_mtimes_or_content(env) -> None:
+    """Stated as a property: the stale files are byte-identical to what a fresh
+    run writes and can be given any timestamp; the verdict is unchanged, because
+    it rests only on staging having been empty."""
+    batch_dir = Path(env["window"].commands["batch_dir"])
+    batch_dir.mkdir(parents=True, exist_ok=True)
+    for name in expected_output_names(3):
+        (batch_dir / name).write_bytes(b"\x89PNG\r\n\x1a\n")  # identical bytes
+        os.utime(batch_dir / name, (2**31 - 1, 2**31 - 1))  # far-future mtime
+
+    receipts: list = []
+    assert _run_window(env, Recorder(frames=0), receipts) == 1
+
+
+def test_the_receipt_records_the_exact_set_that_was_proven(env) -> None:
+    receipts: list = []
+    _run_window(env, Recorder(), receipts)
+    step = receipts[0]["steps"][0]
+    assert step["expected_output_names"] == list(expected_output_names(3))
+    assert step["staged_output_names"] == step["expected_output_names"]
+    assert step["output_frames"] == 3
+
+
+# ─── The proof functions, directly ──────────────────────────────────────────
+
+
+def test_prove_current_outputs_is_set_equality_not_a_count() -> None:
+    expected = expected_output_names(3)
+    listing = {"ok": expected, "short": expected[:2], "swapped": ("00001.png", "00002.png", "00009.png")}
+    assert prove_current_outputs(
+        Path("/s"), expected=expected, list_files=lambda _: listing["ok"]
+    ).ok
+    for case in ("short", "swapped"):
+        proof = prove_current_outputs(
+            Path("/s"), expected=expected, list_files=lambda _, c=case: listing[c]
+        )
+        assert not proof.ok and proof.error
+
+
+@pytest.mark.parametrize("count", [0, None])
+def test_an_unprovable_frame_count_refuses_before_ffmpeg(env, count) -> None:
+    """Zero is the one value that would make the produced-set proof vacuously
+    true against an empty staging directory.
+
+    Driven through ``execute_plan`` directly and deliberately: ``sampling_problems``
+    recomputes the count from the window's own evidence, so a manifest carrying
+    this could never load. That is the point — this is the second line, checked
+    at the mutation boundary rather than at the door.
+    """
+    plan = plan_rescue(manifest_path=env["manifest"], completion_facts=FactProbe())
+    plan.pending[0].commands["sampling"]["expected_frame_count"] = count
+    recorder, receipts = Recorder(), []
+
+    report = execute_plan(
+        plan,
+        run_command=recorder,
+        completion_facts=FactProbe.completing(env["window"]),
+        rescue_run_id=RUN_ID,
+        executed_at=EXECUTED_AT,
+        receipt_sink=receipts.append,
+        environ=VALID_ENVIRON,
+        make_batch_dir=lambda p: p.mkdir(parents=True, exist_ok=True),
+    )
+
+    assert not report.ok
+    assert recorder.calls == []
+    assert "cannot be proven" in receipts[0]["error"]
+
+
+def test_a_missing_staging_directory_is_empty_not_an_error(tmp_path: Path) -> None:
+    assert list_output_files(tmp_path / "nope") == ()
+    assert prove_staging_empty(tmp_path / "nope", list_files=list_output_files).ok
+
+
+def test_list_output_files_ignores_subdirectories(tmp_path: Path) -> None:
+    """The staging directory lives inside the batch directory and is not an
+    output; if it were counted, every batch would look surplus."""
+    (tmp_path / STAGING_DIRNAME).mkdir()
+    (tmp_path / "00001.png").write_bytes(b"")
+    assert list_output_files(tmp_path) == ("00001.png",)
 
 
 def test_step_fingerprints_are_stable_and_argv_sensitive() -> None:

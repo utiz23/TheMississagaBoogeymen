@@ -19,12 +19,36 @@ from __future__ import annotations
 
 import re
 from dataclasses import asdict, dataclass, field
-from typing import Any, Iterable, Sequence
+from typing import Any, Callable, Iterable, Sequence
+
+from video_ingest.rescue_sampling import (
+    NEIGHBOUR_OFFSETS,
+    SAMPLING_MODE,
+    TOLERANCE_FRAME_FRACTION,
+    FramePtsProbe,
+    SamplingImpossible,
+    SourceGrid,
+    UnsupportedFrameRate,
+    canonical_ffmpeg_argv,
+    observe_plan,
+    plan_sampling,
+    sampling_to_dict,
+)
 
 #: v2 adds the three identity ledgers below, so `skip` now covers a second
 #: meaning ("decided: nothing to execute") alongside `already_covered`, and
-#: several new reasons exist. Nothing consumes a v1 manifest yet.
-SCHEMA_VERSION = 2
+#: several new reasons exist.
+#:
+#: v3 replaces the command object's sampling contract. `commands.sample_fps` and
+#: the `-vf fps=N` argv it described are GONE, replaced by `commands.sampling`
+#: (see `video_ingest.rescue_sampling`) and a deterministic source-PTS select
+#: expression. The bump is required rather than cosmetic: a schema-2 reader
+#: would find `sample_fps` absent and an unfamiliar `sampling` block, and a
+#: schema-2 *validator* would pass a v3 manifest while checking none of the new
+#: contract — the exact shape of silent acceptance the version field exists to
+#: prevent. It is a manifest-CONTRACT change, so it gets a version, and the
+#: executor's `policy_problems` refuses anything else.
+SCHEMA_VERSION = 3
 
 #: Stamped on every rescued row so Stage B's rollback can find them.
 RESCUE_DECODER_VERSION = "rescue-b2-anchor-v1"
@@ -734,14 +758,85 @@ def rescue_batch_dir(cache_root: str, window: Window) -> str:
     )
 
 
+#: ffmpeg writes HERE, never straight into the batch dir. It is a subdirectory
+#: rather than a sibling so one path still identifies the whole window, and it is
+#: dot-prefixed and a DIRECTORY so the OCR CLI cannot see it: `game_ocr.cli`
+#: enumerates a batch with `input.iterdir()` filtered on `p.is_file()`, which a
+#: directory never satisfies at any name.
+#:
+#: The reason for staging at all is that a count of PNGs in the batch dir cannot
+#: tell an output of THIS ffmpeg invocation from an output of a previous one. A
+#: directory that already held a complete stale set would keep its count when the
+#: current command wrote nothing, and the gate would pass frames the current
+#: command never produced. Writing into a directory that was verified EMPTY
+#: immediately beforehand makes every file found afterwards provably this
+#: invocation's — see `video_ingest.rescue_execute.execute_plan`.
+STAGING_DIRNAME = ".staging"
+
+
+def rescue_staging_dir(batch_dir: str) -> str:
+    return f"{batch_dir.rstrip('/')}/{STAGING_DIRNAME}"
+
+
+def rescue_output_pattern(batch_dir: str) -> str:
+    """The ffmpeg output pattern for a window — inside the staging directory."""
+    return f"{rescue_staging_dir(batch_dir)}/%05d.png"
+
+
+def expected_output_names(frame_count: int) -> tuple[str, ...]:
+    """Exactly the filenames ``%05d.png`` produces for ``frame_count`` frames.
+
+    ffmpeg's image2 muxer numbers from 1 and never skips, so the produced set is
+    fully determined by the count. Naming it here means the executor compares
+    against a SET rather than a total, which is what makes a surplus file and a
+    misnamed file failures rather than arithmetic coincidences.
+    """
+    return tuple(f"{i:05d}.png" for i in range(1, int(frame_count) + 1))
+
+
+def window_evidence_timestamps(window: Window) -> list[float]:
+    """The evidence times this window must be able to capture, in order.
+
+    The single source of truth for what sampling is planned against — the
+    generator, the executor's validator and the transform tool all read the
+    evidence through here, so none of them can disagree about which timestamps
+    a window is obliged to represent.
+    """
+    return [float(e["t"]) for e in window.evidence]
+
+
 def build_commands(
-    window: Window, *, cache_root: str, game_title_id: int, sample_fps: float
+    window: Window,
+    *,
+    cache_root: str,
+    game_title_id: int,
+    source_grid: SourceGrid,
+    probe_frames: FramePtsProbe,
 ) -> dict[str, Any] | None:
     """The exact ffmpeg + ingest-ocr invocation Stage B will run, verbatim.
 
     ``None`` when the window has no concrete target screen — there is nothing
     to extract until a human resolves it.
+
+    ``source_grid`` has no default and is not a float or a bare rate. The
+    sampling grid is ``origin + n / rate`` with BOTH halves measured from the
+    source, so a video whose grid could not be probed — an unknown rate, a
+    variable rate, or leading frames that do not sit on one grid — raises
+    :class:`~video_ingest.rescue_sampling.UnsupportedFrameRate` here rather than
+    being pinned against a guessed grid.
+
+    ``probe_frames`` is likewise mandatory: a command is only pinned after the
+    real source frames behind every selected band have been measured, so it is
+    impossible to write a manifest whose commands were never checked against the
+    file they will read. It raises
+    :class:`~video_ingest.rescue_sampling.SamplingImpossible` when a band is
+    empty or ambiguous.
     """
+    if not isinstance(source_grid, SourceGrid):
+        raise UnsupportedFrameRate(
+            "build_commands needs a probed SourceGrid (rate AND measured PTS origin), "
+            f"got {source_grid!r} — no default grid is assumed"
+        )
     if window.target_screen is None or window.match_id is None:
         return None
 
@@ -750,15 +845,21 @@ def build_commands(
         f"rescue-b2:{window.video_sha256[:12]}:seg{window.segment_index}:"
         f"[{window.t0:.3f}..{window.t1:.3f}]s"
     )
-    ffmpeg = [
-        "ffmpeg", "-v", "error", "-y",
-        "-ss", f"{window.t0:.3f}",
-        "-to", f"{window.t1:.3f}",
-        "-i", window.video_path,
-        "-vf", f"fps={sample_fps:g}",
-        "-fps_mode", "passthrough",
-        f"{batch_dir}/%05d.png",
-    ]
+    plan = observe_plan(
+        plan_sampling(
+            evidence_timestamps=window_evidence_timestamps(window),
+            t0=window.t0,
+            t1=window.t1,
+            grid=source_grid,
+        ),
+        video_path=window.video_path,
+        probe_frames=probe_frames,
+    )
+    ffmpeg = canonical_ffmpeg_argv(
+        video_path=window.video_path,
+        output_pattern=rescue_output_pattern(batch_dir),
+        plan=plan,
+    )
     ingest_ocr = [
         "pnpm", "--filter", "worker", "ingest-ocr", "--",
         "--batch-dir", batch_dir,
@@ -780,13 +881,138 @@ def build_commands(
     return {
         "batch_dir": batch_dir,
         "notes": notes,
-        "sample_fps": sample_fps,
+        "sampling": sampling_to_dict(plan),
         "ffmpeg": ffmpeg,
         "ingest_ocr": ingest_ocr,
     }
 
 
+# ─── The pin-or-ledger policy (shared by the generator and the transform) ────
+
+#: The policy key holding every window whose command was dropped because its
+#: source could not be pinned to a grid. Written UNCONDITIONALLY — an empty list
+#: when nothing was dropped — so its absence is a malformed manifest rather than
+#: an implicit "none".
+UNPINNABLE_LEDGER_KEY = "sampling_unpinnable"
+
+
+class AutoWindowUnpinnable(UnsupportedFrameRate):
+    """An executable window's source admits no grid. Refuses the whole operation.
+
+    A subclass of :class:`~video_ingest.rescue_sampling.UnsupportedFrameRate`
+    so existing ``except UnsupportedFrameRate`` handlers at the CLI edges keep
+    catching it, but nameable on its own where the asymmetry is the point.
+    """
+
+
+def unpinnable_entry(
+    *,
+    video_sha256: Any,
+    segment_index: Any,
+    video_path: str,
+    decision: Any,
+    reason: Any,
+    detail: str,
+) -> dict[str, Any]:
+    """One row of the unpinnable ledger. One shape, one writer."""
+    return {
+        "video_sha256": video_sha256,
+        "segment_index": segment_index,
+        "video_path": video_path,
+        "decision": decision,
+        "reason": reason,
+        "detail": detail,
+    }
+
+
+def pin_or_drop(
+    *,
+    build: Callable[[], dict[str, Any] | None],
+    decision: Any,
+    video_sha256: Any,
+    segment_index: Any,
+    video_path: str,
+    reason: Any,
+    where: str,
+) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
+    """Pin a window's commands, or record why they had to be dropped.
+
+    Returns ``(commands, ledger_entry)``; at most one of them is non-``None``.
+
+    **The asymmetry, in one place.** It lives here rather than in the generator
+    and again in the transform because those two produced DIFFERENT behaviour
+    the last time it was written twice: the transform enumerated a non-auto
+    window it could not pin and carried on, while the generator aborted the whole
+    corpus on the same video. Both now call this.
+
+    * An **auto** window is executable and may already have been executed, so a
+      command it cannot be pinned to is a hard stop: dropping it would silently
+      un-execute approved work, and keeping a superseded command would leave an
+      unexecutable argv in a file whose whole claim is that none remain.
+    * A **review** or **skip** window is not executable by construction
+      (``executable_windows`` takes only ``auto``). Refusing an entire
+      regeneration or repair over one is disproportionate; keeping a command
+      built on a grid that was never verified is not acceptable either. So the
+      command is dropped and the drop is ENUMERATED — which is what lets
+      ``semantic_diff`` license it. An unenumerated disappearance stays a
+      violation.
+    """
+    try:
+        return build(), None
+    except (UnsupportedFrameRate, SamplingImpossible) as exc:
+        detail = str(exc)
+
+    if decision == DECISION_AUTO:
+        raise AutoWindowUnpinnable(
+            f"auto window {where} cannot be pinned to a source grid: {detail}\n"
+            f"  {video_path}\n"
+            "  Refusing — an auto window must carry an executable command or the "
+            "manifest must not claim it."
+        )
+    return None, unpinnable_entry(
+        video_sha256=video_sha256,
+        segment_index=segment_index,
+        video_path=video_path,
+        decision=decision,
+        reason=reason,
+        detail=detail,
+    )
+
+
 # ─── Manifest ────────────────────────────────────────────────────────────────
+
+
+def sampling_policy(
+    *,
+    source_grids: dict[str, str],
+    source_pts_origins: dict[str, float],
+    unpinnable: Sequence[dict[str, Any]] = (),
+) -> dict[str, Any]:
+    """The schema-3 policy block describing how every command was sampled.
+
+    ``sampling_mode`` is the executor's gate: a manifest that declares schema 3
+    without it is not one this contract produced. The rest is provenance a
+    reader needs and the executor does not — each window's own command already
+    pins the grid it was planned against, and that is what
+    :func:`~video_ingest.rescue_sampling.sampling_problems` recomputes from.
+
+    ``source_grids`` maps ``video_sha256`` to the probed rate and
+    ``source_pts_origins`` to the probed PTS origin, so the approval gate can see
+    at a glance which grid each video was planned on — and, in particular, which
+    videos do NOT start at zero — rather than having to unpick 300 command
+    objects.
+    """
+    return {
+        "sampling_mode": SAMPLING_MODE,
+        "selection_neighbour_offsets": list(NEIGHBOUR_OFFSETS),
+        "selection_tolerance_frame_fraction": [
+            TOLERANCE_FRAME_FRACTION.numerator,
+            TOLERANCE_FRAME_FRACTION.denominator,
+        ],
+        "source_frame_rates": dict(sorted(source_grids.items())),
+        "source_pts_origins": dict(sorted(source_pts_origins.items())),
+        UNPINNABLE_LEDGER_KEY: [dict(u) for u in unpinnable],
+    }
 
 
 def manifest_to_dict(

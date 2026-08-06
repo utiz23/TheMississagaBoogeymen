@@ -29,9 +29,6 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-import yaml
-
-from video_ingest.orchestrator import CONFIGS_DIR
 from video_ingest.reprocess import DEFAULT_INGEST_CACHE
 from video_ingest.rescue_manifest import (
     AUTO_ELIGIBLE_SCREENS,
@@ -65,12 +62,15 @@ from video_ingest.rescue_manifest import (
     load_reels,
     manifest_to_dict,
     parse_windows,
+    pin_or_drop,
     reason_class,
     resolve_reel,
+    sampling_policy,
     select_candidates,
     tally_dropped_anchors,
     validate_manifest,
 )
+from video_ingest.rescue_sampling import memoised_prober, probe_frame_pts
 
 DEFAULT_CONTAINER = "eanhl-team-website-db-1"
 
@@ -313,8 +313,10 @@ def process_sha(
     *,
     cache_root: str,
     game_title_id: int,
-    sample_rates,
+    grid_for,
+    probe_frames,
     used_ledger: set,
+    unpinnable: list,
 ):
     sha = sha_dir.name
     doc = json.loads((sha_dir / "segments.json").read_text())
@@ -335,12 +337,53 @@ def process_sha(
     for win in windows:
         if not win.video_path_exists and win.decision == DECISION_AUTO:
             win.decision, win.reason = DECISION_REVIEW, R_VIDEO_PATH_MISSING
-        win.commands = build_commands(
-            win,
-            cache_root=cache_root,
-            game_title_id=game_title_id,
-            sample_fps=float(sample_rates.get(win.target_screen, 1.0)),
+
+        # Sampling is planned on the SOURCE frame grid, so a video that is not
+        # present cannot be probed and therefore cannot be pinned. Such a window
+        # is already `review` (R_VIDEO_PATH_MISSING) and keeps no command rather
+        # than carrying one built against a guessed grid.
+        if not win.video_path_exists:
+            win.commands = None
+            continue
+
+        # The probe is INSIDE the builder, and the builder runs under
+        # `pin_or_drop`. Both facts matter:
+        #
+        #   * inside, because a window with no target screen or no resolved match
+        #     gets no command at all, and probing its source would be spending an
+        #     ffprobe (and a possible refusal) on a decision already made. The
+        #     previous version probed every present video before the builder
+        #     could say it had nothing to build, so a single unpinnable source —
+        #     the trimmed match-2400 recording, whose r_frame_rate and
+        #     avg_frame_rate disagree — aborted the whole corpus even though its
+        #     five affected windows are review-only;
+        #   * under `pin_or_drop`, because that is the SINGLE statement of the
+        #     auto/non-auto asymmetry that the transform tool also obeys. An
+        #     unpinnable AUTO window still aborts everything; a review or skip
+        #     window loses its command and is written into
+        #     `policy.sampling_unpinnable`.
+        def build(win=win):
+            if win.target_screen is None or win.match_id is None:
+                return None
+            return build_commands(
+                win,
+                cache_root=cache_root,
+                game_title_id=game_title_id,
+                source_grid=grid_for(win.video_path),
+                probe_frames=probe_frames,
+            )
+
+        win.commands, entry = pin_or_drop(
+            build=build,
+            decision=win.decision,
+            video_sha256=win.video_sha256,
+            segment_index=win.segment_index,
+            video_path=win.video_path,
+            reason=win.reason,
+            where=f"{win.video_sha256[:12]}/seg{win.segment_index}",
         )
+        if entry is not None:
+            unpinnable.append(entry)
     return windows, candidates, dropped
 
 
@@ -497,6 +540,23 @@ def print_report(
             + "  ".join(f"{counts.get(s, 0) or '.':>13}" for s in AUTO_ELIGIBLE_SCREENS)
         )
 
+    # Never silent. A dropped command is a real reduction in what the manifest
+    # offers, and a reader who is not told about it would read `commands: null`
+    # on a review window as "nothing was ever pinned here".
+    unpinnable = (manifest.get("policy") or {}).get("sampling_unpinnable") or []
+    p("")
+    p(f"── unpinnable sources ({len(unpinnable)} windows lost their command) ──")
+    if not unpinnable:
+        p("  none — every window that would carry a command was pinned to a "
+          "measured source grid")
+    for entry in unpinnable:
+        p(
+            f"  {str(entry.get('video_sha256') or '')[:12]}/seg{entry.get('segment_index')} "
+            f"{entry.get('decision')}  {entry.get('reason')}"
+        )
+        p(f"      {entry.get('video_path')}")
+        p(f"      {entry.get('detail')}")
+
     unrec = manifest["unrecoverable"]
     p("")
     p(f"── unrecoverable ({len(unrec)} matches) ──")
@@ -526,8 +586,18 @@ def main() -> int:
     # Preflight first: fail closed on an empty cache before touching the DB.
     sha_dirs = preflight_cache_root(cache_root)
 
-    vcfg = yaml.safe_load((CONFIGS_DIR / f"{args.version}.yaml").read_text())
-    sample_rates = {str(k): float(v) for k, v in vcfg["pass2"]["sample_rates"].items()}
+    # Sampling is no longer an fps knob read from the pass-2 config: each window
+    # is planned on its OWN source's measured grid — rate AND presentation-
+    # timestamp origin — probed here and memoised per path, then verified against
+    # the real frames around each evidence timestamp. `probe_source_grid` raises
+    # on an absent, unparseable or variable rate and on leading frames that do
+    # not sit on one grid.
+    #
+    # That refusal aborts the whole generation only for an AUTO window; see
+    # `pin_or_drop`. A source that only ever backs review/skip windows — the
+    # trimmed match-2400 recording is the live example — costs those windows
+    # their commands and is written into `policy.sampling_unpinnable`.
+    grid_for = memoised_prober()
 
     facts = DbFacts(container=args.container, user=args.db_user, db=args.db_name)
 
@@ -541,14 +611,17 @@ def main() -> int:
     candidate_rules: Counter = Counter()
     dropped: Counter = Counter()
     used_ledger: set = set()
+    unpinnable: list[dict[str, Any]] = []
     for sha_dir in sha_dirs:
         windows, candidates, sha_dropped = process_sha(
             sha_dir,
             facts,
             cache_root=str(cache_root),
             game_title_id=args.game_title_id,
-            sample_rates=sample_rates,
+            grid_for=grid_for,
+            probe_frames=probe_frame_pts,
             used_ledger=used_ledger,
+            unpinnable=unpinnable,
         )
         all_windows.extend(windows)
         candidate_rules.update(c.rule for c in candidates)
@@ -571,6 +644,23 @@ def main() -> int:
         "window_pad_s": WINDOW_PAD_S,
         "reel_lookback_s": REEL_LOOKBACK_S,
         "auto_eligible_screens": list(AUTO_ELIGIBLE_SCREENS),
+        **sampling_policy(
+            source_grids={
+                w.video_sha256: grid_for(w.video_path).rate.text
+                for w in all_windows
+                if w.commands is not None
+            },
+            source_pts_origins={
+                w.video_sha256: grid_for(w.video_path).origin_s
+                for w in all_windows
+                if w.commands is not None
+            },
+            # Every window whose command was dropped because its source could
+            # not be pinned, with the reason. The transform tool writes the same
+            # key from the same builder, so a regenerated manifest and a
+            # transformed one describe their drops identically.
+            unpinnable=unpinnable,
+        ),
         "game_title_id": args.game_title_id,
         "ui_version": args.version,
         "cached_shas_scanned": len(sha_dirs),
