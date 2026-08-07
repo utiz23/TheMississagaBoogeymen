@@ -65,6 +65,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Sequence
 
+from video_ingest.rescue_allowlist import is_git_sha
 from video_ingest.rescue_execute import (
     EXECUTE_FLAG,
     EXTRACTION_SUCCESS,
@@ -182,6 +183,40 @@ def make_runner(*, repo_root: Path):
     return run_command
 
 
+def read_repository_head(repo_root: Path) -> str:
+    """``git rev-parse HEAD`` in ``repo_root``, read-only.
+
+    Argv-based (``["git", "-C", ...]``), never a shell string built from parts
+    -- there is nothing here for an operator-controlled path to inject into.
+    Uncommitted changes in the working tree do not affect this: ``rev-parse
+    HEAD`` names the current commit regardless of dirty files, and nothing in
+    this function writes to the repository.
+    """
+    try:
+        proc = subprocess.run(
+            ["git", "-C", str(repo_root), "rev-parse", "HEAD"],
+            capture_output=True,
+            text=True,
+        )
+    except OSError as exc:
+        raise RescueAborted(
+            f"git provenance unavailable: could not run `git rev-parse HEAD` in "
+            f"{repo_root}\n  {exc}"
+        ) from exc
+    if proc.returncode != 0:
+        raise RescueAborted(
+            f"git provenance unavailable: `git rev-parse HEAD` failed in {repo_root}\n"
+            f"  {proc.stderr.strip()}"
+        )
+    head = proc.stdout.strip()
+    if not is_git_sha(head):
+        raise RescueAborted(
+            "git provenance unusable: `git rev-parse HEAD` did not return a "
+            f"40-hex commit sha in {repo_root}: {head!r}"
+        )
+    return head
+
+
 def make_receipt_sink(path: Path):
     def sink(receipt: dict[str, Any]) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -212,6 +247,17 @@ def main(argv: Sequence[str] | None = None) -> int:
             "DATABASE_URL and OCR_PYTHON."
         ),
     )
+    ap.add_argument(
+        "--allowlist",
+        type=Path,
+        default=None,
+        help=(
+            "SHA-bound, repository-bound execution allowlist "
+            "(schema_version 1, kind='rescue-execution-allowlist'). REQUIRED for "
+            f"{EXECUTE_FLAG}. Optional for a dry run, where it narrows the "
+            "printed plan to exactly the windows it selects."
+        ),
+    )
     ap.add_argument("--container", default=DEFAULT_CONTAINER)
     ap.add_argument("--db-user", default="eanhl")
     ap.add_argument("--db-name", default="eanhl")
@@ -219,7 +265,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         "--repo-root",
         type=Path,
         default=Path(__file__).resolve().parents[3],
-        help="Working directory for the pnpm ingest-ocr invocations.",
+        help="Working directory for the pnpm ingest-ocr invocations, and the "
+        "repository whose HEAD an --allowlist is checked against.",
     )
     ap.add_argument(
         "--receipts",
@@ -233,6 +280,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     rescue_run_id = f"rescue-b2-{now.strftime('%Y%m%dT%H%M%SZ')}"
 
     receipts_path = args.receipts or (args.manifest.resolve().parent / RECEIPTS_FILENAME)
+    repo_root = args.repo_root.resolve()
 
     return run_rescue(
         manifest_path=args.manifest,
@@ -240,9 +288,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         completion_facts=lambda: completion_facts(
             container=args.container, user=args.db_user, db=args.db_name
         ),
-        run_command=make_runner(repo_root=args.repo_root.resolve()),
+        run_command=make_runner(repo_root=repo_root),
         rescue_run_id=rescue_run_id,
         executed_at=now.isoformat(timespec="seconds"),
+        allowlist_path=args.allowlist,
+        repository_head=lambda: read_repository_head(repo_root),
         receipt_sink=make_receipt_sink(receipts_path),
         make_batch_dir=lambda p: p.mkdir(parents=True, exist_ok=True),
     )

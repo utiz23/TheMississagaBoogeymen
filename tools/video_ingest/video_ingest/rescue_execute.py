@@ -93,6 +93,13 @@ from pathlib import Path
 from typing import Any, Callable, Iterable, Mapping, Sequence
 
 from video_ingest.cache_root import PASS1_ARTIFACT
+from video_ingest.rescue_allowlist import (
+    Allowlist,
+    allowlist_problems,
+    excluded_auto_windows,
+    parse_allowlist,
+    selected_auto_windows,
+)
 from video_ingest.rescue_manifest import (
     AUTO_ELIGIBLE_SCREENS,
     DECISION_AUTO,
@@ -149,30 +156,68 @@ class RescueAborted(RuntimeError):
 # ─── Manifest loading ────────────────────────────────────────────────────────
 
 
+def _read_bytes_or_abort(path: Path, *, label: str) -> bytes:
+    try:
+        return path.read_bytes()
+    except OSError as exc:
+        raise RescueAborted(f"{label} unreadable: {path}\n  {exc}") from exc
+
+
+def _parse_json_object_bytes(raw: bytes, *, path: Path, label: str) -> dict[str, Any]:
+    try:
+        doc = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise RescueAborted(f"{label} is not valid JSON: {path}\n  {exc}") from exc
+    if not isinstance(doc, dict):
+        raise RescueAborted(
+            f"{label} root must be a JSON object, got {type(doc).__name__}: {path}"
+        )
+    return doc
+
+
+def file_digest_bytes(raw: bytes) -> str:
+    return hashlib.sha256(raw).hexdigest()
+
+
+def read_manifest_bytes(path: Path) -> bytes:
+    return _read_bytes_or_abort(path, label="manifest")
+
+
+def parse_manifest_bytes(raw: bytes, *, path: Path) -> dict[str, Any]:
+    return _parse_json_object_bytes(raw, path=path, label="manifest")
+
+
 def file_digest(path: Path) -> str:
     """SHA-256 of the manifest bytes, recorded on every receipt.
 
     Provenance: it ties a promoted row back to the exact manifest revision that
     authorised it, which a regenerated manifest cannot forge.
+
+    :func:`plan_rescue` does NOT call this -- it reads the manifest bytes once
+    and derives both the digest and the parsed document from that single read
+    (see :func:`read_manifest_bytes`), so the hash and the parse can never
+    observe two different versions of the file. This function stays for
+    standalone callers that only need the digest.
     """
-    return hashlib.sha256(path.read_bytes()).hexdigest()
+    return file_digest_bytes(read_manifest_bytes(path))
 
 
 def load_manifest(path: Path) -> dict[str, Any]:
-    """Read and JSON-parse the manifest, or abort with a clean message."""
-    try:
-        raw = path.read_bytes()
-    except OSError as exc:
-        raise RescueAborted(f"manifest unreadable: {path}\n  {exc}") from exc
-    try:
-        doc = json.loads(raw)
-    except json.JSONDecodeError as exc:
-        raise RescueAborted(f"manifest is not valid JSON: {path}\n  {exc}") from exc
-    if not isinstance(doc, dict):
-        raise RescueAborted(
-            f"manifest root must be a JSON object, got {type(doc).__name__}: {path}"
-        )
-    return doc
+    """Read and JSON-parse the manifest, or abort with a clean message.
+
+    Reads the file a second time relative to :func:`file_digest` -- fine for a
+    standalone caller, but :func:`plan_rescue` uses the single-read primitives
+    above instead so its digest and its parse are provably the same bytes.
+    """
+    return parse_manifest_bytes(read_manifest_bytes(path), path=path)
+
+
+def read_allowlist_bytes(path: Path) -> bytes:
+    return _read_bytes_or_abort(path, label="allowlist")
+
+
+def parse_allowlist_bytes(raw: bytes, *, path: Path) -> dict[str, Any]:
+    return _parse_json_object_bytes(raw, path=path, label="allowlist")
 
 
 # ─── Validation ──────────────────────────────────────────────────────────────
@@ -451,6 +496,62 @@ def require_valid_manifest(doc: dict[str, Any], *, source: Path) -> None:
     problems = validate_for_execution(doc)
     if problems:
         raise RescueAborted(_render_problems(problems, source=source))
+
+
+# ─── Execution allowlist ────────────────────────────────────────────────────
+#
+# An additional, optional gate in front of the auto set. See
+# `video_ingest.rescue_allowlist` for the schema and the exact-equality
+# selection policy; this section is only the IO shell around it -- reading the
+# allowlist file exactly once, and tying the result into the plan.
+
+#: ``() -> str``. Reads the repository's current commit, e.g. via
+#: ``git rev-parse HEAD``. Injected so this module never shells out itself
+#: (consistent with `completion_facts` and `run_command`) and so a git
+#: provenance failure -- no repository, no commits, `git` unavailable -- is the
+#: probe's problem to raise as a :class:`RescueAborted`, not this module's to
+#: guess at.
+RepositoryHeadProbe = Callable[[], str]
+
+
+def _render_allowlist_problems(problems: Sequence[str], *, source: Path, limit: int = 40) -> str:
+    lines = [
+        f"allowlist REJECTED: {source}",
+        f"  {len(problems)} problem(s); Stage B will not select windows from an "
+        "invalid or non-executable allowlist.",
+    ]
+    lines += [f"    - {p}" for p in problems[:limit]]
+    if len(problems) > limit:
+        lines.append(f"    ... and {len(problems) - limit} more")
+    return "\n".join(lines)
+
+
+def require_valid_allowlist(
+    path: Path,
+    *,
+    manifest_sha256: str,
+    repository_head: str,
+    all_windows: Sequence[Window],
+) -> tuple[Allowlist, str]:
+    """Read the allowlist file exactly once, validate it, and parse it.
+
+    Returns ``(allowlist, allowlist_sha256)``, both derived from the SAME byte
+    read -- the file is never reopened, so nothing downstream can observe a
+    version of it different from the one that was validated (TOCTOU safety;
+    see the module docstring of `video_ingest.rescue_allowlist`).
+    """
+    raw = read_allowlist_bytes(path)
+    digest = file_digest_bytes(raw)
+    doc = parse_allowlist_bytes(raw, path=path)
+    problems = allowlist_problems(
+        doc,
+        manifest_sha256=manifest_sha256,
+        repository_head=repository_head,
+        all_windows=all_windows,
+    )
+    if problems:
+        raise RescueAborted(_render_allowlist_problems(problems, source=path))
+    return parse_allowlist(doc), digest
 
 
 # ─── Decision filtering ──────────────────────────────────────────────────────
@@ -862,32 +963,79 @@ class ExecutionPlan:
     #: grid. Surfaced in the plan so a `commands: null` an operator meets in the
     #: file is a stated refusal rather than an unexplained gap.
     unpinnable: tuple[dict[str, Any], ...] = ()
+    #: Every `auto` window the MANIFEST declares, before any allowlist narrows
+    #: it. Always populated, with or without an allowlist -- with none, it
+    #: equals `auto_total` below; with one, it names the wider number `auto_total`
+    #: (now the SELECTED total) no longer does.
+    manifest_auto_total: int = 0
+    #: `None` unless an `--allowlist` was given and validated. `pending` and
+    #: `verified_complete` are already narrowed to exactly this allowlist's
+    #: selection -- nothing downstream needs to consult `allowlist` to enforce
+    #: that; it exists for reporting and for the receipt's provenance fields.
+    allowlist: Allowlist | None = None
+    #: SHA-256 of the allowlist file's exact bytes, or `None` if unused. Kept
+    #: alongside `allowlist` rather than folded into it because it is provenance
+    #: ABOUT the document, not part of the document itself.
+    allowlist_sha256: str | None = None
+    allowlist_path: Path | None = None
+    #: The manifest's `auto` windows an allowlist was given but did NOT select.
+    #: Always `()` when no allowlist was used. These windows are reported --
+    #: never silently dropped -- but can never reach artifact preflight, the
+    #: database probe, `execute_plan`'s runner, batch-directory creation or a
+    #: receipt: only `pending`/`verified_complete` are used for any of that.
+    excluded_by_allowlist: tuple[Window, ...] = ()
 
     @property
     def auto_total(self) -> int:
+        """Windows this plan actually covers: the full auto set with no
+        allowlist, or exactly the selected subset with one."""
         return len(self.pending) + len(self.verified_complete)
+
+    @property
+    def selected_fresh_pending(self) -> int:
+        """Pending windows with no capture batch row yet -- distinct from
+        `retrying`, which already has one but did not verify."""
+        return len(self.pending) - len(self.retrying)
 
 
 def plan_rescue(
     *,
     manifest_path: Path,
     completion_facts: CompletionProbe,
+    allowlist_path: Path | None = None,
+    repository_head: RepositoryHeadProbe | None = None,
 ) -> ExecutionPlan:
     """Everything that must succeed before a single subprocess may start.
 
     The order is load-bearing:
 
-      1. parse the manifest,
-      2. validate it COMPLETELY,
-      3. filter to ``auto``,
-      4. preflight that set's exact artifacts and abort the whole run if any is
-         missing — this happens BEFORE ``completion_facts`` is called, so a
-         broken manifest never reaches the database at all,
-      5. only then read the database, to drop windows whose output is verifiably
-         already there.
+      1. read the manifest bytes ONCE and derive both the digest and the parsed
+         document from that single read;
+      2. validate the manifest COMPLETELY;
+      3. filter to ``auto``;
+      4. if an allowlist was given, read it (also once), validate its schema,
+         its binding to this exact manifest digest and to this repository's
+         current HEAD, and every entry against the manifest's own ``auto``
+         windows -- and narrow the auto set to exactly its selection. This
+         happens BEFORE the artifact preflight and BEFORE ``completion_facts``,
+         so a mismatched allowlist never reaches the database or the
+         filesystem;
+      5. preflight that (possibly narrowed) set's exact artifacts and abort the
+         whole run if any is missing — this still happens BEFORE
+         ``completion_facts`` is called, so a broken manifest or allowlist
+         never reaches the database at all;
+      6. only then read the database, to drop windows whose output is
+         verifiably already there.
+
+    An allowlist never WIDENS anything: it can only select a subset of the
+    manifest's own ``auto`` windows, so every guarantee that already held for
+    the unfiltered auto set (artifact preflight, environment preflight,
+    completion verification, fail-fast execution) continues to hold for the
+    narrowed one unchanged.
     """
-    doc = load_manifest(manifest_path)
-    digest = file_digest(manifest_path)
+    raw = read_manifest_bytes(manifest_path)
+    digest = file_digest_bytes(raw)
+    doc = parse_manifest_bytes(raw, path=manifest_path)
     require_valid_manifest(doc, source=manifest_path)
 
     windows = parse_windows(doc)
@@ -909,13 +1057,34 @@ def plan_rescue(
             "an empty run as success."
         )
 
+    allowlist: Allowlist | None = None
+    allowlist_digest: str | None = None
+    auto_for_planning = auto
+    excluded: tuple[Window, ...] = ()
+
+    if allowlist_path is not None:
+        if repository_head is None:
+            raise RescueAborted(
+                "internal error: an allowlist was given without a repository HEAD "
+                "probe to bind it against"
+            )
+        head = repository_head()
+        allowlist, allowlist_digest = require_valid_allowlist(
+            allowlist_path,
+            manifest_sha256=digest,
+            repository_head=head,
+            all_windows=windows,
+        )
+        auto_for_planning = selected_auto_windows(auto, allowlist)
+        excluded = tuple(excluded_auto_windows(auto, allowlist))
+
     cache_root = Path(str(doc["cache_root"]))
-    artifacts = required_artifacts(auto, cache_root)
+    artifacts = required_artifacts(auto_for_planning, cache_root)
     missing = missing_artifacts(artifacts)
     if missing:
         raise RescueAborted(_render_missing(missing, len(artifacts)))
 
-    pending, complete = partition_complete(auto, list(completion_facts()))
+    pending, complete = partition_complete(auto_for_planning, list(completion_facts()))
 
     return ExecutionPlan(
         manifest_path=manifest_path,
@@ -929,6 +1098,11 @@ def plan_rescue(
         retrying=tuple(a for a in pending if a.attempted),
         manifest_schema_version=doc.get("schema_version"),
         unpinnable=tuple((doc.get("policy") or {}).get(UNPINNABLE_LEDGER_KEY) or ()),
+        manifest_auto_total=len(auto),
+        allowlist=allowlist,
+        allowlist_sha256=allowlist_digest,
+        allowlist_path=allowlist_path,
+        excluded_by_allowlist=excluded,
     )
 
 
@@ -1263,6 +1437,11 @@ class ExecutionReport:
     promoted: list[WindowOutcome] = field(default_factory=list)
     failed: list[WindowOutcome] = field(default_factory=list)
     not_attempted: list[Window] = field(default_factory=list)
+    #: Carried through from the plan so the terminal summary and any failure
+    #: report can still name which allowlist authorised this run, without
+    #: threading `ExecutionPlan` itself through every rendering call.
+    allowlist_sha256: str | None = None
+    allowlist_repository_head: str | None = None
 
     @property
     def ok(self) -> bool:
@@ -1302,6 +1481,7 @@ def build_receipt(
     """
     window = outcome.window
     commands = window.commands or {}
+    allowlist = plan.allowlist
     return {
         "schema_version": plan.manifest_schema_version,
         "decoder_version": RESCUE_DECODER_VERSION,
@@ -1331,6 +1511,15 @@ def build_receipt(
         "completion_verified": outcome.verified,
         "completion_problems": outcome.completion_problems,
         "steps": outcome.steps,
+        # Additive fields, `None` when no allowlist authorised this run. A
+        # reader of an OLDER receipt that predates this field simply never sees
+        # these keys at all -- `.get(...)` on either shape behaves the same way
+        # a missing key and an explicit `None` do, so nothing that reads the
+        # historical ledger needs to change.
+        "allowlist_sha256": plan.allowlist_sha256,
+        "allowlist_schema_version": allowlist.schema_version if allowlist else None,
+        "allowlist_manifest_sha256": allowlist.manifest_sha256 if allowlist else None,
+        "allowlist_repository_head": allowlist.repository_head if allowlist else None,
     }
 
 
@@ -1389,7 +1578,12 @@ def execute_plan(
     """
     require_execution_env(environ)
 
-    report = ExecutionReport(executed=True, rescue_run_id=rescue_run_id)
+    report = ExecutionReport(
+        executed=True,
+        rescue_run_id=rescue_run_id,
+        allowlist_sha256=plan.allowlist_sha256,
+        allowlist_repository_head=plan.allowlist.repository_head if plan.allowlist else None,
+    )
     pending = list(plan.pending)
 
     for i, window in enumerate(pending):
@@ -1554,6 +1748,25 @@ def render_plan(plan: ExecutionPlan, *, out: Callable[[str], None]) -> None:
                 f"seg{entry.get('segment_index')} {entry.get('decision')} "
                 f"{entry.get('reason')}"
             )
+    if plan.allowlist is not None:
+        out("")
+        out("─── execution allowlist ───")
+        out(f"allowlist path       : {plan.allowlist_path}")
+        out(f"allowlist sha256     : {plan.allowlist_sha256}")
+        out(f"bound repository HEAD: {plan.allowlist.repository_head}")
+        out(f"manifest auto total  : {plan.manifest_auto_total}")
+        out(f"allowlist selected   : {len(plan.allowlist.entries)}")
+        out(
+            f"excluded by allowlist: {len(plan.excluded_by_allowlist)} auto window(s) -- "
+            "UNSELECTED windows cannot execute under this allowlist, however complete "
+            "their evidence"
+        )
+        for window in plan.excluded_by_allowlist:
+            out(
+                f"    · {window.video_sha256[:12]}/seg{window.segment_index} "
+                f"match {window.match_id} run {window.run_id} {window.target_screen}"
+            )
+
     out("")
     out(
         f"artifact preflight : {len(plan.artifacts)} path(s) present "
@@ -1591,6 +1804,11 @@ def render_report(report: ExecutionReport, *, out: Callable[[str], None]) -> Non
     out("")
     out("═══ RESCUE EXECUTION REPORT ═══")
     out(f"rescue run id : {report.rescue_run_id}")
+    if report.allowlist_sha256 is not None:
+        out(
+            f"allowlist     : {report.allowlist_sha256} "
+            f"(bound repository HEAD {report.allowlist_repository_head})"
+        )
     out(f"promoted      : {len(report.promoted)} (each verified in the database, not assumed)")
     out(f"failed        : {len(report.failed)}")
     out(f"not attempted : {len(report.not_attempted)} (run stopped at the first failure)")
@@ -1623,6 +1841,8 @@ def run_rescue(
     run_command: RunCommand,
     rescue_run_id: str,
     executed_at: str,
+    allowlist_path: Path | None = None,
+    repository_head: RepositoryHeadProbe | None = None,
     receipt_sink: Callable[[dict[str, Any]], None] | None = None,
     make_batch_dir: Callable[[Path], None] | None = None,
     environ: Mapping[str, str] | None = None,
@@ -1644,8 +1864,28 @@ def run_rescue(
     in :func:`execute_plan`, which a dry run does not reach — and neither does a
     run whose windows are all verified complete, since it will execute nothing
     either. The scope is actual execution, not the ``--execute`` flag.
+
+    ``--execute`` additionally REQUIRES ``allowlist_path`` -- checked here, as
+    the very first statement, before the manifest is even read. An allowlist by
+    itself never authorises execution (that is still the literal ``--execute``
+    opt-in, checked exactly as before); this is the reverse: execution without
+    one is refused outright, so a promotion can never happen from a bare
+    ``--execute`` against an unreviewed manifest.
     """
-    plan = plan_rescue(manifest_path=manifest_path, completion_facts=completion_facts)
+    if execute and allowlist_path is None:
+        raise RescueAborted(
+            "refusing --execute without --allowlist: execution now requires an "
+            "explicit, SHA-bound, repository-bound allowlist naming exactly the "
+            "windows to run. Pass --allowlist PATH (a dry run without one still "
+            "works, and is the right way to review what a manifest would do)."
+        )
+
+    plan = plan_rescue(
+        manifest_path=manifest_path,
+        completion_facts=completion_facts,
+        allowlist_path=allowlist_path,
+        repository_head=repository_head,
+    )
     render_plan(plan, out=out)
 
     if not execute:

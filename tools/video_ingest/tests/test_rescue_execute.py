@@ -17,6 +17,7 @@ writes — including the shapes it writes when it fails and still exits 0.
 from __future__ import annotations
 
 import hashlib
+import importlib.util
 import json
 import os
 import subprocess
@@ -26,6 +27,7 @@ from typing import Any, Sequence
 
 import pytest
 
+from video_ingest.rescue_allowlist import ALLOWLIST_KIND, ALLOWLIST_SCHEMA_VERSION
 from video_ingest.rescue_execute import (
     DRY_RUN_BANNER,
     EXECUTE_FLAG,
@@ -45,6 +47,7 @@ from video_ingest.rescue_execute import (
     environment_problems,
     executable_windows,
     execute_plan,
+    file_digest,
     list_output_files,
     prove_current_outputs,
     prove_staging_empty,
@@ -301,6 +304,57 @@ def _seed_video(tmp_path: Path, name: str = "match.mkv") -> Path:
 
 
 def _write(doc: dict, tmp_path: Path, name: str = "rescue-manifest.json") -> Path:
+    path = tmp_path / name
+    path.write_text(json.dumps(doc, indent=1) + "\n")
+    return path
+
+
+#: Fixed stand-ins for `git rev-parse HEAD`. Real provenance reading is
+#: exercised separately, against the real script and the real repository, in
+#: section (10)'s CLI wiring tests -- everywhere else, `--execute` needs SOME
+#: allowlist bound to SOME HEAD, and what value that is does not matter.
+REPO_HEAD = "f" * 40
+OTHER_REPO_HEAD = "e" * 40
+
+
+def _repo_head(head: str = REPO_HEAD):
+    return lambda: head
+
+
+def _manifest_sha(manifest_path: Path) -> str:
+    return hashlib.sha256(manifest_path.read_bytes()).hexdigest()
+
+
+def _allowlist_entry_for(window: Window) -> dict[str, Any]:
+    batch_dir = window.commands["batch_dir"]
+    return {
+        "video_sha256": window.video_sha256,
+        "segment_index": window.segment_index,
+        "target_screen": window.target_screen,
+        "match_id": window.match_id,
+        "run_id": window.run_id,
+        "batch_dir": batch_dir,
+        "promotion_key": [window.video_sha256, batch_dir, window.run_id],
+    }
+
+
+def _allowlist_doc(
+    *windows: Window,
+    manifest_sha256: str,
+    repository_head: str = REPO_HEAD,
+    source_proposal_sha256: str | None = None,
+) -> dict[str, Any]:
+    return {
+        "schema_version": ALLOWLIST_SCHEMA_VERSION,
+        "kind": ALLOWLIST_KIND,
+        "manifest_sha256": manifest_sha256,
+        "repository_head": repository_head,
+        "source_proposal_sha256": source_proposal_sha256,
+        "windows": [_allowlist_entry_for(w) for w in windows],
+    }
+
+
+def _write_allowlist(doc: dict[str, Any], tmp_path: Path, name: str = "allowlist.json") -> Path:
     path = tmp_path / name
     path.write_text(json.dumps(doc, indent=1) + "\n")
     return path
@@ -769,6 +823,9 @@ def test_one_missing_artifact_aborts_the_whole_run_before_any_io(tmp_path: Path)
         for i, sha in enumerate((SHA_A, SHA_B, SHA_C))
     ]
     manifest = _write(_manifest_doc(windows, cache_root=cache_root), tmp_path)
+    allow = _write_allowlist(
+        _allowlist_doc(*windows, manifest_sha256=_manifest_sha(manifest)), tmp_path
+    )
 
     probe, recorder = FactProbe(), Recorder()
     with pytest.raises(RescueAborted) as excinfo:
@@ -779,6 +836,8 @@ def test_one_missing_artifact_aborts_the_whole_run_before_any_io(tmp_path: Path)
             run_command=recorder,
             rescue_run_id=RUN_ID,
             executed_at=EXECUTED_AT,
+            allowlist_path=allow,
+            repository_head=_repo_head(),
             out=lambda _: None,
         )
 
@@ -884,6 +943,7 @@ def test_a_review_window_never_reaches_a_subprocess(env) -> None:
         reason=R_SUMMARY_CATEGORY,
     )
     manifest = _write(_manifest_doc([auto, review], cache_root=cache_root), env["tmp"], "mix.json")
+    allow = _write_allowlist(_allowlist_doc(auto, manifest_sha256=_manifest_sha(manifest)), env["tmp"])
 
     recorder = Recorder()
     run_rescue(
@@ -893,6 +953,8 @@ def test_a_review_window_never_reaches_a_subprocess(env) -> None:
         run_command=recorder,
         rescue_run_id=RUN_ID,
         executed_at=EXECUTED_AT,
+        allowlist_path=allow,
+        repository_head=_repo_head(),
         out=lambda _: None,
     )
 
@@ -987,6 +1049,9 @@ def test_the_dry_run_writes_no_receipt(env) -> None:
 
 
 def test_the_explicit_opt_in_runs_the_pinned_argv_verbatim(env) -> None:
+    allow = _write_allowlist(
+        _allowlist_doc(env["window"], manifest_sha256=_manifest_sha(env["manifest"])), env["tmp"]
+    )
     recorder = Recorder()
     code = run_rescue(
         manifest_path=env["manifest"],
@@ -995,6 +1060,8 @@ def test_the_explicit_opt_in_runs_the_pinned_argv_verbatim(env) -> None:
         run_command=recorder,
         rescue_run_id=RUN_ID,
         executed_at=EXECUTED_AT,
+        allowlist_path=allow,
+        repository_head=_repo_head(),
         out=lambda _: None,
     )
 
@@ -1036,7 +1103,22 @@ def test_the_opt_in_flag_name_is_the_one_the_banner_advertises() -> None:
 
 
 def _execute_env(env, *, environ, **kwargs):
-    """Drive the real execution path with an injected environment."""
+    """Drive the real execution path with an injected environment.
+
+    ``--execute`` now requires an allowlist (that is the very rule most of
+    section (5b) and the output-proving section below exist to hold constant
+    while they exercise something else), so this always supplies one bound to
+    ``env["window"]`` unless the caller overrides it.
+    """
+    kwargs.setdefault(
+        "allowlist_path",
+        _write_allowlist(
+            _allowlist_doc(env["window"], manifest_sha256=_manifest_sha(env["manifest"])),
+            env["tmp"],
+            name="default-allowlist.json",
+        ),
+    )
+    kwargs.setdefault("repository_head", _repo_head())
     return run_rescue(
         manifest_path=env["manifest"],
         execute=True,
@@ -1202,6 +1284,9 @@ def test_the_gate_defaults_to_the_real_process_environment(
     """`environ=None` must mean os.environ — the environment the child actually
     inherits. A gate that defaulted to "assume fine" would not have caught this."""
     monkeypatch.delenv("DATABASE_URL", raising=False)
+    allow = _write_allowlist(
+        _allowlist_doc(env["window"], manifest_sha256=_manifest_sha(env["manifest"])), env["tmp"]
+    )
     recorder, made = Recorder(), []
 
     with pytest.raises(RescueAborted) as excinfo:
@@ -1212,6 +1297,8 @@ def test_the_gate_defaults_to_the_real_process_environment(
             run_command=recorder,
             rescue_run_id=RUN_ID,
             executed_at=EXECUTED_AT,
+            allowlist_path=allow,
+            repository_head=_repo_head(),
             make_batch_dir=made.append,
             out=lambda _: None,
         )
@@ -1277,6 +1364,9 @@ def test_manifest_and_artifact_validation_are_unchanged_by_the_new_gate(
     _seed_cache(cache_root, SHA_A)
     window = _make_window(cache_root=cache_root, video_path=tmp_path / "gone.mkv")
     manifest = _write(_manifest_doc([window], cache_root=cache_root), tmp_path)
+    allow = _write_allowlist(
+        _allowlist_doc(window, manifest_sha256=_manifest_sha(manifest)), tmp_path
+    )
 
     with pytest.raises(RescueAborted) as excinfo:
         run_rescue(
@@ -1286,6 +1376,8 @@ def test_manifest_and_artifact_validation_are_unchanged_by_the_new_gate(
             run_command=Recorder(),
             rescue_run_id=RUN_ID,
             executed_at=EXECUTED_AT,
+            allowlist_path=allow,
+            repository_head=_repo_head(),
             environ={},  # also unusable — but not what should be reported
             out=lambda _: None,
         )
@@ -1310,6 +1402,9 @@ def test_the_promotion_key_mirrors_the_capture_batch_unique_index(env) -> None:
 
 
 def test_a_verified_complete_window_is_excluded_and_reported(env) -> None:
+    allow = _write_allowlist(
+        _allowlist_doc(env["window"], manifest_sha256=_manifest_sha(env["manifest"])), env["tmp"]
+    )
     probe = FactProbe([_complete_fact(env["window"])])
     recorder = Recorder()
     lines: list[str] = []
@@ -1321,6 +1416,8 @@ def test_a_verified_complete_window_is_excluded_and_reported(env) -> None:
         run_command=recorder,
         rescue_run_id=RUN_ID,
         executed_at=EXECUTED_AT,
+        allowlist_path=allow,
+        repository_head=_repo_head(),
         out=lines.append,
     )
 
@@ -1333,6 +1430,9 @@ def test_a_verified_complete_window_is_excluded_and_reported(env) -> None:
 
 def test_rerunning_after_a_successful_run_promotes_nothing(env) -> None:
     """The second pass sees the first pass's VERIFIED output and has no work left."""
+    allow = _write_allowlist(
+        _allowlist_doc(env["window"], manifest_sha256=_manifest_sha(env["manifest"])), env["tmp"]
+    )
     first = Recorder()
     run_rescue(
         manifest_path=env["manifest"],
@@ -1341,11 +1441,13 @@ def test_rerunning_after_a_successful_run_promotes_nothing(env) -> None:
         run_command=first,
         rescue_run_id=RUN_ID,
         executed_at=EXECUTED_AT,
+        allowlist_path=allow,
+        repository_head=_repo_head(),
         out=lambda _: None,
     )
     assert len(first.calls) == 2
 
-    # The database now holds the batch the first run created.
+    # The database now holds the batch the first run created. SAME allowlist.
     second = Recorder()
     run_rescue(
         manifest_path=env["manifest"],
@@ -1354,6 +1456,8 @@ def test_rerunning_after_a_successful_run_promotes_nothing(env) -> None:
         run_command=second,
         rescue_run_id="rescue-b2-20260803T130000Z",
         executed_at=EXECUTED_AT,
+        allowlist_path=allow,
+        repository_head=_repo_head(),
         out=lambda _: None,
     )
     assert second.calls == []
@@ -1544,6 +1648,9 @@ def test_the_exact_expected_output_is_skipped_as_complete(env) -> None:
     re-run."""
     window = env["window"]
     assert completion_problems(window, [_complete_fact(window)]) == []
+    allow = _write_allowlist(
+        _allowlist_doc(window, manifest_sha256=_manifest_sha(env["manifest"])), env["tmp"]
+    )
 
     recorder = Recorder()
     code = run_rescue(
@@ -1553,6 +1660,8 @@ def test_the_exact_expected_output_is_skipped_as_complete(env) -> None:
         run_command=recorder,
         rescue_run_id=RUN_ID,
         executed_at=EXECUTED_AT,
+        allowlist_path=allow,
+        repository_head=_repo_head(),
         out=lambda _: None,
     )
     assert code == 0
@@ -1595,6 +1704,9 @@ def test_exit_zero_without_the_output_fails_the_window_and_stops_the_run(env) ->
         for i in range(3)
     ]
     manifest = _write(_manifest_doc(windows, cache_root=cache_root), env["tmp"], "three.json")
+    allow = _write_allowlist(
+        _allowlist_doc(*windows, manifest_sha256=_manifest_sha(manifest)), env["tmp"]
+    )
 
     receipts: list[dict] = []
     recorder = Recorder()  # every command "succeeds"
@@ -1608,6 +1720,8 @@ def test_exit_zero_without_the_output_fails_the_window_and_stops_the_run(env) ->
         run_command=recorder,
         rescue_run_id=RUN_ID,
         executed_at=EXECUTED_AT,
+        allowlist_path=allow,
+        repository_head=_repo_head(),
         receipt_sink=receipts.append,
         out=lambda _: None,
     )
@@ -1667,6 +1781,9 @@ def test_a_satisfied_postcondition_promotes_and_continues(env) -> None:
         for i in range(2)
     ]
     manifest = _write(_manifest_doc(windows, cache_root=cache_root), env["tmp"], "two.json")
+    allow = _write_allowlist(
+        _allowlist_doc(*windows, manifest_sha256=_manifest_sha(manifest)), env["tmp"]
+    )
 
     receipts: list[dict] = []
     recorder = Recorder()
@@ -1677,6 +1794,8 @@ def test_a_satisfied_postcondition_promotes_and_continues(env) -> None:
         run_command=recorder,
         rescue_run_id=RUN_ID,
         executed_at=EXECUTED_AT,
+        allowlist_path=allow,
+        repository_head=_repo_head(),
         receipt_sink=receipts.append,
         out=lambda _: None,
     )
@@ -1712,6 +1831,9 @@ def test_the_plan_and_the_postcondition_use_the_same_predicate(env) -> None:
     plan skips -- otherwise a run could promote something a rerun re-runs."""
     window = env["window"]
     fact = _complete_fact(window)
+    allow = _write_allowlist(
+        _allowlist_doc(window, manifest_sha256=_manifest_sha(env["manifest"])), env["tmp"]
+    )
 
     probe = FactProbe([], after=[fact])
     code = run_rescue(
@@ -1721,6 +1843,8 @@ def test_the_plan_and_the_postcondition_use_the_same_predicate(env) -> None:
         run_command=Recorder(),
         rescue_run_id=RUN_ID,
         executed_at=EXECUTED_AT,
+        allowlist_path=allow,
+        repository_head=_repo_head(),
         out=lambda _: None,
     )
     assert code == 0
@@ -1776,6 +1900,9 @@ def test_the_report_does_not_claim_the_run_was_atomic(env) -> None:
         for i in range(2)
     ]
     manifest = _write(_manifest_doc(windows, cache_root=cache_root), env["tmp"], "two.json")
+    allow = _write_allowlist(
+        _allowlist_doc(*windows, manifest_sha256=_manifest_sha(manifest)), env["tmp"]
+    )
 
     lines: list[str] = []
     # Window 0 lands; window 1 exits 0 with nothing to show for it.
@@ -1786,6 +1913,8 @@ def test_the_report_does_not_claim_the_run_was_atomic(env) -> None:
         run_command=Recorder(),
         rescue_run_id=RUN_ID,
         executed_at=EXECUTED_AT,
+        allowlist_path=allow,
+        repository_head=_repo_head(),
         out=lines.append,
     )
     output = "\n".join(lines)
@@ -1798,6 +1927,9 @@ def test_the_report_does_not_claim_the_run_was_atomic(env) -> None:
 
 
 def test_the_receipt_carries_every_rollback_handle(env) -> None:
+    allow = _write_allowlist(
+        _allowlist_doc(env["window"], manifest_sha256=_manifest_sha(env["manifest"])), env["tmp"]
+    )
     receipts: list[dict] = []
     run_rescue(
         manifest_path=env["manifest"],
@@ -1806,6 +1938,8 @@ def test_the_receipt_carries_every_rollback_handle(env) -> None:
         run_command=Recorder(),
         rescue_run_id=RUN_ID,
         executed_at=EXECUTED_AT,
+        allowlist_path=allow,
+        repository_head=_repo_head(),
         receipt_sink=receipts.append,
         out=lambda _: None,
     )
@@ -1824,6 +1958,9 @@ def test_the_receipt_carries_every_rollback_handle(env) -> None:
 
 
 def test_the_receipt_pins_the_manifest_digest(env) -> None:
+    allow = _write_allowlist(
+        _allowlist_doc(env["window"], manifest_sha256=_manifest_sha(env["manifest"])), env["tmp"]
+    )
     receipts: list[dict] = []
     run_rescue(
         manifest_path=env["manifest"],
@@ -1832,6 +1969,8 @@ def test_the_receipt_pins_the_manifest_digest(env) -> None:
         run_command=Recorder(),
         rescue_run_id=RUN_ID,
         executed_at=EXECUTED_AT,
+        allowlist_path=allow,
+        repository_head=_repo_head(),
         receipt_sink=receipts.append,
         out=lambda _: None,
     )
@@ -1846,6 +1985,9 @@ def test_the_receipt_records_the_schema_that_actually_authorised_it(env) -> None
     Historical schema-2 receipts stay in the ledger untouched and stay valid;
     what a NEW receipt must never do is claim a schema the run did not consume.
     """
+    allow = _write_allowlist(
+        _allowlist_doc(env["window"], manifest_sha256=_manifest_sha(env["manifest"])), env["tmp"]
+    )
     receipts: list[dict] = []
     run_rescue(
         manifest_path=env["manifest"],
@@ -1854,6 +1996,8 @@ def test_the_receipt_records_the_schema_that_actually_authorised_it(env) -> None
         run_command=Recorder(),
         rescue_run_id=RUN_ID,
         executed_at=EXECUTED_AT,
+        allowlist_path=allow,
+        repository_head=_repo_head(),
         receipt_sink=receipts.append,
         out=lambda _: None,
     )
@@ -2146,6 +2290,9 @@ def test_a_failed_window_still_writes_a_receipt(env) -> None:
 
 
 def test_a_failing_run_exits_non_zero(env) -> None:
+    allow = _write_allowlist(
+        _allowlist_doc(env["window"], manifest_sha256=_manifest_sha(env["manifest"])), env["tmp"]
+    )
     code = run_rescue(
         manifest_path=env["manifest"],
         execute=True,
@@ -2153,6 +2300,8 @@ def test_a_failing_run_exits_non_zero(env) -> None:
         run_command=Recorder(fail_on="ffmpeg"),
         rescue_run_id=RUN_ID,
         executed_at=EXECUTED_AT,
+        allowlist_path=allow,
+        repository_head=_repo_head(),
         out=lambda _: None,
     )
     assert code == 1
@@ -2203,3 +2352,739 @@ def test_the_script_requires_the_manifest_argument() -> None:
     assert proc.returncode == 2
     assert "Traceback" not in proc.stderr
     assert "--manifest" in proc.stderr
+
+
+# ─── (10) Execution allowlist ────────────────────────────────────────────────
+#
+# The allowlist is an ADDITIONAL gate in front of the auto set, not a
+# replacement for anything above: manifest validation, artifact preflight,
+# environment validation, the database completion probe and per-window
+# postcondition verification all still run exactly as before. These tests
+# cover the wiring -- selection, ordering, resumability, receipts, the CLI
+# safety rules and the TOCTOU guarantee. Schema-level and per-field rejection
+# of a malformed or non-matching allowlist is covered exhaustively in
+# `test_rescue_allowlist.py`; nothing here re-tests that ground.
+#
+# (`REPO_HEAD`, `_repo_head`, `_manifest_sha`, `_allowlist_doc` and
+# `_write_allowlist` live up near the other shared fixture builders -- section
+# (5b) onward now needs a valid allowlist to reach `execute=True` at all, since
+# that is exactly the new rule under test.)
+
+
+# ─── Dry run without an allowlist is unaffected ────────────────────────────
+
+
+def test_a_dry_run_with_no_allowlist_keeps_the_existing_full_manifest_behaviour(env) -> None:
+    probe = FactProbe()
+    plan = plan_rescue(manifest_path=env["manifest"], completion_facts=probe)
+
+    assert plan.allowlist is None
+    assert plan.excluded_by_allowlist == ()
+    assert [w.segment_index for w in plan.pending] == [SEGMENT_INDEX_BASE]
+
+
+# ─── Selection ──────────────────────────────────────────────────────────────
+
+
+def test_a_valid_allowlist_selects_exactly_its_windows_and_reports_the_rest_excluded(
+    env,
+) -> None:
+    cache_root, video = env["cache_root"], env["video"]
+    selected = env["window"]
+    other = _make_window(
+        cache_root=cache_root,
+        video_path=video,
+        segment_index=SEGMENT_INDEX_BASE + 1,
+        match_id=473,
+    )
+    manifest = _write(_manifest_doc([selected, other], cache_root=cache_root), env["tmp"], "two.json")
+    allow = _write_allowlist(
+        _allowlist_doc(selected, manifest_sha256=_manifest_sha(manifest)), env["tmp"]
+    )
+
+    plan = plan_rescue(
+        manifest_path=manifest,
+        completion_facts=FactProbe(),
+        allowlist_path=allow,
+        repository_head=_repo_head(),
+    )
+
+    assert plan.manifest_auto_total == 2
+    assert len(plan.allowlist.entries) == 1
+    assert [w.segment_index for w in plan.pending] == [SEGMENT_INDEX_BASE]
+    assert [w.segment_index for w in plan.excluded_by_allowlist] == [SEGMENT_INDEX_BASE + 1]
+
+
+def test_artifact_preflight_is_scoped_to_the_selected_set_when_an_allowlist_is_given(
+    tmp_path: Path,
+) -> None:
+    """An excluded auto window's missing video must not abort a run that never
+    intends to touch it."""
+    cache_root = tmp_path / "ingest-cache"
+    video = _seed_video(tmp_path)
+    _seed_cache(cache_root, SHA_A, SHA_B)
+    selected = _make_window(cache_root=cache_root, video_path=video, sha=SHA_A)
+    excluded = _make_window(
+        cache_root=cache_root,
+        video_path=tmp_path / "videos" / "gone.mkv",  # missing on purpose
+        sha=SHA_B,
+        segment_index=SEGMENT_INDEX_BASE + 1,
+        match_id=999,
+    )
+    manifest = _write(_manifest_doc([selected, excluded], cache_root=cache_root), tmp_path)
+    allow = _write_allowlist(
+        _allowlist_doc(selected, manifest_sha256=_manifest_sha(manifest)), tmp_path
+    )
+
+    plan = plan_rescue(
+        manifest_path=manifest,
+        completion_facts=FactProbe(),
+        allowlist_path=allow,
+        repository_head=_repo_head(),
+    )
+
+    assert [w.segment_index for w in plan.pending] == [SEGMENT_INDEX_BASE]
+    assert [w.segment_index for w in plan.excluded_by_allowlist] == [SEGMENT_INDEX_BASE + 1]
+
+
+def test_selected_windows_preserve_manifest_order_regardless_of_allowlist_json_order(
+    env,
+) -> None:
+    cache_root, video = env["cache_root"], env["video"]
+    windows = [
+        _make_window(
+            cache_root=cache_root,
+            video_path=video,
+            segment_index=SEGMENT_INDEX_BASE + i,
+            match_id=470 + i,
+        )
+        for i in range(3)
+    ]
+    manifest = _write(_manifest_doc(windows, cache_root=cache_root), env["tmp"], "three.json")
+    # Reversed, and window 1 omitted entirely.
+    allow = _write_allowlist(
+        _allowlist_doc(windows[2], windows[0], manifest_sha256=_manifest_sha(manifest)), env["tmp"]
+    )
+
+    plan = plan_rescue(
+        manifest_path=manifest,
+        completion_facts=FactProbe(),
+        allowlist_path=allow,
+        repository_head=_repo_head(),
+    )
+
+    assert [w.segment_index for w in plan.pending] == [
+        SEGMENT_INDEX_BASE,
+        SEGMENT_INDEX_BASE + 2,
+    ]
+
+
+def test_plan_counts_distinguish_selected_excluded_complete_retry_and_pending(env) -> None:
+    cache_root, video = env["cache_root"], env["video"]
+    windows = [
+        _make_window(
+            cache_root=cache_root,
+            video_path=video,
+            segment_index=SEGMENT_INDEX_BASE + i,
+            match_id=470 + i,
+        )
+        for i in range(4)
+    ]
+    # 0: selected & already verified complete. 1: selected & incomplete
+    # (retrying). 2: selected & untouched (fresh pending). 3: excluded.
+    manifest = _write(_manifest_doc(windows, cache_root=cache_root), env["tmp"], "four.json")
+    allow = _write_allowlist(
+        _allowlist_doc(windows[0], windows[1], windows[2], manifest_sha256=_manifest_sha(manifest)),
+        env["tmp"],
+    )
+
+    facts = [_complete_fact(windows[0]), _batch_only_fact(windows[1])]
+    plan = plan_rescue(
+        manifest_path=manifest,
+        completion_facts=FactProbe(facts),
+        allowlist_path=allow,
+        repository_head=_repo_head(),
+    )
+
+    assert plan.manifest_auto_total == 4
+    assert len(plan.allowlist.entries) == 3
+    assert [w.segment_index for w in plan.excluded_by_allowlist] == [SEGMENT_INDEX_BASE + 3]
+    assert [w.segment_index for w in plan.verified_complete] == [SEGMENT_INDEX_BASE]
+    assert len(plan.retrying) == 1
+    assert plan.retrying[0].window.segment_index == SEGMENT_INDEX_BASE + 1
+    assert sorted(w.segment_index for w in plan.pending) == [
+        SEGMENT_INDEX_BASE + 1,
+        SEGMENT_INDEX_BASE + 2,
+    ]
+
+
+# ─── Binding rejections fail before the database is read ──────────────────
+
+
+def test_a_manifest_sha_mismatch_allowlist_is_rejected_before_the_database_is_read(env) -> None:
+    allow = _write_allowlist(_allowlist_doc(env["window"], manifest_sha256="0" * 64), env["tmp"])
+    probe = FactProbe()
+
+    with pytest.raises(RescueAborted, match="manifest_sha256"):
+        plan_rescue(
+            manifest_path=env["manifest"],
+            completion_facts=probe,
+            allowlist_path=allow,
+            repository_head=_repo_head(),
+        )
+    assert probe.calls == 0
+
+
+def test_a_repository_head_mismatch_allowlist_is_rejected_before_the_database_is_read(
+    env,
+) -> None:
+    allow = _write_allowlist(
+        _allowlist_doc(env["window"], manifest_sha256=_manifest_sha(env["manifest"])), env["tmp"]
+    )
+    probe = FactProbe()
+
+    with pytest.raises(RescueAborted, match="repository_head"):
+        plan_rescue(
+            manifest_path=env["manifest"],
+            completion_facts=probe,
+            allowlist_path=allow,
+            repository_head=_repo_head(OTHER_REPO_HEAD),
+        )
+    assert probe.calls == 0
+
+
+def test_a_proposal_only_allowlist_is_rejected_and_never_probes_completion(env) -> None:
+    doc = _allowlist_doc(env["window"], manifest_sha256=_manifest_sha(env["manifest"]))
+    doc["proposal_only"] = True
+    allow = _write_allowlist(doc, env["tmp"])
+    probe = FactProbe()
+
+    with pytest.raises(RescueAborted, match="proposal_only"):
+        plan_rescue(
+            manifest_path=env["manifest"],
+            completion_facts=probe,
+            allowlist_path=allow,
+            repository_head=_repo_head(),
+        )
+    assert probe.calls == 0
+
+
+def test_a_git_provenance_failure_aborts_before_the_database_is_read(env) -> None:
+    allow = _write_allowlist(
+        _allowlist_doc(env["window"], manifest_sha256=_manifest_sha(env["manifest"])), env["tmp"]
+    )
+    probe = FactProbe()
+
+    def _boom() -> str:
+        raise RescueAborted("git provenance unavailable: not a git repository")
+
+    with pytest.raises(RescueAborted, match="git provenance"):
+        plan_rescue(
+            manifest_path=env["manifest"],
+            completion_facts=probe,
+            allowlist_path=allow,
+            repository_head=_boom,
+        )
+    assert probe.calls == 0
+
+
+# ─── Resumability ───────────────────────────────────────────────────────────
+
+
+def test_a_selected_verified_complete_window_is_skipped_not_an_error(env) -> None:
+    allow = _write_allowlist(
+        _allowlist_doc(env["window"], manifest_sha256=_manifest_sha(env["manifest"])), env["tmp"]
+    )
+
+    plan = plan_rescue(
+        manifest_path=env["manifest"],
+        completion_facts=FactProbe([_complete_fact(env["window"])]),
+        allowlist_path=allow,
+        repository_head=_repo_head(),
+    )
+
+    assert plan.pending == ()
+    assert [w.segment_index for w in plan.verified_complete] == [SEGMENT_INDEX_BASE]
+
+
+def test_a_selected_incomplete_window_is_retried(env) -> None:
+    allow = _write_allowlist(
+        _allowlist_doc(env["window"], manifest_sha256=_manifest_sha(env["manifest"])), env["tmp"]
+    )
+
+    plan = plan_rescue(
+        manifest_path=env["manifest"],
+        completion_facts=FactProbe([_batch_only_fact(env["window"])]),
+        allowlist_path=allow,
+        repository_head=_repo_head(),
+    )
+
+    assert [w.segment_index for w in plan.pending] == [SEGMENT_INDEX_BASE]
+    assert len(plan.retrying) == 1
+
+
+def test_an_immutable_allowlist_resumes_after_partial_completion_without_editing(env) -> None:
+    cache_root, video = env["cache_root"], env["video"]
+    windows = [
+        _make_window(
+            cache_root=cache_root,
+            video_path=video,
+            segment_index=SEGMENT_INDEX_BASE + i,
+            match_id=470 + i,
+        )
+        for i in range(2)
+    ]
+    manifest = _write(_manifest_doc(windows, cache_root=cache_root), env["tmp"], "two.json")
+    allow = _write_allowlist(
+        _allowlist_doc(*windows, manifest_sha256=_manifest_sha(manifest)), env["tmp"]
+    )
+
+    first = plan_rescue(
+        manifest_path=manifest,
+        completion_facts=FactProbe(),
+        allowlist_path=allow,
+        repository_head=_repo_head(),
+    )
+    assert [w.segment_index for w in first.pending] == [
+        SEGMENT_INDEX_BASE,
+        SEGMENT_INDEX_BASE + 1,
+    ]
+
+    # SAME allowlist file, byte for byte -- only the database changed.
+    second = plan_rescue(
+        manifest_path=manifest,
+        completion_facts=FactProbe([_complete_fact(windows[0])]),
+        allowlist_path=allow,
+        repository_head=_repo_head(),
+    )
+    assert [w.segment_index for w in second.pending] == [SEGMENT_INDEX_BASE + 1]
+    assert [w.segment_index for w in second.verified_complete] == [SEGMENT_INDEX_BASE]
+
+
+# ─── CLI safety rules ───────────────────────────────────────────────────────
+
+
+def test_execute_without_an_allowlist_fails_closed(env) -> None:
+    recorder, made, receipts = Recorder(), [], []
+
+    with pytest.raises(RescueAborted, match="--allowlist"):
+        run_rescue(
+            manifest_path=env["manifest"],
+            execute=True,
+            completion_facts=FactProbe(),
+            run_command=recorder,
+            rescue_run_id=RUN_ID,
+            executed_at=EXECUTED_AT,
+            make_batch_dir=made.append,
+            receipt_sink=receipts.append,
+            out=lambda _: None,
+        )
+
+    assert recorder.calls == [] and made == [] and receipts == []
+
+
+def test_dry_run_without_an_allowlist_is_unaffected_by_the_new_guard(env) -> None:
+    code = run_rescue(
+        manifest_path=env["manifest"],
+        execute=False,
+        completion_facts=FactProbe(),
+        run_command=Recorder(),
+        rescue_run_id=RUN_ID,
+        executed_at=EXECUTED_AT,
+        out=lambda _: None,
+    )
+    assert code == 0
+
+
+def test_execute_with_an_invalid_allowlist_fails_before_the_environment_gate(env) -> None:
+    """The primary validation error (a mismatched manifest binding) must not be
+    obscured by a secondary DATABASE_URL/OCR_PYTHON complaint."""
+    allow = _write_allowlist(_allowlist_doc(env["window"], manifest_sha256="0" * 64), env["tmp"])
+    recorder, made, receipts = Recorder(), [], []
+
+    with pytest.raises(RescueAborted) as excinfo:
+        run_rescue(
+            manifest_path=env["manifest"],
+            execute=True,
+            completion_facts=FactProbe.completing(env["window"]),
+            run_command=recorder,
+            rescue_run_id=RUN_ID,
+            executed_at=EXECUTED_AT,
+            allowlist_path=allow,
+            repository_head=_repo_head(),
+            environ={},  # would ALSO fail the environment gate
+            make_batch_dir=made.append,
+            receipt_sink=receipts.append,
+            out=lambda _: None,
+        )
+
+    message = str(excinfo.value)
+    assert "manifest_sha256" in message
+    assert "DATABASE_URL" not in message
+    assert recorder.calls == [] and made == [] and receipts == []
+
+
+def test_dry_run_with_an_allowlist_invokes_no_mutating_runner(env) -> None:
+    allow = _write_allowlist(
+        _allowlist_doc(env["window"], manifest_sha256=_manifest_sha(env["manifest"])), env["tmp"]
+    )
+    recorder, made, receipts = Recorder(), [], []
+
+    code = run_rescue(
+        manifest_path=env["manifest"],
+        execute=False,
+        completion_facts=FactProbe(),
+        run_command=recorder,
+        rescue_run_id=RUN_ID,
+        executed_at=EXECUTED_AT,
+        allowlist_path=allow,
+        repository_head=_repo_head(),
+        make_batch_dir=made.append,
+        receipt_sink=receipts.append,
+        out=lambda _: None,
+    )
+
+    assert code == 0
+    assert recorder.calls == [] and made == [] and receipts == []
+
+
+def test_only_selected_pending_windows_reach_the_runner_and_receipt_sink(env) -> None:
+    cache_root, video = env["cache_root"], env["video"]
+    selected = env["window"]
+    excluded = _make_window(
+        cache_root=cache_root,
+        video_path=video,
+        segment_index=SEGMENT_INDEX_BASE + 1,
+        match_id=999,
+    )
+    manifest = _write(_manifest_doc([selected, excluded], cache_root=cache_root), env["tmp"], "two.json")
+    allow = _write_allowlist(
+        _allowlist_doc(selected, manifest_sha256=_manifest_sha(manifest)), env["tmp"]
+    )
+
+    recorder, receipts = Recorder(), []
+    code = run_rescue(
+        manifest_path=manifest,
+        execute=True,
+        completion_facts=FactProbe.completing(selected),
+        run_command=recorder,
+        rescue_run_id=RUN_ID,
+        executed_at=EXECUTED_AT,
+        allowlist_path=allow,
+        repository_head=_repo_head(),
+        receipt_sink=receipts.append,
+        out=lambda _: None,
+    )
+
+    assert code == 0
+    assert not any("999" in tok for call in recorder.calls for tok in call)
+    assert len(receipts) == 1
+    assert receipts[0]["match_id"] == selected.match_id
+
+
+# ─── Receipts carry the allowlist identity ─────────────────────────────────
+
+
+def test_receipts_carry_the_allowlist_identity_when_one_was_used(env) -> None:
+    allow = _write_allowlist(
+        _allowlist_doc(env["window"], manifest_sha256=_manifest_sha(env["manifest"])), env["tmp"]
+    )
+    receipts: list[dict] = []
+
+    run_rescue(
+        manifest_path=env["manifest"],
+        execute=True,
+        completion_facts=FactProbe.completing(env["window"]),
+        run_command=Recorder(),
+        rescue_run_id=RUN_ID,
+        executed_at=EXECUTED_AT,
+        allowlist_path=allow,
+        repository_head=_repo_head(),
+        receipt_sink=receipts.append,
+        out=lambda _: None,
+    )
+
+    assert len(receipts) == 1
+    receipt = receipts[0]
+    assert receipt["allowlist_sha256"] == hashlib.sha256(allow.read_bytes()).hexdigest()
+    assert receipt["allowlist_schema_version"] == ALLOWLIST_SCHEMA_VERSION
+    assert receipt["allowlist_manifest_sha256"] == _manifest_sha(env["manifest"])
+    assert receipt["allowlist_repository_head"] == REPO_HEAD
+    assert receipt["promotion_key"] == list(promotion_key(env["window"]))
+
+
+def test_receipts_have_null_allowlist_fields_when_no_allowlist_was_used(env) -> None:
+    """`run_rescue` itself now refuses `--execute` without an allowlist (see the
+    CLI safety rules above), so this drives the lower-level `plan_rescue` +
+    `execute_plan` primitives directly -- proving `build_receipt` still
+    degrades cleanly for a caller that plans with no allowlist at all."""
+    receipts: list[dict] = []
+    plan = plan_rescue(manifest_path=env["manifest"], completion_facts=FactProbe())
+    assert plan.allowlist is None
+
+    execute_plan(
+        plan,
+        run_command=Recorder(),
+        completion_facts=FactProbe([_complete_fact(env["window"])]),
+        rescue_run_id=RUN_ID,
+        executed_at=EXECUTED_AT,
+        receipt_sink=receipts.append,
+    )
+
+    receipt = receipts[0]
+    assert receipt["allowlist_sha256"] is None
+    assert receipt["allowlist_schema_version"] is None
+    assert receipt["allowlist_manifest_sha256"] is None
+    assert receipt["allowlist_repository_head"] is None
+
+
+# ─── TOCTOU resistance ──────────────────────────────────────────────────────
+
+
+def test_the_allowlist_file_is_never_reread_after_planning(env) -> None:
+    allow = _write_allowlist(
+        _allowlist_doc(env["window"], manifest_sha256=_manifest_sha(env["manifest"])), env["tmp"]
+    )
+    plan = plan_rescue(
+        manifest_path=env["manifest"],
+        completion_facts=FactProbe(),
+        allowlist_path=allow,
+        repository_head=_repo_head(),
+    )
+    assert [w.segment_index for w in plan.pending] == [SEGMENT_INDEX_BASE]
+
+    allow.unlink()  # gone -- execution must not care, it never reopens this path
+
+    recorder = Recorder()
+    report = execute_plan(
+        plan,
+        run_command=recorder,
+        completion_facts=FactProbe([_complete_fact(env["window"])]),
+        rescue_run_id=RUN_ID,
+        executed_at=EXECUTED_AT,
+    )
+    assert report.ok
+    assert [c[0] for c in recorder.calls] == ["ffmpeg", "pnpm"]
+
+
+def test_the_receipts_allowlist_hash_reflects_the_bytes_read_at_plan_time_not_a_later_edit(
+    env,
+) -> None:
+    allow = _write_allowlist(
+        _allowlist_doc(env["window"], manifest_sha256=_manifest_sha(env["manifest"])), env["tmp"]
+    )
+    original_bytes = allow.read_bytes()
+    plan = plan_rescue(
+        manifest_path=env["manifest"],
+        completion_facts=FactProbe(),
+        allowlist_path=allow,
+        repository_head=_repo_head(),
+    )
+
+    # Mutated on disk AFTER planning -- must have zero effect on this run.
+    allow.write_text(
+        json.dumps(_allowlist_doc(env["window"], manifest_sha256="0" * 64))
+    )
+
+    receipts: list[dict] = []
+    execute_plan(
+        plan,
+        run_command=Recorder(),
+        completion_facts=FactProbe.completing(env["window"]),
+        rescue_run_id=RUN_ID,
+        executed_at=EXECUTED_AT,
+        receipt_sink=receipts.append,
+    )
+    assert receipts[0]["allowlist_sha256"] == hashlib.sha256(original_bytes).hexdigest()
+    assert receipts[0]["allowlist_manifest_sha256"] == _manifest_sha(env["manifest"])
+
+
+# ─── Dry-run rendering ──────────────────────────────────────────────────────
+
+
+def test_the_dry_run_render_shows_the_allowlist_identity_and_counts(env) -> None:
+    cache_root, video = env["cache_root"], env["video"]
+    selected = env["window"]
+    excluded = _make_window(
+        cache_root=cache_root,
+        video_path=video,
+        segment_index=SEGMENT_INDEX_BASE + 1,
+        match_id=999,
+    )
+    manifest = _write(_manifest_doc([selected, excluded], cache_root=cache_root), env["tmp"], "two.json")
+    allow = _write_allowlist(
+        _allowlist_doc(selected, manifest_sha256=_manifest_sha(manifest)), env["tmp"]
+    )
+
+    lines: list[str] = []
+    run_rescue(
+        manifest_path=manifest,
+        execute=False,
+        completion_facts=FactProbe(),
+        run_command=Recorder(),
+        rescue_run_id=RUN_ID,
+        executed_at=EXECUTED_AT,
+        allowlist_path=allow,
+        repository_head=_repo_head(),
+        out=lines.append,
+    )
+    output = "\n".join(lines)
+
+    assert _manifest_sha(manifest) in output
+    assert hashlib.sha256(allow.read_bytes()).hexdigest() in output
+    assert REPO_HEAD in output
+    assert "manifest auto total" in output
+    assert "excluded" in output
+    assert "cannot execute" in output.lower()
+
+
+def test_the_execution_report_retains_the_allowlist_identity(env) -> None:
+    allow = _write_allowlist(
+        _allowlist_doc(env["window"], manifest_sha256=_manifest_sha(env["manifest"])), env["tmp"]
+    )
+    lines: list[str] = []
+
+    run_rescue(
+        manifest_path=env["manifest"],
+        execute=True,
+        completion_facts=FactProbe.completing(env["window"]),
+        run_command=Recorder(),
+        rescue_run_id=RUN_ID,
+        executed_at=EXECUTED_AT,
+        allowlist_path=allow,
+        repository_head=_repo_head(),
+        out=lines.append,
+    )
+    output = "\n".join(lines)
+    assert hashlib.sha256(allow.read_bytes()).hexdigest() in output
+
+
+# ─── The real corrected audit proposal is rejected, not treated as executable ─
+
+_REAL_CANDIDATE_MANIFEST = Path("/tmp/rescue-schema3-2026-08-05/rescue-manifest.candidate.json")
+_REAL_CANDIDATE_MANIFEST_SHA256 = (
+    "f0727066aa6b4f04cd6c095015b9d683532dd6b6686c357c4a41b2fdf1d33397"
+)
+_REAL_CORRECTED_PROPOSAL = Path(
+    "/tmp/rescue-audit-20260806-sem-v3/allowlist_proposal.corrected.json"
+)
+_REAL_CORRECTED_PROPOSAL_SHA256 = (
+    "be7e93591ab30195d57d5e8c7b6aa0547731ea21466321438d506a9212b3128b"
+)
+_REAL_ARTIFACTS_PRESENT = (
+    _REAL_CANDIDATE_MANIFEST.is_file() and _REAL_CORRECTED_PROPOSAL.is_file()
+)
+
+
+@pytest.mark.skipif(
+    not _REAL_ARTIFACTS_PRESENT,
+    reason="real schema-3 candidate manifest / corrected audit proposal not present on this machine",
+)
+def test_the_real_corrected_audit_proposal_is_rejected_as_non_executable() -> None:
+    """The proposal this implementation session was handed is explicitly NOT an
+    execution allowlist (`proposal_only`, `do_not_execute`) and is bound to the
+    HEAD this implementation supersedes. Proved here as a DRY RUN, against the
+    real candidate manifest, before any completion probe -- never transformed
+    or relabelled into something executable."""
+    assert file_digest(_REAL_CANDIDATE_MANIFEST) == _REAL_CANDIDATE_MANIFEST_SHA256
+    assert (
+        hashlib.sha256(_REAL_CORRECTED_PROPOSAL.read_bytes()).hexdigest()
+        == _REAL_CORRECTED_PROPOSAL_SHA256
+    )
+
+    probe = FactProbe()
+    with pytest.raises(RescueAborted) as excinfo:
+        plan_rescue(
+            manifest_path=_REAL_CANDIDATE_MANIFEST,
+            completion_facts=probe,
+            allowlist_path=_REAL_CORRECTED_PROPOSAL,
+            repository_head=lambda: "2d88bb4b94bf59b763fd2508432124d5dccc3b26",
+        )
+
+    message = str(excinfo.value)
+    assert "proposal_only" in message
+    assert "do_not_execute" in message
+    assert probe.calls == 0
+
+
+# ─── CLI wiring: --allowlist, the execute guard, and git provenance ────────
+
+
+def _load_cli_module():
+    """Import the script as a module without executing its `__main__` block, so
+    `read_repository_head` can be exercised directly."""
+    spec = importlib.util.spec_from_file_location("_execute_rescue_manifest_cli", _SCRIPT)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_read_repository_head_matches_git_rev_parse_head_despite_a_dirty_tree() -> None:
+    """Exercised against THIS checkout, whose own git status has uncommitted
+    changes -- proving dirty files do not perturb the binding."""
+    repo_root = _TOOL_ROOT.parents[1]  # the eanhl-team-website checkout
+    expected = subprocess.run(
+        ["git", "-C", str(repo_root), "rev-parse", "HEAD"],
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.strip()
+
+    cli = _load_cli_module()
+    assert cli.read_repository_head(repo_root) == expected
+
+
+def test_the_script_refuses_execute_without_allowlist(tmp_path: Path) -> None:
+    """The guard fires before the manifest is even read -- deliberately
+    invalid JSON here proves the rejection is not a manifest complaint."""
+    bad = tmp_path / "rescue-manifest.json"
+    bad.write_text("{not json")
+
+    proc = subprocess.run(
+        [sys.executable, str(_SCRIPT), "--manifest", str(bad), "--execute"],
+        capture_output=True,
+        text=True,
+        cwd=str(_TOOL_ROOT),
+        env={
+            "PATH": "/usr/bin:/bin",
+            "PYTHONPATH": f"{_TOOL_ROOT}:{_TOOL_ROOT.parent / 'game_ocr'}",
+        },
+    )
+
+    assert proc.returncode == 1
+    assert "Traceback" not in proc.stderr
+    assert "--allowlist" in proc.stderr
+    assert "not valid JSON" not in proc.stderr
+
+
+def test_the_script_reports_a_git_provenance_failure_cleanly(tmp_path: Path, env) -> None:
+    allow = _write_allowlist(
+        _allowlist_doc(env["window"], manifest_sha256=_manifest_sha(env["manifest"])), env["tmp"]
+    )
+    non_git_root = tmp_path / "not-a-repo"
+    non_git_root.mkdir()
+
+    proc = subprocess.run(
+        [
+            sys.executable,
+            str(_SCRIPT),
+            "--manifest",
+            str(env["manifest"]),
+            "--allowlist",
+            str(allow),
+            "--repo-root",
+            str(non_git_root),
+        ],
+        capture_output=True,
+        text=True,
+        cwd=str(_TOOL_ROOT),
+        env={
+            "PATH": "/usr/bin:/bin",
+            "PYTHONPATH": f"{_TOOL_ROOT}:{_TOOL_ROOT.parent / 'game_ocr'}",
+        },
+    )
+
+    assert proc.returncode == 1
+    assert "Traceback" not in proc.stderr
+    assert "git provenance" in proc.stderr
