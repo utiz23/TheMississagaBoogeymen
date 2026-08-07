@@ -95,8 +95,10 @@ from typing import Any, Callable, Iterable, Mapping, Sequence
 from video_ingest.cache_root import PASS1_ARTIFACT
 from video_ingest.rescue_allowlist import (
     Allowlist,
+    AllowlistEntry,
     allowlist_problems,
     excluded_auto_windows,
+    is_sha256,
     parse_allowlist,
     selected_auto_windows,
 )
@@ -1210,6 +1212,181 @@ def require_execution_env(environ: Mapping[str, str] | None = None) -> None:
         raise RescueAborted(_render_env_problems(problems))
 
 
+# ─── Execution authorization (the mutation boundary) ─────────────────────────
+#
+# `plan_rescue` validates an allowlist and narrows `pending`/`verified_complete`
+# to exactly its selection -- but `ExecutionPlan` is a plain dataclass, and
+# `execute_plan` is a public function any caller can invoke directly with any
+# `ExecutionPlan` it likes, including one `plan_rescue` never produced: one
+# built with `allowlist_path=None`, or a genuine plan mutated afterwards with
+# `dataclasses.replace`. The guards below re-derive the authorization invariant
+# from the plan's OWN fields, at the one place every mutation must pass
+# through, so no caller -- direct or indirect -- can route around it. Neither
+# guard reopens the allowlist file or re-reads the manifest; both are pure
+# functions over data `plan_rescue` already read once.
+
+
+def _window_identity(window: Window) -> tuple[Any, ...]:
+    commands = window.commands if isinstance(window.commands, dict) else {}
+    return (
+        window.video_sha256,
+        window.segment_index,
+        window.target_screen,
+        window.match_id,
+        window.run_id,
+        commands.get("batch_dir"),
+        promotion_key(window),
+    )
+
+
+def _entry_identity(entry: AllowlistEntry) -> tuple[Any, ...]:
+    return (
+        entry.video_sha256,
+        entry.segment_index,
+        entry.target_screen,
+        entry.match_id,
+        entry.run_id,
+        entry.batch_dir,
+        entry.promotion_key,
+    )
+
+
+def authorization_problems(plan: ExecutionPlan) -> list[str]:
+    """Whether `plan` is fully authorised, by its OWN allowlist, to mutate anything.
+
+    Not merely "is `plan.allowlist` set" -- a manually constructed or mutated
+    plan can carry a well-formed `Allowlist` object that no longer describes
+    what `pending`/`verified_complete` actually select. Every check here
+    compares the plan's fields against each other, never against the filesystem:
+
+      * the four allowlist-provenance fields are present and well-formed;
+      * `plan.manifest_digest` matches the allowlist's own bound digest;
+      * the union of `pending` and `verified_complete`, compared field-by-field
+        (video_sha256, segment_index, target_screen, match_id, run_id,
+        batch_dir, promotion_key), is EXACTLY the allowlist's entry set -- no
+        selected window outside it, no entry left unselected;
+      * no selected window repeats an identity or a promotion key.
+    """
+    problems: list[str] = []
+    if plan.allowlist is None:
+        problems.append(
+            "plan.allowlist: missing -- execute_plan requires a fully "
+            "allowlist-bound plan"
+        )
+    if plan.allowlist_sha256 is None:
+        problems.append("plan.allowlist_sha256: missing")
+    elif not is_sha256(plan.allowlist_sha256):
+        problems.append(
+            f"plan.allowlist_sha256: not a 64-char lowercase hex sha256: "
+            f"{plan.allowlist_sha256!r}"
+        )
+    if plan.allowlist_path is None:
+        problems.append("plan.allowlist_path: missing")
+    if problems:
+        # Nothing below can be meaningfully compared without these.
+        return problems
+
+    allowlist = plan.allowlist
+    assert allowlist is not None  # narrowed by the check above
+    if plan.manifest_digest != allowlist.manifest_sha256:
+        problems.append(
+            f"plan.manifest_digest {plan.manifest_digest!r} != "
+            f"plan.allowlist.manifest_sha256 {allowlist.manifest_sha256!r}"
+        )
+
+    selected = list(plan.pending) + list(plan.verified_complete)
+
+    seen_identity: set[tuple[Any, ...]] = set()
+    seen_promotion_key: set[PromotionKey] = set()
+    for window in selected:
+        identity = _window_identity(window)
+        if identity in seen_identity:
+            problems.append(f"duplicate selected window identity: {identity!r}")
+        seen_identity.add(identity)
+        pk = promotion_key(window)
+        if pk in seen_promotion_key:
+            problems.append(f"duplicate selected promotion_key: {list(pk)!r}")
+        seen_promotion_key.add(pk)
+
+    window_identities = {_window_identity(w) for w in selected}
+    entry_identities = {_entry_identity(e) for e in allowlist.entries}
+
+    for identity in sorted(window_identities - entry_identities, key=repr):
+        problems.append(
+            f"plan selects a window outside its allowlist: {identity!r}"
+        )
+    for identity in sorted(entry_identities - window_identities, key=repr):
+        problems.append(
+            f"allowlist entry is not present in the plan's selection: {identity!r}"
+        )
+
+    return problems
+
+
+def _render_authorization_problems(problems: Sequence[str]) -> str:
+    lines = [
+        f"execution REFUSED: {len(problems)} allowlist-authorization problem(s) "
+        "at the execute_plan mutation boundary.",
+        "  No environment probe, no runner, no batch directory, no receipt and no "
+        "completion probe ran -- this plan is not authorised to mutate anything.",
+    ]
+    lines += [f"    - {p}" for p in problems]
+    return "\n".join(lines)
+
+
+def require_authorized_plan(plan: ExecutionPlan) -> None:
+    """The FIRST statement at every mutation boundary: `execute_plan` and
+    `build_receipt` both call this before doing anything else."""
+    problems = authorization_problems(plan)
+    if problems:
+        raise RescueAborted(_render_authorization_problems(problems))
+
+
+def _current_repository_head(repository_head: RepositoryHeadProbe) -> str:
+    try:
+        return repository_head()
+    except RescueAborted:
+        raise
+    except Exception as exc:  # probe failure fails closed
+        raise RescueAborted(
+            f"repository HEAD probe failed at execution time: {exc}"
+        ) from exc
+
+
+def require_current_repository_binding(
+    plan: ExecutionPlan, repository_head: RepositoryHeadProbe | None
+) -> None:
+    """Recheck the plan's repository binding immediately before mutation.
+
+    `plan_rescue` already checked this once, but HEAD can change between
+    planning and execution -- a checkout, a rebase, another operator's commit.
+    This is the TOCTOU close: a SECOND, independent read of HEAD, immediately
+    before the first mutating call, compared against the value already carried
+    on `plan.allowlist.repository_head` -- never against a re-read of the
+    allowlist file, which `require_authorized_plan` has already bound to this
+    plan's `manifest_digest` and selection.
+
+    Called only after :func:`require_authorized_plan` has passed, so
+    `plan.allowlist` is guaranteed set here.
+    """
+    if repository_head is None:
+        raise RescueAborted(
+            "refusing to execute: no repository-HEAD probe was supplied to "
+            "recheck the allowlist's binding immediately before mutation -- HEAD "
+            "can change between planning and execution, so a missing probe "
+            "fails closed"
+        )
+    assert plan.allowlist is not None  # require_authorized_plan already checked
+    current = _current_repository_head(repository_head)
+    bound = plan.allowlist.repository_head
+    if current != bound:
+        raise RescueAborted(
+            "repository HEAD changed since planning: this plan's allowlist is "
+            f"bound to {bound!r} but the repository's current HEAD is "
+            f"{current!r} -- refusing to execute against a superseded commit"
+        )
+
+
 # ─── Execution ───────────────────────────────────────────────────────────────
 
 
@@ -1478,7 +1655,16 @@ def build_receipt(
     new receipt must not do is stamp a version it did not read — so the value
     comes from the document the plan was built from, and a reader can tell which
     sampling contract produced any given row.
+
+    Fails closed -- via :func:`require_authorized_plan` -- if `plan` is not
+    fully allowlist-bound. Every NEW receipt this ledger gains from here on
+    must carry non-null allowlist provenance; there is no code path left that
+    builds one without it. This package has no receipt reader: nothing parses
+    `rescue-receipts.jsonl` back in, so the four allowlist fields being new and
+    additive is the whole compatibility story -- an older row simply predates
+    them, exactly as `.get(...)` on a dict already tolerates.
     """
+    require_authorized_plan(plan)
     window = outcome.window
     commands = window.commands or {}
     allowlist = plan.allowlist
@@ -1530,6 +1716,7 @@ def execute_plan(
     completion_facts: CompletionProbe,
     rescue_run_id: str,
     executed_at: str,
+    repository_head: RepositoryHeadProbe | None = None,
     receipt_sink: Callable[[dict[str, Any]], None] | None = None,
     make_batch_dir: Callable[[Path], None] | None = None,
     environ: Mapping[str, str] | None = None,
@@ -1538,12 +1725,15 @@ def execute_plan(
 ) -> ExecutionReport:
     """Run the pending windows' pinned argv, in order, failing fast.
 
-    The environment preflight is the FIRST statement, ahead of the loop and
-    therefore ahead of every mutation this module is capable of: the batch
-    directory, ffmpeg, ingest-ocr and the receipt sink are all reached from
-    inside that loop. Placing it here rather than in :func:`run_rescue` means no
-    caller can route around it — the guard lives at the mutation boundary, in
-    the same spirit as :func:`assert_executable`.
+    The allowlist-authorization check, the repository-HEAD TOCTOU recheck and
+    the environment preflight are the FIRST three statements, ahead of the loop
+    and therefore ahead of every mutation this module is capable of: the batch
+    directory, ffmpeg, ingest-ocr, the completion probe and the receipt sink are
+    all reached from inside that loop. Placing them here rather than in
+    :func:`run_rescue` means no caller can route around them — the guards live
+    at the mutation boundary, in the same spirit as :func:`assert_executable`.
+    A caller that hand-builds or mutates an `ExecutionPlan` and invokes this
+    function directly gets exactly the same refusal a `run_rescue` caller would.
 
     Between ffmpeg and ingest-ocr sits a TRANSACTION, and it is the reason
     ffmpeg never writes into the batch directory itself:
@@ -1576,6 +1766,8 @@ def execute_plan(
     plan by :func:`partition_complete` — while one that merely *started* will
     not be, and gets re-run.
     """
+    require_authorized_plan(plan)
+    require_current_repository_binding(plan, repository_head)
     require_execution_env(environ)
 
     report = ExecutionReport(
@@ -1906,6 +2098,7 @@ def run_rescue(
         completion_facts=completion_facts,
         rescue_run_id=rescue_run_id,
         executed_at=executed_at,
+        repository_head=repository_head,
         receipt_sink=receipt_sink,
         make_batch_dir=make_batch_dir,
         environ=environ,

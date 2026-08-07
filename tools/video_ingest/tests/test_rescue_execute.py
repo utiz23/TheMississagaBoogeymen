@@ -16,6 +16,7 @@ writes — including the shapes it writes when it fails and still exits 0.
 
 from __future__ import annotations
 
+import dataclasses
 import hashlib
 import importlib.util
 import json
@@ -27,7 +28,12 @@ from typing import Any, Sequence
 
 import pytest
 
-from video_ingest.rescue_allowlist import ALLOWLIST_KIND, ALLOWLIST_SCHEMA_VERSION
+from video_ingest.rescue_allowlist import (
+    ALLOWLIST_KIND,
+    ALLOWLIST_SCHEMA_VERSION,
+    Allowlist,
+    AllowlistEntry,
+)
 from video_ingest.rescue_execute import (
     DRY_RUN_BANNER,
     EXECUTE_FLAG,
@@ -39,9 +45,13 @@ from video_ingest.rescue_execute import (
     STEP_INGEST_OCR,
     CommandResult,
     CompletionFact,
+    ExecutionPlan,
     RescueAborted,
+    WindowOutcome,
     argv_fingerprint,
     assert_executable,
+    authorization_problems,
+    build_receipt,
     command_problems,
     completion_problems,
     environment_problems,
@@ -358,6 +368,38 @@ def _write_allowlist(doc: dict[str, Any], tmp_path: Path, name: str = "allowlist
     path = tmp_path / name
     path.write_text(json.dumps(doc, indent=1) + "\n")
     return path
+
+
+def _two_window_plan(env, *, both_selected: bool = True) -> tuple[ExecutionPlan, list[Window]]:
+    """Two auto windows on one manifest, with a validated allowlist selecting
+    either both (the default) or just the first. Used by the mutation-boundary
+    tests below as the KNOWN-GOOD plan they then corrupt with
+    `dataclasses.replace` -- `plan_rescue` itself never produces the corrupted
+    shapes those tests need."""
+    cache_root, video = env["cache_root"], env["video"]
+    windows = [
+        _make_window(
+            cache_root=cache_root,
+            video_path=video,
+            segment_index=SEGMENT_INDEX_BASE + i,
+            match_id=470 + i,
+        )
+        for i in range(2)
+    ]
+    manifest = _write(
+        _manifest_doc(windows, cache_root=cache_root), env["tmp"], "mutation-two.json"
+    )
+    selected = windows if both_selected else windows[:1]
+    allow = _write_allowlist(
+        _allowlist_doc(*selected, manifest_sha256=_manifest_sha(manifest)), env["tmp"]
+    )
+    plan = plan_rescue(
+        manifest_path=manifest,
+        completion_facts=FactProbe(),
+        allowlist_path=allow,
+        repository_head=_repo_head(),
+    )
+    return plan, windows
 
 
 #: A syntactically valid execution environment. The values are placeholders on
@@ -884,7 +926,15 @@ def test_a_mid_run_failure_stops_and_reports_the_untouched_remainder(env) -> Non
         for i in range(3)
     ]
     manifest = _write(_manifest_doc(windows, cache_root=cache_root), env["tmp"], "three.json")
-    plan = plan_rescue(manifest_path=manifest, completion_facts=FactProbe())
+    allow = _write_allowlist(
+        _allowlist_doc(*windows, manifest_sha256=_manifest_sha(manifest)), env["tmp"]
+    )
+    plan = plan_rescue(
+        manifest_path=manifest,
+        completion_facts=FactProbe(),
+        allowlist_path=allow,
+        repository_head=_repo_head(),
+    )
 
     recorder = Recorder(fail_on="pnpm")
     report = execute_plan(
@@ -893,6 +943,7 @@ def test_a_mid_run_failure_stops_and_reports_the_untouched_remainder(env) -> Non
         completion_facts=FactProbe(),
         rescue_run_id=RUN_ID,
         executed_at=EXECUTED_AT,
+        repository_head=_repo_head(),
     )
 
     assert report.promoted == []
@@ -1324,17 +1375,31 @@ def test_the_gate_creates_no_rescue_directory_on_the_real_filesystem(env) -> Non
 
 def test_the_gate_sits_on_execute_plan_itself_not_only_on_the_cli(env) -> None:
     """Placement matters: the guard is the first statement of the ONLY function
-    that mutates anything, so no caller can route around it."""
-    plan = plan_rescue(manifest_path=env["manifest"], completion_facts=FactProbe())
+    that mutates anything, so no caller can route around it.
+
+    Authorized here (a valid allowlist + repository HEAD) so this specifically
+    re-proves the ENVIRONMENT gate's placement -- the newer allowlist-
+    authorization gate in front of it is covered on its own in the "Mutation
+    boundary" section below."""
+    allow = _write_allowlist(
+        _allowlist_doc(env["window"], manifest_sha256=_manifest_sha(env["manifest"])), env["tmp"]
+    )
+    plan = plan_rescue(
+        manifest_path=env["manifest"],
+        completion_facts=FactProbe(),
+        allowlist_path=allow,
+        repository_head=_repo_head(),
+    )
     recorder, made, receipts = Recorder(), [], []
 
-    with pytest.raises(RescueAborted):
+    with pytest.raises(RescueAborted, match="DATABASE_URL"):
         execute_plan(
             plan,
             run_command=recorder,
             completion_facts=FactProbe.completing(env["window"]),
             rescue_run_id=RUN_ID,
             executed_at=EXECUTED_AT,
+            repository_head=_repo_head(),
             receipt_sink=receipts.append,
             make_batch_dir=made.append,
             environ={},
@@ -1749,7 +1814,15 @@ def test_a_failed_postcondition_leaves_the_later_windows_untouched(env) -> None:
         for i in range(3)
     ]
     manifest = _write(_manifest_doc(windows, cache_root=cache_root), env["tmp"], "three.json")
-    plan = plan_rescue(manifest_path=manifest, completion_facts=FactProbe())
+    allow = _write_allowlist(
+        _allowlist_doc(*windows, manifest_sha256=_manifest_sha(manifest)), env["tmp"]
+    )
+    plan = plan_rescue(
+        manifest_path=manifest,
+        completion_facts=FactProbe(),
+        allowlist_path=allow,
+        repository_head=_repo_head(),
+    )
 
     report = execute_plan(
         plan,
@@ -1757,6 +1830,7 @@ def test_a_failed_postcondition_leaves_the_later_windows_untouched(env) -> None:
         completion_facts=FactProbe(),  # the database never gains anything
         rescue_run_id=RUN_ID,
         executed_at=EXECUTED_AT,
+        repository_head=_repo_head(),
     )
 
     assert report.promoted == []
@@ -1812,13 +1886,22 @@ def test_the_postcondition_is_checked_before_the_receipt_is_written(env) -> None
     """Ordering matters: a receipt must never assert a promotion that was not
     verified first."""
     receipts: list[dict] = []
-    plan = plan_rescue(manifest_path=env["manifest"], completion_facts=FactProbe())
+    allow = _write_allowlist(
+        _allowlist_doc(env["window"], manifest_sha256=_manifest_sha(env["manifest"])), env["tmp"]
+    )
+    plan = plan_rescue(
+        manifest_path=env["manifest"],
+        completion_facts=FactProbe(),
+        allowlist_path=allow,
+        repository_head=_repo_head(),
+    )
     execute_plan(
         plan,
         run_command=Recorder(),
         completion_facts=FactProbe(),
         rescue_run_id=RUN_ID,
         executed_at=EXECUTED_AT,
+        repository_head=_repo_head(),
         receipt_sink=receipts.append,
     )
     assert len(receipts) == 1
@@ -1858,7 +1941,15 @@ def test_the_plan_and_the_postcondition_use_the_same_predicate(env) -> None:
 def test_a_step_failure_skips_verification_and_reports_the_step(env) -> None:
     """When ffmpeg already failed, the postcondition adds nothing -- the error
     must name the real cause."""
-    plan = plan_rescue(manifest_path=env["manifest"], completion_facts=FactProbe())
+    allow = _write_allowlist(
+        _allowlist_doc(env["window"], manifest_sha256=_manifest_sha(env["manifest"])), env["tmp"]
+    )
+    plan = plan_rescue(
+        manifest_path=env["manifest"],
+        completion_facts=FactProbe(),
+        allowlist_path=allow,
+        repository_head=_repo_head(),
+    )
     probe = FactProbe()
     report = execute_plan(
         plan,
@@ -1866,6 +1957,7 @@ def test_a_step_failure_skips_verification_and_reports_the_step(env) -> None:
         completion_facts=probe,
         rescue_run_id=RUN_ID,
         executed_at=EXECUTED_AT,
+        repository_head=_repo_head(),
     )
     assert probe.calls == 0  # never asked
     assert "ffmpeg exited 1" in (report.failed[0].error or "")
@@ -2233,7 +2325,15 @@ def test_an_unprovable_frame_count_refuses_before_ffmpeg(env, count) -> None:
     this could never load. That is the point — this is the second line, checked
     at the mutation boundary rather than at the door.
     """
-    plan = plan_rescue(manifest_path=env["manifest"], completion_facts=FactProbe())
+    allow = _write_allowlist(
+        _allowlist_doc(env["window"], manifest_sha256=_manifest_sha(env["manifest"])), env["tmp"]
+    )
+    plan = plan_rescue(
+        manifest_path=env["manifest"],
+        completion_facts=FactProbe(),
+        allowlist_path=allow,
+        repository_head=_repo_head(),
+    )
     plan.pending[0].commands["sampling"]["expected_frame_count"] = count
     recorder, receipts = Recorder(), []
 
@@ -2243,6 +2343,7 @@ def test_an_unprovable_frame_count_refuses_before_ffmpeg(env, count) -> None:
         completion_facts=FactProbe.completing(env["window"]),
         rescue_run_id=RUN_ID,
         executed_at=EXECUTED_AT,
+        repository_head=_repo_head(),
         receipt_sink=receipts.append,
         environ=VALID_ENVIRON,
         make_batch_dir=lambda p: p.mkdir(parents=True, exist_ok=True),
@@ -2274,13 +2375,22 @@ def test_step_fingerprints_are_stable_and_argv_sensitive() -> None:
 
 def test_a_failed_window_still_writes_a_receipt(env) -> None:
     receipts: list[dict] = []
-    plan = plan_rescue(manifest_path=env["manifest"], completion_facts=FactProbe())
+    allow = _write_allowlist(
+        _allowlist_doc(env["window"], manifest_sha256=_manifest_sha(env["manifest"])), env["tmp"]
+    )
+    plan = plan_rescue(
+        manifest_path=env["manifest"],
+        completion_facts=FactProbe(),
+        allowlist_path=allow,
+        repository_head=_repo_head(),
+    )
     execute_plan(
         plan,
         run_command=Recorder(fail_on="ffmpeg"),
         completion_facts=FactProbe(),
         rescue_run_id=RUN_ID,
         executed_at=EXECUTED_AT,
+        repository_head=_repo_head(),
         receipt_sink=receipts.append,
     )
 
@@ -2813,29 +2923,376 @@ def test_receipts_carry_the_allowlist_identity_when_one_was_used(env) -> None:
     assert receipt["promotion_key"] == list(promotion_key(env["window"]))
 
 
-def test_receipts_have_null_allowlist_fields_when_no_allowlist_was_used(env) -> None:
-    """`run_rescue` itself now refuses `--execute` without an allowlist (see the
-    CLI safety rules above), so this drives the lower-level `plan_rescue` +
-    `execute_plan` primitives directly -- proving `build_receipt` still
-    degrades cleanly for a caller that plans with no allowlist at all."""
+def test_execute_plan_refuses_a_plan_with_no_allowlist_at_all(env) -> None:
+    """`run_rescue` already refuses `--execute` without an allowlist (see the
+    CLI safety rules above) -- but this drives the lower-level `plan_rescue` +
+    `execute_plan` primitives directly, the exact route that used to bypass
+    that CLI-level rule entirely: a plan built with no allowlist at all was
+    still ACCEPTED by `execute_plan`, which ran ffmpeg/ingest-ocr and wrote a
+    receipt whose four allowlist fields were merely null. That receipt shape
+    is still what an old, pre-allowlist row looks like -- this package has no
+    receipt reader, so those historical JSONL rows stay valid by construction
+    (the fields are additive) -- but `execute_plan` producing a NEW one from an
+    unauthorized plan is exactly the bypass this fix closes. It must now raise
+    before anything mutates, not degrade into a null-provenance receipt."""
     receipts: list[dict] = []
+    recorder = Recorder()
     plan = plan_rescue(manifest_path=env["manifest"], completion_facts=FactProbe())
     assert plan.allowlist is None
 
-    execute_plan(
+    with pytest.raises(RescueAborted, match="allowlist"):
+        execute_plan(
+            plan,
+            run_command=recorder,
+            completion_facts=FactProbe([_complete_fact(env["window"])]),
+            rescue_run_id=RUN_ID,
+            executed_at=EXECUTED_AT,
+            repository_head=_repo_head(),
+            receipt_sink=receipts.append,
+        )
+
+    assert recorder.calls == []
+    assert receipts == []
+
+
+# ─── Mutation-boundary authorization ────────────────────────────────────────
+#
+# `plan_rescue` validates an allowlist once and narrows the plan to exactly its
+# selection -- but `ExecutionPlan` is a plain dataclass and `execute_plan` is a
+# public function. These tests attack the boundary directly: genuine,
+# `plan_rescue`-produced plans corrupted afterwards with `dataclasses.replace`,
+# the way a bug (or a hand-built plan) could. Each proves the SAME thing
+# `test_execute_plan_refuses_a_plan_with_no_allowlist_at_all` proved for the
+# "no allowlist" case: `authorization_problems` -- not a bare
+# `plan.allowlist is not None` check -- is what execute_plan trusts.
+
+
+def test_a_window_outside_the_allowlist_is_refused(env) -> None:
+    plan, windows = _two_window_plan(env, both_selected=False)
+    assert [w.segment_index for w in plan.pending] == [SEGMENT_INDEX_BASE]
+    outside = windows[1]  # a real, auto, commands-bearing window -- just never allowlisted
+
+    corrupted = dataclasses.replace(plan, pending=plan.pending + (outside,))
+    recorder, made, receipts = Recorder(), [], []
+    probe = FactProbe()
+
+    with pytest.raises(RescueAborted, match="outside its allowlist"):
+        execute_plan(
+            corrupted,
+            run_command=recorder,
+            completion_facts=probe,
+            rescue_run_id=RUN_ID,
+            executed_at=EXECUTED_AT,
+            repository_head=_repo_head(),
+            receipt_sink=receipts.append,
+            make_batch_dir=made.append,
+        )
+    assert recorder.calls == [] and made == [] and receipts == []
+    assert probe.calls == 0
+
+
+def test_an_allowlist_entry_missing_from_the_selection_is_refused(env) -> None:
+    plan, _ = _two_window_plan(env, both_selected=True)
+    assert len(plan.pending) == 2
+
+    corrupted = dataclasses.replace(plan, pending=plan.pending[:1])
+    with pytest.raises(RescueAborted, match="not present in the plan's selection"):
+        execute_plan(
+            corrupted,
+            run_command=Recorder(),
+            completion_facts=FactProbe(),
+            rescue_run_id=RUN_ID,
+            executed_at=EXECUTED_AT,
+            repository_head=_repo_head(),
+        )
+
+
+def test_a_plan_allowlist_manifest_digest_mismatch_is_refused(env) -> None:
+    plan, _ = _two_window_plan(env)
+    corrupted = dataclasses.replace(plan, manifest_digest="0" * 64)
+    with pytest.raises(RescueAborted, match="manifest_digest"):
+        execute_plan(
+            corrupted,
+            run_command=Recorder(),
+            completion_facts=FactProbe(),
+            rescue_run_id=RUN_ID,
+            executed_at=EXECUTED_AT,
+            repository_head=_repo_head(),
+        )
+
+
+@pytest.mark.parametrize(
+    "bad_sha",
+    [None, "not-a-sha", "0" * 63, ("f" * 64).upper()],
+    ids=["missing", "non-hex", "too-short", "uppercase"],
+)
+def test_a_missing_or_malformed_allowlist_sha_is_refused(env, bad_sha) -> None:
+    plan, _ = _two_window_plan(env)
+    corrupted = dataclasses.replace(plan, allowlist_sha256=bad_sha)
+    with pytest.raises(RescueAborted, match="allowlist_sha256"):
+        execute_plan(
+            corrupted,
+            run_command=Recorder(),
+            completion_facts=FactProbe(),
+            rescue_run_id=RUN_ID,
+            executed_at=EXECUTED_AT,
+            repository_head=_repo_head(),
+        )
+
+
+def test_a_missing_allowlist_path_is_refused(env) -> None:
+    plan, _ = _two_window_plan(env)
+    corrupted = dataclasses.replace(plan, allowlist_path=None)
+    with pytest.raises(RescueAborted, match="allowlist_path"):
+        execute_plan(
+            corrupted,
+            run_command=Recorder(),
+            completion_facts=FactProbe(),
+            rescue_run_id=RUN_ID,
+            executed_at=EXECUTED_AT,
+            repository_head=_repo_head(),
+        )
+
+
+def test_a_duplicated_selected_window_is_refused(env) -> None:
+    plan, _ = _two_window_plan(env)
+    corrupted = dataclasses.replace(plan, pending=plan.pending + (plan.pending[0],))
+    with pytest.raises(RescueAborted, match="duplicate selected window identity"):
+        execute_plan(
+            corrupted,
+            run_command=Recorder(),
+            completion_facts=FactProbe(),
+            rescue_run_id=RUN_ID,
+            executed_at=EXECUTED_AT,
+            repository_head=_repo_head(),
+        )
+
+
+@pytest.mark.parametrize(
+    "field", ["target_screen", "match_id", "run_id", "batch_dir", "promotion_key"]
+)
+def test_an_allowlist_entry_disagreeing_with_its_window_is_refused(env, field) -> None:
+    """Full-identity comparison, not a lookup by (video_sha256, segment_index):
+    an allowlist entry that still names the right window but disagrees with it
+    on any OTHER field must not authorise that window either."""
+    plan, _ = _two_window_plan(env)
+    assert plan.allowlist is not None
+    entry = plan.allowlist.entries[0]
+    overrides = {
+        "target_screen": "some_other_screen",
+        "match_id": entry.match_id + 1,
+        "run_id": entry.run_id + 1,
+        "batch_dir": entry.batch_dir + "-tampered",
+        "promotion_key": (entry.video_sha256, entry.batch_dir, entry.run_id + 1),
+    }
+    tampered_entry = dataclasses.replace(entry, **{field: overrides[field]})
+    tampered_allowlist = dataclasses.replace(
+        plan.allowlist, entries=(tampered_entry,) + plan.allowlist.entries[1:]
+    )
+    corrupted = dataclasses.replace(plan, allowlist=tampered_allowlist)
+
+    with pytest.raises(RescueAborted) as excinfo:
+        execute_plan(
+            corrupted,
+            run_command=Recorder(),
+            completion_facts=FactProbe(),
+            rescue_run_id=RUN_ID,
+            executed_at=EXECUTED_AT,
+            repository_head=_repo_head(),
+        )
+    message = str(excinfo.value)
+    assert "outside its allowlist" in message
+    assert "not present in the plan's selection" in message
+
+
+def test_valid_allowlisted_execute_plan_behaviour_is_unchanged(env) -> None:
+    """The control: an UNCORRUPTED, fully authorised plan still runs exactly as
+    it did before this guard existed."""
+    plan, windows = _two_window_plan(env)
+    recorder, receipts = Recorder(), []
+    # `plan` was already built (above) against an empty, plan-time-only probe,
+    # so the fresh probe given to `execute_plan` here only needs to answer its
+    # OWN (single) call per window with the completed facts directly -- unlike
+    # `run_rescue`, which threads one `FactProbe.completing(...)` through both
+    # calls itself.
+    report = execute_plan(
         plan,
-        run_command=Recorder(),
+        run_command=recorder,
+        completion_facts=FactProbe([_complete_fact(w) for w in windows]),
+        rescue_run_id=RUN_ID,
+        executed_at=EXECUTED_AT,
+        repository_head=_repo_head(),
+        receipt_sink=receipts.append,
+    )
+    assert report.ok
+    assert len(report.promoted) == 2
+    assert [c[0] for c in recorder.calls] == ["ffmpeg", "pnpm", "ffmpeg", "pnpm"]
+    assert len(receipts) == 2
+
+
+# ─── Repository-HEAD TOCTOU (mutation-time recheck) ─────────────────────────
+#
+# `plan_rescue` already checks the allowlist's `repository_head` binding once,
+# but HEAD can change between planning and execution -- a checkout, a rebase,
+# another operator's commit. These are the checks AT `execute_plan`,
+# independent of -- and never re-reading -- the allowlist file `plan_rescue`
+# already consumed; the comparison is always against `plan.allowlist`'s
+# already-bound value.
+
+
+def test_head_changing_between_plan_and_execute_is_refused(env) -> None:
+    allow = _write_allowlist(
+        _allowlist_doc(env["window"], manifest_sha256=_manifest_sha(env["manifest"])), env["tmp"]
+    )
+    plan = plan_rescue(
+        manifest_path=env["manifest"],
+        completion_facts=FactProbe(),
+        allowlist_path=allow,
+        repository_head=_repo_head(REPO_HEAD),
+    )
+    recorder, made, receipts = Recorder(), [], []
+    probe = FactProbe.completing(env["window"])
+
+    with pytest.raises(RescueAborted, match="repository HEAD changed"):
+        execute_plan(
+            plan,
+            run_command=recorder,
+            completion_facts=probe,
+            rescue_run_id=RUN_ID,
+            executed_at=EXECUTED_AT,
+            repository_head=_repo_head(OTHER_REPO_HEAD),  # HEAD moved after planning
+            receipt_sink=receipts.append,
+            make_batch_dir=made.append,
+        )
+
+    assert recorder.calls == [] and made == [] and receipts == []
+    assert probe.calls == 0  # the completion probe is never reached either
+
+
+def test_execute_plan_fails_closed_with_no_repository_head_probe(env) -> None:
+    allow = _write_allowlist(
+        _allowlist_doc(env["window"], manifest_sha256=_manifest_sha(env["manifest"])), env["tmp"]
+    )
+    plan = plan_rescue(
+        manifest_path=env["manifest"],
+        completion_facts=FactProbe(),
+        allowlist_path=allow,
+        repository_head=_repo_head(),
+    )
+    recorder, receipts = Recorder(), []
+
+    with pytest.raises(RescueAborted, match="no repository-HEAD probe"):
+        execute_plan(
+            plan,
+            run_command=recorder,
+            completion_facts=FactProbe(),
+            rescue_run_id=RUN_ID,
+            executed_at=EXECUTED_AT,
+            # repository_head omitted entirely -- must fail closed, not default
+            # to trusting the plan-time binding.
+            receipt_sink=receipts.append,
+        )
+    assert recorder.calls == [] and receipts == []
+
+
+def test_a_repository_head_probe_exception_fails_closed(env) -> None:
+    allow = _write_allowlist(
+        _allowlist_doc(env["window"], manifest_sha256=_manifest_sha(env["manifest"])), env["tmp"]
+    )
+    plan = plan_rescue(
+        manifest_path=env["manifest"],
+        completion_facts=FactProbe(),
+        allowlist_path=allow,
+        repository_head=_repo_head(),
+    )
+
+    def _boom() -> str:
+        raise RuntimeError("git binary not found")
+
+    recorder = Recorder()
+    with pytest.raises(RescueAborted, match="probe failed"):
+        execute_plan(
+            plan,
+            run_command=recorder,
+            completion_facts=FactProbe(),
+            rescue_run_id=RUN_ID,
+            executed_at=EXECUTED_AT,
+            repository_head=_boom,
+        )
+    assert recorder.calls == []
+
+
+def test_a_stable_matching_head_proceeds(env) -> None:
+    """The positive case: the same probe value at plan time and at execution
+    time authorises the run exactly as before."""
+    allow = _write_allowlist(
+        _allowlist_doc(env["window"], manifest_sha256=_manifest_sha(env["manifest"])), env["tmp"]
+    )
+    plan = plan_rescue(
+        manifest_path=env["manifest"],
+        completion_facts=FactProbe(),
+        allowlist_path=allow,
+        repository_head=_repo_head(),
+    )
+    recorder = Recorder()
+    report = execute_plan(
+        plan,
+        run_command=recorder,
         completion_facts=FactProbe([_complete_fact(env["window"])]),
         rescue_run_id=RUN_ID,
         executed_at=EXECUTED_AT,
-        receipt_sink=receipts.append,
+        repository_head=_repo_head(),
     )
+    assert report.ok
+    assert [c[0] for c in recorder.calls] == ["ffmpeg", "pnpm"]
 
-    receipt = receipts[0]
-    assert receipt["allowlist_sha256"] is None
-    assert receipt["allowlist_schema_version"] is None
-    assert receipt["allowlist_manifest_sha256"] is None
-    assert receipt["allowlist_repository_head"] is None
+
+# ─── Receipt provenance is fail-closed too ──────────────────────────────────
+#
+# This package has no receipt READER -- nothing parses `rescue-receipts.jsonl`
+# back in, anywhere in this tree (see `scripts/execute_rescue_manifest.py`,
+# which only appends). So the historical-compatibility story for the four
+# allowlist fields is exactly what the `build_receipt` docstring says: they are
+# additive, and an old row simply predates them -- there is no reader whose
+# behaviour on an old row needs a test. What DOES need a test is that no new
+# code path can produce a fresh receipt without them.
+
+
+def test_build_receipt_rejects_a_plan_with_no_allowlist(env) -> None:
+    plan = plan_rescue(manifest_path=env["manifest"], completion_facts=FactProbe())
+    outcome = WindowOutcome(window=env["window"], status=OUTCOME_PROMOTED, verified=True)
+    with pytest.raises(RescueAborted, match="allowlist"):
+        build_receipt(plan, outcome, rescue_run_id=RUN_ID, executed_at=EXECUTED_AT)
+
+
+def test_a_successful_mocked_execution_always_records_non_null_allowlist_provenance(
+    env,
+) -> None:
+    allow = _write_allowlist(
+        _allowlist_doc(env["window"], manifest_sha256=_manifest_sha(env["manifest"])), env["tmp"]
+    )
+    receipts: list[dict] = []
+    code = run_rescue(
+        manifest_path=env["manifest"],
+        execute=True,
+        completion_facts=FactProbe.completing(env["window"]),
+        run_command=Recorder(),
+        rescue_run_id=RUN_ID,
+        executed_at=EXECUTED_AT,
+        allowlist_path=allow,
+        repository_head=_repo_head(),
+        receipt_sink=receipts.append,
+        out=lambda _: None,
+    )
+    assert code == 0
+    assert len(receipts) == 1
+    for field in (
+        "allowlist_sha256",
+        "allowlist_schema_version",
+        "allowlist_manifest_sha256",
+        "allowlist_repository_head",
+    ):
+        assert receipts[0][field] is not None
 
 
 # ─── TOCTOU resistance ──────────────────────────────────────────────────────
@@ -2862,6 +3319,7 @@ def test_the_allowlist_file_is_never_reread_after_planning(env) -> None:
         completion_facts=FactProbe([_complete_fact(env["window"])]),
         rescue_run_id=RUN_ID,
         executed_at=EXECUTED_AT,
+        repository_head=_repo_head(),
     )
     assert report.ok
     assert [c[0] for c in recorder.calls] == ["ffmpeg", "pnpm"]
@@ -2893,6 +3351,7 @@ def test_the_receipts_allowlist_hash_reflects_the_bytes_read_at_plan_time_not_a_
         completion_facts=FactProbe.completing(env["window"]),
         rescue_run_id=RUN_ID,
         executed_at=EXECUTED_AT,
+        repository_head=_repo_head(),
         receipt_sink=receipts.append,
     )
     assert receipts[0]["allowlist_sha256"] == hashlib.sha256(original_bytes).hexdigest()
