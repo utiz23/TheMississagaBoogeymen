@@ -22,6 +22,12 @@ export type EnrichmentSource = 'ea' | 'ocr' | 'manual'
  * period_label: display string as captured ('1st', '2nd', '3rd', 'OT', 'OT2').
  * All stat columns are nullable — OCR may capture only one tab at a time.
  * Multiple sources for the same period are intentional (EA totals-only vs OCR per-period).
+ *
+ * REVIEW GATING IS PER STAT FAMILY (migration 0056). Because the three tabs are
+ * captured independently and only goals can be auto-graded against EA data, each
+ * family carries its own status: `goalsReviewStatus`, `shotsReviewStatus`,
+ * `faceoffsReviewStatus`. `getMatchPeriodSummaries` masks each family's pair of
+ * columns to NULL unless that family is `'reviewed'`.
  */
 export const matchPeriodSummaries = pgTable(
   'match_period_summaries',
@@ -42,7 +48,39 @@ export const matchPeriodSummaries = pgTable(
     ocrExtractionId: bigint('ocr_extraction_id', { mode: 'number' }).references(
       () => ocrExtractions.id,
     ),
+    /**
+     * TRANSITIONAL legacy row-level review state (migration 0029).
+     *
+     * Retained for compatibility during the staged migration — existing writers
+     * still set it — but it is NO LONGER SUFFICIENT AUTHORIZATION to expose any
+     * stat family. Read-boundary authorization comes exclusively from the three
+     * family columns below. Do not reintroduce this into a read predicate.
+     */
     reviewStatus: text('review_status')
+      .notNull()
+      .$type<OcrReviewStatus>()
+      .default('pending_review'),
+    /**
+     * Review state of this row's `goalsFor` / `goalsAgainst` only. The one family
+     * EA data can auto-grade (per-period goal breakdown via `reconcilePeriods`).
+     */
+    goalsReviewStatus: text('goals_review_status')
+      .notNull()
+      .$type<OcrReviewStatus>()
+      .default('pending_review'),
+    /**
+     * Review state of this row's `shotsFor` / `shotsAgainst` only.
+     * Auto-unverifiable — EA publishes no per-period shot breakdown.
+     */
+    shotsReviewStatus: text('shots_review_status')
+      .notNull()
+      .$type<OcrReviewStatus>()
+      .default('pending_review'),
+    /**
+     * Review state of this row's `faceoffsFor` / `faceoffsAgainst` only.
+     * Auto-unverifiable — EA publishes no per-period faceoff breakdown.
+     */
+    faceoffsReviewStatus: text('faceoffs_review_status')
       .notNull()
       .$type<OcrReviewStatus>()
       .default('pending_review'),

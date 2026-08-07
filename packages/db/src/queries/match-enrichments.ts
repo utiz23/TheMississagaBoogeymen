@@ -1,4 +1,5 @@
-import { and, asc, eq, or } from 'drizzle-orm'
+import { and, asc, eq, or, sql, type SQL } from 'drizzle-orm'
+import type { AnyPgColumn } from 'drizzle-orm/pg-core'
 import { db } from '../client.js'
 import {
   matchFaceoffDots,
@@ -8,28 +9,99 @@ import {
 } from '../schema/index.js'
 
 /**
- * Per-period goals/shots/faceoffs for a match.
+ * Project one stat column through its stat family's review gate.
  *
- * EA-source rows (`source = 'ea'`) always pass; OCR-source rows pass only when
- * `review_status = 'reviewed'`. Ordered by period_number ascending.
+ * Emits `CASE WHEN <row is EA> OR <family is reviewed> THEN <column> END`, so an
+ * unreviewed family reads as SQL NULL. Masking happens in the database, inside
+ * the same projection that reads the value — the unsafe raw value never leaves
+ * Postgres, so there is no window in which application code holds it.
+ *
+ * `CASE` with no `ELSE` yields NULL, which is what an unreviewed family must
+ * look like. A *reviewed* family's genuine `0` passes through untouched: the
+ * gate is on the family status, never on the value, so zero is never confused
+ * with "not authorized".
+ *
+ * `.mapWith(column)` reuses the column's own driver decoder, and drizzle skips
+ * decoding for NULL — so the masked result is `null`, not `NaN`/`0`.
+ *
+ * The cast widens `mapWith`'s inferred type: it reports the column's data type,
+ * but a gated `CASE` can also yield NULL, which is precisely the masked reading.
+ */
+function familyGated(column: AnyPgColumn, familyStatus: AnyPgColumn): SQL<number | null> {
+  return sql`CASE WHEN ${matchPeriodSummaries.source} = 'ea' OR ${familyStatus} = 'reviewed' THEN ${column} END`.mapWith(
+    column,
+  ) as SQL<number | null>
+}
+
+/**
+ * Per-period goals/shots/faceoffs for a match, gated PER STAT FAMILY.
+ *
+ * The three families in a row (goals, shots, faceoffs) are captured from three
+ * separate Box Score tabs and reviewed independently, so they are authorized
+ * independently (migration 0056):
+ *
+ *   * `source = 'ea'` — EA is the truth source; returned unmasked, review state
+ *     is irrelevant to it.
+ *   * `source = 'ocr' | 'manual'` — each family is visible only when its own
+ *     `*_review_status` is `'reviewed'`. An unreviewed family's two columns come
+ *     back NULL. A row survives only if at least one family is reviewed; a row
+ *     with all three unreviewed is excluded entirely.
+ *
+ * The legacy row-level `review_status` is deliberately NOT part of the
+ * authorization predicate for the six stat columns — it is transitional
+ * metadata, returned for callers that still display it. `review_status =
+ * 'reviewed'` on a row whose family status is still `'pending_review'` exposes
+ * nothing. Reintroducing it here would restore the whole-row publication defect
+ * this gating exists to close.
+ *
+ * Ordered by period_number ascending.
  */
 export async function getMatchPeriodSummaries(matchId: number) {
   return db
-    .select()
+    .select({
+      id: matchPeriodSummaries.id,
+      matchId: matchPeriodSummaries.matchId,
+      periodNumber: matchPeriodSummaries.periodNumber,
+      periodLabel: matchPeriodSummaries.periodLabel,
+      goalsFor: familyGated(matchPeriodSummaries.goalsFor, matchPeriodSummaries.goalsReviewStatus),
+      goalsAgainst: familyGated(
+        matchPeriodSummaries.goalsAgainst,
+        matchPeriodSummaries.goalsReviewStatus,
+      ),
+      shotsFor: familyGated(matchPeriodSummaries.shotsFor, matchPeriodSummaries.shotsReviewStatus),
+      shotsAgainst: familyGated(
+        matchPeriodSummaries.shotsAgainst,
+        matchPeriodSummaries.shotsReviewStatus,
+      ),
+      faceoffsFor: familyGated(
+        matchPeriodSummaries.faceoffsFor,
+        matchPeriodSummaries.faceoffsReviewStatus,
+      ),
+      faceoffsAgainst: familyGated(
+        matchPeriodSummaries.faceoffsAgainst,
+        matchPeriodSummaries.faceoffsReviewStatus,
+      ),
+      source: matchPeriodSummaries.source,
+      ocrExtractionId: matchPeriodSummaries.ocrExtractionId,
+      /** Transitional legacy status — NOT an authorization signal. */
+      reviewStatus: matchPeriodSummaries.reviewStatus,
+      goalsReviewStatus: matchPeriodSummaries.goalsReviewStatus,
+      shotsReviewStatus: matchPeriodSummaries.shotsReviewStatus,
+      faceoffsReviewStatus: matchPeriodSummaries.faceoffsReviewStatus,
+      bgmAttackDirection: matchPeriodSummaries.bgmAttackDirection,
+    })
     .from(matchPeriodSummaries)
     .where(
       and(
         eq(matchPeriodSummaries.matchId, matchId),
+        // Row retention: EA always; otherwise at least one reviewed family.
+        // A row whose every family is unreviewed would be all-NULL stats and is
+        // dropped rather than returned as an empty shell.
         or(
           eq(matchPeriodSummaries.source, 'ea'),
-          and(
-            eq(matchPeriodSummaries.source, 'ocr'),
-            eq(matchPeriodSummaries.reviewStatus, 'reviewed'),
-          ),
-          and(
-            eq(matchPeriodSummaries.source, 'manual'),
-            eq(matchPeriodSummaries.reviewStatus, 'reviewed'),
-          ),
+          eq(matchPeriodSummaries.goalsReviewStatus, 'reviewed'),
+          eq(matchPeriodSummaries.shotsReviewStatus, 'reviewed'),
+          eq(matchPeriodSummaries.faceoffsReviewStatus, 'reviewed'),
         ),
       ),
     )
@@ -39,7 +111,10 @@ export async function getMatchPeriodSummaries(matchId: number) {
 /**
  * Shot-type breakdown for a match per (team_side, period_number).
  *
- * Same review-status gating as `getMatchPeriodSummaries`. Includes both per-period
+ * Still WHOLE-ROW gated on the legacy `review_status` — unlike
+ * `getMatchPeriodSummaries`, which is now per-stat-family. This table carries a
+ * single family (shot types), so one status covers the row; it does not have the
+ * mixed-family exposure defect migration 0056 closes. Includes both per-period
  * rows and the full-game aggregate (period_number = -1).
  */
 export async function getMatchShotTypeSummaries(matchId: number) {
@@ -66,8 +141,9 @@ export async function getMatchShotTypeSummaries(matchId: number) {
 }
 
 /**
- * Per-dot face-off outcomes for a match. Same review-status gating as the
- * other enrichment queries. Ordered by period_number, then dot_id.
+ * Per-dot face-off outcomes for a match. Single-family table, so still
+ * whole-row gated on the legacy `review_status` (see `getMatchShotTypeSummaries`).
+ * Ordered by period_number, then dot_id.
  */
 export async function getMatchFaceoffDots(matchId: number) {
   return db
@@ -88,7 +164,8 @@ export async function getMatchFaceoffDots(matchId: number) {
 
 /**
  * Per-period zone-split faceoff summaries (overall %, OZ wins/total, DZ
- * wins/total) per team_side. Same review-status gating.
+ * wins/total) per team_side. Single-family table, so still whole-row gated on
+ * the legacy `review_status` (see `getMatchShotTypeSummaries`).
  */
 export async function getMatchFaceoffZoneSummaries(matchId: number) {
   return db
@@ -116,8 +193,16 @@ export async function getMatchFaceoffZoneSummaries(matchId: number) {
 /**
  * Count this match's OCR per-period rows still awaiting review.
  *
- * Read-only companion to {@link markOcrPeriodSummariesReviewed} — lets a caller
- * report "N rows quarantined" without flipping anything.
+ * Read-only. Reports "N rows quarantined" without flipping anything.
+ *
+ * TRANSITIONAL LIMITATION: this still counts by the legacy row-level
+ * `review_status`, so it is a ROW count, not a family count. It says nothing
+ * about which of a row's goals/shots/faceoffs families remain unreviewed — a row
+ * with `review_status = 'reviewed'` but three pending families is not counted
+ * here even though nothing in it is publishable. Its number is therefore a lower
+ * bound on outstanding review work. A family-aware replacement lands with the
+ * family-scoped promotion API; until then, do not treat a zero from this
+ * function as "this match is fully reviewed".
  */
 export async function countPendingOcrPeriodSummaries(matchId: number): Promise<number> {
   const rows = await db
@@ -134,42 +219,42 @@ export async function countPendingOcrPeriodSummaries(matchId: number): Promise<n
 }
 
 /**
- * Flip this match's pending OCR per-period rows to `review_status = 'reviewed'`,
- * making them visible to {@link getMatchPeriodSummaries} (and so to the frontend).
+ * @deprecated DISABLED — always throws. Whole-row promotion is unsafe and has no
+ * replacement in this commit.
  *
- * ⚠️ INVARIANT — DO NOT CALL THIS ON A `PASS` VERDICT.
- * Per-period correctness is auto-unverifiable: EA publishes no per-period
- * breakdown, so `matches` carries no truth to grade a period read against.
- * `overall.pass` / `gateFromL4` grade the box-score FINAL only and say nothing
- * about the per-period rows — match 2675 is a correct PASS whose P3
- * goals-against reads 7 in a 5-goal game. Wiring "PASS ⇒ promote periods" turns
- * the `pending_review` quarantine into a silent-corruption pipe.
+ * This used to flip every pending OCR per-period row of a match to
+ * `review_status = 'reviewed'`, publishing the whole row at once. That is the
+ * defect migration 0056 exists to close: a `match_period_summaries` row packs
+ * three independently-captured stat families (goals, shots, faceoffs), and the
+ * only verdict that can authorize promotion — `reconcilePeriods()` — grades
+ * GOALS alone, because EA publishes no per-period shot or faceoff breakdown.
+ * Every historical call therefore published unvalidated shots, unvalidated
+ * faceoffs, partially-captured families and phantom OT periods alongside the
+ * goals it did validate. The live corpus already contains data published this
+ * way.
  *
- * The ONLY authorized callers are:
- *   (a) `reconcile-periods` CLI, gated on `reconcilePeriods().promotable` —
- *       i.e. `periodCoverage === 1 && periodAccuracy === 1`, the sole automatic
- *       self-consistency check EA data can support; or
- *   (b) manual operator review (`ingest-ocr-review`).
+ * It fails closed rather than being deleted so that existing callers (the
+ * `reconcile-periods` CLI) still compile while the staged migration proceeds,
+ * and so that any attempt to promote loudly reaches an operator instead of
+ * silently widening the corruption. It performs NO database work before
+ * throwing — a caller that ignores the error has still mutated nothing.
  *
- * See docs/calibration/l4-per-period-review-gating-2026-07-16.md.
+ * The replacement is a family-scoped, period-bounded promotion API landing with
+ * the worker/reconciliation slice: a goals-only verdict may set
+ * `goals_review_status` and nothing else. Until then, promotion is operator-only
+ * and out-of-band.
  *
- * @returns the number of rows promoted.
+ * @throws always.
  */
-export async function markOcrPeriodSummariesReviewed(matchId: number): Promise<number> {
-  const updated = await db
-    .update(matchPeriodSummaries)
-    // No `reviewed_at` column on this table (unlike ocr_extractions) — the
-    // promotion is recorded by the status flip alone.
-    .set({ reviewStatus: 'reviewed' })
-    .where(
-      and(
-        eq(matchPeriodSummaries.matchId, matchId),
-        eq(matchPeriodSummaries.source, 'ocr'),
-        eq(matchPeriodSummaries.reviewStatus, 'pending_review'),
-      ),
-    )
-    .returning({ id: matchPeriodSummaries.id })
-  return updated.length
+export async function markOcrPeriodSummariesReviewed(_matchId: number): Promise<number> {
+  throw new Error(
+    'markOcrPeriodSummariesReviewed is disabled: whole-row promotion of match_period_summaries ' +
+      'is unsafe. A row carries three independently-captured stat families (goals, shots, ' +
+      'faceoffs) and reconcilePeriods() can only grade goals, so flipping the row published ' +
+      'unvalidated shots/faceoffs, partial families and phantom OT periods. Per-family bounded ' +
+      'promotion is required; the family-scoped API lands with the worker/reconciliation slice. ' +
+      'No rows were modified.',
+  )
 }
 
 export type MatchPeriodSummaryRow = Awaited<ReturnType<typeof getMatchPeriodSummaries>>[number]
