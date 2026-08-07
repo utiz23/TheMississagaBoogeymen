@@ -108,6 +108,27 @@ async function cleanupSentinels(): Promise<void> {
   await pg`DELETE FROM matches WHERE id IN (${MATCH_MATRIX}, ${MATCH_LEGACY})`
 }
 
+/**
+ * Return the clone to a genuine PRE-0056 state.
+ *
+ * The suite shares one clone across test files, and more than one file now
+ * applies 0056 (`period-family-promotion.test.ts` sorts before this one). 0056
+ * is idempotent — it backfills a family only when the column is ABSENT — so if
+ * another file already added the columns, the legacy rows this file seeds
+ * afterwards would arrive with the DEFAULT `pending_review` and the backfill
+ * assertions below would be testing nothing. Dropping first makes this file
+ * self-contained and its results independent of execution order.
+ */
+async function dropFamilyColumns(): Promise<void> {
+  const { sql: pg } = await import('@eanhl/db')
+  await pg`
+    ALTER TABLE match_period_summaries
+      DROP COLUMN IF EXISTS goals_review_status,
+      DROP COLUMN IF EXISTS shots_review_status,
+      DROP COLUMN IF EXISTS faceoffs_review_status
+  `
+}
+
 async function seedSentinelMatches(): Promise<void> {
   const { sql: pg } = await import('@eanhl/db')
   for (const id of [MATCH_MATRIX, MATCH_LEGACY]) {
@@ -322,6 +343,9 @@ before(async () => {
   if (!hasDb) return
   assertCloneDb()
   await cleanupSentinels()
+  // Undo any 0056 an earlier test file applied to the shared clone, so this file
+  // always exercises the real pre-migration → migration transition.
+  await dropFamilyColumns()
   await seedSentinelMatches()
   // Legacy rows must exist BEFORE the migration so the backfill acts on them.
   await seedPreMigrationLegacyRows()

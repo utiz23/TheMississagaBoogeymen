@@ -124,10 +124,21 @@ export interface LayerScores {
     /** Task 4.G — TOT-row final accuracy (the hard gate signal); null when
      *  ungradable / no OCR final. See {@link gateFromL4}. */
     finalAccuracy: number | null
-    /** Task 4.G — per-period coverage (soft flag); < 1 marks an unread period. */
+    /** Bounded per-period goals coverage over the EA-TOI-derived expected
+     *  periods (soft flag); < 1 marks a missing or half-read expected period.
+     *  See {@link L4Result.periodCoverage} for why the denominator is not
+     *  `max(periodNumber)` of the OCR rows. */
     periodCoverage: number | null
-    /** Task 4.G — per-period-sum accuracy, graded only at full coverage (soft). */
+    /** Bounded per-period goals sum vs the EA final, graded only at full
+     *  coverage (soft). EA publishes no per-period truth — this is a summed
+     *  consistency check. */
     periodAccuracy: number | null
+    /** Bounded per-period faceoff coverage over the same expected periods. */
+    faceoffCoverage: number | null
+    /** Bounded per-period faceoff sum vs EA whole-game faceoff wins. */
+    faceoffAccuracy: number | null
+    /** OCR periods above the EA-derived bound — never counted, never promoted. */
+    excludedPeriods: number[]
     /** true ⇒ the sum test is vacuous (one period carries the whole final);
      *  blocks auto-promotion unless `periodZerosForced` de-confounds it.
      *  See {@link L4Result.periodSumVacuous}. */
@@ -335,18 +346,29 @@ export async function computeLayers(
     finalAccuracy: l4result.finalAccuracy,
     periodCoverage: l4result.periodCoverage,
     periodAccuracy: l4result.periodAccuracy,
+    faceoffCoverage: l4result.faceoffCoverage,
+    faceoffAccuracy: l4result.faceoffAccuracy,
+    excludedPeriods: l4result.excludedPeriods,
     periodSumVacuous: l4result.periodSumVacuous,
     periodsPlayed: l4result.periodsPlayed,
     periodZerosForced: l4result.periodZerosForced,
     // Flag-not-gate: `flag` raises a review task on an otherwise-passing match;
-    // `promotable` is the sole automatic authorization to mark period rows
-    // `reviewed`. Neither can change `overallPass` or the gate decision.
+    // `families.<f>.promotable` is the sole automatic authorization to mark that
+    // family's period columns `reviewed`. Neither can change `overallPass` or the
+    // gate decision. The period bound comes from EA TOI, so a match whose TOI is
+    // unavailable authorizes nothing at all.
     periodReconciliation: reconcilePeriods({
       pass: l4Gate.decision === 'PASS',
+      periodsPlayed: l4result.periodsPlayed,
       periodCoverage: l4result.periodCoverage,
       periodAccuracy: l4result.periodAccuracy,
       periodSumVacuous: l4result.periodSumVacuous,
       periodZerosForced: l4result.periodZerosForced,
+      scoringPeriodsBeyondBound: l4result.scoringPeriodsBeyondBound,
+      faceoffCoverage: l4result.faceoffCoverage,
+      faceoffAccuracy: l4result.faceoffAccuracy,
+      faceoffPeriodsContested: l4result.faceoffPeriodsContested,
+      faceoffTruthPresent: l4result.faceoffTruthPresent,
     }),
   }
 

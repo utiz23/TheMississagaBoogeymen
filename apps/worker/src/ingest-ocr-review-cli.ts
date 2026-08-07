@@ -43,6 +43,7 @@ import { readFileSync } from 'node:fs'
 import {
   formatCascadeCounts,
   setExtractionStatus,
+  PERIOD_SUMMARY_PROVENANCE_GAP,
   type CascadeCounts,
 } from './lib/review-cascade.js'
 
@@ -133,6 +134,13 @@ async function showStatus(): Promise<void> {
 
 function logCascade(prefix: string, counts: CascadeCounts): void {
   console.log(`[review] ${prefix}: ${formatCascadeCounts(counts)}`)
+  if (counts.periodSummariesSkipped > 0) {
+    // Silence here would read as "the per-period rows were published too".
+    console.log(
+      `[review] ⚠ ${String(counts.periodSummariesSkipped)} match_period_summaries row(s) were ` +
+        `NOT changed. ${PERIOD_SUMMARY_PROVENANCE_GAP}`,
+    )
+  }
 }
 
 async function main(): Promise<void> {

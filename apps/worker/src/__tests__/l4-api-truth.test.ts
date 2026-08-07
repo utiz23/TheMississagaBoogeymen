@@ -154,16 +154,18 @@ void test('4.G (a) clean final + complete coverage → PASS, periodAccuracy grad
     apiPlayers: [],
     resolvePersona: async () => ({ playerId: null }),
     ocrFinal: { goalsFor: 5, goalsAgainst: 1 },
+    maxToiSeconds: 3600, // full regulation ⇒ the expected periods are 1-3
     ocrPeriods: [
       { periodNumber: 1, goalsFor: 5, goalsAgainst: 1 },
       { periodNumber: 2, goalsFor: 0, goalsAgainst: 0 },
       { periodNumber: 3, goalsFor: 0, goalsAgainst: 0 },
-      { periodNumber: 4, goalsFor: 0, goalsAgainst: 0 },
+      { periodNumber: 4, goalsFor: 0, goalsAgainst: 0 }, // phantom — excluded
     ],
   })
   assert.equal(r.finalAccuracy, 1)
   assert.equal(r.periodCoverage, 1)
   assert.equal(r.periodAccuracy, 1)
+  assert.deepEqual(r.excludedPeriods, [4])
   assert.equal(gateFromL4(r).decision, 'PASS')
 })
 
@@ -175,6 +177,7 @@ void test('4.G (b) correct final + missing period → PASS, coverage<1, periodAc
     apiPlayers: [],
     resolvePersona: async () => ({ playerId: null }),
     ocrFinal: { goalsFor: 7, goalsAgainst: 3 },
+    maxToiSeconds: 3600,
     ocrPeriods: [
       { periodNumber: 1, goalsFor: 1, goalsAgainst: 1 },
       { periodNumber: 2, goalsFor: null, goalsAgainst: null }, // unread period
@@ -183,7 +186,10 @@ void test('4.G (b) correct final + missing period → PASS, coverage<1, periodAc
     ],
   })
   assert.equal(r.finalAccuracy, 1) // TOT final 7-3 == API 7-3
-  assert.equal(r.periodCoverage, 0.75) // 3 of 4 periods have goals
+  // 2 of the 3 EXPECTED periods carry goals. The phantom P4 neither raises the
+  // numerator nor pads the denominator — under the old OCR-derived bound this
+  // same read scored 0.75.
+  assert.equal(r.periodCoverage, 2 / 3)
   assert.equal(r.periodAccuracy, null) // NOT graded — coverage incomplete
   assert.equal(gateFromL4(r).decision, 'PASS') // the whole point: no false-reject
 })
@@ -223,14 +229,18 @@ void test('4.G (d) api-missed (no API truth) → finalAccuracy null, OPERATOR_CO
     apiPlayers: [],
     resolvePersona: async () => ({ playerId: null }),
     ocrFinal: { goalsFor: 5, goalsAgainst: 1 },
+    maxToiSeconds: 3600,
     ocrPeriods: [
       { periodNumber: 1, goalsFor: 5, goalsAgainst: 1 },
       { periodNumber: 2, goalsFor: 0, goalsAgainst: 0 },
+      { periodNumber: 3, goalsFor: 0, goalsAgainst: 0 },
     ],
   })
   assert.equal(r.gradable, false)
   assert.equal(r.finalAccuracy, null)
-  assert.equal(r.periodCoverage, 1) // coverage computable without API
+  // Coverage needs the EA TOI bound but not the EA final, so it is still
+  // computable on an api-missed match.
+  assert.equal(r.periodCoverage, 1)
   assert.equal(r.periodAccuracy, null) // no API final to grade against
   assert.equal(gateFromL4(r).decision, 'OPERATOR_CONFIRM')
 })
@@ -284,7 +294,7 @@ void test('gateFromL4 maps each finalAccuracy/gradable combination', () => {
 // correct final — it just also raises a task and never auto-promotes.
 
 void test('reconcilePeriods: complete + summing → reconciled, promotable, no task', () => {
-  const r = reconcilePeriods({ pass: true, periodCoverage: 1, periodAccuracy: 1 })
+  const r = reconcilePeriods({ pass: true, periodsPlayed: 3, periodCoverage: 1, periodAccuracy: 1 })
   assert.equal(r.status, 'reconciled')
   assert.equal(r.promotable, true)
   assert.equal(r.flag, false)
@@ -293,7 +303,12 @@ void test('reconcilePeriods: complete + summing → reconciled, promotable, no t
 void test('reconcilePeriods: match 2675 (PASS, coverage 0.75) fires the task, never promotes', () => {
   // The trigger case: overall.pass=PASS on a correct final (2-5 == API truth),
   // but P2 goals-against unread and P3 read 7 in a 5-goal game.
-  const r = reconcilePeriods({ pass: true, periodCoverage: 0.75, periodAccuracy: null })
+  const r = reconcilePeriods({
+    pass: true,
+    periodsPlayed: 4,
+    periodCoverage: 0.75,
+    periodAccuracy: null,
+  })
   assert.equal(r.status, 'review')
   assert.equal(r.flag, true, '2675 must raise a period_reconciliation task')
   assert.equal(r.promotable, false, 'a PASS verdict must NEVER promote period rows')
@@ -301,7 +316,12 @@ void test('reconcilePeriods: match 2675 (PASS, coverage 0.75) fires the task, ne
 })
 
 void test('reconcilePeriods: complete coverage but sum disagrees → review, not promotable', () => {
-  const r = reconcilePeriods({ pass: true, periodCoverage: 1, periodAccuracy: 0.5 })
+  const r = reconcilePeriods({
+    pass: true,
+    periodsPlayed: 3,
+    periodCoverage: 1,
+    periodAccuracy: 0.5,
+  })
   assert.equal(r.status, 'review')
   assert.equal(r.flag, true)
   assert.equal(r.promotable, false)
@@ -314,6 +334,7 @@ void test('reconcilePeriods: single-scoring-period shape — vacuous sum blocks 
   // P1 produce identical rows, so promoting on the sum alone is unsound either way.
   const r = reconcilePeriods({
     pass: true,
+    periodsPlayed: 3,
     periodCoverage: 1,
     periodAccuracy: 1,
     periodSumVacuous: true,
@@ -334,6 +355,7 @@ void test('computeL4: flags the single-scoring-period shape as periodSumVacuous'
     ocrPlayers: [],
     apiPlayers: [],
     resolvePersona: async () => ({ playerId: null }),
+    maxToiSeconds: 3600,
     ocrPeriods: [
       { periodNumber: 1, goalsFor: 5, goalsAgainst: 1 },
       { periodNumber: 2, goalsFor: 0, goalsAgainst: 0 },
@@ -353,6 +375,8 @@ void test('computeL4: a genuinely distributed breakdown is NOT vacuous (match 25
     ocrPlayers: [],
     apiPlayers: [],
     resolvePersona: async () => ({ playerId: null }),
+    // Match 250 reached OT — max skater TOI 4643 s ⇒ four expected periods.
+    maxToiSeconds: 4643,
     ocrPeriods: [
       { periodNumber: 1, goalsFor: 0, goalsAgainst: 0 },
       { periodNumber: 2, goalsFor: 2, goalsAgainst: 0 },
@@ -364,6 +388,7 @@ void test('computeL4: a genuinely distributed breakdown is NOT vacuous (match 25
   assert.equal(r.periodSumVacuous, false)
   const recon = reconcilePeriods({
     pass: true,
+    periodsPlayed: r.periodsPlayed,
     periodCoverage: r.periodCoverage,
     periodAccuracy: r.periodAccuracy,
     periodSumVacuous: r.periodSumVacuous,
@@ -389,7 +414,12 @@ void test('reconcilePeriods: api-missed (coverage 1, no truth) is NOT promotable
 })
 
 void test('reconcilePeriods: non-passing match does not raise a second task', () => {
-  const r = reconcilePeriods({ pass: false, periodCoverage: 0.5, periodAccuracy: null })
+  const r = reconcilePeriods({
+    pass: false,
+    periodsPlayed: 3,
+    periodCoverage: 0.5,
+    periodAccuracy: null,
+  })
   assert.equal(r.status, 'review')
   assert.equal(r.flag, false, 'already in the queue on its own verdict')
   assert.equal(r.promotable, false)
@@ -403,6 +433,7 @@ void test('INVARIANT: no input combination promotes without full, non-vacuous re
           for (const periodZerosForced of [null, true, false]) {
             const r = reconcilePeriods({
               pass,
+              periodsPlayed: 3,
               periodCoverage,
               periodAccuracy,
               periodSumVacuous,
@@ -544,6 +575,7 @@ void test('computeL4: goals in a period TOI says was never played are not forced
 void test('reconcilePeriods: match 972 — vacuous but TOI-forced ⇒ promotable', () => {
   const r = reconcilePeriods({
     pass: true,
+    periodsPlayed: 1,
     periodCoverage: 1,
     periodAccuracy: 1,
     periodSumVacuous: true,
@@ -558,6 +590,7 @@ void test('reconcilePeriods: match 972 — vacuous but TOI-forced ⇒ promotable
 void test('reconcilePeriods: vacuous with unforced zeros stays blocked', () => {
   const r = reconcilePeriods({
     pass: true,
+    periodsPlayed: 3,
     periodCoverage: 1,
     periodAccuracy: 1,
     periodSumVacuous: true,
@@ -573,6 +606,7 @@ void test('reconcilePeriods: TOI-forced zeros do not rescue incomplete coverage'
   // signals — the de-confounder addresses vacuity only.
   const r = reconcilePeriods({
     pass: true,
+    periodsPlayed: 4,
     periodCoverage: 0.75,
     periodAccuracy: null,
     periodSumVacuous: null,

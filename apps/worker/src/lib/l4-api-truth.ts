@@ -19,6 +19,7 @@ import type {
   OcrPlayerLine,
   ApiPlayerLine,
   OcrBoxScorePeriod,
+  PeriodSummaryFamily,
 } from '@eanhl/db/queries'
 
 export interface L4FieldDiff {
@@ -49,12 +50,67 @@ export interface L4Result {
    * the per-period sum) never false-rejects a correctly-read final.
    */
   finalAccuracy: number | null
-  /** Fraction of expected per-period rows that carry goals. Soft flag; `null` when
-   *  no per-period rows exist. A value < 1 marks an unread period. */
+  /**
+   * The periods the game is EXPECTED to have — `[1..periodsPlayed]`, derived
+   * from EA player TOI, never from the OCR rows. `null` when TOI gives no
+   * trustworthy bound, which fails every bounded metric below closed.
+   */
+  expectedPeriods: number[] | null
+  /**
+   * OCR periods above the bound — phantom OT rows invented by frame
+   * segmentation. Excluded from coverage, from the sums, and from promotion.
+   * Empty when the bound is unknown (nothing is included either).
+   */
+  excludedPeriods: number[]
+  /**
+   * Periods above the bound that nonetheless carry goals. A row claiming a goal
+   * in a period TOI says never happened is a contradiction, so it blocks
+   * promotion outright rather than being quietly dropped from the sum.
+   */
+  scoringPeriodsBeyondBound: number[]
+  /**
+   * Fraction of EXPECTED periods whose goals were read on both sides. `null`
+   * when the period bound is unknown. A value < 1 marks a missing or half-read
+   * expected period.
+   *
+   * The denominator is `periodsPlayed`, NOT `max(periodNumber)` of the OCR rows:
+   * self-derived expectations let a phantom P4 both create and satisfy its own
+   * requirement, so a bad read could certify itself.
+   */
   periodCoverage: number | null
-  /** Summed-per-period goals vs API final — graded ONLY when coverage is complete
-   *  (else `null`, not `0`, which removes the missed-period confound). Soft flag. */
+  /**
+   * Summed per-period goals (bounded to the expected periods) vs the EA final —
+   * graded ONLY at complete coverage, else `null`, not `0`, which removes the
+   * missed-period confound.
+   *
+   * EA publishes NO per-period goal truth. This is a summed-consistency check
+   * against the whole-game final, which is why it needs complete coverage and
+   * the vacuity de-confounder below to mean anything.
+   */
   periodAccuracy: number | null
+  /** Fraction of EXPECTED periods whose faceoffs were read on BOTH sides. */
+  faceoffCoverage: number | null
+  /**
+   * Bounded per-period faceoff totals vs EA whole-game faceoff truth (summed
+   * per-player faceoff wins). Graded only at complete faceoff coverage and only
+   * when that truth exists. Like goals, EA publishes no per-period breakdown —
+   * this is a summed-consistency check.
+   */
+  faceoffAccuracy: number | null
+  /**
+   * true ⇒ every expected period records at least one faceoff across the two
+   * sides. Every period that starts opens with a centre-ice draw that someone
+   * wins, so an all-zero expected period is a misread (or a whole-game cell
+   * leaking into one row) and never a real period. `null` when there is nothing
+   * to evaluate (unknown bound or incomplete faceoff coverage).
+   */
+  faceoffPeriodsContested: boolean | null
+  /**
+   * true ⇒ EA has faceoff truth to compare against. `getMatchFaceoffTotals`
+   * COALESCEs absent player rows to 0, so a 0-0 truth is indistinguishable from
+   * "EA published no faceoff data" — an OCR 0-0 agreeing with it proves nothing.
+   */
+  faceoffTruthPresent: boolean
   /**
    * true ⇒ `periodAccuracy` is VACUOUS: a single period carries the entire final
    * and every other period is 0-0, so the per-period goals sum to the final *by
@@ -139,23 +195,61 @@ const TEAM_FIELD_MAP: ReadonlyArray<{
   { field: 'faceoffsAgainst', ocr: 'faceoffsAgainst', api: 'faceoffsAgainst' },
 ]
 
+/** Reads the two columns one stat family owns off a period row. */
+type PairReader = (p: OcrBoxScorePeriod) => [number | null, number | null]
+
+const GOALS_PAIR: PairReader = (p) => [p.goalsFor, p.goalsAgainst]
+/** `undefined` (caller supplied goals only) reads exactly like a null: unread. */
+const FACEOFFS_PAIR: PairReader = (p) => [p.faceoffsFor ?? null, p.faceoffsAgainst ?? null]
+
+/** `[1..periodsPlayed]`, or `null` when there is no trustworthy bound. */
+function expectedPeriodsFromPlayed(periodsPlayed: number | null): number[] | null {
+  if (periodsPlayed === null || periodsPlayed < 1) return null
+  return Array.from({ length: periodsPlayed }, (_, i) => i + 1)
+}
+
 /**
- * Task 4.G — coverage of the promoted per-period rows: how many of the periods
- * the game reached carry goals. Denominator is the highest period seen (so a
- * fully-absent middle period counts against coverage, not just a null-valued
- * one); numerator counts rows with BOTH goals present. `null` when no rows.
+ * Coverage of one stat family over the EXPECTED periods.
+ *
+ * Denominator: the EA-derived expected set, so a fully-absent expected period
+ * counts against coverage and an extra OCR period cannot pad it. Numerator:
+ * expected periods whose pair is present on BOTH sides — a null side is an
+ * unread half, while a zero is a real reading and counts. `null` when there is
+ * no bound to measure against.
  */
-function computePeriodCoverage(periods: OcrBoxScorePeriod[]): number | null {
-  if (periods.length === 0) return null
-  const maxPeriod = Math.max(...periods.map((p) => p.periodNumber))
-  if (maxPeriod < 1) return null
+function boundedCoverage(
+  periods: OcrBoxScorePeriod[],
+  expectedPeriods: number[] | null,
+  pair: PairReader,
+): number | null {
+  if (expectedPeriods === null || expectedPeriods.length === 0) return null
   const byNumber = new Map(periods.map((p) => [p.periodNumber, p]))
   let covered = 0
-  for (let n = 1; n <= maxPeriod; n++) {
+  for (const n of expectedPeriods) {
     const row = byNumber.get(n)
-    if (row && row.goalsFor != null && row.goalsAgainst != null) covered++
+    if (!row) continue
+    const [forValue, againstValue] = pair(row)
+    if (forValue !== null && againstValue !== null) covered++
   }
-  return covered / maxPeriod
+  return covered / expectedPeriods.length
+}
+
+/** Sum of one family's pair over the expected periods only. */
+function boundedPairSum(
+  periods: OcrBoxScorePeriod[],
+  expectedPeriods: number[],
+  pair: PairReader,
+): [number, number] {
+  const inBound = new Set(expectedPeriods)
+  let sumFor = 0
+  let sumAgainst = 0
+  for (const p of periods) {
+    if (!inBound.has(p.periodNumber)) continue
+    const [forValue, againstValue] = pair(p)
+    sumFor += forValue ?? 0
+    sumAgainst += againstValue ?? 0
+  }
+  return [sumFor, sumAgainst]
 }
 
 /** A regulation period in seconds. EASHL periods are 20:00; OT is shorter, but
@@ -266,16 +360,36 @@ export function gateFromL4(r: Pick<L4Result, 'finalAccuracy' | 'gradable'>): L4G
 
 export type PeriodReconciliationStatus = 'reconciled' | 'review' | 'not_applicable'
 
+/**
+ * The promotion verdict for ONE stat family. Each family is captured on its own
+ * Box Score tab and reviewed independently (migration 0056), so each needs its
+ * own authorization — a goals verdict says nothing about faceoffs, and neither
+ * says anything about shots.
+ */
+export interface FamilyPromotionVerdict {
+  family: PeriodSummaryFamily
+  /** true ⇒ this family's `*_review_status` MAY be set for `authorizedPeriods`. */
+  promotable: boolean
+  /**
+   * Exactly the periods this verdict covers — the EA-derived expected set, never
+   * anything read beyond it. Empty whenever `promotable` is false.
+   */
+  authorizedPeriods: number[]
+  coverage: number | null
+  accuracy: number | null
+  reason: string
+}
+
 export interface PeriodReconciliation {
   /**
-   * Reconciliation verdict over the per-period rows ALONE (independent of the
-   * match's pass/fail):
-   *   - `reconciled`     — every period read AND the per-period goals sum to the
-   *                        API-verified final. The only state that permits
-   *                        automatic promotion.
+   * GOALS reconciliation verdict over the per-period rows ALONE (independent of
+   * the match's pass/fail):
+   *   - `reconciled`     — every expected period read AND the bounded per-period
+   *                        goals sum to the EA final. The only state that permits
+   *                        automatic goals promotion.
    *   - `review`         — rows exist but are incomplete or don't sum. Needs a human.
-   *   - `not_applicable` — nothing to reconcile (no rows) or nothing to
-   *                        reconcile AGAINST (no API truth ⇒ periodAccuracy null).
+   *   - `not_applicable` — nothing to reconcile (no rows / no period bound) or
+   *                        nothing to reconcile AGAINST (no API truth).
    */
   status: PeriodReconciliationStatus
   /**
@@ -287,21 +401,209 @@ export interface PeriodReconciliation {
    */
   flag: boolean
   /**
-   * true ⇒ this match's per-period rows MAY be flipped to
-   * `review_status = 'reviewed'` (⇒ eligible for the frontend).
+   * LEGACY ALIAS FOR THE GOALS VERDICT — identical to `families.goals.promotable`.
    *
-   * THE INVARIANT: this is the ONLY automatic path to `reviewed`. It requires
-   * `periodCoverage === 1 && periodAccuracy === 1` — i.e. self-consistency
-   * against the API-verified final, the sole automatic check EA data can
-   * support (EA publishes no per-period breakdown). `overall.pass` and
-   * `gateFromL4` grade the FINAL only and say nothing about per-period
-   * correctness — they must never be used as a proxy for it. Wiring
-   * "PASS ⇒ promote periods" would turn the pending_review quarantine into a
-   * silent-corruption pipe.
+   * It authorizes GOALS ONLY. It is not, and has never been, authorization for
+   * shots or faceoffs: reading it as a whole-row verdict is the defect migration
+   * 0056 and the family-scoped promotion API exist to close. Prefer `families`;
+   * this field survives only so existing readers keep their exact meaning.
    */
   promotable: boolean
   reason: string
+  /** The EA-TOI-derived period bound the verdicts are computed against. */
+  periodsPlayed: number | null
+  /** Explicit per-family authorization. The only safe thing to promote from. */
+  families: {
+    goals: FamilyPromotionVerdict
+    shots: FamilyPromotionVerdict
+    faceoffs: FamilyPromotionVerdict
+  }
 }
+
+export interface PeriodReconciliationInput {
+  /**
+   * The ROUTING verdict — `gateFromL4(...).decision === 'PASS'`. Gates `flag`
+   * only; never any family's `promotable`.
+   */
+  pass: boolean
+  /** EA-TOI-derived period bound. Absent/null ⇒ every family fails closed. */
+  periodsPlayed?: number | null
+  periodCoverage: number | null
+  periodAccuracy: number | null
+  periodSumVacuous?: boolean | null
+  periodZerosForced?: boolean | null
+  /** Periods above the bound that carry goals — a TOI contradiction. */
+  scoringPeriodsBeyondBound?: number[]
+  faceoffCoverage?: number | null
+  faceoffAccuracy?: number | null
+  faceoffPeriodsContested?: boolean | null
+  faceoffTruthPresent?: boolean
+}
+
+const NO_BOUND_REASON =
+  'no trustworthy period bound — EA player TOI does not say how many periods the ' +
+  'game reached, so which periods are EXPECTED is unknown; failing closed'
+
+/** GOALS — the only family EA data can grade via a summed-consistency check. */
+function goalsVerdict(input: PeriodReconciliationInput): {
+  status: PeriodReconciliationStatus
+  promotable: boolean
+  reason: string
+} {
+  const periodsPlayed = input.periodsPlayed ?? null
+  const { periodCoverage, periodAccuracy } = input
+  const periodSumVacuous = input.periodSumVacuous ?? null
+  const periodZerosForced = input.periodZerosForced ?? null
+  const scoringBeyond = input.scoringPeriodsBeyondBound ?? []
+
+  if (periodsPlayed === null || periodsPlayed < 1) {
+    return { status: 'not_applicable', promotable: false, reason: NO_BOUND_REASON }
+  }
+  if (periodCoverage === null) {
+    return {
+      status: 'not_applicable',
+      promotable: false,
+      reason: 'no promoted per-period rows — nothing to reconcile',
+    }
+  }
+  if (periodCoverage < 1) {
+    return {
+      status: 'review',
+      promotable: false,
+      reason: `periodCoverage=${String(periodCoverage)} (an expected period's goals were not read)`,
+    }
+  }
+  if (periodAccuracy === null) {
+    // Ungradable (api-missed): coverage is a property of the OCR reads alone, but
+    // there is no final to sum against. An unverifiable read stays quarantined.
+    return {
+      status: 'not_applicable',
+      promotable: false,
+      reason: 'all expected periods read but no API truth to reconcile against (ungradable)',
+    }
+  }
+  if (periodAccuracy !== 1) {
+    return {
+      status: 'review',
+      promotable: false,
+      reason: `periodAccuracy=${String(periodAccuracy)} (per-period goals do not sum to the API final)`,
+    }
+  }
+  if (scoringBeyond.length > 0) {
+    return {
+      status: 'review',
+      promotable: false,
+      reason:
+        `period(s) ${scoringBeyond.join(',')} carry goals but lie beyond the ${String(periodsPlayed)}-` +
+        'period bound EA TOI proves the game reached — the bounded sum reconciles only because ' +
+        'those goals were excluded, so the breakdown contradicts itself and needs a human',
+    }
+  }
+  if (periodSumVacuous === true && periodZerosForced !== true) {
+    // A vacuous sum is NOT reconciliation. One period holding the entire final
+    // sums correctly by construction whether the breakdown is a whole-game cell
+    // leak or an early-ended game, so this routes to review, not promotion.
+    return {
+      status: 'review',
+      promotable: false,
+      reason:
+        'per-period sum matches the API final VACUOUSLY — one period carries the ' +
+        'entire final and the rest are scoreless (a TOT-cell leak and an ' +
+        'early-ended game look identical here); the sum test proves nothing, so a ' +
+        'human must confirm the breakdown',
+    }
+  }
+  if (periodSumVacuous === true) {
+    // Vacuous SHAPE, de-confounded by TOI: the scoreless rows are for periods the
+    // game never reached, so 0-0 is the only value they could hold. Match 972.
+    return {
+      status: 'reconciled',
+      promotable: true,
+      reason:
+        'per-period sum matches the API final and TOI proves the scoreless ' +
+        'periods were never played, so their 0-0 is forced — the shape is ' +
+        'vacuous but the read is not unverified (early-ended game)',
+    }
+  }
+  return {
+    status: 'reconciled',
+    promotable: true,
+    reason: 'all expected periods read and per-period goals sum to the API final',
+  }
+}
+
+/** FACEOFFS — graded to the same rigor as goals, against EA's whole-game wins. */
+function faceoffsVerdict(input: PeriodReconciliationInput): {
+  promotable: boolean
+  reason: string
+} {
+  const periodsPlayed = input.periodsPlayed ?? null
+  const coverage = input.faceoffCoverage ?? null
+  const accuracy = input.faceoffAccuracy ?? null
+  const contested = input.faceoffPeriodsContested ?? null
+  const truthPresent = input.faceoffTruthPresent ?? false
+
+  if (periodsPlayed === null || periodsPlayed < 1) {
+    return { promotable: false, reason: NO_BOUND_REASON }
+  }
+  if (coverage === null) {
+    return { promotable: false, reason: 'no per-period faceoff readings — nothing to reconcile' }
+  }
+  if (coverage < 1) {
+    return {
+      promotable: false,
+      reason: `faceoffCoverage=${String(coverage)} (an expected period is missing a faceoff side)`,
+    }
+  }
+  if (!truthPresent) {
+    return {
+      promotable: false,
+      reason:
+        'no EA faceoff truth — summed per-player faceoff wins are 0-0, which is ' +
+        'indistinguishable from EA publishing no faceoff data, so an OCR read agreeing ' +
+        'with it proves nothing',
+    }
+  }
+  if (accuracy === null) {
+    return { promotable: false, reason: 'faceoff totals are not gradable against EA truth' }
+  }
+  if (accuracy !== 1) {
+    return {
+      promotable: false,
+      reason:
+        `faceoffAccuracy=${String(accuracy)} — the bounded per-period faceoff totals do not ` +
+        'match EA truth exactly; a partial match is not reconciliation',
+    }
+  }
+  if (contested !== true) {
+    return {
+      promotable: false,
+      reason:
+        'an expected period records zero faceoffs on both sides — every period that starts ' +
+        'opens with a centre-ice draw somebody wins, so an all-zero played period is a ' +
+        'misread (or a whole-game cell leaking into one row), not a real reading',
+    }
+  }
+  return {
+    promotable: true,
+    reason:
+      'every expected period carries both faceoff sides and the bounded totals match EA ' +
+      'truth (summed per-player faceoff wins) exactly',
+  }
+}
+
+/**
+ * SHOTS — no automatic path exists, and this is not a temporary gap.
+ *
+ * EA publishes no per-period shot breakdown, and its whole-game `matches.shots_*`
+ * is not comparable truth either: the box-score per-period shot counts
+ * legitimately differ from it (match 250 reads 29 vs API 25). There is therefore
+ * nothing to reconcile against at any granularity.
+ */
+const SHOTS_REASON =
+  'shots have no automatic promotion path — EA publishes no per-period shot breakdown and ' +
+  'its whole-game totals are not comparable truth (box-score per-period shots legitimately ' +
+  'differ), so nothing can grade them; per-period shots are manual operator review only'
 
 /**
  * Pure `period_reconciliation` decision — the deferred half of the 2026-07-16
@@ -318,89 +620,61 @@ export interface PeriodReconciliation {
  *             the final: match 2675 is `overall.pass = FAIL` yet a gate PASS).
  *             Gates `flag` only — never `promotable`.
  */
-export function reconcilePeriods(input: {
-  pass: boolean
-  periodCoverage: number | null
-  periodAccuracy: number | null
-  periodSumVacuous?: boolean | null
-  periodZerosForced?: boolean | null
-}): PeriodReconciliation {
-  const { pass, periodCoverage, periodAccuracy } = input
-  const periodSumVacuous = input.periodSumVacuous ?? null
-  const periodZerosForced = input.periodZerosForced ?? null
+export function reconcilePeriods(input: PeriodReconciliationInput): PeriodReconciliation {
+  const periodsPlayed = input.periodsPlayed ?? null
+  const expectedPeriods = expectedPeriodsFromPlayed(periodsPlayed) ?? []
 
-  if (periodCoverage === null) {
-    return {
-      status: 'not_applicable',
-      flag: false,
-      promotable: false,
-      reason: 'no promoted per-period rows — nothing to reconcile',
-    }
-  }
+  const goals = goalsVerdict(input)
+  const faceoffs = faceoffsVerdict(input)
 
-  if (periodCoverage === 1 && periodAccuracy === null) {
-    // Ungradable (api-missed): coverage is a property of the OCR reads alone and
-    // is computed even without API truth, but there is no final to sum against.
-    // Not promotable — an unverifiable read must stay quarantined.
-    return {
-      status: 'not_applicable',
-      flag: false,
-      promotable: false,
-      reason: 'all periods read but no API truth to reconcile against (ungradable)',
-    }
-  }
+  // The review task fires on the GOALS verdict, unchanged: it is the signal the
+  // 2026-07-16 calibration decision defined, and `pass` (the routing verdict)
+  // suppresses a duplicate task on a match already queued on its own verdict.
+  const flag = goals.status === 'review' && input.pass
 
-  if (periodCoverage === 1 && periodAccuracy === 1) {
-    // A vacuous sum is NOT reconciliation — see `L4Result.periodSumVacuous`.
-    // One period holding the entire final sums correctly by construction whether
-    // the breakdown is a TOT-cell leak or an early-ended game, so this must route
-    // to review, not promote.
-    if (periodSumVacuous === true && periodZerosForced !== true) {
-      return {
-        status: 'review',
-        flag: pass,
-        promotable: false,
-        reason:
-          'per-period sum matches the API final VACUOUSLY — one period carries the ' +
-          'entire final and the rest are scoreless (a TOT-cell leak and an ' +
-          'early-ended game look identical here); the sum test proves nothing, so a ' +
-          'human must confirm the breakdown',
-      }
-    }
-    if (periodSumVacuous === true) {
-      // Vacuous SHAPE, but TOI de-confounds it: the scoreless rows are for
-      // periods the game never reached, so 0-0 is the only value they could
-      // hold and the sum agreeing is no longer "by construction". This is the
-      // match-972 case (one-period game, every skater at toi_seconds=1197).
-      return {
-        status: 'reconciled',
-        flag: false,
-        promotable: true,
-        reason:
-          'per-period sum matches the API final and TOI proves the scoreless ' +
-          'periods were never played, so their 0-0 is forced — the shape is ' +
-          'vacuous but the read is not unverified (early-ended game)',
-      }
-    }
-    return {
-      status: 'reconciled',
-      flag: false,
-      promotable: true,
-      reason: 'all periods read and per-period goals sum to the API final',
-    }
-  }
+  const verdict = (
+    family: PeriodSummaryFamily,
+    promotable: boolean,
+    coverage: number | null,
+    accuracy: number | null,
+    reason: string,
+  ): FamilyPromotionVerdict => ({
+    family,
+    promotable,
+    authorizedPeriods: promotable ? [...expectedPeriods] : [],
+    coverage,
+    accuracy,
+    reason,
+  })
 
-  const why =
-    periodCoverage < 1
-      ? `periodCoverage=${String(periodCoverage)} (a period's goals were not read)`
-      : `periodAccuracy=${String(periodAccuracy)} (per-period goals do not sum to the API final)`
   return {
-    status: 'review',
-    flag: pass,
-    promotable: false,
-    reason: pass
-      ? `PASS match with unreconciled per-period rows — ${why}`
-      : `unreconciled per-period rows — ${why} (match already under review on its own verdict)`,
+    status: goals.status,
+    flag,
+    promotable: goals.promotable,
+    reason:
+      goals.status === 'review' && input.pass
+        ? `PASS match with unreconciled per-period rows — ${goals.reason}`
+        : goals.status === 'review'
+          ? `unreconciled per-period rows — ${goals.reason} (match already under review on its own verdict)`
+          : goals.reason,
+    periodsPlayed,
+    families: {
+      goals: verdict(
+        'goals',
+        goals.promotable,
+        input.periodCoverage,
+        input.periodAccuracy,
+        goals.reason,
+      ),
+      shots: verdict('shots', false, null, null, SHOTS_REASON),
+      faceoffs: verdict(
+        'faceoffs',
+        faceoffs.promotable,
+        input.faceoffCoverage ?? null,
+        input.faceoffAccuracy ?? null,
+        faceoffs.reason,
+      ),
+    },
   }
 }
 
@@ -409,14 +683,57 @@ export async function computeL4(inputs: L4Inputs): Promise<L4Result> {
   const ocrFinal = inputs.ocrFinal ?? null
   const ocrPeriods = inputs.ocrPeriods ?? []
 
-  // EA-API truth about the game's real duration — the de-confounder for the
-  // vacuous-sum shape. Computed unconditionally (it is a property of the API
-  // side alone), so it reports even on ungradable rows.
+  // EA-API truth about the game's real duration. This is the INDEPENDENT period
+  // denominator: it comes from player TOI, never from the OCR rows, so a phantom
+  // OT row cannot create the expectation it then satisfies. Computed
+  // unconditionally (a property of the API side alone), so it reports even on
+  // ungradable rows.
   const periodsPlayed = periodsPlayedFromToi(inputs.maxToiSeconds)
+  const expectedPeriods = expectedPeriodsFromPlayed(periodsPlayed)
 
-  // Task 4.G — coverage is a property of the OCR reads alone, so it is computed
-  // even without API truth (informational on the scorecard for api-missed rows).
-  const periodCoverage = computePeriodCoverage(ocrPeriods)
+  // Everything above the bound is excluded from every metric below. When the
+  // bound is unknown nothing is excluded because nothing is included either —
+  // the metrics all read `null` and the caller fails closed.
+  const excludedPeriods =
+    periodsPlayed === null
+      ? []
+      : ocrPeriods
+          .filter((p) => p.periodNumber > periodsPlayed)
+          .map((p) => p.periodNumber)
+          .sort((a, b) => a - b)
+  const scoringPeriodsBeyondBound =
+    periodsPlayed === null
+      ? []
+      : ocrPeriods
+          .filter(
+            (p) =>
+              p.periodNumber > periodsPlayed &&
+              ((p.goalsFor ?? 0) !== 0 || (p.goalsAgainst ?? 0) !== 0),
+          )
+          .map((p) => p.periodNumber)
+          .sort((a, b) => a - b)
+
+  // Coverage is a property of the OCR reads plus the EA bound, so both families'
+  // coverage is computed even without API truth (informational on the scorecard
+  // for api-missed rows).
+  const periodCoverage = boundedCoverage(ocrPeriods, expectedPeriods, GOALS_PAIR)
+  const faceoffCoverage = boundedCoverage(ocrPeriods, expectedPeriods, FACEOFFS_PAIR)
+
+  // Every period that starts opens with a centre-ice draw, so a played period
+  // with 0-0 faceoffs is a misread. Only meaningful once both sides of every
+  // expected period were actually read.
+  let faceoffPeriodsContested: boolean | null = null
+  if (faceoffCoverage === 1 && expectedPeriods !== null) {
+    const byNumber = new Map(ocrPeriods.map((p) => [p.periodNumber, p]))
+    faceoffPeriodsContested = expectedPeriods.every((n) => {
+      const row = byNumber.get(n)
+      if (!row) return false
+      const [forValue, againstValue] = FACEOFFS_PAIR(row)
+      return (forValue ?? 0) + (againstValue ?? 0) >= 1
+    })
+  }
+
+  const faceoffTruthPresent = apiTeam !== null && apiTeam.faceoffsFor + apiTeam.faceoffsAgainst > 0
 
   // No API truth ⇒ ungradable. OCR is the sole source; there is nothing to
   // grade it against. (Milestone ④ treats this as "promote with a warning".)
@@ -430,8 +747,15 @@ export async function computeL4(inputs: L4Inputs): Promise<L4Result> {
       mismatches: [],
       notes: 'ungradable — OCR sole source (no API truth)',
       finalAccuracy: null,
+      expectedPeriods,
+      excludedPeriods,
+      scoringPeriodsBeyondBound,
       periodCoverage,
       periodAccuracy: null,
+      faceoffCoverage,
+      faceoffAccuracy: null,
+      faceoffPeriodsContested,
+      faceoffTruthPresent,
       periodSumVacuous: null,
       periodsPlayed,
       periodZerosForced: null,
@@ -500,34 +824,50 @@ export async function computeL4(inputs: L4Inputs): Promise<L4Result> {
       )
     : null
 
-  // periodAccuracy — the per-period sum graded ONLY when every period was read
-  // (coverage complete). Incomplete ⇒ null (not 0), so a missed period doesn't
-  // masquerade as a wrong read. Soft flag; never gates.
+  // periodAccuracy — the BOUNDED per-period sum, graded ONLY when every EXPECTED
+  // period was read. Incomplete ⇒ null (not 0), so a missed period doesn't
+  // masquerade as a wrong read. Soft flag; never gates the match.
   let periodAccuracy: number | null = null
-  let periodSumVacuous: boolean | null = null
-  let periodZerosForced: boolean | null = null
-  if (periodCoverage === 1) {
-    let sumFor = 0
-    let sumAgainst = 0
-    for (const p of ocrPeriods) {
-      sumFor += p.goalsFor ?? 0
-      sumAgainst += p.goalsAgainst ?? 0
-    }
+  if (periodCoverage === 1 && expectedPeriods !== null) {
+    const [sumFor, sumAgainst] = boundedPairSum(ocrPeriods, expectedPeriods, GOALS_PAIR)
     periodAccuracy = accuracyOfPair(sumFor, sumAgainst, apiTeam.scoreFor, apiTeam.scoreAgainst)
+  }
 
-    // Vacuity check — see `periodSumVacuous`. One period holding the whole final
-    // with the rest scoreless has two indistinguishable causes (TOT-cell leak vs
-    // early-ended game), so the sum agreeing carries no information about the
-    // breakdown's correctness.
-    const scoring = ocrPeriods.filter((p) => (p.goalsFor ?? 0) !== 0 || (p.goalsAgainst ?? 0) !== 0)
+  // The same summed-consistency check for faceoffs, against EA's whole-game
+  // faceoff wins. Only graded when that truth exists — a 0-0 EA total means "no
+  // faceoff data", and agreeing with it would be evidence of nothing.
+  let faceoffAccuracy: number | null = null
+  if (faceoffCoverage === 1 && expectedPeriods !== null && faceoffTruthPresent) {
+    const [sumFor, sumAgainst] = boundedPairSum(ocrPeriods, expectedPeriods, FACEOFFS_PAIR)
+    faceoffAccuracy = accuracyOfPair(
+      sumFor,
+      sumAgainst,
+      apiTeam.faceoffsFor,
+      apiTeam.faceoffsAgainst,
+    )
+  }
+
+  // Vacuity check — see `periodSumVacuous`. One IN-BOUND period holding the whole
+  // final with the rest scoreless has two indistinguishable causes (TOT-cell leak
+  // vs early-ended game), so the sum agreeing carries no information about the
+  // breakdown's correctness. Computed from the shape alone, independent of
+  // coverage, so it stays reportable on partially-read matches.
+  let periodSumVacuous: boolean | null = null
+  if (ocrPeriods.length > 0) {
+    const inBound =
+      periodsPlayed === null
+        ? ocrPeriods
+        : ocrPeriods.filter((p) => p.periodNumber <= periodsPlayed)
+    const scoring = inBound.filter((p) => (p.goalsFor ?? 0) !== 0 || (p.goalsAgainst ?? 0) !== 0)
     periodSumVacuous =
       scoring.length === 1 &&
       scoring[0]!.goalsFor === apiTeam.scoreFor &&
       scoring[0]!.goalsAgainst === apiTeam.scoreAgainst
-
-    // …and the de-confounder: TOI can prove the scoreless rows were forced.
-    periodZerosForced = computePeriodZerosForced(ocrPeriods, periodsPlayed)
   }
+
+  // …and the de-confounder: TOI can prove the scoreless rows were forced.
+  const periodZerosForced =
+    periodsPlayed === null ? null : computePeriodZerosForced(ocrPeriods, periodsPlayed)
 
   return {
     gradable: true,
@@ -538,8 +878,15 @@ export async function computeL4(inputs: L4Inputs): Promise<L4Result> {
     mismatches,
     notes,
     finalAccuracy,
+    expectedPeriods,
+    excludedPeriods,
+    scoringPeriodsBeyondBound,
     periodCoverage,
     periodAccuracy,
+    faceoffCoverage,
+    faceoffAccuracy,
+    faceoffPeriodsContested,
+    faceoffTruthPresent,
     periodSumVacuous,
     periodsPlayed,
     periodZerosForced,

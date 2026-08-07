@@ -64,11 +64,20 @@ export interface OcrBoxScoreFinal {
   homeTeam: string | null
 }
 
-/** One promoted OCR per-period row (source='ocr', period_number >= 1). */
+/**
+ * One promoted OCR per-period row (source='ocr', period_number >= 1).
+ *
+ * The faceoff pair is OPTIONAL on the type, not on the query:
+ * {@link getOcrBoxScorePeriodsForMatch} always populates it. `undefined` marks a
+ * caller that supplies goals only, and the comparator treats it exactly like a
+ * null read — unread, never as a zero.
+ */
 export interface OcrBoxScorePeriod {
   periodNumber: number
   goalsFor: number | null
   goalsAgainst: number | null
+  faceoffsFor?: number | null
+  faceoffsAgainst?: number | null
 }
 
 /** One majority-voted OCR per-player line. Any field may be null (OCR unread). */
@@ -369,9 +378,19 @@ export async function getOcrBoxScoreFinalForMatch(
 /**
  * Promoted OCR per-period rows (source='ocr', period_number >= 1), ordered by
  * period. For/against are already BGM-resolved at promotion time. Feeds L4's
- * coverage-aware sub-metrics (Task 4.G): a period row present but with null
- * goals is an unread period — the coverage denominator counts it, the numerator
- * does not, so the per-period sum is only graded when coverage is complete.
+ * bounded per-family sub-metrics: a period row present but with a null side is
+ * an unread period for that family — it never counts toward that family's
+ * coverage, so a family's sum is graded only once every EXPECTED period (the
+ * periods EA TOI proves the game reached) has both sides.
+ *
+ * Reads the raw columns deliberately — this is the reconciliation input, which
+ * has to see values BEFORE review authorizes them. It must never be pointed at
+ * `getMatchPeriodSummaries`, whose family masking exists for the read boundary.
+ *
+ * Goals and faceoffs both come back because both can be graded against EA truth
+ * (final score / summed per-player faceoff wins). Shots deliberately do not: the
+ * box-score per-period shot counts legitimately differ from `matches.shots_*`
+ * (match 250 reads 29 vs API 25), so EA supplies nothing that can grade them.
  */
 export async function getOcrBoxScorePeriodsForMatch(matchId: number): Promise<OcrBoxScorePeriod[]> {
   const rows = await db
@@ -379,6 +398,8 @@ export async function getOcrBoxScorePeriodsForMatch(matchId: number): Promise<Oc
       periodNumber: matchPeriodSummaries.periodNumber,
       goalsFor: matchPeriodSummaries.goalsFor,
       goalsAgainst: matchPeriodSummaries.goalsAgainst,
+      faceoffsFor: matchPeriodSummaries.faceoffsFor,
+      faceoffsAgainst: matchPeriodSummaries.faceoffsAgainst,
     })
     .from(matchPeriodSummaries)
     .where(
@@ -393,5 +414,7 @@ export async function getOcrBoxScorePeriodsForMatch(matchId: number): Promise<Oc
     periodNumber: r.periodNumber,
     goalsFor: r.goalsFor ?? null,
     goalsAgainst: r.goalsAgainst ?? null,
+    faceoffsFor: r.faceoffsFor ?? null,
+    faceoffsAgainst: r.faceoffsAgainst ?? null,
   }))
 }

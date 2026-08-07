@@ -376,6 +376,9 @@
       "finalAccuracy": 1,
       "periodCoverage": 1,
       "periodAccuracy": 1,
+      "faceoffCoverage": 1,
+      "faceoffAccuracy": 1,
+      "excludedPeriods": [],
       "periodSumVacuous": false,
       "periodsPlayed": 4,
       "periodZerosForced": false,
@@ -383,7 +386,34 @@
         "status": "reconciled",
         "flag": false,
         "promotable": true,
-        "reason": "all periods read and per-period goals sum to the API final"
+        "reason": "all expected periods read and per-period goals sum to the API final",
+        "periodsPlayed": 4,
+        "families": {
+          "goals": {
+            "family": "goals",
+            "promotable": true,
+            "authorizedPeriods": [1, 2, 3, 4],
+            "coverage": 1,
+            "accuracy": 1,
+            "reason": "all expected periods read and per-period goals sum to the API final"
+          },
+          "shots": {
+            "family": "shots",
+            "promotable": false,
+            "authorizedPeriods": [],
+            "coverage": null,
+            "accuracy": null,
+            "reason": "shots have no automatic promotion path — EA publishes no per-period shot breakdown and its whole-game totals are not comparable truth (box-score per-period shots legitimately differ), so nothing can grade them; per-period shots are manual operator review only"
+          },
+          "faceoffs": {
+            "family": "faceoffs",
+            "promotable": true,
+            "authorizedPeriods": [1, 2, 3, 4],
+            "coverage": 1,
+            "accuracy": 1,
+            "reason": "every expected period carries both faceoff sides and the bounded totals match EA truth (summed per-player faceoff wins) exactly"
+          }
+        }
       }
     },
     "overall": {

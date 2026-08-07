@@ -45,6 +45,7 @@ import {
   emptyCascadeCounts,
   formatCascadeCounts,
   setExtractionStatus,
+  PERIOD_SUMMARY_PROVENANCE_GAP,
   type CascadeCounts,
 } from './lib/review-cascade.js'
 
@@ -158,6 +159,12 @@ function render(outcomes: MatchOutcome[], dryRun: boolean): string {
     }
   } else {
     lines.push(`cascade: ${formatCascadeCounts(totalCascade)}`)
+    if (totalCascade.periodSummariesSkipped > 0) {
+      lines.push(
+        `⚠ ${String(totalCascade.periodSummariesSkipped)} match_period_summaries row(s) were ` +
+          `NOT changed. ${PERIOD_SUMMARY_PROVENANCE_GAP}`,
+      )
+    }
   }
   return lines.join('\n')
 }
