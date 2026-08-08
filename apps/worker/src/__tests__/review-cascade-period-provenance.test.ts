@@ -270,22 +270,30 @@ void test('reviewing the shots extraction publishes nothing either', async (t) =
   }
 })
 
-void test('rejection is withheld the same way — demotion is not attributable either', async (t) => {
+void test('rejection is NOT withheld — ambiguity forces the conservative direction', async (t) => {
   if (!hasDb) return t.skip('DATABASE_URL not set — requires the test-DB clone.')
   const { sql: pg } = await import('@eanhl/db')
   const { setExtractionStatus } = await import('../lib/review-cascade.js')
 
-  // Publish goals through the ONE authorized path, then reject the extraction
-  // the row happens to name. A family-blind demotion here would revoke a
-  // reconciliation verdict this extraction may have had no part in.
+  // Publish goals through the ONE authorized path, then reject an extraction no
+  // row names. Attribution says "unrelated" — but the COALESCE merge means an
+  // unnamed extraction is exactly what a real second contributor looks like.
+  //
+  // This case USED to assert the goals stayed `reviewed`, on the reasoning that
+  // a blind demotion might revoke a verdict this extraction had no part in.
+  // That reasoning only holds for widening: revoking too much costs a re-run of
+  // `reconcile-periods --promote`, while revoking too little leaves data an
+  // operator rejected still rendering on the recap. Ambiguity withholds.
+  // See review-cascade-period-revocation.test.ts.
   await pg`
     UPDATE match_period_summaries SET goals_review_status = 'reviewed' WHERE match_id = ${MATCH}
   `
   const counts = await setExtractionStatus([faceoffsExtractionId], 'rejected')
-  assert.equal(counts.periodSummaries, 0)
+  assert.equal(counts.periodSummaries, 0, 'a rejection still publishes nothing')
+  assert.equal(counts.periodSummariesQuarantined, 3, 'it withdraws the match’s published rows')
 
   for (const row of await familyStatuses()) {
-    assert.equal(row.goals, 'reviewed', 'a rejection must not blind-revoke another path’s verdict')
+    assert.equal(row.goals, 'pending_review', 'a possible contributor was rejected — withhold')
     assert.equal(row.faceoffs, 'pending_review')
     assert.equal(row.shots, 'pending_review')
   }
@@ -314,6 +322,7 @@ void test('the other five promoter tables still cascade normally', async (t) => 
     'events',
     'periodSummaries',
     'periodSummariesSkipped',
+    'periodSummariesQuarantined',
     'shotTypeSummaries',
     'loadoutSnapshots',
     'faceoffDots',

@@ -44,6 +44,7 @@ import {
   formatCascadeCounts,
   setExtractionStatus,
   PERIOD_SUMMARY_PROVENANCE_GAP,
+  PERIOD_SUMMARY_QUARANTINE_NOTE,
   type CascadeCounts,
 } from './lib/review-cascade.js'
 
@@ -139,6 +140,15 @@ function logCascade(prefix: string, counts: CascadeCounts): void {
     console.log(
       `[review] ⚠ ${String(counts.periodSummariesSkipped)} match_period_summaries row(s) were ` +
         `NOT changed. ${PERIOD_SUMMARY_PROVENANCE_GAP}`,
+    )
+  }
+  if (counts.periodSummariesQuarantined > 0) {
+    // The opposite silence would read as "nothing was un-published", when in
+    // fact a previously visible per-period breakdown just disappeared.
+    console.log(
+      `[review] ⚠ ${String(counts.periodSummariesQuarantined)} match_period_summaries row(s) ` +
+        `were QUARANTINED (published families withdrawn to pending_review). ` +
+        PERIOD_SUMMARY_QUARANTINE_NOTE,
     )
   }
 }

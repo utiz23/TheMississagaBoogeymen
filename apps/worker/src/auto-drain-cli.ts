@@ -46,6 +46,7 @@ import {
   formatCascadeCounts,
   setExtractionStatus,
   PERIOD_SUMMARY_PROVENANCE_GAP,
+  PERIOD_SUMMARY_QUARANTINE_NOTE,
   type CascadeCounts,
 } from './lib/review-cascade.js'
 
@@ -163,6 +164,13 @@ function render(outcomes: MatchOutcome[], dryRun: boolean): string {
       lines.push(
         `⚠ ${String(totalCascade.periodSummariesSkipped)} match_period_summaries row(s) were ` +
           `NOT changed. ${PERIOD_SUMMARY_PROVENANCE_GAP}`,
+      )
+    }
+    if (totalCascade.periodSummariesQuarantined > 0) {
+      lines.push(
+        `⚠ ${String(totalCascade.periodSummariesQuarantined)} match_period_summaries row(s) ` +
+          `were QUARANTINED (published families withdrawn to pending_review). ` +
+          PERIOD_SUMMARY_QUARANTINE_NOTE,
       )
     }
   }

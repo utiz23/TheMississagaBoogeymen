@@ -549,21 +549,25 @@ void test('an explicitly rejected family blocks the whole bounded window', async
   )
 })
 
-void test('a smaller bound promotes only within it, leaving the rest pending', async (t) => {
+void test('a caller-chosen SMALLER bound is refused — the bound is derived, not passed', async (t) => {
   if (!hasDb) return t.skip('DATABASE_URL not set — requires the test-DB clone.')
   const { promoteOcrPeriodFamily } = await import('@eanhl/db/queries')
   await resetStatuses(M_ISOLATION)
 
-  const result = await promoteOcrPeriodFamily({
-    matchId: M_ISOLATION,
-    family: 'goals',
-    maxPeriod: 2,
-  })
-  assert.deepEqual(result.promotedPeriods, [1, 2])
-  assert.deepEqual(result.excludedPeriods, [3, 4])
-  const rows = await statuses(M_ISOLATION)
-  assert.equal(rows.find((r) => r.period === 3)?.goals, 'pending_review')
-  assert.equal(rows.find((r) => r.period === 4)?.goals, 'pending_review')
+  // This case USED to promote periods 1-2 and leave 3-4 pending, on the theory
+  // that a narrower window is the safer direction. It is not. The fixture's TOI
+  // proves three periods were played, so publishing P1-P2 alone renders a
+  // two-period breakdown of a three-period game that reads as complete on the
+  // recap — P3's goals silently vanish from the published total. `maxPeriod` is
+  // a claim the boundary checks against the TOI-derived bound, never a window
+  // the caller may choose. See period-family-mutation-authorization.test.ts.
+  await assert.rejects(
+    () => promoteOcrPeriodFamily({ matchId: M_ISOLATION, family: 'goals', maxPeriod: 2 }),
+    /maxPeriod=2 disagrees with the 3-period bound/,
+  )
+  for (const row of await statuses(M_ISOLATION)) {
+    assert.equal(row.goals, 'pending_review', 'a rejected bound writes nothing')
+  }
 })
 
 void test('countPendingOcrPeriodFamilies reports per family, never a row count', async (t) => {

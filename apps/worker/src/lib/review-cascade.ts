@@ -15,7 +15,8 @@
  * extraction ids move. If a row was promoted by a *different* extraction
  * (cross-screen dedup), flipping this one does not touch it.
  *
- * ⚠️ `match_period_summaries` IS DELIBERATELY EXCLUDED — see
+ * ⚠️ `match_period_summaries` IS HANDLED ASYMMETRICALLY — never published here,
+ * conservatively quarantined on a revocation. See
  * {@link PERIOD_SUMMARY_PROVENANCE_GAP}.
  */
 
@@ -30,10 +31,11 @@ import {
   playerLoadoutSnapshots,
   type OcrReviewStatus,
 } from '@eanhl/db'
-import { inArray, sql } from 'drizzle-orm'
+import { and, eq, inArray, or, sql } from 'drizzle-orm'
+import type { AnyPgColumn } from 'drizzle-orm/pg-core'
 
 /**
- * WHY THE PERIOD-SUMMARY CASCADE IS DISABLED (migration 0056 follow-up).
+ * WHY THE PERIOD-SUMMARY CASCADE IS ASYMMETRIC (migration 0056 follow-up).
  *
  * Since 0056 a `match_period_summaries` row is authorized PER FAMILY — goals,
  * shots and faceoffs each have their own `*_review_status`, because each is
@@ -49,46 +51,86 @@ import { inArray, sql } from 'drizzle-orm'
  *      second frame can supply the side the first left null — a row's goals pair
  *      can come from two goals extractions while naming only one.
  *
- * Consequences if this cascaded anyway: reviewing the first contributor would
- * publish families two other extractions produced (over-authorization), while
- * reviewing a later contributor would touch nothing (silently ignored). Scoping
- * by `ocr_extractions.screen_type` does NOT repair it — screen type says which
- * family an extraction was ABOUT, not which row values it actually wrote, so
- * case 3 still mis-authorizes.
+ * Scoping by `ocr_extractions.screen_type` does NOT repair it: screen type says
+ * which family an extraction was ABOUT, not which row values it actually wrote,
+ * so case 3 still mis-attributes.
  *
- * Fail-closed behaviour: the cascade neither publishes nor revokes any family,
- * and does not write the legacy `review_status` either (a row reading
- * `reviewed` while its three families are pending records a publication that
- * did not happen). It reports the rows it skipped so an operator can see them.
+ * THE ASYMMETRY. Ambiguous provenance is not symmetric in its consequences, so
+ * the two directions get opposite treatment:
  *
- * The ONE authorized automatic path is `promoteOcrPeriodFamily` — family-scoped,
- * bounded to the periods EA player TOI proves were played, and driven by
- * evidence rather than by attribution. It is unaffected by this and runs
- * independently of manual review.
+ *   * `reviewed` (APPROVAL, widens publication) — SKIPPED. Publishing on a guess
+ *     would authorize values two other extractions produced, and reviewing a
+ *     later contributor would silently touch nothing. Ambiguity must never
+ *     expose data. Family authorization happens only through the bounded,
+ *     evidence-driven `promoteOcrPeriodFamily`, which proves what it publishes
+ *     instead of attributing it.
  *
- * DEFERRED REQUIREMENT (not invented here): making the cascade sound needs real
+ *   * `pending_review` / `rejected` (REVOCATION, narrows publication) —
+ *     QUARANTINED. Skipping here was the unsafe half: an extraction that may
+ *     well have contributed to an already-published family gets rejected, and
+ *     the family stays visible because the cascade declined to act. Rejected
+ *     data kept rendering on the recap. The same ambiguity that forbids
+ *     publishing REQUIRES withholding.
+ *
+ * THE ASSOCIATION USED FOR A REVOCATION. Attribution is impossible, so none is
+ * attempted; the MATCH is the unit. A match is affected when it is named by a
+ * revoked extraction (`ocr_extractions.match_id`) OR when any of its period rows
+ * names one (`match_period_summaries.ocr_extraction_id`). Both directions are
+ * load-bearing: the first catches a real contributor no row records (the
+ * COALESCE merge keeps only the first), the second catches a row naming an
+ * extraction whose own `match_id` is absent. Every `source='ocr'` period row of
+ * an affected match then has each `reviewed` family demoted to `pending_review`.
+ *
+ * This deliberately OVER-withholds — rejecting a lobby extraction quarantines
+ * that match's period summaries too. That is the correct trade: the cost is a
+ * re-run of `reconcile-periods --promote`, which republishes anything that still
+ * reconciles, whereas the alternative leaves rejected data published.
+ *
+ * What a quarantine does NOT do: it never demotes a family an operator
+ * explicitly `rejected` back to `pending_review` (withholding must not erase a
+ * stronger verdict), and it never writes the legacy row-level `review_status`
+ * (which is not an authorization signal in either direction).
+ *
+ * DEFERRED REQUIREMENT (not invented here): making the cascade PRECISE needs real
  * per-family provenance — either three contributor columns
  * (`goals_ocr_extraction_id`, …) or a contribution table keyed
  * (period_summary_id, family, side) → extraction_id, written by `box-score.ts`
- * at the point of the COALESCE merge. Until that exists, this stays closed.
+ * at the point of the COALESCE merge. Until that exists, approval stays closed
+ * and revocation stays broad.
  */
 export const PERIOD_SUMMARY_PROVENANCE_GAP =
   'match_period_summaries carries one ocr_extraction_id for three independently-captured ' +
   'stat families and records only the first contributor, so a review verdict cannot be ' +
-  'attributed to the family it authorizes. Period-summary publication is therefore not ' +
+  'attributed to the family it authorizes. Period-summary publication is therefore never ' +
   'cascaded; use the bounded per-family promotion path (reconcile-periods --promote) or ' +
   'set the family status explicitly.'
+
+export const PERIOD_SUMMARY_QUARANTINE_NOTE =
+  'Because a contributing extraction cannot be identified, a demotion or rejection ' +
+  'conservatively withdraws publication of EVERY OCR per-period family of every affected ' +
+  'match, so nothing stays visible merely because the cascade could not attribute it. ' +
+  'Re-run `reconcile-periods --promote` to republish whatever still reconciles.'
 
 export interface CascadeCounts {
   events: number
   /**
-   * ALWAYS 0. Period summaries are never cascaded — see
+   * ALWAYS 0. Period summaries are never PUBLISHED by the cascade — see
    * {@link PERIOD_SUMMARY_PROVENANCE_GAP}. Retained so callers keep compiling
    * and so the number stays visibly zero rather than silently absent.
    */
   periodSummaries: number
-  /** Period-summary rows referencing these extractions that were left untouched. */
+  /**
+   * APPROVALS only: period-summary rows referencing these extractions that were
+   * left untouched because publication cannot be attributed.
+   */
   periodSummariesSkipped: number
+  /**
+   * REVOCATIONS only: period-summary rows whose published families were
+   * withdrawn to `pending_review` because a possible contributor was demoted or
+   * rejected. Disjoint from {@link CascadeCounts.periodSummariesSkipped} — one
+   * call is either an approval or a revocation, never both.
+   */
+  periodSummariesQuarantined: number
   shotTypeSummaries: number
   loadoutSnapshots: number
   faceoffDots: number
@@ -100,6 +142,7 @@ export function emptyCascadeCounts(): CascadeCounts {
     events: 0,
     periodSummaries: 0,
     periodSummariesSkipped: 0,
+    periodSummariesQuarantined: 0,
     shotTypeSummaries: 0,
     loadoutSnapshots: 0,
     faceoffDots: 0,
@@ -113,6 +156,7 @@ export function addCascadeCounts(a: CascadeCounts, b: CascadeCounts): CascadeCou
     events: a.events + b.events,
     periodSummaries: a.periodSummaries + b.periodSummaries,
     periodSummariesSkipped: a.periodSummariesSkipped + b.periodSummariesSkipped,
+    periodSummariesQuarantined: a.periodSummariesQuarantined + b.periodSummariesQuarantined,
     shotTypeSummaries: a.shotTypeSummaries + b.shotTypeSummaries,
     loadoutSnapshots: a.loadoutSnapshots + b.loadoutSnapshots,
     faceoffDots: a.faceoffDots + b.faceoffDots,
@@ -124,6 +168,7 @@ export function formatCascadeCounts(counts: CascadeCounts): string {
   return (
     `events=${String(counts.events)} period_summaries=${String(counts.periodSummaries)} ` +
     `period_summaries_skipped=${String(counts.periodSummariesSkipped)} ` +
+    `period_summaries_quarantined=${String(counts.periodSummariesQuarantined)} ` +
     `shot_type_summaries=${String(counts.shotTypeSummaries)} ` +
     `loadout_snapshots=${String(counts.loadoutSnapshots)} ` +
     `faceoff_dots=${String(counts.faceoffDots)} ` +
@@ -132,11 +177,53 @@ export function formatCascadeCounts(counts: CascadeCounts): string {
 }
 
 /**
+ * Every match a revoked extraction could have contributed period values to.
+ *
+ * The union of the two directions the schema can express — see the ASSOCIATION
+ * paragraph in {@link PERIOD_SUMMARY_PROVENANCE_GAP}'s docblock. Neither alone
+ * is sufficient, because the sticky `ocr_extraction_id` records only the first
+ * contributor.
+ */
+async function affectedMatchIds(
+  tx: Parameters<Parameters<typeof db.transaction>[0]>[0],
+  extractionIds: number[],
+): Promise<number[]> {
+  const byExtraction = await tx
+    .select({ matchId: ocrExtractions.matchId })
+    .from(ocrExtractions)
+    .where(inArray(ocrExtractions.id, extractionIds))
+
+  const byPeriodRow = await tx
+    .selectDistinct({ matchId: matchPeriodSummaries.matchId })
+    .from(matchPeriodSummaries)
+    .where(inArray(matchPeriodSummaries.ocrExtractionId, extractionIds))
+
+  const ids = new Set<number>()
+  for (const r of [...byExtraction, ...byPeriodRow]) {
+    if (r.matchId != null) ids.add(r.matchId)
+  }
+  return [...ids]
+}
+
+/**
  * Flip `ocr_extractions.review_status` for the given ids and cascade to every
- * promoter table that references them EXCEPT `match_period_summaries`, whose
- * per-family authorization this module cannot attribute
- * ({@link PERIOD_SUMMARY_PROVENANCE_GAP}). Returns the per-table row counts,
- * with the skipped period-summary rows reported separately.
+ * promoter table that references them.
+ *
+ * `match_period_summaries` is handled asymmetrically because its per-family
+ * authorization cannot be attributed to an extraction
+ * ({@link PERIOD_SUMMARY_PROVENANCE_GAP}):
+ *
+ *   * `reviewed` — skipped and counted (`periodSummariesSkipped`). Nothing is
+ *     published on a guess.
+ *   * `pending_review` / `rejected` — every published family on every
+ *     `source='ocr'` period row of every affected match is withdrawn to
+ *     `pending_review` and counted (`periodSummariesQuarantined`), so no data
+ *     survives merely because attribution failed.
+ *
+ * The quarantine runs inside the SAME transaction as the extraction flip, so a
+ * rejection and the withdrawal it forces commit or roll back together — there is
+ * no window in which an extraction reads `rejected` while its match's period
+ * families are still published.
  *
  * `reviewed_at` is set on any non-pending status and cleared when demoting back
  * to `pending_review`.
@@ -164,15 +251,51 @@ export async function setExtractionStatus(
       .returning({ id: matchEvents.id })
     counts.events = eventsRows.length
 
-    // NOT an update. Period summaries are counted and left alone — publishing or
-    // revoking a stat family here would authorize (or revoke) values a different
-    // extraction contributed. See PERIOD_SUMMARY_PROVENANCE_GAP.
-    const [periodSkipped] = await tx
-      .select({ n: sql<number>`COUNT(*)`.mapWith(Number) })
-      .from(matchPeriodSummaries)
-      .where(inArray(matchPeriodSummaries.ocrExtractionId, extractionIds))
+    // Period summaries are NEVER published here, whatever the status.
     counts.periodSummaries = 0
-    counts.periodSummariesSkipped = periodSkipped?.n ?? 0
+
+    if (status === 'reviewed') {
+      // APPROVAL — count and leave alone. Publishing a stat family here would
+      // authorize values a different extraction contributed.
+      const [periodSkipped] = await tx
+        .select({ n: sql<number>`COUNT(*)`.mapWith(Number) })
+        .from(matchPeriodSummaries)
+        .where(inArray(matchPeriodSummaries.ocrExtractionId, extractionIds))
+      counts.periodSummariesSkipped = periodSkipped?.n ?? 0
+    } else {
+      // REVOCATION — withdraw publication across every affected match.
+      const matchIds = await affectedMatchIds(tx, extractionIds)
+      if (matchIds.length > 0) {
+        // `reviewed → pending_review` only. A family an operator explicitly
+        // `rejected` keeps that stronger verdict; quarantine withholds, it does
+        // not reinstate. Restricted to source='ocr': EA rows bypass review
+        // entirely and a `manual` row's values did not come from this extraction.
+        const demote = (column: AnyPgColumn) =>
+          sql`CASE WHEN ${column} = 'reviewed' THEN 'pending_review' ELSE ${column} END`
+        const quarantined = await tx
+          .update(matchPeriodSummaries)
+          .set({
+            goalsReviewStatus: demote(matchPeriodSummaries.goalsReviewStatus),
+            shotsReviewStatus: demote(matchPeriodSummaries.shotsReviewStatus),
+            faceoffsReviewStatus: demote(matchPeriodSummaries.faceoffsReviewStatus),
+          })
+          .where(
+            and(
+              inArray(matchPeriodSummaries.matchId, matchIds),
+              eq(matchPeriodSummaries.source, 'ocr'),
+              // Only rows that actually publish something, so the count means
+              // "rows whose visibility changed" rather than "rows we rewrote".
+              or(
+                eq(matchPeriodSummaries.goalsReviewStatus, 'reviewed'),
+                eq(matchPeriodSummaries.shotsReviewStatus, 'reviewed'),
+                eq(matchPeriodSummaries.faceoffsReviewStatus, 'reviewed'),
+              ),
+            ),
+          )
+          .returning({ id: matchPeriodSummaries.id })
+        counts.periodSummariesQuarantined = quarantined.length
+      }
+    }
 
     const shotTypeRows = await tx
       .update(matchShotTypeSummaries)

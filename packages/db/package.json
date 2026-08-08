@@ -7,7 +7,8 @@
     ".": "./dist/index.js",
     "./queries": "./dist/queries/index.js",
     "./schema": "./dist/schema/index.js",
-    "./lib/normalize-build-class": "./dist/lib/normalize-build-class.js"
+    "./lib/normalize-build-class": "./dist/lib/normalize-build-class.js",
+    "./lib/period-reconciliation": "./dist/lib/period-reconciliation.js"
   },
   "scripts": {
     "build": "tsc",
