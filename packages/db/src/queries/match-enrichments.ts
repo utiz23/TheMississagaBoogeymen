@@ -448,10 +448,12 @@ export interface PromoteOcrPeriodFamilyResult {
  * exact equality against the derived bound and otherwise contributes nothing.
  * The rejection check, the evidence reads, the authorization decision and the
  * UPDATE all run in ONE transaction, taking locks in a fixed order —
- * `ocr_extractions` `FOR SHARE`, then the EA truth rows `FOR SHARE`, then the
- * candidate OCR period rows `FOR UPDATE`. The review cascade takes the same two
- * tables in the same order, so a rejection racing a promotion serializes rather
- * than deadlocking, and neither can commit inside the other's decision window.
+ * `ocr_extractions` `FOR SHARE` (by id), then the EA truth rows `FOR SHARE`,
+ * then the candidate OCR period rows `FOR UPDATE` (by id, NOT period_number —
+ * see the lock comment at the period-row query below). The review cascade takes
+ * the same two shared tables, in the same id order, so a rejection racing a
+ * promotion serializes rather than deadlocking, and neither can commit inside
+ * the other's decision window.
  * So the state the verdict is computed on is the state that gets written: a
  * concurrent writer can neither reject an extraction after the barrier check,
  * change the truth the decision rests on, nor slip a value into the rows being
@@ -521,12 +523,15 @@ export async function promoteOcrPeriodFamily(
     // one of its period rows — with `screen_type` narrowing the blast radius to
     // the one family the tab could have written.
     //
-    // LOCK ORDER: extractions FIRST, then EA truth, then the period rows. The
-    // review cascade takes the same two tables in the same order, so the two
-    // paths serialize instead of deadlocking. `FOR SHARE` is the right strength:
-    // it blocks `setExtractionStatus` from flipping any of these rows to
-    // `rejected` between this check and the UPDATE below, while leaving
-    // concurrent promotions of other families free to read the same rows.
+    // LOCK ORDER: extractions FIRST (by id), then EA truth, then the period
+    // rows (by id — see that query's own lock comment below). The review
+    // cascade takes the same two shared tables in the same id order, so the two
+    // paths serialize instead of deadlocking EVEN when they target different
+    // extractions of the same match and this extractions lock does not
+    // overlap. `FOR SHARE` is the right strength here: it blocks
+    // `setExtractionStatus` from flipping any of these rows to `rejected`
+    // between this check and the UPDATE below, while leaving concurrent
+    // promotions of other families free to read the same rows.
     const familyExtractions = await tx
       .select({ id: ocrExtractions.id, reviewStatus: ocrExtractions.reviewStatus })
       .from(ocrExtractions)
@@ -547,8 +552,9 @@ export async function promoteOcrPeriodFamily(
     // must not serialize against each other, only against a writer of it.
     //
     // Locks continue in the fixed order — extractions (above), then matches,
-    // then player stats, then the period rows — so two concurrent promotions,
-    // or a promotion and a review cascade, cannot deadlock.
+    // then player stats, then the period rows, the last of these by id (see
+    // that query's own lock comment) — so two concurrent promotions, or a
+    // promotion and a review cascade, cannot deadlock.
     //
     // Aggregation happens in TypeScript rather than SQL because Postgres rejects
     // FOR SHARE alongside an aggregate; the row counts here are per-match roster
@@ -598,9 +604,16 @@ export async function promoteOcrPeriodFamily(
           gte(matchPeriodSummaries.periodNumber, 1),
         ),
       )
-      // Ordered so two concurrent promotions acquire the row locks in the same
-      // sequence and cannot deadlock against each other.
-      .orderBy(asc(matchPeriodSummaries.periodNumber))
+      // LOCK ORDER: ascending row id, NOT period_number. A row's id is assigned
+      // by insertion order, which follows OCR ingestion order, not the game
+      // clock — the two need not agree. `setExtractionStatus`'s cascade locks
+      // this same table by id too (review-cascade.ts); ordering by period_number
+      // here instead would let a promotion and a concurrent cascade — which have
+      // no other lock in common when they target different extractions of the
+      // same match — acquire overlapping period rows in opposite sequences and
+      // deadlock. Two concurrent promotions serialize under either ordering, so
+      // aligning with the cascade costs them nothing.
+      .orderBy(asc(matchPeriodSummaries.id))
       .for('update')
 
     // ── derive the bound, and check the caller's claim against it ────────────
