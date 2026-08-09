@@ -7,11 +7,13 @@ import {
   matchPeriodSummaries,
   matchShotTypeSummaries,
   matches,
+  ocrExtractions,
   opponentPlayerMatchStats,
   playerMatchStats,
   type OcrReviewStatus,
 } from '../schema/index.js'
 import {
+  PERIOD_FAMILY_SCREEN_TYPES,
   PERIOD_SUMMARY_FAMILIES,
   computePeriodEvidence,
   isPeriodSummaryFamily,
@@ -280,7 +282,12 @@ export async function markOcrPeriodSummariesReviewed(_matchId: number): Promise<
  * REPORTS a verdict and the code that ACTS on it cannot drift apart. Re-exported
  * here so `@eanhl/db/queries` consumers keep their existing import.
  */
-export { PERIOD_SUMMARY_FAMILIES, type PeriodSummaryFamily } from '../lib/period-reconciliation.js'
+export {
+  PERIOD_FAMILY_SCREEN_TYPES,
+  PERIOD_SUMMARY_FAMILIES,
+  periodFamilyForScreenType,
+  type PeriodSummaryFamily,
+} from '../lib/period-reconciliation.js'
 
 /** The two value columns and the one status column each family owns. */
 const FAMILY_COLUMNS = {
@@ -310,6 +317,46 @@ const REVIEWED_PATCH = {
   shots: { shotsReviewStatus: 'reviewed' },
   faceoffs: { faceoffsReviewStatus: 'reviewed' },
 } as const satisfies Record<PeriodSummaryFamily, Record<string, OcrReviewStatus>>
+
+/**
+ * The `ocr_extractions` predicate that identifies every extraction which could
+ * have written ONE stat family of ONE match — the association a rejection
+ * barrier is built from.
+ *
+ * Exported because two modules on opposite sides of the package boundary must
+ * agree on it exactly: {@link promoteOcrPeriodFamily} here, which REFUSES while
+ * any matching row is `rejected`, and the worker's review cascade, which decides
+ * whether a barrier still stands before clearing a family back to
+ * `pending_review`. Two copies would drift, and the looser one would either
+ * republish rejected data or strand a family forever.
+ *
+ * Two directions, both load-bearing:
+ *   * `match_id` — the extraction's own link, which survives even when no period
+ *     row names it (the `COALESCE(existing, incoming)` merge records only the
+ *     first contributor);
+ *   * the sticky pointers of the match's period rows — which catch an extraction
+ *     whose own `match_id` was never set.
+ *
+ * `screen_type` narrows it to the single Box Score tab that family is captured
+ * on, so a rejected goals tab cannot bar shots or faceoffs.
+ */
+export function periodFamilyRejectionBarrier(matchId: number, family: PeriodSummaryFamily): SQL {
+  // Written as one parenthesised fragment rather than `and(or(...))` so the
+  // return type is a plain `SQL` — drizzle's combinators are `SQL | undefined`,
+  // and narrowing that would need an assertion for a value that can never be
+  // undefined here. Callers compose it inside `and(...)` unchanged.
+  return sql`(
+    ${ocrExtractions.screenType} = ${PERIOD_FAMILY_SCREEN_TYPES[family]}
+    AND (
+      ${ocrExtractions.matchId} = ${matchId}
+      OR ${ocrExtractions.id} IN (
+        SELECT ${matchPeriodSummaries.ocrExtractionId} FROM ${matchPeriodSummaries}
+        WHERE ${matchPeriodSummaries.matchId} = ${matchId}
+          AND ${matchPeriodSummaries.ocrExtractionId} IS NOT NULL
+      )
+    )
+  )`
+}
 
 export interface PromoteOcrPeriodFamilyRequest {
   matchId: number
@@ -350,6 +397,13 @@ export interface PromoteOcrPeriodFamilyResult {
   rejectedPeriods: number[]
   /** OCR periods above `maxPeriod`: excluded from the decision, left pending. */
   excludedPeriods: number[]
+  /**
+   * Extractions of THIS family's Box Score tab, associated with this match, that
+   * currently read `rejected`. Non-empty ⇒ the call refused, whatever the
+   * evidence said. Reported so an operator can see exactly which rejections have
+   * to be lifted before a re-run could ever succeed.
+   */
+  blockingRejectedExtractionIds: number[]
   reason: string
 }
 
@@ -378,6 +432,12 @@ export interface PromoteOcrPeriodFamilyResult {
  *   * **All-or-nothing.** If any expected period is missing, half-read or
  *     rejected, NOTHING is promoted. A partially-published breakdown is worse
  *     than an unpublished one: it reads as complete on the recap.
+ *   * **Blocked by a rejection.** If ANY extraction of this family's Box Score
+ *     screen type, associated with this match, reads `rejected`, the call
+ *     refuses outright — before the evidence is even consulted. The check runs
+ *     against `ocr_extractions` itself, NOT the sticky
+ *     `match_period_summaries.ocr_extraction_id` (which records only the first
+ *     contributor and would hide a rejection of any later one).
  *   * **Never legacy.** `review_status` is neither read as authorization nor
  *     written. It stays exactly as it was. Neither is an existing `reviewed`
  *     family status treated as proof — the evidence is regraded every time.
@@ -386,13 +446,18 @@ export interface PromoteOcrPeriodFamilyResult {
  * SAFE WHEN CALLED DIRECTLY. Every precondition is enforced here, not by the
  * CLI, and none of them is a caller-supplied token: `maxPeriod` is checked for
  * exact equality against the derived bound and otherwise contributes nothing.
- * The evidence reads, the authorization decision and the UPDATE all run in ONE
- * transaction, with the EA truth rows locked `FOR SHARE` and the candidate OCR
- * rows locked `FOR UPDATE`. So the state the verdict is computed on is the state
- * that gets written: a concurrent writer can neither change the truth the
- * decision rests on nor slip a value into the rows being classified. If the
- * UPDATE still touches a different period set than the decision authorized, the
- * transaction is rolled back and the call throws rather than reporting success.
+ * The rejection check, the evidence reads, the authorization decision and the
+ * UPDATE all run in ONE transaction, taking locks in a fixed order —
+ * `ocr_extractions` `FOR SHARE`, then the EA truth rows `FOR SHARE`, then the
+ * candidate OCR period rows `FOR UPDATE`. The review cascade takes the same two
+ * tables in the same order, so a rejection racing a promotion serializes rather
+ * than deadlocking, and neither can commit inside the other's decision window.
+ * So the state the verdict is computed on is the state that gets written: a
+ * concurrent writer can neither reject an extraction after the barrier check,
+ * change the truth the decision rests on, nor slip a value into the rows being
+ * classified. If the UPDATE still touches a different period set than the
+ * decision authorized, the transaction is rolled back and the call throws rather
+ * than reporting success.
  *
  * @throws on an unknown family, on `shots`, on a non-positive-integer
  *         `maxPeriod`/`matchId`, when no period bound can be derived, when
@@ -437,6 +502,43 @@ export async function promoteOcrPeriodFamily(
   const columns = FAMILY_COLUMNS[family]
 
   return db.transaction(async (tx) => {
+    // ── the REJECTION BARRIER, taken first ───────────────────────────────────
+    //
+    // An operator rejecting a Box Score extraction is a verdict on this match's
+    // values for that family, and it has to outlive the demotion the review
+    // cascade performs — otherwise the next `reconcile-periods --promote` finds
+    // reconciling values sitting in `pending_review` and republishes exactly
+    // what was rejected.
+    //
+    // The association is deliberately NOT the row's `ocr_extraction_id`. That
+    // pointer is written `COALESCE(existing, incoming)`, so it names only the
+    // first contributor to the row, for any of the three families; a second
+    // goals extraction that filled the side the first left null is recorded
+    // nowhere. Gating on it would let a rejection of extraction B be invisible
+    // to a row naming extraction A for the very same match and family. The
+    // barrier therefore comes from `ocr_extractions` itself — every extraction
+    // of THIS family's screen type that either names this match or is named by
+    // one of its period rows — with `screen_type` narrowing the blast radius to
+    // the one family the tab could have written.
+    //
+    // LOCK ORDER: extractions FIRST, then EA truth, then the period rows. The
+    // review cascade takes the same two tables in the same order, so the two
+    // paths serialize instead of deadlocking. `FOR SHARE` is the right strength:
+    // it blocks `setExtractionStatus` from flipping any of these rows to
+    // `rejected` between this check and the UPDATE below, while leaving
+    // concurrent promotions of other families free to read the same rows.
+    const familyExtractions = await tx
+      .select({ id: ocrExtractions.id, reviewStatus: ocrExtractions.reviewStatus })
+      .from(ocrExtractions)
+      .where(periodFamilyRejectionBarrier(matchId, family))
+      .orderBy(asc(ocrExtractions.id))
+      .for('share')
+
+    const blockingRejectedExtractionIds = familyExtractions
+      .filter((e) => e.reviewStatus === 'rejected')
+      .map((e) => e.id)
+      .sort((a, b) => a - b)
+
     // ── authoritative EA truth, locked ───────────────────────────────────────
     //
     // Read inside the transaction and locked `FOR SHARE` so it cannot be
@@ -444,8 +546,9 @@ export async function promoteOcrPeriodFamily(
     // FOR UPDATE: concurrent promoters of other families read the same truth and
     // must not serialize against each other, only against a writer of it.
     //
-    // Locks are taken in a fixed order — matches, then player stats, then the
-    // period rows — so two concurrent promotions cannot deadlock.
+    // Locks continue in the fixed order — extractions (above), then matches,
+    // then player stats, then the period rows — so two concurrent promotions,
+    // or a promotion and a review cascade, cannot deadlock.
     //
     // Aggregation happens in TypeScript rather than SQL because Postgres rejects
     // FOR SHARE alongside an aggregate; the row counts here are per-match roster
@@ -495,6 +598,9 @@ export async function promoteOcrPeriodFamily(
           gte(matchPeriodSummaries.periodNumber, 1),
         ),
       )
+      // Ordered so two concurrent promotions acquire the row locks in the same
+      // sequence and cannot deadlock against each other.
+      .orderBy(asc(matchPeriodSummaries.periodNumber))
       .for('update')
 
     // ── derive the bound, and check the caller's claim against it ────────────
@@ -614,8 +720,24 @@ export async function promoteOcrPeriodFamily(
       incompletePeriods,
       rejectedPeriods,
       excludedPeriods,
+      blockingRejectedExtractionIds,
       reason,
     })
+
+    // The REJECTION gate, checked before everything else: an operator verdict
+    // outranks the evidence. Values that reconcile perfectly are exactly the
+    // case this must refuse — a rejection of reconciling-but-wrong data is the
+    // only thing standing between it and automatic republication.
+    if (blockingRejectedExtractionIds.length > 0) {
+      return refuse(
+        `${family}: refused — extraction(s) ` +
+          `${blockingRejectedExtractionIds.join(',')} for match ${String(matchId)}'s ` +
+          `${PERIOD_FAMILY_SCREEN_TYPES[family]} screen are rejected. A rejected Box Score ` +
+          'extraction implicates its whole match/family (per-field provenance does not exist), ' +
+          'so no automatic path may publish this family until every one of those rejections is ' +
+          'lifted. Promoted nothing.',
+      )
+    }
 
     // The SEMANTIC gate, checked before the structural one: a family whose
     // values do not reconcile is unpublishable no matter how complete its rows
@@ -704,6 +826,7 @@ export async function promoteOcrPeriodFamily(
       incompletePeriods,
       rejectedPeriods,
       excludedPeriods,
+      blockingRejectedExtractionIds,
       reason:
         `${family}: periods 1..${String(maxPeriod)} reconcile against EA truth and are ` +
         `authorized (${String(promotedPeriods.length)} promoted, ` +

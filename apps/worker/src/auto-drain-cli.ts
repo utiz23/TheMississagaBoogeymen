@@ -45,6 +45,7 @@ import {
   emptyCascadeCounts,
   formatCascadeCounts,
   setExtractionStatus,
+  PERIOD_FAMILY_REJECTION_NOTE,
   PERIOD_SUMMARY_PROVENANCE_GAP,
   PERIOD_SUMMARY_QUARANTINE_NOTE,
   type CascadeCounts,
@@ -171,6 +172,19 @@ function render(outcomes: MatchOutcome[], dryRun: boolean): string {
         `⚠ ${String(totalCascade.periodSummariesQuarantined)} match_period_summaries row(s) ` +
           `were QUARANTINED (published families withdrawn to pending_review). ` +
           PERIOD_SUMMARY_QUARANTINE_NOTE,
+      )
+    }
+    if (totalCascade.periodFamiliesRejected > 0) {
+      lines.push(
+        `⛔ ${String(totalCascade.periodFamiliesRejected)} per-period stat family value(s) were ` +
+          `durably REJECTED. ${PERIOD_FAMILY_REJECTION_NOTE}`,
+      )
+    }
+    if (totalCascade.periodRejectionBarriersCleared > 0) {
+      lines.push(
+        `✓ ${String(totalCascade.periodRejectionBarriersCleared)} per-period stat family ` +
+          `value(s) were released from a rejection back to pending_review. Nothing was ` +
+          'republished — re-run `reconcile-periods --promote` if the values should be visible.',
       )
     }
   }

@@ -285,17 +285,25 @@ void test('rejection is NOT withheld — ambiguity forces the conservative direc
   // `reconcile-periods --promote`, while revoking too little leaves data an
   // operator rejected still rendering on the recap. Ambiguity withholds.
   // See review-cascade-period-revocation.test.ts.
+  //
+  // The rejected extraction is the FACEOFFS Box Score tab, so the withholding is
+  // no longer uniform: that family is DURABLY rejected (a quarantine to
+  // `pending_review` is undone by the very next promote sweep — audit C5),
+  // while goals and shots, which nothing implicates, are only quarantined. Both
+  // outcomes withhold; only the faceoffs one survives a re-run. See
+  // period-family-rejection-durability.test.ts.
   await pg`
     UPDATE match_period_summaries SET goals_review_status = 'reviewed' WHERE match_id = ${MATCH}
   `
   const counts = await setExtractionStatus([faceoffsExtractionId], 'rejected')
   assert.equal(counts.periodSummaries, 0, 'a rejection still publishes nothing')
   assert.equal(counts.periodSummariesQuarantined, 3, 'it withdraws the match’s published rows')
+  assert.equal(counts.periodFamiliesRejected, 3, 'and durably rejects the implicated family')
 
   for (const row of await familyStatuses()) {
     assert.equal(row.goals, 'pending_review', 'a possible contributor was rejected — withhold')
-    assert.equal(row.faceoffs, 'pending_review')
-    assert.equal(row.shots, 'pending_review')
+    assert.equal(row.faceoffs, 'rejected', 'the directly implicated family is rejected, not paused')
+    assert.equal(row.shots, 'pending_review', 'and an unimplicated family is never collateral')
   }
 })
 
@@ -323,6 +331,8 @@ void test('the other five promoter tables still cascade normally', async (t) => 
     'periodSummaries',
     'periodSummariesSkipped',
     'periodSummariesQuarantined',
+    'periodFamiliesRejected',
+    'periodRejectionBarriersCleared',
     'shotTypeSummaries',
     'loadoutSnapshots',
     'faceoffDots',

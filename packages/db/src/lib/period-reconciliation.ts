@@ -45,6 +45,44 @@ export function isPeriodSummaryFamily(value: unknown): value is PeriodSummaryFam
 }
 
 /**
+ * The Box Score tab each stat family is captured on — the ONLY link between an
+ * `ocr_extractions` row and the family it could have written.
+ *
+ * This is a screen-type mapping, not provenance: it says which family an
+ * extraction was ABOUT, never which row values it actually produced. That makes
+ * it unusable for ATTRIBUTION (see the provenance-gap docblock in
+ * `apps/worker/src/lib/review-cascade.ts`), but exactly right for a BARRIER: a
+ * rejected `post_game_box_score_goals` extraction could have contributed to any
+ * goals value on its match, so the whole match/family must fail closed.
+ *
+ * It lives here, in the import-free policy module, for the same reason the
+ * verdicts do — the mutation boundary in `@eanhl/db` and the review cascade in
+ * the worker sit on opposite sides of the package boundary and must not drift.
+ */
+export const PERIOD_FAMILY_SCREEN_TYPES = {
+  goals: 'post_game_box_score_goals',
+  shots: 'post_game_box_score_shots',
+  faceoffs: 'post_game_box_score_faceoffs',
+} as const satisfies Record<PeriodSummaryFamily, string>
+
+/**
+ * The stat family a screen type implicates, or `null` for any screen that owns
+ * no per-period stat family (lobby, events, loadout, …).
+ *
+ * `null` is a real answer, not a failure: a rejected non-box-score extraction
+ * must still trigger the conservative quarantine, but must NEVER create a
+ * permanent family rejection, because it has no family to reject.
+ */
+export function periodFamilyForScreenType(
+  screenType: string | null | undefined,
+): PeriodSummaryFamily | null {
+  for (const family of PERIOD_SUMMARY_FAMILIES) {
+    if (PERIOD_FAMILY_SCREEN_TYPES[family] === screenType) return family
+  }
+  return null
+}
+
+/**
  * One OCR per-period reading (`source='ocr'`, `period_number >= 1`).
  *
  * The faceoff pair is optional on the TYPE only: `undefined` marks a caller that

@@ -43,6 +43,7 @@ import { readFileSync } from 'node:fs'
 import {
   formatCascadeCounts,
   setExtractionStatus,
+  PERIOD_FAMILY_REJECTION_NOTE,
   PERIOD_SUMMARY_PROVENANCE_GAP,
   PERIOD_SUMMARY_QUARANTINE_NOTE,
   type CascadeCounts,
@@ -149,6 +150,21 @@ function logCascade(prefix: string, counts: CascadeCounts): void {
       `[review] ⚠ ${String(counts.periodSummariesQuarantined)} match_period_summaries row(s) ` +
         `were QUARANTINED (published families withdrawn to pending_review). ` +
         PERIOD_SUMMARY_QUARANTINE_NOTE,
+    )
+  }
+  if (counts.periodFamiliesRejected > 0) {
+    // A durable rejection is NOT a quarantine, and must never be reported as
+    // one: no promote sweep will bring it back.
+    console.log(
+      `[review] ⛔ ${String(counts.periodFamiliesRejected)} per-period stat ` +
+        `family value(s) were durably REJECTED. ${PERIOD_FAMILY_REJECTION_NOTE}`,
+    )
+  }
+  if (counts.periodRejectionBarriersCleared > 0) {
+    console.log(
+      `[review] ✓ ${String(counts.periodRejectionBarriersCleared)} per-period stat family ` +
+        `value(s) were released from a rejection back to pending_review. Nothing was ` +
+        `republished — re-run \`reconcile-periods --promote\` if the values should be visible.`,
     )
   }
 }
