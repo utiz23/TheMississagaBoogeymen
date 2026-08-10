@@ -65,7 +65,7 @@ const MATCH = 9801
 const ALL_MATCHES = [MATCH]
 const REGULATION_TOI = 3600
 
-const hasDb = Boolean(process.env['DATABASE_URL'])
+const hasDb = Boolean(process.env.DATABASE_URL)
 
 let goalsExtraction = 0
 let faceoffsExtraction = 0
@@ -73,7 +73,7 @@ let faceoffsExtraction = 0
 let periodRowIds: Record<number, number> = {}
 
 function assertCloneDb(): void {
-  const url = process.env['DATABASE_URL']
+  const url = process.env.DATABASE_URL
   if (!url) throw new Error('period-family-lock-order: DATABASE_URL is unset.')
   let dbName: string
   try {
@@ -129,7 +129,7 @@ async function seedFixture(): Promise<void> {
       hits_for, hits_against
     ) VALUES (
       ${MATCH}, (SELECT id FROM game_titles ORDER BY id LIMIT 1),
-      ${`lock-order-${MATCH}`}, 'gameType5', '999999', 'SENTINEL',
+      ${`lock-order-${String(MATCH)}`}, 'gameType5', '999999', 'SENTINEL',
       now(), 'WIN', 3, 1, 20, 18, 5, 4
     )
   `
@@ -139,10 +139,14 @@ async function seedFixture(): Promise<void> {
     ON CONFLICT DO NOTHING
     RETURNING id
   `
-  const playerId =
-    player?.id ??
-    (await pg<{ id: number }[]>`SELECT id FROM players WHERE gamertag = 'LOCK-ORDER-SENTINEL'`)[0]!
-      .id
+  let playerId = player?.id
+  if (playerId === undefined) {
+    const [existing] = await pg<{ id: number }[]>`
+      SELECT id FROM players WHERE gamertag = 'LOCK-ORDER-SENTINEL'
+    `
+    if (!existing) throw new Error('period-family-lock-order: failed to find or create sentinel player')
+    playerId = existing.id
+  }
   await pg`
     INSERT INTO player_match_stats (player_id, match_id, position, is_goalie, goals, assists,
                                     faceoff_wins, faceoff_losses, toi_seconds)
@@ -152,16 +156,17 @@ async function seedFixture(): Promise<void> {
     INSERT INTO opponent_player_match_stats (match_id, ea_player_id, opponent_club_id, gamertag,
                                              position, is_goalie, faceoff_wins, faceoff_losses,
                                              toi_seconds)
-    VALUES (${MATCH}, ${`lock-order-${MATCH}`}, '999999', 'SENTINEL-OPP',
+    VALUES (${MATCH}, ${`lock-order-${String(MATCH)}`}, '999999', 'SENTINEL-OPP',
             'center', false, 8, 0, ${REGULATION_TOI})
   `
   const [batch] = await pg<{ id: number }[]>`
     INSERT INTO ocr_capture_batches (game_title_id, match_id, capture_kind, source_directory)
     VALUES ((SELECT id FROM game_titles ORDER BY id LIMIT 1), ${MATCH}, 'video_frames',
-            ${`/lock-order-${MATCH}`})
+            ${`/lock-order-${String(MATCH)}`})
     RETURNING id
   `
-  const batchId = batch!.id
+  if (!batch) throw new Error('period-family-lock-order: failed to insert ocr_capture_batches row')
+  const batchId = batch.id
 
   const [goalsRow] = await pg<{ id: string }[]>`
     INSERT INTO ocr_extractions (batch_id, match_id, screen_type, source_path, raw_result_json,
@@ -170,7 +175,8 @@ async function seedFixture(): Promise<void> {
             ${`/frames/${String(MATCH)}-goals.png`}, '{}'::jsonb, 'success', 'pending_review')
     RETURNING id
   `
-  goalsExtraction = Number(goalsRow!.id)
+  if (!goalsRow) throw new Error('period-family-lock-order: failed to insert goals ocr_extractions row')
+  goalsExtraction = Number(goalsRow.id)
 
   const [faceoffsRow] = await pg<{ id: string }[]>`
     INSERT INTO ocr_extractions (batch_id, match_id, screen_type, source_path, raw_result_json,
@@ -179,7 +185,10 @@ async function seedFixture(): Promise<void> {
             ${`/frames/${String(MATCH)}-faceoffs.png`}, '{}'::jsonb, 'success', 'pending_review')
     RETURNING id
   `
-  faceoffsExtraction = Number(faceoffsRow!.id)
+  if (!faceoffsRow) {
+    throw new Error('period-family-lock-order: failed to insert faceoffs ocr_extractions row')
+  }
+  faceoffsExtraction = Number(faceoffsRow.id)
 
   const PERIODS_REVERSED = [
     { period: 3, gf: 0, ga: 0 },
@@ -202,8 +211,22 @@ async function seedFixture(): Promise<void> {
       )
       RETURNING id
     `
-    periodRowIds[p.period] = Number(row!.id)
+    if (!row) {
+      throw new Error(
+        `period-family-lock-order: failed to insert period ${String(p.period)} summary row`,
+      )
+    }
+    periodRowIds[p.period] = Number(row.id)
   }
+}
+
+/** Look up a seeded period row id, throwing rather than allowing `undefined` through. */
+function periodRowId(period: number): number {
+  const id = periodRowIds[period]
+  if (id === undefined) {
+    throw new Error(`period-family-lock-order: no seeded row id for period ${String(period)}`)
+  }
+  return id
 }
 
 async function extractionStatus(id: number): Promise<string> {
@@ -256,8 +279,9 @@ async function holdRowLock(rowId: number): Promise<RowHolder> {
 
   const held = pg.begin(async (tx) => {
     const [row] = await tx<{ pid: number }[]>`SELECT pg_backend_pid() AS pid`
+    if (!row) throw new Error('period-family-lock-order: failed to read pg_backend_pid()')
     await tx`SELECT id FROM match_period_summaries WHERE id = ${rowId} FOR UPDATE`
-    acquired(row!.pid)
+    acquired(row.pid)
     await gate
   })
   const holderPid = await ready
@@ -320,7 +344,8 @@ async function holdRowLock(rowId: number): Promise<RowHolder> {
 function errorChainText(err: unknown, depth = 0): string {
   if (err == null || depth > 5) return ''
   const cause = err instanceof Error ? err.cause : undefined
-  return `${String(err)}\n${errorChainText(cause, depth + 1)}`
+  const text = err instanceof Error ? err.toString() : JSON.stringify(err)
+  return `${text}\n${errorChainText(cause, depth + 1)}`
 }
 
 /** Wrap a promise so the trace can tell whether it has settled yet. */
@@ -339,7 +364,7 @@ before(async () => {
   await applyMigration0056()
   await seedFixture()
   assert.ok(
-    periodRowIds[3]! < periodRowIds[2]! && periodRowIds[2]! < periodRowIds[1]!,
+    periodRowId(3) < periodRowId(2) && periodRowId(2) < periodRowId(1),
     `fixture must assign row ids opposite to period_number order for this trace to mean ` +
       `anything; got ${JSON.stringify(periodRowIds)}`,
   )
@@ -357,11 +382,14 @@ void test(
     'runs opposite to period_number order',
   { timeout: 120_000 },
   async (t) => {
-    if (!hasDb) return t.skip('DATABASE_URL not set — requires the test-DB clone.')
+    if (!hasDb) {
+      t.skip('DATABASE_URL not set — requires the test-DB clone.')
+      return
+    }
     const { promoteOcrPeriodFamily } = await import('@eanhl/db/queries')
     const { setExtractionStatus } = await import('../lib/review-cascade.js')
 
-    const holder = await holdRowLock(periodRowIds[2]!)
+    const holder = await holdRowLock(periodRowId(2))
     try {
       // 1. Promotion (period_number order: 1, 2, 3) locks period 1 uncontested,
       //    then blocks reaching for period 2.
