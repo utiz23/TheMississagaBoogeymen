@@ -291,7 +291,7 @@ function render(outcomes: MatchOutcome[], promote: boolean): string {
         `${(o.periodsPlayed === null ? '—' : String(o.periodsPlayed)).padStart(3)}  ` +
         `${fmt(o.periodCoverage)}  ${fmt(o.periodAccuracy)}  ` +
         `${fmt(o.faceoffCoverage)}  ${fmt(o.faceoffAccuracy)}  ` +
-        `${o.reconciliation.status}`,
+        o.reconciliation.status,
     )
     for (const family of ['goals', 'shots', 'faceoffs'] as const) {
       const f = o.families[family]

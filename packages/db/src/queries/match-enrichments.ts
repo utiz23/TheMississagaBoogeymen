@@ -262,14 +262,16 @@ export async function countPendingOcrPeriodSummaries(matchId: number): Promise<n
  *
  * @throws always.
  */
-export async function markOcrPeriodSummariesReviewed(_matchId: number): Promise<number> {
-  throw new Error(
-    'markOcrPeriodSummariesReviewed is disabled: whole-row promotion of match_period_summaries ' +
-      'is unsafe. A row carries three independently-captured stat families (goals, shots, ' +
-      'faceoffs) and reconcilePeriods() can only grade goals, so flipping the row published ' +
-      'unvalidated shots/faceoffs, partial families and phantom OT periods. Per-family bounded ' +
-      'promotion is required; the family-scoped API lands with the worker/reconciliation slice. ' +
-      'No rows were modified.',
+export function markOcrPeriodSummariesReviewed(_matchId: number): Promise<number> {
+  return Promise.reject(
+    new Error(
+      'markOcrPeriodSummariesReviewed is disabled: whole-row promotion of match_period_summaries ' +
+        'is unsafe. A row carries three independently-captured stat families (goals, shots, ' +
+        'faceoffs) and reconcilePeriods() can only grade goals, so flipping the row published ' +
+        'unvalidated shots/faceoffs, partial families and phantom OT periods. Per-family bounded ' +
+        'promotion is required; the family-scoped API lands with the worker/reconciliation slice. ' +
+        'No rows were modified.',
+    ),
   )
 }
 

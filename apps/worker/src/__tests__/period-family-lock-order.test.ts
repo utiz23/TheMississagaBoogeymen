@@ -144,7 +144,8 @@ async function seedFixture(): Promise<void> {
     const [existing] = await pg<{ id: number }[]>`
       SELECT id FROM players WHERE gamertag = 'LOCK-ORDER-SENTINEL'
     `
-    if (!existing) throw new Error('period-family-lock-order: failed to find or create sentinel player')
+    if (!existing)
+      throw new Error('period-family-lock-order: failed to find or create sentinel player')
     playerId = existing.id
   }
   await pg`
@@ -175,7 +176,8 @@ async function seedFixture(): Promise<void> {
             ${`/frames/${String(MATCH)}-goals.png`}, '{}'::jsonb, 'success', 'pending_review')
     RETURNING id
   `
-  if (!goalsRow) throw new Error('period-family-lock-order: failed to insert goals ocr_extractions row')
+  if (!goalsRow)
+    throw new Error('period-family-lock-order: failed to insert goals ocr_extractions row')
   goalsExtraction = Number(goalsRow.id)
 
   const [faceoffsRow] = await pg<{ id: string }[]>`

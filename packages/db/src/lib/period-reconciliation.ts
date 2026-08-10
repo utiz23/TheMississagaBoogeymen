@@ -432,10 +432,10 @@ export function computePeriodEvidence(input: {
     const inBound =
       periodsPlayed === null ? periods : periods.filter((p) => p.periodNumber <= periodsPlayed)
     const scoring = inBound.filter((p) => (p.goalsFor ?? 0) !== 0 || (p.goalsAgainst ?? 0) !== 0)
+    const onlyScoringPeriod = scoring.length === 1 ? scoring[0] : undefined
     periodSumVacuous =
-      scoring.length === 1 &&
-      scoring[0]!.goalsFor === truth.scoreFor &&
-      scoring[0]!.goalsAgainst === truth.scoreAgainst
+      onlyScoringPeriod?.goalsFor === truth.scoreFor &&
+      onlyScoringPeriod.goalsAgainst === truth.scoreAgainst
   }
 
   const periodZerosForced =
