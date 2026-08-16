@@ -2,31 +2,36 @@
 
 ## Active State
 
-### 🟡 LOCAL-ONLY — Workstreams A/B/C committed on `main`, 3 ahead / 0 behind `origin/main`; not pushed, not deployed (2026-08-16)
+### 🟡 LOCAL-ONLY — Workstreams A/B/C/D and this documentation correction committed on `main`, 5 ahead / 0 behind `origin/main`; not pushed, not deployed (2026-08-16)
 
-`main` has moved on since the push/sync described in the SYNCED entry immediately below. Three
-workstreams that were dirty/untracked working-tree changes as of that push session have since
-been committed, in this order:
+`main` has moved on since the push/sync described in the SYNCED entry immediately below. Four
+workstreams plus a documentation-integrity correction, all local-only, have since been committed,
+in this order:
 
 - **Workstream B committed locally:** `4a38395016c57e89c8f070b4fe1139f2abef135f` — `feat(web): add family-aware OCR coverage pills`
 - **Workstream A committed locally:** `3227b34fa098e71f2999ea1e1ed3159e1fad6ced` — `feat(web): shape 3s lineups by game mode`
 - **Workstream C committed locally:** `4f980adfb17f136357334627546b34393499e771` — `fix(web): polish box score and lineup borders`
+- **Workstream D committed locally:** `234947bcbdf3038984b1f9f61ab26413a345b73d` — `docs: reorganize docs and consolidate handoff`
+- **This documentation-integrity correction** is contained in the commit that carries this entry.
+  It fixes two defects Workstream D left behind: this Active State entry going stale the instant D
+  was committed (it still said "3 ahead" and omitted D), and roughly 206 repository-relative links
+  in the archived `docs/archive/handoff-history-2026-08-03.md` that were preserved unrebased when
+  that file moved from the repo root into `docs/archive/`.
 
-Current `main` is **3 commits ahead, 0 behind `origin/main`** (`origin/main` remains at
-`a97ce87c655e9ce7145653837f18df5c7b1eba9c`, unchanged since the SYNCED push below). **These three
-commits are local-only: not pushed and not deployed.** Workstream D is the documentation/archive
-checkpoint containing this entry (this `HANDOFF.md` consolidation, the `docs/README.md` reorg, and
-the new archive/operations/calibration/review records). No database migration or production data
-operation is part of A/B/C/D. Workstream B's database integration tests wrote only to disposable
-`eanhl_test_*` test clones, never to production.
+Current `main` is **5 commits ahead, 0 behind `origin/main`** (`origin/main` remains at
+`a97ce87c655e9ce7145653837f18df5c7b1eba9c`, unchanged since the SYNCED push below). **None of
+these five commits has been pushed.** A/B/C have not been deployed; D and this correction are
+documentation-only. No database migration or production data operation is part of A/B/C/D or this
+correction. Workstream B's database integration tests wrote only to disposable `eanhl_test_*` test
+clones, never to production.
 
 This entry supersedes the "0/0 ahead/behind" language in the SYNCED entry immediately below and in
 the RECONCILED entry further down — both were accurate only as of the 2026-08-16 push session,
-before A/B/C existed as commits.
+before A/B/C/D and this correction existed as commits.
 
 ### 🟢 SYNCED — decoder-provenance repair (38 rows) and `main`→`origin/main` push (2026-08-16)
 
-**Historical, as of this push session:** `main` was synchronized with `origin/main` at `a97ce87c655e9ce7145653837f18df5c7b1eba9c` (0/0 ahead/behind at that point), pushed by fast-forward (81 commits, no force, no `--no-verify`). **This is no longer the current state — see the LOCAL-ONLY entry at the top of Active State for the present 3-ahead/0-behind position.** An initial push attempt was correctly blocked by the pre-push `verify-ocr` hook on a real worker test failure caused by 38 `ocr_decoder_runs` rows left stale (`legacy-passthrough-v0-video`) after the Stage-B rescue attached a second decoder's segments to them without refreshing parent provenance. An authorized, read/write-scoped repair updated exactly those 38 rows to `legacy-mixed` in one transaction (backup + repair + rollback SQL all hashed and preserved); the retried push then passed all five verify-ocr stages and went through. Full record, including the exact 38 run IDs, before/after counts, and the still-open source-level follow-up (no code path yet refreshes parent-run provenance on attachment): [`docs/operations/decoder-provenance-repair-main-sync-2026-08-16.md`](docs/operations/decoder-provenance-repair-main-sync-2026-08-16.md).
+**Historical, as of this push session:** `main` was synchronized with `origin/main` at `a97ce87c655e9ce7145653837f18df5c7b1eba9c` (0/0 ahead/behind at that point), pushed by fast-forward (81 commits, no force, no `--no-verify`). **This is no longer the current state — see the top Active State entry for the current local/remote position.** An initial push attempt was correctly blocked by the pre-push `verify-ocr` hook on a real worker test failure caused by 38 `ocr_decoder_runs` rows left stale (`legacy-passthrough-v0-video`) after the Stage-B rescue attached a second decoder's segments to them without refreshing parent provenance. An authorized, read/write-scoped repair updated exactly those 38 rows to `legacy-mixed` in one transaction (backup + repair + rollback SQL all hashed and preserved); the retried push then passed all five verify-ocr stages and went through. Full record, including the exact 38 run IDs, before/after counts, and the still-open source-level follow-up (no code path yet refreshes parent-run provenance on attachment): [`docs/operations/decoder-provenance-repair-main-sync-2026-08-16.md`](docs/operations/decoder-provenance-repair-main-sync-2026-08-16.md).
 
 ### 🟢 DEPLOYED — worker `/health` NULL `finished_at` bug (2026-08-16, fixed and deployed same day)
 
@@ -48,7 +53,7 @@ before A/B/C existed as commits.
 - Everything the 2026-08-03 entry called uncommitted is committed: the Stage B executor (`rescue_execute.py`, `scripts/execute_rescue_manifest.py`, `tests/test_rescue_execute.py` — `f55a58d`, `d32b50b`), the pipeline-wide cache-root preflight (`video_ingest/cache_root.py` — `b863ebb`), the rescue sampling/manifest/transform modules (`9ec9df0`), and a SHA-bound rescue execution allowlist added **after** Stage B (`rescue_allowlist.py` — `8627fae`, `06b1986`).
 - A second, unrelated workstream landed in the same window and is **not documented anywhere else in this file**: per-family period review-gating/locking (`ab8dd28` → `3038821`, 2026-08-07 to 2026-08-09) — migration `0056_period_family_review_status.sql`, `packages/db/src/lib/period-reconciliation.ts`, and review-cascade/promotion-authorization/lock-ordering changes across `apps/worker` and `packages/db`.
 - `540777a` (HEAD, 2026-08-09) is a 4-file lint cleanup on top of the period-family commits. **It has already passed independent management review and is accepted — do not revisit or change it.**
-- `main` was synchronized with `origin/main` on 2026-08-16, through `a97ce87c655e9ce7145653837f18df5c7b1eba9c` (81 commits, fast-forward push), and was 0/0 against `origin/main` at that point in the session. **Workstreams A/B/C were committed after that push and main is now 3 ahead / 0 behind — see the LOCAL-ONLY entry at the top of Active State.** See the "SYNCED" entry and [`docs/operations/decoder-provenance-repair-main-sync-2026-08-16.md`](docs/operations/decoder-provenance-repair-main-sync-2026-08-16.md) for the push, the blocking test failure, and the decoder-provenance repair that unblocked it.
+- `main` was synchronized with `origin/main` on 2026-08-16, through `a97ce87c655e9ce7145653837f18df5c7b1eba9c` (81 commits, fast-forward push), and was 0/0 against `origin/main` at that point in the session. **Workstreams A/B/C were committed after that push — see the top Active State entry for the current local/remote position.** See the "SYNCED" entry and [`docs/operations/decoder-provenance-repair-main-sync-2026-08-16.md`](docs/operations/decoder-provenance-repair-main-sync-2026-08-16.md) for the push, the blocking test failure, and the decoder-provenance repair that unblocked it.
 - This reconciliation session touched only `HANDOFF.md`. The rest of the dirty/untracked working tree (`apps/web`, `packages/db/src/queries/index.ts`, `docs/`, the deleted assets, the OCR-pill/lineup-shape/ocr-coverage additions) was unrelated in-progress drift and was left untouched **at that time; it was later committed as workstreams A/B/C on 2026-08-16 (see the LOCAL-ONLY entry at the top of Active State) and is no longer dirty/untracked.**
 
 #### Verified final state of the 97-window auto rescue (read-only reconciliation, `audit-v3-REPORT.md` + `RUN-METADATA.json` for `rescue-b2-20260807T031344Z`, exact promotion-key matching — see 2026-08-15 rescue-reconciliation session)
