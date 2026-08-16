@@ -2,7 +2,9 @@ import Link from 'next/link'
 import Image from 'next/image'
 import type { Match, MatchResult } from '@eanhl/db'
 import { OpponentCrest } from '@/components/ui/opponent-crest'
+import { OcrPill } from '@/components/ui/ocr-pill'
 import { ResultPill } from '@/components/ui/result-pill'
+import type { OcrCoverageStreams } from '@/lib/ocr-coverage'
 import { abbreviateTeamName, formatMatchTime, formatTOA } from '@/lib/format'
 import { buildPossessionEdge } from '@/lib/match-recap'
 
@@ -56,6 +58,11 @@ interface ScoreCardProps {
   opponentCrestAssetId: string | null
   opponentCrestUseBaseAsset: string | null
   href?: string
+  /**
+   * Which OCR streams this match has. Omitted (or all-false) renders no pill —
+   * callers without the batched coverage lookup simply don't show one.
+   */
+  ocrCoverage?: OcrCoverageStreams | undefined
 }
 
 function SnapStat({ label, value }: { label: string; value: string }) {
@@ -112,6 +119,7 @@ export function ScoreCard({
   opponentCrestAssetId,
   opponentCrestUseBaseAsset,
   href,
+  ocrCoverage,
 }: ScoreCardProps) {
   const opponentAbbrev = abbreviateTeamName(match.opponentName)
 
@@ -185,6 +193,7 @@ export function ScoreCard({
               {qualityLabel}
             </span>
           )}
+          {ocrCoverage !== undefined && <OcrPill streams={ocrCoverage} />}
         </div>
         <span className="text-xs text-zinc-600">{formatMatchTime(match.playedAt)}</span>
       </div>

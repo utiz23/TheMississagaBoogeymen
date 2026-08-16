@@ -7,6 +7,8 @@ import {
   getRecentMatches,
   countMatches,
   getOpponentClubs,
+  getOcrCoverageForMatches,
+  type MatchOcrCoverage,
 } from '@eanhl/db/queries'
 import type { GameMode, MatchResult } from '@eanhl/db'
 import { GAME_MODE } from '@eanhl/db'
@@ -157,6 +159,12 @@ export default async function GamesPage({ searchParams }: { searchParams: Search
     return <EmptyState message="Unable to load match data right now." />
   }
 
+  // OCR coverage drives a decorative pill only, so it fails soft — an empty
+  // map renders no pills rather than taking the whole list down with it.
+  const ocrCoverage = await getOcrCoverageForMatches(pageMatches.map((match) => match.id)).catch(
+    () => new Map<number, MatchOcrCoverage>(),
+  )
+
   // Exclude the most recent game from the summary rail and trend bullets.
   const formMatches = rawFormMatches.slice(1, FORM_WINDOW_SIZE + 1)
 
@@ -243,6 +251,7 @@ export default async function GamesPage({ searchParams }: { searchParams: Search
                         href={`/games/${match.id.toString()}${listContextQuery ? `?${listContextQuery}` : ''}`}
                         opponentCrestAssetId={opponent?.crestAssetId ?? null}
                         opponentCrestUseBaseAsset={opponent?.useBaseAsset ?? null}
+                        ocrCoverage={ocrCoverage.get(match.id)}
                       />
                     )
                   })}
