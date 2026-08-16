@@ -385,7 +385,7 @@ function BoxScoreTable({
           <tr className="bg-charcoal">
             <th
               scope="col"
-              className="px-1.5 py-1 text-left font-condensed text-[10px] font-bold uppercase tracking-[0.06em] text-fg-3"
+              className="px-1.5 py-1 text-left font-condensed text-[12px] font-bold uppercase tracking-[0.06em] text-fg-4"
             >
               Team
             </th>
@@ -393,7 +393,7 @@ function BoxScoreTable({
               <th
                 key={r.id}
                 scope="col"
-                className="px-0.5 py-1 text-center font-condensed text-[10px] font-bold uppercase tracking-[0.04em] tabular-nums text-fg-3"
+                className="px-0.5 py-1 text-center font-condensed text-[12px] font-bold uppercase tracking-[0.04em] tabular-nums text-fg-4"
               >
                 {formatPeriodLabel(r.periodNumber)}
               </th>
@@ -402,7 +402,7 @@ function BoxScoreTable({
                 and a plain rule, with the team colour carried by the number. */}
             <th
               scope="col"
-              className="border-l border-border px-0.5 py-1 text-center font-condensed text-[10px] font-bold uppercase tracking-[0.04em] text-fg-3"
+              className="border-l border-border px-0.5 py-1 text-center font-condensed text-[12px] font-bold uppercase tracking-[0.04em] text-fg-4"
             >
               Tot
             </th>

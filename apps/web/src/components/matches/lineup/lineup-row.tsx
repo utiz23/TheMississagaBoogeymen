@@ -90,7 +90,14 @@ export function LineupModuleRow({ slot, mode, isOpen, panelId, onToggle }: Lineu
   // selection inside buttons whatever `user-select` computes to — a drag
   // across a row selected nothing, so gamertags and builds couldn't be
   // copied. Clicking still toggles; only dragging now selects.
-  const rowClass = `group gs-hover-row select-text grid w-full min-h-[58px] grid-cols-[30px_34px_minmax(0,1fr)_auto_19px] items-center gap-x-[9px] border-b border-border-subtle border-l-2 py-[7px] pr-3 pl-2.5 text-left focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent sm:grid-cols-[34px_40px_40px_minmax(0,1fr)_auto_19px] sm:gap-x-[11px] sm:pr-3.5 sm:pl-3 ${
+  // `border-b-*` (bottom colour only), NOT `border-border-subtle` (all four
+  // sides). This row also sets its own `border-l` colour below; an all-sides
+  // colour here is a same-specificity collision with it, resolved only by
+  // Tailwind's output order. It happens to render correctly — side-specific
+  // utilities are emitted after all-sides ones — but pinning the side makes
+  // the left rule's accent independent of that ordering. Same defect class as
+  // the box score's TOT rule.
+  const rowClass = `group gs-hover-row select-text grid w-full min-h-[58px] grid-cols-[30px_34px_minmax(0,1fr)_auto_19px] items-center gap-x-[9px] border-b border-b-border-subtle border-l-2 py-[7px] pr-3 pl-2.5 text-left focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent sm:grid-cols-[34px_40px_40px_minmax(0,1fr)_auto_19px] sm:gap-x-[11px] sm:pr-3.5 sm:pl-3 ${
     isOpen
       ? 'border-l-accent bg-surface-raised [box-shadow:inset_2px_0_0_var(--color-accent)]'
       : 'border-l-transparent'
