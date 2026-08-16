@@ -57,6 +57,7 @@
   --pos-ld: #13dfc8;
   --pos-rd: #ece335;
   --pos-d: var(--pos-ld); /* Generic D fallback when L/R is unknown */
+  --pos-w: var(--pos-lw); /* Generic W fallback when L/R is unknown (3s ladder) */
   --pos-g: #6f00a5;
 
   /* Game-sheet lineup POS cell — the prototype's de-rainbowed single neutral

@@ -46,6 +46,7 @@ import {
   attachSeasonAvgs,
   wentToOvertime,
 } from '@/lib/match-recap'
+import { ladderFor, rekeyLineupToLadder } from '@/lib/lineup-shape'
 import { resolveOpponentColors } from '@/lib/opponent-colors'
 import { abbreviateTeamName } from '@/lib/format'
 import { showOcrDiagnostics } from '@/lib/ocr-diagnostics'
@@ -166,13 +167,22 @@ export default async function GameDetailPage({ params, searchParams }: Props) {
   // Lineup & Loadouts source: use the OCR loadout snapshots when present;
   // otherwise fall back to the box score so we still show who dressed and
   // where (jersey # + archetype for BGM), rendered in the lean variant.
+  //
+  // The ladder is mode-dependent (6s: C/LW/RW/LD/RD/G · 3s: C/W/D/G). On 3s the
+  // OCR rows are additionally re-keyed onto it by player identity, because the
+  // pre-game lobby parser's fixed six-row geometry mislabels a three-row lobby
+  // and leaks opponent players into the bottom BGM slots. See `lineup-shape.ts`.
+  const ladder = ladderFor(m.gameMode)
   const hasOcrLineups = lineups.bgm.length > 0 || lineups.opponent.length > 0
   const lineupVariant: 'ocr' | 'boxScore' = hasOcrLineups ? 'ocr' : 'boxScore'
   const lineupData = hasOcrLineups
-    ? lineups
+    ? {
+        bgm: rekeyLineupToLadder(lineups.bgm, playerStats, m.gameMode, 'bgm'),
+        opponent: rekeyLineupToLadder(lineups.opponent, opponentPlayerStats, m.gameMode, 'opp'),
+      }
     : {
-        bgm: buildLineupFromStats(playerStats, 'bgm', m.playedAt),
-        opponent: buildLineupFromStats(opponentPlayerStats, 'opp', m.playedAt),
+        bgm: buildLineupFromStats(playerStats, 'bgm', m.playedAt, m.gameMode),
+        opponent: buildLineupFromStats(opponentPlayerStats, 'opp', m.playedAt, m.gameMode),
       }
 
   const topPerformers = attachSeasonAvgs(
@@ -248,6 +258,7 @@ export default async function GameDetailPage({ params, searchParams }: Props) {
             <LineupModule
               lineups={lineupData}
               variant={lineupVariant}
+              ladder={ladder}
               bgmStats={playerStats}
               oppStats={opponentPlayerStats}
               opponentName={match.opponentName}

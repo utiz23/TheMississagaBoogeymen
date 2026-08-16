@@ -21,13 +21,14 @@ import {
 } from './lineup-row'
 
 // Lineup — the prototype's one-roster-at-a-time module. A BGM|OPP segmented
-// control picks which team's six rows are browsed; the LOADOUTS|STATS page
-// mode (context) decides what each row trails with. Opening a row drills into
-// that one player: their build in LOADOUTS mode (falling back to the EA-backed
+// control picks which team's rows are browsed; the LOADOUTS|STATS page mode
+// (context) decides what each row trails with. Opening a row drills into that
+// one player: their build in LOADOUTS mode (falling back to the EA-backed
 // stats drawer when no loadout snapshot exists — never a dead-end card), their
 // match stats in STATS.
-
-const POSITIONS: LineupPositionKey[] = ['C', 'LW', 'RW', 'LD', 'RD', 'G']
+//
+// The row set is the match's ladder, passed in by the page rather than fixed
+// here: 6s runs C/LW/RW/LD/RD/G, 3s runs C/W/D/G. See `@/lib/lineup-shape`.
 
 type TeamKey = 'bgm' | 'opp'
 
@@ -49,6 +50,8 @@ interface LineupModuleProps {
   lineups: MatchLineups
   /** `ocr` = real pre-game loadout snapshots; `boxScore` = synthesized fallback. */
   variant: 'ocr' | 'boxScore'
+  /** Slot rows to render, in order — `ladderFor(match.gameMode)`. */
+  ladder: readonly LineupPositionKey[]
   bgmStats: LineupModuleStatRow[]
   oppStats: LineupModuleStatRow[]
   opponentName: string
@@ -62,6 +65,7 @@ interface LineupModuleProps {
 export function LineupModule({
   lineups,
   variant,
+  ladder,
   bgmStats,
   oppStats,
   opponentName,
@@ -75,12 +79,12 @@ export function LineupModule({
   const [openPos, setOpenPos] = useState<LineupPositionKey | null>(null)
   const idBase = useId()
 
-  const bgmByPos = bucketByPosition(lineups.bgm, variant)
-  const oppByPos = bucketByPosition(lineups.opponent, variant)
+  const bgmByPos = bucketByPosition(lineups.bgm, variant, ladder)
+  const oppByPos = bucketByPosition(lineups.opponent, variant, ladder)
   const activeByPos = team === 'bgm' ? bgmByPos : oppByPos
   const activeStats = team === 'bgm' ? bgmStats : oppStats
 
-  const slots = POSITIONS.map((position) => {
+  const slots = ladder.map((position) => {
     const row = activeByPos.get(position) ?? null
     const stat = row ? findStat(activeStats, team, row) : null
     return buildSlotVM({
@@ -95,8 +99,8 @@ export function LineupModule({
   // needed up front: the walk crosses rosters, so it has to know the other
   // side's order before it gets there.
   const walkOrders = {
-    bgm: expandableOrder(bgmByPos, bgmStats, 'bgm', variant),
-    opp: expandableOrder(oppByPos, oppStats, 'opp', variant),
+    bgm: expandableOrder(bgmByPos, bgmStats, 'bgm', variant, ladder),
+    opp: expandableOrder(oppByPos, oppStats, 'opp', variant, ladder),
   }
   const onWalkAdvance = useCallback(
     (nextMode: GameSheetMode, nextTeam: TeamKey, nextPos: LineupPositionKey | null) => {
@@ -207,7 +211,7 @@ export function LineupModule({
                 {activeName}
               </span>
               <span className="flex items-center gap-3.5 border-l border-border pl-3.5">
-                <HeaderKV k="Dressed" v={`${dressed.toString()}/6`} />
+                <HeaderKV k="Dressed" v={`${dressed.toString()}/${ladder.length.toString()}`} />
                 <HeaderKV k="Goalie" v={goalieLabel} dim={goalieLabel === 'CPU'} />
               </span>
             </div>
@@ -348,6 +352,8 @@ interface AutoWalk {
  *   STATS     BGM (nothing open) -> C -> ...
  *             OPP (nothing open) -> C -> ...  -> repeat
  *
+ * Legs follow the match's ladder, so a 3s walk is C -> W -> D -> G instead.
+ *
  * The overview step at the head of each roster is what makes the walk
  * readable — you see the team whole before it starts drilling into it.
  *
@@ -487,14 +493,15 @@ function useLineupAutoWalk({
   }
 }
 
-/** Expandable slots for one team, canonical order — that team's walk leg. */
+/** Expandable slots for one team, ladder order — that team's walk leg. */
 function expandableOrder(
   byPos: Map<LineupPositionKey, LineupRow>,
   stats: LineupModuleStatRow[],
   team: TeamKey,
   variant: 'ocr' | 'boxScore',
+  ladder: readonly LineupPositionKey[],
 ): LineupPositionKey[] {
-  return POSITIONS.filter((position) => {
+  return ladder.filter((position) => {
     const row = byPos.get(position) ?? null
     if (row === null) return false
     return buildSlotVM({ position, row, variant, stat: findStat(stats, team, row) }).expandable
@@ -558,8 +565,8 @@ interface BuildMixChip {
 /**
  * Collapse a roster's builds into ordered chips: `2× PMD`, `SNP`, `PLY`.
  *
- * Order is first-appearance in the canonical C→LW→RW→LD→RD→G sequence the
- * rows already arrive in. (The pre-revamp version claimed that order in a
+ * Order is first-appearance in the ladder sequence the rows already arrive in
+ * — C→LW→RW→LD→RD→G on 6s, C→W→D→G on 3s. (The pre-revamp version claimed that order in a
  * comment but emitted every reference build ahead of every bare one, which
  * scrambled it — that split is gone.) Reference builds key on build+ref so
  * two different Snipers don't merge into one chip.
@@ -608,6 +615,7 @@ function buildSlotVM(args: {
   const { position, row, variant, stat } = args
   const isDefense = position === 'LD' || position === 'RD'
   // EA doesn't split defence into L/R, so box-score slots read a neutral "D".
+  // The 3s ladder's slot key is already "D", so this is a no-op there.
   const posLabel = variant === 'boxScore' && isDefense ? 'D' : position
 
   if (row === null) {
@@ -783,13 +791,14 @@ function isRenderable(row: LineupRow): boolean {
 function bucketByPosition(
   rows: LineupRow[],
   variant: 'ocr' | 'boxScore',
+  ladder: readonly LineupPositionKey[],
 ): Map<LineupPositionKey, LineupRow> {
   const map = new Map<LineupPositionKey, LineupRow>()
   for (const r of rows) {
     if (!r.position) continue
     if (variant === 'ocr' && !isRenderable(r)) continue
     const pos = r.position as LineupPositionKey
-    if (POSITIONS.includes(pos) && !map.has(pos)) map.set(pos, r)
+    if (ladder.includes(pos) && !map.has(pos)) map.set(pos, r)
   }
   return map
 }

@@ -7,6 +7,7 @@ import { ArchetypePillCompact } from '@/components/ui/archetype-pill'
 import { PlayerSilhouette } from '@/components/home/player-card'
 import { PlatformBadge, type PlatformInfo } from '@/components/ui/platform-badge'
 import { xFactorIconUrl } from '@/lib/xfactor-asset'
+import type { LineupPositionKey } from '@/lib/lineup-shape'
 import type { GameSheetMode } from '@/components/matches/game-sheet-mode'
 
 // One unified row template for the lineup module — both LOADOUTS and STATS
@@ -19,7 +20,10 @@ import type { GameSheetMode } from '@/components/matches/game-sheet-mode'
 // pre-port row ran 9–10.5px micro-labels, which is the single biggest reason
 // it didn't read like the prototype.
 
-export type LineupPositionKey = 'C' | 'LW' | 'RW' | 'LD' | 'RD' | 'G'
+// Slot keys live in `@/lib/lineup-shape` (the ladder is mode-dependent — 6s
+// runs C/LW/RW/LD/RD/G, 3s runs C/W/D/G). Re-exported here so the module's
+// existing `from './lineup-row'` imports keep working.
+export type { LineupPositionKey }
 
 export interface LineupStatTile {
   label: string

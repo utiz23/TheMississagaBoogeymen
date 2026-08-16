@@ -5,12 +5,14 @@
 // the UI can label and surface them honestly.
 
 import type { Match, PlayerArchetype } from '@eanhl/db'
+import type { GameMode } from '@eanhl/db/schema'
 import type {
   LineupRow,
   MatchPeriodSummaryRow,
   getOpponentPlayerMatchStats,
   getPlayerMatchStats,
 } from '@eanhl/db/queries'
+import { eaPositionToSlot, type LineupPositionKey } from './lineup-shape'
 
 type PlayerStatBase = Awaited<ReturnType<typeof getPlayerMatchStats>>[number]
 type OpponentPlayerStatBase = Awaited<ReturnType<typeof getOpponentPlayerMatchStats>>[number]
@@ -367,19 +369,26 @@ export interface LineupStatSource {
  * OCR-specific (build detail, X-Factors, attributes, H/W/H, level, platform)
  * is null — the section renders these rows in its lean "box score" variant.
  *
- * EA reports both defencemen as `defenseMen` with no L/R split, so they fill
- * the LD then RD ladder slots in stat order; the section labels both slots "D".
+ * On 6s, EA reports both defencemen as `defenseMen` with no L/R split, so they
+ * fill the LD then RD ladder slots in stat order; the section labels both "D".
+ *
+ * On 3s the ladder has one neutral D slot, so the split doesn't apply and the
+ * mapping is a straight lookup (see `eaPositionToSlot`). This path covers 36 of
+ * the 56 3s matches — the ones with no pre-game loadout OCR at all.
  */
 export function buildLineupFromStats(
   rows: LineupStatSource[],
   side: 'bgm' | 'opp',
   capturedAt: Date,
+  gameMode: GameMode | null = null,
 ): LineupRow[] {
   let defenseSeen = 0
   const out: LineupRow[] = []
   for (const r of rows) {
-    let position: 'C' | 'LW' | 'RW' | 'LD' | 'RD' | 'G' | null
-    if (r.position === 'defenseMen') {
+    let position: LineupPositionKey | null
+    if (gameMode === '3s') {
+      position = eaPositionToSlot(gameMode, r.position)
+    } else if (r.position === 'defenseMen') {
       position = defenseSeen === 0 ? 'LD' : defenseSeen === 1 ? 'RD' : null
       defenseSeen++
     } else {

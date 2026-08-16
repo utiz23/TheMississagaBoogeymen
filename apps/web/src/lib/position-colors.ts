@@ -14,20 +14,28 @@
  *   leftDefenseMen   → --pos-ld  (#13dfc8)
  *   rightDefenseMen  → --pos-rd  (#ece335)
  *   defenseMen       → --pos-d   (alias of --pos-ld; default when L/R unknown)
+ *   wing             → --pos-w   (alias of --pos-lw; default when L/R unknown)
  *   goalie           → --pos-g   (#6f00a5)
+ *
+ * The two generic keys (`defenseMen`, `wing`) carry the 3s ladder, where the
+ * sources disagree on L/R and the slot label stays neutral. See `lineup-shape.ts`.
  */
 
 export type LongPositionKey =
   | 'center'
   | 'leftWing'
   | 'rightWing'
+  | 'wing'
   | 'defenseMen'
   | 'leftDefenseMen'
   | 'rightDefenseMen'
   | 'goalie'
 
-/** Short-form position tags used by the lineup section (`C | LW | RW | LD | RD | G`). */
-export type ShortPositionKey = 'C' | 'LW' | 'RW' | 'LD' | 'RD' | 'G'
+/**
+ * Short-form position tags used by the lineup section. `C | LW | RW | LD | RD | G`
+ * is the 6s ladder; `W | D` are the 3s ladder's neutral wing/defence slots.
+ */
+export type ShortPositionKey = 'C' | 'LW' | 'RW' | 'LD' | 'RD' | 'G' | 'W' | 'D'
 
 interface PositionMeta {
   tag: string
@@ -38,6 +46,7 @@ export const POSITION_META: Readonly<Record<LongPositionKey, PositionMeta>> = {
   center: { tag: 'C', colorVar: 'var(--pos-c)' },
   leftWing: { tag: 'LW', colorVar: 'var(--pos-lw)' },
   rightWing: { tag: 'RW', colorVar: 'var(--pos-rw)' },
+  wing: { tag: 'W', colorVar: 'var(--pos-w)' },
   defenseMen: { tag: 'D', colorVar: 'var(--pos-d)' },
   leftDefenseMen: { tag: 'LD', colorVar: 'var(--pos-ld)' },
   rightDefenseMen: { tag: 'RD', colorVar: 'var(--pos-rd)' },
@@ -48,8 +57,10 @@ const SHORT_TO_LONG: Readonly<Record<ShortPositionKey, LongPositionKey>> = {
   C: 'center',
   LW: 'leftWing',
   RW: 'rightWing',
+  W: 'wing',
   LD: 'leftDefenseMen',
   RD: 'rightDefenseMen',
+  D: 'defenseMen',
   G: 'goalie',
 }
 
