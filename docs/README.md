@@ -1,39 +1,49 @@
 # Documentation Index
 
-This folder is grouped by use, not by when the document was created.
+This folder is grouped by purpose, not by creation date. New documents should go
+into the narrowest matching directory instead of the repository root.
 
-## Core
+## Current project direction
 
-- `ARCHITECTURE.md` - current system architecture and schema notes.
+- [`ARCHITECTURE.md`](ARCHITECTURE.md) — current system architecture and schema notes.
+- [`planning/`](planning/) — product direction, database roadmap, research queue, and
+  broad system blueprint.
+- [`specs/`](specs/) — feature and UI specifications.
+- [`POLISH_BACKLOG.md`](POLISH_BACKLOG.md) — consolidated UI and UX cleanup backlog.
 
-## Planning
+## OCR and calibration
 
-- `planning/product-roadmap.md` - product direction and near-term build order.
-- `planning/database-roadmap.md` - database requirements and schema roadmap.
-- `planning/system-blueprint.md` - broad project blueprint and historical system plan.
-
-## Specs
-
-- `specs/` - feature and UI specs.
-- `specs/player-profile-page-v1.md` - V1 player profile page spec, previously the generic `PLAN.md`.
-
-## OCR
-
-- `ocr/source-screen-inventory.md` - source screen inventory for game OCR data.
-- `ocr/features-and-metrics.md` - OCR metrics and feature catalog.
-- `ocr/metrics-feature-brainstorm.md` - brainstorm for OCR-driven product features.
+- [`ocr/`](ocr/) — OCR designs, investigations, inventories, and implementation
+  reports.
+- [`calibration/`](calibration/) — benchmark baselines, evidence, phase reports,
+  and calibration data.
+- [`phase-b-labeling-worksheet.md`](phase-b-labeling-worksheet.md) — active labeling
+  worksheet.
 
 ## Operations
 
-- `operations/smoke-checks.md` - local verification and smoke checks.
-- `operations/agent-manager-workflow.md` - manager agent and control-plane workflow.
+- [`operations/`](operations/) — recurring operator and agent workflows.
+- [`runbook/`](runbook/) — one-off repair and backfill procedures.
+- [`session-playbook.md`](session-playbook.md) — session boundaries and handoff
+  conventions.
 
-## Templates
+## Design and product assets
 
-- `templates/player-profile-fields.md` - manual player profile field template.
+- [`branding/`](branding/) — brand references, logos, icons, event-map art, and
+  palettes.
+- [`design/`](design/) — imported design references, mockups, and screenshots.
+- [`cards/`](cards/) — player-card progression and badge design.
+- [`templates/`](templates/) — reusable documentation and data-entry templates.
 
-## Assets And Generated Planning
+## Historical and supporting material
 
-- `branding/` - brand references, logos, icons, event-map art, and palette files.
-- `design/` - imported design assets and screenshots.
-- `superpowers/` - implementation plans, specs, and work-session artifacts.
+- [`research/`](research/) — internal technical research and recommendations.
+- [`reviews/`](reviews/) — dated audits and source review reports.
+- [`retrospectives/`](retrospectives/) — completed-work retrospectives.
+- [`superpowers/`](superpowers/) — historical implementation plans and design
+  session artifacts.
+- [`archive/`](archive/) — superseded handoff history; not current project state.
+
+Root-level protocol and operator entry points (`README.md`, `AGENTS.md`,
+`CLAUDE.md`, `HANDOFF.md`, and `DEPLOY.md`) intentionally remain at repository
+root.

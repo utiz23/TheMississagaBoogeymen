@@ -1,3 +1,10 @@
+# Games List Polish Scout Report
+
+**Scouted:** 2026-07-04
+
+**Status:** Source report; consolidated findings live in
+[`../POLISH_BACKLOG.md`](../POLISH_BACKLOG.md).
+
 /games (Games List) — Polish Scout Report
 Critical framing note: The games list renders ScoreCard (grid of cards), not MatchRow. MatchRow (apps/web/src/components/matches/match-row.tsx) is used only on /stats (apps/web/src/app/stats/page.tsx:348), so it is out of scope for this surface even though it was in the read list. All card findings below are against score-card.tsx.
 

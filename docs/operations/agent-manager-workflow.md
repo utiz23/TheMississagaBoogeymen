@@ -67,7 +67,7 @@ Use for:
 
 Recommended default:
 
-- model: `haiku`
+- model: `Sonnet 5`
 - effort: `low`
 
 ### `db-reviewer`
@@ -81,10 +81,11 @@ Use for:
 
 Recommended default:
 
-- model: `sonnet`
-- effort: `medium`
+- model: `Sonnet 5`
+- effort: `high`
 
-Raise to `high` when schema changes affect live data migration or cross-package query contracts.
+Raise to `Opus 5` at `high` when schema changes affect live data migration,
+cross-package query contracts, or other correctness-critical boundaries.
 
 ### `worker-debugger`
 
@@ -98,8 +99,11 @@ Use for:
 
 Recommended default:
 
-- model: `sonnet`
+- model: `Sonnet 5`
 - effort: `high`
+
+Raise to `Opus 5` at `high` when the failure is stubborn, cross-system, or
+likely to involve subtle correctness or idempotency issues.
 
 ## Claude Recommendation Policy
 
@@ -111,15 +115,19 @@ Before generating any Claude/sub-agent task, the manager must tell the user:
 
 Use this baseline unless the task clearly justifies something heavier:
 
-| Task shape                                   | Model    | Effort   |
-| -------------------------------------------- | -------- | -------- |
-| repo lookup / architecture tracing           | `haiku`  | `low`    |
-| UI/component implementation or review        | `sonnet` | `medium` |
-| DB/query/schema analysis                     | `sonnet` | `medium` |
-| ingestion / runtime debugging                | `sonnet` | `high`   |
-| cross-cutting architecture or risky refactor | `sonnet` | `high`   |
+| Task shape                                         | Model      | Effort   |
+| -------------------------------------------------- | ---------- | -------- |
+| mechanical edit, repo lookup, or narrow tracing    | `Sonnet 5` | `low`    |
+| routine implementation, review, UI, tests, or docs | `Sonnet 5` | `medium` |
+| difficult debugging, DB/query, or ingestion work   | `Sonnet 5` | `high`   |
+| risky architecture, migration, or security review  | `Opus 5`   | `high`   |
+| hardest ambiguous or long-horizon work             | `Fable 5`  | `high`   |
 
-Do not overspend model effort on trivial file discovery.
+Use `xhigh` only for demanding agentic work expected to run longer than 30
+minutes or require extensive exploration. Use `max` only for genuinely
+frontier tasks after `xhigh` has proved insufficient. Do not overspend model
+or effort on trivial work, and do not choose a heavier model merely because a
+task is important.
 
 ## Verification Standard
 
