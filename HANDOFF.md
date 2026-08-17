@@ -2,32 +2,34 @@
 
 ## Active State
 
-### 🟡 LOCAL-ONLY — Workstreams A/B/C/D and this documentation correction committed on `main`, 5 ahead / 0 behind `origin/main`; not pushed, not deployed (2026-08-16)
+### 🟢 DEPLOYED — website Workstreams A/B/C at `36764a` (2026-08-16)
 
-`main` has moved on since the push/sync described in the SYNCED entry immediately below. Four
-workstreams plus a documentation-integrity correction, all local-only, have since been committed,
-in this order:
+The five-commit checkpoint through `36764a6` (Workstreams B, A, C, D, and the
+documentation-integrity correction) was successfully fast-forward pushed to
+`origin/main`; the pre-push `verify-ocr` hook passed all five stages. In a
+separate, later session, Workstreams A/B/C were deployed web-only after
+explicit operator authorization (`DEPLOY WEB WORKSTREAMS 36764A`), built from
+an isolated `git archive 36764a6` snapshot — not the mutable working tree.
+Full record: [`docs/operations/deploy-36764a-web-workstreams-2026-08-16.md`](docs/operations/deploy-36764a-web-workstreams-2026-08-16.md).
 
-- **Workstream B committed locally:** `4a38395016c57e89c8f070b4fe1139f2abef135f` — `feat(web): add family-aware OCR coverage pills`
-- **Workstream A committed locally:** `3227b34fa098e71f2999ea1e1ed3159e1fad6ced` — `feat(web): shape 3s lineups by game mode`
-- **Workstream C committed locally:** `4f980adfb17f136357334627546b34393499e771` — `fix(web): polish box score and lineup borders`
-- **Workstream D committed locally:** `234947bcbdf3038984b1f9f61ab26413a345b73d` — `docs: reorganize docs and consolidate handoff`
-- **This documentation-integrity correction** is contained in the commit that carries this entry.
-  It fixes two defects Workstream D left behind: this Active State entry going stale the instant D
-  was committed (it still said "3 ahead" and omitted D), and roughly 206 repository-relative links
-  in the archived `docs/archive/handoff-history-2026-08-03.md` that were preserved unrebased when
-  that file moved from the repo root into `docs/archive/`.
+- **Commits (in order):**
+  - **Workstream B:** `4a38395016c57e89c8f070b4fe1139f2abef135f` — `feat(web): add family-aware OCR coverage pills`
+  - **Workstream A:** `3227b34fa098e71f2999ea1e1ed3159e1fad6ced` — `feat(web): shape 3s lineups by game mode`
+  - **Workstream C:** `4f980adfb17f136357334627546b34393499e771` — `fix(web): polish box score and lineup borders`
+  - **Workstream D:** `234947bcbdf3038984b1f9f61ab26413a345b73d` — `docs: reorganize docs and consolidate handoff`
+  - **Documentation-integrity correction:** `36764a621ae0e583d03c692899c6627696ffe59a` — fixed the Active State entry going stale immediately after D, and ~206 unrebased repository-relative links in the archived `docs/archive/handoff-history-2026-08-03.md`.
+- **Web now runs image `00a401fd31e3` in container `dc582e0c7821`** (was image `089f0b6938c1` in container `fe2e820b92d4`). Rollback tag `eanhl-team-website-web:pre-workstreams-36764a` points to the old image `089f0b6938c1`. **Rollback was not needed.**
+- **Worker and database were unchanged** — same containers/images/`StartedAt` throughout; neither was recreated or restarted.
+- **OCR fixtures 250 (Full) / 563 (Partial) / 249 (Minimal) / 231 (no pill) all passed.** 3s match 563 passed its C/W/D/G check (`silkyjoker85`/`camrazz`/`JoeyFlopfish`/AI-no-human-G) and its duplicate-collapse check (ten raw `JoeyFlopfish` LD/RW rows collapsed to one D row, no LD/RD slot labels in shaped output).
+- **All required routes returned 200:** `/`, `/games`, `/games/250`, `/games/253`, `/games/563`, `/games/249`.
+- No database migration or production data operation was part of A/B/C/D or the correction. Workstream B's database integration tests wrote only to disposable `eanhl_test_*` test clones, never to production. This deployment did not apply migration 0056 — it was already live (see the 0056-APPLIED entry below); deployment preflight only confirmed the three family review-status columns were present.
 
-Current `main` is **5 commits ahead, 0 behind `origin/main`** (`origin/main` remains at
-`a97ce87c655e9ce7145653837f18df5c7b1eba9c`, unchanged since the SYNCED push below). **None of
-these five commits has been pushed.** A/B/C have not been deployed; D and this correction are
-documentation-only. No database migration or production data operation is part of A/B/C/D or this
-correction. Workstream B's database integration tests wrote only to disposable `eanhl_test_*` test
-clones, never to production.
-
-This entry supersedes the "0/0 ahead/behind" language in the SYNCED entry immediately below and in
-the RECONCILED entry further down — both were accurate only as of the 2026-08-16 push session,
-before A/B/C/D and this correction existed as commits.
+This entry supersedes the prior "LOCAL-ONLY ... 5 ahead / 0 behind, not
+pushed, not deployed" language — those five commits are now pushed and
+A/B/C are now deployed. (This documentation update itself, recorded
+separately below, puts local `main` one commit ahead of `origin/main` again
+until it is pushed — check `git status`/`git rev-list` for the current
+ahead/behind rather than trusting a hard-coded count here.)
 
 ### 🟢 SYNCED — decoder-provenance repair (38 rows) and `main`→`origin/main` push (2026-08-16)
 
@@ -41,7 +43,7 @@ before A/B/C/D and this correction existed as commits.
   - 15 ESLint errors in the new test file (`consistent-generic-constructors`, `dot-notation` ×6, `array-type`, `no-unnecessary-type-conversion`, `no-floating-promises` ×7) — all fixed with no `eslint-disable`. `pnpm --filter worker exec eslint src/health.ts src/__tests__/health-endpoint.test.ts` exits **0**, verified directly, not inferred.
   - The "only NULL-finished_at successes never surface as the winner" test was a no-op — the cloned test DB always carries real completed rows, so it passed regardless of whether the fix was applied. Replaced with a transaction-isolated regression: opens `db.transaction`, flips every real completed success's `status` to `'error'` (a status update, not a delete — `raw_match_payloads` FKs to `ingestion_log.id` with no `ON DELETE` clause), inserts two NULL-`finished_at` successes, asserts the query-visible success set really is NULL-only, calls `fetchLatestCompletedSuccess(tx)` and `buildHealthPayload`, asserts the full 503-degraded/`lastSuccessfulIngest: null` shape, then deliberately rolls back via `tx.rollback()` (caught as `TransactionRollbackError` — the cloned fixture is provably unchanged).
   - `fetchLatestCompletedSuccess` gained one small addition beyond the accepted WHERE-clause fix: it now accepts `executor: HealthQueryExecutor = db` (a `Pick<typeof db, 'select'>`, mirroring the existing `DbConn` pattern in `ingest.ts`) so tests can pass a `tx` in place of `db`. It also throws instead of silently falling back to `null` if a selected row ever has `finished_at === null` — that branch is unreachable while the accepted filter is intact, so this changes no current behavior, but it was necessary: the prior silent fallback made the new isolated test pass even with `isNotNull` removed, which the task required it to catch. Verified by mutation: removing `isNotNull` now fails 3/7 tests (including the new isolated one) with the explicit invariant-violation message; restoring it returns all 7 to green.
-- **Deployment (2026-08-16, separate session from the fix):** built worker-only from an isolated `git archive a97ce87` snapshot (`/tmp/eanhl-a97ce87-snapshot-8336`), never from the dirty primary working tree (which, at the time, carried unrelated lineup/OCR-coverage/games-list/db-query drift, untouched throughout that build — that drift was later committed as workstreams A/B/C on 2026-08-16; see the LOCAL-ONLY entry at the top of Active State). Old image `1e0e30e63890` rollback-tagged `eanhl-team-website-worker:pre-health-fix-a97ce87`. New image `062f9343ab4d` built, verified to contain the fix, deployed worker-only (`--no-deps --force-recreate worker`) after explicit operator authorization (`DEPLOY WORKER HEALTH A97CE87`). `web` and `db` containers/images were never touched (container IDs, image IDs, and db `StartedAt` all confirmed unchanged before/after). Full record: [`docs/operations/deploy-a97ce87-worker-health-2026-08-16.md`](docs/operations/deploy-a97ce87-worker-health-2026-08-16.md).
+- **Deployment (2026-08-16, separate session from the fix):** built worker-only from an isolated `git archive a97ce87` snapshot (`/tmp/eanhl-a97ce87-snapshot-8336`), never from the dirty primary working tree (which, at the time, carried unrelated lineup/OCR-coverage/games-list/db-query drift, untouched throughout that build — that drift was later committed as workstreams A/B/C on 2026-08-16; see the top entry of Active State). Old image `1e0e30e63890` rollback-tagged `eanhl-team-website-worker:pre-health-fix-a97ce87`. New image `062f9343ab4d` built, verified to contain the fix, deployed worker-only (`--no-deps --force-recreate worker`) after explicit operator authorization (`DEPLOY WORKER HEALTH A97CE87`). `web` and `db` containers/images were never touched (container IDs, image IDs, and db `StartedAt` all confirmed unchanged before/after). Full record: [`docs/operations/deploy-a97ce87-worker-health-2026-08-16.md`](docs/operations/deploy-a97ce87-worker-health-2026-08-16.md).
 - **`/health` now returns HTTP 200** (`{"status":"ok","lastSuccessfulIngest":"2026-08-16T16:44:03.659Z","secondsSinceLastIngest":0}`), matching the DB's actual latest completed `ingestion_log` row exactly. The three historical NULL-`finished_at` success rows (ids 17468, 69577, 81472) remain present and untouched — read-only verification only, no repair performed. Worker logs clean, `RestartCount=0`, no restart loop, one normal ingestion cycle completed post-deploy (routine scheduled worker write, not manually invoked).
 
 ### 🟢 RECONCILED — 97-window rescue: 75 promoted, 1 failed, 21 not-attempted-by-design; promotion-key reconciliation and decoder-version questions are CLOSED (2026-08-15)
@@ -54,7 +56,7 @@ before A/B/C/D and this correction existed as commits.
 - A second, unrelated workstream landed in the same window and is **not documented anywhere else in this file**: per-family period review-gating/locking (`ab8dd28` → `3038821`, 2026-08-07 to 2026-08-09) — migration `0056_period_family_review_status.sql`, `packages/db/src/lib/period-reconciliation.ts`, and review-cascade/promotion-authorization/lock-ordering changes across `apps/worker` and `packages/db`.
 - `540777a` (HEAD, 2026-08-09) is a 4-file lint cleanup on top of the period-family commits. **It has already passed independent management review and is accepted — do not revisit or change it.**
 - `main` was synchronized with `origin/main` on 2026-08-16, through `a97ce87c655e9ce7145653837f18df5c7b1eba9c` (81 commits, fast-forward push), and was 0/0 against `origin/main` at that point in the session. **Workstreams A/B/C were committed after that push — see the top Active State entry for the current local/remote position.** See the "SYNCED" entry and [`docs/operations/decoder-provenance-repair-main-sync-2026-08-16.md`](docs/operations/decoder-provenance-repair-main-sync-2026-08-16.md) for the push, the blocking test failure, and the decoder-provenance repair that unblocked it.
-- This reconciliation session touched only `HANDOFF.md`. The rest of the dirty/untracked working tree (`apps/web`, `packages/db/src/queries/index.ts`, `docs/`, the deleted assets, the OCR-pill/lineup-shape/ocr-coverage additions) was unrelated in-progress drift and was left untouched **at that time; it was later committed as workstreams A/B/C on 2026-08-16 (see the LOCAL-ONLY entry at the top of Active State) and is no longer dirty/untracked.**
+- This reconciliation session touched only `HANDOFF.md`. The rest of the dirty/untracked working tree (`apps/web`, `packages/db/src/queries/index.ts`, `docs/`, the deleted assets, the OCR-pill/lineup-shape/ocr-coverage additions) was unrelated in-progress drift and was left untouched **at that time; it was later committed as workstreams A/B/C on 2026-08-16 (see the top entry of Active State) and is no longer dirty/untracked.**
 
 #### Verified final state of the 97-window auto rescue (read-only reconciliation, `audit-v3-REPORT.md` + `RUN-METADATA.json` for `rescue-b2-20260807T031344Z`, exact promotion-key matching — see 2026-08-15 rescue-reconciliation session)
 
@@ -128,7 +130,7 @@ A separate read-only schema audit has now run — [`docs/calibration/live-schema
 - **Deployed with `--no-deps --force-recreate web worker` only.** `db` was never restarted or recreated — same container ID (`9dacad8ce351`) and `StartedAt` throughout.
 - **Smoke tests: PASS.** `/`, `/games`, `/games/250` (reviewed sample), `/games/253` (pending-only sample) all **200**. `getMatchPeriodSummaries(250)` returns 4 rows matching the exact pre-deploy DB values (all three families `reviewed`); `getMatchPeriodSummaries(253)` returns **0 rows** — correctly masked, no `42703`. Read-only `reconcile-periods --all --json` on the new worker image: exit 0, valid JSON, 65 outcomes, **zero `promotedPeriods`**, no schema errors. Logs on both new containers clean of `42703`/`undefined_column`/restart-loop signs; worker completed a normal post-redeploy ingest cycle. DB invariants unchanged post-deploy: 17 columns, 0 backfill mismatches, 259 rows, 171/88 per-family distribution, Drizzle ledger untouched (47 rows).
 - **One pre-existing, unrelated finding, not fixed (no source change authorized this session):** worker `GET /health` returns `503 degraded` because `apps/worker/src/health.ts` (unchanged since 2026-04-11) orders by `finished_at DESC` without excluding NULLs, and 3 historical `ingestion_log` rows (dated 2026-05-17, 2026-07-26, 2026-08-11 — all pre-dating this session) carry `status='success'` with `finished_at IS NULL`, which Postgres's `DESC`→`NULLS FIRST` default sorts first. Confirmed identical in the old (pre-redeploy) image code — not a deployment regression, rollback would not fix it. Left as a documented follow-up (e.g. `ORDER BY finished_at DESC NULLS LAST`).
-- **Not done, deliberately:** no rollback (not triggered — the one health finding is proven pre-existing/unrelated), no `VACUUM ANALYZE`, no rescue/OCR/ingest/promotion work, no `--promote` on the reconcile CLI, no source-code or migration change, no commit or push. All pre-existing dirty/untracked working-tree files (3s lineup shaping, OCR coverage pills, games-list polish, `packages/db/src/queries/index.ts` drift) preserved byte-identical **at that time — this drift was later committed as workstreams A/B/C on 2026-08-16; see the LOCAL-ONLY entry at the top of Active State.** **Repository files changed by this session: exactly two** — the new `docs/operations/deploy-540777a-period-family-2026-08-15.md` and this HANDOFF top entry.
+- **Not done, deliberately:** no rollback (not triggered — the one health finding is proven pre-existing/unrelated), no `VACUUM ANALYZE`, no rescue/OCR/ingest/promotion work, no `--promote` on the reconcile CLI, no source-code or migration change, no commit or push. All pre-existing dirty/untracked working-tree files (3s lineup shaping, OCR coverage pills, games-list polish, `packages/db/src/queries/index.ts` drift) preserved byte-identical **at that time — this drift was later committed as workstreams A/B/C on 2026-08-16; see the top entry of Active State.** **Repository files changed by this session: exactly two** — the new `docs/operations/deploy-540777a-period-family-2026-08-15.md` and this HANDOFF top entry.
 - **Rescue status unchanged** — still BLOCKED on both grounds from the subsection above; this deployment session did not touch rescue authorization or execution in any way.
 
 ---
