@@ -23,6 +23,7 @@ import {
   ocrExtractionFields,
   ocrFieldEvidence,
   ocrSegments,
+  type Database,
   type NewOcrCaptureBatch,
   type NewOcrExtractionField,
   type NewOcrFieldEvidence,
@@ -33,6 +34,7 @@ import {
   type OcrScreenType,
   type OcrSegmentState,
 } from '@eanhl/db'
+import { lockDecoderRunForProvenance, refreshDecoderRunProvenance } from '@eanhl/db/queries'
 import { and, eq, isNotNull } from 'drizzle-orm'
 import { runOcrCli, type OcrResult, type OcrExtractionField } from './ocr-cli-runner.js'
 import { getPromoter, type PromoterDb } from './ocr-promoters/index.js'
@@ -540,7 +542,7 @@ async function sha256OfFile(path: string): Promise<string> {
  * per-state segmentation; the row's `decoder_version` tag distinguishes the
  * two paths so reports can filter.
  */
-async function writeSegmentForBatch(input: {
+export async function writeSegmentForBatch(input: {
   matchId: number | null
   batchId: number
   screen: OcrScreenType
@@ -599,26 +601,55 @@ async function writeSegmentForBatch(input: {
   // Phase-A: conflict target includes run_id so v1 and v2 segments for the
   // same (match_id, segment_key) coexist as distinct rows; the unique index
   // uses NULLS NOT DISTINCT to preserve the legacy single-NULL idempotency.
-  const [segRow] = await db
-    .insert(ocrSegments)
-    .values(segment)
-    .onConflictDoUpdate({
-      target: [ocrSegments.matchId, ocrSegments.segmentKey, ocrSegments.runId],
-      set: {
-        state: segment.state,
-        tStartSec: segment.tStartSec,
-        tEndSec: segment.tEndSec,
-        frameCount: segment.frameCount,
-        segmentConfidence: segment.segmentConfidence,
-        observabilityStatus: segment.observabilityStatus,
-        uiVersion: segment.uiVersion,
-        decoderVersion: segment.decoderVersion,
-        captureBatchId: segment.captureBatchId,
-      },
-    })
-    .returning({ id: ocrSegments.id })
-  if (!segRow) throw new Error('writeSegmentForBatch: no row returned from upsert')
-  return { id: segRow.id }
+  //
+  // The segment write and the parent run's provenance refresh share one
+  // transaction: a rescue-like attachment of a new-decoder segment under an
+  // existing run must never commit while the parent's decoder_version still
+  // claims a single stale decoder (see docs/operations/decoder-provenance-
+  // repair-main-sync-2026-08-16.md). No run_id -> nothing to lock or refresh.
+  //
+  // Lock ordering (see lockDecoderRunForProvenance for the full rationale):
+  //   1. begin
+  //   2. exclusive lock on the ONE parent run row  <- BEFORE the child write
+  //   3. upsert the child segment
+  //   4. derive + write the parent's provenance
+  //   5. commit
+  // Step 2 must precede step 3: the child insert itself takes FOR KEY SHARE on
+  // the parent for its FK check, and FOR KEY SHARE is self-compatible, so two
+  // cooperating writers for the same run that inserted first would each have to
+  // escalate past the other's lock and deadlock (40P01). Locking first makes the
+  // second writer queue up before it holds anything, so both commit.
+  return db.transaction(async (tx) => {
+    if (input.runId !== null) {
+      await lockDecoderRunForProvenance(input.runId, tx as unknown as Database)
+    }
+
+    const [segRow] = await tx
+      .insert(ocrSegments)
+      .values(segment)
+      .onConflictDoUpdate({
+        target: [ocrSegments.matchId, ocrSegments.segmentKey, ocrSegments.runId],
+        set: {
+          state: segment.state,
+          tStartSec: segment.tStartSec,
+          tEndSec: segment.tEndSec,
+          frameCount: segment.frameCount,
+          segmentConfidence: segment.segmentConfidence,
+          observabilityStatus: segment.observabilityStatus,
+          uiVersion: segment.uiVersion,
+          decoderVersion: segment.decoderVersion,
+          captureBatchId: segment.captureBatchId,
+        },
+      })
+      .returning({ id: ocrSegments.id })
+    if (!segRow) throw new Error('writeSegmentForBatch: no row returned from upsert')
+
+    if (input.runId !== null) {
+      await refreshDecoderRunProvenance(input.runId, tx as unknown as Database)
+    }
+
+    return { id: segRow.id }
+  })
 }
 
 // ─── Loadout evidence write path (Task 2A-14) ────────────────────────────────

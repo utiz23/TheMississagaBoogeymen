@@ -199,6 +199,141 @@ export async function ensureSyntheticActiveRunForMatch(
 }
 
 /**
+ * Take the run-scoped serialization lock that every writer attaching a child
+ * segment under `runId` must hold.
+ *
+ * LOCK ORDERING (parent before child — the whole point of this helper):
+ *   1. begin transaction
+ *   2. `lockDecoderRunForProvenance(runId, tx)`  <- exclusive lock on the ONE
+ *      parent row, taken while the transaction holds no child-row locks at all
+ *   3. insert/upsert the child `ocr_segments` row
+ *   4. `refreshDecoderRunProvenance(runId, tx)`
+ *   5. commit
+ *
+ * Why it must come BEFORE the child write: inserting a segment that references
+ * `run_id` makes Postgres take a `FOR KEY SHARE` lock on the parent run row for
+ * the referential-integrity check. `FOR KEY SHARE` is compatible with itself, so
+ * two cooperating writers for the same run would both sail through their inserts
+ * and only then each try to escalate to `FOR UPDATE` past the other's held
+ * `FOR KEY SHARE` — a textbook lock-upgrade deadlock that Postgres resolves by
+ * aborting one side (SQLSTATE 40P01). Taking `FOR UPDATE` first makes the second
+ * writer wait at step 2 instead, before it holds anything the first writer could
+ * ever need, so the two writers serialize cleanly and BOTH commit.
+ *
+ * Scope is exactly one row (`WHERE id = runId`) — never match-wide, so writers
+ * for sibling runs of the same match never contend.
+ *
+ * Throws when the run does not exist: a segment must not be attached to a run
+ * that isn't there (the FK would reject it a statement later anyway).
+ */
+export async function lockDecoderRunForProvenance(runId: number, conn: Database): Promise<void> {
+  const [run] = await conn
+    .select({ id: ocrDecoderRuns.id })
+    .from(ocrDecoderRuns)
+    .where(eq(ocrDecoderRuns.id, runId))
+    .limit(1)
+    .for('update')
+  if (!run) {
+    throw new Error(`lockDecoderRunForProvenance: run ${String(runId)} not found`)
+  }
+}
+
+/**
+ * Recompute a decoder run's own provenance from its OWN child `ocr_segments`
+ * rows (scoped by `run_id`, never match-wide) and write it back when it has
+ * drifted.
+ *
+ * Fixes the recurrence documented in
+ * docs/operations/decoder-provenance-repair-main-sync-2026-08-16.md: a
+ * rescue-like operation can attach a new-decoder segment under an existing
+ * run's `run_id` without touching the parent row. Call this INSIDE the same
+ * transaction as the segment write that touches a non-null `run_id`,
+ * immediately after it, so the attachment and the provenance refresh commit
+ * atomically — a segment can never be committed while its parent's
+ * `decoder_version` lies about which decoders it owns. That transaction MUST
+ * have already called `lockDecoderRunForProvenance(runId, conn)` before its
+ * child write; see that helper for the ordering and why it cannot be skipped.
+ *
+ * Rule (run-scoped, matches the 0048 backfill / ensureSyntheticActiveRunForMatch
+ * provenance rule):
+ *   - zero distinct non-null child decoder versions -> 'unknown'
+ *   - exactly one distinct value -> that value
+ *   - more than one distinct value -> 'legacy-mixed'
+ *
+ * When the run's `notes` mark it as synthetic/backfill provenance (starts
+ * with `'synthetic backfill'`), the `decoders=[...]` disclosure is rewritten
+ * to the current distinct set (sorted, for a stable string across repeated
+ * idempotent calls) — all other note text is preserved verbatim. A synthetic
+ * note that is missing the disclosure entirely (so the replace would be a
+ * silent no-op) gets one appended instead, so the invariant "synthetic notes
+ * never omit a child decoder" holds even for a malformed starting note.
+ * Non-synthetic run notes are never rewritten.
+ *
+ * A no-op write is skipped entirely (both `decoder_version` and `notes`
+ * already match) so idempotent re-attachment of the same segment never
+ * touches the row.
+ */
+const SYNTHETIC_NOTES_PREFIX = 'synthetic backfill'
+const DECODERS_DISCLOSURE_PATTERN = /decoders=\[[^\]]*\]/
+
+function refreshedSyntheticNotes(
+  notes: string | null,
+  distinctDecoders: readonly string[],
+): string | null {
+  if (notes?.startsWith(SYNTHETIC_NOTES_PREFIX) !== true) {
+    return notes
+  }
+  const disclosure = `decoders=[${distinctDecoders.join(', ')}]`
+  return DECODERS_DISCLOSURE_PATTERN.test(notes)
+    ? notes.replace(DECODERS_DISCLOSURE_PATTERN, disclosure)
+    : `${notes.trimEnd()} ${disclosure}`
+}
+
+export async function refreshDecoderRunProvenance(runId: number, conn: Database): Promise<void> {
+  // Re-assert the run-scoped lock the caller already took in
+  // `lockDecoderRunForProvenance` BEFORE its child write. Re-acquiring
+  // `FOR UPDATE` on a row this same transaction already holds `FOR UPDATE` is a
+  // no-op in Postgres, so this is an idempotent assertion rather than a second
+  // acquisition: it guarantees that a caller which forgot step 2 of the ordering
+  // still cannot derive provenance from a stale sibling snapshot (it just risks
+  // the lock-upgrade deadlock that step 2 exists to prevent). Scoped to this one
+  // row (WHERE id = runId) — never match-wide.
+  const [run] = await conn
+    .select({ decoderVersion: ocrDecoderRuns.decoderVersion, notes: ocrDecoderRuns.notes })
+    .from(ocrDecoderRuns)
+    .where(eq(ocrDecoderRuns.id, runId))
+    .limit(1)
+    .for('update')
+  if (!run) {
+    throw new Error(`refreshDecoderRunProvenance: run ${String(runId)} not found`)
+  }
+
+  const segs = await conn
+    .select({ decoderVersion: ocrSegments.decoderVersion })
+    .from(ocrSegments)
+    .where(eq(ocrSegments.runId, runId))
+  const distinctDecoders = Array.from(new Set(segs.map((s) => s.decoderVersion))).sort()
+
+  const nextDecoderVersion =
+    distinctDecoders.length === 0
+      ? 'unknown'
+      : distinctDecoders.length === 1
+        ? (distinctDecoders[0] ?? 'unknown')
+        : 'legacy-mixed'
+
+  const nextNotes = refreshedSyntheticNotes(run.notes, distinctDecoders)
+
+  if (nextDecoderVersion === run.decoderVersion && nextNotes === run.notes) {
+    return
+  }
+
+  await conn
+    .update(ocrDecoderRuns)
+    .set({ decoderVersion: nextDecoderVersion, notes: nextNotes })
+    .where(eq(ocrDecoderRuns.id, runId))
+}
+
+/**
  * One-time / maintenance wrapper: run `ensureSyntheticActiveRunForMatch` for a
  * single match inside its own transaction (atomic create + cascade). Safe to
  * re-run — idempotent once the match is linked.
