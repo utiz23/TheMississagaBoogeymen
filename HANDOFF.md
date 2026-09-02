@@ -1,6 +1,275 @@
 # Handoff
 
+## Operational V1 Terminal Roadmap — target 2026-10-01
+
+**Approved scope, 2026-09-02.** This is the working definition of "done" for
+Operational V1. It is a terminal scope for the current delivery cycle, not a
+claim that the product can never receive another feature. After this gate
+passes, the project moves to maintenance and separately approved enhancements.
+
+### Terminal definition
+
+Operational V1 is complete only when the product is:
+
+- accurate across its current and historical team-data surfaces;
+- proven end-to-end for NHL 27 while preserving the NHL 26 archive boundary;
+- securely hosted under its production domain;
+- usable on supported mobile and desktop sizes;
+- accessible, legally documented, observable, backed up, and recoverable;
+- deployed from a clean, synchronized `main` with current rollback and handoff
+  instructions.
+
+The launch/access posture (public, members-only, or mixed) must be decided by
+the September 14 gate. That decision controls indexing, authentication,
+analytics, cookie, and privacy requirements; it must not be left implicit.
+
+### Gate 1 — stable source baseline by Friday, 2026-09-04
+
+No new feature work belongs in this gate.
+
+- [x] Implement the source-level decoder-run provenance refresh and the final
+      parent-before-child lock ordering in the working tree.
+- [x] Independently review the final provenance patch and its symmetric
+      two-writer regression.
+- [x] Run the focused concurrency, worker, database, lint-delta, formatting,
+      and relevant regression checks.
+- [x] Prove by mutation that removing/moving the pre-insert run lock breaks the
+      symmetric concurrency gate for the intended reason.
+- [ ] Commit only the three provenance-fix files as one focused checkpoint.
+- [ ] Update the active handoff state with the final verification and commit.
+- [ ] Push through the normal pre-push verification hook; finish with clean,
+      synchronized `main`.
+- [ ] If separately authorized, deploy worker-only and smoke-test ingestion and
+      `/health`. Deployment is a separate operation, not implied by this list.
+
+### Gate 2 — operational and launch readiness by 2026-09-14
+
+#### Reliability, recovery, and visibility
+
+- [ ] Configure automated daily PostgreSQL backups to storage independent of
+      the production database host.
+- [ ] Complete a restore drill into a disposable database and verify critical
+      table counts and representative application reads.
+- [ ] Add stale-worker alerting.
+- [ ] Add visibility/alerting for accumulating
+      `raw_match_payloads.transform_status='error'` rows.
+- [ ] Add ingestion-gap visibility so "worker alive but capturing nothing" is
+      detectable before data is lost.
+- [ ] Define log retention/rotation and confirm production logs cannot exhaust
+      the host disk.
+- [ ] Record production rollback and disaster-recovery procedures.
+
+#### Domain, hosting, and exposure decisions
+
+- [ ] Select and purchase the production domain; document owner, registrar,
+      renewal date, billing owner, recovery contact, and MFA status.
+- [ ] Select the hosting solution and record expected monthly cost.
+- [ ] Document where the Next.js web app, worker, PostgreSQL database,
+      persistent storage, backups, DNS, and TLS terminate.
+- [ ] Decide whether the production site is public, members-only, or mixed.
+- [ ] Confirm the database port and worker health endpoint will not be exposed
+      directly to the public internet.
+- [ ] Define secret storage, environment separation, deployment mechanism,
+      staging strategy, and rollback ownership.
+
+#### Privacy, data collection, and legal drafts
+
+- [ ] Draft the privacy policy.
+- [ ] Draft the data-collection policy, explicitly covering gamertags, player
+      statistics, accounts, server/IP logs, analytics, cookies, retention, and
+      third-party processors actually used.
+- [ ] Define a data correction/deletion request and webmaster contact process.
+- [ ] Draft an EA/NHL non-affiliation and third-party asset/data attribution
+      notice appropriate to the final hosting posture.
+- [ ] Decide whether analytics are needed. Prefer no analytics or a
+      privacy-conscious implementation; add consent only when the selected
+      nonessential tracking actually requires it.
+
+#### NHL 27 readiness
+
+- [ ] Produce a per-parser NHL 27 beta compatibility matrix; do not accept
+      "screens look the same" as proof.
+- [ ] Capture and retain a small labeled NHL 27 benchmark.
+- [ ] Decide the NHL 26/27 dual-active and cutover rules: worker polling,
+      `game_titles.is_active`, title resolution, URL behavior, and what the UI
+      calls "current" during overlap.
+- [ ] Verify the planned NHL 26 -> NHL 27 career-stat stitching rules before
+      production cutover.
+
+#### Product-readiness audits and decisions
+
+- [ ] Audit the existing mobile drawer/menu; fix rather than duplicate it.
+- [ ] Audit every core route at 320, 375, 390, and 768 CSS pixels plus desktop.
+- [ ] Record production performance baselines for all core routes.
+- [ ] Define public/private indexing rules and identify every route that must
+      be excluded from search engines.
+- [ ] Audit page titles and descriptions; the root metadata exists, but a
+      title-only page does not satisfy the per-page description requirement.
+- [ ] Decide by this date whether the externally built game-sheet frontend is
+      accepted and ready for October integration. Missing this decision makes
+      that integration non-blocking and deferred.
+- [ ] Resolve or explicitly defer the remaining small correctness/polish
+      items: opponent player-score completeness, Top Performers contrast, and
+      navbar subtitle.
+
+### Gate 3 — Operational V1 product-ready by 2026-10-01
+
+#### Domain and hosting live
+
+- [ ] Production domain resolves correctly.
+- [ ] HTTPS is enforced and certificate renewal is automatic.
+- [ ] Apex/`www` canonical redirect behavior is deliberate and tested.
+- [ ] Production secrets are outside the repository and follow the documented
+      storage/rotation process.
+- [ ] Database and worker-management/health ports are private or explicitly
+      access-controlled.
+- [ ] Deployment and rollback have each been exercised from documented steps.
+- [ ] Backup automation is healthy and the successful restore drill remains
+      reproducible.
+
+#### Legal surface and global footer
+
+- [ ] Publish the privacy policy.
+- [ ] Publish the data-collection policy.
+- [ ] Add a global footer containing a working webmaster contact.
+- [ ] Render the current copyright year automatically.
+- [ ] Link privacy, data-collection, attribution/non-affiliation, and contact
+      information from every normal page.
+- [ ] Show cookie consent only if the deployed product uses nonessential
+      cookies/tracking that require it.
+
+#### Error handling, metadata, and discovery
+
+- [ ] Add and verify a branded custom 404 page.
+- [ ] Add and verify a useful production error/500 experience.
+- [ ] Add useful page-specific titles and meta descriptions.
+- [ ] Configure canonical URLs.
+- [ ] Add Open Graph/social-preview metadata and a production preview image.
+- [ ] Add/verify favicon and application icons.
+- [ ] Configure `robots.txt` and sitemap behavior for the chosen access model.
+- [ ] Ensure account, admin, diagnostic, preview, and other private routes are
+      not indexed.
+- [ ] Verify search-engine ownership only if public indexing is intended.
+
+#### Mobile, browser, and accessibility gate
+
+- [ ] Existing mobile navigation works with touch, keyboard, Escape, focus
+      trapping, focus return, and route changes.
+- [ ] Core routes have no horizontal page overflow, clipped controls,
+      unreadable tables, or inaccessible dialogs at supported widths.
+- [ ] Dense stats tables and match modules remain usable on small screens.
+- [ ] Verify semantic heading order, form/control labels, visible focus,
+      contrast, reduced-motion behavior, and keyboard-only navigation.
+- [ ] Test current Chrome, Firefox, Safari, and mobile Safari; record any
+      explicitly unsupported browser rather than silently ignoring it.
+- [ ] Verify loading, empty, unavailable-data, not-found, and server-error
+      states on representative routes.
+
+#### Performance optimization run
+
+- [ ] Run production-mode Lighthouse checks on every core route.
+- [ ] Target Lighthouse Performance >= 85, Accessibility >= 95, Best
+      Practices >= 95, and SEO >= 90 on public pages. Any accepted exception
+      must be written down with evidence and an owner.
+- [ ] Check cold load, cached load, and mobile-throttled behavior.
+- [ ] Optimize oversized images, fonts, and client bundles.
+- [ ] Remove avoidable client-side JavaScript and obvious request waterfalls.
+- [ ] Inspect slow database queries and prove core pages avoid obvious N+1
+      behavior.
+- [ ] Confirm no serious Core Web Vitals regression on launch candidates.
+
+#### Security and operational hardening
+
+- [ ] Configure and verify appropriate CSP, HSTS, frame-ancestor/frame
+      protection, MIME-sniffing protection, and referrer-policy headers.
+- [ ] Review production access control for account, admin, diagnostic, and
+      preview routes.
+- [ ] Rate-limit authentication, access-request, contact, and public API
+      surfaces where applicable.
+- [ ] Run a dependency/security audit and resolve critical findings or record a
+      signed-off exception.
+- [ ] Enable uptime and application-error monitoring with a tested notification
+      destination.
+- [ ] Run a broken-link and missing-asset scan.
+- [ ] Configure a working domain-based webmaster address such as
+      `webmaster@<production-domain>`.
+
+#### NHL 27 and core-product release gate
+
+- [ ] Configure the NHL 27 title/cutover behavior decided at the September 14
+      gate.
+- [ ] Prove at least one real NHL 27 match end-to-end: API ingest, association,
+      OCR processing, review/canonical boundary, and website presentation.
+- [ ] Smoke-test `/`, `/games`, representative game detail pages, `/roster`, a
+      representative player profile, and `/stats` in production.
+- [ ] Verify NHL 26 remains accessible as history and career totals cross the
+      NHL 26/27 boundary without source conflation.
+- [ ] Import the historical club/team review queue or close it with an exact,
+      documented remainder and rationale.
+- [ ] Integrate the external game-sheet frontend only if it passed the
+      September 14 acceptance decision; otherwise record it as deferred.
+- [ ] Complete final content/proofreading and verify contact/policy links.
+- [ ] Finish with clean, pushed, deployed `main`, current `HANDOFF.md`, known
+      image/commit identifiers, rollback criteria, and a 48-hour post-launch
+      monitoring plan.
+
+### Explicit non-goals for Operational V1
+
+The following do **not** block October 1 unless the operator explicitly changes
+the terminal scope:
+
+- the 22 unauthorized/blocked rescue windows;
+- faceoff-map ROI/OCR remediation;
+- chemistry heatmap and speculative advanced analytics;
+- player locker/build-history and card-progression features;
+- public request-access/auth expansion beyond the access posture selected for
+  launch;
+- shot-location features without a trustworthy source;
+- the external game-sheet redesign if it misses the September 14 acceptance
+  gate.
+
+### Completion rule
+
+"Code complete" is not Operational V1 complete. The October 1 gate passes only
+when every required checkbox above is either checked with evidence or explicitly
+waived by the operator with a written reason, owner, and follow-up date. A
+blocked non-goal stays documented and blocked; it is not silently promoted into
+launch scope and it is not allowed to hold the terminal gate hostage.
+
 ## Active State
+
+### 🟡 LOCAL-ONLY PASS — decoder-run provenance recurrence prevention (2026-09-02)
+
+The source-level follow-up from the 2026-08-16 38-row production repair is now
+implemented and independently reviewed in the working tree. The exact parent
+`ocr_decoder_runs` row is locked `FOR UPDATE` before its child `ocr_segments`
+upsert; the child write and run-scoped provenance refresh then commit in the
+same transaction. This prevents both stale mixed-decoder metadata and the
+lock-upgrade deadlock exposed by two concurrent writers.
+
+- The symmetric regression drives two real `writeSegmentForBatch` calls for
+  the same run, proves both are concurrently blocked before the gate opens,
+  then requires both to commit with truthful child tags and a `legacy-mixed`
+  parent disclosure.
+- Claude's reviewed mutation removed the pre-insert lock: the symmetric test
+  alone failed on PostgreSQL `40P01 deadlock detected` (2/3 passed). Restoring
+  the lock returned the focused file to 3/3 repeatedly.
+- Independent management verification: **26 tests passed, 0 failed, 0 skipped**
+  across the provenance, association/linkage, backfill, period-family lock,
+  typed-v1 carve-out, and live-run-filter selections. `@eanhl/db` and
+  `@eanhl/worker` build and typecheck all passed. The new test has zero ESLint
+  errors; the 10 `ingest-ocr.ts` and 5 `ocr-decoder-runs.ts` errors are the
+  documented pre-existing baseline only. Focused Prettier and
+  `git diff --check` pass.
+- Source files in the focused implementation: `apps/worker/src/ingest-ocr.ts`,
+  `packages/db/src/queries/ocr-decoder-runs.ts`, and
+  `apps/worker/src/__tests__/decoder-run-provenance-refresh.test.ts`.
+- **Not yet committed, pushed, or deployed.** `HANDOFF.md` is a fourth dirty
+  path containing the separately requested Operational V1 roadmap and this
+  verification record; keep it out of the focused code commit unless making a
+  deliberate separate documentation commit.
+- No production data operation, rescue execution, migration, deployment, or
+  service restart occurred during implementation or review.
 
 ### 🟢 DEPLOYED — website Workstreams A/B/C at `36764a` (2026-08-16)
 
