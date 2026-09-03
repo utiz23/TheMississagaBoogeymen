@@ -263,10 +263,10 @@ signing in on the host, or issuing invites. Those steps no longer exist.
 - **The Cloudflare Tunnel on Hotel-Echo stays OFFLINE.** `boogeymen.app` returns
   530 and must keep returning 530 until Gate 2 items are closed and reopening is
   separately authorized. See the "CONTAINED" entry below.
-- **Main-PC `POSTGRES_PASSWORD` and `BETTER_AUTH_SECRET` still require
-  rotation.** See the "SECRETS REQUIRING ROTATION" entry below. Disabling auth
-  does not retire `BETTER_AUTH_SECRET`: it is still in `.env`, still exposed,
-  and still to be rotated in its own authorized session.
+- **Main-PC `POSTGRES_PASSWORD` and `BETTER_AUTH_SECRET` have now been
+  rotated** (2026-09-03, own authorized session). See the "ROTATION COMPLETE"
+  entry below. The exposed values are dead; the historical exposure record is
+  kept there deliberately.
 
 **The decision.** Authentication is deferred until after launch. The pre-launch
 site is public and read-only. There is no login, account, invitation, session,
@@ -327,9 +327,12 @@ urgent:
 - **MFA and recovery** — still required on the domain/Cloudflare account. That
   is account security for the _infrastructure_, and it never depended on the
   site having its own login.
-- **Public exposure** — host port exposure (3000/3001/5433), security response
-  headers, the indexing decision and `robots.txt` are all still open.
-- **Secret rotation** — see above.
+- **Public exposure** — security response headers, the indexing decision and
+  `robots.txt` are all still open. Host port exposure is now loopback-only on
+  the **main PC** (3000/3001/3002/5433, measured — see the entry below), but
+  Hotel-Echo is still unverified, so the Gate 2 checkbox stays unchecked.
+- **Secret rotation** — now done; see the "ROTATION COMPLETE" entry below.
+  It closed the exposed-credential problem and nothing else on this list.
 
 **Test evidence.** `pnpm --filter web test` → 130 unit + 11 behavioural + 6
 end-to-end HTTP, 147/147. `node apps/worker/scripts/with-test-db.mjs
@@ -346,7 +349,7 @@ and `/roster/999999999` both answer 200. This is why the disabled pages were
 deleted rather than turned into 404-returning tombstones. Fixing the general
 case is separate work.
 
-### 🟠 SECRETS REQUIRING ROTATION — main-PC `POSTGRES_PASSWORD` and `BETTER_AUTH_SECRET` were rendered into a private tool transcript (2026-09-03)
+### 🟢 ROTATION COMPLETE — main-PC `POSTGRES_PASSWORD` and `BETTER_AUTH_SECRET` were exposed, and have now been rotated (2026-09-03)
 
 **No secret value may ever be copied into this repository — not into source,
 docs, commit messages, test fixtures, or command output.** One already had
@@ -372,29 +375,46 @@ entry. **That is not a fix.** The value is in git history and on `origin/main`,
 where it has been for months and where anyone with repository read access could
 have found it. It cannot be removed without rewriting published history, which
 is not authorized here and would not retrieve any copy already cloned. Rotation
-is the only real remedy, and this makes `POSTGRES_PASSWORD` rotation the
-higher-priority of the two.
+was the only real remedy, and it is why `POSTGRES_PASSWORD` was the
+higher-priority of the two. It has since been rotated — see below.
 
 `BETTER_AUTH_SECRET` was NOT found in any tracked file; its only known exposure
 is the tool transcript.
 
-**Treat both as compromised-pending-rotation.** They are still in use on the
-main PC right now; nothing has been changed. Rotation is a **separate,
-separately authorized operational session** — it restarts the database and web
-containers and invalidates every existing session cookie, so it is not something
-to fold into a deployment or a test run.
+**Both were rotated on 2026-09-03 in their own authorized session, and both
+rotations succeeded.** The values recorded in the two exposures above are dead.
+They no longer authenticate anything, so the fact that the old
+`POSTGRES_PASSWORD` remains in published git history is now a historical record
+rather than a live credential. **Keep the exposure record above** — it is the
+evidence of what happened and why the rotation was needed; do not delete it
+because the remedy has landed.
 
-- `POSTGRES_PASSWORD` — rotation must change the role password in PostgreSQL and
-  `.env` together, and every consumer of `DATABASE_URL` (web, worker, host-side
-  migration and psql tooling, the OCR/video-ingest pipeline) must be updated in
-  the same window or it will fail to connect.
-- `BETTER_AUTH_SECRET` — rotating it invalidates all existing sessions. Everyone
-  signs in again. Do it when that is acceptable, not mid-incident.
+- `POSTGRES_PASSWORD` — the PostgreSQL role password and root `.env` were
+  changed together, and every consumer of `DATABASE_URL` was moved in the same
+  window: web, worker, host-side migration/psql tooling, the OCR/video-ingest
+  pipeline, and the separate `apps/web/.env.local` web-development copy.
+- `BETTER_AUTH_SECRET` — rotated as well. Invalidating sessions cost nothing
+  here: the account system is absent from the running application (see the
+  "AUTHENTICATION DELIBERATELY DISABLED" entry above), so there were no live
+  sessions to break.
+
+**Rotation insurance — a protected same-host dump.** Before the rotation a
+custom-format dump was taken to
+`/home/michal/backups/pre-rotation-20260903/eanhl-pre-rotation.dump`
+(27,300,096 B, file mode `0600`, directory mode `0700`, owner `michal`).
+
+> ⚠️ **This dump is rotation insurance ONLY. It does NOT satisfy the off-host
+> backup gate.** It lives on the same machine as the database it was taken
+> from, so it survives a bad rotation and nothing else — not disk failure, not
+> theft, not ransomware, not host loss. The Gate 2 backup item ("automated
+> backups to storage independent of the host") and the restore drill both stay
+> **unchecked**. Do not cite this file as backup evidence.
 
 **Not affected.** Hotel-Echo's `POSTGRES_PASSWORD` and `BETTER_AUTH_SECRET` are
-independently generated and were never rendered. The Cloudflare tunnel token was
-not exposed either: it is delivered as a mounted file and never interpolated
-into the rendered Compose config — see the "CONTAINED" entry and `852c6d7`.
+independently generated and were never rendered; they were not part of this
+rotation and were not touched. The Cloudflare tunnel token was not exposed
+either: it is delivered as a mounted file and never interpolated into the
+rendered Compose config — see the "CONTAINED" entry and `852c6d7`.
 
 **Avoiding a repeat.**
 
@@ -413,6 +433,40 @@ into the rendered Compose config — see the "CONTAINED" entry and `852c6d7`.
   git grep -I -F -l -- "$POSTGRES_PASSWORD" && echo "LEAK" || echo "clean"
   git grep -I -F -l -- "$BETTER_AUTH_SECRET" && echo "LEAK" || echo "clean"
   ```
+
+### 🟢 POST-ROTATION LOOSE ENDS CLOSED — main-PC listeners are loopback-only, stale MCP processes retired (2026-09-03)
+
+Follow-up to the rotation entry above. Two items were left open by that session
+and are now closed.
+
+**1. Every main-PC listener binds to loopback.** The Compose services already
+did (`852c6d7`); the outlier was the operator's own Next.js development server,
+which `next dev` had bound to **every interface** (`*:3002`) — reachable from
+the LAN, and from the internet had anything forwarded to it. `apps/web`'s `dev`
+script now passes `--hostname 127.0.0.1`, and the 3002 server was restarted on
+the updated command.
+
+Measured on the main PC after the restart (`ss -ltn`):
+
+| Port | Service            | Binding     |
+| ---- | ------------------ | ----------- |
+| 3000 | web (docker)       | `127.0.0.1` |
+| 3001 | worker health      | `127.0.0.1` |
+| 5433 | db (docker)        | `127.0.0.1` |
+| 3002 | web dev (operator) | `127.0.0.1` |
+
+No wildcard, `0.0.0.0`, or IPv6-wide listener remains on any of the four.
+`/`, `/games`, `/roster`, and `/stats` all answer **200** on
+`http://127.0.0.1:3002` after the change.
+
+> This is the **main PC only**. It is not the Gate 2 port-exposure evidence:
+> that item asks for on-host / LAN / WAN verification on **Hotel-Echo**, which
+> has not been done. Stage D below still stands, and the checkbox stays
+> unchecked.
+
+**2. The stale MCP processes from the rotation session are gone.** PIDs
+`547827`, `547860`, and `547861` — left running by that session — were confirmed
+retired. Nothing was killed here; they had already exited.
 
 ### 🔴 CONTAINED — DOMAIN REGISTERED, TUNNEL OFFLINE — public bootstrap-admin exposure on Hotel-Echo (2026-09-03)
 
@@ -1304,7 +1358,10 @@ Durable traps, carried forward — these keep biting:
 - **Dev/build share `apps/web/.next`:** the operator's dev server is on **3002**, docker holds
   3000/3001. A second dev server against the same `.next` desyncs chunk manifests into a silent
   no-hydration state, and `next build` needs the dev server stopped first. Never `rm -rf .next`
-  while a server is running.
+  while a server is running. **The dev server is loopback-only:** `apps/web` `dev` passes
+  `--hostname 127.0.0.1`, because `next dev` otherwise binds every interface. Start it with
+  `PORT=3002 pnpm --filter web dev` and confirm with
+  `ss -ltn | grep ':3002'` → `127.0.0.1:3002`, never `*:3002`.
 - **`Game sheet prototype layout (1)/` is untracked at repo root and has never been tracked.** It is
   the design of record for the game sheet and the nav; keep it out of focused commits.
 - **`git push` runs `scripts/verify-ocr.sh` first** (~20 min) — background the push and let the
@@ -1320,8 +1377,17 @@ Durable traps, carried forward — these keep biting:
   `dynamic = 'force-dynamic'` does not help. Deleting the page module does (the
   router 404s before rendering). Never take a module-level "it throws the 404
   fallback" test as evidence about a status code — read the code off a socket.
-- **The web env file is `.env.local` at the repo root, not `.env`.** `CLAUDE.md`
-  still says `.env`. `apps/web/.env.local` is what `next start` loads.
+- **Two env files, different jobs — do not conflate them.** There is no
+  `.env.local` at the repo root.
+  - **Root `.env`** is the environment file for Docker Compose, the pre-push
+    `verify-ocr` hook, and the host-side test harness and worker CLIs. This is
+    the one `set -a && source .env && set +a` means, and the one `CLAUDE.md`,
+    `DEPLOY.md`, and `README.md` correctly refer to.
+  - **`apps/web/.env.local`** is a separate, web-development-only file holding
+    its own `DATABASE_URL` copy. Next.js loads it for `next dev` / `next start`
+    in `apps/web`. Because it is a _copy_, a `DATABASE_URL` change (a password
+    rotation, a host-port move) has to be applied to both files or web silently
+    keeps the stale one.
 - **Commit rule:** do not auto-commit. `AGENTS.md` controls.
 
 ## Next Session
@@ -1348,14 +1414,15 @@ pnpm --filter web test          # 147/147 across three processes:
                                 #   test:auth-disabled  11 (API route + 7 refusing actions)
                                 #   test:http-404        6 (real server, real status codes)
 pnpm typecheck
-set -a && source .env.local && set +a
+set -a && source .env && set +a
 node apps/worker/scripts/with-test-db.mjs init-admin-cli    # 12/12 — fails-closed contract
 docker compose config --services                            # db, web, worker only
 ```
 
 `test:http-404` starts the built app on 127.0.0.1:34571 and reads real status
 codes. It SKIPS if `.next/BUILD_ID` is absent, so build before testing or that
-coverage is silently absent. Note the env file is `.env.local`, not `.env`.
+coverage is silently absent. The harness env file is the root `.env`;
+`apps/web/.env.local` is the separate web-development `DATABASE_URL` copy.
 
 Then push in the background and let `verify-ocr.sh` finish (~20 min, 5 stages).
 If it fails, fix the failure — a bypassed push is not a verified push. Confirm
