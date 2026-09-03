@@ -3,18 +3,24 @@
  *
  * The bug (docs/operations/decoder-provenance-repair-main-sync-2026-08-16.md
  * §"Unresolved source-level follow-up"): a rescue-like attachment can insert
- * `ocr_segments` carrying a new decoder version under an existing run's
- * `run_id` without refreshing the parent `ocr_decoder_runs.decoder_version`.
+ * `ocr_segments` carrying a new decoder version under an existing SYNTHETIC
+ * `ocr_decoder_runs` row without refreshing that parent's `decoder_version`.
  * 38 production rows drifted this way (parent said
  * `legacy-passthrough-v0-video` while owning both that decoder's segments AND
  * `rescue-b2-anchor-v1` segments) before being manually repaired. No source
  * path guaranteed the parent got refreshed on attachment — so the same drift
- * could recur on any future rescue-like write.
+ * could recur on any future rescue-like write against a synthetic run.
  *
  * This test reproduces the defect against `writeSegmentForBatch` (exported
  * from `ingest-ocr.ts` for this purpose) — the exact function every ingest
  * path (including the rescue executor's `ingest-ocr-cli.ts` subprocess calls)
  * uses to attach a segment under a `run_id`.
+ *
+ * The derive-from-children refresh is scoped to synthetic/backfill runs only
+ * (`notes LIKE 'synthetic backfill%'`, matching migration 0048 and
+ * `ensureSyntheticActiveRunForMatch`) — see the eligibility-boundary tests
+ * below for non-synthetic (candidate/reprocess) runs, which must come back
+ * from a refresh completely untouched.
  *
  * Gated on DATABASE_URL; runs against the isolated clone via `with-test-db.mjs`.
  * All rows are cleaned up in `finally`.
@@ -289,6 +295,263 @@ void test('writeSegmentForBatch refreshes parent run provenance on multi-decoder
     }
   }
 })
+
+// ─────────────────────────────────────────────────────────────────────────
+// Eligibility-boundary regression: non-synthetic (candidate/reprocess) runs.
+//
+// The independent production review (9 mismatches out of 114 runs, all
+// non-synthetic, all single-child) found that the derive-from-children rule
+// above was applied unconditionally — including to
+// `decoder-runs-cli create-candidate` / reprocess runs, whose `decoder_version`
+// is an intentionally MORE SPECIFIC, operator-chosen provenance/uniqueness tag
+// (tools/video_ingest/video_ingest/reprocess.py `DECODER_VERSION`, e.g.
+// `hmm-viterbi-v2-pregame-cdef-wsb-toggle-lobby3fps-fuzzymerge`) than the
+// generic decoder identifier its own child segments carry (the classifier tag
+// from game_ocr's `screen_classifier.py`, e.g. plain `hmm-viterbi-v2` — see
+// production run 1993). Deriving the run's decoder_version from that single
+// generic child value would silently overwrite the intentional label and can
+// collide on `ocr_decoder_runs_provenance_uniq` (match_id, video_sha256,
+// decoder_version, weights_hash) the moment two sibling candidate runs for the
+// same match/video/weights both reduce to that same generic child tag.
+//
+// These runs are created with `notes: null` (mirrors `createCandidate` in
+// decoder-runs-cli.ts, which never sets `notes`), so they fail the
+// `notes?.startsWith('synthetic backfill')` eligibility check and must come
+// back from `writeSegmentForBatch` completely untouched.
+// ─────────────────────────────────────────────────────────────────────────
+
+const CAND_TAG = 'provrefresh-candidate-inttest'
+const CAND_RUN_DECODER_1 = `${CAND_TAG}-hmm-viterbi-v2-pregame-cdef-wsb-toggle-lobby3fps-fuzzymerge`
+const CAND_RUN_DECODER_2 = `${CAND_TAG}-hmm-viterbi-v2-pregame-cdef-wsb-toggle-lobby3fps`
+const CAND_CHILD_DECODER = `${CAND_TAG}-hmm-viterbi-v2`
+
+void test(
+  "writeSegmentForBatch leaves a non-synthetic candidate run's decoder_version " +
+    'and notes untouched, including across a repeated (idempotent) write',
+  async (t) => {
+    if (!process.env.DATABASE_URL) {
+      t.skip('DATABASE_URL not set — provenance-refresh integration requires DB.')
+      return
+    }
+
+    const { db, ocrDecoderRuns, ocrSegments, matches } = await import('@eanhl/db')
+    const { writeSegmentForBatch } = await import('../ingest-ocr.js')
+    const { eq } = await import('drizzle-orm')
+
+    const [anyMatch] = await db.select({ id: matches.id }).from(matches).limit(1)
+    assert.ok(anyMatch, 'test DB needs at least one match row')
+    const matchId = anyMatch.id
+
+    let candRunId: number | undefined
+
+    try {
+      // Production-shaped candidate run: a specific run-level provenance tag,
+      // notes=null — exactly what `decoder-runs-cli create-candidate` inserts.
+      const [candRun] = await db
+        .insert(ocrDecoderRuns)
+        .values({
+          matchId,
+          videoSha256: null,
+          decoderVersion: CAND_RUN_DECODER_1,
+          weightsHash: `${CAND_TAG}-weights`,
+          configHash: `${CAND_TAG}-config`,
+          isActive: false,
+          notes: null,
+        })
+        .returning({ id: ocrDecoderRuns.id })
+      assert.ok(candRun, 'candidate-fixture run insert returned a row')
+      candRunId = candRun.id
+
+      // Attach a child segment carrying the coarser, generic operational
+      // decoder tag — the exact shape of a real Pass-1/Pass-2 ingest against a
+      // candidate run.
+      await writeSegmentForBatch({
+        matchId,
+        batchId: -3001,
+        screen: 'post_game_box_score_shots',
+        frameCount: 1,
+        results: [],
+        videoSha256: null,
+        videoSegmentIndex: null,
+        videoSegmentStartSec: null,
+        videoSegmentEndSec: null,
+        uiVersion: `${CAND_TAG}-ui`,
+        decoderVersion: CAND_CHILD_DECODER,
+        runId: candRunId,
+      } as Parameters<typeof writeSegmentForBatch>[0])
+
+      const [after1] = await db
+        .select({ decoderVersion: ocrDecoderRuns.decoderVersion, notes: ocrDecoderRuns.notes })
+        .from(ocrDecoderRuns)
+        .where(eq(ocrDecoderRuns.id, candRunId))
+      assert.equal(
+        after1?.decoderVersion,
+        CAND_RUN_DECODER_1,
+        'non-synthetic run keeps its own, more-specific decoder_version — not overwritten by ' +
+          "the child's generic tag",
+      )
+      assert.equal(after1.notes, null, 'non-synthetic run notes stay null (never rewritten)')
+
+      // Repeated (idempotent) write of the SAME segment must not disturb the
+      // parent either.
+      await writeSegmentForBatch({
+        matchId,
+        batchId: -3001,
+        screen: 'post_game_box_score_shots',
+        frameCount: 1,
+        results: [],
+        videoSha256: null,
+        videoSegmentIndex: null,
+        videoSegmentStartSec: null,
+        videoSegmentEndSec: null,
+        uiVersion: `${CAND_TAG}-ui`,
+        decoderVersion: CAND_CHILD_DECODER,
+        runId: candRunId,
+      } as Parameters<typeof writeSegmentForBatch>[0])
+
+      const [after2] = await db
+        .select({ decoderVersion: ocrDecoderRuns.decoderVersion, notes: ocrDecoderRuns.notes })
+        .from(ocrDecoderRuns)
+        .where(eq(ocrDecoderRuns.id, candRunId))
+      assert.equal(
+        after2?.decoderVersion,
+        CAND_RUN_DECODER_1,
+        'repeated idempotent upsert keeps the run-level provenance tag stable',
+      )
+      assert.equal(after2.notes, null, 'repeated idempotent upsert keeps notes null')
+    } finally {
+      if (candRunId != null) {
+        await db.delete(ocrSegments).where(eq(ocrSegments.runId, candRunId))
+        await db.delete(ocrDecoderRuns).where(eq(ocrDecoderRuns.id, candRunId))
+      }
+    }
+  },
+)
+
+void test(
+  'sibling non-synthetic candidate runs sharing (match_id, video_sha256, weights_hash) never ' +
+    'collide on the provenance uniqueness index when their children share a generic decoder',
+  async (t) => {
+    if (!process.env.DATABASE_URL) {
+      t.skip('DATABASE_URL not set — provenance-refresh integration requires DB.')
+      return
+    }
+
+    const { db, ocrDecoderRuns, ocrSegments, matches } = await import('@eanhl/db')
+    const { writeSegmentForBatch } = await import('../ingest-ocr.js')
+    const { eq } = await import('drizzle-orm')
+    const { createHash } = await import('node:crypto')
+
+    const [anyMatch] = await db.select({ id: matches.id }).from(matches).limit(1)
+    assert.ok(anyMatch, 'test DB needs at least one match row')
+    const matchId = anyMatch.id
+
+    // A shared, non-null video_sha256 + shared weights_hash across both runs:
+    // the only column separating the two rows on `ocr_decoder_runs_provenance_
+    // uniq` is decoder_version — reproducing the exact index tuple that a
+    // buggy derive-from-children write would collapse to the same value on
+    // both siblings.
+    const sharedVideoSha = createHash('sha256').update(CAND_TAG).digest('hex')
+    const sharedWeightsHash = `${CAND_TAG}-shared-weights`
+
+    let runId1: number | undefined
+    let runId2: number | undefined
+
+    try {
+      const [run1] = await db
+        .insert(ocrDecoderRuns)
+        .values({
+          matchId,
+          videoSha256: sharedVideoSha,
+          decoderVersion: CAND_RUN_DECODER_1,
+          weightsHash: sharedWeightsHash,
+          configHash: `${CAND_TAG}-config`,
+          isActive: false,
+          notes: null,
+        })
+        .returning({ id: ocrDecoderRuns.id })
+      assert.ok(run1, 'sibling run 1 insert returned a row')
+      runId1 = run1.id
+
+      const [run2] = await db
+        .insert(ocrDecoderRuns)
+        .values({
+          matchId,
+          videoSha256: sharedVideoSha,
+          decoderVersion: CAND_RUN_DECODER_2,
+          weightsHash: sharedWeightsHash,
+          configHash: `${CAND_TAG}-config`,
+          isActive: false,
+          notes: null,
+        })
+        .returning({ id: ocrDecoderRuns.id })
+      assert.ok(run2, 'sibling run 2 insert returned a row')
+      runId2 = run2.id
+
+      // Both siblings' children carry the SAME generic decoder tag — under the
+      // old unconditional derive-from-children rule this would try to flip
+      // BOTH parents to `CAND_CHILD_DECODER`, and the second write would hit
+      // `ocr_decoder_runs_provenance_uniq` against the first.
+      await writeSegmentForBatch({
+        matchId,
+        batchId: -3101,
+        screen: 'post_game_box_score_shots',
+        frameCount: 1,
+        results: [],
+        videoSha256: null,
+        videoSegmentIndex: null,
+        videoSegmentStartSec: null,
+        videoSegmentEndSec: null,
+        uiVersion: `${CAND_TAG}-ui`,
+        decoderVersion: CAND_CHILD_DECODER,
+        runId: runId1,
+      } as Parameters<typeof writeSegmentForBatch>[0])
+
+      await writeSegmentForBatch({
+        matchId,
+        batchId: -3102,
+        screen: 'post_game_box_score_shots',
+        frameCount: 1,
+        results: [],
+        videoSha256: null,
+        videoSegmentIndex: null,
+        videoSegmentStartSec: null,
+        videoSegmentEndSec: null,
+        uiVersion: `${CAND_TAG}-ui`,
+        decoderVersion: CAND_CHILD_DECODER,
+        runId: runId2,
+      } as Parameters<typeof writeSegmentForBatch>[0])
+
+      const [after1] = await db
+        .select({ decoderVersion: ocrDecoderRuns.decoderVersion })
+        .from(ocrDecoderRuns)
+        .where(eq(ocrDecoderRuns.id, runId1))
+      const [after2] = await db
+        .select({ decoderVersion: ocrDecoderRuns.decoderVersion })
+        .from(ocrDecoderRuns)
+        .where(eq(ocrDecoderRuns.id, runId2))
+      assert.equal(
+        after1?.decoderVersion,
+        CAND_RUN_DECODER_1,
+        'sibling run 1 keeps its own distinct provenance tag',
+      )
+      assert.equal(
+        after2?.decoderVersion,
+        CAND_RUN_DECODER_2,
+        'sibling run 2 keeps its own distinct provenance tag',
+      )
+    } finally {
+      if (runId1 != null) {
+        await db.delete(ocrSegments).where(eq(ocrSegments.runId, runId1))
+        await db.delete(ocrDecoderRuns).where(eq(ocrDecoderRuns.id, runId1))
+      }
+      if (runId2 != null) {
+        await db.delete(ocrSegments).where(eq(ocrSegments.runId, runId2))
+        await db.delete(ocrDecoderRuns).where(eq(ocrDecoderRuns.id, runId2))
+      }
+    }
+  },
+)
 
 // ─────────────────────────────────────────────────────────────────────────
 // Concurrency regressions for the run-scoped provenance write.

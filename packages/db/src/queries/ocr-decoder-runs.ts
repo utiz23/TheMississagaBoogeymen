@@ -246,28 +246,47 @@ export async function lockDecoderRunForProvenance(runId: number, conn: Database)
  * Fixes the recurrence documented in
  * docs/operations/decoder-provenance-repair-main-sync-2026-08-16.md: a
  * rescue-like operation can attach a new-decoder segment under an existing
- * run's `run_id` without touching the parent row. Call this INSIDE the same
- * transaction as the segment write that touches a non-null `run_id`,
+ * SYNTHETIC run's `run_id` without touching the parent row. Call this INSIDE
+ * the same transaction as the segment write that touches a non-null `run_id`,
  * immediately after it, so the attachment and the provenance refresh commit
- * atomically — a segment can never be committed while its parent's
+ * atomically — a synthetic run can never be committed while its parent's
  * `decoder_version` lies about which decoders it owns. That transaction MUST
  * have already called `lockDecoderRunForProvenance(runId, conn)` before its
  * child write; see that helper for the ordering and why it cannot be skipped.
  *
- * Rule (run-scoped, matches the 0048 backfill / ensureSyntheticActiveRunForMatch
- * provenance rule):
+ * ELIGIBILITY (do not widen without re-reading
+ * docs/operations/decoder-provenance-repair-main-sync-2026-08-16.md first):
+ * only runs whose `notes` mark them as synthetic/backfill provenance (starts
+ * with `'synthetic backfill'` — the migration-0048 / `ensureSyntheticActive-
+ * RunForMatch` marker) are eligible for this derive-from-children rule. Every
+ * other run — most importantly a `decoder-runs-cli create-candidate` /
+ * reprocess run (tools/video_ingest/video_ingest/reprocess.py `DECODER_VERSION`)
+ * — carries an intentionally MORE SPECIFIC, operator-chosen `decoder_version`
+ * that IS the run's own provenance/uniqueness lever
+ * (`ocr_decoder_runs_provenance_uniq` on `(match_id, video_sha256,
+ * decoder_version, weights_hash)`). Its child segments legitimately carry a
+ * coarser, generic decoder tag (e.g. run `decoder_version`
+ * `hmm-viterbi-v2-pregame-cdef-wsb-toggle-lobby3fps-fuzzymerge` over segments
+ * tagged plain `hmm-viterbi-v2` — the segment-level classifier identifier from
+ * game_ocr's `screen_classifier.py`, not the run-level feature/candidate tag).
+ * Deriving such a run's `decoder_version` from its children would silently
+ * erase that intentional distinction and can collide on the uniqueness index
+ * the moment two sibling candidate runs both reduce to the same generic child
+ * decoder. Ineligible runs are left completely untouched — no `decoder_version`
+ * write, no `notes` rewrite.
+ *
+ * Rule for ELIGIBLE (synthetic) runs only:
  *   - zero distinct non-null child decoder versions -> 'unknown'
  *   - exactly one distinct value -> that value
  *   - more than one distinct value -> 'legacy-mixed'
  *
- * When the run's `notes` mark it as synthetic/backfill provenance (starts
- * with `'synthetic backfill'`), the `decoders=[...]` disclosure is rewritten
- * to the current distinct set (sorted, for a stable string across repeated
- * idempotent calls) — all other note text is preserved verbatim. A synthetic
- * note that is missing the disclosure entirely (so the replace would be a
- * silent no-op) gets one appended instead, so the invariant "synthetic notes
- * never omit a child decoder" holds even for a malformed starting note.
- * Non-synthetic run notes are never rewritten.
+ * For an eligible run, the `decoders=[...]` disclosure in `notes` is
+ * rewritten to the current distinct set (sorted, for a stable string across
+ * repeated idempotent calls) — all other note text is preserved verbatim. A
+ * synthetic note that is missing the disclosure entirely (so the replace
+ * would be a silent no-op) gets one appended instead, so the invariant
+ * "synthetic notes never omit a child decoder" holds even for a malformed
+ * starting note.
  *
  * A no-op write is skipped entirely (both `decoder_version` and `notes`
  * already match) so idempotent re-attachment of the same segment never
@@ -306,6 +325,14 @@ export async function refreshDecoderRunProvenance(runId: number, conn: Database)
     .for('update')
   if (!run) {
     throw new Error(`refreshDecoderRunProvenance: run ${String(runId)} not found`)
+  }
+
+  // Only synthetic/backfill runs derive decoder_version from their children —
+  // see the ELIGIBILITY section of this function's doc comment. A non-synthetic
+  // (e.g. candidate/reprocess) run's decoder_version is intentional, operator-
+  // chosen provenance, not something to overwrite from a coarser child tag.
+  if (run.notes?.startsWith(SYNTHETIC_NOTES_PREFIX) !== true) {
+    return
   }
 
   const segs = await conn
