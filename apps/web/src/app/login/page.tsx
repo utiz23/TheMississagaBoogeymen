@@ -1,11 +1,6 @@
 import type { Metadata } from 'next'
-import {
-  getAccountInviteByToken,
-  hasAccountUsers,
-  isInviteUsable,
-  listClaimablePlayers,
-} from '@eanhl/db/queries'
-import { acceptInvite, bootstrapAdmin, signInWithPassword } from '@/app/account-actions'
+import { getAccountInviteByToken, isInviteUsable } from '@eanhl/db/queries'
+import { acceptInvite, signInWithPassword } from '@/app/account-actions'
 
 export const metadata: Metadata = { title: 'Login - Club Stats' }
 
@@ -20,11 +15,6 @@ function errorText(code: string | undefined): string | null {
   if (code === 'invalid_invite_form') return 'Name and an 8+ character password are required.'
   if (code === 'accept_failed')
     return 'Invite could not be accepted. The player may already be claimed.'
-  if (code === 'bootstrap_closed')
-    return 'Bootstrap is closed. Sign in or ask an admin for an invite.'
-  if (code === 'bootstrap_invalid')
-    return 'Bootstrap requires email, name, player, and an 8+ character password.'
-  if (code === 'bootstrap_failed') return 'Bootstrap admin could not be created.'
   return 'Unable to complete login.'
 }
 
@@ -32,11 +22,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Search
   const params = await searchParams
   const token = typeof params.token === 'string' ? params.token : null
   const error = typeof params.error === 'string' ? errorText(params.error) : null
-  const [hasUsers, invite, players] = await Promise.all([
-    hasAccountUsers(),
-    token ? getAccountInviteByToken(token) : Promise.resolve(null),
-    listClaimablePlayers(),
-  ])
+  const invite = token ? await getAccountInviteByToken(token) : null
   const usableInvite = invite !== null && isInviteUsable(invite)
 
   return (
@@ -56,56 +42,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Search
         </div>
       )}
 
-      {!hasUsers ? (
-        <section className="broadcast-panel space-y-4 p-5">
-          <div className="space-y-1">
-            <h2 className="font-condensed text-sm font-bold uppercase tracking-widest text-zinc-200">
-              Bootstrap Admin
-            </h2>
-            <p className="text-sm text-zinc-500">
-              First account only. After this, all accounts require admin invites.
-            </p>
-          </div>
-          <form action={bootstrapAdmin} className="space-y-3">
-            <input
-              name="email"
-              type="email"
-              required
-              placeholder="admin@email"
-              className="w-full border border-zinc-700 bg-background px-3 py-2 text-sm text-zinc-100 outline-none focus:border-accent"
-            />
-            <input
-              name="name"
-              required
-              placeholder="Display name"
-              className="w-full border border-zinc-700 bg-background px-3 py-2 text-sm text-zinc-100 outline-none focus:border-accent"
-            />
-            <select
-              name="playerId"
-              required
-              className="w-full border border-zinc-700 bg-background px-3 py-2 text-sm text-zinc-100 outline-none focus:border-accent"
-            >
-              <option value="">Linked player</option>
-              {players.map((player) => (
-                <option key={player.id} value={player.id}>
-                  {player.gamertag}
-                </option>
-              ))}
-            </select>
-            <input
-              name="password"
-              type="password"
-              minLength={8}
-              required
-              placeholder="Password"
-              className="w-full border border-zinc-700 bg-background px-3 py-2 text-sm text-zinc-100 outline-none focus:border-accent"
-            />
-            <button className="w-full border border-accent bg-accent/10 px-4 py-2 font-condensed text-xs font-bold uppercase tracking-widest text-accent transition-colors hover:bg-accent/20">
-              Create Admin
-            </button>
-          </form>
-        </section>
-      ) : token !== null ? (
+      {token !== null ? (
         <section className="broadcast-panel space-y-4 p-5">
           <div className="space-y-1">
             <h2 className="font-condensed text-sm font-bold uppercase tracking-widest text-zinc-200">

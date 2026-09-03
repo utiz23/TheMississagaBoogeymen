@@ -8,11 +8,9 @@ import type { UserRole } from '@eanhl/db'
 import {
   assignUserPlayerClaim,
   createAccountInvite,
-  createBootstrapAdmin,
   createInvitedAccount,
   getAccountInviteByToken,
   getUserByEmail,
-  hasAccountUsers,
   isInviteUsable,
   revokeAccountInvite,
   setAccountDisabled,
@@ -101,34 +99,21 @@ export async function acceptInvite(formData: FormData) {
   redirect('/me')
 }
 
-export async function bootstrapAdmin(formData: FormData) {
-  if (await hasAccountUsers()) redirect('/login?error=bootstrap_closed')
-
-  const email = field(formData, 'email').toLowerCase()
-  const name = field(formData, 'name')
-  const password = field(formData, 'password')
-  const playerId = Number.parseInt(field(formData, 'playerId'), 10)
-
-  if (!email || !name || password.length < 8 || !Number.isFinite(playerId) || playerId <= 0) {
-    redirect('/login?error=bootstrap_invalid')
-  }
-
-  const userId = randomUUID()
-  const accountId = randomUUID()
-  const passwordHash = await hashPassword(password)
-
-  try {
-    await createBootstrapAdmin({ userId, accountId, email, name, passwordHash, playerId })
-  } catch {
-    redirect('/login?error=bootstrap_failed')
-  }
-
-  await auth.api.signInEmail({
-    body: { email, password },
-    headers: await headers(),
-  })
-  redirect('/admin/accounts')
-}
+/**
+ * NOTE — there is deliberately no initial-admin server action in this file.
+ *
+ * A public "first visitor creates the admin" action was removed: an empty
+ * `users` table is not authorization, so anyone who reached /login before the
+ * operator did could have taken the account. The initial admin is now created
+ * only by the local operator CLI `pnpm --filter worker init-admin`, which
+ * requires host + database access. Account creation after that stays
+ * invite-only via `acceptInvite` above.
+ *
+ * Do not reintroduce a web-reachable path to the initial-admin query in
+ * @eanhl/db/queries. A regression guard
+ * (apps/web/src/lib/no-public-admin-bootstrap.test.ts) fails if anything under
+ * apps/web/src references it by name.
+ */
 
 export async function createInvite(formData: FormData) {
   const admin = await requireAdmin()

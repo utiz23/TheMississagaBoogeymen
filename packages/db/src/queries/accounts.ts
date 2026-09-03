@@ -146,7 +146,21 @@ export async function createInvitedAccount(args: {
   })
 }
 
-export async function createBootstrapAdmin(args: {
+/**
+ * Create the single initial admin account (user + credential + role + player
+ * claim) in ONE transaction.
+ *
+ * OPERATOR-ONLY. There is deliberately no web-facing caller: an empty `users`
+ * table is not authorization, so nothing reachable over HTTP may invoke this.
+ * The only supported caller is the local CLI
+ * `pnpm --filter worker init-admin` (apps/worker/src/init-admin-cli.ts),
+ * which runs on the host with direct database access.
+ *
+ * Refuses (throws) if ANY user row already exists. The `lock table ... in
+ * exclusive mode` makes that check race-free against a concurrent caller, and
+ * the surrounding transaction makes the four writes all-or-nothing.
+ */
+export async function createInitialAdmin(args: {
   userId: string
   accountId: string
   email: string
@@ -159,7 +173,7 @@ export async function createBootstrapAdmin(args: {
 
     const existing = await tx.select({ n: sql<number>`count(*)::int` }).from(users)
     if ((existing[0]?.n ?? 0) > 0) {
-      throw new Error('Bootstrap admin already exists')
+      throw new Error('Refusing to create an initial admin: a user already exists.')
     }
 
     await tx.insert(users).values({
