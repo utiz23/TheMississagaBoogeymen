@@ -247,6 +247,70 @@ launch scope and it is not allowed to hold the terminal gate hostage.
 
 ## Active State
 
+### 🟡 NEW HOST STOOD UP, NOT YET PRODUCTION — Hotel-Echo dedicated deployment box provisioned (2026-09-03)
+
+This is a **new, independent, parallel deployment**, not a migration of the
+existing production instance. The production system referenced throughout the
+rest of this file continues to run unchanged on the current host
+(`eanhl-team-website-db-1` created 4 months ago, `db`/`web` up continuously,
+`worker` up 3h after its own restart) — none of it was touched by this
+session.
+
+**What was done**, addressing the Gate 2 "Domain, hosting, and exposure
+decisions" checklist:
+
+- Repurposed a second physical machine ("Hotel-Echo": i5-4670, 8GB RAM, 224GB
+  SSD + 3.64TB HDD) as a dedicated Docker host. Windows 10 wiped; Ubuntu
+  Server 26.04.1 LTS installed on the SSD only — the HDD (former Plex media
+  drive) was physically disconnected during install and remains
+  untouched/unused.
+- Installed Docker Engine 29.7.2 + Compose plugin, Node.js 22.23.2, pnpm
+  10.33.0 (pinned, matches `packageManager`), `postgresql-client`.
+- Joined Hotel-Echo to the existing Tailscale tailnet (`utiz23.github`) as
+  `hotel-echo` / `100.98.29.119`, alongside the main PC (`sierra-november` /
+  `100.119.187.119`). Intended to let the main PC's OCR/video-ingest pipeline
+  reach Hotel-Echo's Postgres over Tailscale once that migration happens.
+- Repo cloned to Hotel-Echo via a dedicated **read-only** GitHub deploy key
+  (title `hotel-echo-deploy`, key id `162148527`) — not the operator's
+  personal credentials.
+- Ran the full `DEPLOY.md` sequence against a **fresh, empty database**: `db`
+  healthy, all 56 migrations applied (cosmetic
+  `NOTICE: identifier will be truncated` messages only, no errors),
+  `game_titles` seeded, `db`/`worker`/`web` built and started. Verified:
+  worker completed a real ingestion cycle against the live EA API (10 club
+  members upserted for club 19224), `/health` returns `{"status":"ok",...}`,
+  `web` returns `200` both on the host and from elsewhere on the LAN
+  (`http://192.168.1.107:3000`).
+- Granted `utiz` passwordless sudo on Hotel-Echo
+  (`/etc/sudoers.d/utiz-nopasswd`) to allow this kind of remote-driven setup;
+  BIOS `AC BACK` set to Always On for unattended reboot after power loss.
+
+**Explicitly NOT done — do not treat this as production-ready:**
+
+- **No data migration.** Hotel-Echo's database is brand new — it does not
+  contain any of the historical matches, OCR extractions, decoder-run
+  provenance, or review-queue state that lives in the current production
+  database. Cutting over would require a `pg_dump`/`pg_restore` from the real
+  production DB, not just standing the schema up.
+- **Not exposed to the public internet.** No domain purchased, no Cloudflare
+  Tunnel configured. Reachable only via LAN (`192.168.1.107`) and Tailscale
+  (`100.98.29.119`) right now.
+- `.env` on Hotel-Echo has `BETTER_AUTH_URL`/`APP_BASE_URL` still at the
+  `http://localhost:3000` placeholder default — must be updated to the real
+  public URL once domain/tunnel exist, then `docker compose restart web`.
+- `POSTGRES_PASSWORD`/`BETTER_AUTH_SECRET` on Hotel-Echo were freshly
+  generated for this host; they are independent of whatever secrets the
+  current production `.env` uses.
+- The HDD is still disconnected/unused — no decision yet on repurposing it
+  for archive storage.
+
+**Relevant to Gate 2 checklist:** partially advances "Select the hosting
+solution" (Hotel-Echo, self-hosted, is now a working candidate) and "Document
+where the... app, worker, PostgreSQL... terminate" (now: Hotel-Echo,
+LAN+Tailscale only). Domain purchase, Cloudflare Tunnel/Access, the
+production data migration, and the cutover decision (retire current host vs.
+keep both) are all still open and unstarted.
+
 ### 🟢 DEPLOYED — decoder-run provenance eligibility fix, worker-only at `f456740` (2026-09-02)
 
 Supersedes the "CORRECTED, NOT DEPLOYED" entry below (kept, not deleted, for
