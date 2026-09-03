@@ -6,9 +6,11 @@
     "build": "next build",
     "dev": "next dev --turbopack",
     "start": "next start",
-    "test": "node --import ./test/register-loader.mjs --test \"src/**/*.test.ts\"",
+    "test": "pnpm run test:unit && pnpm run test:login-render",
+    "test:unit": "node --test \"src/**/*.test.ts\"",
+    "test:login-render": "node --import ./test/register-loader.mjs --test test/login-page-render.test.ts",
     "typecheck": "tsc --noEmit",
-    "lint": "eslint src"
+    "lint": "eslint src \"test/**/*.ts\""
   },
   "dependencies": {
     "@better-auth/drizzle-adapter": "^1.6.10",

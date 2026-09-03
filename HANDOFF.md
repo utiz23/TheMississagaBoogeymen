@@ -313,24 +313,29 @@ reachable by its action id whether or not any form renders it.
 Invite-only account creation is unchanged and remains the only in-app path to a
 new account after the first.
 
-**Test evidence, described accurately.** Two files, covering different things:
+**Test evidence, described accurately.** Three files, covering different
+things. None of them touches a real database.
 
-- **Behavioural — the primary evidence.**
-  `apps/web/src/app/login/login-page-render.test.ts` imports the real
-  `app/login/page.tsx` module, awaits it as the async Server Component it is,
-  and renders the result to HTML with `react-dom/server`. It runs under a
-  substituted `@eanhl/db/queries` whose answers are the DANGEROUS ones on
-  purpose: `hasAccountUsers()` returns **false** (an empty users table) and the
-  claimable roster is non-empty. Under exactly those answers the old page
-  rendered the bootstrap form and the player picker. 5 tests assert the rendered
-  HTML contains the sign-in form and contains no "Bootstrap"/"Create Admin"
-  copy, no `playerId` field, and no roster gamertag; that the page never _calls_
-  `hasAccountUsers` or `listClaimablePlayers` (so no database state can produce
-  a bootstrap form, not merely the one sampled); that the three retired
-  `bootstrap_*` error codes fall through to the generic message; and that the
-  invite-acceptance branch still renders, so the suite cannot pass by the page
-  having been gutted. **Mutation-proved:** reintroducing the bootstrap render
-  branch fails all 5.
+- **Behavioural (simulated answers) — the strongest local evidence.**
+  `apps/web/test/login-page-render.test.ts` imports the real
+  `src/app/login/page.tsx` module, awaits it as the async Server Component it
+  is, and renders the result to HTML with `react-dom/server`. It runs with
+  `@eanhl/db/queries` substituted by a stub that **simulates** the dangerous
+  answers — `hasAccountUsers()` returns **false** and the claimable roster is
+  non-empty. **It does not create or query an empty database**, and must not be
+  cited as if it did; those are precisely the answers under which the old page
+  rendered the bootstrap form and the player picker, which is what makes the
+  simulation the right one. 5 tests assert the rendered HTML contains the
+  sign-in form and contains no "Bootstrap"/"Create Admin" copy, no `playerId`
+  field, and no roster gamertag; that the page never _calls_ `hasAccountUsers`
+  or `listClaimablePlayers` (this one does not depend on the simulated answers
+  at all — a page that never asks cannot branch on what a real database would
+  have said); that the three retired `bootstrap_*` error codes fall through to
+  the generic message; and that the invite-acceptance branch still renders, so
+  the suite cannot pass by the page having been gutted. A 6th test asserts the
+  stub substitution is actually live in that process, so the five negatives are
+  real negatives. **Mutation-proved:** reintroducing the bootstrap render branch
+  fails all of them.
 - **Structural — a tripwire, not proof.**
   `apps/web/src/lib/no-public-admin-bootstrap.test.ts` greps source text. It
   cannot execute the app and a rename or dynamic import would slip past it. It
@@ -338,11 +343,28 @@ new account after the first.
   Server Action is reachable by its action id whether or not any form renders
   it, so "no bootstrap form in the HTML" says nothing about whether
   `bootstrapAdmin` still exists and is still invocable by a crafted POST. Its
-  4 tests assert that action's absence and that nothing under `apps/web/src`
-  references the operator-only `createInitialAdmin` query. Also mutation-proved.
+  4 tests assert that action's absence and that no shipped file under
+  `apps/web/src` references the operator-only `createInitialAdmin` query. Also
+  mutation-proved.
+- **Harness integrity.** `apps/web/src/lib/db-queries-not-stubbed.test.ts`
+  fails if the render harness's module substitution ever leaks into the normal
+  unit suite. It briefly did: the loader was installed for the whole `src/**`
+  glob, which would have let a future test silently receive a stub whose
+  `hasAccountUsers()` always answers false. The two suites now run in separate
+  processes and this test enforces that.
 
-`pnpm --filter web test` now runs both, alongside the pre-existing web unit
-tests: 126 tests, 126 passing.
+**The real-database behavioural proof is Stage C below**, not any of the above:
+`curl -s localhost:3000/login` against the deployed response on the host, after
+the fix is deployed. Nothing in this repo's test suite can establish what a real
+empty production database renders.
+
+Test processes are deliberately split:
+
+| Script                                | What it runs                                                   |
+| ------------------------------------- | -------------------------------------------------------------- |
+| `pnpm --filter web test:unit`         | `src/**/*.test.ts`, NO module substitution — 122 tests         |
+| `pnpm --filter web test:login-render` | the render suite in its own process, with the loader — 6 tests |
+| `pnpm --filter web test`              | both, in that order — 128 tests                                |
 
 **Still open — none of this is done:**
 
@@ -1128,7 +1150,9 @@ Background the push and let all five stages run; see
 ### A. Verify and push the reviewed commits, normally
 
 ```bash
-pnpm --filter web test          # 126/126 (5 behavioural /login render + 4 structural)
+pnpm --filter web test          # 128/128 across two processes:
+                                #   test:unit         122 (incl. 4 structural + 1 harness-integrity)
+                                #   test:login-render   6 (5 behavioural /login render + 1 stub check)
 pnpm --filter web build && pnpm typecheck
 pnpm --filter @eanhl/db build && pnpm --filter @eanhl/worker build
 set -a && source .env && set +a

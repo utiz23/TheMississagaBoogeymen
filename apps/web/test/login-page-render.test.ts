@@ -15,29 +15,44 @@
  * component it is, and renders the returned tree to HTML. The assertions are
  * about that HTML.
  *
- * The database state it renders under is the dangerous one, chosen on purpose
- * (see test/db-queries-stub.mjs): `hasAccountUsers()` answers FALSE, and the
- * claimable-player roster is non-empty. Under exactly these answers the old
- * page rendered the bootstrap form and the player picker. So a pass here is a
- * pass against the vulnerable condition, not against a convenient one.
+ * There is NO DATABASE HERE. `@eanhl/db/queries` is substituted with
+ * ./db-queries-stub.mjs, which SIMULATES the dangerous answers rather than
+ * creating or querying an empty database: `hasAccountUsers()` returns FALSE and
+ * the claimable-player roster is non-empty. Those are precisely the answers
+ * under which the old page rendered the bootstrap form and the player picker,
+ * so a pass here is a pass against the vulnerable condition rather than a
+ * convenient one — but it is a simulation, and this file should never be cited
+ * as evidence about a real database.
  *
  * It also asserts the page never CALLS `hasAccountUsers` or
- * `listClaimablePlayers`. That is the stronger claim: a page that never asks
- * for the user count cannot branch on it, whatever the answer would have been,
- * so no database state can make a bootstrap form appear.
+ * `listClaimablePlayers`. That is the stronger claim, and it does not depend on
+ * the simulated answers at all: a page that never asks for the user count
+ * cannot branch on it, whatever a real database would have said.
  *
  * WHAT THIS DOES NOT PROVE
  * ------------------------
- * That the `bootstrapAdmin` Server Action is gone. A Server Action is reachable
- * by its action id whether or not any form renders it, so its absence cannot be
- * observed from rendered HTML at all. That is a structural property, asserted
- * over the source in ../../lib/no-public-admin-bootstrap.test.ts.
+ * 1. Anything about a real database, empty or otherwise. The host-level
+ *    behavioural proof is the `curl -s localhost:3000/login` check against the
+ *    deployed response in Stage C of HANDOFF.md's Next Session.
+ * 2. That the `bootstrapAdmin` Server Action is gone. A Server Action is
+ *    reachable by its action id whether or not any form renders it, so its
+ *    absence cannot be observed from rendered HTML at all. That is a structural
+ *    property, asserted over the source in
+ *    ../src/lib/no-public-admin-bootstrap.test.ts.
+ *
+ * PROCESS ISOLATION
+ * -----------------
+ * The module substitution is process-wide, so this file runs in its OWN process
+ * (`pnpm --filter web test:login-render`) and is deliberately outside the
+ * `src/**\/*.test.ts` glob the normal unit suite uses. The reverse guard —
+ * that the unit suite gets the REAL module — is
+ * ../src/lib/db-queries-not-stubbed.test.ts.
  *
  * Run (needs the loader that makes a .tsx Server Component importable):
- *   pnpm --filter web test
- *   # or, this file alone:
+ *   pnpm --filter web test:login-render
+ *   # or, directly:
  *   cd apps/web && node --import ./test/register-loader.mjs \
- *     --test src/app/login/login-page-render.test.ts
+ *     --test test/login-page-render.test.ts
  */
 
 import test, { beforeEach } from 'node:test'
@@ -47,8 +62,8 @@ import { renderToStaticMarkup } from 'react-dom/server'
 // real path so TypeScript can check it; Node resolves both specifiers to the
 // same file URL, so this is the SAME module instance the page under test
 // received — these are the exact answers it saw, and `calls` is its real log.
-import { calls, resetStub, setInvite } from '../../../test/db-queries-stub.mjs'
-import LoginPage from './page'
+import { calls, resetStub, setInvite } from './db-queries-stub.mjs'
+import LoginPage from '../src/app/login/page'
 
 type SearchParams = Record<string, string | string[] | undefined>
 
@@ -61,7 +76,27 @@ beforeEach(() => {
   resetStub()
 })
 
-void test('renders the sign-in form against an EMPTY users table', async () => {
+void test('harness integrity: this process really did get the stub', async () => {
+  // If the loader silently stopped applying, every "no bootstrap UI" assertion
+  // below would still pass — against the real module, which needs a database
+  // and would fail differently. Prove the substitution is live before trusting
+  // anything else in this file.
+  const queries = (await import('@eanhl/db/queries')) as unknown as Record<string, unknown>
+  assert.ok('resetStub' in queries, 'the render stub must be installed for this process')
+  assert.equal(
+    queries.calls,
+    calls,
+    'the stub the page imports must be the same module instance this file inspects',
+  )
+  assert.equal(
+    await (queries.hasAccountUsers as () => Promise<boolean>)(),
+    false,
+    'the stub must simulate an empty users table — the dangerous answer',
+  )
+  resetStub()
+})
+
+void test('renders the sign-in form under simulated empty-database answers', async () => {
   const html = await renderLogin()
 
   assert.ok(html.length > 0, 'the page must render something')
@@ -71,7 +106,7 @@ void test('renders the sign-in form against an EMPTY users table', async () => {
   assert.ok(html.includes('Account Login'), 'the page heading must be rendered')
 })
 
-void test('renders no bootstrap-admin UI against an EMPTY users table', async () => {
+void test('renders no bootstrap-admin UI under simulated empty-database answers', async () => {
   const html = await renderLogin()
 
   assert.ok(!/bootstrap/i.test(html), 'no bootstrap content may appear in the rendered page')
@@ -90,7 +125,7 @@ void test('renders no bootstrap-admin UI against an EMPTY users table', async ()
   )
 })
 
-void test('never asks the database whether any user exists', async () => {
+void test('never issues the user-count query at all', async () => {
   await renderLogin()
 
   // Sanity first: the call log is wired to the same module the page used, so a
@@ -103,7 +138,7 @@ void test('never asks the database whether any user exists', async () => {
   assert.deepEqual([...calls], [], '/login must run no account queries with no token')
   assert.ok(
     !calls.includes('hasAccountUsers'),
-    'a page that never reads the user count cannot branch on it — no database state can produce a bootstrap form',
+    'a page that never reads the user count cannot branch on it — no database state, real or simulated, can produce a bootstrap form',
   )
   assert.ok(
     !calls.includes('listClaimablePlayers'),

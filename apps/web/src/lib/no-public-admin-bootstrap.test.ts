@@ -52,10 +52,20 @@ function read(file: string): string {
   return readFileSync(file, 'utf8')
 }
 
-/** Every .ts/.tsx source file under apps/web/src. */
+/**
+ * Every SHIPPED .ts/.tsx source file under apps/web/src.
+ *
+ * Test files are excluded: the property being defended is that no
+ * WEB-REACHABLE code can invoke initial-admin creation, and a `*.test.ts` file
+ * is never served, bundled, or reachable over HTTP. Including them would also
+ * make the check self-defeating — this file and
+ * db-queries-not-stubbed.test.ts both name the query in order to assert things
+ * about it.
+ */
 function webSourceFiles(): string[] {
   return readdirSync(WEB_SRC, { recursive: true })
     .filter((p): p is string => typeof p === 'string' && /\.tsx?$/.test(p))
+    .filter((p) => !/\.test\.tsx?$/.test(p))
     .map((p) => path.join(WEB_SRC, p))
 }
 
@@ -102,13 +112,12 @@ void test('structural: no initial-admin server action exists to invoke directly'
 
 void test('structural: nothing web-reachable imports the initial-admin query', () => {
   const offenders = webSourceFiles().filter((file) => {
-    if (file.endsWith('no-public-admin-bootstrap.test.ts')) return false
     const src = read(file)
     return src.includes('createInitialAdmin') || src.includes('createBootstrapAdmin')
   })
   assert.deepEqual(
     offenders.map((f) => path.relative(WEB_SRC, f)),
     [],
-    'createInitialAdmin is operator-CLI-only; no file under apps/web/src may reference it',
+    'createInitialAdmin is operator-CLI-only; no shipped file under apps/web/src may reference it',
   )
 })
