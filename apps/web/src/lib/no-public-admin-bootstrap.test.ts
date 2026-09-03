@@ -1,28 +1,38 @@
 /**
- * Regression guard: the public first-visitor "Bootstrap Admin" path must stay
- * removed.
+ * STRUCTURAL guard: assertions over source text, not over behaviour.
  *
- * WHAT THIS PROVES
- * ----------------
- * The original defect was that an EMPTY `users` table was treated as
- * authorization: `/login` rendered a "Bootstrap Admin" form to any anonymous
- * visitor, and the `bootstrapAdmin` server action would create an admin
- * account for whoever posted to it first. On a freshly deployed public host
- * that hands the site to the first stranger who loads it.
+ * WHAT THIS IS, HONESTLY
+ * ----------------------
+ * Every assertion in this file greps source files. It proves that certain code
+ * is not written anywhere under apps/web/src. It does NOT execute the app, and
+ * it cannot tell you what the app does — a rename, a re-export, or a dynamic
+ * import would satisfy these checks while reintroducing the hole. Read it as a
+ * tripwire that makes an obvious regression noisy, not as proof of safety.
  *
- * The fix is structural, not conditional: the login page no longer reads the
- * user count at all, and there is no initial-admin server action to invoke.
- * These assertions are therefore made against the SOURCE, which is exactly the
- * right level — the property being defended is "this code does not exist",
- * and a behavioural test can only sample inputs, never prove absence.
+ * The behavioural evidence lives in
+ * ../app/login/login-page-render.test.ts, which renders the real /login Server
+ * Component against an EMPTY users table and asserts on the HTML it produces.
+ * That file is the primary regression test. This one covers the part rendering
+ * cannot reach.
  *
- * A Server Action is reachable by anyone who can guess or replay its action id
- * — it is not gated by whether a form is rendered. So removing the form alone
- * would be insufficient; the action itself must be gone. Both are asserted.
+ * WHAT ONLY SOURCE CAN COVER
+ * --------------------------
+ * A Next.js Server Action is reachable by its action id whether or not any form
+ * renders it. So "no bootstrap form appears in the HTML" — which the render test
+ * does prove — says nothing about whether a `bootstrapAdmin` action still exists
+ * and is still invocable by a crafted POST. Absence of an action, and absence of
+ * any web-reachable reference to the operator-only `createInitialAdmin` query,
+ * are properties of the code rather than of any single render, and greping the
+ * source is the available way to check them.
+ *
+ * The two page-source checks below (no user-count read, no bootstrap markup)
+ * overlap with the render test on purpose. They are cheap, they name the exact
+ * symbol to remove, and they fail fast; the render test is what actually
+ * establishes the behaviour.
  *
  * Initial admin creation now lives in the operator CLI
- * `pnpm --filter worker init-admin`, covered by
- * apps/worker/src/__tests__/init-admin-cli.test.ts against an isolated DB.
+ * `pnpm --filter worker init-admin`, covered end-to-end against an isolated
+ * database in apps/worker/src/__tests__/init-admin-cli.test.ts.
  *
  * Run: node --test apps/web/src/lib/no-public-admin-bootstrap.test.ts
  */
@@ -49,10 +59,10 @@ function webSourceFiles(): string[] {
     .map((p) => path.join(WEB_SRC, p))
 }
 
-void test('an empty users table cannot change what /login renders', () => {
+void test('structural: /login source never reads the user count', () => {
   const src = read(LOGIN_PAGE)
-  // The page must not consult the user count at all. If it never reads it, an
-  // empty database is indistinguishable from a populated one at /login.
+  // Behaviourally established in login-page-render.test.ts; asserted here too
+  // because this names the exact symbol whose reintroduction is the defect.
   assert.ok(
     !src.includes('hasAccountUsers'),
     '/login must not call hasAccountUsers() — an empty users table is not authorization',
@@ -60,7 +70,7 @@ void test('an empty users table cannot change what /login renders', () => {
   assert.ok(!src.includes('hasUsers'), '/login must not branch on a user-count flag')
 })
 
-void test('/login renders no bootstrap-admin form', () => {
+void test('structural: /login source contains no bootstrap-admin form', () => {
   const src = read(LOGIN_PAGE)
   assert.ok(
     !src.toLowerCase().includes('bootstrap'),
@@ -78,7 +88,7 @@ void test('/login renders no bootstrap-admin form', () => {
   assert.ok(src.includes('acceptInvite'), '/login must still accept invites')
 })
 
-void test('no initial-admin server action exists to invoke directly', () => {
+void test('structural: no initial-admin server action exists to invoke directly', () => {
   const src = read(ACCOUNT_ACTIONS)
   assert.ok(
     !src.includes('export async function bootstrapAdmin'),
@@ -90,7 +100,7 @@ void test('no initial-admin server action exists to invoke directly', () => {
   assert.ok(src.includes('export async function createInvite'), 'admin invite issuing must remain')
 })
 
-void test('nothing web-reachable imports the initial-admin query', () => {
+void test('structural: nothing web-reachable imports the initial-admin query', () => {
   const offenders = webSourceFiles().filter((file) => {
     if (file.endsWith('no-public-admin-bootstrap.test.ts')) return false
     const src = read(file)

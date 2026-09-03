@@ -6,6 +6,7 @@
     "build": "next build",
     "dev": "next dev --turbopack",
     "start": "next start",
+    "test": "node --import ./test/register-loader.mjs --test \"src/**/*.test.ts\"",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src"
   },
