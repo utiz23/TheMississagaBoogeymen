@@ -40,14 +40,16 @@ No new feature work belongs in this gate.
 - [x] A later independent production read-only review found the review above
       was incomplete: the derive-from-children rule was not scoped to
       synthetic runs, mismatching 9/114 live runs. Corrected in `03b7f12`
-      (`fix(db): scope decoder-run provenance refresh to synthetic runs
-      only`) with new production-shaped regression coverage and a mutation
-      check; see the "CORRECTED, NOT DEPLOYED" Active State entry.
+      (`fix(db): scope decoder-run provenance refresh to synthetic runs only`)
+      with new production-shaped regression coverage and a mutation check;
+      see the "CORRECTED, NOT DEPLOYED" Active State entry.
 - [x] Update the active handoff state with the final verification and commit.
-- [ ] Push through the normal pre-push verification hook; finish with clean,
+- [x] Push through the normal pre-push verification hook; finish with clean,
       synchronized `main`.
-- [ ] If separately authorized, deploy worker-only and smoke-test ingestion and
+- [x] If separately authorized, deploy worker-only and smoke-test ingestion and
       `/health`. Deployment is a separate operation, not implied by this list.
+      Done 2026-09-02 — see the "DEPLOYED" Active State entry at the top of
+      this file.
 
 ### Gate 2 — operational and launch readiness by 2026-09-14
 
@@ -245,13 +247,39 @@ launch scope and it is not allowed to hold the terminal gate hostage.
 
 ## Active State
 
-### 🟡 CORRECTED, NOT DEPLOYED — decoder-run provenance eligibility boundary (2026-09-02)
+### 🟢 DEPLOYED — decoder-run provenance eligibility fix, worker-only at `f456740` (2026-09-02)
+
+Supersedes the "CORRECTED, NOT DEPLOYED" entry below (kept, not deleted, for
+history): the worker-only deployment recommended there was carried out the
+same day and is now live and verified. Deployed source commit
+`f456740dee63acaf03daaa02a15c610865d8811b`, built from an isolated snapshot
+(`/tmp/eanhl-f456740-snapshot-preflight`), new worker image
+`sha256:267d27a5d5739b54705e1eb4a83e714dd26a3a5976a7b5469e41132a96f7950c`,
+new worker container
+`9e67594744f326010ae19900ab5cf45fa773cccaf6a89dc644b6eb7bf6523256`,
+`StartedAt=2026-09-03T04:17:35.563709239Z`, `RestartCount=0`. Rollback tag
+`eanhl-team-website-worker:pre-provenance-fix-f456740`
+(`sha256:062f9343ab4d6d41caad6b7c6f618a39660412fc35f7abc7c31e8b49b1a1c184`)
+was prepared but never needed — **no rollback was required.** `web`
+(`dc582e0c782127b14c1ec68b307cd1cb5e9dedcb35e4af830ccfbe5292f940b3`) and `db`
+(`9dacad8ce351629fd07cf640559e5d61fb1bc4d998a74feea28dbd12fd39b417`) were
+confirmed unchanged before and after. Acceptance evidence: independently
+observed successful ingest at `2026-09-03T04:34:21.383Z` (normal polling
+resumed post-recreate); live synthetic-run invariant
+`synthetic_runs=100, mismatches=0, single=60, mixed=40, legacy_mixed=40`;
+and all nine intentionally non-synthetic `ocr_decoder_runs` rows (the ones
+the pre-fix unconditional rule would have overwritten — see below) confirmed
+unchanged in production. Full record:
+[`docs/operations/deploy-f456740-worker-provenance-2026-09-02.md`](docs/operations/deploy-f456740-worker-provenance-2026-09-02.md).
+
+### 🟡 CORRECTED, NOT DEPLOYED (SUPERSEDED — deployed 2026-09-02, see the "DEPLOYED" entry above) — decoder-run provenance eligibility boundary (2026-09-02)
 
 Supersedes the "LOCAL-ONLY PASS" entry directly below: `765aecf` (the provenance
 refresh) and `2143974` (the roadmap doc) are **committed on `main` and pushed to
 `origin/main`** — that part of the entry below was accurate at the time and is
-now stale only in saying "not yet committed, pushed". They were **not**
-deployed, and deployment is still not authorized here.
+now stale only in saying "not yet committed, pushed". ~~They were **not**
+deployed, and deployment is still not authorized here.~~ **Stale — deployed
+worker-only on 2026-09-02, see the "DEPLOYED" entry above.**
 
 An independent, read-only production review of the live `ocr_decoder_runs`
 table (114 runs) found `765aecf`'s `refreshDecoderRunProvenance` had a real
@@ -275,10 +303,11 @@ uniqueness collision between sibling candidate runs.
   Parent-before-child locking and the symmetric two-writer concurrency
   behavior are unchanged.
 - Two new production-shaped regression tests were added (non-synthetic parent
-  + generic child decoder, including a repeated/idempotent write; two sibling
-  candidate runs sharing `(match_id, video_sha256, weights_hash)`), plus a
-  mutation check: reverting the eligibility guard reproduces both failures,
-  including the exact uniqueness-constraint collision the fix prevents.
+  and generic child decoder, including a repeated/idempotent write; two
+  sibling candidate runs sharing `(match_id, video_sha256, weights_hash)`),
+  plus a mutation check: reverting the eligibility guard reproduces both
+  failures, including the exact uniqueness-constraint collision the fix
+  prevents.
 - Verification: focused file (5/5), `ocr-decoder-runs-backfill.test.ts`
   (4/4), the **full worker suite twice** (630 passed / 0 failed / 4 skipped,
   identical both runs), `@eanhl/db` (39/39), `@eanhl/db` + `@eanhl/worker`
@@ -290,8 +319,10 @@ uniqueness collision between sibling candidate runs.
   repaired, normalized, or otherwise written.
 - **Deployment preflight recommendation:** safe to deploy worker-only once
   authorized — the fix only narrows an already-narrow write path, all
-  regressions are green, and no production data was touched. Still requires
-  the normal explicit deploy authorization; not performed here.
+  regressions are green, and no production data was touched. ~~Still requires
+  the normal explicit deploy authorization; not performed here.~~ **Stale —
+  deployed worker-only on 2026-09-02 under explicit authorization; see the
+  "DEPLOYED" entry above.**
 
 ### 🟡 LOCAL-ONLY PASS — decoder-run provenance recurrence prevention (2026-09-02)
 
@@ -388,13 +419,13 @@ ahead/behind rather than trusting a hard-coded count here.)
 
 97 unique auto-window promotion keys in the manifest, exhaustively classified by exact 3-tuple key match (`video_sha256`, `batch_dir`/`source_directory`, `run_id`):
 
-| classification | count |
-| --- | --: |
-| promoted | 75 |
-| attempted and failed | 1 |
-| not attempted | 21 |
-| ambiguous | 0 |
-| **total** | **97** |
+| classification       |  count |
+| -------------------- | -----: |
+| promoted             |     75 |
+| attempted and failed |      1 |
+| not attempted        |     21 |
+| ambiguous            |      0 |
+| **total**            | **97** |
 
 - **77 receipt lines represent 76 unique promotion keys.** The one duplicate is match 2398 / seg 9004 / `box_score_faceoffs` / run 2103: `failed` in the `rescue-b2-20260805T031634Z` run, `promoted` on retry in `rescue-b2-20260805T040226Z` — a legitimate failed-then-promoted retry, correctly counted once as promoted.
 - **The sole failed-only window is match 2661, `post_game_faceoff_map`, segment 9002, run 2119** (video sha `4b8a77d091a9…`). DB batch **5051** was created for this window and holds **2 extraction rows, both `transform_status='error'`, both caused by `PERIOD_LABEL_UNRECOGNIZED`** — 0 successes. `ingest-ocr`'s ffmpeg/OCR subprocess steps exited 0 (so the batch row exists), but the rescue executor's own completion check requires at least one extraction to reach `transform_status='success'`, which never happened — hence the receipt correctly reads `failed` even though a DB row exists.
@@ -414,7 +445,7 @@ ahead/behind rather than trusting a hard-coded count here.)
 
 - **Do not rerun any of the 22 outstanding windows** (1 failed + 21 not-attempted) as a blind resume batch.
 - **Faceoff-map work (8 windows) requires ROI/OCR remediation first** — no window in the current dataset produces geometrically trustworthy evidence for that screen; this includes match 2661's failed window, which needs a period-label OCR/ROI fix, not a re-run of the existing pinned command (it will reproduce the identical `PERIOD_LABEL_UNRECOGNIZED` rejection).
-- **The 14 non-faceoff-map exclusions have now had their separate read-only semantic review, and it returned PARTIAL** ([`docs/calibration/rescue-non-faceoff-exclusion-audit-2026-08-15.md`](docs/calibration/rescue-non-faceoff-exclusion-audit-2026-08-15.md)). All 14 archived labels are UNVERIFIED and unrecoverable. The 8 information-bearing windows (the 7 with empty expected-period coverage, plus 2404 shots seg9017) require **fresh read-only re-capture + OCR and re-simulation inside an audit harness** — not a production execution — before any of them could be reconsidered. The other 6 are reasonable to deprioritize as coverage-recovery targets because their expected coverage already exists, which is *not* the same as proving their execution inert. **None of the 14 is authorized for execution.**
+- **The 14 non-faceoff-map exclusions have now had their separate read-only semantic review, and it returned PARTIAL** ([`docs/calibration/rescue-non-faceoff-exclusion-audit-2026-08-15.md`](docs/calibration/rescue-non-faceoff-exclusion-audit-2026-08-15.md)). All 14 archived labels are UNVERIFIED and unrecoverable. The 8 information-bearing windows (the 7 with empty expected-period coverage, plus 2404 shots seg9017) require **fresh read-only re-capture + OCR and re-simulation inside an audit harness** — not a production execution — before any of them could be reconsidered. The other 6 are reasonable to deprioritize as coverage-recovery targets because their expected coverage already exists, which is _not_ the same as proving their execution inert. **None of the 14 is authorized for execution.**
 - **That re-capture + re-simulation of the 8 information-bearing windows has now been done, read-only, and returned PARTIAL** — [`docs/calibration/rescue-non-faceoff-resimulation-2026-08-15.md`](docs/calibration/rescue-non-faceoff-resimulation-2026-08-15.md). Frames were regenerated with the manifest's own ffmpeg argv (sole difference: output redirected to `/tmp`), OCR'd through the DB-free `game_ocr.cli extract` path, and replayed against a pure in-memory mirror of the current promoters. **It is a new current-code audit and explicitly does NOT reproduce or corroborate the deleted audit-v2 labels, which remain UNVERIFIED.** Current-audit dispositions: **SAFE-TO-PROPOSE 1 · WITHHOLD-INVALID 4 · WITHHOLD-REDUNDANT 1 · NEEDS-REMEDIATION 2 · UNVERIFIED 0 = 8.** Only **2676 goals seg9003** is SAFE-TO-PROPOSE (payload reconciles exactly with the EA 3–2 final in both directions, fills 8 empty goals cells, no phantom period, no overwrite). Three findings generalize beyond these eight windows: (a) the schema-2 and schema-3 manifests specify **different frame selection** and run 3 executed schema 3 — four of the eight windows produce materially different payloads depending on which is used; (b) `net-chart.ts`'s ALL PERIODS recompute is a **last-writer-wins unconditional overwrite** that propagated a `71` header misread into match 1090's game total (EA: 8); (c) a box-score payload whose period headers all fail to normalize writes nothing yet still records `transform_status='success'` — the same false-success shape audit-v3 found on the faceoff-map screen. **No allowlist was created and no window is authorized for execution**; SAFE-TO-PROPOSE is a recommendation for later management review only.
 - **This documentation session does not authorize rescue execution.** Deciding whether/when to resume any of the 22 windows is a separate approval decision.
 
@@ -445,7 +476,7 @@ A separate read-only schema audit has now run — [`docs/calibration/live-schema
 - **Not done, deliberately:** no `VACUUM ANALYZE` (a write, and unnecessary to accept the migration — the table has still never been analyzed); no worker review, promotion, rescue, ingest, auto-drain or reconciliation command; no application source change; no commit, push or stash. HEAD is still `540777a`; all pre-existing dirty/untracked files preserved. **Repository files changed by that session: exactly two** — the new `docs/operations/migration-0056-application-2026-08-15.md` and this HANDOFF top entry.
 - **🔴 RESCUE REMAINS BLOCKED.** Applying 0056 removed only ground (2), and only at the schema layer. **Ground (1) — authorization — stands untouched: the resimulation's PARTIAL result is unchanged, SAFE-TO-PROPOSE is not execution authority, and NO ALLOWLIST EXISTS OR WAS CREATED.** The 8 faceoff-map windows remain independently blocked on ROI/OCR remediation. Match 2676 goals seg9003 run 2131 is still not authorized. No rescue command of any kind ran.
 
-**Operational ruling — rescue execution REMAINS BLOCKED, now on two independent grounds:** (1) **authorization** — the resimulation's PARTIAL result stands, SAFE-TO-PROPOSE is not execution authority, and no allowlist exists; (2) **technical incapacity** — the read boundary, the per-family promotion path, the rejection barrier, the review cascade, and the promoter INSERT are all `42703` against the live schema. The one SAFE-TO-PROPOSE window (**2676 goals seg9003 run 2131**) would take the promoter's **UPDATE** path — all four period rows exist with NULL goals — so it would *not* hit the INSERT failure; **this does not unblock it**, because it is unauthorized, its surrounding review machinery is broken, writing it under whole-row `review_status` semantics would reintroduce the exact defect 0056 closes, and its payload is sampling-mode dependent. The 8 faceoff-map windows remain independently blocked on ROI/OCR remediation. **Applying 0056 is a separate, separately-authorized session; doing so removes only ground (2) and still leaves the authorization decision open.**
+**Operational ruling — rescue execution REMAINS BLOCKED, now on two independent grounds:** (1) **authorization** — the resimulation's PARTIAL result stands, SAFE-TO-PROPOSE is not execution authority, and no allowlist exists; (2) **technical incapacity** — the read boundary, the per-family promotion path, the rejection barrier, the review cascade, and the promoter INSERT are all `42703` against the live schema. The one SAFE-TO-PROPOSE window (**2676 goals seg9003 run 2131**) would take the promoter's **UPDATE** path — all four period rows exist with NULL goals — so it would _not_ hit the INSERT failure; **this does not unblock it**, because it is unauthorized, its surrounding review machinery is broken, writing it under whole-row `review_status` semantics would reintroduce the exact defect 0056 closes, and its payload is sampling-mode dependent. The 8 faceoff-map windows remain independently blocked on ROI/OCR remediation. **Applying 0056 is a separate, separately-authorized session; doing so removes only ground (2) and still leaves the authorization decision open.**
 
 #### ✅ DEPLOYED — web/worker rebuilt and redeployed from exact HEAD `540777a`; smoke-tested PASS (2026-08-15)
 
