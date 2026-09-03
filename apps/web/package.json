@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "build": "next build",
-    "dev": "next dev --turbopack",
+    "dev": "next dev --turbopack --hostname 127.0.0.1",
     "start": "next start",
     "test": "pnpm run test:unit && pnpm run test:auth-disabled && pnpm run test:http-404",
     "test:unit": "node --test \"src/**/*.test.ts\"",
