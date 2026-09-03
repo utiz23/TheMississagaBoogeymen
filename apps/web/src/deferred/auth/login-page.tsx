@@ -1,6 +1,16 @@
+/**
+ * DORMANT — the /login page (sign-in + invite acceptance), kept for the
+ * post-launch account feature.
+ *
+ * Not imported by anything. It used to be the page module for `/login`. There
+ * is now NO module at that path at all — the URL is as absent as one this site
+ * never had, and Next's own 404 answers it. Putting a module back under
+ * `src/app/` is what re-enables the route; see ./README.md.
+ */
+
 import type { Metadata } from 'next'
 import { getAccountInviteByToken, isInviteUsable } from '@eanhl/db/queries'
-import { acceptInvite, signInWithPassword } from '@/app/account-actions'
+import { acceptInvite, signInWithPassword } from './account-actions'
 
 export const metadata: Metadata = { title: 'Login - Club Stats' }
 

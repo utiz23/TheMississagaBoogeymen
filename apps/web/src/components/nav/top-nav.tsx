@@ -29,13 +29,15 @@ async function fetchGameTitles() {
  * Activating a second title would leave wide viewports with no in-nav way to
  * change it, and the switcher would need a home in the bar again.
  *
- * LOGIN is a placeholder label pending real auth wiring, and points at /login.
- * The bar is session-agnostic — it does not know whether anyone is signed in.
- * The prototype's SIGN IN / initials-avatar swap is the one element of its nav
- * not carried over: auth here is entirely server-side (better-auth + server
- * actions, no `better-auth/react` client), so a session-aware bar would need
- * either a new client-session dependency or `getCurrentUser()` — and therefore
- * `headers()` — in the root layout. Both are larger changes than this port.
+ * NO AUTH CTA. The prototype's SIGN IN box, and the LOGIN link that stood in
+ * for it, are both gone: authentication is disabled before launch and /login is
+ * a 404, so a CTA here would be a link into a dead route. The bar stays
+ * session-agnostic — it does not read `headers()` or construct Better Auth, and
+ * the root layout that renders it therefore stays static-friendly.
+ *
+ * Restoring the CTA is part of re-enabling the account system after launch; see
+ * src/deferred/auth/README.md. `src/lib/account-system-disabled.test.ts` fails
+ * if a login/account link reappears here or in the drawer.
  */
 export async function TopNav() {
   const titles = await fetchGameTitles()
@@ -69,14 +71,6 @@ export async function TopNav() {
         </Suspense>
 
         <div className="ml-auto flex shrink-0 items-center gap-4">
-          {/* Prototype's SIGN IN CTA box: 9px/20px, 13px/800, 0.15em, 2px radius. */}
-          <Link
-            href="/login"
-            className="hidden rounded-xs bg-accent px-5 py-[9px] font-condensed text-[13px] font-extrabold uppercase tracking-[0.15em] text-white transition-[filter] hover:brightness-110 nav:inline-flex"
-          >
-            Login
-          </Link>
-
           <Suspense fallback={<NavDrawerFallback />}>
             <NavDrawer titles={titles} />
           </Suspense>

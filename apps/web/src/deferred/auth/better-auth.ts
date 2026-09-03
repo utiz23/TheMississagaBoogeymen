@@ -1,3 +1,12 @@
+/**
+ * DORMANT — the Better Auth instance and its session helpers, kept for the
+ * post-launch account feature.
+ *
+ * Not imported by anything. This module was `src/lib/auth.ts`; nothing under
+ * `src/app/` imports it any more, so no request path constructs Better Auth or
+ * opens a session. See ./README.md.
+ */
+
 import { betterAuth } from 'better-auth'
 import { drizzleAdapter } from '@better-auth/drizzle-adapter'
 import { nextCookies } from 'better-auth/next-js'

@@ -1,7 +1,16 @@
+/**
+ * DORMANT — the /account page, kept for the post-launch account feature.
+ *
+ * Not imported by anything. It used to be the page module for `/account`. There
+ * is now NO module at that path at all — the URL is as absent as one this site
+ * never had, and Next's own 404 answers it. Putting a module back under
+ * `src/app/` is what re-enables the route; see ./README.md.
+ */
+
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import { requireUser } from '@/lib/auth'
-import { signOutCurrentUser } from '@/app/account-actions'
+import { requireUser } from './better-auth'
+import { signOutCurrentUser } from './account-actions'
 
 export const metadata: Metadata = { title: 'Account - Club Stats' }
 

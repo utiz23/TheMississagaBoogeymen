@@ -1,171 +1,75 @@
 'use server'
 
-import { randomUUID } from 'node:crypto'
-import { hashPassword } from 'better-auth/crypto'
-import { headers } from 'next/headers'
-import { redirect } from 'next/navigation'
-import type { UserRole } from '@eanhl/db'
-import {
-  assignUserPlayerClaim,
-  createAccountInvite,
-  createInvitedAccount,
-  getAccountInviteByToken,
-  getUserByEmail,
-  isInviteUsable,
-  revokeAccountInvite,
-  setAccountDisabled,
-} from '@eanhl/db/queries'
-import { auth, requireAdmin } from '@/lib/auth'
-
-function field(formData: FormData, key: string): string {
-  const value = formData.get(key)
-  return typeof value === 'string' ? value.trim() : ''
-}
-
-function roleFromForm(value: string): UserRole {
-  return value === 'admin' ? 'admin' : 'user'
-}
-
-function appBaseUrl(): string {
-  return process.env.APP_BASE_URL ?? process.env.BETTER_AUTH_URL ?? 'http://localhost:3000'
-}
-
-export async function signInWithPassword(formData: FormData) {
-  const email = field(formData, 'email').toLowerCase()
-  const password = field(formData, 'password')
-  if (!email || !password) redirect('/login?error=missing')
-
-  try {
-    await auth.api.signInEmail({
-      body: { email, password },
-      headers: await headers(),
-    })
-  } catch {
-    redirect('/login?error=invalid')
-  }
-  redirect('/me')
-}
-
-export async function signOutCurrentUser() {
-  await auth.api.signOut({
-    headers: await headers(),
-  })
-  redirect('/login')
-}
-
-export async function acceptInvite(formData: FormData) {
-  const token = field(formData, 'token')
-  const name = field(formData, 'name')
-  const password = field(formData, 'password')
-
-  if (!token || !name || password.length < 8) {
-    redirect(`/login?token=${encodeURIComponent(token)}&error=invalid_invite_form`)
-  }
-
-  const invite = await getAccountInviteByToken(token)
-  if (!invite || !isInviteUsable(invite)) {
-    redirect('/login?error=invite_unusable')
-  }
-
-  const existing = await getUserByEmail(invite.email)
-  if (existing) {
-    redirect('/login?error=email_exists')
-  }
-
-  const userId = randomUUID()
-  const accountId = randomUUID()
-  const passwordHash = await hashPassword(password)
-
-  try {
-    await createInvitedAccount({
-      userId,
-      accountId,
-      email: invite.email,
-      name,
-      role: invite.role,
-      passwordHash,
-      inviteId: invite.id,
-      playerId: invite.claimedPlayerId,
-      assignedByUserId: invite.invitedByUserId,
-    })
-  } catch {
-    redirect(`/login?token=${encodeURIComponent(token)}&error=accept_failed`)
-  }
-
-  await auth.api.signInEmail({
-    body: { email: invite.email, password },
-    headers: await headers(),
-  })
-  redirect('/me')
-}
-
 /**
- * NOTE — there is deliberately no initial-admin server action in this file.
+ * TOMBSTONE — every account Server Action is disabled before launch.
  *
- * A public "first visitor creates the admin" action was removed: an empty
- * `users` table is not authorization, so anyone who reached /login before the
- * operator did could have taken the account. The initial admin is now created
- * only by the local operator CLI `pnpm --filter worker init-admin`, which
- * requires host + database access. Account creation after that stays
- * invite-only via `acceptInvite` above.
+ * Authentication is deferred until after launch. The real implementations are
+ * parked, dormant and non-routable, in `src/deferred/auth/account-actions.ts`,
+ * with their `'use server'` directive removed so they mint no action ids.
  *
- * Do not reintroduce a web-reachable path to the initial-admin query in
- * @eanhl/db/queries. A regression guard
- * (apps/web/src/lib/no-public-admin-bootstrap.test.ts) fails if anything under
- * apps/web/src references it by name.
+ * WHY THESE STUBS EXIST AT ALL
+ * ----------------------------
+ * A Next.js Server Action is reachable by its action id whether or not any form
+ * renders it, so "the login page is a 404" says nothing on its own about
+ * whether `signInWithPassword` can still be POSTed to. These exports keep the
+ * names and hard-refuse: each throws on its first statement, before any auth
+ * call, database query, password hash, redirect into auth UI, or write.
+ *
+ * This module imports NOTHING — not `@/deferred/auth/better-auth`, not
+ * `@eanhl/db/queries`, not `better-auth/crypto`, not `next/navigation`. There
+ * is therefore no auth or account implementation loaded on this path to reach,
+ * and no `redirect()` that could bounce a caller into disabled auth UI.
+ *
+ * A thrown Error (not `notFound()`, not `redirect()`) is deliberate: a Server
+ * Action that throws is a server error to the caller and a no-op to the
+ * database, which is the correct answer to an invocation that should not be
+ * possible.
+ *
+ * Covered by ../lib/account-system-disabled.test.ts and
+ * ../../test/auth-routes-disabled.test.ts.
  */
 
-export async function createInvite(formData: FormData) {
-  const admin = await requireAdmin()
-  const email = field(formData, 'email').toLowerCase()
-  const role = roleFromForm(field(formData, 'role'))
-  const playerId = Number.parseInt(field(formData, 'playerId'), 10)
-  const days = Number.parseInt(field(formData, 'expiresInDays') || '7', 10)
+const DISABLED =
+  'The account system is disabled before launch. Authentication is deferred ' +
+  'until after launch and no account action is available.'
 
-  if (!email || !Number.isFinite(playerId) || playerId <= 0) {
-    redirect('/admin/accounts?error=invite_invalid')
-  }
-
-  const expiresAt = new Date()
-  expiresAt.setDate(expiresAt.getDate() + (Number.isFinite(days) && days > 0 ? days : 7))
-
-  let inviteUrl: string
-  try {
-    const created = await createAccountInvite({
-      email,
-      role,
-      claimedPlayerId: playerId,
-      invitedByUserId: admin.id,
-      expiresAt,
-    })
-    inviteUrl = `${appBaseUrl()}/login?token=${encodeURIComponent(created.token)}`
-  } catch {
-    redirect('/admin/accounts?error=invite_failed')
-  }
-  redirect(`/admin/accounts?invite=${encodeURIComponent(inviteUrl)}`)
+/**
+ * The refusal itself. `await`ed by each action below rather than thrown inline
+ * so that these stay honest `async` functions under `require-await` — the
+ * rejection is the point, the await is only how it is delivered.
+ *
+ * The actions are declared `Promise<void>`, not `Promise<never>`: TypeScript
+ * does not treat `await` of a `Promise<never>` as an unreachable end point
+ * (TS2534), and `void` is what a Server Action returns anyway.
+ */
+function refuse(action: string): Promise<never> {
+  return Promise.reject(new Error(`${action}: ${DISABLED}`))
 }
 
-export async function revokeInvite(formData: FormData) {
-  await requireAdmin()
-  const inviteId = field(formData, 'inviteId')
-  if (inviteId) await revokeAccountInvite(inviteId)
-  redirect('/admin/accounts')
+export async function signInWithPassword(_formData?: FormData): Promise<void> {
+  await refuse('signInWithPassword')
 }
 
-export async function setUserDisabled(formData: FormData) {
-  const admin = await requireAdmin()
-  const userId = field(formData, 'userId')
-  const disabled = field(formData, 'disabled') === 'true'
-  if (userId && userId !== admin.id) await setAccountDisabled(userId, disabled)
-  redirect('/admin/accounts')
+export async function signOutCurrentUser(): Promise<void> {
+  await refuse('signOutCurrentUser')
 }
 
-export async function assignClaim(formData: FormData) {
-  const admin = await requireAdmin()
-  const userId = field(formData, 'userId')
-  const playerId = Number.parseInt(field(formData, 'playerId'), 10)
-  if (userId && Number.isFinite(playerId) && playerId > 0) {
-    await assignUserPlayerClaim({ userId, playerId, assignedByUserId: admin.id })
-  }
-  redirect('/admin/accounts')
+export async function acceptInvite(_formData?: FormData): Promise<void> {
+  await refuse('acceptInvite')
+}
+
+export async function createInvite(_formData?: FormData): Promise<void> {
+  await refuse('createInvite')
+}
+
+export async function revokeInvite(_formData?: FormData): Promise<void> {
+  await refuse('revokeInvite')
+}
+
+export async function setUserDisabled(_formData?: FormData): Promise<void> {
+  await refuse('setUserDisabled')
+}
+
+export async function assignClaim(_formData?: FormData): Promise<void> {
+  await refuse('assignClaim')
 }

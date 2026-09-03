@@ -1,7 +1,17 @@
+/**
+ * DORMANT — the /me private performance page, kept for the post-launch
+ * account feature.
+ *
+ * Not imported by anything. It used to be the page module for `/me`. There
+ * is now NO module at that path at all — the URL is as absent as one this site
+ * never had, and Next's own 404 answers it. Putting a module back under
+ * `src/app/` is what re-enables the route; see ./README.md.
+ */
+
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { getPlayerGameLog, getPlayerProfileOverview } from '@eanhl/db/queries'
-import { requireUser } from '@/lib/auth'
+import { requireUser } from './better-auth'
 
 export const metadata: Metadata = { title: 'My Performance - Club Stats' }
 

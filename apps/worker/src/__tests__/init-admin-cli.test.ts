@@ -1,38 +1,59 @@
 /**
- * Operator-only initial-admin CLI — end-to-end against an isolated database.
+ * `init-admin` is DISABLED and must fail closed.
  *
  * WHAT THIS PROVES
  * ----------------
- * 1. The CLI is the ONLY way to create the first admin, and it does so
- *    atomically: user + credential + admin role + player claim, or nothing.
- * 2. It refuses idempotently. Once any user exists it will not create, edit,
- *    promote, or reset an account — a second run is a non-zero no-op.
- * 3. The password never travels on argv. `--password` is rejected outright,
- *    and the accepted path is stdin. Weak and over-long passwords are refused
- *    before any write.
- * 4. The credential it writes is the one the web sign-in path verifies:
- *    better-auth's own `verifyPassword` accepts the stored hash.
- * 5. Nothing partial survives a rejected run.
+ * Authentication is deferred until after launch. There is no web bootstrap path
+ * (apps/web/src/lib/account-system-disabled.test.ts) and there must be no CLI
+ * one either. This file spawns the real compiled command — `dist/init-admin-cli.js`,
+ * the exact file `pnpm --filter worker init-admin` runs — and asserts that:
  *
- * The complementary half of this coverage is
- * apps/web/src/lib/no-public-admin-bootstrap.test.ts, which proves the public
- * /login bootstrap form and its Server Action no longer exist. Together:
- * removed from the web, present only behind host access.
+ *   1. It exits non-zero on every invocation, with every argument combination
+ *      that used to do something: `--help`, `--list-players`, `--dry-run`, and
+ *      a full, valid create.
+ *   2. It refuses BEFORE any database work. With DATABASE_URL unset it does not
+ *      produce `@eanhl/db`'s import-time "DATABASE_URL is required" failure,
+ *      which is positive evidence the database module is never loaded — and it
+ *      behaves identically with DATABASE_URL set, so the refusal is not an
+ *      accident of a missing environment variable.
+ *   3. It refuses BEFORE requesting a password. Nothing is prompted and piped
+ *      stdin is never consumed, so a `pass show ... | init-admin` invocation
+ *      cannot leak a password into a process that is about to refuse anyway.
+ *   4. It writes nothing. Where a test-database clone is available, the account
+ *      tables are counted before and after and must be untouched.
+ *   5. The dormant implementation is not wired back in: no active worker module
+ *      imports it, and it no longer runs itself.
+ *
+ * WHAT THIS REPLACES
+ * ------------------
+ * This file previously proved the opposite contract — that the CLI created the
+ * one initial admin atomically, idempotently, and with the password read only
+ * from stdin. That code is preserved verbatim in
+ * ../deferred-auth/init-admin-cli.ts and none of it is reachable; the tests for
+ * it would now be asserting behaviour the product deliberately does not have.
+ * The database-level refusal in `createInitialAdmin` is untouched and still
+ * covered by the query itself; the table, the migration, and the data are all
+ * intact.
  *
  * ISOLATION
  * ---------
- * This file INSERTS AND DELETES `users`, `accounts`, and `user_player_claims`
- * rows, so it hard-refuses to run against anything but an `eanhl_test_*`
- * clone. Run it through the harness, which provisions and drops that clone:
+ * The row-count assertions read (never write) the account tables, and run only
+ * against an `eanhl_test_*` clone. Everything else needs no database at all, so
+ * this file is runnable standalone:
  *
- *   pnpm --filter @eanhl/db build && pnpm --filter @eanhl/worker build
+ *   pnpm --filter @eanhl/worker build
+ *   node --test apps/worker/dist/__tests__/init-admin-cli.test.js
+ *
+ * ...and through the isolation harness, which provisions and drops the clone:
+ *
  *   set -a && source .env && set +a
  *   node apps/worker/scripts/with-test-db.mjs init-admin-cli
  */
 
-import test, { after, before, beforeEach } from 'node:test'
+import test, { after, before } from 'node:test'
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
+import { readFileSync, readdirSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 // Type-only: erased at runtime, so @eanhl/db is still not loaded until the
@@ -41,13 +62,12 @@ import type * as DbModule from '@eanhl/db'
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
 const REPO_ROOT = path.resolve(HERE, '../../../..')
+const WORKER_SRC = path.join(REPO_ROOT, 'apps/worker/src')
 const CLI_PATH = path.join(REPO_ROOT, 'apps/worker/dist/init-admin-cli.js')
+const CLI_SOURCE = path.join(WORKER_SRC, 'init-admin-cli.ts')
+const DORMANT_SOURCE = path.join(WORKER_SRC, 'deferred-auth/init-admin-cli.ts')
 
-/** Sentinel player, far above the live sequence. Dropped in `after`. */
-const PLAYER_ID = 9_400_001
-const GAMERTAG = 'InitAdminFixturePlayer'
-const EMAIL = 'init-admin-fixture@example.test'
-const GOOD_PASSWORD = 'correct horse battery staple'
+const PASSWORD_THAT_MUST_NOT_BE_READ = 'correct horse battery staple'
 
 const hasDb = Boolean(process.env.DATABASE_URL)
 
@@ -63,8 +83,7 @@ function assertCloneDb(): void {
   if (!dbName.startsWith('eanhl_test')) {
     throw new Error(
       `init-admin-cli: refusing to run — DATABASE_URL points at database "${dbName}", not an ` +
-        '"eanhl_test_*" clone. This file creates and deletes account rows; run it through ' +
-        'apps/worker/scripts/with-test-db.mjs.',
+        '"eanhl_test_*" clone. Run it through apps/worker/scripts/with-test-db.mjs.',
     )
   }
 }
@@ -72,15 +91,52 @@ function assertCloneDb(): void {
 // Imported lazily so the clone guard runs before @eanhl/db opens a pool.
 let dbm: typeof DbModule
 
-/** Run the CLI with `stdinText` piped in (never on argv). */
-function runCli(args: string[], stdinText?: string) {
+/**
+ * Run the CLI. `stdinText` is piped in to prove it is NOT consumed; `env`
+ * overrides let a case run with DATABASE_URL deliberately absent or bogus.
+ */
+function runCli(
+  args: string[],
+  opts: { stdin?: string; env?: Record<string, string | undefined> } = {},
+) {
+  // An override of `undefined` means "unset this for the child", so the env is
+  // rebuilt by filtering rather than mutated — `DATABASE_URL: undefined` has to
+  // be a genuinely absent variable, not one set to the string "undefined".
+  const merged: Record<string, string | undefined> = { ...process.env, ...opts.env }
+  const env = Object.fromEntries(
+    Object.entries(merged).filter((entry): entry is [string, string] => entry[1] !== undefined),
+  )
   return spawnSync(process.execPath, [CLI_PATH, ...args], {
     cwd: REPO_ROOT,
-    env: process.env,
-    input: stdinText ?? '',
+    env,
+    input: opts.stdin ?? '',
     encoding: 'utf8',
+    timeout: 30_000,
   })
 }
+
+/** Every invocation that used to do something. */
+const INVOCATIONS: { label: string; args: string[] }[] = [
+  { label: 'no arguments', args: [] },
+  { label: '--help', args: ['--help'] },
+  { label: '--list-players', args: ['--list-players'] },
+  {
+    label: 'a full, valid create',
+    args: ['--email', 'operator@example.test', '--name', 'Operator', '--gamertag', 'Utiz23'],
+  },
+  {
+    label: '--dry-run',
+    args: [
+      '--email',
+      'operator@example.test',
+      '--name',
+      'Operator',
+      '--player-id',
+      '1',
+      '--dry-run',
+    ],
+  },
+]
 
 async function accountRowCounts() {
   const rows = await dbm.sql<
@@ -93,234 +149,168 @@ async function accountRowCounts() {
   return row
 }
 
-async function clearAccountTables() {
-  await dbm.sql`delete from user_player_claims`
-  await dbm.sql`delete from accounts`
-  await dbm.sql`delete from sessions`
-  await dbm.sql`delete from users`
-}
-
 before(async () => {
   if (!hasDb) return
   assertCloneDb()
   dbm = await import('@eanhl/db')
-
-  // A claimable sentinel player for the admin to be linked to.
-  await dbm.sql`insert into players (id, gamertag, position)
-                values (${PLAYER_ID}, ${GAMERTAG}, 'center')
-                on conflict (id) do nothing`
-})
-
-beforeEach(async () => {
-  if (!hasDb) return
-  // Each case starts from a genuinely empty account state — the exact
-  // condition the removed public bootstrap form keyed off.
-  await clearAccountTables()
 })
 
 after(async () => {
   if (!hasDb) return
-  await clearAccountTables()
-  await dbm.sql`delete from players where id = ${PLAYER_ID}`
   await dbm.sql.end({ timeout: 5 })
 })
 
+for (const { label, args } of INVOCATIONS) {
+  void test(`refuses ${label}, with DATABASE_URL unset`, () => {
+    const res = runCli(args, {
+      stdin: `${PASSWORD_THAT_MUST_NOT_BE_READ}\n`,
+      env: { DATABASE_URL: undefined },
+    })
+
+    assert.equal(res.error, undefined, `the CLI must not fail to spawn: ${String(res.error)}`)
+    assert.notEqual(res.status, 0, 'init-admin must exit non-zero')
+    assert.match(res.stderr, /refusing: the account system is disabled before launch/)
+
+    // Fails closed BEFORE the database module: @eanhl/db throws at import time
+    // when DATABASE_URL is unset, and that error is conspicuously absent.
+    assert.ok(
+      !res.stderr.includes('DATABASE_URL'),
+      `a DATABASE_URL failure means @eanhl/db was loaded on this path: ${res.stderr}`,
+    )
+    assert.ok(
+      !/ERR_MODULE_NOT_FOUND|Cannot find package/.test(res.stderr),
+      `the refusal must be deliberate, not an import crash: ${res.stderr}`,
+    )
+
+    // ...and BEFORE any password is requested or consumed.
+    assert.ok(!/password/i.test(res.stderr), `no password may be prompted for: ${res.stderr}`)
+    assert.ok(!/password/i.test(res.stdout), `no password may be prompted for: ${res.stdout}`)
+    assert.ok(
+      !res.stderr.includes(PASSWORD_THAT_MUST_NOT_BE_READ) &&
+        !res.stdout.includes(PASSWORD_THAT_MUST_NOT_BE_READ),
+      'piped stdin must never be echoed',
+    )
+  })
+}
+
+void test('refuses identically with DATABASE_URL set — the refusal is not a missing env var', () => {
+  // A pointed-at-nothing URL: if the CLI ever reached a connection it would
+  // hang or report a connection error instead of refusing instantly.
+  const res = runCli(
+    ['--email', 'operator@example.test', '--name', 'Operator', '--gamertag', 'X'],
+    {
+      stdin: `${PASSWORD_THAT_MUST_NOT_BE_READ}\n`,
+      env: { DATABASE_URL: 'postgresql://disabled:unused@127.0.0.1:1/disabled' },
+    },
+  )
+
+  assert.notEqual(res.status, 0)
+  assert.match(res.stderr, /refusing: the account system is disabled before launch/)
+  assert.ok(
+    !/ECONNREFUSED|ETIMEDOUT|ENOTFOUND|connection refused|failed to connect/i.test(res.stderr),
+    `no connection may be attempted: ${res.stderr}`,
+  )
+})
+
+void test('there is no argument or environment variable that re-enables it', () => {
+  // The whole point of a source-level disable: nothing an operator can type on
+  // the host turns the command back on.
+  for (const attempt of [
+    { args: ['--force'], env: {} },
+    { args: ['--enable'], env: {} },
+    { args: [], env: { ENABLE_AUTH: '1', AUTH_ENABLED: 'true', BETTER_AUTH_ENABLED: '1' } },
+  ]) {
+    const res = runCli(attempt.args, { env: attempt.env })
+    assert.notEqual(
+      res.status,
+      0,
+      `init-admin ran with ${JSON.stringify(attempt)} — it must always refuse`,
+    )
+    assert.match(res.stderr, /disabled before launch/)
+  }
+})
+
+void test('the compiled command loads no module at all', () => {
+  // The strongest available statement about "fails closed BEFORE connecting":
+  // there is nothing on this path to connect with.
+  const compiled = readFileSync(CLI_PATH, 'utf8')
+  assert.ok(
+    !/^\s*import\s/m.test(compiled) && !/\brequire\(/.test(compiled),
+    'dist/init-admin-cli.js must import nothing — no db client, no better-auth, no readline',
+  )
+  // Comments are stripped: the shim's own documentation names the modules it
+  // is forbidden to load, and matching those sentences would fail it for
+  // explaining itself.
+  const source = readFileSync(CLI_SOURCE, 'utf8')
+    .split('\n')
+    .filter((line) => !/^\s*(\*|\/\*|\/\/)/.test(line))
+    .join('\n')
+  assert.ok(!/^\s*import\b/m.test(source), 'src/init-admin-cli.ts must import nothing')
+  for (const forbidden of ['@eanhl/db', 'better-auth', 'node:readline', 'hashPassword']) {
+    assert.ok(!source.includes(forbidden), `src/init-admin-cli.ts must not reference ${forbidden}`)
+  }
+})
+
+void test('the dormant implementation is preserved but does not run itself', () => {
+  // Deferred, not deleted: the post-launch account feature starts from this
+  // code rather than from scratch.
+  const src = readFileSync(DORMANT_SOURCE, 'utf8')
+  assert.ok(src.includes('createInitialAdmin('), 'the real implementation must be preserved')
+  assert.ok(
+    src.includes('export async function runInitAdmin('),
+    'the entry point must be exported rather than invoked',
+  )
+  const code = src
+    .split('\n')
+    .filter((line) => !/^\s*(\*|\/\*|\/\/)/.test(line))
+    .join('\n')
+  assert.ok(
+    !/^main\(\)/m.test(code),
+    'the dormant module must not call main() at module scope — executing it must create nothing',
+  )
+})
+
+void test('no active worker module imports the dormant implementation', () => {
+  const offenders = readdirSync(WORKER_SRC, { recursive: true })
+    .filter((p): p is string => typeof p === 'string' && p.endsWith('.ts'))
+    .filter((p) => !p.split(path.sep).includes('deferred-auth'))
+    .filter((p) => !p.includes('__tests__'))
+    .filter((p) =>
+      /from\s+['"][^'"]*deferred-auth/.test(readFileSync(path.join(WORKER_SRC, p), 'utf8')),
+    )
+  assert.deepEqual(
+    offenders,
+    [],
+    'deferred-auth/ is dormant — no active worker module may import from it',
+  )
+})
+
+void test('the init-admin package script points at the refusing shim', () => {
+  const pkg = JSON.parse(
+    readFileSync(path.join(REPO_ROOT, 'apps/worker/package.json'), 'utf8'),
+  ) as { scripts: Record<string, string> }
+  assert.equal(
+    pkg.scripts['init-admin'],
+    'node dist/init-admin-cli.js',
+    'pnpm --filter worker init-admin must run the shim, not the dormant implementation',
+  )
+  const dormantScripts = Object.entries(pkg.scripts).filter(([, cmd]) =>
+    cmd.includes('deferred-auth'),
+  )
+  assert.deepEqual(dormantScripts, [], 'no package script may run anything under deferred-auth/')
+})
+
 void test(
-  'authorized local bootstrap creates user, credential, admin role, and claim',
+  'a refused run writes nothing to the account tables',
   { skip: hasDb ? false : 'DATABASE_URL unset' },
   async () => {
     const before = await accountRowCounts()
-    assert.equal(before.users, 0, 'precondition: no users')
 
-    const res = runCli(
-      ['--email', EMAIL, '--name', 'Fixture Admin', '--player-id', String(PLAYER_ID)],
-      `${GOOD_PASSWORD}\n`,
-    )
-    assert.equal(res.status, 0, `CLI failed: ${res.stderr}`)
-    assert.match(res.stdout, /created admin user_id=/)
+    for (const { args } of INVOCATIONS) {
+      const res = runCli(args, { stdin: `${PASSWORD_THAT_MUST_NOT_BE_READ}\n` })
+      assert.notEqual(res.status, 0)
+    }
 
-    const rows = await dbm.sql<
-      { id: string; email: string; role: string; password: string; player_id: number }[]
-    >`select u.id, u.email, u.role, a.password, c.player_id
-        from users u
-        join accounts a on a.user_id = u.id and a.provider_id = 'credential'
-        join user_player_claims c on c.user_id = u.id`
-    assert.equal(rows.length, 1, 'exactly one fully-formed admin')
-    const admin = rows[0]
-    assert.ok(admin)
-    assert.equal(admin.email, EMAIL)
-    assert.equal(admin.role, 'admin', 'the initial account must be an admin')
-    assert.equal(admin.player_id, PLAYER_ID)
-
-    // The credential must be what the web sign-in path verifies against, not a
-    // lookalike hash: use better-auth's own verifier.
-    const { verifyPassword } = await import('better-auth/crypto')
-    assert.equal(
-      await verifyPassword({ hash: admin.password, password: GOOD_PASSWORD }),
-      true,
-      'stored hash must verify under better-auth',
-    )
-    assert.equal(
-      await verifyPassword({ hash: admin.password, password: 'not the password' }),
-      false,
-    )
-    // The password must not be recoverable from what was written.
-    assert.ok(!admin.password.includes(GOOD_PASSWORD), 'password must not be stored in plaintext')
-    // ...nor echoed anywhere the operator's terminal or logs would capture it.
-    assert.ok(!res.stdout.includes(GOOD_PASSWORD), 'password must not appear on stdout')
-    assert.ok(!res.stderr.includes(GOOD_PASSWORD), 'password must not appear on stderr')
-  },
-)
-
-void test(
-  'refuses idempotently once any user exists, and changes nothing',
-  { skip: hasDb ? false : 'DATABASE_URL unset' },
-  async () => {
-    const first = runCli(
-      ['--email', EMAIL, '--name', 'Fixture Admin', '--player-id', String(PLAYER_ID)],
-      `${GOOD_PASSWORD}\n`,
-    )
-    assert.equal(first.status, 0, `first run failed: ${first.stderr}`)
-
-    const snapshot = await dbm.sql<
-      { id: string; email: string; role: string; password: string }[]
-    >`select u.id, u.email, u.role, a.password from users u join accounts a on a.user_id = u.id`
-    assert.equal(snapshot.length, 1)
-
-    const second = runCli(
-      [
-        '--email',
-        'someone-else@example.test',
-        '--name',
-        'Impostor',
-        '--player-id',
-        String(PLAYER_ID),
-      ],
-      `${GOOD_PASSWORD}\n`,
-    )
-    assert.notEqual(second.status, 0, 'a second run must exit non-zero')
-    assert.match(second.stderr, /an account already exists/i)
-
-    const after = await accountRowCounts()
-    assert.deepEqual(after, { users: 1, accounts: 1, claims: 1 }, 'no second account was created')
-
-    const unchanged = await dbm.sql<
-      { id: string; email: string; role: string; password: string }[]
-    >`select u.id, u.email, u.role, a.password from users u join accounts a on a.user_id = u.id`
-    assert.deepEqual(unchanged, snapshot, 'the existing admin must be untouched')
-  },
-)
-
-void test(
-  'the refusal is enforced in the database transaction, not only by the CLI precheck',
-  { skip: hasDb ? false : 'DATABASE_URL unset' },
-  async () => {
-    // Bypass the CLI entirely and call the query directly, which is what a
-    // concurrent second caller would race into after passing its own precheck.
-    const queries = await import('@eanhl/db/queries')
-    await dbm.sql`insert into users (id, email, name, role, email_verified)
-                  values ('11111111-1111-4111-8111-111111111111', ${EMAIL}, 'Existing', 'user', true)`
-
-    await assert.rejects(
-      queries.createInitialAdmin({
-        userId: '22222222-2222-4222-8222-222222222222',
-        accountId: '33333333-3333-4333-8333-333333333333',
-        email: 'racer@example.test',
-        name: 'Racer',
-        passwordHash: 'irrelevant',
-        playerId: PLAYER_ID,
-      }),
-      /already exists/i,
-    )
-
-    const after = await accountRowCounts()
-    assert.equal(after.users, 1, 'the pre-existing user is the only user')
-    assert.equal(after.accounts, 0, 'no credential row leaked from the rejected transaction')
-    assert.equal(after.claims, 0, 'no player claim leaked from the rejected transaction')
-  },
-)
-
-void test(
-  'rejects a password supplied on argv',
-  { skip: hasDb ? false : 'DATABASE_URL unset' },
-  async () => {
-    const res = runCli([
-      '--email',
-      EMAIL,
-      '--name',
-      'Fixture Admin',
-      '--player-id',
-      String(PLAYER_ID),
-      '--password',
-      GOOD_PASSWORD,
-    ])
-    assert.notEqual(res.status, 0, '--password must be refused, not ignored')
-    assert.match(res.stderr, /refusing --password/)
-    assert.deepEqual(
-      await accountRowCounts(),
-      { users: 0, accounts: 0, claims: 0 },
-      'nothing may be written when the password came from argv',
-    )
-  },
-)
-
-void test(
-  'refuses a too-short password before writing anything',
-  { skip: hasDb ? false : 'DATABASE_URL unset' },
-  async () => {
-    const res = runCli(
-      ['--email', EMAIL, '--name', 'Fixture Admin', '--player-id', String(PLAYER_ID)],
-      'short7\n',
-    )
-    assert.notEqual(res.status, 0)
-    assert.match(res.stderr, /at least 8 characters/)
-    assert.deepEqual(await accountRowCounts(), { users: 0, accounts: 0, claims: 0 })
-  },
-)
-
-void test(
-  'refuses an unknown player rather than creating an unlinked admin',
-  { skip: hasDb ? false : 'DATABASE_URL unset' },
-  async () => {
-    const byId = runCli(
-      ['--email', EMAIL, '--name', 'Fixture Admin', '--player-id', '9400999'],
-      `${GOOD_PASSWORD}\n`,
-    )
-    assert.notEqual(byId.status, 0)
-    assert.match(byId.stderr, /no player with id 9400999/)
-
-    const byTag = runCli(
-      ['--email', EMAIL, '--name', 'Fixture Admin', '--gamertag', 'NoSuchGamertagAnywhere'],
-      `${GOOD_PASSWORD}\n`,
-    )
-    assert.notEqual(byTag.status, 0)
-    assert.match(byTag.stderr, /no player with gamertag/)
-
-    const noPlayer = runCli(['--email', EMAIL, '--name', 'Fixture Admin'], `${GOOD_PASSWORD}\n`)
-    assert.notEqual(noPlayer.status, 0)
-    assert.match(noPlayer.stderr, /--gamertag or --player-id is required/)
-
-    assert.deepEqual(await accountRowCounts(), { users: 0, accounts: 0, claims: 0 })
-  },
-)
-
-void test(
-  'resolves the player by gamertag and honours --dry-run',
-  { skip: hasDb ? false : 'DATABASE_URL unset' },
-  async () => {
-    const res = runCli(
-      ['--email', EMAIL, '--name', 'Fixture Admin', '--gamertag', GAMERTAG, '--dry-run'],
-      `${GOOD_PASSWORD}\n`,
-    )
-    assert.equal(res.status, 0, `dry run failed: ${res.stderr}`)
-    assert.match(
-      res.stdout,
-      new RegExp(`dry-run: would create admin .*player_id=${String(PLAYER_ID)}`),
-    )
-    assert.deepEqual(
-      await accountRowCounts(),
-      { users: 0, accounts: 0, claims: 0 },
-      '--dry-run must write nothing',
-    )
+    assert.deepEqual(await accountRowCounts(), before, 'the account tables must be untouched')
   },
 )

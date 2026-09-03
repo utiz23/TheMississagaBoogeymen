@@ -12,8 +12,7 @@ import { NAV_LINKS, buildHref, isActive } from './nav-links'
 /**
  * Mobile navigation: burger in the bar, slide-in panel from the right. Replaces
  * the old always-visible tab strip below the bar — the strip cost 36px of every
- * viewport it appeared on and had nowhere to put the title switcher or the
- * account entry point.
+ * viewport it appeared on and had nowhere to put the title switcher.
  *
  * The panel stays mounted and toggles `invisible` rather than unmounting, so
  * the transform transition plays on the way out as well as the way in.
@@ -153,16 +152,11 @@ export function NavDrawer({ titles }: { titles: GameTitle[] }) {
           })}
         </nav>
 
+        {/* No auth CTA. The prototype's drawer LOGIN box is gone for the same
+            reason as the bar's: authentication is disabled before launch and
+            /login is a 404. See src/deferred/auth/README.md. */}
         <div className="mt-auto flex flex-col gap-3.5">
           <GameTitleSwitcher titles={titles} />
-          {/* Prototype's drawer CTA box: 13px padding, 14px/800, 0.15em. */}
-          <Link
-            href="/login"
-            onClick={close}
-            className="rounded-xs bg-accent p-[13px] text-center font-condensed text-sm font-extrabold uppercase tracking-[0.15em] text-white transition-[filter] hover:brightness-110"
-          >
-            Login
-          </Link>
         </div>
       </div>
     </div>
