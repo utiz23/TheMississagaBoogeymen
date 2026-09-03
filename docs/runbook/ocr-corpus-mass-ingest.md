@@ -180,6 +180,6 @@ SELECT count(*) AS unmatched_with_run  FROM ocr_capture_batches WHERE match_id I
 | `--limit` pre-skip slicing       | Chunks shrink as the corpus completes; size limits generously.                                                                                 |
 | played_at semantics              | Game END, not start. The pre-fix matcher ranked the previous match top on timestamp-only reels (frame-proven off-by-ones: proposals 28/29/30). |
 | Foreground timeouts              | `batch`/`batch-promote` runs are hours long — background them; never under a 2-min foreground timeout.                                         |
-| `git push`                       | Runs `scripts/verify-ocr.sh` (~20 min) pre-push. Background the push or `--no-verify` deliberately.                                            |
+| `git push`                       | Runs `scripts/verify-ocr.sh` (~20 min) pre-push. Background the push and let it finish; do not bypass the hook.                                |
 | Lobby #NN/build panel phases     | dHash prefilter stays OFF for lobby segments (phase-drop risk).                                                                                |
 | EASHL has no shootout            | Period 6 = OT3. Tied OT3 games end as ties.                                                                                                    |

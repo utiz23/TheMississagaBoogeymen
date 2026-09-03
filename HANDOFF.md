@@ -291,8 +291,7 @@ reachable by its action id whether or not any form renders it.
   Action, and the login page's user-count read are all gone. `/login` no longer
   consults the user count at all, so an empty database is indistinguishable from
   a populated one to an anonymous visitor; it also no longer leaks the
-  claimable-player roster. Regression guard in
-  `apps/web/src/lib/no-public-admin-bootstrap.test.ts`, verified by mutation.
+  claimable-player roster.
 - `5008ee4` — `feat(worker)`: initial admin creation moves to an operator CLI,
   `pnpm --filter worker init-admin`, which requires shell + database access on
   the host. The password is read from stdin only (non-echoing prompt on a TTY,
@@ -308,8 +307,42 @@ reachable by its action id whether or not any form renders it.
   documented update procedure; and published ports (web 3000, worker health
   3001, db 5433) bind to `127.0.0.1` instead of `0.0.0.0`.
 
+- A follow-up commit adds the behavioural test evidence and corrects the
+  staged order below (see "Next Session").
+
 Invite-only account creation is unchanged and remains the only in-app path to a
 new account after the first.
+
+**Test evidence, described accurately.** Two files, covering different things:
+
+- **Behavioural — the primary evidence.**
+  `apps/web/src/app/login/login-page-render.test.ts` imports the real
+  `app/login/page.tsx` module, awaits it as the async Server Component it is,
+  and renders the result to HTML with `react-dom/server`. It runs under a
+  substituted `@eanhl/db/queries` whose answers are the DANGEROUS ones on
+  purpose: `hasAccountUsers()` returns **false** (an empty users table) and the
+  claimable roster is non-empty. Under exactly those answers the old page
+  rendered the bootstrap form and the player picker. 5 tests assert the rendered
+  HTML contains the sign-in form and contains no "Bootstrap"/"Create Admin"
+  copy, no `playerId` field, and no roster gamertag; that the page never _calls_
+  `hasAccountUsers` or `listClaimablePlayers` (so no database state can produce
+  a bootstrap form, not merely the one sampled); that the three retired
+  `bootstrap_*` error codes fall through to the generic message; and that the
+  invite-acceptance branch still renders, so the suite cannot pass by the page
+  having been gutted. **Mutation-proved:** reintroducing the bootstrap render
+  branch fails all 5.
+- **Structural — a tripwire, not proof.**
+  `apps/web/src/lib/no-public-admin-bootstrap.test.ts` greps source text. It
+  cannot execute the app and a rename or dynamic import would slip past it. It
+  is retained for the one property rendering cannot observe at all: a Next.js
+  Server Action is reachable by its action id whether or not any form renders
+  it, so "no bootstrap form in the HTML" says nothing about whether
+  `bootstrapAdmin` still exists and is still invocable by a crafted POST. Its
+  4 tests assert that action's absence and that nothing under `apps/web/src`
+  references the operator-only `createInitialAdmin` query. Also mutation-proved.
+
+`pnpm --filter web test` now runs both, alongside the pre-existing web unit
+tests: 126 tests, 126 passing.
 
 **Still open — none of this is done:**
 
@@ -1072,8 +1105,10 @@ Durable traps, carried forward — these keep biting:
   while a server is running.
 - **`Game sheet prototype layout (1)/` is untracked at repo root and has never been tracked.** It is
   the design of record for the game sheet and the nav; keep it out of focused commits.
-- **`git push` runs `scripts/verify-ocr.sh` first** (~20 min) — background the push or use
-  `--no-verify`; see [[project_prepush_verify_hook]].
+- **`git push` runs `scripts/verify-ocr.sh` first** (~20 min) — background the push and let the
+  hook finish. **The hook is mandatory; do not bypass it.** It has caught a real defect before
+  (see the 2026-08-16 decoder-provenance entry). If it fails, fix the failure — a bypassed push
+  is not a verified push. See [[project_prepush_verify_hook]].
 - **Migrations are hand-written idempotent SQL applied via psql**, journal frozen at 0045 — see
   [[project_migration_drift]].
 - **Commit rule:** do not auto-commit. `AGENTS.md` controls.
@@ -1082,84 +1117,110 @@ Durable traps, carried forward — these keep biting:
 
 **Current objective: the staged authorization sequence below. One stage per
 session.** Nothing in it has been authorized yet. Each stage is a separate
-decision — approving (a) does not approve (b).
+decision — approving A does not approve B — and the order is load-bearing: the
+fix must be on the host before an admin account exists on it, and exposure must
+be verified before anything is published.
 
-### (a) Local admin initialization
+**The pre-push `verify-ocr` hook is mandatory. Do not use `--no-verify`.**
+Background the push and let all five stages run; see
+[[project_prepush_verify_hook]].
 
-Prove the CLI on a throwaway database before it is ever run against a host.
+### A. Verify and push the reviewed commits, normally
 
 ```bash
+pnpm --filter web test          # 126/126 (5 behavioural /login render + 4 structural)
+pnpm --filter web build && pnpm typecheck
 pnpm --filter @eanhl/db build && pnpm --filter @eanhl/worker build
 set -a && source .env && set +a
-node apps/worker/scripts/with-test-db.mjs init-admin-cli    # 7/7 expected
+node apps/worker/scripts/with-test-db.mjs init-admin-cli    # 7/7
+docker compose config --services                            # db, web, worker only
 ```
 
-Then, on the host that will own the account and only when that host is chosen:
+Then push in the background and let `verify-ocr.sh` finish (~20 min, 5 stages).
+If it fails, fix the failure — a bypassed push is not a verified push. Confirm
+the push landed against the remote ref (`git ls-remote origin -h main`), not
+just the exit code.
+
+### B. Deploy the corrected web / worker / Compose to Hotel-Echo
+
+Requires: A complete. **`cloudflared` stays stopped for this entire stage and
+the next two.**
+
+1. Pull on Hotel-Echo, then **rebuild** — `docker compose up -d` alone reuses
+   the old image. See the `docker-redeploy` skill.
+2. `docker compose config --services` → `db`, `worker`, `web` only; no
+   cloudflared, no warning.
+3. `ss -tlnp | grep -E ':(3000|3001|5433)\s'` → `127.0.0.1` on all three.
+   `http://192.168.1.107:3000` will stop answering. That is intended.
+4. Confirm the tunnel is still down: `boogeymen.app` should still return 530.
+
+### C. Verify /login on the host, then initialize the admin
+
+Requires: B complete. Look before writing — confirm the deployed page is the
+fixed one, then create the account on it.
 
 ```bash
+# 1. The deployed /login must have no bootstrap UI. Check the real response.
+curl -s localhost:3000/login | grep -ci -e bootstrap -e 'Create Admin' -e playerId   # expect 0
+curl -s localhost:3000/login | grep -c 'Sign In'                                     # expect >= 1
+
+# 2. Only then, the CLI.
 docker compose exec worker node dist/init-admin-cli.js --list-players
 docker compose exec -it worker node dist/init-admin-cli.js \
   --email <address> --name "<display name>" --gamertag <tag> --dry-run
-# and, once the dry run reads correctly, the same command without --dry-run
+# 3. ...and, once the dry run reads correctly, the same command without --dry-run
 ```
 
 The password is typed at the prompt, twice, never on the command line. Store it
 in a password manager at creation time — there is no recovery flow, and the CLI
-refuses to run a second time.
+refuses to run a second time. Afterwards, sign in and confirm `/admin/accounts`
+can issue an invite, so account creation works before anyone depends on it.
 
-### (b) Corrected Hotel-Echo deployment
+### D. On-host / LAN / WAN port-exposure verification
 
-Requires: (a) understood, and a decision that Hotel-Echo should run this code at
-all. **The tunnel stays down through this whole stage.**
-
-1. Push `9ac237f`, `5008ee4`, `852c6d7` (the pre-push hook runs `verify-ocr.sh`,
-   ~20 min — background it or `--no-verify`; see [[project_prepush_verify_hook]]).
-2. On Hotel-Echo: pull, then rebuild — `docker compose up -d` alone reuses the
-   old image. See the `docker-redeploy` skill.
-3. Confirm the default stack renders as `db`, `worker`, `web` only, with no
-   cloudflared and no warning: `docker compose config --services`.
-4. Confirm the ports moved: `ss -tlnp` must show `127.0.0.1` for 3000/3001/5433.
-   Note that `http://192.168.1.107:3000` will stop answering — that is intended.
-5. Load `/login` from the host (`curl -s localhost:3000/login`) and confirm no
-   bootstrap form is present.
-
-### (c) External exposure verification
-
-Requires: (b) complete. Still with the tunnel down, so this measures the host
-itself rather than the tunnel.
+Requires: C complete. Still tunnel-down, so this measures the host itself rather
+than the tunnel.
 
 - On the host: `ss -tlnp | grep -E ':(3000|3001|5433)\s'` — expect `127.0.0.1`.
 - From another LAN machine: `nc -zv <host-lan-ip> 3000 3001 5433` — expect
   refused/timeout on all three.
 - From outside the network, against the **WAN address**, not the domain:
-  `nc -zv <wan-ip> 3000 3001 5433` — expect refused/timeout on all three.
+  `nc -zv <wan-ip> 3000 3001 5433` — expect refused/timeout on all three. The
+  domain resolves to Cloudflare, so testing it proves nothing about this host.
 - Check the router for port-forwards and UPnP mappings to Hotel-Echo.
 
 Record the date and the results. That evidence is what closes the Gate 2
 "database port and worker health endpoint not exposed" item — until then it
 stays unchecked. Full procedure in DEPLOY.md, "Host port exposure".
 
-### (d) Tunnel reopening
+### E. Close the remaining gates, then separately authorize reopening the tunnel
 
-Requires: (b) and (c) both complete and recorded. Do not start here.
+Requires: D complete and recorded. **These gates are prerequisites, not
+paperwork to follow the reopening.** The site was previously public with none of
+them in place.
+
+- MFA and a documented recovery contact on the domain/Cloudflare account.
+- Security response headers on the web app.
+- An indexing decision and a matching `robots.txt`.
+- The privacy policy, the data-collection policy (gamertags, statistics,
+  accounts, server/IP logs, retention, processors), the correction/deletion
+  request process, and the EA/NHL non-affiliation notice.
+- Backups and a restore drill, so a public site is a recoverable one.
+
+Reopening the tunnel is then its **own** authorization, not an automatic
+consequence of finishing the list:
 
 1. Write the tunnel token to `./secrets/cloudflared-tunnel-token` on Hotel-Echo,
    mode 600, token only, no newline or prefix. It is not in the repo and must
    not be pasted into a doc, a commit, or a chat.
-2. `docker compose --profile public up -d` — and remember the `--profile public`
-   flag on every later compose command that should include the tunnel.
-3. Confirm the tunnel registers: `docker compose --profile public logs
-cloudflared --tail 50`.
+2. `docker compose --profile public up -d` — and remember `--profile public` on
+   every later compose command that should include the tunnel.
+3. `docker compose --profile public logs cloudflared --tail 50` — expect
+   registered edge connections.
 4. From outside the LAN: `curl -sSI https://boogeymen.app | head -1` → expect
-   `HTTP/2 200`; then load `/login` and confirm there is no bootstrap form on
-   the live site.
+   `HTTP/2 200`; then load `/login` and confirm no bootstrap UI on the live site.
 5. Confirm the domain still routes only `web` — no ingress rule and no DNS
-   record for the database or the health endpoint.
-
-Open before (d) is worth doing at all: MFA and a recovery contact on the domain
-account, security response headers, an indexing/`robots.txt` decision, and the
-privacy / data-collection / non-affiliation drafts. The site was previously
-public with none of those in place.
+   record for the database or the worker health endpoint.
 
 ---
 
