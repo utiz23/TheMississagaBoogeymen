@@ -76,10 +76,13 @@ No new feature work belongs in this gate.
 - [ ] Document where the Next.js web app, worker, PostgreSQL database,
       persistent storage, backups, DNS, and TLS terminate.
 - [x] Decide whether the production site is public, members-only, or mixed.
-      **Decided 2026-09-03: fully public, no login gate.** See the "DOMAIN +
-      TUNNEL LIVE" Active State entry.
+      **Decided 2026-09-03: fully public, no login gate.** See the "CONTAINED"
+      Active State entry.
 - [ ] Confirm the database port and worker health endpoint will not be exposed
-      directly to the public internet.
+      directly to the public internet. Published ports now bind to loopback by
+      default (`852c6d7`) and DEPLOY.md carries the verification procedure, but
+      the on-host/LAN/WAN checks have not been run on any host, so this stays
+      unchecked.
 - [ ] Define secret storage, environment separation, deployment mechanism,
       staging strategy, and rollback ownership.
 
@@ -249,20 +252,112 @@ launch scope and it is not allowed to hold the terminal gate hostage.
 
 ## Active State
 
-### 🟢 DOMAIN + TUNNEL LIVE — Stage C (Cloudflare domain, tunnel, public-exposure decision) complete on Hotel-Echo (2026-09-03)
+### 🔴 CONTAINED — DOMAIN REGISTERED, TUNNEL OFFLINE — public bootstrap-admin exposure on Hotel-Echo (2026-09-03)
 
-Directly advances the Gate 2 "Domain, hosting, and exposure decisions"
-checklist. Supersedes the two now-stale bullets in the "NEW HOST STOOD UP"
-entry below (struck through there, not deleted). Committed as `5bdf442`
-(`feat(deploy): add Cloudflare Tunnel service for public domain routing`).
-Still the parallel, not-yet-production instance — see that entry's caveats,
-which are otherwise unchanged.
+Supersedes the Stage C "complete" claim below. Stage C is **not** complete: the
+domain is registered and the tunnel is built, but the tunnel is stopped and the
+site is not serving.
+
+**What happened.** The `/login` page treated an empty `users` table as
+authorization. With no accounts in the database it rendered a "Bootstrap Admin"
+form to any anonymous visitor, and the `bootstrapAdmin` Server Action behind it
+would create the site's first admin — user, credential, `admin` role, and player
+claim — for whoever submitted it first. Hotel-Echo was stood up with a fresh,
+empty database and then published at `boogeymen.app`, so for the time the tunnel
+was up, the admin account was available to the first stranger who loaded the
+page. Removing the form alone would not have been enough: a Server Action is
+reachable by its action id whether or not any form renders it.
+
+**Exposure and containment.**
+
+- Public exposure window: **~7.5 minutes**, from the tunnel coming up to
+  `cloudflared` being stopped on Hotel-Echo.
+- `cloudflared` is stopped. `boogeymen.app`, `www.boogeymen.app`, and
+  `/login` all return Cloudflare **530** (origin unreachable). The domain and
+  DNS records still exist; only the tunnel connector is down.
+- **No account was created.** Hotel-Echo's `users`, `accounts`, and
+  `user_player_claims` tables were checked and are empty, so no admin was taken
+  and no account takeover occurred.
+- **Page access cannot be disproven.** Nothing retained request logs for that
+  window, so whether anyone loaded `/login` and saw the form is unknown and
+  unknowable. The tables being empty rules out a successful account creation;
+  it does not rule out someone having seen the page.
+- The main-PC production instance was never touched by this and has accounts
+  already, so the empty-table condition never applied there.
+
+**Fixed at source (local commits, not pushed, not deployed):**
+
+- `9ac237f` — `fix(web)`: the bootstrap form, the `bootstrapAdmin` Server
+  Action, and the login page's user-count read are all gone. `/login` no longer
+  consults the user count at all, so an empty database is indistinguishable from
+  a populated one to an anonymous visitor; it also no longer leaks the
+  claimable-player roster. Regression guard in
+  `apps/web/src/lib/no-public-admin-bootstrap.test.ts`, verified by mutation.
+- `5008ee4` — `feat(worker)`: initial admin creation moves to an operator CLI,
+  `pnpm --filter worker init-admin`, which requires shell + database access on
+  the host. The password is read from stdin only (non-echoing prompt on a TTY,
+  or a pipe); `--password` is refused because argv is visible in `ps`. The user,
+  credential, `admin` role, and player claim are written in one transaction that
+  refuses if any user already exists. 7/7 integration tests against a disposable
+  `eanhl_test_*` clone.
+- `852c6d7` — `fix(deploy)`: `cloudflared` moves behind a `public` compose
+  profile (hosts without a tunnel get the unchanged default stack, no warning,
+  no failing container); the tunnel token is delivered as a mounted file via
+  `TUNNEL_TOKEN_FILE` instead of being interpolated into `command:`; the image
+  is pinned to `cloudflare/cloudflared:2026.8.3@sha256:51c9cefc…` with a
+  documented update procedure; and published ports (web 3000, worker health
+  3001, db 5433) bind to `127.0.0.1` instead of `0.0.0.0`.
+
+Invite-only account creation is unchanged and remains the only in-app path to a
+new account after the first.
+
+**Still open — none of this is done:**
+
+- **Nothing is deployed and nothing is pushed.** These three commits sit on
+  local `main` on top of `15adbc8`. Hotel-Echo still runs the vulnerable image;
+  it is only safe because the tunnel is off.
+- **The tunnel stays offline** until the fixed image is deployed and the
+  external checks below pass.
+- **Port exposure is unverified on every host.** Loopback binding is now the
+  default in source, but no on-host / LAN / WAN check has been run anywhere, and
+  Docker's published ports bypass host firewall rules — so nothing is proven yet.
+  The Gate 2 checkbox stays unchecked.
+- **MFA status and the recovery contact for the domain account are still
+  undocumented.** Gate 2 asks for them explicitly; that checkbox stays unchecked.
+- Security response headers, `robots.txt`/indexing policy, backups, the
+  production data migration, and the retire-vs-keep-both cutover decision are all
+  untouched. Every one of those Gate 2 and Gate 3 items stays unchecked.
+- The site was public for those minutes with no privacy policy, no
+  data-collection notice, and no EA/NHL non-affiliation notice. Those drafts
+  remain open Gate 2 items.
+
+**Do not** re-open the tunnel, create an admin, restart Hotel-Echo, push, or
+touch the main-PC production instance without the explicit staged authorization
+in "Next Session" below.
+
+### 🟡 SUPERSEDED (see "CONTAINED — DOMAIN REGISTERED, TUNNEL OFFLINE" above) — Stage C domain + tunnel work on Hotel-Echo (2026-09-03)
+
+**This entry claimed Stage C was complete. It was not.** The site it put on
+the public internet shipped a first-visitor bootstrap-admin vulnerability, and
+the tunnel has since been taken offline. Read the "CONTAINED" entry above
+before acting on anything below. Kept otherwise as written — apart from this
+note, the heading, one redacted account identifier, and one struck-through
+stale claim — because the factual record of what was built is still needed to
+re-open the tunnel later.
+
+Advances the Gate 2 "Domain, hosting, and exposure decisions" checklist.
+Supersedes the two now-stale bullets in the "NEW HOST STOOD UP" entry below
+(struck through there, not deleted). Committed as `5bdf442`
+(`feat(deploy): add Cloudflare Tunnel service for public domain routing`) —
+since corrected by `852c6d7`. Still the parallel, not-yet-production
+instance — see that entry's caveats, which are otherwise unchanged.
 
 **What was done:**
 
 - Registered `boogeymen.app` via Cloudflare Registrar (~$14/yr, no markup
-  over wholesale). Cloudflare account created via GitHub SSO, owned by
-  `Utiz230@gmail.com`. `.gg` was considered first but is not on Cloudflare
+  over wholesale). Cloudflare account created via GitHub SSO; the owning
+  account is recorded outside this repo, not here. `.gg` was considered first
+  but is not on Cloudflare
   Registrar's supported TLD list at all (confirmed against their published
   TLD policy page) — not a cost tradeoff, simply unavailable there.
 - Created a named Cloudflare Tunnel (`hotel-echo-web`, tunnel id
@@ -314,8 +409,10 @@ which are otherwise unchanged.
   untouched — separate Gate 2 items.
 - **Hotel-Echo is still not production.** No data migration has happened;
   its database is the same fresh/empty one from the prior session.
-  `boogeymen.app` is a real, working, internet-reachable *parallel*
-  instance, not the site members currently use.
+  ~~`boogeymen.app` is a real, working, internet-reachable _parallel_
+  instance, not the site members currently use.~~ **Stale — the tunnel was
+  stopped the same day; `boogeymen.app` now returns Cloudflare 530. See the
+  "CONTAINED" entry above.**
 
 ### 🟡 NEW HOST STOOD UP, NOT YET PRODUCTION — Hotel-Echo dedicated deployment box provisioned (2026-09-03)
 
@@ -365,12 +462,13 @@ decisions" checklist:
 - ~~**Not exposed to the public internet.** No domain purchased, no Cloudflare
   Tunnel configured. Reachable only via LAN (`192.168.1.107`) and Tailscale
   (`100.98.29.119`) right now.~~ **Stale — domain purchased and Cloudflare
-  Tunnel configured same day; see the "DOMAIN + TUNNEL LIVE" entry above.**
+  Tunnel configured same day, then taken offline; see the "CONTAINED"
+  entry above.**
 - ~~`.env` on Hotel-Echo has `BETTER_AUTH_URL`/`APP_BASE_URL` still at the
   `http://localhost:3000` placeholder default — must be updated to the real
   public URL once domain/tunnel exist, then `docker compose restart web`.~~
   **Stale — both updated to `https://boogeymen.app` and `web` restarted; see
-  the "DOMAIN + TUNNEL LIVE" entry above.**
+  the "CONTAINED" entry above.**
 - `POSTGRES_PASSWORD`/`BETTER_AUTH_SECRET` on Hotel-Echo were freshly
   generated for this host; they are independent of whatever secrets the
   current production `.env` uses.
@@ -384,7 +482,8 @@ LAN+Tailscale only). ~~Domain purchase, Cloudflare Tunnel/Access, the
 production data migration, and the cutover decision (retire current host vs.
 keep both) are all still open and unstarted.~~ **Stale — domain purchase,
 Cloudflare Tunnel, and the public/members-only Access decision were
-completed the same day; see the "DOMAIN + TUNNEL LIVE" entry above. The
+completed the same day, and the tunnel has since been taken offline; see
+the "CONTAINED" entry above. The
 production data migration and the retire-vs-keep-both cutover decision
 remain open and unstarted.**
 
@@ -980,6 +1079,89 @@ Durable traps, carried forward — these keep biting:
 - **Commit rule:** do not auto-commit. `AGENTS.md` controls.
 
 ## Next Session
+
+**Current objective: the staged authorization sequence below. One stage per
+session.** Nothing in it has been authorized yet. Each stage is a separate
+decision — approving (a) does not approve (b).
+
+### (a) Local admin initialization
+
+Prove the CLI on a throwaway database before it is ever run against a host.
+
+```bash
+pnpm --filter @eanhl/db build && pnpm --filter @eanhl/worker build
+set -a && source .env && set +a
+node apps/worker/scripts/with-test-db.mjs init-admin-cli    # 7/7 expected
+```
+
+Then, on the host that will own the account and only when that host is chosen:
+
+```bash
+docker compose exec worker node dist/init-admin-cli.js --list-players
+docker compose exec -it worker node dist/init-admin-cli.js \
+  --email <address> --name "<display name>" --gamertag <tag> --dry-run
+# and, once the dry run reads correctly, the same command without --dry-run
+```
+
+The password is typed at the prompt, twice, never on the command line. Store it
+in a password manager at creation time — there is no recovery flow, and the CLI
+refuses to run a second time.
+
+### (b) Corrected Hotel-Echo deployment
+
+Requires: (a) understood, and a decision that Hotel-Echo should run this code at
+all. **The tunnel stays down through this whole stage.**
+
+1. Push `9ac237f`, `5008ee4`, `852c6d7` (the pre-push hook runs `verify-ocr.sh`,
+   ~20 min — background it or `--no-verify`; see [[project_prepush_verify_hook]]).
+2. On Hotel-Echo: pull, then rebuild — `docker compose up -d` alone reuses the
+   old image. See the `docker-redeploy` skill.
+3. Confirm the default stack renders as `db`, `worker`, `web` only, with no
+   cloudflared and no warning: `docker compose config --services`.
+4. Confirm the ports moved: `ss -tlnp` must show `127.0.0.1` for 3000/3001/5433.
+   Note that `http://192.168.1.107:3000` will stop answering — that is intended.
+5. Load `/login` from the host (`curl -s localhost:3000/login`) and confirm no
+   bootstrap form is present.
+
+### (c) External exposure verification
+
+Requires: (b) complete. Still with the tunnel down, so this measures the host
+itself rather than the tunnel.
+
+- On the host: `ss -tlnp | grep -E ':(3000|3001|5433)\s'` — expect `127.0.0.1`.
+- From another LAN machine: `nc -zv <host-lan-ip> 3000 3001 5433` — expect
+  refused/timeout on all three.
+- From outside the network, against the **WAN address**, not the domain:
+  `nc -zv <wan-ip> 3000 3001 5433` — expect refused/timeout on all three.
+- Check the router for port-forwards and UPnP mappings to Hotel-Echo.
+
+Record the date and the results. That evidence is what closes the Gate 2
+"database port and worker health endpoint not exposed" item — until then it
+stays unchecked. Full procedure in DEPLOY.md, "Host port exposure".
+
+### (d) Tunnel reopening
+
+Requires: (b) and (c) both complete and recorded. Do not start here.
+
+1. Write the tunnel token to `./secrets/cloudflared-tunnel-token` on Hotel-Echo,
+   mode 600, token only, no newline or prefix. It is not in the repo and must
+   not be pasted into a doc, a commit, or a chat.
+2. `docker compose --profile public up -d` — and remember the `--profile public`
+   flag on every later compose command that should include the tunnel.
+3. Confirm the tunnel registers: `docker compose --profile public logs
+cloudflared --tail 50`.
+4. From outside the LAN: `curl -sSI https://boogeymen.app | head -1` → expect
+   `HTTP/2 200`; then load `/login` and confirm there is no bootstrap form on
+   the live site.
+5. Confirm the domain still routes only `web` — no ingress rule and no DNS
+   record for the database or the health endpoint.
+
+Open before (d) is worth doing at all: MFA and a recovery contact on the domain
+account, security response headers, an indexing/`robots.txt` decision, and the
+privacy / data-collection / non-affiliation drafts. The site was previously
+public with none of those in place.
+
+---
 
 **SUPERSEDED — see the 2026-08-15 "RECONCILED" entry at the top of Active State.** The block below
 ("execute the 97 approved auto windows") is stale: read-only evidence now shows a rescue execution
