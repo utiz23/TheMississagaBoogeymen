@@ -35,8 +35,15 @@ No new feature work belongs in this gate.
       and relevant regression checks.
 - [x] Prove by mutation that removing/moving the pre-insert run lock breaks the
       symmetric concurrency gate for the intended reason.
-- [ ] Commit only the three provenance-fix files as one focused checkpoint.
-- [ ] Update the active handoff state with the final verification and commit.
+- [x] Commit only the three provenance-fix files as one focused checkpoint —
+      `765aecf`, followed by the roadmap doc `2143974`.
+- [x] A later independent production read-only review found the review above
+      was incomplete: the derive-from-children rule was not scoped to
+      synthetic runs, mismatching 9/114 live runs. Corrected in `03b7f12`
+      (`fix(db): scope decoder-run provenance refresh to synthetic runs
+      only`) with new production-shaped regression coverage and a mutation
+      check; see the "CORRECTED, NOT DEPLOYED" Active State entry.
+- [x] Update the active handoff state with the final verification and commit.
 - [ ] Push through the normal pre-push verification hook; finish with clean,
       synchronized `main`.
 - [ ] If separately authorized, deploy worker-only and smoke-test ingestion and
@@ -238,6 +245,54 @@ launch scope and it is not allowed to hold the terminal gate hostage.
 
 ## Active State
 
+### 🟡 CORRECTED, NOT DEPLOYED — decoder-run provenance eligibility boundary (2026-09-02)
+
+Supersedes the "LOCAL-ONLY PASS" entry directly below: `765aecf` (the provenance
+refresh) and `2143974` (the roadmap doc) are **committed on `main` and pushed to
+`origin/main`** — that part of the entry below was accurate at the time and is
+now stale only in saying "not yet committed, pushed". They were **not**
+deployed, and deployment is still not authorized here.
+
+An independent, read-only production review of the live `ocr_decoder_runs`
+table (114 runs) found `765aecf`'s `refreshDecoderRunProvenance` had a real
+defect: it derived `decoder_version` from child `ocr_segments` for **every**
+run, not only synthetic/backfill ones. 9/114 runs mismatched under that rule —
+all non-synthetic `decoder-runs-cli create-candidate` / reprocess runs (e.g.
+run 1993: parent `hmm-viterbi-v2-pregame-cdef-wsb-toggle-lobby3fps-fuzzymerge`,
+single child `hmm-viterbi-v2`). Those runs carry an intentionally more specific,
+operator-chosen `decoder_version` (`tools/video_ingest/video_ingest/reprocess.py`
+`DECODER_VERSION`) that is the run's own provenance/uniqueness lever
+(`ocr_decoder_runs_provenance_uniq`); the unconditional rule would have
+overwritten it on the next write to one of those 9 runs and could have hit a
+uniqueness collision between sibling candidate runs.
+
+- Migration 0048, `ensureSyntheticActiveRunForMatch`, and the pre-existing
+  `ocr-decoder-runs-backfill.test.ts` already scope this rule to runs whose
+  `notes` start with `'synthetic backfill'`. Correction commit `03b7f12`
+  (`fix(db): scope decoder-run provenance refresh to synthetic runs only`)
+  brings `refreshDecoderRunProvenance` in line with that existing boundary —
+  non-synthetic runs now come back from a refresh completely untouched.
+  Parent-before-child locking and the symmetric two-writer concurrency
+  behavior are unchanged.
+- Two new production-shaped regression tests were added (non-synthetic parent
+  + generic child decoder, including a repeated/idempotent write; two sibling
+  candidate runs sharing `(match_id, video_sha256, weights_hash)`), plus a
+  mutation check: reverting the eligibility guard reproduces both failures,
+  including the exact uniqueness-constraint collision the fix prevents.
+- Verification: focused file (5/5), `ocr-decoder-runs-backfill.test.ts`
+  (4/4), the **full worker suite twice** (630 passed / 0 failed / 4 skipped,
+  identical both runs), `@eanhl/db` (39/39), `@eanhl/db` + `@eanhl/worker`
+  build and typecheck, ESLint clean on both changed files (the pre-existing
+  `ocr-decoder-runs.ts` baseline errors are unchanged and out of the diff
+  range), Prettier clean, `git diff --check` clean.
+- **The 9 live mismatched rows were left exactly as they are.** This was a
+  read-only investigation of production; no `ocr_decoder_runs` row was
+  repaired, normalized, or otherwise written.
+- **Deployment preflight recommendation:** safe to deploy worker-only once
+  authorized — the fix only narrows an already-narrow write path, all
+  regressions are green, and no production data was touched. Still requires
+  the normal explicit deploy authorization; not performed here.
+
 ### 🟡 LOCAL-ONLY PASS — decoder-run provenance recurrence prevention (2026-09-02)
 
 The source-level follow-up from the 2026-08-16 38-row production repair is now
@@ -264,10 +319,12 @@ lock-upgrade deadlock exposed by two concurrent writers.
 - Source files in the focused implementation: `apps/worker/src/ingest-ocr.ts`,
   `packages/db/src/queries/ocr-decoder-runs.ts`, and
   `apps/worker/src/__tests__/decoder-run-provenance-refresh.test.ts`.
-- **Not yet committed, pushed, or deployed.** `HANDOFF.md` is a fourth dirty
-  path containing the separately requested Operational V1 roadmap and this
-  verification record; keep it out of the focused code commit unless making a
-  deliberate separate documentation commit.
+- ~~Not yet committed, pushed, or deployed.~~ **Stale — see the "CORRECTED,
+  NOT DEPLOYED" entry above.** This was committed as `765aecf` and pushed to
+  `origin/main` shortly after this entry was written, but the patch it
+  describes had a real defect (the derive-from-children rule was not scoped
+  to synthetic runs) found by a later independent production review and fixed
+  in `03b7f12`. Still not deployed.
 - No production data operation, rescue execution, migration, deployment, or
   service restart occurred during implementation or review.
 
