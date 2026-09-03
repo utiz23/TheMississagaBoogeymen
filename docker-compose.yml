@@ -1,3 +1,22 @@
+# Host port bindings default to LOOPBACK (127.0.0.1), not 0.0.0.0.
+#
+# Docker publishes ports by writing DNAT rules that bypass most host firewall
+# configurations, so "the firewall blocks it" is not true by default for a
+# published port. A 0.0.0.0 binding therefore exposes the service to every
+# machine that can route to this host — the LAN at minimum, and the internet if
+# anything upstream forwards a port. Binding to 127.0.0.1 keeps each service
+# reachable from the host itself and from other containers on the compose
+# network (which is how `cloudflared` reaches `web`, and how `web`/`worker`
+# reach `db`) while making it unreachable from off-box.
+#
+# Overriding a bind address is a deliberate exposure decision. Set the specific
+# address you intend to serve — never 0.0.0.0 in production. For example, to let
+# the main PC's OCR pipeline reach PostgreSQL over Tailscale, set in .env:
+#
+#   DB_BIND_ADDR=100.98.29.119     # this host's Tailscale address, not 0.0.0.0
+#
+# See DEPLOY.md, "Host port exposure", for how to verify the result — an ingress
+# path being absent does not prove a port is private.
 services:
   db:
     image: postgres:16-alpine
@@ -9,7 +28,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
-      - "5433:5432"
+      - "${DB_BIND_ADDR:-127.0.0.1}:${DB_HOST_PORT:-5433}:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U eanhl"]
       interval: 10s
@@ -31,7 +50,7 @@ services:
       HEALTH_PORT: ${HEALTH_PORT:-3001}
       HEALTH_STALE_MS: ${HEALTH_STALE_MS:-1800000}
     ports:
-      - "${HEALTH_PORT:-3001}:${HEALTH_PORT:-3001}"
+      - "${HEALTH_BIND_ADDR:-127.0.0.1}:${HEALTH_PORT:-3001}:${HEALTH_PORT:-3001}"
     depends_on:
       db:
         condition: service_healthy
@@ -47,17 +66,49 @@ services:
       BETTER_AUTH_URL: ${BETTER_AUTH_URL:-http://localhost:3000}
       APP_BASE_URL: ${APP_BASE_URL:-http://localhost:3000}
     ports:
-      - "3000:3000"
+      # Public traffic arrives through cloudflared over the compose network, not
+      # through this published port. Keep it on loopback even on a public host.
+      - "${WEB_BIND_ADDR:-127.0.0.1}:${WEB_HOST_PORT:-3000}:3000"
     depends_on:
       db:
         condition: service_healthy
 
+  # OPT-IN. Not part of the default stack: a host with no tunnel configured runs
+  # `docker compose up -d` and gets db/worker/web exactly as before, with no
+  # warning and no failing container. A host that publishes the site opts in
+  # explicitly:
+  #
+  #   docker compose --profile public up -d
+  #
+  # The token is delivered as a mounted file (TUNNEL_TOKEN_FILE), never as a
+  # command argument — arguments are visible in `docker inspect`, in `ps` on the
+  # host, and in `docker compose config` output that gets pasted into issues.
+  # A mounted secret is still readable by anyone who can talk to the Docker
+  # daemon, which is root-equivalent; the file only keeps it out of process
+  # listings and rendered config, it does not hide it from a host administrator.
+  #
+  # Image is pinned to an exact version AND digest. Do not use `latest` — see
+  # DEPLOY.md, "Updating cloudflared", for the update procedure.
   cloudflared:
-    image: cloudflare/cloudflared:latest
+    image: cloudflare/cloudflared:2026.8.3@sha256:51c9cefcb4569df44e1ad403ab1d3d8065aa8e84339bcfc6aee75502e1140339
+    profiles: ["public"]
     restart: unless-stopped
-    command: tunnel --no-autoupdate run --token ${TUNNEL_TOKEN}
+    command: ["tunnel", "--no-autoupdate", "run"]
+    environment:
+      TUNNEL_TOKEN_FILE: /run/secrets/cloudflared_tunnel_token
+    secrets:
+      - cloudflared_tunnel_token
     depends_on:
       - web
+
+secrets:
+  # Path on the host to a file containing ONLY the tunnel token (no trailing
+  # newline needed, no shell quoting, no `TUNNEL_TOKEN=` prefix). It is read
+  # only when the `public` profile is active; hosts without a tunnel never
+  # reference it. Keep it outside the repo, or at a path this repo ignores, and
+  # chmod 600 it. Override the location with TUNNEL_TOKEN_FILE in .env.
+  cloudflared_tunnel_token:
+    file: ${TUNNEL_TOKEN_FILE:-./secrets/cloudflared-tunnel-token}
 
 volumes:
   postgres_data:

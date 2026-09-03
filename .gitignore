@@ -14,6 +14,10 @@ build
 .env.local
 .env.*.local
 
+# Host secrets mounted into containers (e.g. the Cloudflare Tunnel token file
+# referenced by docker-compose.yml's `public` profile). Never commit these.
+/secrets/
+
 # Turbo
 .turbo
 
