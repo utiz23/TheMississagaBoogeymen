@@ -19,7 +19,10 @@ Ingests match data from two sources — EA's undocumented Pro Clubs API **and** 
 | `tools/historical_import` | Manifest-driven backfill of older-title (NHL 22–25) recordings                       |
 
 **Public pages:** Home · `/games` · `/games/[id]` · `/roster` · `/roster/[id]` · `/stats`
-**Auth pages:** `/login` · `/account` · `/me` · `/admin/accounts` (better-auth)
+**Auth pages:** none. Authentication is deliberately disabled before launch and
+deferred to a post-launch review — `/login`, `/account`, `/me`, `/admin/*` and
+`/api/auth/*` all return 404. The implementation is parked in
+`apps/web/src/deferred/auth/` (see its README).
 
 ---
 

@@ -167,11 +167,11 @@ _(bugs in §1: transparent sticky Player column, hardcoded `nhl26` shot map)_
 
 ### Nav / shared UI / auth
 
-- **Auth/account unreachable from the chrome** — nav has no link to `/login`, `/account`, `/me`, `/admin`; only URL-typing reaches them. Add an auth slot (sign-in / account menu). `[QUICK-WIN]`
+- ~~**Auth/account unreachable from the chrome**~~ — **OBSOLETE, do not action.** Authentication is disabled before launch and those routes now 404; the nav CTA was removed deliberately and a guard test fails if it returns. Revisit only with the post-launch account feature (`apps/web/src/deferred/auth/README.md`).
 - **Page-title separator drift + unbranded tab** — public pages use `—`, all auth pages use `-` (13 strings); home title is generic "Club Stats". Add a `title.template` (`%s — Club Stats`) in `layout.tsx`. `[QUICK-WIN]`
 - **No `aria-current` on nav links; two unlabeled `<nav>` landmarks; no `focus-visible`; no skip link** — `nav-links.tsx:27,34-38,62-68`, `top-nav.tsx:58`, `layout.tsx:32-34`. `[QUICK-WIN]`
-- **Placeholder-only inputs on bootstrap-admin & create-invite forms** — `login/page.tsx:70-102`, `admin/accounts/page.tsx:52-86` (contrast the properly-labeled Sign-In form). Add `<label>`/`sr-only`. `[QUICK-WIN]`
-- **No pending/disabled state on server-action buttons** — `login/page.tsx:103,149,183`, `account/page.tsx:21`, `admin/accounts/page.tsx:87`; add `useFormStatus`. `[NICE]`
+- **Placeholder-only inputs on create-invite forms** — **DEFERRED with the account system.** Those pages no longer exist under `src/app/`; the code is dormant in `apps/web/src/deferred/auth/`. Fix as part of re-enabling auth, not before. `[QUICK-WIN]`
+- **No pending/disabled state on server-action buttons** — **DEFERRED with the account system.** Same dormant files as above. `[NICE]`
 - **Two title switchers styled differently** — nav `game-title-switcher.tsx:28-50` (no LIVE dot) vs page `title-selector.tsx:41-70` (green LIVE dot). Unify. `[NICE]`
 - **Nav switcher default (`titles[0]`) may disagree with the page's resolved title** — `game-title-switcher.tsx:17`. Verify. `[NICE]`
 - **Mobile nav tap targets under ~44px; desktop links `px-1`** — `nav-links.tsx:35,63`, `top-nav.tsx:88`. `[NICE]`

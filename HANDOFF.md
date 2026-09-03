@@ -252,6 +252,100 @@ launch scope and it is not allowed to hold the terminal gate hostage.
 
 ## Active State
 
+### 🟢 AUTHENTICATION DELIBERATELY DISABLED FOR PRE-LAUNCH — deferred to a post-launch review (2026-09-03)
+
+**This is the authoritative statement of the product's auth posture.** It
+supersedes every earlier plan in this file for initializing an admin account,
+signing in on the host, or issuing invites. Those steps no longer exist.
+
+**Still in force, and not changed by this work:**
+
+- **The Cloudflare Tunnel on Hotel-Echo stays OFFLINE.** `boogeymen.app` returns
+  530 and must keep returning 530 until Gate 2 items are closed and reopening is
+  separately authorized. See the "CONTAINED" entry below.
+- **Main-PC `POSTGRES_PASSWORD` and `BETTER_AUTH_SECRET` still require
+  rotation.** See the "SECRETS REQUIRING ROTATION" entry below. Disabling auth
+  does not retire `BETTER_AUTH_SECRET`: it is still in `.env`, still exposed,
+  and still to be rotated in its own authorized session.
+
+**The decision.** Authentication is deferred until after launch. The pre-launch
+site is public and read-only. There is no login, account, invitation, session,
+administration, or initial-admin functionality — not disabled by configuration,
+not hidden behind a flag, but absent from the running application.
+
+**What that means concretely** (all measured against the built app on a
+loopback port, `44aed29`):
+
+| Path                                        | Method                        | Status |
+| ------------------------------------------- | ----------------------------- | ------ |
+| `/`                                         | GET                           | 200    |
+| `/login`                                    | GET                           | 404    |
+| `/login?token=<invite>`                     | GET                           | 404    |
+| `/account`                                  | GET                           | 404    |
+| `/me`                                       | GET                           | 404    |
+| `/admin`, `/admin/accounts`, any `/admin/*` | GET                           | 404    |
+| `/api/auth/session`                         | GET                           | 404    |
+| `/api/auth/sign-in/email`                   | POST                          | 404    |
+| `/api/auth/*`                               | PATCH/PUT/DELETE/HEAD/OPTIONS | 404    |
+
+- **Pages have no module at all.** `/login`, `/account`, `/me` and
+  `/admin/accounts` are as absent as a URL this site never had.
+- **Server Actions hard-refuse.** `src/app/account-actions.ts` keeps all seven
+  export names and each rejects on its first statement. A Server Action is
+  reachable by its action id whether or not a form renders it, so deleting the
+  page would not have been enough on its own.
+- **`init-admin` fails closed.** `pnpm --filter worker init-admin` runs a shim
+  that imports nothing and exits non-zero on every argument combination. It
+  cannot connect to a database, read `users`, or prompt for a password.
+- **Nothing active constructs Better Auth.** `lib/ocr-diagnostics.ts` used to
+  call `isCurrentUserAdmin()` from `/games/[id]`, a public page; that was the
+  last active route initialising Better Auth on every request. It now reads
+  `OCR_DIAGNOSTICS` only.
+- **No environment switch.** There is deliberately no env var that re-enables
+  any of this — an accidental setting on Hotel-Echo would republish the whole
+  account surface with no review. Re-enabling is a reviewed source change.
+
+**Deferred, not deleted.** The implementation is parked in
+`apps/web/src/deferred/auth/` and `apps/worker/src/deferred-auth/`, non-routable
+and imported by nothing. Account tables, migrations, existing account data, and
+the `@eanhl/db` account queries are untouched; `better-auth` remains a
+dependency. The post-launch account feature starts from that code, reviewed on
+its own merits. `apps/web/src/deferred/auth/README.md` is the restoration
+procedure.
+
+**⚠️ WHAT THIS DOES NOT CLOSE.** Disabling authentication removes one exposure
+class. It closes **no other gate**, and none of the following became less
+urgent:
+
+- **Privacy and legal** — the privacy policy, the data-collection policy
+  (gamertags, statistics, server/IP logs, retention, processors), the
+  correction/deletion request process, and the EA/NHL non-affiliation notice are
+  all still required. A public read-only site still publishes named individuals'
+  personal statistics and still keeps server logs.
+- **Backups and restore** — still unproven. A public site must be a recoverable
+  one.
+- **MFA and recovery** — still required on the domain/Cloudflare account. That
+  is account security for the _infrastructure_, and it never depended on the
+  site having its own login.
+- **Public exposure** — host port exposure (3000/3001/5433), security response
+  headers, the indexing decision and `robots.txt` are all still open.
+- **Secret rotation** — see above.
+
+**Test evidence.** `pnpm --filter web test` → 130 unit + 11 behavioural + 6
+end-to-end HTTP, 147/147. `node apps/worker/scripts/with-test-db.mjs
+init-admin-cli` → 12/12 against a disposable `eanhl_test_*` clone. The
+boundary was mutation-tested twice: re-exporting the dormant login page at
+`/login` fails the structural guard and the HTTP suite; removing one action's
+refusal fails the behavioural suite. Both mutations were reverted.
+
+**Known, pre-existing, NOT introduced here and NOT fixed here:** `notFound()`
+called from a _page_ returns **200** with 404 content in this app, because the
+root `src/app/loading.tsx` puts every page inside a Suspense boundary whose
+shell is flushed before the page component runs. Measured: `/games/999999999`
+and `/roster/999999999` both answer 200. This is why the disabled pages were
+deleted rather than turned into 404-returning tombstones. Fixing the general
+case is separate work.
+
 ### 🟠 SECRETS REQUIRING ROTATION — main-PC `POSTGRES_PASSWORD` and `BETTER_AUTH_SECRET` were rendered into a private tool transcript (2026-09-03)
 
 **No secret value may ever be copied into this repository — not into source,
@@ -322,6 +416,14 @@ into the rendered Compose config — see the "CONTAINED" entry and `852c6d7`.
 
 ### 🔴 CONTAINED — DOMAIN REGISTERED, TUNNEL OFFLINE — public bootstrap-admin exposure on Hotel-Echo (2026-09-03)
 
+> **Update, later the same day:** the exposure class is now closed at a wider
+> boundary than the fix described here. The entire account system is disabled
+> for pre-launch — there is no `/login` page to bootstrap, no Server Action to
+> POST to, and no `init-admin` CLI. See "AUTHENTICATION DELIBERATELY DISABLED"
+> at the top of Active State. **The tunnel-offline status below still stands and
+> is unchanged:** `cloudflared` is stopped and reopening it remains its own
+> authorization.
+
 Supersedes the Stage C "complete" claim below. Stage C is **not** complete: the
 domain is registered and the tunnel is built, but the tunnel is stopped and the
 site is not serving.
@@ -383,6 +485,16 @@ new account after the first.
 
 **Test evidence, described accurately.** Three files, covering different
 things. None of them touches a real database.
+
+> **Two of the three no longer exist.** `login-page-render.test.ts` and
+> `no-public-admin-bootstrap.test.ts` asserted a contract this project has since
+> abandoned — "/login must still offer sign-in", "invite acceptance must remain"
+> — and were replaced when the account system was disabled entirely. Their
+> successors are `apps/web/src/lib/account-system-disabled.test.ts`,
+> `apps/web/test/auth-routes-disabled.test.ts`, and
+> `apps/web/test/disabled-routes-http.test.ts`. `db-queries-not-stubbed.test.ts`
+> is unchanged and still passing. The description below is kept as the record of
+> what was verified at the time.
 
 - **Behavioural (simulated answers) — the strongest local evidence.**
   `apps/web/test/login-page-render.test.ts` imports the real
@@ -1201,15 +1313,26 @@ Durable traps, carried forward — these keep biting:
   is not a verified push. See [[project_prepush_verify_hook]].
 - **Migrations are hand-written idempotent SQL applied via psql**, journal frozen at 0045 — see
   [[project_migration_drift]].
+- **`notFound()` from a PAGE returns 200 in this app.** The root
+  `src/app/loading.tsx` puts every page inside a Suspense boundary whose shell is
+  flushed before the page component runs, so a status already sent cannot be
+  changed. Measured: `/games/999999999` → 200 with 404 content.
+  `dynamic = 'force-dynamic'` does not help. Deleting the page module does (the
+  router 404s before rendering). Never take a module-level "it throws the 404
+  fallback" test as evidence about a status code — read the code off a socket.
+- **The web env file is `.env.local` at the repo root, not `.env`.** `CLAUDE.md`
+  still says `.env`. `apps/web/.env.local` is what `next start` loads.
 - **Commit rule:** do not auto-commit. `AGENTS.md` controls.
 
 ## Next Session
 
 **Current objective: the staged authorization sequence below. One stage per
 session.** Nothing in it has been authorized yet. Each stage is a separate
-decision — approving A does not approve B — and the order is load-bearing: the
-fix must be on the host before an admin account exists on it, and exposure must
-be verified before anything is published.
+decision — approving A does not approve B — and the order is load-bearing:
+exposure must be verified before anything is published. The old rationale ("the
+fix must be on the host before an admin account exists on it") no longer
+applies — there is no admin account and no way to create one; see the
+"AUTHENTICATION DELIBERATELY DISABLED" entry at the top of Active State.
 
 **The pre-push `verify-ocr` hook is mandatory. Do not use `--no-verify`.**
 Background the push and let all five stages run; see
@@ -1218,15 +1341,21 @@ Background the push and let all five stages run; see
 ### A. Verify and push the reviewed commits, normally
 
 ```bash
-pnpm --filter web test          # 128/128 across two processes:
-                                #   test:unit         122 (incl. 4 structural + 1 harness-integrity)
-                                #   test:login-render   6 (5 behavioural /login render + 1 stub check)
-pnpm --filter web build && pnpm typecheck
 pnpm --filter @eanhl/db build && pnpm --filter @eanhl/worker build
-set -a && source .env && set +a
-node apps/worker/scripts/with-test-db.mjs init-admin-cli    # 7/7
+pnpm --filter web build         # test:http-404 needs a build; run it first
+pnpm --filter web test          # 147/147 across three processes:
+                                #   test:unit          130 (incl. 12 structural)
+                                #   test:auth-disabled  11 (API route + 7 refusing actions)
+                                #   test:http-404        6 (real server, real status codes)
+pnpm typecheck
+set -a && source .env.local && set +a
+node apps/worker/scripts/with-test-db.mjs init-admin-cli    # 12/12 — fails-closed contract
 docker compose config --services                            # db, web, worker only
 ```
+
+`test:http-404` starts the built app on 127.0.0.1:34571 and reads real status
+codes. It SKIPS if `.next/BUILD_ID` is absent, so build before testing or that
+coverage is silently absent. Note the env file is `.env.local`, not `.env`.
 
 Then push in the background and let `verify-ocr.sh` finish (~20 min, 5 stages).
 If it fails, fix the failure — a bypassed push is not a verified push. Confirm
@@ -1246,27 +1375,37 @@ the next two.**
    `http://192.168.1.107:3000` will stop answering. That is intended.
 4. Confirm the tunnel is still down: `boogeymen.app` should still return 530.
 
-### C. Verify /login on the host, then initialize the admin
+### C. Verify the disabled account surface on the host
 
-Requires: B complete. Look before writing — confirm the deployed page is the
-fixed one, then create the account on it.
+Requires: B complete. **There is no admin account to create, and no CLI that
+would create one.** The previous version of this stage said "verify /login, then
+initialize the admin"; both halves are obsolete — see the "AUTHENTICATION
+DELIBERATELY DISABLED" entry at the top of Active State.
+
+What replaces it is a check that the deployed build really is the disabled one.
+Read the status codes, not the page bodies: a 200 carrying 404 content is
+exactly the failure mode this had to be written around.
 
 ```bash
-# 1. The deployed /login must have no bootstrap UI. Check the real response.
-curl -s localhost:3000/login | grep -ci -e bootstrap -e 'Create Admin' -e playerId   # expect 0
-curl -s localhost:3000/login | grep -c 'Sign In'                                     # expect >= 1
+# Every one of these must print 404.
+for p in /login "/login?token=test" /account /me /admin /admin/accounts \
+         /api/auth/session; do
+  printf '%-28s %s\n' "$p" "$(curl -s -o /dev/null -w '%{http_code}' "localhost:3000$p")"
+done
+curl -s -o /dev/null -w 'POST sign-in %{http_code}\n' -X POST \
+  -H 'content-type: application/json' -d '{"email":"a@b.test","password":"password123"}' \
+  localhost:3000/api/auth/sign-in/email          # expect 404
 
-# 2. Only then, the CLI.
-docker compose exec worker node dist/init-admin-cli.js --list-players
-docker compose exec -it worker node dist/init-admin-cli.js \
-  --email <address> --name "<display name>" --gamertag <tag> --dry-run
-# 3. ...and, once the dry run reads correctly, the same command without --dry-run
+# The public site must still serve — a site that 404s everything also passes
+# the checks above.
+curl -s -o /dev/null -w '/ %{http_code}\n' localhost:3000/     # expect 200
+
+# The CLI must refuse and exit non-zero, having connected to nothing.
+docker compose exec worker node dist/init-admin-cli.js ; echo "exit=$?"   # expect exit=1
 ```
 
-The password is typed at the prompt, twice, never on the command line. Store it
-in a password manager at creation time — there is no recovery flow, and the CLI
-refuses to run a second time. Afterwards, sign in and confirm `/admin/accounts`
-can issue an invite, so account creation works before anyone depends on it.
+Record the results. If any page path returns 200, the deployed image predates
+`44aed29` — rebuild, do not "fix" it on the host.
 
 ### D. On-host / LAN / WAN port-exposure verification
 
@@ -1289,7 +1428,9 @@ stays unchecked. Full procedure in DEPLOY.md, "Host port exposure".
 
 Requires: D complete and recorded. **These gates are prerequisites, not
 paperwork to follow the reopening.** The site was previously public with none of
-them in place.
+them in place. **Disabling authentication closed none of them** — a public
+read-only site still publishes named individuals' statistics, still keeps server
+logs, and still needs to be backed up and recoverable.
 
 - MFA and a documented recovery contact on the domain/Cloudflare account.
 - Security response headers on the web app.
@@ -1310,7 +1451,8 @@ consequence of finishing the list:
 3. `docker compose --profile public logs cloudflared --tail 50` — expect
    registered edge connections.
 4. From outside the LAN: `curl -sSI https://boogeymen.app | head -1` → expect
-   `HTTP/2 200`; then load `/login` and confirm no bootstrap UI on the live site.
+   `HTTP/2 200`; then repeat Stage C's status loop against the public origin and
+   confirm every disabled path still answers **404** through the tunnel.
 5. Confirm the domain still routes only `web` — no ingress rule and no DNS
    record for the database or the worker health endpoint.
 

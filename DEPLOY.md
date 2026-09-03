@@ -137,43 +137,60 @@ docker compose exec worker node dist/ingest-now.js
 
 ---
 
-## 7. Create the initial admin account (operator-only, on the host)
+## 7. There is no admin account to create — authentication is disabled
 
-There is deliberately **no web page that creates the first admin**. An empty
-`users` table is not authorization — on a publicly reachable host it would mean
-the first stranger to load `/login` owns the site. The initial admin is created
-from a shell on the deployment host, and every account after it is created by
-admin invite from `/admin/accounts`.
+**Do not look for a sign-in page or an initialization command on a fresh host.
+Neither exists.** Authentication is deliberately disabled before launch and
+deferred to a post-launch review. The pre-launch site is public and read-only:
+no login, account, invitation, session, administration, or initial-admin
+functionality.
 
-```bash
-# Optional: list players available to link the account to
-docker compose exec worker node dist/init-admin-cli.js --list-players
-
-# Create the admin. You are prompted for the password twice, without echo.
-docker compose exec -it worker node dist/init-admin-cli.js \
-  --email you@example.com --name "Your Name" --gamertag YourGamertag
-```
-
-Add `--dry-run` to validate the arguments and password without writing anything.
-
-The password is read from stdin only. It is never accepted on the command line
-(`--password` is refused, not ignored — argv is visible in `ps`, in shell
-history, and to other users on the host), never in an environment variable, and
-never in a file in this repo. A non-interactive host can pipe it instead:
+This replaces the "create the initial admin account" step that used to live
+here. `docker compose exec worker node dist/init-admin-cli.js` still resolves,
+but it imports nothing, connects to nothing, prompts for nothing, and exits
+non-zero on every invocation:
 
 ```bash
-your-password-manager show site/admin | docker compose exec -T worker node dist/init-admin-cli.js \
-  --email you@example.com --name "Your Name" --gamertag YourGamertag
+docker compose exec worker node dist/init-admin-cli.js ; echo "exit=$?"
+# [init-admin] refusing: the account system is disabled before launch. ...
+# exit=1
 ```
 
-The whole account — user row, credential, `admin` role, and player claim — is
-written in a single transaction, or not at all. The command **refuses if any
-user already exists**: it will not create a second account, and it will not
-edit, promote, or reset an existing one. If you need to reset a lost admin
-password, do it against the database directly; re-running this command will not
-do it for you.
+### Verifying the disabled surface after a deploy
 
-After it succeeds, sign in at `/login` and issue invites from `/admin/accounts`.
+Read the **status codes**, not the page bodies — this app can serve a 200
+carrying 404 content (see `HANDOFF.md`, Repo State durable traps), so grepping
+the HTML proves nothing.
+
+```bash
+for p in /login "/login?token=test" /account /me /admin /admin/accounts \
+         /api/auth/session; do
+  printf '%-28s %s\n' "$p" "$(curl -s -o /dev/null -w '%{http_code}' "localhost:3000$p")"
+done                                                        # every one: 404
+
+curl -s -o /dev/null -w 'POST sign-in %{http_code}\n' -X POST \
+  -H 'content-type: application/json' -d '{"email":"a@b.test","password":"password123"}' \
+  localhost:3000/api/auth/sign-in/email                     # 404
+
+curl -s -o /dev/null -w '/ %{http_code}\n' localhost:3000/  # 200 — a site that
+                                                            # 404s everything
+                                                            # also passes above
+```
+
+If any page path answers 200, the running image predates the disable. Rebuild
+from a current `main`; do not patch it on the host.
+
+### Re-enabling, after launch
+
+There is deliberately **no environment variable** for this. An env var set by
+accident on a deployment host would republish the whole account surface with no
+review, which is precisely the failure this is written to prevent. Re-enabling
+is a reviewed source change; the procedure is in
+`apps/web/src/deferred/auth/README.md`.
+
+Account tables, migrations, and any existing account data are untouched — the
+main PC's instance still has its accounts. Nothing here deletes or migrates
+them.
 
 ---
 
