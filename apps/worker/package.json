@@ -20,6 +20,7 @@
     "repromote-ocr": "node dist/repromote-ocr-cli.js",
     "backfill-xfactor-canonical": "node dist/backfill-xfactor-canonical-cli.js",
     "create-player": "node dist/create-player-cli.js",
+    "init-admin": "node dist/init-admin-cli.js",
     "promote-persona-alias": "node dist/promote-persona-alias-cli.js",
     "match-quality": "node dist/match-quality-cli.js",
     "auto-drain": "node dist/auto-drain-cli.js",
@@ -38,6 +39,7 @@
   "dependencies": {
     "@eanhl/db": "workspace:*",
     "@eanhl/ea-client": "workspace:*",
+    "better-auth": "^1.6.10",
     "drizzle-orm": "^0.45.2"
   },
   "devDependencies": {

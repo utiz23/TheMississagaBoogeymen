@@ -135,6 +135,46 @@ docker compose exec worker node dist/ingest-now.js
 
 ---
 
+## 7. Create the initial admin account (operator-only, on the host)
+
+There is deliberately **no web page that creates the first admin**. An empty
+`users` table is not authorization — on a publicly reachable host it would mean
+the first stranger to load `/login` owns the site. The initial admin is created
+from a shell on the deployment host, and every account after it is created by
+admin invite from `/admin/accounts`.
+
+```bash
+# Optional: list players available to link the account to
+docker compose exec worker node dist/init-admin-cli.js --list-players
+
+# Create the admin. You are prompted for the password twice, without echo.
+docker compose exec -it worker node dist/init-admin-cli.js \
+  --email you@example.com --name "Your Name" --gamertag YourGamertag
+```
+
+Add `--dry-run` to validate the arguments and password without writing anything.
+
+The password is read from stdin only. It is never accepted on the command line
+(`--password` is refused, not ignored — argv is visible in `ps`, in shell
+history, and to other users on the host), never in an environment variable, and
+never in a file in this repo. A non-interactive host can pipe it instead:
+
+```bash
+your-password-manager show site/admin | docker compose exec -T worker node dist/init-admin-cli.js \
+  --email you@example.com --name "Your Name" --gamertag YourGamertag
+```
+
+The whole account — user row, credential, `admin` role, and player claim — is
+written in a single transaction, or not at all. The command **refuses if any
+user already exists**: it will not create a second account, and it will not
+edit, promote, or reset an existing one. If you need to reset a lost admin
+password, do it against the database directly; re-running this command will not
+do it for you.
+
+After it succeeds, sign in at `/login` and issue invites from `/admin/accounts`.
+
+---
+
 ## Ongoing operations
 
 ### Restart services
