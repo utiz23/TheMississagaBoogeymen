@@ -268,13 +268,31 @@ signing in on the host, or issuing invites. Those steps no longer exist.
   entry below. The exposed values are dead; the historical exposure record is
   kept there deliberately.
 
-**The decision.** Authentication is deferred until after launch. The pre-launch
-site is public and read-only. There is no login, account, invitation, session,
-administration, or initial-admin functionality — not disabled by configuration,
-not hidden behind a flag, but absent from the running application.
+> **⚠️ Source vs. deployed state — read this before citing this section as
+> "what the site does."** Everything below describes **committed source**,
+> pushed through `0b3a519`. **Nothing here has been deployed.** The main-PC
+> `web` container still runs image `sha256:00a401fd31e3…` (see the "DEPLOYED —
+> website Workstreams A/B/C" entry further down) and still serves the older,
+> auth-enabled application — login page, Server Actions, and all. That
+> container is currently reachable only through loopback (see "POST-ROTATION
+> LOOSE ENDS CLOSED" below), which is what keeps the still-live bootstrap/login
+> surface from being publicly reachable — not the source change described
+> here. Hotel-Echo has likewise not received this build; its tunnel remains
+> offline per the entry above, for the same reason it was taken offline
+> originally. Deploying this source (main-PC and/or Hotel-Echo) is separate,
+> unauthorized-here work.
 
-**What that means concretely** (all measured against the built app on a
-loopback port, `44aed29`):
+**The decision.** Authentication is deferred until after launch. Once this
+source is deployed, the pre-launch site will be public and read-only, with no
+login, account, invitation, session, administration, or initial-admin
+functionality — not disabled by configuration, not hidden behind a flag, but
+absent from the source that becomes the running application on deploy. As of
+this writing the _actually running_ main-PC and Hotel-Echo instances still
+contain the account system described in the "CONTAINED" entry below.
+
+**What the source does** (all measured against a local build run on a loopback
+port for verification purposes, `44aed29` — **not** the deployed main-PC
+container, which is still the older image referenced above):
 
 | Path                                        | Method                        | Status |
 | ------------------------------------------- | ----------------------------- | ------ |
@@ -394,9 +412,14 @@ because the remedy has landed.
   window: web, worker, host-side migration/psql tooling, the OCR/video-ingest
   pipeline, and the separate `apps/web/.env.local` web-development copy.
 - `BETTER_AUTH_SECRET` — rotated as well. Invalidating sessions cost nothing
-  here: the account system is absent from the running application (see the
-  "AUTHENTICATION DELIBERATELY DISABLED" entry above), so there were no live
-  sessions to break.
+  here, but not because the account system was absent from the running
+  application — at rotation time the running application still had (and
+  still has) the account system live; see the "Source vs. deployed state"
+  note in the "AUTHENTICATION DELIBERATELY DISABLED" entry above. The reason
+  nothing broke is that a database check at rotation time found **zero rows**
+  in `users`, `accounts`, and `sessions` on the main-PC database, so there
+  were no real accounts or live sessions for the old secret to have been
+  protecting in the first place.
 
 **Rotation insurance — a protected same-host dump.** Before the rotation a
 custom-format dump was taken to
@@ -509,7 +532,10 @@ reachable by its action id whether or not any form renders it.
 - The main-PC production instance was never touched by this and has accounts
   already, so the empty-table condition never applied there.
 
-**Fixed at source (local commits, not pushed, not deployed):**
+**Fixed at source.** ~~(local commits, not pushed, not deployed)~~ **Superseded
+— these three commits have since been pushed to `origin/main`** (they are
+ancestors of the current `HEAD`); **they are still not deployed.** Kept as
+originally written below for the historical record of what each commit did:
 
 - `9ac237f` — `fix(web)`: the bootstrap form, the `bootstrapAdmin` Server
   Action, and the login page's user-count read are all gone. `/login` no longer
@@ -592,9 +618,14 @@ things. None of them touches a real database.
 the fix is deployed. Nothing in this repo's test suite can establish what a real
 empty production database renders.
 
-Test processes are deliberately split:
+**Historical — this split no longer exists.** `test:login-render` and the
+`login-page-render.test.ts` suite it ran were deleted when the account system
+was disabled (see the callout above); `apps/web/package.json`'s `test` script
+now runs `test:unit`, `test:auth-disabled`, and `test:http-404` instead. Kept
+below as the record of what was verified at the time — test processes were
+deliberately split:
 
-| Script                                | What it runs                                                   |
+| Script                                | What it ran                                                    |
 | ------------------------------------- | -------------------------------------------------------------- |
 | `pnpm --filter web test:unit`         | `src/**/*.test.ts`, NO module substitution — 122 tests         |
 | `pnpm --filter web test:login-render` | the render suite in its own process, with the loader — 6 tests |
@@ -602,9 +633,10 @@ Test processes are deliberately split:
 
 **Still open — none of this is done:**
 
-- **Nothing is deployed and nothing is pushed.** These three commits sit on
-  local `main` on top of `15adbc8`. Hotel-Echo still runs the vulnerable image;
-  it is only safe because the tunnel is off.
+- **Nothing is deployed.** ~~Nothing is pushed.~~ **Superseded — these commits
+  have since been pushed to `origin/main`; deployment is still outstanding.**
+  Hotel-Echo still runs the vulnerable image; it is only safe because the
+  tunnel is off.
 - **The tunnel stays offline** until the fixed image is deployed and the
   external checks below pass.
 - **Port exposure is unverified on every host.** Loopback binding is now the
