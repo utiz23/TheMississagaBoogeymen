@@ -75,7 +75,9 @@ No new feature work belongs in this gate.
 - [ ] Select the hosting solution and record expected monthly cost.
 - [ ] Document where the Next.js web app, worker, PostgreSQL database,
       persistent storage, backups, DNS, and TLS terminate.
-- [ ] Decide whether the production site is public, members-only, or mixed.
+- [x] Decide whether the production site is public, members-only, or mixed.
+      **Decided 2026-09-03: fully public, no login gate.** See the "DOMAIN +
+      TUNNEL LIVE" Active State entry.
 - [ ] Confirm the database port and worker health endpoint will not be exposed
       directly to the public internet.
 - [ ] Define secret storage, environment separation, deployment mechanism,
@@ -247,6 +249,74 @@ launch scope and it is not allowed to hold the terminal gate hostage.
 
 ## Active State
 
+### 🟢 DOMAIN + TUNNEL LIVE — Stage C (Cloudflare domain, tunnel, public-exposure decision) complete on Hotel-Echo (2026-09-03)
+
+Directly advances the Gate 2 "Domain, hosting, and exposure decisions"
+checklist. Supersedes the two now-stale bullets in the "NEW HOST STOOD UP"
+entry below (struck through there, not deleted). Committed as `5bdf442`
+(`feat(deploy): add Cloudflare Tunnel service for public domain routing`).
+Still the parallel, not-yet-production instance — see that entry's caveats,
+which are otherwise unchanged.
+
+**What was done:**
+
+- Registered `boogeymen.app` via Cloudflare Registrar (~$14/yr, no markup
+  over wholesale). Cloudflare account created via GitHub SSO, owned by
+  `Utiz230@gmail.com`. `.gg` was considered first but is not on Cloudflare
+  Registrar's supported TLD list at all (confirmed against their published
+  TLD policy page) — not a cost tradeoff, simply unavailable there.
+- Created a named Cloudflare Tunnel (`hotel-echo-web`, tunnel id
+  `03eab4e9-bdfc-46fd-951c-f63b58d228e8`) via the Cloudflare API, using a
+  scoped API token (`Zone:DNS:Edit` + `Account:Cloudflare Tunnel:Edit`,
+  restricted to this zone/account — token value not stored anywhere in the
+  repo).
+- Tunnel ingress: `boogeymen.app` and `www.boogeymen.app` →
+  `http://web:3000` (the compose network's internal DNS name), catch-all
+  `404` for anything else. **Only the `web` service is routed through the
+  tunnel** — `db` (5433) and the worker health port (3001) are not in the
+  ingress config and have no DNS record pointing at them.
+- Two proxied CNAME records created (`boogeymen.app`, `www.boogeymen.app`)
+  → `<tunnel-id>.cfargotunnel.com`.
+- Added a `cloudflared` service to `docker-compose.yml`, referencing
+  `${TUNNEL_TOKEN}` (never the literal token — matches the existing
+  `POSTGRES_PASSWORD`/`BETTER_AUTH_SECRET` pattern). Documented in
+  `.env.example`. Deployed to Hotel-Echo: `docker-compose.yml` copied over,
+  `TUNNEL_TOKEN` added to its `.env` (old `.env` backed up first as
+  `.env.bak-pre-tunnel-<timestamp>`), `BETTER_AUTH_URL`/`APP_BASE_URL`
+  flipped from the `http://localhost:3000` placeholders to
+  `https://boogeymen.app`.
+- **Public/members-only decision resolved:** fully public, no Cloudflare
+  Access gate. Answers the Gate 2 roadmap item directly — checked off in
+  the roadmap list above.
+- **Verified from outside the LAN** (external `curl`, not a LAN/Tailscale
+  shortcut): `https://boogeymen.app` and `https://www.boogeymen.app` both
+  return HTTP 200 with valid Cloudflare-terminated TLS (HTTP/2,
+  `server: cloudflare`, real `cf-ray`). Confirmed the `web` container
+  actually has the new env vars loaded (`docker exec ... printenv`).
+  Confirmed the better-auth route mounts and responds correctly at the new
+  URL (`/api/auth/get-session` → `200 null`, `/api/auth/ok` →
+  `200 {"ok":true}`) — auth is wired to the real public URL, not stale
+  localhost config. `cloudflared` logs show 4 registered edge connections
+  and a clean connectivity pre-check (DNS/UDP/TCP/API all PASS).
+
+**Not done / still open:**
+
+- **MFA status and recovery contact on the new Cloudflare account are
+  undocumented.** The Gate 2 domain checklist item asks for these
+  explicitly; only registrar, owner, and rough renewal cost are recorded
+  here, so that checklist item stays unchecked pending that.
+- **No external port-scan was run** to positively confirm `db`/worker-health
+  aren't reachable from the internet by some other path (e.g. a stray
+  router port-forward on Hotel-Echo's network) — this session only
+  confirmed the tunnel itself doesn't route to them. The Gate 2 "confirm
+  db/health ports not exposed" checkbox stays unchecked pending that.
+- Backups, staging/rollback ownership, and secret-rotation process are
+  untouched — separate Gate 2 items.
+- **Hotel-Echo is still not production.** No data migration has happened;
+  its database is the same fresh/empty one from the prior session.
+  `boogeymen.app` is a real, working, internet-reachable *parallel*
+  instance, not the site members currently use.
+
 ### 🟡 NEW HOST STOOD UP, NOT YET PRODUCTION — Hotel-Echo dedicated deployment box provisioned (2026-09-03)
 
 This is a **new, independent, parallel deployment**, not a migration of the
@@ -292,12 +362,15 @@ decisions" checklist:
   provenance, or review-queue state that lives in the current production
   database. Cutting over would require a `pg_dump`/`pg_restore` from the real
   production DB, not just standing the schema up.
-- **Not exposed to the public internet.** No domain purchased, no Cloudflare
+- ~~**Not exposed to the public internet.** No domain purchased, no Cloudflare
   Tunnel configured. Reachable only via LAN (`192.168.1.107`) and Tailscale
-  (`100.98.29.119`) right now.
-- `.env` on Hotel-Echo has `BETTER_AUTH_URL`/`APP_BASE_URL` still at the
+  (`100.98.29.119`) right now.~~ **Stale — domain purchased and Cloudflare
+  Tunnel configured same day; see the "DOMAIN + TUNNEL LIVE" entry above.**
+- ~~`.env` on Hotel-Echo has `BETTER_AUTH_URL`/`APP_BASE_URL` still at the
   `http://localhost:3000` placeholder default — must be updated to the real
-  public URL once domain/tunnel exist, then `docker compose restart web`.
+  public URL once domain/tunnel exist, then `docker compose restart web`.~~
+  **Stale — both updated to `https://boogeymen.app` and `web` restarted; see
+  the "DOMAIN + TUNNEL LIVE" entry above.**
 - `POSTGRES_PASSWORD`/`BETTER_AUTH_SECRET` on Hotel-Echo were freshly
   generated for this host; they are independent of whatever secrets the
   current production `.env` uses.
@@ -307,9 +380,13 @@ decisions" checklist:
 **Relevant to Gate 2 checklist:** partially advances "Select the hosting
 solution" (Hotel-Echo, self-hosted, is now a working candidate) and "Document
 where the... app, worker, PostgreSQL... terminate" (now: Hotel-Echo,
-LAN+Tailscale only). Domain purchase, Cloudflare Tunnel/Access, the
+LAN+Tailscale only). ~~Domain purchase, Cloudflare Tunnel/Access, the
 production data migration, and the cutover decision (retire current host vs.
-keep both) are all still open and unstarted.
+keep both) are all still open and unstarted.~~ **Stale — domain purchase,
+Cloudflare Tunnel, and the public/members-only Access decision were
+completed the same day; see the "DOMAIN + TUNNEL LIVE" entry above. The
+production data migration and the retire-vs-keep-both cutover decision
+remain open and unstarted.**
 
 ### 🟢 DEPLOYED — decoder-run provenance eligibility fix, worker-only at `f456740` (2026-09-02)
 
