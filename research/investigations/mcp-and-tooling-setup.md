@@ -59,7 +59,7 @@ postgres: npx mcp-postgres
   DB_HOST=localhost
   DB_PORT=5433
   DB_USER=eanhl
-  DB_PASSWORD=eanhl_dev_2026
+  DB_PASSWORD=<value from POSTGRES_PASSWORD in .env — do not record it here>
   DB_NAME=eanhl
 ```
 

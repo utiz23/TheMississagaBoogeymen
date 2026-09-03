@@ -66,7 +66,8 @@ docker compose up -d worker web
 | web     | `eanhl-team-website-web-1`    | 3000          |
 | db      | `eanhl-team-website-db-1`     | 5432          |
 
-DB connection from host: `postgresql://eanhl:eanhl_dev_2026@localhost:5433/eanhl`
+DB connection from host: `postgresql://eanhl:$POSTGRES_PASSWORD@localhost:5433/eanhl`
+(load it with `set -a && source .env && set +a`; never paste the literal password here)
 
 The DB host port is `5433` (not `5432`) because port 5432 is occupied by another project on this machine. See `DEPLOY.md`.
 

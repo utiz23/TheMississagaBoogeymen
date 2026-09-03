@@ -252,6 +252,74 @@ launch scope and it is not allowed to hold the terminal gate hostage.
 
 ## Active State
 
+### 🟠 SECRETS REQUIRING ROTATION — main-PC `POSTGRES_PASSWORD` and `BETTER_AUTH_SECRET` were rendered into a private tool transcript (2026-09-03)
+
+**No secret value may ever be copied into this repository — not into source,
+docs, commit messages, test fixtures, or command output.** One already had
+been; see "Second exposure" below.
+
+**First exposure — tool transcript.** During the Codex review of the Compose
+changes, `docker compose config` was run in the repository root. That command
+interpolates `.env`, so it printed the main PC's `POSTGRES_PASSWORD` (inside the
+rendered `DATABASE_URL`) and its `BETTER_AUTH_SECRET` in full into the private
+tool transcript. The transcript is not public and was not committed, but the
+values left the `.env` file that was their only intended home, into a store with
+a different retention and access model than the operator chose for them.
+
+**Second exposure — committed and pushed, and older. Found while verifying the
+first.** The main PC's `POSTGRES_PASSWORD` was in PLAINTEXT in two tracked
+files, and had been since 2026-04-16:
+
+- `.claude/skills/docker-redeploy/SKILL.md` — inside a sample `DATABASE_URL`
+- `research/investigations/mcp-and-tooling-setup.md` — as a `DB_PASSWORD=` line
+
+Both are redacted in the working tree by the follow-up commit that added this
+entry. **That is not a fix.** The value is in git history and on `origin/main`,
+where it has been for months and where anyone with repository read access could
+have found it. It cannot be removed without rewriting published history, which
+is not authorized here and would not retrieve any copy already cloned. Rotation
+is the only real remedy, and this makes `POSTGRES_PASSWORD` rotation the
+higher-priority of the two.
+
+`BETTER_AUTH_SECRET` was NOT found in any tracked file; its only known exposure
+is the tool transcript.
+
+**Treat both as compromised-pending-rotation.** They are still in use on the
+main PC right now; nothing has been changed. Rotation is a **separate,
+separately authorized operational session** — it restarts the database and web
+containers and invalidates every existing session cookie, so it is not something
+to fold into a deployment or a test run.
+
+- `POSTGRES_PASSWORD` — rotation must change the role password in PostgreSQL and
+  `.env` together, and every consumer of `DATABASE_URL` (web, worker, host-side
+  migration and psql tooling, the OCR/video-ingest pipeline) must be updated in
+  the same window or it will fail to connect.
+- `BETTER_AUTH_SECRET` — rotating it invalidates all existing sessions. Everyone
+  signs in again. Do it when that is acceptable, not mid-incident.
+
+**Not affected.** Hotel-Echo's `POSTGRES_PASSWORD` and `BETTER_AUTH_SECRET` are
+independently generated and were never rendered. The Cloudflare tunnel token was
+not exposed either: it is delivered as a mounted file and never interpolated
+into the rendered Compose config — see the "CONTAINED" entry and `852c6d7`.
+
+**Avoiding a repeat.**
+
+- `docker compose config` is a secret-printing command in this repository. When
+  its output is needed as evidence, render it with `--format json` and extract
+  only the fields in question, or pipe it through a redaction filter — never
+  paste the raw output. The verification commands recorded in this file and in
+  DEPLOY.md follow that rule.
+- Before any commit, grep the tree for the live `.env` values, not just for
+  patterns that look secret-shaped. The second exposure above sat in the repo
+  through many reviews precisely because nobody searched for the actual string:
+
+  ```bash
+  # from the repo root, with the values NOT echoed
+  set -a && source .env && set +a
+  git grep -I -F -l -- "$POSTGRES_PASSWORD" && echo "LEAK" || echo "clean"
+  git grep -I -F -l -- "$BETTER_AUTH_SECRET" && echo "LEAK" || echo "clean"
+  ```
+
 ### 🔴 CONTAINED — DOMAIN REGISTERED, TUNNEL OFFLINE — public bootstrap-admin exposure on Hotel-Echo (2026-09-03)
 
 Supersedes the Stage C "complete" claim below. Stage C is **not** complete: the
