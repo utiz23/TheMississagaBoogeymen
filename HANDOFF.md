@@ -252,6 +252,63 @@ launch scope and it is not allowed to hold the terminal gate hostage.
 
 ## Active State
 
+### 🟢 HOTEL-ECHO HARDENED — network exposure, SSH, secrets; tunnel still offline (2026-09-03)
+
+Operator-run infrastructure hardening pass on the Hotel-Echo host, carried out
+directly on that machine (not through this repo's source). Distinct from the
+"NEW HOST STOOD UP" provisioning entry and the "CONTAINED" tunnel-shutdown
+entry below — this closes out several loose ends those left open.
+
+**Completed:**
+
+- `db`, `web`, and `worker` on Hotel-Echo now publish only to `127.0.0.1` —
+  matches the main-PC posture recorded in "POST-ROTATION LOOSE ENDS CLOSED"
+  below.
+- `ufw` is active on Hotel-Echo; the only inbound path is SSH, and only over
+  Tailscale.
+- `sshd` hardened: password auth, keyboard-interactive auth, and root login are
+  all disabled. A break-glass SSH private key was generated and escrowed in
+  Proton Pass, then removed from the main PC once recovery access through it
+  was verified to work.
+- Hotel-Echo's `.env` is mode `0600`; the old environment backup is stored
+  outside the working tree, not inside the repo checkout.
+- The old inline-token `cloudflared` container was stopped and its service
+  definition removed from Hotel-Echo's operational Compose file (Hotel-Echo
+  had been running an inline-token variant predating the
+  `TUNNEL_TOKEN_FILE`/`public`-profile approach from `852c6d7`).
+- Cloudflare and GitHub account MFA and recovery contacts were set up.
+  **This is operator-attested, not independently verified from this session**
+  — no dashboard check was performed as part of this work.
+
+**Still true, unchanged by this pass:**
+
+- The tunnel remains offline. `boogeymen.app` still returns Cloudflare 530.
+- Hotel-Echo is still running its original source checkout and images from
+  provisioning — **not** the account-system-disabled build, **not** the
+  club-aggregate fix recorded below. Deployment is separate, unauthorized-here
+  work; see Next Session Stage B.
+- Hotel-Echo's operational `docker-compose.yml` is now intentionally different
+  from this repo's tracked version (the hardening above edited it locally,
+  e.g. removing the cloudflared service). A future `git pull`/deploy on that
+  host must reconcile this file rather than silently overwrite it — see the
+  caveat added to Next Session Stage B.
+- Automated backups, a restore drill, deploying current source, applying the
+  56-migration set against it, and the production-data migration are all
+  still open. None of this closes the Gate 2 backup/recovery items.
+- **Gate 2's on-host/LAN/WAN port-exposure checkbox stays unchecked.** This
+  entry confirms host-level loopback binding and firewall posture on
+  Hotel-Echo; it is not the documented external `nc`/`curl` test from that
+  checklist item (Next Session Stage D), and that external test has not been
+  run.
+
+**Unrelated, same day, same session:** `fix(worker): skip empty club aggregate
+rows` (`583c076`) fixes a `recomputeClubStats` NOT NULL violation (Postgres
+error `23502`) for a game title/mode with zero matches — see
+`apps/worker/src/aggregate.ts`. **Fixed in source only.** It is not deployed
+anywhere — not the main PC, not Hotel-Echo. Hotel-Echo will keep producing the
+`23502` error in its worker logs for any game title/mode combination with zero
+matches until a later, separately authorized deployment carries this fix.
+
 ### 🟢 AUTHENTICATION DELIBERATELY DISABLED FOR PRE-LAUNCH — deferred to a post-launch review (2026-09-03)
 
 **This is the authoritative statement of the product's auth posture.** It
@@ -1465,6 +1522,14 @@ just the exit code.
 
 Requires: A complete. **`cloudflared` stays stopped for this entire stage and
 the next two.**
+
+**Caveat added 2026-09-03 (see the "HOTEL-ECHO HARDENED" entry above):**
+Hotel-Echo's operational `docker-compose.yml` is now intentionally, locally
+modified from this repo's tracked version (the hardening pass removed the
+inline-token cloudflared service from it directly on the host). Check
+`git status`/`git diff` on Hotel-Echo before pulling and reconcile by hand —
+do not let a plain `git pull` silently overwrite or conflict-fail on that
+file.
 
 1. Pull on Hotel-Echo, then **rebuild** — `docker compose up -d` alone reuses
    the old image. See the `docker-redeploy` skill.
