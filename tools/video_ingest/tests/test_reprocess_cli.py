@@ -16,9 +16,15 @@ Three layers:
    it depends on cluster state (existing decoder runs for match 250).
 
 4. **Full E2E**: opt-in via ``RUN_REPROCESS_E2E=1``. Actually runs the
-   3-5 minute create-ingest-promote-validate-activate flow against
-   match 250 (the canonical pilot match). Documented but skipped by
-   default.
+   create-ingest-promote-validate-activate flow against match 250 (the
+   canonical pilot match). Decode-bound: ~1 hour, measured 1:06:43.
+   Skipped by default, and fail-closed unless ``DATABASE_URL`` names a
+   disposable clone.
+
+5. **Isolation regressions**: the source-video lookup is bound to
+   ``DATABASE_URL`` (never a hard-coded production container), and the
+   writing E2E refuses the clone source / any production-shaped
+   database. These run always — no DB, no opt-in.
 """
 
 from __future__ import annotations
@@ -26,9 +32,11 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
+from typing import Optional
 
 import pytest
 from typer.testing import CliRunner
@@ -314,13 +322,14 @@ def test_compute_hashes_raises_on_missing_artifact(
 
 # ─── _resolve_video_path dir resolution (G0.1 landmine fix) ──────────────────
 #
-# The sha lookup is stubbed via _psql_query; these assert ONLY the folder
-# resolution: no-space `match<id>` preferred, historical `match <id>` fallback,
-# EXACT dir names (never a prefix glob that would grab `match<id>-label-frames`).
+# The sha lookup is stubbed via _recorded_video_shas; these assert ONLY the
+# folder resolution: no-space `match<id>` preferred, historical `match <id>`
+# fallback, EXACT dir names (never a prefix glob that would grab
+# `match<id>-label-frames`).
 
 
 def _stub_sha(monkeypatch: pytest.MonkeyPatch, sha: str = "d" * 64) -> None:
-    monkeypatch.setattr(reprocess_mod, "_psql_query", lambda _sql: sha)
+    monkeypatch.setattr(reprocess_mod, "_recorded_video_shas", lambda _mid: [sha])
 
 
 def test_resolve_video_path_prefers_no_space_dir(
@@ -356,7 +365,7 @@ def test_resolve_video_path_falls_back_to_space_dir(
     real = space_dir / "clip.mkv"
     real.write_bytes(b"payload-463")
     sha = reprocess_mod._file_sha256(real)
-    monkeypatch.setattr(reprocess_mod, "_psql_query", lambda _sql: sha)
+    monkeypatch.setattr(reprocess_mod, "_recorded_video_shas", lambda _mid: [sha])
 
     resolved, got_sha = reprocess_mod._resolve_video_path(463)
     assert resolved == real
@@ -402,9 +411,9 @@ def test_resolve_video_paths_pairs_all_recorded_shas_with_ondisk_files(
     decoy.mkdir()
     (decoy / "decoy.mkv").write_bytes(b"decoy")
 
-    # DISTINCT query returns 3 shas (newline-separated); the 3rd is off-disk.
-    recorded = "\n".join([sha_mkv, sha_mp4, "e" * 64])
-    monkeypatch.setattr(reprocess_mod, "_psql_query", lambda _sql: recorded)
+    # The lookup returns 3 recorded shas; the 3rd has no file on disk.
+    recorded = [sha_mkv, sha_mp4, "e" * 64]
+    monkeypatch.setattr(reprocess_mod, "_recorded_video_shas", lambda _mid: recorded)
 
     resolved = reprocess_mod._resolve_video_paths(463)
     assert {p for p, _ in resolved} == {mkv, mp4}
@@ -425,7 +434,7 @@ def test_resolve_video_paths_raises_when_no_recorded_sha_on_disk(
     match_dir = tmp_path / "match463"
     match_dir.mkdir()
     (match_dir / "main.mkv").write_bytes(b"present-but-unrecorded")
-    monkeypatch.setattr(reprocess_mod, "_psql_query", lambda _sql: "f" * 64)
+    monkeypatch.setattr(reprocess_mod, "_recorded_video_shas", lambda _mid: ["f" * 64])
 
     with pytest.raises(RuntimeError, match=r"none of the .* files in .* match a recorded"):
         reprocess_mod._resolve_video_paths(463)
@@ -437,7 +446,7 @@ def test_resolve_video_paths_raises_when_no_recorded_sha_at_all(
     """No video_sha256 rows for the match → the re-ingest-first error, before
     any disk scan."""
     monkeypatch.setattr(reprocess_mod, "DEFAULT_VIDEO_ROOT", tmp_path)
-    monkeypatch.setattr(reprocess_mod, "_psql_query", lambda _sql: "")
+    monkeypatch.setattr(reprocess_mod, "_recorded_video_shas", lambda _mid: [])
     with pytest.raises(RuntimeError, match=r"no video_sha256 recorded for match 463"):
         reprocess_mod._resolve_video_paths(463)
 
@@ -497,6 +506,154 @@ def test_reprocess_multiple_video_flags_ingest_each(
     assert any("video 2/2 (loadout.mp4)" in d for d in ingest_descs)
 
 
+# ─── the source-video lookup is bound to DATABASE_URL ────────────────────────
+#
+# Regression cover for the verification-isolation defect: `_resolve_video_paths`
+# used to read its rows with a hard-coded
+# `docker exec eanhl-team-website-db-1 psql -U eanhl -d eanhl ...`, which
+# ignores DATABASE_URL. Under the verification harness that meant the video
+# lookup read PRODUCTION while every subsequent worker command wrote the
+# disposable clone. The lookup now goes through `decoder-runs source-videos`,
+# whose child inherits DATABASE_URL.
+
+PROD_CONTAINER = "eanhl-team-website-db-1"
+
+
+def _fake_completed(stdout: str, returncode: int = 0):
+    return subprocess.CompletedProcess(args=[], returncode=returncode, stdout=stdout, stderr="")
+
+
+def test_recorded_video_shas_routes_through_the_decoder_runs_cli(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The lookup is a `decoder-runs source-videos --match-id N` shell-out —
+    the one channel in this module whose child inherits DATABASE_URL."""
+    calls: list[tuple[str, ...]] = []
+
+    def fake_cli(*args: str) -> dict:
+        calls.append(args)
+        return {"match_id": 250, "video_sha256": ["a" * 64, "b" * 64], "_exit": 0}
+
+    monkeypatch.setattr(reprocess_mod, "_run_decoder_runs_cli", fake_cli)
+
+    assert reprocess_mod._recorded_video_shas(250) == ["a" * 64, "b" * 64]
+    assert calls == [("source-videos", "--match-id", "250")]
+
+
+def test_recorded_video_shas_rejects_a_payload_without_the_list(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A malformed payload fails closed rather than silently resolving zero
+    sources (which the caller would report as 're-ingest at least once')."""
+    monkeypatch.setattr(
+        reprocess_mod, "_run_decoder_runs_cli", lambda *_a: {"_exit": 0}
+    )
+    with pytest.raises(RuntimeError, match=r"returned no video_sha256 list"):
+        reprocess_mod._recorded_video_shas(250)
+
+
+def test_reprocess_video_lookup_never_addresses_the_production_container(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Drive the REAL `_recorded_video_shas` -> `_run_decoder_runs_cli` chain with
+    only the process boundary faked, and assert on the argv that would have been
+    executed: it is the worker CLI, and it names neither `docker` nor the
+    production container/database."""
+    spawned: list[list[str]] = []
+
+    def fake_run(cmd, *_a, **kw):  # type: ignore[no-untyped-def]
+        spawned.append(list(cmd))
+        return _fake_completed(json.dumps({"match_id": 463, "video_sha256": ["c" * 64]}) + "\n")
+
+    monkeypatch.setattr(reprocess_mod.subprocess, "run", fake_run)
+    monkeypatch.setattr(reprocess_mod, "DEFAULT_VIDEO_ROOT", tmp_path)
+    match_dir = tmp_path / "match463"
+    match_dir.mkdir()
+    real = match_dir / "main.mkv"
+    real.write_bytes(b"payload-463")
+    monkeypatch.setattr(reprocess_mod, "_file_sha256", lambda _p: "c" * 64)
+
+    resolved = reprocess_mod._resolve_video_paths(463)
+    assert resolved == [(real, "c" * 64)]
+
+    assert len(spawned) == 1, spawned
+    cmd = spawned[0]
+    assert cmd[:4] == ["pnpm", "--filter", "@eanhl/worker", "decoder-runs"]
+    assert "source-videos" in cmd
+    flat = " ".join(cmd)
+    assert "docker" not in flat, flat
+    assert PROD_CONTAINER not in flat, flat
+    # The hard-coded production psql credentials/database must not appear either.
+    assert "psql" not in flat, flat
+    assert "-d eanhl" not in flat, flat
+
+
+def _install_recording_docker(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """Put a recording `docker` first on PATH. It appends its argv to a log and
+    exits non-zero, so any invocation is both recorded AND fatal."""
+    bindir = tmp_path / "fakebin"
+    bindir.mkdir()
+    log = tmp_path / "docker-invocations.log"
+    shim = bindir / "docker"
+    shim.write_text(
+        "#!/bin/sh\n"
+        f'printf "%s\\n" "$*" >> "{log}"\n'
+        'echo "docker must not be invoked by the reprocess video lookup" >&2\n'
+        "exit 97\n"
+    )
+    shim.chmod(0o755)
+    monkeypatch.setenv("PATH", f"{bindir}{os.pathsep}{os.environ.get('PATH', '')}")
+    return log
+
+
+def test_reprocess_video_lookup_does_not_execute_any_docker_binary(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """With a recording `docker` shim first on PATH, the lookup completes and the
+    shim is never executed. This catches a re-introduced `docker exec` that an
+    argv assertion on a faked boundary could miss."""
+    log = _install_recording_docker(tmp_path, monkeypatch)
+
+    monkeypatch.setattr(
+        reprocess_mod,
+        "_run_decoder_runs_cli",
+        lambda *_a: {"match_id": 250, "video_sha256": ["d" * 64], "_exit": 0},
+    )
+    assert reprocess_mod._recorded_video_shas(250) == ["d" * 64]
+    assert not log.exists(), f"docker was invoked: {log.read_text()}"
+
+
+def test_recorded_video_shas_reads_the_database_named_by_database_url(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The rows come from the database DATABASE_URL selects.
+
+    A `pnpm` shim first on PATH answers with a sha derived from the DATABASE_URL
+    it was handed. Two different DSNs therefore yield two different results
+    through the unmodified production code path — which is exactly the property
+    the old hard-coded `docker exec` did not have (it returned production's rows
+    whatever DATABASE_URL said). A recording `docker` shim is installed at the
+    same time and must stay unused."""
+    docker_log = _install_recording_docker(tmp_path, monkeypatch)
+    bindir = tmp_path / "fakebin"
+    shim = bindir / "pnpm"
+    # Echo one JSON line whose sha encodes the database name from DATABASE_URL.
+    shim.write_text(
+        "#!/bin/sh\n"
+        'db="${DATABASE_URL##*/}"\n'
+        'printf \'{"match_id": 250, "video_sha256": ["%s"]}\\n\' "$db"\n'
+    )
+    shim.chmod(0o755)
+
+    monkeypatch.setenv("DATABASE_URL", "postgresql://u:p@127.0.0.1:5433/eanhl_test_777_abc")
+    assert reprocess_mod._recorded_video_shas(250) == ["eanhl_test_777_abc"]
+
+    monkeypatch.setenv("DATABASE_URL", "postgresql://u:p@127.0.0.1:5433/eanhl_test_888_def")
+    assert reprocess_mod._recorded_video_shas(250) == ["eanhl_test_888_def"]
+
+    assert not docker_log.exists(), f"docker was invoked: {docker_log.read_text()}"
+
+
 # ─── integration: --undo --dry-run smoke test ────────────────────────────────
 
 
@@ -554,33 +711,302 @@ def test_reprocess_undo_dry_run_against_match_250() -> None:
 
 
 # ─── opt-in full E2E ─────────────────────────────────────────────────────────
+#
+# This E2E WRITES. Two hazards it must survive, both found by review:
+#
+#  1. It must write only to a disposable clone. `_require_disposable_clone_dsn`
+#     fails closed unless DATABASE_URL names `eanhl_test_<pid>_<base36ms>` — the
+#     shape `apps/worker/scripts/lib/test-db-session.mjs` mints per run — on a
+#     loopback host. The clone SOURCE (`eanhl_test`), anything production-shaped,
+#     and any remote host are refused, so the test cannot be pointed at a
+#     database that outlives it. This is DEFENCE IN DEPTH, not proof: the
+#     authoritative evidence that the wrapper really provisioned the clone is
+#     with-test-db.mjs's own attestation (system ID + container identity). A DSN
+#     is self-asserted text; this guard only makes the obvious misfires — a
+#     hand-set production DSN, a remote host — fail before anything is written.
+#
+#  2. It must stay repeatable. The seeded source database already holds the exact
+#     NORMAL provenance tuple for match 250 (match_id, video_sha256,
+#     DECODER_VERSION, weights_hash) as run 1993, and the clone inherits it. The
+#     real command is SUPPOSED to collide there — `ocr_decoder_runs_provenance_uniq`
+#     is the guarantee that an unchanged decoder cannot mint a second candidate,
+#     and nothing here weakens it, reuses run 1993, or frees its tuple.
+#     Instead the E2E mints its OWN provenance by replacing the module's
+#     decoder-version constant, in-process, with a stable verification-only tag.
+#
+# Why in-process rather than a CLI flag or an env var: a flag/env override would
+# put a provenance-forging affordance into the production command, where an
+# operator could stamp a run with a version the decoder never had. Patching the
+# module constant inside the test keeps that lever entirely out of production
+# code — `reprocess()` reads DECODER_VERSION as a module global at call time, and
+# it is the only reader (the ingest child is scoped by --run-id, not by version).
+# The tag is honest: it is the real decoder version plus an explicit
+# "-verification-e2e" marker, so a row it writes is self-describing rather than
+# masquerading as a production run.
+
+#: Suffix appended to DECODER_VERSION for E2E-minted runs. Stable across runs —
+#: repeatability comes from the clone being fresh, not from a unique tag.
+VERIFICATION_DECODER_SUFFIX = "-verification-e2e"
+
+#: The disposable clone names test-db-session.mjs generates: eanhl_test_<pid>_<base36 ms>.
+_DISPOSABLE_CLONE_NAME = re.compile(r"^eanhl_test_[0-9]+_[0-9a-z]+$")
+
+#: The only hosts a disposable clone is ever reachable on. `with-test-db.mjs`
+#: provisions the clone inside the local verification container and injects a
+#: loopback DSN, so any other host — DNS name, non-loopback IPv4/IPv6, or an
+#: absent host — is by construction not that clone. Strict membership, not a
+#: prefix or range test: 127.0.0.2 and 10.0.0.9 are as remote as anything else
+#: for this purpose, because the wrapper never emits them.
+_LOOPBACK_HOSTS = frozenset({"127.0.0.1", "localhost", "::1"})
+
+
+def _require_disposable_clone_dsn(database_url: Optional[str]) -> str:
+    """Return the database name from ``database_url``, or raise.
+
+    Fail-closed: accepts ONLY a `eanhl_test_<pid>_<timestamp>` clone reached over
+    a loopback host (127.0.0.1, localhost, ::1). The clone source `eanhl_test`,
+    the production database, any other database name, and every remote host —
+    DNS, non-loopback IPv4, non-loopback IPv6, or no host at all — are refused,
+    so this writing E2E cannot be run against a database that survives it.
+
+    DEFENCE IN DEPTH, not proof. A DSN is text the caller supplies; matching the
+    clone's name shape and a loopback host proves nothing cryptographically and
+    does not establish that `with-test-db.mjs` ran. That proof is the wrapper's
+    own attestation (system ID and container identity), which remains
+    authoritative. This check exists so the cheap, plausible misfires — a
+    hand-exported production DSN, a tunnel to a remote database, a stale shell
+    still holding `.env` — are refused before the first write, instead of relying
+    on the operator having gone through the wrapper.
+
+    Diagnostics deliberately carry the DATABASE NAME ONLY — never the DSN, host,
+    port, user or password. A refusal is printed by pytest and can end up in logs.
+    """
+    if not database_url or not database_url.strip():
+        raise RuntimeError(
+            "DATABASE_URL is not set. This E2E writes; run it through "
+            "apps/worker/scripts/with-test-db.mjs, which provisions a disposable "
+            "clone and injects its DATABASE_URL."
+        )
+    from urllib.parse import unquote, urlsplit
+
+    try:
+        parts = urlsplit(database_url.strip())
+    except ValueError:
+        raise RuntimeError("DATABASE_URL is not a valid URL.") from None
+    if parts.scheme not in ("postgres", "postgresql"):
+        raise RuntimeError("DATABASE_URL must be a postgres:// or postgresql:// DSN.")
+    name = unquote(parts.path.lstrip("/"))
+    if not name:
+        raise RuntimeError("DATABASE_URL names no database.")
+    if not _DISPOSABLE_CLONE_NAME.match(name):
+        raise RuntimeError(
+            f"refusing to run the writing reprocess E2E against database {name!r}: "
+            f"only a disposable clone named eanhl_test_<pid>_<timestamp> is accepted "
+            f"(the clone SOURCE eanhl_test and any production-shaped name are refused). "
+            f"Run it through apps/worker/scripts/with-test-db.mjs."
+        )
+    # `.hostname` is lowercased and has IPv6 brackets stripped, so `[::1]` and
+    # `LocalHost` both normalise into the set. A DSN with no host at all (unix
+    # socket, or `postgresql:///name`) yields None and is refused: the wrapper
+    # always injects an explicit loopback host.
+    host = parts.hostname
+    if host not in _LOOPBACK_HOSTS:
+        raise RuntimeError(
+            f"refusing to run the writing reprocess E2E against database {name!r}: "
+            f"its DSN names no host or a non-loopback host, and a disposable clone "
+            f"only ever lives on 127.0.0.1, localhost or ::1. "
+            f"Run it through apps/worker/scripts/with-test-db.mjs."
+        )
+    return name
 
 
 @pytest.mark.skipif(
     os.environ.get("RUN_REPROCESS_E2E") != "1",
-    reason="set RUN_REPROCESS_E2E=1 to enable; heavy — 3-5 minutes against match 250",
+    reason="set RUN_REPROCESS_E2E=1 to enable; heavy — ~1h decode-bound against match 250",
 )
-def test_reprocess_full_flow_against_match_250() -> None:
-    """Opt-in full reprocess against match 250.
+def test_reprocess_full_flow_against_match_250(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Opt-in full reprocess against match 250, on a disposable clone.
 
     Runs the real 9-step pipeline:
       create → ingest → repromote-loadout → repromote-lobby → validate
       → activate → consolidate-loadouts → backfill-event-actor-resolution.
 
-    Takes 3-5 minutes and modifies the DB (creates a new
-    ocr_decoder_runs row, flips activation, consolidates loadout
-    snapshots, re-resolves event actors). Use only when validating
-    the operational flow before Task 10/11 manual runs.
+    Every DB access in that pipeline — the source-video lookup included — resolves
+    through DATABASE_URL, which `with-test-db.mjs` has pointed at the clone. The
+    run is stamped with verification-only provenance so it does not collide with
+    the normal production tuple the clone already carries.
 
-    No assertions on intermediate state — just exits 0 if the full
-    pipeline runs cleanly end-to-end.
+    Decode-bound: `--force-pass1/--force-pass2` re-decode match 250's 32-minute
+    1080p60 source, so budget ~1 hour (measured 1:06:43), not the few minutes an
+    earlier note claimed. It writes freely — a new decoder run, an activation
+    flip, consolidated snapshots, re-resolved event actors — all of which die
+    with the clone.
+
+    No assertions on intermediate state — it exits 0 only if the whole pipeline
+    runs cleanly end-to-end.
     """
+    clone = _require_disposable_clone_dsn(os.environ.get("DATABASE_URL"))
+    verification_version = reprocess_mod.DECODER_VERSION + VERIFICATION_DECODER_SUFFIX
+    monkeypatch.setattr(reprocess_mod, "DECODER_VERSION", verification_version)
+
+    # ABSOLUTE PYTHONPATH for the ingest grandchild. `_run_streaming` spawns
+    # `python3 -m video_ingest.cli ingest` with cwd=REPO_ROOT, so the relative
+    # `PYTHONPATH=.:../game_ocr` the harness runs pytest under (relative to
+    # tools/video_ingest) does not resolve there. The previous subprocess form of
+    # this test built the same absolute value for its child env; running the
+    # command in-process makes it this test's job instead.
     repo_root = Path(__file__).resolve().parents[3]
-    env = os.environ.copy()
-    env["PYTHONPATH"] = f"{repo_root / 'tools' / 'video_ingest'}:{repo_root / 'tools' / 'game_ocr'}"
-    cmd = [
-        sys.executable, "-m", "video_ingest.cli",
-        "reprocess", "--match-id", "250",
-    ]
-    res = subprocess.run(cmd, env=env, cwd=repo_root)
-    assert res.returncode == 0, f"reprocess exited {res.returncode}"
+    monkeypatch.setenv(
+        "PYTHONPATH",
+        f"{repo_root / 'tools' / 'video_ingest'}:{repo_root / 'tools' / 'game_ocr'}",
+    )
+
+    print(
+        f"[e2e] clone={clone} decoder_version={verification_version}",
+        file=sys.stderr,
+    )
+
+    runner = CliRunner()
+    result = runner.invoke(app, ["reprocess", "--match-id", "250"])
+
+    # Echo the command's own output. CliRunner captures `typer.echo`, so without
+    # this the per-step JSON payloads (create-candidate, validate, activate)
+    # would be visible only on failure — the previous subprocess form streamed
+    # them live, and they are the operational record of the run. The heavy
+    # ingest/promote stages are unaffected either way: `_run_streaming` inherits
+    # the real stdout/stderr and never passes through CliRunner.
+    print(result.output, file=sys.stderr)
+
+    assert result.exit_code == 0, (
+        f"reprocess exited {result.exit_code}; exception={result.exception!r}\n"
+        f"{result.output}"
+    )
+
+
+# ─── E2E guard regressions (run always; no DB, no opt-in) ────────────────────
+
+
+# Each negative case below is pinned to the ONE rule it exercises. The database
+# name cases all use a loopback host, so they can only fail on the name; the host
+# cases all use a perfectly valid clone name, so they can only fail on the host.
+# (An earlier remote-host case paired 10.0.0.9 with the invalid name
+# `eanhl_test_x_y` — it passed on the name rule and proved nothing about hosts.)
+@pytest.mark.parametrize(
+    "dsn",
+    [
+        None,
+        "",
+        "   ",
+        # ── database name: loopback host, so only the name can be at fault ──
+        "postgresql://u:s3cret@127.0.0.1:5433/eanhl",           # production
+        "postgresql://u:s3cret@127.0.0.1:5433/eanhl_test",      # the clone SOURCE
+        "postgresql://u:s3cret@127.0.0.1:5433/eanhl_prod",
+        "postgresql://u:s3cret@127.0.0.1:5433/eanhl_test_x_y",  # non-numeric pid
+        "postgresql://u:s3cret@127.0.0.1:5433/eanhl_test_12",   # no timestamp part
+        "postgresql://u:s3cret@127.0.0.1:5433/eanhl_test_1_A1", # uppercase base36
+        "postgresql://u:s3cret@127.0.0.1:5433/",
+        "mysql://u:s3cret@127.0.0.1:3306/eanhl_test_1_a",
+    ],
+)
+def test_e2e_guard_refuses_anything_that_is_not_a_disposable_clone(dsn) -> None:
+    """The writing E2E is not directly runnable against the clone source or a
+    production-shaped database."""
+    with pytest.raises(RuntimeError):
+        _require_disposable_clone_dsn(dsn)
+
+
+@pytest.mark.parametrize(
+    "dsn",
+    [
+        # Every one of these carries a database name that WOULD be accepted on a
+        # loopback host, so the only thing that can refuse them is the host rule.
+        "postgresql://u:s3cret@production.example:5432/eanhl_test_123_abc",
+        "postgresql://u:s3cret@db.internal.example:5432/eanhl_test_1234_mk3x2p1q",
+        "postgresql://u:s3cret@10.0.0.9:5432/eanhl_test_123_abc",
+        "postgresql://u:s3cret@192.168.1.20:5432/eanhl_test_9_0",
+        "postgresql://u:s3cret@127.0.0.2:5433/eanhl_test_123_abc",   # loopback /8, not the literal
+        "postgresql://u:s3cret@[2001:db8::1]:5432/eanhl_test_123_abc",
+        "postgresql://u:s3cret@[fd00::1]:5432/eanhl_test_9_0",
+        "postgresql:///eanhl_test_123_abc",                          # no host at all
+        "postgresql://u:s3cret@/eanhl_test_123_abc",                 # empty host
+    ],
+)
+def test_e2e_guard_refuses_a_valid_clone_name_on_a_non_loopback_host(dsn: str) -> None:
+    """A clone name alone is not enough: the DSN must also point at loopback.
+
+    Without this rule `postgresql://u:p@production.example:5432/eanhl_test_123_abc`
+    — a remote, production-shaped endpoint wearing a disposable clone's name —
+    was accepted, and the writing E2E would have run against it.
+    """
+    with pytest.raises(RuntimeError):
+        _require_disposable_clone_dsn(dsn)
+
+
+@pytest.mark.parametrize(
+    "dsn,expected",
+    [
+        ("postgresql://u:s3cret@127.0.0.1:5433/eanhl_test_1234_mk3x2p1q", "eanhl_test_1234_mk3x2p1q"),
+        ("postgres://u:s3cret@localhost:5433/eanhl_test_9_0", "eanhl_test_9_0"),
+        ("postgresql://u:s3cret@[::1]:5433/eanhl_test_778258_mtmkmje6", "eanhl_test_778258_mtmkmje6"),
+        # Host comparison is case-insensitive (urlsplit lowercases `.hostname`),
+        # and the port is not part of the rule.
+        ("postgresql://u:s3cret@LocalHost/eanhl_test_1_a", "eanhl_test_1_a"),
+    ],
+)
+def test_e2e_guard_accepts_a_disposable_clone(dsn: str, expected: str) -> None:
+    assert _require_disposable_clone_dsn(dsn) == expected
+
+
+def test_e2e_guard_host_refusal_leaks_no_host_or_credential() -> None:
+    """The host refusal must not echo back the host it rejected.
+
+    The rejected DSN is frequently the interesting one — a real remote endpoint —
+    and pytest prints the message. It may name the database and nothing else.
+    """
+    dsn = "postgresql://eanhl_admin:sup3r-s3cret@production.example:5432/eanhl_test_123_abc"
+    with pytest.raises(RuntimeError) as exc:
+        _require_disposable_clone_dsn(dsn)
+    msg = str(exc.value)
+    for secret in ("sup3r-s3cret", "eanhl_admin", "production.example", "5432", dsn):
+        assert secret not in msg, f"diagnostic leaked {secret!r}: {msg}"
+    assert "eanhl_test_123_abc" in msg  # the database name itself is fair game
+
+
+def test_e2e_guard_diagnostics_leak_no_credential_or_dsn() -> None:
+    """A refusal names the database and nothing else — no password, user, host,
+    port, or full DSN."""
+    dsn = "postgresql://eanhl_admin:sup3r-s3cret@db.internal.example:5432/eanhl"
+    with pytest.raises(RuntimeError) as exc:
+        _require_disposable_clone_dsn(dsn)
+    msg = str(exc.value)
+    for secret in ("sup3r-s3cret", "eanhl_admin", "db.internal.example", "5432", dsn):
+        assert secret not in msg, f"diagnostic leaked {secret!r}: {msg}"
+    assert "eanhl" in msg  # the database name itself is fair game
+
+
+def test_e2e_provenance_is_distinct_from_the_normal_production_tag() -> None:
+    """The E2E's decoder version is the production one plus an explicit
+    verification marker: distinct from the normal tuple the seeded clone already
+    holds (so create-candidate does not collide), and honest about what it is."""
+    verification_version = reprocess_mod.DECODER_VERSION + VERIFICATION_DECODER_SUFFIX
+    assert verification_version != reprocess_mod.DECODER_VERSION
+    assert verification_version.startswith(reprocess_mod.DECODER_VERSION)
+    assert verification_version.endswith("-verification-e2e")
+    # Stable, not random: repeatability comes from the disposable clone, and a
+    # random tag would litter provenance with unreproducible versions.
+    assert VERIFICATION_DECODER_SUFFIX == "-verification-e2e"
+
+
+def test_e2e_provenance_override_is_not_reachable_from_the_production_cli() -> None:
+    """The verification tag lives in the test module, not in the shipped command:
+    `reprocess` exposes no decoder-version flag, and the module constant is the
+    single source of the production tag."""
+    runner = CliRunner()
+    result = runner.invoke(app, ["reprocess", "--help"])
+    assert result.exit_code == 0
+    assert "--decoder-version" not in result.stdout
+    assert "verification" not in result.stdout.lower()
+    src = (
+        Path(reprocess_mod.__file__).read_text()  # type: ignore[arg-type]
+    )
+    assert VERIFICATION_DECODER_SUFFIX not in src

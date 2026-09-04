@@ -276,6 +276,152 @@ void test('decoder-runs-cli create-candidate exits non-zero when --match-id is n
   )
 })
 
+void test('decoder-runs-cli create-candidate REJECTS an exact duplicate provenance tuple', async () => {
+  if (!process.env['DATABASE_URL']) return
+
+  // `ocr_decoder_runs_provenance_uniq` on (match_id, video_sha256,
+  // decoder_version, weights_hash) NULLS NOT DISTINCT is the guarantee that an
+  // unchanged decoder cannot mint a second candidate for the same video. The
+  // verification harness must not have softened it: an exact duplicate must
+  // still FAIL, not silently reuse, overwrite, or rename the existing run.
+  const fx = await insertFixtureMatch('create-duplicate-tuple')
+  const args = [
+    'create-candidate',
+    '--match-id',
+    String(fx.matchId),
+    '--video-sha256',
+    'dup-provenance-sha',
+    '--decoder-version',
+    'hmm-viterbi-v2-dup',
+    '--weights-hash',
+    'wh-dup',
+    '--config-hash',
+    'ch-dup',
+  ]
+
+  const first = runCli(args)
+  assert.equal(first.status, 0, `first insert should succeed; stderr: ${first.stderr}`)
+  const firstPayload = JSON.parse(
+    first.stdout
+      .trim()
+      .split('\n')
+      .filter((l) => l.startsWith('{'))
+      .pop()!,
+  )
+  sentinelRunIds.add(firstPayload.run_id)
+
+  // Same tuple, different config_hash — config_hash is NOT part of the
+  // uniqueness key, and must not become part of it just to let a re-run through.
+  const second = runCli([...args.slice(0, -1), 'ch-dup-different'])
+  assert.notEqual(
+    second.status,
+    0,
+    `expected the duplicate to be REJECTED; stdout: ${second.stdout}`,
+  )
+  assert.match(
+    second.stderr,
+    /ocr_decoder_runs_provenance_uniq|duplicate key/i,
+    `expected a provenance-uniq violation; got: ${second.stderr}`,
+  )
+
+  // The diagnostic explains the collision without leaking the connection. The
+  // Python orchestrator surfaces this text verbatim and verification logs keep
+  // it, so it must carry no DSN, host, user, or password.
+  const dsn = process.env['DATABASE_URL']!
+  const dsnUrl = new URL(dsn)
+  for (const secret of [dsn, dsnUrl.password, dsnUrl.username, dsnUrl.host].filter(
+    (v) => typeof v === 'string' && v.length > 0,
+  )) {
+    assert.ok(
+      !second.stderr.includes(secret),
+      `create-candidate diagnostics leaked a connection detail: ${second.stderr}`,
+    )
+  }
+
+  // The pre-existing run is untouched: same id, same is_active, not renamed.
+  const rows = await db.select().from(ocrDecoderRuns).where(eq(ocrDecoderRuns.matchId, fx.matchId))
+  assert.equal(rows.length, 1, 'exactly one run must remain — no second row, no replacement')
+  assert.equal(rows[0]!.id, firstPayload.run_id)
+  assert.equal(rows[0]!.configHash, 'ch-dup', 'existing run must not be overwritten')
+  assert.equal(rows[0]!.isActive, false)
+})
+
+void test('decoder-runs-cli source-videos returns the distinct recorded shas, newest batch first', async () => {
+  if (!process.env['DATABASE_URL']) return
+
+  // This subcommand exists so the Python reprocess orchestrator resolves its
+  // source videos over DATABASE_URL instead of a hard-coded
+  // `docker exec eanhl-team-website-db-1 psql`. Under the verification harness
+  // that is what keeps the read on the same disposable clone as every write.
+  const fx = await insertFixtureMatch('source-videos')
+  const shaA = 'a'.repeat(64)
+  const shaB = 'b'.repeat(64)
+
+  // shaA twice (distinct must collapse it), then shaB in the NEWEST batch.
+  for (const [sha, dir] of [
+    [shaA, 'dir-1'],
+    [shaA, 'dir-2'],
+    [shaB, 'dir-3'],
+  ] as const) {
+    await db.insert(ocrCaptureBatches).values({
+      gameTitleId: GAME_TITLE_ID,
+      matchId: fx.matchId,
+      sourceDirectory: `/tmp/${SENTINEL_TAG}/source-videos/${dir}`,
+      captureKind: 'video_frames',
+      videoSha256: sha,
+      notes: `${SENTINEL_TAG}-source-videos`,
+    })
+  }
+  // A NULL-sha batch must never appear in the output.
+  await db.insert(ocrCaptureBatches).values({
+    gameTitleId: GAME_TITLE_ID,
+    matchId: fx.matchId,
+    sourceDirectory: `/tmp/${SENTINEL_TAG}/source-videos/manual`,
+    captureKind: 'manual_screenshots',
+    videoSha256: null,
+    notes: `${SENTINEL_TAG}-source-videos`,
+  })
+
+  const result = runCli(['source-videos', '--match-id', String(fx.matchId)])
+  assert.equal(result.status, 0, `expected exit 0; stderr: ${result.stderr}`)
+  const payload = JSON.parse(
+    result.stdout
+      .trim()
+      .split('\n')
+      .filter((l) => l.startsWith('{'))
+      .pop()!,
+  )
+  assert.equal(payload.match_id, fx.matchId)
+  // Distinct, NULL excluded, newest capture batch first.
+  assert.deepEqual(payload.video_sha256, [shaB, shaA])
+})
+
+void test('decoder-runs-cli source-videos returns an empty list for a match with no recorded video', async () => {
+  if (!process.env['DATABASE_URL']) return
+
+  const fx = await insertFixtureMatch('source-videos-empty')
+  const result = runCli(['source-videos', '--match-id', String(fx.matchId)])
+  assert.equal(result.status, 0, `expected exit 0; stderr: ${result.stderr}`)
+  const payload = JSON.parse(
+    result.stdout
+      .trim()
+      .split('\n')
+      .filter((l) => l.startsWith('{'))
+      .pop()!,
+  )
+  assert.deepEqual(payload.video_sha256, [])
+})
+
+void test('decoder-runs-cli source-videos exits non-zero on a missing or non-numeric --match-id', async () => {
+  if (!process.env['DATABASE_URL']) return
+
+  for (const args of [['source-videos'], ['source-videos', '--match-id', 'banana']]) {
+    const result = runCli(args)
+    assert.notEqual(result.status, 0, `expected non-zero for ${args.join(' ')}`)
+    assert.match(result.stderr, /match-id/i, `got: ${result.stderr}`)
+  }
+})
+
 void test('decoder-runs-cli errors on unknown subcommand', async () => {
   if (!process.env['DATABASE_URL']) return
 

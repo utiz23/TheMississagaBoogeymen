@@ -11,7 +11,23 @@
 #   systemctl --user enable --now eanhl-verify.timer
 #
 # Edit WorkingDirectory below to the repo's absolute path on this machine.
-# DATABASE_URL is loaded from the repo .env via EnvironmentFile.
+#
+# ENVIRONMENT — read this before changing EnvironmentFile.
+# -------------------------------------------------------
+# This unit loads a SEPARATE, operator-created verification env file. It must
+# NEVER load the application `.env`: that file carries the production
+# DATABASE_URL, and this unit runs suites that write.
+#
+#   file:  %h/.config/eanhl/verify.env       (chmod 600, owned by the user)
+#   template: ops/verify.env.example
+#   contents: TEST_DATABASE_URL + TEST_DB_CONTAINER + TEST_DB_COMPOSE_PROJECT
+#             + TEST_DB_COMPOSE_SERVICE. No DATABASE_URL. See ops/README.md.
+#
+# The path has NO leading "-", so a missing verification env file fails the unit
+# instead of silently starting a run with no isolation configuration. The
+# harness would refuse anyway; failing here makes the cause obvious in the
+# journal. `UnsetEnvironment=DATABASE_URL` is belt-and-braces against a
+# DATABASE_URL inherited from the user manager's environment.
 
 [Unit]
 Description=EANHL OCR verification (nightly, full)
@@ -21,7 +37,8 @@ After=docker.service
 Type=oneshot
 # --- EDIT THIS to the repo's absolute path on this machine ---
 WorkingDirectory=%h/projects/eanhl-team-website
-EnvironmentFile=%h/projects/eanhl-team-website/.env
+EnvironmentFile=%h/.config/eanhl/verify.env
+UnsetEnvironment=DATABASE_URL
 ExecStart=/usr/bin/env bash scripts/verify-ocr.sh --full
 # Keep a bounded log; journal captures stdout/stderr.
 StandardOutput=journal

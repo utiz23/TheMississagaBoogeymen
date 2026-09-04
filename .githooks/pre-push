@@ -12,26 +12,40 @@
 # quality gate (WS0.1A) — bad runs cannot become canonical regardless of the
 # local git config. See docs/ocr + HANDOFF.md.
 #
-# DATABASE_URL must be loaded (the worker integration suite clones the local
-# DB). If it is unset we SKIP rather than block — the hook is best-effort and
-# the activate gate is the real guard.
+# THIS HOOK NEVER SOURCES THE APPLICATION `.env`.
+# It used to, which meant a push silently handed the PRODUCTION DATABASE_URL to
+# suites that write. Verification now requires an explicitly configured,
+# attested nonproduction cluster; see ops/README.md. If that configuration is
+# absent the hook FAILS rather than skipping — a missing safety configuration
+# must not read as "nothing to check". Push anyway with --no-verify if you have
+# decided that is appropriate.
 
 set -uo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
-if [ -z "${DATABASE_URL:-}" ]; then
-  if [ -f "$REPO_ROOT/.env" ]; then
-    set -a
-    # shellcheck disable=SC1091
-    . "$REPO_ROOT/.env"
-    set +a
-  fi
-fi
+# Verification must never inherit an application DSN.
+unset DATABASE_URL
 
-if [ -z "${DATABASE_URL:-}" ]; then
-  echo "[pre-push] DATABASE_URL unset and no .env found — skipping verify-ocr (advisory)." >&2
-  echo "[pre-push] The activate quality gate remains the real enforcement." >&2
-  exit 0
+MISSING=()
+for var in TEST_DATABASE_URL TEST_DB_CONTAINER TEST_DB_COMPOSE_PROJECT TEST_DB_COMPOSE_SERVICE; do
+  [ -n "${!var:-}" ] || MISSING+=("$var")
+done
+
+if [ "${#MISSING[@]}" -gt 0 ]; then
+  {
+    echo "[pre-push] BLOCKED: verification-database configuration is incomplete."
+    printf '[pre-push]   missing: %s\n' "${MISSING[@]}"
+    echo "[pre-push]"
+    echo "[pre-push] These have no defaults and are deliberately NOT read from the application"
+    echo "[pre-push] .env — a default or an .env fallback would point verification at the"
+    echo "[pre-push] production database. Set up the disposable verification cluster once"
+    echo "[pre-push] (ops/README.md), then load its env file into your shell:"
+    echo "[pre-push]"
+    echo "[pre-push]   set -a && . ~/.config/eanhl/verify.env && set +a"
+    echo "[pre-push]"
+    echo "[pre-push] To push without verifying:  git push --no-verify"
+  } >&2
+  exit 1
 fi
 
 echo "[pre-push] running scripts/verify-ocr.sh (advisory; bypass with: git push --no-verify)" >&2

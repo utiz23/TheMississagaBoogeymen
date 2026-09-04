@@ -177,7 +177,24 @@ def _psql_query(sql: str) -> str:
     """Run a one-shot psql query inside the local Postgres container and
     return raw stdout (caller parses). Avoids adding a Python PG driver
     dep just for one lookup. Container name + creds are fixed per the
-    repo's docker-compose service."""
+    repo's docker-compose service.
+
+    ⚠️  THE CONTAINER AND DATABASE ARE HARD-CODED. This function ignores
+    ``DATABASE_URL`` entirely, so it ALWAYS reads the application/production
+    cluster regardless of what connection the surrounding process was pointed
+    at. That is acceptable for the batch-planning reads in
+    :mod:`video_ingest.batch_ingest` (which are production planning queries by
+    design and never run under the verification harness), and it is the ONLY
+    remaining caller.
+
+    The reprocess flow must NEVER use it. Every reprocess DB access — the
+    source-video lookup included — goes through
+    :func:`_run_decoder_runs_cli`, whose child inherits ``DATABASE_URL`` and
+    therefore lands on the same database as every write in the flow (the
+    disposable clone under ``apps/worker/scripts/with-test-db.mjs``). Mixing
+    the two is exactly the bug ``_recorded_video_shas`` was introduced to fix:
+    the video lookup read production while create-candidate wrote the clone.
+    """
     cmd = [
         "docker", "exec", "eanhl-team-website-db-1",
         "psql", "-U", "eanhl", "-d", "eanhl",
@@ -192,6 +209,33 @@ def _psql_query(sql: str) -> str:
             f"  stderr: {res.stderr.strip()}"
         )
     return res.stdout.strip()
+
+
+def _recorded_video_shas(match_id: int) -> list[str]:
+    """The distinct source-video sha256s recorded for ``match_id``, newest
+    capture batch first.
+
+    Reads through ``decoder-runs source-videos`` — a narrow, read-only worker
+    subcommand over ``ocr_capture_batches`` — rather than a ``docker exec
+    psql``. This is the whole point: ``@eanhl/db`` resolves its connection from
+    ``DATABASE_URL``, so this lookup is bound to the SAME database as every
+    write the reprocess flow performs afterwards (create-candidate, ingest,
+    repromote, validate, activate). Under the verification harness that is the
+    disposable clone; in normal operation it is the application database. There
+    is no path by which the two can diverge.
+
+    Ordering is newest-first, which is what the single-video resolver's old
+    ``ORDER BY id DESC LIMIT 1`` meant; the multi-video resolver re-sorts by
+    path and does not depend on it.
+    """
+    payload = _run_decoder_runs_cli("source-videos", "--match-id", str(int(match_id)))
+    raw = payload.get("video_sha256")
+    if not isinstance(raw, list):
+        raise RuntimeError(
+            f"decoder-runs source-videos returned no video_sha256 list for match "
+            f"{match_id}: {payload!r}"
+        )
+    return [s.strip() for s in raw if isinstance(s, str) and s.strip()]
 
 
 # Source-video containers. The main per-match recording is a ``.mkv``; a
@@ -253,11 +297,7 @@ def _resolve_video_paths(match_id: int) -> list[tuple[Path, str]]:
     at least one must resolve. Returns ``(path, sha)`` sorted by path so the
     first element is a stable "primary" (its sha tags the candidate run).
     """
-    rows = _psql_query(
-        f"SELECT DISTINCT video_sha256 FROM ocr_capture_batches "
-        f"WHERE match_id = {int(match_id)} AND video_sha256 IS NOT NULL"
-    )
-    recorded = [s.strip() for s in rows.splitlines() if s.strip()]
+    recorded = _recorded_video_shas(match_id)
     if not recorded:
         raise RuntimeError(
             f"no video_sha256 recorded for match {match_id} in "
@@ -299,11 +339,8 @@ def _resolve_video_path(match_id: int) -> tuple[Path, str]:
     that assume exactly one source. Multi-video matches use
     ``_resolve_video_paths``. Shares the landmine-protected dir resolution.
     """
-    sha = _psql_query(
-        f"SELECT video_sha256 FROM ocr_capture_batches "
-        f"WHERE match_id = {int(match_id)} AND video_sha256 IS NOT NULL "
-        f"ORDER BY id DESC LIMIT 1"
-    )
+    recorded = _recorded_video_shas(match_id)
+    sha = recorded[0] if recorded else ""
     if not sha:
         raise RuntimeError(
             f"no video_sha256 recorded for match {match_id} in "

@@ -14,6 +14,19 @@
  *     so the Python orchestrator can capture the new run id with a simple
  *     `JSON.parse`.
  *
+ *   source-videos     --match-id N
+ *     READ-ONLY provenance lookup: the DISTINCT non-null
+ *     `ocr_capture_batches.video_sha256` recorded for the match, ordered
+ *     newest-capture-batch first. Prints
+ *     `{"match_id": N, "video_sha256": ["<hex>", ...]}` on stdout.
+ *     Exists so the Python `video_ingest reprocess` orchestrator resolves its
+ *     source videos through the SAME database connection as every write in the
+ *     flow — `@eanhl/db` reads DATABASE_URL at import time, so under the
+ *     verification harness (apps/worker/scripts/with-test-db.mjs) this lands on
+ *     the disposable clone, not on whatever container a hard-coded
+ *     `docker exec` would have addressed. It is a fixed, typed query over one
+ *     table: NOT an arbitrary-SQL escape hatch.
+ *
  *   validate          --run-id N [--min-loadout K] [--min-lobby K]
  *     Runs `validateCandidateRun(N)` and prints its full result as JSON
  *     on stdout. Exit 0 when ok=true; exit 2 when ok=false (fail-soft
@@ -70,13 +83,13 @@
  *   2 — `validate` returned ok=false (fail-soft), OR `activate` was blocked by
  *       the structural pre-check / quality gate and rolled back (no --force)
  */
-import { db, sql as sqlTag, ocrDecoderRuns } from '@eanhl/db'
+import { db, sql as sqlTag, ocrCaptureBatches, ocrDecoderRuns } from '@eanhl/db'
 import {
   getMatchById,
   backfillRunLinkageForMatch,
   findMatchesNeedingRunLinkage,
 } from '@eanhl/db/queries'
-import { and, desc, eq, sql } from 'drizzle-orm'
+import { and, desc, eq, isNotNull, sql } from 'drizzle-orm'
 
 import { rebuildCanonicalsFromActiveRun } from './lib/rebuild-canonicals-from-active-run.js'
 import { validateCandidateRun } from './lib/validate-candidate-run.js'
@@ -138,6 +151,50 @@ async function createCandidate(argv: string[]): Promise<void> {
   }
 
   process.stdout.write(JSON.stringify({ run_id: row.id, is_active: row.isActive }) + '\n')
+}
+
+/**
+ * READ-ONLY: the distinct source-video sha256s recorded for a match.
+ *
+ * The Python reprocess orchestrator used to read this with a hard-coded
+ * `docker exec eanhl-team-website-db-1 psql -U eanhl -d eanhl ...`, which
+ * addressed the PRODUCTION container no matter what DATABASE_URL the caller had
+ * injected — so under the verification harness the video lookup read production
+ * while every subsequent write went to the disposable clone. Routing the lookup
+ * through this subcommand fixes that by construction: `@eanhl/db` resolves its
+ * connection from DATABASE_URL, so the read and the writes are the same
+ * database, always.
+ *
+ * Deliberately NOT a general query runner. It takes one integer, hits one
+ * table, and returns one column.
+ *
+ * Ordering is newest-capture-batch first (`max(id)` descending) so a caller
+ * that wants only the latest recorded source can take element 0 — this
+ * reproduces the previous `ORDER BY id DESC LIMIT 1` single-video semantics
+ * without a second round trip.
+ */
+async function sourceVideos(argv: string[]): Promise<void> {
+  const matchIdRaw = getFlag(argv, 'match-id')
+  if (!matchIdRaw) {
+    throw new Error('source-videos requires --match-id <positive integer>')
+  }
+  const matchId = Number(matchIdRaw)
+  if (!Number.isFinite(matchId) || !Number.isInteger(matchId) || matchId <= 0) {
+    throw new Error(`source-videos requires --match-id <positive integer>; got: ${matchIdRaw}`)
+  }
+
+  const rows = await db
+    .select({ videoSha256: ocrCaptureBatches.videoSha256 })
+    .from(ocrCaptureBatches)
+    .where(and(eq(ocrCaptureBatches.matchId, matchId), isNotNull(ocrCaptureBatches.videoSha256)))
+    .groupBy(ocrCaptureBatches.videoSha256)
+    .orderBy(desc(sql`max(${ocrCaptureBatches.id})`))
+
+  const shas = rows
+    .map((r) => r.videoSha256)
+    .filter((s): s is string => typeof s === 'string' && s.trim() !== '')
+
+  process.stdout.write(JSON.stringify({ match_id: matchId, video_sha256: shas }) + '\n')
 }
 
 /**
@@ -629,6 +686,9 @@ async function main(): Promise<void> {
     case 'backfill-run-linkage':
       await backfillRunLinkage(rest)
       break
+    case 'source-videos':
+      await sourceVideos(rest)
+      break
     case 'validate':
       await validate(rest)
       break
@@ -643,16 +703,45 @@ async function main(): Promise<void> {
       break
     default:
       throw new Error(
-        `unknown subcommand: ${subcommand ?? '(none)'}; expected create-candidate | backfill-run-linkage | validate | validate-consolidated | activate | undo`,
+        `unknown subcommand: ${subcommand ?? '(none)'}; expected create-candidate | backfill-run-linkage | source-videos | validate | validate-consolidated | activate | undo`,
       )
   }
+}
+
+/**
+ * Render an error for stderr, INCLUDING its cause.
+ *
+ * Drizzle wraps a driver failure in a `DrizzleQueryError` whose `message` is
+ * only `Failed query: <sql>\nparams: ...`; the reason lives on `.cause` as a
+ * `PostgresError`. Printing `err.message` alone therefore reported a
+ * provenance collision as an unexplained failed INSERT — the operator (and the
+ * Python orchestrator, which surfaces this text verbatim) could not tell
+ * `ocr_decoder_runs_provenance_uniq` from a schema or connection fault.
+ *
+ * Only the driver's own diagnostic fields are appended (message, SQLSTATE,
+ * constraint, detail). None of them carry the DSN, host, user or password, so
+ * this stays safe to print in verification logs.
+ */
+function formatCliError(err: unknown): string {
+  if (!(err instanceof Error)) return typeof err === 'string' ? err : String(err)
+  const lines = [err.message || err.name]
+  const cause = err.cause as
+    | (Error & { code?: string; constraint_name?: string; detail?: string })
+    | undefined
+  if (cause instanceof Error) {
+    const parts = [cause.message]
+    if (cause.code) parts.push(`(SQLSTATE ${cause.code})`)
+    if (cause.constraint_name) parts.push(`constraint=${cause.constraint_name}`)
+    lines.push(`caused by: ${parts.join(' ')}`)
+    if (cause.detail) lines.push(`detail: ${cause.detail}`)
+  }
+  return lines.join('\n')
 }
 
 main()
   .then(() => process.exit(0))
   .catch((err: unknown) => {
-    const msg = err instanceof Error ? err.message : typeof err === 'string' ? err : String(err)
-    console.error(msg)
+    console.error(formatCliError(err))
     process.exit(1)
   })
   .finally(() => {

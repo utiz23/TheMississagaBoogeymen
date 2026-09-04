@@ -1,0 +1,53 @@
+# Disposable VERIFICATION cluster — never the application database.
+#
+# The verification harness (apps/worker/scripts/with-test-db.mjs) clones a
+# database and then runs suites that WRITE. It refuses to touch any container
+# that does not carry the labels below, and refuses any source/clone database
+# outside the approved `eanhl_{test,dev,ci,scratch}` namespace. That makes the
+# production stack in docker-compose.yml structurally ineligible as a target.
+#
+# ALWAYS pass --env-file explicitly. Without it, `docker compose` implicitly
+# reads the repo-root `.env` — the APPLICATION env file — to interpolate the
+# variables below. Naming the verification env file keeps the application `.env`
+# out of this workflow entirely:
+#
+#   docker compose --env-file "$HOME/.config/eanhl/verify.env" \
+#     -f docker-compose.test.yml up -d
+#
+# Same explicit form for every other verification-cluster command
+# (`config`, `down`, `ps`, `logs`).
+#
+# Then seed it once from a dump (see ops/README.md, "Seeding the verification
+# database"). It is NOT seeded automatically, and it must never be pointed at
+# the production volume.
+#
+# Its published port is deliberately different from the application's (5433) so
+# a stale shell variable cannot cross the two.
+name: eanhl-verify-test
+
+services:
+  db-test:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    labels:
+      # REQUIRED. The harness will not issue CREATE/DROP DATABASE against a
+      # container that does not carry this label with the value "true".
+      eanhl.nonproduction: 'true'
+    environment:
+      POSTGRES_USER: ${TEST_DB_USER:-eanhl_test}
+      POSTGRES_PASSWORD: ${TEST_DB_PASSWORD:?set TEST_DB_PASSWORD in the verification env file, not in .env}
+      # Must be inside the approved verification namespace.
+      POSTGRES_DB: eanhl_test
+    volumes:
+      - verify_postgres_data:/var/lib/postgresql/data
+    ports:
+      # Loopback only, and on a port distinct from the application's 5433.
+      - '127.0.0.1:${TEST_DB_HOST_PORT:-5434}:5432'
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${TEST_DB_USER:-eanhl_test} -d eanhl_test']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  verify_postgres_data:

@@ -59,6 +59,9 @@ pnpm --filter worker run-quality --match-id N --json      # Convenience: resolve
 pnpm --filter worker run-quality --all-runs --emit-row    # Backfill content-only reports for every run
 docker compose up         # Start all services (web + worker + postgres)
 docker compose up db      # Start only PostgreSQL
+pnpm --filter worker test:safety   # Verification-DB isolation suite (no Docker/DB needed)
+pnpm verify:ocr                    # Full OCR verification harness (needs the verify env file)
+docker compose --env-file "$HOME/.config/eanhl/verify.env" -f docker-compose.test.yml up -d   # Disposable VERIFICATION cluster
 ```
 
 ### After modifying `packages/db/src/`
@@ -87,6 +90,29 @@ Worker CLI commands (`reprocess`, `ingest-now`) need `DATABASE_URL` from `.env`:
 set -a && source .env && set +a
 pnpm --filter worker reprocess --all
 ```
+
+### Loading env for VERIFICATION (never `.env`)
+
+Verification runs suites that write. It must never receive the application
+`DATABASE_URL`. Nothing in the verification path reads `.env`, and there are no
+defaults — a missing variable fails closed rather than selecting production.
+
+```bash
+set -a && . ~/.config/eanhl/verify.env && set +a   # NOT .env
+pnpm verify:ocr
+```
+
+Every verification-cluster `docker compose` command must pass
+`--env-file "$HOME/.config/eanhl/verify.env"`. Without it Compose implicitly
+reads the repo-root application `.env`.
+
+`~/.config/eanhl/verify.env` (mode 600, operator-created, template at
+`ops/verify.env.example`) supplies `TEST_DATABASE_URL`, `TEST_DB_CONTAINER`,
+`TEST_DB_COMPOSE_PROJECT` and `TEST_DB_COMPOSE_SERVICE`. Setup, seeding, the
+approved database namespace, and the attestation contract are in `ops/README.md`;
+the enforcement lives in `apps/worker/scripts/lib/test-db-guard.mjs`. The
+pre-push hook blocks (it does not skip) when that configuration is absent; bypass
+with `git push --no-verify`.
 
 ### Querying the live database
 
