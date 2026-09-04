@@ -2,7 +2,11 @@
  * Aggregate recomputation.
  *
  * Recomputes player_game_title_stats and club_game_title_stats for a given
- * game title using INSERT ... ON CONFLICT UPDATE from GROUP BY queries.
+ * game title using INSERT ... ON CONFLICT UPDATE from aggregate queries.
+ * player_game_title_stats groups by player_id; club_game_title_stats has no
+ * GROUP BY (one row per game title/mode), so it relies on HAVING COUNT(*) > 0
+ * to avoid emitting a row of NULL sums when the dimension has zero matches —
+ * see recomputeClubStats.
  *
  * Called after each ingestion cycle. Safe to call multiple times (idempotent).
  *
@@ -25,8 +29,9 @@ import { sql } from 'drizzle-orm'
  *   - '6s' game_mode  = 6v6 matches only (only if any exist)
  *   - '3s' game_mode  = 3v3 matches only (only if any exist)
  *
- * Per-mode queries with no matching matches return 0 rows from the SELECT,
- * so no fabricated empty rows are written.
+ * Per-mode queries with no matching matches return 0 rows from the SELECT
+ * (recomputePlayerStats via its GROUP BY, recomputeClubStats via its
+ * HAVING COUNT(*) > 0 guard), so no fabricated empty rows are written.
  */
 export async function recomputeAggregates(gameTitleId: number): Promise<void> {
   // All-modes combined row
@@ -221,6 +226,12 @@ async function recomputePlayerStats(gameTitleId: number, gameMode: GameMode | nu
   `)
 }
 
+// No GROUP BY: the main SELECT aggregates all of `matches` (filtered by
+// game_title_id/game_mode) into a single row. Over zero matching rows,
+// Postgres still returns exactly one row — COUNT(*) = 0, every SUM(...) NULL
+// — which would violate this table's NOT NULL aggregate columns. HAVING
+// COUNT(*) > 0 below drops that row so an empty dimension produces no INSERT
+// at all, matching recomputePlayerStats's GROUP-BY-driven behavior.
 async function recomputeClubStats(gameTitleId: number, gameMode: GameMode | null): Promise<void> {
   const modeFilter = gameMode !== null ? sql` AND m.game_mode = ${gameMode}` : sql``
   const modeFilterMatches = gameMode !== null ? sql` AND game_mode = ${gameMode}` : sql``
@@ -266,6 +277,7 @@ async function recomputeClubStats(gameTitleId: number, gameMode: GameMode | null
       (SELECT pass_pct FROM pass_agg)                                             AS pass_pct
     FROM matches
     WHERE game_title_id = ${gameTitleId}${modeFilterMatches}
+    HAVING COUNT(*) > 0
 
     ON CONFLICT (game_title_id, COALESCE(game_mode, '')) DO UPDATE SET
       game_mode      = EXCLUDED.game_mode,
