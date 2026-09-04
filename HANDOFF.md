@@ -92,12 +92,16 @@ No new feature work belongs in this gate.
 - [ ] Draft the data-collection policy, explicitly covering gamertags, player
       statistics, accounts, server/IP logs, analytics, cookies, retention, and
       third-party processors actually used.
-- [ ] Define a data correction/deletion request and webmaster contact process.
+- [x] Define a data correction/deletion request and webmaster contact process.
+      **Decided 2026-09-03:** requests go to
+      `webmaster@boogeymen.app`; acknowledge within 7 days and resolve or
+      provide a substantive response within 30 days. See the "LAUNCH POLICY +
+      DOMAIN MAIL" Active State entry.
 - [ ] Draft an EA/NHL non-affiliation and third-party asset/data attribution
       notice appropriate to the final hosting posture.
-- [ ] Decide whether analytics are needed. Prefer no analytics or a
-      privacy-conscious implementation; add consent only when the selected
-      nonessential tracking actually requires it.
+- [x] Decide whether analytics are needed. **Decided 2026-09-03:** no analytics
+      or advertising at launch and no nonessential tracking/cookies. A consent
+      banner is therefore not planned unless the implementation changes.
 
 #### NHL 27 readiness
 
@@ -205,8 +209,10 @@ No new feature work belongs in this gate.
 - [ ] Enable uptime and application-error monitoring with a tested notification
       destination.
 - [ ] Run a broken-link and missing-asset scan.
-- [ ] Configure a working domain-based webmaster address such as
-      `webmaster@<production-domain>`.
+- [x] Configure a working domain-based webmaster address such as
+      `webmaster@<production-domain>`. `webmaster@boogeymen.app` was proven in
+      both sending and receiving directions on 2026-09-03; see the "LAUNCH
+      POLICY + DOMAIN MAIL" Active State entry.
 
 #### NHL 27 and core-product release gate
 
@@ -251,6 +257,77 @@ blocked non-goal stays documented and blocked; it is not silently promoted into
 launch scope and it is not allowed to hold the terminal gate hostage.
 
 ## Active State
+
+### 🟢 LAUNCH POLICY + DOMAIN MAIL DECIDED AND WORKING — Proton Mail on `boogeymen.app` (2026-09-03)
+
+Operator-approved launch-policy decisions and operator-run Proton/Cloudflare
+mail setup. This records decisions and mail evidence; it does **not** claim the
+privacy/legal pages, indexing controls, or other website changes have been
+implemented.
+
+**Working domain mail:**
+
+- `boogeymen.app` is verified as a Proton Mail custom domain under the
+  operator's Proton Unlimited account.
+- `webmaster@boogeymen.app`, `security@boogeymen.app`, and
+  `alerts@boogeymen.app` are enabled and deliver to the operator's Proton
+  inbox. Catch-all mail is disabled.
+- `webmaster@boogeymen.app` was functionally tested in both directions with an
+  external mailbox. The operator subsequently confirmed that `security@` and
+  `alerts@` work as well.
+- Public DNS was independently checked without exposing record contents: two
+  Proton MX records, one SPF record, three DKIM CNAMEs, and one DMARC record
+  were visible. DMARC uses the Proton-recommended quarantine posture.
+- Proton, not Cloudflare Email Routing, handles sending and receiving.
+  Cloudflare remains the registrar/DNS provider. This mail work did not start
+  the Cloudflare Tunnel; the website remains offline publicly.
+- The Proton account holding both mail and the Hotel-Echo break-glass-key
+  escrow is operator-attested as protected with a unique password, MFA, and
+  recovery measures. No credential, recovery code, private key, or DNS
+  verification value is stored in this repository.
+
+**Approved launch policy:**
+
+- The launch site is fully public and read-only, with the account system
+  disabled. It has no analytics or advertising and uses no nonessential
+  cookies/tracking; a consent banner is not planned unless that changes.
+- Normal public content may be indexed. APIs, diagnostics, previews, error
+  routes, and dormant/private/auth/admin surfaces must not be indexed. The
+  route-by-route inventory and `robots.txt`/sitemap implementation remain open
+  roadmap work.
+- Published team data consists of gamertags, roster membership, match results,
+  statistics, and derived hockey metrics. Historical match/statistical data is
+  retained as the site's archive; raw source/OCR evidence is retained as
+  needed for accuracy, auditing, and corrections.
+- Ordinary access/security logs have a 30-day retention target unless an
+  active incident requires longer retention. The production log-rotation and
+  disk-exhaustion controls remain unimplemented and unchecked above.
+- Correction/deletion requests go to `webmaster@boogeymen.app`, with an
+  operator target to acknowledge within 7 days and resolve or provide a
+  substantive response within 30 days. There is no contact form at launch.
+- The site is an adult gaming-club site: no current member is under 18 and
+  there are no plans to admit or publish under-18 members. It does not
+  knowingly solicit information from children and has no age-verification
+  system because accounts and user submissions are disabled. Revisit this
+  posture before publishing anyone under 18.
+- The site is community-operated from Alberta, Canada. The main PC and
+  Hotel-Echo are physically in Alberta; most team members are in Massachusetts,
+  USA. Individual member locations are not published. The policies must
+  disclose cross-border handling through Cloudflare and Proton without
+  implying every member lives in Massachusetts.
+- The legal surface must state that the site is community-operated and is not
+  affiliated with or endorsed by Electronic Arts, EA Sports, the NHL, the
+  NHLPA, or their affiliates.
+- The planned recovery posture remains encrypted backups every six hours to
+  storage independent of the production DB host, followed later by an off-site
+  third copy. This is a policy decision only: backup automation and the restore
+  drill are still open and must not be marked complete.
+
+**Still open:** draft and publish the privacy/data-collection and
+non-affiliation/attribution pages; add the global footer links; implement the
+route-level indexing rules; verify the deployed site's actual cookies; document
+the domain renewal date and billing owner; and finish backup, monitoring,
+deployment, and public-launch gates.
 
 ### 🟢 HOTEL-ECHO HARDENED — network exposure, SSH, secrets; tunnel still offline (2026-09-03)
 
