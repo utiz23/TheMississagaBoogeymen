@@ -78,11 +78,21 @@ No new feature work belongs in this gate.
 - [x] Decide whether the production site is public, members-only, or mixed.
       **Decided 2026-09-03: fully public, no login gate.** See the "CONTAINED"
       Active State entry.
-- [ ] Confirm the database port and worker health endpoint will not be exposed
-      directly to the public internet. Published ports now bind to loopback by
-      default (`852c6d7`) and DEPLOY.md carries the verification procedure, but
-      the on-host/LAN/WAN checks have not been run on any host, so this stays
-      unchecked.
+- [x] Confirm the database port and worker health endpoint will not be exposed
+      directly to the public internet. Published ports bind to loopback by
+      default (`852c6d7`) and DEPLOY.md carries the verification procedure.
+      **Stage D PASS (2026-09-04):** host-side (loopback-only, no IPv6
+      listener, tunnel stopped), a genuine on-LAN probe, a genuine
+      off-network WAN probe (IPv4 and IPv6, phone hotspot vantage — all
+      timeouts, consistent with the loopback finding), the router's admin UI
+      (no port-forward rule, DMZ disabled, IPv6 firewall default-deny with no
+      exception), and a live read-only UPnP mapping query sourced from
+      Hotel-Echo's own LAN address (no mapping for any of this gate's ports;
+      one unrelated Tailscale mapping exists on a different port) all
+      converge on no exposure for the three required ports. See the
+      "STAGE D PASS" Active State entry for the full evidence, the scope of
+      each vantage, and one documented protocol-level limitation (no generic
+      IPv6 pinhole listing call exists).
 - [ ] Define secret storage, environment separation, deployment mechanism,
       staging strategy, and rollback ownership.
 
@@ -539,6 +549,313 @@ session as `86afbfe` ("feat(db): add guarded NHL 27 title seed"). The
 recorded sha256 above is unchanged and was reverified byte-identical against
 the committed blob before that commit was made.
 
+### 🟢 STAGE D PASS — host, LAN, external WAN, and router evidence all converge on no exposure (2026-09-04, updated)
+
+Read-only network verification session against Hotel-Echo, over Tailscale SSH
+(`utiz@100.98.29.119`, repo at `~/eanhl-team-website`), plus a genuine LAN
+vantage found via WSL interop on this session's own host. **Nothing was
+deployed, restarted, rebuilt, migrated, or rotated; no router/firewall
+setting was touched; the tunnel was not started.** The only repository
+change is this file. Scope was strictly the Gate 2 port-exposure checkbox —
+the on-host / LAN / WAN / router verification that Stage C explicitly left
+open.
+
+**Host identity — reconfirmed a second time this session, unchanged:**
+
+| item         | value                                                                                                                   |
+| ------------ | ----------------------------------------------------------------------------------------------------------------------- |
+| host `HEAD`  | `00742e4b5578b21ce205eda71ca2350808fe1147` (matches Stage C)                                                            |
+| working tree | clean                                                                                                                   |
+| LAN address  | `192.168.1.107` on `enp3s0` — still current                                                                             |
+| WAN IPv4     | `104.205.57.177` (via `curl -4 ifconfig.me`/`icanhazip.com` from the host)                                              |
+| Global IPv6  | `2001:56a:78c6:e00:96de:80ff:fe6c:e23a/64`, `scope global dynamic` on `enp3s0` — genuinely routable, not link-local/ULA |
+
+**Step 1 — host bindings (independent, completed, reconfirmed twice):**
+
+```
+ss -tlnp | grep -E ':(3000|3001|5433)\b'
+  127.0.0.1:5433   127.0.0.1:3001   127.0.0.1:3000     # no 0.0.0.0, no [::], no wildcard
+docker compose ps --format 'table {{.Service}}\t{{.Ports}}'
+  db      127.0.0.1:5433->5432/tcp
+  web     127.0.0.1:3000->3000/tcp
+  worker  127.0.0.1:3001->3001/tcp
+```
+
+All three published ports bind to IPv4 loopback only. `ss` shows no listener
+at all on the global IPv6 address for these ports. **This proves the host
+does not listen on IPv6 — it does not by itself prove the router's IPv6
+inbound policy is closed**, since IPv6 typically bypasses NAT; the router's
+IPv6 firewall posture is still separately required (see Step 5/6 below).
+
+**Tunnel — reconfirmed stopped, identical to Stage C:** no `cloudflared`
+container in any state (`docker ps -a`), no process (`pgrep -a` rc 1), no
+outbound `:7844`, `./secrets/` absent, `docker compose config --services` →
+`db`/`web`/`worker` only, `--profile public` additionally lists `cloudflared`
+(profile gate confirmed working, not engaged).
+
+**Step 2 — genuine LAN test: DONE, clean.** The prior session's blocker
+(Sierra-November's only visible interface being its 172.x WSL2 NAT address)
+was resolved, not accepted: WSL interop (`powershell.exe`/`ipconfig.exe`
+called directly from the WSL shell) reached Sierra-November's underlying
+**Windows host**, which has its own physical Ethernet adapter
+(`Ethernet 3`, `192.168.1.83/24`, gateway `192.168.1.254`) — genuinely on
+Hotel-Echo's `192.168.1.0/24` segment, confirmed with
+`Find-NetRoute -RemoteIPAddress 192.168.1.107` returning an on-link route via
+that adapter (`NextHop 0.0.0.0`, `InterfaceAlias Ethernet 3`), not through the
+WSL NAT gateway and not through the host's active ProtonVPN WireGuard tunnel
+(a separate `10.2.0.2` interface with its own default route at a much lower
+priority for this destination). The WSL 172.x address was a red herring, not
+proof of an invalid vantage — the physical host underneath it was on-LAN the
+whole time.
+
+Bounded TCP connect probes (3s timeout each, `System.Net.Sockets.TcpClient`,
+async connect/wait so a non-response can't hang) from that interface:
+
+| Timestamp (UTC)     | Source                                                    | Target        | Port | Family | Outcome                   |
+| ------------------- | --------------------------------------------------------- | ------------- | ---- | ------ | ------------------------- |
+| 2026-09-04 23:47:47 | Sierra-November physical LAN (192.168.1.83, `Ethernet 3`) | 192.168.1.107 | 3000 | IPv4   | timeout/filtered (3112ms) |
+| 2026-09-04 23:47:47 | same                                                      | 192.168.1.107 | 3001 | IPv4   | timeout/filtered (3001ms) |
+| 2026-09-04 23:47:47 | same                                                      | 192.168.1.107 | 5433 | IPv4   | timeout/filtered (3000ms) |
+
+All three timed out rather than refused — consistent with Docker's loopback
+binding (no listener reachable on the LAN interface at all, so nothing sends
+a RST) and with Step 1's independent host-side evidence. Timeout is recorded
+as timeout, not asserted as "refused" — a distinct outcome per this task's
+evidence rules; it does not by itself distinguish a filtered port from a
+silently-dropped one, but it matches the expected behavior for a loopback-only
+bind exactly, and corroborates Step 1 from an entirely independent host and
+interface.
+
+**Step 3-4 — WAN test (IPv4 and IPv6): DONE, genuinely off-network, both
+address families probed, all timeouts.** Sierra-November's Windows host was
+correctly excluded from this role (same-premises NAT hairpin/loopback, plus
+an active ProtonVPN tunnel that would have made any result ambiguous). The
+operator ran the requested commands from a MacBook tethered to an iPhone
+Personal Hotspot, Wi-Fi/VPN/Tailscale off on both devices, timestamps
+2026-09-05T00:10Z–00:13Z UTC (2026-09-04 evening, MDT local — the same
+calendar day as this Stage D session's host-side WAN/IPv6 address capture
+above; there is no staleness gap between when the addresses were read from
+the host and when they were probed from off-network).
+
+**Vantage confirmed genuinely external:** default route via `en0` →
+`172.20.10.1` (iPhone hotspot `/28`), no VPN/utun carrying the default
+route, ProtonVPN inactive. Source public addresses (3 independent echo
+services agreed): IPv4 `24.114.24.4` (Rogers Communications, wireless
+block), IPv6 `2605:8d80:5b40:ef1:43f:6970:8e5d:1799` (Rogers). Neither
+matches Hotel-Echo's `104.205.57.177` (TELUS) or IPv6 prefix (also TELUS) —
+confirmed off-net, not a loopback artifact.
+
+**Controls, both passed:** outbound IPv4 TCP works from the hotspot
+(`1.1.1.1:443` succeeded <1s — carrier does not block outbound); IPv6 is
+live end-to-end on the hotspot (external echo matched the interface's own
+global address, `nc -6 -z 2606:4700:4700::1111 443` succeeded <1s). The
+vantage point is sound for both families.
+
+**Probe results — all 7 timed out, zero refusals, zero unreachables:**
+
+| Target                                  | Port | Outcome                          |
+| --------------------------------------- | ---- | -------------------------------- |
+| `104.205.57.177` (IPv4)                 | 3000 | timed out (5s, and again at 12s) |
+| `104.205.57.177` (IPv4)                 | 3001 | timed out (5s)                   |
+| `104.205.57.177` (IPv4)                 | 5433 | timed out (5s)                   |
+| `2001:56a:78c6:e00:96de:80ff:fe6c:e23a` | 3000 | timed out (5s)                   |
+| `2001:56a:78c6:e00:96de:80ff:fe6c:e23a` | 3001 | timed out (5s)                   |
+| `2001:56a:78c6:e00:96de:80ff:fe6c:e23a` | 5433 | timed out (5s)                   |
+
+Supplementary controls on the IPv4 target: ports 22/80/443 also all timed
+out (5s each — no port on the host answered anything); ICMP echo 0/3
+received; ICMPv6 echo 0/3 received; IPv4 traceroute reached TELUS's backbone
+(~hop 11–13) then went silent to hop 15; IPv6 traceroute reached TELUS's v6
+backbone (hop 9) then likewise silent.
+
+**What this establishes and does not.** The vantage is valid and external,
+both IP families work outbound from it, and packets route correctly into
+TELUS's network on both — but every probe against both destination
+addresses, on every port tested including 22/80/443, came back as a silent
+timeout, never a refusal (RST) and never an unreachable. Per this task's
+evidence rules, a timeout is recorded as a timeout: it does not by itself
+distinguish a router DROP rule, a powered-off/non-listening host, or a
+stale address (WAN IP rotation or IPv6 `/64` re-delegation) from one
+another, and it is not treated here as proof of a down server, a stale
+address, or any specific filtering location. It is consistent with — and
+does not contradict — Step 1/2's independent host-side and LAN findings
+that nothing listens on any non-loopback interface for these ports.
+
+Address freshness itself is not in question: the WAN IPv4 and IPv6 values
+probed here are the same ones captured directly from the host earlier in
+this same Stage D session, on the same calendar day. There is no year-scale
+gap to account for.
+
+**Step 5 — router port-forward/DMZ/UPnP/IPv6-policy inspection: DONE.**
+Operator supplied read-only screenshots of the router admin UI (TELUS/
+Arcadyan gateway, `192.168.1.254`), plus this session independently queried
+the router's live UPnP IGD API for a live cross-check — see below.
+
+**Address match, confirmed from the router's own connected-devices table:**
+`hotel-echo` / `192.168.1.107` / MAC `94:DE:80:6C:E2:3A`, IPv6 GUA
+`2001:56a:78c6:e00:96de:80ff:fe6c:e23a` — identical to every address used in
+Steps 1-4 above (the IPv6 host portion `96de:80ff:fe6c:e23a` is the EUI-64
+form of that exact MAC). No ambiguity about which device was tested.
+
+**Admin UI findings:**
+
+| Check                 | Result                                                                                                                                                                                                             |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Port forwarding table | Empty — "No any Port-Forwarding Rule" (max limit 32, 0 used)                                                                                                                                                       |
+| DMZ                   | Disabled — `DMZ Function` unchecked, no client IP configured                                                                                                                                                       |
+| UPnP                  | **Service enabled** (`UPnP function` checked) — the admin page shows only the on/off toggle, not a live mapping list, so it cannot by itself confirm whether any mapping currently exists                          |
+| IPv6 firewall         | `Firewall features: High` — every listed service's `Traffic IN` box unchecked, **including `All Other Ports`**; only `Traffic OUT` is checked throughout — a default-deny inbound policy with no visible exception |
+
+**Live UPnP API cross-check (this session, read-only, no settings
+changed):** the admin UI's UPnP page only shows the feature toggle, not
+active mappings, so — per the operator's ask to try enumerating mappings
+read-only from the already-verified physical LAN vantage (Sierra-November's
+`Ethernet 3`, `192.168.1.83`, the same interface used for Step 2) — this
+session ran SSDP discovery (`M-SEARCH`) and queried the discovered IGD
+directly:
+
+- Router identifies itself as `Arcadyan`/`Telus` running `MiniUPnPd`
+  (`urn:schemas-upnp-org:device:InternetGatewayDevice:2`), UPnP control
+  endpoint `http://192.168.1.254:33073/`. The router's own `rootDesc.xml`
+  and the `WANIPCn.xml` SCPD were fetched and checked against the calls
+  below: service type `urn:schemas-upnp-org:service:WANIPConnection:2`,
+  control URL `/ctl/IPConn`, action name `GetGenericPortMappingEntry`, and
+  its `NewPortMappingIndex` input argument all match the router's
+  advertised contract exactly.
+- **Re-verified this session (2026-09-04), correcting a prior evidence
+  gap:** the earlier write-up described `GetGenericPortMappingEntry`
+  (read-only SOAP `POST` — not a `GET`; UPnP SOAP calls are always POSTs,
+  see the correction below) at index `0` as returning "HTTP 500, empty
+  body." That description was wrong. The original script did capture the
+  fault body correctly (via `GetResponseStream`), and re-running the same
+  call with a lower-level `HttpWebRequest` that logs the raw status line,
+  `Content-Length` header, and raw byte count shows the response is **410
+  bytes, not empty**: a well-formed SOAP `Fault` with UPnP `errorCode 713`
+  / `errorDescription SpecifiedArrayIndexInvalid`. That is the standard IGD
+  signal for "no entry at this index" — for a table queried from index 0
+  upward, a fault at index 0 means the table has zero entries — but it is
+  an inference from an error code, not a direct list, so it was
+  independently cross-checked with a second, non-fault-based call:
+  `GetListOfPortMappings` (also part of `WANIPConnection:2`, confirmed
+  present in the SCPD) was queried for the full port range (0-65535),
+  `Manage=1`, separately for `TCP` and for `UDP`, from the LAN vantage
+  (`192.168.1.83`, a machine other than Hotel-Echo). Both returned
+  `HTTP 200` with an explicitly empty `<p:PortMappingList>` element — a
+  direct listing from that vantage, not an error-code inference. **This
+  does not by itself establish unrestricted, router-wide visibility**:
+  `WANIPConnection:2` §2.5.21.3 permits the service to filter
+  `GetGenericPortMappingEntry`/`GetListOfPortMappings` results by
+  requesting client, `NewManage` does not override that access control,
+  and the absence of an ACL-scoped argument in the SCPD does not prove no
+  such filtering exists server-side — the SCPD documents argument shapes,
+  not the server's internal authorization logic. A same-session
+  `GetExternalIPAddress` call on the same service returned `HTTP 200` with
+  the expected WAN IPv4 (`104.205.57.177`, matching Step 4's
+  independently-captured address), confirming the service itself responds
+  normally to non-fault calls and the 500/713 result is specific to the
+  empty-table condition (from that vantage), not a broken transport or
+  malformed request.
+- **Hotel-Echo-origin mapping check (this session, 2026-09-04, read-only,
+  no settings changed) — the narrowly-scoped follow-up to the filtering
+  concern above.** The same enumeration was repeated a second time, now
+  sourced directly from Hotel-Echo itself over the existing Tailscale SSH
+  session, to see whatever the router is willing to show the exact device
+  in question rather than a different LAN host. Source route/address
+  confirmed with `ip route get 192.168.1.254` → `dev enp3s0 src
+  192.168.1.107` (Hotel-Echo's physical LAN interface, not `docker0`,
+  `br-*`, or `tailscale0`); `curl --interface enp3s0` was used for every
+  call to pin the same source. Same actions, same full port range:
+  - `GetGenericPortMappingEntry` index `0`: **`HTTP 200`** (not a fault
+    from this vantage) — `NewExternalPort 6272`, `NewProtocol UDP`,
+    `NewInternalPort 41641`, `NewInternalClient 192.168.1.107`,
+    `NewEnabled 1`, `NewPortMappingDescription tailscale-portmap`,
+    `NewLeaseDuration 7184`.
+  - `GetListOfPortMappings`, port range `0`-`65535`, `NewManage=1`, `TCP`:
+    `HTTP 200`, empty `<p:PortMappingList>` — no TCP mapping of any kind,
+    any port, visible from this vantage.
+  - `GetListOfPortMappings`, same range, `NewManage=1`, `UDP`: `HTTP 200`,
+    `<p:PortMappingList>` containing exactly the one entry above
+    (`6272`→`41641/UDP`, `tailscale-portmap`) and nothing else.
+  - `GetExternalIPAddress`: `HTTP 200`, `104.205.57.177` — same WAN
+    address as every other vantage this task has captured.
+
+  **This confirms the filtering concern was correct** — the router does
+  show Hotel-Echo a mapping (the one above) that a different LAN host's
+  query did not surface, so visibility is genuinely client-scoped here,
+  not merely SCPD-silent. **It also directly answers the question Gate 2
+  cares about**: across the full TCP and UDP port range, as seen from
+  Hotel-Echo's own vantage — the strictest and most relevant vantage
+  available for "is Hotel-Echo's traffic being forwarded" — the only
+  mapping that exists is UDP `6272`→`41641`, described by the router
+  itself as `tailscale-portmap`. That is Tailscale's own outbound
+  NAT-traversal mapping for the Tailscale client already running on this
+  host (the same client this SSH session runs over); it is not one of
+  this task's three ports (`3000`/`3001`/`5433`), is not attacker-created,
+  and its existence is expected background behavior of a Tailscale node
+  behind NAT, not a Gate 2 concern. No mapping exists for `3000`, `3001`,
+  or `5433`, TCP or UDP, from either vantage tested.
+- `GetFirewallStatus` (read-only) against `WANIPv6FirewallControl:1`
+  returned `FirewallEnabled=1`, `InboundPinholeAllowed=1`. These are
+  capability flags (the IPv6 firewall is on; the API is _permitted_ to
+  open inbound pinholes if asked), not a report of any pinhole actually
+  existing — the UPnP IGD spec has no generic "list all active pinholes"
+  call, only a `CheckPinholeWorking` lookup keyed by a pinhole's own
+  `UniqueID`, which is only known if one was created and recorded. This is
+  a protocol-level ceiling, not a skipped check: the value here is
+  corroborating the admin UI's independent finding (default-deny, no
+  configured exception) from a second, live data source, not proving the
+  negative of "zero pinholes have ever been opened."
+- No mapping or pinhole was added, deleted, or modified; no router setting
+  was changed; nothing was installed — every call used was a read-only
+  UPnP SOAP `POST` (`Invoke-WebRequest`/`HttpWebRequest`/`UdpClient` already
+  available on the Windows host); none of them are `GET` requests, and
+  none write state.
+
+**Verdict: Stage D is PASS, scoped to Hotel-Echo's three required-exposure
+ports (`3000`/`3001`/`5433`, TCP, IPv4 and IPv6).** Every independent
+method this task's evidence rules called for — host-side bindings
+(loopback-only, no IPv6 listener), a genuine on-LAN probe, a genuine
+off-network WAN probe on both IPv4 and IPv6, the router's static
+configuration (no port-forward, no DMZ), and a live UPnP mapping query
+sourced from Hotel-Echo's own LAN address (the vantage the router actually
+grants visibility to, per the filtering finding above) across the full TCP
+and UDP port range — converge on the same answer: nothing forwards or
+exposes ports `3000`, `3001`, or `5433` from the public internet to
+Hotel-Echo, on either IP family. This is **not** a router-wide
+zero-mapping claim — one UPnP mapping exists (Tailscale's own, on an
+unrelated port, see above) — and it is scoped to the ports this gate
+requires; it says nothing about any other port on the router. The Gate 2
+port-exposure checkbox for Hotel-Echo can now be checked off on that
+scope.
+
+**One residual, non-blocking limitation, recorded for completeness:** the
+UPnP protocol itself has no call that enumerates _all_ active IPv6
+pinholes by listing — only `GetFirewallStatus`'s aggregate flags and a
+per-`UniqueID` lookup exist. If a pinhole were ever opened by some other
+device/app on the LAN without this session's knowledge of its `UniqueID`,
+neither the admin UI nor this API walk would surface it. The admin UI's
+`IPv6 firewall: High, all Traffic IN unchecked including All Other Ports`
+is the operator-facing control for this and shows no configured exception;
+that, plus the Hotel-Echo-origin IPv4 UPnP result above (the one mapping
+that exists is accounted for and is not one of this gate's ports), is the
+strongest evidence obtainable read-only and is treated here as sufficient
+for PASS on this gate's scope.
+
+**Step 6 — IPv6 applicability: APPLICABLE, closed on every leg tested** (see
+the router IPv6 firewall finding below — `High`, default-deny inbound, no
+exception — which is what actually closes this; host-side silence and
+external-probe timeouts on their own do not, since IPv6 typically bypasses
+NAT). Hotel-Echo has a genuinely globally-routable IPv6 address
+(`2001:56a:...`, SLAAC, `scope global`) on its LAN interface — reconfirmed
+this session via `ip -6 addr show enp3s0` and `curl -6 icanhazip.com`
+returning that exact address, unchanged from the prior session. `ss` shows
+no service listening on that address for any of the three ports, and
+Step 3-4's external IPv6 probe against that same address timed out on all
+three ports with a working IPv6 vantage.
+
+**Step 7 — tunnel remains stopped: reconfirmed** again this session via
+SSH, identical to every prior check.
+
 ### 🟢 LAUNCH POLICY + DOMAIN MAIL DECIDED AND WORKING — Proton Mail on `boogeymen.app` (2026-09-03)
 
 Operator-approved launch-policy decisions and operator-run Proton/Cloudflare
@@ -653,11 +970,15 @@ entry below — this closes out several loose ends those left open.
 - Automated backups, a restore drill, deploying current source, applying the
   56-migration set against it, and the production-data migration are all
   still open. None of this closes the Gate 2 backup/recovery items.
-- **Gate 2's on-host/LAN/WAN port-exposure checkbox stays unchecked.** This
+- ~~**Gate 2's on-host/LAN/WAN port-exposure checkbox stays unchecked.** This
   entry confirms host-level loopback binding and firewall posture on
   Hotel-Echo; it is not the documented external `nc`/`curl` test from that
   checklist item (Next Session Stage D), and that external test has not been
-  run.
+  run.~~ **Stale, corrected 2026-09-06 — Stage D subsequently ran and PASSED
+  for Hotel-Echo (2026-09-04); see the "STAGE D PASS" Active State entry.**
+  The Gate 2 port-exposure checkbox is now checked, scoped to Hotel-Echo's
+  three required ports (`3000`/`3001`/`5433`). This does not claim every
+  service or every port was tested, and it says nothing about the main PC.
 
 **Unrelated, same day, same session:** `fix(worker): skip empty club aggregate
 rows` (`583c076`) fixes a `recomputeClubStats` NOT NULL violation (Postgres
@@ -763,7 +1084,12 @@ urgent:
 - **Public exposure** — security response headers, the indexing decision and
   `robots.txt` are all still open. Host port exposure is now loopback-only on
   the **main PC** (3000/3001/3002/5433, measured — see the entry below), but
-  Hotel-Echo is still unverified, so the Gate 2 checkbox stays unchecked.
+  ~~Hotel-Echo is still unverified, so the Gate 2 checkbox stays unchecked.~~
+  **Stale, corrected 2026-09-06 — Hotel-Echo was subsequently verified: Stage D
+  ran and PASSED (2026-09-04) for its three required ports (`3000`/`3001`/
+  `5433`); the Gate 2 checkbox is now checked on that scope. See the "STAGE D
+  PASS" Active State entry. The main-PC port set above was not part of Stage D
+  and remains as measured here.**
 - **Secret rotation** — now done; see the "ROTATION COMPLETE" entry below.
   It closed the exposed-credential problem and nothing else on this list.
 
@@ -898,9 +1224,13 @@ No wildcard, `0.0.0.0`, or IPv6-wide listener remains on any of the four.
 `http://127.0.0.1:3002` after the change.
 
 > This is the **main PC only**. It is not the Gate 2 port-exposure evidence:
-> that item asks for on-host / LAN / WAN verification on **Hotel-Echo**, which
+> that item asks for on-host / LAN / WAN verification on **Hotel-Echo**, ~~which
 > has not been done. Stage D below still stands, and the checkbox stays
-> unchecked.
+> unchecked.~~ **Stale, corrected 2026-09-06 — that verification has since been
+> done: Stage D ran and PASSED for Hotel-Echo (2026-09-04), scoped to its three
+> required ports. See the "STAGE D PASS" Active State entry. This does not
+> extend Stage D's scope to the main PC — the main-PC measurement above stands
+> on its own.**
 
 **2. The stale MCP processes from the rotation session are gone.** PIDs
 `547827`, `547860`, and `547861` — left running by that session — were confirmed
@@ -1052,12 +1382,23 @@ deliberately split:
   have since been pushed to `origin/main`; deployment is still outstanding.**
   Hotel-Echo still runs the vulnerable image; it is only safe because the
   tunnel is off.
-- **The tunnel stays offline** until the fixed image is deployed and the
-  external checks below pass.
-- **Port exposure is unverified on every host.** Loopback binding is now the
+- ~~**The tunnel stays offline** until the fixed image is deployed and the
+  external checks below pass.~~ **Stale, corrected 2026-09-06 — the fixed
+  image is deployed and Stage D's external checks have passed for Hotel-Echo
+  (2026-09-04; see the "STAGE D PASS" Active State entry). The tunnel
+  nevertheless remains offline: Stage E's prerequisites (MFA/recovery contact,
+  security response headers, indexing decision, privacy/legal drafts, backups
+  and a restore drill) are still incomplete, and reopening the tunnel requires
+  its own separate explicit authorization regardless of gate completion.**
+- ~~**Port exposure is unverified on every host.** Loopback binding is now the
   default in source, but no on-host / LAN / WAN check has been run anywhere, and
   Docker's published ports bypass host firewall rules — so nothing is proven yet.
-  The Gate 2 checkbox stays unchecked.
+  The Gate 2 checkbox stays unchecked.~~ **Stale, corrected 2026-09-06 — Stage D
+  subsequently ran and PASSED for Hotel-Echo (2026-09-04), scoped to its three
+  required ports (`3000`/`3001`/`5433`); the Gate 2 checkbox is now checked on
+  that scope. See the "STAGE D PASS" Active State entry. The main PC was not
+  covered by Stage D and remains as separately measured elsewhere in this
+  file.**
 - **MFA status and the recovery contact for the domain account are still
   undocumented.** Gate 2 asks for them explicitly; that checkbox stays unchecked.
 - Security response headers, `robots.txt`/indexing policy, backups, the
@@ -1136,11 +1477,19 @@ instance — see that entry's caveats, which are otherwise unchanged.
   undocumented.** The Gate 2 domain checklist item asks for these
   explicitly; only registrar, owner, and rough renewal cost are recorded
   here, so that checklist item stays unchecked pending that.
-- **No external port-scan was run** to positively confirm `db`/worker-health
+- ~~**No external port-scan was run** to positively confirm `db`/worker-health
   aren't reachable from the internet by some other path (e.g. a stray
   router port-forward on Hotel-Echo's network) — this session only
   confirmed the tunnel itself doesn't route to them. The Gate 2 "confirm
-  db/health ports not exposed" checkbox stays unchecked pending that.
+  db/health ports not exposed" checkbox stays unchecked pending that.~~
+  **Stale, corrected 2026-09-06 — that external verification has since been
+  run: Stage D PASSED for Hotel-Echo (2026-09-04), including a genuine
+  off-network WAN probe (IPv4 and IPv6) and a live router port-forward/DMZ/UPnP
+  check, and found no exposure of `3000`/`3001`/`5433` through the tested
+  host, LAN, WAN, static-forward, DMZ, and UPnP paths; no relevant router
+  forward was found. The Gate 2 "confirm db/health ports not exposed"
+  checkbox is now checked on that scope. See the "STAGE D PASS" Active State
+  entry.**
 - Backups, staging/rollback ownership, and secret-rotation process are
   untouched — separate Gate 2 items.
 - **Hotel-Echo is still not production.** No data migration has happened;
@@ -1840,10 +2189,15 @@ Durable traps, carried forward — these keep biting:
 ## Next Session
 
 **Current objective: the staged authorization sequence below. One stage per
-session.** Nothing in it has been authorized yet. Each stage is a separate
-decision — approving A does not approve B — and the order is load-bearing:
-exposure must be verified before anything is published. The old rationale ("the
-fix must be on the host before an admin account exists on it") no longer
+session.** **Stages A, B, C and D are all COMPLETE (D on 2026-09-04, PASS,
+scoped to Hotel-Echo's three required ports — see the "STAGE D PASS" Active
+State entry). The next session is Stage E — close the remaining gates, then
+separately authorize reopening the tunnel.** **Stage E is NOT authorized yet**
+and this correction does not authorize it: closing Stage E's checklist is not
+itself permission to reopen the tunnel, which remains its own separate
+authorization per Stage E's own text below. The order remains load-bearing:
+exposure must stay verified before anything is published. The old rationale
+("the fix must be on the host before an admin account exists on it") no longer
 applies — there is no admin account and no way to create one; see the
 "AUTHENTICATION DELIBERATELY DISABLED" entry at the top of Active State.
 
@@ -1929,10 +2283,26 @@ docker compose exec worker node dist/init-admin-cli.js ; echo "exit=$?"   # expe
 Record the results. If any page path returns 200, the deployed image predates
 `44aed29` — rebuild, do not "fix" it on the host.
 
-### D. On-host / LAN / WAN port-exposure verification
+### D. ✅ COMPLETE (2026-09-04) — On-host / LAN / WAN port-exposure verification
 
-Requires: C complete. Still tunnel-down, so this measures the host itself rather
-than the tunnel.
+**Done — see the "STAGE D PASS" Active State entry near the top of this file
+for the full evidence.** Host bindings, a genuine on-LAN probe, a genuine
+off-network WAN probe (IPv4 and IPv6), and the router's port-forward/DMZ/UPnP/
+IPv6-policy posture all converged on no exposure for Hotel-Echo's three
+required ports (`3000`/`3001`/`5433`). The Gate 2 port-exposure checkbox for
+Hotel-Echo is checked on that scope. This did not test every service or every
+port, and it did not test the main PC — see the "STAGE D PASS" entry for the
+documented limitations. The commands below are kept as the **retained
+historical procedure** that was followed, not as unfinished instructions for a
+future session.
+
+Required: C complete — **it was (2026-09-04)**. The procedure ran with the
+tunnel still down, so it measured the host itself rather than the tunnel.
+Stage C had already recorded the on-host half (`127.0.0.1:3000`,
+`127.0.0.1:3001`, `127.0.0.1:5433`, no wildcard listener); the LAN test, the
+WAN test, and the router check were the remaining checks, and their recorded
+results (see the "STAGE D PASS" Active State entry) closed the Gate 2
+checkbox.
 
 - On the host: `ss -tlnp | grep -E ':(3000|3001|5433)\s'` — expect `127.0.0.1`.
 - From another LAN machine: `nc -zv <host-lan-ip> 3000 3001 5433` — expect
@@ -1942,9 +2312,10 @@ than the tunnel.
   domain resolves to Cloudflare, so testing it proves nothing about this host.
 - Check the router for port-forwards and UPnP mappings to Hotel-Echo.
 
-Record the date and the results. That evidence is what closes the Gate 2
-"database port and worker health endpoint not exposed" item — until then it
-stays unchecked. Full procedure in DEPLOY.md, "Host port exposure".
+The date and results were recorded; that evidence is what closed the Gate 2
+"database port and worker health endpoint not exposed" item — ~~until then it
+stays unchecked~~ **done, 2026-09-04 — see the "STAGE D PASS" Active State
+entry.** Full procedure in DEPLOY.md, "Host port exposure".
 
 ### E. Close the remaining gates, then separately authorize reopening the tunnel
 
