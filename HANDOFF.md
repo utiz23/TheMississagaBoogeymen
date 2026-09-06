@@ -110,7 +110,18 @@ No new feature work belongs in this gate.
 - [ ] Capture and retain a small labeled NHL 27 benchmark.
 - [ ] Decide the NHL 26/27 dual-active and cutover rules: worker polling,
       `game_titles.is_active`, title resolution, URL behavior, and what the UI
-      calls "current" during overlap.
+      calls "current" during overlap. **Now live, not hypothetical, as of
+      2026-09-05:** NHL 27 ingestion was enabled on both hosts (see the "NHL 27
+      ENABLED" Active State entry) and — as a mechanical consequence of
+      `game_titles.is_active` being shared between the worker's poll filter and
+      the frontend's `listGameTitles()`/title-resolver default — NHL 27 is now
+      the *default* title on `/` and `/games` on any host with no `?title=`
+      param, on both databases, ahead of this decision actually being made.
+      This was not a frontend change made this session; it is the existing
+      shared `is_active` behavior reacting to the new row. Decide explicitly
+      whether that default is acceptable pre-cutover or needs a code-level fix
+      (e.g. ordering `listGameTitles()`/resolving the default by something
+      other than newest-active-id) before the September 14 gate.
 - [ ] Verify the planned NHL 26 -> NHL 27 career-stat stitching rules before
       production cutover.
 
@@ -336,6 +347,197 @@ table above states the same thing: opened once `O_NOFOLLOW`, payload bytes read
 only from the held descriptor, type and size from `fstat`, the path re-resolved
 after the open to re-prove containment by device+inode, and ancestor resolution
 still non-atomic. Wall-clock timings were removed as non-evidence.
+
+### 🟢 NHL 27 ENABLED — ingestion live on both hosts, NHL 26 preserved; site-default side effect flagged, not fixed (2026-09-05)
+
+Scoped ingestion session. Enabled NHL 27 match collection (club #1650, "The
+Boogeymen", platform `common-gen5`) on both the main host and Hotel-Echo by
+seeding a new `nhl27` `game_titles` row and activating it — no worker rebuild,
+no worker restart, no web deploy, no commit/push. `nhl26` was left completely
+untouched on both hosts (row and data).
+
+**Baseline recorded before any change:**
+
+| Host        | `nhl26` id | `nhl26` matches (gameType5/10/club_private) | notes                        |
+| ----------- | ---------- | -------------------------------------------- | ----------------------------- |
+| main        | 1          | 134 / 65 / 5 = 204 total, all `transform_status=success` | active, club 19224, launched 2025-10-01 |
+| Hotel-Echo  | 4          | 0 / 0 / 0                                     | active, club 19224, fresh DB per Stage B/C — no historical matches, as expected |
+
+Title numeric IDs already differed across hosts before this session (main's
+`nhl26`=1, Hotel-Echo's `nhl26`=4) — confirms the existing "resolve by slug,
+never by id" rule is load-bearing, not theoretical.
+
+**Raw capture preserved (durable, in-repo):**
+`research/ea-api/nhl27-club1650/matches-gametype5-2026-09-04.json`
+(sha256 `4bf8490f24f709166e9c4059b8c018869ec06be5dab3b6669cad5c582e864b2a`,
+50413 bytes; not committed during this session — subsequently committed at
+`86afbfe` ("feat(db): add guarded NHL 27 title seed"), see the checkpoint
+note below). Source:
+`https://proclubs.ea.com/api/nhl/clubs/matches?clubIds=1650&platform=common-gen5&matchType=gameType5`.
+Host `curl` got HTTP 403 (missing EA's required spoofed headers); re-fetched
+from inside the `worker` container using `packages/ea-client`'s existing
+header set — HTTP 200, byte-identical to the original `/tmp` capture handed
+off at session start, confirming EA's recent-match window still held the same
+4 matches at re-check time (2026-09-04 20:34 local, ~7 min after the original
+20:27 capture). No fixture/reprocess fallback was needed — normal polling
+picked up all 4 matches live (see below).
+
+**Configuration applied — new file, idempotent, guarded:**
+`packages/db/seed/game_titles_nhl27.sql` (not committed during this session
+— subsequently committed at `86afbfe`, see the checkpoint note below). A `DO`
+block that resolves purely by `slug='nhl27'`: inserts the row if absent
+(`ea_platform='common-gen5'`, `ea_club_id='1650'`,
+`api_base_url='https://proclubs.ea.com/api/nhl'`, `is_active=true`,
+`launched_at=NULL` — **no launch date invented**, matching the still-open Gate
+2 decision above); if a `nhl27` row already exists with matching
+club/platform/base-URL it activates it (no-op if already active); if one
+exists with a *different* club/platform/base-URL it `RAISE EXCEPTION`s instead
+of overwriting. Verified idempotent by re-running it immediately after first
+apply on both hosts (second run: no-op, no error). Applied via
+`docker exec -i eanhl-team-website-db-1 psql -U eanhl -d eanhl < packages/db/seed/game_titles_nhl27.sql`
+on main, and the same file copied over the existing Tailscale SSH session and
+applied identically on Hotel-Echo. Result: main `nhl27` id=7, Hotel-Echo
+`nhl27` id=5 — different ids, as expected; both `is_active=true`,
+`launched_at=NULL`.
+
+**No worker rebuild or restart on either host.** `ingest.ts` re-queries
+`WHERE is_active=true` every cycle with no caching, so the next scheduled poll
+(≤5 min later, `POLL_INTERVAL_MS` default) picked up `nhl27` automatically.
+Confirmed via `docker inspect`: both `worker` containers show
+`RestartCount=0` with `StartedAt` predating this session (main since
+2026-09-03T23:03Z, Hotel-Echo since 2026-09-04T23:17Z) — the containers were
+never touched.
+
+**Transform-path compatibility verified offline first, no DB writes:** replayed
+the built `transformMatch()` (from `apps/worker/dist/transform.js`, pure
+function, `DATABASE_URL` set to a deliberately non-resolving dummy value since
+the module's DB client import throws without one but never actually connects
+for a pure call) against all 4 captured payloads. All 4 transformed cleanly:
+
+| `ea_match_id` | opponent | result | score | `game_mode` (from `cNhlOnlineGameType`) |
+| --- | --- | --- | --- | --- |
+| 158709960284 | East West Beatdown (3034) | LOSS | 2-4 | `6s` (5) |
+| 160255970075 | Ottawa Blue Cats (8963) | LOSS | 2-4 | `6s` (5) |
+| 152899960345 | Baddest Mother Puckers (759) | LOSS | 0-6 | `3s` (200) |
+| 154709210467 | **"7641"** (club 7641) | WIN | 4-1 | `3s` (200) |
+
+Confirms the task's warning that game mode must not be inferred from the
+endpoint's `matchType` param — all 4 came from the same `gameType5` endpoint
+call, but split 2×`6s`/2×`3s` correctly via the existing
+`deriveGameMode(cNhlOnlineGameType)` logic, no code change needed.
+
+**Known, real data gap — not a defect, not fixed this session:** match
+`154709210467`'s opponent (club 7641) has `clubs["7641"].details = null` in
+the raw payload and no top-level `name` field either, so
+`transform.ts`'s existing fallback chain
+(`opponentDetails.name → opponentClub.name → opponentClubId`) resolves
+`opponent_name` to the literal string `"7641"` instead of a human club name.
+The transform does **not** crash (the `clubs` key itself is present, just its
+`details` is null) — this is a pre-existing, already-defensive code path
+doing exactly what it was written to do; NHL 27 just exercised it for the
+first time. No display fix was made (frontend work is out of scope this
+session). Also notable, not a defect: this same match's `result` code is
+`16385` ("WIN by opponent forfeit" per the code's own comment) with
+`winnerByDnf=1`, yet the score (4-1) is a genuine-looking scoreline — the
+existing `deriveResult()` correctly returns `WIN` either way (score-derived
+and code-derived agree here), so no discrepancy reached the DB.
+
+**Live ingestion, both hosts, first cycle after activation:**
+
+| Host | cycle start (UTC) | `gameType5` found/new/failed | `gameType10` | `club_private` |
+| --- | --- | --- | --- | --- |
+| Hotel-Echo | 02:37:15 | 4 / 4 / 0 | 0/0/0 | 0/0/0 |
+| main | 02:40:33 | 4 / 4 / 0 | 0/0/0 | 0/0/0 |
+
+`gameType10` and `club_private` returning empty on both hosts matches the
+task's own finding; not investigated further as it wasn't in scope. All 4
+`matches` rows landed on **both** hosts with the exact scores/opponents/results
+specified, `raw_match_payloads.transform_status='success'` for all 4 on both,
+zero `transform_error`. Per-match player counts (`player_match_stats` /
+`opponent_player_match_stats`) matched the offline pure-function replay
+exactly: 5/4, 5/3, 3/3, 3/2 across the 4 matches, both hosts. `club_game_title_stats`
+recomputed for `nhl27` in the same null/`3s`/`6s` shape as `nhl26`
+(1W-3L overall as of this snapshot) — no aggregate code needed changes.
+
+**Idempotency + live proof of ongoing polling, second cycle:** Hotel-Echo's
+next cycle (02:42:15) showed `gameType5` found=4/new=0/failed=0 — no
+duplicates. Main's next cycle (02:45:40) showed found=5/new=**1**/failed=0: a
+genuinely new 5th match, `172208220110` (3-2 WIN vs Milwaukee B33rs, club 389,
+played 2026-09-05 02:42:55), had appeared in EA's live window between the two
+polls and was ingested and transformed cleanly with no manual intervention —
+real end-to-end proof the polling pipeline works for NHL 27 going forward, not
+just for the 4 backfilled matches. Confirmed zero rows with a duplicate
+`(game_title_id, ea_match_id)` across `nhl26`+`nhl27` combined on main.
+
+**NHL 26 confirmed unchanged, both hosts, after all of the above:** main still
+exactly 204 matches (134/65/5 split unchanged); Hotel-Echo still 0 matches.
+The `nhl26` row itself (id, `ea_club_id=19224`, `is_active=true`,
+`launched_at=2025-10-01`) is byte-identical to the pre-session baseline on
+both hosts. `/health` on both hosts returns `{"status":"ok", ...}` throughout,
+`secondsSinceLastIngest` low, consistent with normal 5-minute polling — no
+stale/degraded state introduced.
+
+**Consequential side effect found, flagged, deliberately NOT fixed (out of
+scope — "do not silently expand into frontend work"):**
+`packages/db/src/queries/game-titles.ts`'s `listGameTitles()` returns all
+`is_active=true` titles ordered `desc(id)`, and both
+`apps/web/src/lib/title-resolver.ts` and the homepage/`games` page
+(`apps/web/src/app/page.tsx`, `apps/web/src/app/games/page.tsx`) fall back to
+`all[0]` as the default title whenever no `?title=` slug is present.
+`nhl27`'s id is higher than `nhl26`'s **on both hosts** (7 > 1 on main, 5 > 4
+on Hotel-Echo), so as of this change **NHL 27 is now the default title shown
+on `/` and `/games`** wherever no explicit `?title=nhl26` is passed, on both
+databases — a real, live, unrequested-this-session change to site defaults,
+purely mechanical from `is_active` being shared between the worker's poll
+filter and the frontend's default-resolution logic.
+`components/nav/game-title-switcher.tsx`'s doc-comment ("in practice only the
+one-title branch renders today") is now stale on both hosts too — the
+multi-title wrapping-pill branch will render instead. Practical exposure is
+low right now (Stage D confirmed loopback-only ports, no tunnel, on both
+hosts — see the "STAGE D PASS" entry below), but this is a genuine pre-cutover
+default change, not a hypothetical one, and it directly overlaps the still-open
+Gate 2 item above. **No frontend or query code was changed to address this** —
+flagging it is this session's whole obligation here; deciding/fixing it is
+explicitly out of scope ("Archiving NHL 26 and changing website defaults are
+separate work").
+
+**Rollback (stops NHL 27 polling and reverts the site default; deletes
+nothing):**
+
+```bash
+docker exec -i eanhl-team-website-db-1 psql -U eanhl -d eanhl \
+  -c "UPDATE game_titles SET is_active = false WHERE slug = 'nhl27';"
+```
+
+Run on either/both hosts as needed. This does not delete `matches`,
+`raw_match_payloads`, `player_match_stats`, `opponent_player_match_stats`, or
+`club_game_title_stats` rows already ingested for `nhl27` — they stay in place
+for later reactivation. The next worker cycle stops polling `nhl27`
+(`ingest.ts`'s `WHERE is_active=true` filter excludes it again), and
+`listGameTitles()` reverts to `nhl26`-only, restoring the pre-session default
+and the single-title switcher branch. The preserved raw capture under
+`research/ea-api/nhl27-club1650/` and the seed file
+`packages/db/seed/game_titles_nhl27.sql` are untouched by rollback.
+
+**Remaining limitations, reported honestly:** only 5 NHL 27 matches exist in
+either database as of this entry — a real backfill/compatibility gap, not
+closed by this session (a genuine "per-parser NHL 27 beta compatibility
+matrix" per the Gate 2 checklist above is still open — this session verified
+the *match/player/aggregate* transform path only, not OCR/game-sheet parsers,
+which never ran against NHL 27 footage). The opponent-name-as-clubId gap for
+matches against clubs with `details=null` is real and will recur for any
+future opponent EA doesn't return details for. Neither host's web app was
+redeployed or restarted this session; the default-title side effect above is
+already live on whatever `web` build is currently running on each host purely
+because it reads `game_titles` at request time.
+
+**Checkpoint note (2026-09-06):** the seed file and raw capture above were
+untracked for the duration of the original activation session (nothing was
+committed or pushed then — this remains historically accurate). They were
+subsequently committed, unmodified, in a separate narrowly-scoped checkpoint
+session as `86afbfe` ("feat(db): add guarded NHL 27 title seed"). The
+recorded sha256 above is unchanged and was reverified byte-identical against
+the committed blob before that commit was made.
 
 ### 🟢 LAUNCH POLICY + DOMAIN MAIL DECIDED AND WORKING — Proton Mail on `boogeymen.app` (2026-09-03)
 
