@@ -258,6 +258,85 @@ launch scope and it is not allowed to hold the terminal gate hostage.
 
 ## Active State
 
+### 🟡 BACKUP PRODUCER + DESTINATION ACCEPTANCE VERIFIED IN ISOLATION — NOT ACTIVATED, NOT DEPLOYED (2026-09-05)
+
+Source-only checkpoint for the Gate 2 backup work. Two components exist and are
+verified against real temporary filesystems: the **producer** (snapshot, dump,
+validate, encrypt, bounded staging, run lock) and the **destination acceptor**
+(the thing that decides, at the receiving end, whether an artifact that arrived
+is real). Nothing was installed, scheduled, deployed, or executed against
+production. **The Gate 2 backup and restore-drill items above stay unchecked.**
+
+**Four acceptance boundaries were found wrong in review and corrected.** All
+four shared one root cause: a fact established about a _path_, or about a
+_moment_, was later relied on as a fact about the _object actually used_.
+
+| Boundary                     | Corrected behaviour                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Descriptor-bound copying** | Each inbox source is opened once `O_NOFOLLOW`; all payload bytes are read only from the held descriptor, and type and size come from `fstat`. The path is deliberately re-resolved after the open to re-prove containment and to compare the resolved path's device+inode against the descriptor. `O_NOFOLLOW` atomically refuses a final-component symlink; ancestor resolution remains a documented non-atomic limitation bounded by deployment. |
+| **Per-role size ceilings**   | Enforced at `open`, by a running byte count _during_ the copy that stops before writing the breaching byte, and again on the finished work copy before any parse or hash. Previously read once from a pre-copy `lstat` and never re-checked, so a swapped-in larger triple was accepted.                                                                                                                                                           |
+| **Receipt before mutation**  | Any existing receipt is inspected _before_ the archive is touched. A receipt whose archive is missing or does not verify is `rejected_archive_damaged` regardless of how many archive files remain — it no longer publishes conflicting bytes first and objects afterwards.                                                                                                                                                                        |
+| **Capacity reservation**     | Work capacity reserves the sum of the **configured role ceilings** before any inbox byte is read (inbox `lstat` sizes bound nothing, since the source is mutable). Archive capacity reserves the **actual trusted work-copy bytes** immediately before publication.                                                                                                                                                                                |
+
+**Verification (this tree, independent run root `/tmp/eanhl-backup-suite-Qsirdh`):**
+
+- Acceptance suite **56/56**.
+- Complete backup suite **165/165** — `backup-config` 15, `backup-producer` 54,
+  `backup-boundaries` 9, `backup-acceptance` 56, `backup-lifecycle` 31.
+- The `Qsirdh` run was executed directly as `node ops/backup/run-suite.mjs`.
+  `pnpm test:backup-producer` is a script alias exposing that same command. No
+  network, no database, no Docker, no key material.
+
+The suite establishes what an operator would find on disk — which files exist,
+what the receipt says, which outcome came back, whether the archive changed,
+whether anything in the inbox was read. It establishes **nothing about a real
+deployment**.
+
+**Remaining filesystem and deployment assumptions — all unproven, because none
+of the deployment exists yet:**
+
+- The transport key can write **only** the inbox, and cannot write archive,
+  receipts, work or quarantine. Enforced here only as _configuration_ refusal;
+  the real uid/gid, mode and restricted `authorized_keys` entries are unverified.
+- The inbox's **parent** is not writable by the transport identity. This is what
+  makes the residual ancestor-symlink window small; Node exposes no
+  `openat`/`O_PATH`, so that window is closed by deployment, not by code.
+- `st_dev`/`st_ino` are stable and truthful on the destination volume (true on
+  ext4, unverified elsewhere). A filesystem reporting them inconsistently fails
+  loudly; one reporting them as constant zero fails silently.
+- Hard links inside the inbox to files elsewhere on the same device would pass
+  containment. Bounded by the transport-key restriction, not by this component.
+- The destination filesystem preserves the modes the acceptor sets (`0700`
+  dirs, `0600`/`0644` files); `rename()` atomicity is **not** assumed anywhere.
+- A single declared `capacity.backingVolume` describes the volume beneath both
+  `work.dir` and `archive.dir`; `receipts.dir` free space is not measured.
+- Producer side: `age` is still not installed on either host, no keypair exists,
+  and **no artifact has ever been decrypted**. Acceptance verifies integrity and
+  binding, not decryptability. Only the Phase 2 restore drill proves recovery.
+
+**NOT ACTIVATED, NOT DEPLOYED.** There is no transport, no timer, no systemd
+unit, no CLI entry point for the acceptor, no inbox on any host, and no artifact
+has ever been produced or accepted. Only the tests call the sweep. Also not
+started: producer-side receipt consumption, the freshness evaluator, alerting,
+pruning, the weekly re-hash sweep, and the restore-drill runner. No key-custody
+decision, production activation, recovery target or cutover is approved by this
+work.
+
+**Transport is deliberately out of scope and remains a later, separately scoped
+session.** Do not treat this checkpoint as authorization to start it.
+
+Detail: [`docs/operations/backup-producer.md`](docs/operations/backup-producer.md)
+and [`docs/operations/backup-acceptance.md`](docs/operations/backup-acceptance.md).
+Both documents are reconciled against the tree as it stands: the acceptance
+doc's §4.1/§4.2 counts read `56/56` and `165/165`, §4.1 attributes twelve tests
+to the two review correction passes (five descriptor/ceiling/receipt, seven
+capacity), §4.4 records the capacity pass as its own labelled correction, and
+the descriptor description in §2.2/§4.4, in `backup-acceptance.mjs` and in the
+table above states the same thing: opened once `O_NOFOLLOW`, payload bytes read
+only from the held descriptor, type and size from `fstat`, the path re-resolved
+after the open to re-prove containment by device+inode, and ancestor resolution
+still non-atomic. Wall-clock timings were removed as non-evidence.
+
 ### 🟢 LAUNCH POLICY + DOMAIN MAIL DECIDED AND WORKING — Proton Mail on `boogeymen.app` (2026-09-03)
 
 Operator-approved launch-policy decisions and operator-run Proton/Cloudflare
