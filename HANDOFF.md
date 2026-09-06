@@ -856,6 +856,128 @@ three ports with a working IPv6 vantage.
 **Step 7 — tunnel remains stopped: reconfirmed** again this session via
 SSH, identical to every prior check.
 
+### 🟢 STAGE C COMPLETE — the deployed disabled account surface is verified on Hotel-Echo (2026-09-04)
+
+Read-only verification session against the **running** Hotel-Echo deployment,
+over Tailscale SSH (`utiz@100.98.29.119`, repo at `~/eanhl-team-website`).
+**Nothing was deployed, rebuilt, restarted, migrated, or rotated. No account was
+created, no credential was changed, and the tunnel was not started. No direct
+database inspection was performed — no psql, no database tooling — though the
+four public-page requests below exercised their ordinary application-level
+database reads.** The only repository change is this file. This is the
+deployed-application behavioural proof that the "CONTAINED" entry below
+deferred to Stage C — the earlier evidence was all local builds and test
+doubles.
+
+**Deployment identity — confirmed against Stage B, full ids, not truncated:**
+
+| item              | value                                                                                            |
+| ----------------- | ------------------------------------------------------------------------------------------------ |
+| host `HEAD`       | `00742e4b5578b21ce205eda71ca2350808fe1147` (branch `main`)                                       |
+| host working tree | clean — `git status --porcelain` empty, checked before and after                                 |
+| `web` image       | `sha256:2cb63040ba797131cb6047d3bd3d08e41af379767b928e5386af596e6f035bba`                        |
+| `worker` image    | `sha256:1058d0515cf5958e21931264f36559202eb7ea557d3931bbf5181f2af4f90d30`                        |
+| `db` image        | `sha256:cf78e76683b9ca8c5733cbbdce6c9262b45b6767934dd0a95e671f9a0fc20685` (`postgres:16-alpine`) |
+
+Both application image ids match Stage B's recorded prefixes exactly. All three
+containers show `RestartCount` 0; `web`/`worker` started `2026-09-04T23:17:05Z`
+(the Stage B recreation), `db` started `2026-09-04T01:11:54Z` and was not
+recreated. Listeners: `127.0.0.1:3000`, `127.0.0.1:3001`, `127.0.0.1:5433` —
+no wildcard on any of the three.
+
+**Tunnel state — measured before the checks and again after them, identical
+both times:** no container named `cloudflared` and none from
+`ancestor=cloudflare/cloudflared` in **any** state (`docker ps -a`); no
+`cloudflared` process (`pgrep -a` → rc 1), no `cloudflared` systemd unit, no
+`cloudflared` binary on the host; zero outbound `:7844` connections;
+`./secrets/` still does not exist, so the `public` profile could not start even
+if invoked; `docker compose config --services` → `db`, `web`, `worker`.
+
+**HTTP results.** All against host loopback `http://127.0.0.1:3000`, status
+codes read directly (`-o /dev/null -w '%{http_code}'`), **no redirect
+following** (no `-L`), bounded (`--connect-timeout 5`, `--max-time 10` for the
+404 set, `20` for the page set).
+
+| Method | Path                      | Expected | Actual  |
+| ------ | ------------------------- | -------- | ------- |
+| GET    | `/login`                  | 404      | **404** |
+| GET    | `/login?token=test`       | 404      | **404** |
+| GET    | `/account`                | 404      | **404** |
+| GET    | `/me`                     | 404      | **404** |
+| GET    | `/admin`                  | 404      | **404** |
+| GET    | `/admin/accounts`         | 404      | **404** |
+| GET    | `/api/auth/session`       | 404      | **404** |
+| POST   | `/api/auth/sign-in/email` | 404      | **404** |
+| GET    | `/`                       | 200      | **200** |
+| GET    | `/games`                  | 200      | **200** |
+| GET    | `/roster`                 | 200      | **200** |
+| GET    | `/stats`                  | 200      | **200** |
+
+The POST carried `content-type: application/json` and the literal dummy body
+`{"email":"a@b.test","password":"password123"}`. None was created by it — the
+route has no module to reach, so it could not have written to the database
+regardless of prior contents. (That the database held no account beforehand is
+not this session's finding — Stage C performed no direct database inspection,
+per above — it is Stage B's provisioning observation: "Hotel-Echo's database is
+still the fresh, empty-history one from provisioning.")
+
+**The four 200s are real pages, not 404 bodies served with a 200.** This
+mattered specifically because of the known `loading.tsx` Suspense defect
+recorded further down, where `notFound()` from a page yields 200 + 404 content.
+A naive grep finds the string `404` twice in each of the four bodies, and both
+occurrences are **inside `<script>` tags** — they are Next.js's own default
+`notFound` template (`"404: This page could not be found."` and the `children:404`
+digit) serialised into the RSC flight payload, which every page of a healthy
+Next.js app carries. Stripping `<script>…</script>` leaves **zero** occurrences
+of `404` in the rendered HTML of `/games`. The rendered pages are correct and
+populated: `<title>` values `Club Stats`, `Scores — Club Stats`,
+`Roster — Club Stats`, `Stats — Club Stats`; `<h1>` values `Boogeymen`,
+`Scores`, `Roster`, `Stats`; body sizes 87,010 / 27,951 / 228,500 / 85,477 bytes.
+
+**The deployed `init-admin` CLI was inspected before it was executed.**
+`dist/init-admin-cli.js` inside the running `worker` container is 1,871 bytes,
+`sha256:24c0b4e44c9f0ce6e93d17143998fd0c5f6f9d06587181fceabf6aa0bb8cf857`. Its
+entire executable content is one `console.error(...)` followed by
+`process.exit(1)` and `export {}`. **It contains no `import` or `require` of any
+kind** — no `@eanhl/db`, no `better-auth`, no database client — and no
+account-creation logic, so executing it could not connect to, read, or write the
+production database. Only then was it run:
+
+```
+docker compose exec -T worker node dist/init-admin-cli.js
+EXIT_CODE=1        # captured from the command itself, before any echo or pipe
+stdout: (empty)
+stderr: [init-admin] refusing: the account system is disabled before launch.
+        Authentication is deferred until after launch, so there is no initial
+        admin to create and no page to sign in on. Nothing was read, connected
+        to, or written. Re-enabling requires a reviewed source change — see
+        apps/web/src/deferred/auth/README.md.
+```
+
+**Verdict: Stage C PASSES.** The image running on Hotel-Echo is the
+account-system-disabled build. Every required check returned its required value;
+none was waived, inferred, or substituted.
+
+**Still open — Stage C closed none of these:**
+
+- ~~**Stage D** — the on-host / LAN / WAN port-exposure test. The loopback-only
+  listeners recorded above are host-side evidence only; they are not the
+  external `nc`/`curl` test, and the Gate 2 port-exposure checkbox stays
+  unchecked until Stage D runs.~~ **Stale, corrected 2026-09-06 — Stage D
+  subsequently ran and PASSED for Hotel-Echo (2026-09-04), scoped to its three
+  required ports; the Gate 2 checkbox is now checked on that scope. See the
+  "STAGE D PASS" Active State entry.**
+- **Hotel-Echo's `.env` still contains a stale `TUNNEL_TOKEN` variable.**
+  Nothing reads it, but it is a live tunnel credential on disk. It must be
+  rotated in Cloudflare and removed from `.env` before, or as part of, any
+  reopening decision. Not read, printed, or modified in this session.
+- **The production data migration, automated backups, and the restore drill
+  remain open.** Hotel-Echo's database still holds no historical production
+  data.
+- **The main PC is unchanged and still older.** Its running `web` container
+  still serves the auth-enabled application. Nothing in this session touched it,
+  and Stage C's findings say nothing about it.
+
 ### 🟢 STAGE B COMPLETE — Hotel-Echo deployed to `00742e4`; tunnel still offline (2026-09-04)
 
 Authorized single-purpose deployment session. Hotel-Echo now runs the verified
@@ -1138,7 +1260,10 @@ signing in on the host, or issuing invites. Those steps no longer exist.
 
 > **⚠️ Source vs. deployed state — read this before citing this section as
 > "what the site does."** Everything below describes **committed source**,
-> pushed through `0b3a519`. **Nothing here has been deployed.** The main-PC
+> pushed through `0b3a519`. ~~**Nothing here has been deployed.**~~ **Corrected
+> 2026-09-04 — this remains undeployed on the main PC only; Hotel-Echo received
+> this build on 2026-09-04 (`00742e4`), with its deployed-surface verification
+> recorded in the Stage C material below.** The main-PC
 > `web` container still runs image `sha256:00a401fd31e3…` (see the "DEPLOYED —
 > website Workstreams A/B/C" entry further down) and still serves the older,
 > auth-enabled application — login page, Server Actions, and all. That
@@ -1148,8 +1273,14 @@ signing in on the host, or issuing invites. Those steps no longer exist.
 > here. ~~Hotel-Echo has likewise not received this build~~ — **Hotel-Echo
 > received this build on 2026-09-04 (`00742e4`); its tunnel remains offline per
 > the entry above, for the same reason it was taken offline originally.**
-> Deploying this source (main-PC and/or Hotel-Echo) is separate,
-> unauthorized-here work.
+> ~~The deployed surface has not yet been audited — that is Stage C.~~ **The
+> deployed surface HAS now been audited: Stage C passed on 2026-09-04 against
+> the running `00742e4` build — all seven account paths and the sign-in POST
+> answer 404, the four public pages answer 200 with real content, and the
+> deployed `init-admin` CLI is the import-free refusal shim, exiting 1. See the
+> "STAGE C COMPLETE" entry at the top of Active State. Deploying this source to
+> the main PC is still separate, unauthorized-here work, and the main PC still
+> runs the older, auth-enabled image.**
 
 **The decision.** Authentication is deferred until after launch. Once this
 source is deployed, the pre-launch site will be public and read-only, with no
@@ -1158,6 +1289,11 @@ functionality — not disabled by configuration, not hidden behind a flag, but
 absent from the source that becomes the running application on deploy. As of
 this writing the _actually running_ main-PC and Hotel-Echo instances still
 contain the account system described in the "CONTAINED" entry below.
+**Corrected 2026-09-04 — this is now true of the main PC only.** Hotel-Echo runs
+`00742e4`, and Stage C measured its deployed surface directly rather than
+inferring it from source: the account system is absent from the running
+Hotel-Echo instance. The main-PC `web` container is unchanged and still serves
+the older, auth-enabled application.
 
 **What the source does** (all measured against a local build run on a loopback
 port for verification purposes, `44aed29` — **not** the deployed main-PC
@@ -1491,10 +1627,15 @@ things. None of them touches a real database.
   `hasAccountUsers()` always answers false. The two suites now run in separate
   processes and this test enforces that.
 
-**The real-database behavioural proof is Stage C below**, not any of the above:
+**The deployed-host behavioural proof is Stage C below**, not any of the above:
 `curl -s localhost:3000/login` against the deployed response on the host, after
 the fix is deployed. Nothing in this repo's test suite can establish what a real
-empty production database renders.
+empty production database renders. **That proof has now been run — Stage C,
+2026-09-04, against Hotel-Echo's deployed `00742e4` build: `/login` returns
+**404** over host loopback, as do `/login?token=test`, `/account`, `/me`,
+`/admin`, `/admin/accounts`, `/api/auth/session` and the `POST
+/api/auth/sign-in/email`. See the "STAGE C COMPLETE" entry at the top of Active
+State.**
 
 **Historical — this split no longer exists.** `test:login-render` and the
 `login-page-render.test.ts` suite it ran were deleted when the account system
@@ -1511,10 +1652,13 @@ deliberately split:
 
 **Still open — none of this is done:**
 
-- **Nothing is deployed.** ~~Nothing is pushed.~~ **Superseded — these commits
-  have since been pushed to `origin/main`; deployment is still outstanding.**
-  Hotel-Echo still runs the vulnerable image; it is only safe because the
-  tunnel is off.
+- ~~**Nothing is deployed.** Nothing is pushed.~~ **Superseded twice.** These
+  commits were pushed to `origin/main`, and on 2026-09-04 they were deployed to
+  Hotel-Echo at `00742e4` and verified there (Stage B, then Stage C). **Hotel-Echo
+  no longer runs the vulnerable image** — its safety no longer rests on the
+  tunnel alone, though the tunnel is still off and stays off. **The main PC has
+  still not received this build** and still runs the older, auth-enabled image;
+  it is safe only because it is loopback-only.
 - ~~**The tunnel stays offline** until the fixed image is deployed and the
   external checks below pass.~~ **Stale, corrected 2026-09-06 — the fixed
   image is deployed and Stage D's external checks have passed for Hotel-Echo
@@ -2396,9 +2540,23 @@ file.
    `http://192.168.1.107:3000` will stop answering. That is intended.
 4. Confirm the tunnel is still down: `boogeymen.app` should still return 530.
 
-### C. Verify the disabled account surface on the host
+### C. ✅ COMPLETE (2026-09-04) — Verify the disabled account surface on the host
 
-Requires: B complete. **There is no admin account to create, and no CLI that
+**Done — Stage C PASSED. See the "STAGE C COMPLETE" entry at the top of Active
+State** for the verified host commit, the full image ids, the method/path/status
+table, the deployed-CLI inspection, and the before/after tunnel state. Every
+required check returned its required value: all seven account paths and the
+sign-in POST returned 404, `/`, `/games`, `/roster` and `/stats` returned 200
+with real page content (the only `404` strings in those bodies are inside
+`<script>` — Next.js's own serialised `notFound` template), and the deployed
+`dist/init-admin-cli.js` was confirmed to be the import-free refusal shim
+**before** it was executed, then exited 1 with its refusal message. The session
+was read-only apart from this file. Retained below as the record of what was
+required.
+
+Requires: B complete — **it is (2026-09-04)**. Run this against Hotel-Echo over
+SSH/Tailscale (`utiz@100.98.29.119`, repo at `~/eanhl-team-website`), with the
+tunnel still stopped. **There is no admin account to create, and no CLI that
 would create one.** The previous version of this stage said "verify /login, then
 initialize the admin"; both halves are obsolete — see the "AUTHENTICATION
 DELIBERATELY DISABLED" entry at the top of Active State.
