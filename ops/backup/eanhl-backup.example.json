@@ -1,0 +1,107 @@
+{
+  "_comment": [
+    "PROPOSED production configuration for the backup producer — NOT ACTIVATED.",
+    "Copy to ~/.config/eanhl/backup.json (mode 600) and review every value before use.",
+    "Nothing in this repository reads this file automatically; --config is always explicit.",
+    "There are no defaults: every key below is required, and a missing key is a hard error.",
+    "backingVolume must be present on BOTH staging and destination. Use null only when the",
+    "directory's own filesystem reports the truth. On WSL that is FALSE for anything on the",
+    "ext4 root: `df /` reported 945 GB free while the NTFS volume backing that VHDX had 21 GB."
+  ],
+
+  "source": {
+    "container": "eanhl-team-website-db-1",
+    "database": "eanhl",
+    "user": "eanhl"
+  },
+
+  "manifest": {
+    "criticalTables": [
+      "public.game_titles",
+      "public.matches",
+      "public.players",
+      "public.player_match_stats",
+      "public.opponent_player_match_stats",
+      "public.match_events",
+      "public.raw_match_payloads",
+      "public.ingestion_log",
+      "public.ocr_extractions",
+      "public.ocr_extraction_fields",
+      "public.ocr_field_evidence",
+      "public.ocr_promotions",
+      "public.ocr_capture_batches",
+      "public.ocr_segments",
+      "public.ocr_decoder_runs",
+      "public.ocr_match_associations",
+      "public.ocr_run_quality_reports"
+    ],
+    "migrations": {
+      "schema": "drizzle",
+      "table": "__drizzle_migrations",
+      "idColumn": "id"
+    },
+    "imageRefs": {
+      "db": "postgres:16-alpine",
+      "web": "eanhl-team-website-web",
+      "worker": "eanhl-team-website-worker"
+    }
+  },
+
+  "encryption": {
+    "_comment": [
+      "PENDING: `age` is not installed on either host and no keypair exists.",
+      "Installing age, generating the keypair and placing the PUBLIC recipient file",
+      "are Phase 2 steps requiring explicit operator authorization."
+    ],
+    "executable": "age",
+    "recipientFile": "/home/michal/.config/eanhl/backup-recipient.pub",
+    "expectedHeader": "age-encryption.org/v1"
+  },
+
+  "staging": {
+    "_comment": [
+      "root is on the ext4 WSL root, which lives inside a sparse VHDX on C:.",
+      "minFreeBytes guards the ext4 filesystem; backingVolume guards C: itself.",
+      "maxPlaintextBytes / maxStagingBytes are hard ceilings, not size predictions:",
+      "the observed ~27 MB custom-format dump of a 466 MB database is today's number,",
+      "not a guarantee. Raise them deliberately, together with the free-space floors."
+    ],
+    "root": "/var/tmp/eanhl-backup",
+    "minFreeBytes": 2147483648,
+    "backingVolume": { "mountPoint": "/mnt/c", "minFreeBytes": 5368709120 },
+    "maxPlaintextBytes": 2147483648,
+    "maxStagingBytes": 5368709120,
+    "shredPlaintext": true
+  },
+
+  "destination": {
+    "_comment": [
+      "/mnt/k is drvfs over NTFS on a separate 8 TB disk. df on a drvfs mount reports the",
+      "real NTFS free space, so backingVolume is null here. Rename atomicity, fsync",
+      "semantics and Unix modes are NOT assertable on this mount — see the ops doc."
+    ],
+    "dir": "/mnt/k/eanhl-backups/prod",
+    "minFreeBytes": 21474836480,
+    "backingVolume": null
+  },
+
+  "run": {
+    "_comment": [
+      "A stale lock is NEVER reclaimed automatically — see the ops doc §2.6. The compensating",
+      "control is operationTimeoutMs: no single boundary operation may run longer than this,",
+      "so a hung dump or encryptor cannot hold the lock indefinitely.",
+      "operationTimeoutMs must exceed the slowest legitimate dump by a wide margin: at ~27 MB",
+      "today a dump takes seconds, but this is a ceiling on pathology, not a performance target.",
+      "containerProbeTimeoutMs bounds the read-only `ps` probe that decides whether a cancelled",
+      "container-side command has ended. If it cannot answer, the lock is RETAINED and an operator",
+      "must clear it — uncertainty is never resolved in favour of availability."
+    ],
+    "lockFile": "/var/tmp/eanhl-backup/producer.lock",
+    "lockStaleAfterMs": 3600000,
+    "operationTimeoutMs": 1800000,
+    "cancelGraceMs": 20000,
+    "containerProbeTimeoutMs": 15000,
+    "artifactPrefix": "eanhl-prod",
+    "fullArchiveReadDefault": false
+  }
+}

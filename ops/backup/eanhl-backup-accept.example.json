@@ -1,0 +1,51 @@
+{
+  "_comment": [
+    "PROPOSED destination acceptance configuration — NOT ACTIVATED, NOT DEPLOYED.",
+    "This is the HOTEL-ECHO side, not the producer's. It would live on the destination host",
+    "at ~/.config/eanhl/backup-accept.json (mode 600). Nothing in this repository reads it",
+    "automatically, and no timer, unit or entry point exists for it yet.",
+    "There are no defaults: every key below is required, and a missing key is a hard error.",
+    "The inbox is the ONLY directory the transport key may write. work, archive, receipts,",
+    "quarantine and the lock file must all be outside it — that separation is validated here,",
+    "but the filesystem ownership and permissions that make it real still need deployment",
+    "proof. See docs/operations/backup-acceptance.md §6."
+  ],
+
+  "inbox": {
+    "dir": "/home/utiz/backups/eanhl/inbox",
+    "incompleteGraceMs": 3600000
+  },
+
+  "work": {
+    "dir": "/home/utiz/backups/eanhl/private/work",
+    "orphanGraceMs": 3600000
+  },
+
+  "archive": {
+    "dir": "/home/utiz/backups/eanhl/private/archive"
+  },
+
+  "receipts": {
+    "dir": "/home/utiz/backups/eanhl/receipts"
+  },
+
+  "quarantine": {
+    "dir": "/home/utiz/backups/eanhl/private/quarantine"
+  },
+
+  "capacity": {
+    "minFreeBytes": 5368709120,
+    "backingVolume": null
+  },
+
+  "acceptance": {
+    "artifactPrefix": "eanhl-prod",
+    "lockFile": "/home/utiz/backups/eanhl/private/accept.lock",
+    "lockStaleAfterMs": 900000,
+    "maxCiphertextBytes": 268435456,
+    "maxManifestBytes": 1048576,
+    "maxSidecarBytes": 4096,
+    "maxArtifactsPerSweep": 8,
+    "sweepDeadlineMs": 240000
+  }
+}
