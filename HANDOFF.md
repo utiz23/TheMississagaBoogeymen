@@ -856,6 +856,124 @@ three ports with a working IPv6 vantage.
 **Step 7 — tunnel remains stopped: reconfirmed** again this session via
 SSH, identical to every prior check.
 
+### 🟢 STAGE B COMPLETE — Hotel-Echo deployed to `00742e4`; tunnel still offline (2026-09-04)
+
+Authorized single-purpose deployment session. Hotel-Echo now runs the verified
+`main` baseline. **`cloudflared` was never started and remains absent from the
+host.** No migrations, restores, ingestion/reprocessing jobs, or Docker pruning
+were run. The `db` container was not recreated and volume
+`eanhl-team-website_postgres_data` was not recreated, restored, migrated, or
+subjected to any manual data operation. It was **not** frozen, and should not be
+described as untouched: normal worker ingestion kept writing to it throughout,
+exactly as it does on every five-minute cycle.
+
+**Before → after:**
+
+|                | before                                      | after                                                         |
+| -------------- | ------------------------------------------- | ------------------------------------------------------------- |
+| commit         | `d7f645c`                                   | `00742e4`                                                     |
+| `web` image    | `sha256:941f4150389e…`                      | `sha256:2cb63040ba79…`                                        |
+| `worker` image | `sha256:9bdf5fd37c2b…`                      | `sha256:1058d0515cf5…`                                        |
+| `db` image     | `postgres:16-alpine` `sha256:cf78e76683b9…` | unchanged — container not recreated (`Up 22 hours (healthy)`) |
+
+Volume `eanhl-team-website_postgres_data` was neither recreated nor restored,
+and no migration or manual data operation ran against it; ordinary worker writes
+continued. The 20-commit range
+`d7f645c..00742e4` changes **no** migration files (verified before deploying),
+so the already-applied 56-migration set remains correct — this is why no
+migration step was needed or run.
+
+**Compose reconciliation (the Stage B caveat).** The host-local modification
+turned out to be _only_ the hardening pass's three hard-coded loopback bindings
+(`"127.0.0.1:5433:5432"`, `"127.0.0.1:${HEALTH_PORT}:…"`, `"127.0.0.1:3000:3000"`);
+the inline-token `cloudflared` service had already been removed relative to the
+tracked file, so it did not appear in the diff. The tracked `00742e4` file
+expresses the same posture parameterised — `${DB_BIND_ADDR:-127.0.0.1}`,
+`${HEALTH_BIND_ADDR:-127.0.0.1}`, `${WEB_BIND_ADDR:-127.0.0.1}` — and Hotel-Echo's
+`.env` sets none of those three, so the effective binding is identical. The
+host edit was therefore **superseded, not overridden**. It was preserved two
+ways rather than discarded:
+
+- `git stash` on the host — `stash@{0}`, exact object id
+  **`79582514b570f33b92582e7165ca3a1002fe60df`**, "hotel-echo host-local
+  loopback bindings (pre-Stage-B, superseded by 00742e4)". Verified still
+  present and still the only stash entry on 2026-09-04 during Stage C
+  (read only — not applied, not dropped).
+- a file copy at `~/hardening-backups/docker-compose.yml.host-local.d7f645c.20260904T230945Z`
+
+Then `git pull --ff-only origin main` (fast-forward confirmed in advance). The
+host working tree is now **clean** at `00742e4` — there is no longer an
+intentional Compose difference to carry forward.
+
+**Rollback (prepared before building, still available).** The pre-deploy images
+were tagged so a `build` could not orphan them:
+
+```bash
+# on Hotel-Echo, in ~/eanhl-team-website
+docker tag eanhl-team-website-web:rollback-d7f645c    eanhl-team-website-web:latest
+docker tag eanhl-team-website-worker:rollback-d7f645c eanhl-team-website-worker:latest
+git checkout d7f645c
+# Restore the host-local compose file by EXACT object id, and apply — never pop.
+# `pop` drops the stash on success and would destroy the only git-side copy if
+# the rollback then went wrong; `apply` leaves it in place. The id is stable
+# even if the stash stack ever gains another entry.
+git stash apply 79582514b570f33b92582e7165ca3a1002fe60df
+docker compose up -d web worker           # NO --build: reuses the restored images
+```
+
+**Verification performed (2026-09-04, all on the host unless noted):**
+
+- `docker compose config --services` → `db`, `web`, `worker` only, rc=0, no
+  warning. `--profile public` additionally lists `cloudflared`, confirming the
+  profile gate works and that the default path excludes it. `docker ps` shows
+  exactly three containers.
+- `curl localhost:3001/health` → `200` `{"status":"ok","lastSuccessfulIngest":"2026-09-04T23:17:08.584Z",…}`
+- `curl localhost:3000` → `200`; `/roster`, `/games`, `/stats` → `200`.
+- Worker completed a real cycle in 6792 ms: `nhl26` gameType5/gameType10/club_private
+  all `status=success`; `Aggregates recomputed for nhl26`; 10/10 club members
+  upserted. **No `23502` error** — the `583c076` empty-club-aggregate fix is now
+  live on this host (it previously logged that error every cycle).
+- `web` log: `Next.js 15.5.15 … ✓ Ready in 667ms`.
+- `ss -tlnp` → `127.0.0.1:3000`, `127.0.0.1:3001`, `127.0.0.1:5433`. No
+  `0.0.0.0`, no `*`, no `[::]` wildcard on any of the three.
+
+**Tunnel state — measured, not inferred from the 530.** The Cloudflare 530 alone
+proves only that the edge has no origin; it was corroborated on the host:
+
+- no container named `cloudflared` and none from `ancestor=cloudflare/cloudflared`,
+  in **any** state (`docker ps -a`)
+- `pgrep -a cloudflared` → none; no `cloudflared` systemd unit; no `cloudflared`
+  binary installed on the host
+- no outbound `:7844` connections (`ss -tn`)
+- `./secrets/` does not exist, so the `public` profile could not start even if
+  invoked
+- from the main PC: `https://boogeymen.app/` → **530** via `104.21.2.16`
+- Supporting only — this was not the Stage D test: at the time, a LAN probe of
+  `192.168.1.107` ports 3000/3001/5433 from the main PC refused/timed out on
+  all three. Stage D was subsequently completed and passed; see the committed
+  "STAGE D PASS" entry.
+
+**Remaining host differences and follow-ups — not addressed here:**
+
+- **Hotel-Echo's `.env` still contains a `TUNNEL_TOKEN` variable**, left over
+  from the pre-`852c6d7` inline-token approach. Nothing reads it any more — the
+  tracked Compose file takes the token from a mounted `TUNNEL_TOKEN_FILE`
+  secret — but it is a live tunnel credential sitting in a file on disk. It
+  should be rotated in Cloudflare and removed from `.env` before, or as part of,
+  any reopening decision. `.env` is mode `0600`; its value was never read or
+  printed in this session.
+- An unpinned `cloudflare/cloudflared:latest` image is still cached on the host.
+  Unused (no container references it), but it is not the digest-pinned image the
+  tracked Compose file specifies. Harmless while the tunnel is down; do not
+  start anything from that tag.
+- Hotel-Echo's database is still the fresh, empty-history one from provisioning.
+  The production data migration, automated backups, and the restore drill remain
+  open.
+- ~~The deployed build's disabled-account-surface was **not** audited here —
+  that is Stage C and is deliberately left for its own session.~~ **Done —
+  Stage C ran on 2026-09-04 against this exact deployment and passed; see the
+  "STAGE C COMPLETE" entry above.**
+
 ### 🟢 LAUNCH POLICY + DOMAIN MAIL DECIDED AND WORKING — Proton Mail on `boogeymen.app` (2026-09-03)
 
 Operator-approved launch-policy decisions and operator-run Proton/Cloudflare
@@ -958,18 +1076,30 @@ entry below — this closes out several loose ends those left open.
 **Still true, unchanged by this pass:**
 
 - The tunnel remains offline. `boogeymen.app` still returns Cloudflare 530.
-- Hotel-Echo is still running its original source checkout and images from
+- ~~Hotel-Echo is still running its original source checkout and images from
   provisioning — **not** the account-system-disabled build, **not** the
   club-aggregate fix recorded below. Deployment is separate, unauthorized-here
-  work; see Next Session Stage B.
-- Hotel-Echo's operational `docker-compose.yml` is now intentionally different
+  work; see Next Session Stage B.~~ **Stale — Hotel-Echo was deployed to
+  `00742e4` on 2026-09-04; see the "STAGE B COMPLETE" entry at the top of
+  Active State.**
+- ~~Hotel-Echo's operational `docker-compose.yml` is now intentionally different
   from this repo's tracked version (the hardening above edited it locally,
   e.g. removing the cloudflared service). A future `git pull`/deploy on that
   host must reconcile this file rather than silently overwrite it — see the
-  caveat added to Next Session Stage B.
-- Automated backups, a restore drill, deploying current source, applying the
+  caveat added to Next Session Stage B.~~ **Resolved — the difference was only
+  the hard-coded loopback bindings, which the tracked file now expresses as
+  `${*_BIND_ADDR:-127.0.0.1}` defaults. Reconciled and stashed on 2026-09-04;
+  the host tree is clean at `00742e4`.**
+- ~~Automated backups, a restore drill, deploying current source, applying the
   56-migration set against it, and the production-data migration are all
-  still open. None of this closes the Gate 2 backup/recovery items.
+  still open.~~ **Partly stale — corrected 2026-09-04.** Current source **is**
+  deployed (`00742e4`, Stage B) and verified (Stage C). There is **no pending
+  schema initialization on Hotel-Echo**: all 56 migrations were applied when the
+  host was provisioned, and the `d7f645c..00742e4` range changes no migration
+  file, so the applied set is still the correct one. **Still open: automated
+  backups, the restore drill, and the production-data migration** — none of
+  which the deployment closed, and none of which closes the Gate 2
+  backup/recovery items.
 - ~~**Gate 2's on-host/LAN/WAN port-exposure checkbox stays unchecked.** This
   entry confirms host-level loopback binding and firewall posture on
   Hotel-Echo; it is not the documented external `nc`/`curl` test from that
@@ -983,10 +1113,12 @@ entry below — this closes out several loose ends those left open.
 **Unrelated, same day, same session:** `fix(worker): skip empty club aggregate
 rows` (`583c076`) fixes a `recomputeClubStats` NOT NULL violation (Postgres
 error `23502`) for a game title/mode with zero matches — see
-`apps/worker/src/aggregate.ts`. **Fixed in source only.** It is not deployed
+`apps/worker/src/aggregate.ts`. ~~**Fixed in source only.** It is not deployed
 anywhere — not the main PC, not Hotel-Echo. Hotel-Echo will keep producing the
 `23502` error in its worker logs for any game title/mode combination with zero
-matches until a later, separately authorized deployment carries this fix.
+matches until a later, separately authorized deployment carries this fix.~~
+**Partly stale — deployed to Hotel-Echo on 2026-09-04 (`00742e4`), whose worker
+now completes a cycle with no `23502`. Still NOT deployed on the main PC.**
 
 ### 🟢 AUTHENTICATION DELIBERATELY DISABLED FOR PRE-LAUNCH — deferred to a post-launch review (2026-09-03)
 
@@ -1013,9 +1145,10 @@ signing in on the host, or issuing invites. Those steps no longer exist.
 > container is currently reachable only through loopback (see "POST-ROTATION
 > LOOSE ENDS CLOSED" below), which is what keeps the still-live bootstrap/login
 > surface from being publicly reachable — not the source change described
-> here. Hotel-Echo has likewise not received this build; its tunnel remains
-> offline per the entry above, for the same reason it was taken offline
-> originally. Deploying this source (main-PC and/or Hotel-Echo) is separate,
+> here. ~~Hotel-Echo has likewise not received this build~~ — **Hotel-Echo
+> received this build on 2026-09-04 (`00742e4`); its tunnel remains offline per
+> the entry above, for the same reason it was taken offline originally.**
+> Deploying this source (main-PC and/or Hotel-Echo) is separate,
 > unauthorized-here work.
 
 **The decision.** Authentication is deferred until after launch. Once this
@@ -2205,7 +2338,12 @@ applies — there is no admin account and no way to create one; see the
 Background the push and let all five stages run; see
 [[project_prepush_verify_hook]].
 
-### A. Verify and push the reviewed commits, normally
+### A. ✅ COMPLETE (2026-09-04) — Verify and push the reviewed commits, normally
+
+**Done.** `main` was verified and pushed at `00742e4`; the pre-push
+`verify-ocr` hook ran in full (2,645 passed, 0 failures, 11 documented skips)
+and the push was confirmed against the remote ref. Retained below as the
+record of what was run.
 
 ```bash
 pnpm --filter @eanhl/db build && pnpm --filter @eanhl/worker build
@@ -2230,7 +2368,14 @@ If it fails, fix the failure — a bypassed push is not a verified push. Confirm
 the push landed against the remote ref (`git ls-remote origin -h main`), not
 just the exit code.
 
-### B. Deploy the corrected web / worker / Compose to Hotel-Echo
+### B. ✅ COMPLETE (2026-09-04) — Deploy the corrected web / worker / Compose to Hotel-Echo
+
+**Done — see the "STAGE B COMPLETE" entry at the top of Active State for the
+before/after commits and image ids, the Compose reconciliation, the rollback
+handles, and the verification evidence.** Hotel-Echo runs `00742e4`;
+`cloudflared` was never started and is absent from the host; all four checks
+below passed. The Compose caveat is resolved — the host tree is now clean.
+Retained below as the record of what was required.
 
 Requires: A complete. **`cloudflared` stays stopped for this entire stage and
 the next two.**
