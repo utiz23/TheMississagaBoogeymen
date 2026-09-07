@@ -2468,15 +2468,23 @@ Durable traps, carried forward — these keep biting:
 **Current objective: the staged authorization sequence below. One stage per
 session.** **Stages A, B, C and D are all COMPLETE (D on 2026-09-04, PASS,
 scoped to Hotel-Echo's three required ports — see the "STAGE D PASS" Active
-State entry). The next session is Stage E — close the remaining gates, then
-separately authorize reopening the tunnel.** **Stage E is NOT authorized yet**
-and this correction does not authorize it: closing Stage E's checklist is not
-itself permission to reopen the tunnel, which remains its own separate
-authorization per Stage E's own text below. The order remains load-bearing:
-exposure must stay verified before anything is published. The old rationale
-("the fix must be on the host before an admin account exists on it") no longer
-applies — there is no admin account and no way to create one; see the
-"AUTHENTICATION DELIBERATELY DISABLED" entry at the top of Active State.
+State entry). Stage E is an umbrella sequence (E0-E6) covering the remaining
+Gate 2 work, not a single stage** — a prior version of this section presented
+five bullets as "the remaining gates," but a 2026-09-06 read-only scope
+reconciliation found that list covered only a fraction of Gate 2's unchecked
+items, understated several it did list, and pulled in Gate 3 items Gate 2 does
+not require. **That reconciliation is E0, and it is complete; it is recorded
+below along with the corrected E1-E6 breakdown it produced. No E1-E6 substage
+is authorized to start yet, no Gate 2 or Gate 3 checkbox changed, and no
+decision or waiver was made or invented by that session.** The next actionable
+substage is **E1 — operator decisions and operational documentation.**
+Finishing E0-E6 is not itself permission to reopen the tunnel, which remains
+its own separate, later authorization — see "Tunnel reopening" below. The
+order remains load-bearing: exposure must stay verified before anything is
+published. The old rationale ("the fix must be on the host before an admin
+account exists on it") no longer applies — there is no admin account and no
+way to create one; see the "AUTHENTICATION DELIBERATELY DISABLED" entry at the
+top of Active State.
 
 **The pre-push `verify-ocr` hook is mandatory. Do not use `--no-verify`.**
 Background the push and let all five stages run; see
@@ -2620,24 +2628,166 @@ The date and results were recorded; that evidence is what closed the Gate 2
 stays unchecked~~ **done, 2026-09-04 — see the "STAGE D PASS" Active State
 entry.** Full procedure in DEPLOY.md, "Host port exposure".
 
-### E. Close the remaining gates, then separately authorize reopening the tunnel
+### E0. ✅ COMPLETE (2026-09-06) — Read-only scope reconciliation
 
-Requires: D complete and recorded. **These gates are prerequisites, not
-paperwork to follow the reopening.** The site was previously public with none of
-them in place. **Disabling authentication closed none of them** — a public
-read-only site still publishes named individuals' statistics, still keeps server
-logs, and still needs to be backed up and recoverable.
+**Done.** A read-only session audited HANDOFF.md's Gate 2 checklist against
+the (then) five-bullet Stage E list and found the list covered only a
+fraction of Gate 2's unchecked items, understated several of the ones it did
+list, and pulled in Gate 3 items not required by Gate 2. This edit is that
+session's correction, applied below. **No Gate 2 or Gate 3 checkbox changed;
+no evidence was invented; no waiver was granted; no decision listed under E1
+was made.** The remaining work is now organized as E1-E6, an umbrella
+sequence, followed by its own separate tunnel-reopening authorization — see
+below.
 
-- MFA and a documented recovery contact on the domain/Cloudflare account.
-- Security response headers on the web app.
-- An indexing decision and a matching `robots.txt`.
-- The privacy policy, the data-collection policy (gamertags, statistics,
-  accounts, server/IP logs, retention, processors), the correction/deletion
-  request process, and the EA/NHL non-affiliation notice.
-- Backups and a restore drill, so a public site is a recoverable one.
+### E1. Operator decisions and operational documentation — NOT STARTED
 
-Reopening the tunnel is then its **own** authorization, not an automatic
-consequence of finishing the list:
+Requires: E0 complete (it is). **No decision below has been made by this
+edit; each is listed only because it is open, not because an answer is
+proposed.**
+
+- Domain owner, registrar, renewal date, billing owner, recovery contact, and
+  MFA status — documented in writing. MFA status may be recorded from an
+  accurate operator attestation; it does not require independent inspection
+  to satisfy the Gate 2 item.
+- The operator must select and document the intended production hosting
+  posture — main PC, Hotel-Echo, or another approved solution — and its
+  expected incremental/monthly cost. This is unresolved; nothing here
+  proposes or biases the answer.
+- A system termination map: where the web app, worker, database, persistent
+  storage, backups, DNS, and TLS each actually terminate.
+- Secret storage, environment separation, deployment mechanism, staging
+  strategy, and named rollback ownership.
+- The indexing policy (what is indexed, what is excluded) and the resulting
+  excluded-route inventory.
+- Privacy/data-use/retention decisions: inventory the actual third-party
+  services and data flows in use (e.g. Cloudflare, Proton, the EA Pro Clubs
+  API are examples requiring review, not a pre-decided list); decide which
+  must be disclosed; accurately characterize each service's role in the
+  data flow once the review establishes it (no role — "processor" or
+  otherwise — is assumed here); and set retention commitments for what is
+  actually collected (gamertags, statistics, accounts, server/IP logs). This
+  feeds E2's drafts.
+- The NHL 27 default-title behavior (NHL 27 has mechanically become the
+  default on `/` and `/games` on both hosts — see the "NHL 27 ENABLED" Active
+  State entry), the NHL 26/27 cutover rules, and the career-stat stitching
+  rules across the title boundary.
+- Whether the external game-sheet frontend is accepted for October
+  integration.
+- Explicit resolve-or-defer decisions for the remaining small polish items
+  (opponent player-score completeness, Top Performers contrast, navbar
+  subtitle).
+
+### E2. Gate 2 legal drafts, plus optional early Gate 3 web work — NOT STARTED
+
+Requires: the relevant E1 decisions (at minimum the privacy/data-use
+disclosures).
+
+**Gate 2 requires only drafts**, informed by E1:
+
+- privacy policy draft;
+- data-collection policy draft (gamertags, statistics, accounts, server/IP
+  logs, retention, third-party processors actually used);
+- EA/NHL non-affiliation and third-party asset/data attribution notice draft.
+
+**Publishing and the surrounding web surface are Gate 3 items, not Gate 2**,
+listed here only because they may be started early if desired: publishing the
+drafted pages as live routes, a global footer with a working webmaster
+contact, security response headers, `robots.txt`, sitemap, canonical/OG
+metadata, and related indexing/discovery implementation. If any of this is
+done during E2, label it explicitly as early Gate 3 work in the Active State
+entry that records it — do not count it against Gate 2, and do not describe
+Gate 2 as requiring published pages.
+
+The correction/deletion request process is already decided (`webmaster@
+boogeymen.app`, 7-day acknowledgement, 30-day resolution — see the "LAUNCH
+POLICY + DOMAIN MAIL" Active State entry); publishing it on the site is the
+Gate 3 half of that item.
+
+### E3. Backup and restore — PRODUCER + ACCEPTANCE VERIFIED IN ISOLATION ONLY
+
+Requires: the relevant E1 decisions (destination, key custody).
+
+**Already implemented and verified, but only in isolation** — see the
+"BACKUP PRODUCER + DESTINATION ACCEPTANCE VERIFIED IN ISOLATION" Active State
+entry: the producer (snapshot, dump, validate, encrypt, bounded staging, run
+lock) and the destination acceptor both pass their full suites (56/56
+acceptance, 165/165 overall) against disposable temp filesystems. **The
+remaining work below is incomplete/unactivated — none of it has been run
+against a real host:**
+
+- transport (how an artifact actually leaves the production host);
+- destination and key-custody decisions (where backups land, who holds the
+  decryption key, and how);
+- scheduling/activation: the producer has a CLI (`ops/backup/eanhl-backup.mjs`);
+  the destination acceptor has no CLI/entry point; neither side has a
+  deployed systemd unit or timer, and nothing is installed, configured, or
+  activated on a real host;
+- production of a real artifact and its acceptance by the real destination;
+- freshness evaluation, retention/pruning, and alerting on backup health;
+- the restore drill itself: recover into a disposable database and verify
+  critical table counts and representative application reads.
+
+### E4. Monitoring, logging, rollback, and disaster recovery — NOT STARTED
+
+Requires: the relevant E1 decisions (notification destination, rollback
+ownership).
+
+- Stale-worker alerting: `apps/worker/src/health.ts` already computes and
+  exposes staleness (`GET /health`); nothing currently polls it externally or
+  notifies anyone.
+- Transform-error visibility: alerting on accumulating
+  `raw_match_payloads.transform_status='error'` rows — not implemented.
+- Ingestion-gap visibility: detecting "worker alive, capturing nothing"
+  (distinct from staleness) before data is lost — not implemented.
+- A configured notification destination for all of the above.
+- Bounded log retention/rotation: the tracked `docker-compose.yml` sets no
+  per-service `logging:` size/file limit, so effective retention depends on
+  each host's Docker daemon configuration. Neither host's daemon logging
+  configuration was inspected during E0 — host configuration must be
+  inspected before claiming whether logs are actually bounded or unbounded.
+- Recorded production rollback and disaster-recovery procedures, beyond the
+  existing redeploy/rebuild steps in DEPLOY.md and the `docker-redeploy`
+  skill.
+
+### E5. NHL 27 and product-readiness audits — NOT STARTED
+
+Requires: the relevant E1 decisions (cutover rules, stitching rules).
+
+- Per-parser NHL 27 beta compatibility matrix. Only the match/player/
+  aggregate transform path has been verified against real NHL 27 data (5
+  matches so far — see the "NHL 27 ENABLED" entry); OCR/game-sheet parsers
+  have not yet run against any NHL 27 footage.
+- A small labeled NHL 27 benchmark. This does not necessarily require waiting
+  for new matches — if suitable NHL 27 footage already exists, it can be
+  labeled now; if it doesn't, capture is a separate, elapsed-time-bound step.
+- Verification of the NHL 26/27 career-stat stitching rules decided in E1,
+  before production cutover.
+- Mobile drawer/menu audit; core-route viewport audit at 320/375/390/768 and
+  desktop; production performance baselines; page title/description audit.
+- Any remaining product decisions or polish not already resolved in E1.
+
+### E6. Final Gate 2 reconciliation — NOT STARTED
+
+Requires: E1-E5, to whatever extent each is actually going to close before
+the gate date.
+
+Every Gate 2 checkbox above must end this stage either checked with recorded
+evidence, or explicitly waived by the operator with a written reason, owner,
+and follow-up date, per the existing Completion Rule. **No waiver has been
+granted by this edit or any prior session** — E6 is where that determination
+gets made and recorded, not before.
+
+---
+
+## Tunnel reopening — separate authorization, not part of E0-E6, NOT AUTHORIZED
+
+Reopening the tunnel is not a stage of E0-E6 and does not happen automatically
+when E0-E6 close. It requires its own explicit authorization, decided
+separately, after the applicable gates have passed. **It is not authorized by
+this document.** The procedure below is retained as the record of what it
+requires when that authorization is eventually given — it is not a to-do list
+for the current or next session:
 
 1. Write the tunnel token to `./secrets/cloudflared-tunnel-token` on Hotel-Echo,
    mode 600, token only, no newline or prefix. It is not in the repo and must
