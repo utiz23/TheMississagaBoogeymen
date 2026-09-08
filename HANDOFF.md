@@ -289,6 +289,41 @@ launch scope and it is not allowed to hold the terminal gate hostage.
 
 ## Active State
 
+### 🟡 E1C HOSTING COST ACCOUNTING APPROVED — final estimate still open (2026-09-07)
+
+Documentation-only session. The operator approved the following cost
+accounting for the Hotel-Echo hosting decision recorded in the "E1A HOSTING +
+BACKUP POLICY DECIDED" entry below. **No infrastructure, billing,
+subscription, deployment, backup, or tunnel action was authorized or
+performed by this entry** — it records a cost breakdown only.
+
+**Cost accounting, as approved 2026-09-07:**
+
+- Selected production host: Hotel-Echo (per E1A).
+- Domain renewal: CAD $14.20/year, approximately CAD $1.18/month (per E1B).
+- Hotel-Echo hardware was already owned — no new capital purchase is
+  attributed to hosting.
+- Current Cloudflare DNS/Tunnel posture carries no incremental monthly charge
+  attributed to hosting under present usage. This is a statement about
+  current usage, not a claim that Cloudflare can never introduce a cost.
+- Household internet is an existing shared service. It carries no
+  incremental site-specific charge, but it is a real recurring cost the
+  household already pays — it is not free.
+- Proton Unlimited is an existing shared subscription. It carries no
+  incremental site-specific charge **if** existing Drive capacity is
+  sufficient for the E3 backup design. **Whether that capacity is actually
+  sufficient has not yet been verified** — this is an open item, not a
+  confirmed fact.
+- Hotel-Echo's electricity draw is a real recurring hosting cost and is
+  currently unmeasured — this entry does not claim it is zero.
+
+**Currently known incremental fixed cost: CAD $1.18/month (domain renewal)
+plus Hotel-Echo electricity (amount not yet measured).** This is not a
+complete expected-monthly-cost figure — it excludes the unmeasured
+electricity draw and depends on the still-unverified Proton Drive capacity
+assumption. The Gate 2 "select the hosting solution and record expected
+monthly cost" checkbox stays unchecked until a complete figure exists.
+
 ### 🟢 E1B DOMAIN REGISTRATION DOCUMENTED — operator-supplied Cloudflare Registrar evidence, not independently inspected (2026-09-07)
 
 Documentation-only session. The operator read the following facts directly
@@ -2795,10 +2830,20 @@ not because an answer is proposed.**
   only until migration/cutover/validation succeed, then retires from
   production services (it may still run OCR when explicitly chosen, and can
   act as a secondary, opportunistic backup destination). See the "E1A
-  HOSTING + BACKUP POLICY DECIDED" Active State entry. **Still open:** the
-  expected incremental/monthly hosting cost has not been documented, and the
-  migration/cutover/retirement itself is not authorized or performed by this
-  decision — it requires its own separate authorization when its turn comes.
+  HOSTING + BACKUP POLICY DECIDED" Active State entry. **Cost accounting
+  approved 2026-09-07** (see the "E1C HOSTING COST ACCOUNTING APPROVED"
+  Active State entry): Hotel-Echo hardware is already owned (no new capital
+  purchase); domain renewal is a known CAD $1.18/month; Cloudflare
+  DNS/Tunnel, household internet, and Proton Unlimited are treated as
+  existing shared costs with no incremental site-specific charge under
+  present usage, not as free services; Hotel-Echo electricity is a real,
+  currently unmeasured recurring cost; and Proton Drive's available capacity
+  for the E3 backup design has not yet been verified. **Still open:** a
+  complete expected-monthly-cost figure (blocked on the electricity
+  measurement and the Proton capacity check), and the
+  migration/cutover/retirement itself, which is not authorized or performed
+  by this decision — it requires its own separate authorization when its
+  turn comes.
 - A system termination map: where the web app, worker, database, and
   persistent storage terminate is now answered by the hosting decision above
   (Hotel-Echo). DNS and TLS termination is not a blank unknown — existing
