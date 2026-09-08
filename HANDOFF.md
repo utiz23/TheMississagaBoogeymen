@@ -210,7 +210,10 @@ No new feature work belongs in this gate.
 #### Error handling, metadata, and discovery
 
 - [ ] Add and verify a branded custom 404 page.
-- [ ] Add and verify a useful production error/500 experience.
+- [ ] Add and verify a useful production error/500 experience; confirm public
+      responses expose no stack trace, internal path, secret, or other
+      diagnostic detail, and confirm production browser source maps are not
+      publicly served unless deliberately approved.
 - [ ] Add useful page-specific titles and meta descriptions.
 - [ ] Configure canonical URLs.
 - [ ] Add Open Graph/social-preview metadata and a production preview image.
@@ -219,6 +222,12 @@ No new feature work belongs in this gate.
 - [ ] Ensure account, admin, diagnostic, preview, and other private routes are
       not indexed.
 - [ ] Verify search-engine ownership only if public indexing is intended.
+- [ ] Evaluate accurate `WebSite`/`SportsTeam` structured data and either
+      implement it or explicitly defer it; do not publish `LocalBusiness` or
+      other schema whose facts do not match this project.
+- [ ] Decide whether known AI-training crawlers need separate `robots.txt`
+      guidance and either implement that policy or explicitly defer it;
+      crawler directives are advisory and never an access-control boundary.
 
 #### Mobile, browser, and accessibility gate
 
@@ -228,7 +237,13 @@ No new feature work belongs in this gate.
       unreadable tables, or inaccessible dialogs at supported widths.
 - [ ] Dense stats tables and match modules remain usable on small screens.
 - [ ] Verify semantic heading order, form/control labels, visible focus,
-      contrast, reduced-motion behavior, and keyboard-only navigation.
+      meaningful image alternative text (with empty alt text retained for
+      genuinely decorative images), contrast, reduced-motion behavior, and
+      keyboard-only navigation.
+- [ ] Exercise every interactive control on representative routes — navigation,
+      mobile drawer, title switcher, filters, tabs, pagination and contextual
+      links — and finish with no broken buttons or unexpected browser-console
+      errors.
 - [ ] Test current Chrome, Firefox, Safari, and mobile Safari; record any
       explicitly unsupported browser rather than silently ignoring it.
 - [ ] Verify loading, empty, unavailable-data, not-found, and server-error
@@ -253,13 +268,25 @@ No new feature work belongs in this gate.
       protection, MIME-sniffing protection, and referrer-policy headers.
 - [ ] Review production access control for account, admin, diagnostic, and
       preview routes.
+- [ ] Run a focused application-security review over every externally
+      controlled input boundary: server-side path/query validation, EA/API
+      payload validation, parameterized SQL (including every `sql.raw` use),
+      unsafe/raw HTML, CORS behavior, request-body storage, predictable-ID
+      authorization assumptions, and the dormant authentication/admin code.
+      Record concrete findings; do not convert generic scanner warnings into
+      defects without a reachable code path.
+- [ ] Run a repository and built-artifact secret scan; confirm no real `.env`,
+      credential, token, private key, or production secret is tracked, embedded
+      in an image, or exposed to the browser. Example environment files may
+      contain placeholders only.
 - [ ] Rate-limit authentication, access-request, contact, and public API
       surfaces where applicable.
 - [ ] Run a dependency/security audit and resolve critical findings or record a
       signed-off exception.
 - [ ] Enable uptime and application-error monitoring with a tested notification
       destination.
-- [ ] Run a broken-link and missing-asset scan.
+- [ ] Run a broken-link and missing-asset scan covering internal navigation,
+      game/player/context links, and every footer/legal destination.
 - [x] Configure a working domain-based webmaster address such as
       `webmaster@<production-domain>`. `webmaster@boogeymen.app` was proven in
       both sending and receiving directions on 2026-09-03; see the "LAUNCH
