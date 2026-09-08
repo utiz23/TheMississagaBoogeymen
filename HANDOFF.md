@@ -336,7 +336,57 @@ launch scope and it is not allowed to hold the terminal gate hostage.
 
 ## Active State
 
-### 🟡 E1G PRIVACY/RETENTION POLICY + REPOSITORY VISIBILITY DECIDED — repository is still public; nothing implemented (2026-09-07)
+### 🟢 E1H GITHUB REPOSITORY MADE PRIVATE — Hotel-Echo read access preserved (2026-09-08)
+
+Authorized, narrowly-scoped session executing the GitHub repository-visibility
+decision approved in the "E1G PRIVACY/RETENTION POLICY + REPOSITORY
+VISIBILITY DECIDED" Active State entry below. Only repository visibility was
+changed; nothing else was touched.
+
+**What changed:**
+
+- Repository visibility for `utiz23/TheMississagaBoogeymen` was changed from
+  public to private through the GitHub CLI (`gh repo edit --visibility
+  private`).
+- GitHub was queried afterward and reported the repository as `private`
+  (`isPrivate: true`).
+
+**Deploy key — unchanged, verified before and after:**
+
+- The existing read-only deploy key `hotel-echo-deploy` (id `162148527`)
+  remained enabled, verified, and `read_only: true` both before and after
+  the visibility change.
+- No deploy key was created, replaced, rotated, or modified. This entry
+  uses the deploy key that already existed; it does not introduce a new
+  credential mechanism.
+
+**Hotel-Echo read access — verified before and after, externally:**
+
+- Before the change: Hotel-Echo was online and SSH-accessible; from
+  `/home/utiz/eanhl-team-website`, `git ls-remote origin refs/heads/main`
+  returned `db85d1cc744b4824201fc013126935dfabf47a5c refs/heads/main`.
+- After the change: the same command, from the same host and path, returned
+  the identical commit — `db85d1cc744b4824201fc013126935dfabf47a5c
+  refs/heads/main`.
+- Both the pre-change and post-change Hotel-Echo checks were performed and
+  reported through independent external verification supplied to this
+  Claude session (via the operator, sourced from Codex); this session did
+  not itself run or directly observe those SSH checks. This entry records
+  that evidence — it does not claim Claude executed the Hotel-Echo checks.
+
+**What this does not do.** Existing public clones, forks, downloads, caches,
+and previously exposed git history cannot be retracted by this or any future
+visibility change — going private stops new public access, it does not
+retract copies already taken. Making the repository private does not make
+the production website private and does not replace or complete the
+still-open E2 privacy-policy/data-collection-policy/Terms-of-Use drafts. No
+collaborator, branch-protection, Actions, secrets, Pages, deployment,
+migration, tunnel, or other repository or infrastructure setting was
+changed. See the "E1G PRIVACY/RETENTION POLICY + REPOSITORY VISIBILITY
+DECIDED" Active State entry below for the original decision, and the
+corresponding E1 umbrella bullet for what remains open.
+
+### 🟡 E1G PRIVACY/RETENTION POLICY + REPOSITORY VISIBILITY DECIDED — historical policy decision; visibility status superseded 2026-09-08 (see E1H) (2026-09-07)
 
 Documentation-only session, following a read-only E1 privacy/data-flow
 inventory (and its corrected reissue) that traced what the repository,
@@ -389,11 +439,15 @@ no code or configuration was modified.
 **GitHub — decided:**
 
 - The operator confirmed on 2026-09-07 that the repository is **currently
-  public**.
+  public**. (Accurate as of that date. **Superseded 2026-09-08** — see
+  below.)
 - The operator decided on 2026-09-07 to make it **private**. **The
   visibility change has not happened during this documentation session** —
   the repository remains public until a separate, later session changes
-  and verifies it.
+  and verifies it. **Superseded 2026-09-08 — the "E1H GITHUB REPOSITORY
+  MADE PRIVATE" Active State entry above records that a separate,
+  authorized session changed the repository to private and verified the
+  change; this E1G entry did not perform that change itself.**
 - Existing committed fixtures and research captures (identified in the
   read-only E1 privacy inventory) remain in current git history. No
   history rewrite is authorized or planned.
@@ -409,7 +463,19 @@ no code or configuration was modified.
   session must account for the authenticated read access Hotel-Echo
   deployments need against a private repository. **The exact credential
   mechanism is not decided here** — a deploy key was recommended during
-  discussion but is not yet operator-approved or implemented.
+  discussion but is not yet operator-approved or implemented. **Correction
+  (established by later read-only verification, recorded 2026-09-08): this
+  claim was based on incomplete/unverified knowledge, not an accurate
+  historical fact — E1G had not inspected or established the actual
+  existing credential state.** The repository-specific `hotel-echo-deploy`
+  deploy key already existed at the time E1G was written, created
+  2026-09-03. Later verification found it enabled, verified, and
+  read-only. No new key or credential was created for the visibility
+  change — the pre-existing key was reused as-is. Hotel-Echo's read access
+  (`git ls-remote`) was verified working both before and after the
+  visibility change. This entry does not establish when or how operator
+  approval for that pre-existing key was originally granted. See the "E1H
+  GITHUB REPOSITORY MADE PRIVATE" Active State entry.
 
 **Other approved policy — decided, not implemented:**
 
@@ -3253,16 +3319,20 @@ not because an answer is proposed.**
   deletion/correction, across gamertags, personas, `player_name_snapshot`,
   match/stat data, raw EA payloads, structured database data, OCR evidence,
   and raw video/screenshots) and the GitHub repository-visibility decision
-  (approved to make private — **not yet done; the repository is still
-  public**). **Still open:** actually changing repository visibility (needs
-  a separately authorized session to first resolve Hotel-Echo's
-  authenticated read-access credential — mechanism not decided, a deploy
-  key was only recommended); disabling Next.js build telemetry; Docker log
-  retention/rotation and gamertag-bearing log suppression (E4 work);
-  reviewing Cloudflare's and Proton's own logging/retention behavior; and
-  drafting the privacy policy, data-collection policy, EA/NHL attribution
-  notice, and Terms of Use (E2 work) — none of which this decision
-  implements, drafts, reviews, or completes.
+  (approved to make private). **Done and verified 2026-09-08:** the
+  repository is now private (GitHub queried after the change reported
+  `private`/`isPrivate: true`), and Hotel-Echo's authenticated read-access
+  prerequisite is resolved through the already-existing read-only
+  `hotel-echo-deploy` deploy key (id 162148527) — verified
+  enabled/verified/read-only, and Hotel-Echo's `git ls-remote` verified
+  working, both before and after the change. See the "E1H GITHUB
+  REPOSITORY MADE PRIVATE" Active State entry. **Still open:** disabling
+  Next.js build telemetry; Docker log retention/rotation and
+  gamertag-bearing log suppression (E4 work); reviewing Cloudflare's and
+  Proton's own logging/retention behavior; and drafting the privacy
+  policy, data-collection policy, EA/NHL attribution notice, and Terms of
+  Use (E2 work) — none of which this decision implements, drafts,
+  reviews, or completes.
 - The NHL 27 default-title behavior (NHL 27 has mechanically become the
   default on `/` and `/games` on both hosts — see the "NHL 27 ENABLED" Active
   State entry), the NHL 26/27 cutover rules, and the career-stat stitching
