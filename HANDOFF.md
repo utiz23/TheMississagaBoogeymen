@@ -70,8 +70,18 @@ No new feature work belongs in this gate.
 
 #### Domain, hosting, and exposure decisions
 
-- [ ] Select and purchase the production domain; document owner, registrar,
+- [x] Select and purchase the production domain; document owner, registrar,
       renewal date, billing owner, recovery contact, and MFA status.
+      **Decided/documented 2026-09-07:** `boogeymen.app`, registrar/DNS =
+      Cloudflare, status Active, owner and billing owner = the project
+      operator, expiration 2027-09-03, auto-renew enabled (scheduled
+      2027-08-04 for one year, CAD $14.20/yr), MFA enabled, recovery
+      contact enabled and operator-owned. Evidence is operator-supplied from
+      the Cloudflare dashboard, not independently inspected by this agent.
+      No sensitive account identifier, payment-instrument detail, MFA
+      secret, recovery code, or private contact detail is stored in this
+      repository. See the "E1B DOMAIN REGISTRATION DOCUMENTED" Active State
+      entry.
 - [ ] Select the hosting solution and record expected monthly cost.
 - [ ] Document where the Next.js web app, worker, PostgreSQL database,
       persistent storage, backups, DNS, and TLS terminate.
@@ -278,6 +288,49 @@ blocked non-goal stays documented and blocked; it is not silently promoted into
 launch scope and it is not allowed to hold the terminal gate hostage.
 
 ## Active State
+
+### 🟢 E1B DOMAIN REGISTRATION DOCUMENTED — operator-supplied Cloudflare Registrar evidence, not independently inspected (2026-09-07)
+
+Documentation-only session. The operator read the following facts directly
+from the Cloudflare Registrar dashboard and reported them for the record.
+**This agent session did not access Cloudflare or any other external
+account** — nothing below was independently verified against a live
+Cloudflare session; it is recorded as operator-attested evidence, the same
+basis already accepted for the MFA-status item under the Gate 2 checklist.
+
+**Domain registration facts, as of 2026-09-07 (operator-supplied, non-sensitive):**
+
+- Domain: `boogeymen.app`.
+- Status: Active.
+- Registrar and DNS provider: Cloudflare.
+- Domain owner: the project operator. Billing owner: the project operator.
+- Expiration date: September 3, 2027.
+- Renewal price: CAD $14.20/year.
+- Auto-renew: enabled, with a scheduled auto-renewal date of August 4, 2027,
+  for one further year.
+- MFA: enabled on the account.
+- Recovery measures/contact: enabled, owned by the project operator.
+
+**Deliberately not recorded here:** any personal name, email address,
+account identifier, payment instrument detail, MFA secret/recovery code, or
+private recovery-contact detail. Those stay outside the repository by
+design, not by oversight — the Gate 2 item only requires that their
+existence and ownership be documented, not their contents.
+
+**What this does not establish.** Auto-renew being enabled does not
+guarantee that the September 2027 renewal will actually succeed — payment
+failure, card expiry, or a Cloudflare-side account issue could still cause a
+missed renewal; this entry records the current configuration, not a
+guarantee of future outcome. This entry does not authorize or imply
+production migration, main-PC retirement, backup activation, or tunnel
+reopening — each remains separately unauthorized. It also does not claim any
+independent, agent-run inspection of the Cloudflare account occurred.
+
+**Gate 2 impact:** the "select and purchase the production domain; document
+owner, registrar, renewal date, billing owner, recovery contact, and MFA
+status" checkbox is now checked on the strength of this operator-attested
+evidence — see the roadmap item above. No other Gate 2 or Gate 3 checkbox
+changed.
 
 ### 🟡 E1A HOSTING + BACKUP POLICY DECIDED — nothing implemented, installed, activated, migrated, or deployed (2026-09-07)
 
@@ -2720,16 +2773,22 @@ was made.** The remaining work is now organized as E1-E6, an umbrella
 sequence, followed by its own separate tunnel-reopening authorization — see
 below.
 
-### E1. Operator decisions and operational documentation — NOT STARTED
+### E1. Operator decisions and operational documentation — IN PROGRESS
 
-Requires: E0 complete (it is). **No decision below has been made by this
-edit; each is listed only because it is open, not because an answer is
-proposed.**
+Requires: E0 complete (it is). **E0 itself made no decisions — it was a
+read-only scope reconciliation.** Since then, E1A (hosting posture, backup
+topology/retention/key custody, 2026-09-07) and E1B (domain registration,
+2026-09-07) have recorded actual operator-approved decisions and evidence,
+each explicitly marked "decided"/"documented" with a date and an Active
+State entry below. **No decision not explicitly marked that way has been
+made; every remaining bullet below is listed only because it is still open,
+not because an answer is proposed.**
 
 - Domain owner, registrar, renewal date, billing owner, recovery contact, and
-  MFA status — documented in writing. MFA status may be recorded from an
-  accurate operator attestation; it does not require independent inspection
-  to satisfy the Gate 2 item.
+  MFA status — **documented 2026-09-07**, from operator-supplied Cloudflare
+  Registrar dashboard evidence, not independently inspected by this agent.
+  See the "E1B DOMAIN REGISTRATION DOCUMENTED" Active State entry and the
+  corresponding Gate 2 checklist item above.
 - Production hosting posture — **decided 2026-09-07:** Hotel-Echo becomes the
   sole production host for the website, worker, PostgreSQL database, and
   persistent application data; the main PC is a temporary rollback source
