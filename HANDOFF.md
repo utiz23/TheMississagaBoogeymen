@@ -159,8 +159,17 @@ No new feature work belongs in this gate.
 - [ ] Audit the existing mobile drawer/menu; fix rather than duplicate it.
 - [ ] Audit every core route at 320, 375, 390, and 768 CSS pixels plus desktop.
 - [ ] Record production performance baselines for all core routes.
-- [ ] Define public/private indexing rules and identify every route that must
-      be excluded from search engines.
+- [x] Define public/private indexing rules and identify every route that must
+      be excluded from search engines. **Decided 2026-09-07:** index `/`,
+      `/games`, `/games/[id]`, `/roster`, `/roster/[id]`, `/stats`, and
+      finished/published legal-contact pages; exclude preview, API,
+      diagnostic, auth/admin, error, development-only, and query-variant
+      URLs from the sitemap; mark query-driven variants `noindex, follow`
+      rather than treating them as separate search results; remove the
+      `/preview/**` routes and the public `/games?mode=dev` filter from
+      production (approved, not yet done). Definition only — see the
+      "E1F INDEXING POLICY DECIDED" Active State entry. `robots.txt`,
+      sitemap, and canonical/OG metadata implementation remain Gate 3.
 - [ ] Audit page titles and descriptions; the root metadata exists, but a
       title-only page does not satisfy the per-page description requirement.
 - [ ] Decide by this date whether the externally built game-sheet frontend is
@@ -297,6 +306,78 @@ blocked non-goal stays documented and blocked; it is not silently promoted into
 launch scope and it is not allowed to hold the terminal gate hostage.
 
 ## Active State
+
+### 🟡 E1F INDEXING POLICY DECIDED — implementation remains Gate 3 (2026-09-07)
+
+Documentation-only session, following a read-only route inventory of
+`apps/web/src/app`. The inventory itself made no decision. The operator
+approved the indexing policy below for the Gate 2 "define public/private
+indexing rules and identify every route that must be excluded from search
+engines" checklist item. **Nothing was implemented** — no `robots.txt`, no
+sitemap, no canonical/OG metadata, no per-page descriptions, and no route
+was added, removed, or modified by this entry.
+
+**Canonical public routes intended for indexing — decided:**
+
+- `/`, `/games`, `/games/[id]`, `/roster`, `/roster/[id]`, `/stats`.
+- Finished legal/contact pages, once implemented and published — not before.
+
+**Sitemap policy — decided:**
+
+- Include only deliberate canonical public URLs, including canonical
+  game-detail and player-detail URLs.
+- Exclude preview, API, diagnostic, auth/admin, error, development-only, and
+  query-variant URLs.
+
+**Query variants — decided:**
+
+- Filter, mode, role, view, opponent, title, and pagination variants are not
+  separate search results; mark them `noindex, follow`.
+- Add canonical links only where the content is genuinely duplicative — do
+  not falsely canonicalize materially different pagination content (e.g. a
+  later `/games` page of different matches) to page one merely because it
+  shares a route.
+- Exact metadata mechanics (which tag on which route, `generateMetadata`
+  wiring) remain implementation work, not decided here.
+
+**Preview/development artifacts — decided:**
+
+- `/preview/carousel` and `/preview/archetypes` are approved for removal
+  from the production route tree, to be done in a later implementation
+  session — **not removed by this entry.**
+- Until removed, they must be `noindex` and omitted from the sitemap.
+  robots `Disallow` must not be combined with `noindex` in a way that
+  prevents crawlers from seeing the `noindex` directive.
+- The public `Dev` filter and `/games?mode=dev` behavior are approved for
+  removal from the production `/games` surface — **not removed by this
+  entry.** The underlying benchmark IDs/data may remain in test or
+  development-only tooling, but not as a public production filter.
+
+**Robots/security boundary — reaffirmed, unchanged:**
+
+- robots.txt is crawl guidance, never authorization.
+- `/api/auth/**` already returns real 404 responses regardless of any
+  robots/indexing configuration.
+- `/login`, `/account`, `/me`, and `/admin/**` are absent routes — nothing
+  to index or exclude.
+- Worker `/health` is outside the Next.js web route surface entirely and is
+  protected by network exposure controls (see the "STAGE D PASS" Active
+  State entry), not by robots.txt.
+- Sensitive/private/diagnostic routes must remain inaccessible regardless of
+  indexing configuration — indexing policy is presentation, not access
+  control.
+
+**What this does not do.** This entry decides the policy only. It does not
+implement `robots.txt`, a sitemap, canonical metadata, per-page
+descriptions, Open Graph metadata, or route removal — each is Gate 3 web
+implementation work, tracked in the E2 umbrella entry below. Legal/contact
+pages become indexable only after they are completed and intentionally
+published, not on the strength of this decision. It does not reopen the
+tunnel (still separately unauthorized). **Gate 2 impact:** the "define
+public/private indexing rules and identify every route that must be
+excluded from search engines" checkbox is now checked on the strength of
+this decision — see the roadmap item above and the corresponding E1 bullet
+below. No other Gate 2 or Gate 3 checkbox changed.
 
 ### 🟡 E1E DEPLOYMENT/STAGING/SECRETS/ROLLBACK MODEL DECIDED — definition only, nothing deployed, migrated, rotated, or exercised (2026-09-07)
 
@@ -3033,7 +3114,12 @@ not because an answer is proposed.**
   production cutover, rollback exercise, and the DR/restore procedure remain
   open and separately authorized.
 - The indexing policy (what is indexed, what is excluded) and the resulting
-  excluded-route inventory.
+  excluded-route inventory — **decided 2026-09-07:** see the "E1F INDEXING
+  POLICY DECIDED" Active State entry and the corresponding Gate 2 checklist
+  item above. Definition only — `robots.txt`, sitemap, canonical/OG
+  metadata, per-page descriptions, removing `/preview/carousel` and
+  `/preview/archetypes` from the production route tree, and removing the
+  public `/games?mode=dev` filter remain open Gate 3 implementation work.
 - Privacy/data-use/retention decisions: inventory the actual third-party
   services and data flows in use (e.g. Cloudflare, Proton, the EA Pro Clubs
   API are examples requiring review, not a pre-decided list); decide which
@@ -3067,11 +3153,18 @@ disclosures).
 **Publishing and the surrounding web surface are Gate 3 items, not Gate 2**,
 listed here only because they may be started early if desired: publishing the
 drafted pages as live routes, a global footer with a working webmaster
-contact, security response headers, `robots.txt`, sitemap, canonical/OG
-metadata, and related indexing/discovery implementation. If any of this is
-done during E2, label it explicitly as early Gate 3 work in the Active State
-entry that records it — do not count it against Gate 2, and do not describe
-Gate 2 as requiring published pages.
+contact, security response headers, and the indexing/discovery
+implementation approved by the "E1F INDEXING POLICY DECIDED" Active State
+entry — specifically `robots.txt`, a sitemap containing only the approved
+canonical URLs (including canonical game-detail and player-detail URLs),
+canonical/OG metadata, per-page descriptions, `noindex, follow` on
+query-driven (filter/mode/role/view/opponent/title/pagination) variants,
+removing `/preview/carousel` and `/preview/archetypes` from the production
+route tree, and removing the public `Dev` filter/`/games?mode=dev` behavior
+from `/games`. **None of this is implemented yet** — E1F decided the policy,
+not the code. If any of it is done during E2, label it explicitly as early
+Gate 3 work in the Active State entry that records it — do not count it
+against Gate 2, and do not describe Gate 2 as requiring published pages.
 
 The correction/deletion request process is already decided (`webmaster@
 boogeymen.app`, 7-day acknowledgement, 30-day resolution — see the "LAUNCH
