@@ -103,8 +103,17 @@ No new feature work belongs in this gate.
       "STAGE D PASS" Active State entry for the full evidence, the scope of
       each vantage, and one documented protocol-level limitation (no generic
       IPv6 pinhole listing call exists).
-- [ ] Define secret storage, environment separation, deployment mechanism,
-      staging strategy, and rollback ownership.
+- [x] Define secret storage, environment separation, deployment mechanism,
+      staging strategy, and rollback ownership. **Decided 2026-09-07:**
+      Hotel-Echo-only production with no permanent staging server, deploy
+      only from a clean pushed `main` commit built on Hotel-Echo in a
+      controlled window, independent per-host secrets outside git (mode
+      `0600` where enforceable), the Cloudflare tunnel token as a mounted
+      secret file (never committed or rendered into Compose), and
+      operator-owned rollback authorization. Definition only — see the
+      "E1E DEPLOYMENT/STAGING/SECRETS/ROLLBACK MODEL DECIDED" Active State
+      entry. Implementation, credential rotation, Proton integration,
+      production cutover, and rollback exercise remain open.
 
 #### Privacy, data collection, and legal drafts
 
@@ -288,6 +297,82 @@ blocked non-goal stays documented and blocked; it is not silently promoted into
 launch scope and it is not allowed to hold the terminal gate hostage.
 
 ## Active State
+
+### 🟡 E1E DEPLOYMENT/STAGING/SECRETS/ROLLBACK MODEL DECIDED — definition only, nothing deployed, migrated, rotated, or exercised (2026-09-07)
+
+Documentation-only session. The operator approved the deployment, staging,
+secrets/environment-separation, and rollback-ownership model below for the
+Gate 2 "define secret storage, environment separation, deployment mechanism,
+staging strategy, and rollback ownership" checklist item. **Nothing was
+deployed, migrated, restarted, authenticated, installed, or rotated by this
+entry, and the tunnel was not reopened (still separately unauthorized).**
+
+**Production and staging — decided:**
+
+- Hotel-Echo is the only intended production host; there will be no permanent
+  staging server.
+- A deployment candidate must be a clean, pushed `main` commit with an exact
+  recorded commit hash.
+- Verification uses the mandatory full repository suite and disposable
+  databases.
+- The exact commit is built on Hotel-Echo in a controlled deployment window.
+- Smoke verification occurs through host loopback/Tailscale before public
+  cutover/verification.
+- This decision does not authorize a deployment or tunnel action.
+
+**Deployment — decided:**
+
+- Deploy only from clean, pushed `main`.
+- Record the deployed commit and resulting image identifiers.
+- Database migrations are reviewed and applied deliberately, and must never
+  be hidden inside automatic container startup.
+- Production exact commands and exercising deployment remain later
+  documentation/Gate 3 work where not already covered by DEPLOY.md.
+
+**Secrets and environment separation — decided:**
+
+- Each host has independent configuration and credentials outside git.
+- Sensitive configuration files use mode `0600` where the filesystem enforces
+  Unix permissions.
+- Production credentials must never enter disposable test databases or test
+  environments.
+- The Cloudflare tunnel token's approved target form is a mounted secret
+  file, not a value committed to git or rendered into Compose configuration.
+- The latest recorded Hotel-Echo host evidence says its `.env` contained a
+  stale `TUNNEL_TOKEN` variable. E1E did not recheck the host. If it remains
+  present, it must be rotated in Cloudflare and removed before any
+  reopening. **This session did not inspect, rotate, remove, or expose it.**
+- Proton CLI authentication must use a protected operating-system credential
+  store; the exact unattended, service-compatible mechanism remains E3
+  design work.
+- Hotel-Echo stores only the public age recipient, never the private
+  identity.
+- After cutover, the main PC has no persistent production services; its
+  roles are operator-triggered OCR and opportunistic secondary backup
+  reception.
+
+**Rollback — decided:**
+
+- Rollback owner: the project operator. An agent may execute rollback only
+  under explicit operator authorization.
+- Preserve the prior known-good application commit/image identifiers.
+- Application rollback means returning web/worker to a known-good
+  image/commit and verifying health.
+- A backup is a recovery prerequisite, not authorization to blindly reverse
+  database migrations. Database recovery/rollback requires its own reviewed
+  procedure and compatibility decision — down-migrations are not assumed
+  safe.
+- Exercising deployment and rollback remains an open Gate 3 requirement.
+
+**What this does not do.** This entry defines the model only. It does not
+implement, deploy, migrate, rotate credentials, integrate Proton, cut over
+production, exercise rollback, or establish a DR/restore procedure — each
+remains open and separately authorized. It does not reopen the tunnel
+(still separately unauthorized). **Gate 2 impact:** the "define secret
+storage, environment separation, deployment mechanism, staging strategy, and
+rollback ownership" checkbox is now checked on the strength of this
+decision — see the roadmap item above and the corresponding E1 bullet below.
+No other Gate 2 or Gate 3 checkbox changed.
 
 ### 🟡 E1D PROTON CAPACITY PROVISIONALLY SUFFICIENT — electricity estimate deferred (2026-09-07)
 
@@ -2941,7 +3026,12 @@ not because an answer is proposed.**
   storage, and the recovery procedure remain open implementation details to
   settle before activation.
 - Secret storage, environment separation, deployment mechanism, staging
-  strategy, and named rollback ownership.
+  strategy, and named rollback ownership — **decided 2026-09-07:** see the
+  "E1E DEPLOYMENT/STAGING/SECRETS/ROLLBACK MODEL DECIDED" Active State entry
+  and the corresponding Gate 2 checklist item above. Definition only —
+  implementation, migrations, credential setup/rotation, Proton integration,
+  production cutover, rollback exercise, and the DR/restore procedure remain
+  open and separately authorized.
 - The indexing policy (what is indexed, what is excluded) and the resulting
   excluded-route inventory.
 - Privacy/data-use/retention decisions: inventory the actual third-party
