@@ -289,6 +289,72 @@ launch scope and it is not allowed to hold the terminal gate hostage.
 
 ## Active State
 
+### 🟡 E1D PROTON CAPACITY PROVISIONALLY SUFFICIENT — electricity estimate deferred (2026-09-07)
+
+Documentation-only session. The operator reported Proton Drive's current
+free-space figure and approved deferring the electricity measurement.
+**Neither Proton, Cloudflare, any billing dashboard, nor either host was
+accessed by this agent** — the capacity figure is operator-supplied evidence,
+and the arithmetic below is a documentation-only estimate derived from it,
+not a live capacity check.
+
+**Capacity arithmetic (conservative, worst-case counting):**
+
+- Approved retention holds at most approximately 28 six-hourly points (7
+  days), 30 daily points, and 12 monthly points — about 70 retained recovery
+  points if counted conservatively as fully separate points (no dedup credit
+  for a point that satisfies more than one retention tier).
+- The current proposed producer example configuration sets
+  `staging.maxStagingBytes = 5 GiB`. Treating every one of those ~70 retained
+  points as a full 5 GiB ciphertext gives **~350 GiB** total under this
+  worst-case model.
+- Proton Drive currently reports **510 GB free** (decimal) ≈ **475 GiB**
+  (510 × 10⁹ ÷ 2³⁰). Against the ~350 GiB worst-case figure, that leaves
+  roughly **125 GiB** of theoretical headroom under this conservative model.
+- Current real database dumps are much smaller than 5 GiB, which is why the
+  worst-case total is likely a significant overestimate in practice — **but
+  that observation is not treated here as a permanent capacity guarantee**,
+  since the dataset will grow over time.
+
+**What this does and does not establish:**
+
+- **Provisional conclusion:** 510 GB is provisionally sufficient for E3
+  design purposes under the conservative model above. This is a design-time
+  estimate, not a completed E3 capacity proof and not a permanent guarantee.
+- The `5 GiB` staging figure belongs to the current **proposed/example**
+  producer configuration, not a finalized Hotel-Echo production
+  configuration — a different production ceiling could change this
+  arithmetic in either direction.
+- This entry does **not** claim every future backup will be 5 GiB. It also
+  does not claim that future non-backup Proton usage competing for the same
+  quota has been forecast, or that Proton's deletion, trash,
+  version-retention, and quota-reporting behavior is already understood.
+- **E3 must still**: establish the real production staging/artifact ceiling;
+  characterize Proton's actual deletion/trash/version-retention behavior and
+  any non-backup usage sharing the same quota; preserve operational headroom
+  rather than assuming full utilization; and continuously monitor available
+  capacity rather than relying on a one-time figure.
+- **No additional Proton storage cost is currently expected**, subject to E3
+  confirming the production design and actual available capacity — this is
+  not a final cost determination.
+
+**Electricity — deferred, not zero, not waived:**
+
+- Hotel-Echo's electricity draw remains a real, currently unmeasured
+  recurring hosting cost.
+- The operator has deferred measuring it long-term: it is not considered
+  important at this time. **No follow-up date has been approved for this
+  deferral.**
+- Per the roadmap's Completion Rule (a waiver requires a written reason,
+  owner, and follow-up date), **this deferral is not yet a formal waiver** —
+  it is an operator decision to postpone measurement, recorded here for
+  transparency, not a closed or excepted item.
+- The Gate 2 "select the hosting solution and record expected monthly cost"
+  checkbox **remains unchecked and open** — this entry does not complete it.
+
+See the "E1C HOSTING COST ACCOUNTING APPROVED" entry below for the rest of
+the cost accounting this refines.
+
 ### 🟡 E1C HOSTING COST ACCOUNTING APPROVED — final estimate still open (2026-09-07)
 
 Documentation-only session. The operator approved the following cost
@@ -311,18 +377,27 @@ performed by this entry** — it records a cost breakdown only.
   household already pays — it is not free.
 - Proton Unlimited is an existing shared subscription. It carries no
   incremental site-specific charge **if** existing Drive capacity is
-  sufficient for the E3 backup design. **Whether that capacity is actually
-  sufficient has not yet been verified** — this is an open item, not a
-  confirmed fact.
+  sufficient for the E3 backup design. **Updated 2026-09-07 — no longer
+  wholly unknown:** see the "E1D PROTON CAPACITY PROVISIONALLY SUFFICIENT"
+  Active State entry above. Proton Drive's reported free space is
+  provisionally sufficient under a conservative design-time model — this is
+  not a confirmed, permanent, or production-verified capacity fact; E3 must
+  still establish the real production ceiling and monitor capacity on an
+  ongoing basis.
 - Hotel-Echo's electricity draw is a real recurring hosting cost and is
-  currently unmeasured — this entry does not claim it is zero.
+  currently unmeasured — this entry does not claim it is zero. **Updated
+  2026-09-07:** the operator has deferred this measurement long-term with no
+  approved follow-up date, which is a deferral, not a formal Completion Rule
+  waiver — see the "E1D PROTON CAPACITY PROVISIONALLY SUFFICIENT" entry.
 
 **Currently known incremental fixed cost: CAD $1.18/month (domain renewal)
-plus Hotel-Echo electricity (amount not yet measured).** This is not a
-complete expected-monthly-cost figure — it excludes the unmeasured
-electricity draw and depends on the still-unverified Proton Drive capacity
-assumption. The Gate 2 "select the hosting solution and record expected
-monthly cost" checkbox stays unchecked until a complete figure exists.
+plus Hotel-Echo electricity (amount not yet measured, measurement deferred
+long-term).** This is not a complete expected-monthly-cost figure — Proton
+Drive capacity is now provisionally addressed (see E1D above) but electricity
+remains an open, deferred unknown with no approved follow-up date, so no
+formal waiver exists. The Gate 2 "select the hosting solution and record
+expected monthly cost" checkbox stays unchecked until a complete figure
+exists.
 
 ### 🟢 E1B DOMAIN REGISTRATION DOCUMENTED — operator-supplied Cloudflare Registrar evidence, not independently inspected (2026-09-07)
 
@@ -2932,8 +3007,15 @@ key-custody constraints (Hotel-Echo holds only the age public recipient;
 one encrypted offline private-key copy plus one separately protected
 recovery copy; Proton must never be sole custodian of both the archive and
 every usable key copy). **This is policy only — none of it is implemented.**
-The bullets below are unchanged by that decision and still describe what
-remains to design and build in E3:
+See also the "E1D PROTON CAPACITY PROVISIONALLY SUFFICIENT" Active State
+entry (2026-09-07): Proton's reported 510 GB free is provisionally
+sufficient for design purposes against a conservative ~350 GiB worst-case
+retention estimate (~70 retained points at the current example
+`staging.maxStagingBytes = 5 GiB`), leaving ~125 GiB of theoretical headroom
+— a design-time estimate only, not a completed E3 capacity proof, a
+permanent guarantee, or evidence of Proton's actual deletion/trash/version
+behavior. The bullets below are otherwise unchanged by either decision and
+still describe what remains to design and build in E3:
 
 **Already implemented and verified, but only in isolation** — see the
 "BACKUP PRODUCER + DESTINATION ACCEPTANCE VERIFIED IN ISOLATION" Active State
@@ -2950,6 +3032,14 @@ against a real host, and none of it is implied by the E1A policy decision:**
   CLI credential storage, and the recovery procedure remain open
   implementation/documentation details to settle before activation; no key
   has been generated;
+- real production capacity ceiling and ongoing monitoring — the `5 GiB`
+  `staging.maxStagingBytes` figure is the current proposed/example
+  configuration only, not a finalized production value; E3 must set the real
+  ceiling, characterize Proton's actual deletion/trash/version-retention
+  behavior and any non-backup usage sharing the quota, preserve operational
+  headroom, and add continuous capacity monitoring — none of this exists yet,
+  and the E1D provisional-sufficiency conclusion above does not substitute
+  for it;
 - Proton Drive integration and account authentication — not started. The
   2026-09-05 Active State record reported that `age` was absent and no
   keypair existed on either host, and that no Proton integration had been
