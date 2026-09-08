@@ -128,6 +128,7 @@ No new feature work belongs in this gate.
       DOMAIN MAIL" Active State entry.
 - [ ] Draft an EA/NHL non-affiliation and third-party asset/data attribution
       notice appropriate to the final hosting posture.
+- [ ] Draft the Terms of Use.
 - [x] Decide whether analytics are needed. **Decided 2026-09-03:** no analytics
       or advertising at launch and no nonessential tracking/cookies. A consent
       banner is therefore not planned unless the implementation changes.
@@ -198,10 +199,11 @@ No new feature work belongs in this gate.
 
 - [ ] Publish the privacy policy.
 - [ ] Publish the data-collection policy.
+- [ ] Publish the Terms of Use.
 - [ ] Add a global footer containing a working webmaster contact.
 - [ ] Render the current copyright year automatically.
-- [ ] Link privacy, data-collection, attribution/non-affiliation, and contact
-      information from every normal page.
+- [ ] Link privacy, data-collection, Terms of Use, attribution/non-affiliation,
+      and contact information from every normal page.
 - [ ] Show cookie consent only if the deployed product uses nonessential
       cookies/tracking that require it.
 
@@ -306,6 +308,104 @@ blocked non-goal stays documented and blocked; it is not silently promoted into
 launch scope and it is not allowed to hold the terminal gate hostage.
 
 ## Active State
+
+### 🟡 E1G PRIVACY/RETENTION POLICY + REPOSITORY VISIBILITY DECIDED — repository is still public; nothing implemented (2026-09-07)
+
+Documentation-only session, following a read-only E1 privacy/data-flow
+inventory (and its corrected reissue) that traced what the repository,
+schema, and worker code actually collect, derive, log, and could expose.
+The operator approved the policy below. **Nothing was implemented, changed,
+or accessed externally by this entry** — repository visibility was **not**
+changed, no GitHub account was accessed, no credentials were created, and
+no code or configuration was modified.
+
+**Data interpretation — decided:**
+
+- `player_name_snapshot` is treated as an in-game display/persona field —
+  another form of game identity alongside gamertags and short personas —
+  not a verified legal-name or real-world-identity field. A player could
+  unusually choose a real name as their in-game identity; the system
+  neither verifies nor asserts that any captured value is or is not a real
+  name.
+- Opponent consent is not characterized as known in either direction by
+  this or any prior session.
+
+**Retention — decided:**
+
+- Gamertags, personas, `player_name_snapshot` values, match/stat data, raw
+  EA payloads, structured database data, and OCR evidence may be retained
+  indefinitely until the project operator manually deletes or corrects
+  them.
+- Raw OCR source videos and screenshots may also be retained indefinitely
+  until manual operator deletion.
+- "Indefinitely until manual deletion" is the approved policy — not a claim
+  that deletion is impossible, nor that every item must always be
+  retained.
+- Correction/deletion requests remain manual, through
+  `webmaster@boogeymen.app`, under the already-approved
+  acknowledgement/response targets (7-day acknowledge / 30-day resolve —
+  see the "LAUNCH POLICY + DOMAIN MAIL" Active State entry).
+- A database correction/deletion flows into new backups going forward;
+  older encrypted backups expire naturally through the approved
+  backup-retention schedule (7-day 6-hourly / 30-day daily / 12-month
+  monthly — see the "E1A HOSTING + BACKUP POLICY DECIDED" entry). Surgical
+  rewriting of already-retained backup artifacts is not planned.
+- Authentication is dormant and the reachable auth API refuses every
+  request. The schema contains fields capable of storing session
+  IP/user-agent and account credentials/tokens (`sessions`/`accounts`
+  columns: ip_address, user_agent, tokens, password). The latest recorded
+  provisioning evidence reported no accounts, but E1G did not inspect the
+  live database and does not independently claim current table contents.
+  A fresh privacy review remains mandatory before authentication
+  activation, regardless of current table contents.
+
+**GitHub — decided:**
+
+- The operator confirmed on 2026-09-07 that the repository is **currently
+  public**.
+- The operator decided on 2026-09-07 to make it **private**. **The
+  visibility change has not happened during this documentation session** —
+  the repository remains public until a separate, later session changes
+  and verifies it.
+- Existing committed fixtures and research captures (identified in the
+  read-only E1 privacy inventory) remain in current git history. No
+  history rewrite is authorized or planned.
+- Prior clones, caches, forks, or downloads cannot be guaranteed
+  retractable after any future visibility change — going private stops new
+  public access; it does not retract copies already taken.
+- Going forward, prefer synthetic identities in new test fixtures unless
+  authentic source provenance is genuinely required.
+- Making the repository private does not make the public website private,
+  and does not replace the still-open privacy/data-use disclosures (E2
+  drafts).
+- Before visibility is actually changed, a future separately-authorized
+  session must account for the authenticated read access Hotel-Echo
+  deployments need against a private repository. **The exact credential
+  mechanism is not decided here** — a deploy key was recommended during
+  discussion but is not yet operator-approved or implemented.
+
+**Other approved policy — decided, not implemented:**
+
+- Disable Next.js build-time telemetry (`NEXT_TELEMETRY_DISABLED`) in a
+  later implementation session.
+- Docker log retention/rotation, and reducing or suppressing routine
+  gamertag-bearing log output, remain E4 implementation work.
+- Cloudflare's and Proton's own logging/retention behavior must be
+  reviewed before E2 drafts make factual claims about them — neither was
+  inspected by this or the prior inventory session.
+
+**What this does not do.** This entry records policy decisions only. It
+does not change GitHub repository visibility, create or approve any
+credential mechanism, disable Next.js telemetry, configure Docker log
+rotation, review Cloudflare/Proton settings, or draft/publish the privacy
+policy, data-collection policy, attribution notice, or Terms of Use — all of
+that is separately-authorized future work (E2 drafts, E4, and a later
+visibility-change session). This entry records only that a Terms of Use is
+now a required launch deliverable (added to the Gate 2/Gate 3 checklists as
+new unchecked items) — it does not draft, review, or approve any Terms of
+Use content. It does not reopen the tunnel (still separately unauthorized)
+and checks no Gate 2 or Gate 3 checkbox. See the corresponding E1 umbrella
+bullet below for what remains open.
 
 ### 🟡 E1F INDEXING POLICY DECIDED — implementation remains Gate 3 (2026-09-07)
 
@@ -3120,14 +3220,22 @@ not because an answer is proposed.**
   metadata, per-page descriptions, removing `/preview/carousel` and
   `/preview/archetypes` from the production route tree, and removing the
   public `/games?mode=dev` filter remain open Gate 3 implementation work.
-- Privacy/data-use/retention decisions: inventory the actual third-party
-  services and data flows in use (e.g. Cloudflare, Proton, the EA Pro Clubs
-  API are examples requiring review, not a pre-decided list); decide which
-  must be disclosed; accurately characterize each service's role in the
-  data flow once the review establishes it (no role — "processor" or
-  otherwise — is assumed here); and set retention commitments for what is
-  actually collected (gamertags, statistics, accounts, server/IP logs). This
-  feeds E2's drafts.
+- Privacy/data-use/retention decisions — **decided 2026-09-07:** see the
+  "E1G PRIVACY/RETENTION POLICY + REPOSITORY VISIBILITY DECIDED" Active
+  State entry. Approved: retention policy (indefinite until manual operator
+  deletion/correction, across gamertags, personas, `player_name_snapshot`,
+  match/stat data, raw EA payloads, structured database data, OCR evidence,
+  and raw video/screenshots) and the GitHub repository-visibility decision
+  (approved to make private — **not yet done; the repository is still
+  public**). **Still open:** actually changing repository visibility (needs
+  a separately authorized session to first resolve Hotel-Echo's
+  authenticated read-access credential — mechanism not decided, a deploy
+  key was only recommended); disabling Next.js build telemetry; Docker log
+  retention/rotation and gamertag-bearing log suppression (E4 work);
+  reviewing Cloudflare's and Proton's own logging/retention behavior; and
+  drafting the privacy policy, data-collection policy, EA/NHL attribution
+  notice, and Terms of Use (E2 work) — none of which this decision
+  implements, drafts, reviews, or completes.
 - The NHL 27 default-title behavior (NHL 27 has mechanically become the
   default on `/` and `/games` on both hosts — see the "NHL 27 ENABLED" Active
   State entry), the NHL 26/27 cutover rules, and the career-stat stitching
@@ -3148,12 +3256,16 @@ disclosures).
 - privacy policy draft;
 - data-collection policy draft (gamertags, statistics, accounts, server/IP
   logs, retention, third-party processors actually used);
-- EA/NHL non-affiliation and third-party asset/data attribution notice draft.
+- EA/NHL non-affiliation and third-party asset/data attribution notice draft;
+- Terms of Use draft. **Not drafted, reviewed, or approved by this entry** —
+  added to scope only; no substantive terms are proposed here.
 
 **Publishing and the surrounding web surface are Gate 3 items, not Gate 2**,
 listed here only because they may be started early if desired: publishing the
-drafted pages as live routes, a global footer with a working webmaster
-contact, security response headers, and the indexing/discovery
+drafted pages as live routes (including the Terms of Use once drafted), a
+global footer with a working webmaster contact that links privacy,
+data-collection, Terms of Use, and attribution/non-affiliation pages,
+security response headers, and the indexing/discovery
 implementation approved by the "E1F INDEXING POLICY DECIDED" Active State
 entry — specifically `robots.txt`, a sitemap containing only the approved
 canonical URLs (including canonical game-detail and player-detail URLs),
