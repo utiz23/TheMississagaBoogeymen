@@ -279,6 +279,86 @@ launch scope and it is not allowed to hold the terminal gate hostage.
 
 ## Active State
 
+### 🟡 E1A HOSTING + BACKUP POLICY DECIDED — nothing implemented, installed, activated, migrated, or deployed (2026-09-07)
+
+Documentation-only session. The operator approved the E1 hosting-posture and
+backup-topology/retention/key-custody decisions below. **E1A authorized and
+performed no implementation, installation, activation, migration,
+deployment, restart, authentication, key generation, backup production, or
+tunnel action.** The documentation update itself is the only repository-
+content change for E1A, and may subsequently be reviewed, committed, and
+pushed normally like any other documentation change. Tunnel reopening
+remains separately unauthorized.
+
+**Production hosting — decided:**
+
+- Hotel-Echo becomes the sole production host for the website, worker,
+  PostgreSQL database, and persistent application data.
+- The main PC remains a temporary production rollback source only until data
+  migration, cutover, and validation succeed.
+- After a successful cutover, the main PC is retired from production
+  services. "Retired from production" does not mean it must stay powered on.
+- Post-retirement, the main PC continues to run OCR only when the operator
+  explicitly chooses, and separately acts as a secondary, opportunistic
+  backup destination when available.
+
+**Backup topology — decided:**
+
+- Hotel-Echo is the production backup source.
+- Proton Drive is the primary off-host destination. Its availability does not
+  depend on the main PC being powered on. This is not a claim that Proton or
+  network connectivity can never be unavailable; failed transfers queue and
+  retry, and freshness thresholds (below) exist to detect prolonged failure.
+- The main PC is a secondary, opportunistic destination; its availability
+  must never determine whether the daily independent-backup gate passes.
+- Backup artifacts are age-encrypted before leaving Hotel-Echo; only
+  ciphertext plus the integrity/binding metadata the reviewed artifact
+  contract requires may ever be uploaded — never plaintext dumps. Proton's
+  own encryption is additional protection, not a substitute for age
+  encryption.
+- Failed cloud transfers stay queued locally and retry safely; a transport
+  must never delete the last accepted copy.
+- A successful upload command alone does not prove acceptance — cloud
+  acceptance must be verified through a design established during E3.
+- Main-PC replication runs whenever the main PC is available and must not
+  block the primary Proton path.
+
+**Recovery and retention targets — approved:**
+
+- Backup production/upload cadence: every 6 hours. RPO 6 hours, RTO 8 hours.
+- Retention: 6-hourly recovery points for 7 days; daily points for 30 days;
+  monthly points for 12 months.
+- Warning when no verified Proton copy is newer than 8 hours; critical alert
+  when no verified Proton copy is newer than 24 hours.
+
+**Key-custody constraints — approved:**
+
+- Hotel-Echo receives only the age public recipient needed for encryption,
+  never the private identity.
+- One encrypted offline private-key copy plus one separately protected
+  recovery copy must be maintained.
+- The Proton account must never be the sole custodian of both the backup
+  archive and every usable copy of its decryption key.
+- Exact media/location, responsible owner, Proton CLI credential storage, and
+  the recovery procedure are implementation/documentation details still to be
+  settled before activation. No credentials, tokens, private keys, or
+  recovery material are recorded in this file, in git, in command output, or
+  in chat.
+
+**What this does not do.** No backup transport or scheduler was implemented;
+no Proton Drive CLI or `age` was installed; no keys were generated; no
+account was authenticated; nothing was migrated, deployed, or restarted; the
+tunnel was not reopened (still separately unauthorized). This is a policy
+decision, not a repository-content claim — it does not say the documentation
+recording it will remain uncommitted or unpushed. Production migration,
+main-PC retirement, and backup activation each still require their own
+separate authorization when their turn comes, distinct from this policy
+decision. **The Gate 2 backup/
+restore-drill checkbox and the Gate 2 domain/hosting-documentation checkboxes
+stay unchecked** — this decision supplies the policy that evidence will
+eventually be produced against, not the evidence itself. See the updated E1
+and E3 sections for what this resolves and what it deliberately leaves open.
+
 ### 🟡 BACKUP PRODUCER + DESTINATION ACCEPTANCE VERIFIED IN ISOLATION — NOT ACTIVATED, NOT DEPLOYED (2026-09-05)
 
 Source-only checkpoint for the Gate 2 backup work. Two components exist and are
@@ -2650,12 +2730,37 @@ proposed.**
   MFA status — documented in writing. MFA status may be recorded from an
   accurate operator attestation; it does not require independent inspection
   to satisfy the Gate 2 item.
-- The operator must select and document the intended production hosting
-  posture — main PC, Hotel-Echo, or another approved solution — and its
-  expected incremental/monthly cost. This is unresolved; nothing here
-  proposes or biases the answer.
-- A system termination map: where the web app, worker, database, persistent
-  storage, backups, DNS, and TLS each actually terminate.
+- Production hosting posture — **decided 2026-09-07:** Hotel-Echo becomes the
+  sole production host for the website, worker, PostgreSQL database, and
+  persistent application data; the main PC is a temporary rollback source
+  only until migration/cutover/validation succeed, then retires from
+  production services (it may still run OCR when explicitly chosen, and can
+  act as a secondary, opportunistic backup destination). See the "E1A
+  HOSTING + BACKUP POLICY DECIDED" Active State entry. **Still open:** the
+  expected incremental/monthly hosting cost has not been documented, and the
+  migration/cutover/retirement itself is not authorized or performed by this
+  decision — it requires its own separate authorization when its turn comes.
+- A system termination map: where the web app, worker, database, and
+  persistent storage terminate is now answered by the hosting decision above
+  (Hotel-Echo). DNS and TLS termination is not a blank unknown — existing
+  HANDOFF evidence already records Cloudflare as the domain registrar/DNS
+  provider (see the "LAUNCH POLICY + DOMAIN MAIL" Active State entry) and a
+  previously tested public HTTPS connection to `boogeymen.app` used
+  Cloudflare-terminated edge TLS reached via a Cloudflare Tunnel to the `web`
+  service (see the "NEW HOST STOOD UP" Active State entry, `server:
+  cloudflare` / valid TLS over HTTP/2). **What is still open** is
+  consolidating and confirming those facts into a single final production
+  termination map alongside Hotel-Echo, storage, and backups, under the
+  hosting posture approved above — and no live re-verification of DNS/TLS
+  occurred during E1A; the Gate 2 hosting-documentation checkbox stays
+  unchecked. Backup destination topology and key custody are now decided
+  (Proton Drive primary, main PC secondary opportunistic, age-encryption
+  boundary, recovery/retention targets — see the "E1A HOSTING + BACKUP POLICY DECIDED"
+  Active State entry); the transport, scheduling, and acceptance-verification
+  design that would actually realize that topology is E3 work and has not
+  started. Exact media/location, responsible owner, Proton CLI credential
+  storage, and the recovery procedure remain open implementation details to
+  settle before activation.
 - Secret storage, environment separation, deployment mechanism, staging
   strategy, and named rollback ownership.
 - The indexing policy (what is indexed, what is excluded) and the resulting
@@ -2706,7 +2811,25 @@ Gate 3 half of that item.
 
 ### E3. Backup and restore — PRODUCER + ACCEPTANCE VERIFIED IN ISOLATION ONLY
 
-Requires: the relevant E1 decisions (destination, key custody).
+Requires: the relevant E1 decisions (destination, key custody) — **decided
+2026-09-07.** See the "E1A HOSTING + BACKUP POLICY DECIDED" Active State
+entry for the approved topology (Hotel-Echo as backup source; Proton Drive as
+the primary off-host destination, whose availability does not depend on the
+main PC being powered on — not a claim that Proton or network connectivity
+can never be unavailable, since failed transfers queue/retry and freshness
+thresholds detect prolonged failure; the main PC as a secondary, opportunistic
+destination whose availability must never gate the daily independent-backup
+check), the age-encryption-before-upload and
+ciphertext-only-upload requirements, the approved recovery/retention targets
+(6-hour production cadence, 6-hour RPO, 8-hour RTO, 7-day 6-hourly / 30-day
+daily / 12-month monthly retention, 8-hour warning / 24-hour critical
+staleness thresholds on verified Proton copies), and the approved
+key-custody constraints (Hotel-Echo holds only the age public recipient;
+one encrypted offline private-key copy plus one separately protected
+recovery copy; Proton must never be sole custodian of both the archive and
+every usable key copy). **This is policy only — none of it is implemented.**
+The bullets below are unchanged by that decision and still describe what
+remains to design and build in E3:
 
 **Already implemented and verified, but only in isolation** — see the
 "BACKUP PRODUCER + DESTINATION ACCEPTANCE VERIFIED IN ISOLATION" Active State
@@ -2714,17 +2837,33 @@ entry: the producer (snapshot, dump, validate, encrypt, bounded staging, run
 lock) and the destination acceptor both pass their full suites (56/56
 acceptance, 165/165 overall) against disposable temp filesystems. **The
 remaining work below is incomplete/unactivated — none of it has been run
-against a real host:**
+against a real host, and none of it is implied by the E1A policy decision:**
 
-- transport (how an artifact actually leaves the production host);
-- destination and key-custody decisions (where backups land, who holds the
-  decryption key, and how);
+- transport (how an artifact actually leaves Hotel-Echo for Proton Drive and,
+  opportunistically, the main PC) — not designed, not implemented;
+- key-custody implementation specifics — topology and constraints are
+  decided (see above), but exact media/location, responsible owner, Proton
+  CLI credential storage, and the recovery procedure remain open
+  implementation/documentation details to settle before activation; no key
+  has been generated;
+- Proton Drive integration and account authentication — not started. The
+  2026-09-05 Active State record reported that `age` was absent and no
+  keypair existed on either host, and that no Proton integration had been
+  implemented in the repository. E1A performed no installation,
+  authentication, or key generation, but it also did not recheck either
+  host — current host installation state was not reverified during this
+  local-only, documentation-only session;
 - scheduling/activation: the producer has a CLI (`ops/backup/eanhl-backup.mjs`);
   the destination acceptor has no CLI/entry point; neither side has a
   deployed systemd unit or timer, and nothing is installed, configured, or
   activated on a real host;
 - production of a real artifact and its acceptance by the real destination;
-- freshness evaluation, retention/pruning, and alerting on backup health;
+- cloud-acceptance verification design: per the E1A decision, a successful
+  upload command alone will not be treated as sufficient — proving Proton
+  actually accepted and retains the artifact requires its own verification
+  design, not yet started;
+- freshness evaluation, retention/pruning (6-hourly/daily/monthly per the
+  approved targets above), and alerting on backup health — not implemented;
 - the restore drill itself: recover into a disposable database and verify
   critical table counts and representative application reads.
 
