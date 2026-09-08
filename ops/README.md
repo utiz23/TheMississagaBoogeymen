@@ -1,5 +1,74 @@
 # ops/ — operational units (in-repo, reproducible)
 
+## Pre-push classification policy (read this first)
+
+`.githooks/pre-push` classifies every push before deciding what to run. The
+classifier lives in [`.githooks/lib/classify-push.mjs`](../.githooks/lib/classify-push.mjs)
+(unit-tested in `classify-push.test.mjs`) with a thin CLI wrapper
+(`classify-push-cli.mjs`) and an end-to-end hook test
+(`pre-push-hook.test.mjs`) that exercises the real hook against real git
+repos. It classifies **commits/trees being pushed**, not working-tree state.
+
+**Documentation-only fast path.** A push takes the fast path only when it is
+an ordinary fast-forward branch update (`refs/heads/*` on both sides, no
+branch creation/deletion, remote object an ancestor of local object, both
+objects real commits) AND every changed path across every pushed ref matches
+this explicit allowlist:
+
+- root-level `*.md` files (e.g. `HANDOFF.md`, `README.md`)
+- `docs/**/*.md`
+
+Everything else — `apps/`, `packages/`, `tools/`, `ops/`, `scripts/`,
+`research/`, `.githooks/`, `.github/`, non-Markdown docs files, config,
+fixtures, benchmarks, manifests, weights, or any test input outside the
+allowlist above — is **not** documentation-only, even where the extension is
+`.md` (e.g. `research/OCR-SS/Manual OCR benchmark for verification V2.md` is
+machine input to the match-250 benchmark parity gate, not prose). Rename
+detection is disabled while classifying, so a code→docs or docs→code rename
+exposes both the old and new path and is always sent to full verification.
+
+For a qualifying docs-only push, the hook runs a committed-range
+`git diff --check` (whitespace/conflict-marker errors) and nothing else — no
+`TEST_*` variables are required, `scripts/verify-ocr.sh` is not invoked, and no
+application or verification-database credentials are inspected or loaded. A
+`git diff --check` failure **blocks** the push (distinct from falling back to
+full verification) — fix the issue, or push anyway once it's fixed.
+
+**Full verification path.** Anything not matching the fast-path conditions
+above — including a new/deleted branch, a tag or other non-head ref, a
+non-fast-forward update, malformed/empty/ambiguous pre-push stdin, a change
+to `.githooks/pre-push` or the classifier itself, or a push that mixes
+documentation and non-documentation paths — runs the existing
+`scripts/verify-ocr.sh` behavior unchanged, including the `TEST_*` fail-closed
+prerequisite checks below and `DATABASE_URL` unsetting. Classification
+failure or ambiguity always resolves to full verification, never to
+docs-only.
+
+**Force-full override.** Set `EANHL_PRE_PUSH_FULL=1` to force full
+verification regardless of classification, e.g. for a docs push you want
+proven against the real suite anyway:
+
+```bash
+EANHL_PRE_PUSH_FULL=1 git push ...
+```
+
+**This is a pre-push convenience, not a substitute for the real gates.** The
+docs-only fast path only ever applies to what the classifier can prove is
+prose. Production deployment and release verification still require the full
+`scripts/verify-ocr.sh` run (or the authoritative `decoder-runs activate`
+quality gate below) — never rely on a docs-only-classified push as evidence
+the pipeline works.
+
+Like any client-side hook this one is technically bypassable with
+`git push --no-verify`. That is not the normal mechanism for a documentation
+push (the fast path already skips the heavy suite for those) and it is not
+the normal mechanism for anything else either — if verification is blocking a
+push that should be fast, that's a signal to inspect and fix the
+classification, not to bypass the hook. `EANHL_PRE_PUSH_FULL=1` forces the
+full ~20-minute suite; it does not fix classification or documentation
+whitespace problems, so it is not a remedy here — it exists only for the
+deliberate case described above.
+
 ## Verification database isolation (read this first)
 
 Verification runs suites that **write** — `@eanhl/db` integration tests, the
@@ -168,13 +237,18 @@ Logs: `journalctl --user -u eanhl-verify.service -e`
 
 - **Authoritative, fail-closed:** the `decoder-runs activate` quality gate
   (WS0.1A). Bad runs cannot become canonical regardless of local git config.
-- **Advisory:** the `.githooks/pre-push` hook (bypassable with `--no-verify`),
-  self-installed via the root `package.json` `prepare` script
-  (`git config core.hooksPath .githooks`) on `pnpm install`. It no longer
-  sources `.env`; if the verification configuration is missing it **blocks**
-  rather than skipping, because a missing safety configuration must not read as
-  "nothing to check".
+- **Advisory:** the `.githooks/pre-push` hook (technically bypassable with
+  `--no-verify`, but that is not the normal mechanism — see "Pre-push
+  classification policy" above), self-installed via the root `package.json`
+  `prepare` script (`git config core.hooksPath .githooks`) on `pnpm install`.
+  It classifies each push first: a documentation-only push (see the allowlist
+  above) takes a fast path that needs no verification-database credentials;
+  everything else never sources `.env`, and if the verification configuration
+  is missing it **blocks** rather than skipping, because a missing safety
+  configuration must not read as "nothing to check".
 - **Catch-all:** this nightly timer.
 - **Hermetic:** the verification-database isolation safety suite
-  (`apps/worker/scripts/lib/*.test.mjs`), which runs before any DB-backed step
-  and proves the refusals above without a database.
+  (`apps/worker/scripts/lib/*.test.mjs`) and the pre-push classifier suite
+  (`.githooks/lib/*.test.mjs`, also runnable via `pnpm test:verify-safety`),
+  which run before any DB-backed step and prove the refusals above without a
+  database.

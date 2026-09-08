@@ -1,30 +1,82 @@
 #!/usr/bin/env bash
 #
-# Advisory pre-push hook (Tier 0 WS0.2). Runs the OCR verification harness
-# before a push so obviously-broken OCR work doesn't leave the machine.
+# Conservative, change-aware pre-push hook (Tier 0 WS0.2).
+#
+# A push is classified before anything else runs:
+#   - documentation-only (root-level *.md, docs/**/*.md, and nothing else
+#     changed across every pushed ref) takes a fast path: a committed-range
+#     `git diff --check` and nothing more. No verification-database
+#     credentials are read or required.
+#   - everything else — code, config, data, fixtures, tests, dependencies,
+#     migrations, hook/classifier changes, new/deleted branches, tags, non-
+#     fast-forward updates, or anything the classifier cannot confidently
+#     resolve — runs the existing full scripts/verify-ocr.sh harness,
+#     unchanged, fail-closed on missing verification-database configuration.
+#
+# The classifier lives in .githooks/lib/classify-push.mjs (unit-tested) and
+# .githooks/lib/classify-push-cli.mjs (thin stdin/exit-code wrapper). See
+# ops/README.md for the full policy, the allowlist, and the
+# EANHL_PRE_PUSH_FULL=1 override that forces full verification regardless of
+# classification.
 #
 # Self-installing: the root package.json `prepare` script points
 # core.hooksPath at .githooks on `pnpm install`, so this hook is active for
 # anyone who sets the repo up the normal way.
 #
-# This hook is ADVISORY and bypassable:  git push --no-verify
-# The authoritative, fail-closed enforcement is the `decoder-runs activate`
-# quality gate (WS0.1A) — bad runs cannot become canonical regardless of the
-# local git config. See docs/ocr + HANDOFF.md.
+# Like any client-side git hook this is technically bypassable
+# (`git push --no-verify`). That is not the normal mechanism for a
+# documentation push — the docs-only fast path already skips the heavy
+# suite — and it is not the normal mechanism for anything else either: the
+# authoritative, fail-closed enforcement for OCR correctness is the
+# `decoder-runs activate` quality gate (WS0.1A), which does not depend on
+# local git config. If verification is blocking a push that should be
+# skippable, that is a signal to inspect and fix the classification (see
+# ops/README.md), not to reach for --no-verify. EANHL_PRE_PUSH_FULL=1 forces
+# the full ~20-minute suite; it does not fix classification or documentation
+# whitespace problems, so it is not a remedy for a push that should have
+# taken the fast path.
 #
 # THIS HOOK NEVER SOURCES THE APPLICATION `.env`.
 # It used to, which meant a push silently handed the PRODUCTION DATABASE_URL to
 # suites that write. Verification now requires an explicitly configured,
 # attested nonproduction cluster; see ops/README.md. If that configuration is
-# absent the hook FAILS rather than skipping — a missing safety configuration
-# must not read as "nothing to check". Push anyway with --no-verify if you have
-# decided that is appropriate.
+# absent and full verification is required, the hook FAILS rather than
+# skipping — a missing safety configuration must not read as "nothing to
+# check".
 
 set -uo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
-# Verification must never inherit an application DSN.
+# Verification must never inherit an application DSN, on any path.
 unset DATABASE_URL
+
+STDIN_DATA="$(cat)"
+
+CLASSIFY_OUTPUT="$(printf '%s' "$STDIN_DATA" | node "$REPO_ROOT/.githooks/lib/classify-push-cli.mjs" "$REPO_ROOT" 2>&1)"
+CLASSIFY_EXIT=$?
+
+case "$CLASSIFY_EXIT" in
+  0)
+    # docs-only, git diff --check passed: push allowed, nothing heavy ran.
+    echo "$CLASSIFY_OUTPUT" >&2
+    exit 0
+    ;;
+  1)
+    # docs-only, but git diff --check found a problem in the committed range: block.
+    echo "$CLASSIFY_OUTPUT" >&2
+    exit 1
+    ;;
+  2)
+    # Full verification required (or explicitly forced).
+    echo "$CLASSIFY_OUTPUT" >&2
+    ;;
+  *)
+    # Classifier crashed in a way its own fallback didn't catch. Fail closed
+    # to full verification rather than silently allowing the push.
+    echo "[pre-push] classifier exited unexpectedly (code=$CLASSIFY_EXIT); falling back to full verification." >&2
+    echo "$CLASSIFY_OUTPUT" >&2
+    ;;
+esac
 
 MISSING=()
 for var in TEST_DATABASE_URL TEST_DB_CONTAINER TEST_DB_COMPOSE_PROJECT TEST_DB_COMPOSE_SERVICE; do
@@ -42,11 +94,9 @@ if [ "${#MISSING[@]}" -gt 0 ]; then
     echo "[pre-push] (ops/README.md), then load its env file into your shell:"
     echo "[pre-push]"
     echo "[pre-push]   set -a && . ~/.config/eanhl/verify.env && set +a"
-    echo "[pre-push]"
-    echo "[pre-push] To push without verifying:  git push --no-verify"
   } >&2
   exit 1
 fi
 
-echo "[pre-push] running scripts/verify-ocr.sh (advisory; bypass with: git push --no-verify)" >&2
+echo "[pre-push] running scripts/verify-ocr.sh (fail-closed full verification)" >&2
 exec bash "$REPO_ROOT/scripts/verify-ocr.sh"

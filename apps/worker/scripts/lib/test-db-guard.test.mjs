@@ -715,8 +715,12 @@ test('the pre-push hook blocks (does not skip) when verification config is missi
     assert.match(stderr, /TEST_DATABASE_URL/)
     assert.match(
       stderr,
-      /--no-verify/,
-      'the block must tell the user how to bypass it deliberately',
+      /ops\/README\.md/,
+      'the block must point the user at the verification-cluster setup docs',
+    )
+    assert.ok(
+      !stderr.includes('--no-verify'),
+      'the block must not recommend --no-verify as the actionable fix — see ops/README.md policy',
     )
     assert.ok(!stderr.includes('HOOKSECRET'), 'the hook must not echo an application DSN')
   } finally {
