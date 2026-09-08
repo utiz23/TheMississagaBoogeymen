@@ -159,7 +159,7 @@ No new feature work belongs in this gate.
 - [ ] Produce a per-parser NHL 27 beta compatibility matrix; do not accept
       "screens look the same" as proof.
 - [ ] Capture and retain a small labeled NHL 27 benchmark.
-- [ ] Decide the NHL 26/27 dual-active and cutover rules: worker polling,
+- [x] Decide the NHL 26/27 dual-active and cutover rules: worker polling,
       `game_titles.is_active`, title resolution, URL behavior, and what the UI
       calls "current" during overlap. **Now live, not hypothetical, as of
       2026-09-05:** NHL 27 ingestion was enabled on both hosts (see the "NHL 27
@@ -169,12 +169,32 @@ No new feature work belongs in this gate.
       the *default* title on `/` and `/games` on any host with no `?title=`
       param, on both databases, ahead of this decision actually being made.
       This was not a frontend change made this session; it is the existing
-      shared `is_active` behavior reacting to the new row. Decide explicitly
-      whether that default is acceptable pre-cutover or needs a code-level fix
-      (e.g. ordering `listGameTitles()`/resolving the default by something
-      other than newest-active-id) before the September 14 gate.
-- [ ] Verify the planned NHL 26 -> NHL 27 career-stat stitching rules before
-      production cutover.
+      shared `is_active` behavior reacting to the new row. **Decided
+      2026-09-08:** see the "E1J NHL 26/27 CUTOVER + CAREER-STITCHING POLICY
+      DECIDED" Active State entry — NHL 26 is deprecated for automatic
+      ingestion, NHL 27 is the sole go-forward ingestion target and approved
+      site default, and ingestion eligibility/frontend default/chronological
+      ordering must become three independent controls. This closes as a
+      policy/design decision supported by static code and schema review only
+      — **no worker configuration, database row, schema, frontend code, or
+      data was changed.** Actual implementation (the independent controls,
+      resolver consolidation, stopping NHL 26 polling, and the chronology/
+      range-label fixes) remains open, tracked under E1J and the E1 umbrella
+      section below.
+- [x] Verify the planned NHL 26 -> NHL 27 career-stat stitching rules before
+      production cutover. **Decided 2026-09-08:** see the "E1J NHL 26/27
+      CUTOVER + CAREER-STITCHING POLICY DECIDED" Active State entry — approved
+      source precedence (manually reviewed NHL 26 totals authoritative once
+      accepted, EA payloads preserved as provenance, no additive double
+      counting), the combined-career-total-plus-per-title-table model is kept
+      with mandatory cross-title labeling, and a manual identity review is
+      required before combining a new title's stats into a player's career
+      total (global gamertag matching alone is not sufficient proof of
+      identity). Policy/design only, supported by static review — **no
+      import, migration, or data change was performed.** The NHL 27 beta
+      compatibility matrix and labeled benchmark immediately below remain
+      unchecked E5 work; this decision does not touch or substitute for
+      either.
 
 #### Product-readiness audits and decisions
 
@@ -356,6 +376,209 @@ blocked non-goal stays documented and blocked; it is not silently promoted into
 launch scope and it is not allowed to hold the terminal gate hostage.
 
 ## Active State
+
+### 🟢 E1J NHL 26/27 CUTOVER + CAREER-STITCHING POLICY DECIDED — implementation and E5 verification remain open (2026-09-08)
+
+Policy/decision session only, following a read-only E1 audit of NHL 26/NHL 27
+title selection, ingestion overlap, cutover behavior, URLs, and career-stat
+stitching. **No SQL was run, no title was activated or deactivated, no
+worker/frontend code or schema changed, and no host, EA, or live database was
+accessed.** This entry records operator-approved decisions; it does not
+implement them.
+
+**Baseline this decision was made against:** the last recorded database state
+(see the "NHL 27 ENABLED" Active State entry, 2026-09-05/06) — both `nhl26`
+and `nhl27` rows are `is_active=true` on both hosts, and `nhl27`'s numeric id
+is higher than `nhl26`'s on both (main: 7>1, Hotel-Echo: 5>4). Because
+`game_titles.is_active` currently drives both the worker's poll filter
+(`apps/worker/src/ingest.ts:44`) and the frontend's default-title selection
+(`packages/db/src/queries/game-titles.ts:10-16`, taken as `[0]` by
+`apps/web/src/app/page.tsx`, `apps/web/src/app/games/page.tsx`, and
+`apps/web/src/lib/title-resolver.ts`), this baseline mechanically makes NHL 27
+the current frontend default. **This entry does not change that state** — no
+`is_active` update is authorized or proposed here, because flipping it off for
+`nhl27` alone would also stop NHL 27 ingestion (the same column controls
+both), and flipping it off for `nhl26` before the resolver fixes below exist
+would break archive selection unevenly across the four surfaces: `/stats` and
+`/roster` go through `apps/web/src/lib/title-resolver.ts`, which checks
+active titles and then falls back to archive titles via
+`getArchiveGameTitleBySlug()`, so explicit `?title=nhl26` selection there
+should keep working once `nhl26` is inactive; but `/`
+(`apps/web/src/app/page.tsx`) and `/games` (`apps/web/src/app/games/page.tsx`)
+each resolve titles locally against *active* titles only, with no archive
+fallback, so `nhl26` would stop resolving/being selectable there the moment
+it goes inactive. Implementation must consolidate/fix `/` and `/games`
+specifically (see §2's resolver-gap note) before `nhl26` is deactivated for
+ingestion — not all four routes, since `/stats`/`/roster` already handle this
+correctly.
+
+**1. Title lifecycle and ingestion — approved:**
+
+- NHL 26 is **deprecated for automatic ingestion**: no new NHL 26 matches
+  should be collected by the worker's automatic polling going forward.
+- NHL 27 is the only title intended for automatic (worker-polled) ingestion
+  going forward.
+- NHL 26 remains available as **historical/archive content** on the site — it
+  is not being deleted, hidden, or dropped from the schema.
+- The operator continues collecting final, manually reviewed NHL 26 data
+  through the existing historical workflow already used for NHL 19–25
+  (hand-reviewed historical season/team stats import, not automatic EA
+  polling).
+- This is a policy decision only. The current recorded database state still
+  has both `nhl26` and `nhl27` at `is_active=true`; nothing was run to change
+  that. Do not treat this entry as evidence that NHL 26 has stopped polling —
+  it has not, pending the implementation work in §3.
+
+**2. Default website behavior and branding — approved:**
+
+- NHL 27 games and statistics are the **approved default content** when no
+  title filter is selected on `/`, `/games`, `/stats`, and `/roster`.
+- The website and navbar remain branded as the **Boogeymen** site. The
+  site/navbar must not be renamed or prominently rebranded as "NHL 27" — the
+  game title is content-scoped, not the product identity.
+- Existing `?title=` filters remain the mechanism for distinguishing NHL 26,
+  NHL 27, and historical (NHL 19–25) titles; no new selector concept is
+  required by this decision.
+- NHL 26 must remain **selectable as archive/history** on all four surfaces
+  above.
+- **Known implementation gap, not fixed by this entry:** `/`
+  (`apps/web/src/app/page.tsx:46-57`) and `/games`
+  (`apps/web/src/app/games/page.tsx:53-65`) each implement their own local
+  title-resolution logic that only checks *active* titles by slug and does
+  not fall back to archive titles the way the shared
+  `apps/web/src/lib/title-resolver.ts` (used by `/stats`, `/roster`) does.
+  Concretely, `?title=nhl24` today resolves correctly on `/stats`/`/roster`
+  but not on `/` or `/games`. This must be consolidated/fixed before NHL 26 is
+  deactivated for ingestion, or NHL 26 would stop being reliably selectable as
+  archive on two of the four required surfaces.
+
+**3. Separate control concepts — approved as an implementation requirement:**
+
+Three concerns must be represented independently, not as one shared signal:
+
+- **Ingestion eligibility** — should the worker poll a title's EA endpoint.
+- **Frontend default selection** — which title a visitor with no `?title=`
+  sees.
+- **Chronological display ordering** — the order titles/seasons render in,
+  independent of which is default.
+
+Implementation direction (design only, not locked to a specific schema):
+
+- `is_active` may continue to represent ingestion eligibility only, or be
+  renamed/replaced during implementation for clarity — either is acceptable
+  as long as it no longer also drives the frontend default.
+- Add an explicit, operator-controlled default-title mechanism (e.g.
+  `is_default`) that the worker's poll filter does not read.
+- Add or use a reliable chronological-ordering rule or field, independent of
+  the default flag. **A default flag alone does not solve chronological
+  ordering** — it answers "which title is shown by default," not "what order
+  do titles/seasons sort in."
+- **Never use auto-increment database ids as title chronology.** This is not
+  hypothetical: `packages/db/src/queries/game-titles.ts:14` orders active
+  titles `desc(id)` ("newest first"), while
+  `packages/db/src/queries/players.ts:1150-1152` sorts a player's
+  career-season rows `asc(id)` on the hardcoded comment "NHL 26 = id 1, NHL 22
+  = id 6" — two contradictory conventions in the same codebase. NHL 27 was
+  seeded with the *highest* id on both hosts, which happens to work under the
+  first convention and silently breaks the second: a player's per-title
+  career-season table (`apps/web/src/components/roster/career-seasons-table.tsx`)
+  now sorts NHL 27 last instead of first, and the career-range subtitle built
+  in `apps/web/src/components/roster/profile-hero.tsx:147-156` (e.g. "NHL
+  22-26 · sum") mislabels once NHL 27 data is present, since it derives the
+  label's endpoints from the same wrongly-ordered array.
+- Consolidate the duplicated title-default-resolution logic currently spread
+  across `apps/web/src/lib/title-resolver.ts`, `apps/web/src/app/page.tsx`,
+  and `apps/web/src/app/games/page.tsx` into one implementation, so a future
+  fix only has to be made once.
+
+No precise migration design is locked in by this entry beyond these required
+invariants (ingestion/default/chronology must be independently controllable,
+and any default-title field needs a database invariant enforcing at
+most/exactly one default). Schema design and review are implementation work,
+not decided here.
+
+**4. NHL 26 manual-data precedence — approved source precedence:**
+
+- Once comprehensive, manually reviewed NHL 26 totals are reviewed and
+  accepted (via the existing NHL 19–25 historical workflow), those **manually
+  reviewed totals become authoritative** for displayed NHL 26 cumulative
+  season/career values.
+- Existing EA-derived totals and raw EA payloads already ingested for NHL 26
+  are **preserved unchanged** as provenance — nothing is deleted or
+  overwritten at the source-data layer.
+- EA-only fields (i.e. fields the manual/historical source has no equivalent
+  for) may continue to **supplement** the display, but only for fields the
+  manual source does not cover.
+- **Overlapping EA cumulative totals must never be added on top of
+  comprehensive manual cumulative totals** for the same statistic — this
+  would double count. Any importer/precedence implementation must select a
+  source per-field (or per-row), never combine sources additively for the
+  same counter.
+- The chosen source for each displayed value must be **recorded**
+  (provenance/source-selection metadata) so a future reader — human or code —
+  can tell which source controls a given number.
+- This is policy only. **E1J does not import, transform, or alter any NHL 26
+  data.** The import/precedence implementation itself remains future work.
+
+**5. Player career behavior — approved:**
+
+- Preserve **both** existing presentations on a player's page — this was
+  clarified during review, not newly designed:
+  - a **combined, cross-title career total**, currently computed by
+    `aggregateCareer()` in
+    `apps/web/src/components/roster/profile-hero.tsx:813-847` by summing
+    every row `getPlayerCareerSeasons()` returns; and
+  - a **per-title season-by-season table**
+    (`apps/web/src/components/roster/career-seasons-table.tsx`), fed by the
+    same underlying rows.
+- Combined totals must be **clearly labeled as spanning multiple NHL titles**
+  (not presented as if they were a single season/title's numbers).
+- **Require a manual cross-title identity review before a new title's
+  statistics are folded into a player's combined career total.** The current
+  global, unscoped gamertag-fallback match (`apps/worker/src/ingest.ts:437,462-463`;
+  `players` has no `game_title_id` — `packages/db/src/schema/players.ts:12-29`)
+  is **not sufficient proof of identity by itself** to safely combine totals
+  across a title boundary — a reused gamertag belonging to a different real
+  person would otherwise silently inflate one visible "career" number.
+- Fix the existing NHL 27 season-order and reversed career-range-label
+  defects (see §3) using explicit chronology, not numeric ids, as part of
+  implementation.
+
+**6. Team records — approved:**
+
+- Keep NHL 26 and NHL 27 team/club win-loss records **separate** — this
+  matches current behavior (`club_game_title_stats` is unique per
+  `game_title_id`; the homepage's Title Records section already renders each
+  title as its own row, `apps/web/src/app/page.tsx:362-391`) and is approved
+  to continue.
+- Do **not** combine them into a single franchise record as part of this
+  policy.
+- A future, separately designed all-time-franchise aggregate feature could
+  combine them later — **no such feature is approved or implemented by this
+  entry.**
+
+**7. URLs — approved:**
+
+- Continue using title slugs (`?title=nhl26`, `?title=nhl27`, etc.) as the
+  URL mechanism for explicit title selection.
+- Default-title changes must not break an explicit `?title=` filter URL — a
+  visitor who already has `?title=nhl26` bookmarked or shared must keep
+  seeing NHL 26 regardless of what the no-filter default is.
+- Numeric match/player links (`/games/[id]`, `/roster/[id]`) are unaffected
+  by changing the default title on a single running database — they resolve
+  by surrogate primary key, not by title. This is **not** a claim that those
+  numeric ids are portable across independently provisioned hosts or across a
+  migration/restore: `game_titles.id` values are already confirmed to differ
+  across hosts for the same slug (main `nhl26`=1 vs Hotel-Echo `nhl26`=4 —
+  see the "NHL 27 ENABLED" Active State entry), and nothing in the schema
+  guarantees `matches.id`/`players.id` stay aligned across environments.
+
+**Closes, on the strength of this decision alone (policy/design, not
+implementation):** the two Gate 2 "NHL 27 readiness" checklist items on
+cutover rules and career-stat stitching rules — see the updated checklist
+above. **Does not close:** the NHL 27 compatibility matrix or labeled
+benchmark (E5 work, unaffected by this entry), nor any of the implementation
+work listed in §§1–6 above, none of which has been done.
 
 ### 🟢 E1I HOSTING COST + SYSTEM TERMINATION MAP DOCUMENTED — migration and activation remain open (2026-09-08)
 
@@ -3514,7 +3737,26 @@ not because an answer is proposed.**
 - The NHL 27 default-title behavior (NHL 27 has mechanically become the
   default on `/` and `/games` on both hosts — see the "NHL 27 ENABLED" Active
   State entry), the NHL 26/27 cutover rules, and the career-stat stitching
-  rules across the title boundary.
+  rules across the title boundary — **policy decided 2026-09-08:** see the
+  "E1J NHL 26/27 CUTOVER + CAREER-STITCHING POLICY DECIDED" Active State
+  entry and the corresponding Gate 2 "NHL 27 readiness" checklist items
+  above. Approved: NHL 26 deprecated for automatic ingestion (manual
+  historical review continues), NHL 27 sole go-forward ingestion target and
+  approved site default, Boogeymen branding unchanged, manual NHL 26 totals
+  authoritative once reviewed with EA data preserved as provenance and no
+  double counting, both combined-career and per-title displays kept with
+  mandatory cross-title labeling and a manual identity-review safeguard
+  before combining a new title into a career total, and team/club records
+  kept separate per title. Definition only — **still open:** implementing the
+  independent ingestion-eligibility/frontend-default/chronological-ordering
+  controls, actually stopping NHL 26 automatic polling, consolidating the
+  duplicated `/`, `/games`, and shared title resolvers, fixing the NHL 27
+  season-order and career-range-label defects, the manual NHL 26 import and
+  source-precedence implementation, the identity-review safeguard itself, and
+  the E5 NHL 27 compatibility matrix and labeled benchmark (unaffected by
+  this decision). This is not a claim that E1 is complete — external
+  game-sheet-frontend acceptance and the remaining small polish decisions
+  below stay open and separate.
 - Whether the external game-sheet frontend is accepted for October
   integration.
 - Explicit resolve-or-defer decisions for the remaining small polish items
