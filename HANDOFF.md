@@ -82,9 +82,30 @@ No new feature work belongs in this gate.
       secret, recovery code, or private contact detail is stored in this
       repository. See the "E1B DOMAIN REGISTRATION DOCUMENTED" Active State
       entry.
-- [ ] Select the hosting solution and record expected monthly cost.
-- [ ] Document where the Next.js web app, worker, PostgreSQL database,
+- [x] Select the hosting solution and record expected monthly cost.
+      **Decided/documented 2026-09-08:** Hotel-Echo (per E1A), with an
+      operator-approved provisional planning estimate of **CAD $6.58–$22.78/
+      month** (domain $1.18 + electricity $5.40–$21.60), round-number planning
+      ceiling **CAD $25/month**. Electricity is an assumed-rate estimate, not
+      a measured wall-power figure; precise measurement is deferred
+      indefinitely and does not block this checkbox per operator approval.
+      See the "E1I HOSTING COST + SYSTEM TERMINATION MAP DOCUMENTED" Active
+      State entry, and E1A/E1C/E1D for the underlying decisions this refines.
+- [x] Document where the Next.js web app, worker, PostgreSQL database,
       persistent storage, backups, DNS, and TLS terminate.
+      **Decided/documented 2026-09-08:** a current-state-versus-approved-
+      target termination map is now recorded. Current: the main PC remains
+      the real production web/worker/database/storage; Hotel-Echo runs a real
+      parallel deployment with its own separate, not-yet-migrated database;
+      no production backup-pipeline activation has been recorded (E1I did
+      not recheck either host); DNS records exist at Cloudflare
+      but the tunnel is offline. Target: Hotel-Echo becomes sole production
+      host, Proton Drive/main-PC become backup destinations, Cloudflare
+      remains DNS/edge-TLS in front of the (currently offline) tunnel. This
+      checkbox closes on the strength of the documentation existing, not on
+      any claim that migration, cutover, backup activation, or tunnel
+      reopening has occurred. See the "E1I HOSTING COST + SYSTEM TERMINATION
+      MAP DOCUMENTED" Active State entry.
 - [x] Decide whether the production site is public, members-only, or mixed.
       **Decided 2026-09-03: fully public, no login gate.** See the "CONTAINED"
       Active State entry.
@@ -335,6 +356,121 @@ blocked non-goal stays documented and blocked; it is not silently promoted into
 launch scope and it is not allowed to hold the terminal gate hostage.
 
 ## Active State
+
+### 🟢 E1I HOSTING COST + SYSTEM TERMINATION MAP DOCUMENTED — migration and activation remain open (2026-09-08)
+
+Documentation-only session, following a read-only E1 hosting-cost and
+system-termination reconciliation. The operator approved a provisional
+hosting-cost estimate in place of measured wall-power consumption, and
+approved recording a precise current-versus-target system termination map.
+One operator-authorized, read-only SSH hardware inventory of Hotel-Echo was
+performed by Codex on 2026-09-08 to obtain the motherboard, CPU, GPU, RAM,
+SSD, and SMBIOS PSU results recorded below; that inventory made no host
+changes. **The Claude documentation session that wrote this entry did not
+itself access Hotel-Echo or any other external system.** Beyond that one
+read-only inventory, **no power consumption was measured, and nothing was
+physically inspected, implemented, installed, migrated, activated,
+deployed, restarted, or backed up** — no power measurement or physical
+inspection occurred, no GitHub,
+Cloudflare, or Proton account was accessed during E1I, and the tunnel was
+not touched (reopening remains separately unauthorized).
+
+**1. Hosting-cost estimate — operator-approved planning figure, not a
+measurement:**
+
+Read-only Hotel-Echo hardware evidence, supplied by Codex:
+
+- Gigabyte Z87M-D3H desktop
+- Intel Core i5-4670
+- NVIDIA GTX 760
+- Approximately 8 GB RAM
+- One ADATA SU630 SATA SSD
+- PSU model/capacity could not be identified — SMBIOS Type 39 returned OEM
+  placeholders and an unknown maximum capacity
+
+No machine ID, boot ID, serial number, or other private host identifier is
+recorded here or elsewhere in this entry.
+
+Approved planning assumptions and arithmetic:
+
+- Average draw assumption: 50–100 W
+- Continuous 30-day month: 720 hours
+- Energy estimate: 36–72 kWh/month (50 W × 720 h = 36 kWh; 100 W × 720 h =
+  72 kWh)
+- Assumed marginal electricity price: CAD $0.15–$0.30/kWh
+- Estimated electricity cost: CAD $5.40–$21.60/month (36 kWh × $0.15 = $5.40;
+  72 kWh × $0.30 = $21.60)
+- Domain: approximately CAD $1.18/month (per E1B)
+- Cloudflare DNS/Tunnel, household internet, and Proton Unlimited remain
+  existing shared costs with no current incremental site-specific charge —
+  not free services, per E1C
+- **Provisional total incremental hosting cost: CAD $6.58–$22.78/month**
+  ($5.40 + $1.18 = $6.58; $21.60 + $1.18 = $22.78)
+- **Temporary round-number planning ceiling: CAD $25/month**
+
+Explicitly:
+
+- This is an operator-approved planning estimate, not measured wall
+  consumption.
+- The electricity rate is assumed, not taken from a utility bill.
+- Actual consumption and cost can fall outside the range above.
+- CAD $25/month is a planning ceiling, not a billing guarantee or a
+  technical limit.
+- Precise wall-power measurement is deferred indefinitely and no longer
+  blocks E1 — see the superseded annotations added to the "E1C HOSTING COST
+  ACCOUNTING APPROVED" and "E1D PROTON CAPACITY PROVISIONALLY SUFFICIENT"
+  entries below.
+- Re-estimate if hardware, workload, tariffs, or shared-service pricing
+  materially changes.
+- Proton's reported 510 GB free capacity remains only provisionally
+  sufficient under E1D's conservative design-time model; E3 still owns the
+  real production ceiling and ongoing capacity monitoring. This entry adds
+  no new Proton evidence.
+
+**2. Current-versus-approved-target system termination map:**
+
+| Component | Current documented state | Approved final state | Implemented or policy-only | Remaining action |
+| --- | --- | --- | --- | --- |
+| Next.js web app | Real historical production instance runs unchanged on the main PC; Hotel-Echo separately runs a real parallel deployment (Stage B/D, commit `00742e4`, loopback-bound) | Hotel-Echo becomes sole production host | Hotel-Echo deployment is real; cutover is policy-only (E1A) | Migration, cutover, validation, main-PC retirement — not started, separately authorized |
+| Worker | Main PC's worker is the real production ingestion process; Hotel-Echo runs its own worker against its own database | Hotel-Echo becomes sole production worker | Same as above | Same as above |
+| PostgreSQL | Main PC holds the real historical database (all matches, OCR data, decoder-run provenance); Hotel-Echo's database is separate, stood up 2026-09-03, and does **not** contain the migrated historical production dataset | Hotel-Echo's PostgreSQL becomes sole production database | Policy-only for the cutover; Hotel-Echo's own instance is real but uncutover | `pg_dump`/`pg_restore` from the real production DB and cutover validation — not performed |
+| Persistent application storage | Independent `postgres_data` volumes on each host; Hotel-Echo's HDD remains physically disconnected/unused with no repurposing decision | Hotel-Echo's storage becomes canonical | Policy-only for host designation; HDD role undecided even as policy | Data migration not done; HDD role undecided |
+| Backup source | No production backup pipeline has been recorded as running anywhere; the latest recorded evidence (2026-09-05) has the producer/acceptor passing their suite only against disposable temp filesystems — E1I did not recheck either host | Hotel-Echo becomes the production backup source | Policy-only (E1A) | Transport, scheduling, activation — E3, not started |
+| Primary backup destination | No production upload or activation has been recorded. The latest recorded installation evidence (2026-09-05) reported no `age`, no keypair, and no Proton authentication on either host; E1I did not recheck that installation state | Proton Drive, age-encrypted ciphertext only | Policy-only (E1A); capacity provisionally addressed (E1D) | Proton integration, key generation, transport, acceptance verification — E3, not started |
+| Secondary backup destination | No secondary-backup implementation or activation has been recorded; E1I did not recheck either host | Main PC, opportunistic only; availability must never gate the primary backup pass/fail | Policy-only (E1A) | E3 owns implementation; not started |
+| DNS | `boogeymen.app` records live at Cloudflare (registrar+DNS), currently pointed at a stopped tunnel | Same records, routing to Hotel-Echo `web` once cutover and tunnel reopening are both separately authorized | Records implemented; routing target is policy-only pending cutover | Tunnel reopening is separately unauthorized, not part of E0–E6 |
+| Edge TLS | Cloudflare-terminated edge TLS was proven working transiently (~7.5 min) on 2026-09-03, then the tunnel was stopped; not currently live | Cloudflare edge TLS in front of the tunnel to Hotel-Echo `web`, post-cutover | Verified once, transiently; currently dormant | Re-verification required whenever the tunnel is reauthorized |
+| Cloudflare Tunnel / origin connection | `cloudflared` absent from Hotel-Echo's running containers (confirmed Stage D, 2026-09-04); config exists behind the `public` compose profile, not engaged | Cloudflare edge/Tunnel to Hotel-Echo's loopback-bound `web` service | Config implemented and dormant; not authorized to run | Reopening requires its own separate authorization — not part of E0–E6 and not granted here |
+| Main PC rollback role | Main PC is currently the live production system, not yet a rollback source in practice (no cutover has happened for it to roll back from) | Temporary rollback source only, until migration/cutover/validation succeed, then retires from production | Policy-only (E1A) | Cutover has not happened; retirement criteria undefined in detail |
+| Main PC OCR role | Main PC is the established OCR/video-ingest machine; that work runs only when the operator explicitly chooses. E1I does not claim an OCR job was running during this documentation session | Continues post-retirement, only when the operator explicitly chooses | Already the established role; approved to continue unchanged | None — current and target already match |
+
+This map documents the approved target architecture; it does not claim any
+of the target-state cells are the current deployed reality. Migration,
+cutover, validation, main-PC retirement, backup activation, and tunnel
+reopening are not performed or authorized by this documentation update.
+
+**3. Gate 2 impact:** the "select the hosting solution and record expected
+monthly cost" and "document where the... app, worker, PostgreSQL database,
+persistent storage, backups, DNS, and TLS terminate" checkboxes are now
+checked on the strength of the estimate and map above — see the roadmap
+items under "Domain, hosting, and exposure decisions." No other Gate 2 or
+Gate 3 checkbox changed. Closing these two checkboxes does not imply
+migration, cutover, backup activation, or tunnel reopening — each remains
+open and separately authorized, as detailed in the map above and in E3/E4.
+
+**What this does not do.** A read-only operating-system hardware inventory
+was obtained over SSH by Codex on 2026-09-08 — this is the source of the
+motherboard/CPU/GPU/RAM/SSD facts above, and it made no host or
+external-system mutation. Beyond that inventory: no physical PSU inspection
+or wall-power measurement occurred, and the PSU model/capacity remained
+unidentified (SMBIOS Type 39 returned OEM placeholders); no hardware was
+purchased; no electricity meter was read; no Proton, Cloudflare, or GitHub
+account was accessed; and no backup, migration, deployment, installation,
+activation, restart, or tunnel action occurred. This entry records a
+planning estimate and a documentation map only. See the "E1C HOSTING COST ACCOUNTING APPROVED" and "E1D PROTON
+CAPACITY PROVISIONALLY SUFFICIENT" Active State entries below for the
+superseded annotations this entry's approval triggers, and the E1 umbrella
+section above for the corresponding reconciliation.
 
 ### 🟢 E1H GITHUB REPOSITORY MADE PRIVATE — Hotel-Echo read access preserved (2026-09-08)
 
@@ -710,6 +846,15 @@ not a live capacity check.
   transparency, not a closed or excepted item.
 - The Gate 2 "select the hosting solution and record expected monthly cost"
   checkbox **remains unchecked and open** — this entry does not complete it.
+  **Superseded 2026-09-08:** the operator subsequently approved a
+  provisional electricity-cost estimate (assumed 50–100 W draw, CAD
+  $0.15–$0.30/kWh) in place of a measured figure, and approved treating the
+  deferral as non-blocking for E1 rather than waiting for a formal
+  Completion Rule waiver. That later decision is recorded in the "E1I
+  HOSTING COST + SYSTEM TERMINATION MAP DOCUMENTED" Active State entry and
+  closes this checkbox on that basis. This entry's original conclusion is
+  preserved above as the accurate historical record of what was true on
+  2026-09-07 — the approval described here did not exist yet at that time.
 
 See the "E1C HOSTING COST ACCOUNTING APPROVED" entry below for the rest of
 the cost accounting this refines.
@@ -756,7 +901,17 @@ Drive capacity is now provisionally addressed (see E1D above) but electricity
 remains an open, deferred unknown with no approved follow-up date, so no
 formal waiver exists. The Gate 2 "select the hosting solution and record
 expected monthly cost" checkbox stays unchecked until a complete figure
-exists.
+exists. **Superseded 2026-09-08:** the operator approved a provisional
+planning estimate for electricity (CAD $5.40–$21.60/month, from a read-only
+Hotel-Echo hardware inventory collected by Codex and supplied to the Claude
+documentation session, combined with assumed draw/rate figures — not a
+utility-bill measurement) and approved a CAD $25/month planning ceiling,
+making the deferral explicitly non-blocking for E1 rather than a gap
+awaiting a formal waiver. See the "E1I HOSTING COST + SYSTEM TERMINATION MAP
+DOCUMENTED" Active State entry, which checks this Gate 2 checkbox on that
+basis. This entry's "stays unchecked" conclusion is preserved above as the
+accurate historical record of 2026-09-07 — it is not being rewritten as if
+the later approval already existed then.
 
 ### 🟢 E1B DOMAIN REGISTRATION DOCUMENTED — operator-supplied Cloudflare Registrar evidence, not independently inspected (2026-09-07)
 
@@ -878,8 +1033,16 @@ separate authorization when their turn comes, distinct from this policy
 decision. **The Gate 2 backup/
 restore-drill checkbox and the Gate 2 domain/hosting-documentation checkboxes
 stay unchecked** — this decision supplies the policy that evidence will
-eventually be produced against, not the evidence itself. See the updated E1
-and E3 sections for what this resolves and what it deliberately leaves open.
+eventually be produced against, not the evidence itself. **Superseded
+2026-09-08 for the hosting-solution/monthly-cost and termination-map
+checkboxes only** (the backup/restore-drill checkbox is unaffected and
+remains correctly unchecked): see the "E1I HOSTING COST + SYSTEM TERMINATION
+MAP DOCUMENTED" Active State entry, which checks those two on the strength
+of the cost estimate and termination map it documents — not on any claim
+that migration, cutover, or backup activation occurred. This entry's
+original statement is preserved above as accurate for 2026-09-07. See the
+updated E1 and E3 sections for what this resolves and what it deliberately
+leaves open.
 
 ### 🟡 BACKUP PRODUCER + DESTINATION ACCEPTANCE VERIFIED IN ISOLATION — NOT ACTIVATED, NOT DEPLOYED (2026-09-05)
 
@@ -3272,12 +3435,23 @@ not because an answer is proposed.**
   existing shared costs with no incremental site-specific charge under
   present usage, not as free services; Hotel-Echo electricity is a real,
   currently unmeasured recurring cost; and Proton Drive's available capacity
-  for the E3 backup design has not yet been verified. **Still open:** a
-  complete expected-monthly-cost figure (blocked on the electricity
-  measurement and the Proton capacity check), and the
-  migration/cutover/retirement itself, which is not authorized or performed
-  by this decision — it requires its own separate authorization when its
-  turn comes.
+  for the E3 backup design was found **provisionally sufficient** by E1D
+  under its conservative design-time model (see the "E1D PROTON CAPACITY
+  PROVISIONALLY SUFFICIENT" Active State entry) — not a final,
+  production-verified figure, and E3 still owns the real production ceiling
+  and ongoing monitoring. **Updated 2026-09-08 (see the "E1I HOSTING COST +
+  SYSTEM TERMINATION MAP DOCUMENTED" Active State entry):** the operator
+  approved a provisional planning estimate in place of measured wall-power
+  consumption — CAD $6.58–$22.78/month total incremental cost (domain $1.18
+  + electricity $5.40–$21.60 at an assumed 50–100 W draw, CAD $0.15–$0.30/
+  kWh), with a CAD $25/month round-number planning ceiling. Precise
+  electricity measurement is now explicitly deferred indefinitely and does
+  **not** block E1 or the Gate 2 cost checkbox, which is now checked on that
+  basis. **Still open:** the migration/cutover/retirement itself, which is
+  not authorized or performed by this decision or by E1I — it requires its
+  own separate authorization when its turn comes — and a future re-estimate
+  if hardware, workload, tariffs, or shared-service pricing materially
+  changes.
 - A system termination map: where the web app, worker, database, and
   persistent storage terminate is now answered by the hosting decision above
   (Hotel-Echo). DNS and TLS termination is not a blank unknown — existing
@@ -3286,12 +3460,16 @@ not because an answer is proposed.**
   previously tested public HTTPS connection to `boogeymen.app` used
   Cloudflare-terminated edge TLS reached via a Cloudflare Tunnel to the `web`
   service (see the "NEW HOST STOOD UP" Active State entry, `server:
-  cloudflare` / valid TLS over HTTP/2). **What is still open** is
-  consolidating and confirming those facts into a single final production
-  termination map alongside Hotel-Echo, storage, and backups, under the
-  hosting posture approved above — and no live re-verification of DNS/TLS
-  occurred during E1A; the Gate 2 hosting-documentation checkbox stays
-  unchecked. Backup destination topology and key custody are now decided
+  cloudflare` / valid TLS over HTTP/2). **Updated 2026-09-08 — documentation
+  complete:** a precise current-state-versus-approved-target termination map
+  is now recorded, consolidating those facts alongside Hotel-Echo, storage,
+  and backups under the hosting posture approved above. See the "E1I HOSTING
+  COST + SYSTEM TERMINATION MAP DOCUMENTED" Active State entry. **The Gate 2
+  hosting-documentation checkbox is now checked** on the strength of that
+  map existing — this is a documentation closure only; no live
+  re-verification of DNS/TLS occurred, and the map explicitly preserves that
+  the approved target architecture (Hotel-Echo as sole production host) is
+  not yet the current deployed reality. Backup destination topology and key custody are now decided
   (Proton Drive primary, main PC secondary opportunistic, age-encryption
   boundary, recovery/retention targets — see the "E1A HOSTING + BACKUP POLICY DECIDED"
   Active State entry); the transport, scheduling, and acceptance-verification
