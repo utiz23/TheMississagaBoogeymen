@@ -214,12 +214,22 @@ No new feature work belongs in this gate.
       sitemap, and canonical/OG metadata implementation remain Gate 3.
 - [ ] Audit page titles and descriptions; the root metadata exists, but a
       title-only page does not satisfy the per-page description requirement.
-- [ ] Decide by this date whether the externally built game-sheet frontend is
+- [x] Decide by this date whether the externally built game-sheet frontend is
       accepted and ready for October integration. Missing this decision makes
-      that integration non-blocking and deferred.
-- [ ] Resolve or explicitly defer the remaining small correctness/polish
+      that integration non-blocking and deferred. **Decided 2026-09-08:**
+      accepted as already integrated — the matching prototype was ported
+      through the July/August game-sheet revamp, already complete and
+      committed; no separate October integration or duplicate port remains.
+      See the "E1K FINAL OPERATOR DECISIONS RECORDED" Active State entry.
+- [x] Resolve or explicitly defer the remaining small correctness/polish
       items: opponent player-score completeness, Top Performers contrast, and
-      navbar subtitle.
+      navbar subtitle. **Resolved 2026-09-08:** opponent player-score
+      completeness deferred as no known defect; the specific recorded Top
+      Performers contrast defect (old `--fg-5`) is closed as already fixed by
+      the shipped token ramp; the navbar/masthead game-title label is decided
+      to be removed as later UI implementation work (not done by this
+      decision). See the "E1K FINAL OPERATOR DECISIONS RECORDED" Active State
+      entry.
 
 ### Gate 3 — Operational V1 product-ready by 2026-10-01
 
@@ -345,8 +355,14 @@ No new feature work belongs in this gate.
       NHL 26/27 boundary without source conflation.
 - [ ] Import the historical club/team review queue or close it with an exact,
       documented remainder and rationale.
-- [ ] Integrate the external game-sheet frontend only if it passed the
+- [x] Integrate the external game-sheet frontend only if it passed the
       September 14 acceptance decision; otherwise record it as deferred.
+      **Already complete, 2026-09-08:** the matching prototype was already
+      integrated through the completed July/August 12-phase game-sheet
+      revamp. E1K accepted/reconciled that existing work on 2026-09-08 — it
+      did not perform a new integration. No separate October integration
+      remains unless a genuinely different artifact is later identified. See
+      the "E1K FINAL OPERATOR DECISIONS RECORDED" Active State entry.
 - [ ] Complete final content/proofreading and verify contact/policy links.
 - [ ] Finish with clean, pushed, deployed `main`, current `HANDOFF.md`, known
       image/commit identifiers, rollback criteria, and a 48-hour post-launch
@@ -365,7 +381,9 @@ the terminal scope:
   launch;
 - shot-location features without a trustworthy source;
 - the external game-sheet redesign if it misses the September 14 acceptance
-  gate.
+  gate. **Superseded by E1K (2026-09-08): the matching prototype passed —
+  it was already integrated via the completed July/August revamp — so this
+  non-goal did not trigger.** The rest of this non-goals list is unaffected.
 
 ### Completion rule
 
@@ -376,6 +394,101 @@ blocked non-goal stays documented and blocked; it is not silently promoted into
 launch scope and it is not allowed to hold the terminal gate hostage.
 
 ## Active State
+
+### 🟢 E1K FINAL OPERATOR DECISIONS RECORDED — E1 COMPLETE; E2 requires a fresh Codex session (2026-09-08)
+
+A read-only audit session (this one's immediate predecessor) reviewed the two
+remaining open E1 items — the external game-sheet frontend and the three
+small polish items — and reported findings with evidence for each. The
+operator reviewed that audit and approved the four decisions below. **This
+entry documents those decisions only; it does not implement any of them.**
+
+**1. External game-sheet frontend — accepted as already integrated.**
+
+- The only repository artifact matching "externally built game-sheet
+  frontend" is the ignored/untracked `Game sheet prototype layout (1)/`
+  Claude Design export at repo root (never tracked, not touched by this
+  entry).
+- Production code explicitly cites this folder/design as its source — e.g.
+  `top-nav.tsx`'s doc-comment names
+  `Game sheet prototype layout (1)/Game Sheet copy.dc.html` directly.
+- The matching implementation landed through the July/August game-sheet
+  revamp commits, including: the header, the navbar, the lineup module, the
+  head-to-head drawer behavior, Top Performers, the DtW gauge, the box
+  score, the event timeline, the action tracker, and a dedicated
+  responsive/accessibility/contrast pass.
+- HANDOFF's own Frontend section already states the 12-phase game-sheet
+  revamp is complete and committed (see "## Repo State" → "### Frontend"
+  below).
+- **Therefore there is no separate October integration decision or
+  duplicate port remaining**, unless the operator later identifies a
+  genuinely different artifact not represented in this repository.
+- This closes as **accepted / already integrated** — E1K did not newly
+  implement, port, or modify any game-sheet code. The ignored prototype
+  directory remains untouched and untracked.
+
+**2. Opponent player-score completeness — explicitly deferred as "no known
+defect."**
+
+- The tracked `opponent_player_match_stats` schema contains the scoring
+  inputs the formula needs.
+- The query layer does not intentionally discard those inputs.
+- The shared score-building path (`buildAllTeamScores` / `toEntry` /
+  `skaterBreakdown` / `goalieBreakdown`) applies the identical scoring
+  formula to both BGM and opponent rows.
+- Opponent performer rows render the same score breakdown BGM rows do.
+- Two differences remain, both intentional: no opponent roster-profile link
+  (opponents have no profile page), and no opponent season-average
+  comparison (opponent season history is not stored).
+- No reproducible missing-score defect, failing test, TODO, or documented
+  failing match was found in tracked code or in HANDOFF.
+- **This is not a claim of exhaustive runtime proof** — it is a
+  documentation-review finding. Reopen only if a concrete failing
+  match/screen is identified.
+
+**3. Top Performers contrast — the specific recorded defect is closed as
+already resolved.**
+
+- The prototype's review recorded the old `--fg-5` value `#514E4F` at
+  approximately 2.15:1 contrast — a real WCAG AA failure at the time it was
+  written.
+- The live global tokens are now `--color-fg-4: #8e8b8c` (~5.6:1) and
+  `--color-fg-5: #7f7c7d` (~4.6:1) (`apps/web/src/app/globals.css`), shipped
+  as part of the game-sheet revamp's accessibility/contrast pass.
+- This closes the **specific recorded defect** only. It does not claim every
+  dynamic opponent/team color combination (e.g. per-club `--opp`/`--opp-soft`
+  pairings) has received a complete visual contrast audit — that remains an
+  optional later spot-check, not an E1 blocker.
+
+**4. Navbar/masthead game-title label — decided to be removed, as later UI
+work.**
+
+- The audited element is the repeated `gameTitle.name` title-context label
+  displayed beside/under the "Boogeymen" masthead heading on top-level
+  pages (`/`, `/games`, `/roster`, `/stats`) — **not** a component literally
+  named "navbar subtitle"; no such component exists.
+- Decision: remove this label during later UI implementation work.
+- Boogeymen remains the site/product identity; NHL 27 remains the approved
+  default data context (see the "E1J" entry above). Title context stays
+  available through the existing title filters and each page's own content
+  — removing this one repeated label does not remove the site's ability to
+  show or filter by game title.
+- **The actual UI removal is not performed by this entry** and remains open
+  implementation work (tracked under later product-readiness polish, not a
+  new E1/E2/E3/E4/E5 subsection of its own).
+
+**E1 status: COMPLETE.** E1A through E1K have now recorded every operator
+decision E1 required (hosting/backup, domain, cost accounting, Proton
+capacity, deployment/staging/secrets/rollback model, indexing policy,
+privacy/retention/repository visibility, GitHub privacy execution, hosting
+cost + termination map, NHL 26/27 cutover + career-stitching policy, and now
+the game-sheet frontend + three polish items above). **Completing E1 does
+not complete Gate 2 and does not launch the site** — Gate 2 still has
+multiple unrelated unchecked items (product-readiness audits, Gate 1
+verification carry-forwards already checked above, etc.), and Gate 3 has not
+started. E2 (legal drafts, plus optional early Gate 3 web work) is the next
+phase and remains **NOT STARTED**. **Per operator instruction, E2 must begin
+in a fresh Codex session** — not a continuation of this one.
 
 ### 🟢 E1J NHL 26/27 CUTOVER + CAREER-STITCHING POLICY DECIDED — implementation and E5 verification remain open (2026-09-08)
 
@@ -3465,7 +3578,12 @@ not require. **That reconciliation is E0, and it is complete; it is recorded
 below along with the corrected E1-E6 breakdown it produced. No E1-E6 substage
 is authorized to start yet, no Gate 2 or Gate 3 checkbox changed, and no
 decision or waiver was made or invented by that session.** The next actionable
-substage is **E1 — operator decisions and operational documentation.**
+substage was **E1 — operator decisions and operational documentation**, at
+the time this paragraph was written (2026-09-06). **Update 2026-09-08: E1 is
+now ✅ COMPLETE (E1A-E1K) — see "## Operational V1 Terminal Roadmap" → "### E1"
+and the "E1K FINAL OPERATOR DECISIONS RECORDED" Active State entry. The next
+actionable substage is now E2, which per operator instruction must begin in a
+fresh Codex session; E2 remains NOT STARTED.**
 Finishing E0-E6 is not itself permission to reopen the tunnel, which remains
 its own separate, later authorization — see "Tunnel reopening" below. The
 order remains load-bearing: exposure must stay verified before anything is
@@ -3628,16 +3746,24 @@ was made.** The remaining work is now organized as E1-E6, an umbrella
 sequence, followed by its own separate tunnel-reopening authorization — see
 below.
 
-### E1. Operator decisions and operational documentation — IN PROGRESS
+### E1. Operator decisions and operational documentation — ✅ COMPLETE (2026-09-08)
 
 Requires: E0 complete (it is). **E0 itself made no decisions — it was a
-read-only scope reconciliation.** Since then, E1A (hosting posture, backup
-topology/retention/key custody, 2026-09-07) and E1B (domain registration,
-2026-09-07) have recorded actual operator-approved decisions and evidence,
-each explicitly marked "decided"/"documented" with a date and an Active
-State entry below. **No decision not explicitly marked that way has been
-made; every remaining bullet below is listed only because it is still open,
-not because an answer is proposed.**
+read-only scope reconciliation.** E1A through E1K (below) have since
+recorded every operator-approved decision E1 required — hosting/backup
+posture, domain registration, cost accounting, Proton capacity, the
+deployment/staging/secrets/rollback model, indexing policy,
+privacy/retention/repository-visibility policy (plus its execution), the
+hosting-cost + system-termination map, the NHL 26/27 cutover +
+career-stitching policy, and finally (E1K, 2026-09-08) the external
+game-sheet frontend and the three remaining small polish items — each
+explicitly marked "decided"/"documented" with a date and an Active State
+entry below. **E1 is now complete: every bullet below is a closed decision,
+not an open one.** Completing E1 does **not** complete Gate 2 (other Gate 2
+items — product-readiness audits, etc. — remain unchecked) and does not
+launch the site; it only closes the operator-decision phase. The next phase,
+E2, is **NOT STARTED** and, per operator instruction, must begin in a fresh
+Codex session rather than continuing this one.
 
 - Domain owner, registrar, renewal date, billing owner, recovery contact, and
   MFA status — **documented 2026-09-07**, from operator-supplied Cloudflare
@@ -3754,14 +3880,32 @@ not because an answer is proposed.**
   season-order and career-range-label defects, the manual NHL 26 import and
   source-precedence implementation, the identity-review safeguard itself, and
   the E5 NHL 27 compatibility matrix and labeled benchmark (unaffected by
-  this decision). This is not a claim that E1 is complete — external
+  this decision). **At the time this paragraph was written (2026-09-08,
+  before E1K), this was not a claim that E1 was complete** — external
   game-sheet-frontend acceptance and the remaining small polish decisions
-  below stay open and separate.
-- Whether the external game-sheet frontend is accepted for October
-  integration.
-- Explicit resolve-or-defer decisions for the remaining small polish items
-  (opponent player-score completeness, Top Performers contrast, navbar
-  subtitle).
+  were still open. **Superseded the same day by E1K, below: both are now
+  decided and E1 is complete.**
+- The external game-sheet frontend — **decided 2026-09-08: accepted as
+  already integrated.** The only matching repository artifact (the
+  untracked `Game sheet prototype layout (1)/` design export) was already
+  ported into production through the July/August 12-phase game-sheet
+  revamp — header, navbar, lineup, head-to-head drawer, Top Performers,
+  DtW, box score, event timeline, action tracker, and an
+  accessibility/contrast pass — which HANDOFF's own Frontend section
+  already records as complete and committed. There is no separate October
+  integration or duplicate port remaining. See the "E1K FINAL OPERATOR
+  DECISIONS RECORDED" Active State entry for full evidence.
+- The remaining small polish items — **decided 2026-09-08:** opponent
+  player-score completeness is explicitly deferred as no known defect (the
+  scoring pipeline and rendering are at parity with BGM; no reproducible
+  failure was found); the specific recorded Top Performers contrast defect
+  (the old `--fg-5` value) is closed as already fixed by the shipped color
+  tokens, with a full dynamic-color audit left as an optional, non-blocking
+  later spot-check; and the repeated `gameTitle.name` label beside the
+  "Boogeymen" masthead (not a literally named "navbar subtitle" component)
+  is decided to be removed, with the actual removal deferred to later UI
+  implementation work. See the "E1K FINAL OPERATOR DECISIONS RECORDED"
+  Active State entry for full evidence.
 
 ### E2. Gate 2 legal drafts, plus optional early Gate 3 web work — NOT STARTED
 
