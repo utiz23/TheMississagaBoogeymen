@@ -37,9 +37,9 @@ agreement to them.
 
 This is a public, read-only website that publishes match history, rosters,
 statistics, gamertags and related identifiers, and related information for
-our EA Sports NHL Pro Clubs team. It is an informational and archival project,
-run by a single
-individual on a volunteer basis and offered free of charge.
+our EA Sports NHL Pro Clubs team. It is an informational and archival
+project, run by a single individual on a volunteer basis and offered free of
+charge.
 
 There is no advertising, monetization, or other commercial activity on this
 site now, and none is planned. If that changes, we intend to review these
@@ -395,14 +395,18 @@ There are **fourteen** publication blockers, all open.
    produced by an AI drafting session against repository and HANDOFF evidence.
    It is not legal advice and has not been reviewed by anyone with legal
    expertise. Counsel review is **deferred, not completed** (E2D3 item 14). Do
-   not publish, and do not check the Gate 2 "Draft the Terms of Use" checkbox,
-   until that review is complete. This draft has now had an independent,
-   non-legal drafting-quality review (E2G2), operator decisions on the two
-   items it held (E2G2A), a correction pass applying the required findings
-   (E2G3), and a final, optional drafting-quality polish pass (E2G4) — the
-   same shape as the Privacy Policy, Data Collection Policy, and attribution
-   notice reviews (E2D2/E2D2A, E2E2/E2E2A, E2F2/E2F2A/E2F3/E2F4). **None of
-   E2G2, E2G3, or E2G4 is a legal review.** This draft remains a
+   not publish these Terms until that review is complete. This draft has now
+   had an independent, non-legal drafting-quality review (E2G2), operator
+   decisions on the two items it held (E2G2A), a correction pass applying the
+   required findings (E2G3), and a final, optional drafting-quality polish
+   pass (E2G4) — the same shape as the Privacy Policy, Data Collection
+   Policy, and attribution notice reviews (E2D2/E2D2A, E2E2/E2E2A,
+   E2F2/E2F2A/E2F3/E2F4). **None of E2G2, E2G3, or E2G4 is a legal review.**
+   Reaching this drafting-quality checkpoint is what HANDOFF's "E2H GATE 2
+   DRAFTING CHECKPOINTS AND FUTURE LEGAL ROUTES APPROVED" entry relied on to
+   check the Gate 2 "Draft the Terms of Use." checkbox (2026-09-10) —
+   **checking that box is not legal clearance, is not publication approval,
+   and does not resolve any blocker below.** This draft remains a
    drafting-quality checkpoint only, not legal clearance and not publishable
    text.
 2. **Replace both placeholder dates** ("Effective date" and "Last updated")
@@ -411,9 +415,13 @@ There are **fourteen** publication blockers, all open.
 3. **Replace every placeholder route token and verify each resulting link
    resolves.** The public text carries `PLACEHOLDER-PRIVACY-POLICY-URL`,
    `PLACEHOLDER-DATA-COLLECTION-POLICY-URL`, and
-   `PLACEHOLDER-ATTRIBUTION-NOTICE-URL`. No legal-page route exists in the
-   application and no route decision is recorded in `HANDOFF.md` (Q-E2E2-1 is
-   still open). Do not invent a route. Confirm each link reaches the
+   `PLACEHOLDER-ATTRIBUTION-NOTICE-URL`. The routes are now decided (E2H,
+   2026-09-10): `/legal/privacy`, `/legal/data-collection`, and
+   `/legal/attribution` respectively — and this document's own future route
+   is `/legal/terms`. None of the four route files exists in the
+   application yet; deciding a route does not implement or publish it. Do
+   not replace any placeholder until Gate 3 actually implements and
+   publishes the corresponding page, then confirm each link reaches the
    **published** document, not a file under `docs/planning/`, and that the
    Gate 3 footer/legal-destination link scan covers this page.
 4. **The warranty, liability, and governing-law sections require counsel
@@ -512,8 +520,11 @@ There are **fourteen** publication blockers, all open.
     12 on-site material-change notice, but neither has been reviewed for
     enforceability. Browse-wrap notice questions turn substantially on
     placement and conspicuousness, so this review must be connected to the
-    still-undecided Gate 3 footer/route placement decision (**Q-E2G-1**), not
-    treated as a pure text question. Section 1's statement that appearing in
+    Gate 3 footer placement and on-page prominence implementation — the
+    route identity itself is decided (`/legal/terms`, per E2H; see
+    **Q-E2G-1** below) but where and how it is linked sitewide remains
+    unimplemented Gate 3 work — not treated as a pure text question.
+    Section 1's statement that appearing in
     match data is not agreement to these Terms is a drafting-originated
     protective statement, consistent with — but not required by — **E2A
     decision 3** and **E2D3 item 8**; it is not itself the subject of a
@@ -561,13 +572,20 @@ There are **fourteen** publication blockers, all open.
   remain prohibited outright regardless of purpose or permission (section
   5); and third-party rights are unaffected (section 3's Third-party rights
   paragraph; section 7).
+- **Q-E2G-1 (operator, Gate 3 routing) — ANSWERED at E2H, not yet
+  implemented.** This document's own future route is `/legal/terms`, and the
+  routes behind the three placeholder tokens are `/legal/privacy`,
+  `/legal/data-collection`, and `/legal/attribution` (E2H, 2026-09-10; see
+  HANDOFF's "E2H GATE 2 DRAFTING CHECKPOINTS AND FUTURE LEGAL ROUTES
+  APPROVED" entry). Same routes recorded for the attribution notice's
+  blockers 9 and 15. Route files do not exist yet, and this decision does
+  not resolve the separate Gate 3 sequencing question of whether the
+  attribution notice and this document must publish simultaneously (see the
+  attribution notice's blocker 15 and this draft's blocker 8) — that remains
+  open, not a legal question, and not decided by this entry.
 
 ### Unresolved operator and counsel questions
 
-- **Q-E2G-1 (operator, Gate 3 routing).** This document's own published route
-  is undecided, as are the routes behind the three placeholder tokens. Same
-  open item as Q-E2E2-1 and the attribution notice's blockers 9 and 15. Not a
-  legal question; not decided by this draft.
 - **Q-E2G-2 (operator).** No response target is stated for section 4
   permission requests. The approved 7-day acknowledgement / 30-day resolution
   targets ("LAUNCH POLICY + DOMAIN MAIL", 2026-09-03) cover
@@ -636,23 +654,32 @@ does not stage, commit, push, publish, deploy, or reopen the tunnel.
 
 ### Gate 2 status
 
-**Not checked.** This is accepted as a drafting-quality checkpoint only — not
-legal clearance and not publishable text. All eleven of E2G2's required
-corrections (T-01 through T-11) are applied: T-09 and T-10 by E2G2
-additively; T-01 through T-08 and T-11 by E2G3, applying E2G2A's decisions
-for T-06 and T-11. E2G4 then applied the remaining decision-free optional
-findings — T-13, T-15, T-16, T-17, T-18, T-19, T-20, and T-21 — confirmed
-T-12 already complete at E2G3, and reviewed T-14 as accepted without edit
-(section 7's non-affiliation sentence is already the Terms' own generic
-statement, per option (b)). No new defect was found during the E2G3 or
-E2G4 passes. **Fourteen** publication blockers above remain open (two added
-by E2G4: 13 for the indexing-paragraph re-verification, 14 for the AI/TDM
-operator decision) — including counsel review, which remains deferred and
-not completed (E2D3 item 14) — and none is resolved by a drafting-quality
-polish pass. Q-E2G-4 is no longer described as undecided; it is recorded as
-answered (E2G2A decision 2, applied publicly at E2G3) in the new "Resolved
-questions" subsection above. Q-E2G-1, Q-E2G-2, Q-E2G-3, and Q-E2G-5 remain
-unresolved, and no counsel question was resolved. The Gate 2 "Draft the
-Terms of Use" checkbox stays `[ ]`, and no other Gate 2 checkbox is changed.
-Cloudflare Web Analytics remains enabled. Tunnel reopening remains
-separately unauthorized. **E2 remains IN PROGRESS.**
+**Checked at E2H (2026-09-10); not changed by this revision itself.** This is
+accepted as a drafting-quality checkpoint only — not legal clearance and not
+publishable text. All eleven of E2G2's required corrections (T-01 through
+T-11) are applied: T-09 and T-10 by E2G2 additively; T-01 through T-08 and
+T-11 by E2G3, applying E2G2A's decisions for T-06 and T-11. E2G4 then
+applied the remaining decision-free optional findings — T-13, T-15, T-16,
+T-17, T-18, T-19, T-20, and T-21 — confirmed T-12 already complete at E2G3,
+and reviewed T-14 as accepted without edit (section 7's non-affiliation
+sentence is already the Terms' own generic statement, per option (b)). No
+new defect was found during the E2G3 or E2G4 passes. Reaching this
+drafting-quality checkpoint is what HANDOFF's "E2H GATE 2 DRAFTING
+CHECKPOINTS AND FUTURE LEGAL ROUTES APPROVED" entry relied on to check the
+Gate 2 "Draft the Terms of Use." checkbox — **checking that box is not
+legal clearance, is not publication approval, and does not resolve any
+blocker above.** **Fourteen** publication blockers above remain open (two
+added by E2G4: 13 for the indexing-paragraph re-verification, 14 for the
+AI/TDM operator decision) — including counsel review, which remains
+deferred and not completed (E2D3 item 14) — and none is resolved by a
+drafting-quality polish pass or by E2H. Q-E2G-4 is no longer described as
+undecided; it is recorded as answered (E2G2A decision 2, applied publicly
+at E2G3) in the "Resolved questions" subsection above. **Q-E2G-1 is now
+answered at E2H** (this document's future route is `/legal/terms`; see the
+"Resolved questions" section above) but not implemented — route files do
+not exist and this document is not published. Q-E2G-2, Q-E2G-3, and Q-E2G-5
+remain unresolved, and no counsel question was resolved. The Gate 2 "Draft
+the Terms of Use." checkbox is now `[x]`. Cloudflare Web Analytics remains
+enabled. Tunnel reopening remains separately unauthorized. **E2's required
+legal drafting is complete (E2H/E2I); Gate 2 as a whole and these Terms'
+publication are not.**

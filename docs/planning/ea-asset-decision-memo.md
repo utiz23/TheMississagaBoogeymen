@@ -561,6 +561,23 @@ opinion and does not authorize any change.**
 
 ## 5. Unresolved operator inputs (not resolved by assumption)
 
+> **Superseded by E2C5 (2026-09-09).** The operator answered every item in
+> this section — monetization posture, uniform asset-retention posture,
+> X-Factor replacement timing, the duplicate `docs/branding` tree's
+> disposition, and `scripts/scrape_ea_xfactor_pngs.sh`'s disposition — in
+> HANDOFF's "E2C5 FINAL ASSET-RETENTION OPERATOR DECISIONS RECORDED" entry:
+> no monetization currently or planned; every asset (including the X-Factor
+> documentation duplicate) kept exactly as-is, uniformly across both crest
+> families and the X-Factor family; none of options 2/3 taken; and the
+> scrape script kept unchanged, with retention not treated as authorization
+> to run it. That is a retention decision, not legal clearance — E2C3's
+> legal classifications are unchanged, and no asset was reopened, removed,
+> replaced, relocated, deduplicated, recoloured, regenerated, renamed,
+> hidden, or switched to a fallback by that decision or by this
+> reconciliation. The bullets below are preserved unedited as the historical
+> analysis and options E2C5 was deciding among; they no longer describe open
+> questions.
+
 - **Monetization posture (E2C3 U10).** The research memo records that "E2A
   decision 4 records a personal/noncommercial reuse posture but no
   monetization audit has been performed," and lists as unresolved: "Does

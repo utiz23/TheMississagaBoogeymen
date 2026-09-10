@@ -360,7 +360,7 @@ hold about you, contact the **Privacy Contact for Boogeymen** at
   handle that request. We do not add it to our published statistics
   record. We do not promise to delete it immediately; where we keep it, it
   is kept under the same privacy/correction-correspondence retention
-  category described in "How long we keep information" below.
+  category described in "How long we keep information" above.
 - If a copy of our data (including from a period when our source repository
   was public) has already been taken by someone else, we cannot recall or
   delete that copy — our removal only affects what we ourselves publish and
@@ -436,10 +436,22 @@ policy goes live.**
 **Revision provenance.** This draft was revised at HANDOFF's E2D4 against
 the corrected E2D2A independent review
 (`docs/planning/data-collection-policy-review.md`) and the E2D3
-operator-decisions entry. E2D2A's findings and E2D3's decisions are treated
-as authoritative for this pass; this revision does not itself constitute
-independent factual/legal review and does not resolve any of the
-still-open questions listed below.
+operator-decisions entry, then given a narrow drafting-quality
+verification/polish pass at **E2D5** (2026-09-09) — see HANDOFF's "E2D5 DATA
+COLLECTION POLICY VERIFIED AND POLISHED" entry for the itemized text-only
+corrections applied (header/status wording, removed public pointers into
+this internal section, §5's indexing-policy restatement, §10's removal
+wording, and §2's persona-identifier wording). This **E2I** reconciliation
+pass (2026-09-10) additionally corrects, within this document, the §10
+directional reference fixed above, publication blocker 6's
+checkbox/counsel semantics, and this Gate 2 checkbox/checkpoint status
+against E2H; the coordinated E2I session separately corrected related
+stale attribution-notice and public-route references in the sibling
+Privacy Policy, Terms of Use, and attribution-notice drafts — none of that
+resolves any new substantive question. E2D2A's findings and E2D3's
+decisions remain authoritative for the drafting pass; none of E2D4, E2D5,
+or this E2I pass constitutes independent factual/legal review, and none
+resolves any of the still-open questions listed below.
 
 ### Publication blockers (must all be true before this policy is published)
 
@@ -477,8 +489,12 @@ still-open questions listed below.
    and HANDOFF evidence, including an AI-assisted independent review
    (E2D2/E2D2A). Neither is legal advice, and neither has been reviewed by
    anyone with legal expertise. Per E2D3 item 14, counsel review is
-   **deferred, not completed**. Do not publish, and do not check the
-   Gate 2 "Data Collection Policy" checkbox, until that review is complete.
+   **deferred, not completed**. Do not publish this policy until that
+   review is complete. The Gate 2 "Draft the data-collection policy…"
+   checkbox was checked at E2H (2026-09-10) on drafting-quality-checkpoint
+   grounds only — that checkbox provides no legal clearance and no
+   publication approval, and counsel review remains a publication
+   requirement regardless.
 7. **Applicable-law determination remains UNRESOLVED (E2D2A F-01/F-02;
    E2D3 item 1).** Which privacy statute, if any, governs this project has
    not been established — it depends on legal-form facts (E2D2A Q-1) that
@@ -596,10 +612,15 @@ E2C5 asset classification.
 
 ### Gate 2 status
 
-**Not checked.** This revision (E2D4) applies the E2D3 operator decisions
-to the draft's public text. It is a drafting pass, not independent
-factual/legal review, and it does not resolve the unresolved
-applicable-law (F-01/F-02), opponent-data (F-07/F-08), recording-law
-(F-30), or provider-classification (F-24/Q-4) questions. The Gate 2 "Data
-Collection Policy" checkbox remains intentionally unchecked pending
-counsel review.
+**Checked at E2H (2026-09-10); not changed by this revision itself.** E2D4
+applied the E2D3 operator decisions to the draft's public text, and E2D5
+completed a narrow drafting-quality verification/polish pass over that
+text. Neither is independent factual/legal review, and neither resolves the
+unresolved applicable-law (F-01/F-02), opponent-data (F-07/F-08),
+recording-law (F-30), or provider-classification (F-24/Q-4) questions.
+Reaching the E2D5 drafting-quality checkpoint is what HANDOFF's "E2H GATE 2
+DRAFTING CHECKPOINTS AND FUTURE LEGAL ROUTES APPROVED" entry relied on to
+check the Gate 2 "Draft the data-collection policy…" checkbox — **checking
+that box is not legal clearance, is not publication approval, and does not
+resolve any blocker above.** Counsel review remains deferred, not completed
+(E2D3 item 14), and all thirteen publication blockers above remain open.

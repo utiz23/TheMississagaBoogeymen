@@ -138,18 +138,30 @@ No new feature work belongs in this gate.
 
 #### Privacy, data collection, and legal drafts
 
-- [ ] Draft the privacy policy.
-- [ ] Draft the data-collection policy, explicitly covering gamertags, player
+- [x] Draft the privacy policy. **Completed 2026-09-10 (drafting-quality
+      checkpoint only, not legal review/clearance/publication).** See the
+      "E2H GATE 2 DRAFTING CHECKPOINTS AND FUTURE LEGAL ROUTES APPROVED"
+      Active State entry.
+- [x] Draft the data-collection policy, explicitly covering gamertags, player
       statistics, accounts, server/IP logs, analytics, cookies, retention, and
-      third-party processors actually used.
+      third-party processors actually used. **Completed 2026-09-10
+      (drafting-quality checkpoint only, not legal review/clearance/
+      publication).** See the "E2H GATE 2 DRAFTING CHECKPOINTS AND FUTURE
+      LEGAL ROUTES APPROVED" Active State entry.
 - [x] Define a data correction/deletion request and webmaster contact process.
       **Decided 2026-09-03:** requests go to
       `webmaster@boogeymen.app`; acknowledge within 7 days and resolve or
       provide a substantive response within 30 days. See the "LAUNCH POLICY +
       DOMAIN MAIL" Active State entry.
-- [ ] Draft an EA/NHL non-affiliation and third-party asset/data attribution
-      notice appropriate to the final hosting posture.
-- [ ] Draft the Terms of Use.
+- [x] Draft an EA/NHL non-affiliation and third-party asset/data attribution
+      notice appropriate to the final hosting posture. **Completed 2026-09-10
+      (drafting-quality checkpoint only, not legal review/clearance/
+      publication).** See the "E2H GATE 2 DRAFTING CHECKPOINTS AND FUTURE
+      LEGAL ROUTES APPROVED" Active State entry.
+- [x] Draft the Terms of Use. **Completed 2026-09-10 (drafting-quality
+      checkpoint only, not legal review/clearance/publication).** See the
+      "E2H GATE 2 DRAFTING CHECKPOINTS AND FUTURE LEGAL ROUTES APPROVED"
+      Active State entry.
 - [x] Decide whether analytics are needed. **Decided 2026-09-03:** no analytics
       or advertising at launch and no nonessential tracking/cookies. A consent
       banner is therefore not planned unless the implementation changes.
@@ -251,6 +263,8 @@ No new feature work belongs in this gate.
 - [ ] Publish the privacy policy.
 - [ ] Publish the data-collection policy.
 - [ ] Publish the Terms of Use.
+- [ ] Publish the EA/NHL attribution and non-affiliation notice at
+      `/legal/attribution`.
 - [ ] Add a global footer containing a working webmaster contact.
 - [ ] Render the current copyright year automatically.
 - [ ] Link privacy, data-collection, Terms of Use, attribution/non-affiliation,
@@ -3850,6 +3864,261 @@ and what remains before counsel review — rather than opening new drafting
 work on any single document. Do not combine it with resolving Q-E2G-1/
 Q-E2G-3, with Gate 3 routing work, or with reopening the tunnel.
 
+### 🟡 E2H GATE 2 DRAFTING CHECKPOINTS AND FUTURE LEGAL ROUTES APPROVED — four Gate 2 checkboxes now `[x]`; routes recorded, not implemented (2026-09-10)
+
+A narrow documentation-only operator-decision session. **Files changed by
+this session: this `HANDOFF.md` entry plus the four Gate 2 checkbox edits
+above — nothing else.** No route file, application code, legal draft,
+Cloudflare setting, or the tunnel was touched. This entry records two
+operator decisions only; it implements neither.
+
+**Operator decision 1 — Gate 2 checkbox semantics.** "Draft the…" on each of
+the four Gate 2 legal-document checklist lines means completion of a
+drafting-quality checkpoint, matching the standard already used throughout
+E2D–E2G/E2D5/E2E3/E2F4/E2G4: draft, independent review, correction, and
+polish passes complete. It does **not** mean legal clearance, publication
+approval, completed counsel review, or completed Gate 3 implementation.
+Under this semantics, all four Gate 2 legal-draft checkboxes are now
+authorized and changed from `- [ ]` to `- [x]`:
+
+- "Draft the privacy policy." (line ~141) — checkpoint reached at E2E3
+  (2026-09-09).
+- "Draft the data-collection policy…" (line ~142) — checkpoint reached at
+  E2D5 (2026-09-09).
+- "Draft an EA/NHL non-affiliation and third-party asset/data attribution
+  notice…" (line ~150) — checkpoint reached at E2F4 (2026-09-09).
+- "Draft the Terms of Use." (line ~152) — checkpoint reached at E2G4
+  (2026-09-09).
+
+No other checklist line was touched. Exactly four `- [ ]` → `- [x]` edits
+were made, each with a concise completion note pointing back to this entry.
+
+**Operator decision 2 — public legal routes (decided, not implemented).**
+The approved future public routes for the four documents are:
+
+- Privacy Policy: `/legal/privacy`
+- Data Collection Policy: `/legal/data-collection`
+- EA/NHL attribution and non-affiliation notice: `/legal/attribution`
+- Terms of Use: `/legal/terms`
+
+**These are route decisions only.** No route currently exists merely
+because it has been approved here. This session did not create route
+files, edit application code, replace draft placeholders, add navigation or
+footer links, publish any policy, or change indexing controls (`robots.txt`,
+sitemap, canonical/`noindex` behavior all unchanged). The URLs above do not
+currently resolve. Implementing these routes belongs to Gate 3.
+
+**Explicitly still true after this session.**
+
+- Draft completion is **not** legal review or legal clearance.
+- All four documents remain **unpublished**.
+- All existing publication blockers remain active and open (Privacy Policy:
+  13, per E2E3; Data Collection Policy: per E2D5; attribution notice: 15,
+  per E2F4; Terms of Use: 14, per E2G4).
+- Route implementation is Gate 3 scope, not done here.
+- Cloudflare Web Analytics remains enabled; disablement and verification
+  remain undone (E2B3 decision 1).
+- Counsel review remains deferred and not completed (E2D3 item 14).
+- **No asset clearance is inferred from this session.** The "E2C5 FINAL
+  ASSET-RETENTION OPERATOR DECISIONS RECORDED" Active State entry is
+  unchanged and remains the governing record — retention only, not legal
+  clearance.
+- Tunnel reopening remains separately unauthorized.
+
+**Not done, deliberately.** The previously identified X1–X11 stale-text
+reconciliation corrections in the historical E2 entries above were **not**
+performed this session, per explicit task scope. Historical E2 entries
+(E2A through E2G4) are preserved unrewritten.
+
+**Verification run this session.** `git status --short` clean and
+`git diff --check` clean before editing; `HEAD` and `origin/main` both
+confirmed at `d22041c9f85d10a35c45ef5e8ac67a1ce7448dfe` before editing.
+After editing: this complete E2H entry re-read in context; exactly four
+Gate 2 checklist lines confirmed changed `- [ ]` → `- [x]` (privacy policy,
+data-collection policy, attribution notice, Terms of Use); every other
+Gate 2/Gate 1 checklist line diffed against `git show HEAD:HANDOFF.md` and
+confirmed byte-identical; `git status --short` shows only `HANDOFF.md`
+modified; `git diff --check` clean; `git diff --cached --stat` empty
+(nothing staged); `HEAD` and `origin/main` unchanged at
+`d22041c9f85d10a35c45ef5e8ac67a1ce7448dfe`. No route, draft, code,
+configuration, asset, or dependency changed. Nothing staged, committed,
+pushed, published, deployed, or externally accessed.
+
+**Status.** E2 remains **IN PROGRESS**. Gate 2's four legal-draft checkboxes
+are now `[x]` under the drafting-quality-checkpoint semantics recorded
+above; every substantive publication blocker, counsel-review gap, and the
+Cloudflare Web Analytics disablement remain open exactly as before this
+session.
+
+**Recommended next session.** A fresh Stage E2 administrative reconciliation
+session to perform the previously identified X1–X11 stale-text corrections
+across the historical E2A–E2G4 entries. Do not combine it with new drafting
+work, route implementation, Gate 3 work, Cloudflare changes, or reopening
+the tunnel.
+
+### 🟢 E2I ADMINISTRATIVE RECONCILIATION COMPLETE — E2 complete; publication and legal review remain blocked (2026-09-10)
+
+A narrow documentation-reconciliation session, exactly the one E2H
+recommended. It corrected stale text left behind by E2H's checkbox/route
+decisions across the four Gate 2 drafts and this file's live E2 roadmap and
+Next Session summary. **It changed no code, route, configuration, test,
+dependency, asset, or provider setting; did not stage, commit, push, deploy,
+publish, or reopen the tunnel; did not disable Cloudflare Web Analytics; and
+did not replace any public placeholder token.**
+
+**Files changed:** `HANDOFF.md` (Gate 3 checklist, the live "E2." Next
+Session section, this entry), `docs/planning/ea-nhl-attribution-notice-draft.md`,
+`docs/planning/privacy-policy-draft.md`,
+`docs/planning/data-collection-policy-draft.md`,
+`docs/planning/terms-of-use-draft.md`, `docs/planning/ea-asset-decision-memo.md`.
+
+**X1–X9, X11 — applied:**
+
+- **X1 (attribution notice).** Blocker 15's "Terms of Use… is not drafted
+  yet" corrected: the Terms drafting-quality checkpoint is complete and its
+  checkbox was checked at E2H; its approved future route is `/legal/terms`;
+  neither document is published; the `PLACEHOLDER-TERMS-OF-USE-URL`
+  placeholder must still be replaced and the resulting link verified during
+  Gate 3. Blocker 15's dependency and count are unchanged.
+- **X2 (privacy policy).** The "Asset/attribution boundary" section's
+  "still-unwritten attribution/non-affiliation notice" replaced with
+  accurate wording: the notice exists as a drafting-quality checkpoint
+  (checked at E2H), its future route is `/legal/attribution`, and it remains
+  unpublished and legally unreviewed. No attribution content was duplicated
+  into the Privacy Policy.
+- **X3 (live E2 roadmap / Next Session).** The "E2." section rewritten:
+  header now COMPLETE; stale "drafts remain unwritten" language removed;
+  records that all four drafts exist, each completed review/correction/
+  polish, all four checkboxes were checked at E2H, E2's required legal
+  drafting work is complete after this reconciliation, and that publication,
+  route implementation, legal review, analytics disablement, live cookie/
+  indexing checks, placeholder replacement, and internal-section removal all
+  remain later work. States plainly that E2 completion is not Gate 2
+  completion, that no early Gate 3 implementation was performed, and that
+  the tunnel remains separately unauthorized. Historical E2A/E2B2/E2B3
+  narrative preserved, only their stale forward-looking tails corrected.
+- **X4 (data-collection policy).** Revision provenance and Gate 2 status now
+  cite E2D5 (and this E2I pass) instead of stopping at E2D4; status records
+  the E2D5 drafting-quality checkpoint, the E2H checkbox check, that the
+  checkbox is neither legal review nor publication approval, and that all
+  thirteen blockers remain open. E2D4's historical meaning unchanged.
+- **X5 (data-collection policy).** §10's cross-reference to "How long we
+  keep information" corrected from "below" to "above" (that section
+  genuinely appears earlier, in §9). The earlier §2 reference to the same
+  section, which genuinely appears below, is untouched.
+- **X6 (attribution notice).** Added public section 10, "Changes to this
+  notice," committing to a kept-current "Last updated" date and an on-site
+  notice on material change (E2A decision 12). Added internal blocker 16
+  requiring that mechanism to be implemented and verified before
+  publication. No email-notification commitment was invented. Blockers
+  recounted by enumeration: **15 → 16**.
+- **X7 (privacy policy).** Added blocker 14 requiring the §4 indexing
+  statements to be reverified against actually deployed `robots.txt`,
+  sitemap, canonical metadata, and `noindex` behavior before publication.
+  No indexing policy or control was modified or implemented. Blockers
+  recounted by enumeration: **13 → 14**.
+- **X8 (HANDOFF Gate 3 checklist).** Added one new unchecked item, "Publish
+  the EA/NHL attribution and non-affiliation notice at `/legal/attribution`,"
+  parallel with the Privacy Policy, Data Collection Policy, and Terms of Use
+  publication items. Not marked complete; no route created.
+- **X9 (asset decision memo).** `docs/planning/ea-asset-decision-memo.md`
+  §5's "Unresolved operator inputs" annotated as superseded by E2C5, which
+  answered all five items (monetization posture; uniform asset-retention
+  posture; X-Factor replacement timing; the duplicate `docs/branding` tree's
+  disposition; the scrape-script's disposition). The original analysis is
+  preserved unedited as historical decision support; asset retention was not
+  reopened and no asset changed.
+- **X11 (Terms of Use).** The ragged line wrap around "run by a single
+  individual on a volunteer basis" reflowed. Its public meaning is
+  unchanged.
+
+**X10 — deliberately left unresolved.** The attribution notice ↔ Terms of
+Use publication-sequencing question (the notice's Terms pointer expects a
+resolving Terms link; the Terms' attribution pointer expects a resolving
+notice link) is recorded as a **deferred Gate 3 planning question**, not an
+E2 blocker and not resolved here. Simultaneous publication remains
+recommended in both drafts but not yet operator-approved. No placeholder was
+replaced and nothing was published.
+
+**E2H checkbox/counsel semantic reconciliation — applied across all four
+drafts; route reconciliation — applied only where route-dependent text
+existed.**
+Every internal publication-blocker/Gate 2 status passage that said counsel
+must finish before the four drafting checkboxes could be checked (attribution
+notice blocker 1 and Gate 2 status; privacy policy blocker 5 and Gate 2
+status; data-collection policy blocker 6 and Gate 2 status; Terms of Use
+blocker 1 and Gate 2 status) now reads consistently: counsel remains
+mandatory before **publication**; the four checkboxes were checked at E2H
+because their drafting-quality checkpoints are complete; checking them
+provides **no legal clearance and no publication approval**. Every internal
+passage that said the public legal routes remained undecided (attribution
+notice blocker 9; Terms of Use blocker 3 and Q-E2G-1, moved from
+"Unresolved" to "Resolved questions") now cites E2H and the four approved
+future routes (`/legal/privacy`, `/legal/data-collection`,
+`/legal/attribution`, `/legal/terms`), states plainly that the route files
+do not exist yet, and preserves every placeholder token — none was replaced.
+Historical revision-provenance narratives that merely report what an earlier
+session did or did not change (e.g., E2D5's "no Gate 2 checkbox changed" at
+the time) are untouched.
+
+**Final blocker counts (after actual enumeration).**
+
+| Draft | Before this session | After this session |
+| --- | --- | --- |
+| Privacy policy | 13 | **14** |
+| Data-collection policy | 13 | **13** (unchanged) |
+| Attribution notice | 15 | **16** |
+| Terms of Use | 14 | **14** (unchanged) |
+
+**Verification performed.** Before editing: `git status --short` showed only
+`HANDOFF.md` modified (the E2H diff); `git diff --check` clean; `git diff
+--cached --stat` empty; branch `main`, `HEAD` and `origin/main` both
+`d22041c9f85d10a35c45ef5e8ac67a1ce7448dfe`; the full E2H diff inspected.
+After editing: `git diff --check` clean; no trailing whitespace introduced
+in any edited planning document; `git diff --cached --stat` still empty;
+`HEAD`/`origin/main` unchanged; the full diff of every changed file
+inspected. The four Gate 2 legal-draft checkboxes (lines ~141, ~145, ~156,
+~161 of this file) remain `[x]`, byte-identical to the E2H starting state;
+no other existing Gate 1/Gate 2 checkbox line changed; exactly one new
+unchecked Gate 3 item was added (the attribution-publication line above);
+the X1/X2/X3/X4/X5/X11 stale strings identified above are gone from live
+text; no current draft status section says a checked drafting box must
+still await counsel; counsel remains an open publication blocker in all four
+drafts; approved route decisions are reconciled in the relevant
+route-dependent draft passages (privacy policy, attribution notice, Terms of
+Use), while E2H and the live roadmap remain the authoritative complete route
+record; every placeholder token is untouched; X10 is described only as
+deferred Gate 3 planning, never as resolved; and the asset-decision memo's
+files and E2C5's
+decisions are unchanged — only an annotation was added.
+
+**E2 vs. Gate 2 vs. Gate 3 — the exact distinction.** **E2 (Gate 2 legal
+drafting) is COMPLETE**: all four documents exist, each has completed
+drafting/review/correction/polish, and all four Gate 2 checkboxes are `[x]`
+on drafting-quality-checkpoint grounds. **Gate 2 as a whole is NOT
+complete**: the "Reliability, recovery, and visibility" and most of the
+"Product-readiness audits and decisions" subsections above remain
+unchecked, and the Gate 2 date (2026-09-14) has not been reached or
+evaluated. **Gate 3 publication readiness does not exist yet**: no route is
+implemented, no document is published, counsel review has not occurred,
+Cloudflare Web Analytics is still enabled, live cookie/indexing behavior is
+unverified, and no placeholder has been replaced. Optional early Gate 3
+implementation was **not** performed in E2 or in this session. Tunnel
+reopening remains separately unauthorized.
+
+**Not performed, deliberately.** No route file was created. No draft's
+internal "drafting and publication checks" section was removed. No
+placeholder token was replaced. No legal/counsel review occurred. Cloudflare
+Web Analytics was not touched. `scripts/scrape_ea_xfactor_pngs.sh` was not
+run. Nothing was staged, committed, pushed, published, deployed, or
+externally accessed.
+
+**Next actionable Stage E substage (identified, not started or
+authorized).** Per the roadmap above, **E3 (Backup and restore)** is next —
+it is already partially underway ("producer + acceptance verified in
+isolation only") while E4, E5, and E6 remain NOT STARTED. This entry does
+not begin, scope, or authorize E3 work.
+
 ### 🟢 E1K FINAL OPERATOR DECISIONS RECORDED — E1 COMPLETE; E2 requires a fresh Codex session (2026-09-08)
 
 A read-only audit session (this one's immediate predecessor) reviewed the two
@@ -7052,8 +7321,26 @@ Web Analytics is enabled today and must be verified off before publication —
 not yet done) and set a tiered contact-email retention target (30 days spam,
 12 months routine, 24 months privacy/security), recorded as operator policy,
 not automated Proton enforcement — see the "E2B3 ANALYTICS AND
-EMAIL-RETENTION DECISIONS RECORDED" Active State entry. **E2 remains IN
-PROGRESS; still none of the four legal drafts is written.**
+EMAIL-RETENTION DECISIONS RECORDED" Active State entry. **Update 2026-09-09
+through 2026-09-10: all four Gate 2 legal drafts were written and each
+carried through its own independent review, correction, and drafting-quality
+polish (E2D-E2D5, E2E-E2E3, E2F-E2F4, E2G-E2G4). Update 2026-09-10 (E2H):**
+the operator confirmed that "Draft the…" means completion of that
+drafting-quality checkpoint, not legal clearance or publication approval,
+and checked all four Gate 2 legal-draft checkboxes; E2H also recorded the
+four documents' approved future routes (decided, not implemented) — see the
+"E2H GATE 2 DRAFTING CHECKPOINTS AND FUTURE LEGAL ROUTES APPROVED" Active
+State entry. **Update 2026-09-10 (E2I):** a documentation-reconciliation
+session corrected stale cross-references left behind by E2H across the four
+drafts and this file — see the "E2I ADMINISTRATIVE RECONCILIATION COMPLETE"
+Active State entry and the "### E2." section below for the full accounting.
+**E2 is now ✅ COMPLETE — E2's required legal drafting
+work is done, but publication, route implementation, legal/counsel review,
+Cloudflare Web Analytics disablement, and every other Gate 2/Gate 3 item
+those drafts depend on remain open, and Gate 2 as a whole is not complete.
+The next actionable substage is now E3 — backup and restore — already
+partially underway ("producer + acceptance verified in isolation only");
+this note does not start or authorize it.**
 Finishing E0-E6 is not itself permission to reopen the tunnel, which remains
 its own separate, later authorization — see "Tunnel reopening" below. The
 order remains load-bearing: exposure must stay verified before anything is
@@ -7381,7 +7668,7 @@ Active State entry and the "### E2." subsection below.
   implementation work. See the "E1K FINAL OPERATOR DECISIONS RECORDED"
   Active State entry for full evidence.
 
-### E2. Gate 2 legal drafts, plus optional early Gate 3 web work — IN PROGRESS
+### E2. Gate 2 legal drafts, plus optional early Gate 3 web work — COMPLETE (2026-09-10, E2I)
 
 Requires: the relevant E1 decisions (at minimum the privacy/data-use
 disclosures) — **satisfied, E1 is complete.** **Update 2026-09-08 (E2A):** the
@@ -7390,59 +7677,133 @@ operator recorded the fourteen outstanding policy decisions this phase needed
 request verification/outcomes, recordings, GitHub disclosure, asset
 provenance, Cloudflare/Proton conditional wording, effective date, revision
 notice, contacts, and the player-name operator-attestation) — see the "E2A
-OPERATOR DECISIONS RECORDED" Active State entry. **This moves E2 from NOT
-STARTED to IN PROGRESS. None of the four Gate 2 legal drafts below has been
-written** — E2A recorded decisions to inform the drafts, it did not draft,
-review, or approve any of them. **Update 2026-09-08 (E2B2):** operator-
+OPERATOR DECISIONS RECORDED" Active State entry. This moved E2 from NOT
+STARTED to IN PROGRESS; at that point none of the four Gate 2 legal drafts
+had been written — E2A recorded decisions to inform the drafts, it did not
+draft, review, or approve any of them. **Update 2026-09-08 (E2B2):** operator-
 supplied Cloudflare and Proton dashboard settings were recorded as evidence
 for decision 10's conditional wording — see the "E2B2 CLOUDFLARE/PROTON
 PROVIDER SETTINGS RECORDED" Active State entry. That entry surfaced an
 unresolved conflict (Cloudflare Web Analytics is enabled on the zone, which
 contradicts the approved no-analytics launch decision) and an open question
-(contact-email retention policy) that must be settled by the operator before
-the privacy policy and data-collection policy drafts can be finalized. **This
-does not add a fifth Gate 2 draft or check any checkbox; the same four drafts
-below remain unwritten.** **Update 2026-09-08 (E2B3):** the operator resolved
-both open questions — see the "E2B3 ANALYTICS AND EMAIL-RETENTION DECISIONS
-RECORDED" Active State entry. The E1 no-analytics decision is preserved;
-Cloudflare Web Analytics remains enabled today and must be verified off
-before publication (not yet done, and not performed by that session). A
-tiered contact-email retention target (30 days spam, 12 months routine, 24
-months privacy/security) was adopted as operator policy, not as an automated
-Proton control. **Still no fifth Gate 2 draft, no checked checkbox; the same
-four drafts below remain unwritten.**
+(contact-email retention policy) that had to be settled by the operator
+before the privacy policy and data-collection policy drafts could be
+finalized. **Update 2026-09-08 (E2B3):** the operator resolved both open
+questions — see the "E2B3 ANALYTICS AND EMAIL-RETENTION DECISIONS RECORDED"
+Active State entry. The E1 no-analytics decision is preserved; Cloudflare Web
+Analytics remains enabled today and must still be verified off before
+publication. A tiered contact-email retention target (30 days spam, 12
+months routine, 24 months privacy/security) was adopted as operator policy,
+not as an automated Proton control.
 
-**Gate 2 requires only drafts**, informed by E1 (and now E2A/E2B2):
+**All four Gate 2 legal drafts now exist**, each carried through its own
+drafting → independent review → correction → drafting-quality-polish cycle:
 
-- privacy policy draft;
-- data-collection policy draft (gamertags, statistics, accounts, server/IP
-  logs, retention, third-party processors actually used);
-- EA/NHL non-affiliation and third-party asset/data attribution notice draft;
-- Terms of Use draft. **Not drafted, reviewed, or approved by this entry** —
-  added to scope only; no substantive terms are proposed here.
+- **Privacy policy** — drafted at E2E, reviewed at E2E2, the review corrected
+  at E2E2A, and the draft corrected against that review at E2E3 (fourteen
+  publication blockers after this reconciliation's E2I indexing-
+  reverification addition).
+- **Data-collection policy** — drafted at E2D, reviewed at E2D2 (corrected at
+  E2D2A), operator decisions recorded at E2D3, the draft revised at E2D4, and
+  given a final drafting-quality verification/polish pass at E2D5 (thirteen
+  publication blockers).
+- **EA/NHL non-affiliation and third-party attribution notice** — drafted at
+  E2F, reviewed at E2F2 (corrected at E2F2A), an operator decision recorded
+  (Q-E2F2-1), the draft corrected at E2F3, and given a final drafting-quality
+  pass at E2F4 (sixteen publication blockers after this reconciliation's E2I
+  material-change-notice addition).
+- **Terms of Use** — drafted at E2G, reviewed at E2G2, operator decisions
+  recorded at E2G2A, the draft corrected at E2G3, and given a final,
+  optional drafting-quality polish pass at E2G4 (fourteen publication
+  blockers).
 
-**Publishing and the surrounding web surface are Gate 3 items, not Gate 2**,
-listed here only because they may be started early if desired: publishing the
-drafted pages as live routes (including the Terms of Use once drafted), a
-global footer with a working webmaster contact that links privacy,
-data-collection, Terms of Use, and attribution/non-affiliation pages,
-security response headers, and the indexing/discovery
-implementation approved by the "E1F INDEXING POLICY DECIDED" Active State
-entry — specifically `robots.txt`, a sitemap containing only the approved
-canonical URLs (including canonical game-detail and player-detail URLs),
-canonical/OG metadata, per-page descriptions, `noindex, follow` on
-query-driven (filter/mode/role/view/opponent/title/pagination) variants,
-removing `/preview/carousel` and `/preview/archetypes` from the production
-route tree, and removing the public `Dev` filter/`/games?mode=dev` behavior
-from `/games`. **None of this is implemented yet** — E1F decided the policy,
-not the code. If any of it is done during E2, label it explicitly as early
-Gate 3 work in the Active State entry that records it — do not count it
-against Gate 2, and do not describe Gate 2 as requiring published pages.
+**Update 2026-09-10 (E2H):** the operator confirmed that "Draft the…" on each
+of the four Gate 2 legal-document checklist lines means completion of that
+drafting-quality checkpoint — not legal clearance, publication approval, or
+completed counsel review — and, under that semantics, checked all four
+Gate 2 legal-draft checkboxes. E2H also recorded the four documents'
+approved future public routes, decided but not implemented: Privacy Policy
+`/legal/privacy`, Data Collection Policy `/legal/data-collection`,
+attribution notice `/legal/attribution`, Terms of Use `/legal/terms`. See
+the "E2H GATE 2 DRAFTING CHECKPOINTS AND FUTURE LEGAL ROUTES APPROVED"
+Active State entry.
+
+**Update 2026-09-10 (E2I, this reconciliation):** corrected stale
+cross-references left behind after E2H across the four drafts and this
+file — the attribution notice's stale "Terms not drafted" statement, the
+privacy policy's stale "still-unwritten attribution notice" statement, this
+section's own stale "drafts remain unwritten" language, the data-collection
+policy's revision provenance/Gate 2 status text (which had stopped citing
+E2D5), a directional cross-reference in the data-collection policy's §10,
+and the Terms of Use's ragged line wrap. It also reconciled every draft's
+internal publication-blocker/Gate 2 status wording so it no longer implies
+counsel must finish before the four checkboxes may be checked (they are
+checked on drafting-quality-checkpoint grounds only; counsel review remains
+a hard publication requirement in all four drafts), reconciled "route
+undecided" wording against E2H's approved routes (decided, not implemented —
+no route file exists and no placeholder was replaced), added the
+attribution notice's material-change/"Last updated" public commitment and
+its implementation-verification blocker, added the privacy policy's
+indexing-reverification blocker, added a new unchecked Gate 3 "publish the
+attribution notice at `/legal/attribution`" checklist item, and annotated
+the asset-decision memo's E2C4 "unresolved operator inputs" section as
+superseded by E2C5. See the "E2I ADMINISTRATIVE RECONCILIATION COMPLETE"
+Active State entry for the full accounting.
+
+**E2's required legal drafting work is complete after this reconciliation.**
+This is not the same as Gate 2 being complete, or the site being ready to
+launch:
+
+- **Publication** of all four documents remains undone — it is Gate 3 work
+  (see the "Legal surface and global footer" checklist above).
+- **Route implementation** (`/legal/privacy`, `/legal/data-collection`,
+  `/legal/attribution`, `/legal/terms`) is decided but not built — no route
+  file exists yet.
+- **Legal/counsel review** of all four drafts remains outstanding and
+  deferred (E2D3 item 14) — a hard publication blocker in every draft.
+- **Cloudflare Web Analytics** remains enabled and must be disabled and
+  dashboard-verified off before publication (E2B3 decision 1) — not done.
+- **Live cookie and indexing behavior** must be reverified against the
+  actual deployed site (`robots.txt`, sitemap, canonical, `noindex`) before
+  publication — not done.
+- **Every placeholder token** (`PLACEHOLDER-*-URL`, effective/last-updated
+  dates) must be replaced, and the resulting links verified to resolve, only
+  once Gate 3 actually implements and publishes the routes — not done.
+- **Each draft's internal "drafting and publication checks" section must be
+  removed**, or the file must not be published as-is — not done.
+
+**Publishing and the surrounding web surface remain Gate 3 items, not
+Gate 2**: publishing the drafted pages as live routes, a global footer with
+a working webmaster contact that links privacy, data-collection, Terms of
+Use, and attribution/non-affiliation pages, security response headers, and
+the indexing/discovery implementation approved by the "E1F INDEXING POLICY
+DECIDED" Active State entry — specifically `robots.txt`, a sitemap
+containing only the approved canonical URLs (including canonical
+game-detail and player-detail URLs), canonical/OG metadata, per-page
+descriptions, `noindex, follow` on query-driven (filter/mode/role/view/
+opponent/title/pagination) variants, removing `/preview/carousel` and
+`/preview/archetypes` from the production route tree, and removing the
+public `Dev` filter/`/games?mode=dev` behavior from `/games`. **None of this
+optional early Gate 3 work was performed during E2** — E2 stayed scoped to
+drafting throughout, including this E2I reconciliation. If any of it is done
+in a future session, label it explicitly as early Gate 3 work in the Active
+State entry that records it — do not count it against Gate 2, and do not
+describe Gate 2 as requiring published pages.
+
+The Gate 3 sequencing question of whether the attribution notice and the
+Terms of Use must publish simultaneously (the notice's Terms pointer and the
+Terms' attribution pointer each depend on the other resolving) remains
+**explicitly deferred Gate 3 planning, not resolved and not an E2
+blocker** — see the attribution notice's blocker 15 and the Terms of Use's
+blocker 8.
 
 The correction/deletion request process is already decided (`webmaster@
 boogeymen.app`, 7-day acknowledgement, 30-day resolution — see the "LAUNCH
 POLICY + DOMAIN MAIL" Active State entry); publishing it on the site is the
 Gate 3 half of that item.
+
+Cloudflare Web Analytics remains enabled. Tunnel reopening remains
+separately unauthorized and is not part of E2.
 
 ### E3. Backup and restore — PRODUCER + ACCEPTANCE VERIFIED IN ISOLATION ONLY
 

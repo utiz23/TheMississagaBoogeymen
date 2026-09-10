@@ -265,8 +265,11 @@ Data Collection Policy or its review.
    This document was produced by an AI drafting session against repository
    and HANDOFF evidence. It is not legal advice, and has not been reviewed
    by anyone with legal expertise. Counsel review is **deferred, not
-   completed** (E2D3 item 14). Do not publish, and do not check any Gate 2
-   checkbox, until that review is complete.
+   completed** (E2D3 item 14). Do not publish this policy until that review
+   is complete. The Gate 2 "Draft the privacy policy." checkbox was checked
+   at E2H (2026-09-10) on drafting-quality-checkpoint grounds only — that
+   checkbox provides no legal clearance and no publication approval, and
+   counsel review remains a publication requirement regardless.
 6. **Applicable-law determination remains UNRESOLVED (E2D2A F-01/F-02;
    E2D3 item 1).** Which privacy statute, if any, governs this project has
    not been established. This draft avoids naming one, per the same
@@ -301,12 +304,24 @@ Data Collection Policy or its review.
     the public sections above; keep it that way through future edits.
 13. **Replace every `PLACEHOLDER-DATA-COLLECTION-POLICY-URL` token with the
     Data Collection Policy's final published route before this page goes
-    live.** The route is not decided: no legal page route exists in the
-    application and `HANDOFF.md` records no URL decision. Confirm each link
-    resolves to the **published** Data Collection Policy, not to
+    live.** The route is now decided — `/legal/data-collection` (E2H,
+    2026-09-10) — but the route file does not exist in the application yet,
+    and the placeholder must not be replaced until Gate 3 actually
+    implements and publishes it. Confirm each link resolves to the
+    **published** Data Collection Policy, not to
     `docs/planning/data-collection-policy-draft.md`, and that the Gate 3
-    footer/legal-destination link scan covers this page. Do not invent a
-    route.
+    footer/legal-destination link scan covers this page.
+14. **Reverify section 4's indexing statements against the actual deployed
+    `robots.txt`, sitemap, canonical metadata, and `noindex` behavior before
+    publication.** Section 4 describes the approved indexing policy
+    (canonical pages meant to be found through normal search-engine
+    indexing; private source evidence not published and not intended to be
+    indexed) without asserting that `robots.txt`, sitemap, canonical URLs,
+    or `noindex` controls are already implemented — that indexing
+    implementation remains Gate 3 work per the "E1F INDEXING POLICY
+    DECIDED" entry. Before publication, confirm what is actually deployed
+    matches section 4's statement, and correct it if deployed behavior
+    diverges.
 
 ### How this document stays separate from the Data Collection Policy
 
@@ -365,18 +380,30 @@ form):
 ### Asset/attribution boundary (per E2C5 — do not reopen here)
 
 This Privacy Policy does not mention visual assets, EA/NHL attribution, or
-non-affiliation at all — that content belongs to the separate, still-unwritten
-attribution/non-affiliation notice (E2A decision 9; E2C2–E2C5). Nothing in
-E2C3/E2C4/E2C5's asset-retention classification is restated, altered, or
-reopened by this draft.
+non-affiliation at all — that content belongs to the separate EA/NHL
+non-affiliation and third-party attribution notice (E2A decision 9;
+E2C2–E2C5), which now exists as a drafting-quality checkpoint
+(`docs/planning/ea-nhl-attribution-notice-draft.md`, completed through E2F4
+and checked at E2H, 2026-09-10). That notice's approved future route is
+`/legal/attribution`; it remains unpublished and legally unreviewed. Nothing
+in E2C3/E2C4/E2C5's asset-retention classification is restated, altered, or
+reopened by this draft, and this draft does not duplicate the attribution
+notice's content.
 
 ### Gate 2 status
 
-**Not checked.** This is a narrow Session 3 correction pass applying the
-E2E2A-corrected independent review's required corrections and decision-free
-polish. It does not constitute independent factual/legal review, does not
-resolve any of the E2D2A UNRESOLVED items (applicable law, opponent-data
-basis, recording law, provider classification), and does not check any
-Gate 2 checkbox. Counsel review remains deferred, not completed (E2D3
-item 14). Cloudflare Web Analytics remains enabled. Tunnel reopening remains
-separately unauthorized. **E2 remains IN PROGRESS.**
+**Checked at E2H (2026-09-10); not changed by this revision itself.** This is
+a narrow Session 3 correction pass (E2E3) applying the E2E2A-corrected
+independent review's required corrections and decision-free polish. It does
+not constitute independent factual/legal review and does not resolve any of
+the E2D2A UNRESOLVED items (applicable law, opponent-data basis, recording
+law, provider classification). Reaching this drafting-quality checkpoint is
+what HANDOFF's "E2H GATE 2 DRAFTING CHECKPOINTS AND FUTURE LEGAL ROUTES
+APPROVED" entry relied on to check the Gate 2 "Draft the privacy policy."
+checkbox — **checking that box is not legal clearance, is not publication
+approval, and does not resolve any blocker above.** Counsel review remains
+deferred, not completed (E2D3 item 14), and all fourteen publication
+blockers above remain open. Cloudflare Web Analytics remains enabled. Tunnel
+reopening remains separately unauthorized. **E2's required legal drafting is
+complete (E2H/E2I); Gate 2 as a whole and this policy's publication are
+not.**

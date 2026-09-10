@@ -135,6 +135,12 @@ holder about material on this site, contact
 **`webmaster@boogeymen.app`**. Security vulnerability reports should go to
 `security@boogeymen.app` instead.
 
+### 10. Changes to this notice
+
+We will post an on-site notice when we make a material change to this
+notice, and this page will always show the date it was last updated at the
+top.
+
 ---
 
 ## Drafting component: short-form / footer notice
@@ -227,8 +233,12 @@ notice goes live.**
 1. **Legal/counsel review is incomplete.** This draft was produced by AI
    drafting sessions against repository and HANDOFF evidence. It is not
    legal advice and has not been reviewed by anyone with legal expertise.
-   Do not publish, and do not check the Gate 2 "EA/NHL non-affiliation and
-   attribution notice" checkbox, until that review is complete.
+   Do not publish this notice until that review is complete. The Gate 2
+   "Draft an EA/NHL non-affiliation and third-party asset/data attribution
+   notice…" checkbox was checked at E2H (2026-09-10) on drafting-quality-
+   checkpoint grounds only — that checkbox provides no legal clearance and
+   no publication approval, and counsel review remains a publication
+   requirement regardless.
 2. **No asset family has been legally cleared.** E2C3's classifications
    stand exactly as recorded and are unchanged by this draft or by E2C5's
    retention decision:
@@ -285,12 +295,18 @@ notice goes live.**
    actual source/licence research first — and do not reintroduce
    drafting-status narration ("we are continuing to work on it") into the
    public notice.
-9. **The final Terms of Use cross-reference and public routes remain
-   undecided.** Section 8's `PLACEHOLDER-TERMS-OF-USE-URL`, the footer's
-   "Full notice" placeholder, and this document's own eventual public route
-   are Gate 3 routing decisions not made by this draft (see HANDOFF's E2E2A
-   "Q-E2E2-1" open item, which applies here too). The publication dependency
-   that placeholder creates is tracked separately as blocker 15.
+9. **The public routes are now decided (E2H, 2026-09-10) but not
+   implemented.** This notice's approved future route is `/legal/attribution`
+   and the Terms of Use's is `/legal/terms` (see HANDOFF's "E2H GATE 2
+   DRAFTING CHECKPOINTS AND FUTURE LEGAL ROUTES APPROVED" entry). Neither
+   route file exists in the application yet, and deciding a route does not
+   implement, publish, or link either page. Section 8's
+   `PLACEHOLDER-TERMS-OF-USE-URL` and the footer's "Full notice" placeholder
+   must not be replaced until Gate 3 actually implements and publishes the
+   corresponding pages — then replace them with the actual `/legal/terms`
+   and `/legal/attribution` routes and verify each resulting link resolves.
+   The publication dependency that placeholder creates is tracked separately
+   as blocker 15.
 10. **The short footer notice must later link to the full notice**, once
     the full notice has a published route — it is not, itself, a
     standalone substitute for the full notice above.
@@ -346,9 +362,26 @@ notice goes live.**
     published alongside this notice, **delete the Terms sentence rather than
     publish a pointer to a document that does not exist** — and do not restore
     the pre-publication narration ("which is not yet published") that E2F4
-    removed. Terms of Use is one of the four Gate 2 drafts and **is not
-    drafted yet**; the route decision itself remains tracked by blocker 9 and
-    Q-E2E2-1.
+    removed. Terms of Use is one of the four Gate 2 drafts; its
+    drafting-quality checkpoint is complete and its checkbox was checked at
+    E2H (2026-09-10, HANDOFF's "E2H GATE 2 DRAFTING CHECKPOINTS AND FUTURE
+    LEGAL ROUTES APPROVED" entry) — that is not legal clearance or
+    publication. Neither this notice nor the Terms of Use is published. The
+    approved future Terms of Use route is `/legal/terms` (see blocker 9);
+    deciding that route does not satisfy (a)–(c) above — the placeholder
+    must still be replaced with `/legal/terms` and the resulting link
+    verified to resolve, only once Gate 3 actually implements and publishes
+    that route.
+16. **The on-site "Last updated" display and material-change notice
+    mechanism (public section 10, per E2A decision 12) must be implemented
+    and verified before publication.** This notice's actual "Last updated"
+    date must be kept accurate at publication and on every later revision,
+    and a working on-site notice must actually appear when a material
+    change is made — the public commitment in section 10 does not itself
+    build or verify that mechanism. Confirm both are implemented and
+    function before this notice goes live, matching the same E2A decision
+    12 commitment carried in the Privacy Policy (section 13) and Terms of
+    Use (section 14).
 
 ### Asset/data families covered by this draft
 
@@ -381,17 +414,20 @@ tunnel.
 
 ### Gate 2 status
 
-**Not checked, and not changed by this revision.** This is a revised working
-draft, produced against E2A, E2C2, E2C3, E2C4, and E2C5 evidence at E2F,
-independently reviewed at E2F2 and corrected at E2F2A, revised at E2F3
-against that corrected review and the operator's Q-E2F2-1 decision, and given
-a final drafting-quality pass at E2F4. The E2F2 review was issue-spotting,
-**not** counsel review, and **E2F4 was a drafting-quality pass, not a legal
-one: completing it accepts this notice only as a drafting-quality checkpoint,
-never as legal clearance and never as publishable text.** **Independent review
-by counsel remains outstanding** (blocker 1) and all fifteen publication
-blockers above remain open, so the Gate 2 "EA/NHL non-affiliation and
-third-party asset/data attribution notice" checkbox cannot be checked. The
-Data Collection Policy and Privacy Policy drafts remain in their own,
-separately tracked review states (see HANDOFF's E2D/E2D2/E2D2A/E2D3/E2D4/E2D5
-and E2E/E2E2/E2E2A/E2E3 entries) and are not modified by this draft.
+**Checked at E2H (2026-09-10); not changed by this revision itself.** This is
+a revised working draft, produced against E2A, E2C2, E2C3, E2C4, and E2C5
+evidence at E2F, independently reviewed at E2F2 and corrected at E2F2A,
+revised at E2F3 against that corrected review and the operator's Q-E2F2-1
+decision, and given a final drafting-quality pass at E2F4. The E2F2 review
+was issue-spotting, **not** counsel review, and **E2F4 was a drafting-quality
+pass, not a legal one.** Reaching that drafting-quality checkpoint is what
+HANDOFF's "E2H GATE 2 DRAFTING CHECKPOINTS AND FUTURE LEGAL ROUTES APPROVED"
+entry relied on to check the Gate 2 "Draft an EA/NHL non-affiliation and
+third-party asset/data attribution notice…" checkbox — **checking that box is
+not legal clearance, is not publication approval, and does not resolve any
+blocker above.** **Independent review by counsel remains outstanding**
+(blocker 1) and all sixteen publication blockers above remain open before
+this notice may be published. The Data Collection Policy and Privacy Policy
+drafts remain in their own, separately tracked review states (see HANDOFF's
+E2D/E2D2/E2D2A/E2D3/E2D4/E2D5 and E2E/E2E2/E2E2A/E2E3 entries) and are not
+modified by this draft.
