@@ -48,6 +48,7 @@ const VALID = {
     backingVolume: { mountPoint: '/mnt/c', minFreeBytes: 5_368_709_120 },
     maxPlaintextBytes: 2_147_483_648,
     maxStagingBytes: 5_368_709_120,
+    maxCiphertextBytes: 5_368_709_120,
     shredPlaintext: true,
   },
   destination: {
@@ -131,6 +132,43 @@ test('staging bounds must be coherent: ciphertext and plaintext coexist', () => 
   rejects((c) => (c.staging.maxStagingBytes = 1), 'config_field_invalid')
   rejects((c) => (c.staging.maxPlaintextBytes = 0), 'config_field_missing')
   rejects((c) => (c.staging.maxPlaintextBytes = 1.5), 'config_field_missing')
+})
+
+test('maxCiphertextBytes has no default and must be a positive safe integer', () => {
+  rejects((c) => delete c.staging.maxCiphertextBytes, 'config_field_missing')
+  rejects((c) => (c.staging.maxCiphertextBytes = 0), 'config_field_missing')
+  rejects((c) => (c.staging.maxCiphertextBytes = -1), 'config_field_missing')
+  rejects((c) => (c.staging.maxCiphertextBytes = 1.5), 'config_field_missing')
+  rejects(
+    (c) => (c.staging.maxCiphertextBytes = Number.MAX_SAFE_INTEGER + 2),
+    'config_field_missing',
+  )
+  rejects((c) => (c.staging.maxCiphertextBytes = '5368709120'), 'config_field_missing')
+})
+
+test('maxCiphertextBytes must not exceed maxStagingBytes, but equality is valid', () => {
+  const err = rejects(
+    (c) => (c.staging.maxCiphertextBytes = c.staging.maxStagingBytes + 1),
+    'config_field_invalid',
+  )
+  assert.match(err.message, /must not exceed/)
+
+  // Equality is explicitly accepted. It preserves the producer's pre-E3C2
+  // effective ciphertext envelope; it is NOT the least-exposure default —
+  // that relationship is acceptance.maxCiphertextBytes == staging.maxCiphertextBytes
+  // (see docs/operations/backup-producer.md §6.6a).
+  const cfg = clone()
+  cfg.staging.maxCiphertextBytes = cfg.staging.maxStagingBytes
+  const validated = validateConfig(cfg)
+  assert.equal(validated.staging.maxCiphertextBytes, validated.staging.maxStagingBytes)
+
+  // Strictly smaller than maxStagingBytes is also valid.
+  const smaller = clone()
+  smaller.staging.maxCiphertextBytes = smaller.staging.maxStagingBytes - 1
+  assert.equal(
+    validateConfig(smaller).staging.maxCiphertextBytes,
+    smaller.staging.maxStagingBytes - 1,
+  )
 })
 
 test('the lifecycle budgets are mandatory and mutually coherent', () => {
@@ -227,4 +265,13 @@ test('the shipped example configuration is itself valid', () => {
   assert.equal(cfg.manifest.criticalTables.length, 17)
   assert.equal(cfg.source.container, 'eanhl-team-website-db-1')
   assert.equal(cfg.encryption.expectedHeader, 'age-encryption.org/v1')
+  // The shipped example ceiling is aligned (equal) to the aggregate staging
+  // ceiling (preserving the producer's pre-E3C2 effective envelope, not the
+  // least-exposure default) and to the acceptor's example
+  // acceptance.maxCiphertextBytes (the actual least-exposure default:
+  // acceptance.maxCiphertextBytes == staging.maxCiphertextBytes). Both
+  // alignments are explicitly non-production (see the file's _comment and
+  // docs/planning/proton-drive-transport-feasibility.md, U5).
+  assert.equal(cfg.staging.maxCiphertextBytes, cfg.staging.maxStagingBytes)
+  assert.equal(cfg.staging.maxCiphertextBytes, 5_368_709_120)
 })

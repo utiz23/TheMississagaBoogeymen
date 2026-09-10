@@ -231,6 +231,12 @@ export function validateConfig(raw, sourcePath = '<config>') {
     backingVolume: requireBackingVolume(stg, `${sourcePath}.staging`),
     maxPlaintextBytes: requirePositiveInt(stg, 'maxPlaintextBytes', `${sourcePath}.staging`),
     maxStagingBytes: requirePositiveInt(stg, 'maxStagingBytes', `${sourcePath}.staging`),
+    // The explicit ceiling on the ciphertext ALONE, independent of how much of
+    // maxStagingBytes the plaintext left behind. There is no default and no
+    // derivation from maxStagingBytes: an operator who has not thought about
+    // the acceptor's own ceiling must not be able to publish a ciphertext the
+    // acceptor is configured to refuse.
+    maxCiphertextBytes: requirePositiveInt(stg, 'maxCiphertextBytes', `${sourcePath}.staging`),
     // Best-effort overwrite of the plaintext dump before unlinking it. See the
     // limitation note in docs/operations/backup-producer.md — on a journalling
     // filesystem over flash this is a reduction in exposure, not erasure.
@@ -248,6 +254,16 @@ export function validateConfig(raw, sourcePath = '<config>') {
       `${sourcePath}.staging.maxStagingBytes (${staging.maxStagingBytes}) must exceed ` +
         `maxPlaintextBytes (${staging.maxPlaintextBytes}) — plaintext and ciphertext coexist in ` +
         `the staging directory between encryption and cleanup.`,
+    )
+  }
+  if (staging.maxCiphertextBytes > staging.maxStagingBytes) {
+    fail(
+      'config_field_invalid',
+      `${sourcePath}.staging.maxCiphertextBytes (${staging.maxCiphertextBytes}) must not exceed ` +
+        `staging.maxStagingBytes (${staging.maxStagingBytes}) — the ciphertext cannot fit a staging ` +
+        `directory whose own aggregate ceiling is smaller. Equality is valid: it means the entire ` +
+        `remaining aggregate budget, once the plaintext is accounted for, may be used by the ` +
+        `ciphertext alone.`,
     )
   }
 

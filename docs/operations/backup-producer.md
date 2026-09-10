@@ -231,11 +231,34 @@ Bounds, all configured and all enforced:
   and the run failed if it is crossed. Not measured after the fact.
 - Re-check before encrypting, this time with the real artifact size added, on
   both layers — encryption roughly doubles peak usage.
-- `staging.maxStagingBytes` — the plaintext + ciphertext ceiling. The remaining
-  ciphertext budget is enforced **on the stream**, by the same producer-owned
-  bounded writer the dump uses: the crossing chunk is dropped, never written, so
-  the staged ciphertext cannot exceed the permitted count at any instant (§2.4,
-  §6.6). The post-write total-size check is defence in depth, not the bound.
+- `staging.maxStagingBytes` — the plaintext + ciphertext ceiling.
+- `staging.maxCiphertextBytes` — an explicit, independently configured ceiling
+  on the ciphertext **alone**, regardless of how much of `maxStagingBytes` the
+  plaintext left behind. **Required, with no default and no derivation from
+  `maxStagingBytes`** — an operator who has not thought about the destination
+  acceptor's own ceiling must not be able to publish a ciphertext the acceptor
+  is configured to refuse (`docs/operations/backup-acceptance.md`
+  §2.8, `acceptance.maxCiphertextBytes`). The validator requires
+  `staging.maxCiphertextBytes <= staging.maxStagingBytes`; equality is valid
+  and is the shipped example's shape (§8).
+
+  The effective ciphertext budget for one run is:
+
+  ```
+  stagingRemainder = staging.maxStagingBytes - plaintextBytes
+  ciphertextBudget = Math.min(stagingRemainder, staging.maxCiphertextBytes)
+  ```
+
+  That budget is enforced **on the stream**, by the same producer-owned
+  bounded writer the dump uses: the crossing chunk is dropped, never written,
+  so the staged ciphertext cannot exceed the permitted count at any instant
+  (§2.4, §6.6). Two post-write checks remain as defence in depth, not the
+  bound: ciphertext bytes over `maxCiphertextBytes` alone, and
+  plaintext + ciphertext bytes over `maxStagingBytes` in aggregate — the first
+  can fire when the second would not, because the explicit cap can be the
+  tighter of the two. Every refusal and log line along this path names which
+  ceiling — the explicit cap or the remaining staging budget — was actually
+  binding, because raising the wrong one changes nothing.
 
 **The ~27 MB observed dump (from a 466 MB database) and the ~60 MB peak in the
 plan are observations from 2026-09, not size guarantees.** They are not
@@ -953,13 +976,65 @@ Both are enforced by the same producer-owned bounded writer: the producer counts
 bytes and **drops the chunk that would cross the ceiling** rather than writing
 it, so the staged file cannot exceed the permitted count at any instant. The
 earlier sampling design was replaced precisely because it could not do this
-(§4.2a). The post-write total-size check that remains is defence in depth
-against a defect in the writer, not the mechanism.
+(§4.2a). The two post-write size checks that remain are defence in depth
+against a defect in the writer, not the mechanism: one compares the ciphertext
+alone against `staging.maxCiphertextBytes`, the other compares
+plaintext + ciphertext against `staging.maxStagingBytes`. Both are checked,
+in that order, because the explicit cap can be the tighter of the two — a run
+can stay within the aggregate ceiling while still breaching the cap alone.
 
 What this does **not** bound: how much the external tool tries to produce, or how
 long it runs before the ceiling stops it — that is `run.operationTimeoutMs`. And
 it says nothing about disk consumed by anything other than the producer's own
 staged files.
+
+### 6.6a The deployment invariant between the producer's cap and the acceptor's
+
+`staging.maxCiphertextBytes` (this component) and
+`acceptance.maxCiphertextBytes` (`docs/operations/backup-acceptance.md` §2.8)
+are configured independently, on different hosts, and nothing in either
+component reads the other's value. The relationship that must hold is:
+
+```
+acceptance.maxCiphertextBytes >= staging.maxCiphertextBytes      (compatibility minimum)
+acceptance.maxCiphertextBytes == staging.maxCiphertextBytes      (least-exposure default)
+```
+
+**Compatibility minimum.** If the acceptor's ceiling is ever smaller than the
+producer's, the producer can publish a ciphertext the acceptor is configured
+to quarantine as oversize on arrival (`backup-acceptance.md` §6, "Ciphertext
+above `maxCiphertextBytes`" → `quarantined_oversize`, never hashed, never
+read) — a self-inflicted, entirely local failure mode with no attacker
+involved.
+
+**Least-exposure default.** Equality is preferred over slack: a larger
+acceptor value accepts ciphertexts this producer's own contract does not
+currently permit it to publish, which only makes sense as a **deliberate,
+documented** migration or version-skew headroom decision (for example,
+rolling out a raised producer cap to one host before another). It must never
+be the accidental result of editing one config and not the other.
+
+**Raising the acceptor ceiling above the producer's is not free**, even when
+compatible. It increases, on the acceptor side only:
+
+- the per-artifact capacity check's own reserved-bytes figure
+  (`backup-acceptance.md` §2.8, "What capacity is measured, and when");
+- worst-case sweep workspace occupancy — capacity is checked **per artifact**,
+  not pre-reserved as `maxArtifactsPerSweep × ceiling`, but earlier accepted
+  artifacts' work copies are not cleaned up until the whole sweep finishes
+  (`backup-acceptance.mjs`'s `workDir` is removed once per sweep, in the
+  sweep's own `finally`), so worst-case **actual** occupancy over a full
+  backlog sweep can approach that multiplication;
+- accepted-input exposure — the acceptor now reads, hashes and archives larger
+  untrusted-until-verified artifacts;
+- unbounded quarantine/storage-DoS exposure — a larger ceiling is a larger
+  amount of disk a misbehaving or compromised producer identity could consume
+  before the acceptor's own capacity floors refuse further work.
+
+This document does not set the real production value for either ceiling. See
+`docs/planning/proton-drive-transport-feasibility.md` (§9, U5) for what remains
+open: a measured production dump series and a deliberate production-ceiling
+decision, neither of which this component performs.
 
 ### 6.7 Cancelling a `docker exec` does not stop the container-side command
 

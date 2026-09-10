@@ -36,6 +36,7 @@ import {
   buildCountsQuery,
   buildEncryptionArgv,
   buildTableExistenceQuery,
+  computeCiphertextBudget,
   formatChecksumSidecar,
   formatSnapshotStamp,
   parseChecksumSidecar,
@@ -91,6 +92,7 @@ function makeConfig(dir, overrides = {}) {
       backingVolume: { mountPoint: `${dir}/backing`, minFreeBytes: 1000 },
       maxPlaintextBytes: 100_000,
       maxStagingBytes: 500_000,
+      maxCiphertextBytes: 500_000,
       shredPlaintext: true,
     },
     destination: { dir: `${dir}/dest`, minFreeBytes: 1000, backingVolume: null },
@@ -770,6 +772,264 @@ test('output that does not carry the configured header refuses the run', async (
     },
   )
   assert.equal(error.code, 'ciphertext_header_unexpected')
+})
+
+// ─── the explicit ciphertext ceiling (staging.maxCiphertextBytes) ────────────
+//
+// The effective budget handed to the encryption boundary is
+// `Math.min(maxStagingBytes - plaintextBytes, maxCiphertextBytes)`. Either
+// value can be the tighter one, and an operator reading a refusal needs to be
+// told which — raising the wrong one changes nothing.
+
+test('computeCiphertextBudget: the explicit cap binds when it is tighter than the remainder', () => {
+  const { budget, binding, stagingRemainder } = computeCiphertextBudget({
+    maxStagingBytes: 500_000,
+    maxCiphertextBytes: 600,
+    plaintextBytes: 520,
+  })
+  assert.equal(stagingRemainder, 499_480)
+  assert.equal(budget, 600)
+  assert.equal(binding, 'max_ciphertext_bytes')
+})
+
+test('computeCiphertextBudget: the staging remainder binds when it is tighter than the explicit cap', () => {
+  const { budget, binding } = computeCiphertextBudget({
+    maxStagingBytes: 1_000,
+    maxCiphertextBytes: 1_000,
+    plaintextBytes: 520,
+  })
+  assert.equal(budget, 480)
+  assert.equal(binding, 'staging_remainder')
+})
+
+test('computeCiphertextBudget: an equal cap and remainder are reported as both binding', () => {
+  const { budget, binding } = computeCiphertextBudget({
+    maxStagingBytes: 1_000,
+    maxCiphertextBytes: 480,
+    plaintextBytes: 520,
+  })
+  assert.equal(budget, 480)
+  assert.equal(binding, 'both')
+})
+
+test('the explicit ciphertext cap is the binding stream limit when it is tighter than the remainder', async () => {
+  const dir = sandbox()
+  // maxStagingBytes (500_000) leaves a huge remainder after the ~520-byte
+  // plaintext; the small explicit cap is the only thing that can bind.
+  const { report, calls } = await run(dir, { staging: { maxCiphertextBytes: 600 } })
+  assert.equal(calls.encrypt.length, 1)
+  assert.equal(calls.encrypt[0].maxOutputBytes, 600)
+  assert.ok(report.ciphertextBytes <= 600)
+})
+
+test('the remaining staging budget is the binding stream limit when it is tighter than the explicit cap', async () => {
+  const dir = sandbox()
+  // maxCiphertextBytes equals maxStagingBytes (the aligned-example shape), so
+  // only the plaintext eating into the aggregate ceiling can bind.
+  const { report, calls } = await run(dir, {
+    staging: { maxPlaintextBytes: 1_500, maxStagingBytes: 2_000, maxCiphertextBytes: 2_000 },
+  })
+  const expectedBudget = 2_000 - report.plaintextBytes
+  assert.equal(calls.encrypt.length, 1)
+  assert.equal(calls.encrypt[0].maxOutputBytes, expectedBudget)
+})
+
+test('exceeding the explicit ciphertext cap refuses the run, names the cap as binding, and never blames maxStagingBytes', async () => {
+  const dir = sandbox()
+  const { error, calls } = await runExpectingFailure(dir, { staging: { maxCiphertextBytes: 10 } })
+  assert.equal(error.code, 'staging_budget_exceeded')
+  assert.match(error.message, /explicit ciphertext cap staging\.maxCiphertextBytes \(10\)/)
+  assert.doesNotMatch(error.message, /Raise staging\.maxStagingBytes/)
+  assert.equal(calls.encrypt[0].maxOutputBytes, 10)
+})
+
+test('exceeding the remaining staging budget refuses the run and names the remainder as binding', async () => {
+  const dir = sandbox()
+  const { error } = await runExpectingFailure(dir, {
+    staging: { maxPlaintextBytes: 600, maxStagingBytes: 1_000, maxCiphertextBytes: 1_000 },
+  })
+  assert.equal(error.code, 'staging_budget_exceeded')
+  assert.match(error.message, /remaining staging budget/)
+  assert.match(error.message, /Raise staging\.maxStagingBytes deliberately/)
+})
+
+test('crossing the explicit ciphertext cap through the REAL spawn boundary drops the crossing bytes and removes the partial ciphertext', async () => {
+  const dir = sandbox()
+  // A double that emits far more than the tiny cap allows, driven through the
+  // real `runEncryption` boundary (not the fake), so the streaming cut and the
+  // partial-file removal are exercised for real rather than assumed.
+  const exe = writeDouble(
+    dir,
+    'oversized-age',
+    `printf '${AGE_HEADER}\\n-> X25519 double\\n'\nhead -c 5000 /dev/zero | tr '\\0' 'x'`,
+  )
+  const config = makeConfig(dir, {
+    encryption: { executable: exe },
+    staging: { maxCiphertextBytes: 50 },
+  })
+  const world = makeDeps(dir, config, { resolveExecutable, runEncryption })
+  let error = null
+  try {
+    await produceBackupArtifact({
+      config,
+      deps: world.deps,
+      log: world.log,
+      options: { keepStaging: true },
+    })
+  } catch (err) {
+    error = err
+  }
+  assert.ok(error, 'expected the run to fail')
+  assert.equal(error.code, 'staging_budget_exceeded')
+  assert.match(error.message, /explicit ciphertext cap staging\.maxCiphertextBytes \(50\)/)
+
+  const runDirs = fs.readdirSync(config.staging.root)
+  assert.equal(runDirs.length, 1, 'staging was kept so the run directory must still exist')
+  const stagedFiles = fs.readdirSync(`${config.staging.root}/${runDirs[0]}`)
+  assert.ok(
+    stagedFiles.every((name) => !name.endsWith('.dump.age')),
+    `expected no partial ciphertext to remain, found: ${stagedFiles.join(', ')}`,
+  )
+})
+
+test('a post-write ciphertext larger than maxCiphertextBytes is rejected even though it fits maxStagingBytes', async () => {
+  const dir = sandbox()
+  // The stream ceiling makes this unreachable by construction, so it is
+  // exercised by an injected boundary that ignores maxOutputBytes entirely —
+  // the defence-in-depth assertion, not the stream cut, must catch it here.
+  const { error, config } = await runExpectingFailure(
+    dir,
+    { staging: { maxCiphertextBytes: 50 } },
+    {
+      runEncryption: async ({ outPath }) => {
+        const body = `${AGE_HEADER}\n-> X25519 fake\n` + 'x'.repeat(200)
+        fs.writeFileSync(outPath, body, 'latin1')
+        return { code: 0, stdout: '', stderr: '', exceeded: false, bytes: body.length }
+      },
+    },
+  )
+  assert.equal(error.code, 'staging_budget_exceeded')
+  assert.match(error.message, /over staging\.maxCiphertextBytes \(50\)/)
+  assert.match(error.message, /unreachable/)
+  // The explicit cap was breached AND was the actual binding limit here (the
+  // remainder is huge by default), so the diagnostic must say so plainly and
+  // must not suggest raising the non-binding ceiling.
+  assert.match(error.message, /staging\.maxCiphertextBytes was the binding limit/)
+  // A post-write defence-in-depth failure is a bounded-writer/invariant
+  // defect, not a configuration problem: no ceiling may be recommended for
+  // increase, and the producer must be reported as needing to stay stopped.
+  assert.doesNotMatch(error.message, /Raise staging\.maxStagingBytes/)
+  assert.doesNotMatch(error.message, /Raise staging\.maxCiphertextBytes/)
+  assert.doesNotMatch(error.message, /aggregate staging ceiling \(staging\.maxStagingBytes:/)
+  assert.match(error.message, /defect in the bounded writer/)
+  assert.match(
+    error.message,
+    /Do not raise staging\.maxCiphertextBytes or staging\.maxStagingBytes/,
+  )
+  assert.match(
+    error.message,
+    /must remain stopped until the bounded-writer failure is investigated/,
+  )
+  assert.equal(fs.existsSync(config.destination.dir), false, 'nothing should have been published')
+})
+
+test('a post-write ciphertext that fits the explicit cap but breaches the aggregate ceiling names the staging remainder — not the cap — as binding', async () => {
+  const dir = sandbox()
+  // maxCiphertextBytes (900) is looser than the remainder (1_000 - 521 = 479),
+  // so the remainder is the effective binding limit. The injected boundary
+  // ignores maxOutputBytes and writes 600 bytes: under the 900 cap, but
+  // 521 + 600 = 1121 breaches the 1_000 aggregate ceiling on its own.
+  const { error, config } = await runExpectingFailure(
+    dir,
+    { staging: { maxPlaintextBytes: 600, maxStagingBytes: 1_000, maxCiphertextBytes: 900 } },
+    {
+      runEncryption: async ({ outPath }) => {
+        const body = 'x'.repeat(600)
+        fs.writeFileSync(outPath, body, 'latin1')
+        return { code: 0, stdout: '', stderr: '', exceeded: false, bytes: body.length }
+      },
+    },
+  )
+  assert.equal(error.code, 'staging_budget_exceeded')
+  assert.match(error.message, /over staging\.maxStagingBytes \(1000\)/)
+  assert.match(
+    error.message,
+    /explicit ciphertext cap \(staging\.maxCiphertextBytes = 900\) was not exceeded/,
+  )
+  // The remainder — not the cap — must be named as the actual binding limit.
+  assert.match(error.message, /remaining staging budget/)
+  // A post-write defence-in-depth failure is a bounded-writer/invariant
+  // defect, not a configuration problem: no ceiling may be recommended for
+  // increase, and the producer must be reported as needing to stay stopped.
+  assert.doesNotMatch(error.message, /Raise staging\.maxStagingBytes/)
+  assert.doesNotMatch(error.message, /Raise staging\.maxCiphertextBytes/)
+  assert.doesNotMatch(error.message, /staging\.maxCiphertextBytes was the binding limit/)
+  assert.match(error.message, /defect in the bounded writer/)
+  assert.match(
+    error.message,
+    /Do not raise staging\.maxStagingBytes or staging\.maxCiphertextBytes/,
+  )
+  assert.match(
+    error.message,
+    /must remain stopped until the bounded-writer failure is investigated/,
+  )
+  assert.equal(fs.existsSync(config.destination.dir), false, 'nothing should have been published')
+})
+
+test('a post-write ciphertext that breaches both the explicit cap and the aggregate ceiling still names the staging remainder — not the cap — as the actual binding limit', async () => {
+  const dir = sandbox()
+  // Same aligned shape as above (remainder 479 < cap 900), but this time the
+  // injected boundary writes 950 bytes — over BOTH the 900 cap and, combined
+  // with the 521-byte plaintext, the 1_000 aggregate ceiling. The cap check
+  // fires first (it runs before the aggregate check), so it alone must report
+  // that both invariants were breached and that the remainder, not the cap
+  // it's reporting on, was the actual binding limit.
+  const { error, config } = await runExpectingFailure(
+    dir,
+    { staging: { maxPlaintextBytes: 600, maxStagingBytes: 1_000, maxCiphertextBytes: 900 } },
+    {
+      runEncryption: async ({ outPath }) => {
+        const body = 'x'.repeat(950)
+        fs.writeFileSync(outPath, body, 'latin1')
+        return { code: 0, stdout: '', stderr: '', exceeded: false, bytes: body.length }
+      },
+    },
+  )
+  assert.equal(error.code, 'staging_budget_exceeded')
+  assert.match(error.message, /over staging\.maxCiphertextBytes \(900\)/)
+  assert.match(
+    error.message,
+    /and the aggregate staging ceiling \(staging\.maxStagingBytes: 1471 > 1000\)/,
+  )
+  assert.match(error.message, /remaining staging budget/)
+  assert.match(error.message, /was breached but was NOT the binding limit/)
+  assert.doesNotMatch(error.message, /staging\.maxCiphertextBytes was the binding limit/)
+  // A post-write defence-in-depth failure is a bounded-writer/invariant
+  // defect, not a configuration problem: no ceiling may be recommended for
+  // increase, and the producer must be reported as needing to stay stopped.
+  assert.doesNotMatch(error.message, /Raise staging\.maxStagingBytes/)
+  assert.doesNotMatch(error.message, /Raise staging\.maxCiphertextBytes/)
+  assert.match(error.message, /defect in the bounded writer/)
+  assert.match(
+    error.message,
+    /Do not raise staging\.maxCiphertextBytes or staging\.maxStagingBytes/,
+  )
+  assert.match(
+    error.message,
+    /must remain stopped until the bounded-writer failure is investigated/,
+  )
+  assert.equal(fs.existsSync(config.destination.dir), false, 'nothing should have been published')
+})
+
+test('behaviour is unchanged when maxCiphertextBytes equals maxStagingBytes (the shipped example shape)', async () => {
+  const dir = sandbox()
+  // The default test fixture already sets maxCiphertextBytes = maxStagingBytes
+  // (500_000 both); this pins that an aligned cap does not change a run that
+  // passed before the cap existed.
+  const { report, calls } = await run(dir)
+  assert.equal(calls.encrypt[0].maxOutputBytes, 500_000 - report.plaintextBytes)
+  assert.equal(report.dryRun, false)
+  assert.ok(report.ciphertextBytes > 0)
 })
 
 // ─── the SUBPROCESS contract, driven through the real boundary ───────────────

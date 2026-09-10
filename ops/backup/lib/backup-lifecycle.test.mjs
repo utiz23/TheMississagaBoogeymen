@@ -392,6 +392,7 @@ function makeConfig(dir, overrides = {}) {
       backingVolume: null,
       maxPlaintextBytes: 4 * 1024 * 1024,
       maxStagingBytes: 8 * 1024 * 1024,
+      maxCiphertextBytes: 8 * 1024 * 1024,
       shredPlaintext: true,
     },
     destination: { dir: path.join(dir, 'dest'), minFreeBytes: 1024, backingVolume: null },
@@ -647,7 +648,11 @@ test(
     })
     // The double intends 400 × 64 KiB = 25 MiB. The budget leaves ~300 KB.
     const config = makeConfig(dir, {
-      staging: { maxPlaintextBytes: 65_536, maxStagingBytes: 65_536 + 300_000 },
+      staging: {
+        maxPlaintextBytes: 65_536,
+        maxStagingBytes: 65_536 + 300_000,
+        maxCiphertextBytes: 65_536 + 300_000,
+      },
     })
     const deps = realDeps(config)
 
@@ -1231,6 +1236,7 @@ function writeCliConfig(dir) {
       backingVolume: null,
       maxPlaintextBytes: 4194304,
       maxStagingBytes: 8388608,
+      maxCiphertextBytes: 8388608,
       shredPlaintext: true,
     },
     destination: { dir: path.join(dir, 'dest'), minFreeBytes: 1024, backingVolume: null },

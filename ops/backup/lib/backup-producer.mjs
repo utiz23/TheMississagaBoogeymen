@@ -161,6 +161,45 @@ export function formatChecksumSidecar(hash, filename) {
   return `${hash}  ${filename}\n`
 }
 
+/**
+ * The effective ciphertext budget for one run, and which configured ceiling is
+ * binding.
+ *
+ * `staging.maxStagingBytes` bounds plaintext + ciphertext together;
+ * `staging.maxCiphertextBytes` bounds the ciphertext alone, independent of how
+ * much of the aggregate the plaintext left behind. The budget actually
+ * enforced is whichever is smaller, and an operator reading a refusal needs to
+ * know WHICH one to raise — raising the other one changes nothing.
+ */
+export function computeCiphertextBudget({ maxStagingBytes, maxCiphertextBytes, plaintextBytes }) {
+  const stagingRemainder = maxStagingBytes - plaintextBytes
+  const budget = Math.min(stagingRemainder, maxCiphertextBytes)
+  const binding =
+    stagingRemainder === maxCiphertextBytes
+      ? 'both'
+      : stagingRemainder < maxCiphertextBytes
+        ? 'staging_remainder'
+        : 'max_ciphertext_bytes'
+  return { budget, stagingRemainder, binding }
+}
+
+/** Human-readable description of which ceiling is binding, for error/log text. */
+export function describeCiphertextBinding({ binding, maxCiphertextBytes, stagingRemainder }) {
+  if (binding === 'max_ciphertext_bytes') {
+    return `the explicit ciphertext cap staging.maxCiphertextBytes (${maxCiphertextBytes})`
+  }
+  if (binding === 'staging_remainder') {
+    return (
+      `the remaining staging budget (staging.maxStagingBytes minus the plaintext dump = ` +
+      `${stagingRemainder})`
+    )
+  }
+  return (
+    `both staging.maxCiphertextBytes (${maxCiphertextBytes}) and the remaining staging budget ` +
+    `(${stagingRemainder}), which are equal`
+  )
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Artifact completion — the definition, and the checker that decides it.
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1289,20 +1328,40 @@ export async function produceBackupArtifact({ config, deps, log = () => {}, opti
       executablePath: encPreflight.executablePath,
       inPath: plaintextPath,
     })
-    // The permitted ciphertext budget: what `staging.maxStagingBytes` still
-    // allows once the plaintext is on disk. It is handed to the boundary and
+    // The permitted ciphertext budget: the smaller of what `staging.maxStagingBytes`
+    // still allows once the plaintext is on disk, and the explicit
+    // `staging.maxCiphertextBytes` cap. It is handed to the boundary and
     // enforced WHILE the tool writes, because a post-write size check is a
     // report of how much disk was already consumed, not a bound on it.
-    const ciphertextBudget = config.staging.maxStagingBytes - plaintextBytes
+    const {
+      budget: ciphertextBudget,
+      stagingRemainder,
+      binding,
+    } = computeCiphertextBudget({
+      maxStagingBytes: config.staging.maxStagingBytes,
+      maxCiphertextBytes: config.staging.maxCiphertextBytes,
+      plaintextBytes,
+    })
+    const bindingDescription = describeCiphertextBinding({
+      binding,
+      maxCiphertextBytes: config.staging.maxCiphertextBytes,
+      stagingRemainder,
+    })
     if (ciphertextBudget <= 0) {
       throw new BackupError(
         'staging_budget_exceeded',
-        `the plaintext dump (${plaintextBytes} bytes) already fills staging.maxStagingBytes ` +
-          `(${config.staging.maxStagingBytes}); there is no budget left for a ciphertext.`,
+        `there is no budget left for a ciphertext: the effective ceiling is ${ciphertextBudget} ` +
+          `bytes, bound by ${bindingDescription}. The plaintext dump alone is ${plaintextBytes} bytes.` +
+          (binding === 'max_ciphertext_bytes'
+            ? ' Raising staging.maxStagingBytes alone would not fix this — staging.maxCiphertextBytes ' +
+              'must be raised deliberately.'
+            : ' Raise staging.maxStagingBytes deliberately, together with the free-space floors.'),
       )
     }
     log(`encrypting: ${argv.join(' ')} > ${ciphertextPath}`)
-    log(`ciphertext ceiling: ${ciphertextBudget} bytes, enforced on the stream`)
+    log(
+      `ciphertext ceiling: ${ciphertextBudget} bytes, enforced on the stream — binding limit: ${bindingDescription}`,
+    )
     const encResult = await withDeadline('encryption', () =>
       deps.runEncryption({
         argv,
@@ -1316,9 +1375,15 @@ export async function produceBackupArtifact({ config, deps, log = () => {}, opti
       throw new BackupError(
         'staging_budget_exceeded',
         `the encryption executable tried to emit more than the permitted ciphertext budget ` +
-          `(${ciphertextBudget} bytes). The stream was cut at the ceiling — the staged file never ` +
-          `exceeded it — and the partial output was removed. Raise staging.maxStagingBytes ` +
-          `deliberately, together with the free-space floors.`,
+          `(${ciphertextBudget} bytes, bound by ${bindingDescription}). The stream was cut at the ` +
+          `ceiling — the staged file never exceeded it — and the partial output was removed.` +
+          (binding === 'max_ciphertext_bytes'
+            ? ' staging.maxCiphertextBytes was the binding limit; raising staging.maxStagingBytes ' +
+              'alone would not have helped.'
+            : binding === 'both'
+              ? ' staging.maxCiphertextBytes and the remaining staging budget were equally binding; ' +
+                'raising only one of them would not raise the effective ceiling.'
+              : ' Raise staging.maxStagingBytes deliberately, together with the free-space floors.'),
       )
     }
     if (encResult.code !== 0) {
@@ -1337,16 +1402,63 @@ export async function produceBackupArtifact({ config, deps, log = () => {}, opti
     if (ciphertextBytes === 0) {
       throw new BackupError('encryption_produced_no_output', `${ciphertextPath} is empty.`)
     }
-    // Defence in depth. The stream ceiling above makes this unreachable by
-    // construction — the producer owns the descriptor and drops the crossing
-    // chunk — so reaching it means an invariant broke, not that a tool
-    // misbehaved.
-    if (plaintextBytes + ciphertextBytes > config.staging.maxStagingBytes) {
+    // Defence in depth, ciphertext cap specifically. The stream ceiling above
+    // makes this unreachable by construction — the producer owns the
+    // descriptor and drops the crossing chunk — so reaching it means an
+    // invariant broke, not that a tool misbehaved. Checked separately from the
+    // aggregate below because the cap can be the tighter of the two: a run can
+    // stay under `maxStagingBytes` in aggregate while still breaching the
+    // explicit ciphertext cap.
+    if (ciphertextBytes > config.staging.maxCiphertextBytes) {
+      const aggregateBytes = plaintextBytes + ciphertextBytes
+      const aggregateAlsoBreached = aggregateBytes > config.staging.maxStagingBytes
       throw new BackupError(
         'staging_budget_exceeded',
-        `staging holds ${plaintextBytes + ciphertextBytes} bytes, over staging.maxStagingBytes ` +
+        `ciphertext is ${ciphertextBytes} bytes, over staging.maxCiphertextBytes ` +
+          `(${config.staging.maxCiphertextBytes}). This should be unreachable given the stream ` +
+          `ceiling: it indicates a defect in the bounded writer, the injected boundary, the ` +
+          `filesystem, or an internal invariant — not a tool or configuration problem. ` +
+          `Invariant(s) breached: the explicit ciphertext cap (staging.maxCiphertextBytes)` +
+          (aggregateAlsoBreached
+            ? ` and the aggregate staging ceiling (staging.maxStagingBytes: ${aggregateBytes} > ` +
+              `${config.staging.maxStagingBytes})`
+            : '') +
+          `. The actual effective binding limit for this run was ${bindingDescription}.` +
+          (binding === 'max_ciphertext_bytes'
+            ? ' staging.maxCiphertextBytes was the binding limit.'
+            : binding === 'staging_remainder'
+              ? ' staging.maxCiphertextBytes was breached but was NOT the binding limit — the ' +
+                'remaining staging budget was.'
+              : ' staging.maxCiphertextBytes and the remaining staging budget were equally binding.') +
+          ' Do not raise staging.maxCiphertextBytes or staging.maxStagingBytes in response to ' +
+          'this failure — doing so would mask the defect. The producer must remain stopped until ' +
+          'the bounded-writer failure is investigated.',
+      )
+    }
+    // Defence in depth, aggregate. The stream ceiling above makes this
+    // unreachable by construction — the producer owns the descriptor and
+    // drops the crossing chunk — so reaching it means an invariant broke, not
+    // that a tool misbehaved.
+    if (plaintextBytes + ciphertextBytes > config.staging.maxStagingBytes) {
+      const aggregateBytes = plaintextBytes + ciphertextBytes
+      throw new BackupError(
+        'staging_budget_exceeded',
+        `staging holds ${aggregateBytes} bytes, over staging.maxStagingBytes ` +
           `(${config.staging.maxStagingBytes}), despite the stream ceiling. This should be ` +
-          `unreachable; treat it as a defect in the bounded writer.`,
+          `unreachable: it indicates a defect in the bounded writer, the injected boundary, the ` +
+          `filesystem, or an internal invariant — not a tool or configuration problem. Invariant ` +
+          `breached: the aggregate staging ceiling (staging.maxStagingBytes); the explicit ` +
+          `ciphertext cap (staging.maxCiphertextBytes = ${config.staging.maxCiphertextBytes}) was ` +
+          `not exceeded. The actual effective binding limit for this run was ${bindingDescription}.` +
+          (binding === 'max_ciphertext_bytes'
+            ? ' staging.maxCiphertextBytes was the binding limit.'
+            : binding === 'staging_remainder'
+              ? ' The remaining staging budget was the binding limit; staging.maxCiphertextBytes ' +
+                'was not the binding limit here.'
+              : ' staging.maxCiphertextBytes and the remaining staging budget were equally binding.') +
+          ' Do not raise staging.maxStagingBytes or staging.maxCiphertextBytes in response to ' +
+          'this failure — doing so would mask the defect. The producer must remain stopped until ' +
+          'the bounded-writer failure is investigated.',
       )
     }
     const header = String(deps.readFileHead(ciphertextPath, HEADER_PROBE_BYTES))

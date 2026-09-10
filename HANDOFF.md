@@ -409,6 +409,63 @@ launch scope and it is not allowed to hold the terminal gate hostage.
 
 ## Active State
 
+### 🟡 E3C2 EXPLICIT PRODUCER CIPHERTEXT CEILING IMPLEMENTED — locally verified in isolation only; E3 still unactivated (2026-09-10)
+
+Implementation session, following E3C1B's contract-shape decision. Added a
+required `staging.maxCiphertextBytes` to the producer's configuration
+contract (`ops/backup/lib/backup-config.mjs`; positive safe integer,
+`<= staging.maxStagingBytes`, equality valid, no default). Changed the
+producer's runtime ciphertext budget from `staging.maxStagingBytes -
+plaintextBytes` alone to `Math.min(stagingRemainder, staging.maxCiphertextBytes)`
+(`ops/backup/lib/backup-producer.mjs`), still enforced on the encryption
+output stream so crossing bytes are never written, with the existing
+aggregate post-write check retained and a new cap-specific post-write
+defence-in-depth assertion added alongside it. Every refusal/log line now
+names which ceiling — the explicit cap or the remaining staging budget — was
+binding. Full detail: `docs/operations/backup-producer.md` §2.7/§6.6/§6.6a and
+the deployment-invariant note added after `docs/operations/backup-acceptance.md`
+§2.8.
+
+**The 5 GiB (`5368709120`) aligned example is EXPLICITLY NON-PRODUCTION.**
+Both example configs (`ops/backup/eanhl-backup.example.json`
+`staging.maxCiphertextBytes` and `ops/backup/eanhl-backup-accept.example.json`
+`acceptance.maxCiphertextBytes`) now carry that value — equal to each other,
+which is the least-exposure default (`acceptance.maxCiphertextBytes ==
+staging.maxCiphertextBytes`), and separately equal to
+`staging.maxStagingBytes`, a distinct, independently valid equality that
+preserves the producer's pre-E3C2 effective envelope rather than minimizing
+exposure. Neither is an approved production ceiling.
+`docs/planning/proton-drive-transport-feasibility.md` is updated (§4.3, §4.4,
+C3, constraint 8, U5, §11, and a new §14) to mark U5's contract-shape/example-
+mismatch half **RESOLVED**; the real production numeric ceiling for either
+side is **still open**, pending a measured production dump/ciphertext series,
+growth allowance, provider headroom, and competing-quota accounting.
+
+**Current production is still the main PC** — the Hotel-Echo cutover has not
+happened. **No real ciphertext has been measured or produced by this or any
+prior session.** Real production values, main-PC/Hotel-Echo host work, Proton
+work, and activation all remain open. **E3 remains verified in isolation only
+and unactivated**: no transport, no Proton integration, no key custody
+implementation, no scheduling, no real host work.
+
+**Verified locally:** focused config/producer tests while iterating, then the
+full `pnpm test:backup-producer` suite — **179/179 pass** (up from 165/165
+before this session: config 17 (+2), producer 66 (+12: 3 pure binding-helper
+cases plus 9 behavioural cases, one driven through the real spawn boundary),
+boundaries 9, acceptance 56, lifecycle 31 — unchanged except fixture updates
+for the new required field). The final two producer additions (beyond the
++10 first reported) are the E3C3/E3C4 diagnostic-correction pass: the
+post-write defence-in-depth remediation text was corrected to stop
+recommending a ceiling increase for an unreachable bounded-writer/invariant
+defect, and the injected-boundary regression tests were tightened to assert
+that correction. `git diff --check` clean. Nothing was staged
+(`git diff --cached` empty), committed, or pushed. `HEAD`/`origin/main`
+unchanged at `da337335bb321c981c57643cdf85a2c275aabc7d`.
+
+No Proton, Hotel-Echo, or main-PC access occurred; no authentication, key
+generation, production dump, deployment, scheduling, retention/pruning,
+restore drill, or tunnel action occurred. No Gate checkbox changed.
+
 ### 🟡 E3B2 PROTON TRANSPORT FEASIBILITY RESEARCH CORRECTED AND RECORDED — provider research only, no architecture approved; E3 still unactivated (2026-09-10)
 
 Documentation-only session. E3B researched Proton Drive as the primary
@@ -7913,12 +7970,14 @@ behavior. The bullets below are otherwise unchanged by either decision and
 still describe what remains to design and build in E3:
 
 **Already implemented and verified, but only in isolation** — see the
-"BACKUP PRODUCER + DESTINATION ACCEPTANCE VERIFIED IN ISOLATION" Active State
-entry: the producer (snapshot, dump, validate, encrypt, bounded staging, run
-lock) and the destination acceptor both pass their full suites (56/56
-acceptance, 165/165 overall) against disposable temp filesystems. **The
-remaining work below is incomplete/unactivated — none of it has been run
-against a real host, and none of it is implied by the E1A policy decision:**
+"BACKUP PRODUCER + DESTINATION ACCEPTANCE VERIFIED IN ISOLATION" and "E3C2
+EXPLICIT PRODUCER CIPHERTEXT CEILING IMPLEMENTED" Active State entries: the
+producer (snapshot, dump, validate, encrypt, bounded staging, run lock,
+explicit ciphertext ceiling) and the destination acceptor both pass their
+full suites (56/56 acceptance, 179/179 overall) against disposable temp
+filesystems. **The remaining work below is incomplete/unactivated — none of
+it has been run against a real host, and none of it is implied by the E1A
+policy decision:**
 
 - transport (how an artifact actually leaves Hotel-Echo for Proton Drive and,
   opportunistically, the main PC) — not designed, not implemented;

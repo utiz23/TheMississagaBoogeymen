@@ -64,13 +64,26 @@
       "minFreeBytes guards the ext4 filesystem; backingVolume guards C: itself.",
       "maxPlaintextBytes / maxStagingBytes are hard ceilings, not size predictions:",
       "the observed ~27 MB custom-format dump of a 466 MB database is today's number,",
-      "not a guarantee. Raise them deliberately, together with the free-space floors."
+      "not a guarantee. Raise them deliberately, together with the free-space floors.",
+      "maxCiphertextBytes: 5368709120 (5 GiB) is an ALIGNED, EXPLICITLY NON-PRODUCTION",
+      "example, chosen to equal maxStagingBytes and the acceptor's example",
+      "acceptance.maxCiphertextBytes below (ops/backup/eanhl-backup-accept.example.json).",
+      "maxCiphertextBytes == maxStagingBytes here preserves this producer's pre-E3C2",
+      "effective ciphertext envelope and E1D's conservative example arithmetic — it grants",
+      "the ciphertext no more room than the aggregate staging ceiling already implied, but",
+      "it is NOT the least-exposure default; it is not the smallest possible producer",
+      "exposure. The least-exposure relationship is acceptance.maxCiphertextBytes ==",
+      "staging.maxCiphertextBytes: matching the acceptor's cap means nothing this producer",
+      "could publish is one the acceptor would refuse on size alone.",
+      "This is NOT an approved production ceiling — see docs/planning/",
+      "proton-drive-transport-feasibility.md U5 for what remains open."
     ],
     "root": "/var/tmp/eanhl-backup",
     "minFreeBytes": 2147483648,
     "backingVolume": { "mountPoint": "/mnt/c", "minFreeBytes": 5368709120 },
     "maxPlaintextBytes": 2147483648,
     "maxStagingBytes": 5368709120,
+    "maxCiphertextBytes": 5368709120,
     "shredPlaintext": true
   },
 

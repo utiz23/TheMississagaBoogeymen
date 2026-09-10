@@ -39,10 +39,22 @@
   },
 
   "acceptance": {
+    "_comment": [
+      "maxCiphertextBytes: 5368709120 (5 GiB) is an ALIGNED, EXPLICITLY NON-PRODUCTION example,",
+      "chosen to equal the producer's example staging.maxCiphertextBytes",
+      "(ops/backup/eanhl-backup.example.json), which is itself aligned to that producer's own",
+      "staging.maxStagingBytes for this non-production example (a separate, valid equality — see",
+      "that file's _comment). The least-exposure relationship is acceptance.maxCiphertextBytes ==",
+      "staging.maxCiphertextBytes: any larger acceptor value would accept ciphertexts the producer's",
+      "own contract does not currently permit it to publish, which is only appropriate with a",
+      "deliberate, documented migration or version-skew headroom decision (see",
+      "docs/operations/backup-acceptance.md). This is NOT an",
+      "approved production ceiling — see docs/planning/proton-drive-transport-feasibility.md U5."
+    ],
     "artifactPrefix": "eanhl-prod",
     "lockFile": "/home/utiz/backups/eanhl/private/accept.lock",
     "lockStaleAfterMs": 900000,
-    "maxCiphertextBytes": 268435456,
+    "maxCiphertextBytes": 5368709120,
     "maxManifestBytes": 1048576,
     "maxSidecarBytes": 4096,
     "maxArtifactsPerSweep": 8,

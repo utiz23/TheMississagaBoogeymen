@@ -103,25 +103,39 @@ ciphertext it claims
 `docs/operations/backup-producer.md` §7 requirement 1). Presence of files is
 explicitly *not* completion (`backup-producer.md:157`).
 
-**4.3 There is no ciphertext ceiling in the producer contract.** The producer
-enforces `staging.maxPlaintextBytes` on the dump
-([`backup-producer.mjs:1260`](../../ops/backup/lib/backup-producer.mjs#L1260))
-and derives the ciphertext allowance as
-`staging.maxStagingBytes - plaintextBytes`
-([`backup-producer.mjs:1292-1301`](../../ops/backup/lib/backup-producer.mjs#L1292-L1301)).
-With the current example values (`maxPlaintextBytes` 2 GiB,
+**4.3 There is no ciphertext ceiling in the producer contract.** _(as of this
+memo's writing, 2026-09-10 — see the RESOLVED note under §4.4)_ The producer
+enforced `staging.maxPlaintextBytes` on the dump — still true today, just at a
+shifted line after E3C2's helper insertion
+([`backup-producer.mjs:1299`](../../ops/backup/lib/backup-producer.mjs#L1299))
+— and derived the ciphertext allowance as
+`staging.maxStagingBytes - plaintextBytes`, a formula E3C2 removed and
+replaced (see below); that removed formula no longer exists at any current
+line, so it is cited at the pre-E3C2 baseline commit instead
+([`backup-producer.mjs:1292-1301` at baseline `da337335`](https://github.com/utiz23/TheMississagaBoogeymen/blob/da337335bb321c981c57643cdf85a2c275aabc7d/ops/backup/lib/backup-producer.mjs#L1292-L1301)).
+With the then-current example values (`maxPlaintextBytes` 2 GiB,
 `maxStagingBytes` 5 GiB, `ops/backup/eanhl-backup.example.json`), a published
-ciphertext is bounded only by *just under 5 GiB* — the config validator merely
-requires `maxStagingBytes > maxPlaintextBytes`
-([`backup-config.mjs:245-250`](../../ops/backup/lib/backup-config.mjs#L245-L250)).
+ciphertext was bounded only by _just under 5 GiB_ — the config validator
+merely required `maxStagingBytes > maxPlaintextBytes`, unchanged in content
+and still present today, just at a shifted line
+([`backup-config.mjs:251-256`](../../ops/backup/lib/backup-config.mjs#L251-L256)).
+**E3C2 added the missing explicit `staging.maxCiphertextBytes` ceiling; see the
+RESOLVED note under §4.4.**
 
-**4.4 The acceptor's ciphertext ceiling is 256 MiB.**
-`acceptance.maxCiphertextBytes` is `268435456` in
+**4.4 The acceptor's ciphertext ceiling is 256 MiB.** _(as of this memo's
+writing, 2026-09-10 — see the RESOLVED note below)_
+`acceptance.maxCiphertextBytes` was `268435456` in
 `ops/backup/eanhl-backup-accept.example.json`, with `maxManifestBytes`
 1 MiB and `maxSidecarBytes` 4096. **The proposed producer and the proposed
-acceptor configurations disagree by roughly a factor of 20.** Neither is a
-finalized production value; both are examples. This mismatch is unresolved and
-belongs to E3.
+acceptor configurations disagreed by roughly a factor of 20.** Neither was a
+finalized production value; both were examples.
+
+**RESOLVED (E3C2, same day, later session): the contract-shape mismatch is
+closed.** The producer gained an explicit, required `staging.maxCiphertextBytes`
+(`docs/operations/backup-producer.md` §2.7, §6.6a); both example configs are
+now aligned at `5368709120` (5 GiB) — still explicitly non-production examples,
+not an approved ceiling. **What remains open is the real production numeric
+value**, which is unrelated to the contract shape and is tracked at U5 below.
 
 **4.5 The existing acceptor is a POSIX-filesystem component, not a cloud
 client.** It opens inbox sources once with `O_NOFOLLOW`, reads payload bytes
@@ -602,3 +616,63 @@ destination acceptance are verified in isolation only, and production
 transport/integration, key custody, scheduling, monitoring, retention,
 deployment, and restore drilling have not started or completed. E3 remains
 incomplete and unactivated; no Gate checkbox changed.**
+
+---
+
+## 14. E3C2 update (2026-09-10, later same-day session): contract shape resolved
+
+A later implementation session (E3C2, following the contract-shape decision in
+E3C1B) closed the **contract-shape** half of U5 and the §4.3/§4.4 mismatch this
+memo recorded. **This update does not reopen or redo the research above; it
+records what changed in the repository afterward, and is intentionally
+narrow.**
+
+**What E3C2 did:**
+
+- Added a required `staging.maxCiphertextBytes` to the producer's configuration
+  contract (`ops/backup/lib/backup-config.mjs`), validated as a positive safe
+  integer with `staging.maxCiphertextBytes <= staging.maxStagingBytes`
+  (equality valid — it preserves the producer's own pre-E3C2 effective
+  ciphertext envelope; it is not the least-exposure default, see below).
+- Changed the producer's runtime ciphertext budget from
+  `staging.maxStagingBytes - plaintextBytes` alone to
+  `Math.min(stagingRemainder, staging.maxCiphertextBytes)`, still enforced on
+  the encryption output stream (the crossing chunk is dropped, never written),
+  with the aggregate `maxStagingBytes` check retained and a new,
+  cap-specific post-write defence-in-depth assertion added
+  (`docs/operations/backup-producer.md` §2.7, §6.6, §6.6a).
+- Aligned both example configurations at `staging.maxCiphertextBytes` /
+  `acceptance.maxCiphertextBytes` = `5368709120` (5 GiB) — explicitly
+  **non-production** examples. `acceptance.maxCiphertextBytes ==
+  staging.maxCiphertextBytes` is the actual least-exposure default (any larger
+  acceptor value accepts ciphertexts the producer cannot currently publish).
+  `staging.maxCiphertextBytes == staging.maxStagingBytes` is a separate,
+  independently valid equality chosen to preserve the producer's pre-E3C2
+  effective envelope and E1D's conservative example arithmetic — it is not the
+  smallest possible producer exposure, just the value already implied by the
+  aggregate staging ceiling. Neither alignment reflects 5 GiB having been
+  evaluated as a real production figure. E1D's ≈350 GiB conservative retention
+  arithmetic (§ above) is unchanged by this — it was already keyed to a 5
+  GiB-per-point example.
+- Added focused test coverage in `ops/backup/lib/backup-config.test.mjs` and
+  `ops/backup/lib/backup-producer.test.mjs` for the new field's validation and
+  for both ceilings' binding behaviour (which one is tighter, which one is
+  reported, and the new post-write assertion), verified locally against the
+  full `pnpm test:backup-producer` suite (179/179 pass, up from 165/165). The
+  final two producer additions came from the E3C3/E3C4 diagnostic-correction
+  pass: the post-write defence-in-depth remediation text was corrected to
+  stop recommending a ceiling increase for what is, by construction, an
+  unreachable bounded-writer/invariant defect, and the injected-boundary
+  regression tests were tightened to assert that correction.
+
+**What is still open, unchanged by E3C2 — this is precisely U5's remaining
+half:** the *real* production `staging.maxCiphertextBytes` and
+`acceptance.maxCiphertextBytes` values. Settling that requires a measured
+production dump/ciphertext series, a growth allowance, Proton-side provider
+headroom, and an accounting for competing quota usage — none of which E3C2
+performed or was authorized to perform. **E3 remains verified in isolation
+only and unactivated.** No Proton, Hotel-Echo, or main-PC action occurred; no
+authentication, key generation, deployment, scheduling, retention/pruning,
+restore drill, or tunnel action occurred; nothing was committed or pushed; no
+Gate checkbox changed. See `HANDOFF.md`'s E3C2 Active State entry for the full
+verification record.

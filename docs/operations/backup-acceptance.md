@@ -377,6 +377,33 @@ rather than assumed away — see §6.1.
 The ciphertext is only ever hashed by streaming (`deps.sha256File`); no artifact
 is held in memory in one piece.
 
+#### The deployment invariant against the producer's own ciphertext ceiling
+
+`acceptance.maxCiphertextBytes` (here) and the producer's
+`staging.maxCiphertextBytes` (`docs/operations/backup-producer.md` §2.7,
+§6.6a) are configured independently on different hosts; neither component
+reads the other's value. The required relationship is
+`acceptance.maxCiphertextBytes >= staging.maxCiphertextBytes`, and the
+**least-exposure default is equality** — the shipped examples
+(`ops/backup/eanhl-backup-accept.example.json` and
+`ops/backup/eanhl-backup.example.json`) are deliberately aligned at
+`5368709120` (5 GiB) for exactly this reason, and are explicitly
+**non-production** example values, not an approved production ceiling.
+
+A larger acceptor value than the producer's is not free even when compatible:
+it raises this component's own per-artifact capacity reservation (the table
+above), worst-case sweep workspace occupancy (capacity is checked **per
+artifact**, never pre-reserved as `maxArtifactsPerSweep × ceiling`, but
+earlier accepted artifacts' work copies are not removed until the whole
+sweep's own cleanup runs — see `acceptOneArtifact`/sweep `finally` — so actual
+worst-case occupancy across a backlog sweep can approach that multiplication),
+accepted-input exposure, and unbounded quarantine/storage-DoS exposure. Any
+such gap must be a deliberate, documented migration or version-skew headroom
+decision, never the unnoticed result of editing one host's config and not the
+other's. See `docs/operations/backup-producer.md` §6.6a for the full
+accounting and `docs/planning/proton-drive-transport-feasibility.md` (§9, U5)
+for the real production ceiling, which remains open.
+
 ### 2.9 Exclusion and interruption
 
 The acceptance lock is `O_CREAT|O_EXCL` and **nothing ever unlinks a lock it did

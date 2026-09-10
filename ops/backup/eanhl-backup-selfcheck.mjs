@@ -276,6 +276,7 @@ try {
       backingVolume: null,
       maxPlaintextBytes: 512 * 1024 * 1024,
       maxStagingBytes: 1024 * 1024 * 1024,
+      maxCiphertextBytes: 1024 * 1024 * 1024,
       shredPlaintext: true,
     },
     destination: { dir: path.join(workDir, 'dest'), minFreeBytes: 1_048_576, backingVolume: null },
@@ -586,6 +587,7 @@ try {
         backingVolume: null,
         maxPlaintextBytes: 536870912,
         maxStagingBytes: 1073741824,
+        maxCiphertextBytes: 1073741824,
         shredPlaintext: true,
       },
       destination: {
