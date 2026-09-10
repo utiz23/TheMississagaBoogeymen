@@ -409,6 +409,84 @@ launch scope and it is not allowed to hold the terminal gate hostage.
 
 ## Active State
 
+### 🟡 E3B2 PROTON TRANSPORT FEASIBILITY RESEARCH CORRECTED AND RECORDED — provider research only, no architecture approved; E3 still unactivated (2026-09-10)
+
+Documentation-only session. E3B researched Proton Drive as the primary
+off-host backup destination decided in E1A but never wrote its report into
+the repository; E3B2 corrected that research against official Proton
+documentation and this tree, and recorded it as
+[`docs/planning/proton-drive-transport-feasibility.md`](docs/planning/proton-drive-transport-feasibility.md).
+**This is provider feasibility research, not architecture approval — no
+transport design is selected, and E3 remains unactivated.**
+
+**Nothing was done to any provider, host, key, or deployment.** No Proton
+account was accessed, created, or authenticated; no Proton object was
+uploaded, downloaded, listed, shared, trashed, or deleted; no Proton setting
+was read or changed; neither Hotel-Echo nor the main PC was accessed; no
+software was installed or downloaded; no key was generated or touched;
+nothing was deployed, scheduled, or activated. No code, configuration,
+example JSON, test, dependency, or provider setting changed, and **no Gate
+checkbox changed**. The tunnel was not reopened and remains separately
+unauthorized.
+
+**Provenance gap recorded.** The E3B report is not in this repository and was
+not supplied to the E3B2 session as a document, and neither E3A nor E3B has an
+Active State entry of its own. The memo is therefore the repository's first and only record of
+E3B, and it marks every reconstructed E3B claim as such.
+
+**Fourteen corrections applied** (detail in the memo, §6-§7). The load-bearing
+ones: an authenticated Proton experiment involving upload, conflict, trash,
+deletion, or quota change is **mutating**, requiring separate authorization
+plus operator-assisted authentication; cloud acceptance must read back and
+verify the **complete triple** (ciphertext + `.sha256` sidecar + manifest, with
+both hash bindings), not ciphertext alone; **E1D's conservative ~5 GiB per
+retained point stands and the proposed 140 GiB worst case is rejected** —
+`staging.maxPlaintextBytes` bounds the dump, while the ciphertext allowance is
+`maxStagingBytes - plaintextBytes`, and the 2 GiB producer plaintext versus
+256 MiB acceptor ciphertext example mismatch is recorded as unresolved;
+unattended use of the CLI's `pass` credential backend is **unverified** (Proton
+documents the storage, not reboot unlocking, session TTL, or non-interactive
+expiry) and the design space is not limited to passphrase-less GPG versus
+manual unlock; official prebuilt CLI binaries are **standalone with Bun
+embedded** (Bun ≥ 1.3.14 is a source-build requirement); "Proton provides no
+scoped credential" is narrowed to **no documented append-only, folder-scoped,
+or service-account credential**; Proton officially documents that **Editor
+uploads consume the owner's quota** and that Editors may delete/rename only
+their own uploads, so a dedicated uploader is promising but unproven and **not
+immutable**; ext4 inside main-PC WSL is **not chosen** (the recorded WSL
+`df` trap — 945 GB reported on `/` against 21.08 GB actually backing it —
+makes the storage design unresolved pending evidence); main-PC verification is
+**opportunistic under E1A and cannot gate Proton freshness**; remote
+retention/pruning stays **blocked** until permanent-delete, empty-trash,
+version-history, quota reporting, and delayed quota release are proven;
+source-side readback evidence is a **"cloud attestation," never a "receipt"**
+(that name is already bound to the acceptor's `<base>.receipt.json`); remote
+artifacts must use **unique immutable names — no mutable `latest.json`**; and
+the existing filesystem acceptor **remains potentially reusable for the
+main-PC secondary path**, subject to real filesystem and permission proof.
+
+**Also recorded as an official finding, scope corrected:** the "not yet ready
+for third-party production use" warning applies to the Proton Drive SDK as
+something a third-party application would embed directly — it does not
+characterize the official Proton Drive CLI, a released first-party client
+Proton positions for scripts, backup jobs, and cron, as pre-release. The
+preserved risk is narrower: Proton documents a cryptographic-model migration
+planned for end 2026 / early 2027, after which older clients implementing only
+the previous cryptography will require an upgrade — reframed as official-CLI
+maturity/change risk requiring mandatory ongoing compatibility monitoring, not
+a claim that the CLI is unsupported for production automation.
+
+**The memo also carries** eleven ranked unknowns, a minimal bounded Proton
+scratch-experiment protocol with an exact mutation scope and mandatory cleanup
+expectations (synthetic data only, ≤ 512 MiB, one scratch folder, operator-
+performed browser auth, quota re-measured at +0/+1 h/+3 h/+24 h) for a later
+**separately authorized** session, the operator decisions that should stay
+deferred until that evidence exists, and direct official source links.
+
+**Files changed by this session:** `docs/planning/proton-drive-transport-feasibility.md`
+(new) and `HANDOFF.md` (this entry only). Nothing was staged, committed, or
+pushed.
+
 ### 🟡 E2A OPERATOR DECISIONS RECORDED — E2 now IN PROGRESS; none of the four Gate 2 legal drafts is written (2026-09-08)
 
 The operator reviewed the open E2 legal/policy questions and made the
